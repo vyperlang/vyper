@@ -93,6 +93,15 @@ def _check_iterator_assign(
     return None
 
 
+def _validate_revert_reason(msg_node: vy_ast.VyperNode) -> None:
+    if msg_node:
+        if isinstance(msg_node, vy_ast.Str):
+            if not msg_node.value.strip():
+                raise StructureException("Reason string cannot be empty", msg_node)
+        elif not (isinstance(msg_node, vy_ast.Name) and msg_node.id == "UNREACHABLE"):
+            raise InvalidType("Reason must UNREACHABLE or a string literal", msg_node)
+
+
 class FunctionNodeVisitor(VyperNodeVisitorBase):
 
     ignored_types = (
@@ -173,18 +182,12 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         target.validate_modification(node)
 
     def visit_Raise(self, node):
-        if not node.exc:
-            raise StructureException("Raise must have a reason", node)
-        if not isinstance(node.exc, vy_ast.Str) or len(node.exc.value) > 32:
-            raise InvalidType("Reason must be a string of 32 characters or less", node.exc)
+        if node.exc:
+            _validate_revert_reason(node.exc)
 
     def visit_Assert(self, node):
         if node.msg:
-            if isinstance(node.msg, vy_ast.Str):
-                if not node.msg.value.strip():
-                    raise StructureException("Reason string cannot be empty", node.msg)
-            elif not (isinstance(node.msg, vy_ast.Name) and node.msg.id == "UNREACHABLE"):
-                raise InvalidType("Reason must UNREACHABLE or a string literal", node.msg)
+            _validate_revert_reason(node.msg)
 
         try:
             validate_expected_type(node.test, BoolDefinition())

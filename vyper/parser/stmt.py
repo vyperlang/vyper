@@ -54,10 +54,6 @@ class Stmt:
         else:
             raise StructureException(f"Unsupported statement type: {type(self.stmt)}", self.stmt)
 
-    def parse_Raise(self):
-        if self.stmt.exc:
-            return self._assert_reason(0, self.stmt.exc)
-
     def parse_AnnAssign(self):
         with self.context.assignment_scope():
             typ = parse_type(
@@ -200,6 +196,12 @@ class Stmt:
             return self._assert_reason(test_expr, self.stmt.msg)
         else:
             return LLLnode.from_list(["assert", test_expr], typ=None, pos=getpos(self.stmt))
+
+    def parse_Raise(self):
+        if self.stmt.exc:
+            return self._assert_reason(0, self.stmt.exc)
+        else:
+            return LLLnode.from_list(["assert", 0], typ=None, pos=getpos(self.stmt))
 
     def _check_valid_range_constant(self, arg_ast_node, raise_exception=True):
         with self.context.range_scope():
