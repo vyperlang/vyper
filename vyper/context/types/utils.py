@@ -1,6 +1,5 @@
-from typing import Dict
-
 import enum
+from typing import Dict
 
 from vyper import ast as vy_ast
 from vyper.context.namespace import get_namespace
@@ -78,7 +77,11 @@ def get_type_from_abi(
             raise UnknownType(f"ABI contains unknown type: {type_string}") from None
         try:
             return ArrayDefinition(
-                value_type, length, location=location, is_immutable=is_immutable, is_public=is_public
+                value_type,
+                length,
+                location=location,
+                is_immutable=is_immutable,
+                is_public=is_public,
             )
         except InvalidType:
             raise UnknownType(f"ABI contains unknown type: {type_string}") from None

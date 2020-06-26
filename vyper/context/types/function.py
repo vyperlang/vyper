@@ -39,7 +39,7 @@ class StateMutability(StringEnum):
     PAYABLE = StringEnum.auto()
 
     @classmethod
-    def from_abi(cls, abi_dict) -> "StateMutability":
+    def from_abi(cls, abi_dict: Dict) -> "StateMutability":
         """
         Extract stateMutability from an entry in a contract's ABI
         """
