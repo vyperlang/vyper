@@ -120,7 +120,6 @@ class SyntaxException(VyperException):
         item.lineno = lineno
         item.col_offset = col_offset
         item.full_source_code = source_code
-        print("got this far")
         super().__init__(message, item)
 
 
