@@ -1,3 +1,4 @@
+import warnings
 from collections import OrderedDict
 from typing import Any, Dict, Optional, Tuple, Union
 
@@ -185,6 +186,12 @@ class ContractFunctionType(BaseTypeDefinition):
                 elif decorator.id == "view":
                     kwargs["is_constant"] = True
                 else:
+                    if decorator.id == "constant":
+                        warnings.warn(
+                            "'@constant' decorator has been removed (see VIP2040). "
+                            "Use `@view` instead.",
+                            DeprecationWarning,
+                        )
                     raise FunctionDeclarationException(
                         f"Unknown decorator: {decorator.id}", decorator
                     )
