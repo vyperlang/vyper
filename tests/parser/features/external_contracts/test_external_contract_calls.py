@@ -277,9 +277,10 @@ def _expr(x: address) -> int128:
     c2 = get_contract(contract_2)
 
     c2._stmt(c1.address)
-    c2._expr(c1.address)
-    assert_tx_failed(lambda: c2._stmt(c2.address))
-    assert_tx_failed(lambda: c2._expr(c2.address))
+    c2._stmt(c2.address)
+
+    assert c2._expr(c1.address) == 1
+    assert c2._expr(c2.address) == 1
 
 
 def test_invalid_nonexistent_contract_call(w3, assert_tx_failed, get_contract):

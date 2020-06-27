@@ -54,9 +54,16 @@ Function calls can happen internally or externally and have different levels of 
 Public Functions
 ----------------
 
-Public functions (decorated with ``@public``) are a part of the contract interface and may be called via transactions or from other contracts. They cannot be called internally.
 
-Public functions in Vyper are equivalent to external functions in Solidity.
+Public functions (decorated with ``@public``) are a part of the contract interface and may be called via transactions or from other contracts. Public functions in Vyper are equivalent to external functions in Solidity.
+
+.. code-block:: python
+
+    @public
+    def add_seven(a: int128) -> int128:
+        return a + 7
+
+A vyper contract cannot call directly between two public functions. If you must do this, you can use an :ref:`interface <contract_structure-interfaces>`.
 
 .. _structure-functions-private:
 
@@ -291,6 +298,8 @@ file should also be produced and should look like this:
       "title" : "A simulator for Bug Bunny, the most famous Rabbit"
     }
 
+.. _contract_structure-interfaces:
+
 Contract Interfaces
 ===================
 
@@ -362,7 +371,7 @@ Imported interfaces are written using standard Vyper syntax, with the body of ea
     def calculate() -> uint256:
         pass
 
-You can also import a fully implemented contract and Vyper will automatically convert it to an interface.
+You can also import a fully implemented contract and Vyper will automatically convert it to an interface. It is even possible for a contract to import itself to gain access to it's own interface.
 
 Imports via ``import``
 **********************

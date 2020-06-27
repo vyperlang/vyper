@@ -316,7 +316,7 @@ def foo() -> uint256:
     assert global_compiled == local_compiled
 
 
-def test_self_interface_cannot_compile(assert_compile_failed):
+def test_self_interface_is_allowed(get_contract):
     code = """
 interface Bar:
     def foo() -> uint256: view
@@ -329,10 +329,11 @@ def foo() -> uint256 :
 def bar() -> uint256:
     return Bar(self).foo()
 """
-    assert_compile_failed(lambda: compile_code(code), StructureException)
+    c = get_contract(code)
+    assert c.bar() == 42
 
 
-def test_self_interface_via_storage_raises(get_contract, assert_tx_failed):
+def test_self_interface_via_storage(get_contract):
     code = """
 interface Bar:
     def foo() -> uint256: view
@@ -352,10 +353,10 @@ def bar() -> uint256:
     return self.bar_contract.foo()
     """
     c = get_contract(code)
-    assert_tx_failed(lambda: c.bar())
+    assert c.bar() == 42
 
 
-def test_self_interface_via_calldata_raises(get_contract, assert_tx_failed):
+def test_self_interface_via_calldata(get_contract):
     code = """
 interface Bar:
     def foo() -> uint256: view
@@ -369,7 +370,7 @@ def bar(a: address) -> uint256:
     return Bar(a).foo()
     """
     c = get_contract(code)
-    assert_tx_failed(lambda: c.bar(c.address))
+    assert c.bar(c.address) == 42
 
 
 type_str_params = [
