@@ -212,8 +212,9 @@ class FunctionSignature:
         nonreentrant_key = ""
 
         # Update function properties from decorators
+        # NOTE: Can't import enums here because of circular import
         for dec in code.decorator_list:
-            if isinstance(dec, vy_ast.Name) and dec.id == "view":
+            if isinstance(dec, vy_ast.Name) and dec.id in ("view", "pure"):
                 const = True
             elif isinstance(dec, vy_ast.Name) and dec.id == "payable":
                 payable = True
