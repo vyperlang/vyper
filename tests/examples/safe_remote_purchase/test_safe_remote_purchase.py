@@ -104,8 +104,8 @@ def test_received_reentrancy(w3, get_contract, assert_tx_failed, get_balance, co
     buyer_contract_code = """
 interface PurchaseContract:
 
-    def received(): modifying
-    def purchase(): modifying
+    def received(): nonpayable
+    def purchase(): nonpayable
     def unlocked() -> bool: view
 
 purchase_contract: PurchaseContract

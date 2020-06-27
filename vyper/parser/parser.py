@@ -71,7 +71,7 @@ def parse_external_interfaces(external_interfaces, global_ctx):
                 and isinstance(_def.body[0], vy_ast.Expr)
                 and isinstance(_def.body[0].value, vy_ast.Name)
                 # NOTE: Can't import enums here because of circular import
-                and _def.body[0].value.id in ("modifying", "view", "pure", "payable")
+                and _def.body[0].value.id in ("pure", "view", "nonpayable", "payable")
             ):
                 constant = True if _def.body[0].value.id in ("view", "pure") else False
             else:

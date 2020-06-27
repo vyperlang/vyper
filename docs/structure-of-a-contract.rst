@@ -307,7 +307,7 @@ The ``interface`` keyword is used to define an inline external interface:
 
     interface FooBar:
         def calculate() -> uint256: view
-        def test1(): modifying
+        def test1(): nonpayable
 
 The defined interface can then be use to make external calls, given a contract address:
 
@@ -331,13 +331,13 @@ The interface name can also be used as a type annotation for storage variables. 
     def test():
         self.foobar_contract.calculate()
 
-Specifying ``modifying`` annotation indicates that the call made to the external contract will be able to alter storage, whereas the ``view`` ``pure`` call will use a ``STATICCALL`` ensuring no storage can be altered during execution.
+Specifying ``nonpayable`` annotation indicates that the call made to the external contract will be able to alter storage, whereas the ``view`` ``pure`` call will use a ``STATICCALL`` ensuring no storage can be altered during execution.
 
 .. code-block:: python
 
     interface FooBar:
         def calculate() -> uint256: view
-        def test1(): modifying
+        def test1(): nonpayable
 
     @public
     def test(some_address: address):
@@ -460,8 +460,8 @@ If you want to do an external call to another contract, vyper provides an extern
     interface Ballot:
         def delegated(addr: address) -> bool: view
         def directlyVoted(addr: address) -> bool: view
-        def giveRightToVote(voter: address): modifying
-        def forwardWeight(delegate_with_weight_to_forward: address): modifying
+        def giveRightToVote(voter: address): nonpayable
+        def forwardWeight(delegate_with_weight_to_forward: address): nonpayable
         # ...
 
 The output can then easily be copy-pasted to be consumed.

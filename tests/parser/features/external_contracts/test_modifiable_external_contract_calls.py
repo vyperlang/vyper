@@ -12,7 +12,7 @@ def set_lucky(_lucky: int128):
 
     contract_2 = """
 interface ModBar:
-    def set_lucky(_lucky: int128): modifying
+    def set_lucky(_lucky: int128): nonpayable
 
 interface ConstBar:
     def set_lucky(_lucky: int128): view
@@ -55,7 +55,7 @@ def set_lucky(_lucky: int128) -> int128:
 
     contract_2 = """
 interface ModBar:
-    def set_lucky(_lucky: int128) -> int128: modifying
+    def set_lucky(_lucky: int128) -> int128: nonpayable
 
 interface ConstBar:
     def set_lucky(_lucky: int128) -> int128: view
@@ -98,7 +98,7 @@ def set_lucky(_lucky: int128):
 
     contract_2 = """
 interface ModBar:
-    def set_lucky(_lucky: int128): modifying
+    def set_lucky(_lucky: int128): nonpayable
 
 interface ConstBar:
     def set_lucky(_lucky: int128): view
@@ -122,8 +122,8 @@ def static_set_lucky(_lucky: int128):
 
     contract_3 = """
 interface ModBar:
-    def modifiable_set_lucky(_lucky: int128): modifying
-    def static_set_lucky(_lucky: int128): modifying
+    def modifiable_set_lucky(_lucky: int128): nonpayable
+    def static_set_lucky(_lucky: int128): nonpayable
 
 interface ConstBar:
     def modifiable_set_lucky(_lucky: int128): view
@@ -230,7 +230,7 @@ modifiable_bar_contract: Bar
 def test_invalid_if_not_in_valid_global_keywords(get_contract, assert_compile_failed):
     code = """
 interface Bar:
-    def set_lucky(_lucky: int128): modifying
+    def set_lucky(_lucky: int128): nonpayable
 
 modifiable_bar_contract: trusted(Bar)
     """

@@ -2,7 +2,7 @@ from vyper.interfaces import ERC20
 
 
 interface Factory:
-    def register(): modifying
+    def register(): nonpayable
 
 
 token: public(address)

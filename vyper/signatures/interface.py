@@ -172,7 +172,7 @@ def extract_external_interface(global_ctx, contract_name):
             out += f"\n# External Interfaces\ninterface {cname}:\n"
         if not func.private and func.name != "__init__":
             args = ", ".join([arg.name + ": " + str(arg.typ) for arg in func.args])
-            func_type = "view" if func.const else "modifying"
+            func_type = "view" if func.const else "nonpayable"
             out += offset + f"def {func.name}({args}){render_return(func)}: {func_type}\n"
     out += "\n"
     return out

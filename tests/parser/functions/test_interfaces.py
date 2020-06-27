@@ -56,7 +56,7 @@ def _prive(_owner: address, _spender: address) -> (uint256, uint256):
 # External Interfaces
 interface One:
     def allowance(_owner: address, _spender: address) -> (uint256, uint256): view
-    def test(_owner: address): modifying
+    def test(_owner: address): nonpayable
     """
 
     out = compile_codes({"one.vy": code}, ["external_interface"])["one.vy"]

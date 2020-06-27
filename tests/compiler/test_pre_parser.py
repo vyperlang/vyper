@@ -40,7 +40,7 @@ def bar() -> int128:
 
     contract_2 = """
 interface Bar:
-    def bar() -> int128: modifying
+    def bar() -> int128: nonpayable
 
 bar_contract: Bar
 
