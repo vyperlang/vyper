@@ -359,6 +359,9 @@ class ContractFunctionType(BaseTypeDefinition):
             kwarg_keys += ["gas", "value"]
         validate_call_args(node, self.arg_count, kwarg_keys)
 
+        if "value" in [k.arg for k in node.keywords] and self.mutability < StateMutability.PAYABLE:
+            raise CallViolation("Cannnot call nonpayable functions with 'value' set", node)
+
         for arg, expected in zip(node.args, self.arguments.values()):
             validate_expected_type(arg, expected)
 

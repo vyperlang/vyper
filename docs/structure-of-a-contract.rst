@@ -331,18 +331,22 @@ The interface name can also be used as a type annotation for storage variables. 
     def test():
         self.foobar_contract.calculate()
 
-Specifying ``nonpayable`` annotation indicates that the call made to the external contract will be able to alter storage, whereas the ``view`` ``pure`` call will use a ``STATICCALL`` ensuring no storage can be altered during execution.
+Specifying ``payable`` or ``nonpayable`` annotation indicates that the call made to the external contract will be able to alter storage, whereas the ``view`` ``pure`` call will use a ``STATICCALL`` ensuring no storage can be altered during execution. Additionally, ``payable`` allows non-zero value to be sent along with the call.
 
 .. code-block:: python
 
     interface FooBar:
-        def calculate() -> uint256: view
-        def test1(): nonpayable
+        def calculate() -> uint256: pure
+        def query() -> uint256: view
+        def update(): nonpayable
+        def pay(): payable
 
     @public
     def test(some_address: address):
         FooBar(some_address).calculate()  # cannot change storage
-        FooBar(some_address).test1()  # storage can be altered
+        FooBar(some_address).query()  # cannot change storage, but reads itself
+        FooBar(some_address).update()  # storage can be altered
+        FooBar(some_address).pay(value=1)  # storage can be altered, and value can be sent
 
 
 Importing Interfaces

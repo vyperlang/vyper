@@ -521,7 +521,7 @@ def get_balance() -> uint256:
 
     contract_2 = """
 interface Bar:
-    def get_lucky() -> int128: nonpayable
+    def get_lucky() -> int128: payable
 
 bar_contract: Bar
 
@@ -677,7 +677,7 @@ def get_balance() -> uint256:
 
     contract_2 = """
 interface Bar:
-    def get_lucky() -> int128: nonpayable
+    def get_lucky() -> int128: payable
 
 bar_contract: Bar
 
