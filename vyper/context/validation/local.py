@@ -193,7 +193,9 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         target = get_exact_type_from_node(node.target)
         validate_expected_type(node.value, target)
         if self.func.mutability <= StateMutability.VIEW and target.location == DataLocation.STORAGE:
-            raise StateAccessViolation("Cannot modify storage in a pure or view function", node)
+            raise StateAccessViolation(
+                f"Cannot modify storage in a {self.func.mutability.value} function", node
+            )
         target.validate_modification(node)
 
     def visit_AugAssign(self, node):
@@ -202,7 +204,9 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         target = get_exact_type_from_node(node.target)
         validate_expected_type(node.value, target)
         if self.func.mutability <= StateMutability.VIEW and target.location == DataLocation.STORAGE:
-            raise StateAccessViolation("Cannot modify storage in a pure or view function", node)
+            raise StateAccessViolation(
+                f"Cannot modify storage in a {self.func.mutability.value} function", node
+            )
         target.validate_modification(node)
 
     def visit_Raise(self, node):
