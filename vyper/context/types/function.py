@@ -246,7 +246,7 @@ class ContractFunctionType(BaseTypeDefinition):
 
         if "state_mutability" not in kwargs:
             # Assume nonpayable if not set at all (cannot accept Ether, but can modify state)
-            kwargs["state_mutability"] = StateMutability("nonpayable")
+            kwargs["state_mutability"] = StateMutability.NONPAYABLE
 
         # call arguments
         arg_count: Union[Tuple[int, int], int] = len(node.args.args)
