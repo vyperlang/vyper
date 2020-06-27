@@ -2,6 +2,7 @@ import pytest
 
 from vyper import ast as vy_ast
 from vyper.ast import folding
+from vyper.exceptions import OverflowException
 
 
 def test_integration():
@@ -29,6 +30,30 @@ def test_replace_binop_nested():
     folding.replace_literal_ops(test_ast)
 
     assert vy_ast.compare_nodes(test_ast, expected_ast)
+
+
+def test_replace_binop_nested_intermediate_overflow():
+    test_ast = vy_ast.parse_to_ast("2**255 * 2 / 10")
+    with pytest.raises(OverflowException):
+        folding.fold(test_ast)
+
+
+def test_replace_binop_nested_intermediate_underflow():
+    test_ast = vy_ast.parse_to_ast("-2**255 * 2 - 10 + 100")
+    with pytest.raises(OverflowException):
+        folding.fold(test_ast)
+
+
+def test_replace_decimal_nested_intermediate_overflow():
+    test_ast = vy_ast.parse_to_ast("170141183460469231731687303715884105726.0 + 1.1 - 10.0")
+    with pytest.raises(OverflowException):
+        folding.fold(test_ast)
+
+
+def test_replace_decimal_nested_intermediate_underflow():
+    test_ast = vy_ast.parse_to_ast("-170141183460469231731687303715884105726.0 - 2.1 + 10.0")
+    with pytest.raises(OverflowException):
+        folding.fold(test_ast)
 
 
 def test_replace_literal_ops():
