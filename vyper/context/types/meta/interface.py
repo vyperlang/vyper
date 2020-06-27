@@ -167,7 +167,7 @@ def _get_class_functions(base_node: vy_ast.InterfaceDef) -> OrderedDict:
                 node.body[0] if node.body else node,
             )
 
-        is_immutable = StateMutability(visibility) in (StateMutability.PURE, StateMutability.VIEW)
+        is_immutable = StateMutability(visibility) < StateMutability.NONPAYABLE
         fn = ContractFunctionType.from_FunctionDef(node, is_immutable=is_immutable, is_public=True)
         functions[node.name] = fn
 

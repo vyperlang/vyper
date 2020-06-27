@@ -192,10 +192,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             raise StructureException("Right-hand side of assignment cannot be a tuple", node.value)
         target = get_exact_type_from_node(node.target)
         validate_expected_type(node.value, target)
-        if (
-            self.func.mutability in (StateMutability.PURE, StateMutability.VIEW)
-            and target.location == DataLocation.STORAGE
-        ):
+        if self.func.mutability <= StateMutability.VIEW and target.location == DataLocation.STORAGE:
             raise StateAccessViolation("Cannot modify storage in a pure or view function", node)
         target.validate_modification(node)
 
@@ -204,10 +201,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             raise StructureException("Right-hand side of assignment cannot be a tuple", node.value)
         target = get_exact_type_from_node(node.target)
         validate_expected_type(node.value, target)
-        if (
-            self.func.mutability in (StateMutability.PURE, StateMutability.VIEW)
-            and target.location == DataLocation.STORAGE
-        ):
+        if self.func.mutability <= StateMutability.VIEW and target.location == DataLocation.STORAGE:
             raise StateAccessViolation("Cannot modify storage in a pure or view function", node)
         target.validate_modification(node)
 
@@ -383,21 +377,16 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             raise StructureException("To call an event you must use the `log` statement", node)
 
         if isinstance(fn_type, ContractFunctionType):
-            if self.func.mutability is StateMutability.VIEW and fn_type.mutability not in (
-                StateMutability.VIEW,
-                StateMutability.PURE,
+            if (
+                self.func.mutability is StateMutability.VIEW
+                and fn_type.mutability > StateMutability.VIEW
             ):
                 raise StateAccessViolation(
                     "Cannot call a mutating function from a view function", node
                 )
 
-            if (
-                self.func.mutability is StateMutability.PURE
-                and fn_type.mutability is not StateMutability.PURE
-            ):
-                raise StateAccessViolation(
-                    "Cannot call a stateful function from a pure function", node
-                )
+            if self.func.mutability is StateMutability.PURE:
+                raise StateAccessViolation("Cannot call a function from a pure function", node)
 
         return_value = fn_type.fetch_call_return(node.value)
         if return_value and not isinstance(fn_type, ContractFunctionType):
