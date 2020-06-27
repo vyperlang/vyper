@@ -163,7 +163,7 @@ def _get_class_functions(base_node: vy_ast.InterfaceDef) -> OrderedDict:
         if len(node.body) != 1 or not StateMutability.is_valid_value(visibility):
             raise StructureException(
                 "Interface function state mutability must be set as one of: "
-                f"{', '.join(v.value for v in list(StateMutability))}",
+                f"{', '.join(StateMutability.values())}",
                 node.body[0] if node.body else node,
             )
 

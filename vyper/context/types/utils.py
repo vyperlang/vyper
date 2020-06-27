@@ -40,6 +40,10 @@ class StringEnum(enum.Enum):
     def options(cls) -> List["StringEnum"]:
         return list(cls)
 
+    @classmethod
+    def values(cls) -> List[str]:
+        return [v.value for v in cls.options()]
+
     # Comparison operations
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, self.__class__):

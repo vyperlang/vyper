@@ -240,9 +240,8 @@ class ContractFunctionType(BaseTypeDefinition):
                 raise StructureException("Bad decorator syntax", decorator)
 
         if "function_visibility" not in kwargs:
-            options = " or ".join(v.value for v in list(FunctionVisibility))
             raise FunctionDeclarationException(
-                f"Visibility must be set to one of {options}", node,
+                f"Visibility must be set to one of: {', '.join(FunctionVisibility.values())}", node
             )
 
         if "state_mutability" not in kwargs:
