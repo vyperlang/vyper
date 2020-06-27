@@ -1,10 +1,9 @@
 from vyper import ast as vy_ast
-from vyper.exceptions import InvalidLiteral, TypeMismatch
+from vyper.exceptions import TypeMismatch
 from vyper.parser.expr import Expr
 from vyper.parser.lll_node import LLLnode
 from vyper.parser.parser_utils import (
     base_type_conversion,
-    byte_array_to_num,
     getpos,
     make_byte_array_copier,
     make_setter,
@@ -17,7 +16,7 @@ from vyper.types.types import (
     ListType,
     get_size_of_type,
 )
-from vyper.utils import bytes_to_int, ceil32, string_to_bytes
+from vyper.utils import bytes_to_int, ceil32, keccak256
 
 
 def pack_logging_topics(event_id, args, expected_topics, context, pos):
@@ -34,17 +33,46 @@ def pack_logging_topics(event_id, args, expected_topics, context, pos):
                 raise TypeMismatch(
                     f"Topic input bytes are too big: {arg_type} {expected_type}", code_pos
                 )
-            if isinstance(arg, vy_ast.Str):
-                bytez, bytez_length = string_to_bytes(arg.s)
-                if len(bytez) > 32:
-                    raise InvalidLiteral("Can only log a maximum of 32 bytes at a time.", code_pos)
-                topics.append(bytes_to_int(bytez + b"\x00" * (32 - bytez_length)))
+
+            if isinstance(arg, (vy_ast.Str, vy_ast.Bytes)):
+                # for literals, generate the topic at compile time
+                value = arg.value
+                if isinstance(value, str):
+                    value = value.encode()
+                topics.append(bytes_to_int(keccak256(value)))
+
+            elif value.location == "memory":
+                topics.append(["sha3", ["add", value, 32], ["mload", value]])
+
             else:
-                if value.location == "memory":
-                    size = ["mload", value]
-                elif value.location == "storage":
-                    size = ["sload", ["sha3_32", value]]
-                topics.append(byte_array_to_num(value, arg, "uint256", size))
+                # storage or calldata
+                placeholder = context.new_placeholder(value.typ)
+                placeholder_node = LLLnode.from_list(placeholder, typ=value.typ, location="memory")
+                copier = make_byte_array_copier(
+                    placeholder_node,
+                    LLLnode.from_list("_sub", typ=value.typ, location=value.location),
+                )
+                lll_node = [
+                    "with",
+                    "_sub",
+                    value,
+                    ["seq", copier, ["sha3", ["add", placeholder, 32], ["mload", placeholder]]],
+                ]
+                topics.append(lll_node)
+
+        elif isinstance(arg_type, ListType) and isinstance(expected_type, ListType):
+            size = get_size_of_type(value.typ) * 32
+            if value.location == "memory":
+                topics.append(["sha3", value, size])
+
+            else:
+                # storage or calldata
+                placeholder = context.new_placeholder(value.typ)
+                placeholder_node = LLLnode.from_list(placeholder, typ=value.typ, location="memory")
+                setter = make_setter(placeholder_node, value, "memory", value.pos)
+                lll_node = ["seq", setter, ["sha3", placeholder, size]]
+                topics.append(lll_node)
+
         else:
             if arg_type != expected_type:
                 raise TypeMismatch(
