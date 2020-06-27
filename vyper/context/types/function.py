@@ -100,7 +100,7 @@ class ContractFunctionType(BaseTypeDefinition):
             # A function definition type is immutable once created
             is_immutable=True,
             # A function definition type is public if it's visibility is public
-            is_public=(function_visibility is FunctionVisibility.PUBLIC),
+            is_public=(function_visibility == FunctionVisibility.PUBLIC),
         )
         self.name = name
         self.arguments = arguments
@@ -341,7 +341,7 @@ class ContractFunctionType(BaseTypeDefinition):
         return tuple(self.arguments.values()), self.return_type
 
     def fetch_call_return(self, node: vy_ast.Call) -> Optional[BaseTypeDefinition]:
-        if node.get("func.value.id") == "self" and self.visibility is FunctionVisibility.PUBLIC:
+        if node.get("func.value.id") == "self" and self.visibility == FunctionVisibility.PUBLIC:
             raise CallViolation("Cannnot call public functions via 'self'", node)
 
         # for external calls, include gas and value as optional kwargs

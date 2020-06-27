@@ -139,7 +139,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                 raise StateAccessViolation(
                     "msg.sender is not allowed in private functions", node_list[0]
                 )
-        if self.func.mutability is StateMutability.PURE:
+        if self.func.mutability == StateMutability.PURE:
             node_list = fn_node.get_descendants(
                 vy_ast.Attribute,
                 {
@@ -378,14 +378,14 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
 
         if isinstance(fn_type, ContractFunctionType):
             if (
-                self.func.mutability is StateMutability.VIEW
+                self.func.mutability == StateMutability.VIEW
                 and fn_type.mutability > StateMutability.VIEW
             ):
                 raise StateAccessViolation(
                     "Cannot call a mutating function from a view function", node
                 )
 
-            if self.func.mutability is StateMutability.PURE:
+            if self.func.mutability == StateMutability.PURE:
                 raise StateAccessViolation("Cannot call a function from a pure function", node)
 
         return_value = fn_type.fetch_call_return(node.value)

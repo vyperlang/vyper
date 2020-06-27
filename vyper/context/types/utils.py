@@ -10,6 +10,7 @@ from vyper.context.validation.utils import (
     get_index_value,
 )
 from vyper.exceptions import (
+    CompilerPanic,
     InvalidType,
     StructureException,
     UndeclaredDefinition,
@@ -47,15 +48,14 @@ class StringEnum(enum.Enum):
     # Comparison operations
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, self.__class__):
-            super().__eq__(other)
+            raise CompilerPanic("Can only compare like types.")
         return self is other
 
-    def __ne__(self, other: object) -> bool:
-        return not self.__eq__(other)
+    # Python normally does __ne__(other) ==> not self.__eq__(other)
 
     def __lt__(self, other: object) -> bool:
         if not isinstance(other, self.__class__):
-            super().__eq__(other)
+            raise CompilerPanic("Can only compare like types.")
         options = self.__class__.options()
         return options.index(self) < options.index(other)  # type: ignore
 
