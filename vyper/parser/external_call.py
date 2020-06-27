@@ -22,8 +22,7 @@ def external_call(node, context, interface_name, contract_address, pos, value=No
         value = 0
     if gas is None:
         gas = "gas"
-    if contract_address.value == "address":
-        raise StructureException("External calls to self are not permitted.", node)
+
     method_name = node.func.attr
     sig = context.sigs[interface_name][method_name]
     inargs, inargsize, _ = pack_arguments(
@@ -33,7 +32,6 @@ def external_call(node, context, interface_name, contract_address, pos, value=No
     sub = [
         "seq",
         ["assert", ["extcodesize", contract_address]],
-        ["assert", ["ne", "address", contract_address]],
     ]
     if context.is_constant() and not sig.const:
         # TODO this can probably go
