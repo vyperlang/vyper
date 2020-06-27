@@ -2,8 +2,6 @@ from typing import Optional
 
 from vyper import ast as vy_ast
 from vyper.exceptions import (
-    EventDeclarationException,
-    FunctionDeclarationException,
     InvalidType,
     StructureException,
     VariableDeclarationException,
@@ -59,17 +57,9 @@ class GlobalContext:
 
         for item in vyper_module:
             if isinstance(item, vy_ast.StructDef):
-                if global_ctx._contracts:
-                    raise StructureException(
-                        "Structs must come before external contract definitions", item
-                    )
                 global_ctx._structs[item.name] = global_ctx.make_struct(item)
 
             elif isinstance(item, vy_ast.InterfaceDef):
-                if item.name in global_ctx._contracts or item.name in global_ctx._interfaces:
-                    raise StructureException(
-                        f"Contract '{item.name}' is already defined", item,
-                    )
                 global_ctx._contracts[item.name] = GlobalContext.make_contract(item)
 
             elif isinstance(item, vy_ast.EventDef):
@@ -94,10 +84,6 @@ class GlobalContext:
                     global_ctx.add_globals_and_events(item)
             # Function definitions
             elif isinstance(item, vy_ast.FunctionDef):
-                if item.name in global_ctx._globals:
-                    raise FunctionDeclarationException(
-                        f"Function name shadowing a variable name: {item.name}"
-                    )
                 global_ctx._defs.append(item)
             elif isinstance(item, vy_ast.ImportFrom):
                 if not item.level and item.module == "vyper.interfaces":
@@ -341,36 +327,12 @@ def {varname}{funname}({head.rstrip(', ')}) -> {base}:
             self._constants.add_constant(item, global_ctx=self)
             return
 
-        # Handle events.
-        if not (self.get_call_func_name(item) == "event"):
-            item_name, item_attributes = self.get_item_name_and_attributes(item, item_attributes)
-            if not all([attr in VALID_GLOBAL_KEYWORDS for attr in item_attributes.keys()]):
-                raise StructureException(f"Invalid global keyword used: {item_attributes}", item)
+        item_name, item_attributes = self.get_item_name_and_attributes(item, item_attributes)
+        if not all([attr in VALID_GLOBAL_KEYWORDS for attr in item_attributes.keys()]):
+            raise StructureException(f"Invalid global keyword used: {item_attributes}", item)
+        self.is_valid_varname(item.target.id, item)
 
-        if item.value is not None:
-            raise StructureException("May not assign value whilst defining type", item)
-        elif self.get_call_func_name(item) == "event":
-            if self._globals or len(self._defs):
-                raise EventDeclarationException(
-                    "Events must all come before global declarations and function definitions", item
-                )
-            self._events.append(item)
-        elif not isinstance(item.target, vy_ast.Name):
-            raise StructureException(
-                "Can only assign type to variable in top-level statement", item
-            )
-
-        # Check if variable name is valid.
-        # Don't move this check higher, as unit parsing has to happen first.
-        elif not self.is_valid_varname(item.target.id, item):
-            pass
-
-        elif len(self._defs):
-            raise StructureException(
-                "Global variables must all come before function definitions", item,
-            )
-
-        elif item_name in self._contracts or item_name in self._interfaces:
+        if item_name in self._contracts or item_name in self._interfaces:
             if self.get_call_func_name(item) == "address":
                 raise StructureException(
                     f"Persistent address({item_name}) style contract declarations "

@@ -8,12 +8,6 @@ fail_list = [
 x[5] = 4
     """,
     """
-@public
-def foo(): pass
-
-x: int128
-    """,
-    """
 send(0x1234567890123456789012345678901234567890, 5)
     """,
     """
@@ -42,12 +36,6 @@ def foo() -> int128:
 def foo() -> int128:
     x: address = 0x1234567890123456789012345678901234567890
     return x.codesize()
-    """,
-    """
-interface F:
-    def foo(): view
-struct S:
-    x: int128
     """,
     """
 @public
