@@ -26,7 +26,11 @@ def external_call(node, context, interface_name, contract_address, pos, value=No
     method_name = node.func.attr
     sig = context.sigs[interface_name][method_name]
     inargs, inargsize, _ = pack_arguments(
-        sig, [Expr(arg, context).lll_node for arg in node.args], context, node.func,
+        sig,
+        [Expr(arg, context).lll_node for arg in node.args],
+        context,
+        node.func,
+        is_external_call=True,
     )
     output_placeholder, output_size, returner = get_external_call_output(sig, context)
     sub = [
