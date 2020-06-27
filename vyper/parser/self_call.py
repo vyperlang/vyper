@@ -40,7 +40,8 @@ def make_call(stmt_expr, context):
 
     if context.is_constant() and not sig.const:
         raise StateAccessViolation(
-            f"May not call state modifying function '{method_name}' within {context.pp_constancy()}.",
+            f"May not call state modifying function "
+            f"'{method_name}' within {context.pp_constancy()}.",
             getpos(stmt_expr),
         )
 
