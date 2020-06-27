@@ -156,8 +156,10 @@ def _get_class_functions(base_node: vy_ast.InterfaceDef) -> OrderedDict:
         if not isinstance(node, vy_ast.FunctionDef):
             raise StructureException("Interfaces can only contain function definitions", node)
 
-        # TODO: Actually change modifying to nonpayable
-        visibility = node.body[0].get("value.id").replace("modifying", "nonpayable")
+        visibility = node.body[0].get("value.id")
+        if visibility:
+            # TODO: Actually change modifying to nonpayable
+            visibility = visibility.replace("modifying", "nonpayable")
         if len(node.body) != 1 or not StateMutability.is_valid_value(visibility):
             raise StructureException(
                 "Interface function state mutability must be set as one of: "
