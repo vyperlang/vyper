@@ -507,7 +507,7 @@ def foo(contract_address: address) -> int128:
     assert_compile_failed(lambda: get_contract(contract_1), UnknownType)
 
 
-def test_external_with_payble_value(w3, get_contract_with_gas_estimation):
+def test_external_with_payable_value(w3, get_contract_with_gas_estimation):
     contract_1 = """
 @payable
 @public
