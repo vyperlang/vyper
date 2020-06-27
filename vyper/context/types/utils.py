@@ -1,5 +1,5 @@
 import enum
-from typing import Dict
+from typing import Dict, List
 
 from vyper import ast as vy_ast
 from vyper.context.namespace import get_namespace
@@ -35,6 +35,34 @@ class StringEnum(enum.Enum):
     @classmethod
     def is_valid_value(cls, value: str) -> bool:
         return value in set(o.value for o in cls)
+
+    @classmethod
+    def options(cls) -> List["StringEnum"]:
+        return list(cls)
+
+    # Comparison operations
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, self.__class__):
+            super().__eq__(other)
+        return self is other
+
+    def __ne__(self, other: object) -> bool:
+        return not self.__eq__(other)
+
+    def __lt__(self, other: object) -> bool:
+        if not isinstance(other, self.__class__):
+            super().__eq__(other)
+        options = self.__class__.options()
+        return options.index(self) < options.index(other)  # type: ignore
+
+    def __le__(self, other: object) -> bool:
+        return self.__eq__(other) or self.__lt__(other)
+
+    def __gt__(self, other: object) -> bool:
+        return not self.__le__(other)
+
+    def __ge__(self, other: object) -> bool:
+        return self.__eq__(other) or self.__gt__(other)
 
 
 def get_type_from_abi(
