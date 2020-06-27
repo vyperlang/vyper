@@ -1,6 +1,6 @@
 from vyper import ast as vy_ast
 from vyper.exceptions import (
-    ConstancyViolation,
+    StateAccessViolation,
     StructureException,
     TypeCheckFailure,
 )
@@ -37,8 +37,9 @@ def external_call(node, context, interface_name, contract_address, pos, value=No
     ]
     if context.is_constant() and not sig.const:
         # TODO this can probably go
-        raise ConstancyViolation(
-            f"May not call non-constant function '{method_name}' within {context.pp_constancy()}.",
+        raise StateAccessViolation(
+            f"May not call state modifying function '{method_name}' "
+            f"within {context.pp_constancy()}.",
             node,
         )
 

@@ -2,7 +2,7 @@ import pytest
 
 from vyper.ast import parse_to_ast
 from vyper.context.validation import validate_semantics
-from vyper.exceptions import ConstancyViolation
+from vyper.exceptions import ImmutableViolation
 
 
 def test_modify_iterator_function_outside_loop(namespace):
@@ -55,7 +55,7 @@ def bar():
         self.a[0] = 1
     """
     vyper_module = parse_to_ast(code)
-    with pytest.raises(ConstancyViolation):
+    with pytest.raises(ImmutableViolation):
         validate_semantics(vyper_module, {})
 
 
@@ -74,7 +74,7 @@ def bar():
         self.foo()
     """
     vyper_module = parse_to_ast(code)
-    with pytest.raises(ConstancyViolation):
+    with pytest.raises(ImmutableViolation):
         validate_semantics(vyper_module, {})
 
 
@@ -97,5 +97,5 @@ def baz():
         self.bar()
     """
     vyper_module = parse_to_ast(code)
-    with pytest.raises(ConstancyViolation):
+    with pytest.raises(ImmutableViolation):
         validate_semantics(vyper_module, {})

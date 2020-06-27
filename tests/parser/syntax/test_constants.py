@@ -4,9 +4,9 @@ from pytest import raises
 from vyper import compiler
 from vyper.exceptions import (
     ArgumentException,
-    ConstancyViolation,
     InvalidType,
     NamespaceCollision,
+    StateAccessViolation,
     StructureException,
     VariableDeclarationException,
 )
@@ -85,7 +85,7 @@ def test(VAL: uint256):
         """
 C1: constant(uint256) = block.number
     """,
-        ConstancyViolation,
+        StateAccessViolation,
     ),
     # cannot assign function result to a constant
     (
@@ -96,7 +96,7 @@ def foo() -> uint256:
 
 c1: constant(uint256) = self.foo
      """,
-        ConstancyViolation,
+        StateAccessViolation,
     ),
 ]
 

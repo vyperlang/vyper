@@ -255,4 +255,6 @@ takes precedence.
 * `InvalidType`: a type mismatch involving a literal value.
 * `TypeMismatch`: a type mismatch between two already-defined variables.
 * `InvalidOperation`: attempting an invalid operation between two like types.
-* `ConstancyViolation`: attempting to modify a constant.
+* `ImmutableViolation`: attempting to modify an immutable variable, constant, or definition.
+* `StateAccessViolation`: violating the mutability of a function definition.
+* `IteratorException`: improper use of iteration.

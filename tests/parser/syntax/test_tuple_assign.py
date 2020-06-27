@@ -3,7 +3,8 @@ from pytest import raises
 
 from vyper import compiler
 from vyper.exceptions import (
-    ConstancyViolation,
+    ImmutableViolation,
+    StateAccessViolation,
     StructureException,
     TypeMismatch,
 )
@@ -85,7 +86,7 @@ def test(a: bytes32) -> (bytes32, uint256, int128):
     assert d == 123
     return a, b, c
     """,
-        ConstancyViolation,
+        ImmutableViolation,
     ),
     (
         """
@@ -102,7 +103,7 @@ def foo():
     a: uint256 = 0
     a, self.x = self.return_two()
      """,
-        ConstancyViolation,
+        StateAccessViolation,
     ),
 ]
 

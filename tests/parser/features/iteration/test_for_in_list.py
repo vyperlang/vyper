@@ -4,9 +4,11 @@ import pytest
 
 from vyper.exceptions import (
     ArgumentException,
-    ConstancyViolation,
+    ImmutableViolation,
     InvalidType,
+    IteratorException,
     NamespaceCollision,
+    StateAccessViolation,
     StructureException,
 )
 
@@ -296,7 +298,7 @@ def data() -> int128:
         count += 1
     return -1
     """,
-        ConstancyViolation,
+        ImmutableViolation,
     ),
     (
         """
@@ -307,7 +309,7 @@ def foo():
     for i in s:
         s[count] += 1
     """,
-        ConstancyViolation,
+        ImmutableViolation,
     ),
     # alter storage list within for loop
     (
@@ -328,7 +330,7 @@ def data() -> int128:
         count += 1
     return -1
     """,
-        ConstancyViolation,
+        ImmutableViolation,
     ),
     # invalid nested loop
     (
@@ -359,7 +361,7 @@ def foo(x: int128):
     for i in [1,2]:
         i = 2
     """,
-        ConstancyViolation,
+        ImmutableViolation,
     ),
     (
         """
@@ -368,7 +370,7 @@ def foo(x: int128):
     for i in [1,2]:
         i += 2
     """,
-        ConstancyViolation,
+        ImmutableViolation,
     ),
     # range of < 1
     (
@@ -412,7 +414,7 @@ def foo():
     for i in range(a):
         pass
     """,
-        ConstancyViolation,
+        StateAccessViolation,
     ),
     """
 @public
@@ -466,7 +468,7 @@ def foo():
     for i in bar():
         pass
     """,
-        ConstancyViolation,
+        IteratorException,
     ),
     (
         """
@@ -475,7 +477,7 @@ def foo():
     for i in self.bar():
         pass
     """,
-        ConstancyViolation,
+        IteratorException,
     ),
     # nested lists
     """

@@ -35,9 +35,9 @@ from vyper.context.validation.utils import (
 from vyper.exceptions import (
     ArgumentException,
     CompilerPanic,
-    ConstancyViolation,
     InvalidLiteral,
     InvalidType,
+    StateAccessViolation,
     StructureException,
     TypeMismatch,
     UnfoldableNode,
@@ -1031,7 +1031,7 @@ class RawCall(_SimpleBuiltinFunction):
                 "Call may use one of `is_delegate_call` or `is_static_call`, not both", expr
             )
         if not static_call.value and context.is_constant():
-            raise ConstancyViolation(
+            raise StateAccessViolation(
                 f"Cannot make modifying calls from {context.pp_constancy()},"
                 " use `is_static_call=True` to perform this action",
                 expr,
@@ -1089,7 +1089,7 @@ class Send(_SimpleBuiltinFunction):
     def build_LLL(self, expr, args, kwargs, context):
         to, value = args
         if context.is_constant():
-            raise ConstancyViolation(
+            raise StateAccessViolation(
                 f"Cannot send ether inside {context.pp_constancy()}!", expr,
             )
         return LLLnode.from_list(
@@ -1107,7 +1107,7 @@ class SelfDestruct(_SimpleBuiltinFunction):
     @validate_inputs
     def build_LLL(self, expr, args, kwargs, context):
         if context.is_constant():
-            raise ConstancyViolation(
+            raise StateAccessViolation(
                 f"Cannot {expr.func.id} inside {context.pp_constancy()}!", expr.func,
             )
         return LLLnode.from_list(["selfdestruct", args[0]], typ=None, pos=getpos(expr))
@@ -1453,7 +1453,7 @@ class CreateForwarderTo(_SimpleBuiltinFunction):
     def build_LLL(self, expr, args, kwargs, context):
         value = kwargs["value"]
         if context.is_constant():
-            raise ConstancyViolation(
+            raise StateAccessViolation(
                 f"Cannot make calls from {context.pp_constancy()}", expr,
             )
         placeholder = context.new_placeholder(ByteArrayType(96))

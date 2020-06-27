@@ -89,19 +89,20 @@ Decorators
 
 The following decorators are available:
 
-=============================== ===========================================
+=============================== ===========================================================
 Decorator                       Description
-=============================== ===========================================
+=============================== ===========================================================
 ``@public``                     Can only be called externally.
 ``@private``                    Can only be called within current contract.
-``@view``                   Does not alter contract state.
+``@pure``                       Does not read from contract state or environment variables.
+``@view``                       Does not alter contract state.
 ``@payable``                    The contract is open to receive Ether.
 ``@nonreentrant(<unique_key>)`` Function can only be called once,
                                 both externally and internally. Used to
                                 prevent reentrancy attacks.
-=============================== ===========================================
+=============================== ===========================================================
 
-The visibility decorators ``@public`` or ``@private`` are mandatory on function declarations, whilst the other decorators(``@view``, ``@payable``, ``@nonreentrant``) are optional.
+The visibility decorators ``@public`` or ``@private`` are mandatory on function declarations, whilst the other decorators(``@view``, ``@payable``, ``@nonreentrant``, ``@pure``) are optional.
 
 Default function
 ----------------
@@ -330,7 +331,7 @@ The interface name can also be used as a type annotation for storage variables. 
     def test():
         self.foobar_contract.calculate()
 
-Specifying ``modifying`` annotation indicates that the call made to the external contract will be able to alter storage, whereas the ``constant`` call will use a ``STATICCALL`` ensuring no storage can be altered during execution.
+Specifying ``modifying`` annotation indicates that the call made to the external contract will be able to alter storage, whereas the ``view`` ``pure`` call will use a ``STATICCALL`` ensuring no storage can be altered during execution.
 
 .. code-block:: python
 

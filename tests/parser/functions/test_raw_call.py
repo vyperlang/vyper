@@ -1,7 +1,7 @@
 import pytest
 
 from vyper import compiler
-from vyper.exceptions import ArgumentException, ConstancyViolation
+from vyper.exceptions import ArgumentException, StateAccessViolation
 from vyper.functions import get_create_forwarder_to_bytecode
 
 
@@ -257,7 +257,7 @@ uncompilable_code = [
 def foo(_addr: address):
     raw_call(_addr, method_id("foo()"))
     """,
-        ConstancyViolation,
+        StateAccessViolation,
     ),
     (
         """

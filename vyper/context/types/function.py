@@ -8,6 +8,7 @@ from vyper.context.namespace import get_namespace
 from vyper.context.types.bases import BaseTypeDefinition, DataLocation
 from vyper.context.types.indexable.sequence import TupleDefinition
 from vyper.context.types.utils import (
+    StringEnum,
     check_constant,
     get_type_from_abi,
     get_type_from_annotation,
@@ -18,12 +19,40 @@ from vyper.exceptions import (
     ArgumentException,
     CallViolation,
     CompilerPanic,
-    ConstancyViolation,
     FunctionDeclarationException,
     InvalidType,
     NamespaceCollision,
+    StateAccessViolation,
     StructureException,
 )
+
+
+class FunctionVisibility(StringEnum):
+    PUBLIC = StringEnum.auto()
+    PRIVATE = StringEnum.auto()
+
+
+class StateMutability(StringEnum):
+    PURE = StringEnum.auto()
+    VIEW = StringEnum.auto()
+    NONPAYABLE = StringEnum.auto()
+    PAYABLE = StringEnum.auto()
+
+    @classmethod
+    def from_abi(cls, abi_dict: Dict) -> "StateMutability":
+        """
+        Extract stateMutability from an entry in a contract's ABI
+        """
+        if "stateMutability" in abi_dict:
+            return cls(abi_dict["stateMutability"])
+        elif abi_dict.get("payable"):
+            return StateMutability.PAYABLE
+        elif "constant" in abi_dict and abi_dict["constant"]:
+            return StateMutability.VIEW
+        else:  # Assume nonpayable if neither field is there, or constant/payable not set
+            return StateMutability.NONPAYABLE
+        # NOTE: The state mutability nonpayable is reflected in Solidity by not
+        #       specifying a state mutability modifier at all. Do the same here.
 
 
 class ContractFunctionType(BaseTypeDefinition):
@@ -45,12 +74,10 @@ class ContractFunctionType(BaseTypeDefinition):
         (min, max) when default values are given.
     kwarg_keys : List
         List of optional input argument keys.
-    is_public : bool
-        Boolean indicating if the function is public.
-    is_payable : bool
-        Boolean indicating if the function is payable.
-    is_constant : bool
-        Boolean indicating if the function is constant.
+    function_visibility : FunctionVisibility
+        enum indicating the external visibility of a function.
+    state_mutability : StateMutability
+        enum indicating the authority a function has to mutate it's own state.
     nonreentrant : str
         Re-entrancy lock name.
     """
@@ -63,12 +90,18 @@ class ContractFunctionType(BaseTypeDefinition):
         arguments: OrderedDict,
         arg_count: Union[Tuple[int, int], int],
         return_type: Optional[BaseTypeDefinition],
-        is_public: bool,
-        is_payable: bool = False,
-        is_constant: bool = False,
+        function_visibility: FunctionVisibility,
+        state_mutability: StateMutability,
         nonreentrant: Optional[str] = None,
     ) -> None:
-        super().__init__(DataLocation.UNSET, is_constant, is_public)
+        super().__init__(
+            # A function definition type only exists while compiling
+            DataLocation.UNSET,
+            # A function definition type is immutable once created
+            is_immutable=True,
+            # A function definition type is public if it's visibility is public
+            is_public=(function_visibility == FunctionVisibility.PUBLIC),
+        )
         self.name = name
         self.arguments = arguments
         self.arg_count = arg_count
@@ -76,7 +109,8 @@ class ContractFunctionType(BaseTypeDefinition):
         self.kwarg_keys = []
         if isinstance(arg_count, tuple):
             self.kwarg_keys = list(self.arguments)[arg_count[0] :]  # noqa: E203
-        self.is_payable = is_payable
+        self.visibility = function_visibility
+        self.mutability = state_mutability
         self.nonreentrant = nonreentrant
 
     def __repr__(self):
@@ -97,44 +131,37 @@ class ContractFunctionType(BaseTypeDefinition):
         ContractFunction object.
         """
 
-        # Handle either constant/payable fields in ABI, or...
-        kwargs: Dict[str, Any] = {
-            f"is_{i}": True for i in ("constant", "payable") if i in abi and abi[i]
-        }
-        # stateMutability field (takes precedence)
-        if "stateMutability" in abi:
-            if abi["stateMutability"] == "payable":
-                kwargs["is_payable"] = True
-                kwargs["is_constant"] = False
-            elif abi["stateMutability"] == "view" or abi["stateMutability"] == "pure":
-                kwargs["is_payable"] = False
-                kwargs["is_constant"] = True
-        # NOTE: The state mutability nonpayable is reflected in Solidity by not
-        #       specifying a state mutability modifier at all. Do the same here.
         arguments = OrderedDict()
         for item in abi["inputs"]:
             arguments[item["name"]] = get_type_from_abi(
-                item, location=DataLocation.CALLDATA, is_constant=True
+                item, location=DataLocation.CALLDATA, is_immutable=True
             )
         return_type = None
         if len(abi["outputs"]) == 1:
             return_type = get_type_from_abi(
-                abi["outputs"][0], location=DataLocation.CALLDATA, is_constant=True
+                abi["outputs"][0], location=DataLocation.CALLDATA, is_immutable=True
             )
         elif len(abi["outputs"]) > 1:
             return_type = TupleDefinition(
                 tuple(
-                    get_type_from_abi(i, location=DataLocation.CALLDATA, is_constant=True)
+                    get_type_from_abi(i, location=DataLocation.CALLDATA, is_immutable=True)
                     for i in abi["outputs"]
                 )
             )
-        return cls(abi["name"], arguments, len(arguments), return_type, is_public=True, **kwargs,)
+        return cls(
+            abi["name"],
+            arguments,
+            len(arguments),
+            return_type,
+            function_visibility=FunctionVisibility.PUBLIC,
+            state_mutability=StateMutability.from_abi(abi),
+        )
 
     @classmethod
     def from_FunctionDef(
         cls,
         node: vy_ast.FunctionDef,
-        is_constant: Optional[bool] = None,
+        is_immutable: Optional[bool] = None,
         is_public: Optional[bool] = None,
         include_defaults: Optional[bool] = True,
     ) -> "ContractFunctionType":
@@ -157,15 +184,24 @@ class ContractFunctionType(BaseTypeDefinition):
         ContractFunctionType
         """
         kwargs: Dict[str, Any] = {}
-        if is_constant is not None:
-            kwargs["is_constant"] = is_constant
+        if is_immutable is not None:
+            kwargs["state_mutability"] = (
+                StateMutability.VIEW if is_immutable else StateMutability.NONPAYABLE
+            )
         if is_public is not None:
-            kwargs["is_public"] = is_public
+            kwargs["function_visibility"] = (
+                FunctionVisibility.PUBLIC if is_public else FunctionVisibility.PRIVATE
+            )
 
         # decorators
         for decorator in node.decorator_list:
 
             if isinstance(decorator, vy_ast.Call):
+                if "nonreentrant" in kwargs:
+                    raise StructureException(
+                        f"nonreentrant decorator is already set with key: {kwargs['nonreentrant']}",
+                        node,
+                    )
                 if decorator.get("func.id") != "nonreentrant":
                     raise StructureException("Decorator is not callable", decorator)
                 if len(decorator.args) != 1 or not isinstance(decorator.args[0], vy_ast.Str):
@@ -175,16 +211,20 @@ class ContractFunctionType(BaseTypeDefinition):
                 kwargs["nonreentrant"] = decorator.args[0].value
 
             elif isinstance(decorator, vy_ast.Name):
-                if decorator.id in ("public", "private"):
-                    if "is_public" in kwargs:
+                if FunctionVisibility.is_valid_value(decorator.id):
+                    if "function_visibility" in kwargs:
                         raise FunctionDeclarationException(
-                            "Visibility must be public or private, not both", node
+                            f"Visibility is already set to: {kwargs['function_visibility']}", node
                         )
-                    kwargs["is_public"] = bool(decorator.id == "public")
-                elif decorator.id == "payable":
-                    kwargs["is_payable"] = True
-                elif decorator.id == "view":
-                    kwargs["is_constant"] = True
+                    kwargs["function_visibility"] = FunctionVisibility(decorator.id)
+
+                elif StateMutability.is_valid_value(decorator.id):
+                    if "state_mutability" in kwargs:
+                        raise FunctionDeclarationException(
+                            f"Mutability is already set to: {kwargs['state_mutability']}", node
+                        )
+                    kwargs["state_mutability"] = StateMutability(decorator.id)
+
                 else:
                     if decorator.id == "constant":
                         warnings.warn(
@@ -199,8 +239,14 @@ class ContractFunctionType(BaseTypeDefinition):
             else:
                 raise StructureException("Bad decorator syntax", decorator)
 
-        if "is_public" not in kwargs:
-            raise FunctionDeclarationException("Visibility must be public or private", node)
+        if "function_visibility" not in kwargs:
+            raise FunctionDeclarationException(
+                f"Visibility must be set to one of: {', '.join(FunctionVisibility.values())}", node
+            )
+
+        if "state_mutability" not in kwargs:
+            # Assume nonpayable if not set at all (cannot accept Ether, but can modify state)
+            kwargs["state_mutability"] = StateMutability.NONPAYABLE
 
         # call arguments
         arg_count: Union[Tuple[int, int], int] = len(node.args.args)
@@ -233,11 +279,13 @@ class ContractFunctionType(BaseTypeDefinition):
                 raise ArgumentException(f"Function argument '{arg.arg}' is missing a type", arg)
 
             type_definition = get_type_from_annotation(
-                arg.annotation, location=DataLocation.CALLDATA, is_constant=True
+                arg.annotation, location=DataLocation.CALLDATA, is_immutable=True
             )
             if value is not None:
                 if not check_constant(value):
-                    raise ConstancyViolation("Value must be literal or environment variable", value)
+                    raise StateAccessViolation(
+                        "Value must be literal or environment variable", value
+                    )
                 validate_expected_type(value, type_definition)
 
             arguments[arg.arg] = type_definition
@@ -280,13 +328,20 @@ class ContractFunctionType(BaseTypeDefinition):
         args_dict: OrderedDict = OrderedDict()
         for item in arguments:
             args_dict[f"arg{len(args_dict)}"] = item
-        return cls(node.target.id, args_dict, len(arguments), return_type, is_public=True)
+        return cls(
+            node.target.id,
+            args_dict,
+            len(arguments),
+            return_type,
+            function_visibility=FunctionVisibility.PUBLIC,
+            state_mutability=StateMutability.NONPAYABLE,
+        )
 
     def get_signature(self) -> Tuple[Tuple, Optional[BaseTypeDefinition]]:
         return tuple(self.arguments.values()), self.return_type
 
     def fetch_call_return(self, node: vy_ast.Call) -> Optional[BaseTypeDefinition]:
-        if node.get("func.value.id") == "self" and self.is_public:
+        if node.get("func.value.id") == "self" and self.visibility == FunctionVisibility.PUBLIC:
             raise CallViolation("Cannnot call public functions via 'self'", node)
 
         # for external calls, include gas and value as optional kwargs

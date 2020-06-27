@@ -70,9 +70,10 @@ def parse_external_interfaces(external_interfaces, global_ctx):
                 len(_def.body) == 1
                 and isinstance(_def.body[0], vy_ast.Expr)
                 and isinstance(_def.body[0].value, vy_ast.Name)
-                and _def.body[0].value.id in ("modifying", "view")
+                # NOTE: Can't import enums here because of circular import
+                and _def.body[0].value.id in ("modifying", "view", "pure", "payable")
             ):
-                constant = True if _def.body[0].value.id == "view" else False
+                constant = True if _def.body[0].value.id in ("view", "pure") else False
             else:
                 raise StructureException("state mutability of call type must be specified", _def)
             # Recognizes already-defined structs

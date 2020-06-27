@@ -7,7 +7,7 @@ from vyper import ast as vy_ast
 from vyper.context.types.abstract import AbstractDataType
 from vyper.exceptions import (
     CompilerPanic,
-    ConstancyViolation,
+    ImmutableViolation,
     InvalidLiteral,
     InvalidOperation,
     NamespaceCollision,
@@ -54,7 +54,7 @@ class BasePrimitive:
         cls,
         node: Union[vy_ast.Name, vy_ast.Call],
         location: DataLocation = DataLocation.UNSET,
-        is_constant: bool = False,
+        is_immutable: bool = False,
         is_public: bool = False,
     ) -> "BaseTypeDefinition":
         """
@@ -74,7 +74,7 @@ class BasePrimitive:
             raise StructureException("Invalid type assignment", node)
         if node.id != cls._id:
             raise UnexpectedValue("Node id does not match type name")
-        return cls._type(location, is_constant, is_public)
+        return cls._type(location, is_immutable, is_public)
 
     @classmethod
     def from_literal(cls, node: vy_ast.Constant) -> "BaseTypeDefinition":
@@ -183,18 +183,18 @@ class BaseTypeDefinition:
 
     Object Attributes
     -----------------
-    is_constant : bool, optional
+    is_immutable : bool, optional
         If `True`, the value of this object cannot be modified after assignment.
     """
 
     def __init__(
         self,
         location: DataLocation = DataLocation.UNSET,
-        is_constant: bool = False,
+        is_immutable: bool = False,
         is_public: bool = False,
     ) -> None:
         self.location = location
-        self.is_constant = is_constant
+        self.is_immutable = is_immutable
         self.is_public = is_public
 
     def from_annotation(self, node: vy_ast.VyperNode, **kwargs: Any) -> None:
@@ -358,9 +358,9 @@ class BaseTypeDefinition:
             Vyper ast node of the modifying action.
         """
         if self.location == DataLocation.CALLDATA:
-            raise ConstancyViolation("Cannot write to calldata", node)
-        if getattr(self, "is_constant", False):
-            raise ConstancyViolation("Constant value cannot be written to", node)
+            raise ImmutableViolation("Cannot write to calldata", node)
+        if self.is_immutable:
+            raise ImmutableViolation("Immutable value cannot be written to", node)
         if isinstance(node, vy_ast.AugAssign):
             self.validate_numeric_op(node)
 
@@ -431,10 +431,10 @@ class MemberTypeDefinition(ValueTypeDefinition):
     def __init__(
         self,
         location: DataLocation = DataLocation.UNSET,
-        is_constant: bool = False,
+        is_immutable: bool = False,
         is_public: bool = False,
     ) -> None:
-        super().__init__(location, is_constant, is_public)
+        super().__init__(location, is_immutable, is_public)
         self.members: OrderedDict = OrderedDict()
 
     def add_member(self, name: str, type_: BaseTypeDefinition) -> None:
@@ -450,7 +450,7 @@ class MemberTypeDefinition(ValueTypeDefinition):
         elif key in getattr(self, "_type_members", []):
             type_ = copy.deepcopy(self._type_members[key])
             type_.location = self.location
-            type_.is_constant = self.is_constant
+            type_.is_immutable = self.is_immutable
             return type_
         raise UnknownAttribute(f"{self} has no member '{key}'", node)
 
@@ -478,10 +478,10 @@ class IndexableTypeDefinition(BaseTypeDefinition):
         key_type: BaseTypeDefinition,
         _id: str,
         location: DataLocation = DataLocation.UNSET,
-        is_constant: bool = False,
+        is_immutable: bool = False,
         is_public: bool = False,
     ) -> None:
-        super().__init__(location, is_constant, is_public)
+        super().__init__(location, is_immutable, is_public)
         self.value_type = value_type
         self.key_type = key_type
         self._id = _id

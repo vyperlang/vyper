@@ -3,10 +3,18 @@ from typing import Optional
 
 from vyper import ast as vy_ast
 from vyper.ast.validation import validate_call_args
+from vyper.context.environment import (
+    CONSTANT_ENVIRONMENT_VARS,
+    MUTABLE_ENVIRONMENT_VARS,
+)
 from vyper.context.namespace import get_namespace
 from vyper.context.types.abstract import IntegerAbstractType
 from vyper.context.types.bases import DataLocation
-from vyper.context.types.function import ContractFunctionType
+from vyper.context.types.function import (
+    ContractFunctionType,
+    FunctionVisibility,
+    StateMutability,
+)
 from vyper.context.types.indexable.sequence import (
     ArrayDefinition,
     TupleDefinition,
@@ -23,13 +31,15 @@ from vyper.context.validation.utils import (
     validate_expected_type,
 )
 from vyper.exceptions import (
-    ConstancyViolation,
     ExceptionList,
     FunctionDeclarationException,
+    ImmutableViolation,
     InvalidLiteral,
     InvalidType,
+    IteratorException,
     NamespaceCollision,
     NonPayableViolation,
+    StateAccessViolation,
     StructureException,
     TypeMismatch,
     VariableDeclarationException,
@@ -121,15 +131,29 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         self.func = namespace["self"].get_member(fn_node.name, fn_node)
         namespace.update(self.func.arguments)
 
-        if not self.func.is_public:
+        if self.func.visibility is FunctionVisibility.PRIVATE:
             node_list = fn_node.get_descendants(
                 vy_ast.Attribute, {"value.id": "msg", "attr": "sender"}
             )
             if node_list:
-                raise ConstancyViolation(
+                raise StateAccessViolation(
                     "msg.sender is not allowed in private functions", node_list[0]
                 )
-        if not getattr(self.func, "is_payable", False):
+        if self.func.mutability == StateMutability.PURE:
+            node_list = fn_node.get_descendants(
+                vy_ast.Attribute,
+                {
+                    "value.id": set(CONSTANT_ENVIRONMENT_VARS.keys()).union(
+                        set(MUTABLE_ENVIRONMENT_VARS.keys())
+                    )
+                },
+            )
+            if node_list:
+                raise StateAccessViolation(
+                    "not allowed to query contract or environment variables in pure functions",
+                    node_list[0],
+                )
+        if self.func.mutability is not StateMutability.PAYABLE:
             node_list = fn_node.get_descendants(
                 vy_ast.Attribute, {"value.id": "msg", "attr": "value"}
             )
@@ -168,8 +192,10 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             raise StructureException("Right-hand side of assignment cannot be a tuple", node.value)
         target = get_exact_type_from_node(node.target)
         validate_expected_type(node.value, target)
-        if self.func.is_constant and target.location == DataLocation.STORAGE:
-            raise ConstancyViolation("Cannot modify storage in a constant function", node)
+        if self.func.mutability <= StateMutability.VIEW and target.location == DataLocation.STORAGE:
+            raise StateAccessViolation(
+                f"Cannot modify storage in a {self.func.mutability.value} function", node
+            )
         target.validate_modification(node)
 
     def visit_AugAssign(self, node):
@@ -177,8 +203,10 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             raise StructureException("Right-hand side of assignment cannot be a tuple", node.value)
         target = get_exact_type_from_node(node.target)
         validate_expected_type(node.value, target)
-        if self.func.is_constant and target.location == DataLocation.STORAGE:
-            raise ConstancyViolation("Cannot modify storage in a constant function", node)
+        if self.func.mutability <= StateMutability.VIEW and target.location == DataLocation.STORAGE:
+            raise StateAccessViolation(
+                f"Cannot modify storage in a {self.func.mutability.value} function", node
+            )
         target.validate_modification(node)
 
     def visit_Raise(self, node):
@@ -234,7 +262,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         if isinstance(node.iter, vy_ast.Call):
             # iteration via range()
             if node.iter.get("func.id") != "range":
-                raise ConstancyViolation(
+                raise IteratorException(
                     "Cannot iterate over the result of a function call", node.iter
                 )
             validate_call_args(node.iter, (1, 2))
@@ -243,7 +271,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             if len(args) == 1:
                 # range(CONSTANT)
                 if not isinstance(args[0], vy_ast.Num):
-                    raise ConstancyViolation("Value must be a literal", node)
+                    raise StateAccessViolation("Value must be a literal", node)
                 if args[0].value <= 0:
                     raise StructureException("For loop must have at least 1 iteration", args[0])
                 validate_expected_type(args[0], Uint256Definition())
@@ -298,7 +326,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             # check for references to the iterated value within the body of the loop
             assign = _check_iterator_assign(node.iter, node)
             if assign:
-                raise ConstancyViolation("Cannot modify array during iteration", assign)
+                raise ImmutableViolation("Cannot modify array during iteration", assign)
 
         if node.iter.get("value.id") == "self":
             # check if iterated value may be modified by function calls inside the loop
@@ -309,7 +337,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                 fn_node = self.vyper_module.get_children(vy_ast.FunctionDef, {"name": fn_name})[0]
                 if _check_iterator_assign(node.iter, fn_node):
                     # check for direct modification
-                    raise ConstancyViolation(
+                    raise ImmutableViolation(
                         f"Cannot call '{fn_name}' inside for loop, it potentially "
                         f"modifies iterated storage variable '{iter_name}'",
                         call_node,
@@ -319,7 +347,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                     # check for indirect modification
                     fn_node = self.vyper_module.get_children(vy_ast.FunctionDef, {"name": name})[0]
                     if _check_iterator_assign(node.iter, fn_node):
-                        raise ConstancyViolation(
+                        raise ImmutableViolation(
                             f"Cannot call '{fn_name}' inside for loop, it may call to '{name}' "
                             f"which potentially modifies iterated storage variable '{iter_name}'",
                             call_node,
@@ -327,7 +355,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
 
         for type_ in type_list:
             type_ = copy.deepcopy(type_)
-            type_.is_constant = True
+            type_.is_immutable = True
             with self.namespace.enter_scope():
                 try:
                     self.namespace[node.target.id] = type_
@@ -353,10 +381,16 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             raise StructureException("To call an event you must use the `log` statement", node)
 
         if isinstance(fn_type, ContractFunctionType):
-            if self.func.is_constant and not fn_type.is_constant:
-                raise ConstancyViolation(
-                    "Cannot call a non-constant function from a constant function", node
+            if (
+                self.func.mutability == StateMutability.VIEW
+                and fn_type.mutability > StateMutability.VIEW
+            ):
+                raise StateAccessViolation(
+                    "Cannot call a mutating function from a view function", node
                 )
+
+            if self.func.mutability == StateMutability.PURE:
+                raise StateAccessViolation("Cannot call a function from a pure function", node)
 
         return_value = fn_type.fetch_call_return(node.value)
         if return_value and not isinstance(fn_type, ContractFunctionType):

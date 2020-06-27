@@ -1,4 +1,4 @@
-from vyper.exceptions import UnknownType
+from vyper.exceptions import FunctionDeclarationException
 
 
 def test_constant_test(get_contract_with_gas_estimation_for_constants):
@@ -25,4 +25,6 @@ def test_invalid_constant_and_payable(
 def foo() -> num:
     return 5
 """
-    assert_compile_failed(lambda: get_contract_with_gas_estimation_for_constants(code), UnknownType)
+    assert_compile_failed(
+        lambda: get_contract_with_gas_estimation_for_constants(code), FunctionDeclarationException
+    )

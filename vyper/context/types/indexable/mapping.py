@@ -35,7 +35,7 @@ class MappingPrimitive(BasePrimitive):
         cls,
         node: Union[vy_ast.Name, vy_ast.Call, vy_ast.Subscript],
         location: DataLocation = DataLocation.UNSET,
-        is_constant: bool = False,
+        is_immutable: bool = False,
         is_public: bool = False,
     ) -> MappingDefinition:
         if (
@@ -57,6 +57,6 @@ class MappingPrimitive(BasePrimitive):
             key_type,
             f"HashMap[{key_type}, {value_type}]",
             location,
-            is_constant,
+            is_immutable,
             is_public,
         )

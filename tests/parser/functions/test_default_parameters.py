@@ -2,10 +2,10 @@ import pytest
 
 from vyper.compiler import compile_code
 from vyper.exceptions import (
-    ConstancyViolation,
     InvalidLiteral,
     InvalidType,
     NonPayableViolation,
+    StateAccessViolation,
     UndeclaredDefinition,
 )
 
@@ -314,7 +314,7 @@ x: uint256
 @public
 def foo(a: uint256 = self.x): pass
      """,
-        ConstancyViolation,
+        StateAccessViolation,
     ),
     (
         """
@@ -324,7 +324,7 @@ x: uint256
 @public
 def foo(a: uint256[2] = [2, self.x]): pass
      """,
-        ConstancyViolation,
+        StateAccessViolation,
     ),
     (
         """
@@ -340,7 +340,7 @@ def foo(a: uint256 = msg.value): pass
 @private
 def foo(a: address = msg.sender): pass
     """,
-        ConstancyViolation,
+        StateAccessViolation,
     ),
 ]
 
