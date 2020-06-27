@@ -45,7 +45,7 @@ def test_convert_from_uint256_overflow(get_contract_with_gas_estimation, assert_
     code = """
 @public
 def foo() -> decimal:
-    return convert(2**256 - 1, decimal)
+    return convert(2**127, decimal)
     """
 
     assert_compile_failed(lambda: get_contract_with_gas_estimation(code), InvalidLiteral)

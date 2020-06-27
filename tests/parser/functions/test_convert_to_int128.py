@@ -158,7 +158,7 @@ def test() -> int128:
     code = """
 @public
 def test() -> int128:
-    return convert(2**256 - 1, int128)
+    return convert(2**127, int128)
     """
 
     assert_compile_failed(lambda: get_contract_with_gas_estimation(code), InvalidLiteral)

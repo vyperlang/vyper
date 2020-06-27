@@ -5,7 +5,11 @@ from hypothesis import example, given, settings
 from hypothesis import strategies as st
 
 from vyper import ast as vy_ast
-from vyper.exceptions import TypeMismatch, ZeroDivisionException
+from vyper.exceptions import (
+    OverflowException,
+    TypeMismatch,
+    ZeroDivisionException,
+)
 
 st_decimals = st.decimals(
     min_value=-(2 ** 32), max_value=2 ** 32, allow_nan=False, allow_infinity=False, places=10,
@@ -76,8 +80,8 @@ def foo({input_value}) -> decimal:
         vy_ast.folding.replace_literal_ops(vyper_ast)
         expected = vyper_ast.body[0].value.value
         is_valid = -(2 ** 127) <= expected < 2 ** 127
-    except ZeroDivisionException:
-        # for division/modulus by 0, expect the contract call to revert
+    except (OverflowException, ZeroDivisionException):
+        # for overflow or division/modulus by 0, expect the contract call to revert
         is_valid = False
 
     if is_valid:
