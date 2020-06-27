@@ -439,15 +439,22 @@ def unwrap_location(orig):
 
 # Pack function arguments for a call
 @type_check_wrapper
-def pack_arguments(signature, args, context, stmt_expr, return_placeholder=True):
+def pack_arguments(signature, args, context, stmt_expr, is_external_call):
     pos = getpos(stmt_expr)
-    placeholder_typ = ByteArrayType(
-        maxlen=sum([get_size_of_type(arg.typ) for arg in signature.args]) * 32 + 32
-    )
-    placeholder = context.new_placeholder(placeholder_typ)
-    setters = [["mstore", placeholder, signature.method_id]]
-    needpos = False
+    setters = []
     staticarray_offset = 0
+    needpos = False
+
+    maxlen = sum([get_size_of_type(arg.typ) for arg in signature.args]) * 32
+    if is_external_call:
+        maxlen += 32
+
+    placeholder_typ = ByteArrayType(maxlen=maxlen)
+    placeholder = context.new_placeholder(placeholder_typ)
+    if is_external_call:
+        setters.append(["mstore", placeholder, signature.method_id])
+        placeholder += 32
+
     if len(signature.args) != len(args):
         return
 
@@ -455,7 +462,7 @@ def pack_arguments(signature, args, context, stmt_expr, return_placeholder=True)
         if isinstance(typ, BaseType):
             setters.append(
                 make_setter(
-                    LLLnode.from_list(placeholder + staticarray_offset + 32 + i * 32, typ=typ,),
+                    LLLnode.from_list(placeholder + staticarray_offset + i * 32, typ=typ,),
                     arg,
                     "memory",
                     pos=pos,
@@ -464,11 +471,9 @@ def pack_arguments(signature, args, context, stmt_expr, return_placeholder=True)
             )
 
         elif isinstance(typ, ByteArrayLike):
-            setters.append(["mstore", placeholder + staticarray_offset + 32 + i * 32, "_poz"])
+            setters.append(["mstore", placeholder + staticarray_offset + i * 32, "_poz"])
             arg_copy = LLLnode.from_list("_s", typ=arg.typ, location=arg.location)
-            target = LLLnode.from_list(
-                ["add", placeholder + 32, "_poz"], typ=typ, location="memory",
-            )
+            target = LLLnode.from_list(["add", placeholder, "_poz"], typ=typ, location="memory",)
             setters.append(
                 [
                     "with",
@@ -491,7 +496,7 @@ def pack_arguments(signature, args, context, stmt_expr, return_placeholder=True)
             if has_dynamic_data(typ):
                 return
             target = LLLnode.from_list(
-                [placeholder + 32 + staticarray_offset + i * 32], typ=typ, location="memory",
+                [placeholder + staticarray_offset + i * 32], typ=typ, location="memory",
             )
             setters.append(make_setter(target, arg, "memory", pos=pos))
             if isinstance(typ, ListType):
@@ -503,8 +508,14 @@ def pack_arguments(signature, args, context, stmt_expr, return_placeholder=True)
         else:
             return
 
-    # For private call usage, doesn't use a returner.
-    returner = [[placeholder + 28]] if return_placeholder else []
+    if is_external_call:
+        returner = [[placeholder - 4]]
+        inargsize = placeholder_typ.maxlen - 28
+    else:
+        # internal call does not use a returner or adjust max length for signature
+        returner = []
+        inargsize = placeholder_typ.maxlen
+
     if needpos:
         return (
             LLLnode.from_list(
@@ -512,14 +523,14 @@ def pack_arguments(signature, args, context, stmt_expr, return_placeholder=True)
                 typ=placeholder_typ,
                 location="memory",
             ),
-            placeholder_typ.maxlen - 28,
-            placeholder + 32,
+            inargsize,
+            placeholder,
         )
     else:
         return (
             LLLnode.from_list(["seq"] + setters + returner, typ=placeholder_typ, location="memory"),
-            placeholder_typ.maxlen - 28,
-            placeholder + 32,
+            inargsize,
+            placeholder,
         )
 
 

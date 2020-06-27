@@ -117,7 +117,7 @@ def _call_self_private(stmt_expr, context, sig):
     # Push Arguments
     if expr_args:
         inargs, inargsize, arg_pos = pack_arguments(
-            sig, expr_args, context, stmt_expr, return_placeholder=False,
+            sig, expr_args, context, stmt_expr, is_external_call=False
         )
         push_args += [inargs]  # copy arguments first, to not mess up the push/pop sequencing.
 
