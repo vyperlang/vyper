@@ -169,6 +169,22 @@ def _raise_syntax_exc(error_msg: str, ast_struct: dict) -> None:
     )
 
 
+def _validate_numeric_bounds(
+    node: Union["BinOp", "UnaryOp"], value: Union[decimal.Decimal, int]
+) -> None:
+    if isinstance(value, decimal.Decimal):
+        lower, upper = SizeLimits.MINNUM, SizeLimits.MAXNUM
+    elif isinstance(value, int):
+        lower, upper = SizeLimits.MINNUM, SizeLimits.MAX_UINT256
+    else:
+        raise CompilerPanic(f"Unexpected return type from {node._op}: {type(value)}")
+    if not lower <= value <= upper:
+        raise OverflowException(
+            f"Result of {node.op.description} ({value}) is outside bounds of all numeric types",
+            node,
+        )
+
+
 class VyperNode:
     """
     Base class for all vyper AST nodes.
@@ -777,6 +793,7 @@ class UnaryOp(VyperNode):
             raise UnfoldableNode("Node contains invalid field(s) for evaluation")
 
         value = self.op._op(self.operand.value)
+        _validate_numeric_bounds(self, value)
         return type(self.operand).from_node(self, value=value)
 
 
@@ -814,6 +831,7 @@ class BinOp(VyperNode):
             raise UnfoldableNode("Node contains invalid field(s) for evaluation")
 
         value = self.op._op(left.value, right.value)
+        _validate_numeric_bounds(self, value)
         return type(left).from_node(self, value=value)
 
 
