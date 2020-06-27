@@ -7,7 +7,7 @@ from vyper import ast as vy_ast
 from vyper.context.types.abstract import AbstractDataType
 from vyper.exceptions import (
     CompilerPanic,
-    ConstancyViolation,
+    ImmutableViolation,
     InvalidLiteral,
     InvalidOperation,
     NamespaceCollision,
@@ -358,9 +358,9 @@ class BaseTypeDefinition:
             Vyper ast node of the modifying action.
         """
         if self.location == DataLocation.CALLDATA:
-            raise ConstancyViolation("Cannot write to calldata", node)
+            raise ImmutableViolation("Cannot write to calldata", node)
         if self.is_immutable:
-            raise ConstancyViolation("Immutable value cannot be written to", node)
+            raise ImmutableViolation("Immutable value cannot be written to", node)
         if isinstance(node, vy_ast.AugAssign):
             self.validate_numeric_op(node)
 

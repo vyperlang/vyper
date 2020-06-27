@@ -195,8 +195,12 @@ class CallViolation(VyperException):
     """Illegal function call."""
 
 
-class ConstancyViolation(VyperException):
-    """State-changing action in a constant context."""
+class ImmutableViolation(VyperException):
+    """Modifying an immutable variable, constant, or definition."""
+
+
+class StateAccessViolation(VyperException):
+    """Violating the mutability of a function definition."""
 
 
 class NonPayableViolation(VyperException):
@@ -205,6 +209,10 @@ class NonPayableViolation(VyperException):
 
 class InterfaceViolation(VyperException):
     """Interface is not fully implemented."""
+
+
+class IteratorException(VyperException):
+    """Improper use of iterators."""
 
 
 class ArrayIndexException(VyperException):

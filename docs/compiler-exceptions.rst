@@ -30,9 +30,17 @@ of the error within the code:
 
     Raises when an array index is out of bounds.
 
-.. py:exception:: ConstancyViolation
+.. py:exception:: IteratorException
 
-    Raises when attempting to perform a modifying action within a constant or view-only context. For example, writing to storage in a ``@view`` function or modifying a constant variable.
+   Raises when an iterator is constructed or used incorrectly.
+
+.. py:exception:: StateAccessViolation
+
+    Raises when attempting to perform a modifying action within view-only or stateless context. For example, writing to storage in a ``@view`` function, reading from storage in a ``@pure`` function.
+
+.. py:exception:: ImmutableViolation
+
+    Raises when attempting to perform a change a variable, constant or definition that cannot be changed. For example, trying to update a constant, or trying to assign to a function definition.
 
 .. py:exception:: EventDeclarationException
 

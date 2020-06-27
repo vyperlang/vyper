@@ -1,7 +1,7 @@
 import itertools
 
 from vyper.exceptions import (
-    ConstancyViolation,
+    StateAccessViolation,
     StructureException,
     TypeMismatch,
 )
@@ -39,8 +39,8 @@ def make_call(stmt_expr, context):
     method_name, _, sig = _call_lookup_specs(stmt_expr, context)
 
     if context.is_constant() and not sig.const:
-        raise ConstancyViolation(
-            f"May not call non-constant function '{method_name}' within {context.pp_constancy()}.",
+        raise StateAccessViolation(
+            f"May not call state modifying function '{method_name}' within {context.pp_constancy()}.",
             getpos(stmt_expr),
         )
 

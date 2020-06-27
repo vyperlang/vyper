@@ -1,7 +1,7 @@
 import pytest
 
 from vyper.exceptions import (
-    ConstancyViolation,
+    ImmutableViolation,
     InvalidType,
     SyntaxException,
     TypeMismatch,
@@ -50,7 +50,7 @@ def test_invalid_assign(assert_compile_failed, get_contract_with_gas_estimation)
 def foo(x: int128):
     x = 5
 """
-    assert_compile_failed(lambda: get_contract_with_gas_estimation(code), ConstancyViolation)
+    assert_compile_failed(lambda: get_contract_with_gas_estimation(code), ImmutableViolation)
 
 
 def test_invalid_augassign(assert_compile_failed, get_contract_with_gas_estimation):
@@ -59,7 +59,7 @@ def test_invalid_augassign(assert_compile_failed, get_contract_with_gas_estimati
 def foo(x: int128):
     x += 5
 """
-    assert_compile_failed(lambda: get_contract_with_gas_estimation(code), ConstancyViolation)
+    assert_compile_failed(lambda: get_contract_with_gas_estimation(code), ImmutableViolation)
 
 
 def test_valid_literal_increment(get_contract_with_gas_estimation):

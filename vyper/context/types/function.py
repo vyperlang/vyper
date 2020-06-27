@@ -19,10 +19,10 @@ from vyper.exceptions import (
     ArgumentException,
     CallViolation,
     CompilerPanic,
-    ConstancyViolation,
     FunctionDeclarationException,
     InvalidType,
     NamespaceCollision,
+    StateAccessViolation,
     StructureException,
 )
 
@@ -284,7 +284,7 @@ class ContractFunctionType(BaseTypeDefinition):
             )
             if value is not None:
                 if not check_constant(value):
-                    raise ConstancyViolation("Value must be literal or environment variable", value)
+                    raise StateAccessViolation("Value must be literal or environment variable", value)
                 validate_expected_type(value, type_definition)
 
             arguments[arg.arg] = type_definition

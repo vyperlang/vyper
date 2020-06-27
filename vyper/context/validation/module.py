@@ -14,8 +14,8 @@ from vyper.context.validation.utils import validate_expected_type
 from vyper.exceptions import (
     CallViolation,
     CompilerPanic,
-    ConstancyViolation,
     ExceptionList,
+    StateAccessViolation,
     UndeclaredDefinition,
     VariableDeclarationException,
     VyperException,
@@ -150,7 +150,7 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
             if not node.value:
                 raise VariableDeclarationException("Constant must be declared with a value", node)
             if not check_literal(node.value):
-                raise ConstancyViolation("Value must be a literal", node.value)
+                raise StateAccessViolation("Value must be a literal", node.value)
 
             validate_expected_type(node.value, type_definition)
             try:

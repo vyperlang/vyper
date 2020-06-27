@@ -27,13 +27,15 @@ from vyper.context.validation.utils import (
     validate_expected_type,
 )
 from vyper.exceptions import (
-    ConstancyViolation,
     ExceptionList,
     FunctionDeclarationException,
+    ImmutableViolation,
     InvalidLiteral,
     InvalidType,
+    IteratorException,
     NamespaceCollision,
     NonPayableViolation,
+    StateAccessViolation,
     StructureException,
     TypeMismatch,
     VariableDeclarationException,
@@ -130,7 +132,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                 vy_ast.Attribute, {"value.id": "msg", "attr": "sender"}
             )
             if node_list:
-                raise ConstancyViolation(
+                raise StateAccessViolation(
                     "msg.sender is not allowed in private functions", node_list[0]
                 )
         if self.func.mutability is StateMutability.PURE:
@@ -138,7 +140,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                 vy_ast.Attribute, {"value.id": {"self", "msg", "tx", "block", "chain"}}
             )
             if node_list:
-                raise ConstancyViolation(
+                raise StateAccessViolation(
                     "not allowed to query contract or environment variables in pure functions",
                     node_list[0],
                 )
@@ -185,7 +187,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             self.func.mutability in (StateMutability.PURE, StateMutability.VIEW)
             and target.location == DataLocation.STORAGE
         ):
-            raise ConstancyViolation("Cannot modify storage in a constant function", node)
+            raise StateAccessViolation("Cannot modify storage in a pure or view function", node)
         target.validate_modification(node)
 
     def visit_AugAssign(self, node):
@@ -197,7 +199,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             self.func.mutability in (StateMutability.PURE, StateMutability.VIEW)
             and target.location == DataLocation.STORAGE
         ):
-            raise ConstancyViolation("Cannot modify storage in a constant function", node)
+            raise StateAccessViolation("Cannot modify storage in a pure or view function", node)
         target.validate_modification(node)
 
     def visit_Raise(self, node):
@@ -253,7 +255,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         if isinstance(node.iter, vy_ast.Call):
             # iteration via range()
             if node.iter.get("func.id") != "range":
-                raise ConstancyViolation(
+                raise IteratorException(
                     "Cannot iterate over the result of a function call", node.iter
                 )
             validate_call_args(node.iter, (1, 2))
@@ -262,7 +264,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             if len(args) == 1:
                 # range(CONSTANT)
                 if not isinstance(args[0], vy_ast.Num):
-                    raise ConstancyViolation("Value must be a literal", node)
+                    raise StateAccessViolation("Value must be a literal", node)
                 if args[0].value <= 0:
                     raise StructureException("For loop must have at least 1 iteration", args[0])
                 validate_expected_type(args[0], Uint256Definition())
@@ -317,7 +319,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             # check for references to the iterated value within the body of the loop
             assign = _check_iterator_assign(node.iter, node)
             if assign:
-                raise ConstancyViolation("Cannot modify array during iteration", assign)
+                raise ImmutableViolation("Cannot modify array during iteration", assign)
 
         if node.iter.get("value.id") == "self":
             # check if iterated value may be modified by function calls inside the loop
@@ -328,7 +330,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                 fn_node = self.vyper_module.get_children(vy_ast.FunctionDef, {"name": fn_name})[0]
                 if _check_iterator_assign(node.iter, fn_node):
                     # check for direct modification
-                    raise ConstancyViolation(
+                    raise ImmutableViolation(
                         f"Cannot call '{fn_name}' inside for loop, it potentially "
                         f"modifies iterated storage variable '{iter_name}'",
                         call_node,
@@ -338,7 +340,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                     # check for indirect modification
                     fn_node = self.vyper_module.get_children(vy_ast.FunctionDef, {"name": name})[0]
                     if _check_iterator_assign(node.iter, fn_node):
-                        raise ConstancyViolation(
+                        raise ImmutableViolation(
                             f"Cannot call '{fn_name}' inside for loop, it may call to '{name}' "
                             f"which potentially modifies iterated storage variable '{iter_name}'",
                             call_node,
@@ -376,15 +378,15 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                 StateMutability.VIEW,
                 StateMutability.PURE,
             ):
-                raise ConstancyViolation(
-                    "Cannot call a state modifying function from a view function", node
+                raise StateAccessViolation(
+                    "Cannot call a mutating function from a view function", node
                 )
 
             if (
                 self.func.mutability is StateMutability.PURE
                 and fn_type.mutability is not StateMutability.PURE
             ):
-                raise ConstancyViolation(
+                raise StateAccessViolation(
                     "Cannot call a stateful function from a pure function", node
                 )
 

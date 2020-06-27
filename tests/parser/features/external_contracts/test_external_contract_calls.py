@@ -2,7 +2,7 @@ import pytest
 
 from vyper.exceptions import (
     ArgumentException,
-    ConstancyViolation,
+    StateAccessViolation,
     StructureException,
     UndeclaredDefinition,
     UnknownType,
@@ -134,7 +134,7 @@ def set_lucky_expr(arg1: address, arg2: int128):
 def set_lucky_stmt(arg1: address, arg2: int128) -> int128:
     return Foo(arg1).set_lucky(arg2)
     """
-    assert_compile_failed(lambda: get_contract_with_gas_estimation(c), ConstancyViolation)
+    assert_compile_failed(lambda: get_contract_with_gas_estimation(c), StateAccessViolation)
 
     print("Successfully blocked an external contract call from a constant function")
 
