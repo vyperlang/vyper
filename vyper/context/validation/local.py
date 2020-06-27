@@ -3,6 +3,10 @@ from typing import Optional
 
 from vyper import ast as vy_ast
 from vyper.ast.validation import validate_call_args
+from vyper.context.environment import (
+    CONSTANT_ENVIRONMENT_VARS,
+    MUTABLE_ENVIRONMENT_VARS,
+)
 from vyper.context.namespace import get_namespace
 from vyper.context.types.abstract import IntegerAbstractType
 from vyper.context.types.bases import DataLocation
@@ -137,7 +141,12 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                 )
         if self.func.mutability is StateMutability.PURE:
             node_list = fn_node.get_descendants(
-                vy_ast.Attribute, {"value.id": {"self", "msg", "tx", "block", "chain"}}
+                vy_ast.Attribute,
+                {
+                    "value.id": set(CONSTANT_ENVIRONMENT_VARS.keys()).union(
+                        set(MUTABLE_ENVIRONMENT_VARS.keys())
+                    )
+                },
             )
             if node_list:
                 raise StateAccessViolation(
