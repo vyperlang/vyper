@@ -30,18 +30,6 @@ of the error within the code:
 
     Raises when an array index is out of bounds.
 
-.. py:exception:: IteratorException
-
-   Raises when an iterator is constructed or used incorrectly.
-
-.. py:exception:: StateAccessViolation
-
-    Raises when attempting to perform a modifying action within view-only or stateless context. For example, writing to storage in a ``@view`` function, reading from storage in a ``@pure`` function.
-
-.. py:exception:: ImmutableViolation
-
-    Raises when attempting to perform a change a variable, constant or definition that cannot be changed. For example, trying to update a constant, or trying to assign to a function definition.
-
 .. py:exception:: EventDeclarationException
 
     Raises when an event declaration is invalid.
@@ -53,6 +41,10 @@ of the error within the code:
 .. py:exception:: FunctionDeclarationException
 
     Raises when a function declaration is invalid, for example because of incorrect or mismatched return values.
+
+.. py:exception:: ImmutableViolation
+
+    Raises when attempting to perform a change a variable, constant or definition that cannot be changed. For example, trying to update a constant, or trying to assign to a function definition.
 
 .. py:exception:: InterfaceViolation
 
@@ -112,6 +104,10 @@ of the error within the code:
 
     This example raises ``InvalidType`` because ``3.5`` is a valid literal value, but cannot be cast as ``int128``.
 
+.. py:exception:: IteratorException
+
+   Raises when an iterator is constructed or used incorrectly.
+
 .. py:exception:: JSONError
 
     Raises when the compiler JSON input is malformed.
@@ -145,6 +141,10 @@ of the error within the code:
 .. py:exception:: OverflowException
 
     Raises when a numeric value is out of bounds for the given type.
+
+.. py:exception:: StateAccessViolation
+
+    Raises when attempting to perform a modifying action within view-only or stateless context. For example, writing to storage in a ``@view`` function, reading from storage in a ``@pure`` function.
 
 .. py:exception:: StructureException
 
