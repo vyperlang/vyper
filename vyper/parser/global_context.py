@@ -190,15 +190,9 @@ class GlobalContext:
                     )
                 )
             return o
-        # Struct type: for each member variable, make a separate getter, extend
-        # its function name with the name of the variable, do not add input
-        # arguments, add a member access to the return statement
+        # Struct type: return type is just the abi-encoded struct
         elif isinstance(typ, StructType):
-            o = []
-            for k, v in typ.members.items():
-                for funname, head, tail, base in cls._mk_getter_helper(v, depth):
-                    o.append(("__" + k + funname, head, "." + k + tail, base))
-            return o
+            return [("", "", "", typ.name)]
         else:
             raise Exception("Unexpected type")
 
