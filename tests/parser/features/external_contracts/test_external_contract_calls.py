@@ -664,7 +664,7 @@ def test_bad_code_struct_exc(assert_compile_failed, get_contract_with_gas_estima
     assert_compile_failed(lambda: get_contract_with_gas_estimation(bad_code), ArgumentException)
 
 
-def test_external__value_arg_without_return(w3, get_contract_with_gas_estimation):
+def test_external_value_arg_without_return(w3, get_contract_with_gas_estimation):
     contract_1 = """
 @payable
 @public

@@ -16,33 +16,33 @@ def test_initial_state(w3, c):
     # Check chairperson is msg.sender
     assert c.chairperson() == a0
     # Check propsal names are correct
-    assert c.proposals__name(0)[:7] == b"Clinton"
-    assert c.proposals__name(1)[:5] == b"Trump"
+    assert c.proposals(0)[0][:7] == b"Clinton"  # Proposal.name
+    assert c.proposals(1)[0][:5] == b"Trump"  # Proposal.name
     # Check proposal voteCount is 0
-    assert c.proposals__voteCount(0) == 0
-    assert c.proposals__voteCount(1) == 0
+    assert c.proposals(0)[1] == 0  # Proposal.voteCount
+    assert c.proposals(1)[1] == 0  # Proposal.voteCount
     # Check voterCount is 0
     assert c.voterCount() == 0
     # Check voter starts empty
-    assert c.voters__delegate(z0) is None
-    assert c.voters__vote(z0) == 0
-    assert c.voters__voted(z0) is False
-    assert c.voters__weight(z0) == 0
+    assert c.voters(z0)[2] is None  # Voter.delegate
+    assert c.voters(z0)[3] == 0  # Voter.vote
+    assert c.voters(z0)[1] is False  # Voter.voted
+    assert c.voters(z0)[0] == 0  # Voter.weight
 
 
 def test_give_the_right_to_vote(w3, c, assert_tx_failed):
     a0, a1, a2, a3, a4, a5 = w3.eth.accounts[:6]
     c.giveRightToVote(a1, transact={})
     # Check voter given right has weight of 1
-    assert c.voters__weight(a1) == 1
+    assert c.voters(a1)[0] == 1  # Voter.weight
     # Check no other voter attributes have changed
-    assert c.voters__delegate(a1) is None
-    assert c.voters__vote(a1) == 0
-    assert c.voters__voted(a1) is False
+    assert c.voters(a1)[2] is None  # Voter.delegate
+    assert c.voters(a1)[3] == 0  # Voter.vote
+    assert c.voters(a1)[1] is False  # Voter.voted
     # Chairperson can give themselves the right to vote
     c.giveRightToVote(a0, transact={})
     # Check chairperson has weight of 1
-    assert c.voters__weight(a0) == 1
+    assert c.voters(a0)[0] == 1  # Voter.weight
     # Check voter_acount is 2
     assert c.voterCount() == 2
     # Check several giving rights to vote
@@ -55,7 +55,7 @@ def test_give_the_right_to_vote(w3, c, assert_tx_failed):
     # Check chairperson cannot give the right to vote twice to the same voter
     assert_tx_failed(lambda: c.giveRightToVote(a5, transact={}))
     # Check voters weight didn't change
-    assert c.voters__weight(a5) == 1
+    assert c.voters(a5)[0] == 1  # Voter.weight
 
 
 def test_forward_weight(w3, c):
@@ -77,51 +77,51 @@ def test_forward_weight(w3, c):
     # a1(0) -> a2(2)    a3(1)
     c.delegate(a3, transact={"from": a2})
     # a1(0) -> a2(0) -> a3(3)
-    assert c.voters__weight(a1) == 0
-    assert c.voters__weight(a2) == 0
-    assert c.voters__weight(a3) == 3
+    assert c.voters(a1)[0] == 0  # Voter.weight
+    assert c.voters(a2)[0] == 0  # Voter.weight
+    assert c.voters(a3)[0] == 3  # Voter.weight
 
     c.delegate(a9, transact={"from": a8})
     # a7(1)    a8(0) -> a9(2)
     c.delegate(a8, transact={"from": a7})
     # a7(0) -> a8(0) -> a9(3)
-    assert c.voters__weight(a7) == 0
-    assert c.voters__weight(a8) == 0
-    assert c.voters__weight(a9) == 3
+    assert c.voters(a7)[0] == 0  # Voter.weight
+    assert c.voters(a8)[0] == 0  # Voter.weight
+    assert c.voters(a9)[0] == 3  # Voter.weight
     c.delegate(a7, transact={"from": a6})
     c.delegate(a6, transact={"from": a5})
     c.delegate(a5, transact={"from": a4})
     # a4(0) -> a5(0) -> a6(0) -> a7(0) -> a8(0) -> a9(6)
-    assert c.voters__weight(a9) == 6
-    assert c.voters__weight(a8) == 0
+    assert c.voters(a9)[0] == 6  # Voter.weight
+    assert c.voters(a8)[0] == 0  # Voter.weight
 
     # a3(3)    a4(0) -> a5(0) -> a6(0) -> a7(0) -> a8(0) -> a9(6)
     c.delegate(a4, transact={"from": a3})
     # a3(0) -> a4(0) -> a5(0) -> a6(0) -> a7(0) -> a8(3) -> a9(6)
     # a3's vote weight of 3 only makes it to a8 in the delegation chain:
-    assert c.voters__weight(a8) == 3
-    assert c.voters__weight(a9) == 6
+    assert c.voters(a8)[0] == 3  # Voter.weight
+    assert c.voters(a9)[0] == 6  # Voter.weight
 
     # call forward_weight again to move the vote weight the
     # rest of the way:
     c.forwardWeight(a8, transact={})
     # a3(0) -> a4(0) -> a5(0) -> a6(0) -> a7(0) -> a8(0) -> a9(9)
-    assert c.voters__weight(a8) == 0
-    assert c.voters__weight(a9) == 9
+    assert c.voters(a8)[0] == 0  # Voter.weight
+    assert c.voters(a9)[0] == 9  # Voter.weight
 
     # a0(1) -> a1(0) -> a2(0) -> a3(0) -> a4(0) -> a5(0) -> a6(0) -> a7(0) -> a8(0) -> a9(9)
     c.delegate(a1, transact={"from": a0})
     # a0's vote weight of 1 only makes it to a5 in the delegation chain:
     # a0(0) -> a1(0) -> a2(0) -> a3(0) -> a4(0) -> a5(1) -> a6(0) -> a7(0) -> a8(0) -> a9(9)
-    assert c.voters__weight(a5) == 1
-    assert c.voters__weight(a9) == 9
+    assert c.voters(a5)[0] == 1  # Voter.weight
+    assert c.voters(a9)[0] == 9  # Voter.weight
 
     # once again call forward_weight to move the vote weight the
     # rest of the way:
     c.forwardWeight(a5, transact={})
     # a0(0) -> a1(0) -> a2(0) -> a3(0) -> a4(0) -> a5(0) -> a6(0) -> a7(0) -> a8(0) -> a9(10)
-    assert c.voters__weight(a5) == 0
-    assert c.voters__weight(a9) == 10
+    assert c.voters(a5)[0] == 0  # Voter.weight
+    assert c.voters(a9)[0] == 10  # Voter.weight
 
 
 def test_block_short_cycle(w3, c, assert_tx_failed):
@@ -154,15 +154,15 @@ def test_delegate(w3, c, assert_tx_failed):
     c.giveRightToVote(a2, transact={})
     c.giveRightToVote(a3, transact={})
     # Voter's weight is 1
-    assert c.voters__weight(a1) == 1
+    assert c.voters(a1)[0] == 1  # Voter.weight
     # Voter can delegate: a1 -> a0
     c.delegate(a0, transact={"from": a1})
     # Voter's weight is now 0
-    assert c.voters__weight(a1) == 0
+    assert c.voters(a1)[0] == 0  # Voter.weight
     # Voter has voted
-    assert c.voters__voted(a1) is True
+    assert c.voters(a1)[1] is True  # Voter.voted
     # Delegate's weight is 2
-    assert c.voters__weight(a0) == 2
+    assert c.voters(a0)[0] == 2  # Voter.weight
     # Voter cannot delegate twice
     assert_tx_failed(lambda: c.delegate(a2, transact={"from": a1}))
     # Voter cannot delegate to themselves
@@ -174,7 +174,7 @@ def test_delegate(w3, c, assert_tx_failed):
     # a3 -> a1 -> a0
     c.delegate(a1, transact={"from": a3})
     # Delegate's weight is 3
-    assert c.voters__weight(a0) == 3
+    assert c.voters(a0)[0] == 3  # Voter.weight
 
 
 def test_vote(w3, c, assert_tx_failed):
@@ -192,7 +192,7 @@ def test_vote(w3, c, assert_tx_failed):
     # Voter can vote
     c.vote(0, transact={})
     # Vote count changes based on voters weight
-    assert c.proposals__voteCount(0) == 3
+    assert c.proposals(0)[1] == 3  # Proposal.voteCount
     # Voter cannot vote twice
     assert_tx_failed(lambda: c.vote(0))
     # Voter cannot vote if they've delegated
@@ -202,7 +202,7 @@ def test_vote(w3, c, assert_tx_failed):
     c.vote(1, transact={"from": a2})
     c.vote(1, transact={"from": a5})
     c.vote(1, transact={"from": a6})
-    assert c.proposals__voteCount(1) == 4
+    assert c.proposals(1)[1] == 4  # Proposal.voteCount
     # Can't vote on a non-proposal
     assert_tx_failed(lambda: c.vote(2, transact={"from": a7}))
 
