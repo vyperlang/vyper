@@ -35,7 +35,7 @@ def external_call(node, context, interface_name, contract_address, pos, value=No
         ["assert", ["extcodesize", contract_address]],
         ["assert", ["ne", "address", contract_address]],
     ]
-    if context.is_constant() and not sig.const:
+    if context.is_constant() and sig.mutability not in ("view", "pure"):
         # TODO this can probably go
         raise StateAccessViolation(
             f"May not call state modifying function '{method_name}' "
@@ -43,7 +43,7 @@ def external_call(node, context, interface_name, contract_address, pos, value=No
             node,
         )
 
-    if context.is_constant() or sig.const:
+    if context.is_constant() or sig.mutability in ("view", "pure"):
         sub.append(
             [
                 "assert",

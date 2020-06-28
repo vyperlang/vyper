@@ -82,7 +82,7 @@ def parse_public_function(
     clampers.append(copier)
 
     # Add asserts for payable and internal
-    if not sig.payable:
+    if sig.mutability != "payable":
         clampers.append(["assert", ["iszero", "callvalue"]])
 
     # Fill variable positions
