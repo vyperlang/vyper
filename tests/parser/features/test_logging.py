@@ -1,5 +1,7 @@
 from decimal import Decimal
 
+import eth_abi
+
 from vyper.exceptions import (
     ArgumentException,
     EventDeclarationException,
@@ -41,32 +43,32 @@ def foo():
 
 def test_event_logging_with_topics(w3, tester, keccak, get_logs, get_contract_with_gas_estimation):
     loggy_code = """
+
+a: bytes[3]
+
 event MyLog:
     arg1: indexed(bytes[3])
 
 @public
 def foo():
-    log MyLog(b'bar')
+    self.a = b"bar"
+    log MyLog(self.a)
     """
 
     c = get_contract_with_gas_estimation(loggy_code)
     tx_hash = c.foo(transact={})
     receipt = tester.get_transaction_receipt(tx_hash.hex())
-    event_id = keccak(bytes("MyLog(bytes3)", "utf-8"))
+    event_id = keccak(bytes("MyLog(bytes)", "utf-8"))
 
     # Event id is always the first topic
     assert receipt["logs"][0]["topics"][0] == event_id.hex()
     # Event abi is created correctly
     assert c._classic_contract.abi[0] == {
         "name": "MyLog",
-        "inputs": [{"type": "bytes3", "name": "arg1", "indexed": True}],
+        "inputs": [{"type": "bytes", "name": "arg1", "indexed": True}],
         "anonymous": False,
         "type": "event",
     }
-    # Event is decoded correctly
-    logs = get_logs(tx_hash, c, "MyLog")
-    assert logs[0].event == "MyLog"
-    assert logs[0].args.arg1 == b"bar"
 
 
 def test_event_logging_with_multiple_topics(
@@ -74,28 +76,28 @@ def test_event_logging_with_multiple_topics(
 ):
     loggy_code = """
 event MyLog:
-    arg1: indexed(bytes[3])
-    arg2: indexed(bytes[4])
+    arg1: indexed(int128)
+    arg2: indexed(bool)
     arg3: indexed(address)
 
 @public
 def foo():
-    log MyLog(b'bar', b'home', self)
+    log MyLog(-2, True, self)
     """
 
     c = get_contract_with_gas_estimation(loggy_code)
     tx_hash = c.foo(transact={})
     receipt = tester.get_transaction_receipt(tx_hash.hex())
 
-    event_id = keccak(bytes("MyLog(bytes3,bytes4,address)", "utf-8"))
+    event_id = keccak(bytes("MyLog(int128,bool,address)", "utf-8"))
     # Event id is always the first topic
     assert receipt["logs"][0]["topics"][0] == event_id.hex()
     # Event abi is created correctly
     assert c._classic_contract.abi[0] == {
         "name": "MyLog",
         "inputs": [
-            {"type": "bytes3", "name": "arg1", "indexed": True},
-            {"type": "bytes4", "name": "arg2", "indexed": True},
+            {"type": "int128", "name": "arg1", "indexed": True},
+            {"type": "bool", "name": "arg2", "indexed": True},
             {"type": "address", "name": "arg3", "indexed": True},
         ],
         "anonymous": False,
@@ -104,8 +106,8 @@ def foo():
     # Event is decoded correctly
     logs = get_logs(tx_hash, c, "MyLog")
     assert logs[0].event == "MyLog"
-    assert logs[0].args.arg1 == b"bar"
-    assert logs[0].args.arg2 == b"home"
+    assert logs[0].args.arg1 == -2
+    assert logs[0].args.arg2 is True
     assert logs[0].args.arg3 == c._classic_contract.address
 
 
@@ -114,30 +116,28 @@ def test_event_logging_with_multiple_topics_var_and_store(
 ):
     code = """
 event MyLog:
-    arg1: indexed(bytes[3])
-    arg2: indexed(bytes[4])
+    arg1: indexed(int128)
+    arg2: indexed(bool)
     arg3: indexed(address)
-    arg4: bytes[10]
 
-b: bytes[10]
+b: address
 
 @public
-def foo(arg1: bytes[3]):
-    a: bytes[4] = b'home'
-    self.b = b'hellothere'
-    log MyLog(arg1, a,  self, self.b)
+def foo(arg1: int128):
+    a: bool = True
+    self.b = self
+    log MyLog(arg1, a, self.b)
     """
 
     c = get_contract_with_gas_estimation(code)
-    tx_hash = c.foo(b"hel", transact={})
+    tx_hash = c.foo(31337, transact={})
 
     # Event is decoded correctly
     log = get_logs(tx_hash, c, "MyLog")[0]
 
-    assert log.args.arg1 == b"hel"
-    assert log.args.arg2 == b"home"
+    assert log.args.arg1 == 31337
+    assert log.args.arg2 is True
     assert log.args.arg3 == c.address
-    assert log.args.arg4 == b"hellothere"
 
 
 def test_logging_the_same_event_multiple_times_with_topics(
@@ -284,7 +284,7 @@ def test_logging_with_input_bytes_1(
 ):
     loggy_code = """
 event MyLog:
-    arg1: indexed(bytes[4])
+    arg1: bytes[4]
     arg2: indexed(bytes[29])
     arg3: bytes[31]
 
@@ -297,15 +297,15 @@ def foo(arg1: bytes[29], arg2: bytes[31]):
     tx_hash = c.foo(b"bar", b"foo", transact={})
     receipt = tester.get_transaction_receipt(tx_hash.hex())
 
-    event_id = keccak(bytes("MyLog(bytes4,bytes29,bytes)", "utf-8"))
+    event_id = keccak(bytes("MyLog(bytes,bytes,bytes)", "utf-8"))
     # Event id is always the first topic
     assert receipt["logs"][0]["topics"][0] == event_id.hex()
     # Event abi is created correctly
     assert c._classic_contract.abi[0] == {
         "name": "MyLog",
         "inputs": [
-            {"type": "bytes4", "name": "arg1", "indexed": True},
-            {"type": "bytes29", "name": "arg2", "indexed": True},
+            {"type": "bytes", "name": "arg1", "indexed": False},
+            {"type": "bytes", "name": "arg2", "indexed": True},
             {"type": "bytes", "name": "arg3", "indexed": False},
         ],
         "anonymous": False,
@@ -314,8 +314,8 @@ def foo(arg1: bytes[29], arg2: bytes[31]):
     # Event is decoded correctly
     logs = get_logs(tx_hash, c, "MyLog")
 
-    assert logs[0].args.arg1 == b"bar\x00"
-    assert logs[0].args.arg2 == bytes_helper("bar", 29)
+    assert logs[0].args.arg1 == b"bar"
+    assert logs[0].args.arg2 == keccak(b"bar")
     assert logs[0].args.arg3 == b"foo"
 
 
@@ -597,7 +597,7 @@ def foo(arg1: bytes[4]):
     assert_tx_failed(lambda: get_contract_with_gas_estimation(loggy_code), TypeMismatch)
 
 
-def test_fails_when_topic_is_over_32_bytes(assert_tx_failed, get_contract_with_gas_estimation):
+def test_topic_over_32_bytes(get_contract_with_gas_estimation):
     loggy_code = """
 event MyLog:
     arg1: indexed(bytes[100])
@@ -606,10 +606,7 @@ event MyLog:
 def foo():
     pass
     """
-
-    assert_tx_failed(
-        lambda: get_contract_with_gas_estimation(loggy_code), EventDeclarationException
-    )
+    get_contract_with_gas_estimation(loggy_code)
 
 
 def test_logging_fails_with_over_three_topics(assert_tx_failed, get_contract_with_gas_estimation):
@@ -943,16 +940,6 @@ def set_list():
     ]
 
 
-def test_logging_fails_when_declartation_is_too_big(
-    assert_tx_failed, get_contract_with_gas_estimation
-):
-    code = """
-event Bar:
-    _value: indexed(bytes[33])
-"""
-    assert_tx_failed(lambda: get_contract_with_gas_estimation(code), EventDeclarationException)
-
-
 def test_logging_fails_when_input_is_too_big(assert_tx_failed, get_contract_with_gas_estimation):
     code = """
 event Bar:
@@ -1047,3 +1034,174 @@ def set_list():
     assert log.args["arg3"] == b"test"
     assert log.args["arg4"] == [7, 8, 9]
     assert log.args["arg5"] == [1024, 2048]
+
+
+def test_hashed_indexed_topics_calldata(tester, keccak, get_contract):
+    loggy_code = """
+event MyLog:
+    arg1: indexed(bytes[36])
+    arg2: indexed(int128[2])
+    arg3: indexed(string[7])
+
+@public
+def foo(a: bytes[36], b: int128[2], c: string[7]):
+    log MyLog(a, b, c)
+    """
+
+    c = get_contract(loggy_code)
+    tx_hash = c.foo(b"bar", [1, 2], "weird", transact={})
+    receipt = tester.get_transaction_receipt(tx_hash.hex())
+
+    # Event id is always the first topic
+    event_id = keccak(b"MyLog(bytes,int128[2],string)")
+    assert receipt["logs"][0]["topics"][0] == event_id.hex()
+
+    topic1 = f"0x{keccak256(b'bar').hex()}"
+    assert receipt["logs"][0]["topics"][1] == topic1
+
+    topic2 = f"0x{keccak256(eth_abi.encode_single('int128[2]', [1,2])).hex()}"
+    assert receipt["logs"][0]["topics"][2] == topic2
+
+    topic3 = f"0x{keccak256(b'weird').hex()}"
+    assert receipt["logs"][0]["topics"][3] == topic3
+
+    # Event abi is created correctly
+    assert c._classic_contract.abi[0] == {
+        "name": "MyLog",
+        "inputs": [
+            {"type": "bytes", "name": "arg1", "indexed": True},
+            {"type": "int128[2]", "name": "arg2", "indexed": True},
+            {"type": "string", "name": "arg3", "indexed": True},
+        ],
+        "anonymous": False,
+        "type": "event",
+    }
+
+
+def test_hashed_indexed_topics_memory(tester, keccak, get_contract):
+    loggy_code = """
+event MyLog:
+    arg1: indexed(bytes[10])
+    arg2: indexed(int128[3])
+    arg3: indexed(string[44])
+
+@public
+def foo():
+    a: bytes[10] = b"potato"
+    b: int128[3] = [-777, 42, 8008135]
+    c: string[44] = "why hello, neighbor! how are you today?"
+    log MyLog(a, b, c)
+    """
+
+    c = get_contract(loggy_code)
+    tx_hash = c.foo(transact={})
+    receipt = tester.get_transaction_receipt(tx_hash.hex())
+
+    # Event id is always the first topic
+    event_id = keccak(b"MyLog(bytes,int128[3],string)")
+    assert receipt["logs"][0]["topics"][0] == event_id.hex()
+
+    topic1 = f"0x{keccak256(b'potato').hex()}"
+    assert receipt["logs"][0]["topics"][1] == topic1
+
+    topic2 = f"0x{keccak256(eth_abi.encode_single('int128[3]', [-777,42,8008135])).hex()}"
+    assert receipt["logs"][0]["topics"][2] == topic2
+
+    topic3 = f"0x{keccak256(b'why hello, neighbor! how are you today?').hex()}"
+    assert receipt["logs"][0]["topics"][3] == topic3
+
+    # Event abi is created correctly
+    assert c._classic_contract.abi[0] == {
+        "name": "MyLog",
+        "inputs": [
+            {"type": "bytes", "name": "arg1", "indexed": True},
+            {"type": "int128[3]", "name": "arg2", "indexed": True},
+            {"type": "string", "name": "arg3", "indexed": True},
+        ],
+        "anonymous": False,
+        "type": "event",
+    }
+
+
+def test_hashed_indexed_topics_storage(tester, keccak, get_contract):
+    loggy_code = """
+event MyLog:
+    arg1: indexed(bytes[32])
+    arg2: indexed(int128[2])
+    arg3: indexed(string[6])
+
+a: bytes[32]
+b: int128[2]
+c: string[6]
+
+
+@public
+def setter(_a: bytes[32], _b: int128[2], _c: string[6]):
+    self.a = _a
+    self.b = _b
+    self.c = _c
+
+@public
+def foo():
+    log MyLog(self.a, self.b, self.c)
+    """
+
+    c = get_contract(loggy_code)
+    c.setter(b"zonk", [838, -2109], "yessir", transact={})
+    tx_hash = c.foo(transact={})
+    receipt = tester.get_transaction_receipt(tx_hash.hex())
+
+    # Event id is always the first topic
+    event_id = keccak(b"MyLog(bytes,int128[2],string)")
+    assert receipt["logs"][0]["topics"][0] == event_id.hex()
+
+    topic1 = f"0x{keccak256(b'zonk').hex()}"
+    assert receipt["logs"][0]["topics"][1] == topic1
+
+    topic2 = f"0x{keccak256(eth_abi.encode_single('int128[2]', [838,-2109])).hex()}"
+    assert receipt["logs"][0]["topics"][2] == topic2
+
+    topic3 = f"0x{keccak256(b'yessir').hex()}"
+    assert receipt["logs"][0]["topics"][3] == topic3
+
+    # Event abi is created correctly
+    assert c._classic_contract.abi[0] == {
+        "name": "MyLog",
+        "inputs": [
+            {"type": "bytes", "name": "arg1", "indexed": True},
+            {"type": "int128[2]", "name": "arg2", "indexed": True},
+            {"type": "string", "name": "arg3", "indexed": True},
+        ],
+        "anonymous": False,
+        "type": "event",
+    }
+
+
+def test_hashed_indexed_topics_storxxage(tester, keccak, get_contract):
+    loggy_code = """
+event MyLog:
+    arg1: indexed(bytes[64])
+    arg2: indexed(int128[3])
+    arg3: indexed(string[21])
+
+@public
+def foo():
+    log MyLog(b"wow", [6,66,666], "madness!")
+    """
+
+    c = get_contract(loggy_code)
+    tx_hash = c.foo(transact={})
+    receipt = tester.get_transaction_receipt(tx_hash.hex())
+
+    # Event id is always the first topic
+    event_id = keccak(b"MyLog(bytes,int128[3],string)")
+    assert receipt["logs"][0]["topics"][0] == event_id.hex()
+
+    topic1 = f"0x{keccak256(b'wow').hex()}"
+    assert receipt["logs"][0]["topics"][1] == topic1
+
+    topic2 = f"0x{keccak256(eth_abi.encode_single('int128[3]', [6, 66, 666])).hex()}"
+    assert receipt["logs"][0]["topics"][2] == topic2
+
+    topic3 = f"0x{keccak256(b'madness!').hex()}"
+    assert receipt["logs"][0]["topics"][3] == topic3

@@ -154,10 +154,7 @@ def canonicalize_type(t, is_indexed=False):
     if isinstance(t, ByteArrayLike):
         # Check to see if maxlen is small enough for events
         byte_type = "string" if isinstance(t, StringType) else "bytes"
-        if is_indexed:
-            return f"{byte_type}{t.maxlen}"
-        else:
-            return f"{byte_type}"
+        return byte_type
 
     if isinstance(t, ListType):
         if not isinstance(t.subtype, (ListType, BaseType)):
