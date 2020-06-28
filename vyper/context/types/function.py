@@ -161,8 +161,7 @@ class ContractFunctionType(BaseTypeDefinition):
     def from_FunctionDef(
         cls,
         node: vy_ast.FunctionDef,
-        is_immutable: Optional[bool] = None,
-        is_public: Optional[bool] = None,
+        is_interface: Optional[bool] = False,
         include_defaults: Optional[bool] = True,
     ) -> "ContractFunctionType":
         """
@@ -184,60 +183,70 @@ class ContractFunctionType(BaseTypeDefinition):
         ContractFunctionType
         """
         kwargs: Dict[str, Any] = {}
-        if is_immutable is not None:
-            kwargs["state_mutability"] = (
-                StateMutability.VIEW if is_immutable else StateMutability.NONPAYABLE
-            )
-        if is_public is not None:
-            kwargs["function_visibility"] = (
-                FunctionVisibility.PUBLIC if is_public else FunctionVisibility.PRIVATE
-            )
+        if is_interface:
+            # FunctionDef with stateMutability in body (Interface defintions)
+            if (
+                len(node.body) == 1
+                and isinstance(node.body[0], vy_ast.Expr)
+                and isinstance(node.body[0].value, vy_ast.Name)
+                and StateMutability.is_valid_value(node.body[0].value.id)
+            ):
+                # Interfaces are always public
+                kwargs["function_visibility"] = FunctionVisibility.PUBLIC
+                kwargs["state_mutability"] = StateMutability(node.body[0].value.id)
+            else:
+                raise StructureException("Body must only contain state mutability label", node)
 
-        # decorators
-        for decorator in node.decorator_list:
+        else:
 
-            if isinstance(decorator, vy_ast.Call):
-                if "nonreentrant" in kwargs:
-                    raise StructureException(
-                        f"nonreentrant decorator is already set with key: {kwargs['nonreentrant']}",
-                        node,
-                    )
-                if decorator.get("func.id") != "nonreentrant":
-                    raise StructureException("Decorator is not callable", decorator)
-                if len(decorator.args) != 1 or not isinstance(decorator.args[0], vy_ast.Str):
-                    raise StructureException(
-                        "@nonreentrant name must be given as a single string literal", decorator,
-                    )
-                kwargs["nonreentrant"] = decorator.args[0].value
+            # FunctionDef with decorators (normal functions)
+            for decorator in node.decorator_list:
 
-            elif isinstance(decorator, vy_ast.Name):
-                if FunctionVisibility.is_valid_value(decorator.id):
-                    if "function_visibility" in kwargs:
-                        raise FunctionDeclarationException(
-                            f"Visibility is already set to: {kwargs['function_visibility']}", node
+                if isinstance(decorator, vy_ast.Call):
+                    if "nonreentrant" in kwargs:
+                        raise StructureException(
+                            "nonreentrant decorator is already set with key: "
+                            f"{kwargs['nonreentrant']}",
+                            node,
                         )
-                    kwargs["function_visibility"] = FunctionVisibility(decorator.id)
-
-                elif StateMutability.is_valid_value(decorator.id):
-                    if "state_mutability" in kwargs:
-                        raise FunctionDeclarationException(
-                            f"Mutability is already set to: {kwargs['state_mutability']}", node
+                    if decorator.get("func.id") != "nonreentrant":
+                        raise StructureException("Decorator is not callable", decorator)
+                    if len(decorator.args) != 1 or not isinstance(decorator.args[0], vy_ast.Str):
+                        raise StructureException(
+                            "@nonreentrant name must be given as a single string literal",
+                            decorator,
                         )
-                    kwargs["state_mutability"] = StateMutability(decorator.id)
+                    kwargs["nonreentrant"] = decorator.args[0].value
+
+                elif isinstance(decorator, vy_ast.Name):
+                    if FunctionVisibility.is_valid_value(decorator.id):
+                        if "function_visibility" in kwargs:
+                            raise FunctionDeclarationException(
+                                f"Visibility is already set to: {kwargs['function_visibility']}",
+                                node,
+                            )
+                        kwargs["function_visibility"] = FunctionVisibility(decorator.id)
+
+                    elif StateMutability.is_valid_value(decorator.id):
+                        if "state_mutability" in kwargs:
+                            raise FunctionDeclarationException(
+                                f"Mutability is already set to: {kwargs['state_mutability']}", node
+                            )
+                        kwargs["state_mutability"] = StateMutability(decorator.id)
+
+                    else:
+                        if decorator.id == "constant":
+                            warnings.warn(
+                                "'@constant' decorator has been removed (see VIP2040). "
+                                "Use `@view` instead.",
+                                DeprecationWarning,
+                            )
+                        raise FunctionDeclarationException(
+                            f"Unknown decorator: {decorator.id}", decorator
+                        )
 
                 else:
-                    if decorator.id == "constant":
-                        warnings.warn(
-                            "'@constant' decorator has been removed (see VIP2040). "
-                            "Use `@view` instead.",
-                            DeprecationWarning,
-                        )
-                    raise FunctionDeclarationException(
-                        f"Unknown decorator: {decorator.id}", decorator
-                    )
-
-            else:
-                raise StructureException("Bad decorator syntax", decorator)
+                    raise StructureException("Bad decorator syntax", decorator)
 
         if "function_visibility" not in kwargs:
             raise FunctionDeclarationException(
@@ -349,6 +358,11 @@ class ContractFunctionType(BaseTypeDefinition):
         if node.get("func.value.id") != "self":
             kwarg_keys += ["gas", "value"]
         validate_call_args(node, self.arg_count, kwarg_keys)
+
+        if self.mutability < StateMutability.PAYABLE:
+            kwarg_node = next((k for k in node.keywords if k.arg == "value"), None)
+            if kwarg_node is not None:
+                raise CallViolation("Cannnot send ether to nonpayable function", kwarg_node)
 
         for arg, expected in zip(node.args, self.arguments.values()):
             validate_expected_type(arg, expected)

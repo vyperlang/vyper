@@ -219,7 +219,7 @@ def foo(_addr: address) -> int128:
     assert caller.foo(target.address) == 42
 
 
-def test_static_call_fails_modifying(get_contract, assert_tx_failed):
+def test_static_call_fails_nonpayable(get_contract, assert_tx_failed):
 
     target_source = """
 baz: int128

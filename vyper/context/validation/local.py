@@ -382,15 +382,18 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
 
         if isinstance(fn_type, ContractFunctionType):
             if (
-                self.func.mutability == StateMutability.VIEW
-                and fn_type.mutability > StateMutability.VIEW
+                fn_type.mutability > StateMutability.VIEW
+                and self.func.mutability <= StateMutability.VIEW
             ):
                 raise StateAccessViolation(
-                    "Cannot call a mutating function from a view function", node
+                    f"Cannot call a mutating function from a {self.func.mutability.value} function",
+                    node,
                 )
 
             if self.func.mutability == StateMutability.PURE:
-                raise StateAccessViolation("Cannot call a function from a pure function", node)
+                raise StateAccessViolation(
+                    f"Cannot call any function from a {self.func.mutability.value} function", node
+                )
 
         return_value = fn_type.fetch_call_return(node.value)
         if return_value and not isinstance(fn_type, ContractFunctionType):

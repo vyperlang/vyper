@@ -53,8 +53,7 @@ def test_lll_from_s_expression(get_contract_from_lll):
             "name": "test",
             "outputs": [{"type": "int128", "name": "out"}],
             "inputs": [{"type": "int128", "name": "a"}],
-            "constant": False,
-            "payable": False,
+            "stateMutability": "nonpayable",
             "type": "function",
             "gas": 394,
         }

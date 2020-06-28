@@ -62,8 +62,7 @@ class FunctionSignature:
         name,
         args,
         output_type,
-        const,
-        payable,
+        mutability,
         private,
         nonreentrant_key,
         sig,
@@ -73,8 +72,7 @@ class FunctionSignature:
         self.name = name
         self.args = args
         self.output_type = output_type
-        self.const = const
-        self.payable = payable
+        self.mutability = mutability
         self.private = private
         self.sig = sig
         self.method_id = method_id
@@ -205,8 +203,7 @@ class FunctionSignature:
             else:
                 mem_pos += get_size_of_type(parsed_type) * 32
 
-        const = constant_override
-        payable = False
+        mutability = "nonpayable"  # Assume nonpayable by default
         private = False
         public = False
         nonreentrant_key = ""
@@ -214,10 +211,8 @@ class FunctionSignature:
         # Update function properties from decorators
         # NOTE: Can't import enums here because of circular import
         for dec in code.decorator_list:
-            if isinstance(dec, vy_ast.Name) and dec.id in ("view", "pure"):
-                const = True
-            elif isinstance(dec, vy_ast.Name) and dec.id == "payable":
-                payable = True
+            if isinstance(dec, vy_ast.Name) and dec.id in ("payable", "view", "pure"):
+                mutability = dec.id
             elif isinstance(dec, vy_ast.Name) and dec.id == "private":
                 private = True
             elif isinstance(dec, vy_ast.Name) and dec.id == "public":
@@ -241,20 +236,26 @@ class FunctionSignature:
             else:
                 raise StructureException("Bad decorator", dec)
 
+        if constant_override:
+            # In case this override is abused, match previous behavior
+            if mutability == "payable":
+                raise StructureException(f"Function {name} cannot be both constant and payable.")
+            mutability = "view"
+
         if public and private:
             raise StructureException(
                 f"Cannot use public and private decorators on the same function: {name}"
             )
-        if payable and const:
-            raise StructureException(f"Function {name} cannot be both constant and payable.")
-        if payable and private:
+        if mutability == "payable" and private:
             raise StructureException(f"Function {name} cannot be both private and payable.")
         if (not public and not private) and not interface_def:
             raise StructureException(
                 "Function visibility must be declared (@public or @private)", code,
             )
-        if const and nonreentrant_key:
-            raise StructureException("@nonreentrant makes no sense on a @view function.", code)
+        if mutability in ("view", "pure") and nonreentrant_key:
+            raise StructureException(
+                f"@nonreentrant makes no sense on a @{mutability} function.", code
+            )
 
         # Determine the return type and whether or not it's constant. Expects something
         # of the form:
@@ -284,7 +285,7 @@ class FunctionSignature:
         # Take the first 4 bytes of the hash of the sig to get the method ID
         method_id = fourbytes_to_int(keccak256(bytes(sig, "utf-8"))[:4])
         return cls(
-            name, args, output_type, const, payable, private, nonreentrant_key, sig, method_id, code
+            name, args, output_type, mutability, private, nonreentrant_key, sig, method_id, code
         )
 
     @iterable_cast(dict)
@@ -331,8 +332,7 @@ class FunctionSignature:
             "name": self.name,
             "outputs": self._generate_outputs_abi(),
             "inputs": self._generate_inputs_abi(),
-            "constant": self.const,
-            "payable": self.payable,
+            "stateMutability": self.mutability,
             "type": func_type,
         }
 

@@ -56,7 +56,7 @@ def _prive(_owner: address, _spender: address) -> (uint256, uint256):
 # External Interfaces
 interface One:
     def allowance(_owner: address, _spender: address) -> (uint256, uint256): view
-    def test(_owner: address): modifying
+    def test(_owner: address): nonpayable
     """
 
     out = compile_codes({"one.vy": code}, ["external_interface"])["one.vy"]
@@ -392,6 +392,32 @@ def test_json(a: {0}) -> {0}:
     """
 
 
+def convert_v1_abi(abi):
+    new_abi = []
+    for func_abi in abi:
+        if "stateMutability" in func_abi:
+            mutability = func_abi["stateMutability"]
+            del func_abi["stateMutability"]
+            if mutability == "payable":
+                func_abi["constant"] = False
+                func_abi["payable"] = True
+            elif mutability == "view":
+                func_abi["constant"] = True
+                func_abi["payable"] = False
+            elif mutability == "pure":
+                # NOTE: pure "changes" to "view"
+                func_abi["constant"] = True
+                func_abi["payable"] = False
+            else:  # "nonpayable"
+                func_abi["constant"] = False
+                func_abi["payable"] = False
+        else:  # Assume "nonpayable" by default
+            func_abi["constant"] = False
+            func_abi["payable"] = False
+        new_abi.append(func_abi)
+    return new_abi
+
+
 @pytest.mark.parametrize("type_str", [i[0] for i in type_str_params])
 def test_json_interface_implements(type_str):
     code = interface_test_code.format(type_str)
@@ -399,15 +425,7 @@ def test_json_interface_implements(type_str):
     abi = compile_code(code, ["abi"])["abi"]
     code = f"import jsonabi as jsonabi\nimplements: jsonabi\n{code}"
     compile_code(code, interface_codes={"jsonabi": {"type": "json", "code": abi}})
-
-    # TODO: Flip this around when stateMutability is output instead
-    if "payable" in abi and abi["payable"]:
-        del abi["payable"]
-        abi["stateMutability"] = "payable"
-    elif "constant" in abi and abi["constant"]:
-        del abi["constant"]
-        abi["stateMutability"] = "view"
-    compile_code(code, interface_codes={"jsonabi": {"type": "json", "code": abi}})
+    compile_code(code, interface_codes={"jsonabi": {"type": "json", "code": convert_v1_abi(abi)}})
 
 
 @pytest.mark.parametrize("type_str,value", type_str_params)
@@ -427,13 +445,7 @@ def test_call(a: address, b: {type_str}) -> {type_str}:
     """
     c2 = get_contract(code, interface_codes={"jsonabi": {"type": "json", "code": abi}})
     assert c2.test_call(c1.address, value) == value
-
-    # TODO: Flip this around when stateMutability is output instead
-    if "payable" in abi and abi["payable"]:
-        del abi["payable"]
-        abi["stateMutability"] = "payable"
-    elif "constant" in abi and abi["constant"]:
-        del abi["constant"]
-        abi["stateMutability"] = "view"
-    c3 = get_contract(code, interface_codes={"jsonabi": {"type": "json", "code": abi}})
+    c3 = get_contract(
+        code, interface_codes={"jsonabi": {"type": "json", "code": convert_v1_abi(abi)}}
+    )
     assert c3.test_call(c1.address, value) == value

@@ -5,7 +5,7 @@ from vyper import ast as vy_ast
 from vyper.ast.validation import validate_call_args
 from vyper.context.namespace import get_namespace
 from vyper.context.types.bases import DataLocation, MemberTypeDefinition
-from vyper.context.types.function import ContractFunctionType, StateMutability
+from vyper.context.types.function import ContractFunctionType
 from vyper.context.types.value.address import AddressDefinition
 from vyper.context.validation.utils import validate_expected_type
 from vyper.exceptions import (
@@ -156,19 +156,6 @@ def _get_class_functions(base_node: vy_ast.InterfaceDef) -> OrderedDict:
         if not isinstance(node, vy_ast.FunctionDef):
             raise StructureException("Interfaces can only contain function definitions", node)
 
-        visibility = node.body[0].get("value.id")
-        if visibility:
-            # TODO: Actually change modifying to nonpayable
-            visibility = visibility.replace("modifying", "nonpayable")
-        if len(node.body) != 1 or not StateMutability.is_valid_value(visibility):
-            raise StructureException(
-                "Interface function state mutability must be set as one of: "
-                f"{', '.join(StateMutability.values())}",
-                node.body[0] if node.body else node,
-            )
-
-        is_immutable = StateMutability(visibility) < StateMutability.NONPAYABLE
-        fn = ContractFunctionType.from_FunctionDef(node, is_immutable=is_immutable, is_public=True)
-        functions[node.name] = fn
+        functions[node.name] = ContractFunctionType.from_FunctionDef(node, is_interface=True)
 
     return functions

@@ -54,7 +54,7 @@ def array() -> bytes[3]:
 
     contract_2 = """
 interface Foo:
-    def foo() -> int128: modifying
+    def foo() -> int128: nonpayable
     def array() -> bytes[3]: view
 
 @public
@@ -103,7 +103,7 @@ def set_lucky(_lucky: int128):
 
     contract_2 = """
 interface Foo:
-    def set_lucky(_lucky: int128): modifying
+    def set_lucky(_lucky: int128): nonpayable
 
 @public
 def set_lucky(arg1: address, arg2: int128):
@@ -122,7 +122,7 @@ def test_constant_external_contract_call_cannot_change_state(
 ):
     c = """
 interface Foo:
-    def set_lucky(_lucky: int128) -> int128: modifying
+    def set_lucky(_lucky: int128) -> int128: nonpayable
 
 @public
 @view
@@ -165,7 +165,7 @@ def set_lucky(_lucky: int128) -> int128:
 
     contract_3 = """
 interface Foo:
-    def set_lucky(_lucky: int128): modifying
+    def set_lucky(_lucky: int128): nonpayable
 
 @public
 def set_lucky(arg1: address, arg2: int128):
@@ -381,7 +381,7 @@ def get_lucky() -> int128:
 
     contract_2 = """
 interface Bar:
-    def set_lucky(arg1: int128): modifying
+    def set_lucky(arg1: int128): nonpayable
     def get_lucky() -> int128: view
 
 bar_contract: Bar
@@ -424,7 +424,7 @@ def get_lucky() -> int128:
 
     contract_3 = """
 interface Bar:
-    def set_lucky(arg1: int128): modifying
+    def set_lucky(arg1: int128): nonpayable
     def get_lucky() -> int128: view
 
 bar_contract: Bar
@@ -508,7 +508,7 @@ def foo(contract_address: address) -> int128:
     assert_compile_failed(lambda: get_contract(contract_1), UnknownType)
 
 
-def test_external_with_payble_value(w3, get_contract_with_gas_estimation):
+def test_external_with_payable_value(w3, get_contract_with_gas_estimation):
     contract_1 = """
 @payable
 @public
@@ -522,7 +522,7 @@ def get_balance() -> uint256:
 
     contract_2 = """
 interface Bar:
-    def get_lucky() -> int128: modifying
+    def get_lucky() -> int128: payable
 
 bar_contract: Bar
 
@@ -575,7 +575,7 @@ def get_lucky() -> int128:
 
     contract_2 = """
 interface Bar:
-    def set_lucky(arg1: int128): modifying
+    def set_lucky(arg1: int128): nonpayable
     def get_lucky() -> int128: view
 
 bar_contract: Bar
@@ -601,7 +601,7 @@ def test_invalid_keyword_on_call(assert_compile_failed, get_contract_with_gas_es
 
     contract_1 = """
 interface Bar:
-    def set_lucky(arg1: int128): modifying
+    def set_lucky(arg1: int128): nonpayable
     def get_lucky() -> int128: view
 
 bar_contract: Bar
@@ -618,7 +618,7 @@ def test_invalid_contract_declaration(assert_compile_failed, get_contract_with_g
 
     contract_1 = """
 interface Bar:
-    def set_lucky(arg1: int128): modifying
+    def set_lucky(arg1: int128): nonpayable
 
 bar_contract: Barr
 
@@ -678,7 +678,7 @@ def get_balance() -> uint256:
 
     contract_2 = """
 interface Bar:
-    def get_lucky() -> int128: modifying
+    def get_lucky() -> int128: payable
 
 bar_contract: Bar
 

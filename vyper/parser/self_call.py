@@ -38,7 +38,7 @@ def _call_lookup_specs(stmt_expr, context):
 def make_call(stmt_expr, context):
     method_name, _, sig = _call_lookup_specs(stmt_expr, context)
 
-    if context.is_constant() and not sig.const:
+    if context.is_constant() and sig.mutability not in ("view", "pure"):
         raise StateAccessViolation(
             f"May not call state modifying function "
             f"'{method_name}' within {context.pp_constancy()}.",

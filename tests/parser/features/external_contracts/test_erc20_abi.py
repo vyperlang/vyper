@@ -26,10 +26,10 @@ interface ERC20Contract:
     def decimals() -> uint256: view
     def balanceOf(_owner: address) -> uint256: view
     def totalSupply() -> uint256: view
-    def transfer(_to: address, _amount: uint256) -> bool: modifying
-    def transferFrom(_from: address, _to: address, _value: uint256) -> bool: modifying
-    def approve(_spender: address, _amount: uint256) -> bool: modifying
-    def allowance(_owner: address, _spender: address) -> uint256: modifying
+    def transfer(_to: address, _amount: uint256) -> bool: nonpayable
+    def transferFrom(_from: address, _to: address, _value: uint256) -> bool: nonpayable
+    def approve(_spender: address, _amount: uint256) -> bool: nonpayable
+    def allowance(_owner: address, _spender: address) -> uint256: nonpayable
 
 token_address: ERC20Contract
 
