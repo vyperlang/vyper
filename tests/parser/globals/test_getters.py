@@ -48,9 +48,9 @@ def __init__():
     assert c.x() == 7
     assert c.y(1) == 9
     assert c.z() == b"cow"
-    assert c.w__a(1) == 11
-    assert c.w__b(1, 2) == 13
-    assert c.w__c(1) == b"horse"
-    assert c.w__e(2, 1, 2) == 17
-    assert c.w__f(3) == 750
-    assert c.w__g(3) == 751
+    assert c.w(1)[0] == 11  # W.a
+    assert c.w(1)[1][2] == 13  # W.b[2]
+    assert c.w(1)[2] == b"horse"  # W.c
+    assert c.w(2)[3][1][2] == 17  # W.e[1][2]
+    assert c.w(3)[4] == 750  # W.f
+    assert c.w(3)[5] == 751  # W.g
