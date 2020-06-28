@@ -8,6 +8,7 @@ from vyper.ast.validation import validate_call_args
 from vyper.context.namespace import get_namespace
 from vyper.context.types.bases import DataLocation
 from vyper.context.types.function import ContractFunctionType
+from vyper.context.types.meta.event import Event
 from vyper.context.types.utils import check_literal, get_type_from_annotation
 from vyper.context.validation.base import VyperNodeVisitorBase
 from vyper.context.validation.utils import validate_expected_type
@@ -169,7 +170,7 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
             raise exc.with_annotation(node) from None
 
     def visit_EventDef(self, node):
-        obj = self.namespace["event"].build_primitive_from_node(node)
+        obj = Event.from_EventDef(node)
         try:
             self.namespace[node.name] = obj
         except VyperException as exc:
