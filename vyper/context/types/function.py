@@ -361,7 +361,7 @@ class ContractFunctionType(BaseTypeDefinition):
 
         if self.mutability < StateMutability.PAYABLE:
             kwarg_node = next((k for k in node.keywords if k.arg == "value"), None)
-            if value_node is not None:
+            if kwarg_node is not None:
                 raise CallViolation("Cannnot send ether to nonpayable function", kwarg_node)
 
         for arg, expected in zip(node.args, self.arguments.values()):
