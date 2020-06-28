@@ -27,8 +27,7 @@ BAR_ABI = [
         "name": "bar",
         "outputs": [{"type": "bool", "name": "out"}],
         "inputs": [{"type": "uint256", "name": "a"}],
-        "constant": False,
-        "payable": False,
+        "stateMutability": "nonpayable",
         "type": "function",
         "gas": 313,
     }

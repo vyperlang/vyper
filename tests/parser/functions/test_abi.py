@@ -25,7 +25,7 @@ def __init__():
 @pytest.mark.parametrize("source_code", source_codes)
 def test_only_init_function(source_code):
     empty_sig = [
-        {"outputs": [], "inputs": [], "constant": False, "payable": False, "type": "constructor"}
+        {"outputs": [], "inputs": [], "stateMutability": "nonpayable", "type": "constructor"}
     ]
 
     data = CompilerData(source_code)
@@ -41,7 +41,7 @@ def __default__():
     """
 
     data = CompilerData(default_code)
-    assert build_abi_output(data) == [{"constant": False, "payable": True, "type": "fallback"}]
+    assert build_abi_output(data) == [{"stateMutability": "payable", "type": "fallback"}]
 
 
 def test_method_identifiers():
