@@ -493,8 +493,9 @@ class Expr:
                 ["add", ["sha3_32", right], ["mload", MemoryPositions.FREE_LOOP_INDEX]],
             ]
         else:
+            load_operation = "mload" if right.location == "memory" else "calldataload"
             load_i_from_list = [
-                "mload",
+                load_operation,
                 ["add", right, ["mul", 32, ["mload", MemoryPositions.FREE_LOOP_INDEX]]],
             ]
 
