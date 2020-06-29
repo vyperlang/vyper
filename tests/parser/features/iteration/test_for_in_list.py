@@ -10,6 +10,7 @@ from vyper.exceptions import (
     NamespaceCollision,
     StateAccessViolation,
     StructureException,
+    TypeMismatch,
 )
 
 BASIC_FOR_LOOP_CODE = [
@@ -494,6 +495,17 @@ def foo():
     for i in x[1]:
         pass
     """,
+    (
+        """
+@public
+def test_for() -> int128:
+    a: int128 = 0
+    for i in range(MAX_INT128, MAX_INT128+2):
+        a = i
+    return a
+    """,
+        TypeMismatch,
+    ),
 ]
 
 
