@@ -44,6 +44,24 @@ def in_test(x: int128) -> bool:
     assert c.in_test(32000) is False
 
 
+def test_in_calldata_list(get_contract_with_gas_estimation):
+    code = """
+@public
+def in_test(x: int128, y: int128[10]) -> bool:
+    if x in y:
+        return True
+    return False
+    """
+
+    c = get_contract_with_gas_estimation(code)
+
+    assert c.in_test(1, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]) is True
+    assert c.in_test(9, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]) is True
+    assert c.in_test(11, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]) is False
+    assert c.in_test(-1, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]) is False
+    assert c.in_test(32000, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]) is False
+
+
 def test_cmp_in_list(get_contract_with_gas_estimation):
     code = """
 @public
