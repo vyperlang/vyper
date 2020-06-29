@@ -68,31 +68,44 @@ def make_arg_clamper(datapos, mempos, typ, is_init=False):
     # Lists: recurse
     elif isinstance(typ, ListType):
         if typ.count > 5 or (type(datapos) is list and type(mempos) is list):
-            subtype_size = get_size_of_type(typ.subtype)
-            i_incr = subtype_size * 32
+            # find ultimate base type
+            subtype = typ.subtype
+            while hasattr(subtype, "subtype"):
+                subtype = subtype.subtype
 
-            mem_to = subtype_size * 32 * (typ.count - 1)
+            # make arg clamper for the base type
+            offset = 288
+            clamper = make_arg_clamper(
+                ["add", datapos, ["mload", offset]],
+                ["add", mempos, ["mload", offset]],
+                subtype,
+                is_init,
+            )
+            if clamper.value == "pass":
+                # no point looping if the base type doesn't require clamping
+                return clamper
+
+            type_size = get_size_of_type(typ)
+            i_incr = get_size_of_type(subtype) * 32
+
+            mem_to = type_size * 32
             loop_label = f"_check_list_loop_{str(uuid.uuid4())}"
 
-            offset = 288
-            o = [
+            lll_node = [
                 ["mstore", offset, 0],  # init loop
                 ["label", loop_label],
-                make_arg_clamper(
-                    ["add", datapos, ["mload", offset]],
-                    ["add", mempos, ["mload", offset]],
-                    typ.subtype,
-                    is_init,
-                ),
+                clamper,
                 ["mstore", offset, ["add", ["mload", offset], i_incr]],
                 ["if", ["lt", ["mload", offset], mem_to], ["goto", loop_label]],
             ]
         else:
-            o = []
+            lll_node = []
             for i in range(typ.count):
                 offset = get_size_of_type(typ.subtype) * 32 * i
-                o.append(make_arg_clamper(datapos + offset, mempos + offset, typ.subtype, is_init))
-        return LLLnode.from_list(["seq"] + o, typ=None, annotation="checking list input")
+                lll_node.append(
+                    make_arg_clamper(datapos + offset, mempos + offset, typ.subtype, is_init)
+                )
+        return LLLnode.from_list(["seq"] + lll_node, typ=None, annotation="checking list input")
     # Otherwise don't make any checks
     else:
         return LLLnode.from_list("pass")
