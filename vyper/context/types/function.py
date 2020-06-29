@@ -55,7 +55,7 @@ class StateMutability(StringEnum):
         #       specifying a state mutability modifier at all. Do the same here.
 
 
-class ContractFunctionType(BaseTypeDefinition):
+class ContractFunction(BaseTypeDefinition):
     """
     Contract function type.
 
@@ -117,9 +117,9 @@ class ContractFunctionType(BaseTypeDefinition):
         return f"contract function '{self.name}'"
 
     @classmethod
-    def from_abi(cls, abi: Dict) -> "ContractFunctionType":
+    def from_abi(cls, abi: Dict) -> "ContractFunction":
         """
-        Generate a `ContractFunctionType` object from an ABI interface.
+        Generate a `ContractFunction` object from an ABI interface.
 
         Arguments
         ---------
@@ -163,9 +163,9 @@ class ContractFunctionType(BaseTypeDefinition):
         node: vy_ast.FunctionDef,
         is_interface: Optional[bool] = False,
         include_defaults: Optional[bool] = True,
-    ) -> "ContractFunctionType":
+    ) -> "ContractFunction":
         """
-        Generate a `ContractFunctionType` object from a `FunctionDef` node.
+        Generate a `ContractFunction` object from a `FunctionDef` node.
 
         Arguments
         ---------
@@ -180,7 +180,7 @@ class ContractFunctionType(BaseTypeDefinition):
 
         Returns
         -------
-        ContractFunctionType
+        ContractFunction
         """
         kwargs: Dict[str, Any] = {}
         if is_interface:
@@ -315,9 +315,9 @@ class ContractFunctionType(BaseTypeDefinition):
         return cls(node.name, arguments, arg_count, return_type, **kwargs)
 
     @classmethod
-    def from_AnnAssign(cls, node: vy_ast.AnnAssign) -> "ContractFunctionType":
+    def from_AnnAssign(cls, node: vy_ast.AnnAssign) -> "ContractFunction":
         """
-        Generate a `ContractFunctionType` object from an `AnnAssign` node.
+        Generate a `ContractFunction` object from an `AnnAssign` node.
 
         Used to create function definitions for public variables.
 
@@ -328,7 +328,7 @@ class ContractFunctionType(BaseTypeDefinition):
 
         Returns
         -------
-        ContractFunctionType
+        ContractFunction
         """
         if not isinstance(node.annotation, vy_ast.Call):
             raise CompilerPanic("Annotation must be a call to public()")

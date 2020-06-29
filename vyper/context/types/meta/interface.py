@@ -5,7 +5,7 @@ from vyper import ast as vy_ast
 from vyper.ast.validation import validate_call_args
 from vyper.context.namespace import get_namespace
 from vyper.context.types.bases import DataLocation, MemberTypeDefinition
-from vyper.context.types.function import ContractFunctionType
+from vyper.context.types.function import ContractFunction
 from vyper.context.types.value.address import AddressDefinition
 from vyper.context.validation.utils import validate_expected_type
 from vyper.exceptions import (
@@ -98,7 +98,7 @@ def build_primitive_from_abi(name: str, abi: dict) -> InterfacePrimitive:
     """
     members: OrderedDict = OrderedDict()
     for item in [i for i in abi if i.get("type") == "function"]:
-        func = ContractFunctionType.from_abi(item)
+        func = ContractFunction.from_abi(item)
         if func.name in members:
             # TODO overloaded functions
             raise NamespaceCollision(
@@ -143,10 +143,10 @@ def _get_module_functions(base_node: vy_ast.Module) -> OrderedDict:
     functions = OrderedDict()
     for node in base_node.get_children(vy_ast.FunctionDef):
         if "public" in [i.id for i in node.decorator_list]:
-            func = ContractFunctionType.from_FunctionDef(node, include_defaults=True)
+            func = ContractFunction.from_FunctionDef(node, include_defaults=True)
             functions[node.name] = func
     for node in base_node.get_children(vy_ast.AnnAssign, {"annotation.func.id": "public"}):
-        functions[node.target.id] = ContractFunctionType.from_AnnAssign(node)
+        functions[node.target.id] = ContractFunction.from_AnnAssign(node)
     return functions
 
 
@@ -156,6 +156,6 @@ def _get_class_functions(base_node: vy_ast.InterfaceDef) -> OrderedDict:
         if not isinstance(node, vy_ast.FunctionDef):
             raise StructureException("Interfaces can only contain function definitions", node)
 
-        functions[node.name] = ContractFunctionType.from_FunctionDef(node, is_interface=True)
+        functions[node.name] = ContractFunction.from_FunctionDef(node, is_interface=True)
 
     return functions

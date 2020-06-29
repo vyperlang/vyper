@@ -11,7 +11,7 @@ from vyper.context.namespace import get_namespace
 from vyper.context.types.abstract import IntegerAbstractType
 from vyper.context.types.bases import DataLocation
 from vyper.context.types.function import (
-    ContractFunctionType,
+    ContractFunction,
     FunctionVisibility,
     StateMutability,
 )
@@ -380,7 +380,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         if isinstance(fn_type, Event):
             raise StructureException("To call an event you must use the `log` statement", node)
 
-        if isinstance(fn_type, ContractFunctionType):
+        if isinstance(fn_type, ContractFunction):
             if (
                 fn_type.mutability > StateMutability.VIEW
                 and self.func.mutability <= StateMutability.VIEW
@@ -396,7 +396,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                 )
 
         return_value = fn_type.fetch_call_return(node.value)
-        if return_value and not isinstance(fn_type, ContractFunctionType):
+        if return_value and not isinstance(fn_type, ContractFunction):
             raise StructureException(
                 f"Function '{node.value.func}' cannot be called without assigning the result", node
             )

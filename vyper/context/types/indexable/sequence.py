@@ -86,7 +86,7 @@ class TupleDefinition(_SequenceDefinition):
     Tuple type definition.
 
     This class has no corresponding primitive. It is used to represent
-    multiple return values from `types.function.ContractFunctionType`.
+    multiple return values from `types.function.ContractFunction`.
     """
 
     def __init__(self, value_type: Tuple[BaseTypeDefinition, ...]) -> None:
