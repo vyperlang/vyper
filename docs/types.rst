@@ -49,8 +49,8 @@ Operator              Description
 ``x != y``            Inequality
 ====================  ===================
 
-The operators ``or`` and ``and`` do not apply short-circuiting rules, i.e. both
-``x`` and ``y`` will always be evaluated.
+Short-circuiting of boolean operators (``or`` and ``and``) is consistent with
+the behavior of Python.
 
 .. index:: ! int128, ! int, ! integer
 
