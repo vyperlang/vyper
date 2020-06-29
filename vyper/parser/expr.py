@@ -652,39 +652,59 @@ class Expr:
             return LLLnode.from_list([op, left, right], typ="bool", pos=getpos(self.expr))
 
     def parse_BoolOp(self):
-        # Iterate through values
         for value in self.expr.values:
             # Check for boolean operations with non-boolean inputs
             _expr = Expr.parse_value_expr(value, self.context)
             if not is_base_type(_expr.typ, "bool"):
                 return
 
-        # Check for valid ops
+        def _build_if_lll(condition, true, false):
+            # generate a basic if statement in LLL
+            o = ["if", condition, true, false]
+            return o
+
+        jump_label = f"_boolop_{self.expr.src}"
         if isinstance(self.expr.op, vy_ast.And):
-            op = "and"
+            if len(self.expr.values) == 2:
+                # `x and y` is a special case, it doesn't require jumping
+                lll_node = _build_if_lll(
+                    Expr.parse_value_expr(self.expr.values[0], self.context),
+                    Expr.parse_value_expr(self.expr.values[1], self.context),
+                    [0],
+                )
+                return LLLnode.from_list(lll_node, typ="bool")
+
+            # create the initial `x and y` from the final two values
+            lll_node = _build_if_lll(
+                Expr.parse_value_expr(self.expr.values[-2], self.context),
+                Expr.parse_value_expr(self.expr.values[-1], self.context),
+                [0],
+            )
+            # iterate backward through the remaining values
+            for node in self.expr.values[-3::-1]:
+                lll_node = _build_if_lll(
+                    Expr.parse_value_expr(node, self.context), lll_node, [0, ["goto", jump_label]]
+                )
+
         elif isinstance(self.expr.op, vy_ast.Or):
-            op = "or"
+            # create the initial `x or y` from the final two values
+            lll_node = _build_if_lll(
+                Expr.parse_value_expr(self.expr.values[-2], self.context),
+                [1, ["goto", jump_label]],
+                Expr.parse_value_expr(self.expr.values[-1], self.context),
+            )
+
+            # iterate backward through the remaining values
+            for node in self.expr.values[-3::-1]:
+                lll_node = _build_if_lll(
+                    Expr.parse_value_expr(node, self.context), [1, ["goto", jump_label]], lll_node,
+                )
         else:
-            return
+            raise TypeCheckFailure(f"Unexpected boolean operator: {type(self.expr.op).__name__}")
 
-        # Handle different numbers of inputs
-        count = len(self.expr.values)
-        if count == 2:
-            left = Expr.parse_value_expr(self.expr.values[0], self.context)
-            right = Expr.parse_value_expr(self.expr.values[1], self.context)
-            return LLLnode.from_list([op, left, right], typ="bool", pos=getpos(self.expr))
-        else:
-            left = Expr.parse_value_expr(self.expr.values[0], self.context)
-            right = Expr.parse_value_expr(self.expr.values[1], self.context)
-
-            p = ["seq", [op, left, right]]
-            values = self.expr.values[2:]
-            while len(values) > 0:
-                value = Expr.parse_value_expr(values[0], self.context)
-                p = [op, value, p]
-                values = values[1:]
-
-            return LLLnode.from_list(p, typ="bool", pos=getpos(self.expr))
+        # add `jump_label` at the end of the boolop
+        lll_node = ["seq_unchecked", lll_node, ["label", jump_label]]
+        return LLLnode.from_list(lll_node, typ="bool")
 
     # Unary operations (only "not" supported)
     def parse_UnaryOp(self):
