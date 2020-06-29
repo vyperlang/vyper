@@ -7,7 +7,7 @@ from vyper import ast as vy_ast
 from vyper.ast.validation import validate_call_args
 from vyper.context.namespace import get_namespace
 from vyper.context.types.bases import DataLocation
-from vyper.context.types.function import ContractFunctionType
+from vyper.context.types.function import ContractFunction
 from vyper.context.types.meta.event import Event
 from vyper.context.types.utils import check_literal, get_type_from_annotation
 from vyper.context.validation.base import VyperNodeVisitorBase
@@ -177,7 +177,7 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
             raise exc.with_annotation(node) from None
 
     def visit_FunctionDef(self, node):
-        func = ContractFunctionType.from_FunctionDef(node)
+        func = ContractFunction.from_FunctionDef(node)
         try:
             self.namespace["self"].add_member(func.name, func)
         except VyperException as exc:

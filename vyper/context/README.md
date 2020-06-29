@@ -25,7 +25,7 @@ Vyper abstract syntax tree (AST).
   * [`abstract.py`](types/abstract.py): Abstract data type classes
   * [`bases.py`](types/bases.py): Common base classes for all type objects
   * [`event.py`](types/event.py): `Event` type class
-  * [`function.py`](types/function.py): `ContractFunctionType` type class
+  * [`function.py`](types/function.py): `ContractFunction` type class
   * [`utils.py`](types/utils.py): Functions for generating and fetching type objects
 * [`validation/`](validation): Subpackage for type checking and syntax verification logic
   * [`base.py`](validation/base.py): Base validation class
