@@ -3,20 +3,32 @@ from decimal import Decimal
 from vyper.exceptions import OverflowException
 
 
-def test_exponents_with_nums(get_contract_with_gas_estimation):
-    exp_code = """
+def test_exponent_base_zero(get_contract):
+    code = """
 @public
-def _num_exp(x: int128, y: int128) -> int128:
-    return x**y
+def foo(x: int128) -> int128:
+    return 0 ** x
     """
+    c = get_contract(code)
+    assert c.foo(0) == 1
+    assert c.foo(1) == 0
+    assert c.foo(-1) == 0
+    assert c.foo(2 ** 127 - 1) == 0
+    assert c.foo(-(2 ** 127)) == 0
 
-    c = get_contract_with_gas_estimation(exp_code)
-    assert c._num_exp(2, 2) == 4
-    assert c._num_exp(2, 3) == 8
-    assert c._num_exp(2, 4) == 16
-    assert c._num_exp(3, 2) == 9
-    assert c._num_exp(3, 3) == 27
-    assert c._num_exp(72, 19) == 72 ** 19
+
+def test_exponent_base_one(get_contract):
+    code = """
+@public
+def foo(x: int128) -> int128:
+    return 1 ** x
+    """
+    c = get_contract(code)
+    assert c.foo(0) == 1
+    assert c.foo(1) == 1
+    assert c.foo(-1) == 1
+    assert c.foo(2 ** 127 - 1) == 1
+    assert c.foo(-(2 ** 127)) == 1
 
 
 def test_num_divided_by_num(get_contract_with_gas_estimation):
@@ -175,20 +187,6 @@ def num_mul(a: int128, b: int128) -> int128:
 
     assert c.num_mul(-(2 ** 127), 1) == -(2 ** 127)
     assert_tx_failed(lambda: c.num_mul(2 ** 126, 2))
-
-
-def test_overflow_pow_vars(get_contract, assert_tx_failed):
-    code = """
-@public
-def num_pow(a: int128, b: int128) -> int128:
-    return a ** b
-    """
-
-    c = get_contract(code)
-
-    assert c.num_pow(-2, 127) == (-(2 ** 127))
-    assert c.num_pow(2, 126) == (2 ** 126)
-    assert_tx_failed(lambda: c.num_pow(2 ** 126, 2))
 
 
 def test_literal_int_division(get_contract):
