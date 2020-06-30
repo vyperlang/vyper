@@ -365,7 +365,7 @@ class Expr:
             isinstance(self.expr.value, vy_ast.Name) and self.expr.value.id in ENVIRONMENT_VARIABLES
         ):
             key = f"{self.expr.value.id}.{self.expr.attr}"
-            if key == "msg.sender" and not self.context.is_private:
+            if key == "msg.sender" and not self.context.is_internal:
                 return LLLnode.from_list(["caller"], typ="address", pos=getpos(self.expr))
             elif key == "msg.value" and self.context.is_payable:
                 return LLLnode.from_list(

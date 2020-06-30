@@ -23,7 +23,7 @@ class Context:
         forvars=None,
         return_type=None,
         constancy=Constancy.Mutable,
-        is_private=False,
+        is_internal=False,
         is_payable=False,
         origcode="",
         method_id="",
@@ -65,9 +65,9 @@ class Context:
         self.structs = global_ctx._structs
         # defined constants
         self.constants = global_ctx._constants
-        # Callback pointer to jump back to, used in private functions.
+        # Callback pointer to jump back to, used in internal functions.
         self.callback_ptr = None
-        self.is_private = is_private
+        self.is_internal = is_internal
         # method_id of current function
         self.method_id = method_id
         # store global context

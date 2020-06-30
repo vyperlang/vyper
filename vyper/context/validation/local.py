@@ -131,13 +131,13 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         self.func = namespace["self"].get_member(fn_node.name, fn_node)
         namespace.update(self.func.arguments)
 
-        if self.func.visibility is FunctionVisibility.PRIVATE:
+        if self.func.visibility is FunctionVisibility.INTERNAL:
             node_list = fn_node.get_descendants(
                 vy_ast.Attribute, {"value.id": "msg", "attr": "sender"}
             )
             if node_list:
                 raise StateAccessViolation(
-                    "msg.sender is not allowed in private functions", node_list[0]
+                    "msg.sender is not allowed in internal functions", node_list[0]
                 )
         if self.func.mutability == StateMutability.PURE:
             node_list = fn_node.get_descendants(

@@ -142,7 +142,7 @@ def build_primitive_from_node(
 def _get_module_functions(base_node: vy_ast.Module) -> OrderedDict:
     functions = OrderedDict()
     for node in base_node.get_children(vy_ast.FunctionDef):
-        if "public" in [i.id for i in node.decorator_list]:
+        if "external" in [i.id for i in node.decorator_list]:
             func = ContractFunction.from_FunctionDef(node, include_defaults=True)
             functions[node.name] = func
     for node in base_node.get_children(vy_ast.AnnAssign, {"annotation.func.id": "public"}):

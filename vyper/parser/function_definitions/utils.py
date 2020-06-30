@@ -4,7 +4,7 @@ from vyper.parser.lll_node import LLLnode
 def get_sig_statements(sig, pos):
     method_id_node = LLLnode.from_list(sig.method_id, pos=pos, annotation=f"{sig.sig}")
 
-    if sig.private:
+    if sig.internal:
         sig_compare = 0
         private_label = LLLnode.from_list(
             ["label", f"priv_{sig.method_id}"], pos=pos, annotation=f"{sig.sig}"

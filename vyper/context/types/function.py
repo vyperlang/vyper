@@ -28,8 +28,8 @@ from vyper.exceptions import (
 
 
 class FunctionVisibility(StringEnum):
-    PUBLIC = StringEnum.auto()
-    PRIVATE = StringEnum.auto()
+    EXTERNAL = StringEnum.auto()
+    INTERNAL = StringEnum.auto()
 
 
 class StateMutability(StringEnum):
@@ -100,7 +100,7 @@ class ContractFunction(BaseTypeDefinition):
             # A function definition type is immutable once created
             is_immutable=True,
             # A function definition type is public if it's visibility is public
-            is_public=(function_visibility == FunctionVisibility.PUBLIC),
+            is_public=(function_visibility == FunctionVisibility.EXTERNAL),
         )
         self.name = name
         self.arguments = arguments
@@ -153,7 +153,7 @@ class ContractFunction(BaseTypeDefinition):
             arguments,
             len(arguments),
             return_type,
-            function_visibility=FunctionVisibility.PUBLIC,
+            function_visibility=FunctionVisibility.EXTERNAL,
             state_mutability=StateMutability.from_abi(abi),
         )
 
@@ -171,9 +171,8 @@ class ContractFunction(BaseTypeDefinition):
         ---------
         node : FunctionDef
             Vyper ast node to generate the function definition from.
-        is_public : bool, optional
-            Boolean indicating if the function is public or private. Should only be
-            given if the visibility not is indicated via a decorator.
+        is_interface: bool, optional
+            Boolean indicating if the function definition is part of an interface.
         include_defaults: bool, optional
             If False, default arguments are ignored when parsing generating the
             object. Used for interfaces.
@@ -192,7 +191,7 @@ class ContractFunction(BaseTypeDefinition):
                 and StateMutability.is_valid_value(node.body[0].value.id)
             ):
                 # Interfaces are always public
-                kwargs["function_visibility"] = FunctionVisibility.PUBLIC
+                kwargs["function_visibility"] = FunctionVisibility.EXTERNAL
                 kwargs["state_mutability"] = StateMutability(node.body[0].value.id)
             else:
                 raise StructureException("Body must only contain state mutability label", node)
@@ -342,7 +341,7 @@ class ContractFunction(BaseTypeDefinition):
             args_dict,
             len(arguments),
             return_type,
-            function_visibility=FunctionVisibility.PUBLIC,
+            function_visibility=FunctionVisibility.EXTERNAL,
             state_mutability=StateMutability.NONPAYABLE,
         )
 
@@ -350,8 +349,8 @@ class ContractFunction(BaseTypeDefinition):
         return tuple(self.arguments.values()), self.return_type
 
     def fetch_call_return(self, node: vy_ast.Call) -> Optional[BaseTypeDefinition]:
-        if node.get("func.value.id") == "self" and self.visibility == FunctionVisibility.PUBLIC:
-            raise CallViolation("Cannnot call public functions via 'self'", node)
+        if node.get("func.value.id") == "self" and self.visibility == FunctionVisibility.EXTERNAL:
+            raise CallViolation("Cannnot call external functions via 'self'", node)
 
         # for external calls, include gas and value as optional kwargs
         kwarg_keys = self.kwarg_keys.copy()

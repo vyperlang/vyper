@@ -75,7 +75,7 @@ def mk_full_signature(global_ctx, sig_formatter=None):
             custom_structs=global_ctx._structs,
             constants=global_ctx._constants,
         )
-        if not sig.private:
+        if not sig.internal:
             default_sigs = generate_default_arg_sigs(code, global_ctx._contracts, global_ctx)
             for s in default_sigs:
                 o.append(sig_formatter(s))
@@ -99,7 +99,7 @@ def mk_single_method_identifier(code, global_ctx):
         custom_structs=global_ctx._structs,
         constants=global_ctx._constants,
     )
-    if not sig.private:
+    if not sig.internal:
         default_sigs = generate_default_arg_sigs(code, global_ctx._contracts, global_ctx)
         for s in default_sigs:
             identifiers[s.sig] = hex(s.method_id)

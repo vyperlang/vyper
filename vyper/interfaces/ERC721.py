@@ -19,47 +19,47 @@ event ApprovalForAll:
 # Functions
 
 @view
-@public
+@external
 def supportsInterface(_interfaceID: bytes32) -> bool:
     pass
 
 @view
-@public
+@external
 def balanceOf(_owner: address) -> uint256:
     pass
 
 @view
-@public
+@external
 def ownerOf(_tokenId: uint256) -> address:
     pass
 
 @view
-@public
+@external
 def getApproved(_tokenId: uint256) -> address:
     pass
 
 @view
-@public
+@external
 def isApprovedForAll(_owner: address, _operator: address) -> bool:
     pass
 
-@public
+@external
 def transferFrom(_from: address, _to: address, _tokenId: uint256):
     pass
 
-@public
+@external
 def safeTransferFrom(_from: address, _to: address, _tokenId: uint256):
     pass
 
-@public
+@external
 def safeTransferFrom(_from: address, _to: address, _tokenId: uint256, _data: bytes[1024]):
     pass
 
-@public
+@external
 def approve(_approved: address, _tokenId: uint256):
     pass
 
-@public
+@external
 def setApprovalForAll(_operator: address, _approved: bool):
     pass
 

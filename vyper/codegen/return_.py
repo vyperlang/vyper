@@ -12,7 +12,7 @@ def make_return_stmt(stmt, context, begin_pos, _size, loop_memory_position=None)
     from vyper.parser.function_definitions.utils import get_nonreentrant_lock
 
     _, nonreentrant_post = get_nonreentrant_lock(context.sig, context.global_ctx)
-    if context.is_private:
+    if context.is_internal:
         if loop_memory_position is None:
             loop_memory_position = context.new_placeholder(typ=BaseType("uint256"))
 
@@ -68,7 +68,7 @@ def make_return_stmt(stmt, context, begin_pos, _size, loop_memory_position=None)
 def gen_tuple_return(stmt, context, sub):
     # Is from a call expression.
     if sub.args and len(sub.args[0].args) > 0 and sub.args[0].args[0].value == "call":
-        # self-call to public.
+        # self-call to external.
         mem_pos = sub
         mem_size = get_size_of_type(sub.typ) * 32
         return LLLnode.from_list(["return", mem_pos, mem_size], typ=sub.typ)

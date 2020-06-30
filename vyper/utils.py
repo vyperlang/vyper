@@ -131,10 +131,11 @@ VALID_CALL_KEYWORDS = {"uint256", "int128", "decimal", "address", "interface", "
 # Valid attributes for variables and methods
 VALID_GLOBAL_KEYWORDS = {
     "public",
+    "external",
     "nonpayable",
     "event",
     "constant",
-    "private",
+    "internal",
     "payable",
     "nonreentrant",
 } | VALID_CALL_KEYWORDS

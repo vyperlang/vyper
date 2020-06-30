@@ -1,9 +1,9 @@
 from vyper.parser.context import Constancy, Context
-from vyper.parser.function_definitions.parse_private_function import (  # NOTE: black/isort conflict
-    parse_private_function,
+from vyper.parser.function_definitions.parse_external_function import (  # NOTE black/isort conflict
+    parse_external_function,
 )
-from vyper.parser.function_definitions.parse_public_function import (  # NOTE: black/isort conflict
-    parse_public_function,
+from vyper.parser.function_definitions.parse_internal_function import (  # NOTE black/isort conflict
+    parse_internal_function,
 )
 from vyper.parser.memory_allocator import MemoryAllocator
 from vyper.signatures import FunctionSignature
@@ -48,15 +48,15 @@ def parse_function(code, sigs, origcode, global_ctx, _vars=None):
         constancy=Constancy.Constant if sig.mutability in ("view", "pure") else Constancy.Mutable,
         is_payable=sig.mutability == "payable",
         origcode=origcode,
-        is_private=sig.private,
+        is_internal=sig.internal,
         method_id=sig.method_id,
         sig=sig,
     )
 
-    if sig.private:
-        o = parse_private_function(code=code, sig=sig, context=context,)
+    if sig.internal:
+        o = parse_internal_function(code=code, sig=sig, context=context,)
     else:
-        o = parse_public_function(code=code, sig=sig, context=context,)
+        o = parse_external_function(code=code, sig=sig, context=context,)
 
     o.context = context
     o.total_gas = o.gas + calc_mem_gas(o.context.memory_allocator.get_next_memory_position())
