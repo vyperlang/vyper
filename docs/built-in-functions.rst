@@ -114,6 +114,24 @@ contracts.
 
     Returns the square root of the provided decimal number, using the Babylonian square root algorithm.
 
+.. py:function:: pow_mod256(a: uint256, b: uint256) -> uint256
+
+    Returns the result of ``a ** b % (2 ** 256)``.
+
+    .. code-block:: python
+
+        @public
+        @view
+        def foo(a: uint256, b: uint256) -> uint256:
+            return pow_mod256(a, b)
+
+    .. code-block:: python
+
+        >>> ExampleContract.foo(2, 3)
+        8
+        >>> ExampleContract.foo(100, 100)
+        59041770658110225754900818312084884949620587934026984283048776718299468660736
+
 .. py:function:: method_id(method, output_type: type = bytes[4]) -> Union[bytes32, bytes[4]]
 
     Takes a function declaration and returns its method_id (used in data field to call it).
