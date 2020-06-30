@@ -1,5 +1,5 @@
 import math
-from decimal import Decimal, DivisionByZero, InvalidOperation, getcontext
+from decimal import Decimal, getcontext
 
 from vyper import ast as vy_ast
 from vyper.exceptions import (
@@ -94,11 +94,14 @@ def calculate_largest_power(a: int, num_bits: int, is_signed: bool) -> int:
     elif a < -(2 ** value_bits):
         raise TypeCheckFailure("Value is too small and will always throw")
 
-    a = abs(a)
-    try:
-        b = int(Decimal(value_bits) / (Decimal(a).ln() / Decimal(2).ln()))
-    except (DivisionByZero, InvalidOperation):
-        return 1
+    a_is_negative = a < 0
+    a = abs(a)  # No longer need to know if it's signed or not
+    if a in (0, 1):
+        raise CompilerPanic("Exponential operation is useless!")
+
+    # NOTE: There is an edge case if `a` were left signed where the following
+    #       operation would not work (`ln(a)` is undefined if `a <= 0`)
+    b = int(Decimal(value_bits) / (Decimal(a).ln() / Decimal(2).ln()))
     if b <= 1:
         return 1  # Value is assumed to be in range, therefore power of 1 is max
 
@@ -113,7 +116,13 @@ def calculate_largest_power(a: int, num_bits: int, is_signed: bool) -> int:
         num_iterations += 1
         assert num_iterations < 10000
 
-    return b
+    # Edge case: If a is negative and the values of a and b are such that:
+    #               (a) ** (b + 1) == -(2 ** value_bits)
+    #            we can actually squeak one more out of it because it's on the edge
+    if a_is_negative and (-a) ** (b + 1) == -(2 ** value_bits):  # NOTE: a = abs(a)
+        return b + 1
+    else:
+        return b  # Exact
 
 
 def calculate_largest_base(b: int, num_bits: int, is_signed: bool) -> int:
