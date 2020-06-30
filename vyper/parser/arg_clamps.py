@@ -22,6 +22,22 @@ def _mk_codecopy_copier(pos, sz, mempos):
 def make_arg_clamper(datapos, mempos, typ, is_init=False):
     """
     Clamps argument to type limits.
+
+    Arguments
+    ---------
+    datapos : int | LLLnode
+        Calldata offset of the value being clamped
+    mempos : int | LLLnode
+        Memory offset that the value is stored at during clamping
+    typ : vyper.types.types.BaseType
+        Type of the value
+    is_init : bool, optional
+        Boolean indicating if we are generating init bytecode
+
+    Returns
+    -------
+    LLLnode
+        Arg clamper LLL
     """
 
     if not is_init:
@@ -74,7 +90,7 @@ def make_arg_clamper(datapos, mempos, typ, is_init=False):
                 subtype = subtype.subtype
 
             # make arg clamper for the base type
-            offset = 288
+            offset = MemoryPositions.FREE_LOOP_INDEX
             clamper = make_arg_clamper(
                 ["add", datapos, ["mload", offset]],
                 ["add", mempos, ["mload", offset]],
@@ -85,6 +101,7 @@ def make_arg_clamper(datapos, mempos, typ, is_init=False):
                 # no point looping if the base type doesn't require clamping
                 return clamper
 
+            # loop the entire array at once, even if it's multidimensional
             type_size = get_size_of_type(typ)
             i_incr = get_size_of_type(subtype) * 32
 
