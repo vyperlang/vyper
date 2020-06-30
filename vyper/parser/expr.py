@@ -1,5 +1,9 @@
+import math
+from decimal import Decimal, getcontext
+
 from vyper import ast as vy_ast
 from vyper.exceptions import (
+    CompilerPanic,
     EvmVersionException,
     StructureException,
     TypeCheckFailure,
@@ -56,6 +60,116 @@ ENVIRONMENT_VARIABLES = {
     "tx",
     "chain",
 }
+
+# Necessary to ensure we have enough precision to do the log/exp calcs
+getcontext().prec = 42
+
+
+def calculate_largest_power(a: int, num_bits: int, is_signed: bool) -> int:
+    """
+    For a given base `a`, compute the maximum power `b` that will not
+    produce an overflow in the equation `a ** b`
+
+    Arguments
+    ---------
+    a : int
+        Base value for the equation `a ** b`
+    num_bits : int
+        The maximum number of bits that the resulting value must fit in
+    is_signed : bool
+        Is the operation being performed on signed integers?
+
+    Returns
+    -------
+    int
+        Largest possible value for `b` where the result does not overflow
+        `num_bits`
+    """
+    if num_bits % 8:
+        raise CompilerPanic("Type is not a modulo of 8")
+
+    value_bits = num_bits - (1 if is_signed else 0)
+    if a >= 2 ** value_bits:
+        raise TypeCheckFailure("Value is too large and will always throw")
+    elif a < -(2 ** value_bits):
+        raise TypeCheckFailure("Value is too small and will always throw")
+
+    a_is_negative = a < 0
+    a = abs(a)  # No longer need to know if it's signed or not
+    if a in (0, 1):
+        raise CompilerPanic("Exponential operation is useless!")
+
+    # NOTE: There is an edge case if `a` were left signed where the following
+    #       operation would not work (`ln(a)` is undefined if `a <= 0`)
+    b = int(Decimal(value_bits) / (Decimal(a).ln() / Decimal(2).ln()))
+    if b <= 1:
+        return 1  # Value is assumed to be in range, therefore power of 1 is max
+
+    # Do a bit of iteration to ensure we have the exact number
+    num_iterations = 0
+    while a ** (b + 1) < 2 ** value_bits:
+        b += 1
+        num_iterations += 1
+        assert num_iterations < 10000
+    while a ** b >= 2 ** value_bits:
+        b -= 1
+        num_iterations += 1
+        assert num_iterations < 10000
+
+    # Edge case: If a is negative and the values of a and b are such that:
+    #               (a) ** (b + 1) == -(2 ** value_bits)
+    #            we can actually squeak one more out of it because it's on the edge
+    if a_is_negative and (-a) ** (b + 1) == -(2 ** value_bits):  # NOTE: a = abs(a)
+        return b + 1
+    else:
+        return b  # Exact
+
+
+def calculate_largest_base(b: int, num_bits: int, is_signed: bool) -> int:
+    """
+    For a given power `b`, compute the maximum base `a` that will not produce an
+    overflow in the equation `a ** b`
+
+    Arguments
+    ---------
+    b : int
+        Power value for the equation `a ** b`
+    num_bits : int
+        The maximum number of bits that the resulting value must fit in
+    is_signed : bool
+        Is the operation being performed on signed integers?
+
+    Returns
+    -------
+    int
+        Largest possible value for `a` where the result does not overflow
+        `num_bits`
+    """
+    if num_bits % 8:
+        raise CompilerPanic("Type is not a modulo of 8")
+    if b < 0:
+        raise TypeCheckFailure("Cannot calculate negative exponents")
+
+    value_bits = num_bits - (1 if is_signed else 0)
+    if b > value_bits:
+        raise TypeCheckFailure("Value is too large and will always throw")
+    elif b < 2:
+        return 2 ** value_bits - 1  # Maximum value for type
+
+    # Estimate (up to ~39 digits precision required)
+    a = math.ceil(2 ** (Decimal(value_bits) / Decimal(b)))
+    # Do a bit of iteration to ensure we have the exact number
+    num_iterations = 0
+    while (a + 1) ** b < 2 ** value_bits:
+        a += 1
+        num_iterations += 1
+        assert num_iterations < 10000
+    while a ** b >= 2 ** value_bits:
+        a -= 1
+        num_iterations += 1
+        assert num_iterations < 10000
+
+    return a
 
 
 def get_min_val_for_type(typ: str) -> int:
@@ -419,23 +533,41 @@ class Expr:
                 return
             new_typ = BaseType(ltyp)
 
-            if ltyp == rtyp == "uint256":
-                arith = [
-                    "seq",
-                    [
-                        "assert",
-                        [
-                            "or",
-                            # r == 1 | iszero(r)
-                            # could be simplified to ~(r & 1)
-                            ["or", ["eq", "r", 1], ["iszero", "r"]],
-                            ["lt", "l", ["exp", "l", "r"]],
-                        ],
-                    ],
-                    ["exp", "l", "r"],
-                ]
-            elif ltyp == rtyp == "int128":
-                arith = ["exp", "l", "r"]
+            if self.expr.left.get("value") == 1:
+                return LLLnode.from_list([1], typ=new_typ, pos=pos)
+            if self.expr.left.get("value") == 0:
+                return LLLnode.from_list(["iszero", right], typ=new_typ, pos=pos)
+
+            if ltyp == "int128":
+                is_signed = True
+                num_bits = 128
+            else:
+                is_signed = False
+                num_bits = 256
+
+            if isinstance(self.expr.left, vy_ast.Int):
+                value = self.expr.left.value
+                upper_bound = calculate_largest_power(value, num_bits, is_signed) + 1
+                # for signed integers, this also prevents negative values
+                clamp = ["lt", right, upper_bound]
+                return LLLnode.from_list(
+                    ["seq", ["assert", clamp], ["exp", left, right]], typ=new_typ, pos=pos,
+                )
+            elif isinstance(self.expr.right, vy_ast.Int):
+                value = self.expr.right.value
+                upper_bound = calculate_largest_base(value, num_bits, is_signed) + 1
+                if is_signed:
+                    clamp = ["and", ["slt", left, upper_bound], ["sgt", left, -upper_bound]]
+                else:
+                    clamp = ["lt", left, upper_bound]
+                return LLLnode.from_list(
+                    ["seq", ["assert", clamp], ["exp", left, right]], typ=new_typ, pos=pos,
+                )
+            else:
+                # `a ** b` where neither `a` or `b` are known
+                # TODO this is currently unreachable, once we implement a way to do it safely
+                # remove the check in `vyper/context/types/value/numeric.py`
+                return
 
         if arith is None:
             return

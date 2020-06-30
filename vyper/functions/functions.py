@@ -1391,6 +1391,29 @@ class MulMod(_AddMulMod):
     _opcode = "mulmod"
 
 
+class PowMod256(_SimpleBuiltinFunction):
+    _id = "pow_mod256"
+    _inputs = [("a", Uint256Definition()), ("b", Uint256Definition())]
+    _return_type = Uint256Definition()
+
+    def evaluate(self, node):
+        validate_call_args(node, 2)
+        if next((i for i in node.args if not isinstance(i, vy_ast.Int)), None):
+            raise UnfoldableNode
+
+        left, right = node.args
+        if left.value < 0 or right.value < 0:
+            raise UnfoldableNode
+
+        value = (left.value ** right.value) % (2 ** 256)
+        return vy_ast.Int.from_node(node, value=value)
+
+    def build_LLL(self, expr, context):
+        left = Expr.parse_value_expr(expr.args[0], context)
+        right = Expr.parse_value_expr(expr.args[1], context)
+        return LLLnode.from_list(["exp", left, right], typ=left.typ, pos=getpos(expr))
+
+
 def get_create_forwarder_to_bytecode():
     from vyper.compile_lll import assembly_to_evm, num_to_bytearray
 
@@ -1651,6 +1674,7 @@ DISPATCH_TABLE = {
     "bitwise_not": BitwiseNot(),
     "uint256_addmod": AddMod(),
     "uint256_mulmod": MulMod(),
+    "pow_mod256": PowMod256(),
     "sqrt": Sqrt(),
     "shift": Shift(),
     "create_forwarder_to": CreateForwarderTo(),
