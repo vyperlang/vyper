@@ -56,7 +56,6 @@ class _NumericDefinition(ValueTypeDefinition):
                     raise OverflowException(
                         "Base is too small, calculation will always underflow", left
                     )
-
             elif isinstance(right, vy_ast.Int):
                 if right.value < 0:
                     raise InvalidOperation("Cannot calculate a negative power", right)
@@ -64,6 +63,17 @@ class _NumericDefinition(ValueTypeDefinition):
                     raise OverflowException(
                         "Power is too large, calculation will always overflow", right
                     )
+            else:
+                msg = (
+                    "Cannot apply an overflow check on exponentiation when both "
+                    "the base and power are unknown at compile-time."
+                )
+                if not self._is_signed:
+                    msg = (
+                        f"{msg} To perform this operation without an overflow check, use "
+                        f"`pow_mod256({left.node_source_code}, {right.node_source_code})`"
+                    )
+                raise InvalidOperation(msg, node)
 
     def validate_comparator(self, node: vy_ast.Compare) -> None:
         # all comparators are valid on numeric types

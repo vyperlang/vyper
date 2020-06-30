@@ -553,8 +553,9 @@ class Expr:
                 )
             else:
                 # `a ** b` where neither `a` or `b` are known
-                # TODO
-                arith = ["exp", "l", "r"]
+                # TODO this is currently unreachable, once we implement a way to do it safely
+                # remove the check in `vyper/context/types/value/numeric.py`
+                return
 
         if arith is None:
             return
