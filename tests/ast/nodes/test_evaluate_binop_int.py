@@ -67,6 +67,7 @@ def foo(a: uint256, b: uint256) -> uint256:
         assert_tx_failed(lambda: contract.foo(left, right))
 
 
+@pytest.mark.xfail(reason="need to implement safe exponentiation logic")
 @pytest.mark.fuzzing
 @settings(max_examples=50, deadline=1000)
 @given(
