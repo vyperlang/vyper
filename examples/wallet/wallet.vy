@@ -9,7 +9,7 @@ threshold: int128
 seq: public(int128)
 
 
-@public
+@external
 def __init__(_owners: address[5], _threshold: int128):
     for i in range(5):
         if _owners[i] != ZERO_ADDRESS:
@@ -17,13 +17,13 @@ def __init__(_owners: address[5], _threshold: int128):
     self.threshold = _threshold
 
 
-@public
+@external
 def testEcrecover(h: bytes32, v:uint256, r:uint256, s:uint256) -> address:
     return ecrecover(h, v, r, s)
 
 
 # `@payable` allows functions to receive ether
-@public
+@external
 @payable
 def approve(_seq: int128, to: address, _value: uint256, data: bytes[4096], sigdata: uint256[3][5]) -> bytes[4096]:
     # Throws if the value sent to the contract is less than the sum of the value to be sent
@@ -59,7 +59,7 @@ def approve(_seq: int128, to: address, _value: uint256, data: bytes[4096], sigda
     return raw_call(to, data, max_outsize=4096, gas=3000000, value=_value)
 
 
-@public
+@external
 @payable
 def __default__():
     pass

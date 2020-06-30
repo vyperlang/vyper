@@ -36,7 +36,7 @@ pendingReturns: HashMap[address, uint256]
 # Create a blinded auction with `_biddingTime` seconds bidding time and
 # `_revealTime` seconds reveal time on behalf of the beneficiary address
 # `_beneficiary`.
-@public
+@external
 def __init__(_beneficiary: address, _biddingTime: uint256, _revealTime: uint256):
     self.beneficiary = _beneficiary
     self.biddingEnd = block.timestamp + _biddingTime
@@ -56,7 +56,7 @@ def __init__(_beneficiary: address, _biddingTime: uint256, _revealTime: uint256)
 # at least "value" and "fake" is not true. Setting "fake" to true and sending
 # not the exact amount are ways to hide the real bid but still make the
 # required deposit. The same address can place multiple bids.
-@public
+@external
 @payable
 def bid(_blindedBid: bytes32):
     # Check if bidding period is still open
@@ -75,7 +75,7 @@ def bid(_blindedBid: bytes32):
 
 
 # Returns a boolean value, `True` if bid placed successfully, `False` otherwise.
-@private
+@internal
 def placeBid(bidder: address, _value: uint256) -> bool:
     # If bid is less than highest bid, bid fails
     if (_value <= self.highestBid):
@@ -94,7 +94,7 @@ def placeBid(bidder: address, _value: uint256) -> bool:
 
 # Reveal your blinded bids. You will get a refund for all correctly blinded
 # invalid bids and for all bids except for the totally highest.
-@public
+@external
 def reveal(_numBids: int128, _values: uint256[128], _fakes: bool[128], _secrets: bytes32[128]):
     # Check that bidding period is over
     assert block.timestamp > self.biddingEnd
@@ -147,7 +147,7 @@ def reveal(_numBids: int128, _values: uint256[128], _fakes: bool[128], _secrets:
 
 
 # Withdraw a bid that was overbid.
-@public
+@external
 def withdraw():
     # Check that there is an allowed pending return.
     pendingAmount: uint256 = self.pendingReturns[msg.sender]
@@ -163,7 +163,7 @@ def withdraw():
 
 
 # End the auction and send the highest bid to the beneficiary.
-@public
+@external
 def auctionEnd():
     # Check that reveal end has passed
     assert block.timestamp > self.revealEnd

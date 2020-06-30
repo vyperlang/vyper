@@ -19,7 +19,7 @@ buyer: public(address)
 unlocked: public(bool)
 ended: public(bool)
 
-@public
+@external
 @payable
 def __init__():
     assert (msg.value % 2) == 0
@@ -28,14 +28,14 @@ def __init__():
     self.seller = msg.sender
     self.unlocked = True
 
-@public
+@external
 def abort():
     assert self.unlocked #Is the contract still refundable?
     assert msg.sender == self.seller # Only the seller can refund
         # his deposit before any buyer purchases the item.
     selfdestruct(self.seller) # Refunds the seller and deletes the contract.
 
-@public
+@external
 @payable
 def purchase():
     assert self.unlocked # Is the contract still open (is the item still up
@@ -44,7 +44,7 @@ def purchase():
     self.buyer = msg.sender
     self.unlocked = False
 
-@public
+@external
 def received():
     # 1. Conditions
     assert not self.unlocked # Is the item already purchased and pending
