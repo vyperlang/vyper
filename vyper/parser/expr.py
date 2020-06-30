@@ -523,22 +523,37 @@ class Expr:
                 return
             new_typ = BaseType(ltyp)
 
-            if ltyp == rtyp == "uint256":
-                arith = [
-                    "seq",
-                    [
-                        "assert",
-                        [
-                            "or",
-                            # r == 1 | iszero(r)
-                            # could be simplified to ~(r & 1)
-                            ["or", ["eq", "r", 1], ["iszero", "r"]],
-                            ["lt", "l", ["exp", "l", "r"]],
-                        ],
-                    ],
-                    ["exp", "l", "r"],
-                ]
-            elif ltyp == rtyp == "int128":
+            if self.expr.left.get("value") == 1:
+                return LLLnode.from_list([1], typ=new_typ, pos=pos)
+            if self.expr.left.get("value") == 0:
+                return LLLnode.from_list(["iszero", right], typ=new_typ, pos=pos)
+
+            if ltyp == "int128":
+                is_signed = True
+                num_bits = 128
+            else:
+                is_signed = False
+                num_bits = 256
+
+            if isinstance(self.expr.left, vy_ast.Int):
+                value = self.expr.left.value
+                upper_bound = calculate_largest_power(value, num_bits, is_signed)
+                return LLLnode.from_list(
+                    ["seq", ["assert", ["lt", right, upper_bound + 1]], ["exp", left, right]],
+                    typ=new_typ,
+                    pos=pos,
+                )
+            elif isinstance(self.expr.right, vy_ast.Int):
+                value = self.expr.right.value
+                upper_bound = calculate_largest_base(value, num_bits, is_signed)
+                return LLLnode.from_list(
+                    ["seq", ["assert", ["lt", left, upper_bound + 1]], ["exp", left, right]],
+                    typ=new_typ,
+                    pos=pos,
+                )
+            else:
+                # `a ** b` where neither `a` or `b` are known
+                # TODO
                 arith = ["exp", "l", "r"]
 
         if arith is None:
