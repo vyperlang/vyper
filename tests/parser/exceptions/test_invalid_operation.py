@@ -5,7 +5,7 @@ from vyper.exceptions import InvalidOperation
 
 fail_list = [
     """
-@public
+@external
 def foo():
     int128 = 5
     """,

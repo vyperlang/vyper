@@ -5,17 +5,17 @@ event TestLog:
     testData2: bytes[60]
     testData3: bytes[8]
 
-@private
+@internal
 @view
 def to_bytes(_value: uint256) -> bytes[8]:
     return slice(concat(b"", convert(_value, bytes32)), 24, 8)
 
-@private
+@internal
 @view
 def to_bytes32(_value: uint256) -> bytes32:
     return convert(_value, bytes32)
 
-@public
+@external
 def test_func(_value: uint256):
     data2: bytes[60] = concat(self.to_bytes32(_value),self.to_bytes(_value),b"testing")
     log TestLog(self.to_bytes32(_value), data2, self.to_bytes(_value))
@@ -49,17 +49,17 @@ event TestLog:
     testData2: bytes[133]
     testData3: string[8]
 
-@private
+@internal
 @view
 def to_bytes(_value: uint256) -> bytes[8]:
     return slice(concat(b"", convert(_value, bytes32)), 24, 8)
 
-@private
+@internal
 @view
 def to_bytes32(_value: uint256) -> bytes32:
     return convert(_value, bytes32)
 
-@public
+@external
 def test_func(_value: uint256,input: bytes[133]):
 
     data2: bytes[200] = b"hello world"
@@ -89,12 +89,12 @@ event TestLog:
     testData1: bytes32
     testData2: bytes[133]
 
-@private
+@internal
 @view
 def to_bytes32(_value: uint256) -> bytes32:
     return convert(_value, bytes32)
 
-@public
+@external
 def test_func(_value: uint256,input: bytes[133]):
 
     data2: bytes[200] = b"hello world"
@@ -122,17 +122,17 @@ event TestLog:
     testData2: bytes[2064]
     testData3: bytes[8]
 
-@private
+@internal
 @view
 def to_bytes(_value: uint256) -> bytes[8]:
     return slice(concat(b"", convert(_value, bytes32)), 24, 8)
 
-@private
+@internal
 @view
 def to_bytes32(_value: uint256) -> bytes32:
     return convert(_value, bytes32)
 
-@public
+@external
 def test_func(_value: uint256,input: bytes[2048]):
 
     data2: bytes[2064] = concat(self.to_bytes(_value),self.to_bytes(_value),input)

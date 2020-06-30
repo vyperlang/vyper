@@ -18,7 +18,7 @@ st_uint256 = st.integers(min_value=0, max_value=2 ** 256 - 1)
 @pytest.mark.parametrize("fn_name", ["min", "max"])
 def test_decimal(get_contract, left, right, fn_name):
     source = f"""
-@public
+@external
 def foo(a: decimal, b: decimal) -> decimal:
     return {fn_name}(a, b)
     """
@@ -37,7 +37,7 @@ def foo(a: decimal, b: decimal) -> decimal:
 @pytest.mark.parametrize("fn_name", ["min", "max"])
 def test_int128(get_contract, left, right, fn_name):
     source = f"""
-@public
+@external
 def foo(a: int128, b: int128) -> int128:
     return {fn_name}(a, b)
     """
@@ -56,7 +56,7 @@ def foo(a: int128, b: int128) -> int128:
 @pytest.mark.parametrize("fn_name", ["min", "max"])
 def test_min_uint256(get_contract, left, right, fn_name):
     source = f"""
-@public
+@external
 def foo(a: uint256, b: uint256) -> uint256:
     return {fn_name}(a, b)
     """

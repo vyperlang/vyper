@@ -25,7 +25,7 @@ def decimal_sqrt(val):
 
 def test_sqrt_literal(get_contract_with_gas_estimation):
     code = """
-@public
+@external
 def test() -> decimal:
     return sqrt(2.0)
     """
@@ -35,11 +35,11 @@ def test() -> decimal:
 
 def test_sqrt_variable(get_contract_with_gas_estimation):
     code = """
-@public
+@external
 def test(a: decimal) -> decimal:
     return sqrt(a)
 
-@public
+@external
 def test2() -> decimal:
     a: decimal = 44.001
     return sqrt(a)
@@ -61,12 +61,12 @@ def test_sqrt_storage(get_contract_with_gas_estimation):
     code = """
 s_var: decimal
 
-@public
+@external
 def test(a: decimal) -> decimal:
     self.s_var = a + 1.0
     return sqrt(self.s_var)
 
-@public
+@external
 def test2() -> decimal:
     self.s_var = 444.44
     return sqrt(self.s_var)
@@ -82,7 +82,7 @@ def test2() -> decimal:
 
 def test_sqrt_inline_memory_correct(get_contract_with_gas_estimation):
     code = """
-@public
+@external
 def test(a: decimal) -> (decimal, decimal, decimal, decimal, decimal, string[100]):
     x: decimal = 1.0
     y: decimal = 2.0
@@ -108,7 +108,7 @@ def test(a: decimal) -> (decimal, decimal, decimal, decimal, decimal, string[100
 @pytest.mark.parametrize("value", DECIMAL_RANGE)
 def test_sqrt_sub_decimal_places(value, get_contract):
     code = """
-@public
+@external
 def test(a: decimal) -> decimal:
     return sqrt(a)
     """
@@ -123,7 +123,7 @@ def test(a: decimal) -> decimal:
 @pytest.fixture(scope="module")
 def sqrt_contract(get_contract_module):
     code = """
-@public
+@external
 def test(a: decimal) -> decimal:
     return sqrt(a)
     """

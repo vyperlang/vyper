@@ -15,7 +15,7 @@ alphabet = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ!"#$%&
 def test_string(get_contract, value, fn_name):
 
     source = f"""
-@public
+@external
 def foo(a: string[100]) -> bytes32:
     return {fn_name}(a)
     """
@@ -34,7 +34,7 @@ def foo(a: string[100]) -> bytes32:
 @pytest.mark.parametrize("fn_name", ["keccak256", "sha256"])
 def test_bytes(get_contract, value, fn_name):
     source = f"""
-@public
+@external
 def foo(a: bytes[100]) -> bytes32:
     return {fn_name}(a)
     """
@@ -53,7 +53,7 @@ def foo(a: bytes[100]) -> bytes32:
 @pytest.mark.parametrize("fn_name", ["keccak256", "sha256"])
 def test_hex(get_contract, value, fn_name):
     source = f"""
-@public
+@external
 def foo(a: bytes[100]) -> bytes32:
     return {fn_name}(a)
     """

@@ -7,31 +7,31 @@ z: int128[3]
 z2: int128[2][2]
 z3: int128[2]
 
-@public
+@external
 def foo(x: int128[3]) -> int128:
     return x[0] + x[1] + x[2]
 
-@public
+@external
 def goo(x: int128[2][2]) -> int128:
     return x[0][0] + x[0][1] + x[1][0] * 10 + x[1][1] * 10
 
-@public
+@external
 def hoo(x: int128[3]) -> int128:
     y: int128[3] = x
     return y[0] + x[1] + y[2]
 
-@public
+@external
 def joo(x: int128[2][2]) -> int128:
     y: int128[2][2] = x
     y2: int128[2] = x[1]
     return y[0][0] + y[0][1] + y2[0] * 10 + y2[1] * 10
 
-@public
+@external
 def koo(x: int128[3]) -> int128:
     self.z = x
     return self.z[0] + x[1] + self.z[2]
 
-@public
+@external
 def loo(x: int128[2][2]) -> int128:
     self.z2 = x
     self.z3 = x[1]
@@ -52,53 +52,53 @@ def test_list_output_tester_code(get_contract_with_gas_estimation):
     list_output_tester_code = """
 z: int128[2]
 
-@public
+@external
 def foo() -> int128[2]:
     return [3, 5]
 
-@public
+@external
 def goo() -> int128[2]:
     x: int128[2] = [3, 5]
     return x
 
-@public
+@external
 def hoo() -> int128[2]:
     self.z = [3, 5]
     return self.z
 
-@public
+@external
 def joo() -> int128[2]:
     self.z = [3, 5]
     x: int128[2] = self.z
     return x
 
-@public
+@external
 def koo() -> int128[2][2]:
     return [[1, 2], [3, 4]]
 
-@public
+@external
 def loo() -> int128[2][2]:
     x: int128[2][2] = [[1, 2], [3, 4]]
     return x
 
-@public
+@external
 def moo() -> int128[2][2]:
     x: int128[2] = [1,2]
     return [x, [3,4]]
 
-@public
+@external
 def noo(inp: int128[2]) -> int128[2]:
     return inp
 
-@public
+@external
 def poo(inp: int128[2][2]) -> int128[2][2]:
     return inp
 
-@public
+@external
 def qoo(inp: int128[2]) -> int128[2][2]:
     return [inp, [3,4]]
 
-@public
+@external
 def roo(inp: decimal[2]) -> decimal[2][2]:
     return [inp, [3.0, 4.0]]
     """
@@ -121,7 +121,7 @@ def roo(inp: decimal[2]) -> decimal[2][2]:
 
 def test_array_accessor(get_contract_with_gas_estimation):
     array_accessor = """
-@public
+@external
 def test_array(x: int128, y: int128, z: int128, w: int128) -> int128:
     a: int128[4] = [0, 0, 0, 0]
     a[0] = x
@@ -138,7 +138,7 @@ def test_array(x: int128, y: int128, z: int128, w: int128) -> int128:
 
 def test_two_d_array_accessor(get_contract_with_gas_estimation):
     two_d_array_accessor = """
-@public
+@external
 def test_array(x: int128, y: int128, z: int128, w: int128) -> int128:
     a: int128[2][2] = [[0, 0], [0, 0]]
     a[0][0] = x
@@ -155,21 +155,21 @@ def test_array(x: int128, y: int128, z: int128, w: int128) -> int128:
 
 def test_returns_lists(get_contract_with_gas_estimation):
     code = """
-@public
+@external
 def test_array_num_return() -> int128[2][2]:
     a: int128[2][2] = [[1, 2], [3, 4]]
     return a
 
-@public
+@external
 def test_array_decimal_return1() -> decimal[2][2]:
     a: decimal[2][2] = [[1.0, 2.0], [3.0, 4.0]]
     return a
 
-@public
+@external
 def test_array_decimal_return2() -> decimal[2][2]:
     return [[1.0, 2.0], [3.0, 4.0]]
 
-@public
+@external
 def test_array_decimal_return3() -> decimal[2][2]:
     a: decimal[2][2] = [[1.0, 2.0], [3.0, 4.0]]
     return a
@@ -184,12 +184,12 @@ def test_array_decimal_return3() -> decimal[2][2]:
 
 def test_mult_list(get_contract_with_gas_estimation):
     code = """
-@public
+@external
 def test_multi3() -> uint256[2][2][2]:
     l: uint256[2][2][2] = [[[0, 0], [0, 4]], [[0, 0], [0, 123]]]
     return l
 
-@public
+@external
 def test_multi4() -> uint256[2][2][2][2]:
     l: uint256[2][2][2][2] = [[[[1, 0], [0, 4]], [[0, 0], [0, 0]]], [[[444, 0], [0, 0]],[[1, 0], [0, 222]]]]  # noqa: E501
     return l
@@ -206,7 +206,7 @@ def test_multi4() -> uint256[2][2][2][2]:
 
 def test_uint256_accessor(get_contract_with_gas_estimation, assert_tx_failed):
     code = """
-@public
+@external
 def bounds_check_uint256(ix: uint256) -> uint256:
     xs: uint256[3] = [1,2,3]
     return xs[ix]
@@ -219,7 +219,7 @@ def bounds_check_uint256(ix: uint256) -> uint256:
 
 def test_int128_accessor(get_contract_with_gas_estimation, assert_tx_failed):
     code = """
-@public
+@external
 def bounds_check_int128(ix: int128) -> uint256:
     xs: uint256[3] = [1,2,3]
     return xs[ix]
@@ -233,14 +233,14 @@ def bounds_check_int128(ix: int128) -> uint256:
 
 def test_list_check_heterogeneous_types(get_contract_with_gas_estimation, assert_compile_failed):
     code = """
-@public
+@external
 def fail() -> uint256:
     xs: uint256[3] = [1,2,3]
     return xs[3]
     """
     assert_compile_failed(lambda: get_contract_with_gas_estimation(code), ArrayIndexException)
     code = """
-@public
+@external
 def fail() -> uint256:
     xs: uint256[3] = [1,2,3]
     return xs[-1]
@@ -250,7 +250,7 @@ def fail() -> uint256:
 
 def test_compile_time_bounds_check(get_contract_with_gas_estimation, assert_compile_failed):
     code = """
-@public
+@external
 def parse_list_fail():
     xs: uint256[3] = [2**255, 1, 3]
     pass

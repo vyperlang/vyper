@@ -9,7 +9,7 @@ from vyper.exceptions import TypeMismatch
         """
 foobar: int128
 
-@public
+@external
 def foo():
     self.foobar = 1
     bar: int128 = 1
@@ -23,7 +23,7 @@ def foo():
         """
 foobar: uint256
 
-@public
+@external
 def foo():
     self.foobar = 1
     bar: uint256 = 1
@@ -37,7 +37,7 @@ def foo():
         """
 foobar: bool
 
-@public
+@external
 def foo():
     self.foobar = True
     bar: bool = True
@@ -51,7 +51,7 @@ def foo():
         """
 foobar: decimal
 
-@public
+@external
 def foo():
     self.foobar = 1.0
     bar: decimal = 1.0
@@ -65,7 +65,7 @@ def foo():
         """
 foobar: bytes32
 
-@public
+@external
 def foo():
     self.foobar = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
     bar: bytes32 = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
@@ -79,7 +79,7 @@ def foo():
         """
 foobar: address
 
-@public
+@external
 def foo():
     self.foobar = msg.sender
     bar: address = msg.sender
@@ -103,7 +103,7 @@ def test_empty_basic_type(contract, get_contract_with_gas_estimation):
         """
 foobar: int128[3]
 
-@public
+@external
 def foo():
     self.foobar = [1, 2, 3]
     bar: int128[3] = [1, 2, 3]
@@ -121,7 +121,7 @@ def foo():
         """
 foobar: uint256[3]
 
-@public
+@external
 def foo():
     self.foobar = [1, 2, 3]
     bar: uint256[3] = [1, 2, 3]
@@ -139,7 +139,7 @@ def foo():
         """
 foobar: bool[3]
 
-@public
+@external
 def foo():
     self.foobar = [True, True, True]
     bar: bool[3] = [True, True, True]
@@ -157,7 +157,7 @@ def foo():
         """
 foobar: decimal[3]
 
-@public
+@external
 def foo():
     self.foobar = [1.0, 2.0, 3.0]
     bar: decimal[3] = [1.0, 2.0, 3.0]
@@ -175,7 +175,7 @@ def foo():
         """
 foobar: bytes32[3]
 
-@public
+@external
 def foo():
     self.foobar = [
         0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF,
@@ -201,7 +201,7 @@ def foo():
         """
 foobar: address[3]
 
-@public
+@external
 def foo():
     self.foobar = [msg.sender, msg.sender, msg.sender]
     bar: address[3] = [msg.sender, msg.sender, msg.sender]
@@ -227,32 +227,32 @@ def test_empty_basic_type_lists(contract, get_contract_with_gas_estimation):
     "contract",
     [
         """
-@public
+@external
 def foo() -> uint256:
     return empty(1)
     """,
         """
-@public
+@external
 def foo() -> bool:
     return empty(bool)
     """,
         """
-@public
+@external
 def foo() -> decimal:
     return empty(1.0)
     """,
         """
-@public
+@external
 def foo() -> bytes32:
     return empty(0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF)
     """,
         """
-@public
+@external
 def foo() -> address:
     return empty(0xF5D4020dCA6a62bB1efFcC9212AAF3c9819E30D7)
     """,
         """
-@public
+@external
 def foo():
     x: uint256 = 1
     empty(x)
@@ -267,7 +267,7 @@ def test_empty_bytes(get_contract_with_gas_estimation):
     code = """
 foobar: bytes[5]
 
-@public
+@external
 def foo() -> (bytes[5], bytes[5]):
     self.foobar = b'Hello'
     bar: bytes[5] = b'World'
@@ -295,7 +295,7 @@ struct FOOBAR:
 
 foobar: FOOBAR
 
-@public
+@external
 def foo():
     self.foobar = FOOBAR({
         a: 1,
@@ -345,16 +345,16 @@ interface Mirror:
     def test_empty(xs: int128[111], ys: bytes[1024], zs: bytes[31]) -> bool: view
 
 # a helper function which will write all over memory with random stuff
-@private
+@internal
 def write_junk_to_memory():
     xs: int128[1024] = empty(int128[1024])
     for i in range(1024):
         xs[i] = -(i + 1)
-@private
+@internal
 def priv(xs: int128[111], ys: bytes[1024], zs: bytes[31]) -> bool:
     return xs[1] == 0 and ys == b'' and zs == b''
 
-@public
+@external
 def test_empty(xs: int128[111], ys: bytes[1024], zs: bytes[31]) -> bool:
     empty_bytes1024: bytes[1024] = empty(bytes[1024])
     empty_bytes31: bytes[31] = empty(bytes[31])
@@ -362,12 +362,12 @@ def test_empty(xs: int128[111], ys: bytes[1024], zs: bytes[31]) -> bool:
     # no list equality yet so test some sample values
     return xs[0] == 0 and xs[110] == 0 and ys == empty_bytes1024 and zs == empty_bytes31
 
-@public
+@external
 def pub2() -> bool:
     self.write_junk_to_memory()
     return self.priv(empty(int128[111]), empty(bytes[1024]), empty(bytes[31]))
 
-@public
+@external
 def pub3(x: address) -> bool:
     self.write_junk_to_memory()
     return Mirror(x).test_empty(empty(int128[111]), empty(bytes[1024]), empty(bytes[31]))
@@ -391,33 +391,33 @@ struct X:
     qux: int128[1]
 
 # a helper function which will write all over memory with random stuff
-@private
+@internal
 def write_junk_to_memory():
     xs: int128[1024] = empty(int128[1024])
     for i in range(1024):
         xs[i] = -(i + 1)
 
-@public
+@external
 def a() -> uint256:
     self.write_junk_to_memory()
     return empty(uint256)
 
-@public
+@external
 def b() -> uint256[5]:
     self.write_junk_to_memory()
     return empty(uint256[5])
 
-@public
+@external
 def c() -> uint256[5][5]:
     self.write_junk_to_memory()
     return empty(uint256[5][5])
 
-@public
+@external
 def d() -> bytes[55]:
     self.write_junk_to_memory()
     return empty(bytes[55])
 
-@public
+@external
 def e() -> X:
     self.write_junk_to_memory()
     return empty(X)
@@ -435,15 +435,15 @@ def test_map_clear(get_contract_with_gas_estimation):
     code = """
 big_storage: HashMap[bytes32, bytes32]
 
-@public
+@external
 def set(key: bytes32, _value: bytes32):
     self.big_storage[key] = _value
 
-@public
+@external
 def get(key: bytes32) -> bytes32:
     return self.big_storage[key]
 
-@public
+@external
 def delete(key: bytes32):
     self.big_storage[key] = empty(bytes32)
     """
@@ -461,15 +461,15 @@ def test_map_clear_nested(get_contract_with_gas_estimation):
     code = """
 big_storage: HashMap[bytes32, HashMap[bytes32, bytes32]]
 
-@public
+@external
 def set(key1: bytes32, key2: bytes32, _value: bytes32):
     self.big_storage[key1][key2] = _value
 
-@public
+@external
 def get(key1: bytes32, key2: bytes32) -> bytes32:
     return self.big_storage[key1][key2]
 
-@public
+@external
 def delete(key1: bytes32, key2: bytes32):
     self.big_storage[key1][key2] = empty(bytes32)
     """
@@ -491,18 +491,18 @@ struct X:
 
 structmap: HashMap[int128, X]
 
-@public
+@external
 def set():
     self.structmap[123] = X({
         a: 333,
         b: 444
     })
 
-@public
+@external
 def get() -> (int128, int128):
     return self.structmap[123].a, self.structmap[123].b
 
-@public
+@external
 def delete():
     self.structmap[123] = empty(X)
     """
@@ -520,17 +520,17 @@ def delete():
     "contract",
     [
         """
-@public
+@external
 def foo():
     xs: uint256[10] = empty(uint256[11])
     """,
         """
-@public
+@external
 def bar():
     ys: bytes[33] = empty(bytes[32])
     """,
         """
-@public
+@external
 def baz():
     zs: decimal[1][1] = empty(address[1][1])
     """,

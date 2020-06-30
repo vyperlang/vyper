@@ -1,31 +1,31 @@
 def test_convert_from_bool(get_contract_with_gas_estimation):
     code = """
-@public
+@external
 def foo() -> bool:
     val: bool = True and True and False
     return val
 
-@public
+@external
 def bar() -> bool:
     val: bool = True or True or False
     return val
 
-@public
+@external
 def foobar() -> bool:
     val: bool = False and True or False
     return val
 
-@public
+@external
 def oof() -> bool:
     val: bool = False or False or False or False or False or True
     return val
 
-@public
+@external
 def rab() -> bool:
     val: bool = True and True and True and True and True and False
     return val
 
-@public
+@external
 def oofrab() -> bool:
     val: bool = False and True or False and True or False and False or True
     return val

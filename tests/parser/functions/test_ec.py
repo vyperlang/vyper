@@ -20,17 +20,17 @@ def test_ecadd(get_contract_with_gas_estimation):
 x3: uint256[2]
 y3: uint256[2]
 
-@public
+@external
 def _ecadd(x: uint256[2], y: uint256[2]) -> uint256[2]:
     return ecadd(x, y)
 
-@public
+@external
 def _ecadd2(x: uint256[2], y: uint256[2]) -> uint256[2]:
     x2: uint256[2] = x
     y2: uint256[2] = [y[0], y[1]]
     return ecadd(x2, y2)
 
-@public
+@external
 def _ecadd3(x: uint256[2], y: uint256[2]) -> uint256[2]:
     self.x3 = x
     self.y3 = [y[0], y[1]]
@@ -50,17 +50,17 @@ def test_ecmul(get_contract_with_gas_estimation):
 x3: uint256[2]
 y3: uint256
 
-@public
+@external
 def _ecmul(x: uint256[2], y: uint256) -> uint256[2]:
     return ecmul(x, y)
 
-@public
+@external
 def _ecmul2(x: uint256[2], y: uint256) -> uint256[2]:
     x2: uint256[2] = x
     y2: uint256 = y
     return ecmul(x2, y2)
 
-@public
+@external
 def _ecmul3(x: uint256[2], y: uint256) -> uint256[2]:
     self.x3 = x
     self.y3 = y

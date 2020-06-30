@@ -15,7 +15,7 @@ fail_list = [
 struct A:
     x: int128
 a: A
-@public
+@external
 def foo():
     self.a = A(1)
     """,
@@ -26,7 +26,7 @@ def foo():
 struct A:
     x: int128
 a: A
-@public
+@external
 def foo():
     self.a = A({x: 1, y: 2})
     """,
@@ -38,7 +38,7 @@ struct A:
     x: int128
     y: int128
 a: A
-@public
+@external
 def foo():
     self.a = A({x: 1})
     """,
@@ -52,7 +52,7 @@ struct B:
     x: int128
 a: A
 b: B
-@public
+@external
 def foo():
     self.a = A(self.b)
     """,
@@ -64,7 +64,7 @@ struct A:
     x: int128
 a: A
 b: A
-@public
+@external
 def foo():
     self.a = A(self.b)
     """,
@@ -76,7 +76,7 @@ struct A:
     x: int128
     y: int128
 a: A
-@public
+@external
 def foo():
     self.a = A({x: 1})
     """,
@@ -94,7 +94,7 @@ struct Nom:
     b: int128
 mom: Mom
 nom: Nom
-@public
+@external
 def foo():
     self.nom = Nom(self.mom)
     """,
@@ -113,7 +113,7 @@ struct Nom:
     b: int128
 mom: Mom
 nom: Nom
-@public
+@external
 def foo():
     self.nom = Nom(self.mom)
     """,
@@ -129,7 +129,7 @@ struct Nom:
     c: int128
 mom: Mom
 nom: Nom
-@public
+@external
 def foo():
     self.nom = Nom(self.mom)
     """,
@@ -143,7 +143,7 @@ struct Nom:
     a: C[3]
 mom: Mom
 nom: Nom
-@public
+@external
 def foo():
     self.nom = Nom(self.mom)
     """,
@@ -159,7 +159,7 @@ struct Nom:
     c: int128
 mom: Mom
 nom: Nom
-@public
+@external
 def foo():
     self.nom = Nom(self.mom)
     """,
@@ -174,7 +174,7 @@ struct Nom:
     b: int128
 mom: Mom
 nom: Nom
-@public
+@external
 def foo():
     self.nom = Nom(self.mom)
     """,
@@ -186,7 +186,7 @@ struct Nom:
     a: int128
 mom: Mom
 nom: Nom
-@public
+@external
 def foo():
     self.nom = self.mom # require cast
     """,
@@ -199,7 +199,7 @@ struct Nom:
     b: int128
 mom: Mom
 nom: Nom
-@public
+@external
 def foo():
     self.nom = Nom(self.mom)
     """,
@@ -215,7 +215,7 @@ struct Nom:
     b: int128
 mom: Mom
 nom: Nom
-@public
+@external
 def foo():
     self.nom = self.mom # require cast
     """,
@@ -232,7 +232,7 @@ struct Nom:
     a: C
 mom: Mom
 nom: C[3]
-@public
+@external
 def foo():
     self.nom = self.mom.b
     """,
@@ -249,7 +249,7 @@ struct Nom:
     a: C
 mom: Mom
 nom: C[3]
-@public
+@external
 def foo():
     self.mom = Mom({a: self.nom, b: 5.5})
     """,
@@ -266,7 +266,7 @@ struct Mom:
     b: int128
 mom: Mom
 nom: C2[3]
-@public
+@external
 def foo():
     self.mom = Mom({a: self.nom, b: 5})
     """,
@@ -283,7 +283,7 @@ struct Nom:
     a: C
 mom: Mom
 nom: C[3]
-@public
+@external
 def foo():
     self.mom = Mom({a: self.nom, b: self.nom})
     """,
@@ -312,7 +312,7 @@ struct Nom:
     b: int128
 nom: Nom
 mom: Mom
-@public
+@external
 def foo():
     self.nom = Nom(self.mom)
     """,
@@ -327,7 +327,7 @@ struct Mom:
     b: int128
 mom: Mom
 nom: C2[3]
-@public
+@external
 def foo():
     self.mom = Mom({a: self.nom, b: 5})
     """,
@@ -340,7 +340,7 @@ struct Bar:
     b: int128
     c: int128
 bar: int128[3]
-@public
+@external
 def foo():
     self.bar = Bar({0: 5, 1: 7, 2: 9})
     """,
@@ -353,7 +353,7 @@ struct Bar:
     b: int128
     c: int128
 bar: int128[3]
-@public
+@external
 def foo():
     self.bar = Bar({a: 5, b: 7, c: 9})
     """,
@@ -364,7 +364,7 @@ def foo():
 struct Farm:
     cow: int128
     dog: int128
-@public
+@external
 def foo() -> int128:
     f: Farm = Farm({cow: 5, dog: 7})
     return f
@@ -377,7 +377,7 @@ struct X:
     cow: int128
     cor: int128
 x: X
-@public
+@external
 def foo():
     self.x.cof = 1
     """,
@@ -388,7 +388,7 @@ def foo():
 struct B:
     foo: int128
 b: B
-@public
+@external
 def foo():
     self.b = B({foo: 1, foo: 2})
     """,
@@ -400,7 +400,7 @@ struct B:
     foo: int128
     bar: int128
 b: B
-@public
+@external
 def foo():
     x: int128 = self.b.cow
     """,
@@ -412,7 +412,7 @@ struct B:
     foo: int128
     bar: int128
 b: B
-@public
+@external
 def foo():
     x: int128 = self.b[0]
     """,
@@ -460,7 +460,7 @@ valid_list = [
 struct A:
     x: int128
 a: A
-@public
+@external
 def foo():
     self.a = A({x: 1})
     """,
@@ -472,7 +472,7 @@ struct Mom:
     b: int128
 mom: Mom
 nom: C[3]
-@public
+@external
 def foo():
     self.nom = self.mom.a
     """,
@@ -483,7 +483,7 @@ struct Mom:
     a: C[3]
     b: int128
 nom: C[3]
-@public
+@external
 def foo():
     mom: Mom = Mom({a:[C({c:0}), C({c:0}), C({c:0})], b: 0})
     mom.a = self.nom
@@ -496,7 +496,7 @@ struct Mom:
     b: int128
 mom: Mom
 nom: C[3]
-@public
+@external
 def foo():
     self.mom = Mom({a: self.nom, b: 5})
     """,
@@ -508,7 +508,7 @@ struct Mom:
     b: int128
 mom: Mom
 nom: C[3]
-@public
+@external
 def foo():
     self.mom = Mom({a: self.nom, b: 5})
     """,
@@ -519,7 +519,7 @@ struct Mom:
     a: C[3]
     b: int128
 mom: Mom
-@public
+@external
 def foo():
     nom: C[3] = [C({c:0}), C({c:0}), C({c:0})]
     self.mom = Mom({a: nom, b: 5})
@@ -529,7 +529,7 @@ struct B:
     foo: int128
     bar: int128
 b: B
-@public
+@external
 def foo():
     x: int128 = self.b.bar
     """,

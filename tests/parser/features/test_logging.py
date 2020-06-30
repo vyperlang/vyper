@@ -17,7 +17,7 @@ def test_empty_event_logging(w3, tester, keccak, get_contract_with_gas_estimatio
     loggy_code = """
 event MyLog: pass
 
-@public
+@external
 def foo():
     log MyLog()
     """
@@ -49,7 +49,7 @@ a: bytes[3]
 event MyLog:
     arg1: indexed(bytes[3])
 
-@public
+@external
 def foo():
     self.a = b"bar"
     log MyLog(self.a)
@@ -80,7 +80,7 @@ event MyLog:
     arg2: indexed(bool)
     arg3: indexed(address)
 
-@public
+@external
 def foo():
     log MyLog(-2, True, self)
     """
@@ -122,7 +122,7 @@ event MyLog:
 
 b: address
 
-@public
+@external
 def foo(arg1: int128):
     a: bool = True
     self.b = self
@@ -148,12 +148,12 @@ event MyLog:
     arg1: indexed(int128)
     arg2: indexed(address)
 
-@public
+@external
 def foo():
     log MyLog(1, self)
     log MyLog(1, self)
 
-@public
+@external
 def bar():
     log MyLog(1, self)
     log MyLog(1, self)
@@ -209,7 +209,7 @@ def test_event_logging_with_data(w3, tester, keccak, get_logs, get_contract_with
 event MyLog:
     arg1: int128
 
-@public
+@external
 def foo():
     log MyLog(123)
     """
@@ -244,7 +244,7 @@ event MyLog:
     arg3: int128[2][2]
 
 
-@public
+@external
 def foo():
     log MyLog([1,2], [block.timestamp, block.timestamp+1, block.timestamp+2], [[1,2],[1,2]])
     log MyLog([1,2], [block.timestamp, block.timestamp+1, block.timestamp+2], [[1,2],[1,2]])
@@ -288,7 +288,7 @@ event MyLog:
     arg2: indexed(bytes[29])
     arg3: bytes[31]
 
-@public
+@external
 def foo(arg1: bytes[29], arg2: bytes[31]):
     log MyLog(b'bar', arg1, arg2)
 """
@@ -326,7 +326,7 @@ def test_event_logging_with_bytes_input_2(
 event MyLog:
     arg1: bytes[20]
 
-@public
+@external
 def foo(_arg1: bytes[20]):
     log MyLog(_arg1)
     """
@@ -355,7 +355,7 @@ def test_event_logging_with_bytes_input_3(w3, tester, keccak, get_logs, get_cont
 event MyLog:
     arg1: bytes[5]
 
-@public
+@external
 def foo(_arg1: bytes[5]):
     log MyLog(_arg1)
     """
@@ -391,7 +391,7 @@ event MyLog:
     arg5: address
     arg6: uint256
 
-@public
+@external
 def foo():
     log MyLog(123, b'home', b'bar', 0xc305c901078781C232A2a521C2aF7980f8385ee9, self, block.timestamp)  # noqa: E501
     """
@@ -438,7 +438,7 @@ event MyLog:
     arg1: indexed(int128)
     arg2: bytes[3]
 
-@public
+@external
 def foo():
     log MyLog(1, b'bar')
     """
@@ -478,7 +478,7 @@ event YourLog:
     arg1: indexed(address)
     arg2: bytes[5]
 
-@public
+@external
 def foo():
     log MyLog(1, b'bar')
     log YourLog(self, b'house')
@@ -532,7 +532,7 @@ def test_fails_when_input_is_the_wrong_type(assert_tx_failed, get_contract_with_
 event MyLog:
     arg1: indexed(int128)
 
-@public
+@external
 def foo_():
     log MyLog(b'yo')
 """
@@ -546,7 +546,7 @@ event MyLog:
     arg1: indexed(bytes[3])
 
 
-@public
+@external
 def foo():
     log MyLog(b'bars')
 """
@@ -561,7 +561,7 @@ def test_fails_when_input_topic_is_the_wrong_size(
 event MyLog:
     arg1: indexed(bytes[3])
 
-@public
+@external
 def foo(arg1: bytes[4]):
     log MyLog(arg1)
 """
@@ -574,7 +574,7 @@ def test_fails_when_data_is_the_wrong_size(assert_tx_failed, get_contract_with_g
 event MyLog:
     arg1: bytes[3]
 
-@public
+@external
 def foo():
     log MyLog(b'bars')
 """
@@ -589,7 +589,7 @@ def test_fails_when_input_data_is_the_wrong_size(
 event MyLog:
     arg1: bytes[3]
 
-@public
+@external
 def foo(arg1: bytes[4]):
     log MyLog(arg1)
 """
@@ -602,7 +602,7 @@ def test_topic_over_32_bytes(get_contract_with_gas_estimation):
 event MyLog:
     arg1: indexed(bytes[100])
 
-@public
+@external
 def foo():
     pass
     """
@@ -617,7 +617,7 @@ event MyLog:
     arg3: indexed(int128)
     arg4: indexed(int128)
 
-@public
+@external
 def __init__():
     log MyLog(1, 2, 3, 4)
     """
@@ -632,7 +632,7 @@ def test_logging_fails_with_duplicate_log_names(assert_tx_failed, get_contract_w
 event MyLog: pass
 event MyLog: pass
 
-@public
+@external
 def foo():
     log MyLog()
     """
@@ -645,7 +645,7 @@ def test_logging_fails_with_when_log_is_undeclared(
 ):
     loggy_code = """
 
-@public
+@external
 def foo():
     log MyLog()
     """
@@ -658,7 +658,7 @@ def test_logging_fails_with_topic_type_mismatch(assert_tx_failed, get_contract_w
 event MyLog:
     arg1: indexed(int128)
 
-@public
+@external
 def foo():
     log MyLog(self)
     """
@@ -671,7 +671,7 @@ def test_logging_fails_with_data_type_mismatch(assert_tx_failed, get_contract_wi
 event MyLog:
     arg1: bytes[3]
 
-@public
+@external
 def foo():
     log MyLog(self)
     """
@@ -686,7 +686,7 @@ def test_logging_fails_when_number_of_arguments_is_greater_than_declaration(
 event MyLog:
     arg1: int128
 
-@public
+@external
 def foo():
     log MyLog(1, 2)
 """
@@ -701,7 +701,7 @@ event MyLog:
     arg1: int128
     arg2: int128
 
-@public
+@external
 def foo():
     log MyLog(1)
 """
@@ -712,20 +712,20 @@ def test_loggy_code(w3, tester, get_contract_with_gas_estimation):
     loggy_code = """
 s: bytes[100]
 
-@public
+@external
 def foo():
     raw_log([], b"moo")
 
-@public
+@external
 def goo():
     raw_log([0x1234567812345678123456781234567812345678123456781234567812345678], b"moo2")
 
-@public
+@external
 def hoo():
     self.s = b"moo3"
     raw_log([], self.s)
 
-@public
+@external
 def ioo(inp: bytes[100]):
     raw_log([], inp)
     """
@@ -762,7 +762,7 @@ def test_raw_call_bytes32_data(w3, tester, get_contract_with_gas_estimation):
     code = """
 b: uint256
 
-@public
+@external
 def foo():
     a: uint256 = 1234
     self.b = 4321
@@ -787,7 +787,7 @@ def test_variable_list_packing(get_logs, get_contract_with_gas_estimation):
 event Bar:
     _value: int128[4]
 
-@public
+@external
 def foo():
     a: int128[4] = [1, 2, 3, 4]
     log Bar(a)
@@ -805,7 +805,7 @@ def test_literal_list_packing(get_logs, get_contract_with_gas_estimation):
 event Bar:
     _value: int128[4]
 
-@public
+@external
 def foo():
     log Bar([1, 2, 3, 4])
     """
@@ -824,11 +824,11 @@ event Bar:
 
 x: int128[4]
 
-@public
+@external
 def foo():
     log Bar(self.x)
 
-@public
+@external
 def set_list():
     self.x = [1, 2, 3, 4]
     """
@@ -849,7 +849,7 @@ def test_passed_list_packing(get_logs, get_contract_with_gas_estimation):
 event Bar:
     _value: int128[4]
 
-@public
+@external
 def foo(barbaric: int128[4]):
     log Bar(barbaric)
     """
@@ -865,7 +865,7 @@ def test_variable_decimal_list_packing(get_logs, get_contract_with_gas_estimatio
 event Bar:
     _value: decimal[4]
 
-@public
+@external
 def foo():
     log Bar([1.11, 2.22, 3.33, 4.44])
     """
@@ -889,11 +889,11 @@ event MyLog:
 
 x:bytes[5]
 
-@public
+@external
 def foo(a: int128):
     log MyLog(self.x)
 
-@public
+@external
 def setbytez():
     self.x = b'hello'
     """
@@ -916,11 +916,11 @@ event Bar:
 
 x: decimal[4]
 
-@public
+@external
 def foo():
     log Bar(self.x)
 
-@public
+@external
 def set_list():
     self.x = [1.33, 2.33, 3.33, 4.33]
     """
@@ -945,7 +945,7 @@ def test_logging_fails_when_input_is_too_big(assert_tx_failed, get_contract_with
 event Bar:
     _value: indexed(bytes[32])
 
-@public
+@external
 def foo(inp: bytes[33]):
     log Bar(inp)
 """
@@ -958,7 +958,7 @@ event Bar:
     arg1: int128
     arg2: int128[4]
 
-@public
+@external
 def foo():
     a: int128[4] = [1, 2, 3, 4]
     log Bar(10, a)
@@ -977,11 +977,11 @@ event Bar:
 
 x: int128[4]
 
-@public
+@external
 def foo():
     log Bar(10, self.x)
 
-@public
+@external
 def set_list():
     self.x = [1, 2, 3, 4]
     """
@@ -1006,16 +1006,16 @@ event Bar:
 x: int128[4]
 y: int128[2]
 
-@public
+@external
 def __init__():
     self.y = [1024, 2048]
 
-@public
+@external
 def foo():
     v: int128[3] = [7, 8, 9]
     log Bar(10, self.x, b"test", v, self.y)
 
-@public
+@external
 def set_list():
     self.x = [1, 2, 3, 4]
     """
@@ -1043,7 +1043,7 @@ event MyLog:
     arg2: indexed(int128[2])
     arg3: indexed(string[7])
 
-@public
+@external
 def foo(a: bytes[36], b: int128[2], c: string[7]):
     log MyLog(a, b, c)
     """
@@ -1085,7 +1085,7 @@ event MyLog:
     arg2: indexed(int128[3])
     arg3: indexed(string[44])
 
-@public
+@external
 def foo():
     a: bytes[10] = b"potato"
     b: int128[3] = [-777, 42, 8008135]
@@ -1135,13 +1135,13 @@ b: int128[2]
 c: string[6]
 
 
-@public
+@external
 def setter(_a: bytes[32], _b: int128[2], _c: string[6]):
     self.a = _a
     self.b = _b
     self.c = _c
 
-@public
+@external
 def foo():
     log MyLog(self.a, self.b, self.c)
     """
@@ -1184,7 +1184,7 @@ event MyLog:
     arg2: indexed(int128[3])
     arg3: indexed(string[21])
 
-@public
+@external
 def foo():
     log MyLog(b"wow", [6,66,666], "madness!")
     """

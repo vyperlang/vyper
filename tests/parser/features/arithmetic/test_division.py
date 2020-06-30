@@ -4,32 +4,32 @@ from vyper.exceptions import ZeroDivisionException
 
 BAD_CODE = [
     """
-@public
+@external
 def foo() -> uint256:
     return 2 / 0
     """,
     """
-@public
+@external
 def foo() -> int128:
     return -2 / 0
     """,
     """
-@public
+@external
 def foo() -> decimal:
     return 2.22 / 0.0
     """,
     """
-@public
+@external
 def foo(a: uint256) -> uint256:
     return a / 0
     """,
     """
-@public
+@external
 def foo(a: int128) -> int128:
     return a / 0
     """,
     """
-@public
+@external
 def foo(a: decimal) -> decimal:
     return a / 0.0
     """,

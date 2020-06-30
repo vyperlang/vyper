@@ -8,7 +8,7 @@ b: bytes32
 c: uint256
 d: address
 
-@public
+@external
 def int128_to_uint256(inp: int128) -> (uint256, uint256, uint256):
     self.a = inp
     memory: uint256  = convert(inp, uint256)
@@ -16,7 +16,7 @@ def int128_to_uint256(inp: int128) -> (uint256, uint256, uint256):
     literal: uint256 = convert(1, uint256)
     return  memory, storage, literal
 
-@public
+@external
 def bytes32_to_uint256() -> (uint256, uint256):
     self.b = 0x0000000000000000000000000000000000000000000000000000000000000001
     literal: uint256 = convert(0x0000000000000000000000000000000000000000000000000000000000000001, uint256)  # noqa: E501
@@ -32,7 +32,7 @@ def bytes32_to_uint256() -> (uint256, uint256):
 def test_convert_from_bytes(assert_compile_failed, get_contract_with_gas_estimation):
     # Test valid bytes input for conversion
     test_success = """
-@public
+@external
 def foo(bar: bytes[5]) -> uint256:
     return convert(bar, uint256)
     """
@@ -42,7 +42,7 @@ def foo(bar: bytes[5]) -> uint256:
     assert c.foo(b"\x00\x07\x5B\xCD\x15") == 123456789
 
     test_success = """
-@public
+@external
 def foo(bar: bytes[32]) -> uint256:
     return convert(bar, uint256)
     """
@@ -53,7 +53,7 @@ def foo(bar: bytes[32]) -> uint256:
 
     # Test overflow bytes input for conversion
     test_fail = """
-@public
+@external
 def foo(bar: bytes[33]) -> uint256:
     return convert(bar, uint256)
     """
@@ -61,7 +61,7 @@ def foo(bar: bytes[33]) -> uint256:
     assert_compile_failed(lambda: get_contract_with_gas_estimation(test_fail), InvalidLiteral)
 
     test_fail = """
-@public
+@external
 def foobar() -> uint256:
     barfoo: bytes[63] = b"Hello darkness, my old friend I've come to talk with you again."
     return convert(barfoo, uint256)
@@ -75,34 +75,34 @@ def test_convert_from_address(w3, get_contract):
     code = """
 stor_a: address
 
-@public
+@external
 def conv1(a: address) -> uint256:
     return convert(a, uint256)
 
-@public
+@external
 def conv2() -> uint256:
     self.stor_a = 0x744d70FDBE2Ba4CF95131626614a1763DF805B9E
     return convert(self.stor_a, uint256)
 
-@public
+@external
 def conv3() -> uint256:
     return convert(0x744d70FDBE2Ba4CF95131626614a1763DF805B9E, uint256)
 
-@public
+@external
 def conv_max_stor() -> uint256:
     self.stor_a = 0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF
     return convert(self.stor_a, uint256)
 
-@public
+@external
 def conv_max_literal() -> uint256:
     return convert(0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF, uint256)
 
-@public
+@external
 def conv_min_stor() -> uint256:
     self.stor_a = ZERO_ADDRESS
     return convert(self.stor_a, uint256)
 
-@public
+@external
 def conv_min_literal() -> uint256:
     return convert(ZERO_ADDRESS, uint256)
     """
@@ -120,7 +120,7 @@ def conv_min_literal() -> uint256:
 
 def test_convert_from_bool(get_contract_with_gas_estimation):
     code = """
-@public
+@external
 def from_bool(flag: bool) -> uint256:
     flagUInt: uint256 = convert(flag, uint256)
     return flagUInt
@@ -133,7 +133,7 @@ def from_bool(flag: bool) -> uint256:
 
 def test_convert_from_negative_num(assert_compile_failed, get_contract_with_gas_estimation):
     code = """
-@public
+@external
 def foo() -> uint256:
     return convert(1-2, uint256)
     """
@@ -142,7 +142,7 @@ def foo() -> uint256:
 
 def test_convert_from_negative_input(assert_tx_failed, get_contract_with_gas_estimation):
     code = """
-@public
+@external
 def foo(x: int128) -> uint256:
     return convert(x, uint256)
     """
@@ -152,7 +152,7 @@ def foo(x: int128) -> uint256:
 
 def test_convert_from_bytes32(get_contract_with_gas_estimation):
     code = """
-@public
+@external
 def foo() -> uint256:
     return convert(convert(-1, bytes32), uint256)
     """
@@ -167,29 +167,29 @@ bar: decimal
 nar: decimal
 mar: decimal
 
-@public
+@external
 def foo() -> uint256:
     return convert(27.2319, uint256)
 
-@public
+@external
 def hoo() -> uint256:
     return convert(432.298391, uint256)
 
-@public
+@external
 def goo() -> uint256:
     return convert(0.1234, uint256)
 
-@public
+@external
 def foobar() -> uint256:
     self.bar = 27.2319
     return convert(self.bar, uint256)
 
-@public
+@external
 def hoonar() -> uint256:
     self.nar = 432.298391
     return convert(self.nar, uint256)
 
-@public
+@external
 def goomar() -> uint256:
     self.mar = 0.1234
     return convert(self.mar, uint256)
@@ -208,7 +208,7 @@ def test_convert_from_negative_decimal(
     assert_compile_failed, assert_tx_failed, get_contract_with_gas_estimation
 ):
     code = """
-@public
+@external
 def foo() -> uint256:
     return convert(-27.2319, uint256)
     """
@@ -216,7 +216,7 @@ def foo() -> uint256:
     assert_compile_failed(lambda: get_contract_with_gas_estimation(code), InvalidLiteral)
 
     code = """
-@public
+@external
 def foo() -> uint256:
     return convert(-(-(-27.2319)), uint256)
     """
@@ -226,7 +226,7 @@ def foo() -> uint256:
     code = """
 bar: decimal
 
-@public
+@external
 def foobar() -> uint256:
     self.bar = -27.2319
     return convert(self.bar, uint256)

@@ -1,10 +1,10 @@
 def test_method_id_test(get_contract_with_gas_estimation):
     method_id_test = """
-@public
+@external
 def double(x: int128) -> int128:
     return x * 2
 
-@public
+@external
 def returnten() -> int128:
     ans: bytes[32] = raw_call(self, concat(method_id("double(int128)"), convert(5, bytes32)), gas=50000, max_outsize=32)  # noqa: E501
     return convert(convert(ans, bytes32), int128)
@@ -15,7 +15,7 @@ def returnten() -> int128:
 
 def test_method_id_bytes32(get_contract):
     code = """
-@public
+@external
 def sig() -> bytes32:
     return method_id('transfer(address,uint256)', output_type=bytes32)
     """
@@ -28,7 +28,7 @@ def sig() -> bytes32:
 
 def test_method_id_bytes4(get_contract):
     code = """
-@public
+@external
 def sig() -> bytes[4]:
     return method_id('transfer(address,uint256)', output_type=bytes[4])
     """
@@ -41,7 +41,7 @@ def sig() -> bytes[4]:
 
 def test_method_id_bytes4_default(get_contract):
     code = """
-@public
+@external
 def sig() -> bytes[4]:
     return method_id('transfer(address,uint256)')
     """
@@ -54,7 +54,7 @@ def sig() -> bytes[4]:
 
 def test_method_id_invalid_space(get_contract, assert_compile_failed):
     code = """
-@public
+@external
 def sig() -> bytes32:
     return method_id('transfer(address, uint256)', output_type=bytes32)
     """
@@ -63,7 +63,7 @@ def sig() -> bytes32:
 
 def test_method_id_invalid_type(get_contract, assert_compile_failed):
     code = """
-@public
+@external
 def sig() -> int128:
     return method_id('transfer(address,uint256)', output_type=int128)
     """

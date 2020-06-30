@@ -6,7 +6,7 @@ from vyper.exceptions import TypeMismatch
 
 fail_list = [
     """
-@public
+@external
 def foo() -> uint256:
     return extract32(b"cowcowcowcowcowccowcowcowcowcowccowcowcowcowcowccowcowcowcowcowc", 0)
     """
@@ -22,7 +22,7 @@ def test_extract32_fail(bad_code):
 
 valid_list = [
     """
-@public
+@external
 def foo() -> uint256:
     return extract32(
         b"cowcowcowcowcowccowcowcowcowcowccowcowcowcowcowccowcowcowcowcowc",
@@ -32,14 +32,14 @@ def foo() -> uint256:
     """,
     """
 x: bytes[100]
-@public
+@external
 def foo() -> uint256:
     self.x = b"cowcowcowcowcowccowcowcowcowcowccowcowcowcowcowccowcowcowcowcowc"
     return extract32(self.x, 0, output_type=uint256)
     """,
     """
 x: bytes[100]
-@public
+@external
 def foo() -> uint256:
     self.x = b"cowcowcowcowcowccowcowcowcowcowccowcowcowcowcowccowcowcowcowcowc"
     return extract32(self.x, 1, output_type=uint256)

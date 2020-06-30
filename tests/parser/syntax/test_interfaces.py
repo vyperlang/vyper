@@ -13,7 +13,7 @@ fail_list = [
         """
 from vyper.interfaces import ERC20
 a: public(ERC20)
-@public
+@external
 def test():
     b: uint256 = self.a
     """,
@@ -23,7 +23,7 @@ def test():
         """
 from vyper.interfaces import ERC20
 aba: public(ERC20)
-@public
+@external
 def test():
     self.aba = ERC20
     """,
@@ -41,7 +41,7 @@ a: address(ERC20) # invalid syntax now.
         """
 from vyper.interfaces import ERC20
 
-@public
+@external
 def test():
     a: address(ERC20) = ZERO_ADDRESS
     """,
@@ -51,7 +51,7 @@ def test():
         """
 a: address
 
-@public
+@external
 def test():  # may not call normal address
     assert self.a.random()
     """,
@@ -60,7 +60,7 @@ def test():  # may not call normal address
     (
         """
 from vyper.interfaces import ERC20
-@public
+@external
 def test(a: address):
     my_address: address = ERC20()
     """,
@@ -79,7 +79,7 @@ valid_list = [
     """
 from vyper.interfaces import ERC20
 b: ERC20
-@public
+@external
 def test(input: address):
     assert self.b.totalSupply() == ERC20(input).totalSupply()
     """,
@@ -92,7 +92,7 @@ interface Factory:
 factory: Factory
 token: ERC20
 
-@public
+@external
 def test():
     assert self.factory.getExchange(self.token.address) == self
     exchange: address = self.factory.getExchange(self.token.address)
@@ -109,7 +109,7 @@ from vyper.interfaces import ERC20
 
 a: public(ERC20)
 
-@public
+@external
 def test() -> address:
     return self.a.address
     """,
@@ -119,7 +119,7 @@ from vyper.interfaces import ERC20
 a: public(ERC20)
 b: address
 
-@public
+@external
 def test():
     self.b = self.a.address
     """,
@@ -132,7 +132,7 @@ struct aStruct:
 a: public(ERC20)
 b: aStruct
 
-@public
+@external
 def test() -> address:
     self.b.my_address = self.a.address
     return self.b.my_address
@@ -140,7 +140,7 @@ def test() -> address:
     """
 from vyper.interfaces import ERC20
 a: public(ERC20)
-@public
+@external
 def test():
     b: address = self.a.address
     """,
@@ -159,7 +159,7 @@ import foo.bar as Baz
 
 implements: Baz
 
-@public
+@external
 def foobar():
     pass
 """
@@ -169,7 +169,7 @@ import foo as Foo
 
 implements: Foo
 
-@public
+@external
 def foobar():
     pass
 """

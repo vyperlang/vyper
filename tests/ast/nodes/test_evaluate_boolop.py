@@ -17,7 +17,7 @@ def test_boolop_simple(get_contract, values, comparator):
     return_value = f" {comparator} ".join(variables[: len(values)])
 
     source = f"""
-@public
+@external
 def foo({input_value}) -> bool:
     return {return_value}
     """
@@ -45,7 +45,7 @@ def test_boolop_nested(get_contract, values, comparators):
     return_value = return_value.rsplit(maxsplit=1)[0]
 
     source = f"""
-@public
+@external
 def foo({input_value}) -> bool:
     return {return_value}
     """

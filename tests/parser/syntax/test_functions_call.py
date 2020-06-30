@@ -10,7 +10,7 @@ from vyper.exceptions import (
 fail_list = [
     (
         """
-@public
+@external
 def foo() -> uint256:
     doesnotexist(2, uint256)
     return convert(2, uint256)
@@ -19,7 +19,7 @@ def foo() -> uint256:
     ),
     (
         """
-@public
+@external
 def foo() -> uint256:
     convert(2, uint256)
     return convert(2, uint256)
@@ -29,12 +29,12 @@ def foo() -> uint256:
     ),
     (
         """
-@private
+@internal
 def test(a : uint256):
     pass
 
 
-@public
+@external
 def burn(_value: uint256):
     self.test(msg.sender._value)
     """,
@@ -52,7 +52,7 @@ def test_functions_call_fail(bad_code, exc):
 
 valid_list = [
     """
-@public
+@external
 def foo() -> uint256:
     return convert(2, uint256)
     """,
@@ -65,7 +65,7 @@ interface Factory:
 token: ERC20
 factory: Factory
 
-@public
+@external
 def setup(token_addr: address):
     self.token = ERC20(token_addr)
     assert self.factory.getExchange(self.token.address) == self

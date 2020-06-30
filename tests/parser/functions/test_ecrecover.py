@@ -3,11 +3,11 @@ from eth_account import Account
 
 def test_ecrecover_test(get_contract_with_gas_estimation):
     ecrecover_test = """
-@public
+@external
 def test_ecrecover(h: bytes32, v:uint256, r:uint256, s:uint256) -> address:
     return ecrecover(h, v, r, s)
 
-@public
+@external
 def test_ecrecover2() -> address:
     return ecrecover(0x3535353535353535353535353535353535353535353535353535353535353535,
                      convert(28, uint256),

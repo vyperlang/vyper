@@ -2,7 +2,7 @@ def test_create_forwarder_to_create(get_contract):
     code = """
 main: address
 
-@public
+@external
 def test() -> address:
     self.main = create_forwarder_to(self)
     return self.main
@@ -24,18 +24,18 @@ interface SubContract:
 other: public(address)
 
 
-@public
+@external
 def test() -> address:
     self.other = create_forwarder_to(self)
     return self.other
 
 
-@public
+@external
 def hello() -> bytes[100]:
     return b"hello world!"
 
 
-@public
+@external
 def test2() -> bytes[100]:
     return SubContract(self.other).hello()
 
@@ -59,19 +59,19 @@ interface SubContract:
 other: public(address)
 
 
-@public
+@external
 def test() -> address:
     self.other = create_forwarder_to(self)
     return self.other
 
 
-@public
+@external
 def hello(a: uint256) -> bytes[100]:
     assert a > 0, "invaliddddd"
     return b"hello world!"
 
 
-@public
+@external
 def test2(a: uint256) -> bytes[100]:
     return SubContract(self.other).hello(a)
     """

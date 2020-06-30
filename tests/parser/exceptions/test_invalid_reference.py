@@ -7,28 +7,28 @@ fail_list = [
     """
 x: uint256
 
-@public
+@external
 def foo():
     send(0x1234567890123456789012345678901234567890, x)
     """,
     """
-@public
+@external
 def bar(x: int128) -> int128:
     return 3 * x
 
-@public
+@external
 def foo() -> int128:
     return bar(20)
     """,
     """
 b: int128
-@public
+@external
 def foo():
     b = 7
     """,
     """
 x: int128
-@public
+@external
 def foo():
     x = 5
     """,

@@ -75,7 +75,7 @@ VAL: uint256
         """
 VAL: constant(bytes[4]) = b"t"
 
-@public
+@external
 def test(VAL: uint256):
     pass
     """,
@@ -90,7 +90,7 @@ C1: constant(uint256) = block.number
     # cannot assign function result to a constant
     (
         """
-@public
+@external
 def foo() -> uint256:
     return 42
 
@@ -117,7 +117,7 @@ VAL: constant(uint256) = 123
     """,
     """
 VAL: constant(int128) = -123
-@public
+@external
 def test() -> int128:
     return 1 * VAL
     """,
@@ -140,13 +140,13 @@ test_a: constant(uint256) = MAX_UINT256
 TEST_C: constant(int128) = 1
 TEST_WEI: constant(uint256) = 1
 
-@private
+@internal
 def test():
    foo: bytes[1] = raw_call(
        0x0000000000000000000000000000000000000005, b'hello', max_outsize=TEST_C, gas=2000
     )
 
-@private
+@internal
 def test1():
     foo: bytes[256] = raw_call(
         0x0000000000000000000000000000000000000005, b'hello', max_outsize=256, gas=TEST_WEI
@@ -161,7 +161,7 @@ event myEvent:
     """
 CONST: constant(uint256) = 8
 
-@public
+@external
 @view
 def test():
     for i in range(CONST / 4):
@@ -172,7 +172,7 @@ MIN_DEPOSIT: constant(uint256) = 1  # ETH
 MAX_DEPOSIT: constant(decimal) = 32.0  # ETH
 
 @payable
-@public
+@external
 def deposit(deposit_input: bytes[2048]):
     assert msg.value >= as_wei_value(MIN_DEPOSIT, "ether")
     assert msg.value <= as_wei_value(MAX_DEPOSIT, "ether")

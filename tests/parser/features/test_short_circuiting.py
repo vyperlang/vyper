@@ -9,17 +9,17 @@ def test_short_circuit_and_left_is_false(w3, get_contract):
 called_left: public(bool)
 called_right: public(bool)
 
-@private
+@internal
 def left() -> bool:
     self.called_left = True
     return False
 
-@private
+@internal
 def right() -> bool:
     self.called_right = True
     return False
 
-@public
+@external
 def foo() -> bool:
     return self.left() and self.right()
 """
@@ -37,17 +37,17 @@ def test_short_circuit_and_left_is_true(w3, get_contract):
 called_left: public(bool)
 called_right: public(bool)
 
-@private
+@internal
 def left() -> bool:
     self.called_left = True
     return True
 
-@private
+@internal
 def right() -> bool:
     self.called_right = True
     return True
 
-@public
+@external
 def foo() -> bool:
     return self.left() and self.right()
 """
@@ -65,17 +65,17 @@ def test_short_circuit_or_left_is_true(w3, get_contract):
 called_left: public(bool)
 called_right: public(bool)
 
-@private
+@internal
 def left() -> bool:
     self.called_left = True
     return True
 
-@private
+@internal
 def right() -> bool:
     self.called_right = True
     return True
 
-@public
+@external
 def foo() -> bool:
     return self.left() or self.right()
 """
@@ -93,17 +93,17 @@ def test_short_circuit_or_left_is_false(w3, get_contract):
 called_left: public(bool)
 called_right: public(bool)
 
-@private
+@internal
 def left() -> bool:
     self.called_left = True
     return False
 
-@private
+@internal
 def right() -> bool:
     self.called_right = True
     return False
 
-@public
+@external
 def foo() -> bool:
     return self.left() or self.right()
 """
@@ -119,7 +119,7 @@ def foo() -> bool:
 @pytest.mark.parametrize("a, b", itertools.product([True, False], repeat=2))
 def test_from_memory(w3, get_contract, a, b, op):
     code = f"""
-@public
+@external
 def foo(a: bool, b: bool) -> bool:
     c: bool = a
     d: bool = b
@@ -136,7 +136,7 @@ def test_from_storage(w3, get_contract, a, b, op):
 c: bool
 d: bool
 
-@public
+@external
 def foo(a: bool, b: bool) -> bool:
     self.c = a
     self.d = b
@@ -150,7 +150,7 @@ def foo(a: bool, b: bool) -> bool:
 @pytest.mark.parametrize("a, b", itertools.product([True, False], repeat=2))
 def test_from_calldata(w3, get_contract, a, b, op):
     code = f"""
-@public
+@external
 def foo(a: bool, b: bool) -> bool:
     return a {op} b
 """
@@ -164,7 +164,7 @@ def test_complex_combination(w3, get_contract, a, b, c, d, ops):
     boolop = f"a {ops[0]} b {ops[1]} c {ops[2]} d"
 
     code = f"""
-@public
+@external
 def foo(a: bool, b: bool, c: bool, d: bool) -> bool:
     return {boolop}
 """

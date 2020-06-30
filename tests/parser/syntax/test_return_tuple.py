@@ -5,7 +5,7 @@ from vyper.exceptions import FunctionDeclarationException
 
 fail_list = [
     """
-@public
+@external
 def unmatched_tupl_length() -> (bytes[8], int128, bytes[8]):
     return "test", 123
     """

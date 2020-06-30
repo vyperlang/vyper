@@ -11,7 +11,7 @@ from vyper.exceptions import (
 fail_list = [
     (
         """
-@public
+@external
 def foo():
     x: int128[3] = [1, 2, 3]
     x = 4
@@ -20,7 +20,7 @@ def foo():
     ),
     (
         """
-@public
+@external
 def foo():
     x: int128[3] = [1, 2, 3]
     x = [4, 5, 6, 7]
@@ -29,7 +29,7 @@ def foo():
     ),
     (
         """
-@public
+@external
 def foo() -> int128[2]:
     return [3, 5, 7]
     """,
@@ -37,7 +37,7 @@ def foo() -> int128[2]:
     ),
     (
         """
-@public
+@external
 def foo() -> int128[2]:
     return [3]
     """,
@@ -47,7 +47,7 @@ def foo() -> int128[2]:
         """
 y: int128[3]
 
-@public
+@external
 def foo(x: int128[3]):
     self.y = x[0]
     """,
@@ -57,7 +57,7 @@ def foo(x: int128[3]):
         """
 y: int128[3]
 
-@public
+@external
 def foo(x: int128[3]):
     self.y[0] = x
     """,
@@ -67,7 +67,7 @@ def foo(x: int128[3]):
         """
 y: int128[4]
 
-@public
+@external
 def foo(x: int128[3]):
     self.y = x
     """,
@@ -77,7 +77,7 @@ def foo(x: int128[3]):
         """
 y: decimal[2]
 
-@public
+@external
 def foo(x: int128[2][2]):
     self.y = x[1]
     """,
@@ -86,7 +86,7 @@ def foo(x: int128[2][2]):
     (
         """
 bar: int128[3]
-@public
+@external
 def foo():
     self.bar = [1, 2, 0x1234567890123456789012345678901234567890]
     """,
@@ -95,7 +95,7 @@ def foo():
     (
         """
 bar: int128[3]
-@public
+@external
 def foo():
     self.bar = []
     """,
@@ -104,7 +104,7 @@ def foo():
     (
         """
 b: int128[5]
-@public
+@external
 def foo():
     x: int128 = self.b[0][1]
     """,
@@ -113,7 +113,7 @@ def foo():
     (
         """
 bar: int128[3]
-@public
+@external
 def foo():
     self.bar = [1, [2], 3]
     """,
@@ -122,7 +122,7 @@ def foo():
     (
         """
 bar: int128[3][3]
-@public
+@external
 def foo():
     self.bar = 5
     """,
@@ -131,7 +131,7 @@ def foo():
     (
         """
 bar: int128[3][3]
-@public
+@external
 def foo():
     self.bar = [2, 5]
     """,
@@ -140,7 +140,7 @@ def foo():
     (
         """
 bar: int128[3]
-@public
+@external
 def foo():
     self.bar = [1, 2, 3, 4]
     """,
@@ -149,7 +149,7 @@ def foo():
     (
         """
 bar: int128[3]
-@public
+@external
 def foo():
     self.bar = [1, 2]
     """,
@@ -158,7 +158,7 @@ def foo():
     (
         """
 b: int128[5]
-@public
+@external
 def foo():
     self.b[0] = 7.5
     """,
@@ -167,7 +167,7 @@ def foo():
     (
         """
 b: int128[5]
-@public
+@external
 def foo():
     x: int128[5] = self.b[0].cow
     """,
@@ -175,7 +175,7 @@ def foo():
     ),
     (
         """
-@public
+@external
 def foo()->bool[2]:
     a: decimal[2] = [0.0, 0.0]
     a[0] = 1
@@ -185,7 +185,7 @@ def foo()->bool[2]:
     ),
     (
         """
-@public
+@external
 def foo()->bool[2]:
     a: bool[10] = [True, True, True, True, True, True, True, True, True, True]
     a[0] = 1
@@ -195,7 +195,7 @@ def foo()->bool[2]:
     ),
     (
         """
-@public
+@external
 def test() -> int128:
     a: int128[3] = [1, 2, 3.0]
     return a[0]
@@ -204,7 +204,7 @@ def test() -> int128:
     ),
     (
         """
-@public
+@external
 def test() -> int128:
     a: int128[3] = [1, 2, True]
     return a[0]
@@ -215,7 +215,7 @@ def test() -> int128:
         """
 y: decimal[3]
 
-@public
+@external
 def foo(x: int128[3]):
     self.y = x
     """,
@@ -225,7 +225,7 @@ def foo(x: int128[3]):
         """
 y: decimal[2][2]
 
-@public
+@external
 def foo(x: int128[2][2]):
     self.y = x
     """,
@@ -243,46 +243,46 @@ def test_block_fail(bad_code, exc):
 
 valid_list = [
     """
-@public
+@external
 def foo():
     x: int128[3] = [1, 2, 3]
     x = [4, 5, 6]
     """,
     """
-@public
+@external
 def foo() -> int128[2][2]:
     return [[1,2], [3,4]]
     """,
     """
-@public
+@external
 def foo() -> decimal[2][2]:
     return [[1.0, 2.0], [3.0, 4.0]]
     """,
     """
-@public
+@external
 def foo() -> decimal[2][2]:
     return [[1.0, 2.0], [3.5, 4.0]]
     """,
     """
-@public
+@external
 def foo(x: int128[3]) -> int128:
     return x[0]
     """,
     """
 y: int128[3]
 
-@public
+@external
 def foo(x: int128[3]):
     self.y = x
     """,
     """
-@public
+@external
 def foo() -> int128[2]:
     return [3,5]
     """,
     """
 bar: decimal[3]
-@public
+@external
 def foo():
     self.bar = [1.0, 2.1, 3.0]
     """,
@@ -291,20 +291,20 @@ x: int128[1][2][3][4][5]
     """,
     """
 bar: int128[3]
-@public
+@external
 def foo():
     self.bar = [1, 2, 3]
     """,
     """
 b: int128[5]
-@public
+@external
 def foo():
     a: int128[5] = [0, 0, 0, 0, 0]
     self.b[0] = a[0]
     """,
     """
 b: decimal[5]
-@public
+@external
 def foo():
     self.b[0] = 7.0
     """,

@@ -11,41 +11,41 @@ struct Chunk:
     c: int128
 chunk: Chunk
 
-@public
+@external
 def __init__():
     self.chunk.a = b"hello"
     self.chunk.b = b"world"
     self.chunk.c = 5678
 
-@public
+@external
 def out() -> (int128, address):
     return 3333, 0x0000000000000000000000000000000000000001
 
-@public
+@external
 def out_literals() -> (int128, address, bytes[6]):
     return 1, 0x0000000000000000000000000000000000000000, b"random"
 
-@public
+@external
 def out_bytes_first() -> (bytes[4], int128):
     return b"test", 1234
 
-@public
+@external
 def out_bytes_a(x: int128, y: bytes[4]) -> (int128, bytes[4]):
     return x, y
 
-@public
+@external
 def out_bytes_b(x: int128, y: bytes[4]) -> (bytes[4], int128, bytes[4]):
     return y, x, y
 
-@public
+@external
 def four() -> (int128, bytes[8], bytes[8], int128):
     return 1234, b"bytes", b"test", 4321
 
-@public
+@external
 def out_chunk() -> (bytes[8], int128, bytes[8]):
     return self.chunk.a, self.chunk.c, self.chunk.b
 
-@public
+@external
 def out_very_long_bytes() -> (int128, bytes[1024], int128, address):
     return 5555, b"testtesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttest", 6666, 0x0000000000000000000000000000000000001234  # noqa
     """
@@ -69,7 +69,7 @@ def out_very_long_bytes() -> (int128, bytes[1024], int128, address):
 
 def test_return_type_signatures(get_contract_with_gas_estimation):
     code = """
-@public
+@external
 def out_literals() -> (int128, address, bytes[6]):
     return 1, 0x0000000000000000000000000000000000000000, b"random"
     """
@@ -84,15 +84,15 @@ def out_literals() -> (int128, address, bytes[6]):
 
 def test_return_tuple_assign(get_contract_with_gas_estimation):
     code = """
-@private
+@internal
 def _out_literals() -> (int128, address, bytes[10]):
     return 1, 0x0000000000000000000000000000000000000000, b"random"
 
-@public
+@external
 def out_literals() -> (int128, address, bytes[10]):
     return self._out_literals()
 
-@public
+@external
 def test() -> (int128, address, bytes[10]):
     a: int128 = 0
     b: address = ZERO_ADDRESS
@@ -113,26 +113,26 @@ b: address
 c: bytes[20]
 d: bytes[20]
 
-@private
+@internal
 def _out_literals() -> (int128, bytes[20], address, bytes[20]):
     return 1, b"testtesttest", 0x0000000000000000000000000000000000000023, b"random"
 
-@public
+@external
 def out_literals() -> (int128, bytes[20], address, bytes[20]):
     return self._out_literals()
 
-@public
+@external
 def test1() -> (int128, bytes[20], address, bytes[20]):
     self.a, self.c, self.b, self.d = self._out_literals()
     return self.a, self.c, self.b, self.d
 
-@public
+@external
 def test2() -> (int128, address):
     x: int128 = 0
     x, self.c, self.b, self.d = self._out_literals()
     return x, self.b
 
-@public
+@external
 def test3() -> (address, int128):
     x: address = ZERO_ADDRESS
     self.a, self.c, x, self.d = self._out_literals()
@@ -150,7 +150,7 @@ def test3() -> (address, int128):
 
 def test_tuple_return_typecheck(assert_tx_failed, get_contract_with_gas_estimation):
     code = """
-@public
+@external
 def getTimeAndBalance() -> (bool, address):
     return block.timestamp, self.balance
     """

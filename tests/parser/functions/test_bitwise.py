@@ -4,23 +4,23 @@ from vyper.compiler import compile_code
 from vyper.opcodes import EVM_VERSIONS
 
 code = """
-@public
+@external
 def _bitwise_and(x: uint256, y: uint256) -> uint256:
     return bitwise_and(x, y)
 
-@public
+@external
 def _bitwise_or(x: uint256, y: uint256) -> uint256:
     return bitwise_or(x, y)
 
-@public
+@external
 def _bitwise_xor(x: uint256, y: uint256) -> uint256:
     return bitwise_xor(x, y)
 
-@public
+@external
 def _bitwise_not(x: uint256) -> uint256:
     return bitwise_not(x)
 
-@public
+@external
 def _shift(x: uint256, y: int128) -> uint256:
     return shift(x, y)
     """
@@ -59,11 +59,11 @@ def test_test_bitwise(get_contract_with_gas_estimation, evm_version):
 @pytest.mark.parametrize("evm_version", list(EVM_VERSIONS))
 def test_literals(get_contract, evm_version):
     code = """
-@public
+@external
 def left(x: uint256) -> uint256:
     return shift(x, -3)
 
-@public
+@external
 def right(x: uint256) -> uint256:
     return shift(x, 3)
     """

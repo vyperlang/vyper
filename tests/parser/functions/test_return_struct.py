@@ -7,7 +7,7 @@ struct Voter:
     weight: int128
     voted: bool
 
-@public
+@external
 def test() -> Voter:
     a: Voter = Voter({weight: 123, voted: True})
     return a
@@ -32,40 +32,40 @@ struct Foo:
 _foo: Foo
 _foos: HashMap[int128, Foo]
 
-@private
+@internal
 def priv1() -> Foo:
     return Foo({x: 1, y: 2})
-@public
+@external
 def pub1() -> Foo:
     return self.priv1()
 
-@private
+@internal
 def priv2() -> Foo:
     foo: Foo = Foo({x: 0, y: 0})
     foo.x = 3
     foo.y = 4
     return foo
-@public
+@external
 def pub2() -> Foo:
     return self.priv2()
 
-@public
+@external
 def pub3() -> Foo:
     self._foo = Foo({x: 5, y: 6})
     return self._foo
 
-@public
+@external
 def pub4() -> Foo:
    self._foos[0] = Foo({x: 7, y: 8})
    return self._foos[0]
 
-@private
+@internal
 def return_arg(foo: Foo) -> Foo:
     return foo
-@public
+@external
 def pub5(foo: Foo) -> Foo:
     return self.return_arg(foo)
-@public
+@external
 def pub6() -> Foo:
     foo: Foo = Foo({x: 123, y: 456})
     return self.return_arg(foo)

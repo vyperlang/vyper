@@ -5,7 +5,7 @@ from vyper.exceptions import InvalidType, UndeclaredDefinition
 
 type_fail_list = [
     """
-@public
+@external
 def foo():
     x: bytes32 = keccak256(3)
     """
@@ -20,12 +20,12 @@ def test_block_type_fail(bad_code):
 
 structure_fail_list = [
     """
-@public
+@external
 def foo():
     x: bytes32 = sha3("moose")
     """,
     """
-@public
+@external
 def foo():
     x: bytes32 = sha3(0x1234567890123456789012345678901234567890123456789012345678901234)
     """,
@@ -40,12 +40,12 @@ def test_block_structure_fail(bad_code):
 
 valid_list = [
     """
-@public
+@external
 def foo():
     x: bytes32 = keccak256("moose")
     """,
     """
-@public
+@external
 def foo():
     x: bytes32 = keccak256(0x1234567890123456789012345678901234567890123456789012345678901234)
     """,

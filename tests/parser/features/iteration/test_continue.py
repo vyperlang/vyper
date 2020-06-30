@@ -1,6 +1,6 @@
 def test_continue1(get_contract_with_gas_estimation):
     code = """
-@public
+@external
 def foo() -> bool:
     for i in range(2):
         continue
@@ -13,7 +13,7 @@ def foo() -> bool:
 
 def test_continue2(get_contract_with_gas_estimation):
     code = """
-@public
+@external
 def foo() -> int128:
     x: int128 = 0
     for i in range(3):
@@ -28,7 +28,7 @@ def foo() -> int128:
 
 def test_continue3(get_contract_with_gas_estimation):
     code = """
-@public
+@external
 def foo() -> int128:
     x: int128 = 0
     for i in range(3):
@@ -42,7 +42,7 @@ def foo() -> int128:
 
 def test_continue4(get_contract_with_gas_estimation):
     code = """
-@public
+@external
 def foo() -> int128:
     x: int128 = 0
     for i in range(6):

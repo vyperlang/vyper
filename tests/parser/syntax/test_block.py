@@ -7,7 +7,7 @@ from vyper.exceptions import InvalidType, TypeMismatch
 fail_list = [
     (
         """
-@public
+@external
 def foo() -> int128[2]:
     return [3,block.timestamp]
     """,
@@ -15,14 +15,14 @@ def foo() -> int128[2]:
     ),
     (
         """
-@public
+@external
 def foo() -> int128[2]:
     return [block.timestamp - block.timestamp, block.timestamp]
     """,
         InvalidType,
     ),
     """
-@public
+@external
 def foo() -> decimal:
     x: int128 = as_wei_value(5, "finney")
     y: int128 = block.timestamp + 50
@@ -30,14 +30,14 @@ def foo() -> decimal:
     """,
     (
         """
-@public
+@external
 def foo():
     x: bytes[10] = slice(b"cow", -1, block.timestamp)
     """,
         InvalidType,
     ),
     """
-@public
+@external
 def foo():
     x: int128 = 7
     y: int128 = min(x, block.timestamp)
@@ -45,14 +45,14 @@ def foo():
     """
 a: HashMap[uint256, int128]
 
-@public
+@external
 def add_record():
     self.a[block.timestamp] = block.timestamp + 20
     """,
     """
 a: HashMap[int128, int128]
 
-@public
+@external
 def add_record():
     self.a[block.timestamp] = block.timestamp + 20
     """,
@@ -61,20 +61,20 @@ struct X:
     x: uint256
 struct Y:
     y: int128
-@public
+@external
 def add_record():
     a: X = X({x: block.timestamp})
     b: Y = Y({y: 5})
     a.x = b.y
     """,
     """
-@public
+@external
 def foo(inp: bytes[10]) -> bytes[3]:
     return slice(inp, block.timestamp, 6)
     """,
     (
         """
-@public
+@external
 def foo() -> int128:
     return block.fail
 """,
@@ -98,37 +98,37 @@ valid_list = [
     """
 a: HashMap[uint256, uint256]
 
-@public
+@external
 def add_record():
     self.a[block.timestamp] = block.timestamp + 20
     """,
     """
-@public
+@external
 def foo() -> uint256:
     x: uint256 = as_wei_value(5, "finney")
     y: uint256 = block.timestamp + 50 - block.timestamp
     return x / y
     """,
     """
-@public
+@external
 def foo() -> uint256[2]:
     return [block.timestamp + 86400, block.timestamp]
     """,
     """
-@public
+@external
 def foo():
     y: uint256 = min(block.timestamp + 30, block.timestamp + 50)
     """,
     """
 struct X:
     x: uint256
-@public
+@external
 def add_record():
     a: X = X({x: block.timestamp})
     a.x = 5
     """,
     """
-@public
+@external
 def foo():
     x: uint256 = block.difficulty + 185
     if tx.origin == self:

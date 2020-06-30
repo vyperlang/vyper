@@ -11,7 +11,7 @@ def _make_tx(w3, address, signature, values):
 
 def test_bytes_clamper(assert_tx_failed, get_contract_with_gas_estimation):
     clamper_test_code = """
-@public
+@external
 def foo(s: bytes[3]) -> bytes[3]:
     return s
     """
@@ -24,7 +24,7 @@ def foo(s: bytes[3]) -> bytes[3]:
 
 def test_bytes_clamper_multiple_slots(assert_tx_failed, get_contract_with_gas_estimation):
     clamper_test_code = """
-@public
+@external
 def foo(s: bytes[40]) -> bytes[40]:
     return s
     """
@@ -40,7 +40,7 @@ def foo(s: bytes[40]) -> bytes[40]:
 @pytest.mark.parametrize("value", [0, 1, -1, 2 ** 127 - 1, -(2 ** 127)])
 def test_int128_clamper_passing(w3, get_contract, value):
     code = """
-@public
+@external
 def foo(s: int128) -> int128:
     return s
     """
@@ -52,7 +52,7 @@ def foo(s: int128) -> int128:
 @pytest.mark.parametrize("value", [2 ** 127, -(2 ** 127) - 1, 2 ** 255 - 1, -(2 ** 255)])
 def test_int128_clamper_failing(w3, assert_tx_failed, get_contract, value):
     code = """
-@public
+@external
 def foo(s: int128) -> int128:
     return s
     """
@@ -64,7 +64,7 @@ def foo(s: int128) -> int128:
 @pytest.mark.parametrize("value", [0, 1])
 def test_bool_clamper_passing(w3, get_contract, value):
     code = """
-@public
+@external
 def foo(s: bool) -> bool:
     return s
     """
@@ -76,7 +76,7 @@ def foo(s: bool) -> bool:
 @pytest.mark.parametrize("value", [2, 3, 4, 8, 16, 2 ** 256 - 1])
 def test_bool_clamper_failing(w3, assert_tx_failed, get_contract, value):
     code = """
-@public
+@external
 def foo(s: bool) -> bool:
     return s
     """
@@ -88,7 +88,7 @@ def foo(s: bool) -> bool:
 @pytest.mark.parametrize("value", [0, 1, 2 ** 160 - 1])
 def test_address_clamper_passing(w3, get_contract, value):
     code = """
-@public
+@external
 def foo(s: address) -> address:
     return s
     """
@@ -100,7 +100,7 @@ def foo(s: address) -> address:
 @pytest.mark.parametrize("value", [2 ** 160, 2 ** 256 - 1])
 def test_address_clamper_failing(w3, assert_tx_failed, get_contract, value):
     code = """
-@public
+@external
 def foo(s: address) -> address:
     return s
     """
@@ -112,7 +112,7 @@ def foo(s: address) -> address:
 @pytest.mark.parametrize("value", [0, 1, -1, 2 ** 127 - 1, -(2 ** 127)])
 def test_int128_array_clamper_passing(w3, get_contract, value):
     code = """
-@public
+@external
 def foo(a: uint256, b: int128[5], c: uint256) -> int128[5]:
     return b
     """
@@ -130,7 +130,7 @@ def foo(a: uint256, b: int128[5], c: uint256) -> int128[5]:
 def test_int128_array_clamper_failing(w3, assert_tx_failed, get_contract, bad_value, idx):
     # ensure the invalid value is detected at all locations in the array
     code = """
-@public
+@external
 def foo(b: int128[5]) -> int128[5]:
     return b
     """
@@ -146,7 +146,7 @@ def foo(b: int128[5]) -> int128[5]:
 def test_int128_array_looped_clamper_passing(w3, get_contract, value):
     # when an array is > 5 items, the arg clamper runs in a loop to reduce bytecode size
     code = """
-@public
+@external
 def foo(a: uint256, b: int128[10], c: uint256) -> int128[10]:
     return b
     """
@@ -161,7 +161,7 @@ def foo(a: uint256, b: int128[10], c: uint256) -> int128[10]:
 @pytest.mark.parametrize("idx", range(10))
 def test_int128_array_looped_clamper_failing(w3, assert_tx_failed, get_contract, bad_value, idx):
     code = """
-@public
+@external
 def foo(b: int128[10]) -> int128[10]:
     return b
     """
@@ -176,7 +176,7 @@ def foo(b: int128[10]) -> int128[10]:
 @pytest.mark.parametrize("value", [0, 1, -1, 2 ** 127 - 1, -(2 ** 127)])
 def test_multidimension_array_clamper_passing(w3, get_contract, value):
     code = """
-@public
+@external
 def foo(a: uint256, b: int128[6][3][1][8], c: uint256) -> int128[6][3][1][8]:
     return b
     """
@@ -192,7 +192,7 @@ def foo(a: uint256, b: int128[6][3][1][8], c: uint256) -> int128[6][3][1][8]:
 @pytest.mark.parametrize("idx", range(12))
 def test_multidimension_array_clamper_failing(w3, assert_tx_failed, get_contract, bad_value, idx):
     code = """
-@public
+@external
 def foo(b: int128[6][1][2]) -> int128[6][1][2]:
     return b
     """

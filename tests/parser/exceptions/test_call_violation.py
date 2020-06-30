@@ -8,22 +8,22 @@ call_violation_list = [
     """
 f:int128
 
-@public
+@external
 def a (x:int128)->int128:
     self.f = 100
     return x+5
 
 @view
-@public
+@external
 def b():
     p: int128 = self.a(10)
     """,
     """
-@public
+@external
 def goo():
     pass
 
-@private
+@internal
 def foo():
     self.goo()
     """,

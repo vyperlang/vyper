@@ -17,7 +17,7 @@ def test_basic_grammar(lark_grammar):
     b: uint128
     """
     code_func = """
-    @public
+    @external
     def one_two_three() -> uint256:
         return 123123123
     """

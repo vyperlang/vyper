@@ -5,11 +5,11 @@ def test_state_accessor(get_contract_with_gas_estimation_for_constants):
     state_accessor = """
 y: HashMap[int128, int128]
 
-@public
+@external
 def oo():
     self.y[3] = 5
 
-@public
+@external
 def foo() -> int128:
     return self.y[3]
 
@@ -37,7 +37,7 @@ y: public(int128[5])
 z: public(bytes[100])
 w: public(HashMap[int128, W])
 
-@public
+@external
 def __init__():
     self.x = as_wei_value(7, "wei")
     self.y[1] = 9

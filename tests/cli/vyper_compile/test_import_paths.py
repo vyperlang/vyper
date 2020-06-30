@@ -5,17 +5,17 @@ from vyper.cli.vyper_compile import compile_files, get_interface_file_path
 FOO_CODE = """
 {}
 
-@public
+@external
 def foo() -> uint256:
     return 13
 
-@public
+@external
 def bar(a: address) -> uint256:
     return Bar(a).bar()
 """
 
 BAR_CODE = """
-@public
+@external
 def bar() -> uint256:
     return 13
 """
@@ -122,11 +122,11 @@ def test_import_self_interface(import_stmt, tmp_path):
     code = f"""
 {import_stmt}
 
-@public
+@external
 def know_thyself(a: address) -> uint256:
     return Meta(a).be_known()
 
-@public
+@external
 def be_known() -> uint256:
     return 42
     """
@@ -158,11 +158,11 @@ def test_derived_interface_imports(import_stmt_baz, import_stmt_foo, tmp_path):
     baz_code = f"""
 {import_stmt_baz}
 
-@public
+@external
 def foo(a: address) -> uint256:
     return Foo(a).foo()
 
-@public
+@external
 def bar(_foo: address, _bar: address) -> uint256:
     return Foo(_foo).bar(_bar)
     """

@@ -111,24 +111,24 @@ interface PurchaseContract:
 purchase_contract: PurchaseContract
 
 
-@public
+@external
 def __init__(_purchase_contract: address):
     self.purchase_contract = PurchaseContract(_purchase_contract)
 
 
 @payable
-@public
+@external
 def start_purchase():
     self.purchase_contract.purchase(value=2)
 
 
 @payable
-@public
+@external
 def start_received():
     self.purchase_contract.received()
 
 
-@public
+@external
 @payable
 def __default__():
     self.purchase_contract.received()

@@ -5,7 +5,7 @@ def test_external_contract_call_declaration_expr(get_contract, assert_tx_failed)
     contract_1 = """
 lucky: public(int128)
 
-@public
+@external
 def set_lucky(_lucky: int128):
     self.lucky = _lucky
 """
@@ -20,16 +20,16 @@ interface ConstBar:
 modifiable_bar_contract: ModBar
 static_bar_contract: ConstBar
 
-@public
+@external
 def __init__(contract_address: address):
     self.modifiable_bar_contract = ModBar(contract_address)
     self.static_bar_contract = ConstBar(contract_address)
 
-@public
+@external
 def modifiable_set_lucky(_lucky: int128):
     self.modifiable_bar_contract.set_lucky(_lucky)
 
-@public
+@external
 def static_set_lucky(_lucky: int128):
     self.static_bar_contract.set_lucky(_lucky)
     """
@@ -47,7 +47,7 @@ def test_external_contract_call_declaration_stmt(get_contract, assert_tx_failed)
     contract_1 = """
 lucky: public(int128)
 
-@public
+@external
 def set_lucky(_lucky: int128) -> int128:
     self.lucky = _lucky
     return self.lucky
@@ -63,17 +63,17 @@ interface ConstBar:
 modifiable_bar_contract: ModBar
 static_bar_contract: ConstBar
 
-@public
+@external
 def __init__(contract_address: address):
     self.modifiable_bar_contract = ModBar(contract_address)
     self.static_bar_contract = ConstBar(contract_address)
 
-@public
+@external
 def modifiable_set_lucky(_lucky: int128) -> int128:
     x: int128 = self.modifiable_bar_contract.set_lucky(_lucky)
     return x
 
-@public
+@external
 def static_set_lucky(_lucky: int128):
     x:int128 = self.static_bar_contract.set_lucky(_lucky)
     """
@@ -91,7 +91,7 @@ def test_multiple_contract_state_changes(get_contract, assert_tx_failed):
     contract_1 = """
 lucky: public(int128)
 
-@public
+@external
 def set_lucky(_lucky: int128):
     self.lucky = _lucky
 """
@@ -106,16 +106,16 @@ interface ConstBar:
 modifiable_bar_contract: ModBar
 static_bar_contract: ConstBar
 
-@public
+@external
 def __init__(contract_address: address):
     self.modifiable_bar_contract = ModBar(contract_address)
     self.static_bar_contract = ConstBar(contract_address)
 
-@public
+@external
 def modifiable_set_lucky(_lucky: int128):
     self.modifiable_bar_contract.set_lucky(_lucky)
 
-@public
+@external
 def static_set_lucky(_lucky: int128):
     self.static_bar_contract.set_lucky(_lucky)
 """
@@ -132,24 +132,24 @@ interface ConstBar:
 modifiable_bar_contract: ModBar
 static_bar_contract: ConstBar
 
-@public
+@external
 def __init__(contract_address: address):
     self.modifiable_bar_contract = ModBar(contract_address)
     self.static_bar_contract = ConstBar(contract_address)
 
-@public
+@external
 def modifiable_modifiable_set_lucky(_lucky: int128):
     self.modifiable_bar_contract.modifiable_set_lucky(_lucky)
 
-@public
+@external
 def modifiable_static_set_lucky(_lucky: int128):
     self.modifiable_bar_contract.static_set_lucky(_lucky)
 
-@public
+@external
 def static_static_set_lucky(_lucky: int128):
     self.static_bar_contract.static_set_lucky(_lucky)
 
-@public
+@external
 def static_modifiable_set_lucky(_lucky: int128):
     self.static_bar_contract.modifiable_set_lucky(_lucky)
     """
@@ -169,7 +169,7 @@ def static_modifiable_set_lucky(_lucky: int128):
 
 def test_address_can_returned_from_contract_type(get_contract):
     contract_1 = """
-@public
+@external
 def bar() -> int128:
     return 1
 """
@@ -179,11 +179,11 @@ interface Bar:
 
 bar_contract: public(Bar)
 
-@public
+@external
 def foo(contract_address: address):
     self.bar_contract = Bar(contract_address)
 
-@public
+@external
 def get_bar() -> int128:
     return self.bar_contract.bar()
 """
@@ -210,7 +210,7 @@ interface Bar:
 
 bar_contract: Boo
 
-@public
+@external
 def foo(contract_address: address) -> int128:
     self.bar_contract = Bar(contract_address)
     return self.bar_contract.bar()

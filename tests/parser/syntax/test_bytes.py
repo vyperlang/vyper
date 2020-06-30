@@ -11,7 +11,7 @@ from vyper.exceptions import (
 fail_list = [
     (
         """
-@public
+@external
 def baa():
     x: bytes[50] = b""
     y: bytes[50] = b""
@@ -20,44 +20,44 @@ def baa():
         InvalidOperation,
     ),
     """
-@public
+@external
 def baa():
     x: bytes[50] = b""
     y: int128 = 0
     y = x
     """,
     """
-@public
+@external
 def baa():
     x: bytes[50] = b""
     y: int128 = 0
     x = y
     """,
     """
-@public
+@external
 def baa():
     x: bytes[50] = b""
     y: bytes[60] = b""
     x = y
     """,
     """
-@public
+@external
 def foo(x: bytes[100]) -> bytes[75]:
     return x
     """,
     """
-@public
+@external
 def foo(x: bytes[100]) -> int128:
     return x
     """,
     """
-@public
+@external
 def foo(x: int128) -> bytes[75]:
     return x
     """,
     (
         """
-@public
+@external
 def foo() -> bytes[10]:
     x: bytes[10] = '0x1234567890123456789012345678901234567890'
     x = 0x1234567890123456789012345678901234567890
@@ -67,7 +67,7 @@ def foo() -> bytes[10]:
     ),
     (
         """
-@public
+@external
 def foo() -> bytes[10]:
     return "badmintonzz"
     """,
@@ -75,7 +75,7 @@ def foo() -> bytes[10]:
     ),
     (
         """
-@public
+@external
 def test() -> bytes[1]:
     a: bytes[1] = 0b0000001  # needs multiple of 8 bits.
     return a
@@ -97,17 +97,17 @@ def test_bytes_fail(bad_code):
 
 valid_list = [
     """
-@public
+@external
 def foo(x: bytes[100]) -> bytes[100]:
     return x
     """,
     """
-@public
+@external
 def foo(x: bytes[100]) -> bytes[150]:
     return x
     """,
     """
-@public
+@external
 def baa():
     x: bytes[50] = b""
     """,

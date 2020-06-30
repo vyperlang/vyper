@@ -38,14 +38,14 @@ x: int128[3]
 
 must_succeed(
     """
-@public
+@external
 def foo(x: int128): pass
 """
 )
 
 must_succeed(
     """
-@public
+@external
 def foo():
     x: int128 = 0
     x = 5
@@ -54,7 +54,7 @@ def foo():
 
 must_succeed(
     """
-@public
+@external
 def foo():
     x: int128  = 5
 """
@@ -62,7 +62,7 @@ def foo():
 
 must_fail(
     """
-@public
+@external
 def foo():
     x: int128 = 5
     x = 0x1234567890123456789012345678901234567890
@@ -72,7 +72,7 @@ def foo():
 
 must_fail(
     """
-@public
+@external
 def foo():
     x: int128 = 5
     x = 3.5
@@ -82,7 +82,7 @@ def foo():
 
 must_succeed(
     """
-@public
+@external
 def foo():
     x: int128 = 5
     x = 3
@@ -92,7 +92,7 @@ def foo():
 must_succeed(
     """
 b: int128
-@public
+@external
 def foo():
     self.b = 7
 """
@@ -101,7 +101,7 @@ def foo():
 must_fail(
     """
 b: int128
-@public
+@external
 def foo():
     self.b = 7.5
 """,
@@ -111,7 +111,7 @@ def foo():
 must_succeed(
     """
 b: decimal
-@public
+@external
 def foo():
     self.b = 7.5
 """
@@ -120,7 +120,7 @@ def foo():
 must_succeed(
     """
 b: decimal
-@public
+@external
 def foo():
     self.b = 7.0
 """
@@ -129,7 +129,7 @@ def foo():
 must_fail(
     """
 b: int128[5]
-@public
+@external
 def foo():
     self.b = 7
 """,
@@ -139,7 +139,7 @@ def foo():
 must_succeed(
     """
 b: HashMap[int128, int128]
-@public
+@external
 def foo():
     x: int128 = self.b[5]
 """
@@ -148,7 +148,7 @@ def foo():
 must_fail(
     """
 b: HashMap[uint256, uint256]
-@public
+@external
 def foo():
     x: int128 = self.b[-5]
 """,
@@ -158,7 +158,7 @@ def foo():
 must_fail(
     """
 b: HashMap[int128, int128]
-@public
+@external
 def foo():
     x: int128 = self.b[5.7]
 """,
@@ -168,7 +168,7 @@ def foo():
 must_succeed(
     """
 b: HashMap[decimal, int128]
-@public
+@external
 def foo():
     x: int128 = self.b[5.0]
 """
@@ -177,7 +177,7 @@ def foo():
 must_fail(
     """
 b: HashMap[int128, int128]
-@public
+@external
 def foo():
     self.b[3] = 5.6
 """,
@@ -187,7 +187,7 @@ def foo():
 must_succeed(
     """
 b: HashMap[int128, int128]
-@public
+@external
 def foo():
     self.b[3] = -5
 """
@@ -196,7 +196,7 @@ def foo():
 must_succeed(
     """
 b: HashMap[int128, int128]
-@public
+@external
 def foo():
     self.b[-3] = 5
 """
@@ -204,7 +204,7 @@ def foo():
 
 must_succeed(
     """
-@public
+@external
 def foo():
     x: int128[5] = [0, 0, 0, 0, 0]
     z: int128 = x[2]
@@ -214,7 +214,7 @@ def foo():
 must_succeed(
     """
 x: int128
-@public
+@external
 def foo():
     self.x = 5
 """
@@ -223,7 +223,7 @@ def foo():
 must_succeed(
     """
 x: int128
-@private
+@internal
 def foo():
     self.x = 5
 """
@@ -232,7 +232,7 @@ def foo():
 must_fail(
     """
 bar: int128[3]
-@public
+@external
 def foo():
     self.bar = 5
 """,
@@ -242,7 +242,7 @@ def foo():
 must_succeed(
     """
 bar: int128[3]
-@public
+@external
 def foo():
     self.bar[0] = 5
 """
@@ -250,7 +250,7 @@ def foo():
 
 must_fail(
     """
-@public
+@external
 def foo() -> address:
     return [1, 2, 3]
 """,
@@ -259,7 +259,7 @@ def foo() -> address:
 
 must_fail(
     """
-@public
+@external
 def baa() -> decimal:
     return 2.0**2
 """,
@@ -268,7 +268,7 @@ def baa() -> decimal:
 
 must_succeed(
     """
-@public
+@external
 def foo():
     raise "fail"
 """
@@ -276,11 +276,11 @@ def foo():
 
 must_succeed(
     """
-@private
+@internal
 def foo():
     pass
 
-@public
+@external
 def goo():
     self.foo()
 """
@@ -288,7 +288,7 @@ def goo():
 
 must_succeed(
     """
-@public
+@external
 def foo():
     MOOSE: int128 = 45
 """
@@ -296,7 +296,7 @@ def foo():
 
 must_fail(
     """
-@public
+@external
 def foo():
     x: address = -self
 """,
@@ -305,7 +305,7 @@ def foo():
 
 must_fail(
     """
-@public
+@external
 def foo() -> int128:
     return
 """,
@@ -314,7 +314,7 @@ def foo() -> int128:
 
 must_fail(
     """
-@public
+@external
 def foo():
     return 3
 """,
@@ -323,7 +323,7 @@ def foo():
 
 must_fail(
     """
-@public
+@external
 def foo():
     suicide(msg.sender)
     """,
@@ -332,7 +332,7 @@ def foo():
 
 must_succeed(
     '''
-@public
+@external
 def sum(a: int128, b: int128) -> int128:
     """
     Sum two signed integers.
@@ -343,7 +343,7 @@ def sum(a: int128, b: int128) -> int128:
 
 must_fail(
     """
-@public
+@external
 def a():
     "Behold me mortal, for I am a DOCSTRING!"
     "Alas, I am but a mere string."
@@ -356,7 +356,7 @@ must_fail(
 struct StructX:
     x: int128
 
-@public
+@external
 def a():
     x: int128 = StructX({y: 1})
 """,

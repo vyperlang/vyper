@@ -11,7 +11,7 @@ x: public(int128)
 y: public(int128)
 z: public(int128)
 
-@public
+@external
 def foo() -> int128:
     return self.x / self.y / self.z
     """,

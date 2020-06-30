@@ -5,7 +5,7 @@ import pytest
 @pytest.fixture(scope="module")
 def little_endian_contract(get_contract_module):
     code = """
-@private
+@internal
 @view
 def to_little_endian_64(_value: uint256) -> bytes[8]:
     y: uint256 = 0
@@ -16,7 +16,7 @@ def to_little_endian_64(_value: uint256) -> bytes[8]:
         x = shift(x, -8)
     return slice(convert(y, bytes32), 24, 8)
 
-@public
+@external
 @view
 def get_count(counter: uint256) -> bytes[24]:
     return self.to_little_endian_64(counter)

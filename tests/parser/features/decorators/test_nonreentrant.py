@@ -5,11 +5,11 @@ interface SpecialContract:
     def protected_function(val: string[100], do_callback: bool): nonpayable
     def special_value() -> string[100]: nonpayable
 
-@public
+@external
 def updated():
     SpecialContract(msg.sender).unprotected_function('surprise!', False)
 
-@public
+@external
 def updated_protected():
     SpecialContract(msg.sender).protected_function('surprise protected!', False)  # This should fail.  # noqa: E501
     """
@@ -22,11 +22,11 @@ interface Callback:
 special_value: public(string[100])
 callback: public(Callback)
 
-@public
+@external
 def set_callback(c: address):
     self.callback = Callback(c)
 
-@public
+@external
 @nonreentrant('protect_special_value')
 def protected_function(val: string[100], do_callback: bool) -> uint256:
     self.special_value = val
@@ -37,7 +37,7 @@ def protected_function(val: string[100], do_callback: bool) -> uint256:
     else:
         return 2
 
-@public
+@external
 def unprotected_function(val: string[100], do_callback: bool):
     self.special_value = val
 

@@ -14,7 +14,7 @@ def chdir_path(tmp_path):
 
 def test_paths(chdir_path):
     code = """
-@public
+@external
 def foo() -> bool:
     return True
 """

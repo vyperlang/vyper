@@ -1,6 +1,6 @@
 def test_block_number(get_contract_with_gas_estimation, w3):
     block_number_code = """
-@public
+@external
 def block_number() -> uint256:
     return block.number
     """

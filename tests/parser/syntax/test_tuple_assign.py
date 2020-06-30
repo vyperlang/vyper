@@ -12,7 +12,7 @@ from vyper.exceptions import (
 fail_list = [
     (
         """
-@public
+@external
 def test():
     a: int128 = 0
     b: int128 = 0
@@ -22,11 +22,11 @@ def test():
         StructureException,
     ),
     """
-@private
+@internal
 def out_literals() -> (int128, int128, bytes[10]):
     return 1, 2, b"3333"
 
-@public
+@external
 def test() -> (int128, address, bytes[10]):
     a: int128 = 0
     b: int128 = 0
@@ -34,11 +34,11 @@ def test() -> (int128, address, bytes[10]):
     return a, b, c
     """,
     """
-@private
+@internal
 def out_literals() -> (int128, int128, bytes[10]):
     return 1, 2, b"3333"
 
-@public
+@external
 def test() -> (int128, address, bytes[10]):
     a: int128 = 0
     b: address = ZERO_ADDRESS
@@ -46,11 +46,11 @@ def test() -> (int128, address, bytes[10]):
     return
     """,
     """
-@private
+@internal
 def out_literals() -> (int128, int128, int128):
     return 1, 2, 3
 
-@public
+@external
 def test() -> (int128, int128, bytes[10]):
     a: int128 = 0
     b: int128 = 0
@@ -59,11 +59,11 @@ def test() -> (int128, int128, bytes[10]):
     return a, b, c
     """,
     """
-@private
+@internal
 def out_literals() -> (int128, int128, bytes[100]):
     return 1, 2, b"test"
 
-@public
+@external
 def test():
     a: int128 = 0
     b: int128 = 0
@@ -72,12 +72,12 @@ def test():
     """,
     (
         """
-@private
+@internal
 def _test(a: bytes32) -> (bytes32, uint256, int128):
     b: uint256 = 1000
     return a, b, -1200
 
-@public
+@external
 def test(a: bytes32) -> (bytes32, uint256, int128):
     b: uint256 = 1
     c: int128 = 1
@@ -92,12 +92,12 @@ def test(a: bytes32) -> (bytes32, uint256, int128):
         """
 x: public(uint256)
 
-@private
+@internal
 @view
 def return_two() -> (uint256, uint256):
     return 1, 2
 
-@public
+@external
 @view
 def foo():
     a: uint256 = 0

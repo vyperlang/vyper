@@ -7,7 +7,7 @@ from vyper.exceptions import ArgumentException, StructureException
 fail_list = [
     (
         """
-@public
+@external
 def foo():
     x: int128 = as_wei_value(5, szabo)
     """,
@@ -15,7 +15,7 @@ def foo():
     ),
     (
         """
-@public
+@external
 def foo() -> int128:
     x: int128 = 45
     return x.balance
@@ -33,23 +33,23 @@ def test_as_wei_fail(bad_code, exc):
 
 valid_list = [
     """
-@public
+@external
 def foo():
     x: uint256 = as_wei_value(5, "finney") + as_wei_value(2, "babbage") + as_wei_value(8, "shannon")  # noqa: E501
     """,
     """
-@public
+@external
 def foo():
     z: int128 = 2 + 3
     x: uint256 = as_wei_value(2 + 3, "finney")
     """,
     """
-@public
+@external
 def foo():
     x: uint256 = as_wei_value(5.182, "babbage")
     """,
     """
-@public
+@external
 def foo() -> uint256:
     x: address = 0x1234567890123456789012345678901234567890
     return x.balance

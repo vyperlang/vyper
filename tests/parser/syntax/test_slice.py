@@ -6,7 +6,7 @@ from vyper.exceptions import InvalidType, TypeMismatch
 fail_list = [
     (
         """
-@public
+@external
 def foo(inp: bytes[10]) -> bytes[2]:
     return slice(inp, 2, 3)
     """,
@@ -14,7 +14,7 @@ def foo(inp: bytes[10]) -> bytes[2]:
     ),
     (
         """
-@public
+@external
 def foo(inp: int128) -> bytes[3]:
     return slice(inp, 2, 3)
     """,
@@ -22,7 +22,7 @@ def foo(inp: int128) -> bytes[3]:
     ),
     (
         """
-@public
+@external
 def foo(inp: bytes[10]) -> bytes[3]:
     return slice(inp, 4.0, 3)
     """,
@@ -40,17 +40,17 @@ def test_slice_fail(bad_code, exc):
 
 valid_list = [
     """
-@public
+@external
 def foo(inp: bytes[10]) -> bytes[3]:
     return slice(inp, 2, 3)
     """,
     """
-@public
+@external
 def foo(inp: bytes[10]) -> bytes[4]:
     return slice(inp, 2, 3)
     """,
     """
-@public
+@external
 def foo() -> bytes[10]:
     return slice(b"badmintonzzz", 1, 10)
     """,

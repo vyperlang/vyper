@@ -6,19 +6,19 @@ from vyper.exceptions import NamespaceCollision, VariableDeclarationException
 
 fail_list = [  # noqa: E122
     """
-@public
+@external
 def foo(i: int128) -> int128:
     varő : int128 = i
     return varő
     """,
     """
-@public
+@external
 def foo(i: int128) -> int128:
     wei : int128 = i
     return wei
     """,
     """
-@public
+@external
 def foo(i: int128) -> int128:
     false : int128 = i
     return false
@@ -34,13 +34,13 @@ def test_varname_validity_fail(bad_code):
 
 collision_fail_list = [
     """
-@public
+@external
 def foo(i: int128) -> int128:
     int128 : int128 = i
     return int128
     """,
     """
-@public
+@external
 def foo(i: int128) -> int128:
     decimal : int128 = i
     return decimal
@@ -56,19 +56,19 @@ def test_varname_collision_fail(bad_code):
 
 valid_list = [
     """
-@public
+@external
 def foo(i: int128) -> int128:
     variable : int128 = i
     return variable
     """,
     """
-@public
+@external
 def foo(i: int128) -> int128:
     var_123 : int128 = i
     return var_123
     """,
     """
-@public
+@external
 def foo(i: int128) -> int128:
     _var123 : int128 = i
     return _var123

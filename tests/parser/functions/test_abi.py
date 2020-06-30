@@ -8,14 +8,14 @@ source_codes = [
     """
 x: int128
 
-@public
+@external
 def __init__():
     self.x = 1
     """,
     """
 x: int128
 
-@public
+@external
 def __init__():
     pass
     """,
@@ -35,7 +35,7 @@ def test_only_init_function(source_code):
 def test_default_abi():
     default_code = """
 @payable
-@public
+@external
 def __default__():
     pass
     """
@@ -48,7 +48,7 @@ def test_method_identifiers():
     code = """
 x: public(int128)
 
-@public
+@external
 def foo(y: uint256) -> bytes[100]:
     return b"hello"
     """
@@ -64,7 +64,7 @@ struct MyStruct:
     a: address
     b: uint256
 
-@public
+@external
 @view
 def foo(s: MyStruct) -> MyStruct:
     return s

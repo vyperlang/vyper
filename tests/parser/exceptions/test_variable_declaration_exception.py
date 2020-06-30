@@ -11,18 +11,18 @@ CALLDATACOPY: int128
 int128: bytes[3]
     """,
     """
-@public
+@external
 def foo():
     BALANCE: int128 = 45
     """,
     """
-@public
+@external
 def foo():
     true: int128 = 3
     """,
     """
 q: int128 = 12
-@public
+@external
 def foo() -> int128:
     return self.q
     """,

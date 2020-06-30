@@ -5,7 +5,7 @@ def test_basic_init_function(get_contract):
     code = """
 val: public(uint256)
 
-@public
+@external
 def __init__(a: uint256):
     self.val = a
     """

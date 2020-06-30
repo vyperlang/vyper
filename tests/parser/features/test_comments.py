@@ -1,6 +1,6 @@
 def test_comment_test(get_contract_with_gas_estimation):
     comment_test = """
-@public
+@external
 def foo() -> int128:
     # Returns 3
     return 3

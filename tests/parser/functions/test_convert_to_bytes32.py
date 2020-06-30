@@ -8,7 +8,7 @@ b: uint256
 c: address
 d: bytes[32]
 
-@public
+@external
 def int128_to_bytes32(inp: int128) -> (bytes32, bytes32, bytes32):
     self.a = inp
     memory: bytes32 = convert(inp, bytes32)
@@ -16,7 +16,7 @@ def int128_to_bytes32(inp: int128) -> (bytes32, bytes32, bytes32):
     literal: bytes32 = convert(1, bytes32)
     return  memory, storage, literal
 
-@public
+@external
 def uint256_to_bytes32(inp: uint256) -> (bytes32, bytes32, bytes32):
     self.b = inp
     memory: bytes32 = convert(inp, bytes32)
@@ -24,21 +24,21 @@ def uint256_to_bytes32(inp: uint256) -> (bytes32, bytes32, bytes32):
     literal: bytes32 = convert(1, bytes32)
     return  memory, storage, literal
 
-@public
+@external
 def address_to_bytes32(inp: address) -> (bytes32, bytes32):
     self.c = inp
     memory: bytes32 = convert(inp, bytes32)
     storage: bytes32 = convert(self.c, bytes32)
     return  memory, storage
 
-@public
+@external
 def bytes_to_bytes32(inp: bytes[32]) -> (bytes32, bytes32):
     self.d = inp
     memory: bytes32 = convert(inp, bytes32)
     storage: bytes32 = convert(self.d, bytes32)
     return  memory, storage
 
-@public
+@external
 def bytes_to_bytes32_from_smaller(inp: bytes[10]) -> bytes32:
     memory: bytes32 = convert(inp, bytes32)
     return memory
@@ -60,7 +60,7 @@ def test_convert_from_address(get_contract_with_gas_estimation):
     test_bytes = b"\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xF5\xD4\x02\x0d\xCA\x6a\x62\xbB\x1e\xfF\xcC\x92\x12\xAA\xF3\xc9\x81\x9E\x30\xD7"  # noqa: E501
 
     test_address_to_bytes = """
-@public
+@external
 def test_address_to_bytes(x: address) -> bytes32:
     return convert(x, bytes32)
     """
@@ -71,7 +71,7 @@ def test_address_to_bytes(x: address) -> bytes32:
 
 def test_convert_from_bool(get_contract_with_gas_estimation):
     exp_code = """
-@public
+@external
 def testConvertBytes32(flag: bool) -> bytes32:
     flagBytes: bytes32 = convert(flag, bytes32)
     return flagBytes
@@ -109,47 +109,47 @@ def test_convert_from_decimal(get_contract_with_gas_estimation):
     code = """
 temp: decimal
 
-@public
+@external
 def convert_literal_zero() -> bytes32:
     return convert(0.0, bytes32)
 
-@public
+@external
 def convert_literal_zero_storage() -> bytes32:
     self.temp = 0.0
     return convert(self.temp, bytes32)
 
-@public
+@external
 def convert_min_decimal() -> bytes32:
     return convert(MIN_DECIMAL, bytes32)
 
-@public
+@external
 def convert_min_decimal_storage() -> bytes32:
     self.temp = MIN_DECIMAL
     return convert(self.temp, bytes32)
 
-@public
+@external
 def convert_max_decimal() -> bytes32:
     return convert(MAX_DECIMAL, bytes32)
 
-@public
+@external
 def convert_max_decimal_storage() -> bytes32:
     self.temp = MAX_DECIMAL
     return convert(self.temp, bytes32)
 
-@public
+@external
 def convert_positive_decimal() -> bytes32:
     return convert(5.0, bytes32)
 
-@public
+@external
 def convert_positive_decimal_storage() -> bytes32:
     self.temp = 5.0
     return convert(self.temp, bytes32)
 
-@public
+@external
 def convert_negative_decimal() -> bytes32:
     return convert(-5.0, bytes32)
 
-@public
+@external
 def convert_negative_decimal_storage() -> bytes32:
     self.temp = -5.0
     return convert(self.temp, bytes32)

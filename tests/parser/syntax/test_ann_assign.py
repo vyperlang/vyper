@@ -12,7 +12,7 @@ from vyper.exceptions import (
 fail_list = [
     (
         """
-@public
+@external
 def test():
     a = 1
     """,
@@ -20,7 +20,7 @@ def test():
     ),
     (
         """
-@public
+@external
 def test():
     a = 33.33
     """,
@@ -28,7 +28,7 @@ def test():
     ),
     (
         """
-@public
+@external
 def test():
     a = "test string"
     """,
@@ -36,7 +36,7 @@ def test():
     ),
     (
         """
-@public
+@external
 def test():
     a: int128 = 33.33
     """,
@@ -44,7 +44,7 @@ def test():
     ),
     (
         """
-@public
+@external
 def data() -> int128:
     s: int128[5] = [1, 2, 3, 4, 5, 6]
     return 235357
@@ -56,7 +56,7 @@ def data() -> int128:
 struct S:
     a: int128
     b: decimal
-@public
+@external
 def foo() -> int128:
     s: S = S({a: 1.2, b: 1})
     return s.a
@@ -68,7 +68,7 @@ def foo() -> int128:
 struct S:
     a: int128
     b: decimal
-@public
+@external
 def foo() -> int128:
     s: S = S({b: 1.2, c: 1, d: 33, e: 55})
     return s.a
@@ -77,7 +77,7 @@ def foo() -> int128:
     ),
     (
         """
-@public
+@external
 def foo() -> bool:
     a: uint256 = -1
     return True
@@ -86,7 +86,7 @@ def foo() -> bool:
     ),
     (
         """
-@public
+@external
 def foo() -> bool:
     a: uint256[2] = [13, -42]
     return True
@@ -95,7 +95,7 @@ def foo() -> bool:
     ),
     (
         """
-@public
+@external
 def foo() -> bool:
     a: int128 = 170141183460469231731687303715884105728
     return True
@@ -120,34 +120,34 @@ valid_list = [
 struct S:
     a: int128
     b: decimal
-@private
+@internal
 def do_stuff() -> bool:
     return True
 
-@public
+@external
 def test():
     a: bool = self.do_stuff() or self.do_stuff()
     """,
     """
-@private
+@internal
 def do_stuff() -> bool:
     return True
 
-@public
+@external
 def test():
     a: bool = False or self.do_stuff()
     """,
     """
-@public
+@external
 def test():
     a: int128 = 1
     """,
     """
-@private
+@internal
 def do_stuff() -> bool:
     return True
 
-@public
+@external
 def test():
     a: bool = self.do_stuff()
     """,

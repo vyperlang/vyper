@@ -1,11 +1,11 @@
 def test_string_literal_return(get_contract_with_gas_estimation):
     code = """
-@public
+@external
 def test() -> string[100]:
     return "hello world!"
 
 
-@public
+@external
 def testb() -> bytes[100]:
     return b"hello world!"
     """
@@ -18,11 +18,11 @@ def testb() -> bytes[100]:
 
 def test_string_convert(get_contract_with_gas_estimation):
     code = """
-@public
+@external
 def testb() -> string[100]:
     return convert(b"hello world!", string[100])
 
-@public
+@external
 def testbb() -> string[100]:
     return convert(convert("hello world!", bytes[100]), string[100])
     """
@@ -35,7 +35,7 @@ def testbb() -> string[100]:
 
 def test_str_assign(get_contract_with_gas_estimation):
     code = """
-@public
+@external
 def test() -> string[100]:
     a: string[100] = "baba black sheep"
     return a

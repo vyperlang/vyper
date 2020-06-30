@@ -1,13 +1,13 @@
 def test_is_contract(w3, get_contract_with_gas_estimation):
     contract_1 = """
-@public
+@external
 def foo(arg1: address) -> bool:
     result: bool = arg1.is_contract
     return result
 """
 
     contract_2 = """
-@public
+@external
 def foo(arg1: address) -> bool:
     return arg1.is_contract
 """

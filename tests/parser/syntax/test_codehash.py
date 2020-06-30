@@ -11,24 +11,24 @@ def test_get_extcodehash(get_contract, evm_version):
     code = """
 a: address
 
-@public
+@external
 def __init__():
     self.a = self
 
-@public
+@external
 def foo(x: address) -> bytes32:
     return x.codehash
 
-@public
+@external
 def foo2(x: address) -> bytes32:
     b: address = x
     return b.codehash
 
-@public
+@external
 def foo3() -> bytes32:
     return self.codehash
 
-@public
+@external
 def foo4() -> bytes32:
     return self.a.codehash
     """

@@ -4,24 +4,24 @@ from vyper import compiler
 
 valid_list = [
     """
-@public
+@external
 def foo() -> string[10]:
     return "badminton"
     """,
     """
-@public
+@external
 def foo():
     x: string[11] = "¡très bien!"
     """,
     """
-@public
+@external
 def foo() -> bool:
     x: string[15] = "¡très bien!"
     y: string[15] = "test"
     return x != y
     """,
     """
-@public
+@external
 def foo() -> bool:
     x: string[15] = "¡très bien!"
     y: string[12] = "test"

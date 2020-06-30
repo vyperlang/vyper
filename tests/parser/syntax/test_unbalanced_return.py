@@ -6,7 +6,7 @@ from vyper.exceptions import FunctionDeclarationException, StructureException
 fail_list = [
     (
         """
-@public
+@external
 def foo() -> int128:
     pass
     """,
@@ -14,7 +14,7 @@ def foo() -> int128:
     ),
     (
         """
-@public
+@external
 def foo() -> int128:
     if False:
         return 123
@@ -23,7 +23,7 @@ def foo() -> int128:
     ),
     (
         """
-@public
+@external
 def test() -> int128:
     if 1 == 1 :
         return 1
@@ -36,7 +36,7 @@ def test() -> int128:
     ),
     (
         """
-@private
+@internal
 def valid_address(sender: address) -> bool:
     selfdestruct(sender)
     return True
@@ -45,7 +45,7 @@ def valid_address(sender: address) -> bool:
     ),
     (
         """
-@private
+@internal
 def valid_address(sender: address) -> bool:
     selfdestruct(sender)
     a: address = sender
@@ -54,7 +54,7 @@ def valid_address(sender: address) -> bool:
     ),
     (
         """
-@private
+@internal
 def valid_address(sender: address) -> bool:
     if sender == ZERO_ADDRESS:
         selfdestruct(sender)
@@ -75,12 +75,12 @@ def test_return_mismatch(bad_code, exc):
 
 valid_list = [
     """
-@public
+@external
 def foo() -> int128:
     return 123
     """,
     """
-@public
+@external
 def foo() -> int128:
     if True:
         return 123
@@ -88,7 +88,7 @@ def foo() -> int128:
         raise "test"
     """,
     """
-@public
+@external
 def foo() -> int128:
     if False:
         return 123
@@ -96,14 +96,14 @@ def foo() -> int128:
         selfdestruct(msg.sender)
     """,
     """
-@public
+@external
 def foo() -> int128:
     if False:
         return 123
     return 333
     """,
     """
-@public
+@external
 def test() -> int128:
     if 1 == 1 :
         return 1
@@ -112,7 +112,7 @@ def test() -> int128:
         return 0
     """,
     """
-@public
+@external
 def test() -> int128:
     x: bytes32 = EMPTY_BYTES32
     if False:

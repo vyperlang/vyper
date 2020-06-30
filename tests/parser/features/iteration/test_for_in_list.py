@@ -17,7 +17,7 @@ BASIC_FOR_LOOP_CODE = [
     # basic for-in-list memory
     (
         """
-@public
+@external
 def data() -> int128:
     s: int128[5] = [1, 2, 3, 4, 5]
     for i in s:
@@ -29,7 +29,7 @@ def data() -> int128:
     # basic for-in-list literal
     (
         """
-@public
+@external
 def data() -> int128:
     for i in [3, 5, 7, 9]:
         if i > 5:
@@ -40,7 +40,7 @@ def data() -> int128:
     # basic for-in-list addresses
     (
         """
-@public
+@external
 def data() -> address:
     addresses: address[3] = [
         0x7d577a597B2742b498Cb5Cf0C26cDCD726d39E6e,
@@ -69,11 +69,11 @@ def test_basic_for_list_storage(get_contract_with_gas_estimation):
     code = """
 x: int128[4]
 
-@public
+@external
 def set():
     self.x = [3, 5, 7, 9]
 
-@public
+@external
 def data() -> int128:
     for i in self.x:
         if i > 5:
@@ -92,15 +92,15 @@ def test_basic_for_list_storage_address(get_contract_with_gas_estimation):
     code = """
 addresses: address[3]
 
-@public
+@external
 def set(i: int128, val: address):
     self.addresses[i] = val
 
-@public
+@external
 def ret(i: int128) -> address:
     return self.addresses[i]
 
-@public
+@external
 def iterate_return_second() -> address:
     count: int128 = 0
     for i in self.addresses:
@@ -123,15 +123,15 @@ def test_basic_for_list_storage_decimal(get_contract_with_gas_estimation):
     code = """
 readings: decimal[3]
 
-@public
+@external
 def set(i: int128, val: decimal):
     self.readings[i] = val
 
-@public
+@external
 def ret(i: int128) -> decimal:
     return self.readings[i]
 
-@public
+@external
 def i_return(break_count: int128) -> decimal:
     count: int128 = 0
     for i in self.readings:
@@ -154,7 +154,7 @@ def i_return(break_count: int128) -> decimal:
 
 def test_for_in_list_iter_type(get_contract_with_gas_estimation):
     code = """
-@public
+@external
 @view
 def func(amounts: uint256[3]) -> uint256:
     total: uint256 = as_wei_value(0, "wei")
@@ -174,7 +174,7 @@ def func(amounts: uint256[3]) -> uint256:
 GOOD_CODE = [
     # multiple for loops
     """
-@public
+@external
 def foo(x: int128):
     p: int128 = 0
     for i in range(3):
@@ -183,7 +183,7 @@ def foo(x: int128):
         p += i
     """,
     """
-@public
+@external
 def foo(x: int128):
     p: int128 = 0
     for i in range(3):
@@ -192,7 +192,7 @@ def foo(x: int128):
         p += i
     """,
     """
-@public
+@external
 def foo(x: int128):
     p: int128 = 0
     for i in [1, 2, 3, 4]:
@@ -201,7 +201,7 @@ def foo(x: int128):
         p += i
     """,
     """
-@public
+@external
 def foo():
     for i in range(10):
         pass
@@ -210,7 +210,7 @@ def foo():
     """,
     # using index variable after loop
     """
-@public
+@external
 def foo():
     for i in range(10):
         pass
@@ -231,7 +231,7 @@ RANGE_CONSTANT_CODE = [
 TREE_FIDDY: constant(int128)  = 350
 
 
-@public
+@external
 def a() -> uint256:
     x: uint256 = 0
     for i in range(TREE_FIDDY):
@@ -243,7 +243,7 @@ def a() -> uint256:
         """
 ONE_HUNDRED: constant(int128)  = 100
 
-@public
+@external
 def a() -> uint256:
     x: uint256 = 0
     for i in range(1, 1 + ONE_HUNDRED):
@@ -256,7 +256,7 @@ def a() -> uint256:
 START: constant(int128)  = 100
 END: constant(int128)  = 199
 
-@public
+@external
 def a() -> uint256:
     x: uint256 = 0
     for i in range(START, END):
@@ -266,7 +266,7 @@ def a() -> uint256:
     ),
     (
         """
-@public
+@external
 def a() -> int128:
     x: int128 = 0
     for i in range(-5, -1):
@@ -288,7 +288,7 @@ BAD_CODE = [
     # altering list within loop
     (
         """
-@public
+@external
 def data() -> int128:
     s: int128[6] = [1, 2, 3, 4, 5, 6]
     count: int128 = 0
@@ -303,7 +303,7 @@ def data() -> int128:
     ),
     (
         """
-@public
+@external
 def foo():
     s: int128[6] = [1, 2, 3, 4, 5, 6]
     count: int128 = 0
@@ -317,11 +317,11 @@ def foo():
         """
 s: int128[6]
 
-@public
+@external
 def set():
     self.s = [1, 2, 3, 4, 5, 6]
 
-@public
+@external
 def data() -> int128:
     count: int128 = 0
     for i in self.s:
@@ -336,7 +336,7 @@ def data() -> int128:
     # invalid nested loop
     (
         """
-@public
+@external
 def foo(x: int128):
     for i in range(4):
         for i in range(5):
@@ -346,7 +346,7 @@ def foo(x: int128):
     ),
     (
         """
-@public
+@external
 def foo(x: int128):
     for i in [1,2]:
         for i in [1,2]:
@@ -357,7 +357,7 @@ def foo(x: int128):
     # invalid iterator assignment
     (
         """
-@public
+@external
 def foo(x: int128):
     for i in [1,2]:
         i = 2
@@ -366,7 +366,7 @@ def foo(x: int128):
     ),
     (
         """
-@public
+@external
 def foo(x: int128):
     for i in [1,2]:
         i += 2
@@ -376,7 +376,7 @@ def foo(x: int128):
     # range of < 1
     (
         """
-@public
+@external
 def foo():
     for i in range(-3):
         pass
@@ -384,14 +384,14 @@ def foo():
         StructureException,
     ),
     """
-@public
+@external
 def foo():
     for i in range(0):
         pass
     """,
     (
         """
-@public
+@external
 def foo():
     for i in range(5,3):
         pass
@@ -400,7 +400,7 @@ def foo():
     ),
     (
         """
-@public
+@external
 def foo():
     for i in range(5,3,-1):
         pass
@@ -409,7 +409,7 @@ def foo():
     ),
     (
         """
-@public
+@external
 def foo():
     a: uint256 = 2
     for i in range(a):
@@ -418,7 +418,7 @@ def foo():
         StateAccessViolation,
     ),
     """
-@public
+@external
 def foo():
     a: int128 = 6
     for i in range(a,a-3):
@@ -427,7 +427,7 @@ def foo():
     # invalid argument length
     (
         """
-@public
+@external
 def foo():
     for i in range():
         pass
@@ -436,7 +436,7 @@ def foo():
     ),
     (
         """
-@public
+@external
 def foo():
     for i in range(0,1,2):
         pass
@@ -446,7 +446,7 @@ def foo():
     # non-iterables
     (
         """
-@public
+@external
 def foo():
     for i in b"asdf":
         pass
@@ -455,7 +455,7 @@ def foo():
     ),
     (
         """
-@public
+@external
 def foo():
     for i in 31337:
         pass
@@ -464,7 +464,7 @@ def foo():
     ),
     (
         """
-@public
+@external
 def foo():
     for i in bar():
         pass
@@ -473,7 +473,7 @@ def foo():
     ),
     (
         """
-@public
+@external
 def foo():
     for i in self.bar():
         pass
@@ -482,14 +482,14 @@ def foo():
     ),
     # nested lists
     """
-@public
+@external
 def foo():
     x: uint256[5][2] = [[0, 1, 2, 3, 4], [2, 4, 6, 8, 10]]
     for i in x:
         pass
     """,
     """
-@public
+@external
 def foo():
     x: uint256[5][2] = [[0, 1, 2, 3, 4], [2, 4, 6, 8, 10]]
     for i in x[1]:
@@ -497,7 +497,7 @@ def foo():
     """,
     (
         """
-@public
+@external
 def test_for() -> int128:
     a: int128 = 0
     for i in range(MAX_INT128, MAX_INT128+2):

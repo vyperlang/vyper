@@ -22,7 +22,7 @@ struct S:
 interface ERC20Contract:
     def name() -> string[64]: view
 
-@public
+@external
 def foo() -> int128:
     return -(-(-1))
 """

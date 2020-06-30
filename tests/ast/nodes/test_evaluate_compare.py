@@ -12,7 +12,7 @@ from vyper.exceptions import UnfoldableNode
 @pytest.mark.parametrize("op", ["==", "!=", "<", "<=", ">=", ">"])
 def test_compare_eq(get_contract, op, left, right):
     source = f"""
-@public
+@external
 def foo(a: int128, b: int128) -> bool:
     return a {op} b
     """
@@ -30,7 +30,7 @@ def foo(a: int128, b: int128) -> bool:
 @given(left=st.integers(), right=st.lists(st.integers(), min_size=1, max_size=16))
 def test_compare_in(left, right, get_contract):
     source = f"""
-@public
+@external
 def foo(a: int128, b: int128[{len(right)}]) -> bool:
     c: int128[{len(right)}] = b
     return a in c

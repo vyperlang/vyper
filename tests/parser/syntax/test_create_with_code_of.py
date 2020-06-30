@@ -6,7 +6,7 @@ from vyper.exceptions import SyntaxException
 
 fail_list = [
     """
-@public
+@external
 def foo():
     x: address = create_forwarder_to(0x1234567890123456789012345678901234567890, value=4, value=9)
     """
@@ -21,12 +21,12 @@ def test_type_mismatch_exception(bad_code):
 
 valid_list = [
     """
-@public
+@external
 def foo():
     x: address = create_forwarder_to(0x1234567890123456789012345678901234567890)
     """,
     """
-@public
+@external
 def foo():
     x: address = create_forwarder_to(
         0x1234567890123456789012345678901234567890,
@@ -34,7 +34,7 @@ def foo():
     )
     """,
     """
-@public
+@external
 def foo():
     x: address = create_forwarder_to(0x1234567890123456789012345678901234567890, value=9)
     """,

@@ -6,7 +6,7 @@ from vyper.exceptions import InvalidType, TypeMismatch
 fail_list = [
     (
         """
-@public
+@external
 def convert2(inp: uint256) -> uint256:
     return convert(inp, bytes32)
     """,
@@ -14,7 +14,7 @@ def convert2(inp: uint256) -> uint256:
     ),
     (
         """
-@public
+@external
 def modtest(x: uint256, y: int128) -> uint256:
     return x % y
     """,
@@ -22,11 +22,11 @@ def modtest(x: uint256, y: int128) -> uint256:
     ),
     (
         """
-@private
+@internal
 def ret_non():
     pass
 
-@public
+@external
 def test():
     a: uint256 = 100 * self.ret_non()
     """,

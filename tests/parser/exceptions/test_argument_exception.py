@@ -5,42 +5,42 @@ from vyper.exceptions import ArgumentException
 
 fail_list = [
     """
-@public
+@external
 def foo():
     x = as_wei_value(5, "vader")
     """,
     """
-@public
+@external
 def foo(x: int128, x: int128): pass
     """,
     """
-@public
+@external
 def foo(x): pass
     """,
     """
-@public
+@external
 def foo() -> int128:
     return as_wei_value(10)
     """,
     """
-@public
+@external
 def foo():
     x: bytes32 = keccak256("moose", 3)
     """,
     """
-@public
+@external
 def foo():
     x: bytes[4] = raw_call(0x1234567890123456789012345678901234567890, outsize=4)
     """,
     """
-@public
+@external
 def foo():
     x: bytes[4] = raw_call(
         0x1234567890123456789012345678901234567890, b"cow", gas=111111, outsize=4, moose=9
     )
     """,
     """
-@public
+@external
 def foo():
     x: bytes[4] = create_forwarder_to(0x1234567890123456789012345678901234567890, outsize=4)
     """,
@@ -48,17 +48,17 @@ def foo():
 x: public()
     """,
     """
-@public
+@external
 def foo():
     raw_log([], b"cow", "dog")
     """,
     """
-@public
+@external
 def foo():
     x: bytes[10] = concat(b"")
     """,
     """
-@public
+@external
 def foo():
     x: bytes[4] = create_forwarder_to(0x1234567890123456789012345678901234567890, b"cow")
     """,

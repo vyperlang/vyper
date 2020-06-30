@@ -1,6 +1,6 @@
 def test_null_code(get_contract_with_gas_estimation):
     null_code = """
-@public
+@external
 def foo():
     pass
     """
@@ -10,7 +10,7 @@ def foo():
 
 def test_basic_code(get_contract_with_gas_estimation):
     basic_code = """
-@public
+@external
 def foo(x: int128) -> int128:
     return x * 2
 

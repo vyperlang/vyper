@@ -6,7 +6,7 @@ from vyper.exceptions import InvalidType, TypeMismatch
 fail_list = [
     (
         """
-@public
+@external
 def cat(i1: bytes[10], i2: bytes[30]) -> bytes[40]:
     return concat(i1, i2, i1, i1)
     """,
@@ -14,7 +14,7 @@ def cat(i1: bytes[10], i2: bytes[30]) -> bytes[40]:
     ),
     (
         """
-@public
+@external
 def cat(i1: bytes[10], i2: bytes[30]) -> bytes[40]:
     return concat(i1, 5)
     """,
@@ -22,7 +22,7 @@ def cat(i1: bytes[10], i2: bytes[30]) -> bytes[40]:
     ),
     (
         """
-@public
+@external
 def sandwich(inp: bytes[100], inp2: bytes32) -> bytes[163]:
     return concat(inp2, inp, inp2)
     """,
@@ -32,7 +32,7 @@ def sandwich(inp: bytes[100], inp2: bytes32) -> bytes[163]:
         """
 y: bytes[10]
 
-@public
+@external
 def krazykonkat(z: bytes[10]) -> bytes[24]:
     x: bytes[10] = b"cow"
     self.y = b"horse"
@@ -42,7 +42,7 @@ def krazykonkat(z: bytes[10]) -> bytes[24]:
     ),
     (
         """
-@public
+@external
 def cat_list(y: int128) -> bytes[40]:
     x: int128[1] = [y]
     return concat("test", y)
@@ -61,29 +61,29 @@ def test_block_fail(bad_code, exc):
 
 valid_list = [
     """
-@public
+@external
 def cat(i1: bytes[10], i2: bytes[30]) -> bytes[40]:
     return concat(i1, i2)
     """,
     """
-@public
+@external
 def cat(i1: bytes[10], i2: bytes[30]) -> bytes[40]:
     return concat(i1, i1, i1, i1)
     """,
     """
-@public
+@external
 def cat(i1: bytes[10], i2: bytes[30]) -> bytes[40]:
     return concat(i1, i1)
     """,
     """
-@public
+@external
 def sandwich(inp: bytes[100], inp2: bytes32) -> bytes[165]:
     return concat(inp2, inp, inp2)
     """,
     """
 y: bytes[10]
 
-@public
+@external
 def krazykonkat(z: bytes[10]) -> bytes[25]:
     x: bytes[3] = b"cow"
     self.y = b"horse"

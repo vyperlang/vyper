@@ -4,7 +4,7 @@ from eth_tester.exceptions import TransactionFailed
 
 def test_assure_refund(w3, get_contract):
     code = """
-@public
+@external
 def foo():
     assert 1 == 2, UNREACHABLE
     """
@@ -21,7 +21,7 @@ def foo():
 
 def test_basic_unreachable(w3, get_contract, assert_tx_failed):
     code = """
-@public
+@external
 def foo(val: int128) -> bool:
     assert val > 0, UNREACHABLE
     assert val == 2, UNREACHABLE
@@ -45,11 +45,11 @@ def test_basic_call_unreachable(w3, get_contract, assert_tx_failed):
     code = """
 
 @view
-@private
+@internal
 def _test_me(val: int128) -> bool:
     return val == 33
 
-@public
+@external
 def foo(val: int128) -> int128:
     assert self._test_me(val), UNREACHABLE
     return -123

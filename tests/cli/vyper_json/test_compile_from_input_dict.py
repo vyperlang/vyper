@@ -16,17 +16,17 @@ from vyper.exceptions import InvalidType, JSONError, SyntaxException
 FOO_CODE = """
 import contracts.bar as Bar
 
-@public
+@external
 def foo(a: address) -> bool:
     return Bar(a).bar(1)
 
-@public
+@external
 def baz() -> uint256:
     return self.balance
 """
 
 BAR_CODE = """
-@public
+@external
 def bar(a: uint256) -> bool:
     return True
 """
@@ -36,7 +36,7 @@ def bar()>:
 """
 
 BAD_COMPILER_CODE = """
-@public
+@external
 def oopsie(a: uint256) -> bool:
     return 42
 """

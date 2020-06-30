@@ -3,7 +3,7 @@ from vyper.compiler.output import _compress_source_map
 from vyper.compiler.utils import expand_source_map
 
 TEST_CODE = """
-@private
+@internal
 def _baz(a: int128) -> int128:
     b: int128 = a
     for i in range(2, 5):
@@ -12,13 +12,13 @@ def _baz(a: int128) -> int128:
             break
     return b
 
-@private
+@internal
 def _bar(a: uint256) -> bool:
     if a > 42:
         return True
     return False
 
-@public
+@external
 def foo(a: uint256) -> int128:
     if self._bar(a):
         return self._baz(2)
@@ -70,14 +70,14 @@ def test_pos_map_offsets():
 
 def test_compress_source_map():
     code = """
-@public
+@external
 def foo() -> uint256:
     return 42
     """
     compressed = _compress_source_map(
-        code, {"0": None, "2": (2, 0, 4, 13), "3": (2, 0, 2, 7), "5": (2, 0, 2, 7)}, {"3": "o"}, 2
+        code, {"0": None, "2": (2, 0, 4, 13), "3": (2, 0, 2, 8), "5": (2, 0, 2, 8)}, {"3": "o"}, 2
     )
-    assert compressed == "-1:-1:2:-;1:43;:7::o;;"
+    assert compressed == "-1:-1:2:-;1:45;:8::o;;"
 
 
 def test_expand_source_map():
