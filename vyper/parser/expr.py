@@ -1,5 +1,9 @@
+import math
+from decimal import Decimal, DivisionByZero, InvalidOperation, getcontext
+
 from vyper import ast as vy_ast
 from vyper.exceptions import (
+    CompilerPanic,
     EvmVersionException,
     StructureException,
     TypeCheckFailure,
@@ -56,6 +60,106 @@ ENVIRONMENT_VARIABLES = {
     "tx",
     "chain",
 }
+
+# Necessary to ensure we have enough precision to do the log/exp calcs
+getcontext().prec = 42
+
+
+def calculate_largest_power(a: int, num_bits: int, is_signed: bool) -> int:
+    """
+    For a given base `a`, compute the maximum power `b` that will not
+    produce an overflow in the equation `a ** b`
+
+    Arguments
+    ---------
+    a : int
+        Base value for the equation `a ** b`
+    num_bits : int
+        The maximum number of bits that the resulting value must fit in
+    is_signed : bool
+        Is the operation being performed on signed integers?
+
+    Returns
+    -------
+    int
+        Largest possible value for `b` where the result does not overflow
+        `num_bits`
+    """
+    if num_bits % 8:
+        raise CompilerPanic("Type is not a modulo of 8")
+
+    value_bits = num_bits - (1 if is_signed else 0)
+    if a >= 2 ** value_bits:
+        raise TypeCheckFailure("Value is too large and will always throw")
+    elif a < -(2 ** value_bits):
+        raise TypeCheckFailure("Value is too small and will always throw")
+
+    try:
+        b = int(Decimal(value_bits) / (Decimal(a).ln() / Decimal(2).ln()))
+    except (DivisionByZero, InvalidOperation):
+        return 1
+    if b <= 1:
+        return 1  # Value is assumed to be in range, therefore power of 1 is max
+
+    # Do a bit of iteration to ensure we have the exact number
+    num_iterations = 0
+    while a ** (b + 1) < 2 ** value_bits:
+        b += 1
+        num_iterations += 1
+        assert num_iterations < 10000
+    while a ** b >= 2 ** value_bits:
+        b -= 1
+        num_iterations += 1
+        assert num_iterations < 10000
+
+    return b
+
+
+def calculate_largest_base(b: int, num_bits: int, is_signed: bool) -> int:
+    """
+    For a given power `b`, compute the maximum base `a` that will not produce an
+    overflow in the equation `a ** b`
+
+    Arguments
+    ---------
+    b : int
+        Power value for the equation `a ** b`
+    num_bits : int
+        The maximum number of bits that the resulting value must fit in
+    is_signed : bool
+        Is the operation being performed on signed integers?
+
+    Returns
+    -------
+    int
+        Largest possible value for `a` where the result does not overflow
+        `num_bits`
+    """
+    if num_bits % 8:
+        raise CompilerPanic("Type is not a modulo of 8")
+    if b < 0:
+        raise TypeCheckFailure("Cannot calculate negative exponents")
+
+    value_bits = num_bits - (1 if is_signed else 0)
+    if b > value_bits:
+        raise TypeCheckFailure("Value is too large and will always throw")
+    elif b < 2:
+        return 2 ** value_bits - 1  # Maximum value for type
+
+    # Estimate (up to ~39 digits precision required)
+    a = math.ceil(2 ** (Decimal(value_bits) / Decimal(b)))
+    # Do a bit of iteration to ensure we have the exact number
+    num_iterations = 0
+    while (a + 1) ** b < 2 ** value_bits:
+        a += 1
+        num_iterations += 1
+        assert num_iterations < 10000
+    while a ** b >= 2 ** value_bits:
+        a -= 1
+        num_iterations += 1
+        assert num_iterations < 10000
+
+    return a
 
 
 def get_min_val_for_type(typ: str) -> int:
