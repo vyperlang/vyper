@@ -94,6 +94,7 @@ def calculate_largest_power(a: int, num_bits: int, is_signed: bool) -> int:
     elif a < -(2 ** value_bits):
         raise TypeCheckFailure("Value is too small and will always throw")
 
+    a = abs(a)
     try:
         b = int(Decimal(value_bits) / (Decimal(a).ln() / Decimal(2).ln()))
     except (DivisionByZero, InvalidOperation):
@@ -537,19 +538,21 @@ class Expr:
 
             if isinstance(self.expr.left, vy_ast.Int):
                 value = self.expr.left.value
-                upper_bound = calculate_largest_power(value, num_bits, is_signed)
+                upper_bound = calculate_largest_power(value, num_bits, is_signed) + 1
+                # for signed integers, this also prevents negative values
+                clamp = ["lt", right, upper_bound]
                 return LLLnode.from_list(
-                    ["seq", ["assert", ["lt", right, upper_bound + 1]], ["exp", left, right]],
-                    typ=new_typ,
-                    pos=pos,
+                    ["seq", ["assert", clamp], ["exp", left, right]], typ=new_typ, pos=pos,
                 )
             elif isinstance(self.expr.right, vy_ast.Int):
                 value = self.expr.right.value
-                upper_bound = calculate_largest_base(value, num_bits, is_signed)
+                upper_bound = calculate_largest_base(value, num_bits, is_signed) + 1
+                if is_signed:
+                    clamp = ["and", ["slt", left, upper_bound], ["sgt", left, -upper_bound]]
+                else:
+                    clamp = ["lt", left, upper_bound]
                 return LLLnode.from_list(
-                    ["seq", ["assert", ["lt", left, upper_bound + 1]], ["exp", left, right]],
-                    typ=new_typ,
-                    pos=pos,
+                    ["seq", ["assert", clamp], ["exp", left, right]], typ=new_typ, pos=pos,
                 )
             else:
                 # `a ** b` where neither `a` or `b` are known
