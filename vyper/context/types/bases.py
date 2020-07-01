@@ -439,9 +439,9 @@ class MemberTypeDefinition(ValueTypeDefinition):
 
     def add_member(self, name: str, type_: BaseTypeDefinition) -> None:
         if name in self.members:
-            raise NamespaceCollision(f"Member {name} already exists in {self}")
+            raise NamespaceCollision(f"Member '{name}' already exists in {self}")
         if name in getattr(self, "_type_members", []):
-            raise NamespaceCollision(f"Member {name} already exists in {self}")
+            raise NamespaceCollision(f"Member '{name}' already exists in {self}")
         self.members[name] = type_
 
     def get_member(self, key: str, node: vy_ast.VyperNode) -> BaseTypeDefinition:
