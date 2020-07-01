@@ -143,7 +143,7 @@ def _get_module_functions(base_node: vy_ast.Module) -> OrderedDict:
     functions: OrderedDict = OrderedDict()
     for node in base_node.get_children(vy_ast.FunctionDef):
         if "external" in [i.id for i in node.decorator_list]:
-            func = ContractFunction.from_FunctionDef(node, include_defaults=True)
+            func = ContractFunction.from_FunctionDef(node)
             if node.name in functions:
                 # compare the input arguments of the new function and the previous one
                 # if one function extends the inputs, this is a valid function name overload

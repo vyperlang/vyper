@@ -159,10 +159,7 @@ class ContractFunction(BaseTypeDefinition):
 
     @classmethod
     def from_FunctionDef(
-        cls,
-        node: vy_ast.FunctionDef,
-        is_interface: Optional[bool] = False,
-        include_defaults: Optional[bool] = True,
+        cls, node: vy_ast.FunctionDef, is_interface: Optional[bool] = False,
     ) -> "ContractFunction":
         """
         Generate a `ContractFunction` object from a `FunctionDef` node.
@@ -173,9 +170,6 @@ class ContractFunction(BaseTypeDefinition):
             Vyper ast node to generate the function definition from.
         is_interface: bool, optional
             Boolean indicating if the function definition is part of an interface.
-        include_defaults: bool, optional
-            If False, default arguments are ignored when parsing generating the
-            object. Used for interfaces.
 
         Returns
         -------
@@ -265,10 +259,7 @@ class ContractFunction(BaseTypeDefinition):
             )
 
         arguments = OrderedDict()
-        if include_defaults:
-            defaults = [None] * (len(node.args.args) - len(node.args.defaults)) + node.args.defaults
-        else:
-            defaults = [None] * len(node.args.args)
+        defaults = [None] * (len(node.args.args) - len(node.args.defaults)) + node.args.defaults
 
         namespace = get_namespace()
         for arg, value in zip(node.args.args, defaults):
