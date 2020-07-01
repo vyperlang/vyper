@@ -106,7 +106,8 @@ def parse_external_function(
                     arg.name, MemoryPositions.RESERVED_MEMORY + arg.pos, arg.typ, False,
                 )
             elif i >= default_args_start_pos:  # default args need to be allocated in memory.
-                default_arg_pos, _ = context.memory_allocator.increase_memory(32)
+                type_size = get_size_of_type(arg.typ) * 32
+                default_arg_pos, _ = context.memory_allocator.increase_memory(type_size)
                 context.vars[arg.name] = VariableRecord(
                     name=arg.name, pos=default_arg_pos, typ=arg.typ, mutable=False,
                 )
