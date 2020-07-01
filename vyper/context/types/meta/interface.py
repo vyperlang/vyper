@@ -140,14 +140,25 @@ def build_primitive_from_node(
 
 
 def _get_module_functions(base_node: vy_ast.Module) -> OrderedDict:
-    functions = OrderedDict()
+    functions: OrderedDict = OrderedDict()
     for node in base_node.get_children(vy_ast.FunctionDef):
-        if node.name in functions:
-            raise NamespaceCollision(
-                f"Interface contains multiple functions named '{node.name}'", base_node
-            )
         if "external" in [i.id for i in node.decorator_list]:
             func = ContractFunction.from_FunctionDef(node, include_defaults=True)
+            if node.name in functions:
+                # compare the input arguments of the new function and the previous one
+                # if one function extends the inputs, this is a valid function name overload
+                existing_args = list(functions[node.name].arguments)
+                new_args = list(func.arguments)
+                for a, b in zip(existing_args, new_args):
+                    if not isinstance(a, type(b)):
+                        raise NamespaceCollision(
+                            f"Interface contains multiple functions named '{node.name}' "
+                            "with incompatible input types",
+                            base_node,
+                        )
+                if len(new_args) <= len(existing_args):
+                    # only keep the `ContractFunction` with the longest set of input args
+                    continue
             functions[node.name] = func
     for node in base_node.get_children(vy_ast.AnnAssign, {"annotation.func.id": "public"}):
         name = node.target.id
