@@ -111,6 +111,45 @@ def fooBar(a: bytes[100], b: uint256[2], c: bytes[6] = b"hello", d: int128[3] = 
     assert c.fooBar(b"booo", [55, 66]) == [b"booo", 66, c_default, d_default]
 
 
+def test_default_param_internal_function(get_contract):
+    code = """
+@internal
+@view
+def _foo(a: int128[3] = [1, 2, 3]) -> int128[3]:
+    b: int128[3] = a
+    return b
+
+
+@external
+@view
+def foo() -> int128[3]:
+    return self._foo([4, 5, 6])
+
+@external
+@view
+def foo2() -> int128[3]:
+    return self._foo()
+    """
+    c = get_contract(code)
+
+    assert c.foo() == [4, 5, 6]
+    assert c.foo2() == [1, 2, 3]
+
+
+def test_default_param_external_function(get_contract):
+    code = """
+@external
+@view
+def foo(a: int128[3] = [1, 2, 3]) -> int128[3]:
+    b: int128[3] = a
+    return b
+    """
+    c = get_contract(code)
+
+    assert c.foo([4, 5, 6]) == [4, 5, 6]
+    assert c.foo() == [1, 2, 3]
+
+
 def test_default_param_clamp(get_contract, monkeypatch, assert_tx_failed):
     code = """
 @external
