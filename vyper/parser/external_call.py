@@ -13,6 +13,7 @@ from vyper.types import (
     TupleLike,
     get_size_of_type,
     get_static_size_of_type,
+    has_dynamic_data,
 )
 
 
@@ -36,7 +37,8 @@ def external_call(node, context, interface_name, contract_address, pos, value=No
     output_placeholder, output_size, returner = get_external_call_output(sig, context)
     sub = ["seq"]
     if not output_size:
-        # if we are not expecting return data, check that a contract exists at the target address
+        # if we do not expect return data, check that a contract exists at the target address
+        # we can omit this when we _do_ expect return data because we later check `returndatasize`
         sub.append(["assert", ["extcodesize", contract_address]])
     if context.is_constant() and sig.mutability not in ("view", "pure"):
         # TODO this can probably go
@@ -78,9 +80,42 @@ def external_call(node, context, interface_name, contract_address, pos, value=No
             ]
         )
     if output_size:
-        # when return data is expected, revert if the length is insufficient
-        static_output_size = get_static_size_of_type(sig.output_type) * 32
-        sub.append(["assert", ["gt", "returndatasize", static_output_size - 1]])
+        # when return data is expected, revert when the length of `returndatasize` is insufficient
+        output_type = sig.output_type
+        if not has_dynamic_data(output_type):
+            static_output_size = get_static_size_of_type(output_type) * 32
+            sub.append(["assert", ["gt", "returndatasize", static_output_size - 1]])
+        else:
+            if isinstance(output_type, ByteArrayLike):
+                types_list = (output_type,)
+            elif isinstance(output_type, TupleLike):
+                types_list = output_type.members
+            else:
+                raise
+
+            dynamic_checks = []
+            static_offset = output_placeholder
+            static_output_size = 0
+            for typ in types_list:
+                if isinstance(typ, ByteArrayLike):
+                    static_output_size += 32
+                    # ensure length of bytes does not exceed max allowable length for type
+                    dynamic_checks.append(
+                        [
+                            "assert",
+                            [
+                                "lt",
+                                ["mload", ["add", ["mload", static_offset], output_placeholder]],
+                                typ.maxlen + 1,
+                            ],
+                        ]
+                    )
+                static_offset += get_static_size_of_type(typ) * 32
+                static_output_size += get_static_size_of_type(typ) * 32
+
+            sub.append(["assert", ["gt", "returndatasize", static_output_size - 1]])
+            sub.extend(dynamic_checks)
+
     sub.extend(returner)
 
     return LLLnode.from_list(sub, typ=sig.output_type, location="memory", pos=getpos(node))
