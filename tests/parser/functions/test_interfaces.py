@@ -227,8 +227,9 @@ def test_external_call_to_builtin_interface(w3, get_contract):
 balanceOf: public(HashMap[address, uint256])
 
 @external
-def transfer(to: address, _value: uint256):
+def transfer(to: address, _value: uint256) -> bool:
     self.balanceOf[to] += _value
+    return True
     """
 
     code = """

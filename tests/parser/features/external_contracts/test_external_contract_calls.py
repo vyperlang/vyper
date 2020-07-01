@@ -664,61 +664,6 @@ def test_bad_code_struct_exc(assert_compile_failed, get_contract_with_gas_estima
     assert_compile_failed(lambda: get_contract_with_gas_estimation(bad_code), ArgumentException)
 
 
-def test_external_value_arg_without_return(w3, get_contract_with_gas_estimation):
-    contract_1 = """
-@payable
-@external
-def get_lucky():
-    pass
-
-@external
-def get_balance() -> uint256:
-    return self.balance
-"""
-
-    contract_2 = """
-interface Bar:
-    def get_lucky() -> int128: payable
-
-bar_contract: Bar
-
-@external
-def set_contract(contract_address: address):
-    self.bar_contract = Bar(contract_address)
-
-@payable
-@external
-def get_lucky(amount_to_send: uint256):
-    if amount_to_send != 0:
-        self.bar_contract.get_lucky(value=amount_to_send)
-    else: # send it all
-        self.bar_contract.get_lucky(value=msg.value)
-"""
-
-    c1 = get_contract_with_gas_estimation(contract_1)
-    c2 = get_contract_with_gas_estimation(contract_2)
-
-    assert c1.get_balance() == 0
-
-    c2.set_contract(c1.address, transact={})
-
-    # Send some eth
-    c2.get_lucky(0, transact={"value": 500})
-
-    # Contract 1 received money.
-    assert c1.get_balance() == 500
-    assert w3.eth.getBalance(c1.address) == 500
-    assert w3.eth.getBalance(c2.address) == 0
-
-    # Send subset of amount
-    c2.get_lucky(250, transact={"value": 500})
-
-    # Contract 1 received more money.
-    assert c1.get_balance() == 750
-    assert w3.eth.getBalance(c1.address) == 750
-    assert w3.eth.getBalance(c2.address) == 250
-
-
 def test_tuple_return_external_contract_call(get_contract):
     contract_1 = """
 @external
@@ -795,3 +740,87 @@ def get_array(arg1: address) -> int128[3]:
 
     c2 = get_contract(contract_2)
     assert c2.get_array(c.address) == [0, 0, 0]
+
+
+def test_returndatasize_too_short(get_contract, assert_tx_failed):
+    contract_1 = """
+@external
+def bar(a: int128) -> int128:
+    return a
+"""
+    contract_2 = """
+interface Bar:
+    def bar(a: int128) -> (int128, int128): view
+
+@external
+def foo(_addr: address):
+    Bar(_addr).bar(456)
+"""
+    c1 = get_contract(contract_1)
+    c2 = get_contract(contract_2)
+    assert_tx_failed(lambda: c2.foo(c1.address))
+
+
+def test_returndatasize_empty(get_contract, assert_tx_failed):
+    contract_1 = """
+@external
+def bar(a: int128):
+    pass
+"""
+    contract_2 = """
+interface Bar:
+    def bar(a: int128) -> int128: view
+
+@external
+def foo(_addr: address) -> int128:
+    return Bar(_addr).bar(456)
+"""
+    c1 = get_contract(contract_1)
+    c2 = get_contract(contract_2)
+    assert_tx_failed(lambda: c2.foo(c1.address))
+
+
+def test_returndatasize_too_long(get_contract, assert_tx_failed):
+    contract_1 = """
+@external
+def bar(a: int128) -> (int128, int128):
+    return a, 789
+"""
+    contract_2 = """
+interface Bar:
+    def bar(a: int128) -> int128: view
+
+@external
+def foo(_addr: address) -> int128:
+    return Bar(_addr).bar(456)
+"""
+    c1 = get_contract(contract_1)
+    c2 = get_contract(contract_2)
+
+    # excess return data does not raise
+    assert c2.foo(c1.address) == 456
+
+
+def test_no_returndata(get_contract, assert_tx_failed):
+    contract_1 = """
+@external
+def bar(a: int128) -> int128:
+    return a
+"""
+    contract_2 = """
+interface Bar:
+    def bar(a: int128) -> int128: view
+
+@external
+def foo(_addr: address, _addr2: address) -> int128:
+    x: int128 = Bar(_addr).bar(456)
+    # make two calls to confirm EVM behavior: RETURNDATA is always based on the last call
+    y: int128 = Bar(_addr2).bar(123)
+    return y
+
+"""
+    c1 = get_contract(contract_1)
+    c2 = get_contract(contract_2)
+
+    assert c2.foo(c1.address, c1.address) == 123
+    assert_tx_failed(lambda: c2.foo(c1.address, "0x1234567890123456789012345678901234567890"))
