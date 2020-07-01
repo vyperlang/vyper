@@ -4,17 +4,17 @@ from vyper import compiler
 
 valid_list = [
     """
-@public
+@external
 def foo() -> string[10]:
     return "badminton"
     """,
     """
-@public
+@external
 def foo():
     x: string[11] = "¡très bien!"
     """,
     """
-@public
+@external
 def test() -> string[100]:
     return "hello world!"
     """,

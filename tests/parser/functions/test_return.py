@@ -1,6 +1,6 @@
 def test_correct_abi_right_padding(tester, w3, get_contract_with_gas_estimation):
     selfcall_code_6 = """
-@public
+@external
 def hardtest(arg1: bytes[64], arg2: bytes[64]) -> bytes[128]:
     return concat(arg1, arg2)
     """

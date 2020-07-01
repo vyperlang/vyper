@@ -5,59 +5,59 @@ from vyper.exceptions import UndeclaredDefinition
 
 fail_list = [
     """
-@public
+@external
 def test1(b: uint256) -> uint256:
     a: uint256 = a + b
     return a
     """,
     """
-@public
+@external
 def test2(b: uint256, c: uint256) -> uint256:
     a: uint256 = a + b + c
     return a
     """,
     """
-@public
+@external
 def test3(b: int128, c: int128) -> int128:
     a: int128 = - a
     return a
     """,
     """
-@public
+@external
 def test4(b: bool) -> bool:
     a: bool = b or a
     return a
     """,
     """
-@public
+@external
 def test5(b: bool) -> bool:
     a: bool = a != b
     return a
     """,
     """
-@public
+@external
 def test6(b:bool, c: bool) -> bool:
     a: bool = (a and b) and c
     return a
     """,
     """
-@public
+@external
 def foo():
     throe = 2
     """,
     """
-@public
+@external
 def foo():
     x: int128 = bar(55)
     """,
     """
-@public
+@external
 def foo():
     x = 5
     x: int128 = 0
     """,
     """
-@public
+@external
 def foo():
     bork = zork
     """,

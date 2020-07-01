@@ -4,16 +4,16 @@ from vyper import compiler
 
 valid_list = [
     """
-@private
+@internal
 def mkint() -> int128:
     return 1
 
-@public
+@external
 def test_zerovalent():
     if True:
         self.mkint()
 
-@public
+@external
 def test_valency_mismatch():
     if True:
         self.mkint()

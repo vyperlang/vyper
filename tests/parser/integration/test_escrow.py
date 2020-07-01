@@ -7,19 +7,19 @@ buyer: address
 seller: address
 arbitrator: address
 
-@public
+@external
 def setup(_seller: address, _arbitrator: address):
     if self.buyer == ZERO_ADDRESS:
         self.buyer = msg.sender
         self.seller = _seller
         self.arbitrator = _arbitrator
 
-@public
+@external
 def finalize():
     assert msg.sender == self.buyer or msg.sender == self.arbitrator
     send(self.seller, self.balance)
 
-@public
+@external
 def refund():
     assert msg.sender == self.seller or msg.sender == self.arbitrator
     send(self.buyer, self.balance)
@@ -40,7 +40,7 @@ buyer: address
 seller: address
 arbitrator: address
 
-@public
+@external
 @payable
 def __init__(_seller: address, _arbitrator: address):
     if self.buyer == ZERO_ADDRESS:
@@ -48,12 +48,12 @@ def __init__(_seller: address, _arbitrator: address):
         self.seller = _seller
         self.arbitrator = _arbitrator
 
-@public
+@external
 def finalize():
     assert msg.sender == self.buyer or msg.sender == self.arbitrator
     send(self.seller, self.balance)
 
-@public
+@external
 def refund():
     assert msg.sender == self.seller or msg.sender == self.arbitrator
     send(self.buyer, self.balance)

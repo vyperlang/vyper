@@ -92,7 +92,7 @@ class LLLnode:
                 self.gas = gas + 2 * (outs - ins)
                 for arg in self.args:
                     # pop and pass are used to push/pop values on the stack to be
-                    # consumed for private functions, therefore we whitelist this as a zero valency
+                    # consumed for internal functions, therefore we whitelist this as a zero valency
                     # allowed argument.
                     zero_valency_whitelist = {"pass", "pop"}
                     if arg.valency == 0 and arg.value not in zero_valency_whitelist:

@@ -19,7 +19,7 @@ st_decimals = st.decimals(
 @pytest.mark.parametrize("denom", denoms)
 def test_decimal(get_contract, value, denom):
     source = f"""
-@public
+@external
 def foo(a: decimal) -> uint256:
     return as_wei_value(a, '{denom}')
     """
@@ -38,7 +38,7 @@ def foo(a: decimal) -> uint256:
 @pytest.mark.parametrize("denom", denoms)
 def test_integer(get_contract, value, denom):
     source = f"""
-@public
+@external
 def foo(a: uint256) -> uint256:
     return as_wei_value(a, '{denom}')
     """

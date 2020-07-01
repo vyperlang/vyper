@@ -7,11 +7,11 @@ from vyper.exceptions import CallViolation
 
 def test_cyclic_function_call(namespace):
     code = """
-@private
+@internal
 def foo():
     self.bar()
 
-@private
+@internal
 def bar():
     self.foo()
     """
@@ -23,19 +23,19 @@ def bar():
 
 def test_multi_cyclic_function_call(namespace):
     code = """
-@private
+@internal
 def foo():
     self.bar()
 
-@private
+@internal
 def bar():
     self.baz()
 
-@private
+@internal
 def baz():
     self.potato()
 
-@private
+@internal
 def potato():
     self.foo()
     """

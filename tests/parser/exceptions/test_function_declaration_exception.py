@@ -6,14 +6,14 @@ from vyper.exceptions import FunctionDeclarationException
 fail_list = [
     """
 x: int128
-@public
+@external
 @const
 def foo() -> int128:
     pass
     """,
     """
 x: int128
-@public
+@external
 @monkeydoodledoo
 def foo() -> int128:
     pass
@@ -29,7 +29,7 @@ def foo() -> int128:
     return self.q
     """,
     """
-@public
+@external
 def test_func() -> int128:
     return (1, 2)
     """,

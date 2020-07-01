@@ -63,7 +63,7 @@ class FunctionSignature:
         args,
         output_type,
         mutability,
-        private,
+        internal,
         nonreentrant_key,
         sig,
         method_id,
@@ -73,7 +73,7 @@ class FunctionSignature:
         self.args = args
         self.output_type = output_type
         self.mutability = mutability
-        self.private = private
+        self.internal = internal
         self.sig = sig
         self.method_id = method_id
         self.gas = None
@@ -204,8 +204,8 @@ class FunctionSignature:
                 mem_pos += get_size_of_type(parsed_type) * 32
 
         mutability = "nonpayable"  # Assume nonpayable by default
-        private = False
-        public = False
+        internal = False
+        external = False
         nonreentrant_key = ""
 
         # Update function properties from decorators
@@ -213,10 +213,10 @@ class FunctionSignature:
         for dec in code.decorator_list:
             if isinstance(dec, vy_ast.Name) and dec.id in ("payable", "view", "pure"):
                 mutability = dec.id
-            elif isinstance(dec, vy_ast.Name) and dec.id == "private":
-                private = True
-            elif isinstance(dec, vy_ast.Name) and dec.id == "public":
-                public = True
+            elif isinstance(dec, vy_ast.Name) and dec.id == "internal":
+                internal = True
+            elif isinstance(dec, vy_ast.Name) and dec.id == "external":
+                external = True
             elif isinstance(dec, vy_ast.Call) and dec.func.id == "nonreentrant":
                 if nonreentrant_key:
                     raise StructureException(
@@ -242,15 +242,15 @@ class FunctionSignature:
                 raise StructureException(f"Function {name} cannot be both constant and payable.")
             mutability = "view"
 
-        if public and private:
+        if external and internal:
             raise StructureException(
-                f"Cannot use public and private decorators on the same function: {name}"
+                f"Cannot use external and internal decorators on the same function: {name}"
             )
-        if mutability == "payable" and private:
-            raise StructureException(f"Function {name} cannot be both private and payable.")
-        if (not public and not private) and not interface_def:
+        if mutability == "payable" and internal:
+            raise StructureException(f"Function {name} cannot be both internal and payable.")
+        if (not external and not internal) and not interface_def:
             raise StructureException(
-                "Function visibility must be declared (@public or @private)", code,
+                "Function visibility must be declared (@external or @internal)", code,
             )
         if mutability in ("view", "pure") and nonreentrant_key:
             raise StructureException(
@@ -285,7 +285,7 @@ class FunctionSignature:
         # Take the first 4 bytes of the hash of the sig to get the method ID
         method_id = fourbytes_to_int(keccak256(bytes(sig, "utf-8"))[:4])
         return cls(
-            name, args, output_type, mutability, private, nonreentrant_key, sig, method_id, code
+            name, args, output_type, mutability, internal, nonreentrant_key, sig, method_id, code
         )
 
     @iterable_cast(dict)

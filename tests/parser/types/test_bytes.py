@@ -3,7 +3,7 @@ from vyper.exceptions import TypeMismatch
 
 def test_test_bytes(get_contract_with_gas_estimation, assert_tx_failed):
     test_bytes = """
-@public
+@external
 def foo(x: bytes[100]) -> bytes[100]:
     return x
     """
@@ -26,7 +26,7 @@ def foo(x: bytes[100]) -> bytes[100]:
 
 def test_test_bytes2(get_contract_with_gas_estimation):
     test_bytes2 = """
-@public
+@external
 def foo(x: bytes[100]) -> bytes[100]:
     y: bytes[100] = x
     return y
@@ -48,30 +48,30 @@ x: int128
 maa: bytes[60]
 y: int128
 
-@public
+@external
 def __init__():
     self.x = 27
     self.y = 37
 
-@public
+@external
 def set_maa(inp: bytes[60]):
     self.maa = inp
 
-@public
+@external
 def set_maa2(inp: bytes[60]):
     ay: bytes[60] = inp
     self.maa = ay
 
-@public
+@external
 def get_maa() -> bytes[60]:
     return self.maa
 
-@public
+@external
 def get_maa2() -> bytes[60]:
     ay: bytes[60] = self.maa
     return ay
 
-@public
+@external
 def get_xy() -> int128:
     return self.x * self.y
     """
@@ -96,13 +96,13 @@ def get_xy() -> int128:
 def test_test_bytes4(get_contract_with_gas_estimation):
     test_bytes4 = """
 a: bytes[60]
-@public
+@external
 def foo(inp: bytes[60]) -> bytes[60]:
     self.a = inp
     self.a = b""
     return self.a
 
-@public
+@external
 def bar(inp: bytes[60]) -> bytes[60]:
     b: bytes[60] = inp
     b = b""
@@ -127,29 +127,29 @@ struct H:
 
 g: G
 
-@public
+@external
 def foo(inp1: bytes[40], inp2: bytes[45]):
     self.g = G({a: inp1, b: inp2})
 
-@public
+@external
 def check1() -> bytes[50]:
     return self.g.a
 
-@public
+@external
 def check2() -> bytes[50]:
     return self.g.b
 
-@public
+@external
 def bar(inp1: bytes[40], inp2: bytes[45]) -> bytes[50]:
     h: H = H({a: inp1, b: inp2})
     return h.a
 
-@public
+@external
 def bat(inp1: bytes[40], inp2: bytes[45]) -> bytes[50]:
     h: H = H({a: inp1, b: inp2})
     return h.b
 
-@public
+@external
 def quz(inp1: bytes[40], inp2: bytes[45]):
     h:  H = H({a: inp1, b: inp2})
     self.g.a = h.a
@@ -173,19 +173,19 @@ def test_binary_literal(get_contract_with_gas_estimation):
     bytes_to_num_code = """
 r: bytes[1]
 
-@public
+@external
 def get(a: bytes[1]) -> bytes[2]:
     return concat(a, 0b00000001)
 
-@public
+@external
 def getsome() -> bytes[1]:
     return 0b00001110
 
-@public
+@external
 def testsome(a: bytes[1]) -> bool:
     return a == 0b01100001
 
-@public
+@external
 def testsome_storage(y: bytes[1]) -> bool:
     self.r = 0b01100001
     return self.r == y
@@ -204,12 +204,12 @@ def testsome_storage(y: bytes[1]) -> bool:
 
 def test_bytes_comparison(get_contract_with_gas_estimation):
     code = """
-@public
+@external
 def get_mismatch(a: bytes[1]) -> bool:
     b: bytes[2] = b'ab'
     return a == b
 
-@public
+@external
 def get_large(a: bytes[100]) -> bool:
     b: bytes[100] = b'ab'
     return a == b
@@ -223,7 +223,7 @@ def get_large(a: bytes[100]) -> bool:
 
 def test_bytes32_literals(get_contract):
     code = """
-@public
+@external
 def test() -> bool:
     l: bytes32 = b'\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x80\\xac\\x58\\xcd'  # noqa: E501
     j: bytes32 = 0x0000000000000000000000000000000000000000000000000000000080ac58cd
@@ -240,7 +240,7 @@ def test_zero_padding_with_private(get_contract):
     code = """
 counter: uint256
 
-@private
+@internal
 @view
 def to_little_endian_64(_value: uint256) -> bytes[8]:
     y: uint256 = 0
@@ -251,11 +251,11 @@ def to_little_endian_64(_value: uint256) -> bytes[8]:
         x = shift(x, -8)
     return slice(convert(y, bytes32), 24, 8)
 
-@public
+@external
 def set_count(i: uint256):
     self.counter = i
 
-@public
+@external
 @view
 def get_count() -> bytes[24]:
     return self.to_little_endian_64(self.counter)
@@ -274,7 +274,7 @@ def get_count() -> bytes[24]:
 
 def test_bytes_to_bytes32_assigment(get_contract, assert_compile_failed):
     code = """
-@public
+@external
 def assign():
     xs: bytes[32] = b'abcdef'
     y: bytes32 = xs

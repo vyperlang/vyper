@@ -5,7 +5,7 @@ from eth_tester.exceptions import TransactionFailed
 
 def test_assert_refund(w3, get_contract_with_gas_estimation, assert_tx_failed):
     code = """
-@public
+@external
 def foo():
     assert 1 == 2
     """
@@ -23,19 +23,19 @@ def foo():
 
 def test_assert_reason(w3, get_contract_with_gas_estimation, assert_tx_failed):
     code = """
-@public
+@external
 def test(a: int128) -> int128:
     assert a > 1, "larger than one please"
     return 1 + a
 
-@public
+@external
 def test2(a: int128, b: int128) -> int128:
     c: int128 = 11
     assert a > 1, "a is not large enough"
     assert b == 1, "b may only be 1"
     return a + b + c
 
-@public
+@external
 def test3() :
     raise "An exception"
     """
@@ -64,18 +64,18 @@ def test3() :
 
 invalid_code = [
     """
-@public
+@external
 def test(a: int128) -> int128:
     assert a > 1, ""
     return 1 + a
     """,
     """
-@public
+@external
 def test(a: int128) -> int128:
     raise ""
     """,
     """
-@public
+@external
 def test():
     assert create_forwarder_to(self)
     """,
@@ -89,33 +89,33 @@ def test_invalid_assertions(get_contract, assert_compile_failed, code):
 
 valid_code = [
     """
-@public
+@external
 def mint(_to: address, _value: uint256):
     raise
     """,
     """
-@private
+@internal
 def ret1() -> int128:
     return 1
-@public
+@external
 def test():
     assert self.ret1() == 1
     """,
     """
-@private
+@internal
 def valid_address(sender: address) -> bool:
     selfdestruct(sender)
-@public
+@external
 def test():
     assert self.valid_address(msg.sender)
     """,
     """
-@public
+@external
 def test():
     assert raw_call(msg.sender, b'', max_outsize=1, gas=10, value=1000*1000) == b''
     """,
     """
-@public
+@external
 def test():
     assert create_forwarder_to(self) == self
     """,
@@ -130,7 +130,7 @@ def test_valid_assertions(get_contract, code):
 def test_assert_staticcall(get_contract, assert_tx_failed):
     foreign_code = """
 state: uint256
-@public
+@external
 def not_really_constant() -> uint256:
     self.state += 1
     return self.state
@@ -139,7 +139,7 @@ def not_really_constant() -> uint256:
 interface ForeignContract:
     def not_really_constant() -> uint256: view
 
-@public
+@external
 def test():
     assert ForeignContract(msg.sender).not_really_constant() == 1
     """
@@ -151,7 +151,7 @@ def test():
 
 def test_assert_in_for_loop(get_contract, assert_tx_failed):
     code = """
-@public
+@external
 def test(x: uint256[3]) -> bool:
     for i in range(3):
         assert x[i] < 5
@@ -168,7 +168,7 @@ def test(x: uint256[3]) -> bool:
 
 def test_assert_with_reason_in_for_loop(get_contract, assert_tx_failed):
     code = """
-@public
+@external
 def test(x: uint256[3]) -> bool:
     for i in range(3):
         assert x[i] < 5, "because reasons"
@@ -185,7 +185,7 @@ def test(x: uint256[3]) -> bool:
 
 def test_assest_reason_revert_length(w3, get_contract):
     code = """
-@public
+@external
 def test() -> int128:
     assert 1 == 2, "oops"
     return 1

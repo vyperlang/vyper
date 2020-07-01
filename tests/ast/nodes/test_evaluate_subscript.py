@@ -13,7 +13,7 @@ from vyper import ast as vy_ast
 )
 def test_subscript(get_contract, array, idx):
     source = """
-@public
+@external
 def foo(array: int128[10], idx: uint256) -> int128:
     return array[idx]
     """

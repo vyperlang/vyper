@@ -21,7 +21,7 @@ ALL_RESERVED_KEYWORDS = (
 @pytest.mark.parametrize("constant", sorted(ALL_RESERVED_KEYWORDS))
 def test_reserved_keywords_memory(constant, get_contract, assert_compile_failed):
     code = f"""
-@public
+@external
 def test():
     {constant}: int128 = 31337
     """
@@ -43,7 +43,7 @@ def test_reserved_keywords_storage(constant, get_contract, assert_compile_failed
 @pytest.mark.parametrize("constant", sorted(ALL_RESERVED_KEYWORDS))
 def test_reserved_keywords_fn_args(constant, get_contract, assert_compile_failed):
     code = f"""
-@public
+@external
 def test({constant}: int128):
     pass
     """
@@ -59,7 +59,7 @@ RESERVED_KEYWORDS_NOT_WHITELISTED = sorted(ALL_RESERVED_KEYWORDS.difference(FUNC
 @pytest.mark.parametrize("constant", sorted(RESERVED_KEYWORDS_NOT_WHITELISTED))
 def test_reserved_keywords_fns(constant, get_contract, assert_compile_failed):
     code = f"""
-@public
+@external
 def {constant}(var: int128):
     pass
     """

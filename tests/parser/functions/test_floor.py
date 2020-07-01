@@ -5,35 +5,35 @@ def test_floor(get_contract_with_gas_estimation):
     code = """
 x: decimal
 
-@public
+@external
 def __init__():
     self.x = 504.0000000001
 
-@public
+@external
 def x_floor() -> int128:
     return floor(self.x)
 
-@public
+@external
 def foo() -> int128:
     return floor(1.9999999999)
 
-@public
+@external
 def fop() -> int128:
     return floor(1.0000000001)
 
-@public
+@external
 def foq() -> int128:
     return floor(170141183460469231731687303715884105726.0000000002)
 
-@public
+@external
 def fos() -> int128:
     return floor(0.0)
 
-@public
+@external
 def fot() -> int128:
     return floor(0.0000000001)
 
-@public
+@external
 def fou() -> int128:
     a: decimal = 305.0
     b: decimal = 100.0
@@ -54,44 +54,44 @@ def test_floor_negative(get_contract_with_gas_estimation):
     code = """
 x: decimal
 
-@public
+@external
 def __init__():
     self.x = -504.0000000001
 
-@public
+@external
 def x_floor() -> int128:
     return floor(self.x)
 
-@public
+@external
 def foo() -> int128:
     a: int128 = -65
     b: decimal = convert(a, decimal) / 10.0
     return floor(b)
 
-@public
+@external
 def fop() -> int128:
     return floor(-27.0)
 
-@public
+@external
 def foq() -> int128:
     return floor(-9000.0000000001)
 
-@public
+@external
 def fos() -> int128:
     return floor(-0.0000000001)
 
-@public
+@external
 def fot() -> int128:
     return floor(-170141183460469231731687303715884105727.0000000002)
 
-@public
+@external
 def fou() -> int128:
     a: decimal = -305.0
     b: decimal = 100.0
     c: decimal = a / b
     return floor(c)
 
-@public
+@external
 def floor_param(p: decimal) -> int128:
     return floor(p)
 """

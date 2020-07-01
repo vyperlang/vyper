@@ -34,19 +34,19 @@ def test_unknown_type_exception(bad_code):
 
 invalid_list = [
     """
-@public
+@external
 def foo():
     raw_log(b"cow", b"dog")
     """,
     # Must be a literal string.
     """
-@public
+@external
 def mint(_to: address, _value: uint256):
     assert msg.sender == self,minter
     """,
     # Raise reason must be string
     """
-@public
+@external
 def mint(_to: address, _value: uint256):
     raise 1
     """,

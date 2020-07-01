@@ -45,7 +45,7 @@ enables the use of key-value pairs to keep proper track of the auctions withdraw
 
 You may notice all of the variables being passed into the ``public``
 function. By declaring the variable *public*, the variable is
-callable by external contracts. Initializing the variables without the  ``public``
+callable by external contracts. Initializing the variables without the ``public``
 function defaults to a private declaration and thus only accessible to methods
 within the same contract. The ``public`` function additionally creates a
 ‘getter’ function for the variable, accessible through an external call such as
@@ -84,8 +84,8 @@ contract, we are provided with a built-in variable ``msg`` and we can access
 the public address of any method caller with ``msg.sender``. Similarly, the
 amount of ether a user sends can be accessed by calling ``msg.value``.
 
-.. note:: ``msg.sender`` and ``msg.value`` can only be accessed from public
-  functions. If you require these values within a private function they must be passed as parameters.
+.. note:: ``msg.sender`` and ``msg.value`` can only be accessed from external
+  functions. If you require these values within an internal function they must be passed as parameters.
 
 Here, we first check whether the current time is before the auction's end time
 using the ``assert`` function which takes any boolean statement. We also check
@@ -419,8 +419,8 @@ Let’s move onto the constructor.
   :lineno-start: 53
   :lines: 53-62
 
-.. note:: ``msg.sender`` and ``msg.value`` can only be accessed from public
-  functions. If you require these values within a private function they must be
+.. note:: ``msg.sender`` and ``msg.value`` can only be accessed from external
+  functions. If you require these values within an internal function they must be
   passed as parameters.
 
 In the constructor, we hard-coded the contract to accept an
@@ -442,7 +442,7 @@ Now that the initial setup is done, lets take a look at the functionality.
   :lineno-start: 66
   :lines: 66-75
 
-.. note:: Throughout this contract, we use a pattern where ``@public`` functions return data from ``@private`` functions that have the same name prepended with an underscore. This is because Vyper does not allow calls between public functions within the same contract. The private function handles the logic and allows internal access, while the public function acts as a getter to allow external viewing.
+.. note:: Throughout this contract, we use a pattern where ``@external`` functions return data from ``@internal`` functions that have the same name prepended with an underscore. This is because Vyper does not allow calls between external functions within the same contract. The internal function handles the logic and allows internal access, while the external function acts as a getter to allow external viewing.
 
 We need a way to control who has the ability to vote. The method
 ``giveRightToVote()`` is a method callable by only the chairperson by taking
@@ -498,7 +498,7 @@ mapping. We will keep track of greatest number of votes and the winning
 proposal with the variables ``winningVoteCount`` and ``winningProposal``,
 respectively by looping through all the proposals.
 
-``winningProposal()`` is a public function allowing external access to ``_winningProposal()``.
+``winningProposal()`` is an external function allowing access to ``_winningProposal()``.
 
 .. literalinclude:: ../examples/voting/ballot.vy
   :language: python
@@ -535,7 +535,7 @@ Let's get started.
   :language: python
   :linenos:
 
-.. note:: Throughout this contract, we use a pattern where ``@public`` functions return data from ``@private`` functions that have the same name prepended with an underscore. This is because Vyper does not allow calls between public functions within the same contract. The private function handles the logic and allows internal access, while the public function acts as a getter to allow external viewing.
+.. note:: Throughout this contract, we use a pattern where ``@external`` functions return data from ``@internal`` functions that have the same name prepended with an underscore. This is because Vyper does not allow calls between external functions within the same contract. The internal function handles the logic, while the external function acts as a getter to allow viewing.
 
 The contract contains a number of methods that modify the contract state as
 well as a few 'getter' methods to read it. We first declare several events
@@ -576,8 +576,8 @@ blockchain is free, writing on it is not. Since Vyper is a statically typed
 language, we see an arrow following the definition of the ``_stockAvailable()``
 method, which simply represents the data type which the function is expected
 to return. In the method, we simply key into ``self.holdings`` with the
-company's address and check it's holdings.  Because ``_stockAvailable()`` is a
-private method, we also include the public ``stockAvailable()`` method to allow
+company's address and check it's holdings.  Because ``_stockAvailable()`` is an
+internal method, we also include the ``stockAvailable()`` method to allow
 external access.
 
 Now, lets take a look at a method that lets a person buy stock from the
@@ -602,7 +602,7 @@ Now that people can buy shares, how do we check someone's holdings?
 
 The ``_getHolding()`` is another ``@view`` method that takes an ``address``
 and returns its corresponding stock holdings by keying into ``self.holdings``.
-Again, a public function ``getHolding()`` is included to allow external access.
+Again, an external function ``getHolding()`` is included to allow access.
 
 .. literalinclude:: ../examples/stock/company.vy
   :language: python

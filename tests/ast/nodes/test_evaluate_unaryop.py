@@ -6,7 +6,7 @@ from vyper import ast as vy_ast
 @pytest.mark.parametrize("bool_cond", [True, False])
 def test_unaryop(get_contract, bool_cond):
     source = """
-@public
+@external
 def foo(a: bool) -> bool:
     return not a
     """
@@ -23,7 +23,7 @@ def foo(a: bool) -> bool:
 @pytest.mark.parametrize("bool_cond", [True, False])
 def test_unaryop_nested(get_contract, bool_cond, count):
     source = f"""
-@public
+@external
 def foo(a: bool) -> bool:
     return {'not ' * count} a
     """

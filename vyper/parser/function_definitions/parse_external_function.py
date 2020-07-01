@@ -20,7 +20,7 @@ from vyper.types.types import ByteArrayLike, get_size_of_type
 from vyper.utils import MemoryPositions
 
 
-def get_public_arg_copier(
+def get_external_arg_copier(
     total_size: int, memory_dest: int, offset: Union[int, List[Any]] = 4
 ) -> List[Any]:
     """
@@ -34,10 +34,10 @@ def get_public_arg_copier(
     return copier
 
 
-def validate_public_function(
+def validate_external_function(
     code: ast.FunctionDef, sig: FunctionSignature, global_ctx: GlobalContext
 ) -> None:
-    """ Validate public function definition. """
+    """ Validate external function definition. """
 
     # __init__ function may not have defaults.
     if sig.is_initializer() and sig.total_default_args > 0:
@@ -54,18 +54,18 @@ def validate_public_function(
             )
 
 
-def parse_public_function(
+def parse_external_function(
     code: ast.FunctionDef, sig: FunctionSignature, context: Context
 ) -> LLLnode:
     """
-    Parse a public function (FuncDef), and produce full function body.
+    Parse a external function (FuncDef), and produce full function body.
 
     :param sig: the FuntionSignature
     :param code: ast of function
     :return: full sig compare & function body
     """
 
-    validate_public_function(code, sig, context.global_ctx)
+    validate_external_function(code, sig, context.global_ctx)
 
     # Get nonreentrant lock
     nonreentrant_pre, nonreentrant_post = get_nonreentrant_lock(sig, context.global_ctx)
@@ -195,7 +195,7 @@ def parse_public_function(
                         if isinstance(var.typ, ByteArrayLike):
                             _offset = ["add", 4, ["calldataload", calldata_offset]]
                         default_copiers.append(
-                            get_public_arg_copier(
+                            get_external_arg_copier(
                                 memory_dest=var.pos, total_size=var.size * 32, offset=_offset,
                             )
                         )

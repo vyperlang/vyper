@@ -2,7 +2,7 @@ def test_block_number(get_contract_with_gas_estimation, w3):
     w3.testing.mine(1)
 
     block_number_code = """
-@public
+@external
 def block_number() -> uint256:
     return block.number
 """
@@ -14,11 +14,11 @@ def test_blockhash(get_contract_with_gas_estimation, w3):
     w3.testing.mine(1)
 
     block_number_code = """
-@public
+@external
 def prev() -> bytes32:
     return block.prevhash
 
-@public
+@external
 def previous_blockhash() -> bytes32:
     return blockhash(block.number - 1)
 """
@@ -28,7 +28,7 @@ def previous_blockhash() -> bytes32:
 
 def test_negative_blockhash(assert_compile_failed, get_contract_with_gas_estimation):
     code = """
-@public
+@external
 def foo() -> bytes32:
     return blockhash(-1)
 """
@@ -38,7 +38,7 @@ def foo() -> bytes32:
 def test_too_old_blockhash(assert_tx_failed, get_contract_with_gas_estimation, w3):
     w3.testing.mine(257)
     code = """
-@public
+@external
 def get_50_blockhash() -> bytes32:
     return blockhash(block.number - 257)
 """
@@ -48,7 +48,7 @@ def get_50_blockhash() -> bytes32:
 
 def test_non_existing_blockhash(assert_tx_failed, get_contract_with_gas_estimation):
     code = """
-@public
+@external
 def get_future_blockhash() -> bytes32:
     return blockhash(block.number + 1)
 """

@@ -14,7 +14,7 @@ timelimit: public(uint256)
 
 
 # Setup global variables
-@public
+@external
 def __init__(_beneficiary: address, _goal: uint256, _timelimit: uint256):
     self.beneficiary = _beneficiary
     self.deadline = block.timestamp + _timelimit
@@ -23,7 +23,7 @@ def __init__(_beneficiary: address, _goal: uint256, _timelimit: uint256):
 
 
 # Participate in this crowdfunding campaign
-@public
+@external
 @payable
 def participate():
     assert block.timestamp < self.deadline, "deadline not met (yet)"
@@ -35,7 +35,7 @@ def participate():
 
 
 # Enough money was raised! Send funds to the beneficiary
-@public
+@external
 def finalize():
     assert block.timestamp >= self.deadline, "deadline not met (yet)"
     assert self.balance >= self.goal, "invalid balance"
@@ -44,7 +44,7 @@ def finalize():
 
 # Not enough money was raised! Refund everyone (max 30 people at a time
 # to avoid gas limit issues)
-@public
+@external
 def refund():
     assert block.timestamp >= self.deadline and self.balance < self.goal
 

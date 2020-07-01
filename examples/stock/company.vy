@@ -27,7 +27,7 @@ price: public(uint256)
 holdings: HashMap[address, uint256]
 
 # Set up the company.
-@public
+@external
 def __init__(_company: address, _total_shares: uint256, initial_price: uint256):
     assert _total_shares > 0
     assert initial_price > 0
@@ -41,18 +41,18 @@ def __init__(_company: address, _total_shares: uint256, initial_price: uint256):
 
 # Find out how much stock the company holds
 @view
-@private
+@internal
 def _stockAvailable() -> uint256:
     return self.holdings[self.company]
 
 # Public function to allow external access to _stockAvailable
 @view
-@public
+@external
 def stockAvailable() -> uint256:
     return self._stockAvailable()
 
 # Give some value to the company and get stock in return.
-@public
+@external
 @payable
 def buyStock():
     # Note: full amount is given to company (no fractional shares),
@@ -71,24 +71,24 @@ def buyStock():
 
 # Find out how much stock any address (that's owned by someone) has.
 @view
-@private
+@internal
 def _getHolding(_stockholder: address) -> uint256:
     return self.holdings[_stockholder]
 
 # Public function to allow external access to _getHolding
 @view
-@public
+@external
 def getHolding(_stockholder: address) -> uint256:
     return self._getHolding(_stockholder)
 
 # Return the amount the company has on hand in cash.
 @view
-@public
+@external
 def cash() -> uint256:
     return self.balance
 
 # Give stock back to the company and get money back as ETH.
-@public
+@external
 def sellStock(sell_order: uint256):
     assert sell_order > 0 # Otherwise, this would fail at send() below,
         # due to an OOG error (there would be zero value available for gas).
@@ -108,7 +108,7 @@ def sellStock(sell_order: uint256):
 
 # Transfer stock from one stockholder to another. (Assume that the
 # receiver is given some compensation, but this is not enforced.)
-@public
+@external
 def transferStock(receiver: address, transfer_order: uint256):
     assert transfer_order > 0 # This is similar to sellStock above.
     # Similarly, you can only trade as much stock as you own.
@@ -122,7 +122,7 @@ def transferStock(receiver: address, transfer_order: uint256):
     log Transfer(msg.sender, receiver, transfer_order)
 
 # Allow the company to pay someone for services rendered.
-@public
+@external
 def payBill(vendor: address, amount: uint256):
     # Only the company can pay people.
     assert msg.sender == self.company
@@ -137,13 +137,13 @@ def payBill(vendor: address, amount: uint256):
 
 # Return the amount in wei that a company has raised in stock offerings.
 @view
-@private
+@internal
 def _debt() -> uint256:
     return (self.totalShares - self._stockAvailable()) * self.price
 
 # Public function to allow external access to _debt
 @view
-@public
+@external
 def debt() -> uint256:
     return self._debt()
 
@@ -151,6 +151,6 @@ def debt() -> uint256:
 # The share debt or liability only is included here,
 # but of course all other liabilities can be included.
 @view
-@public
+@external
 def worth() -> uint256:
     return self.balance - self._debt()

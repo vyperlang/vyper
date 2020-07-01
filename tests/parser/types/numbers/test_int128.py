@@ -5,7 +5,7 @@ from vyper.exceptions import OverflowException
 
 def test_exponent_base_zero(get_contract):
     code = """
-@public
+@external
 def foo(x: int128) -> int128:
     return 0 ** x
     """
@@ -19,7 +19,7 @@ def foo(x: int128) -> int128:
 
 def test_exponent_base_one(get_contract):
     code = """
-@public
+@external
 def foo(x: int128) -> int128:
     return 1 ** x
     """
@@ -33,7 +33,7 @@ def foo(x: int128) -> int128:
 
 def test_num_divided_by_num(get_contract_with_gas_estimation):
     code = """
-@public
+@external
 def foo(inp: int128) -> int128:
     y: int128 = 5/inp
     return y
@@ -47,7 +47,7 @@ def foo(inp: int128) -> int128:
 
 def test_decimal_divided_by_num(get_contract_with_gas_estimation):
     code = """
-@public
+@external
 def foo(inp: decimal) -> decimal:
     y: decimal = inp/5.0
     return y
@@ -60,15 +60,15 @@ def foo(inp: decimal) -> decimal:
 
 def test_negative_nums(get_contract_with_gas_estimation):
     negative_nums_code = """
-@public
+@external
 def _negative_num() -> int128:
     return -1
 
-@public
+@external
 def _negative_exp() -> int128:
     return -(1+2)
 
-@public
+@external
 def _negative_exp_var() -> int128:
     a: int128 = 2
     return -(a+2)
@@ -82,27 +82,27 @@ def _negative_exp_var() -> int128:
 
 def test_num_bound(assert_tx_failed, get_contract_with_gas_estimation):
     num_bound_code = """
-@public
+@external
 def _num(x: int128) -> int128:
     return x
 
-@public
+@external
 def _num_add(x: int128, y: int128) -> int128:
     return x + y
 
-@public
+@external
 def _num_sub(x: int128, y: int128) -> int128:
     return x - y
 
-@public
+@external
 def _num_add3(x: int128, y: int128, z: int128) -> int128:
     return x + y + z
 
-@public
+@external
 def _num_max() -> int128:
     return  170141183460469231731687303715884105727   #  2**127 - 1
 
-@public
+@external
 def _num_min() -> int128:
     return -170141183460469231731687303715884105728   # -2**127
     """
@@ -128,7 +128,7 @@ def _num_min() -> int128:
 
 def test_overflow_out_of_range(get_contract, assert_compile_failed):
     code = """
-@public
+@external
 def num_sub() -> int128:
     return 1-2**256
     """
@@ -138,7 +138,7 @@ def num_sub() -> int128:
 
 def test_overflow_add(get_contract, assert_tx_failed):
     code = """
-@public
+@external
 def num_add(i: int128) -> int128:
     return (2**127-1) + i
     """
@@ -153,7 +153,7 @@ def num_add(i: int128) -> int128:
 
 def test_overflow_add_vars(get_contract, assert_tx_failed):
     code = """
-@public
+@external
 def num_add(a: int128, b: int128) -> int128:
     return a + b
     """
@@ -165,7 +165,7 @@ def num_add(a: int128, b: int128) -> int128:
 
 def test_overflow_sub_vars(get_contract, assert_tx_failed):
     code = """
-@public
+@external
 def num_sub(a: int128, b: int128) -> int128:
     return a - b
     """
@@ -178,7 +178,7 @@ def num_sub(a: int128, b: int128) -> int128:
 
 def test_overflow_mul_vars(get_contract, assert_tx_failed):
     code = """
-@public
+@external
 def num_mul(a: int128, b: int128) -> int128:
     return a * b
     """
@@ -191,7 +191,7 @@ def num_mul(a: int128, b: int128) -> int128:
 
 def test_literal_int_division(get_contract):
     code = """
-@public
+@external
 def foo() -> int128:
     z: int128 = 5 / 2
     return z
@@ -204,7 +204,7 @@ def foo() -> int128:
 
 def test_literal_int_division_return(get_contract, assert_compile_failed):
     code = """
-@public
+@external
 def test() -> decimal:
     return 5 / 2
     """

@@ -1,26 +1,26 @@
 def test_bytes_literal_code(get_contract_with_gas_estimation):
     bytes_literal_code = """
-@public
+@external
 def foo() -> bytes[5]:
     return b"horse"
 
-@public
+@external
 def bar() -> bytes[10]:
     return concat(b"b", b"a", b"d", b"m", b"i", b"", b"nton")
 
-@public
+@external
 def baz() -> bytes[40]:
     return concat(b"0123456789012345678901234567890", b"12")
 
-@public
+@external
 def baz2() -> bytes[40]:
     return concat(b"01234567890123456789012345678901", b"12")
 
-@public
+@external
 def baz3() -> bytes[40]:
     return concat(b"0123456789012345678901234567890", b"1")
 
-@public
+@external
 def baz4() -> bytes[100]:
     return concat(b"01234567890123456789012345678901234567890123456789",
                   b"01234567890123456789012345678901234567890123456789")
@@ -42,7 +42,7 @@ def test_bytes_literal_splicing_fuzz(get_contract_with_gas_estimation):
         kode = f"""
 moo: bytes[100]
 
-@public
+@external
 def foo(s: uint256, L: uint256) -> bytes[100]:
         x: int128 = 27
         r: bytes[100] = slice(b"{("c" * i)}", s, L)
@@ -51,7 +51,7 @@ def foo(s: uint256, L: uint256) -> bytes[100]:
             return r
         return b"3434346667777"
 
-@public
+@external
 def bar(s: uint256, L: uint256) -> bytes[100]:
         self.moo = b"{("c" * i)}"
         x: int128 = 27
@@ -61,7 +61,7 @@ def bar(s: uint256, L: uint256) -> bytes[100]:
             return r
         return b"3434346667777"
 
-@public
+@external
 def baz(s: uint256, L: uint256) -> bytes[100]:
         x: int128 = 27
         self.moo = slice(b"{("c" * i)}", s, L)

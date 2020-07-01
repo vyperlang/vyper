@@ -12,7 +12,7 @@ from vyper.exceptions import (
 
 def test_default_param_abi(get_contract):
     code = """
-@public
+@external
 @payable
 def safeTransferFrom(_data: bytes[100] = b"test", _b: int128 = 1):
     pass
@@ -31,7 +31,7 @@ def safeTransferFrom(_data: bytes[100] = b"test", _b: int128 = 1):
 
 def test_basic_default_param_passthrough(get_contract):
     code = """
-@public
+@external
 def fooBar(_data: bytes[100] = b"test", _b: int128 = 1) -> int128:
     return 12321
     """
@@ -45,7 +45,7 @@ def fooBar(_data: bytes[100] = b"test", _b: int128 = 1) -> int128:
 
 def test_basic_default_param_set(get_contract):
     code = """
-@public
+@external
 def fooBar(a:int128, b: uint256 = 333) -> (int128, uint256):
     return a, b
     """
@@ -57,7 +57,7 @@ def fooBar(a:int128, b: uint256 = 333) -> (int128, uint256):
 
 def test_basic_default_param_set_2args(get_contract):
     code = """
-@public
+@external
 def fooBar(a:int128, b: uint256 = 999, c: address = 0x0000000000000000000000000000000000000001) -> (int128, uint256, address):  # noqa: E501
     return a, b, c
     """
@@ -77,7 +77,7 @@ def fooBar(a:int128, b: uint256 = 999, c: address = 0x00000000000000000000000000
 
 def test_default_param_bytes(get_contract):
     code = """
-@public
+@external
 def fooBar(a: bytes[100], b: int128, c: bytes[100] = b"testing", d: uint256 = 999) -> (bytes[100], int128, bytes[100], uint256):  # noqa: E501
     return a, b, c, d
     """
@@ -95,7 +95,7 @@ def fooBar(a: bytes[100], b: int128, c: bytes[100] = b"testing", d: uint256 = 99
 
 def test_default_param_array(get_contract):
     code = """
-@public
+@external
 def fooBar(a: bytes[100], b: uint256[2], c: bytes[6] = b"hello", d: int128[3] = [6, 7, 8]) -> (bytes[100], uint256, bytes[6], int128):  # noqa: E501
     return a, b[1], c, d[2]
     """
@@ -113,7 +113,7 @@ def fooBar(a: bytes[100], b: uint256[2], c: bytes[6] = b"hello", d: int128[3] = 
 
 def test_default_param_clamp(get_contract, monkeypatch, assert_tx_failed):
     code = """
-@public
+@external
 def bar(a: int128, b: int128 = -1) -> (int128, int128):  # noqa: E501
     return a, b
     """
@@ -134,15 +134,15 @@ def bar(a: int128, b: int128 = -1) -> (int128, int128):  # noqa: E501
 
 def test_default_param_private(get_contract):
     code = """
-@private
+@internal
 def fooBar(a: bytes[100], b: uint256, c: bytes[20] = b"crazy") -> (bytes[100], uint256, bytes[20]):
     return a, b, c
 
-@public
+@external
 def callMe() -> (bytes[100], uint256, bytes[20]):
     return self.fooBar(b'I just met you', 123456)
 
-@public
+@external
 def callMeMaybe() -> (bytes[100], uint256, bytes[20]):
     # return self.fooBar(b'here is my number', 555123456, b'baby')
     a: bytes[100] = b""
@@ -160,7 +160,7 @@ def callMeMaybe() -> (bytes[100], uint256, bytes[20]):
 
 def test_builtin_constants_as_default(get_contract):
     code = """
-@public
+@external
 def foo(a: int128 = MIN_INT128, b: int128 = MAX_INT128) -> (int128, int128):
     return a, b
     """
@@ -174,17 +174,17 @@ def test_environment_vars_as_default(get_contract):
     code = """
 xx: uint256
 
-@public
+@external
 @payable
 def foo(a: uint256 = msg.value) -> bool:
     self.xx += a
     return True
 
-@public
+@external
 def bar() -> uint256:
     return self.xx
 
-@public
+@external
 def get_balance() -> uint256:
     return self.balance
     """
@@ -198,11 +198,11 @@ def get_balance() -> uint256:
 
 PASSING_CONTRACTS = [
     """
-@public
+@external
 def foo(a: bool = True, b: bool[2] = [True, False]): pass
     """,
     """
-@public
+@external
 def foo(
     a: address = 0x0c04792e92e6b2896a18568fD936781E9857feB7,
     b: address[2] = [
@@ -211,32 +211,32 @@ def foo(
     ]): pass
     """,
     """
-@public
+@external
 def foo(a: uint256 = 12345, b: uint256[2] = [31337, 42]): pass
     """,
     """
-@public
+@external
 def foo(a: int128 = -31, b: int128[2] = [64, -46]): pass
     """,
     """
-@public
+@external
 def foo(a: bytes[6] = b"potato"): pass
     """,
     """
-@public
+@external
 def foo(a: decimal = 3.14, b: decimal[2] = [1.337, 2.69]): pass
     """,
     """
-@public
+@external
 def foo(a: address = msg.sender, b: address[3] = [msg.sender, tx.origin, block.coinbase]): pass
     """,
     """
-@public
+@external
 @payable
 def foo(a: uint256 = msg.value): pass
     """,
     """
-@public
+@external
 def foo(a: uint256 = 2**8): pass
      """,
 ]
@@ -253,7 +253,7 @@ FAILING_CONTRACTS = [
 # default params must be literals
 x: int128
 
-@public
+@external
 def foo(xx: int128, y: int128 = xx): pass
     """,
         UndeclaredDefinition,
@@ -261,7 +261,7 @@ def foo(xx: int128, y: int128 = xx): pass
     (
         """
 # value out of range for uint256
-@public
+@external
 def foo(a: uint256 = -1): pass
     """,
         InvalidType,
@@ -269,7 +269,7 @@ def foo(a: uint256 = -1): pass
     (
         """
 # value out of range for int128
-@public
+@external
 def foo(a: int128 = 170141183460469231731687303715884105728): pass
     """,
         InvalidType,
@@ -277,7 +277,7 @@ def foo(a: int128 = 170141183460469231731687303715884105728): pass
     (
         """
 # value out of range for uint256 array
-@public
+@external
 def foo(a: uint256[2] = [13, -42]): pass
      """,
         InvalidType,
@@ -285,7 +285,7 @@ def foo(a: uint256[2] = [13, -42]): pass
     (
         """
 # value out of range for int128 array
-@public
+@external
 def foo(a: int128[2] = [12, 170141183460469231731687303715884105728]): pass
     """,
         InvalidType,
@@ -293,7 +293,7 @@ def foo(a: int128[2] = [12, 170141183460469231731687303715884105728]): pass
     (
         """
 # array type mismatch
-@public
+@external
 def foo(a: uint256[2] = [12, True]): pass
     """,
         InvalidLiteral,
@@ -301,7 +301,7 @@ def foo(a: uint256[2] = [12, True]): pass
     (
         """
 # wrong length
-@public
+@external
 def foo(a: uint256[2] = [1, 2, 3]): pass
     """,
         InvalidType,
@@ -311,7 +311,7 @@ def foo(a: uint256[2] = [1, 2, 3]): pass
 # default params must be literals
 x: uint256
 
-@public
+@external
 def foo(a: uint256 = self.x): pass
      """,
         StateAccessViolation,
@@ -321,7 +321,7 @@ def foo(a: uint256 = self.x): pass
 # default params must be literals inside array
 x: uint256
 
-@public
+@external
 def foo(a: uint256[2] = [2, self.x]): pass
      """,
         StateAccessViolation,
@@ -329,7 +329,7 @@ def foo(a: uint256[2] = [2, self.x]): pass
     (
         """
 # msg.value in a nonpayable
-@public
+@external
 def foo(a: uint256 = msg.value): pass
 """,
         NonPayableViolation,
@@ -337,7 +337,7 @@ def foo(a: uint256 = msg.value): pass
     (
         """
 # msg.sender in a private function
-@private
+@internal
 def foo(a: address = msg.sender): pass
     """,
         StateAccessViolation,

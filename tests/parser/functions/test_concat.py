@@ -3,11 +3,11 @@ from vyper.exceptions import TypeMismatch
 
 def test_concat(get_contract_with_gas_estimation):
     test_concat = """
-@public
+@external
 def foo2(input1: bytes[50], input2: bytes[50]) -> bytes[1000]:
     return concat(input1, input2)
 
-@public
+@external
 def foo3(input1: bytes[50], input2: bytes[50], input3: bytes[50]) -> bytes[1000]:
     return concat(input1, input2, input3)
     """
@@ -29,7 +29,7 @@ def foo3(input1: bytes[50], input2: bytes[50], input3: bytes[50]) -> bytes[1000]
 
 def test_concat2(get_contract_with_gas_estimation):
     test_concat2 = """
-@public
+@external
 def foo(inp: bytes[50]) -> bytes[1000]:
     x: bytes[50] = inp
     return concat(x, inp, x, inp, x, inp, x, inp, x, inp)
@@ -44,7 +44,7 @@ def test_crazy_concat_code(get_contract_with_gas_estimation):
     crazy_concat_code = """
 y: bytes[10]
 
-@public
+@external
 def krazykonkat(z: bytes[10]) -> bytes[25]:
     x: bytes[3] = b"cow"
     self.y = b"horse"
@@ -60,11 +60,11 @@ def krazykonkat(z: bytes[10]) -> bytes[25]:
 
 def test_concat_bytes32(get_contract_with_gas_estimation):
     test_concat_bytes32 = """
-@public
+@external
 def sandwich(inp: bytes[100], inp2: bytes32) -> bytes[164]:
     return concat(inp2, inp, inp2)
 
-@public
+@external
 def fivetimes(inp: bytes32) -> bytes[160]:
     return concat(inp, inp, inp, inp, inp)
     """
@@ -86,17 +86,17 @@ def test_konkat_code(get_contract_with_gas_estimation):
     konkat_code = """
 ecks: bytes32
 
-@public
+@external
 def foo(x: bytes32, y: bytes32) -> bytes[64]:
     self.ecks = x
     return concat(self.ecks, y)
 
-@public
+@external
 def goo(x: bytes32, y: bytes32) -> bytes[64]:
     self.ecks = x
     return concat(self.ecks, y)
 
-@public
+@external
 def hoo(x: bytes32, y: bytes32) -> bytes[64]:
     return concat(x, y)
     """
@@ -111,7 +111,7 @@ def hoo(x: bytes32, y: bytes32) -> bytes[64]:
 
 def test_small_output(get_contract_with_gas_estimation):
     code = """
-@public
+@external
 def small_output(a: string[5], b: string[4]) -> string[9]:
     c: string[9] = concat(a, b)
     return c
@@ -123,7 +123,7 @@ def small_output(a: string[5], b: string[4]) -> string[9]:
 
 def test_large_output(get_contract_with_gas_estimation, assert_compile_failed):
     code = """
-@public
+@external
 def large_output(a: string[33], b: string[33]) -> string[64]:
     c: string[64] = concat(a, b)
     return c

@@ -163,7 +163,7 @@ The following example describes the expected input format of ``vyper-json``. Com
                 // Optional: keccak256 hash of the source file
                 "keccak256": "0x234...",
                 // Required: literal contents of the source file
-                "content": "@public\ndef foo() -> bool:\n    return True"
+                "content": "@external\ndef foo() -> bool:\n    return True"
             }
         },
         // Optional

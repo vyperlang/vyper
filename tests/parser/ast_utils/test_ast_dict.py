@@ -23,7 +23,7 @@ def get_node_ids(ast_struct, ids=None):
 
 def test_ast_to_dict_node_id():
     code = """
-@public
+@external
 def test() -> int128:
     a: uint256 = 100
     return 123
@@ -74,7 +74,7 @@ a: int128
 
 def test_dict_to_ast():
     code = """
-@public
+@external
 def test() -> int128:
     a: uint256 = 100
     b: int128 = -22

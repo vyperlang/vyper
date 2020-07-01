@@ -23,7 +23,7 @@ event Transfer:
 # Functions
 
 @view
-@public
+@external
 def allowance(_owner: address, _spender: address) -> (uint256, uint256):
     return 1, 2
     """
@@ -38,16 +38,16 @@ def allowance(_owner: address, _spender: address) -> (uint256, uint256):
 def test_basic_extract_external_interface():
     code = """
 @view
-@public
+@external
 def allowance(_owner: address, _spender: address) -> (uint256, uint256):
     return 1, 2
 
-@public
+@external
 def test(_owner: address):
     pass
 
 @view
-@private
+@internal
 def _prive(_owner: address, _spender: address) -> (uint256, uint256):
     return 1, 2
     """
@@ -72,7 +72,7 @@ from vyper.interfaces import ERC20
 implements: ERC20
 
 
-@public
+@external
 def test() -> bool:
     return True
     """
@@ -89,7 +89,7 @@ def test_extract_sigs_ignores_imports():
     interface_code = """
 {}
 
-@public
+@external
 def foo() -> uint256:
     pass
     """
@@ -103,11 +103,11 @@ def foo() -> uint256:
 
 def test_external_interface_parsing(assert_compile_failed):
     interface_code = """
-@public
+@external
 def foo() -> uint256:
     pass
 
-@public
+@external
 def bar() -> uint256:
     pass
     """
@@ -119,11 +119,11 @@ import a as FooBarInterface
 
 implements: FooBarInterface
 
-@public
+@external
 def foo() -> uint256:
     return 1
 
-@public
+@external
 def bar() -> uint256:
     return 2
     """
@@ -135,7 +135,7 @@ import a as FooBarInterface
 
 implements: FooBarInterface
 
-@public
+@external
 def foo() -> uint256:
     return 1
 
@@ -185,7 +185,7 @@ def test_external_call_to_interface(w3, get_contract):
     token_code = """
 balanceOf: public(HashMap[address, uint256])
 
-@public
+@external
 def transfer(to: address, _value: uint256):
     self.balanceOf[to] += _value
     """
@@ -200,12 +200,12 @@ interface EPI:
 token_address: TokenCode
 
 
-@public
+@external
 def __init__(_token_address: address):
     self.token_address = TokenCode(_token_address)
 
 
-@public
+@external
 def test():
     self.token_address.transfer(msg.sender, 1000)
     """
@@ -226,7 +226,7 @@ def test_external_call_to_builtin_interface(w3, get_contract):
     token_code = """
 balanceOf: public(HashMap[address, uint256])
 
-@public
+@external
 def transfer(to: address, _value: uint256):
     self.balanceOf[to] += _value
     """
@@ -238,12 +238,12 @@ from vyper.interfaces import ERC20
 token_address: ERC20
 
 
-@public
+@external
 def __init__(_token_address: address):
     self.token_address = ERC20(_token_address)
 
 
-@public
+@external
 def test():
     self.token_address.transfer(msg.sender, 1000)
     """
@@ -266,13 +266,13 @@ import balanceof as BalanceOf
 
 implements: BalanceOf
 
-@public
+@external
 @view
 def balanceOf(owner: address) -> uint256:
     return as_wei_value(1, "ether")
     """
     interface_code = """
-@public
+@external
 @view
 def balanceOf(owner: address) -> uint256:
     pass
@@ -285,7 +285,7 @@ def balanceOf(owner: address) -> uint256:
 
 def test_local_and_global_interface_namespaces():
     interface_code = """
-@public
+@external
 def foo() -> uint256:
     pass
     """
@@ -304,7 +304,7 @@ import a as {0}
 
 implements: {0}
 
-@public
+@external
 def foo() -> uint256:
     return 1
     """
@@ -321,11 +321,11 @@ def test_self_interface_is_allowed(get_contract):
 interface Bar:
     def foo() -> uint256: view
 
-@public
+@external
 def foo() -> uint256 :
     return 42
 
-@public
+@external
 def bar() -> uint256:
     return Bar(self).foo()
 """
@@ -340,15 +340,15 @@ interface Bar:
 
 bar_contract: Bar
 
-@public
+@external
 def __init__():
     self.bar_contract = Bar(self)
 
-@public
+@external
 def foo() -> uint256 :
     return 42
 
-@public
+@external
 def bar() -> uint256:
     return self.bar_contract.foo()
     """
@@ -361,11 +361,11 @@ def test_self_interface_via_calldata(get_contract):
 interface Bar:
     def foo() -> uint256: view
 
-@public
+@external
 def foo() -> uint256 :
     return 42
 
-@public
+@external
 def bar(a: address) -> uint256:
     return Bar(a).foo()
     """
@@ -385,7 +385,7 @@ type_str_params = [
 ]
 
 interface_test_code = """
-@public
+@external
 @view
 def test_json(a: {0}) -> {0}:
     return a
@@ -438,7 +438,7 @@ def test_json_interface_calls(get_contract, type_str, value):
     code = f"""
 import jsonabi as jsonabi
 
-@public
+@external
 @view
 def test_call(a: address, b: {type_str}) -> {type_str}:
     return jsonabi(a).test_json(b)

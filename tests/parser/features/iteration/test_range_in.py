@@ -3,7 +3,7 @@ from vyper.exceptions import TypeMismatch
 
 def test_basic_in_list(get_contract_with_gas_estimation):
     code = """
-@public
+@external
 def testin(x: int128) -> bool:
     y: int128 = 1
     s: int128[4]  = [1, 2, 3, 4]
@@ -27,7 +27,7 @@ def test_in_storage_list(get_contract_with_gas_estimation):
     code = """
 allowed: int128[10]
 
-@public
+@external
 def in_test(x: int128) -> bool:
     self.allowed = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
     if x in self.allowed:
@@ -46,7 +46,7 @@ def in_test(x: int128) -> bool:
 
 def test_in_calldata_list(get_contract_with_gas_estimation):
     code = """
-@public
+@external
 def in_test(x: int128, y: int128[10]) -> bool:
     if x in y:
         return True
@@ -64,7 +64,7 @@ def in_test(x: int128, y: int128[10]) -> bool:
 
 def test_cmp_in_list(get_contract_with_gas_estimation):
     code = """
-@public
+@external
 def in_test(x: int128) -> bool:
     if x in [9, 7, 6, 5]:
         return True
@@ -82,7 +82,7 @@ def in_test(x: int128) -> bool:
 
 def test_mixed_in_list(assert_compile_failed, get_contract_with_gas_estimation):
     code = """
-@public
+@external
 def testin() -> bool:
     s: int128[4] = [1, 2, 3, 4]
     if "test" in s:
@@ -97,16 +97,16 @@ def test_ownership(w3, assert_tx_failed, get_contract_with_gas_estimation):
 
 owners: address[2]
 
-@public
+@external
 def __init__():
     self.owners[0] = msg.sender
 
-@public
+@external
 def set_owner(i: int128, new_owner: address):
     assert msg.sender in self.owners
     self.owners[i] = new_owner
 
-@public
+@external
 def is_owner() -> bool:
     return msg.sender in self.owners
     """
@@ -129,7 +129,7 @@ def is_owner() -> bool:
 
 def test_in_fails_when_types_dont_match(get_contract_with_gas_estimation, assert_tx_failed):
     code = """
-@public
+@external
 def testin(x: address) -> bool:
     s: int128[4] = [1, 2, 3, 4]
     if x in s:

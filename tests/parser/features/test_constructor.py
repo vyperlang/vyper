@@ -6,11 +6,11 @@ def test_init_argument_test(get_contract_with_gas_estimation):
     init_argument_test = """
 moose: int128
 
-@public
+@external
 def __init__(_moose: int128):
     self.moose = _moose
 
-@public
+@external
 def returnMoose() -> int128:
     return self.moose
     """
@@ -24,11 +24,11 @@ def test_constructor_advanced_code(get_contract_with_gas_estimation):
     constructor_advanced_code = """
 twox: int128
 
-@public
+@external
 def __init__(x: int128):
     self.twox = x * 2
 
-@public
+@external
 def get_twox() -> int128:
     return self.twox
     """
@@ -40,11 +40,11 @@ def test_constructor_advanced_code2(get_contract_with_gas_estimation):
     constructor_advanced_code2 = """
 comb: uint256
 
-@public
+@external
 def __init__(x: uint256[2], y: bytes[3], z: uint256):
     self.comb = x[0] * 1000 + x[1] * 100 + len(y) * 10 + z
 
-@public
+@external
 def get_comb() -> uint256:
     return self.comb
     """
@@ -55,7 +55,7 @@ def get_comb() -> uint256:
 
 def test_large_input_code(get_contract_with_gas_estimation):
     large_input_code = """
-@public
+@external
 def foo(x: int128) -> int128:
     return 3
     """
@@ -70,11 +70,11 @@ def foo(x: int128) -> int128:
 
 def test_large_input_code_2(w3, get_contract_with_gas_estimation):
     large_input_code_2 = """
-@public
+@external
 def __init__(x: int128):
     y: int128 = x
 
-@public
+@external
 def foo() -> int128:
     return 5
     """

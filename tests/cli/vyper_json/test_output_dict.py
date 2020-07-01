@@ -5,7 +5,7 @@ from vyper.cli.vyper_json import format_to_output_dict
 from vyper.compiler import OUTPUT_FORMATS, compile_codes
 
 FOO_CODE = """
-@public
+@external
 def foo() -> bool:
     return True
 """

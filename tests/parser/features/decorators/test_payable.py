@@ -12,7 +12,7 @@ interface PiggyBank:
 
 piggy: PiggyBank
 
-@public
+@external
 def foo():
     self.piggy.deposit()
     """,
@@ -23,7 +23,7 @@ interface PiggyBank:
 
 piggy: PiggyBank
 
-@public
+@external
 def foo():
     self.piggy.deposit()
     """,
@@ -42,7 +42,7 @@ interface PiggyBank:
 
 piggy: PiggyBank
 
-@public
+@external
 def foo():
     self.piggy.deposit(value=self.balance)
     """,

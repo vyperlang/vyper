@@ -26,31 +26,31 @@ int128Proposals: public(int128)
 
 
 @view
-@private
+@internal
 def _delegated(addr: address) -> bool:
     return self.voters[addr].delegate != ZERO_ADDRESS
 
 
 @view
-@public
+@external
 def delegated(addr: address) -> bool:
     return self._delegated(addr)
 
 
 @view
-@private
+@internal
 def _directlyVoted(addr: address) -> bool:
     return self.voters[addr].voted and (self.voters[addr].delegate == ZERO_ADDRESS)
 
 
 @view
-@public
+@external
 def directlyVoted(addr: address) -> bool:
     return self._directlyVoted(addr)
 
 
 # Setup global variables
-@public
+@external
 def __init__(_proposalNames: bytes32[2]):
     self.chairperson = msg.sender
     self.voterCount = 0
@@ -63,7 +63,7 @@ def __init__(_proposalNames: bytes32[2]):
 
 # Give a `voter` the right to vote on this ballot.
 # This may only be called by the `chairperson`.
-@public
+@external
 def giveRightToVote(voter: address):
     # Throws if the sender is not the chairperson.
     assert msg.sender == self.chairperson
@@ -75,7 +75,7 @@ def giveRightToVote(voter: address):
     self.voterCount += 1
 
 # Used by `delegate` below, callable externally via `forwardWeight`
-@private
+@internal
 def _forwardWeight(delegate_with_weight_to_forward: address):
     assert self._delegated(delegate_with_weight_to_forward)
     # Throw if there is nothing to do:
@@ -112,12 +112,12 @@ def _forwardWeight(delegate_with_weight_to_forward: address):
     # to be called again, similarly to as above.
 
 # Public function to call _forwardWeight
-@public
+@external
 def forwardWeight(delegate_with_weight_to_forward: address):
     self._forwardWeight(delegate_with_weight_to_forward)
 
 # Delegate your vote to the voter `to`.
-@public
+@external
 def delegate(to: address):
     # Throws if the sender has already voted
     assert not self.voters[msg.sender].voted
@@ -136,7 +136,7 @@ def delegate(to: address):
 
 # Give your vote (including votes delegated to you)
 # to proposal `proposals[proposal].name`.
-@public
+@external
 def vote(proposal: int128):
     # can't vote twice
     assert not self.voters[msg.sender].voted
@@ -153,7 +153,7 @@ def vote(proposal: int128):
 # Computes the winning proposal taking all
 # previous votes into account.
 @view
-@private
+@internal
 def _winningProposal() -> int128:
     winning_vote_count: int128 = 0
     winning_proposal: int128 = 0
@@ -164,7 +164,7 @@ def _winningProposal() -> int128:
     return winning_proposal
 
 @view
-@public
+@external
 def winningProposal() -> int128:
     return self._winningProposal()
 
@@ -173,6 +173,6 @@ def winningProposal() -> int128:
 # of the winner contained in the proposals array and then
 # returns the name of the winner
 @view
-@public
+@external
 def winnerName() -> bytes32:
     return self.proposals[self._winningProposal()].name

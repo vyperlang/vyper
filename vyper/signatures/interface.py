@@ -77,7 +77,7 @@ def mk_full_signature_from_json(abi):
                 elements=[abi_type_to_ast(a["type"], 1) for a in func["outputs"]]
             )
 
-        decorator_list = [vy_ast.Name(id="public")]
+        decorator_list = [vy_ast.Name(id="external")]
         # Handle either constant/payable or stateMutability field
         if ("constant" in func and func["constant"]) or (
             "stateMutability" in func and func["stateMutability"] == "view"
@@ -144,14 +144,14 @@ def extract_interface_str(global_ctx):
         o = "\n"
         if sig.mutability != "nonpayable":
             o += f"@{sig.mutability}\n"
-        if not sig.private:
-            o += "@public\n"
+        if not sig.internal:
+            o += "@external\n"
         return o
 
     for idx, func in enumerate(functions):
         if idx == 0:
             out += "\n# Functions\n"
-        if not func.private and func.name != "__init__":
+        if not func.internal and func.name != "__init__":
             args = ", ".join([arg.name + ": " + str(arg.typ) for arg in func.args])
             out += f"{render_decorator(func)}def {func.name}({args}){render_return(func)}:\n    pass\n"  # noqa: E501
     out += "\n"
@@ -170,7 +170,7 @@ def extract_external_interface(global_ctx, contract_name):
     for idx, func in enumerate(functions):
         if idx == 0:
             out += f"\n# External Interfaces\ninterface {cname}:\n"
-        if not func.private and func.name != "__init__":
+        if not func.internal and func.name != "__init__":
             args = ", ".join([arg.name + ": " + str(arg.typ) for arg in func.args])
             out += offset + f"def {func.name}({args}){render_return(func)}: {func.mutability}\n"
     out += "\n"
@@ -252,7 +252,7 @@ def find_signature_conflicts(sigs: Sequence[FunctionSignature]) -> Conflicts:
 
 
 def check_valid_contract_interface(global_ctx, contract_sigs):
-    # the check for private function collisions is made to prevent future
+    # the check for internal function collisions is made to prevent future
     # breaking changes if we switch to internal calls (@iamdefinitelyahuman)
     func_sigs = [sig for sig in contract_sigs.values() if isinstance(sig, FunctionSignature)]
     func_conflicts = find_signature_conflicts(func_sigs)
@@ -270,8 +270,8 @@ def check_valid_contract_interface(global_ctx, contract_sigs):
 
         for sig, func_sig in contract_sigs.items():
             if isinstance(func_sig, FunctionSignature):
-                if func_sig.private:
-                    # private functions are not defined within interfaces
+                if func_sig.internal:
+                    # internal functions are not defined within interfaces
                     continue
                 if sig not in funcs_left:
                     # this function is not present within the interface

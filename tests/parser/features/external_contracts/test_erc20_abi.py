@@ -33,39 +33,39 @@ interface ERC20Contract:
 
 token_address: ERC20Contract
 
-@public
+@external
 def __init__(token_addr: address):
     self.token_address = ERC20Contract(token_addr)
 
-@public
+@external
 def name() -> string[64]:
     return self.token_address.name()
 
-@public
+@external
 def symbol() -> string[32]:
     return self.token_address.symbol()
 
-@public
+@external
 def decimals() -> uint256:
     return self.token_address.decimals()
 
-@public
+@external
 def balanceOf(_owner: address) -> uint256:
     return self.token_address.balanceOf(_owner)
 
-@public
+@external
 def totalSupply() -> uint256:
     return self.token_address.totalSupply()
 
-@public
+@external
 def transfer(_to: address, _value: uint256) -> bool:
     return self.token_address.transfer(_to, _value)
 
-@public
+@external
 def transferFrom(_from: address, _to: address, _value: uint256) -> bool:
     return self.token_address.transferFrom(_from, _to, _value)
 
-@public
+@external
 def allowance(_owner: address, _spender: address) -> uint256:
     return self.token_address.allowance(_owner, _spender)
     """

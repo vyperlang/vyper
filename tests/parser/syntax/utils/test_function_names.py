@@ -6,31 +6,31 @@ from vyper.exceptions import FunctionDeclarationException
 
 fail_list = [  # noqa: E122
     """
-@public
+@external
 def ő1qwerty(i: int128) -> int128:
     temp_var : int128 = i
     return temp_var
     """,
     """
-@public
+@external
 def int128(i: int128) -> int128:
     temp_var : int128 = i
     return temp_var
     """,
     """
-@public
+@external
 def decimal(i: int128) -> int128:
     temp_var : int128 = i
     return temp_var
     """,
     """
-@public
+@external
 def wei(i: int128) -> int128:
     temp_var : int128 = i
     return temp_var
     """,
     """
-@public
+@external
 def false(i: int128) -> int128:
     temp_var : int128 = i
     return temp_var
@@ -46,19 +46,19 @@ def test_varname_validity_fail(bad_code):
 
 valid_list = [
     """
-@public
+@external
 def func(i: int128) -> int128:
     variable : int128 = i
     return variable
     """,
     """
-@public
+@external
 def func_to_do_math(i: int128) -> int128:
     var_123 : int128 = i
     return var_123
     """,
     """
-@public
+@external
 def first1(i: int128) -> int128:
     _var123 : int128 = i
     return _var123

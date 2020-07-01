@@ -16,7 +16,7 @@ def test_modmath(get_contract, a, b, c, fn_name):
     assume(c > 0)
 
     source = f"""
-@public
+@external
 def foo(a: uint256, b: uint256, c: uint256) -> uint256:
     return {fn_name}(a, b, c)
     """

@@ -5,32 +5,32 @@ from vyper.compiler import compile_code
 
 def test_builtin_constants(get_contract_with_gas_estimation):
     code = """
-@public
+@external
 def test_zaddress(a: address) -> bool:
     return a == ZERO_ADDRESS
 
 
-@public
+@external
 def test_empty_bytes32(a: bytes32) -> bool:
     return a == EMPTY_BYTES32
 
 
-@public
+@external
 def test_int128(a: int128) -> (bool, bool):
     return a == MAX_INT128, a == MIN_INT128
 
 
-@public
+@external
 def test_decimal(a: decimal) -> (bool, bool):
     return a == MAX_DECIMAL, a == MIN_DECIMAL
 
 
-@public
+@external
 def test_uint256(a: uint256) -> bool:
     return a == MAX_UINT256
 
 
-@public
+@external
 def test_arithmetic(a: int128) -> int128:
     return MAX_INT128 - a
     """
@@ -58,37 +58,37 @@ def test_arithmetic(a: int128) -> int128:
 
 def test_builtin_constants_assignment(get_contract_with_gas_estimation):
     code = """
-@public
+@external
 def foo() -> int128:
     bar: int128 = MAX_INT128
     return bar
 
-@public
+@external
 def goo() -> int128:
     bar: int128 = MIN_INT128
     return bar
 
-@public
+@external
 def hoo() -> bytes32:
     bar: bytes32 = EMPTY_BYTES32
     return bar
 
-@public
+@external
 def joo() -> address:
     bar: address = ZERO_ADDRESS
     return bar
 
-@public
+@external
 def koo() -> decimal:
     bar: decimal = MAX_DECIMAL
     return bar
 
-@public
+@external
 def loo() -> decimal:
     bar: decimal = MIN_DECIMAL
     return bar
 
-@public
+@external
 def zoo() -> uint256:
     bar: uint256 = MAX_UINT256
     return bar
@@ -113,11 +113,11 @@ def test_custom_constants(get_contract):
     code = """
 X_VALUE: constant(uint256) = 33
 
-@public
+@external
 def test() -> uint256:
     return X_VALUE
 
-@public
+@external
 def test_add(a: uint256) -> uint256:
     return X_VALUE + a
     """
@@ -131,11 +131,11 @@ def test_constant_address(get_contract):
     code = """
 OWNER: constant(address) = 0x0000000000000000000000000000000000000012
 
-@public
+@external
 def get_owner() -> address:
     return OWNER
 
-@public
+@external
 def is_owner() -> bool:
     if msg.sender == OWNER:
         return True
@@ -153,7 +153,7 @@ def test_constant_bytes(get_contract):
     code = f"""
 X: constant(bytes[100]) = b"{test_str.decode()}"
 
-@public
+@external
 def test() -> bytes[100]:
     y: bytes[100] = X
 
@@ -171,7 +171,7 @@ def test_constant_folds(search_for_sublist):
 SOME_CONSTANT: constant(uint256) = 11 + 1
 SOME_PRIME: constant(uint256) = {some_prime}
 
-@public
+@external
 def test() -> uint256:
     # calculate some constant which is really unlikely to be randomly
     # in bytecode
@@ -191,13 +191,13 @@ BYTE32_LIST: constant(bytes32[2]) = [
 
 SPECIAL: constant(int128[3]) = [33, 44, 55]
 
-@public
+@external
 def test() -> bytes32:
     a: bytes32[2] = BYTE32_LIST
     return a[1]
 
 @view
-@public
+@external
 def contains(a: int128) -> bool:
     return a in SPECIAL
     """

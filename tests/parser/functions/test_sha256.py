@@ -3,7 +3,7 @@ import hashlib
 
 def test_sha256_string_literal(get_contract_with_gas_estimation):
     code = """
-@public
+@external
 def bar() -> bytes32:
     return sha256("test")
     """
@@ -15,7 +15,7 @@ def bar() -> bytes32:
 
 def test_sha256_literal_bytes(get_contract_with_gas_estimation):
     code = """
-@public
+@external
 def bar() -> (bytes32 , bytes32):
     x: bytes32 = sha256("test")
     y: bytes32 = sha256(b"test")
@@ -28,7 +28,7 @@ def bar() -> (bytes32 , bytes32):
 
 def test_sha256_bytes32(get_contract_with_gas_estimation):
     code = """
-@public
+@external
 def bar(a: bytes32) -> bytes32:
     return sha256(a)
     """
@@ -41,7 +41,7 @@ def bar(a: bytes32) -> bytes32:
 
 def test_sha256_bytearraylike(get_contract_with_gas_estimation):
     code = """
-@public
+@external
 def bar(a: string[100]) -> bytes32:
     return sha256(a)
     """
@@ -58,11 +58,11 @@ def test_sha256_bytearraylike_storage(get_contract_with_gas_estimation):
     code = """
 a: public(bytes[100])
 
-@public
+@external
 def set(b: bytes[100]):
     self.a = b
 
-@public
+@external
 def bar() -> bytes32:
     return sha256(self.a)
     """

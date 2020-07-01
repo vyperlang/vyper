@@ -5,8 +5,8 @@ def test_invalid_if_both_public_and_internal(
     assert_compile_failed, get_contract_with_gas_estimation
 ):
     code = """
-@public
-@private
+@external
+@internal
 def foo():
     x: uint256 = 1
 """

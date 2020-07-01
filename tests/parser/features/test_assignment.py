@@ -10,25 +10,25 @@ from vyper.exceptions import (
 
 def test_augassign(get_contract_with_gas_estimation):
     augassign_test = """
-@public
+@external
 def augadd(x: int128, y: int128) -> int128:
     z: int128 = x
     z += y
     return z
 
-@public
+@external
 def augmul(x: int128, y: int128) -> int128:
     z: int128 = x
     z *= y
     return z
 
-@public
+@external
 def augsub(x: int128, y: int128) -> int128:
     z: int128 = x
     z -= y
     return z
 
-@public
+@external
 def augmod(x: int128, y: int128) -> int128:
     z: int128 = x
     z %= y
@@ -46,7 +46,7 @@ def augmod(x: int128, y: int128) -> int128:
 
 def test_invalid_assign(assert_compile_failed, get_contract_with_gas_estimation):
     code = """
-@public
+@external
 def foo(x: int128):
     x = 5
 """
@@ -55,7 +55,7 @@ def foo(x: int128):
 
 def test_invalid_augassign(assert_compile_failed, get_contract_with_gas_estimation):
     code = """
-@public
+@external
 def foo(x: int128):
     x += 5
 """
@@ -66,19 +66,19 @@ def test_valid_literal_increment(get_contract_with_gas_estimation):
     code = """
 storx: uint256
 
-@public
+@external
 def foo1() -> int128:
     x: int128 = 122
     x += 1
     return x
 
-@public
+@external
 def foo2() -> uint256:
     x: uint256 = 122
     x += 1
     return x
 
-@public
+@external
 def foo3(y: uint256) -> uint256:
     self.storx = y
     self.storx += 1
@@ -95,7 +95,7 @@ def test_invalid_uin256_assignment(assert_compile_failed, get_contract_with_gas_
     code = """
 storx: uint256
 
-@public
+@external
 def foo2() -> uint256:
     x: uint256 = -1
     x += 1
@@ -108,7 +108,7 @@ def test_invalid_uin256_assignment_calculate_literals(get_contract_with_gas_esti
     code = """
 storx: uint256
 
-@public
+@external
 def foo2() -> uint256:
     x: uint256 = 0
     x = 3 * 4 / 2 + 1 - 2
@@ -121,7 +121,7 @@ def foo2() -> uint256:
 
 def test_calculate_literals_invalid(assert_compile_failed, get_contract_with_gas_estimation):
     code = """
-@public
+@external
 def foo2() -> uint256:
     x: uint256 = 0
     x = 3 ^ 3  # invalid operator
@@ -142,13 +142,13 @@ struct Y:
 test_map1: HashMap[int128, X]
 test_map2: HashMap[int128, Y]
 
-@public
+@external
 def set():
     self.test_map1[1].a = 333
     self.test_map2[333].c = 111
 
 
-@public
+@external
 def get(i: int128) -> int128:
     idx: int128 = self.test_map1[i].a
     return self.test_map2[idx].c
@@ -169,13 +169,13 @@ struct Y:
 test_map1: HashMap[int128, X]
 test_map2: HashMap[int128, Y]
 
-@public
+@external
 def set():
     self.test_map1[1].a = 333
     self.test_map2[333].c = 111
 
 
-@public
+@external
 def get() -> int128:
     return self.test_map2[self.test_map1[1].a].c
     """
@@ -188,65 +188,65 @@ def get() -> int128:
     "contract",
     [
         """
-@public
+@external
 def foo():
     y: int128 = 1
     z: decimal = y
     """,
         """
-@public
+@external
 def foo():
     y: int128 = 1
     z: decimal = 0.0
     z = y
     """,
         """
-@public
+@external
 def foo():
     y: bool = False
     z: decimal = y
     """,
         """
-@public
+@external
 def foo():
     y: bool = False
     z: decimal = 0.0
     z = y
     """,
         """
-@public
+@external
 def foo():
     y: uint256 = 1
     z: int128 = y
     """,
         """
-@public
+@external
 def foo():
     y: uint256 = 1
     z: int128 = 0
     z = y
     """,
         """
-@public
+@external
 def foo():
     y: int128 = 1
     z: bytes32 = y
     """,
         """
-@public
+@external
 def foo():
     y: int128 = 1
     z: bytes32 = EMPTY_BYTES32
     z = y
     """,
         """
-@public
+@external
 def foo():
     y: uint256 = 1
     z: bytes32 = y
     """,
         """
-@public
+@external
 def foo():
     y: uint256 = 1
     z: bytes32 = EMPTY_BYTES32
@@ -262,11 +262,11 @@ def test_invalid_implicit_conversions(
 
 def test_invalid_nonetype_assignment(assert_compile_failed, get_contract_with_gas_estimation):
     code = """
-@private
+@internal
 def bar():
     pass
 
-@public
+@external
 def foo():
     ret : bool = self.bar()
 """

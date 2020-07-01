@@ -12,7 +12,7 @@ fail_list = [
     (
         """
 bar: int128[3][3]
-@public
+@external
 def foo():
     self.bar = [[1, 2], [3, 4, 5], [6, 7, 8]]
     """,
@@ -21,7 +21,7 @@ def foo():
     (
         """
 bar: int128[3][3]
-@public
+@external
 def foo():
     self.bar = [[1, 2, 3], [4, 5, 6], [7.0, 8.0, 9.0]]
     """,
@@ -29,7 +29,7 @@ def foo():
     ),
     (
         """
-@public
+@external
 def foo() -> int128[2]:
     return [[1,2],[3,4]]
     """,
@@ -37,7 +37,7 @@ def foo() -> int128[2]:
     ),
     (
         """
-@public
+@external
 def foo() -> int128[2][2]:
     return [1,2]
     """,
@@ -47,7 +47,7 @@ def foo() -> int128[2][2]:
         """
 y: address[2][2]
 
-@public
+@external
 def foo(x: int128[2][2]) -> int128:
     self.y = x
     return 768
@@ -59,7 +59,7 @@ def foo(x: int128[2][2]) -> int128:
 # for loops only allowed on base types
 bar: int128[3][3]
 
-@public
+@external
 def foo() -> int128[3]:
     self.bar = [[1, 2, 3], [4, 5, 6], [7, 8, 9]]
     for x in self.bar:
@@ -81,13 +81,13 @@ def test_nested_list_fail(bad_code, exc):
 valid_list = [
     """
 bar: int128[3][3]
-@public
+@external
 def foo():
     self.bar = [[1, 2, 3], [4, 5, 6], [7, 8, 9]]
     """,
     """
 bar: decimal[3][3]
-@public
+@external
 def foo():
     self.bar = [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]]
     """,

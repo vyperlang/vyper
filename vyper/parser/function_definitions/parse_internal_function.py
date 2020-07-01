@@ -19,10 +19,10 @@ from vyper.types.types import BaseType, ByteArrayLike, get_size_of_type
 from vyper.utils import MemoryPositions
 
 
-def get_private_arg_copier(total_size: int, memory_dest: int) -> List[Any]:
+def get_internal_arg_copier(total_size: int, memory_dest: int) -> List[Any]:
     """
     Copy arguments.
-    For private functions, MSTORE arguments and callback pointer from the stack.
+    For internal functions, MSTORE arguments and callback pointer from the stack.
 
     :param  total_size: total size to copy
     :param  memory_dest: base memory position to copy to
@@ -35,29 +35,29 @@ def get_private_arg_copier(total_size: int, memory_dest: int) -> List[Any]:
     return copier
 
 
-def validate_private_function(code: ast.FunctionDef, sig: FunctionSignature) -> None:
-    """ Validate private function defintion """
+def validate_internal_function(code: ast.FunctionDef, sig: FunctionSignature) -> None:
+    """ Validate internal function defintion """
     if sig.is_default_func():
-        raise FunctionDeclarationException("Default function may only be public.", code)
+        raise FunctionDeclarationException("Default function may only be external.", code)
 
 
-def parse_private_function(
+def parse_internal_function(
     code: ast.FunctionDef, sig: FunctionSignature, context: Context
 ) -> LLLnode:
     """
-    Parse a private function (FuncDef), and produce full function body.
+    Parse a internal function (FuncDef), and produce full function body.
 
     :param sig: the FuntionSignature
     :param code: ast of function
     :return: full sig compare & function body
     """
 
-    validate_private_function(code, sig)
+    validate_internal_function(code, sig)
 
     # Get nonreentrant lock
     nonreentrant_pre, nonreentrant_post = get_nonreentrant_lock(sig, context.global_ctx)
 
-    # Create callback_ptr, this stores a destination in the bytecode for a private
+    # Create callback_ptr, this stores a destination in the bytecode for a internal
     # function to jump to after a function has executed.
     clampers: List[LLLnode] = []
 
@@ -74,7 +74,7 @@ def parse_private_function(
     if sig.total_default_args > 0:
         clampers.append(LLLnode.from_list(["label", _post_callback_ptr]))
 
-    # private functions without return types need to jump back to
+    # internal functions without return types need to jump back to
     # the calling function, as there is no return statement to handle the
     # jump.
     if sig.output_type is None:
@@ -87,7 +87,7 @@ def parse_private_function(
         copier = ["pass"]
         clampers.append(LLLnode.from_list(copier))
     elif sig.total_default_args == 0:
-        copier = get_private_arg_copier(
+        copier = get_internal_arg_copier(
             total_size=sig.base_copy_size, memory_dest=MemoryPositions.RESERVED_MEMORY
         )
         clampers.append(LLLnode.from_list(copier))
@@ -102,7 +102,7 @@ def parse_private_function(
                 arg.name, MemoryPositions.RESERVED_MEMORY + arg.pos, arg.typ, False,
             )
 
-    # Private function copiers. No clamping for private functions.
+    # internal function copiers. No clamping for internal functions.
     dyn_variable_names = [a.name for a in sig.base_args if isinstance(a.typ, ByteArrayLike)]
     if dyn_variable_names:
         i_placeholder = context.new_placeholder(typ=BaseType("uint256"))
@@ -116,7 +116,7 @@ def parse_private_function(
         if not unpackers:
             unpackers = ["pass"]
 
-        # 0 added to complete full overarching 'seq' statement, see private_label.
+        # 0 added to complete full overarching 'seq' statement, see internal_label.
         unpackers.append(0)
         clampers.append(
             LLLnode.from_list(
@@ -134,7 +134,7 @@ def parse_private_function(
         sig_chain: List[Any] = ["seq"]
 
         for default_sig in default_sigs:
-            sig_compare, private_label = get_sig_statements(default_sig, getpos(code))
+            sig_compare, internal_label = get_sig_statements(default_sig, getpos(code))
 
             # Populate unset default variables
             set_defaults = []
@@ -147,7 +147,7 @@ def parse_private_function(
                 set_defaults.append(make_setter(left, value, "memory", pos=getpos(code)))
             current_sig_arg_names = [x.name for x in default_sig.args]
 
-            # Load all variables in default section, if private,
+            # Load all variables in default section, if internal,
             # because the stack is a linear pipe.
             copier_arg_count = len(default_sig.args)
             copier_arg_names = current_sig_arg_names
@@ -177,7 +177,7 @@ def parse_private_function(
                     else:
                         _size = var.size * 32
                     default_copiers.append(
-                        get_private_arg_copier(memory_dest=var.pos, total_size=_size,)
+                        get_internal_arg_copier(memory_dest=var.pos, total_size=_size,)
                     )
 
                 # Unpack byte array if necessary.
@@ -198,7 +198,7 @@ def parse_private_function(
                     sig_compare,
                     [
                         "seq",
-                        private_label,
+                        internal_label,
                         LLLnode.from_list(
                             ["mstore", context.callback_ptr, "pass"],
                             annotation="pop callback pointer",
@@ -211,7 +211,7 @@ def parse_private_function(
                 ]
             )
 
-        # With private functions all variable loading occurs in the default
+        # With internal functions all variable loading occurs in the default
         # function sub routine.
         _clampers = [["label", _post_callback_ptr]]
 
@@ -240,13 +240,13 @@ def parse_private_function(
 
     else:
         # Function without default parameters.
-        sig_compare, private_label = get_sig_statements(sig, getpos(code))
+        sig_compare, internal_label = get_sig_statements(sig, getpos(code))
         o = LLLnode.from_list(
             [
                 "if",
                 sig_compare,
                 ["seq"]
-                + [private_label]
+                + [internal_label]
                 + nonreentrant_pre
                 + clampers
                 + [parse_body(c, context) for c in code.body]

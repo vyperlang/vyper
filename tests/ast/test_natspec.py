@@ -15,7 +15,7 @@ test_code = """
     the throat to be considered eaten
 '''
 
-@public
+@external
 @payable
 def doesEat(food: string[30], qty: uint256) -> bool:
     '''
@@ -71,7 +71,7 @@ def test_no_tags_implies_notice():
 '''
 Because there is no tag, this docstring is handled as a notice.
 '''
-@public
+@external
 def foo():
     '''
     This one too!
@@ -120,7 +120,7 @@ We don't mind!
 
 def test_params():
     code = """
-@public
+@external
 def foo(bar: int128, baz: uint256, potato: bytes32):
     '''
     @param bar a number
@@ -146,7 +146,7 @@ def foo(bar: int128, baz: uint256, potato: bytes32):
 
 def test_returns():
     code = """
-@public
+@external
 def foo(bar: int128, baz: uint256) -> (int128, uint256):
     '''
     @return value of bar
@@ -168,12 +168,12 @@ def foo(bar: int128, baz: uint256) -> (int128, uint256):
 
 def test_ignore_private_methods():
     code = """
-@public
+@external
 def foo(bar: int128, baz: uint256):
     '''@dev I will be parsed.'''
     pass
 
-@private
+@internal
 def notfoo(bar: int128, baz: uint256):
     '''@dev I will not be parsed.'''
     pass
@@ -188,7 +188,7 @@ def notfoo(bar: int128, baz: uint256):
 
 def test_partial_natspec():
     code = """
-@public
+@external
 def foo():
     '''
     Regular comments preceeding natspec is not allowed
@@ -227,7 +227,7 @@ empty_field_cases = [
 @pytest.mark.parametrize("bad_docstring", empty_field_cases)
 def test_empty_field(bad_docstring):
     code = f"""
-@public
+@external
 def foo():
     '''{bad_docstring}'''
     pass
@@ -240,7 +240,7 @@ def foo():
 
 def test_unknown_field():
     code = """
-@public
+@external
 def foo():
     '''
     @notice this is ok
@@ -258,7 +258,7 @@ def foo():
 @pytest.mark.parametrize("field", ["title", "license"])
 def test_invalid_field(field):
     code = f"""
-@public
+@external
 def foo():
     '''@{field} function level docstrings cannot have titles'''
     pass
@@ -284,7 +284,7 @@ def test_license(license):
 '''
 @license {license}
 '''
-@public
+@external
 def foo():
     pass
     """
@@ -307,7 +307,7 @@ def test_empty_fields(field):
 '''
 @{field}
 '''
-@public
+@external
 def foo():
     pass
     """
@@ -320,7 +320,7 @@ def foo():
 
 def test_duplicate_fields():
     code = """
-@public
+@external
 def foo():
     '''
     @notice It's fine to have one notice, but....
@@ -337,7 +337,7 @@ def foo():
 
 def test_duplicate_param():
     code = """
-@public
+@external
 def foo(bar: int128, baz: uint256):
     '''
     @param bar a number
@@ -354,7 +354,7 @@ def foo(bar: int128, baz: uint256):
 
 def test_unknown_param():
     code = """
-@public
+@external
 def foo(bar: int128, baz: uint256):
     '''@param hotdog not a number'''
     pass
@@ -388,7 +388,7 @@ empty_field_cases = [
 @pytest.mark.parametrize("bad_docstring", empty_field_cases)
 def test_empty_param(bad_docstring):
     code = f"""
-@public
+@external
 def foo(a: int128):
     '''{bad_docstring}'''
     pass
@@ -401,7 +401,7 @@ def foo(a: int128):
 
 def test_too_many_returns_no_return_type():
     code = """
-@public
+@external
 def foo():
     '''@return should fail, the function does not include a return value'''
     pass
@@ -415,7 +415,7 @@ def foo():
 
 def test_too_many_returns_single_return_type():
     code = """
-@public
+@external
 def foo() -> int128:
     '''
     @return int128
@@ -434,7 +434,7 @@ def foo() -> int128:
 
 def test_too_many_returns_tuple_return_type():
     code = """
-@public
+@external
 def foo() -> (int128,uint256):
     '''
     @return int128

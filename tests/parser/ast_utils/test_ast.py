@@ -3,7 +3,7 @@ from vyper.ast.utils import parse_to_ast
 
 def test_ast_equal():
     code = """
-@public
+@external
 def test() -> int128:
     a: uint256 = 100
     return 123
@@ -17,13 +17,13 @@ def test() -> int128:
 
 def test_ast_unequal():
     code1 = """
-@public
+@external
 def test() -> int128:
     a: uint256 = 100
     return 123
     """
     code2 = """
-@public
+@external
 def test() -> int128:
     a: uint256 = 100
     return 121

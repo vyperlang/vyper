@@ -5,29 +5,29 @@ from vyper.exceptions import NamespaceCollision
 
 fail_list = [
     """
-@public
+@external
 def foo(int128: int128):
     pass
     """,
     """
-@public
+@external
 def foo():
     x: int128 = 12
-@public
+@external
 def foo():
     y: int128 = 12
     """,
     """
 foo: int128
 
-@public
+@external
 def foo():
     pass
     """,
     """
 x: int128
 
-@public
+@external
 def foo(x: int128): pass
     """,
     """
@@ -35,18 +35,18 @@ x: int128
 x: int128
     """,
     """
-@public
+@external
 def foo():
     x: int128 = 0
     x: int128 = 0
     """,
     """
-@public
+@external
 def foo():
     msg: bool = True
     """,
     """
-@public
+@external
 def foo():
     struct: bool = True
     """,

@@ -13,7 +13,7 @@ fail_list = [  # noqa: E122
 event Âssign:
     variable: int128
 
-@public
+@external
 def foo(i: int128) -> int128:
     temp_var : int128 = i
     log Âssign(temp_var)
@@ -24,7 +24,7 @@ def foo(i: int128) -> int128:
 event int128:
     variable: int128
 
-@public
+@external
 def foo(i: int128) -> int128:
     temp_var : int128 = i
     log int128(temp_var)
@@ -37,7 +37,7 @@ def foo(i: int128) -> int128:
 event decimal:
     variable: int128
 
-@public
+@external
 def foo(i: int128) -> int128:
     temp_var : int128 = i
     log decimal(temp_var)
@@ -49,7 +49,7 @@ def foo(i: int128) -> int128:
 event wei:
     variable: int128
 
-@public
+@external
 def foo(i: int128) -> int128:
     temp_var : int128 = i
     log wei(temp_var)
@@ -59,7 +59,7 @@ def foo(i: int128) -> int128:
 event false:
     variable: int128
 
-@public
+@external
 def foo(i: int128) -> int128:
     temp_var : int128 = i
     log false(temp_var)
@@ -98,7 +98,7 @@ valid_list = [
 event Assigned:
     variable: int128
 
-@public
+@external
 def foo(i: int128) -> int128:
     variable : int128 = i
     log Assigned(variable)
@@ -108,7 +108,7 @@ def foo(i: int128) -> int128:
 event _Assign:
     variable: int128
 
-@public
+@external
 def foo(i: int128) -> int128:
     variable : int128 = i
     log _Assign(variable)
@@ -118,7 +118,7 @@ def foo(i: int128) -> int128:
 event Assigned1:
     variable: int128
 
-@public
+@external
 def foo(i: int128) -> int128:
     variable : int128 = i
     log Assigned1(variable)

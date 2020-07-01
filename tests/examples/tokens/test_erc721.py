@@ -241,7 +241,7 @@ def test_safeTransferFrom_to_contract(c, w3, assert_tx_failed, get_logs, get_con
     # Only to an address that implements that function
     receiver = get_contract(
         """
-@public
+@external
 def onERC721Received(
         _operator: address,
         _from: address,

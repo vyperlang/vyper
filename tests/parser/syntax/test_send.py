@@ -6,7 +6,7 @@ from vyper.exceptions import InvalidType, TypeMismatch
 fail_list = [
     (
         """
-@public
+@external
 def foo():
     send(1, 2)
     """,
@@ -14,7 +14,7 @@ def foo():
     ),
     (
         """
-@public
+@external
 def foo():
     send(0x1234567890123456789012345678901234567890, 2.5)
     """,
@@ -22,7 +22,7 @@ def foo():
     ),
     (
         """
-@public
+@external
 def foo():
     send(0x1234567890123456789012345678901234567890, 0x1234567890123456789012345678901234567890)
     """,
@@ -32,7 +32,7 @@ def foo():
         """
 x: int128
 
-@public
+@external
 def foo():
     send(0x1234567890123456789012345678901234567890, self.x)
     """,
@@ -42,7 +42,7 @@ def foo():
         """
 x: uint256
 
-@public
+@external
 def foo():
     send(0x1234567890123456789012345678901234567890, self.x + 1.5)
     """,
@@ -52,7 +52,7 @@ def foo():
         """
 x: decimal
 
-@public
+@external
 def foo():
     send(0x1234567890123456789012345678901234567890, self.x)
     """,
@@ -71,36 +71,36 @@ valid_list = [
     """
 x: uint256
 
-@public
+@external
 def foo():
     send(0x1234567890123456789012345678901234567890, self.x + 1)
     """,
     """
 x: decimal
 
-@public
+@external
 def foo():
     send(0x1234567890123456789012345678901234567890, as_wei_value(floor(self.x), "wei"))
     """,
     """
 x: uint256
 
-@public
+@external
 def foo():
     send(0x1234567890123456789012345678901234567890, self.x)
     """,
     """
-@public
+@external
 def foo():
     send(0xde0B295669a9FD93d5F28D9Ec85E40f4cb697BAe, 5)
     """,
     """
 # Test custom send method
-@private
+@internal
 def send(a: address, w: uint256):
     send(0xde0B295669a9FD93d5F28D9Ec85E40f4cb697BAe, 1)
 
-@public
+@external
 @payable
 def foo():
     self.send(msg.sender, msg.value)

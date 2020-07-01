@@ -10,32 +10,32 @@ from vyper.exceptions import ImmutableViolation, StateAccessViolation
     [
         """
 x: int128
-@public
+@external
 @view
 def foo() -> int128:
     self.x = 5
     return 1""",
         """
-@public
+@external
 @view
 def foo() -> int128:
     send(0x1234567890123456789012345678901234567890, 5)
     return 1""",
         """
-@public
+@external
 @view
 def foo():
     selfdestruct(0x1234567890123456789012345678901234567890)""",
         """
 x: int128
 y: int128
-@public
+@external
 @view
 def foo() -> int128:
     self.y = 9
     return 5""",
         """
-@public
+@external
 @view
 def foo() -> int128:
     x: bytes[4] = raw_call(
@@ -43,7 +43,7 @@ def foo() -> int128:
     )
     return 5""",
         """
-@public
+@external
 @view
 def foo() -> int128:
     x: address = create_forwarder_to(0x1234567890123456789012345678901234567890, value=9)
@@ -51,26 +51,26 @@ def foo() -> int128:
         # test constancy in range expressions
         """
 glob: int128
-@private
+@internal
 def foo() -> int128:
     self.glob += 1
     return 5
-@public
+@external
 def bar():
     for i in range(self.foo(), self.foo() + 1):
         pass""",
         """
 glob: int128
-@private
+@internal
 def foo() -> int128:
     self.glob += 1
     return 5
-@public
+@external
 def bar():
     for i in [1,2,3,4,self.foo()]:
         pass""",
         """
-@public
+@external
 def foo():
     x: int128 = 5
     for i in range(x):
@@ -78,12 +78,12 @@ def foo():
         """
 f:int128
 
-@public
+@external
 def a (x:int128):
     self.f = 100
 
 @view
-@public
+@external
 def b():
     self.a(10)""",
     ],
@@ -97,7 +97,7 @@ def test_statefulness_violations(bad_code):
     "bad_code",
     [
         """
-@public
+@external
 def foo(x: int128):
     x = 5""",
     ],

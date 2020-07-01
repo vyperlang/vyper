@@ -26,7 +26,7 @@ st_decimals = st.decimals(
 @pytest.mark.parametrize("op", "+-*/%")
 def test_binop_decimal(get_contract, assert_tx_failed, op, left, right):
     source = f"""
-@public
+@external
 def foo(a: decimal, b: decimal) -> decimal:
     return a {op} b
     """
@@ -67,7 +67,7 @@ def test_nested(get_contract, assert_tx_failed, values, ops):
     return_value = " ".join(f"{a} {b}" for a, b in zip(variables[: len(values)], ops))
     return_value = return_value.rsplit(maxsplit=1)[0]
     source = f"""
-@public
+@external
 def foo({input_value}) -> decimal:
     return {return_value}
     """

@@ -11,7 +11,7 @@ y: int128[5]
 z: Z
 a: int128
 
-@public
+@external
 def foo() -> int128:
     self.x = 1
     self.y[0] = 2
@@ -26,7 +26,7 @@ def foo() -> int128:
     return self.x + self.y[0] + self.y[4] + self.z.foo[0] + self.z.foo[2] + \
         self.z.bar[0].a + self.z.bar[0].b + self.z.bar[1].a + self.z.bar[1].b + self.a
 
-@public
+@external
 def fop() -> int128:
     _x: int128 = 0
     _y: int128[5] = [0, 0, 0, 0, 0]

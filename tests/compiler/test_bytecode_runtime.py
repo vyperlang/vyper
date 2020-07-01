@@ -3,7 +3,7 @@ import vyper
 
 def test_bytecode_runtime():
     code = """
-@public
+@external
 def a() -> bool:
     return True
     """

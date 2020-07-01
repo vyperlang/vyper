@@ -12,7 +12,7 @@ from vyper.exceptions import (
 fail_list = [
     (
         """
-@public
+@external
 def foo():
     x: bool = True
     x = 5
@@ -21,7 +21,7 @@ def foo():
     ),
     (
         """
-@public
+@external
 def foo():
     True = 3
     """,
@@ -29,7 +29,7 @@ def foo():
     ),
     (
         """
-@public
+@external
 def foo():
     x: bool = True
     x = 129
@@ -38,57 +38,57 @@ def foo():
     ),
     (
         """
-@public
+@external
 def foo() -> bool:
     return (1 == 2) <= (1 == 1)
     """,
         TypeMismatch,
     ),
     """
-@public
+@external
 def foo() -> bool:
     return (1 == 2) or 3
     """,
     """
-@public
+@external
 def foo() -> bool:
     return 1.0 == 1
     """,
     """
-@public
+@external
 def foo() -> bool:
     a: address = ZERO_ADDRESS
     return a == 1
     """,
     (
         """
-@public
+@external
 def foo(a: address) -> bool:
     return not a
     """,
         InvalidOperation,
     ),
     """
-@public
+@external
 def foo() -> bool:
     b: int128 = 0
     return not b
     """,
     """
-@public
+@external
 def foo() -> bool:
     b: uint256 = 0
     return not b
     """,
     """
-@public
+@external
 def foo() -> bool:
     b: uint256 = 0
     return not b
     """,
     (
         """
-@public
+@external
 def test(a: address) -> bool:
     assert(a)
     return True
@@ -111,55 +111,55 @@ def test_bool_fail(bad_code):
 
 valid_list = [
     """
-@public
+@external
 def foo():
     x: bool = True
     z: bool = x and False
     """,
     """
-@public
+@external
 def foo():
     x: bool = True
     z: bool = x and False
     """,
     """
-@public
+@external
 def foo():
     x: bool = True
     x = False
     """,
     """
-@public
+@external
 def foo() -> bool:
     return 1 == 1
     """,
     """
-@public
+@external
 def foo() -> bool:
     return 1 != 1
     """,
     """
-@public
+@external
 def foo() -> bool:
     return 1 > 1
     """,
     """
-@public
+@external
 def foo() -> bool:
     return 2 >= 1
     """,
     """
-@public
+@external
 def foo() -> bool:
     return 1 < 1
     """,
     """
-@public
+@external
 def foo() -> bool:
     return 1 <= 1
     """,
     """
-@public
+@external
 def foo2(a: address) -> bool:
     return a != ZERO_ADDRESS
     """,

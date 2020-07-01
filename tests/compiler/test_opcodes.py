@@ -15,7 +15,7 @@ def evm_version(request):
 
 def test_opcodes():
     code = """
-@public
+@external
 def a() -> bool:
     return True
     """

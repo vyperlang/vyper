@@ -13,23 +13,23 @@ b: int128[int128: address]
     """,
     """
 x: int128[5]
-@public
+@external
 def foo():
     self.x[2:4] = 3
     """,
     """
-@public
+@external
 def foo():
     x: address = ~self
     """,
     """
 x: int128[5]
-@public
+@external
 def foo():
     z = self.x[2:4]
     """,
     """
-@public
+@external
 def foo():
     x: int128[5]
     z = x[2:4]
@@ -38,7 +38,7 @@ def foo():
 Transfer: event({_&rom: indexed(address)})
     """,
     """
-@public
+@external
 def test() -> uint256:
     for i in range(0, 4):
       return 0
@@ -47,7 +47,7 @@ def test() -> uint256:
     return 1
     """,
     """
-@public
+@external
 def foo():
     x = y = 3
     """,

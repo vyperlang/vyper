@@ -1,6 +1,6 @@
 def test_exponent_base_zero(get_contract):
     code = """
-@public
+@external
 def foo(x: uint256) -> uint256:
     return 0 ** x
     """
@@ -13,7 +13,7 @@ def foo(x: uint256) -> uint256:
 
 def test_exponent_base_one(get_contract):
     code = """
-@public
+@external
 def foo(x: uint256) -> uint256:
     return 1 ** x
     """
@@ -26,35 +26,35 @@ def foo(x: uint256) -> uint256:
 
 def test_uint256_code(assert_tx_failed, get_contract_with_gas_estimation):
     uint256_code = """
-@public
+@external
 def _uint256_add(x: uint256, y: uint256) -> uint256:
     return x + y
 
-@public
+@external
 def _uint256_sub(x: uint256, y: uint256) -> uint256:
     return x - y
 
-@public
+@external
 def _uint256_mul(x: uint256, y: uint256) -> uint256:
     return x * y
 
-@public
+@external
 def _uint256_div(x: uint256, y: uint256) -> uint256:
     return x / y
 
-@public
+@external
 def _uint256_gt(x: uint256, y: uint256) -> bool:
     return x > y
 
-@public
+@external
 def _uint256_ge(x: uint256, y: uint256) -> bool:
     return x >= y
 
-@public
+@external
 def _uint256_lt(x: uint256, y: uint256) -> bool:
     return x < y
 
-@public
+@external
 def _uint256_le(x: uint256, y: uint256) -> bool:
     return x <= y
     """
@@ -97,15 +97,15 @@ def _uint256_le(x: uint256, y: uint256) -> bool:
 
 def test_uint256_mod(assert_tx_failed, get_contract_with_gas_estimation):
     uint256_code = """
-@public
+@external
 def _uint256_mod(x: uint256, y: uint256) -> uint256:
     return x % y
 
-@public
+@external
 def _uint256_addmod(x: uint256, y: uint256, z: uint256) -> uint256:
     return uint256_addmod(x, y, z)
 
-@public
+@external
 def _uint256_mulmod(x: uint256, y: uint256, z: uint256) -> uint256:
     return uint256_mulmod(x, y, z)
     """
@@ -129,7 +129,7 @@ def _uint256_mulmod(x: uint256, y: uint256, z: uint256) -> uint256:
 
 def test_modmul(get_contract_with_gas_estimation):
     modexper = """
-@public
+@external
 def exponential(base: uint256, exponent: uint256, modulus: uint256) -> uint256:
     o: uint256 = convert(1, uint256)
     for i in range(256):
@@ -146,7 +146,7 @@ def exponential(base: uint256, exponent: uint256, modulus: uint256) -> uint256:
 
 def test_uint256_literal(get_contract_with_gas_estimation):
     modexper = """
-@public
+@external
 def test() -> uint256:
     o: uint256 = 340282366920938463463374607431768211459
     return o
@@ -160,27 +160,27 @@ def test_uint256_comparison(get_contract_with_gas_estimation):
     code = """
 max_uint_256: public(uint256)
 
-@public
+@external
 def __init__():
     self.max_uint_256 = 2*(2**255-1)+1
 
-@public
+@external
 def max_lt() -> (bool):
   return 30 < self.max_uint_256
 
-@public
+@external
 def max_lte() -> (bool):
   return 30  <= self.max_uint_256
 
-@public
+@external
 def max_gte() -> (bool):
   return 30 >=  self.max_uint_256
 
-@public
+@external
 def max_gt() -> (bool):
   return 30 > self.max_uint_256
 
-@public
+@external
 def max_ne() -> (bool):
   return 30 != self.max_uint_256
     """

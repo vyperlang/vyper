@@ -10,12 +10,12 @@ struct Var:
     b: int128
 var: Var
 
-@public
+@external
 def __init__(a: int128, b: int128):
     self.var.a = a
     self.var.b = b
 
-@public
+@external
 def returnMoose() -> int128:
     return self.var.a * 10 + self.var.b
     """
@@ -27,7 +27,7 @@ def returnMoose() -> int128:
 
 def test_missing_global(get_contract):
     code = """
-@public
+@external
 def a() -> int128:
     return self.b
     """

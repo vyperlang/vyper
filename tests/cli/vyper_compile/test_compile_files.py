@@ -31,7 +31,7 @@ def test_invalid_root_path():
 def test_evm_versions(tmp_path):
     # should compile differently because of SELFBALANCE
     code = """
-@public
+@external
 def foo() -> uint256:
     return self.balance
 """

@@ -45,10 +45,10 @@ def make_call(stmt_expr, context):
             getpos(stmt_expr),
         )
 
-    if not sig.private:
-        raise StructureException("Cannot call public functions via 'self'", stmt_expr)
+    if not sig.internal:
+        raise StructureException("Cannot call external functions via 'self'", stmt_expr)
 
-    return _call_self_private(stmt_expr, context, sig)
+    return _call_self_internal(stmt_expr, context, sig)
 
 
 def _call_make_placeholder(stmt_expr, context, sig):
@@ -59,14 +59,14 @@ def _call_make_placeholder(stmt_expr, context, sig):
     out_size = get_size_of_type(sig.output_type) * 32
     returner = output_placeholder
 
-    if not sig.private and isinstance(sig.output_type, ByteArrayLike):
+    if not sig.internal and isinstance(sig.output_type, ByteArrayLike):
         returner = output_placeholder + 32
 
     return output_placeholder, returner, out_size
 
 
-def _call_self_private(stmt_expr, context, sig):
-    # ** Private Call **
+def _call_self_internal(stmt_expr, context, sig):
+    # ** Internal Call **
     # Steps:
     # (x) push current local variables
     # (x) push arguments

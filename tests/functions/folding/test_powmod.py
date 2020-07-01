@@ -13,7 +13,7 @@ st_uint256 = st.integers(min_value=0, max_value=256)
 @given(a=st_uint256, b=st_uint256)
 def test_powmod_uint256(get_contract, a, b):
     source = """
-@public
+@external
 def foo(a: uint256, b: uint256) -> uint256:
     return pow_mod256(a, b)
     """

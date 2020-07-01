@@ -9,7 +9,7 @@ from vyper.parser.expr import calculate_largest_base, calculate_largest_power
 @pytest.mark.parametrize("power", range(2, 255))
 def test_exp_uint256(get_contract, assert_tx_failed, power):
     code = f"""
-@public
+@external
 def foo(a: uint256) -> uint256:
     return a ** {power}
     """
@@ -27,7 +27,7 @@ def foo(a: uint256) -> uint256:
 @pytest.mark.parametrize("power", range(2, 127))
 def test_exp_int128(get_contract, assert_tx_failed, power):
     code = f"""
-@public
+@external
 def foo(a: int128) -> int128:
     return a ** {power}
     """
@@ -70,7 +70,7 @@ def foo(a: int128) -> int128:
 @settings(max_examples=200, deadline=1000)
 def test_max_exp(get_contract, assert_tx_failed, a):
     code = f"""
-@public
+@external
 def foo(b: uint256) -> uint256:
     return {a} ** b
     """
@@ -105,7 +105,7 @@ def foo(b: uint256) -> uint256:
 @settings(max_examples=200, deadline=1000)
 def test_max_exp_int128(get_contract, assert_tx_failed, a):
     code = f"""
-@public
+@external
 def foo(b: int128) -> int128:
     return {a} ** b
     """

@@ -2,7 +2,7 @@ def test_throw_on_sending(w3, assert_tx_failed, get_contract_with_gas_estimation
     code = """
 x: public(int128)
 
-@public
+@external
 def __init__():
     self.x = 123
     """
@@ -21,7 +21,7 @@ def test_basic_default(w3, get_logs, get_contract_with_gas_estimation):
 event Sent:
     sender: indexed(address)
 
-@public
+@external
 @payable
 def __default__():
     log Sent(msg.sender)
@@ -38,13 +38,13 @@ def test_basic_default_default_param_function(w3, get_logs, get_contract_with_ga
 event Sent:
     sender: indexed(address)
 
-@public
+@external
 @payable
 def fooBar(a: int128 = 12345) -> int128:
     log Sent(ZERO_ADDRESS)
     return a
 
-@public
+@external
 @payable
 def __default__():
     log Sent(msg.sender)
@@ -61,7 +61,7 @@ def test_basic_default_not_payable(w3, assert_tx_failed, get_contract_with_gas_e
 event Sent:
     sender: indexed(address)
 
-@public
+@external
 def __default__():
     log Sent(msg.sender)
     """
@@ -73,7 +73,7 @@ def __default__():
 def test_multi_arg_default(assert_compile_failed, get_contract_with_gas_estimation):
     code = """
 @payable
-@public
+@external
 def __default__(arg1: int128):
     pass
     """
@@ -82,7 +82,7 @@ def __default__(arg1: int128):
 
 def test_always_public(assert_compile_failed, get_contract_with_gas_estimation):
     code = """
-@private
+@internal
 def __default__():
     pass
     """
@@ -105,14 +105,14 @@ def test_zero_method_id(w3, get_logs, get_contract_with_gas_estimation):
 event Sent:
     sig: uint256
 
-@public
+@external
 @payable
 # function selector: 0x00000000
 def blockHashAskewLimitary(v: uint256) -> uint256:
     log Sent(2)
     return 7
 
-@public
+@external
 def __default__():
     log Sent(1)
     """

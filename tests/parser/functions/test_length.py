@@ -2,7 +2,7 @@ def test_test_length(get_contract_with_gas_estimation):
     test_length = """
 y: bytes[10]
 
-@public
+@external
 def foo(inp: bytes[10]) -> uint256:
     x: bytes[5] = slice(inp,1, 5)
     self.y = slice(inp, 2, 4)

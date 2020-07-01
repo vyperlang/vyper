@@ -11,7 +11,7 @@ from vyper.exceptions import (
 
 def test_external_contract_calls(get_contract, get_contract_with_gas_estimation):
     contract_1 = """
-@public
+@external
 def foo(arg1: int128) -> int128:
     return arg1
     """
@@ -22,7 +22,7 @@ def foo(arg1: int128) -> int128:
 interface Foo:
         def foo(arg1: int128) -> int128: view
 
-@public
+@external
 def bar(arg1: address, arg2: int128) -> int128:
     return Foo(arg1).foo(arg2)
     """
@@ -36,15 +36,15 @@ def test_complicated_external_contract_calls(get_contract, get_contract_with_gas
     contract_1 = """
 lucky: public(int128)
 
-@public
+@external
 def __init__(_lucky: int128):
     self.lucky = _lucky
 
-@public
+@external
 def foo() -> int128:
     return self.lucky
 
-@public
+@external
 def array() -> bytes[3]:
     return b'dog'
     """
@@ -57,7 +57,7 @@ interface Foo:
     def foo() -> int128: nonpayable
     def array() -> bytes[3]: view
 
-@public
+@external
 def bar(arg1: address) -> int128:
     return Foo(arg1).foo()
     """
@@ -69,7 +69,7 @@ def bar(arg1: address) -> int128:
 
 def test_external_contract_calls_with_bytes(get_contract, get_contract_with_gas_estimation):
     contract_1 = """
-@public
+@external
 def array() -> bytes[3]:
     return b'dog'
     """
@@ -80,7 +80,7 @@ def array() -> bytes[3]:
 interface Foo:
     def array() -> bytes[3]: view
 
-@public
+@external
 def get_array(arg1: address) -> bytes[3]:
     return Foo(arg1).array()
 """
@@ -93,7 +93,7 @@ def test_external_contract_call_state_change(get_contract):
     contract_1 = """
 lucky: public(int128)
 
-@public
+@external
 def set_lucky(_lucky: int128):
     self.lucky = _lucky
     """
@@ -105,7 +105,7 @@ def set_lucky(_lucky: int128):
 interface Foo:
     def set_lucky(_lucky: int128): nonpayable
 
-@public
+@external
 def set_lucky(arg1: address, arg2: int128):
     Foo(arg1).set_lucky(arg2)
     """
@@ -124,12 +124,12 @@ def test_constant_external_contract_call_cannot_change_state(
 interface Foo:
     def set_lucky(_lucky: int128) -> int128: nonpayable
 
-@public
+@external
 @view
 def set_lucky_expr(arg1: address, arg2: int128):
     Foo(arg1).set_lucky(arg2)
 
-@public
+@external
 @view
 def set_lucky_stmt(arg1: address, arg2: int128) -> int128:
     return Foo(arg1).set_lucky(arg2)
@@ -143,7 +143,7 @@ def test_external_contract_can_be_changed_based_on_address(get_contract):
     contract_1 = """
 lucky: public(int128)
 
-@public
+@external
 def set_lucky(_lucky: int128):
     self.lucky = _lucky
     """
@@ -154,7 +154,7 @@ def set_lucky(_lucky: int128):
     contract_2 = """
 lucky: public(int128)
 
-@public
+@external
 def set_lucky(_lucky: int128) -> int128:
     self.lucky = _lucky
     return self.lucky
@@ -167,7 +167,7 @@ def set_lucky(_lucky: int128) -> int128:
 interface Foo:
     def set_lucky(_lucky: int128): nonpayable
 
-@public
+@external
 def set_lucky(arg1: address, arg2: int128):
     Foo(arg1).set_lucky(arg2)
     """
@@ -187,7 +187,7 @@ def test_external_contract_calls_with_public_globals(get_contract):
     contract_1 = """
 lucky: public(int128)
 
-@public
+@external
 def __init__(_lucky: int128):
     self.lucky = _lucky
     """
@@ -199,7 +199,7 @@ def __init__(_lucky: int128):
 interface Foo:
     def lucky() -> int128: view
 
-@public
+@external
 def bar(arg1: address) -> int128:
     return Foo(arg1).lucky()
     """
@@ -213,7 +213,7 @@ def test_external_contract_calls_with_multiple_contracts(get_contract):
     contract_1 = """
 lucky: public(int128)
 
-@public
+@external
 def __init__(_lucky: int128):
     self.lucky = _lucky
     """
@@ -227,7 +227,7 @@ interface Foo:
 
 magic_number: public(int128)
 
-@public
+@external
 def __init__(arg1: address):
     self.magic_number = Foo(arg1).lucky()
     """
@@ -239,7 +239,7 @@ interface Bar:
 
 best_number: public(int128)
 
-@public
+@external
 def __init__(arg1: address):
     self.best_number = Bar(arg1).magic_number()
     """
@@ -251,7 +251,7 @@ def __init__(arg1: address):
 
 def test_invalid_external_contract_call_to_the_same_contract(assert_tx_failed, get_contract):
     contract_1 = """
-@public
+@external
 def bar() -> int128:
     return 1
     """
@@ -260,15 +260,15 @@ def bar() -> int128:
 interface Bar:
     def bar() -> int128: view
 
-@public
+@external
 def bar() -> int128:
     return 1
 
-@public
+@external
 def _stmt(x: address):
     Bar(x).bar()
 
-@public
+@external
 def _expr(x: address) -> int128:
     return Bar(x).bar()
     """
@@ -285,7 +285,7 @@ def _expr(x: address) -> int128:
 
 def test_invalid_nonexistent_contract_call(w3, assert_tx_failed, get_contract):
     contract_1 = """
-@public
+@external
 def bar() -> int128:
     return 1
     """
@@ -294,7 +294,7 @@ def bar() -> int128:
 interface Bar:
     def bar() -> int128: view
 
-@public
+@external
 def foo(x: address) -> int128:
     return Bar(x).bar()
     """
@@ -314,7 +314,7 @@ interface Bar:
 
 best_number: public(int128)
 
-@public
+@external
 def __init__():
     pass
 """
@@ -323,7 +323,7 @@ def __init__():
 
 def test_invalid_contract_reference_call(assert_tx_failed, get_contract):
     contract = """
-@public
+@external
 def bar(arg1: address, arg2: int128) -> int128:
     return Foo(arg1).foo(arg2)
 """
@@ -335,7 +335,7 @@ def test_invalid_contract_reference_return_type(assert_tx_failed, get_contract):
 interface Foo:
     def foo(arg2: int128) -> invalid: view
 
-@public
+@external
 def bar(arg1: address, arg2: int128) -> int128:
     return Foo(arg1).foo(arg2)
 """
@@ -344,7 +344,7 @@ def bar(arg1: address, arg2: int128) -> int128:
 
 def test_external_contract_call_declaration_expr(get_contract):
     contract_1 = """
-@public
+@external
 def bar() -> int128:
     return 1
 """
@@ -355,7 +355,7 @@ interface Bar:
 
 bar_contract: Bar
 
-@public
+@external
 def foo(contract_address: address) -> int128:
     self.bar_contract = Bar(contract_address)
     return self.bar_contract.bar()
@@ -370,11 +370,11 @@ def test_external_contract_call_declaration_stmt(get_contract):
     contract_1 = """
 lucky: int128
 
-@public
+@external
 def set_lucky(_lucky: int128):
     self.lucky = _lucky
 
-@public
+@external
 def get_lucky() -> int128:
     return self.lucky
 """
@@ -386,12 +386,12 @@ interface Bar:
 
 bar_contract: Bar
 
-@public
+@external
 def set_lucky(contract_address: address):
     self.bar_contract = Bar(contract_address)
     self.bar_contract.set_lucky(1)
 
-@public
+@external
 def get_lucky(contract_address: address) -> int128:
     self.bar_contract = Bar(contract_address)
     return self.bar_contract.get_lucky()
@@ -411,13 +411,13 @@ def get_lucky(contract_address: address) -> int128:
 
 def test_complex_external_contract_call_declaration(get_contract_with_gas_estimation):
     contract_1 = """
-@public
+@external
 def get_lucky() -> int128:
     return 1
 """
 
     contract_2 = """
-@public
+@external
 def get_lucky() -> int128:
     return 2
 """
@@ -429,11 +429,11 @@ interface Bar:
 
 bar_contract: Bar
 
-@public
+@external
 def set_contract(contract_address: address):
     self.bar_contract = Bar(contract_address)
 
-@public
+@external
 def get_lucky() -> int128:
     return self.bar_contract.get_lucky()
 """
@@ -451,7 +451,7 @@ def get_lucky() -> int128:
 
 def test_address_can_returned_from_contract_type(get_contract):
     contract_1 = """
-@public
+@external
 def bar() -> int128:
     return 1
 """
@@ -461,11 +461,11 @@ interface Bar:
 
 bar_contract: public(Bar)
 
-@public
+@external
 def foo(contract_address: address):
     self.bar_contract = Bar(contract_address)
 
-@public
+@external
 def get_bar() -> int128:
     return self.bar_contract.bar()
 """
@@ -483,7 +483,7 @@ interface Bar:
 
 bar_contract: Bar
 
-@public
+@external
 def foo(contract_address: contract(Boo)) -> int128:
     self.bar_contract = Bar(contract_address)
     return self.bar_contract.bar()
@@ -499,7 +499,7 @@ interface Bar:
 
 bar_contract: Boo
 
-@public
+@external
 def foo(contract_address: address) -> int128:
     self.bar_contract = Bar(contract_address)
     return self.bar_contract.bar()
@@ -511,11 +511,11 @@ def foo(contract_address: address) -> int128:
 def test_external_with_payable_value(w3, get_contract_with_gas_estimation):
     contract_1 = """
 @payable
-@public
+@external
 def get_lucky() -> int128:
     return 1
 
-@public
+@external
 def get_balance() -> uint256:
     return self.balance
 """
@@ -526,12 +526,12 @@ interface Bar:
 
 bar_contract: Bar
 
-@public
+@external
 def set_contract(contract_address: address):
     self.bar_contract = Bar(contract_address)
 
 @payable
-@public
+@external
 def get_lucky(amount_to_send: uint256) -> int128:
     if amount_to_send != 0:
         return self.bar_contract.get_lucky(value=amount_to_send)
@@ -568,7 +568,7 @@ def get_lucky(amount_to_send: uint256) -> int128:
 
 def test_external_call_with_gas(assert_tx_failed, get_contract_with_gas_estimation):
     contract_1 = """
-@public
+@external
 def get_lucky() -> int128:
     return 656598
 """
@@ -580,11 +580,11 @@ interface Bar:
 
 bar_contract: Bar
 
-@public
+@external
 def set_contract(contract_address: address):
     self.bar_contract = Bar(contract_address)
 
-@public
+@external
 def get_lucky(gas_amount: uint256) -> int128:
     return self.bar_contract.get_lucky(gas=gas_amount)
 """
@@ -606,7 +606,7 @@ interface Bar:
 
 bar_contract: Bar
 
-@public
+@external
 def get_lucky(amount_to_send: int128) -> int128:
     return self.bar_contract.get_lucky(gass=1)
     """
@@ -633,7 +633,7 @@ FAILING_CONTRACTS_STRUCTURE_EXCEPTION = [
 interface Bar:
     def bar(arg1: int128) -> bool: view
 
-@public
+@external
 def foo(a: address):
     Bar(a).bar(1, 2)
     """,
@@ -642,7 +642,7 @@ def foo(a: address):
 interface Bar:
     def bar(arg1: int128) -> bool: view
 
-@public
+@external
 def foo(a: address):
     Bar(a).bar()
     """,
@@ -651,7 +651,7 @@ def foo(a: address):
 interface Bar:
     def bar() -> bool: view
 
-@public
+@external
 def foo(a: address):
     Bar(a).bar(1)
     """,
@@ -667,11 +667,11 @@ def test_bad_code_struct_exc(assert_compile_failed, get_contract_with_gas_estima
 def test_external_value_arg_without_return(w3, get_contract_with_gas_estimation):
     contract_1 = """
 @payable
-@public
+@external
 def get_lucky():
     pass
 
-@public
+@external
 def get_balance() -> uint256:
     return self.balance
 """
@@ -682,12 +682,12 @@ interface Bar:
 
 bar_contract: Bar
 
-@public
+@external
 def set_contract(contract_address: address):
     self.bar_contract = Bar(contract_address)
 
 @payable
-@public
+@external
 def get_lucky(amount_to_send: uint256):
     if amount_to_send != 0:
         self.bar_contract.get_lucky(value=amount_to_send)
@@ -721,7 +721,7 @@ def get_lucky(amount_to_send: uint256):
 
 def test_tuple_return_external_contract_call(get_contract):
     contract_1 = """
-@public
+@external
 def out_literals() -> (int128, address, bytes[10]):
     return 1, 0x0000000000000000000000000000000000000123, b"random"
     """
@@ -730,7 +730,7 @@ def out_literals() -> (int128, address, bytes[10]):
 interface Test:
     def out_literals() -> (int128, address, bytes[10]) : view
 
-@public
+@external
 def test(addr: address) -> (int128, address, bytes[10]):
     a: int128 = 0
     b: address = ZERO_ADDRESS
@@ -751,7 +751,7 @@ def test_struct_return_external_contract_call(get_contract_with_gas_estimation):
 struct X:
     x: int128
     y: address
-@public
+@external
 def out_literals() -> X:
     return X({x: 1, y: 0x0000000000000000000000000000000000012345})
     """
@@ -763,7 +763,7 @@ struct X:
 interface Test:
     def out_literals() -> X : view
 
-@public
+@external
 def test(addr: address) -> (int128, address):
     ret: X = Test(addr).out_literals()
     return ret.x, ret.y
@@ -778,7 +778,7 @@ def test(addr: address) -> (int128, address):
 
 def test_list_external_contract_call(get_contract, get_contract_with_gas_estimation):
     contract_1 = """
-@public
+@external
 def array() -> int128[3]:
     return [0, 0, 0]
     """
@@ -788,7 +788,7 @@ def array() -> int128[3]:
     contract_2 = """
 interface Foo:
     def array() -> int128[3]: view
-@public
+@external
 def get_array(arg1: address) -> int128[3]:
     return Foo(arg1).array()
 """

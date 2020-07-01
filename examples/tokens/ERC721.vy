@@ -76,7 +76,7 @@ ERC165_INTERFACE_ID: constant(bytes32) = 0x0000000000000000000000000000000000000
 ERC721_INTERFACE_ID: constant(bytes32) = 0x0000000000000000000000000000000000000000000000000000000080ac58cd
 
 
-@public
+@external
 def __init__():
     """
     @dev Contract constructor.
@@ -87,7 +87,7 @@ def __init__():
 
 
 @view
-@public
+@external
 def supportsInterface(_interfaceID: bytes32) -> bool:
     """
     @dev Interface identification is specified in ERC-165.
@@ -99,7 +99,7 @@ def supportsInterface(_interfaceID: bytes32) -> bool:
 ### VIEW FUNCTIONS ###
 
 @view
-@public
+@external
 def balanceOf(_owner: address) -> uint256:
     """
     @dev Returns the number of NFTs owned by `_owner`.
@@ -111,7 +111,7 @@ def balanceOf(_owner: address) -> uint256:
 
 
 @view
-@public
+@external
 def ownerOf(_tokenId: uint256) -> address:
     """
     @dev Returns the address of the owner of the NFT.
@@ -125,7 +125,7 @@ def ownerOf(_tokenId: uint256) -> address:
 
 
 @view
-@public
+@external
 def getApproved(_tokenId: uint256) -> address:
     """
     @dev Get the approved address for a single NFT.
@@ -138,7 +138,7 @@ def getApproved(_tokenId: uint256) -> address:
 
 
 @view
-@public
+@external
 def isApprovedForAll(_owner: address, _operator: address) -> bool:
     """
     @dev Checks if `_operator` is an approved operator for `_owner`.
@@ -151,7 +151,7 @@ def isApprovedForAll(_owner: address, _operator: address) -> bool:
 ### TRANSFER FUNCTION HELPERS ###
 
 @view
-@private
+@internal
 def _isApprovedOrOwner(_spender: address, _tokenId: uint256) -> bool:
     """
     @dev Returns whether the given spender can transfer a given token ID
@@ -167,7 +167,7 @@ def _isApprovedOrOwner(_spender: address, _tokenId: uint256) -> bool:
     return (spenderIsOwner or spenderIsApproved) or spenderIsApprovedForAll
 
 
-@private
+@internal
 def _addTokenTo(_to: address, _tokenId: uint256):
     """
     @dev Add a NFT to a given address
@@ -181,7 +181,7 @@ def _addTokenTo(_to: address, _tokenId: uint256):
     self.ownerToNFTokenCount[_to] += 1
 
 
-@private
+@internal
 def _removeTokenFrom(_from: address, _tokenId: uint256):
     """
     @dev Remove a NFT from a given address
@@ -195,7 +195,7 @@ def _removeTokenFrom(_from: address, _tokenId: uint256):
     self.ownerToNFTokenCount[_from] -= 1
 
 
-@private
+@internal
 def _clearApproval(_owner: address, _tokenId: uint256):
     """
     @dev Clear an approval of a given address
@@ -208,7 +208,7 @@ def _clearApproval(_owner: address, _tokenId: uint256):
         self.idToApprovals[_tokenId] = ZERO_ADDRESS
 
 
-@private
+@internal
 def _transferFrom(_from: address, _to: address, _tokenId: uint256, _sender: address):
     """
     @dev Exeute transfer of a NFT.
@@ -234,7 +234,7 @@ def _transferFrom(_from: address, _to: address, _tokenId: uint256, _sender: addr
 
 ### TRANSFER FUNCTIONS ###
 
-@public
+@external
 def transferFrom(_from: address, _to: address, _tokenId: uint256):
     """
     @dev Throws unless `msg.sender` is the current owner, an authorized operator, or the approved
@@ -251,7 +251,7 @@ def transferFrom(_from: address, _to: address, _tokenId: uint256):
     self._transferFrom(_from, _to, _tokenId, msg.sender)
 
 
-@public
+@external
 def safeTransferFrom(
         _from: address,
         _to: address,
@@ -280,7 +280,7 @@ def safeTransferFrom(
         assert returnValue == method_id("onERC721Received(address,address,uint256,bytes)", output_type=bytes32)
 
 
-@public
+@external
 def approve(_approved: address, _tokenId: uint256):
     """
     @dev Set or reaffirm the approved address for an NFT. The zero address indicates there is no approved address.
@@ -304,7 +304,7 @@ def approve(_approved: address, _tokenId: uint256):
     log Approval(owner, _approved, _tokenId)
 
 
-@public
+@external
 def setApprovalForAll(_operator: address, _approved: bool):
     """
     @dev Enables or disables approval for a third party ("operator") to manage all of
@@ -322,7 +322,7 @@ def setApprovalForAll(_operator: address, _approved: bool):
 
 ### MINT & BURN FUNCTIONS ###
 
-@public
+@external
 def mint(_to: address, _tokenId: uint256) -> bool:
     """
     @dev Function to mint tokens
@@ -343,7 +343,7 @@ def mint(_to: address, _tokenId: uint256) -> bool:
     return True
 
 
-@public
+@external
 def burn(_tokenId: uint256):
     """
     @dev Burns a specific ERC721 token.

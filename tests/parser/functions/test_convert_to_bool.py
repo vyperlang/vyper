@@ -3,7 +3,7 @@ from vyper.exceptions import InvalidType, TypeMismatch
 
 def test_convert_from_bool(get_contract_with_gas_estimation, assert_compile_failed):
     code = """
-@public
+@external
 def foo():
     bar: bool = True
     foobar: bool = convert(bar, bool)
@@ -14,7 +14,7 @@ def foo():
     )
 
     code = """
-@public
+@external
 def foo():
     foobar: bool = convert(False, bool)
     """
@@ -28,29 +28,29 @@ bar: decimal
 nar: decimal
 mar: decimal
 
-@public
+@external
 def foo() -> bool:
     return convert(100.0, bool)
 
-@public
+@external
 def hoo() -> bool:
     return convert(-100.0, bool)
 
-@public
+@external
 def goo() -> bool:
     return convert(0.0, bool)
 
-@public
+@external
 def foobar() -> bool:
     self.bar = 100.0
     return convert(self.bar, bool)
 
-@public
+@external
 def hoonar() -> bool:
     self.nar = -100.0
     return convert(self.nar, bool)
 
-@public
+@external
 def goomar() -> bool:
     self.mar = 0.0
     return convert(self.mar, bool)
@@ -67,20 +67,20 @@ def goomar() -> bool:
 
 def test_convert_from_int128(get_contract_with_gas_estimation):
     code = """
-@public
+@external
 def foo(bar: int128) -> bool:
     foobar: bool = convert(bar, bool)
     return foobar
 
-@public
+@external
 def goo() -> bool:
     return convert(100, bool)
 
-@public
+@external
 def hoo() -> bool:
     return convert(0, bool)
 
-@public
+@external
 def joo() -> bool:
     return convert(-100, bool)
     """
@@ -97,16 +97,16 @@ def joo() -> bool:
 
 def test_convert_from_uint256(get_contract_with_gas_estimation):
     code = """
-@public
+@external
 def foo(bar: uint256) -> bool:
     foobar: bool = convert(bar, bool)
     return foobar
 
-@public
+@external
 def goo() -> bool:
     return convert(-100, bool)
 
-@public
+@external
 def hoo() -> bool:
     return convert(100, bool)
     """
@@ -121,16 +121,16 @@ def hoo() -> bool:
 
 def test_convert_from_bytes32(get_contract_with_gas_estimation):
     code = """
-@public
+@external
 def foo(bar: bytes32) -> bool:
     foobar: bool = convert(bar, bool)
     return foobar
 
-@public
+@external
 def goo() -> bool:
     return convert(0x0000000000000000000000000000000000000000000000000000000000000000, bool)
 
-@public
+@external
 def hoo() -> bool:
     return convert(0x000000000FFF0000000000000000000000000000FF0000000000000000000FFF, bool)
     """
@@ -145,11 +145,11 @@ def hoo() -> bool:
 
 def test_convert_from_bytes(get_contract_with_gas_estimation, assert_compile_failed):
     code = """
-@public
+@external
 def foo(bar: bytes[5]) -> bool:
     return convert(bar, bool)
 
-@public
+@external
 def goo(nar: bytes[32]) -> bool:
     return convert(nar, bool)
     """
@@ -166,7 +166,7 @@ def goo(nar: bytes[32]) -> bool:
     assert c.goo(b"\xff" * 32) is True
 
     code = """
-@public
+@external
 def foo(bar: bytes[33]) -> bool:
     return convert(bar, bool)
     """
@@ -174,7 +174,7 @@ def foo(bar: bytes[33]) -> bool:
     assert_compile_failed(lambda: get_contract_with_gas_estimation(code), TypeMismatch)
 
     code = """
-@public
+@external
 def foo() -> bool:
     bar: bytes[63] = b"Hello darkness, my old friend I've come to talk with you again."
     return convert(bar, bool)
@@ -187,16 +187,16 @@ def foo() -> bool:
 
 def test_convert_from_address(w3, get_contract_with_gas_estimation):
     code = """
-@public
+@external
 def test_address_to_bool(val: address) -> bool:
     temp: bool = convert(val, bool)
     return temp
 
-@public
+@external
 def test_literal_zero_address() -> bool:
     return convert(ZERO_ADDRESS, bool)
 
-@public
+@external
 def test_sender() -> bool:
     return convert(msg.sender, bool)
     """

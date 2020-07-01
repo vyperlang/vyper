@@ -10,7 +10,7 @@ event Bar:
 
 x: decimal[4]
 
-@public
+@external
 def foo():
     log Bar(self.x)
     """,
@@ -18,7 +18,7 @@ def foo():
 event Bar:
     _value: int128[4]
 
-@public
+@external
 def foo():
     x: decimal[4] = [0.0, 0.0, 0.0, 0.0]
     log Bar(x)
@@ -28,7 +28,7 @@ def foo():
 event Test:
     n: uint256
 
-@public
+@external
 def test():
     log Test(-7)
    """,

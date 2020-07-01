@@ -12,14 +12,14 @@ goal: public(uint256)
 refundIndex: int128
 timelimit: public(uint256)
 
-@public
+@external
 def __init__(_beneficiary: address, _goal: uint256, _timelimit: uint256):
     self.beneficiary = _beneficiary
     self.deadline = block.timestamp + _timelimit
     self.timelimit = _timelimit
     self.goal = _goal
 
-@public
+@external
 @payable
 def participate():
     assert block.timestamp < self.deadline
@@ -28,27 +28,27 @@ def participate():
     self.funders[nfi].value = msg.value
     self.nextFunderIndex = nfi + 1
 
-@public
+@external
 @view
 def expired() -> bool:
     return block.timestamp >= self.deadline
 
-@public
+@external
 @view
 def block_timestamp() -> uint256:
     return block.timestamp
 
-@public
+@external
 @view
 def reached() -> bool:
     return self.balance >= self.goal
 
-@public
+@external
 def finalize():
     assert block.timestamp >= self.deadline and self.balance >= self.goal
     selfdestruct(self.beneficiary)
 
-@public
+@external
 def refund():
     ind: int128 = self.refundIndex
     for i in range(ind, ind + 30):
@@ -105,14 +105,14 @@ goal: uint256
 refundIndex: int128
 timelimit: public(uint256)
 
-@public
+@external
 def __init__(_beneficiary: address, _goal: uint256, _timelimit: uint256):
     self.beneficiary = _beneficiary
     self.deadline = block.timestamp + _timelimit
     self.timelimit = _timelimit
     self.goal = _goal
 
-@public
+@external
 @payable
 def participate():
     assert block.timestamp < self.deadline
@@ -120,27 +120,27 @@ def participate():
     self.funders[nfi] = Funder({sender: msg.sender, value: msg.value})
     self.nextFunderIndex = nfi + 1
 
-@public
+@external
 @view
 def expired() -> bool:
     return block.timestamp >= self.deadline
 
-@public
+@external
 @view
 def block_timestamp() -> uint256:
     return block.timestamp
 
-@public
+@external
 @view
 def reached() -> bool:
     return self.balance >= self.goal
 
-@public
+@external
 def finalize():
     assert block.timestamp >= self.deadline and self.balance >= self.goal
     selfdestruct(self.beneficiary)
 
-@public
+@external
 def refund():
     ind: int128 = self.refundIndex
     for i in range(ind, ind + 30):

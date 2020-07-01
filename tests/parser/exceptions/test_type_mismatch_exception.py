@@ -6,7 +6,7 @@ from vyper.exceptions import TypeMismatch
 
 fail_list = [
     """
-@public
+@external
 def foo():
     b: bytes[1] = 0x05
     x: uint256 = as_wei_value(b, "babbage")

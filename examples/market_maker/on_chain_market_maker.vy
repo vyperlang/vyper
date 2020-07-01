@@ -11,7 +11,7 @@ owner: public(address)
 
 # Sets the on chain market maker with its owner, intial token quantity,
 # and initial ether quantity
-@public
+@external
 @payable
 def initiate(token_addr: address, token_quantity: uint256):
     assert self.invariant == 0
@@ -24,7 +24,7 @@ def initiate(token_addr: address, token_quantity: uint256):
     assert self.invariant > 0
 
 # Sells ether to the contract in exchange for tokens (minus a fee)
-@public
+@external
 @payable
 def ethToTokens():
     fee: uint256 = msg.value / 500
@@ -36,7 +36,7 @@ def ethToTokens():
     self.totalTokenQty = new_total_tokens
 
 # Sells tokens to the contract in exchange for ether
-@public
+@external
 def tokensToEth(sell_quantity: uint256):
     self.token_address.transferFrom(msg.sender, self, sell_quantity)
     new_total_tokens: uint256 = self.totalTokenQty + sell_quantity
@@ -47,7 +47,7 @@ def tokensToEth(sell_quantity: uint256):
     self.totalTokenQty = new_total_tokens
 
 # Owner can withdraw their funds and destroy the market maker
-@public
+@external
 def ownerWithdraw():
     assert self.owner == msg.sender
     self.token_address.transfer(self.owner, self.totalTokenQty)

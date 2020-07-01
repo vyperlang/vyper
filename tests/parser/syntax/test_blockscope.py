@@ -6,14 +6,14 @@ from vyper.exceptions import NamespaceCollision, UndeclaredDefinition
 
 fail_list = [
     """
-@public
+@external
 def foo(choice: bool):
     if (choice):
         a: int128 = 1
     a += 1
     """,
     """
-@public
+@external
 def foo(choice: bool):
     if (choice):
         a: int128 = 0
@@ -22,7 +22,7 @@ def foo(choice: bool):
     a += 1
     """,
     """
-@public
+@external
 def foo(choice: bool):
     if (choice):
         a: int128 = 0
@@ -30,7 +30,7 @@ def foo(choice: bool):
         a += 1
     """,
     """
-@public
+@external
 def foo(choice: bool):
 
     for i in range(4):
@@ -38,7 +38,7 @@ def foo(choice: bool):
     a = 1
     """,
     """
-@public
+@external
 def foo(choice: bool):
 
     for i in range(4):
@@ -59,7 +59,7 @@ fail_list_collision = [
     """
 a: int128
 
-@public
+@external
 def foo():
     a: int128 = 5
     """
@@ -75,7 +75,7 @@ def test_fail_collision(bad_code):
 
 valid_list = [
     """
-@public
+@external
 def foo(choice: bool, choice2: bool):
     if (choice):
         a: int128 = 11
@@ -83,7 +83,7 @@ def foo(choice: bool, choice2: bool):
             a -= 1  # should be visible here.
     """,
     """
-@public
+@external
 def foo(choice: bool):
     if choice:
         a: int128 = 44

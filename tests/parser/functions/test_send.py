@@ -1,10 +1,10 @@
 def test_send(assert_tx_failed, get_contract):
     send_test = """
-@public
+@external
 def foo():
     send(msg.sender, self.balance + 1)
 
-@public
+@external
 def fop():
     send(msg.sender, 10)
     """
@@ -16,7 +16,7 @@ def fop():
 
 def test_payable_tx_fail(assert_tx_failed, get_contract, w3):
     code = """
-@public
+@external
 def pay_me() -> bool:
     return True
     """
@@ -32,11 +32,11 @@ def test_default_gas(get_contract, w3):
     """
 
     sender_code = """
-@public
+@external
 def test_send(receiver: address):
     send(receiver, 1)
 
-@public
+@external
 def test_call(receiver: address):
     raw_call(receiver, b"", gas=50000, max_outsize=0, value=1)
     """
@@ -45,7 +45,7 @@ def test_call(receiver: address):
     receiver_code = """
 last_sender: public(address)
 
-@public
+@external
 @payable
 def __default__():
     self.last_sender = msg.sender

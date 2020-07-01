@@ -3,7 +3,7 @@ from decimal import Decimal
 
 def test_break_test(get_contract_with_gas_estimation):
     break_test = """
-@public
+@external
 def foo(n: decimal) -> int128:
     c: decimal = n * 1.0
     output: int128 = 0
@@ -27,7 +27,7 @@ def foo(n: decimal) -> int128:
 
 def test_break_test_2(get_contract_with_gas_estimation):
     break_test_2 = """
-@public
+@external
 def foo(n: decimal) -> int128:
     c: decimal = n * 1.0
     output: int128 = 0
@@ -55,7 +55,7 @@ def foo(n: decimal) -> int128:
 
 def test_break_test_3(get_contract_with_gas_estimation):
     break_test_3 = """
-@public
+@external
 def foo(n: int128) -> int128:
     c: decimal = convert(n, decimal)
     output: int128 = 0

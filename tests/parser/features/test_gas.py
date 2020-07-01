@@ -4,7 +4,7 @@ from vyper.parser.parser import parse_to_lll
 
 def test_gas_call(get_contract_with_gas_estimation):
     gas_call = """
-@public
+@external
 def foo() -> uint256:
     return msg.gas
     """
@@ -21,7 +21,7 @@ def test_gas_estimate_repr():
     code = """
 x: int128
 
-@public
+@external
 def __init__():
     self.x = 1
     """

@@ -1,14 +1,14 @@
 def test_hash_code(get_contract_with_gas_estimation, keccak):
     hash_code = """
-@public
+@external
 def foo(inp: bytes[100]) -> bytes32:
     return keccak256(inp)
 
-@public
+@external
 def foob() -> bytes32:
     return keccak256(b"inp")
 
-@public
+@external
 def bar() -> bytes32:
     return keccak256("inp")
     """
@@ -23,7 +23,7 @@ def bar() -> bytes32:
 
 def test_hash_code2(get_contract_with_gas_estimation):
     hash_code2 = """
-@public
+@external
 def foo(inp: bytes[100]) -> bool:
     return keccak256(inp) == keccak256("badminton")
     """
@@ -36,24 +36,24 @@ def test_hash_code3(get_contract_with_gas_estimation):
     hash_code3 = """
 test: bytes[100]
 
-@public
+@external
 def set_test(inp: bytes[100]):
     self.test = inp
 
-@public
+@external
 def tryy(inp: bytes[100]) -> bool:
     return keccak256(inp) == keccak256(self.test)
 
-@public
+@external
 def tryy_str(inp: string[100]) -> bool:
     return keccak256(inp) == keccak256(self.test)
 
-@public
+@external
 def trymem(inp: bytes[100]) -> bool:
     x: bytes[100] = self.test
     return keccak256(inp) == keccak256(x)
 
-@public
+@external
 def try32(inp: bytes32) -> bool:
     return keccak256(inp) == keccak256(self.test)
 

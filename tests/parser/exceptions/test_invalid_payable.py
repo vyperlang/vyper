@@ -6,7 +6,7 @@ from vyper.exceptions import NonPayableViolation
 
 fail_list = [
     """
-@public
+@external
 def foo():
     x: uint256 = msg.value
 """
@@ -22,14 +22,14 @@ def test_variable_decleration_exception(bad_code):
 valid_list = [
     """
 x: int128
-@public
+@external
 @payable
 def foo() -> int128:
     self.x = 5
     return self.x
     """,
     """
-@public
+@external
 @payable
 def foo():
     x: uint256 = msg.value

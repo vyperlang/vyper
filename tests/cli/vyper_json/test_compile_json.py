@@ -11,13 +11,13 @@ from vyper.exceptions import JSONError
 FOO_CODE = """
 import contracts.bar as Bar
 
-@public
+@external
 def foo(a: address) -> bool:
     return Bar(a).bar(1)
 """
 
 BAR_CODE = """
-@public
+@external
 def bar(a: uint256) -> bool:
     return True
 """

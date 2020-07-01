@@ -6,7 +6,7 @@ from vyper.exceptions import InvalidType, SyntaxException, TypeMismatch
 fail_list = [
     (
         """
-@public
+@external
 def foo():
     x: bytes[9] = raw_call(
         0x1234567890123456789012345678901234567890, b"cow", max_outsize=4, max_outsize=9
@@ -16,20 +16,20 @@ def foo():
     ),
     (
         """
-@public
+@external
 def foo():
     raw_log([b"cow"], b"dog")
     """,
         InvalidType,
     ),
     """
-@public
+@external
 def foo():
     raw_log([], 0x1234567890123456789012345678901234567890)
     """,
     (
         """
-@public
+@external
 def foo():
     # fails because raw_call without max_outsize does not return a value
     x: bytes[9] = raw_call(0x1234567890123456789012345678901234567890, b"cow")
@@ -52,7 +52,7 @@ def test_raw_call_fail(bad_code):
 
 valid_list = [
     """
-@public
+@external
 def foo():
     x: bytes[9] = raw_call(
         0x1234567890123456789012345678901234567890,
@@ -62,7 +62,7 @@ def foo():
     )
     """,
     """
-@public
+@external
 def foo():
     x: bytes[9] = raw_call(
         0x1234567890123456789012345678901234567890,
@@ -73,7 +73,7 @@ def foo():
     )
     """,
     """
-@public
+@external
 def foo():
     x: bytes[9] = raw_call(
         0x1234567890123456789012345678901234567890,
@@ -84,7 +84,7 @@ def foo():
     )
     """,
     """
-@public
+@external
 def foo():
     raw_call(0x1234567890123456789012345678901234567890, b"cow")
     """,

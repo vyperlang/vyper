@@ -43,46 +43,46 @@ Functions are the executable units of code within a contract.
 
 .. code-block:: python
 
-    @public
+    @external
     @payable
     def bid(): // Function
         // ...
 
 Function calls can happen internally or externally and have different levels of visibility (see
-:ref:`structure-decorators`) towards other contracts. Functions must be explicitely declared as public or private.
+:ref:`structure-decorators`) towards other contracts. Functions must be explicitely declared as external or internal.
 
-Public Functions
+External Functions
 ----------------
 
 
-Public functions (decorated with ``@public``) are a part of the contract interface and may be called via transactions or from other contracts. Public functions in Vyper are equivalent to external functions in Solidity.
+External functions (decorated with ``@external``) are a part of the contract interface and may be called via transactions or from other contracts. External functions in Vyper are equivalent to external functions in Solidity.
 
 .. code-block:: python
 
-    @public
+    @external
     def add_seven(a: int128) -> int128:
         return a + 7
 
-A vyper contract cannot call directly between two public functions. If you must do this, you can use an :ref:`interface <contract_structure-interfaces>`.
+A vyper contract cannot call directly between two external functions. If you must do this, you can use an :ref:`interface <contract_structure-interfaces>`.
 
-.. _structure-functions-private:
+.. _structure-functions-internal:
 
-Private Functions
------------------
+Internal Functions
+------------------
 
-Private functions (decorated with ``@private``) are only accessible from other functions within the same contract. They are called via the :ref:`self<constants-self>` variable:
+Internal functions (decorated with ``@internal``) are only accessible from other functions within the same contract. They are called via the :ref:`self<constants-self>` variable:
 
 .. code-block:: python
 
-    @private
+    @internal
     def _times_two(amount: uint256) -> uint256:
         return amount * 2
 
-    @public
+    @external
     def calculate(amount: uint256) -> uint256:
         return self._times_two(amount)
 
-Private functions do not have access to ``msg.sender`` or ``msg.value``. If you require these values within a private function they must be passed as parameters.
+Internal functions do not have access to ``msg.sender`` or ``msg.value``. If you require these values within an internal function they must be passed as parameters.
 
 .. _structure-decorators:
 
@@ -99,8 +99,8 @@ The following decorators are available:
 =============================== ===========================================================
 Decorator                       Description
 =============================== ===========================================================
-``@public``                     Can only be called externally.
-``@private``                    Can only be called within current contract.
+``@external``                   Can only be called externally.
+``@internal``                   Can only be called within current contract.
 ``@pure``                       Does not read from contract state or environment variables.
 ``@view``                       Does not alter contract state.
 ``@payable``                    The contract is open to receive Ether.
@@ -109,14 +109,14 @@ Decorator                       Description
                                 prevent reentrancy attacks.
 =============================== ===========================================================
 
-The visibility decorators ``@public`` or ``@private`` are mandatory on function declarations, whilst the other decorators(``@view``, ``@payable``, ``@nonreentrant``, ``@pure``) are optional.
+The visibility decorators ``@external`` or ``@internal`` are mandatory on function declarations, whilst the other decorators(``@view``, ``@payable``, ``@nonreentrant``, ``@pure``) are optional.
 
 Default function
 ----------------
 
 A contract can also have a default function, which is executed on a call to the contract if no other functions match the given function identifier (or if none was supplied at all, such as through someone sending it Eth). It is the same construct as fallback functions `in Solidity <https://solidity.readthedocs.io/en/latest/contracts.html?highlight=fallback#fallback-function>`_.
 
-This function is always named ``__default__`` and must be annotated with ``@public``. It cannot have arguments and cannot return anything.
+This function is always named ``__default__`` and must be annotated with ``@external``. It cannot have arguments and cannot return anything.
 
 If the function is annotated as ``@payable``, this function is executed whenever the contract is sent Ether (without data). This is why the default function cannot accept arguments and return values - it is a design decision of Ethereum to make no differentiation between sending ether to a contract or a user address.
 
@@ -128,7 +128,7 @@ If the function is annotated as ``@payable``, this function is executed whenever
         amount: int128
         sender: indexed(address)
 
-    @public
+    @external
     @payable
     def __default__():
         log Payment(msg.value, msg.sender)
@@ -168,7 +168,7 @@ Events may be logged in specially indexed data structures that allow clients, in
 
     total_paid: int128
 
-    @public
+    @external
     @payable
     def pay():
         self.total_paid += msg.value
@@ -186,11 +186,11 @@ This documentation is segmented into developer-focused messages and end-user-fac
 Example
 -------
 
-Vyper supports structured documentation for contracts and public functions using the doxygen notation format.
+Vyper supports structured documentation for contracts and external functions using the doxygen notation format.
 
 .. note::
 
-    The compiler does not parse docstrings of private functions. You are welcome to NatSpec in comments for private functions, however they are not processed or included in the compiler output.
+    The compiler does not parse docstrings of internal functions. You are welcome to NatSpec in comments for internal functions, however they are not processed or included in the compiler output.
 
 
 .. code-block:: python
@@ -205,7 +205,7 @@ Vyper supports structured documentation for contracts and public functions using
         the throat to be considered eaten
     """
 
-    @public
+    @external
     @payable
     def doesEat(food: string[30], qty: uint256) -> bool:
         """
@@ -303,7 +303,7 @@ file should also be produced and should look like this:
 Contract Interfaces
 ===================
 
-An interface is a set of function definitions used to enable communication between smart contracts. A contract interface defines all of that contract's publicly available functions. By importing the interface, your contract now knows how to call these functions in other contracts.
+An interface is a set of function definitions used to enable communication between smart contracts. A contract interface defines all of that contract's externally available functions. By importing the interface, your contract now knows how to call these functions in other contracts.
 
 Defining Interfaces and Making External Calls
 ---------------------------------------------
@@ -322,7 +322,7 @@ The defined interface can then be use to make external calls, given a contract a
 
 .. code-block:: python
 
-    @public
+    @external
     def test(some_address: address):
         FooBar(some_address).calculate()
 
@@ -332,11 +332,11 @@ The interface name can also be used as a type annotation for storage variables. 
 
     foobar_contract: FooBar
 
-    @public
+    @external
     def __init__(foobar_address: address):
         self.foobar_contract = FooBar(foobar_address)
 
-    @public
+    @external
     def test():
         self.foobar_contract.calculate()
 
@@ -350,7 +350,7 @@ Specifying ``payable`` or ``nonpayable`` annotation indicates that the call made
         def update(): nonpayable
         def pay(): payable
 
-    @public
+    @external
     def test(some_address: address):
         FooBar(some_address).calculate()  # cannot change storage
         FooBar(some_address).query()  # cannot change storage, but reads itself
@@ -367,11 +367,11 @@ Imported interfaces are written using standard Vyper syntax, with the body of ea
 
 .. code-block:: python
 
-    @public
+    @external
     def test1():
         pass
 
-    @public
+    @external
     def calculate() -> uint256:
         pass
 
@@ -443,7 +443,7 @@ You can define an interface for your contract with the ``implements`` statement:
     implements: FooBarInterface
 
 
-This imports the defined interface from the vyper file at ``an_interface.vy`` (or ``an_interface.json`` if using ABI json interface type) and ensures your current contract implements all the necessary public functions. If any interface functions are not included in the contract, it will fail to compile. This is especially useful when developing contracts around well-defined standards such as ERC20.
+This imports the defined interface from the vyper file at ``an_interface.vy`` (or ``an_interface.json`` if using ABI json interface type) and ensures your current contract implements all the necessary external functions. If any interface functions are not included in the contract, it will fail to compile. This is especially useful when developing contracts around well-defined standards such as ERC20.
 
 Extracting Interfaces
 ---------------------
@@ -457,7 +457,7 @@ Vyper has a built-in format option to allow you to make your own vyper interface
     # Functions
 
     @view
-    @public
+    @external
     def delegated(addr: address) -> bool:
         pass
 

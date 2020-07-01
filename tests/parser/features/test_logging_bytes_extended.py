@@ -5,7 +5,7 @@ event MyLog:
     arg2: bytes[64]
     arg3: int128
 
-@public
+@external
 def foo():
     log MyLog(667788, b'hellohellohellohellohellohellohellohellohello', 334455)
     """
@@ -25,7 +25,7 @@ event MyLog:
     arg2: bytes[64]
     arg3: bytes[64]
 
-@public
+@external
 def foo():
     a: bytes[64] = b'hellohellohellohellohellohellohellohellohello'
     b: bytes[64] = b'hellohellohellohellohellohellohellohello'
@@ -48,7 +48,7 @@ event MyLog:
     arg2: bytes[64]
     arg3: int128
 
-@public
+@external
 def foo(a: int128, b: bytes[64], c: int128):
     log MyLog(a, b, c)
     """
@@ -73,11 +73,11 @@ a: int128
 b: bytes[64]
 c: int128
 
-@public
+@external
 def foo():
     log MyLog(self.a, self.b, self.c)
 
-@public
+@external
 def set(x: int128, y: bytes[64], z: int128):
     self.a = x
     self.b = y
@@ -109,7 +109,7 @@ event MyLog:
     arg3: int128
     arg4: bytes[64]
 
-@public
+@external
 def foo():
     log MyLog(
         [[24, 26], [12, 10]],

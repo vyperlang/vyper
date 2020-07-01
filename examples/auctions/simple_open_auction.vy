@@ -19,7 +19,7 @@ pendingReturns: public(HashMap[address, uint256])
 # Create a simple auction with `_bidding_time`
 # seconds bidding time on behalf of the
 # beneficiary address `_beneficiary`.
-@public
+@external
 def __init__(_beneficiary: address, _bidding_time: uint256):
     self.beneficiary = _beneficiary
     self.auctionStart = block.timestamp
@@ -29,7 +29,7 @@ def __init__(_beneficiary: address, _bidding_time: uint256):
 # together with this transaction.
 # The value will only be refunded if the
 # auction is not won.
-@public
+@external
 @payable
 def bid():
     # Check if bidding period is over.
@@ -46,7 +46,7 @@ def bid():
 # used here to avoid a security issue. If refunds were directly
 # sent as part of bid(), a malicious bidding contract could block
 # those refunds and thus block new higher bids from coming in.
-@public
+@external
 def withdraw():
     pending_amount: uint256 = self.pendingReturns[msg.sender]
     self.pendingReturns[msg.sender] = 0
@@ -54,7 +54,7 @@ def withdraw():
 
 # End the auction and send the highest bid
 # to the beneficiary.
-@public
+@external
 def endAuction():
     # It is a good guideline to structure functions that interact
     # with other contracts (i.e. they call functions or send Ether)

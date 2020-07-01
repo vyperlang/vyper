@@ -15,30 +15,30 @@ send(0x1234567890123456789012345678901234567890, 5)
     """,
     """
 x: int128
-@public
+@external
 @view(123)
 def foo() -> int128:
     pass
     """,
     """
-@public
+@external
 def foo():
     throe
     """,
     """
-@public
+@external
 def foo() -> int128:
     x: address = 0x1234567890123456789012345678901234567890
     return x.balance()
     """,
     """
-@public
+@external
 def foo() -> int128:
     x: address = 0x1234567890123456789012345678901234567890
     return x.codesize()
     """,
     """
-@public
+@external
 @nonreentrant("B")
 @nonreentrant("C")
 def double_nonreentrant():
@@ -52,7 +52,7 @@ struct X:
 b: HashMap[(int128, decimal), int128]
     """,
     """
-@public
+@external
 @nonreentrant("B")
 @nonreentrant("C")
 def double_nonreentrant():

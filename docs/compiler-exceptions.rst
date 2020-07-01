@@ -24,7 +24,7 @@ of the error within the code:
 
 .. py:exception:: CallViolation
 
-    Raises on an illegal function call, such as attempting to call between two public functions.
+    Raises on an illegal function call, such as attempting to call between two external functions.
 
 .. py:exception:: ArrayIndexException
 
@@ -60,7 +60,7 @@ of the error within the code:
 
     .. code-block:: python
 
-        @public
+        @external
         def foo():
             bar: decimal = 3.123456789123456789
 
@@ -72,7 +72,7 @@ of the error within the code:
 
     .. code-block:: python
 
-        @public
+        @external
         def foo():
             a: string[10] = "hello" * 2
 
@@ -86,7 +86,7 @@ of the error within the code:
 
         baz: int128
 
-        @public
+        @external
         def foo():
             bar: int128 = baz
 
@@ -98,7 +98,7 @@ of the error within the code:
 
     .. code-block:: python
 
-        @public
+        @external
         def foo():
             bar: int128 = 3.5
 
@@ -130,11 +130,11 @@ of the error within the code:
 
 .. py:exception:: NonPayableViolation
 
-    Raises when attempting to access ``msg.value`` from within a private function.
+    Raises when attempting to access ``msg.value`` from within a function that has not been marked as ``@payable``.
 
     .. code-block:: python
 
-        @private
+        @public
         def _foo():
             bar: uint256 = msg.value
 
@@ -176,7 +176,7 @@ of the error within the code:
 
     .. code-block:: python
 
-        @public
+        @external
         def foo(:
             bar: int128 = 3
             foo: decimal = 4.2

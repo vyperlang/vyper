@@ -4,19 +4,19 @@ from vyper import compiler
 
 valid_list = [
     """
-@public
+@external
 def foo():
     for i in range(10):
         pass
     """,
     """
-@public
+@external
 def foo():
     for i in range(10, 20):
         pass
     """,
     """
-@public
+@external
 def foo():
     x: int128 = 5
     for i in range(x, x + 10):

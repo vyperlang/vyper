@@ -8,7 +8,7 @@ from vyper.opcodes import EVM_VERSIONS
 @pytest.mark.parametrize("evm_version", list(EVM_VERSIONS))
 def test_evm_version(evm_version):
     code = """
-@public
+@external
 def foo():
     a: uint256 = chain.id
     """
@@ -23,21 +23,21 @@ def foo():
 fail_list = [
     (
         """
-@public
+@external
 def foo() -> int128[2]:
     return [3,chain.id]
     """,
         InvalidType,
     ),
     """
-@public
+@external
 def foo() -> decimal:
     x: int128 = as_wei_value(5, "finney")
     y: int128 = chain.id + 50
     return x / y
     """,
     """
-@public
+@external
 def foo():
     x: int128 = 7
     y: int128 = min(x, chain.id)
@@ -45,20 +45,20 @@ def foo():
     """
 a: HashMap[uint256, int128]
 
-@public
+@external
 def add_record():
     self.a[chain.id] = chain.id + 20
     """,
     """
 a: HashMap[int128, uint256]
 
-@public
+@external
 def add_record():
     self.a[chain.id] = chain.id + 20
     """,
     (
         """
-@public
+@external
 def foo(inp: bytes[10]) -> bytes[3]:
     return slice(inp, chain.id, -3)
     """,
@@ -80,13 +80,13 @@ def test_chain_fail(bad_code):
 
 valid_list = [
     """
-@public
+@external
 @view
 def get_chain_id() -> uint256:
     return chain.id
     """,
     """
-@public
+@external
 @view
 def check_chain_id(c: uint256) -> bool:
     return chain.id == c
@@ -101,7 +101,7 @@ def test_chain_success(good_code):
 
 def test_chainid_operation(get_contract_with_gas_estimation):
     code = """
-@public
+@external
 @view
 def get_chain_id() -> uint256:
     return chain.id

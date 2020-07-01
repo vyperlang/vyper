@@ -5,7 +5,7 @@ from vyper.exceptions import StructureException
 
 fail_list = [
     """
-@public
+@external
 def foo() -> int128:
     x: int128 = 45
     return x.codesize
@@ -22,7 +22,7 @@ def test_block_fail(bad_code):
 
 valid_list = [
     """
-@public
+@external
 def foo() -> int128:
     x: address = 0x1234567890123456789012345678901234567890
     return x.codesize
