@@ -142,11 +142,20 @@ def build_primitive_from_node(
 def _get_module_functions(base_node: vy_ast.Module) -> OrderedDict:
     functions = OrderedDict()
     for node in base_node.get_children(vy_ast.FunctionDef):
+        if node.name in functions:
+            raise NamespaceCollision(
+                f"Interface contains multiple functions named '{node.name}'", base_node
+            )
         if "external" in [i.id for i in node.decorator_list]:
             func = ContractFunction.from_FunctionDef(node, include_defaults=True)
             functions[node.name] = func
     for node in base_node.get_children(vy_ast.AnnAssign, {"annotation.func.id": "public"}):
-        functions[node.target.id] = ContractFunction.from_AnnAssign(node)
+        name = node.target.id
+        if name in functions:
+            raise NamespaceCollision(
+                f"Interface contains multiple functions named '{name}'", base_node
+            )
+        functions[name] = ContractFunction.from_AnnAssign(node)
     return functions
 
 
@@ -155,7 +164,10 @@ def _get_class_functions(base_node: vy_ast.InterfaceDef) -> OrderedDict:
     for node in base_node.body:
         if not isinstance(node, vy_ast.FunctionDef):
             raise StructureException("Interfaces can only contain function definitions", node)
-
+        if node.name in functions:
+            raise NamespaceCollision(
+                f"Interface contains multiple functions named '{node.name}'", node
+            )
         functions[node.name] = ContractFunction.from_FunctionDef(node, is_interface=True)
 
     return functions
