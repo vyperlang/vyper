@@ -12,6 +12,7 @@ from vyper.types import (
     ListType,
     TupleLike,
     get_size_of_type,
+    get_static_size_of_type,
 )
 
 
@@ -33,10 +34,10 @@ def external_call(node, context, interface_name, contract_address, pos, value=No
         is_external_call=True,
     )
     output_placeholder, output_size, returner = get_external_call_output(sig, context)
-    sub = [
-        "seq",
-        ["assert", ["extcodesize", contract_address]],
-    ]
+    sub = ["seq"]
+    if not output_size:
+        # if we are not expecting return data, check that a contract exists at the target address
+        sub.append(["assert", ["extcodesize", contract_address]])
     if context.is_constant() and sig.mutability not in ("view", "pure"):
         # TODO this can probably go
         raise StateAccessViolation(
@@ -76,9 +77,13 @@ def external_call(node, context, interface_name, contract_address, pos, value=No
                 ],
             ]
         )
+    if output_size:
+        # when return data is expected, revert if the length is insufficient
+        static_output_size = get_static_size_of_type(sig.output_type) * 32
+        sub.append(["assert", ["gt", "returndatasize", static_output_size - 1]])
     sub.extend(returner)
-    o = LLLnode.from_list(sub, typ=sig.output_type, location="memory", pos=getpos(node))
-    return o
+
+    return LLLnode.from_list(sub, typ=sig.output_type, location="memory", pos=getpos(node))
 
 
 def get_external_call_output(sig, context):
