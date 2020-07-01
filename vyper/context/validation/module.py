@@ -16,6 +16,7 @@ from vyper.exceptions import (
     CallViolation,
     CompilerPanic,
     ExceptionList,
+    NamespaceCollision,
     StateAccessViolation,
     UndeclaredDefinition,
     VariableDeclarationException,
@@ -166,6 +167,8 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
             )
         try:
             self.namespace["self"].add_member(name, type_definition)
+        except NamespaceCollision:
+            raise NamespaceCollision(f"Value '{name}' has already been declared", node) from None
         except VyperException as exc:
             raise exc.with_annotation(node) from None
 
