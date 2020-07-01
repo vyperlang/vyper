@@ -1,30 +1,93 @@
-def test_wei_conversion(get_contract_with_gas_estimation):
-    test_wei = """
-@external
-def return_2_finney() -> uint256:
-    return as_wei_value(2, "finney")
+from decimal import Decimal
 
-@external
-def return_3_finney() -> uint256:
-    return as_wei_value(2 + 1, "finney")
+import pytest
 
-@external
-def return_2p5_ether() -> uint256:
-    return as_wei_value(2.5, "ether")
+wei_denoms = {
+    "femtoether": 3,
+    "kwei": 3,
+    "babbage": 3,
+    "picoether": 6,
+    "mwei": 6,
+    "lovelace": 6,
+    "nanoether": 9,
+    "gwei": 9,
+    "shannon": 9,
+    "microether": 12,
+    "szabo": 12,
+    "milliether": 15,
+    "finney": 15,
+    "ether": 18,
+    "kether": 21,
+    "grand": 21,
+}
 
-@external
-def return_3p5_ether() -> uint256:
-    return as_wei_value(2.5 + 1.0, "ether")
 
+@pytest.mark.parametrize("denom,multiplier", wei_denoms.items())
+def test_wei_uint256(get_contract, assert_tx_failed, denom, multiplier):
+    code = f"""
 @external
-def return_2pow64_wei() -> uint256:
-    return as_wei_value(18446744073.709551616, "gwei")
+def foo(a: uint256) -> uint256:
+    return as_wei_value(a, "{denom}")
     """
 
-    c = get_contract_with_gas_estimation(test_wei)
+    c = get_contract(code)
 
-    assert c.return_2_finney() == 2 * 10 ** 15
-    assert c.return_3_finney() == 3 * 10 ** 15, c.return_3_finney()
-    assert c.return_2p5_ether() == 2.5 * 10 ** 18
-    assert c.return_3p5_ether() == 3.5 * 10 ** 18
-    assert c.return_2pow64_wei() == 2 ** 64
+    value = (2 ** 256 - 1) // (10 ** multiplier)
+    assert c.foo(value) == value * (10 ** multiplier)
+
+    value = (2 ** 256 - 1) // (10 ** (multiplier - 1))
+    assert_tx_failed(lambda: c.foo(value))
+
+
+@pytest.mark.parametrize("denom,multiplier", wei_denoms.items())
+def test_wei_int128(get_contract, assert_tx_failed, denom, multiplier):
+    code = f"""
+@external
+def foo(a: int128) -> uint256:
+    return as_wei_value(a, "{denom}")
+    """
+
+    c = get_contract(code)
+    value = (2 ** 127 - 1) // (10 ** multiplier)
+
+    assert c.foo(value) == value * (10 ** multiplier)
+
+
+@pytest.mark.parametrize("denom,multiplier", wei_denoms.items())
+def test_wei_decimal(get_contract, assert_tx_failed, denom, multiplier):
+    code = f"""
+@external
+def foo(a: decimal) -> uint256:
+    return as_wei_value(a, "{denom}")
+    """
+
+    c = get_contract(code)
+    value = Decimal((2 ** 127 - 1) / (10 ** multiplier))
+
+    assert c.foo(value) == value * (10 ** multiplier)
+
+
+@pytest.mark.parametrize("value", (-1, -(2 ** 127)))
+@pytest.mark.parametrize("data_type", ["decimal", "int128"])
+def test_negative_value_reverts(get_contract, assert_tx_failed, value, data_type):
+    code = f"""
+@external
+def foo(a: {data_type}) -> uint256:
+    return as_wei_value(a, "ether")
+    """
+
+    c = get_contract(code)
+    assert_tx_failed(lambda: c.foo(value))
+
+
+@pytest.mark.parametrize("denom,multiplier", wei_denoms.items())
+@pytest.mark.parametrize("data_type", ["decimal", "int128", "uint256"])
+def test_zero_value(get_contract, assert_tx_failed, denom, multiplier, data_type):
+    code = f"""
+@external
+def foo(a: {data_type}) -> uint256:
+    return as_wei_value(a, "{denom}")
+    """
+
+    c = get_contract(code)
+    assert c.foo(0) == 0
