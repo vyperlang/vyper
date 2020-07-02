@@ -97,19 +97,25 @@ def external_call(node, context, interface_name, contract_address, pos, value=No
             static_offset = output_placeholder
             static_output_size = 0
             for typ in types_list:
+                # ensure length of bytes does not exceed max allowable length for type
                 if isinstance(typ, ByteArrayLike):
                     static_output_size += 32
-                    # ensure length of bytes does not exceed max allowable length for type
-                    dynamic_checks.append(
-                        [
-                            "assert",
+                    # do not perform this check on calls to a JSON interface - we don't know
+                    # for certain how long the expected data is
+                    if not sig.is_from_json:
+                        dynamic_checks.append(
                             [
-                                "lt",
-                                ["mload", ["add", ["mload", static_offset], output_placeholder]],
-                                typ.maxlen + 1,
-                            ],
-                        ]
-                    )
+                                "assert",
+                                [
+                                    "lt",
+                                    [
+                                        "mload",
+                                        ["add", ["mload", static_offset], output_placeholder],
+                                    ],
+                                    typ.maxlen + 1,
+                                ],
+                            ]
+                        )
                 static_offset += get_static_size_of_type(typ) * 32
                 static_output_size += get_static_size_of_type(typ) * 32
 
