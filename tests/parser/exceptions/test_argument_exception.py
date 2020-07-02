@@ -30,19 +30,19 @@ def foo():
     """
 @external
 def foo():
-    x: bytes[4] = raw_call(0x1234567890123456789012345678901234567890, outsize=4)
+    x: Bytes[4] = raw_call(0x1234567890123456789012345678901234567890, outsize=4)
     """,
     """
 @external
 def foo():
-    x: bytes[4] = raw_call(
+    x: Bytes[4] = raw_call(
         0x1234567890123456789012345678901234567890, b"cow", gas=111111, outsize=4, moose=9
     )
     """,
     """
 @external
 def foo():
-    x: bytes[4] = create_forwarder_to(0x1234567890123456789012345678901234567890, outsize=4)
+    x: Bytes[4] = create_forwarder_to(0x1234567890123456789012345678901234567890, outsize=4)
     """,
     """
 x: public()
@@ -55,12 +55,12 @@ def foo():
     """
 @external
 def foo():
-    x: bytes[10] = concat(b"")
+    x: Bytes[10] = concat(b"")
     """,
     """
 @external
 def foo():
-    x: bytes[4] = create_forwarder_to(0x1234567890123456789012345678901234567890, b"cow")
+    x: Bytes[4] = create_forwarder_to(0x1234567890123456789012345678901234567890, b"cow")
     """,
 ]
 

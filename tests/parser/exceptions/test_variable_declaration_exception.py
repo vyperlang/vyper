@@ -8,7 +8,7 @@ fail_list = [
 CALLDATACOPY: int128
     """,
     """
-int128: bytes[3]
+int128: Bytes[3]
     """,
     """
 @external

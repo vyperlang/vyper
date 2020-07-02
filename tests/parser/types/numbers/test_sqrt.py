@@ -83,12 +83,12 @@ def test2() -> decimal:
 def test_sqrt_inline_memory_correct(get_contract_with_gas_estimation):
     code = """
 @external
-def test(a: decimal) -> (decimal, decimal, decimal, decimal, decimal, string[100]):
+def test(a: decimal) -> (decimal, decimal, decimal, decimal, decimal, String[100]):
     x: decimal = 1.0
     y: decimal = 2.0
     z: decimal = 3.0
     e: decimal = sqrt(a)
-    f: string[100] = 'hello world'
+    f: String[100] = 'hello world'
     return a, x, y, z, e, f
     """
 

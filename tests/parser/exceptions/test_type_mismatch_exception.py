@@ -8,7 +8,7 @@ fail_list = [
     """
 @external
 def foo():
-    b: bytes[1] = 0x05
+    b: Bytes[1] = 0x05
     x: uint256 = as_wei_value(b, "babbage")
     """,
 ]

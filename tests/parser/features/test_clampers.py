@@ -12,7 +12,7 @@ def _make_tx(w3, address, signature, values):
 def test_bytes_clamper(assert_tx_failed, get_contract_with_gas_estimation):
     clamper_test_code = """
 @external
-def foo(s: bytes[3]) -> bytes[3]:
+def foo(s: Bytes[3]) -> Bytes[3]:
     return s
     """
 
@@ -25,7 +25,7 @@ def foo(s: bytes[3]) -> bytes[3]:
 def test_bytes_clamper_multiple_slots(assert_tx_failed, get_contract_with_gas_estimation):
     clamper_test_code = """
 @external
-def foo(s: bytes[40]) -> bytes[40]:
+def foo(s: Bytes[40]) -> Bytes[40]:
     return s
     """
 

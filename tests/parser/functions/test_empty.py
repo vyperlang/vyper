@@ -265,15 +265,15 @@ def test_clear_literals(contract, assert_compile_failed, get_contract_with_gas_e
 
 def test_empty_bytes(get_contract_with_gas_estimation):
     code = """
-foobar: bytes[5]
+foobar: Bytes[5]
 
 @external
-def foo() -> (bytes[5], bytes[5]):
+def foo() -> (Bytes[5], Bytes[5]):
     self.foobar = b'Hello'
-    bar: bytes[5] = b'World'
+    bar: Bytes[5] = b'World'
 
-    self.foobar = empty(bytes[5])
-    bar = empty(bytes[5])
+    self.foobar = empty(Bytes[5])
+    bar = empty(Bytes[5])
 
     return (self.foobar, bar)
     """
@@ -342,7 +342,7 @@ def test_param_empty(get_contract_with_gas_estimation):
     code = """
 interface Mirror:
     # reuse the contract for this test by compiling two copies of it
-    def test_empty(xs: int128[111], ys: bytes[1024], zs: bytes[31]) -> bool: view
+    def test_empty(xs: int128[111], ys: Bytes[1024], zs: Bytes[31]) -> bool: view
 
 # a helper function which will write all over memory with random stuff
 @internal
@@ -351,13 +351,13 @@ def write_junk_to_memory():
     for i in range(1024):
         xs[i] = -(i + 1)
 @internal
-def priv(xs: int128[111], ys: bytes[1024], zs: bytes[31]) -> bool:
+def priv(xs: int128[111], ys: Bytes[1024], zs: Bytes[31]) -> bool:
     return xs[1] == 0 and ys == b'' and zs == b''
 
 @external
-def test_empty(xs: int128[111], ys: bytes[1024], zs: bytes[31]) -> bool:
-    empty_bytes1024: bytes[1024] = empty(bytes[1024])
-    empty_bytes31: bytes[31] = empty(bytes[31])
+def test_empty(xs: int128[111], ys: Bytes[1024], zs: Bytes[31]) -> bool:
+    empty_bytes1024: Bytes[1024] = empty(Bytes[1024])
+    empty_bytes31: Bytes[31] = empty(Bytes[31])
     self.write_junk_to_memory()
     # no list equality yet so test some sample values
     return xs[0] == 0 and xs[110] == 0 and ys == empty_bytes1024 and zs == empty_bytes31
@@ -365,12 +365,12 @@ def test_empty(xs: int128[111], ys: bytes[1024], zs: bytes[31]) -> bool:
 @external
 def pub2() -> bool:
     self.write_junk_to_memory()
-    return self.priv(empty(int128[111]), empty(bytes[1024]), empty(bytes[31]))
+    return self.priv(empty(int128[111]), empty(Bytes[1024]), empty(Bytes[31]))
 
 @external
 def pub3(x: address) -> bool:
     self.write_junk_to_memory()
-    return Mirror(x).test_empty(empty(int128[111]), empty(bytes[1024]), empty(bytes[31]))
+    return Mirror(x).test_empty(empty(int128[111]), empty(Bytes[1024]), empty(Bytes[31]))
     """
     c = get_contract_with_gas_estimation(code)
     mirror = get_contract_with_gas_estimation(code)
@@ -413,9 +413,9 @@ def c() -> uint256[5][5]:
     return empty(uint256[5][5])
 
 @external
-def d() -> bytes[55]:
+def d() -> Bytes[55]:
     self.write_junk_to_memory()
-    return empty(bytes[55])
+    return empty(Bytes[55])
 
 @external
 def e() -> X:
@@ -527,7 +527,7 @@ def foo():
         """
 @external
 def bar():
-    ys: bytes[33] = empty(bytes[32])
+    ys: Bytes[33] = empty(Bytes[32])
     """,
         """
 @external

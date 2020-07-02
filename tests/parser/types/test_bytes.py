@@ -4,7 +4,7 @@ from vyper.exceptions import TypeMismatch
 def test_test_bytes(get_contract_with_gas_estimation, assert_tx_failed):
     test_bytes = """
 @external
-def foo(x: bytes[100]) -> bytes[100]:
+def foo(x: Bytes[100]) -> Bytes[100]:
     return x
     """
 
@@ -27,8 +27,8 @@ def foo(x: bytes[100]) -> bytes[100]:
 def test_test_bytes2(get_contract_with_gas_estimation):
     test_bytes2 = """
 @external
-def foo(x: bytes[100]) -> bytes[100]:
-    y: bytes[100] = x
+def foo(x: Bytes[100]) -> Bytes[100]:
+    y: Bytes[100] = x
     return y
     """
 
@@ -45,7 +45,7 @@ def foo(x: bytes[100]) -> bytes[100]:
 def test_test_bytes3(get_contract_with_gas_estimation):
     test_bytes3 = """
 x: int128
-maa: bytes[60]
+maa: Bytes[60]
 y: int128
 
 @external
@@ -54,21 +54,21 @@ def __init__():
     self.y = 37
 
 @external
-def set_maa(inp: bytes[60]):
+def set_maa(inp: Bytes[60]):
     self.maa = inp
 
 @external
-def set_maa2(inp: bytes[60]):
-    ay: bytes[60] = inp
+def set_maa2(inp: Bytes[60]):
+    ay: Bytes[60] = inp
     self.maa = ay
 
 @external
-def get_maa() -> bytes[60]:
+def get_maa() -> Bytes[60]:
     return self.maa
 
 @external
-def get_maa2() -> bytes[60]:
-    ay: bytes[60] = self.maa
+def get_maa2() -> Bytes[60]:
+    ay: Bytes[60] = self.maa
     return ay
 
 @external
@@ -95,16 +95,16 @@ def get_xy() -> int128:
 
 def test_test_bytes4(get_contract_with_gas_estimation):
     test_bytes4 = """
-a: bytes[60]
+a: Bytes[60]
 @external
-def foo(inp: bytes[60]) -> bytes[60]:
+def foo(inp: Bytes[60]) -> Bytes[60]:
     self.a = inp
     self.a = b""
     return self.a
 
 @external
-def bar(inp: bytes[60]) -> bytes[60]:
-    b: bytes[60] = inp
+def bar(inp: Bytes[60]) -> Bytes[60]:
+    b: Bytes[60] = inp
     b = b""
     return b
     """
@@ -119,38 +119,38 @@ def bar(inp: bytes[60]) -> bytes[60]:
 def test_test_bytes5(get_contract_with_gas_estimation):
     test_bytes5 = """
 struct G:
-    a: bytes[50]
-    b: bytes[50]
+    a: Bytes[50]
+    b: Bytes[50]
 struct H:
-    a: bytes[40]
-    b: bytes[45]
+    a: Bytes[40]
+    b: Bytes[45]
 
 g: G
 
 @external
-def foo(inp1: bytes[40], inp2: bytes[45]):
+def foo(inp1: Bytes[40], inp2: Bytes[45]):
     self.g = G({a: inp1, b: inp2})
 
 @external
-def check1() -> bytes[50]:
+def check1() -> Bytes[50]:
     return self.g.a
 
 @external
-def check2() -> bytes[50]:
+def check2() -> Bytes[50]:
     return self.g.b
 
 @external
-def bar(inp1: bytes[40], inp2: bytes[45]) -> bytes[50]:
+def bar(inp1: Bytes[40], inp2: Bytes[45]) -> Bytes[50]:
     h: H = H({a: inp1, b: inp2})
     return h.a
 
 @external
-def bat(inp1: bytes[40], inp2: bytes[45]) -> bytes[50]:
+def bat(inp1: Bytes[40], inp2: Bytes[45]) -> Bytes[50]:
     h: H = H({a: inp1, b: inp2})
     return h.b
 
 @external
-def quz(inp1: bytes[40], inp2: bytes[45]):
+def quz(inp1: Bytes[40], inp2: Bytes[45]):
     h:  H = H({a: inp1, b: inp2})
     self.g.a = h.a
     self.g.b = h.b
@@ -171,22 +171,22 @@ def quz(inp1: bytes[40], inp2: bytes[45]):
 
 def test_binary_literal(get_contract_with_gas_estimation):
     bytes_to_num_code = """
-r: bytes[1]
+r: Bytes[1]
 
 @external
-def get(a: bytes[1]) -> bytes[2]:
+def get(a: Bytes[1]) -> Bytes[2]:
     return concat(a, 0b00000001)
 
 @external
-def getsome() -> bytes[1]:
+def getsome() -> Bytes[1]:
     return 0b00001110
 
 @external
-def testsome(a: bytes[1]) -> bool:
+def testsome(a: Bytes[1]) -> bool:
     return a == 0b01100001
 
 @external
-def testsome_storage(y: bytes[1]) -> bool:
+def testsome_storage(y: Bytes[1]) -> bool:
     self.r = 0b01100001
     return self.r == y
     """
@@ -205,13 +205,13 @@ def testsome_storage(y: bytes[1]) -> bool:
 def test_bytes_comparison(get_contract_with_gas_estimation):
     code = """
 @external
-def get_mismatch(a: bytes[1]) -> bool:
-    b: bytes[2] = b'ab'
+def get_mismatch(a: Bytes[1]) -> bool:
+    b: Bytes[2] = b'ab'
     return a == b
 
 @external
-def get_large(a: bytes[100]) -> bool:
-    b: bytes[100] = b'ab'
+def get_large(a: Bytes[100]) -> bool:
+    b: Bytes[100] = b'ab'
     return a == b
     """
 
@@ -242,7 +242,7 @@ counter: uint256
 
 @internal
 @view
-def to_little_endian_64(_value: uint256) -> bytes[8]:
+def to_little_endian_64(_value: uint256) -> Bytes[8]:
     y: uint256 = 0
     x: uint256 = _value
     for _ in range(8):
@@ -257,7 +257,7 @@ def set_count(i: uint256):
 
 @external
 @view
-def get_count() -> bytes[24]:
+def get_count() -> Bytes[24]:
     return self.to_little_endian_64(self.counter)
     """
 
@@ -276,7 +276,7 @@ def test_bytes_to_bytes32_assigment(get_contract, assert_compile_failed):
     code = """
 @external
 def assign():
-    xs: bytes[32] = b'abcdef'
+    xs: Bytes[32] = b'abcdef'
     y: bytes32 = xs
     """
     assert_compile_failed(lambda: get_contract(code), TypeMismatch)

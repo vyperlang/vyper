@@ -5,26 +5,26 @@ from vyper import compiler
 valid_list = [
     """
 @external
-def foo() -> string[10]:
+def foo() -> String[10]:
     return "badminton"
     """,
     """
 @external
 def foo():
-    x: string[11] = "¡très bien!"
+    x: String[11] = "¡très bien!"
     """,
     """
 @external
 def foo() -> bool:
-    x: string[15] = "¡très bien!"
-    y: string[15] = "test"
+    x: String[15] = "¡très bien!"
+    y: String[15] = "test"
     return x != y
     """,
     """
 @external
 def foo() -> bool:
-    x: string[15] = "¡très bien!"
-    y: string[12] = "test"
+    x: String[15] = "¡très bien!"
+    y: String[12] = "test"
     return x != y
     """,
 ]

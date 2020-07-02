@@ -1,17 +1,17 @@
 def test_extract32_extraction(assert_tx_failed, get_contract_with_gas_estimation):
     extract32_code = """
-y: bytes[100]
+y: Bytes[100]
 @external
-def extrakt32(inp: bytes[100], index: int128) -> bytes32:
+def extrakt32(inp: Bytes[100], index: int128) -> bytes32:
     return extract32(inp, index)
 
 @external
-def extrakt32_mem(inp: bytes[100], index: int128) -> bytes32:
-    x: bytes[100] = inp
+def extrakt32_mem(inp: Bytes[100], index: int128) -> bytes32:
+    x: Bytes[100] = inp
     return extract32(x, index)
 
 @external
-def extrakt32_storage(index: int128, inp: bytes[100]) -> bytes32:
+def extrakt32_storage(index: int128, inp: Bytes[100]) -> bytes32:
     self.y = inp
     return extract32(self.y, index)
     """
@@ -49,23 +49,23 @@ def extrakt32_storage(index: int128, inp: bytes[100]) -> bytes32:
 def test_extract32_code(assert_tx_failed, get_contract_with_gas_estimation):
     extract32_code = """
 @external
-def foo(inp: bytes[32]) -> int128:
+def foo(inp: Bytes[32]) -> int128:
     return extract32(inp, 0, output_type=int128)
 
 @external
-def bar(inp: bytes[32]) -> uint256:
+def bar(inp: Bytes[32]) -> uint256:
     return extract32(inp, 0, output_type=uint256)
 
 @external
-def baz(inp: bytes[32]) -> bytes32:
+def baz(inp: Bytes[32]) -> bytes32:
     return extract32(inp, 0, output_type=bytes32)
 
 @external
-def fop(inp: bytes[32]) -> bytes32:
+def fop(inp: Bytes[32]) -> bytes32:
     return extract32(inp, 0)
 
 @external
-def foq(inp: bytes[32]) -> address:
+def foq(inp: Bytes[32]) -> address:
     return extract32(inp, 0, output_type=address)
     """
 

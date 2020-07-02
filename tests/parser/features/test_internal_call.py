@@ -52,7 +52,7 @@ def return_hash_of_rzpadded_cow() -> bytes32:
 def test_selfcall_code_3(get_contract_with_gas_estimation, keccak):
     selfcall_code_3 = """
 @internal
-def _hashy2(x: bytes[100]) -> bytes32:
+def _hashy2(x: Bytes[100]) -> bytes32:
     return keccak256(x)
 
 @external
@@ -60,7 +60,7 @@ def return_hash_of_cow_x_30() -> bytes32:
     return self._hashy2(b"cowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcowcow")  # noqa: E501
 
 @internal
-def _len(x: bytes[100]) -> uint256:
+def _len(x: Bytes[100]) -> uint256:
     return len(x)
 
 @external
@@ -82,15 +82,15 @@ def _summy(x: int128, y: int128) -> int128:
     return x + y
 
 @internal
-def _catty(x: bytes[5], y: bytes[5]) -> bytes[10]:
+def _catty(x: Bytes[5], y: Bytes[5]) -> Bytes[10]:
     return concat(x, y)
 
 @internal
-def _slicey1(x: bytes[10], y: uint256) -> bytes[10]:
+def _slicey1(x: Bytes[10], y: uint256) -> Bytes[10]:
     return slice(x, 0, y)
 
 @internal
-def _slicey2(y: uint256, x: bytes[10]) -> bytes[10]:
+def _slicey2(y: uint256, x: Bytes[10]) -> Bytes[10]:
     return slice(x, 0, y)
 
 @external
@@ -98,15 +98,15 @@ def returnten() -> int128:
     return self._summy(3, 7)
 
 @external
-def return_mongoose() -> bytes[10]:
+def return_mongoose() -> Bytes[10]:
     return self._catty(b"mon", b"goose")
 
 @external
-def return_goose() -> bytes[10]:
+def return_goose() -> Bytes[10]:
     return self._slicey1(b"goosedog", 5)
 
 @external
-def return_goose2() -> bytes[10]:
+def return_goose2() -> Bytes[10]:
     return self._slicey2(5, b"goosedog")
     """
 
@@ -141,22 +141,22 @@ def returnten() -> int128:
 
 def test_selfcall_code_6(get_contract_with_gas_estimation):
     selfcall_code_6 = """
-excls: bytes[32]
+excls: Bytes[32]
 
 @internal
-def _set_excls(arg: bytes[32]):
+def _set_excls(arg: Bytes[32]):
     self.excls = arg
 
 @internal
-def _underscore() -> bytes[1]:
+def _underscore() -> Bytes[1]:
     return b"_"
 
 @internal
-def _hardtest(x: bytes[100], y: uint256, z: uint256, a: bytes[100], b: uint256, c: uint256) -> bytes[201]:  # noqa: E501
+def _hardtest(x: Bytes[100], y: uint256, z: uint256, a: Bytes[100], b: uint256, c: uint256) -> Bytes[201]:  # noqa: E501
     return concat(slice(x, y, z), self._underscore(), slice(a, b, c))
 
 @external
-def return_mongoose_revolution_32_excls() -> bytes[201]:
+def return_mongoose_revolution_32_excls() -> Bytes[201]:
     self._set_excls(b"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
     return self._hardtest(b"megamongoose123", 4, 8, concat(b"russian revolution", self.excls), 8, 42)
     """
@@ -334,11 +334,11 @@ def bar() -> (int128, decimal):
 def test_internal_function_multiple_lists_as_args(get_contract_with_gas_estimation):
     code = """
 @internal
-def _foo(y: int128[2], x: bytes[5]) -> int128:
+def _foo(y: int128[2], x: Bytes[5]) -> int128:
     return y[0]
 
 @internal
-def _foo2(x: bytes[5], y: int128[2]) -> int128:
+def _foo2(x: Bytes[5], y: int128[2]) -> int128:
     return y[0]
 
 @external
@@ -358,23 +358,23 @@ def bar2() -> int128:
 def test_multi_mixed_arg_list_bytes_call(get_contract_with_gas_estimation):
     code = """
 @internal
-def _fooz(x: int128[2], y: decimal, z: bytes[11], a: decimal) -> bytes[11]:
+def _fooz(x: int128[2], y: decimal, z: Bytes[11], a: decimal) -> Bytes[11]:
     return z
 
 @internal
-def _fooa(x: int128[2], y: decimal, z: bytes[11], a: decimal) -> decimal:
+def _fooa(x: int128[2], y: decimal, z: Bytes[11], a: decimal) -> decimal:
     return a
 
 @internal
-def _foox(x: int128[2], y: decimal, z: bytes[11], a: decimal) -> int128:
+def _foox(x: int128[2], y: decimal, z: Bytes[11], a: decimal) -> int128:
     return x[1]
 
 
 @external
-def bar() -> (bytes[11], decimal, int128):
+def bar() -> (Bytes[11], decimal, int128):
     x: int128[2] = [33, 44]
     y: decimal = 55.44
-    z: bytes[11] = b"hello world"
+    z: Bytes[11] = b"hello world"
     a: decimal = 66.77
 
     return self._fooz(x, y, z, a), self._fooa(x, y, z, a), self._foox(x, y, z, a)

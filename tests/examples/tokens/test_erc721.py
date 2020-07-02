@@ -246,7 +246,7 @@ def onERC721Received(
         _operator: address,
         _from: address,
         _tokenId: uint256,
-        _data: bytes[1024]
+        _data: Bytes[1024]
     ) -> bytes32:
     return method_id("onERC721Received(address,address,uint256,bytes)", output_type=bytes32)
     """

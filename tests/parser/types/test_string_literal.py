@@ -1,12 +1,12 @@
 def test_string_literal_return(get_contract_with_gas_estimation):
     code = """
 @external
-def test() -> string[100]:
+def test() -> String[100]:
     return "hello world!"
 
 
 @external
-def testb() -> bytes[100]:
+def testb() -> Bytes[100]:
     return b"hello world!"
     """
 
@@ -19,12 +19,12 @@ def testb() -> bytes[100]:
 def test_string_convert(get_contract_with_gas_estimation):
     code = """
 @external
-def testb() -> string[100]:
-    return convert(b"hello world!", string[100])
+def testb() -> String[100]:
+    return convert(b"hello world!", String[100])
 
 @external
-def testbb() -> string[100]:
-    return convert(convert("hello world!", bytes[100]), string[100])
+def testbb() -> String[100]:
+    return convert(convert("hello world!", Bytes[100]), String[100])
     """
 
     c = get_contract_with_gas_estimation(code)
@@ -36,8 +36,8 @@ def testbb() -> string[100]:
 def test_str_assign(get_contract_with_gas_estimation):
     code = """
 @external
-def test() -> string[100]:
-    a: string[100] = "baba black sheep"
+def test() -> String[100]:
+    a: String[100] = "baba black sheep"
     return a
     """
 

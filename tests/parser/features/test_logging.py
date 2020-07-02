@@ -44,10 +44,10 @@ def foo():
 def test_event_logging_with_topics(w3, tester, keccak, get_logs, get_contract_with_gas_estimation):
     loggy_code = """
 
-a: bytes[3]
+a: Bytes[3]
 
 event MyLog:
-    arg1: indexed(bytes[3])
+    arg1: indexed(Bytes[3])
 
 @external
 def foo():
@@ -193,8 +193,8 @@ def test_event_logging_cannot_have_more_than_three_topics(
 ):
     loggy_code = """
 event MyLog:
-    arg1: indexed(bytes[3])
-    arg2: indexed(bytes[4])
+    arg1: indexed(Bytes[3])
+    arg2: indexed(Bytes[4])
     arg3: indexed(address)
     arg4: indexed(int128)
     """
@@ -284,12 +284,12 @@ def test_logging_with_input_bytes_1(
 ):
     loggy_code = """
 event MyLog:
-    arg1: bytes[4]
-    arg2: indexed(bytes[29])
-    arg3: bytes[31]
+    arg1: Bytes[4]
+    arg2: indexed(Bytes[29])
+    arg3: Bytes[31]
 
 @external
-def foo(arg1: bytes[29], arg2: bytes[31]):
+def foo(arg1: Bytes[29], arg2: Bytes[31]):
     log MyLog(b'bar', arg1, arg2)
 """
 
@@ -324,10 +324,10 @@ def test_event_logging_with_bytes_input_2(
 ):
     loggy_code = """
 event MyLog:
-    arg1: bytes[20]
+    arg1: Bytes[20]
 
 @external
-def foo(_arg1: bytes[20]):
+def foo(_arg1: Bytes[20]):
     log MyLog(_arg1)
     """
 
@@ -353,10 +353,10 @@ def foo(_arg1: bytes[20]):
 def test_event_logging_with_bytes_input_3(w3, tester, keccak, get_logs, get_contract):
     loggy_code = """
 event MyLog:
-    arg1: bytes[5]
+    arg1: Bytes[5]
 
 @external
-def foo(_arg1: bytes[5]):
+def foo(_arg1: Bytes[5]):
     log MyLog(_arg1)
     """
 
@@ -385,8 +385,8 @@ def test_event_logging_with_data_with_different_types(
     loggy_code = """
 event MyLog:
     arg1: int128
-    arg2: bytes[4]
-    arg3: bytes[3]
+    arg2: Bytes[4]
+    arg3: Bytes[3]
     arg4: address
     arg5: address
     arg6: uint256
@@ -436,7 +436,7 @@ def test_event_logging_with_topics_and_data_1(
     loggy_code = """
 event MyLog:
     arg1: indexed(int128)
-    arg2: bytes[3]
+    arg2: Bytes[3]
 
 @external
 def foo():
@@ -473,10 +473,10 @@ def test_event_logging_with_multiple_logs_topics_and_data(
     loggy_code = """
 event MyLog:
     arg1: indexed(int128)
-    arg2: bytes[3]
+    arg2: Bytes[3]
 event YourLog:
     arg1: indexed(address)
-    arg2: bytes[5]
+    arg2: Bytes[5]
 
 @external
 def foo():
@@ -543,7 +543,7 @@ def foo_():
 def test_fails_when_topic_is_the_wrong_size(assert_tx_failed, get_contract_with_gas_estimation):
     loggy_code = """
 event MyLog:
-    arg1: indexed(bytes[3])
+    arg1: indexed(Bytes[3])
 
 
 @external
@@ -559,10 +559,10 @@ def test_fails_when_input_topic_is_the_wrong_size(
 ):
     loggy_code = """
 event MyLog:
-    arg1: indexed(bytes[3])
+    arg1: indexed(Bytes[3])
 
 @external
-def foo(arg1: bytes[4]):
+def foo(arg1: Bytes[4]):
     log MyLog(arg1)
 """
 
@@ -572,7 +572,7 @@ def foo(arg1: bytes[4]):
 def test_fails_when_data_is_the_wrong_size(assert_tx_failed, get_contract_with_gas_estimation):
     loggy_code = """
 event MyLog:
-    arg1: bytes[3]
+    arg1: Bytes[3]
 
 @external
 def foo():
@@ -587,10 +587,10 @@ def test_fails_when_input_data_is_the_wrong_size(
 ):
     loggy_code = """
 event MyLog:
-    arg1: bytes[3]
+    arg1: Bytes[3]
 
 @external
-def foo(arg1: bytes[4]):
+def foo(arg1: Bytes[4]):
     log MyLog(arg1)
 """
 
@@ -600,7 +600,7 @@ def foo(arg1: bytes[4]):
 def test_topic_over_32_bytes(get_contract_with_gas_estimation):
     loggy_code = """
 event MyLog:
-    arg1: indexed(bytes[100])
+    arg1: indexed(Bytes[100])
 
 @external
 def foo():
@@ -669,7 +669,7 @@ def foo():
 def test_logging_fails_with_data_type_mismatch(assert_tx_failed, get_contract_with_gas_estimation):
     loggy_code = """
 event MyLog:
-    arg1: bytes[3]
+    arg1: Bytes[3]
 
 @external
 def foo():
@@ -710,7 +710,7 @@ def foo():
 
 def test_loggy_code(w3, tester, get_contract_with_gas_estimation):
     loggy_code = """
-s: bytes[100]
+s: Bytes[100]
 
 @external
 def foo():
@@ -726,7 +726,7 @@ def hoo():
     raw_log([], self.s)
 
 @external
-def ioo(inp: bytes[100]):
+def ioo(inp: Bytes[100]):
     raw_log([], inp)
     """
 
@@ -885,9 +885,9 @@ def test_storage_byte_packing(get_logs, bytes_helper, get_contract_with_gas_esti
 
     code = """
 event MyLog:
-    arg1: bytes[29]
+    arg1: Bytes[29]
 
-x:bytes[5]
+x:Bytes[5]
 
 @external
 def foo(a: int128):
@@ -943,10 +943,10 @@ def set_list():
 def test_logging_fails_when_input_is_too_big(assert_tx_failed, get_contract_with_gas_estimation):
     code = """
 event Bar:
-    _value: indexed(bytes[32])
+    _value: indexed(Bytes[32])
 
 @external
-def foo(inp: bytes[33]):
+def foo(inp: Bytes[33]):
     log Bar(inp)
 """
     assert_tx_failed(lambda: get_contract_with_gas_estimation(code), TypeMismatch)
@@ -999,7 +999,7 @@ def test_mixed_var_list_packing(get_logs, get_contract_with_gas_estimation):
 event Bar:
     arg1: int128
     arg2: int128[4]
-    arg3 :bytes[4]
+    arg3 :Bytes[4]
     arg4: int128[3]
     arg5: int128[2]
 
@@ -1039,12 +1039,12 @@ def set_list():
 def test_hashed_indexed_topics_calldata(tester, keccak, get_contract):
     loggy_code = """
 event MyLog:
-    arg1: indexed(bytes[36])
+    arg1: indexed(Bytes[36])
     arg2: indexed(int128[2])
-    arg3: indexed(string[7])
+    arg3: indexed(String[7])
 
 @external
-def foo(a: bytes[36], b: int128[2], c: string[7]):
+def foo(a: Bytes[36], b: int128[2], c: String[7]):
     log MyLog(a, b, c)
     """
 
@@ -1081,15 +1081,15 @@ def foo(a: bytes[36], b: int128[2], c: string[7]):
 def test_hashed_indexed_topics_memory(tester, keccak, get_contract):
     loggy_code = """
 event MyLog:
-    arg1: indexed(bytes[10])
+    arg1: indexed(Bytes[10])
     arg2: indexed(int128[3])
-    arg3: indexed(string[44])
+    arg3: indexed(String[44])
 
 @external
 def foo():
-    a: bytes[10] = b"potato"
+    a: Bytes[10] = b"potato"
     b: int128[3] = [-777, 42, 8008135]
-    c: string[44] = "why hello, neighbor! how are you today?"
+    c: String[44] = "why hello, neighbor! how are you today?"
     log MyLog(a, b, c)
     """
 
@@ -1126,17 +1126,17 @@ def foo():
 def test_hashed_indexed_topics_storage(tester, keccak, get_contract):
     loggy_code = """
 event MyLog:
-    arg1: indexed(bytes[32])
+    arg1: indexed(Bytes[32])
     arg2: indexed(int128[2])
-    arg3: indexed(string[6])
+    arg3: indexed(String[6])
 
-a: bytes[32]
+a: Bytes[32]
 b: int128[2]
-c: string[6]
+c: String[6]
 
 
 @external
-def setter(_a: bytes[32], _b: int128[2], _c: string[6]):
+def setter(_a: Bytes[32], _b: int128[2], _c: String[6]):
     self.a = _a
     self.b = _b
     self.c = _c
@@ -1180,9 +1180,9 @@ def foo():
 def test_hashed_indexed_topics_storxxage(tester, keccak, get_contract):
     loggy_code = """
 event MyLog:
-    arg1: indexed(bytes[64])
+    arg1: indexed(Bytes[64])
     arg2: indexed(int128[3])
-    arg3: indexed(string[21])
+    arg3: indexed(String[21])
 
 @external
 def foo():

@@ -13,53 +13,53 @@ fail_list = [
         """
 @external
 def baa():
-    x: bytes[50] = b""
-    y: bytes[50] = b""
-    z: bytes[50] = x + y
+    x: Bytes[50] = b""
+    y: Bytes[50] = b""
+    z: Bytes[50] = x + y
     """,
         InvalidOperation,
     ),
     """
 @external
 def baa():
-    x: bytes[50] = b""
+    x: Bytes[50] = b""
     y: int128 = 0
     y = x
     """,
     """
 @external
 def baa():
-    x: bytes[50] = b""
+    x: Bytes[50] = b""
     y: int128 = 0
     x = y
     """,
     """
 @external
 def baa():
-    x: bytes[50] = b""
-    y: bytes[60] = b""
+    x: Bytes[50] = b""
+    y: Bytes[60] = b""
     x = y
     """,
     """
 @external
-def foo(x: bytes[100]) -> bytes[75]:
+def foo(x: Bytes[100]) -> Bytes[75]:
     return x
     """,
     """
 @external
-def foo(x: bytes[100]) -> int128:
+def foo(x: Bytes[100]) -> int128:
     return x
     """,
     """
 @external
-def foo(x: int128) -> bytes[75]:
+def foo(x: int128) -> Bytes[75]:
     return x
     """,
     (
         """
 @external
-def foo() -> bytes[10]:
-    x: bytes[10] = '0x1234567890123456789012345678901234567890'
+def foo() -> Bytes[10]:
+    x: Bytes[10] = '0x1234567890123456789012345678901234567890'
     x = 0x1234567890123456789012345678901234567890
     return x
     """,
@@ -68,7 +68,7 @@ def foo() -> bytes[10]:
     (
         """
 @external
-def foo() -> bytes[10]:
+def foo() -> Bytes[10]:
     return "badmintonzz"
     """,
         InvalidType,
@@ -76,8 +76,8 @@ def foo() -> bytes[10]:
     (
         """
 @external
-def test() -> bytes[1]:
-    a: bytes[1] = 0b0000001  # needs multiple of 8 bits.
+def test() -> Bytes[1]:
+    a: Bytes[1] = 0b0000001  # needs multiple of 8 bits.
     return a
     """,
         SyntaxException,
@@ -98,18 +98,18 @@ def test_bytes_fail(bad_code):
 valid_list = [
     """
 @external
-def foo(x: bytes[100]) -> bytes[100]:
+def foo(x: Bytes[100]) -> Bytes[100]:
     return x
     """,
     """
 @external
-def foo(x: bytes[100]) -> bytes[150]:
+def foo(x: Bytes[100]) -> Bytes[150]:
     return x
     """,
     """
 @external
 def baa():
-    x: bytes[50] = b""
+    x: Bytes[50] = b""
     """,
 ]
 

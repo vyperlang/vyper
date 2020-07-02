@@ -28,10 +28,10 @@ PRIMITIVES = {
     AddressPrimitive: "address",
     BoolPrimitive: "bool",
     Bytes32Primitive: "bytes32",
-    BytesArrayPrimitive: "bytes[1]",
+    BytesArrayPrimitive: "Bytes[1]",
     DecimalPrimitive: "decimal",
     Int128Primitive: "int128",
-    StringPrimitive: "string[1]",
+    StringPrimitive: "String[1]",
     Uint256Primitive: "uint256",
 }
 

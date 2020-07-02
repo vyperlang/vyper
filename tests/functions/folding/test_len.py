@@ -8,7 +8,7 @@ from vyper import functions as vy_fn
 def test_len_string(get_contract, length):
     source = """
 @external
-def foo(a: string[1024]) -> uint256:
+def foo(a: String[1024]) -> uint256:
     return len(a)
     """
     contract = get_contract(source)
@@ -26,7 +26,7 @@ def foo(a: string[1024]) -> uint256:
 def test_len_bytes(get_contract, length):
     source = """
 @external
-def foo(a: bytes[1024]) -> uint256:
+def foo(a: Bytes[1024]) -> uint256:
     return len(a)
     """
     contract = get_contract(source)
@@ -44,7 +44,7 @@ def foo(a: bytes[1024]) -> uint256:
 def test_len_hex(get_contract, length):
     source = """
 @external
-def foo(a: bytes[1024]) -> uint256:
+def foo(a: Bytes[1024]) -> uint256:
     return len(a)
     """
     contract = get_contract(source)

@@ -14,7 +14,7 @@ def test_default_param_abi(get_contract):
     code = """
 @external
 @payable
-def safeTransferFrom(_data: bytes[100] = b"test", _b: int128 = 1):
+def safeTransferFrom(_data: Bytes[100] = b"test", _b: int128 = 1):
     pass
     """
     abi = get_contract(code)._classic_contract.abi
@@ -32,7 +32,7 @@ def safeTransferFrom(_data: bytes[100] = b"test", _b: int128 = 1):
 def test_basic_default_param_passthrough(get_contract):
     code = """
 @external
-def fooBar(_data: bytes[100] = b"test", _b: int128 = 1) -> int128:
+def fooBar(_data: Bytes[100] = b"test", _b: int128 = 1) -> int128:
     return 12321
     """
 
@@ -78,7 +78,7 @@ def fooBar(a:int128, b: uint256 = 999, c: address = 0x00000000000000000000000000
 def test_default_param_bytes(get_contract):
     code = """
 @external
-def fooBar(a: bytes[100], b: int128, c: bytes[100] = b"testing", d: uint256 = 999) -> (bytes[100], int128, bytes[100], uint256):  # noqa: E501
+def fooBar(a: Bytes[100], b: int128, c: Bytes[100] = b"testing", d: uint256 = 999) -> (Bytes[100], int128, Bytes[100], uint256):  # noqa: E501
     return a, b, c, d
     """
     c = get_contract(code)
@@ -96,7 +96,7 @@ def fooBar(a: bytes[100], b: int128, c: bytes[100] = b"testing", d: uint256 = 99
 def test_default_param_array(get_contract):
     code = """
 @external
-def fooBar(a: bytes[100], b: uint256[2], c: bytes[6] = b"hello", d: int128[3] = [6, 7, 8]) -> (bytes[100], uint256, bytes[6], int128):  # noqa: E501
+def fooBar(a: Bytes[100], b: uint256[2], c: Bytes[6] = b"hello", d: int128[3] = [6, 7, 8]) -> (Bytes[100], uint256, Bytes[6], int128):  # noqa: E501
     return a, b[1], c, d[2]
     """
     c = get_contract(code)
@@ -174,19 +174,19 @@ def bar(a: int128, b: int128 = -1) -> (int128, int128):  # noqa: E501
 def test_default_param_private(get_contract):
     code = """
 @internal
-def fooBar(a: bytes[100], b: uint256, c: bytes[20] = b"crazy") -> (bytes[100], uint256, bytes[20]):
+def fooBar(a: Bytes[100], b: uint256, c: Bytes[20] = b"crazy") -> (Bytes[100], uint256, Bytes[20]):
     return a, b, c
 
 @external
-def callMe() -> (bytes[100], uint256, bytes[20]):
+def callMe() -> (Bytes[100], uint256, Bytes[20]):
     return self.fooBar(b'I just met you', 123456)
 
 @external
-def callMeMaybe() -> (bytes[100], uint256, bytes[20]):
+def callMeMaybe() -> (Bytes[100], uint256, Bytes[20]):
     # return self.fooBar(b'here is my number', 555123456, b'baby')
-    a: bytes[100] = b""
+    a: Bytes[100] = b""
     b: uint256 = 0
-    c: bytes[20] = b""
+    c: Bytes[20] = b""
     a, b, c = self.fooBar(b'here is my number', 555123456, b'baby')
     return a, b, c
     """
@@ -259,7 +259,7 @@ def foo(a: int128 = -31, b: int128[2] = [64, -46]): pass
     """,
     """
 @external
-def foo(a: bytes[6] = b"potato"): pass
+def foo(a: Bytes[6] = b"potato"): pass
     """,
     """
 @external

@@ -1,7 +1,7 @@
 def test_hash_code(get_contract_with_gas_estimation, keccak):
     hash_code = """
 @external
-def foo(inp: bytes[100]) -> bytes32:
+def foo(inp: Bytes[100]) -> bytes32:
     return keccak256(inp)
 
 @external
@@ -24,7 +24,7 @@ def bar() -> bytes32:
 def test_hash_code2(get_contract_with_gas_estimation):
     hash_code2 = """
 @external
-def foo(inp: bytes[100]) -> bool:
+def foo(inp: Bytes[100]) -> bool:
     return keccak256(inp) == keccak256("badminton")
     """
     c = get_contract_with_gas_estimation(hash_code2)
@@ -34,23 +34,23 @@ def foo(inp: bytes[100]) -> bool:
 
 def test_hash_code3(get_contract_with_gas_estimation):
     hash_code3 = """
-test: bytes[100]
+test: Bytes[100]
 
 @external
-def set_test(inp: bytes[100]):
+def set_test(inp: Bytes[100]):
     self.test = inp
 
 @external
-def tryy(inp: bytes[100]) -> bool:
+def tryy(inp: Bytes[100]) -> bool:
     return keccak256(inp) == keccak256(self.test)
 
 @external
-def tryy_str(inp: string[100]) -> bool:
+def tryy_str(inp: String[100]) -> bool:
     return keccak256(inp) == keccak256(self.test)
 
 @external
-def trymem(inp: bytes[100]) -> bool:
-    x: bytes[100] = self.test
+def trymem(inp: Bytes[100]) -> bool:
+    x: Bytes[100] = self.test
     return keccak256(inp) == keccak256(x)
 
 @external

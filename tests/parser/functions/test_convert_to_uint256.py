@@ -33,7 +33,7 @@ def test_convert_from_bytes(assert_compile_failed, get_contract_with_gas_estimat
     # Test valid bytes input for conversion
     test_success = """
 @external
-def foo(bar: bytes[5]) -> uint256:
+def foo(bar: Bytes[5]) -> uint256:
     return convert(bar, uint256)
     """
 
@@ -43,7 +43,7 @@ def foo(bar: bytes[5]) -> uint256:
 
     test_success = """
 @external
-def foo(bar: bytes[32]) -> uint256:
+def foo(bar: Bytes[32]) -> uint256:
     return convert(bar, uint256)
     """
 
@@ -54,7 +54,7 @@ def foo(bar: bytes[32]) -> uint256:
     # Test overflow bytes input for conversion
     test_fail = """
 @external
-def foo(bar: bytes[33]) -> uint256:
+def foo(bar: Bytes[33]) -> uint256:
     return convert(bar, uint256)
     """
 
@@ -63,7 +63,7 @@ def foo(bar: bytes[33]) -> uint256:
     test_fail = """
 @external
 def foobar() -> uint256:
-    barfoo: bytes[63] = b"Hello darkness, my old friend I've come to talk with you again."
+    barfoo: Bytes[63] = b"Hello darkness, my old friend I've come to talk with you again."
     return convert(barfoo, uint256)
     """
 

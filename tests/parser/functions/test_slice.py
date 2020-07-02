@@ -2,16 +2,16 @@ def test_test_slice(get_contract_with_gas_estimation):
     test_slice = """
 
 @external
-def foo(inp1: bytes[10]) -> bytes[3]:
+def foo(inp1: Bytes[10]) -> Bytes[3]:
     x: int128 = 5
-    s: bytes[3] = slice(inp1, 3, 3)
+    s: Bytes[3] = slice(inp1, 3, 3)
     y: int128 = 7
     return s
 
 @external
-def bar(inp1: bytes[10]) -> int128:
+def bar(inp1: Bytes[10]) -> int128:
     x: int128 = 5
-    s: bytes[3] = slice(inp1, 3, 3)
+    s: Bytes[3] = slice(inp1, 3, 3)
     y: int128 = 7
     return x * y
     """
@@ -29,8 +29,8 @@ def test_test_slice2(get_contract_with_gas_estimation):
     # TODO once parser is refactored so that `i` is `uint256`, remove call to `convert`
     test_slice2 = """
 @external
-def slice_tower_test(inp1: bytes[50]) -> bytes[50]:
-    inp: bytes[50] = inp1
+def slice_tower_test(inp1: Bytes[50]) -> Bytes[50]:
+    inp: Bytes[50] = inp1
     for i in range(1, 11):
         inp = slice(inp, 1, convert(30 - i * 2, uint256))
     return inp
@@ -45,17 +45,17 @@ def slice_tower_test(inp1: bytes[50]) -> bytes[50]:
 def test_test_slice3(get_contract_with_gas_estimation):
     test_slice3 = """
 x: int128
-s: bytes[50]
+s: Bytes[50]
 y: int128
 @external
-def foo(inp1: bytes[50]) -> bytes[50]:
+def foo(inp1: Bytes[50]) -> Bytes[50]:
     self.x = 5
     self.s = slice(inp1, 3, 3)
     self.y = 7
     return self.s
 
 @external
-def bar(inp1: bytes[50]) -> int128:
+def bar(inp1: Bytes[50]) -> int128:
     self.x = 5
     self.s = slice(inp1,3, 3)
     self.y = 7
@@ -74,7 +74,7 @@ def bar(inp1: bytes[50]) -> int128:
 def test_test_slice4(get_contract_with_gas_estimation, assert_tx_failed):
     test_slice4 = """
 @external
-def foo(inp: bytes[10], start: uint256, _len: uint256) -> bytes[10]:
+def foo(inp: Bytes[10], start: uint256, _len: uint256) -> Bytes[10]:
     return slice(inp, start, _len)
     """
 
@@ -97,9 +97,9 @@ def foo(inp: bytes[10], start: uint256, _len: uint256) -> bytes[10]:
 def test_slice_at_end(get_contract):
     code = """
 @external
-def ret10_slice() -> bytes[10]:
-    b: bytes[32] = concat(convert(65, bytes32), b'')
-    c: bytes[10] = slice(b, 31, 1)
+def ret10_slice() -> Bytes[10]:
+    b: Bytes[32] = concat(convert(65, bytes32), b'')
+    c: Bytes[10] = slice(b, 31, 1)
     return c
     """
 

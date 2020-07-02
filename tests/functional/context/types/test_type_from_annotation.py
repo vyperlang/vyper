@@ -12,7 +12,7 @@ from vyper.exceptions import (
 )
 
 BASE_TYPES = ["int128", "uint256", "bool", "address", "bytes32"]
-ARRAY_VALUE_TYPES = ["string", "bytes"]
+ARRAY_VALUE_TYPES = ["String", "Bytes"]
 
 
 @pytest.mark.parametrize("type_str", BASE_TYPES)
@@ -69,7 +69,7 @@ def test_base_types_as_multidimensional_arrays(build_node, namespace, type_str):
     assert isinstance(type_definition.value_type.value_type, primitive._type)
 
 
-@pytest.mark.parametrize("type_str", ["int128", "string"])
+@pytest.mark.parametrize("type_str", ["int128", "String"])
 @pytest.mark.parametrize("idx", ["0", "-1", "0x00", "'1'", "foo", "[1]", "(1,)"])
 def test_invalid_index(build_node, idx, type_str):
     node = build_node(f"{type_str}[{idx}]")

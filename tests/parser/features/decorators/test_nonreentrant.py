@@ -1,9 +1,9 @@
 def test_nonrentrant_decorator(get_contract, assert_tx_failed):
     calling_contract_code = """
 interface SpecialContract:
-    def unprotected_function(val: string[100], do_callback: bool): nonpayable
-    def protected_function(val: string[100], do_callback: bool): nonpayable
-    def special_value() -> string[100]: nonpayable
+    def unprotected_function(val: String[100], do_callback: bool): nonpayable
+    def protected_function(val: String[100], do_callback: bool): nonpayable
+    def special_value() -> String[100]: nonpayable
 
 @external
 def updated():
@@ -19,7 +19,7 @@ interface Callback:
     def updated(): nonpayable
     def updated_protected(): nonpayable
 
-special_value: public(string[100])
+special_value: public(String[100])
 callback: public(Callback)
 
 @external
@@ -28,7 +28,7 @@ def set_callback(c: address):
 
 @external
 @nonreentrant('protect_special_value')
-def protected_function(val: string[100], do_callback: bool) -> uint256:
+def protected_function(val: String[100], do_callback: bool) -> uint256:
     self.special_value = val
 
     if do_callback:
@@ -38,7 +38,7 @@ def protected_function(val: string[100], do_callback: bool) -> uint256:
         return 2
 
 @external
-def unprotected_function(val: string[100], do_callback: bool):
+def unprotected_function(val: String[100], do_callback: bool):
     self.special_value = val
 
     if do_callback:

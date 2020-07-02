@@ -31,14 +31,14 @@ def foo() -> uint256:
     )
     """,
     """
-x: bytes[100]
+x: Bytes[100]
 @external
 def foo() -> uint256:
     self.x = b"cowcowcowcowcowccowcowcowcowcowccowcowcowcowcowccowcowcowcowcowc"
     return extract32(self.x, 0, output_type=uint256)
     """,
     """
-x: bytes[100]
+x: Bytes[100]
 @external
 def foo() -> uint256:
     self.x = b"cowcowcowcowcowccowcowcowcowcowccowcowcowcowcowccowcowcowcowcowc"

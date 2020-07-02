@@ -1,27 +1,27 @@
 def test_bytes_literal_code(get_contract_with_gas_estimation):
     bytes_literal_code = """
 @external
-def foo() -> bytes[5]:
+def foo() -> Bytes[5]:
     return b"horse"
 
 @external
-def bar() -> bytes[10]:
+def bar() -> Bytes[10]:
     return concat(b"b", b"a", b"d", b"m", b"i", b"", b"nton")
 
 @external
-def baz() -> bytes[40]:
+def baz() -> Bytes[40]:
     return concat(b"0123456789012345678901234567890", b"12")
 
 @external
-def baz2() -> bytes[40]:
+def baz2() -> Bytes[40]:
     return concat(b"01234567890123456789012345678901", b"12")
 
 @external
-def baz3() -> bytes[40]:
+def baz3() -> Bytes[40]:
     return concat(b"0123456789012345678901234567890", b"1")
 
 @external
-def baz4() -> bytes[100]:
+def baz4() -> Bytes[100]:
     return concat(b"01234567890123456789012345678901234567890123456789",
                   b"01234567890123456789012345678901234567890123456789")
     """
@@ -40,29 +40,29 @@ def baz4() -> bytes[100]:
 def test_bytes_literal_splicing_fuzz(get_contract_with_gas_estimation):
     for i in range(95, 96, 97):
         kode = f"""
-moo: bytes[100]
+moo: Bytes[100]
 
 @external
-def foo(s: uint256, L: uint256) -> bytes[100]:
+def foo(s: uint256, L: uint256) -> Bytes[100]:
         x: int128 = 27
-        r: bytes[100] = slice(b"{("c" * i)}", s, L)
+        r: Bytes[100] = slice(b"{("c" * i)}", s, L)
         y: int128 = 37
         if x * y == 999:
             return r
         return b"3434346667777"
 
 @external
-def bar(s: uint256, L: uint256) -> bytes[100]:
+def bar(s: uint256, L: uint256) -> Bytes[100]:
         self.moo = b"{("c" * i)}"
         x: int128 = 27
-        r: bytes[100] = slice(self.moo, s, L)
+        r: Bytes[100] = slice(self.moo, s, L)
         y: int128  = 37
         if x * y == 999:
             return r
         return b"3434346667777"
 
 @external
-def baz(s: uint256, L: uint256) -> bytes[100]:
+def baz(s: uint256, L: uint256) -> Bytes[100]:
         x: int128 = 27
         self.moo = slice(b"{("c" * i)}", s, L)
         y: int128 = 37

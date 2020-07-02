@@ -28,13 +28,13 @@ def test_getter_code(get_contract_with_gas_estimation_for_constants):
 struct W:
     a: uint256
     b: int128[7]
-    c: bytes[100]
+    c: Bytes[100]
     e: int128[3][3]
     f: uint256
     g: uint256
 x: public(uint256)
 y: public(int128[5])
-z: public(bytes[100])
+z: public(Bytes[100])
 w: public(HashMap[int128, W])
 
 @external

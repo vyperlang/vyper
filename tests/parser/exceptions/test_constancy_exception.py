@@ -38,7 +38,7 @@ def foo() -> int128:
 @external
 @view
 def foo() -> int128:
-    x: bytes[4] = raw_call(
+    x: Bytes[4] = raw_call(
         0x1234567890123456789012345678901234567890, b"cow", max_outsize=4, gas=595757, value=9
     )
     return 5""",

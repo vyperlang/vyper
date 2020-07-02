@@ -58,14 +58,14 @@ VAL: constant(uint256) = 11
     # bytearray too long.
     (
         """
-VAL: constant(bytes[4]) = b"testtest"
+VAL: constant(Bytes[4]) = b"testtest"
     """,
         InvalidType,
     ),
     # global with same name
     (
         """
-VAL: constant(bytes[4]) = b"t"
+VAL: constant(Bytes[4]) = b"t"
 VAL: uint256
     """,
         VariableDeclarationException,
@@ -73,7 +73,7 @@ VAL: uint256
     # signature variable with same name
     (
         """
-VAL: constant(bytes[4]) = b"t"
+VAL: constant(Bytes[4]) = b"t"
 
 @external
 def test(VAL: uint256):
@@ -142,13 +142,13 @@ TEST_WEI: constant(uint256) = 1
 
 @internal
 def test():
-   foo: bytes[1] = raw_call(
+   foo: Bytes[1] = raw_call(
        0x0000000000000000000000000000000000000005, b'hello', max_outsize=TEST_C, gas=2000
     )
 
 @internal
 def test1():
-    foo: bytes[256] = raw_call(
+    foo: Bytes[256] = raw_call(
         0x0000000000000000000000000000000000000005, b'hello', max_outsize=256, gas=TEST_WEI
     )
     """,
@@ -173,7 +173,7 @@ MAX_DEPOSIT: constant(decimal) = 32.0  # ETH
 
 @payable
 @external
-def deposit(deposit_input: bytes[2048]):
+def deposit(deposit_input: Bytes[2048]):
     assert msg.value >= as_wei_value(MIN_DEPOSIT, "ether")
     assert msg.value <= as_wei_value(MAX_DEPOSIT, "ether")
     """,

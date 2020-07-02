@@ -42,7 +42,7 @@ def bar(a: bytes32) -> bytes32:
 def test_sha256_bytearraylike(get_contract_with_gas_estimation):
     code = """
 @external
-def bar(a: string[100]) -> bytes32:
+def bar(a: String[100]) -> bytes32:
     return sha256(a)
     """
 
@@ -56,10 +56,10 @@ def bar(a: string[100]) -> bytes32:
 
 def test_sha256_bytearraylike_storage(get_contract_with_gas_estimation):
     code = """
-a: public(bytes[100])
+a: public(Bytes[100])
 
 @external
-def set(b: bytes[100]):
+def set(b: Bytes[100]):
     self.a = b
 
 @external

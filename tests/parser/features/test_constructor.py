@@ -41,7 +41,7 @@ def test_constructor_advanced_code2(get_contract_with_gas_estimation):
 comb: uint256
 
 @external
-def __init__(x: uint256[2], y: bytes[3], z: uint256):
+def __init__(x: uint256[2], y: Bytes[3], z: uint256):
     self.comb = x[0] * 1000 + x[1] * 100 + len(y) * 10 + z
 
 @external
