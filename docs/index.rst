@@ -1,15 +1,15 @@
-Vyper
-#####
-
 .. image:: vyper-logo-transparent.svg
     :width: 140px
     :alt: Vyper logo
     :align: center
 
+Vyper
+#####
+
 Vyper is a contract-oriented, pythonic programming language that targets the `Ethereum Virtual Machine (EVM) <https://ethereum.org/learn/#ethereum-basics>`_.
 
 Principles and Goals
-********************
+====================
 
 * **Security**: It should be possible and natural to build secure smart-contracts in Vyper.
 * **Language and compiler simplicity**: The language and the compiler implementation should strive to be simple.
@@ -36,26 +36,3 @@ Following the principles and goals, Vyper **does not** provide the following fea
 * **Binary fixed point**: Decimal fixed point is better, because any decimal fixed point value written as a literal in code has an exact representation, whereas with binary fixed point approximations are often required (e.g. (0.2)\ :sub:`10` = (0.001100110011...)\ :sub:`2`, which needs to be truncated), leading to unintuitive results, e.g. in Python 0.3 + 0.3 + 0.3 + 0.1 != 1.
 
 Vyper **does not** strive to be a 100% replacement for everything that can be done in Solidity; it will deliberately forbid things or make things harder if it deems fit to do so for the goal of increasing security.
-
-Glossary
-********
-
-.. toctree::
-    :maxdepth: 2
-
-    installing-vyper.rst
-    vyper-by-example.rst
-    structure-of-a-contract.rst
-    built-in-functions.rst
-    types.rst
-    constants-and-vars.rst
-    logging.rst
-    compiling-a-contract.rst
-    compiler-exceptions.rst
-    deploying-contracts.rst
-    testing-contracts.rst
-    frequently-asked-questions.rst
-    contributing.rst
-    style-guide.rst
-    release-notes.rst
-    versioning.rst

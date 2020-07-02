@@ -1,15 +1,16 @@
+.. _event-logging:
 
 Event Logging
-*************
+#############
 
-Like Solidity and other EVM languages, Vyper can log events to be caught and displayed by user interfaces.
+Vyper can log events to be caught and displayed by user interfaces.
 
 Example of Logging
 ==================
 
-This example is taken from the `sample ERC20 contract <https://github.com/vyperlang/vyper/blob/master/examples/tokens/ERC20.vy>`_ and shows the basic flow of event logging.
+This example is taken from the `sample ERC20 contract <https://github.com/vyperlang/vyper/blob/master/examples/tokens/ERC20.vy>`_ and shows the basic flow of event logging:
 
-::
+.. code-block:: python
 
     # Events of the token.
     event Transfer:
@@ -30,11 +31,10 @@ This example is taken from the `sample ERC20 contract <https://github.com/vyperl
        # All done, log the event for listeners
        log Transfer(msg.sender, _to, _value)
 
-Let's look at what this is doing. First, we declare two event types to log. The two events are similar in that they contain
-two indexed address fields. Indexed fields do not make up part of the event data itself, but can be searched by clients that
-want to catch the event. Also, each event contains one single data field, in each case called ``value``. Events can contain several arguments with any names desired.
+Let's look at what this is doing.
 
-Next, in the ``transfer`` function, after we do whatever work is necessary, we log the event. We pass three arguments, corresponding with the three arguments of the Transfer event declaration.
+    1. We declare two event types to log. The two events are similar in that they contain two indexed address fields. Indexed fields do not make up part of the event data itself, but can be searched by clients that want to catch the event. Also, each event contains one single data field, in each case called ``value``. Events can contain several arguments with any names desired.
+    2. In the ``transfer`` function, after we do whatever work is necessary, we log the event. We pass three arguments, corresponding with the three arguments of the Transfer event declaration.
 
 Clients listening to the events will declare and handle the events they are interested in using a `library such as web3.js <https://solidity.readthedocs.io/en/latest/contracts.html#events>`_:
 
@@ -68,8 +68,8 @@ Let's look at an event declaration in more detail.
 
 Event declarations look similar to struct declarations, containing one or more arguments that are passed to the event. Typical events will contain two kinds of arguments:
 
-* Indexed arguments, which can be searched for by listeners. Each indexed argument is identified by the ``indexed`` keyword.  Here, each indexed argument is an address. You can have any number of indexed arguments, but indexed arguments are not passed directly to listeners, although some of this information (such as the sender) may be available in the listener's `results` object.
-* Value arguments, which are passed through to listeners. You can have any number of value arguments and they can have arbitrary names, but each is limited by the EVM to be no more than 32 bytes.
+    * **Indexed** arguments, which can be searched for by listeners. Each indexed argument is identified by the ``indexed`` keyword.  Here, each indexed argument is an address. You can have any number of indexed arguments, but indexed arguments are not passed directly to listeners, although some of this information (such as the sender) may be available in the listener's `results` object.
+    * **Value** arguments, which are passed through to listeners. You can have any number of value arguments and they can have arbitrary names, but each is limited by the EVM to be no more than 32 bytes.
 
 It is also possible to create an event with no arguments. In this case, use the ``pass`` statement:
 
@@ -88,7 +88,7 @@ Logging events is done using the ``log`` statement:
 
    log Transfer(msg.sender, _to, _amount)
 
-The order and types of arguments sent needs to match up with the order of declarations in the dictionary.
+The order and types of arguments given must match the order of arguments used when declaring the event..
 
 Listening for Events
 ====================

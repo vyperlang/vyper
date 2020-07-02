@@ -49,11 +49,10 @@ templates_path = ["_templates"]
 # The suffix(es) of source filenames.
 # You can specify multiple suffix as a list of string:
 #
-# source_suffix = ['.rst', '.md']
-source_suffix = ".rst"
+source_suffix = [".rst", ".md"]
 
 # The master toctree document.
-master_doc = "index"
+master_doc = "toctree"
 
 # General information about the project.
 project = "Vyper"
@@ -110,6 +109,8 @@ html_css_files = ["css/toggle.css", "css/dark.css"]
 
 html_js_files = ["js/toggle.js"]
 
+html_logo = "vyper-logo-transparent.svg"
+
 # Custom sidebar templates, must be a dictionary that maps document names
 # to template names.
 #
@@ -129,7 +130,7 @@ htmlhelp_basename = "Vyperdoc"
 
 # -- Options for LaTeX output ---------------------------------------------
 
-latex_elements = {
+latex_elements: dict = {
     # The paper size ('letterpaper' or 'a4paper').
     #
     # 'papersize': 'letterpaper',
@@ -185,8 +186,6 @@ texinfo_documents = [
 source_parsers = {
     ".md": CommonMarkParser,
 }
-
-source_suffix = [".rst", ".md"]
 
 intersphinx_mapping = {
     "brownie": ("https://eth-brownie.readthedocs.io/en/stable", None),

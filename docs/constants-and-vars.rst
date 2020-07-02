@@ -1,7 +1,5 @@
-.. index:: type
-
 Environment Variables and Constants
-***********************************
+###################################
 
 .. _types-env-vars:
 
