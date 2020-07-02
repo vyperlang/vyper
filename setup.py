@@ -43,12 +43,15 @@ try:
 except subprocess.CalledProcessError:
     pass
 
+with open("README.md", "r") as f:
+    long_description = f.read()
+
 setup(
     name="vyper",
     # *IMPORTANT*: Don't manually change the version here. Use the 'bumpversion' utility.
     version="0.1.0-beta.17",
     description="Vyper: the Pythonic Programming Language for the EVM",
-    long_description_markdown_filename="README.md",
+    long_description=long_description,
     long_description_content_type="text/markdown",
     author="Vyper Team",
     author_email="",
@@ -60,7 +63,7 @@ setup(
     python_requires=">=3.6",
     py_modules=["vyper"],
     install_requires=["asttokens==2.0.3", "pycryptodome>=3.5.1,<4", "semantic-version==2.8.5"],
-    setup_requires=["pytest-runner", "setuptools-markdown"],
+    setup_requires=["pytest-runner"],
     tests_require=extras_require["test"],
     extras_require=extras_require,
     entry_points={
