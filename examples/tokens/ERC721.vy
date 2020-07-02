@@ -12,7 +12,7 @@ interface ERC721Receiver:
             _operator: address,
             _from: address,
             _tokenId: uint256,
-            _data: bytes[1024]
+            _data: Bytes[1024]
         ) -> bytes32: view
 
 
@@ -256,7 +256,7 @@ def safeTransferFrom(
         _from: address,
         _to: address,
         _tokenId: uint256,
-        _data: bytes[1024]=b""
+        _data: Bytes[1024]=b""
     ):
     """
     @dev Transfers the ownership of an NFT from one address to another address.
