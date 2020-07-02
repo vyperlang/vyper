@@ -68,6 +68,7 @@ class FunctionSignature:
         sig,
         method_id,
         func_ast_code,
+        is_from_json,
     ):
         self.name = name
         self.args = args
@@ -79,6 +80,7 @@ class FunctionSignature:
         self.gas = None
         self.nonreentrant_key = nonreentrant_key
         self.func_ast_code = func_ast_code
+        self.is_from_json = is_from_json
         self.calculate_arg_totals()
 
     def __str__(self):
@@ -154,6 +156,7 @@ class FunctionSignature:
         interface_def=False,
         constants=None,
         constant_override=False,
+        is_from_json=False,
     ):
         if not custom_structs:
             custom_structs = {}
@@ -285,7 +288,16 @@ class FunctionSignature:
         # Take the first 4 bytes of the hash of the sig to get the method ID
         method_id = fourbytes_to_int(keccak256(bytes(sig, "utf-8"))[:4])
         return cls(
-            name, args, output_type, mutability, internal, nonreentrant_key, sig, method_id, code
+            name,
+            args,
+            output_type,
+            mutability,
+            internal,
+            nonreentrant_key,
+            sig,
+            method_id,
+            code,
+            is_from_json,
         )
 
     @iterable_cast(dict)

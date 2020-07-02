@@ -97,6 +97,7 @@ def mk_full_signature_from_json(abi):
             ),
             custom_structs=dict(),
             constants=Constants(),
+            is_from_json=True,
         )
         sigs.append(sig)
     return sigs
