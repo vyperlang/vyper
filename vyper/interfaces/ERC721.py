@@ -52,7 +52,7 @@ def safeTransferFrom(_from: address, _to: address, _tokenId: uint256):
     pass
 
 @external
-def safeTransferFrom(_from: address, _to: address, _tokenId: uint256, _data: bytes[1024]):
+def safeTransferFrom(_from: address, _to: address, _tokenId: uint256, _data: Bytes[1024]):
     pass
 
 @external

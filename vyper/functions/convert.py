@@ -10,12 +10,13 @@ from vyper.types import BaseType, ByteArrayType, StringType, get_type
 from vyper.utils import DECIMAL_DIVISOR, MemoryPositions, SizeLimits
 
 
-@signature(("decimal", "int128", "uint256", "address", "bytes32", "bytes"), "*")
+@signature(("decimal", "int128", "uint256", "address", "bytes32", "Bytes"), "*")
 def to_bool(expr, args, kwargs, context):
     in_arg = args[0]
     input_type, _ = get_type(in_arg)
+    print(input_type)
 
-    if input_type == "bytes":
+    if input_type == "Bytes":
         if in_arg.typ.maxlen > 32:
             raise TypeMismatch(
                 f"Cannot convert bytes array of max length {in_arg.typ.maxlen} to bool", expr,
@@ -33,7 +34,7 @@ def to_bool(expr, args, kwargs, context):
 
 
 @signature(
-    ("num_literal", "bool", "decimal", "uint256", "address", "bytes32", "bytes", "string"), "*"
+    ("num_literal", "bool", "decimal", "uint256", "address", "bytes32", "Bytes", "String"), "*"
 )
 def to_int128(expr, args, kwargs, context):
     in_arg = args[0]
@@ -76,7 +77,7 @@ def to_int128(expr, args, kwargs, context):
             pos=getpos(expr),
         )
 
-    elif input_type in ("string", "bytes"):
+    elif input_type in ("String", "Bytes"):
         if in_arg.typ.maxlen > 32:
             raise TypeMismatch(
                 f"Cannot convert bytes array of max length {in_arg.typ.maxlen} to int128", expr,
@@ -116,7 +117,7 @@ def to_int128(expr, args, kwargs, context):
         raise InvalidLiteral(f"Invalid input for int128: {in_arg}", expr)
 
 
-@signature(("num_literal", "int128", "bytes32", "bytes", "address", "bool", "decimal"), "*")
+@signature(("num_literal", "int128", "bytes32", "Bytes", "address", "bool", "decimal"), "*")
 def to_uint256(expr, args, kwargs, context):
     in_arg = args[0]
     input_type, _ = get_type(in_arg)
@@ -151,7 +152,7 @@ def to_uint256(expr, args, kwargs, context):
             value=in_arg.value, args=in_arg.args, typ=BaseType("uint256"), pos=getpos(expr)
         )
 
-    elif isinstance(in_arg, LLLnode) and input_type == "bytes":
+    elif isinstance(in_arg, LLLnode) and input_type == "Bytes":
         if in_arg.typ.maxlen > 32:
             raise InvalidLiteral(
                 f"Cannot convert bytes array of max length {in_arg.typ.maxlen} to uint256", expr,
@@ -162,12 +163,12 @@ def to_uint256(expr, args, kwargs, context):
         raise InvalidLiteral(f"Invalid input for uint256: {in_arg}", expr)
 
 
-@signature(("bool", "int128", "uint256", "bytes32", "bytes", "address"), "*")
+@signature(("bool", "int128", "uint256", "bytes32", "Bytes", "address"), "*")
 def to_decimal(expr, args, kwargs, context):
     in_arg = args[0]
     input_type, _ = get_type(in_arg)
 
-    if input_type == "bytes":
+    if input_type == "Bytes":
         if in_arg.typ.maxlen > 32:
             raise TypeMismatch(
                 f"Cannot convert bytes array of max length {in_arg.typ.maxlen} to decimal", expr,
@@ -241,12 +242,12 @@ def to_decimal(expr, args, kwargs, context):
             raise InvalidLiteral(f"Invalid input for decimal: {in_arg}", expr)
 
 
-@signature(("int128", "uint256", "address", "bytes", "bool", "decimal"), "*")
+@signature(("int128", "uint256", "address", "Bytes", "bool", "decimal"), "*")
 def to_bytes32(expr, args, kwargs, context):
     in_arg = args[0]
     input_type, _len = get_type(in_arg)
 
-    if input_type == "bytes":
+    if input_type == "Bytes":
         if _len > 32:
             raise TypeMismatch(
                 f"Unable to convert bytes[{_len}] to bytes32, max length is too " "large."
@@ -273,9 +274,9 @@ def to_address(expr, args, kwargs, context):
 
 
 def _to_bytelike(expr, args, kwargs, context, bytetype):
-    if bytetype == "string":
+    if bytetype == "String":
         ReturnType = StringType
-    elif bytetype == "bytes":
+    elif bytetype == "Bytes":
         ReturnType = ByteArrayType
     else:
         raise TypeMismatch(f"Invalid {bytetype} supplied")
@@ -295,14 +296,14 @@ def _to_bytelike(expr, args, kwargs, context, bytetype):
     )
 
 
-@signature(("bytes"), "*")
+@signature(("Bytes"), "*")
 def to_string(expr, args, kwargs, context):
-    return _to_bytelike(expr, args, kwargs, context, bytetype="string")
+    return _to_bytelike(expr, args, kwargs, context, bytetype="String")
 
 
-@signature(("string"), "*")
+@signature(("String"), "*")
 def to_bytes(expr, args, kwargs, context):
-    return _to_bytelike(expr, args, kwargs, context, bytetype="bytes")
+    return _to_bytelike(expr, args, kwargs, context, bytetype="Bytes")
 
 
 def convert(expr, context):
@@ -336,6 +337,6 @@ CONVERSION_TABLE = {
     "decimal": to_decimal,
     "bytes32": to_bytes32,
     "address": to_address,
-    "string": to_string,
-    "bytes": to_bytes,
+    "String": to_string,
+    "Bytes": to_bytes,
 }

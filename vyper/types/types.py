@@ -64,13 +64,13 @@ class ByteArrayLike(NodeType):
 
 class StringType(ByteArrayLike):
     def __repr__(self):
-        return f"string[{self.maxlen}]"
+        return f"String[{self.maxlen}]"
 
 
 # Data structure for a byte array
 class ByteArrayType(ByteArrayLike):
     def __repr__(self):
-        return f"bytes[{self.maxlen}]"
+        return f"Bytes[{self.maxlen}]"
 
 
 # Data structure for a list with some fixed length
@@ -229,9 +229,9 @@ def parse_type(item, location, sigs=None, custom_structs=None, constants=None):
                     item.slice.value,
                 )
             # ByteArray
-            if getattr(item.value, "id", None) == "bytes":
+            if getattr(item.value, "id", None) == "Bytes":
                 return ByteArrayType(n_val)
-            elif getattr(item.value, "id", None) == "string":
+            elif getattr(item.value, "id", None) == "String":
                 return StringType(n_val)
             # List
             else:
@@ -331,7 +331,7 @@ def get_type(input):
     if not hasattr(input, "typ"):
         typ, len = "num_literal", 32
     elif hasattr(input.typ, "maxlen"):
-        typ, len = "bytes", input.typ.maxlen
+        typ, len = "Bytes", input.typ.maxlen
     else:
         typ, len = input.typ.typ, 32
     return typ, len
