@@ -48,7 +48,7 @@ contracts.
     * ``value``: Value for the ether unit
     * ``unit``: Ether unit name (e.g. ``"wei"``, ``"ether"``, ``"gwei"``, etc.) indicating the denomination of ``value``.
 
-.. py:function:: slice(b: Union[bytes, bytes32, string], start: uint256, length: uint256) -> Union[bytes, string]
+.. py:function:: slice(b: Union[Bytes, bytes32, String], start: uint256, length: uint256) -> Union[Bytes, String]
 
     Copy a list of bytes and return a specified slice.
 
@@ -56,7 +56,7 @@ contracts.
     * ``start``: start position of the slice
     * ``length``: length of the slice
 
-    If the value being sliced is a ``bytes`` or ``bytes32``, the return type is ``bytes``.  If it is a ``string``, the return type is ``string``.
+    If the value being sliced is a ``Bytes`` or ``bytes32``, the return type is ``Bytes``.  If it is a ``String``, the return type is ``String``.
 
     .. code-block:: python
 
@@ -70,15 +70,15 @@ contracts.
         >>> ExampleContract.foo("why hello! how are you?")
         "hello"
 
-.. py:function:: len(b: Union[bytes, string]) -> uint256
+.. py:function:: len(b: Union[Bytes, String]) -> uint256
 
-    Return the length of a given ``bytes`` or ``string``.
+    Return the length of a given ``Bytes`` or ``String``.
 
     .. code-block:: python
 
         @external
         @view
-        def foo(s: string[32]) -> uint256:
+        def foo(s: String[32]) -> uint256:
             return len(s)
 
     .. code-block:: python
@@ -86,21 +86,21 @@ contracts.
         >>> ExampleContract.foo("hello")
         5
 
-.. py:function:: concat(a, b, *args) -> bytes
+.. py:function:: concat(a, b, *args) -> Bytes
 
-    Takes 2 or more bytes arrays of type ``bytes32`` or ``bytes`` and combines them into a single ``bytes`` list.
+    Takes 2 or more bytes arrays of type ``bytes32`` or ``Bytes`` and combines them into a single ``Bytes`` list.
 
 .. py:function:: keccak256(value) -> bytes32
 
     Returns a ``keccak256`` hash of the given value.
 
-    * ``value``: Value to hash. Can be ``str_literal``, ``bytes``, or ``bytes32``.
+    * ``value``: Value to hash. Can be a literal string, ``Bytes``, or ``bytes32``.
 
 .. py:function:: sha256(value) -> bytes32
 
     Returns a ``sha256`` (SHA2 256bit output) hash of the given value.
 
-    * ``value``: Value to hash. Can be ``str_literal``, ``bytes``, or ``bytes32``.
+    * ``value``: Value to hash. Can be a literal string, ``Bytes``, or ``bytes32``.
 
 .. py:function:: uint256_addmod(a: uint256, b: uint256, c: uint256) -> uint256
 
@@ -132,12 +132,12 @@ contracts.
         >>> ExampleContract.foo(100, 100)
         59041770658110225754900818312084884949620587934026984283048776718299468660736
 
-.. py:function:: method_id(method, output_type: type = bytes[4]) -> Union[bytes32, bytes[4]]
+.. py:function:: method_id(method, output_type: type = Bytes[4]) -> Union[bytes32, Bytes[4]]
 
     Takes a function declaration and returns its method_id (used in data field to call it).
 
     * ``method``: Method declaration as given as a literal string
-    * ``output_type``: The type of output (``bytes[4]`` or ``bytes32``). Defaults to ``bytes[4]``.
+    * ``output_type``: The type of output (``Bytes[4]`` or ``bytes32``). Defaults to ``Bytes[4]``.
 
     Returns a value of the type specified by ``output_type``.
 
@@ -145,8 +145,8 @@ contracts.
 
         @external
         @view
-        def foo() -> bytes[4]:
-            return method_id('transfer(address,uint256)', output_type=bytes[4])
+        def foo() -> Bytes[4]:
+            return method_id('transfer(address,uint256)', output_type=Bytes[4])
 
     .. code-block:: python
 
@@ -174,11 +174,11 @@ contracts.
     * ``point``: Point to be multiplied
     * ``scalar``: Scalar value
 
-.. py:function:: extract32(b: bytes, start: int128, output_type=bytes32) -> Union[bytes32, int128, address]
+.. py:function:: extract32(b: Bytes, start: int128, output_type=bytes32) -> Union[bytes32, int128, address]
 
-    Extract a value from a ``bytes`` list.
+    Extract a value from a ``Bytes`` list.
 
-    * ``b``: ``bytes`` list to extract from
+    * ``b``: ``Bytes`` list to extract from
     * ``start``: Start point to extract from
     * ``output_type``: Type of output (``bytes32``, ``int128``, or ``address``). Defaults to ``bytes32``.
 
@@ -188,7 +188,7 @@ contracts.
 
         @external
         @view
-        def foo(bytes[32]) -> address:
+        def foo(Bytes[32]) -> address:
             return extract32(b, 12, output_type=address)
 
     .. code-block:: python
@@ -213,7 +213,7 @@ Vyper contains a set of built in functions which execute opcodes such as ``SEND`
 
         The amount to send is always specified in ``wei``.
 
-.. py:function:: raw_call(to: address, data: bytes, max_outsize: int = 0, gas: uint256 = gasLeft, value: uint256 = 0, is_delegate_call: bool = False, is_static_call: bool = False) -> bytes[max_outsize]
+.. py:function:: raw_call(to: address, data: Bytes, max_outsize: int = 0, gas: uint256 = gasLeft, value: uint256 = 0, is_delegate_call: bool = False, is_static_call: bool = False) -> Bytes[max_outsize]
 
     Calls to the specified Ethereum address.
 
@@ -225,7 +225,7 @@ Vyper contains a set of built in functions which execute opcodes such as ``SEND`
     * ``is_delegate_call``: If ``True``, the call will be sent as ``DELEGATECALL`` (Optional, default ``False``)
     * ``is_static_call``: If ``True``, the call will be sent as ``STATICCALL`` (Optional, default ``False``)
 
-    Returns the data returned by the call as a ``bytes`` list, with ``max_outsize`` as the max length.
+    Returns the data returned by the call as a ``Bytes`` list, with ``max_outsize`` as the max length.
 
     Returns ``None`` if ``max_outsize`` is omitted or set to ``0``.
 
@@ -279,7 +279,7 @@ Vyper contains a set of built in functions which execute opcodes such as ``SEND`
 
         To give it a more Python-like syntax, the assert function can be called without parenthesis, the syntax would be ``assert your_bool_condition``. Even though both options will compile, it's recommended to use the Pythonic version without parenthesis.
 
-.. py:function:: raw_log(topics: bytes32[4], data: bytes) -> None
+.. py:function:: raw_log(topics: bytes32[4], data: Bytes) -> None
 
     Provides low level access to the ``LOG`` opcodes, emitting a log without having to specify an ABI type.
 

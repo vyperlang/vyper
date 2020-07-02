@@ -303,30 +303,30 @@ Where ``x`` is a byte array and ``_start`` as well as ``_len`` are integer value
 Fixed-size Byte Arrays
 ======================
 
-**Keyword:** ``bytes``
+**Keyword:** ``Bytes``
 
 A byte array with a fixed size.
-The syntax being ``bytes[maxLen]``, where ``maxLen`` is an integer which denotes the maximum number of bytes.
+The syntax being ``Bytes[maxLen]``, where ``maxLen`` is an integer which denotes the maximum number of bytes.
 On the ABI level the Fixed-size bytes array is annotated as ``bytes``.
 
 **Example:**
 ::
 
-    example_bytes: bytes[100] = b"\x01\x02\x03"
+    example_bytes: Bytes[100] = b"\x01\x02\x03"
 
 .. index:: !string
 
 Fixed-size Strings
 ==================
 
-**Keyword:** ``string``
+**Keyword:** ``String``
 Fixed-size strings can hold strings with equal or fewer characters than the maximum length of the string.
 On the ABI level the Fixed-size bytes array is annotated as ``string``.
 
 **Example:**
 ::
 
-    example_str: string[100] = "Test String"
+    example_str: String[100] = "Test String"
 
 Operators
 ---------
@@ -341,7 +341,7 @@ Keyword                               Description
 ====================================  ============================================================
 
 Where ``x`` is a byte array or string while ``_start`` and ``_len`` are integers.
-The ``len``, ``keccak256``, ``concat``, ``slice`` operators can be used with ``string`` and ``bytes`` types.
+The ``len``, ``keccak256``, ``concat``, ``slice`` operators can be used with ``String`` and ``Bytes`` types.
 
 .. index:: !reference
 
@@ -470,7 +470,7 @@ Here you can find a list of all types and default values:
      - ``'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'``
 
 .. note::
-    In ``bytes`` the array starts with the bytes all set to ``'\x00'``
+    In ``Bytes`` the array starts with the bytes all set to ``'\x00'``
 
 .. note::
     In reference types all the type's members are set to their initial values.
@@ -511,7 +511,7 @@ All type conversions in Vyper must be made explicitly using the built-in ``conve
      - ``(0x00 * 32)...(0xFF * 32)``
      - Has the effective conversion logic of: ``return (a != 0x00)``
    * - ``bool``
-     - ``bytes``
+     - ``Bytes``
      - ``(0x00 * 1)...(0xFF * 32)``
      - Has the effective conversion logic of: ``return (a != 0x00)``
    * -
@@ -539,7 +539,7 @@ All type conversions in Vyper must be made explicitly using the built-in ``conve
      - ``(0x00 * 32)...(0xFF * 32)``
      -
    * - ``decimal``
-     - ``bytes``
+     - ``Bytes``
      - ``(0x00 * 1)...(0xFF * 32)``
      -
    * -
@@ -567,7 +567,7 @@ All type conversions in Vyper must be made explicitly using the built-in ``conve
      - ``(0x00 * 32)...(0xFF * 32)``
      -
    * - ``int128``
-     - ``bytes``
+     - ``Bytes``
      - ``(0x00 * 1)...(0xFF * 32)``
      -
    * -
@@ -595,7 +595,7 @@ All type conversions in Vyper must be made explicitly using the built-in ``conve
      - ``(0x00 * 32)...(0xFF * 32)``
      -
    * - ``uint256``
-     - ``bytes``
+     - ``Bytes``
      - ``(0x00 * 1)...(0xFF * 32)``
      -
    * -
@@ -623,9 +623,9 @@ All type conversions in Vyper must be made explicitly using the built-in ``conve
      - —
      - Do not allow converting to/from the same type
    * - ``bytes32``
-     - ``bytes``
+     - ``Bytes``
      - ``(0x00 * 1)...(0xFF * 32)``
-     - Left-pad input ``bytes`` to size of ``32``
+     - Left-pad input ``Bytes`` to size of ``32``
 
 
 .. index:: !conversion
