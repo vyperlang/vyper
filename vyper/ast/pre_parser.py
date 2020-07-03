@@ -44,6 +44,11 @@ def validate_version_pragma(version_str: str, start: ParserPosition) -> None:
     strict_file_version = _convert_version_str(raw_file_version)
     strict_compiler_version = Version(_convert_version_str(__version__))
 
+    if len(strict_file_version) == 0:
+        raise VersionException(
+            "Version specification cannot be empty", start,
+        )
+
     try:
         npm_spec = NpmSpec(strict_file_version)
     except ValueError:
