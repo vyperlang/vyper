@@ -398,7 +398,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         return_value = fn_type.fetch_call_return(node.value)
         if return_value and not isinstance(fn_type, ContractFunction):
             raise StructureException(
-                f"Function '{node.value.func}' cannot be called without assigning the result", node
+                f"Function '{fn_type._id}' cannot be called without assigning the result", node
             )
 
     def visit_Log(self, node):
