@@ -9,13 +9,13 @@ def extract_file_interface_imports(code: SourceCode) -> InterfaceImports:
     imports_dict: InterfaceImports = {}
     for node in ast_tree.get_children((vy_ast.Import, vy_ast.ImportFrom)):
         if isinstance(node, vy_ast.Import):  # type: ignore
-            if not node.asname:
+            if not node.alias:
                 raise StructureException("Import requires an accompanying `as` statement", node)
-            if node.asname in imports_dict:
+            if node.alias in imports_dict:
                 raise StructureException(
-                    f"Interface with alias {node.asname} already exists", node,
+                    f"Interface with alias {node.alias} already exists", node,
                 )
-            imports_dict[node.asname] = node.name.replace(".", "/")
+            imports_dict[node.alias] = node.name.replace(".", "/")
         elif isinstance(node, vy_ast.ImportFrom):  # type: ignore
             level = node.level  # type: ignore
             module = node.module or ""  # type: ignore

@@ -1143,14 +1143,14 @@ class Pass(VyperNode):
 
 
 class _Import(VyperNode):
-    __slots__ = ("name", "asname")
+    __slots__ = ("name", "alias")
 
     def __init__(self, *args, **kwargs):
         if len(kwargs["names"]) > 1:
             _raise_syntax_exc("Assignment statement must have one target", kwargs)
         names = kwargs.pop("names")[0]
         kwargs["name"] = names.name
-        kwargs["asname"] = names.asname
+        kwargs["alias"] = names.asname
         super().__init__(*args, **kwargs)
 
 

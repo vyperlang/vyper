@@ -87,7 +87,7 @@ class GlobalContext:
                 global_ctx._defs.append(item)
             elif isinstance(item, vy_ast.ImportFrom):
                 interface_name = item.name
-                assigned_name = item.asname or item.name
+                assigned_name = item.alias or item.name
                 if assigned_name in global_ctx._interfaces:
                     raise StructureException(f"Duplicate import of {interface_name}", item)
 
@@ -107,7 +107,7 @@ class GlobalContext:
                         interface_codes[interface_name]
                     )
             elif isinstance(item, vy_ast.Import):
-                interface_name = item.asname
+                interface_name = item.alias
                 if interface_name in global_ctx._interfaces:
                     raise StructureException(f"Duplicate import of {interface_name}", item)
                 if interface_name not in interface_codes:

@@ -188,18 +188,18 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
             raise exc.with_annotation(node) from None
 
     def visit_Import(self, node):
-        if not node.asname:
+        if not node.alias:
             raise StructureException(
                 "Import requires an accompanying `as` statement", node,
             )
-        _add_import(node, node.name, node.asname, node.asname, self.interface_codes, self.namespace)
+        _add_import(node, node.name, node.alias, node.alias, self.interface_codes, self.namespace)
 
     def visit_ImportFrom(self, node):
         _add_import(
             node,
             node.module,
             node.name,
-            node.asname or node.name,
+            node.alias or node.name,
             self.interface_codes,
             self.namespace,
         )
