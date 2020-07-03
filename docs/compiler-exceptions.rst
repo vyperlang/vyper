@@ -118,7 +118,7 @@ of the error within the code:
 
 .. py:exception:: NatSpecSyntaxException
 
-    Raises when a contract contains an invalid :ref:`NatSpec<structure-metadata>` docstring.
+    Raises when a contract contains an invalid :ref:`NatSpec<natspec>` docstring.
 
     .. code-block:: python
 
