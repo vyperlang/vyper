@@ -14,6 +14,9 @@ from vyper.exceptions import StructureException
 class MappingDefinition(IndexableTypeDefinition):
     _id = "HashMap"
 
+    def __repr__(self):
+        return f"{self._id}[{self.key_type}, {self.value_type}]"
+
     def compare_type(self, other):
         return (
             super().compare_type(other)
