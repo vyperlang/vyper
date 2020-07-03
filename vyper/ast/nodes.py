@@ -1142,16 +1142,24 @@ class Pass(VyperNode):
     __slots__ = ()
 
 
-class Import(VyperNode):
-    __slots__ = ("names",)
-
-
-class ImportFrom(VyperNode):
-    __slots__ = ("level", "module", "names")
-
-
-class alias(VyperNode):
+class _Import(VyperNode):
     __slots__ = ("name", "asname")
+
+    def __init__(self, *args, **kwargs):
+        if len(kwargs["names"]) > 1:
+            _raise_syntax_exc("Assignment statement must have one target", kwargs)
+        names = kwargs.pop("names")[0]
+        kwargs["name"] = names.name
+        kwargs["asname"] = names.asname
+        super().__init__(*args, **kwargs)
+
+
+class Import(_Import):
+    __slots__ = ()
+
+
+class ImportFrom(_Import):
+    __slots__ = ("level", "module")
 
 
 class If(VyperNode):
