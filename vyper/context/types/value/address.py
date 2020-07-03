@@ -2,10 +2,7 @@ from vyper import ast as vy_ast
 from vyper.context.types.bases import BasePrimitive, MemberTypeDefinition
 from vyper.context.types.value.boolean import BoolDefinition
 from vyper.context.types.value.bytes_fixed import Bytes32Definition
-from vyper.context.types.value.numeric import (
-    Int128Definition,
-    Uint256Definition,
-)
+from vyper.context.types.value.numeric import Uint256Definition
 from vyper.exceptions import InvalidLiteral
 from vyper.utils import checksum_encode
 
@@ -15,7 +12,7 @@ class AddressDefinition(MemberTypeDefinition):
     _type_members = {
         "balance": Uint256Definition(is_immutable=True),
         "codehash": Bytes32Definition(is_immutable=True),
-        "codesize": Int128Definition(is_immutable=True),
+        "codesize": Uint256Definition(is_immutable=True),
         "is_contract": BoolDefinition(is_immutable=True),
     }
 

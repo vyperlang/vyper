@@ -328,8 +328,11 @@ class Expr:
             addr = Expr.parse_value_expr(self.expr.value, self.context)
             if is_base_type(addr.typ, "address"):
                 if self.expr.attr == "codesize":
-                    eval_code = ["extcodesize", addr]
-                    output_type = "int128"
+                    if self.expr.value.id == "self":
+                        eval_code = ["codesize"]
+                    else:
+                        eval_code = ["extcodesize", addr]
+                    output_type = "uint256"
                 else:
                     eval_code = ["gt", ["extcodesize", addr], 0]
                     output_type = "bool"
