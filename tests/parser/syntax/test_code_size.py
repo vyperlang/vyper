@@ -23,10 +23,15 @@ def test_block_fail(bad_code):
 valid_list = [
     """
 @external
-def foo() -> int128:
+def foo() -> uint256:
     x: address = 0x1234567890123456789012345678901234567890
     return x.codesize
+    """,
     """
+@external
+def foo() -> uint256:
+    return self.codesize
+    """,
 ]
 
 
