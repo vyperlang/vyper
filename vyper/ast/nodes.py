@@ -7,6 +7,7 @@ from typing import Any, Optional, Union
 from vyper.exceptions import (
     CompilerPanic,
     InvalidLiteral,
+    InvalidOperation,
     OverflowException,
     SyntaxException,
     TypeMismatch,
@@ -910,6 +911,8 @@ class Pow(VyperNode):
     def _op(self, left, right):
         if isinstance(left, decimal.Decimal):
             raise TypeMismatch("Cannot perform exponentiation on decimal values.", self._parent)
+        if right < 0:
+            raise InvalidOperation("Cannot calculate a negative power", self._parent)
         return int(left ** right)
 
 
