@@ -103,11 +103,15 @@ With absolute ``import`` statements, you **must** include an alias as a name for
 Imports via ``from ... import``
 -------------------------------
 
-Using ``from`` you can perform both absolute and relative imports. With ``from`` import statements you **cannot** use an alias - the name of the interface will always be that of the file:
+Using ``from`` you can perform both absolute and relative imports. You may optionally include an alias - if you do not, the name of the interface will be the same as the file.
 
 .. code-block:: python
 
+    # without an alias
     from contract import foo
+
+    # with an alias
+    from contract import foo as Foo
 
 Relative imports are possible by prepending dots to the contract name. A single leading dot indicates a relative import starting with the current package. Two leading dots indicate a relative import from the parent of the current package:
 

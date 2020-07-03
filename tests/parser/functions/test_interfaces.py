@@ -2,13 +2,11 @@ from decimal import Decimal
 
 import pytest
 
+from vyper.cli.utils import extract_file_interface_imports
 from vyper.compiler import compile_code, compile_codes
 from vyper.exceptions import InterfaceViolation, StructureException
 from vyper.interfaces import ERC20, ERC721
-from vyper.signatures.interface import (
-    extract_file_interface_imports,
-    extract_sigs,
-)
+from vyper.signatures.interface import extract_sigs
 
 
 def test_basic_extract_interface():
@@ -167,8 +165,6 @@ def test_extract_file_interface_imports(code):
 
 BAD_IMPORT_CODE = [
     "import a",  # must alias absolute imports
-    "from a import a as A",  # cannot alias from imports
-    "from ..a import a as A",
     "import a as A\nimport a as A",  # namespace collisions
     "from b import a\nfrom a import a",
     "from . import a\nimport a as a",

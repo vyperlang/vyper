@@ -8,10 +8,10 @@ from pathlib import Path
 from typing import Dict, Iterable, Iterator, Sequence, Set, TypeVar
 
 import vyper
+from vyper.cli.utils import extract_file_interface_imports
 from vyper.opcodes import DEFAULT_EVM_VERSION, EVM_VERSIONS
 from vyper.parser import parser_utils
 from vyper.settings import VYPER_TRACEBACK_LIMIT
-from vyper.signatures.interface import extract_file_interface_imports
 from vyper.typing import ContractCodes, ContractPath, OutputFormats
 
 T = TypeVar("T")

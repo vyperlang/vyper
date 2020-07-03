@@ -86,45 +86,35 @@ class GlobalContext:
             elif isinstance(item, vy_ast.FunctionDef):
                 global_ctx._defs.append(item)
             elif isinstance(item, vy_ast.ImportFrom):
+                interface_name = item.name
+                assigned_name = item.alias or item.name
+                if assigned_name in global_ctx._interfaces:
+                    raise StructureException(f"Duplicate import of {interface_name}", item)
+
                 if not item.level and item.module == "vyper.interfaces":
                     built_in_interfaces = get_builtin_interfaces()
-                    for item_alias in item.names:
-                        interface_name = item_alias.name
-                        if interface_name in global_ctx._interfaces:
-                            raise StructureException(f"Duplicate import of {interface_name}", item)
-                        if interface_name not in built_in_interfaces:
-                            raise StructureException(
-                                f"Built-In interface {interface_name} does not exist.", item
-                            )
-                        global_ctx._interfaces[interface_name] = built_in_interfaces[
-                            interface_name
-                        ].copy()  # noqa: E501
-                else:
-                    for item_alias in item.names:
-                        interface_name = item_alias.name
-
-                        if interface_name in global_ctx._interfaces:
-                            raise StructureException(f"Duplicate import of {interface_name}", item)
-                        if interface_name not in interface_codes:
-                            raise StructureException(f"Unknown interface {interface_name}", item)
-                        global_ctx._interfaces[interface_name] = extract_sigs(
-                            interface_codes[interface_name]
-                        )  # noqa: E501
-            elif isinstance(item, vy_ast.Import):
-                for item_alias in item.names:
-                    if not item_alias.asname:
+                    if interface_name not in built_in_interfaces:
                         raise StructureException(
-                            "External interface import expects an alias using `as` statement", item
+                            f"Built-In interface {interface_name} does not exist.", item
                         )
-
-                    interface_name = item_alias.asname
-                    if interface_name in global_ctx._interfaces:
-                        raise StructureException(f"Duplicate import of {interface_name}", item)
+                    global_ctx._interfaces[assigned_name] = built_in_interfaces[
+                        interface_name
+                    ].copy()
+                else:
                     if interface_name not in interface_codes:
                         raise StructureException(f"Unknown interface {interface_name}", item)
-                    global_ctx._interfaces[interface_name] = extract_sigs(
+                    global_ctx._interfaces[assigned_name] = extract_sigs(
                         interface_codes[interface_name]
-                    )  # noqa: E501
+                    )
+            elif isinstance(item, vy_ast.Import):
+                interface_name = item.alias
+                if interface_name in global_ctx._interfaces:
+                    raise StructureException(f"Duplicate import of {interface_name}", item)
+                if interface_name not in interface_codes:
+                    raise StructureException(f"Unknown interface {interface_name}", item)
+                global_ctx._interfaces[interface_name] = extract_sigs(
+                    interface_codes[interface_name]
+                )
             else:
                 raise StructureException("Invalid top-level statement", item)
 

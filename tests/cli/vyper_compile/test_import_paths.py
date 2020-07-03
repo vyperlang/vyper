@@ -11,7 +11,7 @@ def foo() -> uint256:
 
 @external
 def bar(a: address) -> uint256:
-    return Bar(a).bar()
+    return {}(a).bar()
 """
 
 BAR_CODE = """
@@ -22,21 +22,24 @@ def bar() -> uint256:
 
 
 SAME_FOLDER_IMPORT_STMT = [
-    "import Bar as Bar",
-    "import contracts.Bar as Bar",
-    "from . import Bar",
-    "from contracts import Bar",
-    "from ..contracts import Bar",
+    ("import Bar as Bar", "Bar"),
+    ("import contracts.Bar as Bar", "Bar"),
+    ("from . import Bar", "Bar"),
+    ("from contracts import Bar", "Bar"),
+    ("from ..contracts import Bar", "Bar"),
+    ("from . import Bar as FooBar", "FooBar"),
+    ("from contracts import Bar as FooBar", "FooBar"),
+    ("from ..contracts import Bar as FooBar", "FooBar"),
 ]
 
 
-@pytest.mark.parametrize("import_stmt", SAME_FOLDER_IMPORT_STMT)
-def test_import_same_folder(import_stmt, tmp_path):
+@pytest.mark.parametrize("import_stmt,alias", SAME_FOLDER_IMPORT_STMT)
+def test_import_same_folder(import_stmt, alias, tmp_path):
     tmp_path.joinpath("contracts").mkdir()
 
     foo_path = tmp_path.joinpath("contracts/foo.vy")
     with foo_path.open("w") as fp:
-        fp.write(FOO_CODE.format(import_stmt))
+        fp.write(FOO_CODE.format(import_stmt, alias))
 
     with tmp_path.joinpath("contracts/Bar.vy").open("w") as fp:
         fp.write(BAR_CODE)
@@ -45,22 +48,26 @@ def test_import_same_folder(import_stmt, tmp_path):
 
 
 SUBFOLDER_IMPORT_STMT = [
-    "import other.Bar as Bar",
-    "import contracts.other.Bar as Bar",
-    "from other import Bar",
-    "from contracts.other import Bar",
-    "from .other import Bar",
-    "from ..contracts.other import Bar",
+    ("import other.Bar as Bar", "Bar"),
+    ("import contracts.other.Bar as Bar", "Bar"),
+    ("from other import Bar", "Bar"),
+    ("from contracts.other import Bar", "Bar"),
+    ("from .other import Bar", "Bar"),
+    ("from ..contracts.other import Bar", "Bar"),
+    ("from other import Bar as FooBar", "FooBar"),
+    ("from contracts.other import Bar as FooBar", "FooBar"),
+    ("from .other import Bar as FooBar", "FooBar"),
+    ("from ..contracts.other import Bar as FooBar", "FooBar"),
 ]
 
 
-@pytest.mark.parametrize("import_stmt", SUBFOLDER_IMPORT_STMT)
-def test_import_subfolder(import_stmt, tmp_path):
+@pytest.mark.parametrize("import_stmt, alias", SUBFOLDER_IMPORT_STMT)
+def test_import_subfolder(import_stmt, alias, tmp_path):
     tmp_path.joinpath("contracts").mkdir()
 
     foo_path = tmp_path.joinpath("contracts/foo.vy")
     with foo_path.open("w") as fp:
-        fp.write(FOO_CODE.format(import_stmt))
+        fp.write(FOO_CODE.format(import_stmt, alias))
 
     tmp_path.joinpath("contracts/other").mkdir()
     with tmp_path.joinpath("contracts/other/Bar.vy").open("w") as fp:
@@ -70,19 +77,21 @@ def test_import_subfolder(import_stmt, tmp_path):
 
 
 OTHER_FOLDER_IMPORT_STMT = [
-    "import interfaces.Bar as Bar",
-    "from interfaces import Bar",
-    "from ..interfaces import Bar",
+    ("import interfaces.Bar as Bar", "Bar"),
+    ("from interfaces import Bar", "Bar"),
+    ("from ..interfaces import Bar", "Bar"),
+    ("from interfaces import Bar as FooBar", "FooBar"),
+    ("from ..interfaces import Bar as FooBar", "FooBar"),
 ]
 
 
-@pytest.mark.parametrize("import_stmt", OTHER_FOLDER_IMPORT_STMT)
-def test_import_other_folder(import_stmt, tmp_path):
+@pytest.mark.parametrize("import_stmt, alias", OTHER_FOLDER_IMPORT_STMT)
+def test_import_other_folder(import_stmt, alias, tmp_path):
     tmp_path.joinpath("contracts").mkdir()
 
     foo_path = tmp_path.joinpath("contracts/foo.vy")
     with foo_path.open("w") as fp:
-        fp.write(FOO_CODE.format(import_stmt))
+        fp.write(FOO_CODE.format(import_stmt, alias))
 
     tmp_path.joinpath("interfaces").mkdir()
     with tmp_path.joinpath("interfaces/Bar.vy").open("w") as fp:
@@ -97,7 +106,7 @@ def test_import_parent_folder(tmp_path, assert_compile_failed):
 
     foo_path = tmp_path.joinpath("contracts/baz/foo.vy")
     with foo_path.open("w") as fp:
-        fp.write(FOO_CODE.format("from ... import Bar"))
+        fp.write(FOO_CODE.format("from ... import Bar", "Bar"))
 
     with tmp_path.joinpath("Bar.vy").open("w") as fp:
         fp.write(BAR_CODE)
@@ -168,7 +177,7 @@ def bar(_foo: address, _bar: address) -> uint256:
     """
 
     with tmp_path.joinpath("Foo.vy").open("w") as fp:
-        fp.write(FOO_CODE.format(import_stmt_foo))
+        fp.write(FOO_CODE.format(import_stmt_foo, "Bar"))
 
     with tmp_path.joinpath("Bar.vy").open("w") as fp:
         fp.write(BAR_CODE)
@@ -231,7 +240,7 @@ def test_get_interface_file_path(tmp_path):
 def test_compile_outside_root_path(tmp_path):
     foo_path = tmp_path.joinpath("foo.vy")
     with foo_path.open("w") as fp:
-        fp.write(FOO_CODE.format("import bar as Bar"))
+        fp.write(FOO_CODE.format("import bar as Bar", "Bar"))
 
     bar_path = tmp_path.joinpath("bar.vy")
     with bar_path.open("w") as fp:
