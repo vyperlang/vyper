@@ -12,7 +12,6 @@ from vyper.signatures import sig_utils
 from vyper.signatures.event_signature import EventSignature
 from vyper.signatures.function_signature import FunctionSignature
 from vyper.types.types import ByteArrayLike, TupleLike
-from vyper.typing import InterfaceImports, SourceCode
 
 
 # Populate built-in interfaces.
@@ -177,48 +176,6 @@ def extract_external_interface(global_ctx, contract_name):
             out += offset + f"def {func.name}({args}){render_return(func)}: {func.mutability}\n"
     out += "\n"
     return out
-
-
-def extract_file_interface_imports(code: SourceCode) -> InterfaceImports:
-    ast_tree = vy_ast.parse_to_ast(code)
-
-    imports_dict: InterfaceImports = {}
-    for item in ast_tree:
-        if isinstance(item, vy_ast.Import):  # type: ignore
-            for a_name in item.names:  # type: ignore
-                if not a_name.asname:
-                    raise StructureException(
-                        "Interface statement requires an accompanying `as` statement.", item,
-                    )
-                if a_name.asname in imports_dict:
-                    raise StructureException(
-                        f"Interface with alias {a_name.asname} already exists", item,
-                    )
-                imports_dict[a_name.asname] = a_name.name.replace(".", "/")
-        elif isinstance(item, vy_ast.ImportFrom):  # type: ignore
-            for a_name in item.names:  # type: ignore
-                if a_name.asname:
-                    raise StructureException("From imports cannot use aliases", item)
-            level = item.level  # type: ignore
-            module = item.module or ""  # type: ignore
-            if not level and module == "vyper.interfaces":
-                continue
-
-            base_path = ""
-            if level > 1:
-                base_path = "../" * (level - 1)
-            elif level == 1:
-                base_path = "./"
-            base_path = f"{base_path}{module.replace('.','/')}/"
-
-            for a_name in item.names:  # type: ignore
-                if a_name.name in imports_dict:
-                    raise StructureException(
-                        f"Interface with name {a_name.name} already exists", item,
-                    )
-                imports_dict[a_name.name] = f"{base_path}{a_name.name}"
-
-    return imports_dict
 
 
 Conflict = Tuple[FunctionSignature, FunctionSignature]

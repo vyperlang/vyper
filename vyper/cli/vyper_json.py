@@ -8,10 +8,10 @@ from pathlib import Path
 from typing import Callable, Dict, Tuple, Union
 
 import vyper
+from vyper.cli.utils import extract_file_interface_imports
 from vyper.cli.vyper_compile import get_interface_file_path
 from vyper.exceptions import JSONError
 from vyper.opcodes import DEFAULT_EVM_VERSION, EVM_VERSIONS
-from vyper.signatures.interface import extract_file_interface_imports
 from vyper.typing import ContractCodes, ContractPath
 from vyper.utils import keccak256
 
