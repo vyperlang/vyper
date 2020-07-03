@@ -18,6 +18,7 @@ from vyper.exceptions import (
     ExceptionList,
     NamespaceCollision,
     StateAccessViolation,
+    StructureException,
     UndeclaredDefinition,
     VariableDeclarationException,
     VyperException,
@@ -187,12 +188,21 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
             raise exc.with_annotation(node) from None
 
     def visit_Import(self, node):
-        _add_import(
-            node, node.names[0].name, node.names[0].asname, self.interface_codes, self.namespace
-        )
+        if not node.asname:
+            raise StructureException(
+                "Import requires an accompanying `as` statement", node,
+            )
+        _add_import(node, node.name, node.asname, node.asname, self.interface_codes, self.namespace)
 
     def visit_ImportFrom(self, node):
-        _add_import(node, node.module, node.names[0].name, self.interface_codes, self.namespace)
+        _add_import(
+            node,
+            node.module,
+            node.name,
+            node.asname or node.name,
+            self.interface_codes,
+            self.namespace,
+        )
 
     def visit_InterfaceDef(self, node):
         obj = self.namespace["interface"].build_primitive_from_node(node)
@@ -213,6 +223,7 @@ def _add_import(
     node: Union[vy_ast.Import, vy_ast.ImportFrom],
     module: str,
     name: str,
+    alias: str,
     interface_codes: InterfaceDict,
     namespace: dict,
 ) -> None:
@@ -223,7 +234,7 @@ def _add_import(
     try:
         if interface_codes[name]["type"] == "vyper":
             interface_ast = vy_ast.parse_to_ast(interface_codes[name]["code"])
-            interface_ast.name = name
+            interface_ast.name = alias
             type_ = namespace["interface"].build_primitive_from_node(interface_ast)
         elif interface_codes[name]["type"] == "json":
             type_ = namespace["interface"].build_primitive_from_abi(
@@ -231,7 +242,7 @@ def _add_import(
             )
         else:
             raise CompilerPanic(f"Unknown interface format: {interface_codes[name]['type']}")
-        namespace[name] = type_
+        namespace[alias] = type_
     except VyperException as exc:
         raise exc.with_annotation(node) from None
 
