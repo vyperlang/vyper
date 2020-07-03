@@ -59,7 +59,7 @@ def add_record():
     (
         """
 @external
-def foo(inp: bytes[10]) -> bytes[3]:
+def foo(inp: Bytes[10]) -> Bytes[3]:
     return slice(inp, chain.id, -3)
     """,
         InvalidType,

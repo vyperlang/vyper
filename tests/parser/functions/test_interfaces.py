@@ -381,8 +381,8 @@ type_str_params = [
     ("address", "0x1234567890123456789012345678901234567890"),
     ("bytes32", b"bytes32bytes32bytes32bytes32poop"),
     ("decimal", Decimal("3.1337")),
-    ("bytes[4]", b"newp"),
-    ("string[6]", "potato"),
+    ("Bytes[4]", b"newp"),
+    ("String[6]", "potato"),
 ]
 
 interface_test_code = """

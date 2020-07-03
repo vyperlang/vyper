@@ -6,7 +6,7 @@ def double(x: int128) -> int128:
 
 @external
 def returnten() -> int128:
-    ans: bytes[32] = raw_call(self, concat(method_id("double(int128)"), convert(5, bytes32)), gas=50000, max_outsize=32)  # noqa: E501
+    ans: Bytes[32] = raw_call(self, concat(method_id("double(int128)"), convert(5, bytes32)), gas=50000, max_outsize=32)  # noqa: E501
     return convert(convert(ans, bytes32), int128)
     """
     c = get_contract_with_gas_estimation(method_id_test)
@@ -29,8 +29,8 @@ def sig() -> bytes32:
 def test_method_id_bytes4(get_contract):
     code = """
 @external
-def sig() -> bytes[4]:
-    return method_id('transfer(address,uint256)', output_type=bytes[4])
+def sig() -> Bytes[4]:
+    return method_id('transfer(address,uint256)', output_type=Bytes[4])
     """
     c = get_contract(code)
     sig = c.sig()
@@ -42,7 +42,7 @@ def sig() -> bytes[4]:
 def test_method_id_bytes4_default(get_contract):
     code = """
 @external
-def sig() -> bytes[4]:
+def sig() -> Bytes[4]:
     return method_id('transfer(address,uint256)')
     """
     c = get_contract(code)

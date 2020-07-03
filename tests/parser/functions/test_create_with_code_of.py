@@ -18,7 +18,7 @@ def test_create_forwarder_to_call(get_contract, w3):
 
 interface SubContract:
 
-    def hello() -> bytes[100]: view
+    def hello() -> Bytes[100]: view
 
 
 other: public(address)
@@ -31,12 +31,12 @@ def test() -> address:
 
 
 @external
-def hello() -> bytes[100]:
+def hello() -> Bytes[100]:
     return b"hello world!"
 
 
 @external
-def test2() -> bytes[100]:
+def test2() -> Bytes[100]:
     return SubContract(self.other).hello()
 
     """
@@ -53,7 +53,7 @@ def test_create_with_code_exception(w3, get_contract, assert_tx_failed):
 
 interface SubContract:
 
-    def hello(a: uint256) -> bytes[100]: view
+    def hello(a: uint256) -> Bytes[100]: view
 
 
 other: public(address)
@@ -66,13 +66,13 @@ def test() -> address:
 
 
 @external
-def hello(a: uint256) -> bytes[100]:
+def hello(a: uint256) -> Bytes[100]:
     assert a > 0, "invaliddddd"
     return b"hello world!"
 
 
 @external
-def test2(a: uint256) -> bytes[100]:
+def test2(a: uint256) -> Bytes[100]:
     return SubContract(self.other).hello(a)
     """
 

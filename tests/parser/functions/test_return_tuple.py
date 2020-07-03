@@ -6,8 +6,8 @@ def test_return_type(get_contract_with_gas_estimation):
 
     code = """
 struct Chunk:
-    a: bytes[8]
-    b: bytes[8]
+    a: Bytes[8]
+    b: Bytes[8]
     c: int128
 chunk: Chunk
 
@@ -22,31 +22,31 @@ def out() -> (int128, address):
     return 3333, 0x0000000000000000000000000000000000000001
 
 @external
-def out_literals() -> (int128, address, bytes[6]):
+def out_literals() -> (int128, address, Bytes[6]):
     return 1, 0x0000000000000000000000000000000000000000, b"random"
 
 @external
-def out_bytes_first() -> (bytes[4], int128):
+def out_bytes_first() -> (Bytes[4], int128):
     return b"test", 1234
 
 @external
-def out_bytes_a(x: int128, y: bytes[4]) -> (int128, bytes[4]):
+def out_bytes_a(x: int128, y: Bytes[4]) -> (int128, Bytes[4]):
     return x, y
 
 @external
-def out_bytes_b(x: int128, y: bytes[4]) -> (bytes[4], int128, bytes[4]):
+def out_bytes_b(x: int128, y: Bytes[4]) -> (Bytes[4], int128, Bytes[4]):
     return y, x, y
 
 @external
-def four() -> (int128, bytes[8], bytes[8], int128):
+def four() -> (int128, Bytes[8], Bytes[8], int128):
     return 1234, b"bytes", b"test", 4321
 
 @external
-def out_chunk() -> (bytes[8], int128, bytes[8]):
+def out_chunk() -> (Bytes[8], int128, Bytes[8]):
     return self.chunk.a, self.chunk.c, self.chunk.b
 
 @external
-def out_very_long_bytes() -> (int128, bytes[1024], int128, address):
+def out_very_long_bytes() -> (int128, Bytes[1024], int128, address):
     return 5555, b"testtesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttest", 6666, 0x0000000000000000000000000000000000001234  # noqa
     """
 
@@ -70,7 +70,7 @@ def out_very_long_bytes() -> (int128, bytes[1024], int128, address):
 def test_return_type_signatures(get_contract_with_gas_estimation):
     code = """
 @external
-def out_literals() -> (int128, address, bytes[6]):
+def out_literals() -> (int128, address, Bytes[6]):
     return 1, 0x0000000000000000000000000000000000000000, b"random"
     """
 
@@ -85,18 +85,18 @@ def out_literals() -> (int128, address, bytes[6]):
 def test_return_tuple_assign(get_contract_with_gas_estimation):
     code = """
 @internal
-def _out_literals() -> (int128, address, bytes[10]):
+def _out_literals() -> (int128, address, Bytes[10]):
     return 1, 0x0000000000000000000000000000000000000000, b"random"
 
 @external
-def out_literals() -> (int128, address, bytes[10]):
+def out_literals() -> (int128, address, Bytes[10]):
     return self._out_literals()
 
 @external
-def test() -> (int128, address, bytes[10]):
+def test() -> (int128, address, Bytes[10]):
     a: int128 = 0
     b: address = ZERO_ADDRESS
-    c: bytes[10] = b""
+    c: Bytes[10] = b""
     (a, b, c) = self._out_literals()
     return a, b, c
     """
@@ -110,19 +110,19 @@ def test_return_tuple_assign_storage(get_contract_with_gas_estimation):
     code = """
 a: int128
 b: address
-c: bytes[20]
-d: bytes[20]
+c: Bytes[20]
+d: Bytes[20]
 
 @internal
-def _out_literals() -> (int128, bytes[20], address, bytes[20]):
+def _out_literals() -> (int128, Bytes[20], address, Bytes[20]):
     return 1, b"testtesttest", 0x0000000000000000000000000000000000000023, b"random"
 
 @external
-def out_literals() -> (int128, bytes[20], address, bytes[20]):
+def out_literals() -> (int128, Bytes[20], address, Bytes[20]):
     return self._out_literals()
 
 @external
-def test1() -> (int128, bytes[20], address, bytes[20]):
+def test1() -> (int128, Bytes[20], address, Bytes[20]):
     self.a, self.c, self.b, self.d = self._out_literals()
     return self.a, self.c, self.b, self.d
 

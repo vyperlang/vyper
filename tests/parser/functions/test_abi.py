@@ -49,7 +49,7 @@ def test_method_identifiers():
 x: public(int128)
 
 @external
-def foo(y: uint256) -> bytes[100]:
+def foo(y: uint256) -> Bytes[100]:
     return b"hello"
     """
 

@@ -45,7 +45,7 @@ def foo() -> int128:
     return self.lucky
 
 @external
-def array() -> bytes[3]:
+def array() -> Bytes[3]:
     return b'dog'
     """
 
@@ -55,7 +55,7 @@ def array() -> bytes[3]:
     contract_2 = """
 interface Foo:
     def foo() -> int128: nonpayable
-    def array() -> bytes[3]: view
+    def array() -> Bytes[3]: view
 
 @external
 def bar(arg1: address) -> int128:
@@ -71,7 +71,7 @@ def bar(arg1: address) -> int128:
 def test_external_contract_calls_with_bytes(get_contract, length):
     contract_1 = f"""
 @external
-def array() -> bytes[{length}]:
+def array() -> Bytes[{length}]:
     return b'dog'
     """
 
@@ -79,10 +79,10 @@ def array() -> bytes[{length}]:
 
     contract_2 = """
 interface Foo:
-    def array() -> bytes[3]: view
+    def array() -> Bytes[3]: view
 
 @external
-def get_array(arg1: address) -> bytes[3]:
+def get_array(arg1: address) -> Bytes[3]:
     return Foo(arg1).array()
 """
 
@@ -93,7 +93,7 @@ def get_array(arg1: address) -> bytes[3]:
 def test_bytes_too_long(get_contract, assert_tx_failed):
     contract_1 = """
 @external
-def array() -> bytes[4]:
+def array() -> Bytes[4]:
     return b'doge'
     """
 
@@ -101,10 +101,10 @@ def array() -> bytes[4]:
 
     contract_2 = """
 interface Foo:
-    def array() -> bytes[3]: view
+    def array() -> Bytes[3]: view
 
 @external
-def get_array(arg1: address) -> bytes[3]:
+def get_array(arg1: address) -> Bytes[3]:
     return Foo(arg1).array()
 """
 
@@ -117,7 +117,7 @@ def get_array(arg1: address) -> bytes[3]:
 def test_tuple_with_bytes(get_contract, assert_tx_failed, a, b, actual):
     contract_1 = f"""
 @external
-def array() -> (bytes[{actual}], int128, bytes[{actual}]):
+def array() -> (Bytes[{actual}], int128, Bytes[{actual}]):
     return b'dog', 255, b'cat'
     """
 
@@ -125,13 +125,13 @@ def array() -> (bytes[{actual}], int128, bytes[{actual}]):
 
     contract_2 = f"""
 interface Foo:
-    def array() -> (bytes[{a}], int128, bytes[{b}]): view
+    def array() -> (Bytes[{a}], int128, Bytes[{b}]): view
 
 @external
-def get_array(arg1: address) -> (bytes[{a}], int128, bytes[{b}]):
-    a: bytes[{a}] = b""
+def get_array(arg1: address) -> (Bytes[{a}], int128, Bytes[{b}]):
+    a: Bytes[{a}] = b""
     b: int128 = 0
-    c: bytes[{b}] = b""
+    c: Bytes[{b}] = b""
     a, b, c = Foo(arg1).array()
     return a, b, c
 """
@@ -146,7 +146,7 @@ def get_array(arg1: address) -> (bytes[{a}], int128, bytes[{b}]):
 def test_tuple_with_bytes_too_long(get_contract, assert_tx_failed, a, c, b, d):
     contract_1 = f"""
 @external
-def array() -> (bytes[{c}], int128, bytes[{d}]):
+def array() -> (Bytes[{c}], int128, Bytes[{d}]):
     return b'nineteen characters', 255, b'seven!!'
     """
 
@@ -154,13 +154,13 @@ def array() -> (bytes[{c}], int128, bytes[{d}]):
 
     contract_2 = f"""
 interface Foo:
-    def array() -> (bytes[{a}], int128, bytes[{b}]): view
+    def array() -> (Bytes[{a}], int128, Bytes[{b}]): view
 
 @external
-def get_array(arg1: address) -> (bytes[{a}], int128, bytes[{b}]):
-    a: bytes[{a}] = b""
+def get_array(arg1: address) -> (Bytes[{a}], int128, Bytes[{b}]):
+    a: Bytes[{a}] = b""
     b: int128 = 0
-    c: bytes[{b}] = b""
+    c: Bytes[{b}] = b""
     a, b, c = Foo(arg1).array()
     return a, b, c
 """
@@ -173,7 +173,7 @@ def get_array(arg1: address) -> (bytes[{a}], int128, bytes[{b}]):
 def test_tuple_with_bytes_too_long_two(get_contract, assert_tx_failed):
     contract_1 = """
 @external
-def array() -> (bytes[30], int128, bytes[30]):
+def array() -> (Bytes[30], int128, Bytes[30]):
     return b'nineteen characters', 255, b'seven!!'
     """
 
@@ -181,13 +181,13 @@ def array() -> (bytes[30], int128, bytes[30]):
 
     contract_2 = """
 interface Foo:
-    def array() -> (bytes[30], int128, bytes[3]): view
+    def array() -> (Bytes[30], int128, Bytes[3]): view
 
 @external
-def get_array(arg1: address) -> (bytes[30], int128, bytes[3]):
-    a: bytes[30] = b""
+def get_array(arg1: address) -> (Bytes[30], int128, Bytes[3]):
+    a: Bytes[30] = b""
     b: int128 = 0
-    c: bytes[3] = b""
+    c: Bytes[3] = b""
     a, b, c = Foo(arg1).array()
     return a, b, c
 """
@@ -775,19 +775,19 @@ def test_bad_code_struct_exc(assert_compile_failed, get_contract_with_gas_estima
 def test_tuple_return_external_contract_call(get_contract):
     contract_1 = """
 @external
-def out_literals() -> (int128, address, bytes[10]):
+def out_literals() -> (int128, address, Bytes[10]):
     return 1, 0x0000000000000000000000000000000000000123, b"random"
     """
 
     contract_2 = """
 interface Test:
-    def out_literals() -> (int128, address, bytes[10]) : view
+    def out_literals() -> (int128, address, Bytes[10]) : view
 
 @external
-def test(addr: address) -> (int128, address, bytes[10]):
+def test(addr: address) -> (int128, address, Bytes[10]):
     a: int128 = 0
     b: address = ZERO_ADDRESS
-    c: bytes[10] = b""
+    c: Bytes[10] = b""
     (a, b, c) = Test(addr).out_literals()
     return a, b,c
 

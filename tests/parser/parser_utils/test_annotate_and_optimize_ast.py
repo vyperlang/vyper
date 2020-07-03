@@ -20,7 +20,7 @@ struct S:
     b: int128
 
 interface ERC20Contract:
-    def name() -> string[64]: view
+    def name() -> String[64]: view
 
 @external
 def foo() -> int128:

@@ -2,12 +2,12 @@ def test_log_dynamic_static_combo(get_logs, get_contract_with_gas_estimation, w3
     code = """
 event TestLog:
     testData1: bytes32
-    testData2: bytes[60]
-    testData3: bytes[8]
+    testData2: Bytes[60]
+    testData3: Bytes[8]
 
 @internal
 @view
-def to_bytes(_value: uint256) -> bytes[8]:
+def to_bytes(_value: uint256) -> Bytes[8]:
     return slice(concat(b"", convert(_value, bytes32)), 24, 8)
 
 @internal
@@ -17,11 +17,11 @@ def to_bytes32(_value: uint256) -> bytes32:
 
 @external
 def test_func(_value: uint256):
-    data2: bytes[60] = concat(self.to_bytes32(_value),self.to_bytes(_value),b"testing")
+    data2: Bytes[60] = concat(self.to_bytes32(_value),self.to_bytes(_value),b"testing")
     log TestLog(self.to_bytes32(_value), data2, self.to_bytes(_value))
 
     loggedValue: bytes32 = self.to_bytes32(_value)
-    loggedValue2: bytes[8] = self.to_bytes(_value)
+    loggedValue2: Bytes[8] = self.to_bytes(_value)
     log TestLog(loggedValue, data2, loggedValue2)
     """
 
@@ -46,12 +46,12 @@ def test_log_dynamic_static_combo2(get_logs, get_contract, w3):
     code = """
 event TestLog:
     testData1: bytes32
-    testData2: bytes[133]
-    testData3: string[8]
+    testData2: Bytes[133]
+    testData3: String[8]
 
 @internal
 @view
-def to_bytes(_value: uint256) -> bytes[8]:
+def to_bytes(_value: uint256) -> Bytes[8]:
     return slice(concat(b"", convert(_value, bytes32)), 24, 8)
 
 @internal
@@ -60,9 +60,9 @@ def to_bytes32(_value: uint256) -> bytes32:
     return convert(_value, bytes32)
 
 @external
-def test_func(_value: uint256,input: bytes[133]):
+def test_func(_value: uint256,input: Bytes[133]):
 
-    data2: bytes[200] = b"hello world"
+    data2: Bytes[200] = b"hello world"
 
     # log TestLog(self.to_bytes32(_value),input,self.to_bytes(_value))
     log TestLog(self.to_bytes32(_value),input,"bababa")
@@ -87,7 +87,7 @@ def test_log_single_function_call(get_logs, get_contract, w3):
     code = """
 event TestLog:
     testData1: bytes32
-    testData2: bytes[133]
+    testData2: Bytes[133]
 
 @internal
 @view
@@ -95,9 +95,9 @@ def to_bytes32(_value: uint256) -> bytes32:
     return convert(_value, bytes32)
 
 @external
-def test_func(_value: uint256,input: bytes[133]):
+def test_func(_value: uint256,input: Bytes[133]):
 
-    data2: bytes[200] = b"hello world"
+    data2: Bytes[200] = b"hello world"
 
     # log will be malformed
     # log TestLog(self.to_bytes32(_value),input,self.to_bytes(_value))
@@ -119,12 +119,12 @@ def test_original_problem_function(get_logs, get_contract, w3):
     code = """
 event TestLog:
     testData1: bytes32
-    testData2: bytes[2064]
-    testData3: bytes[8]
+    testData2: Bytes[2064]
+    testData3: Bytes[8]
 
 @internal
 @view
-def to_bytes(_value: uint256) -> bytes[8]:
+def to_bytes(_value: uint256) -> Bytes[8]:
     return slice(concat(b"", convert(_value, bytes32)), 24, 8)
 
 @internal
@@ -133,14 +133,14 @@ def to_bytes32(_value: uint256) -> bytes32:
     return convert(_value, bytes32)
 
 @external
-def test_func(_value: uint256,input: bytes[2048]):
+def test_func(_value: uint256,input: Bytes[2048]):
 
-    data2: bytes[2064] = concat(self.to_bytes(_value),self.to_bytes(_value),input)
+    data2: Bytes[2064] = concat(self.to_bytes(_value),self.to_bytes(_value),input)
 
     # log will be malformed
     log TestLog(self.to_bytes32(_value), data2, self.to_bytes(_value))
 
-    loggedValue: bytes[8] = self.to_bytes(_value)
+    loggedValue: Bytes[8] = self.to_bytes(_value)
 
     # log will be normal
     log TestLog(self.to_bytes32(_value),data2,loggedValue)

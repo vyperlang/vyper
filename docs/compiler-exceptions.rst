@@ -74,7 +74,7 @@ of the error within the code:
 
         @external
         def foo():
-            a: string[10] = "hello" * 2
+            a: String[10] = "hello" * 2
 
     This example raises ``InvalidOperation`` because multiplication is not possible on string types.
 

@@ -118,19 +118,19 @@ def return_it() -> uint256:
 
 def test_private_bytes(get_contract_with_gas_estimation):
     private_test_code = """
-greeting: public(bytes[100])
+greeting: public(Bytes[100])
 
 @external
 def __init__():
     self.greeting = b"Hello "
 
 @internal
-def construct(greet: bytes[100]) -> bytes[200]:
+def construct(greet: Bytes[100]) -> Bytes[200]:
     return concat(self.greeting, greet)
 
 @external
-def hithere(name: bytes[100]) -> bytes[200]:
-    d: bytes[200] = self.construct(name)
+def hithere(name: Bytes[100]) -> Bytes[200]:
+    d: Bytes[200] = self.construct(name)
     return d
     """
 
@@ -141,14 +141,14 @@ def hithere(name: bytes[100]) -> bytes[200]:
 
 def test_private_statement(get_contract_with_gas_estimation):
     private_test_code = """
-greeting: public(bytes[20])
+greeting: public(Bytes[20])
 
 @external
 def __init__():
     self.greeting = b"Hello "
 
 @internal
-def set_greeting(_greeting: bytes[20]):
+def set_greeting(_greeting: Bytes[20]):
     a: uint256 = 332
     b: uint256 = 333
     c: uint256 = 334
@@ -158,11 +158,11 @@ def set_greeting(_greeting: bytes[20]):
 
 @internal
 @view
-def construct(greet: bytes[20]) -> bytes[40]:
+def construct(greet: Bytes[20]) -> Bytes[40]:
     return concat(self.greeting, greet)
 
 @external
-def iprefer(_greeting: bytes[20]):
+def iprefer(_greeting: Bytes[20]):
     a: uint256 = 112
     b: uint256 = 211
     self.set_greeting(_greeting)
@@ -170,8 +170,8 @@ def iprefer(_greeting: bytes[20]):
     assert b == 211
 
 @external
-def hithere(name: bytes[20]) -> bytes[40]:
-    d: bytes[40] = self.construct(name)
+def hithere(name: Bytes[20]) -> Bytes[40]:
+    d: Bytes[40] = self.construct(name)
     return d
     """
 
@@ -214,48 +214,48 @@ def added(a: uint256, b: uint256) -> uint256:
 
 def test_private_return_bytes(get_contract_with_gas_estimation):
     code = """
-a_message: bytes[50]
+a_message: Bytes[50]
 
 @internal
-def _test() -> (bytes[100]):
-    b: bytes[50] = b"hello                   1           2"
+def _test() -> (Bytes[100]):
+    b: Bytes[50] = b"hello                   1           2"
     return b
 
 @internal
-def _test_b(a: bytes[100]) -> (bytes[100]):
-    b: bytes[50] = b"hello there"
+def _test_b(a: Bytes[100]) -> (Bytes[100]):
+    b: Bytes[50] = b"hello there"
     if len(a) > 1:
         return a
     else:
         return b
 
 @internal
-def get_msg() -> (bytes[100]):
+def get_msg() -> (Bytes[100]):
     return self.a_message
 
 @external
-def test() -> (bytes[100]):
-    d: bytes[100] = b""
+def test() -> (Bytes[100]):
+    d: Bytes[100] = b""
     d = self._test()
     return d
 
 @external
-def test2() -> (bytes[100]):
-    d: bytes[100] = b'xyzxyzxyzxyz'
+def test2() -> (Bytes[100]):
+    d: Bytes[100] = b'xyzxyzxyzxyz'
     return self._test()
 
 @external
-def test3(a: bytes[50]) -> (bytes[100]):
-    d: bytes[100] = b'xyzxyzxyzxyz'
+def test3(a: Bytes[50]) -> (Bytes[100]):
+    d: Bytes[100] = b'xyzxyzxyzxyz'
     return self._test_b(a)
 
 @external
-def set(a: bytes[50]):
+def set(a: Bytes[50]):
     self.a_message = a
 
 @external
-def test4() -> (bytes[100]):
-    d: bytes[100] = b'xyzxyzxyzxyz'
+def test4() -> (Bytes[100]):
+    d: Bytes[100] = b'xyzxyzxyzxyz'
     return self.get_msg()
     """
 
@@ -271,19 +271,19 @@ def test4() -> (bytes[100]):
 def test_private_bytes_as_args(get_contract_with_gas_estimation):
     code = """
 @internal
-def _test(a: bytes[40]) -> (bytes[100]):
-    b: bytes[40] = b"hello "
+def _test(a: Bytes[40]) -> (Bytes[100]):
+    b: Bytes[40] = b"hello "
     return concat(b, a)
 
 @external
-def test(a: bytes[10]) -> bytes[100]:
-    b: bytes[40] = concat(a, b", jack attack")
-    out: bytes[100] = self._test(b)
+def test(a: Bytes[10]) -> Bytes[100]:
+    b: Bytes[40] = concat(a, b", jack attack")
+    out: Bytes[100] = self._test(b)
     return out
 
 @external
-def test2() -> bytes[100]:
-    c: bytes[10] = b"alice"
+def test2() -> Bytes[100]:
+    c: Bytes[10] = b"alice"
     return self._test(c)
     """
 
@@ -323,41 +323,41 @@ def test2(a: bytes32) -> (bytes32, uint256, int128):
 def test_private_return_tuple_bytes(get_contract_with_gas_estimation):
     code = """
 @internal
-def _test(a: int128, b: bytes[50]) -> (int128, bytes[100]):
+def _test(a: int128, b: Bytes[50]) -> (int128, Bytes[100]):
     return a + 2, concat(b"badabing:", b)
 
 @internal
-def _test_combined(a: bytes[50], x: int128, c:bytes[50]) -> (int128, bytes[100], bytes[100]):
+def _test_combined(a: Bytes[50], x: int128, c:Bytes[50]) -> (int128, Bytes[100], Bytes[100]):
     assert x == 8
     return x + 2, a, concat(c, b'_two')
 
 @external
-def test(a: int128, b: bytes[40]) -> (int128, bytes[100], bytes[50]):
+def test(a: int128, b: Bytes[40]) -> (int128, Bytes[100], Bytes[50]):
     c: int128 = 1
-    x: bytes[50] = concat(b, b"_one")
-    d: bytes[100] = b""
+    x: Bytes[50] = concat(b, b"_one")
+    d: Bytes[100] = b""
     c, d = self._test(a + c, x)
     return c, d, x
 
 @external
-def test2(b: bytes[40]) -> (int128, bytes[100]):
+def test2(b: Bytes[40]) -> (int128, Bytes[100]):
     a: int128 = 4
-    x: bytes[50] = concat(b, b"_one")
-    d: bytes[100] = b""
+    x: Bytes[50] = concat(b, b"_one")
+    d: Bytes[100] = b""
     return self._test(a, x)
 
 @external
-def test3(a: bytes[32]) -> (int128, bytes[100], bytes[100]):
-    q: bytes[100] = b"random data1"
-    w: bytes[100] = b"random data2"
+def test3(a: Bytes[32]) -> (int128, Bytes[100], Bytes[100]):
+    q: Bytes[100] = b"random data1"
+    w: Bytes[100] = b"random data2"
     x: int128 = 8
-    b: bytes[32] = a
+    b: Bytes[32] = a
     x, q, w = self._test_combined(a, x, b)
     return x, q, w
 
 @external
-def test4(a: bytes[40]) -> (int128, bytes[100], bytes[100]):
-    b: bytes[50] = concat(a, b"_one")
+def test4(a: Bytes[40]) -> (int128, Bytes[100], Bytes[100]):
+    b: Bytes[50] = concat(a, b"_one")
     return self._test_combined(a, 8, b)
     """
 
@@ -538,10 +538,10 @@ def call_arr() -> int128:
 def test_private_zero_bytearray(get_contract):
     private_test_code = """
 @internal
-def inner(xs: bytes[256]):
+def inner(xs: Bytes[256]):
     pass
 @external
-def outer(xs: bytes[256] = b"") -> bool:
+def outer(xs: Bytes[256] = b"") -> bool:
     self.inner(xs)
     return True
     """

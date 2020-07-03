@@ -2,7 +2,7 @@ def test_bytes_logging_extended(get_contract_with_gas_estimation, get_logs):
     code = """
 event MyLog:
     arg1: int128
-    arg2: bytes[64]
+    arg2: Bytes[64]
     arg3: int128
 
 @external
@@ -21,15 +21,15 @@ def foo():
 def test_bytes_logging_extended_variables(get_contract_with_gas_estimation, get_logs):
     code = """
 event MyLog:
-    arg1: bytes[64]
-    arg2: bytes[64]
-    arg3: bytes[64]
+    arg1: Bytes[64]
+    arg2: Bytes[64]
+    arg3: Bytes[64]
 
 @external
 def foo():
-    a: bytes[64] = b'hellohellohellohellohellohellohellohellohello'
-    b: bytes[64] = b'hellohellohellohellohellohellohellohello'
-    c: bytes[64] = b'hellohellohellohellohellohellohello'
+    a: Bytes[64] = b'hellohellohellohellohellohellohellohellohello'
+    b: Bytes[64] = b'hellohellohellohellohellohellohellohello'
+    c: Bytes[64] = b'hellohellohellohellohellohellohello'
     log MyLog(a, b, c)
     """
 
@@ -45,11 +45,11 @@ def test_bytes_logging_extended_passthrough(get_contract_with_gas_estimation, ge
     code = """
 event MyLog:
     arg1: int128
-    arg2: bytes[64]
+    arg2: Bytes[64]
     arg3: int128
 
 @external
-def foo(a: int128, b: bytes[64], c: int128):
+def foo(a: int128, b: Bytes[64], c: int128):
     log MyLog(a, b, c)
     """
 
@@ -66,11 +66,11 @@ def test_bytes_logging_extended_storage(get_contract_with_gas_estimation, get_lo
     code = """
 event MyLog:
     arg1: int128
-    arg2: bytes[64]
+    arg2: Bytes[64]
     arg3: int128
 
 a: int128
-b: bytes[64]
+b: Bytes[64]
 c: int128
 
 @external
@@ -78,7 +78,7 @@ def foo():
     log MyLog(self.a, self.b, self.c)
 
 @external
-def set(x: int128, y: bytes[64], z: int128):
+def set(x: int128, y: Bytes[64], z: int128):
     self.a = x
     self.b = y
     self.c = z
@@ -105,9 +105,9 @@ def test_bytes_logging_extended_mixed_with_lists(get_contract_with_gas_estimatio
     code = """
 event MyLog:
     arg1: int128[2][2]
-    arg2: bytes[64]
+    arg2: Bytes[64]
     arg3: int128
-    arg4: bytes[64]
+    arg4: Bytes[64]
 
 @external
 def foo():

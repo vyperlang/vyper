@@ -21,8 +21,8 @@ def erc20(get_contract):
 def erc20_caller(erc20, get_contract):
     erc20_caller_code = """
 interface ERC20Contract:
-    def name() -> string[64]: view
-    def symbol() -> string[32]: view
+    def name() -> String[64]: view
+    def symbol() -> String[32]: view
     def decimals() -> uint256: view
     def balanceOf(_owner: address) -> uint256: view
     def totalSupply() -> uint256: view
@@ -38,11 +38,11 @@ def __init__(token_addr: address):
     self.token_address = ERC20Contract(token_addr)
 
 @external
-def name() -> string[64]:
+def name() -> String[64]:
     return self.token_address.name()
 
 @external
-def symbol() -> string[32]:
+def symbol() -> String[32]:
     return self.token_address.symbol()
 
 @external

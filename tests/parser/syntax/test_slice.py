@@ -7,7 +7,7 @@ fail_list = [
     (
         """
 @external
-def foo(inp: bytes[10]) -> bytes[2]:
+def foo(inp: Bytes[10]) -> Bytes[2]:
     return slice(inp, 2, 3)
     """,
         TypeMismatch,
@@ -15,7 +15,7 @@ def foo(inp: bytes[10]) -> bytes[2]:
     (
         """
 @external
-def foo(inp: int128) -> bytes[3]:
+def foo(inp: int128) -> Bytes[3]:
     return slice(inp, 2, 3)
     """,
         TypeMismatch,
@@ -23,7 +23,7 @@ def foo(inp: int128) -> bytes[3]:
     (
         """
 @external
-def foo(inp: bytes[10]) -> bytes[3]:
+def foo(inp: Bytes[10]) -> Bytes[3]:
     return slice(inp, 4.0, 3)
     """,
         InvalidType,
@@ -41,17 +41,17 @@ def test_slice_fail(bad_code, exc):
 valid_list = [
     """
 @external
-def foo(inp: bytes[10]) -> bytes[3]:
+def foo(inp: Bytes[10]) -> Bytes[3]:
     return slice(inp, 2, 3)
     """,
     """
 @external
-def foo(inp: bytes[10]) -> bytes[4]:
+def foo(inp: Bytes[10]) -> Bytes[4]:
     return slice(inp, 2, 3)
     """,
     """
 @external
-def foo() -> bytes[10]:
+def foo() -> Bytes[10]:
     return slice(b"badmintonzzz", 1, 10)
     """,
 ]

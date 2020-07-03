@@ -16,7 +16,7 @@ def test_string(get_contract, value, fn_name):
 
     source = f"""
 @external
-def foo(a: string[100]) -> bytes32:
+def foo(a: String[100]) -> bytes32:
     return {fn_name}(a)
     """
     contract = get_contract(source)
@@ -35,7 +35,7 @@ def foo(a: string[100]) -> bytes32:
 def test_bytes(get_contract, value, fn_name):
     source = f"""
 @external
-def foo(a: bytes[100]) -> bytes32:
+def foo(a: Bytes[100]) -> bytes32:
     return {fn_name}(a)
     """
     contract = get_contract(source)
@@ -54,7 +54,7 @@ def foo(a: bytes[100]) -> bytes32:
 def test_hex(get_contract, value, fn_name):
     source = f"""
 @external
-def foo(a: bytes[100]) -> bytes32:
+def foo(a: Bytes[100]) -> bytes32:
     return {fn_name}(a)
     """
     contract = get_contract(source)

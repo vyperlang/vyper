@@ -6,7 +6,7 @@ from vyper.exceptions import SyntaxException
 
 fail_list = [
     """
-x: bytes[1:3]
+x: Bytes[1:3]
     """,
     """
 b: int128[int128: address]

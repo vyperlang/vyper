@@ -62,10 +62,10 @@ def double_nonreentrant():
 x: 5
     """,
     """
-x: bytes <= wei
+x: Bytes <= wei
     """,
     """
-x: string <= 33
+x: String <= 33
     """,
 ]
 

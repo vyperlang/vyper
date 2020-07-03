@@ -8,7 +8,7 @@ from vyper.functions import get_create_forwarder_to_bytecode
 def test_max_outsize_exceeds_returndatasize(get_contract):
     source_code = """
 @external
-def foo() -> bytes[7]:
+def foo() -> Bytes[7]:
     return raw_call(0x0000000000000000000000000000000000000004, b"moose", max_outsize=7)
     """
     c = get_contract(source_code)
@@ -18,7 +18,7 @@ def foo() -> bytes[7]:
 def test_returndatasize_exceeds_max_outsize(get_contract):
     source_code = """
 @external
-def foo() -> bytes[3]:
+def foo() -> Bytes[3]:
     return raw_call(0x0000000000000000000000000000000000000004, b"moose", max_outsize=3)
     """
     c = get_contract(source_code)
@@ -28,7 +28,7 @@ def foo() -> bytes[3]:
 def test_returndatasize_matches_max_outsize(get_contract):
     source_code = """
 @external
-def foo() -> bytes[5]:
+def foo() -> Bytes[5]:
     return raw_call(0x0000000000000000000000000000000000000004, b"moose", max_outsize=5)
     """
     c = get_contract(source_code)
@@ -48,7 +48,7 @@ def returnten() -> int128:
 @external
 def create_and_call_returnten(inp: address) -> int128:
     x: address = create_forwarder_to(inp)
-    o: int128 = extract32(raw_call(x, convert("\xd0\x1f\xb1\xb8", bytes[4]), max_outsize=32, gas=50000), 0, output_type=int128)  # noqa: E501
+    o: int128 = extract32(raw_call(x, convert("\xd0\x1f\xb1\xb8", Bytes[4]), max_outsize=32, gas=50000), 0, output_type=int128)  # noqa: E501
     return o
 
 @external
@@ -90,7 +90,7 @@ def returnten() -> int128:
 @external
 def create_and_call_returnten(inp: address) -> int128:
     x: address = create_forwarder_to(inp)
-    o: int128 = extract32(raw_call(x, convert("\xd0\x1f\xb1\xb8", bytes[4]), max_outsize=32, gas=50000), 0, output_type=int128)  # noqa: E501
+    o: int128 = extract32(raw_call(x, convert("\xd0\x1f\xb1\xb8", Bytes[4]), max_outsize=32, gas=50000), 0, output_type=int128)  # noqa: E501
     return o
 
 @external
@@ -130,7 +130,7 @@ def __init__(_owner_setter: address):
 @external
 def set(i: int128, owner: address):
     # delegate setting owners to other contract.s
-    cdata: bytes[68] = concat(method_id("set_owner(int128,address)"), convert(i, bytes32), convert(owner, bytes32))  # noqa: E501
+    cdata: Bytes[68] = concat(method_id("set_owner(int128,address)"), convert(i, bytes32), convert(owner, bytes32))  # noqa: E501
     raw_call(
         self.owner_setter_contract,
         cdata,
@@ -171,7 +171,7 @@ def foo(_bar: bytes32):
     outer_code = """
 @external
 def foo_call(_addr: address):
-    cdata: bytes[40] = concat(
+    cdata: Bytes[40] = concat(
         method_id("foo(bytes32)"),
         0x0000000000000000000000000000000000000000000000000000000000000001
     )
@@ -204,7 +204,7 @@ def foo() -> int128:
 @external
 @view
 def foo(_addr: address) -> int128:
-    _response: bytes[32] = raw_call(
+    _response: Bytes[32] = raw_call(
         _addr,
         method_id("foo()"),
         max_outsize=32,
@@ -234,7 +234,7 @@ def foo() -> int128:
 @external
 @view
 def foo(_addr: address) -> int128:
-    _response: bytes[32] = raw_call(
+    _response: Bytes[32] = raw_call(
         _addr,
         method_id("foo()"),
         max_outsize=32,

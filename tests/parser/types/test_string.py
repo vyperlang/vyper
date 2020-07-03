@@ -1,12 +1,12 @@
 def test_string_return(get_contract_with_gas_estimation):
     code = """
 @external
-def testb() -> string[100]:
-    a: string[100] = "test return"
+def testb() -> String[100]:
+    a: String[100] = "test return"
     return a
 
 @external
-def testa(inp: string[100]) -> string[100]:
+def testa(inp: String[100]) -> String[100]:
     return inp
     """
 
@@ -19,14 +19,14 @@ def testa(inp: string[100]) -> string[100]:
 def test_string_concat(get_contract_with_gas_estimation):
     code = """
 @external
-def testb(inp: string[10]) -> string[128]:
-    a: string[100] = "return message:"
-    b: string[128] = concat(a, " ", inp)
+def testb(inp: String[10]) -> String[128]:
+    a: String[100] = "return message:"
+    b: String[128] = concat(a, " ", inp)
     return b
 
 @external
-def testa(inp: string[10]) -> string[160]:
-    a: string[100] = "<-- return message"
+def testa(inp: String[10]) -> String[160]:
+    a: String[100] = "<-- return message"
     return concat("Funny ", inp, " ", inp, a)
     """
 
@@ -38,14 +38,14 @@ def testa(inp: string[10]) -> string[160]:
 
 def test_basic_long_string_as_keys(get_contract, w3):
     code = """
-mapped_string: HashMap[string[34], int128]
+mapped_string: HashMap[String[34], int128]
 
 @external
-def set(k: string[34], v: int128):
+def set(k: String[34], v: int128):
     self.mapped_string[k] = v
 
 @external
-def get(k: string[34]) -> int128:
+def get(k: String[34]) -> int128:
     return self.mapped_string[k]
     """
 
@@ -59,7 +59,7 @@ def get(k: string[34]) -> int128:
 def test_string_slice(get_contract_with_gas_estimation, assert_tx_failed):
     test_slice4 = """
 @external
-def foo(inp: string[10], start: uint256, _len: uint256) -> string[10]:
+def foo(inp: String[10], start: uint256, _len: uint256) -> String[10]:
     return slice(inp, start, _len)
     """
 
@@ -79,19 +79,19 @@ def foo(inp: string[10], start: uint256, _len: uint256) -> string[10]:
 
 def test_private_string(get_contract_with_gas_estimation):
     private_test_code = """
-greeting: public(string[100])
+greeting: public(String[100])
 
 @external
 def __init__():
     self.greeting = "Hello "
 
 @internal
-def construct(greet: string[100]) -> string[200]:
+def construct(greet: String[100]) -> String[200]:
     return concat(self.greeting, greet)
 
 @external
-def hithere(name: string[100]) -> string[200]:
-    d: string[200] = self.construct(name)
+def hithere(name: String[100]) -> String[200]:
+    d: String[200] = self.construct(name)
     return d
     """
 
@@ -104,7 +104,7 @@ def test_logging_extended_string(get_contract_with_gas_estimation, get_logs):
     code = """
 event MyLog:
     arg1: int128
-    arg2: string[64]
+    arg2: String[64]
     arg3: int128
 
 @external
@@ -123,19 +123,19 @@ def foo():
 def test_tuple_return_external_contract_call_string(get_contract_with_gas_estimation):
     contract_1 = """
 @external
-def out_literals() -> (int128, address, string[10]):
+def out_literals() -> (int128, address, String[10]):
     return 1, 0x0000000000000000000000000000000000000123, "random"
     """
 
     contract_2 = """
 interface Test:
-    def out_literals() -> (int128, address, string[10]) : view
+    def out_literals() -> (int128, address, String[10]) : view
 
 @external
-def test(addr: address) -> (int128, address, string[10]):
+def test(addr: address) -> (int128, address, String[10]):
     a: int128 = 0
     b: address = ZERO_ADDRESS
-    c: string[10] = ""
+    c: String[10] = ""
     (a, b, c) = Test(addr).out_literals()
     return a, b,c
     """
@@ -150,10 +150,10 @@ def test_default_arg_string(get_contract_with_gas_estimation):
 
     code = """
 @external
-def test(a: uint256, b: string[50] = "foo") -> bytes[100]:
+def test(a: uint256, b: String[50] = "foo") -> Bytes[100]:
     return concat(
         convert(a, bytes32),
-        convert(b, bytes[50])
+        convert(b, Bytes[50])
     )
     """
 
@@ -165,31 +165,31 @@ def test(a: uint256, b: string[50] = "foo") -> bytes[100]:
 
 def test_string_equality(get_contract_with_gas_estimation):
     code = """
-_compA: string[100]
-_compB: string[100]
+_compA: String[100]
+_compB: String[100]
 
 @external
 def equal_true() -> bool:
-    compA: string[100] = "The quick brown fox jumps over the lazy dog"
-    compB: string[100] = "The quick brown fox jumps over the lazy dog"
+    compA: String[100] = "The quick brown fox jumps over the lazy dog"
+    compB: String[100] = "The quick brown fox jumps over the lazy dog"
     return compA == compB
 
 @external
 def equal_false() -> bool:
-    compA: string[100] = "The quick brown fox jumps over the lazy dog"
-    compB: string[100] = "The quick brown fox jumps over the lazy hog"
+    compA: String[100] = "The quick brown fox jumps over the lazy dog"
+    compB: String[100] = "The quick brown fox jumps over the lazy hog"
     return compA == compB
 
 @external
 def not_equal_true() -> bool:
-    compA: string[100] = "The quick brown fox jumps over the lazy dog"
-    compB: string[100] = "The quick brown fox jumps over the lazy hog"
+    compA: String[100] = "The quick brown fox jumps over the lazy dog"
+    compB: String[100] = "The quick brown fox jumps over the lazy hog"
     return compA != compB
 
 @external
 def not_equal_false() -> bool:
-    compA: string[100] = "The quick brown fox jumps over the lazy dog"
-    compB: string[100] = "The quick brown fox jumps over the lazy dog"
+    compA: String[100] = "The quick brown fox jumps over the lazy dog"
+    compB: String[100] = "The quick brown fox jumps over the lazy dog"
     return compA != compB
 
 @external
@@ -237,45 +237,45 @@ def storage_not_equal_false() -> bool:
     return self._compA != self._compB
 
 @external
-def string_compare_equal(str1: string[100], str2: string[100]) -> bool:
+def string_compare_equal(str1: String[100], str2: String[100]) -> bool:
     return str1 == str2
 
 @external
-def string_compare_not_equal(str1: string[100], str2: string[100]) -> bool:
+def string_compare_not_equal(str1: String[100], str2: String[100]) -> bool:
     return str1 != str2
 
 @external
-def compare_passed_storage_equal(str: string[100]) -> bool:
+def compare_passed_storage_equal(str: String[100]) -> bool:
     self._compA = "The quick brown fox jumps over the lazy dog"
     return self._compA == str
 
 @external
-def compare_passed_storage_not_equal(str: string[100]) -> bool:
+def compare_passed_storage_not_equal(str: String[100]) -> bool:
     self._compA = "The quick brown fox jumps over the lazy dog"
     return self._compA != str
 
 @external
 def compare_var_storage_equal_true() -> bool:
     self._compA = "The quick brown fox jumps over the lazy dog"
-    compB: string[100] = "The quick brown fox jumps over the lazy dog"
+    compB: String[100] = "The quick brown fox jumps over the lazy dog"
     return self._compA == compB
 
 @external
 def compare_var_storage_equal_false() -> bool:
     self._compA = "The quick brown fox jumps over the lazy dog"
-    compB: string[100] = "The quick brown fox jumps over the lazy hog"
+    compB: String[100] = "The quick brown fox jumps over the lazy hog"
     return self._compA == compB
 
 @external
 def compare_var_storage_not_equal_true() -> bool:
     self._compA = "The quick brown fox jumps over the lazy dog"
-    compB: string[100] = "The quick brown fox jumps over the lazy hog"
+    compB: String[100] = "The quick brown fox jumps over the lazy hog"
     return self._compA != compB
 
 @external
 def compare_var_storage_not_equal_false() -> bool:
     self._compA = "The quick brown fox jumps over the lazy dog"
-    compB: string[100] = "The quick brown fox jumps over the lazy dog"
+    compB: String[100] = "The quick brown fox jumps over the lazy dog"
     return self._compA != compB
     """
 

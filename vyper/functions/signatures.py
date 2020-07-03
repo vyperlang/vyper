@@ -45,15 +45,15 @@ def process_arg(index, arg, expected_arg_typelist, function_name, context):
         elif expected_arg == "name_literal":
             if isinstance(arg, vy_ast.Name):
                 return arg.id
-            elif isinstance(arg, vy_ast.Subscript) and arg.value.id == "bytes":
-                return f"bytes[{arg.slice.value.n}]"
+            elif isinstance(arg, vy_ast.Subscript) and arg.value.id == "Bytes":
+                return f"Bytes[{arg.slice.value.n}]"
         elif expected_arg == "*":
             return arg
-        elif expected_arg == "bytes":
+        elif expected_arg == "Bytes":
             sub = Expr(arg, context).lll_node
             if isinstance(sub.typ, ByteArrayType):
                 return sub
-        elif expected_arg == "string":
+        elif expected_arg == "String":
             sub = Expr(arg, context).lll_node
             if isinstance(sub.typ, StringType):
                 return sub

@@ -6,7 +6,7 @@ def test_convert_to_int128(get_contract_with_gas_estimation):
     code = """
 a: uint256
 b: bytes32
-c: bytes[1]
+c: Bytes[1]
 
 @external
 def uint256_to_num(inp: uint256) -> (int128, int128):
@@ -30,7 +30,7 @@ def bytes_to_num() -> (int128, int128):
     return literal, storage
 
 @external
-def zero_bytes(inp: bytes[1]) -> int128:
+def zero_bytes(inp: Bytes[1]) -> int128:
     return convert(inp, int128)
     """
 
@@ -49,7 +49,7 @@ def test_convert_from_bytes(
     # Test valid bytes input for conversion
     test_success = """
 @external
-def foo(bar: bytes[5]) -> int128:
+def foo(bar: Bytes[5]) -> int128:
     return convert(bar, int128)
     """
 
@@ -59,7 +59,7 @@ def foo(bar: bytes[5]) -> int128:
 
     test_success = """
 @external
-def foo(bar: bytes[32]) -> int128:
+def foo(bar: Bytes[32]) -> int128:
     return convert(bar, int128)
     """
 
@@ -75,7 +75,7 @@ def foo(bar: bytes[32]) -> int128:
     assert_tx_failed(lambda: c.foo(b"\x01" * 33))
 
     bytes_to_num_code = """
-astor: bytes[10]
+astor: Bytes[10]
 
 @external
 def bar_storage() -> int128:
@@ -89,7 +89,7 @@ def bar_storage() -> int128:
     # Test overflow bytes input for conversion
     test_fail = """
 @external
-def foo(bar: bytes[33]) -> int128:
+def foo(bar: Bytes[33]) -> int128:
     return convert(bar, int128)
     """
 
@@ -98,7 +98,7 @@ def foo(bar: bytes[33]) -> int128:
     test_fail = """
 @external
 def foobar() -> int128:
-    barfoo: bytes[63] = b"Hello darkness, my old friend I've come to talk with you again."
+    barfoo: Bytes[63] = b"Hello darkness, my old friend I've come to talk with you again."
     return convert(barfoo, int128)
     """
 

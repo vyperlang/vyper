@@ -43,7 +43,8 @@ def abi_type_to_ast(atype, expected_size):
     elif atype in ("bytes", "string"):
         # expected_size is the maximum length for inputs, minimum length for outputs
         return vy_ast.Subscript(
-            value=vy_ast.Name(id=atype), slice=vy_ast.Index(value=vy_ast.Int(value=expected_size))
+            value=vy_ast.Name(id=atype.capitalize()),
+            slice=vy_ast.Index(value=vy_ast.Int(value=expected_size)),
         )
     else:
         raise StructureException(f"Type {atype} not supported by vyper.")

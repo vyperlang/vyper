@@ -207,7 +207,7 @@ class Convert:
 class Slice:
 
     _id = "slice"
-    _inputs = [("b", ("bytes", "bytes32", "string")), ("start", "uint256"), ("length", "uint256")]
+    _inputs = [("b", ("Bytes", "bytes32", "String")), ("start", "uint256"), ("length", "uint256")]
     _return_type = None
 
     def fetch_call_return(self, node):
@@ -387,9 +387,9 @@ class Concat:
                 raise TypeMismatch("Concat expects string, bytes or bytes32 objects", expr_arg)
 
             current_type = (
-                "bytes"
+                "Bytes"
                 if isinstance(arg.typ, ByteArrayType) or is_base_type(arg.typ, "bytes32")
-                else "string"
+                else "String"
             )
             if prev_type and current_type != prev_type:
                 raise TypeMismatch(
@@ -401,7 +401,7 @@ class Concat:
                 )
             prev_type = current_type
 
-        if current_type == "string":
+        if current_type == "String":
             ReturnType = OldStringType
         else:
             ReturnType = ByteArrayType
@@ -1131,7 +1131,7 @@ class BlockHash(_SimpleBuiltinFunction):
 class RawLog:
 
     _id = "raw_log"
-    _inputs = [("topics", "*"), ("data", ("bytes32", "bytes"))]
+    _inputs = [("topics", "*"), ("data", ("bytes32", "Bytes"))]
 
     def fetch_call_return(self, node):
         validate_call_args(node, 2)

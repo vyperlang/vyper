@@ -37,17 +37,17 @@ def foo():
     """
 @external
 def foo():
-    x: bytes[4] = raw_call(0x123456789012345678901234567890123456789, "cow", max_outsize=4)
+    x: Bytes[4] = raw_call(0x123456789012345678901234567890123456789, "cow", max_outsize=4)
     """,
     """
 @external
 def foo():
-    x: string[100] = "these bytes are nо gооd because the o's are from the Russian alphabet"
+    x: String[100] = "these bytes are nо gооd because the o's are from the Russian alphabet"
     """,
     """
 @external
 def foo():
-    x: string[100] = "这个傻老外不懂中文"
+    x: String[100] = "这个傻老外不懂中文"
     """,
     """
 @external
@@ -67,7 +67,7 @@ def foo():
     """
 @external
 def foo():
-    a: bytes[100] = "ѓtest"
+    a: Bytes[100] = "ѓtest"
     """,
     """
 @external

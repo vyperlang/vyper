@@ -8,7 +8,7 @@ fail_list = [
         """
 @external
 def foo():
-    x: bytes[9] = raw_call(
+    x: Bytes[9] = raw_call(
         0x1234567890123456789012345678901234567890, b"cow", max_outsize=4, max_outsize=9
     )
     """,
@@ -32,7 +32,7 @@ def foo():
 @external
 def foo():
     # fails because raw_call without max_outsize does not return a value
-    x: bytes[9] = raw_call(0x1234567890123456789012345678901234567890, b"cow")
+    x: Bytes[9] = raw_call(0x1234567890123456789012345678901234567890, b"cow")
     """,
         InvalidType,
     ),
@@ -54,7 +54,7 @@ valid_list = [
     """
 @external
 def foo():
-    x: bytes[9] = raw_call(
+    x: Bytes[9] = raw_call(
         0x1234567890123456789012345678901234567890,
         b"cow",
         max_outsize=4,
@@ -64,7 +64,7 @@ def foo():
     """
 @external
 def foo():
-    x: bytes[9] = raw_call(
+    x: Bytes[9] = raw_call(
         0x1234567890123456789012345678901234567890,
         b"cow",
         max_outsize=4,
@@ -75,7 +75,7 @@ def foo():
     """
 @external
 def foo():
-    x: bytes[9] = raw_call(
+    x: Bytes[9] = raw_call(
         0x1234567890123456789012345678901234567890,
         b"cow",
         max_outsize=4,

@@ -146,11 +146,11 @@ def hoo() -> bool:
 def test_convert_from_bytes(get_contract_with_gas_estimation, assert_compile_failed):
     code = """
 @external
-def foo(bar: bytes[5]) -> bool:
+def foo(bar: Bytes[5]) -> bool:
     return convert(bar, bool)
 
 @external
-def goo(nar: bytes[32]) -> bool:
+def goo(nar: Bytes[32]) -> bool:
     return convert(nar, bool)
     """
 
@@ -167,7 +167,7 @@ def goo(nar: bytes[32]) -> bool:
 
     code = """
 @external
-def foo(bar: bytes[33]) -> bool:
+def foo(bar: Bytes[33]) -> bool:
     return convert(bar, bool)
     """
 
@@ -176,7 +176,7 @@ def foo(bar: bytes[33]) -> bool:
     code = """
 @external
 def foo() -> bool:
-    bar: bytes[63] = b"Hello darkness, my old friend I've come to talk with you again."
+    bar: Bytes[63] = b"Hello darkness, my old friend I've come to talk with you again."
     return convert(bar, bool)
     """
 

@@ -4,11 +4,11 @@ from vyper.exceptions import TypeMismatch
 def test_concat(get_contract_with_gas_estimation):
     test_concat = """
 @external
-def foo2(input1: bytes[50], input2: bytes[50]) -> bytes[1000]:
+def foo2(input1: Bytes[50], input2: Bytes[50]) -> Bytes[1000]:
     return concat(input1, input2)
 
 @external
-def foo3(input1: bytes[50], input2: bytes[50], input3: bytes[50]) -> bytes[1000]:
+def foo3(input1: Bytes[50], input2: Bytes[50], input3: Bytes[50]) -> Bytes[1000]:
     return concat(input1, input2, input3)
     """
 
@@ -30,8 +30,8 @@ def foo3(input1: bytes[50], input2: bytes[50], input3: bytes[50]) -> bytes[1000]
 def test_concat2(get_contract_with_gas_estimation):
     test_concat2 = """
 @external
-def foo(inp: bytes[50]) -> bytes[1000]:
-    x: bytes[50] = inp
+def foo(inp: Bytes[50]) -> Bytes[1000]:
+    x: Bytes[50] = inp
     return concat(x, inp, x, inp, x, inp, x, inp, x, inp)
     """
 
@@ -42,11 +42,11 @@ def foo(inp: bytes[50]) -> bytes[1000]:
 
 def test_crazy_concat_code(get_contract_with_gas_estimation):
     crazy_concat_code = """
-y: bytes[10]
+y: Bytes[10]
 
 @external
-def krazykonkat(z: bytes[10]) -> bytes[25]:
-    x: bytes[3] = b"cow"
+def krazykonkat(z: Bytes[10]) -> Bytes[25]:
+    x: Bytes[3] = b"cow"
     self.y = b"horse"
     return concat(x, b" ", self.y, b" ", z)
     """
@@ -61,11 +61,11 @@ def krazykonkat(z: bytes[10]) -> bytes[25]:
 def test_concat_bytes32(get_contract_with_gas_estimation):
     test_concat_bytes32 = """
 @external
-def sandwich(inp: bytes[100], inp2: bytes32) -> bytes[164]:
+def sandwich(inp: Bytes[100], inp2: bytes32) -> Bytes[164]:
     return concat(inp2, inp, inp2)
 
 @external
-def fivetimes(inp: bytes32) -> bytes[160]:
+def fivetimes(inp: bytes32) -> Bytes[160]:
     return concat(inp, inp, inp, inp, inp)
     """
 
@@ -87,17 +87,17 @@ def test_konkat_code(get_contract_with_gas_estimation):
 ecks: bytes32
 
 @external
-def foo(x: bytes32, y: bytes32) -> bytes[64]:
+def foo(x: bytes32, y: bytes32) -> Bytes[64]:
     self.ecks = x
     return concat(self.ecks, y)
 
 @external
-def goo(x: bytes32, y: bytes32) -> bytes[64]:
+def goo(x: bytes32, y: bytes32) -> Bytes[64]:
     self.ecks = x
     return concat(self.ecks, y)
 
 @external
-def hoo(x: bytes32, y: bytes32) -> bytes[64]:
+def hoo(x: bytes32, y: bytes32) -> Bytes[64]:
     return concat(x, y)
     """
 
@@ -112,8 +112,8 @@ def hoo(x: bytes32, y: bytes32) -> bytes[64]:
 def test_small_output(get_contract_with_gas_estimation):
     code = """
 @external
-def small_output(a: string[5], b: string[4]) -> string[9]:
-    c: string[9] = concat(a, b)
+def small_output(a: String[5], b: String[4]) -> String[9]:
+    c: String[9] = concat(a, b)
     return c
     """
     c = get_contract_with_gas_estimation(code)
@@ -124,8 +124,8 @@ def small_output(a: string[5], b: string[4]) -> string[9]:
 def test_large_output(get_contract_with_gas_estimation, assert_compile_failed):
     code = """
 @external
-def large_output(a: string[33], b: string[33]) -> string[64]:
-    c: string[64] = concat(a, b)
+def large_output(a: String[33], b: String[33]) -> String[64]:
+    c: String[64] = concat(a, b)
     return c
     """
 

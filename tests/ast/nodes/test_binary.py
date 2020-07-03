@@ -5,12 +5,12 @@ from vyper.exceptions import SyntaxException
 
 
 def test_binary_becomes_bytes():
-    expected = vy_ast.parse_to_ast("foo: bytes[1] = b'\x01'")
-    mutated = vy_ast.parse_to_ast("foo: bytes[1] = 0b00000001")
+    expected = vy_ast.parse_to_ast("foo: Bytes[1] = b'\x01'")
+    mutated = vy_ast.parse_to_ast("foo: Bytes[1] = 0b00000001")
 
     assert vy_ast.compare_nodes(expected, mutated)
 
 
 def test_binary_length():
     with pytest.raises(SyntaxException):
-        vy_ast.parse_to_ast("foo: bytes[1] = 0b01")
+        vy_ast.parse_to_ast("foo: Bytes[1] = 0b01")

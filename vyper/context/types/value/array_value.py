@@ -139,20 +139,20 @@ class _ArrayValuePrimitive(BasePrimitive):
 
 
 class BytesArrayDefinition(BytesAbstractType, ArrayValueAbstractType, _ArrayValueDefinition):
-    _id = "bytes"
+    _id = "Bytes"
 
 
 class StringDefinition(ArrayValueAbstractType, _ArrayValueDefinition):
-    _id = "string"
+    _id = "String"
 
 
 class BytesArrayPrimitive(_ArrayValuePrimitive):
-    _id = "bytes"
+    _id = "Bytes"
     _type = BytesArrayDefinition
     _valid_literal = (vy_ast.Bytes, vy_ast.Hex)
 
 
 class StringPrimitive(_ArrayValuePrimitive):
-    _id = "string"
+    _id = "String"
     _type = StringDefinition
     _valid_literal = (vy_ast.Str,)

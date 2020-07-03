@@ -16,8 +16,8 @@ event Approval:
     spender: indexed(address)
     value: uint256
 
-name: public(string[64])
-symbol: public(string[32])
+name: public(String[64])
+symbol: public(String[32])
 decimals: public(uint256)
 
 # NOTE: By declaring `balanceOf` as public, vyper automatically generates a 'balanceOf()' getter
@@ -31,7 +31,7 @@ minter: address
 
 
 @external
-def __init__(_name: string[64], _symbol: string[32], _decimals: uint256, _supply: uint256):
+def __init__(_name: String[64], _symbol: String[32], _decimals: uint256, _supply: uint256):
     init_supply: uint256 = _supply * 10 ** _decimals
     self.name = _name
     self.symbol = _symbol

@@ -6,7 +6,7 @@ def test_convert_to_bytes32(w3, get_contract_with_gas_estimation, bytes_helper):
 a: int128
 b: uint256
 c: address
-d: bytes[32]
+d: Bytes[32]
 
 @external
 def int128_to_bytes32(inp: int128) -> (bytes32, bytes32, bytes32):
@@ -32,14 +32,14 @@ def address_to_bytes32(inp: address) -> (bytes32, bytes32):
     return  memory, storage
 
 @external
-def bytes_to_bytes32(inp: bytes[32]) -> (bytes32, bytes32):
+def bytes_to_bytes32(inp: Bytes[32]) -> (bytes32, bytes32):
     self.d = inp
     memory: bytes32 = convert(inp, bytes32)
     storage: bytes32 = convert(self.d, bytes32)
     return  memory, storage
 
 @external
-def bytes_to_bytes32_from_smaller(inp: bytes[10]) -> bytes32:
+def bytes_to_bytes32_from_smaller(inp: Bytes[10]) -> bytes32:
     memory: bytes32 = convert(inp, bytes32)
     return memory
     """

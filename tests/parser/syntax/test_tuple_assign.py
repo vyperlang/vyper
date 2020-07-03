@@ -23,11 +23,11 @@ def test():
     ),
     """
 @internal
-def out_literals() -> (int128, int128, bytes[10]):
+def out_literals() -> (int128, int128, Bytes[10]):
     return 1, 2, b"3333"
 
 @external
-def test() -> (int128, address, bytes[10]):
+def test() -> (int128, address, Bytes[10]):
     a: int128 = 0
     b: int128 = 0
     a, b, b = self.out_literals()  # incorrect bytes type
@@ -35,11 +35,11 @@ def test() -> (int128, address, bytes[10]):
     """,
     """
 @internal
-def out_literals() -> (int128, int128, bytes[10]):
+def out_literals() -> (int128, int128, Bytes[10]):
     return 1, 2, b"3333"
 
 @external
-def test() -> (int128, address, bytes[10]):
+def test() -> (int128, address, Bytes[10]):
     a: int128 = 0
     b: address = ZERO_ADDRESS
     a, b = self.out_literals()  # tuple count mismatch
@@ -51,23 +51,23 @@ def out_literals() -> (int128, int128, int128):
     return 1, 2, 3
 
 @external
-def test() -> (int128, int128, bytes[10]):
+def test() -> (int128, int128, Bytes[10]):
     a: int128 = 0
     b: int128 = 0
-    c: bytes[10] = b""
+    c: Bytes[10] = b""
     a, b, c = self.out_literals()
     return a, b, c
     """,
     """
 @internal
-def out_literals() -> (int128, int128, bytes[100]):
+def out_literals() -> (int128, int128, Bytes[100]):
     return 1, 2, b"test"
 
 @external
 def test():
     a: int128 = 0
     b: int128 = 0
-    c: bytes[1] = b""
+    c: Bytes[1] = b""
     a, b, c = self.out_literals()
     """,
     (

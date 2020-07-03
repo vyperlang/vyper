@@ -91,7 +91,8 @@ def get_type_from_abi(
     type_string = abi_type["type"]
     if type_string == "fixed168x10":
         type_string = "decimal"
-    # TODO string and bytes
+    if type_string in ("string", "bytes"):
+        type_string = type_string.capitalize()
 
     namespace = get_namespace()
 

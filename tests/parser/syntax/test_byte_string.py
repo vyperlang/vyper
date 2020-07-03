@@ -5,17 +5,17 @@ from vyper import compiler
 valid_list = [
     """
 @external
-def foo() -> string[10]:
+def foo() -> String[10]:
     return "badminton"
     """,
     """
 @external
 def foo():
-    x: string[11] = "¡très bien!"
+    x: String[11] = "¡très bien!"
     """,
     """
 @external
-def test() -> string[100]:
+def test() -> String[100]:
     return "hello world!"
     """,
 ]

@@ -90,11 +90,11 @@ def foo() -> decimal:
 def test_convert_from_bytes(get_contract_with_gas_estimation):
     code = """
 @external
-def foo(bar: bytes[5]) -> decimal:
+def foo(bar: Bytes[5]) -> decimal:
     return convert(bar, decimal)
 
 @external
-def goo(bar: bytes[32]) -> decimal:
+def goo(bar: Bytes[32]) -> decimal:
     return convert(bar, decimal)
     """
 
@@ -115,7 +115,7 @@ def goo(bar: bytes[32]) -> decimal:
 def test_convert_from_too_many_bytes(get_contract_with_gas_estimation, assert_compile_failed):
     code = """
 @external
-def foo(bar: bytes[33]) -> decimal:
+def foo(bar: Bytes[33]) -> decimal:
     return convert(bar, decimal)
     """
 
@@ -126,7 +126,7 @@ def foo(bar: bytes[33]) -> decimal:
     code = """
 @external
 def foobar() -> decimal:
-    barfoo: bytes[63] = b"Hello darkness, my old friend I've come to talk with you again."
+    barfoo: Bytes[63] = b"Hello darkness, my old friend I've come to talk with you again."
     return convert(barfoo, decimal)
     """
 

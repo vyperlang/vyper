@@ -5,14 +5,14 @@ from vyper.exceptions import TypeMismatch
 
 def test_basic_bytes_keys(w3, get_contract):
     code = """
-mapped_bytes: HashMap[bytes[5], int128]
+mapped_bytes: HashMap[Bytes[5], int128]
 
 @external
-def set(k: bytes[5], v: int128):
+def set(k: Bytes[5], v: int128):
     self.mapped_bytes[k] = v
 
 @external
-def get(k: bytes[5]) -> int128:
+def get(k: Bytes[5]) -> int128:
     return self.mapped_bytes[k]
     """
 
@@ -25,14 +25,14 @@ def get(k: bytes[5]) -> int128:
 
 def test_basic_bytes_literal_key(get_contract):
     code = """
-mapped_bytes: HashMap[bytes[5], int128]
+mapped_bytes: HashMap[Bytes[5], int128]
 
 @external
 def set(v: int128):
     self.mapped_bytes[b"test"] = v
 
 @external
-def get(k: bytes[5]) -> int128:
+def get(k: Bytes[5]) -> int128:
     return self.mapped_bytes[k]
     """
 
@@ -45,14 +45,14 @@ def get(k: bytes[5]) -> int128:
 
 def test_basic_long_bytes_as_keys(get_contract):
     code = """
-mapped_bytes: HashMap[bytes[34], int128]
+mapped_bytes: HashMap[Bytes[34], int128]
 
 @external
-def set(k: bytes[34], v: int128):
+def set(k: Bytes[34], v: int128):
     self.mapped_bytes[k] = v
 
 @external
-def get(k: bytes[34]) -> int128:
+def get(k: Bytes[34]) -> int128:
     return self.mapped_bytes[k]
     """
 
@@ -65,10 +65,10 @@ def get(k: bytes[34]) -> int128:
 
 def test_mismatched_byte_length(get_contract):
     code = """
-mapped_bytes: HashMap[bytes[34], int128]
+mapped_bytes: HashMap[Bytes[34], int128]
 
 @external
-def set(k: bytes[35], v: int128):
+def set(k: Bytes[35], v: int128):
     self.mapped_bytes[k] = v
     """
 
@@ -78,7 +78,7 @@ def set(k: bytes[35], v: int128):
 
 def test_extended_bytes_key_from_storage(get_contract):
     code = """
-a: HashMap[bytes[100000], int128]
+a: HashMap[Bytes[100000], int128]
 
 @external
 def __init__():
@@ -86,7 +86,7 @@ def __init__():
 
 @external
 def get_it1() -> int128:
-    key: bytes[100000] = b"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    key: Bytes[100000] = b"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
     return self.a[key]
 
 @external
@@ -94,7 +94,7 @@ def get_it2() -> int128:
     return self.a[b"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"]
 
 @external
-def get_it3(key: bytes[100000]) -> int128:
+def get_it3(key: Bytes[100000]) -> int128:
     return self.a[key]
     """
 
