@@ -3,7 +3,7 @@
 Release Notes
 #############
 
-v0.2.0
+v0.2.1
 ******
 
 Date released: 03-07-2020
@@ -62,6 +62,8 @@ Some of the bug and stability fixes:
 - Private function calls no longer generate a call signature (`#2058 <https://github.com/vyperlang/vyper/pull/2058>`_)
 
 Significant codebase refactor, thanks to (`@iamdefinitelyahuman <https://github.com/iamdefinitelyahuman>`_)!
+
+**NOTE**: ``v0.2.0`` was not used due to a conflict in PyPI with a previous release. Both tags ``v0.2.0`` and ``v0.2.1`` are identical.
 
 v0.1.0-beta.17
 **************
