@@ -166,6 +166,11 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
             raise VariableDeclarationException(
                 "Storage variables cannot have an initial value", node.value
             )
+
+        try:
+            self.namespace.validate_assignment(name)
+        except NamespaceCollision as exc:
+            raise exc.with_annotation(node) from None
         try:
             self.namespace["self"].add_member(name, type_definition)
         except NamespaceCollision:
