@@ -50,6 +50,9 @@ def foo():
 def foo():
     struct: bool = True
     """,
+    """
+int128: Bytes[3]
+    """,
 ]
 
 

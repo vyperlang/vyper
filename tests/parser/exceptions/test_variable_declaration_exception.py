@@ -8,9 +8,6 @@ fail_list = [
 CALLDATACOPY: int128
     """,
     """
-int128: Bytes[3]
-    """,
-    """
 @external
 def foo():
     BALANCE: int128 = 45
