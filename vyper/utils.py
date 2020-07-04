@@ -276,7 +276,7 @@ VALID_LLL_MACROS = {
 
 # Is a variable or member variable name valid?
 # Same conditions apply for function names and events
-def is_varname_valid(varname, custom_structs, constants):
+def is_varname_valid(varname, custom_structs):
     from vyper.functions import BUILTIN_FUNCTIONS
 
     varname_lower = varname.lower()
@@ -285,8 +285,6 @@ def is_varname_valid(varname, custom_structs, constants):
     # struct names are case sensitive.
     if varname in custom_structs:
         return False, f"Duplicate name: {varname}, previously defined as a struct."
-    if varname in constants:
-        return False, f"Duplicate name: {varname}, previously defined as a constant."
     if varname_lower in [k.lower() for k in RESERVED_KEYWORDS]:
         return False, f"{varname} is a reserved keyword (Vyper language)."
     if varname_upper in [o.upper() for o in OPCODES]:
@@ -300,12 +298,12 @@ def is_varname_valid(varname, custom_structs, constants):
 
 
 def check_valid_varname(
-    varname, custom_structs, constants, pos, error_prefix="Variable name invalid.", exc=None
+    varname, custom_structs, pos, error_prefix="Variable name invalid.", exc=None
 ):
     """ Handle invalid variable names """
     exc = VariableDeclarationException if exc is None else exc
 
-    valid_varname, msg = is_varname_valid(varname, custom_structs, constants)
+    valid_varname, msg = is_varname_valid(varname, custom_structs)
     if not valid_varname:
         raise exc(error_prefix + msg, pos)
 

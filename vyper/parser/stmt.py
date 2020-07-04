@@ -57,10 +57,7 @@ class Stmt:
     def parse_AnnAssign(self):
         with self.context.assignment_scope():
             typ = parse_type(
-                self.stmt.annotation,
-                location="memory",
-                custom_structs=self.context.structs,
-                constants=self.context.constants,
+                self.stmt.annotation, location="memory", custom_structs=self.context.structs,
             )
             varname = self.stmt.target.id
             pos = self.context.new_variable(varname, typ, pos=self.stmt)

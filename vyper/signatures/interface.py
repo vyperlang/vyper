@@ -6,7 +6,6 @@ from typing import Sequence, Tuple
 import vyper.interfaces
 from vyper import ast as vy_ast
 from vyper.exceptions import StructureException
-from vyper.parser.constants import Constants
 from vyper.parser.global_context import GlobalContext
 from vyper.signatures import sig_utils
 from vyper.signatures.event_signature import EventSignature
@@ -96,7 +95,6 @@ def mk_full_signature_from_json(abi):
                 returns=returns,
             ),
             custom_structs=dict(),
-            constants=Constants(),
             is_from_json=True,
         )
         sigs.append(sig)

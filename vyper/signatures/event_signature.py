@@ -29,7 +29,6 @@ class EventSignature:
         check_valid_varname(
             name,
             global_ctx._structs,
-            global_ctx._constants,
             pos=class_node,
             error_prefix="Event name invalid. ",
             exc=EventDeclarationException,
@@ -51,7 +50,6 @@ class EventSignature:
                 check_valid_varname(
                     arg,
                     global_ctx._structs,
-                    global_ctx._constants,
                     pos=arg_item,
                     error_prefix="Event argument name invalid or reserved.",
                 )

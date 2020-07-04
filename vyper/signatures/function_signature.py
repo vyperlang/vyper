@@ -129,19 +129,13 @@ class FunctionSignature:
 
     # Get the canonical function signature
     @staticmethod
-    def get_full_sig(func_name, args, sigs, custom_structs, constants):
+    def get_full_sig(func_name, args, sigs, custom_structs):
         def get_type(arg):
             if isinstance(arg, LLLnode):
                 return canonicalize_type(arg.typ)
             elif hasattr(arg, "annotation"):
                 return canonicalize_type(
-                    parse_type(
-                        arg.annotation,
-                        None,
-                        sigs,
-                        custom_structs=custom_structs,
-                        constants=constants,
-                    )
+                    parse_type(arg.annotation, None, sigs, custom_structs=custom_structs,)
                 )
 
         return func_name + "(" + ",".join([get_type(arg) for arg in args]) + ")"
@@ -154,7 +148,6 @@ class FunctionSignature:
         sigs=None,
         custom_structs=None,
         interface_def=False,
-        constants=None,
         constant_override=False,
         is_from_json=False,
     ):
@@ -164,7 +157,7 @@ class FunctionSignature:
         name = code.name
         mem_pos = 0
 
-        valid_name, msg = is_varname_valid(name, custom_structs, constants)
+        valid_name, msg = is_varname_valid(name, custom_structs)
         if not valid_name and (not name.lower() in FUNCTION_WHITELIST):
             raise FunctionDeclarationException("Function name invalid. " + msg, code)
 
@@ -184,7 +177,6 @@ class FunctionSignature:
             check_valid_varname(
                 arg.arg,
                 custom_structs,
-                constants,
                 arg,
                 "Argument name invalid or reserved. ",
                 FunctionDeclarationException,
@@ -194,9 +186,7 @@ class FunctionSignature:
                 raise FunctionDeclarationException(
                     "Duplicate function argument name: " + arg.arg, arg,
                 )
-            parsed_type = parse_type(
-                typ, None, sigs, custom_structs=custom_structs, constants=constants,
-            )
+            parsed_type = parse_type(typ, None, sigs, custom_structs=custom_structs,)
             args.append(
                 VariableRecord(arg.arg, mem_pos, parsed_type, False, defined_at=getpos(arg),)
             )
@@ -271,9 +261,7 @@ class FunctionSignature:
         elif isinstance(
             code.returns, (vy_ast.Name, vy_ast.Compare, vy_ast.Subscript, vy_ast.Call, vy_ast.Tuple)
         ):
-            output_type = parse_type(
-                code.returns, None, sigs, custom_structs=custom_structs, constants=constants,
-            )
+            output_type = parse_type(code.returns, None, sigs, custom_structs=custom_structs,)
         else:
             raise InvalidType(
                 f"Output type invalid or unsupported: {parse_type(code.returns, None)}",
@@ -283,7 +271,7 @@ class FunctionSignature:
         if output_type is not None:
             assert isinstance(output_type, TupleType) or canonicalize_type(output_type)
         # Get the canonical function signature
-        sig = cls.get_full_sig(name, code.args.args, sigs, custom_structs, constants)
+        sig = cls.get_full_sig(name, code.args.args, sigs, custom_structs)
 
         # Take the first 4 bytes of the hash of the sig to get the method ID
         method_id = fourbytes_to_int(keccak256(bytes(sig, "utf-8"))[:4])
@@ -367,9 +355,7 @@ class FunctionSignature:
             return s.replace("int128", "num").replace("uint256", "num")
 
         # for sig in sigs['self']
-        full_sig = cls.get_full_sig(
-            stmt_or_expr.func.attr, expr_args, None, context.structs, context.constants,
-        )
+        full_sig = cls.get_full_sig(stmt_or_expr.func.attr, expr_args, None, context.structs,)
         method_names_dict = dict(Counter([x.split("(")[0] for x in context.sigs["self"]]))
         if method_name not in method_names_dict:
             raise FunctionDeclarationException(

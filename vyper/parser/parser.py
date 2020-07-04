@@ -82,7 +82,6 @@ def parse_external_interfaces(external_interfaces, global_ctx):
                 interface_def=True,
                 constant_override=constant,
                 custom_structs=global_ctx._structs,
-                constants=global_ctx._constants,
             )
             interface[sig.name] = sig
         external_interfaces[_interfacename] = interface

@@ -63,8 +63,6 @@ class Context:
         self.in_assignment = False
         # List of custom structs that have been defined.
         self.structs = global_ctx._structs
-        # defined constants
-        self.constants = global_ctx._constants
         # Callback pointer to jump back to, used in internal functions.
         self.callback_ptr = None
         self.is_internal = is_internal
@@ -118,10 +116,10 @@ class Context:
         # Global context check first.
         if self.global_ctx.is_valid_varname(name, pos):
             check_valid_varname(
-                name, custom_structs=self.structs, constants=self.constants, pos=pos,
+                name, custom_structs=self.structs, pos=pos,
             )
             # Local context duplicate context check.
-            if any((name in self.vars, name in self.globals, name in self.constants)):
+            if any((name in self.vars, name in self.globals)):
                 raise TypeCheckFailure(f"Duplicate variable name: {name}")
         return True
 
