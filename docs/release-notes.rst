@@ -3,6 +3,17 @@
 Release Notes
 #############
 
+v0.2.2
+******
+
+Date released: 04-07-2020
+
+Fixes:
+
+- Do not fold exponentiation to a negative power (`#2089 <https://github.com/vyperlang/vyper/pull/2089>`_)
+- Add repr for mappings (`#2090 <https://github.com/vyperlang/vyper/pull/2090>`_)
+- Literals are only validated once (`#2093 <https://github.com/vyperlang/vyper/pull/2093>`_)
+
 v0.2.1
 ******
 
