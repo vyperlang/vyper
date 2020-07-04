@@ -14,7 +14,6 @@ from vyper.utils import DECIMAL_DIVISOR, MemoryPositions, SizeLimits
 def to_bool(expr, args, kwargs, context):
     in_arg = args[0]
     input_type, _ = get_type(in_arg)
-    print(input_type)
 
     if input_type == "Bytes":
         if in_arg.typ.maxlen > 32:
