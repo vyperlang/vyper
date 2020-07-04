@@ -68,7 +68,7 @@ VAL: constant(Bytes[4]) = b"testtest"
 VAL: constant(Bytes[4]) = b"t"
 VAL: uint256
     """,
-        VariableDeclarationException,
+        NamespaceCollision,
     ),
     # signature variable with same name
     (

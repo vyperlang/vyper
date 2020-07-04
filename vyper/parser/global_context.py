@@ -6,7 +6,6 @@ from vyper.exceptions import (
     StructureException,
     VariableDeclarationException,
 )
-from vyper.parser.constants import Constants
 from vyper.parser.parser_utils import getpos, set_offsets
 from vyper.signatures.function_signature import ContractRecord, VariableRecord
 from vyper.types import (
@@ -38,7 +37,6 @@ class GlobalContext:
         self._globals = dict()
         self._defs = list()
         self._getters = list()
-        self._constants = Constants()
         self._nonrentrant_counter = 0
         self._nonrentrant_keys = dict()
 
@@ -219,11 +217,7 @@ def {varname}{funname}({head.rstrip(', ')}) -> {base}:
                         item,
                     )
                 check_valid_varname(
-                    member_name.id,
-                    self._structs,
-                    self._constants,
-                    item,
-                    "Invalid member name for struct. ",
+                    member_name.id, self._structs, item, "Invalid member name for struct. ",
                 )
                 # Check well-formedness of member types
                 # Note this kicks out mutually recursive structs,
@@ -232,7 +226,7 @@ def {varname}{funname}({head.rstrip(', ')}) -> {base}:
                 # This feels like a semantic step and maybe should be pushed
                 # to a later compilation stage.
                 parse_type(
-                    member_type, "storage", custom_structs=self._structs, constants=self._constants,
+                    member_type, "storage", custom_structs=self._structs,
                 )
                 members.append((member_name, member_type))
             else:
@@ -279,7 +273,7 @@ def {varname}{funname}({head.rstrip(', ')}) -> {base}:
 
     def is_valid_varname(self, name, item):
         """ Valid variable name, checked against global context. """
-        check_valid_varname(name, self._structs, self._constants, item)
+        check_valid_varname(name, self._structs, item)
         if name in self._globals:
             raise VariableDeclarationException(
                 f'Invalid name "{name}", previously defined as global.', item
@@ -308,7 +302,7 @@ def {varname}{funname}({head.rstrip(', ')}) -> {base}:
 
         # Handle constants.
         if self.get_call_func_name(item) == "constant":
-            self._constants.add_constant(item, global_ctx=self)
+            self.is_valid_varname(item.target.id, item)
             return
 
         item_name, item_attributes = self.get_item_name_and_attributes(item, item_attributes)
@@ -336,12 +330,7 @@ def {varname}{funname}({head.rstrip(', ')}) -> {base}:
             if isinstance(item.annotation.args[0], vy_ast.Name) and item_name in self._contracts:
                 typ = InterfaceType(item_name)
             else:
-                typ = parse_type(
-                    item.annotation.args[0],
-                    "storage",
-                    custom_structs=self._structs,
-                    constants=self._constants,
-                )
+                typ = parse_type(item.annotation.args[0], "storage", custom_structs=self._structs,)
             self._globals[item.target.id] = VariableRecord(
                 item.target.id, len(self._globals), typ, True,
             )
@@ -355,25 +344,14 @@ def {varname}{funname}({head.rstrip(', ')}) -> {base}:
             self._globals[item.target.id] = VariableRecord(
                 item.target.id,
                 len(self._globals),
-                parse_type(
-                    item.annotation,
-                    "storage",
-                    custom_structs=self._structs,
-                    constants=self._constants,
-                ),
+                parse_type(item.annotation, "storage", custom_structs=self._structs,),
                 True,
             )
         else:
             raise InvalidType("Invalid global type specified", item)
 
     def parse_type(self, ast_node, location):
-        return parse_type(
-            ast_node,
-            location,
-            sigs=self._contracts,
-            custom_structs=self._structs,
-            constants=self._constants,
-        )
+        return parse_type(ast_node, location, sigs=self._contracts, custom_structs=self._structs,)
 
     def get_nonrentrant_counter(self, key):
         """

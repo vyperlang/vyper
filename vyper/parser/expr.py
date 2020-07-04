@@ -932,7 +932,7 @@ class Expr:
             if not isinstance(key, vy_ast.Name):
                 return
             check_valid_varname(
-                key.id, context.structs, context.constants, "Invalid member variable for struct",
+                key.id, context.structs, "Invalid member variable for struct",
             )
             if key.id in member_subs:
                 return

@@ -30,9 +30,7 @@ def parse_function(code, sigs, origcode, global_ctx, _vars=None):
     """
     if _vars is None:
         _vars = {}
-    sig = FunctionSignature.from_definition(
-        code, sigs=sigs, custom_structs=global_ctx._structs, constants=global_ctx._constants
-    )
+    sig = FunctionSignature.from_definition(code, sigs=sigs, custom_structs=global_ctx._structs,)
 
     # Validate return statements.
     sig.validate_return_statement_balance()
