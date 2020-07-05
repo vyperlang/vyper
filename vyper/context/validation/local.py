@@ -353,9 +353,12 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                             call_node,
                         )
 
+        for_loop_exceptions = []
         for type_ in type_list:
+            # type check the for loop body using each possible type for iterator value
             type_ = copy.deepcopy(type_)
             type_.is_immutable = True
+
             with self.namespace.enter_scope():
                 try:
                     self.namespace[node.target.id] = type_
@@ -365,10 +368,13 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                 try:
                     for n in node.body:
                         self.visit(n)
-                        return
+                    return
                 except TypeMismatch as exc:
-                    if len(type_list) == 1:
-                        raise exc
+                    for_loop_exceptions.append(exc)
+
+        if len(set(str(i) for i in for_loop_exceptions)) == 1:
+            # if every attempt at type checking raised the same exception,
+            raise for_loop_exceptions[0]
 
         raise TypeMismatch("Could not determine type for iterator values", node)
 
