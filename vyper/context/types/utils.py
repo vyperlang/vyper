@@ -151,11 +151,12 @@ def get_type_from_annotation(
     try:
         # get id of leftmost `Name` node from the annotation
         type_name = next(i.id for i in node.get_descendants(vy_ast.Name, include_self=True))
-        type_obj = namespace[type_name]
     except StopIteration:
         raise StructureException("Invalid syntax for type declaration", node)
+    try:
+        type_obj = namespace[type_name]
     except UndeclaredDefinition:
-        raise UnknownType("Not a valid type - value is undeclared", node) from None
+        raise UnknownType(f"No builtin or user-defined type named '{type_name}'", node) from None
 
     if getattr(type_obj, "_as_array", False) and isinstance(node, vy_ast.Subscript):
         # if type can be an array and node is a subscript, create an `ArrayDefinition`
@@ -166,7 +167,7 @@ def get_type_from_annotation(
     try:
         return type_obj.from_annotation(node, location, is_immutable, is_public)
     except AttributeError:
-        raise UnknownType(f"'{type_name}' is not a valid type", node) from None
+        raise InvalidType(f"'{type_name}' is not a valid type", node) from None
 
 
 def check_literal(node: vy_ast.VyperNode) -> bool:

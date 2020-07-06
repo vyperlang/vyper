@@ -16,6 +16,8 @@ from vyper.exceptions import (
     CallViolation,
     CompilerPanic,
     ExceptionList,
+    InvalidLiteral,
+    InvalidType,
     NamespaceCollision,
     StateAccessViolation,
     StructureException,
@@ -66,6 +68,10 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
                 try:
                     self.visit(node)
                     module_nodes.remove(node)
+                except (InvalidLiteral, InvalidType, VariableDeclarationException):
+                    # these exceptions cannot be caused by another statement not yet being
+                    # parsed, so we raise them immediately
+                    raise
                 except VyperException as e:
                     err_list.append(e)
 
