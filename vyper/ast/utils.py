@@ -1,5 +1,5 @@
 import ast as python_ast
-from typing import Dict, List, Union
+from typing import Dict, List, Optional, Union
 
 from vyper.ast import nodes as vy_ast
 from vyper.ast.annotation import annotate_python_ast
@@ -7,7 +7,9 @@ from vyper.ast.pre_parser import pre_parse
 from vyper.exceptions import CompilerPanic, ParserException, SyntaxException
 
 
-def parse_to_ast(source_code: str, source_id: int = 0) -> vy_ast.Module:
+def parse_to_ast(
+    source_code: str, source_id: int = 0, contract_name: Optional[str] = None
+) -> vy_ast.Module:
     """
     Parses a Vyper source string and generates basic Vyper AST nodes.
 
@@ -31,7 +33,7 @@ def parse_to_ast(source_code: str, source_id: int = 0) -> vy_ast.Module:
     except SyntaxError as e:
         # TODO: Ensure 1-to-1 match of source_code:reformatted_code SyntaxErrors
         raise SyntaxException(str(e), source_code, e.lineno, e.offset) from e
-    annotate_python_ast(py_ast, source_code, class_types, source_id)
+    annotate_python_ast(py_ast, source_code, class_types, source_id, contract_name)
 
     # Convert to Vyper AST.
     return vy_ast.get_node(py_ast)  # type: ignore

@@ -17,8 +17,10 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         source_code: str,
         modification_offsets: Optional[ModificationOffsets] = None,
         source_id: int = 0,
+        contract_name: Optional[str] = None,
     ):
         self._source_id = source_id
+        self._contract_name = contract_name
         self._source_code: str = source_code
         self.counter: int = 0
         self._modification_offsets = {}
@@ -69,6 +71,7 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         return node
 
     def visit_Module(self, node):
+        node.name = self._contract_name
         return self._visit_docstring(node)
 
     def visit_FunctionDef(self, node):
@@ -210,6 +213,7 @@ def annotate_python_ast(
     source_code: str,
     modification_offsets: Optional[ModificationOffsets] = None,
     source_id: int = 0,
+    contract_name: Optional[str] = None,
 ) -> python_ast.AST:
     """
     Annotate and optimize a Python AST in preparation conversion to a Vyper AST.
@@ -229,6 +233,6 @@ def annotate_python_ast(
     """
 
     asttokens.ASTTokens(source_code, tree=parsed_ast)
-    AnnotatingVisitor(source_code, modification_offsets, source_id).visit(parsed_ast)
+    AnnotatingVisitor(source_code, modification_offsets, source_id, contract_name).visit(parsed_ast)
 
     return parsed_ast

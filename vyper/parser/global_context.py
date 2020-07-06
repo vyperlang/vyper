@@ -102,7 +102,7 @@ class GlobalContext:
                     if interface_name not in interface_codes:
                         raise StructureException(f"Unknown interface {interface_name}", item)
                     global_ctx._interfaces[assigned_name] = extract_sigs(
-                        interface_codes[interface_name]
+                        interface_codes[interface_name], interface_name
                     )
             elif isinstance(item, vy_ast.Import):
                 interface_name = item.alias
@@ -111,7 +111,7 @@ class GlobalContext:
                 if interface_name not in interface_codes:
                     raise StructureException(f"Unknown interface {interface_name}", item)
                 global_ctx._interfaces[interface_name] = extract_sigs(
-                    interface_codes[interface_name]
+                    interface_codes[interface_name], interface_name
                 )
             else:
                 raise StructureException("Invalid top-level statement", item)
