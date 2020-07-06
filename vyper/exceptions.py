@@ -101,9 +101,13 @@ class VyperException(Exception):
                 return msg
 
             if isinstance(node, vy_ast.VyperNode):
+                module_node = node.get_ancestor(vy_ast.Module)
+                if module_node.get("name") not in (None, "<unknown>"):
+                    msg += f'contract "{module_node.name}", '
+
                 fn_node = node.get_ancestor(vy_ast.FunctionDef)
                 if fn_node:
-                    msg += f"function '{fn_node.name}', "
+                    msg += f'function "{fn_node.name}", '
 
             col_offset_str = "" if node.col_offset is None else str(node.col_offset)
             msg += f"line {node.lineno}:{col_offset_str} \n{source_annotation}\n"
