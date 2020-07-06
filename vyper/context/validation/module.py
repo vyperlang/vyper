@@ -236,17 +236,16 @@ def _add_import(
         interface_codes = _get_builtin_interfaces()
     if name not in interface_codes:
         raise UndeclaredDefinition(f"Unknown interface: {name}", node)
+
+    if interface_codes[name]["type"] == "vyper":
+        interface_ast = vy_ast.parse_to_ast(interface_codes[name]["code"], contract_name=name)
+        type_ = namespace["interface"].build_primitive_from_node(interface_ast)
+    elif interface_codes[name]["type"] == "json":
+        type_ = namespace["interface"].build_primitive_from_abi(name, interface_codes[name]["code"])
+    else:
+        raise CompilerPanic(f"Unknown interface format: {interface_codes[name]['type']}")
+
     try:
-        if interface_codes[name]["type"] == "vyper":
-            interface_ast = vy_ast.parse_to_ast(interface_codes[name]["code"])
-            interface_ast.name = alias
-            type_ = namespace["interface"].build_primitive_from_node(interface_ast)
-        elif interface_codes[name]["type"] == "json":
-            type_ = namespace["interface"].build_primitive_from_abi(
-                name, interface_codes[name]["code"]
-            )
-        else:
-            raise CompilerPanic(f"Unknown interface format: {interface_codes[name]['type']}")
         namespace[alias] = type_
     except VyperException as exc:
         raise exc.with_annotation(node) from None
