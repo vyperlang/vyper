@@ -604,6 +604,12 @@ class Module(TopLevel):
 class FunctionDef(TopLevel):
     __slots__ = ("args", "returns", "decorator_list", "pos")
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.decorator_list and self.decorator_list[-1].end_lineno is not None:
+            # start the source highlight after the decorators to improve annotation readability
+            self.lineno = self.decorator_list[-1].end_lineno + 1
+
 
 class DocStr(VyperNode):
     """
