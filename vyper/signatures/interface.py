@@ -21,7 +21,8 @@ def get_builtin_interfaces():
             {
                 "type": "vyper",
                 "code": importlib.import_module(f"vyper.interfaces.{name}",).interface_code,
-            }
+            },
+            name,
         )
         for name in interface_names
     }
@@ -101,11 +102,11 @@ def mk_full_signature_from_json(abi):
     return sigs
 
 
-def extract_sigs(sig_code):
+def extract_sigs(sig_code, interface_name=None):
     if sig_code["type"] == "vyper":
         interface_ast = [
             i
-            for i in vy_ast.parse_to_ast(sig_code["code"])
+            for i in vy_ast.parse_to_ast(sig_code["code"], contract_name=interface_name)
             if isinstance(i, vy_ast.FunctionDef)
             or isinstance(i, vy_ast.EventDef)
             or (isinstance(i, vy_ast.AnnAssign) and i.target.id != "implements")
