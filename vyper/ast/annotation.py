@@ -1,4 +1,5 @@
 import ast as python_ast
+import tokenize
 from decimal import Decimal
 from typing import Optional
 
@@ -15,10 +16,12 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
     def __init__(
         self,
         source_code: str,
-        modification_offsets: Optional[ModificationOffsets] = None,
-        source_id: int = 0,
-        contract_name: Optional[str] = None,
+        modification_offsets: Optional[ModificationOffsets],
+        tokens: asttokens.ASTTokens,
+        source_id: int,
+        contract_name: Optional[str],
     ):
+        self._tokens = tokens
         self._source_id = source_id
         self._contract_name = contract_name
         self._source_code: str = source_code
@@ -75,6 +78,12 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         return self._visit_docstring(node)
 
     def visit_FunctionDef(self, node):
+        if node.decorator_list:
+            # start the source highlight at `def` to improve annotation readability
+            decorator_token = node.decorator_list[-1].last_token
+            def_token = self._tokens.find_token(decorator_token, tokenize.NAME, tok_str="def")
+            node.first_token = def_token
+
         return self._visit_docstring(node)
 
     def visit_ClassDef(self, node):
@@ -232,7 +241,8 @@ def annotate_python_ast(
         The annotated and optimized AST.
     """
 
-    asttokens.ASTTokens(source_code, tree=parsed_ast)
-    AnnotatingVisitor(source_code, modification_offsets, source_id, contract_name).visit(parsed_ast)
+    tokens = asttokens.ASTTokens(source_code, tree=parsed_ast)
+    visitor = AnnotatingVisitor(source_code, modification_offsets, tokens, source_id, contract_name)
+    visitor.visit(parsed_ast)
 
     return parsed_ast
