@@ -97,10 +97,10 @@ To test events, we examine the :py:class:`TransactionReceipt <brownie.network.tr
 
         # Check log contents
         assert len(tx1.events) == 1
-        assert tx1.events[0]['_value'] == 10
+        assert tx1.events[0]['value'] == 10
 
         assert len(tx2.events) == 1
-        assert tx2.events[0]['_setter'] == accounts[1]
+        assert tx2.events[0]['setter'] == accounts[1]
 
         assert not tx3.events   # tx3 does not generate a log
 
