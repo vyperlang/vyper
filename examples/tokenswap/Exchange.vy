@@ -30,14 +30,12 @@ def initialize():
 @external
 def receive(_from: address, _amt: uint256):
     assert msg.sender == self.owner.address  # Only the Reigstry may call this
-    success: bool = self.token.transferFrom(_from, self, _amt)
-    assert success
+    assert self.token.transferFrom(_from, self, _amt)  # ERC20.transferFrom returns bool "success"
 
 
 @external
 def transfer(_to: address, _amt: uint256):
     assert msg.sender == self.owner.address  # Only the Reigstry may call this
-    success: bool = self.token.transfer(_to, _amt)
-    assert success
+    assert self.token.transfer(_to, _amt)  # ERC20.transfer returns bool "success"
 
 # NOTE: Add liquidity Deposit/Withdrawal logic
