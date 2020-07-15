@@ -1,6 +1,7 @@
 from typing import Tuple
 
 from vyper import ast as vy_ast
+from vyper.context import validation
 from vyper.context.types.abstract import IntegerAbstractType
 from vyper.context.types.bases import (
     BaseTypeDefinition,
@@ -69,8 +70,10 @@ class ArrayDefinition(_SequenceDefinition):
         if isinstance(node, vy_ast.Int):
             if node.value < 0:
                 raise ArrayIndexException("Vyper does not support negative indexing", node)
-            if node.value < 0 or node.value >= self.length:
+            if node.value >= self.length:
                 raise ArrayIndexException("Index out of range", node)
+        else:
+            validation.utils.validate_expected_type(node, IntegerAbstractType())
         return self.value_type
 
     def compare_type(self, other):
@@ -109,7 +112,7 @@ class TupleDefinition(_SequenceDefinition):
             raise InvalidType("Tuple indexes must be literals", node)
         if node.value < 0:
             raise ArrayIndexException("Vyper does not support negative indexing", node)
-        if node.value < 0 or node.value >= self.length:
+        if node.value >= self.length:
             raise ArrayIndexException("Index out of range", node)
         return self.value_type[node.value]
 
