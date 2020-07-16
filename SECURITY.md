@@ -39,18 +39,13 @@ Please read prior audit reports for projects that use Vyper here:
 
 ## Known Vyper Vulnerabilities and Exposures (VVEs)
 
-The following is a list of all publicly disclosed vulnerabilities and exposures.
+The link below is a list of all publicly disclosed vulnerabilities and exposures.
 Best Practices dictate that when we are first made aware of a potential vulnerability,
 we take the precaution of assessing it's potential impact to deployed projects first.
 When we are confident that a disclosure will not impact known projects that use Vyper,
-we will add an entry to this table for posterity and reference by others.
+we will add an entry to the list of security advisories for posterity and reference by others.
 
-<!-- Please use the tagged version if possible, or commit hash if a non-tagged version was used. -->
-
-| VVE | Description | Introduced | Fixed | Report Link |
-| --- | ----------- | ---------- | ----- | ----------- |
-| VVE-2019-0001 | Stack Exhaustion via Private Calls w/ Arrays | v0.1.0-beta.4 | v0.1.0-beta.10 | https://github.com/vyperlang/vyper/issues/1418#issuecomment-496509570 |
-| VVE-2020-0001 | Use of uint256 for uint8 interfaces | v0.0.4 | TBD | https://github.com/vyperlang/vyper/security/advisories/GHSA-mr6r-mvw4-736g
+https://github.com/vyperlang/vyper/security/advisories
 
 ## Reporting a Vulnerability
 
