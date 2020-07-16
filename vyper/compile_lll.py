@@ -214,15 +214,21 @@ def compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=No
     # Continue to the next iteration of the for loop
     elif code.value == "continue":
         if not break_dest:
-            raise Exception("Invalid break")
+            raise CompilerPanic("Invalid break")
         dest, continue_dest, break_height = break_dest
         return [continue_dest, "JUMP"]
     # Break from inside a for loop
     elif code.value == "break":
         if not break_dest:
-            raise Exception("Invalid break")
+            raise CompilerPanic("Invalid break")
         dest, continue_dest, break_height = break_dest
         return ["POP"] * (height - break_height) + [dest, "JUMP"]
+    # Break from inside one or more for loops prior to a return statement inside the loop
+    elif code.value == "exit_repeater":
+        if not break_dest:
+            raise CompilerPanic("Invalid break")
+        _, _, break_height = break_dest
+        return ["POP"] * break_height
     # With statements
     elif code.value == "with":
         o = []

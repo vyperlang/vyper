@@ -9,7 +9,6 @@ def repeat(z: int128) -> int128:
     """
     c = get_contract_with_gas_estimation(basic_repeater)
     assert c.repeat(9) == 54
-    print("Passed basic repeater test")
 
 
 def test_digit_reverser(get_contract_with_gas_estimation):
@@ -30,7 +29,6 @@ def reverse_digits(x: int128) -> int128:
 
     c = get_contract_with_gas_estimation(digit_reverser)
     assert c.reverse_digits(123456) == 654321
-    print("Passed digit reverser test")
 
 
 def test_more_complex_repeater(get_contract_with_gas_estimation):
@@ -48,8 +46,6 @@ def repeat() -> int128:
     c = get_contract_with_gas_estimation(more_complex_repeater)
     assert c.repeat() == 666666
 
-    print("Passed complex repeater test")
-
 
 def test_offset_repeater(get_contract_with_gas_estimation):
     offset_repeater = """
@@ -63,8 +59,6 @@ def sum() -> int128:
 
     c = get_contract_with_gas_estimation(offset_repeater)
     assert c.sum() == 4100
-
-    print("Passed repeater with offset test")
 
 
 def test_offset_repeater_2(get_contract_with_gas_estimation):
@@ -83,8 +77,6 @@ def sum(frm: int128, to: int128) -> int128:
     assert c.sum(100, 99999) == 15150
     assert c.sum(70, 131) == 6100
 
-    print("Passed more complex repeater with offset test")
-
 
 def test_loop_call_priv(get_contract_with_gas_estimation):
     code = """
@@ -101,3 +93,86 @@ def foo() -> bool:
 
     c = get_contract_with_gas_estimation(code)
     assert c.foo() is True
+
+
+def test_return_inside_repeater(get_contract):
+    code = """
+@internal
+def _final(a: int128) -> int128:
+    for i in range(10):
+        if i > a:
+            return i
+    return -42
+
+@internal
+def _middle(a: int128) -> int128:
+    b: int128 = self._final(a)
+    return b
+
+@external
+def foo(a: int128) -> int128:
+    b: int128 = self._middle(a)
+    return b
+    """
+
+    c = get_contract(code)
+    assert c.foo(6) == 7
+    assert c.foo(100) == -42
+
+
+def test_return_inside_nested_repeater(get_contract):
+    code = """
+@internal
+def _final(a: int128) -> int128:
+    for i in range(10):
+        for x in range(10):
+            if i + x > a:
+                return i + x
+    return -42
+
+@internal
+def _middle(a: int128) -> int128:
+    b: int128 = self._final(a)
+    return b
+
+@external
+def foo(a: int128) -> int128:
+    b: int128 = self._middle(a)
+    return b
+    """
+
+    c = get_contract(code)
+    assert c.foo(14) == 15
+    assert c.foo(100) == -42
+
+
+def test_breaks_and_returns_inside_nested_repeater(get_contract):
+    code = """
+@internal
+def _final(a: int128) -> int128:
+    for i in range(10):
+        for x in range(10):
+            if a < 2:
+                break
+            return 6
+        if a == 1:
+            break
+        return 31337
+
+    return -42
+
+@internal
+def _middle(a: int128) -> int128:
+    b: int128 = self._final(a)
+    return b
+
+@external
+def foo(a: int128) -> int128:
+    b: int128 = self._middle(a)
+    return b
+    """
+
+    c = get_contract(code)
+    assert c.foo(100) == 6
+    assert c.foo(1) == -42
+    assert c.foo(0) == 31337
