@@ -350,9 +350,12 @@ def validate_expected_type(node, expected_type):
     if not isinstance(node, (vy_ast.List, vy_ast.Tuple)) and node.get_descendants(
         vy_ast.Name, include_self=True
     ):
-        raise TypeMismatch(
-            f"Given reference has type {given_types[0]}, expected {expected_str}", node
-        )
+        given = given_types[0]
+        if isinstance(given, type) and types.BasePrimitive in given.mro():
+            raise InvalidReference(
+                f"'{given._id}' is a type - expected a literal or variable", node
+            )
+        raise TypeMismatch(f"Given reference has type {given}, expected {expected_str}", node)
     else:
         if len(given_types) == 1:
             given_str = str(given_types[0])
