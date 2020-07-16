@@ -26,12 +26,6 @@ def make_return_stmt(stmt, context, begin_pos, _size, loop_memory_position=None)
         if isinstance(begin_pos, int) and isinstance(_size, int):
             # static values, unroll the mloads instead.
             mloads = [["mload", pos] for pos in range(begin_pos, _size, 32)]
-            return (
-                ["seq_unchecked"]
-                + mloads
-                + nonreentrant_post
-                + [["jump", ["mload", context.callback_ptr]]]
-            )
         else:
             mloads = [
                 "seq_unchecked",
@@ -54,12 +48,17 @@ def make_return_stmt(stmt, context, begin_pos, _size, loop_memory_position=None)
                 ["goto", start_label],
                 ["label", exit_label],
             ]
-            return (
-                ["seq_unchecked"]
-                + [mloads]
-                + nonreentrant_post
-                + [["jump", ["mload", context.callback_ptr]]]
-            )
+
+        # if we are in a for loop, we have to exit prior to returning
+        exit_repeater = ["exit_repeater"] if context.forvars else []
+
+        return (
+            ["seq_unchecked"]
+            + exit_repeater
+            + mloads
+            + nonreentrant_post
+            + [["jump", ["mload", context.callback_ptr]]]
+        )
     else:
         return ["seq_unchecked"] + nonreentrant_post + [["return", begin_pos, _size]]
 
