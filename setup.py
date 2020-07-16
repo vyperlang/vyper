@@ -49,7 +49,7 @@ with open("README.md", "r") as f:
 setup(
     name="vyper",
     # *IMPORTANT*: Don't manually change the version here. Use the 'bumpversion' utility.
-    version="0.2.2",
+    version="0.2.3",
     description="Vyper: the Pythonic Programming Language for the EVM",
     long_description=long_description,
     long_description_content_type="text/markdown",
