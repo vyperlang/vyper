@@ -3,6 +3,23 @@
 Release Notes
 #############
 
+v0.2.3
+******
+
+Date released: 16-07-2020
+
+Non-breaking changes and improvements:
+
+- Show contract names in raised exceptions (`#2103 <https://github.com/vyperlang/vyper/pull/2103>`_)
+- Adjust function offsets to not include decorators (`#2102 <https://github.com/vyperlang/vyper/pull/2102>`_)
+- Raise certain exception types immediately during module-scoped type checking (`#2101 <https://github.com/vyperlang/vyper/pull/2101>`_)
+
+Fixes:
+
+- Pop ``for`` loop values from stack prior to returning (`#2110 <https://github.com/vyperlang/vyper/pull/2110>`_)
+- Type checking non-literal array index values (`#2108 <https://github.com/vyperlang/vyper/pull/2108>`_)
+- Meaningful output during ``for`` loop type checking (`#2096 <https://github.com/vyperlang/vyper/pull/2096>`_)
+
 v0.2.2
 ******
 
