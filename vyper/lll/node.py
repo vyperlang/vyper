@@ -10,7 +10,7 @@ from vyper.exceptions import CompilerPanic
 
 
 class BaseNode:
-    __slots__: Tuple[str] = ("type",)
+    __slots__: Tuple[str, ...] = ("type",)
     type: str
 
     def __init__(self, *args):
@@ -68,19 +68,19 @@ class BaseNode:
 
 
 class Module(BaseNode):
-    __slots__: Tuple[str] = ("type", "body")
+    __slots__: Tuple[str, ...] = ("type", "body")
     type: str
     body: List[BaseNode]
 
 
 class Seq(BaseNode):
-    __slots__: Tuple[str] = ("type", "body")
+    __slots__: Tuple[str, ...] = ("type", "body")
     type: str
     body: List[BaseNode]
 
 
 class Def(BaseNode):
-    __slots__: Tuple[str] = ("type", "name", "args", "body")
+    __slots__: Tuple[str, ...] = ("type", "name", "args", "body")
     type: str
     name: str
     args: List[str]
@@ -88,7 +88,7 @@ class Def(BaseNode):
 
 
 class Return(BaseNode):
-    __slots__: Tuple[str] = (
+    __slots__: Tuple[str, ...] = (
         "type",
         "body",
     )
@@ -97,14 +97,14 @@ class Return(BaseNode):
 
 
 class When(BaseNode):
-    __slots__: Tuple[str] = ("type", "condition", "body")
+    __slots__: Tuple[str, ...] = ("type", "condition", "body")
     type: str
     condition: BaseNode
     body: List[BaseNode]
 
 
 class _BinOp(BaseNode):
-    __slots__: Tuple[str] = ("type", "lhs", "rhs")
+    __slots__: Tuple[str, ...] = ("type", "lhs", "rhs")
     type: str
     lhs: BaseNode
     rhs: BaseNode
@@ -139,7 +139,7 @@ class Pass(BaseNode):
 
 
 class If(BaseNode):
-    __slots__: Tuple[str] = ("type", "condition", "positive", "negative")
+    __slots__: Tuple[str, ...] = ("type", "condition", "positive", "negative")
     type: str
     condition: BaseNode
     positive: List[BaseNode]
@@ -147,7 +147,7 @@ class If(BaseNode):
 
 
 class Repeat(BaseNode):
-    __slots__: Tuple[str] = ("type", "memory", "start", "rounds", "body")
+    __slots__: Tuple[str, ...] = ("type", "memory", "start", "rounds", "body")
     type: str
     memory: int
     start: int
@@ -156,7 +156,7 @@ class Repeat(BaseNode):
 
 
 class Label(BaseNode):
-    __slots__: Tuple[str] = (
+    __slots__: Tuple[str, ...] = (
         "type",
         "name",
     )
@@ -165,7 +165,7 @@ class Label(BaseNode):
 
 
 class Goto(BaseNode):
-    __slots__: Tuple[str] = (
+    __slots__: Tuple[str, ...] = (
         "type",
         "label",
     )
@@ -174,7 +174,7 @@ class Goto(BaseNode):
 
 
 class Sload(BaseNode):
-    __slots__: Tuple[str] = (
+    __slots__: Tuple[str, ...] = (
         "type",
         "register",
     )
@@ -183,14 +183,14 @@ class Sload(BaseNode):
 
 
 class Sstore(BaseNode):
-    __slots__: Tuple[str] = ("type", "register", "value")
+    __slots__: Tuple[str, ...] = ("type", "register", "value")
     type: str
     register: int
     value: int
 
 
 class Mload(BaseNode):
-    __slots__: Tuple[str] = (
+    __slots__: Tuple[str, ...] = (
         "type",
         "register",
     )
@@ -199,7 +199,7 @@ class Mload(BaseNode):
 
 
 class Mstore(BaseNode):
-    __slots__: Tuple[str] = ("type", "register", "value")
+    __slots__: Tuple[str, ...] = ("type", "register", "value")
     type: str
     register: int
     value: int
