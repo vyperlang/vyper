@@ -310,7 +310,14 @@ class FunctionSignature:
     def _generate_outputs_abi(self):
         if not self.output_type:
             return []
+        elif isinstance(self.output_type, StructType):
+            # Flatten structs at the base level of output
+            # NOTE: structs inside of structs still encode as tuples
+            return [
+                self._generate_param_abi(typ, name) for name, typ in self.output_type.tuple_items()
+            ]
         elif isinstance(self.output_type, TupleType):
+            # Flatten tuples at the base level of output
             return [self._generate_param_abi(x,) for x in self.output_type.members]
         else:
             return [self._generate_param_abi(self.output_type)]
