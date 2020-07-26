@@ -42,7 +42,13 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
 
         # Decorate every node with source end offsets
         start = node.first_token.start if hasattr(node, "first_token") else (None, None)
-        end = node.last_token.end if hasattr(node, "last_token") else (None, None)
+        end = (None, None)
+        if hasattr(node, "last_token"):
+            end = node.last_token.end
+            if node.last_token.type == 4:
+                # token type 4 is a `\n`, some nodes include a trailing newline
+                # here we ignore it when building the node offsets
+                end = (end[0], end[1] - 1)
 
         node.lineno = start[0]
         node.col_offset = start[1]
@@ -52,6 +58,9 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         if hasattr(node, "last_token"):
             start_pos = node.first_token.startpos
             end_pos = node.last_token.endpos
+            if node.last_token.type == 4:
+                # ignore trailing newline once more
+                end_pos -= 1
             node.src = f"{start_pos}:{end_pos-start_pos}:{self._source_id}"
             node.node_source_code = self._source_code[start_pos:end_pos]
 
