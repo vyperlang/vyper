@@ -1,6 +1,3 @@
-import pytest
-
-
 def test_state_accessor(get_contract_with_gas_estimation_for_constants):
     state_accessor = """
 y: HashMap[int128, int128]
@@ -20,9 +17,6 @@ def foo() -> int128:
     assert c.foo() == 5
 
 
-# TODO: Either wait for this, or refactor test suite to use Brownie
-#       (which doesn't suffer from this issue)
-@pytest.mark.xfail(reason="https://github.com/ethereum/web3.py/issues/1634#issuecomment-650797252")
 def test_getter_code(get_contract_with_gas_estimation_for_constants):
     getter_code = """
 struct W:

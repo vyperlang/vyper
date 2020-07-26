@@ -81,7 +81,7 @@ def foo(s: MyStruct) -> MyStruct:
         "components": [{"type": "address", "name": "a"}, {"type": "uint256", "name": "b"}],
     }
 
-    assert func_abi["outputs"][0] == expected
+    assert func_abi["outputs"] == expected["components"]
 
     expected["name"] = "s"
     assert func_abi["inputs"][0] == expected
