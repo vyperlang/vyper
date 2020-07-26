@@ -55,8 +55,6 @@ class VyperException(Exception):
             self.lineno, self.col_offset = items[0][:2]
         else:
             self.nodes = items
-            if items:
-                self.source_code = items[0].full_source_code
 
     def with_annotation(self, *nodes):
         """
@@ -72,7 +70,6 @@ class VyperException(Exception):
         A copy of the exception with the new node offset(s) applied.
         """
         exc = copy.copy(self)
-        exc.source_code = nodes[0].full_source_code
         exc.nodes = nodes
         return exc
 
@@ -80,7 +77,7 @@ class VyperException(Exception):
         from vyper import ast as vy_ast
         from vyper.utils import annotate_source_code
 
-        if not hasattr(self, "source_code"):
+        if not hasattr(self, "nodes"):
             if self.lineno is not None and self.col_offset is not None:
                 return f"line {self.lineno}:{self.col_offset} {self.message}"
             else:
@@ -91,7 +88,7 @@ class VyperException(Exception):
             try:
                 source_annotation = annotate_source_code(
                     # add trailing space because EOF exceptions point one char beyond the length
-                    f"{self.source_code} ",
+                    f"{node.full_source_code} ",
                     node.lineno,
                     node.col_offset,
                     context_lines=VYPER_ERROR_CONTEXT_LINES,
