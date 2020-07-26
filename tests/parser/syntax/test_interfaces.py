@@ -3,6 +3,7 @@ import pytest
 from vyper import compiler
 from vyper.exceptions import (
     ArgumentException,
+    InvalidReference,
     StructureException,
     TypeMismatch,
     UnknownAttribute,
@@ -27,7 +28,7 @@ aba: public(ERC20)
 def test():
     self.aba = ERC20
     """,
-        StructureException,
+        InvalidReference,
     ),
     (
         """
