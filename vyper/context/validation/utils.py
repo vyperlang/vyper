@@ -4,6 +4,7 @@ from typing import Callable, List
 from vyper import ast as vy_ast
 from vyper.context import types
 from vyper.context.namespace import get_namespace
+from vyper.context.types.bases import BaseTypeDefinition
 from vyper.context.types.indexable.sequence import (
     ArrayDefinition,
     TupleDefinition,
@@ -57,17 +58,59 @@ class _ExprTypeChecker:
     def __init__(self):
         self.namespace = get_namespace()
 
-    def get_exact_type_from_node(self, node):
-        fn = self._find_fn(node)
-        types_list = fn(node)
+    def get_exact_type_from_node(self, node, only_definitions=True):
+        """
+        Find exactly one type for a given node.
+
+        Raises StructureException if a single type cannot be determined.
+
+        Arguments
+        ---------
+        node : VyperNode
+            The vyper AST node to find a type for.
+        only_definitions: bool, optional
+            If True, raises when the return value is not a type definition
+            e.g a primitive, meta type, or function call
+
+        Returns
+        -------
+        Type object
+        """
+        types_list = self.get_possible_types_from_node(node, only_definitions)
 
         if len(types_list) > 1:
             raise StructureException("Ambiguous type", node)
         return types_list[0]
 
-    def get_possible_types_from_node(self, node):
+    def get_possible_types_from_node(self, node, only_definitions=True):
+        """
+        Find all possible types for a given node.
+
+        Arguments
+        ---------
+        node : VyperNode
+            The vyper AST node to find a type for.
+        only_definitions: bool, optional
+            If True, raises when the return value is not a type definition
+            e.g a primitive, meta type, or function call
+
+        Returns
+        -------
+        List
+            A list of type objects
+        """
         fn = self._find_fn(node)
-        return fn(node)
+        types_list = fn(node)
+        if only_definitions:
+            invalid = next((i for i in types_list if not isinstance(i, BaseTypeDefinition)), None)
+            if invalid:
+                if isinstance(invalid, type) and types.BasePrimitive in invalid.mro():
+                    raise InvalidReference(
+                        f"'{invalid._id}' is a type - expected a literal or variable", node
+                    )
+                else:
+                    raise InvalidReference("Expected a literal or variable", node)
+        return types_list
 
     def _find_fn(self, node):
         # look for a type-check method for each class in the given class mro
@@ -143,7 +186,7 @@ class _ExprTypeChecker:
 
     def types_from_Call(self, node):
         # function calls, e.g. `foo()`
-        var = self.get_exact_type_from_node(node.func)
+        var = self.get_exact_type_from_node(node.func, False)
         return_value = var.fetch_call_return(node)
         if return_value:
             return [return_value]
@@ -197,6 +240,8 @@ class _ExprTypeChecker:
 
     def types_from_Tuple(self, node):
         types_list = [self.get_exact_type_from_node(i) for i in node.elements]
+        # for item, type_ in zip(node.elements, types_list):
+        #     if not isinstnace(BaseTypeDefinition
         return [TupleDefinition(types_list)]
 
     def types_from_UnaryOp(self, node):
@@ -235,7 +280,7 @@ def get_possible_types_from_node(node):
     List
         List of one or more BaseType objects.
     """
-    return _ExprTypeChecker().get_possible_types_from_node(node)
+    return _ExprTypeChecker().get_possible_types_from_node(node, False)
 
 
 def get_exact_type_from_node(node):
@@ -255,7 +300,7 @@ def get_exact_type_from_node(node):
         Type object.
     """
 
-    return _ExprTypeChecker().get_exact_type_from_node(node)
+    return _ExprTypeChecker().get_exact_type_from_node(node, False)
 
 
 def get_common_types(*nodes: vy_ast.VyperNode, filter_fn: Callable = None) -> List:
@@ -351,10 +396,6 @@ def validate_expected_type(node, expected_type):
         vy_ast.Name, include_self=True
     ):
         given = given_types[0]
-        if isinstance(given, type) and types.BasePrimitive in given.mro():
-            raise InvalidReference(
-                f"'{given._id}' is a type - expected a literal or variable", node
-            )
         raise TypeMismatch(f"Given reference has type {given}, expected {expected_str}", node)
     else:
         if len(given_types) == 1:
