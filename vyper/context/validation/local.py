@@ -354,6 +354,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                         )
 
         for_loop_exceptions = []
+        iter_name = node.target.id
         for type_ in type_list:
             # type check the for loop body using each possible type for iterator value
             type_ = copy.deepcopy(type_)
@@ -361,7 +362,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
 
             with self.namespace.enter_scope():
                 try:
-                    self.namespace[node.target.id] = type_
+                    self.namespace[iter_name] = type_
                 except VyperException as exc:
                     raise exc.with_annotation(node) from None
 
@@ -373,10 +374,22 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                     for_loop_exceptions.append(exc)
 
         if len(set(str(i) for i in for_loop_exceptions)) == 1:
-            # if every attempt at type checking raised the same exception,
+            # if every attempt at type checking raised the same exception
             raise for_loop_exceptions[0]
 
-        raise TypeMismatch("Could not determine type for iterator values", node)
+        # return an aggregate TypeMismatch that shows all possible exceptions
+        # depending on which type is used
+        types_str = [str(i) for i in type_list]
+        given_str = f"{', '.join(types_str[:1])} or {types_str[-1]}"
+        raise TypeMismatch(
+            f"Iterator value '{iter_name}' may be cast as {given_str}, "
+            "but type checking fails with all possible types:",
+            node,
+            *(
+                (f"Casting '{iter_name}' as {type_}: {exc.message}", exc.annotations[0])
+                for type_, exc in zip(type_list, for_loop_exceptions)
+            ),
+        )
 
     def visit_Expr(self, node):
         if not isinstance(node.value, vy_ast.Call):
