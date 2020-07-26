@@ -1,4 +1,5 @@
 import copy
+import textwrap
 import types
 
 from vyper.settings import VYPER_ERROR_CONTEXT_LINES, VYPER_ERROR_LINE_NUMBERS
@@ -85,6 +86,7 @@ class VyperException(Exception):
 
         msg = f"{self.message}\n"
         for node in self.nodes:
+            node_msg = ""
             try:
                 source_annotation = annotate_source_code(
                     # add trailing space because EOF exceptions point one char beyond the length
@@ -96,19 +98,21 @@ class VyperException(Exception):
                 )
             except Exception:
                 # necessary for certain types of syntax exceptions
-                return msg
+                return self.message
 
             if isinstance(node, vy_ast.VyperNode):
                 module_node = node.get_ancestor(vy_ast.Module)
                 if module_node.get("name") not in (None, "<unknown>"):
-                    msg += f'contract "{module_node.name}", '
+                    node_msg = f'{node_msg}contract "{module_node.name}", '
 
                 fn_node = node.get_ancestor(vy_ast.FunctionDef)
                 if fn_node:
-                    msg += f'function "{fn_node.name}", '
+                    node_msg = f'{node_msg}function "{fn_node.name}", '
 
             col_offset_str = "" if node.col_offset is None else str(node.col_offset)
-            msg += f"line {node.lineno}:{col_offset_str} \n{source_annotation}\n"
+            node_msg = f"{node_msg}line {node.lineno}:{col_offset_str} \n{source_annotation}\n"
+            node_msg = textwrap.indent(node_msg, "  ")
+            msg = f"{msg}{node_msg}"
 
         return msg
 
