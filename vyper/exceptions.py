@@ -42,51 +42,56 @@ class VyperException(Exception):
         ---------
         message : str
             Error message to display with the exception.
-        *items : VyperNode | tuple, optional
-            Vyper ast node(s) indicating where the exception occured. Source
-            annotation is generated in the order the nodes are given. A single
-            tuple of (lineno, col_offset) is also understood to support the old
-            API, but new exceptions should not use this approach.
+        *items : VyperNode | Tuple[str, VyperNode], optional
+            Vyper ast node(s), or tuple of (description, node) indicating where
+            the exception occured. Source annotations are generated in the order
+            the nodes are given.
+
+            A single tuple of (lineno, col_offset) is also understood to support
+            the old API, but new exceptions should not use this approach.
         """
         self.message = message
         self.lineno = None
         self.col_offset = None
 
-        if len(items) == 1 and isinstance(items[0], tuple):
+        if len(items) == 1 and isinstance(items[0], tuple) and isinstance(items[0][0], int):
+            # support older exceptions that don't annotate - remove this in the future!
             self.lineno, self.col_offset = items[0][:2]
         else:
-            self.nodes = items
+            self.annotations = items
 
-    def with_annotation(self, *nodes):
+    def with_annotation(self, *annotations):
         """
         Creates a copy of this exception with a modified source annotation.
 
         Arguments
         ---------
-        *node : VyperNode
-            AST node(s) to use in the annotation.
+        *annotations : VyperNode | Tuple[str, VyperNode]
+            AST node(s), or tuple of (description, node) to use in the annotation.
 
         Returns
         -------
         A copy of the exception with the new node offset(s) applied.
         """
         exc = copy.copy(self)
-        exc.nodes = nodes
+        exc.annotations = annotations
         return exc
 
     def __str__(self):
         from vyper import ast as vy_ast
         from vyper.utils import annotate_source_code
 
-        if not hasattr(self, "nodes"):
+        if not hasattr(self, "annotations"):
             if self.lineno is not None and self.col_offset is not None:
                 return f"line {self.lineno}:{self.col_offset} {self.message}"
             else:
                 return self.message
 
-        msg = f"{self.message}\n"
-        for node in self.nodes:
+        annotation_list = []
+        for value in self.annotations:
+            node = value[1] if isinstance(value, tuple) else value
             node_msg = ""
+
             try:
                 source_annotation = annotate_source_code(
                     # add trailing space because EOF exceptions point one char beyond the length
@@ -111,10 +116,17 @@ class VyperException(Exception):
 
             col_offset_str = "" if node.col_offset is None else str(node.col_offset)
             node_msg = f"{node_msg}line {node.lineno}:{col_offset_str} \n{source_annotation}\n"
-            node_msg = textwrap.indent(node_msg, "  ")
-            msg = f"{msg}{node_msg}"
 
-        return msg
+            if isinstance(value, tuple):
+                # if annotation includes a message, apply it at the start and further indent
+                node_msg = textwrap.indent(node_msg, "  ")
+                node_msg = f"{value[0]}\n{node_msg}"
+
+            node_msg = textwrap.indent(node_msg, "  ")
+            annotation_list.append(node_msg)
+
+        annotation_msg = "\n".join(annotation_list)
+        return f"{self.message}\n{annotation_msg}"
 
 
 class SyntaxException(VyperException):
