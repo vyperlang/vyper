@@ -90,14 +90,15 @@ class VyperException(Exception):
         for node in self.nodes:
             try:
                 source_annotation = annotate_source_code(
-                    self.source_code,
+                    # add trailing space because EOF exceptions point one char beyond the length
+                    f"{self.source_code} ",
                     node.lineno,
                     node.col_offset,
                     context_lines=VYPER_ERROR_CONTEXT_LINES,
                     line_numbers=VYPER_ERROR_LINE_NUMBERS,
                 )
             except Exception:
-                # necessary for certian types of syntax exceptions
+                # necessary for certain types of syntax exceptions
                 return msg
 
             if isinstance(node, vy_ast.VyperNode):
