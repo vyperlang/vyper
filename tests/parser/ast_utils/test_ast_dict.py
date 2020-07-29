@@ -1,3 +1,5 @@
+import json
+
 from vyper import compiler
 from vyper.ast.utils import ast_to_dict, dict_to_ast, parse_to_ast
 
@@ -78,15 +80,20 @@ def test_dict_to_ast():
 def test() -> int128:
     a: uint256 = 100
     b: int128 = -22
-    c: decimal = 3.31337
+    c: decimal = -3.3133700
     d: Bytes[11] = b"oh hai mark"
-    e: address = 0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef
-    f: bool = False
+    e: Bytes[1] = 0b01010101
+    f: Bytes[88] = b"\x01\x70"
+    g: String[100] = "  baka baka   "
+    h: address = 0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef
+    i: bool = False
     return 123
     """
 
     original_ast = parse_to_ast(code)
     out_dict = ast_to_dict(original_ast)
-    new_ast = dict_to_ast(out_dict)
+    out_json = json.dumps(out_dict)
+    new_dict = json.loads(out_json)
+    new_ast = dict_to_ast(new_dict)
 
     assert new_ast == original_ast
