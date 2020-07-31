@@ -696,6 +696,16 @@ class Decimal(Num):
 
     __slots__ = ()
 
+    def __init__(self, parent: Optional["VyperNode"] = None, **kwargs: dict):
+        super().__init__(parent, **kwargs)
+        if not isinstance(self.value, decimal.Decimal):
+            self.value = decimal.Decimal(self.value)
+
+    def to_dict(self):
+        ast_dict = super().to_dict()
+        ast_dict["value"] = self.node_source_code
+        return ast_dict
+
     def validate(self):
         if self.value.as_tuple().exponent < -MAX_DECIMAL_PLACES:
             raise InvalidLiteral("Vyper supports a maximum of ten decimal points", self)
@@ -737,6 +747,16 @@ class Str(Constant):
 class Bytes(Constant):
     __slots__ = ()
     _translated_fields = {"s": "value"}
+
+    def __init__(self, parent: Optional["VyperNode"] = None, **kwargs: dict):
+        super().__init__(parent, **kwargs)
+        if isinstance(self.value, str):
+            self.value = self.value.encode("utf8")
+
+    def to_dict(self):
+        ast_dict = super().to_dict()
+        ast_dict["value"] = self.value.decode("utf8")
+        return ast_dict
 
     @property
     def s(self):
