@@ -3,6 +3,23 @@
 Release Notes
 #############
 
+v0.2.4
+******
+
+Date released: 03-08-2020
+
+Non-breaking changes and improvements:
+
+- Improve EOF Exceptions (`#2115 <https://github.com/vyperlang/vyper/pull/2115>`_)
+- Improve exception messaging for type mismatches (`#2119 <https://github.com/vyperlang/vyper/pull/2119>`_)
+- Ignore trailing newline tokens (`#2120 <https://github.com/vyperlang/vyper/pull/2120>`_)
+
+Fixes:
+
+- Fix ABI translations for structs that are returned from functions (`#2114 <https://github.com/vyperlang/vyper/pull/2114>`_)
+- Raise when items that are not types are called (`#2118 <https://github.com/vyperlang/vyper/pull/2118>`_)
+- Ensure hex and decimal AST nodes are serializable (`#2123 <https://github.com/vyperlang/vyper/pull/2123>`_)
+
 v0.2.3
 ******
 
