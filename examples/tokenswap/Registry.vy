@@ -7,7 +7,7 @@ interface Exchange:
 exchange_codehash: public(bytes32)
 
 # Maps token addresses to exchange addresses
-exchanges: public(HashMap[address, address])
+exchanges: public(HashMap[address, Exchange])
 
 
 @external
@@ -28,18 +28,22 @@ def __init__(_exchange_codehash: bytes32):
 def register():
     # Verify code hash is the exchange's code hash
     assert msg.sender.codehash == self.exchange_codehash
-    # NOTE: Should do checks that an exhange hasn't already been set for a
-    #       given token, which has to be checked against any upgrade strategy
+
+    exchange: Exchange = Exchange(msg.sender)
+
+    # NOTE: Any practical implementation should rectify upgrade logic with
+    #       liquidity migrations of older contracts
+    assert self.exchanges[exchange.token()].address == ZERO_ADDRESS
 
     # Add the exchange for the given token
     # NOTE: Use exchange's token address because it should be globally unique
-    self.exchanges[Exchange(msg.sender).token()] = msg.sender
+    self.exchanges[exchange.token()] = exchange
 
 
 @external
 def trade(_token1: address, _token2: address, _amt: uint256):
     # Perform a straight exchange of token1 to token 2 (1:1 price)
     # NOTE: Any practical implementation would need to solve the price oracle problem,
-    #       probably by rectifying liquidity across pools
-    Exchange(self.exchanges[_token1]).receive(msg.sender, _amt)
-    Exchange(self.exchanges[_token2]).transfer(msg.sender, _amt)
+    #       probably by rectifying liquidity across pools or changing to pairwise pools
+    self.exchanges[_token1].receive(msg.sender, _amt)
+    self.exchanges[_token2].transfer(msg.sender, _amt)
