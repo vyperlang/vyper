@@ -48,7 +48,7 @@ with open("README.md", "r") as f:
 
 setup(
     name="vyper",
-    version="0.2.3",
+    version="0.2.4",
     description="Vyper: the Pythonic Programming Language for the EVM",
     long_description=long_description,
     long_description_content_type="text/markdown",
