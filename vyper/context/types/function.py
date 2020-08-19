@@ -187,8 +187,18 @@ class ContractFunction(BaseTypeDefinition):
                 # Interfaces are always public
                 kwargs["function_visibility"] = FunctionVisibility.EXTERNAL
                 kwargs["state_mutability"] = StateMutability(node.body[0].value.id)
+            elif len(node.body) == 1 and node.body[0].get("value.id") in ("constant", "modifying"):
+                if node.body[0].value.id == "constant":
+                    expected = "view or pure"
+                else:
+                    expected = "payable or nonpayable"
+                raise StructureException(
+                    f"State mutability should be set to {expected}", node.body[0]
+                )
             else:
-                raise StructureException("Body must only contain state mutability label", node)
+                raise StructureException(
+                    "Body must only contain state mutability label", node.body[0]
+                )
 
         else:
 
