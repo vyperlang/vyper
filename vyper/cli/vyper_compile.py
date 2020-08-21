@@ -5,11 +5,14 @@ import sys
 import warnings
 from collections import OrderedDict
 from pathlib import Path
-from typing import Dict, Iterable, Iterator, Sequence, Set, TypeVar
+from typing import Dict, Iterable, Iterator, Set, TypeVar
 
 import vyper
 from vyper.cli import vyper_json
-from vyper.cli.utils import extract_file_interface_imports
+from vyper.cli.utils import (
+    extract_file_interface_imports,
+    get_interface_file_path,
+)
 from vyper.opcodes import DEFAULT_EVM_VERSION, EVM_VERSIONS
 from vyper.parser import parser_utils
 from vyper.settings import VYPER_TRACEBACK_LIMIT
@@ -181,16 +184,6 @@ def get_interface_codes(root_path: Path, contract_sources: ContractCodes) -> Dic
                     interfaces[file_path][interface_name] = {"type": "vyper", "code": code}
 
     return interfaces
-
-
-def get_interface_file_path(base_paths: Sequence, import_path: str) -> Path:
-    relative_path = Path(import_path)
-    for path in base_paths:
-        file_path = path.joinpath(relative_path)
-        suffix = next((i for i in (".vy", ".json") if file_path.with_suffix(i).exists()), None)
-        if suffix:
-            return file_path.with_suffix(suffix)
-    raise FileNotFoundError(f" Cannot locate interface '{import_path}{{.vy,.json}}'")
 
 
 def compile_files(
