@@ -25,7 +25,7 @@ extras_require = {
         "mypy==0.780",
     ],
     "docs": ["recommonmark", "sphinx>=3.0,<4.0", "sphinx_rtd_theme>=0.5,<0.6"],
-    "dev": ["ipython", "pre-commit", "twine"],
+    "dev": ["ipython", "pre-commit", "pyinstaller", "twine"],
 }
 
 extras_require["dev"] = (

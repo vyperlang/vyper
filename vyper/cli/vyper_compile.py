@@ -5,10 +5,14 @@ import sys
 import warnings
 from collections import OrderedDict
 from pathlib import Path
-from typing import Dict, Iterable, Iterator, Sequence, Set, TypeVar
+from typing import Dict, Iterable, Iterator, Set, TypeVar
 
 import vyper
-from vyper.cli.utils import extract_file_interface_imports
+from vyper.cli import vyper_json
+from vyper.cli.utils import (
+    extract_file_interface_imports,
+    get_interface_file_path,
+)
 from vyper.opcodes import DEFAULT_EVM_VERSION, EVM_VERSIONS
 from vyper.parser import parser_utils
 from vyper.settings import VYPER_TRACEBACK_LIMIT
@@ -50,8 +54,12 @@ def _parse_cli_args():
 
 
 def _parse_args(argv):
-
     warnings.simplefilter("always")
+
+    if "--standard-json" in argv:
+        argv.remove("--standard-json")
+        vyper_json._parse_args(argv)
+        return
 
     parser = argparse.ArgumentParser(
         description="Pythonic Smart Contract Language for the EVM",
@@ -80,6 +88,11 @@ def _parse_args(argv):
         "--traceback-limit",
         help="Set the traceback limit for error messages reported by the compiler",
         type=int,
+    )
+    parser.add_argument(
+        "--standard-json",
+        help="Switch to standard JSON mode. Use `--standard-json -h` for available options.",
+        action="store_true",
     )
     parser.add_argument(
         "-p", help="Set the root path for contract imports", default=".", dest="root_folder"
@@ -173,16 +186,6 @@ def get_interface_codes(root_path: Path, contract_sources: ContractCodes) -> Dic
     return interfaces
 
 
-def get_interface_file_path(base_paths: Sequence, import_path: str) -> Path:
-    relative_path = Path(import_path)
-    for path in base_paths:
-        file_path = path.joinpath(relative_path)
-        suffix = next((i for i in (".vy", ".json") if file_path.with_suffix(i).exists()), None)
-        if suffix:
-            return file_path.with_suffix(suffix)
-    raise FileNotFoundError(f" Cannot locate interface '{import_path}{{.vy,.json}}'")
-
-
 def compile_files(
     input_files: Iterable[str],
     output_formats: OutputFormats,
@@ -229,3 +232,7 @@ def compile_files(
         compiler_data["version"] = vyper.__version__
 
     return compiler_data
+
+
+if __name__ == "__main__":
+    _parse_args(sys.argv[1:])
