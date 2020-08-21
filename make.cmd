@@ -4,6 +4,7 @@ if "%1"=="test" goto :test
 if "%1"=="dev-deps" goto :dev-deps
 if "%1"=="lint" goto :lint
 if "%1"=="docs" goto :docs
+if "%1"=="freeze" goto :freeze
 if "%1"=="clean" goto :clean
 if "%1"=="clean-build" goto :clean-build
 if "%1"=="clean-pyc" goto :clean-pyc
@@ -37,6 +38,12 @@ goto :end
 CALL docs\make clean
 CALL docs\make html
 START docs\_build\html\index.html
+goto :end
+
+:freeze
+CALL :clean
+for /f "delims=" %%a in ('vyper --version') do @set VERSION=%%a
+pyinstaller --clean --onefile vyper/cli/vyper_compile.py --name vyper.%VERSION%.windows
 goto :end
 
 :clean

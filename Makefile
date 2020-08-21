@@ -1,4 +1,6 @@
 SHELL := /bin/bash
+OS := $(shell uname -s | tr A-Z a-z)
+VERSION := $(shell vyper --version)
 
 ifeq (, $(shell which pip3))
 	pip := $(shell which pip3)
@@ -35,6 +37,11 @@ release: clean
 	python setup.py sdist bdist_wheel
 	twine check dist/*
 	#twine upload dist/*
+
+
+freeze: clean
+	echo Generating binary...
+	pyinstaller --clean --onefile vyper/cli/vyper_compile.py --name vyper.$(VERSION).$(OS)
 
 clean: clean-build clean-docs clean-pyc clean-test
 
