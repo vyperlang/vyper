@@ -42,8 +42,9 @@ goto :end
 
 :freeze
 CALL :clean
-for /f "delims=" %%a in ('vyper --version') do @set VERSION=%%a
-pyinstaller --clean --onefile vyper/cli/vyper_compile.py --name vyper.%VERSION%.windows
+set PYTHONPATH=.
+for /f "delims=" %%a in ('python vyper/cli/vyper_compile.py --version') do @set VERSION=%%a
+pyinstaller --clean --onefile vyper/cli/vyper_compile.py --name vyper.%VERSION%.windows --add-data vyper;vyper
 goto :end
 
 :clean
@@ -56,6 +57,7 @@ goto :end
 if exist build RMDIR /Q /S build
 if exist dist RMDIR /Q /S dist
 for /d %%x in (*.egg-info) do if exist "%%x" RMDIR /Q /S "%%x"
+for /r %%x in (*.spec) do del %%x
 goto :end
 
 
