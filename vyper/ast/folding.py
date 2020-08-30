@@ -228,9 +228,10 @@ def replace_constant(
         if isinstance(parent, vy_ast.Dict) and node in parent.keys:
             continue
 
-        if not isinstance(parent, vy_ast.Index):
+        if not node.get_ancestor(vy_ast.Index):
             # do not replace left-hand side of assignments
             assign = node.get_ancestor((vy_ast.Assign, vy_ast.AnnAssign, vy_ast.AugAssign))
+
             if assign and node in assign.target.get_descendants(include_self=True):
                 continue
 
