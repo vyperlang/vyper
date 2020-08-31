@@ -90,6 +90,8 @@ constants_modified = [
     "def bar(a: int128 = FOO): pass",
     "log bar(FOO)",
     "FOO + 1",
+    "a: int128[FOO / 2]",
+    "a[FOO - 1] = 44",
 ]
 
 
@@ -112,6 +114,7 @@ constants_unmodified = [
     "bar = self.FOO",
     "log FOO(bar)",
     "[1, 2, FOO()]",
+    "FOO[42] = 2",
 ]
 
 
