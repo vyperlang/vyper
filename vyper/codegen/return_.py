@@ -66,7 +66,7 @@ def make_return_stmt(stmt, context, begin_pos, _size, loop_memory_position=None)
 # Generate code for returning a tuple or struct.
 def gen_tuple_return(stmt, context, sub):
     # Is from a call expression.
-    if sub.args and len(sub.args[0].args) > 0 and sub.args[0].args[0].value == "call":
+    if sub.args and len(sub.args[0].args) > 0 and (sub.args[0].args[0].value == "call" or sub.args[0].args[0].value == "staticcall"):
         # self-call to external.
         mem_pos = sub
         mem_size = get_size_of_type(sub.typ) * 32
