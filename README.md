@@ -10,6 +10,7 @@
 
 [![Coverage Status](https://codecov.io/gh/vyperlang/vyper/branch/master/graph/badge.svg)](https://codecov.io/gh/vyperlang/vyper "Codecov")
 [![Language grade: Python](https://img.shields.io/lgtm/grade/python/g/vyperlang/vyper.svg?logo=lgtm&logoWidth=18)](https://lgtm.com/projects/g/vyperlang/vyper/context:python)
+[![Stake to support us](https://badge.devprtcl.com/api/0x90168f9Ba07B95f629f8b77F789d46A549d6470F)](https://stakes.social/0x90168f9Ba07B95f629f8b77F789d46A549d6470F)
 
 # Getting Started
 See [Installing Vyper](http://vyper.readthedocs.io/en/latest/installing-vyper.html) to install vyper.
