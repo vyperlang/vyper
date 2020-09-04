@@ -89,7 +89,7 @@ def external_call(node, context, interface_name, contract_address, pos, value=No
             if isinstance(output_type, ByteArrayLike):
                 types_list = (output_type,)
             elif isinstance(output_type, TupleLike):
-                types_list = output_type.members
+                types_list = output_type.tuple_members()
             else:
                 raise
 
