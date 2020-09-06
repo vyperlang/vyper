@@ -164,7 +164,7 @@ Decorator                       Description
 =============================== ===========================================================
 ``@external``                   Function can only be called externally
 ``@internal``                   Function can only be called within current contract
-``@pure``                       Function does read contract state or environment variables
+``@pure``                       Function does not read contract state or environment variables
 ``@view``                       Function does not alter contract state
 ``@payable``                    Function is able to receive Ether
 ``@nonreentrant(<unique_key>)`` Function cannot be called back into during an external call
