@@ -31,7 +31,7 @@ Storage variables can be marked as ``public`` during declaration:
 
 The compiler automatically creates getter functions for all public storage variables. For the example above below, the compiler will generate a function called ``data`` that does not take any arguments and returns an ``int128``, the value of the state variable data.
 
-For public arrays, you cna only retrieve a single element via the generated getter. This mechanism exists to avoid high gas costs when returning an entire array. The getter will accept an argument to specity which element to return, for example ``data(0)``.
+For public arrays, you can only retrieve a single element via the generated getter. This mechanism exists to avoid high gas costs when returning an entire array. The getter will accept an argument to specity which element to return, for example ``data(0)``.
 
 Tuple Assignment
 ----------------
