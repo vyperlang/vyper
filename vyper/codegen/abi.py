@@ -405,18 +405,18 @@ def abi_encode(dst, lll_node, pos=None, bufsz=None, returns=False):
 
 # lll_node is the destination LLL item, src is the input buffer.
 # recursively copy the buffer items into lll_node, based on its type.
+# src: pointer to beginning of buffer
+# src_loc: pointer to read location in static section
 def abi_decode(lll_node, src, pos=None):
     os = o_list(lll_node, pos=pos)
-    lll_ret = []
-    src_ptr = "src"  # pointer to beginning of buffer
-    src_loc = "src_loc"  # pointer to read location in static section
-    parent_abi_t = abi_type_of(src.typ)
+    lll_ret = ["seq"]
+    parent_abi_t = abi_type_of(lll_node.typ)
     for i, o in enumerate(os):
         abi_t = abi_type_of(o.typ)
         src_loc = LLLnode("src_loc", typ=o.typ, location=src.location)
         if parent_abi_t.is_tuple():
             if abi_t.is_dynamic():
-                child_loc = ["add", src_ptr, unwrap_location(src_loc)]
+                child_loc = LLLnode.from_list(["add", "src", unwrap_location(src_loc)], typ=o.typ, location=src.location)
             else:
                 child_loc = src_loc
             # descend into the child tuple
@@ -428,9 +428,9 @@ def abi_decode(lll_node, src, pos=None):
             pass  # optimize out the last pointer increment
         else:
             sz = abi_t.embedded_static_size()
-            lll_ret.append(["set", src_loc, ["add", src_loc, sz]])
+            lll_ret.append(["set", "src_loc", ["add", "src_loc", sz]])
 
-    lll_ret = ["with", "src", src, ["with", "src_loc", "src", ["seq", lll_ret]]]
+    lll_ret = ["with", "src", src, ["with", "src_loc", "src", lll_ret]]
 
     return lll_ret
 
