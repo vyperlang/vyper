@@ -126,8 +126,13 @@ class StructType(TupleLike):
         return other.name == self.name and other.members == self.members
 
     def __repr__(self):
-        prefix = "struct " + self.name + ": " if self.name else ""
-        return prefix + "{" + ", ".join([k + ": " + repr(v) for k, v in self.members.items()]) + "}"
+        if self.name:
+            return "struct " + self.name
+        else:
+            # Anonymous struct
+            return (
+                "struct {" + ", ".join([k + ": " + repr(v) for k, v in self.members.items()]) + "}"
+            )
 
     def tuple_items(self):
         return list(self.members.items())
