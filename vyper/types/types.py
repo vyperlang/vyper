@@ -126,8 +126,13 @@ class StructType(TupleLike):
         return other.name == self.name and other.members == self.members
 
     def __repr__(self):
-        prefix = "struct " + self.name + ": " if self.name else ""
-        return prefix + "{" + ", ".join([k + ": " + repr(v) for k, v in self.members.items()]) + "}"
+        if self.name:
+            return "struct " + self.name
+        else:
+            # Anonymous struct
+            return (
+                "struct {" + ", ".join([k + ": " + repr(v) for k, v in self.members.items()]) + "}"
+            )
 
     def tuple_items(self):
         return list(self.members.items())
@@ -158,7 +163,7 @@ def canonicalize_type(t, is_indexed=False):
 
     if isinstance(t, ListType):
         if not isinstance(t.subtype, (ListType, BaseType)):
-            raise InvalidType(f"List of {t.subtype}s not allowed")
+            raise InvalidType(f"List of {t.subtype} not allowed")
         return canonicalize_type(t.subtype) + f"[{t.count}]"
 
     if isinstance(t, TupleLike):
