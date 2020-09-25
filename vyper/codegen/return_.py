@@ -65,31 +65,6 @@ def make_return_stmt(stmt, context, begin_pos, _size, loop_memory_position=None)
 
 # Generate code for returning a tuple or struct.
 def gen_tuple_return(stmt, context, sub):
-    # Is from a call expression.
-    if sub.args and len(sub.args[0].args) > 0 and (sub.args[0].args[0].value == "call" or sub.args[0].args[0].value == "staticcall"):
-        # self-call to external.
-        mem_pos = sub
-        mem_size = get_size_of_type(sub.typ) * 32
-        return LLLnode.from_list(["return", mem_pos, mem_size], typ=sub.typ)
-
-    elif sub.annotation and "Internal Call" in sub.annotation:
-        mem_pos = sub.args[-1].value if sub.value == "seq_unchecked" else sub.args[0].args[-1]
-        mem_size = get_size_of_type(sub.typ) * 32
-        # Add zero padder if bytes are present in output.
-        zero_padder = ["pass"]
-        byte_arrays = [
-            (i, x) for i, x in enumerate(sub.typ.tuple_members()) if isinstance(x, ByteArrayLike)
-        ]
-        if byte_arrays:
-            i, x = byte_arrays[-1]
-            zero_padder = zero_pad(bytez_placeholder=["add", mem_pos, ["mload", mem_pos + i * 32]])
-        return LLLnode.from_list(
-            ["seq"] + [sub] + [zero_padder] + [make_return_stmt(stmt, context, mem_pos, mem_size)],
-            typ=sub.typ,
-            pos=getpos(stmt),
-            valency=0,
-        )
-
     abi_typ = abi_type_of(context.return_type)
     # according to the ABI, return types are ALWAYS tuples even if
     # only one element is being returned.
@@ -110,11 +85,32 @@ def gen_tuple_return(stmt, context, sub):
 
     check_assign(return_buffer, sub, pos=getpos(stmt))
 
-    encode_out = abi_encode(return_buffer, sub, pos=getpos(stmt), returns=True)
+    # in case of multi we can't create a variable to store location of the return expression
+    # as multi can have data from multiple location like store, calldata etc 
+    if sub.value == "multi":
+        encode_out = abi_encode(return_buffer, sub, pos=getpos(stmt), returns=True)
+        load_return_len = ["mload", MemoryPositions.FREE_VAR_SPACE]
+        os = [
+            "seq",
+            ["mstore", MemoryPositions.FREE_VAR_SPACE, encode_out],
+            make_return_stmt(stmt, context, return_buffer, load_return_len),
+        ]
+        return LLLnode.from_list(os, typ=None, pos=getpos(stmt), valency=0)
+
+    # for all othe cases we are creating a stack variable named sub_loc to store the  location
+    # of the return expression. This is done so that the return expression does not get evaluated
+    # abi-encode uses a function named o_list which evaluate the expression multiple times
+    sub_loc = LLLnode("sub_loc", typ=sub.typ, location=sub.location)
+    encode_out = abi_encode(return_buffer, sub_loc, pos=getpos(stmt), returns=True)
     load_return_len = ["mload", MemoryPositions.FREE_VAR_SPACE]
     os = [
-        "seq",
-        ["mstore", MemoryPositions.FREE_VAR_SPACE, encode_out],
-        make_return_stmt(stmt, context, return_buffer, load_return_len),
+        "with",
+        "sub_loc",
+        sub,
+        [
+            "seq",
+            ["mstore", MemoryPositions.FREE_VAR_SPACE, encode_out],
+            make_return_stmt(stmt, context, return_buffer, load_return_len),
+        ]
     ]
     return LLLnode.from_list(os, typ=None, pos=getpos(stmt), valency=0)
