@@ -1,6 +1,6 @@
 from vyper.parser.lll_node import LLLnode
-from vyper.parser.parser_utils import getpos, zero_pad
-from vyper.types import BaseType, ByteArrayLike, get_size_of_type
+from vyper.parser.parser_utils import getpos
+from vyper.types import BaseType
 from vyper.types.check import check_assign
 from vyper.utils import MemoryPositions
 
@@ -86,7 +86,7 @@ def gen_tuple_return(stmt, context, sub):
     check_assign(return_buffer, sub, pos=getpos(stmt))
 
     # in case of multi we can't create a variable to store location of the return expression
-    # as multi can have data from multiple location like store, calldata etc 
+    # as multi can have data from multiple location like store, calldata etc
     if sub.value == "multi":
         encode_out = abi_encode(return_buffer, sub, pos=getpos(stmt), returns=True)
         load_return_len = ["mload", MemoryPositions.FREE_VAR_SPACE]
@@ -111,6 +111,6 @@ def gen_tuple_return(stmt, context, sub):
             "seq",
             ["mstore", MemoryPositions.FREE_VAR_SPACE, encode_out],
             make_return_stmt(stmt, context, return_buffer, load_return_len),
-        ]
+        ],
     ]
     return LLLnode.from_list(os, typ=None, pos=getpos(stmt), valency=0)

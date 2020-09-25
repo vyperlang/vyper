@@ -1,8 +1,10 @@
 import itertools
 
+from vyper.codegen.abi import abi_decode
 from vyper.exceptions import (
     StateAccessViolation,
     StructureException,
+    TypeCheckFailure,
     TypeMismatch,
 )
 from vyper.parser.lll_node import LLLnode
@@ -17,7 +19,6 @@ from vyper.types import (
     get_static_size_of_type,
     has_dynamic_data,
 )
-from vyper.codegen.abi import abi_decode
 
 
 def _call_lookup_specs(stmt_expr, context):

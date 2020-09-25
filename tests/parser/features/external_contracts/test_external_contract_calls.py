@@ -828,6 +828,7 @@ def test(addr: address) -> (int128, address):
     assert c1.out_literals() == [1, "0x0000000000000000000000000000000000012345"]
     assert c2.test(c1.address) == list(c1.out_literals())
 
+
 def test_struct_return_external_contract_call_2(get_contract_with_gas_estimation):
     contract_1 = """
 struct X:

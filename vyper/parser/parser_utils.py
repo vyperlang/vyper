@@ -15,7 +15,6 @@ from vyper.types import (
     ByteArrayType,
     ListType,
     MappingType,
-    StringType,
     StructType,
     TupleLike,
     TupleType,
@@ -713,13 +712,10 @@ def make_setter(left, right, location, pos, in_function_call=False):
             for left_arg, key, loc in zip(left.args, keyz, locations):
                 subs.append(
                     make_setter(
-                        left_arg, 
-                        add_variable_offset(right_token, key, pos=pos),
-                        loc,
-                        pos=pos
+                        left_arg, add_variable_offset(right_token, key, pos=pos), loc, pos=pos
                     )
                 )
-    
+
             return LLLnode.from_list(
                 ["with", "_R", right, ["seq"] + subs], typ=None, annotation="Tuple assignment",
             )

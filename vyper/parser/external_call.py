@@ -1,4 +1,5 @@
 from vyper import ast as vy_ast
+from vyper.codegen.abi import abi_decode
 from vyper.exceptions import (
     StateAccessViolation,
     StructureException,
@@ -15,7 +16,6 @@ from vyper.types import (
     get_static_size_of_type,
     has_dynamic_data,
 )
-from vyper.codegen.abi import abi_decode
 
 
 def external_call(node, context, interface_name, contract_address, pos, value=None, gas=None):

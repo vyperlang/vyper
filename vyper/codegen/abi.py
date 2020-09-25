@@ -416,7 +416,8 @@ def abi_decode(lll_node, src, pos=None):
         src_loc = LLLnode("src_loc", typ=o.typ, location=src.location)
         if parent_abi_t.is_tuple():
             if abi_t.is_dynamic():
-                child_loc = LLLnode.from_list(["add", "src", unwrap_location(src_loc)], typ=o.typ, location=src.location)
+                child_loc = ["add", "src", unwrap_location(src_loc)]
+                child_loc = LLLnode.from_list(child_loc, typ=o.typ, location=src.location)
             else:
                 child_loc = src_loc
             # descend into the child tuple
