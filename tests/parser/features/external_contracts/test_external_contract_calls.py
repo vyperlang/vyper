@@ -799,7 +799,7 @@ def test(addr: address) -> (int128, address, Bytes[10]):
     assert c2.test(c1.address) == [1, "0x0000000000000000000000000000000000000123", b"random"]
 
 
-def test_struct_return_external_contract_call(get_contract_with_gas_estimation):
+def test_struct_return_external_contract_call_1(get_contract_with_gas_estimation):
     contract_1 = """
 struct X:
     x: int128
@@ -826,6 +826,35 @@ def test(addr: address) -> (int128, address):
     c2 = get_contract_with_gas_estimation(contract_2)
 
     assert c1.out_literals() == [1, "0x0000000000000000000000000000000000012345"]
+    assert c2.test(c1.address) == list(c1.out_literals())
+
+def test_struct_return_external_contract_call_2(get_contract_with_gas_estimation):
+    contract_1 = """
+struct X:
+    x: int128
+    y: String[6]
+@external
+def out_literals() -> X:
+    return X({x: 1, y: "abcdef"})
+    """
+
+    contract_2 = """
+struct X:
+    x: int128
+    y: String[6]
+interface Test:
+    def out_literals() -> X : view
+
+@external
+def test(addr: address) -> (int128, String[6]):
+    ret: X = Test(addr).out_literals()
+    return ret.x, ret.y
+
+    """
+    c1 = get_contract_with_gas_estimation(contract_1)
+    c2 = get_contract_with_gas_estimation(contract_2)
+
+    assert c1.out_literals() == [1, "abcdef"]
     assert c2.test(c1.address) == list(c1.out_literals())
 
 
