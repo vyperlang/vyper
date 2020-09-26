@@ -1,8 +1,10 @@
 import itertools
 
+from vyper.codegen.abi import abi_decode
 from vyper.exceptions import (
     StateAccessViolation,
     StructureException,
+    TypeCheckFailure,
     TypeMismatch,
 )
 from vyper.parser.lll_node import LLLnode
@@ -56,13 +58,25 @@ def _call_make_placeholder(stmt_expr, context, sig):
         return 0, 0, 0
 
     output_placeholder = context.new_placeholder(typ=sig.output_type)
-    out_size = get_size_of_type(sig.output_type) * 32
-    returner = output_placeholder
+    output_size = get_size_of_type(sig.output_type) * 32
 
-    if not sig.internal and isinstance(sig.output_type, ByteArrayLike):
-        returner = output_placeholder + 32
-
-    return output_placeholder, returner, out_size
+    if isinstance(sig.output_type, BaseType):
+        returner = output_placeholder
+    elif isinstance(sig.output_type, ByteArrayLike):
+        returner = output_placeholder
+    elif isinstance(sig.output_type, TupleLike):
+        # incase of struct we need to decode the output and then return it
+        returner = ["seq"]
+        decoded_placeholder = context.new_placeholder(typ=sig.output_type)
+        decoded_node = LLLnode(decoded_placeholder, typ=sig.output_type, location="memory")
+        output_node = LLLnode(output_placeholder, typ=sig.output_type, location="memory")
+        returner.append(abi_decode(decoded_node, output_node))
+        returner.extend([decoded_placeholder])
+    elif isinstance(sig.output_type, ListType):
+        returner = output_placeholder
+    else:
+        raise TypeCheckFailure(f"Invalid output type: {sig.output_type}")
+    return output_placeholder, returner, output_size
 
 
 def _call_self_internal(stmt_expr, context, sig):

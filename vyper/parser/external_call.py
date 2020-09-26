@@ -1,4 +1,5 @@
 from vyper import ast as vy_ast
+from vyper.codegen.abi import abi_decode
 from vyper.exceptions import (
     StateAccessViolation,
     StructureException,
@@ -137,7 +138,13 @@ def get_external_call_output(sig, context):
     elif isinstance(sig.output_type, ByteArrayLike):
         returner = [0, output_placeholder + 32]
     elif isinstance(sig.output_type, TupleLike):
-        returner = [0, output_placeholder]
+        # incase of struct we need to decode the output and then return it
+        returner = ["seq"]
+        decoded_placeholder = context.new_placeholder(typ=sig.output_type)
+        decoded_node = LLLnode(decoded_placeholder, typ=sig.output_type, location="memory")
+        output_node = LLLnode(output_placeholder, typ=sig.output_type, location="memory")
+        returner.append(abi_decode(decoded_node, output_node))
+        returner.extend([0, decoded_placeholder])
     elif isinstance(sig.output_type, ListType):
         returner = [0, output_placeholder]
     else:

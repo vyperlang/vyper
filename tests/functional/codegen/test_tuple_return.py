@@ -1,5 +1,6 @@
 import pytest
 
+
 @pytest.mark.parametrize("string", ["a", "abc", "abcde", "potato"])
 def test_string_inside_tuple(get_contract, string):
     code = f"""
