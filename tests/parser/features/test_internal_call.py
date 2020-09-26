@@ -506,3 +506,26 @@ def test_selfcall_kwarg_raises(failing_contract_code, decorator, assert_compile_
         lambda: compile_code(failing_contract_code.format(decorator)),
         ArgumentException if decorator == "internal" else CallViolation,
     )
+
+
+@pytest.mark.parametrize("i,ln,s,", [(100, 6, "abcde"), (41, 40, "a" * 34), (57, 70, "z" * 68)])
+def test_struct_return_1(get_contract_with_gas_estimation, i, ln, s):
+    contract = f"""
+struct X:
+    x: int128
+    y: String[{ln}]
+    z: Bytes[{ln}]
+
+@internal
+def get_struct_x() -> X:
+    return X({{x: {i}, y: "{s}", z: b"{s}"}})
+
+@external
+def test() -> (int128, String[{ln}], Bytes[{ln}]):
+    ret: X = self.get_struct_x()
+    return ret.x, ret.y, ret.z
+    """
+
+    c = get_contract_with_gas_estimation(contract)
+
+    assert c.test() == [i, s, bytes(s, "utf-8")]

@@ -829,34 +829,37 @@ def test(addr: address) -> (int128, address):
     assert c2.test(c1.address) == list(c1.out_literals())
 
 
-def test_struct_return_external_contract_call_2(get_contract_with_gas_estimation):
-    contract_1 = """
+@pytest.mark.parametrize("i,ln,s,", [(100, 6, "abcde"), (41, 40, "a" * 34), (57, 70, "z" * 68)])
+def test_struct_return_external_contract_call_2(get_contract_with_gas_estimation, i, ln, s):
+    contract_1 = f"""
 struct X:
     x: int128
-    y: String[6]
+    y: String[{ln}]
+    z: Bytes[{ln}]
 @external
-def out_literals() -> X:
-    return X({x: 1, y: "abcdef"})
+def get_struct_x() -> X:
+    return X({{x: {i}, y: "{s}", z: b"{s}"}})
     """
 
-    contract_2 = """
+    contract_2 = f"""
 struct X:
     x: int128
-    y: String[6]
+    y: String[{ln}]
+    z: Bytes[{ln}]
 interface Test:
-    def out_literals() -> X : view
+    def get_struct_x() -> X : view
 
 @external
-def test(addr: address) -> (int128, String[6]):
-    ret: X = Test(addr).out_literals()
-    return ret.x, ret.y
+def test(addr: address) -> (int128, String[{ln}], Bytes[{ln}]):
+    ret: X = Test(addr).get_struct_x()
+    return ret.x, ret.y, ret.z
 
     """
     c1 = get_contract_with_gas_estimation(contract_1)
     c2 = get_contract_with_gas_estimation(contract_2)
 
-    assert c1.out_literals() == [1, "abcdef"]
-    assert c2.test(c1.address) == list(c1.out_literals())
+    assert c1.get_struct_x() == [i, s, bytes(s, "utf-8")]
+    assert c2.test(c1.address) == list(c1.get_struct_x())
 
 
 def test_list_external_contract_call(get_contract, get_contract_with_gas_estimation):
