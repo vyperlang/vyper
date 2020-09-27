@@ -312,7 +312,7 @@ def setApprovalForAll(_operator: address, _approved: bool):
          Throws if `_operator` is the `msg.sender`. (NOTE: This is not written the EIP)
     @notice This works even if sender doesn't own any tokens at the time.
     @param _operator Address to add to the set of authorized operators.
-    @param _isApproved True if the operators is approved, false to revoke approval.
+    @param _approved True if the operators is approved, false to revoke approval.
     """
     # Throws if `_operator` is the `msg.sender`
     assert _operator != msg.sender
@@ -329,8 +329,8 @@ def mint(_to: address, _tokenId: uint256) -> bool:
          Throws if `msg.sender` is not the minter.
          Throws if `_to` is zero address.
          Throws if `_tokenId` is owned by someone.
-    @param to The address that will receive the minted tokens.
-    @param tokenId The token id to mint.
+    @param _to The address that will receive the minted tokens.
+    @param _tokenId The token id to mint.
     @return A boolean that indicates if the operation was successful.
     """
     # Throws if `msg.sender` is not the minter
@@ -350,7 +350,7 @@ def burn(_tokenId: uint256):
          Throws unless `msg.sender` is the current owner, an authorized operator, or the approved
          address for this NFT.
          Throws if `_tokenId` is not a valid NFT.
-    @param tokenId uint256 id of the ERC721 token to be burned.
+    @param _tokenId uint256 id of the ERC721 token to be burned.
     """
     # Check requirements
     assert self._isApprovedOrOwner(msg.sender, _tokenId)
