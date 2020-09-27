@@ -1,11 +1,7 @@
 from typing import Optional
 
 from vyper import ast as vy_ast
-from vyper.exceptions import (
-    InvalidType,
-    StructureException,
-    VariableDeclarationException,
-)
+from vyper.exceptions import InvalidType, StructureException
 from vyper.parser.parser_utils import getpos, set_offsets
 from vyper.signatures.function_signature import ContractRecord, VariableRecord
 from vyper.types import (
@@ -274,10 +270,6 @@ def {varname}{funname}({head.rstrip(', ')}) -> {base}:
     def is_valid_varname(self, name, item):
         """ Valid variable name, checked against global context. """
         check_valid_varname(name, self._structs, item)
-        if name in self._globals:
-            raise VariableDeclarationException(
-                f'Invalid name "{name}", previously defined as global.', item
-            )
         return True
 
     @staticmethod

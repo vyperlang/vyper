@@ -1,7 +1,7 @@
 import contextlib
 import enum
 
-from vyper.exceptions import CompilerPanic, TypeCheckFailure
+from vyper.exceptions import CompilerPanic
 from vyper.signatures.function_signature import VariableRecord
 from vyper.types import get_size_of_type
 from vyper.utils import check_valid_varname
@@ -118,9 +118,6 @@ class Context:
             check_valid_varname(
                 name, custom_structs=self.structs, pos=pos,
             )
-            # Local context duplicate context check.
-            if any((name in self.vars, name in self.globals)):
-                raise TypeCheckFailure(f"Duplicate variable name: {name}")
         return True
 
     def _mangle(self, name):

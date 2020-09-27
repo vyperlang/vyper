@@ -57,11 +57,10 @@ def test_fail_undeclared(bad_code):
 
 fail_list_collision = [
     """
-a: int128
-
 @external
 def foo():
     a: int128 = 5
+    a: int128 = 7
     """
 ]
 
@@ -90,6 +89,13 @@ def foo(choice: bool):
     else:
         a: uint256 = 42
     a: bool = True
+    """,
+    """
+a: int128
+
+@external
+def foo():
+    a: int128 = 5
     """,
 ]
 

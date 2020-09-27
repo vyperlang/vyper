@@ -37,7 +37,6 @@ from vyper.exceptions import (
     InvalidLiteral,
     InvalidType,
     IteratorException,
-    NamespaceCollision,
     NonPayableViolation,
     StateAccessViolation,
     StructureException,
@@ -175,15 +174,12 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             raise VariableDeclarationException(
                 "Memory variables must be declared with an initial value", node
             )
-        name = node.target.id
-        if name in self.namespace["self"].members:
-            raise NamespaceCollision("Variable name shadows an existing storage-scoped value", node)
 
         type_definition = get_type_from_annotation(node.annotation, DataLocation.MEMORY)
         validate_expected_type(node.value, type_definition)
 
         try:
-            self.namespace[name] = type_definition
+            self.namespace[node.target.id] = type_definition
         except VyperException as exc:
             raise exc.with_annotation(node) from None
 
