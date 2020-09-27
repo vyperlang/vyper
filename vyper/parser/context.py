@@ -119,7 +119,7 @@ class Context:
                 name, custom_structs=self.structs, pos=pos,
             )
             # Local context duplicate context check.
-            if any((name in self.vars, name in self.globals)):
+            if name in self.vars:
                 raise TypeCheckFailure(f"Duplicate variable name: {name}")
         return True
 

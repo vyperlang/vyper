@@ -274,10 +274,6 @@ def {varname}{funname}({head.rstrip(', ')}) -> {base}:
     def is_valid_varname(self, name, item):
         """ Valid variable name, checked against global context. """
         check_valid_varname(name, self._structs, item)
-        if name in self._globals:
-            raise VariableDeclarationException(
-                f'Invalid name "{name}", previously defined as global.', item
-            )
         return True
 
     @staticmethod
