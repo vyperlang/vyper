@@ -1,10 +1,7 @@
 from typing import Optional
 
 from vyper import ast as vy_ast
-from vyper.exceptions import (
-    InvalidType,
-    StructureException,
-)
+from vyper.exceptions import InvalidType, StructureException
 from vyper.parser.parser_utils import getpos, set_offsets
 from vyper.signatures.function_signature import ContractRecord, VariableRecord
 from vyper.types import (
