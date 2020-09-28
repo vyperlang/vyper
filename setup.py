@@ -5,6 +5,8 @@ import subprocess
 
 from setuptools import find_packages, setup
 
+__version__ = "0.2.4"
+
 extras_require = {
     "test": [
         "pytest>=5.4,<6.0",
@@ -39,7 +41,7 @@ try:
     commithash = subprocess.check_output("git rev-parse HEAD".split())
     commithash_str = commithash.decode("utf-8").strip()
     with open(hashfile, "w") as fh:
-        fh.write(commithash_str)
+        fh.write(f"{__version__}\n{commithash_str}")
 except subprocess.CalledProcessError:
     pass
 
@@ -48,7 +50,7 @@ with open("README.md", "r") as f:
 
 setup(
     name="vyper",
-    version="0.2.4",
+    version=__version__,
     description="Vyper: the Pythonic Programming Language for the EVM",
     long_description=long_description,
     long_description_content_type="text/markdown",
