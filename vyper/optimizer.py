@@ -51,8 +51,16 @@ def has_cond_arg(node):
     return node.value in ["if", "if_unchecked", "assert", "assert_reason"]
 
 
-def optimize(node: LLLnode) -> LLLnode:
-    argz = [optimize(arg) for arg in node.args]
+def optimize(lll_node: LLLnode) -> LLLnode:
+    lll_node = apply_general_optimizations(lll_node)
+    lll_node = filter_unused_sizelimits(lll_node)
+
+    return lll_node
+
+
+def apply_general_optimizations(node: LLLnode) -> LLLnode:
+    # TODO refactor this into several functions
+    argz = [apply_general_optimizations(arg) for arg in node.args]
     if node.value in arith and int_at(argz, 0) and int_at(argz, 1):
         left, right = get_int_at(argz, 0), get_int_at(argz, 1)
         # `node.value in arith` implies that `node.value` is a `str`
@@ -224,3 +232,36 @@ def optimize(node: LLLnode) -> LLLnode:
             add_gas_estimate=node.add_gas_estimate,
             valency=node.valency,
         )
+
+
+def filter_unused_sizelimits(lll_node: LLLnode) -> LLLnode:
+    # recursively search the LLL for mloads of the size limits, and then remove
+    # the initial mstore operations for size limits that are never referenced
+    expected_offsets = set(LOADED_LIMITS)
+    seen_offsets = _find_mload_offsets(lll_node, expected_offsets, set())
+    if expected_offsets == seen_offsets:
+        return lll_node
+
+    unseen_offsets = expected_offsets.difference(seen_offsets)
+    _remove_mstore(lll_node, unseen_offsets)
+
+    return lll_node
+
+
+def _find_mload_offsets(lll_node: LLLnode, expected_offsets: set, seen_offsets: set) -> set:
+    for node in lll_node.args:
+        if node.value == "mload" and node.args[0].value in expected_offsets:
+            location = next(i for i in expected_offsets if i == node.args[0].value)
+            seen_offsets.add(location)
+        else:
+            seen_offsets.update(_find_mload_offsets(node, expected_offsets, seen_offsets))
+
+    return seen_offsets
+
+
+def _remove_mstore(lll_node: LLLnode, offsets: set) -> None:
+    for node in lll_node.args.copy():
+        if node.value == "mstore" and node.args[0].value in offsets:
+            lll_node.args.remove(node)
+        else:
+            _remove_mstore(node, offsets)
