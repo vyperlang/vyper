@@ -1,5 +1,6 @@
 import pytest
 
+from vyper import compiler
 from vyper.opcodes import EVM_VERSIONS
 
 
@@ -17,12 +18,13 @@ def get_balance() -> uint256:
 def __default__():
     pass
     """
-    c = get_contract_with_gas_estimation(code, evm_version=evm_version)
-
+    opcodes = compiler.compile_code(code, ["opcodes"], evm_version=evm_version)["opcodes"]
     if evm_version == "istanbul":
-        assert 0x47 in c._classic_contract.bytecode
+        assert "SELFBALANCE" in opcodes
     else:
-        assert 0x47 not in c._classic_contract.bytecode
+        assert "SELFBALANCE" not in opcodes
 
+    c = get_contract_with_gas_estimation(code, evm_version=evm_version)
     w3.eth.sendTransaction({"to": c.address, "value": 1337})
+
     assert c.get_balance() == 1337
