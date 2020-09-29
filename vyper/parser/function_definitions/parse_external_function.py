@@ -55,13 +55,14 @@ def validate_external_function(
 
 
 def parse_external_function(
-    code: ast.FunctionDef, sig: FunctionSignature, context: Context
+    code: ast.FunctionDef, sig: FunctionSignature, context: Context, is_contract_payable: bool
 ) -> LLLnode:
     """
     Parse a external function (FuncDef), and produce full function body.
 
     :param sig: the FuntionSignature
     :param code: ast of function
+    :param is_contract_payable: bool - does this contract contain payable functions?
     :return: full sig compare & function body
     """
 
@@ -81,8 +82,9 @@ def parse_external_function(
         context.memory_allocator.increase_memory(sig.max_copy_size)
     clampers.append(copier)
 
-    # Add asserts for payable and internal
-    if sig.mutability != "payable":
+    if is_contract_payable and sig.mutability != "payable":
+        # if the contract contains payable functions, but this is not one of them
+        # add an assertion that the value of the call is zero
         clampers.append(["assert", ["iszero", "callvalue"]])
 
     # Fill variable positions

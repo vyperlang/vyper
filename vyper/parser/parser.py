@@ -95,14 +95,27 @@ def parse_external_interfaces(external_interfaces, global_ctx):
 
 
 def parse_other_functions(
-    o, otherfuncs, sigs, external_interfaces, origcode, global_ctx, default_function
+    o,
+    otherfuncs,
+    sigs,
+    external_interfaces,
+    origcode,
+    global_ctx,
+    default_function,
+    is_contract_payable,
 ):
     sub = ["seq", func_init_lll()]
     add_gas = func_init_lll().gas
 
     for _def in otherfuncs:
         sub.append(
-            parse_function(_def, {**{"self": sigs}, **external_interfaces}, origcode, global_ctx)
+            parse_function(
+                _def,
+                {**{"self": sigs}, **external_interfaces},
+                origcode,
+                global_ctx,
+                is_contract_payable,
+            )
         )
         sub[-1].total_gas += add_gas
         add_gas += 30
@@ -113,7 +126,11 @@ def parse_other_functions(
     # Add fallback function
     if default_function:
         default_func = parse_function(
-            default_function[0], {**{"self": sigs}, **external_interfaces}, origcode, global_ctx,
+            default_function[0],
+            {**{"self": sigs}, **external_interfaces},
+            origcode,
+            global_ctx,
+            is_contract_payable,
         )
         fallback = default_func
     else:
@@ -147,6 +164,20 @@ def parse_tree_to_lll(source_code: str, global_ctx: GlobalContext) -> Tuple[LLLn
     otherfuncs = [
         _def for _def in global_ctx._defs if not is_initializer(_def) and not is_default_func(_def)
     ]
+
+    # check if any functions in the contract are payable - if not, we do a single
+    # ASSERT CALLVALUE ISZERO at the start of the bytecode rather than at the start
+    # of each function
+    is_contract_payable = next(
+        (
+            True
+            for i in global_ctx._defs
+            if FunctionSignature.from_definition(i, custom_structs=global_ctx._structs).mutability
+            == "payable"
+        ),
+        False,
+    )
+
     sigs: dict = {}
     external_interfaces: dict = {}
     # Create the main statement
@@ -160,17 +191,33 @@ def parse_tree_to_lll(source_code: str, global_ctx: GlobalContext) -> Tuple[LLLn
         o.append(init_func_init_lll())
         o.append(
             parse_function(
-                initfunc[0], {**{"self": sigs}, **external_interfaces}, source_code, global_ctx,
+                initfunc[0],
+                {**{"self": sigs}, **external_interfaces},
+                source_code,
+                global_ctx,
+                False,
             )
         )
 
     # If there are regular functions...
     if otherfuncs or defaultfunc:
         o, runtime = parse_other_functions(
-            o, otherfuncs, sigs, external_interfaces, source_code, global_ctx, defaultfunc
+            o,
+            otherfuncs,
+            sigs,
+            external_interfaces,
+            source_code,
+            global_ctx,
+            defaultfunc,
+            is_contract_payable,
         )
     else:
         runtime = o.copy()
+
+    if not is_contract_payable:
+        # if no functions in the contract are payable, assert that callvalue is
+        # zero at the beginning of the bytecode
+        runtime.insert(1, ["assert", ["iszero", "callvalue"]])
 
     # Check if interface of contract is correct.
     check_valid_contract_interface(global_ctx, sigs)
