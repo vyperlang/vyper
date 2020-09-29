@@ -505,18 +505,25 @@ class Expr:
                 return
 
             new_typ = BaseType(ltyp)
+
+            if right.typ.is_literal:
+                divisor = "r"
+            else:
+                # only apply the non-zero clamp when r is not a constant
+                divisor = ["clamp_nonzero", "r"]
+
             if ltyp == rtyp == "uint256":
-                arith = ["div", "l", ["clamp_nonzero", "r"]]
+                arith = ["div", "l", divisor]
 
             elif ltyp == rtyp == "int128":
-                arith = ["sdiv", "l", ["clamp_nonzero", "r"]]
+                arith = ["sdiv", "l", divisor]
 
             elif ltyp == rtyp == "decimal":
                 arith = [
                     "sdiv",
                     # TODO check overflow cases, also should it be smul
                     ["mul", "l", DECIMAL_DIVISOR],
-                    ["clamp_nonzero", "r"],
+                    divisor,
                 ]
 
         elif isinstance(self.expr.op, vy_ast.Mod):
@@ -525,11 +532,17 @@ class Expr:
 
             new_typ = BaseType(ltyp)
 
+            if right.typ.is_literal:
+                divisor = "r"
+            else:
+                # only apply the non-zero clamp when r is not a constant
+                divisor = ["clamp_nonzero", "r"]
+
             if ltyp == rtyp == "uint256":
-                arith = ["mod", "l", ["clamp_nonzero", "r"]]
+                arith = ["mod", "l", divisor]
             elif ltyp == rtyp:
                 # TODO should this be regular mod
-                arith = ["smod", "l", ["clamp_nonzero", "r"]]
+                arith = ["smod", "l", divisor]
 
         elif isinstance(self.expr.op, vy_ast.Pow):
             if ltyp != "int128" and ltyp != "uint256" and isinstance(self.expr.right, vy_ast.Name):
