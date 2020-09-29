@@ -1,6 +1,7 @@
 import functools
 import uuid
 
+from vyper.opcodes import version_check
 from vyper.parser.lll_node import LLLnode
 from vyper.types.types import (
     ByteArrayLike,
@@ -60,9 +61,11 @@ def make_arg_clamper(datapos, mempos, typ, is_init=False):
         )
     # Booleans: make sure they're zero or one
     elif is_base_type(typ, "bool"):
-        return LLLnode.from_list(
-            ["uclamplt", data_decl, 2], typ=typ, annotation="checking bool input",
-        )
+        if version_check("constantinople"):
+            lll = ["assert", ["iszero", ["shr", 1, data_decl]]]
+        else:
+            lll = ["uclamplt", data_decl, 2]
+        return LLLnode.from_list(lll, typ=typ, annotation="checking bool input")
     # Addresses: make sure they're in range
     elif is_base_type(typ, "address"):
         return LLLnode.from_list(
