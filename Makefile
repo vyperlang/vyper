@@ -38,7 +38,7 @@ release: clean
 	twine check dist/*
 	#twine upload dist/*
 
-freeze: clean
+freeze: clean init
 	echo Generating binary...
 	pyinstaller --clean --onefile vyper/cli/vyper_compile.py --name vyper.$(VERSION).$(OS) --add-data vyper:vyper
 

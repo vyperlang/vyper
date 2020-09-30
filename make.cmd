@@ -42,6 +42,7 @@ goto :end
 
 :freeze
 CALL :clean
+CALL :init
 set PYTHONPATH=.
 for /f "delims=" %%a in ('python vyper/cli/vyper_compile.py --version') do @set VERSION=%%a
 pyinstaller --clean --onefile vyper/cli/vyper_compile.py --name vyper.%VERSION%.windows --add-data vyper;vyper
