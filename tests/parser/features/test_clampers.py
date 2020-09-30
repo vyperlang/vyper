@@ -1,6 +1,8 @@
 import pytest
 from eth_utils import keccak
 
+from vyper.opcodes import EVM_VERSIONS
+
 
 def _make_tx(w3, address, signature, values):
     # helper function to broadcast transactions that fail clamping check
@@ -61,51 +63,55 @@ def foo(s: int128) -> int128:
     assert_tx_failed(lambda: _make_tx(w3, c.address, "foo(int128)", [value]))
 
 
+@pytest.mark.parametrize("evm_version", list(EVM_VERSIONS))
 @pytest.mark.parametrize("value", [0, 1])
-def test_bool_clamper_passing(w3, get_contract, value):
+def test_bool_clamper_passing(w3, get_contract, value, evm_version):
     code = """
 @external
 def foo(s: bool) -> bool:
     return s
     """
 
-    c = get_contract(code)
+    c = get_contract(code, evm_version=evm_version)
     _make_tx(w3, c.address, "foo(bool)", [value])
 
 
+@pytest.mark.parametrize("evm_version", list(EVM_VERSIONS))
 @pytest.mark.parametrize("value", [2, 3, 4, 8, 16, 2 ** 256 - 1])
-def test_bool_clamper_failing(w3, assert_tx_failed, get_contract, value):
+def test_bool_clamper_failing(w3, assert_tx_failed, get_contract, value, evm_version):
     code = """
 @external
 def foo(s: bool) -> bool:
     return s
     """
 
-    c = get_contract(code)
+    c = get_contract(code, evm_version=evm_version)
     assert_tx_failed(lambda: _make_tx(w3, c.address, "foo(bool)", [value]))
 
 
+@pytest.mark.parametrize("evm_version", list(EVM_VERSIONS))
 @pytest.mark.parametrize("value", [0, 1, 2 ** 160 - 1])
-def test_address_clamper_passing(w3, get_contract, value):
+def test_address_clamper_passing(w3, get_contract, value, evm_version):
     code = """
 @external
 def foo(s: address) -> address:
     return s
     """
 
-    c = get_contract(code)
+    c = get_contract(code, evm_version=evm_version)
     _make_tx(w3, c.address, "foo(address)", [value])
 
 
+@pytest.mark.parametrize("evm_version", list(EVM_VERSIONS))
 @pytest.mark.parametrize("value", [2 ** 160, 2 ** 256 - 1])
-def test_address_clamper_failing(w3, assert_tx_failed, get_contract, value):
+def test_address_clamper_failing(w3, assert_tx_failed, get_contract, value, evm_version):
     code = """
 @external
 def foo(s: address) -> address:
     return s
     """
 
-    c = get_contract(code)
+    c = get_contract(code, evm_version=evm_version)
     assert_tx_failed(lambda: _make_tx(w3, c.address, "foo(address)", [value]))
 
 
