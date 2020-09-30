@@ -33,6 +33,14 @@ struct S:
     x: int128
 s: S = S()
     """,
+    """
+foo.a: int128
+    """,
+    """
+@external
+def foo():
+    bar.x: int128 = 0
+    """,
 ]
 
 
