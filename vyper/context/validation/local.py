@@ -170,6 +170,10 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                 )
 
     def visit_AnnAssign(self, node):
+        name = node.get("target.id")
+        if name is None:
+            raise VariableDeclarationException("Invalid assignment", node)
+
         if not node.value:
             raise VariableDeclarationException(
                 "Memory variables must be declared with an initial value", node
@@ -179,7 +183,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         validate_expected_type(node.value, type_definition)
 
         try:
-            self.namespace[node.target.id] = type_definition
+            self.namespace[name] = type_definition
         except VyperException as exc:
             raise exc.with_annotation(node) from None
 
