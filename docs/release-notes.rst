@@ -3,6 +3,31 @@
 Release Notes
 #############
 
+v0.2.5
+******
+
+Date released: 30-09-2020
+
+Non-breaking changes and improvements:
+
+- Improve exception on incorrect interface (`#2131 <https://github.com/vyperlang/vyper/pull/2131>`_)
+- Standalone binary preparation (`#2134 <https://github.com/vyperlang/vyper/pull/2134>`_)
+- Improve make freeze (`#2135 <https://github.com/vyperlang/vyper/pull/2135>`_)
+- Remove Excessive Scoping Rules on Local Variables (`#2166 <https://github.com/vyperlang/vyper/pull/2166>`_)
+- Optimize nonpayable check for contracts that do not accept ETH (`#2172 <https://github.com/vyperlang/vyper/pull/2172>`_)
+- Optimize safemath on division-by-zero with a literal divisor (`#2173 <https://github.com/vyperlang/vyper/pull/2173>`_)
+- Optimize multiple sequential memory-zeroings (`#2174 <https://github.com/vyperlang/vyper/pull/2174>`_)
+- Optimize size-limit checks for address and bool types (`#2175 <https://github.com/vyperlang/vyper/pull/2175>`_)
+
+Fixes:
+
+- Constant folding on lhs of assignments (`#2137 <https://github.com/vyperlang/vyper/pull/2137>`_)
+- ABI issue with bytes and string arrays inside tuples (`#2140 <https://github.com/vyperlang/vyper/pull/2140>`_)
+- Returning struct from a external function gives error (`#2143 <https://github.com/vyperlang/vyper/pull/2143>`_)
+- Error messages with struct display all members (`#2160 <https://github.com/vyperlang/vyper/pull/2160>`_)
+- The returned struct value from the external call doesn't get stored properly (`#2164 <https://github.com/vyperlang/vyper/pull/2164>`_)
+- Improved exception on invalid function-scoped assignment (`#2176 <https://github.com/vyperlang/vyper/pull/2176>`_)
+
 v0.2.4
 ******
 

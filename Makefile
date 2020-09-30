@@ -11,7 +11,7 @@ endif
 .PHONY: test dev-deps lint clean clean-pyc clean-build clean-test docs
 
 init:
-	${pip} install .
+	python setup.py install
 
 dev-init:
 	${pip} install .[dev]
