@@ -20,7 +20,7 @@ def is_default_func(code):
     return code.name == "__default__"
 
 
-def parse_function(code, sigs, origcode, global_ctx, _vars=None):
+def parse_function(code, sigs, origcode, global_ctx, is_contract_payable, _vars=None):
     """
     Parses a function and produces LLL code for the function, includes:
         - Signature method if statement
@@ -54,7 +54,9 @@ def parse_function(code, sigs, origcode, global_ctx, _vars=None):
     if sig.internal:
         o = parse_internal_function(code=code, sig=sig, context=context,)
     else:
-        o = parse_external_function(code=code, sig=sig, context=context,)
+        o = parse_external_function(
+            code=code, sig=sig, context=context, is_contract_payable=is_contract_payable
+        )
 
     o.context = context
     o.total_gas = o.gas + calc_mem_gas(o.context.memory_allocator.get_next_memory_position())

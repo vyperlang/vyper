@@ -14,17 +14,6 @@ def fop():
     assert_tx_failed(lambda: c.fop(transact={}))
 
 
-def test_payable_tx_fail(assert_tx_failed, get_contract, w3):
-    code = """
-@external
-def pay_me() -> bool:
-    return True
-    """
-    c = get_contract(code)
-
-    assert_tx_failed(lambda: c.pay_me(transact={"value": w3.toWei(0.1, "ether")}))
-
-
 def test_default_gas(get_contract, w3):
     """
     Tests to verify that send to default function will send limited gas (2300),
