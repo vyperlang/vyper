@@ -39,15 +39,33 @@ def validate_call_args(
     if not isinstance(arg_count, (int, tuple)):
         raise CompilerPanic(f"Invalid type for arg_count: {type(arg_count).__name__}")
 
+    if isinstance(node.func, vy_ast.Attribute):
+        msg = f" for call to '{node.func.attr}'"
+    elif isinstance(node.func, vy_ast.Name):
+        msg = f" for call to '{node.func.id}'"
+
     if isinstance(arg_count, int) and len(node.args) != arg_count:
+        if not node.args:
+            exc_node = node
+        elif len(node.args) < arg_count:
+            exc_node = node.args[-1]
+        else:
+            exc_node = node.args[arg_count]
         raise ArgumentException(
-            f"Invalid argument count: expected {arg_count}, got {len(node.args)}", node
+            f"Invalid argument count{msg}: expected {arg_count}, got {len(node.args)}", exc_node
         )
+
     if isinstance(arg_count, tuple) and not arg_count[0] <= len(node.args) <= arg_count[1]:
+        if not node.args:
+            exc_node = node
+        elif len(node.args) < arg_count[0]:
+            exc_node = node.args[-1]
+        else:
+            exc_node = node.args[arg_count[1]]
         raise ArgumentException(
-            f"Invalid argument count: expected {arg_count[0]} "
+            f"Invalid argument count{msg}: expected {arg_count[0]} "
             f"to {arg_count[1]}, got {len(node.args)}",
-            node,
+            exc_node,
         )
 
     if kwargs is None:
