@@ -50,14 +50,7 @@ def make_arg_clamper(datapos, mempos, typ, is_init=False):
     # Numbers: make sure they're in range
     if is_base_type(typ, "int128"):
         return LLLnode.from_list(
-            [
-                "clamp",
-                ["mload", MemoryPositions.MINNUM],
-                data_decl,
-                ["mload", MemoryPositions.MAXNUM],
-            ],
-            typ=typ,
-            annotation="checking int128 input",
+            int128_clamp(data_decl), typ=typ, annotation="checking int128 input"
         )
     # Booleans: make sure they're zero or one
     elif is_base_type(typ, "bool"):
@@ -129,3 +122,25 @@ def make_arg_clamper(datapos, mempos, typ, is_init=False):
     # Otherwise don't make any checks
     else:
         return LLLnode.from_list("pass")
+
+
+def int128_clamp(lll_node):
+    if version_check(begin="constantinople"):
+        return [
+            "with",
+            "_val",
+            lll_node,
+            [
+                "seq_unchecked",
+                ["dup1", "_val"],
+                ["if", ["slt", "_val", 0], ["not", "pass"]],
+                ["assert", ["iszero", ["shr", 127, "pass"]]],
+            ],
+        ]
+    else:
+        return [
+            "clamp",
+            ["mload", MemoryPositions.MINNUM],
+            lll_node,
+            ["mload", MemoryPositions.MAXNUM],
+        ]
