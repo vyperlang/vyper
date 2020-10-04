@@ -5,6 +5,7 @@ from decimal import Decimal
 from vyper import ast as vy_ast
 from vyper.exceptions import InvalidLiteral, StructureException, TypeMismatch
 from vyper.functions.signatures import signature
+from vyper.parser.arg_clamps import int128_clamp
 from vyper.parser.parser_utils import LLLnode, byte_array_to_num, getpos
 from vyper.types import BaseType, ByteArrayType, StringType, get_type
 from vyper.utils import DECIMAL_DIVISOR, MemoryPositions, SizeLimits
@@ -59,14 +60,7 @@ def to_int128(expr, args, kwargs, context):
                 return LLLnode.from_list(in_arg, typ=BaseType("int128"), pos=getpos(expr))
         else:
             return LLLnode.from_list(
-                [
-                    "clamp",
-                    ["mload", MemoryPositions.MINNUM],
-                    in_arg,
-                    ["mload", MemoryPositions.MAXNUM],
-                ],
-                typ=BaseType("int128"),
-                pos=getpos(expr),
+                int128_clamp(in_arg), typ=BaseType("int128"), pos=getpos(expr),
             )
 
     elif input_type == "address":
@@ -99,12 +93,7 @@ def to_int128(expr, args, kwargs, context):
 
     elif input_type == "decimal":
         return LLLnode.from_list(
-            [
-                "clamp",
-                ["mload", MemoryPositions.MINNUM],
-                ["sdiv", in_arg, DECIMAL_DIVISOR],
-                ["mload", MemoryPositions.MAXNUM],
-            ],
+            int128_clamp(["sdiv", in_arg, DECIMAL_DIVISOR]),
             typ=BaseType("int128"),
             pos=getpos(expr),
         )
