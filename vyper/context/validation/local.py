@@ -35,6 +35,7 @@ from vyper.exceptions import (
     FunctionDeclarationException,
     ImmutableViolation,
     InvalidLiteral,
+    InvalidOperation,
     InvalidType,
     IteratorException,
     NonPayableViolation,
@@ -369,8 +370,11 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                 try:
                     for n in node.body:
                         self.visit(n)
+                    # attach type information to allow non `int128` types in `vyper.parser.stmt`
+                    # this is a temporary solution until `vyper.parser` has been refactored
+                    node.target._type = type_._id
                     return
-                except TypeMismatch as exc:
+                except (TypeMismatch, InvalidOperation) as exc:
                     for_loop_exceptions.append(exc)
 
         if len(set(str(i) for i in for_loop_exceptions)) == 1:
