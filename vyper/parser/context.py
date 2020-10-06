@@ -103,12 +103,13 @@ class Context:
     def make_blockscope(self, blockscope_id):
         self.blockscopes.add(blockscope_id)
         yield
+
         # Remove all variables that have specific blockscope_id attached.
-        self.vars = {
-            name: var_record
-            for name, var_record in self.vars.items()
-            if blockscope_id not in var_record.blockscopes
-        }
+        released = [(k, v) for k, v in self.vars.items() if blockscope_id in v.blockscopes]
+        for name, var in released:
+            self.memory_allocator.release_memory(var.pos, var.size * 32)
+            del self.vars[name]
+
         # Remove block scopes
         self.blockscopes.remove(blockscope_id)
 
