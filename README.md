@@ -16,6 +16,8 @@ See [Installing Vyper](http://vyper.readthedocs.io/en/latest/installing-vyper.ht
 See [Tools and Resources](https://github.com/vyperlang/vyper/wiki/Vyper-tools-and-resources) for an additional list of framework and tools with vyper support.
 See [Documentation](http://vyper.readthedocs.io/en/latest/index.html) for the documentation and overall design goals of the Vyper language.
 
+See [Vyper.fun](https://vyper.fun?ref=vyperlang) for **learning Vyper by building a Pokémon game**. 
+
 **Note: Vyper is beta software, use with care**
 
 # Installation
