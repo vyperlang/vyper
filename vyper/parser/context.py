@@ -134,7 +134,7 @@ class Context:
             name = self._mangle(name)
         if internal_var or self.is_valid_varname(name, pos):
             var_size = 32 * get_size_of_type(typ)
-            var_pos, _ = self.memory_allocator.increase_memory(var_size)
+            var_pos = self.memory_allocator.increase_memory(var_size)
             self.vars[name] = VariableRecord(
                 name=name, pos=var_pos, typ=typ, mutable=True, blockscopes=self.blockscopes.copy(),
             )
