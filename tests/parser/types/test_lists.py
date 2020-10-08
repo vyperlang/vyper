@@ -256,3 +256,34 @@ def parse_list_fail():
     pass
     """
     assert_compile_failed(lambda: get_contract_with_gas_estimation(code), TypeMismatch)
+
+
+def test_2d_array_input_1(get_contract):
+    code = """
+@internal
+def test_input(arr: int128[2][1], i: int128) -> (int128[2][1], int128):
+    return arr, i
+
+@external
+def test_values(arr: int128[2][1], i: int128) -> (int128[2][1], int128):
+    return self.test_input(arr, i)
+    """
+
+    c = get_contract(code)
+    assert c.test_values([[1, 2]], 3) == [[[1, 2]], 3]
+
+
+def test_2d_array_input_1(get_contract):
+    code = """
+@internal
+def test_input(arr: int128[2][3], s: String[10]) -> (int128[2][3], String[10]):
+    return arr, s
+
+@external
+def test_values(arr: int128[2][3], s: String[10]) -> (int128[2][3], String[10]):
+    return self.test_input(arr, s)
+    """
+
+    c = get_contract(code)
+    assert c.test_values([[1, 2], [3, 4], [5, 6]], "abcdef") == [[[1, 2], [3, 4], [5, 6]], "abcdef"]
+
