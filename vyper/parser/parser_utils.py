@@ -498,11 +498,7 @@ def pack_arguments(signature, args, context, stmt_expr, is_external_call):
                 [placeholder + staticarray_offset + i * 32], typ=typ, location="memory",
             )
             setters.append(make_setter(target, arg, "memory", pos=pos))
-            if isinstance(typ, ListType):
-                count = typ.count
-            else:
-                count = len(typ.tuple_items())
-            staticarray_offset += 32 * (count - 1)
+            staticarray_offset += 32 * (get_size_of_type(typ) - 1)
 
         else:
             return
