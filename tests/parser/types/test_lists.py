@@ -273,7 +273,7 @@ def test_values(arr: int128[2][1], i: int128) -> (int128[2][1], int128):
     assert c.test_values([[1, 2]], 3) == [[[1, 2]], 3]
 
 
-def test_2d_array_input_1(get_contract):
+def test_2d_array_input_2(get_contract):
     code = """
 @internal
 def test_input(arr: int128[2][3], s: String[10]) -> (int128[2][3], String[10]):
@@ -286,4 +286,3 @@ def test_values(arr: int128[2][3], s: String[10]) -> (int128[2][3], String[10]):
 
     c = get_contract(code)
     assert c.test_values([[1, 2], [3, 4], [5, 6]], "abcdef") == [[[1, 2], [3, 4], [5, 6]], "abcdef"]
-
