@@ -11,6 +11,7 @@ from vyper.exceptions import (
 )
 from vyper.opcodes import version_check
 from vyper.parser import external_call, self_call
+from vyper.parser.arg_clamps import int128_clamp
 from vyper.parser.keccak256_helper import keccak256_helper
 from vyper.parser.lll_node import LLLnode
 from vyper.parser.parser_utils import (
@@ -590,14 +591,7 @@ class Expr:
 
         p = ["seq"]
         if new_typ.typ == "int128":
-            p.append(
-                [
-                    "clamp",
-                    ["mload", MemoryPositions.MINNUM],
-                    arith,
-                    ["mload", MemoryPositions.MAXNUM],
-                ]
-            )
+            p.append(int128_clamp(arith))
         elif new_typ.typ == "decimal":
             p.append(
                 [

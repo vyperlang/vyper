@@ -46,6 +46,7 @@ from vyper.exceptions import (
 )
 from vyper.functions.convert import convert
 from vyper.opcodes import version_check
+from vyper.parser.arg_clamps import int128_clamp
 from vyper.parser.expr import Expr
 from vyper.parser.keccak256_helper import keccak256_helper
 from vyper.parser.parser_utils import (
@@ -877,11 +878,7 @@ class Extract32(_SimpleBuiltinFunction):
                 annotation="extracting 32 bytes",
             )
         if ret_type == "int128":
-            return LLLnode.from_list(
-                ["clamp", ["mload", MemoryPositions.MINNUM], o, ["mload", MemoryPositions.MAXNUM]],
-                typ=BaseType("int128"),
-                pos=getpos(expr),
-            )
+            return LLLnode.from_list(int128_clamp(o), typ=BaseType("int128"), pos=getpos(expr),)
         elif ret_type == "address":
             return LLLnode.from_list(
                 ["uclamplt", o, ["mload", MemoryPositions.ADDRSIZE]],

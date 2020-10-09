@@ -8,6 +8,7 @@ from vyper.exceptions import (
     TypeCheckFailure,
     TypeMismatch,
 )
+from vyper.parser.arg_clamps import int128_clamp
 from vyper.parser.lll_node import LLLnode
 from vyper.types import (
     BaseType,
@@ -234,12 +235,7 @@ def byte_array_to_num(
             ["sload", ["add", 1, ["sha3_32", "_sub"]]], typ=BaseType("int128")
         )
     if out_type == "int128":
-        result = [
-            "clamp",
-            ["mload", MemoryPositions.MINNUM],
-            ["div", "_el1", ["exp", 256, ["sub", 32, "_len"]]],
-            ["mload", MemoryPositions.MAXNUM],
-        ]
+        result = int128_clamp(["div", "_el1", ["exp", 256, ["sub", 32, "_len"]]])
     elif out_type == "uint256":
         result = ["div", "_el1", ["exp", 256, ["sub", offset, "_len"]]]
     return LLLnode.from_list(
