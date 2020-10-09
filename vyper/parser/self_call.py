@@ -1,14 +1,14 @@
 import itertools
 
+from vyper import ast as vy_ast
 from vyper.codegen.abi import abi_decode
 from vyper.exceptions import (
     StateAccessViolation,
     StructureException,
     TypeCheckFailure,
-    TypeMismatch,
 )
 from vyper.parser.lll_node import LLLnode
-from vyper.parser.parser_utils import getpos, pack_arguments
+from vyper.parser.parser_utils import getpos, make_setter, pack_arguments
 from vyper.signatures.function_signature import FunctionSignature
 from vyper.types import (
     BaseType,
@@ -19,38 +19,6 @@ from vyper.types import (
     get_static_size_of_type,
     has_dynamic_data,
 )
-
-
-def _call_lookup_specs(stmt_expr, context):
-    from vyper.parser.expr import Expr
-
-    method_name = stmt_expr.func.attr
-
-    if len(stmt_expr.keywords):
-        raise TypeMismatch(
-            "Cannot use keyword arguments in calls to functions via 'self'", stmt_expr,
-        )
-    expr_args = [Expr(arg, context).lll_node for arg in stmt_expr.args]
-
-    sig = FunctionSignature.lookup_sig(context.sigs, method_name, expr_args, stmt_expr, context,)
-
-    return method_name, expr_args, sig
-
-
-def make_call(stmt_expr, context):
-    method_name, _, sig = _call_lookup_specs(stmt_expr, context)
-
-    if context.is_constant() and sig.mutability not in ("view", "pure"):
-        raise StateAccessViolation(
-            f"May not call state modifying function "
-            f"'{method_name}' within {context.pp_constancy()}.",
-            getpos(stmt_expr),
-        )
-
-    if not sig.internal:
-        raise StructureException("Cannot call external functions via 'self'", stmt_expr)
-
-    return _call_self_internal(stmt_expr, context, sig)
 
 
 def _call_make_placeholder(stmt_expr, context, sig):
@@ -79,7 +47,7 @@ def _call_make_placeholder(stmt_expr, context, sig):
     return output_placeholder, returner, output_size
 
 
-def _call_self_internal(stmt_expr, context, sig):
+def make_call(stmt_expr, context):
     # ** Internal Call **
     # Steps:
     # (x) push current local variables
@@ -89,12 +57,48 @@ def _call_self_internal(stmt_expr, context, sig):
     # (x) pop return values
     # (x) pop local variables
 
-    method_name, expr_args, sig = _call_lookup_specs(stmt_expr, context)
     pre_init = []
     pop_local_vars = []
     push_local_vars = []
     pop_return_values = []
     push_args = []
+
+    from vyper.parser.expr import Expr
+
+    method_name = stmt_expr.func.attr
+
+    expr_args = []
+    for arg in stmt_expr.args:
+        lll_node = Expr(arg, context).lll_node
+        if isinstance(arg, vy_ast.Call):
+            # if the argument is a function call, perform the call seperately and
+            # assign it's result to memory, then reference the memory location when
+            # building this call. otherwise there is potential for memory corruption
+            target = LLLnode.from_list(
+                context.new_placeholder(lll_node.typ),
+                typ=lll_node.typ,
+                location="memory",
+                pos=getpos(arg),
+            )
+            setter = make_setter(target, lll_node, "memory", pos=getpos(arg))
+            expr_args.append(
+                LLLnode.from_list(target, typ=lll_node.typ, pos=getpos(arg), location="memory")
+            )
+            pre_init.append(setter)
+        else:
+            expr_args.append(lll_node)
+
+    sig = FunctionSignature.lookup_sig(context.sigs, method_name, expr_args, stmt_expr, context,)
+
+    if context.is_constant() and sig.mutability not in ("view", "pure"):
+        raise StateAccessViolation(
+            f"May not call state modifying function "
+            f"'{method_name}' within {context.pp_constancy()}.",
+            getpos(stmt_expr),
+        )
+
+    if not sig.internal:
+        raise StructureException("Cannot call external functions via 'self'", stmt_expr)
 
     # Push local variables.
     var_slots = [(v.pos, v.size) for name, v in context.vars.items() if v.location == "memory"]
