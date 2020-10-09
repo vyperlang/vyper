@@ -1,3 +1,6 @@
+import pytest
+
+
 def test_basic_repeater(get_contract_with_gas_estimation):
     basic_repeater = """
 @external
@@ -47,30 +50,32 @@ def repeat() -> int128:
     assert c.repeat() == 666666
 
 
-def test_offset_repeater(get_contract_with_gas_estimation):
-    offset_repeater = """
+@pytest.mark.parametrize("typ", ["int128", "uint256"])
+def test_offset_repeater(get_contract_with_gas_estimation, typ):
+    offset_repeater = f"""
 @external
-def sum() -> int128:
-    out: int128 = 0
+def sum() -> {typ}:
+    out: {typ} = 0
     for i in range(80, 121):
         out = out + i
-    return(out)
+    return out
     """
 
     c = get_contract_with_gas_estimation(offset_repeater)
     assert c.sum() == 4100
 
 
-def test_offset_repeater_2(get_contract_with_gas_estimation):
-    offset_repeater_2 = """
+@pytest.mark.parametrize("typ", ["int128", "uint256"])
+def test_offset_repeater_2(get_contract_with_gas_estimation, typ):
+    offset_repeater_2 = f"""
 @external
-def sum(frm: int128, to: int128) -> int128:
-    out: int128 = 0
+def sum(frm: {typ}, to: {typ}) -> {typ}:
+    out: {typ} = 0
     for i in range(frm, frm + 101):
         if i == to:
             break
         out = out + i
-    return(out)
+    return out
     """
 
     c = get_contract_with_gas_estimation(offset_repeater_2)
@@ -95,61 +100,64 @@ def foo() -> bool:
     assert c.foo() is True
 
 
-def test_return_inside_repeater(get_contract):
-    code = """
+@pytest.mark.parametrize("typ", ["int128", "uint256"])
+def test_return_inside_repeater(get_contract, typ):
+    code = f"""
 @internal
-def _final(a: int128) -> int128:
+def _final(a: {typ}) -> {typ}:
     for i in range(10):
         if i > a:
             return i
-    return -42
+    return 31337
 
 @internal
-def _middle(a: int128) -> int128:
-    b: int128 = self._final(a)
+def _middle(a: {typ}) -> {typ}:
+    b: {typ} = self._final(a)
     return b
 
 @external
-def foo(a: int128) -> int128:
-    b: int128 = self._middle(a)
+def foo(a: {typ}) -> {typ}:
+    b: {typ} = self._middle(a)
     return b
     """
 
     c = get_contract(code)
     assert c.foo(6) == 7
-    assert c.foo(100) == -42
+    assert c.foo(100) == 31337
 
 
-def test_return_inside_nested_repeater(get_contract):
-    code = """
+@pytest.mark.parametrize("typ", ["int128", "uint256"])
+def test_return_inside_nested_repeater(get_contract, typ):
+    code = f"""
 @internal
-def _final(a: int128) -> int128:
+def _final(a: {typ}) -> {typ}:
     for i in range(10):
         for x in range(10):
             if i + x > a:
                 return i + x
-    return -42
+    return 31337
 
 @internal
-def _middle(a: int128) -> int128:
-    b: int128 = self._final(a)
+def _middle(a: {typ}) -> {typ}:
+    b: {typ} = self._final(a)
     return b
 
 @external
-def foo(a: int128) -> int128:
-    b: int128 = self._middle(a)
+def foo(a: {typ}) -> {typ}:
+    b: {typ} = self._middle(a)
     return b
     """
 
     c = get_contract(code)
     assert c.foo(14) == 15
-    assert c.foo(100) == -42
+    assert c.foo(100) == 31337
 
 
-def test_breaks_and_returns_inside_nested_repeater(get_contract):
-    code = """
+@pytest.mark.parametrize("typ", ["int128", "uint256"])
+def test_breaks_and_returns_inside_nested_repeater(get_contract, typ):
+    code = f"""
 @internal
-def _final(a: int128) -> int128:
+def _final(a: {typ}) -> {typ}:
     for i in range(10):
         for x in range(10):
             if a < 2:
@@ -159,20 +167,20 @@ def _final(a: int128) -> int128:
             break
         return 31337
 
-    return -42
+    return 666
 
 @internal
-def _middle(a: int128) -> int128:
-    b: int128 = self._final(a)
+def _middle(a: {typ}) -> {typ}:
+    b: {typ} = self._final(a)
     return b
 
 @external
-def foo(a: int128) -> int128:
-    b: int128 = self._middle(a)
+def foo(a: {typ}) -> {typ}:
+    b: {typ} = self._middle(a)
     return b
     """
 
     c = get_contract(code)
     assert c.foo(100) == 6
-    assert c.foo(1) == -42
+    assert c.foo(1) == 666
     assert c.foo(0) == 31337

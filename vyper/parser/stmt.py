@@ -231,6 +231,10 @@ class Stmt:
         if not 0 < len(self.stmt.iter.args) < 3:
             return
 
+        # attempt to use the type specified by type checking, fall back to `int128`
+        # this is a stopgap solution to allow uint256 - it will be properly solved
+        # once we refactor `vyper.parser`
+        iter_typ = self.stmt.target.get("_type") or "int128"
         block_scope_id = id(self.stmt)
         with self.context.make_blockscope(block_scope_id):
             # Get arg0
@@ -240,15 +244,15 @@ class Stmt:
             # Type 1 for, e.g. for i in range(10): ...
             if num_of_args == 1:
                 arg0_val = self._get_range_const_value(arg0)
-                start = LLLnode.from_list(0, typ="int128", pos=getpos(self.stmt))
+                start = LLLnode.from_list(0, typ=iter_typ, pos=getpos(self.stmt))
                 rounds = arg0_val
 
             # Type 2 for, e.g. for i in range(100, 110): ...
             elif self._check_valid_range_constant(self.stmt.iter.args[1], raise_exception=False)[0]:
                 arg0_val = self._get_range_const_value(arg0)
                 arg1_val = self._get_range_const_value(self.stmt.iter.args[1])
-                start = LLLnode.from_list(arg0_val, typ="int128", pos=getpos(self.stmt))
-                rounds = LLLnode.from_list(arg1_val - arg0_val, typ="int128", pos=getpos(self.stmt))
+                start = LLLnode.from_list(arg0_val, typ=iter_typ, pos=getpos(self.stmt))
+                rounds = LLLnode.from_list(arg1_val - arg0_val, typ=iter_typ, pos=getpos(self.stmt))
 
             # Type 3 for, e.g. for i in range(x, x + 10): ...
             else:
@@ -261,7 +265,7 @@ class Stmt:
                 return
 
             varname = self.stmt.target.id
-            pos = self.context.new_variable(varname, BaseType("int128"), pos=getpos(self.stmt))
+            pos = self.context.new_variable(varname, BaseType(iter_typ), pos=getpos(self.stmt))
             self.context.forvars[varname] = True
             lll_node = LLLnode.from_list(
                 ["repeat", pos, start, rounds, parse_body(self.stmt.body, self.context)],
