@@ -99,6 +99,11 @@ class Context:
         yield
         self.in_range_expr = prev_value
 
+    def internal_memory_scope(self, scope_id):
+        # syntactic sugar for `make_blockscope` used to release
+        # memory after creating temporary internal variables
+        return self.make_blockscope(scope_id)
+
     @contextlib.contextmanager
     def make_blockscope(self, blockscope_id):
         self.blockscopes.add(blockscope_id)
