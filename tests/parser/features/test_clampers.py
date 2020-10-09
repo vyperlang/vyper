@@ -39,27 +39,29 @@ def foo(s: Bytes[40]) -> Bytes[40]:
     assert_tx_failed(lambda: c.foo(data + b"!"))
 
 
+@pytest.mark.parametrize("evm_version", list(EVM_VERSIONS))
 @pytest.mark.parametrize("value", [0, 1, -1, 2 ** 127 - 1, -(2 ** 127)])
-def test_int128_clamper_passing(w3, get_contract, value):
+def test_int128_clamper_passing(w3, get_contract, value, evm_version):
     code = """
 @external
 def foo(s: int128) -> int128:
     return s
     """
 
-    c = get_contract(code)
+    c = get_contract(code, evm_version=evm_version)
     _make_tx(w3, c.address, "foo(int128)", [value])
 
 
+@pytest.mark.parametrize("evm_version", list(EVM_VERSIONS))
 @pytest.mark.parametrize("value", [2 ** 127, -(2 ** 127) - 1, 2 ** 255 - 1, -(2 ** 255)])
-def test_int128_clamper_failing(w3, assert_tx_failed, get_contract, value):
+def test_int128_clamper_failing(w3, assert_tx_failed, get_contract, value, evm_version):
     code = """
 @external
 def foo(s: int128) -> int128:
     return s
     """
 
-    c = get_contract(code)
+    c = get_contract(code, evm_version=evm_version)
     assert_tx_failed(lambda: _make_tx(w3, c.address, "foo(int128)", [value]))
 
 
