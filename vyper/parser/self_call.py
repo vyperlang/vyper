@@ -1,5 +1,6 @@
 import itertools
 
+from vyper import ast as vy_ast
 from vyper.codegen.abi import abi_decode
 from vyper.exceptions import (
     StateAccessViolation,
@@ -7,7 +8,7 @@ from vyper.exceptions import (
     TypeCheckFailure,
 )
 from vyper.parser.lll_node import LLLnode
-from vyper.parser.parser_utils import getpos, pack_arguments
+from vyper.parser.parser_utils import getpos, make_setter, pack_arguments
 from vyper.signatures.function_signature import FunctionSignature
 from vyper.types import (
     BaseType,
@@ -69,8 +70,23 @@ def make_call(stmt_expr, context):
     expr_args = []
     for arg in stmt_expr.args:
         lll_node = Expr(arg, context).lll_node
-        context.new_placeholder(lll_node.typ)
-        expr_args.append(lll_node)
+        if isinstance(arg, vy_ast.Call):
+            # if the argument is a function call, perform the call seperately and
+            # assign it's result to memory, then reference the memory location when
+            # building this call. otherwise there is potential for memory corruption
+            target = LLLnode.from_list(
+                context.new_placeholder(lll_node.typ),
+                typ=lll_node.typ,
+                location="memory",
+                pos=getpos(arg),
+            )
+            setter = make_setter(target, lll_node, "memory", pos=getpos(arg))
+            expr_args.append(
+                LLLnode.from_list(target, typ=lll_node.typ, pos=getpos(arg), location="memory")
+            )
+            pre_init.append(setter)
+        else:
+            expr_args.append(lll_node)
 
     sig = FunctionSignature.lookup_sig(context.sigs, method_name, expr_args, stmt_expr, context,)
 
