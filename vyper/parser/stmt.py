@@ -115,37 +115,38 @@ class Stmt:
         event = self.context.sigs["self"][self.stmt.value.func.id]
         expected_topics, topics = [], []
         expected_data, data = [], []
-        for pos, is_indexed in enumerate(event.indexed_list):
-            if is_indexed:
-                expected_topics.append(event.args[pos])
-                topics.append(self.stmt.value.args[pos])
+        with self.context.internal_memory_scope(id(self.stmt)):
+            for pos, is_indexed in enumerate(event.indexed_list):
+                if is_indexed:
+                    expected_topics.append(event.args[pos])
+                    topics.append(self.stmt.value.args[pos])
+                else:
+                    expected_data.append(event.args[pos])
+                    data.append(self.stmt.value.args[pos])
+            topics = pack_logging_topics(
+                event.event_id, topics, expected_topics, self.context, pos=getpos(self.stmt),
+            )
+            inargs, inargsize, inargsize_node, inarg_start = pack_logging_data(
+                expected_data, data, self.context, pos=getpos(self.stmt),
+            )
+
+            if inargsize_node is None:
+                sz = inargsize
             else:
-                expected_data.append(event.args[pos])
-                data.append(self.stmt.value.args[pos])
-        topics = pack_logging_topics(
-            event.event_id, topics, expected_topics, self.context, pos=getpos(self.stmt),
-        )
-        inargs, inargsize, inargsize_node, inarg_start = pack_logging_data(
-            expected_data, data, self.context, pos=getpos(self.stmt),
-        )
+                sz = ["mload", inargsize_node]
 
-        if inargsize_node is None:
-            sz = inargsize
-        else:
-            sz = ["mload", inargsize_node]
-
-        return LLLnode.from_list(
-            [
-                "seq",
-                inargs,
-                LLLnode.from_list(
-                    ["log" + str(len(topics)), inarg_start, sz] + topics,
-                    add_gas_estimate=inargsize * 10,
-                ),
-            ],
-            typ=None,
-            pos=getpos(self.stmt),
-        )
+            return LLLnode.from_list(
+                [
+                    "seq",
+                    inargs,
+                    LLLnode.from_list(
+                        ["log" + str(len(topics)), inarg_start, sz] + topics,
+                        add_gas_estimate=inargsize * 10,
+                    ),
+                ],
+                typ=None,
+                pos=getpos(self.stmt),
+            )
 
     def parse_Call(self):
         is_self_function = (
@@ -166,25 +167,26 @@ class Stmt:
         if isinstance(msg, vy_ast.Name) and msg.id == "UNREACHABLE":
             return LLLnode.from_list(["assert_unreachable", test_expr], typ=None, pos=getpos(msg))
 
-        reason_str = msg.s.strip()
-        sig_placeholder = self.context.new_placeholder(BaseType(32))
-        arg_placeholder = self.context.new_placeholder(BaseType(32))
-        reason_str_type = ByteArrayType(len(reason_str))
-        placeholder_bytes = Expr(msg, self.context).lll_node
-        method_id = fourbytes_to_int(keccak256(b"Error(string)")[:4])
-        assert_reason = [
-            "seq",
-            ["mstore", sig_placeholder, method_id],
-            ["mstore", arg_placeholder, 32],
-            placeholder_bytes,
-            [
-                "assert_reason",
-                test_expr,
-                int(sig_placeholder + 28),
-                int(4 + get_size_of_type(reason_str_type) * 32),
-            ],
-        ]
-        return LLLnode.from_list(assert_reason, typ=None, pos=getpos(self.stmt))
+        with self.context.internal_memory_scope(id(self.stmt)):
+            reason_str = msg.s.strip()
+            sig_placeholder = self.context.new_placeholder(BaseType(32))
+            arg_placeholder = self.context.new_placeholder(BaseType(32))
+            reason_str_type = ByteArrayType(len(reason_str))
+            placeholder_bytes = Expr(msg, self.context).lll_node
+            method_id = fourbytes_to_int(keccak256(b"Error(string)")[:4])
+            assert_reason = [
+                "seq",
+                ["mstore", sig_placeholder, method_id],
+                ["mstore", arg_placeholder, 32],
+                placeholder_bytes,
+                [
+                    "assert_reason",
+                    test_expr,
+                    int(sig_placeholder + 28),
+                    int(4 + get_size_of_type(reason_str_type) * 32),
+                ],
+            ]
+            return LLLnode.from_list(assert_reason, typ=None, pos=getpos(self.stmt))
 
     def parse_Assert(self):
         test_expr = Expr.parse_value_expr(self.stmt.test, self.context)
