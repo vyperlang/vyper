@@ -961,11 +961,35 @@ class Expr:
     def parse_Tuple(self):
         if not len(self.expr.elements):
             return
-        lll_node = []
+        call_lll = []
+        multi_lll = []
         for node in self.expr.elements:
-            lll_node.append(Expr(node, self.context).lll_node)
-        typ = TupleType([x.typ for x in lll_node], is_literal=True)
-        return LLLnode.from_list(["multi"] + lll_node, typ=typ, pos=getpos(self.expr))
+            if isinstance(node, vy_ast.Call):
+                # for calls inside the tuple, we perform the call prior to building the tuple and
+                # assign it's result to memory - otherwise there is potential for memory corruption
+                lll_node = Expr(node, self.context).lll_node
+                target = LLLnode.from_list(
+                    self.context.new_placeholder(lll_node.typ),
+                    typ=lll_node.typ,
+                    location="memory",
+                    pos=getpos(self.expr),
+                )
+                call_lll.append(make_setter(target, lll_node, "memory", pos=getpos(self.expr)))
+                multi_lll.append(
+                    LLLnode.from_list(
+                        target, typ=lll_node.typ, pos=getpos(self.expr), location="memory"
+                    ),
+                )
+            else:
+                multi_lll.append(Expr(node, self.context).lll_node)
+
+        typ = TupleType([x.typ for x in multi_lll], is_literal=True)
+        multi_lll = LLLnode.from_list(["multi"] + multi_lll, typ=typ, pos=getpos(self.expr))
+        if not call_lll:
+            return multi_lll
+
+        lll_node = ["seq_unchecked"] + call_lll + [multi_lll]
+        return LLLnode.from_list(lll_node, typ=typ, pos=getpos(self.expr))
 
     # Parse an expression that results in a value
     @classmethod

@@ -97,6 +97,21 @@ def gen_tuple_return(stmt, context, sub):
         ]
         return LLLnode.from_list(os, typ=None, pos=getpos(stmt), valency=0)
 
+    # for tuple return types where a function is called inside the tuple, we
+    # process the calls prior to encoding the return data
+    if sub.value == "seq_unchecked" and sub.args[-1].value == "multi":
+        encode_out = abi_encode(return_buffer, sub.args[-1], pos=getpos(stmt), returns=True)
+        load_return_len = ["mload", MemoryPositions.FREE_VAR_SPACE]
+        os = (
+            ["seq"]
+            + sub.args[:-1]
+            + [
+                ["mstore", MemoryPositions.FREE_VAR_SPACE, encode_out],
+                make_return_stmt(stmt, context, return_buffer, load_return_len),
+            ]
+        )
+        return LLLnode.from_list(os, typ=None, pos=getpos(stmt), valency=0)
+
     # for all othe cases we are creating a stack variable named sub_loc to store the  location
     # of the return expression. This is done so that the return expression does not get evaluated
     # abi-encode uses a function named o_list which evaluate the expression multiple times
