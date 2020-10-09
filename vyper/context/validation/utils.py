@@ -426,6 +426,15 @@ def get_index_value(node: vy_ast.Index) -> int:
     """
 
     if not isinstance(node.get("value"), vy_ast.Int):
+        if hasattr(node, "value"):
+            # even though the subscript is an invalid type, first check if it's a valid _something_
+            # this gives a more accurate error in case of e.g. a typo in a constant variable name
+            try:
+                get_possible_types_from_node(node.value)
+            except StructureException:
+                # StructureException is a very broad error, better to raise InvalidType in this case
+                pass
+
         raise InvalidType("Subscript must be a literal integer", node)
 
     if node.value.value <= 0:

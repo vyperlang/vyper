@@ -9,6 +9,7 @@ from vyper.exceptions import (
     ArrayIndexException,
     InvalidType,
     StructureException,
+    UndeclaredDefinition,
 )
 
 BASE_TYPES = ["int128", "uint256", "bool", "address", "bytes32"]
@@ -73,7 +74,7 @@ def test_base_types_as_multidimensional_arrays(build_node, namespace, type_str):
 @pytest.mark.parametrize("idx", ["0", "-1", "0x00", "'1'", "foo", "[1]", "(1,)"])
 def test_invalid_index(build_node, idx, type_str):
     node = build_node(f"{type_str}[{idx}]")
-    with pytest.raises((ArrayIndexException, InvalidType)):
+    with pytest.raises((ArrayIndexException, InvalidType, UndeclaredDefinition)):
         get_type_from_annotation(node, DataLocation.STORAGE)
 
 
