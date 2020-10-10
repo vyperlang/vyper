@@ -5,7 +5,7 @@ import subprocess
 
 from setuptools import find_packages, setup
 
-__version__ = "0.2.5"
+__version__ = "0.2.6"
 
 extras_require = {
     "test": [

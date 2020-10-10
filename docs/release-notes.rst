@@ -3,6 +3,27 @@
 Release Notes
 #############
 
+v0.2.6
+******
+
+Date released: 10-10-2020
+
+Non-breaking changes and improvements:
+
+- Release and reuse memory slots within the same function (`#2188 <https://github.com/vyperlang/vyper/pull/2188>`_)
+- Allow implicit use of ``uint256`` as iterator type in range-based for loops (`#2180 <https://github.com/vyperlang/vyper/pull/2180>`_)
+- Optimize clamping logic for ``int128`` (`#2179 <https://github.com/vyperlang/vyper/pull/2179>`_)
+- Calculate array index offsets at compile time where possible (`#2187 <https://github.com/vyperlang/vyper/pull/2187>`_)
+- Improved exception for invalid use of dynamically sized struct (`#2189 <https://github.com/vyperlang/vyper/pull/2189>`_)
+- Improved exception for incorrect arg count in function call (`#2178 <https://github.com/vyperlang/vyper/pull/2178>`_)
+- Improved exception for invalid subscript (`#2177 <https://github.com/vyperlang/vyper/pull/2177>`_)
+
+Fixes:
+
+- Memory corruption issue when performing function calls inside a tuple or another function call (`#2186 <https://github.com/vyperlang/vyper/pull/2186>`_)
+- Incorrect function output when using multidimensional arrays (`#2184 <https://github.com/vyperlang/vyper/pull/2184>`_)
+- Reduced ambiguity bewteen ``address`` and ``Bytes[20]`` (`#2191 <https://github.com/vyperlang/vyper/pull/2191>`_)
+
 v0.2.5
 ******
 
