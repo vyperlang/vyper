@@ -28,6 +28,10 @@ class StructDefinition(MemberTypeDefinition):
         for key, type_ in members.items():
             self.add_member(key, type_)
 
+    @property
+    def is_dynamic_size(self):
+        return any(i for i in self.members.values() if i.is_dynamic_size)
+
     def compare_type(self, other):
         return super().compare_type(other) and self._id == other._id
 

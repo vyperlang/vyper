@@ -89,6 +89,31 @@ def foo():
     for i in range(1, 2, 3, 4):
         pass
     """,
+    """
+struct Foo:
+    a: Bytes[32]
+
+@external
+def foo(a: Foo):
+    pass
+    """,
+    """
+struct Foo:
+    a: String[32]
+
+@external
+def foo(a: Foo):
+    pass
+    """,
+    """
+struct Foo:
+    b: uint256
+    a: String[32]
+
+@external
+def foo(a: Foo):
+    pass
+    """,
 ]
 
 

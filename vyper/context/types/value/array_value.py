@@ -34,6 +34,8 @@ class _ArrayValueDefinition(ValueTypeDefinition):
         is applied to a literal definition.
     """
 
+    is_dynamic_size = True
+
     def __repr__(self):
         return f"{self._id}[{self.length}]"
 
