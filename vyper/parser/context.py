@@ -99,16 +99,22 @@ class Context:
         yield
         self.in_range_expr = prev_value
 
+    def internal_memory_scope(self, scope_id):
+        # syntactic sugar for `make_blockscope` used to release
+        # memory after creating temporary internal variables
+        return self.make_blockscope(scope_id)
+
     @contextlib.contextmanager
     def make_blockscope(self, blockscope_id):
         self.blockscopes.add(blockscope_id)
         yield
+
         # Remove all variables that have specific blockscope_id attached.
-        self.vars = {
-            name: var_record
-            for name, var_record in self.vars.items()
-            if blockscope_id not in var_record.blockscopes
-        }
+        released = [(k, v) for k, v in self.vars.items() if blockscope_id in v.blockscopes]
+        for name, var in released:
+            self.memory_allocator.release_memory(var.pos, var.size * 32)
+            del self.vars[name]
+
         # Remove block scopes
         self.blockscopes.remove(blockscope_id)
 
@@ -134,7 +140,7 @@ class Context:
             name = self._mangle(name)
         if internal_var or self.is_valid_varname(name, pos):
             var_size = 32 * get_size_of_type(typ)
-            var_pos, _ = self.memory_allocator.increase_memory(var_size)
+            var_pos = self.memory_allocator.increase_memory(var_size)
             self.vars[name] = VariableRecord(
                 name=name, pos=var_pos, typ=typ, mutable=True, blockscopes=self.blockscopes.copy(),
             )

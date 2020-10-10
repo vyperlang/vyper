@@ -100,7 +100,7 @@ def parse_external_function(
                 )
             )
         if isinstance(arg.typ, ByteArrayLike):
-            mem_pos, _ = context.memory_allocator.increase_memory(32 * get_size_of_type(arg.typ))
+            mem_pos = context.memory_allocator.increase_memory(32 * get_size_of_type(arg.typ))
             context.vars[arg.name] = VariableRecord(arg.name, mem_pos, arg.typ, False)
         else:
             if sig.name == "__init__":
@@ -109,7 +109,7 @@ def parse_external_function(
                 )
             elif i >= default_args_start_pos:  # default args need to be allocated in memory.
                 type_size = get_size_of_type(arg.typ) * 32
-                default_arg_pos, _ = context.memory_allocator.increase_memory(type_size)
+                default_arg_pos = context.memory_allocator.increase_memory(type_size)
                 context.vars[arg.name] = VariableRecord(
                     name=arg.name, pos=default_arg_pos, typ=arg.typ, mutable=False,
                 )
