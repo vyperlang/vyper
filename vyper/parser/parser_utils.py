@@ -525,6 +525,19 @@ def pack_arguments(signature, args, context, stmt_expr, is_external_call):
         )
 
 
+def _make_array_index_setter(target, target_token, pos, location, offset):
+    if location == "memory" and isinstance(target.value, int):
+        offset = target.value + 32 * get_size_of_type(target.typ.subtype) * offset
+        return LLLnode.from_list([offset], typ=target.typ.subtype, location=location, pos=pos)
+    else:
+        return add_variable_offset(
+            target_token,
+            LLLnode.from_list(offset, typ="int128"),
+            pos=pos,
+            array_bounds_check=False,
+        )
+
+
 # Create an x=y statement, where the types may be compound
 @type_check_wrapper
 def make_setter(left, right, location, pos, in_function_call=False):
@@ -561,20 +574,12 @@ def make_setter(left, right, location, pos, in_function_call=False):
         if right.value == "multi":
             subs = []
             for i in range(left.typ.count):
-                subs.append(
-                    make_setter(
-                        add_variable_offset(
-                            left_token,
-                            LLLnode.from_list(i, typ="int128"),
-                            pos=pos,
-                            array_bounds_check=False,
-                        ),
-                        right.args[i],
-                        location,
-                        pos=pos,
-                    )
-                )
-            return LLLnode.from_list(["with", "_L", left, ["seq"] + subs], typ=None)
+                lhs_setter = _make_array_index_setter(left, left_token, pos, location, i)
+                subs.append(make_setter(lhs_setter, right.args[i], location, pos=pos,))
+            if left.location == "memory" and isinstance(left.value, int):
+                return LLLnode.from_list(["seq"] + subs, typ=None)
+            else:
+                return LLLnode.from_list(["with", "_L", left, ["seq"] + subs], typ=None)
         elif right.value is None:
             if right.typ != left.typ:
                 return
@@ -602,27 +607,15 @@ def make_setter(left, right, location, pos, in_function_call=False):
             right_token = LLLnode.from_list("_R", typ=right.typ, location=right.location)
             subs = []
             for i in range(left.typ.count):
-                subs.append(
-                    make_setter(
-                        add_variable_offset(
-                            left_token,
-                            LLLnode.from_list(i, typ="int128"),
-                            pos=pos,
-                            array_bounds_check=False,
-                        ),
-                        add_variable_offset(
-                            right_token,
-                            LLLnode.from_list(i, typ="int128"),
-                            pos=pos,
-                            array_bounds_check=False,
-                        ),
-                        location,
-                        pos=pos,
-                    )
-                )
-            return LLLnode.from_list(
-                ["with", "_L", left, ["with", "_R", right, ["seq"] + subs]], typ=None
-            )
+                lhs_setter = _make_array_index_setter(left, left_token, pos, left.location, i)
+                rhs_setter = _make_array_index_setter(right, right_token, pos, right.location, i)
+                subs.append(make_setter(lhs_setter, rhs_setter, location, pos=pos,))
+            lll_node = ["seq"] + subs
+            if right.location != "memory" or not isinstance(right.value, int):
+                lll_node = ["with", "_R", right, lll_node]
+            if left.location != "memory" or not isinstance(left.value, int):
+                lll_node = ["with", "_L", left, lll_node]
+            return LLLnode.from_list(lll_node, typ=None)
     # Structs
     elif isinstance(left.typ, TupleLike):
         if left.value == "multi" and isinstance(left.typ, StructType):
