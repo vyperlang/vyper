@@ -62,6 +62,33 @@ def foo():
 def foo():
     x: Bytes[4] = create_forwarder_to(0x1234567890123456789012345678901234567890, b"cow")
     """,
+    """
+@external
+def foo():
+    a: uint256 = min()
+    """,
+    """
+@external
+def foo():
+    a: uint256 = min(1)
+    """,
+    """
+@external
+def foo():
+    a: uint256 = min(1, 2, 3)
+    """,
+    """
+@external
+def foo():
+    for i in range():
+        pass
+    """,
+    """
+@external
+def foo():
+    for i in range(1, 2, 3, 4):
+        pass
+    """,
 ]
 
 
