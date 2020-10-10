@@ -1,7 +1,7 @@
 import pytest
 
 from vyper import compiler
-from vyper.exceptions import InvalidType, SyntaxException, TypeMismatch
+from vyper.exceptions import InvalidType, SyntaxException
 
 fail_list = [
     (
@@ -22,11 +22,14 @@ def foo():
     """,
         InvalidType,
     ),
-    """
+    (
+        """
 @external
 def foo():
     raw_log([], 0x1234567890123456789012345678901234567890)
     """,
+        InvalidType,
+    ),
     (
         """
 @external
@@ -39,15 +42,11 @@ def foo():
 ]
 
 
-@pytest.mark.parametrize("bad_code", fail_list)
-def test_raw_call_fail(bad_code):
+@pytest.mark.parametrize("bad_code,exc", fail_list)
+def test_raw_call_fail(bad_code, exc):
 
-    if isinstance(bad_code, tuple):
-        with pytest.raises(bad_code[1]):
-            compiler.compile_code(bad_code[0])
-    else:
-        with pytest.raises(TypeMismatch):
-            compiler.compile_code(bad_code)
+    with pytest.raises(exc):
+        compiler.compile_code(bad_code)
 
 
 valid_list = [
