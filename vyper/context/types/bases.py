@@ -187,6 +187,8 @@ class BaseTypeDefinition:
         If `True`, the value of this object cannot be modified after assignment.
     """
 
+    is_dynamic_size = False
+
     def __init__(
         self,
         location: DataLocation = DataLocation.UNSET,

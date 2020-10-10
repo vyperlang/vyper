@@ -66,6 +66,10 @@ class ArrayDefinition(_SequenceDefinition):
     def __repr__(self):
         return f"{self.value_type}[{self.length}]"
 
+    @property
+    def is_dynamic_size(self):
+        return self.value_type.is_dynamic_size
+
     def get_index_type(self, node):
         if isinstance(node, vy_ast.Int):
             if node.value < 0:
@@ -106,6 +110,10 @@ class TupleDefinition(_SequenceDefinition):
 
     def __repr__(self):
         return self._id
+
+    @property
+    def is_dynamic_size(self):
+        return any(i for i in self.self.value_type if i.is_dynamic_size)
 
     def get_index_type(self, node):
         if not isinstance(node, vy_ast.Int):
