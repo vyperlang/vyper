@@ -169,10 +169,20 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         value = node.node_source_code
 
         # deduce non base-10 types based on prefix
-        literal_prefixes = {"0x": "Hex", "0o": "Octal"}
-        if value.lower()[:2] in literal_prefixes:
-            node.ast_type = literal_prefixes[value.lower()[:2]]
-            node.n = value
+        if value.lower()[:2] == "0x":
+            if len(value) % 2:
+                raise SyntaxException(
+                    "Hex notation requires an even number of digits",
+                    self._source_code,
+                    node.lineno,
+                    node.col_offset,
+                )
+            if len(value) in (42, 66):
+                node.ast_type = "Hex"
+                node.n = value
+            else:
+                node.ast_type = "Bytes"
+                node.value = int(value, 16).to_bytes(len(value) // 2 - 1, "big")
 
         elif value.lower()[:2] == "0b":
             node.ast_type = "Bytes"

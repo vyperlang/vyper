@@ -130,10 +130,7 @@ class _ArrayValuePrimitive(BasePrimitive):
     @classmethod
     def from_literal(cls, node: vy_ast.Constant) -> _ArrayValueDefinition:
         super().from_literal(node)
-        if isinstance(node, vy_ast.Hex):
-            length = len(node.value) // 2 - 1
-        else:
-            length = len(node.value)
+        length = len(node.value)
 
         obj = cls._type()
         obj.set_min_length(length)
@@ -151,7 +148,7 @@ class StringDefinition(ArrayValueAbstractType, _ArrayValueDefinition):
 class BytesArrayPrimitive(_ArrayValuePrimitive):
     _id = "Bytes"
     _type = BytesArrayDefinition
-    _valid_literal = (vy_ast.Bytes, vy_ast.Hex)
+    _valid_literal = (vy_ast.Bytes,)
 
 
 class StringPrimitive(_ArrayValuePrimitive):
