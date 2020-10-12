@@ -255,7 +255,7 @@ class Expr:
         return self._make_bytelike(typ, bytez, bytez_length)
 
     def _make_bytelike(self, btype, bytez, bytez_length):
-        placeholder = self.context.new_placeholder(btype)
+        placeholder = self.context.new_internal_variable(btype)
         seq = []
         seq.append(["mstore", placeholder, bytez_length])
         for i in range(0, len(bytez), 32):
@@ -613,14 +613,16 @@ class Expr:
         left = Expr(self.expr.left, self.context).lll_node
         right = Expr(self.expr.right, self.context).lll_node
 
-        result_placeholder = self.context.new_placeholder(BaseType("bool"))
+        result_placeholder = self.context.new_internal_variable(BaseType("bool"))
         setter = []
 
         # Load nth item from list in memory.
         if right.value == "multi":
             # Copy literal to memory to be compared.
             tmp_list = LLLnode.from_list(
-                obj=self.context.new_placeholder(ListType(right.typ.subtype, right.typ.count)),
+                obj=self.context.new_internal_variable(
+                    ListType(right.typ.subtype, right.typ.count)
+                ),
                 typ=ListType(right.typ.subtype, right.typ.count),
                 location="memory",
             )
@@ -963,7 +965,7 @@ class Expr:
                 # assign it's result to memory - otherwise there is potential for memory corruption
                 lll_node = Expr(node, self.context).lll_node
                 target = LLLnode.from_list(
-                    self.context.new_placeholder(lll_node.typ),
+                    self.context.new_internal_variable(lll_node.typ),
                     typ=lll_node.typ,
                     location="memory",
                     pos=getpos(self.expr),

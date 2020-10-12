@@ -65,7 +65,7 @@ def parse_internal_function(
     context.memory_allocator.increase_memory(sig.max_copy_size)
 
     _post_callback_ptr = f"{sig.name}_{sig.method_id}_post_callback_ptr"
-    context.callback_ptr = context.new_placeholder(typ=BaseType("uint256"))
+    context.callback_ptr = context.new_internal_variable(typ=BaseType("uint256"))
     clampers.append(
         LLLnode.from_list(
             ["mstore", context.callback_ptr, "pass"], annotation="pop callback pointer",
@@ -105,7 +105,7 @@ def parse_internal_function(
     # internal function copiers. No clamping for internal functions.
     dyn_variable_names = [a.name for a in sig.base_args if isinstance(a.typ, ByteArrayLike)]
     if dyn_variable_names:
-        i_placeholder = context.new_placeholder(typ=BaseType("uint256"))
+        i_placeholder = context.new_internal_variable(typ=BaseType("uint256"))
         unpackers: List[Any] = []
         for idx, var_name in enumerate(dyn_variable_names):
             var = context.vars[var_name]
@@ -182,7 +182,7 @@ def parse_internal_function(
 
                 # Unpack byte array if necessary.
                 if dynamics:
-                    i_placeholder = context.new_placeholder(typ=BaseType("uint256"))
+                    i_placeholder = context.new_internal_variable(typ=BaseType("uint256"))
                     for idx, var_pos in enumerate(dynamics):
                         ident = f"unpack_default_sig_dyn_{default_sig.method_id}_arg{idx}"
                         default_copiers.append(

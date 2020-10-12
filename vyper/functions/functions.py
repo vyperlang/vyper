@@ -256,7 +256,7 @@ class Slice:
             ReturnType = OldStringType
 
         # Node representing the position of the output in memory
-        np = context.new_placeholder(ReturnType(maxlen=sub_typ_maxlen + 32))
+        np = context.new_internal_variable(ReturnType(maxlen=sub_typ_maxlen + 32))
         placeholder_node = LLLnode.from_list(np, typ=sub.typ, location="memory")
         placeholder_plus_32_node = LLLnode.from_list(np + 32, typ=sub.typ, location="memory")
         # Copies over bytearray data
@@ -412,7 +412,7 @@ class Concat:
             [arg.typ.maxlen if isinstance(arg.typ, ByteArrayLike) else 32 for arg in args]
         )
         # Node representing the position of the output in memory
-        placeholder = context.new_placeholder(ReturnType(total_maxlen))
+        placeholder = context.new_internal_variable(ReturnType(total_maxlen))
         # Object representing the output
         seq = []
         # For each argument we are concatenating...
@@ -573,7 +573,7 @@ class Sha256(_SimpleBuiltinFunction):
         # bytearay-like input
         if sub.location == "storage":
             # Copy storage to memory
-            placeholder = context.new_placeholder(sub.typ)
+            placeholder = context.new_internal_variable(sub.typ)
             placeholder_node = LLLnode.from_list(placeholder, typ=sub.typ, location="memory")
             copier = make_byte_array_copier(
                 placeholder_node, LLLnode.from_list("_sub", typ=sub.typ, location=sub.location),
@@ -681,7 +681,9 @@ class ECRecover(_SimpleBuiltinFunction):
     @validate_inputs
     def build_LLL(self, expr, args, kwargs, context):
         placeholder_node = LLLnode.from_list(
-            context.new_placeholder(ByteArrayType(128)), typ=ByteArrayType(128), location="memory"
+            context.new_internal_variable(ByteArrayType(128)),
+            typ=ByteArrayType(128),
+            location="memory",
         )
         return LLLnode.from_list(
             [
@@ -725,7 +727,9 @@ class ECAdd(_SimpleBuiltinFunction):
     @validate_inputs
     def build_LLL(self, expr, args, kwargs, context):
         placeholder_node = LLLnode.from_list(
-            context.new_placeholder(ByteArrayType(128)), typ=ByteArrayType(128), location="memory"
+            context.new_internal_variable(ByteArrayType(128)),
+            typ=ByteArrayType(128),
+            location="memory",
         )
         pos = getpos(expr)
         o = LLLnode.from_list(
@@ -754,7 +758,9 @@ class ECMul(_SimpleBuiltinFunction):
     @validate_inputs
     def build_LLL(self, expr, args, kwargs, context):
         placeholder_node = LLLnode.from_list(
-            context.new_placeholder(ByteArrayType(128)), typ=ByteArrayType(128), location="memory"
+            context.new_internal_variable(ByteArrayType(128)),
+            typ=ByteArrayType(128),
+            location="memory",
         )
         pos = getpos(expr)
         o = LLLnode.from_list(
@@ -1033,10 +1039,10 @@ class RawCall(_SimpleBuiltinFunction):
                 " use `is_static_call=True` to perform this action",
                 expr,
             )
-        placeholder = context.new_placeholder(data.typ)
+        placeholder = context.new_internal_variable(data.typ)
         placeholder_node = LLLnode.from_list(placeholder, typ=data.typ, location="memory")
         copier = make_byte_array_copier(placeholder_node, data, pos=getpos(expr))
-        output_placeholder = context.new_placeholder(ByteArrayType(outsize))
+        output_placeholder = context.new_internal_variable(ByteArrayType(outsize))
         output_node = LLLnode.from_list(
             output_placeholder, typ=ByteArrayType(outsize), location="memory",
         )
@@ -1151,7 +1157,7 @@ class RawLog:
                 raise TypeMismatch("Expecting a bytes32 argument as topic", elt)
             topics.append(arg)
         if args[1].typ == BaseType("bytes32"):
-            placeholder = context.new_placeholder(BaseType("bytes32"))
+            placeholder = context.new_internal_variable(BaseType("bytes32"))
             return LLLnode.from_list(
                 [
                     "seq",
@@ -1172,7 +1178,7 @@ class RawLog:
                 typ=None,
                 pos=getpos(expr),
             )
-        placeholder = context.new_placeholder(args[1].typ)
+        placeholder = context.new_internal_variable(args[1].typ)
         placeholder_node = LLLnode.from_list(placeholder, typ=args[1].typ, location="memory")
         copier = make_byte_array_copier(
             placeholder_node,
@@ -1476,7 +1482,7 @@ class CreateForwarderTo(_SimpleBuiltinFunction):
             raise StateAccessViolation(
                 f"Cannot make calls from {context.pp_constancy()}", expr,
             )
-        placeholder = context.new_placeholder(ByteArrayType(96))
+        placeholder = context.new_internal_variable(ByteArrayType(96))
 
         kode = get_create_forwarder_to_bytecode()
         high = bytes_to_int(kode[:32])
@@ -1612,7 +1618,7 @@ else:
             new_var_pos = arg.args[0]
         # Other locations need to be copied.
         else:
-            new_var_pos = context.new_placeholder(x_type)
+            new_var_pos = context.new_internal_variable(x_type)
             placeholder_copy = ["mstore", new_var_pos, arg]
         # Create input variables.
         variables = {"x": VariableRecord(name="x", pos=new_var_pos, typ=x_type, mutable=False)}

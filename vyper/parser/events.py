@@ -46,7 +46,7 @@ def pack_logging_topics(event_id, args, expected_topics, context, pos):
 
             else:
                 # storage or calldata
-                placeholder = context.new_placeholder(value.typ)
+                placeholder = context.new_internal_variable(value.typ)
                 placeholder_node = LLLnode.from_list(placeholder, typ=value.typ, location="memory")
                 copier = make_byte_array_copier(
                     placeholder_node,
@@ -67,7 +67,7 @@ def pack_logging_topics(event_id, args, expected_topics, context, pos):
 
             else:
                 # storage or calldata
-                placeholder = context.new_placeholder(value.typ)
+                placeholder = context.new_internal_variable(value.typ)
                 placeholder_node = LLLnode.from_list(placeholder, typ=value.typ, location="memory")
                 setter = make_setter(placeholder_node, value, "memory", value.pos)
                 lll_node = ["seq", setter, ["sha3", placeholder, size]]
@@ -234,9 +234,7 @@ def pack_logging_data(expected_data, args, context, pos):
                 if len(arg.s) > typ.maxlen:
                     raise TypeMismatch(f"Data input bytes are to big: {len(arg.s)} {typ}", pos)
 
-            tmp_variable = context.new_internal_variable(
-                f"_log_pack_var_{arg.lineno}_{arg.col_offset}", source_lll.typ,
-            )
+            tmp_variable = context.new_internal_variable(source_lll.typ)
             tmp_variable_node = LLLnode.from_list(
                 tmp_variable,
                 typ=source_lll.typ,
@@ -255,8 +253,8 @@ def pack_logging_data(expected_data, args, context, pos):
 
     requires_dynamic_offset = any([isinstance(data.typ, ByteArrayLike) for data in expected_data])
     if requires_dynamic_offset:
-        dynamic_offset_counter = context.new_placeholder(BaseType(32))
-        dynamic_placeholder = context.new_placeholder(BaseType(32))
+        dynamic_offset_counter = context.new_internal_variable(BaseType(32))
+        dynamic_placeholder = context.new_internal_variable(BaseType(32))
     else:
         dynamic_offset_counter = None
 
@@ -265,9 +263,9 @@ def pack_logging_data(expected_data, args, context, pos):
     for i, (_arg, data) in enumerate(zip(args, expected_data)):
         typ = data.typ
         if not isinstance(typ, ByteArrayLike):
-            placeholder = context.new_placeholder(typ)
+            placeholder = context.new_internal_variable(typ)
         else:
-            placeholder = context.new_placeholder(BaseType(32))
+            placeholder = context.new_internal_variable(BaseType(32))
         placeholder_map[i] = placeholder
 
     # Populate static placeholders.

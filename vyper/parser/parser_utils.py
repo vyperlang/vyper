@@ -445,7 +445,7 @@ def pack_arguments(signature, args, context, stmt_expr, is_external_call):
         maxlen += 32
 
     placeholder_typ = ByteArrayType(maxlen=maxlen)
-    placeholder = context.new_placeholder(placeholder_typ)
+    placeholder = context.new_internal_variable(placeholder_typ)
     if is_external_call:
         setters.append(["mstore", placeholder, signature.method_id])
         placeholder += 32

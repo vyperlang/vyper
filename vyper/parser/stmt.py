@@ -169,8 +169,8 @@ class Stmt:
 
         with self.context.internal_memory_scope(id(self.stmt)):
             reason_str = msg.s.strip()
-            sig_placeholder = self.context.new_placeholder(BaseType(32))
-            arg_placeholder = self.context.new_placeholder(BaseType(32))
+            sig_placeholder = self.context.new_internal_variable(BaseType(32))
+            arg_placeholder = self.context.new_internal_variable(BaseType(32))
             reason_str_type = ByteArrayType(len(reason_str))
             placeholder_bytes = Expr(msg, self.context).lll_node
             method_id = fourbytes_to_int(keccak256(b"Error(string)")[:4])
@@ -289,8 +289,7 @@ class Stmt:
         subtype = iter_list_node.typ.subtype.typ
         varname = self.stmt.target.id
         value_pos = self.context.new_variable(varname, BaseType(subtype),)
-        i_pos_raw_name = "_index_for_" + varname
-        i_pos = self.context.new_internal_variable(i_pos_raw_name, BaseType(subtype),)
+        i_pos = self.context.new_internal_variable(BaseType(subtype))
         self.context.forvars[varname] = True
 
         # Is a list that is already allocated to memory.
@@ -324,7 +323,7 @@ class Stmt:
             # Allocate list to memory.
             count = iter_list_node.typ.count
             tmp_list = LLLnode.from_list(
-                obj=self.context.new_placeholder(ListType(iter_list_node.typ.subtype, count)),
+                obj=self.context.new_internal_variable(ListType(iter_list_node.typ.subtype, count)),
                 typ=ListType(iter_list_node.typ.subtype, count),
                 location="memory",
             )
@@ -487,10 +486,10 @@ class Stmt:
                 return
 
             # loop memory has to be allocated first.
-            loop_memory_position = self.context.new_placeholder(typ=BaseType("uint256"))
+            loop_memory_position = self.context.new_internal_variable(typ=BaseType("uint256"))
             # len & bytez placeholder have to be declared after each other at all times.
-            len_placeholder = self.context.new_placeholder(typ=BaseType("uint256"))
-            bytez_placeholder = self.context.new_placeholder(typ=sub.typ)
+            len_placeholder = self.context.new_internal_variable(typ=BaseType("uint256"))
+            bytez_placeholder = self.context.new_internal_variable(typ=sub.typ)
 
             if sub.location in ("storage", "memory"):
                 return LLLnode.from_list(
@@ -518,7 +517,7 @@ class Stmt:
             return
 
         elif isinstance(sub.typ, ListType):
-            loop_memory_position = self.context.new_placeholder(typ=BaseType("uint256"))
+            loop_memory_position = self.context.new_internal_variable(typ=BaseType("uint256"))
             if sub.typ != self.context.return_type:
                 return
             elif sub.location == "memory" and sub.value != "multi":
@@ -536,7 +535,7 @@ class Stmt:
                 )
             else:
                 new_sub = LLLnode.from_list(
-                    self.context.new_placeholder(self.context.return_type),
+                    self.context.new_internal_variable(self.context.return_type),
                     typ=self.context.return_type,
                     location="memory",
                 )
