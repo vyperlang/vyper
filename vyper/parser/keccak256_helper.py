@@ -35,7 +35,7 @@ def keccak256_helper(expr, args, kwargs, context):
     else:
         # This should never happen, but just left here for future compiler-writers.
         raise Exception(f"Unsupported location: {sub.location}")  # pragma: no test
-    placeholder = context.new_placeholder(sub.typ)
+    placeholder = context.new_internal_variable(sub.typ)
     placeholder_node = LLLnode.from_list(placeholder, typ=sub.typ, location="memory")
     copier = make_byte_array_copier(
         placeholder_node, LLLnode.from_list("_sub", typ=sub.typ, location=sub.location),

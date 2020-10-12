@@ -25,7 +25,7 @@ def _call_make_placeholder(stmt_expr, context, sig):
     if sig.output_type is None:
         return 0, 0, 0
 
-    output_placeholder = context.new_placeholder(typ=sig.output_type)
+    output_placeholder = context.new_internal_variable(typ=sig.output_type)
     output_size = get_size_of_type(sig.output_type) * 32
 
     if isinstance(sig.output_type, BaseType):
@@ -35,7 +35,7 @@ def _call_make_placeholder(stmt_expr, context, sig):
     elif isinstance(sig.output_type, TupleLike):
         # incase of struct we need to decode the output and then return it
         returner = ["seq"]
-        decoded_placeholder = context.new_placeholder(typ=sig.output_type)
+        decoded_placeholder = context.new_internal_variable(typ=sig.output_type)
         decoded_node = LLLnode(decoded_placeholder, typ=sig.output_type, location="memory")
         output_node = LLLnode(output_placeholder, typ=sig.output_type, location="memory")
         returner.append(abi_decode(decoded_node, output_node))
@@ -75,7 +75,7 @@ def make_call(stmt_expr, context):
             # assign it's result to memory, then reference the memory location when
             # building this call. otherwise there is potential for memory corruption
             target = LLLnode.from_list(
-                context.new_placeholder(lll_node.typ),
+                context.new_internal_variable(lll_node.typ),
                 typ=lll_node.typ,
                 location="memory",
                 pos=getpos(arg),
@@ -106,7 +106,7 @@ def make_call(stmt_expr, context):
         var_slots.sort(key=lambda x: x[0])
         mem_from, mem_to = var_slots[0][0], var_slots[-1][0] + var_slots[-1][1] * 32
 
-        i_placeholder = context.new_placeholder(BaseType("uint256"))
+        i_placeholder = context.new_internal_variable(BaseType("uint256"))
         local_save_ident = f"_{stmt_expr.lineno}_{stmt_expr.col_offset}"
         push_loop_label = "save_locals_start" + local_save_ident
         pop_loop_label = "restore_locals_start" + local_save_ident
@@ -147,7 +147,7 @@ def make_call(stmt_expr, context):
             ident = f"push_args_{sig.method_id}_{stmt_expr.lineno}_{stmt_expr.col_offset}"
             start_label = ident + "_start"
             end_label = ident + "_end"
-            i_placeholder = context.new_placeholder(BaseType("uint256"))
+            i_placeholder = context.new_internal_variable(BaseType("uint256"))
 
             # Calculate copy start position.
             # Given | static | dynamic | section in memory,
@@ -253,7 +253,7 @@ def make_call(stmt_expr, context):
                 dyn_idx += 1
                 start_label = "dyn_unpack_start_" + ident
                 end_label = "dyn_unpack_end_" + ident
-                i_placeholder = context.new_placeholder(typ=BaseType("uint256"))
+                i_placeholder = context.new_internal_variable(typ=BaseType("uint256"))
                 begin_pos = ["add", output_placeholder, in_memory_offset]
                 # loop until length.
                 o = LLLnode.from_list(

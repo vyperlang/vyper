@@ -131,7 +131,7 @@ def external_call(node, context, interface_name, contract_address, pos, value=No
 def get_external_call_output(sig, context):
     if not sig.output_type:
         return 0, 0, []
-    output_placeholder = context.new_placeholder(typ=sig.output_type)
+    output_placeholder = context.new_internal_variable(typ=sig.output_type)
     output_size = get_size_of_type(sig.output_type) * 32
     if isinstance(sig.output_type, BaseType):
         returner = [0, output_placeholder]
@@ -140,7 +140,7 @@ def get_external_call_output(sig, context):
     elif isinstance(sig.output_type, TupleLike):
         # incase of struct we need to decode the output and then return it
         returner = ["seq"]
-        decoded_placeholder = context.new_placeholder(typ=sig.output_type)
+        decoded_placeholder = context.new_internal_variable(typ=sig.output_type)
         decoded_node = LLLnode(decoded_placeholder, typ=sig.output_type, location="memory")
         output_node = LLLnode(output_placeholder, typ=sig.output_type, location="memory")
         returner.append(abi_decode(decoded_node, output_node))

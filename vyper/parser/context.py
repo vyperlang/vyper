@@ -1,9 +1,11 @@
 import contextlib
 import enum
+import itertools
 
+from vyper.ast import VyperNode
 from vyper.exceptions import CompilerPanic
 from vyper.signatures.function_signature import VariableRecord
-from vyper.types import get_size_of_type
+from vyper.types import NodeType, get_size_of_type
 from vyper.utils import check_valid_varname
 
 
@@ -49,8 +51,8 @@ class Context:
         self.in_range_expr = False
         # Is the function payable?
         self.is_payable = is_payable
-        # Number of placeholders generated (used to generate random names)
-        self.placeholder_count = 1
+        # Number of internal variables generated (used to generate random names)
+        self.internal_variable_count = itertools.count()
         # Original code (for error pretty-printing purposes)
         self.origcode = origcode
         # In Loop status. Whether body is currently evaluating within a for-loop or not.
@@ -118,45 +120,60 @@ class Context:
         # Remove block scopes
         self.blockscopes.remove(blockscope_id)
 
-    def is_valid_varname(self, name, pos):
-        # Global context check first.
-        if self.global_ctx.is_valid_varname(name, pos):
-            check_valid_varname(
-                name, custom_structs=self.structs, pos=pos,
-            )
-        return True
+    def _new_variable(self, name: str, typ: NodeType, var_pos: int) -> int:
+        self.vars[name] = VariableRecord(
+            name=name, pos=var_pos, typ=typ, mutable=True, blockscopes=self.blockscopes.copy(),
+        )
+        return var_pos
 
-    def _mangle(self, name):
-        # ensure it is not possible to use an internal variable in source
-        # code because source code identifiers cannot start with `#`
-        return "#internal" + name
+    def new_variable(self, name: str, typ: NodeType, pos: VyperNode = None) -> int:
+        """
+        Allocate memory for a user-defined variable.
 
-    # TODO location info for errors
-    # Add a new variable
-    def new_variable(self, name, typ, internal_var=False, pos=None):
-        # mangle internally generated variables so they cannot collide
-        # with user variables.
-        if internal_var:
-            name = self._mangle(name)
-        if internal_var or self.is_valid_varname(name, pos):
-            var_size = 32 * get_size_of_type(typ)
-            var_pos = self.memory_allocator.increase_memory(var_size)
-            self.vars[name] = VariableRecord(
-                name=name, pos=var_pos, typ=typ, mutable=True, blockscopes=self.blockscopes.copy(),
-            )
-            return var_pos
+        Arguments
+        ---------
+        name : str
+            Name of the variable
+        typ : NodeType
+            Variable type, used to determine the size of memory allocation
+        pos : VyperNode
+            AST node corresponding to the location where the variable was created,
+            used for annotating exceptions
 
-    def new_internal_variable(self, name, typ, pos=None):
-        return self.new_variable(name, typ, pos=pos, internal_var=True)
+        Returns
+        -------
+        int
+            Memory offset for the variable
+        """
+        self.global_ctx.is_valid_varname(name, pos)
+        check_valid_varname(
+            name, custom_structs=self.structs, pos=pos,
+        )
 
-    # Add an anonymous variable (used in some complex function definitions)
-    def new_placeholder(self, typ):
-        name = "_placeholder_" + str(self.placeholder_count)
-        self.placeholder_count += 1
-        return self.new_internal_variable(name, typ)
+        var_size = 32 * get_size_of_type(typ)
+        var_pos = self.memory_allocator.increase_memory(var_size)
+        return self._new_variable(name, typ, var_pos)
 
-    def get_next_mem(self):
-        return self.memory_allocator.get_next_mem()
+    def new_internal_variable(self, typ: NodeType) -> int:
+        """
+        Allocate memory for an internal variable.
+
+        Arguments
+        ---------
+        typ : NodeType
+            Variable type, used to determine the size of memory allocation
+
+        Returns
+        -------
+        int
+            Memory offset for the variable
+        """
+        # internal variable names begin with a number sign so there is no chance for collision
+        name = f"#internal_{next(self.internal_variable_count)}"
+
+        var_size = 32 * get_size_of_type(typ)
+        var_pos = self.memory_allocator.increase_memory(var_size)
+        return self._new_variable(name, typ, var_pos)
 
     def parse_type(self, ast_node, location):
         return self.global_ctx.parse_type(ast_node, location)
