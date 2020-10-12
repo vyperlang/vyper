@@ -488,8 +488,9 @@ class Stmt:
             # loop memory has to be allocated first.
             loop_memory_position = self.context.new_internal_variable(typ=BaseType("uint256"))
             # len & bytez placeholder have to be declared after each other at all times.
-            len_placeholder = self.context.new_internal_variable(typ=BaseType("uint256"))
-            bytez_placeholder = self.context.new_internal_variable(typ=sub.typ)
+            len_placeholder, bytez_placeholder = self.context.new_sequential_vars(
+                BaseType("uint256"), sub.typ
+            )
 
             if sub.location in ("storage", "memory"):
                 return LLLnode.from_list(
