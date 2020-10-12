@@ -224,84 +224,59 @@ class Stmt:
         return arg_expr.value
 
     def parse_For(self):
-        # Type 0 for, e.g. for i in list(): ...
-        if self._is_list_iter():
-            return self._parse_for_list()
+        block_scope_id = id(self.stmt)
+        with self.context.make_blockscope(block_scope_id):
+            if self.stmt.get("iter.func.id") == "range":
+                return self._parse_For_range()
+            else:
+                return self._parse_For_list()
 
-        if self.stmt.get("iter.func.id") != "range":
-            return
-        if not 0 < len(self.stmt.iter.args) < 3:
-            return
-
+    def _parse_For_range(self):
         # attempt to use the type specified by type checking, fall back to `int128`
         # this is a stopgap solution to allow uint256 - it will be properly solved
         # once we refactor `vyper.parser`
         iter_typ = self.stmt.target.get("_type") or "int128"
-        block_scope_id = id(self.stmt)
-        with self.context.make_blockscope(block_scope_id):
-            # Get arg0
-            arg0 = self.stmt.iter.args[0]
-            num_of_args = len(self.stmt.iter.args)
 
-            # Type 1 for, e.g. for i in range(10): ...
-            if num_of_args == 1:
-                arg0_val = self._get_range_const_value(arg0)
-                start = LLLnode.from_list(0, typ=iter_typ, pos=getpos(self.stmt))
-                rounds = arg0_val
+        # Get arg0
+        arg0 = self.stmt.iter.args[0]
+        num_of_args = len(self.stmt.iter.args)
 
-            # Type 2 for, e.g. for i in range(100, 110): ...
-            elif self._check_valid_range_constant(self.stmt.iter.args[1], raise_exception=False)[0]:
-                arg0_val = self._get_range_const_value(arg0)
-                arg1_val = self._get_range_const_value(self.stmt.iter.args[1])
-                start = LLLnode.from_list(arg0_val, typ=iter_typ, pos=getpos(self.stmt))
-                rounds = LLLnode.from_list(arg1_val - arg0_val, typ=iter_typ, pos=getpos(self.stmt))
+        # Type 1 for, e.g. for i in range(10): ...
+        if num_of_args == 1:
+            arg0_val = self._get_range_const_value(arg0)
+            start = LLLnode.from_list(0, typ=iter_typ, pos=getpos(self.stmt))
+            rounds = arg0_val
 
-            # Type 3 for, e.g. for i in range(x, x + 10): ...
-            else:
-                arg1 = self.stmt.iter.args[1]
-                rounds = self._get_range_const_value(arg1.right)
-                start = Expr.parse_value_expr(arg0, self.context)
+        # Type 2 for, e.g. for i in range(100, 110): ...
+        elif self._check_valid_range_constant(self.stmt.iter.args[1], raise_exception=False)[0]:
+            arg0_val = self._get_range_const_value(arg0)
+            arg1_val = self._get_range_const_value(self.stmt.iter.args[1])
+            start = LLLnode.from_list(arg0_val, typ=iter_typ, pos=getpos(self.stmt))
+            rounds = LLLnode.from_list(arg1_val - arg0_val, typ=iter_typ, pos=getpos(self.stmt))
 
-            r = rounds if isinstance(rounds, int) else rounds.value
-            if r < 1:
-                return
+        # Type 3 for, e.g. for i in range(x, x + 10): ...
+        else:
+            arg1 = self.stmt.iter.args[1]
+            rounds = self._get_range_const_value(arg1.right)
+            start = Expr.parse_value_expr(arg0, self.context)
 
-            varname = self.stmt.target.id
-            pos = self.context.new_variable(varname, BaseType(iter_typ), pos=getpos(self.stmt))
-            self.context.forvars[varname] = True
-            lll_node = LLLnode.from_list(
-                ["repeat", pos, start, rounds, parse_body(self.stmt.body, self.context)],
-                typ=None,
-                pos=getpos(self.stmt),
-            )
-            del self.context.vars[varname]
-            del self.context.forvars[varname]
+        r = rounds if isinstance(rounds, int) else rounds.value
+        if r < 1:
+            return
+
+        varname = self.stmt.target.id
+        pos = self.context.new_variable(varname, BaseType(iter_typ), pos=getpos(self.stmt))
+        self.context.forvars[varname] = True
+        lll_node = LLLnode.from_list(
+            ["repeat", pos, start, rounds, parse_body(self.stmt.body, self.context)],
+            typ=None,
+            pos=getpos(self.stmt),
+        )
+        del self.context.forvars[varname]
 
         return lll_node
 
-    def _is_list_iter(self):
-        """
-        Test if the current statement is a type of list, used in for loops.
-        """
-
-        # Check for literal or memory list.
-        iter_var_type = (
-            self.context.vars.get(self.stmt.iter.id).typ
-            if isinstance(self.stmt.iter, vy_ast.Name)
-            else None
-        )
-        if isinstance(self.stmt.iter, vy_ast.List) or isinstance(iter_var_type, ListType):
-            return True
-
-        # Check for storage list.
-        if isinstance(self.stmt.iter, vy_ast.Attribute):
-            iter_var_type = self.context.globals.get(self.stmt.iter.attr)
-            if iter_var_type and isinstance(iter_var_type.typ, ListType):
-                return True
-
-        return False
-
-    def _parse_for_list(self):
+    def _parse_For_list(self):
         with self.context.range_scope():
             iter_list_node = Expr(self.stmt.iter, self.context).lll_node
         if not isinstance(iter_list_node.typ.subtype, BaseType):  # Sanity check on list subtype.
@@ -383,11 +358,9 @@ class Stmt:
                     ["seq", ["repeat", i_pos, 0, count, body]], typ=None, pos=getpos(self.stmt)
                 )
 
-        del self.context.vars[varname]
         # this kind of open access to the vars dict should be disallowed.
         # we should use member functions to provide an API for these kinds
         # of operations.
-        del self.context.vars[self.context._mangle(i_pos_raw_name)]
         del self.context.forvars[varname]
         return lll_node
 
