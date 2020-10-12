@@ -169,8 +169,9 @@ class Stmt:
 
         with self.context.internal_memory_scope(id(self.stmt)):
             reason_str = msg.s.strip()
-            sig_placeholder = self.context.new_internal_variable(BaseType(32))
-            arg_placeholder = self.context.new_internal_variable(BaseType(32))
+            sig_placeholder, arg_placeholder = self.context.new_sequential_vars(
+                BaseType(32), BaseType(32)
+            )
             reason_str_type = ByteArrayType(len(reason_str))
             placeholder_bytes = Expr(msg, self.context).lll_node
             method_id = fourbytes_to_int(keccak256(b"Error(string)")[:4])
