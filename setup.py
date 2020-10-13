@@ -15,8 +15,8 @@ extras_require = {
         "eth-tester[py-evm]>=0.5.0b1,<0.6",
         "web3>=5.11,<6.0",
         "tox>=3.15,<4.0",
-        "lark-parser>=0.8,<1.0",
-        "hypothesis[lark]>=5.16.2,<6.0",
+        "lark-parser==0.10.0",
+        "hypothesis[lark]>=5.37.1,<6.0",
     ],
     "lint": [
         "black==19.10b0",
