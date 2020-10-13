@@ -169,8 +169,9 @@ class Stmt:
 
         with self.context.internal_memory_scope(id(self.stmt)):
             reason_str = msg.s.strip()
-            sig_placeholder = self.context.new_internal_variable(BaseType(32))
-            arg_placeholder = self.context.new_internal_variable(BaseType(32))
+            sig_placeholder, arg_placeholder = self.context.new_sequential_vars(
+                BaseType(32), BaseType(32)
+            )
             reason_str_type = ByteArrayType(len(reason_str))
             placeholder_bytes = Expr(msg, self.context).lll_node
             method_id = fourbytes_to_int(keccak256(b"Error(string)")[:4])
@@ -488,8 +489,9 @@ class Stmt:
             # loop memory has to be allocated first.
             loop_memory_position = self.context.new_internal_variable(typ=BaseType("uint256"))
             # len & bytez placeholder have to be declared after each other at all times.
-            len_placeholder = self.context.new_internal_variable(typ=BaseType("uint256"))
-            bytez_placeholder = self.context.new_internal_variable(typ=sub.typ)
+            len_placeholder, bytez_placeholder = self.context.new_sequential_vars(
+                BaseType("uint256"), sub.typ
+            )
 
             if sub.location in ("storage", "memory"):
                 return LLLnode.from_list(

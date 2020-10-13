@@ -1,6 +1,7 @@
 import contextlib
 import enum
 import itertools
+from typing import Tuple
 
 from vyper.ast import VyperNode
 from vyper.exceptions import CompilerPanic
@@ -176,6 +177,31 @@ class Context:
         var_size = 32 * get_size_of_type(typ)
         var_pos = self.memory_allocator.allocate_memory(var_size)
         return self._new_variable(name, typ, var_pos)
+
+    def new_sequential_vars(self, *types: NodeType) -> Tuple[int, ...]:
+        """
+        Allocate memory for multiple internal variables, ensuring they are positioned sequentially.
+
+        Arguments
+        ---------
+        types : NodeType
+            Variable types, used to determine the size of memory allocation
+
+        Returns
+        -------
+        Tuple[int,...]
+            Tuple of memory offsets for the variables
+        """
+        total_size = sum(get_size_of_type(i) for i in types) * 32
+        placeholders: Tuple[int, ...] = ()
+        var_pos = self.memory_allocator.allocate_memory(total_size)
+        for typ in types:
+            name = f"#internal_{next(self.internal_variable_count)}"
+            self._new_variable(name, typ, var_pos)
+            placeholders += (var_pos,)
+            var_pos += 32 * get_size_of_type(typ)
+
+        return placeholders
 
     def parse_type(self, ast_node, location):
         return self.global_ctx.parse_type(ast_node, location)
