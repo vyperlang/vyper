@@ -5,10 +5,7 @@ from vyper.utils import MemoryPositions
 
 
 class FreeMemory:
-    __slots__ = (
-        "position",
-        "size",
-    )
+    __slots__ = ("position", "size")
 
     def __init__(self, position, size):
         self.position = position
@@ -19,25 +16,62 @@ class FreeMemory:
 
 
 class MemoryAllocator:
+    """
+    Low-level memory alloctor. Used to allocate and de-allocate memory slots.
+
+    This object should not be accessed directly. Memory allocation happens via
+    declaring variables within `Context`.
+    """
+
     next_mem: int
 
     def __init__(self, start_position: int = MemoryPositions.RESERVED_MEMORY):
+        """
+        Initializer.
+
+        Arguments
+        ---------
+        start_position : int, optional
+            The initial offset to use as the free memory pointer. Offsets
+            prior to this value are considered permanently allocated.
+        """
         self.next_mem = start_position
-        self.released_mem: List[FreeMemory] = []
+        self.deallocated_mem: List[FreeMemory] = []
 
     # Get the next unused memory location
     def get_next_memory_position(self) -> int:
         return self.next_mem
 
     # Grow memory by x bytes
-    def increase_memory(self, size: int) -> int:
+    def allocate_memory(self, size: int) -> int:
+        """
+        Allocate `size` bytes in memory.
+
+        *** No guarantees are made that allocated memory is clean! ***
+
+        If no memory was previously de-allocated, memory is expanded
+        and the free memory pointer is increased.
+
+        If sufficient space is availalbe within de-allocated memory, the lowest available
+        offset is returned and that memory is now marked as allocated.
+
+        Arguments
+        ---------
+        size : int
+            The number of bytes to allocate. Must be divisible by 32.
+
+        Returns
+        -------
+        int
+            Start offset of the newly allocated memory.
+        """
         if size % 32 != 0:
             raise CompilerPanic("Memory misaligment, only multiples of 32 supported.")
 
-        # check for released memory prior to expanding
-        for i, free_memory in enumerate(self.released_mem):
+        # check for deallocated memory prior to expanding
+        for i, free_memory in enumerate(self.deallocated_mem):
             if free_memory.size == size:
-                del self.released_mem[i]
+                del self.deallocated_mem[i]
                 return free_memory.position
             if free_memory.size > size:
                 position = free_memory.position
@@ -45,12 +79,22 @@ class MemoryAllocator:
                 free_memory.size -= size
                 return position
 
-        # if no released slots are avaialble, expand memory
+        # if no deallocated slots are available, expand memory
         before_value = self.next_mem
         self.next_mem += size
         return before_value
 
-    def release_memory(self, pos: int, size: int) -> None:
+    def deallocate_memory(self, pos: int, size: int) -> None:
+        """
+        De-allocate memory.
+
+        Arguments
+        ---------
+        pos : int
+            The initial memory position to de-allocate.
+        size : int
+            The number of bytes to de-allocate. Must be divisible by 32.
+        """
         if size % 32 != 0:
             raise CompilerPanic("Memory misaligment, only multiples of 32 supported.")
 
@@ -59,22 +103,24 @@ class MemoryAllocator:
             self.next_mem = pos
             return
 
-        if not self.released_mem or self.released_mem[-1].position < pos:
-            # no previously released memory, or this is the highest position released
-            self.released_mem.append(FreeMemory(position=pos, size=size))
+        if not self.deallocated_mem or self.deallocated_mem[-1].position < pos:
+            # no previously deallocated memory, or this is the highest position deallocated
+            self.deallocated_mem.append(FreeMemory(position=pos, size=size))
         else:
-            # previously released memory exists with a higher offset
-            idx = self.released_mem.index(next(i for i in self.released_mem if i.position > pos))
-            self.released_mem.insert(idx, FreeMemory(position=pos, size=size))
+            # previously deallocated memory exists with a higher offset
+            idx = self.deallocated_mem.index(
+                next(i for i in self.deallocated_mem if i.position > pos)
+            )
+            self.deallocated_mem.insert(idx, FreeMemory(position=pos, size=size))
 
-        # iterate over released memory and merge slots where possible
+        # iterate over deallocated memory and merge slots where possible
         i = 1
-        active = self.released_mem[0]
-        while len(self.released_mem) > i:
-            next_slot = self.released_mem[i]
+        active = self.deallocated_mem[0]
+        while len(self.deallocated_mem) > i:
+            next_slot = self.deallocated_mem[i]
             if next_slot.position == active.position + active.size:
                 active.size += next_slot.size
-                self.released_mem.remove(next_slot)
+                self.deallocated_mem.remove(next_slot)
             else:
                 active = next_slot
                 i += 1
