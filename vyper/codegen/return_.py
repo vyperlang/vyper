@@ -14,7 +14,7 @@ def make_return_stmt(stmt, context, begin_pos, _size, loop_memory_position=None)
     _, nonreentrant_post = get_nonreentrant_lock(context.sig, context.global_ctx)
     if context.is_internal:
         if loop_memory_position is None:
-            loop_memory_position = context.new_internal_variable(typ=BaseType("uint256"))
+            loop_memory_position = context.new_internal_variable(BaseType("uint256"))
 
         # Make label for stack push loop.
         label_id = "_".join([str(x) for x in (context.method_id, stmt.lineno, stmt.col_offset)])
@@ -78,7 +78,7 @@ def gen_tuple_return(stmt, context, sub):
     # (big difference between returning `(bytes,)` and `bytes`.
     abi_typ = ensure_tuple(abi_typ)
     abi_bytes_needed = abi_typ.static_size() + abi_typ.dynamic_size_bound()
-    dst = context.memory_allocator.increase_memory(abi_bytes_needed)
+    dst = context.memory_allocator.allocate_memory(abi_bytes_needed)
     return_buffer = LLLnode(
         dst, location="memory", annotation="return_buffer", typ=context.return_type
     )

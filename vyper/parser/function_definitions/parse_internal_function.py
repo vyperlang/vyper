@@ -62,7 +62,7 @@ def parse_internal_function(
     clampers: List[LLLnode] = []
 
     # Allocate variable space.
-    context.memory_allocator.increase_memory(sig.max_copy_size)
+    context.memory_allocator.allocate_memory(sig.max_copy_size)
 
     _post_callback_ptr = f"{sig.name}_{sig.method_id}_post_callback_ptr"
     context.callback_ptr = context.new_internal_variable(typ=BaseType("uint256"))
@@ -95,7 +95,7 @@ def parse_internal_function(
     # Fill variable positions
     for arg in sig.args:
         if isinstance(arg.typ, ByteArrayLike):
-            mem_pos = context.memory_allocator.increase_memory(32 * get_size_of_type(arg.typ))
+            mem_pos = context.memory_allocator.allocate_memory(32 * get_size_of_type(arg.typ))
             context.vars[arg.name] = VariableRecord(arg.name, mem_pos, arg.typ, False)
         else:
             context.vars[arg.name] = VariableRecord(

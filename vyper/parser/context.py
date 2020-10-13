@@ -33,8 +33,6 @@ class Context:
     ):
         # In-memory variables, in the form (name, memory location, type)
         self.vars = vars or {}
-        # Memory alloctor, keeps track of currently allocated memory.
-        self.memory_allocator = memory_allocator
         # Global variables, in the form (name, storage location, type)
         self.globals = global_ctx._globals
         # ABI objects, in the form {classname: ABI JSON}
@@ -75,6 +73,10 @@ class Context:
         # full function signature
         self.sig = sig
 
+        # Memory alloctor, keeps track of currently allocated memory.
+        # Not intended to be accessed directly
+        self.memory_allocator = memory_allocator
+
     def is_constant(self):
         return self.constancy is Constancy.Constant or self.in_assertion or self.in_range_expr
 
@@ -114,7 +116,7 @@ class Context:
         # Remove all variables that have specific blockscope_id attached.
         released = [(k, v) for k, v in self.vars.items() if blockscope_id in v.blockscopes]
         for name, var in released:
-            self.memory_allocator.release_memory(var.pos, var.size * 32)
+            self.memory_allocator.deallocate_memory(var.pos, var.size * 32)
             del self.vars[name]
 
         # Remove block scopes
@@ -151,7 +153,7 @@ class Context:
         )
 
         var_size = 32 * get_size_of_type(typ)
-        var_pos = self.memory_allocator.increase_memory(var_size)
+        var_pos = self.memory_allocator.allocate_memory(var_size)
         return self._new_variable(name, typ, var_pos)
 
     def new_internal_variable(self, typ: NodeType) -> int:
@@ -172,7 +174,7 @@ class Context:
         name = f"#internal_{next(self.internal_variable_count)}"
 
         var_size = 32 * get_size_of_type(typ)
-        var_pos = self.memory_allocator.increase_memory(var_size)
+        var_pos = self.memory_allocator.allocate_memory(var_size)
         return self._new_variable(name, typ, var_pos)
 
     def parse_type(self, ast_node, location):
