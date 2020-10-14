@@ -1,6 +1,5 @@
 import contextlib
 import enum
-import itertools
 
 from vyper.ast import VyperNode
 from vyper.exceptions import CompilerPanic
@@ -75,9 +74,9 @@ class Context:
         # Not intended to be accessed directly
         self.memory_allocator = memory_allocator
 
-        # Private iterators for generating IDs
-        self._internal_var_iter = itertools.count()
-        self._scope_id_iter = itertools.count()
+        # Intermented values, used for internal IDs
+        self._internal_var_iter = 0
+        self._scope_id_iter = 0
 
     def is_constant(self):
         return self.constancy is Constancy.Constant or self.in_assertion or self.in_range_expr
@@ -113,7 +112,8 @@ class Context:
         Internal variables that are declared within this context are de-allocated
         upon exitting the context.
         """
-        scope_id = next(self._scope_id_iter)
+        scope_id = self._scope_id_iter
+        self._scope_id_iter += 1
         self._scopes.add(scope_id)
         yield
 
@@ -136,7 +136,8 @@ class Context:
         All variables (public and internal) that are declared within this context
         are de-allocated upon exiting the context.
         """
-        scope_id = next(self._scope_id_iter)
+        scope_id = self._scope_id_iter
+        self._scope_id_iter += 1
         self._scopes.add(scope_id)
         yield
 
@@ -204,7 +205,9 @@ class Context:
             Memory offset for the variable
         """
         # internal variable names begin with a number sign so there is no chance for collision
-        name = f"#internal_{next(self._internal_var_iter)}"
+        var_id = self._internal_var_iter
+        self._internal_var_iter += 1
+        name = f"#internal_{var_id}"
 
         var_size = 32 * get_size_of_type(typ)
         return self._new_variable(name, typ, var_size, True)
