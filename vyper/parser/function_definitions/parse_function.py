@@ -1,4 +1,6 @@
-from vyper.parser.context import Constancy, Context
+# can't use from [module] import [object] because it breaks mocks in testing
+from vyper.parser import context as ctx
+from vyper.parser.context import Constancy
 from vyper.parser.function_definitions.parse_external_function import (  # NOTE black/isort conflict
     parse_external_function,
 )
@@ -37,7 +39,7 @@ def parse_function(code, sigs, origcode, global_ctx, is_contract_payable, _vars=
 
     # Create a local (per function) context.
     memory_allocator = MemoryAllocator()
-    context = Context(
+    context = ctx.Context(
         vars=_vars,
         global_ctx=global_ctx,
         sigs=sigs,
