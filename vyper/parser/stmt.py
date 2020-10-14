@@ -174,15 +174,19 @@ class Stmt:
 
         method_id = fourbytes_to_int(keccak256(b"Error(string)")[:4])
         assert_reason = [
-            "seq",
-            ["mstore", sig_placeholder, method_id],
-            ["mstore", arg_placeholder, 32],
-            placeholder_bytes,
+            "if",
+            ["iszero", test_expr],
             [
-                "assert_reason",
-                test_expr,
-                int(sig_placeholder + 28),
-                int(4 + get_size_of_type(reason_str_type) * 32),
+                "seq",
+                ["mstore", sig_placeholder, method_id],
+                ["mstore", arg_placeholder, 32],
+                placeholder_bytes,
+                [
+                    "assert_reason",
+                    0,
+                    sig_placeholder + 28,
+                    int(4 + get_size_of_type(reason_str_type) * 32),
+                ],
             ],
         ]
         return LLLnode.from_list(assert_reason, typ=None, pos=getpos(self.stmt))
