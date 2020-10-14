@@ -127,9 +127,8 @@ class MemoryAllocator:
         # releasing from the end of the allocated memory - reduce the free memory pointer
         if pos + size == self.next_mem:
             self.next_mem = pos
-            return
 
-        if not self.deallocated_mem or self.deallocated_mem[-1].position < pos:
+        elif not self.deallocated_mem or self.deallocated_mem[-1].position < pos:
             # no previously deallocated memory, or this is the highest position deallocated
             self.deallocated_mem.append(FreeMemory(position=pos, size=size))
         else:
@@ -138,6 +137,9 @@ class MemoryAllocator:
                 next(i for i in self.deallocated_mem if i.position > pos)
             )
             self.deallocated_mem.insert(idx, FreeMemory(position=pos, size=size))
+
+        if not self.deallocated_mem:
+            return
 
         # iterate over deallocated memory and merge slots where possible
         i = 1
@@ -150,3 +152,8 @@ class MemoryAllocator:
             else:
                 active = next_slot
                 i += 1
+
+        last = self.deallocated_mem[-1]
+        if last.position + last.size == self.next_mem:
+            self.next_mem = last.position
+            del self.deallocated_mem[-1]
