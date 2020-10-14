@@ -7,12 +7,33 @@ from vyper.utils import MemoryPositions
 class FreeMemory:
     __slots__ = ("position", "size")
 
-    def __init__(self, position, size):
+    def __init__(self, position: int, size: int) -> None:
         self.position = position
         self.size = size
 
     def __repr__(self):
         return f"(FreeMemory: pos={self.position}, size={self.size})"
+
+    def partially_allocate(self, size: int) -> int:
+        """
+        Reduce the size of the free memory by allocating from the initial offset.
+
+        Arguments
+        ---------
+        size : int
+            Number of bytes to allocate
+
+        Returns
+        -------
+        int
+            Position of the newly allocated memory
+        """
+        if size > self.size:
+            raise CompilerPanic("Attempted to allocate more memory than available")
+        position = self.position
+        self.position += size
+        self.size -= size
+        return position
 
 
 class MemoryAllocator:
@@ -42,7 +63,6 @@ class MemoryAllocator:
     def get_next_memory_position(self) -> int:
         return self.next_mem
 
-    # Grow memory by x bytes
     def allocate_memory(self, size: int) -> int:
         """
         Allocate `size` bytes in memory.
@@ -52,8 +72,8 @@ class MemoryAllocator:
         If no memory was previously de-allocated, memory is expanded
         and the free memory pointer is increased.
 
-        If sufficient space is availalbe within de-allocated memory, the lowest available
-        offset is returned and that memory is now marked as allocated.
+        If sufficient space is available within de-allocated memory, the lowest
+        available offset is returned and that memory is now marked as allocated.
 
         Arguments
         ---------
@@ -74,12 +94,18 @@ class MemoryAllocator:
                 del self.deallocated_mem[i]
                 return free_memory.position
             if free_memory.size > size:
-                position = free_memory.position
-                free_memory.position += size
-                free_memory.size -= size
-                return position
+                return free_memory.partially_allocate(size)
 
         # if no deallocated slots are available, expand memory
+        return self.expand_memory(size)
+
+    def expand_memory(self, size: int) -> int:
+        """
+        Allocate `size` bytes in memory, starting from the free memory pointer.
+        """
+        if size % 32 != 0:
+            raise CompilerPanic("Memory misaligment, only multiples of 32 supported.")
+
         before_value = self.next_mem
         self.next_mem += size
         return before_value
