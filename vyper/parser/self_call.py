@@ -104,14 +104,14 @@ def make_call(stmt_expr, context):
     var_slots = [(v.pos, v.size) for name, v in context.vars.items() if v.location == "memory"]
     if var_slots:
         var_slots.sort(key=lambda x: x[0])
-        mem_from, mem_to = var_slots[0][0], var_slots[-1][0] + var_slots[-1][1] * 32
 
-        i_placeholder = context.new_internal_variable(BaseType("uint256"))
-        local_save_ident = f"_{stmt_expr.lineno}_{stmt_expr.col_offset}"
-        push_loop_label = "save_locals_start" + local_save_ident
-        pop_loop_label = "restore_locals_start" + local_save_ident
-
-        if mem_to - mem_from > 320:
+        if len(var_slots) > 10:
+            # if memory is large enough, push and pop it via iteration
+            mem_from, mem_to = var_slots[0][0], var_slots[-1][0] + var_slots[-1][1] * 32
+            i_placeholder = context.new_internal_variable(BaseType("uint256"))
+            local_save_ident = f"_{stmt_expr.lineno}_{stmt_expr.col_offset}"
+            push_loop_label = "save_locals_start" + local_save_ident
+            pop_loop_label = "restore_locals_start" + local_save_ident
             push_local_vars = [
                 ["mstore", i_placeholder, mem_from],
                 ["label", push_loop_label],
@@ -127,10 +127,13 @@ def make_call(stmt_expr, context):
                 ["if", ["ge", ["mload", i_placeholder], mem_from], ["goto", pop_loop_label]],
             ]
         else:
-            push_local_vars = [["mload", pos] for pos in range(mem_from, mem_to, 32)]
-            pop_local_vars = [
-                ["mstore", pos, "pass"] for pos in range(mem_to - 32, mem_from - 32, -32)
-            ]
+            # for smaller memory, hardcode the mload/mstore locations
+            push_mem_slots = []
+            for pos, size in var_slots:
+                push_mem_slots.extend([pos + i * 32 for i in range(size)])
+
+            push_local_vars = [["mload", pos] for pos in push_mem_slots]
+            pop_local_vars = [["mstore", pos, "pass"] for pos in push_mem_slots[::-1]]
 
     # Push Arguments
     if expr_args:
