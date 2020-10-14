@@ -1,5 +1,9 @@
 import hashlib
 
+import pytest
+
+pytestmark = pytest.mark.usefixtures("memory_mocker")
+
 
 def test_sha256_string_literal(get_contract_with_gas_estimation):
     code = """

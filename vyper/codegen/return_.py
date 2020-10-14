@@ -78,7 +78,7 @@ def gen_tuple_return(stmt, context, sub):
     # (big difference between returning `(bytes,)` and `bytes`.
     abi_typ = ensure_tuple(abi_typ)
     abi_bytes_needed = abi_typ.static_size() + abi_typ.dynamic_size_bound()
-    dst = context.memory_allocator.allocate_memory(abi_bytes_needed)
+    dst = context.memory_allocator.expand_memory(abi_bytes_needed)
     return_buffer = LLLnode(
         dst, location="memory", annotation="return_buffer", typ=context.return_type
     )

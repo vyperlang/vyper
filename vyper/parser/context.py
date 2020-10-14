@@ -1,7 +1,5 @@
 import contextlib
 import enum
-import itertools
-from typing import Tuple
 
 from vyper.ast import VyperNode
 from vyper.exceptions import CompilerPanic
@@ -50,16 +48,12 @@ class Context:
         self.in_range_expr = False
         # Is the function payable?
         self.is_payable = is_payable
-        # Number of internal variables generated (used to generate random names)
-        self.internal_variable_count = itertools.count()
         # Original code (for error pretty-printing purposes)
         self.origcode = origcode
         # In Loop status. Whether body is currently evaluating within a for-loop or not.
         self.in_for_loop = set()
         # Count returns in function
         self.function_return_count = 0
-        # Current block scope
-        self.blockscopes = set()
         # In assignment. Whether expression is currently evaluating an assignment expression.
         self.in_assignment = False
         # List of custom structs that have been defined.
@@ -73,10 +67,16 @@ class Context:
         self.global_ctx = global_ctx
         # full function signature
         self.sig = sig
+        # Active scopes
+        self._scopes = set()
 
         # Memory alloctor, keeps track of currently allocated memory.
         # Not intended to be accessed directly
         self.memory_allocator = memory_allocator
+
+        # Intermented values, used for internal IDs
+        self._internal_var_iter = 0
+        self._scope_id_iter = 0
 
     def is_constant(self):
         return self.constancy is Constancy.Constant or self.in_assertion or self.in_range_expr
@@ -104,28 +104,64 @@ class Context:
         yield
         self.in_range_expr = prev_value
 
-    def internal_memory_scope(self, scope_id):
-        # syntactic sugar for `make_blockscope` used to release
-        # memory after creating temporary internal variables
-        return self.make_blockscope(scope_id)
-
     @contextlib.contextmanager
-    def make_blockscope(self, blockscope_id):
-        self.blockscopes.add(blockscope_id)
+    def internal_memory_scope(self):
+        """
+        Internal memory scope context manager.
+
+        Internal variables that are declared within this context are de-allocated
+        upon exitting the context.
+        """
+        scope_id = self._scope_id_iter
+        self._scope_id_iter += 1
+        self._scopes.add(scope_id)
         yield
 
-        # Remove all variables that have specific blockscope_id attached.
-        released = [(k, v) for k, v in self.vars.items() if blockscope_id in v.blockscopes]
+        # Remove all variables that have specific scope_id attached
+        released = [
+            (k, v) for k, v in self.vars.items() if v.is_internal and scope_id in v.blockscopes
+        ]
         for name, var in released:
             self.memory_allocator.deallocate_memory(var.pos, var.size * 32)
             del self.vars[name]
 
         # Remove block scopes
-        self.blockscopes.remove(blockscope_id)
+        self._scopes.remove(scope_id)
 
-    def _new_variable(self, name: str, typ: NodeType, var_pos: int) -> int:
+    @contextlib.contextmanager
+    def block_scope(self):
+        """
+        Block scope context manager.
+
+        All variables (public and internal) that are declared within this context
+        are de-allocated upon exiting the context.
+        """
+        scope_id = self._scope_id_iter
+        self._scope_id_iter += 1
+        self._scopes.add(scope_id)
+        yield
+
+        # Remove all variables that have specific scope_id attached
+        released = [(k, v) for k, v in self.vars.items() if scope_id in v.blockscopes]
+        for name, var in released:
+            self.memory_allocator.deallocate_memory(var.pos, var.size * 32)
+            del self.vars[name]
+
+        # Remove block scopes
+        self._scopes.remove(scope_id)
+
+    def _new_variable(self, name: str, typ: NodeType, var_size: int, is_internal: bool) -> int:
+        if is_internal:
+            var_pos = self.memory_allocator.expand_memory(var_size)
+        else:
+            var_pos = self.memory_allocator.allocate_memory(var_size)
         self.vars[name] = VariableRecord(
-            name=name, pos=var_pos, typ=typ, mutable=True, blockscopes=self.blockscopes.copy(),
+            name=name,
+            pos=var_pos,
+            typ=typ,
+            mutable=True,
+            blockscopes=self._scopes.copy(),
+            is_internal=is_internal,
         )
         return var_pos
 
@@ -149,13 +185,10 @@ class Context:
             Memory offset for the variable
         """
         self.global_ctx.is_valid_varname(name, pos)
-        check_valid_varname(
-            name, custom_structs=self.structs, pos=pos,
-        )
+        check_valid_varname(name, custom_structs=self.structs, pos=pos)
 
         var_size = 32 * get_size_of_type(typ)
-        var_pos = self.memory_allocator.allocate_memory(var_size)
-        return self._new_variable(name, typ, var_pos)
+        return self._new_variable(name, typ, var_size, False)
 
     def new_internal_variable(self, typ: NodeType) -> int:
         """
@@ -172,36 +205,12 @@ class Context:
             Memory offset for the variable
         """
         # internal variable names begin with a number sign so there is no chance for collision
-        name = f"#internal_{next(self.internal_variable_count)}"
+        var_id = self._internal_var_iter
+        self._internal_var_iter += 1
+        name = f"#internal_{var_id}"
 
         var_size = 32 * get_size_of_type(typ)
-        var_pos = self.memory_allocator.allocate_memory(var_size)
-        return self._new_variable(name, typ, var_pos)
-
-    def new_sequential_vars(self, *types: NodeType) -> Tuple[int, ...]:
-        """
-        Allocate memory for multiple internal variables, ensuring they are positioned sequentially.
-
-        Arguments
-        ---------
-        types : NodeType
-            Variable types, used to determine the size of memory allocation
-
-        Returns
-        -------
-        Tuple[int,...]
-            Tuple of memory offsets for the variables
-        """
-        total_size = sum(get_size_of_type(i) for i in types) * 32
-        placeholders: Tuple[int, ...] = ()
-        var_pos = self.memory_allocator.allocate_memory(total_size)
-        for typ in types:
-            name = f"#internal_{next(self.internal_variable_count)}"
-            self._new_variable(name, typ, var_pos)
-            placeholders += (var_pos,)
-            var_pos += 32 * get_size_of_type(typ)
-
-        return placeholders
+        return self._new_variable(name, typ, var_size, True)
 
     def parse_type(self, ast_node, location):
         return self.global_ctx.parse_type(ast_node, location)

@@ -1,4 +1,8 @@
+import pytest
+
 from vyper.exceptions import TypeMismatch
+
+pytestmark = pytest.mark.usefixtures("memory_mocker")
 
 
 def test_return_type(get_contract_with_gas_estimation):

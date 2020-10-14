@@ -35,7 +35,16 @@ from vyper.utils import (
 # Function argument
 class VariableRecord:
     def __init__(
-        self, name, pos, typ, mutable, *, location="memory", blockscopes=None, defined_at=None
+        self,
+        name,
+        pos,
+        typ,
+        mutable,
+        *,
+        location="memory",
+        blockscopes=None,
+        defined_at=None,
+        is_internal=False,
     ):
         self.name = name
         self.pos = pos
@@ -44,6 +53,7 @@ class VariableRecord:
         self.location = location
         self.blockscopes = [] if blockscopes is None else blockscopes
         self.defined_at = defined_at  # source code location variable record was defined.
+        self.is_internal = is_internal
 
     @property
     def size(self):

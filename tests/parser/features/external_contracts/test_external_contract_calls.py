@@ -9,7 +9,7 @@ from vyper.exceptions import (
 )
 
 
-def test_external_contract_calls(get_contract, get_contract_with_gas_estimation):
+def test_external_contract_calls(get_contract, get_contract_with_gas_estimation, memory_mocker):
     contract_1 = """
 @external
 def foo(arg1: int128) -> int128:
@@ -32,7 +32,9 @@ def bar(arg1: address, arg2: int128) -> int128:
     print("Successfully executed an external contract call")
 
 
-def test_complicated_external_contract_calls(get_contract, get_contract_with_gas_estimation):
+def test_complicated_external_contract_calls(
+    get_contract, get_contract_with_gas_estimation, memory_mocker
+):
     contract_1 = """
 lucky: public(int128)
 
@@ -68,7 +70,7 @@ def bar(arg1: address) -> int128:
 
 
 @pytest.mark.parametrize("length", [3, 32, 33, 64])
-def test_external_contract_calls_with_bytes(get_contract, length):
+def test_external_contract_calls_with_bytes(get_contract, length, memory_mocker):
     contract_1 = f"""
 @external
 def array() -> Bytes[{length}]:
@@ -90,7 +92,7 @@ def get_array(arg1: address) -> Bytes[3]:
     assert c2.get_array(c.address) == b"dog"
 
 
-def test_bytes_too_long(get_contract, assert_tx_failed):
+def test_bytes_too_long(get_contract, assert_tx_failed, memory_mocker):
     contract_1 = """
 @external
 def array() -> Bytes[4]:
@@ -114,7 +116,7 @@ def get_array(arg1: address) -> Bytes[3]:
 
 @pytest.mark.parametrize("a,b", [(3, 3), (4, 3), (3, 4), (32, 32), (33, 33), (64, 64)])
 @pytest.mark.parametrize("actual", [3, 32, 64])
-def test_tuple_with_bytes(get_contract, assert_tx_failed, a, b, actual):
+def test_tuple_with_bytes(get_contract, assert_tx_failed, a, b, actual, memory_mocker):
     contract_1 = f"""
 @external
 def array() -> (Bytes[{actual}], int128, Bytes[{actual}]):
@@ -143,7 +145,7 @@ def get_array(arg1: address) -> (Bytes[{a}], int128, Bytes[{b}]):
 
 @pytest.mark.parametrize("a,b", [(18, 7), (18, 18), (19, 6), (64, 6), (7, 19)])
 @pytest.mark.parametrize("c,d", [(19, 7), (64, 64)])
-def test_tuple_with_bytes_too_long(get_contract, assert_tx_failed, a, c, b, d):
+def test_tuple_with_bytes_too_long(get_contract, assert_tx_failed, a, c, b, d, memory_mocker):
     contract_1 = f"""
 @external
 def array() -> (Bytes[{c}], int128, Bytes[{d}]):
@@ -170,7 +172,7 @@ def get_array(arg1: address) -> (Bytes[{a}], int128, Bytes[{b}]):
     assert_tx_failed(lambda: c2.get_array(c.address))
 
 
-def test_tuple_with_bytes_too_long_two(get_contract, assert_tx_failed):
+def test_tuple_with_bytes_too_long_two(get_contract, assert_tx_failed, memory_mocker):
     contract_1 = """
 @external
 def array() -> (Bytes[30], int128, Bytes[30]):
@@ -197,7 +199,7 @@ def get_array(arg1: address) -> (Bytes[30], int128, Bytes[3]):
     assert_tx_failed(lambda: c2.get_array(c.address))
 
 
-def test_external_contract_call_state_change(get_contract):
+def test_external_contract_call_state_change(get_contract, memory_mocker):
     contract_1 = """
 lucky: public(int128)
 
@@ -247,7 +249,7 @@ def set_lucky_stmt(arg1: address, arg2: int128) -> int128:
     print("Successfully blocked an external contract call from a constant function")
 
 
-def test_external_contract_can_be_changed_based_on_address(get_contract):
+def test_external_contract_can_be_changed_based_on_address(get_contract, memory_mocker):
     contract_1 = """
 lucky: public(int128)
 
@@ -317,7 +319,7 @@ def bar(arg1: address) -> int128:
     print("Successfully executed an external contract call with public globals")
 
 
-def test_external_contract_calls_with_multiple_contracts(get_contract):
+def test_external_contract_calls_with_multiple_contracts(get_contract, memory_mocker):
     contract_1 = """
 lucky: public(int128)
 
@@ -517,7 +519,9 @@ def get_lucky(contract_address: address) -> int128:
     assert c2.get_lucky(c1.address) == 1
 
 
-def test_complex_external_contract_call_declaration(get_contract_with_gas_estimation):
+def test_complex_external_contract_call_declaration(
+    get_contract_with_gas_estimation, memory_mocker
+):
     contract_1 = """
 @external
 def get_lucky() -> int128:
@@ -772,7 +776,7 @@ def test_bad_code_struct_exc(assert_compile_failed, get_contract_with_gas_estima
     assert_compile_failed(lambda: get_contract_with_gas_estimation(bad_code), ArgumentException)
 
 
-def test_tuple_return_external_contract_call(get_contract):
+def test_tuple_return_external_contract_call(get_contract, memory_mocker):
     contract_1 = """
 @external
 def out_literals() -> (int128, address, Bytes[10]):

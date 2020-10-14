@@ -251,26 +251,24 @@ def pack_logging_data(expected_data, args, context, pos):
             )
             prealloacted[idx] = tmp_variable_node
 
-    # Create sequential placeholders for dynamic and static args.
+    # Create internal variables for for dynamic and static args.
     static_types = []
     for data in expected_data:
         static_types.append(data.typ if not isinstance(data.typ, ByteArrayLike) else BaseType(32))
 
     requires_dynamic_offset = any(isinstance(data.typ, ByteArrayLike) for data in expected_data)
+
+    dynamic_offset_counter = None
     if requires_dynamic_offset:
-        (
-            dynamic_offset_counter,
-            dynamic_placeholder,
-            *static_placeholders,
-        ) = context.new_sequential_vars(BaseType(32), BaseType(32), *static_types)
-    else:
-        static_placeholders = context.new_sequential_vars(*static_types)
-        dynamic_offset_counter = None
+        dynamic_offset_counter = context.new_internal_variable(BaseType(32))
+        dynamic_placeholder = context.new_internal_variable(BaseType(32))
+
+    static_vars = [context.new_internal_variable(i) for i in static_types]
 
     # Populate static placeholders.
     for i, (arg, data) in enumerate(zip(args, expected_data)):
         typ = data.typ
-        placeholder = static_placeholders[i]
+        placeholder = static_vars[i]
         if not isinstance(typ, ByteArrayLike):
             holder, maxlen = pack_args_by_32(
                 holder, maxlen, prealloacted.get(i, arg), typ, context, placeholder, pos=pos,
@@ -289,7 +287,7 @@ def pack_logging_data(expected_data, args, context, pos):
     if requires_dynamic_offset:
         datamem_start = dynamic_placeholder + 32
     else:
-        datamem_start = static_placeholders[0]
+        datamem_start = static_vars[0]
 
     # Copy necessary data into allocated dynamic section.
     for i, (arg, data) in enumerate(zip(args, expected_data)):
@@ -301,7 +299,7 @@ def pack_logging_data(expected_data, args, context, pos):
                 arg=prealloacted.get(i, arg),
                 typ=typ,
                 context=context,
-                placeholder=static_placeholders[i],
+                placeholder=static_vars[i],
                 datamem_start=datamem_start,
                 dynamic_offset_counter=dynamic_offset_counter,
                 pos=pos,

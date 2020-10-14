@@ -1,4 +1,8 @@
+import pytest
+
 from vyper.compiler import compile_code
+
+pytestmark = pytest.mark.usefixtures("memory_mocker")
 
 
 def test_struct_return_abi(get_contract_with_gas_estimation):

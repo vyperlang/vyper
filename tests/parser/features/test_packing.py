@@ -1,4 +1,4 @@
-def test_packing_test(get_contract_with_gas_estimation):
+def test_packing_test(get_contract_with_gas_estimation, memory_mocker):
     packing_test = """
 struct Bar:
     a: int128

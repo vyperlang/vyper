@@ -1,6 +1,7 @@
 from decimal import Decimal
 
 import eth_abi
+import pytest
 
 from vyper.exceptions import (
     ArgumentException,
@@ -11,6 +12,8 @@ from vyper.exceptions import (
     UndeclaredDefinition,
 )
 from vyper.utils import keccak256
+
+pytestmark = pytest.mark.usefixtures("memory_mocker")
 
 
 def test_empty_event_logging(w3, tester, keccak, get_contract_with_gas_estimation):
