@@ -57,6 +57,7 @@ class MemoryAllocator:
             prior to this value are considered permanently allocated.
         """
         self.next_mem = start_position
+        self.size_of_mem = start_position
         self.deallocated_mem: List[FreeMemory] = []
 
     # Get the next unused memory location
@@ -108,6 +109,7 @@ class MemoryAllocator:
 
         before_value = self.next_mem
         self.next_mem += size
+        self.size_of_mem = max(self.size_of_mem, self.next_mem)
         return before_value
 
     def deallocate_memory(self, pos: int, size: int) -> None:

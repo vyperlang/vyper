@@ -61,6 +61,6 @@ def parse_function(code, sigs, origcode, global_ctx, is_contract_payable, _vars=
         )
 
     o.context = context
-    o.total_gas = o.gas + calc_mem_gas(o.context.memory_allocator.get_next_memory_position())
+    o.total_gas = o.gas + calc_mem_gas(o.context.memory_allocator.size_of_mem)
     o.func_name = sig.name
     return o
