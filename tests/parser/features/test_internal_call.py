@@ -5,6 +5,8 @@ import pytest
 from vyper.compiler import compile_code
 from vyper.exceptions import ArgumentException, CallViolation
 
+pytestmark = pytest.mark.usefixtures("memory_mocker")
+
 
 def test_selfcall_code(get_contract_with_gas_estimation):
     selfcall_code = """

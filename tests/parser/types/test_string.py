@@ -1,3 +1,8 @@
+import pytest
+
+pytestmark = pytest.mark.usefixtures("memory_mocker")
+
+
 def test_string_return(get_contract_with_gas_estimation):
     code = """
 @external

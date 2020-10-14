@@ -21,7 +21,7 @@ def foo():
     assert tx_receipt["gasUsed"] < gas_sent
 
 
-def test_assert_reason(w3, get_contract_with_gas_estimation, assert_tx_failed):
+def test_assert_reason(w3, get_contract_with_gas_estimation, assert_tx_failed, memory_mocker):
     code = """
 @external
 def test(a: int128) -> int128:
@@ -127,7 +127,7 @@ def test_valid_assertions(get_contract, code):
     get_contract(code)
 
 
-def test_assert_staticcall(get_contract, assert_tx_failed):
+def test_assert_staticcall(get_contract, assert_tx_failed, memory_mocker):
     foreign_code = """
 state: uint256
 @external
@@ -149,7 +149,7 @@ def test():
     assert_tx_failed(lambda: c2.test())
 
 
-def test_assert_in_for_loop(get_contract, assert_tx_failed):
+def test_assert_in_for_loop(get_contract, assert_tx_failed, memory_mocker):
     code = """
 @external
 def test(x: uint256[3]) -> bool:
@@ -166,7 +166,7 @@ def test(x: uint256[3]) -> bool:
     assert_tx_failed(lambda: c.test([1, 3, 5]))
 
 
-def test_assert_with_reason_in_for_loop(get_contract, assert_tx_failed):
+def test_assert_with_reason_in_for_loop(get_contract, assert_tx_failed, memory_mocker):
     code = """
 @external
 def test(x: uint256[3]) -> bool:
@@ -183,7 +183,7 @@ def test(x: uint256[3]) -> bool:
     assert_tx_failed(lambda: c.test([1, 3, 5]))
 
 
-def test_assest_reason_revert_length(w3, get_contract):
+def test_assest_reason_revert_length(w3, get_contract, memory_mocker):
     code = """
 @external
 def test() -> int128:
