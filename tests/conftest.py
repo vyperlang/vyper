@@ -17,7 +17,7 @@ from .base_conftest import (
 )
 
 # Import the base_conftest fixtures
-pytest_plugins = ["tests.base_conftest"]
+pytest_plugins = ["tests.base_conftest", "tests.fixtures.memorymock"]
 
 ############
 # PATCHING #
