@@ -47,10 +47,6 @@ def _is_constant_add(node: LLLnode, args: List[LLLnode]) -> bool:
     )
 
 
-def has_cond_arg(node):
-    return node.value in ["if", "if_unchecked", "assert", "assert_reason"]
-
-
 def optimize(lll_node: LLLnode) -> LLLnode:
     lll_node = apply_general_optimizations(lll_node)
     lll_node = filter_unused_sizelimits(lll_node)
@@ -234,7 +230,7 @@ def apply_general_optimizations(node: LLLnode) -> LLLnode:
         )
     # [ne, x, y] has the same truthyness as [xor, x, y]
     # rewrite 'ne' as 'xor' in places where truthy is accepted.
-    elif has_cond_arg(node) and argz[0].value == "ne":
+    elif node.value in ("if", "if_unchecked", "assert") and argz[0].value == "ne":
         argz[0] = LLLnode.from_list(["xor"] + argz[0].args)  # type: ignore
         return LLLnode.from_list(
             [node.value] + argz,  # type: ignore
