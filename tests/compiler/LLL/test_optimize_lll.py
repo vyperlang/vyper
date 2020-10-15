@@ -7,7 +7,6 @@ optimize_list = [
     (["ne", 1, 0], ["ne", 1, 0]),  # noop
     (["if", ["ne", 1, 0], "pass"], ["if", ["xor", 1, 0], "pass"]),
     (["assert", ["ne", 1, 0]], ["assert", ["xor", 1, 0]]),
-    (["assert_reason", ["ne", 1, 0], 0, 0], ["assert_reason", ["xor", 1, 0], 0, 0]),
     (["mstore", 0, ["ne", 1, 0]], ["mstore", 0, ["ne", 1, 0]]),  # noop
 ]
 

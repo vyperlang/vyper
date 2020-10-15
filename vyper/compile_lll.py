@@ -286,12 +286,6 @@ def compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=No
         o = compile_to_assembly(code.args[0], withargs, existing_labels, break_dest, height)
         o.extend(get_revert())
         return o
-    elif code.value == "assert_reason":
-        o = compile_to_assembly(code.args[0], withargs, existing_labels, break_dest, height)
-        mem_start = compile_to_assembly(code.args[1], withargs, existing_labels, break_dest, height)
-        mem_len = compile_to_assembly(code.args[2], withargs, existing_labels, break_dest, height)
-        o.extend(get_revert(mem_start, mem_len))
-        return o
     # Unsigned/signed clamp, check less-than
     elif code.value in CLAMP_OP_NAMES:
         if isinstance(code.args[0].value, int) and isinstance(code.args[1].value, int):

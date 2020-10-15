@@ -173,22 +173,29 @@ class Stmt:
         placeholder_bytes = Expr(msg, self.context).lll_node
 
         method_id = fourbytes_to_int(keccak256(b"Error(string)")[:4])
-        assert_reason = [
+
+        revert_seq = [
             "seq",
             ["mstore", sig_placeholder, method_id],
             ["mstore", arg_placeholder, 32],
             placeholder_bytes,
-            [
-                "assert_reason",
-                test_expr,
-                int(sig_placeholder + 28),
-                int(4 + get_size_of_type(reason_str_type) * 32),
-            ],
+            ["revert", sig_placeholder + 28, int(4 + get_size_of_type(reason_str_type) * 32)],
         ]
-        return LLLnode.from_list(assert_reason, typ=None, pos=getpos(self.stmt))
+        if test_expr:
+            lll_node = ["if", ["iszero", test_expr], revert_seq]
+        else:
+            lll_node = revert_seq
+
+        return LLLnode.from_list(lll_node, typ=None, pos=getpos(self.stmt))
 
     def parse_Assert(self):
         test_expr = Expr.parse_value_expr(self.stmt.test, self.context)
+        if test_expr.typ.is_literal:
+            if test_expr.value == 1:
+                # skip literal assertions that always pass
+                return LLLnode.from_list(["pass"], typ=None, pos=getpos(self.stmt))
+            else:
+                test_expr = test_expr.value
 
         if self.stmt.msg:
             return self._assert_reason(test_expr, self.stmt.msg)
@@ -199,7 +206,7 @@ class Stmt:
         if self.stmt.exc:
             return self._assert_reason(0, self.stmt.exc)
         else:
-            return LLLnode.from_list(["assert", 0], typ=None, pos=getpos(self.stmt))
+            return LLLnode.from_list(["revert", 0, 0], typ=None, pos=getpos(self.stmt))
 
     def _check_valid_range_constant(self, arg_ast_node, raise_exception=True):
         with self.context.range_scope():
