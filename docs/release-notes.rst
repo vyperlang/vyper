@@ -3,6 +3,23 @@
 Release Notes
 #############
 
+v0.2.7
+******
+
+Date released: 10-14-2020
+
+This is a quick patch release to fix a runtime error introduced in ``v0.2.6`` (`#2188 <https://github.com/vyperlang/vyper/pull/2188>`_) that could allow for memory corruption under certain conditions.
+
+Non-breaking changes and improvements:
+
+- Optimizations around ``assert`` and ``raise`` (`#2198 <https://github.com/vyperlang/vyper/pull/2198>`_)
+- Simplified internal handling of memory variables (`#2194 <https://github.com/vyperlang/vyper/pull/2194>`_)
+
+Fixes:
+
+- Ensure internal variables are always placed sequentially within memory (`#2196 <https://github.com/vyperlang/vyper/pull/2196>`_)
+- Bugfixes around memory de-allocation (`#2197 <https://github.com/vyperlang/vyper/pull/2197>`_)
+
 v0.2.6
 ******
 
