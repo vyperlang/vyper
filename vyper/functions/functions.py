@@ -1331,15 +1331,25 @@ class Shift(_SimpleBuiltinFunction):
             shift_abs = ["sub", 0, "_s"]
 
         if version_check(begin="constantinople"):
-            left_shift = ["shl", "_s", "_v"]
-            right_shift = ["shr", shift_abs, "_v"]
+            if args[1].typ.is_literal:
+                # optimization when SHL/SHR instructions are available shift distance is a literal
+                value = args[1].value
+                if value >= 0:
+                    lll_node = ["shl", value, args[0]]
+                else:
+                    lll_node = ["shr", abs(value), args[0]]
+                return LLLnode.from_list(lll_node, typ=BaseType("uint256"), pos=getpos(expr))
+            else:
+                left_shift = ["shl", "_s", args[0]]
+                right_shift = ["shr", shift_abs, args[0]]
+
         else:
             # If second argument is positive, left-shift so multiply by a power of two
             # If it is negative, divide by a power of two
             # node that if the abs of the second argument >= 256, then in the EVM
             # 2**(second arg) = 0, and multiplying OR dividing by 0 gives 0
-            left_shift = ["mul", "_v", ["exp", 2, "_s"]]
-            right_shift = ["div", "_v", ["exp", 2, shift_abs]]
+            left_shift = ["mul", args[0], ["exp", 2, "_s"]]
+            right_shift = ["div", args[0], ["exp", 2, shift_abs]]
 
         if not args[1].typ.is_literal:
             node_list = ["if", ["slt", "_s", 0], right_shift, left_shift]
@@ -1349,9 +1359,7 @@ class Shift(_SimpleBuiltinFunction):
             node_list = right_shift
 
         return LLLnode.from_list(
-            ["with", "_v", args[0], ["with", "_s", args[1], node_list]],
-            typ=BaseType("uint256"),
-            pos=getpos(expr),
+            ["with", "_s", args[1], node_list], typ=BaseType("uint256"), pos=getpos(expr),
         )
 
 
