@@ -110,7 +110,7 @@ class Context:
         Internal memory scope context manager.
 
         Internal variables that are declared within this context are de-allocated
-        upon exitting the context.
+        upon exiting the context.
         """
         scope_id = self._scope_id_iter
         self._scope_id_iter += 1
