@@ -28,7 +28,7 @@ class FreeMemory:
         int
             Position of the newly allocated memory
         """
-        if size > self.size:
+        if size >= self.size:
             raise CompilerPanic("Attempted to allocate more memory than available")
         position = self.position
         self.position += size
@@ -126,19 +126,8 @@ class MemoryAllocator:
         if size % 32 != 0:
             raise CompilerPanic("Memory misaligment, only multiples of 32 supported.")
 
-        # releasing from the end of the allocated memory - reduce the free memory pointer
-        if pos + size == self.next_mem:
-            self.next_mem = pos
-
-        elif not self.deallocated_mem or self.deallocated_mem[-1].position < pos:
-            # no previously deallocated memory, or this is the highest position deallocated
-            self.deallocated_mem.append(FreeMemory(position=pos, size=size))
-        else:
-            # previously deallocated memory exists with a higher offset
-            idx = self.deallocated_mem.index(
-                next(i for i in self.deallocated_mem if i.position > pos)
-            )
-            self.deallocated_mem.insert(idx, FreeMemory(position=pos, size=size))
+        self.deallocated_mem.append(FreeMemory(position=pos, size=size))
+        self.deallocated_mem.sort(key=lambda k: k.position)
 
         if not self.deallocated_mem:
             return
@@ -155,6 +144,8 @@ class MemoryAllocator:
                 active = next_slot
                 i += 1
 
+        # if the highest free memory slot ends at the edge of the
+        # allocated memory, reduce the free memory pointer
         last = self.deallocated_mem[-1]
         if last.position + last.size == self.next_mem:
             self.next_mem = last.position
