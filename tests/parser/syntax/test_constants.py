@@ -192,6 +192,9 @@ MY_DECIMAL: constant(decimal) = 1e-10
     """
 MY_DECIMAL: constant(decimal) = -1e38
     """,
+    """
+CONST_BYTES: constant(Bytes[4]) = b'1234'
+    """,
 ]
 
 
