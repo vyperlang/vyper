@@ -1,3 +1,4 @@
+import warnings
 from collections import OrderedDict, deque
 
 import asttokens
@@ -12,6 +13,7 @@ from vyper.signatures.interface import (
     extract_external_interface,
     extract_interface_str,
 )
+from vyper.warnings import ContractSizeLimitWarning
 
 
 def build_ast_dict(compiler_data: CompilerData) -> dict:
@@ -136,7 +138,20 @@ def build_bytecode_output(compiler_data: CompilerData) -> str:
     return f"0x{compiler_data.bytecode.hex()}"
 
 
+# EIP-170. Ref: https://eips.ethereum.org/EIPS/eip-170
+EIP170_CONTRACT_SIZE_LIMIT: int = 2 ** 14 + 2 ** 13
+
+
 def build_bytecode_runtime_output(compiler_data: CompilerData) -> str:
+    compiled_bytecode_runtime_length = len(compiler_data.bytecode_runtime)
+    if compiled_bytecode_runtime_length > EIP170_CONTRACT_SIZE_LIMIT:
+        warnings.warn(
+            f"Length of compiled bytecode is bigger than Ethereum contract size limit "
+            "(see EIP-170: https://eips.ethereum.org/EIPS/eip-170): "
+            f"{compiled_bytecode_runtime_length}b > {EIP170_CONTRACT_SIZE_LIMIT}b",
+            ContractSizeLimitWarning,
+            stacklevel=2,
+        )
     return f"0x{compiler_data.bytecode_runtime.hex()}"
 
 
