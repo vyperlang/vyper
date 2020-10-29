@@ -82,7 +82,7 @@ Interfaces
 
 An interface is a set of function definitions used to enable calls between smart contracts. A contract interface defines all of that contract's externally available functions. By importing the interface, your contract now knows how to call these functions in other contracts.
 
-Interfaces can be added to contracts either through inline definition, or by importing them from a seperate file.
+Interfaces can be added to contracts either through inline definition, or by importing them from a separate file.
 
 .. code-block:: python
 
