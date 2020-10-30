@@ -38,7 +38,7 @@ def test_bid(w3, tester, auction_contract, assert_tx_failed):
     assert auction_contract.highestBidder() == k1
     assert auction_contract.highestBid() == 1
     # Bidder bid cannot equal current highest bid
-    assert_tx_failed(lambda: auction_contract.bid(transact={"value": 0, "from": k1}))
+    assert_tx_failed(lambda: auction_contract.bid(transact={"value": 1, "from": k1}))
     # Higher bid can replace current highest bid
     auction_contract.bid(transact={"value": 2, "from": k2})
     # Check that highest bidder and highest bid have changed accordingly
