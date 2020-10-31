@@ -16,14 +16,15 @@ ended: public(bool)
 # Keep track of refunded bids so we can follow the withdraw pattern
 pendingReturns: public(HashMap[address, uint256])
 
-# Create a simple auction with `_bidding_time`
-# seconds bidding time on behalf of the
+# Create a simple auction with `_auctionStart` and
+# `_bidding_time` seconds bidding time on behalf of the
 # beneficiary address `_beneficiary`.
 @external
-def __init__(_beneficiary: address, _bidding_time: uint256):
+def __init__(_beneficiary: address, _auction_start: uint256, _bidding_time: uint256):
     self.beneficiary = _beneficiary
-    self.auctionStart = block.timestamp
+    self.auctionStart = _auction_start  # auction start time can be in the past, present or future
     self.auctionEnd = self.auctionStart + _bidding_time
+    assert block.timestamp < self.auctionEnd # auction end time should be in the future
 
 # Bid on the auction with the value sent
 # together with this transaction.
@@ -32,6 +33,8 @@ def __init__(_beneficiary: address, _bidding_time: uint256):
 @external
 @payable
 def bid():
+    # Check if bidding period has started.
+    assert block.timestamp >= self.auctionStart
     # Check if bidding period is over.
     assert block.timestamp < self.auctionEnd
     # Check if bid is high enough
