@@ -37,7 +37,7 @@ State variables are accessed via the :ref:`self<constants-self>` object.
 
     self.storedData = 123
 
-See the documentation on :ref:`Types <types>` or `Scoping and Declarations <scoping>`_ for more information.
+See the documentation on :ref:`Types<types>` or :ref:`Scoping and Declarations<scoping>` for more information.
 
 .. _structure-functions:
 
