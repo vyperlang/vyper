@@ -13,7 +13,7 @@ extras_require = {
         "pytest-cov>=2.10,<3.0",
         "pytest-xdist>=1.32,<2.0",
         "eth-tester[py-evm]>=0.5.0b1,<0.6",
-        "web3>=5.11,<6.0",
+        "web3==5.12.3",
         "tox>=3.15,<4.0",
         "lark-parser==0.10.0",
         "hypothesis[lark]>=5.37.1,<6.0",
