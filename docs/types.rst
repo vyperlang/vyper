@@ -38,7 +38,7 @@ Operators
 ====================  ===================
 Operator              Description
 ====================  ===================
-``x not y``           Logical negation
+``not x``             Logical negation
 ``x and y``           Logical conjunction
 ``x or y``            Logical disjunction
 ``x == y``            Equality
