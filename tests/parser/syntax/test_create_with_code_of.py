@@ -2,7 +2,7 @@ import pytest
 from pytest import raises
 
 from vyper import compiler
-from vyper.exceptions import SyntaxException
+from vyper.exceptions import ArgumentException, SyntaxException
 
 fail_list = [
     """
@@ -15,7 +15,7 @@ def foo():
 
 @pytest.mark.parametrize("bad_code", fail_list)
 def test_type_mismatch_exception(bad_code):
-    with raises(SyntaxException):
+    with raises((SyntaxException, ArgumentException)):
         compiler.compile_code(bad_code)
 
 

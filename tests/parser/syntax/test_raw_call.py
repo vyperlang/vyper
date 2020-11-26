@@ -1,7 +1,7 @@
 import pytest
 
 from vyper import compiler
-from vyper.exceptions import InvalidType, SyntaxException
+from vyper.exceptions import ArgumentException, InvalidType, SyntaxException
 
 fail_list = [
     (
@@ -12,7 +12,7 @@ def foo():
         0x1234567890123456789012345678901234567890, b"cow", max_outsize=4, max_outsize=9
     )
     """,
-        SyntaxException,
+        (SyntaxException, ArgumentException),
     ),
     (
         """
