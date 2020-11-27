@@ -5,7 +5,7 @@ from decimal import Decimal
 from vyper import ast as vy_ast
 from vyper.exceptions import InvalidLiteral, StructureException, TypeMismatch
 from vyper.functions.signatures import signature
-from vyper.parser.arg_clamps import int128_clamp
+from vyper.parser.arg_clamps import address_clamp, int128_clamp
 from vyper.parser.parser_utils import LLLnode, byte_array_to_num, getpos
 from vyper.types import BaseType, ByteArrayType, StringType, get_type
 from vyper.utils import DECIMAL_DIVISOR, MemoryPositions, SizeLimits
@@ -256,9 +256,8 @@ def to_bytes32(expr, args, kwargs, context):
 
 @signature(("bytes32"), "*")
 def to_address(expr, args, kwargs, context):
-    in_arg = args[0]
-
-    return LLLnode(value=in_arg.value, args=in_arg.args, typ=BaseType("address"), pos=getpos(expr))
+    lll_node = ["with", "_in_arg", args[0], ["seq", address_clamp("_in_arg"), "_in_arg"]]
+    return LLLnode.from_list(lll_node, typ=BaseType("address"), pos=getpos(expr))
 
 
 def _to_bytelike(expr, args, kwargs, context, bytetype):
