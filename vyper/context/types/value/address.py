@@ -3,7 +3,7 @@ from vyper.context.types.bases import BasePrimitive, MemberTypeDefinition
 from vyper.context.types.value.boolean import BoolDefinition
 from vyper.context.types.value.bytes_fixed import Bytes32Definition
 from vyper.context.types.value.numeric import Uint256Definition
-from vyper.exceptions import InvalidLiteral
+from vyper.exceptions import CompilerPanic, InvalidLiteral
 from vyper.utils import checksum_encode
 
 
@@ -30,9 +30,6 @@ class AddressPrimitive(BasePrimitive):
         if len(addr) != 42:
             raise InvalidLiteral("Invalid literal for type 'address'", node)
         if checksum_encode(addr) != addr:
-            raise InvalidLiteral(
-                "Address checksum mismatch. If you are sure this is the right "
-                f"address, the correct checksummed form is: {checksum_encode(addr)}",
-                node,
-            )
+            # this should have been caught in `vyper.ast.nodes.Hex.validate`
+            raise CompilerPanic("Address checksum mismatch")
         return AddressDefinition()
