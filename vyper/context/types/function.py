@@ -280,8 +280,6 @@ class ContractFunction(BaseTypeDefinition):
                 )
             if arg.arg in arguments:
                 raise ArgumentException(f"Function contains multiple inputs named {arg.arg}", arg)
-            if arg.arg in namespace["self"].members:
-                raise NamespaceCollision("Name shadows an existing storage-scoped value", arg)
             if arg.arg in namespace:
                 raise NamespaceCollision(arg.arg, arg)
 

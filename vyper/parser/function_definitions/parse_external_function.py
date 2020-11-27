@@ -45,14 +45,6 @@ def validate_external_function(
             "__init__ function may not have default parameters.", code
         )
 
-    # Check for duplicate variables with globals
-    for arg in sig.args:
-        if arg.name in global_ctx._globals:
-            raise FunctionDeclarationException(
-                "Variable name duplicated between " "function arguments and globals: " + arg.name,
-                code,
-            )
-
 
 def parse_external_function(
     code: ast.FunctionDef, sig: FunctionSignature, context: Context, is_contract_payable: bool
