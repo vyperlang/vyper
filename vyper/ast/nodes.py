@@ -763,11 +763,13 @@ class Bytes(Constant):
     def __init__(self, parent: Optional["VyperNode"] = None, **kwargs: dict):
         super().__init__(parent, **kwargs)
         if isinstance(self.value, str):
-            self.value = self.value.encode("utf8")
+            # convert hex string to bytes
+            length = len(self.value) // 2 - 1
+            self.value = int(self.value, 16).to_bytes(length, "big")
 
     def to_dict(self):
         ast_dict = super().to_dict()
-        ast_dict["value"] = self.value.decode("utf8")
+        ast_dict["value"] = f"0x{self.value.hex()}"
         return ast_dict
 
     @property
