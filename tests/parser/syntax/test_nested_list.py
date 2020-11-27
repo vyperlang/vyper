@@ -69,6 +69,21 @@ def foo() -> int128[3]:
     """,
         StructureException,
     ),
+    (
+        """
+# for loops only allowed on base types
+struct Baz:
+    a: uint256
+bar: Baz[3]
+
+@external
+def foo():
+    for x in self.bar:
+        pass
+
+    """,
+        StructureException,
+    ),
 ]
 
 
