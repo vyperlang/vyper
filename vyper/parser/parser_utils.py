@@ -174,6 +174,11 @@ def make_byte_slice_copier(destination, source, length, max_length, pos=None):
         loader = ["mload", ["add", "_pos", ["mul", 32, ["mload", MemoryPositions.FREE_LOOP_INDEX]]]]
     elif source.location == "storage":
         loader = ["sload", ["add", "_pos", ["mload", MemoryPositions.FREE_LOOP_INDEX]]]
+    elif source.location == "calldata":
+        loader = [
+            "calldataload",
+            ["add", "_pos", ["mul", 32, ["mload", MemoryPositions.FREE_LOOP_INDEX]]],
+        ]
     else:
         raise CompilerPanic(f"Unsupported location: {source.location}")
     # Where to paste it?
