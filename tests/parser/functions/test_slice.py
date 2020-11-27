@@ -22,24 +22,19 @@ def bar(inp1: Bytes[10]) -> int128:
 
     assert c.bar(b"badminton") == 35
 
-    print("Passed slice test")
-
 
 def test_test_slice2(get_contract_with_gas_estimation):
-    # TODO once parser is refactored so that `i` is `uint256`, remove call to `convert`
     test_slice2 = """
 @external
 def slice_tower_test(inp1: Bytes[50]) -> Bytes[50]:
     inp: Bytes[50] = inp1
     for i in range(1, 11):
-        inp = slice(inp, 1, convert(30 - i * 2, uint256))
+        inp = slice(inp, 1, 30 - i * 2)
     return inp
     """
     c = get_contract_with_gas_estimation(test_slice2)
     x = c.slice_tower_test(b"abcdefghijklmnopqrstuvwxyz1234")
     assert x == b"klmnopqrst", x
-
-    print("Passed advanced slice test")
 
 
 def test_test_slice3(get_contract_with_gas_estimation):
@@ -68,8 +63,6 @@ def bar(inp1: Bytes[50]) -> int128:
 
     assert c.bar(b"badminton") == 35
 
-    print("Passed storage slice test")
-
 
 def test_test_slice4(get_contract_with_gas_estimation, assert_tx_failed):
     test_slice4 = """
@@ -90,8 +83,6 @@ def foo(inp: Bytes[10], start: uint256, _len: uint256) -> Bytes[10]:
     assert_tx_failed(lambda: c.foo(b"badminton", 1, 9))
     assert_tx_failed(lambda: c.foo(b"badminton", 9, 1))
     assert_tx_failed(lambda: c.foo(b"badminton", 10, 0))
-
-    print("Passed slice edge case test")
 
 
 def test_slice_at_end(get_contract):
