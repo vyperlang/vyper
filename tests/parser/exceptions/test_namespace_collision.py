@@ -26,12 +26,6 @@ def foo():
     """,
     """
 x: int128
-
-@external
-def foo(x: int128): pass
-    """,
-    """
-x: int128
 x: int128
     """,
     """
@@ -60,3 +54,25 @@ int128: Bytes[3]
 def test_insufficient_arguments(bad_code):
     with pytest.raises(NamespaceCollision):
         compiler.compile_code(bad_code)
+
+
+pass_list = [
+    """
+x: int128
+
+@external
+def foo(x: int128): pass
+    """,
+    """
+x: int128
+
+@external
+def foo():
+    x: int128 = 1234
+    """,
+]
+
+
+@pytest.mark.parametrize("code", pass_list)
+def test_valid(code):
+    compiler.compile_code(code)
