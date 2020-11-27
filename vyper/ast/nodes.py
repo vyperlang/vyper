@@ -15,7 +15,12 @@ from vyper.exceptions import (
     ZeroDivisionException,
 )
 from vyper.settings import VYPER_ERROR_CONTEXT_LINES, VYPER_ERROR_LINE_NUMBERS
-from vyper.utils import MAX_DECIMAL_PLACES, SizeLimits, annotate_source_code
+from vyper.utils import (
+    MAX_DECIMAL_PLACES,
+    SizeLimits,
+    annotate_source_code,
+    checksum_encode,
+)
 
 NODE_BASE_ATTRIBUTES = (
     "_children",
@@ -712,7 +717,7 @@ class Decimal(Num):
         super().validate()
 
 
-class Hex(Num):
+class Hex(Constant):
     """
     A hexadecimal value, e.g. `0xFF`
 
@@ -723,10 +728,17 @@ class Hex(Num):
     """
 
     __slots__ = ()
+    _translated_fields = {"n": "value"}
 
     def validate(self):
         if len(self.value) % 2:
             raise InvalidLiteral("Hex notation requires an even number of digits", self)
+        if len(self.value) == 42 and checksum_encode(self.value) != self.value:
+            raise InvalidLiteral(
+                "Address checksum mismatch. If you are sure this is the right "
+                f"address, the correct checksummed form is: {checksum_encode(self.value)}",
+                self,
+            )
 
 
 class Str(Constant):
