@@ -1,3 +1,6 @@
+import pytest
+
+
 def test_test_slice(get_contract_with_gas_estimation):
     test_slice = """
 
@@ -96,3 +99,124 @@ def ret10_slice() -> Bytes[10]:
 
     c = get_contract(code)
     assert c.ret10_slice() == b"A"
+
+
+code_bytes32 = [
+    """
+foo: bytes32
+
+@external
+def __init__():
+    self.foo = 0x0001020304050607080910111213141516171819202122232425262728293031
+
+@external
+def bar() -> Bytes[5]:
+    return slice(self.foo, 3, 5)
+    """,
+    """
+foo: bytes32
+
+@external
+def __init__():
+    self.foo = 0x0001020304050607080910111213141516171819202122232425262728293031
+
+@external
+def bar() -> Bytes[32]:
+    a: uint256 = 3
+    b: uint256 = 5
+    return slice(self.foo, a, b)
+    """,
+    """
+@external
+def bar() -> Bytes[5]:
+    foo: bytes32 = 0x0001020304050607080910111213141516171819202122232425262728293031
+    return slice(foo, 3, 5)
+    """,
+    """
+@external
+def bar() -> Bytes[32]:
+    b: uint256 = 5
+    foo: bytes32 = 0x0001020304050607080910111213141516171819202122232425262728293031
+    a: uint256 = 3
+    return slice(foo, a, b)
+    """,
+]
+
+
+@pytest.mark.parametrize("code", code_bytes32)
+def test_slice_bytes32(get_contract, code):
+
+    c = get_contract(code)
+    assert c.bar().hex() == "0304050607"
+
+
+code_bytes32_calldata = [
+    """
+@external
+def bar(foo: bytes32) -> Bytes[32]:
+    return slice(foo, 3, 5)
+    """,
+    """
+@external
+def bar(foo: bytes32) -> Bytes[32]:
+    b: uint256 = 5
+    a: uint256 = 3
+    return slice(foo, a, b)
+    """,
+]
+
+
+@pytest.mark.parametrize("code", code_bytes32_calldata)
+def test_slice_bytes32_calldata(get_contract, code):
+
+    c = get_contract(code)
+    assert (
+        c.bar("0x0001020304050607080910111213141516171819202122232425262728293031").hex()
+        == "0304050607"
+    )
+
+
+code_bytes32_calldata_extended = [
+    (
+        """
+@external
+def bar(a: uint256, foo: bytes32, b: uint256) -> Bytes[32]:
+    return slice(foo, 3, 5)
+    """,
+        "0304050607",
+    ),
+    (
+        """
+@external
+def bar(a: uint256, foo: bytes32, b: uint256) -> Bytes[32]:
+    return slice(foo, a, b)
+    """,
+        "0304050607",
+    ),
+    (
+        """
+@external
+def bar(a: uint256, foo: bytes32, b: uint256) -> Bytes[32]:
+    return slice(foo, 31, b-4)
+    """,
+        "31",
+    ),
+    (
+        """
+@external
+def bar(a: uint256, foo: bytes32, b: uint256) -> Bytes[32]:
+    return slice(foo, 0, a+b)
+    """,
+        "0001020304050607",
+    ),
+]
+
+
+@pytest.mark.parametrize("code,result", code_bytes32_calldata_extended)
+def test_slice_bytes32_calldata_extended(get_contract, code, result):
+
+    c = get_contract(code)
+    assert (
+        c.bar(3, "0x0001020304050607080910111213141516171819202122232425262728293031", 5).hex()
+        == result
+    )
