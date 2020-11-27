@@ -80,6 +80,24 @@ def in_test(x: int128) -> bool:
     assert c.in_test(7) is True
 
 
+def test_cmp_not_in_list(get_contract_with_gas_estimation):
+    code = """
+@external
+def in_test(x: int128) -> bool:
+    if x not in [9, 7, 6, 5]:
+        return True
+    return False
+    """
+
+    c = get_contract_with_gas_estimation(code)
+
+    assert c.in_test(1) is True
+    assert c.in_test(-7) is True
+    assert c.in_test(-9) is True
+    assert c.in_test(5) is False
+    assert c.in_test(7) is False
+
+
 def test_mixed_in_list(assert_compile_failed, get_contract_with_gas_estimation):
     code = """
 @external
