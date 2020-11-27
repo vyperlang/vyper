@@ -254,7 +254,7 @@ def to_bytes32(expr, args, kwargs, context):
         )
 
 
-@signature(("bytes32"), "*")
+@signature(("bytes32", "uint256"), "*")
 def to_address(expr, args, kwargs, context):
     lll_node = ["with", "_in_arg", args[0], ["seq", address_clamp("_in_arg"), "_in_arg"]]
     return LLLnode.from_list(lll_node, typ=BaseType("address"), pos=getpos(expr))
