@@ -1090,6 +1090,14 @@ class In(VyperNode):
         return left in right
 
 
+class NotIn(VyperNode):
+    __slots__ = ()
+    _description = "exclusion"
+
+    def _op(self, left, right):
+        return left not in right
+
+
 class Call(VyperNode):
     __slots__ = ("func", "args", "keywords", "keyword")
 
