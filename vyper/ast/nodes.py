@@ -717,7 +717,7 @@ class Decimal(Num):
         super().validate()
 
 
-class Hex(Num):
+class Hex(Constant):
     """
     A hexadecimal value, e.g. `0xFF`
 
@@ -728,6 +728,7 @@ class Hex(Num):
     """
 
     __slots__ = ()
+    _translated_fields = {"n": "value"}
 
     def validate(self):
         if len(self.value) % 2:
