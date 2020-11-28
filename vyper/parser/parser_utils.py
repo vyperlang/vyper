@@ -443,7 +443,6 @@ def pack_arguments(signature, args, context, stmt_expr, is_external_call):
     pos = getpos(stmt_expr)
     setters = []
     staticarray_offset = 0
-    needpos = False
 
     maxlen = sum([get_size_of_type(arg.typ) for arg in signature.args]) * 32
     if is_external_call:
@@ -458,6 +457,10 @@ def pack_arguments(signature, args, context, stmt_expr, is_external_call):
     if len(signature.args) != len(args):
         return
 
+    # check for dynamic-length types
+    dynamic_remaining = len([i for i in signature.args if isinstance(i.typ, ByteArrayLike)])
+    needpos = bool(dynamic_remaining)
+
     for i, (arg, typ) in enumerate(zip(args, [arg.typ for arg in signature.args])):
         if isinstance(typ, BaseType):
             setters.append(
@@ -471,31 +474,34 @@ def pack_arguments(signature, args, context, stmt_expr, is_external_call):
             )
 
         elif isinstance(typ, ByteArrayLike):
+            dynamic_remaining -= 1
             setters.append(["mstore", placeholder + staticarray_offset + i * 32, "_poz"])
             arg_copy = LLLnode.from_list("_s", typ=arg.typ, location=arg.location)
             target = LLLnode.from_list(["add", placeholder, "_poz"], typ=typ, location="memory",)
+            pos_setter = "pass"
+
             # if `arg.value` is None, this is a call to `empty()`
             # if `arg.typ.maxlen` is 0, this is a literal "" or b""
             if arg.value is None or arg.typ.maxlen == 0:
-                setters.append(["seq", mzero(target, 64), ["set", "_poz", ["add", "_poz", 64]]])
+                if dynamic_remaining:
+                    # only adjust the dynamic pointer if this is not the last dynamic type
+                    pos_setter = ["set", "_poz", ["add", "_poz", 64]]
+                setters.append(["seq", mzero(target, 64), pos_setter])
             else:
+                if dynamic_remaining:
+                    pos_setter = [
+                        "set",
+                        "_poz",
+                        ["add", 32, ["ceil32", ["add", "_poz", get_length(arg_copy)]]],
+                    ]
                 setters.append(
                     [
                         "with",
                         "_s",
                         arg,
-                        [
-                            "seq",
-                            make_byte_array_copier(target, arg_copy, pos),
-                            [
-                                "set",
-                                "_poz",
-                                ["add", 32, ["ceil32", ["add", "_poz", get_length(arg_copy)]]],
-                            ],
-                        ],
+                        ["seq", make_byte_array_copier(target, arg_copy, pos), pos_setter],
                     ]
                 )
-            needpos = True
 
         elif isinstance(typ, (StructType, ListType)):
             if has_dynamic_data(typ):
