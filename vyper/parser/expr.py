@@ -675,12 +675,11 @@ class Expr:
         else:
             compare_sequence = ["seq"] + for_loop_sequence
 
-        # Compare the result of the repeat loop to 1, to know if a match was found.
-        lll_node = LLLnode.from_list(
-            ["eq", 1, compare_sequence], typ="bool", annotation="in comporator"
-        )
+        if isinstance(self.expr.op, vy_ast.NotIn):
+            # for `not in`, invert the result
+            compare_sequence = ["iszero", compare_sequence]
 
-        return lll_node
+        return LLLnode.from_list(compare_sequence, typ="bool", annotation="in comparator")
 
     @staticmethod
     def _signed_to_unsigned_comparision_op(op):
@@ -706,7 +705,9 @@ class Expr:
             # TODO: Can this if branch be removed ^
             pass
 
-        elif isinstance(self.expr.op, vy_ast.In) and isinstance(right.typ, ListType):
+        elif isinstance(self.expr.op, (vy_ast.In, vy_ast.NotIn)) and isinstance(
+            right.typ, ListType
+        ):
             if left.typ != right.typ.subtype:
                 return
             return self.build_in_comparator()

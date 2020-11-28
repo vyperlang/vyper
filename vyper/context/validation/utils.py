@@ -162,7 +162,7 @@ class _ExprTypeChecker:
 
     def types_from_Compare(self, node):
         # comparison: `x < y`
-        if isinstance(node.op, vy_ast.In):
+        if isinstance(node.op, (vy_ast.In, vy_ast.NotIn)):
             # x in y
             left = self.get_possible_types_from_node(node.left)
             right = self.get_possible_types_from_node(node.right)

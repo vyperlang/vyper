@@ -230,6 +230,7 @@ _IN: "in"
            | comparator _LE atom ->  le
            | comparator _GE atom ->  ge
            | comparator _IN atom ->  in
+           | comparator _NOT _IN atom ->  in
 
 // NOTE: Must end recursive cycle like this (with `atom` calling `operation`)
 ?atom: variable_access
