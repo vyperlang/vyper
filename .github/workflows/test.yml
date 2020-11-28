@@ -135,15 +135,6 @@ jobs:
       with:
         python-version: 3.9
 
-    - name: Install Rustup
-      run: sudo snap install rustup --classic
-
-    - name: Install nightly Rust
-      run: rustup toolchain install nightly
-
-    - name: Use nightly Rust as default
-      run: rustup default nightly
-
     - name: Install Tox
       run: pip install tox
 
