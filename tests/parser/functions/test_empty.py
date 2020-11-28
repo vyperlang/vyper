@@ -538,3 +538,51 @@ def baz():
 )
 def test_clear_typecheck(contract, get_contract, assert_compile_failed):
     assert_compile_failed(lambda: get_contract(contract), TypeMismatch)
+
+
+@pytest.mark.parametrize(
+    "a,b,expected",
+    [
+        ("empty(Bytes[65])", "b'hello'", [b"hello", b""]),
+        ("b'hello'", "empty(Bytes[33])", [b"", b"hello"]),
+        (
+            "empty(Bytes[65])",
+            "b'thirty three bytes long baby!!!!!'",
+            [b"thirty three bytes long baby!!!!!", b""],
+        ),
+        (
+            "b'thirty three bytes long baby!!!aathirty three bytes long baby!!!a'",
+            "b'thirty three bytes long baby!!!aa'",
+            [
+                b"thirty three bytes long baby!!!aa",
+                b"thirty three bytes long baby!!!aathirty three bytes long baby!!!a",
+            ],
+        ),
+    ],
+)
+def test_empty_as_func_arg(get_contract, a, b, expected):
+    code_a = """
+@view
+@external
+def foo(
+    a: uint256, b: Bytes[65], c: uint256, d: Bytes[33]
+) -> (uint256, Bytes[33], Bytes[65], uint256):
+    return a, d, b, c
+    """
+
+    code_b = f"""
+interface Foo:
+    def foo(
+        a: uint256, b: Bytes[65], c: uint256, d: Bytes[33]
+    ) -> (uint256, Bytes[33], Bytes[65], uint256): view
+
+@view
+@external
+def bar(a: address) -> (uint256, Bytes[33], Bytes[65], uint256):
+    return Foo(a).foo(12, {a}, 42, {b})
+    """
+
+    c1 = get_contract(code_a)
+    c2 = get_contract(code_b)
+
+    assert c2.bar(c1.address) == [12] + expected + [42]
