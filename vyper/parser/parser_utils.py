@@ -474,22 +474,27 @@ def pack_arguments(signature, args, context, stmt_expr, is_external_call):
             setters.append(["mstore", placeholder + staticarray_offset + i * 32, "_poz"])
             arg_copy = LLLnode.from_list("_s", typ=arg.typ, location=arg.location)
             target = LLLnode.from_list(["add", placeholder, "_poz"], typ=typ, location="memory",)
-            setters.append(
-                [
-                    "with",
-                    "_s",
-                    arg,
+            # if `arg.value` is None, this is a call to `empty()`
+            # if `arg.typ.maxlen` is 0, this is a literal "" or b""
+            if arg.value is None or arg.typ.maxlen == 0:
+                setters.append(["seq", mzero(target, 64), ["set", "_poz", ["add", "_poz", 64]]])
+            else:
+                setters.append(
                     [
-                        "seq",
-                        make_byte_array_copier(target, arg_copy, pos),
+                        "with",
+                        "_s",
+                        arg,
                         [
-                            "set",
-                            "_poz",
-                            ["add", 32, ["ceil32", ["add", "_poz", get_length(arg_copy)]]],
+                            "seq",
+                            make_byte_array_copier(target, arg_copy, pos),
+                            [
+                                "set",
+                                "_poz",
+                                ["add", 32, ["ceil32", ["add", "_poz", get_length(arg_copy)]]],
+                            ],
                         ],
-                    ],
-                ]
-            )
+                    ]
+                )
             needpos = True
 
         elif isinstance(typ, (StructType, ListType)):
