@@ -61,11 +61,9 @@ def make_arg_clamper(datapos, mempos, typ, is_init=False):
         return LLLnode.from_list(lll, typ=typ, annotation="checking bool input")
     # Addresses: make sure they're in range
     elif is_base_type(typ, "address"):
-        if version_check(begin="constantinople"):
-            lll = ["assert", ["iszero", ["shr", 160, data_decl]]]
-        else:
-            lll = ["uclamplt", data_decl, ["mload", MemoryPositions.ADDRSIZE]]
-        return LLLnode.from_list(lll, typ=typ, annotation="checking address input")
+        return LLLnode.from_list(
+            address_clamp(data_decl), typ=typ, annotation="checking address input"
+        )
     # Bytes: make sure they have the right size
     elif isinstance(typ, ByteArrayLike):
         return LLLnode.from_list(
@@ -122,6 +120,13 @@ def make_arg_clamper(datapos, mempos, typ, is_init=False):
     # Otherwise don't make any checks
     else:
         return LLLnode.from_list("pass")
+
+
+def address_clamp(lll_node):
+    if version_check(begin="constantinople"):
+        return ["assert", ["iszero", ["shr", 160, lll_node]]]
+    else:
+        return ["uclamplt", lll_node, ["mload", MemoryPositions.ADDRSIZE]]
 
 
 def int128_clamp(lll_node):
