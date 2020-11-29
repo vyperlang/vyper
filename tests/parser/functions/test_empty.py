@@ -586,3 +586,33 @@ def bar(a: address) -> (uint256, Bytes[33], Bytes[65], uint256):
     c2 = get_contract(code_b)
 
     assert c2.bar(c1.address) == [12] + expected + [42]
+
+
+def test_empty_array_in_event_logging(get_contract, get_logs):
+    code = """
+event MyLog:
+    arg1: Bytes[64]
+    arg2: int128[2][3]
+    arg3: int128
+    arg4: Bytes[64]
+    arg5: uint256[3]
+
+@external
+def foo():
+    log MyLog(
+        b'hellohellohellohellohellohellohellohellohello',
+        empty(int128[2][3]),
+        314159,
+        b'helphelphelphelphelphelphelphelphelphelphelp',
+        empty(uint256[3])
+    )
+    """
+
+    c = get_contract(code)
+    log = get_logs(c.foo(transact={}), c, "MyLog")[0]
+
+    assert log.args.arg1 == b"hello" * 9
+    assert log.args.arg2 == [[0, 0], [0, 0], [0, 0]]
+    assert log.args.arg3 == 314159
+    assert log.args.arg4 == b"help" * 11
+    assert log.args.arg5 == [0, 0, 0]
