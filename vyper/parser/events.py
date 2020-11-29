@@ -1,5 +1,5 @@
 from vyper import ast as vy_ast
-from vyper.exceptions import TypeMismatch
+from vyper.exceptions import StructureException, TypeMismatch
 from vyper.parser.expr import Expr
 from vyper.parser.lll_node import LLLnode
 from vyper.parser.parser_utils import (
@@ -301,6 +301,11 @@ def pack_logging_data(expected_data, args, context, pos):
     for i, (arg, data) in enumerate(zip(args, expected_data)):
         typ = data.typ
         if isinstance(typ, ByteArrayLike):
+            if isinstance(arg, vy_ast.Call) and arg.func.get("id") == "empty":
+                # TODO add support for this
+                raise StructureException(
+                    "Cannot use `empty` on Bytes or String types within an event log", arg
+                )
             pack_args_by_32(
                 holder=holder,
                 maxlen=maxlen,
