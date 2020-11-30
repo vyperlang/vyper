@@ -37,8 +37,8 @@ def participate():
 # Enough money was raised! Send funds to the beneficiary
 @external
 def finalize():
-    assert block.timestamp >= self.deadline, "deadline not met (yet)"
-    assert self.balance >= self.goal, "invalid balance"
+    assert block.timestamp >= self.deadline, "deadline has passed"
+    assert self.balance >= self.goal, "the goal has been reached"
 
     selfdestruct(self.beneficiary)
 
