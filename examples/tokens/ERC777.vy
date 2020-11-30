@@ -1,4 +1,4 @@
-# @dev Implementation of ERC-777 token standard.
+# @title Implementation of ERC-777 token standard.
 # @author Carl Farterson (@carlfarterson)
 # https://github.com/ethereum/EIPs/blob/master/EIPS/eip-777.md
 
@@ -93,51 +93,75 @@ def __init__(_name: String[64], _symbol: String[32]): # TODO: add defaultOperato
     self.name = _name
     self.symbol = symbol
 
-@external
-def transfer(recipient: address, amount: uint256) -> bool:
-    """
-    @dev Moves `amount` tokens from the caller's account to `recipient`.
-    @param recipient Address to receive tokens.
-    @param amount Quantity of token sent.
-    @return True if operation succeeded, False otherwise.
-    """
-    assert recipient != ZERO_ADDRESS
-    _from: address = msg.sender
-    self._callTokensToSend(_from, _from, recipient, amount, '', '')
-    self._move(_from, _from, recipient, amount, '', '')
-    self._callTokensReceived(_from, _from, recipient, amount, '', '', False)
-    return True
 
 @external
-def burn(amount: uint256, data: bytes32) -> bool:
+def transfer(_to: address, _value: uint256) -> bool:
     """
-    @dev ...
-    @param amount ...
-    @param data ...
-    @return bool
+    @dev Moves `_value` tokens from the caller's account to `_to`.
+    @param _to Address to receive tokens.
+    @param _value Quantity of token sent.
+    @return True if operation succeeded, False otherwise.
     """
-    return self._burn(msg.sender, amount, data, '')
+    assert _to != ZERO_ADDRESS
+    _from: address = msg.sender
+    self._callTokensToSend(_from, _from, _to, _value, '', '')
+    self._move(_from, _from, _to, _value, '', '')
+    self._callTokensReceived(_from, _from, _to, _value, '', '', False)
+    return True
+
+
+@external
+def burn(_value: uint256, data: bytes32) -> bool:
+    """
+    @dev Burn an amount (`_value`) of the token of msg.sender.
+    @param _value Quantity of token burned.
+    @param data Extra information provided (if any).
+    @return True if operation succeeded, False otherwise.
+    """
+    return self._burn(msg.sender, _value, data, '')
+
+
+@internal
+def _burn(_from: address, _value: uint256, userData: bytes32, operatorData: bytes32):
+    """
+    @dev Burn `_value` tokens from address `_from`.
+    @param _from Token holder address.
+    @param _value Quantity of tokens burned.
+    @param userData Extra information provided by the user (if any).
+    @param operatorData Extra information provided by the operator (if any).
+    """
+    assert account != ZERO_ADDRESS
+    operator: address = msg.sender
+    
+    self._beforeTokenTransfer(operator, _from, ZERO_ADDRESS, _value)
+    self._callTokensToSend(operator, _from, ZERO_ADDRESS, _value, userData, operatorData)
+    self._totalSupply -= _value
+    self.balanceOf[account] -= _value
+    log Burned(operator, _from, _value, userData, operatorData)
+    log Transfer(_from, ZERO_ADDRESS, _value)
+
 
 @external
 def isOperatorFor(operator: address, holder: address) -> bool:
     """
     @dev ...
-    @param operator
-    @param holder
+    @param operator The address which controls the tokens.
+    @param holder The address which holds the tokens.
     @return bool
     """
     return operator == holder ||
         self.operators[holder][operator] ||
-        self.defaultOperators[operator] and
-        self.revokedDefaultOperators[holder][operator]
+        (self.defaultOperators[operator] and
+        self.revokedDefaultOperators[holder][operator])
+
 
 @external
 def authorizeOperator(operator: address):
     """
-    @dev ...
-    @param operator ...
+    @dev Make an account an operator of the caller.
+    @param operator The address to control tokens.
     """
-    assert msg.sender == operator
+    assert isOperatorFor(operator, msg.sender)
     if self.defaultOperators[operator]:
         delete self.revokedDefaultOperators[msg.sender][operator] # TODO: `delete`
     else:
@@ -145,13 +169,14 @@ def authorizeOperator(operator: address):
 
     log AuthorizedOperator(operator, msg.sender)
 
+
 @external
 def revokeOperator(operator: address):
     """
-    @dev ...
-    @param operator ...
+    @dev Revoke an account's operator status for the caller.
+    @param operator The address to lose operator status.
     """
-    assert operator == msg.sender
+    assert operator != msg.sender
     if self.defaultOperators[operator]:
         self.revokedDefaultOperators[msg.sender][operator] = True
     else:
@@ -159,111 +184,154 @@ def revokeOperator(operator: address):
 
     log RevokedOperator(operator, msg.sender)
 
+
 @view
 @external
-def defaultOperators() -> address[]:  # TODO: how do  you signify returning an array of addresses?
+def defaultOperators():
     return self.defaultOperatorsArray
+
 
 @external
 def operatorSend(sender: address, recipient: address, amount: uint256, data: bytes32, operatorData: bytes32):
     """
-    @dev ...
-    @param sender ...
-    @param recipient ...
-    @param amount ...
-    @param data ...
-    @param operatorData ...
+    @dev Moves `amount` of tokens from `sender` to `recipient`.
+    @dev The caller must be an operator of `sender`.
+    @param sender Address to send tokens.
+    @param recipient Address to receive tokens.
+    @param amount Quantity of token sent.
+    @param data Extra information provided (if any).
+    @param operatorData Extra information provided by the operator (if any).
     """
     assert self.isOperatorFor(msg.sender, sender)
     self._send(sender, recipient, amount, data, operatorData, True)
 
+
 @external
 def operatorBurn(account: address, amount: uint256, data: bytes32, operatorData: bytes32):
     """
-    @dev ...
-    @param account ...
-    @param amount ...
-    @param data ...
-    @param operatorData ...
+    @dev Destroys `amount` tokens from `account`, reducing the total supply.
+    @dev If a send hook is registered for `account`, the corresponding function will
+         be called with `data` and `operatorData`.
+    @param account Address to burn tokens from.
+    @param amount Quantity of token burned.
+    @param data Extra information provided (if any).
+    @param operatorData Extra information provided by the operator (if any).
     """
     assert self.isOperatorFor(msg.sender, account)
     self._burn(account, amount, data, operatorData)
 
+
 @view
 @external
-def allowance(holder: address, spender: address) -> uint256:
+def allowance(_owner : address, _spender : address) -> uint256:
     """
-    @dev ...
-    @param holder ...
-    @param spender ...
-    @return uint256
+    @dev Function to check the amount of tokens that an owner allowed to a spender.
+    @param _owner The address which owns the tokens.
+    @param _spender The address which will spend the tokens.
+    @return An uint256 specifying the amount of tokens still available for the spender.
     """
-    return self._allowances[holder][spender]
+    return self.allowances[_owner][_spender]
+
 
 @external
-def approve(spender: address, value: uint256) -> bool:
+def approve(_spender: address, _value: uint256) -> bool:
     """
-    @dev ...
-    @param spender ...
-    @param value ...
-    @return bool
+    @dev Approve the passed address to spend the specified amount of tokens on behalf of msg.sender.
+    @param _spender The address which will spend the tokens.
+    @param _value Quantity of tokens to approve.
+    @return True if approval succeeded, False otherwise.
     """
     holder: address = msg.sender
-    self._approve(holder, spender, value)
+    self._approve(holder, _spender, _value)
     return True
 
+
+@internal
+def _approve(_holder: address, _spender: address, _value: uint256):
+    """
+    @dev    Approve the passed address to spend the specified amount of tokens on behalf of msg.sender.
+    @param _holder The address which holds the tokens.
+    @param _spender The address which will spend the tokens.
+    @param _value Quantity of tokens to be spent.
+    """
+    assert _holder != ZERO_ADDRESS
+    assert _spender != ZERO_ADDRESS
+    self.allowances[_holder][_spender] = _value
+    log Approval(_holder, _spender, _value)
+
+
 @external
+def transferFrom(_from : address, _to : address, _value : uint256) -> bool:
+    """
+    @dev Transfer tokens from one address to another.
+    @param _from address The address which you want to send tokens from
+    @param _to address The address which you want to transfer to
+    @param _value uint256 the amount of tokens to be transferred
+    @return True if transfer succeeded, False otherwise.
+    """
+    assert _to != ZERO_ADDRESS
+
+    # NOTE: vyper does not allow underflows
+    #       so the following subtraction would revert on insufficient balance
+    self.balanceOf[_from] -= _value
+    self.balanceOf[_to] += _value
+    # NOTE: vyper does not allow underflows
+    #      so the following subtraction would revert on insufficient allowance
+    self.allowances[_from][msg.sender] -= _value
+    log Transfer(_from, _to, _value)
+    return True
+
+
 # NOTE: could broken erc20's without a `assert holder != ZERO_ADDRESS`
 #   withdraw past tokens sent to `ZERO_ADDRESS`
-def transferFrom(holder: address, recipient: address, amount: uint256) -> bool:
+def transferFrom(_to: address, recipient: address, amount: uint256) -> bool:
     """
     @dev
         Moves `amount` tokens from `sender` to `recipient` using the allowance mechanism.
         `amount` is then deducted from the caller's allowance.
-    @param holder ...
-    @param recipient ...
-    @param amount ...
+    @param _to ...
+    @param recipient Address to receive tokens.
+    @param amount Quantity of token transferred.
     @return bool
     """
     assert recipient != ZERO_ADDRESS
-    assert holder != ZERO_ADDRESS
+    assert _to != ZERO_ADDRESS
     spender: address = msg.sender
-    self._callTokensToSend(spender, holder, recipient, amount, '', '')
-    self._move(spender, holder, recipient, amount, '', '')
-    assert self._allowances[holder][spender] - amount > 0
-    self._approve(holder, spender, self._allowances[holder][spender] - amount)
-    self._callTokensReceived(spender, holder, recipient, amount, '', '', False)
+    self._callTokensToSend(spender, _to, recipient, amount, '', '')
+    self._move(spender, _to, recipient, amount, '', '')
+    self._approve(_to, spender, self.allowances[_to][spender] - amount)
+    self._callTokensReceived(spender, _to, recipient, amount, '', '', False)
     return True
 
 @internal
-def _mint(account: address, amount: uint256, userData: bytes32, operatorData: bytes32) -> bool:
+def _mint(_to: address, _value: uint256, userData: bytes32, operatorData: bytes32) -> bool:
     """
-    @dev Creates `amount` tokens and assigns them to `account`, increasing the total supply.
-    @param account ...
-    @param amount ...
-    @param userData ...
-    @param operatorData ...
+    @dev Creates `_value` tokens and assigns them to `_to`, increasing the total supply.
+    @param _to ...
+    @param _value Quantity of token minted.
+    @param userData Extra information provided by the token holder (if any).
+    @param operatorData Extra information provided by the operator (if any).
     @return bool
     """
-    assert account != ZERO_ADDRESS
+    assert _to != ZERO_ADDRESS
     operator: address = msg.sender
-    self._beforeTokenTransfer(operator, ZERO_ADDRESS, account, amount)
-    self._totalSupply += amount
-    self.balanceOf[account] += amount
-    self._callTokensReceived(operator, ZERO_ADDRESS, account, amount, userData, operatorData, True)
-    log Minted(operator, account, amount, userData, operatorData)
-    log Transfer(ZERO_ADDRESS, account, amount)
+    self._beforeTokenTransfer(operator, ZERO_ADDRESS, _to, _value)
+    self._totalSupply += _value
+    self.balanceOf[_to] += _value
+    self._callTokensReceived(operator, ZERO_ADDRESS, _to, _value, userData, operatorData, True)
+    log Minted(operator, _to, _value, userData, operatorData)
+    log Transfer(ZERO_ADDRESS, _to, _value)
 
 # TODO: is `send` a key-word? 
 @internal
 def _send(_from: address, to: address, amount: uint256, userData: bytes32, operatorData: bytes32, requireReceptionAck: bool):
     """
-    @dev Send tokens
-    @param from address token holder address
-    @param to address recipient address
-    @param amount uint256 amount of tokens to transfer
-    @param userData bytes extra information provided by the token holder (if any)
-    @param operatorData bytes extra information provided by the operator (if any)
+    @dev Send `amount` tokens from one address(`_from`) to another address(`to`)
+    @param _from Token holder address.
+    @param recipient Address to receive tokens.
+    @param amount Quantity of token sent.
+    @param userData Extra information provided by the token holder (if any).
+    @param operatorData Extra information provided by the operator (if any).
     @param requireReceptionAck if true, contract recipients are required to implement ERC777TokensRecipient
     """
     assert _from != ZERO_ADDRESS
@@ -273,74 +341,32 @@ def _send(_from: address, to: address, amount: uint256, userData: bytes32, opera
     self._move(operator, _from, to, amount, userData, operatorData)
     self._callTokensReceived(operator, _from, to, amount, userData, operatorData, requireReceptionAck)
 
-def _burn(_from: address, amount: uint256, data: bytes32, operatorData: bytes32):
-    """
-    @dev Burn tokens
-    @param _from address token holder address
-    @param amount uint256 amount of tokens to burn
-    @param data bytes extra information provided by the token holder
-    @param operatorData bytes extra information provided by the operator (if any)
-    """
-    assert account != ZERO_ADDRESS
-    operator: address = msg.sender
-    self._beforeTokenTransfer(operator, _from, ZERO_ADDRESS, amount)
-    self._callTokensToSend(operator, _from, ZERO_ADDRESS, amount, userData, operatorData)
-    assert self.balanceOf[_from] - amount > 0
-    self._totalSupply -= amount
-    self.balanceOf[account] -= amount
-    log Burned(operator, _from, amount, data, operatorData)
-    log Transfer(_from, ZERO_ADDRESS, amount)
-
-def _move(operator: address, _from: address, to: address, amount: uint256, userData: bytes32, operatorData: bytes32):
+def _move(operator: address, _from: address, _to: address, _value: uint256, userData: bytes32, operatorData: bytes32):
     """
     @dev ...
-    @param operator ...
-    @param _from ...
-    @param to ...
-    @param amount ...
-    @param userData ...
-    @param operatorData ...
+    @param operator The address which controls the tokens.
+    @param _from The address which holds the tokens.
+    @param _to The address to receive tokens.
+    @param _value Quantity of token moved.
+    @param userData Extra information provided by the token holder (if any).
+    @param operatorData Extra information provided by the operator (if any).
     """
-    _beforeTokenTransfer(operator, _from, to, amount)
-    assert self.balanceOf[_from] - amount > 0
-    self.balanceOf[_from] -= amount
-    self.balanceOf[to] += amount
-    log Sent(operator, _from, to, amount, userData, operatorData)
-    log Transfer(_from, to, amount)
+    _beforeTokenTransfer(operator, _from, _to, _value)
+    # NOTE: vyper does not allow underflows
+    self.balanceOf[_from] -= _value
+    self.balanceOf[_to] += _value
+    log Sent(operator, _from, _to, _value, userData, operatorData)
+    log Transfer(_from, _to, _value)
 
-def _approve(holder: address, spender: address, value: uint256):
-    assert holder != ZERO_ADDRESS
-     assert sender != ZERO_ADDRESS
-     self._allowances[holder][spender] = value
-     log Approval(holder, spender, value)
-
-# TODO
-def _callTokensToSend(operator: address, _from: address, to: address, amount: uint256, userData: bytes32, operatorData: bytes32):
-    """
-    @dev ...
-    @param operator ...
-    @param _from ...
-    @param to ...
-    @param amount
-    @param userData ...
-    @param operatorData ...
-    """
-    pass
 
 
 # TODO
-def _callTokensReceived(operator: address, _from: address, to: address, amount: uint256, userData: bytes32, operatorData: bytes32, requireReceptionAck: bool):
-    """
-    @dev ...
-    @param operator ...
-    @param _from ...
-    @param to ...
-    @param amount ...
-    @param userData ...
-    @param operatorData ...
-    @param requireReceptionAck ...
-    """
+def _callTokensToSend(operator: address, _from: address, _to: address, _value: uint256, userData: bytes32, operatorData: bytes32):
     pass
 
-def _beforeTokenTransfer(operator: address, _from: address, to: address, amount: uint256):
+# TODO
+def _callTokensReceived(operator: address, _from: address, _to: address, _value: uint256, userData: bytes32, operatorData: bytes32, requireReceptionAck: bool):
+    pass
+
+def _beforeTokenTransfer(operator: address, _from: address, _to: address, _value: uint256):
     pass
