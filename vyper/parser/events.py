@@ -1,5 +1,5 @@
 from vyper import ast as vy_ast
-from vyper.exceptions import TypeMismatch
+from vyper.exceptions import StructureException, TypeMismatch
 from vyper.parser.expr import Expr
 from vyper.parser.lll_node import LLLnode
 from vyper.parser.parser_utils import (
@@ -7,6 +7,7 @@ from vyper.parser.parser_utils import (
     getpos,
     make_byte_array_copier,
     make_setter,
+    mzero,
     unwrap_location,
     zero_pad,
 )
@@ -157,6 +158,13 @@ def pack_args_by_32(
         )
         holder.append(increment_counter)
     elif isinstance(typ, ListType):
+
+        if isinstance(arg, vy_ast.Call) and arg.func.get("id") == "empty":
+            # special case for `empty()` with a static-sized array
+            holder.append(mzero(placeholder, get_size_of_type(typ) * 32))
+            maxlen += (get_size_of_type(typ) - 1) * 32
+            return holder, maxlen
+
         maxlen += (typ.count - 1) * 32
         typ = typ.subtype
 
@@ -225,7 +233,7 @@ def pack_logging_data(expected_data, args, context, pos):
     prealloacted = {}
     for idx, (arg, _expected_arg) in enumerate(zip(args, expected_data)):
 
-        if isinstance(arg, (vy_ast.Str, vy_ast.Call)):
+        if isinstance(arg, (vy_ast.Str, vy_ast.Call)) and arg.get("func.id") != "empty":
             expr = Expr(arg, context)
             source_lll = expr.lll_node
             typ = source_lll.typ
@@ -293,6 +301,11 @@ def pack_logging_data(expected_data, args, context, pos):
     for i, (arg, data) in enumerate(zip(args, expected_data)):
         typ = data.typ
         if isinstance(typ, ByteArrayLike):
+            if isinstance(arg, vy_ast.Call) and arg.func.get("id") == "empty":
+                # TODO add support for this
+                raise StructureException(
+                    "Cannot use `empty` on Bytes or String types within an event log", arg
+                )
             pack_args_by_32(
                 holder=holder,
                 maxlen=maxlen,

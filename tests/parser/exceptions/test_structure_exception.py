@@ -67,6 +67,14 @@ x: Bytes <= wei
     """
 x: String <= 33
     """,
+    """
+event Foo:
+    a: Bytes[4]
+
+@external
+def foo():
+    log Foo(empty(Bytes[4]))
+    """,
 ]
 
 
