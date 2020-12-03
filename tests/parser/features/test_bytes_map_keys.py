@@ -104,3 +104,127 @@ def get_it3(key: Bytes[100000]) -> int128:
     assert c.get_it2() == 1069
     assert c.get_it3(b"a" * 33) == 1069
     assert c.get_it3(b"test") == 0
+
+
+def test_struct_bytes_key_memory(get_contract):
+    code = """
+struct Foo:
+    one: Bytes[5]
+    two: Bytes[100]
+
+a: HashMap[Bytes[100000], int128]
+
+@external
+def __init__():
+    self.a[b"hello"] = 1069
+    self.a[b"potato"] = 31337
+
+@external
+def get_one() -> int128:
+    b: Foo = Foo({one: b"hello", two: b"potato"})
+    return self.a[b.one]
+
+@external
+def get_two() -> int128:
+    b: Foo = Foo({one: b"hello", two: b"potato"})
+    return self.a[b.two]
+"""
+
+    c = get_contract(code)
+
+    assert c.get_one() == 1069
+    assert c.get_two() == 31337
+
+
+def test_struct_bytes_key_storage(get_contract):
+    code = """
+struct Foo:
+    one: Bytes[5]
+    two: Bytes[100]
+
+a: HashMap[Bytes[100000], int128]
+b: Foo
+
+@external
+def __init__():
+    self.a[b"hello"] = 1069
+    self.a[b"potato"] = 31337
+    self.b = Foo({one: b"hello", two: b"potato"})
+
+@external
+def get_one() -> int128:
+    return self.a[self.b.one]
+
+@external
+def get_two() -> int128:
+    return self.a[self.b.two]
+"""
+
+    c = get_contract(code)
+
+    assert c.get_one() == 1069
+    assert c.get_two() == 31337
+
+
+def test_bytes_key_storage(get_contract):
+    code = """
+
+a: HashMap[Bytes[100000], int128]
+b: Bytes[5]
+
+@external
+def __init__():
+    self.a[b"hello"] = 1069
+    self.b = b"hello"
+
+@external
+def get_storage() -> int128:
+    return self.a[self.b]
+"""
+
+    c = get_contract(code)
+
+    assert c.get_storage() == 1069
+
+
+def test_bytes_key_calldata(get_contract):
+    code = """
+
+a: HashMap[Bytes[100000], int128]
+
+
+@external
+def __init__():
+    self.a[b"hello"] = 1069
+
+@external
+def get_calldata(b: Bytes[5]) -> int128:
+    return self.a[b]
+"""
+
+    c = get_contract(code)
+
+    assert c.get_calldata(b"hello") == 1069
+
+
+def test_struct_bytes_hashmap_as_key_in_other_hashmap(get_contract):
+    code = """
+struct Thing:
+    name: Bytes[64]
+
+bar: public(HashMap[uint256, Thing])
+foo: public(HashMap[Bytes[64], uint256])
+
+@external
+def __init__():
+    self.foo[b"hello"] = 31337
+    self.bar[12] = Thing({name: b"hello"})
+
+@external
+def do_the_thing(_index: uint256) -> uint256:
+    return self.foo[self.bar[_index].name]
+    """
+
+    c = get_contract(code)
+
+    assert c.do_the_thing(12) == 31337
