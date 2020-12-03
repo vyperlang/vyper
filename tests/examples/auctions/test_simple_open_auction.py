@@ -4,28 +4,33 @@ EXPIRY = 16
 
 
 @pytest.fixture
-def auction_contract(w3, get_contract):
+def auction_start(w3):
+    return w3.eth.getBlock('latest').timestamp + 1
+
+
+@pytest.fixture
+def auction_contract(w3, get_contract, auction_start):
     with open("examples/auctions/simple_open_auction.vy") as f:
         contract_code = f.read()
-        contract = get_contract(contract_code, *[w3.eth.accounts[0], EXPIRY])
+        contract = get_contract(contract_code, *[w3.eth.accounts[0], auction_start, EXPIRY])
     return contract
 
 
-def test_initial_state(w3, tester, auction_contract):
+def test_initial_state(w3, tester, auction_contract, auction_start):
     # Check beneficiary is correct
     assert auction_contract.beneficiary() == w3.eth.accounts[0]
-    # Check bidding time is `EXPIRY` seconds
-    assert (
-        auction_contract.auctionEnd() == tester.get_block_by_number("latest")["timestamp"] + EXPIRY
-    )  # noqa: E501
-    # Check start time is current block timestamp
-    assert auction_contract.auctionStart() == tester.get_block_by_number("latest")["timestamp"]
+    # Check start time is `auction_start`
+    assert auction_contract.auctionStart() == auction_start
+    # Check time difference between start time and end time is EXPIRY
+    assert auction_contract.auctionEnd() == auction_contract.auctionStart() + EXPIRY
     # Check auction has not ended
     assert auction_contract.ended() is False
     # Check highest bidder is empty
     assert auction_contract.highestBidder() is None
     # Check highest bid is 0
     assert auction_contract.highestBid() == 0
+    # Check end time is more than current block timestamp
+    assert auction_contract.auctionEnd() >= tester.get_block_by_number("latest")["timestamp"]
 
 
 def test_bid(w3, tester, auction_contract, assert_tx_failed):

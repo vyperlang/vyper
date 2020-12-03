@@ -56,25 +56,25 @@ Now, the constructor.
 .. literalinclude:: ../examples/auctions/simple_open_auction.vy
   :language: python
   :lineno-start: 22
-  :lines: 22-26
+  :lines: 22-27
 
-The contract is initialized with two arguments: ``_beneficiary`` of type
-``address`` and ``_bidding_time`` with type ``uint256``, the time difference
-between the start and end of the auction. We then store these two pieces of
-information into the contract variables ``self.beneficiary`` and
-``self.auctionEnd``. Notice that we have access to the current time by
-calling ``block.timestamp``. ``block`` is an object available within any Vyper
-contract and provides information about the block at the time of calling.
-Similar to ``block``, another important object available to us within the
-contract is ``msg``, which provides information on the method caller as we will
-soon see.
+The contract is initialized with three arguments: ``_beneficiary`` of type
+``address``, ``_auction_start`` with type ``uint256`` and ``_bidding_time`` with
+type ``uint256``, the time difference between the start and end of the auction. We
+then store these three pieces of information into the contract variables
+``self.beneficiary``, ``self.auctionStart`` and ``self.auctionEnd`` respectively.
+Notice that we have access to the current time by calling ``block.timestamp``.
+``block`` is an object available within any Vyper contract and provides information
+about the block at the time of calling. Similar to ``block``, another important object
+available to us within the contract is ``msg``, which provides information on the method
+caller as we will soon see.
 
 With initial setup out of the way, lets look at how our users can make bids.
 
 .. literalinclude:: ../examples/auctions/simple_open_auction.vy
   :language: python
-  :lineno-start: 32
-  :lines: 32-43
+  :lineno-start: 33
+  :lines: 33-46
 
 The ``@payable`` decorator will allow a user to send some ether to the
 contract in order to call the decorated method. In this case, a user wanting
@@ -87,20 +87,20 @@ amount of ether a user sends can be accessed by calling ``msg.value``.
 .. note:: ``msg.sender`` and ``msg.value`` can only be accessed from external
   functions. If you require these values within an internal function they must be passed as parameters.
 
-Here, we first check whether the current time is before the auction's end time
-using the ``assert`` function which takes any boolean statement. We also check
-to see if the new bid is greater than the highest bid. If the two ``assert``
-statements pass, we can safely continue to the next lines; otherwise, the
-``bid()`` method will throw an error and revert the transaction. If the two
-``assert`` statements and the check that the previous bid is not equal to zero pass,
-we can safely conclude that we have a valid new highest bid. We will send back
-the previous ``highestBid`` to the previous ``highestBidder`` and set our new
-``highestBid`` and ``highestBidder``.
+Here, we first check whether the current time is within the bidding period by
+comparing with the auction's start and end times using the ``assert`` function
+which takes any boolean statement. We also check to see if the new bid is greater
+than the highest bid. If the three ``assert`` statements pass, we can safely continue
+to the next lines; otherwise, the ``bid()`` method will throw an error and revert the
+transaction. If the two ``assert`` statements and the check that the previous bid is
+not equal to zero pass, we can safely conclude that we have a valid new highest bid.
+We will send back the previous ``highestBid`` to the previous ``highestBidder`` and set
+our new ``highestBid`` and ``highestBidder``.
 
 .. literalinclude:: ../examples/auctions/simple_open_auction.vy
   :language: python
-  :lineno-start: 57
-  :lines: 57-82
+  :lineno-start: 60
+  :lines: 60-85
 
 With the ``endAuction()`` method, we check whether our current time is past
 the ``auctionEnd`` time we set upon initialization of the contract. We also
