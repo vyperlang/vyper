@@ -18,6 +18,7 @@ from vyper.parser.parser_utils import (
     add_variable_offset,
     get_number_as_fraction,
     getpos,
+    make_byte_array_copier,
     make_setter,
     unwrap_location,
 )
@@ -412,6 +413,29 @@ class Expr:
         sub = Expr.parse_variable_location(self.expr.value, self.context)
         if isinstance(sub.typ, (MappingType, ListType)):
             index = Expr.parse_value_expr(self.expr.slice.value, self.context)
+            if isinstance(index.typ, ByteArrayLike) and index.args[0].location == "storage":
+                # Special case - if the key value is a bytes-array type located in
+                # storage, we have to copy it to memory prior to calculating the hash
+                placeholder = self.context.new_internal_variable(index.typ)
+                placeholder_node = LLLnode.from_list(placeholder, typ=index.typ, location="memory")
+                copier = make_byte_array_copier(
+                    placeholder_node,
+                    LLLnode.from_list(index.args[0], typ=index.typ, location="storage"),
+                )
+                return LLLnode.from_list(
+                    [
+                        "seq",
+                        copier,
+                        [
+                            "sha3_64",
+                            sub,
+                            ["sha3", ["add", placeholder, 32], ["mload", placeholder]],
+                        ],
+                    ],
+                    typ=sub.typ.valuetype,
+                    pos=getpos(self.expr),
+                    location="storage",
+                )
         elif isinstance(sub.typ, TupleType):
             index = self.expr.slice.value.n
             if not 0 <= index < len(sub.typ.members):
