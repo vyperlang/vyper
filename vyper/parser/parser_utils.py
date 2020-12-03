@@ -348,9 +348,11 @@ def add_variable_offset(parent, key, pos, array_bounds_check=True):
                         ]
                     )
                 else:
-                    sub = LLLnode.from_list(
-                        ["sha3", ["add", key.args[0].value, 32], ["mload", key.args[0].value]]
-                    )
+                    value = key.args[0].value
+                    if value == "add":
+                        # special case, key is a bytes array within a tuple/struct
+                        value = key.args[0]
+                    sub = LLLnode.from_list(["sha3", ["add", value, 32], key])
         else:
             subtype = typ.valuetype
             sub = base_type_conversion(key, key.typ, typ.keytype, pos=pos)
