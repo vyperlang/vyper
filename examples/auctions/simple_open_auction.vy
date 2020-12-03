@@ -16,7 +16,7 @@ ended: public(bool)
 # Keep track of refunded bids so we can follow the withdraw pattern
 pendingReturns: public(HashMap[address, uint256])
 
-# Create a simple auction with `_auctionStart` and
+# Create a simple auction with `_auction_start` and
 # `_bidding_time` seconds bidding time on behalf of the
 # beneficiary address `_beneficiary`.
 @external
