@@ -2,53 +2,53 @@
 # @author Carl Farterson (@carlfarterson)
 # https://github.com/ethereum/EIPs/blob/master/EIPS/eip-777.md
 
-# from vyper.interfaces import ERC777
+from vyper.interfaces import ERC777
 
-# implements: ERC777
+implements: ERC777
 
-# @dev Emitted when `value` tokens are moved from one account (`from`)
+# @dev Emitted when `_value` tokens are moved from one account (`from`)
 #      to another (`to`).
-# @dev Note that `value` may be zero.
+# @dev Note that `_value` may be zero.
 event Transfer:
-    sender: indexed(address)
-    reciver: indexed(address)
-    value: uint256
-# @dev Emitted when the allowance of a `spender` for an `owner` is set by
-#      a call to {approve}. `value` is the new allowance.
+    _from: indexed(address)
+    _to: indexed(address)
+    _value: uint256
+# @dev Emitted when the allowance of a `_spender` for an `_owner` is set by
+#      a call to {approve}. `_value` is the new allowance.
 event Approval:
-    owner: indexed(address)
-    spender: indexed(address)
-    value: uint256 
+    _owner: indexed(address)
+    _spender: indexed(address)
+    _value: uint256 
 # @dev TODO
 event Sent:
-    operator: indexed(address)
-    sender: indexed(address)
-    to: indexed(address)
-    amount: uint256
-    data: bytes32
-    operatorData: bytes32
+    _operator: indexed(address)
+    _from: indexed(address)
+    _to: indexed(address)
+    _value: uint256
+    _data: bytes32
+    _operatorData: bytes32
 # @dev TODO
 event Minted:
-    operator: indexed(address)
-    to: indexed(address)
-    amount: uint256
-    data: bytes32
-    operatorData: bytes32
+    _operator: indexed(address)
+    _to: indexed(address)
+    _value: uint256
+    _data: bytes32
+    _operatorData: bytes32
 # @dev TODO
 event Burned:
-    operator: indexed(address)
-    sender: indexed(address)
-    amount: uint256
-    data: bytes32
-    operatorData: bytes32
+    _operator: indexed(address)
+    _from: indexed(address)
+    _value: uint256
+    _data: bytes32
+    _operatorData: bytes32
 # @dev TODO
 event AuthorizedOperator:
-    operator: indexed(address)
-    holder: indexed(address)
+    _operator: indexed(address)
+    _owner: indexed(address)
 # @dev TODO
 event RevokedOperator:
-    operator: indexed(address)
-    holder: indexed(address)
+    _operator: indexed(address)
+    _owner: indexed(address)
 
 # @dev Name of the token.
 name: public(String[64])
@@ -59,46 +59,46 @@ totalSupply: public(uint256)
 # @dev Returns the smallest part of the token that is not divisible. This
 #      means all token operations (creation, movement and destruction) must have
 #      amounts that are a multiple of this number.
-granularity = 1
+granularity: constant(uint256) = 1
 # @dev Always return `18`, as per EIP-777 
-decimals = 18
+decimals: constant(uint256) = 18
 
 # @dev By declaring `balanceOf` as public, vyper automatically generates a 'balanceOf()' getter
 #      method to allow access to account balances.
 # @dev The _KeyType will become a required parameter for the getter and it will return _ValueType.
 # @dev See: https://vyper.readthedocs.io/en/v0.1.0-beta.8/types.html?highlight=getter#mappings
-balanceOf: public(map(address, uint256))
+balanceOf: public(HashMap(address, uint256))
 
 # @dev ERC20-allowances
-allowances: map(address, map(address, uint256))
+allowances: HashMap(address, HashMap(address, uint256))
 
-operators: map(address, map(address, bool))
+operators: HashMap(address, HashMap(address, bool))
 
-defaultOperators: map(address, bool))
+defaultOperators: HashMap(address, bool))
 # defaultOperatorsArray: address[] # TODO: how to declare an array of addresses?
-revokedDefaultOperators: map(address, map(address, bool))
+revokedDefaultOperators: HashMap(address, HashMap(address, bool))
 
 # @dev Mapping of interface id to bool about whether or not it's supported
-supportedInterfaces: public(map(bytes32, bool))
+supportedInterfaces: public(HashMap(bytes32, bool))
 
 interface ERC777Recipient:
     def tokensReceived(
-        operator: address,
+        _operator: address,
         _from: address,
         _to: address,
         _value: uint256,
-        userData: bytes32,
-        operatorData: bytes32
+        _data: bytes32,
+        _operatorData: bytes32
     ) -> bool: view
 
 interface ERC777Sender:
     def tokensToSend(
-        operator: address,
+        _operator: address,
         _from: address,
         _to: address,
         _value: uint256,
-        userData: bytes32,
-        operatorData: bytes32
+        _data: bytes32,
+        _operatorData: bytes32
     ) -> bool: view
 
 
@@ -115,10 +115,10 @@ def __init__(_name: String[64], _symbol: String[32]): # TODO: add defaultOperato
 @external
 def allowance(_owner : address, _spender : address) -> uint256:
     """
-    @dev Function to check the amount of tokens that an owner allowed to a spender.
+    @dev Function to check the amount of tokens that an _owner allowed to a _spender.
     @param _owner The address which owns the tokens.
     @param _spender The address which will spend the tokens.
-    @return An uint256 specifying the amount of tokens still available for the spender.
+    @return An uint256 specifying the amount of tokens still available for the _spender.
     """
     return self.allowances[_owner][_spender]
 
@@ -131,26 +131,26 @@ def approve(_spender: address, _value: uint256) -> bool:
     @param _value Quantity of tokens to approve.
     @return True if approval succeeded, False otherwise.
     """
-    holder: address = msg.sender
-    self._approve(holder, _spender, _value)
+    _owner: address = msg.sender
+    self._approve(_owner, _spender, _value)
     return True
 
 
 @external
-def burn(_value: uint256, data: bytes32) -> bool:
+def burn(_value: uint256, _data: bytes32) -> bool:
     """
     @dev Burn an amount (`_value`) of the token of msg.sender.
     @param _value Quantity of token burned.
-    @param data Extra information provided (if any).
+    @param _data Extra information provided (if any).
     @return True if burn succeeded, False otherwise.
     """
-    return self._burn(msg.sender, _value, data, '')
+    return self._burn(msg.sender, _value, _data, '')
 
 
 @external
 def transfer(_to: address, _value: uint256) -> bool:
     """
-    @dev Moves `_value` tokens from the caller's account to `_to`.
+    @dev Moves `_value` tokens from the caller's accountd `_to`.
     @param _to Address to receive tokens.
     @param _value Quantity of token sent.
     @return True if transfer succeeded, False otherwise.
@@ -166,9 +166,7 @@ def transfer(_to: address, _value: uint256) -> bool:
 
 def transferFrom(_from: address, _to: address, _value: uint256) -> bool:
     """
-    @dev
-        Moves `_value` tokens from `sender` to `_to` using the allowance mechanism.
-        `_value` is then deducted from the caller's allowance.
+    @dev Moves `_value` tokens from `sender` to `_to` using the allowance mechanism.
     @param _from Address to receive tokens.
     @param _to Address to receive tokens.
     @param _value Quantity of token transferred.
@@ -176,64 +174,62 @@ def transferFrom(_from: address, _to: address, _value: uint256) -> bool:
     """
     assert _to != ZERO_ADDRESS
     assert _from != ZERO_ADDRESS
-    operator: address = msg.sender
+    _operator: address = msg.sender
 
-    self._callTokensToSend(operator, _from, _to, _value, '', '')
-    self._move(operator, _from, _to, _value, '', '')
-    self._approve(_from, operator, self.allowances[_from][operator] - _value)
-    self._callTokensReceived(operator, _from, _to, _value, '', '', False)
+    self._callTokensToSend(_operator, _from, _to, _value, '', '')
+    self._move(_operator, _from, _to, _value, '', '')
+    self._approve(_from, _operator, self.allowances[_from][_operator] - _value)
+    self._callTokensReceived(_operator, _from, _to, _value, '', '', False)
     return True
 
-######################
-# OPERATOR functions #
+######################z
+# _OPERATOR functions #
 ######################
  
 @external
-def isOperatorFor(operator: address, holder: address) -> bool:
+def isOperatorFor(_operator: address, _owner: address) -> bool:
     """
-    @dev Check if an address (`operator`) can control the tokens held by an address (`holder`).
-    @param operator The address which controls the tokens.
-    @param holder The address which holds the tokens.
+    @dev Check if an address (`_operator`) can control the tokens held by an address (`_owner`).
+    @param _operator The address which controls the tokens.
+    @param _owner The address which holds the tokens.
     @return bool
     """
-    return operator == holder or \
-        self.operators[holder][operator] or \
-        (self.defaultOperators[operator] and \
-        self.revokedDefaultOperators[holder][operator])
+    return _operator == _owner or \
+        self.operators[_owner][_operator] or \
+        (self.defaultOperators[_operator] and \
+        self.revokedDefaultOperators[_owner][_operator])
 
 
 @external
-def authorizeOperator(operator: address):
+def authorizeOperator(_operator: address):
     """
-    @dev Make an account an operator of the caller.
-    @param operator The address to control tokens.
+    @dev Make an account an _operator of the caller.
+    @param _operator The address to control tokens.
     """
-    assert isOperatorFor(operator, msg.sender)
+    assert isOperatorFor(_operator, msg.sender)
 
-    if self.defaultOperators[operator]:
-        # del self.revokedDefaultOperators[msg.sender][operator]
-        clear(self.revokedDefaultOperators[msg.sender])
+    if self.defaultOperators[_operator]:
+        empty(self.revokedDefaultOperators[msg.sender][_operator])
     else:
-        self.operators[msg.sender][operator] = True
+        self.operators[msg.sender][_operator] = True
 
-    log AuthorizedOperator(operator, msg.sender)
+    log AuthorizedOperator(_operator, msg.sender)
 
 
 @external
-def revokeOperator(operator: address):
+def revokeOperator(_operator: address):
     """
-    @dev Revoke an account's operator status for the caller.
-    @param operator The address to lose operator status.
+    @dev Revoke an account's _operator status for the caller.
+    @param _operator The address to lose _operator status.
     """
-    assert operator != msg.sender
+    assert _operator != msg.sender
 
-    if self.defaultOperators[operator]:
-        self.revokedDefaultOperators[msg.sender][operator] = True
+    if self.defaultOperators[_operator]:
+        self.revokedDefaultOperators[msg.sender][_operator] = True
     else:
-        # del self.operators[msg.sender][operator]
-        clear(operators[msg.sender][operator])
+        empty(self.operators[msg.sender][_operator])
 
-    log RevokedOperator(operator, msg.sender)
+    log RevokedOperator(_operator, msg.sender)
 
 
 @view
@@ -243,169 +239,168 @@ def defaultOperators():
 
 
 @external
-def operatorSend(_from: address, _to: address, _value: uint256, data: bytes32, operatorData: bytes32):
+def operatorSend(_from: address, _to: address, _value: uint256, _data: bytes32, _operatorData: bytes32):
     """
     @dev Moves `_value` of tokens from `_from` to `_to`.
-    @dev The caller must be an operator of `_from`.
+    @dev The caller must be an _operator of `_from`.
     @param _from Address to send tokens.
     @param _to Address to receive tokens.
     @param _value Quantity of token sent.
-    @param data Extra information provided (if any).
-    @param operatorData Extra information provided by the operator (if any).
+    @param _data Extra information provided (if any).
+    @param _operatorData Extra information provided by the _operator (if any).
     """
     assert self.isOperatorFor(msg.sender, _from)
-    self._send(_from, _to, _value, data, operatorData, True)
+    self._send(_from, _to, _value, _data, _operatorData, True)
 
 
 @external
-def operatorBurn(_from: address, _value: uint256, data: bytes32, operatorData: bytes32):
+def operatorBurn(_from: address, _value: uint256, _data: bytes32, _operatorData: bytes32):
     """
     @dev Destroys `_value` tokens from `_from`, reducing the total supply.
     @dev If a send hook is registered for `_from`, the corresponding function will
-         be called with `data` and `operatorData`.
+         be called with `_data` and `_operatorData`.
     @param _from Address to burn tokens from.
     @param _value Quantity of token burned.
-    @param data Extra information provided (if any).
-    @param operatorData Extra information provided by the operator (if any).
+    @param _data Extra information provided (if any).
+    @param _operatorData Extra information provided by the _operator (if any).
     """
     assert self.isOperatorFor(msg.sender, _from)
-    self._burn(_from, _value, data, operatorData)
+    self._burn(_from, _value, _data, _operatorData)
 
 
 ######################
 # INTERNAL functions #
 ######################
 @internal
-def _approve(_holder: address, _spender: address, _value: uint256):
+def _approve(_owner: address, _spender: address, _value: uint256):
     """
-    @dev     Approve the passed address to spend the specified amount of tokens on behalf of msg.sender.
-    @param _holder The address which holds the tokens.
+    @dev    Approve the passed address to spend the specified amount of tokens on behalf of msg.sender.
+    @param _owner The address which owns the tokens.
     @param _spender The address which will spend the tokens.
     @param _value Quantity of tokens to be spent.
     """
-    assert _holder != ZERO_ADDRESS
+    assert _owner != ZERO_ADDRESS
     assert _spender != ZERO_ADDRESS
-    self.allowances[_holder][_spender] = _value
-    log Approval(_holder, _spender, _value)
+    self.allowances[_owner][_spender] = _value
+    log Approval(_owner, _spender, _value)
 
 
 @internal
-def _burn(_from: address, _value: uint256, userData: bytes32, operatorData: bytes32):
+def _burn(_from: address, _value: uint256, _data: bytes32, _operatorData: bytes32):
     """
     @dev Burn `_value` tokens from address `_from`.
-    @param _from Token holder address.
+    @param _from Token _owner address.
     @param _value Quantity of tokens burned.
-    @param userData Extra information provided by the user (if any).
-    @param operatorData Extra information provided by the operator (if any).
+    @param _data Extra information provided by the token _owner (if any).
+    @param _operatorData Extra information provided by the _operator (if any).
     """
     assert _from != ZERO_ADDRESS
-    operator: address = msg.sender
+    _operator: address = msg.sender
     
-    self._beforeTokenTransfer(operator, _from, ZERO_ADDRESS, _value)
-    self._callTokensToSend(operator, _from, ZERO_ADDRESS, _value, userData, operatorData)
+    self._beforeTokenTransfer(_operator, _from, ZERO_ADDRESS, _value)
+    self._callTokensToSend(_operator, _from, ZERO_ADDRESS, _value, _data, _operatorData)
     self.totalSupply -= _value
     self.balanceOf[_from] -= _value
-    log Burned(operator, _from, _value, userData, operatorData)
+    log Burned(_operator, _from, _value, _data, _operatorData)
     log Transfer(_from, ZERO_ADDRESS, _value)
 
 
 @internal
-def _mint(_to: address, _value: uint256, userData: bytes32, operatorData: bytes32) -> bool:
+def _mint(_to: address, _value: uint256, _data: bytes32, _operatorData: bytes32) -> bool:
     """
     @dev Creates `_value` tokens and assigns them to `_to`, increasing the total supply.
     @param _to Address to receive tokens.
     @param _value Quantity of token minted.
-    @param userData Extra information provided by the token holder (if any).
-    @param operatorData Extra information provided by the operator (if any).
+    @param _data Extra information provided for the recipient (if any).
+    @param _operatorData Extra information provided by the _operator (if any).
     @return True if mint succeeded, False otherwise.
     """
     assert _to != ZERO_ADDRESS
-    operator: address = msg.sender
+    _operator: address = msg.sender
 
-    self._beforeTokenTransfer(operator, ZERO_ADDRESS, _to, _value)
-    self._callTokensToSend(operator, _from, ZERO_ADDRESS, _value, userData, operatorData)
+    self._beforeTokenTransfer(_operator, ZERO_ADDRESS, _to, _value)
+    self._callTokensToSend(_operator, _from, ZERO_ADDRESS, _value, _data, _operatorData)
     self.totalSupply += _value
     self.balanceOf[_to] += _value
-    self._callTokensReceived(operator, ZERO_ADDRESS, _to, _value, userData, operatorData, True)
-    log Minted(operator, _to, _value, userData, operatorData)
+    self._callTokensReceived(_operator, ZERO_ADDRESS, _to, _value, _data, _operatorData, True)
+    log Minted(_operator, _to, _value, _data, _operatorData)
     log Transfer(ZERO_ADDRESS, _to, _value)
 
 @internal
-def _move(operator: address, _from: address, _to: address, _value: uint256, userData: bytes32, operatorData: bytes32):
+def _move(_operator: address, _from: address, _to: address, _value: uint256, userData: bytes32, _operatorData: bytes32):
     """
     @dev ...
-    @param operator The address which controls the tokens.
+    @param _operator The address which controls the tokens.
     @param _from The address which holds the tokens.
     @param _to The address to receive tokens.
     @param _value Quantity of token moved.
-    @param userData Extra information provided by the token holder (if any).
-    @param operatorData Extra information provided by the operator (if any).
+    @param userData Extra information provided by the token _owner (if any).
+    @param _operatorData Extra information provided by the _operator (if any).
     """
-    _beforeTokenTransfer(operator, _from, _to, _value)
-    # NOTE: vyper does not allow underflows
+    _beforeTokenTransfer(_operator, _from, _to, _value)
     self.balanceOf[_from] -= _value
     self.balanceOf[_to] += _value
-    log Sent(operator, _from, _to, _value, userData, operatorData)
+    log Sent(_operator, _from, _to, _value, userData, _operatorData)
     log Transfer(_from, _to, _value)
 
 
 # TODO: is `send` a key-word?  ERC777.sol has a `_send` AND a `send` function.
 @internal
-def _send(_from: address, _to: address, _value: uint256, userData: bytes32, operatorData: bytes32, requireReceptionAck: bool):
+def _send(_from: address, _to: address, _value: uint256, _data: bytes32, _operatorData: bytes32, requireReceptionAck: bool):
     """
     @dev Send `_value` tokens from one address(`_from`) to another address(`to`)
-    @param _from Token holder address.
+    @param _from Token _owner address.
     @param _to Address to receive tokens.
     @param _value Quantity of token sent.
-    @param userData Extra information provided by the token holder (if any).
-    @param operatorData Extra information provided by the operator (if any).
+    @param _data Extra information provided by the token _owner (if any).
+    @param _operatorData Extra information provided by the _operator (if any).
     @param requireReceptionAck if true, contract recipients are required to implement ERC777TokensRecipient
     """
     assert _from != ZERO_ADDRESS
     assert _to != ZERO_ADDRESS
-    operator: address = msg.sender
+    _operator: address = msg.sender
     
-    self._callTokensToSend(operator, _from, _to, _value, userData, operatorData)
-    self._move(operator, _from, _to, _value, userData, operatorData)
-    self._callTokensReceived(operator, _from, _to, _value, userData, operatorData, requireReceptionAck)
+    self._callTokensToSend(_operator, _from, _to, _value, _data, _operatorData)
+    self._move(_operator, _from, _to, _value, _data, _operatorData)
+    self._callTokensReceived(_operator, _from, _to, _value, _data, _operatorData, requireReceptionAck)
 
 
 @internal
-def _callTokensToSend(operator: address, _from: address, _to: address, _value: uint256, userData: bytes32, operatorData: bytes32):
+def _callTokensToSend(_operator: address, _from: address, _to: address, _value: uint256, _data: bytes32, _operatorData: bytes32):
     """
     @dev Send `_value` tokens from one address(`_from`) to another address(`to`).
-    @param operator Token operator address.
+    @param _operator Token _operator address.
     @param _from Address to send tokens.
     @param _to Address to receive tokens.
     @param _value Quantity of token sent.
-    @param userData Extra information provided by the token holder (if any).
-    @param operatorData Extra information provided by the operator (if any).
+    @param _data Extra information provided by the token _owner (if any).
+    @param _operatorData Extra information provided by the _operator (if any).
     """
     implementer: address = _ERC1820_REGISTRY.getInterfaceImplementer(_from, keccak256("ERC777TokensSender"))
     if implementer != ZERO_ADDRESS:
-        ERC777Sender(implementer).tokenstoSend(operator, _from, _to, _value, userData, operatorData)
+        ERC777Sender(implementer).tokenstoSend(_operator, _from, _to, _value, _data, _operatorData)
 
 @internal
-def _callTokensReceived(operator: address, _from: address, _to: address, _value: uint256, userData: bytes32, operatorData: bytes32, requireReceptionAck: bool):
+def _callTokensReceived(_operator: address, _from: address, _to: address, _value: uint256, _data: bytes32, _operatorData: bytes32, requireReceptionAck: bool):
     """
     @dev Send `_value` tokens from one address(`_from`) to another address(`to`).
-    @param operator Token operator address.
+    @param _operator Token _operator address.
     @param _from Address to send tokens.
     @param _to Address to receive tokens.
     @param _value Quantity of token sent.
-    @param userData Extra information provided by the token holder (if any).
-    @param operatorData Extra information provided by the operator (if any).
+    @param _data Extra information provided by the token _owner (if any).
+    @param _operatorData Extra information provided by the _operator (if any).
     @param requireReceptionAck if true, contract recipients are required to implement ERC777TokensRecipient
     """
     implementer: address = _ERC1820_REGISTRY.getInterfaceImplementer(_to, keccak256("ERC777TokensRecipient"))
     if implementer != ZERO_ADDRESS:
-        ERC777Recipient(implementer).tokensReceived(operator, _from, _to, _value, userData, operatorData)
+        ERC777Recipient(implementer).tokensReceived(_operator, _from, _to, _value, _data, _operatorData)
     elif requireReceptionAck:
         assert not _to.is_contract()
 
 
 @internal
-def _beforeTokenTransfer(operator: address, _from: address, _to: address, _value: uint256):
+def _beforeTokenTransfer(_operator: address, _from: address, _to: address, _value: uint256):
     pass
 
 
