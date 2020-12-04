@@ -3,6 +3,29 @@
 Release Notes
 #############
 
+v0.2.8
+******
+
+Date released: 04-12-2020
+
+Non-breaking changes and improvements:
+
+- AST updates to provide preliminary support for Python 3.9 (`#2225 <https://github.com/vyperlang/vyper/pull/2225>`_)
+- Support for the ``not in`` comparator (`#2232 <https://github.com/vyperlang/vyper/pull/2232>`_)
+- Lift restriction on calldata variables shadowing storage variables (`#2226 <https://github.com/vyperlang/vyper/pull/2226>`_)
+- Optimize ``shift`` bytecode when 2nd arg is a literal (`#2201 <https://github.com/vyperlang/vyper/pull/2201>`_)
+- Warn when EIP-170 size limit is exceeded (`#2208 <https://github.com/vyperlang/vyper/pull/2208>`_)
+
+Fixes:
+
+- Allow use of ``slice`` on a calldata ``bytes32`` (`#2227 <https://github.com/vyperlang/vyper/pull/2227>`_)
+- Explicitly disallow iteration of a list of structs (`#2228 <https://github.com/vyperlang/vyper/pull/2228>`_)
+- Improved validation of address checksums (`#2229 <https://github.com/vyperlang/vyper/pull/2229>`_)
+- Bytes are always represented as hex within the AST (`#2231 <https://github.com/vyperlang/vyper/pull/2231>`_)
+- Allow ``empty`` as an argument within a function call (`#2234 <https://github.com/vyperlang/vyper/pull/2234>`_)
+- Allow ``empty`` static-sized array as an argument within a ``log`` statement (`#2235 <https://github.com/vyperlang/vyper/pull/2235>`_)
+- Compile-time issue with ``Bytes`` variables as a key in a mapping (`#2239 <https://github.com/vyperlang/vyper/pull/2239>`_)
+
 v0.2.7
 ******
 
