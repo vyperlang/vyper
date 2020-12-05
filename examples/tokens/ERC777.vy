@@ -6,6 +6,52 @@ from vyper.interfaces import ERC777
 
 implements: ERC777
 
+interface ERC1820Registry:
+    def setManager(_address: address, _newManager: address): pass
+    def getManager(_address: address) -> address: view
+    def setInterfaceImplementer(_address: address, _interfaceHash: bytes32, _implementer: address): pass
+    def getInterfaceImplementer(_address: address, _interfaceHash: bytes32) -> address: view
+    # TODO: default length of string?
+    def interfaceHash(_interfaceName: string) -> bytes32: pass
+    def updateERC165Cache(_interfaceName: string): pass
+    # TODO: bytes4 vs. bytes32?
+    def implementsERC165Interface(_address: address, _interfaceId: bytes4) -> bool: view
+    def implementsERC165InterfaceNoCache(_address: address, _interfaceId: bytes4) -> bool: view
+    event InterfaceImplementerSet:
+        _address: indexed(address)
+        _interfaceHash: bytes32
+        _implementer: indexed(address)
+    event ManagerChanged:
+        _address: indexed(address)
+        _newManager: indexed(address)
+    
+
+interface ERC1820ImplementerInterface:
+    def canImplementInterfaceForAddress(
+        _interfaceHash: bytes32,
+        _address: address
+    ) -> bytes32: view
+
+interface ERC777Recipient:
+    def tokensReceived(
+        _operator: address,
+        _from: address,
+        _to: address,
+        _value: uint256,
+        _data: bytes32,
+        _operatorData: bytes32
+    ) -> bool: view
+
+interface ERC777Sender:
+    def tokensToSend(
+        _operator: address,
+        _from: address,
+        _to: address,
+        _value: uint256,
+        _data: bytes32,
+        _operatorData: bytes32
+    ) -> bool: view
+
 # @dev Emitted when `_value` tokens are moved from one account (`from`)
 #      to another (`to`).
 # @dev Note that `_value` may be zero.
@@ -81,26 +127,6 @@ revokedDefaultOperators: HashMap(address, HashMap(address, bool))
 # @dev Mapping of interface id to bool about whether or not it's supported
 supportedInterfaces: public(HashMap(bytes32, bool))
 
-interface ERC777Recipient:
-    def tokensReceived(
-        _operator: address,
-        _from: address,
-        _to: address,
-        _value: uint256,
-        _data: bytes32,
-        _operatorData: bytes32
-    ) -> bool: view
-
-interface ERC777Sender:
-    def tokensToSend(
-        _operator: address,
-        _from: address,
-        _to: address,
-        _value: uint256,
-        _data: bytes32,
-        _operatorData: bytes32
-    ) -> bool: view
-
 
 @external
 def __init__(_name: String[64], _symbol: String[32]): # TODO: add defaultOperators
@@ -147,10 +173,27 @@ def burn(_value: uint256, _data: bytes32) -> bool:
     return self._burn(msg.sender, _value, _data, '')
 
 
+# TODO: is `send` a key-word?  ERC777.sol has a `_send` AND a `send` function.
+@internal
+def send(_to: address, _value: uint256, _data: bytes32):
+    """
+    @dev Send `_value` tokens from msg.sender to another address(`to`)
+    @param _from Token _owner address.
+    @param _to Address to receive tokens.
+    @param _value Quantity of token sent.
+    @param _data Extra information provided by the token _owner (if any).
+    @param _operatorData Extra information provided by the _operator (if any).
+    @param requireReceptionAck if true, contract recipients are required to implement ERC777TokensRecipient
+    """
+    _from: address = msg.sender
+
+    self._send(_from, _to, _value, '', True)
+
+
 @external
 def transfer(_to: address, _value: uint256) -> bool:
     """
-    @dev Moves `_value` tokens from the caller's accountd `_to`.
+    @dev Moves `_value` tokens from the caller's account to `_to`.
     @param _to Address to receive tokens.
     @param _value Quantity of token sent.
     @return True if transfer succeeded, False otherwise.
@@ -164,6 +207,7 @@ def transfer(_to: address, _value: uint256) -> bool:
     return True
 
 
+@external
 def transferFrom(_from: address, _to: address, _value: uint256) -> bool:
     """
     @dev Moves `_value` tokens from `sender` to `_to` using the allowance mechanism.
@@ -250,7 +294,7 @@ def operatorSend(_from: address, _to: address, _value: uint256, _data: bytes32, 
     @param _operatorData Extra information provided by the _operator (if any).
     """
     assert self.isOperatorFor(msg.sender, _from)
-    self._send(_from, _to, _value, _data, _operatorData, True)
+    return self._send(_from, _to, _value, _data, _operatorData, True)
 
 
 @external
@@ -265,7 +309,7 @@ def operatorBurn(_from: address, _value: uint256, _data: bytes32, _operatorData:
     @param _operatorData Extra information provided by the _operator (if any).
     """
     assert self.isOperatorFor(msg.sender, _from)
-    self._burn(_from, _value, _data, _operatorData)
+    return self._burn(_from, _value, _data, _operatorData)
 
 
 ######################
@@ -306,7 +350,7 @@ def _burn(_from: address, _value: uint256, _data: bytes32, _operatorData: bytes3
 
 
 @internal
-def _mint(_to: address, _value: uint256, _data: bytes32, _operatorData: bytes32) -> bool:
+def _mint(_to: address, _value: uint256, _data: bytes32, _operatorData: bytes32):
     """
     @dev Creates `_value` tokens and assigns them to `_to`, increasing the total supply.
     @param _to Address to receive tokens.
@@ -328,15 +372,6 @@ def _mint(_to: address, _value: uint256, _data: bytes32, _operatorData: bytes32)
 
 @internal
 def _move(_operator: address, _from: address, _to: address, _value: uint256, userData: bytes32, _operatorData: bytes32):
-    """
-    @dev ...
-    @param _operator The address which controls the tokens.
-    @param _from The address which holds the tokens.
-    @param _to The address to receive tokens.
-    @param _value Quantity of token moved.
-    @param userData Extra information provided by the token _owner (if any).
-    @param _operatorData Extra information provided by the _operator (if any).
-    """
     _beforeTokenTransfer(_operator, _from, _to, _value)
     self.balanceOf[_from] -= _value
     self.balanceOf[_to] += _value
@@ -344,7 +379,6 @@ def _move(_operator: address, _from: address, _to: address, _value: uint256, use
     log Transfer(_from, _to, _value)
 
 
-# TODO: is `send` a key-word?  ERC777.sol has a `_send` AND a `send` function.
 @internal
 def _send(_from: address, _to: address, _value: uint256, _data: bytes32, _operatorData: bytes32, requireReceptionAck: bool):
     """
@@ -380,6 +414,7 @@ def _callTokensToSend(_operator: address, _from: address, _to: address, _value: 
     if implementer != ZERO_ADDRESS:
         ERC777Sender(implementer).tokenstoSend(_operator, _from, _to, _value, _data, _operatorData)
 
+
 @internal
 def _callTokensReceived(_operator: address, _from: address, _to: address, _value: uint256, _data: bytes32, _operatorData: bytes32, requireReceptionAck: bool):
     """
@@ -402,6 +437,3 @@ def _callTokensReceived(_operator: address, _from: address, _to: address, _value
 @internal
 def _beforeTokenTransfer(_operator: address, _from: address, _to: address, _value: uint256):
     pass
-
-
-assert returnValue == method_id("onERC721Received(address,address,uint256,bytes)", output_type=bytes32)
