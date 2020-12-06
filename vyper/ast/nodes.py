@@ -28,6 +28,7 @@ NODE_BASE_ATTRIBUTES = (
     "_parent",
     "ast_type",
     "node_id",
+    "_metadata",
 )
 NODE_SRC_ATTRIBUTES = (
     "col_offset",
@@ -238,6 +239,7 @@ class VyperNode:
         self._parent = parent
         self._depth = getattr(parent, "_depth", -1) + 1
         self._children: set = set()
+        self._metadata: dict = {}
 
         for field_name in NODE_SRC_ATTRIBUTES:
             # when a source offset is not available, use the parent's source offset
