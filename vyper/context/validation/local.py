@@ -24,6 +24,7 @@ from vyper.context.types.meta.struct import StructDefinition
 from vyper.context.types.utils import get_type_from_annotation
 from vyper.context.types.value.boolean import BoolDefinition
 from vyper.context.types.value.numeric import Uint256Definition
+from vyper.context.validation.annotation import StatementAnnotationVisitor
 from vyper.context.validation.base import VyperNodeVisitorBase
 from vyper.context.validation.utils import (
     get_common_types,
@@ -130,6 +131,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         self.fn_node = fn_node
         self.namespace = namespace
         self.func = namespace["self"].get_member(fn_node.name, fn_node)
+        self.annotation_visitor = StatementAnnotationVisitor(fn_node, namespace)
         namespace.update(self.func.arguments)
 
         if self.func.visibility is FunctionVisibility.INTERNAL:
@@ -170,6 +172,10 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                 raise FunctionDeclarationException(
                     f"Missing or unmatched return statements in function '{fn_node.name}'", fn_node,
                 )
+
+    def visit(self, node):
+        super().visit(node)
+        self.annotation_visitor.visit(node)
 
     def visit_AnnAssign(self, node):
         name = node.get("target.id")
@@ -374,9 +380,9 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                 try:
                     for n in node.body:
                         self.visit(n)
-                    # attach type information to allow non `int128` types in `vyper.parser.stmt`
-                    # this is a temporary solution until `vyper.parser` has been refactored
-                    node.target._type = type_._id
+                    # type information is applied directly because the scope is
+                    # closed prior to the call to `StatementAnnotationVisitor`
+                    node.target._metadata["type"] = type_
                     return
                 except (TypeMismatch, InvalidOperation) as exc:
                     for_loop_exceptions.append(exc)
