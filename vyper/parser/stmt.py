@@ -234,7 +234,9 @@ class Stmt:
         # attempt to use the type specified by type checking, fall back to `int128`
         # this is a stopgap solution to allow uint256 - it will be properly solved
         # once we refactor `vyper.parser`
-        iter_typ = self.stmt.target.get("_type") or "int128"
+        iter_typ = "int128"
+        if "type" in self.stmt.target._metadata:
+            iter_typ = self.stmt.target._metadata["type"]._id
 
         # Get arg0
         arg0 = self.stmt.iter.args[0]
