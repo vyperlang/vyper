@@ -1,7 +1,6 @@
 import ast
 from typing import Any, List
 
-from vyper.exceptions import FunctionDeclarationException
 from vyper.parser.context import Context
 from vyper.parser.expr import Expr
 from vyper.parser.function_definitions.utils import (
@@ -35,12 +34,6 @@ def get_internal_arg_copier(total_size: int, memory_dest: int) -> List[Any]:
     return copier
 
 
-def validate_internal_function(code: ast.FunctionDef, sig: FunctionSignature) -> None:
-    """ Validate internal function defintion """
-    if sig.is_default_func():
-        raise FunctionDeclarationException("Default function may only be external.", code)
-
-
 def parse_internal_function(
     code: ast.FunctionDef, sig: FunctionSignature, context: Context
 ) -> LLLnode:
@@ -51,8 +44,6 @@ def parse_internal_function(
     :param code: ast of function
     :return: full sig compare & function body
     """
-
-    validate_internal_function(code, sig)
 
     # Get nonreentrant lock
     nonreentrant_pre, nonreentrant_post = get_nonreentrant_lock(sig, context.global_ctx)
