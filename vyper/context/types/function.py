@@ -26,6 +26,7 @@ from vyper.exceptions import (
     StateAccessViolation,
     StructureException,
 )
+from vyper.utils import keccak256
 
 
 class FunctionVisibility(StringEnum):
@@ -351,6 +352,15 @@ class ContractFunction(BaseTypeDefinition):
             function_visibility=FunctionVisibility.EXTERNAL,
             state_mutability=StateMutability.NONPAYABLE,
         )
+
+    @property
+    def method_id(self) -> int:
+        """
+        Four byte selector for this function.
+        """
+        function_sig = f"{self.name}({','.join(i.canonical_type for i in self.arguments.values())})"
+        selector = keccak256(function_sig.encode())[:4].hex()
+        return int(selector, 16)
 
     def get_signature(self) -> Tuple[Tuple, Optional[BaseTypeDefinition]]:
         return tuple(self.arguments.values()), self.return_type

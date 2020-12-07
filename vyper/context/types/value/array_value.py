@@ -59,6 +59,10 @@ class _ArrayValueDefinition(ValueTypeDefinition):
             return self._length
         return self._min_length
 
+    @property
+    def canonical_type(self) -> str:
+        return self._id.lower()
+
     def set_length(self, length):
         """
         Sets the exact length of the type.
