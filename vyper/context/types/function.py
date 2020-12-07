@@ -354,18 +354,12 @@ class ContractFunction(BaseTypeDefinition):
         )
 
     @property
-    def canonical_type(self) -> str:
-        """
-        The canonical signature of this function.
-        """
-        return f"{self.name}({','.join(i.canonical_type for i in self.arguments.values())})"
-
-    @property
     def method_id(self) -> int:
         """
         Four byte selector for this function.
         """
-        selector = keccak256(self.canonical_type.encode())[:4].hex()
+        function_sig = f"{self.name}({','.join(i.canonical_type for i in self.arguments.values())})"
+        selector = keccak256(function_sig.encode())[:4].hex()
         return int(selector, 16)
 
     def get_signature(self) -> Tuple[Tuple, Optional[BaseTypeDefinition]]:
