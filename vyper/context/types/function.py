@@ -258,6 +258,14 @@ class ContractFunction(BaseTypeDefinition):
                 f"Visibility must be set to one of: {', '.join(FunctionVisibility.values())}", node
             )
 
+        if (
+            node.name == "__default__"
+            and kwargs["function_visibility"] != FunctionVisibility.EXTERNAL
+        ):
+            raise FunctionDeclarationException(
+                "Default function must be marked as `@external`", node
+            )
+
         if "state_mutability" not in kwargs:
             # Assume nonpayable if not set at all (cannot accept Ether, but can modify state)
             kwargs["state_mutability"] = StateMutability.NONPAYABLE
