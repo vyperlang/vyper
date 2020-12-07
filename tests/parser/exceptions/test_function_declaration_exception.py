@@ -33,6 +33,11 @@ def foo() -> int128:
 def test_func() -> int128:
     return (1, 2)
     """,
+    """
+@external
+def __init__(a: int128 = 12):
+    pass
+    """,
 ]
 
 
