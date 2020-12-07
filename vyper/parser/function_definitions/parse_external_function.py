@@ -1,7 +1,6 @@
 import ast
 from typing import Any, List, Union
 
-from vyper.exceptions import FunctionDeclarationException
 from vyper.parser.arg_clamps import make_arg_clamper
 from vyper.parser.context import Context, VariableRecord
 from vyper.parser.expr import Expr
@@ -104,10 +103,6 @@ def parse_external_function(
         )
     # Is default function.
     elif sig.is_default_func():
-        if len(sig.args) > 0:
-            raise FunctionDeclarationException(
-                "Default function may not receive any arguments.", code
-            )
         o = LLLnode.from_list(
             ["seq"] + clampers + [parse_body(code.body, context)],  # type: ignore
             pos=getpos(code),
