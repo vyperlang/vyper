@@ -6,6 +6,10 @@ from vyper.interfaces import ERC777
 
 implements: ERC777
 
+
+# @dev Interface of the global ERC1820 Registry, as defined in the
+#      https://eips.ethereum.org/EIPS/eip-1820[EIP]. Accounts may register
+#      implementers for interfaces in this registry, as well as query support. 
 interface ERC1820Registry:
     def setManager(_address: address, _newManager: address): pass
     def getManager(_address: address) -> address: view
@@ -14,9 +18,8 @@ interface ERC1820Registry:
     # TODO: default length of string?
     def interfaceHash(_interfaceName: string) -> bytes32: pass
     def updateERC165Cache(_interfaceName: string): pass
-    # TODO: bytes4 vs. bytes32?
-    def implementsERC165Interface(_address: address, _interfaceId: bytes4) -> bool: view
-    def implementsERC165InterfaceNoCache(_address: address, _interfaceId: bytes4) -> bool: view
+    def implementsERC165Interface(_address: address, _interfaceId: Bytes[4]) -> bool: view
+    def implementsERC165InterfaceNoCache(_address: address, _interfaceId: Bytes[4]) -> bool: view
     event InterfaceImplementerSet:
         _address: indexed(address)
         _interfaceHash: bytes32
@@ -24,14 +27,12 @@ interface ERC1820Registry:
     event ManagerChanged:
         _address: indexed(address)
         _newManager: indexed(address)
-    
 
-interface ERC1820ImplementerInterface:
-    def canImplementInterfaceForAddress(
-        _interfaceHash: bytes32,
-        _address: address
-    ) -> bytes32: view
-
+# @dev Interface of the ERC777TokensRecipient standard as defined in the EIP.
+# @dev Accounts can be notified of tokens being sent to them by having a
+#      contract implement this interface (contract holders can be their own
+#      implementer) and registering it on the 
+#      https://eips.ethereum.org/EIPS/eip-1820[ERC1820_global_registry].
 interface ERC777Recipient:
     def tokensReceived(
         _operator: address,
@@ -42,6 +43,11 @@ interface ERC777Recipient:
         _operatorData: bytes32
     ) -> bool: view
 
+# @dev Interface of the ERC777TokensSender standard as defined in the EIP.
+# @dev Token holders can be notified of operations performed on their tokens
+#      by having a contract implement this interface (contract holders can be
+#      their own implementer) and registering it on the 
+#      https://eips.ethereum.org/EIPS/eip-1820[ERC1820 global registry].
 interface ERC777Sender:
     def tokensToSend(
         _operator: address,
@@ -52,20 +58,17 @@ interface ERC777Sender:
         _operatorData: bytes32
     ) -> bool: view
 
-# @dev Emitted when `_value` tokens are moved from one account (`from`)
-#      to another (`to`).
-# @dev Note that `_value` may be zero.
+
 event Transfer:
     _from: indexed(address)
     _to: indexed(address)
     _value: uint256
-# @dev Emitted when the allowance of a `_spender` for an `_owner` is set by
-#      a call to {approve}. `_value` is the new allowance.
+
 event Approval:
     _owner: indexed(address)
     _spender: indexed(address)
     _value: uint256 
-# @dev TODO
+
 event Sent:
     _operator: indexed(address)
     _from: indexed(address)
@@ -73,70 +76,86 @@ event Sent:
     _value: uint256
     _data: bytes32
     _operatorData: bytes32
-# @dev TODO
+
 event Minted:
     _operator: indexed(address)
     _to: indexed(address)
     _value: uint256
     _data: bytes32
     _operatorData: bytes32
-# @dev TODO
+
 event Burned:
     _operator: indexed(address)
     _from: indexed(address)
     _value: uint256
     _data: bytes32
     _operatorData: bytes32
-# @dev TODO
+
 event AuthorizedOperator:
     _operator: indexed(address)
     _owner: indexed(address)
-# @dev TODO
+
 event RevokedOperator:
     _operator: indexed(address)
     _owner: indexed(address)
 
+
+erc1820Registry: ERC1820Registry
+erc1820RegistryAddress: constant(address) = 0x1820a4B7618BdE71Dce8cdc73aAB6C95905faD24
+
 # @dev Name of the token.
 name: public(String[64])
+
 # @dev Symbol of the token, usually a shorter version of the name.
 symbol: public(String[32])
+
 # @dev Amount of tokens in existence.
 totalSupply: public(uint256)
+
 # @dev Returns the smallest part of the token that is not divisible. This
 #      means all token operations (creation, movement and destruction) must have
 #      amounts that are a multiple of this number.
 granularity: constant(uint256) = 1
-# @dev Always return `18`, as per EIP-777 
+
+# @dev Always return `18`, as per EIP-777.
 decimals: constant(uint256) = 18
 
-# @dev By declaring `balanceOf` as public, vyper automatically generates a 'balanceOf()' getter
-#      method to allow access to account balances.
-# @dev The _KeyType will become a required parameter for the getter and it will return _ValueType.
-# @dev See: https://vyper.readthedocs.io/en/v0.1.0-beta.8/types.html?highlight=getter#mappings
+# @dev Mapping of the amount of tokens owned by each account.
 balanceOf: public(HashMap(address, uint256))
 
-# @dev ERC20-allowances
+# @dev ERC20-allowances.
 allowances: HashMap(address, HashMap(address, uint256))
 
+# @dev For each account, a mapping of its operators.
 operators: HashMap(address, HashMap(address, bool))
 
-defaultOperators: HashMap(address, bool))
-# defaultOperatorsArray: address[] # TODO: how to declare an array of addresses?
+# @dev For each account, a mapping of its revoked default operators.
 revokedDefaultOperators: HashMap(address, HashMap(address, bool))
 
-# @dev Mapping of interface id to bool about whether or not it's supported
+# @dev Immutable, but accounts may revoke them (tracked in revokedDefaultOperators).
+defaultOperators: HashMap(address, bool))
+
+# @dev This isn't ever read from - it's only used to respond to the defaultOperators query.
+defaultOperatorsArray: address[4]
+
+# @dev Mapping of interface id to bool about whether or not it's supported.
 supportedInterfaces: public(HashMap(bytes32, bool))
 
 
 @external
-def __init__(_name: String[64], _symbol: String[32]): # TODO: add defaultOperators
-    # Register interfaces
-    self.supportedInterfaces[keccak256("ERC777TokensSender")] = True
-    self.supportedInterfaces[keccak256("ERC777TokensRecipient")] = True
+def __init__(_name: String[64], _symbol: String[32], _defaultOperators: address[4]):
     self.name = _name
     self.symbol = symbol
+    for i in range(len(_defaultOperators)):
+        self.defaultOperators[defaultOperatorsArray[i]] = True
+    # Register interfaces
+    self.erc1820Registry = erc1820Registry(erc1820RegistryAddress)
+    self.erc1820Registry.setInterfaceImplementer(self, keccak256("ERC777TokenSender"), self)
+    self.erc1820Registry.setInterfaceImplementer(self, keccak256("ERC777TokensRecipient"), self)
 
-
+######################
+#  PUBLIC functions  #
+######################
 @view
 @external
 def allowance(_owner : address, _spender : address) -> uint256:
@@ -173,17 +192,16 @@ def burn(_value: uint256, _data: bytes32) -> bool:
     return self._burn(msg.sender, _value, _data, '')
 
 
-# TODO: is `send` a key-word?  ERC777.sol has a `_send` AND a `send` function.
 @internal
 def send(_to: address, _value: uint256, _data: bytes32):
     """
-    @dev Send `_value` tokens from msg.sender to another address(`to`)
+    @dev Send `_value` tokens from msg.sender to another address(`to`).
     @param _from Token _owner address.
     @param _to Address to receive tokens.
     @param _value Quantity of token sent.
     @param _data Extra information provided by the token _owner (if any).
     @param _operatorData Extra information provided by the _operator (if any).
-    @param requireReceptionAck if true, contract recipients are required to implement ERC777TokensRecipient
+    @param requireReceptionAck if true, contract recipients are required to implement ERC777TokensRecipient.
     """
     _from: address = msg.sender
 
@@ -226,10 +244,15 @@ def transferFrom(_from: address, _to: address, _value: uint256) -> bool:
     self._callTokensReceived(_operator, _from, _to, _value, '', '', False)
     return True
 
-######################z
-# _OPERATOR functions #
 ######################
- 
+# OPERATOR functions #
+######################
+@view
+@external
+def defaultOperators():
+    return self.defaultOperatorsArray
+
+
 @external
 def isOperatorFor(_operator: address, _owner: address) -> bool:
     """
@@ -239,9 +262,8 @@ def isOperatorFor(_operator: address, _owner: address) -> bool:
     @return bool
     """
     return _operator == _owner or \
-        self.operators[_owner][_operator] or \
-        (self.defaultOperators[_operator] and \
-        self.revokedDefaultOperators[_owner][_operator])
+        (self.defaultOperators[_operator] and self.revokedDefaultOperators[_owner][_operator]) or \
+        self.operators[_owner][_operator]
 
 
 @external
@@ -274,12 +296,6 @@ def revokeOperator(_operator: address):
         empty(self.operators[msg.sender][_operator])
 
     log RevokedOperator(_operator, msg.sender)
-
-
-@view
-@external
-def defaultOperators():
-    return self.defaultOperatorsArray # TODO: `defaultOperatorsArray`
 
 
 @external
@@ -370,6 +386,7 @@ def _mint(_to: address, _value: uint256, _data: bytes32, _operatorData: bytes32)
     log Minted(_operator, _to, _value, _data, _operatorData)
     log Transfer(ZERO_ADDRESS, _to, _value)
 
+
 @internal
 def _move(_operator: address, _from: address, _to: address, _value: uint256, userData: bytes32, _operatorData: bytes32):
     _beforeTokenTransfer(_operator, _from, _to, _value)
@@ -382,13 +399,13 @@ def _move(_operator: address, _from: address, _to: address, _value: uint256, use
 @internal
 def _send(_from: address, _to: address, _value: uint256, _data: bytes32, _operatorData: bytes32, requireReceptionAck: bool):
     """
-    @dev Send `_value` tokens from one address(`_from`) to another address(`to`)
+    @dev Send `_value` tokens from one address(`_from`) to another address(`to`).
     @param _from Token _owner address.
     @param _to Address to receive tokens.
     @param _value Quantity of token sent.
     @param _data Extra information provided by the token _owner (if any).
     @param _operatorData Extra information provided by the _operator (if any).
-    @param requireReceptionAck if true, contract recipients are required to implement ERC777TokensRecipient
+    @param requireReceptionAck if true, contract recipients are required to implement ERC777TokensRecipient.
     """
     assert _from != ZERO_ADDRESS
     assert _to != ZERO_ADDRESS
@@ -410,7 +427,7 @@ def _callTokensToSend(_operator: address, _from: address, _to: address, _value: 
     @param _data Extra information provided by the token _owner (if any).
     @param _operatorData Extra information provided by the _operator (if any).
     """
-    implementer: address = _ERC1820_REGISTRY.getInterfaceImplementer(_from, keccak256("ERC777TokensSender"))
+    implementer: address = self.erc1820Registry.getInterfaceImplementer(_from, keccak256("ERC777TokensSender"))
     if implementer != ZERO_ADDRESS:
         ERC777Sender(implementer).tokenstoSend(_operator, _from, _to, _value, _data, _operatorData)
 
@@ -425,9 +442,9 @@ def _callTokensReceived(_operator: address, _from: address, _to: address, _value
     @param _value Quantity of token sent.
     @param _data Extra information provided by the token _owner (if any).
     @param _operatorData Extra information provided by the _operator (if any).
-    @param requireReceptionAck if true, contract recipients are required to implement ERC777TokensRecipient
+    @param requireReceptionAck if true, contract recipients are required to implement ERC777TokensRecipient.
     """
-    implementer: address = _ERC1820_REGISTRY.getInterfaceImplementer(_to, keccak256("ERC777TokensRecipient"))
+    implementer: address = self.erc1820Registry.getInterfaceImplementer(_to, keccak256("ERC777TokensRecipient"))
     if implementer != ZERO_ADDRESS:
         ERC777Recipient(implementer).tokensReceived(_operator, _from, _to, _value, _data, _operatorData)
     elif requireReceptionAck:
