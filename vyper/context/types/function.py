@@ -273,6 +273,10 @@ class ContractFunction(BaseTypeDefinition):
         # call arguments
         arg_count: Union[Tuple[int, int], int] = len(node.args.args)
         if node.args.defaults:
+            if node.name == "__init__":
+                raise FunctionDeclarationException(
+                    "Constructor may not use default arguments", node.args.defaults[0]
+                )
             arg_count = (
                 len(node.args.args) - len(node.args.defaults),
                 len(node.args.args),

@@ -10,7 +10,6 @@ from vyper.parser.function_definitions.utils import (
     get_nonreentrant_lock,
     get_sig_statements,
 )
-from vyper.parser.global_context import GlobalContext
 from vyper.parser.lll_node import LLLnode
 from vyper.parser.parser_utils import getpos, make_setter
 from vyper.parser.stmt import parse_body
@@ -34,18 +33,6 @@ def get_external_arg_copier(
     return copier
 
 
-def validate_external_function(
-    code: ast.FunctionDef, sig: FunctionSignature, global_ctx: GlobalContext
-) -> None:
-    """ Validate external function definition. """
-
-    # __init__ function may not have defaults.
-    if sig.is_initializer() and sig.total_default_args > 0:
-        raise FunctionDeclarationException(
-            "__init__ function may not have default parameters.", code
-        )
-
-
 def parse_external_function(
     code: ast.FunctionDef, sig: FunctionSignature, context: Context, is_contract_payable: bool
 ) -> LLLnode:
@@ -57,8 +44,6 @@ def parse_external_function(
     :param is_contract_payable: bool - does this contract contain payable functions?
     :return: full sig compare & function body
     """
-
-    validate_external_function(code, sig, context.global_ctx)
 
     # Get nonreentrant lock
     nonreentrant_pre, nonreentrant_post = get_nonreentrant_lock(sig, context.global_ctx)
