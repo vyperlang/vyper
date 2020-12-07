@@ -35,6 +35,10 @@ class StructDefinition(MemberTypeDefinition):
     def compare_type(self, other):
         return super().compare_type(other) and self._id == other._id
 
+    @property
+    def canonical_type(self) -> str:
+        return f"({','.join(i.canonical_type for i in self.members.values())})"
+
 
 class StructPrimitive:
 

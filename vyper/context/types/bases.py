@@ -188,6 +188,7 @@ class BaseTypeDefinition:
     """
 
     is_dynamic_size = False
+    _id: str
 
     def __init__(
         self,
@@ -198,6 +199,13 @@ class BaseTypeDefinition:
         self.location = location
         self.is_immutable = is_immutable
         self.is_public = is_public
+
+    @property
+    def canonical_type(self) -> str:
+        """
+        The canonical name of this type. Used for ABI types and generating function signatures.
+        """
+        return self._id
 
     def from_annotation(self, node: vy_ast.VyperNode, **kwargs: Any) -> None:
         # always raises, user should have used a primitive

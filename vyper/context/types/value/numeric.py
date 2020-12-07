@@ -138,6 +138,10 @@ class DecimalDefinition(FixedAbstractType, _NumericDefinition):
     _is_signed = True
     _invalid_op = vy_ast.Pow
 
+    @property
+    def canonical_type(self) -> str:
+        return "fixed168x10"
+
 
 # primitives
 

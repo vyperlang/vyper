@@ -352,6 +352,13 @@ class ContractFunction(BaseTypeDefinition):
             state_mutability=StateMutability.NONPAYABLE,
         )
 
+    @property
+    def canonical_type(self) -> str:
+        """
+        The canonical signature of this function.
+        """
+        return f"{self.name}({','.join(i.canonical_type for i in self.arguments.values())})"
+
     def get_signature(self) -> Tuple[Tuple, Optional[BaseTypeDefinition]]:
         return tuple(self.arguments.values()), self.return_type
 
