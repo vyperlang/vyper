@@ -189,7 +189,7 @@ def burn(_value: uint256, _data: bytes32) -> bool:
     @param _data Extra information provided (if any).
     @return True if burn succeeded, False otherwise.
     """
-    return self._burn(msg.sender, _value, _data, '')
+    return self._burn(msg.sender, _value, _data, b'')
 
 
 @internal
