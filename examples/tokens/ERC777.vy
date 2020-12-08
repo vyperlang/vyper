@@ -13,7 +13,7 @@ implements: ERC777
 interface ERC1820Registry:
     def setManager(_address: address, _newManager: address): pass
     def getManager(_address: address) -> address: view
-    def setInterfaceImplementer(_address: address, _interfaceHash: bytes32, _implementer: address): pass
+    def setInterfaceImplementer(_address: address, _interfaceHash: bytes32, _implementer: address): nonpayable
     def getInterfaceImplementer(_address: address, _interfaceHash: bytes32) -> address: view
     # TODO: default length of string?
     def interfaceHash(_interfaceName: String[128]) -> bytes32: nonpayable
