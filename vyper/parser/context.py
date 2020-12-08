@@ -26,7 +26,6 @@ class Context:
         constancy=Constancy.Mutable,
         is_internal=False,
         is_payable=False,
-        origcode="",
         method_id="",
         sig=None,
     ):
@@ -48,8 +47,6 @@ class Context:
         self.in_range_expr = False
         # Is the function payable?
         self.is_payable = is_payable
-        # Original code (for error pretty-printing purposes)
-        self.origcode = origcode
         # In Loop status. Whether body is currently evaluating within a for-loop or not.
         self.in_for_loop = set()
         # Count returns in function

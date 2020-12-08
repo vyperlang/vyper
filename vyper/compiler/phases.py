@@ -94,7 +94,7 @@ class CompilerData:
 
     def _gen_lll(self) -> None:
         # fetch both deployment and runtime LLL
-        self._lll_nodes, self._lll_runtime = generate_lll_nodes(self.source_code, self.global_ctx)
+        self._lll_nodes, self._lll_runtime = generate_lll_nodes(self.global_ctx)
 
     @property
     def lll_nodes(self) -> parser.LLLnode:
@@ -197,9 +197,7 @@ def generate_global_context(
     return GlobalContext.get_global_context(vyper_module, interface_codes=interface_codes)
 
 
-def generate_lll_nodes(
-    source_code: str, global_ctx: GlobalContext
-) -> Tuple[parser.LLLnode, parser.LLLnode]:
+def generate_lll_nodes(global_ctx: GlobalContext) -> Tuple[parser.LLLnode, parser.LLLnode]:
     """
     Generate the intermediate representation (LLL) from the contextualized AST.
 
@@ -211,8 +209,6 @@ def generate_lll_nodes(
 
     Arguments
     ---------
-    source_code : str
-        Vyper source code.
     global_ctx : GlobalContext
         Contextualized Vyper AST
 
@@ -222,7 +218,7 @@ def generate_lll_nodes(
         LLL to generate deployment bytecode
         LLL to generate runtime bytecode
     """
-    lll_nodes, lll_runtime = parser.parse_tree_to_lll(source_code, global_ctx)
+    lll_nodes, lll_runtime = parser.parse_tree_to_lll(global_ctx)
     lll_nodes = optimizer.optimize(lll_nodes)
     lll_runtime = optimizer.optimize(lll_runtime)
     return lll_nodes, lll_runtime

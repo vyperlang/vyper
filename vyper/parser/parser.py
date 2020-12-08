@@ -95,14 +95,7 @@ def parse_external_interfaces(external_interfaces, global_ctx):
 
 
 def parse_other_functions(
-    o,
-    otherfuncs,
-    sigs,
-    external_interfaces,
-    origcode,
-    global_ctx,
-    default_function,
-    is_contract_payable,
+    o, otherfuncs, sigs, external_interfaces, global_ctx, default_function, is_contract_payable,
 ):
     sub = ["seq", func_init_lll()]
     add_gas = func_init_lll().gas
@@ -110,11 +103,7 @@ def parse_other_functions(
     for _def in otherfuncs:
         sub.append(
             parse_function(
-                _def,
-                {**{"self": sigs}, **external_interfaces},
-                origcode,
-                global_ctx,
-                is_contract_payable,
+                _def, {**{"self": sigs}, **external_interfaces}, global_ctx, is_contract_payable,
             )
         )
         sub[-1].total_gas += add_gas
@@ -128,7 +117,6 @@ def parse_other_functions(
         default_func = parse_function(
             default_function[0],
             {**{"self": sigs}, **external_interfaces},
-            origcode,
             global_ctx,
             is_contract_payable,
         )
@@ -141,7 +129,7 @@ def parse_other_functions(
 
 
 # Main python parse tree => LLL method
-def parse_tree_to_lll(source_code: str, global_ctx: GlobalContext) -> Tuple[LLLnode, LLLnode]:
+def parse_tree_to_lll(global_ctx: GlobalContext) -> Tuple[LLLnode, LLLnode]:
     _names_def = [_def.name for _def in global_ctx._defs]
     # Checks for duplicate function names
     if len(set(_names_def)) < len(_names_def):
@@ -191,25 +179,14 @@ def parse_tree_to_lll(source_code: str, global_ctx: GlobalContext) -> Tuple[LLLn
         o.append(init_func_init_lll())
         o.append(
             parse_function(
-                initfunc[0],
-                {**{"self": sigs}, **external_interfaces},
-                source_code,
-                global_ctx,
-                False,
+                initfunc[0], {**{"self": sigs}, **external_interfaces}, global_ctx, False,
             )
         )
 
     # If there are regular functions...
     if otherfuncs or defaultfunc:
         o, runtime = parse_other_functions(
-            o,
-            otherfuncs,
-            sigs,
-            external_interfaces,
-            source_code,
-            global_ctx,
-            defaultfunc,
-            is_contract_payable,
+            o, otherfuncs, sigs, external_interfaces, global_ctx, defaultfunc, is_contract_payable,
         )
     else:
         runtime = o.copy()
@@ -230,7 +207,7 @@ def parse_to_lll(
 ) -> LLLnode:
     vyper_module = vy_ast.parse_to_ast(source_code)
     global_ctx = GlobalContext.get_global_context(vyper_module, interface_codes=interface_codes)
-    lll_nodes, lll_runtime = parse_tree_to_lll(source_code, global_ctx)
+    lll_nodes, lll_runtime = parse_tree_to_lll(global_ctx)
 
     if runtime_only:
         return lll_runtime
