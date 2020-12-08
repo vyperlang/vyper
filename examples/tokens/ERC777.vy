@@ -11,7 +11,7 @@ implements: ERC777
 #      https://eips.ethereum.org/EIPS/eip-1820[EIP]. Accounts may register
 #      implementers for interfaces in this registry, as well as query support. 
 interface ERC1820Registry:
-    def setManager(_address: address, _newManager: address): pass
+    def setManager(_address: address, _newManager: address): nonpayable
     def getManager(_address: address) -> address: view
     def setInterfaceImplementer(_address: address, _interfaceHash: bytes32, _implementer: address): nonpayable
     def getInterfaceImplementer(_address: address, _interfaceHash: bytes32) -> address: view
