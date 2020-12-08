@@ -219,9 +219,9 @@ def transfer(_to: address, _value: uint256) -> bool:
     assert _to != ZERO_ADDRESS
     _from: address = msg.sender
     
-    self._callTokensToSend(_from, _from, _to, _value, '', '')
-    self._move(_from, _from, _to, _value, '', '')
-    self._callTokensReceived(_from, _from, _to, _value, '', '', False)
+    self._callTokensToSend(_from, _from, _to, _value, b'', b'')
+    self._move(_from, _from, _to, _value, b'', b'')
+    self._callTokensReceived(_from, _from, _to, _value, b'', b'', False)
     return True
 
 
