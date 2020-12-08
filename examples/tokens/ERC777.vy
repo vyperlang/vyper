@@ -238,10 +238,10 @@ def transferFrom(_from: address, _to: address, _value: uint256) -> bool:
     assert _from != ZERO_ADDRESS
     _operator: address = msg.sender
 
-    self._callTokensToSend(_operator, _from, _to, _value, '', '')
-    self._move(_operator, _from, _to, _value, '', '')
+    self._callTokensToSend(_operator, _from, _to, _value, b'', b'')
+    self._move(_operator, _from, _to, _value, b'', b'')
     self._approve(_from, _operator, self.allowances[_from][_operator] - _value)
-    self._callTokensReceived(_operator, _from, _to, _value, '', '', False)
+    self._callTokensReceived(_operator, _from, _to, _value, b'', b'', False)
     return True
 
 ######################
