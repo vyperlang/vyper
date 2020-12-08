@@ -205,7 +205,7 @@ def send(_to: address, _value: uint256, _data: bytes32):
     """
     _from: address = msg.sender
 
-    self._send(_from, _to, _value, '', True)
+    self._send(_from, _to, _value, b'', True)
 
 
 @external
