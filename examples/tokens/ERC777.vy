@@ -17,7 +17,7 @@ interface ERC1820Registry:
     def getInterfaceImplementer(_address: address, _interfaceHash: bytes32) -> address: view
     # TODO: default length of string?
     def interfaceHash(_interfaceName: String[128]) -> bytes32: nonpayable
-    def updateERC165Cache(_interfaceName: string): pass
+    def updateERC165Cache(_interfaceName: String[128]): nonpayable
     def implementsERC165Interface(_address: address, _interfaceId: Bytes[4]) -> bool: view
     def implementsERC165InterfaceNoCache(_address: address, _interfaceId: Bytes[4]) -> bool: view
     event InterfaceImplementerSet:
