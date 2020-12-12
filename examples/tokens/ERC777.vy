@@ -11,13 +11,13 @@ implements: ERC777
 #      https://eips.ethereum.org/EIPS/eip-1820[EIP]. Accounts may register
 #      implementers for interfaces in this registry, as well as query support. 
 interface ERC1820Registry:
-    def setManager(_address: address, _newManager: address): pass
+    def setManager(_address: address, _newManager: address): nonpayable
     def getManager(_address: address) -> address: view
-    def setInterfaceImplementer(_address: address, _interfaceHash: bytes32, _implementer: address): pass
+    def setInterfaceImplementer(_address: address, _interfaceHash: bytes32, _implementer: address): nonpayable
     def getInterfaceImplementer(_address: address, _interfaceHash: bytes32) -> address: view
     # TODO: default length of string?
-    def interfaceHash(_interfaceName: string) -> bytes32: pass
-    def updateERC165Cache(_interfaceName: string): pass
+    def interfaceHash(_interfaceName: String[128]) -> bytes32: nonpayable
+    def updateERC165Cache(_interfaceName: String[128]): nonpayable
     def implementsERC165Interface(_address: address, _interfaceId: Bytes[4]) -> bool: view
     def implementsERC165InterfaceNoCache(_address: address, _interfaceId: Bytes[4]) -> bool: view
     event InterfaceImplementerSet:
@@ -189,7 +189,7 @@ def burn(_value: uint256, _data: bytes32) -> bool:
     @param _data Extra information provided (if any).
     @return True if burn succeeded, False otherwise.
     """
-    return self._burn(msg.sender, _value, _data, '')
+    return self._burn(msg.sender, _value, _data, b'')
 
 
 @internal
@@ -205,7 +205,7 @@ def send(_to: address, _value: uint256, _data: bytes32):
     """
     _from: address = msg.sender
 
-    self._send(_from, _to, _value, '', True)
+    self._send(_from, _to, _value, b'', True)
 
 
 @external
@@ -219,9 +219,9 @@ def transfer(_to: address, _value: uint256) -> bool:
     assert _to != ZERO_ADDRESS
     _from: address = msg.sender
     
-    self._callTokensToSend(_from, _from, _to, _value, '', '')
-    self._move(_from, _from, _to, _value, '', '')
-    self._callTokensReceived(_from, _from, _to, _value, '', '', False)
+    self._callTokensToSend(_from, _from, _to, _value, b'', b'')
+    self._move(_from, _from, _to, _value, b'', b'')
+    self._callTokensReceived(_from, _from, _to, _value, b'', b'', False)
     return True
 
 
@@ -238,10 +238,10 @@ def transferFrom(_from: address, _to: address, _value: uint256) -> bool:
     assert _from != ZERO_ADDRESS
     _operator: address = msg.sender
 
-    self._callTokensToSend(_operator, _from, _to, _value, '', '')
-    self._move(_operator, _from, _to, _value, '', '')
+    self._callTokensToSend(_operator, _from, _to, _value, b'', b'')
+    self._move(_operator, _from, _to, _value, b'', b'')
     self._approve(_from, _operator, self.allowances[_from][_operator] - _value)
-    self._callTokensReceived(_operator, _from, _to, _value, '', '', False)
+    self._callTokensReceived(_operator, _from, _to, _value, b'', b'', False)
     return True
 
 ######################
