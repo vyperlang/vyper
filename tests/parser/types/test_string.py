@@ -34,7 +34,7 @@ def testa(inp: String[100]) -> String[100]:
 
 @external
 def testequals() -> bool:
-    a: String[100] = testb()
+    a: String[100] = self.testb()
     b: String[100] = "test return"
     return a == b
 
