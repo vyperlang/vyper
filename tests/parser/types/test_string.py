@@ -21,6 +21,32 @@ def testa(inp: String[100]) -> String[100]:
     assert c.testb() == "test return"
 
 
+def test_dynamic_string_return(get_contract_with_gas_estimation):
+    code = """
+@external
+def testb() -> String[100]:
+    a: String[100] = "test return"
+    return a
+
+@external
+def testa(inp: String[100]) -> String[100]:
+    return inp
+
+@external
+def testequals() -> bool:
+    a: String[100] = testb()
+    b: String[100] = "test return"
+    return a == b
+
+    """
+
+    c = get_contract_with_gas_estimation(code)
+
+    assert c.testa("meh") == c.testa("meh")
+    assert c.testb() == c.testb()
+    assert c.testequals()
+
+
 def test_string_concat(get_contract_with_gas_estimation):
     code = """
 @external
