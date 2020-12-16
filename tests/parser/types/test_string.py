@@ -170,75 +170,75 @@ def test(a: uint256, b: String[50] = "foo") -> Bytes[100]:
 
 def test_string_equality(get_contract_with_gas_estimation):
     code = """
-_compA: String[100]
-_compB: String[100]
+_compA: String[28]
+_compB: String[28]
 
 @external
 def equal_true() -> bool:
-    compA: String[100] = "The quick brown fox jumps over the lazy dog"
-    compB: String[100] = "The quick brown fox jumps over the lazy dog"
+    compA: String[100] = "x the lazy dog"
+    compB: String[100] = "x the lazy dog"
     return compA == compB
 
 @external
 def equal_false() -> bool:
-    compA: String[100] = "The quick brown fox jumps over the lazy dog"
-    compB: String[100] = "The quick brown fox jumps over the lazy hog"
+    compA: String[100] = "x the lazy dog"
+    compB: String[100] = "x the lazy hog"
     return compA == compB
 
 @external
 def not_equal_true() -> bool:
-    compA: String[100] = "The quick brown fox jumps over the lazy dog"
-    compB: String[100] = "The quick brown fox jumps over the lazy hog"
+    compA: String[100] = "x the lazy dog"
+    compB: String[100] = "x the lazy hog"
     return compA != compB
 
 @external
 def not_equal_false() -> bool:
-    compA: String[100] = "The quick brown fox jumps over the lazy dog"
-    compB: String[100] = "The quick brown fox jumps over the lazy dog"
+    compA: String[100] = "x the lazy dog"
+    compB: String[100] = "x the lazy dog"
     return compA != compB
 
 @external
 def literal_equal_true() -> bool:
-    return "The quick brown fox jumps over the lazy dog" == \
-    "The quick brown fox jumps over the lazy dog"
+    return "x the lazy dog" == \
+    "x the lazy dog"
 
 @external
 def literal_equal_false() -> bool:
-    return "The quick brown fox jumps over the lazy dog" == \
-    "The quick brown fox jumps over the lazy hog"
+    return "x the lazy dog" == \
+    "x the lazy hog"
 
 @external
 def literal_not_equal_true() -> bool:
-    return "The quick brown fox jumps over the lazy dog" != \
-    "The quick brown fox jumps over the lazy hog"
+    return "x the lazy dog" != \
+    "x the lazy hog"
 
 @external
 def literal_not_equal_false() -> bool:
-    return "The quick brown fox jumps over the lazy dog" != \
-    "The quick brown fox jumps over the lazy dog"
+    return "x the lazy dog" != \
+    "x the lazy dog"
 
 @external
 def storage_equal_true() -> bool:
-    self._compA = "The quick brown fox jumps over the lazy dog"
-    self._compB = "The quick brown fox jumps over the lazy dog"
+    self._compA = "x the lazy dog"
+    self._compB = "x the lazy dog"
     return self._compA == self._compB
 
 @external
 def storage_equal_false() -> bool:
-    self._compA = "The quick brown fox jumps over the lazy dog"
-    self._compB = "The quick brown fox jumps over the lazy hog"
+    self._compA = "x the lazy dog"
+    self._compB = "x the lazy hog"
     return self._compA == self._compB
 
 @external
 def storage_not_equal_true() -> bool:
-    self._compA = "The quick brown fox jumps over the lazy dog"
-    self._compB = "The quick brown fox jumps over the lazy hog"
+    self._compA = "x the lazy dog"
+    self._compB = "x the lazy hog"
     return self._compA != self._compB
 
 @external
 def storage_not_equal_false() -> bool:
-    self._compA = "The quick brown fox jumps over the lazy dog"
-    self._compB = "The quick brown fox jumps over the lazy dog"
+    self._compA = "x the lazy dog"
+    self._compB = "x the lazy dog"
     return self._compA != self._compB
 
 @external
@@ -251,36 +251,36 @@ def string_compare_not_equal(str1: String[100], str2: String[100]) -> bool:
 
 @external
 def compare_passed_storage_equal(str: String[100]) -> bool:
-    self._compA = "The quick brown fox jumps over the lazy dog"
+    self._compA = "x the lazy dog"
     return self._compA == str
 
 @external
 def compare_passed_storage_not_equal(str: String[100]) -> bool:
-    self._compA = "The quick brown fox jumps over the lazy dog"
+    self._compA = "x the lazy dog"
     return self._compA != str
 
 @external
 def compare_var_storage_equal_true() -> bool:
-    self._compA = "The quick brown fox jumps over the lazy dog"
-    compB: String[100] = "The quick brown fox jumps over the lazy dog"
+    self._compA = "x the lazy dog"
+    compB: String[100] = "x the lazy dog"
     return self._compA == compB
 
 @external
 def compare_var_storage_equal_false() -> bool:
-    self._compA = "The quick brown fox jumps over the lazy dog"
-    compB: String[100] = "The quick brown fox jumps over the lazy hog"
+    self._compA = "x the lazy dog"
+    compB: String[100] = "x the lazy hog"
     return self._compA == compB
 
 @external
 def compare_var_storage_not_equal_true() -> bool:
-    self._compA = "The quick brown fox jumps over the lazy dog"
-    compB: String[100] = "The quick brown fox jumps over the lazy hog"
+    self._compA = "x the lazy dog"
+    compB: String[100] = "x the lazy hog"
     return self._compA != compB
 
 @external
 def compare_var_storage_not_equal_false() -> bool:
-    self._compA = "The quick brown fox jumps over the lazy dog"
-    compB: String[100] = "The quick brown fox jumps over the lazy dog"
+    self._compA = "x the lazy dog"
+    compB: String[100] = "x the lazy dog"
     return self._compA != compB
     """
 
@@ -298,8 +298,8 @@ def compare_var_storage_not_equal_false() -> bool:
     assert c.storage_not_equal_true() is True
     assert c.storage_not_equal_false() is False
 
-    a = "The quick brown fox jumps over the lazy dog"
-    b = "The quick brown fox jumps over the lazy hog"
+    a = "x the lazy dog"
+    b = "x the lazy hog"
     assert c.string_compare_equal(a, a) is True
     assert c.string_compare_equal(a, b) is False
     assert c.string_compare_not_equal(b, a) is True
