@@ -57,7 +57,7 @@ setup(
     author="Vyper Team",
     author_email="",
     url="https://github.com/vyperlang/vyper",
-    license="MIT",
+    license="Apache License 2.0",
     keywords="ethereum evm smart contract language",
     include_package_data=True,
     packages=find_packages(exclude=("tests", "docs")),
@@ -77,7 +77,7 @@ setup(
     },
     classifiers=[
         "Intended Audience :: Developers",
-        "License :: OSI Approved :: MIT License",
+        "License :: OSI Approved :: Apache Software License",
         "Programming Language :: Python :: 3.6",
     ],
     data_files=[("", [hash_file_rel_path])],
