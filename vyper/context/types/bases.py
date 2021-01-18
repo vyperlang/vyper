@@ -185,9 +185,12 @@ class BaseTypeDefinition:
     -----------------
     is_immutable : bool, optional
         If `True`, the value of this object cannot be modified after assignment.
+    size_in_bytes: int
+        The number of bytes that are required to store this type.
     """
 
     is_dynamic_size = False
+    size_in_bytes = 32
     _id: str
 
     def __init__(
