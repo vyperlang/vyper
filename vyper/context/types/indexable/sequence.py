@@ -117,7 +117,7 @@ class TupleDefinition(_SequenceDefinition):
 
     @property
     def is_dynamic_size(self):
-        return any(i for i in self.self.value_type if i.is_dynamic_size)
+        return any(i for i in self.value_type if i.is_dynamic_size)
 
     @property
     def size_in_bytes(self):
