@@ -1,3 +1,4 @@
+import math
 from typing import Type
 
 from vyper import ast as vy_ast
@@ -58,6 +59,14 @@ class _ArrayValueDefinition(ValueTypeDefinition):
         if self._length:
             return self._length
         return self._min_length
+
+    @property
+    def size_in_bytes(self):
+        # the first slot (32 bytes) stores the actual length, and then we reserve
+        # enough additional slots to store the data if it uses the max available length
+        # because this data type is single-bytes, we make it so it takes the max 32 byte
+        # boundary as it's size, instead of giving it a size that is not cleanly divisble by 32
+        return 32 + math.ceil(self.length / 32) * 32
 
     @property
     def canonical_type(self) -> str:

@@ -32,6 +32,10 @@ class StructDefinition(MemberTypeDefinition):
     def is_dynamic_size(self):
         return any(i for i in self.members.values() if i.is_dynamic_size)
 
+    @property
+    def size_in_bytes(self):
+        return sum(i.size_in_bytes for i in self.members.values())
+
     def compare_type(self, other):
         return super().compare_type(other) and self._id == other._id
 

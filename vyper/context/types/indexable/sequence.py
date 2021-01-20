@@ -70,6 +70,10 @@ class ArrayDefinition(_SequenceDefinition):
     def is_dynamic_size(self):
         return self.value_type.is_dynamic_size
 
+    @property
+    def size_in_bytes(self):
+        return self.value_type.size_in_bytes * self.length
+
     def get_index_type(self, node):
         if isinstance(node, vy_ast.Int):
             if node.value < 0:
@@ -113,7 +117,11 @@ class TupleDefinition(_SequenceDefinition):
 
     @property
     def is_dynamic_size(self):
-        return any(i for i in self.self.value_type if i.is_dynamic_size)
+        return any(i for i in self.value_type if i.is_dynamic_size)
+
+    @property
+    def size_in_bytes(self):
+        return sum(i.size_in_bytes for i in self.value_type)
 
     def get_index_type(self, node):
         if not isinstance(node, vy_ast.Int):
