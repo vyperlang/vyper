@@ -11,6 +11,7 @@ from vyper.exceptions import (
     NamespaceCollision,
     StructureException,
 )
+from vyper.utils import keccak256
 
 
 class Event:
@@ -21,6 +22,9 @@ class Event:
     ----------
     arguments : OrderedDict
         Event arguments.
+    event_id : int
+        Keccak of the event signature, converted to an integer. Used as the
+        first topic when the event is emitted.
     indexed : list
         A list of booleans indicating if each argument within the event is
         indexed.
@@ -32,6 +36,8 @@ class Event:
         self.name = name
         self.arguments = arguments
         self.indexed = indexed
+        signature = f"{name}({','.join(v.canonical_type for v in arguments.values())})"
+        self.event_id = int(keccak256(signature.encode()).hex(), 16)
 
     @classmethod
     def from_EventDef(cls, base_node: vy_ast.EventDef) -> "Event":
