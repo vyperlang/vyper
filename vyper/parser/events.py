@@ -1,5 +1,5 @@
 from vyper import ast as vy_ast
-from vyper.exceptions import StructureException, TypeMismatch
+from vyper.exceptions import StructureException
 from vyper.parser.expr import Expr
 from vyper.parser.lll_node import LLLnode
 from vyper.parser.parser_utils import (
@@ -20,9 +20,8 @@ from vyper.types.types import (
 from vyper.utils import bytes_to_int, ceil32, keccak256
 
 
-def pack_logging_topics(event_id, args, expected_topics, context, pos):
+def pack_logging_topics(event_id, args, expected_topics, context):
     topics = [event_id]
-    code_pos = pos
     for pos, expected_topic in enumerate(expected_topics):
         expected_type = expected_topic.typ
         arg = args[pos]
@@ -30,11 +29,6 @@ def pack_logging_topics(event_id, args, expected_topics, context, pos):
         arg_type = value.typ
 
         if isinstance(arg_type, ByteArrayLike) and isinstance(expected_type, ByteArrayLike):
-            if arg_type.maxlen > expected_type.maxlen:
-                raise TypeMismatch(
-                    f"Topic input bytes are too big: {arg_type} {expected_type}", code_pos
-                )
-
             if isinstance(arg, (vy_ast.Str, vy_ast.Bytes)):
                 # for literals, generate the topic at compile time
                 value = arg.value
@@ -75,13 +69,7 @@ def pack_logging_topics(event_id, args, expected_topics, context, pos):
                 topics.append(lll_node)
 
         else:
-            if arg_type != expected_type:
-                raise TypeMismatch(
-                    f"Invalid type for logging topic, got {arg_type} expected {expected_type}",
-                    value.pos,
-                )
             value = unwrap_location(value)
-            value = base_type_conversion(value, arg_type, expected_type, pos=code_pos)
             topics.append(value)
 
     return topics
@@ -168,12 +156,6 @@ def pack_args_by_32(
         maxlen += (typ.count - 1) * 32
         typ = typ.subtype
 
-        def check_list_type_match(provided):  # Check list types match.
-            if provided != typ:
-                raise TypeMismatch(
-                    f"Log list type '{provided}' does not match provided, expected '{typ}'"
-                )
-
         # NOTE: Below code could be refactored into iterators/getter functions for each type of
         #       repetitive loop. But seeing how each one is a unique for loop, and in which way
         #       the sub value makes the difference in each type of list clearer.
@@ -181,7 +163,6 @@ def pack_args_by_32(
         # List from storage
         if isinstance(arg, vy_ast.Attribute) and arg.value.id == "self":
             stor_list = context.globals[arg.attr]
-            check_list_type_match(stor_list.typ.subtype)
             size = stor_list.typ.count
             mem_offset = 0
             for i in range(0, size):
@@ -199,7 +180,6 @@ def pack_args_by_32(
         elif isinstance(arg, vy_ast.Name):
             size = context.vars[arg.id].size
             pos = context.vars[arg.id].pos
-            check_list_type_match(context.vars[arg.id].typ.subtype)
             mem_offset = 0
             for _ in range(0, size):
                 arg2 = LLLnode.from_list(
@@ -236,12 +216,6 @@ def pack_logging_data(expected_data, args, context, pos):
         if isinstance(arg, (vy_ast.Str, vy_ast.Call)) and arg.get("func.id") != "empty":
             expr = Expr(arg, context)
             source_lll = expr.lll_node
-            typ = source_lll.typ
-
-            if isinstance(arg, vy_ast.Str):
-                if len(arg.s) > typ.maxlen:
-                    raise TypeMismatch(f"Data input bytes are to big: {len(arg.s)} {typ}", pos)
-
             tmp_variable = context.new_internal_variable(source_lll.typ)
             tmp_variable_node = LLLnode.from_list(
                 tmp_variable,
@@ -250,10 +224,7 @@ def pack_logging_data(expected_data, args, context, pos):
                 location="memory",
                 annotation=f"log_prealloacted {source_lll.typ}",
             )
-            # Store len.
-            # holder.append(['mstore', len_placeholder, ['mload', unwrap_location(source_lll)]])
             # Copy bytes.
-
             holder.append(
                 make_setter(tmp_variable_node, source_lll, pos=getpos(arg), location="memory")
             )
