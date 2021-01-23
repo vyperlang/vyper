@@ -57,45 +57,41 @@ class Stmt:
             raise StructureException(f"Unsupported statement type: {type(self.stmt)}", self.stmt)
 
     def parse_AnnAssign(self):
-        with self.context.assignment_scope():
-            typ = parse_type(
-                self.stmt.annotation, location="memory", custom_structs=self.context.structs,
+        typ = parse_type(
+            self.stmt.annotation, location="memory", custom_structs=self.context.structs,
+        )
+        varname = self.stmt.target.id
+        pos = self.context.new_variable(varname, typ, pos=self.stmt)
+        if self.stmt.value is None:
+            return
+
+        sub = Expr(self.stmt.value, self.context).lll_node
+
+        is_literal_bytes32_assign = (
+            isinstance(sub.typ, ByteArrayType)
+            and sub.typ.maxlen == 32
+            and isinstance(typ, BaseType)
+            and typ.typ == "bytes32"
+            and sub.typ.is_literal
+        )
+
+        # If bytes[32] to bytes32 assignment rewrite sub as bytes32.
+        if is_literal_bytes32_assign:
+            sub = LLLnode(
+                bytes_to_int(self.stmt.value.s), typ=BaseType("bytes32"), pos=getpos(self.stmt),
             )
-            varname = self.stmt.target.id
-            pos = self.context.new_variable(varname, typ, pos=self.stmt)
-            if self.stmt.value is None:
-                return
 
-            sub = Expr(self.stmt.value, self.context).lll_node
+        variable_loc = LLLnode.from_list(pos, typ=typ, location="memory", pos=getpos(self.stmt),)
+        lll_node = make_setter(variable_loc, sub, "memory", pos=getpos(self.stmt))
 
-            is_literal_bytes32_assign = (
-                isinstance(sub.typ, ByteArrayType)
-                and sub.typ.maxlen == 32
-                and isinstance(typ, BaseType)
-                and typ.typ == "bytes32"
-                and sub.typ.is_literal
-            )
-
-            # If bytes[32] to bytes32 assignment rewrite sub as bytes32.
-            if is_literal_bytes32_assign:
-                sub = LLLnode(
-                    bytes_to_int(self.stmt.value.s), typ=BaseType("bytes32"), pos=getpos(self.stmt),
-                )
-
-            variable_loc = LLLnode.from_list(
-                pos, typ=typ, location="memory", pos=getpos(self.stmt),
-            )
-            lll_node = make_setter(variable_loc, sub, "memory", pos=getpos(self.stmt))
-
-            return lll_node
+        return lll_node
 
     def parse_Assign(self):
         # Assignment (e.g. x[4] = y)
-        with self.context.assignment_scope():
-            sub = Expr(self.stmt.value, self.context).lll_node
-            target = self._get_target(self.stmt.target)
-            lll_node = make_setter(target, sub, target.location, pos=getpos(self.stmt))
-            lll_node.pos = getpos(self.stmt)
+        sub = Expr(self.stmt.value, self.context).lll_node
+        target = self._get_target(self.stmt.target)
+        lll_node = make_setter(target, sub, target.location, pos=getpos(self.stmt))
+        lll_node.pos = getpos(self.stmt)
         return lll_node
 
     def parse_If(self):
