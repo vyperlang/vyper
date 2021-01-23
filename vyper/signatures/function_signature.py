@@ -43,6 +43,9 @@ class VariableRecord:
 
     @property
     def size(self):
+        if hasattr(self.typ, "size_in_bytes"):
+            # temporary requirement to support both new and old type objects
+            return self.typ.size_in_bytes
         return get_size_of_type(self.typ)
 
 

@@ -163,7 +163,11 @@ class Context:
             Memory offset for the variable
         """
 
-        var_size = 32 * get_size_of_type(typ)
+        if hasattr(typ, "size_in_bytes"):
+            # temporary requirement to support both new and old type objects
+            var_size = typ.size_in_bytes  # type: ignore
+        else:
+            var_size = 32 * get_size_of_type(typ)
         return self._new_variable(name, typ, var_size, False)
 
     def new_internal_variable(self, typ: NodeType) -> int:
@@ -185,7 +189,11 @@ class Context:
         self._internal_var_iter += 1
         name = f"#internal_{var_id}"
 
-        var_size = 32 * get_size_of_type(typ)
+        if hasattr(typ, "size_in_bytes"):
+            # temporary requirement to support both new and old type objects
+            var_size = typ.size_in_bytes  # type: ignore
+        else:
+            var_size = 32 * get_size_of_type(typ)
         return self._new_variable(name, typ, var_size, True)
 
     def parse_type(self, ast_node, location):
