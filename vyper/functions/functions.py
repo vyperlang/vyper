@@ -1428,6 +1428,18 @@ class PowMod256(_SimpleBuiltinFunction):
 def get_create_forwarder_to_bytecode():
     from vyper.compile_lll import assembly_to_evm
 
+    loader_asm = [
+        "RETURNDATASIZE",
+        "PUSH1",
+        0x2D,
+        "DUP1",
+        "PUSH1",
+        0x0A,
+        "RETURNDATASIZE",
+        "CODECOPY",
+        "DUP2",
+        "RETURN",
+    ]
     forwarder_pre_asm = [
         "CALLDATASIZE",
         "RETURNDATASIZE",
@@ -1457,7 +1469,11 @@ def get_create_forwarder_to_bytecode():
         "JUMPDEST",
         "RETURN",
     ]
-    return assembly_to_evm(forwarder_pre_asm)[0], assembly_to_evm(forwarder_post_asm)[0]
+    return (
+        assembly_to_evm(loader_asm)[0],
+        assembly_to_evm(forwarder_pre_asm)[0],
+        assembly_to_evm(forwarder_post_asm)[0],
+    )
 
 
 class CreateForwarderTo(_SimpleBuiltinFunction):
@@ -1476,15 +1492,22 @@ class CreateForwarderTo(_SimpleBuiltinFunction):
             )
         placeholder = context.new_internal_variable(ByteArrayType(96))
 
-        forwarder_pre_evm, forwarder_post_evm = get_create_forwarder_to_bytecode()
+        loader_evm, forwarder_pre_evm, forwarder_post_evm = get_create_forwarder_to_bytecode()
+        # Adjust to 32-byte boundaries
+        preamble_length = len(loader_evm) + len(forwarder_pre_evm)
+        forwarder_preamble = bytes_to_int(
+            loader_evm + forwarder_pre_evm + b"\x00" * (32 - preamble_length)
+        )
+        forwarder_post = bytes_to_int(forwarder_post_evm + b"\x00" * (32 - len(forwarder_post_evm)))
+        target_address = args[0]
 
         return LLLnode.from_list(
             [
                 "seq",
-                ["mstore", placeholder, bytes_to_int(forwarder_pre_evm)],
-                ["mstore", ["add", placeholder, 27], ["mul", args[0], 2 ** 96]],
-                ["mstore", ["add", placeholder, 47], bytes_to_int(forwarder_post_evm)],
-                ["clamp_nonzero", ["create", value, placeholder, 96]],
+                ["mstore", placeholder, forwarder_preamble],
+                ["mstore", ["add", placeholder, preamble_length], target_address],
+                ["mstore", ["add", placeholder, preamble_length + 20], forwarder_post],
+                ["create", value, placeholder, preamble_length + 20 + len(forwarder_post_evm)],
             ],
             typ=BaseType("address"),
             pos=getpos(expr),
