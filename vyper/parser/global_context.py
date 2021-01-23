@@ -56,7 +56,7 @@ class GlobalContext:
                 global_ctx._contracts[item.name] = GlobalContext.make_contract(item)
 
             elif isinstance(item, vy_ast.EventDef):
-                global_ctx._events.append(item)
+                continue
 
             # Statements of the form:
             # variable_name: type

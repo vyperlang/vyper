@@ -1,6 +1,5 @@
 import copy
 
-from vyper.signatures.event_signature import EventSignature
 from vyper.signatures.function_signature import FunctionSignature
 
 
@@ -46,11 +45,6 @@ def generate_default_arg_sigs(code, interfaces, global_ctx):
 # Get ABI signature
 def mk_full_signature(global_ctx, sig_formatter):
     o = []
-
-    # Produce event signatues.
-    for code in global_ctx._events:
-        sig = EventSignature.from_declaration(code, global_ctx)
-        o.append(sig_formatter(sig))
 
     # Produce function signatures.
     for code in global_ctx._defs:

@@ -14,7 +14,6 @@ from vyper.parser.function_definitions import (
 from vyper.parser.global_context import GlobalContext
 from vyper.parser.lll_node import LLLnode
 from vyper.signatures import sig_utils
-from vyper.signatures.event_signature import EventSignature
 from vyper.signatures.function_signature import FunctionSignature
 from vyper.typing import InterfaceImports
 from vyper.utils import LOADED_LIMITS
@@ -43,12 +42,6 @@ def func_init_lll():
 
 def init_func_init_lll():
     return LLLnode.from_list(["seq"] + LIMIT_MEMORY_SET, typ=None)
-
-
-def parse_events(sigs, global_ctx):
-    for event in global_ctx._events:
-        sigs[event.name] = EventSignature.from_declaration(event, global_ctx)
-    return sigs
 
 
 def parse_external_interfaces(external_interfaces, global_ctx):
@@ -169,8 +162,6 @@ def parse_tree_to_lll(global_ctx: GlobalContext) -> Tuple[LLLnode, LLLnode]:
     external_interfaces: dict = {}
     # Create the main statement
     o = ["seq"]
-    if global_ctx._events:
-        sigs = parse_events(sigs, global_ctx)
     if global_ctx._contracts or global_ctx._interfaces:
         external_interfaces = parse_external_interfaces(external_interfaces, global_ctx)
     # If there is an init func...
