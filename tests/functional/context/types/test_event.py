@@ -69,6 +69,21 @@ EVENT_ID_TESTS = [
         # Nonsense(bytes,int128[4][38],address[3],uint256,string)
         0xEE1C420D3504F8A563AA99C8341A41C4C2A1A7F35665EE2F5F341CB8F451B5FC,
     ),
+    (
+        """event Bar:
+    a: decimal[4]""",
+        # Bar(fixed168x10[4])
+        0x7F5D3D77DC11EED2D256D513EF1916FBA342AD13DD629E3C2FF3BD1BAEADF932,
+    ),
+    (
+        """event Rtadr:
+    a: indexed(decimal)
+    b: decimal[2][5]
+    c: Bytes[4]
+    d: decimal[666]""",
+        # Rtadr(fixed168x10,fixed168x10[2][5],bytes,fixed168x10[666])
+        0x20B4E04949A8E3B03C8DECC09D8B18B271D42E66F83B9FAA7B75EA7E22E27177,
+    ),
 ]
 
 
