@@ -1,11 +1,12 @@
 from collections import OrderedDict
-from typing import Union
+from typing import Dict, Tuple, Union
 
 from vyper import ast as vy_ast
 from vyper.ast.validation import validate_call_args
 from vyper.context.namespace import get_namespace
 from vyper.context.types.bases import DataLocation, MemberTypeDefinition
 from vyper.context.types.function import ContractFunction
+from vyper.context.types.meta.event import Event
 from vyper.context.types.value.address import AddressDefinition
 from vyper.context.validation.utils import validate_expected_type
 from vyper.exceptions import (
@@ -38,9 +39,10 @@ class InterfacePrimitive:
     _is_callable = True
     _as_array = True
 
-    def __init__(self, _id, members):
+    def __init__(self, _id, members, events):
         self._id = _id
         self.members = members
+        self.events = events
 
     def __repr__(self):
         return f"{self._id} declaration object"
@@ -66,6 +68,7 @@ class InterfacePrimitive:
 
     def validate_implements(self, node: vy_ast.AnnAssign) -> None:
         namespace = get_namespace()
+        # check for missing functions
         unimplemented = [
             name
             for name, type_ in self.members.items()
@@ -73,9 +76,18 @@ class InterfacePrimitive:
             or not hasattr(namespace["self"].members[name], "compare_signature")
             or not namespace["self"].members[name].compare_signature(type_)
         ]
+        # check for missing events
+        unimplemented += [
+            name
+            for name, event in self.events.items()
+            if name not in namespace
+            or not isinstance(namespace[name], Event)
+            or namespace[name].event_id != event.event_id
+        ]
         if unimplemented:
+            missing_str = ", ".join(sorted(unimplemented))
             raise InterfaceViolation(
-                f"Contract does not implement all interface functions: {', '.join(unimplemented)}",
+                f"Contract does not implement all interface functions or events: {missing_str}",
                 node,
             )
 
@@ -97,6 +109,8 @@ def build_primitive_from_abi(name: str, abi: dict) -> InterfacePrimitive:
         primitive interface type
     """
     members: OrderedDict = OrderedDict()
+    events: Dict = {}
+
     for item in [i for i in abi if i.get("type") == "function"]:
         func = ContractFunction.from_abi(item)
         if func.name in members:
@@ -105,8 +119,10 @@ def build_primitive_from_abi(name: str, abi: dict) -> InterfacePrimitive:
                 f"ABI '{name}' contains multiple functions named '{func.name}'"
             )
         members[func.name] = func
+    for item in [i for i in abi if i.get("type") == "event"]:
+        events[item["name"]] = Event.from_abi(item)
 
-    return InterfacePrimitive(name, members)
+    return InterfacePrimitive(name, members, events)
 
 
 def build_primitive_from_node(
@@ -125,22 +141,24 @@ def build_primitive_from_node(
         primitive interface type
     """
     if isinstance(node, vy_ast.Module):
-        members = _get_module_functions(node)
+        members, events = _get_module_definitions(node)
     elif isinstance(node, vy_ast.InterfaceDef):
         members = _get_class_functions(node)
+        events = {}
     else:
         raise StructureException("Invalid syntax for interface definition", node)
 
     namespace = get_namespace()
-    for func in members.values():
-        if func.name in namespace:
-            raise NamespaceCollision(func.name, func.node)
+    for item in list(members.values()) + list(events.values()):
+        if item.name in namespace:
+            raise NamespaceCollision(item.name, item.node)
 
-    return InterfacePrimitive(node.name, members)
+    return InterfacePrimitive(node.name, members, events)
 
 
-def _get_module_functions(base_node: vy_ast.Module) -> OrderedDict:
+def _get_module_definitions(base_node: vy_ast.Module) -> Tuple[OrderedDict, Dict]:
     functions: OrderedDict = OrderedDict()
+    events: Dict = {}
     for node in base_node.get_children(vy_ast.FunctionDef):
         if "external" in [i.id for i in node.decorator_list]:
             func = ContractFunction.from_FunctionDef(node)
@@ -167,7 +185,15 @@ def _get_module_functions(base_node: vy_ast.Module) -> OrderedDict:
                 f"Interface contains multiple functions named '{name}'", base_node
             )
         functions[name] = ContractFunction.from_AnnAssign(node)
-    return functions
+    for node in base_node.get_children(vy_ast.EventDef):
+        name = node.name
+        if name in functions or name in events:
+            raise NamespaceCollision(
+                f"Interface contains multiple objects named '{name}'", base_node
+            )
+        events[name] = Event.from_EventDef(node)
+
+    return functions, events
 
 
 def _get_class_functions(base_node: vy_ast.InterfaceDef) -> OrderedDict:
