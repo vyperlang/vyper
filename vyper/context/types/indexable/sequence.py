@@ -67,6 +67,10 @@ class ArrayDefinition(_SequenceDefinition):
         return f"{self.value_type}[{self.length}]"
 
     @property
+    def canonical_type(self):
+        return f"{self.value_type.canonical_type}[{self.length}]"
+
+    @property
     def is_dynamic_size(self):
         return self.value_type.is_dynamic_size
 
