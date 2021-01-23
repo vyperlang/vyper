@@ -1426,51 +1426,35 @@ class PowMod256(_SimpleBuiltinFunction):
 
 
 def get_create_forwarder_to_bytecode():
-    from vyper.compile_lll import assembly_to_evm, num_to_bytearray
+    from vyper.compile_lll import assembly_to_evm
 
     code_a = [
-        "PUSH1",
-        0x33,
-        "PUSH1",
-        0x0C,
-        "PUSH1",
-        0x00,
-        "CODECOPY",
-        "PUSH1",
-        0x33,
-        "PUSH1",
-        0x00,
-        "RETURN",
         "CALLDATASIZE",
-        "PUSH1",
-        0x00,
-        "PUSH1",
-        0x00,
+        "RETURNDATASIZE",
+        "RETURNDATASIZE",
         "CALLDATACOPY",
-        "PUSH2",
-        num_to_bytearray(0x1000),
-        "PUSH1",
-        0x00,
+        "RETURNDATASIZE",
+        "RETURNDATASIZE",
+        "RETURNDATASIZE",
         "CALLDATASIZE",
-        "PUSH1",
-        0x00,
+        "RETURNDATASIZE",
         "PUSH20",  # [address to delegate to]
     ]
     code_b = [
         "GAS",
         "DELEGATECALL",
-        "PUSH1",
-        0x2C,  # jumpdest of whole program.
-        "JUMPI",
-        "PUSH1",
-        0x0,
+        "RETURNDATASIZE",
+        "DUP3",
         "DUP1",
+        "RETURNDATACOPY",
+        "SWAP1",
+        "RETURNDATASIZE",
+        "SWAP2",
+        "PUSH1",
+        0x2B,  # jumpdest of whole program.
+        "JUMPI",
         "REVERT",
         "JUMPDEST",
-        "PUSH2",
-        num_to_bytearray(0x1000),
-        "PUSH1",
-        0x00,
         "RETURN",
     ]
     return assembly_to_evm(code_a)[0] + (b"\x00" * 20) + assembly_to_evm(code_b)[0]
