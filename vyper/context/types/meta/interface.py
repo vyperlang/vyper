@@ -111,14 +111,16 @@ def build_primitive_from_abi(name: str, abi: dict) -> InterfacePrimitive:
     members: OrderedDict = OrderedDict()
     events: Dict = {}
 
+    names = [i["name"] for i in abi if i.get("type") in ("event", "function")]
+    collisions = set(i for i in names if names.count(i) > 1)
+    if collisions:
+        collision_list = ", ".join(sorted(collisions))
+        raise NamespaceCollision(
+            f"ABI '{name}' has multiple functions or events with the same name: {collision_list}"
+        )
+
     for item in [i for i in abi if i.get("type") == "function"]:
-        func = ContractFunction.from_abi(item)
-        if func.name in members:
-            # TODO overloaded functions
-            raise NamespaceCollision(
-                f"ABI '{name}' contains multiple functions named '{func.name}'"
-            )
-        members[func.name] = func
+        members[item["name"]] = ContractFunction.from_abi(item)
     for item in [i for i in abi if i.get("type") == "event"]:
         events[item["name"]] = Event.from_abi(item)
 
