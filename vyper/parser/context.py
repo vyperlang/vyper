@@ -47,8 +47,6 @@ class Context:
         self.in_range_expr = False
         # Is the function payable?
         self.is_payable = is_payable
-        # In Loop status. Whether body is currently evaluating within a for-loop or not.
-        self.in_for_loop = set()
         # List of custom structs that have been defined.
         self.structs = global_ctx._structs
         # Callback pointer to jump back to, used in internal functions.
@@ -77,12 +75,6 @@ class Context:
     #
     # Context Managers
     # - Context managers are used to ensure proper wrapping of scopes and context states.
-
-    @contextlib.contextmanager
-    def in_for_loop_scope(self, name_of_list):
-        self.in_for_loop.add(name_of_list)
-        yield
-        self.in_for_loop.remove(name_of_list)
 
     @contextlib.contextmanager
     def range_scope(self):
