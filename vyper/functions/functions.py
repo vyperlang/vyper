@@ -1428,7 +1428,7 @@ class PowMod256(_SimpleBuiltinFunction):
 def get_create_forwarder_to_bytecode():
     from vyper.compile_lll import assembly_to_evm
 
-    code_a = [
+    forwarder_pre_asm = [
         "CALLDATASIZE",
         "RETURNDATASIZE",
         "RETURNDATASIZE",
@@ -1440,7 +1440,7 @@ def get_create_forwarder_to_bytecode():
         "RETURNDATASIZE",
         "PUSH20",  # [address to delegate to]
     ]
-    code_b = [
+    forwarder_post_asm = [
         "GAS",
         "DELEGATECALL",
         "RETURNDATASIZE",
@@ -1457,7 +1457,7 @@ def get_create_forwarder_to_bytecode():
         "JUMPDEST",
         "RETURN",
     ]
-    return assembly_to_evm(code_a)[0] + (b"\x00" * 20) + assembly_to_evm(code_b)[0]
+    return assembly_to_evm(forwarder_pre_asm)[0], assembly_to_evm(forwarder_post_asm)[0]
 
 
 class CreateForwarderTo(_SimpleBuiltinFunction):
@@ -1476,16 +1476,14 @@ class CreateForwarderTo(_SimpleBuiltinFunction):
             )
         placeholder = context.new_internal_variable(ByteArrayType(96))
 
-        kode = get_create_forwarder_to_bytecode()
-        high = bytes_to_int(kode[:32])
-        low = bytes_to_int((kode + b"\x00" * 32)[47:79])
+        forwarder_pre_evm, forwarder_post_evm = get_create_forwarder_to_bytecode()
 
         return LLLnode.from_list(
             [
                 "seq",
-                ["mstore", placeholder, high],
+                ["mstore", placeholder, bytes_to_int(forwarder_pre_evm)],
                 ["mstore", ["add", placeholder, 27], ["mul", args[0], 2 ** 96]],
-                ["mstore", ["add", placeholder, 47], low],
+                ["mstore", ["add", placeholder, 47], bytes_to_int(forwarder_post_evm)],
                 ["clamp_nonzero", ["create", value, placeholder, 96]],
             ],
             typ=BaseType("address"),
