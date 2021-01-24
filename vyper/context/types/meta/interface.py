@@ -1,5 +1,5 @@
 from collections import OrderedDict
-from typing import Dict, Tuple, Union
+from typing import Dict, List, Tuple, Union
 
 from vyper import ast as vy_ast
 from vyper.ast.validation import validate_call_args
@@ -91,6 +91,14 @@ class InterfacePrimitive:
                 node,
             )
 
+    def to_abi_dict(self) -> List[Dict]:
+        abi = []
+        for event in self.events.values():
+            abi += event.to_abi_dict()
+        for func in self.members.values():
+            abi += func.to_abi_dict()
+        return abi
+
 
 def build_primitive_from_abi(name: str, abi: dict) -> InterfacePrimitive:
     """
@@ -149,11 +157,6 @@ def build_primitive_from_node(
         events = {}
     else:
         raise StructureException("Invalid syntax for interface definition", node)
-
-    namespace = get_namespace()
-    for item in list(members.values()) + list(events.values()):
-        if item.name in namespace:
-            raise NamespaceCollision(item.name, item.node)
 
     return InterfacePrimitive(node.name, members, events)
 
