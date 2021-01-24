@@ -57,45 +57,41 @@ class Stmt:
             raise StructureException(f"Unsupported statement type: {type(self.stmt)}", self.stmt)
 
     def parse_AnnAssign(self):
-        with self.context.assignment_scope():
-            typ = parse_type(
-                self.stmt.annotation, location="memory", custom_structs=self.context.structs,
+        typ = parse_type(
+            self.stmt.annotation, location="memory", custom_structs=self.context.structs,
+        )
+        varname = self.stmt.target.id
+        pos = self.context.new_variable(varname, typ, pos=self.stmt)
+        if self.stmt.value is None:
+            return
+
+        sub = Expr(self.stmt.value, self.context).lll_node
+
+        is_literal_bytes32_assign = (
+            isinstance(sub.typ, ByteArrayType)
+            and sub.typ.maxlen == 32
+            and isinstance(typ, BaseType)
+            and typ.typ == "bytes32"
+            and sub.typ.is_literal
+        )
+
+        # If bytes[32] to bytes32 assignment rewrite sub as bytes32.
+        if is_literal_bytes32_assign:
+            sub = LLLnode(
+                bytes_to_int(self.stmt.value.s), typ=BaseType("bytes32"), pos=getpos(self.stmt),
             )
-            varname = self.stmt.target.id
-            pos = self.context.new_variable(varname, typ, pos=self.stmt)
-            if self.stmt.value is None:
-                return
 
-            sub = Expr(self.stmt.value, self.context).lll_node
+        variable_loc = LLLnode.from_list(pos, typ=typ, location="memory", pos=getpos(self.stmt),)
+        lll_node = make_setter(variable_loc, sub, "memory", pos=getpos(self.stmt))
 
-            is_literal_bytes32_assign = (
-                isinstance(sub.typ, ByteArrayType)
-                and sub.typ.maxlen == 32
-                and isinstance(typ, BaseType)
-                and typ.typ == "bytes32"
-                and sub.typ.is_literal
-            )
-
-            # If bytes[32] to bytes32 assignment rewrite sub as bytes32.
-            if is_literal_bytes32_assign:
-                sub = LLLnode(
-                    bytes_to_int(self.stmt.value.s), typ=BaseType("bytes32"), pos=getpos(self.stmt),
-                )
-
-            variable_loc = LLLnode.from_list(
-                pos, typ=typ, location="memory", pos=getpos(self.stmt),
-            )
-            lll_node = make_setter(variable_loc, sub, "memory", pos=getpos(self.stmt))
-
-            return lll_node
+        return lll_node
 
     def parse_Assign(self):
         # Assignment (e.g. x[4] = y)
-        with self.context.assignment_scope():
-            sub = Expr(self.stmt.value, self.context).lll_node
-            target = self._get_target(self.stmt.target)
-            lll_node = make_setter(target, sub, target.location, pos=getpos(self.stmt))
-            lll_node.pos = getpos(self.stmt)
+        sub = Expr(self.stmt.value, self.context).lll_node
+        target = self._get_target(self.stmt.target)
+        lll_node = make_setter(target, sub, target.location, pos=getpos(self.stmt))
+        lll_node.pos = getpos(self.stmt)
         return lll_node
 
     def parse_If(self):
@@ -297,29 +293,25 @@ class Stmt:
 
         # Is a list that is already allocated to memory.
         if iter_var_type:
-
-            list_name = self.stmt.iter.id
-            # make sure list cannot be altered whilst iterating.
-            with self.context.in_for_loop_scope(list_name):
-                iter_var = self.context.vars.get(self.stmt.iter.id)
-                if iter_var.location == "calldata":
-                    fetcher = "calldataload"
-                elif iter_var.location == "memory":
-                    fetcher = "mload"
-                else:
-                    return
-                body = [
-                    "seq",
-                    [
-                        "mstore",
-                        value_pos,
-                        [fetcher, ["add", iter_var.pos, ["mul", ["mload", i_pos], 32]]],
-                    ],
-                    parse_body(self.stmt.body, self.context),
-                ]
-                lll_node = LLLnode.from_list(
-                    ["repeat", i_pos, 0, iter_var.size, body], typ=None, pos=getpos(self.stmt)
-                )
+            iter_var = self.context.vars.get(self.stmt.iter.id)
+            if iter_var.location == "calldata":
+                fetcher = "calldataload"
+            elif iter_var.location == "memory":
+                fetcher = "mload"
+            else:
+                return
+            body = [
+                "seq",
+                [
+                    "mstore",
+                    value_pos,
+                    [fetcher, ["add", iter_var.pos, ["mul", ["mload", i_pos], 32]]],
+                ],
+                parse_body(self.stmt.body, self.context),
+            ]
+            lll_node = LLLnode.from_list(
+                ["repeat", i_pos, 0, iter_var.size, body], typ=None, pos=getpos(self.stmt)
+            )
 
         # List gets defined in the for statement.
         elif isinstance(self.stmt.iter, vy_ast.List):
@@ -343,22 +335,18 @@ class Stmt:
         # List contained in storage.
         elif isinstance(self.stmt.iter, vy_ast.Attribute):
             count = iter_list_node.typ.count
-            list_name = iter_list_node.annotation
-
-            # make sure list cannot be altered whilst iterating.
-            with self.context.in_for_loop_scope(list_name):
-                body = [
-                    "seq",
-                    [
-                        "mstore",
-                        value_pos,
-                        ["sload", ["add", ["sha3_32", iter_list_node], ["mload", i_pos]]],
-                    ],
-                    parse_body(self.stmt.body, self.context),
-                ]
-                lll_node = LLLnode.from_list(
-                    ["seq", ["repeat", i_pos, 0, count, body]], typ=None, pos=getpos(self.stmt)
-                )
+            body = [
+                "seq",
+                [
+                    "mstore",
+                    value_pos,
+                    ["sload", ["add", ["sha3_32", iter_list_node], ["mload", i_pos]]],
+                ],
+                parse_body(self.stmt.body, self.context),
+            ]
+            lll_node = LLLnode.from_list(
+                ["seq", ["repeat", i_pos, 0, count, body]], typ=None, pos=getpos(self.stmt)
+            )
 
         # this kind of open access to the vars dict should be disallowed.
         # we should use member functions to provide an API for these kinds
@@ -582,19 +570,6 @@ class Stmt:
             return gen_tuple_return(self.stmt, self.context, sub)
 
     def _get_target(self, target):
-        # Check if we are doing assignment of an iteration loop.
-        if isinstance(target, vy_ast.Subscript) and self.context.in_for_loop:
-            raise_exception = False
-            if isinstance(target.value, vy_ast.Attribute):
-                if f"{target.value.value.id}.{target.value.attr}" in self.context.in_for_loop:
-                    raise_exception = True
-
-            if target.get("value.id") in self.context.in_for_loop:
-                raise_exception = True
-
-            if raise_exception:
-                raise TypeCheckFailure("Failed for-loop constancy check")
-
         if isinstance(target, vy_ast.Name) and target.id in self.context.forvars:
             raise TypeCheckFailure("Failed for-loop constancy check")
 
