@@ -51,7 +51,7 @@ def build_method_identifiers_output(compiler_data: CompilerData) -> dict:
 
 
 def build_abi_output(compiler_data: CompilerData) -> list:
-    abi = sig_utils.mk_full_signature(compiler_data.global_ctx)
+    abi = compiler_data.vyper_module_folded._metadata["type"].to_abi_dict()
     # Add gas estimates for each function to ABI
     gas_estimates = build_gas_estimates(compiler_data.lll_nodes)
     for func in abi:
