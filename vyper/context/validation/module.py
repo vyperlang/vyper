@@ -80,6 +80,10 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
             if count == len(module_nodes):
                 err_list.raise_if_not_empty()
 
+        # generate an `InterfacePrimitive` from the top-level node - used for building the ABI
+        interface = namespace["interface"].build_primitive_from_node(module_node)
+        module_node._metadata["type"] = interface
+
         # get list of internal function calls made by each function
         call_function_names = set()
         self_members = namespace["self"].members
