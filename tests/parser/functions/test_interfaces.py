@@ -145,6 +145,57 @@ def foo() -> uint256:
     )
 
 
+def test_missing_event(assert_compile_failed):
+    interface_code = """
+event Foo:
+    a: uint256
+    """
+
+    interface_codes = {"FooBarInterface": {"type": "vyper", "code": interface_code}}
+
+    not_implemented_code = """
+import a as FooBarInterface
+
+implements: FooBarInterface
+
+@external
+def bar() -> uint256:
+    return 1
+    """
+
+    assert_compile_failed(
+        lambda: compile_code(not_implemented_code, interface_codes=interface_codes),
+        InterfaceViolation,
+    )
+
+
+def test_malformed_event(assert_compile_failed):
+    interface_code = """
+event Foo:
+    a: uint256
+    """
+
+    interface_codes = {"FooBarInterface": {"type": "vyper", "code": interface_code}}
+
+    not_implemented_code = """
+import a as FooBarInterface
+
+implements: FooBarInterface
+
+event Foo:
+    a: int128
+
+@external
+def bar() -> uint256:
+    return 1
+    """
+
+    assert_compile_failed(
+        lambda: compile_code(not_implemented_code, interface_codes=interface_codes),
+        InterfaceViolation,
+    )
+
+
 VALID_IMPORT_CODE = [
     # import statement, import path without suffix
     ("import a as Foo", "a"),

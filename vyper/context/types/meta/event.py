@@ -1,10 +1,13 @@
 from collections import OrderedDict
-from typing import List
+from typing import Dict, List
 
 from vyper import ast as vy_ast
 from vyper.ast.validation import validate_call_args
 from vyper.context.types.bases import DataLocation
-from vyper.context.types.utils import get_type_from_annotation
+from vyper.context.types.utils import (
+    get_type_from_abi,
+    get_type_from_annotation,
+)
 from vyper.context.validation.utils import validate_expected_type
 from vyper.exceptions import (
     EventDeclarationException,
@@ -38,6 +41,26 @@ class Event:
         self.indexed = indexed
         signature = f"{name}({','.join(v.canonical_type for v in arguments.values())})"
         self.event_id = int(keccak256(signature.encode()).hex(), 16)
+
+    @classmethod
+    def from_abi(cls, abi: Dict) -> "Event":
+        """
+        Generate an `Event` object from an ABI interface.
+
+        Arguments
+        ---------
+        abi : dict
+            An object from a JSON ABI interface, representing an event.
+
+        Returns
+        -------
+        Event object.
+        """
+        members: OrderedDict = OrderedDict()
+        indexed: List = [i["indexed"] for i in abi["inputs"]]
+        for item in abi["inputs"]:
+            members[item["name"]] = get_type_from_abi(item)
+        return Event(abi["name"], members, indexed)
 
     @classmethod
     def from_EventDef(cls, base_node: vy_ast.EventDef) -> "Event":
