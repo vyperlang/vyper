@@ -19,6 +19,7 @@ from vyper.exceptions import (
 class InterfaceDefinition(MemberTypeDefinition):
 
     _type_members = {"address": AddressDefinition()}
+    canonical_type = "address"
 
     def __init__(
         self,
