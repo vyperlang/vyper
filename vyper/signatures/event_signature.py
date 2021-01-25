@@ -2,13 +2,7 @@ from vyper import ast as vy_ast
 from vyper.exceptions import EventDeclarationException, TypeCheckFailure
 from vyper.signatures.function_signature import VariableRecord
 from vyper.types import ByteArrayType, canonicalize_type, get_size_of_type
-from vyper.utils import (
-    bytes_to_int,
-    ceil32,
-    check_valid_varname,
-    iterable_cast,
-    keccak256,
-)
+from vyper.utils import bytes_to_int, ceil32, check_valid_varname, keccak256
 
 
 # Event signature object
@@ -73,20 +67,3 @@ class EventSignature:
         )  # noqa F812
         event_id = bytes_to_int(keccak256(bytes(sig, "utf-8")))
         return cls(name, args, indexed_list, event_id, sig)
-
-    @iterable_cast(dict)
-    def to_abi_event_dict(self, arg, pos):
-        yield "type", canonicalize_type(arg.typ, self.indexed_list[pos]),
-        yield "name", arg.name,
-        yield "indexed", self.indexed_list[pos],
-
-    def to_abi_dict(self):
-        abi_dict = {
-            "name": self.name,
-            "inputs": [self.to_abi_event_dict(arg, pos) for pos, arg in enumerate(self.args)]
-            if self.args
-            else [],
-            "anonymous": False,
-            "type": "event",
-        }
-        return abi_dict

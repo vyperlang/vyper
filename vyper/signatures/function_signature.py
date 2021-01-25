@@ -15,8 +15,6 @@ from vyper.parser.parser_utils import (
 )
 from vyper.types import (
     ByteArrayLike,
-    StructType,
-    TupleLike,
     TupleType,
     canonicalize_type,
     get_size_of_type,
@@ -27,7 +25,6 @@ from vyper.utils import (
     check_valid_varname,
     fourbytes_to_int,
     is_varname_valid,
-    iterable_cast,
     keccak256,
 )
 
@@ -297,69 +294,6 @@ class FunctionSignature:
             code,
             is_from_json,
         )
-
-    @iterable_cast(dict)
-    def _generate_base_type(self, arg_type, name=""):
-        yield "type", canonicalize_type(arg_type)
-        yield "name", name
-
-    def _generate_param_abi(self, out_arg, name=""):
-        if isinstance(out_arg, TupleLike):
-            return {
-                "type": "tuple",
-                "name": name,
-                "components": [
-                    self._generate_param_abi(
-                        member_type, name=n if type(out_arg) is StructType else "",
-                    )
-                    for n, member_type in out_arg.tuple_items()
-                ],
-            }
-        return self._generate_base_type(arg_type=out_arg, name=name)
-
-    def _generate_outputs_abi(self):
-        if not self.output_type:
-            return []
-        elif isinstance(self.output_type, StructType):
-            # Flatten structs at the base level of output
-            # NOTE: structs inside of structs still encode as tuples
-            return [
-                self._generate_param_abi(typ, name) for name, typ in self.output_type.tuple_items()
-            ]
-        elif isinstance(self.output_type, TupleType):
-            # Flatten tuples at the base level of output
-            return [self._generate_param_abi(x,) for x in self.output_type.members]
-        else:
-            return [self._generate_param_abi(self.output_type)]
-
-    def _generate_inputs_abi(self):
-        if not self.args:
-            return []
-        else:
-            return [self._generate_param_abi(x.typ, name=x.name) for x in self.args]
-
-    def to_abi_dict(self):
-        func_type = "function"
-        if self.name == "__init__":
-            func_type = "constructor"
-        if self.name == "__default__":
-            func_type = "fallback"
-
-        abi_dict = {
-            "name": self.name,
-            "outputs": self._generate_outputs_abi(),
-            "inputs": self._generate_inputs_abi(),
-            "stateMutability": self.mutability,
-            "type": func_type,
-        }
-
-        if self.name in ("__default__", "__init__"):
-            del abi_dict["name"]
-        if self.name == "__default__":
-            del abi_dict["inputs"]
-            del abi_dict["outputs"]
-
-        return abi_dict
 
     @classmethod
     def lookup_sig(cls, sigs, method_name, expr_args, stmt_or_expr, context):
