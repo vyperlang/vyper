@@ -1,4 +1,4 @@
-from typing import Tuple
+from typing import Optional, Tuple
 
 from vyper import ast as vy_ast
 from vyper.context import validation
@@ -8,6 +8,7 @@ from vyper.context.types.bases import (
     DataLocation,
     IndexableTypeDefinition,
 )
+from vyper.context.types.value.numeric import Uint256Definition
 from vyper.exceptions import ArrayIndexException, InvalidType
 
 
@@ -41,6 +42,13 @@ class _SequenceDefinition(IndexableTypeDefinition):
             is_public=is_public,
         )
         self.length = length
+
+    def get_signature(self) -> Tuple[Tuple, Optional[BaseTypeDefinition]]:
+        # override the default behavior to return `Uint256Definition`
+        # an external interface cannot use `IntegerAbstractType` because
+        # abstract types have no canonical type
+        new_args, return_type = self.value_type.get_signature()
+        return (Uint256Definition(),) + new_args, return_type
 
 
 class ArrayDefinition(_SequenceDefinition):
