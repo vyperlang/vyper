@@ -166,7 +166,7 @@ def _get_module_definitions(base_node: vy_ast.Module) -> Tuple[OrderedDict, Dict
     functions: OrderedDict = OrderedDict()
     events: Dict = {}
     for node in base_node.get_children(vy_ast.FunctionDef):
-        if "external" in [i.id for i in node.decorator_list]:
+        if "external" in [i.id for i in node.decorator_list if isinstance(i, vy_ast.Name)]:
             func = ContractFunction.from_FunctionDef(node)
             if node.name in functions:
                 # compare the input arguments of the new function and the previous one
