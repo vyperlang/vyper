@@ -43,17 +43,8 @@ def generate_default_arg_sigs(code, interfaces, global_ctx):
     return sig_fun_defs
 
 
-def _default_sig_formatter(sig):
-    return sig.to_abi_dict()
-
-
 # Get ABI signature
-def mk_full_signature(global_ctx, sig_formatter=None):
-
-    if sig_formatter is None:
-        # Use default JSON style output.
-        sig_formatter = _default_sig_formatter
-
+def mk_full_signature(global_ctx, sig_formatter):
     o = []
 
     # Produce event signatues.

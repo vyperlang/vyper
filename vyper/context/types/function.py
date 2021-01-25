@@ -1,6 +1,6 @@
 import warnings
 from collections import OrderedDict
-from typing import Any, Dict, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from vyper import ast as vy_ast
 from vyper.ast.validation import validate_call_args
@@ -404,3 +404,48 @@ class ContractFunction(BaseTypeDefinition):
                 validate_expected_type(kwarg.arg, kwarg.value)
 
         return self.return_type
+
+    def to_abi_dict(self) -> List[Dict]:
+        abi_dict: Dict = {"stateMutability": self.mutability.value}
+
+        if self.name == "__default__":
+            abi_dict["type"] = "fallback"
+            return [abi_dict]
+
+        if self.name == "__init__":
+            abi_dict["type"] = "constructor"
+        else:
+            abi_dict["type"] = "function"
+            abi_dict["name"] = self.name
+
+        abi_dict["inputs"] = [_generate_abi_type(v, k) for k, v in self.arguments.items()]
+
+        typ = self.return_type
+        if typ is None:
+            abi_dict["outputs"] = []
+        elif isinstance(typ, TupleDefinition):
+            abi_dict["outputs"] = [_generate_abi_type(i) for i in typ.value_type]  # type: ignore
+        elif isinstance(typ, StructDefinition):
+            abi_dict["outputs"] = [_generate_abi_type(v, k) for k, v in typ.members.items()]
+        else:
+            abi_dict["outputs"] = [_generate_abi_type(typ)]
+
+        if isinstance(self.arg_count, tuple):
+            # for functions with default args, return a dict for each possible arg count
+            result = []
+            for i in range(self.arg_count[0], self.arg_count[1] + 1):
+                result.append(abi_dict.copy())
+                result[-1]["inputs"] = result[-1]["inputs"][:i]
+            return result
+        else:
+            return [abi_dict]
+
+
+def _generate_abi_type(type_definition, name=""):
+    if isinstance(type_definition, StructDefinition):
+        return {
+            "name": name,
+            "type": "tuple",
+            "components": [_generate_abi_type(v, k) for k, v in type_definition.members.items()],
+        }
+    return {"name": name, "type": type_definition.canonical_type}

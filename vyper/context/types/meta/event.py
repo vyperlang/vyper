@@ -114,3 +114,16 @@ class Event:
         validate_call_args(node, len(self.arguments))
         for arg, expected in zip(node.args, self.arguments.values()):
             validate_expected_type(arg, expected)
+
+    def to_abi_dict(self) -> List[Dict]:
+        return [
+            {
+                "name": self.name,
+                "inputs": [
+                    {"name": name, "type": typ.canonical_type, "indexed": idx}
+                    for (name, typ), idx in zip(self.arguments.items(), self.indexed)
+                ],
+                "anonymous": False,
+                "type": "event",
+            }
+        ]

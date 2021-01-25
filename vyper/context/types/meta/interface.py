@@ -1,5 +1,5 @@
 from collections import OrderedDict
-from typing import Dict, Tuple, Union
+from typing import Dict, List, Tuple, Union
 
 from vyper import ast as vy_ast
 from vyper.ast.validation import validate_call_args
@@ -19,6 +19,7 @@ from vyper.exceptions import (
 class InterfaceDefinition(MemberTypeDefinition):
 
     _type_members = {"address": AddressDefinition()}
+    canonical_type = "address"
 
     def __init__(
         self,
@@ -91,6 +92,14 @@ class InterfacePrimitive:
                 node,
             )
 
+    def to_abi_dict(self) -> List[Dict]:
+        abi = []
+        for event in self.events.values():
+            abi += event.to_abi_dict()
+        for func in self.members.values():
+            abi += func.to_abi_dict()
+        return abi
+
 
 def build_primitive_from_abi(name: str, abi: dict) -> InterfacePrimitive:
     """
@@ -150,11 +159,6 @@ def build_primitive_from_node(
     else:
         raise StructureException("Invalid syntax for interface definition", node)
 
-    namespace = get_namespace()
-    for item in list(members.values()) + list(events.values()):
-        if item.name in namespace:
-            raise NamespaceCollision(item.name, item.node)
-
     return InterfacePrimitive(node.name, members, events)
 
 
@@ -162,7 +166,7 @@ def _get_module_definitions(base_node: vy_ast.Module) -> Tuple[OrderedDict, Dict
     functions: OrderedDict = OrderedDict()
     events: Dict = {}
     for node in base_node.get_children(vy_ast.FunctionDef):
-        if "external" in [i.id for i in node.decorator_list]:
+        if "external" in [i.id for i in node.decorator_list if isinstance(i, vy_ast.Name)]:
             func = ContractFunction.from_FunctionDef(node)
             if node.name in functions:
                 # compare the input arguments of the new function and the previous one
