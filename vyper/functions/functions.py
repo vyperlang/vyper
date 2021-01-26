@@ -1429,15 +1429,14 @@ def get_create_forwarder_to_bytecode():
     from vyper.compile_lll import assembly_to_evm
 
     loader_asm = [
-        "RETURNDATASIZE",
         "PUSH1",
         0x2D,
-        "DUP1",
+        "RETURNDATASIZE",
+        "DUP2",
         "PUSH1",
-        0x0A,
+        0x09,
         "RETURNDATASIZE",
         "CODECOPY",
-        "DUP2",
         "RETURN",
     ]
     forwarder_pre_asm = [
@@ -1499,7 +1498,13 @@ class CreateForwarderTo(_SimpleBuiltinFunction):
             loader_evm + forwarder_pre_evm + b"\x00" * (32 - preamble_length)
         )
         forwarder_post = bytes_to_int(forwarder_post_evm + b"\x00" * (32 - len(forwarder_post_evm)))
-        target_address = args[0]
+
+        if args[0].typ.is_literal:
+            target_address = args[0].value * 2 ** 96
+        elif version_check(begin="constantinople"):
+            target_address = ["shl", 96, args[0]]
+        else:
+            target_address = ["mul", args[0], 2 ** 96]
 
         return LLLnode.from_list(
             [
