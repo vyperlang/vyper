@@ -1,5 +1,6 @@
 import warnings
 from collections import OrderedDict, deque
+from pathlib import Path
 
 import asttokens
 
@@ -10,7 +11,6 @@ from vyper.compiler.utils import build_gas_estimates
 from vyper.context.types.function import FunctionVisibility, StateMutability
 from vyper.parser.lll_node import LLLnode
 from vyper.signatures import sig_utils
-from vyper.signatures.interface import extract_external_interface
 from vyper.warnings import ContractSizeLimitWarning
 
 
@@ -33,7 +33,19 @@ def build_userdoc(compiler_data: CompilerData) -> dict:
 
 
 def build_external_interface_output(compiler_data: CompilerData) -> str:
-    return extract_external_interface(compiler_data.global_ctx, compiler_data.contract_name)
+    interface = compiler_data.vyper_module_folded._metadata["type"]
+    name = Path(compiler_data.contract_name).stem
+    out = f"\n# External Interfaces\ninterface {name}:\n"
+
+    for func in interface.members.values():
+        if func.visibility == FunctionVisibility.INTERNAL or func.name == "__init__":
+            continue
+        args = ", ".join([f"{name}: {typ}" for name, typ in func.arguments.items()])
+        return_value = f" -> {func.return_type}" if func.return_type is not None else ""
+        mutability = func.mutability.value
+        out = f"{out}    def {func.name}({args}){return_value}: {mutability}\n"
+
+    return out
 
 
 def build_interface_output(compiler_data: CompilerData) -> str:
