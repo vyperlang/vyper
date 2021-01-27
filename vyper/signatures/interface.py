@@ -1,6 +1,5 @@
 import importlib
 import pkgutil
-from pathlib import Path
 
 import vyper.interfaces
 from vyper import ast as vy_ast
@@ -25,12 +24,6 @@ def get_builtin_interfaces():
         )
         for name in interface_names
     }
-
-
-def render_return(sig):
-    if sig.output_type:
-        return " -> " + str(sig.output_type)
-    return ""
 
 
 def abi_type_to_ast(atype, expected_size):
@@ -121,59 +114,6 @@ def extract_sigs(sig_code, interface_name=None):
                 "'vyper' & 'json' are supported"
             )
         )
-
-
-def extract_interface_str(global_ctx):
-    sigs = sig_utils.mk_full_signature(global_ctx, sig_formatter=lambda x: x)
-    events = [i for i in sigs if isinstance(i, EventSignature)]
-    functions = [i for i in sigs if isinstance(i, FunctionSignature)]
-    out = ""
-    # Print events.
-    for idx, event in enumerate(events):
-        if idx == 0:
-            out += "# Events\n\n"
-        if event.args:
-            event_args_str = "\n    ".join([arg.name + ": " + str(arg.typ) for arg in event.args])
-        else:
-            event_args_str = "pass"
-        out += f"event {event.name}:\n    {event_args_str}\n"
-
-    # Print functions.
-    def render_decorator(sig):
-        o = "\n"
-        if sig.mutability != "nonpayable":
-            o += f"@{sig.mutability}\n"
-        if not sig.internal:
-            o += "@external\n"
-        return o
-
-    for idx, func in enumerate(functions):
-        if idx == 0:
-            out += "\n# Functions\n"
-        if not func.internal and func.name != "__init__":
-            args = ", ".join([arg.name + ": " + str(arg.typ) for arg in func.args])
-            out += f"{render_decorator(func)}def {func.name}({args}){render_return(func)}:\n    pass\n"  # noqa: E501
-    out += "\n"
-
-    return out
-
-
-def extract_external_interface(global_ctx, contract_name):
-
-    sigs = sig_utils.mk_full_signature(global_ctx, sig_formatter=lambda x: x,)
-    functions = [i for i in sigs if isinstance(i, FunctionSignature)]
-    cname = Path(contract_name).stem.capitalize()
-
-    out = ""
-    offset = 4 * " "
-    for idx, func in enumerate(functions):
-        if idx == 0:
-            out += f"\n# External Interfaces\ninterface {cname}:\n"
-        if not func.internal and func.name != "__init__":
-            args = ", ".join([arg.name + ": " + str(arg.typ) for arg in func.args])
-            out += offset + f"def {func.name}({args}){render_return(func)}: {func.mutability}\n"
-    out += "\n"
-    return out
 
 
 def check_valid_contract_interface(global_ctx, contract_sigs):
