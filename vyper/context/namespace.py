@@ -1,8 +1,12 @@
+import re
+
 from vyper.exceptions import (
     CompilerPanic,
     NamespaceCollision,
+    StructureException,
     UndeclaredDefinition,
 )
+from vyper.opcodes import OPCODES
 
 
 class Namespace(dict):
@@ -77,11 +81,17 @@ class Namespace(dict):
         self.__init__()
 
     def validate_assignment(self, attr):
+        if not re.match("^[_a-zA-Z][a-zA-Z0-9_]*$", attr):
+            return StructureException(f"'{attr}' contains invalid character(s)")
         if attr in self:
             if attr not in [x for i in self._scopes for x in i]:
                 raise NamespaceCollision(f"Cannot assign to '{attr}', it is a builtin")
             obj = super().__getitem__(attr)
             raise NamespaceCollision(f"'{attr}' has already been declared as a {obj}")
+        if not self._scopes:
+            return
+        if attr.lower() in RESERVED_KEYWORDS or attr.upper() in OPCODES:
+            raise StructureException(f"'{attr}' is a reserved keyword")
 
 
 def get_namespace():
@@ -94,3 +104,83 @@ def get_namespace():
     except NameError:
         _namespace = Namespace()
         return _namespace
+
+
+# Cannot be used for variable or member naming
+RESERVED_KEYWORDS = {
+    # decorators
+    "public",
+    "external",
+    "nonpayable",
+    "constant",
+    "internal",
+    "payable",
+    "nonreentrant",
+    # control flow
+    "if",
+    "for",
+    "while",
+    "until",
+    "pass",
+    "def",
+    # EVM operations
+    "send",
+    "selfdestruct",
+    "assert",
+    "raise",
+    "throw",
+    # special functions (no name mangling)
+    "init",
+    "_init_",
+    "___init___",
+    "____init____",
+    "default",
+    "_default_",
+    "___default___",
+    "____default____",
+    # environment variables
+    "chainid",
+    "blockhash",
+    "timestamp",
+    "timedelta",
+    # boolean literals
+    "true",
+    "false",
+    # more control flow and special operations
+    "this",
+    "continue",
+    "range",
+    # None sentinal value
+    "none",
+    # more special operations
+    "indexed",
+    # denominations
+    "ether",
+    "wei",
+    "finney",
+    "szabo",
+    "shannon",
+    "lovelace",
+    "ada",
+    "babbage",
+    "gwei",
+    "kwei",
+    "mwei",
+    "twei",
+    "pwei",
+    # `address` members
+    "balance",
+    "codesize",
+    "is_contract",
+    # units
+    "units",
+    # sentinal constant values
+    "zero_address",
+    "empty_bytes32",
+    "max_int128",
+    "min_int128",
+    "max_decimal",
+    "min_decimal",
+    "max_uint256",
+    "zero_wei",
+}
