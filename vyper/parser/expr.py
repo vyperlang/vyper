@@ -40,7 +40,6 @@ from vyper.utils import (
     MemoryPositions,
     SizeLimits,
     bytes_to_int,
-    check_valid_varname,
     checksum_encode,
     string_to_bytes,
 )
@@ -965,9 +964,6 @@ class Expr:
         for key, value in zip(expr.keys, expr.values):
             if not isinstance(key, vy_ast.Name):
                 return
-            check_valid_varname(
-                key.id, context.structs, "Invalid member variable for struct",
-            )
             if key.id in member_subs:
                 return
             sub = Expr(value, context).lll_node

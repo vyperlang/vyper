@@ -14,7 +14,6 @@ from vyper.types import (
     parse_type,
 )
 from vyper.typing import InterfaceImports
-from vyper.utils import VALID_GLOBAL_KEYWORDS, check_valid_varname
 
 NONRENTRANT_STORAGE_OFFSET = 0xFFFFFF
 
@@ -212,9 +211,6 @@ def {varname}{funname}({head.rstrip(', ')}) -> {base}:
                         f"Invalid member name for struct {node.name}, needs to be a valid name. ",
                         item,
                     )
-                check_valid_varname(
-                    member_name.id, self._structs, item, "Invalid member name for struct. ",
-                )
                 # Check well-formedness of member types
                 # Note this kicks out mutually recursive structs,
                 # raising an exception instead of stackoverflow.
@@ -267,11 +263,6 @@ def {varname}{funname}({head.rstrip(', ')}) -> {base}:
             return self.get_item_name_and_attributes(item.args[0], attributes)
         return None, attributes
 
-    def is_valid_varname(self, name, item):
-        """ Valid variable name, checked against global context. """
-        check_valid_varname(name, self._structs, item)
-        return True
-
     @staticmethod
     def get_call_func_name(item):
         if isinstance(item.annotation, vy_ast.Call) and isinstance(
@@ -294,13 +285,9 @@ def {varname}{funname}({head.rstrip(', ')}) -> {base}:
 
         # Handle constants.
         if self.get_call_func_name(item) == "constant":
-            self.is_valid_varname(item.target.id, item)
             return
 
         item_name, item_attributes = self.get_item_name_and_attributes(item, item_attributes)
-        if not all([attr in VALID_GLOBAL_KEYWORDS for attr in item_attributes.keys()]):
-            raise StructureException(f"Invalid global keyword used: {item_attributes}", item)
-        self.is_valid_varname(item.target.id, item)
 
         if item_name in self._contracts or item_name in self._interfaces:
             if self.get_call_func_name(item) == "address":

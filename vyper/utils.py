@@ -1,10 +1,8 @@
 import binascii
 import functools
-import re
 from typing import Dict, List, Union
 
-from vyper.exceptions import InvalidLiteral, VariableDeclarationException
-from vyper.opcodes import OPCODES
+from vyper.exceptions import InvalidLiteral
 
 try:
     from Crypto.Hash import keccak  # type: ignore
@@ -125,110 +123,6 @@ LOADED_LIMITS: Dict[int, int] = {
     MemoryPositions.MINDECIMAL: SizeLimits.MINDECIMAL,
 }
 
-# Keywords available for ast.Call type
-VALID_CALL_KEYWORDS = {"uint256", "int128", "decimal", "address", "interface", "indexed"}
-
-# Valid attributes for variables and methods
-VALID_GLOBAL_KEYWORDS = {
-    "public",
-    "external",
-    "nonpayable",
-    "event",
-    "constant",
-    "internal",
-    "payable",
-    "nonreentrant",
-} | VALID_CALL_KEYWORDS
-
-# Available base types
-BASE_TYPES = {"int128", "decimal", "bytes32", "uint256", "bool", "address"}
-
-# Cannot be used for variable or member naming
-RESERVED_KEYWORDS = (
-    {
-        # reference types
-        "HashMap",
-        "string",
-        "bytes",
-        # control flow
-        "if",
-        "for",
-        "while",
-        "until",
-        "pass",
-        "def",
-        # EVM operations
-        "send",
-        "selfdestruct",
-        "assert",
-        "raise",
-        "throw",
-        # special functions (no name mangling)
-        "init",
-        "_init_",
-        "___init___",
-        "____init____",
-        "default",
-        "_default_",
-        "___default___",
-        "____default____",
-        # environment variables
-        "block",
-        "msg",
-        "tx",
-        "chain",
-        "chainid",
-        "blockhash",
-        "timestamp",
-        "timedelta",
-        # boolean literals
-        "true",
-        "false",
-        # more control flow and special operations
-        "self",
-        "this",
-        "continue",
-        "range",
-        # None sentinal value
-        "none",
-        # more special operations
-        "empty",
-        # denominations
-        "ether",
-        "wei",
-        "finney",
-        "szabo",
-        "shannon",
-        "lovelace",
-        "ada",
-        "babbage",
-        "gwei",
-        "kwei",
-        "mwei",
-        "twei",
-        "pwei",
-        # `address` members
-        "balance",
-        "codesize",
-        "is_contract",
-        # meta types
-        "interface",
-        "struct",
-        # units
-        "units",
-        # sentinal constant values
-        "zero_address",
-        "empty_bytes32",
-        "max_int128",
-        "min_int128",
-        "max_decimal",
-        "min_decimal",
-        "max_uint256",
-        "zero_wei",
-    }
-    | VALID_GLOBAL_KEYWORDS
-    | BASE_TYPES
-)
 
 # Otherwise reserved words that are whitelisted for function declarations
 FUNCTION_WHITELIST = {
@@ -273,41 +167,8 @@ VALID_LLL_MACROS = {
     "goto",
 }
 
-
-# Is a variable or member variable name valid?
-# Same conditions apply for function names and events
-def is_varname_valid(varname, custom_structs):
-    from vyper.functions import BUILTIN_FUNCTIONS
-
-    varname_lower = varname.lower()
-    varname_upper = varname.upper()
-
-    # struct names are case sensitive.
-    if varname in custom_structs:
-        return False, f"Duplicate name: {varname}, previously defined as a struct."
-    if varname_lower in [k.lower() for k in RESERVED_KEYWORDS]:
-        return False, f"{varname} is a reserved keyword (Vyper language)."
-    if varname_upper in [o.upper() for o in OPCODES]:
-        return False, f"{varname} is a reserved keyword (EVM opcode)."
-    if varname_lower in [f.lower() for f in BUILTIN_FUNCTIONS]:
-        return False, f"{varname} is a built in function."
-    if not re.match("^[_a-zA-Z][a-zA-Z0-9_]*$", varname):
-        return False, f"{varname} contains invalid character(s)."
-
-    return True, ""
-
-
-def check_valid_varname(
-    varname, custom_structs, pos, error_prefix="Variable name invalid.", exc=None
-):
-    """ Handle invalid variable names """
-    exc = VariableDeclarationException if exc is None else exc
-
-    valid_varname, msg = is_varname_valid(varname, custom_structs)
-    if not valid_varname:
-        raise exc(error_prefix + msg, pos)
-
-    return True
+# Available base types
+BASE_TYPES = {"int128", "decimal", "bytes32", "uint256", "bool", "address"}
 
 
 def is_instances(instances, instance_type):

@@ -6,7 +6,7 @@ from typing import Any
 
 from vyper import ast as vy_ast
 from vyper.exceptions import CompilerPanic, InvalidType
-from vyper.utils import BASE_TYPES, ceil32, check_valid_varname
+from vyper.utils import BASE_TYPES, ceil32
 
 
 # Data structure for a type
@@ -189,9 +189,6 @@ def make_struct_type(name, location, members, custom_structs):
             raise InvalidType(
                 f"Invalid member variable for struct {key.id}, expected a name.", key,
             )
-        check_valid_varname(
-            key.id, custom_structs, "Invalid member variable for struct",
-        )
         o[key.id] = parse_type(value, location, custom_structs=custom_structs)
 
     return StructType(o, name)
