@@ -3,6 +3,7 @@ import pytest
 from vyper import compiler
 from vyper.exceptions import (
     InvalidType,
+    NamespaceCollision,
     StructureException,
     TypeMismatch,
     UnknownAttribute,
@@ -424,7 +425,7 @@ struct X:
     bar: int128
     decimal: int128
     """,
-        VariableDeclarationException,
+        NamespaceCollision,
     ),
     (
         """
@@ -432,15 +433,7 @@ struct B:
     num: int128
     address: address
     """,
-        VariableDeclarationException,
-    ),
-    (
-        """
-struct B:
-    num: int128
-    address: address
-    """,
-        VariableDeclarationException,
+        NamespaceCollision,
     ),
 ]
 

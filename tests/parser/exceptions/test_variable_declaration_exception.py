@@ -5,19 +5,6 @@ from vyper.exceptions import VariableDeclarationException
 
 fail_list = [
     """
-CALLDATACOPY: int128
-    """,
-    """
-@external
-def foo():
-    BALANCE: int128 = 45
-    """,
-    """
-@external
-def foo():
-    true: int128 = 3
-    """,
-    """
 q: int128 = 12
 @external
 def foo() -> int128:
