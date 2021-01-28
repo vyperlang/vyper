@@ -1,5 +1,6 @@
 import warnings
 from collections import OrderedDict, deque
+from pathlib import Path
 
 import asttokens
 
@@ -7,12 +8,9 @@ from vyper import compile_lll, opcodes
 from vyper.ast import ast_to_dict, parse_natspec
 from vyper.compiler.phases import CompilerData
 from vyper.compiler.utils import build_gas_estimates
+from vyper.context.types.function import FunctionVisibility, StateMutability
 from vyper.parser.lll_node import LLLnode
 from vyper.signatures import sig_utils
-from vyper.signatures.interface import (
-    extract_external_interface,
-    extract_interface_str,
-)
 from vyper.warnings import ContractSizeLimitWarning
 
 
@@ -35,11 +33,43 @@ def build_userdoc(compiler_data: CompilerData) -> dict:
 
 
 def build_external_interface_output(compiler_data: CompilerData) -> str:
-    return extract_external_interface(compiler_data.global_ctx, compiler_data.contract_name)
+    interface = compiler_data.vyper_module_folded._metadata["type"]
+    name = Path(compiler_data.contract_name).stem.capitalize()
+    out = f"\n# External Interfaces\ninterface {name}:\n"
+
+    for func in interface.members.values():
+        if func.visibility == FunctionVisibility.INTERNAL or func.name == "__init__":
+            continue
+        args = ", ".join([f"{name}: {typ}" for name, typ in func.arguments.items()])
+        return_value = f" -> {func.return_type}" if func.return_type is not None else ""
+        mutability = func.mutability.value
+        out = f"{out}    def {func.name}({args}){return_value}: {mutability}\n"
+
+    return out
 
 
 def build_interface_output(compiler_data: CompilerData) -> str:
-    return extract_interface_str(compiler_data.global_ctx)
+    interface = compiler_data.vyper_module_folded._metadata["type"]
+    out = ""
+
+    if interface.events:
+        out = "# Events\n\n"
+        for event in interface.events.values():
+            encoded_args = "\n    ".join(f"{name}: {typ}" for name, typ in event.arguments.items())
+            out = f"{out}event {event.name}:\n    {encoded_args if event.arguments else 'pass'}\n"
+
+    if interface.members:
+        out = f"{out}\n# Functions\n\n"
+        for func in interface.members.values():
+            if func.visibility == FunctionVisibility.INTERNAL or func.name == "__init__":
+                continue
+            if func.mutability != StateMutability.NONPAYABLE:
+                out = f"{out}@{func.mutability.value}\n"
+            args = ", ".join([f"{name}: {typ}" for name, typ in func.arguments.items()])
+            return_value = f" -> {func.return_type}" if func.return_type is not None else ""
+            out = f"{out}@external\ndef {func.name}({args}){return_value}:\n    pass\n\n"
+
+    return out
 
 
 def build_ir_output(compiler_data: CompilerData) -> LLLnode:
