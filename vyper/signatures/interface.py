@@ -1,7 +1,6 @@
 import importlib
 import pkgutil
 from pathlib import Path
-from typing import Sequence, Tuple
 
 import vyper.interfaces
 from vyper import ast as vy_ast
@@ -177,52 +176,7 @@ def extract_external_interface(global_ctx, contract_name):
     return out
 
 
-Conflict = Tuple[FunctionSignature, FunctionSignature]
-Conflicts = Tuple[Conflict, ...]
-
-
-def find_signature_conflicts(sigs: Sequence[FunctionSignature]) -> Conflicts:
-    """
-    Takes a sequence of function signature records and returns a tuple of
-    pairs of signatures from that sequence that produce the same internal
-    method id.
-    """
-    # Consider self-comparisons as having been seen by default (they will be
-    # skipped)
-    comparisons_seen = set([frozenset((sig.sig,)) for sig in sigs])
-    conflicts = []
-
-    for sig in sigs:
-        method_id = sig.method_id
-
-        for other_sig in sigs:
-            comparison_id = frozenset((sig.sig, other_sig.sig))
-            if comparison_id in comparisons_seen:
-                continue  # Don't make redundant or useless comparisons
-
-            other_method_id = other_sig.method_id
-            if method_id == other_method_id:
-                conflicts.append((sig, other_sig))
-
-            comparisons_seen.add(comparison_id)
-
-    return tuple(conflicts)
-
-
 def check_valid_contract_interface(global_ctx, contract_sigs):
-    # the check for internal function collisions is made to prevent future
-    # breaking changes if we switch to internal calls (@iamdefinitelyahuman)
-    func_sigs = [sig for sig in contract_sigs.values() if isinstance(sig, FunctionSignature)]
-    func_conflicts = find_signature_conflicts(func_sigs)
-
-    if len(func_conflicts) > 0:
-        sig_1, sig_2 = func_conflicts[0]
-
-        raise StructureException(
-            f"Methods {sig_1.sig} and {sig_2.sig} have conflicting IDs " f"(id {sig_1.method_id})",
-            sig_1.func_ast_code,
-        )
-
     if global_ctx._interface:
         funcs_left = global_ctx._interface.copy()
 

@@ -8,7 +8,10 @@ from vyper.context.types.bases import DataLocation, MemberTypeDefinition
 from vyper.context.types.function import ContractFunction
 from vyper.context.types.meta.event import Event
 from vyper.context.types.value.address import AddressDefinition
-from vyper.context.validation.utils import validate_expected_type
+from vyper.context.validation.utils import (
+    validate_expected_type,
+    validate_unique_method_ids,
+)
 from vyper.exceptions import (
     InterfaceViolation,
     NamespaceCollision,
@@ -41,6 +44,7 @@ class InterfacePrimitive:
     _as_array = True
 
     def __init__(self, _id, members, events):
+        validate_unique_method_ids(members.values())
         self._id = _id
         self.members = members
         self.events = events
