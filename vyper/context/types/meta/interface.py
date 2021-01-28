@@ -3,7 +3,7 @@ from typing import Dict, List, Tuple, Union
 
 from vyper import ast as vy_ast
 from vyper.ast.validation import validate_call_args
-from vyper.context.namespace import get_namespace
+from vyper.context.namespace import get_namespace, validate_identifier
 from vyper.context.types.bases import DataLocation, MemberTypeDefinition
 from vyper.context.types.function import ContractFunction
 from vyper.context.types.meta.event import Event
@@ -45,6 +45,8 @@ class InterfacePrimitive:
 
     def __init__(self, _id, members, events):
         validate_unique_method_ids(members.values())
+        for key in members:
+            validate_identifier(key)
         self._id = _id
         self.members = members
         self.events = events

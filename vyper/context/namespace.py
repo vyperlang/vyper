@@ -34,9 +34,8 @@ class Namespace(dict):
         return self is other
 
     def __setitem__(self, attr, obj):
-        self.validate_assignment(attr)
-
         if self._scopes:
+            self.validate_assignment(attr)
             self._scopes[-1].add(attr)
         super().__setitem__(attr, obj)
 
@@ -81,17 +80,10 @@ class Namespace(dict):
         self.__init__()
 
     def validate_assignment(self, attr):
-        if not re.match("^[_a-zA-Z][a-zA-Z0-9_]*$", attr):
-            return StructureException(f"'{attr}' contains invalid character(s)")
+        validate_identifier(attr)
         if attr in self:
-            if attr not in [x for i in self._scopes for x in i]:
-                raise NamespaceCollision(f"Cannot assign to '{attr}', it is a builtin")
             obj = super().__getitem__(attr)
             raise NamespaceCollision(f"'{attr}' has already been declared as a {obj}")
-        if not self._scopes:
-            return
-        if attr.lower() in RESERVED_KEYWORDS or attr.upper() in OPCODES:
-            raise StructureException(f"'{attr}' is a reserved keyword")
 
 
 def get_namespace():
@@ -104,6 +96,16 @@ def get_namespace():
     except NameError:
         _namespace = Namespace()
         return _namespace
+
+
+def validate_identifier(attr):
+    namespace = get_namespace()
+    if attr in namespace and attr not in [x for i in namespace._scopes for x in i]:
+        raise NamespaceCollision(f"Cannot assign to '{attr}', it is a builtin")
+    if attr.lower() in RESERVED_KEYWORDS or attr.upper() in OPCODES:
+        raise StructureException(f"'{attr}' is a reserved keyword")
+    if not re.match("^[_a-zA-Z][a-zA-Z0-9_]*$", attr):
+        raise StructureException(f"'{attr}' contains invalid character(s)")
 
 
 # Cannot be used for variable or member naming
