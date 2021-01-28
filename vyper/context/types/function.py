@@ -368,13 +368,23 @@ class ContractFunction(BaseTypeDefinition):
         )
 
     @property
-    def method_id(self) -> int:
+    def method_ids(self) -> List[int]:
         """
-        Four byte selector for this function.
+        List of four byte selectors for this function.
+
+        * For functions without default arguments the list contains one item.
+        * For functions with default arguments the list is sorted by the
+          number of arguments given, starting from the smallest number.
         """
-        function_sig = f"{self.name}({','.join(i.canonical_type for i in self.arguments.values())})"
-        selector = keccak256(function_sig.encode())[:4].hex()
-        return int(selector, 16)
+        arg_types = [i.canonical_type for i in self.arguments.values()]
+
+        if isinstance(self.arg_count, int):
+            return [_generate_method_id(self.name, arg_types)]
+
+        method_ids = []
+        for i in range(self.arg_count[0], self.arg_count[1] + 1):
+            method_ids.append(_generate_method_id(self.name, arg_types[:i]))
+        return method_ids
 
     def get_signature(self) -> Tuple[Tuple, Optional[BaseTypeDefinition]]:
         return tuple(self.arguments.values()), self.return_type
@@ -449,3 +459,9 @@ def _generate_abi_type(type_definition, name=""):
             "components": [_generate_abi_type(v, k) for k, v in type_definition.members.items()],
         }
     return {"name": name, "type": type_definition.canonical_type}
+
+
+def _generate_method_id(name: str, canonical_types: List[str]) -> int:
+    function_sig = f"{name}({','.join(canonical_types)})"
+    selector = keccak256(function_sig.encode())[:4].hex()
+    return int(selector, 16)
