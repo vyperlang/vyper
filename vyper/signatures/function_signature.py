@@ -1,18 +1,13 @@
 from collections import Counter
 
 from vyper import ast as vy_ast
-from vyper import parser
 from vyper.exceptions import (
     FunctionDeclarationException,
     InvalidType,
     StructureException,
 )
 from vyper.parser.lll_node import LLLnode
-from vyper.parser.parser_utils import (
-    check_single_exit,
-    check_unmatched_return,
-    getpos,
-)
+from vyper.parser.parser_utils import check_single_exit, getpos
 from vyper.types import (
     ByteArrayLike,
     TupleType,
@@ -157,10 +152,6 @@ class FunctionSignature:
 
         name = code.name
         mem_pos = 0
-
-        # Validate default values.
-        for default_value in getattr(code.args, "defaults", []):
-            validate_default_values(default_value)
 
         # Determine the arguments, expects something of the form def foo(arg1:
         # int128, arg2: int128 ...
@@ -330,19 +321,4 @@ class FunctionSignature:
 
     def validate_return_statement_balance(self):
         # Run balanced return statement check.
-        check_unmatched_return(self.func_ast_code)
         check_single_exit(self.func_ast_code)
-
-
-def validate_default_values(node):
-    if isinstance(node, vy_ast.Name) and node.id in parser.expr.BUILTIN_CONSTANTS:
-        return
-    if isinstance(node, vy_ast.Attribute) and node.value.id in parser.expr.ENVIRONMENT_VARIABLES:
-        return
-    if not isinstance(node, (vy_ast.Constant, vy_ast.List)):
-        raise FunctionDeclarationException(
-            "Default value must be a literal, built-in constant, or environment variable.", node
-        )
-    if isinstance(node, vy_ast.List):
-        for n in node.elements:
-            validate_default_values(n)
