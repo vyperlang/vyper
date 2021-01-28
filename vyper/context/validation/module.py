@@ -11,7 +11,10 @@ from vyper.context.types.function import ContractFunction
 from vyper.context.types.meta.event import Event
 from vyper.context.types.utils import check_literal, get_type_from_annotation
 from vyper.context.validation.base import VyperNodeVisitorBase
-from vyper.context.validation.utils import validate_expected_type
+from vyper.context.validation.utils import (
+    validate_expected_type,
+    validate_unique_method_ids,
+)
 from vyper.exceptions import (
     CallViolation,
     CompilerPanic,
@@ -80,13 +83,19 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
             if count == len(module_nodes):
                 err_list.raise_if_not_empty()
 
+        # check for collisions between 4byte function selectors
+        # internal functions are intentionally included in this check, to prevent breaking
+        # changes in in case of a future change to their calling convention
+        self_members = namespace["self"].members
+        functions = [i for i in self_members.values() if isinstance(i, ContractFunction)]
+        validate_unique_method_ids(functions)
+
         # generate an `InterfacePrimitive` from the top-level node - used for building the ABI
         interface = namespace["interface"].build_primitive_from_node(module_node)
         module_node._metadata["type"] = interface
 
         # get list of internal function calls made by each function
         call_function_names = set()
-        self_members = namespace["self"].members
         for node in self.ast.get_children(vy_ast.FunctionDef):
             call_function_names.add(node.name)
             self_members[node.name].internal_calls = set(
