@@ -775,15 +775,6 @@ def _check_return_body(node, node_list):
             )
 
 
-def check_unmatched_return(fn_node):
-    if fn_node.returns and not _return_check(fn_node.body):
-        raise StructureException(
-            f'Missing or Unmatched return statements in function "{fn_node.name}". '
-            "All control flow statements (like if) need balanced return statements.",
-            fn_node,
-        )
-
-
 def _return_check(node):
     if is_return_from_function(node):
         return True
