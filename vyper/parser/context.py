@@ -5,7 +5,6 @@ from vyper.ast import VyperNode
 from vyper.exceptions import CompilerPanic
 from vyper.signatures.function_signature import VariableRecord
 from vyper.types import NodeType, get_size_of_type
-from vyper.utils import check_valid_varname
 
 
 class Constancy(enum.Enum):
@@ -163,8 +162,6 @@ class Context:
         int
             Memory offset for the variable
         """
-        self.global_ctx.is_valid_varname(name, pos)
-        check_valid_varname(name, custom_structs=self.structs, pos=pos)
 
         var_size = 32 * get_size_of_type(typ)
         return self._new_variable(name, typ, var_size, False)

@@ -3,13 +3,14 @@ from pytest import raises
 
 from vyper import compiler
 from vyper.exceptions import (
-    EventDeclarationException,
     NamespaceCollision,
+    StructureException,
     UnknownType,
 )
 
 fail_list = [  # noqa: E122
-    """
+    (
+        """
 event Âssign:
     variable: int128
 
@@ -19,6 +20,8 @@ def foo(i: int128) -> int128:
     log Âssign(temp_var)
     return temp_var
     """,
+        StructureException,
+    ),
     (
         """
 event int128:
@@ -45,7 +48,8 @@ def foo(i: int128) -> int128:
     """,
         NamespaceCollision,
     ),
-    """
+    (
+        """
 event wei:
     variable: int128
 
@@ -55,7 +59,10 @@ def foo(i: int128) -> int128:
     log wei(temp_var)
     return temp_var
     """,
-    """
+        StructureException,
+    ),
+    (
+        """
 event false:
     variable: int128
 
@@ -65,6 +72,8 @@ def foo(i: int128) -> int128:
     log false(temp_var)
     return temp_var
     """,
+        StructureException,
+    ),
     (
         """
 Transfer: eve.t({_from: indexed(address)})
@@ -83,14 +92,10 @@ event Transfer:
 ]
 
 
-@pytest.mark.parametrize("bad_code", fail_list)
-def test_varname_validity_fail(bad_code):
-    if isinstance(bad_code, tuple):
-        with raises(bad_code[1]):
-            compiler.compile_code(bad_code[0])
-    else:
-        with raises(EventDeclarationException):
-            compiler.compile_code(bad_code)
+@pytest.mark.parametrize("bad_code,exc", fail_list)
+def test_varname_validity_fail(bad_code, exc):
+    with raises(exc):
+        compiler.compile_code(bad_code)
 
 
 valid_list = [

@@ -73,9 +73,10 @@ def test_incorrect_context_invocation(namespace):
 
 
 def test_namespace_collision(namespace):
-    namespace["foo"] = 42
-    with pytest.raises(NamespaceCollision):
-        namespace["foo"] = 1337
+    with namespace.enter_scope():
+        namespace["foo"] = 42
+        with pytest.raises(NamespaceCollision):
+            namespace["foo"] = 1337
 
 
 def test_namespace_collision_across_scopes(namespace):

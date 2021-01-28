@@ -2,7 +2,7 @@ import pytest
 from pytest import raises
 
 from vyper import compiler
-from vyper.exceptions import FunctionDeclarationException
+from vyper.exceptions import NamespaceCollision, StructureException
 
 fail_list = [  # noqa: E122
     """
@@ -40,7 +40,7 @@ def false(i: int128) -> int128:
 
 @pytest.mark.parametrize("bad_code", fail_list)
 def test_varname_validity_fail(bad_code):
-    with raises(FunctionDeclarationException):
+    with raises((StructureException, NamespaceCollision)):
         compiler.compile_code(bad_code)
 
 

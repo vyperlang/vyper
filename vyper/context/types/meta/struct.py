@@ -2,6 +2,7 @@ from collections import OrderedDict
 
 from vyper import ast as vy_ast
 from vyper.ast.validation import validate_call_args
+from vyper.context.namespace import validate_identifier
 from vyper.context.types.bases import DataLocation, MemberTypeDefinition
 from vyper.context.types.indexable.mapping import MappingDefinition
 from vyper.context.types.utils import get_type_from_annotation
@@ -50,6 +51,8 @@ class StructPrimitive:
     _as_array = True
 
     def __init__(self, _id, members):
+        for key in members:
+            validate_identifier(key)
         self._id = _id
         self.members = members
 

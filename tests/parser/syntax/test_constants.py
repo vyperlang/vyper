@@ -45,7 +45,7 @@ VAL: constant(uint256) = -1
         """
 wei: constant(uint256) = 1
     """,
-        VariableDeclarationException,
+        StructureException,
     ),
     # duplicate constant name
     (

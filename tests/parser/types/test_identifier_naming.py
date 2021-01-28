@@ -1,14 +1,14 @@
 import pytest
 
+from vyper.context.namespace import RESERVED_KEYWORDS
 from vyper.exceptions import (
-    FunctionDeclarationException,
     NamespaceCollision,
+    StructureException,
     SyntaxException,
-    VariableDeclarationException,
 )
 from vyper.functions import BUILTIN_FUNCTIONS
 from vyper.parser.expr import BUILTIN_CONSTANTS, ENVIRONMENT_VARIABLES
-from vyper.utils import FUNCTION_WHITELIST, RESERVED_KEYWORDS
+from vyper.utils import FUNCTION_WHITELIST
 
 ALL_RESERVED_KEYWORDS = (
     set(BUILTIN_CONSTANTS.keys())
@@ -26,8 +26,7 @@ def test():
     {constant}: int128 = 31337
     """
     assert_compile_failed(
-        lambda: get_contract(code),
-        (SyntaxException, VariableDeclarationException, NamespaceCollision),
+        lambda: get_contract(code), (SyntaxException, StructureException, NamespaceCollision),
     )
 
 
@@ -35,8 +34,7 @@ def test():
 def test_reserved_keywords_storage(constant, get_contract, assert_compile_failed):
     code = f"{constant}: int128"
     assert_compile_failed(
-        lambda: get_contract(code),
-        (SyntaxException, VariableDeclarationException, NamespaceCollision),
+        lambda: get_contract(code), (SyntaxException, StructureException, NamespaceCollision),
     )
 
 
@@ -48,8 +46,7 @@ def test({constant}: int128):
     pass
     """
     assert_compile_failed(
-        lambda: get_contract(code),
-        (SyntaxException, FunctionDeclarationException, NamespaceCollision),
+        lambda: get_contract(code), (SyntaxException, StructureException, NamespaceCollision),
     )
 
 
@@ -64,6 +61,5 @@ def {constant}(var: int128):
     pass
     """
     assert_compile_failed(
-        lambda: get_contract(code),
-        (SyntaxException, FunctionDeclarationException, NamespaceCollision),
+        lambda: get_contract(code), (SyntaxException, StructureException, NamespaceCollision),
     )

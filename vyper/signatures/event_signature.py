@@ -1,8 +1,8 @@
 from vyper import ast as vy_ast
-from vyper.exceptions import EventDeclarationException, TypeCheckFailure
+from vyper.exceptions import TypeCheckFailure
 from vyper.signatures.function_signature import VariableRecord
 from vyper.types import ByteArrayType, canonicalize_type, get_size_of_type
-from vyper.utils import bytes_to_int, ceil32, check_valid_varname, keccak256
+from vyper.utils import bytes_to_int, ceil32, keccak256
 
 
 # Event signature object
@@ -20,19 +20,10 @@ class EventSignature:
         name = class_node.name
         pos = 0
 
-        check_valid_varname(
-            name,
-            global_ctx._structs,
-            pos=class_node,
-            error_prefix="Event name invalid. ",
-            exc=EventDeclarationException,
-        )
-
         args = []
         indexed_list = []
         if len(class_node.body) != 1 or not isinstance(class_node.body[0], vy_ast.Pass):
             for node in class_node.body:
-                arg_item = node.target
                 arg = node.target.id
                 typ = node.annotation
 
@@ -41,12 +32,6 @@ class EventSignature:
                     typ = typ.args[0]
                 else:
                     indexed_list.append(False)
-                check_valid_varname(
-                    arg,
-                    global_ctx._structs,
-                    pos=arg_item,
-                    error_prefix="Event argument name invalid or reserved.",
-                )
                 if arg in (x.name for x in args):
                     raise TypeCheckFailure(f"Duplicate function argument name: {arg}")
                 # Can struct be logged?

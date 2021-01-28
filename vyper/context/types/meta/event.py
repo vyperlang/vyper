@@ -3,6 +3,7 @@ from typing import Dict, List
 
 from vyper import ast as vy_ast
 from vyper.ast.validation import validate_call_args
+from vyper.context.namespace import validate_identifier
 from vyper.context.types.bases import DataLocation
 from vyper.context.types.utils import (
     get_type_from_abi,
@@ -36,6 +37,8 @@ class Event:
     """
 
     def __init__(self, name: str, arguments: OrderedDict, indexed: List) -> None:
+        for key in arguments:
+            validate_identifier(key)
         self.name = name
         self.arguments = arguments
         self.indexed = indexed

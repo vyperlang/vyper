@@ -75,6 +75,19 @@ event Foo:
 def foo():
     log Foo(empty(Bytes[4]))
     """,
+    """
+CALLDATACOPY: int128
+    """,
+    """
+@external
+def foo():
+    BALANCE: int128 = 45
+    """,
+    """
+@external
+def foo():
+    true: int128 = 3
+    """,
 ]
 
 

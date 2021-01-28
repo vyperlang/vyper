@@ -20,13 +20,7 @@ from vyper.types import (
     get_size_of_type,
     parse_type,
 )
-from vyper.utils import (
-    FUNCTION_WHITELIST,
-    check_valid_varname,
-    fourbytes_to_int,
-    is_varname_valid,
-    keccak256,
-)
+from vyper.utils import fourbytes_to_int, keccak256
 
 
 # Function argument
@@ -164,10 +158,6 @@ class FunctionSignature:
         name = code.name
         mem_pos = 0
 
-        valid_name, msg = is_varname_valid(name, custom_structs)
-        if not valid_name and (not name.lower() in FUNCTION_WHITELIST):
-            raise FunctionDeclarationException("Function name invalid. " + msg, code)
-
         # Validate default values.
         for default_value in getattr(code.args, "defaults", []):
             validate_default_values(default_value)
@@ -180,14 +170,6 @@ class FunctionSignature:
             typ = arg.annotation
             if not typ:
                 raise InvalidType("Argument must have type", arg)
-            # Validate arg name.
-            check_valid_varname(
-                arg.arg,
-                custom_structs,
-                arg,
-                "Argument name invalid or reserved. ",
-                FunctionDeclarationException,
-            )
             # Check for duplicate arg name.
             if arg.arg in (x.name for x in args):
                 raise FunctionDeclarationException(
