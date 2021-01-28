@@ -16,7 +16,6 @@ from vyper.parser.lll_node import LLLnode
 from vyper.signatures import sig_utils
 from vyper.signatures.event_signature import EventSignature
 from vyper.signatures.function_signature import FunctionSignature
-from vyper.signatures.interface import check_valid_contract_interface
 from vyper.typing import InterfaceImports
 from vyper.utils import LOADED_LIMITS
 
@@ -195,9 +194,6 @@ def parse_tree_to_lll(global_ctx: GlobalContext) -> Tuple[LLLnode, LLLnode]:
         # if no functions in the contract are payable, assert that callvalue is
         # zero at the beginning of the bytecode
         runtime.insert(1, ["assert", ["iszero", "callvalue"]])
-
-    # Check if interface of contract is correct.
-    check_valid_contract_interface(global_ctx, sigs)
 
     return LLLnode.from_list(o, typ=None), LLLnode.from_list(runtime, typ=None)
 

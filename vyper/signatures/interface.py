@@ -6,9 +6,7 @@ from vyper import ast as vy_ast
 from vyper.exceptions import StructureException
 from vyper.parser.global_context import GlobalContext
 from vyper.signatures import sig_utils
-from vyper.signatures.event_signature import EventSignature
 from vyper.signatures.function_signature import FunctionSignature
-from vyper.types.types import ByteArrayLike, TupleLike
 
 
 # Populate built-in interfaces.
@@ -114,58 +112,3 @@ def extract_sigs(sig_code, interface_name=None):
                 "'vyper' & 'json' are supported"
             )
         )
-
-
-def check_valid_contract_interface(global_ctx, contract_sigs):
-    if global_ctx._interface:
-        funcs_left = global_ctx._interface.copy()
-
-        for sig, func_sig in contract_sigs.items():
-            if isinstance(func_sig, FunctionSignature):
-                if func_sig.internal:
-                    # internal functions are not defined within interfaces
-                    continue
-                if sig not in funcs_left:
-                    # this function is not present within the interface
-                    continue
-                clean_sig_output_type = func_sig.output_type
-                if _compare_outputs(funcs_left[sig].output_type, clean_sig_output_type):
-                    del funcs_left[sig]
-            if isinstance(func_sig, EventSignature) and func_sig.sig in funcs_left:
-                del funcs_left[func_sig.sig]
-
-        if funcs_left:
-            error_message = "Contract does not comply to supplied Interface(s).\n"
-            missing_functions = [
-                str(func_sig)
-                for sig_name, func_sig in funcs_left.items()
-                if isinstance(func_sig, FunctionSignature)
-            ]
-            missing_events = [
-                sig_name
-                for sig_name, func_sig in funcs_left.items()
-                if isinstance(func_sig, EventSignature)
-            ]
-            if missing_functions:
-                err_join = "\n\t".join(missing_functions)
-                error_message += f"Missing interface functions:\n\t{err_join}"
-            if missing_events:
-                err_join = "\n\t".join(missing_events)
-                error_message += f"Missing interface events:\n\t{err_join}"
-            raise StructureException(error_message)
-
-
-def _compare_outputs(a, b):
-    if isinstance(a, TupleLike):
-        # for tuples and structs, compare the length and individual members
-        if type(a) != type(b):
-            return False
-        if len(a.tuple_members()) != len(b.tuple_members()):
-            return False
-        compare = zip(a.tuple_members(), b.tuple_members())
-        return next((False for i in compare if not _compare_outputs(*i)), True)
-    if isinstance(a, ByteArrayLike):
-        # for string and bytes, only the type matters (not the length)
-        return type(a) == type(b)
-    # for all other types, check strict equality
-    return a == b
