@@ -1,11 +1,7 @@
 from collections import Counter
 
 from vyper import ast as vy_ast
-from vyper.exceptions import (
-    FunctionDeclarationException,
-    InvalidType,
-    StructureException,
-)
+from vyper.exceptions import FunctionDeclarationException, StructureException
 from vyper.parser.lll_node import LLLnode
 from vyper.parser.parser_utils import check_single_exit, getpos
 from vyper.types import (
@@ -162,13 +158,6 @@ class FunctionSignature:
         for arg in code.args.args:
             # Each arg needs a type specified.
             typ = arg.annotation
-            if not typ:
-                raise InvalidType("Argument must have type", arg)
-            # Check for duplicate arg name.
-            if arg.arg in (x.name for x in args):
-                raise FunctionDeclarationException(
-                    "Duplicate function argument name: " + arg.arg, arg,
-                )
             parsed_type = parse_type(typ, None, sigs, custom_structs=custom_structs,)
             args.append(
                 VariableRecord(arg.arg, mem_pos, parsed_type, False, defined_at=getpos(arg),)
@@ -180,9 +169,8 @@ class FunctionSignature:
                 mem_pos += get_size_of_type(parsed_type) * 32
 
         mutability = "nonpayable"  # Assume nonpayable by default
-        internal = False
-        external = False
         nonreentrant_key = ""
+        is_internal = False
 
         # Update function properties from decorators
         # NOTE: Can't import enums here because of circular import
@@ -190,27 +178,11 @@ class FunctionSignature:
             if isinstance(dec, vy_ast.Name) and dec.id in ("payable", "view", "pure"):
                 mutability = dec.id
             elif isinstance(dec, vy_ast.Name) and dec.id == "internal":
-                internal = True
+                is_internal = True
             elif isinstance(dec, vy_ast.Name) and dec.id == "external":
-                external = True
+                is_internal = False
             elif isinstance(dec, vy_ast.Call) and dec.func.id == "nonreentrant":
-                if nonreentrant_key:
-                    raise StructureException(
-                        "Only one @nonreentrant decorator allowed per function", dec
-                    )
-                if (
-                    dec.args
-                    and len(dec.args) == 1
-                    and isinstance(dec.args[0], vy_ast.Str)
-                    and dec.args[0].s
-                ):  # noqa: E501
-                    nonreentrant_key = dec.args[0].s
-                else:
-                    raise StructureException(
-                        "@nonreentrant decorator requires a non-empty string to use as a key.", dec
-                    )
-            else:
-                raise StructureException("Bad decorator", dec)
+                nonreentrant_key = dec.args[0].s
 
         if constant_override:
             # In case this override is abused, match previous behavior
@@ -218,40 +190,16 @@ class FunctionSignature:
                 raise StructureException(f"Function {name} cannot be both constant and payable.")
             mutability = "view"
 
-        if external and internal:
-            raise StructureException(
-                f"Cannot use external and internal decorators on the same function: {name}"
-            )
-        if mutability == "payable" and internal:
-            raise StructureException(f"Function {name} cannot be both internal and payable.")
-        if (not external and not internal) and not interface_def:
-            raise StructureException(
-                "Function visibility must be declared (@external or @internal)", code,
-            )
-        if mutability in ("view", "pure") and nonreentrant_key:
-            raise StructureException(
-                f"@nonreentrant makes no sense on a @{mutability} function.", code
-            )
-
         # Determine the return type and whether or not it's constant. Expects something
         # of the form:
         # def foo(): ...
         # def foo() -> int128: ...
         # If there is no return type, ie. it's of the form def foo(): ...
         # and NOT def foo() -> type: ..., then it's null
-        if not code.returns:
-            output_type = None
-        elif isinstance(
-            code.returns, (vy_ast.Name, vy_ast.Compare, vy_ast.Subscript, vy_ast.Call, vy_ast.Tuple)
-        ):
+        output_type = None
+        if code.returns:
             output_type = parse_type(code.returns, None, sigs, custom_structs=custom_structs,)
-        else:
-            raise InvalidType(
-                f"Output type invalid or unsupported: {parse_type(code.returns, None)}",
-                code.returns,
-            )
-        # Output type must be canonicalizable
-        if output_type is not None:
+            # Output type must be canonicalizable
             assert isinstance(output_type, TupleType) or canonicalize_type(output_type)
         # Get the canonical function signature
         sig = cls.get_full_sig(name, code.args.args, sigs, custom_structs)
@@ -263,7 +211,7 @@ class FunctionSignature:
             args,
             output_type,
             mutability,
-            internal,
+            is_internal,
             nonreentrant_key,
             sig,
             method_id,
