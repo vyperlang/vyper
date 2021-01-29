@@ -39,6 +39,9 @@ def validate_call_args(
     if not isinstance(arg_count, (int, tuple)):
         raise CompilerPanic(f"Invalid type for arg_count: {type(arg_count).__name__}")
 
+    if isinstance(arg_count, tuple) and arg_count[0] == arg_count[1]:
+        arg_count == arg_count[0]
+
     if isinstance(node.func, vy_ast.Attribute):
         msg = f" for call to '{node.func.attr}'"
     elif isinstance(node.func, vy_ast.Name):
