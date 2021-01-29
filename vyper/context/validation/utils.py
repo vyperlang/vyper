@@ -453,7 +453,7 @@ def validate_unique_method_ids(functions: List) -> None:
     functions : List[ContractFunction]
         A list of ContractFunction objects.
     """
-    method_ids = [x for i in functions for x in i.method_ids]
+    method_ids = [x for i in functions for x in i.method_ids.values()]
     collision = next((i for i in method_ids if method_ids.count(i) > 1), None)
     if collision:
         collision_str = ", ".join(i.name for i in functions if collision in i.method_ids)
