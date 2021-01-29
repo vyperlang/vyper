@@ -1,8 +1,8 @@
 import pytest
 
-from vyper.ast import parse_natspec, parse_to_ast
+from vyper import ast as vy_ast
+from vyper.compiler.phases import CompilerData
 from vyper.exceptions import NatSpecSyntaxException
-from vyper.parser.global_context import GlobalContext
 
 test_code = """
 '''
@@ -57,10 +57,13 @@ expected_devdoc = {
 }
 
 
+def parse_natspec(code):
+    vyper_ast = CompilerData(code).vyper_module_folded
+    return vy_ast.parse_natspec(vyper_ast)
+
+
 def test_documentation_example_output():
-    vyper_ast = parse_to_ast(test_code)
-    global_ctx = GlobalContext.get_global_context(vyper_ast)
-    userdoc, devdoc = parse_natspec(vyper_ast, global_ctx)
+    userdoc, devdoc = parse_natspec(test_code)
 
     assert userdoc == expected_userdoc
     assert devdoc == expected_devdoc
@@ -79,9 +82,7 @@ def foo():
     pass
     """
 
-    vyper_ast = parse_to_ast(code)
-    global_ctx = GlobalContext.get_global_context(vyper_ast)
-    userdoc, devdoc = parse_natspec(vyper_ast, global_ctx)
+    userdoc, devdoc = parse_natspec(code)
 
     assert userdoc == {
         "methods": {"foo()": {"notice": "This one too!"}},
@@ -108,9 +109,7 @@ We don't mind!
 @author Mr No-linter
                 '''
 """
-    vyper_ast = parse_to_ast(code)
-    global_ctx = GlobalContext.get_global_context(vyper_ast)
-    _, devdoc = parse_natspec(vyper_ast, global_ctx)
+    _, devdoc = parse_natspec(code)
 
     assert devdoc == {
         "author": "Mr No-linter",
@@ -130,9 +129,7 @@ def foo(bar: int128, baz: uint256, potato: bytes32):
     pass
     """
 
-    vyper_ast = parse_to_ast(code)
-    global_ctx = GlobalContext.get_global_context(vyper_ast)
-    _, devdoc = parse_natspec(vyper_ast, global_ctx)
+    _, devdoc = parse_natspec(code)
 
     assert devdoc == {
         "methods": {
@@ -155,9 +152,7 @@ def foo(bar: int128, baz: uint256) -> (int128, uint256):
     return bar, baz
     """
 
-    vyper_ast = parse_to_ast(code)
-    global_ctx = GlobalContext.get_global_context(vyper_ast)
-    _, devdoc = parse_natspec(vyper_ast, global_ctx)
+    _, devdoc = parse_natspec(code)
 
     assert devdoc == {
         "methods": {
@@ -179,9 +174,7 @@ def notfoo(bar: int128, baz: uint256):
     pass
     """
 
-    vyper_ast = parse_to_ast(code)
-    global_ctx = GlobalContext.get_global_context(vyper_ast)
-    _, devdoc = parse_natspec(vyper_ast, global_ctx)
+    _, devdoc = parse_natspec(code)
 
     assert devdoc["methods"] == {"foo(int128,uint256)": {"details": "I will be parsed."}}
 
@@ -197,12 +190,10 @@ def foo():
     pass
     """
 
-    vyper_ast = parse_to_ast(code)
-    global_ctx = GlobalContext.get_global_context(vyper_ast)
     with pytest.raises(
         NatSpecSyntaxException, match="NatSpec docstring opens with untagged comment"
     ):
-        parse_natspec(vyper_ast, global_ctx)
+        parse_natspec(code)
 
 
 empty_field_cases = [
@@ -232,10 +223,8 @@ def foo():
     '''{bad_docstring}'''
     pass
     """
-    vyper_ast = parse_to_ast(code)
-    global_ctx = GlobalContext.get_global_context(vyper_ast)
     with pytest.raises(NatSpecSyntaxException, match="No description given for tag '@notice'"):
-        parse_natspec(vyper_ast, global_ctx)
+        parse_natspec(code)
 
 
 def test_unknown_field():
@@ -249,10 +238,8 @@ def foo():
     pass
     """
 
-    vyper_ast = parse_to_ast(code)
-    global_ctx = GlobalContext.get_global_context(vyper_ast)
     with pytest.raises(NatSpecSyntaxException, match="Unknown NatSpec field '@thing'"):
-        parse_natspec(vyper_ast, global_ctx)
+        parse_natspec(code)
 
 
 @pytest.mark.parametrize("field", ["title", "license"])
@@ -264,10 +251,8 @@ def foo():
     pass
     """
 
-    vyper_ast = parse_to_ast(code)
-    global_ctx = GlobalContext.get_global_context(vyper_ast)
     with pytest.raises(NatSpecSyntaxException, match=f"'@{field}' is not a valid field"):
-        parse_natspec(vyper_ast, global_ctx)
+        parse_natspec(code)
 
 
 licenses = [
@@ -289,9 +274,7 @@ def foo():
     pass
     """
 
-    vyper_ast = parse_to_ast(code)
-    global_ctx = GlobalContext.get_global_context(vyper_ast)
-    _, devdoc = parse_natspec(vyper_ast, global_ctx)
+    _, devdoc = parse_natspec(code)
 
     assert devdoc == {
         "license": license,
@@ -312,10 +295,8 @@ def foo():
     pass
     """
 
-    vyper_ast = parse_to_ast(code)
-    global_ctx = GlobalContext.get_global_context(vyper_ast)
     with pytest.raises(NatSpecSyntaxException, match=f"No description given for tag '@{field}'"):
-        parse_natspec(vyper_ast, global_ctx)
+        parse_natspec(code)
 
 
 def test_duplicate_fields():
@@ -329,10 +310,8 @@ def foo():
     pass
     """
 
-    vyper_ast = parse_to_ast(code)
-    global_ctx = GlobalContext.get_global_context(vyper_ast)
     with pytest.raises(NatSpecSyntaxException, match="Duplicate NatSpec field '@notice'"):
-        parse_natspec(vyper_ast, global_ctx)
+        parse_natspec(code)
 
 
 def test_duplicate_param():
@@ -346,10 +325,8 @@ def foo(bar: int128, baz: uint256):
     pass
     """
 
-    vyper_ast = parse_to_ast(code)
-    global_ctx = GlobalContext.get_global_context(vyper_ast)
     with pytest.raises(NatSpecSyntaxException, match="Parameter 'bar' documented more than once"):
-        parse_natspec(vyper_ast, global_ctx)
+        parse_natspec(code)
 
 
 def test_unknown_param():
@@ -360,10 +337,8 @@ def foo(bar: int128, baz: uint256):
     pass
     """
 
-    vyper_ast = parse_to_ast(code)
-    global_ctx = GlobalContext.get_global_context(vyper_ast)
     with pytest.raises(NatSpecSyntaxException, match="Method has no parameter 'hotdog'"):
-        parse_natspec(vyper_ast, global_ctx)
+        parse_natspec(code)
 
 
 empty_field_cases = [
@@ -393,10 +368,8 @@ def foo(a: int128):
     '''{bad_docstring}'''
     pass
     """
-    vyper_ast = parse_to_ast(code)
-    global_ctx = GlobalContext.get_global_context(vyper_ast)
     with pytest.raises(NatSpecSyntaxException, match="No description given for parameter 'a'"):
-        parse_natspec(vyper_ast, global_ctx)
+        parse_natspec(code)
 
 
 def test_too_many_returns_no_return_type():
@@ -407,10 +380,8 @@ def foo():
     pass
     """
 
-    vyper_ast = parse_to_ast(code)
-    global_ctx = GlobalContext.get_global_context(vyper_ast)
     with pytest.raises(NatSpecSyntaxException, match="Method does not return any values"):
-        parse_natspec(vyper_ast, global_ctx)
+        parse_natspec(code)
 
 
 def test_too_many_returns_single_return_type():
@@ -424,12 +395,10 @@ def foo() -> int128:
     return 1
     """
 
-    vyper_ast = parse_to_ast(code)
-    global_ctx = GlobalContext.get_global_context(vyper_ast)
     with pytest.raises(
         NatSpecSyntaxException, match="Number of documented return values exceeds actual number",
     ):
-        parse_natspec(vyper_ast, global_ctx)
+        parse_natspec(code)
 
 
 def test_too_many_returns_tuple_return_type():
@@ -444,9 +413,7 @@ def foo() -> (int128,uint256):
     return 1, 2
     """
 
-    vyper_ast = parse_to_ast(code)
-    global_ctx = GlobalContext.get_global_context(vyper_ast)
     with pytest.raises(
         NatSpecSyntaxException, match="Number of documented return values exceeds actual number",
     ):
-        parse_natspec(vyper_ast, global_ctx)
+        parse_natspec(code)
