@@ -1,6 +1,6 @@
 import warnings
 from collections import OrderedDict
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple
 
 from vyper import ast as vy_ast
 from vyper.ast.validation import validate_call_args
@@ -71,9 +71,11 @@ class ContractFunction(BaseTypeDefinition):
         The name of the function.
     arguments : OrderedDict
         Function input arguments as {'name': BaseType}
-    arg_count : Tuple[int, int] | int
-        The number of input arguments. If given as a tuple, the value represents
-        (min, max) when default values are given.
+    min_arg_count : int
+        The minimum number of required input arguments.
+    max_arg_count : int
+        The maximum number of required input arguments. When a function has no
+        default arguments, this value is the same as `min_arg_count`.
     kwarg_keys : List
         List of optional input argument keys.
     function_visibility : FunctionVisibility
@@ -90,7 +92,8 @@ class ContractFunction(BaseTypeDefinition):
         self,
         name: str,
         arguments: OrderedDict,
-        arg_count: Union[Tuple[int, int], int],
+        min_arg_count: int,
+        max_arg_count: int,
         return_type: Optional[BaseTypeDefinition],
         function_visibility: FunctionVisibility,
         state_mutability: StateMutability,
@@ -106,11 +109,12 @@ class ContractFunction(BaseTypeDefinition):
         )
         self.name = name
         self.arguments = arguments
-        self.arg_count = arg_count
+        self.min_arg_count = min_arg_count
+        self.max_arg_count = max_arg_count
         self.return_type = return_type
         self.kwarg_keys = []
-        if isinstance(arg_count, tuple):
-            self.kwarg_keys = list(self.arguments)[arg_count[0] :]  # noqa: E203
+        if min_arg_count < max_arg_count:
+            self.kwarg_keys = list(self.arguments)[min_arg_count:]  # noqa: E203
         self.visibility = function_visibility
         self.mutability = state_mutability
         self.nonreentrant = nonreentrant
@@ -153,6 +157,7 @@ class ContractFunction(BaseTypeDefinition):
         return cls(
             abi["name"],
             arguments,
+            len(arguments),
             len(arguments),
             return_type,
             function_visibility=FunctionVisibility.EXTERNAL,
@@ -279,19 +284,15 @@ class ContractFunction(BaseTypeDefinition):
             raise StructureException("Cannot use reentrancy guard on view or pure functions", node)
 
         # call arguments
-        arg_count: Union[Tuple[int, int], int] = len(node.args.args)
-        if node.args.defaults:
-            if node.name == "__init__":
-                raise FunctionDeclarationException(
-                    "Constructor may not use default arguments", node.args.defaults[0]
-                )
-            arg_count = (
-                len(node.args.args) - len(node.args.defaults),
-                len(node.args.args),
+        if node.args.defaults and node.name == "__init__":
+            raise FunctionDeclarationException(
+                "Constructor may not use default arguments", node.args.defaults[0]
             )
 
         arguments = OrderedDict()
-        defaults = [None] * (len(node.args.args) - len(node.args.defaults)) + node.args.defaults
+        max_arg_count = len(node.args.args)
+        min_arg_count = max_arg_count - len(node.args.defaults)
+        defaults = [None] * min_arg_count + node.args.defaults
 
         namespace = get_namespace()
         for arg, value in zip(node.args.args, defaults):
@@ -339,7 +340,7 @@ class ContractFunction(BaseTypeDefinition):
         else:
             raise InvalidType("Function return value must be a type name or tuple", node.returns)
 
-        return cls(node.name, arguments, arg_count, return_type, **kwargs)
+        return cls(node.name, arguments, min_arg_count, max_arg_count, return_type, **kwargs)
 
     @classmethod
     def from_AnnAssign(cls, node: vy_ast.AnnAssign) -> "ContractFunction":
@@ -368,6 +369,7 @@ class ContractFunction(BaseTypeDefinition):
             node.target.id,
             args_dict,
             len(arguments),
+            len(arguments),
             return_type,
             function_visibility=FunctionVisibility.EXTERNAL,
             state_mutability=StateMutability.NONPAYABLE,
@@ -384,11 +386,11 @@ class ContractFunction(BaseTypeDefinition):
         """
         arg_types = [i.canonical_type for i in self.arguments.values()]
 
-        if isinstance(self.arg_count, int):
+        if not self.has_default_args:
             return _generate_method_id(self.name, arg_types)
 
         method_ids = {}
-        for i in range(self.arg_count[0], self.arg_count[1] + 1):
+        for i in range(self.min_arg_count, self.max_arg_count + 1):
             method_ids.update(_generate_method_id(self.name, arg_types[:i]))
         return method_ids
 
@@ -399,6 +401,10 @@ class ContractFunction(BaseTypeDefinition):
     @property
     def is_fallback(self) -> bool:
         return self.name == "__default__"
+
+    @property
+    def has_default_args(self) -> bool:
+        return self.min_arg_count < self.max_arg_count
 
     def get_signature(self) -> Tuple[Tuple, Optional[BaseTypeDefinition]]:
         return tuple(self.arguments.values()), self.return_type
@@ -411,7 +417,7 @@ class ContractFunction(BaseTypeDefinition):
         kwarg_keys = self.kwarg_keys.copy()
         if node.get("func.value.id") != "self":
             kwarg_keys += ["gas", "value"]
-        validate_call_args(node, self.arg_count, kwarg_keys)
+        validate_call_args(node, (self.min_arg_count, self.max_arg_count), kwarg_keys)
 
         if self.mutability < StateMutability.PAYABLE:
             kwarg_node = next((k for k in node.keywords if k.arg == "value"), None)
@@ -454,10 +460,10 @@ class ContractFunction(BaseTypeDefinition):
         else:
             abi_dict["outputs"] = [_generate_abi_type(typ)]
 
-        if isinstance(self.arg_count, tuple):
+        if self.has_default_args:
             # for functions with default args, return a dict for each possible arg count
             result = []
-            for i in range(self.arg_count[0], self.arg_count[1] + 1):
+            for i in range(self.min_arg_count, self.max_arg_count + 1):
                 result.append(abi_dict.copy())
                 result[-1]["inputs"] = result[-1]["inputs"][:i]
             return result
