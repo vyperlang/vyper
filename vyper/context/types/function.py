@@ -392,6 +392,14 @@ class ContractFunction(BaseTypeDefinition):
             method_ids.update(_generate_method_id(self.name, arg_types[:i]))
         return method_ids
 
+    @property
+    def is_constructor(self) -> bool:
+        return self.name == "__init__"
+
+    @property
+    def is_fallback(self) -> bool:
+        return self.name == "__default__"
+
     def get_signature(self) -> Tuple[Tuple, Optional[BaseTypeDefinition]]:
         return tuple(self.arguments.values()), self.return_type
 
@@ -424,11 +432,11 @@ class ContractFunction(BaseTypeDefinition):
     def to_abi_dict(self) -> List[Dict]:
         abi_dict: Dict = {"stateMutability": self.mutability.value}
 
-        if self.name == "__default__":
+        if self.is_fallback:
             abi_dict["type"] = "fallback"
             return [abi_dict]
 
-        if self.name == "__init__":
+        if self.is_constructor:
             abi_dict["type"] = "constructor"
         else:
             abi_dict["type"] = "function"
