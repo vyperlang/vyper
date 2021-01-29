@@ -10,7 +10,6 @@ from vyper.compiler.phases import CompilerData
 from vyper.compiler.utils import build_gas_estimates
 from vyper.context.types.function import FunctionVisibility, StateMutability
 from vyper.parser.lll_node import LLLnode
-from vyper.signatures import sig_utils
 from vyper.warnings import ContractSizeLimitWarning
 
 
@@ -23,12 +22,12 @@ def build_ast_dict(compiler_data: CompilerData) -> dict:
 
 
 def build_devdoc(compiler_data: CompilerData) -> dict:
-    userdoc, devdoc = parse_natspec(compiler_data.vyper_module_folded, compiler_data.global_ctx)
+    userdoc, devdoc = parse_natspec(compiler_data.vyper_module_folded)
     return devdoc
 
 
 def build_userdoc(compiler_data: CompilerData) -> dict:
-    userdoc, devdoc = parse_natspec(compiler_data.vyper_module_folded, compiler_data.global_ctx)
+    userdoc, devdoc = parse_natspec(compiler_data.vyper_module_folded)
     return userdoc
 
 
@@ -77,7 +76,10 @@ def build_ir_output(compiler_data: CompilerData) -> LLLnode:
 
 
 def build_method_identifiers_output(compiler_data: CompilerData) -> dict:
-    return sig_utils.mk_method_identifiers(compiler_data.global_ctx)
+    interface = compiler_data.vyper_module_folded._metadata["type"]
+    functions = interface.members.values()
+
+    return {k: hex(v) for func in functions for k, v in func.method_ids.items()}
 
 
 def build_abi_output(compiler_data: CompilerData) -> list:

@@ -56,25 +56,3 @@ def mk_full_signature(global_ctx, sig_formatter):
             for s in default_sigs:
                 o.append(sig_formatter(s))
     return o
-
-
-def mk_method_identifiers(global_ctx):
-    identifiers = {}
-
-    for code in global_ctx._defs:
-        identifiers.update(mk_single_method_identifier(code, global_ctx))
-
-    return identifiers
-
-
-def mk_single_method_identifier(code, global_ctx):
-    identifiers = {}
-    sig = FunctionSignature.from_definition(
-        code, sigs=global_ctx._contracts, custom_structs=global_ctx._structs,
-    )
-    if not sig.internal:
-        default_sigs = generate_default_arg_sigs(code, global_ctx._contracts, global_ctx)
-        for s in default_sigs:
-            identifiers[s.sig] = hex(s.method_id)
-
-    return identifiers
