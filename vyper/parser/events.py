@@ -1,4 +1,7 @@
 from vyper import ast as vy_ast
+from vyper.context.types.abstract import ArrayValueAbstractType
+from vyper.context.types.indexable.sequence import ArrayDefinition
+from vyper.context.types.value.numeric import Uint256Definition
 from vyper.exceptions import StructureException
 from vyper.parser.expr import Expr
 from vyper.parser.lll_node import LLLnode
@@ -11,27 +14,19 @@ from vyper.parser.parser_utils import (
     unwrap_location,
     zero_pad,
 )
-from vyper.types.types import (
-    BaseType,
-    ByteArrayLike,
-    ListType,
-    get_size_of_type,
-)
-from vyper.utils import bytes_to_int, ceil32, keccak256
+from vyper.types.types import BaseType, ByteArrayLike
+from vyper.utils import bytes_to_int, keccak256
 
 
-def pack_logging_topics(event_id, args, expected_topics, context):
+def pack_logging_topics(event_id, arg_nodes, arg_types, context):
     topics = [event_id]
-    for pos, expected_topic in enumerate(expected_topics):
-        expected_type = expected_topic.typ
-        arg = args[pos]
-        value = Expr(arg, context).lll_node
-        arg_type = value.typ
+    for node, typ in zip(arg_nodes, arg_types):
+        value = Expr(node, context).lll_node
 
-        if isinstance(arg_type, ByteArrayLike) and isinstance(expected_type, ByteArrayLike):
-            if isinstance(arg, (vy_ast.Str, vy_ast.Bytes)):
+        if isinstance(typ, ArrayValueAbstractType):
+            if isinstance(node, (vy_ast.Str, vy_ast.Bytes)):
                 # for literals, generate the topic at compile time
-                value = arg.value
+                value = node.value
                 if isinstance(value, str):
                     value = value.encode()
                 topics.append(bytes_to_int(keccak256(value)))
@@ -55,8 +50,8 @@ def pack_logging_topics(event_id, args, expected_topics, context):
                 ]
                 topics.append(lll_node)
 
-        elif isinstance(arg_type, ListType) and isinstance(expected_type, ListType):
-            size = get_size_of_type(value.typ) * 32
+        elif isinstance(typ, ArrayDefinition):
+            size = typ.size_in_bytes
             if value.location == "memory":
                 topics.append(["sha3", value, size])
 
@@ -99,14 +94,14 @@ def pack_args_by_32(
     :param datamem_start: position where the whole datemem section starts.
     """
 
-    if isinstance(typ, BaseType):
+    if typ.size_in_bytes == 32:
         if isinstance(arg, LLLnode):
             value = unwrap_location(arg)
         else:
             value = Expr(arg, context).lll_node
-            value = base_type_conversion(value, value.typ, typ, pos)
-        holder.append(LLLnode.from_list(["mstore", placeholder, value], typ=typ, location="memory"))
-    elif isinstance(typ, ByteArrayLike):
+            value = base_type_conversion(value, value.typ, value.typ, pos)
+        holder.append(LLLnode.from_list(["mstore", placeholder, value], location="memory"))
+    elif isinstance(typ, ArrayValueAbstractType):
 
         if isinstance(arg, LLLnode):  # Is prealloacted variable.
             source_lll = arg
@@ -115,10 +110,11 @@ def pack_args_by_32(
 
         # Set static offset, in arg slot.
         holder.append(LLLnode.from_list(["mstore", placeholder, ["mload", dynamic_offset_counter]]))
-        # Get the biginning to write the ByteArray to.
+        # Get the beginning to write the ByteArray to.
+        # TODO refactor out the use of `ByteArrayLike` once old types are removed from parser
         dest_placeholder = LLLnode.from_list(
             ["add", datamem_start, ["mload", dynamic_offset_counter]],
-            typ=typ,
+            typ=ByteArrayLike(typ.length),
             location="memory",
             annotation="pack_args_by_32:dest_placeholder",
         )
@@ -145,16 +141,16 @@ def pack_args_by_32(
             annotation="Increment dynamic offset counter",
         )
         holder.append(increment_counter)
-    elif isinstance(typ, ListType):
+    elif isinstance(typ, ArrayDefinition):
 
         if isinstance(arg, vy_ast.Call) and arg.func.get("id") == "empty":
             # special case for `empty()` with a static-sized array
-            holder.append(mzero(placeholder, get_size_of_type(typ) * 32))
-            maxlen += (get_size_of_type(typ) - 1) * 32
+            holder.append(mzero(placeholder, typ.size_in_bytes))
+            maxlen += typ.size_in_bytes - 32
             return holder, maxlen
 
-        maxlen += (typ.count - 1) * 32
-        typ = typ.subtype
+        maxlen += (typ.length - 1) * 32
+        typ = typ.value_type
 
         # NOTE: Below code could be refactored into iterators/getter functions for each type of
         #       repetitive loop. But seeing how each one is a unique for loop, and in which way
@@ -169,12 +165,11 @@ def pack_args_by_32(
                 storage_offset = i
                 arg2 = LLLnode.from_list(
                     ["sload", ["add", ["sha3_32", Expr(arg, context).lll_node], storage_offset]],
-                    typ=typ,
                 )
                 holder, maxlen = pack_args_by_32(
                     holder, maxlen, arg2, typ, context, placeholder + mem_offset, pos=pos,
                 )
-                mem_offset += get_size_of_type(typ) * 32
+                mem_offset += typ.size_in_bytes
 
         # List from variable.
         elif isinstance(arg, vy_ast.Name):
@@ -182,13 +177,11 @@ def pack_args_by_32(
             pos = context.vars[arg.id].pos
             mem_offset = 0
             for _ in range(0, size):
-                arg2 = LLLnode.from_list(
-                    pos + mem_offset, typ=typ, location=context.vars[arg.id].location
-                )
+                arg2 = LLLnode.from_list(pos + mem_offset, location=context.vars[arg.id].location)
                 holder, maxlen = pack_args_by_32(
                     holder, maxlen, arg2, typ, context, placeholder + mem_offset, pos=pos,
                 )
-                mem_offset += get_size_of_type(typ) * 32
+                mem_offset += typ.size_in_bytes
 
         # List from list literal.
         else:
@@ -197,60 +190,60 @@ def pack_args_by_32(
                 holder, maxlen = pack_args_by_32(
                     holder, maxlen, arg2, typ, context, placeholder + mem_offset, pos=pos,
                 )
-                mem_offset += get_size_of_type(typ) * 32
+                mem_offset += typ.size_in_bytes
     return holder, maxlen
 
 
 # Pack logging data arguments
-def pack_logging_data(expected_data, args, context, pos):
+def pack_logging_data(arg_nodes, arg_types, context, pos):
     # Checks to see if there's any data
-    if not args:
+    if not arg_nodes:
         return ["seq"], 0, None, 0
     holder = ["seq"]
-    maxlen = len(args) * 32  # total size of all packed args (upper limit)
+    maxlen = len(arg_nodes) * 32  # total size of all packed args (upper limit)
 
     # Unroll any function calls, to temp variables.
     prealloacted = {}
-    for idx, (arg, _expected_arg) in enumerate(zip(args, expected_data)):
+    for idx, node in enumerate(arg_nodes):
 
-        if isinstance(arg, (vy_ast.Str, vy_ast.Call)) and arg.get("func.id") != "empty":
-            expr = Expr(arg, context)
+        if isinstance(node, (vy_ast.Str, vy_ast.Call)) and node.get("func.id") != "empty":
+            expr = Expr(node, context)
             source_lll = expr.lll_node
             tmp_variable = context.new_internal_variable(source_lll.typ)
             tmp_variable_node = LLLnode.from_list(
                 tmp_variable,
                 typ=source_lll.typ,
-                pos=getpos(arg),
+                pos=getpos(node),
                 location="memory",
                 annotation=f"log_prealloacted {source_lll.typ}",
             )
             # Copy bytes.
             holder.append(
-                make_setter(tmp_variable_node, source_lll, pos=getpos(arg), location="memory")
+                make_setter(tmp_variable_node, source_lll, pos=getpos(node), location="memory")
             )
             prealloacted[idx] = tmp_variable_node
 
     # Create internal variables for for dynamic and static args.
     static_types = []
-    for data in expected_data:
-        static_types.append(data.typ if not isinstance(data.typ, ByteArrayLike) else BaseType(32))
+    for typ in arg_types:
+        static_types.append(typ if not typ.is_dynamic_size else Uint256Definition())
 
-    requires_dynamic_offset = any(isinstance(data.typ, ByteArrayLike) for data in expected_data)
+    requires_dynamic_offset = any(typ.is_dynamic_size for typ in arg_types)
 
     dynamic_offset_counter = None
     if requires_dynamic_offset:
+        # TODO refactor out old type objects
         dynamic_offset_counter = context.new_internal_variable(BaseType(32))
         dynamic_placeholder = context.new_internal_variable(BaseType(32))
 
     static_vars = [context.new_internal_variable(i) for i in static_types]
 
     # Populate static placeholders.
-    for i, (arg, data) in enumerate(zip(args, expected_data)):
-        typ = data.typ
+    for i, (node, typ) in enumerate(zip(arg_nodes, arg_types)):
         placeholder = static_vars[i]
-        if not isinstance(typ, ByteArrayLike):
+        if not isinstance(typ, ArrayValueAbstractType):
             holder, maxlen = pack_args_by_32(
-                holder, maxlen, prealloacted.get(i, arg), typ, context, placeholder, pos=pos,
+                holder, maxlen, prealloacted.get(i, node), typ, context, placeholder, pos=pos,
             )
 
     # Dynamic position starts right after the static args.
@@ -258,10 +251,9 @@ def pack_logging_data(expected_data, args, context, pos):
         holder.append(LLLnode.from_list(["mstore", dynamic_offset_counter, maxlen]))
 
     # Calculate maximum dynamic offset placeholders, used for gas estimation.
-    for _arg, data in zip(args, expected_data):
-        typ = data.typ
-        if isinstance(typ, ByteArrayLike):
-            maxlen += 32 + ceil32(typ.maxlen)
+    for typ in arg_types:
+        if typ.is_dynamic_size:
+            maxlen += typ.size_in_bytes
 
     if requires_dynamic_offset:
         datamem_start = dynamic_placeholder + 32
@@ -269,18 +261,17 @@ def pack_logging_data(expected_data, args, context, pos):
         datamem_start = static_vars[0]
 
     # Copy necessary data into allocated dynamic section.
-    for i, (arg, data) in enumerate(zip(args, expected_data)):
-        typ = data.typ
-        if isinstance(typ, ByteArrayLike):
-            if isinstance(arg, vy_ast.Call) and arg.func.get("id") == "empty":
+    for i, (node, typ) in enumerate(zip(arg_nodes, arg_types)):
+        if isinstance(typ, ArrayValueAbstractType):
+            if isinstance(node, vy_ast.Call) and node.func.get("id") == "empty":
                 # TODO add support for this
                 raise StructureException(
-                    "Cannot use `empty` on Bytes or String types within an event log", arg
+                    "Cannot use `empty` on Bytes or String types within an event log", node
                 )
             pack_args_by_32(
                 holder=holder,
                 maxlen=maxlen,
-                arg=prealloacted.get(i, arg),
+                arg=prealloacted.get(i, node),
                 typ=typ,
                 context=context,
                 placeholder=static_vars[i],

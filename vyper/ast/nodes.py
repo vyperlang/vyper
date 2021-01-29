@@ -802,10 +802,7 @@ class NameConstant(Constant):
 
 
 class Name(VyperNode):
-    __slots__ = (
-        "id",
-        "_type",
-    )
+    __slots__ = ("id",)
 
 
 class Expr(VyperNode):

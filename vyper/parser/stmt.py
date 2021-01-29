@@ -108,19 +108,21 @@ class Stmt:
         return lll_node
 
     def parse_Log(self):
-        event = self.context.sigs["self"][self.stmt.value.func.id]
+        event = self.stmt._metadata["type"]
+        args = self.stmt.value.args
+
         expected_topics, topics = [], []
         expected_data, data = [], []
-        for pos, is_indexed in enumerate(event.indexed_list):
+        for node, arg_type, is_indexed in zip(args, event.arguments.values(), event.indexed):
             if is_indexed:
-                expected_topics.append(event.args[pos])
-                topics.append(self.stmt.value.args[pos])
+                expected_topics.append(arg_type)
+                topics.append(node)
             else:
-                expected_data.append(event.args[pos])
-                data.append(self.stmt.value.args[pos])
+                expected_data.append(arg_type)
+                data.append(node)
         topics = pack_logging_topics(event.event_id, topics, expected_topics, self.context)
         inargs, inargsize, inargsize_node, inarg_start = pack_logging_data(
-            expected_data, data, self.context, pos=getpos(self.stmt),
+            data, expected_data, self.context, getpos(self.stmt),
         )
 
         if inargsize_node is None:
@@ -234,7 +236,9 @@ class Stmt:
         # attempt to use the type specified by type checking, fall back to `int128`
         # this is a stopgap solution to allow uint256 - it will be properly solved
         # once we refactor `vyper.parser`
-        iter_typ = self.stmt.target.get("_type") or "int128"
+        iter_typ = "int128"
+        if "type" in self.stmt.target._metadata:
+            iter_typ = self.stmt.target._metadata["type"]._id
 
         # Get arg0
         arg0 = self.stmt.iter.args[0]

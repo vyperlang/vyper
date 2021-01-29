@@ -7,7 +7,6 @@ from web3 import Web3
 from web3.providers.eth_tester import EthereumTesterProvider
 
 from vyper import compile_lll, compiler, optimizer
-from vyper.parser.parser import parse_to_lll
 from vyper.parser.parser_utils import LLLnode
 
 from .base_conftest import (
@@ -83,7 +82,7 @@ def get_contract_module():
 
 
 def get_compiler_gas_estimate(code, func):
-    lll_nodes = optimizer.optimize(parse_to_lll(code))
+    lll_nodes = compiler.phases.CompilerData(code).lll_nodes
     if func:
         return compiler.utils.build_gas_estimates(lll_nodes)[func] + 22000
     else:
