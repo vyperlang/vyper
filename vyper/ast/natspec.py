@@ -5,21 +5,19 @@ from asttokens import LineNumbers
 
 from vyper.ast import nodes as vy_ast
 from vyper.exceptions import NatSpecSyntaxException
-from vyper.parser.global_context import GlobalContext
-from vyper.signatures import sig_utils
 
 SINGLE_FIELDS = ("title", "author", "license", "notice", "dev")
 PARAM_FIELDS = ("param", "return")
 USERDOCS_FIELDS = ("notice",)
 
 
-def parse_natspec(vyper_module: vy_ast.Module, global_ctx: GlobalContext,) -> Tuple[dict, dict]:
+def parse_natspec(vyper_module_folded: vy_ast.Module) -> Tuple[dict, dict]:
     """
     Parses NatSpec documentation from a contract.
 
     Arguments
     ---------
-    vyper_module : Module
+    vyper_module_folded : Module
         Module-level vyper ast node.
     interface_codes: Dict, optional
         Dict containing relevant data for any import statements related to
@@ -32,18 +30,22 @@ def parse_natspec(vyper_module: vy_ast.Module, global_ctx: GlobalContext,) -> Tu
     dict
         NatSpec developer documentation
     """
-    userdoc, devdoc = {}, {}
-    source: str = vyper_module.full_source_code
+    from vyper.context.types.function import FunctionVisibility
 
-    docstring = vyper_module.get("doc_string.value")
+    userdoc, devdoc = {}, {}
+    source: str = vyper_module_folded.full_source_code
+
+    docstring = vyper_module_folded.get("doc_string.value")
     if docstring:
         devdoc.update(_parse_docstring(source, docstring, ("param", "return")))
         if "notice" in devdoc:
             userdoc["notice"] = devdoc.pop("notice")
 
-    for node in [i for i in vyper_module.body if i.get("doc_string.value")]:
+    for node in [i for i in vyper_module_folded.body if i.get("doc_string.value")]:
         docstring = node.doc_string.value
-        sigs = sig_utils.mk_single_method_identifier(node, global_ctx)
+        func_type = node._metadata["type"]
+        if func_type.visibility != FunctionVisibility.EXTERNAL:
+            continue
 
         if isinstance(node.returns, vy_ast.Tuple):
             ret_len = len(node.returns.elements)
@@ -52,18 +54,14 @@ def parse_natspec(vyper_module: vy_ast.Module, global_ctx: GlobalContext,) -> Tu
         else:
             ret_len = 0
 
-        if sigs:
-            args = tuple(i.arg for i in node.args.args)
-            invalid_fields = (
-                "title",
-                "license",
-            )
-            fn_natspec = _parse_docstring(source, docstring, invalid_fields, args, ret_len)
-            for s in sigs:
-                if "notice" in fn_natspec:
-                    userdoc.setdefault("methods", {})[s] = {"notice": fn_natspec.pop("notice")}
-                if fn_natspec:
-                    devdoc.setdefault("methods", {})[s] = fn_natspec
+        args = tuple(i.arg for i in node.args.args)
+        invalid_fields = ("title", "license")
+        fn_natspec = _parse_docstring(source, docstring, invalid_fields, args, ret_len)
+        for method_id in func_type.method_ids:
+            if "notice" in fn_natspec:
+                userdoc.setdefault("methods", {})[method_id] = {"notice": fn_natspec.pop("notice")}
+            if fn_natspec:
+                devdoc.setdefault("methods", {})[method_id] = fn_natspec
 
     return userdoc, devdoc
 

@@ -22,12 +22,12 @@ def build_ast_dict(compiler_data: CompilerData) -> dict:
 
 
 def build_devdoc(compiler_data: CompilerData) -> dict:
-    userdoc, devdoc = parse_natspec(compiler_data.vyper_module_folded, compiler_data.global_ctx)
+    userdoc, devdoc = parse_natspec(compiler_data.vyper_module_folded)
     return devdoc
 
 
 def build_userdoc(compiler_data: CompilerData) -> dict:
-    userdoc, devdoc = parse_natspec(compiler_data.vyper_module_folded, compiler_data.global_ctx)
+    userdoc, devdoc = parse_natspec(compiler_data.vyper_module_folded)
     return userdoc
 
 
