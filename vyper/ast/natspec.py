@@ -57,7 +57,7 @@ def parse_natspec(vyper_module_folded: vy_ast.Module) -> Tuple[dict, dict]:
         args = tuple(i.arg for i in node.args.args)
         invalid_fields = ("title", "license")
         fn_natspec = _parse_docstring(source, docstring, invalid_fields, args, ret_len)
-        for method_id in func_type.method_ids:
+        for method_id in func_type.get_method_id_dict():
             if "notice" in fn_natspec:
                 userdoc.setdefault("methods", {})[method_id] = {"notice": fn_natspec.pop("notice")}
             if fn_natspec:

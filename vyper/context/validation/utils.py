@@ -453,8 +453,8 @@ def validate_unique_method_ids(functions: List) -> None:
     functions : List[ContractFunction]
         A list of ContractFunction objects.
     """
-    method_ids = [x for i in functions for x in i.method_ids.values()]
+    method_ids = [x for i in functions for x in i.get_method_id_dict().values()]
     collision = next((i for i in method_ids if method_ids.count(i) > 1), None)
     if collision:
-        collision_str = ", ".join(i.name for i in functions if collision in i.method_ids)
-        raise StructureException(f"Methods have conflicting IDs: {collision_str}")
+        func_names = [i.name for i in functions if collision in i.get_method_id_dict().values()]
+        raise StructureException(f"Methods have conflicting IDs: {', '.join(func_names)}")

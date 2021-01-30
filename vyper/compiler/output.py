@@ -79,7 +79,7 @@ def build_method_identifiers_output(compiler_data: CompilerData) -> dict:
     interface = compiler_data.vyper_module_folded._metadata["type"]
     functions = interface.members.values()
 
-    return {k: hex(v) for func in functions for k, v in func.method_ids.items()}
+    return {k: hex(v) for func in functions for k, v in func.get_method_id_dict().items()}
 
 
 def build_abi_output(compiler_data: CompilerData) -> list:
