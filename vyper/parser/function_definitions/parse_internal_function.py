@@ -1,6 +1,6 @@
-import ast
 from typing import Any, List
 
+from vyper import ast as vy_ast
 from vyper.parser.context import Context
 from vyper.parser.expr import Expr
 from vyper.parser.function_definitions.utils import (
@@ -35,7 +35,7 @@ def get_internal_arg_copier(total_size: int, memory_dest: int) -> List[Any]:
 
 
 def parse_internal_function(
-    code: ast.FunctionDef, sig: FunctionSignature, context: Context
+    code: vy_ast.FunctionDef, sig: FunctionSignature, context: Context
 ) -> LLLnode:
     """
     Parse a internal function (FuncDef), and produce full function body.
@@ -45,7 +45,7 @@ def parse_internal_function(
     :return: full sig compare & function body
     """
 
-    func_type = code._metadata['type']
+    func_type = code._metadata["type"]
 
     # Get nonreentrant lock
     nonreentrant_pre, nonreentrant_post = get_nonreentrant_lock(func_type, context.global_ctx)
