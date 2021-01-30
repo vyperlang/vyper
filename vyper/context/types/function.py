@@ -376,23 +376,13 @@ class ContractFunction(BaseTypeDefinition):
         )
 
     @property
-    def method_ids(self) -> Dict[str, int]:
+    def method_id(self) -> int:
         """
-        Dict of `{signature: four byte selector}` for this function.
-
-        * For functions without default arguments the dict contains one item.
-        * For functions with default arguments, there is one key for each
-          function signfature.
+        The primary method ID, used to represent this function internally
+        regardless of the number of default arguments given.
         """
         arg_types = [i.canonical_type for i in self.arguments.values()]
-
-        if not self.has_default_args:
-            return _generate_method_id(self.name, arg_types)
-
-        method_ids = {}
-        for i in range(self.min_arg_count, self.max_arg_count + 1):
-            method_ids.update(_generate_method_id(self.name, arg_types[:i]))
-        return method_ids
+        return _generate_method_id(self.name, arg_types)[1]
 
     @property
     def is_constructor(self) -> bool:
@@ -434,6 +424,21 @@ class ContractFunction(BaseTypeDefinition):
                 validate_expected_type(kwarg.arg, kwarg.value)
 
         return self.return_type
+
+    def get_method_id_dict(self) -> Dict[str, int]:
+        """
+        Generate a dict of `{signature: four byte selector}` for this function.
+
+        * For functions without default arguments the dict contains one item.
+        * For functions with default arguments, there is one key for each
+          function signfature.
+        """
+        arg_types = [i.canonical_type for i in self.arguments.values()]
+        method_ids = {}
+        for i in range(self.min_arg_count, self.max_arg_count + 1):
+            key, value = _generate_method_id(self.name, arg_types[:i])
+            method_ids[key] = value
+        return method_ids
 
     def to_abi_dict(self) -> List[Dict]:
         abi_dict: Dict = {"stateMutability": self.mutability.value}
@@ -481,7 +486,7 @@ def _generate_abi_type(type_definition, name=""):
     return {"name": name, "type": type_definition.canonical_type}
 
 
-def _generate_method_id(name: str, canonical_types: List[str]) -> Dict[str, int]:
+def _generate_method_id(name: str, canonical_types: List[str]) -> Tuple[str, int]:
     function_sig = f"{name}({','.join(canonical_types)})"
     selector = keccak256(function_sig.encode())[:4].hex()
-    return {function_sig: int(selector, 16)}
+    return function_sig, int(selector, 16)
