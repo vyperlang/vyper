@@ -1,3 +1,4 @@
+from vyper import ast as vy_ast
 from vyper.parser.lll_node import LLLnode
 from vyper.parser.parser_utils import getpos
 from vyper.types import BaseType
@@ -11,7 +12,9 @@ from .abi import abi_encode, abi_type_of, ensure_tuple
 def make_return_stmt(stmt, context, begin_pos, _size, loop_memory_position=None):
     from vyper.parser.function_definitions.utils import get_nonreentrant_lock
 
-    _, nonreentrant_post = get_nonreentrant_lock(context.sig, context.global_ctx)
+    func_type = stmt.get_ancestor(vy_ast.FunctionDef)._metadata["type"]
+    _, nonreentrant_post = get_nonreentrant_lock(func_type, context.global_ctx)
+
     if context.is_internal:
         if loop_memory_position is None:
             loop_memory_position = context.new_internal_variable(BaseType("uint256"))

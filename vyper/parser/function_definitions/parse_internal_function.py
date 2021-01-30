@@ -45,8 +45,10 @@ def parse_internal_function(
     :return: full sig compare & function body
     """
 
+    func_type = code._metadata['type']
+
     # Get nonreentrant lock
-    nonreentrant_pre, nonreentrant_post = get_nonreentrant_lock(sig, context.global_ctx)
+    nonreentrant_pre, nonreentrant_post = get_nonreentrant_lock(func_type, context.global_ctx)
 
     # Create callback_ptr, this stores a destination in the bytecode for a internal
     # function to jump to after a function has executed.

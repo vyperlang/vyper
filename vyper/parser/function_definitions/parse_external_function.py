@@ -44,8 +44,10 @@ def parse_external_function(
     :return: full sig compare & function body
     """
 
+    func_type = code._metadata['type']
+
     # Get nonreentrant lock
-    nonreentrant_pre, nonreentrant_post = get_nonreentrant_lock(sig, context.global_ctx)
+    nonreentrant_pre, nonreentrant_post = get_nonreentrant_lock(func_type, context.global_ctx)
 
     clampers = []
 
