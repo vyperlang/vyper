@@ -37,6 +37,9 @@ class InterfaceDefinition(MemberTypeDefinition):
         for key, type_ in members.items():
             self.add_member(key, type_)
 
+    def get_signature(self):
+        return (), AddressDefinition()
+
 
 class InterfacePrimitive:
 

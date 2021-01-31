@@ -16,4 +16,4 @@ for name, obj in (
 
 
 # required to avoid circular dependency
-from . import folding  # noqa: E402
+from . import expansion, folding  # noqa: E402

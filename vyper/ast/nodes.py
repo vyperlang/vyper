@@ -128,11 +128,18 @@ def compare_nodes(left_node: "VyperNode", right_node: "VyperNode") -> bool:
     return True
 
 
-def _to_node(value, parent):
-    # if value is a Python node or dict representing a node, convert to a Vyper node
-    if isinstance(value, (dict, python_ast.AST)):
-        return get_node(value, parent)
-    return value
+def _to_node(obj, parent):
+    # if object is a Python node or dict representing a node, convert to a Vyper node
+    if isinstance(obj, (dict, python_ast.AST)):
+        return get_node(obj, parent)
+    if isinstance(obj, VyperNode):
+        # if object is already a vyper node, make sure the parent is set correctly
+        # and fix any missing source offsets
+        obj._parent = parent
+        for field_name in NODE_SRC_ATTRIBUTES:
+            if getattr(obj, field_name) is None:
+                setattr(obj, field_name, getattr(parent, field_name, None))
+    return obj
 
 
 def _to_dict(value):
