@@ -276,19 +276,6 @@ def getpos(node):
     )
 
 
-def set_offsets(node, pos):
-    # TODO replace this with a visitor pattern
-    for field in node.get_fields():
-        item = getattr(node, field, None)
-        if isinstance(item, vy_ast.VyperNode):
-            set_offsets(item, pos)
-        elif isinstance(item, list):
-            for i in item:
-                if isinstance(i, vy_ast.VyperNode):
-                    set_offsets(i, pos)
-    node.lineno, node.col_offset, node.end_lineno, node.end_col_offset = pos
-
-
 # Take a value representing a memory or storage location, and descend down to
 # an element or member variable
 @type_check_wrapper

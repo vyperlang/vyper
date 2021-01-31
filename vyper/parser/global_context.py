@@ -2,17 +2,8 @@ from typing import Optional
 
 from vyper import ast as vy_ast
 from vyper.exceptions import InvalidType, StructureException
-from vyper.parser.parser_utils import getpos, set_offsets
 from vyper.signatures.function_signature import ContractRecord, VariableRecord
-from vyper.types import (
-    BaseType,
-    ByteArrayLike,
-    InterfaceType,
-    ListType,
-    MappingType,
-    StructType,
-    parse_type,
-)
+from vyper.types import InterfaceType, parse_type
 from vyper.typing import InterfaceImports
 
 NONRENTRANT_STORAGE_OFFSET = 0xFFFFFF
@@ -31,7 +22,6 @@ class GlobalContext:
         self._events = list()
         self._globals = dict()
         self._defs = list()
-        self._getters = list()
         self._nonrentrant_counter = 0
         self._nonrentrant_keys = dict()
 
@@ -119,83 +109,7 @@ class GlobalContext:
                         func_sig.defined_in_interface = interface_name
                         global_ctx._interface[func_sig.sig] = func_sig
 
-        # Add getters to _defs
-        global_ctx._defs += global_ctx._getters
         return global_ctx
-
-    # Make a getter for a variable. This function gives an output that
-    # contains lists of 4-tuples:
-    # (i) the tail of the function name for the getter
-    # (ii) the code for the arguments that the function takes
-    # (iii) the code for the return
-    # (iv) the output type
-    #
-    # Here is an example:
-    #
-    # Input: my_variable: {foo: int128, bar: decimal[5]}
-    #
-    # Output:
-    #
-    # [('__foo', '', '.foo', 'int128'),
-    #  ('__bar', 'arg0: int128, ', '.bar[arg0]', 'decimal')]
-    #
-    # The getters will have code:
-    # def get_my_variable__foo() -> int128: return self.foo
-    # def get_my_variable__bar(arg0: nun) -> decimal: return self.bar[arg0]
-
-    @classmethod
-    def _mk_getter_helper(cls, typ, depth=0):
-        # Base type and byte array type: do not extend the getter function
-        # name, add no input arguments, add nothing to the return statement,
-        # output type is the base type
-        if isinstance(typ, (BaseType, ByteArrayLike)):
-            return [("", "", "", repr(typ))]
-        # List type: do not extend the getter name, add an input argument for
-        # the index in the list, add an item access to the return statement
-        elif isinstance(typ, ListType):
-            o = []
-            for funname, head, tail, base in cls._mk_getter_helper(typ.subtype, depth + 1):
-                o.append(
-                    (funname, (f"arg{depth}: uint256, ") + head, (f"[arg{depth}]") + tail, base,)
-                )
-            return o
-        # Mapping type: do not extend the getter name, add an input argument for
-        # the key in the map, add a value access to the return statement
-        elif isinstance(typ, MappingType):
-            o = []
-            for funname, head, tail, base in cls._mk_getter_helper(typ.valuetype, depth + 1):
-                o.append(
-                    (
-                        funname,
-                        (f"arg{depth}: {typ.keytype}, ") + head,
-                        (f"[arg{depth}]") + tail,
-                        base,
-                    )
-                )
-            return o
-        # Struct type: return type is just the abi-encoded struct
-        elif isinstance(typ, StructType):
-            return [("", "", "", typ.name)]
-        else:
-            raise Exception("Unexpected type")
-
-    # Make a list of getters for a given variable name with a given type
-    @classmethod
-    def mk_getter(cls, varname, typ):
-        funs = cls._mk_getter_helper(typ)
-        return [
-            f"""@view
-@external
-def {varname}{funname}({head.rstrip(', ')}) -> {base}:
-    return self.{varname}{tail}"""
-            for (funname, head, tail, base) in funs  # noqa: E501
-        ]
-
-    # Parser for a single line
-    @staticmethod
-    def parse_line(source_code: str) -> list:
-        parsed_ast = vy_ast.parse_to_ast(source_code)[0]
-        return parsed_ast
 
     # A struct is a list of members
     def make_struct(self, node: "vy_ast.StructDef") -> list:
@@ -299,12 +213,6 @@ def {varname}{funname}({head.rstrip(', ')}) -> {base}:
             self._globals[item.target.id] = ContractRecord(
                 item.target.id, len(self._globals), InterfaceType(item_name), True,
             )
-            if item_attributes["public"]:
-                typ = InterfaceType(item_name)
-                for getter in self.mk_getter(item.target.id, typ):
-                    self._getters.append(self.parse_line("\n" * (item.lineno - 1) + getter))
-                    self._getters[-1].pos = getpos(item)
-                    set_offsets(self._getters[-1], self._getters[-1].pos)
         elif self.get_call_func_name(item) == "public":
             if isinstance(item.annotation.args[0], vy_ast.Name) and item_name in self._contracts:
                 typ = InterfaceType(item_name)
@@ -313,11 +221,6 @@ def {varname}{funname}({head.rstrip(', ')}) -> {base}:
             self._globals[item.target.id] = VariableRecord(
                 item.target.id, len(self._globals), typ, True,
             )
-            # Adding getters here
-            for getter in self.mk_getter(item.target.id, typ):
-                self._getters.append(self.parse_line("\n" * (item.lineno - 1) + getter))
-                self._getters[-1].pos = getpos(item)
-                set_offsets(self._getters[-1], self._getters[-1].pos)
 
         elif isinstance(item.annotation, (vy_ast.Name, vy_ast.Call, vy_ast.Subscript)):
             self._globals[item.target.id] = VariableRecord(
