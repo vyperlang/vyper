@@ -78,8 +78,7 @@ class CompilerData:
     @property
     def vyper_module_folded(self) -> vy_ast.Module:
         if not hasattr(self, "_vyper_module_folded"):
-            self._vyper_module_folded = generate_folded_ast(self.vyper_module)
-            validate_semantics(self._vyper_module_folded, self.interface_codes)
+            self._vyper_module_folded = generate_folded_ast(self.vyper_module, self.interface_codes)
 
         return self._vyper_module_folded
 
@@ -154,7 +153,9 @@ def generate_ast(source_code: str, source_id: int, contract_name: str) -> vy_ast
     return vy_ast.parse_to_ast(source_code, source_id, contract_name)
 
 
-def generate_folded_ast(vyper_module: vy_ast.Module) -> vy_ast.Module:
+def generate_folded_ast(
+    vyper_module: vy_ast.Module, interface_codes: Optional[InterfaceImports]
+) -> vy_ast.Module:
     """
     Perform constant folding operations on the Vyper AST.
 
@@ -172,6 +173,8 @@ def generate_folded_ast(vyper_module: vy_ast.Module) -> vy_ast.Module:
 
     vyper_module_folded = copy.deepcopy(vyper_module)
     vy_ast.folding.fold(vyper_module_folded)
+    validate_semantics(vyper_module_folded, interface_codes)
+    vy_ast.expansion.expand_annotated_ast(vyper_module_folded)
 
     return vyper_module_folded
 
