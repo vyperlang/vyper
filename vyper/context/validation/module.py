@@ -162,8 +162,14 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
                 elif call_name == "public":
                     # declaring a public variable
                     is_public = True
+
+                    # generate function type and add to metadata
+                    # we need this when builing the public getter
+                    node._metadata["type"] = ContractFunction.from_AnnAssign(node)
+
                 # remove the outer call node, to handle cases such as `public(map(..))`
                 annotation = annotation.args[0]
+
         type_definition = get_type_from_annotation(
             annotation, DataLocation.STORAGE, is_immutable, is_public
         )
