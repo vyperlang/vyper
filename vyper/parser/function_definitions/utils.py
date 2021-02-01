@@ -40,11 +40,11 @@ def make_unpacker(ident, i_placeholder, begin_pos):
     ]
 
 
-def get_nonreentrant_lock(sig, global_ctx):
+def get_nonreentrant_lock(func_type, global_ctx):
     nonreentrant_pre = [["pass"]]
     nonreentrant_post = [["pass"]]
-    if sig.nonreentrant_key:
-        nkey = global_ctx.get_nonrentrant_counter(sig.nonreentrant_key)
+    if func_type.nonreentrant:
+        nkey = global_ctx.get_nonrentrant_counter(func_type.nonreentrant)
         nonreentrant_pre = [["seq", ["assert", ["iszero", ["sload", nkey]]], ["sstore", nkey, 1]]]
         nonreentrant_post = [["sstore", nkey, 0]]
     return nonreentrant_pre, nonreentrant_post

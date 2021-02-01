@@ -1,6 +1,6 @@
-import ast
 from typing import Any, List, Union
 
+from vyper import ast as vy_ast
 from vyper.parser.arg_clamps import make_arg_clamper
 from vyper.parser.context import Context, VariableRecord
 from vyper.parser.expr import Expr
@@ -33,7 +33,7 @@ def get_external_arg_copier(
 
 
 def parse_external_function(
-    code: ast.FunctionDef, sig: FunctionSignature, context: Context, is_contract_payable: bool
+    code: vy_ast.FunctionDef, sig: FunctionSignature, context: Context, is_contract_payable: bool
 ) -> LLLnode:
     """
     Parse a external function (FuncDef), and produce full function body.
@@ -44,8 +44,10 @@ def parse_external_function(
     :return: full sig compare & function body
     """
 
+    func_type = code._metadata["type"]
+
     # Get nonreentrant lock
-    nonreentrant_pre, nonreentrant_post = get_nonreentrant_lock(sig, context.global_ctx)
+    nonreentrant_pre, nonreentrant_post = get_nonreentrant_lock(func_type, context.global_ctx)
 
     clampers = []
 
