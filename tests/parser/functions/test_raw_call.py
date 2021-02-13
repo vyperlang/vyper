@@ -1,5 +1,6 @@
 import pytest
 
+from hexbytes import HexBytes
 from vyper import compiler
 from vyper.exceptions import ArgumentException, StateAccessViolation
 from vyper.functions import get_create_forwarder_to_bytecode
@@ -63,15 +64,15 @@ def create_and_return_forwarder(inp: address) -> address:
     assert c2.create_and_call_returnten(c.address) == 10
     c2.create_and_call_returnten(c.address, transact={})
 
-    expected_forwarder_code_mask = get_create_forwarder_to_bytecode()[12:]
+    _, preamble, callcode = get_create_forwarder_to_bytecode()
 
     c3 = c2.create_and_return_forwarder(c.address, call={})
     c2.create_and_return_forwarder(c.address, transact={})
 
     c3_contract_code = w3.toBytes(w3.eth.getCode(c3))
 
-    assert c3_contract_code[:14] == expected_forwarder_code_mask[:14]
-    assert c3_contract_code[35:] == expected_forwarder_code_mask[35:]
+    assert c3_contract_code[:10] == HexBytes(preamble)
+    assert c3_contract_code[-15:] == HexBytes(callcode)
 
     print("Passed forwarder test")
     # TODO: This one is special

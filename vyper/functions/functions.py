@@ -1426,54 +1426,53 @@ class PowMod256(_SimpleBuiltinFunction):
 
 
 def get_create_forwarder_to_bytecode():
-    from vyper.compile_lll import assembly_to_evm, num_to_bytearray
+    from vyper.compile_lll import assembly_to_evm
 
-    code_a = [
+    loader_asm = [
         "PUSH1",
-        0x33,
+        0x2D,
+        "RETURNDATASIZE",
+        "DUP2",
         "PUSH1",
-        0x0C,
-        "PUSH1",
-        0x00,
+        0x09,
+        "RETURNDATASIZE",
         "CODECOPY",
-        "PUSH1",
-        0x33,
-        "PUSH1",
-        0x00,
         "RETURN",
+    ]
+    forwarder_pre_asm = [
         "CALLDATASIZE",
-        "PUSH1",
-        0x00,
-        "PUSH1",
-        0x00,
+        "RETURNDATASIZE",
+        "RETURNDATASIZE",
         "CALLDATACOPY",
-        "PUSH2",
-        num_to_bytearray(0x1000),
-        "PUSH1",
-        0x00,
+        "RETURNDATASIZE",
+        "RETURNDATASIZE",
+        "RETURNDATASIZE",
         "CALLDATASIZE",
-        "PUSH1",
-        0x00,
+        "RETURNDATASIZE",
         "PUSH20",  # [address to delegate to]
     ]
-    code_b = [
+    forwarder_post_asm = [
         "GAS",
         "DELEGATECALL",
-        "PUSH1",
-        0x2C,  # jumpdest of whole program.
-        "JUMPI",
-        "PUSH1",
-        0x0,
+        "RETURNDATASIZE",
+        "DUP3",
         "DUP1",
+        "RETURNDATACOPY",
+        "SWAP1",
+        "RETURNDATASIZE",
+        "SWAP2",
+        "PUSH1",
+        0x2B,  # jumpdest of whole program.
+        "JUMPI",
         "REVERT",
         "JUMPDEST",
-        "PUSH2",
-        num_to_bytearray(0x1000),
-        "PUSH1",
-        0x00,
         "RETURN",
     ]
-    return assembly_to_evm(code_a)[0] + (b"\x00" * 20) + assembly_to_evm(code_b)[0]
+    return (
+        assembly_to_evm(loader_asm)[0],
+        assembly_to_evm(forwarder_pre_asm)[0],
+        assembly_to_evm(forwarder_post_asm)[0],
+    )
 
 
 class CreateForwarderTo(_SimpleBuiltinFunction):
@@ -1492,17 +1491,28 @@ class CreateForwarderTo(_SimpleBuiltinFunction):
             )
         placeholder = context.new_internal_variable(ByteArrayType(96))
 
-        kode = get_create_forwarder_to_bytecode()
-        high = bytes_to_int(kode[:32])
-        low = bytes_to_int((kode + b"\x00" * 32)[47:79])
+        loader_evm, forwarder_pre_evm, forwarder_post_evm = get_create_forwarder_to_bytecode()
+        # Adjust to 32-byte boundaries
+        preamble_length = len(loader_evm) + len(forwarder_pre_evm)
+        forwarder_preamble = bytes_to_int(
+            loader_evm + forwarder_pre_evm + b"\x00" * (32 - preamble_length)
+        )
+        forwarder_post = bytes_to_int(forwarder_post_evm + b"\x00" * (32 - len(forwarder_post_evm)))
+
+        if args[0].typ.is_literal:
+            target_address = args[0].value * 2 ** 96
+        elif version_check(begin="constantinople"):
+            target_address = ["shl", 96, args[0]]
+        else:
+            target_address = ["mul", args[0], 2 ** 96]
 
         return LLLnode.from_list(
             [
                 "seq",
-                ["mstore", placeholder, high],
-                ["mstore", ["add", placeholder, 27], ["mul", args[0], 2 ** 96]],
-                ["mstore", ["add", placeholder, 47], low],
-                ["clamp_nonzero", ["create", value, placeholder, 96]],
+                ["mstore", placeholder, forwarder_preamble],
+                ["mstore", ["add", placeholder, preamble_length], target_address],
+                ["mstore", ["add", placeholder, preamble_length + 20], forwarder_post],
+                ["create", value, placeholder, preamble_length + 20 + len(forwarder_post_evm)],
             ],
             typ=BaseType("address"),
             pos=getpos(expr),
