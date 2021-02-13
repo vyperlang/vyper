@@ -380,6 +380,9 @@ def unwrap_location(orig):
     elif orig.location == "calldata":
         return LLLnode.from_list(["calldataload", orig], typ=orig.typ)
     else:
+        # handle None value inserted by `empty`
+        if orig.value is None:
+            return LLLnode.from_list(0, typ=orig.typ)
         return orig
 
 
