@@ -8,7 +8,6 @@ from vyper.parser.events import pack_logging_data, pack_logging_topics
 from vyper.parser.expr import Expr
 from vyper.parser.parser_utils import (
     LLLnode,
-    base_type_conversion,
     getpos,
     make_byte_array_copier,
     make_setter,
@@ -377,18 +376,7 @@ class Stmt:
                 self.context,
             )
             return LLLnode.from_list(
-                [
-                    "with",
-                    "_stloc",
-                    target,
-                    [
-                        "sstore",
-                        "_stloc",
-                        base_type_conversion(
-                            lll_node, lll_node.typ, target.typ, pos=getpos(self.stmt)
-                        ),
-                    ],
-                ],
+                ["with", "_stloc", target, ["sstore", "_stloc", unwrap_location(lll_node)]],
                 typ=None,
                 pos=getpos(self.stmt),
             )
@@ -406,18 +394,7 @@ class Stmt:
                 self.context,
             )
             return LLLnode.from_list(
-                [
-                    "with",
-                    "_mloc",
-                    target,
-                    [
-                        "mstore",
-                        "_mloc",
-                        base_type_conversion(
-                            lll_node, lll_node.typ, target.typ, pos=getpos(self.stmt)
-                        ),
-                    ],
-                ],
+                ["with", "_mloc", target, ["mstore", "_mloc", unwrap_location(lll_node)]],
                 typ=None,
                 pos=getpos(self.stmt),
             )

@@ -6,7 +6,6 @@ from vyper.exceptions import StructureException
 from vyper.parser.expr import Expr
 from vyper.parser.lll_node import LLLnode
 from vyper.parser.parser_utils import (
-    base_type_conversion,
     getpos,
     make_byte_array_copier,
     make_setter,
@@ -99,7 +98,7 @@ def pack_args_by_32(
             value = unwrap_location(arg)
         else:
             value = Expr(arg, context).lll_node
-            value = base_type_conversion(value, value.typ, value.typ, pos)
+            value = unwrap_location(value)
         holder.append(LLLnode.from_list(["mstore", placeholder, value], location="memory"))
     elif isinstance(typ, ArrayValueAbstractType):
 
