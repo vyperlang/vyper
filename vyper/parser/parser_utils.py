@@ -24,14 +24,7 @@ from vyper.types import (
     has_dynamic_data,
     is_base_type,
 )
-from vyper.types.types import InterfaceType
-from vyper.utils import (
-    DECIMAL_DIVISOR,
-    GAS_IDENTITY,
-    GAS_IDENTITYWORD,
-    MemoryPositions,
-    SizeLimits,
-)
+from vyper.utils import GAS_IDENTITY, GAS_IDENTITYWORD, MemoryPositions
 
 getcontext().prec = 78  # MAX_UINT256 < 1e78
 
@@ -342,7 +335,7 @@ def add_variable_offset(parent, key, pos, array_bounds_check=True):
                     sub = LLLnode.from_list(["sha3", ["add", value, 32], key])
         else:
             subtype = typ.valuetype
-            sub = base_type_conversion(key, key.typ, typ.keytype, pos=pos)
+            sub = unwrap_location(key)
 
         if sub is not None and location == "storage":
             return LLLnode.from_list(["sha3_64", parent, sub], typ=subtype, location="storage")
@@ -378,42 +371,6 @@ def add_variable_offset(parent, key, pos, array_bounds_check=True):
             )
 
 
-# Convert from one base type to another
-@type_check_wrapper
-def base_type_conversion(orig, frm, to, pos, in_function_call=False):
-    orig = unwrap_location(orig)
-
-    # do the base type check so we can use BaseType attributes
-    if not isinstance(frm, BaseType) or not isinstance(to, BaseType):
-        return
-
-    if getattr(frm, "is_literal", False):
-        for typ in (frm.typ, to.typ):
-            if typ in ("int128", "uint256") and not SizeLimits.in_bounds(typ, orig.value):
-                return
-
-    is_decimal_int128_conversion = frm.typ == "int128" and to.typ == "decimal"
-    is_same_type = frm.typ == to.typ
-    is_literal_conversion = frm.is_literal and (frm.typ, to.typ) == ("int128", "uint256")
-    is_address_conversion = isinstance(frm, InterfaceType) and to.typ == "address"
-    if not (
-        is_same_type
-        or is_literal_conversion
-        or is_address_conversion
-        or is_decimal_int128_conversion
-    ):
-        return
-
-    # handle None value inserted by `empty()`
-    if orig.value is None:
-        return LLLnode.from_list(0, typ=to)
-
-    if is_decimal_int128_conversion:
-        return LLLnode.from_list(["mul", orig, DECIMAL_DIVISOR], typ=BaseType("decimal"),)
-
-    return LLLnode(orig.value, orig.args, typ=to, add_gas_estimate=orig.add_gas_estimate)
-
-
 # Unwrap location
 def unwrap_location(orig):
     if orig.location == "memory":
@@ -423,6 +380,9 @@ def unwrap_location(orig):
     elif orig.location == "calldata":
         return LLLnode.from_list(["calldataload", orig], typ=orig.typ)
     else:
+        # handle None value inserted by `empty`
+        if orig.value is None:
+            return LLLnode.from_list(0, typ=orig.typ)
         return orig
 
 
@@ -548,9 +508,7 @@ def _make_array_index_setter(target, target_token, pos, location, offset):
 def make_setter(left, right, location, pos, in_function_call=False):
     # Basic types
     if isinstance(left.typ, BaseType):
-        right = base_type_conversion(
-            right, right.typ, left.typ, pos, in_function_call=in_function_call,
-        )
+        right = unwrap_location(right)
         if location == "storage":
             return LLLnode.from_list(["sstore", left, right], typ=None)
         elif location == "memory":

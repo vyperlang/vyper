@@ -90,6 +90,11 @@ def foo():
     assert self.foobar == ZERO_ADDRESS
     assert bar == ZERO_ADDRESS
     """,
+        """
+@external
+def foo() -> bool:
+    return empty(bool)
+    """,
     ],
 )
 def test_empty_basic_type(contract, get_contract_with_gas_estimation):
@@ -230,11 +235,6 @@ def test_empty_basic_type_lists(contract, get_contract_with_gas_estimation):
 @external
 def foo() -> uint256:
     return empty(1)
-    """,
-        """
-@external
-def foo() -> bool:
-    return empty(bool)
     """,
         """
 @external
