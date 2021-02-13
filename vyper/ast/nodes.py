@@ -614,6 +614,38 @@ class Module(TopLevel):
         new_node._depth = old_node._depth
         parent._children.add(new_node)
 
+    def add_to_body(self, node: VyperNode) -> None:
+        """
+        Add a new node to the body of this node.
+
+        This method should be used in favor of directly modifying `body`, as
+        it also sets the parent/child relationships used in node traversal.
+
+        Arguments
+        ---------
+        node: VyperNode
+            Vyper node to be appended to the body of the this node.
+        """
+        self.body.append(node)
+        node._depth = self._depth + 1
+        node._parent = self
+        self._children.add(node)
+
+    def remove_from_body(self, node: VyperNode) -> None:
+        """
+        Remove a node from the body of this node.
+
+        This method should be used in favor of directly modifying `body`, as
+        it also removes the parent/child relationship used in node traversal.
+
+        Arguments
+        ---------
+        node: VyperNode
+            Vyper node to be appended to the body of the this node.
+        """
+        self.body.remove(node)
+        self._children.remove(node)
+
 
 class FunctionDef(TopLevel):
     __slots__ = ("args", "returns", "decorator_list", "pos")

@@ -17,6 +17,7 @@ def expand_annotated_ast(vyper_module: vy_ast.Module) -> None:
         Top-level Vyper AST node that has been type-checked and annotated.
     """
     generate_public_variable_getters(vyper_module)
+    remove_constant_declarations(vyper_module)
 
 
 def generate_public_variable_getters(vyper_module: vy_ast.Module) -> None:
@@ -81,4 +82,22 @@ def generate_public_variable_getters(vyper_module: vy_ast.Module) -> None:
             returns=return_node,
         )
         expanded._metadata["type"] = func_type
-        vyper_module.body.append(expanded)
+        vyper_module.add_to_body(expanded)
+
+
+def remove_constant_declarations(vyper_module: vy_ast.Module) -> None:
+    """
+    Remove constant declaration nodes.
+
+    Values for constants are subsituted within the AST during folding.
+    Once type checking is complete their declarations are removed to
+    simplify the AST prior to IR generation.
+
+    Arguments
+    ---------
+    vyper_module : Module
+        Top-level Vyper AST node.
+    """
+
+    for node in vyper_module.get_children(vy_ast.AnnAssign, {"annotation.func.id": "constant"}):
+        vyper_module.remove_from_body(node)
