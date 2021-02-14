@@ -89,19 +89,20 @@ def parse_external_interfaces(external_interfaces, global_ctx):
 def parse_other_functions(
     o, otherfuncs, sigs, external_interfaces, global_ctx, default_function, is_contract_payable,
 ):
-    sub = ["seq", func_init_lll()]
+    func_sub = ["seq"]
+    main_seq = ["seq", func_init_lll(), ["with", "_func_sig", ["mload", 0], func_sub]]
     add_gas = func_init_lll().gas
 
     for _def in otherfuncs:
-        sub.append(
+        func_sub.append(
             parse_function(
                 _def, {**{"self": sigs}, **external_interfaces}, global_ctx, is_contract_payable,
             )
         )
-        sub[-1].total_gas += add_gas
+        func_sub[-1].total_gas += add_gas
         add_gas += 30
         for sig in sig_utils.generate_default_arg_sigs(_def, external_interfaces, global_ctx):
-            sig.gas = sub[-1].total_gas
+            sig.gas = func_sub[-1].total_gas
             sigs[sig.sig] = sig
 
     # Add fallback function
@@ -115,9 +116,9 @@ def parse_other_functions(
         fallback = default_func
     else:
         fallback = LLLnode.from_list(["revert", 0, 0], typ=None, annotation="Default function")
-    sub.append(["seq_unchecked", ["label", "fallback"], fallback])
-    o.append(["return", 0, ["lll", sub, 0]])
-    return o, sub
+    main_seq.append(["seq_unchecked", ["label", "fallback"], fallback])
+    o.append(["return", 0, ["lll", main_seq, 0]])
+    return o, main_seq
 
 
 # Main python parse tree => LLL method
