@@ -517,6 +517,19 @@ def assembly_to_evm(assembly, start_pos=0):
         else:
             i += 1
 
+    # When a nested subroutine finishes and is the final action within it's
+    # parent subroutine, we end up with multiple simultaneous JUMPDEST
+    # instructions that can be merged to reduce the bytecode size.
+    i = 0
+    while i < len(assembly) - 3:
+        if is_symbol(assembly[i]) and assembly[i + 1] == "JUMPDEST":
+            if is_symbol(assembly[i + 2]) and assembly[i + 3] == "JUMPDEST":
+                to_replace = assembly[i + 2]
+                assembly = assembly[: i + 2] + assembly[i + 4 :]  # noqa: E203
+                assembly = [x if x != to_replace else assembly[i] for x in assembly]
+                continue
+        i += 1
+
     line_number_map = {
         "breakpoints": set(),
         "pc_breakpoints": set(),
