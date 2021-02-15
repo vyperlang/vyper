@@ -510,7 +510,7 @@ def assembly_to_evm(assembly, start_pos=0):
     # to avoid unnecessary bytecode bloat.
     i = 0
     while i < len(assembly) - 1:
-        if assembly[i] in ("JUMP", "STOP", "REVERT") and not (
+        if assembly[i] in ("JUMP", "RETURN", "REVERT", "STOP") and not (
             is_symbol(assembly[i + 1]) or assembly[i + 1] == "JUMPDEST"
         ):
             del assembly[i + 1]
