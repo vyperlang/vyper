@@ -193,23 +193,22 @@ def parse_external_function(
                 )
 
             # Function with default parameters.
+            function_jump_label = f"{sig.name}_{sig.method_id}_skip"
             o = LLLnode.from_list(
                 [
                     "seq",
                     sig_chain,
                     [
-                        "if",
-                        0,  # can only be jumped into
-                        [
-                            "seq",
-                            ["label", function_routine],
-                            ["seq"]
-                            + nonreentrant_pre
-                            + clampers
-                            + [parse_body(c, context) for c in code.body]
-                            + nonreentrant_post
-                            + [["stop"]],
-                        ],
+                        "seq",
+                        ["goto", function_jump_label],
+                        ["label", function_routine],
+                        ["seq"]
+                        + nonreentrant_pre
+                        + clampers
+                        + [parse_body(c, context) for c in code.body]
+                        + nonreentrant_post
+                        + [["stop"]],
+                        ["label", function_jump_label],
                     ],
                 ],
                 typ=None,
