@@ -1,7 +1,7 @@
 from vyper import ast as vy_ast
 from vyper.parser.lll_node import LLLnode
-from vyper.parser.parser_utils import getpos
-from vyper.types import BaseType
+from vyper.parser.parser_utils import getpos, make_setter
+from vyper.types import BaseType, ListType, TupleType, get_size_of_type
 from vyper.types.check import check_assign
 from vyper.utils import MemoryPositions
 
@@ -88,9 +88,38 @@ def gen_tuple_return(stmt, context, sub):
 
     check_assign(return_buffer, sub, pos=getpos(stmt))
 
-    # in case of multi we can't create a variable to store location of the return expression
-    # as multi can have data from multiple location like store, calldata etc
     if sub.value == "multi":
+
+        if isinstance(context.return_type, TupleType) and not abi_typ.dynamic_size_bound():
+            # for tuples where every value is of the same type and a fixed length,
+            # we can simplify the encoding by treating it as though it were an array
+            base_types = set()
+            for typ in context.return_type.members:
+                while isinstance(typ, ListType):
+                    typ = typ.subtype
+                base_types.add(typ.typ)
+
+            if len(base_types) == 1:
+                new_sub = LLLnode.from_list(
+                    context.new_internal_variable(context.return_type),
+                    typ=context.return_type,
+                    location="memory",
+                )
+                setter = make_setter(new_sub, sub, "memory", pos=getpos(stmt))
+                return LLLnode.from_list(
+                    [
+                        "seq",
+                        setter,
+                        make_return_stmt(
+                            stmt, context, new_sub, get_size_of_type(context.return_type) * 32,
+                        ),
+                    ],
+                    typ=None,
+                    pos=getpos(stmt),
+                )
+
+        # in case of multi we can't create a variable to store location of the return expression
+        # as multi can have data from multiple location like store, calldata etc
         encode_out = abi_encode(return_buffer, sub, pos=getpos(stmt), returns=True)
         load_return_len = ["mload", MemoryPositions.FREE_VAR_SPACE]
         os = [
