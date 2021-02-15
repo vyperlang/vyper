@@ -502,6 +502,34 @@ def note_breakpoint(line_number_map, item, pos):
 
 # Assembles assembly into EVM
 def assembly_to_evm(assembly, start_pos=0):
+
+    # In converting LLL to assembly we sometimes end up with unreachable
+    # instructions - POPing to clear the stack or STOPing execution at the
+    # end of a function that has already returned or reverted. This should
+    # be addressed in the LLL, but for now we do a final sanity check here
+    # to avoid unnecessary bytecode bloat.
+    i = 0
+    while i < len(assembly) - 1:
+        if assembly[i] in ("JUMP", "STOP", "REVERT") and not (
+            is_symbol(assembly[i + 1]) or assembly[i + 1] == "JUMPDEST"
+        ):
+            del assembly[i + 1]
+        else:
+            i += 1
+
+    # When a nested subroutine finishes and is the final action within it's
+    # parent subroutine, we end up with multiple simultaneous JUMPDEST
+    # instructions that can be merged to reduce the bytecode size.
+    i = 0
+    while i < len(assembly) - 3:
+        if is_symbol(assembly[i]) and assembly[i + 1] == "JUMPDEST":
+            if is_symbol(assembly[i + 2]) and assembly[i + 3] == "JUMPDEST":
+                to_replace = assembly[i + 2]
+                assembly = assembly[: i + 2] + assembly[i + 4 :]  # noqa: E203
+                assembly = [x if x != to_replace else assembly[i] for x in assembly]
+                continue
+        i += 1
+
     line_number_map = {
         "breakpoints": set(),
         "pc_breakpoints": set(),
