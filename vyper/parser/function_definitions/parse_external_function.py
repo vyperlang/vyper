@@ -106,7 +106,7 @@ def parse_external_function(
     # Is default function.
     elif sig.is_default_func():
         o = LLLnode.from_list(
-            ["seq"] + clampers + [parse_body(code.body, context)],  # type: ignore
+            ["seq"] + clampers + [parse_body(code.body, context)] + [["stop"]],  # type: ignore
             pos=getpos(code),
         )
     # Is a normal function.
