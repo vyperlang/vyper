@@ -23,7 +23,7 @@ extras_require = {
         "flake8==3.8.3",
         "flake8-bugbear==20.1.4",
         "flake8-use-fstring==1.1",
-        "isort==4.3.21",
+        "isort==5.7.0",
         "mypy==0.780",
     ],
     "docs": ["recommonmark", "sphinx>=3.0,<4.0", "sphinx_rtd_theme>=0.5,<0.6"],
