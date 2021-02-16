@@ -209,23 +209,16 @@ def parse_internal_function(
         _clampers = [["label", _post_callback_ptr]]
 
         # Function with default parameters.
-        o = LLLnode.from_list(
+        return LLLnode.from_list(
             [
                 "seq",
                 sig_chain,
-                [
-                    "if",
-                    0,  # can only be jumped into
-                    [
-                        "seq",
-                        ["seq"]
-                        + nonreentrant_pre
-                        + _clampers
-                        + [parse_body(c, context) for c in code.body]
-                        + nonreentrant_post
-                        + stop_func,
-                    ],
-                ],
+                ["seq"]
+                + nonreentrant_pre
+                + _clampers
+                + [parse_body(c, context) for c in code.body]
+                + nonreentrant_post
+                + stop_func,
             ],
             typ=None,
             pos=getpos(code),
@@ -234,21 +227,14 @@ def parse_internal_function(
     else:
         # Function without default parameters.
         sig_compare, internal_label = get_sig_statements(sig, getpos(code))
-        o = LLLnode.from_list(
-            [
-                "if",
-                sig_compare,
-                ["seq"]
-                + [internal_label]
-                + nonreentrant_pre
-                + clampers
-                + [parse_body(c, context) for c in code.body]
-                + nonreentrant_post
-                + stop_func,
-            ],
+        return LLLnode.from_list(
+            ["seq"]
+            + [internal_label]
+            + nonreentrant_pre
+            + clampers
+            + [parse_body(c, context) for c in code.body]
+            + nonreentrant_post
+            + stop_func,
             typ=None,
             pos=getpos(code),
         )
-        return o
-
-    return o

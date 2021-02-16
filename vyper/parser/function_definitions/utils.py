@@ -10,7 +10,7 @@ def get_sig_statements(sig, pos):
             ["label", f"priv_{sig.method_id}"], pos=pos, annotation=f"{sig.sig}"
         )
     else:
-        sig_compare = ["eq", ["mload", 0], method_id_node]
+        sig_compare = ["eq", "_func_sig", method_id_node]
         private_label = ["pass"]
 
     return sig_compare, private_label

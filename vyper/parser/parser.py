@@ -89,35 +89,48 @@ def parse_external_interfaces(external_interfaces, global_ctx):
 def parse_other_functions(
     o, otherfuncs, sigs, external_interfaces, global_ctx, default_function, is_contract_payable,
 ):
-    sub = ["seq", func_init_lll()]
+    # generate LLL for regular functions
+    external_func_sub = ["seq"]
+    internal_func_sub = ["seq"]
     add_gas = func_init_lll().gas
 
-    for _def in otherfuncs:
-        sub.append(
-            parse_function(
-                _def, {**{"self": sigs}, **external_interfaces}, global_ctx, is_contract_payable,
-            )
+    for func_node in otherfuncs:
+        func_lll = parse_function(
+            func_node, {**{"self": sigs}, **external_interfaces}, global_ctx, is_contract_payable,
         )
-        sub[-1].total_gas += add_gas
-        add_gas += 30
-        for sig in sig_utils.generate_default_arg_sigs(_def, external_interfaces, global_ctx):
-            sig.gas = sub[-1].total_gas
+        if func_lll.context.is_internal:
+            internal_func_sub.append(func_lll)
+        else:
+            external_func_sub.append(func_lll)
+            add_gas += 30
+        func_lll.total_gas += add_gas
+        for sig in sig_utils.generate_default_arg_sigs(func_node, external_interfaces, global_ctx):
+            sig.gas = func_lll.total_gas
             sigs[sig.sig] = sig
 
-    # Add fallback function
+    # generate LLL for fallback function
     if default_function:
-        default_func = parse_function(
+        fallback_lll = parse_function(
             default_function[0],
             {**{"self": sigs}, **external_interfaces},
             global_ctx,
             is_contract_payable,
         )
-        fallback = default_func
     else:
-        fallback = LLLnode.from_list(["revert", 0, 0], typ=None, annotation="Default function")
-    sub.append(["seq_unchecked", ["label", "fallback"], fallback])
-    o.append(["return", 0, ["lll", sub, 0]])
-    return o, sub
+        fallback_lll = LLLnode.from_list(["revert", 0, 0], typ=None, annotation="Default function")
+
+    # bytecode is organized by: external functions, fallback fn, internal functions
+    # this way we save gas and reduce bytecode by not jumping over internal functions
+    main_seq = [
+        "seq",
+        func_init_lll(),
+        ["with", "_func_sig", ["mload", 0], external_func_sub],
+        ["seq_unchecked", ["label", "fallback"], fallback_lll],
+        internal_func_sub,
+    ]
+
+    o.append(["return", 0, ["lll", main_seq, 0]])
+    return o, main_seq
 
 
 # Main python parse tree => LLL method
