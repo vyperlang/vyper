@@ -1,12 +1,10 @@
 from typing import Optional
 
 from vyper import ast as vy_ast
-from vyper.exceptions import InvalidType, StructureException
+from vyper.exceptions import CompilerPanic, InvalidType, StructureException
 from vyper.signatures.function_signature import ContractRecord, VariableRecord
 from vyper.types import InterfaceType, parse_type
 from vyper.typing import InterfaceImports
-
-NONRENTRANT_STORAGE_OFFSET = 0xFFFFFF
 
 
 # Datatype to store all global context information.
@@ -187,11 +185,8 @@ class GlobalContext:
     def add_globals_and_events(self, item):
         item_attributes = {"public": False}
 
-        if len(self._globals) > NONRENTRANT_STORAGE_OFFSET:
-            raise StructureException(
-                f"Too many globals defined, only {NONRENTRANT_STORAGE_OFFSET} globals are allowed",
-                item,
-            )
+        if self._nonrentrant_counter:
+            raise CompilerPanic("Re-entrancy lock was set before all storage slots were defined")
 
         # Make sure we have a valid variable name.
         if not isinstance(item.target, vy_ast.Name):
@@ -238,13 +233,20 @@ class GlobalContext:
     def get_nonrentrant_counter(self, key):
         """
         Nonrentrant locks use a prefix with a counter to minimise deployment cost of a contract.
-        """
-        prefix = NONRENTRANT_STORAGE_OFFSET
 
+        All storage variables are allocated exactly one slot, incrementing from 0.
+        For types that require >1 slot the actual location is determined from a keccak
+        https://github.com/vyperlang/vyper/issues/769
+
+        We're able to set the initial re-entrant counter using `len(self._globals)`
+        because all storage slots are allocated while parsing the module-scope,
+        and re-entrancy locks aren't allocated until later when parsing individual
+        function scopes.
+        """
         if key in self._nonrentrant_keys:
             return self._nonrentrant_keys[key]
         else:
-            counter = prefix + self._nonrentrant_counter
+            counter = len(self._globals) + self._nonrentrant_counter
             self._nonrentrant_keys[key] = counter
             self._nonrentrant_counter += 1
             return counter
