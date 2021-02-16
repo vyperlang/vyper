@@ -1,6 +1,6 @@
 import pytest
-
 from hexbytes import HexBytes
+
 from vyper import compiler
 from vyper.exceptions import ArgumentException, StateAccessViolation
 from vyper.functions import get_create_forwarder_to_bytecode

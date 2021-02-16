@@ -5,7 +5,7 @@ EXPIRY = 16
 
 @pytest.fixture
 def auction_start(w3):
-    return w3.eth.getBlock('latest').timestamp + 1
+    return w3.eth.getBlock("latest").timestamp + 1
 
 
 @pytest.fixture
