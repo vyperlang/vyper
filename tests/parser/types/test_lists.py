@@ -1,4 +1,4 @@
-from vyper.exceptions import ArrayIndexException, TypeMismatch
+from vyper.exceptions import ArrayIndexException, OverflowException
 
 
 def test_list_tester_code(get_contract_with_gas_estimation):
@@ -252,10 +252,10 @@ def test_compile_time_bounds_check(get_contract_with_gas_estimation, assert_comp
     code = """
 @external
 def parse_list_fail():
-    xs: uint256[3] = [2**255, 1, 3]
+    xs: uint256[3] = [2**256, 1, 3]
     pass
     """
-    assert_compile_failed(lambda: get_contract_with_gas_estimation(code), TypeMismatch)
+    assert_compile_failed(lambda: get_contract_with_gas_estimation(code), OverflowException)
 
 
 def test_2d_array_input_1(get_contract):

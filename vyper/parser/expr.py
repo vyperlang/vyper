@@ -938,20 +938,15 @@ class Expr:
             return lll_node.typ
 
         lll_node = []
-        previous_type = None
         out_type = None
 
         for elt in self.expr.elements:
             current_lll_node = Expr(elt, self.context).lll_node
-            if not out_type:
+            if not out_type or not current_lll_node.typ.is_literal:
+                # prefer to use a non-literal type here, because literals can be ambiguous
+                # this should be removed altogether as we refactor types out of parser
                 out_type = current_lll_node.typ
-
-            current_type = get_out_type(current_lll_node)
-            if len(lll_node) > 0 and previous_type != current_type:
-                raise TypeMismatch("Lists may only contain one type", self.expr)
-            else:
-                lll_node.append(current_lll_node)
-                previous_type = current_type
+            lll_node.append(current_lll_node)
 
         return LLLnode.from_list(
             ["multi"] + lll_node, typ=ListType(out_type, len(lll_node)), pos=getpos(self.expr),
