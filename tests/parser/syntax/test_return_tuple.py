@@ -140,3 +140,57 @@ def foo(a: address) -> (uint256, uint256, uint256, uint256, uint256):
     c2 = get_contract(code2)
 
     assert c2.foo(c.address) == [1, 2, 3, 4, 5]
+
+
+def test_single_type_tuple_int(get_contract):
+    code = """
+@view
+@external
+def foo() -> (uint256[3], uint256, uint256[2][2]):
+    return [1,2,3], 4, [[5,6], [7,8]]
+
+@view
+@external
+def foo2(a: int128, b: int128) -> (int128[5], int128, int128[2]):
+    return [1,2,3,a,5], b, [7,8]
+    """
+
+    c = get_contract(code)
+
+    assert c.foo() == [[1, 2, 3], 4, [[5, 6], [7, 8]]]
+    assert c.foo2(4, 6) == [[1, 2, 3, 4, 5], 6, [7, 8]]
+
+
+def test_single_type_tuple_address(get_contract):
+    code = """
+@view
+@external
+def foo() -> (address, address[2]):
+    return (
+        self,
+        [0xF5D4020dCA6a62bB1efFcC9212AAF3c9819E30D7, 0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF]
+    )
+    """
+
+    c = get_contract(code)
+
+    assert c.foo() == [
+        c.address,
+        [
+            "0xF5D4020dCA6a62bB1efFcC9212AAF3c9819E30D7",
+            "0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF",
+        ],
+    ]
+
+
+def test_single_type_tuple_bytes(get_contract):
+    code = """
+@view
+@external
+def foo() -> (Bytes[5], Bytes[5]):
+    return b"hello", b"there"
+    """
+
+    c = get_contract(code)
+
+    assert c.foo() == [b"hello", b"there"]
