@@ -33,14 +33,15 @@ def get_external_arg_copier(
 
 
 def parse_external_function(
-    code: vy_ast.FunctionDef, sig: FunctionSignature, context: Context, is_contract_payable: bool
+    code: vy_ast.FunctionDef, sig: FunctionSignature, context: Context, check_nonpayable: bool,
 ) -> LLLnode:
     """
     Parse a external function (FuncDef), and produce full function body.
 
     :param sig: the FuntionSignature
     :param code: ast of function
-    :param is_contract_payable: bool - does this contract contain payable functions?
+    :param check_nonpayable: if True, include a check that `msg.value == 0`
+                             at the beginning of the function
     :return: full sig compare & function body
     """
 
@@ -60,7 +61,7 @@ def parse_external_function(
         context.memory_allocator.expand_memory(sig.max_copy_size)
     clampers.append(copier)
 
-    if is_contract_payable and sig.mutability != "payable":
+    if check_nonpayable and sig.mutability != "payable":
         # if the contract contains payable functions, but this is not one of them
         # add an assertion that the value of the call is zero
         clampers.append(["assert", ["iszero", "callvalue"]])
