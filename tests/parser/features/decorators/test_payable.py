@@ -83,6 +83,35 @@ def bar() -> bool:
     return True
     """,
     """
+# multiple functions and default func, nonpayable
+@external
+def foo() -> bool:
+    return True
+
+@external
+def bar() -> bool:
+    return True
+
+@external
+def __default__():
+    pass
+    """,
+    """
+    # multiple functions and default func, payable
+@external
+def foo() -> bool:
+    return True
+
+@external
+def bar() -> bool:
+    return True
+
+@external
+@payable
+def __default__():
+    pass
+    """,
+    """
 # multiple functions, nonpayable (view)
 @external
 def foo() -> bool:
@@ -115,6 +144,37 @@ def __default__():
 def foo() -> bool:
     return True
     """,
+    """
+# payable default function and other function
+@external
+@payable
+def __default__():
+    a: int128 = 1
+
+@external
+def foo() -> bool:
+    return True
+
+@external
+@payable
+def bar() -> bool:
+    return True
+    """,
+    """
+# several functions, one payable
+@external
+def foo() -> bool:
+    return True
+
+@payable
+@external
+def bar() -> bool:
+    return True
+
+@external
+def baz() -> bool:
+    return True
+    """,
 ]
 
 
@@ -135,7 +195,7 @@ def foo() -> bool:
     return True
     """,
     """
-# multiple functions, one is payable
+# two functions, one is payable
 @payable
 @external
 def foo() -> bool:
@@ -146,7 +206,7 @@ def bar() -> bool:
     return True
     """,
     """
-# multiple functions, payable
+# two functions, payable
 @payable
 @external
 def foo() -> bool:
@@ -158,7 +218,7 @@ def bar() -> bool:
     return True
     """,
     """
-# multiple functions, one nonpayable (view)
+# two functions, one nonpayable (view)
 @payable
 @external
 def foo() -> bool:
@@ -167,6 +227,54 @@ def foo() -> bool:
 @view
 @external
 def bar() -> bool:
+    return True
+    """,
+    """
+# several functions, all payable
+@payable
+@external
+def foo() -> bool:
+    return True
+
+@payable
+@external
+def bar() -> bool:
+    return True
+
+@payable
+@external
+def baz() -> bool:
+    return True
+    """,
+    """
+# several functions, one payable
+@payable
+@external
+def foo() -> bool:
+    return True
+
+@external
+def bar() -> bool:
+    return True
+
+@external
+def baz() -> bool:
+    return True
+    """,
+    """
+# several functions, two payable
+@payable
+@external
+def foo() -> bool:
+    return True
+
+@external
+def bar() -> bool:
+    return True
+
+@payable
+@external
+def baz() -> bool:
     return True
     """,
     """
@@ -191,6 +299,34 @@ def __default__():
 def foo() -> bool:
     return True
     """,
+    """
+# payable default function
+@external
+@payable
+def __default__():
+    a: int128 = 1
+
+@external
+@payable
+def foo() -> bool:
+    return True
+    """,
+    """
+# payable default function and nonpayable other function
+@external
+@payable
+def __default__():
+    a: int128 = 1
+
+@external
+@payable
+def foo() -> bool:
+    return True
+
+@external
+def bar() -> bool:
+    return True
+    """,
 ]
 
 
@@ -200,3 +336,38 @@ def test_payable_runtime_assertion(get_contract, code):
 
     c.foo(transact={"value": 10 ** 18})
     c.foo(transact={"value": 0})
+
+
+def test_payable_default_func_invalid_calldata(get_contract, w3):
+    code = """
+@external
+def foo() -> bool:
+    return True
+
+@payable
+@external
+def __default__():
+    pass
+    """
+
+    c = get_contract(code)
+    w3.eth.sendTransaction({"to": c.address, "value": 100, "data": "0x12345678"}),
+
+
+def test_nonpayable_default_func_invalid_calldata(get_contract, w3, assert_tx_failed):
+    code = """
+@external
+@payable
+def foo() -> bool:
+    return True
+
+@external
+def __default__():
+    pass
+    """
+
+    c = get_contract(code)
+    w3.eth.sendTransaction({"to": c.address, "value": 0, "data": "0x12345678"})
+    assert_tx_failed(
+        lambda: w3.eth.sendTransaction({"to": c.address, "value": 100, "data": "0x12345678"})
+    )

@@ -1,6 +1,7 @@
 from typing import Any, List, Optional, Tuple
 
 from vyper import ast as vy_ast
+from vyper.context.types.function import FunctionVisibility, StateMutability
 from vyper.exceptions import (
     EventDeclarationException,
     FunctionDeclarationException,
@@ -86,20 +87,36 @@ def parse_external_interfaces(external_interfaces, global_ctx):
     return external_interfaces
 
 
-def parse_other_functions(
-    o, otherfuncs, sigs, external_interfaces, global_ctx, default_function, is_contract_payable,
-):
+def parse_other_functions(o, otherfuncs, sigs, external_interfaces, global_ctx, default_function):
+    # check for payable/nonpayable external functions to optimize nonpayable assertions
+    func_types = [i._metadata["type"] for i in global_ctx._defs]
+    mutabilities = [i.mutability for i in func_types if i.visibility == FunctionVisibility.EXTERNAL]
+    has_payable = next((True for i in mutabilities if i == StateMutability.PAYABLE), False)
+    has_nonpayable = next((True for i in mutabilities if i != StateMutability.PAYABLE), False)
+    is_default_payable = (
+        default_function is not None
+        and default_function._metadata["type"].mutability == StateMutability.PAYABLE
+    )
+    # when a contract has a payable default function and at least one nonpayable
+    # external function, we must perform the nonpayable check on every function
+    check_per_function = is_default_payable and has_nonpayable
+
     # generate LLL for regular functions
+    payable_func_sub = ["seq"]
     external_func_sub = ["seq"]
     internal_func_sub = ["seq"]
     add_gas = func_init_lll().gas
 
     for func_node in otherfuncs:
+        func_type = func_node._metadata["type"]
         func_lll = parse_function(
-            func_node, {**{"self": sigs}, **external_interfaces}, global_ctx, is_contract_payable,
+            func_node, {**{"self": sigs}, **external_interfaces}, global_ctx, check_per_function
         )
-        if func_lll.context.is_internal:
+        if func_type.visibility == FunctionVisibility.INTERNAL:
             internal_func_sub.append(func_lll)
+        elif func_type.mutability == StateMutability.PAYABLE:
+            add_gas += 30
+            payable_func_sub.append(func_lll)
         else:
             external_func_sub.append(func_lll)
             add_gas += 30
@@ -111,20 +128,32 @@ def parse_other_functions(
     # generate LLL for fallback function
     if default_function:
         fallback_lll = parse_function(
-            default_function[0],
+            default_function,
             {**{"self": sigs}, **external_interfaces},
             global_ctx,
-            is_contract_payable,
+            # include a nonpayble check here if the contract only has a default function
+            check_per_function or not otherfuncs,
         )
     else:
         fallback_lll = LLLnode.from_list(["revert", 0, 0], typ=None, annotation="Default function")
+
+    if check_per_function:
+        external_seq = ["seq", payable_func_sub, external_func_sub]
+    else:
+        # payable functions are placed prior to nonpayable functions
+        # and seperated by a nonpayable assertion
+        external_seq = ["seq"]
+        if has_payable:
+            external_seq.append(payable_func_sub)
+        if has_nonpayable:
+            external_seq.extend([["assert", ["iszero", "callvalue"]], external_func_sub])
 
     # bytecode is organized by: external functions, fallback fn, internal functions
     # this way we save gas and reduce bytecode by not jumping over internal functions
     main_seq = [
         "seq",
         func_init_lll(),
-        ["with", "_func_sig", ["mload", 0], external_func_sub],
+        ["with", "_func_sig", ["mload", 0], external_seq],
         ["seq_unchecked", ["label", "fallback"], fallback_lll],
         internal_func_sub,
     ]
@@ -152,24 +181,11 @@ def parse_tree_to_lll(global_ctx: GlobalContext) -> Tuple[LLLnode, LLLnode]:
     # Initialization function
     initfunc = [_def for _def in global_ctx._defs if is_initializer(_def)]
     # Default function
-    defaultfunc = [_def for _def in global_ctx._defs if is_default_func(_def)]
+    defaultfunc = next((i for i in global_ctx._defs if is_default_func(i)), None)
     # Regular functions
     otherfuncs = [
         _def for _def in global_ctx._defs if not is_initializer(_def) and not is_default_func(_def)
     ]
-
-    # check if any functions in the contract are payable - if not, we do a single
-    # ASSERT CALLVALUE ISZERO at the start of the bytecode rather than at the start
-    # of each function
-    is_contract_payable = next(
-        (
-            True
-            for i in global_ctx._defs
-            if FunctionSignature.from_definition(i, custom_structs=global_ctx._structs).mutability
-            == "payable"
-        ),
-        False,
-    )
 
     sigs: dict = {}
     external_interfaces: dict = {}
@@ -189,15 +205,10 @@ def parse_tree_to_lll(global_ctx: GlobalContext) -> Tuple[LLLnode, LLLnode]:
     # If there are regular functions...
     if otherfuncs or defaultfunc:
         o, runtime = parse_other_functions(
-            o, otherfuncs, sigs, external_interfaces, global_ctx, defaultfunc, is_contract_payable,
+            o, otherfuncs, sigs, external_interfaces, global_ctx, defaultfunc,
         )
     else:
         runtime = o.copy()
-
-    if not is_contract_payable:
-        # if no functions in the contract are payable, assert that callvalue is
-        # zero at the beginning of the bytecode
-        runtime.insert(1, ["assert", ["iszero", "callvalue"]])
 
     return LLLnode.from_list(o, typ=None), LLLnode.from_list(runtime, typ=None)
 
