@@ -3,6 +3,29 @@
 Release Notes
 #############
 
+v0.2.9
+******
+
+Date released: 16-02-2021
+
+Non-breaking changes and improvements:
+- Add license to wheel, Anaconda support (`#2265 <https://github.com/vyperlang/vyper/pull/2265>`_)
+- Consider events during type-check with `implements:` (`#2283 <https://github.com/vyperlang/vyper/pull/2283>`_)
+- Refactor ABI generation (`#2284 <https://github.com/vyperlang/vyper/pull/2284>`_)
+- Remove redundant checks in parser/signatures (`#2288 <https://github.com/vyperlang/vyper/pull/2288>`_)
+- Streamling ABI-encoding logic for tuple return types (`#2302 <https://github.com/vyperlang/vyper/pull/2302>`_)
+- Optimize function ordering within bytecode (`#2303 <https://github.com/vyperlang/vyper/pull/2303>`_)
+- Assembly-level optimizations (`#2304 <https://github.com/vyperlang/vyper/pull/2304>`_)
+- Optimize nonpayable assertion (`#2307 <https://github.com/vyperlang/vyper/pull/2307>`_)
+- Optimize re-entrancy locks (`#2308 <https://github.com/vyperlang/vyper/pull/2308>`_)
+
+Fixes:
+- Change forwarder proxy bytecode to ERC-1167 (`#2281 <https://github.com/vyperlang/vyper/pull/2281>`_)
+- Reserved keywords check update (`#2286 <https://github.com/vyperlang/vyper/pull/2286>`_)
+- Incorrect type-check error in literal lists (`#2309 <https://github.com/vyperlang/vyper/pull/2309>`_)
+
+Tons of Refactoring work courtesy of (`@iamdefinitelyahuman <https://github.com/iamdefinitelyahuman>`_)!
+
 v0.2.8
 ******
 
