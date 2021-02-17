@@ -372,7 +372,7 @@ class ContractFunction(BaseTypeDefinition):
             len(arguments),
             return_type,
             function_visibility=FunctionVisibility.EXTERNAL,
-            state_mutability=StateMutability.NONPAYABLE,
+            state_mutability=StateMutability.VIEW,
         )
 
     @property
