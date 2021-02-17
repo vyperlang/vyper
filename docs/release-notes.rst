@@ -3,6 +3,13 @@
 Release Notes
 #############
 
+v0.2.10
+*******
+
+Date released: 17-02-2021
+
+This is a quick patch release to fix incorrect generated ABIs that was introduced in v0.2.9 (`#2311 <https://github.com/vyperlang/vyper/pull/2311>`_) where storage variable getters were incorrectly marked as ``nonpayable`` instead of ``view``
+
 v0.2.9
 ******
 
