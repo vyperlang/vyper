@@ -49,7 +49,7 @@ def generate_public_variable_getters(vyper_module: vy_ast.Module) -> None:
             if not isinstance(annotation, vy_ast.Subscript):
                 # if we get here something has failed in type checking
                 raise CompilerPanic("Mismatch between node and input type while building getter")
-            if annotation.value.id == "HashMap":  # type: ignore
+            if annotation.value.get("id") == "HashMap":  # type: ignore
                 # for a HashMap, split the key/value types and use the key type as the next arg
                 arg, annotation = annotation.slice.value.elements  # type: ignore
             else:
