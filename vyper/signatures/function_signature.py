@@ -1,3 +1,4 @@
+import math
 from collections import Counter
 
 from vyper import ast as vy_ast
@@ -41,7 +42,9 @@ class VariableRecord:
     def size(self):
         if hasattr(self.typ, "size_in_bytes"):
             # temporary requirement to support both new and old type objects
-            return self.typ.size_in_bytes
+            # we divide by 32 here because the returned value is denominated
+            # in "slots" of 32 bytes each
+            return math.ceil(self.typ.size_in_bytes / 32)
         return get_size_of_type(self.typ)
 
 
