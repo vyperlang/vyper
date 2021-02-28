@@ -3,8 +3,16 @@
 Release Notes
 #############
 
+v0.2.11
+*******
+
+Date released: 27-02-2021
+
+This is a quick patch release to fix a memory corruption bug that was introduced in v0.2.9 (`#2321 <https://github.com/vyperlang/vyper/pull/2321>`_) with excessive memory deallocation when releasing internal variables
+
 v0.2.10
 *******
+**THIS RELEASE HAS BEEN PULLED**
 
 Date released: 17-02-2021
 
@@ -12,6 +20,7 @@ This is a quick patch release to fix incorrect generated ABIs that was introduce
 
 v0.2.9
 ******
+**THIS RELEASE HAS BEEN PULLED**
 
 Date released: 16-02-2021
 
