@@ -25,8 +25,10 @@ decimals: public(uint256)
 #       The _KeyType will become a required parameter for the getter and it will return _ValueType.
 #       See: https://vyper.readthedocs.io/en/v0.1.0-beta.8/types.html?highlight=getter#mappings
 balanceOf: public(HashMap[address, uint256])
-allowances: HashMap[address, HashMap[address, uint256]]
-total_supply: uint256
+# By declaring `allowance` as public, vyper automatically generates the `allowance()` getter
+allowance: public(HashMap[address, HashMap[address, uint256]])
+# By declaring `totalSupply` as public, we automatically create the `totalSupply()` getter
+totalSupply: public(uint256)
 minter: address
 
 
@@ -37,30 +39,10 @@ def __init__(_name: String[64], _symbol: String[32], _decimals: uint256, _supply
     self.symbol = _symbol
     self.decimals = _decimals
     self.balanceOf[msg.sender] = init_supply
-    self.total_supply = init_supply
+    self.totalSupply = init_supply
     self.minter = msg.sender
     log Transfer(ZERO_ADDRESS, msg.sender, init_supply)
 
-
-@view
-@external
-def totalSupply() -> uint256:
-    """
-    @dev Total number of tokens in existence.
-    """
-    return self.total_supply
-
-
-@view
-@external
-def allowance(_owner : address, _spender : address) -> uint256:
-    """
-    @dev Function to check the amount of tokens that an owner allowed to a spender.
-    @param _owner The address which owns the funds.
-    @param _spender The address which will spend the funds.
-    @return An uint256 specifying the amount of tokens still available for the spender.
-    """
-    return self.allowances[_owner][_spender]
 
 
 @external
@@ -92,7 +74,7 @@ def transferFrom(_from : address, _to : address, _value : uint256) -> bool:
     self.balanceOf[_to] += _value
     # NOTE: vyper does not allow underflows
     #      so the following subtraction would revert on insufficient allowance
-    self.allowances[_from][msg.sender] -= _value
+    self.allowance[_from][msg.sender] -= _value
     log Transfer(_from, _to, _value)
     return True
 
@@ -108,7 +90,7 @@ def approve(_spender : address, _value : uint256) -> bool:
     @param _spender The address which will spend the funds.
     @param _value The amount of tokens to be spent.
     """
-    self.allowances[msg.sender][_spender] = _value
+    self.allowance[msg.sender][_spender] = _value
     log Approval(msg.sender, _spender, _value)
     return True
 
@@ -124,7 +106,7 @@ def mint(_to: address, _value: uint256):
     """
     assert msg.sender == self.minter
     assert _to != ZERO_ADDRESS
-    self.total_supply += _value
+    self.totalSupply += _value
     self.balanceOf[_to] += _value
     log Transfer(ZERO_ADDRESS, _to, _value)
 
@@ -138,7 +120,7 @@ def _burn(_to: address, _value: uint256):
     @param _value The amount that will be burned.
     """
     assert _to != ZERO_ADDRESS
-    self.total_supply -= _value
+    self.totalSupply -= _value
     self.balanceOf[_to] -= _value
     log Transfer(_to, ZERO_ADDRESS, _value)
 
@@ -159,5 +141,5 @@ def burnFrom(_to: address, _value: uint256):
     @param _to The account whose tokens will be burned.
     @param _value The amount that will be burned.
     """
-    self.allowances[_to][msg.sender] -= _value
+    self.allowance[_to][msg.sender] -= _value
     self._burn(_to, _value)
