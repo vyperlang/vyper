@@ -26,7 +26,7 @@ def foo(a: int128, b: int128) -> bool:
 
 
 @pytest.mark.fuzzing
-@settings(max_examples=20, deadline=500)
+@settings(max_examples=20, deadline=1000)
 @given(left=st.integers(), right=st.lists(st.integers(), min_size=1, max_size=16))
 def test_compare_in(left, right, get_contract):
     source = f"""
