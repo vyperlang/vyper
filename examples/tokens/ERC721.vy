@@ -341,6 +341,18 @@ def mint(_to: address, _tokenId: uint256) -> bool:
     self._addTokenTo(_to, _tokenId)
     log Transfer(ZERO_ADDRESS, _to, _tokenId)
     return True
+    
+    
+@external transferMinterRole(_newMinter: address):
+    """
+    @dev Function to transfer the minter position to a new address
+         Throws if `msg.sender` is not the minter.
+    @param _newMinter The new minter address for the contract.
+    """
+    # Throws if `msg.sender` is not the current minter
+    assert msg.sender == self.minter
+    self.minter = _newMinter
+   
 
 
 @external
