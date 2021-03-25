@@ -343,7 +343,8 @@ def mint(_to: address, _tokenId: uint256) -> bool:
     return True
     
     
-@external transferMinterRole(_newMinter: address):
+@external
+def transferMinterRole(_newMinter: address):
     """
     @dev Function to transfer the minter position to a new address
          Throws if `msg.sender` is not the minter.
