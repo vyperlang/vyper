@@ -8,6 +8,7 @@ any errors.
 .. note::
 
     The easiest way to experiment with the language is to use the `Remix online compiler <https://remix.ethereum.org>`_.
+    (Activate the vyper-remix plugin in the Plugin manager.)
 
 Docker
 ******
