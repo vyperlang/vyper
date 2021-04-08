@@ -183,7 +183,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             self.visit(attr_descendant)
 
     def visit_Attribute(self, node):
-        if node.value.id == "msg" and node.attr == "data":
+        if node.get("value.id") == "msg" and node.attr == "data":
             parent = node.get_ancestor()
             is_slice = parent.get("func.id") == "slice"
             is_len = parent.get("func.id") == "len"
