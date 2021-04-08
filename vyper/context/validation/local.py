@@ -136,11 +136,11 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
 
         if self.func.visibility is FunctionVisibility.INTERNAL:
             node_list = fn_node.get_descendants(
-                vy_ast.Attribute, {"value.id": "msg", "attr": "sender"}
+                vy_ast.Attribute, {"value.id": "msg", "attr": {"data", "sender"}}
             )
             if node_list:
                 raise StateAccessViolation(
-                    "msg.sender is not allowed in internal functions", node_list[0]
+                    f"msg.{node_list[0].attr} is not allowed in internal functions", node_list[0]
                 )
         if self.func.mutability == StateMutability.PURE:
             node_list = fn_node.get_descendants(
