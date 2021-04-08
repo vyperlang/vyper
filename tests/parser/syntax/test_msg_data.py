@@ -60,40 +60,48 @@ def foo(bar: uint256) -> uint256:
 
 
 fail_list = [
-    """
+    (
+        """
 @external
 def foo() -> Bytes[4]:
     bar: Bytes[4] = msg.data
     return bar
     """,
-    """
+        SyntaxException,
+    ),
+    (
+        """
 @external
 def foo() -> Bytes[7]:
     bar: Bytes[7] = concat(msg.data, 0xc0ffee)
     return bar
     """,
-    """
+        SyntaxException,
+    ),
+    (
+        """
 @external
 def foo() -> uint256:
     bar: uint256 = convert(msg.data, uint256)
     return bar
     """,
-    """
+        SyntaxException,
+    ),
+    (
+        """
 @internal
 def foo() -> Bytes[4]:
     return slice(msg.data, 0, 4)
     """,
+        StateAccessViolation,
+    ),
 ]
 
-exceptions = [SyntaxException, SyntaxException, SyntaxException, StateAccessViolation]
 
-
-@pytest.mark.parametrize(
-    "bad_code,expected_error", zip(fail_list, exceptions),
-)
-def test_invalid_usages_compile_error(bad_code, expected_error):
-    with pytest.raises(expected_error):
-        compiler.compile_code(bad_code)
+@pytest.mark.parametrize("bad_code", fail_list)
+def test_invalid_usages_compile_error(bad_code):
+    with pytest.raises(bad_code[1]):
+        compiler.compile_code(bad_code[0])
 
 
 def test_runtime_failure_bounds_check(get_contract):
