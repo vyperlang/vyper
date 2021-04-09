@@ -2,7 +2,11 @@ import pytest
 from eth_tester.exceptions import TransactionFailed
 
 from vyper import compiler
-from vyper.exceptions import StateAccessViolation, SyntaxException, TypeMismatch
+from vyper.exceptions import (
+    StateAccessViolation,
+    SyntaxException,
+    TypeMismatch,
+)
 
 
 def test_variable_assignment(get_contract, keccak):
