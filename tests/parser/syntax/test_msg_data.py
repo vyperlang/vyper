@@ -2,7 +2,7 @@ import pytest
 from eth_tester.exceptions import TransactionFailed
 
 from vyper import compiler
-from vyper.exceptions import StateAccessViolation, SyntaxException
+from vyper.exceptions import StateAccessViolation, SyntaxException, TypeMismatch
 
 
 def test_variable_assignment(get_contract, keccak):
@@ -46,6 +46,36 @@ def foo(bar: uint256) -> Bytes[36]:
     expected_result = method_id + "00" * 31 + encoded_42
 
     assert contract.foo(42).hex() == expected_result
+
+
+def test_memory_pointer_advances_appropriately(get_contract, keccak):
+    code = """
+@external
+def foo() -> (uint256, Bytes[4], uint256):
+    a: uint256 = MAX_UINT256
+    b: Bytes[4] = slice(msg.data, 0, 4)
+    c: uint256 = MAX_UINT256
+
+    return (a, b, c)
+"""
+    contract = get_contract(code)
+
+    assert contract.foo() == [2 ** 256 - 1, bytes(keccak(text="foo()")[:4]), 2 ** 256 - 1]
+
+
+def test_assignment_to_storage(w3, get_contract, keccak):
+    code = """
+cache: public(Bytes[4])
+    
+@external
+def foo():
+    self.cache = slice(msg.data, 0, 4)
+"""
+    acct = w3.eth.accounts[0]
+    contract = get_contract(code)
+
+    contract.foo(transact={"from": acct})
+    assert contract.cache() == bytes(keccak(text="foo()")[:4])
 
 
 def test_get_len(get_contract):
@@ -94,6 +124,15 @@ def foo() -> Bytes[4]:
     return slice(msg.data, 0, 4)
     """,
         StateAccessViolation,
+    ),
+    (
+        """
+@external
+def foo(bar: uint256) -> bytes32:
+    ret_val: bytes32 = slice(msg.data, 4, 32)
+    return ret_val
+    """,
+        TypeMismatch,
     ),
 ]
 
