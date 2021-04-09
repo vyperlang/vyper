@@ -66,7 +66,7 @@ def foo() -> (uint256, Bytes[4], uint256):
 def test_assignment_to_storage(w3, get_contract, keccak):
     code = """
 cache: public(Bytes[4])
-    
+
 @external
 def foo():
     self.cache = slice(msg.data, 0, 4)
