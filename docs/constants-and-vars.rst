@@ -20,6 +20,7 @@ Name                 Type             Value
 ``block.prevhash``   ``bytes32``      Equivalent to ``blockhash(block.number - 1)``
 ``block.timestamp``  ``uint256``      Current block epoch timestamp
 ``chain.id``         ``uint256``      Chain ID
+``msg.data``         ``Bytes``        Message data
 ``msg.gas``          ``uint256``      Remaining gas
 ``msg.sender``       ``address``      Sender of the message (current call)
 ``msg.value``        ``uint256``      Number of wei sent with the message
@@ -28,7 +29,11 @@ Name                 Type             Value
 
 .. note::
 
-    ``msg.sender`` and ``msg.value`` can only be accessed from external functions. If you require these values within a private function they must be passed as parameters.
+    ``msg.data``, ``msg.sender`` and ``msg.value`` can only be accessed from external functions. If you require these values within a private function they must be passed as parameters.
+
+.. note::
+
+    ``msg.data`` requires the usage of :func:`slice <slice>` to explicitly extract a section of calldata. If the extracted section exceeds the bounds of calldata, this will throw. You can check the size of ``msg.data`` using :func:`len <len>`.   
 
 .. _constants-self:
 

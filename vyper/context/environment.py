@@ -2,6 +2,7 @@ from typing import Dict
 
 from vyper.context.types.meta.struct import StructDefinition
 from vyper.context.types.value.address import AddressDefinition
+from vyper.context.types.value.array_value import BytesArrayDefinition
 from vyper.context.types.value.bytes_fixed import Bytes32Definition
 from vyper.context.types.value.numeric import Uint256Definition
 
@@ -14,7 +15,12 @@ CONSTANT_ENVIRONMENT_VARS: Dict[str, Dict[str, type]] = {
         "timestamp": Uint256Definition,
     },
     "chain": {"id": Uint256Definition},
-    "msg": {"gas": Uint256Definition, "sender": AddressDefinition, "value": Uint256Definition},
+    "msg": {
+        "data": BytesArrayDefinition,
+        "gas": Uint256Definition,
+        "sender": AddressDefinition,
+        "value": Uint256Definition,
+    },
     "tx": {"origin": AddressDefinition},
 }
 

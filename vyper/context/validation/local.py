@@ -43,6 +43,7 @@ from vyper.exceptions import (
     NonPayableViolation,
     StateAccessViolation,
     StructureException,
+    SyntaxException,
     TypeMismatch,
     VariableDeclarationException,
     VyperException,
@@ -136,11 +137,11 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
 
         if self.func.visibility is FunctionVisibility.INTERNAL:
             node_list = fn_node.get_descendants(
-                vy_ast.Attribute, {"value.id": "msg", "attr": "sender"}
+                vy_ast.Attribute, {"value.id": "msg", "attr": {"data", "sender"}}
             )
             if node_list:
                 raise StateAccessViolation(
-                    "msg.sender is not allowed in internal functions", node_list[0]
+                    f"msg.{node_list[0].attr} is not allowed in internal functions", node_list[0]
                 )
         if self.func.mutability == StateMutability.PURE:
             node_list = fn_node.get_descendants(
@@ -176,6 +177,23 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
     def visit(self, node):
         super().visit(node)
         self.annotation_visitor.visit(node)
+
+        attr_descendants = node.get_descendants(vy_ast.Attribute)
+        for attr_descendant in attr_descendants:
+            self.visit(attr_descendant)
+
+    def visit_Attribute(self, node):
+        if node.get("value.id") == "msg" and node.attr == "data":
+            parent = node.get_ancestor()
+            is_slice = parent.get("func.id") == "slice"
+            is_len = parent.get("func.id") == "len"
+            if not is_slice and not is_len:
+                raise SyntaxException(
+                    "msg.data is only allowed inside of the slice or len functions",
+                    node.node_source_code,
+                    node.lineno,
+                    node.col_offset,
+                )
 
     def visit_AnnAssign(self, node):
         name = node.get("target.id")
