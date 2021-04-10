@@ -949,28 +949,25 @@ class Expr:
             return external_call.make_external_call(self.expr, self.context)
 
     def parse_List(self):
-        if not len(self.expr.elements):
-            return
+        call_lll, multi_lll = parse_sequence(self.expr, self.expr.elements, self.context)
+        out_type = next((i.typ for i in multi_lll if not i.typ.is_literal), multi_lll[0].typ)
+        typ = ListType(out_type, len(self.expr.elements), is_literal=True)
+        multi_lll = LLLnode.from_list(["multi"] + multi_lll, typ=typ, pos=getpos(self.expr))
+        if not call_lll:
+            return multi_lll
 
-        def get_out_type(lll_node):
-            if isinstance(lll_node, ListType):
-                return get_out_type(lll_node.subtype)
-            return lll_node.typ
+        lll_node = ["seq_unchecked"] + call_lll + [multi_lll]
+        return LLLnode.from_list(lll_node, typ=typ, pos=getpos(self.expr))
 
-        lll_node = []
-        out_type = None
+    def parse_Tuple(self):
+        call_lll, multi_lll = parse_sequence(self.expr, self.expr.elements, self.context)
+        typ = TupleType([x.typ for x in multi_lll], is_literal=True)
+        multi_lll = LLLnode.from_list(["multi"] + multi_lll, typ=typ, pos=getpos(self.expr))
+        if not call_lll:
+            return multi_lll
 
-        for elt in self.expr.elements:
-            current_lll_node = Expr(elt, self.context).lll_node
-            if not out_type or not current_lll_node.typ.is_literal:
-                # prefer to use a non-literal type here, because literals can be ambiguous
-                # this should be removed altogether as we refactor types out of parser
-                out_type = current_lll_node.typ
-            lll_node.append(current_lll_node)
-
-        return LLLnode.from_list(
-            ["multi"] + lll_node, typ=ListType(out_type, len(lll_node)), pos=getpos(self.expr),
-        )
+        lll_node = ["seq_unchecked"] + call_lll + [multi_lll]
+        return LLLnode.from_list(lll_node, typ=typ, pos=getpos(self.expr))
 
     @staticmethod
     def struct_literals(expr, name, context):
@@ -990,39 +987,6 @@ class Expr:
             pos=getpos(expr),
         )
 
-    def parse_Tuple(self):
-        if not len(self.expr.elements):
-            return
-        call_lll = []
-        multi_lll = []
-        for node in self.expr.elements:
-            if isinstance(node, vy_ast.Call):
-                # for calls inside the tuple, we perform the call prior to building the tuple and
-                # assign it's result to memory - otherwise there is potential for memory corruption
-                lll_node = Expr(node, self.context).lll_node
-                target = LLLnode.from_list(
-                    self.context.new_internal_variable(lll_node.typ),
-                    typ=lll_node.typ,
-                    location="memory",
-                    pos=getpos(self.expr),
-                )
-                call_lll.append(make_setter(target, lll_node, "memory", pos=getpos(self.expr)))
-                multi_lll.append(
-                    LLLnode.from_list(
-                        target, typ=lll_node.typ, pos=getpos(self.expr), location="memory"
-                    ),
-                )
-            else:
-                multi_lll.append(Expr(node, self.context).lll_node)
-
-        typ = TupleType([x.typ for x in multi_lll], is_literal=True)
-        multi_lll = LLLnode.from_list(["multi"] + multi_lll, typ=typ, pos=getpos(self.expr))
-        if not call_lll:
-            return multi_lll
-
-        lll_node = ["seq_unchecked"] + call_lll + [multi_lll]
-        return LLLnode.from_list(lll_node, typ=typ, pos=getpos(self.expr))
-
     # Parse an expression that results in a value
     @classmethod
     def parse_value_expr(cls, expr, context):
@@ -1035,3 +999,58 @@ class Expr:
         if not o.location:
             raise StructureException("Looking for a variable location, instead got a value", expr)
         return o
+
+
+def parse_sequence(base_node, elements, context):
+    """
+    Generate an LLL node from a sequence of Vyper AST nodes, such as values inside a
+    list/tuple or arguments inside a call.
+
+    Arguments
+    ---------
+    base_node : VyperNode
+        Parent node which contains the sequence being parsed.
+    elements : List[VyperNode]
+        A list of nodes within the sequence.
+    context : Context
+        Currently active local context.
+
+    Returns
+    -------
+    List[LLLNode]
+        LLL nodes that must execute prior to generating the actual sequence in order to
+        avoid memory corruption issues. This list may be empty, depending on the values
+        within `elements`.
+    List[LLLNode]
+        LLL nodes which collectively represent `elements`.
+    """
+    init_lll = []
+    sequence_lll = []
+    for node in elements:
+        lll_node = Expr(node, context).lll_node
+        if isinstance(node, (vy_ast.Call, vy_ast.List)) or (
+            isinstance(node, vy_ast.Subscript) and isinstance(node.value, vy_ast.Call)
+        ):
+            # nodes which potentially create their own internal memory variables, and so must
+            # be parsed prior to generating the final sequence to avoid memory corruption
+            target = LLLnode.from_list(
+                context.new_internal_variable(lll_node.typ),
+                typ=lll_node.typ,
+                location="memory",
+                pos=getpos(base_node),
+            )
+            if isinstance(node, vy_ast.List):
+                init, seq = parse_sequence(node, node.elements, context)
+                init_lll.extend(init)
+                sequence_lll.extend(seq)
+            else:
+                init_lll.append(make_setter(target, lll_node, "memory", pos=getpos(base_node)))
+                sequence_lll.append(
+                    LLLnode.from_list(
+                        target, typ=lll_node.typ, pos=getpos(base_node), location="memory"
+                    ),
+                )
+        else:
+            sequence_lll.append(lll_node)
+
+    return init_lll, sequence_lll
