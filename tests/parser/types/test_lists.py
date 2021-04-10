@@ -286,3 +286,79 @@ def test_values(arr: int128[2][3], s: String[10]) -> (int128[2][3], String[10]):
 
     c = get_contract(code)
     assert c.test_values([[1, 2], [3, 4], [5, 6]], "abcdef") == [[[1, 2], [3, 4], [5, 6]], "abcdef"]
+
+
+def test_nested_index_of_returned_array(get_contract):
+    code = """
+@internal
+def inner() -> (int128, int128):
+    return 1,2
+
+@external
+def outer() -> int128[2]:
+    return [333, self.inner()[0]]
+    """
+
+    c = get_contract(code)
+    assert c.outer() == [333, 1]
+
+
+def test_nested_calls_inside_arrays(get_contract):
+    code = """
+@internal
+def _foo(a: uint256, b: uint256[2]) -> (uint256, uint256, uint256, uint256, uint256):
+    return 1, a, b[0], b[1], 5
+
+@internal
+def _foo2() -> uint256:
+    a: uint256[10] = [6,7,8,9,10,11,12,13,15,16]
+    return 4
+
+@external
+def foo() -> (uint256, uint256, uint256, uint256, uint256):
+    return self._foo(2, [3, self._foo2()])
+    """
+
+    c = get_contract(code)
+    assert c.foo() == [1, 2, 3, 4, 5]
+
+
+def test_nested_calls_inside_arrays_with_index_access(get_contract):
+    code = """
+@internal
+def _foo(a: uint256[2], b: uint256[2]) -> (uint256, uint256, uint256, uint256, uint256):
+    return a[1]-b[0], 2, a[0]-b[1], 8-b[1], 5
+
+@internal
+def _foo2() -> (uint256, uint256):
+    a: uint256[10] = [6,7,8,9,10,11,12,13,15,16]
+    return a[6], 4
+
+@external
+def foo() -> (uint256, uint256, uint256, uint256, uint256):
+    return self._foo([7, self._foo2()[0]], [11, self._foo2()[1]])
+    """
+
+    c = get_contract(code)
+    assert c.foo() == [1, 2, 3, 4, 5]
+
+
+def test_so_many_things_you_should_never_do(get_contract):
+    code = """
+@internal
+def _foo(a: uint256[2], b: uint256[2]) -> uint256[5]:
+    return [a[1]-b[0], 2, a[0]-b[1], 8-b[1], 5]
+
+@internal
+def _foo2() -> (uint256, uint256):
+    b: uint256[2] = [5, 8]
+    a: uint256[10] = [6,7,8,9,10,11,12,13,self._foo([44,b[0]],b)[4],16]
+    return a[6], 4
+
+@external
+def foo() -> (uint256, uint256[3], uint256[2]):
+    x: uint256[3] = [1, 14-self._foo2()[0], self._foo([7,self._foo2()[0]], [11,self._foo2()[1]])[2]]
+    return 666, x, [88, self._foo2()[0]]
+    """
+    c = get_contract(code)
+    assert c.foo() == [666, [1, 2, 3], [88, 12]]
