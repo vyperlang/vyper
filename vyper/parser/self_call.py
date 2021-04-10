@@ -1,6 +1,5 @@
 import itertools
 
-from vyper import ast as vy_ast
 from vyper.codegen.abi import abi_decode
 from vyper.exceptions import (
     StateAccessViolation,
@@ -8,7 +7,7 @@ from vyper.exceptions import (
     TypeCheckFailure,
 )
 from vyper.parser.lll_node import LLLnode
-from vyper.parser.parser_utils import getpos, make_setter, pack_arguments
+from vyper.parser.parser_utils import getpos, pack_arguments
 from vyper.signatures.function_signature import FunctionSignature
 from vyper.types import (
     BaseType,
@@ -57,37 +56,15 @@ def make_call(stmt_expr, context):
     # (x) pop return values
     # (x) pop local variables
 
-    pre_init = []
     pop_local_vars = []
     push_local_vars = []
     pop_return_values = []
     push_args = []
-
-    from vyper.parser.expr import Expr
-
     method_name = stmt_expr.func.attr
 
-    expr_args = []
-    for arg in stmt_expr.args:
-        lll_node = Expr(arg, context).lll_node
-        if isinstance(arg, vy_ast.Call):
-            # if the argument is a function call, perform the call seperately and
-            # assign it's result to memory, then reference the memory location when
-            # building this call. otherwise there is potential for memory corruption
-            target = LLLnode.from_list(
-                context.new_internal_variable(lll_node.typ),
-                typ=lll_node.typ,
-                location="memory",
-                pos=getpos(arg),
-            )
-            setter = make_setter(target, lll_node, "memory", pos=getpos(arg))
-            expr_args.append(
-                LLLnode.from_list(target, typ=lll_node.typ, pos=getpos(arg), location="memory")
-            )
-            pre_init.append(setter)
-        else:
-            expr_args.append(lll_node)
+    from vyper.parser.expr import parse_sequence
 
+    pre_init, expr_args = parse_sequence(stmt_expr, stmt_expr.args, context)
     sig = FunctionSignature.lookup_sig(context.sigs, method_name, expr_args, stmt_expr, context,)
 
     if context.is_constant() and sig.mutability not in ("view", "pure"):
