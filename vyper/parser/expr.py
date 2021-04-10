@@ -1027,8 +1027,18 @@ def parse_sequence(base_node, elements, context):
     init_lll = []
     sequence_lll = []
     for node in elements:
+        if isinstance(node, vy_ast.List):
+            # for nested lists, ensure the init LLL is also processed before the values
+            init, seq = parse_sequence(node, node.elements, context)
+            init_lll.extend(init)
+            out_type = next((i.typ for i in seq if not i.typ.is_literal), seq[0].typ)
+            typ = ListType(out_type, len(node.elements), is_literal=True)
+            multi_lll = LLLnode.from_list(["multi"] + seq, typ=typ, pos=getpos(node))
+            sequence_lll.append(multi_lll)
+            continue
+
         lll_node = Expr(node, context).lll_node
-        if isinstance(node, (vy_ast.Call, vy_ast.List)) or (
+        if isinstance(node, vy_ast.Call) or (
             isinstance(node, vy_ast.Subscript) and isinstance(node.value, vy_ast.Call)
         ):
             # nodes which potentially create their own internal memory variables, and so must
@@ -1039,17 +1049,12 @@ def parse_sequence(base_node, elements, context):
                 location="memory",
                 pos=getpos(base_node),
             )
-            if isinstance(node, vy_ast.List):
-                init, seq = parse_sequence(node, node.elements, context)
-                init_lll.extend(init)
-                sequence_lll.extend(seq)
-            else:
-                init_lll.append(make_setter(target, lll_node, "memory", pos=getpos(base_node)))
-                sequence_lll.append(
-                    LLLnode.from_list(
-                        target, typ=lll_node.typ, pos=getpos(base_node), location="memory"
-                    ),
-                )
+            init_lll.append(make_setter(target, lll_node, "memory", pos=getpos(base_node)))
+            sequence_lll.append(
+                LLLnode.from_list(
+                    target, typ=lll_node.typ, pos=getpos(base_node), location="memory"
+                ),
+            )
         else:
             sequence_lll.append(lll_node)
 
