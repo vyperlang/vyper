@@ -534,8 +534,14 @@ def make_setter(left, right, location, pos, in_function_call=False):
             left = LLLnode.from_list(["sha3_32", left], typ=left.typ, location="storage_prehashed")
             left_token.location = "storage_prehashed"
         # If the right side is a literal
-        if right.value == "multi":
-            subs = []
+        if right.value in ["multi", "seq_unchecked"] and right.typ.is_literal:
+            if right.value == "seq_unchecked":
+                # when the LLL is `seq_unchecked`, this is a literal where one or
+                # more values must be pre-processed to avoid memory corruption
+                subs = right.args[:-1]
+                right = right.args[-1]
+            else:
+                subs = []
             for i in range(left.typ.count):
                 lhs_setter = _make_array_index_setter(left, left_token, pos, location, i)
                 subs.append(make_setter(lhs_setter, right.args[i], location, pos=pos,))
