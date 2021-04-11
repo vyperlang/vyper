@@ -234,7 +234,7 @@ def byte_array_to_num(
         )
     if out_type == "int128":
         result = int128_clamp(["div", "_el1", ["exp", 256, ["sub", 32, "_len"]]])
-    elif out_type == "uint256":
+    elif out_type in ("int256", "uint256"):
         result = ["div", "_el1", ["exp", 256, ["sub", offset, "_len"]]]
     return LLLnode.from_list(
         [
