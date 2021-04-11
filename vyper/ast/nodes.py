@@ -187,9 +187,9 @@ def _validate_numeric_bounds(
     node: Union["BinOp", "UnaryOp"], value: Union[decimal.Decimal, int]
 ) -> None:
     if isinstance(value, decimal.Decimal):
-        lower, upper = SizeLimits.MINNUM, SizeLimits.MAXNUM
+        lower, upper = SizeLimits.MIN_INT128, SizeLimits.MAX_INT128
     elif isinstance(value, int):
-        lower, upper = SizeLimits.MINNUM, SizeLimits.MAX_UINT256
+        lower, upper = SizeLimits.MIN_INT128, SizeLimits.MAX_UINT256
     else:
         raise CompilerPanic(f"Unexpected return type from {node._op}: {type(value)}")
     if not lower <= value <= upper:
@@ -711,7 +711,7 @@ class Num(Constant):
         return self.value
 
     def validate(self):
-        if self.value < SizeLimits.MINNUM:
+        if self.value < SizeLimits.MIN_INT128:
             raise OverflowException("Value is below lower bound for all numeric types", self)
         if self.value > SizeLimits.MAX_UINT256:
             raise OverflowException("Value exceeds upper bound for all numeric types", self)

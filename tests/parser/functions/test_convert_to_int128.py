@@ -342,17 +342,17 @@ def conv_max_literal_alt() -> int128:
     assert c.conv_neg1_stor_alt() == -1
     assert c.conv_neg1_literal_alt() == -1
 
-    assert c.conv_min_stor() == SizeLimits.MINNUM
-    assert c.conv_min_literal() == SizeLimits.MINNUM
-    assert c.conv_min_stor_alt() == SizeLimits.MINNUM
-    assert c.conv_min_literal_alt() == SizeLimits.MINNUM
+    assert c.conv_min_stor() == SizeLimits.MIN_INT128
+    assert c.conv_min_literal() == SizeLimits.MIN_INT128
+    assert c.conv_min_stor_alt() == SizeLimits.MIN_INT128
+    assert c.conv_min_literal_alt() == SizeLimits.MIN_INT128
 
     assert c.conv_zero_stor() == 0
     assert c.conv_zero_literal() == 0
     assert c.conv_zero_stor_alt() == 0
     assert c.conv_zero_literal_alt() == 0
 
-    assert c.conv_max_stor() == SizeLimits.MAXNUM
-    assert c.conv_max_literal() == SizeLimits.MAXNUM
-    assert c.conv_max_stor_alt() == SizeLimits.MAXNUM
-    assert c.conv_max_literal_alt() == SizeLimits.MAXNUM
+    assert c.conv_max_stor() == SizeLimits.MAX_INT128
+    assert c.conv_max_literal() == SizeLimits.MAX_INT128
+    assert c.conv_max_stor_alt() == SizeLimits.MAX_INT128
+    assert c.conv_max_literal_alt() == SizeLimits.MAX_INT128

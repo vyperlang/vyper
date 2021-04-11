@@ -80,8 +80,8 @@ DECIMAL_DIVISOR = 10 ** MAX_DECIMAL_PLACES
 # Number of bytes in memory used for system purposes, not for variables
 class MemoryPositions:
     ADDRSIZE = 32
-    MAXNUM = 64
-    MINNUM = 96
+    MAX_INT128 = 64
+    MIN_INT128 = 96
     MAXDECIMAL = 128
     MINDECIMAL = 160
     FREE_VAR_SPACE = 192
@@ -94,8 +94,8 @@ class MemoryPositions:
 # Sizes of different data types. Used to clamp types.
 class SizeLimits:
     ADDRSIZE = 2 ** 160
-    MAXNUM = 2 ** 127 - 1
-    MINNUM = -(2 ** 127)
+    MAX_INT128 = 2 ** 127 - 1
+    MIN_INT128 = -(2 ** 127)
     MAXDECIMAL = (2 ** 127 - 1) * DECIMAL_DIVISOR
     MINDECIMAL = (-(2 ** 127)) * DECIMAL_DIVISOR
     MAX_UINT256 = 2 ** 256 - 1
@@ -108,7 +108,7 @@ class SizeLimits:
         if type_str == "uint256":
             return 0 <= value <= cls.MAX_UINT256
         elif type_str == "int128":
-            return cls.MINNUM <= value <= cls.MAXNUM
+            return cls.MIN_INT128 <= value <= cls.MAX_INT128
         else:
             raise Exception(f'Unknown type "{type_str}" supplied.')
 
@@ -117,8 +117,8 @@ class SizeLimits:
 # code.
 LOADED_LIMITS: Dict[int, int] = {
     MemoryPositions.ADDRSIZE: SizeLimits.ADDRSIZE,
-    MemoryPositions.MAXNUM: SizeLimits.MAXNUM,
-    MemoryPositions.MINNUM: SizeLimits.MINNUM,
+    MemoryPositions.MAX_INT128: SizeLimits.MAX_INT128,
+    MemoryPositions.MIN_INT128: SizeLimits.MIN_INT128,
     MemoryPositions.MAXDECIMAL: SizeLimits.MAXDECIMAL,
     MemoryPositions.MINDECIMAL: SizeLimits.MINDECIMAL,
 }

@@ -48,8 +48,8 @@ from vyper.utils import (
 BUILTIN_CONSTANTS = {
     "EMPTY_BYTES32": (0, "bytes32"),
     "ZERO_ADDRESS": (0, "address"),
-    "MAX_INT128": (SizeLimits.MAXNUM, "int128"),
-    "MIN_INT128": (SizeLimits.MINNUM, "int128"),
+    "MAX_INT128": (SizeLimits.MAX_INT128, "int128"),
+    "MIN_INT128": (SizeLimits.MIN_INT128, "int128"),
     "MAX_DECIMAL": (SizeLimits.MAXDECIMAL, "decimal"),
     "MIN_DECIMAL": (SizeLimits.MINDECIMAL, "decimal"),
     "MAX_UINT256": (SizeLimits.MAX_UINT256, "uint256"),
@@ -216,7 +216,7 @@ class Expr:
 
     def parse_Decimal(self):
         numstring, num, den = get_number_as_fraction(self.expr, self.context)
-        if not (SizeLimits.MINNUM * den <= num <= SizeLimits.MAXNUM * den):
+        if not (SizeLimits.MIN_INT128 * den <= num <= SizeLimits.MAX_INT128 * den):
             return
         if DECIMAL_DIVISOR % den:
             return
