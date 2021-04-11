@@ -14,6 +14,11 @@ class Optional(object):
 
 
 def process_arg(index, arg, expected_arg_typelist, function_name, context):
+
+    # temporary hack to support abstract types
+    if hasattr(expected_arg_typelist, "_id_list"):
+        expected_arg_typelist = expected_arg_typelist._id_list
+
     if isinstance(expected_arg_typelist, Optional):
         expected_arg_typelist = expected_arg_typelist.typ
     if not isinstance(expected_arg_typelist, tuple):
