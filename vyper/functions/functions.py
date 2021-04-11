@@ -10,6 +10,7 @@ from vyper.context.types.abstract import (
     BytesAbstractType,
     IntegerAbstractType,
     NumericAbstractType,
+    SignedIntegerAbstractType,
 )
 from vyper.context.types.bases import DataLocation, ValueTypeDefinition
 from vyper.context.types.indexable.sequence import ArrayDefinition
@@ -794,7 +795,7 @@ def _storage_element_getter(index):
 class Extract32(_SimpleBuiltinFunction):
 
     _id = "extract32"
-    _inputs = [("b", BytesArrayPrimitive()), ("start", Int128Definition())]
+    _inputs = [("b", BytesArrayPrimitive()), ("start", SignedIntegerAbstractType())]
     _kwargs = {"output_type": Optional("name_literal", "bytes32")}
     _return_type = None
 
@@ -898,7 +899,7 @@ class Extract32(_SimpleBuiltinFunction):
 class AsWeiValue:
 
     _id = "as_wei_value"
-    _inputs = [("value", ("int128", "uint256", "decimal")), ("unit", "str_literal")]
+    _inputs = [("value", NumericAbstractType()), ("unit", "str_literal")]
     _return_type = Uint256Definition()
 
     wei_denoms = {
@@ -1304,7 +1305,7 @@ class BitwiseNot(_SimpleBuiltinFunction):
 class Shift(_SimpleBuiltinFunction):
 
     _id = "shift"
-    _inputs = [("x", Uint256Definition()), ("_shift", Int128Definition())]
+    _inputs = [("x", Uint256Definition()), ("_shift", SignedIntegerAbstractType())]
     _return_type = Uint256Definition()
 
     def evaluate(self, node):
@@ -1522,7 +1523,7 @@ class CreateForwarderTo(_SimpleBuiltinFunction):
 
 class _MinMax:
 
-    _inputs = [("a", ("int128", "decimal", "uint256")), ("b", ("int128", "decimal", "uint256"))]
+    _inputs = [("a", NumericAbstractType()), ("b", NumericAbstractType())]
 
     def evaluate(self, node):
         validate_call_args(node, 2)
