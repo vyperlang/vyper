@@ -225,12 +225,12 @@ def byte_array_to_num(
     arg, expr, out_type, offset=32,
 ):
     if arg.location == "memory":
-        lengetter = LLLnode.from_list(["mload", "_sub"], typ=BaseType("int128"))
-        first_el_getter = LLLnode.from_list(["mload", ["add", 32, "_sub"]], typ=BaseType("int128"))
+        lengetter = LLLnode.from_list(["mload", "_sub"], typ=BaseType("int256"))
+        first_el_getter = LLLnode.from_list(["mload", ["add", 32, "_sub"]], typ=BaseType("int256"))
     elif arg.location == "storage":
-        lengetter = LLLnode.from_list(["sload", ["sha3_32", "_sub"]], typ=BaseType("int128"))
+        lengetter = LLLnode.from_list(["sload", ["sha3_32", "_sub"]], typ=BaseType("int256"))
         first_el_getter = LLLnode.from_list(
-            ["sload", ["add", 1, ["sha3_32", "_sub"]]], typ=BaseType("int128")
+            ["sload", ["add", 1, ["sha3_32", "_sub"]]], typ=BaseType("int256")
         )
     if out_type == "int128":
         result = int128_clamp(["div", "_el1", ["exp", 256, ["sub", 32, "_len"]]])
@@ -340,7 +340,7 @@ def add_variable_offset(parent, key, pos, array_bounds_check=True):
         if sub is not None and location == "storage":
             return LLLnode.from_list(["sha3_64", parent, sub], typ=subtype, location="storage")
 
-    elif isinstance(typ, ListType) and is_base_type(key.typ, ("int128", "uint256")):
+    elif isinstance(typ, ListType) and is_base_type(key.typ, ("int128", "int256", "uint256")):
 
         subtype = typ.subtype
         k = unwrap_location(key)
@@ -497,7 +497,7 @@ def _make_array_index_setter(target, target_token, pos, location, offset):
     else:
         return add_variable_offset(
             target_token,
-            LLLnode.from_list(offset, typ="int128"),
+            LLLnode.from_list(offset, typ="int256"),
             pos=pos,
             array_bounds_check=False,
         )
@@ -561,7 +561,7 @@ def make_setter(left, right, location, pos, in_function_call=False):
                     make_setter(
                         add_variable_offset(
                             left_token,
-                            LLLnode.from_list(i, typ="int128"),
+                            LLLnode.from_list(i, typ="int256"),
                             pos=pos,
                             array_bounds_check=False,
                         ),

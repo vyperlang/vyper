@@ -107,7 +107,7 @@ def compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=No
         return o
     # Numbers
     elif isinstance(code.value, int):
-        if code.value <= -(2 ** 255):
+        if code.value < -(2 ** 255):
             raise Exception(f"Value too low: {code.value}")
         elif code.value >= 2 ** 256:
             raise Exception(f"Value too high: {code.value}")

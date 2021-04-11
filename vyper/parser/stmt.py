@@ -211,11 +211,11 @@ class Stmt:
         is_integer_literal = (
             isinstance(arg_expr.typ, BaseType)
             and arg_expr.typ.is_literal
-            and arg_expr.typ.typ in {"uint256", "int128"}
+            and arg_expr.typ.typ in {"uint256", "int256"}
         )
         if not is_integer_literal and raise_exception:
             raise StructureException(
-                "Range only accepts literal (constant) values of type uint256 or int128",
+                "Range only accepts literal (constant) values of type uint256 or int256",
                 arg_ast_node,
             )
         return is_integer_literal, arg_expr
@@ -232,10 +232,10 @@ class Stmt:
                 return self._parse_For_list()
 
     def _parse_For_range(self):
-        # attempt to use the type specified by type checking, fall back to `int128`
+        # attempt to use the type specified by type checking, fall back to `int256`
         # this is a stopgap solution to allow uint256 - it will be properly solved
         # once we refactor `vyper.parser`
-        iter_typ = "int128"
+        iter_typ = "int256"
         if "type" in self.stmt.target._metadata:
             iter_typ = self.stmt.target._metadata["type"]._id
 
@@ -441,7 +441,8 @@ class Stmt:
                         valency=0,
                     )
             elif is_base_type(sub.typ, self.context.return_type.typ) or (
-                is_base_type(sub.typ, "int128") and is_base_type(self.context.return_type, "int256")
+                is_base_type(sub.typ, "int256")
+                and is_base_type(self.context.return_type, "uint256")
             ):  # noqa: E501
                 return LLLnode.from_list(
                     ["seq", ["mstore", 0, sub], make_return_stmt(self.stmt, self.context, 0, 32)],
