@@ -48,9 +48,21 @@ class NumericAbstractType(AbstractDataType):
 
 
 class IntegerAbstractType(NumericAbstractType):
-    """Abstract data class for integer numeric types (int128, uint256)."""
+    """Abstract data class for integer numeric types (signed and unsigned)."""
 
     _description = "integer"
+
+
+class SignedIntegerAbstractType(IntegerAbstractType):
+    """Abstract data class for signed integer numeric types."""
+
+    _description = "signed integer"
+
+
+class UnsignedIntegerAbstractType(IntegerAbstractType):
+    """Abstract data class for unsigned integer numeric types."""
+
+    _description = "unsigned integer"
 
 
 class FixedAbstractType(NumericAbstractType):
