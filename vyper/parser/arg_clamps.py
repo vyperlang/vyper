@@ -145,7 +145,7 @@ def int128_clamp(lll_node):
     else:
         return [
             "clamp",
-            ["mload", MemoryPositions.MINNUM],
+            ["mload", MemoryPositions.MIN_INT128],
             lll_node,
-            ["mload", MemoryPositions.MAXNUM],
+            ["mload", MemoryPositions.MAX_INT128],
         ]
