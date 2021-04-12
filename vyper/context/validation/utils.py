@@ -4,6 +4,7 @@ from typing import Callable, List
 from vyper import ast as vy_ast
 from vyper.context import types
 from vyper.context.namespace import get_namespace
+from vyper.context.types.abstract import IntegerAbstractType
 from vyper.context.types.bases import BaseTypeDefinition
 from vyper.context.types.indexable.sequence import (
     ArrayDefinition,
@@ -110,6 +111,10 @@ class _ExprTypeChecker:
                     )
                 else:
                     raise InvalidReference("Expected a literal or variable", node)
+        if all(isinstance(i, IntegerAbstractType) for i in types_list):
+            # for numeric types, sort according by number of bits descending
+            # we do this to ensure literals are cast with the largest possible type
+            return sorted(types_list, key=lambda k: (k._bits, not k._is_signed), reverse=True)
         return types_list
 
     def _find_fn(self, node):
