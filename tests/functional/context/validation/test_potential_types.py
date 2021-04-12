@@ -70,7 +70,7 @@ def test_binop(build_node, namespace, op, left, right):
 
 
 @pytest.mark.parametrize("op", "+-*/%")
-@pytest.mark.parametrize("left,right", [(42, "2.3"), (-1, 2 ** 128)])
+@pytest.mark.parametrize("left,right", [(42, "2.3"), (-1, 2 ** 255)])
 def test_binop_type_mismatch(build_node, namespace, op, left, right):
     node = build_node(f"{left}{op}{right}")
     with namespace.enter_scope():
