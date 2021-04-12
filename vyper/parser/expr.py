@@ -472,21 +472,19 @@ class Expr:
         if not is_numeric_type(left.typ) or not is_numeric_type(right.typ):
             return
 
-        arithmetic_pair = {left.typ.typ, right.typ.typ}
         pos = getpos(self.expr)
+        types = {left.typ.typ, right.typ.typ}
+        literals = {left.typ.is_literal, right.typ.is_literal}
 
-        # Special case with uint256 were int literal may be casted.
-        if arithmetic_pair == {"uint256", "int256"}:
-            # Check right side literal.
-            if right.typ.is_literal and SizeLimits.in_bounds("uint256", right.value):
-                right = LLLnode.from_list(
-                    right.value, typ=BaseType("uint256", None, is_literal=True), pos=pos,
-                )
-
-            # Check left side literal.
-            elif left.typ.is_literal and SizeLimits.in_bounds("uint256", left.value):
+        # Special case where int literal may be recasted.
+        if literals == {True, False} and len(types) > 1 and "decimal" not in types:
+            if left.typ.is_literal and SizeLimits.in_bounds(right.typ.typ, left.value):
                 left = LLLnode.from_list(
-                    left.value, typ=BaseType("uint256", None, is_literal=True), pos=pos,
+                    left.value, typ=BaseType(right.typ.typ, None, is_literal=True), pos=pos,
+                )
+            elif right.typ.is_literal and SizeLimits.in_bounds(left.typ.typ, right.value):
+                right = LLLnode.from_list(
+                    right.value, typ=BaseType(left.typ.typ, None, is_literal=True), pos=pos,
                 )
 
         if left.typ.typ == "decimal" and isinstance(self.expr.op, vy_ast.Pow):
@@ -811,35 +809,18 @@ class Expr:
         if not is_numeric_type(left.typ) or not is_numeric_type(right.typ):
             if op not in ("eq", "ne"):
                 return
-        left_type, right_type = left.typ.typ, right.typ.typ
 
-        # Special Case: comparison of a literal integer. If in valid range allow it to be compared.
-        if {left_type, right_type} == {"int256", "uint256"} and {
-            left.typ.is_literal,
-            right.typ.is_literal,
-        } == {
-            True,
-            False,
-        }:  # noqa: E501
+        literals = {left.typ.is_literal, right.typ.is_literal}
+        types = {left.typ.typ, right.typ.typ}
 
-            comparison_allowed = False
-            if left.typ.is_literal and SizeLimits.in_bounds(right_type, left.value):
-                comparison_allowed = True
-            elif right.typ.is_literal and SizeLimits.in_bounds(left_type, right.value):
-                comparison_allowed = True
+        # Special case where int literal may be recasted.
+        if literals == {True, False} and len(types) > 1 and "decimal" not in types:
             op = self._signed_to_unsigned_comparision_op(op)
+            return LLLnode.from_list([op, left, right], typ="bool", pos=getpos(self.expr))
 
-            if comparison_allowed:
-                return LLLnode.from_list([op, left, right], typ="bool", pos=getpos(self.expr))
-
-        elif {left_type, right_type} == {"uint256", "uint256"}:
-            op = self._signed_to_unsigned_comparision_op(op)
-        elif (
-            left_type in ("decimal", "int128") or right_type in ("decimal", "int128")
-        ) and left_type != right_type:  # noqa: E501
-            return
-
-        if left_type == right_type:
+        if left.typ.typ == right.typ.typ:
+            if left.typ.typ == "uint256":
+                op = self._signed_to_unsigned_comparision_op(op)
             return LLLnode.from_list([op, left, right], typ="bool", pos=getpos(self.expr))
 
     def parse_BoolOp(self):
