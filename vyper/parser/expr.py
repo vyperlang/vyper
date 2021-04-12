@@ -50,6 +50,8 @@ BUILTIN_CONSTANTS = {
     "ZERO_ADDRESS": (0, "address"),
     "MAX_INT128": (SizeLimits.MAX_INT128, "int128"),
     "MIN_INT128": (SizeLimits.MIN_INT128, "int128"),
+    "MAX_INT256": (SizeLimits.MAX_INT256, "int256"),
+    "MIN_INT256": (SizeLimits.MIN_INT256, "int256"),
     "MAX_DECIMAL": (SizeLimits.MAXDECIMAL, "decimal"),
     "MIN_DECIMAL": (SizeLimits.MINDECIMAL, "decimal"),
     "MAX_UINT256": (SizeLimits.MAX_UINT256, "uint256"),
@@ -499,31 +501,80 @@ class Expr:
         if isinstance(self.expr.op, (vy_ast.Add, vy_ast.Sub)):
             new_typ = BaseType(ltyp)
 
-            if ltyp in ("int256", "uint256"):
-                comp = "ge" if ltyp == "uint256" else "sge"
+            if ltyp == "uint256":
                 if isinstance(self.expr.op, vy_ast.Add):
                     # safeadd
-                    arith = ["seq", ["assert", [comp, ["add", "l", "r"], "l"]], ["add", "l", "r"]]
+                    arith = ["seq", ["assert", ["ge", ["add", "l", "r"], "l"]], ["add", "l", "r"]]
 
                 elif isinstance(self.expr.op, vy_ast.Sub):
                     # safesub
-                    arith = ["seq", ["assert", [comp, "l", "r"]], ["sub", "l", "r"]]
+                    arith = ["seq", ["assert", ["ge", "l", "r"]], ["sub", "l", "r"]]
 
-            elif ltyp == rtyp:
+            elif ltyp == "int256":
+                if isinstance(self.expr.op, vy_ast.Add):
+                    op, comp1, comp2 = "add", "sge", "slt"
+                else:
+                    op, comp1, comp2 = "sub", "sle", "sgt"
+
+                if right.typ.is_literal:
+                    if right.value >= 0:
+                        arith = ["seq", ["assert", [comp1, [op, "l", "r"], "l"]], [op, "l", "r"]]
+                    else:
+                        arith = ["seq", ["assert", [comp2, [op, "l", "r"], "l"]], [op, "l", "r"]]
+                else:
+                    arith = [
+                        "with",
+                        "ans",
+                        [op, "l", "r"],
+                        [
+                            "seq",
+                            [
+                                "assert",
+                                [
+                                    "or",
+                                    ["and", ["sge", "r", 0], [comp1, "ans", "l"]],
+                                    ["and", ["slt", "r", 0], [comp2, "ans", "l"]],
+                                ],
+                            ],
+                            "ans",
+                        ],
+                    ]
+
+            elif ltyp in ("decimal", "int128"):
                 op = "add" if isinstance(self.expr.op, vy_ast.Add) else "sub"
                 arith = [op, "l", "r"]
 
         elif isinstance(self.expr.op, vy_ast.Mult):
             new_typ = BaseType(ltyp)
-            if ltyp == rtyp and ltyp in {"uint256", "int256"}:
-                op = "div" if ltyp == "uint256" else "sdiv"
+            if ltyp == "uint256":
                 arith = [
                     "with",
                     "ans",
                     ["mul", "l", "r"],
                     [
                         "seq",
-                        ["assert", ["or", ["eq", [op, "ans", "l"], "r"], ["iszero", "l"]]],
+                        ["assert", ["or", ["eq", ["div", "ans", "l"], "r"], ["iszero", "l"]]],
+                        "ans",
+                    ],
+                ]
+
+            elif ltyp == "int256":
+                if not left.typ.is_literal and not right.typ.is_literal:
+                    bounds_check = ["assert", ["or", ["ne", "l", -1], ["ne", "r", -(2 ** 255)]]]
+                elif left.typ.is_literal and left.value == -1:
+                    bounds_check = ["assert", ["ne", "r", -(2 ** 255)]]
+                elif right.typ.is_literal and right.value == -(2 ** 255):
+                    bounds_check = ["assert", ["ne", "l", -1]]
+                else:
+                    bounds_check = "pass"
+                arith = [
+                    "with",
+                    "ans",
+                    ["mul", "l", "r"],
+                    [
+                        "seq",
+                        bounds_check,
+                        ["assert", ["or", ["eq", ["sdiv", "ans", "l"], "r"], ["iszero", "l"]]],
                         "ans",
                     ],
                 ]
@@ -558,6 +609,17 @@ class Expr:
             if ltyp == rtyp == "uint256":
                 arith = ["div", "l", divisor]
 
+            elif ltyp == "int256":
+                if not left.typ.is_literal and not right.typ.is_literal:
+                    bounds_check = ["assert", ["or", ["ne", "r", -1], ["ne", "l", -(2 ** 255)]]]
+                elif left.typ.is_literal and left.value == -(2 ** 255):
+                    bounds_check = ["assert", ["ne", "r", -1]]
+                elif right.typ.is_literal and right.value == -1:
+                    bounds_check = ["assert", ["ne", "l", -(2 ** 255)]]
+                else:
+                    bounds_check = "pass"
+                arith = ["seq", bounds_check, ["sdiv", "l", divisor]]
+
             elif ltyp == rtyp and ltyp in ("int128", "int256"):
                 arith = ["sdiv", "l", divisor]
 
@@ -587,7 +649,9 @@ class Expr:
                 arith = ["smod", "l", divisor]
 
         elif isinstance(self.expr.op, vy_ast.Pow):
-            if ltyp != "int128" and ltyp != "uint256" and isinstance(self.expr.right, vy_ast.Name):
+            if ltyp not in ("int128", "int256", "uint256") and isinstance(
+                self.expr.right, vy_ast.Name
+            ):
                 return
             new_typ = BaseType(ltyp)
 
