@@ -752,8 +752,6 @@ class Expr:
         elif isinstance(self.expr.op, (vy_ast.In, vy_ast.NotIn)) and isinstance(
             right.typ, ListType
         ):
-            if left.typ != right.typ.subtype:
-                return
             return self.build_in_comparator()
 
         if isinstance(self.expr.op, vy_ast.Gt):
@@ -806,22 +804,16 @@ class Expr:
                 )
 
         # Compare other types.
-        if not is_numeric_type(left.typ) or not is_numeric_type(right.typ):
-            if op not in ("eq", "ne"):
-                return
-
-        literals = {left.typ.is_literal, right.typ.is_literal}
-        types = {left.typ.typ, right.typ.typ}
-
-        # Special case where int literal may be recasted.
-        if literals == {True, False} and len(types) > 1 and "decimal" not in types:
-            op = self._signed_to_unsigned_comparision_op(op)
-            return LLLnode.from_list([op, left, right], typ="bool", pos=getpos(self.expr))
-
-        if left.typ.typ == right.typ.typ:
-            if left.typ.typ == "uint256":
+        if is_numeric_type(left.typ) and is_numeric_type(right.typ):
+            if left.typ.typ == right.typ.typ == "uint256":
+                # this works because we only have one unsigned integer type
+                # in the future if others are added, this logic must be expanded
                 op = self._signed_to_unsigned_comparision_op(op)
-            return LLLnode.from_list([op, left, right], typ="bool", pos=getpos(self.expr))
+
+        elif op not in ("eq", "ne"):
+            return
+
+        return LLLnode.from_list([op, left, right], typ="bool", pos=getpos(self.expr))
 
     def parse_BoolOp(self):
         for value in self.expr.values:
