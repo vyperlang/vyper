@@ -755,7 +755,10 @@ class Decimal(Num):
     def validate(self):
         if self.value.as_tuple().exponent < -MAX_DECIMAL_PLACES:
             raise InvalidLiteral("Vyper supports a maximum of ten decimal points", self)
-        super().validate()
+        if self.value < SizeLimits.MIN_INT128:
+            raise OverflowException("Value is below lower bound for decimal types", self)
+        if self.value > SizeLimits.MAX_INT128:
+            raise OverflowException("Value exceeds upper bound for decimal types", self)
 
 
 class Hex(Constant):
