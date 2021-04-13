@@ -7,12 +7,22 @@ a: int128
 b: uint256
 c: address
 d: Bytes[32]
+e: int256
 
 @external
 def int128_to_bytes32(inp: int128) -> (bytes32, bytes32, bytes32):
     self.a = inp
     memory: bytes32 = convert(inp, bytes32)
     storage: bytes32 = convert(self.a, bytes32)
+    literal: bytes32 = convert(1, bytes32)
+    return  memory, storage, literal
+
+
+@external
+def int256_to_bytes32(inp: int256) -> (bytes32, bytes32, bytes32):
+    self.e = inp
+    memory: bytes32 = convert(inp, bytes32)
+    storage: bytes32 = convert(self.e, bytes32)
     literal: bytes32 = convert(1, bytes32)
     return  memory, storage, literal
 
@@ -46,6 +56,7 @@ def bytes_to_bytes32_from_smaller(inp: Bytes[10]) -> bytes32:
 
     c = get_contract_with_gas_estimation(code)
     assert c.int128_to_bytes32(1) == [bytes_helper("", 31) + b"\x01"] * 3
+    assert c.int256_to_bytes32(1) == [bytes_helper("", 31) + b"\x01"] * 3
     assert c.uint256_to_bytes32(1) == [bytes_helper("", 31) + b"\x01"] * 3
     assert (
         c.address_to_bytes32(w3.eth.accounts[0])
