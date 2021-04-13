@@ -37,13 +37,16 @@ def test_version_check(evm_version):
     assert opcodes.version_check(begin=evm_version, end=evm_version)
     if evm_version not in ("byzantium", "atlantis"):
         assert not opcodes.version_check(end="byzantium")
-    if evm_version != "istanbul":
-        assert not opcodes.version_check(begin="istanbul")
+    istanbul_check = opcodes.version_check(begin="istanbul")
+    assert istanbul_check == (opcodes.EVM_VERSIONS[evm_version] >= opcodes.EVM_VERSIONS["istanbul"])
 
 
 def test_get_opcodes(evm_version):
     op = opcodes.get_opcodes()
-    if evm_version == "istanbul":
+    if evm_version == "berlin":
+        assert "CHAINID" in op
+        assert op["SLOAD"][-1] == 2100
+    elif evm_version == "istanbul":
         assert "CHAINID" in op
         assert op["SLOAD"][-1] == 800
     else:
