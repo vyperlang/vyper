@@ -29,17 +29,18 @@ EVM_VERSIONS: Dict[str, int] = {
     "constantinople": 1,
     "petersburg": 1,
     "istanbul": 2,
+    "berlin": 3,
     # ETC Forks
     "atlantis": 0,
     "agharta": 1,
 }
-DEFAULT_EVM_VERSION: str = "istanbul"
+DEFAULT_EVM_VERSION: str = "berlin"
 
 
 # opcode as hex value
 # number of values removed from stack
 # number of values added to stack
-# gas cost (byzantium, constantinople, istanbul)
+# gas cost (byzantium, constantinople, istanbul, berlin)
 OPCODES: OpcodeMap = {
     "STOP": (0x00, 0, 0, 0),
     "ADD": (0x01, 2, 1, 3),
@@ -79,11 +80,11 @@ OPCODES: OpcodeMap = {
     "CODESIZE": (0x38, 0, 1, 2),
     "CODECOPY": (0x39, 3, 0, 3),
     "GASPRICE": (0x3A, 0, 1, 2),
-    "EXTCODESIZE": (0x3B, 1, 1, 700),
-    "EXTCODECOPY": (0x3C, 4, 0, 700),
+    "EXTCODESIZE": (0x3B, 1, 1, (700, 700, 700, 2600)),
+    "EXTCODECOPY": (0x3C, 4, 0, (700, 700, 700, 2600)),
     "RETURNDATASIZE": (0x3D, 0, 1, 2),
     "RETURNDATACOPY": (0x3E, 3, 0, 3),
-    "EXTCODEHASH": (0x3F, 1, 1, (None, 400, 700)),
+    "EXTCODEHASH": (0x3F, 1, 1, (None, 400, 700, 2600)),
     "BLOCKHASH": (0x40, 1, 1, 20),
     "COINBASE": (0x41, 0, 1, 2),
     "TIMESTAMP": (0x42, 0, 1, 2),
@@ -96,7 +97,7 @@ OPCODES: OpcodeMap = {
     "MLOAD": (0x51, 1, 1, 3),
     "MSTORE": (0x52, 2, 0, 3),
     "MSTORE8": (0x53, 2, 0, 3),
-    "SLOAD": (0x54, 1, 1, (200, 200, 800)),
+    "SLOAD": (0x54, 1, 1, (200, 200, 800, 2100)),
     "SSTORE": (0x55, 2, 0, 20000),
     "JUMP": (0x56, 1, 0, 8),
     "JUMPI": (0x57, 2, 0, 10),
@@ -174,13 +175,13 @@ OPCODES: OpcodeMap = {
     "LOG3": (0xA3, 5, 0, 1500),
     "LOG4": (0xA4, 6, 0, 1875),
     "CREATE": (0xF0, 3, 1, 32000),
-    "CALL": (0xF1, 7, 1, 700),
-    "CALLCODE": (0xF2, 7, 1, 700),
+    "CALL": (0xF1, 7, 1, (700, 700, 700, 2100)),
+    "CALLCODE": (0xF2, 7, 1, (700, 700, 700, 2100)),
     "RETURN": (0xF3, 2, 0, 0),
-    "DELEGATECALL": (0xF4, 6, 1, 700),
+    "DELEGATECALL": (0xF4, 6, 1, (700, 700, 700, 2100)),
     "CREATE2": (0xF5, 4, 1, (None, 32000)),
     "SELFDESTRUCT": (0xFF, 1, 0, 25000),
-    "STATICCALL": (0xFA, 6, 1, 40),
+    "STATICCALL": (0xFA, 6, 1, (700, 700, 700, 2100)),
     "REVERT": (0xFD, 2, 0, 0),
     "INVALID": (0xFE, 0, 0, 0),
     "DEBUG": (0xA5, 1, 0, 0),
