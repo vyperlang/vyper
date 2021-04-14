@@ -478,7 +478,10 @@ class Expr:
         types = {left.typ.typ, right.typ.typ}
         literals = {left.typ.is_literal, right.typ.is_literal}
 
-        # Special case where int literal may be recasted.
+        # If one value of the operation is a literal, we recast it to match the non-literal type.
+        # We know this is OK because types were already verified in the actual typechecking pass.
+        # This is a temporary solution to not break parser while we work toward removing types
+        # altogether at this stage of complition. @iamdefinitelyahuman
         if literals == {True, False} and len(types) > 1 and "decimal" not in types:
             if left.typ.is_literal and SizeLimits.in_bounds(right.typ.typ, left.value):
                 left = LLLnode.from_list(
@@ -489,14 +492,12 @@ class Expr:
                     right.value, typ=BaseType(left.typ.typ, None, is_literal=True), pos=pos,
                 )
 
-        if left.typ.typ == "decimal" and isinstance(self.expr.op, vy_ast.Pow):
-            return
-
-        # Only allow explicit conversions to occur.
-        if left.typ.typ != right.typ.typ:
-            return
-
         ltyp, rtyp = left.typ.typ, right.typ.typ
+        if ltyp != rtyp:
+            # Sanity check - ensure that we aren't dealing with different types
+            # This should be unreachable due to the type check pass
+            return
+
         arith = None
         if isinstance(self.expr.op, (vy_ast.Add, vy_ast.Sub)):
             new_typ = BaseType(ltyp)
@@ -586,10 +587,10 @@ class Expr:
                     ],
                 ]
 
-            elif ltyp == rtyp == "int128":
+            elif ltyp == "int128":
                 arith = ["mul", "l", "r"]
 
-            elif ltyp == rtyp == "decimal":
+            elif ltyp == "decimal":
                 arith = [
                     "with",
                     "ans",
@@ -613,7 +614,7 @@ class Expr:
                 # only apply the non-zero clamp when r is not a constant
                 divisor = ["clamp_nonzero", "r"]
 
-            if ltyp == rtyp == "uint256":
+            if ltyp == "uint256":
                 arith = ["div", "l", divisor]
 
             elif ltyp == "int256":
@@ -634,10 +635,10 @@ class Expr:
                     bounds_check = "pass"
                 arith = ["seq", bounds_check, ["sdiv", "l", divisor]]
 
-            elif ltyp == rtyp and ltyp in ("int128", "int256"):
+            elif ltyp in ("int128", "int256"):
                 arith = ["sdiv", "l", divisor]
 
-            elif ltyp == rtyp == "decimal":
+            elif ltyp == "decimal":
                 arith = [
                     "sdiv",
                     ["mul", "l", DECIMAL_DIVISOR],
@@ -656,17 +657,12 @@ class Expr:
                 # only apply the non-zero clamp when r is not a constant
                 divisor = ["clamp_nonzero", "r"]
 
-            if ltyp == rtyp == "uint256":
+            if ltyp == "uint256":
                 arith = ["mod", "l", divisor]
-            elif ltyp == rtyp:
-                # TODO should this be regular mod
+            else:
                 arith = ["smod", "l", divisor]
 
         elif isinstance(self.expr.op, vy_ast.Pow):
-            if ltyp not in ("int128", "int256", "uint256") and isinstance(
-                self.expr.right, vy_ast.Name
-            ):
-                return
             new_typ = BaseType(ltyp)
 
             if self.expr.left.get("value") == 1:
