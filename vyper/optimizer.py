@@ -60,6 +60,7 @@ def apply_general_optimizations(node: LLLnode) -> LLLnode:
 
     if node.value == "seq":
         _merge_memzero(argz)
+        _merge_calldataload(argz)
 
     if node.value in arith and int_at(argz, 0) and int_at(argz, 1):
         left, right = get_int_at(argz, 0), get_int_at(argz, 1)
@@ -284,6 +285,53 @@ def _merge_memzero(argz):
                 argz.remove(i)
 
         initial_offset = 0
+        total_length = 0
+        mstore_nodes.clear()
+
+
+def _merge_calldataload(argz):
+    # look for sequential operations copying from calldata to memory
+    # and merge them into a single calldatacopy operation
+    mstore_nodes: List = []
+    initial_mem_offset = 0
+    initial_calldata_offset = 0
+    total_length = 0
+    for lll_node in [i for i in argz if i.value != "pass"]:
+        if (
+            lll_node.value == "mstore"
+            and isinstance(lll_node.args[0].value, int)
+            and lll_node.args[1].value == "calldataload"
+            and isinstance(lll_node.args[1].args[0].value, int)
+        ):
+            # mstore of a zero value
+            mem_offset = lll_node.args[0].value
+            calldata_offset = lll_node.args[1].args[0].value
+            if not mstore_nodes:
+                initial_mem_offset = mem_offset
+                initial_calldata_offset = calldata_offset
+            if (
+                initial_mem_offset + total_length == mem_offset
+                and initial_calldata_offset + total_length == calldata_offset
+            ):
+                mstore_nodes.append(lll_node)
+                total_length += 32
+                continue
+
+        # if we get this far, the current node is a different operation
+        # it's time to apply the optimization if possible
+        if len(mstore_nodes) > 1:
+            new_lll = LLLnode.from_list(
+                ["calldatacopy", initial_mem_offset, initial_calldata_offset, total_length],
+                pos=mstore_nodes[0].pos,
+            )
+            # replace first copy operation with optimized node and remove the rest
+            idx = argz.index(mstore_nodes[0])
+            argz[idx] = new_lll
+            for i in mstore_nodes[1:]:
+                argz.remove(i)
+
+        initial_mem_offset = 0
+        initial_calldata_offset = 0
         total_length = 0
         mstore_nodes.clear()
 
