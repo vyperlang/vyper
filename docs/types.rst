@@ -48,7 +48,61 @@ Operator              Description
 Short-circuiting of boolean operators (``or`` and ``and``) is consistent with
 the behavior of Python.
 
-.. index:: ! int128, ! int, ! integer
+.. index:: ! int256, ! int, ! integer
+
+Signed Integer (256 bit)
+------------------------
+
+**Keyword:** ``int256``
+
+A signed integer (256 bit) is a type to store positive and negative integers.
+
+Values
+******
+
+Signed integer values between -2\ :sup:`255` and (2\ :sup:`255` - 1), inclusive.
+
+Interger literals cannot have a decimal point even if the decimal value is zero. For example, ``2.0`` cannot be interpreted as an integer.
+
+Operators
+*********
+
+Comparisons
+^^^^^^^^^^^
+
+Comparisons return a boolean value.
+
+==========  ================
+Operator    Description
+==========  ================
+``x < y``   Less than
+``x <= y``  Less than or equal to
+``x == y``  Equals
+``x != y``  Does not equal
+``x >= y``  Greater than or equal to
+``x > y``   Greater than
+==========  ================
+
+``x`` and ``y`` must be of the type ``int256``.
+
+Arithmetic Operators
+^^^^^^^^^^^^^^^^^^^^
+
+=============  ======================
+Operator       Description
+=============  ======================
+``x + y``      Addition
+``x - y``      Subtraction
+``-x``         Unary minus/Negation
+``x * y``      Multiplication
+``x / y``      Division
+``x**y``       Exponentiation
+``x % y``      Modulo
+=============  ======================
+
+``x`` and ``y`` must be of the type ``int256``.
+
+.. index:: ! int128
 
 Signed Integer (128 bit)
 ------------------------
