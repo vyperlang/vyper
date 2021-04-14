@@ -5,6 +5,7 @@ from decimal import Decimal
 from vyper import ast as vy_ast
 from vyper.exceptions import InvalidLiteral, StructureException, TypeMismatch
 from vyper.functions.signatures import signature
+from vyper.opcodes import version_check
 from vyper.parser.arg_clamps import address_clamp, int128_clamp
 from vyper.parser.parser_utils import LLLnode, byte_array_to_num, getpos
 from vyper.types import BaseType, ByteArrayType, StringType, get_type
@@ -190,9 +191,12 @@ def to_int256(expr, args, kwargs, context):
         return LLLnode.from_list(in_arg, typ=BaseType("int256"), pos=getpos(expr))
 
     elif isinstance(in_arg, LLLnode) and input_type == "uint256":
-        # TODO bitshift to save gas on the bounds check
+        if version_check(begin="constantinople"):
+            upper_bound = ["shl", 255, 1]
+        else:
+            upper_bound = -(2 ** 255)
         return LLLnode.from_list(
-            ["uclample", in_arg, SizeLimits.MAX_INT256], typ=BaseType("int256"), pos=getpos(expr)
+            ["uclamplt", in_arg, upper_bound], typ=BaseType("int256"), pos=getpos(expr)
         )
 
     elif isinstance(in_arg, LLLnode) and input_type == "decimal":

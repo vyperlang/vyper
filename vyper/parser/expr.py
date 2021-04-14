@@ -559,12 +559,19 @@ class Expr:
                 ]
 
             elif ltyp == "int256":
+                if version_check(begin="constantinople"):
+                    upper_bound = ["shl", 255, 1]
+                else:
+                    upper_bound = -(2 ** 255)
                 if not left.typ.is_literal and not right.typ.is_literal:
-                    bounds_check = ["assert", ["or", ["ne", "l", -1], ["ne", "r", -(2 ** 255)]]]
+                    bounds_check = [
+                        "assert",
+                        ["or", ["ne", "l", ["not", 0]], ["ne", "r", upper_bound]],
+                    ]
                 elif left.typ.is_literal and left.value == -1:
-                    bounds_check = ["assert", ["ne", "r", -(2 ** 255)]]
+                    bounds_check = ["assert", ["ne", "r", upper_bound]]
                 elif right.typ.is_literal and right.value == -(2 ** 255):
-                    bounds_check = ["assert", ["ne", "l", -1]]
+                    bounds_check = ["assert", ["ne", "l", ["not", 0]]]
                 else:
                     bounds_check = "pass"
                 arith = [
@@ -610,12 +617,19 @@ class Expr:
                 arith = ["div", "l", divisor]
 
             elif ltyp == "int256":
+                if version_check(begin="constantinople"):
+                    upper_bound = ["shl", 255, 1]
+                else:
+                    upper_bound = -(2 ** 255)
                 if not left.typ.is_literal and not right.typ.is_literal:
-                    bounds_check = ["assert", ["or", ["ne", "r", -1], ["ne", "l", -(2 ** 255)]]]
+                    bounds_check = [
+                        "assert",
+                        ["or", ["ne", "r", ["not", 0]], ["ne", "l", upper_bound]],
+                    ]
                 elif left.typ.is_literal and left.value == -(2 ** 255):
-                    bounds_check = ["assert", ["ne", "r", -1]]
+                    bounds_check = ["assert", ["ne", "r", ["not", 0]]]
                 elif right.typ.is_literal and right.value == -1:
-                    bounds_check = ["assert", ["ne", "l", -(2 ** 255)]]
+                    bounds_check = ["assert", ["ne", "l", upper_bound]]
                 else:
                     bounds_check = "pass"
                 arith = ["seq", bounds_check, ["sdiv", "l", divisor]]
