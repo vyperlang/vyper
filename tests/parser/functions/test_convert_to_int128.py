@@ -356,3 +356,21 @@ def conv_max_literal_alt() -> int128:
     assert c.conv_max_literal() == SizeLimits.MAX_INT128
     assert c.conv_max_stor_alt() == SizeLimits.MAX_INT128
     assert c.conv_max_literal_alt() == SizeLimits.MAX_INT128
+
+
+def test_convert_from_int256(get_contract_with_gas_estimation, assert_tx_failed):
+    code = """
+@external
+def test(foo: int256) -> int128:
+    return convert(foo, int128)
+    """
+
+    c = get_contract_with_gas_estimation(code)
+    assert c.test(0) == 0
+    assert c.test(-1) == -1
+    assert c.test(2 ** 127 - 1) == 2 ** 127 - 1
+    assert c.test(-(2 ** 127)) == -(2 ** 127)
+    assert_tx_failed(lambda: c.test(2 ** 127))
+    assert_tx_failed(lambda: c.test(2 ** 255 - 1))
+    assert_tx_failed(lambda: c.test(-(2 ** 127) - 1))
+    assert_tx_failed(lambda: c.test(-(2 ** 255)))

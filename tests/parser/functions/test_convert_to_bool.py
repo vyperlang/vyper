@@ -210,3 +210,20 @@ def test_sender() -> bool:
 
     assert c.test_literal_zero_address() is False
     assert c.test_sender() is True
+
+
+def test_convert_from_int256(get_contract_with_gas_estimation):
+    code = """
+@external
+def foo(bar: int256) -> bool:
+    foobar: bool = convert(bar, bool)
+    return foobar
+    """
+
+    c = get_contract_with_gas_estimation(code)
+    assert c.foo(100) is True
+    assert c.foo(0) is False
+    assert c.foo(-1) is True
+    assert c.foo(1) is True
+    assert c.foo(-(2 ** 255)) is True
+    assert c.foo(2 ** 255 - 1) is True

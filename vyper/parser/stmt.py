@@ -23,7 +23,6 @@ from vyper.types import (
     StructType,
     TupleType,
     get_size_of_type,
-    is_base_type,
     parse_type,
 )
 from vyper.utils import SizeLimits, bytes_to_int, fourbytes_to_int, keccak256
@@ -211,11 +210,11 @@ class Stmt:
         is_integer_literal = (
             isinstance(arg_expr.typ, BaseType)
             and arg_expr.typ.is_literal
-            and arg_expr.typ.typ in {"uint256", "int128"}
+            and arg_expr.typ.typ in {"uint256", "int256"}
         )
         if not is_integer_literal and raise_exception:
             raise StructureException(
-                "Range only accepts literal (constant) values of type uint256 or int128",
+                "Range only accepts literal (constant) values of type uint256 or int256",
                 arg_ast_node,
             )
         return is_integer_literal, arg_expr
@@ -232,10 +231,10 @@ class Stmt:
                 return self._parse_For_list()
 
     def _parse_For_range(self):
-        # attempt to use the type specified by type checking, fall back to `int128`
+        # attempt to use the type specified by type checking, fall back to `int256`
         # this is a stopgap solution to allow uint256 - it will be properly solved
         # once we refactor `vyper.parser`
-        iter_typ = "int128"
+        iter_typ = "int256"
         if "type" in self.stmt.target._metadata:
             iter_typ = self.stmt.target._metadata["type"]._id
 
@@ -283,15 +282,17 @@ class Stmt:
             iter_list_node = Expr(self.stmt.iter, self.context).lll_node
         if not isinstance(iter_list_node.typ.subtype, BaseType):  # Sanity check on list subtype.
             return
+
         iter_var_type = (
             self.context.vars.get(self.stmt.iter.id).typ
             if isinstance(self.stmt.iter, vy_ast.Name)
             else None
         )
-        subtype = iter_list_node.typ.subtype.typ
+        subtype = BaseType(self.stmt.target._metadata["type"]._id)
+        iter_list_node.typ.subtype = subtype
         varname = self.stmt.target.id
-        value_pos = self.context.new_variable(varname, BaseType(subtype),)
-        i_pos = self.context.new_internal_variable(BaseType(subtype))
+        value_pos = self.context.new_variable(varname, subtype)
+        i_pos = self.context.new_internal_variable(subtype)
         self.context.forvars[varname] = True
 
         # Is a list that is already allocated to memory.
@@ -321,8 +322,8 @@ class Stmt:
             # Allocate list to memory.
             count = iter_list_node.typ.count
             tmp_list = LLLnode.from_list(
-                obj=self.context.new_internal_variable(ListType(iter_list_node.typ.subtype, count)),
-                typ=ListType(iter_list_node.typ.subtype, count),
+                obj=self.context.new_internal_variable(ListType(subtype, count)),
+                typ=ListType(subtype, count),
                 location="memory",
             )
             setter = make_setter(tmp_list, iter_list_node, "memory", pos=getpos(self.stmt))
@@ -422,9 +423,7 @@ class Stmt:
         if isinstance(sub.typ, BaseType):
             sub = unwrap_location(sub)
 
-            if self.context.return_type != sub.typ and not sub.typ.is_literal:
-                return
-            elif sub.typ.is_literal and (
+            if sub.typ.is_literal and (
                 self.context.return_type.typ == sub.typ
                 or "int" in self.context.return_type.typ
                 and "int" in sub.typ.typ
@@ -440,9 +439,7 @@ class Stmt:
                         pos=getpos(self.stmt),
                         valency=0,
                     )
-            elif is_base_type(sub.typ, self.context.return_type.typ) or (
-                is_base_type(sub.typ, "int128") and is_base_type(self.context.return_type, "int256")
-            ):  # noqa: E501
+            elif isinstance(sub.typ, BaseType):
                 return LLLnode.from_list(
                     ["seq", ["mstore", 0, sub], make_return_stmt(self.stmt, self.context, 0, 32)],
                     typ=None,
@@ -490,9 +487,7 @@ class Stmt:
 
         elif isinstance(sub.typ, ListType):
             loop_memory_position = self.context.new_internal_variable(typ=BaseType("uint256"))
-            if sub.typ != self.context.return_type:
-                return
-            elif sub.location == "memory" and sub.value != "multi":
+            if sub.location == "memory" and sub.value != "multi":
                 return LLLnode.from_list(
                     make_return_stmt(
                         self.stmt,

@@ -96,6 +96,8 @@ class SizeLimits:
     ADDRSIZE = 2 ** 160
     MAX_INT128 = 2 ** 127 - 1
     MIN_INT128 = -(2 ** 127)
+    MAX_INT256 = 2 ** 255 - 1
+    MIN_INT256 = -(2 ** 255)
     MAXDECIMAL = (2 ** 127 - 1) * DECIMAL_DIVISOR
     MINDECIMAL = (-(2 ** 127)) * DECIMAL_DIVISOR
     MAX_UINT256 = 2 ** 256 - 1
@@ -109,6 +111,8 @@ class SizeLimits:
             return 0 <= value <= cls.MAX_UINT256
         elif type_str == "int128":
             return cls.MIN_INT128 <= value <= cls.MAX_INT128
+        elif type_str == "int256":
+            return cls.MIN_INT256 <= value <= cls.MAX_INT256
         else:
             raise Exception(f'Unknown type "{type_str}" supplied.')
 
@@ -168,7 +172,7 @@ VALID_LLL_MACROS = {
 }
 
 # Available base types
-BASE_TYPES = {"int128", "decimal", "bytes32", "uint256", "bool", "address"}
+BASE_TYPES = {"int128", "int256", "decimal", "bytes32", "uint256", "bool", "address"}
 
 
 def is_instances(instances, instance_type):

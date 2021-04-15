@@ -1,7 +1,11 @@
 from typing import Optional, Tuple, Type, Union
 
 from vyper import ast as vy_ast
-from vyper.context.types.abstract import FixedAbstractType, IntegerAbstractType
+from vyper.context.types.abstract import (
+    FixedAbstractType,
+    SignedIntegerAbstractType,
+    UnsignedIntegerAbstractType,
+)
 from vyper.context.types.bases import (
     BasePrimitive,
     BaseTypeDefinition,
@@ -123,11 +127,15 @@ class _NumericPrimitive(BasePrimitive):
 # definitions
 
 
-class Int128Definition(IntegerAbstractType, _SignedIntegerDefinition):
+class Int128Definition(SignedIntegerAbstractType, _SignedIntegerDefinition):
     _bits = 128
 
 
-class Uint256Definition(IntegerAbstractType, _UnsignedIntegerDefinition):
+class Int256Definition(SignedIntegerAbstractType, _SignedIntegerDefinition):
+    _bits = 256
+
+
+class Uint256Definition(UnsignedIntegerAbstractType, _UnsignedIntegerDefinition):
     _bits = 256
     _invalid_op = vy_ast.USub
 
@@ -150,6 +158,13 @@ class Int128Primitive(_NumericPrimitive):
     _bounds = (-(2 ** 127), 2 ** 127 - 1)
     _id = "int128"
     _type = Int128Definition
+    _valid_literal = (vy_ast.Int,)
+
+
+class Int256Primitive(_NumericPrimitive):
+    _bounds = (-(2 ** 255), 2 ** 255 - 1)
+    _id = "int256"
+    _type = Int256Definition
     _valid_literal = (vy_ast.Int,)
 
 

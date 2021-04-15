@@ -5,13 +5,14 @@ from decimal import Decimal
 from vyper import ast as vy_ast
 from vyper.exceptions import InvalidLiteral, StructureException, TypeMismatch
 from vyper.functions.signatures import signature
+from vyper.opcodes import version_check
 from vyper.parser.arg_clamps import address_clamp, int128_clamp
 from vyper.parser.parser_utils import LLLnode, byte_array_to_num, getpos
 from vyper.types import BaseType, ByteArrayType, StringType, get_type
 from vyper.utils import DECIMAL_DIVISOR, MemoryPositions, SizeLimits
 
 
-@signature(("decimal", "int128", "uint256", "address", "bytes32", "Bytes"), "*")
+@signature(("decimal", "int128", "int256", "uint256", "address", "bytes32", "Bytes"), "*")
 def to_bool(expr, args, kwargs, context):
     in_arg = args[0]
     input_type, _ = get_type(in_arg)
@@ -34,7 +35,18 @@ def to_bool(expr, args, kwargs, context):
 
 
 @signature(
-    ("num_literal", "bool", "decimal", "uint256", "address", "bytes32", "Bytes", "String"), "*"
+    (
+        "num_literal",
+        "bool",
+        "decimal",
+        "int256",
+        "uint256",
+        "address",
+        "bytes32",
+        "Bytes",
+        "String",
+    ),
+    "*",
 )
 def to_int128(expr, args, kwargs, context):
     in_arg = args[0]
@@ -52,7 +64,7 @@ def to_int128(expr, args, kwargs, context):
         else:
             raise InvalidLiteral(f"Unknown numeric literal type: {in_arg}")
 
-    elif input_type == "bytes32":
+    elif input_type in ("bytes32", "int256"):
         if in_arg.typ.is_literal:
             if not SizeLimits.in_bounds("int128", in_arg.value):
                 raise InvalidLiteral(f"Number out of range: {in_arg.value}", expr)
@@ -105,7 +117,9 @@ def to_int128(expr, args, kwargs, context):
         raise InvalidLiteral(f"Invalid input for int128: {in_arg}", expr)
 
 
-@signature(("num_literal", "int128", "bytes32", "Bytes", "address", "bool", "decimal"), "*")
+@signature(
+    ("num_literal", "int128", "int256", "bytes32", "Bytes", "address", "bool", "decimal"), "*"
+)
 def to_uint256(expr, args, kwargs, context):
     in_arg = args[0]
     input_type, _ = get_type(in_arg)
@@ -122,7 +136,7 @@ def to_uint256(expr, args, kwargs, context):
         else:
             raise InvalidLiteral(f"Unknown numeric literal type: {in_arg}")
 
-    elif isinstance(in_arg, LLLnode) and input_type == "int128":
+    elif isinstance(in_arg, LLLnode) and input_type in ("int128", "int256"):
         return LLLnode.from_list(["clampge", in_arg, 0], typ=BaseType("uint256"), pos=getpos(expr))
 
     elif isinstance(in_arg, LLLnode) and input_type == "decimal":
@@ -151,7 +165,65 @@ def to_uint256(expr, args, kwargs, context):
         raise InvalidLiteral(f"Invalid input for uint256: {in_arg}", expr)
 
 
-@signature(("bool", "int128", "uint256", "bytes32", "Bytes", "address"), "*")
+# TODO address support isn't added yet because of weirdness with int128 -> address
+# conversions. in the next breaking release we should modify how address conversions work
+# so it can make sense for many signed integer types. @iamdefinitelyahuman
+@signature(
+    ("num_literal", "int128", "uint256", "bytes32", "Bytes", "String", "bool", "decimal"), "*"
+)
+def to_int256(expr, args, kwargs, context):
+    in_arg = args[0]
+    input_type, _ = get_type(in_arg)
+
+    if input_type == "num_literal":
+        if isinstance(in_arg, int):
+            if not SizeLimits.in_bounds("int256", in_arg):
+                raise InvalidLiteral(f"Number out of range: {in_arg}")
+            return LLLnode.from_list(in_arg, typ=BaseType("int256",), pos=getpos(expr))
+        elif isinstance(in_arg, Decimal):
+            if not SizeLimits.in_bounds("int256", math.trunc(in_arg)):
+                raise InvalidLiteral(f"Number out of range: {math.trunc(in_arg)}")
+            return LLLnode.from_list(math.trunc(in_arg), typ=BaseType("int256"), pos=getpos(expr))
+        else:
+            raise InvalidLiteral(f"Unknown numeric literal type: {in_arg}")
+
+    elif isinstance(in_arg, LLLnode) and input_type == "int128":
+        return LLLnode.from_list(in_arg, typ=BaseType("int256"), pos=getpos(expr))
+
+    elif isinstance(in_arg, LLLnode) and input_type == "uint256":
+        if version_check(begin="constantinople"):
+            upper_bound = ["shl", 255, 1]
+        else:
+            upper_bound = -(2 ** 255)
+        return LLLnode.from_list(
+            ["uclamplt", in_arg, upper_bound], typ=BaseType("int256"), pos=getpos(expr)
+        )
+
+    elif isinstance(in_arg, LLLnode) and input_type == "decimal":
+        return LLLnode.from_list(
+            ["sdiv", in_arg, DECIMAL_DIVISOR], typ=BaseType("int256"), pos=getpos(expr),
+        )
+
+    elif isinstance(in_arg, LLLnode) and input_type == "bool":
+        return LLLnode.from_list(in_arg, typ=BaseType("int256"), pos=getpos(expr))
+
+    elif isinstance(in_arg, LLLnode) and input_type in ("bytes32", "address"):
+        return LLLnode(
+            value=in_arg.value, args=in_arg.args, typ=BaseType("int256"), pos=getpos(expr)
+        )
+
+    elif isinstance(in_arg, LLLnode) and input_type in ("Bytes", "String"):
+        if in_arg.typ.maxlen > 32:
+            raise TypeMismatch(
+                f"Cannot convert bytes array of max length {in_arg.typ.maxlen} to int256", expr,
+            )
+        return byte_array_to_num(in_arg, expr, "int256")
+
+    else:
+        raise InvalidLiteral(f"Invalid input for int256: {in_arg}", expr)
+
+
+@signature(("bool", "int128", "int256", "uint256", "bytes32", "Bytes", "address"), "*")
 def to_decimal(expr, args, kwargs, context):
     in_arg = args[0]
     input_type, _ = get_type(in_arg)
@@ -221,6 +293,13 @@ def to_decimal(expr, args, kwargs, context):
                     pos=getpos(expr),
                 )
 
+        elif input_type == "int256":
+            return LLLnode.from_list(
+                ["seq", int128_clamp(in_arg), ["mul", in_arg, DECIMAL_DIVISOR]],
+                typ=BaseType("decimal"),
+                pos=getpos(expr),
+            )
+
         elif input_type in ("int128", "bool"):
             return LLLnode.from_list(
                 ["mul", in_arg, DECIMAL_DIVISOR], typ=BaseType("decimal"), pos=getpos(expr)
@@ -230,7 +309,7 @@ def to_decimal(expr, args, kwargs, context):
             raise InvalidLiteral(f"Invalid input for decimal: {in_arg}", expr)
 
 
-@signature(("int128", "uint256", "address", "Bytes", "bool", "decimal"), "*")
+@signature(("int128", "int256", "uint256", "address", "Bytes", "bool", "decimal"), "*")
 def to_bytes32(expr, args, kwargs, context):
     in_arg = args[0]
     input_type, _len = get_type(in_arg)
@@ -320,6 +399,7 @@ def convert(expr, context):
 CONVERSION_TABLE = {
     "bool": to_bool,
     "int128": to_int128,
+    "int256": to_int256,
     "uint256": to_uint256,
     "decimal": to_decimal,
     "bytes32": to_bytes32,

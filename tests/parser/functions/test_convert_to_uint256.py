@@ -234,3 +234,18 @@ def foobar() -> uint256:
 
     c = get_contract_with_gas_estimation(code)
     assert_tx_failed(lambda: c.foobar())
+
+
+def test_convert_from_int256(get_contract_with_gas_estimation, assert_tx_failed):
+    code = """
+@external
+def foo(a: int256) -> uint256:
+    return convert(a, uint256)
+    """
+    c = get_contract_with_gas_estimation(code)
+
+    assert c.foo(0) == 0
+    assert c.foo(2 ** 255 - 1) == 2 ** 255 - 1
+
+    assert_tx_failed(lambda: c.foo(-1))
+    assert_tx_failed(lambda: c.foo(-(2 ** 255)))

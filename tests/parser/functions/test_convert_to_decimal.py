@@ -173,3 +173,21 @@ def conv_neg1_stor() -> decimal:
 
     assert c.conv((b"\x00" * 19) + b"\x01") == 1.0
     assert c.conv((b"\x00" * 18) + b"\x01\x00") == 256.0
+
+
+def test_convert_from_int256(get_contract_with_gas_estimation, assert_tx_failed):
+    code = """
+@external
+def test(foo: int256) -> decimal:
+    return convert(foo, decimal)
+    """
+
+    c = get_contract_with_gas_estimation(code)
+    assert c.test(0) == 0
+    assert c.test(-1) == -1
+    assert c.test(2 ** 127 - 1) == 2 ** 127 - 1
+    assert c.test(-(2 ** 127)) == -(2 ** 127)
+    assert_tx_failed(lambda: c.test(2 ** 127))
+    assert_tx_failed(lambda: c.test(2 ** 255 - 1))
+    assert_tx_failed(lambda: c.test(-(2 ** 127) - 1))
+    assert_tx_failed(lambda: c.test(-(2 ** 255)))

@@ -1,3 +1,6 @@
+from typing import Tuple
+
+
 class AbstractDataType:
     """
     Base class for abstract type classes.
@@ -8,6 +11,11 @@ class AbstractDataType:
     consideration for syntax. For example, a function that accepts either `int128`
     or `uint256` might perform this comparison using `IntegerAbstractType`.
     """
+
+    # tuple of string type names used in `vyper.functions.signatures` to support abstract types
+    # as input types in builtin functions. this is a temporary solution until the `functions`
+    # subpackage is refactored - @iamdefinitelyahuman
+    _id_list: Tuple
 
     def compare_type(self, other):
         try:
@@ -45,12 +53,28 @@ class NumericAbstractType(AbstractDataType):
     """
 
     _description = "numeric value"
+    _id_list: Tuple = ("int128", "int256", "decimal", "uint256")
 
 
 class IntegerAbstractType(NumericAbstractType):
-    """Abstract data class for integer numeric types (int128, uint256)."""
+    """Abstract data class for integer numeric types (signed and unsigned)."""
 
     _description = "integer"
+    _id_list: Tuple = ("int128", "int256", "uint256")
+
+
+class SignedIntegerAbstractType(IntegerAbstractType):
+    """Abstract data class for signed integer numeric types."""
+
+    _description = "signed integer"
+    _id_list: Tuple = ("int128", "int256")
+
+
+class UnsignedIntegerAbstractType(IntegerAbstractType):
+    """Abstract data class for unsigned integer numeric types."""
+
+    _description = "unsigned integer"
+    _id_list: Tuple = ("uint256",)
 
 
 class FixedAbstractType(NumericAbstractType):

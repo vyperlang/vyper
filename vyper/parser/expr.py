@@ -50,6 +50,8 @@ BUILTIN_CONSTANTS = {
     "ZERO_ADDRESS": (0, "address"),
     "MAX_INT128": (SizeLimits.MAX_INT128, "int128"),
     "MIN_INT128": (SizeLimits.MIN_INT128, "int128"),
+    "MAX_INT256": (SizeLimits.MAX_INT256, "int256"),
+    "MIN_INT256": (SizeLimits.MIN_INT256, "int256"),
     "MAX_DECIMAL": (SizeLimits.MAXDECIMAL, "decimal"),
     "MIN_DECIMAL": (SizeLimits.MINDECIMAL, "decimal"),
     "MAX_UINT256": (SizeLimits.MAX_UINT256, "uint256"),
@@ -203,10 +205,10 @@ class Expr:
             raise TypeCheckFailure(f"{type(node).__name__} node did not produce LLL")
 
     def parse_Int(self):
-        # Literal (mostly likely) becomes int128
-        if SizeLimits.in_bounds("int128", self.expr.n) or self.expr.n < 0:
+        # Literal (mostly likely) becomes int256
+        if self.expr.n < 0:
             return LLLnode.from_list(
-                self.expr.n, typ=BaseType("int128", is_literal=True), pos=getpos(self.expr),
+                self.expr.n, typ=BaseType("int256", is_literal=True), pos=getpos(self.expr),
             )
         # Literal is large enough (mostly likely) becomes uint256.
         else:
@@ -472,50 +474,80 @@ class Expr:
         if not is_numeric_type(left.typ) or not is_numeric_type(right.typ):
             return
 
-        arithmetic_pair = {left.typ.typ, right.typ.typ}
         pos = getpos(self.expr)
+        types = {left.typ.typ, right.typ.typ}
+        literals = {left.typ.is_literal, right.typ.is_literal}
 
-        # Special case with uint256 were int literal may be casted.
-        if arithmetic_pair == {"uint256", "int128"}:
-            # Check right side literal.
-            if right.typ.is_literal and SizeLimits.in_bounds("uint256", right.value):
-                right = LLLnode.from_list(
-                    right.value, typ=BaseType("uint256", None, is_literal=True), pos=pos,
-                )
-
-            # Check left side literal.
-            elif left.typ.is_literal and SizeLimits.in_bounds("uint256", left.value):
+        # If one value of the operation is a literal, we recast it to match the non-literal type.
+        # We know this is OK because types were already verified in the actual typechecking pass.
+        # This is a temporary solution to not break parser while we work toward removing types
+        # altogether at this stage of complition. @iamdefinitelyahuman
+        if literals == {True, False} and len(types) > 1 and "decimal" not in types:
+            if left.typ.is_literal and SizeLimits.in_bounds(right.typ.typ, left.value):
                 left = LLLnode.from_list(
-                    left.value, typ=BaseType("uint256", None, is_literal=True), pos=pos,
+                    left.value, typ=BaseType(right.typ.typ, None, is_literal=True), pos=pos,
                 )
-
-        if left.typ.typ == "decimal" and isinstance(self.expr.op, vy_ast.Pow):
-            return
-
-        # Only allow explicit conversions to occur.
-        if left.typ.typ != right.typ.typ:
-            return
+            elif right.typ.is_literal and SizeLimits.in_bounds(left.typ.typ, right.value):
+                right = LLLnode.from_list(
+                    right.value, typ=BaseType(left.typ.typ, None, is_literal=True), pos=pos,
+                )
 
         ltyp, rtyp = left.typ.typ, right.typ.typ
+        if ltyp != rtyp:
+            # Sanity check - ensure that we aren't dealing with different types
+            # This should be unreachable due to the type check pass
+            return
+
         arith = None
         if isinstance(self.expr.op, (vy_ast.Add, vy_ast.Sub)):
             new_typ = BaseType(ltyp)
-            op = "add" if isinstance(self.expr.op, vy_ast.Add) else "sub"
 
-            if ltyp == "uint256" and isinstance(self.expr.op, vy_ast.Add):
-                # safeadd
-                arith = ["seq", ["assert", ["ge", ["add", "l", "r"], "l"]], ["add", "l", "r"]]
+            if ltyp == "uint256":
+                if isinstance(self.expr.op, vy_ast.Add):
+                    # safeadd
+                    arith = ["seq", ["assert", ["ge", ["add", "l", "r"], "l"]], ["add", "l", "r"]]
 
-            elif ltyp == "uint256" and isinstance(self.expr.op, vy_ast.Sub):
-                # safesub
-                arith = ["seq", ["assert", ["ge", "l", "r"]], ["sub", "l", "r"]]
+                elif isinstance(self.expr.op, vy_ast.Sub):
+                    # safesub
+                    arith = ["seq", ["assert", ["ge", "l", "r"]], ["sub", "l", "r"]]
 
-            elif ltyp == rtyp:
+            elif ltyp == "int256":
+                if isinstance(self.expr.op, vy_ast.Add):
+                    op, comp1, comp2 = "add", "sge", "slt"
+                else:
+                    op, comp1, comp2 = "sub", "sle", "sgt"
+
+                if right.typ.is_literal:
+                    if right.value >= 0:
+                        arith = ["seq", ["assert", [comp1, [op, "l", "r"], "l"]], [op, "l", "r"]]
+                    else:
+                        arith = ["seq", ["assert", [comp2, [op, "l", "r"], "l"]], [op, "l", "r"]]
+                else:
+                    arith = [
+                        "with",
+                        "ans",
+                        [op, "l", "r"],
+                        [
+                            "seq",
+                            [
+                                "assert",
+                                [
+                                    "or",
+                                    ["and", ["sge", "r", 0], [comp1, "ans", "l"]],
+                                    ["and", ["slt", "r", 0], [comp2, "ans", "l"]],
+                                ],
+                            ],
+                            "ans",
+                        ],
+                    ]
+
+            elif ltyp in ("decimal", "int128"):
+                op = "add" if isinstance(self.expr.op, vy_ast.Add) else "sub"
                 arith = [op, "l", "r"]
 
         elif isinstance(self.expr.op, vy_ast.Mult):
             new_typ = BaseType(ltyp)
-            if ltyp == rtyp == "uint256":
+            if ltyp == "uint256":
                 arith = [
                     "with",
                     "ans",
@@ -527,12 +559,38 @@ class Expr:
                     ],
                 ]
 
-            elif ltyp == rtyp == "int128":
-                # TODO should this be 'smul' (note edge cases in YP for smul)
+            elif ltyp == "int256":
+                if version_check(begin="constantinople"):
+                    upper_bound = ["shl", 255, 1]
+                else:
+                    upper_bound = -(2 ** 255)
+                if not left.typ.is_literal and not right.typ.is_literal:
+                    bounds_check = [
+                        "assert",
+                        ["or", ["ne", "l", ["not", 0]], ["ne", "r", upper_bound]],
+                    ]
+                elif left.typ.is_literal and left.value == -1:
+                    bounds_check = ["assert", ["ne", "r", upper_bound]]
+                elif right.typ.is_literal and right.value == -(2 ** 255):
+                    bounds_check = ["assert", ["ne", "l", ["not", 0]]]
+                else:
+                    bounds_check = "pass"
+                arith = [
+                    "with",
+                    "ans",
+                    ["mul", "l", "r"],
+                    [
+                        "seq",
+                        bounds_check,
+                        ["assert", ["or", ["eq", ["sdiv", "ans", "l"], "r"], ["iszero", "l"]]],
+                        "ans",
+                    ],
+                ]
+
+            elif ltyp == "int128":
                 arith = ["mul", "l", "r"]
 
-            elif ltyp == rtyp == "decimal":
-                # TODO should this be smul
+            elif ltyp == "decimal":
                 arith = [
                     "with",
                     "ans",
@@ -556,16 +614,33 @@ class Expr:
                 # only apply the non-zero clamp when r is not a constant
                 divisor = ["clamp_nonzero", "r"]
 
-            if ltyp == rtyp == "uint256":
+            if ltyp == "uint256":
                 arith = ["div", "l", divisor]
 
-            elif ltyp == rtyp == "int128":
+            elif ltyp == "int256":
+                if version_check(begin="constantinople"):
+                    upper_bound = ["shl", 255, 1]
+                else:
+                    upper_bound = -(2 ** 255)
+                if not left.typ.is_literal and not right.typ.is_literal:
+                    bounds_check = [
+                        "assert",
+                        ["or", ["ne", "r", ["not", 0]], ["ne", "l", upper_bound]],
+                    ]
+                elif left.typ.is_literal and left.value == -(2 ** 255):
+                    bounds_check = ["assert", ["ne", "r", ["not", 0]]]
+                elif right.typ.is_literal and right.value == -1:
+                    bounds_check = ["assert", ["ne", "l", upper_bound]]
+                else:
+                    bounds_check = "pass"
+                arith = ["seq", bounds_check, ["sdiv", "l", divisor]]
+
+            elif ltyp in ("int128", "int256"):
                 arith = ["sdiv", "l", divisor]
 
-            elif ltyp == rtyp == "decimal":
+            elif ltyp == "decimal":
                 arith = [
                     "sdiv",
-                    # TODO check overflow cases, also should it be smul
                     ["mul", "l", DECIMAL_DIVISOR],
                     divisor,
                 ]
@@ -582,15 +657,12 @@ class Expr:
                 # only apply the non-zero clamp when r is not a constant
                 divisor = ["clamp_nonzero", "r"]
 
-            if ltyp == rtyp == "uint256":
+            if ltyp == "uint256":
                 arith = ["mod", "l", divisor]
-            elif ltyp == rtyp:
-                # TODO should this be regular mod
+            else:
                 arith = ["smod", "l", divisor]
 
         elif isinstance(self.expr.op, vy_ast.Pow):
-            if ltyp != "int128" and ltyp != "uint256" and isinstance(self.expr.right, vy_ast.Name):
-                return
             new_typ = BaseType(ltyp)
 
             if self.expr.left.get("value") == 1:
@@ -601,6 +673,9 @@ class Expr:
             if ltyp == "int128":
                 is_signed = True
                 num_bits = 128
+            elif ltyp == "int256":
+                is_signed = True
+                num_bits = 256
             else:
                 is_signed = False
                 num_bits = 256
@@ -644,7 +719,7 @@ class Expr:
                     ["mload", MemoryPositions.MAXDECIMAL],
                 ]
             )
-        elif new_typ.typ == "uint256":
+        elif new_typ.typ in ("uint256", "int256"):
             p.append(arith)
         else:
             return
@@ -751,8 +826,6 @@ class Expr:
         elif isinstance(self.expr.op, (vy_ast.In, vy_ast.NotIn)) and isinstance(
             right.typ, ListType
         ):
-            if left.typ != right.typ.subtype:
-                return
             return self.build_in_comparator()
 
         if isinstance(self.expr.op, vy_ast.Gt):
@@ -805,39 +878,16 @@ class Expr:
                 )
 
         # Compare other types.
-        if not is_numeric_type(left.typ) or not is_numeric_type(right.typ):
-            if op not in ("eq", "ne"):
-                return
-        left_type, right_type = left.typ.typ, right.typ.typ
+        if is_numeric_type(left.typ) and is_numeric_type(right.typ):
+            if left.typ.typ == right.typ.typ == "uint256":
+                # this works because we only have one unsigned integer type
+                # in the future if others are added, this logic must be expanded
+                op = self._signed_to_unsigned_comparision_op(op)
 
-        # Special Case: comparison of a literal integer. If in valid range allow it to be compared.
-        if {left_type, right_type} == {"int128", "uint256"} and {
-            left.typ.is_literal,
-            right.typ.is_literal,
-        } == {
-            True,
-            False,
-        }:  # noqa: E501
-
-            comparison_allowed = False
-            if left.typ.is_literal and SizeLimits.in_bounds(right_type, left.value):
-                comparison_allowed = True
-            elif right.typ.is_literal and SizeLimits.in_bounds(left_type, right.value):
-                comparison_allowed = True
-            op = self._signed_to_unsigned_comparision_op(op)
-
-            if comparison_allowed:
-                return LLLnode.from_list([op, left, right], typ="bool", pos=getpos(self.expr))
-
-        elif {left_type, right_type} == {"uint256", "uint256"}:
-            op = self._signed_to_unsigned_comparision_op(op)
-        elif (
-            left_type in ("decimal", "int128") or right_type in ("decimal", "int128")
-        ) and left_type != right_type:  # noqa: E501
+        elif op not in ("eq", "ne"):
             return
 
-        if left_type == right_type:
-            return LLLnode.from_list([op, left, right], typ="bool", pos=getpos(self.expr))
+        return LLLnode.from_list([op, left, right], typ="bool", pos=getpos(self.expr))
 
     def parse_BoolOp(self):
         for value in self.expr.values:

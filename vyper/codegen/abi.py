@@ -256,6 +256,8 @@ def abi_type_of(lll_typ):
             return ABI_GIntM(256, False)
         elif "int128" == t:
             return ABI_GIntM(128, True)
+        elif "int256" == t:
+            return ABI_GIntM(256, True)
         elif "address" == t:
             return ABI_Address()
         elif "bytes32" == t:
