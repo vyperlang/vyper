@@ -38,11 +38,14 @@ def validate_version_pragma(version_str: str, start: ParserPosition) -> None:
     """
     from vyper import __version__
 
+    # NOTE: should be `x.y.z.*`
+    installed_version = ".".join(__version__.split(".")[:3])
+
     version_arr = version_str.split("@version")
 
     raw_file_version = version_arr[1].strip()
     strict_file_version = _convert_version_str(raw_file_version)
-    strict_compiler_version = Version(_convert_version_str(__version__))
+    strict_compiler_version = Version(_convert_version_str(installed_version))
 
     if len(strict_file_version) == 0:
         raise VersionException(
@@ -61,7 +64,7 @@ def validate_version_pragma(version_str: str, start: ParserPosition) -> None:
     if not npm_spec.match(strict_compiler_version):
         raise VersionException(
             f'Version specification "{raw_file_version}" is not compatible '
-            f'with compiler version "{__version__}"',
+            f'with compiler version "{installed_version}"',
             start,
         )
 

@@ -69,7 +69,7 @@ def _parse_args(argv):
         "input_files", help="Vyper sourcecode to compile", nargs="+",
     )
     parser.add_argument(
-        "--version", action="version", version=f"{vyper.__version__}+commit.{vyper.__commit__}",
+        "--version", action="version", version=f"{vyper.__version__}",
     )
     parser.add_argument(
         "--show-gas-estimates", help="Show gas estimates in ir output mode.", action="store_true",

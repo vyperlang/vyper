@@ -1,11 +1,6 @@
 # -*- coding: utf-8 -*-
 
-import os
-import subprocess
-
 from setuptools import find_packages, setup
-
-__version__ = "0.2.11"
 
 extras_require = {
     "test": [
@@ -34,23 +29,12 @@ extras_require["dev"] = (
     extras_require["test"] + extras_require["lint"] + extras_require["docs"] + extras_require["dev"]
 )
 
-hash_file_rel_path = os.path.join("vyper", "vyper_git_version.txt")
-hashfile = os.path.relpath(hash_file_rel_path)
-
-try:
-    commithash = subprocess.check_output("git rev-parse HEAD".split())
-    commithash_str = commithash.decode("utf-8").strip()
-    with open(hashfile, "w") as fh:
-        fh.write(f"{__version__}\n{commithash_str}")
-except subprocess.CalledProcessError:
-    pass
-
 with open("README.md", "r") as f:
     long_description = f.read()
 
 setup(
     name="vyper",
-    version=__version__,
+    use_scm_version=True,
     description="Vyper: the Pythonic Programming Language for the EVM",
     long_description=long_description,
     long_description_content_type="text/markdown",
@@ -63,8 +47,13 @@ setup(
     packages=find_packages(exclude=("tests", "docs")),
     python_requires=">=3.6",
     py_modules=["vyper"],
-    install_requires=["asttokens==2.0.4", "pycryptodome>=3.5.1,<4", "semantic-version==2.8.5"],
-    setup_requires=["pytest-runner"],
+    install_requires=[
+        "asttokens==2.0.4",
+        "pycryptodome>=3.5.1,<4",
+        "semantic-version==2.8.5",
+        "importlib-metadata ; python_version<'3.8'",
+    ],
+    setup_requires=["pytest-runner", "setuptools_scm"],
     tests_require=extras_require["test"],
     extras_require=extras_require,
     entry_points={
@@ -80,5 +69,4 @@ setup(
         "License :: OSI Approved :: Apache Software License",
         "Programming Language :: Python :: 3.6",
     ],
-    data_files=[("", [hash_file_rel_path])],
 )

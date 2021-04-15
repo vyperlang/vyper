@@ -48,7 +48,7 @@ def _parse_args(argv):
         nargs="?",
     )
     parser.add_argument(
-        "--version", action="version", version=f"{vyper.__version__}+commit.{vyper.__commit__}",
+        "--version", action="version", version=f"{vyper.__version__}",
     )
     parser.add_argument(
         "-o",
