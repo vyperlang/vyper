@@ -3,6 +3,23 @@
 Release Notes
 #############
 
+v0.2.12
+*******
+
+Date released: 16-04-2021
+
+This release fixes a memory corruption bug (`#2345 <https://github.com/vyperlang/vyper/pull/2345>`_) that was introduced in the v0.2.x series
+and was not fixed in `VVE-2020-0004 <https://github.com/vyperlang/vyper/security/advisories/GHSA-2r3x-4mrv-mcxf>`_. Read about it further in
+`VVE-2021-0001 <https://github.com/vyperlang/vyper/security/advisories/GHSA-22wc-c9wj-6q2v>`_.
+
+Non-breaking changes and improvements:
+
+- Optimize ``calldataload`` (`#2352 <https://github.com/vyperlang/vyper/pull/2352>`_)
+- Add the ``int256`` signed integer type (`#2351 <https://github.com/vyperlang/vyper/pull/2351>`_)
+- EIP2929 opcode repricing and Berlin support (`#2350 <https://github.com/vyperlang/vyper/pull/2350>`_)
+- Add ``msg.data`` environment variable #2343 (`#2343 <https://github.com/vyperlang/vyper/pull/2343>`_)
+- Full support for Python 3.9 (`#2233 <https://github.com/vyperlang/vyper/pull/2233>`_)
+
 v0.2.11
 *******
 
