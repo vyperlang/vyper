@@ -49,20 +49,7 @@ class GlobalContext:
             # Statements of the form:
             # variable_name: type
             elif isinstance(item, vy_ast.AnnAssign):
-                is_implements_statement = (
-                    isinstance(item.target, vy_ast.Name) and item.target.id == "implements"
-                ) and item.annotation
-
-                # implements statement.
-                if is_implements_statement:
-                    interface_name = item.annotation.id  # type: ignore
-                    if interface_name not in global_ctx._interfaces:
-                        raise StructureException(
-                            f"Unknown interface specified: {interface_name}", item
-                        )
-                    global_ctx._implemented_interfaces.add(interface_name)
-                else:
-                    global_ctx.add_globals_and_events(item)
+                global_ctx.add_globals_and_events(item)
             # Function definitions
             elif isinstance(item, vy_ast.FunctionDef):
                 global_ctx._defs.append(item)
