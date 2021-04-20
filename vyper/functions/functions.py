@@ -26,6 +26,7 @@ from vyper.context.types.value.bytes_fixed import Bytes32Definition
 from vyper.context.types.value.numeric import (
     DecimalDefinition,
     Int128Definition,
+    Int256Definition,
     Uint256Definition,
 )
 from vyper.context.validation.utils import (
@@ -38,6 +39,7 @@ from vyper.exceptions import (
     CompilerPanic,
     InvalidLiteral,
     InvalidType,
+    OverflowException,
     StateAccessViolation,
     StructureException,
     TypeMismatch,
@@ -1426,6 +1428,41 @@ class PowMod256(_SimpleBuiltinFunction):
         return LLLnode.from_list(["exp", left, right], typ=left.typ, pos=getpos(expr))
 
 
+class Abs(_SimpleBuiltinFunction):
+    _id = "abs"
+    _inputs = [("value", Int256Definition())]
+    _return_type = Int256Definition()
+
+    def evaluate(self, node):
+        validate_call_args(node, 1)
+        if not isinstance(node.args[0], vy_ast.Int):
+            raise UnfoldableNode
+
+        value = node.args[0].value
+        if not SizeLimits.MIN_INT256 <= value <= SizeLimits.MAX_INT256:
+            raise OverflowException("Literal is outside of allowable range for int256")
+        value = abs(value)
+        if not SizeLimits.MIN_INT256 <= value <= SizeLimits.MAX_INT256:
+            raise OverflowException("Absolute literal value is outside allowable range for int256")
+
+        return vy_ast.Int.from_node(node, value=value)
+
+    def build_LLL(self, expr, context):
+        value = Expr.parse_value_expr(expr.args[0], context)
+        sub = [
+            "with",
+            "orig",
+            value,
+            [
+                "if",
+                ["slt", "orig", 0],
+                ["seq", ["assert", ["ne", "orig", ["sub", 0, "orig"]]], ["sub", 0, "orig"]],
+                "orig",
+            ],
+        ]
+        return LLLnode.from_list(sub, typ=BaseType("int256"), pos=getpos(expr))
+
+
 def get_create_forwarder_to_bytecode():
     from vyper.compile_lll import assembly_to_evm
 
@@ -1703,6 +1740,7 @@ DISPATCH_TABLE = {
     "min": Min(),
     "max": Max(),
     "empty": Empty(),
+    "abs": Abs(),
 }
 
 STMT_DISPATCH_TABLE = {

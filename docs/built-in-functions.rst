@@ -97,7 +97,7 @@ Chain Interaction
 .. py:function:: create_forwarder_to(target: address, value: uint256 = 0) -> address
 
     Deploys a small contract that duplicates the logic of the contract at ``target``, but has it's own state since every call to ``target`` is made using ``DELEGATECALL`` to ``target``. To the end user, this should be indistinguishable from an independantly deployed contract with the same code as ``target``.
-    
+
 .. note::
 
   It is very important that the deployed contract at ``target`` is code you know and trust, and does not implement the ``selfdestruct`` opcode as this will affect the operation of the forwarder contract.
@@ -357,6 +357,24 @@ Data Manipulation
 
 Math
 ====
+
+.. py:function:: abs(value: int256) -> int256
+
+    Return the absolute value of a signed integer.
+
+    * ``value``: Integer to return the absolute value of
+
+    .. code-block:: python
+
+        @external
+        @view
+        def foo(value: int256) -> int256:
+            return abs(value)
+
+    .. code-block:: python
+
+        >>> ExampleContract.foo(-31337)
+        31337
 
 .. py:function:: ceil(value: decimal) -> int128
 
