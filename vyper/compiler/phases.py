@@ -4,7 +4,7 @@ from typing import Optional, Tuple
 
 from vyper import ast as vy_ast
 from vyper import compile_lll, optimizer
-from vyper.context import validate_semantics
+from vyper.context import set_data_positions, validate_semantics
 from vyper.parser import parser
 from vyper.parser.global_context import GlobalContext
 from vyper.typing import InterfaceImports
@@ -175,6 +175,7 @@ def generate_folded_ast(
     vy_ast.folding.fold(vyper_module_folded)
     validate_semantics(vyper_module_folded, interface_codes)
     vy_ast.expansion.expand_annotated_ast(vyper_module_folded)
+    set_data_positions(vyper_module_folded)
 
     return vyper_module_folded
 
