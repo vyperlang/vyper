@@ -165,7 +165,7 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
 
                     # generate function type and add to metadata
                     # we need this when builing the public getter
-                    node._metadata["type"] = ContractFunction.from_AnnAssign(node)
+                    node._metadata["func_type"] = ContractFunction.from_AnnAssign(node)
 
                 # remove the outer call node, to handle cases such as `public(map(..))`
                 annotation = annotation.args[0]
@@ -173,6 +173,7 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
         type_definition = get_type_from_annotation(
             annotation, DataLocation.STORAGE, is_immutable, is_public
         )
+        node._metadata["type"] = type_definition
 
         if is_immutable:
             if not node.value:
@@ -198,6 +199,7 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
             raise exc.with_annotation(node) from None
         try:
             self.namespace["self"].add_member(name, type_definition)
+            node.target._metadata["type"] = type_definition
         except NamespaceCollision:
             raise NamespaceCollision(f"Value '{name}' has already been declared", node) from None
         except VyperException as exc:
@@ -214,6 +216,7 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
         func = ContractFunction.from_FunctionDef(node)
         try:
             self.namespace["self"].add_member(func.name, func)
+            node._metadata["type"] = func
         except VyperException as exc:
             raise exc.with_annotation(node) from None
 
