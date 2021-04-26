@@ -163,7 +163,7 @@ def pack_args_by_32(
             for i in range(0, size):
                 storage_offset = i
                 arg2 = LLLnode.from_list(
-                    ["sload", ["add", ["sha3_32", Expr(arg, context).lll_node], storage_offset]],
+                    ["sload", ["add", Expr(arg, context).lll_node, storage_offset]],
                 )
                 holder, maxlen = pack_args_by_32(
                     holder, maxlen, arg2, typ, context, placeholder + mem_offset, pos=pos,

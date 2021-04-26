@@ -112,14 +112,12 @@ def make_byte_array_copier(destination, source, pos=None):
         length = ["add", ["mload", "_pos"], 32]
     elif source.location == "storage":
         length = ["add", ["sload", "_pos"], 32]
-        pos_node = LLLnode.from_list(
-            ["sha3_32", pos_node], typ=source.typ, location=source.location,
-        )
+        pos_node = LLLnode.from_list(pos_node, typ=source.typ, location=source.location,)
     else:
         raise CompilerPanic(f"Unsupported location: {source.location}")
     if destination.location == "storage":
         destination = LLLnode.from_list(
-            ["sha3_32", destination], typ=destination.typ, location=destination.location,
+            destination, typ=destination.typ, location=destination.location,
         )
     # Maximum theoretical length
     max_length = 32 if source.value is None else source.typ.maxlen + 32
@@ -228,10 +226,8 @@ def byte_array_to_num(
         lengetter = LLLnode.from_list(["mload", "_sub"], typ=BaseType("int256"))
         first_el_getter = LLLnode.from_list(["mload", ["add", 32, "_sub"]], typ=BaseType("int256"))
     elif arg.location == "storage":
-        lengetter = LLLnode.from_list(["sload", ["sha3_32", "_sub"]], typ=BaseType("int256"))
-        first_el_getter = LLLnode.from_list(
-            ["sload", ["add", 1, ["sha3_32", "_sub"]]], typ=BaseType("int256")
-        )
+        lengetter = LLLnode.from_list(["sload", "_sub"], typ=BaseType("int256"))
+        first_el_getter = LLLnode.from_list(["sload", ["add", 1, "_sub"]], typ=BaseType("int256"))
     if out_type == "int128":
         result = int128_clamp(["div", "_el1", ["exp", 256, ["sub", 32, "_len"]]])
     elif out_type in ("int256", "uint256"):
@@ -257,7 +253,7 @@ def get_length(arg):
     if arg.location == "memory":
         return LLLnode.from_list(["mload", arg], typ=BaseType("uint256"))
     elif arg.location == "storage":
-        return LLLnode.from_list(["sload", ["sha3_32", arg]], typ=BaseType("uint256"))
+        return LLLnode.from_list(["sload", arg], typ=BaseType("uint256"))
 
 
 def getpos(node):
@@ -286,11 +282,12 @@ def add_variable_offset(parent, key, pos, array_bounds_check=True):
             annotation = None
 
         if location == "storage":
-            return LLLnode.from_list(
-                ["add", ["sha3_32", parent], LLLnode.from_list(index, annotation=annotation)],
-                typ=subtype,
-                location="storage",
-            )
+            # for arrays and structs, calculate the storage slot by adding an offset
+            # of [index value being accessed] * [size of each item within the sequence]
+            offset = 0
+            for i in range(index):
+                offset += get_size_of_type(typ.members[attrs[i]])
+            return LLLnode.from_list(["add", parent, offset], typ=subtype, location="storage",)
         elif location == "storage_prehashed":
             return LLLnode.from_list(
                 ["add", parent, LLLnode.from_list(index, annotation=annotation)],
@@ -359,8 +356,10 @@ def add_variable_offset(parent, key, pos, array_bounds_check=True):
             sub = ["uclamplt", k, typ.count]
 
         if location == "storage":
+            # storage slot determined as [initial storage slot] + [index] * [size of base type]
+            offset = get_size_of_type(subtype)
             return LLLnode.from_list(
-                ["add", ["sha3_32", parent], sub], typ=subtype, location="storage", pos=pos
+                ["add", parent, ["mul", sub, offset]], typ=subtype, location="storage", pos=pos
             )
         elif location == "storage_prehashed":
             return LLLnode.from_list(["add", parent, sub], typ=subtype, location="storage", pos=pos)
@@ -530,9 +529,6 @@ def make_setter(left, right, location, pos, in_function_call=False):
             return
 
         left_token = LLLnode.from_list("_L", typ=left.typ, location=left.location)
-        if left.location == "storage":
-            left = LLLnode.from_list(["sha3_32", left], typ=left.typ, location="storage_prehashed")
-            left_token.location = "storage_prehashed"
         # If the right side is a literal
         if right.value in ["multi", "seq_unchecked"] and right.typ.is_literal:
             if right.value == "seq_unchecked":
@@ -606,9 +602,6 @@ def make_setter(left, right, location, pos, in_function_call=False):
                     return
 
         left_token = LLLnode.from_list("_L", typ=left.typ, location=left.location)
-        if left.location == "storage":
-            left = LLLnode.from_list(["sha3_32", left], typ=left.typ, location="storage_prehashed")
-            left_token.location = "storage_prehashed"
         keyz = left.typ.tuple_keys()
 
         # If the left side is a literal

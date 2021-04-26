@@ -265,9 +265,7 @@ class Slice:
         # Copies over bytearray data
         if sub.location == "storage":
             adj_sub = LLLnode.from_list(
-                ["add", ["sha3_32", sub], ["add", ["div", "_start", 32], 1]],
-                typ=sub.typ,
-                location=sub.location,
+                ["add", sub, ["add", ["div", "_start", 32], 1]], typ=sub.typ, location=sub.location,
             )
         else:
             adj_sub = LLLnode.from_list(
@@ -441,11 +439,9 @@ class Concat:
                         ["add", "_arg", 32], typ=arg.typ, location=arg.location,
                     )
                 elif arg.location == "storage":
-                    length = LLLnode.from_list(
-                        ["sload", ["sha3_32", "_arg"]], typ=BaseType("int128")
-                    )
+                    length = LLLnode.from_list(["sload", "_arg"], typ=BaseType("int128"))
                     argstart = LLLnode.from_list(
-                        ["add", ["sha3_32", "_arg"], 1], typ=arg.typ, location=arg.location,
+                        ["add", "_arg", 1], typ=arg.typ, location=arg.location,
                     )
                 # Make a copier to copy over data from that argument
                 seq.append(
@@ -789,9 +785,7 @@ def _memory_element_getter(index):
 
 
 def _storage_element_getter(index):
-    return LLLnode.from_list(
-        ["sload", ["add", ["sha3_32", "_sub"], ["add", 1, index]]], typ=BaseType("int128"),
-    )
+    return LLLnode.from_list(["sload", ["add", "_sub", ["add", 1, index]]], typ=BaseType("int128"),)
 
 
 class Extract32(_SimpleBuiltinFunction):
@@ -823,7 +817,7 @@ class Extract32(_SimpleBuiltinFunction):
             lengetter = LLLnode.from_list(["mload", "_sub"], typ=BaseType("int128"))
             elementgetter = _memory_element_getter
         elif sub.location == "storage":
-            lengetter = LLLnode.from_list(["sload", ["sha3_32", "_sub"]], typ=BaseType("int128"))
+            lengetter = LLLnode.from_list(["sload", "_sub"], typ=BaseType("int128"))
             elementgetter = _storage_element_getter
         # TODO: unclosed if/elif clause.  Undefined behavior if `sub.location`
         # isn't one of `memory`/`storage`

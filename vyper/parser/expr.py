@@ -753,7 +753,7 @@ class Expr:
         elif right.location == "storage":
             load_i_from_list = [
                 "sload",
-                ["add", ["sha3_32", right], ["mload", MemoryPositions.FREE_LOOP_INDEX]],
+                ["add", right, ["mload", MemoryPositions.FREE_LOOP_INDEX]],
             ]
         else:
             load_operation = "mload" if right.location == "memory" else "calldataload"
@@ -870,7 +870,7 @@ class Expr:
                     if side.location == "memory":
                         return ["mload", ["add", 32, side]]
                     elif side.location == "storage":
-                        return ["sload", ["add", 1, ["sha3_32", side]]]
+                        return ["sload", ["add", 1, side]]
 
                 return LLLnode.from_list(
                     [op, load_bytearray(left), load_bytearray(right)],

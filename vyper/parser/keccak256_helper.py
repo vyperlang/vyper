@@ -31,7 +31,7 @@ def keccak256_helper(expr, args, kwargs, context):
             pos=getpos(expr),
         )
     elif sub.location == "storage":
-        lengetter = LLLnode.from_list(["sload", ["sha3_32", "_sub"]], typ=BaseType("int128"))
+        lengetter = LLLnode.from_list(["sload", "_sub"], typ=BaseType("int128"))
     else:
         # This should never happen, but just left here for future compiler-writers.
         raise Exception(f"Unsupported location: {sub.location}")  # pragma: no test
