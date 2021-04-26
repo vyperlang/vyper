@@ -358,9 +358,10 @@ class Expr:
                 )
         # self.x: global attribute
         elif isinstance(self.expr.value, vy_ast.Name) and self.expr.value.id == "self":
+            type_ = self.expr._metadata["type"]
             var = self.context.globals[self.expr.attr]
             return LLLnode.from_list(
-                var.pos,
+                type_.position.position,
                 typ=var.typ,
                 location="storage",
                 pos=getpos(self.expr),

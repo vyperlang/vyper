@@ -192,10 +192,11 @@ def make_external_call(stmt_expr, context):
         and stmt_expr.func.value.attr in context.sigs
     ):  # noqa: E501
         contract_name = stmt_expr.func.value.attr
+        type_ = stmt_expr.func.value._metadata["type"]
         var = context.globals[stmt_expr.func.value.attr]
         contract_address = unwrap_location(
             LLLnode.from_list(
-                var.pos,
+                type_.position.position,
                 typ=var.typ,
                 location="storage",
                 pos=getpos(stmt_expr),
@@ -220,10 +221,11 @@ def make_external_call(stmt_expr, context):
     ):
 
         contract_name = context.globals[stmt_expr.func.value.attr].typ.name
+        type_ = stmt_expr.func.value._metadata["type"]
         var = context.globals[stmt_expr.func.value.attr]
         contract_address = unwrap_location(
             LLLnode.from_list(
-                var.pos,
+                type_.position.position,
                 typ=var.typ,
                 location="storage",
                 pos=getpos(stmt_expr),
