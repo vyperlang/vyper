@@ -1,6 +1,8 @@
 from vyper import ast as vy_ast
+from vyper.context.types.bases import BaseTypeDefinition
 from vyper.context.types.function import ContractFunction
 from vyper.context.types.meta.event import Event
+from vyper.context.types.meta.struct import StructPrimitive
 from vyper.context.validation.utils import (
     get_common_types,
     get_exact_type_from_node,
@@ -40,7 +42,6 @@ class StatementAnnotationVisitor(_AnnotationVisitorBase):
     ignored_types = (
         vy_ast.Break,
         vy_ast.Continue,
-        vy_ast.For,
         vy_ast.Pass,
         vy_ast.Raise,
     )
@@ -93,6 +94,10 @@ class StatementAnnotationVisitor(_AnnotationVisitorBase):
         if node.value is not None:
             self.expr_visitor.visit(node.value, self.func.return_type)
 
+    def visit_For(self, node):
+        if isinstance(node.iter, (vy_ast.Name, vy_ast.Attribute)):
+            self.expr_visitor.visit(node.iter)
+
 
 class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
 
@@ -105,6 +110,7 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
     def visit_Attribute(self, node, type_):
         base_type = get_exact_type_from_node(node.value)
         node._metadata["type"] = base_type.get_member(node.attr, None)
+        self.visit(node.value, None)
 
     def visit_BinOp(self, node, type_):
         if type_ is None:
@@ -122,10 +128,20 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
     def visit_Call(self, node, type_):
         call_type = get_exact_type_from_node(node.func)
         node._metadata["type"] = type_ or call_type.fetch_call_return(node)
+        self.visit(node.func)
 
         if isinstance(call_type, (Event, ContractFunction)):
+            # events and internal function calls
             for arg, arg_type in zip(node.args, list(call_type.arguments.values())):
                 self.visit(arg, arg_type)
+        elif isinstance(call_type, StructPrimitive):
+            # literal structs
+            for value, arg_type in zip(node.args[0].values, list(call_type.members.values())):
+                self.visit(value, arg_type)
+        elif node.func.id not in ("empty", "range"):
+            # builtin functions
+            for arg in node.args:
+                self.visit(arg, None)
 
     def visit_Compare(self, node, type_):
         if isinstance(node.op, (vy_ast.In, vy_ast.NotIn)):
@@ -153,6 +169,12 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
         self.visit(node.value, type_)
 
     def visit_List(self, node, type_):
+        if not node.elements:
+            return
+        if type_ is None:
+            type_ = get_possible_types_from_node(node)
+            if len(type_) == 1:
+                type_ = type_.pop()
         node._metadata["type"] = type_
         for element in node.elements:
             self.visit(element, type_.value_type)
@@ -162,7 +184,10 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
 
     def visit_Subscript(self, node, type_):
         base_type = get_exact_type_from_node(node.value)
-        self.visit(node.slice, base_type.get_index_type(node.slice.value))
+        if isinstance(base_type, BaseTypeDefinition):
+            # in the vast majority of cases `base_type` is a type definition,
+            # however there are some edge cases with args to builtin functions
+            self.visit(node.slice, base_type.get_index_type(node.slice.value))
         self.visit(node.value, base_type)
 
     def visit_Tuple(self, node, type_):
