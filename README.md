@@ -49,5 +49,5 @@ python setup.py test
 # Contributing
 * See Issues tab, and feel free to submit your own issues
 * Add PRs if you discover a solution to an existing issue
-* For further discussions and questions talk to us on [gitter](https://gitter.im/vyperlang/community)
+* For further discussions and questions, post in [Discussions](https://github.com/vyperlang/vyper/discussions) or talk to us on [Discord](https://discord.gg/abJEARdx3Q)
 * For more information, see [Contributing](http://vyper.readthedocs.io/en/latest/contributing.html)
