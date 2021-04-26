@@ -3,7 +3,7 @@
 
 [![Build Status](https://github.com/vyperlang/vyper/workflows/Test/badge.svg)](https://github.com/vyperlang/vyper/actions)
 [![Documentation Status](https://readthedocs.org/projects/vyper/badge/?version=latest)](http://vyper.readthedocs.io/en/latest/?badge=latest "ReadTheDocs")
-[![Join the chat at https://gitter.im/vyperlang/community](https://badges.gitter.im/vyperlang/community.svg)](https://gitter.im/vyperlang/community?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge "Gitter")
+[![Discord](https://img.shields.io/discord/591914197219016707.svg?label=%23vyper)](https://discord.gg/abJEARdx3Q)
 
 [![PyPI](https://badge.fury.io/py/vyper.svg)](https://pypi.org/project/vyper "PyPI")
 [![Docker](https://images.microbadger.com/badges/version/vyperlang/vyper.svg)](https://hub.docker.com/r/vyperlang/vyper "DockerHub")
