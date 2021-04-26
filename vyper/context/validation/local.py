@@ -131,7 +131,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         self.vyper_module = vyper_module
         self.fn_node = fn_node
         self.namespace = namespace
-        self.func = namespace["self"].get_member(fn_node.name, fn_node)
+        self.func = fn_node._metadata["type"]
         self.annotation_visitor = StatementAnnotationVisitor(fn_node, namespace)
         namespace.update(self.func.arguments)
 
