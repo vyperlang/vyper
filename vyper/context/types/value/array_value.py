@@ -66,7 +66,9 @@ class _ArrayValueDefinition(ValueTypeDefinition):
         # enough additional slots to store the data if it uses the max available length
         # because this data type is single-bytes, we make it so it takes the max 32 byte
         # boundary as it's size, instead of giving it a size that is not cleanly divisble by 32
-        return 32 + math.ceil(self.length / 32) * 32
+
+        # TODO adding 64 here instead of 32 to be compatible with parser - fix this!
+        return 64 + math.ceil(self.length / 32) * 32
 
     @property
     def canonical_type(self) -> str:
