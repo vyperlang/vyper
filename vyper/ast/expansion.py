@@ -31,7 +31,7 @@ def generate_public_variable_getters(vyper_module: vy_ast.Module) -> None:
     """
 
     for node in vyper_module.get_children(vy_ast.AnnAssign, {"annotation.func.id": "public"}):
-        func_type = node._metadata["type"]
+        func_type = node._metadata["func_type"]
         input_types, return_type = func_type.get_signature()
         input_nodes = []
 
@@ -44,6 +44,7 @@ def generate_public_variable_getters(vyper_module: vy_ast.Module) -> None:
         return_stmt: vy_ast.VyperNode = vy_ast.Attribute(
             value=vy_ast.Name(id="self"), attr=func_type.name
         )
+        return_stmt._metadata["type"] = node._metadata["type"]
 
         for i, type_ in enumerate(input_types):
             if not isinstance(annotation, vy_ast.Subscript):

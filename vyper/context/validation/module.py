@@ -165,7 +165,7 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
 
                     # generate function type and add to metadata
                     # we need this when builing the public getter
-                    node._metadata["type"] = ContractFunction.from_AnnAssign(node)
+                    node._metadata["func_type"] = ContractFunction.from_AnnAssign(node)
 
                 # remove the outer call node, to handle cases such as `public(map(..))`
                 annotation = annotation.args[0]
