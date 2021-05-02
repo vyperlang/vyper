@@ -323,9 +323,7 @@ def to_bytes32(expr, args, kwargs, context):
         if in_arg.location == "memory":
             return LLLnode.from_list(["mload", ["add", in_arg, 32]], typ=BaseType("bytes32"))
         elif in_arg.location == "storage":
-            return LLLnode.from_list(
-                ["sload", ["add", ["sha3_32", in_arg], 1]], typ=BaseType("bytes32")
-            )
+            return LLLnode.from_list(["sload", ["add", in_arg, 1]], typ=BaseType("bytes32"))
 
     else:
         return LLLnode(

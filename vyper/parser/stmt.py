@@ -341,11 +341,7 @@ class Stmt:
             count = iter_list_node.typ.count
             body = [
                 "seq",
-                [
-                    "mstore",
-                    value_pos,
-                    ["sload", ["add", ["sha3_32", iter_list_node], ["mload", i_pos]]],
-                ],
+                ["mstore", value_pos, ["sload", ["add", iter_list_node, ["mload", i_pos]]]],
                 parse_body(self.stmt.body, self.context),
             ]
             lll_node = LLLnode.from_list(

@@ -25,6 +25,50 @@ class DataLocation(Enum):
     CALLDATA = 3
 
 
+class DataPosition:
+    _location: DataLocation
+
+
+class CalldataOffset(DataPosition):
+    __slots__ = (
+        "dynamic_offset",
+        "static_offset",
+    )
+    _location = DataLocation.CALLDATA
+
+    def __init__(self, static_offset, dynamic_offset=None):
+        self.static_offset = static_offset
+        self.dynamic_offset = dynamic_offset
+
+    def __repr__(self):
+        if self.dynamic_offset is not None:
+            return f"<CalldataOffset: static {self.static_offset}, dynamic {self.dynamic_offset})>"
+        else:
+            return f"<CalldataOffset: static {self.static_offset}, no dynamic>"
+
+
+class MemoryOffset(DataPosition):
+    __slots__ = ("offset",)
+    _location = DataLocation.MEMORY
+
+    def __init__(self, offset):
+        self.offset = offset
+
+    def __repr__(self):
+        return f"<MemoryOffset: {self.offset}>"
+
+
+class StorageSlot(DataPosition):
+    __slots__ = ("position",)
+    _location = DataLocation.STORAGE
+
+    def __init__(self, position):
+        self.position = position
+
+    def __repr__(self):
+        return f"<StorageSlot: {self.position}>"
+
+
 class BasePrimitive:
     """
     Base class for primitive type classes.
@@ -213,6 +257,16 @@ class BaseTypeDefinition:
     def from_annotation(self, node: vy_ast.VyperNode, **kwargs: Any) -> None:
         # always raises, user should have used a primitive
         raise StructureException("Value is not a type", node)
+
+    def set_position(self, position: DataPosition) -> None:
+        if hasattr(self, "position"):
+            raise CompilerPanic("Position was already assigned")
+        if self.location != position._location:
+            if self.location == DataLocation.UNSET:
+                self.location = position._location
+            else:
+                raise CompilerPanic("Incompatible locations")
+        self.position = position
 
     def compare_type(
         self, other: Union["BaseTypeDefinition", BasePrimitive, AbstractDataType]
