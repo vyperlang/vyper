@@ -243,6 +243,22 @@ Cryptography
 
     Returns the associated address, or ``0`` on error.
 
+    .. code-block:: python
+
+        @external
+        @view
+        def foo(hash: bytes32, v: uint256, r:uint256, s:uint256) -> address:
+            return ecrecover(hash, v, r, s)
+    
+    .. code-block:: python
+
+        >>> ExampleContract.foo('0x6c9c5e133b8aafb2ea74f524a5263495e7ae5701c7248805f7b511d973dc7055',
+             28,
+             78616903610408968922803823221221116251138855211764625814919875002740131251724, 
+             37668412420813231458864536126575229553064045345107737433087067088194345044408
+            )
+        '0x9eE53ad38Bb67d745223a4257D7d48cE973FeB7A'
+
 .. py:function:: keccak256(_value) -> bytes32
 
     Return a ``keccak256`` hash of the given value.
