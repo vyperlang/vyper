@@ -373,7 +373,7 @@ Fixed-size Lists
 
 Fixed-size lists hold a finite number of elements which belong to a specified type.
 
-Lists can be declared with ``_name: _ValueType[_Integer]``. Multidimensional lists are also possible.
+Lists can be declared with ``_name: _ValueType[_Integer]``.
 
 .. code-block:: python
 
@@ -386,6 +386,24 @@ Lists can be declared with ``_name: _ValueType[_Integer]``. Multidimensional lis
 
     # Returning a value
     return exampleList[0]
+
+Multidimensional lists are also possible. The notation for the declaration is reversed compared to some other languages, but the access notation is not reversed.
+
+A two dimensional list can be declared with ``_name: _ValueType[_Column_Integer][_Row_Integer]``. Elements can be accessed with ``_name: _ValueType[_Row_Integer][_Column_Integer]``.
+
+.. code-block:: python
+
+    # Defining a list with 2 rows and 5 columns and set all values to 0
+    exampleList2D: int128[5][2] = empty(int128[5][2])
+
+    # Setting a value for row the first row (0) and last column (4)
+    exampleList2D[0][4] = 42
+
+    # Setting values
+    exampleList2D = [[10, 11, 12, 13, 14], [16, 17, 18, 19, 20]]
+
+    # Returning the value in row 0 column 4 (in this case 14)
+    return exampleList2D[0][4]
 
 .. _types-struct:
 
