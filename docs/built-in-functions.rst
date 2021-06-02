@@ -172,7 +172,7 @@ Vyper contains a set of built in functions which execute opcodes such as ``SEND`
     * ``to``: Destination address to call to
     * ``data``: Data to send to the destination address
     * ``outsize``: Maximum length of the bytes array returned from the call
-    * ``gas``: Amount of gas to atttach to the call
+    * ``gas``: Amount of gas to attach to the call
     * ``value``: The wei value to send to the address (Optional, default ``0``)
     * ``is_delegate_call``: If ``True``, the call will be sent as ``DELEGATECALL`` (Optional, default ``False``)
 
