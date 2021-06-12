@@ -389,7 +389,7 @@ Lists can be declared with ``_name: _ValueType[_Integer]``.
 
 Multidimensional lists are also possible. The notation for the declaration is reversed compared to some other languages, but the access notation is not reversed.
 
-A two dimensional list can be declared with ``_name: _ValueType[_Column_Integer][_Row_Integer]``. Elements can be accessed with ``_name: _ValueType[_Row_Integer][_Column_Integer]``.
+A two dimensional list can be declared with ``_name: _ValueType[inner_size][outer_size]``. Elements can be accessed with ``_name[outer_index][inner_index]``.
 
 .. code-block:: python
 
