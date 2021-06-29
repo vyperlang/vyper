@@ -1,7 +1,7 @@
 import ast as python_ast
 from typing import Dict, List, Optional, Union
 
-from vyper.ast import nodes as vy_ast
+from vyper import ast as vy_ast
 from vyper.ast.annotation import annotate_python_ast
 from vyper.ast.pre_parser import pre_parse
 from vyper.exceptions import CompilerPanic, ParserException, SyntaxException

@@ -3,7 +3,7 @@ from typing import Optional, Tuple
 
 from asttokens import LineNumbers
 
-from vyper.ast import nodes as vy_ast
+from vyper import ast as vy_ast
 from vyper.exceptions import NatSpecSyntaxException
 
 SINGLE_FIELDS = ("title", "author", "license", "notice", "dev")

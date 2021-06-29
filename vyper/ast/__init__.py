@@ -3,7 +3,7 @@ isort:skip_file
 """
 import sys
 
-from . import nodes, validation
+from . import nodes
 from .natspec import parse_natspec
 from .nodes import compare_nodes
 from .utils import ast_to_dict, parse_to_ast

@@ -4,12 +4,13 @@ from pathlib import Path
 
 import asttokens
 
-from vyper import compile_lll, opcodes
+from vyper.evm import opcodes
+from vyper.lll import compile_lll
 from vyper.ast import ast_to_dict, parse_natspec
 from vyper.compiler.phases import CompilerData
 from vyper.compiler.utils import build_gas_estimates
-from vyper.context.types.function import FunctionVisibility, StateMutability
-from vyper.parser.lll_node import LLLnode
+from vyper.ast.types.function import FunctionVisibility, StateMutability
+from vyper.old_codegen.lll_node import LLLnode
 from vyper.warnings import ContractSizeLimitWarning
 
 
