@@ -1,3 +1,5 @@
+# validation utils for ast
+# TODO this really belongs in vyper/semantics/validation/utils
 from typing import Optional, Union
 
 from vyper.ast import nodes as vy_ast

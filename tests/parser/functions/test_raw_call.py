@@ -2,8 +2,8 @@ import pytest
 from hexbytes import HexBytes
 
 from vyper import compiler
+from vyper.builtin_functions import get_create_forwarder_to_bytecode
 from vyper.exceptions import ArgumentException, StateAccessViolation
-from vyper.functions import get_create_forwarder_to_bytecode
 
 pytestmark = pytest.mark.usefixtures("memory_mocker")
 

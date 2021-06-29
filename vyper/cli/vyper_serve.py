@@ -7,9 +7,9 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from socketserver import ThreadingMixIn
 
 import vyper
+from vyper.evm.opcodes import DEFAULT_EVM_VERSION
 from vyper.exceptions import VyperException
-from vyper.opcodes import DEFAULT_EVM_VERSION
-from vyper.parser import lll_node
+from vyper.old_codegen import lll_node
 
 
 def _parse_cli_args():

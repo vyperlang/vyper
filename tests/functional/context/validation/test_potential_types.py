@@ -1,10 +1,5 @@
 import pytest
 
-from vyper.context.types.indexable.sequence import ArrayDefinition
-from vyper.context.types.value.address import AddressDefinition
-from vyper.context.types.value.boolean import BoolDefinition
-from vyper.context.types.value.numeric import Int128Definition
-from vyper.context.validation.utils import get_possible_types_from_node
 from vyper.exceptions import (
     ArrayIndexException,
     InvalidOperation,
@@ -14,6 +9,11 @@ from vyper.exceptions import (
     UndeclaredDefinition,
     UnknownAttribute,
 )
+from vyper.semantics.types.indexable.sequence import ArrayDefinition
+from vyper.semantics.types.value.address import AddressDefinition
+from vyper.semantics.types.value.boolean import BoolDefinition
+from vyper.semantics.types.value.numeric import Int128Definition
+from vyper.semantics.validation.utils import get_possible_types_from_node
 
 INTEGER_LITERALS = [(42, 31337), (-1, 1), (69, 2 ** 128)]
 DECIMAL_LITERALS = [("4.2", "-1.337")]

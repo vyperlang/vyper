@@ -1,23 +1,23 @@
 import pytest
 
-from vyper.context.types.value.address import AddressPrimitive
-from vyper.context.types.value.array_value import (
-    BytesArrayPrimitive,
-    StringPrimitive,
-)
-from vyper.context.types.value.boolean import BoolPrimitive
-from vyper.context.types.value.bytes_fixed import Bytes32Primitive
-from vyper.context.types.value.numeric import (
-    DecimalPrimitive,
-    Int128Primitive,
-    Uint256Primitive,
-)
 from vyper.exceptions import (
     InvalidLiteral,
     OverflowException,
     StructureException,
     UnexpectedNodeType,
     UnexpectedValue,
+)
+from vyper.semantics.types.value.address import AddressPrimitive
+from vyper.semantics.types.value.array_value import (
+    BytesArrayPrimitive,
+    StringPrimitive,
+)
+from vyper.semantics.types.value.boolean import BoolPrimitive
+from vyper.semantics.types.value.bytes_fixed import Bytes32Primitive
+from vyper.semantics.types.value.numeric import (
+    DecimalPrimitive,
+    Int128Primitive,
+    Uint256Primitive,
 )
 
 BASE_SOURCE = """

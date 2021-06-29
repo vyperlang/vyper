@@ -1,7 +1,7 @@
 import pytest
 from eth_utils import keccak
 
-from vyper.opcodes import EVM_VERSIONS
+from vyper.evm.opcodes import EVM_VERSIONS
 
 
 def _make_tx(w3, address, signature, values):

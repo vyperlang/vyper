@@ -3,7 +3,7 @@ from hypothesis import given, settings
 from hypothesis import strategies as st
 
 from vyper import ast as vy_ast
-from vyper import functions as vy_fn
+from vyper import builtin_functions as vy_fn
 
 st_uint256 = st.integers(min_value=0, max_value=256)
 

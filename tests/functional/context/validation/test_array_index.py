@@ -1,7 +1,6 @@
 import pytest
 
 from vyper.ast import parse_to_ast
-from vyper.context.validation import validate_semantics
 from vyper.exceptions import (
     ArrayIndexException,
     InvalidReference,
@@ -9,6 +8,7 @@ from vyper.exceptions import (
     TypeMismatch,
     UndeclaredDefinition,
 )
+from vyper.semantics.validation import validate_semantics
 
 
 @pytest.mark.parametrize("value", ["address", "Bytes[10]", "decimal", "bool"])

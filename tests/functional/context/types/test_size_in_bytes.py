@@ -1,7 +1,7 @@
 import pytest
 
-from vyper.context.types.bases import DataLocation
-from vyper.context.types.utils import get_type_from_annotation
+from vyper.semantics.types.bases import DataLocation
+from vyper.semantics.types.utils import get_type_from_annotation
 
 BASE_TYPES = ["int128", "uint256", "bool", "address", "bytes32"]
 ARRAY_VALUE_TYPES = ["String", "Bytes"]

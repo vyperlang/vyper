@@ -1,6 +1,6 @@
 from pytest import raises
 
-from vyper.types import (
+from vyper.old_codegen.types import (
     BaseType,
     ByteArrayType,
     ListType,

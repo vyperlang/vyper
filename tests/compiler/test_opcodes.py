@@ -1,7 +1,7 @@
 import pytest
 
 import vyper
-from vyper import opcodes
+from vyper.evm import opcodes
 from vyper.exceptions import CompilerPanic
 
 

@@ -1,7 +1,7 @@
 import pytest
 
 from vyper import ast as vy_ast
-from vyper.context.namespace import get_namespace
+from vyper.semantics.namespace import get_namespace
 
 
 @pytest.fixture(scope="session")

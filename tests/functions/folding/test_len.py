@@ -1,7 +1,7 @@
 import pytest
 
 from vyper import ast as vy_ast
-from vyper import functions as vy_fn
+from vyper import builtin_functions as vy_fn
 
 
 @pytest.mark.parametrize("length", [0, 1, 32, 33, 64, 65, 1024])

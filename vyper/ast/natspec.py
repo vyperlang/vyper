@@ -30,7 +30,7 @@ def parse_natspec(vyper_module_folded: vy_ast.Module) -> Tuple[dict, dict]:
     dict
         NatSpec developer documentation
     """
-    from vyper.context.types.function import FunctionVisibility
+    from vyper.semantics.types.function import FunctionVisibility
 
     userdoc, devdoc = {}, {}
     source: str = vyper_module_folded.full_source_code

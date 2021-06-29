@@ -3,8 +3,8 @@
 import pytest
 
 from vyper.cli.vyper_json import get_input_dict_settings
+from vyper.evm.opcodes import DEFAULT_EVM_VERSION
 from vyper.exceptions import JSONError
-from vyper.opcodes import DEFAULT_EVM_VERSION
 
 
 def test_unknown_evm():
