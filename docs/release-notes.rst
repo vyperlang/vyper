@@ -3,6 +3,16 @@
 Release Notes
 #############
 
+v0.2.13
+*******
+
+Date released: 06-07-2021
+
+Non-breaking changes and improvements:
+
+- Add the ``abs`` builtin function (`#2356 <https://github.com/vyperlang/vyper/pull/2356>`_)
+- Streamline the location of arrays within storage (`#2361 <https://github.com/vyperlang/vyper/pull/2361>`_)
+
 v0.2.12
 *******
 
