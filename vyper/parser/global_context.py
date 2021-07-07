@@ -3,7 +3,7 @@ from typing import Optional
 from vyper import ast as vy_ast
 from vyper.exceptions import CompilerPanic, InvalidType, StructureException
 from vyper.signatures.function_signature import ContractRecord, VariableRecord
-from vyper.types import InterfaceType, parse_type
+from vyper.types import InterfaceType, MappingType, parse_type
 from vyper.typing import InterfaceImports
 
 
@@ -233,7 +233,10 @@ class GlobalContext:
         if key in self._nonrentrant_keys:
             return self._nonrentrant_keys[key]
         else:
-            counter = len(self._globals) + self._nonrentrant_counter
+            counter = (
+                sum(v.size for v in self._globals.values() if not isinstance(v.typ, MappingType))
+                + self._nonrentrant_counter
+            )
             self._nonrentrant_keys[key] = counter
             self._nonrentrant_counter += 1
             return counter
