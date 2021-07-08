@@ -90,6 +90,13 @@ def _parse_args(argv):
         type=int,
     )
     parser.add_argument(
+        "--debug",
+        help="Turn on compiler debug information. "
+        "Currently an alias for --traceback-limit but "
+        "may add more information in the future",
+        action="store_true",
+    )
+    parser.add_argument(
         "--standard-json",
         help="Switch to standard JSON mode. Use `--standard-json -h` for available options.",
         action="store_true",
@@ -104,6 +111,8 @@ def _parse_args(argv):
         sys.tracebacklimit = args.traceback_limit
     elif VYPER_TRACEBACK_LIMIT is not None:
         sys.tracebacklimit = VYPER_TRACEBACK_LIMIT
+    elif args.debug:
+        sys.tracebacklimit = 1000
     else:
         # Python usually defaults sys.tracebacklimit to 1000.  We use a default
         # setting of zero so error printouts only include information about where
