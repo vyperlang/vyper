@@ -185,6 +185,9 @@ class GlobalContext:
 
         item_name, item_attributes = self.get_item_name_and_attributes(item, item_attributes)
 
+        # references to `len(self._globals)` are remnants of deprecated code, retained
+        # to preserve existing interfaces while we complete a larger refactor. location
+        # and size of storage vars is handled in `vyper.context.validation.data_positions`
         if item_name in self._contracts or item_name in self._interfaces:
             if self.get_call_func_name(item) == "address":
                 raise StructureException(
@@ -221,14 +224,12 @@ class GlobalContext:
         """
         Nonrentrant locks use a prefix with a counter to minimise deployment cost of a contract.
 
-        All storage variables are allocated exactly one slot, incrementing from 0.
-        For types that require >1 slot the actual location is determined from a keccak
-        https://github.com/vyperlang/vyper/issues/769
-
-        We're able to set the initial re-entrant counter using `len(self._globals)`
-        because all storage slots are allocated while parsing the module-scope,
-        and re-entrancy locks aren't allocated until later when parsing individual
-        function scopes.
+        We're able to set the initial re-entrant counter using the sum of the sizes
+        of all the storage slots because all storage slots are allocated while parsing
+        the module-scope, and re-entrancy locks aren't allocated until later when parsing
+        individual function scopes. This relies on the deprecated _globals attribute
+        because the new way of doing things (set_data_positions) doesn't expose the
+        next unallocated storage location.
         """
         if key in self._nonrentrant_keys:
             return self._nonrentrant_keys[key]
