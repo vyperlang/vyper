@@ -38,11 +38,46 @@ def __init__():
     ]
     self.foo[0] = [987, 654, 321]
     self.foo[1] = [123, 456, 789]
+
+@external
+@nonreentrant('lock')
+def with_lock():
+    pass
+
+
+@external
+@nonreentrant('otherlock')
+def with_other_lock():
+    pass
 """
 
 
 def test_storage_slots(get_contract):
     c = get_contract(code)
+    assert c.a() == ["ok", [4, 5, 6]]
+    assert [c.b(i) for i in range(2)] == [7, 8]
+    assert c.c() == b"thisisthirtytwobytesokhowdoyoudo"
+    assert [c.d(i) for i in range(4)] == [-1, -2, -3, -4]
+    assert c.e() == "A realllllly long string but we wont use it all"
+    assert c.f(0) == 33
+    assert c.g(0) == [b"hello", [-66, 420], "another string"]
+    assert c.g(1) == [
+        b"gbye",
+        [1337, 888],
+        "whatifthisstringtakesuptheentirelengthwouldthatbesobadidothinkso",
+    ]
+    assert [c.foo(0, i) for i in range(3)] == [987, 654, 321]
+    assert [c.foo(1, i) for i in range(3)] == [123, 456, 789]
+
+
+def test_reentrancy_lock(get_contract):
+    c = get_contract(code)
+
+    # if re-entrancy locks are incorrectly placed within storage, these
+    # calls will either revert or correupt the data that we read later
+    c.with_lock()
+    c.with_other_lock()
+
     assert c.a() == ["ok", [4, 5, 6]]
     assert [c.b(i) for i in range(2)] == [7, 8]
     assert c.c() == b"thisisthirtytwobytesokhowdoyoudo"
