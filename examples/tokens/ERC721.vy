@@ -52,16 +52,16 @@ event ApprovalForAll:
 
 
 # @dev Mapping from NFT ID to the address that owns it.
-idToOwner: HashMap[uint256, address]
+ownerOf: public(HashMap[uint256, address])
 
 # @dev Mapping from NFT ID to approved address.
 idToApprovals: HashMap[uint256, address]
 
-# @dev Mapping from owner address to count of his tokens.
-ownerToNFTokenCount: HashMap[address, uint256]
+# @dev Mapping from owner address to count of their tokens.
+balanceOf: public(HashMap[address, uint256])
 
 # @dev Mapping from owner address to mapping of operator addresses.
-ownerToOperators: HashMap[address, HashMap[address, bool]]
+isApprovedForAll: public(HashMap[address, HashMap[address, bool]])
 
 # @dev Address of minter, who can mint a token
 minter: address
@@ -98,31 +98,6 @@ def supportsInterface(_interfaceID: bytes32) -> bool:
 
 ### VIEW FUNCTIONS ###
 
-@view
-@external
-def balanceOf(_owner: address) -> uint256:
-    """
-    @dev Returns the number of NFTs owned by `_owner`.
-         Throws if `_owner` is the zero address. NFTs assigned to the zero address are considered invalid.
-    @param _owner Address for whom to query the balance.
-    """
-    assert _owner != ZERO_ADDRESS
-    return self.ownerToNFTokenCount[_owner]
-
-
-@view
-@external
-def ownerOf(_tokenId: uint256) -> address:
-    """
-    @dev Returns the address of the owner of the NFT.
-         Throws if `_tokenId` is not a valid NFT.
-    @param _tokenId The identifier for an NFT.
-    """
-    owner: address = self.idToOwner[_tokenId]
-    # Throws if `_tokenId` is not a valid NFT
-    assert owner != ZERO_ADDRESS
-    return owner
-
 
 @view
 @external
@@ -133,19 +108,8 @@ def getApproved(_tokenId: uint256) -> address:
     @param _tokenId ID of the NFT to query the approval of.
     """
     # Throws if `_tokenId` is not a valid NFT
-    assert self.idToOwner[_tokenId] != ZERO_ADDRESS
+    assert self.ownerOf[_tokenId] != ZERO_ADDRESS
     return self.idToApprovals[_tokenId]
-
-
-@view
-@external
-def isApprovedForAll(_owner: address, _operator: address) -> bool:
-    """
-    @dev Checks if `_operator` is an approved operator for `_owner`.
-    @param _owner The address that owns the NFTs.
-    @param _operator The address that acts on behalf of the owner.
-    """
-    return (self.ownerToOperators[_owner])[_operator]
 
 
 ### TRANSFER FUNCTION HELPERS ###
@@ -160,10 +124,10 @@ def _isApprovedOrOwner(_spender: address, _tokenId: uint256) -> bool:
     @return bool whether the msg.sender is approved for the given token ID,
         is an operator of the owner, or is the owner of the token
     """
-    owner: address = self.idToOwner[_tokenId]
+    owner: address = self.ownerOf[_tokenId]
     spenderIsOwner: bool = owner == _spender
     spenderIsApproved: bool = _spender == self.idToApprovals[_tokenId]
-    spenderIsApprovedForAll: bool = (self.ownerToOperators[owner])[_spender]
+    spenderIsApprovedForAll: bool = (self.isApprovedForAll[owner])[_spender]
     return (spenderIsOwner or spenderIsApproved) or spenderIsApprovedForAll
 
 
@@ -174,11 +138,11 @@ def _addTokenTo(_to: address, _tokenId: uint256):
          Throws if `_tokenId` is owned by someone.
     """
     # Throws if `_tokenId` is owned by someone
-    assert self.idToOwner[_tokenId] == ZERO_ADDRESS
+    assert self.ownerOf[_tokenId] == ZERO_ADDRESS
     # Change the owner
-    self.idToOwner[_tokenId] = _to
+    self.ownerOf[_tokenId] = _to
     # Change count tracking
-    self.ownerToNFTokenCount[_to] += 1
+    self.balanceOf[_to] += 1
 
 
 @internal
@@ -188,11 +152,11 @@ def _removeTokenFrom(_from: address, _tokenId: uint256):
          Throws if `_from` is not the current owner.
     """
     # Throws if `_from` is not the current owner
-    assert self.idToOwner[_tokenId] == _from
+    assert self.ownerOf[_tokenId] == _from
     # Change the owner
-    self.idToOwner[_tokenId] = ZERO_ADDRESS
+    self.ownerOf[_tokenId] = ZERO_ADDRESS
     # Change count tracking
-    self.ownerToNFTokenCount[_from] -= 1
+    self.balanceOf[_from] -= 1
 
 
 @internal
@@ -202,7 +166,7 @@ def _clearApproval(_owner: address, _tokenId: uint256):
          Throws if `_owner` is not the current owner.
     """
     # Throws if `_owner` is not the current owner
-    assert self.idToOwner[_tokenId] == _owner
+    assert self.ownerOf[_tokenId] == _owner
     if self.idToApprovals[_tokenId] != ZERO_ADDRESS:
         # Reset approvals
         self.idToApprovals[_tokenId] = ZERO_ADDRESS
@@ -290,14 +254,14 @@ def approve(_approved: address, _tokenId: uint256):
     @param _approved Address to be approved for the given NFT ID.
     @param _tokenId ID of the token to be approved.
     """
-    owner: address = self.idToOwner[_tokenId]
+    owner: address = self.ownerOf[_tokenId]
     # Throws if `_tokenId` is not a valid NFT
     assert owner != ZERO_ADDRESS
     # Throws if `_approved` is the current owner
     assert _approved != owner
     # Check requirements
-    senderIsOwner: bool = self.idToOwner[_tokenId] == msg.sender
-    senderIsApprovedForAll: bool = (self.ownerToOperators[owner])[msg.sender]
+    senderIsOwner: bool = self.ownerOf[_tokenId] == msg.sender
+    senderIsApprovedForAll: bool = (self.isApprovedForAll[owner])[msg.sender]
     assert (senderIsOwner or senderIsApprovedForAll)
     # Set the approval
     self.idToApprovals[_tokenId] = _approved
@@ -316,7 +280,7 @@ def setApprovalForAll(_operator: address, _approved: bool):
     """
     # Throws if `_operator` is the `msg.sender`
     assert _operator != msg.sender
-    self.ownerToOperators[msg.sender][_operator] = _approved
+    self.isApprovedForAll[msg.sender][_operator] = _approved
     log ApprovalForAll(msg.sender, _operator, _approved)
 
 
@@ -354,7 +318,7 @@ def burn(_tokenId: uint256):
     """
     # Check requirements
     assert self._isApprovedOrOwner(msg.sender, _tokenId)
-    owner: address = self.idToOwner[_tokenId]
+    owner: address = self.ownerOf[_tokenId]
     # Throws if `_tokenId` is not a valid NFT
     assert owner != ZERO_ADDRESS
     self._clearApproval(owner, _tokenId)
