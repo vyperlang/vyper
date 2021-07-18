@@ -38,7 +38,7 @@ def mksymbol():
 
 
 def mkdebug(pc_debugger, pos):
-    i = instruction("DEBUG", pos)
+    i = Instruction("DEBUG", pos)
     i.pc_debugger = pc_debugger
     return [i]
 
@@ -74,7 +74,7 @@ def _add_postambles(asm_ops):
             _add_postambles(t)
 
 
-class instruction(str):
+class Instruction(str):
     def __new__(cls, sstr, *args, **kwargs):
         return super().__new__(cls, sstr)
 
@@ -92,7 +92,7 @@ def apply_line_numbers(func):
         code = args[0]
         ret = func(*args, **kwargs)
         new_ret = [
-            instruction(i, code.pos) if isinstance(i, str) and not isinstance(i, instruction) else i
+            Instruction(i, code.pos) if isinstance(i, str) and not isinstance(i, Instruction) else i
             for i in ret
         ]
         return new_ret
@@ -100,6 +100,7 @@ def apply_line_numbers(func):
     return apply_line_no_wrapper
 
 
+@apply_line_numbers
 def compile_to_assembly(code):
     res = _compile_to_assembly(code)
 
@@ -514,7 +515,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
 
 def note_line_num(line_number_map, item, pos):
     # Record line number attached to pos.
-    if isinstance(item, instruction):
+    if isinstance(item, Instruction):
         if item.lineno is not None:
             offsets = (item.lineno, item.col_offset, item.end_lineno, item.end_col_offset)
         else:
