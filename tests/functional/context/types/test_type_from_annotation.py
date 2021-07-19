@@ -1,16 +1,16 @@
 import pytest
 
-from vyper.context.types import get_primitive_types
-from vyper.context.types.bases import DataLocation
-from vyper.context.types.indexable.mapping import MappingDefinition
-from vyper.context.types.indexable.sequence import ArrayDefinition
-from vyper.context.types.utils import get_type_from_annotation
 from vyper.exceptions import (
     ArrayIndexException,
     InvalidType,
     StructureException,
     UndeclaredDefinition,
 )
+from vyper.semantics.types import get_primitive_types
+from vyper.semantics.types.bases import DataLocation
+from vyper.semantics.types.indexable.mapping import MappingDefinition
+from vyper.semantics.types.indexable.sequence import ArrayDefinition
+from vyper.semantics.types.utils import get_type_from_annotation
 
 BASE_TYPES = ["int128", "uint256", "bool", "address", "bytes32"]
 ARRAY_VALUE_TYPES = ["String", "Bytes"]

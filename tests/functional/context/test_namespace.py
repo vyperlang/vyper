@@ -1,13 +1,13 @@
 import pytest
 
-from vyper.context import environment
-from vyper.context.namespace import get_namespace
-from vyper.context.types import get_types
 from vyper.exceptions import (
     CompilerPanic,
     NamespaceCollision,
     UndeclaredDefinition,
 )
+from vyper.semantics import environment
+from vyper.semantics.namespace import get_namespace
+from vyper.semantics.types import get_types
 
 
 def test_get_namespace():

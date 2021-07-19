@@ -2,8 +2,8 @@ from decimal import Decimal
 from typing import Union
 
 from vyper.ast import nodes as vy_ast
+from vyper.builtin_functions import DISPATCH_TABLE
 from vyper.exceptions import UnfoldableNode
-from vyper.functions import DISPATCH_TABLE
 
 BUILTIN_CONSTANTS = {
     "EMPTY_BYTES32": (

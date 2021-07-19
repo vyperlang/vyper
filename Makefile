@@ -19,6 +19,13 @@ dev-init:
 test:
 	pytest
 
+# run pytest but bail out on first error. useful for dev workflow
+quicktest:
+	python setup.py test --addopts -x
+
+mypy:
+	tox -e mypy
+
 lint:
 	tox -e lint
 

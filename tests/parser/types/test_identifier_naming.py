@@ -1,13 +1,13 @@
 import pytest
 
-from vyper.context.namespace import RESERVED_KEYWORDS
+from vyper.builtin_functions import BUILTIN_FUNCTIONS
 from vyper.exceptions import (
     NamespaceCollision,
     StructureException,
     SyntaxException,
 )
-from vyper.functions import BUILTIN_FUNCTIONS
-from vyper.parser.expr import BUILTIN_CONSTANTS, ENVIRONMENT_VARIABLES
+from vyper.old_codegen.expr import BUILTIN_CONSTANTS, ENVIRONMENT_VARIABLES
+from vyper.semantics.namespace import RESERVED_KEYWORDS
 from vyper.utils import FUNCTION_WHITELIST
 
 ALL_RESERVED_KEYWORDS = (

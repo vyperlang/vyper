@@ -1,6 +1,6 @@
 import pytest
 
-from vyper.context.types.meta.event import Event
+from vyper.semantics.types.user.event import Event
 
 EVENT_ID_TESTS = [
     (

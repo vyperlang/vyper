@@ -3,7 +3,7 @@ from hypothesis import given, settings
 from hypothesis import strategies as st
 
 from vyper import ast as vy_ast
-from vyper import functions as vy_fn
+from vyper import builtin_functions as vy_fn
 
 denoms = [x for k in vy_fn.AsWeiValue.wei_denoms.keys() for x in k]
 

@@ -3,10 +3,10 @@ import warnings
 from typing import Optional, Tuple
 
 from vyper import ast as vy_ast
-from vyper import compile_lll, optimizer
-from vyper.context import set_data_positions, validate_semantics
-from vyper.parser import parser
-from vyper.parser.global_context import GlobalContext
+from vyper.lll import compile_lll, optimizer
+from vyper.old_codegen import parser
+from vyper.old_codegen.global_context import GlobalContext
+from vyper.semantics import set_data_positions, validate_semantics
 from vyper.typing import InterfaceImports
 
 

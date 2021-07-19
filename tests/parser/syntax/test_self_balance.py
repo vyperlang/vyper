@@ -1,7 +1,7 @@
 import pytest
 
 from vyper import compiler
-from vyper.opcodes import EVM_VERSIONS
+from vyper.evm.opcodes import EVM_VERSIONS
 
 
 @pytest.mark.parametrize("evm_version", list(EVM_VERSIONS))

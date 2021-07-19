@@ -2,11 +2,11 @@ from decimal import Decimal
 
 import pytest
 
+from vyper.ast.signatures.interface import extract_sigs
+from vyper.builtin_interfaces import ERC20, ERC721
 from vyper.cli.utils import extract_file_interface_imports
 from vyper.compiler import compile_code, compile_codes
 from vyper.exceptions import InterfaceViolation, StructureException
-from vyper.interfaces import ERC20, ERC721
-from vyper.signatures.interface import extract_sigs
 
 
 def test_basic_extract_interface():

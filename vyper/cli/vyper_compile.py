@@ -13,9 +13,9 @@ from vyper.cli.utils import (
     extract_file_interface_imports,
     get_interface_file_path,
 )
-from vyper.opcodes import DEFAULT_EVM_VERSION, EVM_VERSIONS
-from vyper.parser import parser_utils
-from vyper.settings import VYPER_TRACEBACK_LIMIT
+from vyper.compiler.settings import VYPER_TRACEBACK_LIMIT
+from vyper.evm.opcodes import DEFAULT_EVM_VERSION, EVM_VERSIONS
+from vyper.old_codegen import parser_utils
 from vyper.typing import ContractCodes, ContractPath, OutputFormats
 
 T = TypeVar("T")
