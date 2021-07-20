@@ -3,8 +3,20 @@
 Release Notes
 #############
 
+v0.2.14
+*******
+
+Date released: 20-07-2021
+
+Non-breaking changes and improvements:
+- Reduce bytecode by sharing code for clamps (`#2387 <https://github.com/vyperlang/vyper/pull/2387>`_)
+
+Fixes:
+- Storage corruption from re-entrancy locks (`#2379 <https://github.com/vyperlang/vyper/pull/2379>`_)
+
 v0.2.13
 *******
+**THIS RELEASE HAS BEEN PULLED**
 
 Date released: 06-07-2021
 
