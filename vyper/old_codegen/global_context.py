@@ -6,7 +6,7 @@ from vyper.ast.signatures.function_signature import (
     VariableRecord,
 )
 from vyper.exceptions import CompilerPanic, InvalidType, StructureException
-from vyper.old_codegen.types import InterfaceType, MappingType, parse_type
+from vyper.old_codegen.types import InterfaceType, parse_type
 from vyper.typing import InterfaceImports
 
 
@@ -223,26 +223,3 @@ class GlobalContext:
 
     def parse_type(self, ast_node, location):
         return parse_type(ast_node, location, sigs=self._contracts, custom_structs=self._structs,)
-
-    # TODO this is dead code
-    def get_nonrentrant_counter(self, key):
-        """
-        Nonrentrant locks use a prefix with a counter to minimise deployment cost of a contract.
-
-        We're able to set the initial re-entrant counter using the sum of the sizes
-        of all the storage slots because all storage slots are allocated while parsing
-        the module-scope, and re-entrancy locks aren't allocated until later when parsing
-        individual function scopes. This relies on the deprecated _globals attribute
-        because the new way of doing things (set_data_positions) doesn't expose the
-        next unallocated storage location.
-        """
-        if key in self._nonrentrant_keys:
-            return self._nonrentrant_keys[key]
-        else:
-            counter = (
-                sum(v.size for v in self._globals.values() if not isinstance(v.typ, MappingType))
-                + self._nonrentrant_counter
-            )
-            self._nonrentrant_keys[key] = counter
-            self._nonrentrant_counter += 1
-            return counter
