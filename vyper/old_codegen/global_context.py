@@ -224,6 +224,7 @@ class GlobalContext:
     def parse_type(self, ast_node, location):
         return parse_type(ast_node, location, sigs=self._contracts, custom_structs=self._structs,)
 
+    # TODO this is dead code
     def get_nonrentrant_counter(self, key):
         """
         Nonrentrant locks use a prefix with a counter to minimise deployment cost of a contract.

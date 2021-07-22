@@ -48,7 +48,7 @@ def parse_external_function(
     func_type = code._metadata["type"]
 
     # Get nonreentrant lock
-    nonreentrant_pre, nonreentrant_post = get_nonreentrant_lock(func_type, context.global_ctx)
+    nonreentrant_pre, nonreentrant_post = get_nonreentrant_lock(func_type)
 
     clampers = []
 
