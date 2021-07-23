@@ -142,6 +142,8 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
             # builtin functions
             for arg in node.args:
                 self.visit(arg, None)
+            for kwarg in node.keywords:
+                self.visit(kwarg.value, None)
 
     def visit_Compare(self, node, type_):
         if isinstance(node.op, (vy_ast.In, vy_ast.NotIn)):
