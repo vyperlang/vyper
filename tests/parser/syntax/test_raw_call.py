@@ -87,6 +87,16 @@ def foo():
 def foo():
     raw_call(0x1234567890123456789012345678901234567890, b"cow")
     """,
+    """
+balances: HashMap[uint256,uint256]
+@external
+def foo():
+    raw_call(
+        0x1234567890123456789012345678901234567890,
+        b"cow",
+        value=self.balance - self.balances[0]
+    )
+    """,
 ]
 
 
