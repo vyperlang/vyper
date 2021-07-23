@@ -15,7 +15,11 @@ from vyper.exceptions import (
     StructureException,
 )
 from vyper.semantics.namespace import get_namespace
-from vyper.semantics.types.bases import BaseTypeDefinition, DataLocation
+from vyper.semantics.types.bases import (
+    BaseTypeDefinition,
+    DataLocation,
+    StorageSlot,
+)
 from vyper.semantics.types.indexable.sequence import TupleDefinition
 from vyper.semantics.types.user.struct import StructDefinition
 from vyper.semantics.types.utils import (
@@ -341,6 +345,16 @@ class ContractFunction(BaseTypeDefinition):
             raise InvalidType("Function return value must be a type name or tuple", node.returns)
 
         return cls(node.name, arguments, min_arg_count, max_arg_count, return_type, **kwargs)
+
+    def set_reentrancy_key_position(self, position: StorageSlot) -> None:
+        if hasattr(self, "reentrancy_key_position"):
+            raise CompilerPanic("Position was already assigned")
+        if self.nonreentrant is None:
+            raise CompilerPanic("No reentrant key {self}")
+        # sanity check even though implied by the type
+        if position._location != DataLocation.STORAGE:
+            raise CompilerPanic("Non-storage reentrant key")
+        self.reentrancy_key_position = position
 
     @classmethod
     def from_AnnAssign(cls, node: vy_ast.AnnAssign) -> "ContractFunction":

@@ -17,7 +17,7 @@ foo: public(HashMap[uint256, uint256[3]])
 e: public(String[47])
 f: public(int256[1])
 g: public(StructTwo[2])
-h: public(bytes32[5])
+h: public(int256[1])
 
 
 @external
@@ -36,6 +36,7 @@ def __init__():
             c: "whatifthisstringtakesuptheentirelengthwouldthatbesobadidothinkso"
         })
     ]
+    self.h =  [123456789]
     self.foo[0] = [987, 654, 321]
     self.foo[1] = [123, 456, 789]
 
@@ -68,6 +69,7 @@ def test_storage_slots(get_contract):
     ]
     assert [c.foo(0, i) for i in range(3)] == [987, 654, 321]
     assert [c.foo(1, i) for i in range(3)] == [123, 456, 789]
+    assert c.h(0) == 123456789
 
 
 def test_reentrancy_lock(get_contract):
@@ -92,3 +94,4 @@ def test_reentrancy_lock(get_contract):
     ]
     assert [c.foo(0, i) for i in range(3)] == [987, 654, 321]
     assert [c.foo(1, i) for i in range(3)] == [123, 456, 789]
+    assert c.h(0) == 123456789

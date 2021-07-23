@@ -1,4 +1,5 @@
 from vyper import ast as vy_ast
+from vyper.old_codegen.function_definitions.utils import get_nonreentrant_lock
 from vyper.old_codegen.lll_node import LLLnode
 from vyper.old_codegen.parser_utils import getpos, make_setter
 from vyper.old_codegen.types import (
@@ -16,12 +17,8 @@ from .abi import abi_encode, abi_type_of, ensure_tuple
 # Generate return code for stmt
 def make_return_stmt(stmt, context, begin_pos, _size, loop_memory_position=None):
     # TODO check this out
-    from vyper.old_codegen.function_definitions.utils import (
-        get_nonreentrant_lock,
-    )
-
     func_type = stmt.get_ancestor(vy_ast.FunctionDef)._metadata["type"]
-    _, nonreentrant_post = get_nonreentrant_lock(func_type, context.global_ctx)
+    _, nonreentrant_post = get_nonreentrant_lock(func_type)
 
     if context.is_internal:
         if loop_memory_position is None:

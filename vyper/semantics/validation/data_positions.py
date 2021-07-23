@@ -21,11 +21,27 @@ def set_storage_slots(vyper_module: vy_ast.Module) -> None:
     """
     Parse module-level Vyper AST to calculate the layout of storage variables.
     """
-    available_slot = 0
+    # Allocate storage slots from 0
+    # note storage is word-addressable, not byte-addressable
+    storage_slot = 0
+
+    for node in vyper_module.get_children(vy_ast.FunctionDef):
+        type_ = node._metadata["type"]
+        if type_.nonreentrant is not None:
+            type_.set_reentrancy_key_position(StorageSlot(storage_slot))
+            # TODO use one byte - or bit - per reentrancy key
+            # requires either an extra SLOAD or caching the value of the
+            # location in memory at entrance
+            storage_slot += 1
+
     for node in vyper_module.get_children(vy_ast.AnnAssign):
         type_ = node.target._metadata["type"]
-        type_.set_position(StorageSlot(available_slot))
-        available_slot += math.ceil(type_.size_in_bytes / 32)
+        type_.set_position(StorageSlot(storage_slot))
+        # CMC 2021-07-23 note that HashMaps get assigned a slot here.
+        # I'm not sure if it's safe to avoid allocating that slot
+        # for HashMaps because downstream code might use the slot
+        # ID as a salt.
+        storage_slot += math.ceil(type_.size_in_bytes / 32)
 
 
 def set_calldata_offsets(fn_node: vy_ast.FunctionDef) -> None:
