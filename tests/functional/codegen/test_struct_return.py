@@ -1,6 +1,39 @@
 import pytest
 
 
+def test_nested_tuple(get_contract):
+    code = """
+struct Animal:
+    location: address
+    fur: uint256
+
+struct Human:
+    location: address
+    height: uint256
+
+@external
+def return_nested_tuple() -> (Animal, Human):
+    animal: Animal = Animal({
+        location: 0x1234567890123456789012345678901234567890,
+        fur: 123
+    })
+    human: Human = Human({
+        location: 0x1234567890123456789012345678900000000000,
+        height: 456
+    })
+
+    # do stuff, edit the structs
+    animal.fur += 1
+    human.height += 1
+
+    return animal, human
+    """
+    c = get_contract(code)
+    addr1 = "0x1234567890123456789012345678901234567890"
+    addr2 = "0x1234567890123456789012345678900000000000"
+    assert c.return_nested_tuple() == [(addr1, 124), (addr2, 457)]
+
+
 @pytest.mark.parametrize("string", ["a", "abc", "abcde", "potato"])
 def test_string_inside_tuple(get_contract, string):
     code = f"""
