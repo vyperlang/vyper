@@ -37,6 +37,10 @@ def set_storage_slots(vyper_module: vy_ast.Module) -> None:
     for node in vyper_module.get_children(vy_ast.AnnAssign):
         type_ = node.target._metadata["type"]
         type_.set_position(StorageSlot(storage_slot))
+        # CMC 2021-07-23 note that HashMaps get assigned a slot here.
+        # I'm not sure if it's safe to avoid allocating that slot
+        # for HashMaps because downstream code might use the slot
+        # ID as a salt.
         storage_slot += math.ceil(type_.size_in_bytes / 32)
 
 
