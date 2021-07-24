@@ -3,6 +3,18 @@
 Release Notes
 #############
 
+v0.2.15
+*******
+
+Date released: 23-07-2021
+
+Non-breaking changes and improvements
+- Optimization when returning nested tuples (`#2392 <https://github.com/vyperlang/vyper/pull/2392>`_)
+
+Fixes:
+- Annotated kwargs for builtins (`#2389 <https://github.com/vyperlang/vyper/pull/2389>`_)
+- Storage slot allocation bug (`#2391 <https://github.com/vyperlang/vyper/pull/2391>`_)
+
 v0.2.14
 *******
 
