@@ -181,7 +181,7 @@ def canonicalize_type(t, is_indexed=False):
     raise InvalidType(f"Invalid or unsupported type: {repr(t)}")
 
 
-def make_struct_type(name, location, members, custom_structs):
+def make_struct_type(name, location, sigs, members, custom_structs):
     o = OrderedDict()
 
     for key, value in members:
@@ -189,7 +189,7 @@ def make_struct_type(name, location, members, custom_structs):
             raise InvalidType(
                 f"Invalid member variable for struct {key.id}, expected a name.", key,
             )
-        o[key.id] = parse_type(value, location, custom_structs=custom_structs)
+        o[key.id] = parse_type(value, location, sigs=sigs, custom_structs=custom_structs)
 
     return StructType(o, name)
 
@@ -201,8 +201,10 @@ def parse_type(item, location, sigs=None, custom_structs=None):
     if isinstance(item, vy_ast.Name):
         if item.id in BASE_TYPES:
             return BaseType(item.id)
+        elif (sigs is not None) and item.id in sigs:
+            return InterfaceType(item.id)
         elif (custom_structs is not None) and (item.id in custom_structs):
-            return make_struct_type(item.id, location, custom_structs[item.id], custom_structs,)
+            return make_struct_type(item.id, location, sigs, custom_structs[item.id], custom_structs,)
         else:
             raise InvalidType("Invalid base type: " + item.id, item)
     # Units, e.g. num (1/sec) or contracts
@@ -213,7 +215,7 @@ def parse_type(item, location, sigs=None, custom_structs=None):
                 return InterfaceType(item.args[0].id)
         # Struct types
         if (custom_structs is not None) and (item.func.id in custom_structs):
-            return make_struct_type(item.id, location, custom_structs[item.id], custom_structs,)
+            return make_struct_type(item.id, location, sigs, custom_structs[item.id], custom_structs,)
         raise InvalidType("Units are no longer supported", item)
     # Subscripts
     elif isinstance(item, vy_ast.Subscript):
@@ -233,13 +235,13 @@ def parse_type(item, location, sigs=None, custom_structs=None):
             # List
             else:
                 return ListType(
-                    parse_type(item.value, location, custom_structs=custom_structs,), n_val,
+                    parse_type(item.value, location, sigs, custom_structs=custom_structs,), n_val,
                 )
         elif item.value.id in ("HashMap",) and isinstance(item.slice.value, vy_ast.Tuple):
-            keytype = parse_type(item.slice.value.elements[0], None, custom_structs=custom_structs,)
+            keytype = parse_type(item.slice.value.elements[0], None, sigs, custom_structs=custom_structs,)
             return MappingType(
                 keytype,
-                parse_type(item.slice.value.elements[1], location, custom_structs=custom_structs,),
+                parse_type(item.slice.value.elements[1], location, sigs, custom_structs=custom_structs,),
             )
         # Mappings, e.g. num[address]
         else:

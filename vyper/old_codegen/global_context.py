@@ -120,9 +120,7 @@ class GlobalContext:
                 # A struct must be defined before it is referenced.
                 # This feels like a semantic step and maybe should be pushed
                 # to a later compilation stage.
-                parse_type(
-                    member_type, "storage", custom_structs=self._structs,
-                )
+                self.parse_type( member_type, "storage")
                 members.append((member_name, member_type))
             else:
                 raise StructureException("Structs can only contain variables", item)
@@ -206,7 +204,7 @@ class GlobalContext:
             if isinstance(item.annotation.args[0], vy_ast.Name) and item_name in self._contracts:
                 typ = InterfaceType(item_name)
             else:
-                typ = parse_type(item.annotation.args[0], "storage", custom_structs=self._structs,)
+                typ = self.parse_type(item.annotation.args[0], "storage")
             self._globals[item.target.id] = VariableRecord(
                 item.target.id, len(self._globals), typ, True,
             )
@@ -215,7 +213,7 @@ class GlobalContext:
             self._globals[item.target.id] = VariableRecord(
                 item.target.id,
                 len(self._globals),
-                parse_type(item.annotation, "storage", custom_structs=self._structs,),
+                self.parse_type(item.annotation, "storage"),
                 True,
             )
         else:
