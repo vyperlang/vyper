@@ -21,7 +21,6 @@ from vyper.old_codegen.types import (
     TupleType,
     ceil32,
     get_size_of_type,
-    has_dynamic_data,
     is_base_type,
 )
 from vyper.utils import GAS_IDENTITY, GAS_IDENTITYWORD, MemoryPositions
@@ -405,12 +404,13 @@ def unwrap_location(orig):
 @type_check_wrapper
 def pack_arguments(signature, args, context, stmt_expr, is_external_call):
     # FLAG cyclic dep
-    from vyper.old_codegen.abi import abi_type_of, abi_encode
+    from vyper.old_codegen.abi import abi_encode, abi_type_of
+
     pos = getpos(stmt_expr)
 
     # abi encoding just treats all args as a big tuple
     args_tuple_t = TupleType([x.typ for x in args])
-    args_as_tuple = LLLnode.from_list(["multi"]+ [x for x in args], typ=args_tuple_t)
+    args_as_tuple = LLLnode.from_list(["multi"] + [x for x in args], typ=args_tuple_t)
     args_abi_t = abi_type_of(args_tuple_t)
 
     maxlen = args_abi_t.dynamic_size_bound() + args_abi_t.static_size()
@@ -442,7 +442,9 @@ def pack_arguments(signature, args, context, stmt_expr, is_external_call):
         inargsize = buf_t.maxlen
 
     return (
-        LLLnode.from_list(["seq"] + mstore_method_id + [encode_args] + returner, typ=buf_t, location="memory"),
+        LLLnode.from_list(
+            ["seq"] + mstore_method_id + [encode_args] + returner, typ=buf_t, location="memory"
+        ),
         inargsize,
         buf,
     )
