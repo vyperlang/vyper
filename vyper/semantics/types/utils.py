@@ -170,7 +170,7 @@ def get_type_from_annotation(
         raise InvalidType(f"'{type_name}' is not a valid type", node) from None
 
 
-def check_literal(node: vy_ast.VyperNode) -> bool:
+def _check_literal(node: vy_ast.VyperNode) -> bool:
     """
     Check if the given node is a literal value.
     """
@@ -178,7 +178,7 @@ def check_literal(node: vy_ast.VyperNode) -> bool:
         return True
     elif isinstance(node, (vy_ast.Tuple, vy_ast.List)):
         for item in node.elements:
-            if not check_literal(item):
+            if not _check_literal(item):
                 return False
         return True
     else:
@@ -189,7 +189,7 @@ def check_constant(node: vy_ast.VyperNode) -> bool:
     """
     Check if the given node is a literal or constant value.
     """
-    if check_literal(node):
+    if _check_literal(node):
         return True
     if isinstance(node, (vy_ast.Tuple, vy_ast.List)):
         for item in node.elements:
@@ -198,4 +198,10 @@ def check_constant(node: vy_ast.VyperNode) -> bool:
         return True
 
     value_type = get_exact_type_from_node(node)
+    # FLAG cyclic imports
+    from vyper.semantics.types.user.struct import StructDefinition
+    # struct literals
+    if isinstance(value_type, StructDefinition):
+        return all(check_constant(x) for x in node.args[0].values)
+
     return getattr(value_type, "is_immutable", False)
