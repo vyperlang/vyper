@@ -16,7 +16,7 @@ from ..bases import (
 )
 
 
-class _NumericDefinition(ValueTypeDefinition):
+class AbstractNumericDefinition(ValueTypeDefinition):
     """
     Private base class for numeric definitions.
 
@@ -85,7 +85,7 @@ class _NumericDefinition(ValueTypeDefinition):
         return
 
 
-class _SignedIntegerDefinition(_NumericDefinition):
+class _SignedIntegerDefinition(AbstractNumericDefinition):
     """
     Private base class for signed integer definitions.
     """
@@ -97,7 +97,7 @@ class _SignedIntegerDefinition(_NumericDefinition):
         return f"int{self._bits}"
 
 
-class _UnsignedIntegerDefinition(_NumericDefinition):
+class _UnsignedIntegerDefinition(AbstractNumericDefinition):
     """
     Private base class for unsigned integer definitions.
     """
@@ -141,15 +141,16 @@ class Uint256Definition(UnsignedIntegerAbstractType, _UnsignedIntegerDefinition)
     _invalid_op = vy_ast.USub
 
 
-class DecimalDefinition(FixedAbstractType, _NumericDefinition):
-    _bits = 168
+class DecimalDefinition(FixedAbstractType, AbstractNumericDefinition):
+    _bits = 168  # TODO generalize
+    _decimal_places = 10  # TODO generalize
     _id = "decimal"
     _is_signed = True
     _invalid_op = vy_ast.Pow
 
     @property
     def canonical_type(self) -> str:
-        return "fixed168x10"
+        return f"fixed{self._bits}x{self._decimal_places}"
 
 
 # primitives

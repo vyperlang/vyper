@@ -1,3 +1,4 @@
+import vyper.semantics.types as vy
 from vyper.exceptions import CompilerPanic
 from vyper.old_codegen.lll_node import LLLnode
 from vyper.old_codegen.parser_utils import (
@@ -35,6 +36,9 @@ class ABIType:
     # max size (in bytes) in the dynamic section (aka 'tail')
     def dynamic_size_bound(self):
         return 0
+
+    def size_bound(self):
+        return self.static_size() + self.dynamic_size_bound()
 
     # The canonical name of the type for calculating the function selector
     def selector_name(self):
@@ -280,6 +284,32 @@ def abi_type_of(lll_typ):
         raise CompilerPanic(f"Unrecognized type {lll_typ}")
 
 
+# the new type system
+# TODO consider moving these into properties of the type itself
+def abi_type_of2(t: vy.BasePrimitive) -> ABIType:
+    if isinstance(t, vy.AbstractNumericDefinition):
+        return ABI_GIntM(t._bits, t._signed)
+    if isinstance(t, vy.AddressDefinition):
+        return ABI_Address()
+    if isinstance(t, vy.Bytes32Definition):
+        return ABI_BytesM(t.length)
+    if isinstance(t, vy.BoolDefinition):
+        return ABI_Bool()
+    if isinstance(t, vy.DecimalDefinition):
+        return ABI_FixedMxN(t._bits, t._decimal_places, True)
+    if isinstance(t, vy.BytesArrayDefinition):
+        return ABI_Bytes(t._length)
+    if isinstance(t, vy.StringDefinition):
+        return ABI_String(t._length)
+    if isinstance(t, vy.TupleDefinition):
+        return ABI_Tuple([abi_type_of2(t) for t in t.value_type])
+    if isinstance(t, vy.StructDefinition):
+        return ABI_Tuple([abi_type_of2(t) for t in t.members.values()])
+    if isinstance(t, vy.ArrayDefinition):
+        return ABI_StaticArray(abi_type_of2(t.value_type, t.length))
+    raise CompilerPanic(f"Unrecognized type {t}")
+
+
 # there are a lot of places in the calling convention where a tuple
 # must be passed, so here's a convenience function for that.
 def ensure_tuple(abi_typ):
@@ -338,7 +368,7 @@ def o_list(lll_node, pos=None):
 # that users will provide deeply nested data.
 def abi_encode(dst, lll_node, pos=None, bufsz=None, returns=False):
     parent_abi_t = abi_type_of(lll_node.typ)
-    size_bound = parent_abi_t.static_size() + parent_abi_t.dynamic_size_bound()
+    size_bound = parent_abi_t.size_bound()
     if bufsz is not None and bufsz < 32 * size_bound:
         raise CompilerPanic("buffer provided to abi_encode not large enough")
 
@@ -402,7 +432,7 @@ def abi_encode(dst, lll_node, pos=None, bufsz=None, returns=False):
 
     lll_ret = ["with", dst_begin, dst, ["with", dst_loc, dst_begin, lll_ret]]
 
-    return LLLnode.from_list(lll_ret)
+    return LLLnode.from_list(lll_ret, pos=pos)
 
 
 # lll_node is the destination LLL item, src is the input buffer.

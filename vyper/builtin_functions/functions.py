@@ -21,6 +21,7 @@ from vyper.exceptions import (
     VyperException,
     ZeroDivisionException,
 )
+from vyper.old_codegen.abi import abi_encode, abi_type_of, abi_type_of2
 from vyper.old_codegen.arg_clamps import int128_clamp
 from vyper.old_codegen.expr import Expr
 from vyper.old_codegen.keccak256_helper import keccak256_helper
@@ -40,7 +41,7 @@ from vyper.old_codegen.types import (
     ListType,
 )
 from vyper.old_codegen.types import StringType as OldStringType
-from vyper.old_codegen.types import is_base_type
+from vyper.old_codegen.types import TupleType, is_base_type
 from vyper.semantics.types.abstract import (
     ArrayValueAbstractType,
     BytesAbstractType,
@@ -1711,7 +1712,56 @@ class Empty:
         return LLLnode(None, typ=output_type, pos=getpos(expr))
 
 
+class ABIEncode(_SimpleBuiltinFunction):
+    _id = "_abi_encode"  # TODO prettier to rename this to abi.encode
+    _inputs = ["*"]
+    _kwargs = {"output_type": Optional("name_literal", "bytes")}
+
+    @staticmethod
+    # this should probably be a utility function
+    def _exactly_one(xs):
+        return len(set(xs)) == 1
+
+    def fetch_call_return(self, node):
+        maxlen = 0
+        for arg in node.args:
+            argtys = get_possible_types_from_node(arg)
+            possible_lengths = [abi_type_of2(t).size_bound() for t in argtys]
+            if not self._exactly_one(possible_lengths):
+                raise StructureException("Can't figure out an ABI type", arg)
+            maxlen += possible_lengths[0]
+
+        ret = BytesArrayDefinition()
+        ret.set_length(maxlen)
+        return ret
+
+    def build_LLL(self, expr, context):
+        args = [Expr(arg, context).lll_node for arg in expr.args]
+        if len(args) < 1:
+            raise StructureException("abi_encode expects at least one argument", expr)
+
+        args_tuple_t = TupleType([x.typ for x in args])
+        args_as_tuple = LLLnode.from_list(["multi"] + [x for x in args], typ=args_tuple_t)
+        args_abi_t = abi_type_of(args_tuple_t)
+
+        maxlen = args_abi_t.size_bound()
+
+        buf_t = ByteArrayType(maxlen=maxlen)
+        buf = context.new_internal_variable(buf_t)
+
+        pos = getpos(expr)
+
+        return LLLnode.from_list(
+            ["seq", abi_encode(buf, args_as_tuple, pos), buf],
+            location="memory",
+            typ=buf_t,
+            pos=pos,
+            annotation="abi_encode builtin",
+        )
+
+
 DISPATCH_TABLE = {
+    "_abi_encode": ABIEncode(),
     "floor": Floor(),
     "ceil": Ceil(),
     "convert": Convert(),
