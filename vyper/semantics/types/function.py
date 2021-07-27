@@ -321,13 +321,6 @@ class ContractFunction(BaseTypeDefinition):
             type_definition = get_type_from_annotation(
                 arg.annotation, location=DataLocation.CALLDATA, is_immutable=True
             )
-            if isinstance(type_definition, StructDefinition) and type_definition.is_dynamic_size:
-                # this is a temporary restriction and should be removed once support for dynamically
-                # sized structs is implemented - https://github.com/vyperlang/vyper/issues/2190
-                raise ArgumentException(
-                    "Struct with dynamically sized data cannot be used as a function input", arg
-                )
-
             if value is not None:
                 if not check_constant(value):
                     raise StateAccessViolation(

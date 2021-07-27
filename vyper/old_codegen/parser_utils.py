@@ -404,105 +404,48 @@ def unwrap_location(orig):
 # Pack function arguments for a call
 @type_check_wrapper
 def pack_arguments(signature, args, context, stmt_expr, is_external_call):
+    # FLAG cyclic dep
+    from vyper.old_codegen.abi import abi_type_of, abi_encode
     pos = getpos(stmt_expr)
-    setters = []
-    staticarray_offset = 0
 
-    maxlen = sum([get_size_of_type(arg.typ) for arg in signature.args]) * 32
-    if is_external_call:
-        maxlen += 32
+    # abi encoding just treats all args as a big tuple
+    args_tuple_t = TupleType([x.typ for x in args])
+    args_as_tuple = LLLnode.from_list(["multi"]+ [x for x in args], typ=args_tuple_t)
+    args_abi_t = abi_type_of(args_tuple_t)
 
-    placeholder_typ = ByteArrayType(maxlen=maxlen)
-    placeholder = context.new_internal_variable(placeholder_typ)
+    maxlen = args_abi_t.dynamic_size_bound() + args_abi_t.static_size()
     if is_external_call:
-        setters.append(["mstore", placeholder, signature.method_id])
-        placeholder += 32
+        maxlen += 32  # padding for the method id
+
+    buf_t = ByteArrayType(maxlen=maxlen)
+    buf = context.new_internal_variable(buf_t)
+
+    mstore_method_id = []
+    if is_external_call:
+        # layout:
+        # 32 bytes                 | args
+        # 0x..00<method_id_4bytes> | args
+        mstore_method_id.append(["mstore", buf, signature.method_id])
+        buf += 32
 
     if len(signature.args) != len(args):
         return
 
-    # check for dynamic-length types
-    dynamic_remaining = len([i for i in signature.args if isinstance(i.typ, ByteArrayLike)])
-    needpos = bool(dynamic_remaining)
-
-    for i, (arg, typ) in enumerate(zip(args, [arg.typ for arg in signature.args])):
-        if isinstance(typ, BaseType):
-            setters.append(
-                make_setter(
-                    LLLnode.from_list(placeholder + staticarray_offset + i * 32, typ=typ,),
-                    arg,
-                    "memory",
-                    pos=pos,
-                    in_function_call=True,
-                )
-            )
-
-        elif isinstance(typ, ByteArrayLike):
-            dynamic_remaining -= 1
-            setters.append(["mstore", placeholder + staticarray_offset + i * 32, "_poz"])
-            arg_copy = LLLnode.from_list("_s", typ=arg.typ, location=arg.location)
-            target = LLLnode.from_list(["add", placeholder, "_poz"], typ=typ, location="memory",)
-            pos_setter = "pass"
-
-            # if `arg.value` is None, this is a call to `empty()`
-            # if `arg.typ.maxlen` is 0, this is a literal "" or b""
-            if arg.value is None or arg.typ.maxlen == 0:
-                if dynamic_remaining:
-                    # only adjust the dynamic pointer if this is not the last dynamic type
-                    pos_setter = ["set", "_poz", ["add", "_poz", 64]]
-                setters.append(["seq", mzero(target, 64), pos_setter])
-            else:
-                if dynamic_remaining:
-                    pos_setter = [
-                        "set",
-                        "_poz",
-                        ["add", 32, ["ceil32", ["add", "_poz", get_bytearray_length(arg_copy)]]],
-                    ]
-                setters.append(
-                    [
-                        "with",
-                        "_s",
-                        arg,
-                        ["seq", make_byte_array_copier(target, arg_copy, pos), pos_setter],
-                    ]
-                )
-
-        elif isinstance(typ, (StructType, ListType)):
-            if has_dynamic_data(typ):
-                return
-            target = LLLnode.from_list(
-                [placeholder + staticarray_offset + i * 32], typ=typ, location="memory",
-            )
-            setters.append(make_setter(target, arg, "memory", pos=pos))
-            staticarray_offset += 32 * (get_size_of_type(typ) - 1)
-
-        else:
-            return
+    encode_args = abi_encode(buf, args_as_tuple, pos)
 
     if is_external_call:
-        returner = [[placeholder - 4]]
-        inargsize = placeholder_typ.maxlen - 28
+        returner = [[buf - 4]]
+        inargsize = buf_t.maxlen - 28
     else:
         # internal call does not use a returner or adjust max length for signature
         returner = []
-        inargsize = placeholder_typ.maxlen
+        inargsize = buf_t.maxlen
 
-    if needpos:
-        return (
-            LLLnode.from_list(
-                ["with", "_poz", len(args) * 32 + staticarray_offset, ["seq"] + setters + returner],
-                typ=placeholder_typ,
-                location="memory",
-            ),
-            inargsize,
-            placeholder,
-        )
-    else:
-        return (
-            LLLnode.from_list(["seq"] + setters + returner, typ=placeholder_typ, location="memory"),
-            inargsize,
-            placeholder,
-        )
+    return (
+        LLLnode.from_list(["seq"] + mstore_method_id + [encode_args] + returner, typ=buf_t, location="memory"),
+        inargsize,
+        buf,
+    )
 
 
 def _make_array_index_setter(target, target_token, pos, location, offset):
