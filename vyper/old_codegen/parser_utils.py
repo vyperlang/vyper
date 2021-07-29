@@ -425,6 +425,10 @@ def pack_arguments(signature, args, context, stmt_expr, is_external_call):
         # layout:
         # 32 bytes                 | args
         # 0x..00<method_id_4bytes> | args
+        # the reason for the left padding is just so the alignment is easier.
+        # if we were only targeting constantinople, we could align
+        # to buf (and also keep code size small) by using
+        # (mstore buf (shl signature.method_id 224))
         mstore_method_id.append(["mstore", buf, signature.method_id])
         buf += 32
 
