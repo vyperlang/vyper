@@ -403,7 +403,7 @@ def unwrap_location(orig):
 # Pack function arguments for a call
 @type_check_wrapper
 def pack_arguments(signature, args, context, stmt_expr, is_external_call):
-    # FLAG cyclic dep
+    # NOTE cyclic dep
     from vyper.old_codegen.abi import abi_encode, abi_type_of
 
     pos = getpos(stmt_expr)

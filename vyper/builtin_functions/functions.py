@@ -1491,7 +1491,7 @@ class Abs(_SimpleBuiltinFunction):
 
 
 def get_create_forwarder_to_bytecode():
-    # FLAG cyclic import?
+    # NOTE cyclic import?
     from vyper.lll.compile_lll import assembly_to_evm
 
     loader_asm = [
