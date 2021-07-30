@@ -8,10 +8,10 @@ from .value.array_value import BytesArrayDefinition, StringDefinition
 from .value.boolean import BoolDefinition
 from .value.bytes_fixed import Bytes32Definition
 from .value.numeric import (
+    AbstractNumericDefinition,
     DecimalDefinition,
     Int128Definition,
     Uint256Definition,
-    AbstractNumericDefinition,
 )
 
 # any more?

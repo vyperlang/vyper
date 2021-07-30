@@ -41,6 +41,14 @@ def keccak():
 
 
 @pytest.fixture
+def abi_encode(w3):
+    def f(abi_t, py_val):
+        return w3.codec.encode_single(abi_t, py_val)
+
+    return f
+
+
+@pytest.fixture
 def bytes_helper():
     def bytes_helper(str, length):
         return bytes(str, "utf-8") + bytearray(length - len(str))

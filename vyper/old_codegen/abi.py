@@ -288,7 +288,7 @@ def abi_type_of(lll_typ):
 # TODO consider moving these into properties of the type itself
 def abi_type_of2(t: vy.BasePrimitive) -> ABIType:
     if isinstance(t, vy.AbstractNumericDefinition):
-        return ABI_GIntM(t._bits, t._signed)
+        return ABI_GIntM(t._bits, t._is_signed)
     if isinstance(t, vy.AddressDefinition):
         return ABI_Address()
     if isinstance(t, vy.Bytes32Definition):
@@ -366,7 +366,10 @@ def o_list(lll_node, pos=None):
 # performance note: takes O(n^2) compilation time
 # where n is depth of data type, could be optimized but unlikely
 # that users will provide deeply nested data.
-def abi_encode(dst, lll_node, pos=None, bufsz=None, returns=False):
+# returns_len is a calling convention parameter; if set to true,
+# the abi_encode routine will push the output len onto the stack,
+# otherwise it will return 0 items to the stack.
+def abi_encode(dst, lll_node, pos=None, bufsz=None, returns_len=False):
     parent_abi_t = abi_type_of(lll_node.typ)
     size_bound = parent_abi_t.size_bound()
     if bufsz is not None and bufsz < 32 * size_bound:
@@ -386,7 +389,7 @@ def abi_encode(dst, lll_node, pos=None, bufsz=None, returns=False):
                 lll_ret.append(["mstore", dst_loc, dyn_ofst])
                 # recurse
                 child_dst = ["add", dst_begin, dyn_ofst]
-                child = abi_encode(child_dst, o, pos=pos, returns=True)
+                child = abi_encode(child_dst, o, pos=pos, returns_len=True)
                 # increment dyn ofst for the return
                 # (optimization note:
                 #   if non-returning and this is the last dyn member in
@@ -394,7 +397,7 @@ def abi_encode(dst, lll_node, pos=None, bufsz=None, returns=False):
                 lll_ret.append(["set", dyn_ofst, ["add", dyn_ofst, child]])
             else:
                 # recurse
-                lll_ret.append(abi_encode(dst_loc, o, pos=pos, returns=False))
+                lll_ret.append(abi_encode(dst_loc, o, pos=pos, returns_len=False))
 
         elif isinstance(o.typ, BaseType):
             d = LLLnode(dst_loc, typ=o.typ, location="memory")
@@ -412,7 +415,7 @@ def abi_encode(dst, lll_node, pos=None, bufsz=None, returns=False):
             lll_ret.append(["set", dst_loc, ["add", dst_loc, sz]])
 
     # declare LLL variables.
-    if returns:
+    if returns_len:
         if not parent_abi_t.is_dynamic():
             lll_ret.append(parent_abi_t.embedded_static_size())
         elif parent_abi_t.is_tuple():

@@ -21,7 +21,12 @@ from vyper.exceptions import (
     VyperException,
     ZeroDivisionException,
 )
-from vyper.old_codegen.abi import abi_encode, abi_type_of, abi_type_of2
+from vyper.old_codegen.abi import (
+    ABI_Tuple,
+    abi_encode,
+    abi_type_of,
+    abi_type_of2,
+)
 from vyper.old_codegen.arg_clamps import int128_clamp
 from vyper.old_codegen.expr import Expr
 from vyper.old_codegen.keccak256_helper import keccak256_helper
@@ -68,6 +73,7 @@ from vyper.semantics.types.value.numeric import (
 )
 from vyper.semantics.validation.utils import (
     get_common_types,
+    get_exact_type_from_node,
     get_possible_types_from_node,
     validate_expected_type,
 )
@@ -987,6 +993,7 @@ class AsWeiValue:
 
 zero_value = LLLnode.from_list(0, typ=BaseType("uint256"))
 false_value = LLLnode.from_list(0, typ=BaseType("bool", is_literal=True))
+true_value = LLLnode.from_list(1, typ=BaseType("bool", is_literal=True))
 
 
 class RawCall(_SimpleBuiltinFunction):
@@ -1714,37 +1721,74 @@ class Empty:
 
 class ABIEncode(_SimpleBuiltinFunction):
     _id = "_abi_encode"  # TODO prettier to rename this to abi.encode
-    _inputs = ["*"]
-    _kwargs = {"output_type": Optional("name_literal", "bytes")}
+    # signature: *, ensure_tuple=<literal_bool> -> Bytes[<calculated len>]
+    # (check the signature manually since we have no utility methods
+    # to handle varargs.)
+    # explanation of ensure_tuple:
+    # default is to force even a single value into a tuple,
+    # e.g. _abi_encode(bytes) -> abi_encode((bytes,))
+    # this follows the encoding convention for functions:
+    # ://docs.soliditylang.org/en/v0.8.6/abi-spec.html#function-selector-and-argument-encoding
+    # if this is turned off, then bytes will be encoded as bytes.
 
     @staticmethod
     # this should probably be a utility function
     def _exactly_one(xs):
         return len(set(xs)) == 1
 
+    @staticmethod
+    def _ensure_tuple(node):
+        # figure out if we need to encode single values as tuples
+        ensure_tuple = next((i.value for i in node.keywords if i.arg == "ensure_tuple"), None)
+        if ensure_tuple is None:
+            # default to True.
+            return True
+
+        elif not isinstance(ensure_tuple, vy_ast.NameConstant) or not isinstance(
+            ensure_tuple.value, bool
+        ):
+            raise TypeMismatch(
+                "The `ensure_tuple` parameter must be a static/literal boolean value", node
+            )
+        else:
+            return ensure_tuple.value
+
     def fetch_call_return(self, node):
-        maxlen = 0
+        # figure out the output type by converting
+        # the types to ABI_Types and calling size_bound API
+        arg_abi_types = []
         for arg in node.args:
-            argtys = get_possible_types_from_node(arg)
-            possible_lengths = [abi_type_of2(t).size_bound() for t in argtys]
-            if not self._exactly_one(possible_lengths):
-                raise StructureException("Can't figure out an ABI type", arg)
-            maxlen += possible_lengths[0]
+            arg_t = get_exact_type_from_node(arg)
+            arg_abi_types.append(abi_type_of2(arg_t))
+
+        # special case, no tuple
+        if len(arg_abi_types) == 1 and not self._ensure_tuple(node):
+            arg_abi_t = arg_abi_types[0]
+        else:
+            arg_abi_t = ABI_Tuple(arg_abi_types)
+
+        maxlen = arg_abi_t.size_bound()
 
         ret = BytesArrayDefinition()
         ret.set_length(maxlen)
         return ret
 
     def build_LLL(self, expr, context):
+
         args = [Expr(arg, context).lll_node for arg in expr.args]
         if len(args) < 1:
             raise StructureException("abi_encode expects at least one argument", expr)
 
-        args_tuple_t = TupleType([x.typ for x in args])
-        args_as_tuple = LLLnode.from_list(["multi"] + [x for x in args], typ=args_tuple_t)
-        args_abi_t = abi_type_of(args_tuple_t)
+        # figure out the required length for the output buffer
+        if len(args) == 1 and not self._ensure_tuple(expr):
+            # special case, no tuple
+            encode_input = args[0]
+        else:
+            args_tuple_t = TupleType([x.typ for x in args])
+            encode_input = LLLnode.from_list(["multi"] + [x for x in args], typ=args_tuple_t)
 
-        maxlen = args_abi_t.size_bound()
+        input_abi_t = abi_type_of(encode_input.typ)
+        maxlen = input_abi_t.size_bound()
 
         buf_t = ByteArrayType(maxlen=maxlen)
         buf = context.new_internal_variable(buf_t)
@@ -1752,11 +1796,17 @@ class ABIEncode(_SimpleBuiltinFunction):
         pos = getpos(expr)
 
         return LLLnode.from_list(
-            ["seq", abi_encode(buf, args_as_tuple, pos), buf],
+            [
+                "seq",
+                # write the output length to where bytestring stores its length
+                ["mstore", buf, abi_encode(buf + 32, encode_input, pos, returns_len=True)],
+                # return the buf location
+                buf,
+            ],
             location="memory",
             typ=buf_t,
             pos=pos,
-            annotation="abi_encode builtin",
+            annotation=f"abi_encode builtin ensure_tuple={self._ensure_tuple(expr)}",
         )
 
 
