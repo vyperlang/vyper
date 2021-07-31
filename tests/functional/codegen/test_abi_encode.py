@@ -6,30 +6,42 @@ from decimal import Decimal
 def test_abi_encode(get_contract, abi_encode):
     code = """
 struct Animal:
-  name: String[64]
+  name: String[5]
+  address_: address
   id_: int128
+  is_furry: bool
   price: decimal
+  data: uint256[3]
+  metadata: bytes32
 
 struct Human:
-  name: String[32]
+  name: String[64]
   pet: Animal
 
 @external
 # TODO accept struct input once the functionality is available
 def abi_encode(
-    name: String[32],
-    pet_name: String[64],
+    name: String[64],
+    pet_name: String[5],
+    pet_address: address,
     pet_id: int128,
+    pet_is_furry: bool,
     pet_price: decimal,
+    pet_data: uint256[3],
+    pet_metadata: bytes32,
     ensure_tuple: bool=True
 ) -> Bytes[256]:
     human: Human = Human({
       name: name,
       pet: Animal({
         name: pet_name,
+        address_: pet_address,
         id_: pet_id,
-        price: pet_price
-      })
+        is_furry: pet_is_furry,
+        price: pet_price,
+        data: pet_data,
+        metadata: pet_metadata
+      }),
     })
     if ensure_tuple:
         return _abi_encode(human, ensure_tuple=True)
@@ -60,12 +72,14 @@ def abi_encode3(x: uint256, ensure_tuple: bool = True) -> Bytes[32]:
     assert c.abi_encode2(arg, False).hex() == abi_encode("string", arg).hex()
     assert c.abi_encode2(arg, True).hex() == abi_encode("(string)", (arg,)).hex()
 
-    args = ("foobar", "vyper", 123, Decimal("123.4"))
+    test_addr = b"".join(chr(i).encode("utf-8") for i in range(20))
+    test_bytes32 = b"".join(chr(i).encode("utf-8") for i in range(32))
     human_tuple = (
         "foobar",
-        ("vyper", 123, Decimal("123.4")),
-    )  # TODO use convenience method to convert from human
-    human_t = "(string,(string,int128,fixed168x10))"
+        ("vyper", test_addr, 123, True, Decimal("123.4"), [123, 456, 789], test_bytes32),
+    )
+    args = tuple([human_tuple[0]] + list(human_tuple[1]))
+    human_t = "(string,(string,address,int128,bool,fixed168x10,uint256[3],bytes32))"
     human_encoded = abi_encode(human_t, human_tuple)
     assert c.abi_encode(*args, False).hex() == human_encoded.hex()
 

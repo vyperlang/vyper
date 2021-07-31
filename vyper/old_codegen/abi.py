@@ -306,7 +306,7 @@ def abi_type_of2(t: vy.BasePrimitive) -> ABIType:
     if isinstance(t, vy.StructDefinition):
         return ABI_Tuple([abi_type_of2(t) for t in t.members.values()])
     if isinstance(t, vy.ArrayDefinition):
-        return ABI_StaticArray(abi_type_of2(t.value_type, t.length))
+        return ABI_StaticArray(abi_type_of2(t.value_type), t.length)
     raise CompilerPanic(f"Unrecognized type {t}")
 
 
