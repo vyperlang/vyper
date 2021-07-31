@@ -14,6 +14,7 @@ from vyper.old_codegen.types import (
     ListType,
     StringType,
     TupleLike,
+    TupleType,
 )
 from vyper.utils import ceil32
 
@@ -282,6 +283,12 @@ def abi_type_of(lll_typ):
         return ABI_String(lll_typ.maxlen)
     else:
         raise CompilerPanic(f"Unrecognized type {lll_typ}")
+
+
+# utility function, constructs an LLL tuple out of a list of LLL nodes
+def lll_tuple_from_args(args):
+    typ = TupleType([x.typ for x in args])
+    return LLLnode.from_list(["multi"] + [x for x in args], typ=typ)
 
 
 # the new type system

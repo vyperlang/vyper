@@ -26,6 +26,7 @@ from vyper.old_codegen.abi import (
     abi_encode,
     abi_type_of,
     abi_type_of2,
+    lll_tuple_from_args,
 )
 from vyper.old_codegen.arg_clamps import int128_clamp
 from vyper.old_codegen.expr import Expr
@@ -33,7 +34,7 @@ from vyper.old_codegen.keccak256_helper import keccak256_helper
 from vyper.old_codegen.parser_utils import (
     LLLnode,
     add_variable_offset,
-    get_length,
+    get_bytearray_length,
     getpos,
     make_byte_array_copier,
     make_byte_slice_copier,
@@ -46,7 +47,7 @@ from vyper.old_codegen.types import (
     ListType,
 )
 from vyper.old_codegen.types import StringType as OldStringType
-from vyper.old_codegen.types import TupleType, is_base_type
+from vyper.old_codegen.types import is_base_type
 from vyper.semantics.types.abstract import (
     ArrayValueAbstractType,
     BytesAbstractType,
@@ -351,7 +352,7 @@ class Len(_SimpleBuiltinFunction):
 
     def build_LLL(self, node, context):
         arg = Expr(node.args[0], context).lll_node
-        return get_length(arg)
+        return get_bytearray_length(arg)
 
 
 class Concat:
@@ -1784,8 +1785,7 @@ class ABIEncode(_SimpleBuiltinFunction):
             # special case, no tuple
             encode_input = args[0]
         else:
-            args_tuple_t = TupleType([x.typ for x in args])
-            encode_input = LLLnode.from_list(["multi"] + [x for x in args], typ=args_tuple_t)
+            encode_input = lll_tuple_from_args(args)
 
         input_abi_t = abi_type_of(encode_input.typ)
         maxlen = input_abi_t.size_bound()

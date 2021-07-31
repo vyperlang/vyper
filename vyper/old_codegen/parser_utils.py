@@ -62,7 +62,12 @@ def get_number_as_fraction(expr, context):
     return expr.node_source_code, top, bottom
 
 
-# Copies byte array
+# cost per byte of the identity precompile
+def _identity_gas_bound(num_bytes):
+    return GAS_IDENTITY + GAS_IDENTITYWORD * (ceil32(num_bytes) // 32)
+
+
+# Copy byte array word-for-word (including layout)
 def make_byte_array_copier(destination, source, pos=None):
     if not isinstance(source.typ, ByteArrayLike):
         btype = "byte array" if isinstance(destination.typ, ByteArrayType) else "string"
@@ -82,7 +87,6 @@ def make_byte_array_copier(destination, source, pos=None):
 
     # Special case: memory to memory
     if source.location == "memory" and destination.location == "memory":
-        gas_calculation = GAS_IDENTITY + GAS_IDENTITYWORD * (ceil32(source.typ.maxlen) // 32)
         o = LLLnode.from_list(
             [
                 "with",
@@ -96,7 +100,7 @@ def make_byte_array_copier(destination, source, pos=None):
                 ],
             ],  # noqa: E501
             typ=None,
-            add_gas_estimate=gas_calculation,
+            add_gas_estimate=_identity_gas_bound(source.typ.maxlen),
             annotation="Memory copy",
         )
         return o
@@ -150,6 +154,7 @@ def make_byte_slice_copier(destination, source, length, max_length, pos=None):
             ],
             typ=None,
             annotation=f"copy byte slice dest: {str(destination)}",
+            add_gas_estimate=_identity_gas_bound(max_length),
         )
 
     # special case: rhs is zero
@@ -249,11 +254,15 @@ def byte_array_to_num(
     )
 
 
-def get_length(arg):
+def get_bytearray_length(arg):
+    typ = BaseType("uint256")
     if arg.location == "memory":
-        return LLLnode.from_list(["mload", arg], typ=BaseType("uint256"))
+        return LLLnode.from_list(["mload", arg], typ=typ)
     elif arg.location == "storage":
-        return LLLnode.from_list(["sload", arg], typ=BaseType("uint256"))
+        return LLLnode.from_list(["sload", arg], typ=typ)
+    elif arg.location == "calldata":
+        return LLLnode.from_list(["calldataload", arg], typ=typ)
+    raise CompilerPanic("unreachable", arg)  # pragma: no test
 
 
 def getpos(node):
@@ -440,7 +449,7 @@ def pack_arguments(signature, args, context, stmt_expr, is_external_call):
                     pos_setter = [
                         "set",
                         "_poz",
-                        ["add", 32, ["ceil32", ["add", "_poz", get_length(arg_copy)]]],
+                        ["add", 32, ["ceil32", ["add", "_poz", get_bytearray_length(arg_copy)]]],
                     ]
                 setters.append(
                     [
