@@ -29,7 +29,7 @@ def abi_encode(
     pet_price: decimal,
     pet_data: uint256[3],
     pet_metadata: bytes32,
-    ensure_tuple: bool=True
+    ensure_tuple: bool
 ) -> Bytes[256]:
     human: Human = Human({
       name: name,
@@ -44,19 +44,19 @@ def abi_encode(
       }),
     })
     if ensure_tuple:
-        return _abi_encode(human, ensure_tuple=True)
+        return _abi_encode(human) # default ensure_tuple=True
     else:
         return _abi_encode(human, ensure_tuple=False)
 @external
-def abi_encode2(name: String[32], ensure_tuple: bool = True) -> Bytes[96]:
+def abi_encode2(name: String[32], ensure_tuple: bool) -> Bytes[96]:
     if ensure_tuple:
-        return _abi_encode(name, ensure_tuple=True)
+        return _abi_encode(name) # default ensure_tuple=True
     else:
         return _abi_encode(name, ensure_tuple=False)
 @external
-def abi_encode3(x: uint256, ensure_tuple: bool = True) -> Bytes[32]:
+def abi_encode3(x: uint256, ensure_tuple: bool) -> Bytes[32]:
     if ensure_tuple:
-        return _abi_encode(x, ensure_tuple=True)
+        return _abi_encode(x) # default ensure_tuple=True
     else:
         return _abi_encode(x, ensure_tuple=False)
     """
