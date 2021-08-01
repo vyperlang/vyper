@@ -92,7 +92,7 @@ def make_byte_array_copier(destination, source, pos=None):
                     "with",
                     "_sz",
                     ["add", 32, ["mload", "_source"]],
-                    ["assert", ["call", ["gas"], 4, 0, "_source", "_sz", destination, "_sz"]],
+                    ["pop", ["call", ["gas"], 4, 0, "_source", "_sz", destination, "_sz"]],
                 ],
             ],  # noqa: E501
             typ=None,
