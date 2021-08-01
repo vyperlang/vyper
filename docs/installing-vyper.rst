@@ -29,7 +29,7 @@ Alternatively you can log into the docker image and execute vyper on the prompt.
     docker run -v $(pwd):/code/ -it --entrypoint /bin/bash vyperlang/vyper
     root@d35252d1fb1b:/code# vyper <contract_file.vy>
 
-The normal paramaters are also supported, for example:
+The normal parameters are also supported, for example:
 ::
 
     docker run -v $(pwd):/code vyperlang/vyper -f abi /code/<contract_file.vy>
@@ -76,4 +76,31 @@ Each tagged version of vyper is uploaded to `pypi <https://pypi.org/project/vype
 To install a specific version use:
 ::
 
-    pip install vyper==0.1.0b17
+    pip install vyper==0.2.15
+
+
+nix
+***
+
+Nix is a powerful package manager for Linux and other Unix systems that makes package management reliable and reproducible. 
+Read more about nix from the official `nix webpage <https://nixos.org/>`_
+
+See the latest supported Vyper version available through `nixpkgs <https://github.com/NixOS/nixpkgs/blob/master/pkgs/development/compilers/vyper/default.nix>`_
+
+
+Installing Vyper the nix way
+============================
+
+::
+
+    nix-env -iA nixpkgs.vyper
+
+    
+
+Supported platforms include:
+
+    aarch64-linux
+    i686-linux
+    x86_64-linux
+    x86_64-darwin
+
