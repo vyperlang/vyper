@@ -300,12 +300,6 @@ def add_variable_offset(parent, key, pos, array_bounds_check=True):
             for i in range(index):
                 offset += get_size_of_type(typ.members[attrs[i]])
             return LLLnode.from_list(["add", parent, offset], typ=subtype, location="storage",)
-        elif location == "storage_prehashed":
-            return LLLnode.from_list(
-                ["add", parent, LLLnode.from_list(index, annotation=annotation)],
-                typ=subtype,
-                location="storage",
-            )
         elif location in ("calldata", "memory"):
             offset = 0
             for i in range(index):
@@ -376,8 +370,6 @@ def add_variable_offset(parent, key, pos, array_bounds_check=True):
             return LLLnode.from_list(
                 ["add", parent, ["mul", sub, offset]], typ=subtype, location="storage", pos=pos
             )
-        elif location == "storage_prehashed":
-            return LLLnode.from_list(["add", parent, sub], typ=subtype, location="storage", pos=pos)
         elif location in ("calldata", "memory"):
             offset = 32 * get_size_of_type(subtype)
             return LLLnode.from_list(
