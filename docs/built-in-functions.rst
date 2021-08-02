@@ -627,18 +627,18 @@ Utilities
 
     BETA, USE WITH CARE.
     Takes a variable number of args as input, and returns the ABIv2-encoded bytestring. Used for packing arguments to raw_call, EIP712 and other cases where a consistent and efficient serialization method is needed.
-    Once this function has seen more use we provisionally plan to put it into the ethereum.abi namespace.
+    Once this function has seen more use we provisionally plan to put it into the ``ethereum.abi`` namespace.
 
     * ``*args``: Arbitrary arguments
-    * ``ensure_tuple``: If set to True, ensures that even a single argument is encoded as a tuple. In other words, `bytes` gets encoded as `(bytes)`. This is the calling convention for Vyper and Solidity functions. Except for very specific use cases, this should be set to True. Must be a literal.
+    * ``ensure_tuple``: If set to True, ensures that even a single argument is encoded as a tuple. In other words, ``bytes`` gets encoded as ``(bytes,)``. This is the calling convention for Vyper and Solidity functions. Except for very specific use cases, this should be set to True. Must be a literal.
 
-    Returns a bytestring whose max length is determined by the arguments. For example, encoding a Bytes[32] results in a Bytes[64] (first word is the length of the bytestring).
+    Returns a bytestring whose max length is determined by the arguments. For example, encoding a ``Bytes[32]`` results in a ``Bytes[64]`` (first word is the length of the bytestring variable).
 
     .. code-block:: python
 
         @external
         @view
-        def foo() -> Bytes[4]:
+        def foo() -> Bytes[128]:
             x: uint256 = 1
             y: Bytes[32] = "234"
             return _abi_encode(x, y)
