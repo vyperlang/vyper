@@ -120,7 +120,7 @@ class GlobalContext:
                 # A struct must be defined before it is referenced.
                 # This feels like a semantic step and maybe should be pushed
                 # to a later compilation stage.
-                self.parse_type( member_type, "storage")
+                self.parse_type(member_type, "storage")
                 members.append((member_name, member_type))
             else:
                 raise StructureException("Structs can only contain variables", item)

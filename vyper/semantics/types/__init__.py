@@ -1,5 +1,20 @@
 from . import indexable, user, value
+from .abstract import SignedIntegerAbstractType, UnsignedIntegerAbstractType
 from .bases import BasePrimitive
+from .indexable.sequence import ArrayDefinition, TupleDefinition
+from .user.struct import StructDefinition
+from .value.address import AddressDefinition
+from .value.array_value import BytesArrayDefinition, StringDefinition
+from .value.boolean import BoolDefinition
+from .value.bytes_fixed import Bytes32Definition
+from .value.numeric import (
+    AbstractNumericDefinition,
+    DecimalDefinition,
+    Int128Definition,
+    Uint256Definition,
+)
+
+# any more?
 
 
 def get_primitive_types():

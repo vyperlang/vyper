@@ -204,7 +204,9 @@ def parse_type(item, location, sigs=None, custom_structs=None):
         elif (sigs is not None) and item.id in sigs:
             return InterfaceType(item.id)
         elif (custom_structs is not None) and (item.id in custom_structs):
-            return make_struct_type(item.id, location, sigs, custom_structs[item.id], custom_structs,)
+            return make_struct_type(
+                item.id, location, sigs, custom_structs[item.id], custom_structs,
+            )
         else:
             raise InvalidType("Invalid base type: " + item.id, item)
     # Units, e.g. num (1/sec) or contracts
@@ -215,7 +217,9 @@ def parse_type(item, location, sigs=None, custom_structs=None):
                 return InterfaceType(item.args[0].id)
         # Struct types
         if (custom_structs is not None) and (item.func.id in custom_structs):
-            return make_struct_type(item.id, location, sigs, custom_structs[item.id], custom_structs,)
+            return make_struct_type(
+                item.id, location, sigs, custom_structs[item.id], custom_structs,
+            )
         raise InvalidType("Units are no longer supported", item)
     # Subscripts
     elif isinstance(item, vy_ast.Subscript):
@@ -238,10 +242,14 @@ def parse_type(item, location, sigs=None, custom_structs=None):
                     parse_type(item.value, location, sigs, custom_structs=custom_structs,), n_val,
                 )
         elif item.value.id in ("HashMap",) and isinstance(item.slice.value, vy_ast.Tuple):
-            keytype = parse_type(item.slice.value.elements[0], None, sigs, custom_structs=custom_structs,)
+            keytype = parse_type(
+                item.slice.value.elements[0], None, sigs, custom_structs=custom_structs,
+            )
             return MappingType(
                 keytype,
-                parse_type(item.slice.value.elements[1], location, sigs, custom_structs=custom_structs,),
+                parse_type(
+                    item.slice.value.elements[1], location, sigs, custom_structs=custom_structs,
+                ),
             )
         # Mappings, e.g. num[address]
         else:
