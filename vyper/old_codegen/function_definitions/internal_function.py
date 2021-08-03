@@ -38,7 +38,7 @@ def get_internal_arg_copier(total_size: int, memory_dest: int) -> List[Any]:
     return copier
 
 
-def parse_internal_function(
+def generate_lll_for_internal_function(
     code: vy_ast.FunctionDef, sig: FunctionSignature, context: Context
 ) -> LLLnode:
     """

@@ -45,7 +45,6 @@ def _call_make_placeholder(stmt_expr, context, sig):
         raise TypeCheckFailure(f"Invalid output type: {sig.output_type}")
     return output_placeholder, returner, output_size
 
-
 def make_call(stmt_expr, context):
     # ** Internal Call **
     # Steps:
@@ -67,6 +66,9 @@ def make_call(stmt_expr, context):
 
     pre_init, expr_args = parse_sequence(stmt_expr, stmt_expr.args, context)
     sig = FunctionSignature.lookup_sig(context.sigs, method_name, expr_args, stmt_expr, context,)
+
+    # register callee to help calculate our starting frame offset
+    context.register_callee(sig.frame_size)
 
     if context.is_constant() and sig.mutability not in ("view", "pure"):
         raise StateAccessViolation(

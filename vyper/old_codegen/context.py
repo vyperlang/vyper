@@ -64,12 +64,17 @@ class Context:
         # Not intended to be accessed directly
         self.memory_allocator = memory_allocator
 
+        self._callee_frame_sizes = []
+
         # Intermented values, used for internal IDs
         self._internal_var_iter = 0
         self._scope_id_iter = 0
 
     def is_constant(self):
         return self.constancy is Constancy.Constant or self.in_assertion or self.in_range_expr
+
+    def register_callee(frame_size):
+        self._callee_frame_sizes.append(frame_size)
 
     #
     # Context Managers
