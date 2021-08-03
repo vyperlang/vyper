@@ -461,7 +461,7 @@ def _make_array_index_setter(target, target_token, pos, location, offset):
 
 # Create an x=y statement, where the types may be compound
 @type_check_wrapper
-def make_setter(left, right, location, pos, in_function_call=False):
+def make_setter(left, right, location, pos):
     # Basic types
     if isinstance(left.typ, BaseType):
         right = unwrap_location(right)
