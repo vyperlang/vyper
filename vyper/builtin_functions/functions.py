@@ -1746,7 +1746,8 @@ class ABIEncode(_SimpleBuiltinFunction):
     # to handle varargs.)
     # explanation of ensure_tuple:
     # default is to force even a single value into a tuple,
-    # e.g. _abi_encode(bytes) -> abi_encode((bytes,))
+    # e.g. _abi_encode(bytes) -> _abi_encode((bytes,))
+    #      _abi_encode((bytes,)) -> _abi_encode(((bytes,),))
     # this follows the encoding convention for functions:
     # ://docs.soliditylang.org/en/v0.8.6/abi-spec.html#function-selector-and-argument-encoding
     # if this is turned off, then bytes will be encoded as bytes.
