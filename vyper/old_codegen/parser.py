@@ -11,7 +11,7 @@ from vyper.exceptions import (
 from vyper.old_codegen.function_definitions import (
     is_default_func,
     is_initializer,
-    parse_function,
+    generate_lll_for_function,
 )
 from vyper.old_codegen.global_context import GlobalContext
 from vyper.old_codegen.lll_node import LLLnode
@@ -109,7 +109,7 @@ def parse_other_functions(o, otherfuncs, sigs, external_interfaces, global_ctx, 
 
     for func_node in otherfuncs:
         func_type = func_node._metadata["type"]
-        func_lll = parse_function(
+        func_lll, frame_size = generate_lll_for_function(
             func_node, {**{"self": sigs}, **external_interfaces}, global_ctx, check_per_function
         )
         if func_type.visibility == FunctionVisibility.INTERNAL:
@@ -121,13 +121,15 @@ def parse_other_functions(o, otherfuncs, sigs, external_interfaces, global_ctx, 
             external_func_sub.append(func_lll)
             add_gas += 30
         func_lll.total_gas += add_gas
+        # update sigs with metadata gathered from compiling the function
         for sig in sig_utils.generate_default_arg_sigs(func_node, external_interfaces, global_ctx):
             sig.gas = func_lll.total_gas
+            sig.frame_size = frame_size
             sigs[sig.sig] = sig
 
     # generate LLL for fallback function
     if default_function:
-        fallback_lll = parse_function(
+        fallback_lll, _frame_size = generate_lll_for_function(
             default_function,
             {**{"self": sigs}, **external_interfaces},
             global_ctx,
@@ -196,11 +198,10 @@ def parse_tree_to_lll(global_ctx: GlobalContext) -> Tuple[LLLnode, LLLnode]:
     # If there is an init func...
     if initfunc:
         o.append(init_func_init_lll())
-        o.append(
-            parse_function(
+        init_func_lll, _frame_size = generate_lll_for_function(
                 initfunc[0], {**{"self": sigs}, **external_interfaces}, global_ctx, False,
             )
-        )
+        o.append(init_func_lll)
 
     # If there are regular functions...
     if otherfuncs or defaultfunc:

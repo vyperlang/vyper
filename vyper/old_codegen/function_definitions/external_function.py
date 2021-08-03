@@ -32,7 +32,7 @@ def get_external_arg_copier(
     return copier
 
 
-def parse_external_function(
+def generate_lll_for_external_function(
     code: vy_ast.FunctionDef, sig: FunctionSignature, context: Context, check_nonpayable: bool,
 ) -> LLLnode:
     """
