@@ -48,8 +48,8 @@ class ABIType:
     # Whether the type is a tuple at the ABI level.
     # (This is important because if it does, it needs an offset.
     #   Compare the difference in encoding between `bytes` and `(bytes,)`.)
-    def is_tuple(self):
-        raise NotImplementedError("ABIType.is_tuple")
+    def is_complex_type(self):
+        raise NotImplementedError("ABIType.is_complex_type")
 
 
 # uint<M>: unsigned integer type of M bits, 0 < M <= 256, M % 8 == 0. e.g. uint32, uint8, uint256.
@@ -71,7 +71,7 @@ class ABI_GIntM(ABIType):
     def selector_name(self):
         return ("" if self.signed else "u") + f"int{self.m_bits}"
 
-    def is_tuple(self):
+    def is_complex_type(self):
         return False
 
 
@@ -122,7 +122,7 @@ class ABI_FixedMxN(ABIType):
     def selector_name(self):
         return ("" if self.signed else "u") + "fixed{self.m_bits}x{self.n_places}"
 
-    def is_tuple(self):
+    def is_complex_type(self):
         return False
 
 
@@ -143,7 +143,7 @@ class ABI_BytesM(ABIType):
     def selector_name(self):
         return f"bytes{self.m_bytes}"
 
-    def is_tuple(self):
+    def is_complex_type(self):
         return False
 
 
@@ -178,7 +178,7 @@ class ABI_StaticArray(ABIType):
     def selector_name(self):
         return f"{self.subtyp.selector_name()}[{self.m_elems}]"
 
-    def is_tuple(self):
+    def is_complex_type(self):
         return True
 
 
@@ -204,7 +204,7 @@ class ABI_Bytes(ABIType):
     def selector_name(self):
         return "bytes"
 
-    def is_tuple(self):
+    def is_complex_type(self):
         return False
 
 
@@ -233,7 +233,7 @@ class ABI_DynamicArray(ABIType):
     def selector_name(self):
         return f"{self.subtyp.selector_name()}[]"
 
-    def is_tuple(self):
+    def is_complex_type(self):
         return False
 
 
@@ -250,7 +250,7 @@ class ABI_Tuple(ABIType):
     def dynamic_size_bound(self):
         return sum([t.dynamic_size_bound() for t in self.subtyps])
 
-    def is_tuple(self):
+    def is_complex_type(self):
         return True
 
 
@@ -320,7 +320,7 @@ def abi_type_of2(t: vy.BasePrimitive) -> ABIType:
 # there are a lot of places in the calling convention where a tuple
 # must be passed, so here's a convenience function for that.
 def ensure_tuple(abi_typ):
-    if not abi_typ.is_tuple():
+    if not abi_typ.is_complex_type():
         return ABI_Tuple([abi_typ])
     return abi_typ
 
@@ -391,7 +391,7 @@ def abi_encode(dst, lll_node, pos=None, bufsz=None, returns_len=False):
     for i, o in enumerate(os):
         abi_t = abi_type_of(o.typ)
 
-        if parent_abi_t.is_tuple():
+        if parent_abi_t.is_complex_type():
             if abi_t.is_dynamic():
                 lll_ret.append(["mstore", dst_loc, dyn_ofst])
                 # recurse
@@ -425,7 +425,7 @@ def abi_encode(dst, lll_node, pos=None, bufsz=None, returns_len=False):
     if returns_len:
         if not parent_abi_t.is_dynamic():
             lll_ret.append(parent_abi_t.embedded_static_size())
-        elif parent_abi_t.is_tuple():
+        elif parent_abi_t.is_complex_type():
             lll_ret.append("dyn_ofst")
         elif isinstance(lll_node.typ, ByteArrayLike):
             # for abi purposes, return zero-padded length
@@ -434,7 +434,7 @@ def abi_encode(dst, lll_node, pos=None, bufsz=None, returns_len=False):
         else:
             raise CompilerPanic("unknown type {lll_node.typ}")
 
-    if not (parent_abi_t.is_dynamic() and parent_abi_t.is_tuple()):
+    if not (parent_abi_t.is_dynamic() and parent_abi_t.is_complex_type()):
         pass  # optimize out dyn_ofst allocation if we don't need it
     else:
         dyn_section_start = parent_abi_t.static_size()
@@ -456,7 +456,7 @@ def abi_decode(lll_node, src, pos=None):
     for i, o in enumerate(os):
         abi_t = abi_type_of(o.typ)
         src_loc = LLLnode("src_loc", typ=o.typ, location=src.location)
-        if parent_abi_t.is_tuple():
+        if parent_abi_t.is_complex_type():
             if abi_t.is_dynamic():
                 child_loc = ["add", "src", unwrap_location(src_loc)]
                 child_loc = LLLnode.from_list(child_loc, typ=o.typ, location=src.location)
