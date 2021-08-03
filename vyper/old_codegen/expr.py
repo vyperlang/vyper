@@ -994,10 +994,11 @@ class Expr:
         return LLLnode.from_list(lll_node, typ=typ, pos=getpos(self.expr))
 
     def parse_Tuple(self):
-        call_lll, multi_lll = parse_sequence(self.expr, self.expr.elements, self.context)
-        typ = TupleType([x.typ for x in multi_lll], is_literal=True)
-        multi_lll = LLLnode.from_list(["multi"] + multi_lll, typ=typ, pos=getpos(self.expr))
-        if not call_lll:
+        #call_lll, multi_lll = parse_sequence(self.expr, self.expr.elements, self.context)
+        tuple_elements = [Expr(x, self.context).lll_node for x in self.expr.elements]
+        typ = TupleType([x.typ for x in tuple_elements], is_literal=True)
+        multi_lll = LLLnode.from_list(["multi"] + tuple_elements, typ=typ, pos=getpos(self.expr))
+        if True: # if not call_lll:
             return multi_lll
 
         lll_node = ["seq_unchecked"] + call_lll + [multi_lll]
