@@ -84,3 +84,191 @@ def pub6() -> Foo:
     assert c.pub4() == (7, 8)
     assert c.pub5(foo) == foo
     assert c.pub6() == foo
+
+def test_self_call_in_return_struct(get_contract):
+    code = """
+struct Foo:
+    a: uint256
+    b: uint256
+    c: uint256
+    d: uint256
+    e: uint256
+
+@internal
+def _foo() -> uint256:
+    a: uint256[10] = [6,7,8,9,10,11,12,13,14,15]
+    return 3
+
+@external
+def foo() -> Foo:
+    return Foo({a:1, b:2, c:self._foo(), d:4, e:5})
+    """
+
+    c = get_contract(code)
+
+    assert c.foo() == (1, 2, 3, 4, 5)
+
+
+def test_call_in_call(get_contract):
+    code = """
+struct Foo:
+    a: uint256
+    b: uint256
+    c: uint256
+    d: uint256
+    e: uint256
+
+@internal
+def _foo(a: uint256, b: uint256, c: uint256) -> Foo:
+    return Foo({a:1, b:a, c:b, d:c, e:5})
+
+@internal
+def _foo2() -> uint256:
+    a: uint256[10] = [6,7,8,9,10,11,12,13,15,16]
+    return 4
+
+@external
+def foo() -> Foo:
+    return self._foo(2, 3, self._foo2())
+    """
+
+    c = get_contract(code)
+
+    assert c.foo() == (1, 2, 3, 4, 5)
+
+
+def test_nested_calls_in_struct_return(get_contract):
+    code = """
+struct Foo:
+    a: uint256
+    b: uint256
+    c: uint256
+    d: uint256
+    e: uint256
+struct Bar:
+    a: uint256
+    b: uint256
+
+@internal
+def _bar(a: uint256, b: uint256, c: uint256) -> Bar:
+    return Bar({a:415, b:3})
+
+@internal
+def _foo2(a: uint256) -> uint256:
+    b: uint256[10] = [6,7,8,9,10,11,12,13,14,15]
+    return 99
+
+@internal
+def _foo3(a: uint256, b: uint256) -> uint256:
+    c: uint256[10] = [14,15,16,17,18,19,20,21,22,23]
+    return 42
+
+@internal
+def _foo4() -> uint256:
+    c: uint256[10] = [14,15,16,17,18,19,20,21,22,23]
+    return 4
+
+@external
+def foo() -> Foo:
+    return Foo({
+        a:1,
+        b:2,
+        c:self._bar(6, 7, self._foo2(self._foo3(9, 11))).b,
+        d:self._foo4(),
+        e:5
+    })
+    """
+
+    c = get_contract(code)
+
+    assert c.foo() == (1, 2, 3, 4, 5)
+
+
+def test_external_call_in_return_struct(get_contract):
+    code = """
+struct Bar:
+    a: uint256
+    b: uint256
+@view
+@external
+def bar() -> Bar:
+    return Bar({a:3, b:4})
+    """
+
+    code2 = """
+struct Foo:
+    a: uint256
+    b: uint256
+    c: uint256
+    d: uint256
+    e: uint256
+struct Bar:
+    a: uint256
+    b: uint256
+interface IBar:
+    def bar() -> Bar: view
+
+@external
+def foo(addr: address) -> Foo:
+    return Foo({
+        a:1,
+        b:2,
+        c:IBar(addr).bar().a,
+        d:4,
+        e:5
+    })
+    """
+
+    c = get_contract(code)
+    c2 = get_contract(code2)
+
+    assert c2.foo(c.address) == (1, 2, 3, 4, 5)
+
+
+def test_nested_external_call_in_return_struct(get_contract):
+    code = """
+struct Bar:
+    a: uint256
+    b: uint256
+
+@view
+@external
+def bar() -> Bar:
+    return Bar({a:3, b:4})
+
+@view
+@external
+def baz(x: uint256) -> uint256:
+    return x+1
+    """
+
+    code2 = """
+struct Foo:
+    a: uint256
+    b: uint256
+    c: uint256
+    d: uint256
+    e: uint256
+struct Bar:
+    a: uint256
+    b: uint256
+
+interface IBar:
+    def bar() -> Bar: view
+    def baz(a: uint256) -> uint256: view
+
+@external
+def foo(addr: address) -> Foo:
+    return Foo({
+        a:1,
+        b:2,
+        c:IBar(addr).bar().a,
+        d:4,
+        e:IBar(addr).baz(IBar(addr).bar().b)
+    })
+    """
+
+    c = get_contract(code)
+    c2 = get_contract(code2)
+
+    assert c2.foo(c.address) == (1, 2, 3, 4, 5)
