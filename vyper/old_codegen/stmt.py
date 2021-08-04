@@ -108,18 +108,22 @@ class Stmt:
     def parse_Log(self):
         event = self.stmt._metadata["type"]
 
+        # do this BEFORE evaluating args to LLL to protect the buffer
+        # from internal call clobbering
+        buf, _len = events.allocate_buffer_for_log(event, self.stmt.value.args, self.context)
+
         args = [Expr(arg, self.context).lll_node for arg in self.stmt.value.args]
 
-        topic_nodes = []
-        data_nodes = []
+        topic_lll = []
+        data_lll = []
         for arg, is_indexed in zip(args, event.indexed):
             if is_indexed:
-                topic_nodes.append(arg)
+                topic_lll.append(arg)
             else:
-                data_nodes.append(arg)
+                data_lll.append(arg)
 
         return events.lll_node_for_log(
-            self.stmt, event, topic_nodes, data_nodes, getpos(self.stmt), self.context
+            self.stmt, buf, _len, event, topic_lll, data_lll, self.context
         )
 
     def parse_Call(self):
