@@ -42,8 +42,11 @@ class Event:
         self.name = name
         self.arguments = arguments
         self.indexed = indexed
-        signature = f"{name}({','.join(v.canonical_type for v in arguments.values())})"
-        self.event_id = int(keccak256(signature.encode()).hex(), 16)
+        self.event_id = int(keccak256(self.signature.encode()).hex(), 16)
+
+    @property
+    def signature(self):
+        return f"{self.name}({','.join(v.canonical_type for v in self.arguments.values())})"
 
     @classmethod
     def from_abi(cls, abi: Dict) -> "Event":

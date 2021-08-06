@@ -269,6 +269,11 @@ def parse_type(item, location, sigs=None, custom_structs=None):
         raise InvalidType("Invalid type", item)
 
 
+# byte array overhead, in words. (it should really be 1, but there are
+# some places in our calling convention where the layout expects 2)
+BYTE_ARRAY_OVERHEAD = 2
+
+
 # Gets the maximum number of memory or storage keys needed to ABI-encode
 # a given type
 def get_size_of_type(typ):
@@ -277,7 +282,7 @@ def get_size_of_type(typ):
     elif isinstance(typ, ByteArrayLike):
         # 1 word for offset (in static section), 1 word for length,
         # up to maxlen words for actual data.
-        return ceil32(typ.maxlen) // 32 + 2
+        return ceil32(typ.maxlen) // 32 + BYTE_ARRAY_OVERHEAD
     elif isinstance(typ, ListType):
         return get_size_of_type(typ.subtype) * typ.count
     elif isinstance(typ, MappingType):
@@ -286,6 +291,17 @@ def get_size_of_type(typ):
         return sum([get_size_of_type(v) for v in typ.tuple_members()])
     else:
         raise InvalidType(f"Can not get size of type, Unexpected type: {repr(typ)}")
+
+
+def get_type_for_exact_size(n_bytes):
+    """Create a type which will take up exactly n_bytes. Used for allocating internal buffers.
+
+    Parameters:
+      n_bytes: the number of bytes to allocate
+    Returns:
+      type: A type which can be passed to context.new_variable
+    """
+    return ByteArrayType(n_bytes - 32 * BYTE_ARRAY_OVERHEAD)
 
 
 # amount of space a type takes in the static section of its ABI encoding

@@ -1043,26 +1043,26 @@ def test_hashed_indexed_topics_calldata(tester, keccak, get_contract):
     loggy_code = """
 event MyLog:
     arg1: indexed(Bytes[36])
-    arg2: indexed(int128[2])
+    arg2: indexed(int128)
     arg3: indexed(String[7])
 
 @external
-def foo(a: Bytes[36], b: int128[2], c: String[7]):
+def foo(a: Bytes[36], b: int128, c: String[7]):
     log MyLog(a, b, c)
     """
 
     c = get_contract(loggy_code)
-    tx_hash = c.foo(b"bar", [1, 2], "weird", transact={})
+    tx_hash = c.foo(b"bar", 1, "weird", transact={})
     receipt = tester.get_transaction_receipt(tx_hash.hex())
 
     # Event id is always the first topic
-    event_id = keccak(b"MyLog(bytes,int128[2],string)")
+    event_id = keccak(b"MyLog(bytes,int128,string)")
     assert receipt["logs"][0]["topics"][0] == event_id.hex()
 
     topic1 = f"0x{keccak256(b'bar').hex()}"
     assert receipt["logs"][0]["topics"][1] == topic1
 
-    topic2 = f"0x{keccak256(eth_abi.encode_single('int128[2]', [1,2])).hex()}"
+    topic2 = f"0x{eth_abi.encode_single('int128', 1).hex()}"
     assert receipt["logs"][0]["topics"][2] == topic2
 
     topic3 = f"0x{keccak256(b'weird').hex()}"
@@ -1073,7 +1073,7 @@ def foo(a: Bytes[36], b: int128[2], c: String[7]):
         "name": "MyLog",
         "inputs": [
             {"type": "bytes", "name": "arg1", "indexed": True},
-            {"type": "int128[2]", "name": "arg2", "indexed": True},
+            {"type": "int128", "name": "arg2", "indexed": True},
             {"type": "string", "name": "arg3", "indexed": True},
         ],
         "anonymous": False,
@@ -1085,13 +1085,13 @@ def test_hashed_indexed_topics_memory(tester, keccak, get_contract):
     loggy_code = """
 event MyLog:
     arg1: indexed(Bytes[10])
-    arg2: indexed(int128[3])
+    arg2: indexed(int128)
     arg3: indexed(String[44])
 
 @external
 def foo():
     a: Bytes[10] = b"potato"
-    b: int128[3] = [-777, 42, 8008135]
+    b: int128 = -777
     c: String[44] = "why hello, neighbor! how are you today?"
     log MyLog(a, b, c)
     """
@@ -1101,13 +1101,13 @@ def foo():
     receipt = tester.get_transaction_receipt(tx_hash.hex())
 
     # Event id is always the first topic
-    event_id = keccak(b"MyLog(bytes,int128[3],string)")
+    event_id = keccak(b"MyLog(bytes,int128,string)")
     assert receipt["logs"][0]["topics"][0] == event_id.hex()
 
     topic1 = f"0x{keccak256(b'potato').hex()}"
     assert receipt["logs"][0]["topics"][1] == topic1
 
-    topic2 = f"0x{keccak256(eth_abi.encode_single('int128[3]', [-777,42,8008135])).hex()}"
+    topic2 = f"0x{eth_abi.encode_single('int128', -777).hex()}"
     assert receipt["logs"][0]["topics"][2] == topic2
 
     topic3 = f"0x{keccak256(b'why hello, neighbor! how are you today?').hex()}"
@@ -1118,7 +1118,7 @@ def foo():
         "name": "MyLog",
         "inputs": [
             {"type": "bytes", "name": "arg1", "indexed": True},
-            {"type": "int128[3]", "name": "arg2", "indexed": True},
+            {"type": "int128", "name": "arg2", "indexed": True},
             {"type": "string", "name": "arg3", "indexed": True},
         ],
         "anonymous": False,
@@ -1130,16 +1130,16 @@ def test_hashed_indexed_topics_storage(tester, keccak, get_contract):
     loggy_code = """
 event MyLog:
     arg1: indexed(Bytes[32])
-    arg2: indexed(int128[2])
+    arg2: indexed(int128)
     arg3: indexed(String[6])
 
 a: Bytes[32]
-b: int128[2]
+b: int128
 c: String[6]
 
 
 @external
-def setter(_a: Bytes[32], _b: int128[2], _c: String[6]):
+def setter(_a: Bytes[32], _b: int128, _c: String[6]):
     self.a = _a
     self.b = _b
     self.c = _c
@@ -1150,18 +1150,18 @@ def foo():
     """
 
     c = get_contract(loggy_code)
-    c.setter(b"zonk", [838, -2109], "yessir", transact={})
+    c.setter(b"zonk", -2109, "yessir", transact={})
     tx_hash = c.foo(transact={})
     receipt = tester.get_transaction_receipt(tx_hash.hex())
 
     # Event id is always the first topic
-    event_id = keccak(b"MyLog(bytes,int128[2],string)")
+    event_id = keccak(b"MyLog(bytes,int128,string)")
     assert receipt["logs"][0]["topics"][0] == event_id.hex()
 
     topic1 = f"0x{keccak256(b'zonk').hex()}"
     assert receipt["logs"][0]["topics"][1] == topic1
 
-    topic2 = f"0x{keccak256(eth_abi.encode_single('int128[2]', [838,-2109])).hex()}"
+    topic2 = f"0x{eth_abi.encode_single('int128', -2109).hex()}"
     assert receipt["logs"][0]["topics"][2] == topic2
 
     topic3 = f"0x{keccak256(b'yessir').hex()}"
@@ -1172,7 +1172,7 @@ def foo():
         "name": "MyLog",
         "inputs": [
             {"type": "bytes", "name": "arg1", "indexed": True},
-            {"type": "int128[2]", "name": "arg2", "indexed": True},
+            {"type": "int128", "name": "arg2", "indexed": True},
             {"type": "string", "name": "arg3", "indexed": True},
         ],
         "anonymous": False,
@@ -1184,12 +1184,12 @@ def test_hashed_indexed_topics_storxxage(tester, keccak, get_contract):
     loggy_code = """
 event MyLog:
     arg1: indexed(Bytes[64])
-    arg2: indexed(int128[3])
+    arg2: indexed(int128)
     arg3: indexed(String[21])
 
 @external
 def foo():
-    log MyLog(b"wow", [6,66,666], "madness!")
+    log MyLog(b"wow", 666, "madness!")
     """
 
     c = get_contract(loggy_code)
@@ -1197,13 +1197,13 @@ def foo():
     receipt = tester.get_transaction_receipt(tx_hash.hex())
 
     # Event id is always the first topic
-    event_id = keccak(b"MyLog(bytes,int128[3],string)")
+    event_id = keccak(b"MyLog(bytes,int128,string)")
     assert receipt["logs"][0]["topics"][0] == event_id.hex()
 
     topic1 = f"0x{keccak256(b'wow').hex()}"
     assert receipt["logs"][0]["topics"][1] == topic1
 
-    topic2 = f"0x{keccak256(eth_abi.encode_single('int128[3]', [6, 66, 666])).hex()}"
+    topic2 = f"0x{eth_abi.encode_single('int128', 666).hex()}"
     assert receipt["logs"][0]["topics"][2] == topic2
 
     topic3 = f"0x{keccak256(b'madness!').hex()}"

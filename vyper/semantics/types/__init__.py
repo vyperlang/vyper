@@ -2,6 +2,7 @@ from . import indexable, user, value
 from .abstract import SignedIntegerAbstractType, UnsignedIntegerAbstractType
 from .bases import BasePrimitive
 from .indexable.sequence import ArrayDefinition, TupleDefinition
+from .user.event import Event
 from .user.struct import StructDefinition
 from .value.address import AddressDefinition
 from .value.array_value import BytesArrayDefinition, StringDefinition

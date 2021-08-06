@@ -177,6 +177,9 @@ def replace_user_defined_constants(vyper_module: vy_ast.Module) -> int:
     return changed_nodes
 
 
+# TODO constant folding on log events
+
+
 def _replace(old_node, new_node):
     if isinstance(new_node, vy_ast.Constant):
         return new_node.from_node(old_node, value=new_node.value)

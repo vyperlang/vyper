@@ -1,9 +1,9 @@
+import vyper.old_codegen.events as events
 from vyper import ast as vy_ast
 from vyper.builtin_functions import STMT_DISPATCH_TABLE
 from vyper.exceptions import StructureException, TypeCheckFailure
 from vyper.old_codegen import external_call, self_call
 from vyper.old_codegen.context import Context
-from vyper.old_codegen.events import pack_logging_data, pack_logging_topics
 from vyper.old_codegen.expr import Expr
 from vyper.old_codegen.parser_utils import (
     LLLnode,
@@ -107,38 +107,23 @@ class Stmt:
 
     def parse_Log(self):
         event = self.stmt._metadata["type"]
-        args = self.stmt.value.args
 
-        expected_topics, topics = [], []
-        expected_data, data = [], []
-        for node, arg_type, is_indexed in zip(args, event.arguments.values(), event.indexed):
+        # do this BEFORE evaluating args to LLL to protect the buffer
+        # from internal call clobbering
+        buf, _len = events.allocate_buffer_for_log(event, self.stmt.value.args, self.context)
+
+        args = [Expr(arg, self.context).lll_node for arg in self.stmt.value.args]
+
+        topic_lll = []
+        data_lll = []
+        for arg, is_indexed in zip(args, event.indexed):
             if is_indexed:
-                expected_topics.append(arg_type)
-                topics.append(node)
+                topic_lll.append(arg)
             else:
-                expected_data.append(arg_type)
-                data.append(node)
-        topics = pack_logging_topics(event.event_id, topics, expected_topics, self.context)
-        inargs, inargsize, inargsize_node, inarg_start = pack_logging_data(
-            data, expected_data, self.context, getpos(self.stmt),
-        )
+                data_lll.append(arg)
 
-        if inargsize_node is None:
-            sz = inargsize
-        else:
-            sz = ["mload", inargsize_node]
-
-        return LLLnode.from_list(
-            [
-                "seq",
-                inargs,
-                LLLnode.from_list(
-                    ["log" + str(len(topics)), inarg_start, sz] + topics,
-                    add_gas_estimate=inargsize * 10,
-                ),
-            ],
-            typ=None,
-            pos=getpos(self.stmt),
+        return events.lll_node_for_log(
+            self.stmt, buf, _len, event, topic_lll, data_lll, self.context
         )
 
     def parse_Call(self):
