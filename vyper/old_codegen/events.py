@@ -89,7 +89,6 @@ def lll_node_for_log(expr, buf, _maxlen, event, topic_nodes, data_nodes, context
     data = lll_tuple_from_args(data_nodes)
 
     # sanity check, abi size_bound is the same calculated both ways
-    print(data.typ, type(data.typ))
     assert abi_type_of(data.typ).size_bound() == _maxlen, "bad buffer size"
 
     # encode_data is an LLLnode which, cleverly, both encodes the data
