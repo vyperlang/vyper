@@ -99,8 +99,20 @@ def extract_sigs(sig_code, interface_name=None):
         interface_ast = [
             i
             for i in vy_ast.parse_to_ast(sig_code["code"], contract_name=interface_name)
-            if isinstance(i, vy_ast.FunctionDef)
-            or isinstance(i, vy_ast.EventDef)
+            # all the nodes visited by ModuleNodeVisitor.
+            if isinstance(
+                i,
+                (
+                    vy_ast.FunctionDef,
+                    vy_ast.EventDef,
+                    vy_ast.StructDef,
+                    vy_ast.InterfaceDef,
+                    # parsing import statements at this stage
+                    # causes issues with recursive imports
+                    # vy_ast.Import,
+                    # vy_ast.ImportFrom,
+                ),
+            )
             or (isinstance(i, vy_ast.AnnAssign) and i.target.id != "implements")
         ]
         global_ctx = GlobalContext.get_global_context(interface_ast)
