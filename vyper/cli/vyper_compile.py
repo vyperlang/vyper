@@ -218,7 +218,9 @@ def compile_files(
         except ValueError:
             file_str = file_path.as_posix()
         with file_path.open() as fh:
-            contract_sources[file_str] = fh.read()
+            # trailing newline fixes python parsing bug when source ends in a comment
+            # https://bugs.python.org/issue35107
+            contract_sources[file_str] = fh.read() + "\n"
 
     show_version = False
     if "combined_json" in output_formats:
