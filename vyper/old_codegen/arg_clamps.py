@@ -135,13 +135,16 @@ def int128_clamp(lll_node):
             "with",
             "_val",
             lll_node,
-            [
-                "seq_unchecked",
-                ["dup1", "_val"],
-                ["if", ["slt", "_val", 0], ["not", "pass"]],
-                ["assert", ["iszero", ["shr", 127, "pass"]]],
-            ],
-        ]
+            ["seq",
+                # if _val is in bounds,
+                # _val >>> 127 == 0 for positive _val
+                # _val >>> 127 == -1 for negative _val
+                # -1 and 0 are the only numbers which are unchanged by sar,
+                # so sar'ing (_val>>>127) one more bit should leave it unchanged.
+                ["assert", ["eq", ["sar", 128, "_val"], ["sar", 127, "_val"]]],
+                "_val"
+            ]
+            ]
     else:
         return [
             "clamp",
