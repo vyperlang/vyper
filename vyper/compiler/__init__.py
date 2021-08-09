@@ -85,9 +85,7 @@ def compile_codes(
 
     out: OrderedDict = OrderedDict()
     for source_id, contract_name in enumerate(sorted(contract_sources), start=initial_id):
-        # trailing newline fixes python parsing bug when source ends in a comment
-        # https://bugs.python.org/issue35107
-        source_code = f"{contract_sources[contract_name]}\n"
+        source_code = contract_sources[contract_name]
         interfaces: Any = interface_codes
         if (
             isinstance(interfaces, dict)
