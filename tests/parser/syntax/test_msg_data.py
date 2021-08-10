@@ -22,11 +22,12 @@ def foo() -> Bytes[4]:
     assert contract.foo() == bytes(keccak(text="foo()")[:4])
 
 
-def test_extract_32_usage_variable_assignment(get_contract):
-    code = """
+@pytest.mark.parametrize("index", [4, -32])
+def test_extract_32_usage_variable_assignment(get_contract, index):
+    code = f"""
 @external
 def foo(_value: uint256) -> uint256:
-    bar: bytes32 = extract32(msg.data, 4)
+    bar: bytes32 = extract32(msg.data, {index})
     return convert(bar, uint256)
 """
 
