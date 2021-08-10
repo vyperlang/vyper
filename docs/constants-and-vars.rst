@@ -33,7 +33,7 @@ Name                 Type             Value
 
 .. note::
 
-    ``msg.data`` requires the usage of :func:`slice <slice>` to explicitly extract a section of calldata. If the extracted section exceeds the bounds of calldata, this will throw. You can check the size of ``msg.data`` using :func:`len <len>`.   
+    ``msg.data`` requires the usage of :func:`slice <slice>` or :func:`extract32 <extract32>` to explicitly extract a section of calldata. If the extracted section exceeds the bounds of calldata, this will throw. You can check the size of ``msg.data`` using :func:`len <len>`.   
 
 .. _constants-self:
 
