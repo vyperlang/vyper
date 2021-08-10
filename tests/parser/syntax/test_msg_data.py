@@ -22,6 +22,19 @@ def foo() -> Bytes[4]:
     assert contract.foo() == bytes(keccak(text="foo()")[:4])
 
 
+def test_extract_32_usage_variable_assignment(get_contract):
+    code = """
+@external
+def foo(_value: uint256) -> uint256:
+    bar: bytes32 = extract32(msg.data, 4)
+    return convert(bar, uint256)
+"""
+
+    contract = get_contract(code)
+
+    assert contract.foo(42) == 42
+
+
 def test_slicing_start_index_other_than_zero(get_contract):
     code = """
 @external
