@@ -396,33 +396,28 @@ class Expr:
                     ]
                     return LLLnode.from_list(node, typ=typ, pos=getpos(self.expr), location="memory")
                 elif parent.get("func.id") == "extract32":
-                    start = parent.args[1].value
-                    if start >= 0:
-                        size = start + 32
-                        typ = ByteArrayType(size + 32)
-                        pos = self.context.new_internal_variable(typ)
-                        node = [
-                            "seq",
-                            ["mstore", pos, size],
-                            ["calldatacopy", pos + 32, 0, size],
-                            pos,
-                        ]
+                    start_index = parent.args[1].value
+                    array_size = start_index + 32 if start_index >= 0 else abs(start_index)
+                    if start_index >= 0:
+                        array_size = start_index + 32
+                        start_pos = 0
                     else:
                         # negative start index so our size is really just abs(start)
                         # because we are going to grab just the end chunk
-                        array_size = abs(start)
-                        typ = ByteArrayType(array_size + 32)
-                        pos = self.context.new_internal_variable(typ)
-                        node = [
-                            "seq",
-                            ["mstore", pos, array_size],
-                            ["calldatacopy", pos + 32, ["sub", "calldatasize", array_size], array_size],
-                            pos,
-                        ]
+                        array_size = abs(start_index)
+                        start_pos = ["sub", "calldatasize", array_size]
                         # overwrite the user supplied negative value to be 0
                         # since we are just grabbing the beginning of the chunk we took at the end
+                        # TODO: make an issue about negative values for index in extract32 call borking
                         parent.args[1].value = 0
-
+                    typ = ByteArrayType(array_size + 32)
+                    pos = self.context.new_internal_variable(typ)
+                    node = [
+                            "seq",
+                            ["mstore", pos, array_size],
+                            ["calldatacopy", pos + 32, start_pos, array_size],
+                            pos,
+                        ]
                     return LLLnode.from_list(node, typ=typ, pos=getpos(self.expr), location="memory")
 
             elif key == "msg.value" and self.context.is_payable:
