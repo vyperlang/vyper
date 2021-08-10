@@ -395,6 +395,18 @@ class Expr:
                         pos,
                     ]
                     return LLLnode.from_list(node, typ=typ, pos=getpos(self.expr), location="memory")
+                elif parent.get("func.id") == "extract32":
+                    size = parent.args[1].value + 32
+                    typ = ByteArrayType(size)
+                    pos = self.context.new_internal_variable(typ)
+                    node = [
+                        "seq",
+                        ["mstore", pos, size],
+                        ["calldatacopy", pos + 32, 0, size],
+                        pos,
+                    ]
+                    return LLLnode.from_list(node, typ=typ, pos=getpos(self.expr), location="memory")
+
             elif key == "msg.value" and self.context.is_payable:
                 return LLLnode.from_list(
                     ["callvalue"], typ=BaseType("uint256"), pos=getpos(self.expr),
