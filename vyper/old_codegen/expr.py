@@ -375,25 +375,26 @@ class Expr:
             if key == "msg.sender" and not self.context.is_internal:
                 return LLLnode.from_list(["caller"], typ="address", pos=getpos(self.expr))
             elif key == "msg.data" and not self.context.is_internal:
-                is_len = self.expr._metadata.get("is_len")
-                if is_len is True:
+                parent = self.expr._parent
+                if parent.get("func.id") == "len":
                     typ = ByteArrayType(32)
                     pos = self.context.new_internal_variable(typ)
                     node = ["seq", ["mstore", pos, "calldatasize"], pos]
                     return LLLnode.from_list(
                         node, typ=typ, pos=getpos(self.expr), location="memory"
                     )
-                size = self.expr._metadata.get("size")
-                typ = ByteArrayType(size + 32)
-                pos = self.context.new_internal_variable(typ)
-                node = [
-                    "seq",
-                    ["assert", ["le", size, "calldatasize"]],
-                    ["mstore", pos, size],
-                    ["calldatacopy", pos + 32, 0, size],
-                    pos,
-                ]
-                return LLLnode.from_list(node, typ=typ, pos=getpos(self.expr), location="memory")
+                elif parent.get("func.id") == "slice":
+                    size = parent.args[1].value + parent.args[2].value
+                    typ = ByteArrayType(size + 32)
+                    pos = self.context.new_internal_variable(typ)
+                    node = [
+                        "seq",
+                        ["assert", ["le", size, "calldatasize"]],
+                        ["mstore", pos, size],
+                        ["calldatacopy", pos + 32, 0, size],
+                        pos,
+                    ]
+                    return LLLnode.from_list(node, typ=typ, pos=getpos(self.expr), location="memory")
             elif key == "msg.value" and self.context.is_payable:
                 return LLLnode.from_list(
                     ["callvalue"], typ=BaseType("uint256"), pos=getpos(self.expr),
