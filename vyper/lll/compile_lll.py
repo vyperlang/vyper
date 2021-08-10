@@ -489,8 +489,8 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
     # # jump to a symbol
     elif code.value == "goto":
         return ["_sym_" + str(code.args[0]), "JUMP"]
-    elif isinstance(code.value, str) and code.value.startswith("_sym_"):
-        return code.value
+    elif isinstance(code.value, str) and is_symbol(code.value):
+        return [code.value]
     # set a symbol as a location.
     elif code.value == "label":
         label_name = str(code.args[0])
