@@ -36,6 +36,21 @@ def foo(_value: uint256) -> uint256:
     assert contract.foo(42) == 42
 
 
+@pytest.mark.parametrize("index", [4, -32])
+def test_extract_32_usage_variable_assignment_alt_datatype(get_contract, index, w3):
+    code = f"""
+@external
+def foo(_value: address) -> address:
+    bar: address = extract32(msg.data, {index}, output_type=address)
+    return bar
+"""
+
+    contract = get_contract(code)
+    acct = w3.eth.accounts[0]
+
+    assert contract.foo(acct) == acct
+
+
 def test_slicing_start_index_other_than_zero(get_contract):
     code = """
 @external
@@ -94,6 +109,22 @@ def foo():
 
     contract.foo(transact={"from": acct})
     assert contract.cache() == bytes(keccak(text="foo()")[:4])
+
+
+@pytest.mark.parametrize("index", [4, -32])
+def test_extract32_assignment_to_storage(w3, get_contract, index):
+    code = f"""
+cache: public(uint256)
+
+@external
+def foo(_value: uint256):
+    self.cache = extract32(msg.data, {index}, output_type=uint256)
+"""
+    acct = w3.eth.accounts[0]
+    contract = get_contract(code)
+
+    contract.foo(42, transact={"from": acct})
+    assert contract.cache() == 42
 
 
 def test_get_len(get_contract):
