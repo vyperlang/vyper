@@ -396,7 +396,7 @@ class Expr:
                     ]
                     return LLLnode.from_list(node, typ=typ, pos=getpos(self.expr), location="memory")
                 elif parent.get("func.id") == "extract32":
-                    start = parent.args[1].value 
+                    start = parent.args[1].value
                     if start >= 0:
                         size = start + 32
                         typ = ByteArrayType(size + 32)
@@ -410,15 +410,18 @@ class Expr:
                     else:
                         # negative start index so our size is really just abs(start)
                         # because we are going to grab just the end chunk
-                        size = abs(start)
-                        typ = ByteArrayType(size + 32)
+                        array_size = abs(start)
+                        typ = ByteArrayType(array_size + 32)
                         pos = self.context.new_internal_variable(typ)
                         node = [
                             "seq",
-                            ["mstore", pos, size],
-                            ["calldatacopy", pos + 32, ["sub", "calldatasize", size], size],
+                            ["mstore", pos, array_size],
+                            ["calldatacopy", pos + 32, ["sub", "calldatasize", array_size], array_size],
                             pos,
                         ]
+                        # overwrite the user supplied negative value to be 0
+                        # since we are just grabbing the beginning of the chunk we took at the end
+                        parent.args[1].value = 0
 
                     return LLLnode.from_list(node, typ=typ, pos=getpos(self.expr), location="memory")
 
