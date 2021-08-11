@@ -19,6 +19,12 @@ def fourbytes_to_int(inp):
     return (inp[0] << 24) + (inp[1] << 16) + (inp[2] << 8) + inp[3]
 
 
+# converts a signature like Func(bool,uint256,address) to its 4 byte method ID
+# TODO replace manual calculations in codebase with this
+def abi_method_id(method_sig):
+    return fourbytes_to_int(keccak256(bytes(method_sig, "utf-8"))[:4])
+
+
 # Converts string to bytes
 def string_to_bytes(str):
     bytez = b""
