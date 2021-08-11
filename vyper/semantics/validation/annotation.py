@@ -55,12 +55,7 @@ class StatementAnnotationVisitor(_AnnotationVisitorBase):
         super().visit(node)
 
     def visit_Attribute(self, node):
-        if node.get("value.id") == "msg" and node.attr == "data":
-            parent = node.get_ancestor()
-            if parent.get("func.id") == "slice":
-                node._metadata["size"] = parent.args[1].value + parent.args[2].value
-            elif parent.get("func.id") == "len":
-                node._metadata["is_len"] = True
+        pass
 
     def visit_AnnAssign(self, node):
         type_ = get_exact_type_from_node(node.target)
