@@ -306,8 +306,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         o = []
         for arg in code.args:
             o.extend(_compile_to_assembly(arg, withargs, existing_labels, break_dest, height))
-            # if arg.valency == 1 and arg != code.args[-1]:
-            #     o.append('POP')
+            height += arg.valency
         return o
     # Assure (if false, invalid opcode)
     elif code.value == "assert_unreachable":
