@@ -186,9 +186,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
     def visit_Attribute(self, node):
         if node.get("value.id") == "msg" and node.attr == "data":
             parent = node.get_ancestor()
-            is_slice = parent.get("func.id") == "slice"
-            is_len = parent.get("func.id") == "len"
-            if not is_slice and not is_len:
+            if parent.get("func.id") not in ["slice", "len"]:
                 raise SyntaxException(
                     "msg.data is only allowed inside of the slice or len functions",
                     node.node_source_code,
