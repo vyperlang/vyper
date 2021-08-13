@@ -85,6 +85,9 @@ def _parse_args(argv):
         dest="evm_version",
     )
     parser.add_argument(
+        "--ovm", help="EXPERIMENTAL: Use the OVM backend", action="store_true",
+    )
+    parser.add_argument(
         "--traceback-limit",
         help="Set the traceback limit for error messages reported by the compiler",
         type=int,
@@ -127,6 +130,7 @@ def _parse_args(argv):
         args.root_folder,
         args.show_gas_estimates,
         args.evm_version,
+        args.ovm,
     )
 
     if output_formats == ("combined_json",):
@@ -201,6 +205,7 @@ def compile_files(
     root_folder: str = ".",
     show_gas_estimates: bool = False,
     evm_version: str = DEFAULT_EVM_VERSION,
+    use_ovm: bool = False,
 ) -> OrderedDict:
 
     if show_gas_estimates:
@@ -238,6 +243,7 @@ def compile_files(
         exc_handler=exc_handler,
         interface_codes=get_interface_codes(root_path, contract_sources),
         evm_version=evm_version,
+        use_ovm=use_ovm,
     )
     if show_version:
         compiler_data["version"] = vyper.__version__
