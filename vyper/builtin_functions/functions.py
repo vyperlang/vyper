@@ -263,7 +263,9 @@ class Slice:
                 )
             sub_typ_maxlen = 32
         elif sub.location == "calldata":
-            # msg.data
+            # if we are slicing msg.data, the length should
+            # be a constant, since msg.data can be of dynamic length
+            # we can't use it's length as the maxlen
             sub_typ_maxlen = length.value
         else:
             sub_typ_maxlen = sub.typ.maxlen
@@ -286,13 +288,12 @@ class Slice:
         elif sub.location == "calldata":
             node = [
                 "seq",
-                ["assert", ["le", start.value + length.value, "calldatasize"]],  # runtime bounds check
+                ["assert", ["le", ["add", start, length], "calldatasize"]],  # runtime bounds check
                 ["mstore", np, length],
                 ["calldatacopy", np + 32, start, length],
                 np,
             ]
             return LLLnode.from_list(node, typ=ByteArrayType(length.value), location="memory")
-        
         else:
             adj_sub = LLLnode.from_list(
                 ["add", sub, ["add", ["sub", "_start", ["mod", "_start", 32]], 32]],
