@@ -6,9 +6,6 @@ Vyper is currently in limited beta.
 This means that we only support the latest release and that you may encounter issues using it.
 It is un-audited software, use with caution.
 
-If you have questions or concerns, please contact us on gitter:
-[![Join the chat at https://gitter.im/vyperlang/community](https://badges.gitter.im/vyperlang/community.svg)](https://gitter.im/vyperlang/community?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge "Gitter")
-
 ## Audit reports
 
 Vyper is constantly changing and improving.

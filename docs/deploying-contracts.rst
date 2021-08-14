@@ -14,7 +14,7 @@ Once you are ready to deploy your contract to a public test net or the main net,
   vyper yourFileName.vy
   # returns bytecode
 
-* Take the byte code and ABI and depoly it with your current browser on `myetherwallet's <https://www.myetherwallet.com/>`_ contract menu:
+* Take the byte code and ABI and deploy it with your current browser on `myetherwallet's <https://www.myetherwallet.com/>`_ contract menu:
 
 .. code-block:: bash
 

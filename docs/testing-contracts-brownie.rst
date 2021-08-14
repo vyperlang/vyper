@@ -5,7 +5,7 @@ Testing with Brownie
 
 `Brownie <https://github.com/iamdefinitelyahuman/brownie>`_ is a Python-based development and testing framework for smart contracts. It includes a pytest plugin with fixtures that simplify testing your contract.
 
-This section provides a quick overview of testing with Brownie. To learn more, you can view the Brownie documentation on `writing unit tests <https://eth-brownie.readthedocs.io/en/stable/tests-pytest-intro.html>`_ or join the `Gitter <https://gitter.im/eth-brownie/community>`_ channel.
+This section provides a quick overview of testing with Brownie. To learn more, you can view the Brownie documentation on `writing unit tests <https://eth-brownie.readthedocs.io/en/stable/tests-pytest-intro.html>`_ or join the `Ethereum Python Dev Discord <https://discord.gg/abJEARdx3Q>`_ ``#brownie`` channel.
 
 Getting Started
 ===============

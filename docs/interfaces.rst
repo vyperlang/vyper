@@ -18,7 +18,7 @@ The ``interface`` keyword is used to define an inline external interface:
         def calculate() -> uint256: view
         def test1(): nonpayable
 
-The defined interface can then be use to make external calls, given a contract address:
+The defined interface can then be used to make external calls, given a contract address:
 
 .. code-block:: python
 
@@ -74,7 +74,7 @@ Imported interfaces are written using standard Vyper syntax. The body of each fu
     def calculate() -> uint256:
         pass
 
-You can also import a fully implemented contract and Vyper will automatically convert it to an interface. It is even possible for a contract to import itself to gain access to it's own interface.
+You can also import a fully implemented contract and Vyper will automatically convert it to an interface. It is even possible for a contract to import itself to gain access to its own interface.
 
 .. code-block:: python
 
@@ -125,7 +125,7 @@ Relative imports are possible by prepending dots to the contract name. A single 
 Searching For Interface Files
 -----------------------------
 
-When looking for a file to import Vyper will first search relative to the same folder as the contract being compiled. For absolute imports, it also searches relative to the root path for the project. Vyper checks for the file name with a ``.vy`` suffix first, then ``.json``.
+When looking for a file to import, Vyper will first search relative to the same folder as the contract being compiled. For absolute imports, it also searches relative to the root path for the project. Vyper checks for the file name with a ``.vy`` suffix first, then ``.json``.
 
 When using the command line compiler, the root path defaults to to the current working directory. You can change it with the ``-p`` flag:
 
@@ -166,7 +166,7 @@ This imports the defined interface from the vyper file at ``an_interface.vy`` (o
 Extracting Interfaces
 =====================
 
-Vyper has a built-in format option to allow you to make your own vyper interfaces easily.
+Vyper has a built-in format option to allow you to make your own Vyper interfaces easily.
 
 ::
 
@@ -181,7 +181,7 @@ Vyper has a built-in format option to allow you to make your own vyper interface
 
     # ...
 
-If you want to do an external call to another contract, vyper provides an external interface extract utility as well.
+If you want to do an external call to another contract, Vyper provides an external interface extract utility as well.
 
 ::
 

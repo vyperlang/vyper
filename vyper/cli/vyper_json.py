@@ -12,8 +12,8 @@ from vyper.cli.utils import (
     extract_file_interface_imports,
     get_interface_file_path,
 )
+from vyper.evm.opcodes import DEFAULT_EVM_VERSION, EVM_VERSIONS
 from vyper.exceptions import JSONError
-from vyper.opcodes import DEFAULT_EVM_VERSION, EVM_VERSIONS
 from vyper.typing import ContractCodes, ContractPath
 from vyper.utils import keccak256
 

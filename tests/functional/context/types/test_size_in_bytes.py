@@ -1,7 +1,7 @@
 import pytest
 
-from vyper.context.types.bases import DataLocation
-from vyper.context.types.utils import get_type_from_annotation
+from vyper.semantics.types.bases import DataLocation
+from vyper.semantics.types.utils import get_type_from_annotation
 
 BASE_TYPES = ["int128", "uint256", "bool", "address", "bytes32"]
 ARRAY_VALUE_TYPES = ["String", "Bytes"]
@@ -24,7 +24,8 @@ def test_array_value_types(build_node, type_str, location, length, size):
     node = build_node(f"{type_str}[{length}]")
     type_definition = get_type_from_annotation(node, location)
 
-    assert type_definition.size_in_bytes == size
+    # TODO once storage of bytes is optimized, remove the +32
+    assert type_definition.size_in_bytes == size + 32
 
 
 @pytest.mark.parametrize("type_str", BASE_TYPES)

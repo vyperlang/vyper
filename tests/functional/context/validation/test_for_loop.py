@@ -1,8 +1,8 @@
 import pytest
 
 from vyper.ast import parse_to_ast
-from vyper.context.validation import validate_semantics
 from vyper.exceptions import ImmutableViolation
+from vyper.semantics.validation import validate_semantics
 
 
 def test_modify_iterator_function_outside_loop(namespace):

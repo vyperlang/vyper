@@ -1,8 +1,8 @@
 import pytest
 
 from vyper.compiler import compile_code
+from vyper.evm.opcodes import EVM_VERSIONS
 from vyper.exceptions import EvmVersionException
-from vyper.opcodes import EVM_VERSIONS
 from vyper.utils import keccak256
 
 

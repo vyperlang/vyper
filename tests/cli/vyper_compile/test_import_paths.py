@@ -5,19 +5,24 @@ from vyper.cli.vyper_compile import compile_files, get_interface_file_path
 FOO_CODE = """
 {}
 
-@external
-def foo() -> uint256:
-    return 13
+struct FooStruct:
+    foo_: uint256
 
 @external
-def bar(a: address) -> uint256:
+def foo() -> FooStruct:
+    return FooStruct({{foo_: 13}})
+
+@external
+def bar(a: address) -> FooStruct:
     return {}(a).bar()
 """
 
 BAR_CODE = """
+struct FooStruct:
+    foo_: uint256
 @external
-def bar() -> uint256:
-    return 13
+def bar() -> FooStruct:
+    return FooStruct({foo_: 13})
 """
 
 
@@ -127,17 +132,20 @@ META_IMPORT_STMT = [
 
 @pytest.mark.parametrize("import_stmt", META_IMPORT_STMT)
 def test_import_self_interface(import_stmt, tmp_path):
-    # a contract can access it's derived interface by importing itself
+    # a contract can access its derived interface by importing itself
     code = f"""
 {import_stmt}
 
+struct FooStruct:
+    foo_: uint256
+
 @external
-def know_thyself(a: address) -> uint256:
+def know_thyself(a: address) -> FooStruct:
     return Meta(a).be_known()
 
 @external
-def be_known() -> uint256:
-    return 42
+def be_known() -> FooStruct:
+    return FooStruct({{foo_: 42}})
     """
 
     tmp_path.joinpath("contracts").mkdir()
@@ -167,12 +175,15 @@ def test_derived_interface_imports(import_stmt_baz, import_stmt_foo, tmp_path):
     baz_code = f"""
 {import_stmt_baz}
 
+struct FooStruct:
+    foo_: uint256
+
 @external
-def foo(a: address) -> uint256:
+def foo(a: address) -> FooStruct:
     return Foo(a).foo()
 
 @external
-def bar(_foo: address, _bar: address) -> uint256:
+def bar(_foo: address, _bar: address) -> FooStruct:
     return Foo(_foo).bar(_bar)
     """
 
@@ -198,9 +209,15 @@ def test_local_namespace(tmp_path):
         "import foo as BarFoo",
         "import bar as BarFoo",
     ]
+    struct_def = """
+struct FooStruct:
+    foo_: uint256
+
+    """
 
     compile_paths = []
     for i, code in enumerate(codes):
+        code += struct_def
         path = tmp_path.joinpath(f"code{i}.vy")
         with path.open("w") as fp:
             fp.write(code)

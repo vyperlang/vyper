@@ -1,7 +1,7 @@
 import pytest
 
-from vyper.parser.context import Context
-from vyper.types import BaseType
+from vyper.old_codegen.context import Context
+from vyper.old_codegen.types import BaseType
 
 
 class ContextMock(Context):
@@ -45,5 +45,5 @@ def pytest_collection_modifyitems(items, config):
 @pytest.fixture
 def memory_mocker(monkeypatch, request):
     if request.param:
-        monkeypatch.setattr("vyper.parser.context.Context", ContextMock)
+        monkeypatch.setattr("vyper.old_codegen.context.Context", ContextMock)
         ContextMock.set_mock_var_size(request.param)

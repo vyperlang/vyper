@@ -5,7 +5,7 @@ from hypothesis import example, given, settings
 from hypothesis import strategies as st
 
 from vyper import ast as vy_ast
-from vyper import functions as vy_fn
+from vyper import builtin_functions as vy_fn
 
 st_decimals = st.decimals(
     min_value=-(2 ** 32), max_value=2 ** 32, allow_nan=False, allow_infinity=False, places=10,

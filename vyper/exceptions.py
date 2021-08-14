@@ -2,7 +2,10 @@ import copy
 import textwrap
 import types
 
-from vyper.settings import VYPER_ERROR_CONTEXT_LINES, VYPER_ERROR_LINE_NUMBERS
+from vyper.compiler.settings import (
+    VYPER_ERROR_CONTEXT_LINES,
+    VYPER_ERROR_LINE_NUMBERS,
+)
 
 
 class ExceptionList(list):

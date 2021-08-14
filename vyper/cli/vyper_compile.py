@@ -13,9 +13,9 @@ from vyper.cli.utils import (
     extract_file_interface_imports,
     get_interface_file_path,
 )
-from vyper.opcodes import DEFAULT_EVM_VERSION, EVM_VERSIONS
-from vyper.parser import parser_utils
-from vyper.settings import VYPER_TRACEBACK_LIMIT
+from vyper.compiler.settings import VYPER_TRACEBACK_LIMIT
+from vyper.evm.opcodes import DEFAULT_EVM_VERSION, EVM_VERSIONS
+from vyper.old_codegen import parser_utils
 from vyper.typing import ContractCodes, ContractPath, OutputFormats
 
 T = TypeVar("T")
@@ -90,6 +90,13 @@ def _parse_args(argv):
         type=int,
     )
     parser.add_argument(
+        "--debug",
+        help="Turn on compiler debug information. "
+        "Currently an alias for --traceback-limit but "
+        "may add more information in the future",
+        action="store_true",
+    )
+    parser.add_argument(
         "--standard-json",
         help="Switch to standard JSON mode. Use `--standard-json -h` for available options.",
         action="store_true",
@@ -104,6 +111,8 @@ def _parse_args(argv):
         sys.tracebacklimit = args.traceback_limit
     elif VYPER_TRACEBACK_LIMIT is not None:
         sys.tracebacklimit = VYPER_TRACEBACK_LIMIT
+    elif args.debug:
+        sys.tracebacklimit = 1000
     else:
         # Python usually defaults sys.tracebacklimit to 1000.  We use a default
         # setting of zero so error printouts only include information about where
@@ -209,7 +218,9 @@ def compile_files(
         except ValueError:
             file_str = file_path.as_posix()
         with file_path.open() as fh:
-            contract_sources[file_str] = fh.read()
+            # trailing newline fixes python parsing bug when source ends in a comment
+            # https://bugs.python.org/issue35107
+            contract_sources[file_str] = fh.read() + "\n"
 
     show_version = False
     if "combined_json" in output_formats:

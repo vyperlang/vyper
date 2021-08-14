@@ -4,6 +4,10 @@ import operator
 import sys
 from typing import Any, Optional, Union
 
+from vyper.compiler.settings import (
+    VYPER_ERROR_CONTEXT_LINES,
+    VYPER_ERROR_LINE_NUMBERS,
+)
 from vyper.exceptions import (
     CompilerPanic,
     InvalidLiteral,
@@ -14,7 +18,6 @@ from vyper.exceptions import (
     UnfoldableNode,
     ZeroDivisionException,
 )
-from vyper.settings import VYPER_ERROR_CONTEXT_LINES, VYPER_ERROR_LINE_NUMBERS
 from vyper.utils import (
     MAX_DECIMAL_PLACES,
     SizeLimits,

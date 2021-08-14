@@ -97,7 +97,7 @@ Chain Interaction
 .. py:function:: create_forwarder_to(target: address, value: uint256 = 0) -> address
 
     Deploys a small contract that duplicates the logic of the contract at ``target``, but has it's own state since every call to ``target`` is made using ``DELEGATECALL`` to ``target``. To the end user, this should be indistinguishable from an independantly deployed contract with the same code as ``target``.
-    
+
 .. note::
 
   It is very important that the deployed contract at ``target`` is code you know and trust, and does not implement the ``selfdestruct`` opcode as this will affect the operation of the forwarder contract.
@@ -243,6 +243,22 @@ Cryptography
 
     Returns the associated address, or ``0`` on error.
 
+    .. code-block:: python
+
+        @external
+        @view
+        def foo(hash: bytes32, v: uint256, r:uint256, s:uint256) -> address:
+            return ecrecover(hash, v, r, s)
+    
+    .. code-block:: python
+
+        >>> ExampleContract.foo('0x6c9c5e133b8aafb2ea74f524a5263495e7ae5701c7248805f7b511d973dc7055',
+             28,
+             78616903610408968922803823221221116251138855211764625814919875002740131251724, 
+             37668412420813231458864536126575229553064045345107737433087067088194345044408
+            )
+        '0x9eE53ad38Bb67d745223a4257D7d48cE973FeB7A'
+
 .. py:function:: keccak256(_value) -> bytes32
 
     Return a ``keccak256`` hash of the given value.
@@ -357,6 +373,24 @@ Data Manipulation
 
 Math
 ====
+
+.. py:function:: abs(value: int256) -> int256
+
+    Return the absolute value of a signed integer.
+
+    * ``value``: Integer to return the absolute value of
+
+    .. code-block:: python
+
+        @external
+        @view
+        def foo(value: int256) -> int256:
+            return abs(value)
+
+    .. code-block:: python
+
+        >>> ExampleContract.foo(-31337)
+        31337
 
 .. py:function:: ceil(value: decimal) -> int128
 
@@ -588,4 +622,28 @@ Utilities
     .. code-block:: python
 
         >>> ExampleContract.foo()
-        b"\xa9\x05\x9c\xbb"
+
+.. py:function:: _abi_encode(\*args, ensure_tuple: bool = True) -> Bytes[<depends on input>]
+
+    BETA, USE WITH CARE.
+    Takes a variable number of args as input, and returns the ABIv2-encoded bytestring. Used for packing arguments to raw_call, EIP712 and other cases where a consistent and efficient serialization method is needed.
+    Once this function has seen more use we provisionally plan to put it into the ``ethereum.abi`` namespace.
+
+    * ``*args``: Arbitrary arguments
+    * ``ensure_tuple``: If set to True, ensures that even a single argument is encoded as a tuple. In other words, ``bytes`` gets encoded as ``(bytes,)``. This is the calling convention for Vyper and Solidity functions. Except for very specific use cases, this should be set to True. Must be a literal.
+
+    Returns a bytestring whose max length is determined by the arguments. For example, encoding a ``Bytes[32]`` results in a ``Bytes[64]`` (first word is the length of the bytestring variable).
+
+    .. code-block:: python
+
+        @external
+        @view
+        def foo() -> Bytes[128]:
+            x: uint256 = 1
+            y: Bytes[32] = "234"
+            return _abi_encode(x, y)
+
+    .. code-block:: python
+
+        >>> ExampleContract.foo().hex()
+        "0000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000000033233340000000000000000000000000000000000000000000000000000000000"

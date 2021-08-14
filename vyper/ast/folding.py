@@ -2,8 +2,8 @@ from decimal import Decimal
 from typing import Union
 
 from vyper.ast import nodes as vy_ast
+from vyper.builtin_functions import DISPATCH_TABLE
 from vyper.exceptions import UnfoldableNode
-from vyper.functions import DISPATCH_TABLE
 
 BUILTIN_CONSTANTS = {
     "EMPTY_BYTES32": (
@@ -175,6 +175,9 @@ def replace_user_defined_constants(vyper_module: vy_ast.Module) -> int:
         changed_nodes += replace_constant(vyper_module, node.target.id, node.value, False)
 
     return changed_nodes
+
+
+# TODO constant folding on log events
 
 
 def _replace(old_node, new_node):

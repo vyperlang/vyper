@@ -3,6 +3,57 @@
 Release Notes
 #############
 
+v0.2.15
+*******
+
+Date released: 23-07-2021
+
+Non-breaking changes and improvements
+- Optimization when returning nested tuples (`#2392 <https://github.com/vyperlang/vyper/pull/2392>`_)
+
+Fixes:
+- Annotated kwargs for builtins (`#2389 <https://github.com/vyperlang/vyper/pull/2389>`_)
+- Storage slot allocation bug (`#2391 <https://github.com/vyperlang/vyper/pull/2391>`_)
+
+v0.2.14
+*******
+
+Date released: 20-07-2021
+
+Non-breaking changes and improvements:
+- Reduce bytecode by sharing code for clamps (`#2387 <https://github.com/vyperlang/vyper/pull/2387>`_)
+
+Fixes:
+- Storage corruption from re-entrancy locks (`#2379 <https://github.com/vyperlang/vyper/pull/2379>`_)
+
+v0.2.13
+*******
+**THIS RELEASE HAS BEEN PULLED**
+
+Date released: 06-07-2021
+
+Non-breaking changes and improvements:
+
+- Add the ``abs`` builtin function (`#2356 <https://github.com/vyperlang/vyper/pull/2356>`_)
+- Streamline the location of arrays within storage (`#2361 <https://github.com/vyperlang/vyper/pull/2361>`_)
+
+v0.2.12
+*******
+
+Date released: 16-04-2021
+
+This release fixes a memory corruption bug (`#2345 <https://github.com/vyperlang/vyper/pull/2345>`_) that was introduced in the v0.2.x series
+and was not fixed in `VVE-2020-0004 <https://github.com/vyperlang/vyper/security/advisories/GHSA-2r3x-4mrv-mcxf>`_. Read about it further in
+`VVE-2021-0001 <https://github.com/vyperlang/vyper/security/advisories/GHSA-22wc-c9wj-6q2v>`_.
+
+Non-breaking changes and improvements:
+
+- Optimize ``calldataload`` (`#2352 <https://github.com/vyperlang/vyper/pull/2352>`_)
+- Add the ``int256`` signed integer type (`#2351 <https://github.com/vyperlang/vyper/pull/2351>`_)
+- EIP2929 opcode repricing and Berlin support (`#2350 <https://github.com/vyperlang/vyper/pull/2350>`_)
+- Add ``msg.data`` environment variable #2343 (`#2343 <https://github.com/vyperlang/vyper/pull/2343>`_)
+- Full support for Python 3.9 (`#2233 <https://github.com/vyperlang/vyper/pull/2233>`_)
+
 v0.2.11
 *******
 

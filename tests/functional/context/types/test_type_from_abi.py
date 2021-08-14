@@ -1,9 +1,9 @@
 import pytest
 
-from vyper.context.types import get_primitive_types
-from vyper.context.types.indexable.sequence import ArrayDefinition
-from vyper.context.types.utils import get_type_from_abi
 from vyper.exceptions import UnknownType
+from vyper.semantics.types import get_primitive_types
+from vyper.semantics.types.indexable.sequence import ArrayDefinition
+from vyper.semantics.types.utils import get_type_from_abi
 
 BASE_TYPES = ["int128", "uint256", "bool", "address", "bytes32"]
 
