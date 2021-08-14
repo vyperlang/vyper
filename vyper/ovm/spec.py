@@ -139,6 +139,8 @@ class _OVMSubroutine:
            into the static section of the ABI-encoded calldata to
            prepare for CALL to OVM execution manager
         """
+        # sanity check
+        assert len(self.ovm_args) == len(self.ovm_arg_types), (self.ovm_args, self.ovm_arg_types)
         args = zip(self.ovm_args, self.ovm_arg_types)
         ret = ["seq"]
         for i, (arg, arg_ty) in enumerate(args):
@@ -443,12 +445,14 @@ def ovm_mapper(cls):
 class SStore(_OVMSimpleSubroutine):
     evm_args = ["key", "value"]
     ovm_args = ["key", "value"]
+    ovm_arg_types = ["uint256", "uint256"]
 
 
 @ovm_mapper
 class SLoad(_OVMSimpleSubroutine):
     evm_args = ["key"]
     ovm_args = ["key"]
+    ovm_arg_types = ["uint256"]
     evm_returns = ["value"]
     ovm_returns = ["value"]
 
