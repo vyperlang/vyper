@@ -654,6 +654,7 @@ def rewrite_lll_for_ovm(lll_node, labels=None, outer=True):
             + [lll for lll in reversed(rewritten_args)]
             + [["goto", subroutine.subroutine_label()]]
             + [["label", label]]
+            + ["dummy"] if subroutine.evm_returns else ["pass"]
         )
 
     lll_ret = [lll_node.value] + rewritten_args
