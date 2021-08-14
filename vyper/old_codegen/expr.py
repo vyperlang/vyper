@@ -375,7 +375,7 @@ class Expr:
             if key == "msg.sender" and not self.context.is_internal:
                 return LLLnode.from_list(["caller"], typ="address", pos=getpos(self.expr))
             elif key == "msg.data" and not self.context.is_internal:
-                return LLLnode(None, typ=ByteArrayType(0), location="calldata")
+                return LLLnode(0, typ=ByteArrayType(0), location="calldata")
             elif key == "msg.value" and self.context.is_payable:
                 return LLLnode.from_list(
                     ["callvalue"], typ=BaseType("uint256"), pos=getpos(self.expr),
