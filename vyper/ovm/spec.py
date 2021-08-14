@@ -261,7 +261,7 @@ class _OVMSimpleSubroutine(_OVMSubroutine):
         return self.static_return_len
 
     def unmarshal_return(self, buf):
-        return self._unmarshal_static_return()
+        return self._unmarshal_static_return(buf)
 
 
 class _OVMMarshalsBytestring(_OVMSubroutine):
@@ -350,7 +350,6 @@ class _OVMCallLike(_OVMMarshalsBytestring):
         return ["add", self.bytestring_overhead + self.static_return_len, "ret_len"]
 
     def _unmarshal_bytestring(self, buf):
-        src_ofst = buf
         # to preserve the semantics of returndatasize, it's
         # important to provide `returndatasize - return_overhead` to the
         # identity here (instead of the provided ret_len) in case the
