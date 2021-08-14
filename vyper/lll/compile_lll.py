@@ -151,7 +151,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
             "POP",
         ]
     # Pass statements
-    elif code.value == "pass":
+    elif code.value in ("pass", "dummy"):
         return []
     # Code length
     elif code.value == "~codelen":
