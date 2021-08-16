@@ -262,6 +262,12 @@ class Slice:
                     "Invalid start / length values needs to be between 0 and 32.", expr,
                 )
             sub_typ_maxlen = 32
+        elif sub.location == "calldata":
+            # if we are slicing msg.data, the length should
+            # be a constant, since msg.data can be of dynamic length
+            # we can't use it's length as the maxlen
+            assert isinstance(length.value, int) # sanity check
+            sub_typ_maxlen = length.value
         else:
             sub_typ_maxlen = sub.typ.maxlen
 
@@ -280,6 +286,15 @@ class Slice:
             adj_sub = LLLnode.from_list(
                 ["add", sub, ["add", ["div", "_start", 32], 1]], typ=sub.typ, location=sub.location,
             )
+        elif sub.location == "calldata":
+            node = [
+                "seq",
+                ["assert", ["le", ["add", start, length], "calldatasize"]],  # runtime bounds check
+                ["mstore", np, length],
+                ["calldatacopy", np + 32, start, length],
+                np,
+            ]
+            return LLLnode.from_list(node, typ=ByteArrayType(length.value), location="memory")
         else:
             adj_sub = LLLnode.from_list(
                 ["add", sub, ["add", ["sub", "_start", ["mod", "_start", 32]], 32]],
@@ -351,6 +366,10 @@ class Len(_SimpleBuiltinFunction):
         return vy_ast.Int.from_node(node, value=length)
 
     def build_LLL(self, node, context):
+        if isinstance(node.args[0], vy_ast.Attribute):
+            key = f"{node.args[0].value.id}.{node.args[0].attr}"
+            if key == "msg.data":
+                return LLLnode.from_list(["calldatasize"], typ="uint256")
         arg = Expr(node.args[0], context).lll_node
         return get_bytearray_length(arg)
 
