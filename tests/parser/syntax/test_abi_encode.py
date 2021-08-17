@@ -50,7 +50,7 @@ def foo(x: uint256) -> Bytes[36]:
 
 
 @pytest.mark.parametrize("bad_code,exc", fail_list)
-def test_slice_fail(bad_code, exc):
+def test_abi_encode_fail(bad_code, exc):
 
     with pytest.raises(exc):
         compiler.compile_code(bad_code)
@@ -64,32 +64,27 @@ def foo(x: uint256) -> Bytes[32]:
     """,
     """
 @external
-def foo(x: Bytes[1]) -> Bytes[65]:
+def foo(x: Bytes[1]) -> Bytes[96]:
     return _abi_encode(x)
     """,
     """
 @external
-def foo(x: Bytes[1]) -> Bytes[33]:
+def foo(x: Bytes[1]) -> Bytes[64]:
     return _abi_encode(x, ensure_tuple=False)
     """,
     """
 @external
-def foo(x: Bytes[1]) -> Bytes[40]:
-    return _abi_encode(x, method_id=method_id("exec()"))
+def foo(x: Bytes[1]) -> Bytes[68]:
+    return _abi_encode(x, ensure_tuple=False, method_id=method_id("exec()"))
     """,
     """
 @external
-def foo(x: Bytes[1]) -> Bytes[40]:
-    return _abi_encode(x, method_id=0x123455678)
-    """,
-    """
-@external
-def foo(x: Bytes[1]) -> Bytes[33]:
-    return _abi_encode(x)
+def foo(x: Bytes[1]) -> Bytes[68]:
+    return _abi_encode(x, ensure_tuple=False, method_id=0x12345678)
     """,
 ]
 
 
 @pytest.mark.parametrize("good_code", valid_list)
-def test_slice_success(good_code):
+def test_abi_encode_success(good_code):
     assert compiler.compile_code(good_code) is not None

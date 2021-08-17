@@ -81,7 +81,7 @@ def abi_encode3(x: uint256, ensure_tuple: bool, include_method_id: bool) -> Byte
     """
     c = get_contract(code)
 
-    method_id = b"deadbeef"
+    method_id = 0xDEADBEEF .to_bytes(4, "big")
 
     # test each method once each with ensure_tuple set to True and False
 
