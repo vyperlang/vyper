@@ -1860,7 +1860,7 @@ class ABIEncode(_SimpleBuiltinFunction):
             # abi encode and grab length as stack item
             length = abi_encode(buf + 32, encode_input, pos, returns_len=True)
             # write the output length to where bytestring stores its length
-            ret += ["mstore", buf, length]
+            ret += [["mstore", buf, length]]
 
         # return the buf location
         # TODO location is statically known, optimize this out
