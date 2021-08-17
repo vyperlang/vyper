@@ -424,7 +424,7 @@ Struct members can be accessed via ``struct.argname``.
         value2: decimal
 
     # Declaring a struct variable
-    exampleStruct: MyStruct = MyStruct({value1: 1, value2: 2})
+    exampleStruct: MyStruct = MyStruct({value1: 1, value2: 2.0})
 
     # Accessing a value
     exampleStruct.value1 = 1
