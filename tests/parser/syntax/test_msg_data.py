@@ -93,6 +93,29 @@ def foo(bar: uint256) -> uint256:
     assert contract.foo(42) == 36
 
 
+def test_extract32_msg_data(get_contract):
+    code = """
+@external
+def foo(bar: uint256) -> uint256:
+    return extract32(msg.data, 4, output_type=uint256)
+"""
+    contract = get_contract(code)
+
+    assert contract.foo(42) == 42
+
+
+def test_extract32_msg_data_address(get_contract, w3):
+    code = """
+@external
+def foo(bar: address) -> address:
+    return extract32(msg.data, 4, output_type=address)
+"""
+    contract = get_contract(code)
+    acct = w3.eth.accounts[0]
+
+    assert contract.foo(acct) == acct
+
+
 fail_list = [
     (
         """
