@@ -89,13 +89,17 @@ def abi_encode3(x: uint256, ensure_tuple: bool) -> Bytes[32]:
     assert c.abi_encode3(arg, False, False).hex() == abi_encode("uint256", arg).hex()
     assert c.abi_encode3(arg, True, False).hex() == abi_encode("(uint256)", (arg,)).hex()
     assert c.abi_encode3(arg, False, True).hex() == (method_id + abi_encode("uint256", arg)).hex()
-    assert c.abi_encode3(arg, True, True).hex() == (method_id + abi_encode("(uint256)", (arg,))).hex()
+    assert (
+        c.abi_encode3(arg, True, True).hex() == (method_id + abi_encode("(uint256)", (arg,))).hex()
+    )
 
     arg = "some string"
     assert c.abi_encode2(arg, False, False).hex() == abi_encode("string", arg).hex()
     assert c.abi_encode2(arg, True, False).hex() == abi_encode("(string)", (arg,)).hex()
     assert c.abi_encode2(arg, False, True).hex() == (method_id + abi_encode("string", arg)).hex()
-    assert c.abi_encode2(arg, True, True).hex() == (method_id + abi_encode("(string)", (arg,))).hex()
+    assert (
+        c.abi_encode2(arg, True, True).hex() == (method_id + abi_encode("(string)", (arg,))).hex()
+    )
 
     test_addr = b"".join(chr(i).encode("utf-8") for i in range(20))
     test_bytes32 = b"".join(chr(i).encode("utf-8") for i in range(32))

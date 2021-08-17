@@ -1782,7 +1782,11 @@ class ABIEncode(_SimpleBuiltinFunction):
             return None
 
         def _check(cond):
-            errmsg = f"""method_id must be a 4-byte hex literal or Bytes[4], like method_id=0x12345678 or method_id=method_id("foo()") \n{method_id}"""
+            errmsg = (
+                f"method_id must be a 4-byte hex literal or Bytes[4], "
+                f'like method_id=0x12345678 or method_id=method_id("foo()") '
+                f"\n{method_id}"
+            )
             if not cond:
                 raise TypeMismatch(errmsg)
 
@@ -1791,7 +1795,7 @@ class ABIEncode(_SimpleBuiltinFunction):
             return fourbytes_to_int(method_id.value)
 
         if isinstance(method_id, vy_ast.Hex):
-            _check(method_id.value <= 2**32)
+            _check(method_id.value <= 2 ** 32)
             return method_id.value
 
         _check(False)
