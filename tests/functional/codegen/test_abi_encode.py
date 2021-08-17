@@ -31,7 +31,7 @@ def abi_encode(
     pet_metadata: bytes32,
     ensure_tuple: bool,
     include_method_id: bool
-) -> Bytes[256]:
+) -> Bytes[260]:
     human: Human = Human({
       name: name,
       pet: Animal({
@@ -54,7 +54,7 @@ def abi_encode(
         return _abi_encode(human, ensure_tuple=False, method_id=0xdeadbeef)
 
 @external
-def abi_encode2(name: String[32], ensure_tuple: bool) -> Bytes[96]:
+def abi_encode2(name: String[32], ensure_tuple: bool, include_method_id: bool) -> Bytes[100]:
     if ensure_tuple:
         if not include_method_id:
             return _abi_encode(name) # default ensure_tuple=True
@@ -65,7 +65,7 @@ def abi_encode2(name: String[32], ensure_tuple: bool) -> Bytes[96]:
         return _abi_encode(name, ensure_tuple=False, method_id=0xdeadbeef)
 
 @external
-def abi_encode3(x: uint256, ensure_tuple: bool) -> Bytes[32]:
+def abi_encode3(x: uint256, ensure_tuple: bool, include_method_id: bool) -> Bytes[36]:
 
     if ensure_tuple:
         if not include_method_id:
