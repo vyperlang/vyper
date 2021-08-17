@@ -266,7 +266,7 @@ class Slice:
             # if we are slicing msg.data, the length should
             # be a constant, since msg.data can be of dynamic length
             # we can't use it's length as the maxlen
-            assert isinstance(length.value, int) # sanity check
+            assert isinstance(length.value, int)  # sanity check
             sub_typ_maxlen = length.value
         else:
             sub_typ_maxlen = sub.typ.maxlen
@@ -820,6 +820,10 @@ def _storage_element_getter(index):
     return LLLnode.from_list(["sload", ["add", "_sub", ["add", 1, index]]], typ=BaseType("int128"),)
 
 
+def _calldata_element_getter(index):
+    return LLLnode.from_list(["calldataload", ["mul", 32, index]], typ=BaseType("int128"))
+
+
 class Extract32(_SimpleBuiltinFunction):
 
     _id = "extract32"
@@ -851,6 +855,9 @@ class Extract32(_SimpleBuiltinFunction):
         elif sub.location == "storage":
             lengetter = LLLnode.from_list(["sload", "_sub"], typ=BaseType("int128"))
             elementgetter = _storage_element_getter
+        elif sub.location == "calldata":
+            lengetter = LLLnode.from_list(["calldatasize"], typ="uint256")
+            elementgetter = _calldata_element_getter
         # TODO: unclosed if/elif clause.  Undefined behavior if `sub.location`
         # isn't one of `memory`/`storage`
 
