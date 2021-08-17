@@ -416,7 +416,7 @@ Struct types can be used inside mappings and arrays. Structs can contain arrays 
 
 Struct members can be accessed via ``struct.argname``.
 
-.. code-block::
+.. code-block:: python
 
     # Defining a struct
     struct MyStruct:
