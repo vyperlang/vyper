@@ -821,7 +821,7 @@ def _storage_element_getter(index):
 
 
 def _calldata_element_getter(index):
-    return LLLnode.from_list(["calldataload", ["mul", 32, index]], typ=BaseType("int128"))
+    return LLLnode.from_list(["calldataload", ["mul", 32, index]], typ=BaseType("uint256"))
 
 
 class Extract32(_SimpleBuiltinFunction):
