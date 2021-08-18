@@ -856,7 +856,7 @@ class Extract32(_SimpleBuiltinFunction):
             lengetter = LLLnode.from_list(["sload", "_sub"], typ=BaseType("int128"))
             elementgetter = _storage_element_getter
         elif sub.location == "calldata":
-            lengetter = LLLnode.from_list(["calldatasize"], typ="uint256")
+            lengetter = LLLnode.from_list(["add", "calldatasize", 32], typ="uint256")
             elementgetter = _calldata_element_getter
         else:
             # sub.location should be one of calldata, memory, storage
