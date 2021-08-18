@@ -214,6 +214,7 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
 
     def visit_FunctionDef(self, node):
         func = ContractFunction.from_FunctionDef(node)
+
         try:
             self.namespace["self"].add_member(func.name, func)
             node._metadata["type"] = func

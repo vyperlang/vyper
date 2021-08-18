@@ -1,3 +1,8 @@
+import pytest
+
+from vyper.exceptions import FunctionDeclarationException
+
+
 def test_nonrentrant_decorator(get_contract, assert_tx_failed):
     calling_contract_code = """
 interface SpecialContract:
@@ -60,3 +65,17 @@ def unprotected_function(val: String[100], do_callback: bool):
     assert reentrant_contract.special_value() == "some value"
 
     assert_tx_failed(lambda: reentrant_contract.protected_function("zzz value", True, transact={}))
+
+
+def test_disallow_on_init_function(get_contract):
+    # nonreentrant has no effect when used on the __init__ fn
+    # however, should disallow its usage regardless
+    code = """
+
+@external
+@nonreentrant("lock")
+def __init__():
+    foo: uint256 = 0
+"""
+    with pytest.raises(FunctionDeclarationException):
+        get_contract(code)
