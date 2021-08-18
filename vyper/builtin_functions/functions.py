@@ -858,8 +858,9 @@ class Extract32(_SimpleBuiltinFunction):
         elif sub.location == "calldata":
             lengetter = LLLnode.from_list(["calldatasize"], typ="uint256")
             elementgetter = _calldata_element_getter
-        # TODO: unclosed if/elif clause.  Undefined behavior if `sub.location`
-        # isn't one of `memory`/`storage`
+        else:
+            # sub.location should be one of calldata, memory, storage
+            raise CompilerPanic(f"Invalid element location {sub.location}")
 
         # Special case: index known to be a multiple of 32
         if isinstance(index.value, int) and not index.value % 32:
