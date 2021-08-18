@@ -223,6 +223,7 @@ class ContractFunction(BaseTypeDefinition):
                             f"{kwargs['nonreentrant']}",
                             node,
                         )
+
                     if decorator.get("func.id") != "nonreentrant":
                         raise StructureException("Decorator is not callable", decorator)
                     if len(decorator.args) != 1 or not isinstance(decorator.args[0], vy_ast.Str):
@@ -230,6 +231,11 @@ class ContractFunction(BaseTypeDefinition):
                             "@nonreentrant name must be given as a single string literal",
                             decorator,
                         )
+
+                    if node.name == "__init__":
+                        msg = "Nonreentrant decorator disallowed on `__init__`"
+                        raise FunctionDeclarationException(msg, decorator)
+
                     kwargs["nonreentrant"] = decorator.args[0].value
 
                 elif isinstance(decorator, vy_ast.Name):
