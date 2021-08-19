@@ -13,7 +13,7 @@ any errors.
 Docker
 ******
 
-Vyper can be downloaded as docker image from dockerhub:
+Vyper can be downloaded as docker image from `dockerhub <https://hub.docker.com/r/vyperlang/vyper/tags?page=1&ordering=last_updated>`_:
 ::
 
     docker pull vyperlang/vyper
@@ -34,7 +34,7 @@ The normal parameters are also supported, for example:
 
     docker run -v $(pwd):/code vyperlang/vyper -f abi /code/<contract_file.vy>
     [{'name': 'test1', 'outputs': [], 'inputs': [{'type': 'uint256', 'name': 'a'}, {'type': 'bytes', 'name': 'b'}], 'constant': False, 'payable': False, 'type': 'function', 'gas': 441}, {'name': 'test2', 'outputs': [], 'inputs': [{'type': 'uint256', 'name': 'a'}], 'constant': False, 'payable': False, 'type': 'function', 'gas': 316}]
-    
+
 .. note::
 
     If you would like to know how to install Docker, please follow their `documentation <https://docs.docker.com/get-docker/>`_.
@@ -82,25 +82,18 @@ To install a specific version use:
 nix
 ***
 
-Nix is a powerful package manager for Linux and other Unix systems that makes package management reliable and reproducible. 
-Read more about nix from the official `nix webpage <https://nixos.org/>`_
+View the versions supported through nix at `nix package search <https://search.nixos.org/packages?channel=21.05&show=vyper&from=0&size=50&sort=relevance&query=vyper>`_ 
 
-See the latest supported Vyper version available through `nixpkgs <https://github.com/NixOS/nixpkgs/blob/master/pkgs/development/compilers/vyper/default.nix>`_
+.. note::
+
+    The derivation for Vyper is located at  `nixpkgs <https://github.com/NixOS/nixpkgs/blob/master/pkgs/development/compilers/vyper/default.nix>`_
 
 
-Installing Vyper the nix way
+Installing Vyper
 ============================
 
 ::
 
     nix-env -iA nixpkgs.vyper
 
-    
-
-Supported platforms include:
-
-    aarch64-linux
-    i686-linux
-    x86_64-linux
-    x86_64-darwin
 
