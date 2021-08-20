@@ -182,3 +182,25 @@ def foo(_value: uint256) -> uint256:
 
     with pytest.raises(TransactionFailed):
         contract.foo(42)
+
+
+@pytest.mark.parametrize("offset", range(5))
+def test_extract32_at_the_bounds_of_calldata(get_contract, offset):
+    code = f"""
+@external
+def foo() -> bytes32:
+    value: bytes32 = extract32(msg.data, {offset})
+    return value
+"""
+    contract = get_contract(code)
+
+    if offset == 4:
+        # if offset == 4, we are do msg.data[4:36], which is just empty
+        # null bytes, we only allow users to extract up to but not including
+        # the bounds of calldata, so msg.data[3:35] is valid as it still includes
+        # the last bytes of the 4 byte function selector.
+        # If a user needs empty bytes, they can use the EMPTY_BYTES32 constant
+        with pytest.raises(TransactionFailed):
+            contract.foo()
+    else:
+        contract.foo()
