@@ -821,6 +821,11 @@ def _storage_element_getter(index):
 
 
 def _calldata_element_getter(index):
+    # grabbing an element from calldata of size 32 bytes, can be done with the calldataload
+    # op (https://ethervm.io/#CALLDATALOAD). This takes a single argument, the starting byte
+    # and will read the uint256 from the message data.
+    # NOTE: calldata also doesn't have a 32 byte header, so given an element index, [0, 1, 2 ...],
+    # we simply have to multiply by 32 to get the starting byte offset of the element
     return LLLnode.from_list(["calldataload", ["mul", 32, index]], typ=BaseType("uint256"))
 
 
@@ -856,7 +861,17 @@ class Extract32(_SimpleBuiltinFunction):
             lengetter = LLLnode.from_list(["sload", "_sub"], typ=BaseType("int128"))
             elementgetter = _storage_element_getter
         elif sub.location == "calldata":
-            lengetter = LLLnode.from_list(["add", "calldatasize", 32], typ="uint256")
+            # extracting a portion of calldata via msg.data
+            # The length of calldata isn't stored in the first 32 bytes as other arrays
+            # instead the size of calldata is determined by the `calldatasize` op
+            # for a function like `foo()`, generally the calldatasize will be 4 (bytes).
+            # we add 31 as a buffer for users to read data at the bounds of calldata
+            # in the function `foo()`, extract32(msg.data, 0), will return the 4 byte
+            # fn selector right padded with 28 null bytes
+            # NOTE: we add 31 to allow someone to do extract32(msg.data, len(msg.data) - 1)
+            # thereby grabbing the last byte of calldata with the remaining 31 bytes right padded
+            # with null bytes
+            lengetter = LLLnode.from_list(["add", "calldatasize", 31], typ="uint256")
             elementgetter = _calldata_element_getter
         else:
             # sub.location should be one of calldata, memory, storage
