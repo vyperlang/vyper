@@ -204,3 +204,34 @@ def foo() -> bytes32:
             contract.foo()
     else:
         contract.foo()
+
+
+def test_more_calldata_than_expected(get_contract):
+    # this contract purposefully reads past the expected length of calldata
+    code = """
+@external
+def foo() -> uint256:
+    return extract32(msg.data, 4, output_type=uint256)
+"""
+    contract = get_contract(code)
+
+    with pytest.raises(TransactionFailed):
+        contract.foo()
+
+    # however, if we append data this will be fine
+    code_1 = """
+@external
+def bar(_addr: address, _num: uint256) -> uint256:
+    result: Bytes[32] = raw_call(
+        _addr,
+        concat(
+            method_id("foo()"),
+            convert(_num, bytes32)
+        ),
+        max_outsize=32
+    )
+    return convert(result, uint256)
+"""
+    contract_1 = get_contract(code_1)
+
+    assert contract_1.bar(contract.address, 42) == 42
