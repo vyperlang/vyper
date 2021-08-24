@@ -151,7 +151,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
             "POP",
         ]
     # Pass statements
-    elif code.value == "pass":
+    elif code.value in ("pass", "dummy"):
         return []
     # Code length
     elif code.value == "~codelen":
@@ -306,8 +306,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         o = []
         for arg in code.args:
             o.extend(_compile_to_assembly(arg, withargs, existing_labels, break_dest, height))
-            # if arg.valency == 1 and arg != code.args[-1]:
-            #     o.append('POP')
+            height += arg.valency
         return o
     # Assure (if false, invalid opcode)
     elif code.value == "assert_unreachable":
@@ -490,8 +489,8 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
     # # jump to a symbol
     elif code.value == "goto":
         return ["_sym_" + str(code.args[0]), "JUMP"]
-    elif isinstance(code.value, str) and code.value.startswith("_sym_"):
-        return code.value
+    elif isinstance(code.value, str) and is_symbol(code.value):
+        return [code.value]
     # set a symbol as a location.
     elif code.value == "label":
         label_name = str(code.args[0])
