@@ -1757,9 +1757,12 @@ class ABIEncode(_SimpleBuiltinFunction):
         return len(set(xs)) == 1
 
     @staticmethod
-    def _ensure_tuple(node):
+    def _kwarg_dict(node):
+        return {i.arg: i.value for i in node.keywords}
+
+    def _ensure_tuple(self, node):
         # figure out if we need to encode single values as tuples
-        ensure_tuple = next((i.value for i in node.keywords if i.arg == "ensure_tuple"), None)
+        ensure_tuple = self._kwarg_dict(node).get("ensure_tuple")
         if ensure_tuple is None:
             # default to True.
             return True
@@ -1772,6 +1775,30 @@ class ABIEncode(_SimpleBuiltinFunction):
             )
         else:
             return ensure_tuple.value
+
+    def _method_id(self, node):
+        method_id = self._kwarg_dict(node).get("method_id")
+        if method_id is None:
+            return None
+
+        def _check(cond):
+            errmsg = (
+                f"method_id must be a 4-byte hex literal or Bytes[4], "
+                f'like method_id=0x12345678 or method_id=method_id("foo()") '
+                f"\n{method_id}"
+            )
+            if not cond:
+                raise TypeMismatch(errmsg)
+
+        if isinstance(method_id, vy_ast.Bytes):
+            _check(len(method_id.value) <= 4)
+            return fourbytes_to_int(method_id.value)
+
+        if isinstance(method_id, vy_ast.Hex):
+            _check(method_id.value <= 2 ** 32)
+            return method_id.value
+
+        _check(False)
 
     def fetch_call_return(self, node):
         # figure out the output type by converting
@@ -1789,13 +1816,18 @@ class ABIEncode(_SimpleBuiltinFunction):
 
         maxlen = arg_abi_t.size_bound()
 
+        if self._method_id(node) is not None:
+            maxlen += 4
+
         ret = BytesArrayDefinition()
         ret.set_length(maxlen)
         return ret
 
     def build_LLL(self, expr, context):
+        method_id = self._method_id(expr)
 
         args = [Expr(arg, context).lll_node for arg in expr.args]
+
         if len(args) < 1:
             raise StructureException("abi_encode expects at least one argument", expr)
 
@@ -1814,14 +1846,28 @@ class ABIEncode(_SimpleBuiltinFunction):
 
         pos = getpos(expr)
 
+        ret = ["seq"]
+        if method_id is not None:
+            # write the unaligned method_id first, then we will
+            # overwrite the 28 bytes of zeros with the bytestring length
+            ret += [["mstore", buf + 4, method_id]]
+            # abi encode and grab length as stack item
+            length = abi_encode(buf + 36, encode_input, pos, returns_len=True)
+            # write the output length to where bytestring stores its length
+            ret += [["mstore", buf, ["add", length, 4]]]
+
+        else:
+            # abi encode and grab length as stack item
+            length = abi_encode(buf + 32, encode_input, pos, returns_len=True)
+            # write the output length to where bytestring stores its length
+            ret += [["mstore", buf, length]]
+
+        # return the buf location
+        # TODO location is statically known, optimize this out
+        ret += [buf]
+
         return LLLnode.from_list(
-            [
-                "seq",
-                # write the output length to where bytestring stores its length
-                ["mstore", buf, abi_encode(buf + 32, encode_input, pos, returns_len=True)],
-                # return the buf location
-                buf,
-            ],
+            ret,
             location="memory",
             typ=buf_t,
             pos=pos,
