@@ -62,7 +62,7 @@ def compile_codes(
     evm_version: str, optional
         The target EVM ruleset to compile for. If not given, defaults to the latest
         implemented ruleset.
-    use_ovm: str, optional
+    use_ovm: bool, optional
         Whether or not to use the OVM backend. Defaults to False
     interface_codes: Dict, optional
         Interfaces that may be imported by the contracts during compilation.
