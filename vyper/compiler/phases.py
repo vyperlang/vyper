@@ -227,6 +227,8 @@ def generate_lll_nodes(
     ---------
     global_ctx : GlobalContext
         Contextualized Vyper AST
+    use_ovm: bool, optional
+        Whether to compile for OVM
 
     Returns
     -------
@@ -251,6 +253,8 @@ def generate_assembly(lll_nodes: parser.LLLnode, use_ovm: bool = False) -> list:
     ---------
     lll_nodes : str
         Top-level LLL nodes. Can be deployment or runtime LLL.
+    use_ovm: bool, optional
+        Whether to compile for OVM
 
     Returns
     -------
