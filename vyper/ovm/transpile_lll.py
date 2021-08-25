@@ -610,7 +610,7 @@ OVM_BLOCKED_OPS = {
 # Overwrite evm opcodes so that ovm_copy and ovm_exec are accepted by
 # LLLnode. (This isn't great but the alternative is rewriting the import
 # graph for LLLnode).
-def monkey_patch_evm_opcodes(opcodes):
+def monkeypatch_evm_opcodes(opcodes):
     # this inserts values which will get replaced by
     # vyper.ovm.asm.rewrite_asm
     opcodes["OVM_COPY"] = ("OVM_COPY", 4, 0, 700)
@@ -618,7 +618,7 @@ def monkey_patch_evm_opcodes(opcodes):
 
 
 # is this useful?
-def undo_monkey_patch_evm_opcodes(opcodes):
+def undo_monkeypatch_evm_opcodes(opcodes):
     opcodes.pop("OVM_COPY", None)
     opcodes.pop("OVM_EXEC", None)
 
