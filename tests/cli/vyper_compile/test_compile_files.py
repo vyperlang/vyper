@@ -13,6 +13,7 @@ def test_combined_json_keys(tmp_path):
         "bytecode_runtime",
         "abi",
         "source_map",
+        "layout",
         "method_identifiers",
         "userdoc",
         "devdoc",

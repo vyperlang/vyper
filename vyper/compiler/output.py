@@ -11,6 +11,7 @@ from vyper.evm import opcodes
 from vyper.lll import compile_lll
 from vyper.old_codegen.lll_node import LLLnode
 from vyper.semantics.types.function import FunctionVisibility, StateMutability
+from vyper.typing import StorageLayout
 from vyper.warnings import ContractSizeLimitWarning
 
 
@@ -104,6 +105,12 @@ def build_abi_output(compiler_data: CompilerData) -> list:
 
 def build_asm_output(compiler_data: CompilerData) -> str:
     return _build_asm(compiler_data.assembly)
+
+
+def build_layout_output(compiler_data: CompilerData) -> StorageLayout:
+    # in the future this might return (non-storage) layout,
+    # for now only storage layout is returned.
+    return compiler_data.storage_layout
 
 
 def _build_asm(asm_list):

@@ -9,7 +9,7 @@ from vyper.lll import compile_lll, optimizer
 from vyper.old_codegen import parser
 from vyper.old_codegen.global_context import GlobalContext
 from vyper.semantics import set_data_positions, validate_semantics
-from vyper.typing import InterfaceImports
+from vyper.typing import InterfaceImports, StorageLayout
 
 
 class CompilerData:
@@ -88,9 +88,20 @@ class CompilerData:
     @property
     def vyper_module_folded(self) -> vy_ast.Module:
         if not hasattr(self, "_vyper_module_folded"):
-            self._vyper_module_folded = generate_folded_ast(self.vyper_module, self.interface_codes)
+            self._vyper_module_folded, self._storage_layout = generate_folded_ast(
+                self.vyper_module, self.interface_codes
+            )
 
         return self._vyper_module_folded
+
+    @property
+    def storage_layout(self) -> StorageLayout:
+        if not hasattr(self, "_storage_layout"):
+            self._vyper_module_folded, self._storage_layout = generate_folded_ast(
+                self.vyper_module, self.interface_codes
+            )
+
+        return self._storage_layout
 
     @property
     def global_ctx(self) -> GlobalContext:
@@ -165,7 +176,7 @@ def generate_ast(source_code: str, source_id: int, contract_name: str) -> vy_ast
 
 def generate_folded_ast(
     vyper_module: vy_ast.Module, interface_codes: Optional[InterfaceImports]
-) -> vy_ast.Module:
+) -> Tuple[vy_ast.Module, StorageLayout]:
     """
     Perform constant folding operations on the Vyper AST.
 
@@ -178,6 +189,8 @@ def generate_folded_ast(
     -------
     vy_ast.Module
         Folded Vyper AST
+    StorageLayout
+        Layout of variables in storage
     """
     vy_ast.validation.validate_literal_nodes(vyper_module)
 
@@ -185,9 +198,9 @@ def generate_folded_ast(
     vy_ast.folding.fold(vyper_module_folded)
     validate_semantics(vyper_module_folded, interface_codes)
     vy_ast.expansion.expand_annotated_ast(vyper_module_folded)
-    set_data_positions(vyper_module_folded)
+    symbol_tables = set_data_positions(vyper_module_folded)
 
-    return vyper_module_folded
+    return vyper_module_folded, symbol_tables
 
 
 def generate_global_context(

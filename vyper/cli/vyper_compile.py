@@ -30,6 +30,7 @@ method_identifiers - Dictionary of method signature to method identifier
 userdoc            - Natspec user documentation
 devdoc             - Natspec developer documentation
 combined_json      - All of the above format options combined as single JSON output
+layout             - Storage layout of a Vyper contract
 ast                - AST in JSON format
 interface          - Vyper interface of a contract
 external_interface - External interface of a contract, used for outside contract calls
@@ -42,6 +43,7 @@ combined_json_outputs = [
     "bytecode",
     "bytecode_runtime",
     "abi",
+    "layout",
     "source_map",
     "method_identifiers",
     "userdoc",
