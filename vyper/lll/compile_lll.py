@@ -53,12 +53,19 @@ def _assert_false():
     return ["_sym_revert0", "JUMPI"]
 
 
-def _add_postambles(asm_ops):
+def _add_postambles(asm_ops, use_ovm=False):
     to_append = []
+
+    _revert0_string = ["_sym_revert0", "JUMPDEST", "PUSH1", 0, "DUP1", "REVERT"]
+    if use_ovm:
+        _revert0_string = ["_sym_revert0", "JUMPDEST", "PUSH1", 0, "DUP1"] + [
+            "_sym_ovm_revert",
+            "JUMP",
+        ]
 
     if "_sym_revert0" in asm_ops:
         # shared failure block
-        to_append.extend(["_sym_revert0", "JUMPDEST", "PUSH1", 0, "DUP1", "REVERT"])
+        to_append.extend(_revert0_string)
 
     if len(to_append) > 0:
         # for some reason there might not be a STOP at the end of asm_ops.
@@ -100,10 +107,10 @@ def apply_line_numbers(func):
 
 
 @apply_line_numbers
-def compile_to_assembly(code):
+def compile_to_assembly(code, use_ovm=False):
     res = _compile_to_assembly(code)
 
-    _add_postambles(res)
+    _add_postambles(res, use_ovm)
     return res
 
 
