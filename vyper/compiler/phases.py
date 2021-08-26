@@ -76,7 +76,7 @@ class CompilerData:
 
         if use_ovm:
             for opcodes_for_evm_version in evm._evm_opcodes.values():
-                ovm.monkey_patch_evm_opcodes(opcodes_for_evm_version)
+                ovm.monkeypatch_evm_opcodes(opcodes_for_evm_version)
 
     @property
     def vyper_module(self) -> vy_ast.Module:
