@@ -266,7 +266,7 @@ class Slice:
             # if we are slicing msg.data, the length should
             # be a constant, since msg.data can be of dynamic length
             # we can't use it's length as the maxlen
-            assert isinstance(length.value, int) # sanity check
+            assert isinstance(length.value, int)  # sanity check
             sub_typ_maxlen = length.value
         else:
             sub_typ_maxlen = sub.typ.maxlen
