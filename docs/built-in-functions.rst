@@ -631,6 +631,7 @@ Utilities
 
     * ``*args``: Arbitrary arguments
     * ``ensure_tuple``: If set to True, ensures that even a single argument is encoded as a tuple. In other words, ``bytes`` gets encoded as ``(bytes,)``. This is the calling convention for Vyper and Solidity functions. Except for very specific use cases, this should be set to True. Must be a literal.
+    * ``method_id``: A literal hex or Bytes[4] value to append to the beginning of the abi-encoded bytestring.
 
     Returns a bytestring whose max length is determined by the arguments. For example, encoding a ``Bytes[32]`` results in a ``Bytes[64]`` (first word is the length of the bytestring variable).
 
@@ -638,12 +639,16 @@ Utilities
 
         @external
         @view
-        def foo() -> Bytes[128]:
+        def foo() -> Bytes[132]:
             x: uint256 = 1
             y: Bytes[32] = "234"
-            return _abi_encode(x, y)
+            return _abi_encode(x, y, method_id=method_id("foo()"))
 
     .. code-block:: python
 
         >>> ExampleContract.foo().hex()
-        "0000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000000033233340000000000000000000000000000000000000000000000000000000000"
+        "c2985578"
+        "0000000000000000000000000000000000000000000000000000000000000001"
+        "0000000000000000000000000000000000000000000000000000000000000040"
+        "0000000000000000000000000000000000000000000000000000000000000003"
+        "3233340000000000000000000000000000000000000000000000000000000000"
