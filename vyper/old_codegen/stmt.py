@@ -110,7 +110,7 @@ class Stmt:
 
         # do this BEFORE evaluating args to LLL to protect the buffer
         # from internal call clobbering
-        buf, _len = events.allocate_buffer_for_log(event, self.stmt.value.args, self.context)
+        buf, _len = events.allocate_buffer_for_log(event, self.context)
 
         args = [Expr(arg, self.context).lll_node for arg in self.stmt.value.args]
 
