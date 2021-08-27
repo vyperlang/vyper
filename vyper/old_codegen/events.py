@@ -1,6 +1,5 @@
-from typing import List, Tuple
+from typing import Tuple
 
-import vyper.ast as vy_ast
 from vyper.exceptions import TypeMismatch
 from vyper.old_codegen.abi import (
     ABI_Tuple,
@@ -47,19 +46,17 @@ def _gas_bound(num_topics, data_maxlen):
     return LOG_BASE_GAS + GAS_PER_TOPIC * num_topics + GAS_PER_LOG_BYTE * data_maxlen
 
 
-def allocate_buffer_for_log(
-    event: Event, args: List[vy_ast.VyperNode], context: Context
-) -> Tuple[int, int]:
+def allocate_buffer_for_log(event: Event, context: Context) -> Tuple[int, int]:
     """Allocate a buffer to ABI-encode the non-indexed (data) arguments into
 
     This must be done BEFORE compiling the event arguments to LLL,
     registering the buffer with the `context` variable (otherwise any
     function calls inside the event literal will clobber the buffer).
     """
+    arg_types = event.arguments.values()  # the types of the arguments
     # remove non-data args, as those don't go into the buffer
-    arg_types = [
-        arg._metadata["type"] for arg, is_index in zip(args, event.indexed) if not is_index
-    ]
+    arg_types = [arg_t for arg_t, is_index in zip(arg_types, event.indexed) if not is_index]
+
     # all args get encoded as one big tuple
     abi_t = ABI_Tuple([abi_type_of2(arg_t) for arg_t in arg_types])
 
