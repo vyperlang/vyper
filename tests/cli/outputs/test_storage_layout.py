@@ -27,12 +27,12 @@ def public_bar():
 
     assert out["layout"] == {
         "nonreentrant.foo": {"type": "nonreentrant lock", "location": "storage", "slot": 0},
-        "nonreentrant.bar": {"type": "nonreentrant lock", "location": "storage", "slot": 2},
+        "nonreentrant.bar": {"type": "nonreentrant lock", "location": "storage", "slot": 1},
         "foo": {
             "type": "HashMap[address, uint256][address, uint256]",
             "location": "storage",
-            "slot": 3,
+            "slot": 2,
         },
-        "baz": {"type": "Bytes[65]", "location": "storage", "slot": 4},
-        "bar": {"type": "uint256", "location": "storage", "slot": 9},
+        "baz": {"type": "Bytes[65]", "location": "storage", "slot": 3},
+        "bar": {"type": "uint256", "location": "storage", "slot": 8},
     }
