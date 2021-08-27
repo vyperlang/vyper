@@ -195,7 +195,7 @@ PSEUDO_OPCODES: OpcodeMap = {
     "ASSERT": (None, 1, 0, 85),
     "ASSERT_UNREACHABLE": (None, 1, 0, 17),
     "PASS": (None, 0, 0, 0),
-    "DUMMY": (None, 0, 1, 0), # tell LLL that no, there really is a stack item here
+    "DUMMY": (None, 0, 1, 0),  # tell LLL that no, there really is a stack item here
     "BREAK": (None, 0, 0, 20),
     "CONTINUE": (None, 0, 0, 20),
     "SHA3_32": (None, 1, 1, 72),

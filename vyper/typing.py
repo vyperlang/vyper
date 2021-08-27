@@ -10,6 +10,7 @@ SourceCode = str
 ContractCodes = Dict[ContractPath, SourceCode]
 OutputFormats = Sequence[str]
 OutputDict = Dict[ContractPath, OutputFormats]
+StorageLayout = Dict
 
 # Interfaces
 InterfaceAsName = str

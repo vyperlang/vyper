@@ -29,6 +29,7 @@ TRANSLATE_MAP = {
     "evm.deployedBytecode.sourceMap": "source_map",
     "interface": "interface",
     "ir": "ir",
+    "layout": "layout",
     "userdoc": "userdoc",
 }
 
