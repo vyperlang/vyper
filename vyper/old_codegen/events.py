@@ -53,7 +53,7 @@ def allocate_buffer_for_log(event: Event, context: Context) -> Tuple[int, int]:
     registering the buffer with the `context` variable (otherwise any
     function calls inside the event literal will clobber the buffer).
     """
-    arg_types = event.arguments.values()  # the types of the arguments
+    arg_types = list(event.arguments.values())  # the types of the arguments
     # remove non-data args, as those don't go into the buffer
     arg_types = [arg_t for arg_t, is_index in zip(arg_types, event.indexed) if not is_index]
 
