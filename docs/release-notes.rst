@@ -3,6 +3,28 @@
 Release Notes
 #############
 
+v0.2.16
+*******
+
+Date released: 2021-08-27
+
+Non-breaking changes and improvements
+- Expose _abi_encode as a user-facing builtin (`#2401 <https://github.com/vyperlang/vyper/pull/2401`_)
+- Export the storage layout as a compiler output option (`#2433 <https://github.com/vyperlang/vyper/pull/2433>`_)
+- Add experimental OVM backend (`#2416 <https://github.com/vyperlang/vyper/pull/2416>_`)
+- Allow any ABI-encodable type as event arguments (`#2403 <https://github.com/vyperlang/vyper/pull/2403)`_)
+- Optimize int128 clamping (`#2411 <https://github.com/vyperlang/vyper/pull/2411>`_)
+- Other docs updates (`#2405 <https://github.com/vyperlang/vyper/pull/2405`_, `#2422 <https://github.com/vyperlang/vyper/pull/2422>`_, `#2425 <https://github.com/vyperlang/vyper/pull/2425>`_)
+
+Fixes:
+- Disallow nonreentrant decorator on constructors (`#2426 <https://github.com/vyperlang/vyper/pull/2426>`_)
+- Fix bounds checks when handling msg.data (`#2419 <https://github.com/vyperlang/vyper/pull/2419>`_)
+- Allow interfaces in lists, structs and maps (`#2397 <https://github.com/vyperlang/vyper/pull/2397>`_)
+- Fix trailing newline parse bug (`#2412 <https://github.com/vyperlang/vyper/pull/2412>`_)
+
+Special thanks to contributions from @skellet0r, @sambacha and @milancermak for this release!
+
+
 v0.2.15
 *******
 
