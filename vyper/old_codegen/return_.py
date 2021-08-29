@@ -14,13 +14,12 @@ class FakeType:
     def __init__(self, maxlen):
         self.size_in_bytes = maxlen
 
-def allocate_return_buffer(context: Context) -> int:
+def _allocate_return_buffer(context: Context) -> int:
     maxlen = abi_type_of(context.return_type).size_bound()
     return context.new_internal_variable(FakeType(maxlen=maxlen))
 
-
 # Generate return code for stmt
-def make_return_stmt(return_buffer_ofst: int, lll_val: LLLnode, stmt: "Stmt", context: Context) -> LLLnode:
+def make_return_stmt(lll_val: LLLnode, stmt: "Stmt", context: Context) -> LLLnode:
     _pos = getpos(stmt)
 
     # sanity typecheck
@@ -31,18 +30,18 @@ def make_return_stmt(return_buffer_ofst: int, lll_val: LLLnode, stmt: "Stmt", co
 
     _pre, nonreentrant_post = get_nonreentrant_lock(func_type)
 
-
     if context.is_internal:
 
         os = ["seq_unchecked"]
         # write into the return buffer,
         # unlock any non-reentrant locks
         # and JUMP out of here
-        os += [abi_encode(return_buffer_ofst, lll_val, pos=_pos)]
+        os += [abi_encode("return_buffer", lll_val, pos=_pos)]
         os += nonreentrant_post
-        os += [["jump", ["mload", context.callback_ptr]]]
+        os += [["jump", "pass"]]
 
     else:
+        return_buffer_ofst = _allocate_return_buffer(context)
         # abi-encode the data into the return buffer,
         # unlock any non-reentrant locks
         # and RETURN out of here

@@ -388,10 +388,6 @@ class Stmt:
         return LLLnode.from_list("break", typ=None, pos=getpos(self.stmt))
 
     def parse_Return(self):
-        # allocate the return buffer BEFORE parsing the return value,
-        # (registering it with the local context variable dictionary)
-        # otherwise any private calls may clobber the buffer.
-        return_buf = allocate_return_buffer(self.context)
         lll_val = Expr(self.stmt.value, self.context).lll_node
         return make_return_stmt(return_buf, lll_val, self.stmt, self.context)
 

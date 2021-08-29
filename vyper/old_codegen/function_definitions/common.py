@@ -80,4 +80,4 @@ def generate_lll_for_function(code, sigs, global_ctx, check_nonpayable, _vars=No
     o.context = context
     o.total_gas = o.gas + calc_mem_gas(frame_size)
     o.func_name = sig.name
-    return o, frame_size
+    return o, allocate_start, frame_size

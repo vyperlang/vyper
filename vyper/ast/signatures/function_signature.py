@@ -87,6 +87,16 @@ class FunctionSignature:
             return input_name + " -> " + str(self.output_type) + ":"
         return input_name + ":"
 
+    @property
+    def internal_function_label(self):
+        assert self.internal, "why are you doing this"
+
+        def mkalphanum(s):
+            return "".join([c if c.isalnumeric() else "_"] for c in s)
+
+        # we could do a bit better than this but it just needs to be unique
+        return mkalphanum(str(self))
+
     def calculate_arg_totals(self):
         """ Calculate base arguments, and totals. """
 

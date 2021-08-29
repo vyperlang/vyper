@@ -133,7 +133,7 @@ class Context:
         # Remove block scopes
         self._scopes.remove(scope_id)
 
-    def _new_variable(self, name: str, typ: NodeType, var_size: int, is_internal: bool) -> int:
+    def _new_variable(self, name: str, typ: NodeType, var_size: int, is_internal: bool, is_mutable: bool  True) -> int:
         if is_internal:
             var_pos = self.memory_allocator.expand_memory(var_size)
         else:
@@ -142,13 +142,13 @@ class Context:
             name=name,
             pos=var_pos,
             typ=typ,
-            mutable=True,
+            mutable=is_mutable,
             blockscopes=self._scopes.copy(),
             is_internal=is_internal,
         )
         return var_pos
 
-    def new_variable(self, name: str, typ: NodeType, pos: VyperNode = None) -> int:
+    def new_variable(self, name: str, typ: NodeType, pos: VyperNode = None, is_mutable: bool = True) -> int:
         """
         Allocate memory for a user-defined variable.
 
@@ -173,8 +173,9 @@ class Context:
             var_size = typ.size_in_bytes  # type: ignore
         else:
             var_size = 32 * get_size_of_type(typ)
-        return self._new_variable(name, typ, var_size, False)
+        return self._new_variable(name, typ, var_size, False, is_mutable=is_mutable)
 
+    # do we ever allocate immutable internal variables?
     def new_internal_variable(self, typ: NodeType) -> int:
         """
         Allocate memory for an internal variable.

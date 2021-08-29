@@ -16,30 +16,6 @@ def get_sig_statements(sig, pos):
     return sig_compare, private_label
 
 
-def make_unpacker(ident, i_placeholder, begin_pos):
-    start_label = "dyn_unpack_start_" + ident
-    end_label = "dyn_unpack_end_" + ident
-    return [
-        "seq_unchecked",
-        ["mstore", begin_pos, "pass"],  # get len
-        ["mstore", i_placeholder, 0],
-        ["label", start_label],
-        [  # break
-            "if",
-            ["ge", ["mload", i_placeholder], ["ceil32", ["mload", begin_pos]]],
-            ["goto", end_label],
-        ],
-        [  # pop into correct memory slot.
-            "mstore",
-            ["add", ["add", begin_pos, 32], ["mload", i_placeholder]],
-            "pass",
-        ],
-        ["mstore", i_placeholder, ["add", 32, ["mload", i_placeholder]]],  # increment i
-        ["goto", start_label],
-        ["label", end_label],
-    ]
-
-
 def get_nonreentrant_lock(func_type):
     nonreentrant_pre = [["pass"]]
     nonreentrant_post = [["pass"]]

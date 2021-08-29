@@ -109,7 +109,7 @@ def parse_other_functions(o, otherfuncs, sigs, external_interfaces, global_ctx, 
 
     for func_node in otherfuncs:
         func_type = func_node._metadata["type"]
-        func_lll, frame_size = generate_lll_for_function(
+        func_lll, frame_start, frame_size = generate_lll_for_function(
             func_node, {**{"self": sigs}, **external_interfaces}, global_ctx, check_per_function
         )
         if func_type.visibility == FunctionVisibility.INTERNAL:
@@ -124,6 +124,7 @@ def parse_other_functions(o, otherfuncs, sigs, external_interfaces, global_ctx, 
         # update sigs with metadata gathered from compiling the function
         for sig in sig_utils.generate_default_arg_sigs(func_node, external_interfaces, global_ctx):
             sig.gas = func_lll.total_gas
+            sig.frame_start = frame_start
             sig.frame_size = frame_size
             sigs[sig.sig] = sig
 

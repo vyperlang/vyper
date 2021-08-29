@@ -407,6 +407,20 @@ class ContractFunction(BaseTypeDefinition):
             method_ids.update(_generate_method_id(self.name, arg_types[:i]))
         return method_ids
 
+    # for caller-fills-args calling convention
+    def get_args_buffer_offset(self) -> int:
+        """
+        Get the location of the args buffer in the function frame (caller sets)
+        """
+        return 0
+
+    # TODO is this needed?
+    def get_args_buffer_len(self) -> int:
+        """
+        Get the length of the argument buffer in the function frame
+        """
+        return sum(arg_t.size_in_bytes() for arg_t in self.arguments.values())
+
     @property
     def is_constructor(self) -> bool:
         return self.name == "__init__"
