@@ -25,6 +25,11 @@ def abi_method_id(method_sig):
     return fourbytes_to_int(keccak256(bytes(method_sig, "utf-8"))[:4])
 
 
+# map a string to only-alphanumeric chars
+def mkalphanum(s):
+    return "".join([c if c.isalnumeric() else "_"] for c in s)
+
+
 # Converts string to bytes
 def string_to_bytes(str):
     bytez = b""

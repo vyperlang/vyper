@@ -12,7 +12,7 @@ from vyper.old_codegen.types import (
     get_size_of_type,
     parse_type,
 )
-from vyper.utils import fourbytes_to_int, keccak256
+from vyper.utils import fourbytes_to_int, keccak256, mkalphanum
 
 
 # Function argument
@@ -91,11 +91,12 @@ class FunctionSignature:
     def internal_function_label(self):
         assert self.internal, "why are you doing this"
 
-        def mkalphanum(s):
-            return "".join([c if c.isalnumeric() else "_"] for c in s)
-
         # we could do a bit better than this but it just needs to be unique
         return mkalphanum(str(self))
+
+    @property
+    def exit_sequence_label(self):
+        return mkalphanum(str(self)) + "_cleanup"
 
     def calculate_arg_totals(self):
         """ Calculate base arguments, and totals. """

@@ -14,37 +14,48 @@ class FakeType:
     def __init__(self, maxlen):
         self.size_in_bytes = maxlen
 
+
 def _allocate_return_buffer(context: Context) -> int:
     maxlen = abi_type_of(context.return_type).size_bound()
     return context.new_internal_variable(FakeType(maxlen=maxlen))
 
-# Generate return code for stmt
-def make_return_stmt(lll_val: LLLnode, stmt: "Stmt", context: Context) -> LLLnode:
-    _pos = getpos(stmt)
 
-    # sanity typecheck
-    _tmp = LLLnode(-1, location="memory", typ=context.return_type)
-    check_assign(_tmp, lll_val, _pos)
+# Generate code for return stmt
+def make_return_stmt(lll_val: LLLnode, stmt: "Stmt", context: Context) -> LLLnode:
 
     func_type = stmt.get_ancestor(vy_ast.FunctionDef)._metadata["type"]
+    jump_to_exit = ["goto", func_type.exit_sequence_label]
 
-    _pre, nonreentrant_post = get_nonreentrant_lock(func_type)
+    _pos = getpos(stmt)
 
-    if context.is_internal:
-
-        os = ["seq_unchecked"]
-        # write into the return buffer,
-        # unlock any non-reentrant locks
-        # and JUMP out of here
-        os += [abi_encode("return_buffer", lll_val, pos=_pos)]
-        os += nonreentrant_post
-        os += [["jump", "pass"]]
+    if context.return_type is None:
+        if stmt.value is not None:
+            return None  # triggers an exception
 
     else:
+        # sanity typecheck
+        _tmp = LLLnode(-1, location="memory", typ=context.return_type)
+        check_assign(_tmp, lll_val, _pos)
+
+    # helper function
+    def finalize(fill_return_buffer):
+        return LLLnode.from_list(
+            ["seq_unchecked", fill_return_buffer, jump_to_exit], typ=None, pos=_pos, valency=0
+        )
+
+    if context.is_internal:
+        if context.return_type is None:
+            return finalize([])
+        return finalize(make_setter("return_buffer", lll_val, pos=_pos))
+
+    else:
+        # we are in an external function.
+        if context.return_type is None:
+            # push arguments onto the stack for RETURN opcode
+            return finalize(["seq_unchecked", 0, 0])
+
         return_buffer_ofst = _allocate_return_buffer(context)
-        # abi-encode the data into the return buffer,
-        # unlock any non-reentrant locks
-        # and RETURN out of here
+        # abi-encode the data into the return buffer and jump to the function cleanup code
 
         # according to the ABI spec, return types are ALWAYS tuples even
         # if only one element is being returned.
@@ -71,11 +82,5 @@ def make_return_stmt(lll_val: LLLnode, stmt: "Stmt", context: Context) -> LLLnod
         # also returns the length of the output as a stack element
         encode_out = abi_encode(return_buffer_ofst, lll_val, pos=_pos, returns_len=True)
 
-        # run encode_out before nonreentrant post, in case there are side-effects in encode_out
-        os = ["with", "return_buffer_len", encode_out,
-                ["seq"] +
-                nonreentrant_post +
-                [["return", return_buffer_ofst, "return_buffer_len"]]
-                ]
-
-    return LLLnode.from_list(os, typ=None, pos=_pos, valency=0)
+        # fill the return buffer and push the location and length onto the stack
+        return finalize(["seq_unchecked", encode_out, return_buffer_offset])

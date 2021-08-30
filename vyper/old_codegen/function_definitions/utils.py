@@ -17,12 +17,12 @@ def get_sig_statements(sig, pos):
 
 
 def get_nonreentrant_lock(func_type):
-    nonreentrant_pre = [["pass"]]
-    nonreentrant_post = [["pass"]]
-    if func_type.nonreentrant:
-        nkey = func_type.reentrancy_key_position.position
-        nonreentrant_pre = [["seq", ["assert", ["iszero", ["sload", nkey]]], ["sstore", nkey, 1]]]
-        nonreentrant_post = [["sstore", nkey, 0]]
+    if not func_type.nonreentrant:
+        return [], []
+
+    nkey = func_type.reentrancy_key_position.position
+    nonreentrant_pre = [["seq", ["assert", ["iszero", ["sload", nkey]]], ["sstore", nkey, 1]]]
+    nonreentrant_post = [["sstore", nkey, 0]]
     return nonreentrant_pre, nonreentrant_post
 
 

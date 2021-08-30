@@ -75,7 +75,7 @@ def generate_lll_for_internal_function(
     # function, as there is no guarantee there is a user-provided return
     # statement (which would generate the jump)
     if sig.output_type is None:
-        stop_func = [["jump", "pass"]]
+        stop_func = [["jump", "pass"]] # was passed in via stack
     else:
         # unreachable at runtime
         stop_func = [["invalid"]]
@@ -85,9 +85,10 @@ def generate_lll_for_internal_function(
     body = parse_body(c, context) for c in code.body
 
     if sig.return_type is not None:
+        # name the variable that was passed via stack
         body = ["with", "return_buffer", "pass", body]
 
-    exit = nonreentrant_post + stop_func
+    exit = cleanup_label + nonreentrant_post + stop_func
 
     return LLLnode.from_list(
             ["seq"]
