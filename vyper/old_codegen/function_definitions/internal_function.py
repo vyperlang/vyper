@@ -67,7 +67,9 @@ def generate_lll_for_internal_function(
     # pseudocode
     def mkidentifier(s):
         "".join(c if c.isalnumeric() else "_" for c in s)
-    function_label = func_type.internal_function_label
+
+    function_entry_label = func_type.internal_function_label
+    cleanup_label = func_type.exit_sequence_label
 
     # internal functions without return types need to jump back to the calling
     # function, as there is no guarantee there is a user-provided return
@@ -78,15 +80,21 @@ def generate_lll_for_internal_function(
         # unreachable at runtime
         stop_func = [["invalid"]]
 
+    enter = nonreentrant_pre
+
     body = parse_body(c, context) for c in code.body
-    body = ["with", "return_buffer", "pass", body]
+
+    if sig.return_type is not None:
+        body = ["with", "return_buffer", "pass", body]
+
+    exit = nonreentrant_post + stop_func
 
     return LLLnode.from_list(
             ["seq"]
             + ["label", function_label]
-            + nonreentrant_pre
-            + nonreentrant_post
-            + stop_func,
+            + enter
+            + body
+            + exit,
             typ=None,
             pos=getpos(code),
         )

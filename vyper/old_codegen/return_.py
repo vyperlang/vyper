@@ -23,7 +23,7 @@ def make_return_stmt(lll_val: LLLnode, stmt: "Stmt", context: Context) -> LLLnod
     _pos = getpos(stmt)
 
     # sanity typecheck
-    _tmp = LLLnode(0, location="memory", typ=context.return_type)
+    _tmp = LLLnode(-1, location="memory", typ=context.return_type)
     check_assign(_tmp, lll_val, _pos)
 
     func_type = stmt.get_ancestor(vy_ast.FunctionDef)._metadata["type"]

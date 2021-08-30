@@ -35,6 +35,11 @@ class NullAttractor(int):
     __mul__ = __add__
 
 
+def push_label_to_stack(labelname: str) -> str:
+    #  items prefixed with `_sym_` are ignored until asm phase
+    return "_sym_" + labelname
+
+
 # Data structure for LLL parse tree
 class LLLnode:
     repr_show_gas = False

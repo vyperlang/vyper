@@ -7,7 +7,7 @@ from vyper.exceptions import (
     TypeCheckFailure,
 )
 from vyper.old_codegen.abi import abi_decode
-from vyper.old_codegen.lll_node import LLLnode
+from vyper.old_codegen.lll_node import LLLnode, push_label_to_stack
 from vyper.old_codegen.parser_utils import getpos, pack_arguments
 from vyper.old_codegen.types import (
     BaseType,
@@ -39,6 +39,7 @@ def make_call(stmt_expr, context):
     method_name = stmt_expr.func.attr
 
     args_lll = Expr(x, self.context).lll_node for x in stmt_expr.args
+    # TODO handle default args
     args_tuple_t = TupleType([x.typ for x in args_lll])
     args_as_tuple = LLLnode.from_list(["multi"] + [x for x in args_lll], typ=args_tuple_t)
 
@@ -57,18 +58,25 @@ def make_call(stmt_expr, context):
     if not sig.internal:
         raise StructureException("Cannot call external functions via 'self'", stmt_expr)
 
+    return_label = _generate_label(f"{sig.internal_function_label}_call")
+
     # allocate space for the return buffer
-    return_buffer = context.new_internal_variable(sig.return_type)
+    # TODO allocate in stmt and/or expr.py
+    return_buffer = context.new_internal_variable(sig.return_type) if sig.return_type is not None else "pass"
+    return_buffer = LLLnode.from_list([return_buffer], annotation=f"{return_label}_return_buf")
+
+    copy_args = make_setter(sig.frame_start, args_as_tuple, "memory", pos)
 
     call_sequence = [
-        "seq_unchecked",
-        make_setter(sig.frame_start, args_as_tuple, "memory", pos),
-        return_buffer,
-        ["goto", sig.internal_function_label],
-        ["label", _generate_label(f"{sig.internal_function_label}_exit")]
-        ["jumpdest"],
-        return_buffer,
-    ]
+            "seq_unchecked",
+            copy_args,
+            push_label_to_stack(return_label), # pass return label to subroutine
+            return_buffer, # pass return buffer to subroutine
+            ["goto", sig.internal_function_label]
+            return_label,
+            "jumpdest",
+            return_buffer, # push return buffer location to stack
+        ]
 
     o = LLLnode.from_list(
         call_sequence,
@@ -78,5 +86,4 @@ def make_call(stmt_expr, context):
         annotation=f"Internal Call: {method_name}",
         add_gas_estimate=sig.gas,
     )
-    o.gas += sig.gas
     return o
