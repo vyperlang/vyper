@@ -85,6 +85,7 @@ def make_byte_array_copier(destination, source, pos=None):
             )
 
     # Special case: memory to memory
+    # TODO: this should be handled by make_byte_slice_copier.
     if source.location == "memory" and destination.location == "memory":
         o = LLLnode.from_list(
             [
@@ -155,6 +156,7 @@ def make_byte_slice_copier(destination, source, length, max_length, pos=None):
             annotation=f"copy byte slice dest: {str(destination)}",
             add_gas_estimate=_identity_gas_bound(max_length),
         )
+    # TODO optimize: calldatacopy for calldata; codecopy for code
 
     # special case: rhs is zero
     if source.value is None:

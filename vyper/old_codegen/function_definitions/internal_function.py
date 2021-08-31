@@ -74,11 +74,7 @@ def generate_lll_for_internal_function(
     # internal functions without return types need to jump back to the calling
     # function, as there is no guarantee there is a user-provided return
     # statement (which would generate the jump)
-    if sig.output_type is None:
-        stop_func = [["jump", "pass"]] # was passed in via stack
-    else:
-        # unreachable at runtime
-        stop_func = [["invalid"]]
+    stop_func = [["jump", "pass"]] # was passed in via stack
 
     enter = nonreentrant_pre
 

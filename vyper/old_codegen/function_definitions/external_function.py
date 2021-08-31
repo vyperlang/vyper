@@ -18,18 +18,48 @@ from vyper.old_codegen.types.types import ByteArrayLike, get_size_of_type
 from vyper.utils import MemoryPositions
 
 
-def get_external_arg_copier(
-    total_size: int, memory_dest: int, offset: Union[int, List[Any]] = 4
-) -> List[Any]:
-    """
-    Generate argument copier.
+def generate_lll_for_external_function(
+    code: vy_ast.FunctionDef, sig: FunctionSignature, context: Context, check_nonpayable: bool,
+) -> LLLnode:
+    func_type = code._metadata["type"]
 
-    :param total_size: total memory size to copy
-    :param memory_dest: base memory address to start from
-    :param offset: starting offset, used for ByteArrays
-    """
-    copier = ["calldatacopy", memory_dest, offset, total_size]
-    return copier
+    # generate kwarg handlers
+    for arg in tbd_kwargs:
+        v = context.new_variable(argname, argtype, is_mutable=False)
+
+    if len(base_args) > 0:
+        # tuple with the abi_encoded args
+        base_args = LLLnode(4, location="calldata", typ=tbd_base_args_type)
+        base_args = lazy_abi_decode(base_args)
+
+        assert base_args.value == "multi"
+        for (argname, arg_lll) in zip(tbd, base_args.args):  # the actual values
+            # register the record in the local namespace
+            context.vars[argname] = LLLnode(arg_lll, location="calldata")
+
+    nonreentrant_pre, nonreentrant_post = get_nonreentrant_lock(func_type)
+
+    # once kwargs have been handled
+    entrance = [["label", f"{sig.base_method_id}_entry"]]
+
+    if check_nonpayable and sig.mutability != "payable":
+        # if the contract contains payable functions, but this is not one of them
+        # add an assertion that the value of the call is zero
+        entrance.append(["assert", ["iszero", "callvalue"]])
+
+    body = parse_body(c, context) for c in code.body
+
+    exit = [["label", func_type.exit_sequence_label]]
+        + [nonreentrant_post]
+        + [["return", "pass", "pass"]] # passed by 
+
+    return LLLnode.from_list(
+            ["seq"]
+            + kwarg_handlers
+            + entrance
+            + body
+            + exit,
+            pos=getpos(code)
 
 
 def generate_lll_for_external_function(
