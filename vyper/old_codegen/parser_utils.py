@@ -165,15 +165,10 @@ def make_byte_slice_copier(destination, source, length, max_length, pos=None):
         else:
             loader = 0
     # Copy over data
-    elif source.location == "memory":
-        loader = ["mload", ["add", "_pos", ["mul", 32, ["mload", MemoryPositions.FREE_LOOP_INDEX]]]]
+    elif source.location in ("memory", "calldata", "code"):
+        loader = [load_op(source.location), ["add", "_pos", ["mul", 32, ["mload", MemoryPositions.FREE_LOOP_INDEX]]]]
     elif source.location == "storage":
         loader = ["sload", ["add", "_pos", ["mload", MemoryPositions.FREE_LOOP_INDEX]]]
-    elif source.location == "calldata":
-        loader = [
-            "calldataload",
-            ["add", "_pos", ["mul", 32, ["mload", MemoryPositions.FREE_LOOP_INDEX]]],
-        ]
     else:
         raise CompilerPanic(f"Unsupported location: {source.location}")
     # Where to paste it?
@@ -255,13 +250,7 @@ def byte_array_to_num(
 
 def get_bytearray_length(arg):
     typ = BaseType("uint256")
-    if arg.location == "memory":
-        return LLLnode.from_list(["mload", arg], typ=typ)
-    elif arg.location == "storage":
-        return LLLnode.from_list(["sload", arg], typ=typ)
-    elif arg.location == "calldata":
-        return LLLnode.from_list(["calldataload", arg], typ=typ)
-    raise CompilerPanic("unreachable", arg)  # pragma: no test
+    return LLLnode.from_list(load_op(arg.location), typ=BaseType("uint256"))
 
 
 def getpos(node):
@@ -300,7 +289,7 @@ def add_variable_offset(parent, key, pos, array_bounds_check=True):
             for i in range(index):
                 offset += get_size_of_type(typ.members[attrs[i]])
             return LLLnode.from_list(["add", parent, offset], typ=subtype, location="storage",)
-        elif location in ("calldata", "memory"):
+        elif location in ("calldata", "memory", "code"):
             offset = 0
             for i in range(index):
                 offset += 32 * get_size_of_type(typ.members[attrs[i]])
@@ -370,21 +359,29 @@ def add_variable_offset(parent, key, pos, array_bounds_check=True):
             return LLLnode.from_list(
                 ["add", parent, ["mul", sub, offset]], typ=subtype, location="storage", pos=pos
             )
-        elif location in ("calldata", "memory"):
+        elif location in ("calldata", "memory", "code"):
             offset = 32 * get_size_of_type(subtype)
             return LLLnode.from_list(
                 ["add", ["mul", offset, sub], parent], typ=subtype, location=location, pos=pos
             )
 
 
+def load_op(location):
+    if location == "memory":
+        return "mload"
+    if location == "storage":
+        return "sload"
+    if location == "calldata":
+        return "calldataload"
+    if location == "code":
+        return "codeload"
+    raise CompilerPanic("unreachable", arg)  # pragma: no test
+
+
 # Unwrap location
 def unwrap_location(orig):
-    if orig.location == "memory":
-        return LLLnode.from_list(["mload", orig], typ=orig.typ)
-    elif orig.location == "storage":
-        return LLLnode.from_list(["sload", orig], typ=orig.typ)
-    elif orig.location == "calldata":
-        return LLLnode.from_list(["calldataload", orig], typ=orig.typ)
+    if orig.location in ("memory", "storage", "calldata", "code"):
+        return LLLnode.from_list([load_op(orig.location), typ=orig.typ)
     else:
         # handle None value inserted by `empty`
         if orig.value is None:
@@ -609,7 +606,7 @@ def make_setter(left, right, location, pos):
         elif isinstance(left.typ, TupleType) and isinstance(right.typ, TupleType):
             subs = []
             for var_arg in left.args:
-                if var_arg.location == "calldata":
+                if var_arg.location in ("calldata", "code"):
                     return
 
             right_token = LLLnode.from_list("_R", typ=right.typ, location=right.location)
