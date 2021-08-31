@@ -501,9 +501,7 @@ def _add_ofst(loc, ofst):
 # (multi
 #   (mload 320/*int128*/)
 #   (mload (add 320/*buf start*/ (mload 352/*ofst loc*/))))
-# thought of the day: it might be nice to have an argument like `sanitize`
-# which will add well-formedness checks (clamps) for all inputs.
-def lazy_abi_decode(typ, src, pos=None):
+def lazy_abi_decode(typ, src, clamp=True, pos=None):
     if isinstance(typ, (ListType, TupleLike)):
         if isinstance(typ, TupleLike):
             ts = typ.tuple_members()
