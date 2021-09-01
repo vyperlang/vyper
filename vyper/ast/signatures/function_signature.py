@@ -6,6 +6,7 @@ from vyper.exceptions import FunctionDeclarationException, StructureException
 from vyper.old_codegen.lll_node import LLLnode
 from vyper.old_codegen.parser_utils import check_single_exit, getpos
 from vyper.old_codegen.types import (
+    NodeType,
     ByteArrayLike,
     TupleType,
     canonicalize_type,
@@ -53,6 +54,12 @@ class ContractRecord(VariableRecord):
         super(ContractRecord, self).__init__(*args)
 
 
+@dataclass
+class FunctionArg:
+    name: str
+    typ: NodeType
+
+
 # Function signature object
 class FunctionSignature:
     def __init__(
@@ -64,7 +71,6 @@ class FunctionSignature:
         internal,
         nonreentrant_key,
         sig,
-        method_id,
         func_ast_code,
         is_from_json,
     ):
@@ -74,18 +80,24 @@ class FunctionSignature:
         self.mutability = mutability
         self.internal = internal
         self.sig = sig
-        self.method_id = method_id
         self.gas = None
         self.nonreentrant_key = nonreentrant_key
         self.func_ast_code = func_ast_code
         self.is_from_json = is_from_json
-        self.calculate_arg_totals()
+
+        self.set_default_args()
 
     def __str__(self):
         input_name = "def " + self.name + "(" + ",".join([str(arg.typ) for arg in self.args]) + ")"
         if self.output_type:
             return input_name + " -> " + str(self.output_type) + ":"
         return input_name + ":"
+
+    @property
+    def external_method_ids(self):
+        assert not self.internal, "method_ids only make sense for external functions"
+
+        return 
 
     @property
     def internal_function_label(self):
@@ -98,42 +110,20 @@ class FunctionSignature:
     def exit_sequence_label(self):
         return mkalphanum(str(self)) + "_cleanup"
 
-    def calculate_arg_totals(self):
-        """ Calculate base arguments, and totals. """
+    def set_default_args(self):
+        """Split base from kwargs and set member data structures"""
 
-        code = self.func_ast_code
-        self.base_args = []
-        self.total_default_args = 0
+        args = self.func_ast_code.args
 
-        if hasattr(code.args, "defaults"):
-            self.total_default_args = len(code.args.defaults)
-            if self.total_default_args > 0:
-                # all argument w/o defaults
-                self.base_args = self.args[: -self.total_default_args]
-            else:
-                # No default args, so base_args = args.
-                self.base_args = self.args
-            # All default argument name/type definitions.
-            self.default_args = code.args.args[-self.total_default_args :]  # noqa: E203
-            # Keep all the value to assign to default parameters.
-            self.default_values = dict(
-                zip([arg.arg for arg in self.default_args], code.args.defaults)
-            )
+        defaults = getattr(args, "defaults", [])
+        num_base_args = len(args) - len(defaults)
 
-        # Calculate the total sizes in memory the function arguments will take use.
-        # Total memory size of all arguments (base + default together).
-        self.max_copy_size = sum(
-            [
-                32 if isinstance(arg.typ, ByteArrayLike) else get_size_of_type(arg.typ) * 32
-                for arg in self.args
-            ]
-        )
-        # Total memory size of base arguments (arguments exclude default parameters).
-        self.base_copy_size = sum(
-            [
-                32 if isinstance(arg.typ, ByteArrayLike) else get_size_of_type(arg.typ) * 32
-                for arg in self.base_args
-            ]
+        self.base_args = self.args[:num_base_args]
+        self.default_args = self.args[num_base_args:]
+
+        # Keep all the value to assign to default parameters.
+        self.default_values = dict(
+            zip([arg.name for arg in self.default_args], args.defaults)
         )
 
     # Get the canonical function signature
@@ -153,34 +143,24 @@ class FunctionSignature:
     @classmethod
     def from_definition(
         cls,
-        code,
+        func_ast,
         sigs=None,
         custom_structs=None,
         interface_def=False,
         constant_override=False,
         is_from_json=False,
     ):
-        if not custom_structs:
+        if custom_structs is None:
             custom_structs = {}
 
         name = code.name
-        mem_pos = 0
 
-        # Determine the arguments, expects something of the form def foo(arg1:
-        # int128, arg2: int128 ...
         args = []
-        for arg in code.args.args:
-            # Each arg needs a type specified.
-            typ = arg.annotation
-            parsed_type = parse_type(typ, None, sigs, custom_structs=custom_structs,)
-            args.append(
-                VariableRecord(arg.arg, mem_pos, parsed_type, False, defined_at=getpos(arg),)
-            )
+        for arg in func_ast.args.args:
+            argname = arg.arg
+            argtyp = parse_type(arg.annotation, None, sigs, custom_structs=custom_structs,)
 
-            if isinstance(parsed_type, ByteArrayLike):
-                mem_pos += 32
-            else:
-                mem_pos += get_size_of_type(parsed_type) * 32
+            args.append(FunctionArg(argname, argtyp))
 
         mutability = "nonpayable"  # Assume nonpayable by default
         nonreentrant_key = ""
@@ -188,7 +168,7 @@ class FunctionSignature:
 
         # Update function properties from decorators
         # NOTE: Can't import enums here because of circular import
-        for dec in code.decorator_list:
+        for dec in func_ast.decorator_list:
             if isinstance(dec, vy_ast.Name) and dec.id in ("payable", "view", "pure"):
                 mutability = dec.id
             elif isinstance(dec, vy_ast.Name) and dec.id == "internal":
@@ -210,26 +190,27 @@ class FunctionSignature:
         # def foo() -> int128: ...
         # If there is no return type, ie. it's of the form def foo(): ...
         # and NOT def foo() -> type: ..., then it's null
-        output_type = None
-        if code.returns:
-            output_type = parse_type(code.returns, None, sigs, custom_structs=custom_structs,)
-            # Output type must be canonicalizable
-            assert isinstance(output_type, TupleType) or canonicalize_type(output_type)
+        retutn_type = None
+        if func_ast.returns:
+            return_type = parse_type(func_ast.returns, None, sigs, custom_structs=custom_structs,)
+            # sanity check: Output type must be canonicalizable
+            assert canonicalize_type(return_type)
+
         # Get the canonical function signature
-        sig = cls.get_full_sig(name, code.args.args, sigs, custom_structs)
+        sig = cls.get_full_sig(name, func_ast.args.args, sigs, custom_structs)
 
         # Take the first 4 bytes of the hash of the sig to get the method ID
         method_id = fourbytes_to_int(keccak256(bytes(sig, "utf-8"))[:4])
         return cls(
             name,
             args,
-            output_type,
+            return_type,
             mutability,
             is_internal,
             nonreentrant_key,
             sig,
             method_id,
-            code,
+            func_ast,
             is_from_json,
         )
 
@@ -281,7 +262,7 @@ class FunctionSignature:
     def is_default_func(self):
         return self.name == "__default__"
 
-    def is_initializer(self):
+    def is_init_func(self):
         return self.name == "__init__"
 
     def validate_return_statement_balance(self):

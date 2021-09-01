@@ -17,27 +17,49 @@ from vyper.old_codegen.stmt import parse_body
 from vyper.old_codegen.types.types import ByteArrayLike, get_size_of_type
 from vyper.utils import MemoryPositions
 
+# register function args with the local calling context.
+# also allocate the ones that live in memory (i.e. kwargs)
+def _register_function_args(context: Context, sig: FunctionSignature):
+
+    # generate kwarg handlers.
+    # since they might come in thru calldata or be default,
+    # allocate them in memory and then fill it in based on calldata or default,
+    # depending on the signature
+    #kwarg_locations = {}
+    for arg in tbd_kwargs:
+        v = context.new_variable(argname, argtype, is_mutable=False)
+        #kwarg_locations[argname] = v
+
+    if len(args) > 0:
+        # tuple with the abi_encoded args
+        base_args_location = LLLnode(4, location="calldata", typ=tbd_base_args_type)
+        base_args = lazy_abi_decode(tbd_base_args_type, base_args_location)
+
+        assert base_args.value == "multi"
+        for (argname, arg_lll) in zip(tbd_argnames, base_args.args):  # the actual values
+            # register the record in the local namespace
+            context.vars[argname] = LLLnode(arg_lll, location="calldata")
+
+
+def _generate_all_signatures(context: Context, function_def: vy_ast.FunctionDef):
+    for kwarg in function_def.args.defaults:
+
+
+def _generate_kwarg_handlers(context: Context, sig):
+    pass
+
+
 
 def generate_lll_for_external_function(
     code: vy_ast.FunctionDef, sig: FunctionSignature, context: Context, check_nonpayable: bool,
 ) -> LLLnode:
     func_type = code._metadata["type"]
 
-    # generate kwarg handlers
-    for arg in tbd_kwargs:
-        v = context.new_variable(argname, argtype, is_mutable=False)
-
-    if len(base_args) > 0:
-        # tuple with the abi_encoded args
-        base_args = LLLnode(4, location="calldata", typ=tbd_base_args_type)
-        base_args = lazy_abi_decode(base_args)
-
-        assert base_args.value == "multi"
-        for (argname, arg_lll) in zip(tbd, base_args.args):  # the actual values
-            # register the record in the local namespace
-            context.vars[argname] = LLLnode(arg_lll, location="calldata")
+    _register_function_args(context, sig)
 
     nonreentrant_pre, nonreentrant_post = get_nonreentrant_lock(func_type)
+
+    kwarg_handlers = _generate_kwarg_handlers(context, sig)
 
     # once kwargs have been handled
     entrance = [["label", f"{sig.base_method_id}_entry"]]
@@ -47,7 +69,9 @@ def generate_lll_for_external_function(
         # add an assertion that the value of the call is zero
         entrance.append(["assert", ["iszero", "callvalue"]])
 
-    body = parse_body(c, context) for c in code.body
+    # TODO: handle __init__ and default functions?
+
+    body = [parse_body(c, context) for c in code.body]
 
     exit = [["label", func_type.exit_sequence_label]]
         + [nonreentrant_post]

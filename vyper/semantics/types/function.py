@@ -395,7 +395,7 @@ class ContractFunction(BaseTypeDefinition):
 
         * For functions without default arguments the dict contains one item.
         * For functions with default arguments, there is one key for each
-          function signfature.
+          function signature.
         """
         arg_types = [i.canonical_type for i in self.arguments.values()]
 

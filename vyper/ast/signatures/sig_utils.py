@@ -2,8 +2,8 @@ import copy
 
 from vyper.ast.signatures.function_signature import FunctionSignature
 
-
 # Generate default argument function signatures.
+# TODO dead code
 def generate_default_arg_sigs(code, interfaces, global_ctx):
     # generate all sigs, and attach.
     total_default_args = len(code.args.defaults)

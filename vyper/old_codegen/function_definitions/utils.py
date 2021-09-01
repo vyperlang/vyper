@@ -1,6 +1,7 @@
 from vyper.old_codegen.lll_node import LLLnode
 
 
+# TODO dead code
 def get_sig_statements(sig, pos):
     method_id_node = LLLnode.from_list(sig.method_id, pos=pos, annotation=f"{sig.sig}")
 
