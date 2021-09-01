@@ -181,6 +181,7 @@ def canonicalize_type(t, is_indexed=False):
     raise InvalidType(f"Invalid or unsupported type: {repr(t)}")
 
 
+# TODO location is unused
 def make_struct_type(name, location, sigs, members, custom_structs):
     o = OrderedDict()
 
@@ -196,7 +197,9 @@ def make_struct_type(name, location, sigs, members, custom_structs):
 
 # Parses an expression representing a type. Annotation refers to whether
 # the type is to be located in memory or storage
-def parse_type(item, location, sigs=None, custom_structs=None):
+# TODO: location is unused
+# TODO: rename me to "lll_type_from_annotation"
+def parse_type(item, location=None, sigs=None, custom_structs=None):
     # Base and custom types, e.g. num
     if isinstance(item, vy_ast.Name):
         if item.id in BASE_TYPES:
