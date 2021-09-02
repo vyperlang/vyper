@@ -21,15 +21,6 @@ from vyper.utils import MemoryPositions
 # also allocate the ones that live in memory (i.e. kwargs)
 def _register_function_args(context: Context, sig: FunctionSignature):
 
-    # generate kwarg handlers.
-    # since they might come in thru calldata or be default,
-    # allocate them in memory and then fill it in based on calldata or default,
-    # depending on the signature
-    #kwarg_locations = {}
-    for arg in tbd_kwargs:
-        v = context.new_variable(argname, argtype, is_mutable=False)
-        #kwarg_locations[argname] = v
-
     if len(args) > 0:
         # tuple with the abi_encoded args
         base_args_location = LLLnode(4, location="calldata", typ=tbd_base_args_type)
@@ -42,12 +33,56 @@ def _register_function_args(context: Context, sig: FunctionSignature):
 
 
 def _generate_all_signatures(context: Context, function_def: vy_ast.FunctionDef):
-    for kwarg in function_def.args.defaults:
+    for sig, kwarg_value in zip(all_sigs, kwarg_values):
+        yield pass
 
 
 def _generate_kwarg_handlers(context: Context, sig):
-    pass
+    # generate kwarg handlers.
+    # since they might come in thru calldata or be default,
+    # allocate them in memory and then fill it in based on calldata or default,
+    # depending on the signature
 
+    ret = []
+
+    def handler_for(calldata_kwargs, default_kwargs):
+        calldata_args = base_args + calldata_kwargs
+        calldata_args_t = TupleType(list(arg.typ for arg in calldata_args))
+
+        sig = func_name + canonicalize_type(calldata_args_t)
+        method_id = util.method_id(sig)
+
+        calldata_args_location = LLLnode(4, location="calldata", typ=calldata_args_t)
+        calldata_args = lazy_abi_decode(calldata_args_t, base_args_location)
+
+        assert calldata_args.value == "multi" # sanity check
+        # extract just the kwargs from the ABI payload
+        calldata_args = calldata.args[len(base_args):]
+
+        # a sequence of statements to strictify kwargs into memory
+        ret = ["seq"]
+
+        for x in calldata_args:
+            context.new_variable(argname, argtype, mutable=False)
+            ret.append(make_setter(context.lookup_var(x.name), x, "memory"))
+        for x in default_kwargs:
+            context.new_variable(argname, argtype, mutable=False)
+            ret.append(make_setter(context.lookup_var(x.name), Expr(x, context).lll_node, "memory"))
+
+        ret.append(["goto", tbd_entry_point])
+
+        ret = ["if", ["eq", tbd_mload_method_id, method_id], ret]
+        return ret
+
+    for i, kwarg in enumerate(keyword_args):
+        calldata_kwargs = keyword_args[:i]
+        default_kwargs = keyword_args[i:]
+
+        sig = tbd_sig
+
+        ret.append(handler_for(calldata_kwargs, default_kwargs))
+
+    return ret
 
 
 def generate_lll_for_external_function(
@@ -61,8 +96,11 @@ def generate_lll_for_external_function(
 
     kwarg_handlers = _generate_kwarg_handlers(context, sig)
 
+    entrance = []
+
     # once kwargs have been handled
-    entrance = [["label", f"{sig.base_method_id}_entry"]]
+    if len(kwarg_handlers) > 0:
+        entrance.append(["label", f"{sig.base_method_id}_entry"])
 
     if check_nonpayable and sig.mutability != "payable":
         # if the contract contains payable functions, but this is not one of them
@@ -77,13 +115,16 @@ def generate_lll_for_external_function(
         + [nonreentrant_post]
         + [["return", "pass", "pass"]] # passed by 
 
-    return LLLnode.from_list(
-            ["seq"]
+    ret = (["seq"]
             + kwarg_handlers
             + entrance
             + body
-            + exit,
-            pos=getpos(code)
+            + exit
+            )
+    if len(kwarg_handlers) > 0:
+        ret = ["if", ["eq", tbd_mload_method_id, sig.method_id], ret]
+
+    return LLLnode.from_list(ret, pos=getpos(code))
 
 
 def generate_lll_for_external_function(

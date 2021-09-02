@@ -14,6 +14,7 @@ from vyper.old_codegen.types import (
     parse_type,
 )
 from vyper.utils import fourbytes_to_int, keccak256, mkalphanum
+from functools import cached_property
 
 
 # Function argument
@@ -91,20 +92,22 @@ class FunctionSignature:
             return input_name + " -> " + str(self.output_type) + ":"
         return input_name + ":"
 
-    #@property
-    #def abi_signature(self):
-    #    assert not self.internal, "abi_signatures only make sense for external functions"
-#
-#        return self.func_name + "(" + ",".join([canonicalize_type(arg.typ) for arg in self.args]) + ")"
+    def _abi_signature(self, args):
+        return self.func_name + "(" + ",".join([canonicalize_type(arg.typ) for arg in args]) + ")"
 
-    @property
-    def method_id(self):
-        return util.method_id(self.abi_signature)
-
-    def addl_kwarg_sigs(self) -> tbd_List[Tuple(str, sig)]:
+    @cached_property
+    def all_kwarg_sigs(self) -> List[str]:
+        assert not self.internal, "abi_signatures only make sense for external functions"
         ret = []
-        for x in self.default_args:
-            ret.append()
+        argz = self.base_args.copy()
+
+        ret.append(self._abi_signature(argz))
+
+        for arg in self.default_args:
+            argz.append(arg)
+            ret.append(self._abi_signature(argz))
+
+        return ret
 
     @property
     def internal_function_label(self):
