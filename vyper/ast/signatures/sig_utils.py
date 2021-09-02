@@ -3,18 +3,14 @@ import copy
 from vyper.ast.signatures.function_signature import FunctionSignature
 
 # Generate default argument function signatures.
-# TODO dead code
 def generate_default_arg_sigs(code, interfaces, global_ctx):
     # generate all sigs, and attach.
-    total_default_args = len(code.args.defaults)
     if total_default_args == 0:
         return [
             FunctionSignature.from_definition(
                 code, sigs=interfaces, custom_structs=global_ctx._structs,
             )
         ]
-    base_args = code.args.args[:-total_default_args]
-    default_args = code.args.args[-total_default_args:]
 
     # Generate a list of default function combinations.
     row = [False] * (total_default_args)

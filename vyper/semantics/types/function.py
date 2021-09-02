@@ -96,6 +96,7 @@ class ContractFunction(BaseTypeDefinition):
         self,
         name: str,
         arguments: OrderedDict,
+        # TODO rename to something like positional_args, keyword_args
         min_arg_count: int,
         max_arg_count: int,
         return_type: Optional[BaseTypeDefinition],

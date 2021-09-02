@@ -640,6 +640,7 @@ def make_setter(left, right, location, pos):
             )
 
 
+# TODO move return checks to vyper/semantics/validation
 def is_return_from_function(node):
     if isinstance(node, vy_ast.Expr) and node.get("value.func.id") == "selfdestruct":
         return True
@@ -675,6 +676,7 @@ def _check_return_body(node, node_list):
             )
 
 
+#  TODO dead
 def _return_check(node):
     if is_return_from_function(node):
         return True

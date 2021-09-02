@@ -70,7 +70,6 @@ class FunctionSignature:
         mutability,
         internal,
         nonreentrant_key,
-        sig,
         func_ast_code,
         is_from_json,
     ):
@@ -79,7 +78,6 @@ class FunctionSignature:
         self.output_type = output_type
         self.mutability = mutability
         self.internal = internal
-        self.sig = sig
         self.gas = None
         self.nonreentrant_key = nonreentrant_key
         self.func_ast_code = func_ast_code
@@ -93,11 +91,20 @@ class FunctionSignature:
             return input_name + " -> " + str(self.output_type) + ":"
         return input_name + ":"
 
-    @property
-    def external_method_ids(self):
-        assert not self.internal, "method_ids only make sense for external functions"
+    #@property
+    #def abi_signature(self):
+    #    assert not self.internal, "abi_signatures only make sense for external functions"
+#
+#        return self.func_name + "(" + ",".join([canonicalize_type(arg.typ) for arg in self.args]) + ")"
 
-        return 
+    @property
+    def method_id(self):
+        return util.method_id(self.abi_signature)
+
+    def addl_kwarg_sigs(self) -> tbd_List[Tuple(str, sig)]:
+        ret = []
+        for x in self.default_args:
+            ret.append()
 
     @property
     def internal_function_label(self):
@@ -196,11 +203,7 @@ class FunctionSignature:
             # sanity check: Output type must be canonicalizable
             assert canonicalize_type(return_type)
 
-        # Get the canonical function signature
-        sig = cls.get_full_sig(name, func_ast.args.args, sigs, custom_structs)
-
         # Take the first 4 bytes of the hash of the sig to get the method ID
-        method_id = fourbytes_to_int(keccak256(bytes(sig, "utf-8"))[:4])
         return cls(
             name,
             args,
@@ -208,8 +211,6 @@ class FunctionSignature:
             mutability,
             is_internal,
             nonreentrant_key,
-            sig,
-            method_id,
             func_ast,
             is_from_json,
         )
