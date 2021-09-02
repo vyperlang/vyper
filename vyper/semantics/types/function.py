@@ -360,7 +360,7 @@ class ContractFunction(BaseTypeDefinition):
         """
         Generate a `ContractFunction` object from an `AnnAssign` node.
 
-        Used to create function definitions for public variables.
+        Used to create getter functions for public variables.
 
         Arguments
         ---------
