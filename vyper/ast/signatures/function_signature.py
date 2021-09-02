@@ -265,6 +265,7 @@ class FunctionSignature:
     def is_init_func(self):
         return self.name == "__init__"
 
+    # TODO dead
     def validate_return_statement_balance(self):
         # Run balanced return statement check.
         check_single_exit(self.func_ast_code)

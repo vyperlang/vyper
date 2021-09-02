@@ -35,7 +35,7 @@ def generate_lll_for_function(code, sigs, global_ctx, check_nonpayable, _vars=No
     sig = FunctionSignature.from_definition(code, sigs=sigs, custom_structs=global_ctx._structs,)
 
     # Validate return statements.
-    sig.validate_return_statement_balance()
+    check_single_exit(code)
 
     # in order to statically allocate function frames,
     # we codegen functions in two passes.
