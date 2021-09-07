@@ -31,19 +31,22 @@ def make_call(stmt_expr, context):
 
     # ** Internal Call **
     # Steps:
-    # (x) copy arguments into the soon-to-be callee
-    # (x) allocate return buffer
-    # (x) push jumpdest (callback ptr), then return buffer location
-    # (x) jump to label
+    # - copy arguments into the soon-to-be callee
+    # - allocate return buffer
+    # - push jumpdest (callback ptr) and return buffer location
+    # - jump to label
+    # - (private function will fill return buffer and jump back)
 
     method_name = stmt_expr.func.attr
 
-    args_lll = Expr(x, self.context).lll_node for x in stmt_expr.args
-    # TODO handle default args
+    sig, kw_vals = FunctionSignature.lookup_sig(method_name, args_lll, context)
+
+    pos_args_lll = Expr(x, self.context).lll_node for x in stmt_expr.args
+    kw_args_lll = Expr(x, self.context).lll_node for x in kw_vals
+    args_lll = pos_args_lll + kw_args_lll
+
     args_tuple_t = TupleType([x.typ for x in args_lll])
     args_as_tuple = LLLnode.from_list(["multi"] + [x for x in args_lll], typ=args_tuple_t)
-
-    sig = FunctionSignature.lookup_sig(context.sigs, method_name, args_lll, stmt_expr, context)
 
     # register callee to help calculate our starting frame offset
     context.register_callee(sig.frame_size)
@@ -55,6 +58,7 @@ def make_call(stmt_expr, context):
             getpos(stmt_expr),
         )
 
+    # TODO move me to type checker phase
     if not sig.internal:
         raise StructureException("Cannot call external functions via 'self'", stmt_expr)
 

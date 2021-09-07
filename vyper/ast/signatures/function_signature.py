@@ -17,7 +17,8 @@ from vyper.utils import fourbytes_to_int, keccak256, mkalphanum
 from functools import cached_property
 
 
-# Function argument
+# Function variable
+# TODO move to context.py
 class VariableRecord:
     def __init__(
         self,
