@@ -46,6 +46,8 @@ def _generate_kwarg_handlers(context: Context, sig):
     ret = []
 
     def handler_for(calldata_kwargs, default_kwargs):
+        default_kwargs = [Expr(x, context).lll_node for x in default_kwargs]
+
         calldata_args = base_args + calldata_kwargs
         calldata_args_t = TupleType(list(arg.typ for arg in calldata_args))
 
@@ -53,6 +55,7 @@ def _generate_kwarg_handlers(context: Context, sig):
         method_id = util.method_id(sig)
 
         calldata_args_location = LLLnode(4, location="calldata", typ=calldata_args_t)
+
         calldata_args = lazy_abi_decode(calldata_args_t, base_args_location)
 
         assert calldata_args.value == "multi" # sanity check
@@ -61,6 +64,10 @@ def _generate_kwarg_handlers(context: Context, sig):
 
         # a sequence of statements to strictify kwargs into memory
         ret = ["seq"]
+
+        all_kwargs_t = TupleType(list(arg.typ for arg in sig_kwargs))
+
+        all_kwargs_src = LLLnode.from_list(["multi"] + calldata_args + default_args, typ=all_kwargs_t)
 
         for x in calldata_args:
             context.new_variable(argname, argtype, mutable=False)
