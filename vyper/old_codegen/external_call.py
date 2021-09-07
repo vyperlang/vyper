@@ -206,35 +206,10 @@ def make_external_call(stmt_expr, context):
     if isinstance(stmt_expr.func, vy_ast.Attribute) and isinstance(
         stmt_expr.func.value, vy_ast.Call
     ):
+        # e.g. `Foo(address).bar()`
+
         contract_name = stmt_expr.func.value.func.id
         contract_address = Expr.parse_value_expr(stmt_expr.func.value.args[0], context)
-
-        return external_call(
-            stmt_expr,
-            context,
-            contract_name,
-            contract_address,
-            pos=getpos(stmt_expr),
-            value=value,
-            gas=gas,
-        )
-
-    elif (
-        isinstance(stmt_expr.func.value, vy_ast.Attribute)
-        and stmt_expr.func.value.attr in context.sigs
-    ):  # noqa: E501
-        contract_name = stmt_expr.func.value.attr
-        type_ = stmt_expr.func.value._metadata["type"]
-        var = context.globals[stmt_expr.func.value.attr]
-        contract_address = unwrap_location(
-            LLLnode.from_list(
-                type_.position.position,
-                typ=var.typ,
-                location="storage",
-                pos=getpos(stmt_expr),
-                annotation="self." + stmt_expr.func.value.attr,
-            )
-        )
 
         return external_call(
             stmt_expr,
@@ -251,6 +226,7 @@ def make_external_call(stmt_expr, context):
         and stmt_expr.func.value.attr in context.globals
         and hasattr(context.globals[stmt_expr.func.value.attr].typ, "name")
     ):
+        # e.g. `self.foo.bar()`
 
         contract_name = context.globals[stmt_expr.func.value.attr].typ.name
         type_ = stmt_expr.func.value._metadata["type"]
