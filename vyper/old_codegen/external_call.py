@@ -182,30 +182,6 @@ def external_call(node, context, interface_name, contract_address, pos, value=No
     return LLLnode.from_list(sub, typ=sig.output_type, location="memory", pos=getpos(node))
 
 
-def get_external_call_output(sig, context):
-    if not sig.output_type:
-        return 0, 0, []
-    output_placeholder = context.new_internal_variable(typ=sig.output_type)
-    output_size = get_size_of_type(sig.output_type) * 32
-    if isinstance(sig.output_type, BaseType):
-        returner = [0, output_placeholder]
-    elif isinstance(sig.output_type, ByteArrayLike):
-        returner = [0, output_placeholder + 32]
-    elif isinstance(sig.output_type, TupleLike):
-        # incase of struct we need to decode the output and then return it
-        returner = ["seq"]
-        decoded_placeholder = context.new_internal_variable(typ=sig.output_type)
-        decoded_node = LLLnode(decoded_placeholder, typ=sig.output_type, location="memory")
-        output_node = LLLnode(output_placeholder, typ=sig.output_type, location="memory")
-        returner.append(abi_decode(decoded_node, output_node))
-        returner.extend([0, decoded_placeholder])
-    elif isinstance(sig.output_type, ListType):
-        returner = [0, output_placeholder]
-    else:
-        raise TypeCheckFailure(f"Invalid output type: {sig.output_type}")
-    return output_placeholder, output_size, returner
-
-
 def get_external_interface_keywords(stmt_expr, context):
     # circular import!
     from vyper.old_codegen.expr import Expr
