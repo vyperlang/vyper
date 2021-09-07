@@ -67,7 +67,7 @@ class FunctionSignature:
         self,
         name,
         args,
-        output_type,
+        return_type,
         mutability,
         internal,
         nonreentrant_key,
@@ -76,7 +76,7 @@ class FunctionSignature:
     ):
         self.name = name
         self.args = args
-        self.output_type = output_type
+        self.return_type = return_type
         self.mutability = mutability
         self.internal = internal
         self.gas = None
@@ -136,28 +136,15 @@ class FunctionSignature:
             zip([arg.name for arg in self.default_args], args.defaults)
         )
 
-    # Get the canonical function signature
-    @staticmethod
-    def get_full_sig(func_name, args, sigs, custom_structs):
-        def get_type(arg):
-            if isinstance(arg, LLLnode):
-                return canonicalize_type(arg.typ)
-            elif hasattr(arg, "annotation"):
-                return canonicalize_type(
-                    parse_type(arg.annotation, None, sigs, custom_structs=custom_structs,)
-                )
-
-        return func_name + "(" + ",".join([get_type(arg) for arg in args]) + ")"
-
     # Get a signature from a function definition
     @classmethod
     def from_definition(
         cls,
-        func_ast,
-        sigs=None,
+        func_ast, # vy_ast.FunctionDef
+        sigs=None, # TODO replace sigs and custom_structs with GlobalContext?
         custom_structs=None,
         interface_def=False,
-        constant_override=False,
+        constant_override=False, # CMC 20210907 what does this do?
         is_from_json=False,
     ):
         if custom_structs is None:
@@ -174,7 +161,7 @@ class FunctionSignature:
 
         mutability = "nonpayable"  # Assume nonpayable by default
         nonreentrant_key = ""
-        is_internal = False
+        is_internal = None
 
         # Update function properties from decorators
         # NOTE: Can't import enums here because of circular import
@@ -200,13 +187,12 @@ class FunctionSignature:
         # def foo() -> int128: ...
         # If there is no return type, ie. it's of the form def foo(): ...
         # and NOT def foo() -> type: ..., then it's null
-        retutn_type = None
+        return_type = None
         if func_ast.returns:
             return_type = parse_type(func_ast.returns, None, sigs, custom_structs=custom_structs,)
             # sanity check: Output type must be canonicalizable
             assert canonicalize_type(return_type)
 
-        # Take the first 4 bytes of the hash of the sig to get the method ID
         return cls(
             name,
             args,
@@ -219,57 +205,39 @@ class FunctionSignature:
         )
 
     @classmethod
-    def lookup_sig(cls, sigs, method_name, expr_args, stmt_or_expr, context):
+    def lookup_internal_function(cls, method_name, args_lll, context):
         """
-        Using a list of args, determine the most accurate signature to use from
-        the given context
+        Using a list of args, find the internal method to use, and
+        the kwargs which need to be filled in by the compiler
         """
+        def _check(cond, s = "Unreachable"):
+            if not cond:
+                raise CompilerPanic(s)
 
-        def synonymise(s):
-            return s.replace("int128", "num").replace("uint256", "num")
+        for sig in context.sigs['self']:
+            if sig.name != method_name:
+                continue
 
-        # for sig in sigs['self']
-        full_sig = cls.get_full_sig(stmt_or_expr.func.attr, expr_args, None, context.structs,)
-        method_names_dict = dict(Counter([x.split("(")[0] for x in context.sigs["self"]]))
-        if method_name not in method_names_dict:
-            raise FunctionDeclarationException(
-                "Function not declared yet (reminder: functions cannot "
-                f"call functions later in code than themselves): {method_name}"
-            )
+            _check(sig.internal) # sanity check
+            # should have been caught during type checking, sanity check anyway
+            _check(len(sig.base_args) <= len(args_lll) <= len(sig.args))
 
-        if method_names_dict[method_name] == 1:
-            return next(
-                sig
-                for name, sig in context.sigs["self"].items()
-                if name.split("(")[0] == method_name
-            )
-        if full_sig in context.sigs["self"]:
-            return context.sigs["self"][full_sig]
-        else:
-            synonym_sig = synonymise(full_sig)
-            syn_sigs_test = [synonymise(k) for k in context.sigs.keys()]
-            if len(syn_sigs_test) != len(set(syn_sigs_test)):
-                raise Exception(
-                    "Incompatible default parameter signature,"
-                    "can not tell the number type of literal",
-                    stmt_or_expr,
-                )
-            synonym_sigs = [(synonymise(k), v) for k, v in context.sigs["self"].items()]
-            ssig = [s[1] for s in synonym_sigs if s[0] == synonym_sig]
-            if len(ssig) == 0:
-                raise FunctionDeclarationException(
-                    "Function not declared yet (reminder: functions cannot "
-                    f"call functions later in code than themselves): {method_name}"
-                )
-            return ssig[0]
+            # more sanity check, that the types match
+            _check(all(l.typ == r.typ for l, r in zip(args_lll, sig.args)))
+
+            num_provided_args = len(args_lll)
+            total_args = len(sig.args)
+            num_kwargs = len(sig.kwargs)
+            args_needed = total_args - num_provided
+
+            kw_vals = sig.kwarg_values.items()[:num_kwargs - args_needed]
+
+            return sig, kw_vals
+
+        _check(False)
 
     def is_default_func(self):
         return self.name == "__default__"
 
     def is_init_func(self):
         return self.name == "__init__"
-
-    # TODO dead
-    def validate_return_statement_balance(self):
-        # Run balanced return statement check.
-        check_single_exit(self.func_ast_code)
