@@ -4,7 +4,7 @@ from vyper.exceptions import (
     StructureException,
     TypeCheckFailure,
 )
-from vyper.old_codegen.abi import abi_decode
+from vyper.old_codegen.abi import abi_encode, abi_decode, abi_type_of
 from vyper.old_codegen.lll_node import LLLnode
 from vyper.old_codegen.parser_utils import (
     getpos,
@@ -20,6 +20,56 @@ from vyper.old_codegen.types import (
     get_static_size_of_type,
     has_dynamic_data,
 )
+
+@type_check_wrapper
+def pack_arguments(signature, args, context, stmt_expr, is_external_call):
+    # NOTE cyclic dep
+    from vyper.old_codegen.abi import abi_encode, abi_type_of
+
+    pos = getpos(stmt_expr)
+
+    # abi encoding just treats all args as a big tuple
+    args_tuple_t = TupleType([x.typ for x in args])
+    args_as_tuple = LLLnode.from_list(["multi"] + [x for x in args], typ=args_tuple_t)
+    args_abi_t = abi_type_of(args_tuple_t)
+
+    maxlen = args_abi_t.dynamic_size_bound() + args_abi_t.static_size()
+    if is_external_call:
+        maxlen += 32  # padding for the method id
+
+    buf_t = ByteArrayType(maxlen=maxlen)
+    buf = context.new_internal_variable(buf_t)
+
+    mstore_method_id = []
+    if is_external_call:
+        # layout:
+        # 32 bytes                 | args
+        # 0x..00<method_id_4bytes> | args
+        # the reason for the left padding is just so the alignment is easier.
+        # if we were only targeting constantinople, we could align
+        # to buf (and also keep code size small) by using
+        # (mstore buf (shl signature.method_id 224))
+        mstore_method_id.append(["mstore", buf, signature.method_id])
+        buf += 32
+
+    if len(signature.args) != len(args):
+        return
+
+    encode_args = abi_encode(buf, args_as_tuple, pos)
+
+    if is_external_call:
+        returner = [[buf - 4]]
+        inargsize = buf_t.maxlen - 28
+    else:
+        return
+
+    return (
+        LLLnode.from_list(
+            ["seq"] + mstore_method_id + [encode_args] + returner, typ=buf_t, location="memory"
+        ),
+        inargsize,
+        buf,
+    )
 
 
 def external_call(node, context, interface_name, contract_address, pos, value=None, gas=None):
