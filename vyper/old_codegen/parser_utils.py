@@ -252,7 +252,7 @@ def byte_array_to_num(
 
 def get_bytearray_length(arg):
     typ = BaseType("uint256")
-    return LLLnode.from_list(load_op(arg.location), typ=BaseType("uint256"))
+    return LLLnode.from_list([load_op(arg.location), arg], typ=BaseType("uint256"))
 
 
 def getpos(node):
@@ -382,9 +382,12 @@ def load_op(location):
 
 # Unwrap location
 def unwrap_location(orig):
+    if not isinstance(orig.typ, BaseType):
+        raise CompilerPanic("unwrap location only for base types")
     if orig.location in ("memory", "storage", "calldata", "code"):
         return LLLnode.from_list([load_op(orig.location), typ=orig.typ)
     else:
+        # CMC 20210909 TODO double check if this branch can be removed
         # handle None value inserted by `empty`
         if orig.value is None:
             return LLLnode.from_list(0, typ=orig.typ)
@@ -663,3 +666,53 @@ def zero_pad(bytez_placeholder):
         ["with", "len", len_, ["with", "dst", dst, mzero("dst", num_zero_bytes)]],
         annotation="Zero pad",
     )
+
+
+# convenience rewrites for shr/sar/shl
+def _shr(x, bits):
+    if version_check(begin="constantinople"):
+        return ["shr", x, bits]
+    return ["div", x, ["exp", 2, bits]]
+def _sar(x, bits):
+    if version_check(begin="constantinople"):
+        return ["sar", x, bits]
+    return ["sdiv", x, ["exp", 2, bits]]
+
+
+# clampers for basetype
+@typecheck_wrapper
+def clamp_basetype(lll_node):
+    t = lll_node.typ
+    if isinstance(t, ByteArrayLike):
+        b = LLLnode.from_list(["b"], typ=lll_node.typ, location=lll_node.location)
+        return ["assert", ["le", get_bytearray_length(b), t.maxlen]]
+    if isinstance(t, BaseType):
+        if t.typ in ("int128", "decimal"):
+            return int_clamp(t, 128, signed=True)
+        if t.typ in ("address",):
+            return int_clamp(t, 160)
+        if t.typ in ("bool",):
+            return int_clamp(t, 1)
+        if t.typ in ("int256", "uint256"):
+            return [] # special case, no clamp
+    return  # raises
+
+def int_clamp(lll_node, bits, signed=False):
+    """Generalized clamper for integer types. Takes the number of bits,
+       whether it's signed, and returns an LLL node which checks it is
+       in bounds.
+    """
+    if bits >= 256:
+        raise CompilerPanic("shouldn't clamp", lll_node)
+    if signed:
+        # example for bits==128:
+        # if _val is in bounds,
+        # _val >>> 127 == 0 for positive _val
+        # _val >>> 127 == -1 for negative _val
+        # -1 and 0 are the only numbers which are unchanged by sar,
+        # so sar'ing (_val>>>127) one more bit should leave it unchanged.
+        ret = ["with", "x", lll_node, ["assert", ["eq", _sar("x", bits-1), _sar("x", bits)]]]
+    else:
+        ret = ["assert", ["iszero", _shr(lll_node, bits)]]
+
+    return ret

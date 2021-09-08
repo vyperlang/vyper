@@ -396,6 +396,8 @@ def abi_encode(dst, lll_node, pos=None, bufsz=None, returns_len=False):
         abi_t = abi_type_of(o.typ)
 
         if parent_abi_t.is_complex_type():
+            # TODO optimize: special case where there is only one dynamic
+            # member, the location is statically known.
             if abi_t.is_dynamic():
                 lll_ret.append(["mstore", dst_loc, dyn_ofst])
                 # recurse
@@ -455,7 +457,7 @@ def abi_encode(dst, lll_node, pos=None, bufsz=None, returns_len=False):
 # recursively copy the buffer items into lll_node, based on its type.
 # src: pointer to beginning of buffer
 # src_loc: pointer to read location in static section
-def abi_decode(lll_node, src, pos=None):
+def abi_decode(lll_node, src, clamp=True, pos=None):
     os = o_list(lll_node, pos=pos)
     lll_ret = ["seq"]
     parent_abi_t = abi_type_of(lll_node.typ)
@@ -464,13 +466,20 @@ def abi_decode(lll_node, src, pos=None):
         src_loc = LLLnode("src_loc", typ=o.typ, location=src.location)
         if parent_abi_t.is_complex_type():
             if abi_t.is_dynamic():
+                # TODO optimize: special case where there is only one dynamic
+                # member, the location is statically known.
                 child_loc = ["add", "src", unwrap_location(src_loc)]
                 child_loc = LLLnode.from_list(child_loc, typ=o.typ, location=src.location)
             else:
                 child_loc = src_loc
             # descend into the child tuple
             lll_ret.append(abi_decode(o, child_loc, pos=pos))
+
         else:
+
+            if clamp:
+                lll_ret.append(clamp_basetype(unwrap_location(src_loc)))
+
             lll_ret.append(make_setter(o, src_loc, location=o.location, pos=pos))
 
         if i + 1 == len(os):
@@ -512,6 +521,8 @@ def lazy_abi_decode(typ, src, clamp=True, pos=None):
         for t in ts:
             child_abi_t = abi_type_of(t)
             loc = _add_ofst(src, ofst)
+            # TODO optimize: special case where there is only one dynamic
+            # member, the location is statically known.
             if child_abi_t.is_dynamic():
                 # load the offset word, which is the
                 # (location-independent) offset from the start of the
@@ -524,6 +535,10 @@ def lazy_abi_decode(typ, src, clamp=True, pos=None):
         return LLLnode.from_list(["multi"] + os, typ=typ, pos=pos)
 
     elif isinstance(typ, (BaseType, ByteArrayLike)):
-        return unwrap_location(src)
+        if clamp:
+            x = LLLnode.from_list(["x"], typ=typ)
+            return ["with", x, unwrap_location(src), ["seq", clamp_basetype(x), x]]
+        else:
+            return unwrap_location(src)
     else:
         raise CompilerPanic(f"unknown type for lazy_abi_decode {typ}")

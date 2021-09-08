@@ -20,6 +20,7 @@ def _mk_codecopy_copier(pos, sz, mempos):
     return ["codecopy", mempos, ["add", "~codelen", pos], sz]
 
 
+# TODO dead code
 def make_arg_clamper(datapos, mempos, typ, is_init=False):
     """
     Clamps argument to type limits.
@@ -121,6 +122,14 @@ def make_arg_clamper(datapos, mempos, typ, is_init=False):
     else:
         return LLLnode.from_list("pass")
 
+def _shr(x, bits):
+    if version_check(begin="constantinople"):
+        return ["shr", x, bits]
+    return ["div", x, ["pow", 2, bits]]
+def _sar(x, bits):
+    if version_check(begin="constantinople"):
+        return ["sar", x, bits]
+    return ["sdiv", x, ["pow", 2, bits]]
 
 def address_clamp(lll_node):
     if version_check(begin="constantinople"):
