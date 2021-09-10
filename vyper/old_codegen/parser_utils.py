@@ -628,22 +628,6 @@ def _check_return_body(node, node_list):
             )
 
 
-#  TODO dead
-def _return_check(node):
-    if is_return_from_function(node):
-        return True
-    elif isinstance(node, list):
-        return any(_return_check(stmt) for stmt in node)
-    elif isinstance(node, vy_ast.If):
-        if_body_check = _return_check(node.body)
-        else_body_check = _return_check(node.orelse)
-        if if_body_check and else_body_check:  # both side need to match.
-            return True
-        else:
-            return False
-    return False
-
-
 def mzero(dst, nbytes):
     # calldatacopy from past-the-end gives zero bytes.
     # cf. YP H.2 (ops section) with CALLDATACOPY spec.
