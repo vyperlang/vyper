@@ -39,7 +39,7 @@ def make_call(stmt_expr, context):
 
     method_name = stmt_expr.func.attr
 
-    sig, kw_vals = FunctionSignature.lookup_sig(method_name, args_lll, context)
+    sig, kw_vals = FunctionSignature.lookup_internal_function(method_name, args_lll, context)
 
     pos_args_lll = Expr(x, self.context).lll_node for x in stmt_expr.args
     kw_args_lll = Expr(x, self.context).lll_node for x in kw_vals

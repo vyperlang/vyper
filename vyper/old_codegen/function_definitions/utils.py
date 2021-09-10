@@ -27,6 +27,7 @@ def get_nonreentrant_lock(func_type):
     return nonreentrant_pre, nonreentrant_post
 
 
+# TODO dead code
 def get_default_names_to_set(primary_sig, default_sig):
     """
     Get names for default parameters that require a default value to be assigned.

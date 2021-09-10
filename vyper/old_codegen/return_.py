@@ -50,8 +50,10 @@ def make_return_stmt(lll_val: LLLnode, stmt: "Stmt", context: Context) -> LLLnod
 
     else:
         # we are in an external function.
+
         if context.return_type is None:
             # push arguments onto the stack for RETURN opcode
+            # TODO optimize this case: just use STOP
             return finalize(["seq_unchecked", 0, 0])
 
         return_buffer_ofst = _allocate_return_buffer(context)

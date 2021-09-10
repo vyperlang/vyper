@@ -237,8 +237,10 @@ class FunctionSignature:
 
         _check(False)
 
+    @property
     def is_default_func(self):
         return self.name == "__default__"
 
+    @property
     def is_init_func(self):
         return self.name == "__init__"

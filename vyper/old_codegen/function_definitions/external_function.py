@@ -21,20 +21,22 @@ from vyper.utils import MemoryPositions
 # also allocate the ones that live in memory (i.e. kwargs)
 def _register_function_args(context: Context, sig: FunctionSignature):
 
-    if len(args) > 0:
-        # tuple with the abi_encoded args
+    if len(args) == 0:
+        return
+
+    # tuple with the abi_encoded args
+    if sig.is_init_func():
+        base_args_location = LLLnode("~codelen", location="code", typ=tbd_base_args_type)
+    else:
         base_args_location = LLLnode(4, location="calldata", typ=tbd_base_args_type)
-        base_args = lazy_abi_decode(tbd_base_args_type, base_args_location)
 
-        assert base_args.value == "multi"
-        for (argname, arg_lll) in zip(tbd_argnames, base_args.args):  # the actual values
-            # register the record in the local namespace
-            context.vars[argname] = LLLnode(arg_lll, location="calldata")
+    base_args = lazy_abi_decode(tbd_base_args_type, base_args_location)
 
+    assert base_args.value == "multi", "you've been bad"
 
-def _generate_all_signatures(context: Context, function_def: vy_ast.FunctionDef):
-    for sig, kwarg_value in zip(all_sigs, kwarg_values):
-        yield pass
+    for (argname, arg_lll) in zip(tbd_argnames, base_args.args):  # the actual values
+        # register the record in the local namespace
+        context.vars[argname] = LLLnode(arg_lll, location=location)
 
 
 def _generate_kwarg_handlers(context: Context, sig):
@@ -60,16 +62,15 @@ def _generate_kwarg_handlers(context: Context, sig):
 
         assert calldata_args.value == "multi" # sanity check
         # extract just the kwargs from the ABI payload
-        calldata_args = calldata.args[len(base_args):]
+        # TODO come up with a better name for these variables
+        calldata_kwargs = calldata_args.args[:len(base_args)]
 
         # a sequence of statements to strictify kwargs into memory
         ret = ["seq"]
 
         all_kwargs_t = TupleType(list(arg.typ for arg in sig_kwargs))
 
-        all_kwargs_src = LLLnode.from_list(["multi"] + calldata_args + default_args, typ=all_kwargs_t)
-
-        for x in calldata_args:
+        for x in calldata_kwargs:
             context.new_variable(argname, argtype, mutable=False)
             ret.append(make_setter(context.lookup_var(x.name), x, "memory"))
         for x in default_kwargs:
@@ -105,35 +106,37 @@ def generate_lll_for_external_function(
 
     entrance = []
 
-    # once kwargs have been handled
+    # once args have been handled
     if len(kwarg_handlers) > 0:
         entrance.append(["label", f"{sig.base_method_id}_entry"])
+    # TODO need a case for no kwargs?
 
     if check_nonpayable and sig.mutability != "payable":
         # if the contract contains payable functions, but this is not one of them
         # add an assertion that the value of the call is zero
         entrance.append(["assert", ["iszero", "callvalue"]])
 
-    # TODO: handle __init__ and default functions?
-
     body = [parse_body(c, context) for c in code.body]
 
     exit = [["label", func_type.exit_sequence_label]]
         + [nonreentrant_post]
-        + [["return", "pass", "pass"]] # passed by 
+        # TODO optimize case where return_type is None: use STOP
+        + [["return", "pass", "pass"]] # ret_ofst and ret_len stack items passed by function body
 
     ret = (["seq"]
-            + kwarg_handlers
+            + arg_handlers
             + entrance
             + body
             + exit
             )
-    if len(kwarg_handlers) > 0:
+    # TODO special handling for default function
+    if len(kwarg_handlers) == 0: # TODO is this check correct?
         ret = ["if", ["eq", tbd_mload_method_id, sig.method_id], ret]
 
     return LLLnode.from_list(ret, pos=getpos(code))
 
 
+# TODO dead code
 def generate_lll_for_external_function(
     code: vy_ast.FunctionDef, sig: FunctionSignature, context: Context, check_nonpayable: bool,
 ) -> LLLnode:
