@@ -983,26 +983,20 @@ class Expr:
             return external_call.make_external_call(self.expr, self.context)
 
     def parse_List(self):
-        call_lll, multi_lll = parse_sequence(self.expr, self.expr.elements, self.context)
+        multi_lll = [Expr(x, self.context).lll_node for x in self.expr.elements]
+        # TODO this type inference is wrong. instead should use
+        # parse_type(canonical_type_of(self.expr._metadata["type"]))
         out_type = next((i.typ for i in multi_lll if not i.typ.is_literal), multi_lll[0].typ)
         typ = ListType(out_type, len(self.expr.elements), is_literal=True)
         multi_lll = LLLnode.from_list(["multi"] + multi_lll, typ=typ, pos=getpos(self.expr))
-        if not call_lll:
-            return multi_lll
-
-        lll_node = ["seq_unchecked"] + call_lll + [multi_lll]
-        return LLLnode.from_list(lll_node, typ=typ, pos=getpos(self.expr))
+        return multi_lll
 
     def parse_Tuple(self):
-        #call_lll, multi_lll = parse_sequence(self.expr, self.expr.elements, self.context)
         tuple_elements = [Expr(x, self.context).lll_node for x in self.expr.elements]
         typ = TupleType([x.typ for x in tuple_elements], is_literal=True)
         multi_lll = LLLnode.from_list(["multi"] + tuple_elements, typ=typ, pos=getpos(self.expr))
-        if True: # if not call_lll:
-            return multi_lll
+        return multi_lll
 
-        lll_node = ["seq_unchecked"] + call_lll + [multi_lll]
-        return LLLnode.from_list(lll_node, typ=typ, pos=getpos(self.expr))
 
     @staticmethod
     def struct_literals(expr, name, context):
@@ -1034,63 +1028,3 @@ class Expr:
         if not o.location:
             raise StructureException("Looking for a variable location, instead got a value", expr)
         return o
-
-
-def parse_sequence(base_node, elements, context):
-    """
-    Generate an LLL node from a sequence of Vyper AST nodes, such as values inside a
-    list/tuple or arguments inside a call.
-
-    Arguments
-    ---------
-    base_node : VyperNode
-        Parent node which contains the sequence being parsed.
-    elements : List[VyperNode]
-        A list of nodes within the sequence.
-    context : Context
-        Currently active local context.
-
-    Returns
-    -------
-    List[LLLNode]
-        LLL nodes that must execute prior to generating the actual sequence in order to
-        avoid memory corruption issues. This list may be empty, depending on the values
-        within `elements`.
-    List[LLLNode]
-        LLL nodes which collectively represent `elements`.
-    """
-    init_lll = []
-    sequence_lll = []
-    for node in elements:
-        if isinstance(node, vy_ast.List):
-            # for nested lists, ensure the init LLL is also processed before the values
-            init, seq = parse_sequence(node, node.elements, context)
-            init_lll.extend(init)
-            out_type = next((i.typ for i in seq if not i.typ.is_literal), seq[0].typ)
-            typ = ListType(out_type, len(node.elements), is_literal=True)
-            multi_lll = LLLnode.from_list(["multi"] + seq, typ=typ, pos=getpos(node))
-            sequence_lll.append(multi_lll)
-            continue
-
-        lll_node = Expr(node, context).lll_node
-        if isinstance(node, vy_ast.Call) or (
-            isinstance(node, vy_ast.Subscript) and isinstance(node.value, vy_ast.Call)
-        ):
-            # nodes which potentially create their own internal memory variables, and so must
-            # be parsed prior to generating the final sequence to avoid memory corruption
-            target = LLLnode.from_list(
-                context.new_internal_variable(lll_node.typ),
-                typ=lll_node.typ,
-                location="memory",
-                pos=getpos(base_node),
-            )
-            init_lll.append(make_setter(target, lll_node, "memory", pos=getpos(base_node)))
-            sequence_lll.append(
-                LLLnode.from_list(
-                    target, typ=lll_node.typ, pos=getpos(base_node), location="memory"
-                ),
-            )
-        else:
-            sequence_lll.append(lll_node)
-
-    return init_lll, sequence_lll
