@@ -50,15 +50,17 @@ def generate_lll_for_function(code, sigs, global_ctx, check_nonpayable, _vars=No
         # Create a local (per function) context.
         if memory_allocator is None:
             memory_allocator = MemoryAllocator()
-        _vars = _vars.copy() # these will get clobbered in produce_* functions
-        sig = copy.deepcopy(sig) # just in case
+        _vars = _vars.copy()  # these will get clobbered in produce_* functions
+        sig = copy.deepcopy(sig)  # just in case
         context = ctx.Context(
             vars=_vars,
             global_ctx=global_ctx,
             sigs=sigs,
             memory_allocator=memory_allocator,
             return_type=sig.output_type,
-            constancy=Constancy.Constant if sig.mutability in ("view", "pure") else Constancy.Mutable,
+            constancy=Constancy.Constant
+            if sig.mutability in ("view", "pure")
+            else Constancy.Mutable,
             is_payable=sig.mutability == "payable",
             is_internal=sig.internal,
             method_id=sig.method_id,

@@ -200,8 +200,8 @@ def parse_tree_to_lll(global_ctx: GlobalContext) -> Tuple[LLLnode, LLLnode]:
     if initfunc:
         o.append(init_func_init_lll())
         init_func_lll, _frame_size = generate_lll_for_function(
-                initfunc[0], {**{"self": sigs}, **external_interfaces}, global_ctx, False,
-            )
+            initfunc[0], {**{"self": sigs}, **external_interfaces}, global_ctx, False,
+        )
         o.append(init_func_lll)
 
     # If there are regular functions...

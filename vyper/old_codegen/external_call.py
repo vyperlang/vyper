@@ -8,7 +8,6 @@ from vyper.old_codegen.abi import abi_encode, abi_decode, abi_type_of
 from vyper.old_codegen.lll_node import LLLnode
 from vyper.old_codegen.parser_utils import (
     getpos,
-    pack_arguments,
     unwrap_location,
 )
 from vyper.old_codegen.types import (
@@ -21,6 +20,7 @@ from vyper.old_codegen.types import (
     has_dynamic_data,
 )
 
+
 def pack_arguments(sig, args, buf):
     # abi encoding just treats all args as a big tuple
     args_tuple_t = TupleType([x.typ for x in args])
@@ -30,11 +30,11 @@ def pack_arguments(sig, args, buf):
     maxlen = args_abi_t.size_bound()
     maxlen += 32  # padding for the method id
 
-    buf_t  = ByteArrayType(maxlen=maxlen)
-    buf    = context.new_internal_variable(buf_t)
+    buf_t = ByteArrayType(maxlen=maxlen)
+    buf = context.new_internal_variable(buf_t)
 
-    args_ofst = buf    + 28
-    args_len  = maxlen - 28
+    args_ofst = buf + 28
+    args_len = maxlen - 28
 
     # layout:
     # 32 bytes                 | args
@@ -49,15 +49,16 @@ def pack_arguments(sig, args, buf):
 
     return mstore_method_id + [encode_args], args_ofst, args_len
 
+
 def unpack_returndata(sig, context):
     return_t = abi_type_of(sig.output_type)
     min_return_size = return_t.static_size()
 
     maxlen = return_t.size_bound()
-    buf_t  = ByteArrayType(maxlen=maxlen)
-    buf    = context.new_internal_variable(buf_t)
+    buf_t = ByteArrayType(maxlen=maxlen)
+    buf = context.new_internal_variable(buf_t)
     ret_ofst = buf
-    ret_len  = maxlen
+    ret_len = maxlen
 
     # when return data is expected, revert when the length of `returndatasize` is insufficient
     ret = [["assert", ["gt", "returndatasize", min_return_size - 1]]]
@@ -69,7 +70,6 @@ def unpack_returndata(sig, context):
     return ret, ret_ofst, ret_len
 
 
-@type_check_wrapper
 def external_call(node, context, interface_name, contract_address, value=None, gas=None):
     method_name = node.func.attr
     sig = context.sigs[interface_name][method_name]
@@ -80,8 +80,7 @@ def external_call(node, context, interface_name, contract_address, value=None, g
         gas = "gas"
 
     # sanity check
-    if len(signature.args) != len(args):
-        return
+    assert len(signature.args) == len(args)
 
     if context.is_constant() and sig.mutability not in ("view", "pure"):
         # TODO is this already done in type checker?
@@ -165,11 +164,4 @@ def make_external_call(stmt_expr, context):
             )
         )
 
-    return external_call(
-        stmt_expr,
-        context,
-        contract_name,
-        contract_address,
-        value=value,
-        gas=gas,
-    )
+    return external_call(stmt_expr, context, contract_name, contract_address, value=value, gas=gas,)

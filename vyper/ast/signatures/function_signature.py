@@ -1,5 +1,7 @@
 import math
 from collections import Counter
+from dataclasses import dataclass
+from typing import List
 
 from vyper import ast as vy_ast
 from vyper.exceptions import FunctionDeclarationException, StructureException
@@ -133,19 +135,17 @@ class FunctionSignature:
         self.default_args = self.args[num_base_args:]
 
         # Keep all the value to assign to default parameters.
-        self.default_values = dict(
-            zip([arg.name for arg in self.default_args], args.defaults)
-        )
+        self.default_values = dict(zip([arg.name for arg in self.default_args], args.defaults))
 
     # Get a signature from a function definition
     @classmethod
     def from_definition(
         cls,
-        func_ast, # vy_ast.FunctionDef
-        sigs=None, # TODO replace sigs and custom_structs with GlobalContext?
+        func_ast,  # vy_ast.FunctionDef
+        sigs=None,  # TODO replace sigs and custom_structs with GlobalContext?
         custom_structs=None,
         interface_def=False,
-        constant_override=False, # CMC 20210907 what does this do?
+        constant_override=False,  # CMC 20210907 what does this do?
         is_from_json=False,
     ):
         if custom_structs is None:
@@ -211,15 +211,16 @@ class FunctionSignature:
         Using a list of args, find the internal method to use, and
         the kwargs which need to be filled in by the compiler
         """
-        def _check(cond, s = "Unreachable"):
+
+        def _check(cond, s="Unreachable"):
             if not cond:
                 raise CompilerPanic(s)
 
-        for sig in context.sigs['self']:
+        for sig in context.sigs["self"]:
             if sig.name != method_name:
                 continue
 
-            _check(sig.internal) # sanity check
+            _check(sig.internal)  # sanity check
             # should have been caught during type checking, sanity check anyway
             _check(len(sig.base_args) <= len(args_lll) <= len(sig.args))
 
@@ -231,7 +232,7 @@ class FunctionSignature:
             num_kwargs = len(sig.kwargs)
             args_needed = total_args - num_provided
 
-            kw_vals = sig.kwarg_values.items()[:num_kwargs - args_needed]
+            kw_vals = sig.kwarg_values.items()[: num_kwargs - args_needed]
 
             return sig, kw_vals
 

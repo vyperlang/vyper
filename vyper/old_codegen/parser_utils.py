@@ -168,7 +168,10 @@ def make_byte_slice_copier(destination, source, length, max_length, pos=None):
             loader = 0
     # Copy over data
     elif source.location in ("memory", "calldata", "code"):
-        loader = [load_op(source.location), ["add", "_pos", ["mul", 32, ["mload", MemoryPositions.FREE_LOOP_INDEX]]]]
+        loader = [
+            load_op(source.location),
+            ["add", "_pos", ["mul", 32, ["mload", MemoryPositions.FREE_LOOP_INDEX]]],
+        ]
     elif source.location == "storage":
         loader = ["sload", ["add", "_pos", ["mload", MemoryPositions.FREE_LOOP_INDEX]]]
     else:
@@ -385,7 +388,7 @@ def unwrap_location(orig):
     if not isinstance(orig.typ, BaseType):
         raise CompilerPanic("unwrap location only for base types")
     if orig.location in ("memory", "storage", "calldata", "code"):
-        return LLLnode.from_list([load_op(orig.location), typ=orig.typ)
+        return LLLnode.from_list([load_op(orig.location)], typ=orig.typ)
     else:
         # CMC 20210909 TODO double check if this branch can be removed
         # handle None value inserted by `empty`
@@ -673,6 +676,8 @@ def _shr(x, bits):
     if version_check(begin="constantinople"):
         return ["shr", x, bits]
     return ["div", x, ["exp", 2, bits]]
+
+
 def _sar(x, bits):
     if version_check(begin="constantinople"):
         return ["sar", x, bits]
@@ -680,7 +685,7 @@ def _sar(x, bits):
 
 
 # clampers for basetype
-@typecheck_wrapper
+@type_check_wrapper
 def clamp_basetype(lll_node):
     t = lll_node.typ
     if isinstance(t, ByteArrayLike):
@@ -694,8 +699,9 @@ def clamp_basetype(lll_node):
         if t.typ in ("bool",):
             return int_clamp(t, 1)
         if t.typ in ("int256", "uint256"):
-            return [] # special case, no clamp
+            return []  # special case, no clamp
     return  # raises
+
 
 def int_clamp(lll_node, bits, signed=False):
     """Generalized clamper for integer types. Takes the number of bits,
@@ -711,7 +717,7 @@ def int_clamp(lll_node, bits, signed=False):
         # _val >>> 127 == -1 for negative _val
         # -1 and 0 are the only numbers which are unchanged by sar,
         # so sar'ing (_val>>>127) one more bit should leave it unchanged.
-        ret = ["with", "x", lll_node, ["assert", ["eq", _sar("x", bits-1), _sar("x", bits)]]]
+        ret = ["with", "x", lll_node, ["assert", ["eq", _sar("x", bits - 1), _sar("x", bits)]]]
     else:
         ret = ["assert", ["iszero", _shr(lll_node, bits)]]
 

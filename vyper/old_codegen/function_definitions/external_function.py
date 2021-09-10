@@ -118,10 +118,11 @@ def generate_lll_for_external_function(
 
     body = [parse_body(c, context) for c in code.body]
 
-    exit = [["label", func_type.exit_sequence_label]]
+    exit = ([["label", func_type.exit_sequence_label]]
         + [nonreentrant_post]
         # TODO optimize case where return_type is None: use STOP
         + [["return", "pass", "pass"]] # ret_ofst and ret_len stack items passed by function body
+        )
 
     ret = (["seq"]
             + arg_handlers

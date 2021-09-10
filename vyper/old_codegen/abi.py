@@ -51,6 +51,7 @@ class ABIType:
     def is_complex_type(self):
         raise NotImplementedError("ABIType.is_complex_type")
 
+
 # uint<M>: unsigned integer type of M bits, 0 < M <= 256, M % 8 == 0. e.g. uint32, uint8, uint256.
 # int<M>: two’s complement signed integer type of M bits, 0 < M <= 256, M % 8 == 0.
 class ABI_GIntM(ABIType):
@@ -373,7 +374,6 @@ def abi_encode(dst, lll_node, pos=None, bufsz=None, returns_len=False):
     if bufsz is not None and bufsz < 32 * size_bound:
         raise CompilerPanic("buffer provided to abi_encode not large enough")
 
-
     # fastpath: if there is no dynamic data, we can optimize the
     # encoding by using make_setter, since our memory encoding happens
     # to be identical to the ABI encoding.
@@ -384,13 +384,11 @@ def abi_encode(dst, lll_node, pos=None, bufsz=None, returns_len=False):
         lll_ret.append(parent_abi_t.embedded_static_size())
         return LLLnode.from_list(lll_ret, pos=pos, annotation=f"abi_encode {lll_node.typ}")
 
-
     lll_ret = ["seq"]
     dyn_ofst = "dyn_ofst"  # current offset in the dynamic section
     dst_begin = "dst"  # pointer to beginning of buffer
     dst_loc = "dst_loc"  # pointer to write location in static section
     os = o_list(lll_node, pos=pos)
-
 
     for i, o in enumerate(os):
         abi_t = abi_type_of(o.typ)

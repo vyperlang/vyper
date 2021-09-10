@@ -13,7 +13,7 @@ from vyper.old_codegen.parser_utils import (
     unwrap_location,
     zero_pad,
 )
-from vyper.old_codegen.return_ import make_return_stmt, allocate_return_buffer
+from vyper.old_codegen.return_ import make_return_stmt
 from vyper.old_codegen.types import (
     BaseType,
     ByteArrayLike,

@@ -8,7 +8,7 @@ from vyper.exceptions import (
 )
 from vyper.old_codegen.abi import abi_decode
 from vyper.old_codegen.lll_node import LLLnode, push_label_to_stack
-from vyper.old_codegen.parser_utils import getpos, pack_arguments
+from vyper.old_codegen.parser_utils import getpos
 from vyper.old_codegen.types import (
     BaseType,
     ByteArrayLike,
@@ -26,6 +26,7 @@ def _generate_label(name: str) -> str:
     _label_counter += 1
     return f"label{_label_counter}"
 
+
 def make_call(stmt_expr, context):
     pos = getpos(stmt_expr)
 
@@ -41,8 +42,8 @@ def make_call(stmt_expr, context):
 
     sig, kw_vals = FunctionSignature.lookup_internal_function(method_name, args_lll, context)
 
-    pos_args_lll = Expr(x, self.context).lll_node for x in stmt_expr.args
-    kw_args_lll = Expr(x, self.context).lll_node for x in kw_vals
+    pos_args_lll = [Expr(x, self.context).lll_node for x in stmt_expr.args]
+    kw_args_lll = [Expr(x, self.context).lll_node for x in kw_vals]
     args_lll = pos_args_lll + kw_args_lll
 
     args_tuple_t = TupleType([x.typ for x in args_lll])
@@ -66,21 +67,23 @@ def make_call(stmt_expr, context):
 
     # allocate space for the return buffer
     # TODO allocate in stmt and/or expr.py
-    return_buffer = context.new_internal_variable(sig.return_type) if sig.return_type is not None else "pass"
+    return_buffer = (
+        context.new_internal_variable(sig.return_type) if sig.return_type is not None else "pass"
+    )
     return_buffer = LLLnode.from_list([return_buffer], annotation=f"{return_label}_return_buf")
 
     copy_args = make_setter(sig.frame_start, args_as_tuple, "memory", pos)
 
     call_sequence = [
-            "seq_unchecked",
-            copy_args,
-            push_label_to_stack(return_label), # pass return label to subroutine
-            return_buffer, # pass return buffer to subroutine
-            ["goto", sig.internal_function_label]
-            return_label,
-            "jumpdest",
-            return_buffer, # push return buffer location to stack
-        ]
+        "seq_unchecked",
+        copy_args,
+        push_label_to_stack(return_label),  # pass return label to subroutine
+        return_buffer,  # pass return buffer to subroutine
+        ["goto", sig.internal_function_label],
+        return_label,
+        "jumpdest",
+        return_buffer,  # push return buffer location to stack
+    ]
 
     o = LLLnode.from_list(
         call_sequence,

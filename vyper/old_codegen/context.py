@@ -133,7 +133,9 @@ class Context:
         # Remove block scopes
         self._scopes.remove(scope_id)
 
-    def _new_variable(self, name: str, typ: NodeType, var_size: int, is_internal: bool, is_mutable: bool  True) -> int:
+    def _new_variable(
+        self, name: str, typ: NodeType, var_size: int, is_internal: bool, is_mutable: bool = True
+    ) -> int:
         if is_internal:
             var_pos = self.memory_allocator.expand_memory(var_size)
         else:
@@ -148,7 +150,9 @@ class Context:
         )
         return var_pos
 
-    def new_variable(self, name: str, typ: NodeType, pos: VyperNode = None, is_mutable: bool = True) -> int:
+    def new_variable(
+        self, name: str, typ: NodeType, pos: VyperNode = None, is_mutable: bool = True
+    ) -> int:
         """
         Allocate memory for a user-defined variable.
 
