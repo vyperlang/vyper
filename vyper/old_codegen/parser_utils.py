@@ -685,9 +685,9 @@ def clamp_basetype(lll_node):
             ]
 
         if t.typ in ("address",):
-            return int_clamp(t, 160)
+            return int_clamp(lll_node, 160)
         if t.typ in ("bool",):
-            return int_clamp(t, 1)
+            return int_clamp(lll_node, 1)
         if t.typ in ("int256", "uint256"):
             return ["pass"]  # special case, no clamp
     return  # raises
