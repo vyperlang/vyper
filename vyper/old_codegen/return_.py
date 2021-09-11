@@ -39,50 +39,46 @@ def make_return_stmt(lll_val: LLLnode, stmt: "Stmt", context: Context) -> LLLnod
 
     # helper function
     def finalize(fill_return_buffer):
+        # do NOT bypass this. the exit label may do important function cleanup.
         return LLLnode.from_list(
             ["seq_unchecked", fill_return_buffer, jump_to_exit], typ=None, pos=_pos, valency=0
         )
 
+    if context.return_type is None:
+        return finalize([])
+
     if context.is_internal:
-        if context.return_type is None:
-            return finalize([])
         return finalize(make_setter("return_buffer", lll_val, pos=_pos))
 
+    # we are in an external function.
+
+    return_buffer_ofst = _allocate_return_buffer(context)
+    # abi-encode the data into the return buffer and jump to the function cleanup code
+
+    # according to the ABI spec, return types are ALWAYS tuples even
+    # if only one element is being returned.
+    # https://solidity.readthedocs.io/en/latest/abi-spec.html#function-selector-and-argument-encoding
+    # "and the return values v_1, ..., v_k of f are encoded as
+    #
+    #    enc((v_1, ..., v_k))
+    #    i.e. the values are combined into a tuple and encoded.
+    # "
+    # therefore, wrap it in a tuple if it's not already a tuple.
+    # for example, `bytes` is returned as abi-encoded (bytes,)
+    # and `(bytes,)` is returned as abi-encoded ((bytes,),)
+
+    if isinstance(lll_val.typ, TupleType) and len(lll_val.typ.members) > 1:
+        # returning something like (int, bytes, string)
+        pass
     else:
-        # we are in an external function.
+        # `-> (bytes,)` gets returned as ((bytes,),)
+        # In general `-> X` gets returned as (X,)
+        # (Sorry this is so confusing. I didn't make these rules.)
+        lll_val = lll_tuple_from_args([lll_val])
 
-        if context.return_type is None:
-            # push arguments onto the stack for RETURN opcode
-            # TODO optimize this case: just use STOP
-            return finalize(["seq_unchecked", 0, 0])
+    # encode_out is cleverly a sequence which does the abi-encoding and
+    # also returns the length of the output as a stack element
+    encode_out = abi_encode(return_buffer_ofst, lll_val, pos=_pos, returns_len=True)
 
-        return_buffer_ofst = _allocate_return_buffer(context)
-        # abi-encode the data into the return buffer and jump to the function cleanup code
-
-        # according to the ABI spec, return types are ALWAYS tuples even
-        # if only one element is being returned.
-        # https://solidity.readthedocs.io/en/latest/abi-spec.html#function-selector-and-argument-encoding
-        # "and the return values v_1, ..., v_k of f are encoded as
-        #
-        #    enc((v_1, ..., v_k))
-        #    i.e. the values are combined into a tuple and encoded.
-        # "
-        # therefore, wrap it in a tuple if it's not already a tuple.
-        # for example, `bytes` is returned as abi-encoded (bytes,)
-        # and `(bytes,)` is returned as abi-encoded ((bytes,),)
-
-        if isinstance(lll_val.typ, TupleType) and len(lll_val.typ.members) > 1:
-            # returning something like (int, bytes, string)
-            pass
-        else:
-            # `-> (bytes,)` gets returned as ((bytes,),)
-            # In general `-> X` gets returned as (X,)
-            # (Sorry this is so confusing. I didn't make these rules.)
-            lll_val = lll_tuple_from_args([lll_val])
-
-        # encode_out is cleverly a sequence which does the abi-encoding and
-        # also returns the length of the output as a stack element
-        encode_out = abi_encode(return_buffer_ofst, lll_val, pos=_pos, returns_len=True)
-
-        # fill the return buffer and push the location and length onto the stack
-        return finalize(["seq_unchecked", encode_out, return_buffer_offset])
+    # fill the return buffer and push the location and length onto the stack
+    return finalize(["seq_unchecked", encode_out, return_buffer_offset])

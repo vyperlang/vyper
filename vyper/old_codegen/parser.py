@@ -29,7 +29,7 @@ STORE_CALLDATA: List[Any] = [
     # check that calldatasize is at least 4, otherwise
     # calldataload will load zeros (cf. yellow paper).
     ["if", ["lt", "calldatasize", 4], ["goto", "fallback"]],
-    ["mstore", 28, ["calldataload", 0]],
+    ["calldatacopy", 28, 0, 4],
 ]
 # Store limit constants at fixed addresses in memory.
 LIMIT_MEMORY_SET: List[Any] = [
@@ -47,6 +47,7 @@ def init_func_init_lll():
 
 def parse_external_interfaces(external_interfaces, global_ctx):
     for _interfacename in global_ctx._contracts:
+        # TODO factor me into helper function
         _interface_defs = global_ctx._contracts[_interfacename]
         _defnames = [_def.name for _def in _interface_defs]
         interface = {}
@@ -87,16 +88,20 @@ def parse_external_interfaces(external_interfaces, global_ctx):
     return external_interfaces
 
 
-def parse_other_functions(o, otherfuncs, sigs, external_interfaces, global_ctx, default_function):
+def parse_regular_functions(o, otherfuncs, sigs, external_interfaces, global_ctx, default_function):
     # check for payable/nonpayable external functions to optimize nonpayable assertions
     func_types = [i._metadata["type"] for i in global_ctx._defs]
     mutabilities = [i.mutability for i in func_types if i.visibility == FunctionVisibility.EXTERNAL]
-    has_payable = next((True for i in mutabilities if i == StateMutability.PAYABLE), False)
-    has_nonpayable = next((True for i in mutabilities if i != StateMutability.PAYABLE), False)
+    has_payable = any(i == StateMutability.PAYABLE for i in mutabilities)
+    has_nonpayable = any(i != StateMutability.PAYABLE for i in mutabilities)
+
     is_default_payable = (
         default_function is not None
         and default_function._metadata["type"].mutability == StateMutability.PAYABLE
     )
+
+    # TODO streamline the nonpayable check logic
+
     # when a contract has a payable default function and at least one nonpayable
     # external function, we must perform the nonpayable check on every function
     check_per_function = is_default_payable and has_nonpayable
@@ -112,21 +117,29 @@ def parse_other_functions(o, otherfuncs, sigs, external_interfaces, global_ctx, 
         func_lll, frame_start, frame_size = generate_lll_for_function(
             func_node, {**{"self": sigs}, **external_interfaces}, global_ctx, check_per_function
         )
+
         if func_type.visibility == FunctionVisibility.INTERNAL:
             internal_func_sub.append(func_lll)
+
         elif func_type.mutability == StateMutability.PAYABLE:
-            add_gas += 30
+            add_gas += 30 # CMC 20210910 why?
             payable_func_sub.append(func_lll)
+
         else:
             external_func_sub.append(func_lll)
-            add_gas += 30
+            add_gas += 30 # CMC 20210910 why?
+
         func_lll.total_gas += add_gas
-        # update sigs with metadata gathered from compiling the function
-        for sig in sig_utils.generate_default_arg_sigs(func_node, external_interfaces, global_ctx):
-            sig.gas = func_lll.total_gas
-            sig.frame_start = frame_start
-            sig.frame_size = frame_size
-            sigs[sig.sig] = sig
+
+        # update sigs with metadata gathered from compiling the function so that
+        # we can handle calls to self
+        # TODO we only need to do this for internal functions; external functions
+        # cannot be called via `self`
+        sig = FunctionSignature.from_definition(func_node, external_interfaces, global_ctx._custom_structs)
+        sig.gas = func_lll.total_gas
+        sig.frame_start = frame_start
+        sig.frame_size = frame_size
+        sigs[sig.sig] = sig
 
     # generate LLL for fallback function
     if default_function:
@@ -142,6 +155,7 @@ def parse_other_functions(o, otherfuncs, sigs, external_interfaces, global_ctx, 
 
     if check_per_function:
         external_seq = ["seq", payable_func_sub, external_func_sub]
+
     else:
         # payable functions are placed prior to nonpayable functions
         # and seperated by a nonpayable assertion
@@ -182,11 +196,11 @@ def parse_tree_to_lll(global_ctx: GlobalContext) -> Tuple[LLLnode, LLLnode]:
             {[name for name in _names_events if _names_events.count(name) > 1][0]}"""
         )
     # Initialization function
-    initfunc = [_def for _def in global_ctx._defs if is_initializer(_def)]
+    init_function = next((_def for _def in global_ctx._defs if is_initializer(_def)), None)
     # Default function
-    defaultfunc = next((i for i in global_ctx._defs if is_default_func(i)), None)
-    # Regular functions
-    otherfuncs = [
+    default_function = next((i for i in global_ctx._defs if is_default_func(i)), None)
+
+    regular_functions = [
         _def for _def in global_ctx._defs if not is_initializer(_def) and not is_default_func(_def)
     ]
 
@@ -196,23 +210,22 @@ def parse_tree_to_lll(global_ctx: GlobalContext) -> Tuple[LLLnode, LLLnode]:
     o = ["seq"]
     if global_ctx._contracts or global_ctx._interfaces:
         external_interfaces = parse_external_interfaces(external_interfaces, global_ctx)
-    # If there is an init func...
-    if initfunc:
+
+    if init_function:
         o.append(init_func_init_lll())
         init_func_lll, _frame_size = generate_lll_for_function(
-            initfunc[0], {**{"self": sigs}, **external_interfaces}, global_ctx, False,
+            init_function, {**{"self": sigs}, **external_interfaces}, global_ctx, False,
         )
         o.append(init_func_lll)
 
-    # If there are regular functions...
-    if otherfuncs or defaultfunc:
-        o, runtime = parse_other_functions(
-            o, otherfuncs, sigs, external_interfaces, global_ctx, defaultfunc,
+    if regular_function or defaultfunc:
+        o, runtime = parse_regular_functions(
+            o, regular_functions, sigs, external_interfaces, global_ctx, defaultfunc,
         )
     else:
         runtime = o.copy()
 
-    return LLLnode.from_list(o, typ=None), LLLnode.from_list(runtime, typ=None)
+    return LLLnode.from_list(o), LLLnode.from_list(runtime)
 
 
 def parse_to_lll(

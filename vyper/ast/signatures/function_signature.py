@@ -161,7 +161,7 @@ class FunctionSignature:
             args.append(FunctionArg(argname, argtyp))
 
         mutability = "nonpayable"  # Assume nonpayable by default
-        nonreentrant_key = ""
+        nonreentrant_key = None
         is_internal = None
 
         # Update function properties from decorators

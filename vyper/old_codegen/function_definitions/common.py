@@ -12,15 +12,13 @@ from vyper.old_codegen.memory_allocator import MemoryAllocator
 from vyper.utils import calc_mem_gas
 
 
-# TODO dead code - replaced by FunctionSignature method
 # Is a function the initializer?
-def is_initializer(code):
+def is_initializer(code: vy_ast.FunctionDef):
     return code.name == "__init__"
 
 
-# TODO dead code - replaced by FunctionSignature method
 # Is a function the default function?
-def is_default_func(code):
+def is_default_func(code: vy_ast.FunctionDef):
     return code.name == "__default__"
 
 

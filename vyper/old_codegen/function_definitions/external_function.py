@@ -93,9 +93,15 @@ def _generate_kwarg_handlers(context: Context, sig):
     return ret
 
 
+# TODO it would be nice if this returned a data structure which were
+# amenable to generating a jump table instead of the linear search for
+# method_id we have now.
 def generate_lll_for_external_function(
     code: vy_ast.FunctionDef, sig: FunctionSignature, context: Context, check_nonpayable: bool,
 ) -> LLLnode:
+    """Return the LLL for an external function. Includes code to inspect the method_id,
+       enter the function (nonpayable and reentrancy checks) and handle kwargs.
+    """
     func_type = code._metadata["type"]
 
     _register_function_args(context, sig)
@@ -118,11 +124,13 @@ def generate_lll_for_external_function(
 
     body = [parse_body(c, context) for c in code.body]
 
-    exit = ([["label", func_type.exit_sequence_label]]
-        + [nonreentrant_post]
-        # TODO optimize case where return_type is None: use STOP
-        + [["return", "pass", "pass"]] # ret_ofst and ret_len stack items passed by function body
-        )
+
+    exit = [["label", func_type.exit_sequence_label]] + [nonreentrant_post]
+    if context.return_type is None:
+        exit += [["stop"]]
+    else:
+        # ret_ofst and ret_len stack items passed by function body; consume using 'pass'
+        exit += [["return", "pass", "pass"]]
 
     ret = (["seq"]
             + arg_handlers
@@ -130,6 +138,7 @@ def generate_lll_for_external_function(
             + body
             + exit
             )
+
     # TODO special handling for default function
     if len(kwarg_handlers) == 0: # TODO is this check correct?
         ret = ["if", ["eq", tbd_mload_method_id, sig.method_id], ret]
