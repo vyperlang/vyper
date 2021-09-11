@@ -233,7 +233,10 @@ class FunctionSignature:
 
             return sig, kw_vals
 
-        _check(False)
+        raise FunctionDeclarationException(
+            "Function not declared yet (reminder: functions cannot "
+            f"call functions later in code than themselves): {method_name}"
+        )
 
     @property
     def is_default_func(self):
