@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, List
 
 import vyper.utils as util
 from vyper import ast as vy_ast
@@ -44,7 +44,7 @@ def _base_entry_point(sig):
     return f"{sig.base_method_id}_entry"
 
 
-def _generate_kwarg_handlers(context: Context, sig: FunctionSignature, pos: Any):
+def _generate_kwarg_handlers(context: Context, sig: FunctionSignature, pos: Any) -> List[Any]:
     # generate kwarg handlers.
     # since they might come in thru calldata or be default,
     # allocate them in memory and then fill it in based on calldata or default,
@@ -107,9 +107,11 @@ def _generate_kwarg_handlers(context: Context, sig: FunctionSignature, pos: Any)
 # TODO it would be nice if this returned a data structure which were
 # amenable to generating a jump table instead of the linear search for
 # method_id we have now.
-def generate_lll_for_external_function(
-    code: vy_ast.FunctionDef, sig: FunctionSignature, context: Context, check_nonpayable: bool,
-) -> LLLnode:
+def generate_lll_for_external_function(code, sig, context, check_nonpayable):
+    # TODO type hints:
+    # def generate_lll_for_external_function(
+    #    code: vy_ast.FunctionDef, sig: FunctionSignature, context: Context, check_nonpayable: bool,
+    # ) -> LLLnode:
     """Return the LLL for an external function. Includes code to inspect the method_id,
        enter the function (nonpayable and reentrancy checks), handle kwargs and exit
        the function (clean up reentrancy storage variables)
@@ -147,6 +149,9 @@ def generate_lll_for_external_function(
 
     # TODO special handling for default function
     if len(kwarg_handlers) == 0:
-        ret = ["if", ["eq", "_calldata_method_id", sig.method_id], ret]
+        _sigs = sig.all_kwarg_sigs
+        assert len(_sigs) == 1
+        _method_id = util.abi_method_id(_sigs[0])
+        ret = ["if", ["eq", "_calldata_method_id", _method_id], ret]
 
     return LLLnode.from_list(ret, pos=getpos(code))

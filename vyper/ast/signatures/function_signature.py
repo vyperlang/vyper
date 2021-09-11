@@ -87,8 +87,8 @@ class FunctionSignature:
 
     def __str__(self):
         input_name = "def " + self.name + "(" + ",".join([str(arg.typ) for arg in self.args]) + ")"
-        if self.output_type:
-            return input_name + " -> " + str(self.output_type) + ":"
+        if self.return_type:
+            return input_name + " -> " + str(self.return_type) + ":"
         return input_name + ":"
 
     def _abi_signature(self, args):
@@ -125,7 +125,7 @@ class FunctionSignature:
         args = self.func_ast_code.args
 
         defaults = getattr(args, "defaults", [])
-        num_base_args = len(args) - len(defaults)
+        num_base_args = len(args.args) - len(defaults)
 
         self.base_args = self.args[:num_base_args]
         self.default_args = self.args[num_base_args:]

@@ -27,7 +27,7 @@ def abi_method_id(method_sig):
 
 # map a string to only-alphanumeric chars
 def mkalphanum(s):
-    return "".join([c if c.isalnumeric() else "_"] for c in s)
+    return "".join([c if c.isalnum() else "_" for c in s])
 
 
 # Converts string to bytes

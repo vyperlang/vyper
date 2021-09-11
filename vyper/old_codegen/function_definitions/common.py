@@ -1,9 +1,13 @@
 # can't use from [module] import [object] because it breaks mocks in testing
 import copy
 
+from typing import Dict, Optional, Tuple
+
 import vyper.ast as vy_ast
-from vyper.ast.signatures import FunctionSignature
-from vyper.old_codegen import context as ctx
+from vyper.ast.signatures import FunctionSignature, VariableRecord
+from vyper.old_codegen.lll_node import LLLnode
+from vyper.old_codegen.context import Context
+from vyper.old_codegen.global_context import GlobalContext
 from vyper.old_codegen.context import Constancy
 from vyper.old_codegen.function_definitions.external_function import (
     generate_lll_for_external_function,
@@ -17,15 +21,16 @@ from vyper.utils import calc_mem_gas
 
 
 # Is a function the initializer?
-def is_initializer(code: vy_ast.FunctionDef):
+def is_initializer(code: vy_ast.FunctionDef) -> bool:
     return code.name == "__init__"
 
 
 # Is a function the default function?
-def is_default_func(code: vy_ast.FunctionDef):
+def is_default_func(code: vy_ast.FunctionDef) -> bool:
     return code.name == "__default__"
 
 
+# def generate_lll_for_function(code: vy_ast.FunctionDef, sigs: Dict[str, FunctionSignature], global_ctx: GlobalContext, check_nonpayable: bool, _vars: Optional[Dict[str, VariableRecord]]) -> Tuple[LLLnode, int]:
 def generate_lll_for_function(code, sigs, global_ctx, check_nonpayable, _vars=None):
     """
     Parse a function and produce LLL code for the function, includes:
@@ -48,7 +53,7 @@ def generate_lll_for_function(code, sigs, global_ctx, check_nonpayable, _vars=No
     # to see what the max frame size of any callee in the function was,
     # then we run the codegen again with the max frame size as
     # the start of the frame for this function.
-    def _run_pass(code, memory_allocator=None):
+    def _run_pass(memory_allocator=None):
         # Create a local (per function) context.
         if memory_allocator is None:
             memory_allocator = MemoryAllocator()
@@ -56,18 +61,17 @@ def generate_lll_for_function(code, sigs, global_ctx, check_nonpayable, _vars=No
         _vars = _vars.copy()  # these will get clobbered in called functions
         nonlocal sig
         sig = copy.deepcopy(sig)  # just in case
-        context = ctx.Context(
+        context = Context(
             vars=_vars,
             global_ctx=global_ctx,
             sigs=sigs,
             memory_allocator=memory_allocator,
-            return_type=sig.output_type,
+            return_type=sig.return_type,
             constancy=Constancy.Constant
             if sig.mutability in ("view", "pure")
             else Constancy.Mutable,
             is_payable=sig.mutability == "payable",
             is_internal=sig.internal,
-            method_id=sig.method_id,
             sig=sig,
         )
 
@@ -77,9 +81,9 @@ def generate_lll_for_function(code, sigs, global_ctx, check_nonpayable, _vars=No
             o = generate_lll_for_external_function(code, sig, context, check_nonpayable)
         return o, context
 
-    _, context = _run_pass(None)
-    allocate_start = max(ctx.callee_frame_sizes)
-    o, context = _run_pass(MemoryAllocator(allocate_start))
+    _, context = _run_pass(memory_allocator=None)
+    allocate_start = max(context.callee_frame_sizes)
+    o, context = _run_pass(memory_allocator=MemoryAllocator(allocate_start))
 
     frame_size = context.memory_allocator.size_of_mem
 

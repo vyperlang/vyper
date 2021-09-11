@@ -25,7 +25,7 @@ class Context:
         constancy=Constancy.Mutable,
         is_internal=False,
         is_payable=False,
-        method_id="",
+        # method_id="",
         sig=None,
     ):
         # In-memory variables, in the form (name, memory location, type)
@@ -52,7 +52,7 @@ class Context:
         self.callback_ptr = None
         self.is_internal = is_internal
         # method_id of current function
-        self.method_id = method_id
+        # self.method_id = method_id
         # store global context
         self.global_ctx = global_ctx
         # full function signature

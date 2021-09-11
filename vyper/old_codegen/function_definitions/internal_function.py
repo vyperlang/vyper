@@ -53,8 +53,8 @@ def generate_lll_for_internal_function(
     def mkidentifier(s):
         "".join(c if c.isalnumeric() else "_" for c in s)
 
-    function_entry_label = func_type.internal_function_label
-    cleanup_label = func_type.exit_sequence_label
+    function_entry_label = sig.internal_function_label
+    cleanup_label = sig.exit_sequence_label
 
     # internal functions without return types need to jump back to the calling
     # function, as there is no guarantee there is a user-provided return

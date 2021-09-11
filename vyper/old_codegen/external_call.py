@@ -106,9 +106,7 @@ def _external_call_helper(contract_address, sig, args_lll, context, pos=None, va
 
 # TODO push me up to expr.py
 def get_gas_and_value(stmt_expr, context):
-    from vyper.old_codegen.expr import (
-        Expr,  # TODO rethink this circular import
-    )
+    from vyper.old_codegen.expr import Expr  # TODO rethink this circular import
 
     value, gas = None, None
     for kw in stmt_expr.keywords:
@@ -122,9 +120,7 @@ def get_gas_and_value(stmt_expr, context):
 
 
 def lll_for_external_call(stmt_expr, context):
-    from vyper.old_codegen.expr import (
-        Expr,  # TODO rethink this circular import
-    )
+    from vyper.old_codegen.expr import Expr  # TODO rethink this circular import
 
     pos = getpos(stmt_expr)
     value, gas = get_gas_and_value(stmt_expr, context)

@@ -16,7 +16,7 @@ def _allocate_return_buffer(context: Context) -> int:
 def make_return_stmt(lll_val: LLLnode, stmt, context: Context) -> LLLnode:
 
     func_type = stmt.get_ancestor(vy_ast.FunctionDef)._metadata["type"]
-    jump_to_exit = ["goto", func_type.exit_sequence_label]
+    jump_to_exit = ["goto", context.sig.exit_sequence_label]
 
     _pos = getpos(stmt)
 
