@@ -274,7 +274,7 @@ def parse_type(item, location=None, sigs=None, custom_structs=None):
 
 # byte array overhead, in words. (it should really be 1, but there are
 # some places in our calling convention where the layout expects 2)
-BYTE_ARRAY_OVERHEAD = 2
+BYTE_ARRAY_OVERHEAD = 1
 
 
 # Gets the maximum number of memory or storage keys needed to ABI-encode
