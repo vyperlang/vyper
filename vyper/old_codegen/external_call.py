@@ -7,7 +7,8 @@ from vyper.exceptions import (
 from vyper.old_codegen.abi import abi_encode, abi_type_of, lazy_abi_decode
 from vyper.old_codegen.lll_node import LLLnode
 from vyper.old_codegen.parser_utils import getpos, unwrap_location
-from vyper.old_codegen.types import TupleType, get_type_for_exact_size
+from vyper.old_codegen.types import TupleType, get_type_for_exact_size, canonicalize_type
+import vyper.utils as util
 
 
 def _pack_arguments(contract_sig, args, context, pos):
@@ -25,6 +26,8 @@ def _pack_arguments(contract_sig, args, context, pos):
     args_ofst = buf + 28
     args_len = maxlen - 28
 
+    abi_signature = contract_sig.name + canonicalize_type(args_tuple_t)
+
     # layout:
     # 32 bytes                 | args
     # 0x..00<method_id_4bytes> | args
@@ -32,14 +35,14 @@ def _pack_arguments(contract_sig, args, context, pos):
     # if we were only targeting constantinople, we could align
     # to buf (and also keep code size small) by using
     # (mstore buf (shl signature.method_id 224))
-    mstore_method_id = [["mstore", buf, contract_sig.method_id]]
+    mstore_method_id = [["mstore", buf, util.abi_method_id(abi_signature)]]
 
     encode_args = abi_encode(buf, args_as_tuple, pos)
 
     return mstore_method_id + [encode_args], args_ofst, args_len
 
 
-def _unpack_returndata(contract_sig, context):
+def _unpack_returndata(contract_sig, context, pos):
     return_t = abi_type_of(contract_sig.return_type)
     min_return_size = return_t.static_size()
 
@@ -54,8 +57,8 @@ def _unpack_returndata(contract_sig, context):
     # TODO assert returndatasize <= maxlen
 
     # abi_decode has appropriate clampers for the individual members of the return type
-    buf = LLLnode(buf, typ=contract_sig.return_type, location="memory")
-    ret += [lazy_abi_decode(buf)]
+    buf = LLLnode(buf, location="memory")
+    ret += [lazy_abi_decode(contract_sig.return_type, buf, pos=pos)]
 
     return ret, ret_ofst, ret_len
 
@@ -166,6 +169,7 @@ def lll_for_external_call(stmt_expr, context):
 
     method_name = stmt_expr.func.attr
     contract_sig = context.sigs[contract_name][method_name]
+
     return _external_call_helper(
         contract_address, contract_sig, args_lll, context, pos, value=value, gas=gas,
     )

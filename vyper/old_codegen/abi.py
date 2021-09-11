@@ -536,7 +536,7 @@ def lazy_abi_decode(typ, src, clamp=True, pos=None):
 
     elif isinstance(typ, (BaseType, ByteArrayLike)):
         if clamp:
-            x = LLLnode.from_list(["x"], typ=typ)
+            x = LLLnode.from_list(["x"], typ=typ, location=src.location)
             return ["with", x, unwrap_location(src), ["seq", clamp_basetype(x), x]]
         else:
             return unwrap_location(src)

@@ -386,8 +386,6 @@ def load_op(location):
 
 # Unwrap location
 def unwrap_location(orig):
-    if not isinstance(orig.typ, BaseType):
-        raise CompilerPanic("unwrap location only for base types")
     if orig.location in ("memory", "storage", "calldata", "code"):
         return LLLnode.from_list([load_op(orig.location), orig], typ=orig.typ)
     else:
@@ -674,8 +672,7 @@ def _sar(x, bits):
 def clamp_basetype(lll_node):
     t = lll_node.typ
     if isinstance(t, ByteArrayLike):
-        b = LLLnode.from_list(["b"], typ=lll_node.typ, location=lll_node.location)
-        return ["assert", ["le", get_bytearray_length(b), t.maxlen]]
+        return ["assert", ["le", get_bytearray_length(lll_node), t.maxlen]]
     if isinstance(t, BaseType):
         if t.typ in ("int128"):
             return int_clamp(t, 128, signed=True)
