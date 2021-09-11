@@ -1,16 +1,10 @@
 from typing import Any, List, Union
 
 from vyper import ast as vy_ast
-from vyper.ast.signatures import sig_utils
 from vyper.ast.signatures.function_signature import FunctionSignature
-from vyper.old_codegen.arg_clamps import make_arg_clamper
 from vyper.old_codegen.context import Context, VariableRecord
 from vyper.old_codegen.expr import Expr
-from vyper.old_codegen.function_definitions.utils import (
-    get_default_names_to_set,
-    get_nonreentrant_lock,
-    get_sig_statements,
-)
+from vyper.old_codegen.function_definitions.utils import get_nonreentrant_lock
 from vyper.old_codegen.lll_node import LLLnode
 from vyper.old_codegen.parser_utils import getpos, make_setter
 from vyper.old_codegen.stmt import parse_body
@@ -60,10 +54,10 @@ def _generate_kwarg_handlers(context: Context, sig):
 
         calldata_args = lazy_abi_decode(calldata_args_t, base_args_location)
 
-        assert calldata_args.value == "multi" # sanity check
+        assert calldata_args.value == "multi"  # sanity check
         # extract just the kwargs from the ABI payload
         # TODO come up with a better name for these variables
-        calldata_kwargs = calldata_args.args[:len(base_args)]
+        calldata_kwargs = calldata_args.args[: len(base_args)]
 
         # a sequence of statements to strictify kwargs into memory
         ret = ["seq"]
@@ -124,7 +118,6 @@ def generate_lll_for_external_function(
 
     body = [parse_body(c, context) for c in code.body]
 
-
     exit = [["label", func_type.exit_sequence_label]] + [nonreentrant_post]
     if context.return_type is None:
         exit += [["stop"]]
@@ -132,15 +125,10 @@ def generate_lll_for_external_function(
         # ret_ofst and ret_len stack items passed by function body; consume using 'pass'
         exit += [["return", "pass", "pass"]]
 
-    ret = (["seq"]
-            + arg_handlers
-            + entrance
-            + body
-            + exit
-            )
+    ret = ["seq"] + arg_handlers + entrance + body + exit
 
     # TODO special handling for default function
-    if len(kwarg_handlers) == 0: # TODO is this check correct?
+    if len(kwarg_handlers) == 0:  # TODO is this check correct?
         ret = ["if", ["eq", tbd_mload_method_id, sig.method_id], ret]
 
     return LLLnode.from_list(ret, pos=getpos(code))

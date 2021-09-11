@@ -1,4 +1,5 @@
 # can't use from [module] import [object] because it breaks mocks in testing
+import vyper.ast as vy_ast
 from vyper.ast.signatures import FunctionSignature
 from vyper.old_codegen import context as ctx
 from vyper.old_codegen.context import Constancy

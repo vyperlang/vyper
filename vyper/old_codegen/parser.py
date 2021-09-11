@@ -1,7 +1,6 @@
 from typing import Any, List, Optional, Tuple
 
 from vyper import ast as vy_ast
-from vyper.ast.signatures import sig_utils
 from vyper.ast.signatures.function_signature import FunctionSignature
 from vyper.exceptions import (
     EventDeclarationException,
@@ -88,7 +87,9 @@ def parse_external_interfaces(external_interfaces, global_ctx):
     return external_interfaces
 
 
-def parse_regular_functions(o, otherfuncs, sigs, external_interfaces, global_ctx, default_function):
+def parse_regular_functions(
+    o, regular_functions, sigs, external_interfaces, global_ctx, default_function
+):
     # check for payable/nonpayable external functions to optimize nonpayable assertions
     func_types = [i._metadata["type"] for i in global_ctx._defs]
     mutabilities = [i.mutability for i in func_types if i.visibility == FunctionVisibility.EXTERNAL]
@@ -112,7 +113,7 @@ def parse_regular_functions(o, otherfuncs, sigs, external_interfaces, global_ctx
     internal_func_sub = ["seq"]
     add_gas = func_init_lll().gas
 
-    for func_node in otherfuncs:
+    for func_node in regular_functions:
         func_type = func_node._metadata["type"]
         func_lll, frame_start, frame_size = generate_lll_for_function(
             func_node, {**{"self": sigs}, **external_interfaces}, global_ctx, check_per_function
@@ -122,12 +123,12 @@ def parse_regular_functions(o, otherfuncs, sigs, external_interfaces, global_ctx
             internal_func_sub.append(func_lll)
 
         elif func_type.mutability == StateMutability.PAYABLE:
-            add_gas += 30 # CMC 20210910 why?
+            add_gas += 30  # CMC 20210910 why?
             payable_func_sub.append(func_lll)
 
         else:
             external_func_sub.append(func_lll)
-            add_gas += 30 # CMC 20210910 why?
+            add_gas += 30  # CMC 20210910 why?
 
         func_lll.total_gas += add_gas
 
@@ -135,7 +136,9 @@ def parse_regular_functions(o, otherfuncs, sigs, external_interfaces, global_ctx
         # we can handle calls to self
         # TODO we only need to do this for internal functions; external functions
         # cannot be called via `self`
-        sig = FunctionSignature.from_definition(func_node, external_interfaces, global_ctx._custom_structs)
+        sig = FunctionSignature.from_definition(
+            func_node, external_interfaces, global_ctx._custom_structs
+        )
         sig.gas = func_lll.total_gas
         sig.frame_start = frame_start
         sig.frame_size = frame_size
@@ -167,7 +170,7 @@ def parse_regular_functions(o, otherfuncs, sigs, external_interfaces, global_ctx
 
     # bytecode is organized by: external functions, fallback fn, internal functions
     # this way we save gas and reduce bytecode by not jumping over internal functions
-    main_seq = [
+    runtime = [
         "seq",
         func_init_lll(),
         ["with", "_func_sig", ["mload", 0], external_seq],
@@ -175,8 +178,9 @@ def parse_regular_functions(o, otherfuncs, sigs, external_interfaces, global_ctx
         internal_func_sub,
     ]
 
-    o.append(["return", 0, ["lll", main_seq, 0]])
-    return o, main_seq
+    # TODO CMC 20210911 why does the lll have a trailing 0
+    o.append(["return", 0, ["lll", runtime, 0]])
+    return o, runtime
 
 
 # Main python parse tree => LLL method
@@ -220,7 +224,7 @@ def parse_tree_to_lll(global_ctx: GlobalContext) -> Tuple[LLLnode, LLLnode]:
 
     if regular_function or defaultfunc:
         o, runtime = parse_regular_functions(
-            o, regular_functions, sigs, external_interfaces, global_ctx, defaultfunc,
+            o, regular_functions, sigs, external_interfaces, global_ctx, default_function,
         )
     else:
         runtime = o.copy()

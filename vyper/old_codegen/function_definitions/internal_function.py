@@ -1,16 +1,11 @@
 from typing import Any, List
 
 from vyper import ast as vy_ast
-from vyper.ast.signatures import FunctionSignature, sig_utils
+from vyper.ast.signatures import FunctionSignature
 from vyper.ast.signatures.function_signature import VariableRecord
 from vyper.old_codegen.context import Context
 from vyper.old_codegen.expr import Expr
-from vyper.old_codegen.function_definitions.utils import (
-    get_default_names_to_set,
-    get_nonreentrant_lock,
-    get_sig_statements,
-    make_unpacker,
-)
+from vyper.old_codegen.function_definitions.utils import get_nonreentrant_lock
 from vyper.old_codegen.lll_node import LLLnode
 from vyper.old_codegen.parser_utils import getpos, make_setter
 from vyper.old_codegen.stmt import parse_body
@@ -74,11 +69,11 @@ def generate_lll_for_internal_function(
     # internal functions without return types need to jump back to the calling
     # function, as there is no guarantee there is a user-provided return
     # statement (which would generate the jump)
-    stop_func = [["jump", "pass"]] # was passed in via stack
+    stop_func = [["jump", "pass"]]  # was passed in via stack
 
     enter = nonreentrant_pre
 
-    body = parse_body(c, context) for c in code.body
+    body = [parse_body(c, context) for c in code.body]
 
     if sig.return_type is not None:
         # name the variable that was passed via stack
@@ -87,11 +82,5 @@ def generate_lll_for_internal_function(
     exit = cleanup_label + nonreentrant_post + stop_func
 
     return LLLnode.from_list(
-            ["seq"]
-            + ["label", function_label]
-            + enter
-            + body
-            + exit,
-            typ=None,
-            pos=getpos(code),
-        )
+        ["seq"] + ["label", function_label] + enter + body + exit, typ=None, pos=getpos(code),
+    )

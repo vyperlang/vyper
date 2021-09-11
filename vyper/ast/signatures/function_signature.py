@@ -1,26 +1,23 @@
 import math
-from collections import Counter
 from dataclasses import dataclass
 from typing import List
 
 from vyper import ast as vy_ast
-from vyper.exceptions import FunctionDeclarationException, StructureException
-from vyper.old_codegen.lll_node import LLLnode
-from vyper.old_codegen.parser_utils import check_single_exit, getpos
+from vyper.exceptions import StructureException, CompilerPanic
+from vyper.old_codegen.parser_utils import check_single_exit
 from vyper.old_codegen.types import (
     NodeType,
-    ByteArrayLike,
-    TupleType,
     canonicalize_type,
     get_size_of_type,
     parse_type,
 )
-from vyper.utils import fourbytes_to_int, keccak256, mkalphanum
+from vyper.utils import mkalphanum
 from functools import cached_property
 
 
 # Function variable
 # TODO move to context.py
+# TODO use dataclass
 class VariableRecord:
     def __init__(
         self,
@@ -151,7 +148,7 @@ class FunctionSignature:
         if custom_structs is None:
             custom_structs = {}
 
-        name = code.name
+        name = func_ast.name
 
         args = []
         for arg in func_ast.args.args:
@@ -225,12 +222,12 @@ class FunctionSignature:
             _check(len(sig.base_args) <= len(args_lll) <= len(sig.args))
 
             # more sanity check, that the types match
-            _check(all(l.typ == r.typ for l, r in zip(args_lll, sig.args)))
+            _check(all(l.typ == r.typ for (l, r) in zip(args_lll, sig.args)))
 
             num_provided_args = len(args_lll)
             total_args = len(sig.args)
             num_kwargs = len(sig.kwargs)
-            args_needed = total_args - num_provided
+            args_needed = total_args - num_provided_args
 
             kw_vals = sig.kwarg_values.items()[: num_kwargs - args_needed]
 

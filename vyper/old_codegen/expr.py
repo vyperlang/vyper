@@ -997,7 +997,6 @@ class Expr:
         multi_lll = LLLnode.from_list(["multi"] + tuple_elements, typ=typ, pos=getpos(self.expr))
         return multi_lll
 
-
     @staticmethod
     def struct_literals(expr, name, context):
         member_subs = {}
