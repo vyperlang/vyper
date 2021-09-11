@@ -53,7 +53,9 @@ def _unpack_returndata(contract_sig, context, pos):
     ret_len = maxlen
 
     # when return data is expected, revert when the length of `returndatasize` is insufficient
-    ret = [["assert", ["gt", "returndatasize", min_return_size - 1]]]
+    ret = []
+    if min_return_size > 0:
+        ret += [["assert", ["gt", "returndatasize", min_return_size - 1]]]
     # TODO assert returndatasize <= maxlen
 
     # abi_decode has appropriate clampers for the individual members of the return type

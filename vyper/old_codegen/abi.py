@@ -473,7 +473,7 @@ def abi_decode(lll_node, src, clamp=True, pos=None):
             else:
                 child_loc = src_loc
             # descend into the child tuple
-            lll_ret.append(abi_decode(o, child_loc, pos=pos))
+            lll_ret.append(abi_decode(o, child_loc, clamp=clamp, pos=pos))
 
         else:
 
@@ -529,7 +529,7 @@ def lazy_abi_decode(typ, src, clamp=True, pos=None):
                 # src buffer.
                 dyn_ofst = unwrap_location(ofst)
                 loc = _add_ofst(src, dyn_ofst)
-            os.append(lazy_abi_decode(t, loc, pos))
+            os.append(lazy_abi_decode(t, loc, clamp=clamp, pos=pos))
             ofst += child_abi_t.embedded_static_size()
 
         return LLLnode.from_list(["multi"] + os, typ=typ, pos=pos)
