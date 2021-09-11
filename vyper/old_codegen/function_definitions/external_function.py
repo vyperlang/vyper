@@ -23,7 +23,7 @@ def _register_function_args(context: Context, sig: FunctionSignature):
     base_args_t = TupleType([arg.typ for arg in sig.base_args])
 
     # tuple with the abi_encoded args
-    if sig.is_init_func():
+    if sig.is_init_func:
         base_args_location = LLLnode("~codelen", location="code", typ=base_args_t)
     else:
         base_args_location = LLLnode(4, location="calldata", typ=base_args_t)

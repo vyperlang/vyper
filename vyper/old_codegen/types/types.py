@@ -307,22 +307,6 @@ def get_type_for_exact_size(n_bytes):
     return ByteArrayType(n_bytes - 32 * BYTE_ARRAY_OVERHEAD)
 
 
-# TODO dead code
-def get_static_size_of_type(typ):
-    if isinstance(typ, BaseType):
-        return 1
-    elif isinstance(typ, ByteArrayLike):
-        return 1
-    elif isinstance(typ, ListType):
-        return get_size_of_type(typ.subtype) * typ.count
-    elif isinstance(typ, MappingType):
-        raise InvalidType("Maps are not supported for function arguments or outputs.")
-    elif isinstance(typ, TupleLike):
-        return sum([get_size_of_type(v) for v in typ.tuple_members()])
-    else:
-        raise InvalidType(f"Can not get size of type, Unexpected type: {repr(typ)}")
-
-
 def get_type(input):
     if not hasattr(input, "typ"):
         typ, len = "num_literal", 32

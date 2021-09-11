@@ -980,7 +980,7 @@ class Expr:
         ):  # noqa: E501
             return self_call.lll_for_self_call(self.expr, self.context)
         else:
-            return external_call.make_external_call(self.expr, self.context)
+            return external_call.lll_for_external_call(self.expr, self.context)
 
     def parse_List(self):
         multi_lll = [Expr(x, self.context).lll_node for x in self.expr.elements]

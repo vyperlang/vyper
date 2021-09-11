@@ -10,7 +10,7 @@ from vyper.old_codegen.parser_utils import getpos, unwrap_location
 from vyper.old_codegen.types import TupleType, get_type_for_exact_size
 
 
-def _pack_arguments(sig, args, context, pos):
+def _pack_arguments(contract_sig, args, context, pos):
     # abi encoding just treats all args as a big tuple
     args_tuple_t = TupleType([x.typ for x in args])
     args_as_tuple = LLLnode.from_list(["multi"] + [x for x in args], typ=args_tuple_t)
@@ -32,15 +32,15 @@ def _pack_arguments(sig, args, context, pos):
     # if we were only targeting constantinople, we could align
     # to buf (and also keep code size small) by using
     # (mstore buf (shl signature.method_id 224))
-    mstore_method_id = [["mstore", buf, sig.method_id]]
+    mstore_method_id = [["mstore", buf, contract_sig.method_id]]
 
     encode_args = abi_encode(buf, args_as_tuple, pos)
 
     return mstore_method_id + [encode_args], args_ofst, args_len
 
 
-def _unpack_returndata(sig, context):
-    return_t = abi_type_of(sig.return_type)
+def _unpack_returndata(contract_sig, context):
+    return_t = abi_type_of(contract_sig.return_type)
     min_return_size = return_t.static_size()
 
     maxlen = return_t.size_bound()
@@ -54,12 +54,13 @@ def _unpack_returndata(sig, context):
     # TODO assert returndatasize <= maxlen
 
     # abi_decode has appropriate clampers for the individual members of the return type
+    buf = LLLnode(buf, typ=contract_sig.return_type, location="memory")
     ret += [lazy_abi_decode(buf)]
 
     return ret, ret_ofst, ret_len
 
 
-def _external_call_helper(contract_address, sig, args_lll, context, pos=None, value=None, gas=None):
+def _external_call_helper(contract_address, contract_sig, args_lll, context, pos=None, value=None, gas=None):
 
     if value is None:
         value = 0
@@ -67,41 +68,41 @@ def _external_call_helper(contract_address, sig, args_lll, context, pos=None, va
         gas = "gas"
 
     # sanity check
-    assert len(sig.args) == len(args_lll)
+    assert len(contract_sig.args) == len(args_lll)
 
-    if context.is_constant() and sig.mutability not in ("view", "pure"):
+    if context.is_constant() and contract_sig.mutability not in ("view", "pure"):
         # TODO is this already done in type checker?
         raise StateAccessViolation(
-            f"May not call state modifying function '{sig.name}' "
+            f"May not call state modifying function '{contract_sig.name}' "
             f"within {context.pp_constancy()}.",
             pos,
         )
 
     sub = ["seq"]
 
-    arg_packer, args_ofst, args_len = _pack_arguments(sig, args_lll, context, pos)
-    ret_unpacker, ret_ofst, ret_len = _unpack_returndata(sig, context, pos)
+    arg_packer, args_ofst, args_len = _pack_arguments(contract_sig, args_lll, context, pos)
+    ret_unpacker, ret_ofst, ret_len = _unpack_returndata(contract_sig, context, pos)
 
     sub += arg_packer
 
-    if sig.return_type is None:
+    if contract_sig.return_type is None:
         # if we do not expect return data, check that a contract exists at the target address
         # we can omit this when we _do_ expect return data because we later check `returndatasize`
         # CMC 20210907 do we need to check this before the call, or can we defer until after?
         # if we can defer, this code can be pushed down into unpack_returndata
         sub.append(["assert", ["extcodesize", contract_address]])
 
-    if context.is_constant() or sig.mutability in ("view", "pure"):
+    if context.is_constant() or contract_sig.mutability in ("view", "pure"):
         call_op = ["staticcall", gas, contract_address, args_ofst, args_len, ret_ofst, ret_len]
     else:
         call_op = ["call", gas, contract_address, value, args_ofst, args_len, ret_ofst, ret_len]
 
     sub.append(["assert", call_op])
 
-    if sig.return_type is not None:
+    if contract_sig.return_type is not None:
         sub += ret_unpacker
 
-    return LLLnode.from_list(sub, typ=sig.return_type, location="memory", pos=pos)
+    return LLLnode.from_list(sub, typ=contract_sig.return_type, location="memory", pos=pos)
 
 
 # TODO push me up to expr.py
@@ -164,7 +165,7 @@ def lll_for_external_call(stmt_expr, context):
         raise StructureException("Unsupported operator.", stmt_expr)
 
     method_name = stmt_expr.func.attr
-    sig = context.sigs[contract_name][method_name]
+    contract_sig = context.sigs[contract_name][method_name]
     return _external_call_helper(
-        contract_address, sig, args_lll, context, pos, value=value, gas=gas,
+        contract_address, contract_sig, args_lll, context, pos, value=value, gas=gas,
     )
