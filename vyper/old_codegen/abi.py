@@ -515,7 +515,7 @@ def lazy_abi_decode(typ, src, clamp=True, pos=None):
         if isinstance(typ, TupleLike):
             ts = typ.tuple_members()
         else:
-            ts = [typ.subtyp for _ in range(typ.count)]
+            ts = [typ.subtype for _ in range(typ.count)]
         ofst = 0
         os = []
         for t in ts:
@@ -532,7 +532,7 @@ def lazy_abi_decode(typ, src, clamp=True, pos=None):
             os.append(lazy_abi_decode(t, loc, clamp=clamp, pos=pos))
             ofst += child_abi_t.embedded_static_size()
 
-        return LLLnode.from_list(["multi"] + os, typ=typ, pos=pos)
+            ret = ["multi"] + os
 
     elif isinstance(typ, (BaseType, ByteArrayLike)):
         if clamp:
@@ -540,6 +540,7 @@ def lazy_abi_decode(typ, src, clamp=True, pos=None):
             ret = ["with", x, unwrap_location(src), ["seq", clamp_basetype(x), x]]
         else:
             ret = unwrap_location(src)
-        return LLLnode.from_list(ret, typ=typ, location=src.location)
     else:
         raise CompilerPanic(f"unknown type for lazy_abi_decode {typ}")
+
+    return LLLnode.from_list(ret, typ=typ, location=src.location, pos=pos)

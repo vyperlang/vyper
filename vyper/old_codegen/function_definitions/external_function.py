@@ -39,7 +39,7 @@ def _register_function_args(context: Context, sig: FunctionSignature):
         # register the record in the local namespace
         context.vars[arg.name] = VariableRecord(
             name=arg.name, pos=arg_lll, typ=arg.typ, mutable=False, location=arg_lll.location
-            )
+        )
 
 
 # TODO move me to function_signature.py?

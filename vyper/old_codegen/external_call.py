@@ -65,7 +65,9 @@ def _unpack_returndata(contract_sig, context, pos):
     return ret, ret_ofst, ret_len
 
 
-def _external_call_helper(contract_address, contract_sig, args_lll, context, pos=None, value=None, gas=None):
+def _external_call_helper(
+    contract_address, contract_sig, args_lll, context, pos=None, value=None, gas=None
+):
 
     if value is None:
         value = 0

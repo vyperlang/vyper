@@ -136,9 +136,7 @@ def parse_regular_functions(
         # we can handle calls to self
         # TODO we only need to do this for internal functions; external functions
         # cannot be called via `self`
-        sig = FunctionSignature.from_definition(
-            func_node, external_interfaces, global_ctx._structs
-        )
+        sig = FunctionSignature.from_definition(func_node, external_interfaces, global_ctx._structs)
         sig.gas = func_lll.total_gas
         sig.frame_start = frame_start
         sig.frame_size = frame_size
@@ -218,7 +216,7 @@ def parse_tree_to_lll(global_ctx: GlobalContext) -> Tuple[LLLnode, LLLnode]:
     # TODO: fix for #2251 is to move this after parse_regular_functions
     if init_function:
         o.append(init_func_init_lll())
-        init_func_lll, _frame_size = generate_lll_for_function(
+        init_func_lll, _frame_start, _frame_size = generate_lll_for_function(
             init_function, {**{"self": sigs}, **external_interfaces}, global_ctx, False,
         )
         o.append(init_func_lll)

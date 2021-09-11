@@ -37,10 +37,10 @@ def make_return_stmt(lll_val: LLLnode, stmt, context: Context) -> LLLnode:
         )
 
     if context.return_type is None:
-        return finalize([])
+        return finalize(["pass"])
 
     if context.is_internal:
-        dst = LLLnode.from_list(["return_buffer"], typ=context.return_type)
+        dst = LLLnode.from_list(["return_buffer"], typ=context.return_type, location="memory")
         return finalize(make_setter(dst, lll_val, location="memory", pos=_pos))
 
     # we are in an external function.

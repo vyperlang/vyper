@@ -383,7 +383,9 @@ class Stmt:
         return LLLnode.from_list("break", typ=None, pos=getpos(self.stmt))
 
     def parse_Return(self):
-        lll_val = Expr(self.stmt.value, self.context).lll_node
+        lll_val = None
+        if self.stmt.value is not None:
+            lll_val = Expr(self.stmt.value, self.context).lll_node
         return make_return_stmt(lll_val, self.stmt, self.context)
 
     def _get_target(self, target):

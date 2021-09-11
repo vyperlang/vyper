@@ -143,7 +143,9 @@ class LLLnode:
                 if len(self.args) != 3:
                     raise CompilerPanic(f"With statement must have 3 arguments: {self}")
                 if len(self.args[0].args) or not isinstance(self.args[0].value, str):
-                    raise CompilerPanic(f"First argument to with statement must be a variable: {self}")
+                    raise CompilerPanic(
+                        f"First argument to with statement must be a variable: {self}"
+                    )
                 if not self.args[1].valency and self.args[1].value != "pass":
                     raise CompilerPanic(
                         (
