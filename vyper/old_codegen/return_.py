@@ -1,27 +1,19 @@
 from vyper import ast as vy_ast
-from vyper.old_codegen.function_definitions.utils import get_nonreentrant_lock
+from vyper.old_codegen.abi import abi_encode, abi_type_of, lll_tuple_from_args
+from vyper.old_codegen.context import Context
 from vyper.old_codegen.lll_node import LLLnode
 from vyper.old_codegen.parser_utils import getpos, make_setter
-from vyper.old_codegen.types import ByteArrayType, TupleType, get_size_of_type
+from vyper.old_codegen.types import TupleType, get_type_for_exact_size
 from vyper.old_codegen.types.check import check_assign
-from vyper.old_codegen.context import Context
-from vyper.utils import MemoryPositions
-
-from vyper.old_codegen.abi import lll_tuple_from_args, abi_encode, abi_type_of
-
-# something that's compatible with new_internal_variable
-class FakeType:
-    def __init__(self, maxlen):
-        self.size_in_bytes = maxlen
 
 
 def _allocate_return_buffer(context: Context) -> int:
     maxlen = abi_type_of(context.return_type).size_bound()
-    return context.new_internal_variable(FakeType(maxlen=maxlen))
+    return context.new_internal_variable(get_type_for_exact_size(maxlen))
 
 
 # Generate code for return stmt
-def make_return_stmt(lll_val: LLLnode, stmt: "Stmt", context: Context) -> LLLnode:
+def make_return_stmt(lll_val: LLLnode, stmt, context: Context) -> LLLnode:
 
     func_type = stmt.get_ancestor(vy_ast.FunctionDef)._metadata["type"]
     jump_to_exit = ["goto", func_type.exit_sequence_label]
@@ -39,7 +31,7 @@ def make_return_stmt(lll_val: LLLnode, stmt: "Stmt", context: Context) -> LLLnod
 
     # helper function
     def finalize(fill_return_buffer):
-        # do NOT bypass this. the exit label may do important function cleanup.
+        # do NOT bypass this. jump_to_exit may do important function cleanup.
         return LLLnode.from_list(
             ["seq_unchecked", fill_return_buffer, jump_to_exit], typ=None, pos=_pos, valency=0
         )
@@ -81,4 +73,4 @@ def make_return_stmt(lll_val: LLLnode, stmt: "Stmt", context: Context) -> LLLnod
     encode_out = abi_encode(return_buffer_ofst, lll_val, pos=_pos, returns_len=True)
 
     # fill the return buffer and push the location and length onto the stack
-    return finalize(["seq_unchecked", encode_out, return_buffer_offset])
+    return finalize(["seq_unchecked", encode_out, return_buffer_ofst])

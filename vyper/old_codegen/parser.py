@@ -8,9 +8,9 @@ from vyper.exceptions import (
     StructureException,
 )
 from vyper.old_codegen.function_definitions import (
+    generate_lll_for_function,
     is_default_func,
     is_initializer,
-    generate_lll_for_function,
 )
 from vyper.old_codegen.global_context import GlobalContext
 from vyper.old_codegen.lll_node import LLLnode
@@ -151,7 +151,7 @@ def parse_regular_functions(
             {**{"self": sigs}, **external_interfaces},
             global_ctx,
             # include a nonpayble check here if the contract only has a default function
-            check_per_function or not otherfuncs,
+            check_per_function or not regular_functions,
         )
     else:
         fallback_lll = LLLnode.from_list(["revert", 0, 0], typ=None, annotation="Default function")
@@ -173,7 +173,7 @@ def parse_regular_functions(
     runtime = [
         "seq",
         func_init_lll(),
-        ["with", "_func_sig", ["mload", 0], external_seq],
+        ["with", "_calldata_method_id", ["mload", 0], external_seq],
         ["seq_unchecked", ["label", "fallback"], fallback_lll],
         internal_func_sub,
     ]
@@ -215,6 +215,7 @@ def parse_tree_to_lll(global_ctx: GlobalContext) -> Tuple[LLLnode, LLLnode]:
     if global_ctx._contracts or global_ctx._interfaces:
         external_interfaces = parse_external_interfaces(external_interfaces, global_ctx)
 
+    # TODO: fix for #2251 is to move this after parse_regular_functions
     if init_function:
         o.append(init_func_init_lll())
         init_func_lll, _frame_size = generate_lll_for_function(
@@ -222,7 +223,7 @@ def parse_tree_to_lll(global_ctx: GlobalContext) -> Tuple[LLLnode, LLLnode]:
         )
         o.append(init_func_lll)
 
-    if regular_function or defaultfunc:
+    if regular_functions or default_function:
         o, runtime = parse_regular_functions(
             o, regular_functions, sigs, external_interfaces, global_ctx, default_function,
         )

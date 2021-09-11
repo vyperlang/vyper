@@ -3,7 +3,7 @@ import enum
 
 from vyper.ast import VyperNode
 from vyper.ast.signatures.function_signature import VariableRecord
-from vyper.exceptions import CompilerPanic
+from vyper.exceptions import CompilerPanic, FunctionDeclarationException
 from vyper.old_codegen.types import NodeType, get_size_of_type
 
 
@@ -73,7 +73,7 @@ class Context:
     def is_constant(self):
         return self.constancy is Constancy.Constant or self.in_assertion or self.in_range_expr
 
-    def register_callee(frame_size):
+    def register_callee(self, frame_size):
         self._callee_frame_sizes.append(frame_size)
 
     #
@@ -208,6 +208,41 @@ class Context:
 
     def parse_type(self, ast_node, location):
         return self.global_ctx.parse_type(ast_node, location)
+
+    def lookup_internal_function(self, method_name, args_lll):
+        # TODO is this the right module for me?
+        """
+        Using a list of args, find the internal method to use, and
+        the kwargs which need to be filled in by the compiler
+        """
+
+        def _check(cond, s="Unreachable"):
+            if not cond:
+                raise CompilerPanic(s)
+
+        sig = next((sig for sig in self.sigs["self"] if sig.name == method_name), None)
+        if sig is None:
+            raise FunctionDeclarationException(
+                "Function does not exist or has not been declared yet "
+                "(reminder: functions cannot call functions later in code "
+                f"than themselves): {method_name}"
+            )
+
+        _check(sig.internal)  # sanity check
+        # should have been caught during type checking, sanity check anyway
+        _check(len(sig.base_args) <= len(args_lll) <= len(sig.args))
+
+        # more sanity check, that the types match
+        _check(all(l.typ == r.typ for (l, r) in zip(args_lll, sig.args)))
+
+        num_provided_args = len(args_lll)
+        total_args = len(sig.args)
+        num_kwargs = len(sig.kwargs)
+        args_needed = total_args - num_provided_args
+
+        kw_vals = sig.kwarg_values.items()[: num_kwargs - args_needed]
+
+        return sig, kw_vals
 
     # Pretty print constancy for error messages
     def pp_constancy(self):

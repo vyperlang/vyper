@@ -1,6 +1,7 @@
 from decimal import Decimal, getcontext
 
 from vyper import ast as vy_ast
+from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
     CompilerPanic,
     InvalidLiteral,
@@ -255,7 +256,7 @@ def byte_array_to_num(
 
 def get_bytearray_length(arg):
     typ = BaseType("uint256")
-    return LLLnode.from_list([load_op(arg.location), arg], typ=BaseType("uint256"))
+    return LLLnode.from_list([load_op(arg.location), arg], typ=typ)
 
 
 def getpos(node):
@@ -380,7 +381,7 @@ def load_op(location):
         return "calldataload"
     if location == "code":
         return "codeload"
-    raise CompilerPanic("unreachable", arg)  # pragma: no test
+    raise CompilerPanic("unreachable", location)  # pragma: no test
 
 
 # Unwrap location
@@ -658,13 +659,13 @@ def zero_pad(bytez_placeholder):
 # convenience rewrites for shr/sar/shl
 def _shr(x, bits):
     if version_check(begin="constantinople"):
-        return ["shr", x, bits]
+        return ["shr", bits, x]
     return ["div", x, ["exp", 2, bits]]
 
 
 def _sar(x, bits):
     if version_check(begin="constantinople"):
-        return ["sar", x, bits]
+        return ["sar", bits, x]
     return ["sdiv", x, ["exp", 2, bits]]
 
 
@@ -676,8 +677,16 @@ def clamp_basetype(lll_node):
         b = LLLnode.from_list(["b"], typ=lll_node.typ, location=lll_node.location)
         return ["assert", ["le", get_bytearray_length(b), t.maxlen]]
     if isinstance(t, BaseType):
-        if t.typ in ("int128", "decimal"):
+        if t.typ in ("int128"):
             return int_clamp(t, 128, signed=True)
+        if t.typ in ("decimal"):
+            return [
+                "clamp",
+                ["mload", MemoryPositions.MINDECIMAL],
+                lll_node,
+                ["mload", MemoryPositions.MAXDECIMAL],
+            ]
+
         if t.typ in ("address",):
             return int_clamp(t, 160)
         if t.typ in ("bool",):

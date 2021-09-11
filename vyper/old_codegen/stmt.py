@@ -8,24 +8,18 @@ from vyper.old_codegen.expr import Expr
 from vyper.old_codegen.parser_utils import (
     LLLnode,
     getpos,
-    make_byte_array_copier,
     make_setter,
     unwrap_location,
-    zero_pad,
 )
 from vyper.old_codegen.return_ import make_return_stmt
 from vyper.old_codegen.types import (
     BaseType,
-    ByteArrayLike,
     ByteArrayType,
     ListType,
-    NodeType,
-    StructType,
-    TupleType,
     get_size_of_type,
     parse_type,
 )
-from vyper.utils import SizeLimits, bytes_to_int, fourbytes_to_int, keccak256
+from vyper.utils import bytes_to_int, fourbytes_to_int, keccak256
 
 
 class Stmt:
@@ -136,8 +130,9 @@ class Stmt:
         if isinstance(self.stmt.func, vy_ast.Name):
             funcname = self.stmt.func.id
             return STMT_DISPATCH_TABLE[funcname].build_LLL(self.stmt, self.context)
+
         elif is_self_function:
-            return self_call.make_call(self.stmt, self.context)
+            return self_call.lll_for_self_call(self.stmt, self.context)
         else:
             return external_call.make_external_call(self.stmt, self.context)
 
@@ -389,7 +384,7 @@ class Stmt:
 
     def parse_Return(self):
         lll_val = Expr(self.stmt.value, self.context).lll_node
-        return make_return_stmt(return_buf, lll_val, self.stmt, self.context)
+        return make_return_stmt(lll_val, self.stmt, self.context)
 
     def _get_target(self, target):
         if isinstance(target, vy_ast.Name) and target.id in self.context.forvars:

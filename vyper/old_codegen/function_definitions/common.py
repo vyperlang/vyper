@@ -1,4 +1,6 @@
 # can't use from [module] import [object] because it breaks mocks in testing
+import copy
+
 import vyper.ast as vy_ast
 from vyper.ast.signatures import FunctionSignature
 from vyper.old_codegen import context as ctx
@@ -10,6 +12,7 @@ from vyper.old_codegen.function_definitions.internal_function import (
     generate_lll_for_internal_function,
 )
 from vyper.old_codegen.memory_allocator import MemoryAllocator
+from vyper.old_codegen.parser_utils import check_single_exit
 from vyper.utils import calc_mem_gas
 
 
@@ -45,11 +48,13 @@ def generate_lll_for_function(code, sigs, global_ctx, check_nonpayable, _vars=No
     # to see what the max frame size of any callee in the function was,
     # then we run the codegen again with the max frame size as
     # the start of the frame for this function.
-    def _run_pass(memory_allocator=None):
+    def _run_pass(code, memory_allocator=None):
         # Create a local (per function) context.
         if memory_allocator is None:
             memory_allocator = MemoryAllocator()
-        _vars = _vars.copy()  # these will get clobbered in produce_* functions
+        nonlocal _vars
+        _vars = _vars.copy()  # these will get clobbered in called functions
+        nonlocal sig
         sig = copy.deepcopy(sig)  # just in case
         context = ctx.Context(
             vars=_vars,
@@ -67,11 +72,9 @@ def generate_lll_for_function(code, sigs, global_ctx, check_nonpayable, _vars=No
         )
 
         if sig.internal:
-            o = parse_internal_function(code=code, sig=sig, context=context,)
+            o = generate_lll_for_internal_function(code, sig, context)
         else:
-            o = parse_external_function(
-                code=code, sig=sig, context=context, check_nonpayable=check_nonpayable
-            )
+            o = generate_lll_for_external_function(code, sig, context, check_nonpayable)
         return o, context
 
     _, context = _run_pass(None)

@@ -4,24 +4,13 @@ from vyper.exceptions import (
     StructureException,
     TypeCheckFailure,
 )
-from vyper.old_codegen.abi import abi_encode, abi_decode, abi_type_of
+from vyper.old_codegen.abi import abi_encode, abi_type_of, lazy_abi_decode
 from vyper.old_codegen.lll_node import LLLnode
-from vyper.old_codegen.parser_utils import (
-    getpos,
-    unwrap_location,
-)
-from vyper.old_codegen.types import (
-    BaseType,
-    ByteArrayLike,
-    ListType,
-    TupleLike,
-    get_size_of_type,
-    get_static_size_of_type,
-    has_dynamic_data,
-)
+from vyper.old_codegen.parser_utils import getpos, unwrap_location
+from vyper.old_codegen.types import TupleType, get_type_for_exact_size
 
 
-def pack_arguments(sig, args, buf):
+def _pack_arguments(sig, args, context, pos):
     # abi encoding just treats all args as a big tuple
     args_tuple_t = TupleType([x.typ for x in args])
     args_as_tuple = LLLnode.from_list(["multi"] + [x for x in args], typ=args_tuple_t)
@@ -30,7 +19,7 @@ def pack_arguments(sig, args, buf):
     maxlen = args_abi_t.size_bound()
     maxlen += 32  # padding for the method id
 
-    buf_t = ByteArrayType(maxlen=maxlen)
+    buf_t = get_type_for_exact_size(maxlen)
     buf = context.new_internal_variable(buf_t)
 
     args_ofst = buf + 28
@@ -50,12 +39,12 @@ def pack_arguments(sig, args, buf):
     return mstore_method_id + [encode_args], args_ofst, args_len
 
 
-def unpack_returndata(sig, context):
+def _unpack_returndata(sig, context):
     return_t = abi_type_of(sig.output_type)
     min_return_size = return_t.static_size()
 
     maxlen = return_t.size_bound()
-    buf_t = ByteArrayType(maxlen=maxlen)
+    buf_t = get_type_for_exact_size(maxlen)
     buf = context.new_internal_variable(buf_t)
     ret_ofst = buf
     ret_len = maxlen
@@ -65,14 +54,12 @@ def unpack_returndata(sig, context):
     # TODO assert returndatasize <= maxlen
 
     # abi_decode has appropriate clampers for the individual members of the return type
-    ret += [abi_decode_lazy(buf)]
+    ret += [lazy_abi_decode(buf)]
 
     return ret, ret_ofst, ret_len
 
 
-def external_call(node, context, interface_name, contract_address, value=None, gas=None):
-    method_name = node.func.attr
-    sig = context.sigs[interface_name][method_name]
+def _external_call_helper(contract_address, sig, args_lll, context, pos=None, value=None, gas=None):
 
     if value is None:
         value = 0
@@ -80,20 +67,20 @@ def external_call(node, context, interface_name, contract_address, value=None, g
         gas = "gas"
 
     # sanity check
-    assert len(signature.args) == len(args)
+    assert len(sig.args) == len(args_lll)
 
     if context.is_constant() and sig.mutability not in ("view", "pure"):
         # TODO is this already done in type checker?
         raise StateAccessViolation(
-            f"May not call state modifying function '{method_name}' "
+            f"May not call state modifying function '{sig.name}' "
             f"within {context.pp_constancy()}.",
-            node,
+            pos,
         )
 
     sub = ["seq"]
 
-    arg_packer, args_ofst, args_len = pack_arguments(sig, args, context)
-    ret_unpacker, ret_ofst, ret_len = unpack_arguments(sig, context)
+    arg_packer, args_ofst, args_len = _pack_arguments(sig, args_lll, context, pos)
+    ret_unpacker, ret_ofst, ret_len = _unpack_returndata(sig, context, pos)
 
     sub += arg_packer
 
@@ -114,13 +101,14 @@ def external_call(node, context, interface_name, contract_address, value=None, g
     if sig.return_type is not None:
         sub += ret_unpacker
 
-    return LLLnode.from_list(sub, typ=sig.return_type, location="memory", pos=getpos(node))
+    return LLLnode.from_list(sub, typ=sig.return_type, location="memory", pos=pos)
 
 
 # TODO push me up to expr.py
 def get_gas_and_value(stmt_expr, context):
-    # circular import!
-    from vyper.old_codegen.expr import Expr
+    from vyper.old_codegen.expr import (
+        Expr,  # TODO rethink this circular import
+    )
 
     value, gas = None, None
     for kw in stmt_expr.keywords:
@@ -133,23 +121,35 @@ def get_gas_and_value(stmt_expr, context):
     return value, gas
 
 
-def make_external_call(stmt_expr, context):
+def lll_for_external_call(stmt_expr, context):
+    from vyper.old_codegen.expr import (
+        Expr,  # TODO rethink this circular import
+    )
+
+    pos = getpos(stmt_expr)
     value, gas = get_gas_and_value(stmt_expr, context)
+    args_lll = [Expr(x, context).lll_node for x in stmt_expr.args]
 
     if isinstance(stmt_expr.func, vy_ast.Attribute) and isinstance(
         stmt_expr.func.value, vy_ast.Call
     ):
         # e.g. `Foo(address).bar()`
 
+        # sanity check
+        assert len(stmt_expr.func.value.args) == 1
         contract_name = stmt_expr.func.value.func.id
         contract_address = Expr.parse_value_expr(stmt_expr.func.value.args[0], context)
 
     elif (
         isinstance(stmt_expr.func.value, vy_ast.Attribute)
         and stmt_expr.func.value.attr in context.globals
+        # TODO check for self?
         and hasattr(context.globals[stmt_expr.func.value.attr].typ, "name")
     ):
         # e.g. `self.foo.bar()`
+
+        # sanity check
+        assert stmt_expr.func.value.id == "self"
 
         contract_name = context.globals[stmt_expr.func.value.attr].typ.name
         type_ = stmt_expr.func.value._metadata["type"]
@@ -159,9 +159,16 @@ def make_external_call(stmt_expr, context):
                 type_.position.position,
                 typ=var.typ,
                 location="storage",
-                pos=getpos(stmt_expr),
+                pos=pos,
                 annotation="self." + stmt_expr.func.value.attr,
             )
         )
+    else:
+        # TODO catch this during type checking
+        raise StructureException("Unsupported operator.", stmt_expr)
 
-    return external_call(stmt_expr, context, contract_name, contract_address, value=value, gas=gas,)
+    method_name = stmt_expr.func.attr
+    sig = context.sigs[contract_name][method_name]
+    return _external_call_helper(
+        contract_address, sig, args_lll, context, pos, value=value, gas=gas,
+    )

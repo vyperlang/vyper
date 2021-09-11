@@ -1,33 +1,24 @@
-import itertools
-
-from vyper.ast.signatures.function_signature import FunctionSignature
-from vyper.exceptions import (
-    StateAccessViolation,
-    StructureException,
-    TypeCheckFailure,
-)
-from vyper.old_codegen.abi import abi_decode
+from vyper.exceptions import StateAccessViolation, StructureException
+from vyper.old_codegen.context import Context
 from vyper.old_codegen.lll_node import LLLnode, push_label_to_stack
-from vyper.old_codegen.parser_utils import getpos
-from vyper.old_codegen.types import (
-    BaseType,
-    ByteArrayLike,
-    ListType,
-    TupleLike,
-    get_size_of_type,
-    get_static_size_of_type,
-    has_dynamic_data,
-)
-
+from vyper.old_codegen.parser_utils import getpos, make_setter
+from vyper.old_codegen.types import TupleType
 
 _label_counter = 0
+
+
 # TODO a more general way of doing this
 def _generate_label(name: str) -> str:
+    global _label_counter
     _label_counter += 1
     return f"label{_label_counter}"
 
 
-def make_call(stmt_expr, context):
+def lll_for_self_call(stmt_expr, context: Context) -> LLLnode:
+    from vyper.old_codegen.expr import (
+        Expr,  # TODO rethink this circular import
+    )
+
     pos = getpos(stmt_expr)
 
     # ** Internal Call **
@@ -40,10 +31,12 @@ def make_call(stmt_expr, context):
 
     method_name = stmt_expr.func.attr
 
-    sig, kw_vals = FunctionSignature.lookup_internal_function(method_name, args_lll, context)
+    pos_args_lll = [Expr(x, context).lll_node for x in stmt_expr.args]
 
-    pos_args_lll = [Expr(x, self.context).lll_node for x in stmt_expr.args]
-    kw_args_lll = [Expr(x, self.context).lll_node for x in kw_vals]
+    sig, kw_vals = context.lookup_internal_function(method_name, pos_args_lll)
+
+    kw_args_lll = [Expr(x, context).lll_node for x in kw_vals]
+
     args_lll = pos_args_lll + kw_args_lll
 
     args_tuple_t = TupleType([x.typ for x in args_lll])

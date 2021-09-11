@@ -1,10 +1,10 @@
 import math
 from dataclasses import dataclass
+from functools import cached_property
 from typing import List
 
 from vyper import ast as vy_ast
-from vyper.exceptions import StructureException, CompilerPanic
-from vyper.old_codegen.parser_utils import check_single_exit
+from vyper.exceptions import StructureException
 from vyper.old_codegen.types import (
     NodeType,
     canonicalize_type,
@@ -12,7 +12,6 @@ from vyper.old_codegen.types import (
     parse_type,
 )
 from vyper.utils import mkalphanum
-from functools import cached_property
 
 
 # Function variable
@@ -200,42 +199,6 @@ class FunctionSignature:
             nonreentrant_key,
             func_ast,
             is_from_json,
-        )
-
-    @classmethod
-    def lookup_internal_function(cls, method_name, args_lll, context):
-        """
-        Using a list of args, find the internal method to use, and
-        the kwargs which need to be filled in by the compiler
-        """
-
-        def _check(cond, s="Unreachable"):
-            if not cond:
-                raise CompilerPanic(s)
-
-        for sig in context.sigs["self"]:
-            if sig.name != method_name:
-                continue
-
-            _check(sig.internal)  # sanity check
-            # should have been caught during type checking, sanity check anyway
-            _check(len(sig.base_args) <= len(args_lll) <= len(sig.args))
-
-            # more sanity check, that the types match
-            _check(all(l.typ == r.typ for (l, r) in zip(args_lll, sig.args)))
-
-            num_provided_args = len(args_lll)
-            total_args = len(sig.args)
-            num_kwargs = len(sig.kwargs)
-            args_needed = total_args - num_provided_args
-
-            kw_vals = sig.kwarg_values.items()[: num_kwargs - args_needed]
-
-            return sig, kw_vals
-
-        raise FunctionDeclarationException(
-            "Function not declared yet (reminder: functions cannot "
-            f"call functions later in code than themselves): {method_name}"
         )
 
     @property

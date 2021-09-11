@@ -307,7 +307,7 @@ def get_type_for_exact_size(n_bytes):
     return ByteArrayType(n_bytes - 32 * BYTE_ARRAY_OVERHEAD)
 
 
-# amount of space a type takes in the static section of its ABI encoding
+# TODO dead code
 def get_static_size_of_type(typ):
     if isinstance(typ, BaseType):
         return 1
@@ -321,20 +321,6 @@ def get_static_size_of_type(typ):
         return sum([get_size_of_type(v) for v in typ.tuple_members()])
     else:
         raise InvalidType(f"Can not get size of type, Unexpected type: {repr(typ)}")
-
-
-# could be rewritten as get_static_size_of_type == get_size_of_type?
-def has_dynamic_data(typ):
-    if isinstance(typ, BaseType):
-        return False
-    elif isinstance(typ, ByteArrayLike):
-        return True
-    elif isinstance(typ, ListType):
-        return has_dynamic_data(typ.subtype)
-    elif isinstance(typ, TupleLike):
-        return any([has_dynamic_data(v) for v in typ.tuple_members()])
-    else:
-        raise InvalidType(f"Unexpected type: {repr(typ)}")
 
 
 def get_type(input):

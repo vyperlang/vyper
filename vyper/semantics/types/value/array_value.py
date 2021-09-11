@@ -1,9 +1,9 @@
-import math
 from typing import Type
 
 from vyper import ast as vy_ast
 from vyper.exceptions import CompilerPanic, StructureException, UnexpectedValue
 from vyper.semantics import validation
+from vyper.utils import ceil32
 
 from ..abstract import ArrayValueAbstractType, BytesAbstractType
 from ..bases import BasePrimitive, DataLocation, ValueTypeDefinition

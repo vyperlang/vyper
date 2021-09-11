@@ -1,20 +1,10 @@
-from typing import Any, List
-
 from vyper import ast as vy_ast
 from vyper.ast.signatures import FunctionSignature
-from vyper.ast.signatures.function_signature import VariableRecord
 from vyper.old_codegen.context import Context
-from vyper.old_codegen.expr import Expr
 from vyper.old_codegen.function_definitions.utils import get_nonreentrant_lock
 from vyper.old_codegen.lll_node import LLLnode
-from vyper.old_codegen.parser_utils import getpos, make_setter
+from vyper.old_codegen.parser_utils import getpos
 from vyper.old_codegen.stmt import parse_body
-from vyper.old_codegen.types.types import (
-    BaseType,
-    ByteArrayLike,
-    get_size_of_type,
-)
-from vyper.utils import MemoryPositions
 
 
 def generate_lll_for_internal_function(
@@ -71,7 +61,7 @@ def generate_lll_for_internal_function(
     # statement (which would generate the jump)
     stop_func = [["jump", "pass"]]  # was passed in via stack
 
-    enter = nonreentrant_pre
+    enter = [["label", function_entry_label], nonreentrant_pre]
 
     body = [parse_body(c, context) for c in code.body]
 
@@ -81,6 +71,4 @@ def generate_lll_for_internal_function(
 
     exit = cleanup_label + nonreentrant_post + stop_func
 
-    return LLLnode.from_list(
-        ["seq"] + ["label", function_label] + enter + body + exit, typ=None, pos=getpos(code),
-    )
+    return LLLnode.from_list(["seq"] + enter + body + exit, typ=None, pos=getpos(code),)
