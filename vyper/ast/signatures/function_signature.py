@@ -91,6 +91,16 @@ class FunctionSignature:
             return input_name + " -> " + str(self.return_type) + ":"
         return input_name + ":"
 
+    @property
+    def mk_identifier(self):
+        # we could do a bit better than this but it just needs to be unique
+        visibility = "internal" if self.internal else "external"
+        argz = ",".join([str(arg.typ) for arg in self.args])
+        ret = f"{visibility} {self.name} ({argz})"
+        if self.return_type:
+            ret += " -> " + str(self.return_type)
+        return mkalphanum(ret)
+
     def _abi_signature(self, args):
         return self.func_name + "(" + ",".join([canonicalize_type(arg.typ) for arg in args]) + ")"
 
@@ -109,15 +119,18 @@ class FunctionSignature:
         return ret
 
     @property
+    def base_signature(self):
+        return self.all_kwarg_sigs[0]
+
+    @property
     def internal_function_label(self):
         assert self.internal, "why are you doing this"
 
-        # we could do a bit better than this but it just needs to be unique
-        return mkalphanum(str(self))
+        return self.mk_identifier
 
     @property
     def exit_sequence_label(self):
-        return mkalphanum(str(self)) + "_cleanup"
+        return self.mk_identifier + "_cleanup"
 
     def set_default_args(self):
         """Split base from kwargs and set member data structures"""

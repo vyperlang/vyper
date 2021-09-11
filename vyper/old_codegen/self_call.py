@@ -63,7 +63,8 @@ def lll_for_self_call(stmt_expr, context: Context) -> LLLnode:
     )
     return_buffer = LLLnode.from_list([return_buffer], annotation=f"{return_label}_return_buf")
 
-    copy_args = make_setter(sig.frame_start, args_as_tuple, "memory", pos)
+    args_dst = LLLnode(sig.frame_start, typ=args_tuple_t, location="memory")
+    copy_args = make_setter(args_dst, args_as_tuple, "memory", pos)
 
     call_sequence = [
         "seq_unchecked",
@@ -71,14 +72,13 @@ def lll_for_self_call(stmt_expr, context: Context) -> LLLnode:
         push_label_to_stack(return_label),  # pass return label to subroutine
         return_buffer,  # pass return buffer to subroutine
         ["goto", sig.internal_function_label],
-        return_label,
-        "jumpdest",
+        ["label", return_label],
         return_buffer,  # push return buffer location to stack
     ]
 
     o = LLLnode.from_list(
         call_sequence,
-        typ=sig.output_type,
+        typ=sig.return_type,
         location="memory",
         pos=pos,
         annotation=f"Internal Call: {method_name}",

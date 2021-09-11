@@ -40,7 +40,7 @@ def _pack_arguments(sig, args, context, pos):
 
 
 def _unpack_returndata(sig, context):
-    return_t = abi_type_of(sig.output_type)
+    return_t = abi_type_of(sig.return_type)
     min_return_size = return_t.static_size()
 
     maxlen = return_t.size_bound()

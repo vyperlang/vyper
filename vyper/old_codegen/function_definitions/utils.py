@@ -1,6 +1,6 @@
 def get_nonreentrant_lock(func_type):
     if not func_type.nonreentrant:
-        return [], []
+        return ["pass"], ["pass"]
 
     nkey = func_type.reentrancy_key_position.position
     nonreentrant_pre = [["seq", ["assert", ["iszero", ["sload", nkey]]], ["sstore", nkey, 1]]]

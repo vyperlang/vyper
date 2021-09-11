@@ -137,16 +137,16 @@ def parse_regular_functions(
         # TODO we only need to do this for internal functions; external functions
         # cannot be called via `self`
         sig = FunctionSignature.from_definition(
-            func_node, external_interfaces, global_ctx._custom_structs
+            func_node, external_interfaces, global_ctx._structs
         )
         sig.gas = func_lll.total_gas
         sig.frame_start = frame_start
         sig.frame_size = frame_size
-        sigs[sig.sig] = sig
+        sigs[sig.name] = sig
 
     # generate LLL for fallback function
     if default_function:
-        fallback_lll, _frame_size = generate_lll_for_function(
+        fallback_lll, _frame_start, _frame_size = generate_lll_for_function(
             default_function,
             {**{"self": sigs}, **external_interfaces},
             global_ctx,

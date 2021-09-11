@@ -82,15 +82,17 @@ def generate_lll_for_function(code, sigs, global_ctx, check_nonpayable, _vars=No
         return o, context
 
     _, context = _run_pass(memory_allocator=None)
-    allocate_start = max(context.callee_frame_sizes)
+    allocate_start = context.max_callee_frame_size
     o, context = _run_pass(memory_allocator=MemoryAllocator(allocate_start))
 
     frame_size = context.memory_allocator.size_of_mem
 
-    if sig.external:
+    if not sig.internal:
         # frame_size of external function includes all private functions called
         o.total_gas = o.gas + calc_mem_gas(frame_size)
     else:
+        # frame size for internal function does not need to be adjusted
+        # since it is already accounted for by the caller
         o.total_gas = o.gas
 
     o.context = context

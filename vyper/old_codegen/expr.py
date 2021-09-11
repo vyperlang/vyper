@@ -978,7 +978,7 @@ class Expr:
             and isinstance(self.expr.func.value, vy_ast.Name)
             and self.expr.func.value.id == "self"
         ):  # noqa: E501
-            return self_call.make_call(self.expr, self.context)
+            return self_call.lll_for_self_call(self.expr, self.context)
         else:
             return external_call.make_external_call(self.expr, self.context)
 

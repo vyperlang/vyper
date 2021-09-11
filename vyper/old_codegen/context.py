@@ -76,6 +76,12 @@ class Context:
     def register_callee(self, frame_size):
         self._callee_frame_sizes.append(frame_size)
 
+    @property
+    def max_callee_frame_size(self):
+        if len(self._callee_frame_sizes) == 0:
+            return 0
+        return max(self._callee_frame_sizes)
+
     #
     # Context Managers
     # - Context managers are used to ensure proper wrapping of scopes and context states.
@@ -220,7 +226,7 @@ class Context:
             if not cond:
                 raise CompilerPanic(s)
 
-        sig = next((sig for sig in self.sigs["self"] if sig.name == method_name), None)
+        sig = self.sigs["self"].get(method_name, None)
         if sig is None:
             raise FunctionDeclarationException(
                 "Function does not exist or has not been declared yet "
@@ -237,10 +243,10 @@ class Context:
 
         num_provided_args = len(args_lll)
         total_args = len(sig.args)
-        num_kwargs = len(sig.kwargs)
+        num_kwargs = len(sig.default_args)
         args_needed = total_args - num_provided_args
 
-        kw_vals = sig.kwarg_values.items()[: num_kwargs - args_needed]
+        kw_vals = list(sig.default_values.values())[: num_kwargs - args_needed]
 
         return sig, kw_vals
 

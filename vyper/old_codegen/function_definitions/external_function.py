@@ -40,8 +40,9 @@ def _register_function_args(context: Context, sig: FunctionSignature):
         context.vars[arg.name] = LLLnode(arg_lll, location=base_args_location)
 
 
+# TODO move me to function_signature.py?
 def _base_entry_point(sig):
-    return f"{sig.base_method_id}_entry"
+    return f"{sig.mk_identifier}_entry"
 
 
 def _generate_kwarg_handlers(context: Context, sig: FunctionSignature, pos: Any) -> List[Any]:
@@ -128,17 +129,23 @@ def generate_lll_for_external_function(code, sig, context, check_nonpayable):
     entrance = []
 
     # once args have been handled
-    if len(kwarg_handlers) > 0:
-        entrance.append(["label", _base_entry_point(sig)])
+    if len(kwarg_handlers) > 1:
+        entrance += [["label", _base_entry_point(sig)]]
+    else:
+        # otherwise, the label is redundant since there is only
+        # one control flow path into the external method
+        pass
 
     if check_nonpayable and sig.mutability != "payable":
         # if the contract contains payable functions, but this is not one of them
         # add an assertion that the value of the call is zero
-        entrance.append(["assert", ["iszero", "callvalue"]])
+        entrance += [["assert", ["iszero", "callvalue"]]]
+
+    entrance += nonreentrant_pre
 
     body = [parse_body(c, context) for c in code.body]
 
-    exit = [["label", func_type.exit_sequence_label]] + [nonreentrant_post]
+    exit = [["label", sig.exit_sequence_label]] + nonreentrant_post
     if context.return_type is None:
         exit += [["stop"]]
     else:

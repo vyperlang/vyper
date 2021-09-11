@@ -389,7 +389,7 @@ def unwrap_location(orig):
     if not isinstance(orig.typ, BaseType):
         raise CompilerPanic("unwrap location only for base types")
     if orig.location in ("memory", "storage", "calldata", "code"):
-        return LLLnode.from_list([load_op(orig.location)], typ=orig.typ)
+        return LLLnode.from_list([load_op(orig.location), orig], typ=orig.typ)
     else:
         # CMC 20210909 TODO double check if this branch can be removed
         # handle None value inserted by `empty`
