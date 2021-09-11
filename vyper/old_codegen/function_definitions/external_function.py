@@ -2,7 +2,7 @@ from typing import Any, List
 
 import vyper.utils as util
 from vyper import ast as vy_ast
-from vyper.ast.signatures.function_signature import FunctionSignature
+from vyper.ast.signatures.function_signature import FunctionSignature, VariableRecord
 from vyper.old_codegen.abi import lazy_abi_decode
 from vyper.old_codegen.context import Context
 from vyper.old_codegen.expr import Expr
@@ -28,16 +28,18 @@ def _register_function_args(context: Context, sig: FunctionSignature):
     else:
         base_args_location = LLLnode(4, location="calldata", typ=base_args_t)
 
-    base_args = lazy_abi_decode(base_args_t, base_args_location)
+    base_args_lll = lazy_abi_decode(base_args_t, base_args_location)
 
-    assert base_args.value == "multi", "lazy_abi_decode did not return multi"
-    base_args = base_args.args  # the (lazily) decoded values
+    assert base_args_lll.value == "multi", "lazy_abi_decode did not return multi"
+    base_args_lll = base_args_lll.args  # the (lazily) decoded values
 
-    assert len(base_args) == len(sig.base_args)
-    for (arg, arg_lll) in zip(sig.base_args, base_args.args):  # the actual values
-        assert arg.typ == arg_lll.typ
+    assert len(base_args_lll) == len(sig.base_args)
+    for (arg, arg_lll) in zip(sig.base_args, base_args_lll):  # the actual values
+        assert arg.typ == arg_lll.typ, (arg.typ, arg_lll.typ)
         # register the record in the local namespace
-        context.vars[arg.name] = LLLnode(arg_lll, location=base_args_location)
+        context.vars[arg.name] = VariableRecord(
+            name=arg.name, pos=arg_lll, typ=arg.typ, mutable=False, location=arg_lll.location
+            )
 
 
 # TODO move me to function_signature.py?

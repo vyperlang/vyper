@@ -494,9 +494,9 @@ def abi_decode(lll_node, src, clamp=True, pos=None):
 
 
 def _add_ofst(loc, ofst):
-    if isinstance(loc.value, int):
-        return LLLnode(loc.value + ofst)
-    return ["add", loc, ofst]
+    if isinstance(loc.value, int) and isinstance(ofst, int):
+        return LLLnode(loc.value + ofst, location=loc.location)
+    return LLLnode.from_list(["add", loc, ofst], location=loc.location)
 
 
 # decode a buffer containing abi-encoded data structure in place
@@ -527,7 +527,7 @@ def lazy_abi_decode(typ, src, clamp=True, pos=None):
                 # load the offset word, which is the
                 # (location-independent) offset from the start of the
                 # src buffer.
-                dyn_ofst = unwrap_location(ofst)
+                dyn_ofst = unwrap_location(loc)
                 loc = _add_ofst(src, dyn_ofst)
             os.append(lazy_abi_decode(t, loc, clamp=clamp, pos=pos))
             ofst += child_abi_t.embedded_static_size()
@@ -537,8 +537,9 @@ def lazy_abi_decode(typ, src, clamp=True, pos=None):
     elif isinstance(typ, (BaseType, ByteArrayLike)):
         if clamp:
             x = LLLnode.from_list(["x"], typ=typ, location=src.location)
-            return ["with", x, unwrap_location(src), ["seq", clamp_basetype(x), x]]
+            ret = ["with", x, unwrap_location(src), ["seq", clamp_basetype(x), x]]
         else:
-            return unwrap_location(src)
+            ret = unwrap_location(src)
+        return LLLnode.from_list(ret, typ=typ, location=src.location)
     else:
         raise CompilerPanic(f"unknown type for lazy_abi_decode {typ}")
