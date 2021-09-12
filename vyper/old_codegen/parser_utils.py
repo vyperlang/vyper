@@ -24,7 +24,7 @@ from vyper.old_codegen.types import (
     get_size_of_type,
     is_base_type,
 )
-from vyper.utils import GAS_IDENTITY, GAS_IDENTITYWORD, MemoryPositions
+from vyper.utils import GAS_IDENTITY, GAS_IDENTITYWORD, GAS_CALLDATACOPY_WORD, GAS_CODECOPY_WORD, MemoryPositions
 
 getcontext().prec = 78  # MAX_UINT256 < 1e78
 
@@ -67,6 +67,14 @@ def _identity_gas_bound(num_bytes):
     return GAS_IDENTITY + GAS_IDENTITYWORD * (ceil32(num_bytes) // 32)
 
 
+def _calldatacopy_gas_bound(num_bytes):
+    return GAS_CALLDATACOPY_WORD * ceil32(num_bytes) // 32
+
+
+def _codecopy_gas_bound(num_bytes):
+    return GAS_CODECOPY_WORD * ceil32(num_bytes) // 32
+
+
 # Copy byte array word-for-word (including layout)
 def make_byte_array_copier(destination, source, pos=None):
     if not isinstance(source.typ, ByteArrayLike):
@@ -87,22 +95,27 @@ def make_byte_array_copier(destination, source, pos=None):
 
     # Special case: memory to memory
     # TODO: this should be handled by make_byte_slice_copier.
-    if source.location == "memory" and destination.location == "memory":
+    if destination.location == "memory" and source.location in ("memory", "code", "calldata"):
+        if source.location == "memory":
+            # TODO turn this into an LLL macro: memorycopy
+            copy_op = ["assert", ["call", ["gas"], 4, 0, "src", "sz", destination, "sz"]]
+            gas_bound = _identity_gas_bound(source.typ.maxlen)
+        elif source.location == "calldata":
+            copy_op = ["calldatacopy", destination, "src", "sz"]
+            gas_bound = _calldatacopy_gas_bound(source.typ.maxlen)
+        elif source.location == "code":
+            copy_op = ["code", destination, "src", "sz"]
+            gas_bound = _code_copy_gas_bound(source.typ.maxlen)
         o = LLLnode.from_list(
             [
                 "with",
-                "_source",
+                "src",
                 source,
-                [
-                    "with",
-                    "_sz",
-                    ["add", 32, ["mload", "_source"]],
-                    ["assert", ["call", ["gas"], 4, 0, "_source", "_sz", destination, "_sz"]],
-                ],
-            ],  # noqa: E501
+                ["with", "sz", [load_op(source.location), "src"], copy_op],
+            ],
             typ=None,
-            add_gas_estimate=_identity_gas_bound(source.typ.maxlen),
-            annotation="Memory copy",
+            add_gas_estimate=gas_bound,
+            annotation="copy bytestring to memory",
         )
         return o
 
@@ -113,13 +126,13 @@ def make_byte_array_copier(destination, source, pos=None):
     # Get the length
     if source.value is None:
         length = 1
-    elif source.location == "memory":
-        length = ["add", ["mload", "_pos"], 32]
+    elif source.location in ("memory", "code", "calldata"):
+        length = ["add", [load_op(source.location), "_pos"], 32]
     elif source.location == "storage":
         length = ["add", ["sload", "_pos"], 32]
         pos_node = LLLnode.from_list(pos_node, typ=source.typ, location=source.location,)
     else:
-        raise CompilerPanic(f"Unsupported location: {source.location}")
+        raise CompilerPanic(f"Unsupported location: {source.location} to {destination.location}")
     if destination.location == "storage":
         destination = LLLnode.from_list(
             destination, typ=destination.typ, location=destination.location,
@@ -157,7 +170,6 @@ def make_byte_slice_copier(destination, source, length, max_length, pos=None):
             annotation=f"copy byte slice dest: {str(destination)}",
             add_gas_estimate=_identity_gas_bound(max_length),
         )
-    # TODO optimize: calldatacopy for calldata; codecopy for code
 
     # special case: rhs is zero
     if source.value is None:
