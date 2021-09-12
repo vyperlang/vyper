@@ -43,10 +43,14 @@ def _pack_arguments(contract_sig, args, context, pos):
 
 
 def _unpack_returndata(contract_sig, context, pos):
-    return_t = abi_type_of(contract_sig.return_type)
-    min_return_size = return_t.static_size()
+    return_t = contract_sig.return_type
+    if return_t is None:
+        return ["pass"], 0, 0
 
-    maxlen = return_t.size_bound()
+    abi_return_t = abi_type_of(return_t)
+    min_return_size = abi_return_t.static_size()
+    maxlen = abi_return_t.size_bound()
+
     buf_t = get_type_for_exact_size(maxlen)
     buf = context.new_internal_variable(buf_t)
     ret_ofst = buf
@@ -60,7 +64,7 @@ def _unpack_returndata(contract_sig, context, pos):
 
     # abi_decode has appropriate clampers for the individual members of the return type
     buf = LLLnode(buf, location="memory")
-    ret += [lazy_abi_decode(contract_sig.return_type, buf, pos=pos)]
+    ret += [lazy_abi_decode(return_t, buf, pos=pos)]
 
     return ret, ret_ofst, ret_len
 
@@ -88,6 +92,7 @@ def _external_call_helper(
     sub = ["seq"]
 
     arg_packer, args_ofst, args_len = _pack_arguments(contract_sig, args_lll, context, pos)
+
     ret_unpacker, ret_ofst, ret_len = _unpack_returndata(contract_sig, context, pos)
 
     sub += arg_packer
@@ -153,7 +158,7 @@ def lll_for_external_call(stmt_expr, context):
         # e.g. `self.foo.bar()`
 
         # sanity check
-        assert stmt_expr.func.value.id == "self"
+        assert stmt_expr.func.value.value.id == "self", stmt_expr
 
         contract_name = context.globals[stmt_expr.func.value.attr].typ.name
         type_ = stmt_expr.func.value._metadata["type"]

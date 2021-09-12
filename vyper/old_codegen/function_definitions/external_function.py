@@ -54,22 +54,19 @@ def _generate_kwarg_handlers(context: Context, sig: FunctionSignature, pos: Any)
     # depending on the signature
 
     def handler_for(calldata_kwargs, default_kwargs):
-        default_kwargs = [Expr(x, context).lll_node for x in default_kwargs]
-
         calldata_args = sig.base_args + calldata_kwargs
         calldata_args_t = TupleType(list(arg.typ for arg in calldata_args))
 
-        abi_sig = sig.name + canonicalize_type(calldata_args_t)
-        method_id = util.method_id(abi_sig)
+        abi_sig = sig.abi_signature_for_args(calldata_args)
+        method_id = util.abi_method_id(abi_sig)
 
         calldata_args_location = LLLnode(4, location="calldata", typ=calldata_args_t)
 
-        calldata_args = lazy_abi_decode(calldata_args_t, calldata_args_location)
+        calldata_args_lll = lazy_abi_decode(calldata_args_t, calldata_args_location)
 
-        assert calldata_args.value == "multi"  # sanity check
+        assert calldata_args_lll.value == "multi"  # sanity check
         # extract just the kwargs from the ABI payload
-        # TODO come up with a better name for these variables
-        calldata_kwargs = calldata_args.args[: len(sig.base_args)]
+        calldata_kwargs_lll = calldata_args_lll.args[len(sig.base_args) :]
 
         # a sequence of statements to strictify kwargs into memory
         ret = ["seq"]
@@ -78,15 +75,18 @@ def _generate_kwarg_handlers(context: Context, sig: FunctionSignature, pos: Any)
         # TupleType(list(arg.typ for arg in calldata_kwargs + default_kwargs))
 
         lhs_location = "memory"
-        for x in calldata_kwargs:
-            context.new_variable(x.name, x.typ, mutable=False)
-            lhs = context.lookup_var(x.name)
-            rhs = x
+        assert len(calldata_kwargs_lll) == len(calldata_kwargs), calldata_kwargs
+        for arg_meta, arg_lll in zip(calldata_kwargs, calldata_kwargs_lll):
+            assert arg_meta.typ == arg_lll.typ
+            dst = context.new_variable(arg_meta.name, arg_meta.typ, is_mutable=False)
+            lhs = LLLnode(dst, location="memory", typ=arg_meta.typ)
+            rhs = arg_lll
             ret.append(make_setter(lhs, rhs, lhs_location, pos))
         for x in default_kwargs:
-            context.new_variable(x.name, x.typ, mutable=False)
-            lhs = context.lookup_var(x.name)
-            rhs = Expr(x, context).lll_node
+            dst = context.new_variable(x.name, x.typ, is_mutable=False)
+            lhs = LLLnode(dst, location="memory", typ=x.typ)
+            kw_ast_val = sig.default_values[x.name]  # e.g. `3` in x: int = 3
+            rhs = Expr(kw_ast_val, context).lll_node
             ret.append(make_setter(lhs, rhs, lhs_location, pos))
 
         ret.append(["goto", _base_entry_point(sig)])

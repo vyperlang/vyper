@@ -532,7 +532,7 @@ def lazy_abi_decode(typ, src, clamp=True, pos=None):
             os.append(lazy_abi_decode(t, loc, clamp=clamp, pos=pos))
             ofst += child_abi_t.embedded_static_size()
 
-            ret = ["multi"] + os
+        ret = ["multi"] + os
 
     elif isinstance(typ, (BaseType, ByteArrayLike)):
         if clamp:

@@ -101,8 +101,9 @@ class FunctionSignature:
             ret += " -> " + str(self.return_type)
         return mkalphanum(ret)
 
-    def _abi_signature(self, args):
-        return self.func_name + "(" + ",".join([canonicalize_type(arg.typ) for arg in args]) + ")"
+    # calculate the abi signature for a given set of args
+    def abi_signature_for_args(self, args):
+        return self.name + "(" + ",".join([canonicalize_type(arg.typ) for arg in args]) + ")"
 
     @cached_property
     def all_kwarg_sigs(self) -> List[str]:
@@ -110,11 +111,11 @@ class FunctionSignature:
         ret = []
         argz = self.base_args.copy()
 
-        ret.append(self._abi_signature(argz))
+        ret.append(self.abi_signature_for_args(argz))
 
         for arg in self.default_args:
             argz.append(arg)
-            ret.append(self._abi_signature(argz))
+            ret.append(self.abi_signature_for_args(argz))
 
         return ret
 

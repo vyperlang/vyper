@@ -215,6 +215,9 @@ class Context:
     def parse_type(self, ast_node, location):
         return self.global_ctx.parse_type(ast_node, location)
 
+    def lookup_var(self, varname):
+        return self.vars[varname]
+
     def lookup_internal_function(self, method_name, args_lll):
         # TODO is this the right module for me?
         """
