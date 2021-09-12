@@ -134,7 +134,7 @@ class Stmt:
         elif is_self_function:
             return self_call.lll_for_self_call(self.stmt, self.context)
         else:
-            return external_call.make_external_call(self.stmt, self.context)
+            return external_call.lll_for_external_call(self.stmt, self.context)
 
     def _assert_reason(self, test_expr, msg):
         if isinstance(msg, vy_ast.Name) and msg.id == "UNREACHABLE":
