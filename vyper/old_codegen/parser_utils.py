@@ -682,7 +682,7 @@ def clamp_basetype(lll_node):
         return ["assert", ["le", get_bytearray_length(lll_node), t.maxlen]]
     if isinstance(t, BaseType):
         if t.typ in ("int128"):
-            return int_clamp(t, 128, signed=True)
+            return int_clamp(lll_node, 128, signed=True)
         if t.typ in ("decimal"):
             return [
                 "clamp",
