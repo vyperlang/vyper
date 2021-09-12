@@ -10,15 +10,20 @@ from vyper.old_codegen.function_definitions.utils import get_nonreentrant_lock
 from vyper.old_codegen.lll_node import LLLnode
 from vyper.old_codegen.parser_utils import getpos, make_setter
 from vyper.old_codegen.stmt import parse_body
-from vyper.old_codegen.types.types import TupleType, canonicalize_type
+from vyper.old_codegen.types.types import ListType, TupleType, canonicalize_type
 
 
 # register function args with the local calling context.
 # also allocate the ones that live in memory (i.e. kwargs)
-def _register_function_args(context: Context, sig: FunctionSignature):
+# returns an LLLnode with copy operations for base args which
+# need to be copied to memory (they don't play nicely with
+# downstream code).
+def _register_function_args(context: Context, sig: FunctionSignature) -> List[Any]:
+
+    ret = ["seq"]
 
     if len(sig.args) == 0:
-        return
+        return ret
 
     base_args_t = TupleType([arg.typ for arg in sig.base_args])
 
@@ -36,10 +41,24 @@ def _register_function_args(context: Context, sig: FunctionSignature):
     assert len(base_args_lll) == len(sig.base_args)
     for (arg, arg_lll) in zip(sig.base_args, base_args_lll):  # the actual values
         assert arg.typ == arg_lll.typ, (arg.typ, arg_lll.typ)
-        # register the record in the local namespace
-        context.vars[arg.name] = VariableRecord(
-            name=arg.name, pos=arg_lll, typ=arg.typ, mutable=False, location=arg_lll.location
-        )
+
+        if isinstance(arg.typ, ListType):
+            assert arg_lll.value == "multi"
+            # ListTypes might be accessed with add_variable_offset
+            # which doesn't work for `multi`, so instead copy them
+            # to memory.
+            # TODO nested lists are still broken!
+            dst = context.new_variable(arg.name, typ=arg.typ, is_mutable=False)
+            dst = LLLnode(dst, typ=arg.typ, location="memory")
+            x = make_setter(dst, arg_lll, "memory", pos=getpos(arg.ast_source))
+            ret.append(x)
+        else:
+            # register the record in the local namespace, no copy needed
+            context.vars[arg.name] = VariableRecord(
+                name=arg.name, pos=arg_lll, typ=arg.typ, mutable=False, location=arg_lll.location
+            )
+
+    return ret
 
 
 # TODO move me to function_signature.py?
@@ -122,13 +141,13 @@ def generate_lll_for_external_function(code, sig, context, check_nonpayable):
     func_type = code._metadata["type"]
     pos = getpos(code)
 
-    _register_function_args(context, sig)
+    base_arg_handlers = _register_function_args(context, sig)
 
     nonreentrant_pre, nonreentrant_post = get_nonreentrant_lock(func_type)
 
     kwarg_handlers = _generate_kwarg_handlers(context, sig, pos)
 
-    entrance = []
+    entrance = [base_arg_handlers]
 
     # once args have been handled
     if len(kwarg_handlers) > 1:

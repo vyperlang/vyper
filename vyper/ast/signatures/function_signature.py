@@ -58,6 +58,7 @@ class ContractRecord(VariableRecord):
 class FunctionArg:
     name: str
     typ: NodeType
+    ast_source: vy_ast.VyperNode
 
 
 # Function signature object
@@ -168,7 +169,7 @@ class FunctionSignature:
             argname = arg.arg
             argtyp = parse_type(arg.annotation, None, sigs, custom_structs=custom_structs,)
 
-            args.append(FunctionArg(argname, argtyp))
+            args.append(FunctionArg(argname, argtyp, arg))
 
         mutability = "nonpayable"  # Assume nonpayable by default
         nonreentrant_key = None

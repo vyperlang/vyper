@@ -449,16 +449,8 @@ def make_setter(left, right, location, pos):
 
         left_token = LLLnode.from_list("_L", typ=left.typ, location=left.location)
         # If the right side is a literal
-        if right.value in ["multi", "seq_unchecked"] and right.typ.is_literal:
-            if right.value == "seq_unchecked":
-                # CMC 20210911 I think this branch can be removed now
-
-                # when the LLL is `seq_unchecked`, this is a literal where one or
-                # more values must be pre-processed to avoid memory corruption
-                subs = right.args[:-1]
-                right = right.args[-1]
-            else:
-                subs = []
+        if right.value == "multi":
+            subs = []
             for i in range(left.typ.count):
                 lhs_setter = _make_array_index_setter(left, left_token, pos, location, i)
                 subs.append(make_setter(lhs_setter, right.args[i], location, pos=pos,))

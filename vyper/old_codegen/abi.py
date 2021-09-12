@@ -1,4 +1,5 @@
 import vyper.semantics.types as vy
+import copy
 from vyper.exceptions import CompilerPanic
 from vyper.old_codegen.lll_node import LLLnode
 from vyper.old_codegen.parser_utils import (
@@ -511,6 +512,8 @@ def _add_ofst(loc, ofst):
 #   (mload 320/*int128*/)
 #   (mload (add 320/*buf start*/ (mload 352/*ofst loc*/))))
 def lazy_abi_decode(typ, src, clamp=True, pos=None):
+    typ = copy.deepcopy(typ)
+    typ.is_literal = True
     if isinstance(typ, (ListType, TupleLike)):
         if isinstance(typ, TupleLike):
             ts = typ.tuple_members()
