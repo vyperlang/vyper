@@ -1,23 +1,21 @@
 # can't use from [module] import [object] because it breaks mocks in testing
 import copy
-
 from typing import Dict, Optional, Tuple
 
 import vyper.ast as vy_ast
 from vyper.ast.signatures import FunctionSignature, VariableRecord
-from vyper.old_codegen.lll_node import LLLnode
-from vyper.old_codegen.context import Context
-from vyper.old_codegen.global_context import GlobalContext
-from vyper.old_codegen.context import Constancy
+from vyper.old_codegen.context import Constancy, Context
 from vyper.old_codegen.function_definitions.external_function import (
     generate_lll_for_external_function,
 )
 from vyper.old_codegen.function_definitions.internal_function import (
     generate_lll_for_internal_function,
 )
+from vyper.old_codegen.global_context import GlobalContext
+from vyper.old_codegen.lll_node import LLLnode
 from vyper.old_codegen.memory_allocator import MemoryAllocator
 from vyper.old_codegen.parser_utils import check_single_exit
-from vyper.utils import calc_mem_gas, MemoryPositions
+from vyper.utils import MemoryPositions, calc_mem_gas
 
 
 # Is a function the initializer?
@@ -30,8 +28,13 @@ def is_default_func(code: vy_ast.FunctionDef) -> bool:
     return code.name == "__default__"
 
 
-# def generate_lll_for_function(code: vy_ast.FunctionDef, sigs: Dict[str, FunctionSignature], global_ctx: GlobalContext, check_nonpayable: bool, _vars: Optional[Dict[str, VariableRecord]]) -> Tuple[LLLnode, int]:
-def generate_lll_for_function(code, sigs, global_ctx, check_nonpayable, _vars=None):
+def generate_lll_for_function(
+    code: vy_ast.FunctionDef,
+    sigs: Dict[str, Dict[str, FunctionSignature]],
+    global_ctx: GlobalContext,
+    check_nonpayable: bool,
+    _vars: Optional[Dict[str, VariableRecord]] = None,
+) -> Tuple[LLLnode, int, int]:
     """
     Parse a function and produce LLL code for the function, includes:
         - Signature method if statement

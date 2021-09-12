@@ -19,7 +19,6 @@ from vyper.exceptions import (
     VariableDeclarationException,
     VyperException,
 )
-
 # TODO consolidate some of these imports
 from vyper.semantics.environment import (
     CONSTANT_ENVIRONMENT_VARS,

@@ -24,7 +24,13 @@ from vyper.old_codegen.types import (
     get_size_of_type,
     is_base_type,
 )
-from vyper.utils import GAS_IDENTITY, GAS_IDENTITYWORD, GAS_CALLDATACOPY_WORD, GAS_CODECOPY_WORD, MemoryPositions
+from vyper.utils import (
+    GAS_CALLDATACOPY_WORD,
+    GAS_CODECOPY_WORD,
+    GAS_IDENTITY,
+    GAS_IDENTITYWORD,
+    MemoryPositions,
+)
 
 getcontext().prec = 78  # MAX_UINT256 < 1e78
 
@@ -105,14 +111,9 @@ def make_byte_array_copier(destination, source, pos=None):
             gas_bound = _calldatacopy_gas_bound(source.typ.maxlen)
         elif source.location == "code":
             copy_op = ["code", destination, "src", "sz"]
-            gas_bound = _code_copy_gas_bound(source.typ.maxlen)
+            gas_bound = _codecopy_gas_bound(source.typ.maxlen)
         o = LLLnode.from_list(
-            [
-                "with",
-                "src",
-                source,
-                ["with", "sz", [load_op(source.location), "src"], copy_op],
-            ],
+            ["with", "src", source, ["with", "sz", [load_op(source.location), "src"], copy_op]],
             typ=None,
             add_gas_estimate=gas_bound,
             annotation="copy bytestring to memory",

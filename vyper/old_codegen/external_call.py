@@ -1,3 +1,4 @@
+import vyper.utils as util
 from vyper import ast as vy_ast
 from vyper.exceptions import (
     StateAccessViolation,
@@ -7,8 +8,11 @@ from vyper.exceptions import (
 from vyper.old_codegen.abi import abi_encode, abi_type_of, lazy_abi_decode
 from vyper.old_codegen.lll_node import LLLnode
 from vyper.old_codegen.parser_utils import getpos, unwrap_location
-from vyper.old_codegen.types import TupleType, get_type_for_exact_size, canonicalize_type
-import vyper.utils as util
+from vyper.old_codegen.types import (
+    TupleType,
+    canonicalize_type,
+    get_type_for_exact_size,
+)
 
 
 def _pack_arguments(contract_sig, args, context, pos):
@@ -119,7 +123,9 @@ def _external_call_helper(
 
 # TODO push me up to expr.py
 def get_gas_and_value(stmt_expr, context):
-    from vyper.old_codegen.expr import Expr  # TODO rethink this circular import
+    from vyper.old_codegen.expr import (
+        Expr,  # TODO rethink this circular import
+    )
 
     value, gas = None, None
     for kw in stmt_expr.keywords:
@@ -133,7 +139,9 @@ def get_gas_and_value(stmt_expr, context):
 
 
 def lll_for_external_call(stmt_expr, context):
-    from vyper.old_codegen.expr import Expr  # TODO rethink this circular import
+    from vyper.old_codegen.expr import (
+        Expr,  # TODO rethink this circular import
+    )
 
     pos = getpos(stmt_expr)
     value, gas = get_gas_and_value(stmt_expr, context)

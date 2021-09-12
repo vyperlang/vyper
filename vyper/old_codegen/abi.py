@@ -1,5 +1,6 @@
-import vyper.semantics.types as vy
 import copy
+
+import vyper.semantics.types as vy
 from vyper.exceptions import CompilerPanic
 from vyper.old_codegen.lll_node import LLLnode
 from vyper.old_codegen.parser_utils import (

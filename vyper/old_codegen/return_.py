@@ -1,4 +1,5 @@
-from vyper import ast as vy_ast
+from typing import Any, Optional
+
 from vyper.old_codegen.abi import abi_encode, abi_type_of, lll_tuple_from_args
 from vyper.old_codegen.context import Context
 from vyper.old_codegen.lll_node import LLLnode
@@ -12,10 +13,12 @@ def _allocate_return_buffer(context: Context) -> int:
     return context.new_internal_variable(get_type_for_exact_size(maxlen))
 
 
-# Generate code for return stmt
-def make_return_stmt(lll_val: LLLnode, stmt, context: Context) -> LLLnode:
+Stmt = Any  # mypy kludge
 
-    func_type = stmt.get_ancestor(vy_ast.FunctionDef)._metadata["type"]
+
+# Generate code for return stmt
+def make_return_stmt(lll_val: LLLnode, stmt: Any, context: Context) -> Optional[LLLnode]:
+
     jump_to_exit = ["goto", context.sig.exit_sequence_label]
 
     _pos = getpos(stmt)

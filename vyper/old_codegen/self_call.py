@@ -1,5 +1,4 @@
 from vyper.exceptions import StateAccessViolation, StructureException
-from vyper.old_codegen.context import Context
 from vyper.old_codegen.lll_node import LLLnode, push_label_to_stack
 from vyper.old_codegen.parser_utils import getpos, make_setter
 from vyper.old_codegen.types import TupleType
@@ -14,8 +13,10 @@ def _generate_label(name: str) -> str:
     return f"label{_label_counter}"
 
 
-def lll_for_self_call(stmt_expr, context: Context) -> LLLnode:
-    from vyper.old_codegen.expr import Expr  # TODO rethink this circular import
+def lll_for_self_call(stmt_expr, context):
+    from vyper.old_codegen.expr import (
+        Expr,  # TODO rethink this circular import
+    )
 
     pos = getpos(stmt_expr)
 

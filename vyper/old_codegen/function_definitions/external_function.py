@@ -1,8 +1,10 @@
 from typing import Any, List
 
 import vyper.utils as util
-from vyper import ast as vy_ast
-from vyper.ast.signatures.function_signature import FunctionSignature, VariableRecord
+from vyper.ast.signatures.function_signature import (
+    FunctionSignature,
+    VariableRecord,
+)
 from vyper.old_codegen.abi import lazy_abi_decode
 from vyper.old_codegen.context import Context
 from vyper.old_codegen.expr import Expr
@@ -10,7 +12,7 @@ from vyper.old_codegen.function_definitions.utils import get_nonreentrant_lock
 from vyper.old_codegen.lll_node import LLLnode
 from vyper.old_codegen.parser_utils import getpos, make_setter
 from vyper.old_codegen.stmt import parse_body
-from vyper.old_codegen.types.types import ListType, TupleType, canonicalize_type
+from vyper.old_codegen.types.types import ListType, TupleType
 
 
 # register function args with the local calling context.
@@ -48,8 +50,8 @@ def _register_function_args(context: Context, sig: FunctionSignature) -> List[An
             # which doesn't work for `multi`, so instead copy them
             # to memory.
             # TODO nested lists are still broken!
-            dst = context.new_variable(arg.name, typ=arg.typ, is_mutable=False)
-            dst = LLLnode(dst, typ=arg.typ, location="memory")
+            dst_ofst = context.new_variable(arg.name, typ=arg.typ, is_mutable=False)
+            dst = LLLnode(dst_ofst, typ=arg.typ, location="memory")
             x = make_setter(dst, arg_lll, "memory", pos=getpos(arg.ast_source))
             ret.append(x)
         else:
@@ -85,7 +87,7 @@ def _generate_kwarg_handlers(context: Context, sig: FunctionSignature, pos: Any)
 
         assert calldata_args_lll.value == "multi"  # sanity check
         # extract just the kwargs from the ABI payload
-        calldata_kwargs_lll = calldata_args_lll.args[len(sig.base_args) :]
+        calldata_kwargs_lll = calldata_args_lll.args[len(sig.base_args) :]  # noqa: E203
 
         # a sequence of statements to strictify kwargs into memory
         ret = ["seq"]

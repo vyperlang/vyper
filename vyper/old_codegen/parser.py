@@ -1,4 +1,4 @@
-from typing import Any, List, Optional, Tuple
+from typing import Any, List, Optional, Tuple, Union
 
 from vyper import ast as vy_ast
 from vyper.ast.signatures.function_signature import FunctionSignature
@@ -209,7 +209,7 @@ def parse_tree_to_lll(global_ctx: GlobalContext) -> Tuple[LLLnode, LLLnode]:
     sigs: dict = {}
     external_interfaces: dict = {}
     # Create the main statement
-    o = ["seq"]
+    o: List[Union[str, LLLnode]] = ["seq"]
     if global_ctx._contracts or global_ctx._interfaces:
         external_interfaces = parse_external_interfaces(external_interfaces, global_ctx)
 

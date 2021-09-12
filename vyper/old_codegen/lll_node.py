@@ -52,7 +52,7 @@ class LLLnode:
         self,
         value: Union[str, int],
         args: List["LLLnode"] = None,
-        typ: "BaseType" = None,
+        typ: NodeType = None,
         location: str = None,
         pos: Optional[Tuple[int, int]] = None,
         annotation: Optional[str] = None,
@@ -335,7 +335,7 @@ class LLLnode:
     def from_list(
         cls,
         obj: Any,
-        typ: "BaseType" = None,
+        typ: NodeType = None,
         location: str = None,
         pos: Tuple[int, int] = None,
         annotation: Optional[str] = None,
