@@ -17,7 +17,7 @@ from vyper.old_codegen.function_definitions.internal_function import (
 )
 from vyper.old_codegen.memory_allocator import MemoryAllocator
 from vyper.old_codegen.parser_utils import check_single_exit
-from vyper.utils import calc_mem_gas
+from vyper.utils import calc_mem_gas, MemoryPositions
 
 
 # Is a function the initializer?
@@ -82,10 +82,13 @@ def generate_lll_for_function(code, sigs, global_ctx, check_nonpayable, _vars=No
         return o, context
 
     _, context = _run_pass(memory_allocator=None)
+
     allocate_start = context.max_callee_frame_size
+    allocate_start += MemoryPositions.RESERVED_MEMORY
+
     o, context = _run_pass(memory_allocator=MemoryAllocator(allocate_start))
 
-    frame_size = context.memory_allocator.size_of_mem
+    frame_size = context.memory_allocator.size_of_mem - MemoryPositions.RESERVED_MEMORY
 
     if not sig.internal:
         # frame_size of external function includes all private functions called
