@@ -525,7 +525,7 @@ def lazy_abi_decode(typ, src, clamp=True, pos=None):
         for t in ts:
             child_abi_t = abi_type_of(t)
             loc = _add_ofst(src, ofst)
-            # TODO optimize: special case where there is only one dynamic
+            # TODO optimize: special case for first dynamic
             # member, the location is statically known.
             if child_abi_t.is_dynamic():
                 # load the offset word, which is the
@@ -534,8 +534,10 @@ def lazy_abi_decode(typ, src, clamp=True, pos=None):
                 dyn_ofst = unwrap_location(loc)
                 loc = _add_ofst(src, dyn_ofst)
             os.append(lazy_abi_decode(t, loc, clamp=clamp, pos=pos))
+
             ofst += child_abi_t.embedded_static_size()
 
+        location = src.location
         ret = ["multi"] + os
 
     elif isinstance(typ, (BaseType, ByteArrayLike)):
@@ -544,7 +546,13 @@ def lazy_abi_decode(typ, src, clamp=True, pos=None):
             ret = ["with", x, unwrap_location(src), ["seq", clamp_basetype(x), x]]
         else:
             ret = unwrap_location(src)
+
+        if isinstance(typ, BaseType):
+            location = None  # unwrap_location returned a stack variable
+        else:
+            # the unwrapped value is itself a pointer to calldata/memory/code
+            location = src.location
     else:
         raise CompilerPanic(f"unknown type for lazy_abi_decode {typ}")
 
-    return LLLnode.from_list(ret, typ=typ, location=src.location, pos=pos)
+    return LLLnode.from_list(ret, typ=typ, location=location, pos=pos)
