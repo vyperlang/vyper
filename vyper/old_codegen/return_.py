@@ -19,7 +19,9 @@ Stmt = Any  # mypy kludge
 # Generate code for return stmt
 def make_return_stmt(lll_val: LLLnode, stmt: Any, context: Context) -> Optional[LLLnode]:
 
-    jump_to_exit = ["goto", context.sig.exit_sequence_label]
+    sig = context.sig
+
+    jump_to_exit = ["goto", sig.exit_sequence_label]
 
     _pos = getpos(stmt)
 
@@ -35,8 +37,9 @@ def make_return_stmt(lll_val: LLLnode, stmt: Any, context: Context) -> Optional[
     # helper function
     def finalize(fill_return_buffer):
         # do NOT bypass this. jump_to_exit may do important function cleanup.
+        fill_return_buffer = LLLnode.from_list(fill_return_buffer, annotation=f"fill return buffer {sig.mk_identifier}")
         return LLLnode.from_list(
-            ["seq_unchecked", fill_return_buffer, jump_to_exit], typ=None, pos=_pos, valency=0
+            ["seq_unchecked", fill_return_buffer, jump_to_exit], typ=None, pos=_pos,
         )
 
     if context.return_type is None:
