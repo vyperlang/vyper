@@ -301,6 +301,9 @@ def add_variable_offset(parent, key, pos, array_bounds_check=True):
         if parent.value is None:
             return LLLnode.from_list(None, typ=subtype)
 
+        if parent.value == "multi":
+            return parent.args[index]
+
         if location == "storage":
             # for arrays and structs, calculate the storage slot by adding an offset
             # of [index value being accessed] * [size of each item within the sequence]
