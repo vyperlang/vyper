@@ -54,6 +54,12 @@ def _base_entry_point(sig):
     return f"{sig.lll_identifier}_entry"
 
 
+def _annotated_method_id(abi_sig):
+    method_id = util.abi_method_id(abi_sig)
+    annotation = f"{hex(method_id)}: {abi_sig}"
+    return LLLnode(method_id, annotation=annotation)
+
+
 def _generate_kwarg_handlers(context: Context, sig: FunctionSignature, pos: Any) -> List[Any]:
     # generate kwarg handlers.
     # since they might come in thru calldata or be default,
@@ -66,7 +72,7 @@ def _generate_kwarg_handlers(context: Context, sig: FunctionSignature, pos: Any)
         calldata_args_t = TupleType(list(arg.typ for arg in calldata_args))
 
         abi_sig = sig.abi_signature_for_kwargs(calldata_kwargs)
-        method_id = LLLnode(util.abi_method_id(abi_sig), annotation=abi_sig)
+        method_id = _annotated_method_id(abi_sig)
 
         calldata_kwargs_ofst = LLLnode(
             4, location="calldata", typ=calldata_args_t, encoding=Encoding.ABI
@@ -171,7 +177,7 @@ def generate_lll_for_external_function(code, sig, context, check_nonpayable):
     if len(kwarg_handlers) == 0 and not sig.is_default_func and not sig.is_init_func:
         assert len(sig.default_args) == 0  # sanity check
         abi_sig = sig.base_signature
-        method_id = LLLnode(util.abi_method_id(abi_sig), annotation=abi_sig)
+        method_id = _annotated_method_id(abi_sig)
         ret = ["if", ["eq", "_calldata_method_id", method_id], ret]
 
     return LLLnode.from_list(ret, pos=getpos(code))
