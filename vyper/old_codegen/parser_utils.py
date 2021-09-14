@@ -310,7 +310,9 @@ def add_variable_offset(parent, key, pos, array_bounds_check=True):
             ofst_lll = _add_ofst(parent, unwrap_location(ofst_lll))
 
         x = LLLnode.from_list(["x"], typ=member_t, location=parent.location)
-        if isinstance(member_t, (BaseType, ByteArrayLike)) and clamp:
+
+        if clamp and _needs_clamp(member_t):
+            # special handling for args that need clamping
             ret = ["with", "x", ofst_lll, ["seq", clamp_basetype(x), x]]
         else:
             ret = ofst_lll
@@ -753,6 +755,14 @@ def _sar(x, bits):
     if version_check(begin="constantinople"):
         return ["sar", bits, x]
     return ["sdiv", x, ["exp", 2, bits]]
+
+
+def _needs_clamp(t):
+    if isinstance(t, ByteArrayLike):
+        return True
+    if isinstance(t, BaseType) and t.typ not in ("int256", "uint256", "bytes32"):
+        return True
+    return False
 
 
 # clampers for basetype
