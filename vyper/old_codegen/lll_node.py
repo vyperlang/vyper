@@ -368,8 +368,8 @@ class LLLnode:
                 obj.pos = pos
             if obj.location is None:
                 obj.location = location
-
-            obj.encoding = encoding
+            if obj.encoding is None:
+                obj.encoding = encoding
 
             return obj
         elif not isinstance(obj, list):
