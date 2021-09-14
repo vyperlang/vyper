@@ -27,6 +27,7 @@ def trace(n=5, out=sys.stderr):
         print(x.strip(), file=out)
     print("END TRACE", file=out)
 
+
 # converts a signature like Func(bool,uint256,address) to its 4 byte method ID
 # TODO replace manual calculations in codebase with this
 def abi_method_id(method_sig):

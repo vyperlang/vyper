@@ -42,7 +42,11 @@ def _register_function_args(context: Context, sig: FunctionSignature) -> List[An
 
         # register the record in the local namespace, no copy needed
         context.vars[arg.name] = VariableRecord(
-            name=arg.name, pos=arg_lll, typ=arg.typ, mutable=False, location=arg_lll.location,
+            name=arg.name,
+            pos=arg_lll,
+            typ=arg.typ,
+            mutable=False,
+            location=arg_lll.location,
             encoding=Encoding.ABI,
         )
 

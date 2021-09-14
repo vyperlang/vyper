@@ -288,6 +288,7 @@ def _add_ofst(loc, ofst):
         ret = ["add", loc, ofst]
     return LLLnode.from_list(ret, location=loc.location, encoding=loc.encoding)
 
+
 # Take a value representing a memory or storage location, and descend down to
 # an element or member variable
 # TODO refactor / streamline this code, especially the ABI decoding
@@ -648,7 +649,9 @@ def make_setter(left, right, location, pos):
                 if var_arg.location in ("calldata", "code"):
                     return
 
-            right_token = LLLnode.from_list("_R", typ=right.typ, location=right.location, encoding=right.encoding)
+            right_token = LLLnode.from_list(
+                "_R", typ=right.typ, location=right.location, encoding=right.encoding
+            )
             for left_arg, key, loc in zip(left.args, keyz, locations):
                 subs.append(
                     make_setter(
@@ -662,7 +665,9 @@ def make_setter(left, right, location, pos):
         # If the left side is a variable i.e struct type
         else:
             subs = []
-            right_token = LLLnode.from_list("_R", typ=right.typ, location=right.location, encoding=right.encoding)
+            right_token = LLLnode.from_list(
+                "_R", typ=right.typ, location=right.location, encoding=right.encoding
+            )
             for typ, loc in zip(keyz, locations):
                 subs.append(
                     make_setter(
