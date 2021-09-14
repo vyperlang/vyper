@@ -56,10 +56,8 @@ def generate_lll_for_internal_function(
     function_entry_label = sig.internal_function_label
     cleanup_label = sig.exit_sequence_label
 
-    # internal functions without return types need to jump back to the calling
-    # function, as there is no guarantee there is a user-provided return
-    # statement (which would generate the jump)
-    stop_func = [["jump", "pass"]]  # was passed in via stack
+    # jump to the label which was passed in via stack
+    stop_func = LLLnode.from_list(["jump", "pass"], annotation=f"jump to return address")
 
     enter = [["label", function_entry_label], nonreentrant_pre]
 
@@ -69,6 +67,6 @@ def generate_lll_for_internal_function(
         # name the variable that was passed via stack
         body = [["with", "return_buffer", "pass", ["seq"] + body]]
 
-    exit = [["label", cleanup_label]] + nonreentrant_post + stop_func
+    exit = [["label", cleanup_label]] + nonreentrant_post + [stop_func]
 
     return LLLnode.from_list(["seq"] + enter + body + exit, typ=None, pos=getpos(code),)
