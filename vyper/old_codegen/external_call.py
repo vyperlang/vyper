@@ -41,6 +41,7 @@ def _pack_arguments(contract_sig, args, context, pos):
     # (mstore buf (shl signature.method_id 224))
     mstore_method_id = [["mstore", buf, util.abi_method_id(abi_signature)]]
 
+    buf += 32
     encode_args = abi_encode(buf, args_as_tuple, pos)
 
     return mstore_method_id + [encode_args], args_ofst, args_len
