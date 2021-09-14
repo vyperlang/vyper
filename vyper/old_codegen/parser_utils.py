@@ -10,7 +10,7 @@ from vyper.exceptions import (
     TypeMismatch,
 )
 from vyper.old_codegen.arg_clamps import int128_clamp
-from vyper.old_codegen.lll_node import LLLnode
+from vyper.old_codegen.lll_node import LLLnode, Encoding
 from vyper.old_codegen.types import (
     BaseType,
     ByteArrayLike,
@@ -281,11 +281,47 @@ def getpos(node):
     )
 
 
+def _add_ofst(loc, ofst):
+    if isinstance(loc.value, int) and isinstance(ofst, int):
+        ret = loc.value + ofst
+    else:
+        ret = ["add", loc, ofst]
+    return LLLnode.from_list(ret, location=loc.location, encoding=loc.encoding)
+
 # Take a value representing a memory or storage location, and descend down to
 # an element or member variable
+# TODO refactor / streamline this code, especially the ABI decoding
 @type_check_wrapper
 def add_variable_offset(parent, key, pos, array_bounds_check=True):
+    # TODO rethink this circular import
+    from vyper.old_codegen.abi import abi_type_of
+
     typ, location = parent.typ, parent.location
+
+    def _abi_helper(member_t, ofst, clamp=True):
+        ofst_lll = _add_ofst(parent, ofst)
+
+        if member_abi_t.is_dynamic():
+            # double dereference, according to ABI spec
+            # TODO optimize special case: first dynamic item
+            # offset is statically known.
+            ofst_lll = _add_ofst(parent, unwrap_location(ofst_lll))
+
+        x = LLLnode.from_list(["x"], typ=member_t, location=parent.location)
+        if isinstance(member_t, (BaseType, ByteArrayLike)) and clamp:
+            ret = ["with", "x", ofst_lll, ["seq", clamp_basetype(x), x]]
+        else:
+            ret = ofst_lll
+
+        return LLLnode.from_list(
+            ret,
+            typ=member_t,
+            location=parent.location,
+            encoding=parent.encoding,
+            pos=pos,
+            # annotation=f"({parent.typ})[{key.typ}]",
+        )
+
     if isinstance(typ, TupleLike):
         if isinstance(typ, StructType):
             subtype = typ.members[key]
@@ -301,8 +337,25 @@ def add_variable_offset(parent, key, pos, array_bounds_check=True):
         if parent.value is None:
             return LLLnode.from_list(None, typ=subtype)
 
-        if parent.value == "multi":
-            return parent.args[index]
+        # TODO case for parent.value == multi?
+        # if parent.value == "multi"
+        #    return parent.args[index]
+
+        if parent.encoding == Encoding.ABI:
+            if parent.location == "storage":
+                raise CompilerPanic("storage variables should not be abi encoded")
+
+            parent_abi_t = abi_type_of(parent.typ)
+            member_t = typ.members[attrs[index]]
+            member_abi_t = abi_type_of(member_t)
+
+            ofst = 0  # offset from parent start
+
+            for i in range(index):
+                member_abi_t = abi_type_of(typ.members[attrs[i]])
+                ofst += member_abi_t.embedded_static_size()
+
+            return _abi_helper(member_t, ofst)
 
         if location == "storage":
             # for arrays and structs, calculate the storage slot by adding an offset
@@ -310,16 +363,72 @@ def add_variable_offset(parent, key, pos, array_bounds_check=True):
             offset = 0
             for i in range(index):
                 offset += get_size_of_type(typ.members[attrs[i]])
-            return LLLnode.from_list(["add", parent, offset], typ=subtype, location="storage",)
+            return LLLnode.from_list(
+                ["add", parent, offset], typ=subtype, location="storage", pos=pos,
+            )
+
         elif location in ("calldata", "memory", "code"):
             offset = 0
             for i in range(index):
                 offset += 32 * get_size_of_type(typ.members[attrs[i]])
             return LLLnode.from_list(
-                ["add", offset, parent],
+                _add_ofst(parent, offset),
                 typ=typ.members[key],
                 location=location,
                 annotation=annotation,
+                pos=pos,
+            )
+
+    elif isinstance(typ, ListType) and is_base_type(key.typ, ("int128", "int256", "uint256")):
+        subtype = typ.subtype
+
+        if parent.value is None:
+            return LLLnode.from_list(None, typ=subtype)
+
+        k = unwrap_location(key)
+        if not array_bounds_check:
+            sub = k
+        elif key.typ.is_literal:  # note: BaseType always has is_literal attr
+            # perform the check at compile time and elide the runtime check.
+            if key.value < 0 or key.value >= typ.count:
+                return
+            sub = k
+        else:
+            # this works, even for int128. for int128, since two's-complement
+            # is used, if the index is negative, (unsigned) LT will interpret
+            # it as a very large number, larger than any practical value for
+            # an array index, and the clamp will throw an error.
+            sub = ["uclamplt", k, typ.count]
+
+        if parent.encoding == Encoding.ABI:
+            if parent.location == "storage":
+                raise CompilerPanic("storage variables should not be abi encoded")
+
+            parent_abi_t = abi_type_of(typ)
+            member_t = typ.subtype
+            member_abi_t = abi_type_of(member_t)
+
+            if key.typ.is_literal:
+                # TODO this constant folding in LLL optimizer
+                ofst = k.value * member_abi_t.embedded_static_size()
+            else:
+                ofst = ["mul", k, member_abi_t.embedded_static_size()]
+
+            return _abi_helper(member_t, ofst)
+
+        if location == "storage":
+            # storage slot determined as [initial storage slot] + [index] * [size of base type]
+            offset = get_size_of_type(subtype)
+            return LLLnode.from_list(
+                ["add", parent, ["mul", sub, offset]], typ=subtype, location="storage", pos=pos
+            )
+        elif location in ("calldata", "memory", "code"):
+            if parent.encoding == "abi":
+                return LLLnode.from_list()
+
+            offset = 32 * get_size_of_type(subtype)
+            return LLLnode.from_list(
+                ["add", ["mul", offset, sub], parent], typ=subtype, location=location, pos=pos
             )
 
     elif isinstance(typ, MappingType):
@@ -353,39 +462,6 @@ def add_variable_offset(parent, key, pos, array_bounds_check=True):
 
         if sub is not None and location == "storage":
             return LLLnode.from_list(["sha3_64", parent, sub], typ=subtype, location="storage")
-
-    elif isinstance(typ, ListType) and is_base_type(key.typ, ("int128", "int256", "uint256")):
-        subtype = typ.subtype
-
-        if parent.value is None:
-            return LLLnode.from_list(None, typ=subtype)
-
-        k = unwrap_location(key)
-        if not array_bounds_check:
-            sub = k
-        elif key.typ.is_literal:  # note: BaseType always has is_literal attr
-            # perform the check at compile time and elide the runtime check.
-            if key.value < 0 or key.value >= typ.count:
-                return
-            sub = k
-        else:
-            # this works, even for int128. for int128, since two's-complement
-            # is used, if the index is negative, (unsigned) LT will interpret
-            # it as a very large number, larger than any practical value for
-            # an array index, and the clamp will throw an error.
-            sub = ["uclamplt", k, typ.count]
-
-        if location == "storage":
-            # storage slot determined as [initial storage slot] + [index] * [size of base type]
-            offset = get_size_of_type(subtype)
-            return LLLnode.from_list(
-                ["add", parent, ["mul", sub, offset]], typ=subtype, location="storage", pos=pos
-            )
-        elif location in ("calldata", "memory", "code"):
-            offset = 32 * get_size_of_type(subtype)
-            return LLLnode.from_list(
-                ["add", ["mul", offset, sub], parent], typ=subtype, location=location, pos=pos
-            )
 
 
 def load_op(location):
@@ -572,7 +648,7 @@ def make_setter(left, right, location, pos):
                 if var_arg.location in ("calldata", "code"):
                     return
 
-            right_token = LLLnode.from_list("_R", typ=right.typ, location=right.location)
+            right_token = LLLnode.from_list("_R", typ=right.typ, location=right.location, encoding=right.encoding)
             for left_arg, key, loc in zip(left.args, keyz, locations):
                 subs.append(
                     make_setter(
@@ -586,7 +662,7 @@ def make_setter(left, right, location, pos):
         # If the left side is a variable i.e struct type
         else:
             subs = []
-            right_token = LLLnode.from_list("_R", typ=right.typ, location=right.location)
+            right_token = LLLnode.from_list("_R", typ=right.typ, location=right.location, encoding=right.encoding)
             for typ, loc in zip(keyz, locations):
                 subs.append(
                     make_setter(
@@ -684,6 +760,7 @@ def clamp_basetype(lll_node):
     if isinstance(t, ByteArrayLike):
         return ["assert", ["le", get_bytearray_length(lll_node), t.maxlen]]
     if isinstance(t, BaseType):
+        lll_node = unwrap_location(lll_node)
         if t.typ in ("int128"):
             return int_clamp(lll_node, 128, signed=True)
         if t.typ in ("decimal"):

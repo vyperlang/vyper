@@ -37,7 +37,9 @@ def make_return_stmt(lll_val: LLLnode, stmt: Any, context: Context) -> Optional[
     # helper function
     def finalize(fill_return_buffer):
         # do NOT bypass this. jump_to_exit may do important function cleanup.
-        fill_return_buffer = LLLnode.from_list(fill_return_buffer, annotation=f"fill return buffer {sig.mk_identifier}")
+        fill_return_buffer = LLLnode.from_list(
+            fill_return_buffer, annotation=f"fill return buffer {sig.lll_identifier}"
+        )
         return LLLnode.from_list(
             ["seq_unchecked", fill_return_buffer, jump_to_exit], typ=None, pos=_pos,
         )

@@ -1,5 +1,6 @@
 import re
 from typing import Any, List, Optional, Tuple, Union
+from enum import Enum, auto
 
 from vyper.compiler.settings import VYPER_COLOR_OUTPUT
 from vyper.evm.opcodes import get_comb_opcodes
@@ -40,6 +41,14 @@ def push_label_to_stack(labelname: str) -> str:
     return "_sym_" + labelname
 
 
+class Encoding(Enum):
+    # vyper encoding, default for memory variables
+    VYPER = auto()
+    # abi encoded, default for args/return values from external funcs
+    ABI = auto()
+    # future: packed
+
+
 # Data structure for LLL parse tree
 class LLLnode:
     repr_show_gas = False
@@ -59,19 +68,22 @@ class LLLnode:
         mutable: bool = True,
         add_gas_estimate: int = 0,
         valency: Optional[int] = None,
+        encoding: Encoding = Encoding.VYPER,
     ):
         if args is None:
             args = []
 
         self.value = value
         self.args = args
+        # TODO remove this sanity check once mypy is more thorough
+        assert isinstance(typ, NodeType) or typ is None, repr(typ)
         self.typ = typ
-        assert isinstance(self.typ, NodeType) or self.typ is None, repr(self.typ)
         self.location = location
         self.pos = pos
         self.annotation = annotation
         self.mutable = mutable
         self.add_gas_estimate = add_gas_estimate
+        self.encoding = encoding
         self.as_hex = AS_HEX_DEFAULT
 
         # Optional annotation properties for gas estimation
@@ -342,6 +354,7 @@ class LLLnode:
         mutable: bool = True,
         add_gas_estimate: int = 0,
         valency: Optional[int] = None,
+        encoding: Encoding = Encoding.VYPER,
     ) -> "LLLnode":
         if isinstance(typ, str):
             typ = BaseType(typ)
@@ -355,6 +368,9 @@ class LLLnode:
                 obj.pos = pos
             if obj.location is None:
                 obj.location = location
+
+            obj.encoding = encoding
+
             return obj
         elif not isinstance(obj, list):
             return cls(
@@ -366,6 +382,8 @@ class LLLnode:
                 annotation=annotation,
                 mutable=mutable,
                 add_gas_estimate=add_gas_estimate,
+                valency=valency,
+                encoding=encoding,
             )
         else:
             return cls(
@@ -378,4 +396,5 @@ class LLLnode:
                 mutable=mutable,
                 add_gas_estimate=add_gas_estimate,
                 valency=valency,
+                encoding=encoding,
             )

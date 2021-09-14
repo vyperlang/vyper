@@ -5,6 +5,7 @@ from typing import List
 
 from vyper import ast as vy_ast
 from vyper.exceptions import StructureException
+from vyper.old_codegen.lll_node import Encoding
 from vyper.old_codegen.types import (
     NodeType,
     canonicalize_type,
@@ -24,7 +25,7 @@ class VariableRecord:
         pos,
         typ,
         mutable,
-        *,
+        encoding=Encoding.VYPER,
         location="memory",
         blockscopes=None,
         defined_at=None,
@@ -35,6 +36,7 @@ class VariableRecord:
         self.typ = typ
         self.mutable = mutable
         self.location = location
+        self.encoding = encoding
         self.blockscopes = [] if blockscopes is None else blockscopes
         self.defined_at = defined_at  # source code location variable record was defined.
         self.is_internal = is_internal
@@ -92,8 +94,8 @@ class FunctionSignature:
             return input_name + " -> " + str(self.return_type) + ":"
         return input_name + ":"
 
-    @property
-    def mk_identifier(self):
+    @cached_property
+    def lll_identifier(self) -> str:
         # we could do a bit better than this but it just needs to be unique
         visibility = "internal" if self.internal else "external"
         argz = ",".join([str(arg.typ) for arg in self.args])
@@ -102,37 +104,39 @@ class FunctionSignature:
             ret += " -> " + str(self.return_type)
         return mkalphanum(ret)
 
-    # calculate the abi signature for a given set of args
-    def abi_signature_for_args(self, args):
+    # calculate the abi signature for a given set of kwargs
+    def abi_signature_for_kwargs(self, kwargs):
+        args = self.base_args + kwargs
         return self.name + "(" + ",".join([canonicalize_type(arg.typ) for arg in args]) + ")"
 
     @cached_property
     def all_kwarg_sigs(self) -> List[str]:
         assert not self.internal, "abi_signatures only make sense for external functions"
         ret = []
-        argz = self.base_args.copy()
 
-        ret.append(self.abi_signature_for_args(argz))
+        kwargz = []
 
-        for arg in self.default_args:
-            argz.append(arg)
-            ret.append(self.abi_signature_for_args(argz))
+        ret.append(self.abi_signature_for_kwargs(kwargz))
+
+        for kwarg in self.default_args:
+            kwargz.append(kwarg)
+            ret.append(self.abi_signature_for_args(kwargz))
 
         return ret
 
     @property
     def base_signature(self):
-        return self.all_kwarg_sigs[0]
+        return self.abi_signature_for_kwargs([])
 
     @property
     def internal_function_label(self):
         assert self.internal, "why are you doing this"
 
-        return self.mk_identifier
+        return self.lll_identifier
 
     @property
     def exit_sequence_label(self):
-        return self.mk_identifier + "_cleanup"
+        return self.lll_identifier + "_cleanup"
 
     def set_default_args(self):
         """Split base from kwargs and set member data structures"""

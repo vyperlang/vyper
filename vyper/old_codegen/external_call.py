@@ -5,8 +5,8 @@ from vyper.exceptions import (
     StructureException,
     TypeCheckFailure,
 )
-from vyper.old_codegen.abi import abi_encode, abi_type_of, lazy_abi_decode
-from vyper.old_codegen.lll_node import LLLnode
+from vyper.old_codegen.abi import abi_encode, abi_type_of
+from vyper.old_codegen.lll_node import LLLnode, Encoding
 from vyper.old_codegen.parser_utils import getpos, unwrap_location
 from vyper.old_codegen.types import (
     TupleType,
@@ -66,9 +66,10 @@ def _unpack_returndata(contract_sig, context, pos):
         ret += [["assert", ["gt", "returndatasize", min_return_size - 1]]]
     # TODO assert returndatasize <= maxlen
 
-    # abi_decode has appropriate clampers for the individual members of the return type
-    buf = LLLnode(buf, location="memory")
-    ret += [lazy_abi_decode(return_t, buf, pos=pos)]
+    # ABI decoder has appropriate clampers for the individual members of the return type
+    # cf. add_variable_offset
+    buf = LLLnode(buf, location="memory", encoding=Encoding.ABI)
+    ret += [buf]
 
     return ret, ret_ofst, ret_len
 
@@ -123,9 +124,7 @@ def _external_call_helper(
 
 # TODO push me up to expr.py
 def get_gas_and_value(stmt_expr, context):
-    from vyper.old_codegen.expr import (
-        Expr,  # TODO rethink this circular import
-    )
+    from vyper.old_codegen.expr import Expr  # TODO rethink this circular import
 
     value, gas = None, None
     for kw in stmt_expr.keywords:
@@ -139,9 +138,7 @@ def get_gas_and_value(stmt_expr, context):
 
 
 def lll_for_external_call(stmt_expr, context):
-    from vyper.old_codegen.expr import (
-        Expr,  # TODO rethink this circular import
-    )
+    from vyper.old_codegen.expr import Expr  # TODO rethink this circular import
 
     pos = getpos(stmt_expr)
     value, gas = get_gas_and_value(stmt_expr, context)

@@ -1,6 +1,7 @@
 import binascii
 import functools
 from typing import Dict, List, Union
+import sys
 
 from vyper.exceptions import InvalidLiteral
 
@@ -18,6 +19,13 @@ except ImportError:
 def fourbytes_to_int(inp):
     return (inp[0] << 24) + (inp[1] << 16) + (inp[2] << 8) + inp[3]
 
+
+# utility function for debugging purposes
+def trace(n=5, out=sys.stderr):
+    print("BEGIN TRACE", file=out)
+    for x in list(traceback.format_stack)[-n:]:
+        print(x.strip(), file=out)
+    print("END TRACE", file=out)
 
 # converts a signature like Func(bool,uint256,address) to its 4 byte method ID
 # TODO replace manual calculations in codebase with this

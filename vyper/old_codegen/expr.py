@@ -298,6 +298,7 @@ class Expr:
                 var.pos,
                 typ=var.typ,
                 location=var.location,  # either 'memory' or 'calldata' storage is handled above.
+                encoding=var.encoding,
                 pos=getpos(self.expr),
                 annotation=self.expr.id,
                 mutable=var.mutable,
