@@ -80,7 +80,7 @@ def mk_full_signature_from_json(abi):
             decorator_list.append(vy_ast.Name(id="payable"))
 
         sig = FunctionSignature.from_definition(
-            code=vy_ast.FunctionDef(
+            func_ast=vy_ast.FunctionDef(
                 name=func["name"],
                 args=vy_ast.arguments(args=args),
                 decorator_list=decorator_list,

@@ -150,7 +150,7 @@ class FunctionSignature:
         self.default_args = self.args[num_base_args:]
 
         # Keep all the value to assign to default parameters.
-        self.default_values = dict(zip([arg.name for arg in self.default_args], args.defaults))
+        self.default_values = dict(zip([arg.name for arg in self.default_args], defaults))
 
     # Get a signature from a function definition
     @classmethod
