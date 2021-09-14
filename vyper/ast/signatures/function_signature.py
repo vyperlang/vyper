@@ -95,7 +95,7 @@ class FunctionSignature:
         return input_name + ":"
 
     @cached_property
-    def lll_identifier(self) -> str:
+    def _lll_identifier(self) -> str:
         # we could do a bit better than this but it just needs to be unique
         visibility = "internal" if self.internal else "external"
         argz = ",".join([str(arg.typ) for arg in self.args])
@@ -129,14 +129,21 @@ class FunctionSignature:
         return self.abi_signature_for_kwargs([])
 
     @property
+    # common entry point for external function with kwargs
+    def external_function_base_entry_label(self):
+        assert not self.internal
+
+        return self._lll_identifier + "_common"
+
+    @property
     def internal_function_label(self):
         assert self.internal, "why are you doing this"
 
-        return self.lll_identifier
+        return self._lll_identifier
 
     @property
     def exit_sequence_label(self):
-        return self.lll_identifier + "_cleanup"
+        return self._lll_identifier + "_cleanup"
 
     def set_default_args(self):
         """Split base from kwargs and set member data structures"""

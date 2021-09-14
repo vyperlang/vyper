@@ -53,11 +53,6 @@ def _register_function_args(context: Context, sig: FunctionSignature) -> List[An
     return ret
 
 
-# TODO move me to function_signature.py?
-def _base_entry_point(sig):
-    return f"{sig.lll_identifier}_entry"
-
-
 def _annotated_method_id(abi_sig):
     method_id = util.abi_method_id(abi_sig)
     annotation = f"{hex(method_id)}: {abi_sig}"
@@ -107,7 +102,7 @@ def _generate_kwarg_handlers(context: Context, sig: FunctionSignature, pos: Any)
             rhs = Expr(kw_ast_val, context).lll_node
             ret.append(make_setter(lhs, rhs, lhs_location, pos))
 
-        ret.append(["goto", _base_entry_point(sig)])
+        ret.append(["goto", sig.external_function_base_entry_label])
 
         ret = ["if", ["eq", "_calldata_method_id", method_id], ret]
         return ret
@@ -150,7 +145,7 @@ def generate_lll_for_external_function(code, sig, context, check_nonpayable):
 
     # once args have been handled
     if len(kwarg_handlers) > 0:
-        entrance += [["label", _base_entry_point(sig)]]
+        entrance += [["label", sig.external_function_base_entry_label]]
     else:
         # otherwise, the label is redundant since there is only
         # one control flow path into the external method
