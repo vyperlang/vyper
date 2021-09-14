@@ -300,6 +300,7 @@ def add_variable_offset(parent, key, pos, array_bounds_check=True):
     typ, location = parent.typ, parent.location
 
     def _abi_helper(member_t, ofst, clamp=True):
+        member_abi_t = abi_type_of(member_t)
         ofst_lll = _add_ofst(parent, ofst)
 
         if member_abi_t.is_dynamic():
@@ -348,7 +349,6 @@ def add_variable_offset(parent, key, pos, array_bounds_check=True):
 
             parent_abi_t = abi_type_of(parent.typ)
             member_t = typ.members[attrs[index]]
-            member_abi_t = abi_type_of(member_t)
 
             ofst = 0  # offset from parent start
 
@@ -424,9 +424,6 @@ def add_variable_offset(parent, key, pos, array_bounds_check=True):
                 ["add", parent, ["mul", sub, offset]], typ=subtype, location="storage", pos=pos
             )
         elif location in ("calldata", "memory", "code"):
-            if parent.encoding == "abi":
-                return LLLnode.from_list()
-
             offset = 32 * get_size_of_type(subtype)
             return LLLnode.from_list(
                 ["add", ["mul", offset, sub], parent], typ=subtype, location=location, pos=pos
