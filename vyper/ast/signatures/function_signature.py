@@ -100,8 +100,6 @@ class FunctionSignature:
         visibility = "internal" if self.internal else "external"
         argz = ",".join([str(arg.typ) for arg in self.args])
         ret = f"{visibility} {self.name} ({argz})"
-        if self.return_type:
-            ret += " -> " + str(self.return_type)
         return mkalphanum(ret)
 
     # calculate the abi signature for a given set of kwargs
