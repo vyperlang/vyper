@@ -622,11 +622,15 @@ def assembly_to_evm(assembly, start_pos=0):
 
         if item == "JUMP":
             last = assembly[i - 1]
-            if last == "MLOAD":
-                line_number_map["pc_jump_map"][pos] = "o"
-            elif is_symbol(last) and "_priv_" in last:
-                line_number_map["pc_jump_map"][pos] = "i"
+            if is_symbol(last) and last.startswith("_sym_internal"):
+                if last.endswith("cleanup"):
+                    # exit an internal function
+                    line_number_map["pc_jump_map"][pos] = "o"
+                else:
+                    # enter an internal function
+                    line_number_map["pc_jump_map"][pos] = "i"
             else:
+                # everything else
                 line_number_map["pc_jump_map"][pos] = "-"
         elif item in ("JUMPI", "JUMPDEST"):
             line_number_map["pc_jump_map"][pos] = "-"
