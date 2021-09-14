@@ -136,7 +136,7 @@ def generate_lll_for_external_function(code, sig, context, check_nonpayable):
 
     kwarg_handlers = _generate_kwarg_handlers(context, sig, pos)
 
-    entrance = [base_arg_handlers]
+    entrance = []
 
     # once args have been handled
     if len(kwarg_handlers) > 0:
@@ -145,6 +145,8 @@ def generate_lll_for_external_function(code, sig, context, check_nonpayable):
         # otherwise, the label is redundant since there is only
         # one control flow path into the external method
         pass
+
+    entrance += base_arg_handlers
 
     if check_nonpayable and sig.mutability != "payable":
         # if the contract contains payable functions, but this is not one of them
