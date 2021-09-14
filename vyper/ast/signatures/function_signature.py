@@ -124,7 +124,7 @@ class FunctionSignature:
 
         return ret
 
-    @property
+    @cached_property
     def base_signature(self):
         return self.abi_signature_for_kwargs([])
 

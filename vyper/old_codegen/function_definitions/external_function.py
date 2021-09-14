@@ -37,8 +37,8 @@ def _register_function_args(context: Context, sig: FunctionSignature) -> List[An
         base_args_ofst = LLLnode(4, location="calldata", typ=base_args_t, encoding=Encoding.ABI)
 
     for i, arg in enumerate(sig.base_args):
-        # assert arg.typ == arg_lll.typ, (arg.typ, arg_lll.typ)
         arg_lll = add_variable_offset(base_args_ofst, i, pos=None, array_bounds_check=False)
+        assert arg.typ == arg_lll.typ, (arg.typ, arg_lll.typ)
 
         # register the record in the local namespace, no copy needed
         context.vars[arg.name] = VariableRecord(
@@ -66,7 +66,7 @@ def _generate_kwarg_handlers(context: Context, sig: FunctionSignature, pos: Any)
         calldata_args_t = TupleType(list(arg.typ for arg in calldata_args))
 
         abi_sig = sig.abi_signature_for_kwargs(calldata_kwargs)
-        method_id = util.abi_method_id(abi_sig)
+        method_id = LLLnode(util.abi_method_id(abi_sig), annotation=abi_sig)
 
         calldata_kwargs_ofst = LLLnode(
             4, location="calldata", typ=calldata_args_t, encoding=Encoding.ABI
@@ -102,7 +102,7 @@ def _generate_kwarg_handlers(context: Context, sig: FunctionSignature, pos: Any)
         ret = ["if", ["eq", "_calldata_method_id", method_id], ret]
         return ret
 
-    ret = ["seq"]
+    ret = []
 
     keyword_args = sig.default_args
 
@@ -139,7 +139,7 @@ def generate_lll_for_external_function(code, sig, context, check_nonpayable):
     entrance = [base_arg_handlers]
 
     # once args have been handled
-    if len(kwarg_handlers) > 1:
+    if len(kwarg_handlers) > 0:
         entrance += [["label", _base_entry_point(sig)]]
     else:
         # otherwise, the label is redundant since there is only
@@ -164,11 +164,10 @@ def generate_lll_for_external_function(code, sig, context, check_nonpayable):
 
     ret = ["seq"] + kwarg_handlers + entrance + body + exit
 
-    # TODO special handling for default function
-    if len(kwarg_handlers) == 0:
-        _sigs = sig.all_kwarg_sigs
-        assert len(_sigs) == 1
-        _method_id = util.abi_method_id(_sigs[0])
-        ret = ["if", ["eq", "_calldata_method_id", _method_id], ret]
+    if len(kwarg_handlers) == 0 and not sig.is_default_func and not sig.is_init_func:
+        assert len(sig.default_args) == 0  # sanity check
+        abi_sig = sig.base_signature
+        method_id = LLLnode(util.abi_method_id(abi_sig), annotation=abi_sig)
+        ret = ["if", ["eq", "_calldata_method_id", method_id], ret]
 
     return LLLnode.from_list(ret, pos=getpos(code))
