@@ -63,10 +63,6 @@ def generate_lll_for_internal_function(
 
     body = [parse_body(c, context) for c in code.body]
 
-    if sig.return_type is not None:
-        # name the variable that was passed via stack
-        body = [["with", "return_buffer", "pass", ["seq"] + body]]
-
     exit = [["label", cleanup_label]] + nonreentrant_post + [stop_func]
 
     return LLLnode.from_list(["seq"] + enter + body + exit, typ=None, pos=getpos(code),)
