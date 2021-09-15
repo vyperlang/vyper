@@ -414,10 +414,18 @@ def abi_encode(dst, lll_node, pos=None, bufsz=None, returns_len=False):
         return LLLnode.from_list(lll_ret, pos=pos, annotation=f"abi_encode {lll_node.typ}")
 
     lll_ret = ["seq"]
+
+    # contains some computation, we need to only do it once.
+    is_complex_lll = lll_node.value in ("seq", "seq_unchecked")
+    if is_complex_lll:
+        to_encode = LLLnode.from_list("to_encode", typ=lll_node.typ, location=lll_node.location, encoding=lll_node.encoding)
+    else:
+        to_encode = lll_node
+
     dyn_ofst = "dyn_ofst"  # current offset in the dynamic section
     dst_begin = "dst"  # pointer to beginning of buffer
     dst_loc = "dst_loc"  # pointer to write location in static section
-    os = o_list(lll_node, pos=pos)
+    os = o_list(to_encode, pos=pos)
 
     for i, o in enumerate(os):
         abi_t = abi_type_of(o.typ)
@@ -476,6 +484,9 @@ def abi_encode(dst, lll_node, pos=None, bufsz=None, returns_len=False):
         lll_ret = ["with", "dyn_ofst", dyn_section_start, lll_ret]
 
     lll_ret = ["with", dst_begin, dst, ["with", dst_loc, dst_begin, lll_ret]]
+
+    if is_complex_lll:
+        lll_ret = ["with", to_encode, lll_node, lll_ret]
 
     return LLLnode.from_list(lll_ret, pos=pos, annotation=f"abi_encode {lll_node.typ}")
 

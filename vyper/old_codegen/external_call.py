@@ -73,7 +73,7 @@ def _unpack_returndata(buf, contract_sig, context, pos):
     # TODO assert returndatasize <= maxlen
 
     # ABI decoder has appropriate clampers for the individual members of the return type
-    buf = LLLnode(buf, location="memory", )
+    #buf = LLLnode(buf, location="memory", encoding=Encoding.ABI)
     ret += [buf]
 
     return ret, ret_ofst, ret_len
@@ -124,7 +124,7 @@ def _external_call_helper(
     if contract_sig.return_type is not None:
         sub += ret_unpacker
 
-    return LLLnode.from_list(sub, typ=contract_sig.return_type, location="memory", pos=pos)
+    return LLLnode.from_list(sub, typ=contract_sig.return_type, location="memory", encoding=Encoding.ABI, pos=pos)
 
 
 # TODO push me up to expr.py

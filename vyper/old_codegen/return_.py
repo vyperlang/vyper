@@ -59,8 +59,6 @@ def make_return_stmt(lll_val: LLLnode, stmt: Any, context: Context) -> Optional[
         return finalize(fill_return_buffer)
 
     # we are in an external function.
-
-    return_buffer_ofst = _allocate_return_buffer(context)
     # abi-encode the data into the return buffer and jump to the function cleanup code
 
     # according to the ABI spec, return types are ALWAYS tuples even
@@ -84,6 +82,7 @@ def make_return_stmt(lll_val: LLLnode, stmt: Any, context: Context) -> Optional[
         # (Sorry this is so confusing. I didn't make these rules.)
         lll_val = lll_tuple_from_args([lll_val])
 
+    return_buffer_ofst = _allocate_return_buffer(context)
     # encode_out is cleverly a sequence which does the abi-encoding and
     # also returns the length of the output as a stack element
     encode_out = abi_encode(return_buffer_ofst, lll_val, pos=_pos, returns_len=True)

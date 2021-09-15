@@ -341,9 +341,8 @@ def add_variable_offset(parent, key, pos, array_bounds_check=True):
         if parent.value is None:
             return LLLnode.from_list(None, typ=subtype)
 
-        # TODO case for parent.value == multi?
-        # if parent.value == "multi"
-        #    return parent.args[index]
+        if parent.value == "multi":
+            return parent.args[index]
 
         if parent.encoding == Encoding.ABI:
             if parent.location == "storage":
