@@ -75,6 +75,7 @@ class Stmt:
 
         variable_loc = LLLnode.from_list(pos, typ=typ, location="memory", pos=getpos(self.stmt),)
         lll_node = make_setter(variable_loc, sub, "memory", pos=getpos(self.stmt))
+        lll_node.annotation = self.stmt.get("node_source_code")
 
         return lll_node
 
@@ -84,6 +85,7 @@ class Stmt:
         target = self._get_target(self.stmt.target)
         lll_node = make_setter(target, sub, target.location, pos=getpos(self.stmt))
         lll_node.pos = getpos(self.stmt)
+        lll_node.annotation = self.stmt.get("node_source_code")
         return lll_node
 
     def parse_If(self):

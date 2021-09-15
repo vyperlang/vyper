@@ -189,6 +189,8 @@ def lll_for_external_call(stmt_expr, context):
     method_name = stmt_expr.func.attr
     contract_sig = context.sigs[contract_name][method_name]
 
-    return _external_call_helper(
+    ret = _external_call_helper(
         contract_address, contract_sig, args_lll, context, pos, value=value, gas=gas,
     )
+    ret.annotation = stmt_expr.get("node_source_code")
+    return ret

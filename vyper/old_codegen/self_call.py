@@ -80,7 +80,7 @@ def lll_for_self_call(stmt_expr, context):
         typ=sig.return_type,
         location="memory",
         pos=pos,
-        annotation=f"Internal Call: {method_name}",
+        annotation=stmt_expr.get("node_source_code"),
         add_gas_estimate=sig.gas,
     )
     return o
