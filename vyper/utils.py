@@ -2,6 +2,7 @@ import binascii
 import functools
 from typing import Dict, List, Union
 import sys
+import traceback
 
 from vyper.exceptions import InvalidLiteral
 
@@ -23,7 +24,7 @@ def fourbytes_to_int(inp):
 # utility function for debugging purposes
 def trace(n=5, out=sys.stderr):
     print("BEGIN TRACE", file=out)
-    for x in list(traceback.format_stack)[-n:]:
+    for x in list(traceback.format_stack())[-n:]:
         print(x.strip(), file=out)
     print("END TRACE", file=out)
 
