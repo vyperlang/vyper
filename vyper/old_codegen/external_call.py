@@ -53,7 +53,7 @@ def _unpack_returndata(contract_sig, context, pos):
         return ["pass"], 0, 0
 
     abi_return_t = abi_type_of(return_t)
-    min_return_size = abi_return_t.static_size()
+    min_return_size = abi_return_t.min_size()
     maxlen = abi_return_t.size_bound()
 
     buf_t = get_type_for_exact_size(maxlen)
