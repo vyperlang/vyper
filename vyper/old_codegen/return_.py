@@ -1,9 +1,9 @@
 from typing import Any, Optional
 
-from vyper.old_codegen.abi import abi_encode, abi_type_of, lll_tuple_from_args
+from vyper.old_codegen.abi import abi_encode, abi_type_of
 from vyper.old_codegen.context import Context
 from vyper.old_codegen.lll_node import LLLnode
-from vyper.old_codegen.parser_utils import getpos, make_setter
+from vyper.old_codegen.parser_utils import getpos, make_setter, set_type_for_external_return
 from vyper.old_codegen.types import TupleType, get_type_for_exact_size
 from vyper.old_codegen.types.check import check_assign
 
@@ -58,29 +58,7 @@ def make_return_stmt(lll_val: LLLnode, stmt: Any, context: Context) -> Optional[
 
         return finalize(fill_return_buffer)
 
-    # we are in an external function.
-    # abi-encode the data into the return buffer and jump to the function cleanup code
-
-    # according to the ABI spec, return types are ALWAYS tuples even
-    # if only one element is being returned.
-    # https://solidity.readthedocs.io/en/latest/abi-spec.html#function-selector-and-argument-encoding
-    # "and the return values v_1, ..., v_k of f are encoded as
-    #
-    #    enc((v_1, ..., v_k))
-    #    i.e. the values are combined into a tuple and encoded.
-    # "
-    # therefore, wrap it in a tuple if it's not already a tuple.
-    # for example, `bytes` is returned as abi-encoded (bytes,)
-    # and `(bytes,)` is returned as abi-encoded ((bytes,),)
-
-    if isinstance(lll_val.typ, TupleType) and len(lll_val.typ.members) > 1:
-        # returning something like (int, bytes, string)
-        pass
-    else:
-        # `-> (bytes,)` gets returned as ((bytes,),)
-        # In general `-> X` gets returned as (X,)
-        # (Sorry this is so confusing. I didn't make these rules.)
-        lll_val = lll_tuple_from_args([lll_val])
+    set_type_for_external_return(lll_val)
 
     return_buffer_ofst = _allocate_return_buffer(context)
     # encode_out is cleverly a sequence which does the abi-encoding and

@@ -26,7 +26,6 @@ from vyper.old_codegen.abi import (
     abi_encode,
     abi_type_of,
     abi_type_of2,
-    lll_tuple_from_args,
 )
 from vyper.old_codegen.arg_clamps import int128_clamp
 from vyper.old_codegen.expr import Expr
@@ -36,6 +35,7 @@ from vyper.old_codegen.parser_utils import (
     add_variable_offset,
     get_bytearray_length,
     getpos,
+    lll_tuple_from_args,
     make_byte_array_copier,
     make_byte_slice_copier,
     unwrap_location,

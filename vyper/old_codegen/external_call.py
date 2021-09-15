@@ -7,7 +7,7 @@ from vyper.exceptions import (
 )
 from vyper.old_codegen.abi import abi_encode, abi_type_of
 from vyper.old_codegen.lll_node import LLLnode, Encoding
-from vyper.old_codegen.parser_utils import getpos, unwrap_location
+from vyper.old_codegen.parser_utils import getpos, unwrap_location, set_type_for_external_return
 from vyper.old_codegen.types import (
     TupleType,
     canonicalize_type,
@@ -45,8 +45,7 @@ def _pack_arguments(contract_sig, args, context, pos):
     # (mstore buf (shl signature.method_id 224))
     mstore_method_id = [["mstore", buf, util.abi_method_id(abi_signature)]]
 
-    #if len(args) == 0:
-    if False:
+    if len(args) == 0:
         encode_args = ["pass"]
     else:
         encode_args = abi_encode(buf + 32, args_as_tuple, pos)
@@ -124,7 +123,11 @@ def _external_call_helper(
     if contract_sig.return_type is not None:
         sub += ret_unpacker
 
-    return LLLnode.from_list(sub, typ=contract_sig.return_type, location="memory", encoding=Encoding.ABI, pos=pos)
+    ret = LLLnode.from_list(sub, typ=contract_sig.return_type, location="memory", encoding=Encoding.ABI, pos=pos)
+    # the return type has been wrapped by the calling contract; set the type so that
+    # we unwrap it correctly when it comes to abi decoding time.
+    set_type_for_external_return(ret)
+    return ret
 
 
 # TODO push me up to expr.py
@@ -193,4 +196,8 @@ def lll_for_external_call(stmt_expr, context):
         contract_address, contract_sig, args_lll, context, pos, value=value, gas=gas,
     )
     ret.annotation = stmt_expr.get("node_source_code")
+
+    # kludge: to let upstream code know to use abi.wrap_value_for_return
+    # TODO: assign/ann_assign just pass in the buffer
+    ret.is_external_call_returndata = True
     return ret

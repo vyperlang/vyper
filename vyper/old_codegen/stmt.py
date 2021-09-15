@@ -11,6 +11,7 @@ from vyper.old_codegen.parser_utils import (
     make_setter,
     unwrap_location,
 )
+import vyper.old_codegen.abi as abi
 from vyper.old_codegen.return_ import make_return_stmt
 from vyper.old_codegen.types import (
     BaseType,
@@ -74,6 +75,7 @@ class Stmt:
             )
 
         variable_loc = LLLnode.from_list(pos, typ=typ, location="memory", pos=getpos(self.stmt),)
+
         lll_node = make_setter(variable_loc, sub, "memory", pos=getpos(self.stmt))
         lll_node.annotation = self.stmt.get("node_source_code")
 
@@ -83,6 +85,7 @@ class Stmt:
         # Assignment (e.g. x[4] = y)
         sub = Expr(self.stmt.value, self.context).lll_node
         target = self._get_target(self.stmt.target)
+
         lll_node = make_setter(target, sub, target.location, pos=getpos(self.stmt))
         lll_node.pos = getpos(self.stmt)
         lll_node.annotation = self.stmt.get("node_source_code")

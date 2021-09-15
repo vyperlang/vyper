@@ -313,12 +313,6 @@ def abi_type_of(lll_typ):
         raise CompilerPanic(f"Unrecognized type {lll_typ}")
 
 
-# utility function, constructs an LLL tuple out of a list of LLL nodes
-def lll_tuple_from_args(args):
-    typ = TupleType([x.typ for x in args])
-    return LLLnode.from_list(["multi"] + [x for x in args], typ=typ)
-
-
 # the new type system
 # TODO consider moving these into properties of the type itself
 def abi_type_of2(t: vy.BasePrimitive) -> ABIType:
@@ -408,7 +402,7 @@ def abi_encode(dst, lll_node, pos=None, bufsz=None, returns_len=False):
     if not parent_abi_t.is_dynamic():
         # cast the output buffer to something that make_setter accepts
         dst = LLLnode(dst, typ=lll_node.typ, location="memory")
-        lll_ret = ["seq_unchecked", make_setter(dst, lll_node, "memory", pos)]
+        lll_ret = make_setter(dst, lll_node, "memory", pos)
         if returns_len:
             lll_ret.append(parent_abi_t.embedded_static_size())
         return LLLnode.from_list(lll_ret, pos=pos, annotation=f"abi_encode {lll_node.typ}")

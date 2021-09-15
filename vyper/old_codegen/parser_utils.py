@@ -1,4 +1,5 @@
 from decimal import Decimal, getcontext
+import copy
 
 from vyper import ast as vy_ast
 from vyper.evm.opcodes import version_check
@@ -39,7 +40,7 @@ def type_check_wrapper(fn):
     def _wrapped(*args, **kwargs):
         return_value = fn(*args, **kwargs)
         if return_value is None:
-            raise TypeCheckFailure(f"{fn.__name__} did not return a value")
+            raise TypeCheckFailure(f"{fn.__name__} {args} did not return a value")
         return return_value
 
     return _wrapped
@@ -500,9 +501,46 @@ def _make_array_index_setter(target, target_token, pos, location, offset):
         )
 
 
+# utility function, constructs an LLL tuple out of a list of LLL nodes
+def lll_tuple_from_args(args):
+    typ = TupleType([x.typ for x in args])
+    return LLLnode.from_list(["multi"] + [x for x in args], typ=typ)
+
+
+def set_type_for_external_return(lll_val):
+    # for calls to ABI conforming contracts.
+    # according to the ABI spec, return types are ALWAYS tuples even
+    # if only one element is being returned.
+    # https://solidity.readthedocs.io/en/latest/abi-spec.html#function-selector-and-argument-encoding
+    # "and the return values v_1, ..., v_k of f are encoded as
+    #
+    #    enc((v_1, ..., v_k))
+    #    i.e. the values are combined into a tuple and encoded.
+    # "
+    # therefore, wrap it in a tuple if it's not already a tuple.
+    # for example, `bytes` is returned as abi-encoded (bytes,)
+    # and `(bytes,)` is returned as abi-encoded ((bytes,),)
+    # similarly, MyStruct is returned as abi-encoded (MyStruct,).
+
+    t = lll_val.typ
+    if isinstance(t, TupleType) and len(t.members) > 1:
+        return
+    else:
+        # `-> (bytes,)` gets returned as ((bytes,),)
+        # In general `-> X` gets returned as (X,)
+        # (Sorry this is so confusing. I didn't make these rules.)
+        lll_val.typ = TupleType([t])
+
+
 # Create an x=y statement, where the types may be compound
 @type_check_wrapper
 def make_setter(left, right, location, pos):
+    if getattr(right, "is_external_call_returndata", False):
+        # the rhs is the result of some external call
+        # set the type so that type checking works
+        left = copy.copy(left)
+        set_type_for_external_return(left)
+
     # Basic types
     if isinstance(left.typ, BaseType):
         right = unwrap_location(right)
@@ -596,7 +634,7 @@ def make_setter(left, right, location, pos):
         left_token = LLLnode.from_list("_L", typ=left.typ, location=left.location)
         keyz = left.typ.tuple_keys()
 
-        # If the left side is a literal
+        # If the left side is complex
         if left.value == "multi":
             locations = [arg.location for arg in left.args]
         else:
@@ -606,6 +644,8 @@ def make_setter(left, right, location, pos):
         if right.value == "multi":
             if len(right.args) != len(keyz):
                 return
+            if left.value == "multi":
+                left_token = left
             # get the RHS arguments into a dict because
             # they are not guaranteed to be in the same order
             # the LHS keys.
@@ -640,8 +680,8 @@ def make_setter(left, right, location, pos):
                     )
                 )
             return LLLnode.from_list(["with", "_L", left, ["seq"] + subs], typ=None)
-        # If tuple assign.
-        elif isinstance(left.typ, TupleType) and isinstance(right.typ, TupleType):
+        # literal tuple assign.
+        elif isinstance(left.typ, TupleType) and left.value == "multi" and isinstance(right.typ, TupleType):
             subs = []
             for var_arg in left.args:
                 if var_arg.location in ("calldata", "code"):
@@ -657,10 +697,8 @@ def make_setter(left, right, location, pos):
                     )
                 )
 
-            return LLLnode.from_list(
-                ["with", "_R", right, ["seq"] + subs], typ=None, annotation="Tuple assignment",
-            )
-        # If the left side is a variable i.e struct type
+            return LLLnode.from_list(["with", "_R", right, ["seq"] + subs], typ=None)
+        # general case
         else:
             subs = []
             right_token = LLLnode.from_list(

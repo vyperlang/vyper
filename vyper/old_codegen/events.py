@@ -6,12 +6,11 @@ from vyper.old_codegen.abi import (
     abi_encode,
     abi_type_of,
     abi_type_of2,
-    lll_tuple_from_args,
 )
 from vyper.old_codegen.context import Context
 from vyper.old_codegen.keccak256_helper import keccak256_helper
 from vyper.old_codegen.lll_node import LLLnode
-from vyper.old_codegen.parser_utils import getpos, unwrap_location
+from vyper.old_codegen.parser_utils import getpos, unwrap_location, lll_tuple_from_args
 from vyper.old_codegen.types.types import (
     BaseType,
     ByteArrayLike,
