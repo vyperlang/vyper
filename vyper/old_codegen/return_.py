@@ -31,7 +31,7 @@ def make_return_stmt(lll_val: LLLnode, stmt: Any, context: Context) -> Optional[
 
     else:
         # sanity typecheck
-        _tmp = LLLnode(-1, location="memory", typ=context.return_type)
+        _tmp = LLLnode("fake node", location="memory", typ=context.return_type)
         check_assign(_tmp, lll_val, _pos)
 
     # helper function
@@ -58,12 +58,14 @@ def make_return_stmt(lll_val: LLLnode, stmt: Any, context: Context) -> Optional[
 
         return finalize(fill_return_buffer)
 
-    set_type_for_external_return(lll_val)
+    else:
+        # return from external function
+        set_type_for_external_return(lll_val)
 
-    return_buffer_ofst = _allocate_return_buffer(context)
-    # encode_out is cleverly a sequence which does the abi-encoding and
-    # also returns the length of the output as a stack element
-    encode_out = abi_encode(return_buffer_ofst, lll_val, pos=_pos, returns_len=True)
+        return_buffer_ofst = _allocate_return_buffer(context)
+        # encode_out is cleverly a sequence which does the abi-encoding and
+        # also returns the length of the output as a stack element
+        encode_out = abi_encode(return_buffer_ofst, lll_val, pos=_pos, returns_len=True)
 
-    # fill the return buffer and push the location and length onto the stack
-    return finalize(["seq_unchecked", encode_out, return_buffer_ofst])
+        # fill the return buffer and push the location and length onto the stack
+        return finalize(["seq_unchecked", encode_out, return_buffer_ofst])
