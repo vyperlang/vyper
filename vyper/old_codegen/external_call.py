@@ -21,14 +21,18 @@ def _pack_arguments(contract_sig, args, context, pos):
     args_as_tuple = LLLnode.from_list(["multi"] + [x for x in args], typ=args_tuple_t)
     args_abi_t = abi_type_of(args_tuple_t)
 
-    maxlen = args_abi_t.size_bound()
-    maxlen += 32  # padding for the method id
+    return_abi_t = abi_type_of(contract_sig.return_type)
 
-    buf_t = get_type_for_exact_size(maxlen)
+    # we use the same buffer for args and returndata,
+    # so allocate enough space here for the returndata too.
+    buflen = max(args_abi_t.size_bound(), return_abi_t.size_bound())
+    buflen += 32  # padding for the method id
+
+    buf_t = get_type_for_exact_size(buflen)
     buf = context.new_internal_variable(buf_t)
 
     args_ofst = buf + 28
-    args_len = maxlen - 28
+    args_len = args_abi_t.size_bound() + 4
 
     abi_signature = contract_sig.name + canonicalize_type(args_tuple_t)
 
@@ -41,25 +45,26 @@ def _pack_arguments(contract_sig, args, context, pos):
     # (mstore buf (shl signature.method_id 224))
     mstore_method_id = [["mstore", buf, util.abi_method_id(abi_signature)]]
 
-    buf += 32
-    encode_args = abi_encode(buf, args_as_tuple, pos)
+    #if len(args) == 0:
+    if False:
+        encode_args = ["pass"]
+    else:
+        encode_args = abi_encode(buf + 32, args_as_tuple, pos)
 
-    return mstore_method_id + [encode_args], args_ofst, args_len
+    return buf, mstore_method_id + [encode_args], args_ofst, args_len
 
 
-def _unpack_returndata(contract_sig, context, pos):
+def _unpack_returndata(buf, contract_sig, context, pos):
     return_t = contract_sig.return_type
     if return_t is None:
         return ["pass"], 0, 0
 
     abi_return_t = abi_type_of(return_t)
-    min_return_size = abi_return_t.min_size()
-    maxlen = abi_return_t.size_bound()
 
-    buf_t = get_type_for_exact_size(maxlen)
-    buf = context.new_internal_variable(buf_t)
     ret_ofst = buf
-    ret_len = maxlen
+    ret_len = abi_return_t.size_bound()
+
+    min_return_size = abi_return_t.min_size()
 
     # when return data is expected, revert when the length of `returndatasize` is insufficient
     ret = []
@@ -68,8 +73,7 @@ def _unpack_returndata(contract_sig, context, pos):
     # TODO assert returndatasize <= maxlen
 
     # ABI decoder has appropriate clampers for the individual members of the return type
-    # cf. add_variable_offset
-    buf = LLLnode(buf, location="memory", encoding=Encoding.ABI)
+    buf = LLLnode(buf, location="memory", )
     ret += [buf]
 
     return ret, ret_ofst, ret_len
@@ -97,9 +101,9 @@ def _external_call_helper(
 
     sub = ["seq"]
 
-    arg_packer, args_ofst, args_len = _pack_arguments(contract_sig, args_lll, context, pos)
+    buf, arg_packer, args_ofst, args_len = _pack_arguments(contract_sig, args_lll, context, pos)
 
-    ret_unpacker, ret_ofst, ret_len = _unpack_returndata(contract_sig, context, pos)
+    ret_unpacker, ret_ofst, ret_len = _unpack_returndata(buf, contract_sig, context, pos)
 
     sub += arg_packer
 
