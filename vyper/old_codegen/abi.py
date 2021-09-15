@@ -39,10 +39,20 @@ class ABIType:
 
     # max size (in bytes) in the dynamic section (aka 'tail')
     def dynamic_size_bound(self):
-        return 0
+        if not self.is_dynamic():
+            return 0
+        raise NotImplementedError("ABIType.dynamic_size_bound")
 
     def size_bound(self):
         return self.static_size() + self.dynamic_size_bound()
+
+    def min_size(self):
+        return self.static_size() + self.min_dynamic_size()
+
+    def min_dynamic_size(self):
+        if not self.is_dynamic():
+            return 0
+        raise NotImplementedError("ABIType.min_dynamic_size")
 
     # The canonical name of the type for calculating the function selector
     def selector_name(self):
@@ -178,6 +188,9 @@ class ABI_StaticArray(ABIType):
     def dynamic_size_bound(self):
         return self.m_elems * self.subtyp.dynamic_size_bound()
 
+    def min_dynamic_size(self):
+        return self.m_elems * self.subtyp.min_dynamic_size()
+
     def selector_name(self):
         return f"{self.subtyp.selector_name()}[{self.m_elems}]"
 
@@ -203,6 +216,9 @@ class ABI_Bytes(ABIType):
     def dynamic_size_bound(self):
         # length word + data
         return 32 + ceil32(self.bytes_bound)
+
+    def min_dynamic_size(self):
+        return 32
 
     def selector_name(self):
         return "bytes"
@@ -233,6 +249,9 @@ class ABI_DynamicArray(ABIType):
     def dynamic_size_bound(self):
         return self.subtyp.dynamic_size_bound() * self.elems_bound
 
+    def min_dynamic_size(self):
+        return 32
+
     def selector_name(self):
         return f"{self.subtyp.selector_name()}[]"
 
@@ -250,8 +269,14 @@ class ABI_Tuple(ABIType):
     def static_size(self):
         return sum([t.embedded_static_size() for t in self.subtyps])
 
+    def min_dynamic_size(self):
+        return self.static_size() + sum([t.min_size() for t in self.subtyps])
+
     def dynamic_size_bound(self):
         return sum([t.dynamic_size_bound() for t in self.subtyps])
+
+    def min_dynamic_size(self):
+        return sum([t.min_dynamic_size() for t in self.subtyps])
 
     def is_complex_type(self):
         return True
