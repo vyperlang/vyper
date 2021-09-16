@@ -10,6 +10,7 @@ from vyper.old_codegen.lll_node import Encoding, LLLnode
 from vyper.old_codegen.parser_utils import (
     getpos,
     set_type_for_external_return,
+    calculate_type_for_external_return,
     unwrap_location,
 )
 from vyper.old_codegen.types import (
@@ -62,18 +63,35 @@ def _unpack_returndata(buf, contract_sig, context, pos):
     if return_t is None:
         return ["pass"], 0, 0
 
+    return_t = calculate_type_for_external_return(return_t)
     abi_return_t = abi_type_of(return_t)
+
+    min_return_size = abi_return_t.min_size()
+    max_return_size = abi_return_t.size_bound()
 
     ret_ofst = buf
     ret_len = abi_return_t.size_bound()
 
-    min_return_size = abi_return_t.min_size()
-
-    # when return data is expected, revert when the length of `returndatasize` is insufficient
+    # revert when returndatasize is not in bounds
     ret = []
-    if min_return_size > 0:
+    assert 0 < min_return_size <= max_return_size
+    if contract_sig.is_from_json:
+        # we don't have max_size information for json abis
+        # runtime: min_return_size <= returndatasize
         ret += [["assert", ["gt", "returndatasize", min_return_size - 1]]]
-    # TODO assert returndatasize <= maxlen
+    else:
+        # runtime: min_return_size <= returndatasize <= max_return_size
+        # TODO move the +-1 optimization to LLL optimizer
+        ret += [
+            [
+                "assert",
+                [
+                    "and",
+                    ["gt", "returndatasize", min_return_size - 1],
+                    ["lt", "returndatasize", max_return_size + 1],
+                ],
+            ]
+        ]
 
     # ABI decoder has appropriate clampers for the individual members of the return type
     # buf = LLLnode(buf, location="memory", encoding=Encoding.ABI)
@@ -138,9 +156,7 @@ def _external_call_helper(
 
 # TODO push me up to expr.py
 def get_gas_and_value(stmt_expr, context):
-    from vyper.old_codegen.expr import (
-        Expr,  # TODO rethink this circular import
-    )
+    from vyper.old_codegen.expr import Expr  # TODO rethink this circular import
 
     value, gas = None, None
     for kw in stmt_expr.keywords:
@@ -154,9 +170,7 @@ def get_gas_and_value(stmt_expr, context):
 
 
 def lll_for_external_call(stmt_expr, context):
-    from vyper.old_codegen.expr import (
-        Expr,  # TODO rethink this circular import
-    )
+    from vyper.old_codegen.expr import Expr  # TODO rethink this circular import
 
     pos = getpos(stmt_expr)
     value, gas = get_gas_and_value(stmt_expr, context)

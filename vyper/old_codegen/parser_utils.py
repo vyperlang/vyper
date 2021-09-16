@@ -520,17 +520,22 @@ def _needs_external_call_wrap(lll_typ):
     # therefore, wrap it in a tuple if it's not already a tuple.
     # for example, `bytes` is returned as abi-encoded (bytes,)
     # and `(bytes,)` is returned as abi-encoded ((bytes,),)
-    # similarly, MyStruct is returned as abi-encoded (MyStruct,).
+    # In general `-> X` gets returned as (X,)
+    # including structs. MyStruct is returned as abi-encoded (MyStruct,).
+    # (Sorry this is so confusing. I didn't make these rules.)
 
     return not (isinstance(lll_typ, TupleType) and len(lll_typ.members) > 1)
+
+
+def calculate_type_for_external_return(lll_typ):
+    if _needs_external_call_wrap(lll_typ):
+        return TupleType([lll_typ])
+    return lll_typ
 
 
 def wrap_value_for_external_return(lll_val):
     # used for LHS promotion
     if _needs_external_call_wrap(lll_val.typ):
-        # `-> (bytes,)` gets returned as ((bytes,),)
-        # In general `-> X` gets returned as (X,)
-        # (Sorry this is so confusing. I didn't make these rules.)
         return lll_tuple_from_args([lll_val])
     else:
         return lll_val
@@ -538,9 +543,7 @@ def wrap_value_for_external_return(lll_val):
 
 def set_type_for_external_return(lll_val):
     # used for RHS promotion
-    t = lll_val.typ
-    if _needs_external_call_wrap(t):
-        lll_val.typ = TupleType([t])
+    lll_val.typ = calculate_type_for_external_return(lll_val.typ)
 
 
 # Create an x=y statement, where the types may be compound

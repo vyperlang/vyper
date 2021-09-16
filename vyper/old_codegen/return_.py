@@ -6,7 +6,7 @@ from vyper.old_codegen.lll_node import LLLnode
 from vyper.old_codegen.parser_utils import (
     getpos,
     make_setter,
-    set_type_for_external_return,
+    wrap_value_for_external_return,
 )
 from vyper.old_codegen.types import get_type_for_exact_size
 from vyper.old_codegen.types.check import check_assign
@@ -68,7 +68,7 @@ def make_return_stmt(lll_val: LLLnode, stmt: Any, context: Context) -> Optional[
             # lll_val is already wrapped to the correct type, cf. external_call.py
             pass
         else:
-            set_type_for_external_return(lll_val)
+            lll_val = wrap_value_for_external_return(lll_val)
 
         return_buffer_ofst = _allocate_return_buffer(context)
         # encode_out is cleverly a sequence which does the abi-encoding and

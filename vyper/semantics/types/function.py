@@ -481,10 +481,10 @@ class ContractFunction(BaseTypeDefinition):
         typ = self.return_type
         if typ is None:
             abi_dict["outputs"] = []
-        elif isinstance(typ, TupleDefinition):
+        elif isinstance(typ, TupleDefinition) and len(typ.value_type) > 1:
             abi_dict["outputs"] = [_generate_abi_type(i) for i in typ.value_type]  # type: ignore
         else:
-            abi_dict["outputs"] = [_generate_abi_type(typ)]
+            abi_dict["outputs"] = [_generate_abi_type(TupleDefinition([typ]))]
 
         if self.has_default_args:
             # for functions with default args, return a dict for each possible arg count
@@ -503,6 +503,11 @@ def _generate_abi_type(type_definition, name=""):
             "name": name,
             "type": "tuple",
             "components": [_generate_abi_type(v, k) for k, v in type_definition.members.items()],
+        }
+    if isinstance(type_definition, TupleDefinition):
+        return {
+            "type": "tuple",
+            "components": [_generate_abi_type(i) for i in type_definition.value_type],
         }
     return {"name": name, "type": type_definition.canonical_type}
 
