@@ -58,9 +58,13 @@ def make_return_stmt(lll_val: LLLnode, stmt: Any, context: Context) -> Optional[
 
         return finalize(fill_return_buffer)
 
-    else:
-        # return from external function
-        set_type_for_external_return(lll_val)
+    else:  # return from external function
+
+        if getattr(lll_val, "is_external_call_returndata", False):
+            # lll_val is already wrapped to the correct type, cf. external_call.py
+            pass
+        else:
+            set_type_for_external_return(lll_val)
 
         return_buffer_ofst = _allocate_return_buffer(context)
         # encode_out is cleverly a sequence which does the abi-encoding and

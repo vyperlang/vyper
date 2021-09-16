@@ -343,6 +343,7 @@ def add_variable_offset(parent, key, pos, array_bounds_check=True):
             return LLLnode.from_list(None, typ=subtype)
 
         if parent.value == "multi":
+            assert parent.encoding != Encoding.ABI, "no abi-encoded literals"
             return parent.args[index]
 
         if parent.encoding == Encoding.ABI:
@@ -506,6 +507,7 @@ def lll_tuple_from_args(args):
     typ = TupleType([x.typ for x in args])
     return LLLnode.from_list(["multi"] + [x for x in args], typ=typ)
 
+
 def _needs_external_call_wrap(lll_typ):
     # for calls to ABI conforming contracts.
     # according to the ABI spec, return types are ALWAYS tuples even
@@ -521,7 +523,7 @@ def _needs_external_call_wrap(lll_typ):
     # and `(bytes,)` is returned as abi-encoded ((bytes,),)
     # similarly, MyStruct is returned as abi-encoded (MyStruct,).
 
-    return isinstance(lll_typ, TupleType) and len(lll_typ.members) > 1
+    return not (isinstance(lll_typ, TupleType) and len(lll_typ.members) > 1)
 
 
 def wrap_value_for_external_return(lll_val):
@@ -534,11 +536,13 @@ def wrap_value_for_external_return(lll_val):
     else:
         return lll_val
 
+
 def set_type_for_external_return(lll_val):
     # used for RHS promotion
     t = lll_val.typ
     if _needs_external_call_wrap(t):
         lll_val.typ = TupleType([t])
+
 
 # Create an x=y statement, where the types may be compound
 @type_check_wrapper
@@ -688,7 +692,11 @@ def make_setter(left, right, location, pos):
                 )
             return LLLnode.from_list(["with", "_L", left, ["seq"] + subs], typ=None)
         # literal tuple assign.
-        elif isinstance(left.typ, TupleType) and left.value == "multi" and isinstance(right.typ, TupleType):
+        elif (
+            isinstance(left.typ, TupleType)
+            and left.value == "multi"
+            and isinstance(right.typ, TupleType)
+        ):
             subs = []
             for var_arg in left.args:
                 if var_arg.location in ("calldata", "code"):
