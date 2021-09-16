@@ -484,7 +484,7 @@ class ContractFunction(BaseTypeDefinition):
         elif isinstance(typ, TupleDefinition) and len(typ.value_type) > 1:
             abi_dict["outputs"] = [_generate_abi_type(i) for i in typ.value_type]  # type: ignore
         else:
-            abi_dict["outputs"] = [_generate_abi_type(TupleDefinition([typ]))]
+            abi_dict["outputs"] = [_generate_abi_type(typ)]
 
         if self.has_default_args:
             # for functions with default args, return a dict for each possible arg count

@@ -549,11 +549,6 @@ def set_type_for_external_return(lll_val):
 # Create an x=y statement, where the types may be compound
 @type_check_wrapper
 def make_setter(left, right, location, pos):
-    if getattr(right, "is_external_call_returndata", False):
-        # the rhs is the result of some external call
-        # set the type so that type checking works
-        left = wrap_value_for_external_return(left)
-
     # Basic types
     if isinstance(left.typ, BaseType):
         right = unwrap_location(right)

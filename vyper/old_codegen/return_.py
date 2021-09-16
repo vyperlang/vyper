@@ -12,11 +12,6 @@ from vyper.old_codegen.types import get_type_for_exact_size
 from vyper.old_codegen.types.check import check_assign
 
 
-def _allocate_return_buffer(context: Context) -> int:
-    maxlen = abi_type_of(context.return_type).size_bound()
-    return context.new_internal_variable(get_type_for_exact_size(maxlen))
-
-
 Stmt = Any  # mypy kludge
 
 
@@ -64,13 +59,11 @@ def make_return_stmt(lll_val: LLLnode, stmt: Any, context: Context) -> Optional[
 
     else:  # return from external function
 
-        if getattr(lll_val, "is_external_call_returndata", False):
-            # lll_val is already wrapped to the correct type, cf. external_call.py
-            pass
-        else:
-            lll_val = wrap_value_for_external_return(lll_val)
+        lll_val = wrap_value_for_external_return(lll_val)
 
-        return_buffer_ofst = _allocate_return_buffer(context)
+        maxlen = abi_type_of(context.return_type).size_bound()
+        return_buffer_ofst = context.new_internal_variable(get_type_for_exact_size(maxlen))
+
         # encode_out is cleverly a sequence which does the abi-encoding and
         # also returns the length of the output as a stack element
         encode_out = abi_encode(return_buffer_ofst, lll_val, pos=_pos, returns_len=True)

@@ -11,6 +11,7 @@ from vyper.old_codegen.parser_utils import (
     getpos,
     set_type_for_external_return,
     calculate_type_for_external_return,
+    add_variable_offset,
     unwrap_location,
 )
 from vyper.old_codegen.types import (
@@ -64,7 +65,10 @@ def _unpack_returndata(buf, contract_sig, context, pos):
         return ["pass"], 0, 0
 
     return_t = calculate_type_for_external_return(return_t)
+
     abi_return_t = abi_type_of(return_t)
+
+    needs_offset_adjustment = contract_sig.return_type != return_t and abi_return_t.is_dynamic()
 
     min_return_size = abi_return_t.min_size()
     max_return_size = abi_return_t.size_bound()
@@ -93,8 +97,7 @@ def _unpack_returndata(buf, contract_sig, context, pos):
             ]
         ]
 
-    # ABI decoder has appropriate clampers for the individual members of the return type
-    # buf = LLLnode(buf, location="memory", encoding=Encoding.ABI)
+    # add as the last LLLnode a pointer to the return data structure
     ret += [buf]
 
     return ret, ret_ofst, ret_len
@@ -146,11 +149,18 @@ def _external_call_helper(
         sub += ret_unpacker
 
     ret = LLLnode.from_list(
+        # set the encoding to ABI here, downstream code will decode and add clampers.
         sub, typ=contract_sig.return_type, location="memory", encoding=Encoding.ABI, pos=pos
     )
-    # the return type has been wrapped by the calling contract; set the type so that
-    # we unwrap it correctly when it comes to abi decoding time.
+
+    # the return type has been wrapped by the calling contract;
+    # unwrap it so downstream code isn't confused.
+    # basically this expands to ret+32 if the return type has been wrapped
+    # in a tuple AND its ABI type is dynamic. OTHERWISE (most cases),
+    # it will evaluate to ret.
     set_type_for_external_return(ret)
+    ret = add_variable_offset(ret, 0, pos=None, array_bounds_check=False)
+
     return ret
 
 
@@ -221,7 +231,4 @@ def lll_for_external_call(stmt_expr, context):
     )
     ret.annotation = stmt_expr.get("node_source_code")
 
-    # kludge: to let upstream code know to use abi.wrap_value_for_return
-    # TODO: assign/ann_assign just pass in the buffer
-    ret.is_external_call_returndata = True
     return ret
