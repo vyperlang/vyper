@@ -26,9 +26,21 @@ class ABIType:
         raise NotImplementedError("ABIType.is_dynamic")
 
     # size (in bytes) in the static section (aka 'head')
-    # when embedded in a tuple.
+    # when embedded in a complex type.
     def embedded_static_size(self):
         return 32 if self.is_dynamic() else self.static_size()
+
+    # size bound in the dynamic section (aka 'tail')
+    # when embedded in a complex type.
+    def embedded_dynamic_size_bound(self):
+        if not self.is_dynamic():
+            return 0
+        return self.size_bound()
+
+    def embedded_min_dynamic_size(self):
+        if not self.is_dynamic():
+            return 0
+        return self.min_size()
 
     # size (in bytes) of the static section
     def static_size(self):
@@ -60,6 +72,9 @@ class ABIType:
     #   Compare the difference in encoding between `bytes` and `(bytes,)`.)
     def is_complex_type(self):
         raise NotImplementedError("ABIType.is_complex_type")
+
+    def __repr__(self):
+        return str({type(self).__name__: vars(self)})
 
 
 # uint<M>: unsigned integer type of M bits, 0 < M <= 256, M % 8 == 0. e.g. uint32, uint8, uint256.
@@ -183,10 +198,10 @@ class ABI_StaticArray(ABIType):
         return self.m_elems * self.subtyp.static_size()
 
     def dynamic_size_bound(self):
-        return self.m_elems * self.subtyp.dynamic_size_bound()
+        return self.m_elems * self.subtyp.embedded_dynamic_size_bound()
 
     def min_dynamic_size(self):
-        return self.m_elems * self.subtyp.min_dynamic_size()
+        return self.m_elems * self.subtyp.embedded_min_dynamic_size()
 
     def selector_name(self):
         return f"{self.subtyp.selector_name()}[{self.m_elems}]"
@@ -244,9 +259,11 @@ class ABI_DynamicArray(ABIType):
         return 32
 
     def dynamic_size_bound(self):
-        return self.subtyp.dynamic_size_bound() * self.elems_bound
+        # TODO double check me
+        return self.subtyp.embedded_dynamic_size_bound() * self.elems_bound
 
     def min_dynamic_size(self):
+        # TODO double check me
         return 32
 
     def selector_name(self):
@@ -267,10 +284,10 @@ class ABI_Tuple(ABIType):
         return sum([t.embedded_static_size() for t in self.subtyps])
 
     def dynamic_size_bound(self):
-        return sum([t.dynamic_size_bound() for t in self.subtyps])
+        return sum([t.embedded_dynamic_size_bound() for t in self.subtyps])
 
     def min_dynamic_size(self):
-        return sum([t.min_dynamic_size() for t in self.subtyps])
+        return sum([t.embedded_min_dynamic_size() for t in self.subtyps])
 
     def is_complex_type(self):
         return True
