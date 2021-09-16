@@ -14,7 +14,9 @@ def _generate_label(name: str) -> str:
 
 
 def lll_for_self_call(stmt_expr, context):
-    from vyper.old_codegen.expr import Expr  # TODO rethink this circular import
+    from vyper.old_codegen.expr import (
+        Expr,  # TODO rethink this circular import
+    )
 
     pos = getpos(stmt_expr)
 

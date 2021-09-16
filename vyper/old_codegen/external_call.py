@@ -6,8 +6,12 @@ from vyper.exceptions import (
     TypeCheckFailure,
 )
 from vyper.old_codegen.abi import abi_encode, abi_type_of
-from vyper.old_codegen.lll_node import LLLnode, Encoding
-from vyper.old_codegen.parser_utils import getpos, unwrap_location, set_type_for_external_return
+from vyper.old_codegen.lll_node import Encoding, LLLnode
+from vyper.old_codegen.parser_utils import (
+    getpos,
+    set_type_for_external_return,
+    unwrap_location,
+)
 from vyper.old_codegen.types import (
     TupleType,
     canonicalize_type,
@@ -72,7 +76,7 @@ def _unpack_returndata(buf, contract_sig, context, pos):
     # TODO assert returndatasize <= maxlen
 
     # ABI decoder has appropriate clampers for the individual members of the return type
-    #buf = LLLnode(buf, location="memory", encoding=Encoding.ABI)
+    # buf = LLLnode(buf, location="memory", encoding=Encoding.ABI)
     ret += [buf]
 
     return ret, ret_ofst, ret_len
@@ -123,7 +127,9 @@ def _external_call_helper(
     if contract_sig.return_type is not None:
         sub += ret_unpacker
 
-    ret = LLLnode.from_list(sub, typ=contract_sig.return_type, location="memory", encoding=Encoding.ABI, pos=pos)
+    ret = LLLnode.from_list(
+        sub, typ=contract_sig.return_type, location="memory", encoding=Encoding.ABI, pos=pos
+    )
     # the return type has been wrapped by the calling contract; set the type so that
     # we unwrap it correctly when it comes to abi decoding time.
     set_type_for_external_return(ret)
@@ -132,7 +138,9 @@ def _external_call_helper(
 
 # TODO push me up to expr.py
 def get_gas_and_value(stmt_expr, context):
-    from vyper.old_codegen.expr import Expr  # TODO rethink this circular import
+    from vyper.old_codegen.expr import (
+        Expr,  # TODO rethink this circular import
+    )
 
     value, gas = None, None
     for kw in stmt_expr.keywords:
@@ -146,7 +154,9 @@ def get_gas_and_value(stmt_expr, context):
 
 
 def lll_for_external_call(stmt_expr, context):
-    from vyper.old_codegen.expr import Expr  # TODO rethink this circular import
+    from vyper.old_codegen.expr import (
+        Expr,  # TODO rethink this circular import
+    )
 
     pos = getpos(stmt_expr)
     value, gas = get_gas_and_value(stmt_expr, context)

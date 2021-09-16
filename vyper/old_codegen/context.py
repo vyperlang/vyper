@@ -242,7 +242,7 @@ class Context:
         _check(len(sig.base_args) <= len(args_lll) <= len(sig.args))
 
         # more sanity check, that the types match
-        # _check(all(l.typ == r.typ for (l, r) in zip(args_lll, sig.args)), str( (args_lll, sig.args)))
+        # _check(all(l.typ == r.typ for (l, r) in zip(args_lll, sig.args))
 
         num_provided_args = len(args_lll)
         total_args = len(sig.args)

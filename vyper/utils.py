@@ -1,8 +1,8 @@
 import binascii
 import functools
-from typing import Dict, List, Union
 import sys
 import traceback
+from typing import Dict, List, Union
 
 from vyper.exceptions import InvalidLiteral
 

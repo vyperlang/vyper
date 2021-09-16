@@ -1,5 +1,3 @@
-import copy
-
 import vyper.semantics.types as vy
 from vyper.exceptions import CompilerPanic
 from vyper.old_codegen.lll_node import LLLnode
@@ -17,7 +15,6 @@ from vyper.old_codegen.types import (
     ListType,
     StringType,
     TupleLike,
-    TupleType,
 )
 from vyper.utils import ceil32
 
@@ -269,9 +266,6 @@ class ABI_Tuple(ABIType):
     def static_size(self):
         return sum([t.embedded_static_size() for t in self.subtyps])
 
-    def min_dynamic_size(self):
-        return self.static_size() + sum([t.min_size() for t in self.subtyps])
-
     def dynamic_size_bound(self):
         return sum([t.dynamic_size_bound() for t in self.subtyps])
 
@@ -412,7 +406,9 @@ def abi_encode(dst, lll_node, pos=None, bufsz=None, returns_len=False):
     # contains some computation, we need to only do it once.
     is_complex_lll = lll_node.value in ("seq", "seq_unchecked")
     if is_complex_lll:
-        to_encode = LLLnode.from_list("to_encode", typ=lll_node.typ, location=lll_node.location, encoding=lll_node.encoding)
+        to_encode = LLLnode.from_list(
+            "to_encode", typ=lll_node.typ, location=lll_node.location, encoding=lll_node.encoding
+        )
     else:
         to_encode = lll_node
 

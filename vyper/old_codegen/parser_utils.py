@@ -1,5 +1,4 @@
 from decimal import Decimal, getcontext
-import copy
 
 from vyper import ast as vy_ast
 from vyper.evm.opcodes import version_check
@@ -11,7 +10,7 @@ from vyper.exceptions import (
     TypeMismatch,
 )
 from vyper.old_codegen.arg_clamps import int128_clamp
-from vyper.old_codegen.lll_node import LLLnode, Encoding
+from vyper.old_codegen.lll_node import Encoding, LLLnode
 from vyper.old_codegen.types import (
     BaseType,
     ByteArrayLike,
@@ -350,7 +349,7 @@ def add_variable_offset(parent, key, pos, array_bounds_check=True):
             if parent.location == "storage":
                 raise CompilerPanic("storage variables should not be abi encoded")
 
-            parent_abi_t = abi_type_of(parent.typ)
+            # parent_abi_t = abi_type_of(parent.typ)
             member_t = typ.members[attrs[index]]
 
             ofst = 0  # offset from parent start
@@ -408,7 +407,6 @@ def add_variable_offset(parent, key, pos, array_bounds_check=True):
             if parent.location == "storage":
                 raise CompilerPanic("storage variables should not be abi encoded")
 
-            parent_abi_t = abi_type_of(typ)
             member_t = typ.subtype
             member_abi_t = abi_type_of(member_t)
 

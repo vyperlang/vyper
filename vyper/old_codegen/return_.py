@@ -3,8 +3,12 @@ from typing import Any, Optional
 from vyper.old_codegen.abi import abi_encode, abi_type_of
 from vyper.old_codegen.context import Context
 from vyper.old_codegen.lll_node import LLLnode
-from vyper.old_codegen.parser_utils import getpos, make_setter, set_type_for_external_return
-from vyper.old_codegen.types import TupleType, get_type_for_exact_size
+from vyper.old_codegen.parser_utils import (
+    getpos,
+    make_setter,
+    set_type_for_external_return,
+)
+from vyper.old_codegen.types import get_type_for_exact_size
 from vyper.old_codegen.types.check import check_assign
 
 

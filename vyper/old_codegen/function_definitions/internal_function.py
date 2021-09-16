@@ -57,7 +57,7 @@ def generate_lll_for_internal_function(
     cleanup_label = sig.exit_sequence_label
 
     # jump to the label which was passed in via stack
-    stop_func = LLLnode.from_list(["jump", "pass"], annotation=f"jump to return address")
+    stop_func = LLLnode.from_list(["jump", "pass"], annotation="jump to return address")
 
     enter = [["label", function_entry_label], nonreentrant_pre]
 

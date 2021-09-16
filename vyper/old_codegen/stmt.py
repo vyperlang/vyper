@@ -11,7 +11,6 @@ from vyper.old_codegen.parser_utils import (
     make_setter,
     unwrap_location,
 )
-import vyper.old_codegen.abi as abi
 from vyper.old_codegen.return_ import make_return_stmt
 from vyper.old_codegen.types import (
     BaseType,
