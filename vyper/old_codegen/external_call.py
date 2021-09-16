@@ -27,11 +27,15 @@ def _pack_arguments(contract_sig, args, context, pos):
     args_as_tuple = LLLnode.from_list(["multi"] + [x for x in args], typ=args_tuple_t)
     args_abi_t = abi_type_of(args_tuple_t)
 
-    return_abi_t = abi_type_of(contract_sig.return_type)
+    if contract_sig.return_type is not None:
+        return_abi_t = abi_type_of(calculate_type_for_external_return(contract_sig.return_type))
 
-    # we use the same buffer for args and returndata,
-    # so allocate enough space here for the returndata too.
-    buflen = max(args_abi_t.size_bound(), return_abi_t.size_bound())
+        # we use the same buffer for args and returndata,
+        # so allocate enough space here for the returndata too.
+        buflen = max(args_abi_t.size_bound(), return_abi_t.size_bound())
+    else:
+        buflen = args_abi_t.size_bound()
+
     buflen += 32  # padding for the method id
 
     buf_t = get_type_for_exact_size(buflen)
@@ -98,6 +102,17 @@ def _unpack_returndata(buf, contract_sig, context, pos):
         ]
 
     # add as the last LLLnode a pointer to the return data structure
+
+    # the return type has been wrapped by the calling contract;
+    # unwrap it so downstream code isn't confused.
+    # basically this expands to buf+32 if the return type has been wrapped
+    # in a tuple AND its ABI type is dynamic.
+    # in most cases, this simply will evaluate to ret.
+    # in the special case where the return type has been wrapped
+    # in a tuple AND its ABI type is dynamic, it expands to buf+32.
+    buf = LLLnode(buf, typ=return_t, encoding=Encoding.ABI, location="memory")
+    buf = add_variable_offset(buf, 0, pos=None, array_bounds_check=False)
+
     ret += [buf]
 
     return ret, ret_ofst, ret_len
@@ -152,14 +167,6 @@ def _external_call_helper(
         # set the encoding to ABI here, downstream code will decode and add clampers.
         sub, typ=contract_sig.return_type, location="memory", encoding=Encoding.ABI, pos=pos
     )
-
-    # the return type has been wrapped by the calling contract;
-    # unwrap it so downstream code isn't confused.
-    # basically this expands to ret+32 if the return type has been wrapped
-    # in a tuple AND its ABI type is dynamic. OTHERWISE (most cases),
-    # it will evaluate to ret.
-    set_type_for_external_return(ret)
-    ret = add_variable_offset(ret, 0, pos=None, array_bounds_check=False)
 
     return ret
 
