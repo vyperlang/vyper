@@ -112,8 +112,9 @@ def make_byte_array_copier(destination, source, pos=None):
         elif source.location == "code":
             copy_op = ["code", destination, "src", "sz"]
             gas_bound = _codecopy_gas_bound(source.typ.maxlen)
+        _sz_lll = ["add", 32, [load_op(source.location), "src"]]
         o = LLLnode.from_list(
-            ["with", "src", source, ["with", "sz", [load_op(source.location), "src"], copy_op]],
+            ["with", "src", source, ["with", "sz", _sz_lll, copy_op]],
             typ=None,
             add_gas_estimate=gas_bound,
             annotation="copy bytestring to memory",
