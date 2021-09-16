@@ -49,10 +49,6 @@ def generate_lll_for_internal_function(
 
     nonreentrant_pre, nonreentrant_post = get_nonreentrant_lock(func_type)
 
-    # pseudocode
-    def mkidentifier(s):
-        "".join(c if c.isalnumeric() else "_" for c in s)
-
     function_entry_label = sig.internal_function_label
     cleanup_label = sig.exit_sequence_label
 
