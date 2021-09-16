@@ -506,8 +506,7 @@ def lll_tuple_from_args(args):
     typ = TupleType([x.typ for x in args])
     return LLLnode.from_list(["multi"] + [x for x in args], typ=typ)
 
-
-def set_type_for_external_return(lll_val):
+def _needs_external_call_wrap(lll_typ):
     # for calls to ABI conforming contracts.
     # according to the ABI spec, return types are ALWAYS tuples even
     # if only one element is being returned.
@@ -522,15 +521,24 @@ def set_type_for_external_return(lll_val):
     # and `(bytes,)` is returned as abi-encoded ((bytes,),)
     # similarly, MyStruct is returned as abi-encoded (MyStruct,).
 
-    t = lll_val.typ
-    if isinstance(t, TupleType) and len(t.members) > 1:
-        return
-    else:
+    return isinstance(lll_typ, TupleType) and len(lll_typ.members) > 1
+
+
+def wrap_value_for_external_return(lll_val):
+    # used for LHS promotion
+    if _needs_external_call_wrap(lll_val.typ):
         # `-> (bytes,)` gets returned as ((bytes,),)
         # In general `-> X` gets returned as (X,)
         # (Sorry this is so confusing. I didn't make these rules.)
-        lll_val.typ = TupleType([t])
+        return lll_tuple_from_args([lll_val])
+    else:
+        return lll_val
 
+def set_type_for_external_return(lll_val):
+    # used for RHS promotion
+    t = lll_val.typ
+    if _needs_external_call_wrap(t):
+        lll_val.typ = TupleType([t])
 
 # Create an x=y statement, where the types may be compound
 @type_check_wrapper
@@ -538,8 +546,7 @@ def make_setter(left, right, location, pos):
     if getattr(right, "is_external_call_returndata", False):
         # the rhs is the result of some external call
         # set the type so that type checking works
-        left = copy.copy(left)
-        set_type_for_external_return(left)
+        left = wrap_value_for_external_return(left)
 
     # Basic types
     if isinstance(left.typ, BaseType):
