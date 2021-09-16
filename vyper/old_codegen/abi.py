@@ -413,7 +413,7 @@ def abi_encode(dst, lll_node, pos=None, bufsz=None, returns_len=False):
     if not parent_abi_t.is_dynamic():
         # cast the output buffer to something that make_setter accepts
         dst = LLLnode(dst, typ=lll_node.typ, location="memory")
-        lll_ret = make_setter(dst, lll_node, "memory", pos)
+        lll_ret = ["seq", make_setter(dst, lll_node, "memory", pos)]
         if returns_len:
             lll_ret.append(parent_abi_t.embedded_static_size())
         return LLLnode.from_list(lll_ret, pos=pos, annotation=f"abi_encode {lll_node.typ}")
