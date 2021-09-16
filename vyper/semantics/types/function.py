@@ -483,8 +483,6 @@ class ContractFunction(BaseTypeDefinition):
             abi_dict["outputs"] = []
         elif isinstance(typ, TupleDefinition):
             abi_dict["outputs"] = [_generate_abi_type(i) for i in typ.value_type]  # type: ignore
-        elif isinstance(typ, StructDefinition):
-            abi_dict["outputs"] = [_generate_abi_type(v, k) for k, v in typ.members.items()]
         else:
             abi_dict["outputs"] = [_generate_abi_type(typ)]
 
