@@ -202,7 +202,7 @@ class Expr:
 
         self.lll_node = fn()
         if self.lll_node is None:
-            raise TypeCheckFailure(f"{type(node).__name__} node did not produce LLL")
+            raise TypeCheckFailure(f"{type(node).__name__} node did not produce LLL. {self.expr}")
 
     def parse_Int(self):
         # Literal (mostly likely) becomes int256
