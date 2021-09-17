@@ -35,6 +35,7 @@ from vyper.old_codegen.parser_utils import (
     add_variable_offset,
     get_bytearray_length,
     getpos,
+    load_op,
     lll_tuple_from_args,
     make_byte_array_copier,
     make_byte_slice_copier,
@@ -465,8 +466,8 @@ class Concat:
                 if arg.typ.maxlen == 0:
                     continue
                 # Get the length of the current argument
-                if arg.location == "memory":
-                    length = LLLnode.from_list(["mload", "_arg"], typ=BaseType("int128"))
+                if arg.location in ("memory", "calldata", "code"):
+                    length = LLLnode.from_list([load_op(arg.location), "_arg"], typ=BaseType("int128"))
                     argstart = LLLnode.from_list(
                         ["add", "_arg", 32], typ=arg.typ, location=arg.location,
                     )
