@@ -312,7 +312,7 @@ def add_variable_offset(parent, key, pos, array_bounds_check=True):
             ofst_lll = _add_ofst(parent, unwrap_location(ofst_lll))
 
         x = LLLnode.from_list(
-            ["ofst"], typ=member_t, location=parent.location, annotation=f"{typ}->{member_t}"
+            ["ofst"], typ=member_t, location=parent.location, annotation=f"&({typ}->{member_t})"
         )
 
         if clamp and _needs_clamp(member_t):
