@@ -24,8 +24,7 @@ def test_array_value_types(build_node, type_str, location, length, size):
     node = build_node(f"{type_str}[{length}]")
     type_definition = get_type_from_annotation(node, location)
 
-    # TODO once storage of bytes is optimized, remove the +32
-    assert type_definition.size_in_bytes == size + 32
+    assert type_definition.size_in_bytes == size
 
 
 @pytest.mark.parametrize("type_str", BASE_TYPES)
