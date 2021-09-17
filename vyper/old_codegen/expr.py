@@ -416,31 +416,18 @@ class Expr:
 
     def parse_Subscript(self):
         sub = Expr.parse_variable_location(self.expr.value, self.context)
-        if isinstance(sub.typ, (MappingType, ListType)):
+
+        if isinstance(sub.typ, MappingType):
+            # TODO sanity check we are in a self.my_map[i] situation
             index = Expr.parse_value_expr(self.expr.slice.value, self.context)
-            if isinstance(index.typ, ByteArrayLike) and index.args[0].location == "storage":
-                # Special case - if the key value is a bytes-array type located in
-                # storage, we have to copy it to memory prior to calculating the hash
-                placeholder = self.context.new_internal_variable(index.typ)
-                placeholder_node = LLLnode.from_list(placeholder, typ=index.typ, location="memory")
-                copier = make_byte_array_copier(
-                    placeholder_node,
-                    LLLnode.from_list(index.args[0], typ=index.typ, location="storage"),
-                )
-                return LLLnode.from_list(
-                    [
-                        "seq",
-                        copier,
-                        [
-                            "sha3_64",
-                            sub,
-                            ["sha3", ["add", placeholder, 32], ["mload", placeholder]],
-                        ],
-                    ],
-                    typ=sub.typ.valuetype,
-                    pos=getpos(self.expr),
-                    location="storage",
-                )
+            if isinstance(index.typ, ByteArrayLike):
+                # special case,
+                # we have to hash the key to get a storage location
+                index = keccak256_helper(self.expr.slice.value, index.args, None, self.context)
+
+        elif isinstance(sub.typ, ListType):
+            index = Expr.parse_value_expr(self.expr.slice.value, self.context)
+
         elif isinstance(sub.typ, TupleType):
             index = self.expr.slice.value.n
             if not 0 <= index < len(sub.typ.members):

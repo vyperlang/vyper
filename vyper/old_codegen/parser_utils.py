@@ -432,11 +432,10 @@ def add_variable_offset(parent, key, pos, array_bounds_check=True):
             )
 
     elif isinstance(typ, MappingType):
-
         sub = None
         if isinstance(key.typ, ByteArrayLike):
+            # CMC 20210916 pretty sure this is dead code. TODO double check
             if isinstance(typ.keytype, ByteArrayLike) and (typ.keytype.maxlen >= key.typ.maxlen):
-
                 subtype = typ.valuetype
                 if len(key.args[0].args) >= 3:  # handle bytes literal.
                     sub = LLLnode.from_list(
