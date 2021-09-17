@@ -165,7 +165,7 @@ def make_byte_slice_copier(destination, source, length, max_length, pos=None):
             [
                 "with",
                 "_l",
-                max_length,
+                max_length, # CMC 20210917 shouldn't this just be length
                 ["pop", ["call", ["gas"], 4, 0, source, "_l", destination, "_l"]],
             ],
             typ=None,
@@ -177,6 +177,7 @@ def make_byte_slice_copier(destination, source, length, max_length, pos=None):
     if source.value is None:
 
         if destination.location == "memory":
+            # CMC 20210917 shouldn't this just be length
             return mzero(destination, max_length)
 
         else:

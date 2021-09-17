@@ -255,6 +255,7 @@ class Slice:
     def build_LLL(self, expr, args, kwargs, context):
 
         sub, start, length = args
+
         if is_base_type(sub.typ, "bytes32"):
             if (start.typ.is_literal and length.typ.is_literal) and not (
                 0 <= start.value + length.value <= 32
@@ -263,12 +264,6 @@ class Slice:
                     "Invalid start / length values needs to be between 0 and 32.", expr,
                 )
             sub_typ_maxlen = 32
-        elif sub.location == "calldata":
-            # if we are slicing msg.data, the length should
-            # be a constant, since msg.data can be of dynamic length
-            # we can't use it's length as the maxlen
-            assert isinstance(length.value, int)  # sanity check
-            sub_typ_maxlen = length.value
         else:
             sub_typ_maxlen = sub.typ.maxlen
 
@@ -279,15 +274,19 @@ class Slice:
             ReturnType = OldStringType
 
         # Node representing the position of the output in memory
+        # CMC 20210917 shouldn't this be a variable with newmaxlen?
         np = context.new_internal_variable(ReturnType(maxlen=sub_typ_maxlen + 32))
+        # TODO deallocate np
         placeholder_node = LLLnode.from_list(np, typ=sub.typ, location="memory")
         placeholder_plus_32_node = LLLnode.from_list(np + 32, typ=sub.typ, location="memory")
-        # Copies over bytearray data
-        if sub.location == "storage":
-            adj_sub = LLLnode.from_list(
-                ["add", sub, ["add", ["div", "_start", 32], 1]], typ=sub.typ, location=sub.location,
-            )
-        elif sub.location == "calldata":
+
+        # special handling for slice(msg.data)
+        if sub.location == "calldata" and sub.value == 0:
+            assert expr.value.id == "msg" and expr.attr == "data"
+            # if we are slicing msg.data, the length should
+            # be a constant, since msg.data can be of dynamic length
+            # we can't use its length as the maxlen
+            assert isinstance(length.value, int)  # sanity check
             node = [
                 "seq",
                 ["assert", ["le", ["add", start, length], "calldatasize"]],  # runtime bounds check
@@ -296,6 +295,15 @@ class Slice:
                 np,
             ]
             return LLLnode.from_list(node, typ=ByteArrayType(length.value), location="memory")
+
+
+        # Copy over bytearray data
+        # CMC 20210917 how does this routine work?
+
+        if sub.location == "storage":
+            adj_sub = LLLnode.from_list(
+                ["add", sub, ["add", ["div", "_start", 32], 1]], typ=sub.typ, location=sub.location,
+            )
         else:
             adj_sub = LLLnode.from_list(
                 ["add", sub, ["add", ["sub", "_start", ["mod", "_start", 32]], 32]],
@@ -309,16 +317,17 @@ class Slice:
         copier = make_byte_slice_copier(
             placeholder_plus_32_node,
             adj_sub,
-            ["add", "_length", 32],
+            ["add", "_length", 32],  # CMC 20210917 shouldn't this just be _length
             sub_typ_maxlen,
             pos=getpos(expr),
         )
+
         # New maximum length in the type of the result
         newmaxlen = length.value if not len(length.args) else sub_typ_maxlen
         if is_base_type(sub.typ, "bytes32"):
             maxlen = 32
         else:
-            maxlen = ["mload", Expr(sub, context=context).lll_node]  # Retrieve length of the bytes.
+            maxlen = get_bytearray_length(sub)
 
         out = [
             "with",
