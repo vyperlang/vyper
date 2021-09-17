@@ -296,7 +296,6 @@ class Slice:
             ]
             return LLLnode.from_list(node, typ=ByteArrayType(length.value), location="memory")
 
-
         # Copy over bytearray data
         # CMC 20210917 how does this routine work?
 
@@ -476,7 +475,9 @@ class Concat:
                     continue
                 # Get the length of the current argument
                 if arg.location in ("memory", "calldata", "code"):
-                    length = LLLnode.from_list([load_op(arg.location), "_arg"], typ=BaseType("int128"))
+                    length = LLLnode.from_list(
+                        [load_op(arg.location), "_arg"], typ=BaseType("int128")
+                    )
                     argstart = LLLnode.from_list(
                         ["add", "_arg", 32], typ=arg.typ, location=arg.location,
                     )

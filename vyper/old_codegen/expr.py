@@ -18,7 +18,6 @@ from vyper.old_codegen.parser_utils import (
     add_variable_offset,
     get_number_as_fraction,
     getpos,
-    make_byte_array_copier,
     make_setter,
     unwrap_location,
 )

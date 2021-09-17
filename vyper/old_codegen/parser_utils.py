@@ -165,7 +165,7 @@ def make_byte_slice_copier(destination, source, length, max_length, pos=None):
             [
                 "with",
                 "_l",
-                max_length, # CMC 20210917 shouldn't this just be length
+                max_length,  # CMC 20210917 shouldn't this just be length
                 ["pop", ["call", ["gas"], 4, 0, source, "_l", destination, "_l"]],
             ],
             typ=None,
@@ -311,7 +311,9 @@ def add_variable_offset(parent, key, pos, array_bounds_check=True):
             # offset is statically known.
             ofst_lll = _add_ofst(parent, unwrap_location(ofst_lll))
 
-        x = LLLnode.from_list(["ofst"], typ=member_t, location=parent.location, annotation=f"{typ}->{member_t}")
+        x = LLLnode.from_list(
+            ["ofst"], typ=member_t, location=parent.location, annotation=f"{typ}->{member_t}"
+        )
 
         if clamp and _needs_clamp(member_t):
             # special handling for args that need clamping

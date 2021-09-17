@@ -9,7 +9,6 @@ from vyper.old_codegen.abi import abi_encode, abi_type_of
 from vyper.old_codegen.lll_node import Encoding, LLLnode
 from vyper.old_codegen.parser_utils import (
     getpos,
-    set_type_for_external_return,
     calculate_type_for_external_return,
     add_variable_offset,
     unwrap_location,
@@ -71,8 +70,6 @@ def _unpack_returndata(buf, contract_sig, context, pos):
     return_t = calculate_type_for_external_return(return_t)
 
     abi_return_t = abi_type_of(return_t)
-
-    needs_offset_adjustment = contract_sig.return_type != return_t and abi_return_t.is_dynamic()
 
     min_return_size = abi_return_t.min_size()
     max_return_size = abi_return_t.size_bound()
@@ -165,7 +162,11 @@ def _external_call_helper(
 
     ret = LLLnode.from_list(
         # set the encoding to ABI here, downstream code will decode and add clampers.
-        sub, typ=contract_sig.return_type, location="memory", encoding=Encoding.ABI, pos=pos
+        sub,
+        typ=contract_sig.return_type,
+        location="memory",
+        encoding=Encoding.ABI,
+        pos=pos,
     )
 
     return ret

@@ -1,6 +1,5 @@
 import vyper.semantics.types as vy
 from vyper.exceptions import CompilerPanic
-from vyper.evm.opcodes import get_comb_opcodes
 from vyper.old_codegen.lll_node import LLLnode
 from vyper.old_codegen.parser_utils import (
     add_variable_offset,
