@@ -311,11 +311,11 @@ def add_variable_offset(parent, key, pos, array_bounds_check=True):
             # offset is statically known.
             ofst_lll = _add_ofst(parent, unwrap_location(ofst_lll))
 
-        x = LLLnode.from_list(["x"], typ=member_t, location=parent.location)
+        x = LLLnode.from_list(["ofst"], typ=member_t, location=parent.location, annotation=f"{typ}->{member_t}")
 
         if clamp and _needs_clamp(member_t):
             # special handling for args that need clamping
-            ret = ["with", "x", ofst_lll, ["seq", clamp_basetype(x), x]]
+            ret = ["with", x, ofst_lll, ["seq", clamp_basetype(x), x]]
         else:
             ret = ofst_lll
 
