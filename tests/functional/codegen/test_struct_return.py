@@ -16,7 +16,8 @@ def modify_nested_tuple(_human: Human) -> Human:
     human: Human = _human
 
     # do stuff, edit the structs
-    human.animal.fur = slice(concat(human.animal.fur, " is great"), 0, 32)
+    # (13 is the length of the result)
+    human.animal.fur = slice(concat(human.animal.fur, " is great"), 0, 13)
 
     return human
     """
