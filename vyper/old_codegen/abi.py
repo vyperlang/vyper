@@ -1,5 +1,6 @@
 import vyper.semantics.types as vy
 from vyper.exceptions import CompilerPanic
+from vyper.evm.opcodes import get_comb_opcodes
 from vyper.old_codegen.lll_node import LLLnode
 from vyper.old_codegen.parser_utils import (
     add_variable_offset,
@@ -421,7 +422,10 @@ def abi_encode(dst, lll_node, pos=None, bufsz=None, returns_len=False):
     lll_ret = ["seq"]
 
     # contains some computation, we need to only do it once.
-    is_complex_lll = lll_node.value in ("seq", "seq_unchecked")
+    # TODO move this to parser_utils or something since it is
+    # generally useful
+    is_complex_lll = lll_node.value in get_comb_opcodes()
+
     if is_complex_lll:
         to_encode = LLLnode.from_list(
             "to_encode", typ=lll_node.typ, location=lll_node.location, encoding=lll_node.encoding
