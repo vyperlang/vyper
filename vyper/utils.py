@@ -156,7 +156,7 @@ FUNCTION_WHITELIST = {
     "send",
 }
 
-# List of valid LLL macros. Used for colorising LLL output
+# List of valid LLL macros.
 VALID_LLL_MACROS = {
     "assert",
     "break",

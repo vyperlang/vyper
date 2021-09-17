@@ -422,11 +422,7 @@ def abi_encode(dst, lll_node, pos=None, bufsz=None, returns_len=False):
     lll_ret = ["seq"]
 
     # contains some computation, we need to only do it once.
-    # TODO move this to parser_utils or something since it is
-    # generally useful
-    is_complex_lll = lll_node.value in get_comb_opcodes()
-
-    if is_complex_lll:
+    if lll_node.is_complex_lll:
         to_encode = LLLnode.from_list(
             "to_encode", typ=lll_node.typ, location=lll_node.location, encoding=lll_node.encoding
         )
@@ -496,7 +492,7 @@ def abi_encode(dst, lll_node, pos=None, bufsz=None, returns_len=False):
 
     lll_ret = ["with", dst_begin, dst, ["with", dst_loc, dst_begin, lll_ret]]
 
-    if is_complex_lll:
+    if lll_node.is_complex_lll:
         lll_ret = ["with", to_encode, lll_node, lll_ret]
 
     return LLLnode.from_list(lll_ret, pos=pos, annotation=f"abi_encode {lll_node.typ}")

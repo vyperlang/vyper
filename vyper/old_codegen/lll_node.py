@@ -257,6 +257,13 @@ class LLLnode:
 
         self.gas += self.add_gas_estimate
 
+    # may contain some side effects
+    @property
+    def is_complex_lll(self):
+        return isinstance(self.value, str) and (
+            self.value.lower() in VALID_LLL_MACROS or self.value.upper() in get_comb_opcodes()
+        )
+
     def __getitem__(self, i):
         return self.to_list()[i]
 
