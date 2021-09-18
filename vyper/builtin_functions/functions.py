@@ -1546,26 +1546,14 @@ class CreateForwarderTo(_SimpleBuiltinFunction):
 
     _id = "create_forwarder_to"
     _inputs = [("target", AddressDefinition())]
-    _kwargs = {
-        "value": Optional("uint256", zero_value),
-        "salt": Optional("bytes32", empty_value),
-        "is_deterministic": Optional("bool", false_value),
-    }
+    _kwargs = {"value": Optional("uint256", zero_value), "salt": Optional("bytes32", empty_value)}
     _return_type = AddressDefinition()
 
     @validate_inputs
     def build_LLL(self, expr, args, kwargs, context):
         value = kwargs["value"]
         salt = kwargs["salt"]
-        is_deterministic = kwargs["is_deterministic"]
-
-        if not is_deterministic.typ.is_literal:
-            raise ArgumentException("`is_determinstic` kwarg must be a literal", expr)
-        else:
-            if not is_deterministic.value and salt.value:
-                raise ArgumentException(
-                    "`salt` kwarg given a value, and `is_deterministic` is False", expr
-                )
+        is_deterministic = "salt" in [kwarg.arg for kwarg in expr.keywords]
 
         if context.is_constant():
             raise StateAccessViolation(
@@ -1591,7 +1579,7 @@ class CreateForwarderTo(_SimpleBuiltinFunction):
         op = "create"
         op_args = [value, placeholder, preamble_length + 20 + len(forwarder_post_evm)]
 
-        if is_deterministic.value:
+        if is_deterministic:
             op = "create2"
             op_args.append(salt)
 

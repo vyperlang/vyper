@@ -12,18 +12,9 @@ def foo():
     """,
     """
 @external
-def foo():
+def foo(_salt: bytes32):
     x: address = create_forwarder_to(
-        0x1234567890123456789012345678901234567890, salt=keccak256(b"Vyper Rocks!")
-    )
-    """,
-    """
-@external
-def foo(_is_deterministic: bool):
-    x: address = create_forwarder_to(
-        0x1234567890123456789012345678901234567890,
-        salt=keccak256(b"Vyper Rocks!"),
-        is_deterministic=_is_deterministic
+        0x1234567890123456789012345678901234567890, salt=keccak256(b"Vyper Rocks!"), salt=_salt
     )
     """,
 ]
@@ -59,16 +50,13 @@ def foo():
 def foo():
     x: address = create_forwarder_to(
         0x1234567890123456789012345678901234567890,
-        salt=keccak256(b"Vyper Rocks!"),
-        is_deterministic=True
+        salt=keccak256(b"Vyper Rocks!")
     )
     """,
     """
 @external
 def foo(_salt: bytes32):
-    x: address = create_forwarder_to(
-        0x1234567890123456789012345678901234567890, salt=_salt, is_deterministic=True
-    )
+    x: address = create_forwarder_to(0x1234567890123456789012345678901234567890, salt=_salt)
     """,
 ]
 

@@ -109,7 +109,7 @@ main: address
 
 @external
 def test(_salt: bytes32) -> address:
-    self.main = create_forwarder_to(self, salt=_salt, is_deterministic=True)
+    self.main = create_forwarder_to(self, salt=_salt)
     return self.main
     """
 
