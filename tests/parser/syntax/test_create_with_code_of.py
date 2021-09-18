@@ -9,7 +9,14 @@ fail_list = [
 @external
 def foo():
     x: address = create_forwarder_to(0x1234567890123456789012345678901234567890, value=4, value=9)
+    """,
     """
+@external
+def foo(_salt: bytes32):
+    x: address = create_forwarder_to(
+        0x1234567890123456789012345678901234567890, salt=keccak256(b"Vyper Rocks!"), salt=_salt
+    )
+    """,
 ]
 
 
@@ -37,6 +44,19 @@ def foo():
 @external
 def foo():
     x: address = create_forwarder_to(0x1234567890123456789012345678901234567890, value=9)
+    """,
+    """
+@external
+def foo():
+    x: address = create_forwarder_to(
+        0x1234567890123456789012345678901234567890,
+        salt=keccak256(b"Vyper Rocks!")
+    )
+    """,
+    """
+@external
+def foo(_salt: bytes32):
+    x: address = create_forwarder_to(0x1234567890123456789012345678901234567890, salt=_salt)
     """,
 ]
 

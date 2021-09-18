@@ -1,3 +1,13 @@
+from hexbytes import HexBytes
+
+
+def initcode(_addr):
+    addr = HexBytes(_addr)
+    pre = HexBytes("0x602D3D8160093D39F3363d3d373d3d3d363d73")
+    post = HexBytes("0x5af43d82803e903d91602b57fd5bf3")
+    return HexBytes(pre + (addr + HexBytes(0) * (20 - len(addr))) + post)
+
+
 def test_create_forwarder_to_create(get_contract):
     code = """
 main: address
@@ -91,3 +101,19 @@ def test2(a: uint256) -> Bytes[100]:
 
     assert receipt["status"] == 0
     assert receipt["gasUsed"] < GAS_SENT
+
+
+def test_create2_forwarder_to_create(get_contract, create2_address_of, keccak):
+    code = """
+main: address
+
+@external
+def test(_salt: bytes32) -> address:
+    self.main = create_forwarder_to(self, salt=_salt)
+    return self.main
+    """
+
+    c = get_contract(code)
+
+    salt = keccak(b"vyper")
+    assert HexBytes(c.test(salt)) == create2_address_of(c.address, salt, initcode(c.address))
