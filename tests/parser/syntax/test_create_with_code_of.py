@@ -10,6 +10,22 @@ fail_list = [
 def foo():
     x: address = create_forwarder_to(0x1234567890123456789012345678901234567890, value=4, value=9)
     """
+    """
+@external
+def foo():
+    x: address = create_forwarder_to(
+        0x1234567890123456789012345678901234567890, salt=keccak256(b"Vyper Rocks!")
+    )
+    """,
+    """
+@external
+def foo(_is_deterministic: bool):
+    x: address = create_forwarder_to(
+        0x1234567890123456789012345678901234567890,
+        salt=keccak256(b"Vyper Rocks!"),
+        is_deterministic=_is_deterministic
+    )
+    """,
 ]
 
 
@@ -37,6 +53,22 @@ def foo():
 @external
 def foo():
     x: address = create_forwarder_to(0x1234567890123456789012345678901234567890, value=9)
+    """,
+    """
+@external
+def foo():
+    x: address = create_forwarder_to(
+        0x1234567890123456789012345678901234567890,
+        salt=keccak256(b"Vyper Rocks!"),
+        is_deterministic=True
+    )
+    """,
+    """
+@external
+def foo(_salt: bytes32):
+    x: address = create_forwarder_to(
+        0x1234567890123456789012345678901234567890, salt=_salt, is_deterministic=True
+    )
     """,
 ]
 
