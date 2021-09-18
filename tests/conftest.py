@@ -177,12 +177,12 @@ def search_for_sublist():
 
 
 @pytest.fixture
-def create2(keccak):
-    def _create2(_addr, _salt, _initcode):
+def create2_address_of(keccak):
+    def _f(_addr, _salt, _initcode):
         prefix = HexBytes("0xff")
         addr = HexBytes(_addr)
         salt = HexBytes(_salt)
         initcode = HexBytes(_initcode)
         return keccak(prefix + addr + salt + keccak(initcode))[12:]
 
-    return _create2
+    return _f

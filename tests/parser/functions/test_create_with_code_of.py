@@ -103,7 +103,7 @@ def test2(a: uint256) -> Bytes[100]:
     assert receipt["gasUsed"] < GAS_SENT
 
 
-def test_create2_forwarder_to_create(get_contract, create2, keccak):
+def test_create2_forwarder_to_create(get_contract, create2_address_of, keccak):
     code = """
 main: address
 
@@ -116,4 +116,4 @@ def test(_salt: bytes32) -> address:
     c = get_contract(code)
 
     salt = keccak(b"vyper")
-    assert HexBytes(c.test(salt)) == create2(c.address, salt, initcode(c.address))
+    assert HexBytes(c.test(salt)) == create2_address_of(c.address, salt, initcode(c.address))
