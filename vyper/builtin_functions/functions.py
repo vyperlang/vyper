@@ -1553,7 +1553,7 @@ class CreateForwarderTo(_SimpleBuiltinFunction):
     def build_LLL(self, expr, args, kwargs, context):
         value = kwargs["value"]
         salt = kwargs["salt"]
-        is_deterministic = "salt" in [kwarg.arg for kwarg in expr.keywords]
+        should_use_create2 = "salt" in [kwarg.arg for kwarg in expr.keywords]
 
         if context.is_constant():
             raise StateAccessViolation(
@@ -1579,7 +1579,7 @@ class CreateForwarderTo(_SimpleBuiltinFunction):
         op = "create"
         op_args = [value, placeholder, preamble_length + 20 + len(forwarder_post_evm)]
 
-        if is_deterministic:
+        if should_use_create2:
             op = "create2"
             op_args.append(salt)
 
