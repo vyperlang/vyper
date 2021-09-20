@@ -14,7 +14,9 @@ def _generate_label(name: str) -> str:
 
 
 def lll_for_self_call(stmt_expr, context):
-    from vyper.old_codegen.expr import Expr  # TODO rethink this circular import
+    from vyper.old_codegen.expr import (
+        Expr,  # TODO rethink this circular import
+    )
 
     pos = getpos(stmt_expr)
 
@@ -66,11 +68,14 @@ def lll_for_self_call(stmt_expr, context):
     copy_args = make_setter(args_dst, args_as_tuple, "memory", pos)
 
     call_sequence = [
-        "seq_unchecked",
+        "seq",
         copy_args,
-        push_label_to_stack(return_label),  # pass return label to subroutine
-        return_buffer,  # pass return buffer to subroutine
-        ["goto", sig.internal_function_label],
+        [
+            "goto",
+            sig.internal_function_label,
+            return_buffer,  # pass return buffer to subroutine
+            push_label_to_stack(return_label),  # pass return label to subroutine
+        ],
         ["label", return_label],
         return_buffer,  # push return buffer location to stack
     ]

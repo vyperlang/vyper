@@ -222,6 +222,16 @@ class LLLnode:
             elif self.value == "seq":
                 self.valency = self.args[-1].valency if self.args else 0
                 self.gas = sum([arg.gas for arg in self.args]) + 30
+
+            # GOTO is a jump with args
+            # e.g. (goto my_label x y z) will push x y and z onto the stack,
+            # then JUMP to my_label.
+            elif self.value == "goto":
+                for arg in self.args:
+                    if not arg.valency and arg.value != "pass":
+                        raise CompilerPanic(f"zerovalent argument to goto {self}")
+                self.valency = 0
+                self.gas = sum([arg.gas for arg in self.args])
             # Multi statements: multi <expr> <expr> ...
             elif self.value == "multi":
                 for arg in self.args:

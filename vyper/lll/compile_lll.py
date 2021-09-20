@@ -493,9 +493,13 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
             break_dest,
             height,
         )
-    # # jump to a symbol
+    # # jump to a symbol, and push variable arguments onto stack
     elif code.value == "goto":
-        return ["_sym_" + str(code.args[0]), "JUMP"]
+        o = []
+        for i, c in enumerate(reversed(code.args[1:])):
+            o.extend(_compile_to_assembly(c, withargs, existing_labels, break_dest, height + i))
+        o.extend(["_sym_" + str(code.args[0]), "JUMP"])
+        return o
     elif isinstance(code.value, str) and is_symbol(code.value):
         return [code.value]
     # set a symbol as a location.
