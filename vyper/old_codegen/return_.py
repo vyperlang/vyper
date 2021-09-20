@@ -11,7 +11,6 @@ from vyper.old_codegen.parser_utils import (
 from vyper.old_codegen.types import get_type_for_exact_size
 from vyper.old_codegen.types.check import check_assign
 
-
 Stmt = Any  # mypy kludge
 
 
