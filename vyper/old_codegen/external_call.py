@@ -68,6 +68,10 @@ def _unpack_returndata(buf, contract_sig, context, pos):
         return ["pass"], 0, 0
 
     return_t = calculate_type_for_external_return(return_t)
+    # if the abi signature has a different type than
+    # the vyper type, we need to wrap and unwrap the type
+    # so that the ABI decoding works correctly
+    should_unwrap_abi_tuple = return_t != contract_sig.return_type
 
     abi_return_t = abi_type_of(return_t)
 
@@ -108,7 +112,9 @@ def _unpack_returndata(buf, contract_sig, context, pos):
     # in the special case where the return type has been wrapped
     # in a tuple AND its ABI type is dynamic, it expands to buf+32.
     buf = LLLnode(buf, typ=return_t, encoding=Encoding.ABI, location="memory")
-    buf = add_variable_offset(buf, 0, pos=None, array_bounds_check=False)
+
+    if should_unwrap_abi_tuple:
+        buf = add_variable_offset(buf, 0, pos=None, array_bounds_check=False)
 
     ret += [buf]
 
