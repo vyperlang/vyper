@@ -31,7 +31,7 @@ def abi_encode(
     pet_metadata: bytes32,
     ensure_tuple: bool,
     include_method_id: bool
-) -> Bytes[260]:
+) -> Bytes[548]:
     human: Human = Human({
       name: name,
       pet: Animal({
