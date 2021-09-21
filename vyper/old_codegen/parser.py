@@ -231,6 +231,7 @@ def parse_tree_to_lll(global_ctx: GlobalContext) -> Tuple[LLLnode, LLLnode]:
     return LLLnode.from_list(o), LLLnode.from_list(runtime)
 
 
+# TODO this function is dead code
 def parse_to_lll(
     source_code: str, runtime_only: bool = False, interface_codes: Optional[InterfaceImports] = None
 ) -> LLLnode:
