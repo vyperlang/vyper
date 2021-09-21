@@ -12,7 +12,11 @@ def _shr(x, bits):
 def _sar(x, bits):
     if version_check(begin="constantinople"):
         return ["sar", bits, x]
-    return ["sdiv", x, ["exp", 2, bits]]
+
+    # emulate for older arches. keep in mind note from EIP 145:
+    # This is not equivalent to PUSH1 2 EXP SDIV, since it rounds
+    # differently. See SDIV(-1, 2) == 0, while SAR(-1, 1) == -1.
+    return ["sdiv", ["add", ["slt", x, 0], x], ["exp", 2, bits]]
 
 
 def address_clamp(lll_node):
