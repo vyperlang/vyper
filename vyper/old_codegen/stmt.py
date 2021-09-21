@@ -19,7 +19,7 @@ from vyper.old_codegen.types import (
     get_size_of_type,
     parse_type,
 )
-from vyper.utils import bytes_to_int, fourbytes_to_int, keccak256
+import vyper.utils as util
 
 
 class Stmt:
@@ -70,7 +70,7 @@ class Stmt:
         # If bytes[32] to bytes32 assignment rewrite sub as bytes32.
         if is_literal_bytes32_assign:
             sub = LLLnode(
-                bytes_to_int(self.stmt.value.s), typ=BaseType("bytes32"), pos=getpos(self.stmt),
+                util.bytes_to_int(self.stmt.value.s), typ=BaseType("bytes32"), pos=getpos(self.stmt),
             )
 
         variable_loc = LLLnode.from_list(pos, typ=typ, location="memory", pos=getpos(self.stmt),)
@@ -146,18 +146,21 @@ class Stmt:
 
         reason_str_type = ByteArrayType(len(msg.value.strip()))
 
+        # abi encode the reason string
         sig_placeholder = self.context.new_internal_variable(BaseType(32))
+        # offset of bytes in (bytes,)
         arg_placeholder = self.context.new_internal_variable(BaseType(32))
         placeholder_bytes = Expr(msg, self.context).lll_node
 
-        method_id = fourbytes_to_int(keccak256(b"Error(string)")[:4])
+        method_id = util.abi_method_id("Error(string)")
 
+        # abi encode method_id + bytestring
         revert_seq = [
             "seq",
             ["mstore", sig_placeholder, method_id],
             ["mstore", arg_placeholder, 32],
             placeholder_bytes,
-            ["revert", sig_placeholder + 28, int(4 + get_size_of_type(reason_str_type) * 32)],
+            ["revert", sig_placeholder + 28, int(32 + 4 + get_size_of_type(reason_str_type) * 32)],
         ]
         if test_expr:
             lll_node = ["if", ["iszero", test_expr], revert_seq]
