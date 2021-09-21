@@ -33,6 +33,7 @@ def generate_lll_for_function(
     sigs: Dict[str, Dict[str, FunctionSignature]],
     global_ctx: GlobalContext,
     check_nonpayable: bool,
+    # CMC 20210921 TODO _vars can probably be removed
     _vars: Optional[Dict[str, VariableRecord]] = None,
 ) -> Tuple[LLLnode, int, int]:
     """
