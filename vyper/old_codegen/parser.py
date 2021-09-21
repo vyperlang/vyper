@@ -108,9 +108,9 @@ def parse_regular_functions(
     check_per_function = is_default_payable and has_nonpayable
 
     # generate LLL for regular functions
-    payable_func_sub = ["seq"]
-    external_func_sub = ["seq"]
-    internal_func_sub = ["seq"]
+    payable_funcs    = []
+    nonpayable_funcs = []
+    internal_funcs   = []
     add_gas = func_init_lll().gas
 
     for func_node in regular_functions:
@@ -120,15 +120,15 @@ def parse_regular_functions(
         )
 
         if func_type.visibility == FunctionVisibility.INTERNAL:
-            internal_func_sub.append(func_lll)
+            internal_funcs.append(func_lll)
 
         elif func_type.mutability == StateMutability.PAYABLE:
             add_gas += 30  # CMC 20210910 why?
-            payable_func_sub.append(func_lll)
+            payable_funcs.append(func_lll)
 
         else:
-            external_func_sub.append(func_lll)
             add_gas += 30  # CMC 20210910 why?
+            nonpayable_funcs.append(func_lll)
 
         func_lll.total_gas += add_gas
 
@@ -155,16 +155,17 @@ def parse_regular_functions(
         fallback_lll = LLLnode.from_list(["revert", 0, 0], typ=None, annotation="Default function")
 
     if check_per_function:
-        external_seq = ["seq", payable_func_sub, external_func_sub]
+        external_seq = ["seq"] + payable_funcs + nonpayable_funcs
 
     else:
         # payable functions are placed prior to nonpayable functions
         # and seperated by a nonpayable assertion
         external_seq = ["seq"]
         if has_payable:
-            external_seq.append(payable_func_sub)
+            external_seq += payable_funcs
         if has_nonpayable:
-            external_seq.extend([["assert", ["iszero", "callvalue"]], external_func_sub])
+            external_seq.append(["assert", ["iszero", "callvalue"]])
+            external_seq += nonpayable_funcs
 
     # bytecode is organized by: external functions, fallback fn, internal functions
     # this way we save gas and reduce bytecode by not jumping over internal functions
@@ -173,8 +174,8 @@ def parse_regular_functions(
         func_init_lll(),
         ["with", "_calldata_method_id", ["mload", 0], external_seq],
         ["seq_unchecked", ["label", "fallback"], fallback_lll],
-        internal_func_sub,
     ]
+    runtime.extend(internal_funcs)
 
     # TODO CMC 20210911 why does the lll have a trailing 0
     o.append(["return", 0, ["lll", runtime, 0]])
