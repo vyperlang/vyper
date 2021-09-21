@@ -609,7 +609,9 @@ def make_setter(left, right, location, pos):
             return LLLnode.from_list(["with", "_L", left, ["seq"] + subs], typ=None)
         # If the right side is a variable
         else:
-            right_token = LLLnode.from_list("_R", typ=right.typ, location=right.location)
+            right_token = LLLnode.from_list(
+                "_R", typ=right.typ, location=right.location, encoding=right.encoding
+            )
             subs = []
             for i in range(left.typ.count):
                 lhs_setter = _make_array_index_setter(left, left_token, pos, left.location, i)
