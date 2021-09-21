@@ -91,13 +91,14 @@ def _generate_kwarg_handlers(context: Context, sig: FunctionSignature, pos: Any)
         for i, arg_meta in enumerate(calldata_kwargs):
             k = n_base_args + i
 
-            dst = context.new_variable(arg_meta.name, arg_meta.typ, is_mutable=False)
+            dst = context.lookup_var(arg_meta.name).pos
+
             lhs = LLLnode(dst, location="memory", typ=arg_meta.typ)
             rhs = add_variable_offset(calldata_kwargs_ofst, k, pos=None, array_bounds_check=False)
             ret.append(make_setter(lhs, rhs, lhs_location, pos))
 
         for x in default_kwargs:
-            dst = context.new_variable(x.name, x.typ, is_mutable=False)
+            dst = context.lookup_var(x.name).pos
             lhs = LLLnode(dst, location="memory", typ=x.typ)
             kw_ast_val = sig.default_values[x.name]  # e.g. `3` in x: int = 3
             rhs = Expr(kw_ast_val, context).lll_node
@@ -111,6 +112,10 @@ def _generate_kwarg_handlers(context: Context, sig: FunctionSignature, pos: Any)
     ret = ["seq"]
 
     keyword_args = sig.default_args
+
+    # allocate variable slots in memory
+    for arg in keyword_args:
+        context.new_variable(arg.name, arg.typ, is_mutable=False)
 
     for i, _ in enumerate(keyword_args):
         calldata_kwargs = keyword_args[:i]
