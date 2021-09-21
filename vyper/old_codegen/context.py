@@ -244,12 +244,11 @@ class Context:
         # more sanity check, that the types match
         # _check(all(l.typ == r.typ for (l, r) in zip(args_lll, sig.args))
 
-        num_provided_args = len(args_lll)
-        total_args = len(sig.args)
+        num_provided_kwargs = len(args_lll) - len(sig.base_args)
         num_kwargs = len(sig.default_args)
-        args_needed = total_args - num_provided_args
+        kwargs_needed = num_kwargs - num_provided_kwargs
 
-        kw_vals = list(sig.default_values.values())[: num_kwargs - args_needed]
+        kw_vals = list(sig.default_values.values())[:kwargs_needed]
 
         return sig, kw_vals
 
