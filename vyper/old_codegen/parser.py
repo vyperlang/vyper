@@ -108,9 +108,9 @@ def parse_regular_functions(
     check_per_function = is_default_payable and has_nonpayable
 
     # generate LLL for regular functions
-    payable_funcs    = []
+    payable_funcs = []
     nonpayable_funcs = []
-    internal_funcs   = []
+    internal_funcs = []
     add_gas = func_init_lll().gas
 
     for func_node in regular_functions:

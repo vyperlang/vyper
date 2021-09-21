@@ -1,4 +1,5 @@
 import vyper.old_codegen.events as events
+import vyper.utils as util
 from vyper import ast as vy_ast
 from vyper.builtin_functions import STMT_DISPATCH_TABLE
 from vyper.exceptions import StructureException, TypeCheckFailure
@@ -19,7 +20,6 @@ from vyper.old_codegen.types import (
     get_size_of_type,
     parse_type,
 )
-import vyper.utils as util
 
 
 class Stmt:
@@ -70,7 +70,9 @@ class Stmt:
         # If bytes[32] to bytes32 assignment rewrite sub as bytes32.
         if is_literal_bytes32_assign:
             sub = LLLnode(
-                util.bytes_to_int(self.stmt.value.s), typ=BaseType("bytes32"), pos=getpos(self.stmt),
+                util.bytes_to_int(self.stmt.value.s),
+                typ=BaseType("bytes32"),
+                pos=getpos(self.stmt),
             )
 
         variable_loc = LLLnode.from_list(pos, typ=typ, location="memory", pos=getpos(self.stmt),)

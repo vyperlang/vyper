@@ -1,5 +1,5 @@
 import operator
-from typing import Any, List, Optional
+from typing import List, Optional
 
 from vyper.old_codegen.parser_utils import LLLnode
 from vyper.utils import LOADED_LIMITS
