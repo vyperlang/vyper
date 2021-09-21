@@ -1852,6 +1852,8 @@ class ABIEncode(_SimpleBuiltinFunction):
 
         input_abi_t = abi_type_of(encode_input.typ)
         maxlen = input_abi_t.size_bound()
+        if method_id is not None:
+            maxlen += 4
 
         buf_t = ByteArrayType(maxlen=maxlen)
         buf = context.new_internal_variable(buf_t)
@@ -1860,6 +1862,7 @@ class ABIEncode(_SimpleBuiltinFunction):
 
         ret = ["seq"]
         if method_id is not None:
+            # <32 bytes length> | <4 bytes method_id> | <everything else>
             # write the unaligned method_id first, then we will
             # overwrite the 28 bytes of zeros with the bytestring length
             ret += [["mstore", buf + 4, method_id]]
