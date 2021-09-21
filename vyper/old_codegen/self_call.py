@@ -64,7 +64,9 @@ def lll_for_self_call(stmt_expr, context):
     )
     return_buffer = LLLnode.from_list([return_buffer], annotation=f"{return_label}_return_buf")
 
-    args_dst = LLLnode(sig.frame_start, typ=args_tuple_t, location="memory")
+    # note: dst_tuple_t != args_tuple_t
+    dst_tuple_t = TupleType([arg.typ for arg in sig.args])
+    args_dst = LLLnode(sig.frame_start, typ=dst_tuple_t, location="memory")
     copy_args = make_setter(args_dst, args_as_tuple, "memory", pos)
 
     call_sequence = [

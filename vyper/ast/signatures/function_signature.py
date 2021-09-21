@@ -41,6 +41,11 @@ class VariableRecord:
         self.defined_at = defined_at  # source code location variable record was defined.
         self.is_internal = is_internal
 
+    def __repr__(self):
+        ret = vars(self)
+        ret["allocated"] = self.size * 32
+        return f"VariableRecord(f{ret})"
+
     @property
     def size(self):
         if hasattr(self.typ, "size_in_bytes"):
