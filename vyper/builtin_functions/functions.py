@@ -613,8 +613,30 @@ class Sha256(_SimpleBuiltinFunction):
                 add_gas_estimate=SHA256_BASE_GAS + 1 * SHA256_PER_WORD_GAS,
             )
         # bytearay-like input
-        if sub.location == "storage":
-            # Copy storage to memory
+        # special case if it's already in memory
+        if sub.location == "memory":
+            return LLLnode.from_list(
+                [
+                    "with",
+                    "_sub",
+                    sub,
+                    [
+                        "seq",
+                        _make_sha256_call(
+                            inp_start=["add", "_sub", 32],
+                            inp_len=["mload", "_sub"],
+                            out_start=MemoryPositions.FREE_VAR_SPACE,
+                            out_len=32,
+                        ),
+                        ["mload", MemoryPositions.FREE_VAR_SPACE],
+                    ],
+                ],
+                typ=BaseType("bytes32"),
+                pos=getpos(expr),
+                add_gas_estimate=SHA256_BASE_GAS + sub.typ.maxlen * SHA256_PER_WORD_GAS,
+            )
+        else:
+            # otherwise, copy it to memory and then call the precompile
             placeholder = context.new_internal_variable(sub.typ)
             placeholder_node = LLLnode.from_list(placeholder, typ=sub.typ, location="memory")
             copier = make_byte_array_copier(
@@ -641,30 +663,6 @@ class Sha256(_SimpleBuiltinFunction):
                 pos=getpos(expr),
                 add_gas_estimate=SHA256_BASE_GAS + sub.typ.maxlen * SHA256_PER_WORD_GAS,
             )
-        elif sub.location == "memory":
-            return LLLnode.from_list(
-                [
-                    "with",
-                    "_sub",
-                    sub,
-                    [
-                        "seq",
-                        _make_sha256_call(
-                            inp_start=["add", "_sub", 32],
-                            inp_len=["mload", "_sub"],
-                            out_start=MemoryPositions.FREE_VAR_SPACE,
-                            out_len=32,
-                        ),
-                        ["mload", MemoryPositions.FREE_VAR_SPACE],
-                    ],
-                ],
-                typ=BaseType("bytes32"),
-                pos=getpos(expr),
-                add_gas_estimate=SHA256_BASE_GAS + sub.typ.maxlen * SHA256_PER_WORD_GAS,
-            )
-        else:
-            # This should never happen, but just left here for future compiler-writers.
-            raise Exception(f"Unsupported location: {sub.location}")  # pragma: no test
 
 
 class MethodID:
