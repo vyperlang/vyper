@@ -191,23 +191,6 @@ def apply_general_optimizations(node: LLLnode) -> LLLnode:
             annotation=node.annotation,
             # let from_list handle valency and gas_estimate
         )
-    elif node.value == "seq":
-        xs: List[Any] = []
-        for arg in argz:
-            if arg.value == "seq":
-                xs.extend(arg.args)
-            else:
-                xs.append(arg)
-        return LLLnode(
-            node.value,
-            xs,
-            node.typ,
-            node.location,
-            node.pos,
-            node.annotation,
-            add_gas_estimate=node.add_gas_estimate,
-            valency=node.valency,
-        )
     elif node.total_gas is not None:
         o = LLLnode(
             node.value,
