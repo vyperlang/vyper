@@ -18,6 +18,7 @@ from vyper.old_codegen.types import (
     canonicalize_type,
     get_type_for_exact_size,
 )
+from vyper.old_codegen.types.check import check_assign
 
 
 def _pack_arguments(contract_sig, args, context, pos):
@@ -25,6 +26,11 @@ def _pack_arguments(contract_sig, args, context, pos):
     args_tuple_t = TupleType([x.typ for x in args])
     args_as_tuple = LLLnode.from_list(["multi"] + [x for x in args], typ=args_tuple_t)
     args_abi_t = abi_type_of(args_tuple_t)
+
+    # sanity typecheck - make sure the arguments can be assigned
+    dst_tuple_t = TupleType([arg.typ for arg in contract_sig.args][:len(args)])
+    _tmp = LLLnode("fake node", location="memory", typ=dst_tuple_t)
+    check_assign(_tmp, args_as_tuple, pos)
 
     if contract_sig.return_type is not None:
         return_abi_t = abi_type_of(calculate_type_for_external_return(contract_sig.return_type))
@@ -43,7 +49,7 @@ def _pack_arguments(contract_sig, args, context, pos):
     args_ofst = buf + 28
     args_len = args_abi_t.size_bound() + 4
 
-    abi_signature = contract_sig.name + canonicalize_type(args_tuple_t)
+    abi_signature = contract_sig.name + canonicalize_type(dst_tuple_t)
 
     # layout:
     # 32 bytes                 | args
