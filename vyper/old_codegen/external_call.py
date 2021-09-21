@@ -77,30 +77,16 @@ def _unpack_returndata(buf, contract_sig, context, pos):
 
     min_return_size = abi_return_t.min_size()
     max_return_size = abi_return_t.size_bound()
+    assert 0 < min_return_size <= max_return_size
 
     ret_ofst = buf
-    ret_len = abi_return_t.size_bound()
+    ret_len = max_return_size
 
     # revert when returndatasize is not in bounds
     ret = []
-    assert 0 < min_return_size <= max_return_size
-    if contract_sig.is_from_json:
-        # we don't have max_size information for json abis
-        # runtime: min_return_size <= returndatasize
-        ret += [["assert", ["gt", "returndatasize", min_return_size - 1]]]
-    else:
-        # runtime: min_return_size <= returndatasize <= max_return_size
-        # TODO move the +-1 optimization to LLL optimizer
-        ret += [
-            [
-                "assert",
-                [
-                    "and",
-                    ["gt", "returndatasize", min_return_size - 1],
-                    ["lt", "returndatasize", max_return_size + 1],
-                ],
-            ]
-        ]
+    # runtime: min_return_size <= returndatasize
+    # TODO move the -1 optimization to LLL optimizer
+    ret += [["assert", ["gt", "returndatasize", min_return_size - 1]]]
 
     # add as the last LLLnode a pointer to the return data structure
 
