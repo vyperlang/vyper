@@ -5,9 +5,9 @@ import pkg_resources as _pkg_resources
 
 from vyper.compiler import compile_code, compile_codes  # noqa: F401
 
-if (_sys.version_info.major, _sys.version_info.minor) < (3, 6):
+if (_sys.version_info.major, _sys.version_info.minor) < (3, 7):
     # Can't be tested, as our test harness is using python3.6.
-    raise Exception("Requires python3.6+")  # pragma: no cover
+    raise Exception("Requires python3.7+")  # pragma: no cover
 
 
 _version_file = _Path(__file__).parent.joinpath("vyper_git_version.txt")
