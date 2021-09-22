@@ -318,7 +318,7 @@ def add_variable_offset(parent, key, pos, array_bounds_check=True):
             ["ofst"], typ=member_t, location=parent.location, annotation=f"&({typ}->{member_t})"
         )
 
-        if clamp and _needs_clamp(member_t):
+        if clamp and _needs_clamp(member_t, parent.encoding):
             # special handling for args that need clamping
             ret = ["with", x, ofst_lll, ["seq", clamp_basetype(x), x]]
         else:
@@ -352,7 +352,7 @@ def add_variable_offset(parent, key, pos, array_bounds_check=True):
             assert parent.encoding != Encoding.ABI, "no abi-encoded literals"
             return parent.args[index]
 
-        if parent.encoding == Encoding.ABI:
+        if parent.encoding in (Encoding.ABI, Encoding.JSON_ABI):
             if parent.location == "storage":
                 raise CompilerPanic("storage variables should not be abi encoded")
 
@@ -410,7 +410,7 @@ def add_variable_offset(parent, key, pos, array_bounds_check=True):
             # an array index, and the clamp will throw an error.
             sub = ["uclamplt", k, typ.count]
 
-        if parent.encoding == Encoding.ABI:
+        if parent.encoding in (Encoding.ABI, Encoding.JSON_ABI):
             if parent.location == "storage":
                 raise CompilerPanic("storage variables should not be abi encoded")
 
@@ -817,8 +817,12 @@ def _sar(x, bits):
     return ["sdiv", ["add", ["slt", x, 0], x], ["exp", 2, bits]]
 
 
-def _needs_clamp(t):
+def _needs_clamp(t, encoding):
+    assert encoding in (Encoding.ABI, Encoding.JSON_ABI)
     if isinstance(t, ByteArrayLike):
+        if encoding == Encoding.JSON_ABI:
+            # don't have bytestring size bound from json, don't clamp
+            return False
         return True
     if isinstance(t, BaseType) and t.typ not in ("int256", "uint256", "bytes32"):
         return True

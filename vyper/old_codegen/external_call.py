@@ -68,6 +68,12 @@ def _pack_arguments(contract_sig, args, context, pos):
     return buf, mstore_method_id + [encode_args], args_ofst, args_len
 
 
+def _returndata_encoding(contract_sig):
+    if contract_sig.is_from_json:
+        return Encoding.JSON_ABI
+    return Encoding.ABI
+
+
 def _unpack_returndata(buf, contract_sig, context, pos):
     return_t = contract_sig.return_type
     if return_t is None:
@@ -103,7 +109,7 @@ def _unpack_returndata(buf, contract_sig, context, pos):
     # in most cases, this simply will evaluate to ret.
     # in the special case where the return type has been wrapped
     # in a tuple AND its ABI type is dynamic, it expands to buf+32.
-    buf = LLLnode(buf, typ=return_t, encoding=Encoding.ABI, location="memory")
+    buf = LLLnode(buf, typ=return_t, encoding=_returndata_encoding(contract_sig), location="memory")
 
     if should_unwrap_abi_tuple:
         buf = add_variable_offset(buf, 0, pos=None, array_bounds_check=False)
@@ -163,7 +169,7 @@ def _external_call_helper(
         sub,
         typ=contract_sig.return_type,
         location="memory",
-        encoding=Encoding.ABI,
+        encoding=_returndata_encoding(contract_sig),
         pos=pos,
     )
 

@@ -46,6 +46,8 @@ class Encoding(Enum):
     VYPER = auto()
     # abi encoded, default for args/return values from external funcs
     ABI = auto()
+    # abi encoded, same as ABI but no clamps for bytestrings
+    JSON_ABI = auto()
     # future: packed
 
 
