@@ -20,7 +20,7 @@ from vyper.old_codegen.types.types import TupleType
 
 # register function args with the local calling context.
 # also allocate the ones that live in memory (i.e. kwargs)
-def _register_function_args(context: Context, sig: FunctionSignature):
+def _register_function_args(context: Context, sig: FunctionSignature) -> None:
     if len(sig.args) == 0:
         return
 

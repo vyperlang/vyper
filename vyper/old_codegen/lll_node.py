@@ -1,7 +1,7 @@
 import re
 from enum import Enum, auto
-from typing import Any, List, Optional, Tuple, Union
 from functools import cached_property
+from typing import Any, List, Optional, Tuple, Union
 
 from vyper.compiler.settings import VYPER_COLOR_OUTPUT
 from vyper.evm.opcodes import get_comb_opcodes

@@ -76,9 +76,7 @@ def lll_for_self_call(stmt_expr, context):
         copy_args = ["seq"]
         # TODO deallocate me
         tmp_args_buf = LLLnode(
-            context.new_internal_variable(dst_tuple_t),
-            typ=dst_tuple_t,
-            location="memory",
+            context.new_internal_variable(dst_tuple_t), typ=dst_tuple_t, location="memory",
         )
         copy_args.append(make_setter(tmp_args_buf, args_as_tuple, "memory", pos))
 

@@ -1,7 +1,6 @@
 import math
 from dataclasses import dataclass
 from functools import cached_property
-from typing import List
 
 from vyper import ast as vy_ast
 from vyper.exceptions import StructureException
@@ -111,21 +110,6 @@ class FunctionSignature:
     def abi_signature_for_kwargs(self, kwargs):
         args = self.base_args + kwargs
         return self.name + "(" + ",".join([canonicalize_type(arg.typ) for arg in args]) + ")"
-
-    @cached_property
-    def all_kwarg_sigs(self) -> List[str]:
-        assert not self.internal, "abi_signatures only make sense for external functions"
-        ret = []
-
-        kwargz = []
-
-        ret.append(self.abi_signature_for_kwargs(kwargz))
-
-        for kwarg in self.default_args:
-            kwargz.append(kwarg)
-            ret.append(self.abi_signature_for_args(kwargz))
-
-        return ret
 
     @cached_property
     def base_signature(self):

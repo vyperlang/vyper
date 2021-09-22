@@ -481,7 +481,7 @@ class ContractFunction(BaseTypeDefinition):
         typ = self.return_type
         if typ is None:
             abi_dict["outputs"] = []
-        elif isinstance(typ, TupleDefinition) and len(typ.value_type) > 1:
+        elif isinstance(typ, TupleDefinition) and len(typ.value_type) > 1:  # type: ignore
             abi_dict["outputs"] = [_generate_abi_type(i) for i in typ.value_type]  # type: ignore
         else:
             abi_dict["outputs"] = [_generate_abi_type(typ)]
