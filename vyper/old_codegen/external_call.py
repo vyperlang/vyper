@@ -28,7 +28,7 @@ def _pack_arguments(contract_sig, args, context, pos):
     args_abi_t = abi_type_of(args_tuple_t)
 
     # sanity typecheck - make sure the arguments can be assigned
-    dst_tuple_t = TupleType([arg.typ for arg in contract_sig.args][:len(args)])
+    dst_tuple_t = TupleType([arg.typ for arg in contract_sig.args][: len(args)])
     _tmp = LLLnode("fake node", location="memory", typ=dst_tuple_t)
     check_assign(_tmp, args_as_tuple, pos)
 
