@@ -242,16 +242,19 @@ def make_byte_slice_copier(destination, source, length, max_length, pos=None):
 def byte_array_to_num(
     arg, expr, out_type, offset=32,
 ):
-    if arg.location == "memory":
-        lengetter = LLLnode.from_list(["mload", "_sub"], typ=BaseType("int256"))
-        first_el_getter = LLLnode.from_list(["mload", ["add", 32, "_sub"]], typ=BaseType("int256"))
-    elif arg.location == "storage":
+    if arg.location == "storage":
         lengetter = LLLnode.from_list(["sload", "_sub"], typ=BaseType("int256"))
         first_el_getter = LLLnode.from_list(["sload", ["add", 1, "_sub"]], typ=BaseType("int256"))
+    else:
+        op = load_op(arg.location)
+        lengetter = LLLnode.from_list([op, "_sub"], typ=BaseType("int256"))
+        first_el_getter = LLLnode.from_list([op, ["add", 32, "_sub"]], typ=BaseType("int256"))
+
     if out_type == "int128":
         result = int128_clamp(["div", "_el1", ["exp", 256, ["sub", 32, "_len"]]])
     elif out_type in ("int256", "uint256"):
         result = ["div", "_el1", ["exp", 256, ["sub", offset, "_len"]]]
+    # TODO decimal clamp?
     return LLLnode.from_list(
         [
             "with",
