@@ -18,6 +18,7 @@ from vyper.old_codegen.parser_utils import (
     add_variable_offset,
     get_number_as_fraction,
     getpos,
+    load_op,
     make_setter,
     unwrap_location,
 )
@@ -836,10 +837,11 @@ class Expr:
             else:
 
                 def load_bytearray(side):
-                    if side.location == "memory":
-                        return ["mload", ["add", 32, side]]
-                    elif side.location == "storage":
+                    if side.location == "storage":
                         return ["sload", ["add", 1, side]]
+                    else:
+                        load = load_op(side.location)
+                        return [load, ["add", 32, side]]
 
                 return LLLnode.from_list(
                     [op, load_bytearray(left), load_bytearray(right)],
