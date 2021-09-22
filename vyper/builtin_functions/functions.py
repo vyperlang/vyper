@@ -819,10 +819,13 @@ class ECMul(_SimpleBuiltinFunction):
         return o
 
 
-def _memory_element_getter(index):
-    return LLLnode.from_list(
-        ["mload", ["add", "_sub", ["add", 32, ["mul", 32, index]]]], typ=BaseType("int128"),
-    )
+def _generic_element_getter(op):
+    def f(index):
+        return LLLnode.from_list(
+            [op, ["add", "_sub", ["add", 32, ["mul", 32, index]]]], typ=BaseType("int128"),
+        )
+
+    return f
 
 
 def _storage_element_getter(index):
@@ -854,14 +857,14 @@ class Extract32(_SimpleBuiltinFunction):
         sub, index = args
         ret_type = kwargs["output_type"]
         # Get length and specific element
-        if sub.location == "memory":
-            lengetter = LLLnode.from_list(["mload", "_sub"], typ=BaseType("int128"))
-            elementgetter = _memory_element_getter
-        elif sub.location == "storage":
+        if sub.location == "storage":
             lengetter = LLLnode.from_list(["sload", "_sub"], typ=BaseType("int128"))
             elementgetter = _storage_element_getter
-        # TODO: unclosed if/elif clause.  Undefined behavior if `sub.location`
-        # isn't one of `memory`/`storage`
+
+        else:
+            op = load_op(sub.location)
+            lengetter = LLLnode.from_list([op, "_sub"], typ=BaseType("int128"))
+            elementgetter = _generic_element_getter(op)
 
         # Special case: index known to be a multiple of 32
         if isinstance(index.value, int) and not index.value % 32:
