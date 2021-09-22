@@ -1,6 +1,5 @@
 import math
 from dataclasses import dataclass
-from functools import cached_property
 
 from vyper import ast as vy_ast
 from vyper.exceptions import StructureException
@@ -11,7 +10,7 @@ from vyper.old_codegen.types import (
     get_size_of_type,
     parse_type,
 )
-from vyper.utils import mkalphanum
+from vyper.utils import mkalphanum, cached_property
 
 
 # Function variable

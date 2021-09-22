@@ -15,6 +15,12 @@ except ImportError:
 
     keccak256 = lambda x: _sha3.sha3_256(x).digest()  # noqa: E731
 
+try:
+    # available py3.8+
+    from functools import cached_property
+except ImportError:
+    from cached_property import cached_property  # type: ignore
+
 
 # Converts four bytes to an integer
 def fourbytes_to_int(inp):
@@ -316,3 +322,8 @@ def annotate_source_code(
     cleanup_lines += [""] * (num_lines - len(cleanup_lines))
 
     return "\n".join(cleanup_lines)
+
+
+__all__ = [
+    "cached_property",
+]
