@@ -282,7 +282,7 @@ class Slice:
 
         # special handling for slice(msg.data)
         if sub.location == "calldata" and sub.value == 0:
-            assert expr.value.id == "msg" and expr.attr == "data"
+            assert expr.args[0].value.id == "msg" and expr.args[0].attr == "data"
             # if we are slicing msg.data, the length should
             # be a constant, since msg.data can be of dynamic length
             # we can't use its length as the maxlen
