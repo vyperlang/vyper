@@ -67,7 +67,27 @@ def lll_for_self_call(stmt_expr, context):
     # note: dst_tuple_t != args_tuple_t
     dst_tuple_t = TupleType([arg.typ for arg in sig.args])
     args_dst = LLLnode(sig.frame_start, typ=dst_tuple_t, location="memory")
-    copy_args = make_setter(args_dst, args_as_tuple, "memory", pos)
+
+    # if one of the arguments is a self call, the argument
+    # buffer could get borked. to prevent against that,
+    # write args to a temporary buffer until all the arguments
+    # are fully evaluated.
+    if args_as_tuple.contains_self_call:
+        copy_args = ["seq"]
+        # TODO deallocate me
+        tmp_args_buf = LLLnode(
+            context.new_internal_variable(dst_tuple_t),
+            typ=dst_tuple_t,
+            location="memory",
+        )
+        copy_args.append(make_setter(tmp_args_buf, args_as_tuple, "memory", pos))
+
+        # --> args evaluate here <--
+
+        copy_args.append(make_setter(args_dst, tmp_args_buf, "memory", pos))
+
+    else:
+        copy_args = make_setter(args_dst, args_as_tuple, "memory", pos)
 
     call_sequence = [
         "seq",
@@ -90,4 +110,5 @@ def lll_for_self_call(stmt_expr, context):
         annotation=stmt_expr.get("node_source_code"),
         add_gas_estimate=sig.gas,
     )
+    o.is_self_call = True
     return o

@@ -1,6 +1,7 @@
 import re
 from enum import Enum, auto
 from typing import Any, List, Optional, Tuple, Union
+from functools import cached_property
 
 from vyper.compiler.settings import VYPER_COLOR_OUTPUT
 from vyper.evm.opcodes import get_comb_opcodes
@@ -269,12 +270,16 @@ class LLLnode:
 
         self.gas += self.add_gas_estimate
 
-    # may contain some side effects
+    # the LLL should be cached.
     @property
     def is_complex_lll(self):
         return isinstance(self.value, str) and (
             self.value.lower() in VALID_LLL_MACROS or self.value.upper() in get_comb_opcodes()
         )
+
+    @cached_property
+    def contains_self_call(self):
+        return getattr(self, "is_self_call", False) or any(x.contains_self_call for x in self.args)
 
     def __getitem__(self, i):
         return self.to_list()[i]
