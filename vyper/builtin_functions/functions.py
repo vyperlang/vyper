@@ -1024,6 +1024,7 @@ class AsWeiValue:
 
 
 zero_value = LLLnode.from_list(0, typ=BaseType("uint256"))
+empty_value = LLLnode.from_list(0, typ=BaseType("bytes32"))
 false_value = LLLnode.from_list(0, typ=BaseType("bool", is_literal=True))
 true_value = LLLnode.from_list(1, typ=BaseType("bool", is_literal=True))
 
@@ -1557,12 +1558,15 @@ class CreateForwarderTo(_SimpleBuiltinFunction):
 
     _id = "create_forwarder_to"
     _inputs = [("target", AddressDefinition())]
-    _kwargs = {"value": Optional("uint256", zero_value)}
+    _kwargs = {"value": Optional("uint256", zero_value), "salt": Optional("bytes32", empty_value)}
     _return_type = AddressDefinition()
 
     @validate_inputs
     def build_LLL(self, expr, args, kwargs, context):
         value = kwargs["value"]
+        salt = kwargs["salt"]
+        should_use_create2 = "salt" in [kwarg.arg for kwarg in expr.keywords]
+
         if context.is_constant():
             raise StateAccessViolation(
                 f"Cannot make calls from {context.pp_constancy()}", expr,
@@ -1584,13 +1588,20 @@ class CreateForwarderTo(_SimpleBuiltinFunction):
         else:
             target_address = ["mul", args[0], 2 ** 96]
 
+        op = "create"
+        op_args = [value, placeholder, preamble_length + 20 + len(forwarder_post_evm)]
+
+        if should_use_create2:
+            op = "create2"
+            op_args.append(salt)
+
         return LLLnode.from_list(
             [
                 "seq",
                 ["mstore", placeholder, forwarder_preamble],
                 ["mstore", ["add", placeholder, preamble_length], target_address],
                 ["mstore", ["add", placeholder, preamble_length + 20], forwarder_post],
-                ["create", value, placeholder, preamble_length + 20 + len(forwarder_post_evm)],
+                [op, *op_args],
             ],
             typ=BaseType("address"),
             pos=getpos(expr),

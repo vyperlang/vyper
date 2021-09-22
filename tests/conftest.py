@@ -4,6 +4,7 @@ from functools import wraps
 import pytest
 from eth_tester import EthereumTester
 from eth_utils import setup_DEBUG2_logging
+from hexbytes import HexBytes
 from web3 import Web3
 from web3.providers.eth_tester import EthereumTesterProvider
 
@@ -176,3 +177,15 @@ def search_for_sublist():
         return False
 
     return search_for_sublist
+
+
+@pytest.fixture
+def create2_address_of(keccak):
+    def _f(_addr, _salt, _initcode):
+        prefix = HexBytes("0xff")
+        addr = HexBytes(_addr)
+        salt = HexBytes(_salt)
+        initcode = HexBytes(_initcode)
+        return keccak(prefix + addr + salt + keccak(initcode))[12:]
+
+    return _f

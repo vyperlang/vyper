@@ -94,7 +94,7 @@ Bitwise Operations
 Chain Interaction
 =================
 
-.. py:function:: create_forwarder_to(target: address, value: uint256 = 0) -> address
+.. py:function:: create_forwarder_to(target: address, value: uint256 = 0[, salt: bytes32]) -> address
 
     Deploys a small contract that duplicates the logic of the contract at ``target``, but has it's own state since every call to ``target`` is made using ``DELEGATECALL`` to ``target``. To the end user, this should be indistinguishable from an independantly deployed contract with the same code as ``target``.
 
@@ -104,6 +104,7 @@ Chain Interaction
 
     * ``target``: Address of the contract to duplicate
     * ``value``: The wei value to send to the new contract address (Optional, default 0)
+    * ``salt``: A ``bytes32`` value utilized by the ``CREATE2`` opcode (Optional, if supplied deterministic deployment is done via ``CREATE2``)
 
     Returns the address of the duplicated contract.
 
@@ -308,7 +309,7 @@ Data Manipulation
 
         @external
         @view
-        def foo(a: String[5], b: String[5], c: String[5]) -> String[100]
+        def foo(a: String[5], b: String[5], c: String[5]) -> String[100]:
             return concat(a, " ", b, " ", c, "!")
 
     .. code-block:: python
