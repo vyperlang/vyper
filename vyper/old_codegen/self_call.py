@@ -78,9 +78,10 @@ def lll_for_self_call(stmt_expr, context):
         tmp_args_buf = LLLnode(
             context.new_internal_variable(dst_tuple_t), typ=dst_tuple_t, location="memory",
         )
-        copy_args.append(make_setter(tmp_args_buf, args_as_tuple, "memory", pos))
-
-        # --> args evaluate here <--
+        copy_args.append(
+            # --> args evaluate here <--
+            make_setter(tmp_args_buf, args_as_tuple, "memory", pos)
+        )
 
         copy_args.append(make_setter(args_dst, tmp_args_buf, "memory", pos))
 
