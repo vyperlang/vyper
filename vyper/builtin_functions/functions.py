@@ -1841,6 +1841,7 @@ class ABIEncode(_SimpleBuiltinFunction):
         maxlen = arg_abi_t.size_bound()
 
         if self._method_id(node) is not None:
+            # the output includes 4 bytes for the method_id.
             maxlen += 4
 
         ret = BytesArrayDefinition()
