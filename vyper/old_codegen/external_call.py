@@ -148,10 +148,12 @@ def _external_call_helper(
     sub += arg_packer
 
     if contract_sig.return_type is None:
-        # if we do not expect return data, check that a contract exists at the target address
-        # we can omit this when we _do_ expect return data because we later check `returndatasize`
-        # CMC 20210907 do we need to check this before the call, or can we defer until after?
-        # if we can defer, this code can be pushed down into unpack_returndata
+        # if we do not expect return data, check that a contract exists at the
+        # target address. we must perform this check BEFORE the call because
+        # the contract might selfdestruct. on the other hand we can omit this
+        # when we _do_ expect return data because we later check
+        # `returndatasize` (that check works even if the contract
+        # selfdestructs).
         sub.append(["assert", ["extcodesize", contract_address]])
 
     if context.is_constant() or contract_sig.mutability in ("view", "pure"):
