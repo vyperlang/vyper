@@ -1,10 +1,11 @@
 import vyper.semantics.types as vy
 from vyper.exceptions import CompilerPanic
-from vyper.old_codegen.lll_node import LLLnode
+from vyper.old_codegen.lll_node import LLLnode, Encoding
 from vyper.old_codegen.parser_utils import (
     add_variable_offset,
     clamp_basetype,
     make_setter,
+    _needs_clamp,
     unwrap_location,
     zero_pad,
 )
@@ -521,8 +522,10 @@ def abi_decode(lll_node, src, clamp=True, pos=None):
 
         else:
 
-            if clamp:
-                lll_ret.append(clamp_basetype(unwrap_location(src_loc)))
+            if clamp and _needs_clamp(o.typ, Encoding.ABI):
+                src_loc = LLLnode.from_list(["with", "src_loc", src_loc, ["seq", clamp_basetype(src_loc), src_loc]], typ=src_loc.typ, location=src_loc.location)
+            else:
+                pass
 
             lll_ret.append(make_setter(o, src_loc, location=o.location, pos=pos))
 

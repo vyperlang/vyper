@@ -15,15 +15,32 @@ from vyper.old_codegen.parser_utils import (
     make_setter,
 )
 from vyper.old_codegen.stmt import parse_body
-from vyper.old_codegen.types.types import TupleType
+from vyper.old_codegen.types.types import TupleType, BaseType, ByteArrayLike, ListType, TupleLike
+
+
+def _should_decode(typ):
+    # either a basetype which needs to be clamped
+    # or a complex type which contains something that
+    # needs to be clamped.
+    if isinstance(typ, BaseType):
+        return typ.typ not in ("int256", "uint256", "bytes32")
+    if isinstance(typ, ByteArrayLike):
+        return True
+    if isinstance(typ, ListType):
+        return _should_decode(typ.subtype)
+    if isinstance(typ, TupleLike):
+        return any(_should_decode(t) for t in typ.tuple_members())
+    raise CompilerPanic(f"_should_decode({typ})")
 
 
 # register function args with the local calling context.
 # also allocate the ones that live in memory (i.e. kwargs)
 def _register_function_args(context: Context, sig: FunctionSignature) -> None:
-    if len(sig.args) == 0:
-        return
+    pos = None
 
+    ret = []
+
+    # the type of the calldata
     base_args_t = TupleType([arg.typ for arg in sig.base_args])
 
     # tuple with the abi_encoded args
@@ -35,18 +52,26 @@ def _register_function_args(context: Context, sig: FunctionSignature) -> None:
         base_args_ofst = LLLnode(4, location="calldata", typ=base_args_t, encoding=Encoding.ABI)
 
     for i, arg in enumerate(sig.base_args):
-        arg_lll = add_variable_offset(base_args_ofst, i, pos=None, array_bounds_check=False)
-        assert arg.typ == arg_lll.typ, (arg.typ, arg_lll.typ)
 
-        # register the record in the local namespace, no copy needed
-        context.vars[arg.name] = VariableRecord(
-            name=arg.name,
-            pos=arg_lll,
-            typ=arg.typ,
-            mutable=False,
-            location=arg_lll.location,
-            encoding=Encoding.ABI,
-        )
+        arg_lll = add_variable_offset(base_args_ofst, i, pos=pos)
+
+        if _should_decode(arg.typ):
+            # allocate a memory slot for it and copy
+            p = context.new_variable(arg.name, arg.typ, is_mutable=False)
+            dst = LLLnode(p, typ=arg.typ, location="memory")
+            ret.append(make_setter(dst, arg_lll, "memory", pos=pos))
+        else:
+            # leave it in place
+            context.vars[arg.name] = VariableRecord(
+                name=arg.name,
+                pos=arg_lll,
+                typ=arg.typ,
+                mutable=False,
+                location=arg_lll.location,
+                encoding=Encoding.ABI,
+            )
+
+    return ret
 
 
 def _annotated_method_id(abi_sig):
@@ -143,17 +168,19 @@ def generate_lll_for_external_function(code, sig, context, check_nonpayable):
     func_type = code._metadata["type"]
     pos = getpos(code)
 
-    _register_function_args(context, sig)
-
     nonreentrant_pre, nonreentrant_post = get_nonreentrant_lock(func_type)
 
-    entrance = []
+    # generate handlers for base args and register the variable records
+    handle_base_args = _register_function_args(context, sig)
 
+    # generate handlers for kwargs and register the variable records
     kwarg_handlers = _generate_kwarg_handlers(context, sig, pos)
 
     # once optional args have been handled,
     # generate the main body of the function
-    entrance += [["label", sig.external_function_base_entry_label]]
+    entrance = [["label", sig.external_function_base_entry_label]]
+
+    entrance += handle_base_args
 
     if check_nonpayable and sig.mutability != "payable":
         # if the contract contains payable functions, but this is not one of them

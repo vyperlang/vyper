@@ -85,7 +85,7 @@ def _codecopy_gas_bound(num_bytes):
 def make_byte_array_copier(destination, source, pos=None):
     if not isinstance(source.typ, ByteArrayLike):
         btype = "byte array" if isinstance(destination.typ, ByteArrayType) else "string"
-        raise TypeMismatch(f"Can only set a {btype} to another {btype}", pos)
+        raise TypeMismatch(f"Cannot cast from {source.typ} to {destination.typ}", pos)
     if isinstance(source.typ, ByteArrayLike) and source.typ.maxlen > destination.typ.maxlen:
         raise TypeMismatch(
             f"Cannot cast from greater max-length {source.typ.maxlen} to shorter "
@@ -319,7 +319,10 @@ def add_variable_offset(parent, key, pos, array_bounds_check=True):
         )
 
         if clamp and _needs_clamp(member_t, parent.encoding):
-            # special handling for args that need clamping
+            # special handling for unsanitized external data that need clamping
+            # TODO optimize me. this results in a double dereference because
+            # it returns a pointer and not a value. probably the best thing
+            # is to move the clamp to make_setter
             ret = ["with", x, ofst_lll, ["seq", clamp_basetype(x), x]]
         else:
             ret = ofst_lll
@@ -478,7 +481,7 @@ def load_op(location):
         return "calldataload"
     if location == "code":
         return "codeload"
-    raise CompilerPanic("unreachable", location)  # pragma: no test
+    raise CompilerPanic(f"unreachable {location}")  # pragma: no test
 
 
 # Unwrap location
