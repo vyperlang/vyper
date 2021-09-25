@@ -74,11 +74,17 @@ def _uint256_le(x: uint256, y: uint256) -> bool:
     assert c._uint256_sub(uint256_MAX, 0) == uint256_MAX
     assert_tx_failed(lambda: c._uint256_sub(1, 2))
     assert c._uint256_sub(uint256_MAX, 1) == uint256_MAX - 1
+
     assert c._uint256_mul(x, y) == x * y
     assert_tx_failed(lambda: c._uint256_mul(uint256_MAX, 2))
     assert_tx_failed(lambda: c._uint256_mul(2, uint256_MAX))
+    # cases for x*y==2**256:
+    assert_tx_failed(lambda: c._uint256_mul(2 ** 255, 2))
+    assert_tx_failed(lambda: c._uint256_mul(2, 2 ** 255))
     assert c._uint256_mul(uint256_MAX, 0) == 0
     assert c._uint256_mul(0, uint256_MAX) == 0
+    assert c._uint256_mul(0, 0) == 0
+
     assert c._uint256_div(x, y) == x // y
     assert_tx_failed(lambda: c._uint256_div(uint256_MAX, 0))
     assert c._uint256_div(y, x) == 0
