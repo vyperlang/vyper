@@ -531,16 +531,7 @@ class Expr:
         elif isinstance(self.expr.op, vy_ast.Mult):
             new_typ = BaseType(ltyp)
             if ltyp == "uint256":
-                arith = [
-                    "with",
-                    "ans",
-                    ["mul", "l", "r"],
-                    [
-                        "seq",
-                        ["assert", ["or", ["eq", ["div", "ans", "l"], "r"], ["iszero", "l"]]],
-                        "ans",
-                    ],
-                ]
+                return LLLnode.from_list(["safemul", left, right], typ=new_typ, pos=pos)
 
             elif ltyp == "int256":
                 if version_check(begin="constantinople"):

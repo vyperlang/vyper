@@ -493,6 +493,22 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
             break_dest,
             height,
         )
+    elif code.value == "safemul":
+        o = []
+        for arg in reversed(code.args):
+            o.extend(_compile_to_assembly(arg, withargs, existing_labels, break_dest, height))
+        o.extend(
+            ["DUP1", "DUP3", "MUL"]  # mul l r -> p
+            # check (p/l)*(p/r) == p
+            + ["DUP3", "DUP2", "DIV"]  # p/l -> p1
+            + ["DUP3", "DUP3", "DIV", "MUL"]  # p1/r*p
+            + ["XOR", "_sym_revert0", "JUMPI"]  # revert if !=
+            # calculate answer again. this is more efficient than the
+            # sequence of pops and swaps it would have required to cache
+            # the original answer.
+            + ["MUL"]
+        )
+        return o
     # # jump to a symbol
     elif code.value == "goto":
         return ["_sym_" + str(code.args[0]), "JUMP"]
