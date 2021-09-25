@@ -499,9 +499,9 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
             o.extend(_compile_to_assembly(arg, withargs, existing_labels, break_dest, height))
         o.extend(
             ["DUP2", "DUP2", "MUL"]  # mul l r -> p
-            # check p == mulmod l r (2**256-1)
+            # check p >= mulmod l r (2**256-1)
             + ["PUSH1", 0, "NOT", "DUP4", "DUP4", "MULMOD"]  # mulmod l r (2**256-1)
-            + ["XOR", "_sym_revert0", "JUMPI"]  # revert if !=
+            + ["LT", "_sym_revert0", "JUMPI"]  # revert if !=
             # calculate answer again. this is more efficient than the
             # sequence of pops and swaps it would have required to cache
             # the original answer.
