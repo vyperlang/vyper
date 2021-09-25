@@ -498,11 +498,12 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         for arg in reversed(code.args):
             o.extend(_compile_to_assembly(arg, withargs, existing_labels, break_dest, height))
         o.extend(
-            ["DUP1", "DUP3", "MUL"]  # mul l r -> p
-            # check (p/l)*(p/r) == p
-            + ["DUP3", "DUP2", "DIV"]  # p/l -> p1
-            + ["DUP3", "DUP3", "DIV", "MUL"]  # p1/r*p
-            + ["XOR", "_sym_revert0", "JUMPI"]  # revert if !=
+            ["DUP2"]  # save l so we can divide by it later without a swap
+            + ["DUP3", "DUP3", "MUL"]  # mul l r -> p
+            # check p/l==r OR l==0
+            + ["DIV", "DUP2", "EQ"]  # p/l==r
+            + ["DUP3", "ISZERO", "OR"]  # or l==0
+            + ["ISZERO", "_sym_revert0", "JUMPI"]  # revert if nonzero
             # calculate answer again. this is more efficient than the
             # sequence of pops and swaps it would have required to cache
             # the original answer.
