@@ -874,4 +874,4 @@ def int_clamp(lll_node, bits, signed=False):
     else:
         ret = ["assert", ["iszero", _shr(lll_node, bits)]]
 
-    return ret
+    return LLLnode.from_list(ret, annotation=f"int_clamp {lll_node.typ}")
