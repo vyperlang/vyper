@@ -5,6 +5,7 @@ from vyper.ast.signatures.function_signature import (
     FunctionSignature,
     VariableRecord,
 )
+from vyper.exceptions import CompilerPanic
 from vyper.old_codegen.context import Context
 from vyper.old_codegen.expr import Expr
 from vyper.old_codegen.function_definitions.utils import get_nonreentrant_lock
@@ -15,7 +16,13 @@ from vyper.old_codegen.parser_utils import (
     make_setter,
 )
 from vyper.old_codegen.stmt import parse_body
-from vyper.old_codegen.types.types import TupleType, BaseType, ByteArrayLike, ListType, TupleLike
+from vyper.old_codegen.types.types import (
+    BaseType,
+    ByteArrayLike,
+    ListType,
+    TupleLike,
+    TupleType,
+)
 
 
 def _should_decode(typ):
@@ -35,7 +42,7 @@ def _should_decode(typ):
 
 # register function args with the local calling context.
 # also allocate the ones that live in memory (i.e. kwargs)
-def _register_function_args(context: Context, sig: FunctionSignature) -> None:
+def _register_function_args(context: Context, sig: FunctionSignature) -> List[LLLnode]:
     pos = None
 
     ret = []

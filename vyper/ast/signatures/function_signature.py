@@ -10,7 +10,7 @@ from vyper.old_codegen.types import (
     get_size_of_type,
     parse_type,
 )
-from vyper.utils import mkalphanum, cached_property
+from vyper.utils import cached_property, mkalphanum
 
 
 # Function variable

@@ -14,7 +14,6 @@ from vyper.old_codegen.lll_node import Encoding, LLLnode
 from vyper.old_codegen.types import (
     BaseType,
     ByteArrayLike,
-    ByteArrayType,
     ListType,
     MappingType,
     StructType,
@@ -84,7 +83,6 @@ def _codecopy_gas_bound(num_bytes):
 # Copy byte array word-for-word (including layout)
 def make_byte_array_copier(destination, source, pos=None):
     if not isinstance(source.typ, ByteArrayLike):
-        btype = "byte array" if isinstance(destination.typ, ByteArrayType) else "string"
         raise TypeMismatch(f"Cannot cast from {source.typ} to {destination.typ}", pos)
     if isinstance(source.typ, ByteArrayLike) and source.typ.maxlen > destination.typ.maxlen:
         raise TypeMismatch(
