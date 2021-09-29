@@ -110,7 +110,7 @@ def make_byte_array_copier(destination, source, pos=None):
             copy_op = ["calldatacopy", destination, "src", "sz"]
             gas_bound = _calldatacopy_gas_bound(source.typ.maxlen)
         elif source.location == "code":
-            copy_op = ["code", destination, "src", "sz"]
+            copy_op = ["codecopy", destination, "src", "sz"]
             gas_bound = _codecopy_gas_bound(source.typ.maxlen)
         _sz_lll = ["add", 32, [load_op(source.location), "src"]]
         o = LLLnode.from_list(
