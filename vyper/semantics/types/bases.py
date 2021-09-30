@@ -100,6 +100,7 @@ class BasePrimitive:
         location: DataLocation = DataLocation.UNSET,
         is_constant: bool = False,
         is_public: bool = False,
+        is_immutable: bool = False,
     ) -> "BaseTypeDefinition":
         """
         Generate a `BaseTypeDefinition` instance of this type from `AnnAssign.annotation`
@@ -118,7 +119,7 @@ class BasePrimitive:
             raise StructureException("Invalid type assignment", node)
         if node.id != cls._id:
             raise UnexpectedValue("Node id does not match type name")
-        return cls._type(location, is_constant, is_public)
+        return cls._type(location, is_constant, is_public, is_immutable)
 
     @classmethod
     def from_literal(cls, node: vy_ast.Constant) -> "BaseTypeDefinition":
@@ -242,10 +243,12 @@ class BaseTypeDefinition:
         location: DataLocation = DataLocation.UNSET,
         is_constant: bool = False,
         is_public: bool = False,
+        is_immutable: bool = False,
     ) -> None:
         self.location = location
         self.is_constant = is_constant
         self.is_public = is_public
+        self.is_immutable = is_immutable
 
     @property
     def canonical_type(self) -> str:

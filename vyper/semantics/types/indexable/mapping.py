@@ -36,6 +36,7 @@ class MappingPrimitive(BasePrimitive):
         location: DataLocation = DataLocation.UNSET,
         is_constant: bool = False,
         is_public: bool = False,
+        is_immutable: bool = False,
     ) -> MappingDefinition:
         if (
             not isinstance(node, vy_ast.Subscript)
@@ -46,7 +47,7 @@ class MappingPrimitive(BasePrimitive):
             raise StructureException(
                 "HashMap must be defined with a key type and a value type", node
             )
-        if location != DataLocation.STORAGE:
+        if location != DataLocation.STORAGE or is_immutable:
             raise StructureException("HashMap can only be declared as a storage variable", node)
 
         key_type = get_type_from_annotation(node.slice.value.elements[0], DataLocation.UNSET)
