@@ -54,7 +54,7 @@ combined_json_outputs = [
 def _parse_cli_args():
     return _parse_args(sys.argv[1:])
 
-def cli_helper(f, output_formats, compiled):
+def _cli_helper(f, output_formats, compiled):
     if output_formats == ("combined_json",):
         print(json.dumps(compiled), file=f)
         return
@@ -152,10 +152,10 @@ def _parse_args(argv):
 
     if args.output_path:
         with open(args.output_path,"w") as f:
-            cli_helper(f, output_formats, compiled)
+            _cli_helper(f, output_formats, compiled)
     else:
         f = sys.stdout
-        cli_helper(f, output_formats, compiled)
+        _cli_helper(f, output_formats, compiled)
 
 
 def uniq(seq: Iterable[T]) -> Iterator[T]:
