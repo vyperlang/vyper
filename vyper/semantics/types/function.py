@@ -104,7 +104,7 @@ class ContractFunction(BaseTypeDefinition):
             # A function definition type only exists while compiling
             DataLocation.UNSET,
             # A function definition type is immutable once created
-            is_immutable=True,
+            is_constant=True,
             # A function definition type is public if it's visibility is public
             is_public=(function_visibility == FunctionVisibility.EXTERNAL),
         )
@@ -141,17 +141,17 @@ class ContractFunction(BaseTypeDefinition):
         arguments = OrderedDict()
         for item in abi["inputs"]:
             arguments[item["name"]] = get_type_from_abi(
-                item, location=DataLocation.CALLDATA, is_immutable=True
+                item, location=DataLocation.CALLDATA, is_constant=True
             )
         return_type = None
         if len(abi["outputs"]) == 1:
             return_type = get_type_from_abi(
-                abi["outputs"][0], location=DataLocation.CALLDATA, is_immutable=True
+                abi["outputs"][0], location=DataLocation.CALLDATA, is_constant=True
             )
         elif len(abi["outputs"]) > 1:
             return_type = TupleDefinition(
                 tuple(
-                    get_type_from_abi(i, location=DataLocation.CALLDATA, is_immutable=True)
+                    get_type_from_abi(i, location=DataLocation.CALLDATA, is_constant=True)
                     for i in abi["outputs"]
                 )
             )
@@ -319,7 +319,7 @@ class ContractFunction(BaseTypeDefinition):
                 raise ArgumentException(f"Function argument '{arg.arg}' is missing a type", arg)
 
             type_definition = get_type_from_annotation(
-                arg.annotation, location=DataLocation.CALLDATA, is_immutable=True
+                arg.annotation, location=DataLocation.CALLDATA, is_constant=True
             )
             if value is not None:
                 if not check_constant(value):
