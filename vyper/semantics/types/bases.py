@@ -69,6 +69,17 @@ class StorageSlot(DataPosition):
         return f"<StorageSlot: {self.position}>"
 
 
+class ImmutableSlot(DataPosition):
+    __slots__ = ("position",)
+    _location = DataLocation.UNSET
+
+    def __init__(self, position):
+        self.position = position
+
+    def __repr__(self):
+        return f"<ImmutableSlot: {self.position}>"
+
+
 class BasePrimitive:
     """
     Base class for primitive type classes.
