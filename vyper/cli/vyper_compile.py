@@ -54,6 +54,17 @@ combined_json_outputs = [
 def _parse_cli_args():
     return _parse_args(sys.argv[1:])
 
+def _cli_helper(f, output_formats, compiled):
+    if output_formats == ("combined_json",):
+        print(json.dumps(compiled), file=f)
+        return
+
+    for contract_data in compiled.values():
+        for data in contract_data.values():
+            if isinstance(data, (list, dict)):
+                print(json.dumps(data), file=f)
+            else:
+                print(data, file=f)
 
 def _parse_args(argv):
     warnings.simplefilter("always")
@@ -109,6 +120,9 @@ def _parse_args(argv):
     parser.add_argument(
         "-p", help="Set the root path for contract imports", default=".", dest="root_folder"
     )
+    parser.add_argument(
+        "-o", help="Set the output path", dest="output_path"
+    )
 
     args = parser.parse_args(argv)
 
@@ -135,16 +149,13 @@ def _parse_args(argv):
         args.ovm,
     )
 
-    if output_formats == ("combined_json",):
-        print(json.dumps(compiled))
-        return
 
-    for contract_data in compiled.values():
-        for data in contract_data.values():
-            if isinstance(data, (list, dict)):
-                print(json.dumps(data))
-            else:
-                print(data)
+    if args.output_path:
+        with open(args.output_path,"w") as f:
+            _cli_helper(f, output_formats, compiled)
+    else:
+        f = sys.stdout
+        _cli_helper(f, output_formats, compiled)
 
 
 def uniq(seq: Iterable[T]) -> Iterator[T]:
