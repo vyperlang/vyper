@@ -442,6 +442,8 @@ class BaseTypeDefinition:
             raise ImmutableViolation("Cannot write to calldata", node)
         if self.is_constant:
             raise ImmutableViolation("Immutable value cannot be written to", node)
+        if self.is_immutable and node.get_ancestor(vy_ast.FunctionDef).get("name") != "__init__":
+            raise ImmutableViolation("Immutable value cannot be written to", node)
         if isinstance(node, vy_ast.AugAssign):
             self.validate_numeric_op(node)
 
