@@ -130,6 +130,7 @@ def get_type_from_annotation(
     location: DataLocation,
     is_constant: bool = False,
     is_public: bool = False,
+    is_immutable: bool = False,
 ) -> BaseTypeDefinition:
     """
     Return a type object for the given AST node.
@@ -156,13 +157,14 @@ def get_type_from_annotation(
         raise UnknownType(f"No builtin or user-defined type named '{type_name}'", node) from None
 
     if getattr(type_obj, "_as_array", False) and isinstance(node, vy_ast.Subscript):
+        # TODO: handle `is_immutable` for arrays
         # if type can be an array and node is a subscript, create an `ArrayDefinition`
         length = get_index_value(node.slice)
         value_type = get_type_from_annotation(node.value, location, is_constant, False)
         return ArrayDefinition(value_type, length, location, is_constant, is_public)
 
     try:
-        return type_obj.from_annotation(node, location, is_constant, is_public)
+        return type_obj.from_annotation(node, location, is_constant, is_public, is_immutable)
     except AttributeError:
         raise InvalidType(f"'{type_name}' is not a valid type", node) from None
 
