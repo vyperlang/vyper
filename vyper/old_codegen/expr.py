@@ -316,6 +316,32 @@ class Expr:
             return LLLnode.from_list(
                 [obj], typ=BaseType(typ, is_literal=True), pos=getpos(self.expr)
             )
+        elif self.expr._metadata["type"].is_immutable:
+            # immutable variable
+            # need to handle constructor and outside constructor
+            var = self.context.globals[self.expr.id]
+            is_constructor = self.expr.get_ancestor(vy_ast.FunctionDef).get("name") == "__init__"
+            if is_constructor:
+                pos = self.context.new_internal_variable(var.typ)
+                var.pos = pos
+                return LLLnode.from_list(
+                    pos,
+                    typ=var.typ,
+                    location="memory",
+                    pos=getpos(self.expr),
+                    annotation=self.expr.id,
+                    mutable=True,
+                )
+            else:
+                pos = self.context.new_internal_variable(var.typ)
+                return LLLnode.from_list(
+                    ["seq", ["codecopy", pos, "codesize", 32], pos],
+                    typ=var.typ,
+                    location="memory",
+                    pos=getpos(self.expr),
+                    annotation=self.expr.id,
+                    mutable=False,
+                )
 
     # x.y or x[5]
     def parse_Attribute(self):
