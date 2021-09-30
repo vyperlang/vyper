@@ -232,6 +232,9 @@ def parse_type(item, location=None, sigs=None, custom_structs=None):
                 custom_structs[item.id],
                 custom_structs,
             )
+        if item.func.id == "immutable":
+            return BaseType(item.args[0].id)
+
         raise InvalidType("Units are no longer supported", item)
     # Subscripts
     elif isinstance(item, vy_ast.Subscript):
