@@ -918,9 +918,7 @@ class Expr:
             )
             # iterate backward through the remaining values
             for node in self.expr.values[-3::-1]:
-                lll_node = _build_if_lll(
-                    Expr.parse_value_expr(node, self.context), lll_node, [0]
-                )
+                lll_node = _build_if_lll(Expr.parse_value_expr(node, self.context), lll_node, [0])
 
         elif isinstance(self.expr.op, vy_ast.Or):
             # create the initial `x or y` from the final two values
@@ -932,9 +930,7 @@ class Expr:
 
             # iterate backward through the remaining values
             for node in self.expr.values[-3::-1]:
-                lll_node = _build_if_lll(
-                    Expr.parse_value_expr(node, self.context), 1, lll_node
-                )
+                lll_node = _build_if_lll(Expr.parse_value_expr(node, self.context), 1, lll_node)
         else:
             raise TypeCheckFailure(f"Unexpected boolean operator: {type(self.expr.op).__name__}")
 
