@@ -32,7 +32,7 @@ def test_jump_map():
     pos_map = source_map["pc_pos_map"]
     jump_map = source_map["pc_jump_map"]
 
-    assert len([v for v in jump_map.values() if v == "o"]) == 3
+    assert len([v for v in jump_map.values() if v == "o"]) == 1
     assert len([v for v in jump_map.values() if v == "i"]) == 2
 
     code_lines = [i + "\n" for i in TEST_CODE.split("\n")]
