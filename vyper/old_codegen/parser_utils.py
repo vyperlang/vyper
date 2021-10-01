@@ -650,6 +650,9 @@ def make_setter(left, right, location, pos):
         left_token = LLLnode.from_list("_L", typ=left.typ, location=left.location)
         keyz = left.typ.tuple_keys()
 
+        if len(keyz) == 0:
+            return LLLnode.from_list(["pass"])
+
         # If the left side is complex
         if left.value == "multi":
             locations = [arg.location for arg in left.args]
