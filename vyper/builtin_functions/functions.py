@@ -32,7 +32,7 @@ from vyper.old_codegen.expr import Expr
 from vyper.old_codegen.keccak256_helper import keccak256_helper
 from vyper.old_codegen.parser_utils import (
     LLLnode,
-    add_variable_offset,
+    get_element_ptr,
     get_bytearray_length,
     getpos,
     lll_tuple_from_args,
@@ -751,8 +751,8 @@ class ECRecover(_SimpleBuiltinFunction):
         )
 
 
-def avo(arg, ind, pos):
-    return unwrap_location(add_variable_offset(arg, LLLnode.from_list(ind, "int128"), pos=pos))
+def _getelem(arg, ind, pos):
+    return unwrap_location(get_element_ptr(arg, LLLnode.from_list(ind, "int128"), pos=pos))
 
 
 class ECAdd(_SimpleBuiltinFunction):
@@ -775,10 +775,10 @@ class ECAdd(_SimpleBuiltinFunction):
         o = LLLnode.from_list(
             [
                 "seq",
-                ["mstore", placeholder_node, avo(args[0], 0, pos)],
-                ["mstore", ["add", placeholder_node, 32], avo(args[0], 1, pos)],
-                ["mstore", ["add", placeholder_node, 64], avo(args[1], 0, pos)],
-                ["mstore", ["add", placeholder_node, 96], avo(args[1], 1, pos)],
+                ["mstore", placeholder_node, _getelem(args[0], 0, pos)],
+                ["mstore", ["add", placeholder_node, 32], _getelem(args[0], 1, pos)],
+                ["mstore", ["add", placeholder_node, 64], _getelem(args[1], 0, pos)],
+                ["mstore", ["add", placeholder_node, 96], _getelem(args[1], 1, pos)],
                 ["assert", ["staticcall", ["gas"], 6, placeholder_node, 128, placeholder_node, 64]],
                 placeholder_node,
             ],
@@ -806,8 +806,8 @@ class ECMul(_SimpleBuiltinFunction):
         o = LLLnode.from_list(
             [
                 "seq",
-                ["mstore", placeholder_node, avo(args[0], 0, pos)],
-                ["mstore", ["add", placeholder_node, 32], avo(args[0], 1, pos)],
+                ["mstore", placeholder_node, _getelem(args[0], 0, pos)],
+                ["mstore", ["add", placeholder_node, 32], _getelem(args[0], 1, pos)],
                 ["mstore", ["add", placeholder_node, 64], args[1]],
                 ["assert", ["staticcall", ["gas"], 7, placeholder_node, 96, placeholder_node, 64]],
                 placeholder_node,

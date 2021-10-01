@@ -294,9 +294,10 @@ def _add_ofst(loc, ofst):
 
 # Take a value representing a memory or storage location, and descend down to
 # an element or member variable
+# This is analogous (but not necessarily equivalent to) getelementptr in LLVM.
 # TODO refactor / streamline this code, especially the ABI decoding
 @type_check_wrapper
-def add_variable_offset(parent, key, pos, array_bounds_check=True):
+def get_element_ptr(parent, key, pos, array_bounds_check=True):
     # TODO rethink this circular import
     from vyper.old_codegen.abi import abi_type_of
 
@@ -499,7 +500,7 @@ def _make_array_index_setter(target, target_token, pos, location, offset):
         offset = target.value + 32 * get_size_of_type(target.typ.subtype) * offset
         return LLLnode.from_list([offset], typ=target.typ.subtype, location=location, pos=pos)
     else:
-        return add_variable_offset(
+        return get_element_ptr(
             target_token,
             LLLnode.from_list(offset, typ="int256"),
             pos=pos,
@@ -599,7 +600,7 @@ def make_setter(left, right, location, pos):
             for i in range(left.typ.count):
                 subs.append(
                     make_setter(
-                        add_variable_offset(
+                        get_element_ptr(
                             left_token,
                             LLLnode.from_list(i, typ="int256"),
                             pos=pos,
@@ -673,7 +674,7 @@ def make_setter(left, right, location, pos):
             for (key, loc) in zip(keyz, locations):
                 subs.append(
                     make_setter(
-                        add_variable_offset(left_token, key, pos=pos),
+                        get_element_ptr(left_token, key, pos=pos),
                         right_args[key],
                         loc,
                         pos=pos,
@@ -692,7 +693,7 @@ def make_setter(left, right, location, pos):
             for key, loc in zip(keyz, locations):
                 subs.append(
                     make_setter(
-                        add_variable_offset(left_token, key, pos=pos),
+                        get_element_ptr(left_token, key, pos=pos),
                         LLLnode.from_list(None, typ=right.typ.members[key]),
                         loc,
                         pos=pos,
@@ -716,7 +717,7 @@ def make_setter(left, right, location, pos):
             for left_arg, key, loc in zip(left.args, keyz, locations):
                 subs.append(
                     make_setter(
-                        left_arg, add_variable_offset(right_token, key, pos=pos), loc, pos=pos
+                        left_arg, get_element_ptr(right_token, key, pos=pos), loc, pos=pos
                     )
                 )
 
@@ -730,8 +731,8 @@ def make_setter(left, right, location, pos):
             for typ, loc in zip(keyz, locations):
                 subs.append(
                     make_setter(
-                        add_variable_offset(left_token, typ, pos=pos),
-                        add_variable_offset(right_token, typ, pos=pos),
+                        get_element_ptr(left_token, typ, pos=pos),
+                        get_element_ptr(right_token, typ, pos=pos),
                         loc,
                         pos=pos,
                     )

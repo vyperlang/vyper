@@ -3,7 +3,7 @@ from vyper.exceptions import CompilerPanic
 from vyper.old_codegen.lll_node import Encoding, LLLnode
 from vyper.old_codegen.parser_utils import (
     _needs_clamp,
-    add_variable_offset,
+    get_element_ptr,
     clamp_basetype,
     make_setter,
     unwrap_location,
@@ -364,7 +364,7 @@ def o_list(lll_node, pos=None):
                 else [LLLnode.from_list(i, "uint256") for i in range(lll_t.count)]
             )
 
-            ret = [add_variable_offset(lll_node, k, pos, array_bounds_check=False) for k in ks]
+            ret = [get_element_ptr(lll_node, k, pos, array_bounds_check=False) for k in ks]
         return ret
     else:
         return [lll_node]

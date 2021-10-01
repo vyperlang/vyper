@@ -15,7 +15,7 @@ from vyper.old_codegen.arg_clamps import int128_clamp
 from vyper.old_codegen.keccak256_helper import keccak256_helper
 from vyper.old_codegen.lll_node import LLLnode
 from vyper.old_codegen.parser_utils import (
-    add_variable_offset,
+    get_element_ptr,
     get_number_as_fraction,
     getpos,
     load_op,
@@ -412,7 +412,7 @@ class Expr:
             if isinstance(sub.typ, InterfaceType):
                 return sub
             if isinstance(sub.typ, StructType) and self.expr.attr in sub.typ.members:
-                return add_variable_offset(sub, self.expr.attr, pos=getpos(self.expr))
+                return get_element_ptr(sub, self.expr.attr, pos=getpos(self.expr))
 
     def parse_Subscript(self):
         sub = Expr.parse_variable_location(self.expr.value, self.context)
@@ -434,7 +434,7 @@ class Expr:
                 return
         else:
             return
-        lll_node = add_variable_offset(sub, index, pos=getpos(self.expr))
+        lll_node = get_element_ptr(sub, index, pos=getpos(self.expr))
         lll_node.mutable = sub.mutable
         return lll_node
 

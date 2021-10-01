@@ -8,7 +8,7 @@ from vyper.exceptions import (
 from vyper.old_codegen.abi import abi_encode, abi_type_of
 from vyper.old_codegen.lll_node import Encoding, LLLnode
 from vyper.old_codegen.parser_utils import (
-    add_variable_offset,
+    get_element_ptr,
     calculate_type_for_external_return,
     getpos,
     unwrap_location,
@@ -112,7 +112,7 @@ def _unpack_returndata(buf, contract_sig, context, pos):
     buf = LLLnode(buf, typ=return_t, encoding=_returndata_encoding(contract_sig), location="memory")
 
     if should_unwrap_abi_tuple:
-        buf = add_variable_offset(buf, 0, pos=None, array_bounds_check=False)
+        buf = get_element_ptr(buf, 0, pos=None, array_bounds_check=False)
 
     ret += [buf]
 

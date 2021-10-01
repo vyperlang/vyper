@@ -11,7 +11,7 @@ from vyper.old_codegen.expr import Expr
 from vyper.old_codegen.function_definitions.utils import get_nonreentrant_lock
 from vyper.old_codegen.lll_node import Encoding, LLLnode
 from vyper.old_codegen.parser_utils import (
-    add_variable_offset,
+    get_element_ptr,
     getpos,
     make_setter,
 )
@@ -60,7 +60,7 @@ def _register_function_args(context: Context, sig: FunctionSignature) -> List[LL
 
     for i, arg in enumerate(sig.base_args):
 
-        arg_lll = add_variable_offset(base_args_ofst, i, pos=pos)
+        arg_lll = get_element_ptr(base_args_ofst, i, pos=pos)
 
         if _should_decode(arg.typ):
             # allocate a memory slot for it and copy
@@ -100,7 +100,7 @@ def _generate_kwarg_handlers(context: Context, sig: FunctionSignature, pos: Any)
 
     def handler_for(calldata_kwargs, default_kwargs):
         calldata_args = sig.base_args + calldata_kwargs
-        # create a fake type so that add_variable_offset works
+        # create a fake type so that get_element_ptr works
         calldata_args_t = TupleType(list(arg.typ for arg in calldata_args))
 
         abi_sig = sig.abi_signature_for_kwargs(calldata_kwargs)
@@ -126,7 +126,7 @@ def _generate_kwarg_handlers(context: Context, sig: FunctionSignature, pos: Any)
             dst = context.lookup_var(arg_meta.name).pos
 
             lhs = LLLnode(dst, location="memory", typ=arg_meta.typ)
-            rhs = add_variable_offset(calldata_kwargs_ofst, k, pos=None, array_bounds_check=False)
+            rhs = get_element_ptr(calldata_kwargs_ofst, k, pos=None, array_bounds_check=False)
             ret.append(make_setter(lhs, rhs, lhs_location, pos))
 
         for x in default_kwargs:
