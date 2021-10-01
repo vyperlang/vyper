@@ -909,17 +909,7 @@ class Expr:
             o = ["if", condition, true, false]
             return o
 
-        jump_label = f"_boolop_{self.expr.src}"
         if isinstance(self.expr.op, vy_ast.And):
-            if len(self.expr.values) == 2:
-                # `x and y` is a special case, it doesn't require jumping
-                lll_node = _build_if_lll(
-                    Expr.parse_value_expr(self.expr.values[0], self.context),
-                    Expr.parse_value_expr(self.expr.values[1], self.context),
-                    [0],
-                )
-                return LLLnode.from_list(lll_node, typ="bool")
-
             # create the initial `x and y` from the final two values
             lll_node = _build_if_lll(
                 Expr.parse_value_expr(self.expr.values[-2], self.context),
@@ -929,29 +919,25 @@ class Expr:
             # iterate backward through the remaining values
             for node in self.expr.values[-3::-1]:
                 lll_node = _build_if_lll(
-                    Expr.parse_value_expr(node, self.context), lll_node, [0, ["goto", jump_label]]
+                    Expr.parse_value_expr(node, self.context), lll_node, [0]
                 )
 
         elif isinstance(self.expr.op, vy_ast.Or):
             # create the initial `x or y` from the final two values
             lll_node = _build_if_lll(
                 Expr.parse_value_expr(self.expr.values[-2], self.context),
-                [1, ["goto", jump_label]],
+                [1],
                 Expr.parse_value_expr(self.expr.values[-1], self.context),
             )
 
             # iterate backward through the remaining values
             for node in self.expr.values[-3::-1]:
                 lll_node = _build_if_lll(
-                    Expr.parse_value_expr(node, self.context),
-                    [1, ["goto", jump_label]],
-                    lll_node,
+                    Expr.parse_value_expr(node, self.context), 1, lll_node
                 )
         else:
             raise TypeCheckFailure(f"Unexpected boolean operator: {type(self.expr.op).__name__}")
 
-        # add `jump_label` at the end of the boolop
-        lll_node = ["seq_unchecked", lll_node, ["label", jump_label]]
         return LLLnode.from_list(lll_node, typ="bool")
 
     # Unary operations (only "not" supported)
