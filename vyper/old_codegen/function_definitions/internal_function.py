@@ -55,7 +55,7 @@ def generate_lll_for_internal_function(
     # jump to the label which was passed in via stack
     stop_func = LLLnode.from_list(["jump", "pass"], annotation="jump to return address")
 
-    enter = [["label", function_entry_label], nonreentrant_pre]
+    enter = [["label", function_entry_label]] + nonreentrant_pre
 
     body = [parse_body(c, context) for c in code.body]
 
