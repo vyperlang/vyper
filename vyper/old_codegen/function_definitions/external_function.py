@@ -10,11 +10,7 @@ from vyper.old_codegen.context import Context
 from vyper.old_codegen.expr import Expr
 from vyper.old_codegen.function_definitions.utils import get_nonreentrant_lock
 from vyper.old_codegen.lll_node import Encoding, LLLnode
-from vyper.old_codegen.parser_utils import (
-    get_element_ptr,
-    getpos,
-    make_setter,
-)
+from vyper.old_codegen.parser_utils import get_element_ptr, getpos, make_setter
 from vyper.old_codegen.stmt import parse_body
 from vyper.old_codegen.types.types import (
     BaseType,

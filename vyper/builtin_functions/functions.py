@@ -32,8 +32,8 @@ from vyper.old_codegen.expr import Expr
 from vyper.old_codegen.keccak256_helper import keccak256_helper
 from vyper.old_codegen.parser_utils import (
     LLLnode,
-    get_element_ptr,
     get_bytearray_length,
+    get_element_ptr,
     getpos,
     lll_tuple_from_args,
     load_op,

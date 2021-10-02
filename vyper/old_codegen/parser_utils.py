@@ -674,10 +674,7 @@ def make_setter(left, right, location, pos):
             for (key, loc) in zip(keyz, locations):
                 subs.append(
                     make_setter(
-                        get_element_ptr(left_token, key, pos=pos),
-                        right_args[key],
-                        loc,
-                        pos=pos,
+                        get_element_ptr(left_token, key, pos=pos), right_args[key], loc, pos=pos,
                     )
                 )
             return LLLnode.from_list(["with", "_L", left, ["seq"] + subs], typ=None)
@@ -716,9 +713,7 @@ def make_setter(left, right, location, pos):
             )
             for left_arg, key, loc in zip(left.args, keyz, locations):
                 subs.append(
-                    make_setter(
-                        left_arg, get_element_ptr(right_token, key, pos=pos), loc, pos=pos
-                    )
+                    make_setter(left_arg, get_element_ptr(right_token, key, pos=pos), loc, pos=pos)
                 )
 
             return LLLnode.from_list(["with", "_R", right, ["seq"] + subs], typ=None)

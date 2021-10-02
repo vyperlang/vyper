@@ -3,8 +3,8 @@ from vyper.exceptions import CompilerPanic
 from vyper.old_codegen.lll_node import Encoding, LLLnode
 from vyper.old_codegen.parser_utils import (
     _needs_clamp,
-    get_element_ptr,
     clamp_basetype,
+    get_element_ptr,
     make_setter,
     unwrap_location,
     zero_pad,

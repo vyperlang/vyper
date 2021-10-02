@@ -565,9 +565,14 @@ def _prune_inefficient_jumps(assembly):
     # prune sequences `_sym_x JUMP _sym_x JUMPDEST` to `_sym_x JUMPDEST`
     i = 0
     while i < len(assembly) - 4:
-        if is_symbol(assembly[i]) and assembly[i+1] == "JUMP" and assembly[i] == assembly[i+2] and assembly[i+3]=="JUMPDEST":
-                # delete _sym_x JUMP
-                del assembly[i:i+2]
+        if (
+            is_symbol(assembly[i])
+            and assembly[i + 1] == "JUMP"
+            and assembly[i] == assembly[i + 2]
+            and assembly[i + 3] == "JUMPDEST"
+        ):
+            # delete _sym_x JUMP
+            del assembly[i : i + 2]  # noqa: E203
         else:
             i += 1
 
@@ -607,22 +612,22 @@ def _merge_iszero(assembly):
         else:
             i += 1
 
+
 def _prune_unused_jumpdests(assembly):
     used_jumpdests = set()
 
     # find all used jumpdests
     for i in range(len(assembly) - 1):
-        if is_symbol(assembly[i]) and assembly[i+1]!="JUMPDEST":
+        if is_symbol(assembly[i]) and assembly[i + 1] != "JUMPDEST":
             used_jumpdests.add(assembly[i])
-
 
     # delete jumpdests that aren't used
     i = 0
     while i < len(assembly) - 2:
         if is_symbol(assembly[i]) and assembly[i] not in used_jumpdests:
-            del assembly[i:i+2]
+            del assembly[i : i + 2]  # noqa: E203
         else:
-            i+=1
+            i += 1
 
 
 # optimize assembly, in place

@@ -8,8 +8,8 @@ from vyper.exceptions import (
 from vyper.old_codegen.abi import abi_encode, abi_type_of
 from vyper.old_codegen.lll_node import Encoding, LLLnode
 from vyper.old_codegen.parser_utils import (
-    get_element_ptr,
     calculate_type_for_external_return,
+    get_element_ptr,
     getpos,
     unwrap_location,
 )
