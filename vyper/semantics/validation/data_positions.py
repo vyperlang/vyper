@@ -3,7 +3,7 @@ import math
 from typing import Dict
 
 from vyper import ast as vy_ast
-from vyper.semantics.types.bases import ImmutableSlot, StorageSlot
+from vyper.semantics.types.bases import CodeOffset, StorageSlot
 from vyper.typing import StorageLayout
 
 
@@ -17,7 +17,7 @@ def set_data_positions(vyper_module: vy_ast.Module) -> StorageLayout:
     vyper_module : vy_ast.Module
         Top-level Vyper AST node that has already been annotated with type data.
     """
-    set_immutable_slots(vyper_module)
+    set_code_offsets(vyper_module)
     return set_storage_slots(vyper_module)
 
 
@@ -91,13 +91,13 @@ def set_memory_offsets(fn_node: vy_ast.FunctionDef) -> None:
     pass
 
 
-def set_immutable_slots(vyper_module: vy_ast.Module) -> None:
+def set_code_offsets(vyper_module: vy_ast.Module) -> None:
 
-    slot = 0
+    offset = 0
     for node in vyper_module.get_children(
         vy_ast.AnnAssign, filters={"annotation.func.id": "immutable"}
     ):
         type_ = node._metadata["type"]
-        type_.set_position(ImmutableSlot(slot))
+        type_.set_position(CodeOffset(offset))
 
-        slot += math.ceil(type_.size_in_bytes / 32)
+        offset += math.ceil(type_.size_in_bytes / 32) * 32

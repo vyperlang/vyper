@@ -23,6 +23,7 @@ class DataLocation(Enum):
     MEMORY = 1
     STORAGE = 2
     CALLDATA = 3
+    CODE = 4
 
 
 class DataPosition:
@@ -69,15 +70,15 @@ class StorageSlot(DataPosition):
         return f"<StorageSlot: {self.position}>"
 
 
-class ImmutableSlot(DataPosition):
-    __slots__ = ("position",)
-    _location = DataLocation.UNSET
+class CodeOffset(DataPosition):
+    __slots__ = ("offset",)
+    _location = DataLocation.CODE
 
-    def __init__(self, position):
-        self.position = position
+    def __init__(self, offset):
+        self.offset = offset
 
     def __repr__(self):
-        return f"<ImmutableSlot: {self.position}>"
+        return f"<CodeOffset: {self.offset}>"
 
 
 class BasePrimitive:
