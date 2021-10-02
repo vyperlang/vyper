@@ -768,7 +768,8 @@ class Expr:
             # for `not in`, invert the result
             compare_sequence = ["iszero", compare_sequence]
 
-        return LLLnode.from_list(compare_sequence, typ="bool", annotation="in comparator")
+        annotation = self.expr.get("node_source_code")
+        return LLLnode.from_list(compare_sequence, typ="bool", annotation=annotation)
 
     @staticmethod
     def _signed_to_unsigned_comparision_op(op):
