@@ -333,11 +333,11 @@ class Expr:
                     mutable=True,
                 )
             else:
-                pos = self.context.new_internal_variable(var.typ)
+                pos = self.expr._metadata["type"].position
                 return LLLnode.from_list(
-                    ["seq", ["codecopy", pos, "codesize", 32], pos],
+                    ["add", "codesize", pos.offset],
                     typ=var.typ,
-                    location="memory",
+                    location="code",
                     pos=getpos(self.expr),
                     annotation=self.expr.id,
                     mutable=False,
