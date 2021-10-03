@@ -19,6 +19,7 @@ def _gas_bound(num_words):
     return SHA3_BASE + num_words * SHA3_PER_WORD
 
 
+# TODO kwargs is dead argument
 def keccak256_helper(expr, lll_args, kwargs, context):
     if len(lll_args) != 1:
         # NOTE this may be checked at a higher level, but just be safe

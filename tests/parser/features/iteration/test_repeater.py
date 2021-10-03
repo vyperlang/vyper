@@ -106,8 +106,10 @@ def test_return_inside_repeater(get_contract, typ):
 @internal
 def _final(a: {typ}) -> {typ}:
     for i in range(10):
-        if i > a:
-            return i
+        for j in range(10):
+            if j > 5:
+                if i > a:
+                    return i
     return 31337
 
 @internal

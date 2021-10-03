@@ -3,6 +3,7 @@ from functools import wraps
 
 import pytest
 from eth_tester import EthereumTester
+from eth_utils import setup_DEBUG2_logging
 from hexbytes import HexBytes
 from web3 import Web3
 from web3.providers.eth_tester import EthereumTesterProvider
@@ -26,12 +27,14 @@ pytest_plugins = ["tests.base_conftest", "tests.fixtures.memorymock"]
 
 
 def set_evm_verbose_logging():
-    logger = logging.getLogger("evm")
-    logger.setLevel("TRACE")
+    logger = logging.getLogger("eth.vm.computation.Computation")
+    setup_DEBUG2_logging()
+    logger.setLevel("DEBUG2")
 
 
 # Useful options to comment out whilst working:
 # set_evm_verbose_logging()
+#
 # from vdb import vdb
 # vdb.set_evm_opcode_debugger()
 

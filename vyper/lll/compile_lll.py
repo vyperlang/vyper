@@ -493,9 +493,13 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
             break_dest,
             height,
         )
-    # # jump to a symbol
+    # # jump to a symbol, and push variable arguments onto stack
     elif code.value == "goto":
-        return ["_sym_" + str(code.args[0]), "JUMP"]
+        o = []
+        for i, c in enumerate(reversed(code.args[1:])):
+            o.extend(_compile_to_assembly(c, withargs, existing_labels, break_dest, height + i))
+        o.extend(["_sym_" + str(code.args[0]), "JUMP"])
+        return o
     elif isinstance(code.value, str) and is_symbol(code.value):
         return [code.value]
     # set a symbol as a location.
@@ -557,6 +561,22 @@ def _prune_unreachable_code(assembly):
             i += 1
 
 
+def _prune_inefficient_jumps(assembly):
+    # prune sequences `_sym_x JUMP _sym_x JUMPDEST` to `_sym_x JUMPDEST`
+    i = 0
+    while i < len(assembly) - 4:
+        if (
+            is_symbol(assembly[i])
+            and assembly[i + 1] == "JUMP"
+            and assembly[i] == assembly[i + 2]
+            and assembly[i + 3] == "JUMPDEST"
+        ):
+            # delete _sym_x JUMP
+            del assembly[i : i + 2]  # noqa: E203
+        else:
+            i += 1
+
+
 def _merge_jumpdests(assembly):
     # When a nested subroutine finishes and is the final action within it's
     # parent subroutine, we end up with multiple simultaneous JUMPDEST
@@ -593,13 +613,35 @@ def _merge_iszero(assembly):
             i += 1
 
 
+def _prune_unused_jumpdests(assembly):
+    used_jumpdests = set()
+
+    # find all used jumpdests
+    for i in range(len(assembly) - 1):
+        if is_symbol(assembly[i]) and assembly[i + 1] != "JUMPDEST":
+            used_jumpdests.add(assembly[i])
+
+    # delete jumpdests that aren't used
+    i = 0
+    while i < len(assembly) - 2:
+        if is_symbol(assembly[i]) and assembly[i] not in used_jumpdests:
+            del assembly[i : i + 2]  # noqa: E203
+        else:
+            i += 1
+
+
+# optimize assembly, in place
+def _optimize_assembly(assembly):
+    _prune_unreachable_code(assembly)
+    _merge_iszero(assembly)
+    _merge_jumpdests(assembly)
+    _prune_inefficient_jumps(assembly)
+    _prune_unused_jumpdests(assembly)
+
+
 # Assembles assembly into EVM
 def assembly_to_evm(assembly, start_pos=0):
-    _prune_unreachable_code(assembly)
-
-    _merge_iszero(assembly)
-
-    _merge_jumpdests(assembly)
+    _optimize_assembly(assembly)
 
     line_number_map = {
         "breakpoints": set(),
@@ -622,11 +664,15 @@ def assembly_to_evm(assembly, start_pos=0):
 
         if item == "JUMP":
             last = assembly[i - 1]
-            if last == "MLOAD":
-                line_number_map["pc_jump_map"][pos] = "o"
-            elif is_symbol(last) and "_priv_" in last:
-                line_number_map["pc_jump_map"][pos] = "i"
+            if is_symbol(last) and last.startswith("_sym_internal"):
+                if last.endswith("cleanup"):
+                    # exit an internal function
+                    line_number_map["pc_jump_map"][pos] = "o"
+                else:
+                    # enter an internal function
+                    line_number_map["pc_jump_map"][pos] = "i"
             else:
+                # everything else
                 line_number_map["pc_jump_map"][pos] = "-"
         elif item in ("JUMPI", "JUMPDEST"):
             line_number_map["pc_jump_map"][pos] = "-"

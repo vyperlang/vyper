@@ -34,5 +34,5 @@ def public_bar():
             "slot": 3,
         },
         "baz": {"type": "Bytes[65]", "location": "storage", "slot": 4},
-        "bar": {"type": "uint256", "location": "storage", "slot": 9},
+        "bar": {"type": "uint256", "location": "storage", "slot": 8},
     }

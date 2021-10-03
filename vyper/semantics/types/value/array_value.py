@@ -1,9 +1,9 @@
-import math
 from typing import Type
 
 from vyper import ast as vy_ast
 from vyper.exceptions import CompilerPanic, StructureException, UnexpectedValue
 from vyper.semantics import validation
+from vyper.utils import ceil32
 
 from ..abstract import ArrayValueAbstractType, BytesAbstractType
 from ..bases import BasePrimitive, DataLocation, ValueTypeDefinition
@@ -61,8 +61,7 @@ class _ArrayValueDefinition(ValueTypeDefinition):
         # because this data type is single-bytes, we make it so it takes the max 32 byte
         # boundary as it's size, instead of giving it a size that is not cleanly divisble by 32
 
-        # TODO adding 64 here instead of 32 to be compatible with parser - fix this!
-        return 64 + math.ceil(self.length / 32) * 32
+        return 32 + ceil32(self.length)
 
     @property
     def canonical_type(self) -> str:

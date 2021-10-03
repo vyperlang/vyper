@@ -1,5 +1,5 @@
-from .parse_function import (  # noqa
+from .common import (  # noqa
+    generate_lll_for_function,
     is_default_func,
     is_initializer,
-    parse_function,
 )

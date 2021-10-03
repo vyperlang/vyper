@@ -96,6 +96,7 @@ class ContractFunction(BaseTypeDefinition):
         self,
         name: str,
         arguments: OrderedDict,
+        # TODO rename to something like positional_args, keyword_args
         min_arg_count: int,
         max_arg_count: int,
         return_type: Optional[BaseTypeDefinition],
@@ -321,13 +322,6 @@ class ContractFunction(BaseTypeDefinition):
             type_definition = get_type_from_annotation(
                 arg.annotation, location=DataLocation.CALLDATA, is_immutable=True
             )
-            if isinstance(type_definition, StructDefinition) and type_definition.is_dynamic_size:
-                # this is a temporary restriction and should be removed once support for dynamically
-                # sized structs is implemented - https://github.com/vyperlang/vyper/issues/2190
-                raise ArgumentException(
-                    "Struct with dynamically sized data cannot be used as a function input", arg
-                )
-
             if value is not None:
                 if not check_constant(value):
                     raise StateAccessViolation(
@@ -367,7 +361,7 @@ class ContractFunction(BaseTypeDefinition):
         """
         Generate a `ContractFunction` object from an `AnnAssign` node.
 
-        Used to create function definitions for public variables.
+        Used to create getter functions for public variables.
 
         Arguments
         ---------
@@ -402,7 +396,7 @@ class ContractFunction(BaseTypeDefinition):
 
         * For functions without default arguments the dict contains one item.
         * For functions with default arguments, there is one key for each
-          function signfature.
+          function signature.
         """
         arg_types = [i.canonical_type for i in self.arguments.values()]
 
@@ -413,6 +407,20 @@ class ContractFunction(BaseTypeDefinition):
         for i in range(self.min_arg_count, self.max_arg_count + 1):
             method_ids.update(_generate_method_id(self.name, arg_types[:i]))
         return method_ids
+
+    # for caller-fills-args calling convention
+    def get_args_buffer_offset(self) -> int:
+        """
+        Get the location of the args buffer in the function frame (caller sets)
+        """
+        return 0
+
+    # TODO is this needed?
+    def get_args_buffer_len(self) -> int:
+        """
+        Get the length of the argument buffer in the function frame
+        """
+        return sum(arg_t.size_in_bytes() for arg_t in self.arguments.values())
 
     @property
     def is_constructor(self) -> bool:
@@ -473,10 +481,8 @@ class ContractFunction(BaseTypeDefinition):
         typ = self.return_type
         if typ is None:
             abi_dict["outputs"] = []
-        elif isinstance(typ, TupleDefinition):
+        elif isinstance(typ, TupleDefinition) and len(typ.value_type) > 1:  # type: ignore
             abi_dict["outputs"] = [_generate_abi_type(i) for i in typ.value_type]  # type: ignore
-        elif isinstance(typ, StructDefinition):
-            abi_dict["outputs"] = [_generate_abi_type(v, k) for k, v in typ.members.items()]
         else:
             abi_dict["outputs"] = [_generate_abi_type(typ)]
 
@@ -497,6 +503,11 @@ def _generate_abi_type(type_definition, name=""):
             "name": name,
             "type": "tuple",
             "components": [_generate_abi_type(v, k) for k, v in type_definition.members.items()],
+        }
+    if isinstance(type_definition, TupleDefinition):
+        return {
+            "type": "tuple",
+            "components": [_generate_abi_type(i) for i in type_definition.value_type],
         }
     return {"name": name, "type": type_definition.canonical_type}
 

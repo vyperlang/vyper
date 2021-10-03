@@ -1,5 +1,7 @@
 import binascii
 import functools
+import sys
+import traceback
 from typing import Dict, List, Union
 
 from vyper.exceptions import InvalidLiteral
@@ -13,16 +15,35 @@ except ImportError:
 
     keccak256 = lambda x: _sha3.sha3_256(x).digest()  # noqa: E731
 
+try:
+    # available py3.8+
+    from functools import cached_property
+except ImportError:
+    from cached_property import cached_property  # type: ignore
+
 
 # Converts four bytes to an integer
 def fourbytes_to_int(inp):
     return (inp[0] << 24) + (inp[1] << 16) + (inp[2] << 8) + inp[3]
 
 
+# utility function for debugging purposes
+def trace(n=5, out=sys.stderr):
+    print("BEGIN TRACE", file=out)
+    for x in list(traceback.format_stack())[-n:]:
+        print(x.strip(), file=out)
+    print("END TRACE", file=out)
+
+
 # converts a signature like Func(bool,uint256,address) to its 4 byte method ID
 # TODO replace manual calculations in codebase with this
 def abi_method_id(method_sig):
     return fourbytes_to_int(keccak256(bytes(method_sig, "utf-8"))[:4])
+
+
+# map a string to only-alphanumeric chars
+def mkalphanum(s):
+    return "".join([c if c.isalnum() else "_" for c in s])
 
 
 # Converts string to bytes
@@ -77,6 +98,8 @@ def calc_mem_gas(memsize):
 # Specific gas usage
 GAS_IDENTITY = 15
 GAS_IDENTITYWORD = 3
+GAS_CODECOPY_WORD = 3
+GAS_CALLDATACOPY_WORD = 3
 
 # A decimal value can store multiples of 1/DECIMAL_DIVISOR
 MAX_DECIMAL_PLACES = 10
@@ -139,7 +162,7 @@ FUNCTION_WHITELIST = {
     "send",
 }
 
-# List of valid LLL macros. Used for colorising LLL output
+# List of valid LLL macros.
 VALID_LLL_MACROS = {
     "assert",
     "break",
@@ -299,3 +322,8 @@ def annotate_source_code(
     cleanup_lines += [""] * (num_lines - len(cleanup_lines))
 
     return "\n".join(cleanup_lines)
+
+
+__all__ = [
+    "cached_property",
+]

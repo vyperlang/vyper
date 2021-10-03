@@ -1,7 +1,6 @@
-from typing import Any, List, Optional, Tuple
+from typing import Any, List, Optional, Tuple, Union
 
 from vyper import ast as vy_ast
-from vyper.ast.signatures import sig_utils
 from vyper.ast.signatures.function_signature import FunctionSignature
 from vyper.exceptions import (
     EventDeclarationException,
@@ -9,9 +8,9 @@ from vyper.exceptions import (
     StructureException,
 )
 from vyper.old_codegen.function_definitions import (
+    generate_lll_for_function,
     is_default_func,
     is_initializer,
-    parse_function,
 )
 from vyper.old_codegen.global_context import GlobalContext
 from vyper.old_codegen.lll_node import LLLnode
@@ -29,7 +28,7 @@ STORE_CALLDATA: List[Any] = [
     # check that calldatasize is at least 4, otherwise
     # calldataload will load zeros (cf. yellow paper).
     ["if", ["lt", "calldatasize", 4], ["goto", "fallback"]],
-    ["mstore", 28, ["calldataload", 0]],
+    ["calldatacopy", 28, 0, 4],
 ]
 # Store limit constants at fixed addresses in memory.
 LIMIT_MEMORY_SET: List[Any] = [
@@ -47,6 +46,7 @@ def init_func_init_lll():
 
 def parse_external_interfaces(external_interfaces, global_ctx):
     for _interfacename in global_ctx._contracts:
+        # TODO factor me into helper function
         _interface_defs = global_ctx._contracts[_interfacename]
         _defnames = [_def.name for _def in _interface_defs]
         interface = {}
@@ -87,79 +87,99 @@ def parse_external_interfaces(external_interfaces, global_ctx):
     return external_interfaces
 
 
-def parse_other_functions(o, otherfuncs, sigs, external_interfaces, global_ctx, default_function):
+def parse_regular_functions(
+    o, regular_functions, sigs, external_interfaces, global_ctx, default_function
+):
     # check for payable/nonpayable external functions to optimize nonpayable assertions
     func_types = [i._metadata["type"] for i in global_ctx._defs]
     mutabilities = [i.mutability for i in func_types if i.visibility == FunctionVisibility.EXTERNAL]
-    has_payable = next((True for i in mutabilities if i == StateMutability.PAYABLE), False)
-    has_nonpayable = next((True for i in mutabilities if i != StateMutability.PAYABLE), False)
+    has_payable = any(i == StateMutability.PAYABLE for i in mutabilities)
+    has_nonpayable = any(i != StateMutability.PAYABLE for i in mutabilities)
+
     is_default_payable = (
         default_function is not None
         and default_function._metadata["type"].mutability == StateMutability.PAYABLE
     )
+
+    # TODO streamline the nonpayable check logic
+
     # when a contract has a payable default function and at least one nonpayable
     # external function, we must perform the nonpayable check on every function
     check_per_function = is_default_payable and has_nonpayable
 
     # generate LLL for regular functions
-    payable_func_sub = ["seq"]
-    external_func_sub = ["seq"]
-    internal_func_sub = ["seq"]
+    payable_funcs = []
+    nonpayable_funcs = []
+    internal_funcs = []
     add_gas = func_init_lll().gas
 
-    for func_node in otherfuncs:
+    for func_node in regular_functions:
         func_type = func_node._metadata["type"]
-        func_lll = parse_function(
+        func_lll, frame_start, frame_size = generate_lll_for_function(
             func_node, {**{"self": sigs}, **external_interfaces}, global_ctx, check_per_function
         )
+
         if func_type.visibility == FunctionVisibility.INTERNAL:
-            internal_func_sub.append(func_lll)
+            internal_funcs.append(func_lll)
+
         elif func_type.mutability == StateMutability.PAYABLE:
-            add_gas += 30
-            payable_func_sub.append(func_lll)
+            add_gas += 30  # CMC 20210910 why?
+            payable_funcs.append(func_lll)
+
         else:
-            external_func_sub.append(func_lll)
-            add_gas += 30
+            add_gas += 30  # CMC 20210910 why?
+            nonpayable_funcs.append(func_lll)
+
         func_lll.total_gas += add_gas
-        for sig in sig_utils.generate_default_arg_sigs(func_node, external_interfaces, global_ctx):
-            sig.gas = func_lll.total_gas
-            sigs[sig.sig] = sig
+
+        # update sigs with metadata gathered from compiling the function so that
+        # we can handle calls to self
+        # TODO we only need to do this for internal functions; external functions
+        # cannot be called via `self`
+        sig = FunctionSignature.from_definition(func_node, external_interfaces, global_ctx._structs)
+        sig.gas = func_lll.total_gas
+        sig.frame_start = frame_start
+        sig.frame_size = frame_size
+        sigs[sig.name] = sig
 
     # generate LLL for fallback function
     if default_function:
-        fallback_lll = parse_function(
+        fallback_lll, _frame_start, _frame_size = generate_lll_for_function(
             default_function,
             {**{"self": sigs}, **external_interfaces},
             global_ctx,
             # include a nonpayble check here if the contract only has a default function
-            check_per_function or not otherfuncs,
+            check_per_function or not regular_functions,
         )
     else:
         fallback_lll = LLLnode.from_list(["revert", 0, 0], typ=None, annotation="Default function")
 
     if check_per_function:
-        external_seq = ["seq", payable_func_sub, external_func_sub]
+        external_seq = ["seq"] + payable_funcs + nonpayable_funcs
+
     else:
         # payable functions are placed prior to nonpayable functions
         # and seperated by a nonpayable assertion
         external_seq = ["seq"]
         if has_payable:
-            external_seq.append(payable_func_sub)
+            external_seq += payable_funcs
         if has_nonpayable:
-            external_seq.extend([["assert", ["iszero", "callvalue"]], external_func_sub])
+            external_seq.append(["assert", ["iszero", "callvalue"]])
+            external_seq += nonpayable_funcs
 
     # bytecode is organized by: external functions, fallback fn, internal functions
     # this way we save gas and reduce bytecode by not jumping over internal functions
-    main_seq = [
+    runtime = [
         "seq",
         func_init_lll(),
-        ["with", "_func_sig", ["mload", 0], external_seq],
+        ["with", "_calldata_method_id", ["mload", 0], external_seq],
         ["seq_unchecked", ["label", "fallback"], fallback_lll],
-        internal_func_sub,
     ]
+    runtime.extend(internal_funcs)
 
-    o.append(["return", 0, ["lll", main_seq, 0]])
-    return o, main_seq
+    # TODO CMC 20210911 why does the lll have a trailing 0
+    o.append(["return", 0, ["lll", runtime, 0]])
+    return o, runtime
 
 
 # Main python parse tree => LLL method
@@ -179,40 +199,40 @@ def parse_tree_to_lll(global_ctx: GlobalContext) -> Tuple[LLLnode, LLLnode]:
             {[name for name in _names_events if _names_events.count(name) > 1][0]}"""
         )
     # Initialization function
-    initfunc = [_def for _def in global_ctx._defs if is_initializer(_def)]
+    init_function = next((_def for _def in global_ctx._defs if is_initializer(_def)), None)
     # Default function
-    defaultfunc = next((i for i in global_ctx._defs if is_default_func(i)), None)
-    # Regular functions
-    otherfuncs = [
+    default_function = next((i for i in global_ctx._defs if is_default_func(i)), None)
+
+    regular_functions = [
         _def for _def in global_ctx._defs if not is_initializer(_def) and not is_default_func(_def)
     ]
 
     sigs: dict = {}
     external_interfaces: dict = {}
     # Create the main statement
-    o = ["seq"]
+    o: List[Union[str, LLLnode]] = ["seq"]
     if global_ctx._contracts or global_ctx._interfaces:
         external_interfaces = parse_external_interfaces(external_interfaces, global_ctx)
-    # If there is an init func...
-    if initfunc:
-        o.append(init_func_init_lll())
-        o.append(
-            parse_function(
-                initfunc[0], {**{"self": sigs}, **external_interfaces}, global_ctx, False,
-            )
-        )
 
-    # If there are regular functions...
-    if otherfuncs or defaultfunc:
-        o, runtime = parse_other_functions(
-            o, otherfuncs, sigs, external_interfaces, global_ctx, defaultfunc,
+    # TODO: fix for #2251 is to move this after parse_regular_functions
+    if init_function:
+        o.append(init_func_init_lll())
+        init_func_lll, _frame_start, _frame_size = generate_lll_for_function(
+            init_function, {**{"self": sigs}, **external_interfaces}, global_ctx, False,
+        )
+        o.append(init_func_lll)
+
+    if regular_functions or default_function:
+        o, runtime = parse_regular_functions(
+            o, regular_functions, sigs, external_interfaces, global_ctx, default_function,
         )
     else:
         runtime = o.copy()
 
-    return LLLnode.from_list(o, typ=None), LLLnode.from_list(runtime, typ=None)
+    return LLLnode.from_list(o), LLLnode.from_list(runtime)
 
 
+# TODO this function is dead code
 def parse_to_lll(
     source_code: str, runtime_only: bool = False, interface_codes: Optional[InterfaceImports] = None
 ) -> LLLnode:

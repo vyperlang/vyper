@@ -219,5 +219,5 @@ class GlobalContext:
         else:
             raise InvalidType("Invalid global type specified", item)
 
-    def parse_type(self, ast_node, location):
+    def parse_type(self, ast_node, location=None):
         return parse_type(ast_node, location, sigs=self._contracts, custom_structs=self._structs,)

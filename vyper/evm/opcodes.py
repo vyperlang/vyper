@@ -209,7 +209,6 @@ PSEUDO_OPCODES: OpcodeMap = {
     "NE": (None, 2, 1, 6),
     "DEBUGGER": (None, 0, 0, 0),
     "LABEL": (None, 1, 0, 1),
-    "GOTO": (None, 1, 0, 8),
 }
 
 COMB_OPCODES: OpcodeMap = {**OPCODES, **PSEUDO_OPCODES}

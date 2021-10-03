@@ -181,6 +181,7 @@ def canonicalize_type(t, is_indexed=False):
     raise InvalidType(f"Invalid or unsupported type: {repr(t)}")
 
 
+# TODO location is unused
 def make_struct_type(name, location, sigs, members, custom_structs):
     o = OrderedDict()
 
@@ -196,7 +197,9 @@ def make_struct_type(name, location, sigs, members, custom_structs):
 
 # Parses an expression representing a type. Annotation refers to whether
 # the type is to be located in memory or storage
-def parse_type(item, location, sigs=None, custom_structs=None):
+# TODO: location is unused
+# TODO: rename me to "lll_type_from_annotation"
+def parse_type(item, location=None, sigs=None, custom_structs=None):
     # Base and custom types, e.g. num
     if isinstance(item, vy_ast.Name):
         if item.id in BASE_TYPES:
@@ -271,7 +274,7 @@ def parse_type(item, location, sigs=None, custom_structs=None):
 
 # byte array overhead, in words. (it should really be 1, but there are
 # some places in our calling convention where the layout expects 2)
-BYTE_ARRAY_OVERHEAD = 2
+BYTE_ARRAY_OVERHEAD = 1
 
 
 # Gets the maximum number of memory or storage keys needed to ABI-encode
@@ -302,36 +305,6 @@ def get_type_for_exact_size(n_bytes):
       type: A type which can be passed to context.new_variable
     """
     return ByteArrayType(n_bytes - 32 * BYTE_ARRAY_OVERHEAD)
-
-
-# amount of space a type takes in the static section of its ABI encoding
-def get_static_size_of_type(typ):
-    if isinstance(typ, BaseType):
-        return 1
-    elif isinstance(typ, ByteArrayLike):
-        return 1
-    elif isinstance(typ, ListType):
-        return get_size_of_type(typ.subtype) * typ.count
-    elif isinstance(typ, MappingType):
-        raise InvalidType("Maps are not supported for function arguments or outputs.")
-    elif isinstance(typ, TupleLike):
-        return sum([get_size_of_type(v) for v in typ.tuple_members()])
-    else:
-        raise InvalidType(f"Can not get size of type, Unexpected type: {repr(typ)}")
-
-
-# could be rewritten as get_static_size_of_type == get_size_of_type?
-def has_dynamic_data(typ):
-    if isinstance(typ, BaseType):
-        return False
-    elif isinstance(typ, ByteArrayLike):
-        return True
-    elif isinstance(typ, ListType):
-        return has_dynamic_data(typ.subtype)
-    elif isinstance(typ, TupleLike):
-        return any([has_dynamic_data(v) for v in typ.tuple_members()])
-    else:
-        raise InvalidType(f"Unexpected type: {repr(typ)}")
 
 
 def get_type(input):

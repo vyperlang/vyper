@@ -26,16 +26,17 @@ from vyper.old_codegen.abi import (
     abi_encode,
     abi_type_of,
     abi_type_of2,
-    lll_tuple_from_args,
 )
 from vyper.old_codegen.arg_clamps import int128_clamp
 from vyper.old_codegen.expr import Expr
 from vyper.old_codegen.keccak256_helper import keccak256_helper
 from vyper.old_codegen.parser_utils import (
     LLLnode,
-    add_variable_offset,
     get_bytearray_length,
+    get_element_ptr,
     getpos,
+    lll_tuple_from_args,
+    load_op,
     make_byte_array_copier,
     make_byte_slice_copier,
     unwrap_location,
@@ -254,6 +255,7 @@ class Slice:
     def build_LLL(self, expr, args, kwargs, context):
 
         sub, start, length = args
+
         if is_base_type(sub.typ, "bytes32"):
             if (start.typ.is_literal and length.typ.is_literal) and not (
                 0 <= start.value + length.value <= 32
@@ -262,12 +264,6 @@ class Slice:
                     "Invalid start / length values needs to be between 0 and 32.", expr,
                 )
             sub_typ_maxlen = 32
-        elif sub.location == "calldata":
-            # if we are slicing msg.data, the length should
-            # be a constant, since msg.data can be of dynamic length
-            # we can't use it's length as the maxlen
-            assert isinstance(length.value, int)  # sanity check
-            sub_typ_maxlen = length.value
         else:
             sub_typ_maxlen = sub.typ.maxlen
 
@@ -278,15 +274,19 @@ class Slice:
             ReturnType = OldStringType
 
         # Node representing the position of the output in memory
+        # CMC 20210917 shouldn't this be a variable with newmaxlen?
         np = context.new_internal_variable(ReturnType(maxlen=sub_typ_maxlen + 32))
+        # TODO deallocate np
         placeholder_node = LLLnode.from_list(np, typ=sub.typ, location="memory")
         placeholder_plus_32_node = LLLnode.from_list(np + 32, typ=sub.typ, location="memory")
-        # Copies over bytearray data
-        if sub.location == "storage":
-            adj_sub = LLLnode.from_list(
-                ["add", sub, ["add", ["div", "_start", 32], 1]], typ=sub.typ, location=sub.location,
-            )
-        elif sub.location == "calldata":
+
+        # special handling for slice(msg.data)
+        if sub.location == "calldata" and sub.value == 0:
+            assert expr.args[0].value.id == "msg" and expr.args[0].attr == "data"
+            # if we are slicing msg.data, the length should
+            # be a constant, since msg.data can be of dynamic length
+            # we can't use its length as the maxlen
+            assert isinstance(length.value, int)  # sanity check
             node = [
                 "seq",
                 ["assert", ["le", ["add", start, length], "calldatasize"]],  # runtime bounds check
@@ -295,6 +295,14 @@ class Slice:
                 np,
             ]
             return LLLnode.from_list(node, typ=ByteArrayType(length.value), location="memory")
+
+        # Copy over bytearray data
+        # CMC 20210917 how does this routine work?
+
+        if sub.location == "storage":
+            adj_sub = LLLnode.from_list(
+                ["add", sub, ["add", ["div", "_start", 32], 1]], typ=sub.typ, location=sub.location,
+            )
         else:
             adj_sub = LLLnode.from_list(
                 ["add", sub, ["add", ["sub", "_start", ["mod", "_start", 32]], 32]],
@@ -308,16 +316,17 @@ class Slice:
         copier = make_byte_slice_copier(
             placeholder_plus_32_node,
             adj_sub,
-            ["add", "_length", 32],
+            ["add", "_length", 32],  # CMC 20210917 shouldn't this just be _length
             sub_typ_maxlen,
             pos=getpos(expr),
         )
+
         # New maximum length in the type of the result
         newmaxlen = length.value if not len(length.args) else sub_typ_maxlen
         if is_base_type(sub.typ, "bytes32"):
             maxlen = 32
         else:
-            maxlen = ["mload", Expr(sub, context=context).lll_node]  # Retrieve length of the bytes.
+            maxlen = get_bytearray_length(sub)
 
         out = [
             "with",
@@ -465,8 +474,10 @@ class Concat:
                 if arg.typ.maxlen == 0:
                     continue
                 # Get the length of the current argument
-                if arg.location == "memory":
-                    length = LLLnode.from_list(["mload", "_arg"], typ=BaseType("int128"))
+                if arg.location in ("memory", "calldata", "code"):
+                    length = LLLnode.from_list(
+                        [load_op(arg.location), "_arg"], typ=BaseType("int128")
+                    )
                     argstart = LLLnode.from_list(
                         ["add", "_arg", 32], typ=arg.typ, location=arg.location,
                     )
@@ -602,8 +613,30 @@ class Sha256(_SimpleBuiltinFunction):
                 add_gas_estimate=SHA256_BASE_GAS + 1 * SHA256_PER_WORD_GAS,
             )
         # bytearay-like input
-        if sub.location == "storage":
-            # Copy storage to memory
+        # special case if it's already in memory
+        if sub.location == "memory":
+            return LLLnode.from_list(
+                [
+                    "with",
+                    "_sub",
+                    sub,
+                    [
+                        "seq",
+                        _make_sha256_call(
+                            inp_start=["add", "_sub", 32],
+                            inp_len=["mload", "_sub"],
+                            out_start=MemoryPositions.FREE_VAR_SPACE,
+                            out_len=32,
+                        ),
+                        ["mload", MemoryPositions.FREE_VAR_SPACE],
+                    ],
+                ],
+                typ=BaseType("bytes32"),
+                pos=getpos(expr),
+                add_gas_estimate=SHA256_BASE_GAS + sub.typ.maxlen * SHA256_PER_WORD_GAS,
+            )
+        else:
+            # otherwise, copy it to memory and then call the precompile
             placeholder = context.new_internal_variable(sub.typ)
             placeholder_node = LLLnode.from_list(placeholder, typ=sub.typ, location="memory")
             copier = make_byte_array_copier(
@@ -630,30 +663,6 @@ class Sha256(_SimpleBuiltinFunction):
                 pos=getpos(expr),
                 add_gas_estimate=SHA256_BASE_GAS + sub.typ.maxlen * SHA256_PER_WORD_GAS,
             )
-        elif sub.location == "memory":
-            return LLLnode.from_list(
-                [
-                    "with",
-                    "_sub",
-                    sub,
-                    [
-                        "seq",
-                        _make_sha256_call(
-                            inp_start=["add", "_sub", 32],
-                            inp_len=["mload", "_sub"],
-                            out_start=MemoryPositions.FREE_VAR_SPACE,
-                            out_len=32,
-                        ),
-                        ["mload", MemoryPositions.FREE_VAR_SPACE],
-                    ],
-                ],
-                typ=BaseType("bytes32"),
-                pos=getpos(expr),
-                add_gas_estimate=SHA256_BASE_GAS + sub.typ.maxlen * SHA256_PER_WORD_GAS,
-            )
-        else:
-            # This should never happen, but just left here for future compiler-writers.
-            raise Exception(f"Unsupported location: {sub.location}")  # pragma: no test
 
 
 class MethodID:
@@ -742,8 +751,8 @@ class ECRecover(_SimpleBuiltinFunction):
         )
 
 
-def avo(arg, ind, pos):
-    return unwrap_location(add_variable_offset(arg, LLLnode.from_list(ind, "int128"), pos=pos))
+def _getelem(arg, ind, pos):
+    return unwrap_location(get_element_ptr(arg, LLLnode.from_list(ind, "int128"), pos=pos))
 
 
 class ECAdd(_SimpleBuiltinFunction):
@@ -766,10 +775,10 @@ class ECAdd(_SimpleBuiltinFunction):
         o = LLLnode.from_list(
             [
                 "seq",
-                ["mstore", placeholder_node, avo(args[0], 0, pos)],
-                ["mstore", ["add", placeholder_node, 32], avo(args[0], 1, pos)],
-                ["mstore", ["add", placeholder_node, 64], avo(args[1], 0, pos)],
-                ["mstore", ["add", placeholder_node, 96], avo(args[1], 1, pos)],
+                ["mstore", placeholder_node, _getelem(args[0], 0, pos)],
+                ["mstore", ["add", placeholder_node, 32], _getelem(args[0], 1, pos)],
+                ["mstore", ["add", placeholder_node, 64], _getelem(args[1], 0, pos)],
+                ["mstore", ["add", placeholder_node, 96], _getelem(args[1], 1, pos)],
                 ["assert", ["staticcall", ["gas"], 6, placeholder_node, 128, placeholder_node, 64]],
                 placeholder_node,
             ],
@@ -797,8 +806,8 @@ class ECMul(_SimpleBuiltinFunction):
         o = LLLnode.from_list(
             [
                 "seq",
-                ["mstore", placeholder_node, avo(args[0], 0, pos)],
-                ["mstore", ["add", placeholder_node, 32], avo(args[0], 1, pos)],
+                ["mstore", placeholder_node, _getelem(args[0], 0, pos)],
+                ["mstore", ["add", placeholder_node, 32], _getelem(args[0], 1, pos)],
                 ["mstore", ["add", placeholder_node, 64], args[1]],
                 ["assert", ["staticcall", ["gas"], 7, placeholder_node, 96, placeholder_node, 64]],
                 placeholder_node,
@@ -810,10 +819,13 @@ class ECMul(_SimpleBuiltinFunction):
         return o
 
 
-def _memory_element_getter(index):
-    return LLLnode.from_list(
-        ["mload", ["add", "_sub", ["add", 32, ["mul", 32, index]]]], typ=BaseType("int128"),
-    )
+def _generic_element_getter(op):
+    def f(index):
+        return LLLnode.from_list(
+            [op, ["add", "_sub", ["add", 32, ["mul", 32, index]]]], typ=BaseType("int128"),
+        )
+
+    return f
 
 
 def _storage_element_getter(index):
@@ -845,14 +857,14 @@ class Extract32(_SimpleBuiltinFunction):
         sub, index = args
         ret_type = kwargs["output_type"]
         # Get length and specific element
-        if sub.location == "memory":
-            lengetter = LLLnode.from_list(["mload", "_sub"], typ=BaseType("int128"))
-            elementgetter = _memory_element_getter
-        elif sub.location == "storage":
+        if sub.location == "storage":
             lengetter = LLLnode.from_list(["sload", "_sub"], typ=BaseType("int128"))
             elementgetter = _storage_element_getter
-        # TODO: unclosed if/elif clause.  Undefined behavior if `sub.location`
-        # isn't one of `memory`/`storage`
+
+        else:
+            op = load_op(sub.location)
+            lengetter = LLLnode.from_list([op, "_sub"], typ=BaseType("int128"))
+            elementgetter = _generic_element_getter(op)
 
         # Special case: index known to be a multiple of 32
         if isinstance(index.value, int) and not index.value % 32:
@@ -1492,7 +1504,7 @@ class Abs(_SimpleBuiltinFunction):
 
 
 def get_create_forwarder_to_bytecode():
-    # FLAG cyclic import?
+    # NOTE cyclic import?
     from vyper.lll.compile_lll import assembly_to_evm
 
     loader_asm = [
@@ -1757,7 +1769,8 @@ class ABIEncode(_SimpleBuiltinFunction):
     # to handle varargs.)
     # explanation of ensure_tuple:
     # default is to force even a single value into a tuple,
-    # e.g. _abi_encode(bytes) -> abi_encode((bytes,))
+    # e.g. _abi_encode(bytes) -> _abi_encode((bytes,))
+    #      _abi_encode((bytes,)) -> _abi_encode(((bytes,),))
     # this follows the encoding convention for functions:
     # ://docs.soliditylang.org/en/v0.8.6/abi-spec.html#function-selector-and-argument-encoding
     # if this is turned off, then bytes will be encoded as bytes.
@@ -1828,6 +1841,7 @@ class ABIEncode(_SimpleBuiltinFunction):
         maxlen = arg_abi_t.size_bound()
 
         if self._method_id(node) is not None:
+            # the output includes 4 bytes for the method_id.
             maxlen += 4
 
         ret = BytesArrayDefinition()
@@ -1851,6 +1865,8 @@ class ABIEncode(_SimpleBuiltinFunction):
 
         input_abi_t = abi_type_of(encode_input.typ)
         maxlen = input_abi_t.size_bound()
+        if method_id is not None:
+            maxlen += 4
 
         buf_t = ByteArrayType(maxlen=maxlen)
         buf = context.new_internal_variable(buf_t)
@@ -1859,6 +1875,7 @@ class ABIEncode(_SimpleBuiltinFunction):
 
         ret = ["seq"]
         if method_id is not None:
+            # <32 bytes length> | <4 bytes method_id> | <everything else>
             # write the unaligned method_id first, then we will
             # overwrite the 28 bytes of zeros with the bytestring length
             ret += [["mstore", buf + 4, method_id]]

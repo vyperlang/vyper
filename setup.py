@@ -64,7 +64,12 @@ setup(
     packages=find_packages(exclude=("tests", "docs")),
     python_requires=">=3.6",
     py_modules=["vyper"],
-    install_requires=["asttokens==2.0.4", "pycryptodome>=3.5.1,<4", "semantic-version==2.8.5"],
+    install_requires=[
+        "asttokens==2.0.4",
+        "pycryptodome>=3.5.1,<4",
+        "semantic-version==2.8.5",
+        "cached-property==1.5.2 ; python_version<'3.8'",
+    ],
     setup_requires=["pytest-runner"],
     tests_require=extras_require["test"],
     extras_require=extras_require,

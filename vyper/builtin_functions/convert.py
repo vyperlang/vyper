@@ -7,7 +7,12 @@ from vyper.builtin_functions.signatures import signature
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import InvalidLiteral, StructureException, TypeMismatch
 from vyper.old_codegen.arg_clamps import address_clamp, int128_clamp
-from vyper.old_codegen.parser_utils import LLLnode, byte_array_to_num, getpos
+from vyper.old_codegen.parser_utils import (
+    LLLnode,
+    byte_array_to_num,
+    getpos,
+    load_op,
+)
 from vyper.old_codegen.types import (
     BaseType,
     ByteArrayType,
@@ -325,10 +330,11 @@ def to_bytes32(expr, args, kwargs, context):
                 f"Unable to convert bytes[{_len}] to bytes32, max length is too " "large."
             )
 
-        if in_arg.location == "memory":
-            return LLLnode.from_list(["mload", ["add", in_arg, 32]], typ=BaseType("bytes32"))
-        elif in_arg.location == "storage":
+        if in_arg.location == "storage":
             return LLLnode.from_list(["sload", ["add", in_arg, 1]], typ=BaseType("bytes32"))
+        else:
+            op = load_op(in_arg.location)
+            return LLLnode.from_list([op, ["add", in_arg, 32]], typ=BaseType("bytes32"))
 
     else:
         return LLLnode(

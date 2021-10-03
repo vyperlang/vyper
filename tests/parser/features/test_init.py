@@ -14,9 +14,10 @@ def __init__(a: uint256):
 
     assert c.val() == 123
 
-    # Make sure the init signature has no unecessary CALLDATLOAD copy.
+    # Make sure the init code does not access calldata
     opcodes = vyper.compile_code(code, ["opcodes"])["opcodes"].split(" ")
     lll_return_idx = opcodes.index("JUMP")
 
-    assert "CALLDATALOAD" in opcodes
+    assert "CALLDATACOPY" in opcodes
+    assert "CALLDATACOPY" not in opcodes[:lll_return_idx]
     assert "CALLDATALOAD" not in opcodes[:lll_return_idx]

@@ -1,8 +1,10 @@
 import vyper.semantics.types as vy
 from vyper.exceptions import CompilerPanic
-from vyper.old_codegen.lll_node import LLLnode
+from vyper.old_codegen.lll_node import Encoding, LLLnode
 from vyper.old_codegen.parser_utils import (
-    add_variable_offset,
+    _needs_clamp,
+    clamp_basetype,
+    get_element_ptr,
     make_setter,
     unwrap_location,
     zero_pad,
@@ -14,7 +16,6 @@ from vyper.old_codegen.types import (
     ListType,
     StringType,
     TupleLike,
-    TupleType,
 )
 from vyper.utils import ceil32
 
@@ -26,9 +27,21 @@ class ABIType:
         raise NotImplementedError("ABIType.is_dynamic")
 
     # size (in bytes) in the static section (aka 'head')
-    # when embedded in a tuple.
+    # when embedded in a complex type.
     def embedded_static_size(self):
         return 32 if self.is_dynamic() else self.static_size()
+
+    # size bound in the dynamic section (aka 'tail')
+    # when embedded in a complex type.
+    def embedded_dynamic_size_bound(self):
+        if not self.is_dynamic():
+            return 0
+        return self.size_bound()
+
+    def embedded_min_dynamic_size(self):
+        if not self.is_dynamic():
+            return 0
+        return self.min_size()
 
     # size (in bytes) of the static section
     def static_size(self):
@@ -36,10 +49,20 @@ class ABIType:
 
     # max size (in bytes) in the dynamic section (aka 'tail')
     def dynamic_size_bound(self):
-        return 0
+        if not self.is_dynamic():
+            return 0
+        raise NotImplementedError("ABIType.dynamic_size_bound")
 
     def size_bound(self):
         return self.static_size() + self.dynamic_size_bound()
+
+    def min_size(self):
+        return self.static_size() + self.min_dynamic_size()
+
+    def min_dynamic_size(self):
+        if not self.is_dynamic():
+            return 0
+        raise NotImplementedError("ABIType.min_dynamic_size")
 
     # The canonical name of the type for calculating the function selector
     def selector_name(self):
@@ -48,8 +71,11 @@ class ABIType:
     # Whether the type is a tuple at the ABI level.
     # (This is important because if it does, it needs an offset.
     #   Compare the difference in encoding between `bytes` and `(bytes,)`.)
-    def is_tuple(self):
-        raise NotImplementedError("ABIType.is_tuple")
+    def is_complex_type(self):
+        raise NotImplementedError("ABIType.is_complex_type")
+
+    def __repr__(self):
+        return str({type(self).__name__: vars(self)})
 
 
 # uint<M>: unsigned integer type of M bits, 0 < M <= 256, M % 8 == 0. e.g. uint32, uint8, uint256.
@@ -71,7 +97,7 @@ class ABI_GIntM(ABIType):
     def selector_name(self):
         return ("" if self.signed else "u") + f"int{self.m_bits}"
 
-    def is_tuple(self):
+    def is_complex_type(self):
         return False
 
 
@@ -122,7 +148,7 @@ class ABI_FixedMxN(ABIType):
     def selector_name(self):
         return ("" if self.signed else "u") + "fixed{self.m_bits}x{self.n_places}"
 
-    def is_tuple(self):
+    def is_complex_type(self):
         return False
 
 
@@ -143,7 +169,7 @@ class ABI_BytesM(ABIType):
     def selector_name(self):
         return f"bytes{self.m_bytes}"
 
-    def is_tuple(self):
+    def is_complex_type(self):
         return False
 
 
@@ -173,12 +199,15 @@ class ABI_StaticArray(ABIType):
         return self.m_elems * self.subtyp.static_size()
 
     def dynamic_size_bound(self):
-        return self.m_elems * self.subtyp.dynamic_size_bound()
+        return self.m_elems * self.subtyp.embedded_dynamic_size_bound()
+
+    def min_dynamic_size(self):
+        return self.m_elems * self.subtyp.embedded_min_dynamic_size()
 
     def selector_name(self):
         return f"{self.subtyp.selector_name()}[{self.m_elems}]"
 
-    def is_tuple(self):
+    def is_complex_type(self):
         return True
 
 
@@ -201,10 +230,13 @@ class ABI_Bytes(ABIType):
         # length word + data
         return 32 + ceil32(self.bytes_bound)
 
+    def min_dynamic_size(self):
+        return 32
+
     def selector_name(self):
         return "bytes"
 
-    def is_tuple(self):
+    def is_complex_type(self):
         return False
 
 
@@ -228,12 +260,17 @@ class ABI_DynamicArray(ABIType):
         return 32
 
     def dynamic_size_bound(self):
-        return self.subtyp.dynamic_size_bound() * self.elems_bound
+        # TODO double check me
+        return self.subtyp.embedded_dynamic_size_bound() * self.elems_bound
+
+    def min_dynamic_size(self):
+        # TODO double check me
+        return 32
 
     def selector_name(self):
         return f"{self.subtyp.selector_name()}[]"
 
-    def is_tuple(self):
+    def is_complex_type(self):
         return False
 
 
@@ -248,9 +285,12 @@ class ABI_Tuple(ABIType):
         return sum([t.embedded_static_size() for t in self.subtyps])
 
     def dynamic_size_bound(self):
-        return sum([t.dynamic_size_bound() for t in self.subtyps])
+        return sum([t.embedded_dynamic_size_bound() for t in self.subtyps])
 
-    def is_tuple(self):
+    def min_dynamic_size(self):
+        return sum([t.embedded_min_dynamic_size() for t in self.subtyps])
+
+    def is_complex_type(self):
         return True
 
 
@@ -285,12 +325,6 @@ def abi_type_of(lll_typ):
         raise CompilerPanic(f"Unrecognized type {lll_typ}")
 
 
-# utility function, constructs an LLL tuple out of a list of LLL nodes
-def lll_tuple_from_args(args):
-    typ = TupleType([x.typ for x in args])
-    return LLLnode.from_list(["multi"] + [x for x in args], typ=typ)
-
-
 # the new type system
 # TODO consider moving these into properties of the type itself
 def abi_type_of2(t: vy.BasePrimitive) -> ABIType:
@@ -317,14 +351,6 @@ def abi_type_of2(t: vy.BasePrimitive) -> ABIType:
     raise CompilerPanic(f"Unrecognized type {t}")
 
 
-# there are a lot of places in the calling convention where a tuple
-# must be passed, so here's a convenience function for that.
-def ensure_tuple(abi_typ):
-    if not abi_typ.is_tuple():
-        return ABI_Tuple([abi_typ])
-    return abi_typ
-
-
 # turn an lll node into a list, based on its type.
 def o_list(lll_node, pos=None):
     lll_t = lll_node.typ
@@ -338,7 +364,7 @@ def o_list(lll_node, pos=None):
                 else [LLLnode.from_list(i, "uint256") for i in range(lll_t.count)]
             )
 
-            ret = [add_variable_offset(lll_node, k, pos, array_bounds_check=False) for k in ks]
+            ret = [get_element_ptr(lll_node, k, pos, array_bounds_check=False) for k in ks]
         return ret
     else:
         return [lll_node]
@@ -382,16 +408,38 @@ def abi_encode(dst, lll_node, pos=None, bufsz=None, returns_len=False):
     if bufsz is not None and bufsz < 32 * size_bound:
         raise CompilerPanic("buffer provided to abi_encode not large enough")
 
+    # fastpath: if there is no dynamic data, we can optimize the
+    # encoding by using make_setter, since our memory encoding happens
+    # to be identical to the ABI encoding.
+    if not parent_abi_t.is_dynamic():
+        # cast the output buffer to something that make_setter accepts
+        dst = LLLnode(dst, typ=lll_node.typ, location="memory")
+        lll_ret = ["seq", make_setter(dst, lll_node, "memory", pos)]
+        if returns_len:
+            lll_ret.append(parent_abi_t.embedded_static_size())
+        return LLLnode.from_list(lll_ret, pos=pos, annotation=f"abi_encode {lll_node.typ}")
+
     lll_ret = ["seq"]
+
+    # contains some computation, we need to only do it once.
+    if lll_node.is_complex_lll:
+        to_encode = LLLnode.from_list(
+            "to_encode", typ=lll_node.typ, location=lll_node.location, encoding=lll_node.encoding
+        )
+    else:
+        to_encode = lll_node
+
     dyn_ofst = "dyn_ofst"  # current offset in the dynamic section
     dst_begin = "dst"  # pointer to beginning of buffer
     dst_loc = "dst_loc"  # pointer to write location in static section
-    os = o_list(lll_node, pos=pos)
+    os = o_list(to_encode, pos=pos)
 
     for i, o in enumerate(os):
         abi_t = abi_type_of(o.typ)
 
-        if parent_abi_t.is_tuple():
+        if parent_abi_t.is_complex_type():
+            # TODO optimize: special case where there is only one dynamic
+            # member, the location is statically known.
             if abi_t.is_dynamic():
                 lll_ret.append(["mstore", dst_loc, dyn_ofst])
                 # recurse
@@ -408,9 +456,11 @@ def abi_encode(dst, lll_node, pos=None, bufsz=None, returns_len=False):
 
         elif isinstance(o.typ, BaseType):
             d = LLLnode(dst_loc, typ=o.typ, location="memory")
+            # call into make_setter routine
             lll_ret.append(make_setter(d, o, location=d.location, pos=pos))
         elif isinstance(o.typ, ByteArrayLike):
             d = LLLnode.from_list(dst_loc, typ=o.typ, location="memory")
+            # call into make_setter routinme
             lll_ret.append(["seq", make_setter(d, o, location=d.location, pos=pos), zero_pad(d)])
         else:
             raise CompilerPanic(f"unreachable type: {o.typ}")
@@ -425,7 +475,7 @@ def abi_encode(dst, lll_node, pos=None, bufsz=None, returns_len=False):
     if returns_len:
         if not parent_abi_t.is_dynamic():
             lll_ret.append(parent_abi_t.embedded_static_size())
-        elif parent_abi_t.is_tuple():
+        elif parent_abi_t.is_complex_type():
             lll_ret.append("dyn_ofst")
         elif isinstance(lll_node.typ, ByteArrayLike):
             # for abi purposes, return zero-padded length
@@ -434,7 +484,7 @@ def abi_encode(dst, lll_node, pos=None, bufsz=None, returns_len=False):
         else:
             raise CompilerPanic("unknown type {lll_node.typ}")
 
-    if not (parent_abi_t.is_dynamic() and parent_abi_t.is_tuple()):
+    if not (parent_abi_t.is_dynamic() and parent_abi_t.is_complex_type()):
         pass  # optimize out dyn_ofst allocation if we don't need it
     else:
         dyn_section_start = parent_abi_t.static_size()
@@ -442,29 +492,45 @@ def abi_encode(dst, lll_node, pos=None, bufsz=None, returns_len=False):
 
     lll_ret = ["with", dst_begin, dst, ["with", dst_loc, dst_begin, lll_ret]]
 
-    return LLLnode.from_list(lll_ret, pos=pos)
+    if lll_node.is_complex_lll:
+        lll_ret = ["with", to_encode, lll_node, lll_ret]
+
+    return LLLnode.from_list(lll_ret, pos=pos, annotation=f"abi_encode {lll_node.typ}")
 
 
 # lll_node is the destination LLL item, src is the input buffer.
 # recursively copy the buffer items into lll_node, based on its type.
 # src: pointer to beginning of buffer
 # src_loc: pointer to read location in static section
-def abi_decode(lll_node, src, pos=None):
+def abi_decode(lll_node, src, clamp=True, pos=None):
     os = o_list(lll_node, pos=pos)
     lll_ret = ["seq"]
     parent_abi_t = abi_type_of(lll_node.typ)
     for i, o in enumerate(os):
         abi_t = abi_type_of(o.typ)
         src_loc = LLLnode("src_loc", typ=o.typ, location=src.location)
-        if parent_abi_t.is_tuple():
+        if parent_abi_t.is_complex_type():
             if abi_t.is_dynamic():
+                # TODO optimize: special case where there is only one dynamic
+                # member, the location is statically known.
                 child_loc = ["add", "src", unwrap_location(src_loc)]
                 child_loc = LLLnode.from_list(child_loc, typ=o.typ, location=src.location)
             else:
                 child_loc = src_loc
             # descend into the child tuple
-            lll_ret.append(abi_decode(o, child_loc, pos=pos))
+            lll_ret.append(abi_decode(o, child_loc, clamp=clamp, pos=pos))
+
         else:
+
+            if clamp and _needs_clamp(o.typ, Encoding.ABI):
+                src_loc = LLLnode.from_list(
+                    ["with", "src_loc", src_loc, ["seq", clamp_basetype(src_loc), src_loc]],
+                    typ=src_loc.typ,
+                    location=src_loc.location,
+                )
+            else:
+                pass
+
             lll_ret.append(make_setter(o, src_loc, location=o.location, pos=pos))
 
         if i + 1 == len(os):
@@ -476,50 +542,3 @@ def abi_decode(lll_node, src, pos=None):
     lll_ret = ["with", "src", src, ["with", "src_loc", "src", lll_ret]]
 
     return lll_ret
-
-
-def _add_ofst(loc, ofst):
-    if isinstance(loc.value, int):
-        return LLLnode(loc.value + ofst)
-    return ["add", loc, ofst]
-
-
-# decode a buffer containing abi-encoded data structure in place
-# for dynamical data, a layer of indirection will be
-# added for every level of nesting. for instance,
-# `lazy_abi_decode(<int128>, <320>)`
-# might return (mload 320),
-# whereas
-# `lazy_abi_decode(<(int128,bytes)>, <320>)`
-# might return
-# (multi
-#   (mload 320/*int128*/)
-#   (mload (add 320/*buf start*/ (mload 352/*ofst loc*/))))
-# thought of the day: it might be nice to have an argument like `sanitize`
-# which will add well-formedness checks (clamps) for all inputs.
-def lazy_abi_decode(typ, src, pos=None):
-    if isinstance(typ, (ListType, TupleLike)):
-        if isinstance(typ, TupleLike):
-            ts = typ.tuple_members()
-        else:
-            ts = [typ.subtyp for _ in range(typ.count)]
-        ofst = 0
-        os = []
-        for t in ts:
-            child_abi_t = abi_type_of(t)
-            loc = _add_ofst(src, ofst)
-            if child_abi_t.is_dynamic():
-                # load the offset word, which is the
-                # (location-independent) offset from the start of the
-                # src buffer.
-                dyn_ofst = unwrap_location(ofst)
-                loc = _add_ofst(src, dyn_ofst)
-            os.append(lazy_abi_decode(t, loc, pos))
-            ofst += child_abi_t.embedded_static_size()
-
-        return LLLnode.from_list(["multi"] + os, typ=typ, pos=pos)
-
-    elif isinstance(typ, (BaseType, ByteArrayLike)):
-        return unwrap_location(src)
-    else:
-        raise CompilerPanic(f"unknown type for lazy_abi_decode {typ}")

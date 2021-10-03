@@ -5,7 +5,6 @@ import pkgutil
 
 import vyper.builtin_interfaces
 from vyper import ast as vy_ast
-from vyper.ast.signatures import sig_utils
 from vyper.ast.signatures.function_signature import FunctionSignature
 from vyper.exceptions import StructureException
 from vyper.old_codegen.global_context import GlobalContext
@@ -81,7 +80,7 @@ def mk_full_signature_from_json(abi):
             decorator_list.append(vy_ast.Name(id="payable"))
 
         sig = FunctionSignature.from_definition(
-            code=vy_ast.FunctionDef(
+            func_ast=vy_ast.FunctionDef(
                 name=func["name"],
                 args=vy_ast.arguments(args=args),
                 decorator_list=decorator_list,
@@ -92,6 +91,18 @@ def mk_full_signature_from_json(abi):
         )
         sigs.append(sig)
     return sigs
+
+
+def _get_external_signatures(global_ctx, sig_formatter=lambda x: x):
+    ret = []
+
+    for code in global_ctx._defs:
+        sig = FunctionSignature.from_definition(
+            code, sigs=global_ctx._contracts, custom_structs=global_ctx._structs,
+        )
+        if not sig.internal:
+            ret.append(sig_formatter(sig))
+    return ret
 
 
 def extract_sigs(sig_code, interface_name=None):
@@ -116,7 +127,7 @@ def extract_sigs(sig_code, interface_name=None):
             or (isinstance(i, vy_ast.AnnAssign) and i.target.id != "implements")
         ]
         global_ctx = GlobalContext.get_global_context(interface_ast)
-        return sig_utils.mk_full_signature(global_ctx, sig_formatter=lambda x: x)
+        return _get_external_signatures(global_ctx)
     elif sig_code["type"] == "json":
         return mk_full_signature_from_json(sig_code["code"])
     else:
