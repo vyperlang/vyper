@@ -23,9 +23,10 @@ class StructDefinition(MemberTypeDefinition):
         location: DataLocation = DataLocation.MEMORY,
         is_constant: bool = False,
         is_public: bool = False,
+        is_immutable: bool = False,
     ) -> None:
         self._id = _id
-        super().__init__(location, is_constant, is_public)
+        super().__init__(location, is_constant, is_public, is_immutable)
         for key, type_ in members.items():
             self.add_member(key, type_)
 
@@ -68,10 +69,13 @@ class StructPrimitive:
         location: DataLocation = DataLocation.UNSET,
         is_constant: bool = False,
         is_public: bool = False,
+        is_immutable: bool = False,
     ) -> StructDefinition:
         if not isinstance(node, vy_ast.Name):
             raise StructureException("Invalid type assignment", node)
-        return StructDefinition(self._id, self.members, location, is_constant, is_public)
+        return StructDefinition(
+            self._id, self.members, location, is_constant, is_public, is_immutable
+        )
 
     def fetch_call_return(self, node: vy_ast.Call) -> StructDefinition:
         validate_call_args(node, 1)

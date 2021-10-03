@@ -517,8 +517,9 @@ class MemberTypeDefinition(ValueTypeDefinition):
         location: DataLocation = DataLocation.UNSET,
         is_constant: bool = False,
         is_public: bool = False,
+        is_immutable: bool = False,
     ) -> None:
-        super().__init__(location, is_constant, is_public)
+        super().__init__(location, is_constant, is_public, is_immutable)
         self.members: OrderedDict = OrderedDict()
 
     def add_member(self, name: str, type_: BaseTypeDefinition) -> None:
