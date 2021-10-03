@@ -215,6 +215,11 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
             )
 
         if is_immutable:
+            if type_definition.canonical_type in ("bytes", "string"):
+                raise VariableDeclarationException(
+                    "Variable length immutable values are disallowed", annotation
+                )
+
             try:
                 self.namespace[name] = type_definition
             except VyperException as exc:
