@@ -177,8 +177,12 @@ def parse_regular_functions(
     ]
     runtime.extend(internal_funcs)
 
+    immutables_len = sum(
+        [glob.size * 32 for glob in global_ctx._globals.values() if glob.is_immutable]
+    )
+
     # TODO CMC 20210911 why does the lll have a trailing 0
-    o.append(["return", 0, ["lll", runtime, 0]])
+    o.append(["return", 0, ["add", ["lll", runtime, 0], immutables_len]])
     return o, runtime
 
 
