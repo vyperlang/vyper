@@ -414,7 +414,7 @@ def abi_encode(dst, lll_node, pos=None, bufsz=None, returns_len=False):
     if not parent_abi_t.is_dynamic():
         # cast the output buffer to something that make_setter accepts
         dst = LLLnode(dst, typ=lll_node.typ, location="memory")
-        lll_ret = ["seq", make_setter(dst, lll_node, "memory", pos)]
+        lll_ret = ["seq", make_setter(dst, lll_node, pos)]
         if returns_len:
             lll_ret.append(parent_abi_t.embedded_static_size())
         return LLLnode.from_list(lll_ret, pos=pos, annotation=f"abi_encode {lll_node.typ}")
@@ -457,11 +457,11 @@ def abi_encode(dst, lll_node, pos=None, bufsz=None, returns_len=False):
         elif isinstance(o.typ, BaseType):
             d = LLLnode(dst_loc, typ=o.typ, location="memory")
             # call into make_setter routine
-            lll_ret.append(make_setter(d, o, location=d.location, pos=pos))
+            lll_ret.append(make_setter(d, o, pos=pos))
         elif isinstance(o.typ, ByteArrayLike):
             d = LLLnode.from_list(dst_loc, typ=o.typ, location="memory")
-            # call into make_setter routinme
-            lll_ret.append(["seq", make_setter(d, o, location=d.location, pos=pos), zero_pad(d)])
+            # call into make_setter routine
+            lll_ret.append(["seq", make_setter(d, o, pos=pos), zero_pad(d)])
         else:
             raise CompilerPanic(f"unreachable type: {o.typ}")
 
@@ -531,7 +531,7 @@ def abi_decode(lll_node, src, clamp=True, pos=None):
             else:
                 pass
 
-            lll_ret.append(make_setter(o, src_loc, location=o.location, pos=pos))
+            lll_ret.append(make_setter(o, src_loc, pos=pos))
 
         if i + 1 == len(os):
             pass  # optimize out the last pointer increment

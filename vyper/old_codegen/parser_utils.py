@@ -391,11 +391,18 @@ def get_element_ptr(parent, key, pos, array_bounds_check=True):
                 pos=pos,
             )
 
-    elif isinstance(typ, ListType) and is_base_type(key.typ, ("int128", "int256", "uint256")):
+    elif isinstance(typ, ListType):
+        if not is_base_type(key.typ, ("int128", "int256", "uint256")):
+            return
+
         subtype = typ.subtype
 
         if parent.value is None:
             return LLLnode.from_list(None, typ=subtype)
+
+        if parent.value == "multi":
+            assert isinstance(key.value, int)
+            return parent.args[key.value]
 
         k = unwrap_location(key)
         if not array_bounds_check:
@@ -495,19 +502,6 @@ def unwrap_location(orig):
         return orig
 
 
-def _make_array_index_setter(target, target_token, pos, location, offset):
-    if location == "memory" and isinstance(target.value, int):
-        offset = target.value + 32 * get_size_of_type(target.typ.subtype) * offset
-        return LLLnode.from_list([offset], typ=target.typ.subtype, location=location, pos=pos)
-    else:
-        return get_element_ptr(
-            target_token,
-            LLLnode.from_list(offset, typ="int256"),
-            pos=pos,
-            array_bounds_check=False,
-        )
-
-
 # utility function, constructs an LLL tuple out of a list of LLL nodes
 def lll_tuple_from_args(args):
     typ = TupleType([x.typ for x in args])
@@ -555,186 +549,102 @@ def set_type_for_external_return(lll_val):
 
 # Create an x=y statement, where the types may be compound
 @type_check_wrapper
-def make_setter(left, right, location, pos):
+def make_setter(left, right, pos):
+
     # Basic types
     if isinstance(left.typ, BaseType):
         right = unwrap_location(right)
-        if location == "storage":
+        if left.location == "storage":
             return LLLnode.from_list(["sstore", left, right], typ=None)
-        elif location == "memory":
+        elif left.location == "memory":
             return LLLnode.from_list(["mstore", left, right], typ=None)
+
     # Byte arrays
     elif isinstance(left.typ, ByteArrayLike):
         return make_byte_array_copier(left, right, pos)
-    # Can't copy mappings
-    elif isinstance(left.typ, MappingType):
-        raise TypeMismatch("Cannot copy mappings; can only copy individual elements", pos)
+
     # Arrays
-    elif isinstance(left.typ, ListType):
+    elif isinstance(left.typ, (ListType, TupleLike)):
+        return _complex_make_setter(left, right, pos)
+
+
+def _typecheck_list_make_setter(left, right):
+    if left.value == "multi":
         # Cannot do something like [a, b, c] = [1, 2, 3]
-        if left.value == "multi":
-            return
-        if not isinstance(right.typ, ListType):
-            return
-        if right.typ.count != left.typ.count:
-            return
+        return False
+    if not isinstance(right.typ, ListType):
+        return False
+    if right.typ.count != left.typ.count:
+        return False
+    return True
 
-        left_token = LLLnode.from_list("_L", typ=left.typ, location=left.location)
-        # If the right side is a literal
-        if right.value == "multi":
-            subs = []
-            for i in range(left.typ.count):
-                lhs_setter = _make_array_index_setter(left, left_token, pos, location, i)
-                subs.append(make_setter(lhs_setter, right.args[i], location, pos=pos,))
-            if left.location == "memory" and isinstance(left.value, int):
-                return LLLnode.from_list(["seq"] + subs, typ=None)
-            else:
-                return LLLnode.from_list(["with", "_L", left, ["seq"] + subs], typ=None)
-        elif right.value is None:
-            if right.typ != left.typ:
-                return
-            if left.location == "memory":
-                return mzero(left, 32 * get_size_of_type(left.typ))
 
-            subs = []
-            for i in range(left.typ.count):
-                subs.append(
-                    make_setter(
-                        get_element_ptr(
-                            left_token,
-                            LLLnode.from_list(i, typ="int256"),
-                            pos=pos,
-                            array_bounds_check=False,
-                        ),
-                        LLLnode.from_list(None, typ=right.typ.subtype),
-                        location,
-                        pos=pos,
-                    )
-                )
-            return LLLnode.from_list(["with", "_L", left, ["seq"] + subs], typ=None)
-        # If the right side is a variable
+def _typecheck_tuple_make_setter(left, right):
+    if right.value is not None:
+        if not isinstance(right.typ, left.typ.__class__):
+            return False
+        if isinstance(left.typ, StructType):
+            for k in left.typ.members:
+                if k not in right.typ.members:
+                    return False
+            for k in right.typ.members:
+                if k not in left.typ.members:
+                    return False
+            if left.typ.name != right.typ.name:
+                return False
         else:
-            right_token = LLLnode.from_list(
-                "_R", typ=right.typ, location=right.location, encoding=right.encoding
-            )
-            subs = []
-            for i in range(left.typ.count):
-                lhs_setter = _make_array_index_setter(left, left_token, pos, left.location, i)
-                rhs_setter = _make_array_index_setter(right, right_token, pos, right.location, i)
-                subs.append(make_setter(lhs_setter, rhs_setter, location, pos=pos,))
-            lll_node = ["seq"] + subs
-            if right.location != "memory" or not isinstance(right.value, int):
-                lll_node = ["with", "_R", right, lll_node]
-            if left.location != "memory" or not isinstance(left.value, int):
-                lll_node = ["with", "_L", left, lll_node]
-            return LLLnode.from_list(lll_node, typ=None)
-    # Structs
-    elif isinstance(left.typ, TupleLike):
-        if left.value == "multi" and isinstance(left.typ, StructType):
+            if len(left.typ.members) != len(right.typ.members):
+                return False
+    return True
+
+
+@type_check_wrapper
+def _complex_make_setter(left, right, pos):
+    if isinstance(left.typ, ListType):
+        # CMC 20211002 this might not be necessary
+        if not _typecheck_list_make_setter(left, right):
             return
-        if right.value is not None:
-            if not isinstance(right.typ, left.typ.__class__):
-                return
-            if isinstance(left.typ, StructType):
-                for k in left.typ.members:
-                    if k not in right.typ.members:
-                        return
-                for k in right.typ.members:
-                    if k not in left.typ.members:
-                        return
-                if left.typ.name != right.typ.name:
-                    return
-            else:
-                if len(left.typ.members) != len(right.typ.members):
-                    return
+        keys = [LLLnode.from_list(i, typ="uint256") for i in range(left.typ.count)]
 
-        left_token = LLLnode.from_list("_L", typ=left.typ, location=left.location)
-        keyz = left.typ.tuple_keys()
+    if isinstance(left.typ, TupleLike):
+        # CMC 20211002 this might not be necessary
+        if not _typecheck_tuple_make_setter(left, right):
+            return
+        keys = left.typ.tuple_keys()
 
-        if len(keyz) == 0:
-            return LLLnode.from_list(["pass"])
+    # if len(keyz) == 0:
+    #    return LLLnode.from_list(["pass"])
 
-        # If the left side is complex
-        if left.value == "multi":
-            locations = [arg.location for arg in left.args]
-        else:
-            locations = [location for _ in keyz]
+    if right.value is None and left.location == "memory":
+        # optimize memzero
+        return mzero(left, 32 * get_size_of_type(left.typ))
 
-        # If the right side is a literal
-        if right.value == "multi":
-            if len(right.args) != len(keyz):
-                return
-            if left.value == "multi":
-                left_token = left
-            # get the RHS arguments into a dict because
-            # they are not guaranteed to be in the same order
-            # the LHS keys.
-            right_args = dict(zip(right.typ.tuple_keys(), right.args))
-            subs = []
-            for (key, loc) in zip(keyz, locations):
-                subs.append(
-                    make_setter(
-                        get_element_ptr(left_token, key, pos=pos), right_args[key], loc, pos=pos,
-                    )
-                )
-            return LLLnode.from_list(["with", "_L", left, ["seq"] + subs], typ=None)
-        # If the right side is a null
-        elif right.value is None:
-            if left.typ != right.typ:
-                return
-
-            if left.location == "memory":
-                return mzero(left, 32 * get_size_of_type(left.typ))
-
-            subs = []
-            for key, loc in zip(keyz, locations):
-                subs.append(
-                    make_setter(
-                        get_element_ptr(left_token, key, pos=pos),
-                        LLLnode.from_list(None, typ=right.typ.members[key]),
-                        loc,
-                        pos=pos,
-                    )
-                )
-            return LLLnode.from_list(["with", "_L", left, ["seq"] + subs], typ=None)
-        # literal tuple assign.
-        elif (
-            isinstance(left.typ, TupleType)
-            and left.value == "multi"
-            and isinstance(right.typ, TupleType)
-        ):
-            subs = []
-            for var_arg in left.args:
-                if var_arg.location in ("calldata", "code"):
-                    return
-
-            right_token = LLLnode.from_list(
-                "_R", typ=right.typ, location=right.location, encoding=right.encoding
-            )
-            for left_arg, key, loc in zip(left.args, keyz, locations):
-                subs.append(
-                    make_setter(left_arg, get_element_ptr(right_token, key, pos=pos), loc, pos=pos)
-                )
-
-            return LLLnode.from_list(["with", "_R", right, ["seq"] + subs], typ=None)
+    else:
         # general case
-        else:
-            subs = []
-            right_token = LLLnode.from_list(
+        if right.is_complex_lll:
+            # create a reference to the R pointer
+            _r = LLLnode.from_list(
                 "_R", typ=right.typ, location=right.location, encoding=right.encoding
             )
-            for typ, loc in zip(keyz, locations):
-                subs.append(
-                    make_setter(
-                        get_element_ptr(left_token, typ, pos=pos),
-                        get_element_ptr(right_token, typ, pos=pos),
-                        loc,
-                        pos=pos,
-                    )
-                )
-            return LLLnode.from_list(
-                ["with", "_L", left, ["with", "_R", right, ["seq"] + subs]], typ=None,
-            )
+        else:
+            # optimization: don't cache, faster for ints
+            _r = right
+
+        rhs_items = [get_element_ptr(_r, k, pos=pos, array_bounds_check=False) for k in keys]
+
+    if left.is_complex_lll:
+        _l = LLLnode.from_list("_L", typ=left.typ, location=left.location, encoding=left.encoding)
+    else:
+        _l = left
+    lhs_items = [get_element_ptr(_l, k, pos=pos, array_bounds_check=False) for k in keys]
+
+    assert len(lhs_items) == len(rhs_items), "you've been bad!"
+    ret = ["seq"] + [make_setter(l, r, pos) for (l, r) in zip(lhs_items, rhs_items)]
+    if right.is_complex_lll:
+        ret = ["with", "_R", right, ret]
+    if left.is_complex_lll:
+        ret = ["with", "_L", left, ret]
+    return LLLnode.from_list(ret, typ=None)
 
 
 # TODO move return checks to vyper/semantics/validation
