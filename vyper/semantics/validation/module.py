@@ -14,6 +14,7 @@ from vyper.exceptions import (
     NamespaceCollision,
     StateAccessViolation,
     StructureException,
+    SyntaxException,
     UndeclaredDefinition,
     VariableDeclarationException,
     VyperException,
@@ -170,6 +171,20 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
                 elif call_name == "immutable":
                     # declaring an immutable variable
                     is_immutable = True
+
+                    # mutability is checked automatically preventing assignment
+                    # outside of the constructor, here we just check a value is assigned,
+                    # not necessarily where
+                    assignments = self.ast.get_descendants(
+                        vy_ast.Assign, filters={"target.id": node.target.id}
+                    )
+                    if not assignments:
+                        raise SyntaxException(
+                            "Immutable definition requires an assignment in the constructor",
+                            node.node_source_code,
+                            node.lineno,
+                            node.col_offset,
+                        )
 
                 # remove the outer call node, to handle cases such as `public(map(..))`
                 annotation = annotation.args[0]
