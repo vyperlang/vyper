@@ -208,6 +208,15 @@ class GlobalContext:
                 typ,
                 True,
             )
+        elif self.get_call_func_name(item) == "immutable":
+            typ = self.parse_type(item.annotation.args[0], "code")
+            self._globals[item.target.id] = VariableRecord(
+                item.target.id,
+                len(self._globals),
+                typ,
+                False,
+                is_immutable=True,
+            )
 
         elif isinstance(item.annotation, (vy_ast.Name, vy_ast.Call, vy_ast.Subscript)):
             self._globals[item.target.id] = VariableRecord(

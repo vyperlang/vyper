@@ -23,6 +23,7 @@ class VariableRecord:
         blockscopes=None,
         defined_at=None,
         is_internal=False,
+        is_immutable=False,
     ):
         self.name = name
         self.pos = pos
@@ -33,6 +34,7 @@ class VariableRecord:
         self.blockscopes = [] if blockscopes is None else blockscopes
         self.defined_at = defined_at  # source code location variable record was defined.
         self.is_internal = is_internal
+        self.is_immutable = is_immutable
 
     def __repr__(self):
         ret = vars(self)
