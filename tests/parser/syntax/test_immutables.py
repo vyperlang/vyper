@@ -42,6 +42,25 @@ def set_value(_value: uint256):
     """,
 ]
 
+fail_list += [
+    f"""
+VALUE: immutable({typ})
+
+@external
+def __init__(_value: {typ}):
+    VALUE = _value
+
+@view
+@external
+def get_value() -> {typ}:
+    return VALUE
+    """
+    for typ in (
+        "Bytes[64]",
+        "String[10]",
+    )
+]
+
 
 @pytest.mark.parametrize("bad_code", fail_list)
 def test_compilation_fails_with_exception(bad_code):
@@ -67,11 +86,9 @@ def get_value() -> {typ}:
         "int256",
         "int128",
         "address",
-        "Bytes[64]",
         "bytes32",
         "decimal",
         "bool",
-        "String[10]",
     )
 ]
 
