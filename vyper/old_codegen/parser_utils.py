@@ -434,32 +434,8 @@ def get_element_ptr(parent, key, pos, array_bounds_check=True):
             )
 
     elif isinstance(typ, MappingType):
-        sub = None
-        if isinstance(key.typ, ByteArrayLike):
-            # CMC 20210916 pretty sure this is dead code. TODO double check
-            if isinstance(typ.keytype, ByteArrayLike) and (typ.keytype.maxlen >= key.typ.maxlen):
-                subtype = typ.valuetype
-                if len(key.args[0].args) >= 3:  # handle bytes literal.
-                    sub = LLLnode.from_list(
-                        [
-                            "seq",
-                            key,
-                            [
-                                "sha3",
-                                ["add", key.args[0].args[-1], 32],
-                                ["mload", key.args[0].args[-1]],
-                            ],
-                        ]
-                    )
-                else:
-                    value = key.args[0].value
-                    if value == "add":
-                        # special case, key is a bytes array within a tuple/struct
-                        value = key.args[0]
-                    sub = LLLnode.from_list(["sha3", ["add", value, 32], key])
-        else:
-            subtype = typ.valuetype
-            sub = unwrap_location(key)
+        subtype = typ.valuetype
+        sub = unwrap_location(key)
 
         if sub is not None and location == "storage":
             return LLLnode.from_list(["sha3_64", parent, sub], typ=subtype, location="storage")
