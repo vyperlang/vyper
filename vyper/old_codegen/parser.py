@@ -177,12 +177,39 @@ def parse_regular_functions(
     ]
     runtime.extend(internal_funcs)
 
-    immutables_len = sum(
-        [glob.size * 32 for glob in global_ctx._globals.values() if glob.is_immutable]
-    )
+    immutables = [_global for _global in global_ctx._globals.values() if _global.is_immutable]
 
-    # TODO CMC 20210911 why does the lll have a trailing 0
-    o.append(["return", 0, ["add", ["lll", runtime, 0], immutables_len]])
+    if immutables:
+        # find position of the last immutable so we do not overwrite it in memory
+        # when we codecopy the runtime code to memory
+        immutables = sorted(immutables, key=lambda imm: imm.pos)
+        start_pos = immutables[-1].pos + immutables[-1].size * 32
+        # create sequence of actions to copy immutables to the end of the runtime code in memory
+        data_section = []
+        offset = 0
+        for immutable in immutables:
+            # store each immutable at the end of the runtime code
+            data_section.append(
+                ["mstore", ["add", start_pos + offset, "_lllsz"], ["mload", immutable.pos]]
+            )
+            offset += immutable.size * 32
+
+        o.append(
+            [
+                "with",
+                "_lllsz",  # keep size of runtime bytecode in sz var
+                ["lll", runtime, start_pos],  # store runtime code at `start_pos`
+                # sequence of copying immutables, with final action of returning the runtime code
+                ["seq", *data_section, ["return", start_pos, ["add", offset, "_lllsz"]]],
+            ]
+        )
+
+    else:
+        # NOTE: lll macro trailing 0 is the location in memory to store
+        # the compiled bytecode
+        # https://lll-docs.readthedocs.io/en/latest/lll_reference.html#code-lll
+        o.append(["return", 0, ["lll", runtime, 0]])
+
     return o, runtime
 
 
