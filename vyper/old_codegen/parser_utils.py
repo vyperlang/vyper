@@ -313,21 +313,8 @@ def get_element_ptr(parent, key, pos, array_bounds_check=True):
             # offset is statically known.
             ofst_lll = _add_ofst(parent, unwrap_location(ofst_lll))
 
-        x = LLLnode.from_list(
-            ["ofst"], typ=member_t, location=parent.location, annotation=f"&({typ}->{member_t})"
-        )
-
-        if clamp and _needs_clamp(member_t, parent.encoding):
-            # special handling for unsanitized external data that need clamping
-            # TODO optimize me. this results in a double dereference because
-            # it returns a pointer and not a value. probably the best thing
-            # is to move the clamp to make_setter
-            ret = ["with", x, ofst_lll, ["seq", clamp_basetype(x), x]]
-        else:
-            ret = ofst_lll
-
         return LLLnode.from_list(
-            ret,
+            ofst_lll,
             typ=member_t,
             location=parent.location,
             encoding=parent.encoding,
@@ -553,7 +540,13 @@ def make_setter(left, right, pos):
 
     # Basic types
     if isinstance(left.typ, BaseType):
+        enc = right.encoding  # unwrap_location butchers encoding
         right = unwrap_location(right)
+        # TODO rethink/streamline the clamp_basetype logic
+        if _needs_clamp(right.typ, enc):
+            _val = LLLnode("val", typ=right.typ)
+            right = ["with", _val, right, ["seq", clamp_basetype(_val), _val]]
+
         if left.location == "storage":
             return LLLnode.from_list(["sstore", left, right], typ=None)
         elif left.location == "memory":
@@ -561,7 +554,15 @@ def make_setter(left, right, pos):
 
     # Byte arrays
     elif isinstance(left.typ, ByteArrayLike):
-        return make_byte_array_copier(left, right, pos)
+        # TODO rethink/streamline the clamp_basetype logic
+        if _needs_clamp(right.typ, right.encoding):
+            _val = LLLnode("val", location=right.location, typ=right.typ)
+            copier = make_byte_array_copier(left, _val, pos)
+            ret = ["with", _val, right, ["seq", clamp_basetype(_val), copier]]
+        else:
+            ret = make_byte_array_copier(left, right, pos)
+
+        return LLLnode.from_list(ret)
 
     # Arrays
     elif isinstance(left.typ, (ListType, TupleLike)):
@@ -728,7 +729,8 @@ def _sar(x, bits):
 
 
 def _needs_clamp(t, encoding):
-    assert encoding in (Encoding.ABI, Encoding.JSON_ABI)
+    if encoding not in (Encoding.ABI, Encoding.JSON_ABI):
+        return False
     if isinstance(t, ByteArrayLike):
         if encoding == Encoding.JSON_ABI:
             # don't have bytestring size bound from json, don't clamp

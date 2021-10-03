@@ -498,6 +498,7 @@ def abi_encode(dst, lll_node, pos=None, bufsz=None, returns_len=False):
     return LLLnode.from_list(lll_ret, pos=pos, annotation=f"abi_encode {lll_node.typ}")
 
 
+# CMC 20211002 this is probably dead code because make_setter does this.
 # lll_node is the destination LLL item, src is the input buffer.
 # recursively copy the buffer items into lll_node, based on its type.
 # src: pointer to beginning of buffer
