@@ -333,9 +333,12 @@ class Expr:
                     mutable=True,
                 )
             else:
+                immutable_section_size = sum(
+                    [imm.size * 32 for imm in self.context.globals.values() if imm.is_immutable]
+                )
                 pos = self.expr._metadata["type"].position
                 return LLLnode.from_list(
-                    ["add", "codesize", pos.offset],
+                    ["sub", "codesize", immutable_section_size - pos.offset],
                     typ=var.typ,
                     location="code",
                     pos=getpos(self.expr),
