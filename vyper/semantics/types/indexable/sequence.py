@@ -26,6 +26,7 @@ class _SequenceDefinition(IndexableTypeDefinition):
         location: DataLocation = DataLocation.UNSET,
         is_constant: bool = False,
         is_public: bool = False,
+        is_immutable: bool = False,
     ) -> None:
         if not 0 < length < 2 ** 256:
             raise InvalidType("Array length is invalid")
@@ -36,6 +37,7 @@ class _SequenceDefinition(IndexableTypeDefinition):
             location=location,
             is_constant=is_constant,
             is_public=is_public,
+            is_immutable=is_immutable,
         )
         self.length = length
 
@@ -62,9 +64,16 @@ class ArrayDefinition(_SequenceDefinition):
         location: DataLocation = DataLocation.UNSET,
         is_constant: bool = False,
         is_public: bool = False,
+        is_immutable: bool = False,
     ) -> None:
         super().__init__(
-            value_type, length, f"{value_type}[{length}]", location, is_constant, is_public
+            value_type,
+            length,
+            f"{value_type}[{length}]",
+            location,
+            is_constant,
+            is_public,
+            is_immutable,
         )
 
     def __repr__(self):

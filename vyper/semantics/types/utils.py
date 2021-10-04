@@ -160,8 +160,10 @@ def get_type_from_annotation(
         # TODO: handle `is_immutable` for arrays
         # if type can be an array and node is a subscript, create an `ArrayDefinition`
         length = get_index_value(node.slice)
-        value_type = get_type_from_annotation(node.value, location, is_constant, False)
-        return ArrayDefinition(value_type, length, location, is_constant, is_public)
+        value_type = get_type_from_annotation(
+            node.value, location, is_constant, False, is_immutable
+        )
+        return ArrayDefinition(value_type, length, location, is_constant, is_public, is_immutable)
 
     try:
         return type_obj.from_annotation(node, location, is_constant, is_public, is_immutable)

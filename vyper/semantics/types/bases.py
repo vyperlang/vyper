@@ -565,8 +565,9 @@ class IndexableTypeDefinition(BaseTypeDefinition):
         location: DataLocation = DataLocation.UNSET,
         is_constant: bool = False,
         is_public: bool = False,
+        is_immutable: bool = False,
     ) -> None:
-        super().__init__(location, is_constant, is_public)
+        super().__init__(location, is_constant, is_public, is_immutable)
         self.value_type = value_type
         self.key_type = key_type
         self._id = _id
