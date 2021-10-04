@@ -262,6 +262,8 @@ class BaseTypeDefinition:
         self.is_public = is_public
         self.is_immutable = is_immutable
 
+        self._modification_count = 0
+
     @property
     def canonical_type(self) -> str:
         """
@@ -443,8 +445,15 @@ class BaseTypeDefinition:
             raise ImmutableViolation("Cannot write to calldata", node)
         if self.is_constant:
             raise ImmutableViolation("Immutable value cannot be written to", node)
-        if self.is_immutable and node.get_ancestor(vy_ast.FunctionDef).get("name") != "__init__":
-            raise ImmutableViolation("Immutable value cannot be written to", node)
+        if self.is_immutable:
+            if node.get_ancestor(vy_ast.FunctionDef).get("name") != "__init__":
+                raise ImmutableViolation("Immutable value cannot be written to", node)
+            if self._modification_count:
+                raise ImmutableViolation(
+                    "Immutable value cannot be modified after assignment", node
+                )
+            self._modification_count += 1
+
         if isinstance(node, vy_ast.AugAssign):
             self.validate_numeric_op(node)
 
