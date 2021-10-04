@@ -62,7 +62,7 @@ setup(
     keywords="ethereum evm smart contract language",
     include_package_data=True,
     packages=find_packages(exclude=("tests", "docs")),
-    python_requires=">=3.6",
+    python_requires=">=3.7,<3.10",
     py_modules=["vyper"],
     install_requires=[
         "asttokens==2.0.4",
@@ -84,7 +84,9 @@ setup(
     classifiers=[
         "Intended Audience :: Developers",
         "License :: OSI Approved :: Apache Software License",
-        "Programming Language :: Python :: 3.6",
+        "Programming Language :: Python :: 3.7",
+        "Programming Language :: Python :: 3.8",
+        "Programming Language :: Python :: 3.9",
     ],
     data_files=[("", [hash_file_rel_path])],
 )
