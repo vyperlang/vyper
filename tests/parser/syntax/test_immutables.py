@@ -49,8 +49,22 @@ def test_compilation_fails_with_exception(bad_code):
         compile_code(bad_code)
 
 
-pass_list = [
-    f"""
+types_list = (
+    "uint256",
+    "int256",
+    "int128",
+    "address",
+    "bytes32",
+    "decimal",
+    "bool",
+    "Bytes[64]",
+    "String[10]",
+)
+
+
+@pytest.mark.parametrize("typ", types_list)
+def test_compilation_simple_usage(typ):
+    code = f"""
 VALUE: immutable({typ})
 
 @external
@@ -62,20 +76,11 @@ def __init__(_value: {typ}):
 def get_value() -> {typ}:
     return VALUE
     """
-    for typ in (
-        "uint256",
-        "int256",
-        "int128",
-        "address",
-        "bytes32",
-        "decimal",
-        "bool",
-        "Bytes[64]",
-        "String[10]",
-    )
-]
 
-pass_list += [
+    assert compile_code(code)
+
+
+pass_list = [
     # using immutable allowed in constructor
     """
 VALUE: immutable(uint256)
@@ -89,5 +94,5 @@ def __init__(_value: uint256):
 
 
 @pytest.mark.parametrize("good_code", pass_list)
-def test_compilation_passes(good_code):
+def test_compilation_success(good_code):
     assert compile_code(good_code)
