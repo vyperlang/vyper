@@ -322,8 +322,14 @@ class Expr:
             var = self.context.globals[self.expr.id]
             is_constructor = self.expr.get_ancestor(vy_ast.FunctionDef).get("name") == "__init__"
             if is_constructor:
-                memory_loc = self.context.new_internal_variable(var.typ)
-                setattr(var, "_metadata", {"memory_loc": memory_loc, "data_offset": 0})
+                if hasattr(var, "_metadata"):
+                    memory_loc = var._metadata["memory_loc"]
+                else:
+                    memory_loc = self.context.new_internal_variable(var.typ)
+                    data_offset = self.expr._metadata["type"].position.offset
+                    setattr(
+                        var, "_metadata", {"memory_loc": memory_loc, "data_offset": data_offset}
+                    )
                 return LLLnode.from_list(
                     memory_loc,
                     typ=var.typ,
