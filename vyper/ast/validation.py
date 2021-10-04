@@ -3,11 +3,7 @@
 from typing import Optional, Union
 
 from vyper.ast import nodes as vy_ast
-from vyper.exceptions import (
-    ArgumentException,
-    CompilerPanic,
-    StructureException,
-)
+from vyper.exceptions import ArgumentException, CompilerPanic, StructureException
 
 
 def validate_call_args(

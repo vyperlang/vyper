@@ -7,18 +7,8 @@ from vyper.builtin_functions.signatures import signature
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import InvalidLiteral, StructureException, TypeMismatch
 from vyper.old_codegen.arg_clamps import address_clamp, int128_clamp
-from vyper.old_codegen.parser_utils import (
-    LLLnode,
-    byte_array_to_num,
-    getpos,
-    load_op,
-)
-from vyper.old_codegen.types import (
-    BaseType,
-    ByteArrayType,
-    StringType,
-    get_type,
-)
+from vyper.old_codegen.parser_utils import LLLnode, byte_array_to_num, getpos, load_op
+from vyper.old_codegen.types import BaseType, ByteArrayType, StringType, get_type
 from vyper.utils import DECIMAL_DIVISOR, MemoryPositions, SizeLimits
 
 
@@ -30,7 +20,8 @@ def to_bool(expr, args, kwargs, context):
     if input_type == "Bytes":
         if in_arg.typ.maxlen > 32:
             raise TypeMismatch(
-                f"Cannot convert bytes array of max length {in_arg.typ.maxlen} to bool", expr,
+                f"Cannot convert bytes array of max length {in_arg.typ.maxlen} to bool",
+                expr,
             )
         else:
             num = byte_array_to_num(in_arg, expr, "uint256")
@@ -82,7 +73,9 @@ def to_int128(expr, args, kwargs, context):
                 return LLLnode.from_list(in_arg, typ=BaseType("int128"), pos=getpos(expr))
         else:
             return LLLnode.from_list(
-                int128_clamp(in_arg), typ=BaseType("int128"), pos=getpos(expr),
+                int128_clamp(in_arg),
+                typ=BaseType("int128"),
+                pos=getpos(expr),
             )
 
     elif input_type == "address":
@@ -95,7 +88,8 @@ def to_int128(expr, args, kwargs, context):
     elif input_type in ("String", "Bytes"):
         if in_arg.typ.maxlen > 32:
             raise TypeMismatch(
-                f"Cannot convert bytes array of max length {in_arg.typ.maxlen} to int128", expr,
+                f"Cannot convert bytes array of max length {in_arg.typ.maxlen} to int128",
+                expr,
             )
         return byte_array_to_num(in_arg, expr, "int128")
 
@@ -138,7 +132,13 @@ def to_uint256(expr, args, kwargs, context):
         if isinstance(in_arg, int):
             if not SizeLimits.in_bounds("uint256", in_arg):
                 raise InvalidLiteral(f"Number out of range: {in_arg}")
-            return LLLnode.from_list(in_arg, typ=BaseType("uint256",), pos=getpos(expr))
+            return LLLnode.from_list(
+                in_arg,
+                typ=BaseType(
+                    "uint256",
+                ),
+                pos=getpos(expr),
+            )
         elif isinstance(in_arg, Decimal):
             if not SizeLimits.in_bounds("uint256", math.trunc(in_arg)):
                 raise InvalidLiteral(f"Number out of range: {math.trunc(in_arg)}")
@@ -167,7 +167,8 @@ def to_uint256(expr, args, kwargs, context):
     elif isinstance(in_arg, LLLnode) and input_type == "Bytes":
         if in_arg.typ.maxlen > 32:
             raise InvalidLiteral(
-                f"Cannot convert bytes array of max length {in_arg.typ.maxlen} to uint256", expr,
+                f"Cannot convert bytes array of max length {in_arg.typ.maxlen} to uint256",
+                expr,
             )
         return byte_array_to_num(in_arg, expr, "uint256")
 
@@ -189,7 +190,13 @@ def to_int256(expr, args, kwargs, context):
         if isinstance(in_arg, int):
             if not SizeLimits.in_bounds("int256", in_arg):
                 raise InvalidLiteral(f"Number out of range: {in_arg}")
-            return LLLnode.from_list(in_arg, typ=BaseType("int256",), pos=getpos(expr))
+            return LLLnode.from_list(
+                in_arg,
+                typ=BaseType(
+                    "int256",
+                ),
+                pos=getpos(expr),
+            )
         elif isinstance(in_arg, Decimal):
             if not SizeLimits.in_bounds("int256", math.trunc(in_arg)):
                 raise InvalidLiteral(f"Number out of range: {math.trunc(in_arg)}")
@@ -211,7 +218,9 @@ def to_int256(expr, args, kwargs, context):
 
     elif isinstance(in_arg, LLLnode) and input_type == "decimal":
         return LLLnode.from_list(
-            ["sdiv", in_arg, DECIMAL_DIVISOR], typ=BaseType("int256"), pos=getpos(expr),
+            ["sdiv", in_arg, DECIMAL_DIVISOR],
+            typ=BaseType("int256"),
+            pos=getpos(expr),
         )
 
     elif isinstance(in_arg, LLLnode) and input_type == "bool":
@@ -225,7 +234,8 @@ def to_int256(expr, args, kwargs, context):
     elif isinstance(in_arg, LLLnode) and input_type in ("Bytes", "String"):
         if in_arg.typ.maxlen > 32:
             raise TypeMismatch(
-                f"Cannot convert bytes array of max length {in_arg.typ.maxlen} to int256", expr,
+                f"Cannot convert bytes array of max length {in_arg.typ.maxlen} to int256",
+                expr,
             )
         return byte_array_to_num(in_arg, expr, "int256")
 
@@ -241,7 +251,8 @@ def to_decimal(expr, args, kwargs, context):
     if input_type == "Bytes":
         if in_arg.typ.maxlen > 32:
             raise TypeMismatch(
-                f"Cannot convert bytes array of max length {in_arg.typ.maxlen} to decimal", expr,
+                f"Cannot convert bytes array of max length {in_arg.typ.maxlen} to decimal",
+                expr,
             )
         num = byte_array_to_num(in_arg, expr, "int128")
         return LLLnode.from_list(
@@ -253,7 +264,8 @@ def to_decimal(expr, args, kwargs, context):
             if in_arg.typ.is_literal:
                 if not SizeLimits.in_bounds("int128", (in_arg.value * DECIMAL_DIVISOR)):
                     raise InvalidLiteral(
-                        f"Number out of range: {in_arg.value}", expr,
+                        f"Number out of range: {in_arg.value}",
+                        expr,
                     )
                 else:
                     return LLLnode.from_list(
@@ -285,7 +297,8 @@ def to_decimal(expr, args, kwargs, context):
             if in_arg.typ.is_literal:
                 if not SizeLimits.in_bounds("int128", (in_arg.value * DECIMAL_DIVISOR)):
                     raise InvalidLiteral(
-                        f"Number out of range: {in_arg.value}", expr,
+                        f"Number out of range: {in_arg.value}",
+                        expr,
                     )
                 else:
                     return LLLnode.from_list(
@@ -359,7 +372,8 @@ def _to_bytelike(expr, args, kwargs, context, bytetype):
     in_arg = args[0]
     if in_arg.typ.maxlen > args[1].slice.value.n:
         raise TypeMismatch(
-            f"Cannot convert as input {bytetype} are larger than max length", expr,
+            f"Cannot convert as input {bytetype} are larger than max length",
+            expr,
         )
 
     return LLLnode(

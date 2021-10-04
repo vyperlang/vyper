@@ -208,12 +208,16 @@ class Expr:
         # Literal (mostly likely) becomes int256
         if self.expr.n < 0:
             return LLLnode.from_list(
-                self.expr.n, typ=BaseType("int256", is_literal=True), pos=getpos(self.expr),
+                self.expr.n,
+                typ=BaseType("int256", is_literal=True),
+                pos=getpos(self.expr),
             )
         # Literal is large enough (mostly likely) becomes uint256.
         else:
             return LLLnode.from_list(
-                self.expr.n, typ=BaseType("uint256", is_literal=True), pos=getpos(self.expr),
+                self.expr.n,
+                typ=BaseType("uint256", is_literal=True),
+                pos=getpos(self.expr),
             )
 
     def parse_Decimal(self):
@@ -280,11 +284,15 @@ class Expr:
     def parse_NameConstant(self):
         if self.expr.value is True:
             return LLLnode.from_list(
-                1, typ=BaseType("bool", is_literal=True), pos=getpos(self.expr),
+                1,
+                typ=BaseType("bool", is_literal=True),
+                pos=getpos(self.expr),
             )
         elif self.expr.value is False:
             return LLLnode.from_list(
-                0, typ=BaseType("bool", is_literal=True), pos=getpos(self.expr),
+                0,
+                typ=BaseType("bool", is_literal=True),
+                pos=getpos(self.expr),
             )
 
     # Variable names
@@ -325,7 +333,10 @@ class Expr:
                 else:
                     seq = ["balance", addr]
                 return LLLnode.from_list(
-                    seq, typ=BaseType("uint256"), location=None, pos=getpos(self.expr),
+                    seq,
+                    typ=BaseType("uint256"),
+                    location=None,
+                    pos=getpos(self.expr),
                 )
         # x.codesize: codesize of address x
         elif self.expr.attr == "codesize" or self.expr.attr == "is_contract":
@@ -341,7 +352,10 @@ class Expr:
                     eval_code = ["gt", ["extcodesize", addr], 0]
                     output_type = "bool"
                 return LLLnode.from_list(
-                    eval_code, typ=BaseType(output_type), location=None, pos=getpos(self.expr),
+                    eval_code,
+                    typ=BaseType(output_type),
+                    location=None,
+                    pos=getpos(self.expr),
                 )
         # x.codehash: keccak of address x
         elif self.expr.attr == "codehash":
@@ -379,15 +393,27 @@ class Expr:
                 return LLLnode(0, typ=ByteArrayType(0), location="calldata")
             elif key == "msg.value" and self.context.is_payable:
                 return LLLnode.from_list(
-                    ["callvalue"], typ=BaseType("uint256"), pos=getpos(self.expr),
+                    ["callvalue"],
+                    typ=BaseType("uint256"),
+                    pos=getpos(self.expr),
                 )
             elif key == "msg.gas":
-                return LLLnode.from_list(["gas"], typ="uint256", pos=getpos(self.expr),)
+                return LLLnode.from_list(
+                    ["gas"],
+                    typ="uint256",
+                    pos=getpos(self.expr),
+                )
             elif key == "block.difficulty":
-                return LLLnode.from_list(["difficulty"], typ="uint256", pos=getpos(self.expr),)
+                return LLLnode.from_list(
+                    ["difficulty"],
+                    typ="uint256",
+                    pos=getpos(self.expr),
+                )
             elif key == "block.timestamp":
                 return LLLnode.from_list(
-                    ["timestamp"], typ=BaseType("uint256"), pos=getpos(self.expr),
+                    ["timestamp"],
+                    typ=BaseType("uint256"),
+                    pos=getpos(self.expr),
                 )
             elif key == "block.coinbase":
                 return LLLnode.from_list(["coinbase"], typ="address", pos=getpos(self.expr))
@@ -395,7 +421,9 @@ class Expr:
                 return LLLnode.from_list(["number"], typ="uint256", pos=getpos(self.expr))
             elif key == "block.prevhash":
                 return LLLnode.from_list(
-                    ["blockhash", ["sub", "number", 1]], typ="bytes32", pos=getpos(self.expr),
+                    ["blockhash", ["sub", "number", 1]],
+                    typ="bytes32",
+                    pos=getpos(self.expr),
                 )
             elif key == "tx.origin":
                 return LLLnode.from_list(["origin"], typ="address", pos=getpos(self.expr))
@@ -456,11 +484,15 @@ class Expr:
         if literals == {True, False} and len(types) > 1 and "decimal" not in types:
             if left.typ.is_literal and SizeLimits.in_bounds(right.typ.typ, left.value):
                 left = LLLnode.from_list(
-                    left.value, typ=BaseType(right.typ.typ, None, is_literal=True), pos=pos,
+                    left.value,
+                    typ=BaseType(right.typ.typ, None, is_literal=True),
+                    pos=pos,
                 )
             elif right.typ.is_literal and SizeLimits.in_bounds(left.typ.typ, right.value):
                 right = LLLnode.from_list(
-                    right.value, typ=BaseType(left.typ.typ, None, is_literal=True), pos=pos,
+                    right.value,
+                    typ=BaseType(left.typ.typ, None, is_literal=True),
+                    pos=pos,
                 )
 
         ltyp, rtyp = left.typ.typ, right.typ.typ
@@ -657,7 +689,9 @@ class Expr:
                 # for signed integers, this also prevents negative values
                 clamp = ["lt", right, upper_bound]
                 return LLLnode.from_list(
-                    ["seq", ["assert", clamp], ["exp", left, right]], typ=new_typ, pos=pos,
+                    ["seq", ["assert", clamp], ["exp", left, right]],
+                    typ=new_typ,
+                    pos=pos,
                 )
             elif isinstance(self.expr.right, vy_ast.Int):
                 value = self.expr.right.value
@@ -667,7 +701,9 @@ class Expr:
                 else:
                     clamp = ["lt", left, upper_bound]
                 return LLLnode.from_list(
-                    ["seq", ["assert", clamp], ["exp", left, right]], typ=new_typ, pos=pos,
+                    ["seq", ["assert", clamp], ["exp", left, right]],
+                    typ=new_typ,
+                    pos=pos,
                 )
             else:
                 # `a ** b` where neither `a` or `b` are known
@@ -829,7 +865,9 @@ class Expr:
 
                 if op == "eq" or op == "ne":
                     return LLLnode.from_list(
-                        [op, left_keccak, right_keccak], typ="bool", pos=getpos(self.expr),
+                        [op, left_keccak, right_keccak],
+                        typ="bool",
+                        pos=getpos(self.expr),
                     )
 
                 else:
@@ -908,7 +946,9 @@ class Expr:
             # iterate backward through the remaining values
             for node in self.expr.values[-3::-1]:
                 lll_node = _build_if_lll(
-                    Expr.parse_value_expr(node, self.context), [1, ["goto", jump_label]], lll_node,
+                    Expr.parse_value_expr(node, self.context),
+                    [1, ["goto", jump_label]],
+                    lll_node,
                 )
         else:
             raise TypeCheckFailure(f"Unexpected boolean operator: {type(self.expr.op).__name__}")

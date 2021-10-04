@@ -1,11 +1,6 @@
 import pytest
 
-from vyper.exceptions import (
-    ImmutableViolation,
-    InvalidType,
-    SyntaxException,
-    TypeMismatch,
-)
+from vyper.exceptions import ImmutableViolation, InvalidType, SyntaxException, TypeMismatch
 
 
 def test_augassign(get_contract_with_gas_estimation):
@@ -255,7 +250,9 @@ def foo():
     ],
 )
 def test_invalid_implicit_conversions(
-    contract, assert_compile_failed, get_contract_with_gas_estimation,
+    contract,
+    assert_compile_failed,
+    get_contract_with_gas_estimation,
 ):
     assert_compile_failed(lambda: get_contract_with_gas_estimation(contract), TypeMismatch)
 

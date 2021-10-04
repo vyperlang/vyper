@@ -15,11 +15,7 @@ from vyper.exceptions import (
     StructureException,
 )
 from vyper.semantics.namespace import get_namespace
-from vyper.semantics.types.bases import (
-    BaseTypeDefinition,
-    DataLocation,
-    StorageSlot,
-)
+from vyper.semantics.types.bases import BaseTypeDefinition, DataLocation, StorageSlot
 from vyper.semantics.types.indexable.sequence import TupleDefinition
 from vyper.semantics.types.user.struct import StructDefinition
 from vyper.semantics.types.utils import (
@@ -171,7 +167,9 @@ class ContractFunction(BaseTypeDefinition):
 
     @classmethod
     def from_FunctionDef(
-        cls, node: vy_ast.FunctionDef, is_interface: Optional[bool] = False,
+        cls,
+        node: vy_ast.FunctionDef,
+        is_interface: Optional[bool] = False,
     ) -> "ContractFunction":
         """
         Generate a `ContractFunction` object from a `FunctionDef` node.
@@ -309,7 +307,8 @@ class ContractFunction(BaseTypeDefinition):
         for arg, value in zip(node.args.args, defaults):
             if arg.arg in ("gas", "value"):
                 raise ArgumentException(
-                    f"Cannot use '{arg.arg}' as a variable name in a function input", arg,
+                    f"Cannot use '{arg.arg}' as a variable name in a function input",
+                    arg,
                 )
             if arg.arg in arguments:
                 raise ArgumentException(f"Function contains multiple inputs named {arg.arg}", arg)

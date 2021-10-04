@@ -10,7 +10,8 @@ def foo():
     """
 
     assert_compile_failed(
-        lambda: get_contract_with_gas_estimation(code), InvalidType,
+        lambda: get_contract_with_gas_estimation(code),
+        InvalidType,
     )
 
     code = """
@@ -181,7 +182,8 @@ def foo() -> bool:
     """
 
     assert_compile_failed(
-        lambda: get_contract_with_gas_estimation(code), TypeMismatch,
+        lambda: get_contract_with_gas_estimation(code),
+        TypeMismatch,
     )
 
 

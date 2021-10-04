@@ -4,12 +4,7 @@ from dataclasses import dataclass
 from vyper import ast as vy_ast
 from vyper.exceptions import StructureException
 from vyper.old_codegen.lll_node import Encoding
-from vyper.old_codegen.types import (
-    NodeType,
-    canonicalize_type,
-    get_size_of_type,
-    parse_type,
-)
+from vyper.old_codegen.types import NodeType, canonicalize_type, get_size_of_type, parse_type
 from vyper.utils import cached_property, mkalphanum
 
 
@@ -164,7 +159,12 @@ class FunctionSignature:
         args = []
         for arg in func_ast.args.args:
             argname = arg.arg
-            argtyp = parse_type(arg.annotation, None, sigs, custom_structs=custom_structs,)
+            argtyp = parse_type(
+                arg.annotation,
+                None,
+                sigs,
+                custom_structs=custom_structs,
+            )
 
             args.append(FunctionArg(argname, argtyp, arg))
 
@@ -198,7 +198,12 @@ class FunctionSignature:
         # and NOT def foo() -> type: ..., then it's null
         return_type = None
         if func_ast.returns:
-            return_type = parse_type(func_ast.returns, None, sigs, custom_structs=custom_structs,)
+            return_type = parse_type(
+                func_ast.returns,
+                None,
+                sigs,
+                custom_structs=custom_structs,
+            )
             # sanity check: Output type must be canonicalizable
             assert canonicalize_type(return_type)
 

@@ -207,7 +207,13 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         start, continue_dest, end = mksymbol(), mksymbol(), mksymbol()
         o.extend(_compile_to_assembly(code.args[0], withargs, existing_labels, break_dest, height))
         o.extend(
-            _compile_to_assembly(code.args[1], withargs, existing_labels, break_dest, height + 1,)
+            _compile_to_assembly(
+                code.args[1],
+                withargs,
+                existing_labels,
+                break_dest,
+                height + 1,
+            )
         )
         o.extend(["PUSH" + str(len(loops))] + loops)
         # stack: memloc, startvalue, rounds
@@ -265,7 +271,13 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         old = withargs.get(code.args[0].value, None)
         withargs[code.args[0].value] = height
         o.extend(
-            _compile_to_assembly(code.args[2], withargs, existing_labels, break_dest, height + 1,)
+            _compile_to_assembly(
+                code.args[2],
+                withargs,
+                existing_labels,
+                break_dest,
+                height + 1,
+            )
         )
         if code.args[2].valency:
             o.extend(["SWAP1", "POP"])
@@ -343,7 +355,11 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
             )
             if is_free_of_clamp_errors:
                 return _compile_to_assembly(
-                    code.args[0], withargs, existing_labels, break_dest, height,
+                    code.args[0],
+                    withargs,
+                    existing_labels,
+                    break_dest,
+                    height,
                 )
             else:
                 raise Exception(
@@ -351,7 +367,13 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
                 )
         o = _compile_to_assembly(code.args[0], withargs, existing_labels, break_dest, height)
         o.extend(
-            _compile_to_assembly(code.args[1], withargs, existing_labels, break_dest, height + 1,)
+            _compile_to_assembly(
+                code.args[1],
+                withargs,
+                existing_labels,
+                break_dest,
+                height + 1,
+            )
         )
         o.extend(["DUP2"])
         # Stack: num num bound
@@ -379,11 +401,23 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         comp2 = "SLT" if code.value == "clamp" else "LT"
         o = _compile_to_assembly(code.args[0], withargs, existing_labels, break_dest, height)
         o.extend(
-            _compile_to_assembly(code.args[1], withargs, existing_labels, break_dest, height + 1,)
+            _compile_to_assembly(
+                code.args[1],
+                withargs,
+                existing_labels,
+                break_dest,
+                height + 1,
+            )
         )
         o.extend(["DUP1"])
         o.extend(
-            _compile_to_assembly(code.args[2], withargs, existing_labels, break_dest, height + 3,)
+            _compile_to_assembly(
+                code.args[2],
+                withargs,
+                existing_labels,
+                break_dest,
+                height + 3,
+            )
         )
         o.extend(["SWAP1", comp1])
         o.extend(_assert_false())

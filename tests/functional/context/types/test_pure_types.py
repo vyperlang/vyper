@@ -8,17 +8,10 @@ from vyper.exceptions import (
     UnexpectedValue,
 )
 from vyper.semantics.types.value.address import AddressPrimitive
-from vyper.semantics.types.value.array_value import (
-    BytesArrayPrimitive,
-    StringPrimitive,
-)
+from vyper.semantics.types.value.array_value import BytesArrayPrimitive, StringPrimitive
 from vyper.semantics.types.value.boolean import BoolPrimitive
 from vyper.semantics.types.value.bytes_fixed import Bytes32Primitive
-from vyper.semantics.types.value.numeric import (
-    DecimalPrimitive,
-    Int128Primitive,
-    Uint256Primitive,
-)
+from vyper.semantics.types.value.numeric import DecimalPrimitive, Int128Primitive, Uint256Primitive
 
 BASE_SOURCE = """
 "Add a docstring so the target test node doesn't become one."

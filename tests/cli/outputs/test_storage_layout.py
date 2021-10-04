@@ -23,7 +23,10 @@ def public_bar():
     pass
     """
 
-    out = compile_code(code, output_formats=["layout"],)
+    out = compile_code(
+        code,
+        output_formats=["layout"],
+    )
 
     assert out["layout"] == {
         "nonreentrant.foo": {"type": "nonreentrant lock", "location": "storage", "slot": 0},

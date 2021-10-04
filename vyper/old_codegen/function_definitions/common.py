@@ -45,7 +45,11 @@ def generate_lll_for_function(
     """
     if _vars is None:
         _vars = {}  # noqa: F841
-    sig = FunctionSignature.from_definition(code, sigs=sigs, custom_structs=global_ctx._structs,)
+    sig = FunctionSignature.from_definition(
+        code,
+        sigs=sigs,
+        custom_structs=global_ctx._structs,
+    )
 
     # Validate return statements.
     check_single_exit(code)

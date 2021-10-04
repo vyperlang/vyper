@@ -4,11 +4,7 @@ from vyper import ast as vy_ast
 from vyper.exceptions import ArrayIndexException, InvalidType
 from vyper.semantics import validation
 from vyper.semantics.types.abstract import IntegerAbstractType
-from vyper.semantics.types.bases import (
-    BaseTypeDefinition,
-    DataLocation,
-    IndexableTypeDefinition,
-)
+from vyper.semantics.types.bases import BaseTypeDefinition, DataLocation, IndexableTypeDefinition
 from vyper.semantics.types.value.numeric import Uint256Definition
 
 

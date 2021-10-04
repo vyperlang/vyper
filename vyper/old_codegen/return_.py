@@ -3,11 +3,7 @@ from typing import Any, Optional
 from vyper.old_codegen.abi import abi_encode, abi_type_of
 from vyper.old_codegen.context import Context
 from vyper.old_codegen.lll_node import LLLnode
-from vyper.old_codegen.parser_utils import (
-    getpos,
-    make_setter,
-    wrap_value_for_external_return,
-)
+from vyper.old_codegen.parser_utils import getpos, make_setter, wrap_value_for_external_return
 from vyper.old_codegen.types import get_type_for_exact_size
 from vyper.old_codegen.types.check import check_assign
 
@@ -40,7 +36,9 @@ def make_return_stmt(lll_val: LLLnode, stmt: Any, context: Context) -> Optional[
         )
         cleanup_loops = "exit_repeater" if context.forvars else "pass"
         return LLLnode.from_list(
-            ["seq_unchecked", cleanup_loops, fill_return_buffer, jump_to_exit], typ=None, pos=_pos,
+            ["seq_unchecked", cleanup_loops, fill_return_buffer, jump_to_exit],
+            typ=None,
+            pos=_pos,
         )
 
     if context.return_type is None:

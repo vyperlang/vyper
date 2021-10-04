@@ -146,7 +146,9 @@ def test_sqrt_bounds(sqrt_contract, value):
 )
 @hypothesis.example(Decimal(SizeLimits.MAX_INT128))
 @hypothesis.example(Decimal(0))
-@hypothesis.settings(deadline=1000,)
+@hypothesis.settings(
+    deadline=1000,
+)
 def test_sqrt_valid_range(sqrt_contract, value):
     vyper_sqrt = sqrt_contract.test(value)
     actual_sqrt = decimal_sqrt(value)
@@ -159,7 +161,9 @@ def test_sqrt_valid_range(sqrt_contract, value):
         min_value=Decimal(SizeLimits.MIN_INT128), max_value=Decimal("-1E10"), places=DECIMAL_PLACES
     )
 )
-@hypothesis.settings(deadline=400,)
+@hypothesis.settings(
+    deadline=400,
+)
 @hypothesis.example(Decimal(SizeLimits.MIN_INT128))
 @hypothesis.example(Decimal("-1E10"))
 def test_sqrt_invalid_range(sqrt_contract, value):

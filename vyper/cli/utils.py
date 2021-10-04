@@ -26,7 +26,8 @@ def extract_file_interface_imports(code: SourceCode) -> InterfaceImports:
                 raise StructureException("Import requires an accompanying `as` statement", node)
             if node.alias in imports_dict:
                 raise StructureException(
-                    f"Interface with alias {node.alias} already exists", node,
+                    f"Interface with alias {node.alias} already exists",
+                    node,
                 )
             imports_dict[node.alias] = node.name.replace(".", "/")
         elif isinstance(node, vy_ast.ImportFrom):  # type: ignore
@@ -45,7 +46,8 @@ def extract_file_interface_imports(code: SourceCode) -> InterfaceImports:
 
             if node.name in imports_dict and imports_dict[node.name] != f"{base_path}{node.name}":
                 raise StructureException(
-                    f"Interface with name {node.name} already exists", node,
+                    f"Interface with name {node.name} already exists",
+                    node,
                 )
             imports_dict[node.name] = f"{base_path}{node.name}"
 
