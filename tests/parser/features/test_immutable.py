@@ -29,3 +29,25 @@ def get_value() -> {typ}:
 
     c = get_contract(code, value)
     assert c.get_value() == value
+
+
+def test_multiple_immutable_values(get_contract):
+    code = """
+a: immutable(uint256)
+b: immutable(address)
+c: immutable(String[64])
+
+@external
+def __init__(_a: uint256, _b: address, _c: String[64]):
+    a = _a
+    b = _b
+    c = _c
+
+@view
+@external
+def get_values() -> (uint256, address, String[64]):
+    return a, b, c
+    """
+    values = (3, "0x0000000000000000000000000000000000000000", "Hello world")
+    c = get_contract(code, *values)
+    assert c.get_values() == list(values)
