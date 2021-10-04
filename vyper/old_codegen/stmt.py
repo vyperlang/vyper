@@ -77,7 +77,7 @@ class Stmt:
 
         variable_loc = LLLnode.from_list(pos, typ=typ, location="memory", pos=getpos(self.stmt),)
 
-        lll_node = make_setter(variable_loc, sub, "memory", pos=getpos(self.stmt))
+        lll_node = make_setter(variable_loc, sub, pos=getpos(self.stmt))
         lll_node.annotation = self.stmt.get("node_source_code")
 
         return lll_node
@@ -87,7 +87,7 @@ class Stmt:
         sub = Expr(self.stmt.value, self.context).lll_node
         target = self._get_target(self.stmt.target)
 
-        lll_node = make_setter(target, sub, target.location, pos=getpos(self.stmt))
+        lll_node = make_setter(target, sub, pos=getpos(self.stmt))
         lll_node.pos = getpos(self.stmt)
         lll_node.annotation = self.stmt.get("node_source_code")
         return lll_node
@@ -315,7 +315,7 @@ class Stmt:
                 typ=ListType(subtype, count),
                 location="memory",
             )
-            setter = make_setter(tmp_list, iter_list_node, "memory", pos=getpos(self.stmt))
+            setter = make_setter(tmp_list, iter_list_node, pos=getpos(self.stmt))
             body = [
                 "seq",
                 ["mstore", value_pos, ["mload", ["add", tmp_list, ["mul", ["mload", i_pos], 32]]]],

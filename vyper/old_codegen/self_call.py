@@ -80,13 +80,13 @@ def lll_for_self_call(stmt_expr, context):
         )
         copy_args.append(
             # --> args evaluate here <--
-            make_setter(tmp_args_buf, args_as_tuple, "memory", pos)
+            make_setter(tmp_args_buf, args_as_tuple, pos)
         )
 
-        copy_args.append(make_setter(args_dst, tmp_args_buf, "memory", pos))
+        copy_args.append(make_setter(args_dst, tmp_args_buf, pos))
 
     else:
-        copy_args = make_setter(args_dst, args_as_tuple, "memory", pos)
+        copy_args = make_setter(args_dst, args_as_tuple, pos)
 
     call_sequence = [
         "seq",

@@ -715,7 +715,7 @@ class Expr:
                 typ=ListType(right.typ.subtype, right.typ.count),
                 location="memory",
             )
-            setter = make_setter(tmp_list, right, "memory", pos=getpos(self.expr))
+            setter = make_setter(tmp_list, right, pos=getpos(self.expr))
             load_i_from_list = [
                 "mload",
                 ["add", tmp_list, ["mul", 32, ["mload", MemoryPositions.FREE_LOOP_INDEX]]],
