@@ -14,6 +14,7 @@ extras_require = {
         "pytest-instafail>=0.4,<1.0",
         "pytest-xdist>=1.32,<2.0",
         "eth-tester[py-evm]>=0.5.0b1,<0.6",
+        "py-evm==0.4.0a4",  # NOTE: temporarily pinned until we have support for py-evm 0.5.0a0+
         "web3==5.12.3",
         "tox>=3.15,<4.0",
         "lark-parser==0.10.0",
@@ -62,7 +63,7 @@ setup(
     keywords="ethereum evm smart contract language",
     include_package_data=True,
     packages=find_packages(exclude=("tests", "docs")),
-    python_requires=">=3.6",
+    python_requires=">=3.7,<3.10",
     py_modules=["vyper"],
     install_requires=[
         "asttokens==2.0.4",
@@ -84,7 +85,9 @@ setup(
     classifiers=[
         "Intended Audience :: Developers",
         "License :: OSI Approved :: Apache Software License",
-        "Programming Language :: Python :: 3.6",
+        "Programming Language :: Python :: 3.7",
+        "Programming Language :: Python :: 3.8",
+        "Programming Language :: Python :: 3.9",
     ],
     data_files=[("", [hash_file_rel_path])],
 )
