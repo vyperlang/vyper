@@ -3,6 +3,38 @@
 Release Notes
 #############
 
+v0.3.0
+*******
+
+Date released: 2021-10-04
+
+Breaking changes:
+
+* Change ABI encoding of single-struct return values to be compatible with Solidity (`#2457 <https://github.com/vyperlang/vyper/pull/2457>`_)
+* Drop Python 3.6 support (`#2462 <https://github.com/vyperlang/vyper/pull/2462>`_)
+
+Non-breaking changes and improvements:
+
+* Rewrite internal calling convention (`#2447 <https://github.com/vyperlang/vyper/pull/2447>`_)
+* Allow any ABI-encodable type as function arguments and return types (`#2154 <https://github.com/vyperlang/vyper/issues/2154>`_, `#2190 <https://github.com/vyperlang/vyper/issues/2190>`_)
+* Add support for deterministic deployment of minimal proxies using CREATE2 (`#2460 <https://github.com/vyperlang/vyper/pull/2460>`_)
+* Optimize code for certain copies (`#2468 <https://github.com/vyperlang/vyper/pull/2468>`_)
+* Add -o CLI flag to redirect output to a file (`#2452 <https://github.com/vyperlang/vyper/pull/2452>`_)
+* Other docs updates (`#2450 <https://github.com/vyperlang/vyper/pull/2450>`_)
+
+Fixes:
+
+* _abi_encode builtin evaluates arguments multiple times (`#2459 <https://github.com/vyperlang/vyper/issues/2459>`_)
+* ABI length is too short for nested tuples (`#2458 <https://github.com/vyperlang/vyper/issues/2458>`_)
+* Returndata is not clamped for certain numeric types (`#2454 <https://github.com/vyperlang/vyper/issues/2454>`_)
+* __default__ functions do not respect nonreentrancy keys (`#2455 <https://github.com/vyperlang/vyper/issues/2455>`_)
+* Clamps for bytestrings in initcode are broken (`#2456 <https://github.com/vyperlang/vyper/issues/2456>`_)
+* Missing clamps for decimal args in external functions (`GHSA-c7pr-343r-5c46 <https://github.com/vyperlang/vyper/security/advisories/GHSA-c7pr-343r-5c46>`_)
+* Memory corruption when returning a literal struct with a private function call inside of it (`GHSA-xv8x-pr4h-73jv <https://github.com/vyperlang/vyper/security/advisories/GHSA-xv8x-pr4h-73jv>`_)
+
+Special thanks to contributions from @skellet0r and @benjyz for this release!
+
+
 v0.2.16
 *******
 
