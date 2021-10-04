@@ -23,6 +23,8 @@ def get_value() -> {typ}:
         ("address", "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"),
         ("bytes32", b"deadbeef" * 4),
         ("bool", True),
+        ("String[10]", "Vyper hiss"),
+        ("Bytes[10]", b"Vyper hiss"),
     )
 ]
 
