@@ -183,8 +183,8 @@ def parse_regular_functions(
     if immutables:
         # find position of the last immutable so we do not overwrite it in memory
         # when we codecopy the runtime code to memory
-        immutables = sorted(immutables, key=lambda imm: imm.pos)
-        start_pos = immutables[-1].pos + immutables[-1].size * 32
+        immutables = sorted(immutables, key=lambda imm: imm._metadata["memory_loc"])
+        start_pos = immutables[-1]._metadata["memory_loc"] + immutables[-1].size * 32
         # create sequence of actions to copy immutables to the end of the runtime code in memory
         data_section = []
         for immutable in immutables:
@@ -199,13 +199,14 @@ def parse_regular_functions(
             rhs = LLLnode.from_list(memory_loc, typ=immutable.typ, location="memory")
             data_section.append(make_setter(lhs, rhs, None))
 
+        data_section_size = sum([immutable.size * 32 for immutable in immutables])
         o.append(
             [
                 "with",
                 "_lllsz",  # keep size of runtime bytecode in sz var
                 ["lll", runtime, start_pos],  # store runtime code at `start_pos`
                 # sequence of copying immutables, with final action of returning the runtime code
-                ["seq", *data_section, ["return", start_pos, ["add", offset, "_lllsz"]]],
+                ["seq", *data_section, ["return", start_pos, ["add", data_section_size, "_lllsz"]]],
             ]
         )
 
