@@ -325,11 +325,9 @@ class Expr:
                 if hasattr(var, "_metadata"):
                     memory_loc = var._metadata["memory_loc"]
                 else:
-                    memory_loc = self.context.new_internal_variable(var.typ)
+                    memory_loc = self.context.new_variable(f"#immutable_{self.expr.id}", var.typ)
                     data_offset = self.expr._metadata["type"].position.offset
-                    setattr(
-                        var, "_metadata", {"memory_loc": memory_loc, "data_offset": data_offset}
-                    )
+                    var._metadata = {"memory_loc": memory_loc, "data_offset": data_offset}
                 return LLLnode.from_list(
                     memory_loc,
                     typ=var.typ,
