@@ -322,10 +322,10 @@ class Expr:
             var = self.context.globals[self.expr.id]
             is_constructor = self.expr.get_ancestor(vy_ast.FunctionDef).get("name") == "__init__"
             if is_constructor:
-                pos = self.context.new_internal_variable(var.typ)
-                var.pos = pos
+                memory_loc = self.context.new_internal_variable(var.typ)
+                setattr(var, "_metadata", {"memory_loc": memory_loc, "data_offset": 0})
                 return LLLnode.from_list(
-                    pos,
+                    memory_loc,
                     typ=var.typ,
                     location="memory",
                     pos=getpos(self.expr),
@@ -336,9 +336,9 @@ class Expr:
                 immutable_section_size = sum(
                     [imm.size * 32 for imm in self.context.globals.values() if imm.is_immutable]
                 )
-                pos = self.expr._metadata["type"].position
+                offset = self.expr._metadata["type"].position.offset
                 return LLLnode.from_list(
-                    ["sub", "codesize", immutable_section_size - pos.offset],
+                    ["sub", "codesize", immutable_section_size - offset],
                     typ=var.typ,
                     location="code",
                     pos=getpos(self.expr),
