@@ -48,6 +48,6 @@ def __init__(_a: uint256, _b: address, _c: String[64]):
 def get_values() -> (uint256, address, String[64]):
     return a, b, c
     """
-    values = (3, "0x0000000000000000000000000000000000000000", "Hello world")
+    values = (3, "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE", "Hello world")
     c = get_contract(code, *values)
     assert c.get_values() == list(values)
