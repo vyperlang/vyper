@@ -40,6 +40,16 @@ def __init__():
 def set_value(_value: uint256):
     VALUE = _value
     """,
+    # modifying immutable multiple times in constructor
+    """
+VALUE: immutable(uint256)
+
+@external
+def __init__(_value: uint256):
+    VALUE = _value * 3
+    VALUE = VALUE + 1
+    """
+
 ]
 
 
@@ -88,7 +98,7 @@ VALUE: immutable(uint256)
 @external
 def __init__(_value: uint256):
     VALUE = _value * 3
-    VALUE = VALUE + 1
+    x: uint256 = VALUE + 1
     """
 ]
 
