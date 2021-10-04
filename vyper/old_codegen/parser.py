@@ -14,6 +14,7 @@ from vyper.old_codegen.function_definitions import (
 )
 from vyper.old_codegen.global_context import GlobalContext
 from vyper.old_codegen.lll_node import LLLnode
+from vyper.old_codegen.parser_utils import make_setter
 from vyper.semantics.types.function import FunctionVisibility, StateMutability
 from vyper.typing import InterfaceImports
 from vyper.utils import LOADED_LIMITS
@@ -189,9 +190,11 @@ def parse_regular_functions(
         offset = 0
         for immutable in immutables:
             # store each immutable at the end of the runtime code
-            data_section.append(
-                ["mstore", ["add", start_pos + offset, "_lllsz"], ["mload", immutable.pos]]
+            lhs = LLLnode.from_list(
+                ["add", start_pos + offset, "_lllsz"], typ=immutable.typ, location="memory"
             )
+            rhs = LLLnode.from_list(immutable.pos, typ=immutable.typ, location="memory")
+            data_section.append(make_setter(lhs, rhs, None))
             offset += immutable.size * 32
 
         o.append(
