@@ -80,3 +80,21 @@ def get_my_struct() -> MyStruct:
     values = (100, 42, "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE", -(2 ** 200))
     c = get_contract(code, *values)
     assert c.get_my_struct() == values
+
+
+def test_list_immutable(get_contract):
+    code = """
+my_list: immutable(uint256[3])
+
+@external
+def __init__(_a: uint256, _b: uint256, _c: uint256):
+    my_list = [_a, _b, _c]
+
+@view
+@external
+def get_my_list() -> uint256[3]:
+    return my_list
+    """
+    values = (100, 42, 23230)
+    c = get_contract(code, *values)
+    assert c.get_my_list() == list(values)
