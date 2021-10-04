@@ -187,15 +187,17 @@ def parse_regular_functions(
         start_pos = immutables[-1].pos + immutables[-1].size * 32
         # create sequence of actions to copy immutables to the end of the runtime code in memory
         data_section = []
-        offset = 0
         for immutable in immutables:
             # store each immutable at the end of the runtime code
+            memory_loc, offset = (
+                immutable._metadata["memory_loc"],
+                immutable._metadata["data_offset"],
+            )
             lhs = LLLnode.from_list(
                 ["add", start_pos + offset, "_lllsz"], typ=immutable.typ, location="memory"
             )
-            rhs = LLLnode.from_list(immutable.pos, typ=immutable.typ, location="memory")
+            rhs = LLLnode.from_list(memory_loc, typ=immutable.typ, location="memory")
             data_section.append(make_setter(lhs, rhs, None))
-            offset += immutable.size * 32
 
         o.append(
             [
