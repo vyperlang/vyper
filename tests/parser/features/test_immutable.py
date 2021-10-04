@@ -51,3 +51,32 @@ def get_values() -> (uint256, address, String[64]):
     values = (3, "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE", "Hello world")
     c = get_contract(code, *values)
     assert c.get_values() == list(values)
+
+
+def test_struct_immutable(get_contract):
+    code = """
+struct MyStruct:
+    a: uint256
+    b: uint256
+    c: address
+    d: int256
+
+my_struct: immutable(MyStruct)
+
+@external
+def __init__(_a: uint256, _b: uint256, _c: address, _d: int256):
+    my_struct = MyStruct({
+        a: _a,
+        b: _b,
+        c: _c,
+        d: _d
+    })
+
+@view
+@external
+def get_my_struct() -> MyStruct:
+    return my_struct
+    """
+    values = (100, 42, "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE", -(2 ** 200))
+    c = get_contract(code, *values)
+    assert c.get_my_struct() == values
