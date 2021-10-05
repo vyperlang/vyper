@@ -742,6 +742,8 @@ def clamp_basetype(lll_node):
         lll_node = unwrap_location(lll_node)
         if t.typ in ("int128"):
             return int_clamp(lll_node, 128, signed=True)
+        if t.typ == "uint8":
+            return int_clamp(lll_node, 8)
         if t.typ in ("decimal"):
             return [
                 "clamp",
