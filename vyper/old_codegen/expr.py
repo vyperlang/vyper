@@ -269,7 +269,7 @@ class Expr:
                 [
                     "mstore",
                     ["add", placeholder, i + 32],
-                    bytes_to_int((bytez + b"\x00" * 31)[i : i + 32]),  # noqa: E203
+                    bytes_to_int((bytez + b"\x00" * 31)[i : i + 32]),
                 ]
             )
         return LLLnode.from_list(

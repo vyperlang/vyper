@@ -115,7 +115,7 @@ class ContractFunction(BaseTypeDefinition):
         self.return_type = return_type
         self.kwarg_keys = []
         if min_arg_count < max_arg_count:
-            self.kwarg_keys = list(self.arguments)[min_arg_count:]  # noqa: E203
+            self.kwarg_keys = list(self.arguments)[min_arg_count:]
         self.visibility = function_visibility
         self.mutability = state_mutability
         self.nonreentrant = nonreentrant

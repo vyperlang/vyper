@@ -606,7 +606,7 @@ def _prune_inefficient_jumps(assembly):
             and assembly[i + 3] == "JUMPDEST"
         ):
             # delete _sym_x JUMP
-            del assembly[i : i + 2]  # noqa: E203
+            del assembly[i : i + 2]
         else:
             i += 1
 
@@ -620,7 +620,7 @@ def _merge_jumpdests(assembly):
         if is_symbol(assembly[i]) and assembly[i + 1] == "JUMPDEST":
             if is_symbol(assembly[i + 2]) and assembly[i + 3] == "JUMPDEST":
                 to_replace = assembly[i + 2]
-                assembly = assembly[: i + 2] + assembly[i + 4 :]  # noqa: E203
+                assembly = assembly[: i + 2] + assembly[i + 4 :]
                 assembly = [x if x != to_replace else assembly[i] for x in assembly]
                 continue
         i += 1
@@ -629,8 +629,8 @@ def _merge_jumpdests(assembly):
 def _merge_iszero(assembly):
     i = 0
     while i < len(assembly) - 2:
-        if assembly[i : i + 3] == ["ISZERO", "ISZERO", "ISZERO"]:  # noqa: E203
-            del assembly[i : i + 2]  # noqa: E203
+        if assembly[i : i + 3] == ["ISZERO", "ISZERO", "ISZERO"]:
+            del assembly[i : i + 2]
         else:
             i += 1
     i = 0
@@ -638,11 +638,11 @@ def _merge_iszero(assembly):
         # ISZERO ISZERO could map truthy to 1,
         # but it could also just be a no-op before JUMPI.
         if (
-            assembly[i : i + 2] == ["ISZERO", "ISZERO"]  # noqa: E203
+            assembly[i : i + 2] == ["ISZERO", "ISZERO"]
             and is_symbol(assembly[i + 2])
             and assembly[i + 3] == "JUMPI"
         ):
-            del assembly[i : i + 2]  # noqa: E203
+            del assembly[i : i + 2]
         else:
             i += 1
 
@@ -659,7 +659,7 @@ def _prune_unused_jumpdests(assembly):
     i = 0
     while i < len(assembly) - 2:
         if is_symbol(assembly[i]) and assembly[i] not in used_jumpdests:
-            del assembly[i : i + 2]  # noqa: E203
+            del assembly[i : i + 2]
         else:
             i += 1
 
