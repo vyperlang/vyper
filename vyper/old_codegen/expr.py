@@ -591,7 +591,7 @@ class Expr:
                     ],
                 ]
 
-            elif ltyp == "int128":
+            elif ltyp in ("int128", "uint8"):
                 arith = ["mul", "l", "r"]
 
             elif ltyp == "decimal":
@@ -618,7 +618,7 @@ class Expr:
                 # only apply the non-zero clamp when r is not a constant
                 divisor = ["clamp_nonzero", "r"]
 
-            if ltyp == "uint256":
+            if ltyp in ("uint8", "uint256"):
                 arith = ["div", "l", divisor]
 
             elif ltyp == "int256":
@@ -639,7 +639,7 @@ class Expr:
                     bounds_check = "pass"
                 arith = ["seq", bounds_check, ["sdiv", "l", divisor]]
 
-            elif ltyp in ("int128", "int256"):
+            elif ltyp == "int128":
                 arith = ["sdiv", "l", divisor]
 
             elif ltyp == "decimal":
@@ -661,7 +661,7 @@ class Expr:
                 # only apply the non-zero clamp when r is not a constant
                 divisor = ["clamp_nonzero", "r"]
 
-            if ltyp == "uint256":
+            if ltyp in ("uint8", "uint256"):
                 arith = ["mod", "l", divisor]
             else:
                 arith = ["smod", "l", divisor]
@@ -680,6 +680,9 @@ class Expr:
             elif ltyp == "int256":
                 is_signed = True
                 num_bits = 256
+            elif ltyp == "uint8":
+                is_signed = False
+                num_bits = 8
             else:
                 is_signed = False
                 num_bits = 256
