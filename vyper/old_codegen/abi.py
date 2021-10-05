@@ -297,7 +297,9 @@ class ABI_Tuple(ABIType):
 def abi_type_of(lll_typ):
     if isinstance(lll_typ, BaseType):
         t = lll_typ.typ
-        if "uint256" == t:
+        if "uint8" == t:
+            return ABI_GIntM(8, False)
+        elif "uint256" == t:
             return ABI_GIntM(256, False)
         elif "int128" == t:
             return ABI_GIntM(128, True)
