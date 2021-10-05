@@ -201,7 +201,7 @@ VALID_LLL_MACROS = {
 }
 
 # Available base types
-BASE_TYPES = {"int128", "int256", "decimal", "bytes32", "uint256", "bool", "address"}
+BASE_TYPES = {"int128", "int256", "decimal", "bytes32", "uint8", "uint256", "bool", "address"}
 
 
 def is_instances(instances, instance_type):
