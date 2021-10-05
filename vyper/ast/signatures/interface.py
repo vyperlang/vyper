@@ -17,7 +17,9 @@ def get_builtin_interfaces():
         name: extract_sigs(
             {
                 "type": "vyper",
-                "code": importlib.import_module(f"vyper.builtin_interfaces.{name}",).interface_code,
+                "code": importlib.import_module(
+                    f"vyper.builtin_interfaces.{name}",
+                ).interface_code,
             },
             name,
         )
@@ -98,7 +100,9 @@ def _get_external_signatures(global_ctx, sig_formatter=lambda x: x):
 
     for code in global_ctx._defs:
         sig = FunctionSignature.from_definition(
-            code, sigs=global_ctx._contracts, custom_structs=global_ctx._structs,
+            code,
+            sigs=global_ctx._contracts,
+            custom_structs=global_ctx._structs,
         )
         if not sig.internal:
             ret.append(sig_formatter(sig))

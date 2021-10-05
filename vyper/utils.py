@@ -289,7 +289,7 @@ def annotate_source_code(
         mark_repr = "-" * col_offset + "^" + "\n"
 
     before_lines = "".join(source_lines[start_offset:line_offset])
-    after_lines = "".join(source_lines[line_offset + 1 : end_offset])  # noqa: E203
+    after_lines = "".join(source_lines[line_offset + 1 : end_offset])
     location_repr = "".join((before_lines, line_repr, mark_repr, after_lines))
 
     if line_numbers:

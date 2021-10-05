@@ -61,4 +61,8 @@ def generate_lll_for_internal_function(
 
     exit = [["label", cleanup_label]] + nonreentrant_post + [stop_func]
 
-    return LLLnode.from_list(["seq"] + enter + body + exit, typ=None, pos=getpos(code),)
+    return LLLnode.from_list(
+        ["seq"] + enter + body + exit,
+        typ=None,
+        pos=getpos(code),
+    )

@@ -19,23 +19,14 @@ from vyper.exceptions import (
     VariableDeclarationException,
     VyperException,
 )
+
 # TODO consolidate some of these imports
-from vyper.semantics.environment import (
-    CONSTANT_ENVIRONMENT_VARS,
-    MUTABLE_ENVIRONMENT_VARS,
-)
+from vyper.semantics.environment import CONSTANT_ENVIRONMENT_VARS, MUTABLE_ENVIRONMENT_VARS
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.abstract import IntegerAbstractType
 from vyper.semantics.types.bases import DataLocation
-from vyper.semantics.types.function import (
-    ContractFunction,
-    FunctionVisibility,
-    StateMutability,
-)
-from vyper.semantics.types.indexable.sequence import (
-    ArrayDefinition,
-    TupleDefinition,
-)
+from vyper.semantics.types.function import ContractFunction, FunctionVisibility, StateMutability
+from vyper.semantics.types.indexable.sequence import ArrayDefinition, TupleDefinition
 from vyper.semantics.types.user.event import Event
 from vyper.semantics.types.user.struct import StructDefinition
 from vyper.semantics.types.utils import get_type_from_annotation
@@ -172,7 +163,8 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         if self.func.return_type:
             if not check_for_terminus(fn_node.body):
                 raise FunctionDeclarationException(
-                    f"Missing or unmatched return statements in function '{fn_node.name}'", fn_node,
+                    f"Missing or unmatched return statements in function '{fn_node.name}'",
+                    fn_node,
                 )
 
     def visit(self, node):

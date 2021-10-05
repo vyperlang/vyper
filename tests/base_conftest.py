@@ -123,7 +123,10 @@ def _get_contract(w3, source_code, *args, **kwargs):
     tx_hash = deploy_transaction.transact(tx_info)
     address = w3.eth.getTransactionReceipt(tx_hash)["contractAddress"]
     contract = w3.eth.contract(
-        address, abi=abi, bytecode=bytecode, ContractFactoryClass=VyperContract,
+        address,
+        abi=abi,
+        bytecode=bytecode,
+        ContractFactoryClass=VyperContract,
     )
     return contract
 

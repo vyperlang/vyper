@@ -207,7 +207,13 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         start, continue_dest, end = mksymbol(), mksymbol(), mksymbol()
         o.extend(_compile_to_assembly(code.args[0], withargs, existing_labels, break_dest, height))
         o.extend(
-            _compile_to_assembly(code.args[1], withargs, existing_labels, break_dest, height + 1,)
+            _compile_to_assembly(
+                code.args[1],
+                withargs,
+                existing_labels,
+                break_dest,
+                height + 1,
+            )
         )
         o.extend(["PUSH" + str(len(loops))] + loops)
         # stack: memloc, startvalue, rounds
@@ -265,7 +271,13 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         old = withargs.get(code.args[0].value, None)
         withargs[code.args[0].value] = height
         o.extend(
-            _compile_to_assembly(code.args[2], withargs, existing_labels, break_dest, height + 1,)
+            _compile_to_assembly(
+                code.args[2],
+                withargs,
+                existing_labels,
+                break_dest,
+                height + 1,
+            )
         )
         if code.args[2].valency:
             o.extend(["SWAP1", "POP"])
@@ -343,7 +355,11 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
             )
             if is_free_of_clamp_errors:
                 return _compile_to_assembly(
-                    code.args[0], withargs, existing_labels, break_dest, height,
+                    code.args[0],
+                    withargs,
+                    existing_labels,
+                    break_dest,
+                    height,
                 )
             else:
                 raise Exception(
@@ -351,7 +367,13 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
                 )
         o = _compile_to_assembly(code.args[0], withargs, existing_labels, break_dest, height)
         o.extend(
-            _compile_to_assembly(code.args[1], withargs, existing_labels, break_dest, height + 1,)
+            _compile_to_assembly(
+                code.args[1],
+                withargs,
+                existing_labels,
+                break_dest,
+                height + 1,
+            )
         )
         o.extend(["DUP2"])
         # Stack: num num bound
@@ -379,11 +401,23 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         comp2 = "SLT" if code.value == "clamp" else "LT"
         o = _compile_to_assembly(code.args[0], withargs, existing_labels, break_dest, height)
         o.extend(
-            _compile_to_assembly(code.args[1], withargs, existing_labels, break_dest, height + 1,)
+            _compile_to_assembly(
+                code.args[1],
+                withargs,
+                existing_labels,
+                break_dest,
+                height + 1,
+            )
         )
         o.extend(["DUP1"])
         o.extend(
-            _compile_to_assembly(code.args[2], withargs, existing_labels, break_dest, height + 3,)
+            _compile_to_assembly(
+                code.args[2],
+                withargs,
+                existing_labels,
+                break_dest,
+                height + 3,
+            )
         )
         o.extend(["SWAP1", comp1])
         o.extend(_assert_false())
@@ -572,7 +606,7 @@ def _prune_inefficient_jumps(assembly):
             and assembly[i + 3] == "JUMPDEST"
         ):
             # delete _sym_x JUMP
-            del assembly[i : i + 2]  # noqa: E203
+            del assembly[i : i + 2]
         else:
             i += 1
 
@@ -586,7 +620,7 @@ def _merge_jumpdests(assembly):
         if is_symbol(assembly[i]) and assembly[i + 1] == "JUMPDEST":
             if is_symbol(assembly[i + 2]) and assembly[i + 3] == "JUMPDEST":
                 to_replace = assembly[i + 2]
-                assembly = assembly[: i + 2] + assembly[i + 4 :]  # noqa: E203
+                assembly = assembly[: i + 2] + assembly[i + 4 :]
                 assembly = [x if x != to_replace else assembly[i] for x in assembly]
                 continue
         i += 1
@@ -595,8 +629,8 @@ def _merge_jumpdests(assembly):
 def _merge_iszero(assembly):
     i = 0
     while i < len(assembly) - 2:
-        if assembly[i : i + 3] == ["ISZERO", "ISZERO", "ISZERO"]:  # noqa: E203
-            del assembly[i : i + 2]  # noqa: E203
+        if assembly[i : i + 3] == ["ISZERO", "ISZERO", "ISZERO"]:
+            del assembly[i : i + 2]
         else:
             i += 1
     i = 0
@@ -604,11 +638,11 @@ def _merge_iszero(assembly):
         # ISZERO ISZERO could map truthy to 1,
         # but it could also just be a no-op before JUMPI.
         if (
-            assembly[i : i + 2] == ["ISZERO", "ISZERO"]  # noqa: E203
+            assembly[i : i + 2] == ["ISZERO", "ISZERO"]
             and is_symbol(assembly[i + 2])
             and assembly[i + 3] == "JUMPI"
         ):
-            del assembly[i : i + 2]  # noqa: E203
+            del assembly[i : i + 2]
         else:
             i += 1
 
@@ -625,7 +659,7 @@ def _prune_unused_jumpdests(assembly):
     i = 0
     while i < len(assembly) - 2:
         if is_symbol(assembly[i]) and assembly[i] not in used_jumpdests:
-            del assembly[i : i + 2]  # noqa: E203
+            del assembly[i : i + 2]
         else:
             i += 1
 

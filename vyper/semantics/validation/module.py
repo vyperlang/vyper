@@ -24,10 +24,7 @@ from vyper.semantics.types.function import ContractFunction
 from vyper.semantics.types.user.event import Event
 from vyper.semantics.types.utils import check_literal, get_type_from_annotation
 from vyper.semantics.validation.base import VyperNodeVisitorBase
-from vyper.semantics.validation.utils import (
-    validate_expected_type,
-    validate_unique_method_ids,
-)
+from vyper.semantics.validation.utils import validate_expected_type, validate_unique_method_ids
 from vyper.typing import InterfaceDict
 
 
@@ -57,7 +54,10 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
     scope_name = "module"
 
     def __init__(
-        self, module_node: vy_ast.Module, interface_codes: InterfaceDict, namespace: dict,
+        self,
+        module_node: vy_ast.Module,
+        interface_codes: InterfaceDict,
+        namespace: dict,
     ) -> None:
         self.ast = module_node
         self.interface_codes = interface_codes or {}
@@ -224,7 +224,8 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
     def visit_Import(self, node):
         if not node.alias:
             raise StructureException(
-                "Import requires an accompanying `as` statement", node,
+                "Import requires an accompanying `as` statement",
+                node,
             )
         _add_import(node, node.name, node.alias, node.alias, self.interface_codes, self.namespace)
 

@@ -6,20 +6,9 @@ from vyper.exceptions import StructureException, TypeCheckFailure
 from vyper.old_codegen import external_call, self_call
 from vyper.old_codegen.context import Context
 from vyper.old_codegen.expr import Expr
-from vyper.old_codegen.parser_utils import (
-    LLLnode,
-    getpos,
-    make_setter,
-    unwrap_location,
-)
+from vyper.old_codegen.parser_utils import LLLnode, getpos, make_setter, unwrap_location
 from vyper.old_codegen.return_ import make_return_stmt
-from vyper.old_codegen.types import (
-    BaseType,
-    ByteArrayType,
-    ListType,
-    get_size_of_type,
-    parse_type,
-)
+from vyper.old_codegen.types import BaseType, ByteArrayType, ListType, get_size_of_type, parse_type
 
 
 class Stmt:
@@ -50,7 +39,9 @@ class Stmt:
 
     def parse_AnnAssign(self):
         typ = parse_type(
-            self.stmt.annotation, location="memory", custom_structs=self.context.structs,
+            self.stmt.annotation,
+            location="memory",
+            custom_structs=self.context.structs,
         )
         varname = self.stmt.target.id
         pos = self.context.new_variable(varname, typ, pos=self.stmt)
@@ -75,7 +66,12 @@ class Stmt:
                 pos=getpos(self.stmt),
             )
 
-        variable_loc = LLLnode.from_list(pos, typ=typ, location="memory", pos=getpos(self.stmt),)
+        variable_loc = LLLnode.from_list(
+            pos,
+            typ=typ,
+            location="memory",
+            pos=getpos(self.stmt),
+        )
 
         lll_node = make_setter(variable_loc, sub, pos=getpos(self.stmt))
         lll_node.annotation = self.stmt.get("node_source_code")

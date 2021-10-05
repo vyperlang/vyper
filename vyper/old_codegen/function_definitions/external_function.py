@@ -1,10 +1,7 @@
 from typing import Any, List
 
 import vyper.utils as util
-from vyper.ast.signatures.function_signature import (
-    FunctionSignature,
-    VariableRecord,
-)
+from vyper.ast.signatures.function_signature import FunctionSignature, VariableRecord
 from vyper.exceptions import CompilerPanic
 from vyper.old_codegen.context import Context
 from vyper.old_codegen.expr import Expr
@@ -12,13 +9,7 @@ from vyper.old_codegen.function_definitions.utils import get_nonreentrant_lock
 from vyper.old_codegen.lll_node import Encoding, LLLnode
 from vyper.old_codegen.parser_utils import get_element_ptr, getpos, make_setter
 from vyper.old_codegen.stmt import parse_body
-from vyper.old_codegen.types.types import (
-    BaseType,
-    ByteArrayLike,
-    ListType,
-    TupleLike,
-    TupleType,
-)
+from vyper.old_codegen.types.types import BaseType, ByteArrayLike, ListType, TupleLike, TupleType
 
 
 def _should_decode(typ):
@@ -164,8 +155,8 @@ def generate_lll_for_external_function(code, sig, context, check_nonpayable):
     #    code: vy_ast.FunctionDef, sig: FunctionSignature, context: Context, check_nonpayable: bool,
     # ) -> LLLnode:
     """Return the LLL for an external function. Includes code to inspect the method_id,
-       enter the function (nonpayable and reentrancy checks), handle kwargs and exit
-       the function (clean up reentrancy storage variables)
+    enter the function (nonpayable and reentrancy checks), handle kwargs and exit
+    the function (clean up reentrancy storage variables)
     """
     func_type = code._metadata["type"]
     pos = getpos(code)

@@ -130,12 +130,18 @@ def make_byte_array_copier(destination, source, pos=None):
         length = ["add", [load_op(source.location), "_pos"], 32]
     elif source.location == "storage":
         length = ["add", ["sload", "_pos"], 32]
-        pos_node = LLLnode.from_list(pos_node, typ=source.typ, location=source.location,)
+        pos_node = LLLnode.from_list(
+            pos_node,
+            typ=source.typ,
+            location=source.location,
+        )
     else:
         raise CompilerPanic(f"Unsupported location: {source.location} to {destination.location}")
     if destination.location == "storage":
         destination = LLLnode.from_list(
-            destination, typ=destination.typ, location=destination.location,
+            destination,
+            typ=destination.typ,
+            location=destination.location,
         )
     # Maximum theoretical length
     max_length = 32 if source.value is None else source.typ.maxlen + 32
@@ -232,13 +238,19 @@ def make_byte_slice_copier(destination, source, length, max_length, pos=None):
         ],
     ]
     return LLLnode.from_list(
-        o, typ=None, annotation=f"copy byte slice src: {source} dst: {destination}", pos=pos,
+        o,
+        typ=None,
+        annotation=f"copy byte slice src: {source} dst: {destination}",
+        pos=pos,
     )
 
 
 # Takes a <32 byte array as input, and outputs a number.
 def byte_array_to_num(
-    arg, expr, out_type, offset=32,
+    arg,
+    expr,
+    out_type,
+    offset=32,
 ):
     if arg.location == "storage":
         lengetter = LLLnode.from_list(["sload", "_sub"], typ=BaseType("int256"))
@@ -363,7 +375,10 @@ def get_element_ptr(parent, key, pos, array_bounds_check=True):
             for i in range(index):
                 offset += get_size_of_type(typ.members[attrs[i]])
             return LLLnode.from_list(
-                ["add", parent, offset], typ=subtype, location="storage", pos=pos,
+                ["add", parent, offset],
+                typ=subtype,
+                location="storage",
+                pos=pos,
             )
 
         elif location in ("calldata", "memory", "code"):
@@ -746,8 +761,8 @@ def clamp_basetype(lll_node):
 
 def int_clamp(lll_node, bits, signed=False):
     """Generalized clamper for integer types. Takes the number of bits,
-       whether it's signed, and returns an LLL node which checks it is
-       in bounds.
+    whether it's signed, and returns an LLL node which checks it is
+    in bounds.
     """
     if bits >= 256:
         raise CompilerPanic("shouldn't clamp", lll_node)

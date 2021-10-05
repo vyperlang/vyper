@@ -218,13 +218,21 @@ def parse_tree_to_lll(global_ctx: GlobalContext) -> Tuple[LLLnode, LLLnode]:
     if init_function:
         o.append(init_func_init_lll())
         init_func_lll, _frame_start, _frame_size = generate_lll_for_function(
-            init_function, {**{"self": sigs}, **external_interfaces}, global_ctx, False,
+            init_function,
+            {**{"self": sigs}, **external_interfaces},
+            global_ctx,
+            False,
         )
         o.append(init_func_lll)
 
     if regular_functions or default_function:
         o, runtime = parse_regular_functions(
-            o, regular_functions, sigs, external_interfaces, global_ctx, default_function,
+            o,
+            regular_functions,
+            sigs,
+            external_interfaces,
+            global_ctx,
+            default_function,
         )
     else:
         runtime = o.copy()

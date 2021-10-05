@@ -3,17 +3,8 @@ from typing import Optional, Tuple, Type, Union
 from vyper import ast as vy_ast
 from vyper.exceptions import InvalidOperation, OverflowException
 
-from ..abstract import (
-    FixedAbstractType,
-    SignedIntegerAbstractType,
-    UnsignedIntegerAbstractType,
-)
-from ..bases import (
-    BasePrimitive,
-    BaseTypeDefinition,
-    CompilerPanic,
-    ValueTypeDefinition,
-)
+from ..abstract import FixedAbstractType, SignedIntegerAbstractType, UnsignedIntegerAbstractType
+from ..bases import BasePrimitive, BaseTypeDefinition, CompilerPanic, ValueTypeDefinition
 
 
 class AbstractNumericDefinition(ValueTypeDefinition):
