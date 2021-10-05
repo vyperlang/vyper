@@ -340,7 +340,13 @@ def get_type(input):
 
 # Is a type representing a number?
 def is_numeric_type(typ):
-    return isinstance(typ, BaseType) and typ.typ in ("int128", "int256", "uint256", "decimal")
+    return isinstance(typ, BaseType) and typ.typ in (
+        "int128",
+        "int256",
+        "uint8",
+        "uint256",
+        "decimal",
+    )
 
 
 # Is a type representing some particular base type?
