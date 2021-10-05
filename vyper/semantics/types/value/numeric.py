@@ -127,6 +127,11 @@ class Int256Definition(SignedIntegerAbstractType, _SignedIntegerDefinition):
     _bits = 256
 
 
+class Uint8Definition(UnsignedIntegerAbstractType, _UnsignedIntegerDefinition):
+    _bits = 8
+    _invalid_op = vy_ast.USub
+
+
 class Uint256Definition(UnsignedIntegerAbstractType, _UnsignedIntegerDefinition):
     _bits = 256
     _invalid_op = vy_ast.USub
@@ -158,6 +163,13 @@ class Int256Primitive(_NumericPrimitive):
     _bounds = (-(2 ** 255), 2 ** 255 - 1)
     _id = "int256"
     _type = Int256Definition
+    _valid_literal = (vy_ast.Int,)
+
+
+class Uint8Primitive(_NumericPrimitive):
+    _bounds = (0, 2 ** 8 - 1)
+    _id = "uint8"
+    _type = Uint8Definition
     _valid_literal = (vy_ast.Int,)
 
 
