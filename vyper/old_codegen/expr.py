@@ -18,6 +18,7 @@ from vyper.old_codegen.parser_utils import (
     get_element_ptr,
     get_number_as_fraction,
     getpos,
+    int_clamp,
     load_op,
     make_setter,
     unwrap_location,
@@ -544,7 +545,7 @@ class Expr:
                         ],
                     ]
 
-            elif ltyp in ("decimal", "int128"):
+            elif ltyp in ("decimal", "int128", "uint8"):
                 op = "add" if isinstance(self.expr.op, vy_ast.Add) else "sub"
                 arith = [op, "l", "r"]
 
@@ -717,6 +718,9 @@ class Expr:
         p = ["seq"]
         if new_typ.typ == "int128":
             p.append(int128_clamp(arith))
+        elif new_typ.typ == "uint8":
+            p.append(int_clamp(LLLnode.from_list(arith, typ=BaseType(new_typ.typ)), 8))
+            p.append(arith)
         elif new_typ.typ == "decimal":
             p.append(
                 [
