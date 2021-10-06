@@ -143,3 +143,25 @@ def max_ne() -> (bool):
     assert c.max_gte() is False
     assert c.max_gt() is False
     assert c.max_ne() is True
+
+
+def test_uint8_convert_clamps(get_contract, assert_tx_failed):
+    code = """
+@external
+def conversion(_x: int256) -> uint8:
+    return convert(_x, uint8)
+    """
+
+    c = get_contract(code)
+
+    # below bounds
+    for val in [-(2 ** 129), -3232, -256, -1]:
+        assert_tx_failed(lambda: c.conversion(val))
+
+    # above bounds
+    for val in [256, 3000, 2 ** 128, 2 ** 200]:
+        assert_tx_failed(lambda: c.conversion(val))
+
+    # within bounds
+    for val in [0, 10, 25, 130, 255]:
+        assert c.conversion(val) == val
