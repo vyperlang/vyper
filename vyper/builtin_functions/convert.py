@@ -7,7 +7,7 @@ from vyper.builtin_functions.signatures import signature
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import InvalidLiteral, StructureException, TypeMismatch
 from vyper.old_codegen.arg_clamps import address_clamp, int128_clamp
-from vyper.old_codegen.parser_utils import LLLnode, byte_array_to_num, getpos, load_op
+from vyper.old_codegen.parser_utils import LLLnode, byte_array_to_num, getpos, int_clamp, load_op
 from vyper.old_codegen.types import BaseType, ByteArrayType, StringType, get_type
 from vyper.utils import DECIMAL_DIVISOR, MemoryPositions, SizeLimits
 
@@ -32,6 +32,27 @@ def to_bool(expr, args, kwargs, context):
     else:
         return LLLnode.from_list(
             ["iszero", ["iszero", in_arg]], typ=BaseType("bool"), pos=getpos(expr)
+        )
+
+
+@signature(("decimal", "int128", "int256", "uint256", "bytes32", "Bytes"), "*")
+def to_uint8(expr, args, kwargs, context):
+    in_arg = args[0]
+    input_type, _ = get_type(in_arg)
+
+    if input_type == "Bytes":
+        if in_arg.typ.maxlen > 32:
+            raise TypeMismatch(
+                f"Cannot convert bytes array of max length {in_arg.typ.maxlen} to uint8",
+                expr,
+            )
+        else:
+            # uint8 clamp is already applied in byte_array_to_num
+            return byte_array_to_num(in_arg, expr, "uint8")
+
+    else:
+        return LLLnode.from_list(
+            ["seq", int_clamp(in_arg, 8), in_arg], typ=BaseType("uint8"), pos=getpos(expr)
         )
 
 
@@ -426,6 +447,7 @@ CONVERSION_TABLE = {
     "bool": to_bool,
     "int128": to_int128,
     "int256": to_int256,
+    "uint8": to_uint8,
     "uint256": to_uint256,
     "decimal": to_decimal,
     "bytes32": to_bytes32,
