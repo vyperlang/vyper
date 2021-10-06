@@ -1,3 +1,8 @@
+import itertools as it
+
+import pytest
+
+
 def test_exponent_base_zero(get_contract):
     code = """
 @external
@@ -22,6 +27,30 @@ def foo(x: uint8) -> uint8:
     assert c.foo(1) == 1
     assert c.foo(42) == 1
     assert c.foo(2 ** 8 - 1) == 1
+
+
+@pytest.mark.parametrize("base,power", it.product(range(6), repeat=2))
+def test_safe_exponentiation(get_contract, assert_tx_failed, base, power):
+    code = f"""
+@external
+def _uint8_exponentiation_base(_power: uint8) -> uint8:
+    return {base} ** _power
+
+@external
+def _uint8_exponentiation_power(_base: uint8) -> uint8:
+    return _base ** {power}
+    """
+
+    c = get_contract(code)
+
+    if 0 <= base ** power < 2 ** 8 - 1:
+        # within bounds so ok
+        assert c._uint8_exponentiation_base(power) == base ** power
+        assert c._uint8_exponentiation_power(base) == base ** power
+    else:
+        # clamps on exponentiation
+        assert_tx_failed(lambda: c._uint8_exponentiation_base(power))
+        assert_tx_failed(lambda: c._uint8_exponentiation_power(base))
 
 
 def test_uint8_code(assert_tx_failed, get_contract_with_gas_estimation):
