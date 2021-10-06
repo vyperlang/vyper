@@ -262,6 +262,13 @@ def byte_array_to_num(
 
     if out_type == "int128":
         result = int128_clamp(["div", "_el1", ["exp", 256, ["sub", 32, "_len"]]])
+    elif out_type == "uint8":
+        result = [
+            "with",
+            "_res",
+            ["div", "_el1", ["exp", 256, ["sub", 32, "_len"]]],
+            ["seq", int_clamp(LLLnode("_res", typ="uint8"), 8), "_res"],
+        ]
     elif out_type in ("int256", "uint256"):
         result = ["div", "_el1", ["exp", 256, ["sub", offset, "_len"]]]
     # TODO decimal clamp?
