@@ -1,4 +1,4 @@
-from decimal import ROUND_FLOOR, Decimal, getcontext
+from decimal import ROUND_FLOOR, Decimal
 
 import hypothesis
 import pytest
@@ -6,7 +6,6 @@ from eth_tester.exceptions import TransactionFailed
 
 from vyper.utils import SizeLimits
 
-getcontext().prec = 168
 DECIMAL_PLACES = 10
 DECIMAL_RANGE = [Decimal("0." + "0" * d + "2") for d in range(0, DECIMAL_PLACES)]
 

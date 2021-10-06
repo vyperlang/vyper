@@ -85,6 +85,7 @@ def pub6() -> Foo:
     assert c.pub5(foo) == foo
     assert c.pub6() == foo
 
+
 def test_self_call_in_return_struct(get_contract):
     code = """
 struct Foo:

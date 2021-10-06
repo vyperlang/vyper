@@ -1,5 +1,5 @@
 import math
-from decimal import Decimal, getcontext
+from decimal import Decimal
 
 from vyper import ast as vy_ast
 from vyper.evm.opcodes import version_check
@@ -63,9 +63,6 @@ ENVIRONMENT_VARIABLES = {
     "tx",
     "chain",
 }
-
-# Necessary to ensure we have enough precision to do the log/exp calcs
-getcontext().prec = 42
 
 
 def calculate_largest_power(a: int, num_bits: int, is_signed: bool) -> int:

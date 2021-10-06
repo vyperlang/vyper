@@ -141,6 +141,10 @@ class SyntaxException(VyperException):
         super().__init__(message, item)
 
 
+class DecimalOverrideException(VyperException):
+    """Decimal behavior in vyper cannot be overriden"""
+
+
 class NatSpecSyntaxException(SyntaxException):
     """Invalid syntax within NatSpec docstring."""
 

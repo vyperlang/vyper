@@ -1,4 +1,4 @@
-from decimal import Decimal, getcontext
+from decimal import Decimal, setcontext, Context
 
 from vyper import ast as vy_ast
 from vyper.evm.opcodes import version_check
@@ -6,6 +6,7 @@ from vyper.exceptions import (
     CompilerPanic,
     InvalidLiteral,
     StructureException,
+    DecimalOverrideException,
     TypeCheckFailure,
     TypeMismatch,
 )
@@ -31,7 +32,15 @@ from vyper.utils import (
     MemoryPositions,
 )
 
-getcontext().prec = 78  # MAX_UINT256 < 1e78
+
+class DecimalContextOverride(Context):
+    def __setattr__(self, name, value):
+        if name == "prec":
+            raise DecimalOverrideException("Overriding decimal precision disabled")
+        super().__setattr__(name, value)
+
+
+setcontext(DecimalContextOverride(prec=78))
 
 
 def type_check_wrapper(fn):

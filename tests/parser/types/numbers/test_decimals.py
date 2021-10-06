@@ -1,8 +1,13 @@
+import pytest
 from decimal import Decimal, getcontext
 
-from vyper.exceptions import TypeMismatch
+from vyper.exceptions import TypeMismatch, DecimalOverrideException
 
-getcontext().prec = 78  # MAX_UINT256 < 1e78
+
+def test_decimal_override():
+    # consumers of vyper, even as a library, are not allowed to override Decimal precision
+    with pytest.raises(DecimalOverrideException):
+        getcontext().prec = 100
 
 
 def test_decimal_test(get_contract_with_gas_estimation):
