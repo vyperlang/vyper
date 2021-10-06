@@ -12,7 +12,7 @@ from vyper.old_codegen.types import BaseType, ByteArrayType, StringType, get_typ
 from vyper.utils import DECIMAL_DIVISOR, MemoryPositions, SizeLimits
 
 
-@signature(("decimal", "int128", "int256", "uint256", "address", "bytes32", "Bytes"), "*")
+@signature(("decimal", "int128", "int256", "uint8", "uint256", "address", "bytes32", "Bytes"), "*")
 def to_bool(expr, args, kwargs, context):
     in_arg = args[0]
     input_type, _ = get_type(in_arg)
@@ -40,6 +40,7 @@ def to_bool(expr, args, kwargs, context):
         "num_literal",
         "bool",
         "decimal",
+        "uint8",
         "int256",
         "uint256",
         "address",
@@ -114,7 +115,7 @@ def to_int128(expr, args, kwargs, context):
             pos=getpos(expr),
         )
 
-    elif input_type == "bool":
+    elif input_type in ("bool", "uint8"):
         return LLLnode.from_list(in_arg, typ=BaseType("int128"), pos=getpos(expr))
 
     else:
@@ -122,7 +123,8 @@ def to_int128(expr, args, kwargs, context):
 
 
 @signature(
-    ("num_literal", "int128", "int256", "bytes32", "Bytes", "address", "bool", "decimal"), "*"
+    ("num_literal", "int128", "int256", "uint8", "bytes32", "Bytes", "address", "bool", "decimal"),
+    "*",
 )
 def to_uint256(expr, args, kwargs, context):
     in_arg = args[0]
@@ -156,7 +158,7 @@ def to_uint256(expr, args, kwargs, context):
             pos=getpos(expr),
         )
 
-    elif isinstance(in_arg, LLLnode) and input_type == "bool":
+    elif isinstance(in_arg, LLLnode) and input_type in ("bool", "uint8"):
         return LLLnode.from_list(in_arg, typ=BaseType("uint256"), pos=getpos(expr))
 
     elif isinstance(in_arg, LLLnode) and input_type in ("bytes32", "address"):
@@ -180,7 +182,8 @@ def to_uint256(expr, args, kwargs, context):
 # conversions. in the next breaking release we should modify how address conversions work
 # so it can make sense for many signed integer types. @iamdefinitelyahuman
 @signature(
-    ("num_literal", "int128", "uint256", "bytes32", "Bytes", "String", "bool", "decimal"), "*"
+    ("num_literal", "int128", "uint8", "uint256", "bytes32", "Bytes", "String", "bool", "decimal"),
+    "*",
 )
 def to_int256(expr, args, kwargs, context):
     in_arg = args[0]
@@ -223,7 +226,7 @@ def to_int256(expr, args, kwargs, context):
             pos=getpos(expr),
         )
 
-    elif isinstance(in_arg, LLLnode) and input_type == "bool":
+    elif isinstance(in_arg, LLLnode) and input_type in ("bool", "uint8"):
         return LLLnode.from_list(in_arg, typ=BaseType("int256"), pos=getpos(expr))
 
     elif isinstance(in_arg, LLLnode) and input_type in ("bytes32", "address"):
@@ -243,7 +246,7 @@ def to_int256(expr, args, kwargs, context):
         raise InvalidLiteral(f"Invalid input for int256: {in_arg}", expr)
 
 
-@signature(("bool", "int128", "int256", "uint256", "bytes32", "Bytes", "address"), "*")
+@signature(("bool", "int128", "int256", "uint8", "uint256", "bytes32", "Bytes", "address"), "*")
 def to_decimal(expr, args, kwargs, context):
     in_arg = args[0]
     input_type, _ = get_type(in_arg)
@@ -323,7 +326,7 @@ def to_decimal(expr, args, kwargs, context):
                 pos=getpos(expr),
             )
 
-        elif input_type in ("int128", "bool"):
+        elif input_type in ("uint8", "int128", "bool"):
             return LLLnode.from_list(
                 ["mul", in_arg, DECIMAL_DIVISOR], typ=BaseType("decimal"), pos=getpos(expr)
             )
@@ -332,7 +335,7 @@ def to_decimal(expr, args, kwargs, context):
             raise InvalidLiteral(f"Invalid input for decimal: {in_arg}", expr)
 
 
-@signature(("int128", "int256", "uint256", "address", "Bytes", "bool", "decimal"), "*")
+@signature(("int128", "int256", "uint8", "uint256", "address", "Bytes", "bool", "decimal"), "*")
 def to_bytes32(expr, args, kwargs, context):
     in_arg = args[0]
     input_type, _len = get_type(in_arg)
