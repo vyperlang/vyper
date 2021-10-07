@@ -142,7 +142,9 @@ class SyntaxException(VyperException):
 
 
 class DecimalOverrideException(VyperException):
-    """Decimal behavior in vyper cannot be overriden"""
+    """The Vyper compiler uses specific Decimal settings which
+    if overridden could lead to incorrect behavior.
+    """
 
 
 class NatSpecSyntaxException(SyntaxException):

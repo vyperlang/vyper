@@ -1,7 +1,8 @@
-import pytest
 from decimal import Decimal, getcontext
 
-from vyper.exceptions import TypeMismatch, DecimalOverrideException
+import pytest
+
+from vyper.exceptions import DecimalOverrideException, TypeMismatch
 
 
 def test_decimal_override():

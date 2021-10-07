@@ -1,12 +1,12 @@
-from decimal import Decimal, setcontext, Context
+from decimal import Context, Decimal, setcontext
 
 from vyper import ast as vy_ast
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
     CompilerPanic,
+    DecimalOverrideException,
     InvalidLiteral,
     StructureException,
-    DecimalOverrideException,
     TypeCheckFailure,
     TypeMismatch,
 )
