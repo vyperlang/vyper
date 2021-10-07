@@ -1,10 +1,13 @@
 from typing import Optional, Tuple, Type, Union
 
 from vyper import ast as vy_ast
-from vyper.exceptions import InvalidOperation, OverflowException
-
-from ..abstract import FixedAbstractType, SignedIntegerAbstractType, UnsignedIntegerAbstractType
-from ..bases import BasePrimitive, BaseTypeDefinition, CompilerPanic, ValueTypeDefinition
+from vyper.exceptions import CompilerPanic, InvalidOperation, OverflowException
+from vyper.semantics.types.abstract import (
+    FixedAbstractType,
+    SignedIntegerAbstractType,
+    UnsignedIntegerAbstractType,
+)
+from vyper.semantics.types.bases import BasePrimitive, BaseTypeDefinition, ValueTypeDefinition
 
 
 class AbstractNumericDefinition(ValueTypeDefinition):
