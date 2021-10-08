@@ -36,7 +36,7 @@ from vyper.old_codegen.parser_utils import (
     make_byte_slice_copier,
     unwrap_location,
 )
-from vyper.old_codegen.types import BaseType, ByteArrayLike, ByteArrayType, ListType
+from vyper.old_codegen.types import BaseType, ByteArrayLike, ByteArrayType, ListType, TupleType
 from vyper.old_codegen.types import StringType as OldStringType
 from vyper.old_codegen.types import is_base_type
 from vyper.semantics.types.abstract import (
@@ -56,6 +56,7 @@ from vyper.semantics.types.value.array_value import (
     StringDefinition,
     StringPrimitive,
 )
+from vyper.semantics.types import BoolDefinition, TupleDefinition
 from vyper.semantics.types.value.bytes_fixed import Bytes32Definition
 from vyper.semantics.types.value.numeric import (
     DecimalDefinition,
@@ -1055,14 +1056,23 @@ class RawCall(_SimpleBuiltinFunction):
         "value": Optional("uint256", zero_value),
         "is_delegate_call": Optional("bool", false_value),
         "is_static_call": Optional("bool", false_value),
+        "revert_on_failure": Optional("bool", true_value),
     }
     _return_type = None
 
     def fetch_call_return(self, node):
         super().fetch_call_return(node)
-        outsize = next((i.value for i in node.keywords if i.arg == "max_outsize"), None)
+
+        kwargz = {i.arg: i.value for i in node.keywords}
+
+        outsize = kwargz.get("max_outsize")
+        revert_on_failure = kwargz.get("revert_on_failure")
+        revert_on_failure = revert_on_failure.value if revert_on_failure is not None else True
+
         if outsize is None:
-            return None
+            if revert_on_failure:
+                return None
+            return BoolDefinition()
 
         if not isinstance(outsize, vy_ast.Int) or outsize.value < 0:
             raise
@@ -1071,33 +1081,44 @@ class RawCall(_SimpleBuiltinFunction):
             return_type = BytesArrayDefinition()
             return_type.set_min_length(outsize.value)
 
-            return return_type
+            if revert_on_failure:
+                return return_type
+            return TupleDefinition([BoolDefinition(), return_type])
+
 
     @validate_inputs
     def build_LLL(self, expr, args, kwargs, context):
         to, data = args
-        gas, value, outsize, delegate_call, static_call = (
+        gas, value, outsize, delegate_call, static_call, revert_on_failure = (
             kwargs["gas"],
             kwargs["value"],
             kwargs["max_outsize"],
             kwargs["is_delegate_call"],
             kwargs["is_static_call"],
+            kwargs["revert_on_failure"],
         )
-        for key in ("is_delegate_call", "is_static_call"):
+        for key in ("is_delegate_call", "is_static_call", "revert_on_failure"):
             if kwargs[key].typ.is_literal is False:
                 raise TypeMismatch(
                     f"The `{key}` parameter must be a static/literal boolean value", expr
                 )
-        if delegate_call.value and static_call.value:
+        # turn LLL literals into python values
+        revert_on_failure = revert_on_failure.value == 1
+        static_call = static_call.value == 1
+        delegate_call = delegate_call.value == 1
+
+        if delegate_call and static_call:
             raise ArgumentException(
                 "Call may use one of `is_delegate_call` or `is_static_call`, not both", expr
             )
-        if not static_call.value and context.is_constant():
+        if not static_call and context.is_constant():
             raise StateAccessViolation(
                 f"Cannot make modifying calls from {context.pp_constancy()},"
                 " use `is_static_call=True` to perform this action",
                 expr,
             )
+
+
         placeholder = context.new_internal_variable(data.typ)
         placeholder_node = LLLnode.from_list(placeholder, typ=data.typ, location="memory")
         copier = make_byte_array_copier(placeholder_node, data, pos=getpos(expr))
@@ -1108,6 +1129,11 @@ class RawCall(_SimpleBuiltinFunction):
             location="memory",
         )
 
+        if not revert_on_failure:
+            bool_ty = BaseType("bool")
+            call_success_pos = context.new_internal_variable(bool_ty)
+            call_success_node = LLLnode.from_list(call_success_pos, typ=bool_ty, location="memory")
+
         # build LLL for call or delegatecall
         common_call_lll = [
             ["add", placeholder_node, 32],
@@ -1117,12 +1143,17 @@ class RawCall(_SimpleBuiltinFunction):
             outsize,
         ]
 
-        if delegate_call.value == 1:
+        if delegate_call:
             call_lll = ["delegatecall", gas, to] + common_call_lll
-        elif static_call.value == 1:
+        elif static_call:
             call_lll = ["staticcall", gas, to] + common_call_lll
         else:
             call_lll = ["call", gas, to, value] + common_call_lll
+
+        if revert_on_failure:
+            call_op = ["assert", call_lll]
+        else:
+            call_op = ["mstore", call_success_node, call_lll]
 
         # build sequence LLL
         if outsize:
@@ -1134,13 +1165,28 @@ class RawCall(_SimpleBuiltinFunction):
                 ["with", "_r", "returndatasize", ["if", ["gt", "_l", "_r"], "_r", "_l"]],
             ]
 
-            seq = ["seq", copier, ["assert", call_lll], ["mstore", output_node, size], output_node]
             typ = ByteArrayType(outsize)
-        else:
-            seq = ["seq", copier, ["assert", call_lll]]
-            typ = None
+            ret_lll = LLLnode.from_list(
+                    # call_success_node gets evaluated first in make_setter
+                    ["seq", copier, call_op, ["mstore", output_node, size], call_success_node],
+                    typ=typ,
+                    location="memory",
+                    )
+            if not revert_on_failure:
+                typ = TupleType([bool_ty, typ])
 
-        return LLLnode.from_list(seq, typ=typ, location="memory", pos=getpos(expr))
+        else:
+            ret_lll = LLLnode.from_list(
+                    ["seq", copier, call_op],
+                    typ = None,
+                    )
+            if not revert_on_failure:
+                typ = bool_ty
+
+        if not revert_on_failure:
+            ret_lll = ["multi", ret_lll, output_node]
+
+        return LLLnode.from_list(ret_lll, typ=typ, location="memory", pos=getpos(expr))
 
 
 class Send(_SimpleBuiltinFunction):
