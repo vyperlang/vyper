@@ -3,17 +3,10 @@ from typing import Dict, List
 
 from vyper import ast as vy_ast
 from vyper.ast.validation import validate_call_args
-from vyper.exceptions import (
-    EventDeclarationException,
-    NamespaceCollision,
-    StructureException,
-)
+from vyper.exceptions import EventDeclarationException, NamespaceCollision, StructureException
 from vyper.semantics.namespace import validate_identifier
 from vyper.semantics.types.bases import DataLocation
-from vyper.semantics.types.utils import (
-    get_type_from_abi,
-    get_type_from_annotation,
-)
+from vyper.semantics.types.utils import get_type_from_abi, get_type_from_annotation
 from vyper.semantics.validation.utils import validate_expected_type
 from vyper.utils import keccak256
 

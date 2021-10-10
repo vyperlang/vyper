@@ -8,10 +8,7 @@ from pathlib import Path
 from typing import Callable, Dict, Tuple, Union
 
 import vyper
-from vyper.cli.utils import (
-    extract_file_interface_imports,
-    get_interface_file_path,
-)
+from vyper.cli.utils import extract_file_interface_imports, get_interface_file_path
 from vyper.evm.opcodes import DEFAULT_EVM_VERSION, EVM_VERSIONS
 from vyper.exceptions import JSONError
 from vyper.typing import ContractCodes, ContractPath
@@ -49,7 +46,9 @@ def _parse_args(argv):
         nargs="?",
     )
     parser.add_argument(
-        "--version", action="version", version=f"{vyper.__version__}+commit.{vyper.__commit__}",
+        "--version",
+        action="version",
+        version=f"{vyper.__version__}+commit.{vyper.__commit__}",
     )
     parser.add_argument(
         "-o",

@@ -204,7 +204,8 @@ def generate_folded_ast(
 
 
 def generate_global_context(
-    vyper_module: vy_ast.Module, interface_codes: Optional[InterfaceImports],
+    vyper_module: vy_ast.Module,
+    interface_codes: Optional[InterfaceImports],
 ) -> GlobalContext:
     """
     Generate a contextualized AST from the Vyper AST.

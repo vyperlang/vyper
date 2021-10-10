@@ -4,10 +4,7 @@ import operator
 import sys
 from typing import Any, Optional, Union
 
-from vyper.compiler.settings import (
-    VYPER_ERROR_CONTEXT_LINES,
-    VYPER_ERROR_LINE_NUMBERS,
-)
+from vyper.compiler.settings import VYPER_ERROR_CONTEXT_LINES, VYPER_ERROR_LINE_NUMBERS
 from vyper.exceptions import (
     CompilerPanic,
     InvalidLiteral,
@@ -18,12 +15,7 @@ from vyper.exceptions import (
     UnfoldableNode,
     ZeroDivisionException,
 )
-from vyper.utils import (
-    MAX_DECIMAL_PLACES,
-    SizeLimits,
-    annotate_source_code,
-    checksum_encode,
-)
+from vyper.utils import MAX_DECIMAL_PLACES, SizeLimits, annotate_source_code, checksum_encode
 
 NODE_BASE_ATTRIBUTES = (
     "_children",
@@ -172,7 +164,8 @@ def _sort_nodes(node_iterable):
         return float("inf") if key is None else key
 
     return sorted(
-        node_iterable, key=lambda k: (sortkey(k.lineno), sortkey(k.col_offset), k.node_id),
+        node_iterable,
+        key=lambda k: (sortkey(k.lineno), sortkey(k.col_offset), k.node_id),
     )
 
 

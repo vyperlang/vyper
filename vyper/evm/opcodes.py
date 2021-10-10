@@ -1,13 +1,7 @@
 from typing import Dict, Optional
 
 from vyper.exceptions import CompilerPanic
-from vyper.typing import (
-    OpcodeGasCost,
-    OpcodeMap,
-    OpcodeRulesetMap,
-    OpcodeRulesetValue,
-    OpcodeValue,
-)
+from vyper.typing import OpcodeGasCost, OpcodeMap, OpcodeRulesetMap, OpcodeRulesetValue, OpcodeValue
 
 active_evm_version: int = 0
 
@@ -209,7 +203,6 @@ PSEUDO_OPCODES: OpcodeMap = {
     "NE": (None, 2, 1, 6),
     "DEBUGGER": (None, 0, 0, 0),
     "LABEL": (None, 1, 0, 1),
-    "GOTO": (None, 1, 0, 8),
 }
 
 COMB_OPCODES: OpcodeMap = {**OPCODES, **PSEUDO_OPCODES}
@@ -241,9 +234,7 @@ def _gas(value: OpcodeValue, idx: int) -> Optional[OpcodeRulesetValue]:
 
 def _mk_version_opcodes(opcodes: OpcodeMap, idx: int) -> OpcodeRulesetMap:
     return dict(
-        (k, _gas(v, idx))  # type: ignore
-        for k, v in opcodes.items()
-        if _gas(v, idx) is not None
+        (k, _gas(v, idx)) for k, v in opcodes.items() if _gas(v, idx) is not None  # type: ignore
     )
 
 

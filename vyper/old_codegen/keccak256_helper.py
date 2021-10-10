@@ -10,7 +10,9 @@ from vyper.utils import MemoryPositions, bytes_to_int, keccak256
 def _check_byteslike(typ, _expr):
     if not isinstance(typ, ByteArrayLike) and not is_base_type(typ, "bytes32"):
         # NOTE this may be checked at a higher level, but just be safe
-        raise CompilerPanic("keccak256 only accepts bytes-like objects",)
+        raise CompilerPanic(
+            "keccak256 only accepts bytes-like objects",
+        )
 
 
 def _gas_bound(num_words):
@@ -19,6 +21,7 @@ def _gas_bound(num_words):
     return SHA3_BASE + num_words * SHA3_PER_WORD
 
 
+# TODO kwargs is dead argument
 def keccak256_helper(expr, lll_args, kwargs, context):
     if len(lll_args) != 1:
         # NOTE this may be checked at a higher level, but just be safe
@@ -68,7 +71,8 @@ def keccak256_helper(expr, lll_args, kwargs, context):
     placeholder = context.new_internal_variable(sub.typ)
     placeholder_node = LLLnode.from_list(placeholder, typ=sub.typ, location="memory")
     copier = make_byte_array_copier(
-        placeholder_node, LLLnode.from_list("_src", typ=sub.typ, location=sub.location),
+        placeholder_node,
+        LLLnode.from_list("_src", typ=sub.typ, location=sub.location),
     )
     return LLLnode.from_list(
         [

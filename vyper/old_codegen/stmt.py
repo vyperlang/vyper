@@ -1,31 +1,14 @@
 import vyper.old_codegen.events as events
+import vyper.utils as util
 from vyper import ast as vy_ast
 from vyper.builtin_functions import STMT_DISPATCH_TABLE
 from vyper.exceptions import StructureException, TypeCheckFailure
 from vyper.old_codegen import external_call, self_call
 from vyper.old_codegen.context import Context
 from vyper.old_codegen.expr import Expr
-from vyper.old_codegen.parser_utils import (
-    LLLnode,
-    getpos,
-    make_byte_array_copier,
-    make_setter,
-    unwrap_location,
-    zero_pad,
-)
-from vyper.old_codegen.return_ import gen_tuple_return, make_return_stmt
-from vyper.old_codegen.types import (
-    BaseType,
-    ByteArrayLike,
-    ByteArrayType,
-    ListType,
-    NodeType,
-    StructType,
-    TupleType,
-    get_size_of_type,
-    parse_type,
-)
-from vyper.utils import SizeLimits, bytes_to_int, fourbytes_to_int, keccak256
+from vyper.old_codegen.parser_utils import LLLnode, getpos, make_setter, unwrap_location
+from vyper.old_codegen.return_ import make_return_stmt
+from vyper.old_codegen.types import BaseType, ByteArrayType, ListType, get_size_of_type, parse_type
 
 
 class Stmt:
@@ -56,7 +39,9 @@ class Stmt:
 
     def parse_AnnAssign(self):
         typ = parse_type(
-            self.stmt.annotation, location="memory", custom_structs=self.context.structs,
+            self.stmt.annotation,
+            location="memory",
+            custom_structs=self.context.structs,
         )
         varname = self.stmt.target.id
         pos = self.context.new_variable(varname, typ, pos=self.stmt)
@@ -76,11 +61,20 @@ class Stmt:
         # If bytes[32] to bytes32 assignment rewrite sub as bytes32.
         if is_literal_bytes32_assign:
             sub = LLLnode(
-                bytes_to_int(self.stmt.value.s), typ=BaseType("bytes32"), pos=getpos(self.stmt),
+                util.bytes_to_int(self.stmt.value.s),
+                typ=BaseType("bytes32"),
+                pos=getpos(self.stmt),
             )
 
-        variable_loc = LLLnode.from_list(pos, typ=typ, location="memory", pos=getpos(self.stmt),)
-        lll_node = make_setter(variable_loc, sub, "memory", pos=getpos(self.stmt))
+        variable_loc = LLLnode.from_list(
+            pos,
+            typ=typ,
+            location="memory",
+            pos=getpos(self.stmt),
+        )
+
+        lll_node = make_setter(variable_loc, sub, pos=getpos(self.stmt))
+        lll_node.annotation = self.stmt.get("node_source_code")
 
         return lll_node
 
@@ -88,8 +82,10 @@ class Stmt:
         # Assignment (e.g. x[4] = y)
         sub = Expr(self.stmt.value, self.context).lll_node
         target = self._get_target(self.stmt.target)
-        lll_node = make_setter(target, sub, target.location, pos=getpos(self.stmt))
+
+        lll_node = make_setter(target, sub, pos=getpos(self.stmt))
         lll_node.pos = getpos(self.stmt)
+        lll_node.annotation = self.stmt.get("node_source_code")
         return lll_node
 
     def parse_If(self):
@@ -136,10 +132,11 @@ class Stmt:
         if isinstance(self.stmt.func, vy_ast.Name):
             funcname = self.stmt.func.id
             return STMT_DISPATCH_TABLE[funcname].build_LLL(self.stmt, self.context)
+
         elif is_self_function:
-            return self_call.make_call(self.stmt, self.context)
+            return self_call.lll_for_self_call(self.stmt, self.context)
         else:
-            return external_call.make_external_call(self.stmt, self.context)
+            return external_call.lll_for_external_call(self.stmt, self.context)
 
     def _assert_reason(self, test_expr, msg):
         if isinstance(msg, vy_ast.Name) and msg.id == "UNREACHABLE":
@@ -147,18 +144,21 @@ class Stmt:
 
         reason_str_type = ByteArrayType(len(msg.value.strip()))
 
+        # abi encode the reason string
         sig_placeholder = self.context.new_internal_variable(BaseType(32))
+        # offset of bytes in (bytes,)
         arg_placeholder = self.context.new_internal_variable(BaseType(32))
         placeholder_bytes = Expr(msg, self.context).lll_node
 
-        method_id = fourbytes_to_int(keccak256(b"Error(string)")[:4])
+        method_id = util.abi_method_id("Error(string)")
 
+        # abi encode method_id + bytestring
         revert_seq = [
             "seq",
             ["mstore", sig_placeholder, method_id],
             ["mstore", arg_placeholder, 32],
             placeholder_bytes,
-            ["revert", sig_placeholder + 28, int(4 + get_size_of_type(reason_str_type) * 32)],
+            ["revert", sig_placeholder + 28, int(32 + 4 + get_size_of_type(reason_str_type) * 32)],
         ]
         if test_expr:
             lll_node = ["if", ["iszero", test_expr], revert_seq]
@@ -311,7 +311,7 @@ class Stmt:
                 typ=ListType(subtype, count),
                 location="memory",
             )
-            setter = make_setter(tmp_list, iter_list_node, "memory", pos=getpos(self.stmt))
+            setter = make_setter(tmp_list, iter_list_node, pos=getpos(self.stmt))
             body = [
                 "seq",
                 ["mstore", value_pos, ["mload", ["add", tmp_list, ["mul", ["mload", i_pos], 32]]]],
@@ -388,143 +388,10 @@ class Stmt:
         return LLLnode.from_list("break", typ=None, pos=getpos(self.stmt))
 
     def parse_Return(self):
-        if self.context.return_type is None:
-            if self.stmt.value:
-                return
-            return LLLnode.from_list(
-                make_return_stmt(self.stmt, self.context, 0, 0),
-                typ=None,
-                pos=getpos(self.stmt),
-                valency=0,
-            )
-
-        sub = Expr(self.stmt.value, self.context).lll_node
-
-        # Returning a value (most common case)
-        if isinstance(sub.typ, BaseType):
-            sub = unwrap_location(sub)
-
-            if sub.typ.is_literal and (
-                self.context.return_type.typ == sub.typ
-                or "int" in self.context.return_type.typ
-                and "int" in sub.typ.typ
-            ):  # noqa: E501
-                if SizeLimits.in_bounds(self.context.return_type.typ, sub.value):
-                    return LLLnode.from_list(
-                        [
-                            "seq",
-                            ["mstore", 0, sub],
-                            make_return_stmt(self.stmt, self.context, 0, 32),
-                        ],
-                        typ=None,
-                        pos=getpos(self.stmt),
-                        valency=0,
-                    )
-            elif isinstance(sub.typ, BaseType):
-                return LLLnode.from_list(
-                    ["seq", ["mstore", 0, sub], make_return_stmt(self.stmt, self.context, 0, 32)],
-                    typ=None,
-                    pos=getpos(self.stmt),
-                    valency=0,
-                )
-            return
-        # Returning a byte array
-        elif isinstance(sub.typ, ByteArrayLike):
-            if not sub.typ.eq_base(self.context.return_type):
-                return
-            if sub.typ.maxlen > self.context.return_type.maxlen:
-                return
-
-            # loop memory has to be allocated first.
-            loop_memory_position = self.context.new_internal_variable(typ=BaseType("uint256"))
-            # len & bytez placeholder have to be declared after each other at all times.
-            len_placeholder = self.context.new_internal_variable(BaseType("uint256"))
-            bytez_placeholder = self.context.new_internal_variable(sub.typ)
-
-            if sub.location in ("storage", "memory"):
-                return LLLnode.from_list(
-                    [
-                        "seq",
-                        make_byte_array_copier(
-                            LLLnode(bytez_placeholder, location="memory", typ=sub.typ),
-                            sub,
-                            pos=getpos(self.stmt),
-                        ),
-                        zero_pad(bytez_placeholder),
-                        ["mstore", len_placeholder, 32],
-                        make_return_stmt(
-                            self.stmt,
-                            self.context,
-                            len_placeholder,
-                            ["ceil32", ["add", ["mload", bytez_placeholder], 64]],
-                            loop_memory_position=loop_memory_position,
-                        ),
-                    ],
-                    typ=None,
-                    pos=getpos(self.stmt),
-                    valency=0,
-                )
-            return
-
-        elif isinstance(sub.typ, ListType):
-            loop_memory_position = self.context.new_internal_variable(typ=BaseType("uint256"))
-            if sub.location == "memory" and sub.value != "multi":
-                return LLLnode.from_list(
-                    make_return_stmt(
-                        self.stmt,
-                        self.context,
-                        sub,
-                        get_size_of_type(self.context.return_type) * 32,
-                        loop_memory_position=loop_memory_position,
-                    ),
-                    typ=None,
-                    pos=getpos(self.stmt),
-                    valency=0,
-                )
-            else:
-                new_sub = LLLnode.from_list(
-                    self.context.new_internal_variable(self.context.return_type),
-                    typ=self.context.return_type,
-                    location="memory",
-                )
-                setter = make_setter(new_sub, sub, "memory", pos=getpos(self.stmt))
-                return LLLnode.from_list(
-                    [
-                        "seq",
-                        setter,
-                        make_return_stmt(
-                            self.stmt,
-                            self.context,
-                            new_sub,
-                            get_size_of_type(self.context.return_type) * 32,
-                            loop_memory_position=loop_memory_position,
-                        ),
-                    ],
-                    typ=None,
-                    pos=getpos(self.stmt),
-                )
-
-        # Returning a struct
-        elif isinstance(sub.typ, StructType):
-            retty = self.context.return_type
-            if isinstance(retty, StructType) and retty.name == sub.typ.name:
-                return gen_tuple_return(self.stmt, self.context, sub)
-
-        # Returning a tuple.
-        elif isinstance(sub.typ, TupleType):
-            if not isinstance(self.context.return_type, TupleType):
-                return
-
-            if len(self.context.return_type.members) != len(sub.typ.members):
-                return
-
-            # check return type matches, sub type.
-            for i, ret_x in enumerate(self.context.return_type.members):
-                s_member = sub.typ.members[i]
-                sub_type = s_member if isinstance(s_member, NodeType) else s_member.typ
-                if type(sub_type) is not type(ret_x):
-                    return
-            return gen_tuple_return(self.stmt, self.context, sub)
+        lll_val = None
+        if self.stmt.value is not None:
+            lll_val = Expr(self.stmt.value, self.context).lll_node
+        return make_return_stmt(lll_val, self.stmt, self.context)
 
     def _get_target(self, target):
         if isinstance(target, vy_ast.Name) and target.id in self.context.forvars:

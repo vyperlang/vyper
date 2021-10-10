@@ -60,8 +60,8 @@ def test_canonicalize_type():
 
 def test_get_size_of_type():
     assert get_size_of_type(BaseType("int128")) == 1
-    assert get_size_of_type(ByteArrayType(12)) == 3
-    assert get_size_of_type(ByteArrayType(33)) == 4
+    assert get_size_of_type(ByteArrayType(12)) == 2
+    assert get_size_of_type(ByteArrayType(33)) == 3
     assert get_size_of_type(ListType(BaseType("int128"), 10)) == 10
 
     _tuple = TupleType([BaseType("int128"), BaseType("decimal")])

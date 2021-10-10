@@ -141,7 +141,10 @@ def build_source_map_output(compiler_data: CompilerData) -> OrderedDict:
         out[k] = line_number_map[k]
 
     out["pc_pos_map_compressed"] = _compress_source_map(
-        compiler_data.source_code, out["pc_pos_map"], out["pc_jump_map"], compiler_data.source_id,
+        compiler_data.source_code,
+        out["pc_pos_map"],
+        out["pc_jump_map"],
+        compiler_data.source_id,
     )
     out["pc_pos_map"] = dict((k, v) for k, v in out["pc_pos_map"].items() if v)
     return out

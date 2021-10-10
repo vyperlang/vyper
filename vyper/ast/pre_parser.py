@@ -1,14 +1,6 @@
 import io
 import re
-from tokenize import (
-    COMMENT,
-    NAME,
-    OP,
-    TokenError,
-    TokenInfo,
-    tokenize,
-    untokenize,
-)
+from tokenize import COMMENT, NAME, OP, TokenError, TokenInfo, tokenize, untokenize
 from typing import Tuple
 
 from semantic_version import NpmSpec, Version
@@ -46,7 +38,8 @@ def validate_version_pragma(version_str: str, start: ParserPosition) -> None:
 
     if len(strict_file_version) == 0:
         raise VersionException(
-            "Version specification cannot be empty", start,
+            "Version specification cannot be empty",
+            start,
         )
 
     try:
@@ -126,7 +119,10 @@ def pre_parse(code: str) -> Tuple[ModificationOffsets, str]:
 
             if typ == NAME and string in ("class", "yield"):
                 raise SyntaxException(
-                    f"The `{string}` keyword is not allowed. ", code, start[0], start[1],
+                    f"The `{string}` keyword is not allowed. ",
+                    code,
+                    start[0],
+                    start[1],
                 )
 
             if typ == NAME and string == "contract" and start[1] == 0:

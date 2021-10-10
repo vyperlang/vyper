@@ -1,11 +1,7 @@
 import pytest
 
 from vyper import compiler
-from vyper.exceptions import (
-    StructureException,
-    UndeclaredDefinition,
-    UnknownAttribute,
-)
+from vyper.exceptions import StructureException, UndeclaredDefinition, UnknownAttribute
 
 fail_list = [
     (
