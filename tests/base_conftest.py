@@ -83,7 +83,7 @@ def _none_addr(datatype, data):
 CONCISE_NORMALIZERS = (_none_addr,)
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def tester():
     custom_genesis = PyEVMBackend._generate_genesis_params(overrides={"gas_limit": 4500000})
     backend = PyEVMBackend(genesis_parameters=custom_genesis)
@@ -94,7 +94,7 @@ def zero_gas_price_strategy(web3, transaction_params=None):
     return 0  # zero gas price makes testing simpler.
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def w3(tester):
     w3 = Web3(EthereumTesterProvider(tester))
     w3.eth.setGasPriceStrategy(zero_gas_price_strategy)
@@ -123,12 +123,15 @@ def _get_contract(w3, source_code, *args, **kwargs):
     tx_hash = deploy_transaction.transact(tx_info)
     address = w3.eth.getTransactionReceipt(tx_hash)["contractAddress"]
     contract = w3.eth.contract(
-        address, abi=abi, bytecode=bytecode, ContractFactoryClass=VyperContract,
+        address,
+        abi=abi,
+        bytecode=bytecode,
+        ContractFactoryClass=VyperContract,
     )
     return contract
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def get_contract(w3):
     def get_contract(source_code, *args, **kwargs):
         return _get_contract(w3, source_code, *args, **kwargs)
@@ -146,7 +149,7 @@ def get_logs(w3):
     return get_logs
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def assert_tx_failed(tester):
     def assert_tx_failed(function_to_test, exception=TransactionFailed, exc_text=None):
         snapshot_id = tester.take_snapshot()
