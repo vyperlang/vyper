@@ -191,6 +191,13 @@ PSEUDO_OPCODES: OpcodeMap = {
     "PASS": (None, 0, 0, 0),
     "DUMMY": (None, 0, 1, 0),  # tell LLL that no, there really is a stack item here
     "BREAK": (None, 0, 0, 20),
+    # cleanup_repeat cleans the stack similar to BREAK but without jumping to exit
+    "CLEANUP_REPEAT": (
+        None,
+        0,
+        0,
+        20,
+    ),
     "CONTINUE": (None, 0, 0, 20),
     "SHA3_32": (None, 1, 1, 72),
     "SHA3_64": (None, 2, 1, 109),

@@ -36,7 +36,7 @@ def make_return_stmt(lll_val: LLLnode, stmt: Any, context: Context) -> Optional[
         )
         cleanup_loops = "cleanup_repeat" if context.forvars else "pass"
         return LLLnode.from_list(
-            ["seq_unchecked", cleanup_loops, fill_return_buffer, jump_to_exit],
+            ["seq", cleanup_loops, fill_return_buffer, jump_to_exit],
             typ=None,
             pos=_pos,
         )
@@ -66,5 +66,6 @@ def make_return_stmt(lll_val: LLLnode, stmt: Any, context: Context) -> Optional[
         # also returns the length of the output as a stack element
         encode_out = abi_encode(return_buffer_ofst, lll_val, pos=_pos, returns_len=True)
 
+        jump_to_exit += [return_buffer_ofst, encode_out]
         # fill the return buffer and push the location and length onto the stack
-        return finalize(["seq_unchecked", encode_out, return_buffer_ofst])
+        return finalize(["pass"])
