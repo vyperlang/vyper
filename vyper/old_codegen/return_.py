@@ -34,7 +34,7 @@ def make_return_stmt(lll_val: LLLnode, stmt: Any, context: Context) -> Optional[
         fill_return_buffer = LLLnode.from_list(
             fill_return_buffer, annotation=f"fill return buffer {sig._lll_identifier}"
         )
-        cleanup_loops = "exit_repeater" if context.forvars else "pass"
+        cleanup_loops = "cleanup_repeat" if context.forvars else "pass"
         return LLLnode.from_list(
             ["seq_unchecked", cleanup_loops, fill_return_buffer, jump_to_exit],
             typ=None,

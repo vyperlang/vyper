@@ -260,7 +260,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         dest, continue_dest, break_height = break_dest
         return ["POP"] * (height - break_height) + [dest, "JUMP"]
     # Break from inside one or more for loops prior to a return statement inside the loop
-    elif code.value == "exit_repeater":
+    elif code.value == "cleanup_repeat":
         if not break_dest:
             raise CompilerPanic("Invalid break")
         _, _, break_height = break_dest
