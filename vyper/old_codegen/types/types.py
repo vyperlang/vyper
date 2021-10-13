@@ -5,7 +5,7 @@ from collections import OrderedDict
 from typing import Any
 
 from vyper import ast as vy_ast
-from vyper.exceptions import CompilerPanic, InvalidType
+from vyper.exceptions import ArgumentException, CompilerPanic, InvalidType
 from vyper.utils import BASE_TYPES, ceil32
 
 
@@ -233,6 +233,10 @@ def parse_type(item, location=None, sigs=None, custom_structs=None):
                 custom_structs,
             )
         if item.func.id == "immutable":
+            if len(item.args) != 1:
+                # is checked earlier but just for sanity, verify
+                # immutable call is given only one argument
+                raise ArgumentException("Invalid number of arguments to `immutable`", item)
             return BaseType(item.args[0].id)
 
         raise InvalidType("Units are no longer supported", item)
