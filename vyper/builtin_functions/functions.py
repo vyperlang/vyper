@@ -1175,7 +1175,7 @@ class RawCall(_SimpleBuiltinFunction):
                     [
                         "seq",
                         copier,
-                        ["mstore", call_lll],
+                        ["mstore", call_success_node, call_lll],
                         ["mstore", output_node, size],
                         call_success_node,
                     ],
