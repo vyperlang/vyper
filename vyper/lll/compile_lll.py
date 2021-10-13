@@ -111,6 +111,7 @@ def compile_to_assembly(code, use_ovm=False):
     res = _compile_to_assembly(code)
 
     _add_postambles(res, use_ovm)
+    _optimize_assembly(res)
     return res
 
 
@@ -612,17 +613,32 @@ def _prune_inefficient_jumps(assembly):
 
 
 def _merge_jumpdests(assembly):
-    # When a nested subroutine finishes and is the final action within it's
-    # parent subroutine, we end up with multiple simultaneous JUMPDEST
-    # instructions that can be merged to reduce the bytecode size.
+    # When we have multiple JUMPDESTs in a row, or when a JUMPDEST
+    # is immediately followed by another JUMP, we can skip the
+    # intermediate jumps.
+    # (Usually a chain of JUMPs is created by a nested block,
+    # or some nested if statements.)
     i = 0
     while i < len(assembly) - 3:
         if is_symbol(assembly[i]) and assembly[i + 1] == "JUMPDEST":
+            current_symbol = assembly[i]
             if is_symbol(assembly[i + 2]) and assembly[i + 3] == "JUMPDEST":
-                to_replace = assembly[i + 2]
-                assembly = assembly[: i + 2] + assembly[i + 4 :]
-                assembly = [x if x != to_replace else assembly[i] for x in assembly]
-                continue
+                # _sym_x JUMPDEST _sym_y JUMPDEST
+                # replace all instances of _sym_x with _sym_y
+                # (except for _sym_x JUMPDEST - don't want duplicate labels)
+                new_symbol = assembly[i + 2]
+                for j in range(len(assembly)):
+                    if assembly[j] == current_symbol and i != j:
+                        assembly[j] = new_symbol
+            elif is_symbol(assembly[i + 2]) and assembly[i + 3] == "JUMP":
+                # _sym_x JUMPDEST _sym_y JUMP
+                # replace all instances of _sym_x with _sym_y
+                # (except for _sym_x JUMPDEST - don't want duplicate labels)
+                new_symbol = assembly[i + 2]
+                for j in range(len(assembly)):
+                    if assembly[j] == current_symbol and i != j:
+                        assembly[j] = new_symbol
+
         i += 1
 
 
@@ -666,6 +682,10 @@ def _prune_unused_jumpdests(assembly):
 
 # optimize assembly, in place
 def _optimize_assembly(assembly):
+    for x in assembly:
+        if isinstance(x, list):
+            _optimize_assembly(x)
+
     _prune_unreachable_code(assembly)
     _merge_iszero(assembly)
     _merge_jumpdests(assembly)
@@ -675,8 +695,6 @@ def _optimize_assembly(assembly):
 
 # Assembles assembly into EVM
 def assembly_to_evm(assembly, start_pos=0):
-    _optimize_assembly(assembly)
-
     line_number_map = {
         "breakpoints": set(),
         "pc_breakpoints": set(),

@@ -191,6 +191,20 @@ def apply_general_optimizations(node: LLLnode) -> LLLnode:
             annotation=node.annotation,
             # let from_list handle valency and gas_estimate
         )
+    elif node.value == "if" and len(argz) == 3:
+        # if(x) compiles to jumpi(_, iszero(x))
+        # there is an asm optimization for the sequence ISZERO ISZERO..JUMPI
+        # so we swap the branches here to activate that optimization.
+        cond = argz[0]
+        true_branch = argz[1]
+        false_branch = argz[2]
+        return LLLnode.from_list(
+            ["if", ["iszero", cond], false_branch, true_branch],
+            typ=node.typ,
+            location=node.location,
+            pos=node.pos,
+            annotation=node.annotation,
+        )
     elif node.total_gas is not None:
         o = LLLnode(
             node.value,
