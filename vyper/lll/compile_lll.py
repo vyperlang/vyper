@@ -111,6 +111,7 @@ def compile_to_assembly(code, use_ovm=False):
     res = _compile_to_assembly(code)
 
     _add_postambles(res, use_ovm)
+    _optimize_assembly(res)
     return res
 
 
@@ -666,6 +667,10 @@ def _prune_unused_jumpdests(assembly):
 
 # optimize assembly, in place
 def _optimize_assembly(assembly):
+    for x in assembly:
+        if isinstance(x, list):
+            _optimize_assembly(x)
+
     _prune_unreachable_code(assembly)
     _merge_iszero(assembly)
     _merge_jumpdests(assembly)
@@ -675,8 +680,6 @@ def _optimize_assembly(assembly):
 
 # Assembles assembly into EVM
 def assembly_to_evm(assembly, start_pos=0):
-    _optimize_assembly(assembly)
-
     line_number_map = {
         "breakpoints": set(),
         "pc_breakpoints": set(),
