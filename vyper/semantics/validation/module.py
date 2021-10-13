@@ -189,7 +189,7 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
                 # remove the outer call node, to handle cases such as `public(map(..))`
                 annotation = annotation.args[0]
 
-        data_loc = DataLocation.UNSET if is_immutable else DataLocation.STORAGE
+        data_loc = DataLocation.CODE if is_immutable else DataLocation.STORAGE
         type_definition = get_type_from_annotation(
             annotation, data_loc, is_constant, is_public, is_immutable
         )
