@@ -250,9 +250,7 @@ class LLLnode:
             # Stack variables
             else:
                 self.valency = 1
-                self.gas = 3
-                if self.value == "if_unchecked":
-                    self.gas = self.args[0].gas + self.args[1].gas + 17
+                self.gas = 5
         elif self.value is None:
             self.valency = 1
             # None LLLnodes always get compiled into something else, e.g.

@@ -181,7 +181,7 @@ def apply_general_optimizations(node: LLLnode) -> LLLnode:
         )
     # [ne, x, y] has the same truthyness as [xor, x, y]
     # rewrite 'ne' as 'xor' in places where truthy is accepted.
-    elif node.value in ("if", "if_unchecked", "assert") and argz[0].value == "ne":
+    elif node.value in ("if", "assert") and argz[0].value == "ne":
         argz[0] = LLLnode.from_list(["xor"] + argz[0].args)  # type: ignore
         return LLLnode.from_list(
             [node.value] + argz,  # type: ignore
