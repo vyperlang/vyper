@@ -66,6 +66,12 @@ def make_return_stmt(lll_val: LLLnode, stmt: Any, context: Context) -> Optional[
         # also returns the length of the output as a stack element
         encode_out = abi_encode(return_buffer_ofst, lll_val, pos=_pos, returns_len=True)
 
+        # previously we would fill the return buffer and push the location and length onto the stack
+        # inside of the `seq_unchecked` thereby leaving it for the function cleanup routine expects
+        # the return_ofst and return_len to be on the stack
+        # CMC introduced `goto` with args so this enables us to replace `seq_unchecked` w/ `seq`
+        # and then just append the arguments for the cleanup to the `jump_to_exit` list
+        # check in vyper/old_codegen/self_call.py for an example
         jump_to_exit += [return_buffer_ofst, encode_out]
-        # fill the return buffer and push the location and length onto the stack
+
         return finalize(["pass"])

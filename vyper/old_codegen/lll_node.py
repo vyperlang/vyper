@@ -250,7 +250,7 @@ class LLLnode:
             # Stack variables
             else:
                 self.valency = 1
-                self.gas = 5
+                self.gas = 3
         elif self.value is None:
             self.valency = 1
             # None LLLnodes always get compiled into something else, e.g.
