@@ -201,6 +201,8 @@ class Expr:
         if self.lll_node is None:
             raise TypeCheckFailure(f"{type(node).__name__} node did not produce LLL. {self.expr}")
 
+        self.lll_node.annotation = self.expr.get("node_source_code")
+
     def parse_Int(self):
         # Literal (mostly likely) becomes int256
         if self.expr.n < 0:
