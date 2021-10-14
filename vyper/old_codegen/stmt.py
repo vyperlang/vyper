@@ -25,6 +25,8 @@ class Stmt:
         if self.lll_node is None:
             raise TypeCheckFailure("Statement node did not produce LLL")
 
+        self.lll_node.annotation = self.stmt.get("node_source_code")
+
     def parse_Expr(self):
         return Stmt(self.stmt.value, self.context).lll_node
 
@@ -74,7 +76,6 @@ class Stmt:
         )
 
         lll_node = make_setter(variable_loc, sub, pos=getpos(self.stmt))
-        lll_node.annotation = self.stmt.get("node_source_code")
 
         return lll_node
 
@@ -85,7 +86,6 @@ class Stmt:
 
         lll_node = make_setter(target, sub, pos=getpos(self.stmt))
         lll_node.pos = getpos(self.stmt)
-        lll_node.annotation = self.stmt.get("node_source_code")
         return lll_node
 
     def parse_If(self):
