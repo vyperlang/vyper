@@ -180,7 +180,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
             height,
         )
     # If statements (2 arguments, ie. if x: y)
-    elif code.value in ("if", "if_unchecked") and len(code.args) == 2:
+    elif code.value == "if" and len(code.args) == 2:
         o = []
         o.extend(_compile_to_assembly(code.args[0], withargs, existing_labels, break_dest, height))
         end_symbol = mksymbol()
@@ -260,7 +260,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         dest, continue_dest, break_height = break_dest
         return ["POP"] * (height - break_height) + [dest, "JUMP"]
     # Break from inside one or more for loops prior to a return statement inside the loop
-    elif code.value == "exit_repeater":
+    elif code.value == "cleanup_repeat":
         if not break_dest:
             raise CompilerPanic("Invalid break")
         _, _, break_height = break_dest
@@ -322,12 +322,6 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
                 o.append("POP")
         return o
     # Seq without popping.
-    elif code.value == "seq_unchecked":
-        o = []
-        for arg in code.args:
-            o.extend(_compile_to_assembly(arg, withargs, existing_labels, break_dest, height))
-            height += arg.valency
-        return o
     # Assure (if false, invalid opcode)
     elif code.value == "assert_unreachable":
         o = _compile_to_assembly(code.args[0], withargs, existing_labels, break_dest, height)
