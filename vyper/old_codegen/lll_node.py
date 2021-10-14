@@ -251,8 +251,6 @@ class LLLnode:
             else:
                 self.valency = 1
                 self.gas = 5
-                if self.value == "seq_unchecked":
-                    self.gas = sum([arg.gas for arg in self.args]) + 30
                 if self.value == "if_unchecked":
                     self.gas = self.args[0].gas + self.args[1].gas + 17
         elif self.value is None:

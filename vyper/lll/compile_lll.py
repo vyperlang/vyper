@@ -322,12 +322,6 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
                 o.append("POP")
         return o
     # Seq without popping.
-    elif code.value == "seq_unchecked":
-        o = []
-        for arg in code.args:
-            o.extend(_compile_to_assembly(arg, withargs, existing_labels, break_dest, height))
-            height += arg.valency
-        return o
     # Assure (if false, invalid opcode)
     elif code.value == "assert_unreachable":
         o = _compile_to_assembly(code.args[0], withargs, existing_labels, break_dest, height)
