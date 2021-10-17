@@ -1119,7 +1119,7 @@ class RawCall(_SimpleBuiltinFunction):
 
         placeholder = context.new_internal_variable(data.typ)
         placeholder_node = LLLnode.from_list(placeholder, typ=data.typ, location="memory")
-        copier = make_byte_array_copier(placeholder_node, data, pos=getpos(expr))
+        copy_input = make_byte_array_copier(placeholder_node, data, pos=getpos(expr))
         output_placeholder = context.new_internal_variable(ByteArrayType(outsize))
         output_node = LLLnode.from_list(
             output_placeholder,
@@ -1127,10 +1127,7 @@ class RawCall(_SimpleBuiltinFunction):
             location="memory",
         )
 
-        if not revert_on_failure:
-            bool_ty = BaseType("bool")
-            call_success_pos = context.new_internal_variable(bool_ty)
-            call_success_node = LLLnode.from_list(call_success_pos, typ=bool_ty, location="memory")
+        bool_ty = BaseType("bool")
 
         # build LLL for call or delegatecall
         common_call_lll = [
@@ -1141,17 +1138,14 @@ class RawCall(_SimpleBuiltinFunction):
             outsize,
         ]
 
+        call_lll = ["seq", copy_input]
         if delegate_call:
-            call_lll = ["delegatecall", gas, to] + common_call_lll
+            call_op = ["delegatecall", gas, to, *common_call_lll]
         elif static_call:
-            call_lll = ["staticcall", gas, to] + common_call_lll
+            call_op = ["staticcall", gas, to, *common_call_lll]
         else:
-            call_lll = ["call", gas, to, value] + common_call_lll
-
-        if revert_on_failure:
-            call_op = ["assert", call_lll]
-        else:
-            call_op = ["mstore", call_success_node, call_lll]
+            call_op = ["call", gas, to, value, *common_call_lll]
+        call_lll += [call_op]
 
         # build sequence LLL
         if outsize:
@@ -1163,32 +1157,36 @@ class RawCall(_SimpleBuiltinFunction):
                 ["with", "_r", "returndatasize", ["if", ["gt", "_l", "_r"], "_r", "_l"]],
             ]
 
+            # store output size and return output location
+            store_output_size = [
+                "with",
+                "output_pos",
+                output_node,
+                ["seq", ["mstore", "output_pos", size], "output_pos"],
+            ]
+
             bytes_ty = ByteArrayType(outsize)
+
             if revert_on_failure:
                 typ = bytes_ty
-                ret_lll = ["seq", copier, call_op, ["mstore", output_node, size], output_node]
+                ret_lll = ["seq", ["assert", call_lll], store_output_size]
             else:
-                typ = TupleType([bool_ty, ByteArrayType(outsize)])
-                # call_success_node gets evaluated first in make_setter
+                typ = TupleType([bool_ty, bytes_ty])
                 ret_lll = [
                     "multi",
-                    [
-                        "seq",
-                        copier,
-                        ["mstore", call_success_node, call_lll],
-                        ["mstore", output_node, size],
-                        call_success_node,
-                    ],
-                    output_node,
+                    # use LLLnode.from_list to make sure the types are
+                    # set properly on the "multi" members
+                    LLLnode.from_list(call_lll, typ=bool_ty),
+                    LLLnode.from_list(store_output_size, typ=bytes_ty, location="memory"),
                 ]
 
         else:
             if revert_on_failure:
                 typ = None
-                ret_lll = ["seq", copier, call_op]
+                ret_lll = ["assert", call_lll]
             else:
                 typ = bool_ty
-                ret_lll = ["seq", copier, call_op, call_success_node]
+                ret_lll = call_lll
 
         return LLLnode.from_list(ret_lll, typ=typ, location="memory", pos=getpos(expr))
 

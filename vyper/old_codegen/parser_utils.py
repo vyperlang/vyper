@@ -620,7 +620,7 @@ def _complex_make_setter(left, right, pos):
 
     else:
         # general case
-        if right.is_complex_lll and right.value != "multi":
+        if right.is_complex_lll:
             # create a reference to the R pointer
             _r = LLLnode.from_list(
                 "_R", typ=right.typ, location=right.location, encoding=right.encoding
@@ -631,7 +631,7 @@ def _complex_make_setter(left, right, pos):
 
         rhs_items = [get_element_ptr(_r, k, pos=pos, array_bounds_check=False) for k in keys]
 
-    if left.is_complex_lll and left.value != "multi":
+    if left.is_complex_lll:
         _l = LLLnode.from_list("_L", typ=left.typ, location=left.location, encoding=left.encoding)
     else:
         _l = left
