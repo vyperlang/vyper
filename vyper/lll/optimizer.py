@@ -169,9 +169,9 @@ def apply_general_optimizations(node: LLLnode) -> LLLnode:
             raise Exception("Clamp always fails")
     # [eq, x, 0] is the same as [iszero, x].
     elif node.value == "eq" and int_at(argz, 1) and argz[1].value == 0:
-        return LLLnode(
-            "iszero",
-            [argz[0]],
+        ret = ["iszero", argz[0]]
+        return LLLnode.from_list(
+            ret,
             node.typ,
             node.location,
             node.pos,
@@ -179,10 +179,13 @@ def apply_general_optimizations(node: LLLnode) -> LLLnode:
             add_gas_estimate=node.add_gas_estimate,
             valency=node.valency,
         )
-    # [ne, x, y] has the same truthyness as [xor, x, y]
-    # rewrite 'ne' as 'xor' in places where truthy is accepted.
-    elif node.value in ("if", "assert") and argz[0].value == "ne":
-        argz[0] = LLLnode.from_list(["xor"] + argz[0].args)  # type: ignore
+    # (eq x y) has the same truthyness as (iszero (xor x y))
+    # rewrite 'eq' as 'xor' in places where truthy is accepted.
+    # (the sequence (if (iszero (xor x y))) will be translated to
+    #  XOR ISZERO ISZERO ..JUMPI and the ISZERO ISZERO will be
+    #  optimized out)
+    elif node.value in ("if", "assert") and argz[0].value == "eq":
+        argz[0] = ["iszero", ["xor", *argz[0].args]]  # type: ignore
         return LLLnode.from_list(
             [node.value] + argz,  # type: ignore
             typ=node.typ,

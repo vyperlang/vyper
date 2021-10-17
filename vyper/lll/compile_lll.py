@@ -673,6 +673,17 @@ def _prune_unused_jumpdests(assembly):
         else:
             i += 1
 
+def _stack_peephole_opts(assembly):
+    i = 0
+    while i < len(assembly) - 2:
+        if assembly[i:i+3] == ["DUP1", "SWAP1", "POP"]:
+            del assembly[i:i+2]
+            continue
+        if assembly[i:i+3] == ["SWAP1", "POP", "POP"]:
+            del assembly[i]
+            continue
+        i += 1
+
 
 # optimize assembly, in place
 def _optimize_assembly(assembly):
@@ -685,6 +696,7 @@ def _optimize_assembly(assembly):
     _merge_jumpdests(assembly)
     _prune_inefficient_jumps(assembly)
     _prune_unused_jumpdests(assembly)
+    _stack_peephole_opts(assembly)
 
 
 # Assembles assembly into EVM
