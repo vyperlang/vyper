@@ -4,10 +4,11 @@ from vyper.lll import optimizer
 from vyper.old_codegen.parser import LLLnode
 
 optimize_list = [
-    (["ne", 1, 0], ["ne", 1, 0]),  # noop
-    (["if", ["ne", 1, 0], "pass"], ["if", ["xor", 1, 0], "pass"]),
-    (["assert", ["ne", 1, 0]], ["assert", ["xor", 1, 0]]),
-    (["mstore", 0, ["ne", 1, 0]], ["mstore", 0, ["ne", 1, 0]]),  # noop
+    (["eq", 1, 0], ["iszero", 1]),
+    (["eq", 1, 2], ["eq", 1, 2]), # noop
+    (["if", ["eq", 1, 2], "pass"], ["if", ["iszero", ["xor", 1, 2]], "pass"]),
+    (["assert", ["eq", 1, 2]], ["assert", ["iszero", ["xor", 1, 2]]]),
+    (["mstore", 0, ["eq", 1, 2]], ["mstore", 0, ["eq", 1, 2]]),  # noop
 ]
 
 
