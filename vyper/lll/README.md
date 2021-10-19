@@ -4,19 +4,19 @@ LLL is Vyper's current intermediate representation. It is used as "a high level 
 
 # Structure of LLL
 
-The grammar of LLL is `(sexp)` where `sexp` is one of
+The grammar of LLL is `(s_expr)` where `s_expr` is one of
 
 ```
-SEXP :=
+s_expr :=
   INT_LITERAL |
   IDENTIFIER |
-  EVM_OPCODE *SEXP |
-  PSEUDO_OPCODE *SEXP |
-  WITH identifier SEXP SEXP |
-  SET identifier SEXP |
-  SEQ *SEXP |
-  IF_STMT SEXP SEXP [SEXP] |
-  REPEAT SEXP SEXP SEXP SEXP
+  EVM_OPCODE *s_expr |
+  PSEUDO_OPCODE *s_expr |
+  "with" IDENTIFIER s_expr s_expr |
+  "set" IDENTIFIER s_expr |
+  "seq" *s_expr |
+  "if" s_expr s_expr [s_expr] |
+  "repeat" s_expr s_expr s_expr s_expr
 ```
 
 An LLL expression has a "valency" of 1 or 0. Valency of 1 means that it returns a stack item, valency of 0 means that it does not.
