@@ -53,11 +53,9 @@ def compile_to_lll(input_file, output_formats, show_gas_estimates=False):
 
     compiler_data = {}
     lll = LLLnode.from_list(s_expressions[0])
+    lll = optimizer.optimize(lll)
     if "ir" in output_formats:
         compiler_data["ir"] = lll
-
-    if "opt_ir" in output_formats:
-        compiler_data["opt_ir"] = optimizer.optimize(lll)
 
     asm = compile_lll.compile_to_assembly(lll)
     if "asm" in output_formats:
