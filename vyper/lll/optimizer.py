@@ -169,9 +169,9 @@ def apply_general_optimizations(node: LLLnode) -> LLLnode:
             raise Exception("Clamp always fails")
     # [eq, x, 0] is the same as [iszero, x].
     elif node.value == "eq" and int_at(argz, 1) and argz[1].value == 0:
-        ret = ["iszero", argz[0]]
-        return LLLnode.from_list(
-            ret,
+        return LLLnode(
+            "iszero",
+            [argz[0]],
             node.typ,
             node.location,
             node.pos,
