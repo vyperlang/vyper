@@ -180,7 +180,7 @@ def parse_regular_functions(
 
     immutables = [_global for _global in global_ctx._globals.values() if _global.is_immutable]
 
-    if immutables:
+    if len(immutables) > 0:
         # find position of the last immutable so we do not overwrite it in memory
         # when we codecopy the runtime code to memory
         immutables = sorted(immutables, key=lambda imm: imm._metadata["memory_loc"])
