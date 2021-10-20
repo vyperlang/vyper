@@ -10,7 +10,6 @@ from vyper.exceptions import (
     TypeCheckFailure,
     TypeMismatch,
 )
-from vyper.old_codegen.arg_clamps import int128_clamp
 from vyper.old_codegen.lll_node import Encoding, LLLnode
 from vyper.old_codegen.types import (
     BaseType,
@@ -179,7 +178,7 @@ def make_byte_slice_copier(destination, source, length, max_length, pos=None):
                 "with",
                 "_l",
                 max_length,  # CMC 20210917 shouldn't this just be length
-                ["staticcall", "gas", 4, source, "_l", destination, "_l"]
+                ["staticcall", "gas", 4, source, "_l", destination, "_l"],
             ],
             typ=None,
             annotation=f"copy byte slice dest: {str(destination)}",
@@ -254,50 +253,6 @@ def make_byte_slice_copier(destination, source, length, max_length, pos=None):
     )
 
 
-# Takes a <32 byte array as input, and outputs a number.
-def byte_array_to_num(
-    arg,
-    expr,
-    out_type,
-    offset=32,
-):
-    if arg.location == "storage":
-        lengetter = LLLnode.from_list(["sload", "_sub"], typ=BaseType("int256"))
-        first_el_getter = LLLnode.from_list(["sload", ["add", 1, "_sub"]], typ=BaseType("int256"))
-    else:
-        op = load_op(arg.location)
-        lengetter = LLLnode.from_list([op, "_sub"], typ=BaseType("int256"))
-        first_el_getter = LLLnode.from_list([op, ["add", 32, "_sub"]], typ=BaseType("int256"))
-
-    if out_type == "int128":
-        result = int128_clamp(["div", "_el1", ["exp", 256, ["sub", 32, "_len"]]])
-    elif out_type == "uint8":
-        result = [
-            "with",
-            "_res",
-            ["div", "_el1", ["exp", 256, ["sub", 32, "_len"]]],
-            ["seq", _int_clamp(LLLnode("_res", typ="uint8"), 8), "_res"],
-        ]
-    elif out_type in ("int256", "uint256"):
-        result = ["div", "_el1", ["exp", 256, ["sub", offset, "_len"]]]
-    # TODO decimal clamp?
-    return LLLnode.from_list(
-        [
-            "with",
-            "_sub",
-            arg,
-            [
-                "with",
-                "_el1",
-                first_el_getter,
-                ["with", "_len", ["clamp", 0, lengetter, 32], result],
-            ],
-        ],
-        typ=BaseType(out_type),
-        annotation=f"bytearray to number ({out_type})",
-    )
-
-
 def get_bytearray_length(arg):
     typ = BaseType("uint256")
     return LLLnode.from_list([load_op(arg.location), arg], typ=typ)
@@ -312,7 +267,7 @@ def getpos(node):
     )
 
 
-def _add_ofst(loc, ofst):
+def add_ofst(loc, ofst):
     if isinstance(loc.value, int) and isinstance(ofst, int):
         ret = loc.value + ofst
     else:
@@ -333,13 +288,13 @@ def get_element_ptr(parent, key, pos, array_bounds_check=True):
 
     def _abi_helper(member_t, ofst, clamp=True):
         member_abi_t = abi_type_of(member_t)
-        ofst_lll = _add_ofst(parent, ofst)
+        ofst_lll = add_ofst(parent, ofst)
 
         if member_abi_t.is_dynamic():
             # double dereference, according to ABI spec
             # TODO optimize special case: first dynamic item
             # offset is statically known.
-            ofst_lll = _add_ofst(parent, unwrap_location(ofst_lll))
+            ofst_lll = add_ofst(parent, unwrap_location(ofst_lll))
 
         return LLLnode.from_list(
             ofst_lll,
@@ -402,7 +357,7 @@ def get_element_ptr(parent, key, pos, array_bounds_check=True):
             for i in range(index):
                 offset += 32 * get_size_of_type(typ.members[attrs[i]])
             return LLLnode.from_list(
-                _add_ofst(parent, offset),
+                add_ofst(parent, offset),
                 typ=typ.members[key],
                 location=location,
                 annotation=annotation,
@@ -551,8 +506,7 @@ def make_setter(left, right, pos):
         right = unwrap_location(right)
         # TODO rethink/streamline the clamp_basetype logic
         if _needs_clamp(right.typ, enc):
-            _val = LLLnode("val", typ=right.typ)
-            right = ["with", _val, right, ["seq", clamp_basetype(_val), _val]]
+            right = clamp_basetype(right)
 
         if left.location == "storage":
             return LLLnode.from_list(["sstore", left, right], typ=None)
@@ -565,7 +519,7 @@ def make_setter(left, right, pos):
         if _needs_clamp(right.typ, right.encoding):
             _val = LLLnode("val", location=right.location, typ=right.typ)
             copier = make_byte_array_copier(left, _val, pos)
-            ret = ["with", _val, right, ["seq", clamp_basetype(_val), copier]]
+            ret = ["with", _val, right, ["seq", clamp_bytestring(_val), copier]]
         else:
             ret = make_byte_array_copier(left, right, pos)
 
@@ -719,13 +673,13 @@ def zero_pad(bytez_placeholder):
 
 
 # convenience rewrites for shr/sar/shl
-def _shr(x, bits):
+def shr(x, bits):
     if version_check(begin="constantinople"):
         return ["shr", bits, x]
     return ["div", x, ["exp", 2, bits]]
 
 
-def _sar(x, bits):
+def sar(x, bits):
     if version_check(begin="constantinople"):
         return ["sar", bits, x]
 
@@ -748,32 +702,43 @@ def _needs_clamp(t, encoding):
     return False
 
 
+@type_check_wrapper
+def clamp_bytestring(lll_node):
+    t = lll_node.typ
+    if not isinstance(t, ByteArrayLike):
+        return  # raises
+    return ["assert", ["le", get_bytearray_length(lll_node), t.maxlen]]
+
+
 # clampers for basetype
 @type_check_wrapper
 def clamp_basetype(lll_node):
     t = lll_node.typ
-    if isinstance(t, ByteArrayLike):
-        return ["assert", ["le", get_bytearray_length(lll_node), t.maxlen]]
-    if isinstance(t, BaseType):
-        lll_node = unwrap_location(lll_node)
-        if t.typ in ("int128"):
-            return _int_clamp(lll_node, 128, signed=True)
-        if t.typ == "uint8":
-            return _int_clamp(lll_node, 8, signed=False)
-        if t.typ in ("decimal"):
-            return [
-                "clamp",
-                ["mload", MemoryPositions.MINDECIMAL],
-                lll_node,
-                ["mload", MemoryPositions.MAXDECIMAL],
-            ]
+    if not isinstance(t, BaseType):
+        return  # raises
 
-        if t.typ in ("address",):
-            return _int_clamp(lll_node, 160)
-        if t.typ in ("bool",):
-            return _int_clamp(lll_node, 1)
-        if t.typ in ("int256", "uint256", "bytes32"):
-            return ["pass"]  # special case, no clamp
+    # copy of the input
+    lll_node = unwrap_location(lll_node)
+
+    if t.typ in ("int128"):
+        return _int_clamp(lll_node, 128, signed=True)
+    if t.typ == "uint8":
+        return _int_clamp(lll_node, 8)
+    if t.typ in ("decimal"):
+        return [
+            "clamp",
+            ["mload", MemoryPositions.MINDECIMAL],
+            lll_node,
+            ["mload", MemoryPositions.MAXDECIMAL],
+        ]
+
+    if t.typ in ("address",):
+        return _int_clamp(lll_node, 160)
+    if t.typ in ("bool",):
+        return _int_clamp(lll_node, 1)
+    if t.typ in ("int256", "uint256", "bytes32"):
+        return lll_node  # special case, no clamp.
+
     return  # raises
 
 
@@ -784,7 +749,7 @@ def _int_clamp(lll_node, bits, signed=False):
     type-based dispatch and is a little safer.)
     """
     if bits >= 256:
-        raise CompilerPanic("shouldn't clamp", lll_node)
+        raise CompilerPanic(f"invalid clamp: {bits}>=256 ({lll_node})")
     if signed:
         # example for bits==128:
         # if _val is in bounds,
@@ -792,8 +757,10 @@ def _int_clamp(lll_node, bits, signed=False):
         # _val >>> 127 == -1 for negative _val
         # -1 and 0 are the only numbers which are unchanged by sar,
         # so sar'ing (_val>>>127) one more bit should leave it unchanged.
-        ret = ["with", "x", lll_node, ["assert", ["eq", _sar("x", bits - 1), _sar("x", bits)]]]
+        assertion = ["assert", ["eq", sar("val", bits - 1), sar("val", bits)]]
     else:
-        ret = ["assert", ["iszero", _shr(lll_node, bits)]]
+        assertion = ["assert", ["iszero", shr("val", bits)]]
+
+    ret = ["with", "val", lll_node, ["seq", assertion, "val"]]
 
     return LLLnode.from_list(ret, annotation=f"int_clamp {lll_node.typ}")
