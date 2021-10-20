@@ -125,6 +125,7 @@ struct X:
 @external
 def add_record():
     a: X = X({x: block.timestamp})
+    a.x = block.gaslimit
     a.x = 5
     """,
     """
