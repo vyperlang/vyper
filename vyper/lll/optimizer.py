@@ -179,10 +179,13 @@ def apply_general_optimizations(node: LLLnode) -> LLLnode:
             add_gas_estimate=node.add_gas_estimate,
             valency=node.valency,
         )
-    # [ne, x, y] has the same truthyness as [xor, x, y]
-    # rewrite 'ne' as 'xor' in places where truthy is accepted.
-    elif node.value in ("if", "assert") and argz[0].value == "ne":
-        argz[0] = LLLnode.from_list(["xor"] + argz[0].args)  # type: ignore
+    # (eq x y) has the same truthyness as (iszero (xor x y))
+    # rewrite 'eq' as 'xor' in places where truthy is accepted.
+    # (the sequence (if (iszero (xor x y))) will be translated to
+    #  XOR ISZERO ISZERO ..JUMPI and the ISZERO ISZERO will be
+    #  optimized out)
+    elif node.value in ("if", "assert") and argz[0].value == "eq":
+        argz[0] = ["iszero", ["xor", *argz[0].args]]  # type: ignore
         return LLLnode.from_list(
             [node.value] + argz,  # type: ignore
             typ=node.typ,
