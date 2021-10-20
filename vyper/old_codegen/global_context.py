@@ -6,6 +6,12 @@ from vyper.exceptions import CompilerPanic, InvalidType, StructureException
 from vyper.old_codegen.types import InterfaceType, parse_type
 from vyper.typing import InterfaceImports
 
+try:
+    # available py3.8+
+    from functools import cached_property
+except ImportError:
+    from cached_property import cached_property  # type: ignore
+
 
 # Datatype to store all global context information.
 class GlobalContext:
@@ -235,3 +241,7 @@ class GlobalContext:
             sigs=self._contracts,
             custom_structs=self._structs,
         )
+
+    @cached_property
+    def immutable_section_size(self):
+        return sum([imm.size * 32 for imm in self._globals.values() if imm.is_immutable])
