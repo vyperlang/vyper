@@ -92,6 +92,16 @@ Could compile to `PUSH1 1 PUSH1 0 RETURN`, and has a valency of 0 (as `RETURN` d
 
 The liveness of a variable is restricted to the scope of the with expression. In other words, if variables are still live on the stack at the scope exit they should be popped.
 
+Shadowing is allowed, for instance the expression
+
+```
+(with x 1
+ (with y 2
+  (with x y
+   x)))
+```
+will evaluate to `2`.
+
 ### SET
 
 A set expression modifies the value of a variable. Its valency is 0.
@@ -293,11 +303,11 @@ Compare or equal
 
 Clamp pseudo-opcodes ensure that an input is bounded by some other input(s), and returns its first input.
 
-`(uclamp x y z)` is equivalent to `(with x x (with y y (with z z (seq (assert (gt x y)) (assert (lt x z)) x))))`
+`(uclamp x y z)` is equivalent to `(with x_ x (with y_ y (with z_ z (seq (assert (gt x_ y_)) (assert (lt x_ z_)) x_))))`
 
 `clamp` is equivalent to `uclamp` but with `sgt` and `slt` instead of `gt` and `lt`.
 
-`(uclamplt x y)` is equivalent to `(with x x (with y y (seq (assert lt x y) x)))`
+`(uclamplt x y)` is equivalent to `(with x_ x (with y_ y (seq (assert lt x_ y_) x_)))`
 The remaining clamp opcodes behave similarly. They are,
 ```
 uclample
@@ -325,4 +335,4 @@ def ceil32(x):
     return x if x % 32 == 0 else x + 32 - (x % 32)
 ```
 
-In LLL, `(ceil32 x)` is equivalent to `(with x x (sub (add x 31) (mod (x 1) 32)))`
+In LLL, `(ceil32 x)` is equivalent to `(with x_ x (sub (add x_ 31) (mod (x_ 1) 32)))`
