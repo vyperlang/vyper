@@ -92,7 +92,7 @@ def foo(s: bool) -> bool:
 
 
 @pytest.mark.parametrize("evm_version", list(EVM_VERSIONS))
-@pytest.mark.parametrize("value", [0, 18, 39, 89, 100, 128, 200, 255])
+@pytest.mark.parametrize("value", list(range(2 ** 8)))
 def test_uint8_clamper_passing(w3, get_contract, value, evm_version):
     code = """
 @external
