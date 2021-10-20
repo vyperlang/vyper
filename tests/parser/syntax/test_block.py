@@ -126,6 +126,7 @@ struct X:
 def add_record():
     a: X = X({x: block.timestamp})
     a.x = block.gaslimit
+    a.x = block.basefee
     a.x = 5
     """,
     """
