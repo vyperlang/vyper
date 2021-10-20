@@ -18,7 +18,7 @@ from vyper.old_codegen.parser_utils import (
     get_element_ptr,
     get_number_as_fraction,
     getpos,
-    int_clamp,
+    clamp_basetype,
     load_op,
     make_setter,
     unwrap_location,
@@ -721,8 +721,8 @@ class Expr:
         if new_typ.typ == "int128":
             p.append(int128_clamp(arith))
         elif new_typ.typ == "uint8":
-            p.append(int_clamp(LLLnode.from_list(arith, typ=BaseType(new_typ.typ)), 8))
-            p.append(arith)
+            x = LLLnode.from_list(arith, typ=new_typ)
+            p.append(["with", "x", x, ["seq", clamp_basetype(x), x]])
         elif new_typ.typ == "decimal":
             p.append(
                 [

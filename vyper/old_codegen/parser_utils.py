@@ -276,7 +276,7 @@ def byte_array_to_num(
             "with",
             "_res",
             ["div", "_el1", ["exp", 256, ["sub", 32, "_len"]]],
-            ["seq", int_clamp(LLLnode("_res", typ="uint8"), 8), "_res"],
+            ["seq", _int_clamp(LLLnode("_res", typ="uint8"), 8), "_res"],
         ]
     elif out_type in ("int256", "uint256"):
         result = ["div", "_el1", ["exp", 256, ["sub", offset, "_len"]]]
@@ -757,9 +757,9 @@ def clamp_basetype(lll_node):
     if isinstance(t, BaseType):
         lll_node = unwrap_location(lll_node)
         if t.typ in ("int128"):
-            return int_clamp(lll_node, 128, signed=True)
+            return _int_clamp(lll_node, 128, signed=True)
         if t.typ == "uint8":
-            return int_clamp(lll_node, 8)
+            return _int_clamp(lll_node, 8, signed=False)
         if t.typ in ("decimal"):
             return [
                 "clamp",
@@ -769,18 +769,19 @@ def clamp_basetype(lll_node):
             ]
 
         if t.typ in ("address",):
-            return int_clamp(lll_node, 160)
+            return _int_clamp(lll_node, 160)
         if t.typ in ("bool",):
-            return int_clamp(lll_node, 1)
+            return _int_clamp(lll_node, 1)
         if t.typ in ("int256", "uint256", "bytes32"):
             return ["pass"]  # special case, no clamp
     return  # raises
 
 
-def int_clamp(lll_node, bits, signed=False):
+def _int_clamp(lll_node, bits, signed=False):
     """Generalized clamper for integer types. Takes the number of bits,
     whether it's signed, and returns an LLL node which checks it is
-    in bounds.
+    in bounds. (Consumers should use clamp_basetype instead which uses
+    type-based dispatch and is a little safer.)
     """
     if bits >= 256:
         raise CompilerPanic("shouldn't clamp", lll_node)
