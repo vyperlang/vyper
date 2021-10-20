@@ -1,9 +1,10 @@
-from decimal import Decimal, getcontext
+from decimal import Context, Decimal, setcontext
 
 from vyper import ast as vy_ast
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
     CompilerPanic,
+    DecimalOverrideException,
     InvalidLiteral,
     StructureException,
     TypeCheckFailure,
@@ -31,7 +32,15 @@ from vyper.utils import (
     MemoryPositions,
 )
 
-getcontext().prec = 78  # MAX_UINT256 < 1e78
+
+class DecimalContextOverride(Context):
+    def __setattr__(self, name, value):
+        if name == "prec":
+            raise DecimalOverrideException("Overriding decimal precision disabled")
+        super().__setattr__(name, value)
+
+
+setcontext(DecimalContextOverride(prec=78))
 
 
 def type_check_wrapper(fn):
@@ -102,7 +111,7 @@ def make_byte_array_copier(destination, source, pos=None):
     if destination.location == "memory" and source.location in ("memory", "code", "calldata"):
         if source.location == "memory":
             # TODO turn this into an LLL macro: memorycopy
-            copy_op = ["assert", ["call", ["gas"], 4, 0, "src", "sz", destination, "sz"]]
+            copy_op = ["staticcall", "gas", 4, "src", "sz", destination, "sz"]
             gas_bound = _identity_gas_bound(source.typ.maxlen)
         elif source.location == "calldata":
             copy_op = ["calldatacopy", destination, "src", "sz"]
@@ -170,7 +179,7 @@ def make_byte_slice_copier(destination, source, length, max_length, pos=None):
                 "with",
                 "_l",
                 max_length,  # CMC 20210917 shouldn't this just be length
-                ["pop", ["call", ["gas"], 4, 0, source, "_l", destination, "_l"]],
+                ["staticcall", "gas", 4, source, "_l", destination, "_l"]
             ],
             typ=None,
             annotation=f"copy byte slice dest: {str(destination)}",

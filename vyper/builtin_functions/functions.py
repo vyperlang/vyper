@@ -1763,13 +1763,14 @@ else:
         )
         return LLLnode.from_list(
             [
-                "seq_unchecked",
+                "seq",
                 placeholder_copy,  # load x variable
                 sqrt_lll,
-                ["mload", new_ctx.vars["z"].pos],  # unload z variable into the stack,
+                new_ctx.vars["z"].pos,
             ],
             typ=BaseType("decimal"),
             pos=getpos(expr),
+            location="memory",
         )
 
 

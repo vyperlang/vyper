@@ -173,7 +173,7 @@ def parse_regular_functions(
         "seq",
         func_init_lll(),
         ["with", "_calldata_method_id", ["mload", 0], external_seq],
-        ["seq_unchecked", ["label", "fallback"], fallback_lll],
+        ["seq", ["label", "fallback"], fallback_lll],
     ]
     runtime.extend(internal_funcs)
 
