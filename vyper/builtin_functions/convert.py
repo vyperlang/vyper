@@ -30,7 +30,7 @@ def byte_array_to_num(
     """
     # the location of the bytestring
     bs_start = (
-        LLLnode.from_list("_bs_start", typ=arg.typ, location=arg.location, encoding=arg.encoding)
+        LLLnode.from_list("bs_start", typ=arg.typ, location=arg.location, encoding=arg.encoding)
         if arg.is_complex_lll
         else arg
     )
@@ -47,7 +47,7 @@ def byte_array_to_num(
     # bytestring is right-padded with zeroes, int is left-padded.
     # convert by shr the number of zero bytes (converted to bits)
     # e.g. "abcd000000000000" -> bitcast(000000000000abcd, output_type)
-    bitcasted = LLLnode.from_list(shr(["mul", 8, ["sub", 32, "len_"]], "val"), typ=out_type)
+    bitcasted = LLLnode.from_list(shr("val", ["mul", 8, ["sub", 32, "len_"]]), typ=out_type)
 
     result = clamp_basetype(bitcasted)
 

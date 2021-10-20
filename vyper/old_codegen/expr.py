@@ -716,6 +716,8 @@ class Expr:
         if arith is None:
             return
 
+        arith = LLLnode.from_list(arith, typ=new_typ)
+
         p = [
             "with",
             "l",
