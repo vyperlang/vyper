@@ -1773,6 +1773,64 @@ else:
             location="memory",
         )
 
+class Log2(_SimpleBuiltinFunction):
+
+    _id = "log2"
+    _inputs = [("arg", DecimalDefinition())]
+    _return_type = DecimalDefinition()
+
+    @validate_inputs
+    def build_LLL(self, expr, args, kwargs, context):
+        # TODO check out this import
+        from vyper.builtin_functions.utils import generate_inline_function
+
+        arg = args[0]
+        vy_code = """
+# adapted from: https://medium.com/coinmonks/9aef8515136e
+assert x >= 1.0
+
+res: decimal = 0.0
+
+for i in range(8):
+    t: uint256 = 2**(7-i)
+    p: uint256 = 2**t
+    if x >= p:
+        pass
+        x /= convert(p, decimal)
+        res += convert(t, decimal)
+
+d: decimal = 1
+
+for i in range(34): # 10 decimals: math.log(10**10, 2) == 33.2
+    if (x >= 2):
+        res += d
+        x /= 2.0
+        pass
+    x *= x
+    d /= 2.0
+        """
+
+        x_type = BaseType("decimal")
+        new_var_pos = context.new_internal_variable(x_type)
+        placeholder_copy = ["mstore", new_var_pos, arg]
+        # Create input variables.
+        variables = {"x": VariableRecord(name="x", pos=new_var_pos, typ=x_type, mutable=True)}
+        # Generate inline LLL.
+        new_ctx, log2_lll = generate_inline_function(
+            code=vy_code, variables=variables, memory_allocator=context.memory_allocator
+        )
+        return LLLnode.from_list(
+            [
+                "seq",
+                placeholder_copy,  # load x variable
+                log2_lll,
+                new_ctx.vars["res"].pos,
+            ],
+            typ=BaseType("decimal"),
+            pos=getpos(expr),
+            location="memory",
+        )
+
 
 class Empty:
 
@@ -1957,6 +2015,7 @@ DISPATCH_TABLE = {
     "uint256_mulmod": MulMod(),
     "pow_mod256": PowMod256(),
     "sqrt": Sqrt(),
+    "log2": Log2(),
     "shift": Shift(),
     "create_forwarder_to": CreateForwarderTo(),
     "min": Min(),
