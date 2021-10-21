@@ -204,7 +204,7 @@ def parse_regular_functions(
             [
                 "with",
                 "_lllsz",  # keep size of runtime bytecode in sz var
-                ["lll", runtime, start_pos],  # store runtime code at `start_pos`
+                ["lll", start_pos, runtime],  # store runtime code at `start_pos`
                 # sequence of copying immutables, with final action of returning the runtime code
                 ["seq", *data_section, ["return", start_pos, ["add", data_section_size, "_lllsz"]]],
             ]
@@ -214,7 +214,7 @@ def parse_regular_functions(
         # NOTE: lll macro trailing 0 is the location in memory to store
         # the compiled bytecode
         # https://lll-docs.readthedocs.io/en/latest/lll_reference.html#code-lll
-        o.append(["return", 0, ["lll", runtime, 0]])
+        o.append(["return", 0, ["lll", 0, runtime]])
 
     return o, runtime
 

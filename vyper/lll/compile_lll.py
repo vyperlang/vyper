@@ -291,7 +291,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         endcode = mksymbol()
         o.extend([endcode, "JUMP", begincode, "BLANK"])
 
-        lll = _compile_to_assembly(code.args[0], {}, existing_labels, None, 0)
+        lll = _compile_to_assembly(code.args[1], {}, existing_labels, None, 0)
 
         # `append(...)` call here is intentional.
         # each sublist is essentially its own program with its
@@ -303,7 +303,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         o.append(lll)
 
         o.extend([endcode, "JUMPDEST", begincode, endcode, "SUB", begincode])
-        o.extend(_compile_to_assembly(code.args[1], withargs, existing_labels, break_dest, height))
+        o.extend(_compile_to_assembly(code.args[0], withargs, existing_labels, break_dest, height))
 
         # COPY the code to memory for deploy
         o.extend(["CODECOPY", begincode, endcode, "SUB"])
