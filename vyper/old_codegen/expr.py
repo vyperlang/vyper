@@ -418,6 +418,10 @@ class Expr:
                 return LLLnode.from_list(["coinbase"], typ="address", pos=getpos(self.expr))
             elif key == "block.number":
                 return LLLnode.from_list(["number"], typ="uint256", pos=getpos(self.expr))
+            elif key == "block.gaslimit":
+                return LLLnode.from_list(["gaslimit"], typ="uint256", pos=getpos(self.expr))
+            elif key == "block.basefee":
+                return LLLnode.from_list(["basefee"], typ="uint256", pos=getpos(self.expr))
             elif key == "block.prevhash":
                 return LLLnode.from_list(
                     ["blockhash", ["sub", "number", 1]],
