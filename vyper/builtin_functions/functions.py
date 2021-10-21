@@ -1789,7 +1789,7 @@ class Log2(_SimpleBuiltinFunction):
 # adapted from: https://medium.com/coinmonks/9aef8515136e
 lt1: bool = x < 1.0
 if lt1:
-    x = 1/x # log(1/x) = -log(x)
+    x = 1.0/x # log(1/x) = -log(x)
 
 res: decimal = 0.0
 
@@ -1797,11 +1797,10 @@ for i in range(8):
     t: uint256 = 2**(7-i)
     p: uint256 = 2**t
     if x >= p:
-        pass
         x /= convert(p, decimal)
         res += convert(t, decimal)
 
-d: decimal = 1
+d: decimal = 1.0
 
 for i in range(34): # 10 decimals: math.log(10**10, 2) == 33.2
     if (x >= 2):
