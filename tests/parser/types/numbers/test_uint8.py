@@ -174,6 +174,9 @@ def max_ne() -> (bool):
     assert c.max_ne() is True
 
 
+# TODO: create a tests/parser/functions/test_convert_to_uint8.py file
+
+
 def test_uint8_convert_clamps(get_contract, assert_tx_failed):
     code = """
 @external
