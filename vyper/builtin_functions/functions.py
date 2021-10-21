@@ -1787,7 +1787,9 @@ class Log2(_SimpleBuiltinFunction):
         arg = args[0]
         vy_code = """
 # adapted from: https://medium.com/coinmonks/9aef8515136e
-assert x >= 1.0
+lt1: bool = x < 1.0
+if lt1:
+    x = 1/x # log(1/x) = -log(x)
 
 res: decimal = 0.0
 
@@ -1808,6 +1810,9 @@ for i in range(34): # 10 decimals: math.log(10**10, 2) == 33.2
         pass
     x *= x
     d /= 2.0
+
+if lt1:
+    res = -res
         """
 
         x_type = BaseType("decimal")
