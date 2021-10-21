@@ -183,15 +183,15 @@ def parse_regular_functions(
     if len(immutables) > 0:
         # find position of the last immutable so we do not overwrite it in memory
         # when we codecopy the runtime code to memory
-        immutables = sorted(immutables, key=lambda imm: imm._metadata["memory_loc"])
-        start_pos = immutables[-1]._metadata["memory_loc"] + immutables[-1].size * 32
+        immutables = sorted(immutables, key=lambda imm: imm.pos)
+        start_pos = immutables[-1].pos + immutables[-1].size * 32
         # create sequence of actions to copy immutables to the end of the runtime code in memory
         data_section = []
         for immutable in immutables:
             # store each immutable at the end of the runtime code
             memory_loc, offset = (
-                immutable._metadata["memory_loc"],
-                immutable._metadata["data_offset"],
+                immutable.pos,
+                immutable.data_offset,
             )
             lhs = LLLnode.from_list(
                 ["add", start_pos + offset, "_lllsz"], typ=immutable.typ, location="memory"

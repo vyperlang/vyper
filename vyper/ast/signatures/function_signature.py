@@ -1,5 +1,6 @@
 import math
 from dataclasses import dataclass
+from typing import Optional
 
 from vyper import ast as vy_ast
 from vyper.exceptions import StructureException
@@ -24,6 +25,7 @@ class VariableRecord:
         defined_at=None,
         is_internal=False,
         is_immutable=False,
+        data_offset: Optional[int] = None,
     ):
         self.name = name
         self.pos = pos
@@ -35,6 +37,7 @@ class VariableRecord:
         self.defined_at = defined_at  # source code location variable record was defined.
         self.is_internal = is_internal
         self.is_immutable = is_immutable
+        self.data_offset = data_offset  # location in data section
 
     def __repr__(self):
         ret = vars(self)
