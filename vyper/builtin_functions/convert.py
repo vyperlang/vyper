@@ -175,12 +175,12 @@ def to_int128(expr, args, kwargs, context):
             else:
                 return LLLnode.from_list(in_arg, typ=BaseType("int128"), pos=getpos(expr))
 
-        else:
-            return LLLnode.from_list(
-                ["uclample", in_arg, ["mload", MemoryPositions.MAX_INT128]],
-                typ=BaseType("int128"),
-                pos=getpos(expr),
-            )
+        res = LLLnode.from_list(in_arg, typ="int128")
+        return LLLnode.from_list(
+            clamp_basetype(res),
+            typ=BaseType("int128"),
+            pos=getpos(expr),
+        )
 
     elif input_type == "decimal":
         # cast to int128 so clamp_basetype works

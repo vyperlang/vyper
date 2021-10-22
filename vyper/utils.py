@@ -106,18 +106,14 @@ MAX_DECIMAL_PLACES = 10
 DECIMAL_DIVISOR = 10 ** MAX_DECIMAL_PLACES
 
 
-# Number of bytes in memory used for system purposes, not for variables
+# memory used for system purposes, not for variables
 class MemoryPositions:
-    ADDRSIZE = 32
-    MAX_INT128 = 64
-    MIN_INT128 = 96
-    MAXDECIMAL = 128
-    MINDECIMAL = 160
-    FREE_VAR_SPACE = 192
-    FREE_VAR_SPACE2 = 224
-    BLANK_SPACE = 256
-    FREE_LOOP_INDEX = 288
-    RESERVED_MEMORY = 320
+    MAXDECIMAL = 32
+    MINDECIMAL = 64
+    FREE_VAR_SPACE = 128
+    FREE_VAR_SPACE2 = 160
+    FREE_LOOP_INDEX = 192
+    RESERVED_MEMORY = 224
 
 
 # Sizes of different data types. Used to clamp types.
@@ -152,9 +148,6 @@ class SizeLimits:
 # Map representing all limits loaded into a contract as part of the initializer
 # code.
 LOADED_LIMITS: Dict[int, int] = {
-    MemoryPositions.ADDRSIZE: SizeLimits.ADDRSIZE,
-    MemoryPositions.MAX_INT128: SizeLimits.MAX_INT128,
-    MemoryPositions.MIN_INT128: SizeLimits.MIN_INT128,
     MemoryPositions.MAXDECIMAL: SizeLimits.MAXDECIMAL,
     MemoryPositions.MINDECIMAL: SizeLimits.MINDECIMAL,
 }
