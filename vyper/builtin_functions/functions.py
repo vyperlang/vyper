@@ -304,7 +304,19 @@ class Slice:
             )
 
         if is_base_type(sub.typ, "bytes32"):
-            adj_sub = LLLnode.from_list(sub.args[0], typ=sub.typ, location="memory")
+            # optimize case when the expression is like (mload 352) or (sload 0)
+            if len(sub.args) == 1 and getattr(sub.args[0], "location", None) is not None:
+                adj_sub = sub.args[0]
+            else:
+                adj_sub = LLLnode.from_list(
+                    [
+                        "seq",
+                        ["mstore", MemoryPositions.FREE_VAR_SPACE, sub],
+                        MemoryPositions.FREE_VAR_SPACE,
+                    ],
+                    typ=sub.typ,
+                    location="memory",
+                )
 
         copier = make_byte_slice_copier(
             placeholder_plus_32_node,
