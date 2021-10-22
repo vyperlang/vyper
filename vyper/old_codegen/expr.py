@@ -11,10 +11,10 @@ from vyper.exceptions import (
     TypeMismatch,
 )
 from vyper.old_codegen import external_call, self_call
-from vyper.old_codegen.arg_clamps import int128_clamp
 from vyper.old_codegen.keccak256_helper import keccak256_helper
 from vyper.old_codegen.lll_node import LLLnode
 from vyper.old_codegen.parser_utils import (
+    clamp_basetype,
     get_element_ptr,
     get_number_as_fraction,
     getpos,
@@ -547,7 +547,7 @@ class Expr:
                         ],
                     ]
 
-            elif ltyp in ("decimal", "int128"):
+            elif ltyp in ("decimal", "int128", "uint8"):
                 op = "add" if isinstance(self.expr.op, vy_ast.Add) else "sub"
                 arith = [op, "l", "r"]
 
@@ -593,7 +593,7 @@ class Expr:
                     ],
                 ]
 
-            elif ltyp == "int128":
+            elif ltyp in ("int128", "uint8"):
                 arith = ["mul", "l", "r"]
 
             elif ltyp == "decimal":
@@ -620,7 +620,7 @@ class Expr:
                 # only apply the non-zero clamp when r is not a constant
                 divisor = ["clamp_nonzero", "r"]
 
-            if ltyp == "uint256":
+            if ltyp in ("uint8", "uint256"):
                 arith = ["div", "l", divisor]
 
             elif ltyp == "int256":
@@ -641,7 +641,7 @@ class Expr:
                     bounds_check = "pass"
                 arith = ["seq", bounds_check, ["sdiv", "l", divisor]]
 
-            elif ltyp in ("int128", "int256"):
+            elif ltyp == "int128":
                 arith = ["sdiv", "l", divisor]
 
             elif ltyp == "decimal":
@@ -663,7 +663,7 @@ class Expr:
                 # only apply the non-zero clamp when r is not a constant
                 divisor = ["clamp_nonzero", "r"]
 
-            if ltyp == "uint256":
+            if ltyp in ("uint8", "uint256"):
                 arith = ["mod", "l", divisor]
             else:
                 arith = ["smod", "l", divisor]
@@ -682,6 +682,9 @@ class Expr:
             elif ltyp == "int256":
                 is_signed = True
                 num_bits = 256
+            elif ltyp == "uint8":
+                is_signed = False
+                num_bits = 8
             else:
                 is_signed = False
                 num_bits = 256
@@ -717,24 +720,21 @@ class Expr:
         if arith is None:
             return
 
-        p = ["seq"]
-        if new_typ.typ == "int128":
-            p.append(int128_clamp(arith))
-        elif new_typ.typ == "decimal":
-            p.append(
-                [
-                    "clamp",
-                    ["mload", MemoryPositions.MINDECIMAL],
-                    arith,
-                    ["mload", MemoryPositions.MAXDECIMAL],
-                ]
-            )
-        elif new_typ.typ in ("uint256", "int256"):
-            p.append(arith)
-        else:
-            return
+        arith = LLLnode.from_list(arith, typ=new_typ)
 
-        p = ["with", "l", left, ["with", "r", right, p]]
+        p = [
+            "with",
+            "l",
+            left,
+            [
+                "with",
+                "r",
+                right,
+                # note clamp_basetype is a noop on [u]int256
+                # note: clamp_basetype throws on unclampable input
+                clamp_basetype(arith),
+            ],
+        ]
         return LLLnode.from_list(p, typ=new_typ, pos=pos)
 
     def build_in_comparator(self):

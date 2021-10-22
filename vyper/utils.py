@@ -129,6 +129,7 @@ class SizeLimits:
     MIN_INT256 = -(2 ** 255)
     MAXDECIMAL = (2 ** 127 - 1) * DECIMAL_DIVISOR
     MINDECIMAL = (-(2 ** 127)) * DECIMAL_DIVISOR
+    MAX_UINT8 = 2 ** 8 - 1
     MAX_UINT256 = 2 ** 256 - 1
 
     @classmethod
@@ -136,7 +137,9 @@ class SizeLimits:
         assert isinstance(type_str, str)
         if type_str == "decimal":
             return float(cls.MINDECIMAL) <= value <= float(cls.MAXDECIMAL)
-        if type_str == "uint256":
+        if type_str == "uint8":
+            return 0 <= value <= cls.MAX_UINT8
+        elif type_str == "uint256":
             return 0 <= value <= cls.MAX_UINT256
         elif type_str == "int128":
             return cls.MIN_INT128 <= value <= cls.MAX_INT128
@@ -201,7 +204,7 @@ VALID_LLL_MACROS = {
 }
 
 # Available base types
-BASE_TYPES = {"int128", "int256", "decimal", "bytes32", "uint256", "bool", "address"}
+BASE_TYPES = {"int128", "int256", "decimal", "bytes32", "uint8", "uint256", "bool", "address"}
 
 
 def is_instances(instances, instance_type):
