@@ -12,6 +12,7 @@ from vyper.old_codegen.parser_utils import (
     clamp_basetype,
     get_bytearray_length,
     getpos,
+    int_clamp,
     load_op,
     shr,
 )
@@ -175,9 +176,10 @@ def to_int128(expr, args, kwargs, context):
             else:
                 return LLLnode.from_list(in_arg, typ=BaseType("int128"), pos=getpos(expr))
 
-        res = LLLnode.from_list(in_arg, typ="int128")
+        # !! do not use clamp_basetype. check that input <= MAX_INT128.
+        res = int_clamp(in_arg, 128, signed=False)
         return LLLnode.from_list(
-            clamp_basetype(res),
+            res,
             typ=BaseType("int128"),
             pos=getpos(expr),
         )

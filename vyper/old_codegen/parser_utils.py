@@ -721,9 +721,9 @@ def clamp_basetype(lll_node):
     lll_node = unwrap_location(lll_node)
 
     if t.typ in ("int128"):
-        return _int_clamp(lll_node, 128, signed=True)
+        return int_clamp(lll_node, 128, signed=True)
     if t.typ == "uint8":
-        return _int_clamp(lll_node, 8)
+        return int_clamp(lll_node, 8)
     if t.typ in ("decimal"):
         return [
             "clamp",
@@ -733,16 +733,16 @@ def clamp_basetype(lll_node):
         ]
 
     if t.typ in ("address",):
-        return _int_clamp(lll_node, 160)
+        return int_clamp(lll_node, 160)
     if t.typ in ("bool",):
-        return _int_clamp(lll_node, 1)
+        return int_clamp(lll_node, 1)
     if t.typ in ("int256", "uint256", "bytes32"):
         return lll_node  # special case, no clamp.
 
     return  # raises
 
 
-def _int_clamp(lll_node, bits, signed=False):
+def int_clamp(lll_node, bits, signed=False):
     """Generalized clamper for integer types. Takes the number of bits,
     whether it's signed, and returns an LLL node which checks it is
     in bounds. (Consumers should use clamp_basetype instead which uses
