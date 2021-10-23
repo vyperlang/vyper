@@ -1042,7 +1042,7 @@ class Expr:
     def parse_List(self):
         multi_lll = [Expr(x, self.context).lll_node for x in self.expr.elements]
         # TODO this type inference is wrong. instead should use
-        # parse_type(canonical_type_of(self.expr._metadata["type"]))
+        # parse_type(canonical_abi_type_of(self.expr._metadata["type"]))
         out_type = next((i.typ for i in multi_lll if not i.typ.is_literal), multi_lll[0].typ)
         typ = ListType(out_type, len(self.expr.elements), is_literal=True)
         multi_lll = LLLnode.from_list(["multi"] + multi_lll, typ=typ, pos=getpos(self.expr))

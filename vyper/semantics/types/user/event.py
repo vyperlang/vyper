@@ -39,7 +39,7 @@ class Event:
 
     @property
     def signature(self):
-        return f"{self.name}({','.join(v.canonical_type for v in self.arguments.values())})"
+        return f"{self.name}({','.join(v.canonical_abi_type for v in self.arguments.values())})"
 
     @classmethod
     def from_abi(cls, abi: Dict) -> "Event":
@@ -119,7 +119,7 @@ class Event:
             {
                 "name": self.name,
                 "inputs": [
-                    {"name": name, "type": typ.canonical_type, "indexed": idx}
+                    {"name": name, "type": typ.canonical_abi_type, "indexed": idx}
                     for (name, typ), idx in zip(self.arguments.items(), self.indexed)
                 ],
                 "anonymous": False,

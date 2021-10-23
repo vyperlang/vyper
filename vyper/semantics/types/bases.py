@@ -265,7 +265,7 @@ class BaseTypeDefinition:
         self._modification_count = 0
 
     @property
-    def canonical_type(self) -> str:
+    def canonical_abi_type(self) -> str:
         """
         The canonical name of this type. Used for ABI types and generating function signatures.
         """

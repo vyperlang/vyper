@@ -398,7 +398,7 @@ class ContractFunction(BaseTypeDefinition):
         * For functions with default arguments, there is one key for each
           function signature.
         """
-        arg_types = [i.canonical_type for i in self.arguments.values()]
+        arg_types = [i.canonical_abi_type for i in self.arguments.values()]
 
         if not self.has_default_args:
             return _generate_method_id(self.name, arg_types)
@@ -513,10 +513,10 @@ def _generate_abi_type(type_definition, name=""):
             "type": "tuple",
             "components": [_generate_abi_type(i) for i in type_definition.value_type],
         }
-    return {"name": name, "type": type_definition.canonical_type}
+    return {"name": name, "type": type_definition.canonical_abi_type}
 
 
-def _generate_method_id(name: str, canonical_types: List[str]) -> Dict[str, int]:
-    function_sig = f"{name}({','.join(canonical_types)})"
+def _generate_method_id(name: str, canonical_abi_types: List[str]) -> Dict[str, int]:
+    function_sig = f"{name}({','.join(canonical_abi_types)})"
     selector = keccak256(function_sig.encode())[:4].hex()
     return {function_sig: int(selector, 16)}
