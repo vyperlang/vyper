@@ -9,7 +9,7 @@ from vyper.old_codegen.function_definitions.utils import get_nonreentrant_lock
 from vyper.old_codegen.lll_node import Encoding, LLLnode
 from vyper.old_codegen.parser_utils import get_element_ptr, getpos, make_setter
 from vyper.old_codegen.stmt import parse_body
-from vyper.old_codegen.types.types import BaseType, ByteArrayLike, ListType, TupleLike, TupleType
+from vyper.old_codegen.types.types import BaseType, ByteArrayLike, SArrayType, TupleLike, TupleType
 
 
 def _should_decode(typ):
@@ -20,7 +20,7 @@ def _should_decode(typ):
         return typ.typ not in ("int256", "uint256", "bytes32")
     if isinstance(typ, ByteArrayLike):
         return True
-    if isinstance(typ, ListType):
+    if isinstance(typ, SArrayType):
         return _should_decode(typ.subtype)
     if isinstance(typ, TupleLike):
         return any(_should_decode(t) for t in typ.tuple_members())

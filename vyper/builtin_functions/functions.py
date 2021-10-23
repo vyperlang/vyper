@@ -39,7 +39,7 @@ from vyper.old_codegen.parser_utils import (
     make_byte_slice_copier,
     unwrap_location,
 )
-from vyper.old_codegen.types import BaseType, ByteArrayLike, ByteArrayType, ListType
+from vyper.old_codegen.types import BaseType, ByteArrayLike, ByteArrayType, SArrayType
 from vyper.old_codegen.types import StringType as OldStringType
 from vyper.old_codegen.types import TupleType, is_base_type
 from vyper.semantics.types import BoolDefinition, TupleDefinition
@@ -771,7 +771,7 @@ class ECAdd(_SimpleBuiltinFunction):
                 ["assert", ["staticcall", ["gas"], 6, placeholder_node, 128, placeholder_node, 64]],
                 placeholder_node,
             ],
-            typ=ListType(BaseType("uint256"), 2),
+            typ=SArrayType(BaseType("uint256"), 2),
             pos=getpos(expr),
             location="memory",
         )
@@ -801,7 +801,7 @@ class ECMul(_SimpleBuiltinFunction):
                 ["assert", ["staticcall", ["gas"], 7, placeholder_node, 96, placeholder_node, 64]],
                 placeholder_node,
             ],
-            typ=ListType(BaseType("uint256"), 2),
+            typ=SArrayType(BaseType("uint256"), 2),
             pos=pos,
             location="memory",
         )

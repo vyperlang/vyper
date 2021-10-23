@@ -14,7 +14,7 @@ from vyper.old_codegen.lll_node import Encoding, LLLnode
 from vyper.old_codegen.types import (
     BaseType,
     ByteArrayLike,
-    ListType,
+    SArrayType,
     MappingType,
     StructType,
     TupleLike,
@@ -372,7 +372,7 @@ def get_element_ptr(parent, key, pos, array_bounds_check=True):
                 pos=pos,
             )
 
-    elif isinstance(typ, ListType):
+    elif isinstance(typ, SArrayType):
         if not is_base_type(key.typ, ("int128", "int256", "uint256")):
             return
 
@@ -534,7 +534,7 @@ def make_setter(left, right, pos):
         return LLLnode.from_list(ret)
 
     # Arrays
-    elif isinstance(left.typ, (ListType, TupleLike)):
+    elif isinstance(left.typ, (SArrayType, TupleLike)):
         return _complex_make_setter(left, right, pos)
 
 
@@ -542,7 +542,7 @@ def _typecheck_list_make_setter(left, right):
     if left.value == "multi":
         # Cannot do something like [a, b, c] = [1, 2, 3]
         return False
-    if not isinstance(right.typ, ListType):
+    if not isinstance(right.typ, SArrayType):
         return False
     if right.typ.count != left.typ.count:
         return False
@@ -570,7 +570,8 @@ def _typecheck_tuple_make_setter(left, right):
 
 @type_check_wrapper
 def _complex_make_setter(left, right, pos):
-    if isinstance(left.typ, ListType):
+    if isinstance(left.typ, SArrayType):
+        # CMC 20211002 this might not be necessary
         if not _typecheck_list_make_setter(left, right):
             return
         keys = [LLLnode.from_list(i, typ="uint256") for i in range(left.typ.count)]

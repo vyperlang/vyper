@@ -15,7 +15,7 @@ from vyper.old_codegen.parser_utils import (
     zero_pad,
 )
 from vyper.old_codegen.return_ import make_return_stmt
-from vyper.old_codegen.types import BaseType, ByteArrayType, ListType, parse_type
+from vyper.old_codegen.types import BaseType, ByteArrayType, SArrayType, parse_type
 
 
 class Stmt:
@@ -338,8 +338,8 @@ class Stmt:
             # Allocate list to memory.
             count = iter_list_node.typ.count
             tmp_list = LLLnode.from_list(
-                obj=self.context.new_internal_variable(ListType(subtype, count)),
-                typ=ListType(subtype, count),
+                obj=self.context.new_internal_variable(SArrayType(subtype, count)),
+                typ=SArrayType(subtype, count),
                 location="memory",
             )
             setter = make_setter(tmp_list, iter_list_node, pos=getpos(self.stmt))

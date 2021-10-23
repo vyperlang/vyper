@@ -13,7 +13,7 @@ from vyper.old_codegen.types import (
     BaseType,
     ByteArrayLike,
     ByteArrayType,
-    ListType,
+    SArrayType,
     StringType,
     TupleLike,
 )
@@ -317,8 +317,10 @@ def abi_type_of(lll_typ):
             raise CompilerPanic(f"Unrecognized type {t}")
     elif isinstance(lll_typ, TupleLike):
         return ABI_Tuple([abi_type_of(t) for t in lll_typ.tuple_members()])
-    elif isinstance(lll_typ, ListType):
+    elif isinstance(lll_typ, SArrayType):
         return ABI_StaticArray(abi_type_of(lll_typ.subtype), lll_typ.count)
+    elif isinstance(lll_typ, DArrayType):
+        return ABI_DynamicArray(abi_type_of(lll_typ.subtype), lll_typ.count)
     elif isinstance(lll_typ, ByteArrayType):
         return ABI_Bytes(lll_typ.maxlen)
     elif isinstance(lll_typ, StringType):
@@ -356,7 +358,7 @@ def abi_type_of2(t: vy.BasePrimitive) -> ABIType:
 # turn an lll node into a list, based on its type.
 def o_list(lll_node, pos=None):
     lll_t = lll_node.typ
-    if isinstance(lll_t, (TupleLike, ListType)):
+    if isinstance(lll_t, (TupleLike, SArrayType)):
         if lll_node.value == "multi":  # is literal
             ret = lll_node.args
         else:

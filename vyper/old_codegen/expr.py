@@ -27,7 +27,7 @@ from vyper.old_codegen.types import (
     ByteArrayLike,
     ByteArrayType,
     InterfaceType,
-    ListType,
+    SArrayType,
     MappingType,
     StringType,
     StructType,
@@ -497,7 +497,7 @@ class Expr:
                 assert len(index.args) == 1
                 index = keccak256_helper(self.expr.slice.value, index.args[0], self.context)
 
-        elif isinstance(sub.typ, ListType):
+        elif isinstance(sub.typ, SArrayType):
             index = Expr.parse_value_expr(self.expr.slice.value, self.context)
 
         elif isinstance(sub.typ, TupleType):
@@ -791,9 +791,9 @@ class Expr:
             # Copy literal to memory to be compared.
             tmp_list = LLLnode.from_list(
                 obj=self.context.new_internal_variable(
-                    ListType(right.typ.subtype, right.typ.count)
+                    SArrayType(right.typ.subtype, right.typ.count)
                 ),
-                typ=ListType(right.typ.subtype, right.typ.count),
+                typ=SArrayType(right.typ.subtype, right.typ.count),
                 location="memory",
             )
             setter = make_setter(tmp_list, right, pos=getpos(self.expr))
@@ -877,7 +877,7 @@ class Expr:
             pass
 
         elif isinstance(self.expr.op, (vy_ast.In, vy_ast.NotIn)) and isinstance(
-            right.typ, ListType
+            right.typ, SArrayType
         ):
             return self.build_in_comparator()
 
@@ -1044,7 +1044,7 @@ class Expr:
         # TODO this type inference is wrong. instead should use
         # parse_type(canonical_abi_type_of(self.expr._metadata["type"]))
         out_type = next((i.typ for i in multi_lll if not i.typ.is_literal), multi_lll[0].typ)
-        typ = ListType(out_type, len(self.expr.elements), is_literal=True)
+        typ = SArrayType(out_type, len(self.expr.elements), is_literal=True)
         multi_lll = LLLnode.from_list(["multi"] + multi_lll, typ=typ, pos=getpos(self.expr))
         return multi_lll
 

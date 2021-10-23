@@ -3,7 +3,7 @@ from pytest import raises
 from vyper.old_codegen.types import (
     BaseType,
     ByteArrayType,
-    ListType,
+    SArrayType,
     MappingType,
     StructType,
     TupleType,
@@ -49,7 +49,7 @@ def test_canonicalize_type():
     with raises(Exception):
         canonicalize_type(int)
     # List of byte arrays not allowed
-    a = ListType(ByteArrayType(12), 2)
+    a = SArrayType(ByteArrayType(12), 2)
     with raises(Exception):
         canonicalize_type(a)
     # Test ABI format of multiple args.
@@ -61,7 +61,7 @@ def test_type_storage_sizes():
     assert BaseType("int128").storage_size_in_words == 1
     assert ByteArrayType(12).storage_size_in_words == 2
     assert ByteArrayType(33).storage_size_in_words == 3
-    assert ListType(BaseType("int128"), 10).storage_size_in_words == 10
+    assert SArrayType(BaseType("int128"), 10).storage_size_in_words == 10
 
     _tuple = TupleType([BaseType("int128"), BaseType("decimal")])
     assert _tuple.storage_size_in_words == 2

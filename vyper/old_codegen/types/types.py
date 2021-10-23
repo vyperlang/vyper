@@ -105,8 +105,8 @@ class ByteArrayType(ByteArrayLike):
         return f"Bytes[{self.maxlen}]"
 
 
-# Data structure for a list with some fixed length
-class ListType(NodeType):
+# Data structure for a static array
+class ArrayLike(NodeType):
     def __init__(self, subtype, count, is_literal=False):
         self.subtype = subtype
         self.count = count
@@ -115,12 +115,21 @@ class ListType(NodeType):
     def eq(self, other):
         return other.subtype == self.subtype and other.count == self.count
 
-    def __repr__(self):
-        return repr(self.subtype) + "[" + str(self.count) + "]"
-
     @property
     def memory_bytes_required(self):
         return self.count * self.subtype.memory_bytes_required
+
+
+# Data structure for a static array
+class SArrayType(NodeType):
+    def __repr__(self):
+        return f"{self.subtype}[{self.count}]"
+
+
+# Data structure for a dynamic array
+class DArrayType(NodeType):
+    def __repr__(self):
+        return f"{self.subtype}[:{self.count}]"
 
 
 # Data structure for a key-value mapping
@@ -204,8 +213,8 @@ def canonicalize_type(t, is_indexed=False):
         byte_type = "string" if isinstance(t, StringType) else "bytes"
         return byte_type
 
-    if isinstance(t, ListType):
-        if not isinstance(t.subtype, (ListType, BaseType, StructType)):
+    if isinstance(t, SArrayType):
+        if not isinstance(t.subtype, (SArrayType, BaseType, StructType)):
             raise InvalidType(f"List of {t.subtype} not allowed")
         return canonicalize_type(t.subtype) + f"[{t.count}]"
 
@@ -300,7 +309,7 @@ def parse_type(item, location=None, sigs=None, custom_structs=None):
                 return StringType(n_val)
             # List
             else:
-                return ListType(
+                return SArrayType(
                     parse_type(
                         item.value,
                         location,
