@@ -1,10 +1,15 @@
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Union
 
 from vyper import ast as vy_ast
 from vyper.exceptions import ArrayIndexException, InvalidType
 from vyper.semantics import validation
 from vyper.semantics.types.abstract import IntegerAbstractType
-from vyper.semantics.types.bases import BaseTypeDefinition, DataLocation, IndexableTypeDefinition
+from vyper.semantics.types.bases import (
+    BaseTypeDefinition,
+    DataLocation,
+    IndexableTypeDefinition,
+    BasePrimitive,
+)
 from vyper.semantics.types.value.numeric import Uint256Definition
 
 
@@ -49,6 +54,7 @@ class _SequenceDefinition(IndexableTypeDefinition):
         return (Uint256Definition(),) + new_args, return_type
 
 
+# TODO rename me to StaticArrayDefinition?
 class ArrayDefinition(_SequenceDefinition):
     """
     Array type definition.
@@ -107,6 +113,95 @@ class ArrayDefinition(_SequenceDefinition):
         if self.length != other.length:
             return False
         return self.value_type.compare_type(other.value_type)
+
+
+class DynamicArrayDefinition(_SequenceDefinition):
+    """
+    Dynamic array type definition.
+    """
+
+    def __init__(
+        self,
+        value_type: BaseTypeDefinition,
+        length: int,
+        location: DataLocation = DataLocation.UNSET,
+        is_constant: bool = False,
+        is_public: bool = False,
+        is_immutable: bool = False,
+    ) -> None:
+        super().__init__(value_type, length, "DynArray", location, is_immutable, is_public)
+
+    def __repr__(self):
+        return f"DynArray[{self.value_type}, {self.length}]"
+
+    @property
+    def canonical_abi_type(self):
+        return f"{self.value_type.canonical_abi_type}[]"
+
+    @property
+    def is_dynamic_size(self):
+        return True
+
+    # TODO rename me to memory_bytes_required
+    @property
+    def size_in_bytes(self):
+        return self.value_type.size_in_bytes * self.length
+
+    def get_index_type(self, node):
+        if isinstance(node, vy_ast.Int):
+            if node.value < 0:
+                raise ArrayIndexException("Vyper does not support negative indexing", node)
+            if node.value >= self.length:
+                raise ArrayIndexException("Index out of range", node)
+        else:
+            validation.utils.validate_expected_type(node, IntegerAbstractType())
+        return self.value_type
+
+    def compare_type(self, other):
+        if not isinstance(self, type(other)):
+            return False
+        if self.length != other.length:
+            return False
+        return self.value_type.compare_type(other.value_type)
+
+
+class DynamicArrayPrimitive(BasePrimitive):
+    _id = "DynArray"
+    _valid_literal = ()
+
+    @classmethod
+    def from_annotation(
+        cls,
+        node: Union[vy_ast.Name, vy_ast.Call, vy_ast.Subscript],
+        location: DataLocation = DataLocation.UNSET,
+        is_constant: bool = False,
+        is_public: bool = False,
+        is_immutable: bool = False,
+    ) -> DynamicArrayDefinition:
+        # TODO fix circular import
+        from vyper.semantics.types.utils import get_type_from_annotation
+
+        if (
+            not isinstance(node, vy_ast.Subscript)
+            or not isinstance(node.slice, vy_ast.Index)
+            or not isinstance(node.slice.value, vy_ast.Tuple)
+            or not isinstance(node.slice.value.elements[1], vy_ast.Int)
+            or len(node.slice.value.elements) != 2
+        ):
+            raise StructureException(
+                "DynArray must be initialized with base type and max length, e.g. DynArray[bool, 5]",
+                node,
+            )
+        value_type = get_type_from_annotation(node.slice.value.elements[0], DataLocation.UNSET)
+        max_length = node.slice.value.elements[1].value
+        return DynamicArrayDefinition(
+            value_type,
+            max_length,
+            location,
+            is_constant,
+            is_public,
+            is_immutable,
+        )
 
 
 class TupleDefinition(_SequenceDefinition):
