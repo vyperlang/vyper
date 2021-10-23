@@ -176,11 +176,11 @@ def to_int128(expr, args, kwargs, context):
             else:
                 return LLLnode.from_list(in_arg, typ=BaseType("int128"), pos=getpos(expr))
 
-        # !! do not use clamp_basetype. check that input <= MAX_INT128.
-        res = int_clamp(in_arg, 128, signed=False)
+        # !! do not use clamp_basetype. check that 0 <= input <= MAX_INT128.
+        res = int_clamp(in_arg, 127, signed=False)
         return LLLnode.from_list(
             res,
-            typ=BaseType("int128"),
+            typ="int128",
             pos=getpos(expr),
         )
 
