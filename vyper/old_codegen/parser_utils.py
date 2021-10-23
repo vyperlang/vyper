@@ -20,7 +20,6 @@ from vyper.old_codegen.types import (
     TupleLike,
     TupleType,
     ceil32,
-    get_size_of_type,
     is_base_type,
 )
 from vyper.utils import (
@@ -353,7 +352,7 @@ def get_element_ptr(parent, key, pos, array_bounds_check=True):
             # of [index value being accessed] * [size of each item within the sequence]
             offset = 0
             for i in range(index):
-                offset += get_size_of_type(typ.members[attrs[i]])
+                offset += typ.members[attrs[i]].storage_size_words
             return LLLnode.from_list(
                 ["add", parent, offset],
                 typ=subtype,
@@ -364,7 +363,7 @@ def get_element_ptr(parent, key, pos, array_bounds_check=True):
         elif location in ("calldata", "memory", "code"):
             offset = 0
             for i in range(index):
-                offset += 32 * get_size_of_type(typ.members[attrs[i]])
+                offset += typ.members[attrs[i]].memory_bytes_required
             return LLLnode.from_list(
                 add_ofst(parent, offset),
                 typ=typ.members[key],
@@ -418,12 +417,12 @@ def get_element_ptr(parent, key, pos, array_bounds_check=True):
 
         if location == "storage":
             # storage slot determined as [initial storage slot] + [index] * [size of base type]
-            offset = get_size_of_type(subtype)
+            offset = subtype.storage_size_words
             return LLLnode.from_list(
                 ["add", parent, ["mul", sub, offset]], typ=subtype, location="storage", pos=pos
             )
         elif location in ("calldata", "memory", "code"):
-            offset = 32 * get_size_of_type(subtype)
+            offset = subtype.memory_bytes_required
             return LLLnode.from_list(
                 ["add", ["mul", offset, sub], parent], typ=subtype, location=location, pos=pos
             )
@@ -586,7 +585,7 @@ def _complex_make_setter(left, right, pos):
 
     if right.value is None and left.location == "memory":
         # optimize memzero
-        return mzero(left, 32 * get_size_of_type(left.typ))
+        return mzero(left, left.typ.memory_bytes_required)
 
     else:
         # general case

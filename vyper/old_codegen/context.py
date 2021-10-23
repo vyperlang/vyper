@@ -4,7 +4,7 @@ import enum
 from vyper.ast import VyperNode
 from vyper.ast.signatures.function_signature import VariableRecord
 from vyper.exceptions import CompilerPanic, FunctionDeclarationException
-from vyper.old_codegen.types import NodeType, get_size_of_type
+from vyper.old_codegen.types import NodeType
 
 
 class Constancy(enum.Enum):
@@ -182,7 +182,7 @@ class Context:
             # temporary requirement to support both new and old type objects
             var_size = typ.size_in_bytes  # type: ignore
         else:
-            var_size = 32 * get_size_of_type(typ)
+            var_size = typ.memory_bytes_required
         return self._new_variable(name, typ, var_size, False, is_mutable=is_mutable)
 
     # do we ever allocate immutable internal variables?
@@ -209,7 +209,7 @@ class Context:
             # temporary requirement to support both new and old type objects
             var_size = typ.size_in_bytes  # type: ignore
         else:
-            var_size = 32 * get_size_of_type(typ)
+            var_size = typ.memory_bytes_required
         return self._new_variable(name, typ, var_size, True)
 
     def parse_type(self, ast_node, location):

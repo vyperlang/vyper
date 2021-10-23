@@ -22,6 +22,24 @@ class NodeType(abc.ABC):
         """
         pass
 
+    @abc.abstractmethod
+    #@property
+    def memory_bytes_required(self) -> int:
+        """
+        Returns the number of bytes required to allocate in memory for this type
+        """
+        raise InvalidType(f"Unexpected type: {typ}")
+
+    @property
+    def storage_size_in_words(self) -> int:
+        """
+        Returns the number of words required to allocate in storage for this type
+        """
+        r = self.memory_bytes_required
+        if r % 32 != 0:
+            raise CompilerPanic("Memory bytes must be multiple of 32")
+        return r // 32
+
 
 # Data structure for a type that represents a 32-byte object
 class BaseType(NodeType):
@@ -29,6 +47,7 @@ class BaseType(NodeType):
         self, typ, unit=False, positional=False, override_signature=False, is_literal=False
     ):
         self.typ = typ
+        # TODO remove dead arguments
         if unit or positional:
             raise CompilerPanic("Units are no longer supported")
         self.override_signature = override_signature
@@ -40,6 +59,11 @@ class BaseType(NodeType):
     def __repr__(self):
         return str(self.typ)
 
+    @property
+    def memory_bytes_required(self):
+        return 32
+
+
 
 class InterfaceType(BaseType):
     def __init__(self, name):
@@ -48,6 +72,10 @@ class InterfaceType(BaseType):
 
     def __eq__(self, other: Any) -> bool:
         return isinstance(other, BaseType) and other.typ == "address"
+
+    @property
+    def memory_bytes_required(self):
+        return 32
 
 
 class ByteArrayLike(NodeType):
@@ -60,6 +88,10 @@ class ByteArrayLike(NodeType):
 
     def eq_base(self, other):
         return type(self) is type(other)
+
+    @property
+    def memory_bytes_required(self):
+        return ceil32(self.maxlen) // 32 + BYTE_ARRAY_OVERHEAD
 
 
 class StringType(ByteArrayLike):
@@ -86,6 +118,10 @@ class ListType(NodeType):
     def __repr__(self):
         return repr(self.subtype) + "[" + str(self.count) + "]"
 
+    @property
+    def memory_bytes_required(self):
+        return self.count * self.subtype.memory_bytes_required
+
 
 # Data structure for a key-value mapping
 class MappingType(NodeType):
@@ -101,6 +137,9 @@ class MappingType(NodeType):
     def __repr__(self):
         return "HashMap[" + repr(self.valuetype) + ", " + repr(self.keytype) + "]"
 
+    @property
+    def memory_bytes_required(self):
+        raise InvalidType("Maps are not supported for function arguments or outputs.")
 
 # Type which has heterogeneous members, i.e. Tuples and Structs
 class TupleLike(NodeType):
@@ -112,6 +151,10 @@ class TupleLike(NodeType):
 
     def tuple_items(self):
         raise NotImplementedError("compiler panic!: tuple_items must be implemented by TupleLike")
+
+    @property
+    def memory_bytes_required(self):
+        return sum([t.memory_bytes_required for t in self.tuple_members()])
 
 
 # Data structure for a struct, e.g. {a: <type>, b: <type>}
@@ -303,25 +346,6 @@ def parse_type(item, location=None, sigs=None, custom_structs=None):
 # byte array overhead, in words. (it should really be 1, but there are
 # some places in our calling convention where the layout expects 2)
 BYTE_ARRAY_OVERHEAD = 1
-
-
-# Gets the maximum number of memory or storage keys needed to ABI-encode
-# a given type
-def get_size_of_type(typ):
-    if isinstance(typ, BaseType):
-        return 1
-    elif isinstance(typ, ByteArrayLike):
-        # 1 word for offset (in static section), 1 word for length,
-        # up to maxlen words for actual data.
-        return ceil32(typ.maxlen) // 32 + BYTE_ARRAY_OVERHEAD
-    elif isinstance(typ, ListType):
-        return get_size_of_type(typ.subtype) * typ.count
-    elif isinstance(typ, MappingType):
-        raise InvalidType("Maps are not supported for function arguments or outputs.")
-    elif isinstance(typ, TupleLike):
-        return sum([get_size_of_type(v) for v in typ.tuple_members()])
-    else:
-        raise InvalidType(f"Can not get size of type, Unexpected type: {repr(typ)}")
 
 
 def get_type_for_exact_size(n_bytes):
