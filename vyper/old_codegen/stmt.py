@@ -2,13 +2,19 @@ import vyper.old_codegen.events as events
 import vyper.utils as util
 from vyper import ast as vy_ast
 from vyper.builtin_functions import STMT_DISPATCH_TABLE
-from vyper.exceptions import StructureException, TypeCheckFailure
+from vyper.exceptions import CompilerPanic, StructureException, TypeCheckFailure
 from vyper.old_codegen import external_call, self_call
-from vyper.old_codegen.context import Context
+from vyper.old_codegen.context import Constancy, Context
 from vyper.old_codegen.expr import Expr
-from vyper.old_codegen.parser_utils import LLLnode, getpos, make_setter, unwrap_location
+from vyper.old_codegen.parser_utils import (
+    LLLnode,
+    getpos,
+    make_byte_array_copier,
+    make_setter,
+    unwrap_location,
+)
 from vyper.old_codegen.return_ import make_return_stmt
-from vyper.old_codegen.types import BaseType, ByteArrayType, ListType, get_size_of_type, parse_type
+from vyper.old_codegen.types import BaseType, ByteArrayType, ListType, parse_type
 
 
 class Stmt:
@@ -142,23 +148,39 @@ class Stmt:
         if isinstance(msg, vy_ast.Name) and msg.id == "UNREACHABLE":
             return LLLnode.from_list(["assert_unreachable", test_expr], typ=None, pos=getpos(msg))
 
-        reason_str_type = ByteArrayType(len(msg.value.strip()))
+        # set constant so that revert reason str is well behaved
+        self.context.constancy = Constancy.Constant
+        msg_lll = Expr(msg, self.context).lll_node
 
-        # abi encode the reason string
-        sig_placeholder = self.context.new_internal_variable(BaseType(32))
+        def _get_last(lll):
+            if len(lll.args) == 0:
+                return lll.value
+            return _get_last(lll.args[-1])
+
+        if msg_lll.location != "memory":
+            buf = self.context.new_internal_variable(msg_lll.typ)
+            instantiate_msg = make_byte_array_copier(buf, msg_lll)
+        else:
+            buf = _get_last(msg_lll)
+            if not isinstance(buf, int):
+                print(type(buf))
+                raise CompilerPanic(f"invalid bytestring {buf}\n{self}")
+            instantiate_msg = msg_lll
+
         # offset of bytes in (bytes,)
-        arg_placeholder = self.context.new_internal_variable(BaseType(32))
-        placeholder_bytes = Expr(msg, self.context).lll_node
-
         method_id = util.abi_method_id("Error(string)")
 
         # abi encode method_id + bytestring
+        assert buf >= 36, "invalid buffer"
+        # we don't mind overwriting other memory because we are
+        # getting out of here anyway.
+        _runtime_length = ["mload", buf]
         revert_seq = [
             "seq",
-            ["mstore", sig_placeholder, method_id],
-            ["mstore", arg_placeholder, 32],
-            placeholder_bytes,
-            ["revert", sig_placeholder + 28, int(32 + 4 + get_size_of_type(reason_str_type) * 32)],
+            instantiate_msg,
+            ["mstore", buf - 36, method_id],
+            ["mstore", buf - 32, 0x20],
+            ["revert", buf - 36, ["add", 36, _runtime_length]],
         ]
         if test_expr:
             lll_node = ["if", ["iszero", test_expr], revert_seq]

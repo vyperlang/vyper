@@ -100,6 +100,7 @@ def ret10_slice() -> Bytes[10]:
     c = get_contract(code)
     assert c.ret10_slice() == b"A"
 
+
 def test_slice_expr(get_contract):
     # test slice of a complex expression
     code = """
@@ -110,7 +111,6 @@ def ret10_slice() -> Bytes[10]:
 
     c = get_contract(code)
     assert c.ret10_slice() == b"A"
-
 
 
 code_bytes32 = [
