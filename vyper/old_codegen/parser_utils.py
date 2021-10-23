@@ -373,7 +373,7 @@ def get_element_ptr(parent, key, pos, array_bounds_check=True):
             )
 
     elif isinstance(typ, SArrayType):
-        if not is_base_type(key.typ, ("int128", "int256", "uint256")):
+        if not is_base_type(key.typ, ("int256", "uint256")):
             return
 
         subtype = typ.subtype
@@ -534,7 +534,7 @@ def make_setter(left, right, pos):
         return LLLnode.from_list(ret)
 
     # Arrays
-    elif isinstance(left.typ, (SArrayType, TupleLike)):
+    elif isinstance(left.typ, (ArrayLike, TupleLike)):
         return _complex_make_setter(left, right, pos)
 
 
@@ -542,10 +542,14 @@ def _typecheck_list_make_setter(left, right):
     if left.value == "multi":
         # Cannot do something like [a, b, c] = [1, 2, 3]
         return False
-    if not isinstance(right.typ, SArrayType):
-        return False
-    if right.typ.count != left.typ.count:
-        return False
+    if isinstance(left, SArrayType):
+        if not left.typ == right.typ:
+            return False
+    if isinstance(left, DArrayType):
+        if not isinstance(right, DArrayType):
+            return False
+        if not left.typ.count >= right.typ.count:
+            return False
     return True
 
 
@@ -570,7 +574,7 @@ def _typecheck_tuple_make_setter(left, right):
 
 @type_check_wrapper
 def _complex_make_setter(left, right, pos):
-    if isinstance(left.typ, SArrayType):
+    if isinstance(left.typ, ArrayLike):
         # CMC 20211002 this might not be necessary
         if not _typecheck_list_make_setter(left, right):
             return

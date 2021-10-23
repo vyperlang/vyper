@@ -497,7 +497,7 @@ class Expr:
                 assert len(index.args) == 1
                 index = keccak256_helper(self.expr.slice.value, index.args[0], self.context)
 
-        elif isinstance(sub.typ, SArrayType):
+        elif isinstance(sub.typ, ArrayLike):
             index = Expr.parse_value_expr(self.expr.slice.value, self.context)
 
         elif isinstance(sub.typ, TupleType):

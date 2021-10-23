@@ -52,6 +52,9 @@ def test_canonicalize_type():
     a = SArrayType(ByteArrayType(12), 2)
     with raises(Exception):
         canonicalize_type(a)
+
+    # TODO dynamic array
+
     # Test ABI format of multiple args.
     c = TupleType([BaseType("int128"), BaseType("address")])
     assert canonicalize_type(c) == "(int128,address)"

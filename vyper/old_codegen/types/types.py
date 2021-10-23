@@ -23,7 +23,7 @@ class NodeType(abc.ABC):
         pass
 
     @abc.abstractmethod
-    #@property
+    # @property
     def memory_bytes_required(self) -> int:
         """
         Returns the number of bytes required to allocate in memory for this type
@@ -64,7 +64,6 @@ class BaseType(NodeType):
         return 32
 
 
-
 class InterfaceType(BaseType):
     def __init__(self, name):
         super().__init__("address")
@@ -91,7 +90,7 @@ class ByteArrayLike(NodeType):
 
     @property
     def memory_bytes_required(self):
-        return ceil32(self.maxlen) // 32 + BYTE_ARRAY_OVERHEAD
+        return ceil32(self.maxlen) + 32 * DYNAMIC_ARRAY_OVERHEAD
 
 
 class StringType(ByteArrayLike):
@@ -115,21 +114,25 @@ class ArrayLike(NodeType):
     def eq(self, other):
         return other.subtype == self.subtype and other.count == self.count
 
-    @property
-    def memory_bytes_required(self):
-        return self.count * self.subtype.memory_bytes_required
-
 
 # Data structure for a static array
 class SArrayType(NodeType):
     def __repr__(self):
         return f"{self.subtype}[{self.count}]"
 
+    @property
+    def memory_bytes_required(self):
+        return self.count * self.subtype.memory_bytes_required
+
 
 # Data structure for a dynamic array
 class DArrayType(NodeType):
     def __repr__(self):
         return f"{self.subtype}[:{self.count}]"
+
+    @property
+    def memory_bytes_required(self):
+        return DYNAMIC_ARRAY_OVERHEAD + self.count * self.subtype.memory_bytes_required
 
 
 # Data structure for a key-value mapping
@@ -149,6 +152,7 @@ class MappingType(NodeType):
     @property
     def memory_bytes_required(self):
         raise InvalidType("Maps are not supported for function arguments or outputs.")
+
 
 # Type which has heterogeneous members, i.e. Tuples and Structs
 class TupleLike(NodeType):
@@ -352,9 +356,8 @@ def parse_type(item, location=None, sigs=None, custom_structs=None):
         raise InvalidType("Invalid type", item)
 
 
-# byte array overhead, in words. (it should really be 1, but there are
-# some places in our calling convention where the layout expects 2)
-BYTE_ARRAY_OVERHEAD = 1
+# dynamic array overhead, in words.
+DYNAMIC_ARRAY_OVERHEAD = 1
 
 
 def get_type_for_exact_size(n_bytes):
@@ -365,7 +368,7 @@ def get_type_for_exact_size(n_bytes):
     Returns:
       type: A type which can be passed to context.new_variable
     """
-    return ByteArrayType(n_bytes - 32 * BYTE_ARRAY_OVERHEAD)
+    return ByteArrayType(n_bytes - DYNAMIC_ARRAY_OVERHEAD)
 
 
 def get_type(input):
