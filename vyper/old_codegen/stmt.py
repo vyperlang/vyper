@@ -189,7 +189,8 @@ class Stmt:
             ["mstore", buf - 32, 0x20],
             ["revert", buf - 36, ["add", 4 + 32 + 32, ["ceil32", _runtime_length]]],
         ]
-        if test_expr:
+
+        if test_expr is not None:
             lll_node = ["if", ["iszero", test_expr], revert_seq]
         else:
             lll_node = revert_seq
@@ -212,7 +213,7 @@ class Stmt:
 
     def parse_Raise(self):
         if self.stmt.exc:
-            return self._assert_reason(0, self.stmt.exc)
+            return self._assert_reason(None, self.stmt.exc)
         else:
             return LLLnode.from_list(["revert", 0, 0], typ=None, pos=getpos(self.stmt))
 
