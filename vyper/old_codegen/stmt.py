@@ -152,6 +152,7 @@ class Stmt:
         self.context.constancy = Constancy.Constant
         msg_lll = Expr(msg, self.context).lll_node
 
+        # TODO this is probably useful in parser_utils
         def _get_last(lll):
             if len(lll.args) == 0:
                 return lll.value
@@ -163,7 +164,6 @@ class Stmt:
         else:
             buf = _get_last(msg_lll)
             if not isinstance(buf, int):
-                print(type(buf))
                 raise CompilerPanic(f"invalid bytestring {buf}\n{self}")
             instantiate_msg = msg_lll
 
@@ -178,9 +178,9 @@ class Stmt:
         revert_seq = [
             "seq",
             instantiate_msg,
-            ["mstore", buf - 36, method_id],
+            ["mstore", buf - 64, method_id],
             ["mstore", buf - 32, 0x20],
-            ["revert", buf - 36, ["add", 36, _runtime_length]],
+            ["revert", buf - 36, ["add", 4 + 32 + 32, _runtime_length]],
         ]
         if test_expr:
             lll_node = ["if", ["iszero", test_expr], revert_seq]
