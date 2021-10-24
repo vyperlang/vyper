@@ -416,19 +416,21 @@ class Stmt:
         return make_return_stmt(lll_val, self.stmt, self.context)
 
     def _get_target(self, target):
+        _dbg_expr = target
+
         if isinstance(target, vy_ast.Name) and target.id in self.context.forvars:
-            raise TypeCheckFailure("Failed for-loop constancy check")
+            raise TypeCheckFailure(f"Failed constancy check\n{_dbg_expr}")
 
         if isinstance(target, vy_ast.Tuple):
             target = Expr(target, self.context).lll_node
             for node in target.args:
                 if (node.location == "storage" and self.context.is_constant()) or not node.mutable:
-                    raise TypeCheckFailure("Failed for-loop constancy check")
+                    raise TypeCheckFailure(f"Failed constancy check\n{_dbg_expr}")
             return target
 
         target = Expr.parse_variable_location(target, self.context)
         if (target.location == "storage" and self.context.is_constant()) or not target.mutable:
-            raise TypeCheckFailure("Failed for-loop constancy check")
+            raise TypeCheckFailure(f"Failed constancy check\n{_dbg_expr}")
         return target
 
 
