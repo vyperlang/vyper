@@ -94,7 +94,7 @@ Bitwise Operations
 Chain Interaction
 =================
 
-.. py:function:: create_forwarder_to(target: address, value: uint256 = 0) -> address
+.. py:function:: create_forwarder_to(target: address, value: uint256 = 0[, salt: bytes32]) -> address
 
     Deploys a small contract that duplicates the logic of the contract at ``target``, but has it's own state since every call to ``target`` is made using ``DELEGATECALL`` to ``target``. To the end user, this should be indistinguishable from an independantly deployed contract with the same code as ``target``.
 
@@ -104,6 +104,7 @@ Chain Interaction
 
     * ``target``: Address of the contract to duplicate
     * ``value``: The wei value to send to the new contract address (Optional, default 0)
+    * ``salt``: A ``bytes32`` value utilized by the ``CREATE2`` opcode (Optional, if supplied deterministic deployment is done via ``CREATE2``)
 
     Returns the address of the duplicated contract.
 
@@ -308,7 +309,7 @@ Data Manipulation
 
         @external
         @view
-        def foo(a: String[5], b: String[5], c: String[5]) -> String[100]
+        def foo(a: String[5], b: String[5], c: String[5]) -> String[100]:
             return concat(a, " ", b, " ", c, "!")
 
     .. code-block:: python
@@ -630,7 +631,7 @@ Utilities
     Once this function has seen more use we provisionally plan to put it into the ``ethereum.abi`` namespace.
 
     * ``*args``: Arbitrary arguments
-    * ``ensure_tuple``: If set to True, ensures that even a single argument is encoded as a tuple. In other words, ``bytes`` gets encoded as ``(bytes,)``. This is the calling convention for Vyper and Solidity functions. Except for very specific use cases, this should be set to True. Must be a literal.
+    * ``ensure_tuple``: If set to True, ensures that even a single argument is encoded as a tuple. In other words, ``bytes`` gets encoded as ``(bytes,)``, and ``(bytes,)`` gets encoded as ``((bytes,),)`` This is the calling convention for Vyper and Solidity functions. Except for very specific use cases, this should be set to True. Must be a literal.
     * ``method_id``: A literal hex or Bytes[4] value to append to the beginning of the abi-encoded bytestring.
 
     Returns a bytestring whose max length is determined by the arguments. For example, encoding a ``Bytes[32]`` results in a ``Bytes[64]`` (first word is the length of the bytestring variable).

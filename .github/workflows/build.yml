@@ -1,0 +1,53 @@
+name: Artifacts
+
+on:
+  release:
+    types: [created]
+
+jobs:
+  unix-build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: "3.8"
+
+      - name: Install Pip Packages
+        run: pip install . && pip install pyinstaller
+
+      - name: Generate Binary
+        run: make freeze
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v2
+        with:
+          path: dist/vyper.*commit.*
+
+  windows-build:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: "3.8"
+
+      - name: Install Pip Packages
+        run: pip install . && pip install pyinstaller
+
+      - name: Generate Binary
+        run: ./make.cmd freeze
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v2
+        with:
+          path: dist/vyper.*commit.*

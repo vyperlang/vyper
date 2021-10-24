@@ -3,12 +3,7 @@ import functools
 from vyper import ast as vy_ast
 from vyper.exceptions import InvalidLiteral, StructureException, TypeMismatch
 from vyper.old_codegen.expr import Expr
-from vyper.old_codegen.types import (
-    BaseType,
-    ByteArrayType,
-    StringType,
-    is_base_type,
-)
+from vyper.old_codegen.types import BaseType, ByteArrayType, StringType, is_base_type
 from vyper.utils import SizeLimits
 
 
@@ -45,7 +40,8 @@ def process_arg(index, arg, expected_arg_typelist, function_name, context):
                 for c in arg.s:
                     if ord(c) >= 256:
                         raise InvalidLiteral(
-                            f"Cannot insert special character {c} into byte array", arg,
+                            f"Cannot insert special character {c} into byte array",
+                            arg,
                         )
                     bytez += bytes([ord(c)])
                 return bytez
@@ -70,7 +66,8 @@ def process_arg(index, arg, expected_arg_typelist, function_name, context):
         else:
             # Does not work for unit-endowed types inside compound types, e.g. timestamp[2]
             parsed_expected_type = context.parse_type(
-                vy_ast.parse_to_ast(expected_arg)[0].value, "memory",
+                vy_ast.parse_to_ast(expected_arg)[0].value,
+                "memory",
             )
             if isinstance(parsed_expected_type, BaseType):
                 vsub = vsub or Expr.parse_value_expr(arg, context)
@@ -112,7 +109,13 @@ def signature(*argz, **kwargz):
             for i, expected_arg in enumerate(argz):
                 if len(element.args) > i:
                     subs.append(
-                        process_arg(i + 1, element.args[i], expected_arg, function_name, context,)
+                        process_arg(
+                            i + 1,
+                            element.args[i],
+                            expected_arg,
+                            function_name,
+                            context,
+                        )
                     )
                 elif isinstance(expected_arg, Optional):
                     subs.append(expected_arg.default)
@@ -162,7 +165,15 @@ def validate_inputs(wrapped_fn):
         subs = []
         for i, expected_arg in enumerate(argz):
             if len(node.args) > i:
-                subs.append(process_arg(i + 1, node.args[i], expected_arg, function_name, context,))
+                subs.append(
+                    process_arg(
+                        i + 1,
+                        node.args[i],
+                        expected_arg,
+                        function_name,
+                        context,
+                    )
+                )
             elif isinstance(expected_arg, Optional):
                 subs.append(expected_arg.default)
             else:

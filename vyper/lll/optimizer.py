@@ -1,5 +1,5 @@
 import operator
-from typing import Any, List, Optional
+from typing import List, Optional
 
 from vyper.old_codegen.parser_utils import LLLnode
 from vyper.utils import LOADED_LIMITS
@@ -179,10 +179,13 @@ def apply_general_optimizations(node: LLLnode) -> LLLnode:
             add_gas_estimate=node.add_gas_estimate,
             valency=node.valency,
         )
-    # [ne, x, y] has the same truthyness as [xor, x, y]
-    # rewrite 'ne' as 'xor' in places where truthy is accepted.
-    elif node.value in ("if", "if_unchecked", "assert") and argz[0].value == "ne":
-        argz[0] = LLLnode.from_list(["xor"] + argz[0].args)  # type: ignore
+    # (eq x y) has the same truthyness as (iszero (xor x y))
+    # rewrite 'eq' as 'xor' in places where truthy is accepted.
+    # (the sequence (if (iszero (xor x y))) will be translated to
+    #  XOR ISZERO ISZERO ..JUMPI and the ISZERO ISZERO will be
+    #  optimized out)
+    elif node.value in ("if", "assert") and argz[0].value == "eq":
+        argz[0] = ["iszero", ["xor", *argz[0].args]]  # type: ignore
         return LLLnode.from_list(
             [node.value] + argz,  # type: ignore
             typ=node.typ,
@@ -191,22 +194,19 @@ def apply_general_optimizations(node: LLLnode) -> LLLnode:
             annotation=node.annotation,
             # let from_list handle valency and gas_estimate
         )
-    elif node.value == "seq":
-        xs: List[Any] = []
-        for arg in argz:
-            if arg.value == "seq":
-                xs.extend(arg.args)
-            else:
-                xs.append(arg)
-        return LLLnode(
-            node.value,
-            xs,
-            node.typ,
-            node.location,
-            node.pos,
-            node.annotation,
-            add_gas_estimate=node.add_gas_estimate,
-            valency=node.valency,
+    elif node.value == "if" and len(argz) == 3:
+        # if(x) compiles to jumpi(_, iszero(x))
+        # there is an asm optimization for the sequence ISZERO ISZERO..JUMPI
+        # so we swap the branches here to activate that optimization.
+        cond = argz[0]
+        true_branch = argz[1]
+        false_branch = argz[2]
+        return LLLnode.from_list(
+            ["if", ["iszero", cond], false_branch, true_branch],
+            typ=node.typ,
+            location=node.location,
+            pos=node.pos,
+            annotation=node.annotation,
         )
     elif node.total_gas is not None:
         o = LLLnode(

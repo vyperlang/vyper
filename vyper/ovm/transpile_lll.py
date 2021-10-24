@@ -136,8 +136,8 @@ class _OVMSubroutine:
 
     def _marshal_static_args(self, buf):
         """Take the EVM opcode-provided stack items and write them
-           into the static section of the ABI-encoded calldata to
-           prepare for CALL to OVM execution manager
+        into the static section of the ABI-encoded calldata to
+        prepare for CALL to OVM execution manager
         """
         # sanity check
         assert len(self.ovm_args) == len(self.ovm_arg_types), (self.ovm_args, self.ovm_arg_types)
@@ -154,8 +154,7 @@ class _OVMSubroutine:
         return ret
 
     def _unmarshal_static_return(self, buf):
-        """Push any items expected by the EVM opcode onto the stack
-        """
+        """Push any items expected by the EVM opcode onto the stack"""
         # not really a requirement, just a sanity check
         assert len(self.evm_returns) <= 1
         ret = ["seq_unchecked"]
@@ -167,14 +166,14 @@ class _OVMSubroutine:
 
     def _marshal_bytestring(self, buf):
         """Copy the argument bytestring (if any) from the buffer
-           specified by the EVM opcode into the appropriate place in
-           the ABI-encoded calldata buffer
+        specified by the EVM opcode into the appropriate place in
+        the ABI-encoded calldata buffer
         """
         return ["pass"]  # default no bytestring
 
     def _unmarshal_bytestring(self, _buf):
         """Copy the returned bytestring (if any) into the buffer
-           specified by the EVM opcode
+        specified by the EVM opcode
         """
         return ["pass"]  # default no bytestring
 
@@ -212,9 +211,9 @@ class _OVMSubroutine:
 
     def subroutine_lll(self):
         """Generate the OVM subroutine to call the execution manager
-           for a given opcode.
-           Expects jumpdest + args on the stack, pushes the stack return
-           items expected by the EVM opcode.
+        for a given opcode.
+        Expects jumpdest + args on the stack, pushes the stack return
+        items expected by the EVM opcode.
         """
         buf = "buf"
         lll = [

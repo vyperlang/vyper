@@ -100,6 +100,18 @@ def ret10_slice() -> Bytes[10]:
     c = get_contract(code)
     assert c.ret10_slice() == b"A"
 
+def test_slice_expr(get_contract):
+    # test slice of a complex expression
+    code = """
+@external
+def ret10_slice() -> Bytes[10]:
+    return slice(convert(65, bytes32), 31, 1)
+    """
+
+    c = get_contract(code)
+    assert c.ret10_slice() == b"A"
+
+
 
 code_bytes32 = [
     """
@@ -125,6 +137,16 @@ def bar() -> Bytes[32]:
     a: uint256 = 3
     b: uint256 = 5
     return slice(self.foo, a, b)
+    """,
+    """
+foo: Bytes[32]
+
+@external
+def bar() -> Bytes[32]:
+    self.foo = b"012\x03\x04\x05\x06\x0789abcdef0123456789abcdef"
+    a: uint256 = 3
+    b: uint256 = 5
+    return slice(convert(self.foo, bytes32), a, b)
     """,
     """
 @external

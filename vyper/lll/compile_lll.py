@@ -111,6 +111,7 @@ def compile_to_assembly(code, use_ovm=False):
     res = _compile_to_assembly(code)
 
     _add_postambles(res, use_ovm)
+    _optimize_assembly(res)
     return res
 
 
@@ -179,7 +180,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
             height,
         )
     # If statements (2 arguments, ie. if x: y)
-    elif code.value in ("if", "if_unchecked") and len(code.args) == 2:
+    elif code.value == "if" and len(code.args) == 2:
         o = []
         o.extend(_compile_to_assembly(code.args[0], withargs, existing_labels, break_dest, height))
         end_symbol = mksymbol()
@@ -207,7 +208,13 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         start, continue_dest, end = mksymbol(), mksymbol(), mksymbol()
         o.extend(_compile_to_assembly(code.args[0], withargs, existing_labels, break_dest, height))
         o.extend(
-            _compile_to_assembly(code.args[1], withargs, existing_labels, break_dest, height + 1,)
+            _compile_to_assembly(
+                code.args[1],
+                withargs,
+                existing_labels,
+                break_dest,
+                height + 1,
+            )
         )
         o.extend(["PUSH" + str(len(loops))] + loops)
         # stack: memloc, startvalue, rounds
@@ -253,7 +260,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         dest, continue_dest, break_height = break_dest
         return ["POP"] * (height - break_height) + [dest, "JUMP"]
     # Break from inside one or more for loops prior to a return statement inside the loop
-    elif code.value == "exit_repeater":
+    elif code.value == "cleanup_repeat":
         if not break_dest:
             raise CompilerPanic("Invalid break")
         _, _, break_height = break_dest
@@ -265,7 +272,13 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         old = withargs.get(code.args[0].value, None)
         withargs[code.args[0].value] = height
         o.extend(
-            _compile_to_assembly(code.args[2], withargs, existing_labels, break_dest, height + 1,)
+            _compile_to_assembly(
+                code.args[2],
+                withargs,
+                existing_labels,
+                break_dest,
+                height + 1,
+            )
         )
         if code.args[2].valency:
             o.extend(["SWAP1", "POP"])
@@ -309,12 +322,6 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
                 o.append("POP")
         return o
     # Seq without popping.
-    elif code.value == "seq_unchecked":
-        o = []
-        for arg in code.args:
-            o.extend(_compile_to_assembly(arg, withargs, existing_labels, break_dest, height))
-            height += arg.valency
-        return o
     # Assure (if false, invalid opcode)
     elif code.value == "assert_unreachable":
         o = _compile_to_assembly(code.args[0], withargs, existing_labels, break_dest, height)
@@ -343,7 +350,11 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
             )
             if is_free_of_clamp_errors:
                 return _compile_to_assembly(
-                    code.args[0], withargs, existing_labels, break_dest, height,
+                    code.args[0],
+                    withargs,
+                    existing_labels,
+                    break_dest,
+                    height,
                 )
             else:
                 raise Exception(
@@ -351,7 +362,13 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
                 )
         o = _compile_to_assembly(code.args[0], withargs, existing_labels, break_dest, height)
         o.extend(
-            _compile_to_assembly(code.args[1], withargs, existing_labels, break_dest, height + 1,)
+            _compile_to_assembly(
+                code.args[1],
+                withargs,
+                existing_labels,
+                break_dest,
+                height + 1,
+            )
         )
         o.extend(["DUP2"])
         # Stack: num num bound
@@ -379,11 +396,23 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         comp2 = "SLT" if code.value == "clamp" else "LT"
         o = _compile_to_assembly(code.args[0], withargs, existing_labels, break_dest, height)
         o.extend(
-            _compile_to_assembly(code.args[1], withargs, existing_labels, break_dest, height + 1,)
+            _compile_to_assembly(
+                code.args[1],
+                withargs,
+                existing_labels,
+                break_dest,
+                height + 1,
+            )
         )
         o.extend(["DUP1"])
         o.extend(
-            _compile_to_assembly(code.args[2], withargs, existing_labels, break_dest, height + 3,)
+            _compile_to_assembly(
+                code.args[2],
+                withargs,
+                existing_labels,
+                break_dest,
+                height + 3,
+            )
         )
         o.extend(["SWAP1", comp1])
         o.extend(_assert_false())
@@ -493,9 +522,13 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
             break_dest,
             height,
         )
-    # # jump to a symbol
+    # # jump to a symbol, and push variable arguments onto stack
     elif code.value == "goto":
-        return ["_sym_" + str(code.args[0]), "JUMP"]
+        o = []
+        for i, c in enumerate(reversed(code.args[1:])):
+            o.extend(_compile_to_assembly(c, withargs, existing_labels, break_dest, height + i))
+        o.extend(["_sym_" + str(code.args[0]), "JUMP"])
+        return o
     elif isinstance(code.value, str) and is_symbol(code.value):
         return [code.value]
     # set a symbol as a location.
@@ -557,26 +590,57 @@ def _prune_unreachable_code(assembly):
             i += 1
 
 
+def _prune_inefficient_jumps(assembly):
+    # prune sequences `_sym_x JUMP _sym_x JUMPDEST` to `_sym_x JUMPDEST`
+    i = 0
+    while i < len(assembly) - 4:
+        if (
+            is_symbol(assembly[i])
+            and assembly[i + 1] == "JUMP"
+            and assembly[i] == assembly[i + 2]
+            and assembly[i + 3] == "JUMPDEST"
+        ):
+            # delete _sym_x JUMP
+            del assembly[i : i + 2]
+        else:
+            i += 1
+
+
 def _merge_jumpdests(assembly):
-    # When a nested subroutine finishes and is the final action within it's
-    # parent subroutine, we end up with multiple simultaneous JUMPDEST
-    # instructions that can be merged to reduce the bytecode size.
+    # When we have multiple JUMPDESTs in a row, or when a JUMPDEST
+    # is immediately followed by another JUMP, we can skip the
+    # intermediate jumps.
+    # (Usually a chain of JUMPs is created by a nested block,
+    # or some nested if statements.)
     i = 0
     while i < len(assembly) - 3:
         if is_symbol(assembly[i]) and assembly[i + 1] == "JUMPDEST":
+            current_symbol = assembly[i]
             if is_symbol(assembly[i + 2]) and assembly[i + 3] == "JUMPDEST":
-                to_replace = assembly[i + 2]
-                assembly = assembly[: i + 2] + assembly[i + 4 :]  # noqa: E203
-                assembly = [x if x != to_replace else assembly[i] for x in assembly]
-                continue
+                # _sym_x JUMPDEST _sym_y JUMPDEST
+                # replace all instances of _sym_x with _sym_y
+                # (except for _sym_x JUMPDEST - don't want duplicate labels)
+                new_symbol = assembly[i + 2]
+                for j in range(len(assembly)):
+                    if assembly[j] == current_symbol and i != j:
+                        assembly[j] = new_symbol
+            elif is_symbol(assembly[i + 2]) and assembly[i + 3] == "JUMP":
+                # _sym_x JUMPDEST _sym_y JUMP
+                # replace all instances of _sym_x with _sym_y
+                # (except for _sym_x JUMPDEST - don't want duplicate labels)
+                new_symbol = assembly[i + 2]
+                for j in range(len(assembly)):
+                    if assembly[j] == current_symbol and i != j:
+                        assembly[j] = new_symbol
+
         i += 1
 
 
 def _merge_iszero(assembly):
     i = 0
     while i < len(assembly) - 2:
-        if assembly[i : i + 3] == ["ISZERO", "ISZERO", "ISZERO"]:  # noqa: E203
-            del assembly[i : i + 2]  # noqa: E203
+        if assembly[i : i + 3] == ["ISZERO", "ISZERO", "ISZERO"]:
+            del assembly[i : i + 2]
         else:
             i += 1
     i = 0
@@ -584,23 +648,66 @@ def _merge_iszero(assembly):
         # ISZERO ISZERO could map truthy to 1,
         # but it could also just be a no-op before JUMPI.
         if (
-            assembly[i : i + 2] == ["ISZERO", "ISZERO"]  # noqa: E203
+            assembly[i : i + 2] == ["ISZERO", "ISZERO"]
             and is_symbol(assembly[i + 2])
             and assembly[i + 3] == "JUMPI"
         ):
-            del assembly[i : i + 2]  # noqa: E203
+            del assembly[i : i + 2]
         else:
             i += 1
 
 
+def _prune_unused_jumpdests(assembly):
+    used_jumpdests = set()
+
+    # find all used jumpdests
+    for i in range(len(assembly) - 1):
+        if is_symbol(assembly[i]) and assembly[i + 1] != "JUMPDEST":
+            used_jumpdests.add(assembly[i])
+
+    # delete jumpdests that aren't used
+    i = 0
+    while i < len(assembly) - 2:
+        if is_symbol(assembly[i]) and assembly[i] not in used_jumpdests:
+            del assembly[i : i + 2]
+        else:
+            i += 1
+
+
+def _stack_peephole_opts(assembly):
+    i = 0
+    while i < len(assembly) - 2:
+        # usually generated by with statements that return their input like
+        # (with x (...x))
+        if assembly[i : i + 3] == ["DUP1", "SWAP1", "POP"]:
+            # DUP1 SWAP1 POP == no-op
+            del assembly[i : i + 3]
+            continue
+        # usually generated by nested with statements that don't return like
+        # (with x (with y ...))
+        if assembly[i : i + 3] == ["SWAP1", "POP", "POP"]:
+            # SWAP1 POP POP == POP POP
+            del assembly[i]
+            continue
+        i += 1
+
+
+# optimize assembly, in place
+def _optimize_assembly(assembly):
+    for x in assembly:
+        if isinstance(x, list):
+            _optimize_assembly(x)
+
+    _prune_unreachable_code(assembly)
+    _merge_iszero(assembly)
+    _merge_jumpdests(assembly)
+    _prune_inefficient_jumps(assembly)
+    _prune_unused_jumpdests(assembly)
+    _stack_peephole_opts(assembly)
+
+
 # Assembles assembly into EVM
 def assembly_to_evm(assembly, start_pos=0):
-    _prune_unreachable_code(assembly)
-
-    _merge_iszero(assembly)
-
-    _merge_jumpdests(assembly)
-
     line_number_map = {
         "breakpoints": set(),
         "pc_breakpoints": set(),
@@ -622,11 +729,15 @@ def assembly_to_evm(assembly, start_pos=0):
 
         if item == "JUMP":
             last = assembly[i - 1]
-            if last == "MLOAD":
-                line_number_map["pc_jump_map"][pos] = "o"
-            elif is_symbol(last) and "_priv_" in last:
-                line_number_map["pc_jump_map"][pos] = "i"
+            if is_symbol(last) and last.startswith("_sym_internal"):
+                if last.endswith("cleanup"):
+                    # exit an internal function
+                    line_number_map["pc_jump_map"][pos] = "o"
+                else:
+                    # enter an internal function
+                    line_number_map["pc_jump_map"][pos] = "i"
             else:
+                # everything else
                 line_number_map["pc_jump_map"][pos] = "-"
         elif item in ("JUMPI", "JUMPDEST"):
             line_number_map["pc_jump_map"][pos] = "-"

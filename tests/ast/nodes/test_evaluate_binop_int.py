@@ -71,7 +71,8 @@ def foo(a: uint256, b: uint256) -> uint256:
 @pytest.mark.fuzzing
 @settings(max_examples=50, deadline=1000)
 @given(
-    left=st.integers(min_value=2, max_value=245), right=st.integers(min_value=0, max_value=16),
+    left=st.integers(min_value=2, max_value=245),
+    right=st.integers(min_value=0, max_value=16),
 )
 @example(left=0, right=0)
 @example(left=0, right=1)

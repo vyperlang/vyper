@@ -156,6 +156,62 @@ Operator       Description
 
 ``x`` and ``y`` must be of the type ``int128``.
 
+.. index:: ! unit, ! uint8
+
+Unsigned Integer (8 bit)
+--------------------------
+
+**Keyword:** ``uint8``
+
+An unsigned integer (8 bit) is a type to store non-negative integers.
+
+Values
+******
+
+Integer values between 0 and (2\ :sup:`8`-1).
+
+Interger literals cannot have a decimal point even if the decimal value is zero. For example, ``2.0`` cannot be interpreted as an integer.
+
+.. note::
+    Integer literals are interpreted as ``int128`` by default. In cases where ``uint8`` is more appropriate, such as assignment, the literal might be interpreted as ``uint8``. Example: ``_variable: uint8 = _literal``. In order to explicitly cast a literal to a ``uint8`` use ``convert(_literal, uint8)``.
+
+Operators
+*********
+
+Comparisons
+^^^^^^^^^^^
+
+Comparisons return a boolean value.
+
+==========  ================
+Operator    Description
+==========  ================
+``x < y``   Less than
+``x <= y``  Less than or equal to
+``x == y``  Equals
+``x != y``  Does not equal
+``x >= y``  Greater than or equal to
+``x > y``   Greater than
+==========  ================
+
+``x`` and ``y`` must be of the type ``uint8``.
+
+Arithmetic Operators
+^^^^^^^^^^^^^^^^^^^^
+
+===========================  ======================
+Operator                     Description
+===========================  ======================
+``x + y``                    Addition
+``x - y``                    Subtraction
+``x * y``                    Multiplication
+``x / y``                    Division
+``x**y``                     Exponentiation
+``x % y``                    Modulo
+===========================  ======================
+
+``x`` and ``y`` must be of the type ``uint8``.
+
 .. index:: ! unit, ! uint256
 
 Unsigned Integer (256 bit)
@@ -518,6 +574,11 @@ In (``atype``)   Out (``btype``)    Allowable Values               Additional No
 ``int128``       ``uint256``        ``a >= 0``                     Cannot convert negative values
 ``int128``       ``bytes32``        All
 ``int128``       ``Bytes``          All
+``uint8``        ``bool``           All                            Returns ``a != 0``
+``uint8``        ``decimal``        All
+``uint8``        ``int128``         All
+``uint8``        ``bytes32``        All
+``uint8``        ``Bytes``          All
 ``uint256``      ``bool``           All                            Returns ``a != 0``
 ``uint256``      ``decimal``        ``a <= MAX_DECIMAL``
 ``uint256``      ``int128``         ``a <= MAX_INT128``

@@ -1,11 +1,12 @@
 import re
+from enum import Enum, auto
 from typing import Any, List, Optional, Tuple, Union
 
 from vyper.compiler.settings import VYPER_COLOR_OUTPUT
 from vyper.evm.opcodes import get_comb_opcodes
 from vyper.exceptions import CompilerPanic
 from vyper.old_codegen.types import BaseType, NodeType, ceil32
-from vyper.utils import VALID_LLL_MACROS
+from vyper.utils import VALID_LLL_MACROS, cached_property
 
 # Set default string representation for ints in LLL output.
 AS_HEX_DEFAULT = False
@@ -35,6 +36,21 @@ class NullAttractor(int):
     __mul__ = __add__
 
 
+def push_label_to_stack(labelname: str) -> str:
+    #  items prefixed with `_sym_` are ignored until asm phase
+    return "_sym_" + labelname
+
+
+class Encoding(Enum):
+    # vyper encoding, default for memory variables
+    VYPER = auto()
+    # abi encoded, default for args/return values from external funcs
+    ABI = auto()
+    # abi encoded, same as ABI but no clamps for bytestrings
+    JSON_ABI = auto()
+    # future: packed
+
+
 # Data structure for LLL parse tree
 class LLLnode:
     repr_show_gas = False
@@ -47,26 +63,29 @@ class LLLnode:
         self,
         value: Union[str, int],
         args: List["LLLnode"] = None,
-        typ: "BaseType" = None,
+        typ: NodeType = None,
         location: str = None,
         pos: Optional[Tuple[int, int]] = None,
         annotation: Optional[str] = None,
         mutable: bool = True,
         add_gas_estimate: int = 0,
         valency: Optional[int] = None,
+        encoding: Encoding = Encoding.VYPER,
     ):
         if args is None:
             args = []
 
         self.value = value
         self.args = args
+        # TODO remove this sanity check once mypy is more thorough
+        assert isinstance(typ, NodeType) or typ is None, repr(typ)
         self.typ = typ
-        assert isinstance(self.typ, NodeType) or self.typ is None, repr(self.typ)
         self.location = location
         self.pos = pos
         self.annotation = annotation
         self.mutable = mutable
         self.add_gas_estimate = add_gas_estimate
+        self.encoding = encoding
         self.as_hex = AS_HEX_DEFAULT
 
         # Optional annotation properties for gas estimation
@@ -136,9 +155,11 @@ class LLLnode:
             # With statements: with <var> <initial> <statement>
             elif self.value == "with":
                 if len(self.args) != 3:
-                    raise CompilerPanic("With statement must have 3 arguments")
+                    raise CompilerPanic(f"With statement must have 3 arguments: {self}")
                 if len(self.args[0].args) or not isinstance(self.args[0].value, str):
-                    raise CompilerPanic("First argument to with statement must be a variable")
+                    raise CompilerPanic(
+                        f"First argument to with statement must be a variable: {self}"
+                    )
                 if not self.args[1].valency and self.args[1].value != "pass":
                     raise CompilerPanic(
                         (
@@ -203,6 +224,16 @@ class LLLnode:
             elif self.value == "seq":
                 self.valency = self.args[-1].valency if self.args else 0
                 self.gas = sum([arg.gas for arg in self.args]) + 30
+
+            # GOTO is a jump with args
+            # e.g. (goto my_label x y z) will push x y and z onto the stack,
+            # then JUMP to my_label.
+            elif self.value == "goto":
+                for arg in self.args:
+                    if not arg.valency and arg.value != "pass":
+                        raise CompilerPanic(f"zerovalent argument to goto {self}")
+                self.valency = 0
+                self.gas = sum([arg.gas for arg in self.args])
             # Multi statements: multi <expr> <expr> ...
             elif self.value == "multi":
                 for arg in self.args:
@@ -219,11 +250,7 @@ class LLLnode:
             # Stack variables
             else:
                 self.valency = 1
-                self.gas = 5
-                if self.value == "seq_unchecked":
-                    self.gas = sum([arg.gas for arg in self.args]) + 30
-                if self.value == "if_unchecked":
-                    self.gas = self.args[0].gas + self.args[1].gas + 17
+                self.gas = 3
         elif self.value is None:
             self.valency = 1
             # None LLLnodes always get compiled into something else, e.g.
@@ -237,6 +264,17 @@ class LLLnode:
             self.valency = valency
 
         self.gas += self.add_gas_estimate
+
+    # the LLL should be cached.
+    @property
+    def is_complex_lll(self):
+        return isinstance(self.value, str) and (
+            self.value.lower() in VALID_LLL_MACROS or self.value.upper() in get_comb_opcodes()
+        )
+
+    @cached_property
+    def contains_self_call(self):
+        return getattr(self, "is_self_call", False) or any(x.contains_self_call for x in self.args)
 
     def __getitem__(self, i):
         return self.to_list()[i]
@@ -328,13 +366,14 @@ class LLLnode:
     def from_list(
         cls,
         obj: Any,
-        typ: "BaseType" = None,
+        typ: NodeType = None,
         location: str = None,
         pos: Tuple[int, int] = None,
         annotation: Optional[str] = None,
         mutable: bool = True,
         add_gas_estimate: int = 0,
         valency: Optional[int] = None,
+        encoding: Encoding = Encoding.VYPER,
     ) -> "LLLnode":
         if isinstance(typ, str):
             typ = BaseType(typ)
@@ -348,6 +387,9 @@ class LLLnode:
                 obj.pos = pos
             if obj.location is None:
                 obj.location = location
+            if obj.encoding is None:
+                obj.encoding = encoding
+
             return obj
         elif not isinstance(obj, list):
             return cls(
@@ -359,6 +401,8 @@ class LLLnode:
                 annotation=annotation,
                 mutable=mutable,
                 add_gas_estimate=add_gas_estimate,
+                valency=valency,
+                encoding=encoding,
             )
         else:
             return cls(
@@ -371,4 +415,5 @@ class LLLnode:
                 mutable=mutable,
                 add_gas_estimate=add_gas_estimate,
                 valency=valency,
+                encoding=encoding,
             )

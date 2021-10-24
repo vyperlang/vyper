@@ -1,10 +1,7 @@
 from typing import Optional
 
 from vyper import ast as vy_ast
-from vyper.ast.signatures.function_signature import (
-    ContractRecord,
-    VariableRecord,
-)
+from vyper.ast.signatures.function_signature import ContractRecord, VariableRecord
 from vyper.exceptions import CompilerPanic, InvalidType, StructureException
 from vyper.old_codegen.types import InterfaceType, parse_type
 from vyper.typing import InterfaceImports
@@ -32,10 +29,7 @@ class GlobalContext:
         cls, vyper_module: "vy_ast.Module", interface_codes: Optional[InterfaceImports] = None
     ) -> "GlobalContext":
         # TODO is this a cyclic import?
-        from vyper.ast.signatures.interface import (
-            extract_sigs,
-            get_builtin_interfaces,
-        )
+        from vyper.ast.signatures.interface import extract_sigs, get_builtin_interfaces
 
         interface_codes = {} if interface_codes is None else interface_codes
         global_ctx = cls()
@@ -198,7 +192,10 @@ class GlobalContext:
                     f" Use {item.target.id}: {item_name} instead"
                 )
             self._globals[item.target.id] = ContractRecord(
-                item.target.id, len(self._globals), InterfaceType(item_name), True,
+                item.target.id,
+                len(self._globals),
+                InterfaceType(item_name),
+                True,
             )
         elif self.get_call_func_name(item) == "public":
             if isinstance(item.annotation.args[0], vy_ast.Name) and item_name in self._contracts:
@@ -206,7 +203,10 @@ class GlobalContext:
             else:
                 typ = self.parse_type(item.annotation.args[0], "storage")
             self._globals[item.target.id] = VariableRecord(
-                item.target.id, len(self._globals), typ, True,
+                item.target.id,
+                len(self._globals),
+                typ,
+                True,
             )
 
         elif isinstance(item.annotation, (vy_ast.Name, vy_ast.Call, vy_ast.Subscript)):
@@ -219,5 +219,10 @@ class GlobalContext:
         else:
             raise InvalidType("Invalid global type specified", item)
 
-    def parse_type(self, ast_node, location):
-        return parse_type(ast_node, location, sigs=self._contracts, custom_structs=self._structs,)
+    def parse_type(self, ast_node, location=None):
+        return parse_type(
+            ast_node,
+            location,
+            sigs=self._contracts,
+            custom_structs=self._structs,
+        )

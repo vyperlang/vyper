@@ -103,7 +103,8 @@ def foobar() -> int128:
     """
 
     assert_compile_failed(
-        lambda: get_contract_with_gas_estimation(test_fail), TypeMismatch,
+        lambda: get_contract_with_gas_estimation(test_fail),
+        TypeMismatch,
     )
 
 
@@ -240,7 +241,8 @@ def foo() -> int128:
     """
 
     assert_compile_failed(
-        lambda: get_contract_with_gas_estimation(code), OverflowException,
+        lambda: get_contract_with_gas_estimation(code),
+        OverflowException,
     )
 
     code = """
@@ -250,7 +252,8 @@ def foo() -> int128:
     """
 
     assert_compile_failed(
-        lambda: get_contract_with_gas_estimation(code), OverflowException,
+        lambda: get_contract_with_gas_estimation(code),
+        OverflowException,
     )
 
 

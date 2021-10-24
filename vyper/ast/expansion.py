@@ -77,7 +77,10 @@ def generate_public_variable_getters(vyper_module: vy_ast.Module) -> None:
         expanded = vy_ast.FunctionDef.from_node(
             node.annotation,
             name=func_type.name,
-            args=vy_ast.arguments(args=input_nodes, defaults=[],),
+            args=vy_ast.arguments(
+                args=input_nodes,
+                defaults=[],
+            ),
             body=[vy_ast.Return(value=return_stmt)],
             decorator_list=[vy_ast.Name(id="external"), vy_ast.Name(id="view")],
             returns=return_node,

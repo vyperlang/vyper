@@ -3,6 +3,8 @@ from functools import wraps
 
 import pytest
 from eth_tester import EthereumTester
+from eth_utils import setup_DEBUG2_logging
+from hexbytes import HexBytes
 from web3 import Web3
 from web3.providers.eth_tester import EthereumTesterProvider
 
@@ -10,11 +12,7 @@ from vyper import compiler
 from vyper.lll import compile_lll, optimizer
 from vyper.old_codegen.parser_utils import LLLnode
 
-from .base_conftest import (
-    VyperContract,
-    _get_contract,
-    zero_gas_price_strategy,
-)
+from .base_conftest import VyperContract, _get_contract, zero_gas_price_strategy
 
 # Import the base_conftest fixtures
 pytest_plugins = ["tests.base_conftest", "tests.fixtures.memorymock"]
@@ -25,12 +23,14 @@ pytest_plugins = ["tests.base_conftest", "tests.fixtures.memorymock"]
 
 
 def set_evm_verbose_logging():
-    logger = logging.getLogger("evm")
-    logger.setLevel("TRACE")
+    logger = logging.getLogger("eth.vm.computation.Computation")
+    setup_DEBUG2_logging()
+    logger.setLevel("DEBUG2")
 
 
 # Useful options to comment out whilst working:
 # set_evm_verbose_logging()
+#
 # from vdb import vdb
 # vdb.set_evm_opcode_debugger()
 
@@ -67,7 +67,10 @@ def get_contract_from_lll(w3):
         tx_hash = deploy_transaction.transact()
         address = w3.eth.getTransactionReceipt(tx_hash)["contractAddress"]
         contract = w3.eth.contract(
-            address, abi=abi, bytecode=bytecode, ContractFactoryClass=VyperContract,
+            address,
+            abi=abi,
+            bytecode=bytecode,
+            ContractFactoryClass=VyperContract,
         )
         return contract
 
@@ -173,3 +176,15 @@ def search_for_sublist():
         return False
 
     return search_for_sublist
+
+
+@pytest.fixture
+def create2_address_of(keccak):
+    def _f(_addr, _salt, _initcode):
+        prefix = HexBytes("0xff")
+        addr = HexBytes(_addr)
+        salt = HexBytes(_salt)
+        initcode = HexBytes(_initcode)
+        return keccak(prefix + addr + salt + keccak(initcode))[12:]
+
+    return _f

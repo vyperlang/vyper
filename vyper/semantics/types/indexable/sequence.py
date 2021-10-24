@@ -4,11 +4,7 @@ from vyper import ast as vy_ast
 from vyper.exceptions import ArrayIndexException, InvalidType
 from vyper.semantics import validation
 from vyper.semantics.types.abstract import IntegerAbstractType
-from vyper.semantics.types.bases import (
-    BaseTypeDefinition,
-    DataLocation,
-    IndexableTypeDefinition,
-)
+from vyper.semantics.types.bases import BaseTypeDefinition, DataLocation, IndexableTypeDefinition
 from vyper.semantics.types.value.numeric import Uint256Definition
 
 
@@ -116,7 +112,9 @@ class TupleDefinition(_SequenceDefinition):
         # always use the most restrictive location re: modification
         location = sorted((i.location for i in value_type), key=lambda k: k.value)[-1]
         is_immutable = next((True for i in value_type if getattr(i, "is_immutable", None)), False)
+
         super().__init__(
+            # TODO fix the typing on value_type
             value_type,  # type: ignore
             len(value_type),
             f"{value_type}",
