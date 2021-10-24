@@ -1806,7 +1806,6 @@ for i in range(34): # 10 decimals: math.log(10**10, 2) == 33.2
     if (x >= 2):
         res += d
         x /= 2.0
-        pass
     x *= x
     d /= 2.0
 
