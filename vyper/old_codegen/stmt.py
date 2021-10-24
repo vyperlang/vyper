@@ -12,6 +12,7 @@ from vyper.old_codegen.parser_utils import (
     make_byte_array_copier,
     make_setter,
     unwrap_location,
+    mzero,
 )
 from vyper.old_codegen.return_ import make_return_stmt
 from vyper.old_codegen.types import BaseType, ByteArrayType, ListType, parse_type
@@ -181,10 +182,12 @@ class Stmt:
         _runtime_length = ["mload", buf]
         revert_seq = [
             "seq",
+            # abi_encode uses zero pad, this uses less space.
+            mzero(buf, msg_lll.typ.maxlen),
             instantiate_msg,
             ["mstore", buf - 64, method_id],
             ["mstore", buf - 32, 0x20],
-            ["revert", buf - 36, ["add", 4 + 32 + 32, _runtime_length]],
+            ["revert", buf - 36, ["add", 4 + 32 + 32, ["ceil32", _runtime_length]]],
         ]
         if test_expr:
             lll_node = ["if", ["iszero", test_expr], revert_seq]
