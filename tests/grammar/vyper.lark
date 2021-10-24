@@ -139,10 +139,10 @@ log_stmt: _LOG NAME "(" [arguments] ")"
 return_stmt: _RETURN [_expr ("," _expr)*]
 _UNREACHABLE: "UNREACHABLE"
 raise_stmt: _RAISE -> raise
-          | _RAISE STRING -> raise_with_reason
+          | _RAISE _expr -> raise_with_reason
           | _RAISE _UNREACHABLE -> raise_unreachable
 assert_stmt: _ASSERT _expr -> assert
-           | _ASSERT _expr "," STRING -> assert_with_reason
+           | _ASSERT _expr "," _expr -> assert_with_reason
            | _ASSERT _expr "," _UNREACHABLE -> assert_unreachable
 
 body: _NEWLINE _INDENT ([COMMENT] _NEWLINE | _stmt)+ _DEDENT
