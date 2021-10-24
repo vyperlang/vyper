@@ -77,6 +77,18 @@ def build_ir_output(compiler_data: CompilerData) -> LLLnode:
     return compiler_data.lll_nodes
 
 
+def build_ir_dict_output(compiler_data: CompilerData) -> LLLnode:
+    lll = compiler_data.lll_nodes
+
+    def _to_dict(lll_node):
+        args = lll_node.args
+        if len(args) > 0:
+            return {lll_node.value: [_to_dict(x) for x in args]}
+        return lll_node.value
+
+    return _to_dict(lll)
+
+
 def build_method_identifiers_output(compiler_data: CompilerData) -> dict:
     interface = compiler_data.vyper_module_folded._metadata["type"]
     functions = interface.members.values()
