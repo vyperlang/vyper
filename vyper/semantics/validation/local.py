@@ -104,7 +104,11 @@ def _validate_revert_reason(msg_node: vy_ast.VyperNode) -> None:
         if isinstance(msg_node, vy_ast.Str):
             if not msg_node.value.strip():
                 raise StructureException("Reason string cannot be empty", msg_node)
-        validate_expected_type(msg_node, StringDefinition(64))
+        elif not (isinstance(msg_node, vy_ast.Name) and msg_node.id == "UNREACHABLE"):
+            try:
+                validate_expected_type(msg_node, StringDefinition(64))
+            except TypeMismatch as e:
+                raise InvalidType("revert reason must be String[64]") from e
 
 
 class FunctionNodeVisitor(VyperNodeVisitorBase):
