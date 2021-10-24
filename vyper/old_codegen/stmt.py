@@ -149,8 +149,12 @@ class Stmt:
             return LLLnode.from_list(["assert_unreachable", test_expr], typ=None, pos=getpos(msg))
 
         # set constant so that revert reason str is well behaved
-        self.context.constancy = Constancy.Constant
-        msg_lll = Expr(msg, self.context).lll_node
+        try:
+            tmp = self.context.constancy
+            self.context.constancy = Constancy.Constant
+            msg_lll = Expr(msg, self.context).lll_node
+        finally:
+            self.context.constancy = tmp
 
         # TODO this is probably useful in parser_utils
         def _get_last(lll):
