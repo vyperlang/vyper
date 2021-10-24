@@ -15,7 +15,7 @@ extras_require = {
         "pytest-xdist>=1.32,<2.0",
         "eth-tester[py-evm]>=0.5.0b1,<0.6",
         "py-evm==0.4.0a4",  # NOTE: temporarily pinned until we have support for py-evm 0.5.0a0+
-        "web3==5.12.3",
+        "web3==5.21.0",
         "tox>=3.15,<4.0",
         "lark-parser==0.10.0",
         "hypothesis[lark]>=5.37.1,<6.0",
