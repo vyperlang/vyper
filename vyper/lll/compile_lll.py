@@ -583,7 +583,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
             break_dest,
             height,
         )
-    # # jump to a symbol, and push variable arguments onto stack
+    # jump to a symbol, and push variable # of arguments onto stack
     elif code.value == "goto":
         o = []
         for i, c in enumerate(reversed(code.args[1:])):
@@ -601,7 +601,28 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         else:
             existing_labels.add(label_name)
 
-        return ["_sym_" + label_name, "JUMPDEST"]
+        if code.args[1].value != "var_list":
+            raise CodegenPanic("2nd arg to label must be var_list")
+        var_args = code.args[1].args
+
+        body = code.args[2]
+
+        # new scope
+        height = 0
+        withargs = {}
+
+        for arg in var_args:
+            assert isinstance(
+                arg.value, str
+            )  # already checked for higher up but only the paranoid survive
+            withargs[arg.value] = height
+            height += 1
+
+        body_asm = _compile_to_assembly(body, withargs=withargs, existing_labels=existing_labels, height=height)
+        pop_scoped_vars = ["POP"] * height
+
+        return ["_sym_" + label_name, "JUMPDEST"] + body_asm + pop_scoped_vars
+
     # inject debug opcode.
     elif code.value == "debugger":
         return mkdebug(pc_debugger=False, pos=code.pos)

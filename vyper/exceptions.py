@@ -299,6 +299,10 @@ class CompilerPanic(VyperInternalException):
     """General unexpected error during compilation."""
 
 
+class CodegenPanic(VyperInternalException):
+    """Invalid code generated during codegen phase"""
+
+
 class UnexpectedNodeType(VyperInternalException):
     """Unexpected AST node type."""
 

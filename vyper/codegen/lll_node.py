@@ -5,7 +5,7 @@ from typing import Any, List, Optional, Tuple, Union
 from vyper.codegen.types import BaseType, NodeType, ceil32
 from vyper.compiler.settings import VYPER_COLOR_OUTPUT
 from vyper.evm.opcodes import get_lll_opcodes
-from vyper.exceptions import CompilerPanic
+from vyper.exceptions import CompilerPanic, CodegenPanic
 from vyper.utils import VALID_LLL_MACROS, cached_property
 
 # Set default string representation for ints in LLL output.
@@ -221,6 +221,19 @@ class LLLnode:
 
                 self.valency = 0
                 self.gas = sum([arg.gas for arg in self.args])
+            elif self.value == "label":
+                if not self.args[1].value == "var_list":
+                    raise CodegenPanic(f"2nd argument to label must be var_list, {self}")
+                self.valency = 0
+                self.gas = 1
+            # var_list names a variable number stack variables
+            elif self.value == "var_list":
+                for arg in self.args:
+                    if not isinstance(arg.value, str) or len(arg.args) > 0:
+                        raise CodegenPanic(f"var_list only takes strings: {self.args}")
+                self.valency = 0
+                self.gas = 0
+
             # Multi statements: multi <expr> <expr> ...
             elif self.value == "multi":
                 for arg in self.args:

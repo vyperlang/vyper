@@ -97,7 +97,7 @@ def lll_for_self_call(stmt_expr, context):
             return_buffer,  # pass return buffer to subroutine
             push_label_to_stack(return_label),  # pass return label to subroutine
         ],
-        ["label", return_label],
+        ["label", return_label, ["var_list"], "pass"],
         return_buffer,  # push return buffer location to stack
     ]
 

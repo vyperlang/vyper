@@ -196,6 +196,7 @@ VALID_LLL_MACROS = {
     "~selfcode",
     "~calldata",
     "~empty",
+    "var_list",
 }
 
 # Available base types

@@ -52,17 +52,27 @@ def generate_lll_for_internal_function(
     function_entry_label = sig.internal_function_label
     cleanup_label = sig.exit_sequence_label
 
-    # jump to the label which was passed in via stack
-    stop_func = LLLnode.from_list(["jump", "pass"], annotation="jump to return address")
+    stack_args = ["var_list"]
+    if func_type.return_type:
+        stack_args += ["return_buffer"]
+    stack_args += ["return_pc"]
 
-    enter = [["label", function_entry_label]] + nonreentrant_pre
+    body = [
+        "label",
+        function_entry_label,
+        stack_args,
+        ["seq"] + nonreentrant_pre + [parse_body(c, context) for c in code.body],
+    ]
 
-    body = [parse_body(c, context) for c in code.body]
-
-    exit = [["label", cleanup_label]] + nonreentrant_post + [stop_func]
+    cleanup_routine = [
+        "label",
+        cleanup_label,
+        ["var_list", "return_pc"],
+        ["seq"] + nonreentrant_post + [["exit_to", "return_pc"]],
+    ]
 
     return LLLnode.from_list(
-        ["seq"] + enter + body + exit,
+        ["seq", body, cleanup_routine],
         typ=None,
         pos=getpos(code),
     )
