@@ -32,22 +32,30 @@ def set_storage_slots(vyper_module: vy_ast.Module) -> StorageLayout:
 
     for node in vyper_module.get_children(vy_ast.FunctionDef):
         type_ = node._metadata["type"]
-        if type_.nonreentrant is not None:
-            type_.set_reentrancy_key_position(StorageSlot(storage_slot))
+        if type_.nonreentrant is None:
+            continue
 
-            # TODO this could have better typing but leave it untyped until
-            # we nail down the format better
-            variable_name = f"nonreentrant.{type_.nonreentrant}"
-            ret[variable_name] = {
-                "type": "nonreentrant lock",
-                "location": "storage",
-                "slot": storage_slot,
-            }
+        variable_name = f"nonreentrant.{type_.nonreentrant}"
 
-            # TODO use one byte - or bit - per reentrancy key
-            # requires either an extra SLOAD or caching the value of the
-            # location in memory at entrance
-            storage_slot += 1
+        # a nonreentrant key can appear many times in a module but it
+        # only takes one slot. ignore it after the first time we see it.
+        if variable_name in ret:
+            continue
+
+        type_.set_reentrancy_key_position(StorageSlot(storage_slot))
+
+        # TODO this could have better typing but leave it untyped until
+        # we nail down the format better
+        ret[variable_name] = {
+            "type": "nonreentrant lock",
+            "location": "storage",
+            "slot": storage_slot,
+        }
+
+        # TODO use one byte - or bit - per reentrancy key
+        # requires either an extra SLOAD or caching the value of the
+        # location in memory at entrance
+        storage_slot += 1
 
     for node in vyper_module.get_children(vy_ast.AnnAssign):
         type_ = node.target._metadata["type"]
