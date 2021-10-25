@@ -252,6 +252,63 @@ def foo(_addr: address) -> int128:
     assert_tx_failed(lambda: caller.foo(target.address))
 
 
+def test_checkable_raw_call(get_contract, assert_tx_failed):
+
+    target_source = """
+baz: int128
+@external
+def fail1(should_raise: bool):
+    if should_raise:
+        raise "fail"
+# test both paths for raw_call -
+# they are different depending if callee has or doesn't have returntype
+@external
+def fail2(should_raise: bool) -> int128:
+    if should_raise:
+        self.baz = self.baz + 1
+    return self.baz
+"""
+
+    caller_source = """
+@external
+@view
+def foo(_addr: address, should_raise: bool) -> uint256:
+    success: bool = True
+    response: Bytes[32] = b""
+    success, response = raw_call(
+        _addr,
+        _abi_encode(should_raise, method_id=method_id("fail1(bool)")),
+        max_outsize=32,
+        is_static_call=True,
+        revert_on_failure=False,
+    )
+    assert success == (not should_raise)
+    return 1
+@external
+@view
+def bar(_addr: address, should_raise: bool) -> uint256:
+    success: bool = True
+    response: Bytes[32] = b""
+    success, response = raw_call(
+        _addr,
+        _abi_encode(should_raise, method_id=method_id("fail2(bool)")),
+        max_outsize=32,
+        is_static_call=True,
+        revert_on_failure=False,
+    )
+    assert success == (not should_raise)
+    return 2
+    """
+
+    target = get_contract(target_source)
+    caller = get_contract(caller_source)
+
+    assert caller.foo(target.address, True) == 1
+    assert caller.foo(target.address, False) == 1
+    assert caller.bar(target.address, True) == 2
+    assert caller.bar(target.address, False) == 2
+
+
 uncompilable_code = [
     (
         """

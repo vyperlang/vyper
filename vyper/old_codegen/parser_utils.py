@@ -563,13 +563,11 @@ def _typecheck_tuple_make_setter(left, right):
 @type_check_wrapper
 def _complex_make_setter(left, right, pos):
     if isinstance(left.typ, ListType):
-        # CMC 20211002 this might not be necessary
         if not _typecheck_list_make_setter(left, right):
             return
         keys = [LLLnode.from_list(i, typ="uint256") for i in range(left.typ.count)]
 
     if isinstance(left.typ, TupleLike):
-        # CMC 20211002 this might not be necessary
         if not _typecheck_tuple_make_setter(left, right):
             return
         keys = left.typ.tuple_keys()
