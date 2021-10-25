@@ -209,7 +209,7 @@ PSEUDO_OPCODES: OpcodeMap = {
     "LABEL": (None, 1, 0, 1),
 }
 
-COMB_OPCODES: OpcodeMap = {**OPCODES, **PSEUDO_OPCODES}
+LLL_OPCODES: OpcodeMap = {**OPCODES, **PSEUDO_OPCODES}
 
 
 def evm_wrapper(fn, *args, **kwargs):
@@ -245,9 +245,8 @@ def _mk_version_opcodes(opcodes: OpcodeMap, idx: int) -> OpcodeRulesetMap:
 _evm_opcodes: Dict[int, OpcodeRulesetMap] = {
     v: _mk_version_opcodes(OPCODES, v) for v in EVM_VERSIONS.values()
 }
-
-_evm_combined: Dict[int, OpcodeRulesetMap] = {
-    v: _mk_version_opcodes(COMB_OPCODES, v) for v in EVM_VERSIONS.values()
+_lll_opcodes: Dict[int, OpcodeRulesetMap] = {
+    v: _mk_version_opcodes(LLL_OPCODES, v) for v in EVM_VERSIONS.values()
 }
 
 
@@ -255,8 +254,8 @@ def get_opcodes() -> OpcodeRulesetMap:
     return _evm_opcodes[active_evm_version]
 
 
-def get_comb_opcodes() -> OpcodeRulesetMap:
-    return _evm_combined[active_evm_version]
+def get_lll_opcodes() -> OpcodeRulesetMap:
+    return _lll_opcodes[active_evm_version]
 
 
 def version_check(begin: Optional[str] = None, end: Optional[str] = None) -> bool:

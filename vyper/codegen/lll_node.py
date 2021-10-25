@@ -4,7 +4,7 @@ from typing import Any, List, Optional, Tuple, Union
 
 from vyper.codegen.types import BaseType, NodeType, ceil32
 from vyper.compiler.settings import VYPER_COLOR_OUTPUT
-from vyper.evm.opcodes import get_comb_opcodes
+from vyper.evm.opcodes import get_lll_opcodes
 from vyper.exceptions import CompilerPanic
 from vyper.utils import VALID_LLL_MACROS, cached_property
 
@@ -108,8 +108,8 @@ class LLLnode:
             self.gas = 5
         elif isinstance(self.value, str):
             # Opcodes and pseudo-opcodes (e.g. clamp)
-            if self.value.upper() in get_comb_opcodes():
-                _, ins, outs, gas = get_comb_opcodes()[self.value.upper()]
+            if self.value.upper() in get_lll_opcodes():
+                _, ins, outs, gas = get_lll_opcodes()[self.value.upper()]
                 self.valency = outs
                 _check(
                     len(self.args) == ins,
@@ -261,7 +261,7 @@ class LLLnode:
         do_not_cache = {"~empty"}
         return (
             isinstance(self.value, str)
-            and (self.value.lower() in VALID_LLL_MACROS or self.value.upper() in get_comb_opcodes())
+            and (self.value.lower() in VALID_LLL_MACROS or self.value.upper() in get_lll_opcodes())
             and self.value.lower() not in do_not_cache
         )
 
@@ -371,7 +371,7 @@ class LLLnode:
     def _colorise_keywords(val):
         if val.lower() in VALID_LLL_MACROS:  # highlight macro
             return OKLIGHTMAGENTA + val + ENDC
-        elif val.upper() in get_comb_opcodes().keys():
+        elif val.upper() in get_lll_opcodes().keys():
             return OKMAGENTA + val + ENDC
         return val
 
