@@ -29,15 +29,15 @@ def test(a: int128) -> int128:
     return 1 + a
 
 @external
-def test2(a: int128, b: int128) -> int128:
+def test2(a: int128, b: int128, extra_reason: String[32]) -> int128:
     c: int128 = 11
     assert a > 1, "a is not large enough"
-    assert b == 1, "b may only be 1"
+    assert b == 1, concat("b may only be 1", extra_reason)
     return a + b + c
 
 @external
-def test3() :
-    raise "An exception"
+def test3(reason_str: String[32]):
+    raise reason_str
     """
     c = get_contract_with_gas_estimation(code)
 
@@ -48,17 +48,17 @@ def test3() :
     assert e_info.value.args[0] == "larger than one please"
     # a = 0, b = 1
     with pytest.raises(TransactionFailed) as e_info:
-        c.test2(0, 1)
+        c.test2(0, 1, "")
     assert e_info.value.args[0] == "a is not large enough"
     # a = 1, b = 0
     with pytest.raises(TransactionFailed) as e_info:
-        c.test2(2, 2)
-    assert e_info.value.args[0] == "b may only be 1"
+        c.test2(2, 2, " because I said so")
+    assert e_info.value.args[0] == "b may only be 1" + " because I said so"
     # return correct value
-    assert c.test2(5, 1) == 17
+    assert c.test2(5, 1, "") == 17
 
     with pytest.raises(TransactionFailed) as e_info:
-        c.test3()
+        c.test3("An exception")
     assert e_info.value.args[0] == "An exception"
 
 

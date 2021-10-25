@@ -30,6 +30,7 @@ from vyper.semantics.types.indexable.sequence import ArrayDefinition, TupleDefin
 from vyper.semantics.types.user.event import Event
 from vyper.semantics.types.user.struct import StructDefinition
 from vyper.semantics.types.utils import get_type_from_annotation
+from vyper.semantics.types.value.array_value import StringDefinition
 from vyper.semantics.types.value.boolean import BoolDefinition
 from vyper.semantics.types.value.numeric import Uint256Definition
 from vyper.semantics.validation.annotation import StatementAnnotationVisitor
@@ -104,7 +105,10 @@ def _validate_revert_reason(msg_node: vy_ast.VyperNode) -> None:
             if not msg_node.value.strip():
                 raise StructureException("Reason string cannot be empty", msg_node)
         elif not (isinstance(msg_node, vy_ast.Name) and msg_node.id == "UNREACHABLE"):
-            raise InvalidType("Reason must UNREACHABLE or a string literal", msg_node)
+            try:
+                validate_expected_type(msg_node, StringDefinition(1024))
+            except TypeMismatch as e:
+                raise InvalidType("revert reason must fit within String[1024]") from e
 
 
 class FunctionNodeVisitor(VyperNodeVisitorBase):
