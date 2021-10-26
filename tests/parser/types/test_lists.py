@@ -380,3 +380,18 @@ def bar(_baz: Foo[3]) -> uint256:
     c = get_contract(code)
     c_input = [[x, y] for x, y in zip(range(3), range(3))]
     assert c.bar(c_input) == 5  # 0 * 0 + 1 * 1 + 2 * 2
+
+
+def test_list_of_structs_arg_with_dynamic_type(get_contract):
+    code = """
+struct Foo:
+    x: uint256
+    _msg: String[32]
+
+@external
+def bar(_baz: Foo[3]) -> String[96]:
+    return concat(_baz[0]._msg, _baz[1]._msg, _baz[2]._msg)
+    """
+    c = get_contract(code)
+    c_input = [[i, msg] for i, msg in enumerate(("Hello ", "world", "!!!!"))]
+    assert c.bar(c_input) == "Hello world!!!!"
