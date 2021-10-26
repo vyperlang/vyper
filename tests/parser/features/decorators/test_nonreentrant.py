@@ -24,6 +24,7 @@ interface Callback:
     def updated(): nonpayable
     def updated_protected(): nonpayable
 interface Self:
+    def protected_function(val: String[100], do_callback: bool) -> uint256: nonpayable
     def protected_function2(val: String[100], do_callback: bool) -> uint256: nonpayable
 
 special_value: public(String[100])
@@ -49,7 +50,8 @@ def protected_function(val: String[100], do_callback: bool) -> uint256:
 def protected_function2(val: String[100], do_callback: bool) -> uint256:
     self.special_value = val
     if do_callback:
-        Self(self).protected_function2(val, False)
+        # call other function with same nonreentrancy key
+        Self(self).protected_function(val, False)
         return 1
     return 2
 
