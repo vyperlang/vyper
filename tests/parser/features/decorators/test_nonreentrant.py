@@ -23,6 +23,9 @@ def updated_protected():
 interface Callback:
     def updated(): nonpayable
     def updated_protected(): nonpayable
+interface Self:
+    def protected_function(val: String[100], do_callback: bool) -> uint256: nonpayable
+    def protected_function2(val: String[100], do_callback: bool) -> uint256: nonpayable
 
 special_value: public(String[100])
 callback: public(Callback)
@@ -41,6 +44,16 @@ def protected_function(val: String[100], do_callback: bool) -> uint256:
         return 1
     else:
         return 2
+
+@external
+@nonreentrant('protect_special_value')
+def protected_function2(val: String[100], do_callback: bool) -> uint256:
+    self.special_value = val
+    if do_callback:
+        # call other function with same nonreentrancy key
+        Self(self).protected_function(val, False)
+        return 1
+    return 2
 
 @external
 def unprotected_function(val: String[100], do_callback: bool):
@@ -65,6 +78,11 @@ def unprotected_function(val: String[100], do_callback: bool):
     assert reentrant_contract.special_value() == "some value"
 
     assert_tx_failed(lambda: reentrant_contract.protected_function("zzz value", True, transact={}))
+
+    reentrant_contract.protected_function2("another value", False, transact={})
+    assert reentrant_contract.special_value() == "another value"
+
+    assert_tx_failed(lambda: reentrant_contract.protected_function2("zzz value", True, transact={}))
 
 
 def test_disallow_on_init_function(get_contract):
