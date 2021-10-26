@@ -1,5 +1,6 @@
 # TODO this doesn't really belong in "validation"
 import math
+from typing import Dict
 
 from vyper import ast as vy_ast
 from vyper.semantics.types.bases import StorageSlot
@@ -28,7 +29,7 @@ def set_storage_slots(vyper_module: vy_ast.Module) -> StorageLayout:
     # note storage is word-addressable, not byte-addressable
     storage_slot = 0
 
-    ret = {}
+    ret: Dict[str, Dict] = {}
 
     for node in vyper_module.get_children(vy_ast.FunctionDef):
         type_ = node._metadata["type"]
@@ -38,8 +39,11 @@ def set_storage_slots(vyper_module: vy_ast.Module) -> StorageLayout:
         variable_name = f"nonreentrant.{type_.nonreentrant}"
 
         # a nonreentrant key can appear many times in a module but it
-        # only takes one slot. ignore it after the first time we see it.
+        # only takes one slot. after the first time we see it, do not
+        # increment the storage slot.
         if variable_name in ret:
+            _slot = ret[variable_name]["slot"]
+            type_.set_reentrancy_key_position(StorageSlot(_slot))
             continue
 
         type_.set_reentrancy_key_position(StorageSlot(storage_slot))
