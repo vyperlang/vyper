@@ -362,3 +362,21 @@ def foo() -> (uint256, uint256[3], uint256[2]):
     """
     c = get_contract(code)
     assert c.foo() == [666, [1, 2, 3], [88, 12]]
+
+
+def test_list_of_structs_arg(get_contract):
+    code = """
+struct Foo:
+    x: uint256
+    y: uint256
+
+@external
+def bar(_baz: Foo[3]) -> uint256:
+    sum: uint256 = 0
+    for i in range(3):
+        sum += _baz[i].x * _baz[i].y
+    return sum
+    """
+    c = get_contract(code)
+    c_input = [[x, y] for x, y in zip(range(3), range(3))]
+    assert c.bar(c_input) == 5  # 0 * 0 + 1 * 1 + 2 * 2
