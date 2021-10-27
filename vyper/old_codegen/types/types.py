@@ -173,7 +173,7 @@ def canonicalize_type(t, is_indexed=False):
         raise InvalidType(f"Cannot canonicalize non-base type: {t}")
 
     t = t.typ
-    if t in ("int128", "int256", "uint8", "uint256", "bool", "address", "bytes32"):
+    if t in ("int128", "int256", "uint8", "uint256", "bool", "address", "bytes4", "bytes32"):
         return t
     elif t == "decimal":
         return "fixed168x10"
