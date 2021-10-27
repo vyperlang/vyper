@@ -677,6 +677,12 @@ def shr(x, bits):
     return ["div", x, ["exp", 2, bits]]
 
 
+def shl(x, bits):
+    if version_check(begin="constantinople"):
+        return ["shl", bits, x]
+    return ["mul", x, ["exp", 2, bits]]
+
+
 def sar(x, bits):
     if version_check(begin="constantinople"):
         return ["sar", bits, x]
