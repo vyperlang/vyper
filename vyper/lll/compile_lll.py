@@ -123,6 +123,12 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
     if not isinstance(withargs, dict):
         raise CompilerPanic(f"Incorrect type for withargs: {type(withargs)}")
 
+    def _height_of(witharg):
+        ret = height - withargs[witharg]
+        if ret > 16:
+            raise Exception("With statement too deep")
+        return ret
+
     if existing_labels is None:
         existing_labels = set()
     if not isinstance(existing_labels, set):
@@ -145,9 +151,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         return ["PUSH" + str(len(bytez))] + bytez
     # Variables connected to with statements
     elif isinstance(code.value, str) and code.value in withargs:
-        if height - withargs[code.value] > 16:
-            raise Exception("With statement too deep")
-        return ["DUP" + str(height - withargs[code.value])]
+        return ["DUP" + str(_height_of(code.value))]
     # Setting variables connected to with statements
     elif code.value == "set":
         if len(code.args) != 2 or code.args[0].value not in withargs:
@@ -594,7 +598,8 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         return [code.value]
     # set a symbol as a location.
     elif code.value == "label":
-        label_name = str(code.args[0])
+        label_name = code.args[0].value
+        assert isinstance(label_name, str)
 
         if label_name in existing_labels:
             raise Exception(f"Label with name {label_name} already exists!")
@@ -622,6 +627,32 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         pop_scoped_vars = ["POP"] * height
 
         return ["_sym_" + label_name, "JUMPDEST"] + body_asm + pop_scoped_vars
+
+    elif code.value == "exit_to":
+        return_pc = code.args[0]
+
+        # pop all vars in scope, then jump to return_pc
+        ret = []
+        if is_symbol(return_pc.value):
+            ret = ["POP"] * height + [return_pc]
+        elif return_pc.value in withargs:
+            _height = _height_of(return_pc.value)
+            assert height - _height >= 0
+            # (schedule the return_pc to be on top of the stack after POPping)
+            # POP up to the return_pc, swap it to the bottom of the scope,
+            # then POP everything else in scope
+            ret += ["POP"] * (_height - 1)
+            if height - _height > 0:
+                ret += ["SWAP" + str(height - _height)]
+            ret += ["POP"] * (height - _height)
+        else:  # general case, shouldn't happen now but for futureproof
+            ret += _compile_to_assembly(return_pc, withargs=withargs, existing_labels=existing_labels, height=height)
+            height += 1
+            ret += ["SWAP" + str(height)]
+            ret += ["POP"] * height
+
+        ret += ["JUMP"]
+        return ret
 
     # inject debug opcode.
     elif code.value == "debugger":
