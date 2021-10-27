@@ -724,6 +724,8 @@ def clamp_basetype(lll_node):
     # copy of the input
     lll_node = unwrap_location(lll_node)
 
+    if t.typ in ("bytes4",):
+        return _int_clamp(lll_node, 32, use_shl=True)
     if t.typ in ("int128"):
         return _int_clamp(lll_node, 128, signed=True)
     if t.typ == "uint8":
@@ -746,12 +748,13 @@ def clamp_basetype(lll_node):
     return  # raises
 
 
-def _int_clamp(lll_node, bits, signed=False):
+def _int_clamp(lll_node, bits, signed=False, use_shl=False):
     """Generalized clamper for integer types. Takes the number of bits,
     whether it's signed, and returns an LLL node which checks it is
     in bounds. (Consumers should use clamp_basetype instead which uses
     type-based dispatch and is a little safer.)
     """
+    shift_fn = shl if use_shl else sar if signed else shr
     if bits >= 256:
         raise CompilerPanic(f"invalid clamp: {bits}>=256 ({lll_node})")
     if signed:
@@ -761,9 +764,9 @@ def _int_clamp(lll_node, bits, signed=False):
         # _val >>> 127 == -1 for negative _val
         # -1 and 0 are the only numbers which are unchanged by sar,
         # so sar'ing (_val>>>127) one more bit should leave it unchanged.
-        assertion = ["assert", ["eq", sar("val", bits - 1), sar("val", bits)]]
+        assertion = ["assert", ["eq", shift_fn("val", bits - 1), shift_fn("val", bits)]]
     else:
-        assertion = ["assert", ["iszero", shr("val", bits)]]
+        assertion = ["assert", ["iszero", shift_fn("val", bits)]]
 
     ret = ["with", "val", lll_node, ["seq", assertion, "val"]]
 
