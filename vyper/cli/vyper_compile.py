@@ -35,7 +35,7 @@ opcodes            - List of opcodes as a string
 opcodes_runtime    - List of runtime opcodes as a string
 ir                 - Intermediate representation in LLL
 ir_json            - Intermediate LLL representation in JSON format
-no-optimize        - Do not optimize
+no-optimize        - Do not optimize (don't use this for production code)
 """
 
 combined_json_outputs = [
