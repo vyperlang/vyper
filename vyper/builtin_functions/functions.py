@@ -22,11 +22,11 @@ from vyper.exceptions import (
     ZeroDivisionException,
 )
 from vyper.old_codegen.abi import ABI_Tuple, abi_encode, abi_type_of, abi_type_of2
-from vyper.old_codegen.arg_clamps import int128_clamp
 from vyper.old_codegen.expr import Expr
 from vyper.old_codegen.keccak256_helper import keccak256_helper
 from vyper.old_codegen.parser_utils import (
     LLLnode,
+    clamp_basetype,
     get_bytearray_length,
     get_element_ptr,
     getpos,
@@ -939,22 +939,13 @@ class Extract32(_SimpleBuiltinFunction):
                 ],
                 typ=BaseType(ret_type),
                 pos=getpos(expr),
-                annotation="extracting 32 bytes",
+                annotation="extract32",
             )
-        if ret_type == "int128":
-            return LLLnode.from_list(
-                int128_clamp(o),
-                typ=BaseType("int128"),
-                pos=getpos(expr),
-            )
-        elif ret_type == "address":
-            return LLLnode.from_list(
-                ["uclamplt", o, ["mload", MemoryPositions.ADDRSIZE]],
-                typ=BaseType(ret_type),
-                pos=getpos(expr),
-            )
-        else:
-            return o
+        return LLLnode.from_list(
+            clamp_basetype(o),
+            typ=ret_type,
+            pos=getpos(expr),
+        )
 
 
 class AsWeiValue:

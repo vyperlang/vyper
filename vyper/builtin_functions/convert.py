@@ -12,6 +12,7 @@ from vyper.old_codegen.parser_utils import (
     clamp_basetype,
     get_bytearray_length,
     getpos,
+    int_clamp,
     load_op,
     shr,
 )
@@ -175,12 +176,13 @@ def to_int128(expr, args, kwargs, context):
             else:
                 return LLLnode.from_list(in_arg, typ=BaseType("int128"), pos=getpos(expr))
 
-        else:
-            return LLLnode.from_list(
-                ["uclample", in_arg, ["mload", MemoryPositions.MAX_INT128]],
-                typ=BaseType("int128"),
-                pos=getpos(expr),
-            )
+        # !! do not use clamp_basetype. check that 0 <= input <= MAX_INT128.
+        res = int_clamp(in_arg, 127, signed=False)
+        return LLLnode.from_list(
+            res,
+            typ="int128",
+            pos=getpos(expr),
+        )
 
     elif input_type == "decimal":
         # cast to int128 so clamp_basetype works
