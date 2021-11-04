@@ -107,11 +107,12 @@ def apply_line_numbers(func):
 
 
 @apply_line_numbers
-def compile_to_assembly(code, use_ovm=False):
+def compile_to_assembly(code, no_optimize=False, use_ovm=False):
     res = _compile_to_assembly(code)
 
     _add_postambles(res, use_ovm)
-    _optimize_assembly(res)
+    if not no_optimize:
+        _optimize_assembly(res)
     return res
 
 

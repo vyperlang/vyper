@@ -48,6 +48,7 @@ class CompilerData:
         contract_name: str = "VyperContract",
         interface_codes: Optional[InterfaceImports] = None,
         source_id: int = 0,
+        no_optimize: bool = False,
         use_ovm: bool = False,
     ) -> None:
         """
@@ -72,6 +73,7 @@ class CompilerData:
         self.source_code = source_code
         self.interface_codes = interface_codes
         self.source_id = source_id
+        self.no_optimize = no_optimize
         self.use_ovm = use_ovm
 
         if use_ovm:
@@ -114,7 +116,7 @@ class CompilerData:
 
     def _gen_lll(self) -> None:
         # fetch both deployment and runtime LLL
-        self._lll_nodes, self._lll_runtime = generate_lll_nodes(self.global_ctx, self.use_ovm)
+        self._lll_nodes, self._lll_runtime = generate_lll_nodes(self.global_ctx, self.no_optimize, self.use_ovm)
 
     @property
     def lll_nodes(self) -> parser.LLLnode:
@@ -226,7 +228,7 @@ def generate_global_context(
 
 
 def generate_lll_nodes(
-    global_ctx: GlobalContext, use_ovm: bool
+    global_ctx: GlobalContext, no_optimize: bool, use_ovm: bool
 ) -> Tuple[parser.LLLnode, parser.LLLnode]:
     """
     Generate the intermediate representation (LLL) from the contextualized AST.
@@ -251,15 +253,16 @@ def generate_lll_nodes(
         LLL to generate runtime bytecode
     """
     lll_nodes, lll_runtime = parser.parse_tree_to_lll(global_ctx)
-    lll_nodes = optimizer.optimize(lll_nodes)
-    lll_runtime = optimizer.optimize(lll_runtime)
+    if not no_optimize:
+        lll_nodes = optimizer.optimize(lll_nodes)
+        lll_runtime = optimizer.optimize(lll_runtime)
     if use_ovm:
         lll_nodes = ovm.rewrite_lll_for_ovm(lll_nodes)
         lll_runtime = ovm.rewrite_lll_for_ovm(lll_runtime)
     return lll_nodes, lll_runtime
 
 
-def generate_assembly(lll_nodes: parser.LLLnode, use_ovm: bool = False) -> list:
+def generate_assembly(lll_nodes: parser.LLLnode, no_optimize: bool = False, use_ovm: bool = False) -> list:
     """
     Generate assembly instructions from LLL.
 
@@ -275,7 +278,8 @@ def generate_assembly(lll_nodes: parser.LLLnode, use_ovm: bool = False) -> list:
     list
         List of assembly instructions.
     """
-    assembly = compile_lll.compile_to_assembly(lll_nodes)
+    assembly = compile_lll.compile_to_assembly(lll_nodes, no_optimize=no_optimize)
+
     if use_ovm:
         assembly = ovm.rewrite_asm_for_ovm(assembly)
 

@@ -38,6 +38,7 @@ def compile_codes(
     exc_handler: Union[Callable, None] = None,
     interface_codes: Union[InterfaceDict, InterfaceImports, None] = None,
     initial_id: int = 0,
+    no_optimize: bool = False,
     use_ovm: bool = False,
 ) -> OrderedDict:
     """
@@ -58,6 +59,8 @@ def compile_codes(
     evm_version: str, optional
         The target EVM ruleset to compile for. If not given, defaults to the latest
         implemented ruleset.
+    no_optimize: bool, optional
+        Turn off optimizations. Defaults to False
     use_ovm: bool, optional
         Whether or not to use the OVM backend. Defaults to False
     interface_codes: Dict, optional
@@ -93,7 +96,7 @@ def compile_codes(
         ):
             interfaces = interfaces[contract_name]
 
-        compiler_data = CompilerData(source_code, contract_name, interfaces, source_id, use_ovm)
+        compiler_data = CompilerData(source_code, contract_name, interfaces, source_id, no_optimize, use_ovm)
         for output_format in output_formats[contract_name]:
             if output_format not in OUTPUT_FORMATS:
                 raise ValueError(f"Unsupported format type {repr(output_format)}")
@@ -117,6 +120,7 @@ def compile_code(
     output_formats: Optional[OutputFormats] = None,
     interface_codes: Optional[InterfaceImports] = None,
     evm_version: str = DEFAULT_EVM_VERSION,
+    no_optimize: bool = False,
     use_ovm: bool = False,
 ) -> dict:
     """
@@ -132,6 +136,8 @@ def compile_code(
     evm_version: str, optional
         The target EVM ruleset to compile for. If not given, defaults to the latest
         implemented ruleset.
+    no_optimize: bool, optional
+        Turn off optimizations. Defaults to False
     interface_codes: Dict, optional
         Interfaces that may be imported by the contracts during compilation.
 
@@ -151,5 +157,6 @@ def compile_code(
         output_formats,
         interface_codes=interface_codes,
         evm_version=evm_version,
+        no_optimize=no_optimize,
         use_ovm=use_ovm,
     )[UNKNOWN_CONTRACT_NAME]
