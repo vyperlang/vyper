@@ -3,6 +3,11 @@ from eth_abi import decode_single
 from eth_tester.exceptions import TransactionFailed
 
 
+# web3 returns f"execution reverted: {err_str}"
+def _fixup_err_str(s):
+    return s.replace("execution reverted: ", "")
+
+
 def test_assert_refund(w3, get_contract_with_gas_estimation, assert_tx_failed):
     code = """
 @external
@@ -45,21 +50,21 @@ def test3(reason_str: String[32]):
     with pytest.raises(TransactionFailed) as e_info:
         c.test(0)
 
-    assert e_info.value.args[0] == "larger than one please"
+    assert _fixup_err_str(e_info.value.args[0]) == "larger than one please"
     # a = 0, b = 1
     with pytest.raises(TransactionFailed) as e_info:
         c.test2(0, 1, "")
-    assert e_info.value.args[0] == "a is not large enough"
+    assert _fixup_err_str(e_info.value.args[0]) == "a is not large enough"
     # a = 1, b = 0
     with pytest.raises(TransactionFailed) as e_info:
         c.test2(2, 2, " because I said so")
-    assert e_info.value.args[0] == "b may only be 1" + " because I said so"
+    assert _fixup_err_str(e_info.value.args[0]) == "b may only be 1" + " because I said so"
     # return correct value
     assert c.test2(5, 1, "") == 17
 
     with pytest.raises(TransactionFailed) as e_info:
         c.test3("An exception")
-    assert e_info.value.args[0] == "An exception"
+    assert _fixup_err_str(e_info.value.args[0]) == "An exception"
 
 
 invalid_code = [
@@ -183,7 +188,7 @@ def test(x: uint256[3]) -> bool:
     assert_tx_failed(lambda: c.test([1, 3, 5]))
 
 
-def test_assest_reason_revert_length(w3, get_contract, memory_mocker):
+def test_assert_reason_revert_length(w3, get_contract, memory_mocker):
     code = """
 @external
 def test() -> int128:
@@ -194,7 +199,7 @@ def test() -> int128:
     w3.manager.provider.ethereum_tester.backend.is_eip838_error = lambda err: False
     with pytest.raises(TransactionFailed) as e_info:
         c.test()
-    error_bytes = eval(e_info.value.args[0])
+    error_bytes = eval(_fixup_err_str(e_info.value.args[0]))
     assert len(error_bytes) == 100
     msg = decode_single("string", error_bytes[36:])
     assert msg == "oops"
