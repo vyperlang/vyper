@@ -96,7 +96,9 @@ def compile_codes(
         ):
             interfaces = interfaces[contract_name]
 
-        compiler_data = CompilerData(source_code, contract_name, interfaces, source_id, no_optimize, use_ovm)
+        compiler_data = CompilerData(
+            source_code, contract_name, interfaces, source_id, no_optimize, use_ovm
+        )
         for output_format in output_formats[contract_name]:
             if output_format not in OUTPUT_FORMATS:
                 raise ValueError(f"Unsupported format type {repr(output_format)}")

@@ -233,7 +233,7 @@ def compile_files(
     root_folder: str = ".",
     show_gas_estimates: bool = False,
     evm_version: str = DEFAULT_EVM_VERSION,
-    no_optimize = False,
+    no_optimize: bool = False,
     use_ovm: bool = False,
 ) -> OrderedDict:
 

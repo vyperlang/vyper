@@ -116,7 +116,9 @@ class CompilerData:
 
     def _gen_lll(self) -> None:
         # fetch both deployment and runtime LLL
-        self._lll_nodes, self._lll_runtime = generate_lll_nodes(self.global_ctx, self.no_optimize, self.use_ovm)
+        self._lll_nodes, self._lll_runtime = generate_lll_nodes(
+            self.global_ctx, self.no_optimize, self.use_ovm
+        )
 
     @property
     def lll_nodes(self) -> parser.LLLnode:
@@ -262,7 +264,9 @@ def generate_lll_nodes(
     return lll_nodes, lll_runtime
 
 
-def generate_assembly(lll_nodes: parser.LLLnode, no_optimize: bool = False, use_ovm: bool = False) -> list:
+def generate_assembly(
+    lll_nodes: parser.LLLnode, no_optimize: bool = False, use_ovm: bool = False
+) -> list:
     """
     Generate assembly instructions from LLL.
 
