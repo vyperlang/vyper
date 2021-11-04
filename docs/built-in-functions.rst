@@ -364,7 +364,7 @@ Data Manipulation
 
         @external
         @view
-        def foo(s: string[32]) -> string[5]:
+        def foo(s: String[32]) -> String[5]:
             return slice(s, 4, 5)
 
     .. code-block:: python
