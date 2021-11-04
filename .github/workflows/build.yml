@@ -1,8 +1,17 @@
 name: Artifacts
 
 on:
-  release:
-    types: [created]
+  workflow_dispatch:
+    inputs:
+      tag:
+        default: ''
+  push:
+    tags:
+      - '*'
+
+defaults:
+  run:
+    shell: bash
 
 jobs:
   unix-build:
@@ -19,11 +28,14 @@ jobs:
         with:
           python-version: "3.8"
 
-      - name: Install Pip Packages
-        run: pip install . && pip install pyinstaller
-
       - name: Generate Binary
-        run: make freeze
+        run: >-
+          export input_tag=${{ github.event.inputs.tag }} &&
+          git fetch --tags -f &&
+          git checkout ${input_tag:-`git rev-list --tags --max-count=1`} &&
+          pip install . &&
+          pip install pyinstaller &&
+          make freeze
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v2
@@ -41,11 +53,14 @@ jobs:
         with:
           python-version: "3.8"
 
-      - name: Install Pip Packages
-        run: pip install . && pip install pyinstaller
-
       - name: Generate Binary
-        run: ./make.cmd freeze
+        run: >-
+          export input_tag=${{ github.event.inputs.tag }} &&
+          git fetch --tags -f &&
+          git checkout ${input_tag:-`git rev-list --tags --max-count=1`} &&
+          pip install . &&
+          pip install pyinstaller &&
+          ./make.cmd freeze
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v2
