@@ -3,11 +3,7 @@ from typing import Any, Optional
 from vyper.old_codegen.abi import abi_encode, abi_type_of
 from vyper.old_codegen.context import Context
 from vyper.old_codegen.lll_node import LLLnode
-from vyper.old_codegen.parser_utils import (
-    getpos,
-    make_setter,
-    wrap_value_for_external_return,
-)
+from vyper.old_codegen.parser_utils import getpos, make_setter, wrap_value_for_external_return
 from vyper.old_codegen.types import get_type_for_exact_size
 from vyper.old_codegen.types.check import check_assign
 
@@ -38,9 +34,11 @@ def make_return_stmt(lll_val: LLLnode, stmt: Any, context: Context) -> Optional[
         fill_return_buffer = LLLnode.from_list(
             fill_return_buffer, annotation=f"fill return buffer {sig._lll_identifier}"
         )
-        cleanup_loops = "exit_repeater" if context.forvars else "pass"
+        cleanup_loops = "cleanup_repeat" if context.forvars else "pass"
         return LLLnode.from_list(
-            ["seq_unchecked", cleanup_loops, fill_return_buffer, jump_to_exit], typ=None, pos=_pos,
+            ["seq", cleanup_loops, fill_return_buffer, jump_to_exit],
+            typ=None,
+            pos=_pos,
         )
 
     if context.return_type is None:
@@ -68,5 +66,12 @@ def make_return_stmt(lll_val: LLLnode, stmt: Any, context: Context) -> Optional[
         # also returns the length of the output as a stack element
         encode_out = abi_encode(return_buffer_ofst, lll_val, pos=_pos, returns_len=True)
 
-        # fill the return buffer and push the location and length onto the stack
-        return finalize(["seq_unchecked", encode_out, return_buffer_ofst])
+        # previously we would fill the return buffer and push the location and length onto the stack
+        # inside of the `seq_unchecked` thereby leaving it for the function cleanup routine expects
+        # the return_ofst and return_len to be on the stack
+        # CMC introduced `goto` with args so this enables us to replace `seq_unchecked` w/ `seq`
+        # and then just append the arguments for the cleanup to the `jump_to_exit` list
+        # check in vyper/old_codegen/self_call.py for an example
+        jump_to_exit += [return_buffer_ofst, encode_out]
+
+        return finalize(["pass"])

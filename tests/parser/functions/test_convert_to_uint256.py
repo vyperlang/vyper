@@ -1,5 +1,8 @@
 from vyper.exceptions import InvalidLiteral
 
+# TODO: generalize all these test_convert_to_* test files and parametrize across all the types
+# NOTE: test_convert_to_uint8 tests are in the tests/parser/types/numbers/test_uint8.py file
+
 
 def test_convert_to_uint256(get_contract_with_gas_estimation):
     code = """

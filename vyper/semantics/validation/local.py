@@ -19,26 +19,18 @@ from vyper.exceptions import (
     VariableDeclarationException,
     VyperException,
 )
+
 # TODO consolidate some of these imports
-from vyper.semantics.environment import (
-    CONSTANT_ENVIRONMENT_VARS,
-    MUTABLE_ENVIRONMENT_VARS,
-)
+from vyper.semantics.environment import CONSTANT_ENVIRONMENT_VARS, MUTABLE_ENVIRONMENT_VARS
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.abstract import IntegerAbstractType
 from vyper.semantics.types.bases import DataLocation
-from vyper.semantics.types.function import (
-    ContractFunction,
-    FunctionVisibility,
-    StateMutability,
-)
-from vyper.semantics.types.indexable.sequence import (
-    ArrayDefinition,
-    TupleDefinition,
-)
+from vyper.semantics.types.function import ContractFunction, FunctionVisibility, StateMutability
+from vyper.semantics.types.indexable.sequence import ArrayDefinition, TupleDefinition
 from vyper.semantics.types.user.event import Event
 from vyper.semantics.types.user.struct import StructDefinition
 from vyper.semantics.types.utils import get_type_from_annotation
+from vyper.semantics.types.value.array_value import StringDefinition
 from vyper.semantics.types.value.boolean import BoolDefinition
 from vyper.semantics.types.value.numeric import Uint256Definition
 from vyper.semantics.validation.annotation import StatementAnnotationVisitor
@@ -113,7 +105,10 @@ def _validate_revert_reason(msg_node: vy_ast.VyperNode) -> None:
             if not msg_node.value.strip():
                 raise StructureException("Reason string cannot be empty", msg_node)
         elif not (isinstance(msg_node, vy_ast.Name) and msg_node.id == "UNREACHABLE"):
-            raise InvalidType("Reason must UNREACHABLE or a string literal", msg_node)
+            try:
+                validate_expected_type(msg_node, StringDefinition(1024))
+            except TypeMismatch as e:
+                raise InvalidType("revert reason must fit within String[1024]") from e
 
 
 class FunctionNodeVisitor(VyperNodeVisitorBase):
@@ -172,7 +167,8 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         if self.func.return_type:
             if not check_for_terminus(fn_node.body):
                 raise FunctionDeclarationException(
-                    f"Missing or unmatched return statements in function '{fn_node.name}'", fn_node,
+                    f"Missing or unmatched return statements in function '{fn_node.name}'",
+                    fn_node,
                 )
 
     def visit(self, node):

@@ -297,7 +297,9 @@ class ABI_Tuple(ABIType):
 def abi_type_of(lll_typ):
     if isinstance(lll_typ, BaseType):
         t = lll_typ.typ
-        if "uint256" == t:
+        if "uint8" == t:
+            return ABI_GIntM(8, False)
+        elif "uint256" == t:
             return ABI_GIntM(256, False)
         elif "int128" == t:
             return ABI_GIntM(128, True)
@@ -498,7 +500,7 @@ def abi_encode(dst, lll_node, pos=None, bufsz=None, returns_len=False):
     return LLLnode.from_list(lll_ret, pos=pos, annotation=f"abi_encode {lll_node.typ}")
 
 
-# CMC 20211002 this is probably dead code because make_setter does this.
+# CMC 20211002 this is dead code because make_setter does this.
 # lll_node is the destination LLL item, src is the input buffer.
 # recursively copy the buffer items into lll_node, based on its type.
 # src: pointer to beginning of buffer

@@ -2,24 +2,20 @@ import vyper.old_codegen.events as events
 import vyper.utils as util
 from vyper import ast as vy_ast
 from vyper.builtin_functions import STMT_DISPATCH_TABLE
-from vyper.exceptions import StructureException, TypeCheckFailure
+from vyper.exceptions import CompilerPanic, StructureException, TypeCheckFailure
 from vyper.old_codegen import external_call, self_call
-from vyper.old_codegen.context import Context
+from vyper.old_codegen.context import Constancy, Context
 from vyper.old_codegen.expr import Expr
 from vyper.old_codegen.parser_utils import (
     LLLnode,
     getpos,
+    make_byte_array_copier,
     make_setter,
     unwrap_location,
+    zero_pad,
 )
 from vyper.old_codegen.return_ import make_return_stmt
-from vyper.old_codegen.types import (
-    BaseType,
-    ByteArrayType,
-    ListType,
-    get_size_of_type,
-    parse_type,
-)
+from vyper.old_codegen.types import BaseType, ByteArrayType, ListType, parse_type
 
 
 class Stmt:
@@ -36,6 +32,8 @@ class Stmt:
         if self.lll_node is None:
             raise TypeCheckFailure("Statement node did not produce LLL")
 
+        self.lll_node.annotation = self.stmt.get("node_source_code")
+
     def parse_Expr(self):
         return Stmt(self.stmt.value, self.context).lll_node
 
@@ -50,7 +48,9 @@ class Stmt:
 
     def parse_AnnAssign(self):
         typ = parse_type(
-            self.stmt.annotation, location="memory", custom_structs=self.context.structs,
+            self.stmt.annotation,
+            location="memory",
+            custom_structs=self.context.structs,
         )
         varname = self.stmt.target.id
         pos = self.context.new_variable(varname, typ, pos=self.stmt)
@@ -75,10 +75,14 @@ class Stmt:
                 pos=getpos(self.stmt),
             )
 
-        variable_loc = LLLnode.from_list(pos, typ=typ, location="memory", pos=getpos(self.stmt),)
+        variable_loc = LLLnode.from_list(
+            pos,
+            typ=typ,
+            location="memory",
+            pos=getpos(self.stmt),
+        )
 
         lll_node = make_setter(variable_loc, sub, pos=getpos(self.stmt))
-        lll_node.annotation = self.stmt.get("node_source_code")
 
         return lll_node
 
@@ -89,7 +93,6 @@ class Stmt:
 
         lll_node = make_setter(target, sub, pos=getpos(self.stmt))
         lll_node.pos = getpos(self.stmt)
-        lll_node.annotation = self.stmt.get("node_source_code")
         return lll_node
 
     def parse_If(self):
@@ -146,25 +149,47 @@ class Stmt:
         if isinstance(msg, vy_ast.Name) and msg.id == "UNREACHABLE":
             return LLLnode.from_list(["assert_unreachable", test_expr], typ=None, pos=getpos(msg))
 
-        reason_str_type = ByteArrayType(len(msg.value.strip()))
+        # set constant so that revert reason str is well behaved
+        try:
+            tmp = self.context.constancy
+            self.context.constancy = Constancy.Constant
+            msg_lll = Expr(msg, self.context).lll_node
+        finally:
+            self.context.constancy = tmp
 
-        # abi encode the reason string
-        sig_placeholder = self.context.new_internal_variable(BaseType(32))
+        # TODO this is probably useful in parser_utils
+        def _get_last(lll):
+            if len(lll.args) == 0:
+                return lll.value
+            return _get_last(lll.args[-1])
+
+        if msg_lll.location != "memory":
+            buf = self.context.new_internal_variable(msg_lll.typ)
+            instantiate_msg = make_byte_array_copier(buf, msg_lll)
+        else:
+            buf = _get_last(msg_lll)
+            if not isinstance(buf, int):
+                raise CompilerPanic(f"invalid bytestring {buf}\n{self}")
+            instantiate_msg = msg_lll
+
         # offset of bytes in (bytes,)
-        arg_placeholder = self.context.new_internal_variable(BaseType(32))
-        placeholder_bytes = Expr(msg, self.context).lll_node
-
         method_id = util.abi_method_id("Error(string)")
 
         # abi encode method_id + bytestring
+        assert buf >= 36, "invalid buffer"
+        # we don't mind overwriting other memory because we are
+        # getting out of here anyway.
+        _runtime_length = ["mload", buf]
         revert_seq = [
             "seq",
-            ["mstore", sig_placeholder, method_id],
-            ["mstore", arg_placeholder, 32],
-            placeholder_bytes,
-            ["revert", sig_placeholder + 28, int(32 + 4 + get_size_of_type(reason_str_type) * 32)],
+            instantiate_msg,
+            zero_pad(buf),
+            ["mstore", buf - 64, method_id],
+            ["mstore", buf - 32, 0x20],
+            ["revert", buf - 36, ["add", 4 + 32 + 32, ["ceil32", _runtime_length]]],
         ]
-        if test_expr:
+
+        if test_expr is not None:
             lll_node = ["if", ["iszero", test_expr], revert_seq]
         else:
             lll_node = revert_seq
@@ -187,7 +212,7 @@ class Stmt:
 
     def parse_Raise(self):
         if self.stmt.exc:
-            return self._assert_reason(0, self.stmt.exc)
+            return self._assert_reason(None, self.stmt.exc)
         else:
             return LLLnode.from_list(["revert", 0, 0], typ=None, pos=getpos(self.stmt))
 
@@ -398,19 +423,21 @@ class Stmt:
         return make_return_stmt(lll_val, self.stmt, self.context)
 
     def _get_target(self, target):
+        _dbg_expr = target
+
         if isinstance(target, vy_ast.Name) and target.id in self.context.forvars:
-            raise TypeCheckFailure("Failed for-loop constancy check")
+            raise TypeCheckFailure(f"Failed constancy check\n{_dbg_expr}")
 
         if isinstance(target, vy_ast.Tuple):
             target = Expr(target, self.context).lll_node
             for node in target.args:
                 if (node.location == "storage" and self.context.is_constant()) or not node.mutable:
-                    raise TypeCheckFailure("Failed for-loop constancy check")
+                    raise TypeCheckFailure(f"Failed constancy check\n{_dbg_expr}")
             return target
 
         target = Expr.parse_variable_location(target, self.context)
         if (target.location == "storage" and self.context.is_constant()) or not target.mutable:
-            raise TypeCheckFailure("Failed for-loop constancy check")
+            raise TypeCheckFailure(f"Failed constancy check\n{_dbg_expr}")
         return target
 
 

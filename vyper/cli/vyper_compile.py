@@ -9,10 +9,7 @@ from typing import Dict, Iterable, Iterator, Set, TypeVar
 
 import vyper
 from vyper.cli import vyper_json
-from vyper.cli.utils import (
-    extract_file_interface_imports,
-    get_interface_file_path,
-)
+from vyper.cli.utils import extract_file_interface_imports, get_interface_file_path
 from vyper.compiler.settings import VYPER_TRACEBACK_LIMIT
 from vyper.evm.opcodes import DEFAULT_EVM_VERSION, EVM_VERSIONS
 from vyper.old_codegen import parser_utils
@@ -37,6 +34,7 @@ external_interface - External interface of a contract, used for outside contract
 opcodes            - List of opcodes as a string
 opcodes_runtime    - List of runtime opcodes as a string
 ir                 - Intermediate representation in LLL
+ir_json            - Intermediate LLL representation in JSON format
 """
 
 combined_json_outputs = [
@@ -54,6 +52,7 @@ combined_json_outputs = [
 def _parse_cli_args():
     return _parse_args(sys.argv[1:])
 
+
 def _cli_helper(f, output_formats, compiled):
     if output_formats == ("combined_json",):
         print(json.dumps(compiled), file=f)
@@ -65,6 +64,7 @@ def _cli_helper(f, output_formats, compiled):
                 print(json.dumps(data), file=f)
             else:
                 print(data, file=f)
+
 
 def _parse_args(argv):
     warnings.simplefilter("always")
@@ -79,16 +79,25 @@ def _parse_args(argv):
         formatter_class=argparse.RawTextHelpFormatter,
     )
     parser.add_argument(
-        "input_files", help="Vyper sourcecode to compile", nargs="+",
+        "input_files",
+        help="Vyper sourcecode to compile",
+        nargs="+",
     )
     parser.add_argument(
-        "--version", action="version", version=f"{vyper.__version__}+commit.{vyper.__commit__}",
+        "--version",
+        action="version",
+        version=f"{vyper.__version__}+commit.{vyper.__commit__}",
     )
     parser.add_argument(
-        "--show-gas-estimates", help="Show gas estimates in ir output mode.", action="store_true",
+        "--show-gas-estimates",
+        help="Show gas estimates in ir output mode.",
+        action="store_true",
     )
     parser.add_argument(
-        "-f", help=format_options_help, default="bytecode", dest="format",
+        "-f",
+        help=format_options_help,
+        default="bytecode",
+        dest="format",
     )
     parser.add_argument(
         "--evm-version",
@@ -98,7 +107,9 @@ def _parse_args(argv):
         dest="evm_version",
     )
     parser.add_argument(
-        "--ovm", help="EXPERIMENTAL: Use the OVM backend", action="store_true",
+        "--ovm",
+        help="EXPERIMENTAL: Use the OVM backend",
+        action="store_true",
     )
     parser.add_argument(
         "--traceback-limit",
@@ -120,9 +131,7 @@ def _parse_args(argv):
     parser.add_argument(
         "-p", help="Set the root path for contract imports", default=".", dest="root_folder"
     )
-    parser.add_argument(
-        "-o", help="Set the output path", dest="output_path"
-    )
+    parser.add_argument("-o", help="Set the output path", dest="output_path")
 
     args = parser.parse_args(argv)
 
@@ -149,9 +158,8 @@ def _parse_args(argv):
         args.ovm,
     )
 
-
     if args.output_path:
-        with open(args.output_path,"w") as f:
+        with open(args.output_path, "w") as f:
             _cli_helper(f, output_formats, compiled)
     else:
         f = sys.stdout
@@ -247,7 +255,7 @@ def compile_files(
         output_formats = combined_json_outputs
         show_version = True
 
-    translate_map = {"abi_python": "abi", "json": "abi", "ast": "ast_dict"}
+    translate_map = {"abi_python": "abi", "json": "abi", "ast": "ast_dict", "ir_json": "ir_dict"}
     final_formats = [translate_map.get(i, i) for i in output_formats]
 
     compiler_data = vyper.compile_codes(

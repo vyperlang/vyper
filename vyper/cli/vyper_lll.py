@@ -15,10 +15,13 @@ def _parse_cli_args():
 def _parse_args(argv):
     parser = argparse.ArgumentParser(description="Vyper LLL IR compiler")
     parser.add_argument(
-        "input_file", help="Vyper sourcecode to compile",
+        "input_file",
+        help="Vyper sourcecode to compile",
     )
     parser.add_argument(
-        "--version", action="version", version=f"{vyper.__version__}",
+        "--version",
+        action="version",
+        version=f"{vyper.__version__}",
     )
     parser.add_argument(
         "-f",
@@ -27,7 +30,9 @@ def _parse_args(argv):
         dest="format",
     )
     parser.add_argument(
-        "--show-gas-estimates", help="Show gas estimates in ir output mode.", action="store_true",
+        "--show-gas-estimates",
+        help="Show gas estimates in ir output mode.",
+        action="store_true",
     )
 
     args = parser.parse_args(argv)
@@ -48,11 +53,9 @@ def compile_to_lll(input_file, output_formats, show_gas_estimates=False):
 
     compiler_data = {}
     lll = LLLnode.from_list(s_expressions[0])
+    lll = optimizer.optimize(lll)
     if "ir" in output_formats:
         compiler_data["ir"] = lll
-
-    if "opt_ir" in output_formats:
-        compiler_data["opt_ir"] = optimizer.optimize(lll)
 
     asm = compile_lll.compile_to_assembly(lll)
     if "asm" in output_formats:

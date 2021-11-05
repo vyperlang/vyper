@@ -79,7 +79,10 @@ class StructPrimitive:
             raise VariableDeclarationException(
                 "Struct values must be declared via dictionary", node.args[0]
             )
-        if next((i for i in self.members.values() if isinstance(i, MappingDefinition)), False,):
+        if next(
+            (i for i in self.members.values() if isinstance(i, MappingDefinition)),
+            False,
+        ):
             raise VariableDeclarationException(
                 "Struct contains a mapping and so cannot be declared as a literal", node
             )
@@ -91,7 +94,8 @@ class StructPrimitive:
             validate_expected_type(value, members.pop(key.id))
         if members:
             raise VariableDeclarationException(
-                f"Struct declaration does not define all fields: {', '.join(list(members))}", node,
+                f"Struct declaration does not define all fields: {', '.join(list(members))}",
+                node,
             )
 
         return StructDefinition(self._id, self.members)

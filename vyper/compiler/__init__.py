@@ -4,13 +4,7 @@ from typing import Any, Callable, Optional, Sequence, Union
 from vyper.compiler import output
 from vyper.compiler.phases import CompilerData
 from vyper.evm.opcodes import DEFAULT_EVM_VERSION, evm_wrapper
-from vyper.typing import (
-    ContractCodes,
-    InterfaceDict,
-    InterfaceImports,
-    OutputDict,
-    OutputFormats,
-)
+from vyper.typing import ContractCodes, InterfaceDict, InterfaceImports, OutputDict, OutputFormats
 
 OUTPUT_FORMATS = {
     # requires vyper_module
@@ -23,6 +17,7 @@ OUTPUT_FORMATS = {
     "external_interface": output.build_external_interface_output,
     "interface": output.build_interface_output,
     "ir": output.build_ir_output,
+    "ir_dict": output.build_ir_dict_output,
     "method_identifiers": output.build_method_identifiers_output,
     # requires assembly
     "abi": output.build_abi_output,
