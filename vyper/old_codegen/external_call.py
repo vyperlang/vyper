@@ -121,7 +121,7 @@ def _external_call_helper(
         gas = "gas"
 
     # sanity check
-    assert len(contract_sig.args) == len(args_lll)
+    assert len(contract_sig.base_args) <= len(args_lll) <= len(contract_sig.args)
 
     if context.is_constant() and contract_sig.mutability not in ("view", "pure"):
         # TODO is this already done in type checker?
