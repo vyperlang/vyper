@@ -8,7 +8,7 @@ if __name__ == "__main__":
 
     allowed_subcommands = ("--vyper-compile", "--vyper-lll", "--vyper-serve")
 
-    if not len(sys.argv) > 1 or sys.argv[1] not in allowed_subcommands:
+    if len(sys.argv) <= 1 or sys.argv[1] not in allowed_subcommands:
         # default (no args, no switch in first arg): run vyper_compile
         vyper_compile._parse_cli_args()
     else:

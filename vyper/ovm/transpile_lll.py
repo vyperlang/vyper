@@ -80,7 +80,7 @@ class _OVMSubroutine:
 
     @property
     def abi_signature(self):
-        args = ",".join(t for t in self.ovm_arg_types)
+        args = ",".join(self.ovm_arg_types)
         return f"{self.method_name}({args})"
 
     # all of the utility functions operate on the same buffer, which
@@ -189,10 +189,9 @@ class _OVMSubroutine:
         def build(evm_args, subroutine):
             if len(evm_args) == 0:
                 return subroutine
-            else:
-                arg = evm_args[0]
-                remaining_args = evm_args[1:]
-                return ["with", arg, "pass", build(remaining_args, subroutine)]
+            arg = evm_args[0]
+            remaining_args = evm_args[1:]
+            return ["with", arg, "pass", build(remaining_args, subroutine)]
 
         return build(self.evm_args, subroutine)
 
