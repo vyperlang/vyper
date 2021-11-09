@@ -42,6 +42,15 @@ class DecimalContextOverride(Context):
 setcontext(DecimalContextOverride(prec=78))
 
 
+# propagate revert message when calls to external contracts fail
+def check_external_call(call_lll):
+    copy_revertdata = ["returndatacopy", 0, "returndatasize"]
+    revert = ["revert", 0, "returndatasize"]
+
+    propagate_revert_lll = ["seq", copy_revertdata, revert]
+    return ["if", ["iszero", call_lll], propagate_revert_lll]
+
+
 def type_check_wrapper(fn):
     def _wrapped(*args, **kwargs):
         return_value = fn(*args, **kwargs)

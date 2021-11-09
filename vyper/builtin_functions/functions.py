@@ -26,6 +26,7 @@ from vyper.old_codegen.expr import Expr
 from vyper.old_codegen.keccak256_helper import keccak256_helper
 from vyper.old_codegen.parser_utils import (
     LLLnode,
+    check_external_call,
     clamp_basetype,
     get_bytearray_length,
     get_element_ptr,
@@ -1172,7 +1173,7 @@ class RawCall(_SimpleBuiltinFunction):
 
             if revert_on_failure:
                 typ = bytes_ty
-                ret_lll = ["seq", ["assert", call_lll], store_output_size]
+                ret_lll = ["seq", check_external_call(call_lll), store_output_size]
             else:
                 typ = TupleType([bool_ty, bytes_ty])
                 ret_lll = [
@@ -1186,7 +1187,7 @@ class RawCall(_SimpleBuiltinFunction):
         else:
             if revert_on_failure:
                 typ = None
-                ret_lll = ["assert", call_lll]
+                ret_lll = check_external_call(call_lll)
             else:
                 typ = bool_ty
                 ret_lll = call_lll
