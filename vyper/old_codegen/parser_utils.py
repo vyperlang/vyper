@@ -44,7 +44,7 @@ setcontext(DecimalContextOverride(prec=78))
 
 # propagate revert message when calls to external contracts fail
 def check_external_call(call_lll):
-    copy_revertdata = ["returndatacopy", 0, "returndatasize"]
+    copy_revertdata = ["returndatacopy", 0, 0, "returndatasize"]
     revert = ["revert", 0, "returndatasize"]
 
     propagate_revert_lll = ["seq", copy_revertdata, revert]
