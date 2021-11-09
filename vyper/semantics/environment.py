@@ -50,8 +50,4 @@ def get_mutable_vars() -> Dict:
     Get a dictionary of mutable environment variables (those that are
     modified during the course of contract execution, such as `self`).
     """
-    result = {}
-    for name, type_ in MUTABLE_ENVIRONMENT_VARS.items():
-        result[name] = type_(is_immutable=True)
-
-    return result
+    return {name: type_(is_immutable=True) for name, type_ in MUTABLE_ENVIRONMENT_VARS.items()}

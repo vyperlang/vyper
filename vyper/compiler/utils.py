@@ -5,9 +5,12 @@ def build_gas_estimates(lll_nodes: LLLnode) -> dict:
     gas_estimates: dict = {}
 
     # Extract the stuff inside the LLL bracket
-    if lll_nodes.value == "seq":
-        if len(lll_nodes.args) > 0 and lll_nodes.args[-1].value == "return":
-            lll_nodes = lll_nodes.args[-1].args[1].args[0]
+    if (
+        lll_nodes.value == "seq"
+        and len(lll_nodes.args) > 0
+        and lll_nodes.args[-1].value == "return"
+    ):
+        lll_nodes = lll_nodes.args[-1].args[1].args[0]
 
     external_sub = next((i for i in lll_nodes.args if i.value == "with"), None)
     if external_sub:
