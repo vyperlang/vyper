@@ -5,6 +5,7 @@ from vyper.old_codegen.abi import abi_encode, abi_type_of
 from vyper.old_codegen.lll_node import Encoding, LLLnode
 from vyper.old_codegen.parser_utils import (
     calculate_type_for_external_return,
+    check_external_call,
     get_element_ptr,
     getpos,
     unwrap_location,
@@ -153,7 +154,7 @@ def _external_call_helper(
     else:
         call_op = ["call", gas, contract_address, value, args_ofst, args_len, ret_ofst, ret_len]
 
-    sub.append(["assert", call_op])
+    sub.append(check_external_call(call_op))
 
     if contract_sig.return_type is not None:
         sub += ret_unpacker
