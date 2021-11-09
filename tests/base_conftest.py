@@ -155,6 +155,7 @@ def assert_tx_failed(tester):
             function_to_test()
         tester.revert_to_snapshot(snapshot_id)
         if exc_text:
-            assert exc_text in str(excinfo.value)
+            # TODO test equality
+            assert exc_text in str(excinfo.value), (exc_text, excinfo.value)
 
     return assert_tx_failed
