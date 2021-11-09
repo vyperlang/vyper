@@ -56,11 +56,17 @@ def bytes_helper():
     return bytes_helper
 
 
-@pytest.fixture
-def get_contract_from_lll(w3):
+@pytest.fixture(params=[True, False])
+def get_contract_from_lll(w3, request):
+    optimize = request.param
+
     def lll_compiler(lll, *args, **kwargs):
-        lll = optimizer.optimize(LLLnode.from_list(lll))
-        bytecode, _ = compile_lll.assembly_to_evm(compile_lll.compile_to_assembly(lll))
+        lll = LLLnode.from_list(lll)
+        if optimize:
+            lll = optimizer.optimize(lll)
+        bytecode, _ = compile_lll.assembly_to_evm(
+            compile_lll.compile_to_assembly(lll, no_optimize=not optimize)
+        )
         abi = kwargs.get("abi") or []
         c = w3.eth.contract(abi=abi, bytecode=bytecode)
         deploy_transaction = c.constructor()
