@@ -189,9 +189,10 @@ class _OVMSubroutine:
         def build(evm_args, subroutine):
             if len(evm_args) == 0:
                 return subroutine
-            arg = evm_args[0]
-            remaining_args = evm_args[1:]
-            return ["with", arg, "pass", build(remaining_args, subroutine)]
+            else:
+                arg = evm_args[0]
+                remaining_args = evm_args[1:]
+                return ["with", arg, "pass", build(remaining_args, subroutine)]
 
         return build(self.evm_args, subroutine)
 
