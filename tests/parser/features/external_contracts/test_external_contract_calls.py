@@ -114,7 +114,9 @@ def get_array(arg1: address) -> Bytes[3]:
     assert_tx_failed(lambda: c2.get_array(c.address))
 
 
-@pytest.mark.parametrize("revert_string", ["Mayday, mayday!", "A very long revert string" + "."*512])
+@pytest.mark.parametrize(
+    "revert_string", ["Mayday, mayday!", "A very long revert string" + "." * 512]
+)
 def test_revert_propagation(get_contract, assert_tx_failed, revert_string):
     raiser = f"""
 @external
