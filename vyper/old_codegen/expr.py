@@ -446,7 +446,15 @@ class Expr:
                 return get_element_ptr(sub, self.expr.attr, pos=getpos(self.expr))
 
     def parse_Subscript(self):
-        sub = Expr.parse_variable_location(self.expr.value, self.context)
+        sub = Expr(self.expr.value, self.context).lll_node
+        if sub.value == "multi":
+            # force literal to memory
+            t = LLLnode(self.context.new_internal_variable(sub.typ), typ=sub.typ, location="memory")
+            sub = LLLnode.from_list(
+                ["seq", make_setter(t, sub, pos=getpos(self.expr)), t],
+                typ=sub.typ,
+                location="memory",
+            )
 
         if isinstance(sub.typ, MappingType):
             # TODO sanity check we are in a self.my_map[i] situation
@@ -465,6 +473,7 @@ class Expr:
                 return
         else:
             return
+
         lll_node = get_element_ptr(sub, index, pos=getpos(self.expr))
         lll_node.mutable = sub.mutable
         return lll_node
