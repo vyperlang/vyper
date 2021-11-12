@@ -5,12 +5,7 @@ from vyper.ast.signatures.function_signature import ContractRecord, VariableReco
 from vyper.exceptions import CompilerPanic, InvalidType, StructureException
 from vyper.old_codegen.types import InterfaceType, parse_type
 from vyper.typing import InterfaceImports
-
-try:
-    # available py3.8+
-    from functools import cached_property
-except ImportError:
-    from cached_property import cached_property  # type: ignore
+from vyper.utils import cached_property
 
 
 # Datatype to store all global context information.
