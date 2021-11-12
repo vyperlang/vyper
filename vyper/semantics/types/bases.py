@@ -444,7 +444,7 @@ class BaseTypeDefinition:
         if self.location == DataLocation.CALLDATA:
             raise ImmutableViolation("Cannot write to calldata", node)
         if self.is_constant:
-            raise ImmutableViolation("Immutable value cannot be written to", node)
+            raise ImmutableViolation("Constant value cannot be written to", node)
         if self.is_immutable:
             if node.get_ancestor(vy_ast.FunctionDef).get("name") != "__init__":
                 raise ImmutableViolation("Immutable value cannot be written to", node)
