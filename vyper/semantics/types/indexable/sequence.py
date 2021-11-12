@@ -120,7 +120,7 @@ class TupleDefinition(_SequenceDefinition):
     def __init__(self, value_type: Tuple[BaseTypeDefinition, ...]) -> None:
         # always use the most restrictive location re: modification
         location = sorted((i.location for i in value_type), key=lambda k: k.value)[-1]
-        is_constant = next((True for i in value_type if getattr(i, "is_constant", None)), False)
+        is_constant = any((getattr(i, "is_constant", False) for i in value_type))
         super().__init__(
             # TODO fix the typing on value_type
             value_type,  # type: ignore
