@@ -13,7 +13,7 @@ from vyper.utils import cached_property, mkalphanum
 # TODO move to context.py
 # TODO use dataclass
 class VariableRecord:
-    def __init__(
+    def __init__(  # type: ignore
         self,
         name,
         pos,
