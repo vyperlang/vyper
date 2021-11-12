@@ -340,6 +340,7 @@ class Expr:
             else:
                 immutable_section_size = self.context.global_ctx.immutable_section_size
                 offset = self.expr._metadata["type"].position.offset
+                # TODO: resolve code offsets for immutables at compile time
                 return LLLnode.from_list(
                     ["sub", "codesize", immutable_section_size - offset],
                     typ=var.typ,

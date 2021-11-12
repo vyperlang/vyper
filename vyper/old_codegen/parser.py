@@ -180,6 +180,8 @@ def parse_regular_functions(
 
     immutables = [_global for _global in global_ctx._globals.values() if _global.is_immutable]
 
+    # TODO: enable usage of the data section beyond just user defined immutables
+    # https://github.com/vyperlang/vyper/pull/2466#discussion_r722816358
     if len(immutables) > 0:
         # find position of the last immutable so we do not overwrite it in memory
         # when we codecopy the runtime code to memory
