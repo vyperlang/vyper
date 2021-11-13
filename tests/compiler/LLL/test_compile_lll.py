@@ -41,12 +41,13 @@ def test_lll_from_s_expression(get_contract_from_lll):
   (return
     0
     (lll ; just return 32 byte of calldata back
+      0
       (seq
           (calldatacopy 0 4 32)
           (return 0 32)
           stop
         )
-      0)))
+      )))
     """
     abi = [
         {

@@ -316,6 +316,39 @@ class Expr:
             return LLLnode.from_list(
                 [obj], typ=BaseType(typ, is_literal=True), pos=getpos(self.expr)
             )
+        elif self.expr._metadata["type"].is_immutable:
+            # immutable variable
+            # need to handle constructor and outside constructor
+            var = self.context.globals[self.expr.id]
+            is_constructor = self.expr.get_ancestor(vy_ast.FunctionDef).get("name") == "__init__"
+            if is_constructor:
+                # store memory position for later access in parser.py in the variable record
+                memory_loc = self.context.new_variable(f"#immutable_{self.expr.id}", var.typ)
+                self.context.global_ctx._globals[self.expr.id].pos = memory_loc
+                # store the data offset in the variable record as well for accessing
+                data_offset = self.expr._metadata["type"].position.offset
+                self.context.global_ctx._globals[self.expr.id].data_offset = data_offset
+
+                return LLLnode.from_list(
+                    memory_loc,
+                    typ=var.typ,
+                    location="memory",
+                    pos=getpos(self.expr),
+                    annotation=self.expr.id,
+                    mutable=True,
+                )
+            else:
+                immutable_section_size = self.context.global_ctx.immutable_section_size
+                offset = self.expr._metadata["type"].position.offset
+                # TODO: resolve code offsets for immutables at compile time
+                return LLLnode.from_list(
+                    ["sub", "codesize", immutable_section_size - offset],
+                    typ=var.typ,
+                    location="code",
+                    pos=getpos(self.expr),
+                    annotation=self.expr.id,
+                    mutable=False,
+                )
 
     # x.y or x[5]
     def parse_Attribute(self):

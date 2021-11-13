@@ -23,6 +23,7 @@ class DataLocation(Enum):
     MEMORY = 1
     STORAGE = 2
     CALLDATA = 3
+    CODE = 4
 
 
 class DataPosition:
@@ -69,6 +70,17 @@ class StorageSlot(DataPosition):
         return f"<StorageSlot: {self.position}>"
 
 
+class CodeOffset(DataPosition):
+    __slots__ = ("offset",)
+    _location = DataLocation.CODE
+
+    def __init__(self, offset):
+        self.offset = offset
+
+    def __repr__(self):
+        return f"<CodeOffset: {self.offset}>"
+
+
 class BasePrimitive:
     """
     Base class for primitive type classes.
@@ -98,8 +110,9 @@ class BasePrimitive:
         cls,
         node: Union[vy_ast.Name, vy_ast.Call],
         location: DataLocation = DataLocation.UNSET,
-        is_immutable: bool = False,
+        is_constant: bool = False,
         is_public: bool = False,
+        is_immutable: bool = False,
     ) -> "BaseTypeDefinition":
         """
         Generate a `BaseTypeDefinition` instance of this type from `AnnAssign.annotation`
@@ -118,7 +131,7 @@ class BasePrimitive:
             raise StructureException("Invalid type assignment", node)
         if node.id != cls._id:
             raise UnexpectedValue("Node id does not match type name")
-        return cls._type(location, is_immutable, is_public)
+        return cls._type(location, is_constant, is_public, is_immutable)
 
     @classmethod
     def from_literal(cls, node: vy_ast.Constant) -> "BaseTypeDefinition":
@@ -227,7 +240,7 @@ class BaseTypeDefinition:
 
     Object Attributes
     -----------------
-    is_immutable : bool, optional
+    is_constant : bool, optional
         If `True`, the value of this object cannot be modified after assignment.
     size_in_bytes: int
         The number of bytes that are required to store this type.
@@ -240,12 +253,16 @@ class BaseTypeDefinition:
     def __init__(
         self,
         location: DataLocation = DataLocation.UNSET,
-        is_immutable: bool = False,
+        is_constant: bool = False,
         is_public: bool = False,
+        is_immutable: bool = False,
     ) -> None:
         self.location = location
-        self.is_immutable = is_immutable
+        self.is_constant = is_constant
         self.is_public = is_public
+        self.is_immutable = is_immutable
+
+        self._modification_count = 0
 
     @property
     def canonical_type(self) -> str:
@@ -426,8 +443,17 @@ class BaseTypeDefinition:
         """
         if self.location == DataLocation.CALLDATA:
             raise ImmutableViolation("Cannot write to calldata", node)
+        if self.is_constant:
+            raise ImmutableViolation("Constant value cannot be written to", node)
         if self.is_immutable:
-            raise ImmutableViolation("Immutable value cannot be written to", node)
+            if node.get_ancestor(vy_ast.FunctionDef).get("name") != "__init__":
+                raise ImmutableViolation("Immutable value cannot be written to", node)
+            if self._modification_count:
+                raise ImmutableViolation(
+                    "Immutable value cannot be modified after assignment", node
+                )
+            self._modification_count += 1
+
         if isinstance(node, vy_ast.AugAssign):
             self.validate_numeric_op(node)
 
@@ -498,10 +524,11 @@ class MemberTypeDefinition(ValueTypeDefinition):
     def __init__(
         self,
         location: DataLocation = DataLocation.UNSET,
-        is_immutable: bool = False,
+        is_constant: bool = False,
         is_public: bool = False,
+        is_immutable: bool = False,
     ) -> None:
-        super().__init__(location, is_immutable, is_public)
+        super().__init__(location, is_constant, is_public, is_immutable)
         self.members: OrderedDict = OrderedDict()
 
     def add_member(self, name: str, type_: BaseTypeDefinition) -> None:
@@ -517,7 +544,7 @@ class MemberTypeDefinition(ValueTypeDefinition):
         elif key in getattr(self, "_type_members", []):
             type_ = copy.deepcopy(self._type_members[key])
             type_.location = self.location
-            type_.is_immutable = self.is_immutable
+            type_.is_constant = self.is_constant
             return type_
         raise UnknownAttribute(f"{self} has no member '{key}'", node)
 
@@ -545,10 +572,11 @@ class IndexableTypeDefinition(BaseTypeDefinition):
         key_type: BaseTypeDefinition,
         _id: str,
         location: DataLocation = DataLocation.UNSET,
-        is_immutable: bool = False,
+        is_constant: bool = False,
         is_public: bool = False,
+        is_immutable: bool = False,
     ) -> None:
-        super().__init__(location, is_immutable, is_public)
+        super().__init__(location, is_constant, is_public, is_immutable)
         self.value_type = value_type
         self.key_type = key_type
         self._id = _id

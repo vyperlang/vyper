@@ -12,6 +12,7 @@ module: ( DOCSTRING
         | variable_def
         | event_def
         | function_def
+        | immutable_def
         | _NEWLINE )*
 
 
@@ -35,6 +36,10 @@ import: _IMPORT DOT* _import_path [import_alias]
 // Constant definitions
 // NOTE: Temporary until decorators used
 constant_def: NAME ":" "constant" "(" type ")" "=" _expr
+
+// immutable definitions
+// NOTE: Temporary until decorators used
+immutable_def: NAME ":" "immutable" "(" type ")"
 
 variable: NAME ":" type
 // NOTE: Temporary until decorators used

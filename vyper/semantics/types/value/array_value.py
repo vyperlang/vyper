@@ -38,10 +38,11 @@ class _ArrayValueDefinition(ValueTypeDefinition):
         self,
         length: int = 0,
         location: DataLocation = DataLocation.MEMORY,
-        is_immutable: bool = False,
+        is_constant: bool = False,
         is_public: bool = False,
+        is_immutable: bool = False,
     ) -> None:
-        super().__init__(location, is_immutable, is_public)
+        super().__init__(location, is_constant, is_public, is_immutable)
         self._length = length
         self._min_length = length
 
@@ -120,8 +121,9 @@ class _ArrayValuePrimitive(BasePrimitive):
         cls,
         node: vy_ast.VyperNode,
         location: DataLocation = DataLocation.MEMORY,
-        is_immutable: bool = False,
+        is_constant: bool = False,
         is_public: bool = False,
+        is_immutable: bool = False,
     ) -> _ArrayValueDefinition:
         if not isinstance(node, vy_ast.Subscript):
             raise StructureException(
@@ -133,7 +135,7 @@ class _ArrayValuePrimitive(BasePrimitive):
             raise UnexpectedValue("Node id does not match type name")
 
         length = validation.utils.get_index_value(node.slice)  # type: ignore
-        return cls._type(length, location, is_immutable, is_public)
+        return cls._type(length, location, is_constant, is_public, is_immutable)
 
     @classmethod
     def from_literal(cls, node: vy_ast.Constant) -> _ArrayValueDefinition:

@@ -11,10 +11,10 @@ from .numeric import Uint256Definition
 class AddressDefinition(MemberTypeDefinition):
     _id = "address"
     _type_members = {
-        "balance": Uint256Definition(is_immutable=True),
-        "codehash": Bytes32Definition(is_immutable=True),
-        "codesize": Uint256Definition(is_immutable=True),
-        "is_contract": BoolDefinition(is_immutable=True),
+        "balance": Uint256Definition(is_constant=True),
+        "codehash": Bytes32Definition(is_constant=True),
+        "codesize": Uint256Definition(is_constant=True),
+        "is_contract": BoolDefinition(is_constant=True),
     }
 
 

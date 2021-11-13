@@ -117,6 +117,7 @@ RESERVED_KEYWORDS = {
     "external",
     "nonpayable",
     "constant",
+    "immutable",
     "internal",
     "payable",
     "nonreentrant",
