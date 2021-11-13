@@ -213,7 +213,7 @@ def parse_regular_functions(
         )
 
     else:
-        # NOTE: lll macro trailing 0 is the location in memory to store
+        # NOTE: lll macro first argument is the location in memory to store
         # the compiled bytecode
         # https://lll-docs.readthedocs.io/en/latest/lll_reference.html#code-lll
         o.append(["return", 0, ["lll", 0, runtime]])
