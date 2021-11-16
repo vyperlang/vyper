@@ -1257,14 +1257,14 @@ class RawLog:
             return LLLnode.from_list(
                 [
                     "seq",
+                    # TODO use make_setter
                     ["mstore", placeholder, unwrap_location(args[1])],
                     ["log" + str(len(topics)), placeholder, 32] + topics,
                 ],
-                typ=None,
                 pos=getpos(expr),
             )
 
-        input_buf = ensure_in_memory(args[1])
+        input_buf = ensure_in_memory(args[1], context, pos=getpos(expr))
 
         return LLLnode.from_list(
             [
