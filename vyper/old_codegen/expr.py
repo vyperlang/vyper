@@ -493,9 +493,9 @@ class Expr:
             # TODO sanity check we are in a self.my_map[i] situation
             index = Expr.parse_value_expr(self.expr.slice.value, self.context)
             if isinstance(index.typ, ByteArrayLike):
-                # special case,
                 # we have to hash the key to get a storage location
-                index = keccak256_helper(self.expr.slice.value, index.args, None, self.context)
+                assert len(index.args) == 1
+                index = keccak256_helper(self.expr.slice.value, index.args[0], self.context)
 
         elif isinstance(sub.typ, ListType):
             index = Expr.parse_value_expr(self.expr.slice.value, self.context)
@@ -905,8 +905,8 @@ class Expr:
             left_over_32 = left.typ.maxlen > 32
             right_over_32 = right.typ.maxlen > 32
             if length_mismatch or left_over_32 or right_over_32:
-                left_keccak = keccak256_helper(self.expr, [left], None, self.context)
-                right_keccak = keccak256_helper(self.expr, [right], None, self.context)
+                left_keccak = keccak256_helper(self.expr, left, self.context)
+                right_keccak = keccak256_helper(self.expr, right, self.context)
 
                 if op == "eq" or op == "ne":
                     return LLLnode.from_list(

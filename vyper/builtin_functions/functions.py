@@ -26,14 +26,16 @@ from vyper.old_codegen.expr import Expr
 from vyper.old_codegen.keccak256_helper import keccak256_helper
 from vyper.old_codegen.parser_utils import (
     LLLnode,
+    add_ofst,
     check_external_call,
     clamp_basetype,
+    ensure_in_memory,
+    eval_seq,
     get_bytearray_length,
     get_element_ptr,
     getpos,
     lll_tuple_from_args,
     load_op,
-    make_byte_array_copier,
     make_byte_slice_copier,
     unwrap_location,
 )
@@ -269,7 +271,6 @@ class Slice:
         # Node representing the position of the output in memory
         # CMC 20210917 shouldn't this be a variable with newmaxlen?
         np = context.new_internal_variable(ReturnType(maxlen=sub_typ_maxlen + 32))
-        # TODO deallocate np
         placeholder_node = LLLnode.from_list(np, typ=sub.typ, location="memory")
         placeholder_plus_32_node = LLLnode.from_list(np + 32, typ=sub.typ, location="memory")
 
@@ -565,7 +566,8 @@ class Keccak256(_SimpleBuiltinFunction):
 
     @validate_inputs
     def build_LLL(self, expr, args, kwargs, context):
-        return keccak256_helper(expr, args, kwargs, context)
+        assert len(args) == 1
+        return keccak256_helper(expr, args[0], context)
 
 
 def _make_sha256_call(inp_start, inp_len, out_start, out_len):
@@ -627,56 +629,29 @@ class Sha256(_SimpleBuiltinFunction):
             )
         # bytearay-like input
         # special case if it's already in memory
-        if sub.location == "memory":
-            return LLLnode.from_list(
+        sub = ensure_in_memory(sub, context, pos=getpos(expr))
+
+        return LLLnode.from_list(
+            [
+                "with",
+                "_sub",
+                sub,
                 [
-                    "with",
-                    "_sub",
-                    sub,
-                    [
-                        "seq",
-                        _make_sha256_call(
-                            inp_start=["add", "_sub", 32],
-                            inp_len=["mload", "_sub"],
-                            out_start=MemoryPositions.FREE_VAR_SPACE,
-                            out_len=32,
-                        ),
-                        ["mload", MemoryPositions.FREE_VAR_SPACE],
-                    ],
+                    "seq",
+                    _make_sha256_call(
+                        # TODO use add_ofst if sub is statically known
+                        inp_start=["add", "_sub", 32],
+                        inp_len=["mload", "_sub"],
+                        out_start=MemoryPositions.FREE_VAR_SPACE,
+                        out_len=32,
+                    ),
+                    ["mload", MemoryPositions.FREE_VAR_SPACE],
                 ],
-                typ=BaseType("bytes32"),
-                pos=getpos(expr),
-                add_gas_estimate=SHA256_BASE_GAS + sub.typ.maxlen * SHA256_PER_WORD_GAS,
-            )
-        else:
-            # otherwise, copy it to memory and then call the precompile
-            placeholder = context.new_internal_variable(sub.typ)
-            placeholder_node = LLLnode.from_list(placeholder, typ=sub.typ, location="memory")
-            copier = make_byte_array_copier(
-                placeholder_node,
-                LLLnode.from_list("_sub", typ=sub.typ, location=sub.location),
-            )
-            return LLLnode.from_list(
-                [
-                    "with",
-                    "_sub",
-                    sub,
-                    [
-                        "seq",
-                        copier,
-                        _make_sha256_call(
-                            inp_start=["add", placeholder, 32],
-                            inp_len=["mload", placeholder],
-                            out_start=MemoryPositions.FREE_VAR_SPACE,
-                            out_len=32,
-                        ),
-                        ["mload", MemoryPositions.FREE_VAR_SPACE],
-                    ],
-                ],
-                typ=BaseType("bytes32"),
-                pos=getpos(expr),
-                add_gas_estimate=SHA256_BASE_GAS + sub.typ.maxlen * SHA256_PER_WORD_GAS,
-            )
+            ],
+            typ=BaseType("bytes32"),
+            pos=getpos(expr),
+            add_gas_estimate=SHA256_BASE_GAS + sub.typ.maxlen * SHA256_PER_WORD_GAS,
+        )
 
 
 class MethodID:
@@ -1121,34 +1096,38 @@ class RawCall(_SimpleBuiltinFunction):
                 expr,
             )
 
-        placeholder = context.new_internal_variable(data.typ)
-        placeholder_node = LLLnode.from_list(placeholder, typ=data.typ, location="memory")
-        copy_input = make_byte_array_copier(placeholder_node, data, pos=getpos(expr))
-        output_placeholder = context.new_internal_variable(ByteArrayType(outsize))
+        eval_input_buf = ensure_in_memory(data, context, pos=getpos(expr))
+        input_buf = eval_seq(eval_input_buf)
+
         output_node = LLLnode.from_list(
-            output_placeholder,
+            context.new_internal_variable(ByteArrayType(outsize)),
             typ=ByteArrayType(outsize),
             location="memory",
         )
 
         bool_ty = BaseType("bool")
 
+        if input_buf is None:
+            call_lll = ["with", "arg_buf", eval_input_buf]
+            input_buf = LLLnode.from_list("arg_buf")
+        else:
+            call_lll = ["seq", eval_input_buf]
+
         # build LLL for call or delegatecall
-        common_call_lll = [
-            ["add", placeholder_node, 32],
-            ["mload", placeholder_node],
+        common_call_args = [
+            add_ofst(input_buf, 32),
+            ["mload", input_buf],  # buf len
             # if there is no return value, the return offset can be 0
-            ["add", output_node, 32] if outsize else 0,
+            add_ofst(output_node, 32) if outsize else 0,
             outsize,
         ]
 
-        call_lll = ["seq", copy_input]
         if delegate_call:
-            call_op = ["delegatecall", gas, to, *common_call_lll]
+            call_op = ["delegatecall", gas, to, *common_call_args]
         elif static_call:
-            call_op = ["staticcall", gas, to, *common_call_lll]
+            call_op = ["staticcall", gas, to, *common_call_args]
         else:
-            call_op = ["call", gas, to, value, *common_call_lll]
+            call_op = ["call", gas, to, value, *common_call_args]
         call_lll += [call_op]
 
         # build sequence LLL
@@ -1278,47 +1257,22 @@ class RawLog:
             return LLLnode.from_list(
                 [
                     "seq",
+                    # TODO use make_setter
                     ["mstore", placeholder, unwrap_location(args[1])],
                     ["log" + str(len(topics)), placeholder, 32] + topics,
                 ],
-                typ=None,
                 pos=getpos(expr),
             )
-        if args[1].location == "memory":
-            return LLLnode.from_list(
-                [
-                    "with",
-                    "_arr",
-                    args[1],
-                    ["log" + str(len(topics)), ["add", "_arr", 32], ["mload", "_arr"]] + topics,
-                ],
-                typ=None,
-                pos=getpos(expr),
-            )
-        placeholder = context.new_internal_variable(args[1].typ)
-        placeholder_node = LLLnode.from_list(placeholder, typ=args[1].typ, location="memory")
-        copier = make_byte_array_copier(
-            placeholder_node,
-            LLLnode.from_list("_sub", typ=args[1].typ, location=args[1].location),
-            pos=getpos(expr),
-        )
+
+        input_buf = ensure_in_memory(args[1], context, pos=getpos(expr))
+
         return LLLnode.from_list(
             [
                 "with",
                 "_sub",
-                args[1],
-                [
-                    "seq",
-                    copier,
-                    [
-                        "log" + str(len(topics)),
-                        ["add", placeholder_node, 32],
-                        ["mload", placeholder_node],
-                    ]
-                    + topics,
-                ],
+                input_buf,
+                ["log" + str(len(topics)), ["add", "_sub", 32], ["mload", "_sub"], *topics],
             ],
-            typ=None,
             pos=getpos(expr),
         )
 

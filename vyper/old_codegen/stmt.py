@@ -158,11 +158,13 @@ class Stmt:
             self.context.constancy = tmp
 
         # TODO this is probably useful in parser_utils
+        # compare with eval_seq.
         def _get_last(lll):
             if len(lll.args) == 0:
                 return lll.value
             return _get_last(lll.args[-1])
 
+        # TODO maybe use ensure_in_memory
         if msg_lll.location != "memory":
             buf = self.context.new_internal_variable(msg_lll.typ)
             instantiate_msg = make_byte_array_copier(buf, msg_lll)

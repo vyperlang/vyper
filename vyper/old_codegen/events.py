@@ -19,7 +19,7 @@ def _encode_log_topics(expr, event_id, arg_nodes, context):
             value = unwrap_location(arg)
 
         elif isinstance(arg.typ, ByteArrayLike):
-            value = keccak256_helper(expr, [arg], kwargs=None, context=context)
+            value = keccak256_helper(expr, arg, context=context)
         else:
             # TODO block at higher level
             raise TypeMismatch("Event indexes may only be value types", expr)
