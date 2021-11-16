@@ -26,6 +26,7 @@ from vyper.old_codegen.expr import Expr
 from vyper.old_codegen.keccak256_helper import keccak256_helper
 from vyper.old_codegen.parser_utils import (
     LLLnode,
+    add_ofst,
     check_external_call,
     clamp_basetype,
     ensure_in_memory,
@@ -37,7 +38,6 @@ from vyper.old_codegen.parser_utils import (
     load_op,
     make_byte_array_copier,
     make_byte_slice_copier,
-    add_ofst,
     unwrap_location,
 )
 from vyper.old_codegen.types import BaseType, ByteArrayLike, ByteArrayType, ListType
@@ -272,7 +272,6 @@ class Slice:
         # Node representing the position of the output in memory
         # CMC 20210917 shouldn't this be a variable with newmaxlen?
         np = context.new_internal_variable(ReturnType(maxlen=sub_typ_maxlen + 32))
-        # TODO deallocate np
         placeholder_node = LLLnode.from_list(np, typ=sub.typ, location="memory")
         placeholder_plus_32_node = LLLnode.from_list(np + 32, typ=sub.typ, location="memory")
 
@@ -568,7 +567,8 @@ class Keccak256(_SimpleBuiltinFunction):
 
     @validate_inputs
     def build_LLL(self, expr, args, kwargs, context):
-        return keccak256_helper(expr, args, kwargs, context)
+        assert len(args) == 1
+        return keccak256_helper(expr, args[0], context)
 
 
 def _make_sha256_call(inp_start, inp_len, out_start, out_len):
@@ -630,56 +630,28 @@ class Sha256(_SimpleBuiltinFunction):
             )
         # bytearay-like input
         # special case if it's already in memory
-        if sub.location == "memory":
-            return LLLnode.from_list(
+        sub = ensure_in_memory(sub, context, pos=getpos(expr))
+
+        return LLLnode.from_list(
+            [
+                "with",
+                "_sub",
+                sub,
                 [
-                    "with",
-                    "_sub",
-                    sub,
-                    [
-                        "seq",
-                        _make_sha256_call(
-                            inp_start=["add", "_sub", 32],
-                            inp_len=["mload", "_sub"],
-                            out_start=MemoryPositions.FREE_VAR_SPACE,
-                            out_len=32,
-                        ),
-                        ["mload", MemoryPositions.FREE_VAR_SPACE],
-                    ],
+                    _make_sha256_call(
+                        # TODO use add_ofst if sub is statically known
+                        inp_start=["add", "_sub", 32],
+                        inp_len=["mload", "_sub"],
+                        out_start=MemoryPositions.FREE_VAR_SPACE,
+                        out_len=32,
+                    ),
+                    ["mload", MemoryPositions.FREE_VAR_SPACE],
                 ],
-                typ=BaseType("bytes32"),
-                pos=getpos(expr),
-                add_gas_estimate=SHA256_BASE_GAS + sub.typ.maxlen * SHA256_PER_WORD_GAS,
-            )
-        else:
-            # otherwise, copy it to memory and then call the precompile
-            placeholder = context.new_internal_variable(sub.typ)
-            placeholder_node = LLLnode.from_list(placeholder, typ=sub.typ, location="memory")
-            copier = make_byte_array_copier(
-                placeholder_node,
-                LLLnode.from_list("_sub", typ=sub.typ, location=sub.location),
-            )
-            return LLLnode.from_list(
-                [
-                    "with",
-                    "_sub",
-                    sub,
-                    [
-                        "seq",
-                        copier,
-                        _make_sha256_call(
-                            inp_start=["add", placeholder, 32],
-                            inp_len=["mload", placeholder],
-                            out_start=MemoryPositions.FREE_VAR_SPACE,
-                            out_len=32,
-                        ),
-                        ["mload", MemoryPositions.FREE_VAR_SPACE],
-                    ],
-                ],
-                typ=BaseType("bytes32"),
-                pos=getpos(expr),
-                add_gas_estimate=SHA256_BASE_GAS + sub.typ.maxlen * SHA256_PER_WORD_GAS,
-            )
+            ],
+            typ=BaseType("bytes32"),
+            pos=getpos(expr),
+            add_gas_estimate=SHA256_BASE_GAS + sub.typ.maxlen * SHA256_PER_WORD_GAS,
+        )
 
 
 class MethodID:

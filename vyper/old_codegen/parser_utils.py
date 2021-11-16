@@ -624,9 +624,7 @@ def ensure_in_memory(lll_var, context, pos=None):
         return lll_var
 
     typ = lll_var.typ
-    buf = LLLnode.from_list(
-        context.new_internal_variable(typ), typ=typ, location="memory"
-    )
+    buf = LLLnode.from_list(context.new_internal_variable(typ), typ=typ, location="memory")
     do_copy = make_setter(buf, lll_var, pos=pos)
 
     return LLLnode.from_list(["seq", do_copy, buf], typ=typ, location="memory")

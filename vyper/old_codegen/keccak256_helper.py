@@ -2,7 +2,7 @@ from math import ceil
 
 from vyper.exceptions import CompilerPanic
 from vyper.old_codegen.lll_node import LLLnode
-from vyper.old_codegen.parser_utils import getpos, ensure_in_memory
+from vyper.old_codegen.parser_utils import ensure_in_memory, getpos
 from vyper.old_codegen.types import BaseType, ByteArrayLike, is_base_type
 from vyper.utils import MemoryPositions, bytes_to_int, keccak256
 
@@ -21,13 +21,8 @@ def _gas_bound(num_words):
     return SHA3_BASE + num_words * SHA3_PER_WORD
 
 
-# TODO kwargs is dead argument
-def keccak256_helper(expr, lll_args, kwargs, context):
-    if len(lll_args) != 1:
-        # NOTE this may be checked at a higher level, but just be safe
-        raise CompilerPanic("keccak256 must be called with exactly 1 argument", expr)
-
-    sub = lll_args[0]
+def keccak256_helper(expr, lll_arg, context):
+    sub = lll_args  # TODO get rid of useless variable
     _check_byteslike(sub.typ, expr)
 
     # Can hash literals
@@ -48,8 +43,6 @@ def keccak256_helper(expr, lll_args, kwargs, context):
             pos=getpos(expr),
             add_gas_estimate=_gas_bound(1),
         )
-
-    # type is ByteArrayLike.
 
     sub = ensure_in_memory(sub, context, pos=getpos(expr))
 
