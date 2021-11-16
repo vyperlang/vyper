@@ -2,7 +2,7 @@ from math import ceil
 
 from vyper.exceptions import CompilerPanic
 from vyper.old_codegen.lll_node import LLLnode
-from vyper.old_codegen.parser_utils import getpos, make_byte_array_copier
+from vyper.old_codegen.parser_utils import getpos, ensure_in_memory
 from vyper.old_codegen.types import BaseType, ByteArrayLike, is_base_type
 from vyper.utils import MemoryPositions, bytes_to_int, keccak256
 
@@ -51,40 +51,14 @@ def keccak256_helper(expr, lll_args, kwargs, context):
 
     # type is ByteArrayLike.
 
-    # Otherwise, copy the data to an in-memory buffer
-    # TODO refactor the following logic into a function, ensure_in_memory,
-    # which elides the byte array copy if the bytes are already in memory.
-    if sub.location == "memory":
-        # If we are hashing a value in memory, no need to copy it, just hash in-place
-        return LLLnode.from_list(
-            [
-                "with",
-                "_buf",
-                sub,
-                ["with", "_len", ["mload", "_buf"], ["sha3", ["add", "_buf", 32], "_len"]],
-            ],
-            typ=BaseType("bytes32"),
-            pos=getpos(expr),
-            add_gas_estimate=_gas_bound(ceil(sub.typ.maxlen / 32)),
-        )
+    sub = ensure_in_memory(sub, context, pos=getpos(expr))
 
-    placeholder = context.new_internal_variable(sub.typ)
-    placeholder_node = LLLnode.from_list(placeholder, typ=sub.typ, location="memory")
-    copier = make_byte_array_copier(
-        placeholder_node,
-        LLLnode.from_list("_src", typ=sub.typ, location=sub.location),
-    )
     return LLLnode.from_list(
         [
             "with",
-            "_src",
+            "_buf",
             sub,
-            [
-                "with",
-                "_dst",
-                placeholder_node,
-                ["seq", copier, ["sha3", ["add", "_dst", 32], ["mload", "_dst"]]],
-            ],
+            ["sha3", ["add", "_buf", 32], ["mload", "_buf"]],
         ],
         typ=BaseType("bytes32"),
         pos=getpos(expr),
