@@ -1,5 +1,6 @@
 import pytest
 
+
 @pytest.mark.parametrize(
     "typ,value",
     [

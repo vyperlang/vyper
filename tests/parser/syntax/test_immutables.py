@@ -48,8 +48,7 @@ VALUE: immutable(uint256)
 def __init__(_value: uint256):
     VALUE = _value * 3
     VALUE = VALUE + 1
-    """
-
+    """,
 ]
 
 
