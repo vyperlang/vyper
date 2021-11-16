@@ -1263,38 +1263,19 @@ class RawLog:
                 typ=None,
                 pos=getpos(expr),
             )
-        if args[1].location == "memory":
-            return LLLnode.from_list(
-                [
-                    "with",
-                    "_arr",
-                    args[1],
-                    ["log" + str(len(topics)), ["add", "_arr", 32], ["mload", "_arr"]] + topics,
-                ],
-                typ=None,
-                pos=getpos(expr),
-            )
-        placeholder = context.new_internal_variable(args[1].typ)
-        placeholder_node = LLLnode.from_list(placeholder, typ=args[1].typ, location="memory")
-        copier = make_byte_array_copier(
-            placeholder_node,
-            LLLnode.from_list("_sub", typ=args[1].typ, location=args[1].location),
-            pos=getpos(expr),
-        )
+
+        input_buf = ensure_in_memory(args[1])
+
         return LLLnode.from_list(
             [
                 "with",
                 "_sub",
-                args[1],
+                input_buf
                 [
-                    "seq",
-                    copier,
-                    [
-                        "log" + str(len(topics)),
-                        ["add", placeholder_node, 32],
-                        ["mload", placeholder_node],
-                    ]
-                    + topics,
+                    "log" + str(len(topics)),
+                    ["add", "_sub", 32],
+                    ["mload", "_sub"],
+                    *topics,
                 ],
             ],
             typ=None,
