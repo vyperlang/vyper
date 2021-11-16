@@ -22,10 +22,11 @@ def _gas_bound(num_words):
 
 
 def keccak256_helper(expr, lll_arg, context):
-    sub = lll_args  # TODO get rid of useless variable
+    sub = lll_arg  # TODO get rid of useless variable
     _check_byteslike(sub.typ, expr)
 
     # Can hash literals
+    # TODO this is dead code.
     if isinstance(sub, bytes):
         return LLLnode.from_list(
             bytes_to_int(keccak256(sub)), typ=BaseType("bytes32"), pos=getpos(expr)

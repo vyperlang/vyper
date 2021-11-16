@@ -36,7 +36,6 @@ from vyper.old_codegen.parser_utils import (
     getpos,
     lll_tuple_from_args,
     load_op,
-    make_byte_array_copier,
     make_byte_slice_copier,
     unwrap_location,
 )
@@ -638,6 +637,7 @@ class Sha256(_SimpleBuiltinFunction):
                 "_sub",
                 sub,
                 [
+                    "seq",
                     _make_sha256_call(
                         # TODO use add_ofst if sub is statically known
                         inp_start=["add", "_sub", 32],
@@ -1270,15 +1270,9 @@ class RawLog:
             [
                 "with",
                 "_sub",
-                input_buf
-                [
-                    "log" + str(len(topics)),
-                    ["add", "_sub", 32],
-                    ["mload", "_sub"],
-                    *topics,
-                ],
+                input_buf,
+                ["log" + str(len(topics)), ["add", "_sub", 32], ["mload", "_sub"], *topics],
             ],
-            typ=None,
             pos=getpos(expr),
         )
 
