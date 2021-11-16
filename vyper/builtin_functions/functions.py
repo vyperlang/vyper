@@ -28,6 +28,8 @@ from vyper.old_codegen.parser_utils import (
     LLLnode,
     check_external_call,
     clamp_basetype,
+    ensure_in_memory,
+    eval_seq,
     get_bytearray_length,
     get_element_ptr,
     getpos,
@@ -35,6 +37,7 @@ from vyper.old_codegen.parser_utils import (
     load_op,
     make_byte_array_copier,
     make_byte_slice_copier,
+    add_ofst,
     unwrap_location,
 )
 from vyper.old_codegen.types import BaseType, ByteArrayLike, ByteArrayType, ListType
@@ -1121,34 +1124,38 @@ class RawCall(_SimpleBuiltinFunction):
                 expr,
             )
 
-        placeholder = context.new_internal_variable(data.typ)
-        placeholder_node = LLLnode.from_list(placeholder, typ=data.typ, location="memory")
-        copy_input = make_byte_array_copier(placeholder_node, data, pos=getpos(expr))
-        output_placeholder = context.new_internal_variable(ByteArrayType(outsize))
+        eval_input_buf = ensure_in_memory(data, context, pos=getpos(expr))
+        input_buf = eval_seq(eval_input_buf)
+
         output_node = LLLnode.from_list(
-            output_placeholder,
+            context.new_internal_variable(ByteArrayType(outsize)),
             typ=ByteArrayType(outsize),
             location="memory",
         )
 
         bool_ty = BaseType("bool")
 
+        if input_buf is None:
+            call_lll = ["with", "arg_buf", eval_input_buf]
+            input_buf = LLLnode.from_list("arg_buf")
+        else:
+            call_lll = ["seq", eval_input_buf]
+
         # build LLL for call or delegatecall
-        common_call_lll = [
-            ["add", placeholder_node, 32],
-            ["mload", placeholder_node],
+        common_call_args = [
+            add_ofst(input_buf, 32),
+            ["mload", input_buf],  # buf len
             # if there is no return value, the return offset can be 0
-            ["add", output_node, 32] if outsize else 0,
+            add_ofst(output_node, 32) if outsize else 0,
             outsize,
         ]
 
-        call_lll = ["seq", copy_input]
         if delegate_call:
-            call_op = ["delegatecall", gas, to, *common_call_lll]
+            call_op = ["delegatecall", gas, to, *common_call_args]
         elif static_call:
-            call_op = ["staticcall", gas, to, *common_call_lll]
+            call_op = ["staticcall", gas, to, *common_call_args]
         else:
-            call_op = ["call", gas, to, value, *common_call_lll]
+            call_op = ["call", gas, to, value, *common_call_args]
         call_lll += [call_op]
 
         # build sequence LLL
