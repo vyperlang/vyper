@@ -5,6 +5,7 @@ from vyper.ast.signatures.function_signature import ContractRecord, VariableReco
 from vyper.exceptions import CompilerPanic, InvalidType, StructureException
 from vyper.old_codegen.types import InterfaceType, parse_type
 from vyper.typing import InterfaceImports
+from vyper.utils import cached_property
 
 
 # Datatype to store all global context information.
@@ -208,6 +209,15 @@ class GlobalContext:
                 typ,
                 True,
             )
+        elif self.get_call_func_name(item) == "immutable":
+            typ = self.parse_type(item.annotation.args[0], "code")
+            self._globals[item.target.id] = VariableRecord(
+                item.target.id,
+                len(self._globals),
+                typ,
+                False,
+                is_immutable=True,
+            )
 
         elif isinstance(item.annotation, (vy_ast.Name, vy_ast.Call, vy_ast.Subscript)):
             self._globals[item.target.id] = VariableRecord(
@@ -226,3 +236,7 @@ class GlobalContext:
             sigs=self._contracts,
             custom_structs=self._structs,
         )
+
+    @cached_property
+    def immutable_section_size(self):
+        return sum([imm.size * 32 for imm in self._globals.values() if imm.is_immutable])

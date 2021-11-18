@@ -42,6 +42,15 @@ class DecimalContextOverride(Context):
 setcontext(DecimalContextOverride(prec=78))
 
 
+# propagate revert message when calls to external contracts fail
+def check_external_call(call_lll):
+    copy_revertdata = ["returndatacopy", 0, 0, "returndatasize"]
+    revert = ["revert", 0, "returndatasize"]
+
+    propagate_revert_lll = ["seq", copy_revertdata, revert]
+    return ["if", ["iszero", call_lll], propagate_revert_lll]
+
+
 def type_check_wrapper(fn):
     def _wrapped(*args, **kwargs):
         return_value = fn(*args, **kwargs)
@@ -605,6 +614,31 @@ def _complex_make_setter(left, right, pos):
     if left.is_complex_lll:
         ret = ["with", "_L", left, ret]
     return LLLnode.from_list(ret, typ=None)
+
+
+def ensure_in_memory(lll_var, context, pos=None):
+    """Ensure a variable is in memory. This is useful for functions
+    which expect to operate on memory variables.
+    """
+    if lll_var.location == "memory":
+        return lll_var
+
+    typ = lll_var.typ
+    buf = LLLnode.from_list(context.new_internal_variable(typ), typ=typ, location="memory")
+    do_copy = make_setter(buf, lll_var, pos=pos)
+
+    return LLLnode.from_list(["seq", do_copy, buf], typ=typ, location="memory")
+
+
+def eval_seq(lll_node):
+    """Tries to find the "return" value of a `seq` statement, in order so
+    that the value can be known without possibly evaluating side effects
+    """
+    if lll_node.value in ("seq", "with") and len(lll_node.args) > 0:
+        return eval_seq(lll_node.args[-1])
+    if isinstance(lll_node.value, int):
+        return LLLnode.from_list(lll_node)
+    return None
 
 
 # TODO move return checks to vyper/semantics/validation

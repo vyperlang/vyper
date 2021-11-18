@@ -2,8 +2,6 @@ import copy
 import warnings
 from typing import Optional, Tuple
 
-import vyper.evm.opcodes as evm
-import vyper.ovm as ovm
 from vyper import ast as vy_ast
 from vyper.lll import compile_lll, optimizer
 from vyper.old_codegen import parser
@@ -49,7 +47,6 @@ class CompilerData:
         interface_codes: Optional[InterfaceImports] = None,
         source_id: int = 0,
         no_optimize: bool = False,
-        use_ovm: bool = False,
     ) -> None:
         """
         Initialization method.
@@ -66,19 +63,12 @@ class CompilerData:
             * JSON interfaces are given as lists, vyper interfaces as strings
         source_id : int, optional
             ID number used to identify this contract in the source map.
-        use_ovm: bool, optional
-            Whether to compile for OVM
         """
         self.contract_name = contract_name
         self.source_code = source_code
         self.interface_codes = interface_codes
         self.source_id = source_id
         self.no_optimize = no_optimize
-        self.use_ovm = use_ovm
-
-        if use_ovm:
-            for opcodes_for_evm_version in evm._evm_opcodes.values():
-                ovm.monkeypatch_evm_opcodes(opcodes_for_evm_version)
 
     @property
     def vyper_module(self) -> vy_ast.Module:
@@ -117,7 +107,7 @@ class CompilerData:
     def _gen_lll(self) -> None:
         # fetch both deployment and runtime LLL
         self._lll_nodes, self._lll_runtime = generate_lll_nodes(
-            self.global_ctx, self.no_optimize, self.use_ovm
+            self.global_ctx, self.no_optimize
         )
 
     @property
@@ -135,13 +125,13 @@ class CompilerData:
     @property
     def assembly(self) -> list:
         if not hasattr(self, "_assembly"):
-            self._assembly = generate_assembly(self.lll_nodes, self.use_ovm)
+            self._assembly = generate_assembly(self.lll_nodes)
         return self._assembly
 
     @property
     def assembly_runtime(self) -> list:
         if not hasattr(self, "_assembly_runtime"):
-            self._assembly_runtime = generate_assembly(self.lll_runtime, self.use_ovm)
+            self._assembly_runtime = generate_assembly(self.lll_runtime)
         return self._assembly_runtime
 
     @property
@@ -230,7 +220,7 @@ def generate_global_context(
 
 
 def generate_lll_nodes(
-    global_ctx: GlobalContext, no_optimize: bool, use_ovm: bool
+    global_ctx: GlobalContext, no_optimize: bool
 ) -> Tuple[parser.LLLnode, parser.LLLnode]:
     """
     Generate the intermediate representation (LLL) from the contextualized AST.
@@ -245,8 +235,6 @@ def generate_lll_nodes(
     ---------
     global_ctx : GlobalContext
         Contextualized Vyper AST
-    use_ovm: bool, optional
-        Whether to compile for OVM
 
     Returns
     -------
@@ -258,14 +246,11 @@ def generate_lll_nodes(
     if not no_optimize:
         lll_nodes = optimizer.optimize(lll_nodes)
         lll_runtime = optimizer.optimize(lll_runtime)
-    if use_ovm:
-        lll_nodes = ovm.rewrite_lll_for_ovm(lll_nodes)
-        lll_runtime = ovm.rewrite_lll_for_ovm(lll_runtime)
     return lll_nodes, lll_runtime
 
 
 def generate_assembly(
-    lll_nodes: parser.LLLnode, no_optimize: bool = False, use_ovm: bool = False
+    lll_nodes: parser.LLLnode, no_optimize: bool = False
 ) -> list:
     """
     Generate assembly instructions from LLL.
@@ -274,8 +259,6 @@ def generate_assembly(
     ---------
     lll_nodes : str
         Top-level LLL nodes. Can be deployment or runtime LLL.
-    use_ovm: bool, optional
-        Whether to compile for OVM
 
     Returns
     -------
@@ -283,9 +266,6 @@ def generate_assembly(
         List of assembly instructions.
     """
     assembly = compile_lll.compile_to_assembly(lll_nodes, no_optimize=no_optimize)
-
-    if use_ovm:
-        assembly = ovm.rewrite_asm_for_ovm(assembly)
 
     if _find_nested_opcode(assembly, "DEBUG"):
         warnings.warn(

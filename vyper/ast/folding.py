@@ -220,9 +220,6 @@ def replace_constant(
     for node in vyper_module.get_descendants(vy_ast.Name, {"id": id_}, reverse=True):
         parent = node.get_ancestor()
 
-        if isinstance(parent, vy_ast.Attribute):
-            # do not replace attributes
-            continue
         if isinstance(parent, vy_ast.Call) and node == parent.func:
             # do not replace calls
             continue

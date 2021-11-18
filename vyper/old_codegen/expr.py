@@ -316,6 +316,39 @@ class Expr:
             return LLLnode.from_list(
                 [obj], typ=BaseType(typ, is_literal=True), pos=getpos(self.expr)
             )
+        elif self.expr._metadata["type"].is_immutable:
+            # immutable variable
+            # need to handle constructor and outside constructor
+            var = self.context.globals[self.expr.id]
+            is_constructor = self.expr.get_ancestor(vy_ast.FunctionDef).get("name") == "__init__"
+            if is_constructor:
+                # store memory position for later access in parser.py in the variable record
+                memory_loc = self.context.new_variable(f"#immutable_{self.expr.id}", var.typ)
+                self.context.global_ctx._globals[self.expr.id].pos = memory_loc
+                # store the data offset in the variable record as well for accessing
+                data_offset = self.expr._metadata["type"].position.offset
+                self.context.global_ctx._globals[self.expr.id].data_offset = data_offset
+
+                return LLLnode.from_list(
+                    memory_loc,
+                    typ=var.typ,
+                    location="memory",
+                    pos=getpos(self.expr),
+                    annotation=self.expr.id,
+                    mutable=True,
+                )
+            else:
+                immutable_section_size = self.context.global_ctx.immutable_section_size
+                offset = self.expr._metadata["type"].position.offset
+                # TODO: resolve code offsets for immutables at compile time
+                return LLLnode.from_list(
+                    ["sub", "codesize", immutable_section_size - offset],
+                    typ=var.typ,
+                    location="code",
+                    pos=getpos(self.expr),
+                    annotation=self.expr.id,
+                    mutable=False,
+                )
 
     # x.y or x[5]
     def parse_Attribute(self):
@@ -446,15 +479,23 @@ class Expr:
                 return get_element_ptr(sub, self.expr.attr, pos=getpos(self.expr))
 
     def parse_Subscript(self):
-        sub = Expr.parse_variable_location(self.expr.value, self.context)
+        sub = Expr(self.expr.value, self.context).lll_node
+        if sub.value == "multi":
+            # force literal to memory
+            t = LLLnode(self.context.new_internal_variable(sub.typ), typ=sub.typ, location="memory")
+            sub = LLLnode.from_list(
+                ["seq", make_setter(t, sub, pos=getpos(self.expr)), t],
+                typ=sub.typ,
+                location="memory",
+            )
 
         if isinstance(sub.typ, MappingType):
             # TODO sanity check we are in a self.my_map[i] situation
             index = Expr.parse_value_expr(self.expr.slice.value, self.context)
             if isinstance(index.typ, ByteArrayLike):
-                # special case,
                 # we have to hash the key to get a storage location
-                index = keccak256_helper(self.expr.slice.value, index.args, None, self.context)
+                assert len(index.args) == 1
+                index = keccak256_helper(self.expr.slice.value, index.args[0], self.context)
 
         elif isinstance(sub.typ, ListType):
             index = Expr.parse_value_expr(self.expr.slice.value, self.context)
@@ -465,6 +506,7 @@ class Expr:
                 return
         else:
             return
+
         lll_node = get_element_ptr(sub, index, pos=getpos(self.expr))
         lll_node.mutable = sub.mutable
         return lll_node
@@ -863,8 +905,8 @@ class Expr:
             left_over_32 = left.typ.maxlen > 32
             right_over_32 = right.typ.maxlen > 32
             if length_mismatch or left_over_32 or right_over_32:
-                left_keccak = keccak256_helper(self.expr, [left], None, self.context)
-                right_keccak = keccak256_helper(self.expr, [right], None, self.context)
+                left_keccak = keccak256_helper(self.expr, left, self.context)
+                right_keccak = keccak256_helper(self.expr, right, self.context)
 
                 if op == "eq" or op == "ne":
                     return LLLnode.from_list(

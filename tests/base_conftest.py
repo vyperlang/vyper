@@ -123,13 +123,12 @@ def _get_contract(w3, source_code, optimize, *args, **kwargs):
     tx_info.update(kwargs)
     tx_hash = deploy_transaction.transact(tx_info)
     address = w3.eth.getTransactionReceipt(tx_hash)["contractAddress"]
-    contract = w3.eth.contract(
+    return w3.eth.contract(
         address,
         abi=abi,
         bytecode=bytecode,
         ContractFactoryClass=VyperContract,
     )
-    return contract
 
 
 @pytest.fixture(params=[True, False])
@@ -145,8 +144,7 @@ def get_contract(w3, request):
 def get_logs(w3):
     def get_logs(tx_hash, c, event_name):
         tx_receipt = w3.eth.getTransactionReceipt(tx_hash)
-        logs = c._classic_contract.events[event_name]().processReceipt(tx_receipt)
-        return logs
+        return c._classic_contract.events[event_name]().processReceipt(tx_receipt)
 
     return get_logs
 
@@ -159,6 +157,7 @@ def assert_tx_failed(tester):
             function_to_test()
         tester.revert_to_snapshot(snapshot_id)
         if exc_text:
-            assert exc_text in str(excinfo.value)
+            # TODO test equality
+            assert exc_text in str(excinfo.value), (exc_text, excinfo.value)
 
     return assert_tx_failed

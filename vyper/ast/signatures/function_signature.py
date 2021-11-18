@@ -1,5 +1,6 @@
 import math
 from dataclasses import dataclass
+from typing import Optional
 
 from vyper import ast as vy_ast
 from vyper.exceptions import StructureException
@@ -12,7 +13,7 @@ from vyper.utils import cached_property, mkalphanum
 # TODO move to context.py
 # TODO use dataclass
 class VariableRecord:
-    def __init__(
+    def __init__(  # type: ignore
         self,
         name,
         pos,
@@ -23,6 +24,8 @@ class VariableRecord:
         blockscopes=None,
         defined_at=None,
         is_internal=False,
+        is_immutable=False,
+        data_offset: Optional[int] = None,
     ):
         self.name = name
         self.pos = pos
@@ -33,6 +36,8 @@ class VariableRecord:
         self.blockscopes = [] if blockscopes is None else blockscopes
         self.defined_at = defined_at  # source code location variable record was defined.
         self.is_internal = is_internal
+        self.is_immutable = is_immutable
+        self.data_offset = data_offset  # location in data section
 
     def __repr__(self):
         ret = vars(self)

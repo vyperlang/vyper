@@ -53,15 +53,10 @@ def _assert_false():
     return ["_sym_revert0", "JUMPI"]
 
 
-def _add_postambles(asm_ops, use_ovm=False):
+def _add_postambles(asm_ops):
     to_append = []
 
     _revert0_string = ["_sym_revert0", "JUMPDEST", "PUSH1", 0, "DUP1", "REVERT"]
-    if use_ovm:
-        _revert0_string = ["_sym_revert0", "JUMPDEST", "PUSH1", 0, "DUP1"] + [
-            "_sym_ovm_revert",
-            "JUMP",
-        ]
 
     if "_sym_revert0" in asm_ops:
         # shared failure block
@@ -107,10 +102,10 @@ def apply_line_numbers(func):
 
 
 @apply_line_numbers
-def compile_to_assembly(code, no_optimize=False, use_ovm=False):
+def compile_to_assembly(code, no_optimize=False):
     res = _compile_to_assembly(code)
 
-    _add_postambles(res, use_ovm)
+    _add_postambles(res)
     if not no_optimize:
         _optimize_assembly(res)
     return res
@@ -297,7 +292,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         endcode = mksymbol()
         o.extend([endcode, "JUMP", begincode, "BLANK"])
 
-        lll = _compile_to_assembly(code.args[0], {}, existing_labels, None, 0)
+        lll = _compile_to_assembly(code.args[1], {}, existing_labels, None, 0)
 
         # `append(...)` call here is intentional.
         # each sublist is essentially its own program with its
@@ -309,7 +304,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         o.append(lll)
 
         o.extend([endcode, "JUMPDEST", begincode, endcode, "SUB", begincode])
-        o.extend(_compile_to_assembly(code.args[1], withargs, existing_labels, break_dest, height))
+        o.extend(_compile_to_assembly(code.args[0], withargs, existing_labels, break_dest, height))
 
         # COPY the code to memory for deploy
         o.extend(["CODECOPY", begincode, endcode, "SUB"])

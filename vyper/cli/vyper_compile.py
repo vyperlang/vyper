@@ -108,11 +108,6 @@ def _parse_args(argv):
         dest="evm_version",
     )
     parser.add_argument(
-        "--ovm",
-        help="EXPERIMENTAL: Use the OVM backend",
-        action="store_true",
-    )
-    parser.add_argument(
         "--no-optimize",
         help="Do not optimize",
         action="store_true",
@@ -162,7 +157,6 @@ def _parse_args(argv):
         args.show_gas_estimates,
         args.evm_version,
         args.no_optimize,
-        args.ovm,
     )
 
     if args.output_path:
@@ -234,7 +228,6 @@ def compile_files(
     show_gas_estimates: bool = False,
     evm_version: str = DEFAULT_EVM_VERSION,
     no_optimize: bool = False,
-    use_ovm: bool = False,
 ) -> OrderedDict:
 
     if show_gas_estimates:
@@ -273,7 +266,6 @@ def compile_files(
         interface_codes=get_interface_codes(root_path, contract_sources),
         evm_version=evm_version,
         no_optimize=no_optimize,
-        use_ovm=use_ovm,
     )
     if show_version:
         compiler_data["version"] = vyper.__version__

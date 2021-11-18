@@ -18,6 +18,18 @@ def foo() -> Bytes[7]:
     assert c.foo() == b"moose"
 
 
+def test_raw_call_non_memory(get_contract):
+    source_code = """
+_foo: Bytes[5]
+@external
+def foo() -> Bytes[5]:
+    self._foo = b"moose"
+    return raw_call(0x0000000000000000000000000000000000000004, self._foo, max_outsize=5)
+    """
+    c = get_contract(source_code)
+    assert c.foo() == b"moose"
+
+
 def test_returndatasize_exceeds_max_outsize(get_contract):
     source_code = """
 @external
