@@ -71,7 +71,6 @@ def bytes_helper():
 
 @pytest.fixture
 def get_contract_from_lll(w3, no_optimize):
-
     def lll_compiler(lll, *args, **kwargs):
         lll = LLLnode.from_list(lll)
         if not no_optimize:
