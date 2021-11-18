@@ -101,12 +101,12 @@ def w3(tester):
     return w3
 
 
-def _get_contract(w3, source_code, optimize, *args, **kwargs):
+def _get_contract(w3, source_code, no_optimize, *args, **kwargs):
     out = compiler.compile_code(
         source_code,
         ["abi", "bytecode"],
         interface_codes=kwargs.pop("interface_codes", None),
-        no_optimize=not optimize,
+        no_optimize=no_optimize,
         evm_version=kwargs.pop("evm_version", None),
     )
     LARK_GRAMMAR.parse(source_code + "\n")  # Test grammar.
@@ -132,10 +132,9 @@ def _get_contract(w3, source_code, optimize, *args, **kwargs):
 
 
 @pytest.fixture
-def get_contract(w3, request):
+def get_contract(w3, no_optimize):
     def get_contract(source_code, *args, **kwargs):
-        optimize = request.param
-        return _get_contract(w3, source_code, optimize, *args, **kwargs)
+        return _get_contract(w3, source_code, no_optimize, *args, **kwargs)
 
     return get_contract
 
