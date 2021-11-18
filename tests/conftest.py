@@ -35,6 +35,19 @@ def set_evm_verbose_logging():
 # vdb.set_evm_opcode_debugger()
 
 
+def pytest_addoption(parser):
+    parser.addoption(
+        "--no-optimize",
+        action="store_true",
+        help="disable asm and LLL optimizations",
+    )
+
+
+def pytest_generate_tests(metafunc):
+    if "get_contract" in metafunc.fixturenames:
+        metafunc.parametrize("no_optimize", metafunc.config.getoption("no_optimize"))
+
+
 @pytest.fixture
 def keccak():
     return Web3.keccak
@@ -56,7 +69,7 @@ def bytes_helper():
     return bytes_helper
 
 
-@pytest.fixture(params=[True, False])
+@pytest.fixture
 def get_contract_from_lll(w3, request):
     optimize = request.param
 

@@ -131,7 +131,7 @@ def _get_contract(w3, source_code, optimize, *args, **kwargs):
     )
 
 
-@pytest.fixture(params=[True, False])
+@pytest.fixture
 def get_contract(w3, request):
     def get_contract(source_code, *args, **kwargs):
         optimize = request.param
