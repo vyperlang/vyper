@@ -46,6 +46,7 @@ class CompilerData:
         contract_name: str = "VyperContract",
         interface_codes: Optional[InterfaceImports] = None,
         source_id: int = 0,
+        no_optimize: bool = False,
     ) -> None:
         """
         Initialization method.
@@ -67,6 +68,7 @@ class CompilerData:
         self.source_code = source_code
         self.interface_codes = interface_codes
         self.source_id = source_id
+        self.no_optimize = no_optimize
 
     @property
     def vyper_module(self) -> vy_ast.Module:
@@ -104,7 +106,7 @@ class CompilerData:
 
     def _gen_lll(self) -> None:
         # fetch both deployment and runtime LLL
-        self._lll_nodes, self._lll_runtime = generate_lll_nodes(self.global_ctx)
+        self._lll_nodes, self._lll_runtime = generate_lll_nodes(self.global_ctx, self.no_optimize)
 
     @property
     def lll_nodes(self) -> parser.LLLnode:
@@ -215,7 +217,9 @@ def generate_global_context(
     return GlobalContext.get_global_context(vyper_module, interface_codes=interface_codes)
 
 
-def generate_lll_nodes(global_ctx: GlobalContext) -> Tuple[parser.LLLnode, parser.LLLnode]:
+def generate_lll_nodes(
+    global_ctx: GlobalContext, no_optimize: bool
+) -> Tuple[parser.LLLnode, parser.LLLnode]:
     """
     Generate the intermediate representation (LLL) from the contextualized AST.
 
@@ -237,12 +241,13 @@ def generate_lll_nodes(global_ctx: GlobalContext) -> Tuple[parser.LLLnode, parse
         LLL to generate runtime bytecode
     """
     lll_nodes, lll_runtime = parser.parse_tree_to_lll(global_ctx)
-    lll_nodes = optimizer.optimize(lll_nodes)
-    lll_runtime = optimizer.optimize(lll_runtime)
+    if not no_optimize:
+        lll_nodes = optimizer.optimize(lll_nodes)
+        lll_runtime = optimizer.optimize(lll_runtime)
     return lll_nodes, lll_runtime
 
 
-def generate_assembly(lll_nodes: parser.LLLnode) -> list:
+def generate_assembly(lll_nodes: parser.LLLnode, no_optimize: bool = False) -> list:
     """
     Generate assembly instructions from LLL.
 
@@ -256,7 +261,7 @@ def generate_assembly(lll_nodes: parser.LLLnode) -> list:
     list
         List of assembly instructions.
     """
-    assembly = compile_lll.compile_to_assembly(lll_nodes)
+    assembly = compile_lll.compile_to_assembly(lll_nodes, no_optimize=no_optimize)
 
     if _find_nested_opcode(assembly, "DEBUG"):
         warnings.warn(

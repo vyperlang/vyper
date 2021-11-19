@@ -143,9 +143,9 @@ def _standardize_path(path_str: str) -> str:
     return path.as_posix()
 
 
-def get_input_dict_settings(input_dict: Dict) -> Dict:
+def get_evm_version(input_dict: Dict) -> str:
     if "settings" not in input_dict:
-        return {"evm_version": DEFAULT_EVM_VERSION}
+        return DEFAULT_EVM_VERSION
 
     evm_version = input_dict["settings"].get("evmVersion", DEFAULT_EVM_VERSION)
     if evm_version in ("homestead", "tangerineWhistle", "spuriousDragon"):
@@ -153,7 +153,7 @@ def get_input_dict_settings(input_dict: Dict) -> Dict:
     if evm_version not in EVM_VERSIONS:
         raise JSONError(f"Unknown EVM version - '{evm_version}'")
 
-    return {"evm_version": evm_version}
+    return evm_version
 
 
 def get_input_dict_contracts(input_dict: Dict) -> ContractCodes:
@@ -298,7 +298,8 @@ def compile_from_input_dict(
     if input_dict["language"] != "Vyper":
         raise JSONError(f"Invalid language '{input_dict['language']}' - Only Vyper is supported.")
 
-    settings = get_input_dict_settings(input_dict)
+    evm_version = get_evm_version(input_dict)
+    no_optimize = not input_dict["settings"].get("optimize", True)
 
     contract_sources: ContractCodes = get_input_dict_contracts(input_dict)
     interface_sources = get_input_dict_interfaces(input_dict)
@@ -320,7 +321,8 @@ def compile_from_input_dict(
                     output_formats[contract_path],
                     interface_codes=interface_codes,
                     initial_id=id_,
-                    evm_version=settings["evm_version"],
+                    no_optimize=no_optimize,
+                    evm_version=evm_version,
                 )
             except Exception as exc:
                 return exc_handler(contract_path, exc, "compiler"), {}
