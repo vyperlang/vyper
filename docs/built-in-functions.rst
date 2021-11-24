@@ -342,8 +342,8 @@ Data Manipulation
 
         @external
         @view
-        def foo(Bytes[32]) -> address:
-            return extract32(b, 12, output_type=address)
+        def foo(b: Bytes[32]) -> address:
+            return extract32(b, 0, output_type=address)
 
     .. code-block:: python
 
