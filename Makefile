@@ -50,9 +50,10 @@ clean: clean-build clean-docs clean-pyc clean-test
 clean-build:
 	@echo Cleaning python build files...
 	@rm -fr build/
+	@rm -fr _build/ # docs build dir
 	@rm -fr dist/
 	@rm -fr *.egg-info
-	@rm -f vyper/vyper_git_version.txt
+	@rm -f vyper/version.py
 	@rm -f *.spec
 
 clean-docs:

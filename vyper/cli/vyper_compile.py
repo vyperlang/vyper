@@ -87,7 +87,7 @@ def _parse_args(argv):
     parser.add_argument(
         "--version",
         action="version",
-        version=f"{vyper.__version__}+commit.{vyper.__commit__}",
+        version=vyper.__version__,
     )
     parser.add_argument(
         "--show-gas-estimates",

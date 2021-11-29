@@ -43,5 +43,5 @@ docs/vyper.*.rst
 .hypothesis/
 
 # vyper
-vyper/vyper_git_version.txt
+vyper/version.py
 *.spec
