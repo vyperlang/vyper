@@ -15,11 +15,7 @@ from vyper.exceptions import (
     StructureException,
 )
 from vyper.semantics.namespace import get_namespace
-from vyper.semantics.types.bases import (
-    BaseTypeDefinition,
-    DataLocation,
-    StorageSlot,
-)
+from vyper.semantics.types.bases import BaseTypeDefinition, DataLocation, StorageSlot
 from vyper.semantics.types.indexable.sequence import TupleDefinition
 from vyper.semantics.types.user.struct import StructDefinition
 from vyper.semantics.types.utils import (
@@ -96,6 +92,7 @@ class ContractFunction(BaseTypeDefinition):
         self,
         name: str,
         arguments: OrderedDict,
+        # TODO rename to something like positional_args, keyword_args
         min_arg_count: int,
         max_arg_count: int,
         return_type: Optional[BaseTypeDefinition],
@@ -107,7 +104,7 @@ class ContractFunction(BaseTypeDefinition):
             # A function definition type only exists while compiling
             DataLocation.UNSET,
             # A function definition type is immutable once created
-            is_immutable=True,
+            is_constant=True,
             # A function definition type is public if it's visibility is public
             is_public=(function_visibility == FunctionVisibility.EXTERNAL),
         )
@@ -118,7 +115,7 @@ class ContractFunction(BaseTypeDefinition):
         self.return_type = return_type
         self.kwarg_keys = []
         if min_arg_count < max_arg_count:
-            self.kwarg_keys = list(self.arguments)[min_arg_count:]  # noqa: E203
+            self.kwarg_keys = list(self.arguments)[min_arg_count:]
         self.visibility = function_visibility
         self.mutability = state_mutability
         self.nonreentrant = nonreentrant
@@ -144,17 +141,17 @@ class ContractFunction(BaseTypeDefinition):
         arguments = OrderedDict()
         for item in abi["inputs"]:
             arguments[item["name"]] = get_type_from_abi(
-                item, location=DataLocation.CALLDATA, is_immutable=True
+                item, location=DataLocation.CALLDATA, is_constant=True
             )
         return_type = None
         if len(abi["outputs"]) == 1:
             return_type = get_type_from_abi(
-                abi["outputs"][0], location=DataLocation.CALLDATA, is_immutable=True
+                abi["outputs"][0], location=DataLocation.CALLDATA, is_constant=True
             )
         elif len(abi["outputs"]) > 1:
             return_type = TupleDefinition(
                 tuple(
-                    get_type_from_abi(i, location=DataLocation.CALLDATA, is_immutable=True)
+                    get_type_from_abi(i, location=DataLocation.CALLDATA, is_constant=True)
                     for i in abi["outputs"]
                 )
             )
@@ -170,7 +167,9 @@ class ContractFunction(BaseTypeDefinition):
 
     @classmethod
     def from_FunctionDef(
-        cls, node: vy_ast.FunctionDef, is_interface: Optional[bool] = False,
+        cls,
+        node: vy_ast.FunctionDef,
+        is_interface: Optional[bool] = False,
     ) -> "ContractFunction":
         """
         Generate a `ContractFunction` object from a `FunctionDef` node.
@@ -223,6 +222,7 @@ class ContractFunction(BaseTypeDefinition):
                             f"{kwargs['nonreentrant']}",
                             node,
                         )
+
                     if decorator.get("func.id") != "nonreentrant":
                         raise StructureException("Decorator is not callable", decorator)
                     if len(decorator.args) != 1 or not isinstance(decorator.args[0], vy_ast.Str):
@@ -230,6 +230,11 @@ class ContractFunction(BaseTypeDefinition):
                             "@nonreentrant name must be given as a single string literal",
                             decorator,
                         )
+
+                    if node.name == "__init__":
+                        msg = "Nonreentrant decorator disallowed on `__init__`"
+                        raise FunctionDeclarationException(msg, decorator)
+
                     kwargs["nonreentrant"] = decorator.args[0].value
 
                 elif isinstance(decorator, vy_ast.Name):
@@ -302,7 +307,8 @@ class ContractFunction(BaseTypeDefinition):
         for arg, value in zip(node.args.args, defaults):
             if arg.arg in ("gas", "value"):
                 raise ArgumentException(
-                    f"Cannot use '{arg.arg}' as a variable name in a function input", arg,
+                    f"Cannot use '{arg.arg}' as a variable name in a function input",
+                    arg,
                 )
             if arg.arg in arguments:
                 raise ArgumentException(f"Function contains multiple inputs named {arg.arg}", arg)
@@ -313,15 +319,8 @@ class ContractFunction(BaseTypeDefinition):
                 raise ArgumentException(f"Function argument '{arg.arg}' is missing a type", arg)
 
             type_definition = get_type_from_annotation(
-                arg.annotation, location=DataLocation.CALLDATA, is_immutable=True
+                arg.annotation, location=DataLocation.CALLDATA, is_constant=True
             )
-            if isinstance(type_definition, StructDefinition) and type_definition.is_dynamic_size:
-                # this is a temporary restriction and should be removed once support for dynamically
-                # sized structs is implemented - https://github.com/vyperlang/vyper/issues/2190
-                raise ArgumentException(
-                    "Struct with dynamically sized data cannot be used as a function input", arg
-                )
-
             if value is not None:
                 if not check_constant(value):
                     raise StateAccessViolation(
@@ -361,7 +360,7 @@ class ContractFunction(BaseTypeDefinition):
         """
         Generate a `ContractFunction` object from an `AnnAssign` node.
 
-        Used to create function definitions for public variables.
+        Used to create getter functions for public variables.
 
         Arguments
         ---------
@@ -396,7 +395,7 @@ class ContractFunction(BaseTypeDefinition):
 
         * For functions without default arguments the dict contains one item.
         * For functions with default arguments, there is one key for each
-          function signfature.
+          function signature.
         """
         arg_types = [i.canonical_type for i in self.arguments.values()]
 
@@ -407,6 +406,20 @@ class ContractFunction(BaseTypeDefinition):
         for i in range(self.min_arg_count, self.max_arg_count + 1):
             method_ids.update(_generate_method_id(self.name, arg_types[:i]))
         return method_ids
+
+    # for caller-fills-args calling convention
+    def get_args_buffer_offset(self) -> int:
+        """
+        Get the location of the args buffer in the function frame (caller sets)
+        """
+        return 0
+
+    # TODO is this needed?
+    def get_args_buffer_len(self) -> int:
+        """
+        Get the length of the argument buffer in the function frame
+        """
+        return sum(arg_t.size_in_bytes() for arg_t in self.arguments.values())
 
     @property
     def is_constructor(self) -> bool:
@@ -467,10 +480,8 @@ class ContractFunction(BaseTypeDefinition):
         typ = self.return_type
         if typ is None:
             abi_dict["outputs"] = []
-        elif isinstance(typ, TupleDefinition):
+        elif isinstance(typ, TupleDefinition) and len(typ.value_type) > 1:  # type: ignore
             abi_dict["outputs"] = [_generate_abi_type(i) for i in typ.value_type]  # type: ignore
-        elif isinstance(typ, StructDefinition):
-            abi_dict["outputs"] = [_generate_abi_type(v, k) for k, v in typ.members.items()]
         else:
             abi_dict["outputs"] = [_generate_abi_type(typ)]
 
@@ -491,6 +502,11 @@ def _generate_abi_type(type_definition, name=""):
             "name": name,
             "type": "tuple",
             "components": [_generate_abi_type(v, k) for k, v in type_definition.members.items()],
+        }
+    if isinstance(type_definition, TupleDefinition):
+        return {
+            "type": "tuple",
+            "components": [_generate_abi_type(i) for i in type_definition.value_type],
         }
     return {"name": name, "type": type_definition.canonical_type}
 

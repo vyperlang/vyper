@@ -9,10 +9,7 @@ from typing import Dict, Iterable, Iterator, Set, TypeVar
 
 import vyper
 from vyper.cli import vyper_json
-from vyper.cli.utils import (
-    extract_file_interface_imports,
-    get_interface_file_path,
-)
+from vyper.cli.utils import extract_file_interface_imports, get_interface_file_path
 from vyper.compiler.settings import VYPER_TRACEBACK_LIMIT
 from vyper.evm.opcodes import DEFAULT_EVM_VERSION, EVM_VERSIONS
 from vyper.old_codegen import parser_utils
@@ -30,18 +27,22 @@ method_identifiers - Dictionary of method signature to method identifier
 userdoc            - Natspec user documentation
 devdoc             - Natspec developer documentation
 combined_json      - All of the above format options combined as single JSON output
+layout             - Storage layout of a Vyper contract
 ast                - AST in JSON format
 interface          - Vyper interface of a contract
 external_interface - External interface of a contract, used for outside contract calls
 opcodes            - List of opcodes as a string
 opcodes_runtime    - List of runtime opcodes as a string
 ir                 - Intermediate representation in LLL
+ir_json            - Intermediate LLL representation in JSON format
+no-optimize        - Do not optimize (don't use this for production code)
 """
 
 combined_json_outputs = [
     "bytecode",
     "bytecode_runtime",
     "abi",
+    "layout",
     "source_map",
     "method_identifiers",
     "userdoc",
@@ -51,6 +52,19 @@ combined_json_outputs = [
 
 def _parse_cli_args():
     return _parse_args(sys.argv[1:])
+
+
+def _cli_helper(f, output_formats, compiled):
+    if output_formats == ("combined_json",):
+        print(json.dumps(compiled), file=f)
+        return
+
+    for contract_data in compiled.values():
+        for data in contract_data.values():
+            if isinstance(data, (list, dict)):
+                print(json.dumps(data), file=f)
+            else:
+                print(data, file=f)
 
 
 def _parse_args(argv):
@@ -66,16 +80,23 @@ def _parse_args(argv):
         formatter_class=argparse.RawTextHelpFormatter,
     )
     parser.add_argument(
-        "input_files", help="Vyper sourcecode to compile", nargs="+",
+        "input_files",
+        help="Vyper sourcecode to compile",
+        nargs="+",
     )
     parser.add_argument(
-        "--version", action="version", version=f"{vyper.__version__}",
+        "--version", action="version", version=vyper.__version__,
     )
     parser.add_argument(
-        "--show-gas-estimates", help="Show gas estimates in ir output mode.", action="store_true",
+        "--show-gas-estimates",
+        help="Show gas estimates in ir output mode.",
+        action="store_true",
     )
     parser.add_argument(
-        "-f", help=format_options_help, default="bytecode", dest="format",
+        "-f",
+        help=format_options_help,
+        default="bytecode",
+        dest="format",
     )
     parser.add_argument(
         "--evm-version",
@@ -83,6 +104,11 @@ def _parse_args(argv):
         choices=list(EVM_VERSIONS),
         default=DEFAULT_EVM_VERSION,
         dest="evm_version",
+    )
+    parser.add_argument(
+        "--no-optimize",
+        help="Do not optimize",
+        action="store_true",
     )
     parser.add_argument(
         "--traceback-limit",
@@ -104,6 +130,7 @@ def _parse_args(argv):
     parser.add_argument(
         "-p", help="Set the root path for contract imports", default=".", dest="root_folder"
     )
+    parser.add_argument("-o", help="Set the output path", dest="output_path")
 
     args = parser.parse_args(argv)
 
@@ -127,18 +154,15 @@ def _parse_args(argv):
         args.root_folder,
         args.show_gas_estimates,
         args.evm_version,
+        args.no_optimize,
     )
 
-    if output_formats == ("combined_json",):
-        print(json.dumps(compiled))
-        return
-
-    for contract_data in compiled.values():
-        for data in contract_data.values():
-            if isinstance(data, (list, dict)):
-                print(json.dumps(data))
-            else:
-                print(data)
+    if args.output_path:
+        with open(args.output_path, "w") as f:
+            _cli_helper(f, output_formats, compiled)
+    else:
+        f = sys.stdout
+        _cli_helper(f, output_formats, compiled)
 
 
 def uniq(seq: Iterable[T]) -> Iterator[T]:
@@ -201,6 +225,7 @@ def compile_files(
     root_folder: str = ".",
     show_gas_estimates: bool = False,
     evm_version: str = DEFAULT_EVM_VERSION,
+    no_optimize: bool = False,
 ) -> OrderedDict:
 
     if show_gas_estimates:
@@ -229,7 +254,7 @@ def compile_files(
         output_formats = combined_json_outputs
         show_version = True
 
-    translate_map = {"abi_python": "abi", "json": "abi", "ast": "ast_dict"}
+    translate_map = {"abi_python": "abi", "json": "abi", "ast": "ast_dict", "ir_json": "ir_dict"}
     final_formats = [translate_map.get(i, i) for i in output_formats]
 
     compiler_data = vyper.compile_codes(
@@ -238,6 +263,7 @@ def compile_files(
         exc_handler=exc_handler,
         interface_codes=get_interface_codes(root_path, contract_sources),
         evm_version=evm_version,
+        no_optimize=no_optimize,
     )
     if show_version:
         compiler_data["version"] = vyper.__version__

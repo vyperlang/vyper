@@ -11,6 +11,7 @@ from vyper.evm import opcodes
 from vyper.lll import compile_lll
 from vyper.old_codegen.lll_node import LLLnode
 from vyper.semantics.types.function import FunctionVisibility, StateMutability
+from vyper.typing import StorageLayout
 from vyper.warnings import ContractSizeLimitWarning
 
 
@@ -76,6 +77,18 @@ def build_ir_output(compiler_data: CompilerData) -> LLLnode:
     return compiler_data.lll_nodes
 
 
+def build_ir_dict_output(compiler_data: CompilerData) -> LLLnode:
+    lll = compiler_data.lll_nodes
+
+    def _to_dict(lll_node):
+        args = lll_node.args
+        if len(args) > 0:
+            return {lll_node.value: [_to_dict(x) for x in args]}
+        return lll_node.value
+
+    return _to_dict(lll)
+
+
 def build_method_identifiers_output(compiler_data: CompilerData) -> dict:
     interface = compiler_data.vyper_module_folded._metadata["type"]
     functions = interface.members.values()
@@ -106,6 +119,12 @@ def build_asm_output(compiler_data: CompilerData) -> str:
     return _build_asm(compiler_data.assembly)
 
 
+def build_layout_output(compiler_data: CompilerData) -> StorageLayout:
+    # in the future this might return (non-storage) layout,
+    # for now only storage layout is returned.
+    return compiler_data.storage_layout
+
+
 def _build_asm(asm_list):
     output_string = ""
     skip_newlines = 0
@@ -134,7 +153,10 @@ def build_source_map_output(compiler_data: CompilerData) -> OrderedDict:
         out[k] = line_number_map[k]
 
     out["pc_pos_map_compressed"] = _compress_source_map(
-        compiler_data.source_code, out["pc_pos_map"], out["pc_jump_map"], compiler_data.source_id,
+        compiler_data.source_code,
+        out["pc_pos_map"],
+        out["pc_jump_map"],
+        compiler_data.source_id,
     )
     out["pc_pos_map"] = dict((k, v) for k, v in out["pc_pos_map"].items() if v)
     return out

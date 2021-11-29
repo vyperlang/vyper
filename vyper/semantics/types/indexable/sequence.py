@@ -4,11 +4,7 @@ from vyper import ast as vy_ast
 from vyper.exceptions import ArrayIndexException, InvalidType
 from vyper.semantics import validation
 from vyper.semantics.types.abstract import IntegerAbstractType
-from vyper.semantics.types.bases import (
-    BaseTypeDefinition,
-    DataLocation,
-    IndexableTypeDefinition,
-)
+from vyper.semantics.types.bases import BaseTypeDefinition, DataLocation, IndexableTypeDefinition
 from vyper.semantics.types.value.numeric import Uint256Definition
 
 
@@ -28,8 +24,9 @@ class _SequenceDefinition(IndexableTypeDefinition):
         length: int,
         _id: str,
         location: DataLocation = DataLocation.UNSET,
-        is_immutable: bool = False,
+        is_constant: bool = False,
         is_public: bool = False,
+        is_immutable: bool = False,
     ) -> None:
         if not 0 < length < 2 ** 256:
             raise InvalidType("Array length is invalid")
@@ -38,8 +35,9 @@ class _SequenceDefinition(IndexableTypeDefinition):
             IntegerAbstractType(),  # type: ignore
             _id,
             location=location,
-            is_immutable=is_immutable,
+            is_constant=is_constant,
             is_public=is_public,
+            is_immutable=is_immutable,
         )
         self.length = length
 
@@ -64,11 +62,18 @@ class ArrayDefinition(_SequenceDefinition):
         value_type: BaseTypeDefinition,
         length: int,
         location: DataLocation = DataLocation.UNSET,
-        is_immutable: bool = False,
+        is_constant: bool = False,
         is_public: bool = False,
+        is_immutable: bool = False,
     ) -> None:
         super().__init__(
-            value_type, length, f"{value_type}[{length}]", location, is_immutable, is_public
+            value_type,
+            length,
+            f"{value_type}[{length}]",
+            location,
+            is_constant,
+            is_public,
+            is_immutable,
         )
 
     def __repr__(self):
@@ -115,13 +120,14 @@ class TupleDefinition(_SequenceDefinition):
     def __init__(self, value_type: Tuple[BaseTypeDefinition, ...]) -> None:
         # always use the most restrictive location re: modification
         location = sorted((i.location for i in value_type), key=lambda k: k.value)[-1]
-        is_immutable = next((True for i in value_type if getattr(i, "is_immutable", None)), False)
+        is_constant = any((getattr(i, "is_constant", False) for i in value_type))
         super().__init__(
+            # TODO fix the typing on value_type
             value_type,  # type: ignore
             len(value_type),
             f"{value_type}",
             location,
-            is_immutable,
+            is_constant,
         )
 
     def __repr__(self):

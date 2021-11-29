@@ -1,5 +1,6 @@
 from vyper.compiler import compile_code, compile_codes  # noqa: F401
 
+
 try:
     from importlib.metadata import PackageNotFoundError  # type: ignore
     from importlib.metadata import version as _version  # type: ignore

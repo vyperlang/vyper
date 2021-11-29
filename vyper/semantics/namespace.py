@@ -22,7 +22,7 @@ class Namespace(dict):
     def __init__(self):
         super().__init__()
         self._scopes = []
-        # FLAG cyclic imports!
+        # NOTE cyclic imports!
         from vyper.builtin_functions.functions import get_builtin_functions
         from vyper.semantics import environment
         from vyper.semantics.types import get_types
@@ -62,7 +62,7 @@ class Namespace(dict):
         Called as a context manager, e.g. `with namespace.enter_scope():`
         All items that are added within the context are removed upon exit.
         """
-        # FLAG cyclic imports!
+        # NOTE cyclic imports!
         from vyper.semantics import environment
 
         self._scopes.append(set())
@@ -117,6 +117,7 @@ RESERVED_KEYWORDS = {
     "external",
     "nonpayable",
     "constant",
+    "immutable",
     "internal",
     "payable",
     "nonreentrant",

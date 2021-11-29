@@ -2,11 +2,7 @@ from typing import Union
 
 from vyper import ast as vy_ast
 from vyper.exceptions import StructureException
-from vyper.semantics.types.bases import (
-    BasePrimitive,
-    DataLocation,
-    IndexableTypeDefinition,
-)
+from vyper.semantics.types.bases import BasePrimitive, DataLocation, IndexableTypeDefinition
 from vyper.semantics.types.utils import get_type_from_annotation
 from vyper.semantics.validation.utils import validate_expected_type
 
@@ -38,8 +34,9 @@ class MappingPrimitive(BasePrimitive):
         cls,
         node: Union[vy_ast.Name, vy_ast.Call, vy_ast.Subscript],
         location: DataLocation = DataLocation.UNSET,
-        is_immutable: bool = False,
+        is_constant: bool = False,
         is_public: bool = False,
+        is_immutable: bool = False,
     ) -> MappingDefinition:
         if (
             not isinstance(node, vy_ast.Subscript)
@@ -50,7 +47,7 @@ class MappingPrimitive(BasePrimitive):
             raise StructureException(
                 "HashMap must be defined with a key type and a value type", node
             )
-        if location != DataLocation.STORAGE:
+        if location != DataLocation.STORAGE or is_immutable:
             raise StructureException("HashMap can only be declared as a storage variable", node)
 
         key_type = get_type_from_annotation(node.slice.value.elements[0], DataLocation.UNSET)
@@ -60,6 +57,6 @@ class MappingPrimitive(BasePrimitive):
             key_type,
             f"HashMap[{key_type}, {value_type}]",
             location,
-            is_immutable,
+            is_constant,
             is_public,
         )

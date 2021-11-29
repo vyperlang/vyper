@@ -1,11 +1,7 @@
 from vyper import ast as vy_ast
 from vyper.exceptions import InvalidLiteral
 from vyper.semantics.types.abstract import BytesAbstractType
-from vyper.semantics.types.bases import (
-    BasePrimitive,
-    BaseTypeDefinition,
-    ValueTypeDefinition,
-)
+from vyper.semantics.types.bases import BasePrimitive, BaseTypeDefinition, ValueTypeDefinition
 
 
 class Bytes32Definition(BytesAbstractType, ValueTypeDefinition):

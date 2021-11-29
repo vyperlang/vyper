@@ -1,9 +1,9 @@
-import math
 from typing import Type
 
 from vyper import ast as vy_ast
 from vyper.exceptions import CompilerPanic, StructureException, UnexpectedValue
 from vyper.semantics import validation
+from vyper.utils import ceil32
 
 from ..abstract import ArrayValueAbstractType, BytesAbstractType
 from ..bases import BasePrimitive, DataLocation, ValueTypeDefinition
@@ -38,10 +38,11 @@ class _ArrayValueDefinition(ValueTypeDefinition):
         self,
         length: int = 0,
         location: DataLocation = DataLocation.MEMORY,
-        is_immutable: bool = False,
+        is_constant: bool = False,
         is_public: bool = False,
+        is_immutable: bool = False,
     ) -> None:
-        super().__init__(location, is_immutable, is_public)
+        super().__init__(location, is_constant, is_public, is_immutable)
         self._length = length
         self._min_length = length
 
@@ -61,8 +62,7 @@ class _ArrayValueDefinition(ValueTypeDefinition):
         # because this data type is single-bytes, we make it so it takes the max 32 byte
         # boundary as it's size, instead of giving it a size that is not cleanly divisble by 32
 
-        # TODO adding 64 here instead of 32 to be compatible with parser - fix this!
-        return 64 + math.ceil(self.length / 32) * 32
+        return 32 + ceil32(self.length)
 
     @property
     def canonical_type(self) -> str:
@@ -121,8 +121,9 @@ class _ArrayValuePrimitive(BasePrimitive):
         cls,
         node: vy_ast.VyperNode,
         location: DataLocation = DataLocation.MEMORY,
-        is_immutable: bool = False,
+        is_constant: bool = False,
         is_public: bool = False,
+        is_immutable: bool = False,
     ) -> _ArrayValueDefinition:
         if not isinstance(node, vy_ast.Subscript):
             raise StructureException(
@@ -134,7 +135,7 @@ class _ArrayValuePrimitive(BasePrimitive):
             raise UnexpectedValue("Node id does not match type name")
 
         length = validation.utils.get_index_value(node.slice)  # type: ignore
-        return cls._type(length, location, is_immutable, is_public)
+        return cls._type(length, location, is_constant, is_public, is_immutable)
 
     @classmethod
     def from_literal(cls, node: vy_ast.Constant) -> _ArrayValueDefinition:

@@ -101,11 +101,12 @@ def w3(tester):
     return w3
 
 
-def _get_contract(w3, source_code, *args, **kwargs):
+def _get_contract(w3, source_code, no_optimize, *args, **kwargs):
     out = compiler.compile_code(
         source_code,
         ["abi", "bytecode"],
         interface_codes=kwargs.pop("interface_codes", None),
+        no_optimize=no_optimize,
         evm_version=kwargs.pop("evm_version", None),
     )
     LARK_GRAMMAR.parse(source_code + "\n")  # Test grammar.
@@ -122,16 +123,18 @@ def _get_contract(w3, source_code, *args, **kwargs):
     tx_info.update(kwargs)
     tx_hash = deploy_transaction.transact(tx_info)
     address = w3.eth.getTransactionReceipt(tx_hash)["contractAddress"]
-    contract = w3.eth.contract(
-        address, abi=abi, bytecode=bytecode, ContractFactoryClass=VyperContract,
+    return w3.eth.contract(
+        address,
+        abi=abi,
+        bytecode=bytecode,
+        ContractFactoryClass=VyperContract,
     )
-    return contract
 
 
 @pytest.fixture
-def get_contract(w3):
+def get_contract(w3, no_optimize):
     def get_contract(source_code, *args, **kwargs):
-        return _get_contract(w3, source_code, *args, **kwargs)
+        return _get_contract(w3, source_code, no_optimize, *args, **kwargs)
 
     return get_contract
 
@@ -140,8 +143,7 @@ def get_contract(w3):
 def get_logs(w3):
     def get_logs(tx_hash, c, event_name):
         tx_receipt = w3.eth.getTransactionReceipt(tx_hash)
-        logs = c._classic_contract.events[event_name]().processReceipt(tx_receipt)
-        return logs
+        return c._classic_contract.events[event_name]().processReceipt(tx_receipt)
 
     return get_logs
 
@@ -154,6 +156,7 @@ def assert_tx_failed(tester):
             function_to_test()
         tester.revert_to_snapshot(snapshot_id)
         if exc_text:
-            assert exc_text in str(excinfo.value)
+            # TODO test equality
+            assert exc_text in str(excinfo.value), (exc_text, excinfo.value)
 
     return assert_tx_failed

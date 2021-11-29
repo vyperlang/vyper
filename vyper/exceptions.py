@@ -2,10 +2,7 @@ import copy
 import textwrap
 import types
 
-from vyper.compiler.settings import (
-    VYPER_ERROR_CONTEXT_LINES,
-    VYPER_ERROR_LINE_NUMBERS,
-)
+from vyper.compiler.settings import VYPER_ERROR_CONTEXT_LINES, VYPER_ERROR_LINE_NUMBERS
 
 
 class ExceptionList(list):
@@ -142,6 +139,12 @@ class SyntaxException(VyperException):
         item.col_offset = col_offset
         item.full_source_code = source_code
         super().__init__(message, item)
+
+
+class DecimalOverrideException(VyperException):
+    """The Vyper compiler uses specific Decimal settings which
+    if overridden could lead to incorrect behavior.
+    """
 
 
 class NatSpecSyntaxException(SyntaxException):

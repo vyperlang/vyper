@@ -1,19 +1,19 @@
-from decimal import Decimal, getcontext
+from decimal import Context, Decimal, setcontext
 
 from vyper import ast as vy_ast
+from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
     CompilerPanic,
+    DecimalOverrideException,
     InvalidLiteral,
     StructureException,
     TypeCheckFailure,
     TypeMismatch,
 )
-from vyper.old_codegen.arg_clamps import int128_clamp
-from vyper.old_codegen.lll_node import LLLnode
+from vyper.old_codegen.lll_node import Encoding, LLLnode
 from vyper.old_codegen.types import (
     BaseType,
     ByteArrayLike,
-    ByteArrayType,
     ListType,
     MappingType,
     StructType,
@@ -21,19 +21,41 @@ from vyper.old_codegen.types import (
     TupleType,
     ceil32,
     get_size_of_type,
-    has_dynamic_data,
     is_base_type,
 )
-from vyper.utils import GAS_IDENTITY, GAS_IDENTITYWORD, MemoryPositions
+from vyper.utils import (
+    GAS_CALLDATACOPY_WORD,
+    GAS_CODECOPY_WORD,
+    GAS_IDENTITY,
+    GAS_IDENTITYWORD,
+    MemoryPositions,
+)
 
-getcontext().prec = 78  # MAX_UINT256 < 1e78
+
+class DecimalContextOverride(Context):
+    def __setattr__(self, name, value):
+        if name == "prec":
+            raise DecimalOverrideException("Overriding decimal precision disabled")
+        super().__setattr__(name, value)
+
+
+setcontext(DecimalContextOverride(prec=78))
+
+
+# propagate revert message when calls to external contracts fail
+def check_external_call(call_lll):
+    copy_revertdata = ["returndatacopy", 0, 0, "returndatasize"]
+    revert = ["revert", 0, "returndatasize"]
+
+    propagate_revert_lll = ["seq", copy_revertdata, revert]
+    return ["if", ["iszero", call_lll], propagate_revert_lll]
 
 
 def type_check_wrapper(fn):
     def _wrapped(*args, **kwargs):
         return_value = fn(*args, **kwargs)
         if return_value is None:
-            raise TypeCheckFailure(f"{fn.__name__} did not return a value")
+            raise TypeCheckFailure(f"{fn.__name__} {args} did not return a value")
         return return_value
 
     return _wrapped
@@ -67,11 +89,18 @@ def _identity_gas_bound(num_bytes):
     return GAS_IDENTITY + GAS_IDENTITYWORD * (ceil32(num_bytes) // 32)
 
 
+def _calldatacopy_gas_bound(num_bytes):
+    return GAS_CALLDATACOPY_WORD * ceil32(num_bytes) // 32
+
+
+def _codecopy_gas_bound(num_bytes):
+    return GAS_CODECOPY_WORD * ceil32(num_bytes) // 32
+
+
 # Copy byte array word-for-word (including layout)
 def make_byte_array_copier(destination, source, pos=None):
     if not isinstance(source.typ, ByteArrayLike):
-        btype = "byte array" if isinstance(destination.typ, ByteArrayType) else "string"
-        raise TypeMismatch(f"Can only set a {btype} to another {btype}", pos)
+        raise TypeMismatch(f"Cannot cast from {source.typ} to {destination.typ}", pos)
     if isinstance(source.typ, ByteArrayLike) and source.typ.maxlen > destination.typ.maxlen:
         raise TypeMismatch(
             f"Cannot cast from greater max-length {source.typ.maxlen} to shorter "
@@ -86,22 +115,24 @@ def make_byte_array_copier(destination, source, pos=None):
             )
 
     # Special case: memory to memory
-    if source.location == "memory" and destination.location == "memory":
+    # TODO: this should be handled by make_byte_slice_copier.
+    if destination.location == "memory" and source.location in ("memory", "code", "calldata"):
+        if source.location == "memory":
+            # TODO turn this into an LLL macro: memorycopy
+            copy_op = ["staticcall", "gas", 4, "src", "sz", destination, "sz"]
+            gas_bound = _identity_gas_bound(source.typ.maxlen)
+        elif source.location == "calldata":
+            copy_op = ["calldatacopy", destination, "src", "sz"]
+            gas_bound = _calldatacopy_gas_bound(source.typ.maxlen)
+        elif source.location == "code":
+            copy_op = ["codecopy", destination, "src", "sz"]
+            gas_bound = _codecopy_gas_bound(source.typ.maxlen)
+        _sz_lll = ["add", 32, [load_op(source.location), "src"]]
         o = LLLnode.from_list(
-            [
-                "with",
-                "_source",
-                source,
-                [
-                    "with",
-                    "_sz",
-                    ["add", 32, ["mload", "_source"]],
-                    ["assert", ["call", ["gas"], 4, 0, "_source", "_sz", destination, "_sz"]],
-                ],
-            ],  # noqa: E501
+            ["with", "src", source, ["with", "sz", _sz_lll, copy_op]],
             typ=None,
-            add_gas_estimate=_identity_gas_bound(source.typ.maxlen),
-            annotation="Memory copy",
+            add_gas_estimate=gas_bound,
+            annotation="copy bytestring to memory",
         )
         return o
 
@@ -112,16 +143,22 @@ def make_byte_array_copier(destination, source, pos=None):
     # Get the length
     if source.value is None:
         length = 1
-    elif source.location == "memory":
-        length = ["add", ["mload", "_pos"], 32]
+    elif source.location in ("memory", "code", "calldata"):
+        length = ["add", [load_op(source.location), "_pos"], 32]
     elif source.location == "storage":
         length = ["add", ["sload", "_pos"], 32]
-        pos_node = LLLnode.from_list(pos_node, typ=source.typ, location=source.location,)
+        pos_node = LLLnode.from_list(
+            pos_node,
+            typ=source.typ,
+            location=source.location,
+        )
     else:
-        raise CompilerPanic(f"Unsupported location: {source.location}")
+        raise CompilerPanic(f"Unsupported location: {source.location} to {destination.location}")
     if destination.location == "storage":
         destination = LLLnode.from_list(
-            destination, typ=destination.typ, location=destination.location,
+            destination,
+            typ=destination.typ,
+            location=destination.location,
         )
     # Maximum theoretical length
     max_length = 32 if source.value is None else source.typ.maxlen + 32
@@ -149,8 +186,8 @@ def make_byte_slice_copier(destination, source, length, max_length, pos=None):
             [
                 "with",
                 "_l",
-                max_length,
-                ["pop", ["call", ["gas"], 4, 0, source, "_l", destination, "_l"]],
+                max_length,  # CMC 20210917 shouldn't this just be length
+                ["staticcall", "gas", 4, source, "_l", destination, "_l"],
             ],
             typ=None,
             annotation=f"copy byte slice dest: {str(destination)}",
@@ -161,20 +198,19 @@ def make_byte_slice_copier(destination, source, length, max_length, pos=None):
     if source.value is None:
 
         if destination.location == "memory":
+            # CMC 20210917 shouldn't this just be length
             return mzero(destination, max_length)
 
         else:
             loader = 0
     # Copy over data
-    elif source.location == "memory":
-        loader = ["mload", ["add", "_pos", ["mul", 32, ["mload", MemoryPositions.FREE_LOOP_INDEX]]]]
-    elif source.location == "storage":
-        loader = ["sload", ["add", "_pos", ["mload", MemoryPositions.FREE_LOOP_INDEX]]]
-    elif source.location == "calldata":
+    elif source.location in ("memory", "calldata", "code"):
         loader = [
-            "calldataload",
+            load_op(source.location),
             ["add", "_pos", ["mul", 32, ["mload", MemoryPositions.FREE_LOOP_INDEX]]],
         ]
+    elif source.location == "storage":
+        loader = ["sload", ["add", "_pos", ["mload", MemoryPositions.FREE_LOOP_INDEX]]]
     else:
         raise CompilerPanic(f"Unsupported location: {source.location}")
     # Where to paste it?
@@ -219,50 +255,16 @@ def make_byte_slice_copier(destination, source, length, max_length, pos=None):
         ],
     ]
     return LLLnode.from_list(
-        o, typ=None, annotation=f"copy byte slice src: {source} dst: {destination}", pos=pos,
-    )
-
-
-# Takes a <32 byte array as input, and outputs a number.
-def byte_array_to_num(
-    arg, expr, out_type, offset=32,
-):
-    if arg.location == "memory":
-        lengetter = LLLnode.from_list(["mload", "_sub"], typ=BaseType("int256"))
-        first_el_getter = LLLnode.from_list(["mload", ["add", 32, "_sub"]], typ=BaseType("int256"))
-    elif arg.location == "storage":
-        lengetter = LLLnode.from_list(["sload", "_sub"], typ=BaseType("int256"))
-        first_el_getter = LLLnode.from_list(["sload", ["add", 1, "_sub"]], typ=BaseType("int256"))
-    if out_type == "int128":
-        result = int128_clamp(["div", "_el1", ["exp", 256, ["sub", 32, "_len"]]])
-    elif out_type in ("int256", "uint256"):
-        result = ["div", "_el1", ["exp", 256, ["sub", offset, "_len"]]]
-    return LLLnode.from_list(
-        [
-            "with",
-            "_sub",
-            arg,
-            [
-                "with",
-                "_el1",
-                first_el_getter,
-                ["with", "_len", ["clamp", 0, lengetter, 32], result],
-            ],
-        ],
-        typ=BaseType(out_type),
-        annotation=f"bytearray to number ({out_type})",
+        o,
+        typ=None,
+        annotation=f"copy byte slice src: {source} dst: {destination}",
+        pos=pos,
     )
 
 
 def get_bytearray_length(arg):
     typ = BaseType("uint256")
-    if arg.location == "memory":
-        return LLLnode.from_list(["mload", arg], typ=typ)
-    elif arg.location == "storage":
-        return LLLnode.from_list(["sload", arg], typ=typ)
-    elif arg.location == "calldata":
-        return LLLnode.from_list(["calldataload", arg], typ=typ)
-    raise CompilerPanic("unreachable", arg)  # pragma: no test
+    return LLLnode.from_list([load_op(arg.location), arg], typ=typ)
 
 
 def getpos(node):
@@ -274,11 +276,44 @@ def getpos(node):
     )
 
 
+def add_ofst(loc, ofst):
+    if isinstance(loc.value, int) and isinstance(ofst, int):
+        ret = loc.value + ofst
+    else:
+        ret = ["add", loc, ofst]
+    return LLLnode.from_list(ret, location=loc.location, encoding=loc.encoding)
+
+
 # Take a value representing a memory or storage location, and descend down to
 # an element or member variable
+# This is analogous (but not necessarily equivalent to) getelementptr in LLVM.
+# TODO refactor / streamline this code, especially the ABI decoding
 @type_check_wrapper
-def add_variable_offset(parent, key, pos, array_bounds_check=True):
+def get_element_ptr(parent, key, pos, array_bounds_check=True):
+    # TODO rethink this circular import
+    from vyper.old_codegen.abi import abi_type_of
+
     typ, location = parent.typ, parent.location
+
+    def _abi_helper(member_t, ofst, clamp=True):
+        member_abi_t = abi_type_of(member_t)
+        ofst_lll = add_ofst(parent, ofst)
+
+        if member_abi_t.is_dynamic():
+            # double dereference, according to ABI spec
+            # TODO optimize special case: first dynamic item
+            # offset is statically known.
+            ofst_lll = add_ofst(parent, unwrap_location(ofst_lll))
+
+        return LLLnode.from_list(
+            ofst_lll,
+            typ=member_t,
+            location=parent.location,
+            encoding=parent.encoding,
+            pos=pos,
+            # annotation=f"({parent.typ})[{key.typ}]",
+        )
+
     if isinstance(typ, TupleLike):
         if isinstance(typ, StructType):
             subtype = typ.members[key]
@@ -294,67 +329,62 @@ def add_variable_offset(parent, key, pos, array_bounds_check=True):
         if parent.value is None:
             return LLLnode.from_list(None, typ=subtype)
 
+        if parent.value == "multi":
+            assert parent.encoding != Encoding.ABI, "no abi-encoded literals"
+            return parent.args[index]
+
+        if parent.encoding in (Encoding.ABI, Encoding.JSON_ABI):
+            if parent.location == "storage":
+                raise CompilerPanic("storage variables should not be abi encoded")
+
+            # parent_abi_t = abi_type_of(parent.typ)
+            member_t = typ.members[attrs[index]]
+
+            ofst = 0  # offset from parent start
+
+            for i in range(index):
+                member_abi_t = abi_type_of(typ.members[attrs[i]])
+                ofst += member_abi_t.embedded_static_size()
+
+            return _abi_helper(member_t, ofst)
+
         if location == "storage":
             # for arrays and structs, calculate the storage slot by adding an offset
             # of [index value being accessed] * [size of each item within the sequence]
             offset = 0
             for i in range(index):
                 offset += get_size_of_type(typ.members[attrs[i]])
-            return LLLnode.from_list(["add", parent, offset], typ=subtype, location="storage",)
-        elif location == "storage_prehashed":
             return LLLnode.from_list(
-                ["add", parent, LLLnode.from_list(index, annotation=annotation)],
+                ["add", parent, offset],
                 typ=subtype,
                 location="storage",
+                pos=pos,
             )
-        elif location in ("calldata", "memory"):
+
+        elif location in ("calldata", "memory", "code"):
             offset = 0
             for i in range(index):
                 offset += 32 * get_size_of_type(typ.members[attrs[i]])
             return LLLnode.from_list(
-                ["add", offset, parent],
+                add_ofst(parent, offset),
                 typ=typ.members[key],
                 location=location,
                 annotation=annotation,
+                pos=pos,
             )
 
-    elif isinstance(typ, MappingType):
+    elif isinstance(typ, ListType):
+        if not is_base_type(key.typ, ("int128", "int256", "uint256")):
+            return
 
-        sub = None
-        if isinstance(key.typ, ByteArrayLike):
-            if isinstance(typ.keytype, ByteArrayLike) and (typ.keytype.maxlen >= key.typ.maxlen):
-
-                subtype = typ.valuetype
-                if len(key.args[0].args) >= 3:  # handle bytes literal.
-                    sub = LLLnode.from_list(
-                        [
-                            "seq",
-                            key,
-                            [
-                                "sha3",
-                                ["add", key.args[0].args[-1], 32],
-                                ["mload", key.args[0].args[-1]],
-                            ],
-                        ]
-                    )
-                else:
-                    value = key.args[0].value
-                    if value == "add":
-                        # special case, key is a bytes array within a tuple/struct
-                        value = key.args[0]
-                    sub = LLLnode.from_list(["sha3", ["add", value, 32], key])
-        else:
-            subtype = typ.valuetype
-            sub = unwrap_location(key)
-
-        if sub is not None and location == "storage":
-            return LLLnode.from_list(["sha3_64", parent, sub], typ=subtype, location="storage")
-
-    elif isinstance(typ, ListType) and is_base_type(key.typ, ("int128", "int256", "uint256")):
         subtype = typ.subtype
 
         if parent.value is None:
             return LLLnode.from_list(None, typ=subtype)
+
+        if parent.value == "multi":
+            assert isinstance(key.value, int)
+            return parent.args[key.value]
 
         k = unwrap_location(key)
         if not array_bounds_check:
@@ -371,335 +401,247 @@ def add_variable_offset(parent, key, pos, array_bounds_check=True):
             # an array index, and the clamp will throw an error.
             sub = ["uclamplt", k, typ.count]
 
+        if parent.encoding in (Encoding.ABI, Encoding.JSON_ABI):
+            if parent.location == "storage":
+                raise CompilerPanic("storage variables should not be abi encoded")
+
+            member_t = typ.subtype
+            member_abi_t = abi_type_of(member_t)
+
+            if key.typ.is_literal:
+                # TODO this constant folding in LLL optimizer
+                ofst = k.value * member_abi_t.embedded_static_size()
+            else:
+                ofst = ["mul", k, member_abi_t.embedded_static_size()]
+
+            return _abi_helper(member_t, ofst)
+
         if location == "storage":
             # storage slot determined as [initial storage slot] + [index] * [size of base type]
             offset = get_size_of_type(subtype)
             return LLLnode.from_list(
                 ["add", parent, ["mul", sub, offset]], typ=subtype, location="storage", pos=pos
             )
-        elif location == "storage_prehashed":
-            return LLLnode.from_list(["add", parent, sub], typ=subtype, location="storage", pos=pos)
-        elif location in ("calldata", "memory"):
+        elif location in ("calldata", "memory", "code"):
             offset = 32 * get_size_of_type(subtype)
             return LLLnode.from_list(
                 ["add", ["mul", offset, sub], parent], typ=subtype, location=location, pos=pos
             )
 
+    elif isinstance(typ, MappingType):
+        subtype = typ.valuetype
+        sub = unwrap_location(key)
+
+        if sub is not None and location == "storage":
+            return LLLnode.from_list(["sha3_64", parent, sub], typ=subtype, location="storage")
+
+
+def load_op(location):
+    if location == "memory":
+        return "mload"
+    if location == "storage":
+        return "sload"
+    if location == "calldata":
+        return "calldataload"
+    if location == "code":
+        return "codeload"
+    raise CompilerPanic(f"unreachable {location}")  # pragma: no test
+
 
 # Unwrap location
 def unwrap_location(orig):
-    if orig.location == "memory":
-        return LLLnode.from_list(["mload", orig], typ=orig.typ)
-    elif orig.location == "storage":
-        return LLLnode.from_list(["sload", orig], typ=orig.typ)
-    elif orig.location == "calldata":
-        return LLLnode.from_list(["calldataload", orig], typ=orig.typ)
+    if orig.location in ("memory", "storage", "calldata", "code"):
+        return LLLnode.from_list([load_op(orig.location), orig], typ=orig.typ)
     else:
+        # CMC 20210909 TODO double check if this branch can be removed
         # handle None value inserted by `empty`
         if orig.value is None:
             return LLLnode.from_list(0, typ=orig.typ)
         return orig
 
 
-# Pack function arguments for a call
-@type_check_wrapper
-def pack_arguments(signature, args, context, stmt_expr, is_external_call):
-    pos = getpos(stmt_expr)
-    setters = []
-    staticarray_offset = 0
+# utility function, constructs an LLL tuple out of a list of LLL nodes
+def lll_tuple_from_args(args):
+    typ = TupleType([x.typ for x in args])
+    return LLLnode.from_list(["multi"] + [x for x in args], typ=typ)
 
-    maxlen = sum([get_size_of_type(arg.typ) for arg in signature.args]) * 32
-    if is_external_call:
-        maxlen += 32
 
-    placeholder_typ = ByteArrayType(maxlen=maxlen)
-    placeholder = context.new_internal_variable(placeholder_typ)
-    if is_external_call:
-        setters.append(["mstore", placeholder, signature.method_id])
-        placeholder += 32
+def _needs_external_call_wrap(lll_typ):
+    # for calls to ABI conforming contracts.
+    # according to the ABI spec, return types are ALWAYS tuples even
+    # if only one element is being returned.
+    # https://solidity.readthedocs.io/en/latest/abi-spec.html#function-selector-and-argument-encoding
+    # "and the return values v_1, ..., v_k of f are encoded as
+    #
+    #    enc((v_1, ..., v_k))
+    #    i.e. the values are combined into a tuple and encoded.
+    # "
+    # therefore, wrap it in a tuple if it's not already a tuple.
+    # for example, `bytes` is returned as abi-encoded (bytes,)
+    # and `(bytes,)` is returned as abi-encoded ((bytes,),)
+    # In general `-> X` gets returned as (X,)
+    # including structs. MyStruct is returned as abi-encoded (MyStruct,).
+    # (Sorry this is so confusing. I didn't make these rules.)
 
-    if len(signature.args) != len(args):
-        return
+    return not (isinstance(lll_typ, TupleType) and len(lll_typ.members) > 1)
 
-    # check for dynamic-length types
-    dynamic_remaining = len([i for i in signature.args if isinstance(i.typ, ByteArrayLike)])
-    needpos = bool(dynamic_remaining)
 
-    for i, (arg, typ) in enumerate(zip(args, [arg.typ for arg in signature.args])):
-        if isinstance(typ, BaseType):
-            setters.append(
-                make_setter(
-                    LLLnode.from_list(placeholder + staticarray_offset + i * 32, typ=typ,),
-                    arg,
-                    "memory",
-                    pos=pos,
-                    in_function_call=True,
-                )
-            )
+def calculate_type_for_external_return(lll_typ):
+    if _needs_external_call_wrap(lll_typ):
+        return TupleType([lll_typ])
+    return lll_typ
 
-        elif isinstance(typ, ByteArrayLike):
-            dynamic_remaining -= 1
-            setters.append(["mstore", placeholder + staticarray_offset + i * 32, "_poz"])
-            arg_copy = LLLnode.from_list("_s", typ=arg.typ, location=arg.location)
-            target = LLLnode.from_list(["add", placeholder, "_poz"], typ=typ, location="memory",)
-            pos_setter = "pass"
 
-            # if `arg.value` is None, this is a call to `empty()`
-            # if `arg.typ.maxlen` is 0, this is a literal "" or b""
-            if arg.value is None or arg.typ.maxlen == 0:
-                if dynamic_remaining:
-                    # only adjust the dynamic pointer if this is not the last dynamic type
-                    pos_setter = ["set", "_poz", ["add", "_poz", 64]]
-                setters.append(["seq", mzero(target, 64), pos_setter])
-            else:
-                if dynamic_remaining:
-                    pos_setter = [
-                        "set",
-                        "_poz",
-                        ["add", 32, ["ceil32", ["add", "_poz", get_bytearray_length(arg_copy)]]],
-                    ]
-                setters.append(
-                    [
-                        "with",
-                        "_s",
-                        arg,
-                        ["seq", make_byte_array_copier(target, arg_copy, pos), pos_setter],
-                    ]
-                )
-
-        elif isinstance(typ, (StructType, ListType)):
-            if has_dynamic_data(typ):
-                return
-            target = LLLnode.from_list(
-                [placeholder + staticarray_offset + i * 32], typ=typ, location="memory",
-            )
-            setters.append(make_setter(target, arg, "memory", pos=pos))
-            staticarray_offset += 32 * (get_size_of_type(typ) - 1)
-
-        else:
-            return
-
-    if is_external_call:
-        returner = [[placeholder - 4]]
-        inargsize = placeholder_typ.maxlen - 28
+def wrap_value_for_external_return(lll_val):
+    # used for LHS promotion
+    if _needs_external_call_wrap(lll_val.typ):
+        return lll_tuple_from_args([lll_val])
     else:
-        # internal call does not use a returner or adjust max length for signature
-        returner = []
-        inargsize = placeholder_typ.maxlen
-
-    if needpos:
-        return (
-            LLLnode.from_list(
-                ["with", "_poz", len(args) * 32 + staticarray_offset, ["seq"] + setters + returner],
-                typ=placeholder_typ,
-                location="memory",
-            ),
-            inargsize,
-            placeholder,
-        )
-    else:
-        return (
-            LLLnode.from_list(["seq"] + setters + returner, typ=placeholder_typ, location="memory"),
-            inargsize,
-            placeholder,
-        )
+        return lll_val
 
 
-def _make_array_index_setter(target, target_token, pos, location, offset):
-    if location == "memory" and isinstance(target.value, int):
-        offset = target.value + 32 * get_size_of_type(target.typ.subtype) * offset
-        return LLLnode.from_list([offset], typ=target.typ.subtype, location=location, pos=pos)
-    else:
-        return add_variable_offset(
-            target_token,
-            LLLnode.from_list(offset, typ="int256"),
-            pos=pos,
-            array_bounds_check=False,
-        )
+def set_type_for_external_return(lll_val):
+    # used for RHS promotion
+    lll_val.typ = calculate_type_for_external_return(lll_val.typ)
 
 
 # Create an x=y statement, where the types may be compound
 @type_check_wrapper
-def make_setter(left, right, location, pos, in_function_call=False):
+def make_setter(left, right, pos):
+
     # Basic types
     if isinstance(left.typ, BaseType):
+        enc = right.encoding  # unwrap_location butchers encoding
         right = unwrap_location(right)
-        if location == "storage":
+        # TODO rethink/streamline the clamp_basetype logic
+        if _needs_clamp(right.typ, enc):
+            right = clamp_basetype(right)
+
+        if left.location == "storage":
             return LLLnode.from_list(["sstore", left, right], typ=None)
-        elif location == "memory":
+        elif left.location == "memory":
             return LLLnode.from_list(["mstore", left, right], typ=None)
+
     # Byte arrays
     elif isinstance(left.typ, ByteArrayLike):
-        return make_byte_array_copier(left, right, pos)
-    # Can't copy mappings
-    elif isinstance(left.typ, MappingType):
-        raise TypeMismatch("Cannot copy mappings; can only copy individual elements", pos)
+        # TODO rethink/streamline the clamp_basetype logic
+        if _needs_clamp(right.typ, right.encoding):
+            _val = LLLnode("val", location=right.location, typ=right.typ)
+            copier = make_byte_array_copier(left, _val, pos)
+            ret = ["with", _val, right, ["seq", clamp_bytestring(_val), copier]]
+        else:
+            ret = make_byte_array_copier(left, right, pos)
+
+        return LLLnode.from_list(ret)
+
     # Arrays
-    elif isinstance(left.typ, ListType):
+    elif isinstance(left.typ, (ListType, TupleLike)):
+        return _complex_make_setter(left, right, pos)
+
+
+def _typecheck_list_make_setter(left, right):
+    if left.value == "multi":
         # Cannot do something like [a, b, c] = [1, 2, 3]
-        if left.value == "multi":
-            return
-        if not isinstance(right.typ, ListType):
-            return
-        if right.typ.count != left.typ.count:
-            return
+        return False
+    if not isinstance(right.typ, ListType):
+        return False
+    if right.typ.count != left.typ.count:
+        return False
+    return True
 
-        left_token = LLLnode.from_list("_L", typ=left.typ, location=left.location)
-        # If the right side is a literal
-        if right.value in ["multi", "seq_unchecked"] and right.typ.is_literal:
-            if right.value == "seq_unchecked":
-                # when the LLL is `seq_unchecked`, this is a literal where one or
-                # more values must be pre-processed to avoid memory corruption
-                subs = right.args[:-1]
-                right = right.args[-1]
-            else:
-                subs = []
-            for i in range(left.typ.count):
-                lhs_setter = _make_array_index_setter(left, left_token, pos, location, i)
-                subs.append(make_setter(lhs_setter, right.args[i], location, pos=pos,))
-            if left.location == "memory" and isinstance(left.value, int):
-                return LLLnode.from_list(["seq"] + subs, typ=None)
-            else:
-                return LLLnode.from_list(["with", "_L", left, ["seq"] + subs], typ=None)
-        elif right.value is None:
-            if right.typ != left.typ:
-                return
-            if left.location == "memory":
-                return mzero(left, 32 * get_size_of_type(left.typ))
 
-            subs = []
-            for i in range(left.typ.count):
-                subs.append(
-                    make_setter(
-                        add_variable_offset(
-                            left_token,
-                            LLLnode.from_list(i, typ="int256"),
-                            pos=pos,
-                            array_bounds_check=False,
-                        ),
-                        LLLnode.from_list(None, typ=right.typ.subtype),
-                        location,
-                        pos=pos,
-                    )
-                )
-            return LLLnode.from_list(["with", "_L", left, ["seq"] + subs], typ=None)
-        # If the right side is a variable
+def _typecheck_tuple_make_setter(left, right):
+    if right.value is not None:
+        if not isinstance(right.typ, left.typ.__class__):
+            return False
+        if isinstance(left.typ, StructType):
+            for k in left.typ.members:
+                if k not in right.typ.members:
+                    return False
+            for k in right.typ.members:
+                if k not in left.typ.members:
+                    return False
+            if left.typ.name != right.typ.name:
+                return False
         else:
-            right_token = LLLnode.from_list("_R", typ=right.typ, location=right.location)
-            subs = []
-            for i in range(left.typ.count):
-                lhs_setter = _make_array_index_setter(left, left_token, pos, left.location, i)
-                rhs_setter = _make_array_index_setter(right, right_token, pos, right.location, i)
-                subs.append(make_setter(lhs_setter, rhs_setter, location, pos=pos,))
-            lll_node = ["seq"] + subs
-            if right.location != "memory" or not isinstance(right.value, int):
-                lll_node = ["with", "_R", right, lll_node]
-            if left.location != "memory" or not isinstance(left.value, int):
-                lll_node = ["with", "_L", left, lll_node]
-            return LLLnode.from_list(lll_node, typ=None)
-    # Structs
-    elif isinstance(left.typ, TupleLike):
-        if left.value == "multi" and isinstance(left.typ, StructType):
+            if len(left.typ.members) != len(right.typ.members):
+                return False
+    return True
+
+
+@type_check_wrapper
+def _complex_make_setter(left, right, pos):
+    if isinstance(left.typ, ListType):
+        if not _typecheck_list_make_setter(left, right):
             return
-        if right.value is not None:
-            if not isinstance(right.typ, left.typ.__class__):
-                return
-            if isinstance(left.typ, StructType):
-                for k in left.typ.members:
-                    if k not in right.typ.members:
-                        return
-                for k in right.typ.members:
-                    if k not in left.typ.members:
-                        return
-                if left.typ.name != right.typ.name:
-                    return
-            else:
-                if len(left.typ.members) != len(right.typ.members):
-                    return
+        keys = [LLLnode.from_list(i, typ="uint256") for i in range(left.typ.count)]
 
-        left_token = LLLnode.from_list("_L", typ=left.typ, location=left.location)
-        keyz = left.typ.tuple_keys()
+    if isinstance(left.typ, TupleLike):
+        if not _typecheck_tuple_make_setter(left, right):
+            return
+        keys = left.typ.tuple_keys()
 
-        # If the left side is a literal
-        if left.value == "multi":
-            locations = [arg.location for arg in left.args]
-        else:
-            locations = [location for _ in keyz]
+    # if len(keyz) == 0:
+    #    return LLLnode.from_list(["pass"])
 
-        # If the right side is a literal
-        if right.value == "multi":
-            if len(right.args) != len(keyz):
-                return
-            # get the RHS arguments into a dict because
-            # they are not guaranteed to be in the same order
-            # the LHS keys.
-            right_args = dict(zip(right.typ.tuple_keys(), right.args))
-            subs = []
-            for (key, loc) in zip(keyz, locations):
-                subs.append(
-                    make_setter(
-                        add_variable_offset(left_token, key, pos=pos),
-                        right_args[key],
-                        loc,
-                        pos=pos,
-                    )
-                )
-            return LLLnode.from_list(["with", "_L", left, ["seq"] + subs], typ=None)
-        # If the right side is a null
-        elif right.value is None:
-            if left.typ != right.typ:
-                return
+    if right.value is None and left.location == "memory":
+        # optimize memzero
+        return mzero(left, 32 * get_size_of_type(left.typ))
 
-            if left.location == "memory":
-                return mzero(left, 32 * get_size_of_type(left.typ))
-
-            subs = []
-            for key, loc in zip(keyz, locations):
-                subs.append(
-                    make_setter(
-                        add_variable_offset(left_token, key, pos=pos),
-                        LLLnode.from_list(None, typ=right.typ.members[key]),
-                        loc,
-                        pos=pos,
-                    )
-                )
-            return LLLnode.from_list(["with", "_L", left, ["seq"] + subs], typ=None)
-        # If tuple assign.
-        elif isinstance(left.typ, TupleType) and isinstance(right.typ, TupleType):
-            subs = []
-            for var_arg in left.args:
-                if var_arg.location == "calldata":
-                    return
-
-            right_token = LLLnode.from_list("_R", typ=right.typ, location=right.location)
-            for left_arg, key, loc in zip(left.args, keyz, locations):
-                subs.append(
-                    make_setter(
-                        left_arg, add_variable_offset(right_token, key, pos=pos), loc, pos=pos
-                    )
-                )
-
-            return LLLnode.from_list(
-                ["with", "_R", right, ["seq"] + subs], typ=None, annotation="Tuple assignment",
+    else:
+        # general case
+        if right.is_complex_lll:
+            # create a reference to the R pointer
+            _r = LLLnode.from_list(
+                "_R", typ=right.typ, location=right.location, encoding=right.encoding
             )
-        # If the left side is a variable i.e struct type
         else:
-            subs = []
-            right_token = LLLnode.from_list("_R", typ=right.typ, location=right.location)
-            for typ, loc in zip(keyz, locations):
-                subs.append(
-                    make_setter(
-                        add_variable_offset(left_token, typ, pos=pos),
-                        add_variable_offset(right_token, typ, pos=pos),
-                        loc,
-                        pos=pos,
-                    )
-                )
-            return LLLnode.from_list(
-                ["with", "_L", left, ["with", "_R", right, ["seq"] + subs]], typ=None,
-            )
+            # optimization: don't cache, faster for ints
+            _r = right
+
+        rhs_items = [get_element_ptr(_r, k, pos=pos, array_bounds_check=False) for k in keys]
+
+    if left.is_complex_lll:
+        _l = LLLnode.from_list("_L", typ=left.typ, location=left.location, encoding=left.encoding)
+    else:
+        _l = left
+    lhs_items = [get_element_ptr(_l, k, pos=pos, array_bounds_check=False) for k in keys]
+
+    assert len(lhs_items) == len(rhs_items), "you've been bad!"
+    ret = ["seq"] + [make_setter(l, r, pos) for (l, r) in zip(lhs_items, rhs_items)]
+    if right.is_complex_lll:
+        ret = ["with", "_R", right, ret]
+    if left.is_complex_lll:
+        ret = ["with", "_L", left, ret]
+    return LLLnode.from_list(ret, typ=None)
 
 
+def ensure_in_memory(lll_var, context, pos=None):
+    """Ensure a variable is in memory. This is useful for functions
+    which expect to operate on memory variables.
+    """
+    if lll_var.location == "memory":
+        return lll_var
+
+    typ = lll_var.typ
+    buf = LLLnode.from_list(context.new_internal_variable(typ), typ=typ, location="memory")
+    do_copy = make_setter(buf, lll_var, pos=pos)
+
+    return LLLnode.from_list(["seq", do_copy, buf], typ=typ, location="memory")
+
+
+def eval_seq(lll_node):
+    """Tries to find the "return" value of a `seq` statement, in order so
+    that the value can be known without possibly evaluating side effects
+    """
+    if lll_node.value in ("seq", "with") and len(lll_node.args) > 0:
+        return eval_seq(lll_node.args[-1])
+    if isinstance(lll_node.value, int):
+        return LLLnode.from_list(lll_node)
+    return None
+
+
+# TODO move return checks to vyper/semantics/validation
 def is_return_from_function(node):
     if isinstance(node, vy_ast.Expr) and node.get("value.func.id") == "selfdestruct":
         return True
@@ -735,21 +677,6 @@ def _check_return_body(node, node_list):
             )
 
 
-def _return_check(node):
-    if is_return_from_function(node):
-        return True
-    elif isinstance(node, list):
-        return any(_return_check(stmt) for stmt in node)
-    elif isinstance(node, vy_ast.If):
-        if_body_check = _return_check(node.body)
-        else_body_check = _return_check(node.orelse)
-        if if_body_check and else_body_check:  # both side need to match.
-            return True
-        else:
-            return False
-    return False
-
-
 def mzero(dst, nbytes):
     # calldatacopy from past-the-end gives zero bytes.
     # cf. YP H.2 (ops section) with CALLDATACOPY spec.
@@ -775,3 +702,97 @@ def zero_pad(bytez_placeholder):
         ["with", "len", len_, ["with", "dst", dst, mzero("dst", num_zero_bytes)]],
         annotation="Zero pad",
     )
+
+
+# convenience rewrites for shr/sar/shl
+def shr(x, bits):
+    if version_check(begin="constantinople"):
+        return ["shr", bits, x]
+    return ["div", x, ["exp", 2, bits]]
+
+
+def sar(x, bits):
+    if version_check(begin="constantinople"):
+        return ["sar", bits, x]
+
+    # emulate for older arches. keep in mind note from EIP 145:
+    # This is not equivalent to PUSH1 2 EXP SDIV, since it rounds
+    # differently. See SDIV(-1, 2) == 0, while SAR(-1, 1) == -1.
+    return ["sdiv", ["add", ["slt", x, 0], x], ["exp", 2, bits]]
+
+
+def _needs_clamp(t, encoding):
+    if encoding not in (Encoding.ABI, Encoding.JSON_ABI):
+        return False
+    if isinstance(t, ByteArrayLike):
+        if encoding == Encoding.JSON_ABI:
+            # don't have bytestring size bound from json, don't clamp
+            return False
+        return True
+    if isinstance(t, BaseType) and t.typ not in ("int256", "uint256", "bytes32"):
+        return True
+    return False
+
+
+@type_check_wrapper
+def clamp_bytestring(lll_node):
+    t = lll_node.typ
+    if not isinstance(t, ByteArrayLike):
+        return  # raises
+    return ["assert", ["le", get_bytearray_length(lll_node), t.maxlen]]
+
+
+# clampers for basetype
+@type_check_wrapper
+def clamp_basetype(lll_node):
+    t = lll_node.typ
+    if not isinstance(t, BaseType):
+        return  # raises
+
+    # copy of the input
+    lll_node = unwrap_location(lll_node)
+
+    if t.typ in ("int128"):
+        return int_clamp(lll_node, 128, signed=True)
+    if t.typ == "uint8":
+        return int_clamp(lll_node, 8)
+    if t.typ in ("decimal"):
+        return [
+            "clamp",
+            ["mload", MemoryPositions.MINDECIMAL],
+            lll_node,
+            ["mload", MemoryPositions.MAXDECIMAL],
+        ]
+
+    if t.typ in ("address",):
+        return int_clamp(lll_node, 160)
+    if t.typ in ("bool",):
+        return int_clamp(lll_node, 1)
+    if t.typ in ("int256", "uint256", "bytes32"):
+        return lll_node  # special case, no clamp.
+
+    return  # raises
+
+
+def int_clamp(lll_node, bits, signed=False):
+    """Generalized clamper for integer types. Takes the number of bits,
+    whether it's signed, and returns an LLL node which checks it is
+    in bounds. (Consumers should use clamp_basetype instead which uses
+    type-based dispatch and is a little safer.)
+    """
+    if bits >= 256:
+        raise CompilerPanic(f"invalid clamp: {bits}>=256 ({lll_node})")
+    if signed:
+        # example for bits==128:
+        # if _val is in bounds,
+        # _val >>> 127 == 0 for positive _val
+        # _val >>> 127 == -1 for negative _val
+        # -1 and 0 are the only numbers which are unchanged by sar,
+        # so sar'ing (_val>>>127) one more bit should leave it unchanged.
+        assertion = ["assert", ["eq", sar("val", bits - 1), sar("val", bits)]]
+    else:
+        assertion = ["assert", ["iszero", shr("val", bits)]]
+
+    ret = ["with", "val", lll_node, ["seq", assertion, "val"]]
+
+    return LLLnode.from_list(ret, annotation=f"int_clamp {lll_node.typ}")

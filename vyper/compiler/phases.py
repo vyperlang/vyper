@@ -7,7 +7,7 @@ from vyper.lll import compile_lll, optimizer
 from vyper.old_codegen import parser
 from vyper.old_codegen.global_context import GlobalContext
 from vyper.semantics import set_data_positions, validate_semantics
-from vyper.typing import InterfaceImports
+from vyper.typing import InterfaceImports, StorageLayout
 
 
 class CompilerData:
@@ -46,6 +46,7 @@ class CompilerData:
         contract_name: str = "VyperContract",
         interface_codes: Optional[InterfaceImports] = None,
         source_id: int = 0,
+        no_optimize: bool = False,
     ) -> None:
         """
         Initialization method.
@@ -67,6 +68,7 @@ class CompilerData:
         self.source_code = source_code
         self.interface_codes = interface_codes
         self.source_id = source_id
+        self.no_optimize = no_optimize
 
     @property
     def vyper_module(self) -> vy_ast.Module:
@@ -78,9 +80,20 @@ class CompilerData:
     @property
     def vyper_module_folded(self) -> vy_ast.Module:
         if not hasattr(self, "_vyper_module_folded"):
-            self._vyper_module_folded = generate_folded_ast(self.vyper_module, self.interface_codes)
+            self._vyper_module_folded, self._storage_layout = generate_folded_ast(
+                self.vyper_module, self.interface_codes
+            )
 
         return self._vyper_module_folded
+
+    @property
+    def storage_layout(self) -> StorageLayout:
+        if not hasattr(self, "_storage_layout"):
+            self._vyper_module_folded, self._storage_layout = generate_folded_ast(
+                self.vyper_module, self.interface_codes
+            )
+
+        return self._storage_layout
 
     @property
     def global_ctx(self) -> GlobalContext:
@@ -93,7 +106,7 @@ class CompilerData:
 
     def _gen_lll(self) -> None:
         # fetch both deployment and runtime LLL
-        self._lll_nodes, self._lll_runtime = generate_lll_nodes(self.global_ctx)
+        self._lll_nodes, self._lll_runtime = generate_lll_nodes(self.global_ctx, self.no_optimize)
 
     @property
     def lll_nodes(self) -> parser.LLLnode:
@@ -155,7 +168,7 @@ def generate_ast(source_code: str, source_id: int, contract_name: str) -> vy_ast
 
 def generate_folded_ast(
     vyper_module: vy_ast.Module, interface_codes: Optional[InterfaceImports]
-) -> vy_ast.Module:
+) -> Tuple[vy_ast.Module, StorageLayout]:
     """
     Perform constant folding operations on the Vyper AST.
 
@@ -168,6 +181,8 @@ def generate_folded_ast(
     -------
     vy_ast.Module
         Folded Vyper AST
+    StorageLayout
+        Layout of variables in storage
     """
     vy_ast.validation.validate_literal_nodes(vyper_module)
 
@@ -175,13 +190,14 @@ def generate_folded_ast(
     vy_ast.folding.fold(vyper_module_folded)
     validate_semantics(vyper_module_folded, interface_codes)
     vy_ast.expansion.expand_annotated_ast(vyper_module_folded)
-    set_data_positions(vyper_module_folded)
+    symbol_tables = set_data_positions(vyper_module_folded)
 
-    return vyper_module_folded
+    return vyper_module_folded, symbol_tables
 
 
 def generate_global_context(
-    vyper_module: vy_ast.Module, interface_codes: Optional[InterfaceImports],
+    vyper_module: vy_ast.Module,
+    interface_codes: Optional[InterfaceImports],
 ) -> GlobalContext:
     """
     Generate a contextualized AST from the Vyper AST.
@@ -201,7 +217,9 @@ def generate_global_context(
     return GlobalContext.get_global_context(vyper_module, interface_codes=interface_codes)
 
 
-def generate_lll_nodes(global_ctx: GlobalContext) -> Tuple[parser.LLLnode, parser.LLLnode]:
+def generate_lll_nodes(
+    global_ctx: GlobalContext, no_optimize: bool
+) -> Tuple[parser.LLLnode, parser.LLLnode]:
     """
     Generate the intermediate representation (LLL) from the contextualized AST.
 
@@ -223,12 +241,13 @@ def generate_lll_nodes(global_ctx: GlobalContext) -> Tuple[parser.LLLnode, parse
         LLL to generate runtime bytecode
     """
     lll_nodes, lll_runtime = parser.parse_tree_to_lll(global_ctx)
-    lll_nodes = optimizer.optimize(lll_nodes)
-    lll_runtime = optimizer.optimize(lll_runtime)
+    if not no_optimize:
+        lll_nodes = optimizer.optimize(lll_nodes)
+        lll_runtime = optimizer.optimize(lll_runtime)
     return lll_nodes, lll_runtime
 
 
-def generate_assembly(lll_nodes: parser.LLLnode) -> list:
+def generate_assembly(lll_nodes: parser.LLLnode, no_optimize: bool = False) -> list:
     """
     Generate assembly instructions from LLL.
 
@@ -242,7 +261,8 @@ def generate_assembly(lll_nodes: parser.LLLnode) -> list:
     list
         List of assembly instructions.
     """
-    assembly = compile_lll.compile_to_assembly(lll_nodes)
+    assembly = compile_lll.compile_to_assembly(lll_nodes, no_optimize=no_optimize)
+
     if _find_nested_opcode(assembly, "DEBUG"):
         warnings.warn(
             "This code contains DEBUG opcodes! The DEBUG opcode will only work in "

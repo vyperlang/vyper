@@ -114,6 +114,28 @@ def get_array(arg1: address) -> Bytes[3]:
     assert_tx_failed(lambda: c2.get_array(c.address))
 
 
+@pytest.mark.parametrize(
+    "revert_string", ["Mayday, mayday!", "A very long revert string" + "." * 512]
+)
+def test_revert_propagation(get_contract, assert_tx_failed, revert_string):
+    raiser = f"""
+@external
+def run():
+    raise "{revert_string}"
+    """
+    caller = """
+interface Raises:
+    def run(): pure
+
+@external
+def run(raiser: address):
+    Raises(raiser).run()
+    """
+    c1 = get_contract(raiser)
+    c2 = get_contract(caller)
+    assert_tx_failed(lambda: c2.run(c1.address), exc_text=revert_string)
+
+
 @pytest.mark.parametrize("a,b", [(3, 3), (4, 3), (3, 4), (32, 32), (33, 33), (64, 64)])
 @pytest.mark.parametrize("actual", [3, 32, 64])
 def test_tuple_with_bytes(get_contract, assert_tx_failed, a, b, actual, memory_mocker):
@@ -829,7 +851,7 @@ def test(addr: address) -> (int128, address):
     c1 = get_contract_with_gas_estimation(contract_1)
     c2 = get_contract_with_gas_estimation(contract_2)
 
-    assert c1.out_literals() == [1, "0x0000000000000000000000000000000000012345"]
+    assert c1.out_literals() == (1, "0x0000000000000000000000000000000000012345")
     assert c2.test(c1.address) == list(c1.out_literals())
 
 
@@ -862,7 +884,7 @@ def test(addr: address) -> (int128, String[{ln}], Bytes[{ln}]):
     c1 = get_contract_with_gas_estimation(contract_1)
     c2 = get_contract_with_gas_estimation(contract_2)
 
-    assert c1.get_struct_x() == [i, s, bytes(s, "utf-8")]
+    assert c1.get_struct_x() == (i, s, bytes(s, "utf-8"))
     assert c2.test(c1.address) == list(c1.get_struct_x())
 
 

@@ -3,7 +3,7 @@ import enum
 
 from vyper.ast import VyperNode
 from vyper.ast.signatures.function_signature import VariableRecord
-from vyper.exceptions import CompilerPanic
+from vyper.exceptions import CompilerPanic, FunctionDeclarationException
 from vyper.old_codegen.types import NodeType, get_size_of_type
 
 
@@ -25,7 +25,7 @@ class Context:
         constancy=Constancy.Mutable,
         is_internal=False,
         is_payable=False,
-        method_id="",
+        # method_id="",
         sig=None,
     ):
         # In-memory variables, in the form (name, memory location, type)
@@ -52,7 +52,7 @@ class Context:
         self.callback_ptr = None
         self.is_internal = is_internal
         # method_id of current function
-        self.method_id = method_id
+        # self.method_id = method_id
         # store global context
         self.global_ctx = global_ctx
         # full function signature
@@ -64,12 +64,23 @@ class Context:
         # Not intended to be accessed directly
         self.memory_allocator = memory_allocator
 
+        self._callee_frame_sizes = []
+
         # Intermented values, used for internal IDs
         self._internal_var_iter = 0
         self._scope_id_iter = 0
 
     def is_constant(self):
         return self.constancy is Constancy.Constant or self.in_assertion or self.in_range_expr
+
+    def register_callee(self, frame_size):
+        self._callee_frame_sizes.append(frame_size)
+
+    @property
+    def max_callee_frame_size(self):
+        if len(self._callee_frame_sizes) == 0:
+            return 0
+        return max(self._callee_frame_sizes)
 
     #
     # Context Managers
@@ -128,7 +139,9 @@ class Context:
         # Remove block scopes
         self._scopes.remove(scope_id)
 
-    def _new_variable(self, name: str, typ: NodeType, var_size: int, is_internal: bool) -> int:
+    def _new_variable(
+        self, name: str, typ: NodeType, var_size: int, is_internal: bool, is_mutable: bool = True
+    ) -> int:
         if is_internal:
             var_pos = self.memory_allocator.expand_memory(var_size)
         else:
@@ -137,13 +150,15 @@ class Context:
             name=name,
             pos=var_pos,
             typ=typ,
-            mutable=True,
+            mutable=is_mutable,
             blockscopes=self._scopes.copy(),
             is_internal=is_internal,
         )
         return var_pos
 
-    def new_variable(self, name: str, typ: NodeType, pos: VyperNode = None) -> int:
+    def new_variable(
+        self, name: str, typ: NodeType, pos: VyperNode = None, is_mutable: bool = True
+    ) -> int:
         """
         Allocate memory for a user-defined variable.
 
@@ -168,8 +183,9 @@ class Context:
             var_size = typ.size_in_bytes  # type: ignore
         else:
             var_size = 32 * get_size_of_type(typ)
-        return self._new_variable(name, typ, var_size, False)
+        return self._new_variable(name, typ, var_size, False, is_mutable=is_mutable)
 
+    # do we ever allocate immutable internal variables?
     def new_internal_variable(self, typ: NodeType) -> int:
         """
         Allocate memory for an internal variable.
@@ -198,6 +214,43 @@ class Context:
 
     def parse_type(self, ast_node, location):
         return self.global_ctx.parse_type(ast_node, location)
+
+    def lookup_var(self, varname):
+        return self.vars[varname]
+
+    def lookup_internal_function(self, method_name, args_lll):
+        # TODO is this the right module for me?
+        """
+        Using a list of args, find the internal method to use, and
+        the kwargs which need to be filled in by the compiler
+        """
+
+        def _check(cond, s="Unreachable"):
+            if not cond:
+                raise CompilerPanic(s)
+
+        sig = self.sigs["self"].get(method_name, None)
+        if sig is None:
+            raise FunctionDeclarationException(
+                "Function does not exist or has not been declared yet "
+                "(reminder: functions cannot call functions later in code "
+                f"than themselves): {method_name}"
+            )
+
+        _check(sig.internal)  # sanity check
+        # should have been caught during type checking, sanity check anyway
+        _check(len(sig.base_args) <= len(args_lll) <= len(sig.args))
+
+        # more sanity check, that the types match
+        # _check(all(l.typ == r.typ for (l, r) in zip(args_lll, sig.args))
+
+        num_provided_kwargs = len(args_lll) - len(sig.base_args)
+        num_kwargs = len(sig.default_args)
+        kwargs_needed = num_kwargs - num_provided_kwargs
+
+        kw_vals = list(sig.default_values.values())[:kwargs_needed]
+
+        return sig, kw_vals
 
     # Pretty print constancy for error messages
     def pp_constancy(self):

@@ -15,6 +15,7 @@ class VyperNodeVisitorBase:
         visitor_fn = getattr(self, f"visit_{node_type}", None)
         if visitor_fn is None:
             raise StructureException(
-                f"Unsupported syntax for {self.scope_name} namespace: {node_type}", node,
+                f"Unsupported syntax for {self.scope_name} namespace: {node_type}",
+                node,
             )
         visitor_fn(node)

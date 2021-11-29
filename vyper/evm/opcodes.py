@@ -1,13 +1,7 @@
 from typing import Dict, Optional
 
 from vyper.exceptions import CompilerPanic
-from vyper.typing import (
-    OpcodeGasCost,
-    OpcodeMap,
-    OpcodeRulesetMap,
-    OpcodeRulesetValue,
-    OpcodeValue,
-)
+from vyper.typing import OpcodeGasCost, OpcodeMap, OpcodeRulesetMap, OpcodeRulesetValue, OpcodeValue
 
 active_evm_version: int = 0
 
@@ -93,6 +87,7 @@ OPCODES: OpcodeMap = {
     "GASLIMIT": (0x45, 0, 1, 2),
     "CHAINID": (0x46, 0, 1, (None, None, 2)),
     "SELFBALANCE": (0x47, 0, 1, (None, None, 5)),
+    "BASEFEE": (0x48, 0, 1, (None, None, None, 2)),
     "POP": (0x50, 1, 0, 2),
     "MLOAD": (0x51, 1, 1, 3),
     "MSTORE": (0x52, 2, 0, 3),
@@ -195,7 +190,10 @@ PSEUDO_OPCODES: OpcodeMap = {
     "ASSERT": (None, 1, 0, 85),
     "ASSERT_UNREACHABLE": (None, 1, 0, 17),
     "PASS": (None, 0, 0, 0),
+    "DUMMY": (None, 0, 1, 0),  # tell LLL that no, there really is a stack item here
     "BREAK": (None, 0, 0, 20),
+    # cleanup_repeat cleans the stack similar to BREAK but without jumping to exit
+    "CLEANUP_REPEAT": (None, 0, 0, 20),
     "CONTINUE": (None, 0, 0, 20),
     "SHA3_32": (None, 1, 1, 72),
     "SHA3_64": (None, 2, 1, 109),
@@ -208,7 +206,6 @@ PSEUDO_OPCODES: OpcodeMap = {
     "NE": (None, 2, 1, 6),
     "DEBUGGER": (None, 0, 0, 0),
     "LABEL": (None, 1, 0, 1),
-    "GOTO": (None, 1, 0, 8),
 }
 
 COMB_OPCODES: OpcodeMap = {**OPCODES, **PSEUDO_OPCODES}
@@ -240,18 +237,17 @@ def _gas(value: OpcodeValue, idx: int) -> Optional[OpcodeRulesetValue]:
 
 def _mk_version_opcodes(opcodes: OpcodeMap, idx: int) -> OpcodeRulesetMap:
     return dict(
-        (k, _gas(v, idx))  # type: ignore
-        for k, v in opcodes.items()
-        if _gas(v, idx) is not None
+        (k, _gas(v, idx)) for k, v in opcodes.items() if _gas(v, idx) is not None  # type: ignore
     )
 
 
-_evm_opcodes: Dict[int, OpcodeRulesetMap] = dict(
-    (v, _mk_version_opcodes(OPCODES, v)) for v in EVM_VERSIONS.values()
-)
-_evm_combined: Dict[int, OpcodeRulesetMap] = dict(
-    (v, _mk_version_opcodes(COMB_OPCODES, v)) for v in EVM_VERSIONS.values()
-)
+_evm_opcodes: Dict[int, OpcodeRulesetMap] = {
+    v: _mk_version_opcodes(OPCODES, v) for v in EVM_VERSIONS.values()
+}
+
+_evm_combined: Dict[int, OpcodeRulesetMap] = {
+    v: _mk_version_opcodes(COMB_OPCODES, v) for v in EVM_VERSIONS.values()
+}
 
 
 def get_opcodes() -> OpcodeRulesetMap:
@@ -269,8 +265,5 @@ def version_check(begin: Optional[str] = None, end: Optional[str] = None) -> boo
         begin_idx = min(EVM_VERSIONS.values())
     else:
         begin_idx = EVM_VERSIONS[begin]
-    if end is None:
-        end_idx = max(EVM_VERSIONS.values())
-    else:
-        end_idx = EVM_VERSIONS[end]
+    end_idx = max(EVM_VERSIONS.values()) if end is None else EVM_VERSIONS[end]
     return begin_idx <= active_evm_version <= end_idx

@@ -120,7 +120,8 @@ def foo(bar: Bytes[33]) -> decimal:
     """
 
     assert_compile_failed(
-        lambda: get_contract_with_gas_estimation(code), TypeMismatch,
+        lambda: get_contract_with_gas_estimation(code),
+        TypeMismatch,
     )
 
     code = """
@@ -131,7 +132,8 @@ def foobar() -> decimal:
     """
 
     assert_compile_failed(
-        lambda: get_contract_with_gas_estimation(code), TypeMismatch,
+        lambda: get_contract_with_gas_estimation(code),
+        TypeMismatch,
     )
 
 

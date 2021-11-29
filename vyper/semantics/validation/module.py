@@ -14,6 +14,7 @@ from vyper.exceptions import (
     NamespaceCollision,
     StateAccessViolation,
     StructureException,
+    SyntaxException,
     UndeclaredDefinition,
     VariableDeclarationException,
     VyperException,
@@ -24,10 +25,7 @@ from vyper.semantics.types.function import ContractFunction
 from vyper.semantics.types.user.event import Event
 from vyper.semantics.types.utils import check_literal, get_type_from_annotation
 from vyper.semantics.validation.base import VyperNodeVisitorBase
-from vyper.semantics.validation.utils import (
-    validate_expected_type,
-    validate_unique_method_ids,
-)
+from vyper.semantics.validation.utils import validate_expected_type, validate_unique_method_ids
 from vyper.typing import InterfaceDict
 
 
@@ -57,7 +55,10 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
     scope_name = "module"
 
     def __init__(
-        self, module_node: vy_ast.Module, interface_codes: InterfaceDict, namespace: dict,
+        self,
+        module_node: vy_ast.Module,
+        interface_codes: InterfaceDict,
+        namespace: dict,
     ) -> None:
         self.ast = module_node
         self.interface_codes = interface_codes or {}
@@ -148,16 +149,16 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
             self.namespace[interface_name].validate_implements(node)
             return
 
-        is_immutable, is_public = False, False
+        is_constant, is_public, is_immutable = False, False, False
         annotation = node.annotation
         if isinstance(annotation, vy_ast.Call):
             # the annotation is a function call, e.g. `foo: constant(uint256)`
             call_name = annotation.get("func.id")
-            if call_name in ("constant", "public"):
+            if call_name in ("constant", "public", "immutable"):
                 validate_call_args(annotation, 1)
                 if call_name == "constant":
                     # declaring a constant
-                    is_immutable = True
+                    is_constant = True
 
                 elif call_name == "public":
                     # declaring a public variable
@@ -167,15 +168,34 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
                     # we need this when builing the public getter
                     node._metadata["func_type"] = ContractFunction.from_AnnAssign(node)
 
+                elif call_name == "immutable":
+                    # declaring an immutable variable
+                    is_immutable = True
+
+                    # mutability is checked automatically preventing assignment
+                    # outside of the constructor, here we just check a value is assigned,
+                    # not necessarily where
+                    assignments = self.ast.get_descendants(
+                        vy_ast.Assign, filters={"target.id": node.target.id}
+                    )
+                    if not assignments:
+                        raise SyntaxException(
+                            "Immutable definition requires an assignment in the constructor",
+                            node.node_source_code,
+                            node.lineno,
+                            node.col_offset,
+                        )
+
                 # remove the outer call node, to handle cases such as `public(map(..))`
                 annotation = annotation.args[0]
 
+        data_loc = DataLocation.CODE if is_immutable else DataLocation.STORAGE
         type_definition = get_type_from_annotation(
-            annotation, DataLocation.STORAGE, is_immutable, is_public
+            annotation, data_loc, is_constant, is_public, is_immutable
         )
         node._metadata["type"] = type_definition
 
-        if is_immutable:
+        if is_constant:
             if not node.value:
                 raise VariableDeclarationException("Constant must be declared with a value", node)
             if not check_literal(node.value):
@@ -189,9 +209,17 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
             return
 
         if node.value:
+            var_type = "Immutable" if is_immutable else "Storage"
             raise VariableDeclarationException(
-                "Storage variables cannot have an initial value", node.value
+                f"{var_type} variables cannot have an initial value", node.value
             )
+
+        if is_immutable:
+            try:
+                self.namespace[name] = type_definition
+            except VyperException as exc:
+                raise exc.with_annotation(node) from None
+            return
 
         try:
             self.namespace.validate_assignment(name)
@@ -214,6 +242,7 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
 
     def visit_FunctionDef(self, node):
         func = ContractFunction.from_FunctionDef(node)
+
         try:
             self.namespace["self"].add_member(func.name, func)
             node._metadata["type"] = func
@@ -223,7 +252,8 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
     def visit_Import(self, node):
         if not node.alias:
             raise StructureException(
-                "Import requires an accompanying `as` statement", node,
+                "Import requires an accompanying `as` statement",
+                node,
             )
         _add_import(node, node.name, node.alias, node.alias, self.interface_codes, self.namespace)
 

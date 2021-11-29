@@ -13,7 +13,7 @@ any errors.
 Docker
 ******
 
-Vyper can be downloaded as docker image from dockerhub:
+Vyper can be downloaded as docker image from `dockerhub <https://hub.docker.com/r/vyperlang/vyper/tags?page=1&ordering=last_updated>`_:
 ::
 
     docker pull vyperlang/vyper
@@ -29,12 +29,12 @@ Alternatively you can log into the docker image and execute vyper on the prompt.
     docker run -v $(pwd):/code/ -it --entrypoint /bin/bash vyperlang/vyper
     root@d35252d1fb1b:/code# vyper <contract_file.vy>
 
-The normal paramaters are also supported, for example:
+The normal parameters are also supported, for example:
 ::
 
     docker run -v $(pwd):/code vyperlang/vyper -f abi /code/<contract_file.vy>
     [{'name': 'test1', 'outputs': [], 'inputs': [{'type': 'uint256', 'name': 'a'}, {'type': 'bytes', 'name': 'b'}], 'constant': False, 'payable': False, 'type': 'function', 'gas': 441}, {'name': 'test2', 'outputs': [], 'inputs': [{'type': 'uint256', 'name': 'a'}], 'constant': False, 'payable': False, 'type': 'function', 'gas': 316}]
-    
+
 .. note::
 
     If you would like to know how to install Docker, please follow their `documentation <https://docs.docker.com/get-docker/>`_.
@@ -76,4 +76,24 @@ Each tagged version of vyper is uploaded to `pypi <https://pypi.org/project/vype
 To install a specific version use:
 ::
 
-    pip install vyper==0.1.0b17
+    pip install vyper==0.2.15
+
+
+nix
+***
+
+View the versions supported through nix at `nix package search <https://search.nixos.org/packages?channel=21.05&show=vyper&from=0&size=50&sort=relevance&query=vyper>`_ 
+
+.. note::
+
+    The derivation for Vyper is located at  `nixpkgs <https://github.com/NixOS/nixpkgs/blob/master/pkgs/development/compilers/vyper/default.nix>`_
+
+
+Installing Vyper
+============================
+
+::
+
+    nix-env -iA nixpkgs.vyper
+
+

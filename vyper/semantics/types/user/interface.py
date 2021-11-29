@@ -3,20 +3,13 @@ from typing import Dict, List, Tuple, Union
 
 from vyper import ast as vy_ast
 from vyper.ast.validation import validate_call_args
-from vyper.exceptions import (
-    InterfaceViolation,
-    NamespaceCollision,
-    StructureException,
-)
+from vyper.exceptions import InterfaceViolation, NamespaceCollision, StructureException
 from vyper.semantics.namespace import get_namespace, validate_identifier
 from vyper.semantics.types.bases import DataLocation, MemberTypeDefinition
 from vyper.semantics.types.function import ContractFunction
 from vyper.semantics.types.user.event import Event
 from vyper.semantics.types.value.address import AddressDefinition
-from vyper.semantics.validation.utils import (
-    validate_expected_type,
-    validate_unique_method_ids,
-)
+from vyper.semantics.validation.utils import validate_expected_type, validate_unique_method_ids
 
 
 class InterfaceDefinition(MemberTypeDefinition):
@@ -29,11 +22,12 @@ class InterfaceDefinition(MemberTypeDefinition):
         _id: str,
         members: OrderedDict,
         location: DataLocation = DataLocation.MEMORY,
-        is_immutable: bool = False,
+        is_constant: bool = False,
         is_public: bool = False,
+        is_immutable: bool = False,
     ) -> None:
         self._id = _id
-        super().__init__(location, is_immutable, is_public)
+        super().__init__(location, is_constant, is_public, is_immutable)
         for key, type_ in members.items():
             self.add_member(key, type_)
 
@@ -61,14 +55,17 @@ class InterfacePrimitive:
         self,
         node: vy_ast.VyperNode,
         location: DataLocation = DataLocation.MEMORY,
-        is_immutable: bool = False,
+        is_constant: bool = False,
         is_public: bool = False,
+        is_immutable: bool = False,
     ) -> InterfaceDefinition:
 
         if not isinstance(node, vy_ast.Name):
             raise StructureException("Invalid type assignment", node)
 
-        return InterfaceDefinition(self._id, self.members, location, is_immutable, is_public)
+        return InterfaceDefinition(
+            self._id, self.members, location, is_constant, is_public, is_immutable
+        )
 
     def fetch_call_return(self, node: vy_ast.Call) -> InterfaceDefinition:
         validate_call_args(node, 1)

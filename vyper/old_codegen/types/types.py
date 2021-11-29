@@ -5,7 +5,7 @@ from collections import OrderedDict
 from typing import Any
 
 from vyper import ast as vy_ast
-from vyper.exceptions import CompilerPanic, InvalidType
+from vyper.exceptions import ArgumentException, CompilerPanic, InvalidType
 from vyper.utils import BASE_TYPES, ceil32
 
 
@@ -162,7 +162,7 @@ def canonicalize_type(t, is_indexed=False):
         return byte_type
 
     if isinstance(t, ListType):
-        if not isinstance(t.subtype, (ListType, BaseType)):
+        if not isinstance(t.subtype, (ListType, BaseType, StructType)):
             raise InvalidType(f"List of {t.subtype} not allowed")
         return canonicalize_type(t.subtype) + f"[{t.count}]"
 
@@ -173,7 +173,7 @@ def canonicalize_type(t, is_indexed=False):
         raise InvalidType(f"Cannot canonicalize non-base type: {t}")
 
     t = t.typ
-    if t in ("int128", "int256", "uint256", "bool", "address", "bytes32"):
+    if t in ("int128", "int256", "uint8", "uint256", "bool", "address", "bytes32"):
         return t
     elif t == "decimal":
         return "fixed168x10"
@@ -181,13 +181,15 @@ def canonicalize_type(t, is_indexed=False):
     raise InvalidType(f"Invalid or unsupported type: {repr(t)}")
 
 
+# TODO location is unused
 def make_struct_type(name, location, sigs, members, custom_structs):
     o = OrderedDict()
 
     for key, value in members:
         if not isinstance(key, vy_ast.Name):
             raise InvalidType(
-                f"Invalid member variable for struct {key.id}, expected a name.", key,
+                f"Invalid member variable for struct {key.id}, expected a name.",
+                key,
             )
         o[key.id] = parse_type(value, location, sigs=sigs, custom_structs=custom_structs)
 
@@ -196,7 +198,9 @@ def make_struct_type(name, location, sigs, members, custom_structs):
 
 # Parses an expression representing a type. Annotation refers to whether
 # the type is to be located in memory or storage
-def parse_type(item, location, sigs=None, custom_structs=None):
+# TODO: location is unused
+# TODO: rename me to "lll_type_from_annotation"
+def parse_type(item, location=None, sigs=None, custom_structs=None):
     # Base and custom types, e.g. num
     if isinstance(item, vy_ast.Name):
         if item.id in BASE_TYPES:
@@ -205,7 +209,11 @@ def parse_type(item, location, sigs=None, custom_structs=None):
             return InterfaceType(item.id)
         elif (custom_structs is not None) and (item.id in custom_structs):
             return make_struct_type(
-                item.id, location, sigs, custom_structs[item.id], custom_structs,
+                item.id,
+                location,
+                sigs,
+                custom_structs[item.id],
+                custom_structs,
             )
         else:
             raise InvalidType("Invalid base type: " + item.id, item)
@@ -218,8 +226,19 @@ def parse_type(item, location, sigs=None, custom_structs=None):
         # Struct types
         if (custom_structs is not None) and (item.func.id in custom_structs):
             return make_struct_type(
-                item.id, location, sigs, custom_structs[item.id], custom_structs,
+                item.id,
+                location,
+                sigs,
+                custom_structs[item.id],
+                custom_structs,
             )
+        if item.func.id == "immutable":
+            if len(item.args) != 1:
+                # is checked earlier but just for sanity, verify
+                # immutable call is given only one argument
+                raise ArgumentException("Invalid number of arguments to `immutable`", item)
+            return BaseType(item.args[0].id)
+
         raise InvalidType("Units are no longer supported", item)
     # Subscripts
     elif isinstance(item, vy_ast.Subscript):
@@ -239,16 +258,28 @@ def parse_type(item, location, sigs=None, custom_structs=None):
             # List
             else:
                 return ListType(
-                    parse_type(item.value, location, sigs, custom_structs=custom_structs,), n_val,
+                    parse_type(
+                        item.value,
+                        location,
+                        sigs,
+                        custom_structs=custom_structs,
+                    ),
+                    n_val,
                 )
         elif item.value.id in ("HashMap",) and isinstance(item.slice.value, vy_ast.Tuple):
             keytype = parse_type(
-                item.slice.value.elements[0], None, sigs, custom_structs=custom_structs,
+                item.slice.value.elements[0],
+                None,
+                sigs,
+                custom_structs=custom_structs,
             )
             return MappingType(
                 keytype,
                 parse_type(
-                    item.slice.value.elements[1], location, sigs, custom_structs=custom_structs,
+                    item.slice.value.elements[1],
+                    location,
+                    sigs,
+                    custom_structs=custom_structs,
                 ),
             )
         # Mappings, e.g. num[address]
@@ -271,7 +302,7 @@ def parse_type(item, location, sigs=None, custom_structs=None):
 
 # byte array overhead, in words. (it should really be 1, but there are
 # some places in our calling convention where the layout expects 2)
-BYTE_ARRAY_OVERHEAD = 2
+BYTE_ARRAY_OVERHEAD = 1
 
 
 # Gets the maximum number of memory or storage keys needed to ABI-encode
@@ -304,36 +335,6 @@ def get_type_for_exact_size(n_bytes):
     return ByteArrayType(n_bytes - 32 * BYTE_ARRAY_OVERHEAD)
 
 
-# amount of space a type takes in the static section of its ABI encoding
-def get_static_size_of_type(typ):
-    if isinstance(typ, BaseType):
-        return 1
-    elif isinstance(typ, ByteArrayLike):
-        return 1
-    elif isinstance(typ, ListType):
-        return get_size_of_type(typ.subtype) * typ.count
-    elif isinstance(typ, MappingType):
-        raise InvalidType("Maps are not supported for function arguments or outputs.")
-    elif isinstance(typ, TupleLike):
-        return sum([get_size_of_type(v) for v in typ.tuple_members()])
-    else:
-        raise InvalidType(f"Can not get size of type, Unexpected type: {repr(typ)}")
-
-
-# could be rewritten as get_static_size_of_type == get_size_of_type?
-def has_dynamic_data(typ):
-    if isinstance(typ, BaseType):
-        return False
-    elif isinstance(typ, ByteArrayLike):
-        return True
-    elif isinstance(typ, ListType):
-        return has_dynamic_data(typ.subtype)
-    elif isinstance(typ, TupleLike):
-        return any([has_dynamic_data(v) for v in typ.tuple_members()])
-    else:
-        raise InvalidType(f"Unexpected type: {repr(typ)}")
-
-
 def get_type(input):
     if not hasattr(input, "typ"):
         typ, len = "num_literal", 32
@@ -346,7 +347,13 @@ def get_type(input):
 
 # Is a type representing a number?
 def is_numeric_type(typ):
-    return isinstance(typ, BaseType) and typ.typ in ("int128", "int256", "uint256", "decimal")
+    return isinstance(typ, BaseType) and typ.typ in (
+        "int128",
+        "int256",
+        "uint8",
+        "uint256",
+        "decimal",
+    )
 
 
 # Is a type representing some particular base type?

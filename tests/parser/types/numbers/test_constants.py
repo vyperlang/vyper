@@ -175,11 +175,12 @@ SOME_PRIME: constant(uint256) = {some_prime}
 def test() -> uint256:
     # calculate some constant which is really unlikely to be randomly
     # in bytecode
-    return 2**SOME_CONSTANT * SOME_PRIME
+    ret: uint256 = 2**SOME_CONSTANT * SOME_PRIME
+    return ret
     """
 
     lll = compile_code(code, ["ir"])["ir"]
-    assert search_for_sublist(lll, ["mstore", [0], [2 ** 12 * some_prime]])
+    assert search_for_sublist(lll, ["mstore", [224], [2 ** 12 * some_prime]])
 
 
 def test_constant_lists(get_contract):

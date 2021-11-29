@@ -362,3 +362,51 @@ def foo() -> (uint256, uint256[3], uint256[2]):
     """
     c = get_contract(code)
     assert c.foo() == [666, [1, 2, 3], [88, 12]]
+
+
+def test_list_of_structs_arg(get_contract):
+    code = """
+struct Foo:
+    x: uint256
+    y: uint256
+
+@external
+def bar(_baz: Foo[3]) -> uint256:
+    sum: uint256 = 0
+    for i in range(3):
+        sum += _baz[i].x * _baz[i].y
+    return sum
+    """
+    c = get_contract(code)
+    c_input = [[x, y] for x, y in zip(range(3), range(3))]
+    assert c.bar(c_input) == 5  # 0 * 0 + 1 * 1 + 2 * 2
+
+
+def test_list_of_structs_arg_with_dynamic_type(get_contract):
+    code = """
+struct Foo:
+    x: uint256
+    _msg: String[32]
+
+@external
+def bar(_baz: Foo[3]) -> String[96]:
+    return concat(_baz[0]._msg, _baz[1]._msg, _baz[2]._msg)
+    """
+    c = get_contract(code)
+    c_input = [[i, msg] for i, msg in enumerate(("Hello ", "world", "!!!!"))]
+    assert c.bar(c_input) == "Hello world!!!!"
+
+
+def test_constant_list(get_contract, assert_tx_failed):
+    some_good_primes = [5.0, 11.0, 17.0, 29.0, 37.0, 41.0]
+    code = f"""
+MY_LIST: constant(decimal[6]) = {some_good_primes}
+@external
+def ix(i: uint256) -> decimal:
+    return MY_LIST[i]
+    """
+    c = get_contract(code)
+    for i, p in enumerate(some_good_primes):
+        assert c.ix(i) == p
+    # assert oob
+    assert_tx_failed(lambda: c.ix(len(some_good_primes) + 1))

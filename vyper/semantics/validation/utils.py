@@ -20,10 +20,7 @@ from vyper.semantics import types
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.abstract import IntegerAbstractType
 from vyper.semantics.types.bases import BaseTypeDefinition
-from vyper.semantics.types.indexable.sequence import (
-    ArrayDefinition,
-    TupleDefinition,
-)
+from vyper.semantics.types.indexable.sequence import ArrayDefinition, TupleDefinition
 from vyper.semantics.types.value.boolean import BoolDefinition
 
 
@@ -173,7 +170,8 @@ class _ExprTypeChecker:
             right = self.get_possible_types_from_node(node.right)
             if next((i for i in left if isinstance(i, ArrayDefinition)), False):
                 raise InvalidOperation(
-                    "Left operand in membership comparison cannot be Array type", node.left,
+                    "Left operand in membership comparison cannot be Array type",
+                    node.left,
                 )
             if next((i for i in right if not isinstance(i, ArrayDefinition)), False):
                 raise InvalidOperation(
@@ -211,7 +209,8 @@ class _ExprTypeChecker:
 
         if isinstance(node, vy_ast.Num):
             raise OverflowException(
-                "Numeric literal is outside of allowable range for number types", node,
+                "Numeric literal is outside of allowable range for number types",
+                node,
             )
         raise InvalidLiteral(f"Could not determine type for literal value '{node.value}'", node)
 
@@ -231,7 +230,8 @@ class _ExprTypeChecker:
         name = node.id
         if name not in self.namespace and name in self.namespace["self"].members:
             raise InvalidReference(
-                f"'{name}' is a storage variable, access it as self.{name}", node,
+                f"'{name}' is a storage variable, access it as self.{name}",
+                node,
             )
         try:
             return [self.namespace[node.id]]

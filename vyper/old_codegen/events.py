@@ -1,23 +1,12 @@
-from typing import List, Tuple
+from typing import Tuple
 
-import vyper.ast as vy_ast
 from vyper.exceptions import TypeMismatch
-from vyper.old_codegen.abi import (
-    ABI_Tuple,
-    abi_encode,
-    abi_type_of,
-    abi_type_of2,
-    lll_tuple_from_args,
-)
+from vyper.old_codegen.abi import ABI_Tuple, abi_encode, abi_type_of, abi_type_of2
 from vyper.old_codegen.context import Context
 from vyper.old_codegen.keccak256_helper import keccak256_helper
 from vyper.old_codegen.lll_node import LLLnode
-from vyper.old_codegen.parser_utils import getpos, unwrap_location
-from vyper.old_codegen.types.types import (
-    BaseType,
-    ByteArrayLike,
-    get_type_for_exact_size,
-)
+from vyper.old_codegen.parser_utils import getpos, lll_tuple_from_args, unwrap_location
+from vyper.old_codegen.types.types import BaseType, ByteArrayLike, get_type_for_exact_size
 from vyper.semantics.types import Event
 
 
@@ -30,7 +19,7 @@ def _encode_log_topics(expr, event_id, arg_nodes, context):
             value = unwrap_location(arg)
 
         elif isinstance(arg.typ, ByteArrayLike):
-            value = keccak256_helper(expr, [arg], kwargs=None, context=context)
+            value = keccak256_helper(expr, arg, context=context)
         else:
             # TODO block at higher level
             raise TypeMismatch("Event indexes may only be value types", expr)
@@ -47,19 +36,17 @@ def _gas_bound(num_topics, data_maxlen):
     return LOG_BASE_GAS + GAS_PER_TOPIC * num_topics + GAS_PER_LOG_BYTE * data_maxlen
 
 
-def allocate_buffer_for_log(
-    event: Event, args: List[vy_ast.VyperNode], context: Context
-) -> Tuple[int, int]:
+def allocate_buffer_for_log(event: Event, context: Context) -> Tuple[int, int]:
     """Allocate a buffer to ABI-encode the non-indexed (data) arguments into
 
     This must be done BEFORE compiling the event arguments to LLL,
     registering the buffer with the `context` variable (otherwise any
     function calls inside the event literal will clobber the buffer).
     """
+    arg_types = list(event.arguments.values())  # the types of the arguments
     # remove non-data args, as those don't go into the buffer
-    arg_types = [
-        arg._metadata["type"] for arg, is_index in zip(args, event.indexed) if not is_index
-    ]
+    arg_types = [arg_t for arg_t, is_index in zip(arg_types, event.indexed) if not is_index]
+
     # all args get encoded as one big tuple
     abi_t = ABI_Tuple([abi_type_of2(arg_t) for arg_t in arg_types])
 

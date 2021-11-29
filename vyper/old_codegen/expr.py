@@ -1,5 +1,5 @@
 import math
-from decimal import Decimal, getcontext
+from decimal import Decimal
 
 from vyper import ast as vy_ast
 from vyper.evm.opcodes import version_check
@@ -11,14 +11,14 @@ from vyper.exceptions import (
     TypeMismatch,
 )
 from vyper.old_codegen import external_call, self_call
-from vyper.old_codegen.arg_clamps import int128_clamp
 from vyper.old_codegen.keccak256_helper import keccak256_helper
 from vyper.old_codegen.lll_node import LLLnode
 from vyper.old_codegen.parser_utils import (
-    add_variable_offset,
+    clamp_basetype,
+    get_element_ptr,
     get_number_as_fraction,
     getpos,
-    make_byte_array_copier,
+    load_op,
     make_setter,
     unwrap_location,
 )
@@ -63,9 +63,6 @@ ENVIRONMENT_VARIABLES = {
     "tx",
     "chain",
 }
-
-# Necessary to ensure we have enough precision to do the log/exp calcs
-getcontext().prec = 42
 
 
 def calculate_largest_power(a: int, num_bits: int, is_signed: bool) -> int:
@@ -202,18 +199,24 @@ class Expr:
 
         self.lll_node = fn()
         if self.lll_node is None:
-            raise TypeCheckFailure(f"{type(node).__name__} node did not produce LLL")
+            raise TypeCheckFailure(f"{type(node).__name__} node did not produce LLL. {self.expr}")
+
+        self.lll_node.annotation = self.expr.get("node_source_code")
 
     def parse_Int(self):
         # Literal (mostly likely) becomes int256
         if self.expr.n < 0:
             return LLLnode.from_list(
-                self.expr.n, typ=BaseType("int256", is_literal=True), pos=getpos(self.expr),
+                self.expr.n,
+                typ=BaseType("int256", is_literal=True),
+                pos=getpos(self.expr),
             )
         # Literal is large enough (mostly likely) becomes uint256.
         else:
             return LLLnode.from_list(
-                self.expr.n, typ=BaseType("uint256", is_literal=True), pos=getpos(self.expr),
+                self.expr.n,
+                typ=BaseType("uint256", is_literal=True),
+                pos=getpos(self.expr),
             )
 
     def parse_Decimal(self):
@@ -265,7 +268,7 @@ class Expr:
                 [
                     "mstore",
                     ["add", placeholder, i + 32],
-                    bytes_to_int((bytez + b"\x00" * 31)[i : i + 32]),  # noqa: E203
+                    bytes_to_int((bytez + b"\x00" * 31)[i : i + 32]),
                 ]
             )
         return LLLnode.from_list(
@@ -280,11 +283,15 @@ class Expr:
     def parse_NameConstant(self):
         if self.expr.value is True:
             return LLLnode.from_list(
-                1, typ=BaseType("bool", is_literal=True), pos=getpos(self.expr),
+                1,
+                typ=BaseType("bool", is_literal=True),
+                pos=getpos(self.expr),
             )
         elif self.expr.value is False:
             return LLLnode.from_list(
-                0, typ=BaseType("bool", is_literal=True), pos=getpos(self.expr),
+                0,
+                typ=BaseType("bool", is_literal=True),
+                pos=getpos(self.expr),
             )
 
     # Variable names
@@ -298,6 +305,7 @@ class Expr:
                 var.pos,
                 typ=var.typ,
                 location=var.location,  # either 'memory' or 'calldata' storage is handled above.
+                encoding=var.encoding,
                 pos=getpos(self.expr),
                 annotation=self.expr.id,
                 mutable=var.mutable,
@@ -308,6 +316,39 @@ class Expr:
             return LLLnode.from_list(
                 [obj], typ=BaseType(typ, is_literal=True), pos=getpos(self.expr)
             )
+        elif self.expr._metadata["type"].is_immutable:
+            # immutable variable
+            # need to handle constructor and outside constructor
+            var = self.context.globals[self.expr.id]
+            is_constructor = self.expr.get_ancestor(vy_ast.FunctionDef).get("name") == "__init__"
+            if is_constructor:
+                # store memory position for later access in parser.py in the variable record
+                memory_loc = self.context.new_variable(f"#immutable_{self.expr.id}", var.typ)
+                self.context.global_ctx._globals[self.expr.id].pos = memory_loc
+                # store the data offset in the variable record as well for accessing
+                data_offset = self.expr._metadata["type"].position.offset
+                self.context.global_ctx._globals[self.expr.id].data_offset = data_offset
+
+                return LLLnode.from_list(
+                    memory_loc,
+                    typ=var.typ,
+                    location="memory",
+                    pos=getpos(self.expr),
+                    annotation=self.expr.id,
+                    mutable=True,
+                )
+            else:
+                immutable_section_size = self.context.global_ctx.immutable_section_size
+                offset = self.expr._metadata["type"].position.offset
+                # TODO: resolve code offsets for immutables at compile time
+                return LLLnode.from_list(
+                    ["sub", "codesize", immutable_section_size - offset],
+                    typ=var.typ,
+                    location="code",
+                    pos=getpos(self.expr),
+                    annotation=self.expr.id,
+                    mutable=False,
+                )
 
     # x.y or x[5]
     def parse_Attribute(self):
@@ -324,7 +365,10 @@ class Expr:
                 else:
                     seq = ["balance", addr]
                 return LLLnode.from_list(
-                    seq, typ=BaseType("uint256"), location=None, pos=getpos(self.expr),
+                    seq,
+                    typ=BaseType("uint256"),
+                    location=None,
+                    pos=getpos(self.expr),
                 )
         # x.codesize: codesize of address x
         elif self.expr.attr == "codesize" or self.expr.attr == "is_contract":
@@ -340,7 +384,10 @@ class Expr:
                     eval_code = ["gt", ["extcodesize", addr], 0]
                     output_type = "bool"
                 return LLLnode.from_list(
-                    eval_code, typ=BaseType(output_type), location=None, pos=getpos(self.expr),
+                    eval_code,
+                    typ=BaseType(output_type),
+                    location=None,
+                    pos=getpos(self.expr),
                 )
         # x.codehash: keccak of address x
         elif self.expr.attr == "codehash":
@@ -375,44 +422,44 @@ class Expr:
             if key == "msg.sender" and not self.context.is_internal:
                 return LLLnode.from_list(["caller"], typ="address", pos=getpos(self.expr))
             elif key == "msg.data" and not self.context.is_internal:
-                is_len = self.expr._metadata.get("is_len")
-                if is_len is True:
-                    typ = ByteArrayType(32)
-                    pos = self.context.new_internal_variable(typ)
-                    node = ["seq", ["mstore", pos, "calldatasize"], pos]
-                    return LLLnode.from_list(
-                        node, typ=typ, pos=getpos(self.expr), location="memory"
-                    )
-                size = self.expr._metadata.get("size")
-                typ = ByteArrayType(size + 32)
-                pos = self.context.new_internal_variable(typ)
-                node = [
-                    "seq",
-                    ["assert", ["le", size, "calldatasize"]],
-                    ["mstore", pos, size],
-                    ["calldatacopy", pos + 32, 0, size],
-                    pos,
-                ]
-                return LLLnode.from_list(node, typ=typ, pos=getpos(self.expr), location="memory")
+                return LLLnode(0, typ=ByteArrayType(0), location="calldata")
             elif key == "msg.value" and self.context.is_payable:
                 return LLLnode.from_list(
-                    ["callvalue"], typ=BaseType("uint256"), pos=getpos(self.expr),
+                    ["callvalue"],
+                    typ=BaseType("uint256"),
+                    pos=getpos(self.expr),
                 )
             elif key == "msg.gas":
-                return LLLnode.from_list(["gas"], typ="uint256", pos=getpos(self.expr),)
+                return LLLnode.from_list(
+                    ["gas"],
+                    typ="uint256",
+                    pos=getpos(self.expr),
+                )
             elif key == "block.difficulty":
-                return LLLnode.from_list(["difficulty"], typ="uint256", pos=getpos(self.expr),)
+                return LLLnode.from_list(
+                    ["difficulty"],
+                    typ="uint256",
+                    pos=getpos(self.expr),
+                )
             elif key == "block.timestamp":
                 return LLLnode.from_list(
-                    ["timestamp"], typ=BaseType("uint256"), pos=getpos(self.expr),
+                    ["timestamp"],
+                    typ=BaseType("uint256"),
+                    pos=getpos(self.expr),
                 )
             elif key == "block.coinbase":
                 return LLLnode.from_list(["coinbase"], typ="address", pos=getpos(self.expr))
             elif key == "block.number":
                 return LLLnode.from_list(["number"], typ="uint256", pos=getpos(self.expr))
+            elif key == "block.gaslimit":
+                return LLLnode.from_list(["gaslimit"], typ="uint256", pos=getpos(self.expr))
+            elif key == "block.basefee":
+                return LLLnode.from_list(["basefee"], typ="uint256", pos=getpos(self.expr))
             elif key == "block.prevhash":
                 return LLLnode.from_list(
-                    ["blockhash", ["sub", "number", 1]], typ="bytes32", pos=getpos(self.expr),
+                    ["blockhash", ["sub", "number", 1]],
+                    typ="bytes32",
+                    pos=getpos(self.expr),
                 )
             elif key == "tx.origin":
                 return LLLnode.from_list(["origin"], typ="address", pos=getpos(self.expr))
@@ -429,42 +476,38 @@ class Expr:
             if isinstance(sub.typ, InterfaceType):
                 return sub
             if isinstance(sub.typ, StructType) and self.expr.attr in sub.typ.members:
-                return add_variable_offset(sub, self.expr.attr, pos=getpos(self.expr))
+                return get_element_ptr(sub, self.expr.attr, pos=getpos(self.expr))
 
     def parse_Subscript(self):
-        sub = Expr.parse_variable_location(self.expr.value, self.context)
-        if isinstance(sub.typ, (MappingType, ListType)):
+        sub = Expr(self.expr.value, self.context).lll_node
+        if sub.value == "multi":
+            # force literal to memory
+            t = LLLnode(self.context.new_internal_variable(sub.typ), typ=sub.typ, location="memory")
+            sub = LLLnode.from_list(
+                ["seq", make_setter(t, sub, pos=getpos(self.expr)), t],
+                typ=sub.typ,
+                location="memory",
+            )
+
+        if isinstance(sub.typ, MappingType):
+            # TODO sanity check we are in a self.my_map[i] situation
             index = Expr.parse_value_expr(self.expr.slice.value, self.context)
-            if isinstance(index.typ, ByteArrayLike) and index.args[0].location == "storage":
-                # Special case - if the key value is a bytes-array type located in
-                # storage, we have to copy it to memory prior to calculating the hash
-                placeholder = self.context.new_internal_variable(index.typ)
-                placeholder_node = LLLnode.from_list(placeholder, typ=index.typ, location="memory")
-                copier = make_byte_array_copier(
-                    placeholder_node,
-                    LLLnode.from_list(index.args[0], typ=index.typ, location="storage"),
-                )
-                return LLLnode.from_list(
-                    [
-                        "seq",
-                        copier,
-                        [
-                            "sha3_64",
-                            sub,
-                            ["sha3", ["add", placeholder, 32], ["mload", placeholder]],
-                        ],
-                    ],
-                    typ=sub.typ.valuetype,
-                    pos=getpos(self.expr),
-                    location="storage",
-                )
+            if isinstance(index.typ, ByteArrayLike):
+                # we have to hash the key to get a storage location
+                assert len(index.args) == 1
+                index = keccak256_helper(self.expr.slice.value, index.args[0], self.context)
+
+        elif isinstance(sub.typ, ListType):
+            index = Expr.parse_value_expr(self.expr.slice.value, self.context)
+
         elif isinstance(sub.typ, TupleType):
             index = self.expr.slice.value.n
             if not 0 <= index < len(sub.typ.members):
                 return
         else:
             return
-        lll_node = add_variable_offset(sub, index, pos=getpos(self.expr))
+
+        lll_node = get_element_ptr(sub, index, pos=getpos(self.expr))
         lll_node.mutable = sub.mutable
         return lll_node
 
@@ -486,11 +529,15 @@ class Expr:
         if literals == {True, False} and len(types) > 1 and "decimal" not in types:
             if left.typ.is_literal and SizeLimits.in_bounds(right.typ.typ, left.value):
                 left = LLLnode.from_list(
-                    left.value, typ=BaseType(right.typ.typ, None, is_literal=True), pos=pos,
+                    left.value,
+                    typ=BaseType(right.typ.typ, None, is_literal=True),
+                    pos=pos,
                 )
             elif right.typ.is_literal and SizeLimits.in_bounds(left.typ.typ, right.value):
                 right = LLLnode.from_list(
-                    right.value, typ=BaseType(left.typ.typ, None, is_literal=True), pos=pos,
+                    right.value,
+                    typ=BaseType(left.typ.typ, None, is_literal=True),
+                    pos=pos,
                 )
 
         ltyp, rtyp = left.typ.typ, right.typ.typ
@@ -542,7 +589,7 @@ class Expr:
                         ],
                     ]
 
-            elif ltyp in ("decimal", "int128"):
+            elif ltyp in ("decimal", "int128", "uint8"):
                 op = "add" if isinstance(self.expr.op, vy_ast.Add) else "sub"
                 arith = [op, "l", "r"]
 
@@ -588,7 +635,7 @@ class Expr:
                     ],
                 ]
 
-            elif ltyp == "int128":
+            elif ltyp in ("int128", "uint8"):
                 arith = ["mul", "l", "r"]
 
             elif ltyp == "decimal":
@@ -615,7 +662,7 @@ class Expr:
                 # only apply the non-zero clamp when r is not a constant
                 divisor = ["clamp_nonzero", "r"]
 
-            if ltyp == "uint256":
+            if ltyp in ("uint8", "uint256"):
                 arith = ["div", "l", divisor]
 
             elif ltyp == "int256":
@@ -636,7 +683,7 @@ class Expr:
                     bounds_check = "pass"
                 arith = ["seq", bounds_check, ["sdiv", "l", divisor]]
 
-            elif ltyp in ("int128", "int256"):
+            elif ltyp == "int128":
                 arith = ["sdiv", "l", divisor]
 
             elif ltyp == "decimal":
@@ -658,7 +705,7 @@ class Expr:
                 # only apply the non-zero clamp when r is not a constant
                 divisor = ["clamp_nonzero", "r"]
 
-            if ltyp == "uint256":
+            if ltyp in ("uint8", "uint256"):
                 arith = ["mod", "l", divisor]
             else:
                 arith = ["smod", "l", divisor]
@@ -677,6 +724,9 @@ class Expr:
             elif ltyp == "int256":
                 is_signed = True
                 num_bits = 256
+            elif ltyp == "uint8":
+                is_signed = False
+                num_bits = 8
             else:
                 is_signed = False
                 num_bits = 256
@@ -687,7 +737,9 @@ class Expr:
                 # for signed integers, this also prevents negative values
                 clamp = ["lt", right, upper_bound]
                 return LLLnode.from_list(
-                    ["seq", ["assert", clamp], ["exp", left, right]], typ=new_typ, pos=pos,
+                    ["seq", ["assert", clamp], ["exp", left, right]],
+                    typ=new_typ,
+                    pos=pos,
                 )
             elif isinstance(self.expr.right, vy_ast.Int):
                 value = self.expr.right.value
@@ -697,7 +749,9 @@ class Expr:
                 else:
                     clamp = ["lt", left, upper_bound]
                 return LLLnode.from_list(
-                    ["seq", ["assert", clamp], ["exp", left, right]], typ=new_typ, pos=pos,
+                    ["seq", ["assert", clamp], ["exp", left, right]],
+                    typ=new_typ,
+                    pos=pos,
                 )
             else:
                 # `a ** b` where neither `a` or `b` are known
@@ -708,24 +762,21 @@ class Expr:
         if arith is None:
             return
 
-        p = ["seq"]
-        if new_typ.typ == "int128":
-            p.append(int128_clamp(arith))
-        elif new_typ.typ == "decimal":
-            p.append(
-                [
-                    "clamp",
-                    ["mload", MemoryPositions.MINDECIMAL],
-                    arith,
-                    ["mload", MemoryPositions.MAXDECIMAL],
-                ]
-            )
-        elif new_typ.typ in ("uint256", "int256"):
-            p.append(arith)
-        else:
-            return
+        arith = LLLnode.from_list(arith, typ=new_typ)
 
-        p = ["with", "l", left, ["with", "r", right, p]]
+        p = [
+            "with",
+            "l",
+            left,
+            [
+                "with",
+                "r",
+                right,
+                # note clamp_basetype is a noop on [u]int256
+                # note: clamp_basetype throws on unclampable input
+                clamp_basetype(arith),
+            ],
+        ]
         return LLLnode.from_list(p, typ=new_typ, pos=pos)
 
     def build_in_comparator(self):
@@ -745,7 +796,7 @@ class Expr:
                 typ=ListType(right.typ.subtype, right.typ.count),
                 location="memory",
             )
-            setter = make_setter(tmp_list, right, "memory", pos=getpos(self.expr))
+            setter = make_setter(tmp_list, right, pos=getpos(self.expr))
             load_i_from_list = [
                 "mload",
                 ["add", tmp_list, ["mul", 32, ["mload", MemoryPositions.FREE_LOOP_INDEX]]],
@@ -798,7 +849,8 @@ class Expr:
             # for `not in`, invert the result
             compare_sequence = ["iszero", compare_sequence]
 
-        return LLLnode.from_list(compare_sequence, typ="bool", annotation="in comparator")
+        annotation = self.expr.get("node_source_code")
+        return LLLnode.from_list(compare_sequence, typ="bool", annotation=annotation)
 
     @staticmethod
     def _signed_to_unsigned_comparision_op(op):
@@ -853,12 +905,14 @@ class Expr:
             left_over_32 = left.typ.maxlen > 32
             right_over_32 = right.typ.maxlen > 32
             if length_mismatch or left_over_32 or right_over_32:
-                left_keccak = keccak256_helper(self.expr, [left], None, self.context)
-                right_keccak = keccak256_helper(self.expr, [right], None, self.context)
+                left_keccak = keccak256_helper(self.expr, left, self.context)
+                right_keccak = keccak256_helper(self.expr, right, self.context)
 
                 if op == "eq" or op == "ne":
                     return LLLnode.from_list(
-                        [op, left_keccak, right_keccak], typ="bool", pos=getpos(self.expr),
+                        [op, left_keccak, right_keccak],
+                        typ="bool",
+                        pos=getpos(self.expr),
                     )
 
                 else:
@@ -867,10 +921,11 @@ class Expr:
             else:
 
                 def load_bytearray(side):
-                    if side.location == "memory":
-                        return ["mload", ["add", 32, side]]
-                    elif side.location == "storage":
+                    if side.location == "storage":
                         return ["sload", ["add", 1, side]]
+                    else:
+                        load = load_op(side.location)
+                        return [load, ["add", 32, side]]
 
                 return LLLnode.from_list(
                     [op, load_bytearray(left), load_bytearray(right)],
@@ -902,17 +957,7 @@ class Expr:
             o = ["if", condition, true, false]
             return o
 
-        jump_label = f"_boolop_{self.expr.src}"
         if isinstance(self.expr.op, vy_ast.And):
-            if len(self.expr.values) == 2:
-                # `x and y` is a special case, it doesn't require jumping
-                lll_node = _build_if_lll(
-                    Expr.parse_value_expr(self.expr.values[0], self.context),
-                    Expr.parse_value_expr(self.expr.values[1], self.context),
-                    [0],
-                )
-                return LLLnode.from_list(lll_node, typ="bool")
-
             # create the initial `x and y` from the final two values
             lll_node = _build_if_lll(
                 Expr.parse_value_expr(self.expr.values[-2], self.context),
@@ -921,28 +966,22 @@ class Expr:
             )
             # iterate backward through the remaining values
             for node in self.expr.values[-3::-1]:
-                lll_node = _build_if_lll(
-                    Expr.parse_value_expr(node, self.context), lll_node, [0, ["goto", jump_label]]
-                )
+                lll_node = _build_if_lll(Expr.parse_value_expr(node, self.context), lll_node, [0])
 
         elif isinstance(self.expr.op, vy_ast.Or):
             # create the initial `x or y` from the final two values
             lll_node = _build_if_lll(
                 Expr.parse_value_expr(self.expr.values[-2], self.context),
-                [1, ["goto", jump_label]],
+                [1],
                 Expr.parse_value_expr(self.expr.values[-1], self.context),
             )
 
             # iterate backward through the remaining values
             for node in self.expr.values[-3::-1]:
-                lll_node = _build_if_lll(
-                    Expr.parse_value_expr(node, self.context), [1, ["goto", jump_label]], lll_node,
-                )
+                lll_node = _build_if_lll(Expr.parse_value_expr(node, self.context), 1, lll_node)
         else:
             raise TypeCheckFailure(f"Unexpected boolean operator: {type(self.expr.op).__name__}")
 
-        # add `jump_label` at the end of the boolop
-        lll_node = ["seq_unchecked", lll_node, ["label", jump_label]]
         return LLLnode.from_list(lll_node, typ="bool")
 
     # Unary operations (only "not" supported)
@@ -996,30 +1035,24 @@ class Expr:
             and isinstance(self.expr.func.value, vy_ast.Name)
             and self.expr.func.value.id == "self"
         ):  # noqa: E501
-            return self_call.make_call(self.expr, self.context)
+            return self_call.lll_for_self_call(self.expr, self.context)
         else:
-            return external_call.make_external_call(self.expr, self.context)
+            return external_call.lll_for_external_call(self.expr, self.context)
 
     def parse_List(self):
-        call_lll, multi_lll = parse_sequence(self.expr, self.expr.elements, self.context)
+        multi_lll = [Expr(x, self.context).lll_node for x in self.expr.elements]
+        # TODO this type inference is wrong. instead should use
+        # parse_type(canonical_type_of(self.expr._metadata["type"]))
         out_type = next((i.typ for i in multi_lll if not i.typ.is_literal), multi_lll[0].typ)
         typ = ListType(out_type, len(self.expr.elements), is_literal=True)
         multi_lll = LLLnode.from_list(["multi"] + multi_lll, typ=typ, pos=getpos(self.expr))
-        if not call_lll:
-            return multi_lll
-
-        lll_node = ["seq_unchecked"] + call_lll + [multi_lll]
-        return LLLnode.from_list(lll_node, typ=typ, pos=getpos(self.expr))
+        return multi_lll
 
     def parse_Tuple(self):
-        call_lll, multi_lll = parse_sequence(self.expr, self.expr.elements, self.context)
-        typ = TupleType([x.typ for x in multi_lll], is_literal=True)
-        multi_lll = LLLnode.from_list(["multi"] + multi_lll, typ=typ, pos=getpos(self.expr))
-        if not call_lll:
-            return multi_lll
-
-        lll_node = ["seq_unchecked"] + call_lll + [multi_lll]
-        return LLLnode.from_list(lll_node, typ=typ, pos=getpos(self.expr))
+        tuple_elements = [Expr(x, self.context).lll_node for x in self.expr.elements]
+        typ = TupleType([x.typ for x in tuple_elements], is_literal=True)
+        multi_lll = LLLnode.from_list(["multi"] + tuple_elements, typ=typ, pos=getpos(self.expr))
+        return multi_lll
 
     @staticmethod
     def struct_literals(expr, name, context):
@@ -1051,63 +1084,3 @@ class Expr:
         if not o.location:
             raise StructureException("Looking for a variable location, instead got a value", expr)
         return o
-
-
-def parse_sequence(base_node, elements, context):
-    """
-    Generate an LLL node from a sequence of Vyper AST nodes, such as values inside a
-    list/tuple or arguments inside a call.
-
-    Arguments
-    ---------
-    base_node : VyperNode
-        Parent node which contains the sequence being parsed.
-    elements : List[VyperNode]
-        A list of nodes within the sequence.
-    context : Context
-        Currently active local context.
-
-    Returns
-    -------
-    List[LLLNode]
-        LLL nodes that must execute prior to generating the actual sequence in order to
-        avoid memory corruption issues. This list may be empty, depending on the values
-        within `elements`.
-    List[LLLNode]
-        LLL nodes which collectively represent `elements`.
-    """
-    init_lll = []
-    sequence_lll = []
-    for node in elements:
-        if isinstance(node, vy_ast.List):
-            # for nested lists, ensure the init LLL is also processed before the values
-            init, seq = parse_sequence(node, node.elements, context)
-            init_lll.extend(init)
-            out_type = next((i.typ for i in seq if not i.typ.is_literal), seq[0].typ)
-            typ = ListType(out_type, len(node.elements), is_literal=True)
-            multi_lll = LLLnode.from_list(["multi"] + seq, typ=typ, pos=getpos(node))
-            sequence_lll.append(multi_lll)
-            continue
-
-        lll_node = Expr(node, context).lll_node
-        if isinstance(node, vy_ast.Call) or (
-            isinstance(node, vy_ast.Subscript) and isinstance(node.value, vy_ast.Call)
-        ):
-            # nodes which potentially create their own internal memory variables, and so must
-            # be parsed prior to generating the final sequence to avoid memory corruption
-            target = LLLnode.from_list(
-                context.new_internal_variable(lll_node.typ),
-                typ=lll_node.typ,
-                location="memory",
-                pos=getpos(base_node),
-            )
-            init_lll.append(make_setter(target, lll_node, "memory", pos=getpos(base_node)))
-            sequence_lll.append(
-                LLLnode.from_list(
-                    target, typ=lll_node.typ, pos=getpos(base_node), location="memory"
-                ),
-            )
-        else:
-            sequence_lll.append(lll_node)
-
-    return init_lll, sequence_lll

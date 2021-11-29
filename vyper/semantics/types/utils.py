@@ -13,10 +13,7 @@ from vyper.exceptions import (
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.bases import BaseTypeDefinition, DataLocation
 from vyper.semantics.types.indexable.sequence import ArrayDefinition
-from vyper.semantics.validation.utils import (
-    get_exact_type_from_node,
-    get_index_value,
-)
+from vyper.semantics.validation.utils import get_exact_type_from_node, get_index_value
 
 
 class StringEnum(enum.Enum):
@@ -72,7 +69,7 @@ class StringEnum(enum.Enum):
 def get_type_from_abi(
     abi_type: Dict,
     location: DataLocation = DataLocation.UNSET,
-    is_immutable: bool = False,
+    is_constant: bool = False,
     is_public: bool = False,
 ) -> BaseTypeDefinition:
     """
@@ -104,7 +101,7 @@ def get_type_from_abi(
             raise UnknownType(f"ABI type has an invalid length: {type_string}") from None
         try:
             value_type = get_type_from_abi(
-                {"type": value_type_string}, location=location, is_immutable=is_immutable
+                {"type": value_type_string}, location=location, is_constant=is_constant
             )
         except UnknownType:
             raise UnknownType(f"ABI contains unknown type: {type_string}") from None
@@ -113,7 +110,7 @@ def get_type_from_abi(
                 value_type,
                 length,
                 location=location,
-                is_immutable=is_immutable,
+                is_constant=is_constant,
                 is_public=is_public,
             )
         except InvalidType:
@@ -122,7 +119,7 @@ def get_type_from_abi(
     else:
         try:
             return namespace[type_string]._type(
-                location=location, is_immutable=is_immutable, is_public=is_public
+                location=location, is_constant=is_constant, is_public=is_public
             )
         except KeyError:
             raise UnknownType(f"ABI contains unknown type: {type_string}") from None
@@ -131,8 +128,9 @@ def get_type_from_abi(
 def get_type_from_annotation(
     node: vy_ast.VyperNode,
     location: DataLocation,
-    is_immutable: bool = False,
+    is_constant: bool = False,
     is_public: bool = False,
+    is_immutable: bool = False,
 ) -> BaseTypeDefinition:
     """
     Return a type object for the given AST node.
@@ -159,13 +157,16 @@ def get_type_from_annotation(
         raise UnknownType(f"No builtin or user-defined type named '{type_name}'", node) from None
 
     if getattr(type_obj, "_as_array", False) and isinstance(node, vy_ast.Subscript):
+        # TODO: handle `is_immutable` for arrays
         # if type can be an array and node is a subscript, create an `ArrayDefinition`
         length = get_index_value(node.slice)
-        value_type = get_type_from_annotation(node.value, location, is_immutable, False)
-        return ArrayDefinition(value_type, length, location, is_immutable, is_public)
+        value_type = get_type_from_annotation(
+            node.value, location, is_constant, False, is_immutable
+        )
+        return ArrayDefinition(value_type, length, location, is_constant, is_public, is_immutable)
 
     try:
-        return type_obj.from_annotation(node, location, is_immutable, is_public)
+        return type_obj.from_annotation(node, location, is_constant, is_public, is_immutable)
     except AttributeError:
         raise InvalidType(f"'{type_name}' is not a valid type", node) from None
 
@@ -198,4 +199,4 @@ def check_constant(node: vy_ast.VyperNode) -> bool:
         return True
 
     value_type = get_exact_type_from_node(node)
-    return getattr(value_type, "is_immutable", False)
+    return getattr(value_type, "is_constant", False)

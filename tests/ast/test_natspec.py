@@ -396,7 +396,8 @@ def foo() -> int128:
     """
 
     with pytest.raises(
-        NatSpecSyntaxException, match="Number of documented return values exceeds actual number",
+        NatSpecSyntaxException,
+        match="Number of documented return values exceeds actual number",
     ):
         parse_natspec(code)
 
@@ -414,6 +415,7 @@ def foo() -> (int128,uint256):
     """
 
     with pytest.raises(
-        NatSpecSyntaxException, match="Number of documented return values exceeds actual number",
+        NatSpecSyntaxException,
+        match="Number of documented return values exceeds actual number",
     ):
         parse_natspec(code)

@@ -4,17 +4,12 @@ from typing import Any, Callable, Optional, Sequence, Union
 from vyper.compiler import output
 from vyper.compiler.phases import CompilerData
 from vyper.evm.opcodes import DEFAULT_EVM_VERSION, evm_wrapper
-from vyper.typing import (
-    ContractCodes,
-    InterfaceDict,
-    InterfaceImports,
-    OutputDict,
-    OutputFormats,
-)
+from vyper.typing import ContractCodes, InterfaceDict, InterfaceImports, OutputDict, OutputFormats
 
 OUTPUT_FORMATS = {
     # requires vyper_module
     "ast_dict": output.build_ast_dict,
+    "layout": output.build_layout_output,
     # requires global_ctx
     "devdoc": output.build_devdoc,
     "userdoc": output.build_userdoc,
@@ -22,6 +17,7 @@ OUTPUT_FORMATS = {
     "external_interface": output.build_external_interface_output,
     "interface": output.build_interface_output,
     "ir": output.build_ir_output,
+    "ir_dict": output.build_ir_dict_output,
     "method_identifiers": output.build_method_identifiers_output,
     # requires assembly
     "abi": output.build_abi_output,
@@ -42,6 +38,7 @@ def compile_codes(
     exc_handler: Union[Callable, None] = None,
     interface_codes: Union[InterfaceDict, InterfaceImports, None] = None,
     initial_id: int = 0,
+    no_optimize: bool = False,
 ) -> OrderedDict:
     """
     Generate compiler output(s) from one or more contract source codes.
@@ -61,6 +58,8 @@ def compile_codes(
     evm_version: str, optional
         The target EVM ruleset to compile for. If not given, defaults to the latest
         implemented ruleset.
+    no_optimize: bool, optional
+        Turn off optimizations. Defaults to False
     interface_codes: Dict, optional
         Interfaces that may be imported by the contracts during compilation.
 
@@ -94,7 +93,7 @@ def compile_codes(
         ):
             interfaces = interfaces[contract_name]
 
-        compiler_data = CompilerData(source_code, contract_name, interfaces, source_id)
+        compiler_data = CompilerData(source_code, contract_name, interfaces, source_id, no_optimize)
         for output_format in output_formats[contract_name]:
             if output_format not in OUTPUT_FORMATS:
                 raise ValueError(f"Unsupported format type {repr(output_format)}")
@@ -118,6 +117,7 @@ def compile_code(
     output_formats: Optional[OutputFormats] = None,
     interface_codes: Optional[InterfaceImports] = None,
     evm_version: str = DEFAULT_EVM_VERSION,
+    no_optimize: bool = False,
 ) -> dict:
     """
     Generate compiler output(s) from a single contract source code.
@@ -132,6 +132,8 @@ def compile_code(
     evm_version: str, optional
         The target EVM ruleset to compile for. If not given, defaults to the latest
         implemented ruleset.
+    no_optimize: bool, optional
+        Turn off optimizations. Defaults to False
     interface_codes: Dict, optional
         Interfaces that may be imported by the contracts during compilation.
 
@@ -147,5 +149,9 @@ def compile_code(
     contract_sources = {UNKNOWN_CONTRACT_NAME: contract_source}
 
     return compile_codes(
-        contract_sources, output_formats, interface_codes=interface_codes, evm_version=evm_version,
+        contract_sources,
+        output_formats,
+        interface_codes=interface_codes,
+        evm_version=evm_version,
+        no_optimize=no_optimize,
     )[UNKNOWN_CONTRACT_NAME]

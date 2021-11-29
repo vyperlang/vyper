@@ -41,12 +41,13 @@ def test_lll_from_s_expression(get_contract_from_lll):
   (return
     0
     (lll ; just return 32 byte of calldata back
+      0
       (seq
           (calldatacopy 0 4 32)
           (return 0 32)
           stop
         )
-      0)))
+      )))
     """
     abi = [
         {
@@ -66,7 +67,7 @@ def test_lll_from_s_expression(get_contract_from_lll):
 
 
 def test_pc_debugger():
-    debugger_lll = ["seq_unchecked", ["mstore", 0, 32], ["pc_debugger"]]
+    debugger_lll = ["seq", ["mstore", 0, 32], ["pc_debugger"]]
     lll_nodes = LLLnode.from_list(debugger_lll)
     _, line_number_map = compile_lll.assembly_to_evm(compile_lll.compile_to_assembly(lll_nodes))
     assert line_number_map["pc_breakpoints"][0] == 5

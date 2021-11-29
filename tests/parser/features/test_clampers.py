@@ -92,6 +92,31 @@ def foo(s: bool) -> bool:
 
 
 @pytest.mark.parametrize("evm_version", list(EVM_VERSIONS))
+@pytest.mark.parametrize("value", list(range(2 ** 8)))
+def test_uint8_clamper_passing(w3, get_contract, value, evm_version):
+    code = """
+@external
+def foo(s: uint8) -> uint8:
+    return s
+    """
+
+    c = get_contract(code, evm_version=evm_version)
+    _make_tx(w3, c.address, "foo(uint8)", [value])
+
+
+@pytest.mark.parametrize("evm_version", list(EVM_VERSIONS))
+@pytest.mark.parametrize("value", [-100, 256, 2 ** 10, 2 ** 16, 2 ** 32, 2 ** 256 - 1])
+def test_uint8_clamper_failing(w3, assert_tx_failed, get_contract, value, evm_version):
+    code = """
+@external
+def foo(s: uint8) -> uint8:
+    return s
+    """
+    c = get_contract(code, evm_version=evm_version)
+    assert_tx_failed(lambda: _make_tx(w3, c.address, "foo(uint8)", [value]))
+
+
+@pytest.mark.parametrize("evm_version", list(EVM_VERSIONS))
 @pytest.mark.parametrize("value", [0, 1, 2 ** 160 - 1])
 def test_address_clamper_passing(w3, get_contract, value, evm_version):
     code = """
