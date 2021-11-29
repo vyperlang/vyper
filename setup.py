@@ -2,7 +2,6 @@
 
 from setuptools import find_packages, setup
 
-
 extras_require = {
     "test": [
         "pytest>=5.4,<6.0",
