@@ -3,6 +3,45 @@
 Release Notes
 #############
 
+v0.3.1
+*******
+
+Date released: 2021-12-01
+
+Breaking changes:
+
+* Disallow changes to decimal precision when used as a library (`#2479 <https://github.com/vyperlang/vyper/pull/2479>`_)
+
+Non-breaking changes and improvements:
+
+* Add immutable variables (`#2466 <https://github.com/vyperlang/vyper/pull/2466>`_)
+* Add uint8 type (`#2477 <https://github.com/vyperlang/vyper/pull/2477>`_)
+* Add gaslimit and basefee env variables (`#2495 <https://github.com/vyperlang/vyper/pull/2495>`_)
+* Enable checkable raw_call (`#2482 <https://github.com/vyperlang/vyper/pull/2482>`_)
+* Propagate revert data when external call fails (`#2531 <https://github.com/vyperlang/vyper/pull/2531>`_)
+* Improve LLL annotations (`#2486 <https://github.com/vyperlang/vyper/pull/2486>`_)
+* Optimize short-circuiting boolean operations (`#2467 <https://github.com/vyperlang/vyper/pull/2467>`_, `#2493 <https://github.com/vyperlang/vyper/pull/2493>`_)
+* Optimize identity precompile usage (`#2488 <https://github.com/vyperlang/vyper/pull/2488>`_)
+* Remove loaded limits for int128 and address (`#2506 <https://github.com/vyperlang/vyper/pull/2506>`_)
+* Add machine readable ir_json format (`#2510 <https://github.com/vyperlang/vyper/pull/2510>`_)
+* Optimize raw_call for the common case when the input is in memory (`#2481 <https://github.com/vyperlang/vyper/pull/2481>`_)
+* Remove experimental OVM transpiler (`#2532 <https://github.com/vyperlang/vyper/pull/2532>`_)
+* Add CLI flag to disable optimizer (`#2522 <https://github.com/vyperlang/vyper/pull/2522>`_)
+* Add docs for LLL syntax and semantics (`#2492 <https://github.com/vyperlang/vyper/pull/2494>`_)
+
+Fixes:
+
+* Allow non-constant revert reason strings (`#2509 <https://github.com/vyperlang/vyper/pull/2509>`_)
+* Allow slices of complex expressions (`#2500 <https://github.com/vyperlang/vyper/pull/2500>`_)
+* Remove seq_unchecked from LLL codegen (`#2485 <https://github.com/vyperlang/vyper/pull/2485>`_)
+* Fix external calls with default parameters (`#2526 <https://github.com/vyperlang/vyper/pull/2526>`_)
+* Enable lists of structs as function arguments (`#2515 <https://github.com/vyperlang/vyper/pull/2515>`_)
+* Fix .balance on constant addresses (`#2533 <https://github.com/vyperlang/vyper/pull/2533>`_)
+* Allow variable indexing into constant/literal arrays (`#2534 <https://github.com/vyperlang/vyper/pull/2534>`_)
+* Fix allocation of unused storage slots (`#2439 <https://github.com/vyperlang/vyper/pull/2439>`_, `#2514 <https://github.com/vyperlang/vyper/pull/2514>`_)
+
+Special thanks to @skellet0r for some major features in this release!
+
 v0.3.0
 *******
 
