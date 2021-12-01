@@ -47,7 +47,7 @@ setup(
     keywords="ethereum evm smart contract language",
     include_package_data=True,
     packages=find_packages(exclude=("tests", "docs")),
-    python_requires=">=3.7,<3.10",
+    python_requires=">=3.7,<3.11",
     py_modules=["vyper"],
     install_requires=[
         "asttokens==2.0.5",
