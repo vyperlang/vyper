@@ -34,9 +34,15 @@ extras_require["dev"] = (
 with open("README.md", "r") as f:
     long_description = f.read()
 
+
+# force commit hash to be appended to version even when tag is exact
+# (breaks PEP 440, but this is the debug info, not the version tag for pypi)
+def _local_version(version):
+    return f"+{version.node}-dirty" if version.dirty else f'+{version.node}'
+
 setup(
     name="vyper",
-    use_scm_version=True,
+    use_scm_version={"local_scheme": _local_version},
     description="Vyper: the Pythonic Programming Language for the EVM",
     long_description=long_description,
     long_description_content_type="text/markdown",
