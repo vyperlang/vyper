@@ -40,7 +40,7 @@ jobs:
       - name: Upload Artifact
         uses: actions/upload-artifact@v2
         with:
-          path: dist/vyper.*commit.*
+          path: dist/vyper.*
 
   windows-build:
     runs-on: windows-latest
@@ -65,4 +65,4 @@ jobs:
       - name: Upload Artifact
         uses: actions/upload-artifact@v2
         with:
-          path: dist/vyper.*commit.*
+          path: dist/vyper.*
