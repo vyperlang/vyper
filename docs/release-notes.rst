@@ -27,7 +27,7 @@ Non-breaking changes and improvements:
 * Optimize raw_call for the common case when the input is in memory (`#2481 <https://github.com/vyperlang/vyper/pull/2481>`_)
 * Remove experimental OVM transpiler (`#2532 <https://github.com/vyperlang/vyper/pull/2532>`_)
 * Add CLI flag to disable optimizer (`#2522 <https://github.com/vyperlang/vyper/pull/2522>`_)
-* Add docs for LLL syntax and semantics (`#2492 <https://github.com/vyperlang/vyper/pull/2494>`_)
+* Add docs for LLL syntax and semantics (`#2494 <https://github.com/vyperlang/vyper/pull/2494>`_)
 
 Fixes:
 
