@@ -25,6 +25,7 @@ from vyper.semantics.types.utils import (
     get_type_from_annotation,
 )
 from vyper.semantics.types.value.numeric import Uint256Definition
+from vyper.semantics.types.value.boolean import BoolDefinition
 from vyper.semantics.validation.utils import validate_expected_type
 from vyper.utils import keccak256
 
@@ -305,7 +306,7 @@ class ContractFunction(BaseTypeDefinition):
 
         namespace = get_namespace()
         for arg, value in zip(node.args.args, defaults):
-            if arg.arg in ("gas", "value"):
+            if arg.arg in ("gas", "value", "omit_contract_check"):
                 raise ArgumentException(
                     f"Cannot use '{arg.arg}' as a variable name in a function input",
                     arg,
@@ -443,7 +444,7 @@ class ContractFunction(BaseTypeDefinition):
         # for external calls, include gas and value as optional kwargs
         kwarg_keys = self.kwarg_keys.copy()
         if node.get("func.value.id") != "self":
-            kwarg_keys += ["gas", "value"]
+            kwarg_keys += ["gas", "value", "omit_contract_check"]
         validate_call_args(node, (self.min_arg_count, self.max_arg_count), kwarg_keys)
 
         if self.mutability < StateMutability.PAYABLE:
@@ -457,6 +458,10 @@ class ContractFunction(BaseTypeDefinition):
         for kwarg in node.keywords:
             if kwarg.arg in ("gas", "value"):
                 validate_expected_type(kwarg.value, Uint256Definition())
+            if kwarg.arg in ("omit_contract_check"):
+                validate_expected_type(kwarg.value, BoolDefinition())
+                if not isinstance(kwarg.value, vy_ast.NameConstant):
+                    raise InvalidType("omit_contract_check must be literal bool", kwarg.value)
             else:
                 validate_expected_type(kwarg.arg, kwarg.value)
 
