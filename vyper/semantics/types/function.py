@@ -458,7 +458,7 @@ class ContractFunction(BaseTypeDefinition):
         for kwarg in node.keywords:
             if kwarg.arg in ("gas", "value"):
                 validate_expected_type(kwarg.value, Uint256Definition())
-            if kwarg.arg in ("omit_contract_check"):
+            elif kwarg.arg in ("omit_contract_check"):
                 validate_expected_type(kwarg.value, BoolDefinition())
                 if not isinstance(kwarg.value, vy_ast.NameConstant):
                     raise InvalidType("omit_contract_check must be literal bool", kwarg.value)
