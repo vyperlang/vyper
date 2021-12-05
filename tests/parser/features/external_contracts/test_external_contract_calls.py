@@ -2,11 +2,11 @@ import pytest
 
 from vyper.exceptions import (
     ArgumentException,
+    InvalidType,
     StateAccessViolation,
     StructureException,
     UndeclaredDefinition,
     UnknownType,
-    InvalidType,
 )
 
 
@@ -826,6 +826,7 @@ def foo(a: address):
 def test_bad_code_struct_exc(assert_compile_failed, get_contract_with_gas_estimation, bad_code):
 
     assert_compile_failed(lambda: get_contract_with_gas_estimation(bad_code), ArgumentException)
+
 
 def test_bad_omit_contract_check(assert_compile_failed, get_contract_with_gas_estimation):
     code = """

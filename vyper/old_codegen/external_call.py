@@ -114,7 +114,14 @@ def _unpack_returndata(buf, contract_sig, omit_contract_check, context, pos):
 
 
 def _external_call_helper(
-    contract_address, contract_sig, args_lll, context, pos=None, value=None, gas=None, omit_contract_check=None
+    contract_address,
+    contract_sig,
+    args_lll,
+    context,
+    pos=None,
+    value=None,
+    gas=None,
+    omit_contract_check=None,
 ):
 
     if value is None:
@@ -139,7 +146,9 @@ def _external_call_helper(
 
     buf, arg_packer, args_ofst, args_len = _pack_arguments(contract_sig, args_lll, context, pos)
 
-    ret_unpacker, ret_ofst, ret_len = _unpack_returndata(buf, contract_sig, omit_contract_check, context, pos)
+    ret_unpacker, ret_ofst, ret_len = _unpack_returndata(
+        buf, contract_sig, omit_contract_check, context, pos
+    )
 
     sub += arg_packer
 

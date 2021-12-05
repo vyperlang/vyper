@@ -24,8 +24,8 @@ from vyper.semantics.types.utils import (
     get_type_from_abi,
     get_type_from_annotation,
 )
-from vyper.semantics.types.value.numeric import Uint256Definition
 from vyper.semantics.types.value.boolean import BoolDefinition
+from vyper.semantics.types.value.numeric import Uint256Definition
 from vyper.semantics.validation.utils import validate_expected_type
 from vyper.utils import keccak256
 
