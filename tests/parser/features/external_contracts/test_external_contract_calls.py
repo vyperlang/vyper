@@ -6,6 +6,7 @@ from vyper.exceptions import (
     StructureException,
     UndeclaredDefinition,
     UnknownType,
+    InvalidType,
 )
 
 
@@ -731,6 +732,35 @@ def get_lucky(gas_amount: uint256) -> int128:
     assert_tx_failed(lambda: c2.get_lucky(100))  # too little gas.
 
 
+def test_omit_contract_check(assert_tx_failed, get_contract_with_gas_estimation):
+    contract_2 = """
+@external
+@view
+def bar():
+    pass
+    """
+    contract_1 = """
+interface Bar:
+    def bar() -> uint256: view
+    def baz(): view
+
+@external
+def call_bar(addr: address):
+    # would fail if returndatasize check were on
+    x: uint256 = Bar(addr).bar(omit_contract_check=True)
+@external
+def call_baz():
+    # some address with no code
+    addr: address = 0x1234567890AbcdEF1234567890aBcdef12345678
+    # would fail if extcodesize check were on
+    Bar(addr).baz(omit_contract_check=True)
+    """
+    c1 = get_contract_with_gas_estimation(contract_1)
+    c2 = get_contract_with_gas_estimation(contract_2)
+    c1.call_bar(c2.address)
+    c1.call_baz()
+
+
 def test_invalid_keyword_on_call(assert_compile_failed, get_contract_with_gas_estimation):
 
     contract_1 = """
@@ -796,6 +826,19 @@ def foo(a: address):
 def test_bad_code_struct_exc(assert_compile_failed, get_contract_with_gas_estimation, bad_code):
 
     assert_compile_failed(lambda: get_contract_with_gas_estimation(bad_code), ArgumentException)
+
+def test_bad_omit_contract_check(assert_compile_failed, get_contract_with_gas_estimation):
+    code = """
+# variable value for omit_contract_check
+interface Bar:
+    def bar(): payable
+
+@external
+def foo():
+    x: bool = True
+    Bar(msg.sender).bar(omit_contract_check=x)
+    """
+    assert_compile_failed(lambda: get_contract_with_gas_estimation(code), InvalidType)
 
 
 def test_tuple_return_external_contract_call(get_contract, memory_mocker):
