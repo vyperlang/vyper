@@ -116,7 +116,7 @@ class ArrayLike(NodeType):
 
 
 # Data structure for a static array
-class SArrayType(NodeType):
+class SArrayType(ArrayLike):
     def __repr__(self):
         return f"{self.subtype}[{self.count}]"
 
@@ -126,9 +126,9 @@ class SArrayType(NodeType):
 
 
 # Data structure for a dynamic array
-class DArrayType(NodeType):
+class DArrayType(ArrayLike):
     def __repr__(self):
-        return f"{self.subtype}[:{self.count}]"
+        return f"DynArray[{self.subtype}, {self.count}]"
 
     @property
     def memory_bytes_required(self):
@@ -255,6 +255,9 @@ def make_struct_type(name, sigs, members, custom_structs):
 # the type is to be located in memory or storage
 # TODO: rename me to "lll_type_from_annotation"
 def parse_type(item, sigs=None, custom_structs=None):
+    def _sanity_check(x):
+        assert x, "typechecker missed this"
+
     # Base and custom types, e.g. num
     if isinstance(item, vy_ast.Name):
         if item.id in BASE_TYPES:
@@ -292,32 +295,38 @@ def parse_type(item, sigs=None, custom_structs=None):
             return BaseType(item.args[0].id)
 
         raise InvalidType("Units are no longer supported", item)
+
     # Subscripts
     elif isinstance(item, vy_ast.Subscript):
         # Fixed size lists or bytearrays, e.g. num[100]
         if isinstance(item.slice.value, vy_ast.Int):
-            n_val = item.slice.value.n
-            if not isinstance(n_val, int) or n_val <= 0:
-                raise InvalidType(
-                    "Arrays / ByteArrays must have a positive integral number of elements",
-                    item.slice.value,
-                )
+            length = item.slice.value.n
+            _sanity_check(isinstance(length, int) and length > 0)
+
             # ByteArray
             if getattr(item.value, "id", None) == "Bytes":
-                return ByteArrayType(n_val)
+                return ByteArrayType(length)
             elif getattr(item.value, "id", None) == "String":
-                return StringType(n_val)
+                return StringType(length)
             # List
             else:
-                return SArrayType(
-                    parse_type(
-                        item.value,
-                        location,
-                        sigs,
-                        custom_structs=custom_structs,
-                    ),
-                    n_val,
+                value_type = parse_type(
+                    item.value,
+                    sigs,
+                    custom_structs=custom_structs,
                 )
+                return SArrayType(value_type, length)
+        elif item.value.id == "DynArray":
+
+            _sanity_check(isinstance(item.slice.value, vy_ast.Tuple))
+            length = item.slice.value.elements[1].n
+            _sanity_check(isinstance(length, int) and length > 0)
+
+            value_type_annotation = item.slice.value.elements[0]
+            value_type = parse_type(value_type_annotation, sigs, custom_structs=custom_structs)
+
+            return DArrayType(value_type, length)
+
         elif item.value.id in ("HashMap",) and isinstance(item.slice.value, vy_ast.Tuple):
             keytype = parse_type(
                 item.slice.value.elements[0],

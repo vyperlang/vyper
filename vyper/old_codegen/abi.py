@@ -14,6 +14,7 @@ from vyper.old_codegen.types import (
     ByteArrayLike,
     ByteArrayType,
     SArrayType,
+    DArrayType,
     StringType,
     TupleLike,
 )
