@@ -15,6 +15,8 @@ from vyper.old_codegen.types import (
     BaseType,
     ByteArrayLike,
     SArrayType,
+    DArrayType,
+    ArrayLike,
     MappingType,
     StructType,
     TupleLike,
@@ -534,7 +536,7 @@ def make_setter(left, right, pos):
         return LLLnode.from_list(ret)
 
     # Arrays
-    elif isinstance(left.typ, (ArrayLike, TupleLike)):
+    elif isinstance(left.typ, (SArrayType, TupleLike)):
         return _complex_make_setter(left, right, pos)
 
 
@@ -574,7 +576,7 @@ def _typecheck_tuple_make_setter(left, right):
 
 @type_check_wrapper
 def _complex_make_setter(left, right, pos):
-    if isinstance(left.typ, ArrayLike):
+    if isinstance(left.typ, SArrayType):
         # CMC 20211002 this might not be necessary
         if not _typecheck_list_make_setter(left, right):
             return

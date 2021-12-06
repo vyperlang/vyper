@@ -132,7 +132,7 @@ class DArrayType(ArrayLike):
 
     @property
     def memory_bytes_required(self):
-        return DYNAMIC_ARRAY_OVERHEAD + self.count * self.subtype.memory_bytes_required
+        return DYNAMIC_ARRAY_OVERHEAD * 32 + self.count * self.subtype.memory_bytes_required
 
 
 # Data structure for a key-value mapping
@@ -364,7 +364,7 @@ def get_type_for_exact_size(n_bytes):
     Returns:
       type: A type which can be passed to context.new_variable
     """
-    return ByteArrayType(n_bytes - DYNAMIC_ARRAY_OVERHEAD)
+    return ByteArrayType(n_bytes - 32 * DYNAMIC_ARRAY_OVERHEAD)
 
 
 def get_type(input):
