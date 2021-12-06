@@ -111,11 +111,11 @@ def get_contract_module(no_optimize):
 
 
 def get_compiler_gas_estimate(code, func):
-    lll_nodes = compiler.phases.CompilerData(code).lll_nodes
+    lll_runtime = compiler.phases.CompilerData(code).lll_runtime
     if func:
-        return compiler.utils.build_gas_estimates(lll_nodes)[func] + 22000
+        return compiler.utils.build_gas_estimates(lll_runtime)[func] + 22000
     else:
-        return sum(compiler.utils.build_gas_estimates(lll_nodes).values()) + 22000
+        return sum(compiler.utils.build_gas_estimates(lll_runtime).values()) + 22000
 
 
 def check_gas_on_chain(w3, tester, code, func=None, res=None):

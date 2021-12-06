@@ -187,6 +187,7 @@ PSEUDO_OPCODES: OpcodeMap = {
     "UCLAMPLT": (None, 2, 1, 25),
     "UCLAMPLE": (None, 2, 1, 30),
     "CLAMP_NONZERO": (None, 1, 1, 19),
+    "CODELOAD": (None, 1, 1, 9),
     "ASSERT": (None, 1, 0, 85),
     "ASSERT_UNREACHABLE": (None, 1, 0, 17),
     "PASS": (None, 0, 0, 0),
