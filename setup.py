@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from setuptools import find_packages, setup
+import re
 
 extras_require = {
     "test": [
@@ -38,11 +39,23 @@ with open("README.md", "r") as f:
 # force commit hash to be appended to version even when tag is exact
 # (breaks PEP 440, but this is the debug info, not the version tag for pypi)
 def _local_version(version):
-    return f"+{version.node}-dirty" if version.dirty else f'+{version.node}'
+    commithash = version.node[1:]  # git describe adds 'g' prefix
+    ret = f"+commit.{commithash}"
+    if version.dirty:
+        ret += "-dirty"
+    return ret
+
+
+def _global_version(version):
+    from setuptools_scm.version import guess_next_dev_version
+    # strip `.devN` suffix since it is not semver compatible
+    # minor regex hack to avoid messing too much with setuptools-scm internals
+    version_str = guess_next_dev_version(version)
+    return re.sub("\.dev\d+", "", version_str)
 
 setup(
     name="vyper",
-    use_scm_version={"local_scheme": _local_version},
+    use_scm_version={"local_scheme": _local_version, "version_scheme": _global_version},
     description="Vyper: the Pythonic Programming Language for the EVM",
     long_description=long_description,
     long_description_content_type="text/markdown",
