@@ -48,10 +48,12 @@ def _local_version(version):
 
 def _global_version(version):
     from setuptools_scm.version import guess_next_dev_version
+
     # strip `.devN` suffix since it is not semver compatible
     # minor regex hack to avoid messing too much with setuptools-scm internals
     version_str = guess_next_dev_version(version)
     return re.sub("\.dev\d+", "", version_str)
+
 
 setup(
     name="vyper",
