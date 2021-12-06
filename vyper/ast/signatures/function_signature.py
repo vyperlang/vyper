@@ -167,7 +167,6 @@ class FunctionSignature:
             argname = arg.arg
             argtyp = parse_type(
                 arg.annotation,
-                None,
                 sigs,
                 custom_structs=custom_structs,
             )
@@ -206,7 +205,6 @@ class FunctionSignature:
         if func_ast.returns:
             return_type = parse_type(
                 func_ast.returns,
-                None,
                 sigs,
                 custom_structs=custom_structs,
             )

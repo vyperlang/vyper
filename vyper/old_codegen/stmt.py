@@ -49,7 +49,6 @@ class Stmt:
     def parse_AnnAssign(self):
         typ = parse_type(
             self.stmt.annotation,
-            location="memory",
             custom_structs=self.context.structs,
         )
         varname = self.stmt.target.id

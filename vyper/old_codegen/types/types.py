@@ -237,8 +237,7 @@ def canonicalize_type(t, is_indexed=False):
     raise InvalidType(f"Invalid or unsupported type: {repr(t)}")
 
 
-# TODO location is unused
-def make_struct_type(name, location, sigs, members, custom_structs):
+def make_struct_type(name, sigs, members, custom_structs):
     o = OrderedDict()
 
     for key, value in members:
@@ -247,16 +246,15 @@ def make_struct_type(name, location, sigs, members, custom_structs):
                 f"Invalid member variable for struct {key.id}, expected a name.",
                 key,
             )
-        o[key.id] = parse_type(value, location, sigs=sigs, custom_structs=custom_structs)
+        o[key.id] = parse_type(value, sigs=sigs, custom_structs=custom_structs)
 
     return StructType(o, name)
 
 
 # Parses an expression representing a type. Annotation refers to whether
 # the type is to be located in memory or storage
-# TODO: location is unused
 # TODO: rename me to "lll_type_from_annotation"
-def parse_type(item, location=None, sigs=None, custom_structs=None):
+def parse_type(item, sigs=None, custom_structs=None):
     # Base and custom types, e.g. num
     if isinstance(item, vy_ast.Name):
         if item.id in BASE_TYPES:
@@ -266,7 +264,6 @@ def parse_type(item, location=None, sigs=None, custom_structs=None):
         elif (custom_structs is not None) and (item.id in custom_structs):
             return make_struct_type(
                 item.id,
-                location,
                 sigs,
                 custom_structs[item.id],
                 custom_structs,
@@ -283,7 +280,6 @@ def parse_type(item, location=None, sigs=None, custom_structs=None):
         if (custom_structs is not None) and (item.func.id in custom_structs):
             return make_struct_type(
                 item.id,
-                location,
                 sigs,
                 custom_structs[item.id],
                 custom_structs,
@@ -333,7 +329,6 @@ def parse_type(item, location=None, sigs=None, custom_structs=None):
                 keytype,
                 parse_type(
                     item.slice.value.elements[1],
-                    location,
                     sigs,
                     custom_structs=custom_structs,
                 ),
@@ -341,16 +336,8 @@ def parse_type(item, location=None, sigs=None, custom_structs=None):
         # Mappings, e.g. num[address]
         else:
             raise InvalidType("Unknown list type.", item)
-
-    # Dicts, used to represent mappings, e.g. {uint: uint}. Key must be a base type
-    elif isinstance(item, vy_ast.Dict):
-        warnings.warn(
-            "Anonymous structs have been removed in" " favor of named structs, see VIP300",
-            DeprecationWarning,
-        )
-        raise InvalidType("Invalid type", item)
     elif isinstance(item, vy_ast.Tuple):
-        members = [parse_type(x, location, custom_structs=custom_structs) for x in item.elements]
+        members = [parse_type(x, custom_structs=custom_structs) for x in item.elements]
         return TupleType(members)
     else:
         raise InvalidType("Invalid type", item)
