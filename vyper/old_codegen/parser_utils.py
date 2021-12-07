@@ -174,91 +174,77 @@ def make_byte_array_copier(destination, source, pos=None):
     )
 
 
+# TODO rename to `copy_words`
 # Copy bytes
 # Accepts 4 arguments:
 # (i) an LLL node for the start position of the source
 # (ii) an LLL node for the start position of the destination
 # (iii) an LLL node for the length
 # (iv) a constant for the max length
-def make_byte_slice_copier(destination, source, length, max_length, pos=None):
+def make_byte_slice_copier(destination, source, length, length_bound, pos=None):
+    annotation = f"copy words src: {source} dst: {destination}"
+    # pseudocode for our approach (memory-memory as example):
+    # for i in range(MAX_LEN):
+    #   if i * 32 > _len:
+    #     break
+    #   mstore(_dst + i * 32, mload(_src + i * 32))
+    # (we do this because `repeat` can only take constant as its bound,
+    # if it could take a runtime bound then we could avoid the weirdness with
+    # `if i * 32 > _len: break`)
+
     # Special case: memory to memory
     if source.location == "memory" and destination.location == "memory":
         return LLLnode.from_list(
             [
                 "with",
                 "_l",
-                max_length,  # CMC 20210917 shouldn't this just be length
+                length,
                 ["staticcall", "gas", 4, source, "_l", destination, "_l"],
             ],
-            typ=None,
-            annotation=f"copy byte slice dest: {str(destination)}",
-            add_gas_estimate=_identity_gas_bound(max_length),
+            annotation=annotation,
+            add_gas_estimate=_identity_gas_bound(length_bound),
         )
+
+    iptr = MemoryPositions.FREE_LOOP_INDEX
+    i = ["mload", iptr]
 
     # special case: rhs is zero
     if source.value is None:
 
         if destination.location == "memory":
             # CMC 20210917 shouldn't this just be length
-            return mzero(destination, max_length)
+            return mzero(destination, length_bound)
 
         else:
             loader = 0
+
     # Copy over data
     elif source.location in ("memory", "calldata", "code"):
-        loader = [
-            load_op(source.location),
-            ["add", "_pos", ["mul", 32, ["mload", MemoryPositions.FREE_LOOP_INDEX]]],
-        ]
+        loader = [load_op(source.location), ["add", "_src", ["mul", 32, i]]]
+
     elif source.location == "storage":
-        loader = ["sload", ["add", "_pos", ["mload", MemoryPositions.FREE_LOOP_INDEX]]]
+        loader = ["sload", ["add", "_src", i]]
     else:
         raise CompilerPanic(f"Unsupported location: {source.location}")
-    # Where to paste it?
+
     if destination.location == "memory":
-        setter = [
-            "mstore",
-            ["add", "_opos", ["mul", 32, ["mload", MemoryPositions.FREE_LOOP_INDEX]]],
-            loader,
-        ]
+        setter = ["mstore", ["add", "_dst", ["mul", 32, i]], loader]
     elif destination.location == "storage":
-        setter = ["sstore", ["add", "_opos", ["mload", MemoryPositions.FREE_LOOP_INDEX]], loader]
+        setter = ["sstore", ["add", "_dst", i], loader]
     else:
         raise CompilerPanic(f"Unsupported location: {destination.location}")
-    # Check to see if we hit the length
-    checker = [
-        "if",
-        ["gt", ["mul", 32, ["mload", MemoryPositions.FREE_LOOP_INDEX]], "_actual_len"],
-        "break",
-    ]
-    # Make a loop to do the copying
-    ipos = 0 if source.value is None else source
-    o = [
-        "with",
-        "_pos",
-        ipos,
-        [
-            "with",
-            "_opos",
-            destination,
-            [
-                "with",
-                "_actual_len",
-                length,
-                [
-                    "repeat",
-                    MemoryPositions.FREE_LOOP_INDEX,
-                    0,
-                    (max_length + 31) // 32,
-                    ["seq", checker, setter],
-                ],
-            ],
-        ],
-    ]
+
+    checker = ["if", ["gt", ["mul", 32, i], "_len"], "break"]
+
+    src = 0 if source.value is None else source
+
+    _main_loop = ["repeat", iptr, 0, ceil32(length_bound), ["seq", checker, setter]]
+
+    o = ["with", "_src", src, ["with", "_dst", destination, ["with", "_len", length, _main_loop]]]
+
     return LLLnode.from_list(
         o,
-        typ=None,
-        annotation=f"copy byte slice src: {source} dst: {destination}",
+        annotation=annotation,
         pos=pos,
     )
 
