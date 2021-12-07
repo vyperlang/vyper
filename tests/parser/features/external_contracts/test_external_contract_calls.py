@@ -732,7 +732,7 @@ def get_lucky(gas_amount: uint256) -> int128:
     assert_tx_failed(lambda: c2.get_lucky(100))  # too little gas.
 
 
-def test_omit_contract_check(assert_tx_failed, get_contract_with_gas_estimation):
+def test_skip_contract_check(assert_tx_failed, get_contract_with_gas_estimation):
     contract_2 = """
 @external
 @view
@@ -747,13 +747,13 @@ interface Bar:
 @external
 def call_bar(addr: address):
     # would fail if returndatasize check were on
-    x: uint256 = Bar(addr).bar(omit_contract_check=True)
+    x: uint256 = Bar(addr).bar(skip_contract_check=True)
 @external
 def call_baz():
     # some address with no code
     addr: address = 0x1234567890AbcdEF1234567890aBcdef12345678
     # would fail if extcodesize check were on
-    Bar(addr).baz(omit_contract_check=True)
+    Bar(addr).baz(skip_contract_check=True)
     """
     c1 = get_contract_with_gas_estimation(contract_1)
     c2 = get_contract_with_gas_estimation(contract_2)
@@ -828,16 +828,16 @@ def test_bad_code_struct_exc(assert_compile_failed, get_contract_with_gas_estima
     assert_compile_failed(lambda: get_contract_with_gas_estimation(bad_code), ArgumentException)
 
 
-def test_bad_omit_contract_check(assert_compile_failed, get_contract_with_gas_estimation):
+def test_bad_skip_contract_check(assert_compile_failed, get_contract_with_gas_estimation):
     code = """
-# variable value for omit_contract_check
+# variable value for skip_contract_check
 interface Bar:
     def bar(): payable
 
 @external
 def foo():
     x: bool = True
-    Bar(msg.sender).bar(omit_contract_check=x)
+    Bar(msg.sender).bar(skip_contract_check=x)
     """
     assert_compile_failed(lambda: get_contract_with_gas_estimation(code), InvalidType)
 

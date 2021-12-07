@@ -67,7 +67,7 @@ def _returndata_encoding(contract_sig):
     return Encoding.ABI
 
 
-def _unpack_returndata(buf, contract_sig, omit_contract_check, context, pos):
+def _unpack_returndata(buf, contract_sig, skip_contrack_check, context, pos):
     return_t = contract_sig.return_type
     if return_t is None:
         return ["pass"], 0, 0
@@ -91,7 +91,7 @@ def _unpack_returndata(buf, contract_sig, omit_contract_check, context, pos):
     ret = []
     # runtime: min_return_size <= returndatasize
     # TODO move the -1 optimization to LLL optimizer
-    if not omit_contract_check:
+    if not skip_contrack_check:
         ret += [["assert", ["gt", "returndatasize", min_return_size - 1]]]
 
     # add as the last LLLnode a pointer to the return data structure
@@ -121,15 +121,15 @@ def _external_call_helper(
     pos=None,
     value=None,
     gas=None,
-    omit_contract_check=None,
+    skip_contrack_check=None,
 ):
 
     if value is None:
         value = 0
     if gas is None:
         gas = "gas"
-    if omit_contract_check is None:
-        omit_contract_check = False
+    if skip_contrack_check is None:
+        skip_contrack_check = False
 
     # sanity check
     assert len(contract_sig.base_args) <= len(args_lll) <= len(contract_sig.args)
@@ -147,12 +147,12 @@ def _external_call_helper(
     buf, arg_packer, args_ofst, args_len = _pack_arguments(contract_sig, args_lll, context, pos)
 
     ret_unpacker, ret_ofst, ret_len = _unpack_returndata(
-        buf, contract_sig, omit_contract_check, context, pos
+        buf, contract_sig, skip_contrack_check, context, pos
     )
 
     sub += arg_packer
 
-    if contract_sig.return_type is None and not omit_contract_check:
+    if contract_sig.return_type is None and not skip_contrack_check:
         # if we do not expect return data, check that a contract exists at the
         # target address. we must perform this check BEFORE the call because
         # the contract might selfdestruct. on the other hand we can omit this
@@ -186,27 +186,27 @@ def _external_call_helper(
 def _get_special_kwargs(stmt_expr, context):
     from vyper.old_codegen.expr import Expr  # TODO rethink this circular import
 
-    value, gas, omit_contract_check = None, None, None
+    value, gas, skip_contrack_check = None, None, None
     for kw in stmt_expr.keywords:
         if kw.arg == "gas":
             gas = Expr.parse_value_expr(kw.value, context)
         elif kw.arg == "value":
             value = Expr.parse_value_expr(kw.value, context)
-        elif kw.arg == "omit_contract_check":
-            omit_contract_check = kw.value.value
-            assert isinstance(omit_contract_check, bool), "type checker missed this"
+        elif kw.arg == "skip_contrack_check":
+            skip_contrack_check = kw.value.value
+            assert isinstance(skip_contrack_check, bool), "type checker missed this"
         else:
             raise TypeCheckFailure("Unexpected keyword argument")
 
     # TODO maybe return a small dataclass to reduce verbosity
-    return value, gas, omit_contract_check
+    return value, gas, skip_contrack_check
 
 
 def lll_for_external_call(stmt_expr, context):
     from vyper.old_codegen.expr import Expr  # TODO rethink this circular import
 
     pos = getpos(stmt_expr)
-    value, gas, omit_contract_check = _get_special_kwargs(stmt_expr, context)
+    value, gas, skip_contrack_check = _get_special_kwargs(stmt_expr, context)
     args_lll = [Expr(x, context).lll_node for x in stmt_expr.args]
 
     if isinstance(stmt_expr.func, vy_ast.Attribute) and isinstance(
@@ -257,7 +257,7 @@ def lll_for_external_call(stmt_expr, context):
         pos,
         value=value,
         gas=gas,
-        omit_contract_check=omit_contract_check,
+        skip_contrack_check=skip_contrack_check,
     )
     ret.annotation = stmt_expr.get("node_source_code")
 
