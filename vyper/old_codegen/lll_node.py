@@ -272,6 +272,23 @@ class LLLnode:
             self.value.lower() in VALID_LLL_MACROS or self.value.upper() in get_comb_opcodes()
         )
 
+    # This function is slightly confusing but abstracts a common pattern:
+    # when an LLL value needs to be computed once and then cached as an
+    # LLL value (if it is expensive, or more importantly if its computation
+    # includes side-effcts), cache it as an LLL variable named with the
+    # `name` param, and execute the `body` with the cached value. Otherwise,
+    # run the `body` on `self` (presumed to be cheaper)
+    # Note that this may be an unneeded abstraction in the presence of an
+    # arbitrarily powerful optimization framework (which can detect unneeded
+    # caches) but for now still necessary - CMC 2021-12-11.
+    # TODO reconsider naming, usage
+    def generate_with_statement_if_complex(self, name, body):
+        if self.is_complex_lll:
+            cached_self = LLLnode.from_list(name, typ=self.typ, location=self.location, encoding=self.encoding)
+            return LLLnode.from_list(["with", name, self, body(cached_self)])
+
+        return LLLnode.from_list(body(self))
+
     @cached_property
     def contains_self_call(self):
         return getattr(self, "is_self_call", False) or any(x.contains_self_call for x in self.args)

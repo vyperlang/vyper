@@ -99,116 +99,85 @@ def _codecopy_gas_bound(num_bytes):
 
 
 # Copy byte array word-for-word (including layout)
-def make_byte_array_copier(destination, source, pos=None):
-    if not isinstance(source.typ, ByteArrayLike):
-        raise TypeMismatch(f"Cannot cast from {source.typ} to {destination.typ}", pos)
-    if isinstance(source.typ, ByteArrayLike) and source.typ.maxlen > destination.typ.maxlen:
+def _make_byte_array_copier(destination, source, pos=None):
+    assert isinstance(source.typ, ByteArrayLike), "no"
+    assert isinstance(destination.typ, ByteArrayLike), "no"
+
+    if source.typ.maxlen > destination.typ.maxlen:
         raise TypeMismatch(
             f"Cannot cast from greater max-length {source.typ.maxlen} to shorter "
             f"max-length {destination.typ.maxlen}"
         )
-
     # stricter check for zeroing a byte array.
-    if isinstance(source.typ, ByteArrayLike):
-        if source.value is None and source.typ.maxlen != destination.typ.maxlen:
-            raise TypeMismatch(
-                f"Bad type for clearing bytes: expected {destination.typ}" f" but got {source.typ}"
-            )
-
-    # Special case: memory to memory
-    # TODO: this should be handled by make_byte_slice_copier.
-    if destination.location == "memory" and source.location in ("memory", "code", "calldata"):
-        if source.location == "memory":
-            # TODO turn this into an LLL macro: memorycopy
-            copy_op = ["staticcall", "gas", 4, "src", "sz", destination, "sz"]
-            gas_bound = _identity_gas_bound(source.typ.maxlen)
-        elif source.location == "calldata":
-            copy_op = ["calldatacopy", destination, "src", "sz"]
-            gas_bound = _calldatacopy_gas_bound(source.typ.maxlen)
-        elif source.location == "code":
-            copy_op = ["codecopy", destination, "src", "sz"]
-            gas_bound = _codecopy_gas_bound(source.typ.maxlen)
-        _sz_lll = ["add", 32, [load_op(source.location), "src"]]
-        o = LLLnode.from_list(
-            ["with", "src", source, ["with", "sz", _sz_lll, copy_op]],
-            typ=None,
-            add_gas_estimate=gas_bound,
-            annotation="copy bytestring to memory",
+    if source.value is None and source.typ.maxlen != destination.typ.maxlen:
+        raise CompilerPanic(
+            f"Bad type for clearing bytes: expected {destination.typ} but got {source.typ}"
         )
-        return o
 
-    if source.value is None:
-        pos_node = source
-    else:
-        pos_node = LLLnode.from_list("_pos", typ=source.typ, location=source.location)
-    # Get the length
-    if source.value is None:
-        length = 1
-    elif source.location in ("memory", "code", "calldata"):
-        length = ["add", [load_op(source.location), "_pos"], 32]
-    elif source.location == "storage":
-        length = ["add", ["sload", "_pos"], 32]
-        pos_node = LLLnode.from_list(
-            pos_node,
-            typ=source.typ,
-            location=source.location,
-        )
-    else:
-        raise CompilerPanic(f"Unsupported location: {source.location} to {destination.location}")
-    if destination.location == "storage":
-        destination = LLLnode.from_list(
-            destination,
-            typ=destination.typ,
-            location=destination.location,
-        )
-    # Maximum theoretical length
-    max_length = 32 if source.value is None else source.typ.maxlen + 32
-    return LLLnode.from_list(
-        [
-            "with",
-            "_pos",
-            0 if source.value is None else source,
-            make_byte_slice_copier(destination, pos_node, length, max_length, pos=pos),
-        ],
-        typ=None,
-    )
+    def _body(source):
+        if source.value is not None:
+            length = 0
+            max_length = 32
+        else:
+            length = ["add", get_bytearray_length(source), 32]
+            max_length = source.typ.memory_bytes_required
+
+        return copy_bytes(destination, source, length, max_length, pos=pos)
+
+    return source.generate_with_statement_if_complex("_src", _body)
 
 
-# TODO rename to `copy_words`
 # Copy bytes
 # Accepts 4 arguments:
 # (i) an LLL node for the start position of the source
 # (ii) an LLL node for the start position of the destination
-# (iii) an LLL node for the length
-# (iv) a constant for the max length
-def make_byte_slice_copier(destination, source, length, length_bound, pos=None):
-    annotation = f"copy words src: {source} dst: {destination}"
-    # pseudocode for our approach (memory-memory as example):
+# (iii) an LLL node for the length (in bytes)
+# (iv) a constant for the max length (in bytes)
+# NOTE: may pad to ceil32 of `length`! If you ask to copy 1 byte, it may
+# copy an entire (32-byte) word, depending on the copy routine chosen.
+def copy_bytes(destination, source, length, length_bound, pos=None):
+    annotation = f"copy bytes src: {source} dst: {destination}"
+
+    # special cases: batch copy to memory
+    if destination.location == "memory":
+        def _body(src, len_):
+            if src.location == "memory":
+                copy_op = ["staticcall", "gas", 4, src, len_, destination, len_]
+                gas_bound = _identity_gas_bound(length_bound)
+            elif src.location == "calldata":
+                copy_op = ["calldatacopy", destination, src, len_]
+                gas_bound = _calldatacopy_gas_bound(length_bound)
+            elif source.location == "code":
+                copy_op = ["codecopy", destination, src, len_]
+                gas_bound = _codecopy_gas_bound(length_bound)
+
+            return LLLnode.from_list(copy_op,
+                    annotation=annotation,
+                    add_gas_estimate=gas_bound
+                    )
+
+        return source.cache_if_complex_as("src",
+                lambda src: length.cache_if_complex_as("len",
+                    _body(src, len)))
+
+    # general case, copy word-for-word
+    # pseudocode for our approach (memory-storage as example):
     # for i in range(MAX_LEN):
     #   if i * 32 > _len:
     #     break
-    #   mstore(_dst + i * 32, mload(_src + i * 32))
-    # (we do this because `repeat` can only take constant as its bound,
-    # if it could take a runtime bound then we could avoid the weirdness with
+    #   sstore(_dst + i, mload(_src + i * 32))
+    # (we have an extra checker because `repeat` can only take a
+    # constant as its bound, if it could take a runtime bound then we
+    # could avoid the weirdness with
     # `if i * 32 > _len: break`)
 
-    # Special case: memory to memory
-    if source.location == "memory" and destination.location == "memory":
-        return LLLnode.from_list(
-            [
-                "with",
-                "_l",
-                length,
-                ["staticcall", "gas", 4, source, "_l", destination, "_l"],
-            ],
-            annotation=annotation,
-            add_gas_estimate=_identity_gas_bound(length_bound),
-        )
 
     iptr = MemoryPositions.FREE_LOOP_INDEX
+    # TODO save `i` on stack
     i = ["mload", iptr]
 
     # special case: rhs is zero
+    # CMC 20211211 this branch seems like dead code.
     if source.value is None:
 
         if destination.location == "memory":
@@ -242,11 +211,7 @@ def make_byte_slice_copier(destination, source, length, length_bound, pos=None):
 
     o = ["with", "_src", src, ["with", "_dst", destination, ["with", "_len", length, _main_loop]]]
 
-    return LLLnode.from_list(
-        o,
-        annotation=annotation,
-        pos=pos,
-    )
+    return LLLnode.from_list(o, annotation=annotation, pos=pos)
 
 
 def get_bytearray_length(arg):
@@ -514,10 +479,10 @@ def make_setter(left, right, pos):
         # TODO rethink/streamline the clamp_basetype logic
         if _needs_clamp(right.typ, right.encoding):
             _val = LLLnode("val", location=right.location, typ=right.typ)
-            copier = make_byte_array_copier(left, _val, pos)
+            copier = _make_byte_array_copier(left, _val, pos)
             ret = ["with", _val, right, ["seq", clamp_bytestring(_val), copier]]
         else:
-            ret = make_byte_array_copier(left, right, pos)
+            ret = _make_byte_array_copier(left, right, pos)
 
         return LLLnode.from_list(ret)
 

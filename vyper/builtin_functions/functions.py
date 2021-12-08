@@ -36,7 +36,7 @@ from vyper.old_codegen.parser_utils import (
     getpos,
     lll_tuple_from_args,
     load_op,
-    make_byte_slice_copier,
+    copy_bytes,
     unwrap_location,
 )
 from vyper.old_codegen.types import BaseType, ByteArrayLike, ByteArrayType, SArrayType
@@ -321,7 +321,7 @@ class Slice:
                     location="memory",
                 )
 
-        copier = make_byte_slice_copier(
+        copier = copy_bytes(
             placeholder_plus_32_node,
             adj_sub,
             ["add", "_length", 32],  # CMC 20210917 shouldn't this just be _length
@@ -508,7 +508,7 @@ class Concat:
                         arg,
                         [
                             "seq",
-                            make_byte_slice_copier(
+                            copy_bytes(
                                 placeholder_node_plus_32,
                                 argstart,
                                 length,
