@@ -9,8 +9,8 @@ extras_require = {
         "pytest-cov>=2.10,<3.0",
         "pytest-instafail>=0.4,<1.0",
         "pytest-xdist>=1.32,<2.0",
-        "eth-tester[py-evm]>=0.5.0b1,<0.6",
-        "py-evm==0.4.0a4",  # NOTE: temporarily pinned until we have support for py-evm 0.5.0a0+
+        "eth-tester[py-evm]>=0.6.0b4,<0.7",
+        "py-evm==0.5.0a1",  # NOTE: temporarily pinned until we have support for py-evm 0.5.0a0+
         "web3==5.21.0",
         "tox>=3.15,<4.0",
         "lark-parser==0.10.0",

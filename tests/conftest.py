@@ -2,7 +2,7 @@ import logging
 from functools import wraps
 
 import pytest
-from eth_tester import EthereumTester
+from eth_tester import EthereumTester, PyEVMBackend
 from eth_utils import setup_DEBUG2_logging
 from hexbytes import HexBytes
 from web3 import Web3
@@ -100,7 +100,10 @@ def get_contract_module(no_optimize):
     This fixture is used for Hypothesis tests to ensure that
     the same contract is called over multiple runs of the test.
     """
-    tester = EthereumTester()
+    custom_genesis = PyEVMBackend._generate_genesis_params(overrides={"gas_limit": 4500000})
+    custom_genesis['base_fee_per_gas'] = 0
+    backend = PyEVMBackend(genesis_parameters=custom_genesis)
+    tester = EthereumTester(backend=backend)
     w3 = Web3(EthereumTesterProvider(tester))
     w3.eth.setGasPriceStrategy(zero_gas_price_strategy)
 
