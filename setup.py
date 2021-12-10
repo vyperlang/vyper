@@ -5,7 +5,7 @@ import re
 
 extras_require = {
     "test": [
-        "pytest>=5.4,<6.0",
+        "pytest>=6.2.5,<7.0",
         "pytest-cov>=2.10,<3.0",
         "pytest-instafail>=0.4,<1.0",
         "pytest-xdist>=1.32,<2.0",
