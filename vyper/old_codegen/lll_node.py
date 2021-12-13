@@ -284,10 +284,42 @@ class LLLnode:
     # TODO reconsider naming, usage
     def generate_with_statement_if_complex(self, name, body):
         if self.is_complex_lll:
-            cached_self = LLLnode.from_list(name, typ=self.typ, location=self.location, encoding=self.encoding)
             return LLLnode.from_list(["with", name, self, body(cached_self)])
 
         return LLLnode.from_list(body(self))
+
+    def cache_when_complex(self, name):
+        # this creates a magical block which maps to LLL `with`
+        class _WithBuilder:
+            def __init__(self, lll_node, name):
+                self.lll_node = lll_node
+                # a named LLL variable which represents the
+                # output of `lll_node`
+                self.lll_var = LLLnode.from_list(name,
+                    typ=lll_node.typ,
+                    location=lll_node.location,
+                    encoding=lll_node.encoding)
+
+            def __enter__(self):
+                if self.lll_node.is_complex_lll:
+                    # return the named cache
+                    return self, self.lll_var
+                else:
+                    # it's a constant, just return that
+                    return self, self.lll_node
+
+            def __exit__(self, *args):
+                pass
+
+            # MUST be called at the end of building the expression
+            # in order to make sure the expression gets wrapped correctly
+            def resolve(self, body):
+                if self.lll_node.is_complex_lll:
+                    return LLLnode.from_list(["with", self.lll_var, self.lll_node, body])
+                else:
+                    return body
+
+        return _WithBuilder(self, name)
 
     @cached_property
     def contains_self_call(self):

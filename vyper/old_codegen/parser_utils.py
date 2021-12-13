@@ -99,7 +99,7 @@ def _codecopy_gas_bound(num_bytes):
 
 
 # Copy byte array word-for-word (including layout)
-def _make_byte_array_copier(destination, source, pos=None):
+def make_byte_array_copier(destination, source, pos=None):
     assert isinstance(source.typ, ByteArrayLike), "no"
     assert isinstance(destination.typ, ByteArrayLike), "no"
 
@@ -114,17 +114,15 @@ def _make_byte_array_copier(destination, source, pos=None):
             f"Bad type for clearing bytes: expected {destination.typ} but got {source.typ}"
         )
 
-    def _body(source):
-        if source.value is not None:
+    with source.cache_when_complex("_src") as (builder, src):
+        if src.value is not None:
             length = 0
             max_length = 32
         else:
-            length = ["add", get_bytearray_length(source), 32]
-            max_length = source.typ.memory_bytes_required
+            length = ["add", get_bytearray_length(src), 32]
+            max_length = src.typ.memory_bytes_required
 
-        return copy_bytes(destination, source, length, max_length, pos=pos)
-
-    return source.generate_with_statement_if_complex("_src", _body)
+        return builder.resolve(copy_bytes(destination, src, length, max_length, pos=pos))
 
 
 # Copy bytes
@@ -135,83 +133,80 @@ def _make_byte_array_copier(destination, source, pos=None):
 # (iv) a constant for the max length (in bytes)
 # NOTE: may pad to ceil32 of `length`! If you ask to copy 1 byte, it may
 # copy an entire (32-byte) word, depending on the copy routine chosen.
-def copy_bytes(destination, source, length, length_bound, pos=None):
+def copy_bytes(dst, src, length, length_bound, pos=None):
     annotation = f"copy bytes src: {source} dst: {destination}"
 
-    # special cases: batch copy to memory
-    if destination.location == "memory":
-        def _body(src, len_):
-            if src.location == "memory":
-                copy_op = ["staticcall", "gas", 4, src, len_, destination, len_]
+    with src.cache_when_complex("_src") as (b1, src), length.cache_when_complex("len") as (
+        b2,
+        len_,
+    ), dst.cache_when_complex("dst") as (b3, dst):
+        if src.location == "memory":
+            # special cases: batch copy to memory
+            if dst.location == "memory":
+                copy_op = ["staticcall", "gas", 4, src, len_, dst, len_]
                 gas_bound = _identity_gas_bound(length_bound)
             elif src.location == "calldata":
-                copy_op = ["calldatacopy", destination, src, len_]
+                copy_op = ["calldatacopy", dst, src, len_]
                 gas_bound = _calldatacopy_gas_bound(length_bound)
             elif source.location == "code":
-                copy_op = ["codecopy", destination, src, len_]
+                copy_op = ["codecopy", dst, src, len_]
                 gas_bound = _codecopy_gas_bound(length_bound)
 
-            return LLLnode.from_list(copy_op,
-                    annotation=annotation,
-                    add_gas_estimate=gas_bound
-                    )
+            return b1.resolve(
+                b2.resolve(b3.resolve(copy_op, annotation=annotation, add_gas_estimate=gas_bound))
+            )
 
-        return source.cache_if_complex_as("src",
-                lambda src: length.cache_if_complex_as("len",
-                    _body(src, len)))
+        # general case, copy word-for-word
+        # pseudocode for our approach (memory-storage as example):
+        # for i in range(MAX_LEN):
+        #   if i * 32 > _len:
+        #     break
+        #   sstore(_dst + i, mload(_src + i * 32))
+        # (we have an extra checker because `repeat` can only take a
+        # constant as its bound, if it could take a runtime bound then we
+        # could avoid the weirdness with
+        # `if i * 32 > _len: break`)
 
-    # general case, copy word-for-word
-    # pseudocode for our approach (memory-storage as example):
-    # for i in range(MAX_LEN):
-    #   if i * 32 > _len:
-    #     break
-    #   sstore(_dst + i, mload(_src + i * 32))
-    # (we have an extra checker because `repeat` can only take a
-    # constant as its bound, if it could take a runtime bound then we
-    # could avoid the weirdness with
-    # `if i * 32 > _len: break`)
+        iptr = MemoryPositions.FREE_LOOP_INDEX
+        # TODO save `i` on stack
+        i = ["mload", iptr]
 
+        # special case: rhs is zero
+        # CMC 20211211 this branch seems like dead code.
+        if src.value is None:
 
-    iptr = MemoryPositions.FREE_LOOP_INDEX
-    # TODO save `i` on stack
-    i = ["mload", iptr]
+            if dst.location == "memory":
+                # CMC 20210917 shouldn't this just be length
+                return mzero(dst, length_bound)
 
-    # special case: rhs is zero
-    # CMC 20211211 this branch seems like dead code.
-    if source.value is None:
+            else:
+                loader = 0
 
-        if destination.location == "memory":
-            # CMC 20210917 shouldn't this just be length
-            return mzero(destination, length_bound)
+        # Copy over data
+        elif src.location in ("memory", "calldata", "code"):
+            loader = [load_op(src.location), ["add", src, ["mul", 32, i]]]
 
+        elif src.location == "storage":
+            loader = ["sload", ["add", src, i]]
         else:
-            loader = 0
+            raise CompilerPanic(f"Unsupported location: {src.location}")
 
-    # Copy over data
-    elif source.location in ("memory", "calldata", "code"):
-        loader = [load_op(source.location), ["add", "_src", ["mul", 32, i]]]
+        if dst.location == "memory":
+            setter = ["mstore", ["add", dst, ["mul", 32, i]], loader]
+        elif dst.location == "storage":
+            setter = ["sstore", ["add", dst, i], loader]
+        else:
+            raise CompilerPanic(f"Unsupported location: {dst.location}")
 
-    elif source.location == "storage":
-        loader = ["sload", ["add", "_src", i]]
-    else:
-        raise CompilerPanic(f"Unsupported location: {source.location}")
+        checker = ["if", ["gt", ["mul", 32, i], len_], "break"]
 
-    if destination.location == "memory":
-        setter = ["mstore", ["add", "_dst", ["mul", 32, i]], loader]
-    elif destination.location == "storage":
-        setter = ["sstore", ["add", "_dst", i], loader]
-    else:
-        raise CompilerPanic(f"Unsupported location: {destination.location}")
+        src = LLLnode(0) if src.value is None else src
 
-    checker = ["if", ["gt", ["mul", 32, i], "_len"], "break"]
+        main_loop = ["repeat", iptr, 0, ceil32(length_bound), ["seq", checker, setter]]
 
-    src = 0 if source.value is None else source
-
-    _main_loop = ["repeat", iptr, 0, ceil32(length_bound), ["seq", checker, setter]]
-
-    o = ["with", "_src", src, ["with", "_dst", destination, ["with", "_len", length, _main_loop]]]
-
-    return LLLnode.from_list(o, annotation=annotation, pos=pos)
+        return b1.resolve(
+            b2.resolve(b3.resolve(LLLnode.from_list(main_loop, annotation=annotation, pos=pos)))
+        )
 
 
 def get_bytearray_length(arg):
