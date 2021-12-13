@@ -266,7 +266,7 @@ Operator                     Description
 ``x % y``                    Modulo
 ===========================  ======================
 
-``x``, ``y`` and ``z`` must be of the type ``uint256``.
+``x`` and ``y`` must be of the type ``uint256``.
 
 Decimals
 --------
