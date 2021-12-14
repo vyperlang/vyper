@@ -92,9 +92,9 @@ class LLLnode:
         self.total_gas = None
         self.func_name = None
 
-        def _check(condition, err_msg):
+        def _check(condition, err):
             if not condition:
-                raise CompilerPanic(err_msg)
+                raise CompilerPanic(str(err))
 
         # Determine this node's valency (1 if it pushes a value on the stack,
         # 0 otherwise) and checks to make sure the number and valencies of
@@ -122,8 +122,7 @@ class LLLnode:
                     zero_valency_whitelist = {"pass", "pop"}
                     _check(
                         arg.valency == 1 or arg.value in zero_valency_whitelist,
-                        "Can't have a zerovalent argument to an opcode or a pseudo-opcode! "
-                        f"{arg.value}: {arg}. Please file a bug report.",
+                        f"invalid argument to opcode or pseudo-opcode: {arg}"
                     )
                     self.gas += arg.gas
                 # Dynamic gas cost: 8 gas for each byte of logging data
@@ -152,44 +151,48 @@ class LLLnode:
                     self.gas = self.args[0].gas + self.args[1].gas + 17
                 _check(
                     self.args[0].valency > 0,
-                    "Can't have a zerovalent argument as a test to an if "
-                    f"statement! {self.args[0]}",
+                    f"zerovalent argument as a test to an if statement: {self.args[0]}"
                 )
                 _check(len(self.args) in (2, 3), "if statement can only have 2 or 3 arguments")
                 self.valency = self.args[1].valency
             # With statements: with <var> <initial> <statement>
             elif self.value == "with":
-                _check(len(self.args) == 3, f"With statement must have 3 arguments: {self}")
+                _check(len(self.args) == 3, self)
                 _check(
                     len(self.args[0].args) == 0 and isinstance(self.args[0].value, str),
-                    f"First argument to with statement must be a variable name: {self}",
+                    f"first argument to with statement must be a variable name: {self}",
                 )
                 _check(
                     self.args[1].valency == 1 or self.args[1].value == "pass",
-                    "Second argument to with statement (initial value) "
-                    f"cannot be zerovalent: {self.args[1]}",
+                    f"zerovalent argument to with statement: {self.args[1]}",
                 )
                 self.valency = self.args[2].valency
                 self.gas = sum([arg.gas for arg in self.args]) + 5
             # Repeat statements: repeat <index_memloc> <startval> <rounds> <body>
             elif self.value == "repeat":
-                counter_ptr = self.args[0]
-                start = self.args[1]
-                repeat_count = self.args[2].value  # constant int
-                body = self.args[3]
+                if len(self.args) == 5:
+                    counter_ptr = self.args[0]
+                    start = self.args[1]
+                    repeat_count = self.args[2]
+                    repeat_bound = self.args[3].value  # constant int
+                    body = self.args[4]
+                elif len(self.args) == 4:
+                    counter_ptr = self.args[0]
+                    start = self.args[1]
+                    repeat_count = None
+                    repeat_bound = self.args[2].value  # constant int
+                    body = self.args[3]
                 _check(
-                    isinstance(repeat_count, int) and repeat_count > 0,
-                    "repeat count must be a constant nonzero " f"positive integer: {self.args[2]}",
+                    isinstance(repeat_bound, int) and repeat_bound > 0,
+                    f"repeat bound must be a compile-time positive integer: {self.args[2]}",
                 )
-                _check(
-                    counter_ptr.valency == 1,
-                    f"repeat counter location cannot be zerovalent: {counter_ptr}",
-                )
-                _check(start.valency == 1, f"repeat start value cannot be zerovalent: {start}")
-                _check(body.valency == 0, f"repeat body must be zerovalent: {body}")
+                _check(repeat_count is None or repeat_count.valency == 1, repeat_count)
+                _check(counter_ptr.valency == 1, counter_ptr)
+                _check(start.valency == 1, start)
+                _check(body.valency == 0, body)
                 self.valency = 0
 
-                self.gas = repeat_count * (body.gas + 50) + 30
+                self.gas = repeat_bound * (body.gas + 50) + 30
 
             # Seq statements: seq <statement> <statement> ...
             elif self.value == "seq":
