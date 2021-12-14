@@ -28,6 +28,9 @@ ADD . /code
 
 WORKDIR /code
 
+# force repository to be clean so the version string is right
+RUN git reset --hard
+
 # Using "test" optional to include test dependencies in built docker-image
 RUN pip install .[test] && \
     apt-get purge -y --auto-remove apt-utils gcc libc6-dev libc-dev libssl-dev
