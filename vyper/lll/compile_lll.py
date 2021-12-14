@@ -241,7 +241,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
             ]
         )
         # stack: len(loops), index memory address, new index
-        o.extend(["DUP2", "EQ", "ISZERO", start, "JUMPI", end, "JUMPDEST", "POP", "POP"])
+        o.extend(["DUP2", "LT", start, "JUMPI", end, "JUMPDEST", "POP", "POP"])
         return o
     # Continue to the next iteration of the for loop
     elif code.value == "continue":
