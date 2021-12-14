@@ -1,6 +1,5 @@
 import abc
 import copy
-import warnings
 from collections import OrderedDict
 from typing import Any
 
@@ -28,7 +27,7 @@ class NodeType(abc.ABC):
         """
         Returns the number of bytes required to allocate in memory for this type
         """
-        raise InvalidType(f"Unexpected type: {typ}")
+        raise InvalidType(f"Unexpected type: {self}")
 
     @property
     def storage_size_in_words(self) -> int:

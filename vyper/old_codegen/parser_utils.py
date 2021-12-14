@@ -134,7 +134,7 @@ def make_byte_array_copier(destination, source, pos=None):
 # NOTE: may pad to ceil32 of `length`! If you ask to copy 1 byte, it may
 # copy an entire (32-byte) word, depending on the copy routine chosen.
 def copy_bytes(dst, src, length, length_bound, pos=None):
-    annotation = f"copy bytes src: {source} dst: {destination}"
+    annotation = f"copy bytes src: {src} dst: {dst}"
 
     with src.cache_when_complex("_src") as (b1, src), length.cache_when_complex("len") as (
         b2,
@@ -148,7 +148,7 @@ def copy_bytes(dst, src, length, length_bound, pos=None):
             elif src.location == "calldata":
                 copy_op = ["calldatacopy", dst, src, len_]
                 gas_bound = _calldatacopy_gas_bound(length_bound)
-            elif source.location == "code":
+            elif src.location == "code":
                 copy_op = ["codecopy", dst, src, len_]
                 gas_bound = _codecopy_gas_bound(length_bound)
 

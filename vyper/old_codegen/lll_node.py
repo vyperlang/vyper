@@ -250,17 +250,16 @@ class LLLnode:
     # LLL value (if it is expensive, or more importantly if its computation
     # includes side-effcts), cache it as an LLL variable named with the
     # `name` param, and execute the `body` with the cached value. Otherwise,
-    # run the `body` on `self` (presumed to be cheaper)
+    # run the `body` without caching the LLL variable.
     # Note that this may be an unneeded abstraction in the presence of an
     # arbitrarily powerful optimization framework (which can detect unneeded
     # caches) but for now still necessary - CMC 2021-12-11.
-    # TODO reconsider naming, usage
-    def generate_with_statement_if_complex(self, name, body):
-        if self.is_complex_lll:
-            return LLLnode.from_list(["with", name, self, body(cached_self)])
-
-        return LLLnode.from_list(body(self))
-
+    # usage:
+    # ```
+    # with lll_node.cache_when_complex("foo") as builder, foo:
+    #   ret = some_function(foo)
+    #   return builder.resolve(ret)
+    # ```
     def cache_when_complex(self, name):
         # this creates a magical block which maps to LLL `with`
         class _WithBuilder:
@@ -303,6 +302,8 @@ class LLLnode:
     def __len__(self):
         return len(self.to_list())
 
+    # TODO this seems like a not useful and also confusing function
+    # check if dead code and remove - CMC 2021-12-13
     def to_list(self):
         return [self.value] + [a.to_list() for a in self.args]
 
