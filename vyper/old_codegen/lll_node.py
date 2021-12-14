@@ -92,6 +92,10 @@ class LLLnode:
         self.total_gas = None
         self.func_name = None
 
+        def _check(condition, err_msg):
+            if not condition:
+                raise CompilerPanic(err_msg)
+
         # Determine this node's valency (1 if it pushes a value on the stack,
         # 0 otherwise) and checks to make sure the number and valencies of
         # children are correct. Also, find an upper bound on gas consumption
@@ -104,8 +108,10 @@ class LLLnode:
             if self.value.upper() in get_comb_opcodes():
                 _, ins, outs, gas = get_comb_opcodes()[self.value.upper()]
                 self.valency = outs
-                if len(self.args) != ins:
-                    raise CompilerPanic(f"Number of arguments mismatched: {self.value} {self.args}")
+                _check(
+                    len(self.args) == ins,
+                    f"Number of arguments mismatched: {self.value} {self.args}",
+                )
                 # We add 2 per stack height at push time and take it back
                 # at pop time; this makes `break` easier to handle
                 self.gas = gas + 2 * (outs - ins)
@@ -114,11 +120,11 @@ class LLLnode:
                     # consumed for internal functions, therefore we whitelist this as a zero valency
                     # allowed argument.
                     zero_valency_whitelist = {"pass", "pop"}
-                    if arg.valency == 0 and arg.value not in zero_valency_whitelist:
-                        raise CompilerPanic(
-                            "Can't have a zerovalent argument to an opcode or a pseudo-opcode! "
-                            f"{arg.value}: {arg}. Please file a bug report."
-                        )
+                    _check(
+                        arg.valency == 1 or arg.value in zero_valency_whitelist,
+                        "Can't have a zerovalent argument to an opcode or a pseudo-opcode! "
+                        f"{arg.value}: {arg}. Please file a bug report.",
+                    )
                     self.gas += arg.gas
                 # Dynamic gas cost: 8 gas for each byte of logging data
                 if self.value.upper()[0:3] == "LOG" and isinstance(self.args[1].value, int):
@@ -144,82 +150,47 @@ class LLLnode:
                     self.gas = self.args[0].gas + max(self.args[1].gas, self.args[2].gas) + 3
                 if len(self.args) == 2:
                     self.gas = self.args[0].gas + self.args[1].gas + 17
-                if not self.args[0].valency:
-                    raise CompilerPanic(
-                        "Can't have a zerovalent argument as a test to an if "
-                        f"statement! {self.args[0]}"
-                    )
-                if len(self.args) not in (2, 3):
-                    raise CompilerPanic("If can only have 2 or 3 arguments")
+                _check(
+                    self.args[0].valency > 0,
+                    "Can't have a zerovalent argument as a test to an if "
+                    f"statement! {self.args[0]}",
+                )
+                _check(len(self.args) in (2, 3), "if statement can only have 2 or 3 arguments")
                 self.valency = self.args[1].valency
             # With statements: with <var> <initial> <statement>
             elif self.value == "with":
-                if len(self.args) != 3:
-                    raise CompilerPanic(f"With statement must have 3 arguments: {self}")
-                if len(self.args[0].args) or not isinstance(self.args[0].value, str):
-                    raise CompilerPanic(
-                        f"First argument to with statement must be a variable: {self}"
-                    )
-                if not self.args[1].valency and self.args[1].value != "pass":
-                    raise CompilerPanic(
-                        (
-                            "Second argument to with statement (initial value) "
-                            f"cannot be zerovalent: {self.args[1]}"
-                        )
-                    )
+                _check(len(self.args) == 3, f"With statement must have 3 arguments: {self}")
+                _check(
+                    len(self.args[0].args) == 0 and isinstance(self.args[0].value, str),
+                    f"First argument to with statement must be a variable name: {self}",
+                )
+                _check(
+                    self.args[1].valency == 1 or self.args[1].value == "pass",
+                    "Second argument to with statement (initial value) "
+                    f"cannot be zerovalent: {self.args[1]}",
+                )
                 self.valency = self.args[2].valency
                 self.gas = sum([arg.gas for arg in self.args]) + 5
             # Repeat statements: repeat <index_memloc> <startval> <rounds> <body>
             elif self.value == "repeat":
-                is_invalid_repeat_count = any(
-                    (
-                        len(self.args[2].args),
-                        not isinstance(self.args[2].value, int),
-                        isinstance(self.args[2].value, int) and self.args[2].value <= 0,
-                    )
+                counter_ptr = self.args[0]
+                start = self.args[1]
+                repeat_count = self.args[2].value  # constant int
+                body = self.args[3]
+                _check(
+                    isinstance(repeat_count, int) and repeat_count > 0,
+                    "repeat count must be a constant nonzero " f"positive integer: {self.args[2]}",
                 )
-
-                if is_invalid_repeat_count:
-                    raise CompilerPanic(
-                        (
-                            "Number of times repeated must be a constant nonzero "
-                            f"positive integer: {self.args[2]}"
-                        )
-                    )
-                if not self.args[0].valency:
-                    raise CompilerPanic(
-                        (
-                            "First argument to repeat (memory location) cannot be "
-                            f"zerovalent: {self.args[0]}"
-                        )
-                    )
-                if not self.args[1].valency:
-                    raise CompilerPanic(
-                        (
-                            "Second argument to repeat (start value) cannot be "
-                            f"zerovalent: {self.args[1]}"
-                        )
-                    )
-                if self.args[3].valency:
-                    raise CompilerPanic(
-                        (
-                            "Third argument to repeat (clause to be repeated) must "
-                            f"be zerovalent: {self.args[3]}"
-                        )
-                    )
+                _check(
+                    counter_ptr.valency == 1,
+                    f"repeat counter location cannot be zerovalent: {counter_ptr}",
+                )
+                _check(start.valency == 1, f"repeat start value cannot be zerovalent: {start}")
+                _check(body.valency == 0, f"repeat body must be zerovalent: {body}")
                 self.valency = 0
-                rounds: int
-                if self.args[1].value in ("calldataload", "mload") or self.args[1].value == "sload":
-                    if isinstance(self.args[2].value, int):
-                        rounds = self.args[2].value
-                    else:
-                        raise CompilerPanic(f"Unsupported rounds argument type. {self.args[2]}")
-                else:
-                    if isinstance(self.args[2].value, int) and isinstance(self.args[1].value, int):
-                        rounds = abs(self.args[2].value - self.args[1].value)
-                    else:
-                        raise CompilerPanic(f"Unsupported second argument types. {self.args}")
-                self.gas = rounds * (self.args[3].gas + 50) + 30
+
+                self.gas = repeat_count * (body.gas + 50) + 30
+
             # Seq statements: seq <statement> <statement> ...
             elif self.value == "seq":
                 self.valency = self.args[-1].valency if self.args else 0
@@ -230,17 +201,19 @@ class LLLnode:
             # then JUMP to my_label.
             elif self.value == "goto":
                 for arg in self.args:
-                    if not arg.valency and arg.value != "pass":
-                        raise CompilerPanic(f"zerovalent argument to goto {self}")
+                    _check(
+                        arg.valency == 1 or arg.value == "pass",
+                        f"zerovalent argument to goto {self}",
+                    )
+
                 self.valency = 0
                 self.gas = sum([arg.gas for arg in self.args])
             # Multi statements: multi <expr> <expr> ...
             elif self.value == "multi":
                 for arg in self.args:
-                    if not arg.valency:
-                        raise CompilerPanic(
-                            f"Multi expects all children to not be zerovalent: {arg}"
-                        )
+                    _check(
+                        arg.valency == 1, f"Multi expects all children to not be zerovalent: {arg}"
+                    )
                 self.valency = sum([arg.valency for arg in self.args])
                 self.gas = sum([arg.gas for arg in self.args])
             # LLL brackets (don't bother gas counting)
@@ -295,10 +268,9 @@ class LLLnode:
                 self.lll_node = lll_node
                 # a named LLL variable which represents the
                 # output of `lll_node`
-                self.lll_var = LLLnode.from_list(name,
-                    typ=lll_node.typ,
-                    location=lll_node.location,
-                    encoding=lll_node.encoding)
+                self.lll_var = LLLnode.from_list(
+                    name, typ=lll_node.typ, location=lll_node.location, encoding=lll_node.encoding
+                )
 
             def __enter__(self):
                 if self.lll_node.is_complex_lll:
