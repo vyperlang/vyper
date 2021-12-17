@@ -10,7 +10,7 @@ from vyper.exceptions import (
 )
 
 
-def test_external_contract_calls(get_contract, get_contract_with_gas_estimation, memory_mocker):
+def test_external_contract_calls(get_contract, get_contract_with_gas_estimation):
     contract_1 = """
 @external
 def foo(arg1: int128) -> int128:
@@ -34,7 +34,7 @@ def bar(arg1: address, arg2: int128) -> int128:
 
 
 def test_complicated_external_contract_calls(
-    get_contract, get_contract_with_gas_estimation, memory_mocker
+    get_contract, get_contract_with_gas_estimation
 ):
     contract_1 = """
 lucky: public(int128)
@@ -71,7 +71,7 @@ def bar(arg1: address) -> int128:
 
 
 @pytest.mark.parametrize("length", [3, 32, 33, 64])
-def test_external_contract_calls_with_bytes(get_contract, length, memory_mocker):
+def test_external_contract_calls_with_bytes(get_contract, length):
     contract_1 = f"""
 @external
 def array() -> Bytes[{length}]:
@@ -93,7 +93,7 @@ def get_array(arg1: address) -> Bytes[3]:
     assert c2.get_array(c.address) == b"dog"
 
 
-def test_bytes_too_long(get_contract, assert_tx_failed, memory_mocker):
+def test_bytes_too_long(get_contract, assert_tx_failed):
     contract_1 = """
 @external
 def array() -> Bytes[4]:
@@ -139,7 +139,7 @@ def run(raiser: address):
 
 @pytest.mark.parametrize("a,b", [(3, 3), (4, 3), (3, 4), (32, 32), (33, 33), (64, 64)])
 @pytest.mark.parametrize("actual", [3, 32, 64])
-def test_tuple_with_bytes(get_contract, assert_tx_failed, a, b, actual, memory_mocker):
+def test_tuple_with_bytes(get_contract, assert_tx_failed, a, b, actual):
     contract_1 = f"""
 @external
 def array() -> (Bytes[{actual}], int128, Bytes[{actual}]):
@@ -168,7 +168,7 @@ def get_array(arg1: address) -> (Bytes[{a}], int128, Bytes[{b}]):
 
 @pytest.mark.parametrize("a,b", [(18, 7), (18, 18), (19, 6), (64, 6), (7, 19)])
 @pytest.mark.parametrize("c,d", [(19, 7), (64, 64)])
-def test_tuple_with_bytes_too_long(get_contract, assert_tx_failed, a, c, b, d, memory_mocker):
+def test_tuple_with_bytes_too_long(get_contract, assert_tx_failed, a, c, b, d):
     contract_1 = f"""
 @external
 def array() -> (Bytes[{c}], int128, Bytes[{d}]):
@@ -195,7 +195,7 @@ def get_array(arg1: address) -> (Bytes[{a}], int128, Bytes[{b}]):
     assert_tx_failed(lambda: c2.get_array(c.address))
 
 
-def test_tuple_with_bytes_too_long_two(get_contract, assert_tx_failed, memory_mocker):
+def test_tuple_with_bytes_too_long_two(get_contract, assert_tx_failed):
     contract_1 = """
 @external
 def array() -> (Bytes[30], int128, Bytes[30]):
@@ -223,7 +223,7 @@ def get_array(arg1: address) -> (Bytes[30], int128, Bytes[3]):
 
 
 @pytest.mark.parametrize("length", [8, 256])
-def test_external_contract_calls_with_uint8(get_contract, length, memory_mocker):
+def test_external_contract_calls_with_uint8(get_contract, length):
     contract_1 = f"""
 @external
 def foo() -> uint{length}:
@@ -245,7 +245,7 @@ def bar(arg1: address) -> uint8:
     assert c2.bar(c.address) == 255
 
 
-def test_uint8_too_long(get_contract, assert_tx_failed, memory_mocker):
+def test_uint8_too_long(get_contract, assert_tx_failed):
     contract_1 = """
 @external
 def foo() -> uint256:
@@ -269,7 +269,7 @@ def bar(arg1: address) -> uint8:
 
 @pytest.mark.parametrize("a,b", [(8, 8), (8, 256), (256, 8), (256, 256)])
 @pytest.mark.parametrize("actual", [8, 256])
-def test_tuple_with_uint8(get_contract, assert_tx_failed, a, b, actual, memory_mocker):
+def test_tuple_with_uint8(get_contract, assert_tx_failed, a, b, actual):
     contract_1 = f"""
 @external
 def foo() -> (uint{actual}, Bytes[3], uint{actual}):
@@ -297,7 +297,7 @@ def bar(arg1: address) -> (uint{a}, Bytes[3], uint{b}):
 
 
 @pytest.mark.parametrize("a,b", [(8, 256), (256, 8), (256, 256)])
-def test_tuple_with_uint8_too_long(get_contract, assert_tx_failed, a, b, memory_mocker):
+def test_tuple_with_uint8_too_long(get_contract, assert_tx_failed, a, b):
     contract_1 = f"""
 @external
 def foo() -> (uint{a}, Bytes[3], uint{b}):
@@ -306,7 +306,7 @@ def foo() -> (uint{a}, Bytes[3], uint{b}):
 
     c = get_contract(contract_1)
 
-    contract_2 = f"""
+    contract_2 = """
 interface Foo:
     def foo() -> (uint8, Bytes[3], uint8): view
 
@@ -325,7 +325,7 @@ def bar(arg1: address) -> (uint8, Bytes[3], uint8):
 
 
 @pytest.mark.parametrize("a,b", [(8, 256), (256, 8)])
-def test_tuple_with_uint8_too_long_two(get_contract, assert_tx_failed, a, b, memory_mocker):
+def test_tuple_with_uint8_too_long_two(get_contract, assert_tx_failed, a, b):
     contract_1 = f"""
 @external
 def foo() -> (uint{b}, Bytes[3], uint{a}):
@@ -353,7 +353,7 @@ def bar(arg1: address) -> (uint{a}, Bytes[3], uint{b}):
 
 
 @pytest.mark.parametrize("length", [128, 256])
-def test_external_contract_calls_with_int128(get_contract, length, memory_mocker):
+def test_external_contract_calls_with_int128(get_contract, length):
     contract_1 = f"""
 @external
 def foo() -> int{length}:
@@ -375,7 +375,7 @@ def bar(arg1: address) -> int128:
     assert c2.bar(c.address) == 1
 
 
-def test_int128_too_long(get_contract, assert_tx_failed, memory_mocker):
+def test_int128_too_long(get_contract, assert_tx_failed):
     contract_1 = """
 @external
 def foo() -> int256:
@@ -399,7 +399,7 @@ def bar(arg1: address) -> int128:
 
 @pytest.mark.parametrize("a,b", [(128, 128), (128, 256), (256, 128), (256, 256)])
 @pytest.mark.parametrize("actual", [128, 256])
-def test_tuple_with_int128(get_contract, assert_tx_failed, a, b, actual, memory_mocker):
+def test_tuple_with_int128(get_contract, assert_tx_failed, a, b, actual):
     contract_1 = f"""
 @external
 def foo() -> (int{actual}, Bytes[3], int{actual}):
@@ -427,7 +427,7 @@ def bar(arg1: address) -> (int{a}, Bytes[3], int{b}):
 
 
 @pytest.mark.parametrize("a,b", [(128, 256), (256, 128), (256, 256)])
-def test_tuple_with_int128_too_long(get_contract, assert_tx_failed, a, b, memory_mocker):
+def test_tuple_with_int128_too_long(get_contract, assert_tx_failed, a, b):
     contract_1 = f"""
 @external
 def foo() -> (int{a}, Bytes[3], int{b}):
@@ -436,7 +436,7 @@ def foo() -> (int{a}, Bytes[3], int{b}):
 
     c = get_contract(contract_1)
 
-    contract_2 = f"""
+    contract_2 = """
 interface Foo:
     def foo() -> (int128, Bytes[3], int128): view
 
@@ -455,7 +455,7 @@ def bar(arg1: address) -> (int128, Bytes[3], int128):
 
 
 @pytest.mark.parametrize("a,b", [(128, 256), (256, 128)])
-def test_tuple_with_int128_too_long_two(get_contract, assert_tx_failed, a, b, memory_mocker):
+def test_tuple_with_int128_too_long_two(get_contract, assert_tx_failed, a, b):
     contract_1 = f"""
 @external
 def foo() -> (int{b}, Bytes[3], int{a}):
@@ -482,7 +482,7 @@ def bar(arg1: address) -> (int{a}, Bytes[3], int{b}):
     assert_tx_failed(lambda: c2.bar(c.address))
 
 
-def test_external_contract_call_state_change(get_contract, memory_mocker):
+def test_external_contract_call_state_change(get_contract):
     contract_1 = """
 lucky: public(int128)
 
@@ -532,7 +532,7 @@ def set_lucky_stmt(arg1: address, arg2: int128) -> int128:
     print("Successfully blocked an external contract call from a constant function")
 
 
-def test_external_contract_can_be_changed_based_on_address(get_contract, memory_mocker):
+def test_external_contract_can_be_changed_based_on_address(get_contract):
     contract_1 = """
 lucky: public(int128)
 
@@ -602,7 +602,7 @@ def bar(arg1: address) -> int128:
     print("Successfully executed an external contract call with public globals")
 
 
-def test_external_contract_calls_with_multiple_contracts(get_contract, memory_mocker):
+def test_external_contract_calls_with_multiple_contracts(get_contract):
     contract_1 = """
 lucky: public(int128)
 
@@ -803,7 +803,7 @@ def get_lucky(contract_address: address) -> int128:
 
 
 def test_complex_external_contract_call_declaration(
-    get_contract_with_gas_estimation, memory_mocker
+    get_contract_with_gas_estimation
 ):
     contract_1 = """
 @external
@@ -1102,7 +1102,7 @@ def foo():
     assert_compile_failed(lambda: get_contract_with_gas_estimation(code), InvalidType)
 
 
-def test_tuple_return_external_contract_call(get_contract, memory_mocker):
+def test_tuple_return_external_contract_call(get_contract):
     contract_1 = """
 @external
 def out_literals() -> (int128, address, Bytes[10]):
