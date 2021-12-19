@@ -482,6 +482,109 @@ def bar(arg1: address) -> (int{a}, Bytes[3], int{b}):
     assert_tx_failed(lambda: c2.bar(c.address))
 
 
+@pytest.mark.parametrize("type", ['uint8', 'uint256', 'int128', 'int256'])
+def test_external_contract_calls_with_bool(get_contract, type):
+    contract_1 = f"""
+@external
+def foo() -> {type}:
+    return 1
+    """
+
+    c = get_contract(contract_1)
+
+    contract_2 = """
+interface Foo:
+    def foo() -> bool: view
+
+@external
+def bar(arg1: address) -> bool:
+    return Foo(arg1).foo()
+"""
+
+    c2 = get_contract(contract_2)
+    assert c2.bar(c.address) == True
+
+
+def test_bool_too_long(get_contract, assert_tx_failed):
+    contract_1 = """
+@external
+def foo() -> uint256:
+    return 2
+    """
+
+    c = get_contract(contract_1)
+
+    contract_2 = """
+interface Foo:
+    def foo() -> bool: view
+
+@external
+def bar(arg1: address) -> bool:
+    return Foo(arg1).foo()
+"""
+
+    c2 = get_contract(contract_2)
+    assert_tx_failed(lambda: c2.bar(c.address))
+
+
+@pytest.mark.parametrize("a", ['uint8', 'uint256', 'int128', 'int256'])
+@pytest.mark.parametrize("b", ['uint8', 'uint256', 'int128', 'int256'])
+def test_tuple_with_bool(get_contract, assert_tx_failed, a, b):
+    contract_1 = f"""
+@external
+def foo() -> ({a}, Bytes[3], {b}):
+    return 1, b'dog', 0
+    """
+
+    c = get_contract(contract_1)
+
+    contract_2 = """
+interface Foo:
+    def foo() -> (bool, Bytes[3], bool): view
+
+@external
+def bar(arg1: address) -> (bool, Bytes[3], bool):
+    a: bool = False
+    b: Bytes[3] = b""
+    c: bool = False
+    a, b, c = Foo(arg1).foo()
+    return a, b, c
+"""
+
+    c2 = get_contract(contract_2)
+    assert c.foo() == [1, b"dog", 0]
+    assert c2.bar(c.address) == [True, b"dog", False]
+
+
+@pytest.mark.parametrize("a", ['uint8', 'uint256', 'int128', 'int256'])
+@pytest.mark.parametrize("b", ['uint8', 'uint256', 'int128', 'int256'])
+def test_tuple_with_bool_too_long(get_contract, assert_tx_failed, a, b):
+    contract_1 = f"""
+@external
+def foo() -> ({a}, Bytes[3], {b}):
+    return 1, b'dog', 2
+    """
+
+    c = get_contract(contract_1)
+
+    contract_2 = """
+interface Foo:
+    def foo() -> (bool, Bytes[3], bool): view
+
+@external
+def bar(arg1: address) -> (bool, Bytes[3], bool):
+    a: bool = False
+    b: Bytes[3] = b""
+    c: bool = False
+    a, b, c = Foo(arg1).foo()
+    return a, b, c
+"""
+
+    c2 = get_contract(contract_2)
+    assert c.foo() == [1, b"dog", 2]
+    assert_tx_failed(lambda: c2.bar(c.address))
+
+
 def test_external_contract_call_state_change(get_contract):
     contract_1 = """
 lucky: public(int128)
