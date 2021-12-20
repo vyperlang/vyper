@@ -158,17 +158,11 @@ def copy_bytes(dst, src, length, length_bound, pos=None):
 
         # general case, copy word-for-word
         # pseudocode for our approach (memory-storage as example):
-        # for i in range(MAX_LEN):
-        #   if i * 32 > _len:
-        #     break
+        # for i in range(min(len, MAX_LEN)):
         #   sstore(_dst + i, mload(_src + i * 32))
-        # (we have an extra checker because `repeat` can only take a
-        # constant as its bound, if it could take a runtime bound then we
-        # could avoid the weirdness with
-        # `if i * 32 > _len: break`)
 
         iptr = MemoryPositions.FREE_LOOP_INDEX
-        # TODO save `i` on stack
+        # TODO change `repeat` so `i` is saved on stack
         i = ["mload", iptr]
 
         # special case: rhs is zero
@@ -198,11 +192,9 @@ def copy_bytes(dst, src, length, length_bound, pos=None):
         else:
             raise CompilerPanic(f"Unsupported location: {dst.location}")
 
-        checker = ["if", ["gt", ["mul", 32, i], len_], "break"]
-
         src = LLLnode(0) if src.value is None else src
 
-        main_loop = ["repeat", iptr, 0, ceil32(length_bound), ["seq", checker, setter]]
+        main_loop = ["repeat", iptr, 0, length, ceil32(length_bound), setter]
 
         return b1.resolve(
             b2.resolve(b3.resolve(LLLnode.from_list(main_loop, annotation=annotation, pos=pos)))
