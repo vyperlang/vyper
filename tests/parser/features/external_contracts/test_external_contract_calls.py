@@ -585,6 +585,170 @@ def bar(arg1: address) -> (bool, Bytes[3], bool):
     assert_tx_failed(lambda: c2.bar(c.address))
 
 
+@pytest.mark.parametrize("type", ["uint8", "int128", "uint256", "int256"])
+def test_external_contract_calls_with_address(get_contract, type):
+    contract_1 = f"""
+@external
+def foo() -> {type}:
+    return 1
+    """
+
+    c = get_contract(contract_1)
+
+    contract_2 = """
+interface Foo:
+    def foo() -> address: view
+
+@external
+def bar(arg1: address) -> address:
+    return Foo(arg1).foo()
+"""
+
+    c2 = get_contract(contract_2)
+    assert c2.bar(c.address) == "0x0000000000000000000000000000000000000001"
+
+
+@pytest.mark.parametrize("type", ["uint256", "int256"])
+def test_external_contract_calls_with_address_two(get_contract, type):
+    contract_1 = f"""
+@external
+def foo() -> {type}:
+    return (2**160)-1
+    """
+
+    c = get_contract(contract_1)
+
+    contract_2 = """
+interface Foo:
+    def foo() -> address: view
+
+@external
+def bar(arg1: address) -> address:
+    return Foo(arg1).foo()
+"""
+
+    c2 = get_contract(contract_2)
+    assert c2.bar(c.address).lower() == "0xffffffffffffffffffffffffffffffffffffffff"
+
+
+@pytest.mark.parametrize("type", ["uint256", "int256"])
+def test_address_too_long(get_contract, assert_tx_failed, type):
+    contract_1 = f"""
+@external
+def foo() -> {type}:
+    return 2**160
+    """
+
+    c = get_contract(contract_1)
+
+    contract_2 = """
+interface Foo:
+    def foo() -> address: view
+
+@external
+def bar(arg1: address) -> address:
+    return Foo(arg1).foo()
+"""
+
+    c2 = get_contract(contract_2)
+    assert_tx_failed(lambda: c2.bar(c.address))
+
+
+@pytest.mark.parametrize("a", ["uint8", "int128", "uint256", "int256"])
+@pytest.mark.parametrize("b", ["uint8", "int128", "uint256", "int256"])
+def test_tuple_with_address(get_contract, assert_tx_failed, a, b):
+    contract_1 = f"""
+@external
+def foo() -> ({a}, Bytes[3], {b}):
+    return 16, b'dog', 1
+    """
+
+    c = get_contract(contract_1)
+
+    contract_2 = """
+interface Foo:
+    def foo() -> (address, Bytes[3], address): view
+
+@external
+def bar(arg1: address) -> (address, Bytes[3], address):
+    a: address = ZERO_ADDRESS
+    b: Bytes[3] = b""
+    c: address = ZERO_ADDRESS
+    a, b, c = Foo(arg1).foo()
+    return a, b, c
+"""
+
+    c2 = get_contract(contract_2)
+    assert c.foo() == [16, b"dog", 1]
+    assert c2.bar(c.address) == [
+        "0x0000000000000000000000000000000000000010",
+        b"dog",
+        "0x0000000000000000000000000000000000000001",
+    ]
+
+
+@pytest.mark.parametrize("a", ["uint256", "int256"])
+@pytest.mark.parametrize("b", ["uint256", "int256"])
+def test_tuple_with_address_two(get_contract, assert_tx_failed, a, b):
+    contract_1 = f"""
+@external
+def foo() -> ({a}, Bytes[3], {b}):
+    return (2**160)-1, b'dog', (2**160)-2
+    """
+
+    c = get_contract(contract_1)
+
+    contract_2 = """
+interface Foo:
+    def foo() -> (address, Bytes[3], address): view
+
+@external
+def bar(arg1: address) -> (address, Bytes[3], address):
+    a: address = ZERO_ADDRESS
+    b: Bytes[3] = b""
+    c: address = ZERO_ADDRESS
+    a, b, c = Foo(arg1).foo()
+    return a, b, c
+"""
+
+    c2 = get_contract(contract_2)
+    assert c.foo() == [(2 ** 160) - 1, b"dog", (2 ** 160) - 2]
+    result = c2.bar(c.address)
+    assert len(result) == 3
+    assert result[0].lower() == "0xffffffffffffffffffffffffffffffffffffffff"
+    assert result[1] == b"dog"
+    assert result[2].lower() == "0xfffffffffffffffffffffffffffffffffffffffe"
+
+
+@pytest.mark.parametrize("a", ["uint256", "int256"])
+@pytest.mark.parametrize("b", ["uint256", "int256"])
+def test_tuple_with_address_too_long(get_contract, assert_tx_failed, a, b):
+    contract_1 = f"""
+@external
+def foo() -> ({a}, Bytes[3], {b}):
+    return (2**160)-1, b'dog', 2**160
+    """
+
+    c = get_contract(contract_1)
+
+    contract_2 = """
+interface Foo:
+    def foo() -> (address, Bytes[3], address): view
+
+@external
+def bar(arg1: address) -> (address, Bytes[3], address):
+    a: address = ZERO_ADDRESS
+    b: Bytes[3] = b""
+    c: address = ZERO_ADDRESS
+    a, b, c = Foo(arg1).foo()
+    return a, b, c
+"""
+
+    c2 = get_contract(contract_2)
+    assert c.foo() == [(2 ** 160) - 1, b"dog", 2 ** 160]
+    assert_tx_failed(lambda: c2.bar(c.address))
+
+
 def test_external_contract_call_state_change(get_contract):
     contract_1 = """
 lucky: public(int128)
