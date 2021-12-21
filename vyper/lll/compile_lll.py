@@ -510,7 +510,9 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
                     "with",
                     "_val",
                     code.args[0],
-                    ["sub", ["add", "_val", 31], ["mod", ["sub", "_val", 1], 32]],
+                    # in mod32 arithmetic, the solution to x + y == 32 is
+                    # y = bitwise_not(x) & 32
+                    ["add", "_val", ["and", ["not", ["sub", "_val", 1]], 31]],
                 ]
             ),
             withargs,
