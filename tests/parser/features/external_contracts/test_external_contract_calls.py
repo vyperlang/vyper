@@ -139,7 +139,7 @@ def run(raiser: address):
 
 @pytest.mark.parametrize("a,b", [(3, 3), (4, 3), (3, 4), (32, 32), (33, 33), (64, 64)])
 @pytest.mark.parametrize("actual", [3, 32, 64])
-def test_tuple_with_bytes(get_contract, assert_tx_failed, a, b, actual):
+def test_tuple_with_bytes(get_contract, a, b, actual):
     contract_1 = f"""
 @external
 def array() -> (Bytes[{actual}], int128, Bytes[{actual}]):
@@ -269,7 +269,7 @@ def bar(arg1: address) -> uint8:
 
 @pytest.mark.parametrize("a,b", [(8, 8), (8, 256), (256, 8), (256, 256)])
 @pytest.mark.parametrize("actual", [8, 256])
-def test_tuple_with_uint8(get_contract, assert_tx_failed, a, b, actual):
+def test_tuple_with_uint8(get_contract, a, b, actual):
     contract_1 = f"""
 @external
 def foo() -> (uint{actual}, Bytes[3], uint{actual}):
@@ -399,7 +399,7 @@ def bar(arg1: address) -> int128:
 
 @pytest.mark.parametrize("a,b", [(128, 128), (128, 256), (256, 128), (256, 256)])
 @pytest.mark.parametrize("actual", [128, 256])
-def test_tuple_with_int128(get_contract, assert_tx_failed, a, b, actual):
+def test_tuple_with_int128(get_contract, a, b, actual):
     contract_1 = f"""
 @external
 def foo() -> (int{actual}, Bytes[3], int{actual}):
@@ -529,7 +529,7 @@ def bar(arg1: address) -> decimal:
 
 @pytest.mark.parametrize("a", ["uint8", "uint256", "int128", "int256"])
 @pytest.mark.parametrize("b", ["uint8", "uint256", "int128", "int256"])
-def test_tuple_with_decimal(get_contract, assert_tx_failed, a, b):
+def test_tuple_with_decimal(get_contract, a, b):
     contract_1 = f"""
 @external
 def foo() -> ({a}, Bytes[3], {b}):
@@ -635,7 +635,7 @@ def bar(arg1: address) -> bool:
 
 @pytest.mark.parametrize("a", ["uint8", "uint256", "int128", "int256"])
 @pytest.mark.parametrize("b", ["uint8", "uint256", "int128", "int256"])
-def test_tuple_with_bool(get_contract, assert_tx_failed, a, b):
+def test_tuple_with_bool(get_contract, a, b):
     contract_1 = f"""
 @external
 def foo() -> ({a}, Bytes[3], {b}):
@@ -762,7 +762,7 @@ def bar(arg1: address) -> address:
 
 @pytest.mark.parametrize("a", ["uint8", "int128", "uint256", "int256"])
 @pytest.mark.parametrize("b", ["uint8", "int128", "uint256", "int256"])
-def test_tuple_with_address(get_contract, assert_tx_failed, a, b):
+def test_tuple_with_address(get_contract, a, b):
     contract_1 = f"""
 @external
 def foo() -> ({a}, Bytes[3], {b}):
@@ -795,7 +795,7 @@ def bar(arg1: address) -> (address, Bytes[3], address):
 
 @pytest.mark.parametrize("a", ["uint256", "int256"])
 @pytest.mark.parametrize("b", ["uint256", "int256"])
-def test_tuple_with_address_two(get_contract, assert_tx_failed, a, b):
+def test_tuple_with_address_two(get_contract, a, b):
     contract_1 = f"""
 @external
 def foo() -> ({a}, Bytes[3], {b}):
@@ -1015,7 +1015,7 @@ def __init__(arg1: address):
     print("Successfully executed a multiple external contract calls")
 
 
-def test_invalid_external_contract_call_to_the_same_contract(assert_tx_failed, get_contract):
+def test_invalid_external_contract_call_to_the_same_contract(get_contract):
     contract_1 = """
 @external
 def bar() -> int128:
@@ -1365,7 +1365,7 @@ def get_lucky(gas_amount: uint256) -> int128:
     assert_tx_failed(lambda: c2.get_lucky(100))  # too little gas.
 
 
-def test_skip_contract_check(assert_tx_failed, get_contract_with_gas_estimation):
+def test_skip_contract_check(get_contract_with_gas_estimation):
     contract_2 = """
 @external
 @view
@@ -1624,7 +1624,7 @@ def foo(_addr: address) -> int128:
     assert_tx_failed(lambda: c2.foo(c1.address))
 
 
-def test_returndatasize_too_long(get_contract, assert_tx_failed):
+def test_returndatasize_too_long(get_contract):
     contract_1 = """
 @external
 def bar(a: int128) -> (int128, int128):
