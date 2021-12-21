@@ -581,32 +581,18 @@ def _complex_make_setter(left, right, pos):
         # optimize memzero
         return mzero(left, left.typ.memory_bytes_required)
 
-    else:
-        # general case
-        if right.is_complex_lll:
-            # create a reference to the R pointer
-            _r = LLLnode.from_list(
-                "_R", typ=right.typ, location=right.location, encoding=right.encoding
-            )
-        else:
-            # optimization: don't cache, faster for ints
-            _r = right
+    # general case
+    # TODO use copy_bytes when the generated code is above a certain size
+    with left.cache_when_complex("_L") as (b1, left),
+        right.cache_when_complex("_R") as (b2, right):
 
-        rhs_items = [get_element_ptr(_r, k, pos=pos, array_bounds_check=False) for k in keys]
+        ret = ["seq"]
+        for k in keys:
+            l = get_element_ptr(left, k, pos=pos, array_bounds_check=False)
+            r = get_element_ptr(right, k, pos=pos, array_bounds_check=False)
+            ret.append(make_setter(l, r, pos)
 
-    if left.is_complex_lll:
-        _l = LLLnode.from_list("_L", typ=left.typ, location=left.location, encoding=left.encoding)
-    else:
-        _l = left
-    lhs_items = [get_element_ptr(_l, k, pos=pos, array_bounds_check=False) for k in keys]
-
-    assert len(lhs_items) == len(rhs_items), "you've been bad!"
-    ret = ["seq"] + [make_setter(l, r, pos) for (l, r) in zip(lhs_items, rhs_items)]
-    if right.is_complex_lll:
-        ret = ["with", "_R", right, ret]
-    if left.is_complex_lll:
-        ret = ["with", "_L", left, ret]
-    return LLLnode.from_list(ret, typ=None)
+        return b1.resolve(b2.resolve(LLLnode.from_list(ret)))
 
 
 def ensure_in_memory(lll_var, context, pos=None):
