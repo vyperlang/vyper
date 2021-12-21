@@ -100,14 +100,11 @@ def _codecopy_gas_bound(num_bytes):
 
 # Copy byte array word-for-word (including layout)
 def make_byte_array_copier(destination, source, pos=None):
-    assert isinstance(source.typ, ByteArrayLike), "no"
-    assert isinstance(destination.typ, ByteArrayLike), "no"
+    assert isinstance(source.typ, ByteArrayLike)
+    assert isinstance(destination.typ, ByteArrayLike)
 
     if source.typ.maxlen > destination.typ.maxlen:
-        raise TypeMismatch(
-            f"Cannot cast from greater max-length {source.typ.maxlen} to shorter "
-            f"max-length {destination.typ.maxlen}"
-        )
+        raise TypeMismatch(f"Cannot cast from {source.typ} to {destination.typ}")
     # stricter check for zeroing a byte array.
     if source.value is None and source.typ.maxlen != destination.typ.maxlen:
         raise CompilerPanic(
@@ -123,6 +120,36 @@ def make_byte_array_copier(destination, source, pos=None):
             max_length = src.typ.memory_bytes_required
 
         return builder.resolve(copy_bytes(destination, src, length, max_length, pos=pos))
+
+
+# Copy dynamic array word-for-word (including layout)
+# TODO this code is very similar to make_byte_array_copier,
+# try to refactor.
+def make_dyn_array_copier(dst, src, pos=None):
+    assert isinstance(src.typ, DArrayType)
+    assert isinstance(dst.typ, DArrayType)
+
+    if src.typ.count > dst.typ.count :
+        raise TypeMismatch( f"Cannot cast from {src.typ} to {dst.typ}")
+
+    # stricter check for zeroing
+    if source.value is None and source.typ.count != destination.typ.count:
+        raise CompilerPanic(
+            f"Bad type for clearing bytes: expected {destination.typ} but got {source.typ}"
+        )
+
+    with source.cache_when_complex("_src") as (builder, src):
+        if src.value is not None:
+            length = 0
+            max_length = 32
+        else:
+            element_size = src.typ.subtyp.memory_bytes_required
+            # 32 bytes + number of elements * size of element in bytes
+            length = ["add", ["mul", get_dyn_array_count(src), element_size], 32]
+            max_length = src.typ.memory_bytes_required
+
+        return builder.resolve(copy_bytes(destination, src, length, max_length, pos=pos))
+
 
 
 # Copy bytes
@@ -194,14 +221,23 @@ def copy_bytes(dst, src, length, length_bound, pos=None):
 
         src = LLLnode(0) if src.value is None else src
 
-        main_loop = ["repeat", iptr, 0, length, ceil32(length_bound), setter]
+        n = ["div", ["ceil32", length], 32]
+        n_bound = ceil32(length_bound)//32
+        main_loop = ["repeat", iptr, 0, n, n_bound, setter]
 
         return b1.resolve(
             b2.resolve(b3.resolve(LLLnode.from_list(main_loop, annotation=annotation, pos=pos)))
         )
 
 
+# get the number of bytes at runtime
 def get_bytearray_length(arg):
+    typ = BaseType("uint256")
+    return LLLnode.from_list([load_op(arg.location), arg], typ=typ)
+
+
+# get the number of elements at runtime
+def get_dyn_array_count(arg):
     typ = BaseType("uint256")
     return LLLnode.from_list([load_op(arg.location), arg], typ=typ)
 
@@ -466,10 +502,23 @@ def make_setter(left, right, pos):
         # TODO rethink/streamline the clamp_basetype logic
         if _needs_clamp(right.typ, right.encoding):
             _val = LLLnode("val", location=right.location, typ=right.typ)
-            copier = _make_byte_array_copier(left, _val, pos)
+            copier = make_byte_array_copier(left, _val, pos)
             ret = ["with", _val, right, ["seq", clamp_bytestring(_val), copier]]
         else:
-            ret = _make_byte_array_copier(left, right, pos)
+            ret = make_byte_array_copier(left, right, pos)
+
+        return LLLnode.from_list(ret)
+
+    elif isinstance(left.typ, DynArrayLike):
+        if not _typecheck_list_make_setter(left, right):
+            return
+        # TODO rethink/streamline the clamp_basetype logic
+        if _needs_clamp(right.typ, right.encoding):
+            _val = LLLnode("val", location=right.location, typ=right.typ)
+            copier = make_dyn_array_copier(left, _val, pos)
+            ret = ["with", _val, right, ["seq", clamp_dyn_array(_val), copier]]
+        else:
+            ret = make_dyn_array_copier(left, right, pos)
 
         return LLLnode.from_list(ret)
 
@@ -486,9 +535,9 @@ def _typecheck_list_make_setter(left, right):
         if not left.typ == right.typ:
             return False
     if isinstance(left, DArrayType):
-        if not isinstance(right, DArrayType):
-            return False
-        if not left.typ.count >= right.typ.count:
+        if not (isinstance(right, DArrayType)
+                and left.typ.count >= right.typ.count
+                and left.typ.subtyp == right.typ.subtyp):
             return False
     return True
 
@@ -668,7 +717,7 @@ def sar(x, bits):
 def _needs_clamp(t, encoding):
     if encoding not in (Encoding.ABI, Encoding.JSON_ABI):
         return False
-    if isinstance(t, ByteArrayLike):
+    if isinstance(t, (ByteArrayLike, DArrayType)):
         if encoding == Encoding.JSON_ABI:
             # don't have bytestring size bound from json, don't clamp
             return False
@@ -685,6 +734,11 @@ def clamp_bytestring(lll_node):
         return  # raises
     return ["assert", ["le", get_bytearray_length(lll_node), t.maxlen]]
 
+
+def clamp_dyn_array(lll_node):
+    t = lll_node.typ
+    assert isinstance(t, DArrayType)
+    return ["assert", ["le", get_dyn_array_length(lll_node, t.count)]]
 
 # clampers for basetype
 @type_check_wrapper
