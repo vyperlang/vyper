@@ -49,7 +49,7 @@ class BaseType(NodeType):
         # TODO remove dead arguments
         if unit or positional:
             raise CompilerPanic("Units are no longer supported")
-        self.override_signature = override_signature
+        self.override_signature = override_signature  # TODO dead
         self.is_literal = is_literal
 
     def eq(self, other):
@@ -385,6 +385,11 @@ def is_numeric_type(typ):
         "uint256",
         "decimal",
     )
+
+def is_signed_num(typ):
+    if not is_numeric_type(typ):
+        return None
+    return typ.typ.startswith("u")
 
 
 # Is a type representing some particular base type?
