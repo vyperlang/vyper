@@ -3,7 +3,7 @@ import pytest
 from vyper.exceptions import FunctionDeclarationException
 
 
-def test_nonrentrant_decorator(get_contract, assert_tx_failed):
+def test_nonreentrant_decorator(get_contract, assert_tx_failed):
     calling_contract_code = """
 interface SpecialContract:
     def unprotected_function(val: String[100], do_callback: bool): nonpayable
@@ -83,6 +83,97 @@ def unprotected_function(val: String[100], do_callback: bool):
     assert reentrant_contract.special_value() == "another value"
 
     assert_tx_failed(lambda: reentrant_contract.protected_function2("zzz value", True, transact={}))
+
+
+def test_nonreentrant_decorator_for_default(w3, get_contract, assert_tx_failed):
+    calling_contract_code = """
+@external
+def send_funds(_amount: uint256):
+    send(msg.sender, _amount)
+
+@external
+@payable
+def __default__():
+    pass
+    """
+
+    reentrant_code = """
+interface Callback:
+    def send_funds(_amount: uint256): nonpayable
+
+special_value: public(String[100])
+callback: public(Callback)
+
+@external
+def set_callback(c: address):
+    self.callback = Callback(c)
+
+@external
+@payable
+@nonreentrant('default')
+def protected_function(val: String[100], do_callback: bool) -> uint256:
+    self.special_value = val
+    _amount: uint256 = msg.value
+    send(self.callback.address, msg.value)
+
+    if do_callback:
+        self.callback.send_funds(_amount)
+        return 1
+    else:
+        return 2
+
+@external
+@payable
+def unprotected_function(val: String[100], do_callback: bool):
+    self.special_value = val
+    _amount: uint256 = msg.value
+    send(self.callback.address, msg.value)
+
+    if do_callback:
+        self.callback.send_funds(_amount)
+
+@external
+@payable
+@nonreentrant('default')
+def __default__():
+    pass
+    """
+
+    reentrant_contract = get_contract(reentrant_code)
+    calling_contract = get_contract(calling_contract_code)
+
+    reentrant_contract.set_callback(calling_contract.address, transact={})
+    assert reentrant_contract.callback() == calling_contract.address
+
+    # Test unprotected function without callback.
+    reentrant_contract.unprotected_function("some value", False, transact={"value": 1000})
+    assert reentrant_contract.special_value() == "some value"
+    assert w3.eth.getBalance(reentrant_contract.address) == 0
+    assert w3.eth.getBalance(calling_contract.address) == 1000
+
+    # Test unprotected function with callback to default.
+    assert_tx_failed(
+        lambda: reentrant_contract.unprotected_function(
+            "another value",
+            True,
+            transact={"value": 1000}
+        )
+    )
+
+    # Test protected function without callback.
+    reentrant_contract.protected_function("surprise!", False, transact={"value": 1000})
+    assert reentrant_contract.special_value() == "surprise!"
+    assert w3.eth.getBalance(reentrant_contract.address) == 0
+    assert w3.eth.getBalance(calling_contract.address) == 2000
+
+    # Test protected function with callback to default.
+    assert_tx_failed(
+        lambda: reentrant_contract.protected_function(
+            "zzz value",
+            True,
+            transact={"value": 1000}
+        )
+    )
 
 
 def test_disallow_on_init_function(get_contract):
