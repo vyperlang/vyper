@@ -98,6 +98,8 @@ The ``@nonreentrant(<key>)`` decorator places a lock on a function, and all func
         # this function is protected from re-entrancy
         ...
 
+You can put the ``@nonreentrant(<key>)`` decorator on a ``__default__`` function but we recommend against it.
+
 The `__default__` Function
 --------------------------
 

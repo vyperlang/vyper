@@ -89,7 +89,17 @@ def test_nonreentrant_decorator_for_default(w3, get_contract, assert_tx_failed):
     calling_contract_code = """
 @external
 def send_funds(_amount: uint256):
-    send(msg.sender, _amount)
+    # raw_call() is used to overcome gas limit of send()
+    response: Bytes[32] = raw_call(
+        msg.sender,
+        concat(
+            method_id("transfer(address,uint256)"),
+            convert(msg.sender, bytes32),
+            convert(_amount, bytes32)
+        ),
+        max_outsize=32,
+        value=_amount
+    )
 
 @external
 @payable
@@ -152,18 +162,15 @@ def __default__():
     assert w3.eth.getBalance(calling_contract.address) == 1000
 
     # Test unprotected function with callback to default.
-    assert_tx_failed(
-        lambda: reentrant_contract.unprotected_function(
-            "another value",
-            True,
-            transact={"value": 1000}
-        )
-    )
+    reentrant_contract.unprotected_function("another value", True, transact={"value": 1000})
+    assert reentrant_contract.special_value() == "another value"
+    assert w3.eth.getBalance(reentrant_contract.address) == 1000
+    assert w3.eth.getBalance(calling_contract.address) == 1000
 
     # Test protected function without callback.
     reentrant_contract.protected_function("surprise!", False, transact={"value": 1000})
     assert reentrant_contract.special_value() == "surprise!"
-    assert w3.eth.getBalance(reentrant_contract.address) == 0
+    assert w3.eth.getBalance(reentrant_contract.address) == 1000
     assert w3.eth.getBalance(calling_contract.address) == 2000
 
     # Test protected function with callback to default.
