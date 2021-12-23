@@ -222,8 +222,6 @@ def copy_bytes(dst, src, length, length_bound, pos=None):
         else:
             raise CompilerPanic(f"Unsupported location: {dst.location}")
 
-        src = LLLnode(0) if src.value is None else src
-
         n = ["div", ["ceil32", length], 32]
         n_bound = ceil32(length_bound)//32
         # TODO change `repeat` opcode so that `i` is on stack instead
