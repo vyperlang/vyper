@@ -39,6 +39,25 @@ def foo(s: Bytes[40]) -> Bytes[40]:
     assert_tx_failed(lambda: c.foo(data + b"!"))
 
 
+def test_bytes_clamper_on_init(assert_tx_failed, get_contract_with_gas_estimation):
+    clamper_test_code = """
+foo: Bytes[3]
+
+@external
+def __init__(x: Bytes[3]):
+    self.foo = x
+
+@external
+def get_foo() -> Bytes[3]:
+    return self.foo
+    """
+
+    c = get_contract_with_gas_estimation(clamper_test_code, *[b"cat"])
+    assert c.get_foo() == b"cat"
+
+    assert_tx_failed(lambda: get_contract_with_gas_estimation(clamper_test_code, *[b"cats"]))
+
+
 @pytest.mark.parametrize("evm_version", list(EVM_VERSIONS))
 @pytest.mark.parametrize("value", [0, 1, -1, 2 ** 127 - 1, -(2 ** 127)])
 def test_int128_clamper_passing(w3, get_contract, value, evm_version):
