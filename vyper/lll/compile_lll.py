@@ -221,7 +221,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
             # should not happen
             raise CompilerPanic("bad number of repeat args")
 
-        start, continue_dest, end = mksymbol(), mksymbol(), mksymbol()
+        entry_dest, continue_dest, exit_dest = mksymbol(), mksymbol(), mksymbol()
 
         o.extend(_compile_to_assembly(iptr, withargs, existing_labels, break_dest, height))
         o.extend(
@@ -236,14 +236,14 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         o.extend(_compile_to_assembly(rounds, withargs, existing_labels, break_dest, height+2))
 
         # stack: memloc, startvalue, rounds
-        o.extend(["DUP2", "DUP4", "MSTORE", "ADD", start, "JUMPDEST"])
+        o.extend(["DUP2", "DUP4", "MSTORE", "ADD", entry_dest, "JUMPDEST"])
         # stack: memloc, exit_index
         o.extend(
             _compile_to_assembly(
                 body,
                 withargs,
                 existing_labels,
-                (end, continue_dest, height + 2),
+                (exit_dest, continue_dest, height + 2),
                 height + 2,
             )
         )
@@ -263,7 +263,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
             ]
         )
         # stack: len(loops), index memory address, new index
-        o.extend(["DUP2", "LT", start, "JUMPI", end, "JUMPDEST", "POP", "POP"])
+        o.extend(["DUP2", "LT", entry_dest, "JUMPI", exit_dest, "JUMPDEST", "POP", "POP"])
         return o
     # Continue to the next iteration of the for loop
     elif code.value == "continue":
