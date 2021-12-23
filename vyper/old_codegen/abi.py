@@ -3,7 +3,9 @@ from vyper.exceptions import CompilerPanic
 from vyper.old_codegen.lll_node import Encoding, LLLnode
 from vyper.old_codegen.parser_utils import (
     _needs_clamp,
+    add_ofst,
     clamp_basetype,
+    get_dyn_array_count,
     get_element_ptr,
     make_setter,
     unwrap_location,
@@ -261,18 +263,16 @@ class ABI_DynamicArray(ABIType):
         return 32
 
     def dynamic_size_bound(self):
-        # TODO double check me
-        return self.subtyp.embedded_dynamic_size_bound() * self.elems_bound
+        return 32 + self.subtyp.embedded_dynamic_size_bound() * self.elems_bound
 
     def min_dynamic_size(self):
-        # TODO double check me
         return 32
 
     def selector_name(self):
         return f"{self.subtyp.selector_name()}[]"
 
     def is_complex_type(self):
-        return False
+        return True
 
 
 class ABI_Tuple(ABIType):
@@ -357,40 +357,69 @@ def abi_type_of2(t: vy.BasePrimitive) -> ABIType:
 
 
 # turn an lll node into a list, based on its type.
-def o_list(lll_node, pos=None):
+def _deconstruct_complex_type(lll_node, pos=None):
     lll_t = lll_node.typ
-    if isinstance(lll_t, (TupleLike, SArrayType)):
-        if lll_node.value == "multi":  # is literal
-            ret = lll_node.args
-        else:
-            ks = (
-                lll_t.tuple_keys()
-                if isinstance(lll_t, TupleLike)
-                else [LLLnode.from_list(i, "uint256") for i in range(lll_t.count)]
-            )
+    assert isinstance(lll_t, (TupleLike, SArrayType))
 
-            ret = [get_element_ptr(lll_node, k, pos, array_bounds_check=False) for k in ks]
-        return ret
+    if lll_node.value == "multi":  # is literal
+        return lll_node.args
+
+    if isinstance(lll_t, TupleLike):
+        ks = lll_t.tuple_keys()
     else:
-        return [lll_node]
+        ks = [LLLnode.from_list(i, "uint256") for i in range(lll_t.count)]
+
+    ret = []
+    for k in ks:
+        ret.append(get_element_ptr(lll_node, k, pos, array_bounds_check=False))
+    return ret
 
 
-# assume dst is a buffer located in memory which has at least
-# static_size + dynamic_size_bound allocated.
+# encode a child element of a complex type
+def _encode_child_helper(buf, child, static_ofst, dyn_ofst, context, pos=None):
+    abi_t = abi_type_of(child.typ)
+
+    static_loc = ["add", buf, static_ofst]
+
+    ret = ["seq"]
+
+    if not abi_t.is_dynamic():
+        # easy
+        ret.append(abi_encode(static_loc, child, context, pos=pos, returns_len=False))
+    else:
+        # hard
+        ret.append(["mstore", static_loc, dyn_ofst])
+
+        # TODO optimize: special case where there is only one dynamic
+        # member, the location is statically known.
+        child_dst = ["add", buf, dyn_ofst]
+
+        child_len = abi_encode(child_dst, child, context, pos=pos, returns_len=True)
+
+        # increment dyn ofst for return_len
+        # (optimization note:
+        #   if non-returning and this is the last dyn member in
+        #   the tuple, this set can be elided.)
+        ret.append(["set", dyn_ofst, ["add", dyn_ofst, child_len]])
+
+    return ret
+
+
+# assume dst is a pointer to a buffer located in memory which has at
+# least static_size + dynamic_size_bound allocated.
 # The basic strategy is this:
 #   First, it is helpful to keep track of what variables are location
 #   dependent and which are location independent (offsets). Independent
 #   locations will be denoted with variables named `_ofst`.
-#   Since we cannot know beforehand where `dst` is (it could be
-#   a dynamically calculated value), we assign a stack variable
-#   to its value, `dst_loc`. In addition we need at most one more stack
-#   variable to keep track of our location in the dynamic section.
-#   It will also be convenient to keep the original `dst` around as a
-#   stack variable `dst_ptr`. So, 2-3 stack variables for each level of
-#   nesting (as defined in the spec).
+#   We keep at least one stack variable to keep track of our location
+#   in the dynamic section. We keep a compiler variable `static_ofst`
+#   keeping track of our current offset from the beginning of the static
+#   section. (And if the destination is not known at compile time, we
+#   allocate a stack item `dst` to keep track of it). So, 1-2 stack
+#   variables for each level of "nesting" (as defined in the spec).
 #   For each element `elem` of the lll_node:
-#   - If `elem` is static, write its value to `dst_loc` and
-#     increment `dst_loc` by the size of `elem`.
+#   - If `elem` is static, write its value to `dst + static_ofst` and
+#     increment `static_ofst` by the size of `elem`.
 #   - If it is dynamic, ensure we have initialized a pointer (a stack
 #     variable named `dyn_ofst` set to the start of the dynamic section
 #     (i.e. static_size of lll_node). Write the 'tail' of `elem` to the
@@ -407,100 +436,93 @@ def o_list(lll_node, pos=None):
 # returns_len is a calling convention parameter; if set to true,
 # the abi_encode routine will push the output len onto the stack,
 # otherwise it will return 0 items to the stack.
-def abi_encode(dst, lll_node, pos=None, bufsz=None, returns_len=False):
-    parent_abi_t = abi_type_of(lll_node.typ)
-    size_bound = parent_abi_t.size_bound()
+def abi_encode(dst, lll_node, context, pos=None, bufsz=None, returns_len=False):
+    abi_t = abi_type_of(lll_node.typ)
+    size_bound = abi_t.size_bound()
     if bufsz is not None and bufsz < 32 * size_bound:
         raise CompilerPanic("buffer provided to abi_encode not large enough")
 
     # fastpath: if there is no dynamic data, we can optimize the
     # encoding by using make_setter, since our memory encoding happens
     # to be identical to the ABI encoding.
-    if not parent_abi_t.is_dynamic():
+    # TODO CMC 2021-12-25 this should no longer be necessary; the "slow"
+    # path should generate equivalently optimized code
+    if not abi_t.is_dynamic():
         # cast the output buffer to something that make_setter accepts
-        dst = LLLnode(dst, typ=lll_node.typ, location="memory")
+        dst = LLLnode.from_list(dst, typ=lll_node.typ, location="memory")
         lll_ret = ["seq", make_setter(dst, lll_node, pos)]
         if returns_len:
-            lll_ret.append(parent_abi_t.embedded_static_size())
+            lll_ret.append(abi_t.embedded_static_size())
         return LLLnode.from_list(lll_ret, pos=pos, annotation=f"abi_encode {lll_node.typ}")
 
     lll_ret = ["seq"]
 
     # contains some computation, we need to only do it once.
-    if lll_node.is_complex_lll:
-        to_encode = LLLnode.from_list(
-            "to_encode", typ=lll_node.typ, location=lll_node.location, encoding=lll_node.encoding
-        )
-    else:
-        to_encode = lll_node
+    with lll_node.cache_when_complex("to_encode") as (builder, lll_node):
 
-    dyn_ofst = "dyn_ofst"  # current offset in the dynamic section
-    dst_begin = "dst"  # pointer to beginning of buffer
-    dst_loc = "dst_loc"  # pointer to write location in static section
-    os = o_list(to_encode, pos=pos)
+        static_ofst = 0  # current offset in static section (known statically)
+        dyn_ofst = "dyn_ofst"  # current offset in the dynamic section
 
-    for i, o in enumerate(os):
-        abi_t = abi_type_of(o.typ)
-
-        if parent_abi_t.is_complex_type():
-            # TODO optimize: special case where there is only one dynamic
-            # member, the location is statically known.
-            if abi_t.is_dynamic():
-                lll_ret.append(["mstore", dst_loc, dyn_ofst])
-                # recurse
-                child_dst = ["add", dst_begin, dyn_ofst]
-                child = abi_encode(child_dst, o, pos=pos, returns_len=True)
-                # increment dyn ofst for the return
-                # (optimization note:
-                #   if non-returning and this is the last dyn member in
-                #   the tuple, this set can be elided.)
-                lll_ret.append(["set", dyn_ofst, ["add", dyn_ofst, child]])
-            else:
-                # recurse
-                lll_ret.append(abi_encode(dst_loc, o, pos=pos, returns_len=False))
-
-        elif isinstance(o.typ, BaseType):
-            d = LLLnode(dst_loc, typ=o.typ, location="memory")
-            # call into make_setter routine
-            lll_ret.append(make_setter(d, o, pos=pos))
-        elif isinstance(o.typ, ByteArrayLike):
-            d = LLLnode.from_list(dst_loc, typ=o.typ, location="memory")
-            # call into make_setter routine
-            lll_ret.append(["seq", make_setter(d, o, pos=pos), zero_pad(d)])
-        else:
-            raise CompilerPanic(f"unreachable type: {o.typ}")
-
-        if i + 1 == len(os):
-            pass  # optimize out the last increment to dst_loc
-        else:  # note: always false for non-tuple types
-            sz = abi_t.embedded_static_size()
-            lll_ret.append(["set", dst_loc, ["add", dst_loc, sz]])
-
-    # declare LLL variables.
-    if returns_len:
-        if not parent_abi_t.is_dynamic():
-            lll_ret.append(parent_abi_t.embedded_static_size())
-        elif parent_abi_t.is_complex_type():
-            lll_ret.append("dyn_ofst")
+        if isinstance(lll_node.typ, BaseType):
+            lll_ret.append(make_setter(dst, lll_node, pos=pos))
         elif isinstance(lll_node.typ, ByteArrayLike):
-            # for abi purposes, return zero-padded length
-            calc_len = ["ceil32", ["add", 32, ["mload", dst_loc]]]
-            lll_ret.append(calc_len)
+            # TODO optimize out repeated ceil32 calculation
+            lll_ret.append(["seq", make_setter(dst, lll_node, pos=pos), zero_pad(dst)])
+        elif isinstance(lll_node.typ, DArrayType):
+            subtyp = lll_node.typ.subtype
+            child_abi_t = abi_type_of(subtyp)
+            # TODO rework `repeat` to use stack variable so we don't
+            # have to allocate a memory variable
+            t = BaseType("uint256")
+            iptr = LLLnode.from_list(context.new_internal_variable(t), typ=t, location="memory")
+            elem_size = child_abi_t.embedded_static_size()
+
+            # offset of the i'th element in lll_node
+            elem_ofst = get_element_ptr(lll_node, unwrap_location(iptr), array_bounds_check=False, pos=pos)
+            # offset of the i'th element in dst
+            static_ofst = ["mul", unwrap_location(iptr), elem_size]
+            loop_body = _encode_child_helper(
+                dst,
+                elem_ofst,
+                static_ofst,
+                dyn_ofst,
+                context,
+                pos=pos
+            )
+            lll_ret.append(["repeat", iptr, 0, get_dyn_array_count(lll_node), lll_node.typ.count, loop_body])
+ 
+        elif isinstance(lll_node.typ, (TupleLike, SArrayType)):
+            elems = _deconstruct_complex_type(lll_node)
+            for e in elems:
+                encode_lll = _encode_child_helper(dst, e, static_ofst, dyn_ofst, context, pos=pos)
+                lll_ret.extend(encode_lll)
+                static_ofst += abi_type_of(e.typ).embedded_static_size()
+
         else:
-            raise CompilerPanic("unknown type {lll_node.typ}")
+            raise CompilerPanic(f"unencodable type: {o.typ}")
 
-    if not (parent_abi_t.is_dynamic() and parent_abi_t.is_complex_type()):
-        pass  # optimize out dyn_ofst allocation if we don't need it
-    else:
-        dyn_section_start = parent_abi_t.static_size()
-        lll_ret = ["with", "dyn_ofst", dyn_section_start, lll_ret]
 
-    lll_ret = ["with", dst_begin, dst, ["with", dst_loc, dst_begin, lll_ret]]
+        # declare LLL variables.
+        if returns_len:
+            if not abi_t.is_dynamic():
+                lll_ret.append(abi_t.embedded_static_size())
+            elif abi_t.is_complex_type():
+                lll_ret.append("dyn_ofst")
+            elif isinstance(lll_node.typ, ByteArrayLike):
+                # for abi purposes, return zero-padded length
+                calc_len = ["ceil32", ["add", 32, ["mload", dst]]]
+                lll_ret.append(calc_len)
+            else:
+                raise CompilerPanic("unknown type {lll_node.typ}")
 
-    if lll_node.is_complex_lll:
-        lll_ret = ["with", to_encode, lll_node, lll_ret]
+        if abi_t.is_dynamic() and abi_t.is_complex_type():
+            dyn_section_start = abi_t.static_size()
+            lll_ret = ["with", dyn_ofst, dyn_section_start, lll_ret]
+        else:
+            pass  # skip dyn_ofst allocation if we don't need it
 
-    return LLLnode.from_list(lll_ret, pos=pos, annotation=f"abi_encode {lll_node.typ}")
+        annotation = f"abi_encode {lll_node.typ}"
+        return builder.resolve(LLLnode.from_list(lll_ret, pos=pos, annotation=annotation))
 
 
 # CMC 20211002 this is dead code because make_setter does this.

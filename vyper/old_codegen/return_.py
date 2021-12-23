@@ -64,7 +64,7 @@ def make_return_stmt(lll_val: LLLnode, stmt: Any, context: Context) -> Optional[
 
         # encode_out is cleverly a sequence which does the abi-encoding and
         # also returns the length of the output as a stack element
-        encode_out = abi_encode(return_buffer_ofst, lll_val, pos=_pos, returns_len=True)
+        encode_out = abi_encode(return_buffer_ofst, lll_val, context, pos=_pos, returns_len=True)
 
         # previously we would fill the return buffer and push the location and length onto the stack
         # inside of the `seq_unchecked` thereby leaving it for the function cleanup routine expects

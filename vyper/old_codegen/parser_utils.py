@@ -425,6 +425,7 @@ def _get_element_ptr_mapping(parent, key, pos):
 # Take a value representing a memory or storage location, and descend down to
 # an element or member variable
 # This is analogous (but not necessarily equivalent to) getelementptr in LLVM.
+@type_check_wrapper
 def get_element_ptr(parent, key, pos, array_bounds_check=True):
     typ = parent.typ
 

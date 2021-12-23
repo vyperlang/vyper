@@ -1914,13 +1914,13 @@ class ABIEncode(_SimpleBuiltinFunction):
             # overwrite the 28 bytes of zeros with the bytestring length
             ret += [["mstore", buf + 4, method_id]]
             # abi encode and grab length as stack item
-            length = abi_encode(buf + 36, encode_input, pos, returns_len=True)
+            length = abi_encode(buf + 36, encode_input, context, pos, returns_len=True)
             # write the output length to where bytestring stores its length
             ret += [["mstore", buf, ["add", length, 4]]]
 
         else:
             # abi encode and grab length as stack item
-            length = abi_encode(buf + 32, encode_input, pos, returns_len=True)
+            length = abi_encode(buf + 32, encode_input, context, pos, returns_len=True)
             # write the output length to where bytestring stores its length
             ret += [["mstore", buf, length]]
 
