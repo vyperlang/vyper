@@ -133,12 +133,12 @@ def make_dyn_array_copier(dst, src, pos=None):
         raise TypeMismatch( f"Cannot cast from {src.typ} to {dst.typ}")
 
     # stricter check for zeroing
-    if source.value is None and source.typ.count != destination.typ.count:
+    if src.value is None and src.typ.count != dst.typ.count:
         raise CompilerPanic(
-            f"Bad type for clearing bytes: expected {destination.typ} but got {source.typ}"
+            f"Bad type for clearing bytes: expected {dst.typ} but got {src.typ}"
         )
 
-    with source.cache_when_complex("_src") as (builder, src):
+    with src.cache_when_complex("_src") as (builder, src):
         if src.value is not None:
             length = 0
             max_length = 32
@@ -148,7 +148,7 @@ def make_dyn_array_copier(dst, src, pos=None):
             length = ["add", ["mul", get_dyn_array_count(src), element_size], 32]
             max_length = src.typ.memory_bytes_required
 
-        return builder.resolve(copy_bytes(destination, src, length, max_length, pos=pos))
+        return builder.resolve(copy_bytes(dst, src, length, max_length, pos=pos))
 
 
 
@@ -162,6 +162,10 @@ def make_dyn_array_copier(dst, src, pos=None):
 # copy an entire (32-byte) word, depending on the copy routine chosen.
 def copy_bytes(dst, src, length, length_bound, pos=None):
     annotation = f"copy bytes src: {src} dst: {dst}"
+
+    src = LLLnode.from_list(src)
+    dst = LLLnode.from_list(dst)
+    length = LLLnode.from_list(length)
 
     with src.cache_when_complex("_src") as (b1, src), length.cache_when_complex("len") as (
         b2,
@@ -263,7 +267,9 @@ def add_ofst(loc, ofst):
 
 
 # Resolve pointer locations for ABI-encoded data
-def _getelemptr_abi_helper(parent, member_t, ofst, clamp=True):
+def _getelemptr_abi_helper(parent, member_t, ofst, pos=None, clamp=True):
+    # TODO circular import!
+    from vyper.old_codegen.abi import abi_type_of
     member_abi_t = abi_type_of(member_t)
     ofst_lll = add_ofst(parent, ofst)
 
@@ -283,7 +289,10 @@ def _getelemptr_abi_helper(parent, member_t, ofst, clamp=True):
     )
 
 # TODO simplify this code, especially the ABI decoding
-def _getelemptr_tuplelike(parent, key, pos):
+def _get_element_ptr_tuplelike(parent, key, pos):
+    # TODO circular import!
+    from vyper.old_codegen.abi import abi_type_of
+
     typ = parent.typ
     assert isinstance(typ, TupleLike)
 
@@ -319,7 +328,7 @@ def _getelemptr_tuplelike(parent, key, pos):
             member_abi_t = abi_type_of(typ.members[attrs[i]])
             ofst += member_abi_t.embedded_static_size()
 
-        return _getelemptr_abi_helper(parent, member_t, ofst)
+        return _getelemptr_abi_helper(parent, member_t, ofst, pos)
 
     if parent.location == "storage":
         for i in range(index):
@@ -368,7 +377,7 @@ def _get_element_ptr_array(parent, key, pos, array_bounds_check):
     elif array_bounds_check:
         clamp = "clamplt" if is_signed_num(key.typ) else "uclamplt"
         is_darray = isinstance(typ, DArrayType)
-        bound = get_dyn_array_length(parent) if is_darray else typ.count
+        bound = get_dyn_array_count(parent) if is_darray else typ.count
         ix = [clamp, ix, bound]
 
     if parent.encoding in (Encoding.ABI, Encoding.JSON_ABI):
@@ -384,7 +393,7 @@ def _get_element_ptr_array(parent, key, pos, array_bounds_check):
         else:
             ofst = ["mul", ix, member_abi_t.embedded_static_size()]
 
-        return _getelemptr_abi_helper(parent, member_t, ofst)
+        return _getelemptr_abi_helper(parent, member_t, ofst, pos)
 
     if location == "storage":
         element_size = subtype.storage_size_words
@@ -417,7 +426,7 @@ def get_element_ptr(parent, key, pos, array_bounds_check=True):
     typ = parent.typ
 
     if isinstance(typ, TupleLike):
-        return _get_element_ptr_tuple(parent, key, pos)
+        return _get_element_ptr_tuplelike(parent, key, pos)
 
     if isinstance(typ, MappingType):
         return _get_element_ptr_mapping(parent, key, pos)
@@ -601,14 +610,13 @@ def _complex_make_setter(left, right, pos):
 
     # general case
     # TODO use copy_bytes when the generated code is above a certain size
-    with left.cache_when_complex("_L") as (b1, left),
-        right.cache_when_complex("_R") as (b2, right):
+    with left.cache_when_complex("_L") as (b1, left), right.cache_when_complex("_R") as (b2, right):
 
         ret = ["seq"]
         for k in keys:
             l = get_element_ptr(left, k, pos=pos, array_bounds_check=False)
             r = get_element_ptr(right, k, pos=pos, array_bounds_check=False)
-            ret.append(make_setter(l, r, pos)
+            ret.append(make_setter(l, r, pos))
 
         return b1.resolve(b2.resolve(LLLnode.from_list(ret)))
 
@@ -742,7 +750,7 @@ def clamp_bytestring(lll_node):
 def clamp_dyn_array(lll_node):
     t = lll_node.typ
     assert isinstance(t, DArrayType)
-    return ["assert", ["le", get_dyn_array_length(lll_node, t.count)]]
+    return ["assert", ["le", get_dyn_array_count(lll_node), t.count]]
 
 # clampers for basetype
 @type_check_wrapper

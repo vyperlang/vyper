@@ -216,10 +216,14 @@ def canonicalize_type(t, is_indexed=False):
         byte_type = "string" if isinstance(t, StringType) else "bytes"
         return byte_type
 
-    if isinstance(t, SArrayType):
+    if isinstance(t, ArrayLike):
         if not isinstance(t.subtype, (SArrayType, BaseType, StructType)):
             raise InvalidType(f"List of {t.subtype} not allowed")
-        return canonicalize_type(t.subtype) + f"[{t.count}]"
+        if isinstance(t, SArrayType):
+            return canonicalize_type(t.subtype) + f"[{t.count}]"
+        if isinstance(t, DArrayType):
+            return canonicalize_type(t.subtype) + "[]"
+        assert False, type(t)
 
     if isinstance(t, TupleLike):
         return f"({','.join(canonicalize_type(x) for x in t.tuple_members())})"
