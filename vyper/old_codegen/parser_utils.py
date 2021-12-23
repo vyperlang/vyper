@@ -112,7 +112,7 @@ def make_byte_array_copier(destination, source, pos=None):
         )
 
     with source.cache_when_complex("_src") as (builder, src):
-        if src.value is not None:
+        if src.value is None:
             length = 0
             max_length = 32
         else:
@@ -139,11 +139,11 @@ def make_dyn_array_copier(dst, src, pos=None):
         )
 
     with src.cache_when_complex("_src") as (builder, src):
-        if src.value is not None:
+        if src.value is None:
             length = 0
             max_length = 32
         else:
-            element_size = src.typ.subtyp.memory_bytes_required
+            element_size = src.typ.subtype.memory_bytes_required
             # 32 bytes + number of elements * size of element in bytes
             length = ["add", ["mul", get_dyn_array_count(src), element_size], 32]
             max_length = src.typ.memory_bytes_required
@@ -171,9 +171,9 @@ def copy_bytes(dst, src, length, length_bound, pos=None):
         b2,
         len_,
     ), dst.cache_when_complex("dst") as (b3, dst):
-        if src.location == "memory":
+        if dst.location == "memory":
             # special cases: batch copy to memory
-            if dst.location == "memory":
+            if src.location == "memory":
                 copy_op = ["staticcall", "gas", 4, src, len_, dst, len_]
                 gas_bound = _identity_gas_bound(length_bound)
             elif src.location == "calldata":
@@ -183,9 +183,8 @@ def copy_bytes(dst, src, length, length_bound, pos=None):
                 copy_op = ["codecopy", dst, src, len_]
                 gas_bound = _codecopy_gas_bound(length_bound)
 
-            return b1.resolve(
-                b2.resolve(b3.resolve(copy_op, annotation=annotation, add_gas_estimate=gas_bound))
-            )
+            ret = LLLnode.from_list(copy_op, annotation=annotation, add_gas_estimate=gas_bound)
+            return b1.resolve( b2.resolve(b3.resolve(ret)))
 
         # general case, copy word-for-word
         # pseudocode for our approach (memory-storage as example):
