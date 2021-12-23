@@ -161,7 +161,7 @@ def make_dyn_array_copier(dst, src, pos=None):
 # NOTE: may pad to ceil32 of `length`! If you ask to copy 1 byte, it may
 # copy an entire (32-byte) word, depending on the copy routine chosen.
 def copy_bytes(dst, src, length, length_bound, pos=None):
-    annotation = f"copy bytes src: {src} dst: {dst}"
+    annotation = f"copy_bytes from {src} to {dst}"
 
     src = LLLnode.from_list(src)
     dst = LLLnode.from_list(dst)
