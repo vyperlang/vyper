@@ -568,6 +568,22 @@ def foo(a: int128) -> (int128, int128):
     (
         """
 struct A:
+    one: uint8
+
+@internal
+def _foo(_one: uint8) ->A:
+    return A({one: _one})
+
+@external
+def foo() -> A:
+    return self._foo(1)
+    """,
+        (),
+        (1,),
+    ),
+    (
+        """
+struct A:
     many: uint256[4]
     one: uint256
 

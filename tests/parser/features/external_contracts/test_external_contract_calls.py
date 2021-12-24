@@ -1565,6 +1565,34 @@ def test(addr: address) -> (int128, String[{ln}], Bytes[{ln}]):
     assert c2.test(c1.address) == list(c1.get_struct_x())
 
 
+def test_struct_return_external_contract_call_3(get_contract_with_gas_estimation):
+    contract_1 = """
+struct X:
+    x: int128
+@external
+def out_literals() -> X:
+    return X({x: 1})
+    """
+
+    contract_2 = """
+struct X:
+    x: int128
+interface Test:
+    def out_literals() -> X : view
+
+@external
+def test(addr: address) -> int128:
+    ret: X = Test(addr).out_literals()
+    return ret.x
+
+    """
+    c1 = get_contract_with_gas_estimation(contract_1)
+    c2 = get_contract_with_gas_estimation(contract_2)
+
+    assert c1.out_literals() == (1,)
+    assert [c2.test(c1.address)] == list(c1.out_literals())
+
+
 def test_list_external_contract_call(get_contract, get_contract_with_gas_estimation):
     contract_1 = """
 @external
