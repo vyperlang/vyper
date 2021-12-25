@@ -28,6 +28,7 @@ from vyper.old_codegen.types import (
     ByteArrayType,
     InterfaceType,
     SArrayType,
+    ArrayLike,
     MappingType,
     StringType,
     StructType,

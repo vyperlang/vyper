@@ -23,6 +23,7 @@ from vyper.old_codegen.types import (
     TupleType,
     ceil32,
     is_base_type,
+    is_signed_num,
 )
 from vyper.utils import (
     GAS_CALLDATACOPY_WORD,
@@ -296,11 +297,14 @@ def _get_element_ptr_tuplelike(parent, key, pos):
     assert isinstance(typ, TupleLike)
 
     if isinstance(typ, StructType):
+        assert isinstance(key, str)
         subtype = typ.members[key]
         attrs = list(typ.tuple_keys())
         index = attrs.index(key)
         annotation = key
     else:
+        assert isinstance(key, int)
+        subtype = typ.members[key]
         attrs = list(range(len(typ.members)))
         index = key
         annotation = None
@@ -340,7 +344,7 @@ def _get_element_ptr_tuplelike(parent, key, pos):
 
     return LLLnode.from_list(
         add_ofst(parent, ofst),
-        typ=subtyp,
+        typ=subtype,
         location=parent.location,
         encoding=parent.encoding,
         annotation=annotation,
@@ -355,7 +359,7 @@ def _get_element_ptr_array(parent, key, pos, array_bounds_check):
     if not is_base_type(key.typ, ("int256", "uint256")):
         return
 
-    subtype = typ.subtype
+    subtype = parent.typ.subtype
 
     if parent.value is None:
         return LLLnode.from_list(None, typ=subtype)
@@ -367,7 +371,7 @@ def _get_element_ptr_array(parent, key, pos, array_bounds_check):
 
     ix = unwrap_location(key)
 
-    if key.typ.is_literal and isinstance(typ, SArrayType):
+    if key.typ.is_literal and isinstance(parent.typ, SArrayType):
         # perform the check at compile time and elide the runtime check.
         # TODO make this an optimization on clamp ops
         if key.value < 0 or key.value >= typ.count:
@@ -375,7 +379,7 @@ def _get_element_ptr_array(parent, key, pos, array_bounds_check):
 
     elif array_bounds_check:
         clamp = "clamplt" if is_signed_num(key.typ) else "uclamplt"
-        is_darray = isinstance(typ, DArrayType)
+        is_darray = isinstance(parent.typ, DArrayType)
         bound = get_dyn_array_count(parent) if is_darray else typ.count
         ix = [clamp, ix, bound]
 
@@ -394,16 +398,16 @@ def _get_element_ptr_array(parent, key, pos, array_bounds_check):
 
         return _getelemptr_abi_helper(parent, member_t, ofst, pos)
 
-    if location == "storage":
+    if parent.location == "storage":
         element_size = subtype.storage_size_words
-    elif location in ("calldata", "memory", "code"):
+    elif parent.location in ("calldata", "memory", "code"):
         element_size = subtype.memory_bytes_required
 
     # TODO optimize if ix is literal
     ofst = ["mul", ix, element_size]
 
     return LLLnode.from_list(
-        add_ofst(parent, ofst), typ=subtype, location=location, pos=pos
+        add_ofst(parent, ofst), typ=subtype, location=parent.location, pos=pos
     )
 
 
