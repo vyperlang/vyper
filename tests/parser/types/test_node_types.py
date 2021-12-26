@@ -3,8 +3,8 @@ from pytest import raises
 from vyper.old_codegen.types import (
     BaseType,
     ByteArrayType,
-    SArrayType,
     MappingType,
+    SArrayType,
     StructType,
     TupleType,
     canonicalize_type,

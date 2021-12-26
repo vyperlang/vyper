@@ -122,7 +122,7 @@ class LLLnode:
                     zero_valency_whitelist = {"pass", "pop"}
                     _check(
                         arg.valency == 1 or arg.value in zero_valency_whitelist,
-                        f"invalid argument to opcode or pseudo-opcode: {arg}"
+                        f"invalid argument to opcode or pseudo-opcode: {arg}",
                     )
                     self.gas += arg.gas
                 # Dynamic gas cost: 8 gas for each byte of logging data
@@ -151,7 +151,7 @@ class LLLnode:
                     self.gas = self.args[0].gas + self.args[1].gas + 17
                 _check(
                     self.args[0].valency > 0,
-                    f"zerovalent argument as a test to an if statement: {self.args[0]}"
+                    f"zerovalent argument as a test to an if statement: {self.args[0]}",
                 )
                 _check(len(self.args) in (2, 3), "if statement can only have 2 or 3 arguments")
                 self.valency = self.args[1].valency

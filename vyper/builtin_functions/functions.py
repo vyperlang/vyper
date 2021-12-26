@@ -29,6 +29,7 @@ from vyper.old_codegen.parser_utils import (
     add_ofst,
     check_external_call,
     clamp_basetype,
+    copy_bytes,
     ensure_in_memory,
     eval_seq,
     get_bytearray_length,
@@ -36,7 +37,6 @@ from vyper.old_codegen.parser_utils import (
     getpos,
     lll_tuple_from_args,
     load_op,
-    copy_bytes,
     unwrap_location,
 )
 from vyper.old_codegen.types import BaseType, ByteArrayLike, ByteArrayType, SArrayType

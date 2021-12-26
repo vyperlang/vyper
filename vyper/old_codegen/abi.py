@@ -1,10 +1,7 @@
 import vyper.semantics.types as vy
 from vyper.exceptions import CompilerPanic
-from vyper.old_codegen.lll_node import Encoding, LLLnode
+from vyper.old_codegen.lll_node import LLLnode
 from vyper.old_codegen.parser_utils import (
-    _needs_clamp,
-    add_ofst,
-    clamp_basetype,
     get_dyn_array_count,
     get_element_ptr,
     make_setter,
@@ -15,8 +12,8 @@ from vyper.old_codegen.types import (
     BaseType,
     ByteArrayLike,
     ByteArrayType,
-    SArrayType,
     DArrayType,
+    SArrayType,
     StringType,
     TupleLike,
 )
@@ -478,19 +475,18 @@ def abi_encode(dst, lll_node, context, pos=None, bufsz=None, returns_len=False):
             elem_size = child_abi_t.embedded_static_size()
 
             # offset of the i'th element in lll_node
-            elem_ofst = get_element_ptr(lll_node, unwrap_location(iptr), array_bounds_check=False, pos=pos)
+            elem_ofst = get_element_ptr(
+                lll_node, unwrap_location(iptr), array_bounds_check=False, pos=pos
+            )
             # offset of the i'th element in dst
             static_ofst = ["mul", unwrap_location(iptr), elem_size]
             loop_body = _encode_child_helper(
-                dst,
-                elem_ofst,
-                static_ofst,
-                dyn_ofst,
-                context,
-                pos=pos
+                dst, elem_ofst, static_ofst, dyn_ofst, context, pos=pos
             )
-            lll_ret.append(["repeat", iptr, 0, get_dyn_array_count(lll_node), lll_node.typ.count, loop_body])
- 
+            lll_ret.append(
+                ["repeat", iptr, 0, get_dyn_array_count(lll_node), lll_node.typ.count, loop_body]
+            )
+
         elif isinstance(lll_node.typ, (TupleLike, SArrayType)):
             elems = _deconstruct_complex_type(lll_node)
             for e in elems:
@@ -499,8 +495,7 @@ def abi_encode(dst, lll_node, context, pos=None, bufsz=None, returns_len=False):
                 static_ofst += abi_type_of(e.typ).embedded_static_size()
 
         else:
-            raise CompilerPanic(f"unencodable type: {o.typ}")
-
+            raise CompilerPanic(f"unencodable type: {lll_node.typ}")
 
         # declare LLL variables.
         if returns_len:
@@ -523,50 +518,3 @@ def abi_encode(dst, lll_node, context, pos=None, bufsz=None, returns_len=False):
 
         annotation = f"abi_encode {lll_node.typ}"
         return builder.resolve(LLLnode.from_list(lll_ret, pos=pos, annotation=annotation))
-
-
-# CMC 20211002 this is dead code because make_setter does this.
-# lll_node is the destination LLL item, src is the input buffer.
-# recursively copy the buffer items into lll_node, based on its type.
-# src: pointer to beginning of buffer
-# src_loc: pointer to read location in static section
-def abi_decode(lll_node, src, clamp=True, pos=None):
-    os = o_list(lll_node, pos=pos)
-    lll_ret = ["seq"]
-    parent_abi_t = abi_type_of(lll_node.typ)
-    for i, o in enumerate(os):
-        abi_t = abi_type_of(o.typ)
-        src_loc = LLLnode("src_loc", typ=o.typ, location=src.location)
-        if parent_abi_t.is_complex_type():
-            if abi_t.is_dynamic():
-                # TODO optimize: special case where there is only one dynamic
-                # member, the location is statically known.
-                child_loc = ["add", "src", unwrap_location(src_loc)]
-                child_loc = LLLnode.from_list(child_loc, typ=o.typ, location=src.location)
-            else:
-                child_loc = src_loc
-            # descend into the child tuple
-            lll_ret.append(abi_decode(o, child_loc, clamp=clamp, pos=pos))
-
-        else:
-
-            if clamp and _needs_clamp(o.typ, Encoding.ABI):
-                src_loc = LLLnode.from_list(
-                    ["with", "src_loc", src_loc, ["seq", clamp_basetype(src_loc), src_loc]],
-                    typ=src_loc.typ,
-                    location=src_loc.location,
-                )
-            else:
-                pass
-
-            lll_ret.append(make_setter(o, src_loc, pos=pos))
-
-        if i + 1 == len(os):
-            pass  # optimize out the last pointer increment
-        else:
-            sz = abi_t.embedded_static_size()
-            lll_ret.append(["set", "src_loc", ["add", "src_loc", sz]])
-
-    lll_ret = ["with", "src", src, ["with", "src_loc", "src", lll_ret]]
-
-    return lll_ret

@@ -1,14 +1,14 @@
 from typing import Optional, Tuple, Union
 
 from vyper import ast as vy_ast
-from vyper.exceptions import ArrayIndexException, InvalidType
+from vyper.exceptions import ArrayIndexException, InvalidType, StructureException
 from vyper.semantics import validation
 from vyper.semantics.types.abstract import IntegerAbstractType
 from vyper.semantics.types.bases import (
+    BasePrimitive,
     BaseTypeDefinition,
     DataLocation,
     IndexableTypeDefinition,
-    BasePrimitive,
 )
 from vyper.semantics.types.value.numeric import Uint256Definition
 
@@ -189,7 +189,7 @@ class DynamicArrayPrimitive(BasePrimitive):
             or len(node.slice.value.elements) != 2
         ):
             raise StructureException(
-                "DynArray must be initialized with base type and max length, e.g. DynArray[bool, 5]",
+                "DynArray must be defined with base type and max length, e.g. DynArray[bool, 5]",
                 node,
             )
         value_type = get_type_from_annotation(node.slice.value.elements[0], DataLocation.UNSET)

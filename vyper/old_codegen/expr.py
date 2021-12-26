@@ -23,13 +23,13 @@ from vyper.old_codegen.parser_utils import (
     unwrap_location,
 )
 from vyper.old_codegen.types import (
+    ArrayLike,
     BaseType,
     ByteArrayLike,
     ByteArrayType,
     InterfaceType,
-    SArrayType,
-    ArrayLike,
     MappingType,
+    SArrayType,
     StringType,
     StructType,
     TupleType,

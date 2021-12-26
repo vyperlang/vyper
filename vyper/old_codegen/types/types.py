@@ -223,7 +223,7 @@ def canonicalize_type(t, is_indexed=False):
             return canonicalize_type(t.subtype) + f"[{t.count}]"
         if isinstance(t, DArrayType):
             return canonicalize_type(t.subtype) + "[]"
-        assert False, type(t)
+        raise CompilerPanic(f"unhandled type {type(t)}")
 
     if isinstance(t, TupleLike):
         return f"({','.join(canonicalize_type(x) for x in t.tuple_members())})"
@@ -333,8 +333,7 @@ def parse_type(item, sigs=None, custom_structs=None):
         elif item.value.id in ("HashMap",) and isinstance(item.slice.value, vy_ast.Tuple):
             keytype = parse_type(
                 item.slice.value.elements[0],
-                None,
-                sigs,
+                sigs=sigs,
                 custom_structs=custom_structs,
             )
             return MappingType(
@@ -389,6 +388,7 @@ def is_numeric_type(typ):
         "uint256",
         "decimal",
     )
+
 
 def is_signed_num(typ):
     if not is_numeric_type(typ):

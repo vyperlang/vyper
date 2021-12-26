@@ -233,7 +233,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
                 height + 1,
             )
         )
-        o.extend(_compile_to_assembly(rounds, withargs, existing_labels, break_dest, height+2))
+        o.extend(_compile_to_assembly(rounds, withargs, existing_labels, break_dest, height + 2))
 
         # stack: memloc, startvalue, rounds
         o.extend(["DUP2", "DUP4", "MSTORE", "ADD", entry_dest, "JUMPDEST"])

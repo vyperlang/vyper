@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 
-from setuptools import find_packages, setup
 import re
+
+from setuptools import find_packages, setup
 
 extras_require = {
     "test": [
