@@ -1015,6 +1015,54 @@ def __init__(arg1: address):
     print("Successfully executed a multiple external contract calls")
 
 
+def test_external_contract_calls_with_default_value(get_contract):
+    contract_1 = """
+@external
+def foo(arg1: uint256=1) -> uint256:
+    return arg1
+    """
+
+    contract_2 = """
+interface Foo:
+    def foo(arg1: uint256=1) -> uint256: nonpayable
+
+@external
+def bar(addr: address) -> uint256:
+    return Foo(addr).foo()
+    """
+
+    c1 = get_contract(contract_1)
+    c2 = get_contract(contract_2)
+
+    assert c1.foo() == 1
+    assert c1.foo(2) == 2
+    assert c2.bar(c1.address) == 1
+
+
+def test_external_contract_calls_with_default_value_two(get_contract):
+    contract_1 = """
+@external
+def foo(arg1: uint256, arg2: uint256=1) -> uint256:
+    return arg1 + arg2
+    """
+
+    contract_2 = """
+interface Foo:
+    def foo(arg1: uint256, arg2: uint256=1) -> uint256: nonpayable
+
+@external
+def bar(addr: address, arg1: uint256) -> uint256:
+    return Foo(addr).foo(arg1)
+    """
+
+    c1 = get_contract(contract_1)
+    c2 = get_contract(contract_2)
+
+    assert c1.foo(2) == 3
+    assert c1.foo(2, 3) == 5
+    assert c2.bar(c1.address, 2) == 3
+
+
 def test_invalid_external_contract_call_to_the_same_contract(get_contract):
     contract_1 = """
 @external
