@@ -114,7 +114,7 @@ Chain Interaction
         def foo(_target: address) -> address:
             return create_forwarder_to(_target)
 
-.. py:function:: raw_call(to: address, data: Bytes, max_outsize: int = 0, gas: uint256 = gasLeft, value: uint256 = 0, is_delegate_call: bool = False, is_static_call: bool = False) -> Bytes[max_outsize]
+.. py:function:: raw_call(to: address, data: Bytes, max_outsize: int = 0, gas: uint256 = gasLeft, value: uint256 = 0, is_delegate_call: bool = False, is_static_call: bool = False, revert_on_failure: bool = True) -> Bytes[max_outsize]
 
     Call to the specified Ethereum address.
 
@@ -125,10 +125,13 @@ Chain Interaction
     * ``value``: The wei value to send to the address (Optional, default ``0``)
     * ``is_delegate_call``: If ``True``, the call will be sent as ``DELEGATECALL`` (Optional, default ``False``)
     * ``is_static_call``: If ``True``, the call will be sent as ``STATICCALL`` (Optional, default ``False``)
+    * ``revert_on_failure``: If ``True``, the call will revert on a failure, otherwise ``success`` will be returned (Optional, default ``True``)
 
     Returns the data returned by the call as a ``Bytes`` list, with ``max_outsize`` as the max length.
 
     Returns ``None`` if ``max_outsize`` is omitted or set to ``0``.
+    
+    Returns ``success`` in a tuple if ``revert_on_failure`` is set to ``False``.
 
     .. note::
 
@@ -142,6 +145,15 @@ Chain Interaction
         @payable
         def foo(_target: address) -> Bytes[32]:
             response: Bytes[32] = raw_call(_target, 0xa9059cbb, max_outsize=32, value=msg.value)
+            return response
+            
+        @external
+        @payable
+        def bar(_target: address) -> Bytes[32]:
+            success: bool = True
+            response: Bytes[32] = b""
+            success, response = raw_call(_target, 0xa9059cbb, max_outsize=32, value=msg.value)
+            assert success
             return response
 
 .. py:function:: raw_log(topics: bytes32[4], data: Union[Bytes, bytes32]) -> None
