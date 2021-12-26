@@ -209,13 +209,13 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
             iptr = code.args[0]
             start = code.args[1]
             rounds = code.args[2]
+            rounds_bound = None
             body = code.args[3]
         elif len(code.args) == 5:
             iptr = code.args[0]
             start = code.args[1]
             rounds = code.args[2]
             rounds_bound = code.args[3]
-            rounds = LLLnode.from_list(["if", ["le", rounds, rounds_bound], rounds, rounds_bound])
             body = code.args[4]
         else:
             # should not happen
@@ -233,7 +233,13 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
                 height + 1,
             )
         )
+
+        # rounds = min(rounds, round_bound)
         o.extend(_compile_to_assembly(rounds, withargs, existing_labels, break_dest, height + 2))
+        if rounds_bound is not None:
+            o.extend(_compile_to_assembly(rounds_bound, withargs, existing_labels, break_dest, height + 3))
+            t = mksymbol()
+            o.extend(["DUP2", "DUP2", "GT", t, "JUMPI", "SWAP1", t, "JUMPDEST", "POP"])
 
         # stack: memloc, startvalue, rounds
         o.extend(["DUP2", "DUP4", "MSTORE", "ADD", entry_dest, "JUMPDEST"])
@@ -533,7 +539,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
                     "_val",
                     code.args[0],
                     # in mod32 arithmetic, the solution to x + y == 32 is
-                    # y = bitwise_not(x) & 32
+                    # y = bitwise_not(x) & 31
                     ["add", "_val", ["and", ["not", ["sub", "_val", 1]], 31]],
                 ]
             ),
