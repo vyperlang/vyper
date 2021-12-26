@@ -1641,6 +1641,126 @@ def test(addr: address) -> int128:
     assert [c2.test(c1.address)] == list(c1.out_literals())
 
 
+def test_dynamically_sized_struct_external_contract_call(get_contract_with_gas_estimation):
+    contract_1 = """
+struct X:
+    x: uint256
+    y: Bytes[6]
+
+@external
+def foo(x: X) -> Bytes[6]:
+    return x.y
+    """
+
+    contract_2 = """
+struct X:
+    x: uint256
+    y: Bytes[6]
+
+interface Foo:
+    def foo(x: X) -> Bytes[6]: nonpayable
+
+@external
+def bar(addr: address) -> Bytes[6]:
+    _X: X = X({x: 1, y: b"hello"})
+    return Foo(addr).foo(_X)
+    """
+
+    c1 = get_contract_with_gas_estimation(contract_1)
+    c2 = get_contract_with_gas_estimation(contract_2)
+
+    assert c1.foo((1, b"hello")) == b"hello"
+    assert c2.bar(c1.address) == b"hello"
+
+
+def test_dynamically_sized_struct_external_contract_call_2(get_contract_with_gas_estimation):
+    contract_1 = """
+struct X:
+    x: uint256
+    y: String[6]
+
+@external
+def foo(x: X) -> String[6]:
+    return x.y
+    """
+
+    contract_2 = """
+struct X:
+    x: uint256
+    y: String[6]
+
+interface Foo:
+    def foo(x: X) -> String[6]: nonpayable
+
+@external
+def bar(addr: address) -> String[6]:
+    _X: X = X({x: 1, y: "hello"})
+    return Foo(addr).foo(_X)
+    """
+
+    c1 = get_contract_with_gas_estimation(contract_1)
+    c2 = get_contract_with_gas_estimation(contract_2)
+
+    assert c1.foo((1, "hello")) == "hello"
+    assert c2.bar(c1.address) == "hello"
+
+
+def test_dynamically_sized_struct_member_external_contract_call(get_contract_with_gas_estimation):
+    contract_1 = """
+@external
+def foo(b: Bytes[6]) -> Bytes[6]:
+    return b
+    """
+
+    contract_2 = """
+struct X:
+    x: uint256
+    y: Bytes[6]
+
+interface Foo:
+    def foo(b: Bytes[6]) -> Bytes[6]: nonpayable
+
+@external
+def bar(addr: address) -> Bytes[6]:
+    _X: X = X({x: 1, y: b"hello"})
+    return Foo(addr).foo(_X.y)
+    """
+
+    c1 = get_contract_with_gas_estimation(contract_1)
+    c2 = get_contract_with_gas_estimation(contract_2)
+
+    assert c1.foo(b"hello") == b"hello"
+    assert c2.bar(c1.address) == b"hello"
+
+
+def test_dynamically_sized_struct_member_external_contract_call_2(get_contract_with_gas_estimation):
+    contract_1 = """
+@external
+def foo(s: String[6]) -> String[6]:
+    return s
+    """
+
+    contract_2 = """
+struct X:
+    x: uint256
+    y: String[6]
+
+interface Foo:
+    def foo(b: String[6]) -> String[6]: nonpayable
+
+@external
+def bar(addr: address) -> String[6]:
+    _X: X = X({x: 1, y: "hello"})
+    return Foo(addr).foo(_X.y)
+    """
+
+    c1 = get_contract_with_gas_estimation(contract_1)
+    c2 = get_contract_with_gas_estimation(contract_2)
+
+    assert c1.foo("hello") == "hello"
+    assert c2.bar(c1.address) == "hello"
+
+
 def test_list_external_contract_call(get_contract, get_contract_with_gas_estimation):
     contract_1 = """
 @external
