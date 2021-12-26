@@ -439,6 +439,8 @@ def abi_encode(dst, lll_node, context, pos=None, bufsz=None, returns_len=False):
     if bufsz is not None and bufsz < 32 * size_bound:
         raise CompilerPanic("buffer provided to abi_encode not large enough")
 
+    dst = LLLnode.from_list(dst, typ=lll_node.typ, location="memory")
+
     # fastpath: if there is no dynamic data, we can optimize the
     # encoding by using make_setter, since our memory encoding happens
     # to be identical to the ABI encoding.
@@ -446,7 +448,6 @@ def abi_encode(dst, lll_node, context, pos=None, bufsz=None, returns_len=False):
     # path should generate equivalently optimized code
     if not abi_t.is_dynamic():
         # cast the output buffer to something that make_setter accepts
-        dst = LLLnode.from_list(dst, typ=lll_node.typ, location="memory")
         lll_ret = ["seq", make_setter(dst, lll_node, pos)]
         if returns_len:
             lll_ret.append(abi_t.embedded_static_size())

@@ -169,7 +169,7 @@ def copy_bytes(dst, src, length, length_bound, pos=None):
         b2,
         len_,
     ), dst.cache_when_complex("dst") as (b3, dst):
-        if dst.location == "memory":
+        if dst.location == "memory" and src.location in ("memory", "calldata", "code"):
             # special cases: batch copy to memory
             if src.location == "memory":
                 copy_op = ["staticcall", "gas", 4, src, len_, dst, len_]
@@ -333,7 +333,7 @@ def _get_element_ptr_tuplelike(parent, key, pos):
 
     if parent.location == "storage":
         for i in range(index):
-            ofst += typ.members[attrs[i]].storage_size_words
+            ofst += typ.members[attrs[i]].storage_size_in_words
     elif parent.location in ("calldata", "memory", "code"):
         for i in range(index):
             ofst += typ.members[attrs[i]].memory_bytes_required
@@ -357,7 +357,8 @@ def _get_element_ptr_array(parent, key, pos, array_bounds_check):
 
     assert isinstance(parent.typ, ArrayLike)
 
-    if not is_base_type(key.typ, ("int256", "uint256")):
+    # TODO allow other integer types
+    if not is_base_type(key.typ, ("int128", "int256", "uint256")):
         return
 
     subtype = parent.typ.subtype
@@ -400,7 +401,7 @@ def _get_element_ptr_array(parent, key, pos, array_bounds_check):
         return _getelemptr_abi_helper(parent, member_t, ofst, pos)
 
     if parent.location == "storage":
-        element_size = subtype.storage_size_words
+        element_size = subtype.storage_size_in_words
     elif parent.location in ("calldata", "memory", "code"):
         element_size = subtype.memory_bytes_required
 
