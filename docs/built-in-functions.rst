@@ -150,9 +150,9 @@ Chain Interaction
         @external
         @payable
         def bar(_target: address) -> Bytes[32]:
-            success: bool = True
+            success: bool = False
             response: Bytes[32] = b""
-            success, response = raw_call(_target, 0xa9059cbb, max_outsize=32, value=msg.value)
+            success, response = raw_call(_target, 0xa9059cbb, max_outsize=32, value=msg.value, revert_on_failure=False)
             assert success
             return response
 
