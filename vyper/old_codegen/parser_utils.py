@@ -167,18 +167,18 @@ def copy_bytes(dst, src, length, length_bound, pos=None):
 
     with src.cache_when_complex("_src") as (b1, src), length.cache_when_complex("len") as (
         b2,
-        len_,
+        length,
     ), dst.cache_when_complex("dst") as (b3, dst):
         if dst.location == "memory" and src.location in ("memory", "calldata", "code"):
             # special cases: batch copy to memory
             if src.location == "memory":
-                copy_op = ["staticcall", "gas", 4, src, len_, dst, len_]
+                copy_op = ["staticcall", "gas", 4, src, length, dst, length]
                 gas_bound = _identity_gas_bound(length_bound)
             elif src.location == "calldata":
-                copy_op = ["calldatacopy", dst, src, len_]
+                copy_op = ["calldatacopy", dst, src, length]
                 gas_bound = _calldatacopy_gas_bound(length_bound)
             elif src.location == "code":
-                copy_op = ["codecopy", dst, src, len_]
+                copy_op = ["codecopy", dst, src, length]
                 gas_bound = _codecopy_gas_bound(length_bound)
 
             ret = LLLnode.from_list(copy_op, annotation=annotation, add_gas_estimate=gas_bound)
