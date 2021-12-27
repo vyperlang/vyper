@@ -368,7 +368,7 @@ def _get_element_ptr_array(parent, key, pos, array_bounds_check):
 
     if parent.value == "multi":
         assert isinstance(key.value, int)
-        assert isinstance(parent, SArrayType), "list literals should be SArrayType"
+        assert isinstance(parent.typ, SArrayType), "list literals should be SArrayType"
         return parent.args[key.value]
 
     ix = unwrap_location(key)

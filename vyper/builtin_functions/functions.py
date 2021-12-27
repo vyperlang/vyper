@@ -1792,7 +1792,7 @@ class Empty:
 
     @validate_inputs
     def build_LLL(self, expr, args, kwargs, context):
-        output_type = context.parse_type(expr.args[0], expr.args[0])
+        output_type = context.parse_type(expr.args[0])
         return LLLnode(None, typ=output_type, pos=getpos(expr))
 
 
