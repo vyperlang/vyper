@@ -160,7 +160,7 @@ class LLLnode:
                 _check(len(self.args) == 3, self)
                 _check(
                     len(self.args[0].args) == 0 and isinstance(self.args[0].value, str),
-                    f"first argument to with statement must be a variable name: {self}",
+                    f"first argument to with statement must be a variable name: {self.args[0]}",
                 )
                 _check(
                     self.args[1].valency == 1 or self.args[1].value == "pass",
@@ -192,7 +192,13 @@ class LLLnode:
                 _check(body.valency == 0, body)
                 self.valency = 0
 
-                self.gas = repeat_bound * (body.gas + 50) + 30
+                self.gas = counter_ptr.gas + start.gas
+                self.gas += 3 # gas for repeat_bound
+                self.gas += repeat_bound * (body.gas + 50) + 30
+                if repeat_count is not None:
+                    self.gas += repeat_count.gas
+                    # gas to calculate min(repeat_count, repeat_bound)
+                    self.gas += 29
 
             # Seq statements: seq <statement> <statement> ...
             elif self.value == "seq":
@@ -206,7 +212,7 @@ class LLLnode:
                 for arg in self.args:
                     _check(
                         arg.valency == 1 or arg.value == "pass",
-                        f"zerovalent argument to goto {self}",
+                        f"zerovalent argument to goto {arg}",
                     )
 
                 self.valency = 0

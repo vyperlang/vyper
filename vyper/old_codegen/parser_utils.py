@@ -114,13 +114,13 @@ def make_byte_array_copier(destination, source, pos=None):
 
     with source.cache_when_complex("_src") as (builder, src):
         if src.value is None:
-            length = 0
-            max_length = 32
+            n_bytes = 32  # size in bytes of length word
+            max_bytes = 32
         else:
-            length = ["add", get_bytearray_length(src), 32]
-            max_length = src.typ.memory_bytes_required
+            n_bytes = ["add", get_bytearray_length(src), 32]
+            max_bytes = src.typ.memory_bytes_required
 
-        return builder.resolve(copy_bytes(destination, src, length, max_length, pos=pos))
+        return builder.resolve(copy_bytes(destination, src, n_bytes, max_bytes, pos=pos))
 
 
 # Copy dynamic array word-for-word (including layout)
@@ -139,15 +139,15 @@ def make_dyn_array_copier(dst, src, pos=None):
 
     with src.cache_when_complex("_src") as (builder, src):
         if src.value is None:
-            length = 0
-            max_length = 32
+            n_bytes = 32  # size in bytes of length word
+            max_bytes = 32
         else:
             element_size = src.typ.subtype.memory_bytes_required
             # 32 bytes + number of elements * size of element in bytes
-            length = ["add", ["mul", get_dyn_array_count(src), element_size], 32]
-            max_length = src.typ.memory_bytes_required
+            n_bytes = ["add", ["mul", get_dyn_array_count(src), element_size], 32]
+            max_bytes = src.typ.memory_bytes_required
 
-        return builder.resolve(copy_bytes(dst, src, length, max_length, pos=pos))
+        return builder.resolve(copy_bytes(dst, src, n_bytes, max_bytes, pos=pos))
 
 
 # Copy bytes
