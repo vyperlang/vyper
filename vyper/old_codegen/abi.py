@@ -456,7 +456,7 @@ def abi_encode(dst, lll_node, context, pos=None, bufsz=None, returns_len=False):
     lll_ret = ["seq"]
 
     # contains some computation, we need to only do it once.
-    with lll_node.cache_when_complex("to_encode") as (builder, lll_node):
+    with lll_node.cache_when_complex("to_encode") as (b1, lll_node), dst.cache_when_complex("dst") as (b2, dst):
 
         static_ofst = 0  # current offset in static section (known statically)
         dyn_ofst = "dyn_ofst"  # current offset in the dynamic section
@@ -518,4 +518,4 @@ def abi_encode(dst, lll_node, context, pos=None, bufsz=None, returns_len=False):
             pass  # skip dyn_ofst allocation if we don't need it
 
         annotation = f"abi_encode {lll_node.typ}"
-        return builder.resolve(LLLnode.from_list(lll_ret, pos=pos, annotation=annotation))
+        return b1.resolve(b2.resolve(LLLnode.from_list(lll_ret, pos=pos, annotation=annotation)))
