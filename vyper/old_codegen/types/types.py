@@ -21,8 +21,8 @@ class NodeType(abc.ABC):
         """
         pass
 
+    @property
     @abc.abstractmethod
-    # @property
     def memory_bytes_required(self) -> int:
         """
         Returns the number of bytes required to allocate in memory for this type
