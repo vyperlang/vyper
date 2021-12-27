@@ -2,6 +2,7 @@ import vyper.semantics.types as vy
 from vyper.exceptions import CompilerPanic
 from vyper.old_codegen.lll_node import LLLnode
 from vyper.old_codegen.parser_utils import (
+    add_ofst,
     get_dyn_array_count,
     get_element_ptr,
     make_setter,
@@ -376,7 +377,7 @@ def _deconstruct_complex_type(lll_node, pos=None):
 def _encode_child_helper(buf, child, static_ofst, dyn_ofst, context, pos=None):
     abi_t = abi_type_of(child.typ)
 
-    static_loc = ["add", buf, static_ofst]
+    static_loc = add_ofst(LLLnode.from_list(buf), static_ofst)
 
     ret = ["seq"]
 
@@ -440,18 +441,6 @@ def abi_encode(dst, lll_node, context, pos=None, bufsz=None, returns_len=False):
         raise CompilerPanic("buffer provided to abi_encode not large enough")
 
     dst = LLLnode.from_list(dst, typ=lll_node.typ, location="memory")
-
-    # fastpath: if there is no dynamic data, we can optimize the
-    # encoding by using make_setter, since our memory encoding happens
-    # to be identical to the ABI encoding.
-    # TODO CMC 2021-12-25 this should no longer be necessary; the "slow"
-    # path should generate equivalently optimized code
-    if not abi_t.is_dynamic():
-        # cast the output buffer to something that make_setter accepts
-        lll_ret = ["seq", make_setter(dst, lll_node, pos)]
-        if returns_len:
-            lll_ret.append(abi_t.embedded_static_size())
-        return LLLnode.from_list(lll_ret, pos=pos, annotation=f"abi_encode {lll_node.typ}")
 
     lll_ret = ["seq"]
 

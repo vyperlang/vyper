@@ -383,7 +383,7 @@ def _get_element_ptr_array(parent, key, pos, array_bounds_check):
         clamp = "clamplt" if is_signed_num(key.typ) else "uclamplt"
         is_darray = isinstance(parent.typ, DArrayType)
         bound = get_dyn_array_count(parent) if is_darray else parent.typ.count
-        ix = [clamp, ix, bound]
+        ix = LLLnode.from_list([clamp, ix, bound], typ=ix.typ)
 
     if parent.encoding in (Encoding.ABI, Encoding.JSON_ABI):
         if parent.location == "storage":
@@ -392,7 +392,7 @@ def _get_element_ptr_array(parent, key, pos, array_bounds_check):
         member_t = parent.typ.subtype
         member_abi_t = abi_type_of(member_t)
 
-        if key.typ.is_literal:
+        if isinstance(ix.value, int):
             # TODO this constant folding in LLL optimizer
             ofst = ix.value * member_abi_t.embedded_static_size()
         else:
@@ -405,8 +405,10 @@ def _get_element_ptr_array(parent, key, pos, array_bounds_check):
     elif parent.location in ("calldata", "memory", "code"):
         element_size = subtype.memory_bytes_required
 
-    # TODO optimize if ix is literal
-    ofst = ["mul", ix, element_size]
+    if isinstance(ix.value, int):
+        ofst = ix.value * element_size
+    else:
+        ofst = ["mul", ix, element_size]
 
     return LLLnode.from_list(add_ofst(parent, ofst), typ=subtype, location=parent.location, pos=pos)
 
