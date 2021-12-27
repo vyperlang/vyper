@@ -174,13 +174,13 @@ class LLLnode:
                 if len(self.args) == 4:
                     counter_ptr = self.args[0]
                     start = self.args[1]
-                    repeat_bound = self.args[2].value # constant int
+                    repeat_bound = self.args[2].value  # constant int
                     body = self.args[3]
                 elif len(self.args) == 5:
                     counter_ptr = self.args[0]
                     start = self.args[1]
                     repeat_count = self.args[2]
-                    repeat_bound = self.args[3].value # constant int
+                    repeat_bound = self.args[3].value  # constant int
                     body = self.args[4]
                 _check(
                     isinstance(repeat_bound, int) and repeat_bound > 0,
@@ -193,7 +193,7 @@ class LLLnode:
                 self.valency = 0
 
                 self.gas = counter_ptr.gas + start.gas
-                self.gas += 3 # gas for repeat_bound
+                self.gas += 3  # gas for repeat_bound
                 repeat_bound = int(repeat_bound)  # mypy complaint
                 self.gas += repeat_bound * (body.gas + 50) + 30
                 if repeat_count is not None:

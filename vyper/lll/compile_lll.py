@@ -237,7 +237,11 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         o.extend(_compile_to_assembly(rounds, withargs, existing_labels, break_dest, height + 2))
         # rounds = min(rounds, round_bound)
         if rounds_bound is not None:
-            o.extend(_compile_to_assembly(rounds_bound, withargs, existing_labels, break_dest, height + 3))
+            o.extend(
+                _compile_to_assembly(
+                    rounds_bound, withargs, existing_labels, break_dest, height + 3
+                )
+            )
             t = mksymbol()
             o.extend(["DUP2", "DUP2", "GT", t, "JUMPI", "SWAP1", t, "JUMPDEST", "POP"])
 
@@ -260,12 +264,12 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
                 continue_dest,
                 "JUMPDEST",
                 "DUP2",  # iptr, exit_i
-                "MLOAD", # iptr, exit_i, i
+                "MLOAD",  # iptr, exit_i, i
                 "PUSH1",
                 1,
                 "ADD",  # iptr, exit_i, i+1 (new_i)
-                "DUP1", # iptr, exit_i, new_i
-                "DUP4", # iptr, exit_i, new_i, new_i, iptr
+                "DUP1",  # iptr, exit_i, new_i
+                "DUP4",  # iptr, exit_i, new_i, new_i, iptr
                 "MSTORE",
             ]
         )
