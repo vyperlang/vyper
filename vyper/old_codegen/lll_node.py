@@ -215,7 +215,7 @@ class LLLnode:
             elif self.value == "multi":
                 for arg in self.args:
                     _check(
-                        arg.valency == 1, f"Multi expects all children to not be zerovalent: {arg}"
+                        arg.valency > 0, f"Multi expects all children to not be zerovalent: {arg}"
                     )
                 self.valency = sum([arg.valency for arg in self.args])
                 self.gas = sum([arg.gas for arg in self.args])
