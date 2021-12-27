@@ -108,7 +108,7 @@ def make_byte_array_copier(destination, source, pos=None):
         raise TypeMismatch(f"Cannot cast from {source.typ} to {destination.typ}")
     # stricter check for zeroing a byte array.
     if source.value is None and source.typ.maxlen != destination.typ.maxlen:
-        raise CompilerPanic(
+        raise TypeMismatch(
             f"Bad type for clearing bytes: expected {destination.typ} but got {source.typ}"
         )
 
