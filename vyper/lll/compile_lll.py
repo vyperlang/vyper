@@ -234,16 +234,16 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
             )
         )
 
-        # rounds = min(rounds, round_bound)
         o.extend(_compile_to_assembly(rounds, withargs, existing_labels, break_dest, height + 2))
+        # rounds = min(rounds, round_bound)
         if rounds_bound is not None:
             o.extend(_compile_to_assembly(rounds_bound, withargs, existing_labels, break_dest, height + 3))
             t = mksymbol()
             o.extend(["DUP2", "DUP2", "GT", t, "JUMPI", "SWAP1", t, "JUMPDEST", "POP"])
 
-        # stack: memloc, startvalue, rounds
+        # stack: iptr, start, rounds
         o.extend(["DUP2", "DUP4", "MSTORE", "ADD", entry_dest, "JUMPDEST"])
-        # stack: memloc, exit_index
+        # stack: iptr, exit_i
         o.extend(
             _compile_to_assembly(
                 body,
@@ -253,24 +253,30 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
                 height + 2,
             )
         )
-        # stack: memloc, exit_index
+        # stack: iptr, exit_i
+        # (with i (add 1 (mload iptr)) (seq (mstore iptr i) i))
         o.extend(
             [
                 continue_dest,
                 "JUMPDEST",
-                "DUP2",
-                "MLOAD",
+                "DUP2",  # iptr, exit_i
+                "MLOAD", # iptr, exit_i, i
                 "PUSH1",
                 1,
-                "ADD",
-                "DUP1",
-                "DUP4",
+                "ADD",  # iptr, exit_i, i+1 (new_i)
+                "DUP1", # iptr, exit_i, new_i
+                "DUP4", # iptr, exit_i, new_i, new_i, iptr
                 "MSTORE",
             ]
         )
-        # stack: len(loops), index memory address, new index
-        o.extend(["DUP2", "LT", entry_dest, "JUMPI", exit_dest, "JUMPDEST", "POP", "POP"])
+
+        # stack: iptr, exit_i, new_i
+        # if (exit_i != new_i) { goto entry_dest }
+        o.extend(["DUP2", "XOR", entry_dest, "JUMPI"])
+        o.extend([exit_dest, "JUMPDEST", "POP", "POP"])
+
         return o
+
     # Continue to the next iteration of the for loop
     elif code.value == "continue":
         if not break_dest:
