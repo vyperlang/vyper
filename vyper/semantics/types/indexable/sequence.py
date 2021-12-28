@@ -167,7 +167,8 @@ class DynamicArrayDefinition(_SequenceDefinition):
 
 class DynamicArrayPrimitive(BasePrimitive):
     _id = "DynArray"
-    _valid_literal = ()
+    _type = DynamicArrayDefinition
+    _valid_literal = vy_ast.List
 
     @classmethod
     def from_annotation(

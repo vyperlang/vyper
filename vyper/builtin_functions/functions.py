@@ -42,7 +42,7 @@ from vyper.old_codegen.parser_utils import (
 from vyper.old_codegen.types import BaseType, ByteArrayLike, ByteArrayType, SArrayType
 from vyper.old_codegen.types import StringType as OldStringType
 from vyper.old_codegen.types import TupleType, is_base_type
-from vyper.semantics.types import BoolDefinition, TupleDefinition
+from vyper.semantics.types import BoolDefinition, DynamicArrayPrimitive, TupleDefinition
 from vyper.semantics.types.abstract import (
     ArrayValueAbstractType,
     BytesAbstractType,
@@ -366,7 +366,7 @@ class Slice:
 class Len(_SimpleBuiltinFunction):
 
     _id = "len"
-    _inputs = [("b", ArrayValueAbstractType())]
+    _inputs = [("b", (ArrayValueAbstractType(), DynamicArrayPrimitive()))]
     _return_type = Uint256Definition()
 
     def evaluate(self, node):
