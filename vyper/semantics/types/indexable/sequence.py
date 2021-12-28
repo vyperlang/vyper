@@ -158,9 +158,10 @@ class DynamicArrayDefinition(_SequenceDefinition):
         return self.value_type
 
     def compare_type(self, other):
-        if not isinstance(self, type(other)):
+        # either static array or dyn array can be assigned to dyn array
+        if not isinstance(other, (DynamicArrayDefinition, ArrayDefinition)):
             return False
-        if self.length != other.length:
+        if self.length < other.length:
             return False
         return self.value_type.compare_type(other.value_type)
 

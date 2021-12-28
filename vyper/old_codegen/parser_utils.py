@@ -542,9 +542,11 @@ def make_setter(left, right, pos):
         return LLLnode.from_list(ret)
 
     elif isinstance(left.typ, DArrayType):
-        # TODO allow assignment of lists [1,2,3] to DArrayType
         if not _typecheck_list_make_setter(left, right):
             return
+        if isinstance(right.typ, SArrayType):
+            # e.g. x: DynArray[uint256, 1] = [1]
+            return _complex_make_setter(left, right, pos)
         # TODO rethink/streamline the clamp_basetype logic
         if _needs_clamp(right.typ, right.encoding):
             _val = LLLnode("val", location=right.location, typ=right.typ)
@@ -565,11 +567,11 @@ def _typecheck_list_make_setter(left, right):
         # Cannot do something like [a, b, c] = [1, 2, 3]
         return False
     if isinstance(left, SArrayType):
-        if not left.typ == right.typ:
+        if not (left.typ == right.typ and left.typ.count == right.typ.count):
             return False
     if isinstance(left, DArrayType):
         if not (
-            isinstance(right, DArrayType)
+            isinstance(right, (DArrayType, SArrayType))
             and left.typ.count >= right.typ.count
             and left.typ.subtyp == right.typ.subtyp
         ):
@@ -598,11 +600,13 @@ def _typecheck_tuple_make_setter(left, right):
 
 @type_check_wrapper
 def _complex_make_setter(left, right, pos):
-    if isinstance(left.typ, SArrayType):
+    if isinstance(left.typ, ArrayLike):
         # CMC 20211002 this might not be necessary
         if not _typecheck_list_make_setter(left, right):
             return
-        keys = [LLLnode.from_list(i, typ="uint256") for i in range(left.typ.count)]
+        # right.typ.count is not a typo, handles dyn array -> static array
+        ixs = range(right.typ.count)
+        keys = [LLLnode.from_list(i, typ="uint256") for i in ixs]
 
     if isinstance(left.typ, TupleLike):
         if not _typecheck_tuple_make_setter(left, right):

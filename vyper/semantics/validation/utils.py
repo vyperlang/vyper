@@ -20,7 +20,7 @@ from vyper.semantics import types
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.abstract import IntegerAbstractType
 from vyper.semantics.types.bases import BaseTypeDefinition
-from vyper.semantics.types.indexable.sequence import ArrayDefinition, TupleDefinition
+from vyper.semantics.types.indexable.sequence import DynamicArrayDefinition, ArrayDefinition, TupleDefinition
 from vyper.semantics.types.value.boolean import BoolDefinition
 
 
@@ -343,8 +343,12 @@ def get_common_types(*nodes: vy_ast.VyperNode, filter_fn: Callable = None) -> Li
 
 def _validate_literal_array(node, expected):
     # validate that every item within an array has the same type
-    if len(node.elements) != expected.length:
-        return False
+    if isinstance(expected, ArrayDefinition):
+        if len(node.elements) != expected.length:
+            return False
+    if isinstance(expected, DynamicArrayDefinition):
+        if len(node.elements) >= expected.length:
+            return False
 
     for item in node.elements:
         try:
@@ -378,7 +382,9 @@ def validate_expected_type(node, expected_type):
 
     if isinstance(node, (vy_ast.List, vy_ast.Tuple)):
         # special case - for literal arrays or tuples we individually validate each item
-        for expected in (i for i in expected_type if isinstance(i, ArrayDefinition)):
+        for expected in expected_type:
+            if not isinstance(expected, (DynamicArrayDefinition, ArrayDefinition)):
+                continue
             if _validate_literal_array(node, expected):
                 return
     else:
