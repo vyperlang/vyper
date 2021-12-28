@@ -351,7 +351,7 @@ def _validate_literal_array(node, expected):
         if len(node.elements) != expected.length:
             return False
     if isinstance(expected, DynamicArrayDefinition):
-        if len(node.elements) >= expected.length:
+        if len(node.elements) > expected.length:
             return False
 
     for item in node.elements:
