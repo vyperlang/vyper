@@ -455,6 +455,14 @@ def load_op(location):
     raise CompilerPanic(f"unreachable {location}")  # pragma: no test
 
 
+def store_op(location):
+    if location == "memory":
+        return "mstore"
+    if location == "storage":
+        return "sstore"
+    raise CompilerPanic(f"unreachable {location}")  # pragma: no test
+
+
 # Unwrap location
 def unwrap_location(orig):
     if orig.location in ("memory", "storage", "calldata", "code"):
@@ -547,6 +555,7 @@ def make_setter(left, right, pos):
         if isinstance(right.typ, SArrayType):
             # e.g. x: DynArray[uint256, 1] = [1]
             return _complex_make_setter(left, right, pos)
+
         # TODO rethink/streamline the clamp_basetype logic
         if _needs_clamp(right.typ, right.encoding):
             _val = LLLnode("val", location=right.location, typ=right.typ)
@@ -625,6 +634,17 @@ def _complex_make_setter(left, right, pos):
     with left.cache_when_complex("_L") as (b1, left), right.cache_when_complex("_R") as (b2, right):
 
         ret = ["seq"]
+
+        if isinstance(left.typ, DArrayType):
+            assert isinstance(right.typ, SArrayType)
+            # write the length word
+            store_length = [store_op(left.location), left, right.typ.count]
+            ann = None
+            if right.annotation is not None:
+                ann = f"len({right.annotation})"
+            store_length = LLLnode.from_list(store_length, annotation=ann)
+            ret.append(store_length)
+
         for k in keys:
             _l = get_element_ptr(left, k, pos=pos, array_bounds_check=False)
             _r = get_element_ptr(right, k, pos=pos, array_bounds_check=False)
