@@ -217,7 +217,7 @@ def canonicalize_type(t, is_indexed=False):
         return byte_type
 
     if isinstance(t, ArrayLike):
-        if not isinstance(t.subtype, (SArrayType, BaseType, StructType)):
+        if not isinstance(t.subtype, (ArrayLike, BaseType, StructType)):
             raise InvalidType(f"List of {t.subtype} not allowed")
         if isinstance(t, SArrayType):
             return canonicalize_type(t.subtype) + f"[{t.count}]"
