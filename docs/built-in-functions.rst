@@ -96,7 +96,7 @@ Chain Interaction
 
 .. py:function:: create_forwarder_to(target: address, value: uint256 = 0[, salt: bytes32]) -> address
 
-    Deploys a small contract that duplicates the logic of the contract at ``target``, but has it's own state since every call to ``target`` is made using ``DELEGATECALL`` to ``target``. To the end user, this should be indistinguishable from an independantly deployed contract with the same code as ``target``.
+    Deploys a small contract that duplicates the logic of the contract at ``target``, but has its own state since every call to ``target`` is made using ``DELEGATECALL`` to ``target``. To the end user, this should be indistinguishable from an independantly deployed contract with the same code as ``target``.
 
 .. note::
 
@@ -121,7 +121,7 @@ Chain Interaction
     * ``to``: Destination address to call to
     * ``data``: Data to send to the destination address
     * ``max_outsize``: Maximum length of the bytes array returned from the call. If the returned call data exceeds this length, only this number of bytes is returned.
-    * ``gas``: The amount of gas to attach to the call. If not set, all remainaing gas is forwarded.
+    * ``gas``: The amount of gas to attach to the call. If not set, all remaining gas is forwarded.
     * ``value``: The wei value to send to the address (Optional, default ``0``)
     * ``is_delegate_call``: If ``True``, the call will be sent as ``DELEGATECALL`` (Optional, default ``False``)
     * ``is_static_call``: If ``True``, the call will be sent as ``STATICCALL`` (Optional, default ``False``)
@@ -130,7 +130,7 @@ Chain Interaction
     Returns the data returned by the call as a ``Bytes`` list, with ``max_outsize`` as the max length.
 
     Returns ``None`` if ``max_outsize`` is omitted or set to ``0``.
-    
+
     Returns ``success`` in a tuple if ``revert_on_failure`` is set to ``False``.
 
     .. note::
@@ -146,7 +146,7 @@ Chain Interaction
         def foo(_target: address) -> Bytes[32]:
             response: Bytes[32] = raw_call(_target, 0xa9059cbb, max_outsize=32, value=msg.value)
             return response
-            
+
         @external
         @payable
         def bar(_target: address) -> Bytes[32]:
@@ -262,12 +262,12 @@ Cryptography
         @view
         def foo(hash: bytes32, v: uint256, r:uint256, s:uint256) -> address:
             return ecrecover(hash, v, r, s)
-    
+
     .. code-block:: python
 
         >>> ExampleContract.foo('0x6c9c5e133b8aafb2ea74f524a5263495e7ae5701c7248805f7b511d973dc7055',
              28,
-             78616903610408968922803823221221116251138855211764625814919875002740131251724, 
+             78616903610408968922803823221221116251138855211764625814919875002740131251724,
              37668412420813231458864536126575229553064045345107737433087067088194345044408
             )
         '0x9eE53ad38Bb67d745223a4257D7d48cE973FeB7A'
@@ -443,7 +443,7 @@ Math
 
 .. py:function:: max(a: numeric, b: numeric) -> numeric
 
-    Return the creater value of ``a`` and ``b``. The input values may be any numeric type as long as they are both of the same type.  The output value is the same as the input values.
+    Return the greater value of ``a`` and ``b``. The input values may be any numeric type as long as they are both of the same type.  The output value is of the same type as the input values.
 
     .. code-block:: python
 
@@ -459,7 +459,7 @@ Math
 
 .. py:function:: min(a: numeric, b: numeric) -> numeric
 
-    Returns the lesser value of ``a`` and ``b``. The input values may be any numeric type as long as they are both of the same type.  The output value is the same as the input values.
+    Returns the lesser value of ``a`` and ``b``. The input values may be any numeric type as long as they are both of the same type.  The output value is of the same type as the input values.
 
     .. code-block:: python
 
@@ -573,7 +573,7 @@ Utilities
 
     .. note::
 
-        The EVM only provides access to the most 256 blocks. This function returns ``EMPTY_BYTES32`` if the block number is greater than or equal to the current block number or more than 256 blocks behind the current block.
+        The EVM only provides access to the most recent 256 blocks. This function returns ``EMPTY_BYTES32`` if the block number is greater than or equal to the current block number or more than 256 blocks behind the current block.
 
     .. code-block:: python
 
@@ -654,7 +654,7 @@ Utilities
         @view
         def foo() -> Bytes[132]:
             x: uint256 = 1
-            y: Bytes[32] = "234"
+            y: Bytes[32] = b"234"
             return _abi_encode(x, y, method_id=method_id("foo()"))
 
     .. code-block:: python

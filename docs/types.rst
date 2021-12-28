@@ -62,7 +62,7 @@ Values
 
 Signed integer values between -2\ :sup:`255` and (2\ :sup:`255` - 1), inclusive.
 
-Interger literals cannot have a decimal point even if the decimal value is zero. For example, ``2.0`` cannot be interpreted as an integer.
+Integer literals cannot have a decimal point even if the decimal value is zero. For example, ``2.0`` cannot be interpreted as an integer.
 
 Operators
 *********
@@ -116,7 +116,7 @@ Values
 
 Signed integer values between -2\ :sup:`127` and (2\ :sup:`127` - 1), inclusive.
 
-Interger literals cannot have a decimal point even if the decimal value is zero. For example, ``2.0`` cannot be interpreted as an integer.
+Integer literals cannot have a decimal point even if the decimal value is zero. For example, ``2.0`` cannot be interpreted as an integer.
 
 Operators
 *********
@@ -170,7 +170,7 @@ Values
 
 Integer values between 0 and (2\ :sup:`8`-1).
 
-Interger literals cannot have a decimal point even if the decimal value is zero. For example, ``2.0`` cannot be interpreted as an integer.
+Integer literals cannot have a decimal point even if the decimal value is zero. For example, ``2.0`` cannot be interpreted as an integer.
 
 .. note::
     Integer literals are interpreted as ``int128`` by default. In cases where ``uint8`` is more appropriate, such as assignment, the literal might be interpreted as ``uint8``. Example: ``_variable: uint8 = _literal``. In order to explicitly cast a literal to a ``uint8`` use ``convert(_literal, uint8)``.
@@ -226,7 +226,7 @@ Values
 
 Integer values between 0 and (2\ :sup:`256`-1).
 
-Interger literals cannot have a decimal point even if the decimal value is zero. For example, ``2.0`` cannot be interpreted as an integer.
+Integer literals cannot have a decimal point even if the decimal value is zero. For example, ``2.0`` cannot be interpreted as an integer.
 
 .. note::
     Integer literals are interpreted as ``int128`` by default. In cases where ``uint256`` is more appropriate, such as assignment, the literal might be interpreted as ``uint256``. Example: ``_variable: uint256 = _literal``. In order to explicitly cast a literal to a ``uint256`` use ``convert(_literal, uint256)``.
@@ -492,11 +492,11 @@ Mappings
 
 Mappings are `hash tables <https://en.wikipedia.org/wiki/Hash_table>`_ that are virtually initialized such that every possible key exists and is mapped to a value whose byte-representation is all zeros: a type's :ref:`default value <types-initial>`.
 
-The key data is not stored in a mapping, instead its ``keccak256`` hash used to look up a value. For this reason mappings do not have a length or a concept of a key or value being "set".
+The key data is not stored in a mapping. Instead, its ``keccak256`` hash is used to look up a value. For this reason, mappings do not have a length or a concept of a key or value being "set".
 
 Mapping types are declared as ``HashMap[_KeyType, _ValueType]``.
 
-* ``_KeyType`` can be any base or bytes type. Mappings, interfaces or structs are not support as key types.
+* ``_KeyType`` can be any base or bytes type. Mappings, interfaces or structs are not supported as key types.
 * ``_ValueType`` can actually be any type, including mappings.
 
 .. note::
@@ -521,9 +521,9 @@ Mapping types are declared as ``HashMap[_KeyType, _ValueType]``.
 Initial Values
 ==============
 
-Unlike most programming languages, Vyper does not have a concept of ``null``. Instead, every variable type has a default value. To check if a variable is empty, you must compare it to the default value for it's given type.
+Unlike most programming languages, Vyper does not have a concept of ``null``. Instead, every variable type has a default value. To check if a variable is empty, you must compare it to the default value for its given type.
 
-To reset a variable to it's default value, assign to it the built-in ``empty()`` function which constructs a zero value for that type.
+To reset a variable to its default value, assign to it the built-in ``empty()`` function which constructs a zero value for that type.
 
 .. note::
 
@@ -543,10 +543,10 @@ Type        Default Value
 =========== ======================================================================
 
 .. note::
-    In ``Bytes`` the array starts with the bytes all set to ``'\x00'``
+    In ``Bytes``, the array starts with the bytes all set to ``'\x00'``.
 
 .. note::
-    In reference types all the type's members are set to their initial values.
+    In reference types, all the type's members are set to their initial values.
 
 
 .. _type_conversions:
