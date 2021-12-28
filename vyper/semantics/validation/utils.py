@@ -20,7 +20,11 @@ from vyper.semantics import types
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.abstract import IntegerAbstractType
 from vyper.semantics.types.bases import BaseTypeDefinition
-from vyper.semantics.types.indexable.sequence import DynamicArrayDefinition, ArrayDefinition, TupleDefinition
+from vyper.semantics.types.indexable.sequence import (
+    ArrayDefinition,
+    DynamicArrayDefinition,
+    TupleDefinition,
+)
 from vyper.semantics.types.value.boolean import BoolDefinition
 
 
