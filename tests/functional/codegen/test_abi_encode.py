@@ -148,3 +148,38 @@ def foo():
     assert_compile_failed(
         lambda: get_contract(code)
     )
+
+
+def test_side_effects_evaluation(get_contract, abi_encode):
+    contract_1 = """
+counter: uint256
+
+@external
+def __init__():
+    self.counter = 0
+
+@external
+def get_counter() -> (uint256, String[6]):
+    self.counter += 1
+    return (self.counter, "hello")
+    """
+
+    c = get_contract(contract_1)
+
+    contract_2 = """
+interface Foo:
+    def get_counter() -> (uint256, String[6]): nonpayable
+
+@external
+def foo(addr: address) -> Bytes[164]:
+    return _abi_encode(Foo(addr).get_counter(), method_id=0xdeadbeef)
+    """
+
+    c2 = get_contract(contract_2)
+
+    method_id = 0xDEADBEEF .to_bytes(4, "big")
+
+    # call to get_counter() should be evaluated only once
+    get_counter_encoded = abi_encode("((uint256,string))", ((1, "hello"),))
+
+    assert c2.foo(c.address).hex() == (method_id + get_counter_encoded).hex()
