@@ -81,7 +81,7 @@ class Stmt:
             pos=getpos(self.stmt),
         )
 
-        lll_node = make_setter(variable_loc, sub, pos=getpos(self.stmt))
+        lll_node = make_setter(variable_loc, sub, self.context, pos=getpos(self.stmt))
 
         return lll_node
 
@@ -90,7 +90,7 @@ class Stmt:
         sub = Expr(self.stmt.value, self.context).lll_node
         target = self._get_target(self.stmt.target)
 
-        lll_node = make_setter(target, sub, pos=getpos(self.stmt))
+        lll_node = make_setter(target, sub, self.context, pos=getpos(self.stmt))
         lll_node.pos = getpos(self.stmt)
         return lll_node
 

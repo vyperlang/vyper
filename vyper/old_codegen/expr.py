@@ -482,10 +482,11 @@ class Expr:
     def parse_Subscript(self):
         sub = Expr(self.expr.value, self.context).lll_node
         if sub.value == "multi":
+            # CMC 2021-12-29 this seems like dead code
             # force literal to memory
             t = LLLnode(self.context.new_internal_variable(sub.typ), typ=sub.typ, location="memory")
             sub = LLLnode.from_list(
-                ["seq", make_setter(t, sub, pos=getpos(self.expr)), t],
+                ["seq", make_setter(t, sub, self.context, pos=getpos(self.expr)), t],
                 typ=sub.typ,
                 location="memory",
             )
@@ -797,7 +798,7 @@ class Expr:
                 typ=SArrayType(right.typ.subtype, right.typ.count),
                 location="memory",
             )
-            setter = make_setter(tmp_list, right, pos=getpos(self.expr))
+            setter = make_setter(tmp_list, right, self.context, pos=getpos(self.expr))
             load_i_from_list = [
                 "mload",
                 ["add", tmp_list, ["mul", 32, ["mload", MemoryPositions.FREE_LOOP_INDEX]]],

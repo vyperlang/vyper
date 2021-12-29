@@ -454,10 +454,10 @@ def abi_encode(dst, lll_node, context, pos=None, bufsz=None, returns_len=False):
         dyn_ofst = "dyn_ofst"  # current offset in the dynamic section
 
         if isinstance(lll_node.typ, BaseType):
-            lll_ret.append(make_setter(dst, lll_node, pos=pos))
+            lll_ret.append(make_setter(dst, lll_node, context, pos=pos))
         elif isinstance(lll_node.typ, ByteArrayLike):
             # TODO optimize out repeated ceil32 calculation
-            lll_ret.append(make_setter(dst, lll_node, pos=pos))
+            lll_ret.append(make_setter(dst, lll_node, context, pos=pos))
             lll_ret.append(zero_pad(dst))
         elif isinstance(lll_node.typ, DArrayType):
             subtyp = lll_node.typ.subtype

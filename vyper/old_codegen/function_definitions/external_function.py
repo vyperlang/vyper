@@ -60,7 +60,7 @@ def _register_function_args(context: Context, sig: FunctionSignature) -> List[LL
             # allocate a memory slot for it and copy
             p = context.new_variable(arg.name, arg.typ, is_mutable=False)
             dst = LLLnode(p, typ=arg.typ, location="memory")
-            ret.append(make_setter(dst, arg_lll, pos=pos))
+            ret.append(make_setter(dst, arg_lll, context, pos=pos))
         else:
             # leave it in place
             context.vars[arg.name] = VariableRecord(
@@ -120,14 +120,14 @@ def _generate_kwarg_handlers(context: Context, sig: FunctionSignature, pos: Any)
 
             lhs = LLLnode(dst, location="memory", typ=arg_meta.typ)
             rhs = get_element_ptr(calldata_kwargs_ofst, k, pos=None, array_bounds_check=False)
-            ret.append(make_setter(lhs, rhs, pos))
+            ret.append(make_setter(lhs, rhs, context, pos))
 
         for x in default_kwargs:
             dst = context.lookup_var(x.name).pos
             lhs = LLLnode(dst, location="memory", typ=x.typ)
             kw_ast_val = sig.default_values[x.name]  # e.g. `3` in x: int = 3
             rhs = Expr(kw_ast_val, context).lll_node
-            ret.append(make_setter(lhs, rhs, pos))
+            ret.append(make_setter(lhs, rhs, context, pos))
 
         ret.append(["goto", sig.external_function_base_entry_label])
 

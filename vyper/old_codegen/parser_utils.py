@@ -15,6 +15,7 @@ from vyper.old_codegen.types import (
     ArrayLike,
     BaseType,
     ByteArrayLike,
+    DYNAMIC_ARRAY_OVERHEAD,
     DArrayType,
     MappingType,
     SArrayType,
@@ -123,10 +124,21 @@ def make_byte_array_copier(destination, source, pos=None):
         return builder.resolve(copy_bytes(destination, src, n_bytes, max_bytes, pos=pos))
 
 
+def _word_size(location):
+    if location in ("memory", "calldata", "code"):
+        return 32
+    if location == "storage":
+        return 1
+    raise CompilerPanic(f"invalid location {location}")  # pragma: no test
+
+
 # Copy dynamic array word-for-word (including layout)
 # TODO this code is very similar to make_byte_array_copier,
 # try to refactor.
-def make_dyn_array_copier(dst, src, pos=None):
+def make_dyn_array_copier(dst, src, context, pos=None):
+    # TODO circular import!
+    from vyper.old_codegen.abi import abi_type_of
+
     assert isinstance(src.typ, DArrayType)
     assert isinstance(dst.typ, DArrayType)
 
@@ -138,6 +150,24 @@ def make_dyn_array_copier(dst, src, pos=None):
         raise CompilerPanic(f"Bad type for clearing bytes: expected {dst.typ} but got {src.typ}")
 
     with src.cache_when_complex("_src") as (builder, src):
+        if src.encoding in (Encoding.ABI, Encoding.JSON_ABI) and abi_type_of(src.typ.subtype).is_dynamic():
+            uint = BaseType("uint256")
+            iptr = LLLnode.from_list(context.new_internal_variable(uint), typ=uint, location="memory")
+
+            loop_body = make_setter(
+                get_element_ptr(dst, iptr, array_bounds_check=False, pos=pos),
+                get_element_ptr(src, iptr, array_bounds_check=False, pos=pos),
+                context,
+                pos=pos
+            )
+            loop_body.annotation = f"{dst}[i] = {src}[i]"
+
+            return builder.resolve(["seq",
+                # TODO cache get_dyn_array_count
+                [store_op(dst.location), dst, get_dyn_array_count(src)],
+                ["repeat", iptr, 0, get_dyn_array_count(src), src.typ.count, loop_body]
+                ])
+
         if src.value is None:
             n_bytes = 32  # size in bytes of length word
             max_bytes = 32
@@ -269,7 +299,15 @@ def _getelemptr_abi_helper(parent, member_t, ofst, pos=None, clamp=True):
     from vyper.old_codegen.abi import abi_type_of
 
     member_abi_t = abi_type_of(member_t)
+
+    # ABI encoding has length word and then pretends length is not there
+    # e.g. [[1,2]] is encoded as 0x01 <len> 0x20 <inner array ofst> <encode(inner array)>
+    # note that inner array ofst is 0x20, not 0x40.
+    if has_length_word(parent.typ):
+        parent = add_ofst(parent, 32 * DYNAMIC_ARRAY_OVERHEAD)
+
     ofst_lll = add_ofst(parent, ofst)
+
 
     if member_abi_t.is_dynamic():
         # double dereference, according to ABI spec
@@ -277,16 +315,13 @@ def _getelemptr_abi_helper(parent, member_t, ofst, pos=None, clamp=True):
         # offset is statically known.
         ofst_lll = add_ofst(parent, unwrap_location(ofst_lll))
 
-    if has_length_word(parent.typ):
-        ofst_lll = add_ofst(ofst_lll, 32 * DYNAMIC_ARRAY_OVERHEAD)
-
     return LLLnode.from_list(
         ofst_lll,
         typ=member_t,
         location=parent.location,
         encoding=parent.encoding,
         pos=pos,
-        # annotation=f"({parent.typ})[{key.typ}]",
+        annotation=f"{parent}{ofst}",
     )
 
 
@@ -403,7 +438,7 @@ def _get_element_ptr_array(parent, key, pos, array_bounds_check):
         else:
             ofst = ["mul", ix, member_abi_t.embedded_static_size()]
 
-        return _getelemptr_abi_helper(parent, member_t, ofst, pos)
+        return _getelemptr_abi_helper(parent, subtype, ofst, pos)
 
     if parent.location == "storage":
         element_size = subtype.storage_size_in_words
@@ -415,7 +450,7 @@ def _get_element_ptr_array(parent, key, pos, array_bounds_check):
     else:
         ofst = ["mul", ix, element_size]
 
-    data_ptr = add_ofst(parent, 32) if has_length_word(parent.typ) else parent
+    data_ptr = add_ofst(parent, 32 * DYNAMIC_ARRAY_OVERHEAD) if has_length_word(parent.typ) else parent
     return LLLnode.from_list(add_ofst(data_ptr, ofst), typ=subtype, location=parent.location, pos=pos)
 
 
@@ -446,7 +481,7 @@ def get_element_ptr(parent, key, pos, array_bounds_check=True):
     if isinstance(typ, ArrayLike):
         return _get_element_ptr_array(parent, key, pos, array_bounds_check)
 
-    raise CompilerPanic("get_element_ptr cannot be called on {typ}")
+    raise CompilerPanic(f"get_element_ptr cannot be called on {typ}")
 
 
 def load_op(location):
@@ -528,7 +563,7 @@ def set_type_for_external_return(lll_val):
 
 # Create an x=y statement, where the types may be compound
 @type_check_wrapper
-def make_setter(left, right, pos):
+def make_setter(left, right, context, pos):
 
     # Basic types
     if isinstance(left.typ, BaseType):
@@ -547,9 +582,9 @@ def make_setter(left, right, pos):
     elif isinstance(left.typ, ByteArrayLike):
         # TODO rethink/streamline the clamp_basetype logic
         if _needs_clamp(right.typ, right.encoding):
-            _val = LLLnode("val", location=right.location, typ=right.typ)
-            copier = make_byte_array_copier(left, _val, pos)
-            ret = ["with", _val, right, ["seq", clamp_bytestring(_val), copier]]
+            with right.cache_when_complex("bs_ptr") as (b, right):
+                copier = make_byte_array_copier(left, right, pos)
+                ret = b.resolve(["seq", clamp_bytestring(right), copier])
         else:
             ret = make_byte_array_copier(left, right, pos)
 
@@ -560,21 +595,21 @@ def make_setter(left, right, pos):
             return
         if isinstance(right.typ, SArrayType):
             # e.g. x: DynArray[uint256, 1] = [1]
-            return _complex_make_setter(left, right, pos)
+            return _complex_make_setter(left, right, context, pos)
 
         # TODO rethink/streamline the clamp_basetype logic
         if _needs_clamp(right.typ, right.encoding):
-            _val = LLLnode("val", location=right.location, typ=right.typ)
-            copier = make_dyn_array_copier(left, _val, pos)
-            ret = ["with", _val, right, ["seq", clamp_dyn_array(_val), copier]]
+            with right.cache_when_complex("arr_ptr") as (b, right):
+                copier = make_dyn_array_copier(left, right, context, pos)
+                ret = b.resolve(["seq", clamp_dyn_array(right), copier])
         else:
-            ret = make_dyn_array_copier(left, right, pos)
+            ret = make_dyn_array_copier(left, right, context, pos)
 
         return LLLnode.from_list(ret)
 
     # Arrays
     elif isinstance(left.typ, (SArrayType, TupleLike)):
-        return _complex_make_setter(left, right, pos)
+        return _complex_make_setter(left, right, context, pos)
 
 
 def _typecheck_list_make_setter(left, right):
@@ -614,7 +649,7 @@ def _typecheck_tuple_make_setter(left, right):
 
 
 @type_check_wrapper
-def _complex_make_setter(left, right, pos):
+def _complex_make_setter(left, right, context, pos):
     if isinstance(left.typ, ArrayLike):
         # CMC 20211002 this might not be necessary
         if not _typecheck_list_make_setter(left, right):
@@ -654,7 +689,7 @@ def _complex_make_setter(left, right, pos):
         for k in keys:
             _l = get_element_ptr(left, k, pos=pos, array_bounds_check=False)
             _r = get_element_ptr(right, k, pos=pos, array_bounds_check=False)
-            ret.append(make_setter(_l, _r, pos))
+            ret.append(make_setter(_l, _r, context, pos))
 
         return b1.resolve(b2.resolve(LLLnode.from_list(ret)))
 
@@ -668,7 +703,7 @@ def ensure_in_memory(lll_var, context, pos=None):
 
     typ = lll_var.typ
     buf = LLLnode.from_list(context.new_internal_variable(typ), typ=typ, location="memory")
-    do_copy = make_setter(buf, lll_var, pos=pos)
+    do_copy = make_setter(buf, lll_var, context, pos=pos)
 
     return LLLnode.from_list(["seq", do_copy, buf], typ=typ, location="memory")
 
