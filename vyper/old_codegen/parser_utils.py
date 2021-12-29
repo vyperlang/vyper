@@ -277,6 +277,9 @@ def _getelemptr_abi_helper(parent, member_t, ofst, pos=None, clamp=True):
         # offset is statically known.
         ofst_lll = add_ofst(parent, unwrap_location(ofst_lll))
 
+    if has_length_word(parent.typ):
+        ofst_lll = add_ofst(ofst_lll, DYNAMIC_ARRAY_OVERHEAD)
+
     return LLLnode.from_list(
         ofst_lll,
         typ=member_t,
@@ -322,7 +325,6 @@ def _get_element_ptr_tuplelike(parent, key, pos):
         if parent.location == "storage":
             raise CompilerPanic("storage variables should not be abi encoded")
 
-        # parent_abi_t = abi_type_of(parent.typ)
         member_t = typ.members[attrs[index]]
 
         for i in range(index):
@@ -348,6 +350,10 @@ def _get_element_ptr_tuplelike(parent, key, pos):
         annotation=annotation,
         pos=pos,
     )
+
+
+def has_length_word(typ):
+    return isinstance(typ, (DArrayType, ByteArrayLike))
 
 
 # TODO simplify this code, especially the ABI decoding
@@ -389,8 +395,7 @@ def _get_element_ptr_array(parent, key, pos, array_bounds_check):
         if parent.location == "storage":
             raise CompilerPanic("storage variables should not be abi encoded")
 
-        member_t = parent.typ.subtype
-        member_abi_t = abi_type_of(member_t)
+        member_abi_t = abi_type_of(subtype)
 
         if isinstance(ix.value, int):
             # TODO this constant folding in LLL optimizer
@@ -410,7 +415,8 @@ def _get_element_ptr_array(parent, key, pos, array_bounds_check):
     else:
         ofst = ["mul", ix, element_size]
 
-    return LLLnode.from_list(add_ofst(parent, ofst), typ=subtype, location=parent.location, pos=pos)
+    data_ptr = add_ofst(parent, 32) if has_length_word(parent.typ) else parent
+    return LLLnode.from_list(add_ofst(data_ptr, ofst), typ=subtype, location=parent.location, pos=pos)
 
 
 def _get_element_ptr_mapping(parent, key, pos):
