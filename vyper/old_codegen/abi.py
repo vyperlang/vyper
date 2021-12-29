@@ -261,7 +261,7 @@ class ABI_DynamicArray(ABIType):
         return 32
 
     def dynamic_size_bound(self):
-        return 32 + self.subtyp.embedded_dynamic_size_bound() * self.elems_bound
+        return 32 + self.subtyp.size_bound() * self.elems_bound
 
     def min_dynamic_size(self):
         return 32
@@ -472,8 +472,9 @@ def abi_encode(dst, lll_node, context, pos=None, bufsz=None, returns_len=False):
             )
             # offset of the i'th element in dst
             static_ofst = ["mul", unwrap_location(iptr), elem_size]
+            data_ptr = add_ofst(dst, 32)
             loop_body = _encode_child_helper(
-                dst, elem_ofst, static_ofst, dyn_ofst, context, pos=pos
+                data_ptr, elem_ofst, static_ofst, dyn_ofst, context, pos=pos
             )
             lll_ret.append(
                 ["repeat", iptr, 0, get_dyn_array_count(lll_node), lll_node.typ.count, loop_body]

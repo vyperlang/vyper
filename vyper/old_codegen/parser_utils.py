@@ -278,7 +278,7 @@ def _getelemptr_abi_helper(parent, member_t, ofst, pos=None, clamp=True):
         ofst_lll = add_ofst(parent, unwrap_location(ofst_lll))
 
     if has_length_word(parent.typ):
-        ofst_lll = add_ofst(ofst_lll, DYNAMIC_ARRAY_OVERHEAD)
+        ofst_lll = add_ofst(ofst_lll, 32 * DYNAMIC_ARRAY_OVERHEAD)
 
     return LLLnode.from_list(
         ofst_lll,
