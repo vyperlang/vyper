@@ -69,7 +69,7 @@ def hoo() -> DynArray[int128, 2]:
 @external
 def joo() -> DynArray[int128, 2]:
     self.z = [3, 5]
-    x: int128[2] = self.z
+    x: DynArray[int128, 2] = self.z
     return x
 
 @external
@@ -99,7 +99,7 @@ def qoo(inp: DynArray[int128, 2]) -> DynArray[DynArray[int128, 2], 2]:
     return [inp, [3,4]]
 
 @external
-def roo(inp: DynArray[int128, 2]) -> DynArray[DynArray[decimal, 2], 2]:
+def roo(inp: DynArray[decimal, 2]) -> DynArray[DynArray[decimal, 2], 2]:
     return [inp, [3.0, 4.0]]
     """
 
