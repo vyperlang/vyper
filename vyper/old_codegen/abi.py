@@ -6,6 +6,7 @@ from vyper.old_codegen.parser_utils import (
     get_dyn_array_count,
     get_element_ptr,
     make_setter,
+    store_op,
     unwrap_location,
     zero_pad,
 )
@@ -476,6 +477,8 @@ def abi_encode(dst, lll_node, context, pos=None, bufsz=None, returns_len=False):
             loop_body = _encode_child_helper(
                 data_ptr, elem_ofst, static_ofst, dyn_ofst, context, pos=pos
             )
+            # set the length word
+            lll_ret.append([store_op(dst.location), dst, get_dyn_array_count(lll_node)])
             lll_ret.append(
                 ["repeat", iptr, 0, get_dyn_array_count(lll_node), lll_node.typ.count, loop_body]
             )
