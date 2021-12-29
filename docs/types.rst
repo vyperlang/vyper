@@ -579,7 +579,7 @@ In (``atype``)   Out (``btype``)    Allowable Values                     Additio
                                                                          | Value is truncated.
 ``decimal``      ``int128``         All                                  Value is truncated
 ``decimal``      ``int256``         All                                  Value is truncated
-``decimal``      ``uint256``        ``a >= 0.0``                         Value is truncated
+``decimal``      ``uint256``        ``a >= 0.0``                         Cannot convert negative values
 ``decimal``      ``bytes32``        All
 ``int128``       ``bool``           All                                  Returns ``a != 0``
 ``int128``       ``decimal``        All
@@ -606,7 +606,7 @@ In (``atype``)   Out (``btype``)    Allowable Values                     Additio
 ``uint256``      ``int128``         ``a <= MAX_INT128``
 ``uint256``      ``int256``         ``a <= MAX_INT256``
 ``uint256``      ``bytes32``        All
-``bytes32``      ``address``        ``ADDRSIZE - 1 >= a >= 0``
+``bytes32``      ``address``        ``2**ADDRSIZE - 1 >= a >= 0``
 ``bytes32``      ``bool``           All                                  ``True`` if ``a`` is not empty
 ``bytes32``      ``decimal``        All
 ``bytes32``      ``uint8``          ``a <= MAX_UINT8``
