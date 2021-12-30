@@ -115,7 +115,7 @@ class LLLnode:
                 # We add 2 per stack height at push time and take it back
                 # at pop time; this makes `break` easier to handle
                 self.gas = gas + 2 * (outs - ins)
-                for arg in self.args[:-1]:
+                for arg in self.args:
                     # pop and pass are used to push/pop values on the stack to be
                     # consumed for internal functions, therefore we whitelist this as a zero valency
                     # allowed argument.
