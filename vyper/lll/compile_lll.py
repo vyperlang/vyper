@@ -224,6 +224,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         entry_dest, continue_dest, exit_dest = mksymbol(), mksymbol(), mksymbol()
 
         o.extend(_compile_to_assembly(iptr, withargs, existing_labels, break_dest, height))
+        # stack: iptr
         o.extend(
             _compile_to_assembly(
                 start,
@@ -234,20 +235,24 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
             )
         )
 
+        # stack: iptr, start
         o.extend(_compile_to_assembly(rounds, withargs, existing_labels, break_dest, height + 2))
         # rounds = min(rounds, round_bound)
         if rounds_bound is not None:
+            # stack: iptr, start, rounds
             o.extend(
                 _compile_to_assembly(
                     rounds_bound, withargs, existing_labels, break_dest, height + 3
                 )
             )
             t = mksymbol()
+            # stack: iptr, start, rounds, rounds_bound
             o.extend(["DUP2", "DUP2", "GT", t, "JUMPI", "SWAP1", t, "JUMPDEST", "POP"])
 
         # stack: iptr, start, rounds
-        o.extend(["DUP2", "DUP4", "MSTORE", "ADD", entry_dest, "JUMPDEST"])
+        o.extend(["DUP2", "DUP4", "MSTORE", "ADD"])
         # stack: iptr, exit_i
+        o.extend([entry_dest, "JUMPDEST"])
         o.extend(
             _compile_to_assembly(
                 body,
@@ -292,12 +297,17 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         if not break_dest:
             raise CompilerPanic("Invalid break")
         dest, continue_dest, break_height = break_dest
-        return ["POP"] * (height - break_height) + [dest, "JUMP"]
+
+        n_local_vars = height - break_height
+        # clean up any stack items declared in the loop body
+        cleanup_local_vars = ["POP"] * n_local_vars
+        return cleanup_local_vars + [dest, "JUMP"]
     # Break from inside one or more for loops prior to a return statement inside the loop
     elif code.value == "cleanup_repeat":
         if not break_dest:
             raise CompilerPanic("Invalid break")
         _, _, break_height = break_dest
+        # clean up local vars and internal loop vars
         return ["POP"] * break_height
     # With statements
     elif code.value == "with":
