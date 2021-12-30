@@ -465,28 +465,34 @@ def abi_encode(dst, lll_node, context, pos=None, bufsz=None, returns_len=False):
 
             # set the length word
             # TODO cache `get_dyn_array_count`
-            lll_ret.append([store_op(dst.location), add_ofst(dst, dyn_ofst), get_dyn_array_count(lll_node)])
-            lll_ret.append(["set", "dyn_ofst", ["add", "dyn_ofst", 32]])
+            lll_ret.append([store_op(dst.location), dst, get_dyn_array_count(lll_node)])
+
             # prepare the loop
             # TODO rework `repeat` to use stack variable so we don't
             # have to allocate a memory variable
             t = BaseType("uint256")
             iptr = LLLnode.from_list(context.new_internal_variable(t), typ=t, location="memory")
-            static_elem_size = child_abi_t.embedded_static_size()
 
             # offset of the i'th element in lll_node
-            elem_ofst = get_element_ptr(
+            child_location = get_element_ptr(
                 lll_node, unwrap_location(iptr), array_bounds_check=False, pos=pos
             )
+
             # offset of the i'th element in dst
+            dst = add_ofst(dst, 32)
+            static_elem_size = child_abi_t.embedded_static_size()
             static_ofst = ["mul", unwrap_location(iptr), static_elem_size]
             loop_body = _encode_child_helper(
-                dst, elem_ofst, static_ofst, dyn_ofst, context, pos=pos
+                dst, child_location, static_ofst, "dyn_child_ofst", context, pos=pos
             )
             loop = ["repeat", iptr, 0, get_dyn_array_count(lll_node), lll_node.typ.count, loop_body]
 
-            # embedded dyn ofst
-            lll_ret.append(["set", "dyn_ofst", ["add", "dyn_ofst", ["with", "dyn_ofst", ["mul", get_dyn_array_count(lll_node), 32], loop]]])
+            run_children = ["seq", loop, "dyn_child_ofst"]
+            start_dyn_ofst = ["mul", get_dyn_array_count(lll_node), static_elem_size]
+            run_children = ["with", "dyn_child_ofst", start_dyn_ofst, run_children]
+
+            lll_ret.append(["set", "dyn_ofst", ["add", "dyn_ofst", run_children]])
+
 
         elif isinstance(lll_node.typ, (TupleLike, SArrayType)):
             static_ofst = 0
