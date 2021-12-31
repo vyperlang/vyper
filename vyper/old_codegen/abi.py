@@ -409,9 +409,10 @@ def _encode_dyn_array_helper(dst, lll_node, context, pos):
     subtyp = lll_node.typ.subtype
     child_abi_t = abi_type_of(subtyp)
 
-    ret = []
+    ret = ["seq"]
 
-    with get_dyn_array_count.cache_when_complex("len") as (b, len_):
+    len_ = get_dyn_array_count(lll_node)
+    with len_.cache_when_complex("len") as (b, len_):
         # set the length word
         ret.append([store_op(dst.location), dst, len_])
 
@@ -509,7 +510,7 @@ def abi_encode(dst, lll_node, context, pos=None, bufsz=None, returns_len=False):
             lll_ret.append(make_setter(dst, lll_node, context, pos=pos))
             lll_ret.append(zero_pad(dst))
         elif isinstance(lll_node.typ, DArrayType):
-            lll_ret.append(_abi_encode_dyn_array(dst, lll_node, context, pos))
+            lll_ret.append(_encode_dyn_array_helper(dst, lll_node, context, pos))
 
         elif isinstance(lll_node.typ, (TupleLike, SArrayType)):
             static_ofst = 0
