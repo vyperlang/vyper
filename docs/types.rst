@@ -562,10 +562,10 @@ All type conversions in Vyper must be made explicitly using the built-in ``conve
 In (``atype``)   Out (``btype``)    Allowable Values                     Additional Notes
 ================ ================== ==================================== ==================================
 ``address``      ``bool``           All                                  Returns ``a != ZERO_ADDRESS``
-``address``      ``decimal``        All                                  | Value is truncated to the
-                                                                         | least significant 128 bits
-``address``      ``int128``         All                                  | Value is truncated to the
-                                                                         | least significant 128 bits
+``address``      ``decimal``        All                                  | Extract the rightmost
+                                                                         | sixteen bytes only
+``address``      ``int128``         All                                  | Extract the rightmost
+                                                                         | sixteen bytes only
 ``address``      ``uint256``        All
 ``address``      ``bytes32``        All
 ``bool``         ``decimal``        All                                  ``0.0`` or ``1.0``
