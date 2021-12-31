@@ -439,7 +439,11 @@ def _encode_dyn_array_helper(dst, lll_node, context, pos):
         x = ["seq", loop, "dyn_child_ofst"]
         start_dyn_ofst = ["mul", len_, static_elem_size]
         run_children = ["with", "dyn_child_ofst", start_dyn_ofst, x]
-        ret.append(["set", "dyn_ofst", ["add", 32, ["add", "dyn_ofst", run_children]]])
+        new_dyn_ofst = ["add", "dyn_ofst", run_children]
+        # size of dynarray is size of encoded children + size of the length word
+        # TODO optimize by adding 32 to the initial value of dyn_ofst
+        new_dyn_ofst = ["add", 32, new_dyn_ofst]
+        ret.append(["set", "dyn_ofst", new_dyn_ofst])
 
         return b.resolve(ret)
 
