@@ -1,4 +1,4 @@
-# import pytest
+import pytest
 from decimal import Decimal
 
 
@@ -118,31 +118,16 @@ def abi_encode3(x: uint256, ensure_tuple: bool, include_method_id: bool) -> Byte
     assert c.abi_encode(*args, True, True).hex() == (method_id + human_encoded).hex()
 
 
-def test_abi_encode_length_failing(get_contract, assert_compile_failed):
-    code = """
+@pytest.mark.parametrize("type,value", [("Bytes", b"hello"), ("String", "hello")])
+def test_abi_encode_length_failing(get_contract, assert_compile_failed, type, value):
+    code = f"""
 struct WrappedBytes:
-    bs: Bytes[6]
+    bs: {type}[6]
 
 @internal
 def foo():
-    x: WrappedBytes = WrappedBytes({bs: b"hello"})
-    y: Bytes[96] = _abi_encode(x, ensure_tuple=True) # should be Bytes[128]
-    """
-
-    assert_compile_failed(
-        lambda: get_contract(code)
-    )
-
-
-def test_abi_encode_length_failing_two(get_contract, assert_compile_failed):
-    code = """
-struct WrappedBytes:
-    bs: String[6]
-
-@internal
-def foo():
-    x: WrappedBytes = WrappedBytes({bs: "hello"})
-    y: Bytes[96] = _abi_encode(x, ensure_tuple=True) # should be Bytes[128]
+    x: WrappedBytes = WrappedBytes({{bs: {value}}})
+    y: {type}[96] = _abi_encode(x, ensure_tuple=True) # should be Bytes[128]
     """
 
     assert_compile_failed(

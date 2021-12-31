@@ -9,6 +9,8 @@ from vyper.exceptions import (
     UnknownType,
 )
 
+from decimal import Decimal
+
 
 def test_external_contract_calls(get_contract, get_contract_with_gas_estimation):
     contract_1 = """
@@ -502,7 +504,7 @@ def bar(arg1: address) -> decimal:
 """
 
     c2 = get_contract(contract_2)
-    assert float(c2.bar(c.address)) == 1e-10
+    assert c2.bar(c.address) == Decimal("1e-10")
 
 
 def test_decimal_too_long(get_contract, assert_tx_failed):
@@ -554,10 +556,7 @@ def bar(arg1: address) -> (decimal, Bytes[3], decimal):
     c2 = get_contract(contract_2)
     assert c.foo() == [0, b"dog", 1]
     result = c2.bar(c.address)
-    assert len(result) == 3
-    assert float(result[0]) == 0.0
-    assert result[1] == b"dog"
-    assert float(result[2]) == 1e-10
+    assert result == [Decimal("0.0"), b"dog", Decimal("1e-10")]
 
 
 @pytest.mark.parametrize("a,b", [(8, 256), (256, 8), (256, 256)])

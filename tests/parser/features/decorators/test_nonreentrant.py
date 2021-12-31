@@ -92,11 +92,7 @@ def send_funds(_amount: uint256):
     # raw_call() is used to overcome gas limit of send()
     response: Bytes[32] = raw_call(
         msg.sender,
-        concat(
-            method_id("transfer(address,uint256)"),
-            convert(msg.sender, bytes32),
-            convert(_amount, bytes32)
-        ),
+        _abi_encode(msg.sender, _amount, method_id=method_id("transfer(address,uint256)")),
         max_outsize=32,
         value=_amount
     )
