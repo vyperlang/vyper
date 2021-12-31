@@ -199,7 +199,7 @@ class ABI_StaticArray(ABIType):
         return self.subtyp.is_dynamic()
 
     def static_size(self):
-        return self.m_elems * self.subtyp.static_size()
+        return self.m_elems * self.subtyp.embedded_static_size()
 
     def dynamic_size_bound(self):
         return self.m_elems * self.subtyp.embedded_dynamic_size_bound()
@@ -377,13 +377,13 @@ def _deconstruct_complex_type(lll_node, pos=None):
 
 # encode a child element of a complex type
 def _encode_child_helper(buf, child, static_ofst, dyn_ofst, context, pos=None):
-    abi_t = abi_type_of(child.typ)
+    child_abi_t = abi_type_of(child.typ)
 
     static_loc = add_ofst(LLLnode.from_list(buf), static_ofst)
 
     ret = ["seq"]
 
-    if not abi_t.is_dynamic():
+    if not child_abi_t.is_dynamic():
         # easy
         ret.append(abi_encode(static_loc, child, context, pos=pos, returns_len=False))
     else:
