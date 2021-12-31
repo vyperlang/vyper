@@ -405,6 +405,45 @@ def _encode_child_helper(buf, child, static_ofst, dyn_ofst, context, pos=None):
     return ret
 
 
+def _encode_dyn_array_helper(dst, lll_node, context, pos):
+    subtyp = lll_node.typ.subtype
+    child_abi_t = abi_type_of(subtyp)
+
+    ret = []
+
+    with get_dyn_array_count.cache_when_complex("len") as (b, len_):
+        # set the length word
+        ret.append([store_op(dst.location), dst, len_])
+
+        # prepare the loop
+        # TODO rework `repeat` to use stack variable so we don't
+        # have to allocate a memory variable
+        t = BaseType("uint256")
+        iptr = LLLnode.from_list(context.new_internal_variable(t), typ=t, location="memory")
+
+        # offset of the i'th element in lll_node
+        child_location = get_element_ptr(
+            lll_node, unwrap_location(iptr), array_bounds_check=False, pos=pos
+        )
+
+        # offset of the i'th element in dst
+        dst = add_ofst(dst, 32)  # jump past length word
+        static_elem_size = child_abi_t.embedded_static_size()
+        static_ofst = ["mul", unwrap_location(iptr), static_elem_size]
+        loop_body = _encode_child_helper(
+            dst, child_location, static_ofst, "dyn_child_ofst", context, pos=pos
+        )
+        loop = ["repeat", iptr, 0, len_, lll_node.typ.count, loop_body]
+
+        x = ["seq", loop, "dyn_child_ofst"]
+        start_dyn_ofst = ["mul", len_, static_elem_size]
+        run_children = ["with", "dyn_child_ofst", start_dyn_ofst, x]
+
+        ret.append(["set", "dyn_ofst", ["add", "dyn_ofst", run_children]])
+
+        return b.resolve(ret)
+
+
 # assume dst is a pointer to a buffer located in memory which has at
 # least static_size + dynamic_size_bound allocated.
 # The basic strategy is this:
@@ -460,38 +499,7 @@ def abi_encode(dst, lll_node, context, pos=None, bufsz=None, returns_len=False):
             lll_ret.append(make_setter(dst, lll_node, context, pos=pos))
             lll_ret.append(zero_pad(dst))
         elif isinstance(lll_node.typ, DArrayType):
-            subtyp = lll_node.typ.subtype
-            child_abi_t = abi_type_of(subtyp)
-
-            # set the length word
-            # TODO cache `get_dyn_array_count`
-            lll_ret.append([store_op(dst.location), dst, get_dyn_array_count(lll_node)])
-
-            # prepare the loop
-            # TODO rework `repeat` to use stack variable so we don't
-            # have to allocate a memory variable
-            t = BaseType("uint256")
-            iptr = LLLnode.from_list(context.new_internal_variable(t), typ=t, location="memory")
-
-            # offset of the i'th element in lll_node
-            child_location = get_element_ptr(
-                lll_node, unwrap_location(iptr), array_bounds_check=False, pos=pos
-            )
-
-            # offset of the i'th element in dst
-            dst = add_ofst(dst, 32)
-            static_elem_size = child_abi_t.embedded_static_size()
-            static_ofst = ["mul", unwrap_location(iptr), static_elem_size]
-            loop_body = _encode_child_helper(
-                dst, child_location, static_ofst, "dyn_child_ofst", context, pos=pos
-            )
-            loop = ["repeat", iptr, 0, get_dyn_array_count(lll_node), lll_node.typ.count, loop_body]
-
-            x = ["seq", loop, "dyn_child_ofst"]
-            start_dyn_ofst = ["mul", get_dyn_array_count(lll_node), static_elem_size]
-            run_children = ["with", "dyn_child_ofst", start_dyn_ofst, x]
-
-            lll_ret.append(["set", "dyn_ofst", ["add", "dyn_ofst", run_children]])
+            lll_ret.append(_abi_encode_dyn_array(dst, lll_node, context, pos))
 
         elif isinstance(lll_node.typ, (TupleLike, SArrayType)):
             static_ofst = 0
