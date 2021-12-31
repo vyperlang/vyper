@@ -150,23 +150,31 @@ def make_dyn_array_copier(dst, src, context, pos=None):
         raise CompilerPanic(f"Bad type for clearing bytes: expected {dst.typ} but got {src.typ}")
 
     with src.cache_when_complex("_src") as (builder, src):
-        if src.encoding in (Encoding.ABI, Encoding.JSON_ABI) and abi_type_of(src.typ.subtype).is_dynamic():
+        if (
+            src.encoding in (Encoding.ABI, Encoding.JSON_ABI)
+            and abi_type_of(src.typ.subtype).is_dynamic()
+        ):
             uint = BaseType("uint256")
-            iptr = LLLnode.from_list(context.new_internal_variable(uint), typ=uint, location="memory")
+            iptr = LLLnode.from_list(
+                context.new_internal_variable(uint), typ=uint, location="memory"
+            )
 
             loop_body = make_setter(
                 get_element_ptr(dst, iptr, array_bounds_check=False, pos=pos),
                 get_element_ptr(src, iptr, array_bounds_check=False, pos=pos),
                 context,
-                pos=pos
+                pos=pos,
             )
             loop_body.annotation = f"{dst}[i] = {src}[i]"
 
-            return builder.resolve(["seq",
-                # TODO cache get_dyn_array_count
-                [store_op(dst.location), dst, get_dyn_array_count(src)],
-                ["repeat", iptr, 0, get_dyn_array_count(src), src.typ.count, loop_body]
-                ])
+            return builder.resolve(
+                [
+                    "seq",
+                    # TODO cache get_dyn_array_count
+                    [store_op(dst.location), dst, get_dyn_array_count(src)],
+                    ["repeat", iptr, 0, get_dyn_array_count(src), src.typ.count, loop_body],
+                ]
+            )
 
         if src.value is None:
             n_bytes = 32  # size in bytes of length word
@@ -307,7 +315,6 @@ def _getelemptr_abi_helper(parent, member_t, ofst, pos=None, clamp=True):
         parent = add_ofst(parent, 32 * DYNAMIC_ARRAY_OVERHEAD)
 
     ofst_lll = add_ofst(parent, ofst)
-
 
     if member_abi_t.is_dynamic():
         # double dereference, according to ABI spec
@@ -450,8 +457,12 @@ def _get_element_ptr_array(parent, key, pos, array_bounds_check):
     else:
         ofst = ["mul", ix, element_size]
 
-    data_ptr = add_ofst(parent, 32 * DYNAMIC_ARRAY_OVERHEAD) if has_length_word(parent.typ) else parent
-    return LLLnode.from_list(add_ofst(data_ptr, ofst), typ=subtype, location=parent.location, pos=pos)
+    data_ptr = (
+        add_ofst(parent, 32 * DYNAMIC_ARRAY_OVERHEAD) if has_length_word(parent.typ) else parent
+    )
+    return LLLnode.from_list(
+        add_ofst(data_ptr, ofst), typ=subtype, location=parent.location, pos=pos
+    )
 
 
 def _get_element_ptr_mapping(parent, key, pos):

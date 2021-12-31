@@ -487,12 +487,11 @@ def abi_encode(dst, lll_node, context, pos=None, bufsz=None, returns_len=False):
             )
             loop = ["repeat", iptr, 0, get_dyn_array_count(lll_node), lll_node.typ.count, loop_body]
 
-            run_children = ["seq", loop, "dyn_child_ofst"]
+            x = ["seq", loop, "dyn_child_ofst"]
             start_dyn_ofst = ["mul", get_dyn_array_count(lll_node), static_elem_size]
-            run_children = ["with", "dyn_child_ofst", start_dyn_ofst, run_children]
+            run_children = ["with", "dyn_child_ofst", start_dyn_ofst, x]
 
             lll_ret.append(["set", "dyn_ofst", ["add", "dyn_ofst", run_children]])
-
 
         elif isinstance(lll_node.typ, (TupleLike, SArrayType)):
             static_ofst = 0
