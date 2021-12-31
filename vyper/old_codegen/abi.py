@@ -260,7 +260,7 @@ class ABI_DynamicArray(ABIType):
         return True
 
     def static_size(self):
-        return 32
+        return 0
 
     def dynamic_size_bound(self):
         return 32 + self.subtyp.size_bound() * self.elems_bound
@@ -439,8 +439,7 @@ def _encode_dyn_array_helper(dst, lll_node, context, pos):
         x = ["seq", loop, "dyn_child_ofst"]
         start_dyn_ofst = ["mul", len_, static_elem_size]
         run_children = ["with", "dyn_child_ofst", start_dyn_ofst, x]
-
-        ret.append(["set", "dyn_ofst", ["add", "dyn_ofst", run_children]])
+        ret.append(["set", "dyn_ofst", ["add", 32, ["add", "dyn_ofst", run_children]]])
 
         return b.resolve(ret)
 
