@@ -482,8 +482,18 @@ def abi_encode(dst, lll_node, context, pos=None, bufsz=None, returns_len=False):
         raise CompilerPanic("buffer provided to abi_encode not large enough")
 
     dst = LLLnode.from_list(dst, typ=lll_node.typ, location="memory")
-
+    annotation = f"abi_encode {lll_node.typ}"
     lll_ret = ["seq"]
+
+    # fastpath: if there is no dynamic data, we can optimize the
+    # encoding by using make_setter, since our memory encoding happens
+    # to be identical to the ABI encoding.
+    if not abi_t.is_dynamic():
+        lll_ret.append(make_setter(dst, lll_node, context, pos))
+        if returns_len:
+            lll_ret.append(abi_t.embedded_static_size())
+        return LLLnode.from_list(lll_ret, pos=pos, annotation=annotation)
+
 
     # contains some computation, we need to only do it once.
     with lll_node.cache_when_complex("to_encode") as (b1, lll_node), dst.cache_when_complex(
@@ -531,5 +541,4 @@ def abi_encode(dst, lll_node, context, pos=None, bufsz=None, returns_len=False):
         else:
             pass  # skip dyn_ofst allocation if we don't need it
 
-        annotation = f"abi_encode {lll_node.typ}"
         return b1.resolve(b2.resolve(LLLnode.from_list(lll_ret, pos=pos, annotation=annotation)))
