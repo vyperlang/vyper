@@ -179,8 +179,17 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
                         vy_ast.Assign, filters={"target.id": node.target.id}
                     )
                     if not assignments:
+                        # Special error message for common wrong usages via `self.<immutable name>`
+                        wrong_self_attribute = self.ast.get_descendants(
+                            vy_ast.Attribute, {"value.id": "self", "attr": node.target.id}
+                        )
+                        message = (
+                            "Immutable variables must be accessed without 'self'"
+                            if wrong_self_attribute
+                            else "Immutable definition requires an assignment in the constructor"
+                        )
                         raise SyntaxException(
-                            "Immutable definition requires an assignment in the constructor",
+                            message,
                             node.node_source_code,
                             node.lineno,
                             node.col_offset,
