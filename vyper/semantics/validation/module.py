@@ -96,12 +96,12 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
         module_node._metadata["type"] = interface
 
         # get list of internal function calls made by each function
-        call_function_names = set()
-        for node in self.ast.get_children(vy_ast.FunctionDef):
-            call_function_names.add(node.name)
+        function_defs = self.ast.get_children(vy_ast.FunctionDef)
+        call_function_names = set(node.name for node in function_defs)
+        for node in function_defs:
             self_members[node.name].internal_calls = set(
                 i.func.attr for i in node.get_descendants(vy_ast.Call, {"func.value.id": "self"})
-            )
+            ).intersection(call_function_names)
             if node.name in self_members[node.name].internal_calls:
                 self_node = node.get_descendants(
                     vy_ast.Attribute, {"value.id": "self", "attr": node.name}
