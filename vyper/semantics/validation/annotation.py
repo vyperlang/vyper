@@ -182,7 +182,20 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
         node._metadata["type"] = get_exact_type_from_node(node)
 
     def visit_Subscript(self, node, type_):
-        base_type = get_exact_type_from_node(node.value)
+        if isinstance(node.value, vy_ast.List):
+            base_type = get_possible_types_from_node(node.value)
+
+            if len(base_type) == 1:
+                base_type = base_type.pop()
+
+            elif type_ and len(base_type) > 1:
+                for p in base_type:
+                    if isinstance(p.value_type, type(type_)):
+                        base_type = p
+                        break
+
+        else:
+            base_type = get_exact_type_from_node(node.value)
         if isinstance(base_type, BaseTypeDefinition):
             # in the vast majority of cases `base_type` is a type definition,
             # however there are some edge cases with args to builtin functions
