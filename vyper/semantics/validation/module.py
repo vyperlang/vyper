@@ -185,7 +185,7 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
                         )
                         message = (
                             "Immutable variables must be accessed without 'self'"
-                            if wrong_self_attribute
+                            if len(wrong_self_attribute) > 0
                             else "Immutable definition requires an assignment in the constructor"
                         )
                         raise SyntaxException(
