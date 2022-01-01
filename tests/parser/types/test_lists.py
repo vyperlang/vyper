@@ -1,3 +1,5 @@
+import pytest
+
 from vyper.exceptions import ArrayIndexException, OverflowException
 
 
@@ -397,16 +399,59 @@ def bar(_baz: Foo[3]) -> String[96]:
     assert c.bar(c_input) == "Hello world!!!!"
 
 
-def test_constant_list(get_contract, assert_tx_failed):
-    some_good_primes = [5.0, 11.0, 17.0, 29.0, 37.0, 41.0]
+@pytest.mark.parametrize(
+    "type,value",
+    [
+        ("decimal", [5.0, 11.0, 17.0, 29.0, 37.0, 41.0]),
+        ("uint8", [0, 1, 17, 250, 255, 2]),
+        ("int128", [0, -1, 1, -(2 ** 127), 2 ** 127 - 1, -50]),
+        ("int256", [0, -1, 1, -(2 ** 255), 2 ** 255 - 1, -50]),
+        ("uint256", [0, 1, 2 ** 8, 2 ** 255 + 1, 2 ** 256 - 1, 100]),
+        (
+            "uint256",
+            [2 ** 255 + 1, 2 ** 255 + 2, 2 ** 255 + 3, 2 ** 255 + 4, 2 ** 255 + 5, 2 ** 255 + 6],
+        ),
+        ("bool", [True, False, True, False, True, False]),
+    ],
+)
+def test_constant_list(get_contract, assert_tx_failed, type, value):
     code = f"""
-MY_LIST: constant(decimal[6]) = {some_good_primes}
+MY_LIST: constant({type}[{len(value)}]) = {value}
 @external
-def ix(i: uint256) -> decimal:
+def ix(i: uint256) -> {type}:
     return MY_LIST[i]
     """
     c = get_contract(code)
-    for i, p in enumerate(some_good_primes):
+    for i, p in enumerate(value):
+        assert c.ix(i) == value[i]
+    # assert oob
+    assert_tx_failed(lambda: c.ix(len(value) + 1))
+
+
+def test_constant_list_address(get_contract, assert_tx_failed):
+    some_good_address = [
+        "0x0000000000000000000000000000000000012345",
+        "0x0000000000000000000000000000000000023456",
+        "0x0000000000000000000000000000000000034567",
+        "0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF",
+        "0xffffFFFfFFffffffffffffffFfFFFfffFFFfFFfE",
+        "0xFfffFfFFFfFFFFfFFfFFFfFFFfFFfFFFfFfFfFf1",
+    ]
+    code = """
+MY_LIST: constant(address[6]) = [
+    0x0000000000000000000000000000000000012345,
+    0x0000000000000000000000000000000000023456,
+    0x0000000000000000000000000000000000034567,
+    0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF,
+    0xffffFFFfFFffffffffffffffFfFFFfffFFFfFFfE,
+    0xFfffFfFFFfFFFFfFFfFFFfFFFfFFfFFFfFfFfFf1
+]
+@external
+def ix(i: uint256) -> address:
+    return MY_LIST[i]
+    """
+    c = get_contract(code)
+    for i, p in enumerate(some_good_address):
         assert c.ix(i) == p
     # assert oob
-    assert_tx_failed(lambda: c.ix(len(some_good_primes) + 1))
+    assert_tx_failed(lambda: c.ix(len(some_good_address) + 1))
