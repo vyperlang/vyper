@@ -149,7 +149,7 @@ def make_dyn_array_copier(dst, src, context, pos=None):
     if src.value is None and src.typ.count != dst.typ.count:
         raise CompilerPanic(f"Bad type for clearing bytes: expected {dst.typ} but got {src.typ}")
 
-    with src.cache_when_complex("_src") as (builder, src):
+    with src.cache_when_complex("_src") as (b1, src):
         if (
             src.encoding in (Encoding.ABI, Encoding.JSON_ABI)
             and abi_type_of(src.typ.subtype).is_dynamic()
@@ -167,14 +167,11 @@ def make_dyn_array_copier(dst, src, context, pos=None):
             )
             loop_body.annotation = f"{dst}[i] = {src}[i]"
 
-            return builder.resolve(
-                [
-                    "seq",
-                    # TODO cache get_dyn_array_count
-                    [store_op(dst.location), dst, get_dyn_array_count(src)],
-                    ["repeat", iptr, 0, get_dyn_array_count(src), src.typ.count, loop_body],
-                ]
-            )
+            with get_dyn_array_count(src).cache_when_complex("len") as (b2, len_):
+                store_len = [store_op(dst.location), dst, len_]
+                loop = ["repeat", iptr, 0, len_, src.typ.count, loop_body]
+
+                return b1.resolve( b2.resolve(["seq", store_len, loop]))
 
         if src.value is None:
             n_bytes = 32  # size in bytes of length word
@@ -185,7 +182,7 @@ def make_dyn_array_copier(dst, src, context, pos=None):
             n_bytes = ["add", ["mul", get_dyn_array_count(src), element_size], 32]
             max_bytes = src.typ.memory_bytes_required
 
-        return builder.resolve(copy_bytes(dst, src, n_bytes, max_bytes, pos=pos))
+        return b1.resolve(copy_bytes(dst, src, n_bytes, max_bytes, pos=pos))
 
 
 # Copy bytes
