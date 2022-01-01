@@ -423,7 +423,7 @@ def ix(i: uint256) -> {type}:
     """
     c = get_contract(code)
     for i, p in enumerate(value):
-        assert c.ix(i) == value[i]
+        assert c.ix(i) == p
     # assert oob
     assert_tx_failed(lambda: c.ix(len(value) + 1))
 
