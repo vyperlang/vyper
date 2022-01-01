@@ -3,6 +3,8 @@ from eth_utils import keccak
 
 from vyper.evm.opcodes import EVM_VERSIONS
 
+from decimal import Decimal
+
 
 def _make_tx(w3, address, signature, values):
     # helper function to broadcast transactions that fail clamping check
@@ -37,6 +39,25 @@ def foo(s: Bytes[40]) -> Bytes[40]:
     assert c.foo(data[:30]) == data[:30]
     assert c.foo(data) == data
     assert_tx_failed(lambda: c.foo(data + b"!"))
+
+
+def test_bytes_clamper_on_init(assert_tx_failed, get_contract_with_gas_estimation):
+    clamper_test_code = """
+foo: Bytes[3]
+
+@external
+def __init__(x: Bytes[3]):
+    self.foo = x
+
+@external
+def get_foo() -> Bytes[3]:
+    return self.foo
+    """
+
+    c = get_contract_with_gas_estimation(clamper_test_code, *[b"cat"])
+    assert c.get_foo() == b"cat"
+
+    assert_tx_failed(lambda: get_contract_with_gas_estimation(clamper_test_code, *[b"cats"]))
 
 
 @pytest.mark.parametrize("evm_version", list(EVM_VERSIONS))
@@ -140,6 +161,43 @@ def foo(s: address) -> address:
 
     c = get_contract(code, evm_version=evm_version)
     assert_tx_failed(lambda: _make_tx(w3, c.address, "foo(address)", [value]))
+
+
+@pytest.mark.parametrize("evm_version", list(EVM_VERSIONS))
+@pytest.mark.parametrize("value", [
+    0, 1, -1, 2 ** 127 - 1, -(2 ** 127),
+    "0.0", "1.0", "-1.0", "0.0000000001", "0.9999999999", "-0.0000000001", "-0.9999999999",
+    "170141183460469231731687303715884105726.9999999999",  # 2 ** 127 - 1.0000000001
+    "-170141183460469231731687303715884105727.9999999999"  # - (2 ** 127 - 0.0000000001)
+])
+def test_decimal_clamper_passing(get_contract, value, evm_version):
+    code = """
+@external
+def foo(s: decimal) -> decimal:
+    return s
+    """
+
+    c = get_contract(code, evm_version=evm_version)
+
+    assert c.foo(Decimal(value)) == Decimal(value)
+
+
+@pytest.mark.parametrize("evm_version", list(EVM_VERSIONS))
+@pytest.mark.parametrize("value", [
+    2 ** 127, -(2 ** 127 + 1),
+    "170141183460469231731687303715884105727.0000000001",  # 2 ** 127 - 0.999999999
+    "-170141183460469231731687303715884105728.0000000001",  # - (2 ** 127 + 0.0000000001)
+])
+def test_decimal_clamper_failing(assert_tx_failed, get_contract, value, evm_version):
+    code = """
+@external
+def foo(s: decimal) -> decimal:
+    return s
+    """
+
+    c = get_contract(code, evm_version=evm_version)
+
+    assert_tx_failed(lambda: c.foo(Decimal(value)))
 
 
 @pytest.mark.parametrize("value", [0, 1, -1, 2 ** 127 - 1, -(2 ** 127)])

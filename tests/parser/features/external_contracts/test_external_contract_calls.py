@@ -9,8 +9,10 @@ from vyper.exceptions import (
     UnknownType,
 )
 
+from decimal import Decimal
 
-def test_external_contract_calls(get_contract, get_contract_with_gas_estimation, memory_mocker):
+
+def test_external_contract_calls(get_contract, get_contract_with_gas_estimation):
     contract_1 = """
 @external
 def foo(arg1: int128) -> int128:
@@ -34,7 +36,7 @@ def bar(arg1: address, arg2: int128) -> int128:
 
 
 def test_complicated_external_contract_calls(
-    get_contract, get_contract_with_gas_estimation, memory_mocker
+    get_contract, get_contract_with_gas_estimation
 ):
     contract_1 = """
 lucky: public(int128)
@@ -71,7 +73,7 @@ def bar(arg1: address) -> int128:
 
 
 @pytest.mark.parametrize("length", [3, 32, 33, 64])
-def test_external_contract_calls_with_bytes(get_contract, length, memory_mocker):
+def test_external_contract_calls_with_bytes(get_contract, length):
     contract_1 = f"""
 @external
 def array() -> Bytes[{length}]:
@@ -93,7 +95,7 @@ def get_array(arg1: address) -> Bytes[3]:
     assert c2.get_array(c.address) == b"dog"
 
 
-def test_bytes_too_long(get_contract, assert_tx_failed, memory_mocker):
+def test_bytes_too_long(get_contract, assert_tx_failed):
     contract_1 = """
 @external
 def array() -> Bytes[4]:
@@ -139,7 +141,7 @@ def run(raiser: address):
 
 @pytest.mark.parametrize("a,b", [(3, 3), (4, 3), (3, 4), (32, 32), (33, 33), (64, 64)])
 @pytest.mark.parametrize("actual", [3, 32, 64])
-def test_tuple_with_bytes(get_contract, assert_tx_failed, a, b, actual, memory_mocker):
+def test_tuple_with_bytes(get_contract, a, b, actual):
     contract_1 = f"""
 @external
 def array() -> (Bytes[{actual}], int128, Bytes[{actual}]):
@@ -168,7 +170,7 @@ def get_array(arg1: address) -> (Bytes[{a}], int128, Bytes[{b}]):
 
 @pytest.mark.parametrize("a,b", [(18, 7), (18, 18), (19, 6), (64, 6), (7, 19)])
 @pytest.mark.parametrize("c,d", [(19, 7), (64, 64)])
-def test_tuple_with_bytes_too_long(get_contract, assert_tx_failed, a, c, b, d, memory_mocker):
+def test_tuple_with_bytes_too_long(get_contract, assert_tx_failed, a, c, b, d):
     contract_1 = f"""
 @external
 def array() -> (Bytes[{c}], int128, Bytes[{d}]):
@@ -195,7 +197,7 @@ def get_array(arg1: address) -> (Bytes[{a}], int128, Bytes[{b}]):
     assert_tx_failed(lambda: c2.get_array(c.address))
 
 
-def test_tuple_with_bytes_too_long_two(get_contract, assert_tx_failed, memory_mocker):
+def test_tuple_with_bytes_too_long_two(get_contract, assert_tx_failed):
     contract_1 = """
 @external
 def array() -> (Bytes[30], int128, Bytes[30]):
@@ -222,7 +224,637 @@ def get_array(arg1: address) -> (Bytes[30], int128, Bytes[3]):
     assert_tx_failed(lambda: c2.get_array(c.address))
 
 
-def test_external_contract_call_state_change(get_contract, memory_mocker):
+@pytest.mark.parametrize("length", [8, 256])
+def test_external_contract_calls_with_uint8(get_contract, length):
+    contract_1 = f"""
+@external
+def foo() -> uint{length}:
+    return 255
+    """
+
+    c = get_contract(contract_1)
+
+    contract_2 = """
+interface Foo:
+    def foo() -> uint8: view
+
+@external
+def bar(arg1: address) -> uint8:
+    return Foo(arg1).foo()
+"""
+
+    c2 = get_contract(contract_2)
+    assert c2.bar(c.address) == 255
+
+
+def test_uint8_too_long(get_contract, assert_tx_failed):
+    contract_1 = """
+@external
+def foo() -> uint256:
+    return 2**255
+    """
+
+    c = get_contract(contract_1)
+
+    contract_2 = """
+interface Foo:
+    def foo() -> uint8: view
+
+@external
+def bar(arg1: address) -> uint8:
+    return Foo(arg1).foo()
+"""
+
+    c2 = get_contract(contract_2)
+    assert_tx_failed(lambda: c2.bar(c.address))
+
+
+@pytest.mark.parametrize("a,b", [(8, 8), (8, 256), (256, 8), (256, 256)])
+@pytest.mark.parametrize("actual", [8, 256])
+def test_tuple_with_uint8(get_contract, a, b, actual):
+    contract_1 = f"""
+@external
+def foo() -> (uint{actual}, Bytes[3], uint{actual}):
+    return 255, b'dog', 255
+    """
+
+    c = get_contract(contract_1)
+
+    contract_2 = f"""
+interface Foo:
+    def foo() -> (uint{a}, Bytes[3], uint{b}): view
+
+@external
+def bar(arg1: address) -> (uint{a}, Bytes[3], uint{b}):
+    a: uint{a} = 0
+    b: Bytes[3] = b""
+    c: uint{b} = 0
+    a, b, c = Foo(arg1).foo()
+    return a, b, c
+"""
+
+    c2 = get_contract(contract_2)
+    assert c.foo() == [255, b"dog", 255]
+    assert c2.bar(c.address) == [255, b"dog", 255]
+
+
+@pytest.mark.parametrize("a,b", [(8, 256), (256, 8), (256, 256)])
+def test_tuple_with_uint8_too_long(get_contract, assert_tx_failed, a, b):
+    contract_1 = f"""
+@external
+def foo() -> (uint{a}, Bytes[3], uint{b}):
+    return {(2**a)-1}, b'dog', {(2**b)-1}
+    """
+
+    c = get_contract(contract_1)
+
+    contract_2 = """
+interface Foo:
+    def foo() -> (uint8, Bytes[3], uint8): view
+
+@external
+def bar(arg1: address) -> (uint8, Bytes[3], uint8):
+    a: uint8 = 0
+    b: Bytes[3] = b""
+    c: uint8 = 0
+    a, b, c = Foo(arg1).foo()
+    return a, b, c
+"""
+
+    c2 = get_contract(contract_2)
+    assert c.foo() == [int(f"{(2**a)-1}"), b"dog", int(f"{(2**b)-1}")]
+    assert_tx_failed(lambda: c2.bar(c.address))
+
+
+@pytest.mark.parametrize("a,b", [(8, 256), (256, 8)])
+def test_tuple_with_uint8_too_long_two(get_contract, assert_tx_failed, a, b):
+    contract_1 = f"""
+@external
+def foo() -> (uint{b}, Bytes[3], uint{a}):
+    return {(2**b)-1}, b'dog', {(2**a)-1}
+    """
+
+    c = get_contract(contract_1)
+
+    contract_2 = f"""
+interface Foo:
+    def foo() -> (uint{a}, Bytes[3], uint{b}): view
+
+@external
+def bar(arg1: address) -> (uint{a}, Bytes[3], uint{b}):
+    a: uint{a} = 0
+    b: Bytes[3] = b""
+    c: uint{b} = 0
+    a, b, c = Foo(arg1).foo()
+    return a, b, c
+"""
+
+    c2 = get_contract(contract_2)
+    assert c.foo() == [int(f"{(2**b)-1}"), b"dog", int(f"{(2**a)-1}")]
+    assert_tx_failed(lambda: c2.bar(c.address))
+
+
+@pytest.mark.parametrize("length", [128, 256])
+def test_external_contract_calls_with_int128(get_contract, length):
+    contract_1 = f"""
+@external
+def foo() -> int{length}:
+    return 1
+    """
+
+    c = get_contract(contract_1)
+
+    contract_2 = """
+interface Foo:
+    def foo() -> int128: view
+
+@external
+def bar(arg1: address) -> int128:
+    return Foo(arg1).foo()
+"""
+
+    c2 = get_contract(contract_2)
+    assert c2.bar(c.address) == 1
+
+
+def test_int128_too_long(get_contract, assert_tx_failed):
+    contract_1 = """
+@external
+def foo() -> int256:
+    return (2**255)-1
+    """
+
+    c = get_contract(contract_1)
+
+    contract_2 = """
+interface Foo:
+    def foo() -> int128: view
+
+@external
+def bar(arg1: address) -> int128:
+    return Foo(arg1).foo()
+"""
+
+    c2 = get_contract(contract_2)
+    assert_tx_failed(lambda: c2.bar(c.address))
+
+
+@pytest.mark.parametrize("a,b", [(128, 128), (128, 256), (256, 128), (256, 256)])
+@pytest.mark.parametrize("actual", [128, 256])
+def test_tuple_with_int128(get_contract, a, b, actual):
+    contract_1 = f"""
+@external
+def foo() -> (int{actual}, Bytes[3], int{actual}):
+    return 255, b'dog', 255
+    """
+
+    c = get_contract(contract_1)
+
+    contract_2 = f"""
+interface Foo:
+    def foo() -> (int{a}, Bytes[3], int{b}): view
+
+@external
+def bar(arg1: address) -> (int{a}, Bytes[3], int{b}):
+    a: int{a} = 0
+    b: Bytes[3] = b""
+    c: int{b} = 0
+    a, b, c = Foo(arg1).foo()
+    return a, b, c
+"""
+
+    c2 = get_contract(contract_2)
+    assert c.foo() == [255, b"dog", 255]
+    assert c2.bar(c.address) == [255, b"dog", 255]
+
+
+@pytest.mark.parametrize("a,b", [(128, 256), (256, 128), (256, 256)])
+def test_tuple_with_int128_too_long(get_contract, assert_tx_failed, a, b):
+    contract_1 = f"""
+@external
+def foo() -> (int{a}, Bytes[3], int{b}):
+    return {(2**(a-1))-1}, b'dog', {(2**(b-1))-1}
+    """
+
+    c = get_contract(contract_1)
+
+    contract_2 = """
+interface Foo:
+    def foo() -> (int128, Bytes[3], int128): view
+
+@external
+def bar(arg1: address) -> (int128, Bytes[3], int128):
+    a: int128 = 0
+    b: Bytes[3] = b""
+    c: int128 = 0
+    a, b, c = Foo(arg1).foo()
+    return a, b, c
+"""
+
+    c2 = get_contract(contract_2)
+    assert c.foo() == [int(f"{(2**(a-1))-1}"), b"dog", int(f"{(2**(b-1))-1}")]
+    assert_tx_failed(lambda: c2.bar(c.address))
+
+
+@pytest.mark.parametrize("a,b", [(128, 256), (256, 128)])
+def test_tuple_with_int128_too_long_two(get_contract, assert_tx_failed, a, b):
+    contract_1 = f"""
+@external
+def foo() -> (int{b}, Bytes[3], int{a}):
+    return {(2**(b-1))-1}, b'dog', {(2**(a-1))-1}
+    """
+
+    c = get_contract(contract_1)
+
+    contract_2 = f"""
+interface Foo:
+    def foo() -> (int{a}, Bytes[3], int{b}): view
+
+@external
+def bar(arg1: address) -> (int{a}, Bytes[3], int{b}):
+    a: int{a} = 0
+    b: Bytes[3] = b""
+    c: int{b} = 0
+    a, b, c = Foo(arg1).foo()
+    return a, b, c
+"""
+
+    c2 = get_contract(contract_2)
+    assert c.foo() == [int(f"{(2**(b-1))-1}"), b"dog", int(f"{(2**(a-1))-1}")]
+    assert_tx_failed(lambda: c2.bar(c.address))
+
+
+@pytest.mark.parametrize("type", ["uint8", "uint256", "int128", "int256"])
+def test_external_contract_calls_with_decimal(get_contract, type):
+    contract_1 = f"""
+@external
+def foo() -> {type}:
+    return 1
+    """
+
+    c = get_contract(contract_1)
+
+    contract_2 = """
+interface Foo:
+    def foo() -> decimal: view
+
+@external
+def bar(arg1: address) -> decimal:
+    return Foo(arg1).foo()
+"""
+
+    c2 = get_contract(contract_2)
+    assert c2.bar(c.address) == Decimal("1e-10")
+
+
+def test_decimal_too_long(get_contract, assert_tx_failed):
+    contract_1 = """
+@external
+def foo() -> uint256:
+    return 2**255
+    """
+
+    c = get_contract(contract_1)
+
+    contract_2 = """
+interface Foo:
+    def foo() -> decimal: view
+
+@external
+def bar(arg1: address) -> decimal:
+    return Foo(arg1).foo()
+"""
+
+    c2 = get_contract(contract_2)
+    assert_tx_failed(lambda: c2.bar(c.address))
+
+
+@pytest.mark.parametrize("a", ["uint8", "uint256", "int128", "int256"])
+@pytest.mark.parametrize("b", ["uint8", "uint256", "int128", "int256"])
+def test_tuple_with_decimal(get_contract, a, b):
+    contract_1 = f"""
+@external
+def foo() -> ({a}, Bytes[3], {b}):
+    return 0, b'dog', 1
+    """
+
+    c = get_contract(contract_1)
+
+    contract_2 = """
+interface Foo:
+    def foo() -> (decimal, Bytes[3], decimal): view
+
+@external
+def bar(arg1: address) -> (decimal, Bytes[3], decimal):
+    a: decimal = 0.0
+    b: Bytes[3] = b""
+    c: decimal = 0.0
+    a, b, c = Foo(arg1).foo()
+    return a, b, c
+"""
+
+    c2 = get_contract(contract_2)
+    assert c.foo() == [0, b"dog", 1]
+    result = c2.bar(c.address)
+    assert result == [Decimal("0.0"), b"dog", Decimal("1e-10")]
+
+
+@pytest.mark.parametrize("a,b", [(8, 256), (256, 8), (256, 256)])
+def test_tuple_with_decimal_too_long(get_contract, assert_tx_failed, a, b):
+    contract_1 = f"""
+@external
+def foo() -> (uint{a}, Bytes[3], uint{b}):
+    return {2**(a-1)}, b'dog', {2**(b-1)}
+    """
+
+    c = get_contract(contract_1)
+
+    contract_2 = """
+interface Foo:
+    def foo() -> (decimal, Bytes[3], decimal): view
+
+@external
+def bar(arg1: address) -> (decimal, Bytes[3], decimal):
+    a: decimal = 0.0
+    b: Bytes[3] = b""
+    c: decimal = 0.0
+    a, b, c = Foo(arg1).foo()
+    return a, b, c
+"""
+
+    c2 = get_contract(contract_2)
+    assert c.foo() == [2 ** (a - 1), b"dog", 2 ** (b - 1)]
+    assert_tx_failed(lambda: c2.bar(c.address))
+
+
+@pytest.mark.parametrize("type", ["uint8", "uint256", "int128", "int256"])
+def test_external_contract_calls_with_bool(get_contract, type):
+    contract_1 = f"""
+@external
+def foo() -> {type}:
+    return 1
+    """
+
+    c = get_contract(contract_1)
+
+    contract_2 = """
+interface Foo:
+    def foo() -> bool: view
+
+@external
+def bar(arg1: address) -> bool:
+    return Foo(arg1).foo()
+"""
+
+    c2 = get_contract(contract_2)
+    assert c2.bar(c.address) is True
+
+
+def test_bool_too_long(get_contract, assert_tx_failed):
+    contract_1 = """
+@external
+def foo() -> uint256:
+    return 2
+    """
+
+    c = get_contract(contract_1)
+
+    contract_2 = """
+interface Foo:
+    def foo() -> bool: view
+
+@external
+def bar(arg1: address) -> bool:
+    return Foo(arg1).foo()
+"""
+
+    c2 = get_contract(contract_2)
+    assert_tx_failed(lambda: c2.bar(c.address))
+
+
+@pytest.mark.parametrize("a", ["uint8", "uint256", "int128", "int256"])
+@pytest.mark.parametrize("b", ["uint8", "uint256", "int128", "int256"])
+def test_tuple_with_bool(get_contract, a, b):
+    contract_1 = f"""
+@external
+def foo() -> ({a}, Bytes[3], {b}):
+    return 1, b'dog', 0
+    """
+
+    c = get_contract(contract_1)
+
+    contract_2 = """
+interface Foo:
+    def foo() -> (bool, Bytes[3], bool): view
+
+@external
+def bar(arg1: address) -> (bool, Bytes[3], bool):
+    a: bool = False
+    b: Bytes[3] = b""
+    c: bool = False
+    a, b, c = Foo(arg1).foo()
+    return a, b, c
+"""
+
+    c2 = get_contract(contract_2)
+    assert c.foo() == [1, b"dog", 0]
+    assert c2.bar(c.address) == [True, b"dog", False]
+
+
+@pytest.mark.parametrize("a", ["uint8", "uint256", "int128", "int256"])
+@pytest.mark.parametrize("b", ["uint8", "uint256", "int128", "int256"])
+def test_tuple_with_bool_too_long(get_contract, assert_tx_failed, a, b):
+    contract_1 = f"""
+@external
+def foo() -> ({a}, Bytes[3], {b}):
+    return 1, b'dog', 2
+    """
+
+    c = get_contract(contract_1)
+
+    contract_2 = """
+interface Foo:
+    def foo() -> (bool, Bytes[3], bool): view
+
+@external
+def bar(arg1: address) -> (bool, Bytes[3], bool):
+    a: bool = False
+    b: Bytes[3] = b""
+    c: bool = False
+    a, b, c = Foo(arg1).foo()
+    return a, b, c
+"""
+
+    c2 = get_contract(contract_2)
+    assert c.foo() == [1, b"dog", 2]
+    assert_tx_failed(lambda: c2.bar(c.address))
+
+
+@pytest.mark.parametrize("type", ["uint8", "int128", "uint256", "int256"])
+def test_external_contract_calls_with_address(get_contract, type):
+    contract_1 = f"""
+@external
+def foo() -> {type}:
+    return 1
+    """
+
+    c = get_contract(contract_1)
+
+    contract_2 = """
+interface Foo:
+    def foo() -> address: view
+
+@external
+def bar(arg1: address) -> address:
+    return Foo(arg1).foo()
+"""
+
+    c2 = get_contract(contract_2)
+    assert c2.bar(c.address) == "0x0000000000000000000000000000000000000001"
+
+
+@pytest.mark.parametrize("type", ["uint256", "int256"])
+def test_external_contract_calls_with_address_two(get_contract, type):
+    contract_1 = f"""
+@external
+def foo() -> {type}:
+    return (2**160)-1
+    """
+
+    c = get_contract(contract_1)
+
+    contract_2 = """
+interface Foo:
+    def foo() -> address: view
+
+@external
+def bar(arg1: address) -> address:
+    return Foo(arg1).foo()
+"""
+
+    c2 = get_contract(contract_2)
+    assert c2.bar(c.address).lower() == "0xffffffffffffffffffffffffffffffffffffffff"
+
+
+@pytest.mark.parametrize("type", ["uint256", "int256"])
+def test_address_too_long(get_contract, assert_tx_failed, type):
+    contract_1 = f"""
+@external
+def foo() -> {type}:
+    return 2**160
+    """
+
+    c = get_contract(contract_1)
+
+    contract_2 = """
+interface Foo:
+    def foo() -> address: view
+
+@external
+def bar(arg1: address) -> address:
+    return Foo(arg1).foo()
+"""
+
+    c2 = get_contract(contract_2)
+    assert_tx_failed(lambda: c2.bar(c.address))
+
+
+@pytest.mark.parametrize("a", ["uint8", "int128", "uint256", "int256"])
+@pytest.mark.parametrize("b", ["uint8", "int128", "uint256", "int256"])
+def test_tuple_with_address(get_contract, a, b):
+    contract_1 = f"""
+@external
+def foo() -> ({a}, Bytes[3], {b}):
+    return 16, b'dog', 1
+    """
+
+    c = get_contract(contract_1)
+
+    contract_2 = """
+interface Foo:
+    def foo() -> (address, Bytes[3], address): view
+
+@external
+def bar(arg1: address) -> (address, Bytes[3], address):
+    a: address = ZERO_ADDRESS
+    b: Bytes[3] = b""
+    c: address = ZERO_ADDRESS
+    a, b, c = Foo(arg1).foo()
+    return a, b, c
+"""
+
+    c2 = get_contract(contract_2)
+    assert c.foo() == [16, b"dog", 1]
+    assert c2.bar(c.address) == [
+        "0x0000000000000000000000000000000000000010",
+        b"dog",
+        "0x0000000000000000000000000000000000000001",
+    ]
+
+
+@pytest.mark.parametrize("a", ["uint256", "int256"])
+@pytest.mark.parametrize("b", ["uint256", "int256"])
+def test_tuple_with_address_two(get_contract, a, b):
+    contract_1 = f"""
+@external
+def foo() -> ({a}, Bytes[3], {b}):
+    return (2**160)-1, b'dog', (2**160)-2
+    """
+
+    c = get_contract(contract_1)
+
+    contract_2 = """
+interface Foo:
+    def foo() -> (address, Bytes[3], address): view
+
+@external
+def bar(arg1: address) -> (address, Bytes[3], address):
+    a: address = ZERO_ADDRESS
+    b: Bytes[3] = b""
+    c: address = ZERO_ADDRESS
+    a, b, c = Foo(arg1).foo()
+    return a, b, c
+"""
+
+    c2 = get_contract(contract_2)
+    assert c.foo() == [(2 ** 160) - 1, b"dog", (2 ** 160) - 2]
+    result = c2.bar(c.address)
+    assert len(result) == 3
+    assert result[0].lower() == "0xffffffffffffffffffffffffffffffffffffffff"
+    assert result[1] == b"dog"
+    assert result[2].lower() == "0xfffffffffffffffffffffffffffffffffffffffe"
+
+
+@pytest.mark.parametrize("a", ["uint256", "int256"])
+@pytest.mark.parametrize("b", ["uint256", "int256"])
+def test_tuple_with_address_too_long(get_contract, assert_tx_failed, a, b):
+    contract_1 = f"""
+@external
+def foo() -> ({a}, Bytes[3], {b}):
+    return (2**160)-1, b'dog', 2**160
+    """
+
+    c = get_contract(contract_1)
+
+    contract_2 = """
+interface Foo:
+    def foo() -> (address, Bytes[3], address): view
+
+@external
+def bar(arg1: address) -> (address, Bytes[3], address):
+    a: address = ZERO_ADDRESS
+    b: Bytes[3] = b""
+    c: address = ZERO_ADDRESS
+    a, b, c = Foo(arg1).foo()
+    return a, b, c
+"""
+
+    c2 = get_contract(contract_2)
+    assert c.foo() == [(2 ** 160) - 1, b"dog", 2 ** 160]
+    assert_tx_failed(lambda: c2.bar(c.address))
+
+
+def test_external_contract_call_state_change(get_contract):
     contract_1 = """
 lucky: public(int128)
 
@@ -272,7 +904,7 @@ def set_lucky_stmt(arg1: address, arg2: int128) -> int128:
     print("Successfully blocked an external contract call from a constant function")
 
 
-def test_external_contract_can_be_changed_based_on_address(get_contract, memory_mocker):
+def test_external_contract_can_be_changed_based_on_address(get_contract):
     contract_1 = """
 lucky: public(int128)
 
@@ -342,7 +974,7 @@ def bar(arg1: address) -> int128:
     print("Successfully executed an external contract call with public globals")
 
 
-def test_external_contract_calls_with_multiple_contracts(get_contract, memory_mocker):
+def test_external_contract_calls_with_multiple_contracts(get_contract):
     contract_1 = """
 lucky: public(int128)
 
@@ -382,7 +1014,55 @@ def __init__(arg1: address):
     print("Successfully executed a multiple external contract calls")
 
 
-def test_invalid_external_contract_call_to_the_same_contract(assert_tx_failed, get_contract):
+def test_external_contract_calls_with_default_value(get_contract):
+    contract_1 = """
+@external
+def foo(arg1: uint256=1) -> uint256:
+    return arg1
+    """
+
+    contract_2 = """
+interface Foo:
+    def foo(arg1: uint256=1) -> uint256: nonpayable
+
+@external
+def bar(addr: address) -> uint256:
+    return Foo(addr).foo()
+    """
+
+    c1 = get_contract(contract_1)
+    c2 = get_contract(contract_2)
+
+    assert c1.foo() == 1
+    assert c1.foo(2) == 2
+    assert c2.bar(c1.address) == 1
+
+
+def test_external_contract_calls_with_default_value_two(get_contract):
+    contract_1 = """
+@external
+def foo(arg1: uint256, arg2: uint256=1) -> uint256:
+    return arg1 + arg2
+    """
+
+    contract_2 = """
+interface Foo:
+    def foo(arg1: uint256, arg2: uint256=1) -> uint256: nonpayable
+
+@external
+def bar(addr: address, arg1: uint256) -> uint256:
+    return Foo(addr).foo(arg1)
+    """
+
+    c1 = get_contract(contract_1)
+    c2 = get_contract(contract_2)
+
+    assert c1.foo(2) == 3
+    assert c1.foo(2, 3) == 5
+    assert c2.bar(c1.address, 2) == 3
+
+
+def test_invalid_external_contract_call_to_the_same_contract(get_contract):
     contract_1 = """
 @external
 def bar() -> int128:
@@ -543,7 +1223,7 @@ def get_lucky(contract_address: address) -> int128:
 
 
 def test_complex_external_contract_call_declaration(
-    get_contract_with_gas_estimation, memory_mocker
+    get_contract_with_gas_estimation
 ):
     contract_1 = """
 @external
@@ -732,7 +1412,7 @@ def get_lucky(gas_amount: uint256) -> int128:
     assert_tx_failed(lambda: c2.get_lucky(100))  # too little gas.
 
 
-def test_skip_contract_check(assert_tx_failed, get_contract_with_gas_estimation):
+def test_skip_contract_check(get_contract_with_gas_estimation):
     contract_2 = """
 @external
 @view
@@ -842,7 +1522,7 @@ def foo():
     assert_compile_failed(lambda: get_contract_with_gas_estimation(code), InvalidType)
 
 
-def test_tuple_return_external_contract_call(get_contract, memory_mocker):
+def test_tuple_return_external_contract_call(get_contract):
     contract_1 = """
 @external
 def out_literals() -> (int128, address, Bytes[10]):
@@ -932,6 +1612,154 @@ def test(addr: address) -> (int128, String[{ln}], Bytes[{ln}]):
     assert c2.test(c1.address) == list(c1.get_struct_x())
 
 
+def test_struct_return_external_contract_call_3(get_contract_with_gas_estimation):
+    contract_1 = """
+struct X:
+    x: int128
+@external
+def out_literals() -> X:
+    return X({x: 1})
+    """
+
+    contract_2 = """
+struct X:
+    x: int128
+interface Test:
+    def out_literals() -> X : view
+
+@external
+def test(addr: address) -> int128:
+    ret: X = Test(addr).out_literals()
+    return ret.x
+
+    """
+    c1 = get_contract_with_gas_estimation(contract_1)
+    c2 = get_contract_with_gas_estimation(contract_2)
+
+    assert c1.out_literals() == (1,)
+    assert [c2.test(c1.address)] == list(c1.out_literals())
+
+
+def test_dynamically_sized_struct_external_contract_call(get_contract_with_gas_estimation):
+    contract_1 = """
+struct X:
+    x: uint256
+    y: Bytes[6]
+
+@external
+def foo(x: X) -> Bytes[6]:
+    return x.y
+    """
+
+    contract_2 = """
+struct X:
+    x: uint256
+    y: Bytes[6]
+
+interface Foo:
+    def foo(x: X) -> Bytes[6]: nonpayable
+
+@external
+def bar(addr: address) -> Bytes[6]:
+    _X: X = X({x: 1, y: b"hello"})
+    return Foo(addr).foo(_X)
+    """
+
+    c1 = get_contract_with_gas_estimation(contract_1)
+    c2 = get_contract_with_gas_estimation(contract_2)
+
+    assert c1.foo((1, b"hello")) == b"hello"
+    assert c2.bar(c1.address) == b"hello"
+
+
+def test_dynamically_sized_struct_external_contract_call_2(get_contract_with_gas_estimation):
+    contract_1 = """
+struct X:
+    x: uint256
+    y: String[6]
+
+@external
+def foo(x: X) -> String[6]:
+    return x.y
+    """
+
+    contract_2 = """
+struct X:
+    x: uint256
+    y: String[6]
+
+interface Foo:
+    def foo(x: X) -> String[6]: nonpayable
+
+@external
+def bar(addr: address) -> String[6]:
+    _X: X = X({x: 1, y: "hello"})
+    return Foo(addr).foo(_X)
+    """
+
+    c1 = get_contract_with_gas_estimation(contract_1)
+    c2 = get_contract_with_gas_estimation(contract_2)
+
+    assert c1.foo((1, "hello")) == "hello"
+    assert c2.bar(c1.address) == "hello"
+
+
+def test_dynamically_sized_struct_member_external_contract_call(get_contract_with_gas_estimation):
+    contract_1 = """
+@external
+def foo(b: Bytes[6]) -> Bytes[6]:
+    return b
+    """
+
+    contract_2 = """
+struct X:
+    x: uint256
+    y: Bytes[6]
+
+interface Foo:
+    def foo(b: Bytes[6]) -> Bytes[6]: nonpayable
+
+@external
+def bar(addr: address) -> Bytes[6]:
+    _X: X = X({x: 1, y: b"hello"})
+    return Foo(addr).foo(_X.y)
+    """
+
+    c1 = get_contract_with_gas_estimation(contract_1)
+    c2 = get_contract_with_gas_estimation(contract_2)
+
+    assert c1.foo(b"hello") == b"hello"
+    assert c2.bar(c1.address) == b"hello"
+
+
+def test_dynamically_sized_struct_member_external_contract_call_2(get_contract_with_gas_estimation):
+    contract_1 = """
+@external
+def foo(s: String[6]) -> String[6]:
+    return s
+    """
+
+    contract_2 = """
+struct X:
+    x: uint256
+    y: String[6]
+
+interface Foo:
+    def foo(b: String[6]) -> String[6]: nonpayable
+
+@external
+def bar(addr: address) -> String[6]:
+    _X: X = X({x: 1, y: "hello"})
+    return Foo(addr).foo(_X.y)
+    """
+
+    c1 = get_contract_with_gas_estimation(contract_1)
+    c2 = get_contract_with_gas_estimation(contract_2)
+
+    assert c1.foo("hello") == "hello"
+    assert c2.bar(c1.address) == "hello"
+
+
 def test_list_external_contract_call(get_contract, get_contract_with_gas_estimation):
     contract_1 = """
 @external
@@ -991,7 +1819,7 @@ def foo(_addr: address) -> int128:
     assert_tx_failed(lambda: c2.foo(c1.address))
 
 
-def test_returndatasize_too_long(get_contract, assert_tx_failed):
+def test_returndatasize_too_long(get_contract):
     contract_1 = """
 @external
 def bar(a: int128) -> (int128, int128):
