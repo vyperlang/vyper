@@ -183,15 +183,15 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
 
     def visit_Subscript(self, node, type_):
         if isinstance(node.value, vy_ast.List):
-            base_type = get_possible_types_from_node(node.value)
+            possible_base_types = get_possible_types_from_node(node.value)
 
-            if len(base_type) == 1:
-                base_type = base_type.pop()
+            if len(possible_base_types) == 1:
+                base_type = possible_base_types.pop()
 
-            elif type_ and len(base_type) > 1:
-                for p in base_type:
-                    if isinstance(p.value_type, type(type_)):
-                        base_type = p
+            elif type_ and len(possible_base_types) > 1:
+                for possible_type in possible_base_types:
+                    if isinstance(possible_type.value_type, type(type_)):
+                        base_type = possible_type
                         break
 
         else:
