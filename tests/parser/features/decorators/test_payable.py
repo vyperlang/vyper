@@ -352,7 +352,7 @@ def __default__():
     """
 
     c = get_contract(code)
-    w3.eth.sendTransaction({"to": c.address, "value": 100, "data": "0x12345678"}),
+    w3.eth.send_transaction({"to": c.address, "value": 100, "data": "0x12345678"}),
 
 
 def test_nonpayable_default_func_invalid_calldata(get_contract, w3, assert_tx_failed):
@@ -368,7 +368,7 @@ def __default__():
     """
 
     c = get_contract(code)
-    w3.eth.sendTransaction({"to": c.address, "value": 0, "data": "0x12345678"})
+    w3.eth.send_transaction({"to": c.address, "value": 0, "data": "0x12345678"})
     assert_tx_failed(
-        lambda: w3.eth.sendTransaction({"to": c.address, "value": 100, "data": "0x12345678"})
+        lambda: w3.eth.send_transaction({"to": c.address, "value": 100, "data": "0x12345678"})
     )

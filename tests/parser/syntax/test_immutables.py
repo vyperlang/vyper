@@ -1,6 +1,7 @@
 import pytest
 
 from vyper import compile_code
+from vyper.exceptions import VyperException
 
 fail_list = [
     # VALUE is not set in the constructor
@@ -105,3 +106,53 @@ def __init__(_value: uint256):
 @pytest.mark.parametrize("good_code", pass_list)
 def test_compilation_success(good_code):
     assert compile_code(good_code)
+
+
+fail_list_with_messages = [
+    (
+        """
+imm: immutable(uint256)
+
+@external
+def __init__(x: uint256):
+    self.imm = x
+    """,
+        "Immutable variables must be accessed without 'self'",
+    ),
+    (
+        """
+imm: immutable(uint256)
+
+@external
+def __init__(x: uint256):
+    x = imm
+
+@external
+def report():
+    y: uint256 = imm + imm
+    """,
+        "Immutable definition requires an assignment in the constructor",
+    ),
+    (
+        """
+imm: immutable(uint256)
+
+@external
+def __init__(x: uint256):
+    imm = x
+
+@external
+def report():
+    y: uint256 = imm
+    z: uint256 = self.imm
+    """,
+        "'imm' is not a storage variable, it should not be prepended with self",
+    ),
+]
+
+
+@pytest.mark.parametrize(["bad_code", "message"], fail_list_with_messages)
+def test_compilation_fails_with_exception_message(bad_code: str, message: str):
+    with pytest.raises(VyperException) as excinfo:
+        compile_code(bad_code)
+    assert excinfo.value.message == message

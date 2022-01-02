@@ -73,7 +73,7 @@ The ``log`` statement is used to log an event:
 
     log MyEvent(...)
 
-The event must have been previously declared
+The event must have been previously declared.
 
 See :ref:`Event Logging<event-logging>` for more information on events.
 

@@ -2,7 +2,7 @@ import operator
 from typing import List, Optional
 
 from vyper.old_codegen.lll_node import LLLnode
-from vyper.utils import LOADED_LIMITS
+from vyper.utils import LOADED_LIMITS, ceil32
 
 
 def get_int_at(args: List[LLLnode], pos: int, signed: bool = False) -> Optional[int]:
@@ -85,6 +85,10 @@ def apply_general_optimizations(node: LLLnode) -> LLLnode:
             add_gas_estimate=node.add_gas_estimate,
             valency=node.valency,
         )
+    elif node.value == "ceil32" and int_at(argz, 0):
+        t = argz[0]
+        annotation = f"ceil32({t.value})"
+        return LLLnode(ceil32(t.value), [], node.typ, None, annotation=annotation)
     elif _is_constant_add(node, argz):
         # `node.value in arith` implies that `node.value` is a `str`
         calcer, symb = arith[str(node.value)]

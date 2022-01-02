@@ -96,19 +96,22 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
         module_node._metadata["type"] = interface
 
         # get list of internal function calls made by each function
-        call_function_names = set()
-        for node in self.ast.get_children(vy_ast.FunctionDef):
-            call_function_names.add(node.name)
-            self_members[node.name].internal_calls = set(
+        function_defs = self.ast.get_children(vy_ast.FunctionDef)
+        function_names = set(node.name for node in function_defs)
+        for node in function_defs:
+            calls_to_self = set(
                 i.func.attr for i in node.get_descendants(vy_ast.Call, {"func.value.id": "self"})
             )
+            # anything that is not a function call will get semantically checked later
+            calls_to_self = calls_to_self.intersection(function_names)
+            self_members[node.name].internal_calls = calls_to_self
             if node.name in self_members[node.name].internal_calls:
                 self_node = node.get_descendants(
                     vy_ast.Attribute, {"value.id": "self", "attr": node.name}
                 )[0]
                 raise CallViolation(f"Function '{node.name}' calls into itself", self_node)
 
-        for fn_name in sorted(call_function_names):
+        for fn_name in sorted(function_names):
 
             if fn_name not in self_members:
                 # the referenced function does not exist - this is an issue, but we'll report
@@ -179,8 +182,17 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
                         vy_ast.Assign, filters={"target.id": node.target.id}
                     )
                     if not assignments:
+                        # Special error message for common wrong usages via `self.<immutable name>`
+                        wrong_self_attribute = self.ast.get_descendants(
+                            vy_ast.Attribute, {"value.id": "self", "attr": node.target.id}
+                        )
+                        message = (
+                            "Immutable variables must be accessed without 'self'"
+                            if len(wrong_self_attribute) > 0
+                            else "Immutable definition requires an assignment in the constructor"
+                        )
                         raise SyntaxException(
-                            "Immutable definition requires an assignment in the constructor",
+                            message,
                             node.node_source_code,
                             node.lineno,
                             node.col_offset,

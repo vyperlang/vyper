@@ -29,11 +29,11 @@ Name                 Type             Value
 
 .. note::
 
-    ``msg.data``, ``msg.sender`` and ``msg.value`` can only be accessed from external functions. If you require these values within a private function they must be passed as parameters.
+    ``msg.data``, ``msg.sender`` and ``msg.value`` can only be accessed from external functions. If you require these values within a private function, they must be passed as parameters.
 
 .. note::
 
-    ``msg.data`` requires the usage of :func:`slice <slice>` to explicitly extract a section of calldata. If the extracted section exceeds the bounds of calldata, this will throw. You can check the size of ``msg.data`` using :func:`len <len>`.   
+    ``msg.data`` requires the usage of :func:`slice <slice>` to explicitly extract a section of calldata. If the extracted section exceeds the bounds of calldata, this will throw. You can check the size of ``msg.data`` using :func:`len <len>`.
 
 .. _constants-self:
 
@@ -106,7 +106,7 @@ Name              Type             Value
 Custom Constants
 ================
 
-Custom constants can be defined at a global level in Vyper. To define a constant make use of the ``constant`` keyword.
+Custom constants can be defined at a global level in Vyper. To define a constant, make use of the ``constant`` keyword.
 
 .. code-block:: python
 

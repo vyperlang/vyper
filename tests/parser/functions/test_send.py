@@ -47,12 +47,12 @@ def __default__():
 
     # no value transfer hapenned, variable was not changed
     assert receiver.last_sender() is None
-    assert w3.eth.getBalance(sender.address) == 1
-    assert w3.eth.getBalance(receiver.address) == 0
+    assert w3.eth.get_balance(sender.address) == 1
+    assert w3.eth.get_balance(receiver.address) == 0
 
     sender.test_call(receiver.address, transact={"gas": 100000})
 
     # value transfer hapenned, variable was changed
     assert receiver.last_sender() == sender.address
-    assert w3.eth.getBalance(sender.address) == 0
-    assert w3.eth.getBalance(receiver.address) == 1
+    assert w3.eth.get_balance(sender.address) == 0
+    assert w3.eth.get_balance(receiver.address) == 1

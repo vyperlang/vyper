@@ -1,7 +1,8 @@
 import pytest
 
 from vyper.ast import parse_to_ast
-from vyper.exceptions import CallViolation
+from vyper.exceptions import CallViolation, StructureException
+from vyper.semantics.validation import validate_semantics
 from vyper.semantics.validation.module import ModuleNodeVisitor
 
 
@@ -43,3 +44,17 @@ def potato():
     with namespace.enter_scope():
         with pytest.raises(CallViolation):
             ModuleNodeVisitor(vyper_module, {}, namespace)
+
+
+def test_global_ann_assign_callable_no_crash():
+    code = """
+balanceOf: public(HashMap[address, uint256])
+
+@internal
+def foo(to : address):
+    self.balanceOf(to)
+    """
+    vyper_module = parse_to_ast(code)
+    with pytest.raises(StructureException) as excinfo:
+        validate_semantics(vyper_module, {})
+    assert excinfo.value.message == "Value is not callable"

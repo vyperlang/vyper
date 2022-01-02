@@ -248,6 +248,10 @@ class _ExprTypeChecker:
 
     def types_from_Subscript(self, node):
         # index access, e.g. `foo[1]`
+        if isinstance(node.value, vy_ast.List):
+            types_list = self.get_possible_types_from_node(node.value)
+            return [base_type.get_index_type(node.slice.value) for base_type in types_list]
+
         base_type = self.get_exact_type_from_node(node.value)
         return [base_type.get_index_type(node.slice.value)]
 

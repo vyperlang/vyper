@@ -5,7 +5,7 @@ EXPIRY = 16
 
 @pytest.fixture
 def auction_start(w3):
-    return w3.eth.getBlock("latest").timestamp + 1
+    return w3.eth.get_block("latest").timestamp + 1
 
 
 @pytest.fixture
@@ -63,9 +63,9 @@ def test_bid(w3, tester, auction_contract, assert_tx_failed):
     # Account has a greater pending return balance after being outbid
     assert pending_return_after_outbid > pending_return_before_outbid
 
-    balance_before_withdrawal = w3.eth.getBalance(k1)
+    balance_before_withdrawal = w3.eth.get_balance(k1)
     auction_contract.withdraw(transact={"from": k1})
-    balance_after_withdrawal = w3.eth.getBalance(k1)
+    balance_after_withdrawal = w3.eth.get_balance(k1)
     # Balance increases after withdrawal
     assert balance_after_withdrawal > balance_before_withdrawal
     # Pending return balance is reset to 0
@@ -80,9 +80,9 @@ def test_end_auction(w3, tester, auction_contract, assert_tx_failed):
     # Move block timestamp foreward to reach auction end time
     # tester.time_travel(tester.get_block_by_number('latest')['timestamp'] + EXPIRY)
     w3.testing.mine(EXPIRY)
-    balance_before_end = w3.eth.getBalance(k1)
+    balance_before_end = w3.eth.get_balance(k1)
     auction_contract.endAuction(transact={"from": k2})
-    balance_after_end = w3.eth.getBalance(k1)
+    balance_after_end = w3.eth.get_balance(k1)
     # Beneficiary receives the highest bid
     assert balance_after_end == balance_before_end + 1 * 10 ** 10
     # Bidder cannot bid after auction end time has been reached

@@ -81,7 +81,7 @@ def create_and_return_forwarder(inp: address) -> address:
     c3 = c2.create_and_return_forwarder(c.address, call={})
     c2.create_and_return_forwarder(c.address, transact={})
 
-    c3_contract_code = w3.toBytes(w3.eth.getCode(c3))
+    c3_contract_code = w3.toBytes(w3.eth.get_code(c3))
 
     assert c3_contract_code[:10] == HexBytes(preamble)
     assert c3_contract_code[-15:] == HexBytes(callcode)
@@ -168,7 +168,7 @@ def set(i: int128, owner: address):
 
     # Call outer contract, that make a delegate call to inner_contract.
     tx_hash = outer_contract.set(1, a1, transact={})
-    assert w3.eth.getTransactionReceipt(tx_hash)["status"] == 1
+    assert w3.eth.get_transaction_receipt(tx_hash)["status"] == 1
     assert outer_contract.owners(1) == a1
 
 

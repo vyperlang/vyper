@@ -62,7 +62,7 @@ Values
 
 Signed integer values between -2\ :sup:`255` and (2\ :sup:`255` - 1), inclusive.
 
-Interger literals cannot have a decimal point even if the decimal value is zero. For example, ``2.0`` cannot be interpreted as an integer.
+Integer literals cannot have a decimal point even if the decimal value is zero. For example, ``2.0`` cannot be interpreted as an integer.
 
 Operators
 *********
@@ -116,7 +116,7 @@ Values
 
 Signed integer values between -2\ :sup:`127` and (2\ :sup:`127` - 1), inclusive.
 
-Interger literals cannot have a decimal point even if the decimal value is zero. For example, ``2.0`` cannot be interpreted as an integer.
+Integer literals cannot have a decimal point even if the decimal value is zero. For example, ``2.0`` cannot be interpreted as an integer.
 
 Operators
 *********
@@ -170,7 +170,7 @@ Values
 
 Integer values between 0 and (2\ :sup:`8`-1).
 
-Interger literals cannot have a decimal point even if the decimal value is zero. For example, ``2.0`` cannot be interpreted as an integer.
+Integer literals cannot have a decimal point even if the decimal value is zero. For example, ``2.0`` cannot be interpreted as an integer.
 
 .. note::
     Integer literals are interpreted as ``int128`` by default. In cases where ``uint8`` is more appropriate, such as assignment, the literal might be interpreted as ``uint8``. Example: ``_variable: uint8 = _literal``. In order to explicitly cast a literal to a ``uint8`` use ``convert(_literal, uint8)``.
@@ -226,7 +226,7 @@ Values
 
 Integer values between 0 and (2\ :sup:`256`-1).
 
-Interger literals cannot have a decimal point even if the decimal value is zero. For example, ``2.0`` cannot be interpreted as an integer.
+Integer literals cannot have a decimal point even if the decimal value is zero. For example, ``2.0`` cannot be interpreted as an integer.
 
 .. note::
     Integer literals are interpreted as ``int128`` by default. In cases where ``uint256`` is more appropriate, such as assignment, the literal might be interpreted as ``uint256``. Example: ``_variable: uint256 = _literal``. In order to explicitly cast a literal to a ``uint256`` use ``convert(_literal, uint256)``.
@@ -492,11 +492,11 @@ Mappings
 
 Mappings are `hash tables <https://en.wikipedia.org/wiki/Hash_table>`_ that are virtually initialized such that every possible key exists and is mapped to a value whose byte-representation is all zeros: a type's :ref:`default value <types-initial>`.
 
-The key data is not stored in a mapping, instead its ``keccak256`` hash used to look up a value. For this reason mappings do not have a length or a concept of a key or value being "set".
+The key data is not stored in a mapping. Instead, its ``keccak256`` hash is used to look up a value. For this reason, mappings do not have a length or a concept of a key or value being "set".
 
 Mapping types are declared as ``HashMap[_KeyType, _ValueType]``.
 
-* ``_KeyType`` can be any base or bytes type. Mappings, interfaces or structs are not support as key types.
+* ``_KeyType`` can be any base or bytes type. Mappings, interfaces or structs are not supported as key types.
 * ``_ValueType`` can actually be any type, including mappings.
 
 .. note::
@@ -521,9 +521,9 @@ Mapping types are declared as ``HashMap[_KeyType, _ValueType]``.
 Initial Values
 ==============
 
-Unlike most programming languages, Vyper does not have a concept of ``null``. Instead, every variable type has a default value. To check if a variable is empty, you must compare it to the default value for it's given type.
+Unlike most programming languages, Vyper does not have a concept of ``null``. Instead, every variable type has a default value. To check if a variable is empty, you must compare it to the default value for its given type.
 
-To reset a variable to it's default value, assign to it the built-in ``empty()`` function which constructs a zero value for that type.
+To reset a variable to its default value, assign to it the built-in ``empty()`` function which constructs a zero value for that type.
 
 .. note::
 
@@ -538,15 +538,17 @@ Type        Default Value
 ``bool``    ``False``
 ``bytes32`` ``0x0000000000000000000000000000000000000000000000000000000000000000``
 ``decimal`` ``0.0``
+``uint8``   ``0``
 ``int128``  ``0``
+``int256``  ``0``
 ``uint256`` ``0``
 =========== ======================================================================
 
 .. note::
-    In ``Bytes`` the array starts with the bytes all set to ``'\x00'``
+    In ``Bytes``, the array starts with the bytes all set to ``'\x00'``.
 
 .. note::
-    In reference types all the type's members are set to their initial values.
+    In reference types, all the type's members are set to their initial values.
 
 
 .. _type_conversions:
@@ -556,37 +558,73 @@ Type Conversions
 
 All type conversions in Vyper must be made explicitly using the built-in ``convert(a: atype, btype)`` function. Currently, the following type conversions are supported:
 
-================ ================== ============================== =================================
-In (``atype``)   Out (``btype``)    Allowable Values               Additional Notes
-================ ================== ============================== =================================
-``bool``         ``decimal``        All                            ``0.0`` or ``1.0``
-``bool``         ``int128``         All                            ``0`` or ``1``
-``bool``         ``uint256``        All                            ``0`` or ``1``
-``bool``         ``bytes32``        All                            ``0x00`` or ``0x01``
-``bool``         ``Bytes``          All
-``decimal``      ``bool``           All                            Returns ``a != 0.0``
-``decimal``      ``int128``         All                            Value is truncated
-``decimal``      ``uint256``        ``a >= 0.0``                   Value is truncated
+================ ================== ==================================== ==================================
+In (``atype``)   Out (``btype``)    Allowable Values                     Additional Notes
+================ ================== ==================================== ==================================
+``address``      ``bool``           All                                  Returns ``a != ZERO_ADDRESS``
+``address``      ``decimal``        All                                  | Extract the rightmost
+                                                                         | sixteen bytes only
+``address``      ``int128``         All                                  | Extract the rightmost
+                                                                         | sixteen bytes only
+``address``      ``uint256``        All
+``address``      ``bytes32``        All
+``bool``         ``decimal``        All                                  ``0.0`` or ``1.0``
+``bool``         ``uint8``          All                                  ``0`` or ``1``
+``bool``         ``int128``         All                                  ``0`` or ``1``
+``bool``         ``int256``         All                                  ``0`` or ``1``
+``bool``         ``uint256``        All                                  ``0`` or ``1``
+``bool``         ``bytes32``        All                                  ``0x00`` or ``0x01``
+``decimal``      ``bool``           All                                  Returns ``a != 0.0``
+``decimal``      ``uint8``          ``MAX_UINT8 >= a >= 0.0``            | Cannot convert negative values.
+                                                                         | Value is truncated.
+``decimal``      ``int128``         All                                  Value is truncated
+``decimal``      ``int256``         All                                  Value is truncated
+``decimal``      ``uint256``        ``a >= 0.0``                         Cannot convert negative values
 ``decimal``      ``bytes32``        All
-``decimal``      ``Bytes``          All
-``int128``       ``bool``           All                            Returns ``a != 0``
+``int128``       ``bool``           All                                  Returns ``a != 0``
 ``int128``       ``decimal``        All
-``int128``       ``uint256``        ``a >= 0``                     Cannot convert negative values
+``int128``       ``uint8``          ``MAX_UINT8 >= a >= 0.0``            Cannot convert negative values
+``int128``       ``int256``         All
+``int128``       ``uint256``        ``a >= 0``                           Cannot convert negative values
 ``int128``       ``bytes32``        All
-``int128``       ``Bytes``          All
-``uint8``        ``bool``           All                            Returns ``a != 0``
+``uint8``        ``bool``           All                                  Returns ``a != 0``
 ``uint8``        ``decimal``        All
 ``uint8``        ``int128``         All
+``uint8``        ``int256``         All
+``uint8``        ``uint256``        All
 ``uint8``        ``bytes32``        All
-``uint8``        ``Bytes``          All
-``uint256``      ``bool``           All                            Returns ``a != 0``
+``int256``       ``bool``           All                                  Returns ``a != 0``
+``int256``       ``decimal``        ``MAX_INT128 >= a >= MIN_INT128``
+``int256``       ``uint8``          ``MAX_UINT8 >= a >= 0``              Cannot convert negative values
+``int256``       ``int128``         ``MAX_INT128 >= a >= MIN_INT128``
+``int256``       ``uint256``        ``a >= 0``                           Cannot convert negative values
+``int256``       ``bytes32``        All
+``uint256``      ``address``        ``ADDRSIZE - 1 >= a >= 0``
+``uint256``      ``bool``           All                                  Returns ``a != 0``
 ``uint256``      ``decimal``        ``a <= MAX_DECIMAL``
+``uint256``      ``uint8``          ``a <= MAX_UINT8``
 ``uint256``      ``int128``         ``a <= MAX_INT128``
+``uint256``      ``int256``         ``a <= MAX_INT256``
 ``uint256``      ``bytes32``        All
-``uint256``      ``Bytes``          All
-``bytes32``      ``bool``           All                            ``True`` if ``a`` is not empty
+``bytes32``      ``address``        ``2**ADDRSIZE - 1 >= a >= 0``
+``bytes32``      ``bool``           All                                  ``True`` if ``a`` is not empty
 ``bytes32``      ``decimal``        All
-``bytes32``      ``int128``         All
+``bytes32``      ``uint8``          ``a <= MAX_UINT8``
+``bytes32``      ``int128``         ``MAX_INT128 >= a >= MIN_INT128``
+``bytes32``      ``int256``         All
 ``bytes32``      ``uint256``        All
-``bytes32``      ``Bytes``          All
-================ ================== ============================== =================================
+``Bytes[N]``     ``bool``           ``N <= 32``                          ``True`` if ``a`` is not empty
+``Bytes[N]``     ``decimal``        | ``N <= 32``
+                                    | ``MAX_INT128 >= a >= MIN_INT128``
+``Bytes[N]``     ``uint8``          | ``N <= 32``
+                                    | ``a <= MAX_UINT8``
+``Bytes[N]``     ``int128``         | ``N <= 32``
+                                    | ``MAX_INT128 >= a >= MIN_INT128``
+``Bytes[N]``     ``int256``         All
+``Bytes[N]``     ``uint256``        ``N <= 32``
+``Bytes[N]``     ``bytes32``        ``N <= 32``
+``Bytes[N]``     ``String[M]``      ``N <= M``
+``String[N]``    ``int128``         ``N <= 16``
+``String[N]``    ``int256``         ``N <= 32``
+``String[N]``    ``Bytes[M]``       ``N <= M``
+================ ================== ==================================== ==================================
