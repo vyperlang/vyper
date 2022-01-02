@@ -263,7 +263,7 @@ class ABI_DynamicArray(ABIType):
         return 0
 
     def dynamic_size_bound(self):
-        return 32 + self.subtyp.size_bound() * self.elems_bound
+        return 32 + (self.subtyp.embedded_static_size() + self.subtyp.embedded_dynamic_size_bound()) * self.elems_bound
 
     def min_dynamic_size(self):
         return 32
