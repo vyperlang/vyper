@@ -397,16 +397,17 @@ def bar(_baz: DynArray[Foo, 3]) -> String[96]:
     assert c.bar(c_input) == "Hello world!!!!"
 
 
-def test_constant_list(get_contract, assert_tx_failed):
-    some_good_primes = [5.0, 11.0, 17.0, 29.0, 37.0, 41.0]
-    code = f"""
-MY_LIST: constant(DynArray[decimal, 6]) = {some_good_primes}
-@external
-def ix(i: uint256) -> decimal:
-    return MY_LIST[i]
-    """
-    c = get_contract(code)
-    for i, p in enumerate(some_good_primes):
-        assert c.ix(i) == p
-    # assert oob
-    assert_tx_failed(lambda: c.ix(len(some_good_primes) + 1))
+# TODO CMC 2022-01-02 not sure we should allow constant dyn arrays
+#def test_constant_list(get_contract, assert_tx_failed):
+#    some_good_primes = [5.0, 11.0, 17.0, 29.0, 37.0, 41.0]
+#    code = f"""
+#MY_LIST: constant(DynArray[decimal, 6]) = {some_good_primes}
+#@external
+#def ix(i: uint256) -> decimal:
+#    return MY_LIST[i]
+#    """
+#    c = get_contract(code)
+#    for i, p in enumerate(some_good_primes):
+#        assert c.ix(i) == p
+#    # assert oob
+#    assert_tx_failed(lambda: c.ix(len(some_good_primes) + 1))

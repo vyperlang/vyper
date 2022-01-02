@@ -484,8 +484,10 @@ class Expr:
     def parse_Subscript(self):
         sub = Expr(self.expr.value, self.context).lll_node
         if sub.value == "multi":
-            # CMC 2021-12-29 this seems like dead code
-            # force literal to memory
+            # force literal to memory, e.g.
+            # MY_LIST: constant(decimal[6])
+            # ...
+            # return MY_LIST[ix]
             t = LLLnode(self.context.new_internal_variable(sub.typ), typ=sub.typ, location="memory")
             sub = LLLnode.from_list(
                 ["seq", make_setter(t, sub, self.context, pos=getpos(self.expr)), t],
