@@ -278,6 +278,10 @@ def get_bytearray_length(arg):
 # get the number of elements at runtime
 def get_dyn_array_count(arg):
     typ = BaseType("uint256")
+
+    if arg.value == "multi":
+        return LLLnode.from_list(len(arg.args), typ=typ)
+
     return LLLnode.from_list([load_op(arg.location), arg], typ=typ)
 
 
@@ -413,7 +417,6 @@ def _get_element_ptr_array(parent, key, pos, array_bounds_check):
 
     if parent.value == "multi":
         assert isinstance(key.value, int)
-        assert isinstance(parent.typ, SArrayType), "list literals should be SArrayType"
         return parent.args[key.value]
 
     ix = unwrap_location(key)
@@ -601,9 +604,16 @@ def make_setter(left, right, context, pos):
     elif isinstance(left.typ, DArrayType):
         if not _typecheck_list_make_setter(left, right):
             return
-        if isinstance(right.typ, SArrayType):
-            # e.g. x: DynArray[uint256, 1] = [1]
+
+
+        # handle literals
+        if right.value == "multi":
             return _complex_make_setter(left, right, context, pos)
+
+        # TODO should we enable this?
+        # implicit conversion from sarray to darray
+        #if isinstance(right.typ, SArrayType):
+        #    return _complex_make_setter(left, right, context, pos)
 
         # TODO rethink/streamline the clamp_basetype logic
         if _needs_clamp(right.typ, right.encoding):
@@ -685,7 +695,6 @@ def _complex_make_setter(left, right, context, pos):
         ret = ["seq"]
 
         if isinstance(left.typ, DArrayType):
-            assert isinstance(right.typ, SArrayType)
             # write the length word
             store_length = [store_op(left.location), left, right.typ.count]
             ann = None

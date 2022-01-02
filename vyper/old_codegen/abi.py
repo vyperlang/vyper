@@ -411,6 +411,13 @@ def _encode_child_helper(buf, child, static_ofst, dyn_ofst, context, pos=None):
 
 
 def _encode_dyn_array_helper(dst, lll_node, context, pos):
+    # if it's a literal, first serialize to memory as we
+    # don't have a compile-time abi encoder
+    if lll_node.value == "multi":
+        buf = context.new_internal_variable(dst.typ)
+        buf = LLLnode.from_list(buf, typ=dst.typ, location="memory")
+        return ["seq", make_setter(buf, lll_node, context, pos), abi_encode(dst, buf, context, pos)]
+
     subtyp = lll_node.typ.subtype
     child_abi_t = abi_type_of(subtyp)
 
@@ -485,9 +492,10 @@ def _encode_dyn_array_helper(dst, lll_node, context, pos):
 # the abi_encode routine will push the output len onto the stack,
 # otherwise it will return 0 items to the stack.
 def abi_encode(dst, lll_node, context, pos=None, bufsz=None, returns_len=False):
-    abi_t = abi_type_of(lll_node.typ)
-    size_bound = abi_t.size_bound()
+
     dst = LLLnode.from_list(dst, typ=lll_node.typ, location="memory")
+    abi_t = abi_type_of(dst.typ)
+    size_bound = abi_t.size_bound()
 
     if bufsz is not None and bufsz < size_bound:
         raise CompilerPanic("buffer provided to abi_encode not large enough")

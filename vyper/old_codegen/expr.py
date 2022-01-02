@@ -3,6 +3,7 @@ from decimal import Decimal
 
 from vyper import ast as vy_ast
 from vyper.evm.opcodes import version_check
+from vyper.semantics.types import DynamicArrayDefinition
 from vyper.exceptions import (
     CompilerPanic,
     EvmVersionException,
@@ -27,6 +28,7 @@ from vyper.old_codegen.types import (
     BaseType,
     ByteArrayLike,
     ByteArrayType,
+    DArrayType,
     InterfaceType,
     MappingType,
     SArrayType,
@@ -1043,12 +1045,16 @@ class Expr:
 
     def parse_List(self):
         multi_lll = [Expr(x, self.context).lll_node for x in self.expr.elements]
-        # TODO this type inference is wrong. instead should use
-        # parse_type(canonical_abi_type_of(self.expr._metadata["type"]))
+
+        # TODO this type inference for out_type is wrong. instead should
+        # use self.expr._metadata["type"]
         out_type = next((i.typ for i in multi_lll if not i.typ.is_literal), multi_lll[0].typ)
-        typ = SArrayType(out_type, len(self.expr.elements), is_literal=True)
-        multi_lll = LLLnode.from_list(["multi"] + multi_lll, typ=typ, pos=getpos(self.expr))
-        return multi_lll
+        if isinstance(self.expr._metadata["type"], DynamicArrayDefinition):
+            typ = DArrayType(out_type, len(self.expr.elements), is_literal=True)
+        else:
+            typ = SArrayType(out_type, len(self.expr.elements), is_literal=True)
+
+        return LLLnode.from_list(["multi"] + multi_lll, typ=typ, pos=getpos(self.expr))
 
     def parse_Tuple(self):
         tuple_elements = [Expr(x, self.context).lll_node for x in self.expr.elements]

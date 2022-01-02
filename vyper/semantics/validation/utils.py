@@ -224,8 +224,12 @@ class _ExprTypeChecker:
             raise InvalidLiteral("Cannot have an empty array", node)
 
         types_list = get_common_types(*node.elements)
-        if types_list:
-            return [ArrayDefinition(i, len(node.elements)) for i in types_list]
+        if len(types_list) > 0:
+            count = len(node.elements)
+            ret = []
+            ret.extend([DynamicArrayDefinition(t, count) for t in types_list])
+            ret.extend([ArrayDefinition(t, count) for t in types_list])
+            return ret
 
         raise InvalidLiteral("Array contains multiple, incompatible types", node)
 
@@ -261,7 +265,7 @@ class _ExprTypeChecker:
 
 def _is_type_in_list(obj, types_list):
     # check if a type object is in a list of types
-    return next((True for i in types_list if i.compare_type(obj)), False)
+    return any(i.compare_type(obj) for i in types_list)
 
 
 def _filter(type_, fn_name, node):
@@ -346,6 +350,7 @@ def get_common_types(*nodes: vy_ast.VyperNode, filter_fn: Callable = None) -> Li
 
 
 def _validate_literal_array(node, expected):
+
     # validate that every item within an array has the same type
     if isinstance(expected, ArrayDefinition):
         if len(node.elements) != expected.length:
