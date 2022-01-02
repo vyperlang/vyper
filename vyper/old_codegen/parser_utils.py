@@ -313,7 +313,7 @@ def _getelemptr_abi_helper(parent, member_t, ofst, pos=None, clamp=True):
     # e.g. [[1,2]] is encoded as 0x01 <len> 0x20 <inner array ofst> <encode(inner array)>
     # note that inner array ofst is 0x20, not 0x40.
     if has_length_word(parent.typ):
-        parent = add_ofst(parent, 32 * DYNAMIC_ARRAY_OVERHEAD)
+        parent = add_ofst(parent, _word_size(parent.location) * DYNAMIC_ARRAY_OVERHEAD)
 
     ofst_lll = add_ofst(parent, ofst)
 
@@ -457,9 +457,10 @@ def _get_element_ptr_array(parent, key, pos, array_bounds_check):
     else:
         ofst = ["mul", ix, element_size]
 
-    data_ptr = (
-        add_ofst(parent, 32 * DYNAMIC_ARRAY_OVERHEAD) if has_length_word(parent.typ) else parent
-    )
+    if has_length_word(parent.typ):
+        data_ptr = add_ofst(parent, _word_size(parent.location) * DYNAMIC_ARRAY_OVERHEAD)
+    else:
+        data_ptr = parent
     return LLLnode.from_list(
         add_ofst(data_ptr, ofst), typ=subtype, location=parent.location, pos=pos
     )
