@@ -296,7 +296,11 @@ class LLLnode:
             # in order to make sure the expression gets wrapped correctly
             def resolve(self, body):
                 if self.lll_node.is_complex_lll:
-                    return LLLnode.from_list(["with", self.lll_var, self.lll_node, body])
+                    ret = ["with", self.lll_var, self.lll_node, body]
+                    if isinstance(body, LLLnode):
+                        return LLLnode.from_list(ret, typ=body.typ, location=body.location, encoding=body.encoding)
+                    else:
+                        return ret
                 else:
                     return body
 

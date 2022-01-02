@@ -412,6 +412,7 @@ def _get_element_ptr_array(parent, key, pos, array_bounds_check):
 
     subtype = parent.typ.subtype
 
+    # TODO this does not clamp
     if parent.value is None:
         return LLLnode.from_list(None, typ=subtype)
 
@@ -482,18 +483,22 @@ def _get_element_ptr_mapping(parent, key, pos):
 # This is analogous (but not necessarily equivalent to) getelementptr in LLVM.
 @type_check_wrapper
 def get_element_ptr(parent, key, pos, array_bounds_check=True):
-    typ = parent.typ
+    with parent.cache_when_complex("val") as (b, parent):
+        typ = parent.typ
 
-    if isinstance(typ, TupleLike):
-        return _get_element_ptr_tuplelike(parent, key, pos)
+        if isinstance(typ, TupleLike):
+            ret = _get_element_ptr_tuplelike(parent, key, pos)
 
-    if isinstance(typ, MappingType):
-        return _get_element_ptr_mapping(parent, key, pos)
+        elif isinstance(typ, MappingType):
+            ret = _get_element_ptr_mapping(parent, key, pos)
 
-    if isinstance(typ, ArrayLike):
-        return _get_element_ptr_array(parent, key, pos, array_bounds_check)
+        elif isinstance(typ, ArrayLike):
+            ret = _get_element_ptr_array(parent, key, pos, array_bounds_check)
 
-    raise CompilerPanic(f"get_element_ptr cannot be called on {typ}")
+        else:
+            raise CompilerPanic(f"get_element_ptr cannot be called on {typ}")
+
+        return b.resolve(ret)
 
 
 def load_op(location):
