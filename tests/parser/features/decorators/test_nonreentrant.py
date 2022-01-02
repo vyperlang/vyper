@@ -154,20 +154,20 @@ def __default__():
     # Test unprotected function without callback.
     reentrant_contract.unprotected_function("some value", False, transact={"value": 1000})
     assert reentrant_contract.special_value() == "some value"
-    assert w3.eth.getBalance(reentrant_contract.address) == 0
-    assert w3.eth.getBalance(calling_contract.address) == 1000
+    assert w3.eth.get_balance(reentrant_contract.address) == 0
+    assert w3.eth.get_balance(calling_contract.address) == 1000
 
     # Test unprotected function with callback to default.
     reentrant_contract.unprotected_function("another value", True, transact={"value": 1000})
     assert reentrant_contract.special_value() == "another value"
-    assert w3.eth.getBalance(reentrant_contract.address) == 1000
-    assert w3.eth.getBalance(calling_contract.address) == 1000
+    assert w3.eth.get_balance(reentrant_contract.address) == 1000
+    assert w3.eth.get_balance(calling_contract.address) == 1000
 
     # Test protected function without callback.
     reentrant_contract.protected_function("surprise!", False, transact={"value": 1000})
     assert reentrant_contract.special_value() == "surprise!"
-    assert w3.eth.getBalance(reentrant_contract.address) == 1000
-    assert w3.eth.getBalance(calling_contract.address) == 2000
+    assert w3.eth.get_balance(reentrant_contract.address) == 1000
+    assert w3.eth.get_balance(calling_contract.address) == 2000
 
     # Test protected function with callback to default.
     assert_tx_failed(

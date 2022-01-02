@@ -97,7 +97,7 @@ def test2(a: uint256) -> Bytes[100]:
     GAS_SENT = 30000
     tx_hash = c.test2(0, transact={"gas": GAS_SENT})
 
-    receipt = w3.eth.getTransactionReceipt(tx_hash)
+    receipt = w3.eth.get_transaction_receipt(tx_hash)
 
     assert receipt["status"] == 0
     assert receipt["gasUsed"] < GAS_SENT

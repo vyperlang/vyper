@@ -21,7 +21,7 @@ def foo():
     tx_hash = c.foo(transact={"from": a0, "gas": gas_sent, "gasPrice": 10})
     # More info on receipt status:
     # https://github.com/ethereum/EIPs/blob/master/EIPS/eip-658.md#specification.
-    tx_receipt = w3.eth.getTransactionReceipt(tx_hash)
+    tx_receipt = w3.eth.get_transaction_receipt(tx_hash)
     assert tx_receipt["status"] == 0
     # Checks for gas refund from revert
     assert tx_receipt["gasUsed"] < gas_sent

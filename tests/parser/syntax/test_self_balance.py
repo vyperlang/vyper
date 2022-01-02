@@ -25,6 +25,6 @@ def __default__():
         assert "SELFBALANCE" not in opcodes
 
     c = get_contract_with_gas_estimation(code, evm_version=evm_version)
-    w3.eth.sendTransaction({"to": c.address, "value": 1337})
+    w3.eth.send_transaction({"to": c.address, "value": 1337})
 
     assert c.get_balance() == 1337

@@ -98,7 +98,7 @@ def zero_gas_price_strategy(web3, transaction_params=None):
 @pytest.fixture
 def w3(tester):
     w3 = Web3(EthereumTesterProvider(tester))
-    w3.eth.setGasPriceStrategy(zero_gas_price_strategy)
+    w3.eth.set_gas_price_strategy(zero_gas_price_strategy)
     return w3
 
 
@@ -123,7 +123,7 @@ def _get_contract(w3, source_code, no_optimize, *args, **kwargs):
     }
     tx_info.update(kwargs)
     tx_hash = deploy_transaction.transact(tx_info)
-    address = w3.eth.getTransactionReceipt(tx_hash)["contractAddress"]
+    address = w3.eth.get_transaction_receipt(tx_hash)["contractAddress"]
     return w3.eth.contract(
         address,
         abi=abi,
@@ -143,7 +143,7 @@ def get_contract(w3, no_optimize):
 @pytest.fixture
 def get_logs(w3):
     def get_logs(tx_hash, c, event_name):
-        tx_receipt = w3.eth.getTransactionReceipt(tx_hash)
+        tx_receipt = w3.eth.get_transaction_receipt(tx_hash)
         return c._classic_contract.events[event_name]().processReceipt(tx_receipt)
 
     return get_logs
