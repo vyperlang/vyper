@@ -3,7 +3,12 @@ from typing import Any, Optional
 from vyper.old_codegen.abi import abi_encode, abi_type_of
 from vyper.old_codegen.context import Context
 from vyper.old_codegen.lll_node import LLLnode
-from vyper.old_codegen.parser_utils import getpos, make_setter, wrap_value_for_external_return
+from vyper.old_codegen.parser_utils import (
+    getpos,
+    make_setter,
+    calculate_type_for_external_return,
+    wrap_value_for_external_return,
+)
 from vyper.old_codegen.types import get_type_for_exact_size
 from vyper.old_codegen.types.check import check_assign
 
@@ -59,7 +64,8 @@ def make_return_stmt(lll_val: LLLnode, stmt: Any, context: Context) -> Optional[
 
         lll_val = wrap_value_for_external_return(lll_val)
 
-        maxlen = abi_type_of(context.return_type).size_bound()
+        external_return_type = calculate_type_for_external_return(context.return_type)
+        maxlen = abi_type_of(external_return_type).size_bound()
         return_buffer_ofst = context.new_internal_variable(get_type_for_exact_size(maxlen))
 
         # encode_out is cleverly a sequence which does the abi-encoding and
