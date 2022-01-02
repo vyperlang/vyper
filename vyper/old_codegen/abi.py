@@ -413,10 +413,11 @@ def _encode_child_helper(buf, child, static_ofst, dyn_ofst, context, pos=None):
 def _encode_dyn_array_helper(dst, lll_node, context, pos):
     # if it's a literal, first serialize to memory as we
     # don't have a compile-time abi encoder
+    # TODO handle this upstream somewhere
     if lll_node.value == "multi":
         buf = context.new_internal_variable(dst.typ)
         buf = LLLnode.from_list(buf, typ=dst.typ, location="memory")
-        return ["seq", make_setter(buf, lll_node, context, pos), abi_encode(dst, buf, context, pos)]
+        return ["seq", make_setter(buf, lll_node, context, pos), ["set", "dyn_ofst", abi_encode(dst, buf, context, pos, returns_len=True)]]
 
     subtyp = lll_node.typ.subtype
     child_abi_t = abi_type_of(subtyp)
