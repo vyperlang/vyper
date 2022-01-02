@@ -56,7 +56,7 @@ def _pack_arguments(contract_sig, args, context, pos):
     if len(args) == 0:
         encode_args = ["pass"]
     else:
-        encode_args = abi_encode(buf + 32, args_as_tuple, context, pos)
+        encode_args = abi_encode(buf + 32, args_as_tuple, context, pos, bufsz=buflen)
 
     return buf, mstore_method_id + [encode_args], args_ofst, args_len
 

@@ -80,7 +80,7 @@ def lll_node_for_log(expr, buf, _maxlen, event, topic_nodes, data_nodes, context
 
     # encode_data is an LLLnode which, cleverly, both encodes the data
     # and returns the length of the encoded data as a stack item.
-    encode_data = abi_encode(buf, data, context, pos=_pos, returns_len=True)
+    encode_data = abi_encode(buf, data, context, pos=_pos, returns_len=True, bufsz=_maxlen)
 
     assert len(topics) <= 4, "too many topics"  # sanity check
     log_opcode = "log" + str(len(topics))

@@ -487,10 +487,14 @@ def _encode_dyn_array_helper(dst, lll_node, context, pos):
 def abi_encode(dst, lll_node, context, pos=None, bufsz=None, returns_len=False):
     abi_t = abi_type_of(lll_node.typ)
     size_bound = abi_t.size_bound()
-    if bufsz is not None and bufsz < 32 * size_bound:
+    dst = LLLnode.from_list(dst, typ=lll_node.typ, location="memory")
+
+    if bufsz is not None and bufsz < size_bound:
         raise CompilerPanic("buffer provided to abi_encode not large enough")
 
-    dst = LLLnode.from_list(dst, typ=lll_node.typ, location="memory")
+    if size_bound < dst.typ.memory_bytes_required:
+        raise CompilerPanic("Bad ABI size calc")
+
     annotation = f"abi_encode {lll_node.typ}"
     lll_ret = ["seq"]
 
