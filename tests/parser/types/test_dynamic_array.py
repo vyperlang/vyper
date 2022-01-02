@@ -171,7 +171,7 @@ def test_array_decimal_return2() -> DynArray[DynArray[decimal, 2], 2]:
 
 @external
 def test_array_decimal_return3() -> DynArray[DynArray[decimal, 2], 2]:
-    a: decimal[2][2] = [[1.0, 2.0], [3.0, 4.0]]
+    a: DynArray[DynArray[decimal, 2], 2] = [[1.0, 2.0], [3.0, 4.0]]
     return a
 """
 
