@@ -408,13 +408,13 @@ def __default__():
 
     c = get_contract_with_gas_estimation(code)
 
-    w3.eth.sendTransaction({"to": c.address, "value": w3.toWei(1, "ether")})
-    assert w3.eth.getBalance(c.address) == w3.toWei(1, "ether")
+    w3.eth.send_transaction({"to": c.address, "value": w3.toWei(1, "ether")})
+    assert w3.eth.get_balance(c.address) == w3.toWei(1, "ether")
     a3 = w3.eth.accounts[2]
-    assert w3.eth.getBalance(a3) == w3.toWei(1000000, "ether")
+    assert w3.eth.get_balance(a3) == w3.toWei(1000000, "ether")
     c.test(True, a3, w3.toWei(0.05, "ether"), transact={})
-    assert w3.eth.getBalance(a3) == w3.toWei(1000000.05, "ether")
-    assert w3.eth.getBalance(c.address) == w3.toWei(0.95, "ether")
+    assert w3.eth.get_balance(a3) == w3.toWei(1000000.05, "ether")
+    assert w3.eth.get_balance(c.address) == w3.toWei(0.95, "ether")
 
 
 def test_private_msg_sender(get_contract, assert_compile_failed):

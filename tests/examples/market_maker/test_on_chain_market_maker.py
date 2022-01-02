@@ -77,7 +77,7 @@ def test_eth_to_tokens(w3, market_maker, erc20):
 
 def test_tokens_to_eth(w3, market_maker, erc20):
     a1 = w3.eth.accounts[1]
-    a1_balance_before = w3.eth.getBalance(a1)
+    a1_balance_before = w3.eth.get_balance(a1)
 
     erc20.transfer(a1, w3.toWei(2, "ether"), transact={})
     erc20.approve(market_maker.address, w3.toWei(2, "ether"), transact={"from": a1})
@@ -86,17 +86,17 @@ def test_tokens_to_eth(w3, market_maker, erc20):
         w3.toWei(1, "ether"),
         transact={"value": w3.toWei(2, "ether"), "from": a1},
     )
-    assert w3.eth.getBalance(market_maker.address) == w3.toWei(2, "ether")
+    assert w3.eth.get_balance(market_maker.address) == w3.toWei(2, "ether")
     # sent 2 eth, with initiate.
-    assert w3.eth.getBalance(a1) == a1_balance_before - w3.toWei(2, "ether")
+    assert w3.eth.get_balance(a1) == a1_balance_before - w3.toWei(2, "ether")
     assert market_maker.totalTokenQty() == w3.toWei(1, "ether")
 
     erc20.approve(market_maker.address, w3.toWei(1, "ether"), transact={"from": a1})
     market_maker.tokensToEth(w3.toWei(1, "ether"), transact={"from": a1})
     # 1 eth less in market.
-    assert w3.eth.getBalance(market_maker.address) == w3.toWei(1, "ether")
+    assert w3.eth.get_balance(market_maker.address) == w3.toWei(1, "ether")
     # got 1 eth back, for trade.
-    assert w3.eth.getBalance(a1) == a1_balance_before - w3.toWei(1, "ether")
+    assert w3.eth.get_balance(a1) == a1_balance_before - w3.toWei(1, "ether")
     # Tokens increased by 1
     assert market_maker.totalTokenQty() == w3.toWei(2, "ether")
     assert market_maker.totalEthQty() == w3.toWei(1, "ether")
@@ -104,7 +104,7 @@ def test_tokens_to_eth(w3, market_maker, erc20):
 
 def test_owner_withdraw(w3, market_maker, erc20, assert_tx_failed):
     a0, a1 = w3.eth.accounts[:2]
-    a0_balance_before = w3.eth.getBalance(a0)
+    a0_balance_before = w3.eth.get_balance(a0)
     # Approve 2 eth transfers.
     erc20.approve(market_maker.address, w3.toWei(2, "ether"), transact={})
     # Initiate market with 2 eth value.
@@ -114,12 +114,12 @@ def test_owner_withdraw(w3, market_maker, erc20, assert_tx_failed):
         transact={"value": w3.toWei(2, "ether")},
     )
     # 2 eth was sent to market_maker contract.
-    assert w3.eth.getBalance(a0) == a0_balance_before - w3.toWei(2, "ether")
+    assert w3.eth.get_balance(a0) == a0_balance_before - w3.toWei(2, "ether")
     # a0's balance is locked up in market_maker contract.
     assert erc20.balanceOf(a0) == TOKEN_TOTAL_SUPPLY - w3.toWei(1, "ether")
 
     # Only owner can call ownerWithdraw
     assert_tx_failed(lambda: market_maker.ownerWithdraw(transact={"from": a1}))
     market_maker.ownerWithdraw(transact={})
-    assert w3.eth.getBalance(a0) == a0_balance_before  # Eth balance restored.
+    assert w3.eth.get_balance(a0) == a0_balance_before  # Eth balance restored.
     assert erc20.balanceOf(a0) == TOKEN_TOTAL_SUPPLY  # Tokens returned to a0.

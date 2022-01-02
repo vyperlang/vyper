@@ -13,7 +13,7 @@ def foo():
     a0 = w3.eth.accounts[0]
     gas_sent = 10 ** 6
     tx_hash = c.foo(transact={"from": a0, "gas": gas_sent, "gasPrice": 10})
-    tx_receipt = w3.eth.getTransactionReceipt(tx_hash)
+    tx_receipt = w3.eth.get_transaction_receipt(tx_hash)
 
     assert tx_receipt["status"] == 0
     assert tx_receipt["gasUsed"] == gas_sent  # Drains all gains sent

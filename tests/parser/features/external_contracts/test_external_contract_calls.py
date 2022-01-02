@@ -1368,8 +1368,8 @@ def get_lucky(amount_to_send: uint256) -> int128:
     c2.get_lucky(0, transact={"value": 500})
     # Contract 1 received money.
     assert c1.get_balance() == 500
-    assert w3.eth.getBalance(c1.address) == 500
-    assert w3.eth.getBalance(c2.address) == 0
+    assert w3.eth.get_balance(c1.address) == 500
+    assert w3.eth.get_balance(c2.address) == 0
 
     # Send subset of amount
     assert c2.get_lucky(250, call={"value": 500}) == 1
@@ -1377,8 +1377,8 @@ def get_lucky(amount_to_send: uint256) -> int128:
 
     # Contract 1 received more money.
     assert c1.get_balance() == 750
-    assert w3.eth.getBalance(c1.address) == 750
-    assert w3.eth.getBalance(c2.address) == 250
+    assert w3.eth.get_balance(c1.address) == 750
+    assert w3.eth.get_balance(c2.address) == 250
 
 
 def test_external_call_with_gas(assert_tx_failed, get_contract_with_gas_estimation):

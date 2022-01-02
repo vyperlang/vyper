@@ -82,7 +82,7 @@ def get_contract_from_lll(w3, no_optimize):
         c = w3.eth.contract(abi=abi, bytecode=bytecode)
         deploy_transaction = c.constructor()
         tx_hash = deploy_transaction.transact()
-        address = w3.eth.getTransactionReceipt(tx_hash)["contractAddress"]
+        address = w3.eth.get_transaction_receipt(tx_hash)["contractAddress"]
         contract = w3.eth.contract(
             address,
             abi=abi,
@@ -105,7 +105,7 @@ def get_contract_module(no_optimize):
     backend = PyEVMBackend(genesis_parameters=custom_genesis)
     tester = EthereumTester(backend=backend)
     w3 = Web3(EthereumTesterProvider(tester))
-    w3.eth.setGasPriceStrategy(zero_gas_price_strategy)
+    w3.eth.set_gas_price_strategy(zero_gas_price_strategy)
 
     def get_contract_module(source_code, *args, **kwargs):
         return _get_contract(w3, source_code, no_optimize, *args, **kwargs)

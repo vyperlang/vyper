@@ -26,11 +26,11 @@ def wrap_get_my_struct_BROKEN(_e1: decimal) -> MyStruct:
     c = get_contract(code)
     assert c.wrap_get_my_struct_WORKING(Decimal("0.1")) == (
         Decimal("0.1"),
-        w3.eth.getBlock(w3.eth.blockNumber)["timestamp"],
+        w3.eth.get_block(w3.eth.block_number)["timestamp"],
     )
     assert c.wrap_get_my_struct_BROKEN(Decimal("0.1")) == (
         Decimal("0.1"),
-        w3.eth.getBlock(w3.eth.blockNumber)["timestamp"],
+        w3.eth.get_block(w3.eth.block_number)["timestamp"],
     )
 
 

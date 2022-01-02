@@ -77,7 +77,7 @@ def test_func(_value: uint256,input: Bytes[133]):
 
     # assert c.test_func(2**255, b'x' * 129, call={}) == b'x' * 129
     tx_hash = c.test_func(1234444, b"x" * 129, transact={})
-    tx_receipt = w3.eth.getTransactionReceipt(tx_hash)
+    tx_receipt = w3.eth.get_transaction_receipt(tx_hash)
     print(tx_receipt)
     logs = get_logs(tx_hash, c, "TestLog")
 
@@ -154,7 +154,7 @@ def test_func(_value: uint256,input: Bytes[2048]):
     c = get_contract(code)
 
     tx_hash = c.test_func(333, b"x" * 132, transact={})
-    tx_receipt = w3.eth.getTransactionReceipt(tx_hash)
+    tx_receipt = w3.eth.get_transaction_receipt(tx_hash)
     print(tx_receipt)
     logs = get_logs(tx_hash, c, "TestLog")
 
