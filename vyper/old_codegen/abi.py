@@ -265,7 +265,10 @@ class ABI_DynamicArray(ABIType):
         return 0
 
     def dynamic_size_bound(self):
-        return 32 + (self.subtyp.embedded_static_size() + self.subtyp.embedded_dynamic_size_bound()) * self.elems_bound
+        subtyp_size = self.subtyp.embedded_static_size() + self.subtyp.embedded_dynamic_size_bound()
+
+        # length + size of embedded children
+        return 32 + subtyp_size * self.elems_bound
 
     def min_dynamic_size(self):
         return 32
@@ -499,7 +502,6 @@ def abi_encode(dst, lll_node, context, pos=None, bufsz=None, returns_len=False):
         if returns_len:
             lll_ret.append(abi_t.embedded_static_size())
         return LLLnode.from_list(lll_ret, pos=pos, annotation=annotation)
-
 
     # contains some computation, we need to only do it once.
     with lll_node.cache_when_complex("to_encode") as (b1, lll_node), dst.cache_when_complex(

@@ -171,7 +171,7 @@ def make_dyn_array_copier(dst, src, context, pos=None):
                 store_len = [store_op(dst.location), dst, len_]
                 loop = ["repeat", iptr, 0, len_, src.typ.count, loop_body]
 
-                return b1.resolve( b2.resolve(["seq", store_len, loop]))
+                return b1.resolve(b2.resolve(["seq", store_len, loop]))
 
         if src.value is None:
             n_bytes = 32  # size in bytes of length word
