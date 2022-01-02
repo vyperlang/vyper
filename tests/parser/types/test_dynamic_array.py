@@ -306,7 +306,7 @@ def outer() -> DynArray[int128, 2]:
 def test_nested_calls_inside_arrays(get_contract):
     code = """
 @internal
-def _foo(a: uint256, b: DynArrayuint256, 2]) -> (uint256, uint256, uint256, uint256, uint256):
+def _foo(a: uint256, b: DynArray[uint256, 2]) -> (uint256, uint256, uint256, uint256, uint256):
     return 1, a, b[0], b[1], 5
 
 @internal
