@@ -3,7 +3,6 @@ from decimal import Decimal
 
 from vyper import ast as vy_ast
 from vyper.evm.opcodes import version_check
-from vyper.semantics.types import DynamicArrayDefinition
 from vyper.exceptions import (
     CompilerPanic,
     EvmVersionException,
@@ -38,6 +37,7 @@ from vyper.old_codegen.types import (
     is_base_type,
     is_numeric_type,
 )
+from vyper.semantics.types import DynamicArrayDefinition
 from vyper.utils import (
     DECIMAL_DIVISOR,
     MemoryPositions,

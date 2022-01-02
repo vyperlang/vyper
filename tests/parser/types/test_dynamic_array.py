@@ -261,11 +261,15 @@ def parse_list_fail():
 def test_2d_array_input_1(get_contract):
     code = """
 @internal
-def test_input(arr: DynArray[DynArray[int128, 2], 1], i: int128) -> (DynArray[DynArray[int128, 2], 1], int128):
+def test_input(
+    arr: DynArray[DynArray[int128, 2], 1], i: int128
+) -> (DynArray[DynArray[int128, 2], 1], int128):
     return arr, i
 
 @external
-def test_values(arr: DynArray[DynArray[int128, 2], 1], i: int128) -> (DynArray[DynArray[int128, 2], 1], int128):
+def test_values(
+    arr: DynArray[DynArray[int128, 2], 1], i: int128
+) -> (DynArray[DynArray[int128, 2], 1], int128):
     return self.test_input(arr, i)
     """
 
@@ -276,11 +280,17 @@ def test_values(arr: DynArray[DynArray[int128, 2], 1], i: int128) -> (DynArray[D
 def test_2d_array_input_2(get_contract):
     code = """
 @internal
-def test_input(arr: DynArray[DynArray[int128, 2], 3], s: String[10]) -> (DynArray[DynArray[int128, 2], 3], String[10]):
+def test_input(
+    arr: DynArray[DynArray[int128, 2], 3],
+    s: String[10]
+) -> (DynArray[DynArray[int128, 2], 3], String[10]):
     return arr, s
 
 @external
-def test_values(arr: DynArray[DynArray[int128, 2], 3], s: String[10]) -> (DynArray[DynArray[int128, 2], 3], String[10]):
+def test_values(
+    arr: DynArray[DynArray[int128, 2], 3],
+    s: String[10]
+) -> (DynArray[DynArray[int128, 2], 3], String[10]):
     return self.test_input(arr, s)
     """
 
@@ -326,7 +336,10 @@ def foo() -> (uint256, uint256, uint256, uint256, uint256):
 def test_nested_calls_inside_arrays_with_index_access(get_contract):
     code = """
 @internal
-def _foo(a: DynArray[uint256, 2], b: DynArray[uint256, 2]) -> (uint256, uint256, uint256, uint256, uint256):
+def _foo(
+    a: DynArray[uint256, 2],
+    b: DynArray[uint256, 2]
+) -> (uint256, uint256, uint256, uint256, uint256):
     return a[1]-b[0], 2, a[0]-b[1], 8-b[1], 5
 
 @internal
@@ -357,7 +370,11 @@ def _foo2() -> (uint256, uint256):
 
 @external
 def foo() -> (uint256, DynArray[uint256, 3], DynArray[uint256, 2]):
-    x: DynArray[uint256, 3] = [1, 14-self._foo2()[0], self._foo([7,self._foo2()[0]], [11,self._foo2()[1]])[2]]
+    x: DynArray[uint256, 3] = [
+        1,
+        14-self._foo2()[0],
+        self._foo([7,self._foo2()[0]], [11,self._foo2()[1]])[2]
+    ]
     return 666, x, [88, self._foo2()[0]]
     """
     c = get_contract(code)
@@ -398,12 +415,12 @@ def bar(_baz: DynArray[Foo, 3]) -> String[96]:
 
 
 # TODO CMC 2022-01-02 not sure we should allow constant dyn arrays
-#def test_constant_list(get_contract, assert_tx_failed):
+# def test_constant_list(get_contract, assert_tx_failed):
 #    some_good_primes = [5.0, 11.0, 17.0, 29.0, 37.0, 41.0]
 #    code = f"""
-#MY_LIST: constant(DynArray[decimal, 6]) = {some_good_primes}
-#@external
-#def ix(i: uint256) -> decimal:
+# MY_LIST: constant(DynArray[decimal, 6]) = {some_good_primes}
+# @external
+# def ix(i: uint256) -> decimal:
 #    return MY_LIST[i]
 #    """
 #    c = get_contract(code)

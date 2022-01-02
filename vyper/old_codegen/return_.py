@@ -4,9 +4,9 @@ from vyper.old_codegen.abi import abi_encode, abi_type_of
 from vyper.old_codegen.context import Context
 from vyper.old_codegen.lll_node import LLLnode
 from vyper.old_codegen.parser_utils import (
+    calculate_type_for_external_return,
     getpos,
     make_setter,
-    calculate_type_for_external_return,
     wrap_value_for_external_return,
 )
 from vyper.old_codegen.types import get_type_for_exact_size
@@ -70,7 +70,9 @@ def make_return_stmt(lll_val: LLLnode, stmt: Any, context: Context) -> Optional[
 
         # encode_out is cleverly a sequence which does the abi-encoding and
         # also returns the length of the output as a stack element
-        encode_out = abi_encode(return_buffer_ofst, lll_val, context, pos=_pos, returns_len=True, bufsz=maxlen)
+        encode_out = abi_encode(
+            return_buffer_ofst, lll_val, context, pos=_pos, returns_len=True, bufsz=maxlen
+        )
 
         # previously we would fill the return buffer and push the location and length onto the stack
         # inside of the `seq_unchecked` thereby leaving it for the function cleanup routine expects

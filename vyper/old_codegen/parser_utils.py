@@ -12,10 +12,10 @@ from vyper.exceptions import (
 )
 from vyper.old_codegen.lll_node import Encoding, LLLnode
 from vyper.old_codegen.types import (
+    DYNAMIC_ARRAY_OVERHEAD,
     ArrayLike,
     BaseType,
     ByteArrayLike,
-    DYNAMIC_ARRAY_OVERHEAD,
     DArrayType,
     MappingType,
     SArrayType,
@@ -611,14 +611,13 @@ def make_setter(left, right, context, pos):
         if not _typecheck_list_make_setter(left, right):
             return
 
-
         # handle literals
         if right.value == "multi":
             return _complex_make_setter(left, right, context, pos)
 
         # TODO should we enable this?
         # implicit conversion from sarray to darray
-        #if isinstance(right.typ, SArrayType):
+        # if isinstance(right.typ, SArrayType):
         #    return _complex_make_setter(left, right, context, pos)
 
         # TODO rethink/streamline the clamp_basetype logic
