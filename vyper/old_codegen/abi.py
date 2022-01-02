@@ -32,7 +32,9 @@ class ABIType:
     # size (in bytes) in the static section (aka 'head')
     # when embedded in a complex type.
     def embedded_static_size(self):
-        return 32 if self.is_dynamic() else self.static_size()
+        if self.is_dynamic():
+            return 32
+        return self.static_size()
 
     # size bound in the dynamic section (aka 'tail')
     # when embedded in a complex type.
