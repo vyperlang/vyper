@@ -172,7 +172,7 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
             return
         if type_ is None:
             type_ = get_possible_types_from_node(node)
-            if len(type_) == 1:
+            if len(type_) > 1:
                 type_ = type_.pop()
         node._metadata["type"] = type_
         for element in node.elements:
