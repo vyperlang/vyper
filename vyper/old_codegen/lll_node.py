@@ -130,10 +130,12 @@ class LLLnode:
                 elif self.value.upper() == "SSTORE" and self.args[1].value != 0:
                     self.gas += 15000
                 # Dynamic gas cost: calldatacopy
-                elif self.value.upper() in ("CALLDATACOPY", "CODECOPY"):
+                elif self.value.upper() in ("CALLDATACOPY", "CODECOPY", "EXTCODECOPY"):
                     size = 34000
-                    if isinstance(self.args[2].value, int):
-                        size = self.args[2].value
+                    size_arg_index = 3 if self.value.upper() == "EXTCODECOPY" else 2
+                    size_arg = self.args[size_arg_index]
+                    if isinstance(size_arg.value, int):
+                        size = size_arg.value
                     self.gas += ceil32(size) // 32 * 3
                 # Gas limits in call
                 if self.value.upper() == "CALL" and isinstance(self.args[0].value, int):
