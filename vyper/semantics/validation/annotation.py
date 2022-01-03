@@ -95,6 +95,11 @@ class StatementAnnotationVisitor(_AnnotationVisitorBase):
     def visit_For(self, node):
         if isinstance(node.iter, (vy_ast.Name, vy_ast.Attribute)):
             self.expr_visitor.visit(node.iter)
+        # typecheck list literal as static array
+        if isinstance(node.iter, vy_ast.List):
+            value_type = get_common_types(*node.iter.elements).pop()
+            len_ = len(node.iter.elements)
+            self.expr_visitor.visit(node.iter, ArrayDefinition(value_type, len_))
 
 
 class ExpressionAnnotationVisitor(_AnnotationVisitorBase):

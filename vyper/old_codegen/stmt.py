@@ -341,7 +341,7 @@ class Stmt:
                 typ=SArrayType(subtype, count),
                 location="memory",
             )
-            setter = make_setter(tmp_list, iter_list_node, pos=getpos(self.stmt))
+            setter = make_setter(tmp_list, iter_list_node, self.context, pos=getpos(self.stmt))
             body = [
                 "seq",
                 ["mstore", value_pos, ["mload", ["add", tmp_list, ["mul", ["mload", i_pos], 32]]]],
