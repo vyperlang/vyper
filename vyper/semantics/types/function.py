@@ -328,6 +328,8 @@ class ContractFunction(BaseTypeDefinition):
                         "Value must be literal or environment variable", value
                     )
                 validate_expected_type(value, type_definition)
+                # kludge because kwargs in signatures don't get visited by the annotator
+                value._metadata["type"] = type_definition
 
             arguments[arg.arg] = type_definition
 
