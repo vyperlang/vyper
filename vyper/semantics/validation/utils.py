@@ -172,12 +172,12 @@ class _ExprTypeChecker:
             # x in y
             left = self.get_possible_types_from_node(node.left)
             right = self.get_possible_types_from_node(node.right)
-            if next((i for i in left if isinstance(i, ArrayDefinition)), False):
+            if any(isinstance(i, ArrayDefinition) for i in left):
                 raise InvalidOperation(
                     "Left operand in membership comparison cannot be Array type",
                     node.left,
                 )
-            if next((i for i in right if not isinstance(i, ArrayDefinition)), False):
+            if any(not isinstance(i, (DynamicArrayDefinition, ArrayDefinition)) for i in right):
                 raise InvalidOperation(
                     "Right operand must be Array for membership comparison", node.right
                 )
