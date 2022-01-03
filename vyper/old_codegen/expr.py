@@ -403,6 +403,12 @@ class Expr:
                     location=None,
                     pos=getpos(self.expr),
                 )
+        # x.code: codecopy/extcodecopy of address x
+        elif self.expr.attr == "code":
+            addr = Expr.parse_value_expr(self.expr.value, self.context)
+            if is_base_type(addr.typ, "address"):
+                # "~extcode" is replaced by other nodes during `Slice.build_LLL`
+                return LLLnode.from_list(["~extcode", addr], typ=ByteArrayType(0))
         # self.x: global attribute
         elif isinstance(self.expr.value, vy_ast.Name) and self.expr.value.id == "self":
             type_ = self.expr._metadata["type"]

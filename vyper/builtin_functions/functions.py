@@ -290,6 +290,32 @@ class Slice:
             ]
             return LLLnode.from_list(node, typ=ByteArrayType(length.value), location="memory")
 
+        # special handling for slice(<address>.code, start, length)
+        if sub.value == "~extcode":
+            # `length` is constant (validated by `validate_address_code_attribute`)
+            assert isinstance(length.value, int)
+            address = sub.args[0]
+            if address.value == "address":  # self.code
+                node = [
+                    "seq",
+                    ["mstore", np, length],
+                    ["codecopy", np + 32, start, length],
+                    np,
+                ]
+            else:
+                node = [
+                    "with",
+                    "_extcode_address",
+                    address,
+                    [
+                        "seq",
+                        ["mstore", np, length],
+                        ["extcodecopy", "_extcode_address", np + 32, start, length],
+                        np,
+                    ],
+                ]
+            return LLLnode.from_list(node, typ=ByteArrayType(length.value), location="memory")
+
         # Copy over bytearray data
         # CMC 20210917 how does this routine work?
 

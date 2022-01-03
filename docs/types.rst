@@ -345,6 +345,7 @@ Member          Type        Description
 ``codehash``    ``bytes32`` Keccak of code at an address, ``EMPTY_BYTES32`` if no contract is deployed
 ``codesize``    ``uint256`` Size of code deployed an address, in bytes
 ``is_contract`` ``bool``    Boolean indicating if a contract is deployed at an address
+``code``        ``Bytes``   Contract bytecode
 =============== =========== ==========================================================================
 
 Syntax as follows: ``_address.<member>``, where ``_address`` is of the type ``address`` and ``<member>`` is one of the above keywords.
@@ -352,6 +353,10 @@ Syntax as follows: ``_address.<member>``, where ``_address`` is of the type ``ad
 .. note::
 
     Operations such as ``SELFDESTRUCT`` and ``CREATE2`` allow for the removal and replacement of bytecode at an address. You should never assume that values of address members will not change in the future.
+
+.. note::
+
+    ``_address.code`` requires the usage of :func:`slice <slice>` to explicitly extract a section of contract bytecode. When the extracted section exceeds the bounds of bytecode, the result will be padded with zeros.
 
 32-bit-wide Byte Array
 ----------------------
