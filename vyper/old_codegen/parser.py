@@ -199,9 +199,16 @@ def parse_regular_functions(
                 ["add", start_pos + offset, "_lllsz"], typ=immutable.typ, location="memory"
             )
             rhs = LLLnode.from_list(memory_loc, typ=immutable.typ, location="memory")
-            data_section.append(make_setter(lhs, rhs,
-                context=None,  # hack -- make_setter happens to not require memory allocator for memory-memory copies.
-                pos=None))
+            data_section.append(
+                make_setter(
+                    lhs,
+                    rhs,
+                    # hack -- make_setter happens to not require memory
+                    # allocator for memory-memory copies. TODO fixme
+                    context=None,
+                    pos=None,
+                )
+            )
 
         data_section_size = sum([immutable.size * 32 for immutable in immutables])
         o.append(
