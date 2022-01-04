@@ -1,6 +1,7 @@
 from typing import Type
 
 import pytest
+from eth_tester.exceptions import TransactionFailed
 from web3 import Web3
 
 from vyper import compiler
@@ -29,7 +30,6 @@ def _deploy_precompiled_contract(w3: Web3):
     [
         (0, 5, PRECOMPILED[:5]),
         (5, 10, PRECOMPILED[5:][:10]),
-        (len(PRECOMPILED) - 5, 10, PRECOMPILED[-5:] + b"\x00" * 5),
     ],
 )
 def test_address_code_slice(start: int, length: int, expected: bytes, w3: Web3, get_contract):
@@ -44,15 +44,29 @@ def code_slice(x: address) -> Bytes[{length}]:
     assert actual == expected
 
 
-def test_address_code_no_code(get_contract):
+def test_address_code_runtime_error_slice_too_long(w3: Web3, get_contract):
+    start = len(PRECOMPILED) - 5
+    length = 10
+    code = f"""
+@external
+def code_slice(x: address) -> Bytes[{length}]:
+    return slice(x.code, {start}, {length})
+"""
+    contract = get_contract(code)
+    precompiled_contract = _deploy_precompiled_contract(w3)
+    with pytest.raises(TransactionFailed):
+        contract.code_slice(precompiled_contract.address)
+
+
+def test_address_code_runtime_error_no_code(get_contract):
     code = """
 @external
 def code_slice(x: address) -> Bytes[4]:
     return slice(x.code, 0, 4)
 """
     contract = get_contract(code)
-    actual = contract.code_slice(b"\x00" * 20)
-    assert actual == b"\x00" * 4
+    with pytest.raises(TransactionFailed):
+        contract.code_slice(b"\x00" * 20)
 
 
 @pytest.mark.parametrize(
@@ -152,7 +166,7 @@ def test_address_code_compile_success(code: str):
     compiler.compile_code(code)
 
 
-def test_address_code_self(w3: Web3, get_contract, no_optimize: bool):
+def test_address_code_self_success(get_contract, no_optimize: bool):
     code = """
 code_deployment: public(Bytes[32])
 
@@ -172,3 +186,26 @@ def code_runtime() -> Bytes[32]:
     )
     assert contract.code_deployment() == bytes.fromhex(code_compiled["bytecode"][2:])[:32]
     assert contract.code_runtime() == bytes.fromhex(code_compiled["bytecode_runtime"][2:])[:32]
+
+
+def test_address_code_self_runtime_error_deployment(get_contract):
+    code = """
+dummy: public(Bytes[1000000])
+
+@external
+def __init__():
+    self.dummy = slice(self.code, 0, 1000000)
+"""
+    with pytest.raises(TransactionFailed):
+        get_contract(code)
+
+
+def test_address_code_self_runtime_error_runtime(get_contract):
+    code = """
+@external
+def code_runtime() -> Bytes[1000000]:
+    return slice(self.code, 0, 1000000)
+"""
+    contract = get_contract(code)
+    with pytest.raises(TransactionFailed):
+        contract.code_runtime()

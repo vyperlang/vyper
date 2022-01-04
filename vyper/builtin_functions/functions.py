@@ -295,9 +295,10 @@ class Slice:
             # `length` is constant (validated by `validate_address_code_attribute`)
             assert isinstance(length.value, int)
             address = sub.args[0]
-            if address.value == "address":  # self.code
+            if address.value == "address":  # this case is for `slice(self.code, ...)`
                 node = [
                     "seq",
+                    ["assert", ["le", ["add", start, length], "codesize"]],  # runtime bounds check
                     ["mstore", np, length],
                     ["codecopy", np + 32, start, length],
                     np,
@@ -309,6 +310,11 @@ class Slice:
                     address,
                     [
                         "seq",
+                        # runtime bounds check
+                        [
+                            "assert",
+                            ["le", ["add", start, length], ["extcodesize", "_extcode_address"]],
+                        ],
                         ["mstore", np, length],
                         ["extcodecopy", "_extcode_address", np + 32, start, length],
                         np,

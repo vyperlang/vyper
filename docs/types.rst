@@ -356,7 +356,7 @@ Syntax as follows: ``_address.<member>``, where ``_address`` is of the type ``ad
 
 .. note::
 
-    ``_address.code`` requires the usage of :func:`slice <slice>` to explicitly extract a section of contract bytecode. When the extracted section exceeds the bounds of bytecode, the result will be padded with zeros.
+    ``_address.code`` requires the usage of :func:`slice <slice>` to explicitly extract a section of contract bytecode. If the extracted section exceeds the bounds of bytecode, this will throw. You can check the size of ``_address.code`` using ``_address.codesize``.
 
 32-bit-wide Byte Array
 ----------------------
