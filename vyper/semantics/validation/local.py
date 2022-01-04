@@ -30,6 +30,7 @@ from vyper.semantics.types.indexable.sequence import ArrayDefinition, TupleDefin
 from vyper.semantics.types.user.event import Event
 from vyper.semantics.types.user.struct import StructDefinition
 from vyper.semantics.types.utils import get_type_from_annotation
+from vyper.semantics.types.value.address import AddressDefinition
 from vyper.semantics.types.value.array_value import StringDefinition
 from vyper.semantics.types.value.boolean import BoolDefinition
 from vyper.semantics.types.value.numeric import Uint256Definition
@@ -111,6 +112,24 @@ def _validate_revert_reason(msg_node: vy_ast.VyperNode) -> None:
                 raise InvalidType("revert reason must fit within String[1024]") from e
 
 
+def _validate_address_code_attribute(node: vy_ast.Attribute) -> None:
+    value_type = get_exact_type_from_node(node.value)
+    if isinstance(value_type, AddressDefinition) and node.attr == "code":
+        # Validate `slice(<address>.code, start, length)` where `length` is constant
+        parent = node.get_ancestor()
+        if isinstance(parent, vy_ast.Call):
+            ok_func = isinstance(parent.func, vy_ast.Name) and parent.func.id == "slice"
+            ok_args = len(parent.args) == 3 and isinstance(parent.args[2], vy_ast.Int)
+            if ok_func and ok_args:
+                return
+        raise SyntaxException(
+            "(address).code is only allowed inside of a slice function with a constant length",
+            node.node_source_code,
+            node.lineno,  # type: ignore[attr-defined]
+            node.col_offset,  # type: ignore[attr-defined]
+        )
+
+
 class FunctionNodeVisitor(VyperNodeVisitorBase):
 
     ignored_types = (
@@ -189,6 +208,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                     node.lineno,
                     node.col_offset,
                 )
+        _validate_address_code_attribute(node)
 
     def visit_AnnAssign(self, node):
         name = node.get("target.id")

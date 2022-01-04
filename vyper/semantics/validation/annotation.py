@@ -1,10 +1,9 @@
 from vyper import ast as vy_ast
-from vyper.exceptions import StructureException, SyntaxException
+from vyper.exceptions import StructureException
 from vyper.semantics.types.bases import BaseTypeDefinition
 from vyper.semantics.types.function import ContractFunction
 from vyper.semantics.types.user.event import Event
 from vyper.semantics.types.user.struct import StructPrimitive
-from vyper.semantics.types.value.address import AddressDefinition
 from vyper.semantics.validation.utils import (
     get_common_types,
     get_exact_type_from_node,
@@ -97,23 +96,6 @@ class StatementAnnotationVisitor(_AnnotationVisitorBase):
             self.expr_visitor.visit(node.iter)
 
 
-def validate_address_code_attribute(node: vy_ast.Attribute, type_: BaseTypeDefinition) -> None:
-    if isinstance(type_, AddressDefinition) and node.attr == "code":
-        # Validate `slice(<address>.code, start, length)` where `length` is constant
-        parent = node.get_ancestor()
-        if isinstance(parent, vy_ast.Call):
-            ok_func = isinstance(parent.func, vy_ast.Name) and parent.func.id == "slice"
-            ok_args = len(parent.args) == 3 and isinstance(parent.args[2], vy_ast.Int)
-            if ok_func and ok_args:
-                return
-        raise SyntaxException(
-            "(address).code is only allowed inside of a slice function with a constant length",
-            node.node_source_code,
-            node.lineno,  # type: ignore[attr-defined]
-            node.col_offset,  # type: ignore[attr-defined]
-        )
-
-
 class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
 
     ignored_types = ()
@@ -124,7 +106,6 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
 
     def visit_Attribute(self, node, type_):
         base_type = get_exact_type_from_node(node.value)
-        validate_address_code_attribute(node, base_type)
         node._metadata["type"] = base_type.get_member(node.attr, None)
         self.visit(node.value, None)
 
