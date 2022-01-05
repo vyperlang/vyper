@@ -6,7 +6,6 @@ import asttokens
 
 from vyper.ast import ast_to_dict, parse_natspec
 from vyper.compiler.phases import CompilerData
-from vyper.compiler.utils import build_gas_estimates
 from vyper.evm import opcodes
 from vyper.lll import compile_lll
 from vyper.old_codegen.lll_node import LLLnode
@@ -98,8 +97,6 @@ def build_method_identifiers_output(compiler_data: CompilerData) -> dict:
 
 def build_abi_output(compiler_data: CompilerData) -> list:
     abi = compiler_data.vyper_module_folded._metadata["type"].to_abi_dict()
-    # Add gas estimates for each function to ABI
-    gas_estimates = build_gas_estimates(compiler_data.lll_runtime)
     for func in abi:
         try:
             func_signature = func["name"]
@@ -108,10 +105,6 @@ def build_abi_output(compiler_data: CompilerData) -> list:
             continue
 
         func_name, _, _ = func_signature.partition("(")
-        # This check ensures we skip __init__ since it has no estimate
-        if func_name in gas_estimates:
-            # TODO: mutation
-            func["gas"] = gas_estimates[func_name]
     return abi
 
 
