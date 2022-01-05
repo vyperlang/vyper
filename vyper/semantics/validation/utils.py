@@ -21,6 +21,7 @@ from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.abstract import IntegerAbstractType
 from vyper.semantics.types.bases import BaseTypeDefinition
 from vyper.semantics.types.indexable.sequence import ArrayDefinition, TupleDefinition
+from vyper.semantics.types.value.array_value import BytesArrayDefinition, StringDefinition
 from vyper.semantics.types.value.boolean import BoolDefinition
 
 
@@ -220,7 +221,13 @@ class _ExprTypeChecker:
             raise InvalidLiteral("Cannot have an empty array", node)
 
         types_list = get_common_types(*node.elements)
+
         if types_list:
+            # Throw exception if only possible type is String or Bytes
+            if len(types_list) == 1:
+                if isinstance(types_list[0], (StringDefinition, BytesArrayDefinition)):
+                    raise StructureException(f"{types_list[0]._id} arrays are not supported", node)
+
             return [ArrayDefinition(i, len(node.elements)) for i in types_list]
 
         raise InvalidLiteral("Array contains multiple, incompatible types", node)
