@@ -1,5 +1,6 @@
-from vyper.exceptions import ArrayIndexException, OverflowException
 import pytest
+
+from vyper.exceptions import ArrayIndexException, OverflowException
 
 
 def test_list_tester_code(get_contract_with_gas_estimation):
@@ -237,14 +238,14 @@ def bounds_check_uint256(xs: DynArray[uint256, 3], ix: uint256) -> uint256:
     assert c.bounds_check_uint256([1], 0) == 1
     assert_tx_failed(lambda: c.bounds_check_uint256([1], 1))
 
-    assert c.bounds_check_uint256([1,2,3], 0) == 1
-    assert c.bounds_check_uint256([1,2,3], 2) == 3
-    assert_tx_failed(lambda: c.bounds_check_uint256([1,2,3], 3))
+    assert c.bounds_check_uint256([1, 2, 3], 0) == 1
+    assert c.bounds_check_uint256([1, 2, 3], 2) == 3
+    assert_tx_failed(lambda: c.bounds_check_uint256([1, 2, 3], 3))
 
     # TODO do bounds checks for nested darrays
 
 
-@pytest.mark.parametrize("list_", ([], [11], [11,12], [11,12,13]))
+@pytest.mark.parametrize("list_", ([], [11], [11, 12], [11, 12, 13]))
 def test_dynarray_len(get_contract_with_gas_estimation, assert_tx_failed, list_):
     code = """
 @external
@@ -256,7 +257,7 @@ def darray_len(xs: DynArray[uint256, 3]) -> uint256:
     assert c.darray_len(list_) == len(list_)
 
 
-def test_dynarray_len(get_contract_with_gas_estimation, assert_tx_failed):
+def test_dynarray_too_large(get_contract_with_gas_estimation, assert_tx_failed):
     code = """
 @external
 def darray_len(xs: DynArray[uint256, 3]) -> uint256:
@@ -264,7 +265,7 @@ def darray_len(xs: DynArray[uint256, 3]) -> uint256:
     """
 
     c = get_contract_with_gas_estimation(code)
-    assert_tx_failed(lambda: c.darray_len([1,2,3,4]))
+    assert_tx_failed(lambda: c.darray_len([1, 2, 3, 4]))
 
 
 def test_int128_accessor(get_contract_with_gas_estimation, assert_tx_failed):
@@ -477,5 +478,6 @@ def ix(i: uint256) -> decimal:
         assert c.ix(i) == p
     # assert oob
     assert_tx_failed(lambda: c.ix(len(some_good_primes) + 1))
+
 
 # TODO test loops

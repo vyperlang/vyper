@@ -231,7 +231,6 @@ class _ExprTypeChecker:
             if isinstance(types_list[0], (StringDefinition, BytesArrayDefinition)):
                 raise StructureException(f"{types_list[0]._id} arrays are not supported", node)
 
-
         if len(types_list) > 0:
             count = len(node.elements)
             ret = []
