@@ -1,7 +1,7 @@
 import pytest
 
-from vyper.lll import optimizer
 from vyper.codegen.lll_node import LLLnode
+from vyper.lll import optimizer
 
 optimize_list = [
     (["eq", 1, 0], ["iszero", 1]),

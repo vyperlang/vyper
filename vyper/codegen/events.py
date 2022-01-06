@@ -1,12 +1,12 @@
 from typing import Tuple
 
-from vyper.exceptions import TypeMismatch
 from vyper.codegen.abi import ABI_Tuple, abi_encode, abi_type_of, abi_type_of2
 from vyper.codegen.context import Context
+from vyper.codegen.core import getpos, lll_tuple_from_args, unwrap_location
 from vyper.codegen.keccak256_helper import keccak256_helper
 from vyper.codegen.lll_node import LLLnode
-from vyper.codegen.core import getpos, lll_tuple_from_args, unwrap_location
 from vyper.codegen.types.types import BaseType, ByteArrayLike, get_type_for_exact_size
+from vyper.exceptions import TypeMismatch
 from vyper.semantics.types import Event
 
 

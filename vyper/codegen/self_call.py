@@ -1,7 +1,7 @@
-from vyper.exceptions import StateAccessViolation, StructureException
-from vyper.codegen.lll_node import LLLnode, push_label_to_stack
 from vyper.codegen.core import getpos, make_setter
+from vyper.codegen.lll_node import LLLnode, push_label_to_stack
 from vyper.codegen.types import TupleType
+from vyper.exceptions import StateAccessViolation, StructureException
 
 _label_counter = 0
 

@@ -2,13 +2,13 @@ from typing import Any, Optional
 
 from vyper.codegen.abi import abi_encode, abi_type_of
 from vyper.codegen.context import Context
-from vyper.codegen.lll_node import LLLnode
 from vyper.codegen.core import (
     calculate_type_for_external_return,
     getpos,
     make_setter,
     wrap_value_for_external_return,
 )
+from vyper.codegen.lll_node import LLLnode
 from vyper.codegen.types import get_type_for_exact_size
 from vyper.codegen.types.check import check_assign
 

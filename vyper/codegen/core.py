@@ -1,15 +1,6 @@
 from decimal import Context, Decimal, setcontext
 
 from vyper import ast as vy_ast
-from vyper.evm.opcodes import version_check
-from vyper.exceptions import (
-    CompilerPanic,
-    DecimalOverrideException,
-    InvalidLiteral,
-    StructureException,
-    TypeCheckFailure,
-    TypeMismatch,
-)
 from vyper.codegen.lll_node import Encoding, LLLnode
 from vyper.codegen.types import (
     DYNAMIC_ARRAY_OVERHEAD,
@@ -25,6 +16,15 @@ from vyper.codegen.types import (
     ceil32,
     is_base_type,
     is_signed_num,
+)
+from vyper.evm.opcodes import version_check
+from vyper.exceptions import (
+    CompilerPanic,
+    DecimalOverrideException,
+    InvalidLiteral,
+    StructureException,
+    TypeCheckFailure,
+    TypeMismatch,
 )
 from vyper.utils import (
     GAS_CALLDATACOPY_WORD,

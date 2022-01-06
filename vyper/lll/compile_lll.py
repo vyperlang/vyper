@@ -1,8 +1,8 @@
 import functools
 
+from vyper.codegen.lll_node import LLLnode
 from vyper.evm.opcodes import get_opcodes
 from vyper.exceptions import CompilerPanic
-from vyper.codegen.lll_node import LLLnode
 from vyper.utils import MemoryPositions
 
 PUSH_OFFSET = 0x5F

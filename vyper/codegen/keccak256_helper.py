@@ -1,9 +1,9 @@
 from math import ceil
 
-from vyper.exceptions import CompilerPanic
-from vyper.codegen.lll_node import LLLnode
 from vyper.codegen.core import ensure_in_memory, getpos
+from vyper.codegen.lll_node import LLLnode
 from vyper.codegen.types import BaseType, ByteArrayLike, is_base_type
+from vyper.exceptions import CompilerPanic
 from vyper.utils import MemoryPositions, bytes_to_int, keccak256
 
 

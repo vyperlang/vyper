@@ -10,9 +10,9 @@ from typing import Dict, Iterable, Iterator, Set, TypeVar
 import vyper
 from vyper.cli import vyper_json
 from vyper.cli.utils import extract_file_interface_imports, get_interface_file_path
+from vyper.codegen.lll_node import LLLnode
 from vyper.compiler.settings import VYPER_TRACEBACK_LIMIT
 from vyper.evm.opcodes import DEFAULT_EVM_VERSION, EVM_VERSIONS
-from vyper.codegen.lll_node import LLLnode
 from vyper.typing import ContractCodes, ContractPath, OutputFormats
 
 T = TypeVar("T")

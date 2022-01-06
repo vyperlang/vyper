@@ -9,8 +9,8 @@ from web3 import Web3
 from web3.providers.eth_tester import EthereumTesterProvider
 
 from vyper import compiler
-from vyper.lll import compile_lll, optimizer
 from vyper.codegen.lll_node import LLLnode
+from vyper.lll import compile_lll, optimizer
 
 from .base_conftest import VyperContract, _get_contract, zero_gas_price_strategy
 

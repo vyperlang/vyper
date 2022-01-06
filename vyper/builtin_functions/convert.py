@@ -4,8 +4,6 @@ from decimal import Decimal
 
 from vyper import ast as vy_ast
 from vyper.builtin_functions.signatures import signature
-from vyper.evm.opcodes import version_check
-from vyper.exceptions import InvalidLiteral, StructureException, TypeMismatch
 from vyper.codegen.core import (
     LLLnode,
     add_ofst,
@@ -17,6 +15,8 @@ from vyper.codegen.core import (
     shr,
 )
 from vyper.codegen.types import BaseType, ByteArrayType, StringType, get_type
+from vyper.evm.opcodes import version_check
+from vyper.exceptions import InvalidLiteral, StructureException, TypeMismatch
 from vyper.utils import DECIMAL_DIVISOR, MemoryPositions, SizeLimits
 
 

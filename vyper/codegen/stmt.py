@@ -2,10 +2,8 @@ import vyper.codegen.events as events
 import vyper.utils as util
 from vyper import ast as vy_ast
 from vyper.builtin_functions import STMT_DISPATCH_TABLE
-from vyper.exceptions import CompilerPanic, StructureException, TypeCheckFailure
 from vyper.codegen import external_call, self_call
 from vyper.codegen.context import Constancy, Context
-from vyper.codegen.expr import Expr
 from vyper.codegen.core import (
     LLLnode,
     getpos,
@@ -14,8 +12,10 @@ from vyper.codegen.core import (
     unwrap_location,
     zero_pad,
 )
+from vyper.codegen.expr import Expr
 from vyper.codegen.return_ import make_return_stmt
 from vyper.codegen.types import BaseType, ByteArrayType, SArrayType, parse_type
+from vyper.exceptions import CompilerPanic, StructureException, TypeCheckFailure
 
 
 class Stmt:

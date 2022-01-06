@@ -2,11 +2,7 @@ from typing import Any, List, Optional, Tuple, Union
 
 from vyper import ast as vy_ast
 from vyper.ast.signatures.function_signature import FunctionSignature
-from vyper.exceptions import (
-    EventDeclarationException,
-    FunctionDeclarationException,
-    StructureException,
-)
+from vyper.codegen.core import make_setter
 from vyper.codegen.function_definitions import (
     generate_lll_for_function,
     is_default_func,
@@ -14,7 +10,11 @@ from vyper.codegen.function_definitions import (
 )
 from vyper.codegen.global_context import GlobalContext
 from vyper.codegen.lll_node import LLLnode
-from vyper.codegen.core import make_setter
+from vyper.exceptions import (
+    EventDeclarationException,
+    FunctionDeclarationException,
+    StructureException,
+)
 from vyper.semantics.types.function import FunctionVisibility, StateMutability
 from vyper.typing import InterfaceImports
 from vyper.utils import LOADED_LIMITS

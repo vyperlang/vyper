@@ -1,6 +1,4 @@
 import vyper.semantics.types as vy
-from vyper.exceptions import CompilerPanic
-from vyper.codegen.lll_node import LLLnode
 from vyper.codegen.core import (
     add_ofst,
     get_dyn_array_count,
@@ -10,6 +8,7 @@ from vyper.codegen.core import (
     unwrap_location,
     zero_pad,
 )
+from vyper.codegen.lll_node import LLLnode
 from vyper.codegen.types import (
     BaseType,
     ByteArrayLike,
@@ -19,6 +18,7 @@ from vyper.codegen.types import (
     StringType,
     TupleLike,
 )
+from vyper.exceptions import CompilerPanic
 from vyper.utils import ceil32
 
 

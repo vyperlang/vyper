@@ -3,10 +3,10 @@ import warnings
 from typing import Optional, Tuple
 
 from vyper import ast as vy_ast
-from vyper.lll import compile_lll, optimizer
 from vyper.codegen import parser
-from vyper.codegen.lll_node import LLLnode
 from vyper.codegen.global_context import GlobalContext
+from vyper.codegen.lll_node import LLLnode
+from vyper.lll import compile_lll, optimizer
 from vyper.semantics import set_data_positions, validate_semantics
 from vyper.typing import InterfaceImports, StorageLayout
 
@@ -218,9 +218,7 @@ def generate_global_context(
     return GlobalContext.get_global_context(vyper_module, interface_codes=interface_codes)
 
 
-def generate_lll_nodes(
-    global_ctx: GlobalContext, no_optimize: bool
-) -> Tuple[LLLnode, LLLnode]:
+def generate_lll_nodes(global_ctx: GlobalContext, no_optimize: bool) -> Tuple[LLLnode, LLLnode]:
     """
     Generate the intermediate representation (LLL) from the contextualized AST.
 

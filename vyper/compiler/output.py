@@ -5,11 +5,11 @@ from pathlib import Path
 import asttokens
 
 from vyper.ast import ast_to_dict, parse_natspec
+from vyper.codegen.lll_node import LLLnode
 from vyper.compiler.phases import CompilerData
 from vyper.compiler.utils import build_gas_estimates
 from vyper.evm import opcodes
 from vyper.lll import compile_lll
-from vyper.codegen.lll_node import LLLnode
 from vyper.semantics.types.function import FunctionVisibility, StateMutability
 from vyper.typing import StorageLayout
 from vyper.warnings import ContractSizeLimitWarning
