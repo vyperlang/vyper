@@ -238,9 +238,15 @@ _IN: "in"
            | comparator _IN atom ->  in
            | comparator _NOT _IN atom ->  in
 
+
+// special rule to handle types as "arguments" (for `empty` builtin)
+empty: "empty" "(" type ")"
+
+
 // NOTE: Must end recursive cycle like this (with `atom` calling `operation`)
 ?atom: variable_access
      | literal
+     | empty
      | tuple
      | list
      | "(" operation ")"
