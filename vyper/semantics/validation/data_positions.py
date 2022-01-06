@@ -28,6 +28,11 @@ def set_data_positions(
 
 
 class StorageCollision:
+    """
+    Keep track of which storage slots have been used. If there is a collision of
+    storage slots, this will raise an error and fail to compile
+    """
+
     occupied_slots: Dict[int, bool] = {}
 
     def is_slot_free(self, slot_number: int) -> bool:
@@ -66,26 +71,27 @@ def set_storage_slots_with_overrides(
     Parse module-level Vyper AST to calculate the layout of storage variables.
     Returns the layout as a dict of variable name -> variable info
     """
-    # Allocate storage slots from 0
-    # note storage is word-addressable, not byte-addressable
 
     ret: Dict[str, Dict] = {}
     reserved_slots = StorageCollision()
 
-    reserved_slots.check_and_reserve_slot_and_length(0, 3)
-
+    # Search through function definitions to find non-reentrant functions
     for node in vyper_module.get_children(vy_ast.FunctionDef):
         type_ = node._metadata["type"]
+
+        # Ignore functions without non-reentrant
         if type_.nonreentrant is None:
             continue
 
         variable_name = f"nonreentrant.{type_.nonreentrant}"
 
+        # Expect to find this variable within the storage layout override
         if variable_name in storage_layout_overrides:
             reentrant_slot = storage_layout_overrides[variable_name]["slot"]
-            type_.set_reentrancy_key_position(StorageSlot(reentrant_slot))
-
+            # Ensure that this slot has not been used, and prevents other storage variables from using the same slot
             reserved_slots.check_and_reserve_slot(reentrant_slot)
+
+            type_.set_reentrancy_key_position(StorageSlot(reentrant_slot))
 
             ret[variable_name] = {
                 "type": "nonreentrant lock",
@@ -97,22 +103,24 @@ def set_storage_slots_with_overrides(
                 f"Could not find storage_slot for {variable_name}. Have you used the correct storage layout file?"
             )
 
+    # Iterate through variables
     for node in vyper_module.get_children(vy_ast.AnnAssign):
 
+        # Ignore immutable parameters
         if node.get("annotation.func.id") == "immutable":
             continue
 
         type_ = node.target._metadata["type"]
 
+        # Expect to find this variable within the storage layout overrides
         if node.target.id in storage_layout_overrides:
             var_slot = storage_layout_overrides[node.target.id]["slot"]
+            # Calculate how many storage slots are required
+            storage_length = math.ceil(type_.size_in_bytes / 32)
+            # Ensure that all required storage slots are reserved, and prevents other variables from using these slots
+            reserved_slots.check_and_reserve_slot_and_length(var_slot, storage_length)
             type_.set_position(StorageSlot(var_slot))
 
-            storage_length = math.ceil(type_.size_in_bytes / 32)
-            reserved_slots.check_and_reserve_slot_and_length(var_slot, storage_length)
-
-            # this could have better typing but leave it untyped until
-            # we understand the use case better
             ret[node.target.id] = {"type": str(type_), "location": "storage", "slot": var_slot}
         else:
             raise KeyError(
