@@ -47,6 +47,7 @@ class CompilerData:
         interface_codes: Optional[InterfaceImports] = None,
         source_id: int = 0,
         no_optimize: bool = False,
+        storage_layout: StorageLayout = {},
     ) -> None:
         """
         Initialization method.

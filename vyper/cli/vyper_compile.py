@@ -13,7 +13,12 @@ from vyper.cli.utils import extract_file_interface_imports, get_interface_file_p
 from vyper.compiler.settings import VYPER_TRACEBACK_LIMIT
 from vyper.evm.opcodes import DEFAULT_EVM_VERSION, EVM_VERSIONS
 from vyper.old_codegen import parser_utils
-from vyper.typing import ContractCodes, ContractPath, OutputFormats
+from vyper.typing import (
+    ContractCodes,
+    ContractPath,
+    OutputFormats,
+    StorageLayoutForContracts,
+)
 
 T = TypeVar("T")
 
@@ -256,6 +261,21 @@ def compile_files(
             # trailing newline fixes python parsing bug when source ends in a comment
             # https://bugs.python.org/issue35107
             contract_sources[file_str] = fh.read() + "\n"
+
+    storage_layouts: StorageLayoutForContracts = OrderedDict()
+    if storage_layout:
+        if len(input_files) != len(storage_layout):
+            raise ValueError(
+                "If using --storage-layout-file, all contracts must have a storage file"
+            )
+        for storage_file_name in storage_layout:
+            storage_file_path = Path(storage_file_name)
+            try:
+                storage_file_str = storage_file_path.resolve().relative_to(root_path).as_posix()
+            except ValueError:
+                storage_file_str = storage_file_path.as_posix()
+            with storage_file_path.open() as sfh:
+                storage_layouts[storage_file_str] = json.load(sfh)
 
     show_version = False
     if "combined_json" in output_formats:
