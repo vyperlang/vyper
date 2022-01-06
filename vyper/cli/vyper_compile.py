@@ -91,7 +91,7 @@ def _parse_args(argv):
     )
     parser.add_argument(
         "--show-gas-estimates",
-        help="Show gas estimates in ir output mode.",
+        help="Show gas estimates in abi and ir output mode.",
         action="store_true",
     )
     parser.add_argument(
@@ -266,6 +266,7 @@ def compile_files(
         interface_codes=get_interface_codes(root_path, contract_sources),
         evm_version=evm_version,
         no_optimize=no_optimize,
+        show_gas_estimates=show_gas_estimates,
     )
     if show_version:
         compiler_data["version"] = vyper.__version__

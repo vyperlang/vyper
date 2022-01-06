@@ -98,20 +98,21 @@ def build_method_identifiers_output(compiler_data: CompilerData) -> dict:
 
 def build_abi_output(compiler_data: CompilerData) -> list:
     abi = compiler_data.vyper_module_folded._metadata["type"].to_abi_dict()
-    # Add gas estimates for each function to ABI
-    gas_estimates = build_gas_estimates(compiler_data.lll_runtime)
-    for func in abi:
-        try:
-            func_signature = func["name"]
-        except KeyError:
-            # constructor and fallback functions don't have a name
-            continue
+    if compiler_data.show_gas_estimates:
+        # Add gas estimates for each function to ABI
+        gas_estimates = build_gas_estimates(compiler_data.lll_runtime)
+        for func in abi:
+            try:
+                func_signature = func["name"]
+            except KeyError:
+                # constructor and fallback functions don't have a name
+                continue
 
-        func_name, _, _ = func_signature.partition("(")
-        # This check ensures we skip __init__ since it has no estimate
-        if func_name in gas_estimates:
-            # TODO: mutation
-            func["gas"] = gas_estimates[func_name]
+            func_name, _, _ = func_signature.partition("(")
+            # This check ensures we skip __init__ since it has no estimate
+            if func_name in gas_estimates:
+                # TODO: mutation
+                func["gas"] = gas_estimates[func_name]
     return abi
 
 

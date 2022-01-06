@@ -47,6 +47,7 @@ class CompilerData:
         interface_codes: Optional[InterfaceImports] = None,
         source_id: int = 0,
         no_optimize: bool = False,
+        show_gas_estimates: bool = False,
     ) -> None:
         """
         Initialization method.
@@ -63,12 +64,17 @@ class CompilerData:
             * JSON interfaces are given as lists, vyper interfaces as strings
         source_id : int, optional
             ID number used to identify this contract in the source map.
+        no_optimize: bool, optional
+            Turn off optimizations. Defaults to False
+        show_gas_estimates: bool, optional
+            Show gas estimates for abi and ir output modes
         """
         self.contract_name = contract_name
         self.source_code = source_code
         self.interface_codes = interface_codes
         self.source_id = source_id
         self.no_optimize = no_optimize
+        self.show_gas_estimates = show_gas_estimates
 
     @property
     def vyper_module(self) -> vy_ast.Module:
