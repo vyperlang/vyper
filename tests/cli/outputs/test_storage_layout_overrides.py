@@ -58,7 +58,7 @@ def public_foo3():
 
     storage_layout_override = {
         "nonreentrant.foo": {"type": "nonreentrant lock", "location": "storage", "slot": 8},
-        "nonreentrant.bar": {"type": "nonreentrant lock", "location": "storage", "slot": 5},
+        "nonreentrant.bar": {"type": "nonreentrant lock", "location": "storage", "slot": 7},
         "foo": {
             "type": "HashMap[address, uint256]",
             "location": "storage",
@@ -74,7 +74,7 @@ def public_foo3():
 
     assert out["layout"] == {
         "nonreentrant.foo": {"type": "nonreentrant lock", "location": "storage", "slot": 8},
-        "nonreentrant.bar": {"type": "nonreentrant lock", "location": "storage", "slot": 5},
+        "nonreentrant.bar": {"type": "nonreentrant lock", "location": "storage", "slot": 7},
         "foo": {
             "type": "HashMap[address, uint256]",
             "location": "storage",
