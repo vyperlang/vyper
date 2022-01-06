@@ -95,9 +95,10 @@ def compile_codes(
     for source_id, contract_name in enumerate(sorted(contract_sources), start=initial_id):
         source_code = contract_sources[contract_name]
         interfaces: Any = interface_codes
-        storage_layout_override = (
-            storage_layouts[contract_name] if contract_name in storage_layouts else {}
-        )
+        storage_layout_override = None
+        if storage_layouts and contract_name in storage_layouts:
+            storage_layout_override = storage_layouts[contract_name]
+
         if (
             isinstance(interfaces, dict)
             and contract_name in interfaces

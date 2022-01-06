@@ -259,10 +259,6 @@ def compile_files(
 
     storage_layouts: StorageLayoutForContracts = OrderedDict()
     if storage_layout:
-        if len(input_files) != len(storage_layout):
-            raise ValueError(
-                "If using --storage-layout-file, all contracts must have a storage file"
-            )
         for storage_file_name, contract_name in zip(storage_layout, contract_sources.keys()):
             storage_file_path = Path(storage_file_name)
             with storage_file_path.open() as sfh:
