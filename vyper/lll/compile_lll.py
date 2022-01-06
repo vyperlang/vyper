@@ -200,9 +200,12 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
     # OR
     # repeat(counter_location, start, rounds, rounds_bound, body)
     # basically a do-while loop:
-    # do {
-    #   body
-    # } while (++i != start + rounds)
+    # rounds = min(rounds, rounds_bound)
+    # if (rounds > 0) {
+    #   do {
+    #     body
+    #   } while (++i != start + rounds)
+    # }
     elif code.value == "repeat":
         o = []
         if len(code.args) == 4:
