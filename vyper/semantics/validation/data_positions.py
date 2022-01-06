@@ -85,6 +85,12 @@ def set_storage_slots_with_overrides(
 
         variable_name = f"nonreentrant.{type_.nonreentrant}"
 
+        # re-entrant key was already identified
+        if variable_name in ret:
+            _slot = ret[variable_name]["slot"]
+            type_.set_reentrancy_key_position(StorageSlot(_slot))
+            continue
+
         # Expect to find this variable within the storage layout override
         if variable_name in storage_layout_overrides:
             reentrant_slot = storage_layout_overrides[variable_name]["slot"]
