@@ -10,6 +10,7 @@ from vyper.typing import (
     InterfaceImports,
     OutputDict,
     OutputFormats,
+    StorageLayout,
     StorageLayoutForContracts,
 )
 
@@ -131,6 +132,7 @@ def compile_code(
     interface_codes: Optional[InterfaceImports] = None,
     evm_version: str = DEFAULT_EVM_VERSION,
     no_optimize: bool = False,
+    storage_layout_override: StorageLayout = {},
 ) -> dict:
     """
     Generate compiler output(s) from a single contract source code.
@@ -160,6 +162,7 @@ def compile_code(
     """
 
     contract_sources = {UNKNOWN_CONTRACT_NAME: contract_source}
+    storage_layouts = {UNKNOWN_CONTRACT_NAME: storage_layout_override}
 
     return compile_codes(
         contract_sources,
@@ -167,4 +170,5 @@ def compile_code(
         interface_codes=interface_codes,
         evm_version=evm_version,
         no_optimize=no_optimize,
+        storage_layouts=storage_layouts,
     )[UNKNOWN_CONTRACT_NAME]
