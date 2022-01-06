@@ -101,6 +101,12 @@ def _parse_args(argv):
         dest="format",
     )
     parser.add_argument(
+        "--storage-layout-file",
+        help="Override storage slots provided by compiler",
+        dest="storage_layout",
+        nargs="+",
+    )
+    parser.add_argument(
         "--evm-version",
         help=f"Select desired EVM version (default {DEFAULT_EVM_VERSION})",
         choices=list(EVM_VERSIONS),
@@ -157,6 +163,7 @@ def _parse_args(argv):
         args.show_gas_estimates,
         args.evm_version,
         args.no_optimize,
+        args.storage_layout,
     )
 
     if args.output_path:
@@ -228,6 +235,7 @@ def compile_files(
     show_gas_estimates: bool = False,
     evm_version: str = DEFAULT_EVM_VERSION,
     no_optimize: bool = False,
+    storage_layout: Iterable[str] = [],
 ) -> OrderedDict:
 
     if show_gas_estimates:
