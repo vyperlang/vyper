@@ -1,16 +1,16 @@
 from typing import Any, Optional
 
-from vyper.old_codegen.abi import abi_encode, abi_type_of
-from vyper.old_codegen.context import Context
-from vyper.old_codegen.lll_node import LLLnode
-from vyper.old_codegen.parser_utils import (
+from vyper.codegen.abi import abi_encode, abi_type_of
+from vyper.codegen.context import Context
+from vyper.codegen.lll_node import LLLnode
+from vyper.codegen.core import (
     calculate_type_for_external_return,
     getpos,
     make_setter,
     wrap_value_for_external_return,
 )
-from vyper.old_codegen.types import get_type_for_exact_size
-from vyper.old_codegen.types.check import check_assign
+from vyper.codegen.types import get_type_for_exact_size
+from vyper.codegen.types.check import check_assign
 
 Stmt = Any  # mypy kludge
 
@@ -79,7 +79,7 @@ def make_return_stmt(lll_val: LLLnode, stmt: Any, context: Context) -> Optional[
         # the return_ofst and return_len to be on the stack
         # CMC introduced `goto` with args so this enables us to replace `seq_unchecked` w/ `seq`
         # and then just append the arguments for the cleanup to the `jump_to_exit` list
-        # check in vyper/old_codegen/self_call.py for an example
+        # check in vyper/codegen/self_call.py for an example
         jump_to_exit += [return_buffer_ofst, encode_out]
 
         return finalize(["pass"])

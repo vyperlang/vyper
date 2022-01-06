@@ -10,8 +10,8 @@ from vyper.exceptions import (
     TypeCheckFailure,
     TypeMismatch,
 )
-from vyper.old_codegen.lll_node import Encoding, LLLnode
-from vyper.old_codegen.types import (
+from vyper.codegen.lll_node import Encoding, LLLnode
+from vyper.codegen.types import (
     DYNAMIC_ARRAY_OVERHEAD,
     ArrayLike,
     BaseType,
@@ -137,7 +137,7 @@ def _word_size(location):
 # try to refactor.
 def make_dyn_array_copier(dst, src, context, pos=None):
     # TODO circular import!
-    from vyper.old_codegen.abi import abi_type_of
+    from vyper.codegen.abi import abi_type_of
 
     assert isinstance(src.typ, DArrayType)
     assert isinstance(dst.typ, DArrayType)
@@ -309,7 +309,7 @@ def add_ofst(loc, ofst):
 # Resolve pointer locations for ABI-encoded data
 def _getelemptr_abi_helper(parent, member_t, ofst, pos=None, clamp=True):
     # TODO circular import!
-    from vyper.old_codegen.abi import abi_type_of
+    from vyper.codegen.abi import abi_type_of
 
     member_abi_t = abi_type_of(member_t)
 
@@ -340,7 +340,7 @@ def _getelemptr_abi_helper(parent, member_t, ofst, pos=None, clamp=True):
 # TODO simplify this code, especially the ABI decoding
 def _get_element_ptr_tuplelike(parent, key, pos):
     # TODO circular import!
-    from vyper.old_codegen.abi import abi_type_of
+    from vyper.codegen.abi import abi_type_of
 
     typ = parent.typ
     assert isinstance(typ, TupleLike)
@@ -406,7 +406,7 @@ def has_length_word(typ):
 # TODO simplify this code, especially the ABI decoding
 def _get_element_ptr_array(parent, key, pos, array_bounds_check):
     # TODO circular import!
-    from vyper.old_codegen.abi import abi_type_of
+    from vyper.codegen.abi import abi_type_of
 
     assert isinstance(parent.typ, ArrayLike)
 

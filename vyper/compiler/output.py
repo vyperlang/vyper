@@ -9,7 +9,7 @@ from vyper.compiler.phases import CompilerData
 from vyper.compiler.utils import build_gas_estimates
 from vyper.evm import opcodes
 from vyper.lll import compile_lll
-from vyper.old_codegen.lll_node import LLLnode
+from vyper.codegen.lll_node import LLLnode
 from vyper.semantics.types.function import FunctionVisibility, StateMutability
 from vyper.typing import StorageLayout
 from vyper.warnings import ContractSizeLimitWarning

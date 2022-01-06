@@ -7,14 +7,14 @@ from vyper.exceptions import (
     FunctionDeclarationException,
     StructureException,
 )
-from vyper.old_codegen.function_definitions import (
+from vyper.codegen.function_definitions import (
     generate_lll_for_function,
     is_default_func,
     is_initializer,
 )
-from vyper.old_codegen.global_context import GlobalContext
-from vyper.old_codegen.lll_node import LLLnode
-from vyper.old_codegen.parser_utils import make_setter
+from vyper.codegen.global_context import GlobalContext
+from vyper.codegen.lll_node import LLLnode
+from vyper.codegen.core import make_setter
 from vyper.semantics.types.function import FunctionVisibility, StateMutability
 from vyper.typing import InterfaceImports
 from vyper.utils import LOADED_LIMITS

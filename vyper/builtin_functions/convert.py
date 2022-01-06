@@ -6,7 +6,7 @@ from vyper import ast as vy_ast
 from vyper.builtin_functions.signatures import signature
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import InvalidLiteral, StructureException, TypeMismatch
-from vyper.old_codegen.parser_utils import (
+from vyper.codegen.core import (
     LLLnode,
     add_ofst,
     clamp_basetype,
@@ -16,7 +16,7 @@ from vyper.old_codegen.parser_utils import (
     load_op,
     shr,
 )
-from vyper.old_codegen.types import BaseType, ByteArrayType, StringType, get_type
+from vyper.codegen.types import BaseType, ByteArrayType, StringType, get_type
 from vyper.utils import DECIMAL_DIVISOR, MemoryPositions, SizeLimits
 
 

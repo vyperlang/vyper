@@ -4,17 +4,17 @@ from typing import Dict, Optional, Tuple
 
 import vyper.ast as vy_ast
 from vyper.ast.signatures import FunctionSignature, VariableRecord
-from vyper.old_codegen.context import Constancy, Context
-from vyper.old_codegen.function_definitions.external_function import (
+from vyper.codegen.context import Constancy, Context
+from vyper.codegen.function_definitions.external_function import (
     generate_lll_for_external_function,
 )
-from vyper.old_codegen.function_definitions.internal_function import (
+from vyper.codegen.function_definitions.internal_function import (
     generate_lll_for_internal_function,
 )
-from vyper.old_codegen.global_context import GlobalContext
-from vyper.old_codegen.lll_node import LLLnode
-from vyper.old_codegen.memory_allocator import MemoryAllocator
-from vyper.old_codegen.parser_utils import check_single_exit
+from vyper.codegen.global_context import GlobalContext
+from vyper.codegen.lll_node import LLLnode
+from vyper.codegen.memory_allocator import MemoryAllocator
+from vyper.codegen.core import check_single_exit
 from vyper.utils import MemoryPositions, calc_mem_gas
 
 

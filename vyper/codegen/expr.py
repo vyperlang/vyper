@@ -10,10 +10,10 @@ from vyper.exceptions import (
     TypeCheckFailure,
     TypeMismatch,
 )
-from vyper.old_codegen import external_call, self_call
-from vyper.old_codegen.keccak256_helper import keccak256_helper
-from vyper.old_codegen.lll_node import LLLnode
-from vyper.old_codegen.parser_utils import (
+from vyper.codegen import external_call, self_call
+from vyper.codegen.keccak256_helper import keccak256_helper
+from vyper.codegen.lll_node import LLLnode
+from vyper.codegen.core import (
     clamp_basetype,
     get_element_ptr,
     get_number_as_fraction,
@@ -22,7 +22,7 @@ from vyper.old_codegen.parser_utils import (
     make_setter,
     unwrap_location,
 )
-from vyper.old_codegen.types import (
+from vyper.codegen.types import (
     ArrayLike,
     BaseType,
     ByteArrayLike,

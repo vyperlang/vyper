@@ -5,7 +5,7 @@ import sys
 import vyper
 from vyper.lll import compile_lll, optimizer
 from vyper.lll.s_expressions import parse_s_exp
-from vyper.old_codegen.parser_utils import LLLnode
+from vyper.codegen.lll_node import LLLnode
 
 
 def _parse_cli_args():

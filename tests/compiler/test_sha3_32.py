@@ -1,5 +1,5 @@
 from vyper.lll import compile_lll, optimizer
-from vyper.old_codegen.parser_utils import LLLnode
+from vyper.codegen.lll_node import LLLnode
 
 
 def test_sha3_32():

@@ -1,12 +1,12 @@
-import vyper.old_codegen.events as events
+import vyper.codegen.events as events
 import vyper.utils as util
 from vyper import ast as vy_ast
 from vyper.builtin_functions import STMT_DISPATCH_TABLE
 from vyper.exceptions import CompilerPanic, StructureException, TypeCheckFailure
-from vyper.old_codegen import external_call, self_call
-from vyper.old_codegen.context import Constancy, Context
-from vyper.old_codegen.expr import Expr
-from vyper.old_codegen.parser_utils import (
+from vyper.codegen import external_call, self_call
+from vyper.codegen.context import Constancy, Context
+from vyper.codegen.expr import Expr
+from vyper.codegen.core import (
     LLLnode,
     getpos,
     make_byte_array_copier,
@@ -14,8 +14,8 @@ from vyper.old_codegen.parser_utils import (
     unwrap_location,
     zero_pad,
 )
-from vyper.old_codegen.return_ import make_return_stmt
-from vyper.old_codegen.types import BaseType, ByteArrayType, SArrayType, parse_type
+from vyper.codegen.return_ import make_return_stmt
+from vyper.codegen.types import BaseType, ByteArrayType, SArrayType, parse_type
 
 
 class Stmt:
@@ -156,7 +156,7 @@ class Stmt:
         finally:
             self.context.constancy = tmp
 
-        # TODO this is probably useful in parser_utils
+        # TODO this is probably useful in codegen.core
         # compare with eval_seq.
         def _get_last(lll):
             if len(lll.args) == 0:

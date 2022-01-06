@@ -4,8 +4,8 @@ from typing import Optional
 
 from vyper import ast as vy_ast
 from vyper.exceptions import StructureException
-from vyper.old_codegen.lll_node import Encoding
-from vyper.old_codegen.types import NodeType, canonicalize_type, parse_type
+from vyper.codegen.lll_node import Encoding
+from vyper.codegen.types import NodeType, canonicalize_type, parse_type
 from vyper.utils import cached_property, mkalphanum
 
 

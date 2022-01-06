@@ -1,17 +1,17 @@
 import vyper.utils as util
 from vyper import ast as vy_ast
 from vyper.exceptions import StateAccessViolation, StructureException, TypeCheckFailure
-from vyper.old_codegen.abi import abi_encode, abi_type_of
-from vyper.old_codegen.lll_node import Encoding, LLLnode
-from vyper.old_codegen.parser_utils import (
+from vyper.codegen.abi import abi_encode, abi_type_of
+from vyper.codegen.lll_node import Encoding, LLLnode
+from vyper.codegen.core import (
     calculate_type_for_external_return,
     check_external_call,
     get_element_ptr,
     getpos,
     unwrap_location,
 )
-from vyper.old_codegen.types import TupleType, canonicalize_type, get_type_for_exact_size
-from vyper.old_codegen.types.check import check_assign
+from vyper.codegen.types import TupleType, canonicalize_type, get_type_for_exact_size
+from vyper.codegen.types.check import check_assign
 
 
 def _pack_arguments(contract_sig, args, context, pos):
@@ -184,7 +184,7 @@ def _external_call_helper(
 
 
 def _get_special_kwargs(stmt_expr, context):
-    from vyper.old_codegen.expr import Expr  # TODO rethink this circular import
+    from vyper.codegen.expr import Expr  # TODO rethink this circular import
 
     value, gas, skip_contract_check = None, None, None
     for kw in stmt_expr.keywords:
@@ -203,7 +203,7 @@ def _get_special_kwargs(stmt_expr, context):
 
 
 def lll_for_external_call(stmt_expr, context):
-    from vyper.old_codegen.expr import Expr  # TODO rethink this circular import
+    from vyper.codegen.expr import Expr  # TODO rethink this circular import
 
     pos = getpos(stmt_expr)
     value, gas, skip_contract_check = _get_special_kwargs(stmt_expr, context)

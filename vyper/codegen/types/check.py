@@ -1,7 +1,7 @@
 # stub file to factor type checker into
 # for now just call into existing code
 
-from vyper.old_codegen.parser_utils import make_setter
+from vyper.codegen.core import make_setter
 
 
 # Check assignment from rhs to lhs.
