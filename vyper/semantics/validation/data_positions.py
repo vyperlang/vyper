@@ -27,42 +27,37 @@ def set_data_positions(
     )
 
 
-class StorageCollision:
+class StorageAllocator:
     """
     Keep track of which storage slots have been used. If there is a collision of
     storage slots, this will raise an error and fail to compile
     """
 
     def __init__(self):
-        self.occupied_slots: Dict[int, bool] = {}
+        self.occupied_slots: set = set()
+
+    def reserve_slot_range(self, first_slot: int, n_slots: int) -> None:
+        """
+        Reserves `n_slots` storage slots, starting at slot `first_slot`
+        This will raise an error if a storage slot has already been allocated
+        """
+        list_to_check = [x + first_slot for x in range(n_slots)]
+        self.__reserve_slots(list_to_check)
+
+    def __reserve_slots(self, slots: List[int]) -> None:
+        for slot in slots:
+            self.__reserve_slot(slot)
+
+    def __reserve_slot(self, slot: int) -> None:
+        if not self.is_slot_free(slot):
+            raise ValueError(f"Storage collision! Slot {slot} has already been reserved")
+        self.occupied_slots.add(slot)
 
     def is_slot_free(self, slot_number: int) -> bool:
-        return not self.occupied_slots.get(slot_number)
+        return slot_number not in self.occupied_slots
 
     def are_all_slots_free(self, slots_to_check: List[int]) -> bool:
-        return not any(self.occupied_slots.get(slot) for slot in slots_to_check)
-
-    def reserve_slot(self, slot_number: int) -> None:
-        self.occupied_slots[slot_number] = True
-
-    def reserve_slots(self, slots_to_reserve: List[int]) -> None:
-        for slot in slots_to_reserve:
-            self.occupied_slots[slot] = True
-
-    def check_and_reserve_slot(self, slot_number: int) -> None:
-        if self.occupied_slots.get(slot_number):
-            raise ValueError(f"Storage collision! Slot {slot_number} has already been reserved")
-        self.occupied_slots[slot_number] = True
-
-    def check_and_reserve_slots(self, slots: List[int]) -> None:
-        for slot in slots:
-            if self.occupied_slots.get(slot):
-                raise ValueError(f"Storage collision! Slot {slot} has already been reserved")
-            self.occupied_slots[slot] = True
-
-    def check_and_reserve_slot_and_length(self, first_slot: int, length_of_slots: int) -> None:
-        list_to_check = [x + first_slot for x in range(length_of_slots)]
-        return self.check_and_reserve_slots(list_to_check)
+        return all(self.is_slot_free(slot) for slot in slots_to_check)
 
 
 def set_storage_slots_with_overrides(
@@ -74,7 +69,7 @@ def set_storage_slots_with_overrides(
     """
 
     ret: Dict[str, Dict] = {}
-    reserved_slots = StorageCollision()
+    reserved_slots = StorageAllocator()
 
     # Search through function definitions to find non-reentrant functions
     for node in vyper_module.get_children(vy_ast.FunctionDef):
@@ -97,7 +92,7 @@ def set_storage_slots_with_overrides(
             reentrant_slot = storage_layout_overrides[variable_name]["slot"]
             # Ensure that this slot has not been used, and prevents other storage variables
             # from using the same slot
-            reserved_slots.check_and_reserve_slot(reentrant_slot)
+            reserved_slots.reserve_slot_range(reentrant_slot, 1)
 
             type_.set_reentrancy_key_position(StorageSlot(reentrant_slot))
 
@@ -128,7 +123,7 @@ def set_storage_slots_with_overrides(
             storage_length = math.ceil(type_.size_in_bytes / 32)
             # Ensure that all required storage slots are reserved, and prevents other variables
             # from using these slots
-            reserved_slots.check_and_reserve_slot_and_length(var_slot, storage_length)
+            reserved_slots.reserve_slot_range(var_slot, storage_length)
             type_.set_position(StorageSlot(var_slot))
 
             ret[node.target.id] = {"type": str(type_), "location": "storage", "slot": var_slot}
