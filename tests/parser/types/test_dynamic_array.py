@@ -67,6 +67,15 @@ def hoo() -> DynArray[int128, 2]:
     return self.z
 
 @external
+def hoo1() -> DynArray[int128, 2]:
+    self.z = empty(DynArray[int128, 2])
+    return self.z
+
+@external
+def hoo2() -> DynArray[int128, 2]:
+    return empty(DynArray[int128, 2])
+
+@external
 def joo() -> DynArray[int128, 2]:
     self.z = [3, 5]
     x: DynArray[int128, 2] = self.z
@@ -91,6 +100,11 @@ def noo(inp: DynArray[int128, 2]) -> DynArray[int128, 2]:
     return inp
 
 @external
+def ooo(inp: DynArray[int128, 2]) -> DynArray[int128, 2]:
+    self.z = inp
+    return self.z
+
+@external
 def poo(inp: DynArray[DynArray[int128, 2], 2]) -> DynArray[DynArray[int128, 2], 2]:
     return inp
 
@@ -107,11 +121,17 @@ def roo(inp: DynArray[decimal, 2]) -> DynArray[DynArray[decimal, 2], 2]:
     assert c.foo() == [3, 5]
     assert c.goo() == [3, 5]
     assert c.hoo() == [3, 5]
+    assert c.hoo1() == []
+    assert c.hoo2() == []
     assert c.joo() == [3, 5]
     assert c.koo() == [[1, 2], [3, 4]]
     assert c.loo() == [[1, 2], [3, 4]]
     assert c.moo() == [[1, 2], [3, 4]]
+    assert c.noo([]) == []
     assert c.noo([3, 5]) == [3, 5]
+    assert c.ooo([]) == []
+    assert c.ooo([3, 5]) == [3, 5]
+    assert c.poo([]) == []
     assert c.poo([[1, 2], [3, 4]]) == [[1, 2], [3, 4]]
     assert c.qoo([1, 2]) == [[1, 2], [3, 4]]
     assert c.roo([1, 2]) == [[1.0, 2.0], [3.0, 4.0]]
