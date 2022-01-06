@@ -351,8 +351,6 @@ def foo():
 
     assert len(self.foobar) == 0
     assert self.bar == 1
-
-    # TODO test loops
     """
 
     c = get_contract_with_gas_estimation(code)

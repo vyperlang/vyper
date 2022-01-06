@@ -1,4 +1,5 @@
 from vyper.exceptions import ArrayIndexException, OverflowException
+import pytest
 
 
 def test_list_tester_code(get_contract_with_gas_estimation):
@@ -177,29 +178,29 @@ def test_returns_lists(get_contract_with_gas_estimation):
     code = """
 @external
 def test_array_num_return() -> DynArray[DynArray[int128, 2], 2]:
-    a: DynArray[DynArray[int128, 2], 2] = [[1, 2], [3, 4]]
+    a: DynArray[DynArray[int128, 2], 2] = [empty(DynArray[int128, 2]), [3, 4]]
     return a
 
 @external
 def test_array_decimal_return1() -> DynArray[DynArray[decimal, 2], 2]:
-    a: DynArray[DynArray[decimal, 2], 2] = [[1.0, 2.0], [3.0, 4.0]]
+    a: DynArray[DynArray[decimal, 2], 2] = [[1.0], [3.0, 4.0]]
     return a
 
 @external
 def test_array_decimal_return2() -> DynArray[DynArray[decimal, 2], 2]:
-    return [[1.0, 2.0], [3.0, 4.0]]
+    return [[1.0, 2.0]]
 
 @external
 def test_array_decimal_return3() -> DynArray[DynArray[decimal, 2], 2]:
-    a: DynArray[DynArray[decimal, 2], 2] = [[1.0, 2.0], [3.0, 4.0]]
+    a: DynArray[DynArray[decimal, 2], 2] = [[1.0, 2.0], [3.0]]
     return a
 """
 
     c = get_contract_with_gas_estimation(code)
-    assert c.test_array_num_return() == [[1, 2], [3, 4]]
-    assert c.test_array_decimal_return1() == [[1.0, 2.0], [3.0, 4.0]]
-    assert c.test_array_decimal_return2() == [[1.0, 2.0], [3.0, 4.0]]
-    assert c.test_array_decimal_return3() == [[1.0, 2.0], [3.0, 4.0]]
+    assert c.test_array_num_return() == [[], [3, 4]]
+    assert c.test_array_decimal_return1() == [[1.0], [3.0, 4.0]]
+    assert c.test_array_decimal_return2() == [[1.0, 2.0]]
+    assert c.test_array_decimal_return3() == [[1.0, 2.0], [3.0]]
 
 
 def test_mult_list(get_contract_with_gas_estimation):
@@ -227,14 +228,43 @@ def test_multi4() -> DynArray[DynArray[DynArray[DynArray[uint256, 2], 2], 2], 2]
 def test_uint256_accessor(get_contract_with_gas_estimation, assert_tx_failed):
     code = """
 @external
-def bounds_check_uint256(ix: uint256) -> uint256:
-    xs: DynArray[uint256, 3] = [1,2,3]
+def bounds_check_uint256(xs: DynArray[uint256, 3], ix: uint256) -> uint256:
     return xs[ix]
     """
     c = get_contract_with_gas_estimation(code)
-    assert c.bounds_check_uint256(0) == 1
-    assert c.bounds_check_uint256(2) == 3
-    assert_tx_failed(lambda: c.bounds_check_uint256(3))
+    assert_tx_failed(lambda: c.bounds_check_uint256([], 0))
+
+    assert c.bounds_check_uint256([1], 0) == 1
+    assert_tx_failed(lambda: c.bounds_check_uint256([1], 1))
+
+    assert c.bounds_check_uint256([1,2,3], 0) == 1
+    assert c.bounds_check_uint256([1,2,3], 2) == 3
+    assert_tx_failed(lambda: c.bounds_check_uint256([1,2,3], 3))
+
+    # TODO do bounds checks for nested darrays
+
+
+@pytest.mark.parametrize("list_", ([], [11], [11,12], [11,12,13]))
+def test_dynarray_len(get_contract_with_gas_estimation, assert_tx_failed, list_):
+    code = """
+@external
+def darray_len(xs: DynArray[uint256, 3]) -> uint256:
+    return len(xs)
+    """
+
+    c = get_contract_with_gas_estimation(code)
+    assert c.darray_len(list_) == len(list_)
+
+
+def test_dynarray_len(get_contract_with_gas_estimation, assert_tx_failed):
+    code = """
+@external
+def darray_len(xs: DynArray[uint256, 3]) -> uint256:
+    return len(xs)
+    """
+
+    c = get_contract_with_gas_estimation(code)
+    assert_tx_failed(lambda: c.darray_len([1,2,3,4]))
 
 
 def test_int128_accessor(get_contract_with_gas_estimation, assert_tx_failed):
@@ -447,3 +477,5 @@ def ix(i: uint256) -> decimal:
         assert c.ix(i) == p
     # assert oob
     assert_tx_failed(lambda: c.ix(len(some_good_primes) + 1))
+
+# TODO test loops
