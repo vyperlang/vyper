@@ -272,7 +272,7 @@ def copy_bytes(dst, src, length, length_bound, pos=None):
 # get the number of bytes at runtime
 def get_bytearray_length(arg):
     typ = BaseType("uint256")
-    return unwrap_location(arg)
+    return LLLnode.from_list([load_op(arg.location), arg], typ=typ)
 
 
 # get the number of elements at runtime
@@ -282,7 +282,7 @@ def get_dyn_array_count(arg):
     if arg.value == "multi":
         return LLLnode.from_list(len(arg.args), typ=typ)
 
-    return unwrap_location(arg)
+    return LLLnode.from_list([load_op(arg.location), arg], typ=typ)
 
 
 def getpos(node):
