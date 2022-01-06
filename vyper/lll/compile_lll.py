@@ -249,6 +249,11 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
             # stack: iptr, start, rounds, rounds_bound
             o.extend(["DUP2", "DUP2", "GT", t, "JUMPI", "SWAP1", t, "JUMPDEST", "POP"])
 
+            # stack: iptr, start, min(rounds, round_bound) aka rounds
+            # if (0 == rounds) { pop; goto end_dest; }
+            t = mksymbol()
+            o.extend(["DUP1", t, "JUMPI", "POP", exit_dest, "JUMP", t, "JUMPDEST"])
+
         # stack: iptr, start, rounds
         o.extend(["DUP2", "DUP4", "MSTORE", "ADD"])
         # stack: iptr, exit_i
