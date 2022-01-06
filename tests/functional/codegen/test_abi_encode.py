@@ -130,9 +130,7 @@ def foo():
     y: {type}[96] = _abi_encode(x, ensure_tuple=True) # should be Bytes[128]
     """
 
-    assert_compile_failed(
-        lambda: get_contract(code)
-    )
+    assert_compile_failed(lambda: get_contract(code))
 
 
 def test_side_effects_evaluation(get_contract, abi_encode):
