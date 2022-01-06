@@ -41,25 +41,25 @@ class StorageCollision:
     def are_all_slots_free(self, slots_to_check: List[int]) -> bool:
         return not any(self.occupied_slots.get(slot) for slot in slots_to_check)
 
-    def reserve_slot(self, slot_number: int):
+    def reserve_slot(self, slot_number: int) -> None:
         self.occupied_slots[slot_number] = True
 
-    def reserve_slots(self, slots_to_reserve: List[int]):
+    def reserve_slots(self, slots_to_reserve: List[int]) -> None:
         for slot in slots_to_reserve:
             self.occupied_slots[slot] = True
 
-    def check_and_reserve_slot(self, slot_number: int) -> bool:
+    def check_and_reserve_slot(self, slot_number: int) -> None:
         if self.occupied_slots.get(slot_number):
             raise ValueError(f"Storage collision! Slot {slot_number} has already been reserved")
         self.occupied_slots[slot_number] = True
 
-    def check_and_reserve_slots(self, slots: List[int]) -> bool:
+    def check_and_reserve_slots(self, slots: List[int]) -> None:
         for slot in slots:
             if self.occupied_slots.get(slot):
                 raise ValueError(f"Storage collision! Slot {slot} has already been reserved")
             self.occupied_slots[slot] = True
 
-    def check_and_reserve_slot_and_length(self, first_slot: int, length_of_slots: int) -> bool:
+    def check_and_reserve_slot_and_length(self, first_slot: int, length_of_slots: int) -> None:
         list_to_check = [x + first_slot for x in range(length_of_slots)]
         return self.check_and_reserve_slots(list_to_check)
 
