@@ -70,6 +70,7 @@ class CompilerData:
         self.interface_codes = interface_codes
         self.source_id = source_id
         self.no_optimize = no_optimize
+        self.storage_layout_override = storage_layout
 
     @property
     def vyper_module(self) -> vy_ast.Module:
@@ -82,7 +83,7 @@ class CompilerData:
     def vyper_module_folded(self) -> vy_ast.Module:
         if not hasattr(self, "_vyper_module_folded"):
             self._vyper_module_folded, self._storage_layout = generate_folded_ast(
-                self.vyper_module, self.interface_codes
+                self.vyper_module, self.interface_codes, self.storage_layout_override
             )
 
         return self._vyper_module_folded
@@ -91,7 +92,7 @@ class CompilerData:
     def storage_layout(self) -> StorageLayout:
         if not hasattr(self, "_storage_layout"):
             self._vyper_module_folded, self._storage_layout = generate_folded_ast(
-                self.vyper_module, self.interface_codes
+                self.vyper_module, self.interface_codes, self.storage_layout_override
             )
 
         return self._storage_layout
@@ -168,7 +169,9 @@ def generate_ast(source_code: str, source_id: int, contract_name: str) -> vy_ast
 
 
 def generate_folded_ast(
-    vyper_module: vy_ast.Module, interface_codes: Optional[InterfaceImports]
+    vyper_module: vy_ast.Module,
+    interface_codes: Optional[InterfaceImports],
+    storage_layout_overrides: StorageLayout = {},
 ) -> Tuple[vy_ast.Module, StorageLayout]:
     """
     Perform constant folding operations on the Vyper AST.
@@ -191,7 +194,7 @@ def generate_folded_ast(
     vy_ast.folding.fold(vyper_module_folded)
     validate_semantics(vyper_module_folded, interface_codes)
     vy_ast.expansion.expand_annotated_ast(vyper_module_folded)
-    symbol_tables = set_data_positions(vyper_module_folded)
+    symbol_tables = set_data_positions(vyper_module_folded, storage_layout_overrides)
 
     return vyper_module_folded, symbol_tables
 

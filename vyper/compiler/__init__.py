@@ -94,6 +94,9 @@ def compile_codes(
     for source_id, contract_name in enumerate(sorted(contract_sources), start=initial_id):
         source_code = contract_sources[contract_name]
         interfaces: Any = interface_codes
+        storage_layout_override = (
+            storage_layouts[contract_name] if contract_name in storage_layouts else {}
+        )
         if (
             isinstance(interfaces, dict)
             and contract_name in interfaces
@@ -101,7 +104,9 @@ def compile_codes(
         ):
             interfaces = interfaces[contract_name]
 
-        compiler_data = CompilerData(source_code, contract_name, interfaces, source_id, no_optimize)
+        compiler_data = CompilerData(
+            source_code, contract_name, interfaces, source_id, no_optimize, storage_layout_override
+        )
         for output_format in output_formats[contract_name]:
             if output_format not in OUTPUT_FORMATS:
                 raise ValueError(f"Unsupported format type {repr(output_format)}")
