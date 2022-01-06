@@ -5,7 +5,7 @@ from typing import Optional
 from vyper import ast as vy_ast
 from vyper.exceptions import StructureException
 from vyper.old_codegen.lll_node import Encoding
-from vyper.old_codegen.types import NodeType, canonicalize_type, get_size_of_type, parse_type
+from vyper.old_codegen.types import NodeType, canonicalize_type, parse_type
 from vyper.utils import cached_property, mkalphanum
 
 
@@ -50,8 +50,9 @@ class VariableRecord:
             # temporary requirement to support both new and old type objects
             # we divide by 32 here because the returned value is denominated
             # in "slots" of 32 bytes each
+            # CMC 20211023 revisit this divide-by-32.
             return math.ceil(self.typ.size_in_bytes / 32)
-        return get_size_of_type(self.typ)
+        return math.ceil(self.typ.memory_bytes_required / 32)
 
 
 class ContractRecord(VariableRecord):
@@ -166,7 +167,6 @@ class FunctionSignature:
             argname = arg.arg
             argtyp = parse_type(
                 arg.annotation,
-                None,
                 sigs,
                 custom_structs=custom_structs,
             )
@@ -205,7 +205,6 @@ class FunctionSignature:
         if func_ast.returns:
             return_type = parse_type(
                 func_ast.returns,
-                None,
                 sigs,
                 custom_structs=custom_structs,
             )

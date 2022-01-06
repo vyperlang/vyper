@@ -20,7 +20,11 @@ from vyper.semantics import types
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.abstract import IntegerAbstractType
 from vyper.semantics.types.bases import BaseTypeDefinition
-from vyper.semantics.types.indexable.sequence import ArrayDefinition, TupleDefinition
+from vyper.semantics.types.indexable.sequence import (
+    ArrayDefinition,
+    DynamicArrayDefinition,
+    TupleDefinition,
+)
 from vyper.semantics.types.value.array_value import BytesArrayDefinition, StringDefinition
 from vyper.semantics.types.value.boolean import BoolDefinition
 
@@ -169,12 +173,12 @@ class _ExprTypeChecker:
             # x in y
             left = self.get_possible_types_from_node(node.left)
             right = self.get_possible_types_from_node(node.right)
-            if next((i for i in left if isinstance(i, ArrayDefinition)), False):
+            if any(isinstance(i, ArrayDefinition) for i in left):
                 raise InvalidOperation(
                     "Left operand in membership comparison cannot be Array type",
                     node.left,
                 )
-            if next((i for i in right if not isinstance(i, ArrayDefinition)), False):
+            if any(not isinstance(i, (DynamicArrayDefinition, ArrayDefinition)) for i in right):
                 raise InvalidOperation(
                     "Right operand must be Array for membership comparison", node.right
                 )
@@ -222,13 +226,17 @@ class _ExprTypeChecker:
 
         types_list = get_common_types(*node.elements)
 
-        if types_list:
-            # Throw exception if only possible type is String or Bytes
-            if len(types_list) == 1:
-                if isinstance(types_list[0], (StringDefinition, BytesArrayDefinition)):
-                    raise StructureException(f"{types_list[0]._id} arrays are not supported", node)
+        # Throw exception if only possible type is String or Bytes
+        if len(types_list) == 1:
+            if isinstance(types_list[0], (StringDefinition, BytesArrayDefinition)):
+                raise StructureException(f"{types_list[0]._id} arrays are not supported", node)
 
-            return [ArrayDefinition(i, len(node.elements)) for i in types_list]
+        if len(types_list) > 0:
+            count = len(node.elements)
+            ret = []
+            ret.extend([DynamicArrayDefinition(t, count) for t in types_list])
+            ret.extend([ArrayDefinition(t, count) for t in types_list])
+            return ret
 
         raise InvalidLiteral("Array contains multiple, incompatible types", node)
 
@@ -268,7 +276,7 @@ class _ExprTypeChecker:
 
 def _is_type_in_list(obj, types_list):
     # check if a type object is in a list of types
-    return next((True for i in types_list if i.compare_type(obj)), False)
+    return any(i.compare_type(obj) for i in types_list)
 
 
 def _filter(type_, fn_name, node):
@@ -353,9 +361,14 @@ def get_common_types(*nodes: vy_ast.VyperNode, filter_fn: Callable = None) -> Li
 
 
 def _validate_literal_array(node, expected):
+
     # validate that every item within an array has the same type
-    if len(node.elements) != expected.length:
-        return False
+    if isinstance(expected, ArrayDefinition):
+        if len(node.elements) != expected.length:
+            return False
+    if isinstance(expected, DynamicArrayDefinition):
+        if len(node.elements) > expected.length:
+            return False
 
     for item in node.elements:
         try:
@@ -389,7 +402,9 @@ def validate_expected_type(node, expected_type):
 
     if isinstance(node, (vy_ast.List, vy_ast.Tuple)):
         # special case - for literal arrays or tuples we individually validate each item
-        for expected in (i for i in expected_type if isinstance(i, ArrayDefinition)):
+        for expected in expected_type:
+            if not isinstance(expected, (DynamicArrayDefinition, ArrayDefinition)):
+                continue
             if _validate_literal_array(node, expected):
                 return
     else:

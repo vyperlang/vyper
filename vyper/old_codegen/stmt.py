@@ -15,7 +15,7 @@ from vyper.old_codegen.parser_utils import (
     zero_pad,
 )
 from vyper.old_codegen.return_ import make_return_stmt
-from vyper.old_codegen.types import BaseType, ByteArrayType, ListType, parse_type
+from vyper.old_codegen.types import BaseType, ByteArrayType, SArrayType, parse_type
 
 
 class Stmt:
@@ -49,7 +49,6 @@ class Stmt:
     def parse_AnnAssign(self):
         typ = parse_type(
             self.stmt.annotation,
-            location="memory",
             custom_structs=self.context.structs,
         )
         varname = self.stmt.target.id
@@ -82,7 +81,7 @@ class Stmt:
             pos=getpos(self.stmt),
         )
 
-        lll_node = make_setter(variable_loc, sub, pos=getpos(self.stmt))
+        lll_node = make_setter(variable_loc, sub, self.context, pos=getpos(self.stmt))
 
         return lll_node
 
@@ -91,7 +90,7 @@ class Stmt:
         sub = Expr(self.stmt.value, self.context).lll_node
         target = self._get_target(self.stmt.target)
 
-        lll_node = make_setter(target, sub, pos=getpos(self.stmt))
+        lll_node = make_setter(target, sub, self.context, pos=getpos(self.stmt))
         lll_node.pos = getpos(self.stmt)
         return lll_node
 
@@ -338,11 +337,11 @@ class Stmt:
             # Allocate list to memory.
             count = iter_list_node.typ.count
             tmp_list = LLLnode.from_list(
-                obj=self.context.new_internal_variable(ListType(subtype, count)),
-                typ=ListType(subtype, count),
+                obj=self.context.new_internal_variable(SArrayType(subtype, count)),
+                typ=SArrayType(subtype, count),
                 location="memory",
             )
-            setter = make_setter(tmp_list, iter_list_node, pos=getpos(self.stmt))
+            setter = make_setter(tmp_list, iter_list_node, self.context, pos=getpos(self.stmt))
             body = [
                 "seq",
                 ["mstore", value_pos, ["mload", ["add", tmp_list, ["mul", ["mload", i_pos], 32]]]],

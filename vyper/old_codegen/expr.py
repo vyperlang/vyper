@@ -23,18 +23,21 @@ from vyper.old_codegen.parser_utils import (
     unwrap_location,
 )
 from vyper.old_codegen.types import (
+    ArrayLike,
     BaseType,
     ByteArrayLike,
     ByteArrayType,
+    DArrayType,
     InterfaceType,
-    ListType,
     MappingType,
+    SArrayType,
     StringType,
     StructType,
     TupleType,
     is_base_type,
     is_numeric_type,
 )
+from vyper.semantics.types import DynamicArrayDefinition
 from vyper.utils import (
     DECIMAL_DIVISOR,
     MemoryPositions,
@@ -481,10 +484,13 @@ class Expr:
     def parse_Subscript(self):
         sub = Expr(self.expr.value, self.context).lll_node
         if sub.value == "multi":
-            # force literal to memory
+            # force literal to memory, e.g.
+            # MY_LIST: constant(decimal[6])
+            # ...
+            # return MY_LIST[ix]
             t = LLLnode(self.context.new_internal_variable(sub.typ), typ=sub.typ, location="memory")
             sub = LLLnode.from_list(
-                ["seq", make_setter(t, sub, pos=getpos(self.expr)), t],
+                ["seq", make_setter(t, sub, self.context, pos=getpos(self.expr)), t],
                 typ=sub.typ,
                 location="memory",
             )
@@ -497,7 +503,7 @@ class Expr:
                 assert len(index.args) == 1
                 index = keccak256_helper(self.expr.slice.value, index.args[0], self.context)
 
-        elif isinstance(sub.typ, ListType):
+        elif isinstance(sub.typ, ArrayLike):
             index = Expr.parse_value_expr(self.expr.slice.value, self.context)
 
         elif isinstance(sub.typ, TupleType):
@@ -791,12 +797,12 @@ class Expr:
             # Copy literal to memory to be compared.
             tmp_list = LLLnode.from_list(
                 obj=self.context.new_internal_variable(
-                    ListType(right.typ.subtype, right.typ.count)
+                    SArrayType(right.typ.subtype, right.typ.count)
                 ),
-                typ=ListType(right.typ.subtype, right.typ.count),
+                typ=SArrayType(right.typ.subtype, right.typ.count),
                 location="memory",
             )
-            setter = make_setter(tmp_list, right, pos=getpos(self.expr))
+            setter = make_setter(tmp_list, right, self.context, pos=getpos(self.expr))
             load_i_from_list = [
                 "mload",
                 ["add", tmp_list, ["mul", 32, ["mload", MemoryPositions.FREE_LOOP_INDEX]]],
@@ -877,7 +883,7 @@ class Expr:
             pass
 
         elif isinstance(self.expr.op, (vy_ast.In, vy_ast.NotIn)) and isinstance(
-            right.typ, ListType
+            right.typ, SArrayType
         ):
             return self.build_in_comparator()
 
@@ -1041,12 +1047,16 @@ class Expr:
 
     def parse_List(self):
         multi_lll = [Expr(x, self.context).lll_node for x in self.expr.elements]
-        # TODO this type inference is wrong. instead should use
-        # parse_type(canonical_type_of(self.expr._metadata["type"]))
+
+        # TODO this type inference for out_type is wrong. instead should
+        # use self.expr._metadata["type"]
         out_type = next((i.typ for i in multi_lll if not i.typ.is_literal), multi_lll[0].typ)
-        typ = ListType(out_type, len(self.expr.elements), is_literal=True)
-        multi_lll = LLLnode.from_list(["multi"] + multi_lll, typ=typ, pos=getpos(self.expr))
-        return multi_lll
+        if isinstance(self.expr._metadata["type"], DynamicArrayDefinition):
+            typ = DArrayType(out_type, len(self.expr.elements), is_literal=True)
+        else:
+            typ = SArrayType(out_type, len(self.expr.elements), is_literal=True)
+
+        return LLLnode.from_list(["multi"] + multi_lll, typ=typ, pos=getpos(self.expr))
 
     def parse_Tuple(self):
         tuple_elements = [Expr(x, self.context).lll_node for x in self.expr.elements]

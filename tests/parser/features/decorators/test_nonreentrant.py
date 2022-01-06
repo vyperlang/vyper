@@ -171,11 +171,7 @@ def __default__():
 
     # Test protected function with callback to default.
     assert_tx_failed(
-        lambda: reentrant_contract.protected_function(
-            "zzz value",
-            True,
-            transact={"value": 1000}
-        )
+        lambda: reentrant_contract.protected_function("zzz value", True, transact={"value": 1000})
     )
 
 
