@@ -282,6 +282,10 @@ def get_dyn_array_count(arg):
     if arg.value == "multi":
         return LLLnode.from_list(len(arg.args), typ=typ)
 
+    if arg.value is None:
+        # empty(DynArray[])
+        return LLLnode.from_list(0, typ=typ)
+
     return LLLnode.from_list([load_op(arg.location), arg], typ=typ)
 
 
