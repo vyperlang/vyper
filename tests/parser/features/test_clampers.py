@@ -1,9 +1,9 @@
+from decimal import Decimal
+
 import pytest
 from eth_utils import keccak
 
 from vyper.evm.opcodes import EVM_VERSIONS
-
-from decimal import Decimal
 
 
 def _make_tx(w3, address, signature, values):

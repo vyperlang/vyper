@@ -1,5 +1,6 @@
-from vyper.compiler import compile_code
 import pytest
+
+from vyper.compiler import compile_code
 
 
 def test_storage_layout_overrides():
@@ -116,7 +117,8 @@ symbol: public(String[32])"""
 
     with pytest.raises(
         KeyError,
-        match="Could not find storage_slot for symbol. Have you used the correct storage layout file?",
+        match="Could not find storage_slot for symbol. "
+        "Have you used the correct storage layout file?",
     ):
         compile_code(
             code, output_formats=["layout"], storage_layout_override=storage_layout_override

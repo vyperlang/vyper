@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 import pytest
 
 from vyper.exceptions import (
@@ -8,8 +10,6 @@ from vyper.exceptions import (
     UndeclaredDefinition,
     UnknownType,
 )
-
-from decimal import Decimal
 
 
 def test_external_contract_calls(get_contract, get_contract_with_gas_estimation):

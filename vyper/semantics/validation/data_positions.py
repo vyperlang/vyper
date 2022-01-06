@@ -8,7 +8,7 @@ from vyper.typing import StorageLayout
 
 
 def set_data_positions(
-    vyper_module: vy_ast.Module, storage_layout_overrides: StorageLayout = {}
+    vyper_module: vy_ast.Module, storage_layout_overrides: StorageLayout = None
 ) -> StorageLayout:
     """
     Parse the annotated Vyper AST, determine data positions for all variables,
@@ -94,7 +94,8 @@ def set_storage_slots_with_overrides(
         # Expect to find this variable within the storage layout override
         if variable_name in storage_layout_overrides:
             reentrant_slot = storage_layout_overrides[variable_name]["slot"]
-            # Ensure that this slot has not been used, and prevents other storage variables from using the same slot
+            # Ensure that this slot has not been used, and prevents other storage variables
+            # from using the same slot
             reserved_slots.check_and_reserve_slot(reentrant_slot)
 
             type_.set_reentrancy_key_position(StorageSlot(reentrant_slot))
@@ -106,7 +107,8 @@ def set_storage_slots_with_overrides(
             }
         else:
             raise KeyError(
-                f"Could not find storage_slot for {variable_name}. Have you used the correct storage layout file?"
+                f"Could not find storage_slot for {variable_name}. "
+                "Have you used the correct storage layout file?"
             )
 
     # Iterate through variables
@@ -123,14 +125,16 @@ def set_storage_slots_with_overrides(
             var_slot = storage_layout_overrides[node.target.id]["slot"]
             # Calculate how many storage slots are required
             storage_length = math.ceil(type_.size_in_bytes / 32)
-            # Ensure that all required storage slots are reserved, and prevents other variables from using these slots
+            # Ensure that all required storage slots are reserved, and prevents other variables
+            # from using these slots
             reserved_slots.check_and_reserve_slot_and_length(var_slot, storage_length)
             type_.set_position(StorageSlot(var_slot))
 
             ret[node.target.id] = {"type": str(type_), "location": "storage", "slot": var_slot}
         else:
             raise KeyError(
-                f"Could not find storage_slot for {node.target.id}. Have you used the correct storage layout file?"
+                f"Could not find storage_slot for {node.target.id}. "
+                "Have you used the correct storage layout file?"
             )
 
     return ret

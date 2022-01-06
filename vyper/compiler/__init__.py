@@ -47,7 +47,7 @@ def compile_codes(
     interface_codes: Union[InterfaceDict, InterfaceImports, None] = None,
     initial_id: int = 0,
     no_optimize: bool = False,
-    storage_layouts: StorageLayoutForContracts = {},
+    storage_layouts: StorageLayoutForContracts = None,
 ) -> OrderedDict:
     """
     Generate compiler output(s) from one or more contract source codes.
@@ -132,7 +132,7 @@ def compile_code(
     interface_codes: Optional[InterfaceImports] = None,
     evm_version: str = DEFAULT_EVM_VERSION,
     no_optimize: bool = False,
-    storage_layout_override: StorageLayout = {},
+    storage_layout_override: StorageLayout = None,
 ) -> dict:
     """
     Generate compiler output(s) from a single contract source code.

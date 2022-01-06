@@ -1,5 +1,6 @@
-import pytest
 from decimal import Decimal
+
+import pytest
 
 
 # @pytest.mark.parametrize("string", ["a", "abc", "abcde", "potato"])

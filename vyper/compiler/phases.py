@@ -47,7 +47,7 @@ class CompilerData:
         interface_codes: Optional[InterfaceImports] = None,
         source_id: int = 0,
         no_optimize: bool = False,
-        storage_layout: StorageLayout = {},
+        storage_layout: StorageLayout = None,
     ) -> None:
         """
         Initialization method.
@@ -171,7 +171,7 @@ def generate_ast(source_code: str, source_id: int, contract_name: str) -> vy_ast
 def generate_folded_ast(
     vyper_module: vy_ast.Module,
     interface_codes: Optional[InterfaceImports],
-    storage_layout_overrides: StorageLayout = {},
+    storage_layout_overrides: StorageLayout = None,
 ) -> Tuple[vy_ast.Module, StorageLayout]:
     """
     Perform constant folding operations on the Vyper AST.
