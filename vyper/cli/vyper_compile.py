@@ -268,14 +268,10 @@ def compile_files(
             raise ValueError(
                 "If using --storage-layout-file, all contracts must have a storage file"
             )
-        for storage_file_name in storage_layout:
+        for storage_file_name, contract_name in zip(storage_layout, contract_sources.keys()):
             storage_file_path = Path(storage_file_name)
-            try:
-                storage_file_str = storage_file_path.resolve().relative_to(root_path).as_posix()
-            except ValueError:
-                storage_file_str = storage_file_path.as_posix()
             with storage_file_path.open() as sfh:
-                storage_layouts[storage_file_str] = json.load(sfh)
+                storage_layouts[contract_name] = json.load(sfh)
 
     show_version = False
     if "combined_json" in output_formats:
@@ -294,6 +290,7 @@ def compile_files(
         interface_codes=get_interface_codes(root_path, contract_sources),
         evm_version=evm_version,
         no_optimize=no_optimize,
+        storage_layouts=storage_layouts,
     )
     if show_version:
         compiler_data["version"] = vyper.__version__

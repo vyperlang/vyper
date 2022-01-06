@@ -11,8 +11,7 @@ ContractCodes = Dict[ContractPath, SourceCode]
 OutputFormats = Sequence[str]
 OutputDict = Dict[ContractPath, OutputFormats]
 StorageLayout = Dict
-StorageLayoutPath = str
-StorageLayoutForContracts = Dict[StorageLayoutPath, StorageLayout]
+StorageLayoutForContracts = Dict[ContractPath, StorageLayout]
 
 # Interfaces
 InterfaceAsName = str
