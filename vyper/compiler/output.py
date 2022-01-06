@@ -74,6 +74,8 @@ def build_interface_output(compiler_data: CompilerData) -> str:
 
 
 def build_ir_output(compiler_data: CompilerData) -> LLLnode:
+    if compiler_data.show_gas_estimates:
+        LLLnode.repr_show_gas = True
     return compiler_data.lll_nodes
 
 
