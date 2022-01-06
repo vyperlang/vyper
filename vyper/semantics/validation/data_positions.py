@@ -33,7 +33,8 @@ class StorageCollision:
     storage slots, this will raise an error and fail to compile
     """
 
-    occupied_slots: Dict[int, bool] = {}
+    def __init__(self):
+        self.occupied_slots: Dict[int, bool] = {}
 
     def is_slot_free(self, slot_number: int) -> bool:
         return not self.occupied_slots.get(slot_number)
