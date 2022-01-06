@@ -1,4 +1,5 @@
 from vyper.compiler import compile_code
+import pytest
 
 
 def test_storage_layout_overrides():
@@ -83,3 +84,40 @@ def public_foo3():
         "baz": {"type": "Bytes[65]", "location": "storage", "slot": 2},
         "bar": {"type": "uint256", "location": "storage", "slot": 6},
     }
+
+
+def test_simple_collision():
+    code = """
+name: public(String[64])
+symbol: public(String[32])"""
+
+    storage_layout_override = {
+        "name": {"location": "storage", "slot": 0, "type": "String[64]"},
+        "symbol": {"location": "storage", "slot": 1, "type": "String[32]"},
+    }
+
+    with pytest.raises(
+        ValueError,
+        match="Storage collision! Slot 1 has already been reserved",
+    ):
+        compile_code(
+            code, output_formats=["layout"], storage_layout_override=storage_layout_override
+        )
+
+
+def test_incomplete_overrides():
+    code = """
+name: public(String[64])
+symbol: public(String[32])"""
+
+    storage_layout_override = {
+        "name": {"location": "storage", "slot": 0, "type": "String[64]"},
+    }
+
+    with pytest.raises(
+        KeyError,
+        match="Could not find storage_slot for symbol. Have you used the correct storage layout file?",
+    ):
+        compile_code(
+            code, output_formats=["layout"], storage_layout_override=storage_layout_override
+        )
