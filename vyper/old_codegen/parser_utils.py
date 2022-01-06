@@ -234,11 +234,11 @@ def copy_bytes(dst, src, length, length_bound, pos=None):
         i = ["mload", iptr]
 
         # special case: rhs is zero
-        # CMC 20211211 this branch seems like dead code.
         if src.value is None:
+            # e.g. empty(Bytes[])
 
             if dst.location == "memory":
-                # CMC 20210917 shouldn't this just be length
+                # CMC 20210917 TODO shouldn't this just be length
                 return mzero(dst, length_bound)
 
             else:
@@ -272,7 +272,7 @@ def copy_bytes(dst, src, length, length_bound, pos=None):
 # get the number of bytes at runtime
 def get_bytearray_length(arg):
     typ = BaseType("uint256")
-    return LLLnode.from_list([load_op(arg.location), arg], typ=typ)
+    return unwrap_location(arg)
 
 
 # get the number of elements at runtime
@@ -282,7 +282,7 @@ def get_dyn_array_count(arg):
     if arg.value == "multi":
         return LLLnode.from_list(len(arg.args), typ=typ)
 
-    return LLLnode.from_list([load_op(arg.location), arg], typ=typ)
+    return unwrap_location(arg)
 
 
 def getpos(node):
