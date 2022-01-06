@@ -1,17 +1,17 @@
 from collections import OrderedDict
-from typing import Any, Callable, Optional, Sequence, Union
+from typing import Any, Callable, Dict, Optional, Sequence, Union
 
 from vyper.compiler import output
 from vyper.compiler.phases import CompilerData
 from vyper.evm.opcodes import DEFAULT_EVM_VERSION, evm_wrapper
 from vyper.typing import (
     ContractCodes,
+    ContractPath,
     InterfaceDict,
     InterfaceImports,
     OutputDict,
     OutputFormats,
     StorageLayout,
-    StorageLayoutForContracts,
 )
 
 OUTPUT_FORMATS = {
@@ -47,7 +47,7 @@ def compile_codes(
     interface_codes: Union[InterfaceDict, InterfaceImports, None] = None,
     initial_id: int = 0,
     no_optimize: bool = False,
-    storage_layouts: StorageLayoutForContracts = None,
+    storage_layouts: Dict[ContractPath, StorageLayout] = None,
 ) -> OrderedDict:
     """
     Generate compiler output(s) from one or more contract source codes.

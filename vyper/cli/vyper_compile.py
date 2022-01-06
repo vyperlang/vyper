@@ -13,7 +13,7 @@ from vyper.cli.utils import extract_file_interface_imports, get_interface_file_p
 from vyper.compiler.settings import VYPER_TRACEBACK_LIMIT
 from vyper.evm.opcodes import DEFAULT_EVM_VERSION, EVM_VERSIONS
 from vyper.old_codegen import parser_utils
-from vyper.typing import ContractCodes, ContractPath, OutputFormats, StorageLayoutForContracts
+from vyper.typing import ContractCodes, ContractPath, OutputFormats
 
 T = TypeVar("T")
 
@@ -257,7 +257,7 @@ def compile_files(
             # https://bugs.python.org/issue35107
             contract_sources[file_str] = fh.read() + "\n"
 
-    storage_layouts: StorageLayoutForContracts = OrderedDict()
+    storage_layouts = OrderedDict()
     if storage_layout:
         for storage_file_name, contract_name in zip(storage_layout, contract_sources.keys()):
             storage_file_path = Path(storage_file_name)
