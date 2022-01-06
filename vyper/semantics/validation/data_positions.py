@@ -1,6 +1,6 @@
 # TODO this doesn't really belong in "validation"
 import math
-from typing import Dict
+from typing import Dict, List
 
 from vyper import ast as vy_ast
 from vyper.semantics.types.bases import CodeOffset, StorageSlot
@@ -27,6 +27,38 @@ def set_data_positions(
     )
 
 
+class StorageCollision:
+    occupied_slots: Dict[int, bool] = {}
+
+    def is_slot_free(self, slot_number: int) -> bool:
+        return not self.occupied_slots.get(slot_number)
+
+    def are_all_slots_free(self, slots_to_check: List[int]) -> bool:
+        return not any(self.occupied_slots.get(slot) for slot in slots_to_check)
+
+    def reserve_slot(self, slot_number: int):
+        self.occupied_slots[slot_number] = True
+
+    def reserve_slots(self, slots_to_reserve: List[int]):
+        for slot in slots_to_reserve:
+            self.occupied_slots[slot] = True
+
+    def check_and_reserve_slot(self, slot_number: int) -> bool:
+        if self.occupied_slots.get(slot_number):
+            raise ValueError(f"Storage collision! Slot {slot_number} has already been reserved")
+        self.occupied_slots[slot_number] = True
+
+    def check_and_reserve_slots(self, slots: List[int]) -> bool:
+        for slot in slots:
+            if self.occupied_slots.get(slot):
+                raise ValueError(f"Storage collision! Slot {slot} has already been reserved")
+            self.occupied_slots[slot] = True
+
+    def check_and_reserve_slot_and_length(self, first_slot: int, length_of_slots: int) -> bool:
+        list_to_check = [x + first_slot for x in range(length_of_slots)]
+        return self.check_and_reserve_slots(list_to_check)
+
+
 def set_storage_slots_with_overrides(
     vyper_module: vy_ast.Module, storage_layout_overrides: StorageLayout
 ) -> StorageLayout:
@@ -38,7 +70,9 @@ def set_storage_slots_with_overrides(
     # note storage is word-addressable, not byte-addressable
 
     ret: Dict[str, Dict] = {}
-    is_slot_occupied: Dict[int, bool] = {}
+    reserved_slots = StorageCollision()
+
+    reserved_slots.check_and_reserve_slot_and_length(0, 3)
 
     for node in vyper_module.get_children(vy_ast.FunctionDef):
         type_ = node._metadata["type"]
@@ -51,17 +85,13 @@ def set_storage_slots_with_overrides(
             reentrant_slot = storage_layout_overrides[variable_name]["slot"]
             type_.set_reentrancy_key_position(StorageSlot(reentrant_slot))
 
-            if is_slot_occupied[reentrant_slot]:
-                raise ValueError(
-                    f"Storage collision! Slot {reentrant_slot} has already been reserved"
-                )
+            reserved_slots.check_and_reserve_slot(reentrant_slot)
 
             ret[variable_name] = {
                 "type": "nonreentrant lock",
                 "location": "storage",
                 "slot": reentrant_slot,
             }
-            is_slot_occupied[reentrant_slot] = True
         else:
             raise KeyError(
                 f"Could not find storage_slot for {variable_name}. Have you used the correct storage layout file?"
@@ -77,6 +107,9 @@ def set_storage_slots_with_overrides(
         if node.target.id in storage_layout_overrides:
             var_slot = storage_layout_overrides[node.target.id]["slot"]
             type_.set_position(StorageSlot(var_slot))
+
+            storage_length = math.ceil(type_.size_in_bytes / 32)
+            reserved_slots.check_and_reserve_slot_and_length(var_slot, storage_length)
 
             # this could have better typing but leave it untyped until
             # we understand the use case better
