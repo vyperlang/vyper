@@ -17,10 +17,7 @@ b: uint256"""
         code, output_formats=["layout"], storage_layout_override=storage_layout_overrides
     )
 
-    assert out["layout"] == {
-        "a": {"type": "uint256", "location": "storage", "slot": 1},
-        "b": {"type": "uint256", "location": "storage", "slot": 0},
-    }
+    assert out["layout"] == storage_layout_overrides
 
 
 def test_storage_layout_for_more_complex():
@@ -74,17 +71,7 @@ def public_foo3():
         code, output_formats=["layout"], storage_layout_override=storage_layout_override
     )
 
-    assert out["layout"] == {
-        "nonreentrant.foo": {"type": "nonreentrant lock", "location": "storage", "slot": 8},
-        "nonreentrant.bar": {"type": "nonreentrant lock", "location": "storage", "slot": 7},
-        "foo": {
-            "type": "HashMap[address, uint256]",
-            "location": "storage",
-            "slot": 1,
-        },
-        "baz": {"type": "Bytes[65]", "location": "storage", "slot": 2},
-        "bar": {"type": "uint256", "location": "storage", "slot": 6},
-    }
+    assert out["layout"] == storage_layout_override
 
 
 def test_simple_collision():
