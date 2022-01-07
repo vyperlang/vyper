@@ -87,7 +87,8 @@ symbol: public(String[32])"""
 
     with pytest.raises(
         StorageLayoutException,
-        match="Storage collision! Slot 1 has already been reserved",
+        match="Storage collision! Tried to assign 'symbol' to slot 1"
+        " but it has already been reserved by 'name'",
     ):
         compile_code(
             code, output_formats=["layout"], storage_layout_override=storage_layout_override

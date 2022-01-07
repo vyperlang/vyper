@@ -3,7 +3,6 @@ import math
 from typing import Dict, List
 
 from vyper import ast as vy_ast
-from vyper.ast.nodes import VyperNode
 from vyper.exceptions import StorageLayoutException
 from vyper.semantics.types.bases import CodeOffset, StorageSlot
 from vyper.typing import StorageLayout
@@ -36,32 +35,33 @@ class StorageAllocator:
     """
 
     def __init__(self):
-        self.occupied_slots: set = set()
+        self.occupied_slots: Dict[int, str] = {}
 
-    def reserve_slot_range(self, first_slot: int, n_slots: int, node: VyperNode) -> None:
+    def reserve_slot_range(self, first_slot: int, n_slots: int, var_name: str) -> None:
         """
         Reserves `n_slots` storage slots, starting at slot `first_slot`
         This will raise an error if a storage slot has already been allocated.
         It is responsibility of calling function to ensure first_slot is an int
         """
         list_to_check = [x + first_slot for x in range(n_slots)]
-        self._reserve_slots(list_to_check, node)
+        self._reserve_slots(list_to_check, var_name)
 
-    def _reserve_slots(self, slots: List[int], node: VyperNode) -> None:
+    def _reserve_slots(self, slots: List[int], var_name: str) -> None:
         for slot in slots:
-            self._reserve_slot(slot, node)
+            self._reserve_slot(slot, var_name)
 
-    def _reserve_slot(self, slot: int, node: VyperNode) -> None:
+    def _reserve_slot(self, slot: int, var_name: str) -> None:
         if slot < 0 or slot >= 2 ** 256:
-            raise StorageLayoutException(f"Invalid storage slot {slot} to be allocated", node)
-        if not self._is_slot_free(slot):
             raise StorageLayoutException(
-                f"Storage collision! Slot {slot} has already been reserved", node
+                f"Invalid storage slot for var {var_name}, out of bounds: {slot}"
             )
-        self.occupied_slots.add(slot)
-
-    def _is_slot_free(self, slot_number: int) -> bool:
-        return slot_number not in self.occupied_slots
+        if slot in self.occupied_slots:
+            collided_var = self.occupied_slots[slot]
+            raise StorageLayoutException(
+                f"Storage collision! Tried to assign '{var_name}' to slot {slot} but it has "
+                f"already been reserved by '{collided_var}'"
+            )
+        self.occupied_slots[slot] = var_name
 
 
 def set_storage_slots_with_overrides(
@@ -96,7 +96,7 @@ def set_storage_slots_with_overrides(
             reentrant_slot = storage_layout_overrides[variable_name]["slot"]
             # Ensure that this slot has not been used, and prevents other storage variables
             # from using the same slot
-            reserved_slots.reserve_slot_range(reentrant_slot, 1, node)
+            reserved_slots.reserve_slot_range(reentrant_slot, 1, variable_name)
 
             type_.set_reentrancy_key_position(StorageSlot(reentrant_slot))
 
@@ -108,8 +108,7 @@ def set_storage_slots_with_overrides(
         else:
             raise StorageLayoutException(
                 f"Could not find storage_slot for {variable_name}. "
-                "Have you used the correct storage layout file?",
-                node,
+                "Have you used the correct storage layout file?"
             )
 
     # Iterate through variables
@@ -128,15 +127,14 @@ def set_storage_slots_with_overrides(
             storage_length = math.ceil(type_.size_in_bytes / 32)
             # Ensure that all required storage slots are reserved, and prevents other variables
             # from using these slots
-            reserved_slots.reserve_slot_range(var_slot, storage_length, node)
+            reserved_slots.reserve_slot_range(var_slot, storage_length, node.target.id)
             type_.set_position(StorageSlot(var_slot))
 
             ret[node.target.id] = {"type": str(type_), "location": "storage", "slot": var_slot}
         else:
             raise StorageLayoutException(
                 f"Could not find storage_slot for {node.target.id}. "
-                "Have you used the correct storage layout file?",
-                node,
+                "Have you used the correct storage layout file?"
             )
 
     return ret
