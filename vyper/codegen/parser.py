@@ -286,17 +286,3 @@ def parse_tree_to_lll(global_ctx: GlobalContext) -> Tuple[LLLnode, LLLnode]:
         runtime = o.copy()
 
     return LLLnode.from_list(o), LLLnode.from_list(runtime)
-
-
-# TODO this function is dead code
-def parse_to_lll(
-    source_code: str, runtime_only: bool = False, interface_codes: Optional[InterfaceImports] = None
-) -> LLLnode:
-    vyper_module = vy_ast.parse_to_ast(source_code)
-    global_ctx = GlobalContext.get_global_context(vyper_module, interface_codes=interface_codes)
-    lll_nodes, lll_runtime = parse_tree_to_lll(global_ctx)
-
-    if runtime_only:
-        return lll_runtime
-    else:
-        return lll_nodes
