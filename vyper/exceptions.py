@@ -269,6 +269,10 @@ class ParserException(Exception):
     """Contract source cannot be parsed."""
 
 
+class StorageLayoutException(Exception):
+    """Invalid slot for the storage layout overrides"""
+
+
 class VyperInternalException(Exception):
     """
     Base Vyper internal exception class.

@@ -3,6 +3,7 @@ import math
 from typing import Dict, List
 
 from vyper import ast as vy_ast
+from vyper.exceptions import StorageLayoutException
 from vyper.semantics.types.bases import CodeOffset, StorageSlot
 from vyper.typing import StorageLayout
 
@@ -39,7 +40,8 @@ class StorageAllocator:
     def reserve_slot_range(self, first_slot: int, n_slots: int) -> None:
         """
         Reserves `n_slots` storage slots, starting at slot `first_slot`
-        This will raise an error if a storage slot has already been allocated
+        This will raise an error if a storage slot has already been allocated.
+        It is responsibility of calling function to ensure first_slot is an int
         """
         list_to_check = [x + first_slot for x in range(n_slots)]
         self._reserve_slots(list_to_check)
@@ -49,6 +51,8 @@ class StorageAllocator:
             self._reserve_slot(slot)
 
     def _reserve_slot(self, slot: int) -> None:
+        if slot < 0 or slot >= 2 ** 256:
+            raise StorageLayoutException("Invalid storage slot", slot)
         if not self._is_slot_free(slot):
             raise ValueError(f"Storage collision! Slot {slot} has already been reserved")
         self.occupied_slots.add(slot)
