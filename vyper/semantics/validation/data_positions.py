@@ -52,9 +52,11 @@ class StorageAllocator:
 
     def _reserve_slot(self, slot: int) -> None:
         if slot < 0 or slot >= 2 ** 256:
-            raise StorageLayoutException("Invalid storage slot", slot)
+            raise StorageLayoutException(f"Invalid storage slot {slot} to be allocated")
         if not self._is_slot_free(slot):
-            raise ValueError(f"Storage collision! Slot {slot} has already been reserved")
+            raise StorageLayoutException(
+                f"Storage collision! Slot {slot} has already been reserved"
+            )
         self.occupied_slots.add(slot)
 
     def _is_slot_free(self, slot_number: int) -> bool:
@@ -103,7 +105,7 @@ def set_storage_slots_with_overrides(
                 "slot": reentrant_slot,
             }
         else:
-            raise KeyError(
+            raise StorageLayoutException(
                 f"Could not find storage_slot for {variable_name}. "
                 "Have you used the correct storage layout file?"
             )
@@ -129,7 +131,7 @@ def set_storage_slots_with_overrides(
 
             ret[node.target.id] = {"type": str(type_), "location": "storage", "slot": var_slot}
         else:
-            raise KeyError(
+            raise StorageLayoutException(
                 f"Could not find storage_slot for {node.target.id}. "
                 "Have you used the correct storage layout file?"
             )

@@ -255,6 +255,10 @@ class EvmVersionException(VyperException):
     """Invalid action for the active EVM ruleset."""
 
 
+class StorageLayoutException(VyperException):
+    """Invalid slot for the storage layout overrides"""
+
+
 class JSONError(Exception):
 
     """Invalid compiler input JSON."""
@@ -267,10 +271,6 @@ class JSONError(Exception):
 
 class ParserException(Exception):
     """Contract source cannot be parsed."""
-
-
-class StorageLayoutException(Exception):
-    """Invalid slot for the storage layout overrides"""
 
 
 class VyperInternalException(Exception):
