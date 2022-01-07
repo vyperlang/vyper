@@ -1,6 +1,7 @@
 import vyper.utils as util
 from vyper import ast as vy_ast
-from vyper.codegen.abi import abi_encode, abi_type_of
+from vyper.codegen.abi_types import abi_type_of
+from vyper.codegen.abi_encoder import abi_encode
 from vyper.codegen.core import (
     calculate_type_for_external_return,
     check_external_call,

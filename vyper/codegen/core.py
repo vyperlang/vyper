@@ -2,6 +2,7 @@ from decimal import Context, Decimal, setcontext
 
 from vyper import ast as vy_ast
 from vyper.codegen.lll_node import Encoding, LLLnode
+from vyper.codegen.abi_types import abi_type_of
 from vyper.codegen.types import (
     DYNAMIC_ARRAY_OVERHEAD,
     ArrayLike,
@@ -136,9 +137,6 @@ def _word_size(location):
 # TODO this code is very similar to make_byte_array_copier,
 # try to refactor.
 def make_dyn_array_copier(dst, src, context, pos=None):
-    # TODO circular import!
-    from vyper.codegen.abi import abi_type_of
-
     assert isinstance(src.typ, DArrayType)
     assert isinstance(dst.typ, DArrayType)
 
@@ -308,9 +306,6 @@ def add_ofst(loc, ofst):
 
 # Resolve pointer locations for ABI-encoded data
 def _getelemptr_abi_helper(parent, member_t, ofst, pos=None, clamp=True):
-    # TODO circular import!
-    from vyper.codegen.abi import abi_type_of
-
     member_abi_t = abi_type_of(member_t)
 
     # ABI encoding has length word and then pretends length is not there
@@ -339,9 +334,6 @@ def _getelemptr_abi_helper(parent, member_t, ofst, pos=None, clamp=True):
 
 # TODO simplify this code, especially the ABI decoding
 def _get_element_ptr_tuplelike(parent, key, pos):
-    # TODO circular import!
-    from vyper.codegen.abi import abi_type_of
-
     typ = parent.typ
     assert isinstance(typ, TupleLike)
 
@@ -405,8 +397,6 @@ def has_length_word(typ):
 
 # TODO simplify this code, especially the ABI decoding
 def _get_element_ptr_array(parent, key, pos, array_bounds_check):
-    # TODO circular import!
-    from vyper.codegen.abi import abi_type_of
 
     assert isinstance(parent.typ, ArrayLike)
 
