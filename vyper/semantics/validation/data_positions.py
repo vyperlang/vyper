@@ -42,14 +42,14 @@ class StorageAllocator:
         This will raise an error if a storage slot has already been allocated
         """
         list_to_check = [x + first_slot for x in range(n_slots)]
-        self.__reserve_slots(list_to_check)
+        self._reserve_slots(list_to_check)
 
     def _reserve_slots(self, slots: List[int]) -> None:
         for slot in slots:
-            self.__reserve_slot(slot)
+            self._reserve_slot(slot)
 
     def _reserve_slot(self, slot: int) -> None:
-        if not self.__is_slot_free(slot):
+        if not self._is_slot_free(slot):
             raise ValueError(f"Storage collision! Slot {slot} has already been reserved")
         self.occupied_slots.add(slot)
 
