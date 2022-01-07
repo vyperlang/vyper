@@ -1,9 +1,9 @@
 # can't use from [module] import [object] because it breaks mocks in testing
 import copy
-from typing import Dict, Optional, Tuple
+from typing import Dict, Tuple
 
 import vyper.ast as vy_ast
-from vyper.ast.signatures import FunctionSignature, VariableRecord
+from vyper.ast.signatures import FunctionSignature
 from vyper.codegen.context import Constancy, Context
 from vyper.codegen.core import check_single_exit
 from vyper.codegen.function_definitions.external_function import generate_lll_for_external_function

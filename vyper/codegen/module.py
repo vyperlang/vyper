@@ -1,6 +1,6 @@
 # a contract.vy -- all functions and constructor
 
-from typing import Any, List, Optional, Tuple, Union
+from typing import Any, List, Tuple, Union
 
 from vyper import ast as vy_ast
 from vyper.ast.signatures.function_signature import FunctionSignature
@@ -18,7 +18,6 @@ from vyper.exceptions import (
     StructureException,
 )
 from vyper.semantics.types.function import FunctionVisibility, StateMutability
-from vyper.typing import InterfaceImports
 from vyper.utils import LOADED_LIMITS
 
 # TODO remove this check

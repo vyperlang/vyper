@@ -42,8 +42,8 @@ class NodeType(abc.ABC):
 
 # Data structure for a type that represents a 32-byte object
 class BaseType(NodeType):
-    def __init__( self, typename, is_literal=False):
-        self.typ = typename # e.g. "uint256"
+    def __init__(self, typename, is_literal=False):
+        self.typ = typename  # e.g. "uint256"
         # TODO remove is_literal from the type itself
         self.is_literal = is_literal
 
