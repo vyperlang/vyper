@@ -1,17 +1,17 @@
 import vyper.utils as util
 from vyper import ast as vy_ast
-from vyper.exceptions import StateAccessViolation, StructureException, TypeCheckFailure
-from vyper.old_codegen.abi import abi_encode, abi_type_of
-from vyper.old_codegen.lll_node import Encoding, LLLnode
-from vyper.old_codegen.parser_utils import (
+from vyper.codegen.abi import abi_encode, abi_type_of
+from vyper.codegen.core import (
     calculate_type_for_external_return,
     check_external_call,
     get_element_ptr,
     getpos,
     unwrap_location,
 )
-from vyper.old_codegen.types import TupleType, canonicalize_type, get_type_for_exact_size
-from vyper.old_codegen.types.check import check_assign
+from vyper.codegen.lll_node import Encoding, LLLnode
+from vyper.codegen.types import TupleType, canonicalize_type, get_type_for_exact_size
+from vyper.codegen.types.check import check_assign
+from vyper.exceptions import StateAccessViolation, StructureException, TypeCheckFailure
 
 
 def _pack_arguments(contract_sig, args, context, pos):
@@ -23,7 +23,7 @@ def _pack_arguments(contract_sig, args, context, pos):
     # sanity typecheck - make sure the arguments can be assigned
     dst_tuple_t = TupleType([arg.typ for arg in contract_sig.args][: len(args)])
     _tmp = LLLnode("fake node", location="memory", typ=dst_tuple_t)
-    check_assign(_tmp, args_as_tuple, pos)
+    check_assign(_tmp, args_as_tuple, context, pos)
 
     if contract_sig.return_type is not None:
         return_abi_t = abi_type_of(calculate_type_for_external_return(contract_sig.return_type))
@@ -56,7 +56,7 @@ def _pack_arguments(contract_sig, args, context, pos):
     if len(args) == 0:
         encode_args = ["pass"]
     else:
-        encode_args = abi_encode(buf + 32, args_as_tuple, pos)
+        encode_args = abi_encode(buf + 32, args_as_tuple, context, pos, bufsz=buflen)
 
     return buf, mstore_method_id + [encode_args], args_ofst, args_len
 
@@ -184,7 +184,7 @@ def _external_call_helper(
 
 
 def _get_special_kwargs(stmt_expr, context):
-    from vyper.old_codegen.expr import Expr  # TODO rethink this circular import
+    from vyper.codegen.expr import Expr  # TODO rethink this circular import
 
     value, gas, skip_contract_check = None, None, None
     for kw in stmt_expr.keywords:
@@ -203,7 +203,7 @@ def _get_special_kwargs(stmt_expr, context):
 
 
 def lll_for_external_call(stmt_expr, context):
-    from vyper.old_codegen.expr import Expr  # TODO rethink this circular import
+    from vyper.codegen.expr import Expr  # TODO rethink this circular import
 
     pos = getpos(stmt_expr)
     value, gas, skip_contract_check = _get_special_kwargs(stmt_expr, context)

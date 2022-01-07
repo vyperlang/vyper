@@ -1,8 +1,8 @@
 import functools
 
+from vyper.codegen.lll_node import LLLnode
 from vyper.evm.opcodes import get_opcodes
 from vyper.exceptions import CompilerPanic
-from vyper.old_codegen.parser import LLLnode
 from vyper.utils import MemoryPositions
 
 PUSH_OFFSET = 0x5F
@@ -196,53 +196,104 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         o.extend(_compile_to_assembly(code.args[2], withargs, existing_labels, break_dest, height))
         o.extend([end_symbol, "JUMPDEST"])
         return o
-    # Repeat statements (compiled from for loops)
-    # Repeat(memloc, start, rounds, body)
+    # repeat(counter_location, start, rounds, body)
+    # OR
+    # repeat(counter_location, start, rounds, rounds_bound, body)
+    # basically a do-while loop:
+    # rounds = min(rounds, rounds_bound)
+    # if (rounds > 0) {
+    #   do {
+    #     body
+    #   } while (++i != start + rounds)
+    # }
     elif code.value == "repeat":
         o = []
-        loops = num_to_bytearray(code.args[2].value)
-        start, continue_dest, end = mksymbol(), mksymbol(), mksymbol()
-        o.extend(_compile_to_assembly(code.args[0], withargs, existing_labels, break_dest, height))
+        if len(code.args) == 4:
+            iptr = code.args[0]
+            start = code.args[1]
+            rounds = code.args[2]
+            rounds_bound = None
+            body = code.args[3]
+        elif len(code.args) == 5:
+            iptr = code.args[0]
+            start = code.args[1]
+            rounds = code.args[2]
+            rounds_bound = code.args[3]
+            body = code.args[4]
+        else:
+            # should not happen
+            raise CompilerPanic("bad number of repeat args")
+
+        entry_dest, continue_dest, exit_dest = mksymbol(), mksymbol(), mksymbol()
+
+        o.extend(_compile_to_assembly(iptr, withargs, existing_labels, break_dest, height))
+        # stack: iptr
         o.extend(
             _compile_to_assembly(
-                code.args[1],
+                start,
                 withargs,
                 existing_labels,
                 break_dest,
                 height + 1,
             )
         )
-        o.extend(["PUSH" + str(len(loops))] + loops)
-        # stack: memloc, startvalue, rounds
-        o.extend(["DUP2", "DUP4", "MSTORE", "ADD", start, "JUMPDEST"])
-        # stack: memloc, exit_index
+
+        # stack: iptr, start
+        o.extend(_compile_to_assembly(rounds, withargs, existing_labels, break_dest, height + 2))
+        # rounds = min(rounds, round_bound)
+        if rounds_bound is not None:
+            # stack: iptr, start, rounds
+            o.extend(
+                _compile_to_assembly(
+                    rounds_bound, withargs, existing_labels, break_dest, height + 3
+                )
+            )
+            t = mksymbol()
+            # stack: iptr, start, rounds, rounds_bound
+            o.extend(["DUP2", "DUP2", "GT", t, "JUMPI", "SWAP1", t, "JUMPDEST", "POP"])
+
+            # stack: iptr, start, min(rounds, round_bound) aka rounds
+            # if (0 == rounds) { pop; goto end_dest; }
+            t = mksymbol()
+            o.extend(["DUP1", t, "JUMPI", "POP", exit_dest, "JUMP", t, "JUMPDEST"])
+
+        # stack: iptr, start, rounds
+        o.extend(["DUP2", "DUP4", "MSTORE", "ADD"])
+        # stack: iptr, exit_i
+        o.extend([entry_dest, "JUMPDEST"])
         o.extend(
             _compile_to_assembly(
-                code.args[3],
+                body,
                 withargs,
                 existing_labels,
-                (end, continue_dest, height + 2),
+                (exit_dest, continue_dest, height + 2),
                 height + 2,
             )
         )
-        # stack: memloc, exit_index
+        # stack: iptr, exit_i
+        # (with i (add 1 (mload iptr)) (seq (mstore iptr i) i))
         o.extend(
             [
                 continue_dest,
                 "JUMPDEST",
-                "DUP2",
-                "MLOAD",
+                "DUP2",  # iptr, exit_i
+                "MLOAD",  # iptr, exit_i, i
                 "PUSH1",
                 1,
-                "ADD",
-                "DUP1",
-                "DUP4",
+                "ADD",  # iptr, exit_i, i+1 (new_i)
+                "DUP1",  # iptr, exit_i, new_i
+                "DUP4",  # iptr, exit_i, new_i, new_i, iptr
                 "MSTORE",
             ]
         )
-        # stack: len(loops), index memory address, new index
-        o.extend(["DUP2", "EQ", "ISZERO", start, "JUMPI", end, "JUMPDEST", "POP", "POP"])
+
+        # stack: iptr, exit_i, new_i
+        # if (exit_i != new_i) { goto entry_dest }
+        o.extend(["DUP2", "XOR", entry_dest, "JUMPI"])
+        o.extend([exit_dest, "JUMPDEST", "POP", "POP"])
+
         return o
+
     # Continue to the next iteration of the for loop
     elif code.value == "continue":
         if not break_dest:
@@ -254,12 +305,17 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         if not break_dest:
             raise CompilerPanic("Invalid break")
         dest, continue_dest, break_height = break_dest
-        return ["POP"] * (height - break_height) + [dest, "JUMP"]
+
+        n_local_vars = height - break_height
+        # clean up any stack items declared in the loop body
+        cleanup_local_vars = ["POP"] * n_local_vars
+        return cleanup_local_vars + [dest, "JUMP"]
     # Break from inside one or more for loops prior to a return statement inside the loop
     elif code.value == "cleanup_repeat":
         if not break_dest:
             raise CompilerPanic("Invalid break")
         _, _, break_height = break_dest
+        # clean up local vars and internal loop vars
         return ["POP"] * break_height
     # With statements
     elif code.value == "with":
@@ -511,7 +567,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
                     "_val",
                     code.args[0],
                     # in mod32 arithmetic, the solution to x + y == 32 is
-                    # y = bitwise_not(x) & 32
+                    # y = bitwise_not(x) & 31
                     ["add", "_val", ["and", ["not", ["sub", "_val", 1]], 31]],
                 ]
             ),

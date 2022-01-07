@@ -53,11 +53,7 @@ def modify_nested_single_struct(_human: Human) -> Human:
     """
     c = get_contract(code)
 
-    assert c.modify_nested_single_struct(
-        {"animal": {"fur": "wool"}}
-    ) == (
-        ("wool is great",),
-    )
+    assert c.modify_nested_single_struct({"animal": {"fur": "wool"}}) == (("wool is great",),)
 
 
 @pytest.mark.parametrize("string", ["a", "abc", "abcde", "potato"])

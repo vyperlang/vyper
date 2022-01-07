@@ -1,7 +1,7 @@
 from vyper.ast import parse_to_ast
-from vyper.old_codegen.context import Context
-from vyper.old_codegen.global_context import GlobalContext
-from vyper.old_codegen.stmt import parse_body
+from vyper.codegen.context import Context
+from vyper.codegen.global_context import GlobalContext
+from vyper.codegen.stmt import parse_body
 
 
 def generate_inline_function(code, variables, memory_allocator):
