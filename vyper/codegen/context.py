@@ -3,8 +3,8 @@ import enum
 
 from vyper.ast import VyperNode
 from vyper.ast.signatures.function_signature import VariableRecord
+from vyper.codegen.types import NodeType
 from vyper.exceptions import CompilerPanic, FunctionDeclarationException
-from vyper.old_codegen.types import NodeType
 
 
 class Constancy(enum.Enum):

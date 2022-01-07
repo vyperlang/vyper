@@ -1,9 +1,9 @@
 import functools
 
 from vyper import ast as vy_ast
+from vyper.codegen.expr import Expr
+from vyper.codegen.types import BaseType, ByteArrayType, StringType, is_base_type
 from vyper.exceptions import InvalidLiteral, StructureException, TypeMismatch
-from vyper.old_codegen.expr import Expr
-from vyper.old_codegen.types import BaseType, ByteArrayType, StringType, is_base_type
 from vyper.utils import SizeLimits
 
 

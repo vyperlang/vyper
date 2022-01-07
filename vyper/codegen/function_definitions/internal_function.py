@@ -1,10 +1,10 @@
 from vyper import ast as vy_ast
 from vyper.ast.signatures import FunctionSignature
-from vyper.old_codegen.context import Context
-from vyper.old_codegen.function_definitions.utils import get_nonreentrant_lock
-from vyper.old_codegen.lll_node import LLLnode
-from vyper.old_codegen.parser_utils import getpos
-from vyper.old_codegen.stmt import parse_body
+from vyper.codegen.context import Context
+from vyper.codegen.core import getpos
+from vyper.codegen.function_definitions.utils import get_nonreentrant_lock
+from vyper.codegen.lll_node import LLLnode
+from vyper.codegen.stmt import parse_body
 
 
 def generate_lll_for_internal_function(

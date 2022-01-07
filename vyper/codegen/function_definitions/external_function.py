@@ -2,14 +2,13 @@ from typing import Any, List
 
 import vyper.utils as util
 from vyper.ast.signatures.function_signature import FunctionSignature, VariableRecord
-from vyper.exceptions import CompilerPanic
-from vyper.old_codegen.context import Context
-from vyper.old_codegen.expr import Expr
-from vyper.old_codegen.function_definitions.utils import get_nonreentrant_lock
-from vyper.old_codegen.lll_node import Encoding, LLLnode
-from vyper.old_codegen.parser_utils import get_element_ptr, getpos, make_setter
-from vyper.old_codegen.stmt import parse_body
-from vyper.old_codegen.types.types import (
+from vyper.codegen.context import Context
+from vyper.codegen.core import get_element_ptr, getpos, make_setter
+from vyper.codegen.expr import Expr
+from vyper.codegen.function_definitions.utils import get_nonreentrant_lock
+from vyper.codegen.lll_node import Encoding, LLLnode
+from vyper.codegen.stmt import parse_body
+from vyper.codegen.types.types import (
     BaseType,
     ByteArrayLike,
     DArrayType,
@@ -17,6 +16,7 @@ from vyper.old_codegen.types.types import (
     TupleLike,
     TupleType,
 )
+from vyper.exceptions import CompilerPanic
 
 
 def _should_decode(typ):

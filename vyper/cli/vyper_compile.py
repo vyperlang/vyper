@@ -10,9 +10,9 @@ from typing import Dict, Iterable, Iterator, Set, TypeVar
 import vyper
 from vyper.cli import vyper_json
 from vyper.cli.utils import extract_file_interface_imports, get_interface_file_path
+from vyper.codegen.lll_node import LLLnode
 from vyper.compiler.settings import VYPER_TRACEBACK_LIMIT
 from vyper.evm.opcodes import DEFAULT_EVM_VERSION, EVM_VERSIONS
-from vyper.old_codegen import parser_utils
 from vyper.typing import ContractCodes, ContractPath, OutputFormats
 
 T = TypeVar("T")
@@ -231,7 +231,7 @@ def compile_files(
 ) -> OrderedDict:
 
     if show_gas_estimates:
-        parser_utils.LLLnode.repr_show_gas = True
+        LLLnode.repr_show_gas = True
 
     root_path = Path(root_folder).resolve()
     if not root_path.exists():

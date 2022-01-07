@@ -7,24 +7,8 @@ from vyper import ast as vy_ast
 from vyper.ast.signatures.function_signature import VariableRecord
 from vyper.ast.validation import validate_call_args
 from vyper.builtin_functions.convert import convert
-from vyper.evm.opcodes import version_check
-from vyper.exceptions import (
-    ArgumentException,
-    CompilerPanic,
-    InvalidLiteral,
-    InvalidType,
-    OverflowException,
-    StateAccessViolation,
-    StructureException,
-    TypeMismatch,
-    UnfoldableNode,
-    VyperException,
-    ZeroDivisionException,
-)
-from vyper.old_codegen.abi import ABI_Tuple, abi_encode, abi_type_of, abi_type_of2
-from vyper.old_codegen.expr import Expr
-from vyper.old_codegen.keccak256_helper import keccak256_helper
-from vyper.old_codegen.parser_utils import (
+from vyper.codegen.abi import ABI_Tuple, abi_encode, abi_type_of, abi_type_of2
+from vyper.codegen.core import (
     LLLnode,
     add_ofst,
     check_external_call,
@@ -39,9 +23,31 @@ from vyper.old_codegen.parser_utils import (
     load_op,
     unwrap_location,
 )
-from vyper.old_codegen.types import BaseType, ByteArrayLike, ByteArrayType, SArrayType
-from vyper.old_codegen.types import StringType as OldStringType
-from vyper.old_codegen.types import TupleType, is_base_type
+from vyper.codegen.expr import Expr
+from vyper.codegen.keccak256_helper import keccak256_helper
+from vyper.codegen.types import (
+    BaseType,
+    ByteArrayLike,
+    ByteArrayType,
+    SArrayType,
+    StringType,
+    TupleType,
+    is_base_type,
+)
+from vyper.evm.opcodes import version_check
+from vyper.exceptions import (
+    ArgumentException,
+    CompilerPanic,
+    InvalidLiteral,
+    InvalidType,
+    OverflowException,
+    StateAccessViolation,
+    StructureException,
+    TypeMismatch,
+    UnfoldableNode,
+    VyperException,
+    ZeroDivisionException,
+)
 from vyper.semantics.types import BoolDefinition, DynamicArrayPrimitive, TupleDefinition
 from vyper.semantics.types.abstract import (
     ArrayValueAbstractType,
@@ -266,7 +272,7 @@ class Slice:
         if isinstance(args[0].typ, ByteArrayType) or is_base_type(sub.typ, "bytes32"):
             ReturnType = ByteArrayType
         else:
-            ReturnType = OldStringType
+            ReturnType = StringType
 
         # Node representing the position of the output in memory
         # CMC 20210917 shouldn't this be a variable with newmaxlen?
@@ -453,7 +459,7 @@ class Concat:
             prev_type = current_type
 
         if current_type == "String":
-            ReturnType = OldStringType
+            ReturnType = StringType
         else:
             ReturnType = ByteArrayType
 

@@ -1,7 +1,7 @@
 import operator
 from typing import List, Optional
 
-from vyper.old_codegen.lll_node import LLLnode
+from vyper.codegen.lll_node import LLLnode
 from vyper.utils import LOADED_LIMITS, ceil32
 
 
