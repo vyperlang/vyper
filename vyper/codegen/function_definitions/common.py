@@ -60,7 +60,7 @@ def generate_lll_for_function(
         nonlocal sig
         sig = copy.deepcopy(sig)  # just in case
         context = Context(
-            vars=None,
+            vars_=None,
             global_ctx=global_ctx,
             sigs=sigs,
             memory_allocator=memory_allocator,

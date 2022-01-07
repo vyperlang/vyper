@@ -536,13 +536,13 @@ class Expr:
             if left.typ.is_literal and SizeLimits.in_bounds(right.typ.typ, left.value):
                 left = LLLnode.from_list(
                     left.value,
-                    typ=BaseType(right.typ.typ, None, is_literal=True),
+                    typ=BaseType(right.typ.typ, is_literal=True),
                     pos=pos,
                 )
             elif right.typ.is_literal and SizeLimits.in_bounds(left.typ.typ, right.value):
                 right = LLLnode.from_list(
                     right.value,
-                    typ=BaseType(left.typ.typ, None, is_literal=True),
+                    typ=BaseType(left.typ.typ, is_literal=True),
                     pos=pos,
                 )
 
