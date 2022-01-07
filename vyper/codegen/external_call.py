@@ -1,7 +1,6 @@
 import vyper.utils as util
 from vyper import ast as vy_ast
 from vyper.codegen.abi_encoder import abi_encode
-from vyper.codegen.abi_types import abi_type_of
 from vyper.codegen.core import (
     calculate_type_for_external_return,
     check_external_call,
@@ -10,7 +9,7 @@ from vyper.codegen.core import (
     unwrap_location,
 )
 from vyper.codegen.lll_node import Encoding, LLLnode
-from vyper.codegen.types import TupleType, canonicalize_type, get_type_for_exact_size
+from vyper.codegen.types import TupleType, get_type_for_exact_size
 from vyper.codegen.types.check import check_assign
 from vyper.exceptions import StateAccessViolation, StructureException, TypeCheckFailure
 
@@ -19,7 +18,7 @@ def _pack_arguments(contract_sig, args, context, pos):
     # abi encoding just treats all args as a big tuple
     args_tuple_t = TupleType([x.typ for x in args])
     args_as_tuple = LLLnode.from_list(["multi"] + [x for x in args], typ=args_tuple_t)
-    args_abi_t = abi_type_of(args_tuple_t)
+    args_abi_t = args_tuple_t.abi_type
 
     # sanity typecheck - make sure the arguments can be assigned
     dst_tuple_t = TupleType([arg.typ for arg in contract_sig.args][: len(args)])
@@ -27,7 +26,7 @@ def _pack_arguments(contract_sig, args, context, pos):
     check_assign(_tmp, args_as_tuple, context, pos)
 
     if contract_sig.return_type is not None:
-        return_abi_t = abi_type_of(calculate_type_for_external_return(contract_sig.return_type))
+        return_abi_t = calculate_type_for_external_return(contract_sig.return_type).abi_type
 
         # we use the same buffer for args and returndata,
         # so allocate enough space here for the returndata too.
@@ -43,7 +42,7 @@ def _pack_arguments(contract_sig, args, context, pos):
     args_ofst = buf + 28
     args_len = args_abi_t.size_bound() + 4
 
-    abi_signature = contract_sig.name + canonicalize_type(dst_tuple_t)
+    abi_signature = contract_sig.name + dst_tuple_t.abi_type.selector_name()
 
     # layout:
     # 32 bytes                 | args
@@ -79,7 +78,7 @@ def _unpack_returndata(buf, contract_sig, skip_contract_check, context, pos):
     # so that the ABI decoding works correctly
     should_unwrap_abi_tuple = return_t != contract_sig.return_type
 
-    abi_return_t = abi_type_of(return_t)
+    abi_return_t = return_t.abi_type
 
     min_return_size = abi_return_t.min_size()
     max_return_size = abi_return_t.size_bound()

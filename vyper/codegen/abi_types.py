@@ -2,20 +2,14 @@
 # e.g. vyper.abi.types
 
 import vyper.semantics.types as vy
-from vyper.codegen.types import (
-    BaseType,
-    ByteArrayType,
-    DArrayType,
-    SArrayType,
-    StringType,
-    TupleLike,
-)
 from vyper.exceptions import CompilerPanic
 from vyper.utils import ceil32
 
 
 # https://solidity.readthedocs.io/en/latest/abi-spec.html#types
 class ABIType:
+    # TODO should these methods be properties
+
     # aka has tail
     def is_dynamic(self):
         raise NotImplementedError("ABIType.is_dynamic")
@@ -289,41 +283,6 @@ class ABI_Tuple(ABIType):
 
     def is_complex_type(self):
         return True
-
-
-def abi_type_of(lll_typ):
-    if isinstance(lll_typ, BaseType):
-        t = lll_typ.typ
-        if "uint8" == t:
-            return ABI_GIntM(8, False)
-        elif "uint256" == t:
-            return ABI_GIntM(256, False)
-        elif "int128" == t:
-            return ABI_GIntM(128, True)
-        elif "int256" == t:
-            return ABI_GIntM(256, True)
-        elif "address" == t:
-            return ABI_Address()
-        elif "bytes32" == t:
-            return ABI_BytesM(32)
-        elif "bool" == t:
-            return ABI_Bool()
-        elif "decimal" == t:
-            return ABI_FixedMxN(168, 10, True)
-        else:
-            raise CompilerPanic(f"Unrecognized type {t}")
-    elif isinstance(lll_typ, TupleLike):
-        return ABI_Tuple([abi_type_of(t) for t in lll_typ.tuple_members()])
-    elif isinstance(lll_typ, SArrayType):
-        return ABI_StaticArray(abi_type_of(lll_typ.subtype), lll_typ.count)
-    elif isinstance(lll_typ, DArrayType):
-        return ABI_DynamicArray(abi_type_of(lll_typ.subtype), lll_typ.count)
-    elif isinstance(lll_typ, ByteArrayType):
-        return ABI_Bytes(lll_typ.maxlen)
-    elif isinstance(lll_typ, StringType):
-        return ABI_String(lll_typ.maxlen)
-    else:
-        raise CompilerPanic(f"Unrecognized type {lll_typ}")
 
 
 # the new type system

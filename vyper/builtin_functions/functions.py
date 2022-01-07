@@ -8,7 +8,7 @@ from vyper.ast.signatures.function_signature import VariableRecord
 from vyper.ast.validation import validate_call_args
 from vyper.builtin_functions.convert import convert
 from vyper.codegen.abi_encoder import abi_encode
-from vyper.codegen.abi_types import ABI_Tuple, abi_type_of, abi_type_of2
+from vyper.codegen.abi_types import ABI_Tuple, abi_type_of2
 from vyper.codegen.core import (
     LLLnode,
     add_ofst,
@@ -1904,7 +1904,7 @@ class ABIEncode(_SimpleBuiltinFunction):
         else:
             encode_input = lll_tuple_from_args(args)
 
-        input_abi_t = abi_type_of(encode_input.typ)
+        input_abi_t = encode_input.typ.abi_type
         maxlen = input_abi_t.size_bound()
         if method_id is not None:
             maxlen += 4

@@ -1,5 +1,4 @@
 import binascii
-import functools
 import sys
 import traceback
 from typing import Dict, List, Union

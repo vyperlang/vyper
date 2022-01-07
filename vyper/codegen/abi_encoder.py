@@ -1,4 +1,3 @@
-from vyper.codegen.abi_types import abi_type_of
 from vyper.codegen.core import (
     add_ofst,
     get_dyn_array_count,
@@ -34,7 +33,7 @@ def _deconstruct_complex_type(lll_node, pos=None):
 
 # encode a child element of a complex type
 def _encode_child_helper(buf, child, static_ofst, dyn_ofst, context, pos=None):
-    child_abi_t = abi_type_of(child.typ)
+    child_abi_t = child.typ.abi_type
 
     static_loc = add_ofst(LLLnode.from_list(buf), static_ofst)
 
@@ -76,7 +75,7 @@ def _encode_dyn_array_helper(dst, lll_node, context, pos):
         ]
 
     subtyp = lll_node.typ.subtype
-    child_abi_t = abi_type_of(subtyp)
+    child_abi_t = subtyp.abi_type
 
     ret = ["seq"]
 
@@ -151,7 +150,7 @@ def _encode_dyn_array_helper(dst, lll_node, context, pos):
 def abi_encode(dst, lll_node, context, pos=None, bufsz=None, returns_len=False):
 
     dst = LLLnode.from_list(dst, typ=lll_node.typ, location="memory")
-    abi_t = abi_type_of(dst.typ)
+    abi_t = dst.typ.abi_type
     size_bound = abi_t.size_bound()
 
     if bufsz is not None and bufsz < size_bound:
@@ -194,7 +193,7 @@ def abi_encode(dst, lll_node, context, pos=None, bufsz=None, returns_len=False):
             for e in elems:
                 encode_lll = _encode_child_helper(dst, e, static_ofst, dyn_ofst, context, pos=pos)
                 lll_ret.extend(encode_lll)
-                static_ofst += abi_type_of(e.typ).embedded_static_size()
+                static_ofst += e.typ.abi_type.embedded_static_size()
 
         else:
             raise CompilerPanic(f"unencodable type: {lll_node.typ}")
