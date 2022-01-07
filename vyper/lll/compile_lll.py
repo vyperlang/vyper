@@ -9,7 +9,6 @@ PUSH_OFFSET = 0x5F
 DUP_OFFSET = 0x7F
 SWAP_OFFSET = 0x8F
 
-next_symbol = [0]
 
 CLAMP_OP_NAMES = {
     "uclamplt",
@@ -31,9 +30,12 @@ def num_to_bytearray(x):
     return o
 
 
-def mksymbol():
-    next_symbol[0] += 1
-    return "_sym_" + str(next_symbol[0])
+_next_symbol = 0
+def mksymbol(name = ""):
+    global _next_symbol
+    _next_symbol += 1
+
+    return f"_sym_{name}{_next_symbol}"
 
 
 def mkdebug(pc_debugger, pos):
@@ -179,7 +181,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
     elif code.value == "if" and len(code.args) == 2:
         o = []
         o.extend(_compile_to_assembly(code.args[0], withargs, existing_labels, break_dest, height))
-        end_symbol = mksymbol()
+        end_symbol = mksymbol("join")
         o.extend(["ISZERO", end_symbol, "JUMPI"])
         o.extend(_compile_to_assembly(code.args[1], withargs, existing_labels, break_dest, height))
         o.extend([end_symbol, "JUMPDEST"])
@@ -188,8 +190,8 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
     elif code.value == "if" and len(code.args) == 3:
         o = []
         o.extend(_compile_to_assembly(code.args[0], withargs, existing_labels, break_dest, height))
-        mid_symbol = mksymbol()
-        end_symbol = mksymbol()
+        mid_symbol = mksymbol("else")
+        end_symbol = mksymbol("join")
         o.extend(["ISZERO", mid_symbol, "JUMPI"])
         o.extend(_compile_to_assembly(code.args[1], withargs, existing_labels, break_dest, height))
         o.extend([end_symbol, "JUMP", mid_symbol, "JUMPDEST"])
@@ -224,7 +226,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
             # should not happen
             raise CompilerPanic("bad number of repeat args")
 
-        entry_dest, continue_dest, exit_dest = mksymbol(), mksymbol(), mksymbol()
+        entry_dest, continue_dest, exit_dest = mksymbol("loop_start"), mksymbol("loop_continue"), mksymbol("loop_exit")
 
         o.extend(_compile_to_assembly(iptr, withargs, existing_labels, break_dest, height))
         # stack: iptr
@@ -248,13 +250,13 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
                     rounds_bound, withargs, existing_labels, break_dest, height + 3
                 )
             )
-            t = mksymbol()
+            t = mksymbol("min")
             # stack: iptr, start, rounds, rounds_bound
             o.extend(["DUP2", "DUP2", "GT", t, "JUMPI", "SWAP1", t, "JUMPDEST", "POP"])
 
             # stack: iptr, start, min(rounds, round_bound) aka rounds
             # if (0 == rounds) { pop; goto end_dest; }
-            t = mksymbol()
+            t = mksymbol("rounds_nonzero")
             o.extend(["DUP1", t, "JUMPI", "POP", exit_dest, "JUMP", t, "JUMPDEST"])
 
         # stack: iptr, start, rounds
@@ -344,8 +346,8 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
     # LLL statement (used to contain code inside code)
     elif code.value == "lll":
         o = []
-        begincode = mksymbol()
-        endcode = mksymbol()
+        begincode = mksymbol("begin")
+        endcode = mksymbol("end")
         o.extend([endcode, "JUMP", begincode, "BLANK"])
 
         lll = _compile_to_assembly(code.args[1], {}, existing_labels, None, 0)
@@ -377,7 +379,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
     # Assure (if false, invalid opcode)
     elif code.value == "assert_unreachable":
         o = _compile_to_assembly(code.args[0], withargs, existing_labels, break_dest, height)
-        end_symbol = mksymbol()
+        end_symbol = mksymbol("reachable")
         o.extend([end_symbol, "JUMPI", "INVALID", end_symbol, "JUMPDEST"])
         return o
     # Assert (if false, exit)
@@ -799,6 +801,9 @@ def assembly_to_evm(assembly, start_pos=0):
         if is_symbol(item):
             if assembly[i + 1] == "JUMPDEST" or assembly[i + 1] == "BLANK":
                 # Don't increment position as the symbol itself doesn't go into code
+                if item in posmap:
+                    raise CompilerPanic(f"duplicate jumpdest {item}")
+
                 posmap[item] = pos - start_pos
             else:
                 pos += 3  # PUSH2 highbits lowbits
