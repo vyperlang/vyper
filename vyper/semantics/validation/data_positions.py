@@ -108,7 +108,8 @@ def set_storage_slots_with_overrides(
         else:
             raise StorageLayoutException(
                 f"Could not find storage_slot for {variable_name}. "
-                "Have you used the correct storage layout file?"
+                "Have you used the correct storage layout file?",
+                node,
             )
 
     # Iterate through variables
@@ -134,7 +135,8 @@ def set_storage_slots_with_overrides(
         else:
             raise StorageLayoutException(
                 f"Could not find storage_slot for {node.target.id}. "
-                "Have you used the correct storage layout file?"
+                "Have you used the correct storage layout file?",
+                node,
             )
 
     return ret
