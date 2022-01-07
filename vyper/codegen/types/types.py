@@ -72,11 +72,11 @@ class IntegerTypeInfo:
 _int_parser = re.compile("^(u?)int([0-9]+)$")
 
 
-def is_integer_type(typename):
+def is_integer_type(typename: str) -> bool:
     return _int_parser.fullmatch(typename) is not None
 
 
-def parse_integer_typeinfo(typename) -> IntegerTypeInfo:
+def parse_integer_typeinfo(typename: str) -> IntegerTypeInfo:
     t = _int_parser.fullmatch(typename)
     if not t:
         raise InvalidType(f"Invalid integer type {typename}")  # pragma: notest
