@@ -3,6 +3,7 @@ import math
 from typing import Dict, List
 
 from vyper import ast as vy_ast
+from vyper.ast.nodes import VyperNode
 from vyper.exceptions import StorageLayoutException
 from vyper.semantics.types.bases import CodeOffset, StorageSlot
 from vyper.typing import StorageLayout
@@ -37,25 +38,25 @@ class StorageAllocator:
     def __init__(self):
         self.occupied_slots: set = set()
 
-    def reserve_slot_range(self, first_slot: int, n_slots: int) -> None:
+    def reserve_slot_range(self, first_slot: int, n_slots: int, node: VyperNode) -> None:
         """
         Reserves `n_slots` storage slots, starting at slot `first_slot`
         This will raise an error if a storage slot has already been allocated.
         It is responsibility of calling function to ensure first_slot is an int
         """
         list_to_check = [x + first_slot for x in range(n_slots)]
-        self._reserve_slots(list_to_check)
+        self._reserve_slots(list_to_check, node)
 
-    def _reserve_slots(self, slots: List[int]) -> None:
+    def _reserve_slots(self, slots: List[int], node: VyperNode) -> None:
         for slot in slots:
-            self._reserve_slot(slot)
+            self._reserve_slot(slot, node)
 
-    def _reserve_slot(self, slot: int) -> None:
+    def _reserve_slot(self, slot: int, node: VyperNode) -> None:
         if slot < 0 or slot >= 2 ** 256:
-            raise StorageLayoutException(f"Invalid storage slot {slot} to be allocated")
+            raise StorageLayoutException(f"Invalid storage slot {slot} to be allocated", node)
         if not self._is_slot_free(slot):
             raise StorageLayoutException(
-                f"Storage collision! Slot {slot} has already been reserved"
+                f"Storage collision! Slot {slot} has already been reserved", node
             )
         self.occupied_slots.add(slot)
 
@@ -95,7 +96,7 @@ def set_storage_slots_with_overrides(
             reentrant_slot = storage_layout_overrides[variable_name]["slot"]
             # Ensure that this slot has not been used, and prevents other storage variables
             # from using the same slot
-            reserved_slots.reserve_slot_range(reentrant_slot, 1)
+            reserved_slots.reserve_slot_range(reentrant_slot, 1, node)
 
             type_.set_reentrancy_key_position(StorageSlot(reentrant_slot))
 
@@ -107,7 +108,8 @@ def set_storage_slots_with_overrides(
         else:
             raise StorageLayoutException(
                 f"Could not find storage_slot for {variable_name}. "
-                "Have you used the correct storage layout file?"
+                "Have you used the correct storage layout file?",
+                node,
             )
 
     # Iterate through variables
@@ -126,14 +128,15 @@ def set_storage_slots_with_overrides(
             storage_length = math.ceil(type_.size_in_bytes / 32)
             # Ensure that all required storage slots are reserved, and prevents other variables
             # from using these slots
-            reserved_slots.reserve_slot_range(var_slot, storage_length)
+            reserved_slots.reserve_slot_range(var_slot, storage_length, node)
             type_.set_position(StorageSlot(var_slot))
 
             ret[node.target.id] = {"type": str(type_), "location": "storage", "slot": var_slot}
         else:
             raise StorageLayoutException(
                 f"Could not find storage_slot for {node.target.id}. "
-                "Have you used the correct storage layout file?"
+                "Have you used the correct storage layout file?",
+                node,
             )
 
     return ret
