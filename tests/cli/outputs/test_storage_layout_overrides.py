@@ -1,6 +1,7 @@
 import pytest
 
 from vyper.compiler import compile_code
+from vyper.exceptions import StorageLayoutException
 
 
 def test_storage_layout_overrides():
@@ -85,7 +86,7 @@ symbol: public(String[32])"""
     }
 
     with pytest.raises(
-        ValueError,
+        StorageLayoutException,
         match="Storage collision! Slot 1 has already been reserved",
     ):
         compile_code(
@@ -103,7 +104,7 @@ symbol: public(String[32])"""
     }
 
     with pytest.raises(
-        KeyError,
+        StorageLayoutException,
         match="Could not find storage_slot for symbol. "
         "Have you used the correct storage layout file?",
     ):
