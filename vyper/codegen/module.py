@@ -1,3 +1,5 @@
+# a contract.vy -- all functions and constructor
+
 from typing import Any, List, Optional, Tuple, Union
 
 from vyper import ast as vy_ast

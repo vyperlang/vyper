@@ -3,7 +3,7 @@ import warnings
 from typing import Optional, Tuple
 
 from vyper import ast as vy_ast
-from vyper.codegen import parser
+from vyper.codegen import module
 from vyper.codegen.global_context import GlobalContext
 from vyper.codegen.lll_node import LLLnode
 from vyper.lll import compile_lll, optimizer
@@ -239,7 +239,7 @@ def generate_lll_nodes(global_ctx: GlobalContext, no_optimize: bool) -> Tuple[LL
         LLL to generate deployment bytecode
         LLL to generate runtime bytecode
     """
-    lll_nodes, lll_runtime = parser.parse_tree_to_lll(global_ctx)
+    lll_nodes, lll_runtime = module.parse_tree_to_lll(global_ctx)
     if not no_optimize:
         lll_nodes = optimizer.optimize(lll_nodes)
         lll_runtime = optimizer.optimize(lll_runtime)
