@@ -49,15 +49,12 @@ class StorageAllocator:
             self.__reserve_slot(slot)
 
     def __reserve_slot(self, slot: int) -> None:
-        if not self.is_slot_free(slot):
+        if not self.__is_slot_free(slot):
             raise ValueError(f"Storage collision! Slot {slot} has already been reserved")
         self.occupied_slots.add(slot)
 
-    def is_slot_free(self, slot_number: int) -> bool:
+    def __is_slot_free(self, slot_number: int) -> bool:
         return slot_number not in self.occupied_slots
-
-    def are_all_slots_free(self, slots_to_check: List[int]) -> bool:
-        return all(self.is_slot_free(slot) for slot in slots_to_check)
 
 
 def set_storage_slots_with_overrides(
