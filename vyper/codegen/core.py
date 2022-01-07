@@ -1,8 +1,8 @@
 from decimal import Context, Decimal, setcontext
 
 from vyper import ast as vy_ast
-from vyper.codegen.lll_node import Encoding, LLLnode
 from vyper.codegen.abi_types import abi_type_of
+from vyper.codegen.lll_node import Encoding, LLLnode
 from vyper.codegen.types import (
     DYNAMIC_ARRAY_OVERHEAD,
     ArrayLike,

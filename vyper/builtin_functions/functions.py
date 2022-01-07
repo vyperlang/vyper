@@ -7,8 +7,8 @@ from vyper import ast as vy_ast
 from vyper.ast.signatures.function_signature import VariableRecord
 from vyper.ast.validation import validate_call_args
 from vyper.builtin_functions.convert import convert
-from vyper.codegen.abi_types import ABI_Tuple, abi_type_of, abi_type_of2
 from vyper.codegen.abi_encoder import abi_encode
+from vyper.codegen.abi_types import ABI_Tuple, abi_type_of, abi_type_of2
 from vyper.codegen.core import (
     LLLnode,
     add_ofst,

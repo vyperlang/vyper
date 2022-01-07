@@ -2,11 +2,8 @@
 # e.g. vyper.abi.types
 
 import vyper.semantics.types as vy
-
-from vyper.codegen.lll_node import LLLnode
 from vyper.codegen.types import (
     BaseType,
-    ByteArrayLike,
     ByteArrayType,
     DArrayType,
     SArrayType,

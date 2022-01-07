@@ -1,4 +1,4 @@
-import vyper.semantics.types as vy
+from vyper.codegen.abi_types import abi_type_of
 from vyper.codegen.core import (
     add_ofst,
     get_dyn_array_count,
@@ -9,17 +9,8 @@ from vyper.codegen.core import (
     zero_pad,
 )
 from vyper.codegen.lll_node import LLLnode
-from vyper.codegen.types import (
-    BaseType,
-    ByteArrayLike,
-    ByteArrayType,
-    DArrayType,
-    SArrayType,
-    StringType,
-    TupleLike,
-)
+from vyper.codegen.types import BaseType, ByteArrayLike, DArrayType, SArrayType, TupleLike
 from vyper.exceptions import CompilerPanic
-from vyper.utils import ceil32
 
 
 # turn an lll node into a list, based on its type.

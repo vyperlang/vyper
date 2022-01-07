@@ -1,7 +1,7 @@
 from typing import Tuple
 
-from vyper.codegen.abi_types import ABI_Tuple, abi_type_of, abi_type_of2
 from vyper.codegen.abi_encoder import abi_encode
+from vyper.codegen.abi_types import ABI_Tuple, abi_type_of, abi_type_of2
 from vyper.codegen.context import Context
 from vyper.codegen.core import getpos, lll_tuple_from_args, unwrap_location
 from vyper.codegen.keccak256_helper import keccak256_helper
