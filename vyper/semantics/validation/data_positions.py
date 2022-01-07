@@ -22,7 +22,7 @@ def set_data_positions(
     set_code_offsets(vyper_module)
     return (
         set_storage_slots_with_overrides(vyper_module, storage_layout_overrides)
-        if storage_layout_overrides
+        if storage_layout_overrides is not None
         else set_storage_slots(vyper_module)
     )
 
