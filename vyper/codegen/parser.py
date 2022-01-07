@@ -2,19 +2,19 @@ from typing import Any, List, Optional, Tuple, Union
 
 from vyper import ast as vy_ast
 from vyper.ast.signatures.function_signature import FunctionSignature
+from vyper.codegen.core import make_setter
+from vyper.codegen.function_definitions import (
+    generate_lll_for_function,
+    is_default_func,
+    is_initializer,
+)
+from vyper.codegen.global_context import GlobalContext
+from vyper.codegen.lll_node import LLLnode
 from vyper.exceptions import (
     EventDeclarationException,
     FunctionDeclarationException,
     StructureException,
 )
-from vyper.old_codegen.function_definitions import (
-    generate_lll_for_function,
-    is_default_func,
-    is_initializer,
-)
-from vyper.old_codegen.global_context import GlobalContext
-from vyper.old_codegen.lll_node import LLLnode
-from vyper.old_codegen.parser_utils import make_setter
 from vyper.semantics.types.function import FunctionVisibility, StateMutability
 from vyper.typing import InterfaceImports
 from vyper.utils import LOADED_LIMITS
@@ -199,7 +199,16 @@ def parse_regular_functions(
                 ["add", start_pos + offset, "_lllsz"], typ=immutable.typ, location="memory"
             )
             rhs = LLLnode.from_list(memory_loc, typ=immutable.typ, location="memory")
-            data_section.append(make_setter(lhs, rhs, None))
+            data_section.append(
+                make_setter(
+                    lhs,
+                    rhs,
+                    # hack -- make_setter happens to not require memory
+                    # allocator for memory-memory copies. TODO fixme
+                    context=None,
+                    pos=None,
+                )
+            )
 
         data_section_size = sum([immutable.size * 32 for immutable in immutables])
         o.append(

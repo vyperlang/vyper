@@ -21,7 +21,7 @@ s_expr :=
 
 An LLL expression has a "valency" of 1 or 0. Valency of 1 means that it returns a stack item, valency of 0 means that it does not.
 
-Vyper's current implementation of LLL can be referenced, mainly in [vyper/old\_codegen/lll\_node.py](../old_codegen/lll_node.py) (which describes the internal API for constructing LLL) and in [vyper/lll/compile\_lll.py](../lll/compile_lll.py) (which describes how LLL is compiled to assembly and then to bytecode). Vyper's LLL output can be inspected by compiling a vyper contract with `vyper -f ir <contract.vy>`. Vyper also comes with a tool, `vyper-lll` which can be used to compile LLL directly to assembly or EVM bytecode.
+Vyper's current implementation of LLL can be referenced, mainly in [vyper/codegen/lll\_node.py](../codegen/lll_node.py) (which describes the internal API for constructing LLL) and in [vyper/lll/compile\_lll.py](../lll/compile_lll.py) (which describes how LLL is compiled to assembly and then to bytecode). Vyper's LLL output can be inspected by compiling a vyper contract with `vyper -f ir <contract.vy>`. Vyper also comes with a tool, `vyper-lll` which can be used to compile LLL directly to assembly or EVM bytecode.
 
 In the following examples, `_sym_<label>` is a location in code which will be resolved as the last step during conversion to opcodes. If it occurs before a `JUMPDEST`, is merely a marker in the code (and gets omitted in the bytecode). If it occurs anywhere else, it translates to `PUSH2 <location of jumpdest>`.
 

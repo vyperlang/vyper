@@ -2,14 +2,21 @@ from typing import Any, List
 
 import vyper.utils as util
 from vyper.ast.signatures.function_signature import FunctionSignature, VariableRecord
+from vyper.codegen.context import Context
+from vyper.codegen.core import get_element_ptr, getpos, make_setter
+from vyper.codegen.expr import Expr
+from vyper.codegen.function_definitions.utils import get_nonreentrant_lock
+from vyper.codegen.lll_node import Encoding, LLLnode
+from vyper.codegen.stmt import parse_body
+from vyper.codegen.types.types import (
+    BaseType,
+    ByteArrayLike,
+    DArrayType,
+    SArrayType,
+    TupleLike,
+    TupleType,
+)
 from vyper.exceptions import CompilerPanic
-from vyper.old_codegen.context import Context
-from vyper.old_codegen.expr import Expr
-from vyper.old_codegen.function_definitions.utils import get_nonreentrant_lock
-from vyper.old_codegen.lll_node import Encoding, LLLnode
-from vyper.old_codegen.parser_utils import get_element_ptr, getpos, make_setter
-from vyper.old_codegen.stmt import parse_body
-from vyper.old_codegen.types.types import BaseType, ByteArrayLike, ListType, TupleLike, TupleType
 
 
 def _should_decode(typ):
@@ -18,9 +25,9 @@ def _should_decode(typ):
     # needs to be clamped.
     if isinstance(typ, BaseType):
         return typ.typ not in ("int256", "uint256", "bytes32")
-    if isinstance(typ, ByteArrayLike):
+    if isinstance(typ, (ByteArrayLike, DArrayType)):
         return True
-    if isinstance(typ, ListType):
+    if isinstance(typ, SArrayType):
         return _should_decode(typ.subtype)
     if isinstance(typ, TupleLike):
         return any(_should_decode(t) for t in typ.tuple_members())
@@ -53,7 +60,7 @@ def _register_function_args(context: Context, sig: FunctionSignature) -> List[LL
             # allocate a memory slot for it and copy
             p = context.new_variable(arg.name, arg.typ, is_mutable=False)
             dst = LLLnode(p, typ=arg.typ, location="memory")
-            ret.append(make_setter(dst, arg_lll, pos=pos))
+            ret.append(make_setter(dst, arg_lll, context, pos=pos))
         else:
             # leave it in place
             context.vars[arg.name] = VariableRecord(
@@ -113,14 +120,14 @@ def _generate_kwarg_handlers(context: Context, sig: FunctionSignature, pos: Any)
 
             lhs = LLLnode(dst, location="memory", typ=arg_meta.typ)
             rhs = get_element_ptr(calldata_kwargs_ofst, k, pos=None, array_bounds_check=False)
-            ret.append(make_setter(lhs, rhs, pos))
+            ret.append(make_setter(lhs, rhs, context, pos))
 
         for x in default_kwargs:
             dst = context.lookup_var(x.name).pos
             lhs = LLLnode(dst, location="memory", typ=x.typ)
             kw_ast_val = sig.default_values[x.name]  # e.g. `3` in x: int = 3
             rhs = Expr(kw_ast_val, context).lll_node
-            ret.append(make_setter(lhs, rhs, pos))
+            ret.append(make_setter(lhs, rhs, context, pos))
 
         ret.append(["goto", sig.external_function_base_entry_label])
 

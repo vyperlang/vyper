@@ -48,6 +48,7 @@ def compile_codes(
     initial_id: int = 0,
     no_optimize: bool = False,
     storage_layouts: Dict[ContractPath, StorageLayout] = None,
+    show_gas_estimates: bool = False,
 ) -> OrderedDict:
     """
     Generate compiler output(s) from one or more contract source codes.
@@ -69,6 +70,8 @@ def compile_codes(
         implemented ruleset.
     no_optimize: bool, optional
         Turn off optimizations. Defaults to False
+    show_gas_estimates: bool, optional
+        Show gas estimates for abi and ir output modes
     interface_codes: Dict, optional
         Interfaces that may be imported by the contracts during compilation.
 
@@ -107,7 +110,7 @@ def compile_codes(
             interfaces = interfaces[contract_name]
 
         compiler_data = CompilerData(
-            source_code, contract_name, interfaces, source_id, no_optimize, storage_layout_override
+            source_code, contract_name, interfaces, source_id, no_optimize, storage_layout_override, show_gas_estimates
         )
         for output_format in output_formats[contract_name]:
             if output_format not in OUTPUT_FORMATS:
@@ -134,6 +137,7 @@ def compile_code(
     evm_version: str = DEFAULT_EVM_VERSION,
     no_optimize: bool = False,
     storage_layout_override: StorageLayout = None,
+    show_gas_estimates: bool = False,
 ) -> dict:
     """
     Generate compiler output(s) from a single contract source code.
@@ -150,6 +154,8 @@ def compile_code(
         implemented ruleset.
     no_optimize: bool, optional
         Turn off optimizations. Defaults to False
+    show_gas_estimates: bool, optional
+        Show gas estimates for abi and ir output modes
     interface_codes: Dict, optional
         Interfaces that may be imported by the contracts during compilation.
 
@@ -172,4 +178,5 @@ def compile_code(
         evm_version=evm_version,
         no_optimize=no_optimize,
         storage_layouts=storage_layouts,
+        show_gas_estimates=show_gas_estimates,
     )[UNKNOWN_CONTRACT_NAME]

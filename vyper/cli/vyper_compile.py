@@ -12,7 +12,6 @@ from vyper.cli import vyper_json
 from vyper.cli.utils import extract_file_interface_imports, get_interface_file_path
 from vyper.compiler.settings import VYPER_TRACEBACK_LIMIT
 from vyper.evm.opcodes import DEFAULT_EVM_VERSION, EVM_VERSIONS
-from vyper.old_codegen import parser_utils
 from vyper.typing import ContractCodes, ContractPath, OutputFormats
 
 T = TypeVar("T")
@@ -91,7 +90,7 @@ def _parse_args(argv):
     )
     parser.add_argument(
         "--show-gas-estimates",
-        help="Show gas estimates in ir output mode.",
+        help="Show gas estimates in abi and ir output mode.",
         action="store_true",
     )
     parser.add_argument(
@@ -238,9 +237,6 @@ def compile_files(
     storage_layout: Iterable[str] = None,
 ) -> OrderedDict:
 
-    if show_gas_estimates:
-        parser_utils.LLLnode.repr_show_gas = True
-
     root_path = Path(root_folder).resolve()
     if not root_path.exists():
         raise FileNotFoundError(f"Invalid root path - '{root_path.as_posix()}' does not exist")
@@ -282,6 +278,7 @@ def compile_files(
         evm_version=evm_version,
         no_optimize=no_optimize,
         storage_layouts=storage_layouts,
+        show_gas_estimates=show_gas_estimates,
     )
     if show_version:
         compiler_data["version"] = vyper.__version__

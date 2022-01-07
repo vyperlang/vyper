@@ -1,4 +1,4 @@
-from vyper.old_codegen.lll_node import LLLnode
+from vyper.codegen.lll_node import LLLnode
 
 
 def build_gas_estimates(lll_runtime: LLLnode) -> dict:

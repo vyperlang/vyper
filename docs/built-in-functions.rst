@@ -368,7 +368,7 @@ Data Manipulation
 
     * ``b``: value being sliced
     * ``start``: start position of the slice
-    * ``length``: length of the slice
+    * ``length``: length of the slice, must be constant. Immutables and variables are not supported.
 
     If the value being sliced is a ``Bytes`` or ``bytes32``, the return type is ``Bytes``.  If it is a ``String``, the return type is ``String``.
 

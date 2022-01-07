@@ -1,7 +1,7 @@
+from vyper.codegen.core import getpos, make_setter
+from vyper.codegen.lll_node import LLLnode, push_label_to_stack
+from vyper.codegen.types import TupleType
 from vyper.exceptions import StateAccessViolation, StructureException
-from vyper.old_codegen.lll_node import LLLnode, push_label_to_stack
-from vyper.old_codegen.parser_utils import getpos, make_setter
-from vyper.old_codegen.types import TupleType
 
 _label_counter = 0
 
@@ -14,7 +14,7 @@ def _generate_label(name: str) -> str:
 
 
 def lll_for_self_call(stmt_expr, context):
-    from vyper.old_codegen.expr import Expr  # TODO rethink this circular import
+    from vyper.codegen.expr import Expr  # TODO rethink this circular import
 
     pos = getpos(stmt_expr)
 
@@ -80,13 +80,13 @@ def lll_for_self_call(stmt_expr, context):
         )
         copy_args.append(
             # --> args evaluate here <--
-            make_setter(tmp_args_buf, args_as_tuple, pos)
+            make_setter(tmp_args_buf, args_as_tuple, context, pos)
         )
 
-        copy_args.append(make_setter(args_dst, tmp_args_buf, pos))
+        copy_args.append(make_setter(args_dst, tmp_args_buf, context, pos))
 
     else:
-        copy_args = make_setter(args_dst, args_as_tuple, pos)
+        copy_args = make_setter(args_dst, args_as_tuple, context, pos)
 
     call_sequence = [
         "seq",

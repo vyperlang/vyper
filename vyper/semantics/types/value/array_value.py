@@ -65,7 +65,7 @@ class _ArrayValueDefinition(ValueTypeDefinition):
         return 32 + ceil32(self.length)
 
     @property
-    def canonical_type(self) -> str:
+    def canonical_abi_type(self) -> str:
         return self._id.lower()
 
     def set_length(self, length):

@@ -1,9 +1,9 @@
 import functools
 
 from vyper import ast as vy_ast
+from vyper.codegen.expr import Expr
+from vyper.codegen.types import BaseType, ByteArrayType, StringType, is_base_type
 from vyper.exceptions import InvalidLiteral, StructureException, TypeMismatch
-from vyper.old_codegen.expr import Expr
-from vyper.old_codegen.types import BaseType, ByteArrayType, StringType, is_base_type
 from vyper.utils import SizeLimits
 
 
@@ -65,10 +65,7 @@ def process_arg(index, arg, expected_arg_typelist, function_name, context):
                 return sub
         else:
             # Does not work for unit-endowed types inside compound types, e.g. timestamp[2]
-            parsed_expected_type = context.parse_type(
-                vy_ast.parse_to_ast(expected_arg)[0].value,
-                "memory",
-            )
+            parsed_expected_type = context.parse_type(vy_ast.parse_to_ast(expected_arg)[0].value)
             if isinstance(parsed_expected_type, BaseType):
                 vsub = vsub or Expr.parse_value_expr(arg, context)
 

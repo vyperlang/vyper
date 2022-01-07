@@ -3,9 +3,10 @@ import warnings
 from typing import Optional, Tuple
 
 from vyper import ast as vy_ast
+from vyper.codegen import parser
+from vyper.codegen.global_context import GlobalContext
+from vyper.codegen.lll_node import LLLnode
 from vyper.lll import compile_lll, optimizer
-from vyper.old_codegen import parser
-from vyper.old_codegen.global_context import GlobalContext
 from vyper.semantics import set_data_positions, validate_semantics
 from vyper.typing import InterfaceImports, StorageLayout
 
@@ -48,6 +49,7 @@ class CompilerData:
         source_id: int = 0,
         no_optimize: bool = False,
         storage_layout: StorageLayout = None,
+        show_gas_estimates: bool = False,
     ) -> None:
         """
         Initialization method.
@@ -64,6 +66,10 @@ class CompilerData:
             * JSON interfaces are given as lists, vyper interfaces as strings
         source_id : int, optional
             ID number used to identify this contract in the source map.
+        no_optimize: bool, optional
+            Turn off optimizations. Defaults to False
+        show_gas_estimates: bool, optional
+            Show gas estimates for abi and ir output modes
         """
         self.contract_name = contract_name
         self.source_code = source_code
@@ -71,6 +77,7 @@ class CompilerData:
         self.source_id = source_id
         self.no_optimize = no_optimize
         self.storage_layout_override = storage_layout
+        self.show_gas_estimates = show_gas_estimates
 
     @property
     def vyper_module(self) -> vy_ast.Module:
@@ -111,13 +118,13 @@ class CompilerData:
         self._lll_nodes, self._lll_runtime = generate_lll_nodes(self.global_ctx, self.no_optimize)
 
     @property
-    def lll_nodes(self) -> parser.LLLnode:
+    def lll_nodes(self) -> LLLnode:
         if not hasattr(self, "_lll_nodes"):
             self._gen_lll()
         return self._lll_nodes
 
     @property
-    def lll_runtime(self) -> parser.LLLnode:
+    def lll_runtime(self) -> LLLnode:
         if not hasattr(self, "_lll_runtime"):
             self._gen_lll()
         return self._lll_runtime
@@ -221,9 +228,7 @@ def generate_global_context(
     return GlobalContext.get_global_context(vyper_module, interface_codes=interface_codes)
 
 
-def generate_lll_nodes(
-    global_ctx: GlobalContext, no_optimize: bool
-) -> Tuple[parser.LLLnode, parser.LLLnode]:
+def generate_lll_nodes(global_ctx: GlobalContext, no_optimize: bool) -> Tuple[LLLnode, LLLnode]:
     """
     Generate the intermediate representation (LLL) from the contextualized AST.
 
@@ -251,7 +256,7 @@ def generate_lll_nodes(
     return lll_nodes, lll_runtime
 
 
-def generate_assembly(lll_nodes: parser.LLLnode, no_optimize: bool = False) -> list:
+def generate_assembly(lll_nodes: LLLnode, no_optimize: bool = False) -> list:
     """
     Generate assembly instructions from LLL.
 
