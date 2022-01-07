@@ -1,5 +1,4 @@
 import pytest
-from eth_abi import decode_single
 from eth_tester.exceptions import TransactionFailed
 
 
@@ -189,7 +188,7 @@ def test(x: uint256[3]) -> bool:
     assert_tx_failed(lambda: c.test([1, 3, 5]))
 
 
-def test_assert_reason_revert_length(w3, get_contract, memory_mocker):
+def test_assert_reason_revert_length(w3, get_contract, assert_tx_failed, memory_mocker):
     code = """
 @external
 def test() -> int128:
@@ -197,10 +196,4 @@ def test() -> int128:
     return 1
 """
     c = get_contract(code)
-    w3.manager.provider.ethereum_tester.backend.is_eip838_error = lambda err: False
-    with pytest.raises(TransactionFailed) as e_info:
-        c.test()
-    error_bytes = eval(_fixup_err_str(e_info.value.args[0]))
-    assert len(error_bytes) == 100
-    msg = decode_single("string", error_bytes[36:])
-    assert msg == "oops"
+    assert_tx_failed(lambda: c.test(), exc_text="oops")
