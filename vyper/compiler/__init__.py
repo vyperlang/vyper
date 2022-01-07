@@ -1,10 +1,18 @@
 from collections import OrderedDict
-from typing import Any, Callable, Optional, Sequence, Union
+from typing import Any, Callable, Dict, Optional, Sequence, Union
 
 from vyper.compiler import output
 from vyper.compiler.phases import CompilerData
 from vyper.evm.opcodes import DEFAULT_EVM_VERSION, evm_wrapper
-from vyper.typing import ContractCodes, InterfaceDict, InterfaceImports, OutputDict, OutputFormats
+from vyper.typing import (
+    ContractCodes,
+    ContractPath,
+    InterfaceDict,
+    InterfaceImports,
+    OutputDict,
+    OutputFormats,
+    StorageLayout,
+)
 
 OUTPUT_FORMATS = {
     # requires vyper_module
@@ -39,6 +47,7 @@ def compile_codes(
     interface_codes: Union[InterfaceDict, InterfaceImports, None] = None,
     initial_id: int = 0,
     no_optimize: bool = False,
+    storage_layouts: Dict[ContractPath, StorageLayout] = None,
     show_gas_estimates: bool = False,
 ) -> OrderedDict:
     """
@@ -89,6 +98,10 @@ def compile_codes(
     for source_id, contract_name in enumerate(sorted(contract_sources), start=initial_id):
         source_code = contract_sources[contract_name]
         interfaces: Any = interface_codes
+        storage_layout_override = None
+        if storage_layouts and contract_name in storage_layouts:
+            storage_layout_override = storage_layouts[contract_name]
+
         if (
             isinstance(interfaces, dict)
             and contract_name in interfaces
@@ -97,12 +110,7 @@ def compile_codes(
             interfaces = interfaces[contract_name]
 
         compiler_data = CompilerData(
-            source_code,
-            contract_name,
-            interfaces,
-            source_id,
-            no_optimize,
-            show_gas_estimates
+            source_code, contract_name, interfaces, source_id, no_optimize, storage_layout_override, show_gas_estimates
         )
         for output_format in output_formats[contract_name]:
             if output_format not in OUTPUT_FORMATS:
@@ -128,6 +136,7 @@ def compile_code(
     interface_codes: Optional[InterfaceImports] = None,
     evm_version: str = DEFAULT_EVM_VERSION,
     no_optimize: bool = False,
+    storage_layout_override: StorageLayout = None,
     show_gas_estimates: bool = False,
 ) -> dict:
     """
@@ -160,6 +169,7 @@ def compile_code(
     """
 
     contract_sources = {UNKNOWN_CONTRACT_NAME: contract_source}
+    storage_layouts = {UNKNOWN_CONTRACT_NAME: storage_layout_override}
 
     return compile_codes(
         contract_sources,
@@ -167,5 +177,6 @@ def compile_code(
         interface_codes=interface_codes,
         evm_version=evm_version,
         no_optimize=no_optimize,
+        storage_layouts=storage_layouts,
         show_gas_estimates=show_gas_estimates,
     )[UNKNOWN_CONTRACT_NAME]

@@ -100,6 +100,12 @@ def _parse_args(argv):
         dest="format",
     )
     parser.add_argument(
+        "--storage-layout-file",
+        help="Override storage slots provided by compiler",
+        dest="storage_layout",
+        nargs="+",
+    )
+    parser.add_argument(
         "--evm-version",
         help=f"Select desired EVM version (default {DEFAULT_EVM_VERSION})",
         choices=list(EVM_VERSIONS),
@@ -156,6 +162,7 @@ def _parse_args(argv):
         args.show_gas_estimates,
         args.evm_version,
         args.no_optimize,
+        args.storage_layout,
     )
 
     if args.output_path:
@@ -227,6 +234,7 @@ def compile_files(
     show_gas_estimates: bool = False,
     evm_version: str = DEFAULT_EVM_VERSION,
     no_optimize: bool = False,
+    storage_layout: Iterable[str] = None,
 ) -> OrderedDict:
 
     root_path = Path(root_folder).resolve()
@@ -245,6 +253,13 @@ def compile_files(
             # https://bugs.python.org/issue35107
             contract_sources[file_str] = fh.read() + "\n"
 
+    storage_layouts = OrderedDict()
+    if storage_layout:
+        for storage_file_name, contract_name in zip(storage_layout, contract_sources.keys()):
+            storage_file_path = Path(storage_file_name)
+            with storage_file_path.open() as sfh:
+                storage_layouts[contract_name] = json.load(sfh)
+
     show_version = False
     if "combined_json" in output_formats:
         if len(output_formats) > 1:
@@ -262,6 +277,7 @@ def compile_files(
         interface_codes=get_interface_codes(root_path, contract_sources),
         evm_version=evm_version,
         no_optimize=no_optimize,
+        storage_layouts=storage_layouts,
         show_gas_estimates=show_gas_estimates,
     )
     if show_version:
