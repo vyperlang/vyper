@@ -136,7 +136,7 @@ class ABI_FixedMxN(ABIType):
         return 32
 
     def selector_name(self):
-        return ("" if self.signed else "u") + "fixed{self.m_bits}x{self.n_places}"
+        return ("" if self.signed else "u") + f"fixed{self.m_bits}x{self.n_places}"
 
     def is_complex_type(self):
         return False
@@ -283,6 +283,9 @@ class ABI_Tuple(ABIType):
 
     def is_complex_type(self):
         return True
+
+    def selector_name(self):
+        return "(" + ",".join(t.selector_name() for t in self.subtyps) + ")"
 
 
 # the new type system

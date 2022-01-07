@@ -196,7 +196,7 @@ class SArrayType(ArrayLike):
 
     @property
     def abi_type(self):
-        return ABI_StaticArray(self.subtyp.abi_type, self.count)
+        return ABI_StaticArray(self.subtype.abi_type, self.count)
 
 
 # Data structure for a dynamic array
@@ -210,7 +210,7 @@ class DArrayType(ArrayLike):
 
     @property
     def abi_type(self):
-        return ABI_DynamicArray(self.subtyp.abi_type, self.count)
+        return ABI_DynamicArray(self.subtype.abi_type, self.count)
 
 
 # Data structure for a key-value mapping
