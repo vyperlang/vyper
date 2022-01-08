@@ -2,7 +2,7 @@ import functools
 
 from vyper.codegen.lll_node import LLLnode
 from vyper.evm.opcodes import get_opcodes
-from vyper.exceptions import CompilerPanic
+from vyper.exceptions import CodegenPanic, CompilerPanic
 from vyper.utils import MemoryPositions
 
 PUSH_OFFSET = 0x5F
@@ -623,7 +623,9 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
             withargs[arg.value] = height
             height += 1
 
-        body_asm = _compile_to_assembly(body, withargs=withargs, existing_labels=existing_labels, height=height)
+        body_asm = _compile_to_assembly(
+            body, withargs=withargs, existing_labels=existing_labels, height=height
+        )
         pop_scoped_vars = ["POP"] * height
 
         return ["_sym_" + label_name, "JUMPDEST"] + body_asm + pop_scoped_vars
@@ -646,7 +648,9 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
                 ret += ["SWAP" + str(height - _height)]
             ret += ["POP"] * (height - _height)
         else:  # general case, shouldn't happen now but for futureproof
-            ret += _compile_to_assembly(return_pc, withargs=withargs, existing_labels=existing_labels, height=height)
+            ret += _compile_to_assembly(
+                return_pc, withargs=withargs, existing_labels=existing_labels, height=height
+            )
             height += 1
             ret += ["SWAP" + str(height)]
             ret += ["POP"] * height

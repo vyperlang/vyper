@@ -5,7 +5,7 @@ from typing import Any, List, Optional, Tuple, Union
 from vyper.codegen.types import BaseType, NodeType, ceil32
 from vyper.compiler.settings import VYPER_COLOR_OUTPUT
 from vyper.evm.opcodes import get_lll_opcodes
-from vyper.exceptions import CompilerPanic, CodegenPanic
+from vyper.exceptions import CodegenPanic, CompilerPanic
 from vyper.utils import VALID_LLL_MACROS, cached_property
 
 # Set default string representation for ints in LLL output.

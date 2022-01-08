@@ -207,7 +207,6 @@ def generate_lll_for_external_function(code, sig, context, check_nonpayable):
     # wrap the exit in a labeled block
     exit = ["label", sig.exit_sequence_label, exit_sequence_args, exit_sequence]
 
-
     # the lll which comprises the main body of the function,
     # besides any kwarg handling
     func_common_lll = ["seq", body, exit]

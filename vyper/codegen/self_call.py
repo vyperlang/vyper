@@ -59,8 +59,7 @@ def lll_for_self_call(stmt_expr, context):
     # TODO allocate in stmt and/or expr.py
     if sig.return_type is not None:
         return_buffer = LLLnode.from_list(
-            context.new_internal_variable(sig.return_type),
-            annotation=f"{return_label}_return_buf"
+            context.new_internal_variable(sig.return_type), annotation=f"{return_label}_return_buf"
         )
     else:
         return_buffer = None
