@@ -137,7 +137,7 @@ class DynamicArrayDefinition(_SequenceDefinition):
 
     @property
     def abi_type(self) -> ABIType:
-        return ABI_DynamicArray(self.value_type, self.length)
+        return ABI_DynamicArray(self.value_type.abi_type, self.length)
 
     @property
     def is_dynamic_size(self):
