@@ -1,6 +1,7 @@
 from collections import OrderedDict
 
 from vyper import ast as vy_ast
+from vyper.abi_types import ABI_Tuple, ABIType
 from vyper.ast.validation import validate_call_args
 from vyper.exceptions import (
     NamespaceCollision,
@@ -42,8 +43,8 @@ class StructDefinition(MemberTypeDefinition):
         return super().compare_type(other) and self._id == other._id
 
     @property
-    def canonical_abi_type(self) -> str:
-        return f"({','.join(i.canonical_abi_type for i in self.members.values())})"
+    def abi_type(self) -> ABIType:
+        return ABI_Tuple([t.abi_type for t in self.members.values()])
 
 
 class StructPrimitive:

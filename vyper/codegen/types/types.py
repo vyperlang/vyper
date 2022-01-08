@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from vyper import ast as vy_ast
-from vyper.codegen.abi_types import (
+from vyper.abi_types import (
     ABI_Address,
     ABI_Bool,
     ABI_Bytes,

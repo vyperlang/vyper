@@ -4,11 +4,11 @@ import operator
 from decimal import Decimal
 
 from vyper import ast as vy_ast
+from vyper.abi_types import ABI_Tuple
 from vyper.ast.signatures.function_signature import VariableRecord
 from vyper.ast.validation import validate_call_args
 from vyper.builtin_functions.convert import convert
 from vyper.codegen.abi_encoder import abi_encode
-from vyper.codegen.abi_types import ABI_Tuple, abi_type_of2
 from vyper.codegen.core import (
     LLLnode,
     add_ofst,
@@ -1871,7 +1871,7 @@ class ABIEncode(_SimpleBuiltinFunction):
         arg_abi_types = []
         for arg in node.args:
             arg_t = get_exact_type_from_node(arg)
-            arg_abi_types.append(abi_type_of2(arg_t))
+            arg_abi_types.append(arg_t.abi_type)
 
         # special case, no tuple
         if len(arg_abi_types) == 1 and not self._ensure_tuple(node):

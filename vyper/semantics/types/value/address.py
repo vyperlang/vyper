@@ -1,4 +1,5 @@
 from vyper import ast as vy_ast
+from vyper.abi_types import ABI_Address, ABIType
 from vyper.exceptions import CompilerPanic, InvalidLiteral
 from vyper.utils import checksum_encode
 
@@ -16,6 +17,10 @@ class AddressDefinition(MemberTypeDefinition):
         "codesize": Uint256Definition(is_constant=True),
         "is_contract": BoolDefinition(is_constant=True),
     }
+
+    @property
+    def abi_type(self) -> ABIType:
+        return ABI_Address()
 
 
 class AddressPrimitive(BasePrimitive):

@@ -1,7 +1,3 @@
-# TODO maybe move this to a higher level module
-# e.g. vyper.abi.types
-
-import vyper.semantics.types as vy
 from vyper.exceptions import CompilerPanic
 from vyper.utils import ceil32
 
@@ -286,29 +282,3 @@ class ABI_Tuple(ABIType):
 
     def selector_name(self):
         return "(" + ",".join(t.selector_name() for t in self.subtyps) + ")"
-
-
-# the new type system
-# TODO consider moving these into properties of the type itself
-def abi_type_of2(t: vy.BasePrimitive) -> ABIType:
-    if isinstance(t, vy.AbstractNumericDefinition):
-        return ABI_GIntM(t._bits, t._is_signed)
-    if isinstance(t, vy.AddressDefinition):
-        return ABI_Address()
-    if isinstance(t, vy.Bytes32Definition):
-        return ABI_BytesM(t.length)
-    if isinstance(t, vy.BoolDefinition):
-        return ABI_Bool()
-    if isinstance(t, vy.DecimalDefinition):
-        return ABI_FixedMxN(t._bits, t._decimal_places, True)
-    if isinstance(t, vy.BytesArrayDefinition):
-        return ABI_Bytes(t._length)
-    if isinstance(t, vy.StringDefinition):
-        return ABI_String(t._length)
-    if isinstance(t, vy.TupleDefinition):
-        return ABI_Tuple([abi_type_of2(t) for t in t.value_type])
-    if isinstance(t, vy.StructDefinition):
-        return ABI_Tuple([abi_type_of2(t) for t in t.members.values()])
-    if isinstance(t, vy.ArrayDefinition):
-        return ABI_StaticArray(abi_type_of2(t.value_type), t.length)
-    raise CompilerPanic(f"Unrecognized type {t}")

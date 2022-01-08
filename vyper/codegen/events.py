@@ -1,7 +1,7 @@
 from typing import Tuple
 
+from vyper.abi_types import ABI_Tuple
 from vyper.codegen.abi_encoder import abi_encode
-from vyper.codegen.abi_types import ABI_Tuple, abi_type_of2
 from vyper.codegen.context import Context
 from vyper.codegen.core import getpos, lll_tuple_from_args, unwrap_location
 from vyper.codegen.keccak256_helper import keccak256_helper
@@ -49,7 +49,7 @@ def allocate_buffer_for_log(event: Event, context: Context) -> Tuple[int, int]:
     arg_types = [arg_t for arg_t, is_index in zip(arg_types, event.indexed) if not is_index]
 
     # all args get encoded as one big tuple
-    abi_t = ABI_Tuple([abi_type_of2(arg_t) for arg_t in arg_types])
+    abi_t = ABI_Tuple([t.abi_type for t in arg_types])
 
     # make a buffer for the encoded data output
     buf_maxlen = abi_t.size_bound()
