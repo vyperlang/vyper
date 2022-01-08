@@ -136,9 +136,6 @@ def _word_size(location):
 # TODO this code is very similar to make_byte_array_copier,
 # try to refactor.
 def make_dyn_array_copier(dst, src, context, pos=None):
-    # TODO circular import!
-    from vyper.codegen.abi import abi_type_of
-
     assert isinstance(src.typ, DArrayType)
     assert isinstance(dst.typ, DArrayType)
 
@@ -152,7 +149,7 @@ def make_dyn_array_copier(dst, src, context, pos=None):
     with src.cache_when_complex("_src") as (b1, src):
         if (
             src.encoding in (Encoding.ABI, Encoding.JSON_ABI)
-            and abi_type_of(src.typ.subtype).is_dynamic()
+            and src.typ.subtype.abi_type.is_dynamic()
         ):
             uint = BaseType("uint256")
             iptr = LLLnode.from_list(
@@ -308,10 +305,7 @@ def add_ofst(loc, ofst):
 
 # Resolve pointer locations for ABI-encoded data
 def _getelemptr_abi_helper(parent, member_t, ofst, pos=None, clamp=True):
-    # TODO circular import!
-    from vyper.codegen.abi import abi_type_of
-
-    member_abi_t = abi_type_of(member_t)
+    member_abi_t = member_t.abi_type
 
     # ABI encoding has length word and then pretends length is not there
     # e.g. [[1,2]] is encoded as 0x01 <len> 0x20 <inner array ofst> <encode(inner array)>
@@ -339,9 +333,6 @@ def _getelemptr_abi_helper(parent, member_t, ofst, pos=None, clamp=True):
 
 # TODO simplify this code, especially the ABI decoding
 def _get_element_ptr_tuplelike(parent, key, pos):
-    # TODO circular import!
-    from vyper.codegen.abi import abi_type_of
-
     typ = parent.typ
     assert isinstance(typ, TupleLike)
 
@@ -375,7 +366,7 @@ def _get_element_ptr_tuplelike(parent, key, pos):
         member_t = typ.members[attrs[index]]
 
         for i in range(index):
-            member_abi_t = abi_type_of(typ.members[attrs[i]])
+            member_abi_t = typ.members[attrs[i]].abi_type
             ofst += member_abi_t.embedded_static_size()
 
         return _getelemptr_abi_helper(parent, member_t, ofst, pos)
@@ -405,8 +396,6 @@ def has_length_word(typ):
 
 # TODO simplify this code, especially the ABI decoding
 def _get_element_ptr_array(parent, key, pos, array_bounds_check):
-    # TODO circular import!
-    from vyper.codegen.abi import abi_type_of
 
     assert isinstance(parent.typ, ArrayLike)
 
@@ -442,7 +431,7 @@ def _get_element_ptr_array(parent, key, pos, array_bounds_check):
         if parent.location == "storage":
             raise CompilerPanic("storage variables should not be abi encoded")
 
-        member_abi_t = abi_type_of(subtype)
+        member_abi_t = subtype.abi_type
 
         if isinstance(ix.value, int):
             # TODO this constant folding in LLL optimizer

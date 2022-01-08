@@ -4,7 +4,7 @@ from typing import Optional
 
 from vyper import ast as vy_ast
 from vyper.codegen.lll_node import Encoding
-from vyper.codegen.types import NodeType, canonicalize_type, parse_type
+from vyper.codegen.types import NodeType, parse_type
 from vyper.exceptions import StructureException
 from vyper.utils import cached_property, mkalphanum
 
@@ -109,7 +109,7 @@ class FunctionSignature:
     # calculate the abi signature for a given set of kwargs
     def abi_signature_for_kwargs(self, kwargs):
         args = self.base_args + kwargs
-        return self.name + "(" + ",".join([canonicalize_type(arg.typ) for arg in args]) + ")"
+        return self.name + "(" + ",".join([arg.typ.abi_type.selector_name() for arg in args]) + ")"
 
     @cached_property
     def base_signature(self):
@@ -209,7 +209,7 @@ class FunctionSignature:
                 custom_structs=custom_structs,
             )
             # sanity check: Output type must be canonicalizable
-            assert canonicalize_type(return_type)
+            assert return_type.abi_type.selector_name()
 
         return cls(
             name,

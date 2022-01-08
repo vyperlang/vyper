@@ -27,9 +27,9 @@ The compilation process includes the following broad phases:
 abstract syntax tree.
 1. In [`vyper.ast.folding`](../ast/folding.py), literal Vyper AST nodes are
 evaluated and replaced with the resulting values.
-1. The [`GlobalContext`](../parser/global_context.py) object is generated from the
+1. The [`GlobalContext`](../codegen/global_context.py) object is generated from the
 Vyper AST, analyzing and organizing the nodes prior to LLL generation.
-1. In [`vyper.parser.parser`](../parser/parser.py), the contextualized nodes are
+1. In [`vyper.codegen.module`](../codegen/module.py), the contextualized nodes are
 converted into LLL nodes.
 1. In [`vyper.compile_lll`](../compile_lll.py), the LLL nodes are converted to
 assembly instructions.

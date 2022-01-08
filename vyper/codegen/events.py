@@ -1,6 +1,7 @@
 from typing import Tuple
 
-from vyper.codegen.abi import ABI_Tuple, abi_encode, abi_type_of, abi_type_of2
+from vyper.abi_types import ABI_Tuple
+from vyper.codegen.abi_encoder import abi_encode
 from vyper.codegen.context import Context
 from vyper.codegen.core import getpos, lll_tuple_from_args, unwrap_location
 from vyper.codegen.keccak256_helper import keccak256_helper
@@ -48,7 +49,7 @@ def allocate_buffer_for_log(event: Event, context: Context) -> Tuple[int, int]:
     arg_types = [arg_t for arg_t, is_index in zip(arg_types, event.indexed) if not is_index]
 
     # all args get encoded as one big tuple
-    abi_t = ABI_Tuple([abi_type_of2(arg_t) for arg_t in arg_types])
+    abi_t = ABI_Tuple([t.abi_type for t in arg_types])
 
     # make a buffer for the encoded data output
     buf_maxlen = abi_t.size_bound()
@@ -76,7 +77,7 @@ def lll_node_for_log(expr, buf, _maxlen, event, topic_nodes, data_nodes, context
     data = lll_tuple_from_args(data_nodes)
 
     # sanity check, abi size_bound is the same calculated both ways
-    assert abi_type_of(data.typ).size_bound() == _maxlen, "bad buffer size"
+    assert data.typ.abi_type.size_bound() == _maxlen, "bad buffer size"
 
     # encode_data is an LLLnode which, cleverly, both encodes the data
     # and returns the length of the encoded data as a stack item.

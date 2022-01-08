@@ -133,7 +133,7 @@ def _build_asm(asm_list):
     skip_newlines = 0
     for node in asm_list:
         if isinstance(node, list):
-            output_string += _build_asm(node)
+            output_string += "[ " + _build_asm(node) + "] "
             continue
 
         is_push = isinstance(node, str) and node.startswith("PUSH")
@@ -144,7 +144,8 @@ def _build_asm(asm_list):
         elif is_push:
             skip_newlines = int(node[4:]) - 1
         else:
-            output_string += "\n"
+            output_string += " "
+
     return output_string
 
 

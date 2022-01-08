@@ -7,7 +7,6 @@ from vyper.codegen.types import (
     SArrayType,
     StructType,
     TupleType,
-    canonicalize_type,
 )
 
 
@@ -45,19 +44,11 @@ def test_tuple_node_types():
 
 
 def test_canonicalize_type():
-    # Non-basetype not allowed
-    with raises(Exception):
-        canonicalize_type(int)
-    # List of byte arrays not allowed
-    a = SArrayType(ByteArrayType(12), 2)
-    with raises(Exception):
-        canonicalize_type(a)
-
-    # TODO dynamic array
+    # TODO add more types
 
     # Test ABI format of multiple args.
     c = TupleType([BaseType("int128"), BaseType("address")])
-    assert canonicalize_type(c) == "(int128,address)"
+    assert c.abi_type.selector_name() == "(int128,address)"
 
 
 def test_type_storage_sizes():

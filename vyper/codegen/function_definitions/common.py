@@ -1,9 +1,9 @@
 # can't use from [module] import [object] because it breaks mocks in testing
 import copy
-from typing import Dict, Optional, Tuple
+from typing import Dict, Tuple
 
 import vyper.ast as vy_ast
-from vyper.ast.signatures import FunctionSignature, VariableRecord
+from vyper.ast.signatures import FunctionSignature
 from vyper.codegen.context import Constancy, Context
 from vyper.codegen.core import check_single_exit
 from vyper.codegen.function_definitions.external_function import generate_lll_for_external_function
@@ -29,8 +29,6 @@ def generate_lll_for_function(
     sigs: Dict[str, Dict[str, FunctionSignature]],
     global_ctx: GlobalContext,
     check_nonpayable: bool,
-    # CMC 20210921 TODO _vars can probably be removed
-    _vars: Optional[Dict[str, VariableRecord]] = None,
 ) -> Tuple[LLLnode, int, int]:
     """
     Parse a function and produce LLL code for the function, includes:
@@ -39,8 +37,6 @@ def generate_lll_for_function(
         - Clamping and copying of arguments
         - Function body
     """
-    if _vars is None:
-        _vars = {}  # noqa: F841
     sig = FunctionSignature.from_definition(
         code,
         sigs=sigs,
@@ -61,12 +57,10 @@ def generate_lll_for_function(
         # Create a local (per function) context.
         if memory_allocator is None:
             memory_allocator = MemoryAllocator()
-        nonlocal _vars
-        _vars = _vars.copy()  # these will get clobbered in called functions
         nonlocal sig
         sig = copy.deepcopy(sig)  # just in case
         context = Context(
-            vars=_vars,
+            vars_=None,
             global_ctx=global_ctx,
             sigs=sigs,
             memory_allocator=memory_allocator,

@@ -1,6 +1,7 @@
 from typing import Union
 
 from vyper import ast as vy_ast
+from vyper.abi_types import ABI_Bool, ABIType
 from vyper.exceptions import InvalidLiteral
 
 from ..bases import BasePrimitive, BaseTypeDefinition, ValueTypeDefinition
@@ -18,6 +19,10 @@ class BoolDefinition(ValueTypeDefinition):
         if isinstance(node.op, vy_ast.Not):
             return
         super().validate_numeric_op(node)
+
+    @property
+    def abi_type(self) -> ABIType:
+        return ABI_Bool()
 
 
 class BoolPrimitive(BasePrimitive):

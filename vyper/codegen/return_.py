@@ -1,6 +1,6 @@
 from typing import Any, Optional
 
-from vyper.codegen.abi import abi_encode, abi_type_of
+from vyper.codegen.abi_encoder import abi_encode
 from vyper.codegen.context import Context
 from vyper.codegen.core import (
     calculate_type_for_external_return,
@@ -65,7 +65,7 @@ def make_return_stmt(lll_val: LLLnode, stmt: Any, context: Context) -> Optional[
         lll_val = wrap_value_for_external_return(lll_val)
 
         external_return_type = calculate_type_for_external_return(context.return_type)
-        maxlen = abi_type_of(external_return_type).size_bound()
+        maxlen = external_return_type.abi_type.size_bound()
         return_buffer_ofst = context.new_internal_variable(get_type_for_exact_size(maxlen))
 
         # encode_out is cleverly a sequence which does the abi-encoding and

@@ -1,6 +1,7 @@
 from typing import Optional, Tuple, Union
 
 from vyper import ast as vy_ast
+from vyper.abi_types import ABI_DynamicArray, ABI_StaticArray, ABI_Tuple, ABIType
 from vyper.exceptions import ArrayIndexException, InvalidType, StructureException
 from vyper.semantics import validation
 from vyper.semantics.types.abstract import IntegerAbstractType
@@ -86,8 +87,8 @@ class ArrayDefinition(_SequenceDefinition):
         return f"{self.value_type}[{self.length}]"
 
     @property
-    def canonical_abi_type(self):
-        return f"{self.value_type.canonical_abi_type}[{self.length}]"
+    def abi_type(self) -> ABIType:
+        return ABI_StaticArray(self.value_type.abi_type, self.length)
 
     @property
     def is_dynamic_size(self):
@@ -135,8 +136,8 @@ class DynamicArrayDefinition(_SequenceDefinition):
         return f"DynArray[{self.value_type}, {self.length}]"
 
     @property
-    def canonical_abi_type(self):
-        return f"{self.value_type.canonical_abi_type}[]"
+    def abi_type(self) -> ABIType:
+        return ABI_DynamicArray(self.value_type.abi_type, self.length)
 
     @property
     def is_dynamic_size(self):
@@ -228,12 +229,19 @@ class TupleDefinition(_SequenceDefinition):
             is_constant,
         )
 
+        # fixes mypy error, TODO revisit typing on value_type
+        self._member_types = value_type
+
     def __repr__(self):
         return self._id
 
     @property
     def is_dynamic_size(self):
-        return any(i for i in self.value_type if i.is_dynamic_size)
+        return any(t.is_dynamic_size for t in self.value_type)
+
+    @property
+    def abi_type(self) -> ABIType:
+        return ABI_Tuple([t.abi_type for t in self._member_types])
 
     @property
     def size_in_bytes(self):

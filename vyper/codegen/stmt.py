@@ -248,7 +248,7 @@ class Stmt:
     def _parse_For_range(self):
         # attempt to use the type specified by type checking, fall back to `int256`
         # this is a stopgap solution to allow uint256 - it will be properly solved
-        # once we refactor `vyper.parser`
+        # once we refactor type system
         iter_typ = "int256"
         if "type" in self.stmt.target._metadata:
             iter_typ = self.stmt.target._metadata["type"]._id
