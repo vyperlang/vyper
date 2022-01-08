@@ -31,7 +31,9 @@ def num_to_bytearray(x):
 
 
 _next_symbol = 0
-def mksymbol(name = ""):
+
+
+def mksymbol(name=""):
     global _next_symbol
     _next_symbol += 1
 
@@ -226,7 +228,11 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
             # should not happen
             raise CompilerPanic("bad number of repeat args")
 
-        entry_dest, continue_dest, exit_dest = mksymbol("loop_start"), mksymbol("loop_continue"), mksymbol("loop_exit")
+        entry_dest, continue_dest, exit_dest = (
+            mksymbol("loop_start"),
+            mksymbol("loop_continue"),
+            mksymbol("loop_exit"),
+        )
 
         o.extend(_compile_to_assembly(iptr, withargs, existing_labels, break_dest, height))
         # stack: iptr
@@ -346,8 +352,8 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
     # LLL statement (used to contain code inside code)
     elif code.value == "lll":
         o = []
-        begincode = mksymbol("begin")
-        endcode = mksymbol("end")
+        begincode = mksymbol("lll_begin")
+        endcode = mksymbol("lll_end")
         o.extend([endcode, "JUMP", begincode, "BLANK"])
 
         lll = _compile_to_assembly(code.args[1], {}, existing_labels, None, 0)
