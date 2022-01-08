@@ -57,10 +57,13 @@ def lll_for_self_call(stmt_expr, context):
 
     # allocate space for the return buffer
     # TODO allocate in stmt and/or expr.py
-    return_buffer = (
-        context.new_internal_variable(sig.return_type) if sig.return_type is not None else None
-    )
-    return_buffer = LLLnode.from_list([return_buffer], annotation=f"{return_label}_return_buf")
+    if sig.return_type is not None:
+        return_buffer = LLLnode.from_list(
+            context.new_internal_variable(sig.return_type),
+            annotation=f"{return_label}_return_buf"
+        )
+    else:
+        return_buffer = None
 
     # note: dst_tuple_t != args_tuple_t
     dst_tuple_t = TupleType([arg.typ for arg in sig.args])
@@ -94,13 +97,16 @@ def lll_for_self_call(stmt_expr, context):
         goto_op += [return_buffer]
     # pass return label to subroutine
     goto_op += [push_label_to_stack(return_label)]
+
     call_sequence = [
         "seq",
         copy_args,
         goto_op,
         ["label", return_label, ["var_list"], "pass"],
-        return_buffer,  # push return buffer location to stack
     ]
+    if return_buffer is not None:
+        # push return buffer location to stack
+        call_sequence += [return_buffer]
 
     o = LLLnode.from_list(
         call_sequence,

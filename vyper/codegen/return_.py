@@ -51,12 +51,7 @@ def make_return_stmt(lll_val: LLLnode, stmt: Any, context: Context) -> Optional[
 
     if context.is_internal:
         dst = LLLnode.from_list(["return_buffer"], typ=context.return_type, location="memory")
-        fill_return_buffer = [
-            "with",
-            dst,
-            "pass",  # return_buffer is passed on the stack by caller
-            make_setter(dst, lll_val, pos=_pos),
-        ]
+        fill_return_buffer = make_setter(dst, lll_val, pos=_pos)
 
         return finalize(fill_return_buffer)
 
