@@ -336,6 +336,27 @@ def foo():
     c.foo()
 
 
+def test_empty_dynarray(get_contract_with_gas_estimation):
+    code = """
+foobar: DynArray[uint256, 10]
+bar: uint256
+
+@external
+def foo():
+    self.bar = 1
+    self.foobar = [1,2,3,4,5]
+    assert len(self.foobar) == 5
+
+    self.foobar = empty(DynArray[uint256, 10])
+
+    assert len(self.foobar) == 0
+    assert self.bar == 1
+    """
+
+    c = get_contract_with_gas_estimation(code)
+    c.foo()
+
+
 # param empty not working yet
 @pytest.mark.xfail
 def test_param_empty(get_contract_with_gas_estimation):

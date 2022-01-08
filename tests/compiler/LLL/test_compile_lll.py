@@ -1,8 +1,8 @@
 import pytest
 
+from vyper.codegen.lll_node import LLLnode
 from vyper.lll import compile_lll
 from vyper.lll.s_expressions import parse_s_exp
-from vyper.old_codegen.parser import LLLnode
 
 fail_list = [
     [-(2 ** 255) - 3],

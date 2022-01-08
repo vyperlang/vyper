@@ -15,7 +15,7 @@ from vyper.semantics.validation.utils import validate_expected_type, validate_un
 class InterfaceDefinition(MemberTypeDefinition):
 
     _type_members = {"address": AddressDefinition()}
-    canonical_type = "address"
+    canonical_abi_type = "address"
 
     def __init__(
         self,

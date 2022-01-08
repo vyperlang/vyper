@@ -148,7 +148,7 @@ class DecimalDefinition(FixedAbstractType, AbstractNumericDefinition):
     _invalid_op = vy_ast.Pow
 
     @property
-    def canonical_type(self) -> str:
+    def canonical_abi_type(self) -> str:
         return f"fixed{self._bits}x{self._decimal_places}"
 
 

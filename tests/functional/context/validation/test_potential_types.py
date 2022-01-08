@@ -9,7 +9,7 @@ from vyper.exceptions import (
     UndeclaredDefinition,
     UnknownAttribute,
 )
-from vyper.semantics.types.indexable.sequence import ArrayDefinition
+from vyper.semantics.types.indexable.sequence import ArrayDefinition, DynamicArrayDefinition
 from vyper.semantics.types.value.address import AddressDefinition
 from vyper.semantics.types.value.boolean import BoolDefinition
 from vyper.semantics.types.value.numeric import Int128Definition
@@ -170,7 +170,7 @@ def test_list(build_node, namespace, left, right):
 
     assert types_list
     for item in types_list:
-        assert isinstance(item, ArrayDefinition)
+        assert isinstance(item, (DynamicArrayDefinition, ArrayDefinition))
 
 
 def test_subscript(build_node, namespace):

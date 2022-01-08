@@ -1,14 +1,13 @@
 from pytest import raises
 
-from vyper.old_codegen.types import (
+from vyper.codegen.types import (
     BaseType,
     ByteArrayType,
-    ListType,
     MappingType,
+    SArrayType,
     StructType,
     TupleType,
     canonicalize_type,
-    get_size_of_type,
 )
 
 
@@ -50,30 +49,33 @@ def test_canonicalize_type():
     with raises(Exception):
         canonicalize_type(int)
     # List of byte arrays not allowed
-    a = ListType(ByteArrayType(12), 2)
+    a = SArrayType(ByteArrayType(12), 2)
     with raises(Exception):
         canonicalize_type(a)
+
+    # TODO dynamic array
+
     # Test ABI format of multiple args.
     c = TupleType([BaseType("int128"), BaseType("address")])
     assert canonicalize_type(c) == "(int128,address)"
 
 
-def test_get_size_of_type():
-    assert get_size_of_type(BaseType("int128")) == 1
-    assert get_size_of_type(ByteArrayType(12)) == 2
-    assert get_size_of_type(ByteArrayType(33)) == 3
-    assert get_size_of_type(ListType(BaseType("int128"), 10)) == 10
+def test_type_storage_sizes():
+    assert BaseType("int128").storage_size_in_words == 1
+    assert ByteArrayType(12).storage_size_in_words == 2
+    assert ByteArrayType(33).storage_size_in_words == 3
+    assert SArrayType(BaseType("int128"), 10).storage_size_in_words == 10
 
     _tuple = TupleType([BaseType("int128"), BaseType("decimal")])
-    assert get_size_of_type(_tuple) == 2
+    assert _tuple.storage_size_in_words == 2
 
     _struct = StructType({"a": BaseType("int128"), "b": BaseType("decimal")}, "Foo")
-    assert get_size_of_type(_struct) == 2
+    assert _struct.storage_size_in_words == 2
 
     # Don't allow unknown types.
     with raises(Exception):
-        get_size_of_type(int)
+        _ = int.storage_size_in_words
 
     # Maps are not supported for function arguments or outputs
     with raises(Exception):
-        get_size_of_type(MappingType(BaseType("int128"), BaseType("int128")))
+        _ = MappingType(BaseType("int128"), BaseType("int128")).storage_size_in_words

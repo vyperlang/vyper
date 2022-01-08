@@ -1,7 +1,7 @@
 import pytest
 
 from vyper import compiler
-from vyper.exceptions import ArgumentException, InvalidType, SyntaxException
+from vyper.exceptions import ArgumentException, InvalidType, StructureException, SyntaxException
 
 fail_list = [
     (
@@ -20,7 +20,7 @@ def foo():
 def foo():
     raw_log([b"cow"], b"dog")
     """,
-        InvalidType,
+        (InvalidType, StructureException),
     ),
     (
         """

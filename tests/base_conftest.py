@@ -109,6 +109,7 @@ def _get_contract(w3, source_code, no_optimize, *args, **kwargs):
         interface_codes=kwargs.pop("interface_codes", None),
         no_optimize=no_optimize,
         evm_version=kwargs.pop("evm_version", None),
+        show_gas_estimates=True,  # Enable gas estimates for testing
     )
     LARK_GRAMMAR.parse(source_code + "\n")  # Test grammar.
     abi = out["abi"]

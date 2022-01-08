@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 import pytest
 
 from vyper.exceptions import (
@@ -8,8 +10,6 @@ from vyper.exceptions import (
     UndeclaredDefinition,
     UnknownType,
 )
-
-from decimal import Decimal
 
 
 def test_external_contract_calls(get_contract, get_contract_with_gas_estimation):
@@ -35,9 +35,7 @@ def bar(arg1: address, arg2: int128) -> int128:
     print("Successfully executed an external contract call")
 
 
-def test_complicated_external_contract_calls(
-    get_contract, get_contract_with_gas_estimation
-):
+def test_complicated_external_contract_calls(get_contract, get_contract_with_gas_estimation):
     contract_1 = """
 lucky: public(int128)
 
@@ -1222,9 +1220,7 @@ def get_lucky(contract_address: address) -> int128:
     assert c2.get_lucky(c1.address) == 1
 
 
-def test_complex_external_contract_call_declaration(
-    get_contract_with_gas_estimation
-):
+def test_complex_external_contract_call_declaration(get_contract_with_gas_estimation):
     contract_1 = """
 @external
 def get_lucky() -> int128:

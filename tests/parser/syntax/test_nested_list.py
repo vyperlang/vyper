@@ -11,7 +11,7 @@ bar: int128[3][3]
 def foo():
     self.bar = [[1, 2], [3, 4, 5], [6, 7, 8]]
     """,
-        InvalidLiteral,
+        InvalidType,  # casting darray to sarray
     ),
     (
         """

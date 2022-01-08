@@ -12,7 +12,6 @@ from vyper.cli import vyper_json
 from vyper.cli.utils import extract_file_interface_imports, get_interface_file_path
 from vyper.compiler.settings import VYPER_TRACEBACK_LIMIT
 from vyper.evm.opcodes import DEFAULT_EVM_VERSION, EVM_VERSIONS
-from vyper.old_codegen import parser_utils
 from vyper.typing import ContractCodes, ContractPath, OutputFormats
 
 T = TypeVar("T")
@@ -91,7 +90,7 @@ def _parse_args(argv):
     )
     parser.add_argument(
         "--show-gas-estimates",
-        help="Show gas estimates in ir output mode.",
+        help="Show gas estimates in abi and ir output mode.",
         action="store_true",
     )
     parser.add_argument(
@@ -99,6 +98,12 @@ def _parse_args(argv):
         help=format_options_help,
         default="bytecode",
         dest="format",
+    )
+    parser.add_argument(
+        "--storage-layout-file",
+        help="Override storage slots provided by compiler",
+        dest="storage_layout",
+        nargs="+",
     )
     parser.add_argument(
         "--evm-version",
@@ -157,6 +162,7 @@ def _parse_args(argv):
         args.show_gas_estimates,
         args.evm_version,
         args.no_optimize,
+        args.storage_layout,
     )
 
     if args.output_path:
@@ -228,10 +234,8 @@ def compile_files(
     show_gas_estimates: bool = False,
     evm_version: str = DEFAULT_EVM_VERSION,
     no_optimize: bool = False,
+    storage_layout: Iterable[str] = None,
 ) -> OrderedDict:
-
-    if show_gas_estimates:
-        parser_utils.LLLnode.repr_show_gas = True
 
     root_path = Path(root_folder).resolve()
     if not root_path.exists():
@@ -248,6 +252,13 @@ def compile_files(
             # trailing newline fixes python parsing bug when source ends in a comment
             # https://bugs.python.org/issue35107
             contract_sources[file_str] = fh.read() + "\n"
+
+    storage_layouts = OrderedDict()
+    if storage_layout:
+        for storage_file_name, contract_name in zip(storage_layout, contract_sources.keys()):
+            storage_file_path = Path(storage_file_name)
+            with storage_file_path.open() as sfh:
+                storage_layouts[contract_name] = json.load(sfh)
 
     show_version = False
     if "combined_json" in output_formats:
@@ -266,6 +277,8 @@ def compile_files(
         interface_codes=get_interface_codes(root_path, contract_sources),
         evm_version=evm_version,
         no_optimize=no_optimize,
+        storage_layouts=storage_layouts,
+        show_gas_estimates=show_gas_estimates,
     )
     if show_version:
         compiler_data["version"] = vyper.__version__
