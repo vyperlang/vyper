@@ -27,6 +27,7 @@ OUTPUT_FORMATS = {
     "ir": output.build_ir_output,
     "ir_dict": output.build_ir_dict_output,
     "method_identifiers": output.build_method_identifiers_output,
+    "metadata": output.build_metadata_output,
     # requires assembly
     "abi": output.build_abi_output,
     "asm": output.build_asm_output,

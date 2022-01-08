@@ -79,7 +79,7 @@ def build_ir_output(compiler_data: CompilerData) -> LLLnode:
     return compiler_data.lll_nodes
 
 
-def build_ir_dict_output(compiler_data: CompilerData) -> LLLnode:
+def build_ir_dict_output(compiler_data: CompilerData) -> dict:
     lll = compiler_data.lll_nodes
 
     def _to_dict(lll_node):
@@ -89,6 +89,20 @@ def build_ir_dict_output(compiler_data: CompilerData) -> LLLnode:
         return lll_node.value
 
     return _to_dict(lll)
+
+
+def build_metadata_output(compiler_data: CompilerData) -> dict:
+    warnings.warn("metadata output format is unstable!")
+    sigs = compiler_data.function_signatures
+
+    def _to_dict(sig):
+        ret = vars(sig)
+        ret["return_type"] = str(ret["return_type"])
+        for attr in ["gas", "func_ast_code"]:
+            del ret[attr]
+        return ret
+
+    return {"function_signatures": {name: _to_dict(sig) for (name, sig) in sigs.items()}}
 
 
 def build_method_identifiers_output(compiler_data: CompilerData) -> dict:

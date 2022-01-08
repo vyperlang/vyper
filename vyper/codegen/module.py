@@ -3,7 +3,7 @@
 from typing import Any, List, Tuple, Union
 
 from vyper import ast as vy_ast
-from vyper.ast.signatures.function_signature import FunctionSignature
+from vyper.ast.signatures.function_signature import FunctionSignature, FunctionSignatures
 from vyper.codegen.core import make_setter
 from vyper.codegen.function_definitions import (
     generate_lll_for_function,
@@ -232,7 +232,7 @@ def parse_regular_functions(
 
 
 # Main python parse tree => LLL method
-def parse_tree_to_lll(global_ctx: GlobalContext) -> Tuple[LLLnode, LLLnode]:
+def parse_tree_to_lll(global_ctx: GlobalContext) -> Tuple[LLLnode, LLLnode, FunctionSignatures]:
     _names_def = [_def.name for _def in global_ctx._defs]
     # Checks for duplicate function names
     if len(set(_names_def)) < len(_names_def):
@@ -286,4 +286,4 @@ def parse_tree_to_lll(global_ctx: GlobalContext) -> Tuple[LLLnode, LLLnode]:
     else:
         runtime = o.copy()
 
-    return LLLnode.from_list(o), LLLnode.from_list(runtime)
+    return LLLnode.from_list(o), LLLnode.from_list(runtime), sigs

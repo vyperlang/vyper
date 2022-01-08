@@ -3,6 +3,7 @@ import warnings
 from typing import Optional, Tuple
 
 from vyper import ast as vy_ast
+from vyper.ast.signatures.function_signature import FunctionSignatures
 from vyper.codegen import module
 from vyper.codegen.global_context import GlobalContext
 from vyper.codegen.lll_node import LLLnode
@@ -115,7 +116,9 @@ class CompilerData:
 
     def _gen_lll(self) -> None:
         # fetch both deployment and runtime LLL
-        self._lll_nodes, self._lll_runtime = generate_lll_nodes(self.global_ctx, self.no_optimize)
+        self._lll_nodes, self._lll_runtime, self._function_signatures = generate_lll_nodes(
+            self.global_ctx, self.no_optimize
+        )
 
     @property
     def lll_nodes(self) -> LLLnode:
@@ -128,6 +131,12 @@ class CompilerData:
         if not hasattr(self, "_lll_runtime"):
             self._gen_lll()
         return self._lll_runtime
+
+    @property
+    def function_signatures(self) -> FunctionSignatures:
+        if not hasattr(self, "_function_signatures"):
+            self._gen_lll()
+        return self._function_signatures
 
     @property
     def assembly(self) -> list:
@@ -228,15 +237,16 @@ def generate_global_context(
     return GlobalContext.get_global_context(vyper_module, interface_codes=interface_codes)
 
 
-def generate_lll_nodes(global_ctx: GlobalContext, no_optimize: bool) -> Tuple[LLLnode, LLLnode]:
+def generate_lll_nodes(
+    global_ctx: GlobalContext, no_optimize: bool
+) -> Tuple[LLLnode, LLLnode, FunctionSignatures]:
     """
     Generate the intermediate representation (LLL) from the contextualized AST.
 
     This phase also includes LLL-level optimizations.
 
-    This function returns two values, one for generating deployment bytecode and
-    the other for generating runtime bytecode. The remaining compilation phases
-    may be called with either value, depending on the desired final output.
+    This function returns three values: deployment bytecode, runtime bytecode
+    and the function signatures of the contract
 
     Arguments
     ---------
@@ -249,11 +259,11 @@ def generate_lll_nodes(global_ctx: GlobalContext, no_optimize: bool) -> Tuple[LL
         LLL to generate deployment bytecode
         LLL to generate runtime bytecode
     """
-    lll_nodes, lll_runtime = module.parse_tree_to_lll(global_ctx)
+    lll_nodes, lll_runtime, function_sigs = module.parse_tree_to_lll(global_ctx)
     if not no_optimize:
         lll_nodes = optimizer.optimize(lll_nodes)
         lll_runtime = optimizer.optimize(lll_runtime)
-    return lll_nodes, lll_runtime
+    return lll_nodes, lll_runtime, function_sigs
 
 
 def generate_assembly(lll_nodes: LLLnode, no_optimize: bool = False) -> list:
