@@ -55,11 +55,6 @@ class StatementAnnotationVisitor(_AnnotationVisitorBase):
     def visit(self, node):
         super().visit(node)
 
-    def visit_Attribute(self, node):
-        # NOTE: required for msg.data node, removing borks and results in
-        # vyper.exceptions.StructureException: Cannot annotate: Attribute
-        pass
-
     def visit_AnnAssign(self, node):
         type_ = get_exact_type_from_node(node.target)
         self.expr_visitor.visit(node.target, type_)
