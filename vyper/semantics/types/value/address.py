@@ -4,6 +4,7 @@ from vyper.exceptions import CompilerPanic, InvalidLiteral
 from vyper.utils import checksum_encode
 
 from ..bases import BasePrimitive, MemberTypeDefinition
+from .array_value import BytesArrayDefinition
 from .boolean import BoolDefinition
 from .bytes_fixed import Bytes32Definition
 from .numeric import Uint256Definition
@@ -16,6 +17,7 @@ class AddressDefinition(MemberTypeDefinition):
         "codehash": Bytes32Definition(is_constant=True),
         "codesize": Uint256Definition(is_constant=True),
         "is_contract": BoolDefinition(is_constant=True),
+        "code": BytesArrayDefinition(is_constant=True),
     }
 
     @property

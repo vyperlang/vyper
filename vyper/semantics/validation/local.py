@@ -30,6 +30,7 @@ from vyper.semantics.types.indexable.sequence import ArrayDefinition, TupleDefin
 from vyper.semantics.types.user.event import Event
 from vyper.semantics.types.user.struct import StructDefinition
 from vyper.semantics.types.utils import get_type_from_annotation
+from vyper.semantics.types.value.address import AddressDefinition
 from vyper.semantics.types.value.array_value import StringDefinition
 from vyper.semantics.types.value.boolean import BoolDefinition
 from vyper.semantics.types.value.numeric import Uint256Definition
@@ -111,6 +112,36 @@ def _validate_revert_reason(msg_node: vy_ast.VyperNode) -> None:
                 raise InvalidType("revert reason must fit within String[1024]") from e
 
 
+def _validate_address_code_attribute(node: vy_ast.Attribute) -> None:
+    value_type = get_exact_type_from_node(node.value)
+    if isinstance(value_type, AddressDefinition) and node.attr == "code":
+        # Validate `slice(<address>.code, start, length)` where `length` is constant
+        parent = node.get_ancestor()
+        if isinstance(parent, vy_ast.Call):
+            ok_func = isinstance(parent.func, vy_ast.Name) and parent.func.id == "slice"
+            ok_args = len(parent.args) == 3 and isinstance(parent.args[2], vy_ast.Int)
+            if ok_func and ok_args:
+                return
+        raise SyntaxException(
+            "(address).code is only allowed inside of a slice function with a constant length",
+            node.node_source_code,
+            node.lineno,  # type: ignore[attr-defined]
+            node.col_offset,  # type: ignore[attr-defined]
+        )
+
+
+def _validate_msg_data_attribute(node: vy_ast.Attribute) -> None:
+    if isinstance(node.value, vy_ast.Name) and node.value.id == "msg" and node.attr == "data":
+        parent = node.get_ancestor()
+        if parent.get("func.id") not in ("slice", "len"):
+            raise SyntaxException(
+                "msg.data is only allowed inside of the slice or len functions",
+                node.node_source_code,
+                node.lineno,  # type: ignore[attr-defined]
+                node.col_offset,  # type: ignore[attr-defined]
+            )
+
+
 class FunctionNodeVisitor(VyperNodeVisitorBase):
 
     ignored_types = (
@@ -129,6 +160,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         self.namespace = namespace
         self.func = fn_node._metadata["type"]
         self.annotation_visitor = StatementAnnotationVisitor(fn_node, namespace)
+        self.expr_visitor = _LocalExpressionVisitor()
         namespace.update(self.func.arguments)
 
         if self.func.visibility is FunctionVisibility.INTERNAL:
@@ -175,21 +207,6 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         super().visit(node)
         self.annotation_visitor.visit(node)
 
-        attr_descendants = node.get_descendants(vy_ast.Attribute)
-        for attr_descendant in attr_descendants:
-            self.visit(attr_descendant)
-
-    def visit_Attribute(self, node):
-        if node.get("value.id") == "msg" and node.attr == "data":
-            parent = node.get_ancestor()
-            if parent.get("func.id") not in ("slice", "len"):
-                raise SyntaxException(
-                    "msg.data is only allowed inside of the slice or len functions",
-                    node.node_source_code,
-                    node.lineno,
-                    node.col_offset,
-                )
-
     def visit_AnnAssign(self, node):
         name = node.get("target.id")
         if name is None:
@@ -207,6 +224,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             self.namespace[name] = type_definition
         except VyperException as exc:
             raise exc.with_annotation(node) from None
+        self.expr_visitor.visit(node.value)
 
     def visit_Assign(self, node):
         if isinstance(node.value, vy_ast.Tuple):
@@ -218,6 +236,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                 f"Cannot modify storage in a {self.func.mutability.value} function", node
             )
         target.validate_modification(node)
+        self.expr_visitor.visit(node.value)
 
     def visit_AugAssign(self, node):
         if isinstance(node.value, vy_ast.Tuple):
@@ -229,19 +248,23 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                 f"Cannot modify storage in a {self.func.mutability.value} function", node
             )
         target.validate_modification(node)
+        self.expr_visitor.visit(node.value)
 
     def visit_Raise(self, node):
         if node.exc:
             _validate_revert_reason(node.exc)
+            self.expr_visitor.visit(node.exc)
 
     def visit_Assert(self, node):
         if node.msg:
             _validate_revert_reason(node.msg)
+            self.expr_visitor.visit(node.msg)
 
         try:
             validate_expected_type(node.test, BoolDefinition())
         except InvalidType:
             raise InvalidType("Assertion test value must be a boolean", node.test)
+        self.expr_visitor.visit(node.test)
 
     def visit_Return(self, node):
         values = node.value
@@ -266,9 +289,11 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                 validate_expected_type(given, expected)
         else:
             validate_expected_type(values, self.func.return_type)
+        self.expr_visitor.visit(node.value)
 
     def visit_If(self, node):
         validate_expected_type(node.test, BoolDefinition())
+        self.expr_visitor.visit(node.test)
         with self.namespace.enter_scope():
             for n in node.body:
                 self.visit(n)
@@ -376,6 +401,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                             f"which potentially modifies iterated storage variable '{iter_name}'",
                             call_node,
                         )
+        self.expr_visitor.visit(node.iter)
 
         for_loop_exceptions = []
         iter_name = node.target.id
@@ -446,6 +472,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             raise StructureException(
                 f"Function '{fn_type._id}' cannot be called without assigning the result", node
             )
+        self.expr_visitor.visit(node.value)
 
     def visit_Log(self, node):
         if not isinstance(node.value, vy_ast.Call):
@@ -454,3 +481,57 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         if not isinstance(event, Event):
             raise StructureException("Value is not an event", node.value)
         event.fetch_call_return(node.value)
+        self.expr_visitor.visit(node.value)
+
+
+class _LocalExpressionVisitor(VyperNodeVisitorBase):
+    ignored_types = (vy_ast.Constant, vy_ast.Name)
+    scope_name = "function"
+
+    def visit_Attribute(self, node: vy_ast.Attribute) -> None:
+        self.visit(node.value)
+        _validate_msg_data_attribute(node)
+        _validate_address_code_attribute(node)
+
+    def visit_BinOp(self, node: vy_ast.BinOp) -> None:
+        self.visit(node.left)
+        self.visit(node.right)
+
+    def visit_BoolOp(self, node: vy_ast.BoolOp) -> None:
+        for value in node.values:  # type: ignore[attr-defined]
+            self.visit(value)
+
+    def visit_Call(self, node: vy_ast.Call) -> None:
+        self.visit(node.func)
+        for arg in node.args:
+            self.visit(arg)
+        for kwarg in node.keywords:
+            self.visit(kwarg.value)
+
+    def visit_Compare(self, node: vy_ast.Compare) -> None:
+        self.visit(node.left)  # type: ignore[attr-defined]
+        self.visit(node.right)  # type: ignore[attr-defined]
+
+    def visit_Dict(self, node: vy_ast.Dict) -> None:
+        for key in node.keys:
+            self.visit(key)
+        for value in node.values:
+            self.visit(value)
+
+    def visit_Index(self, node: vy_ast.Index) -> None:
+        self.visit(node.value)
+
+    def visit_List(self, node: vy_ast.List) -> None:
+        for element in node.elements:
+            self.visit(element)
+
+    def visit_Subscript(self, node: vy_ast.Subscript) -> None:
+        self.visit(node.value)
+        self.visit(node.slice)
+
+    def visit_Tuple(self, node: vy_ast.Tuple) -> None:
+        for element in node.elements:
+            self.visit(element)
+
+    def visit_UnaryOp(self, node: vy_ast.UnaryOp) -> None:
+        self.visit(node.operand)  # type: ignore[attr-defined]
