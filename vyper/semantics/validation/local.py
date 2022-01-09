@@ -160,7 +160,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         self.namespace = namespace
         self.func = fn_node._metadata["type"]
         self.annotation_visitor = StatementAnnotationVisitor(fn_node, namespace)
-        self.expr_visitor = FunctionNodeExpressionVisitor()
+        self.expr_visitor = _LocalExpressionVisitor()
         namespace.update(self.func.arguments)
 
         if self.func.visibility is FunctionVisibility.INTERNAL:
@@ -484,7 +484,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         self.expr_visitor.visit(node.value)
 
 
-class FunctionNodeExpressionVisitor(VyperNodeVisitorBase):
+class _LocalExpressionVisitor(VyperNodeVisitorBase):
     ignored_types = (vy_ast.Constant, vy_ast.Name)
     scope_name = "function"
 
