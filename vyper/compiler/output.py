@@ -102,7 +102,7 @@ def build_metadata_output(compiler_data: CompilerData) -> dict:
             del ret[attr]
         return ret
 
-    return {"function_signatures": {name: _to_dict(sig) for (name, sig) in sigs.items()}}
+    return {"function_info": {name: _to_dict(sig) for (name, sig) in sigs.items()}}
 
 
 def build_method_identifiers_output(compiler_data: CompilerData) -> dict:
