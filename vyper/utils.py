@@ -194,6 +194,9 @@ VALID_LLL_MACROS = {
     "~codelen",
     "label",
     "goto",
+    "~extcode",
+    "~selfcode",
+    "~calldata",
 }
 
 # Available base types

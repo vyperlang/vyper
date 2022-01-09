@@ -410,7 +410,9 @@ class Expr:
         elif self.expr.attr == "code":
             addr = Expr.parse_value_expr(self.expr.value, self.context)
             if is_base_type(addr.typ, "address"):
-                # "~extcode" is replaced by other nodes during `Slice.build_LLL`
+                # These adhoc nodes will be replaced with a valid node in `Slice.build_LLL`
+                if addr.value == "address":  # for `self.code`
+                    return LLLnode.from_list(["~selfcode"], typ=ByteArrayType(0))
                 return LLLnode.from_list(["~extcode", addr], typ=ByteArrayType(0))
         # self.x: global attribute
         elif isinstance(self.expr.value, vy_ast.Name) and self.expr.value.id == "self":
@@ -431,7 +433,8 @@ class Expr:
             if key == "msg.sender" and not self.context.is_internal:
                 return LLLnode.from_list(["caller"], typ="address", pos=getpos(self.expr))
             elif key == "msg.data" and not self.context.is_internal:
-                return LLLnode(0, typ=ByteArrayType(0), location="calldata")
+                # This adhoc node will be replaced with a valid node in `Slice/Len.build_LLL`
+                return LLLnode.from_list(["~calldata"], typ=ByteArrayType(0))
             elif key == "msg.value" and self.context.is_payable:
                 return LLLnode.from_list(
                     ["callvalue"],

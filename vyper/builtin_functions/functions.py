@@ -281,7 +281,7 @@ class Slice:
         placeholder_plus_32_node = LLLnode.from_list(np + 32, typ=sub.typ, location="memory")
 
         # special handling for slice(msg.data)
-        if sub.location == "calldata" and sub.value == 0:
+        if sub.value == "~calldata":
             assert expr.args[0].value.id == "msg" and expr.args[0].attr == "data"
             # if we are slicing msg.data, the length should
             # be a constant, since msg.data can be of dynamic length
@@ -296,36 +296,39 @@ class Slice:
             ]
             return LLLnode.from_list(node, typ=ByteArrayType(length.value), location="memory")
 
+        # special handling for slice(self.code, start, length)
+        if sub.value == "~selfcode":
+            # `length` is constant (validated by `validate_address_code_attribute`)
+            assert isinstance(length.value, int)
+            node = [
+                "seq",
+                ["assert", ["le", ["add", start, length], "codesize"]],  # runtime bounds check
+                ["mstore", np, length],
+                ["codecopy", np + 32, start, length],
+                np,
+            ]
+            return LLLnode.from_list(node, typ=ByteArrayType(length.value), location="memory")
+
         # special handling for slice(<address>.code, start, length)
         if sub.value == "~extcode":
             # `length` is constant (validated by `validate_address_code_attribute`)
             assert isinstance(length.value, int)
-            address = sub.args[0]
-            if address.value == "address":  # this case is for `slice(self.code, ...)`
-                node = [
+            node = [
+                "with",
+                "_extcode_address",
+                sub.args[0],
+                [
                     "seq",
-                    ["assert", ["le", ["add", start, length], "codesize"]],  # runtime bounds check
-                    ["mstore", np, length],
-                    ["codecopy", np + 32, start, length],
-                    np,
-                ]
-            else:
-                node = [
-                    "with",
-                    "_extcode_address",
-                    address,
+                    # runtime bounds check
                     [
-                        "seq",
-                        # runtime bounds check
-                        [
-                            "assert",
-                            ["le", ["add", start, length], ["extcodesize", "_extcode_address"]],
-                        ],
-                        ["mstore", np, length],
-                        ["extcodecopy", "_extcode_address", np + 32, start, length],
-                        np,
+                        "assert",
+                        ["le", ["add", start, length], ["extcodesize", "_extcode_address"]],
                     ],
-                ]
+                    ["mstore", np, length],
+                    ["extcodecopy", "_extcode_address", np + 32, start, length],
+                    np,
+                ],
+            ]
             return LLLnode.from_list(node, typ=ByteArrayType(length.value), location="memory")
 
         # Copy over bytearray data
@@ -421,11 +424,9 @@ class Len(_SimpleBuiltinFunction):
         return vy_ast.Int.from_node(node, value=length)
 
     def build_LLL(self, node, context):
-        if isinstance(node.args[0], vy_ast.Attribute):
-            key = f"{node.args[0].value.id}.{node.args[0].attr}"
-            if key == "msg.data":
-                return LLLnode.from_list(["calldatasize"], typ="uint256")
         arg = Expr(node.args[0], context).lll_node
+        if arg.value == "~calldata":
+            return LLLnode.from_list(["calldatasize"], typ="uint256")
         return get_bytearray_length(arg)
 
 
