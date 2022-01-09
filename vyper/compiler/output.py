@@ -160,21 +160,28 @@ def build_layout_output(compiler_data: CompilerData) -> StorageLayout:
 
 def _build_asm(asm_list):
     output_string = ""
-    skip_newlines = 0
-    for node in asm_list:
+    in_push = 0
+    for _, node in enumerate(asm_list):
+
         if isinstance(node, list):
             output_string += "[ " + _build_asm(node) + "] "
             continue
 
-        is_push = isinstance(node, str) and node.startswith("PUSH")
-
-        output_string += str(node) + " "
-        if skip_newlines:
-            skip_newlines -= 1
-        elif is_push:
-            skip_newlines = int(node[4:]) - 1
+        if in_push > 0:
+            assert isinstance(node, int), node
+            output_string += hex(node)[2:]
+            if in_push == 1:
+                output_string += " "
+            in_push -= 1
         else:
-            output_string += " "
+            assert isinstance(node, str), node
+
+            output_string += node + " "
+
+            if node.startswith("PUSH"):
+                assert in_push == 0
+                in_push = int(node[4:])
+                output_string += "0x"
 
     return output_string
 
