@@ -169,7 +169,7 @@ def _build_asm(asm_list):
 
         if in_push > 0:
             assert isinstance(node, int), node
-            output_string += hex(node)[2:]
+            output_string += hex(node)[2:].rjust(2, "0")
             if in_push == 1:
                 output_string += " "
             in_push -= 1
