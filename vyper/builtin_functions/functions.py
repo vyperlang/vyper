@@ -222,6 +222,55 @@ class Convert:
         return convert(expr, context)
 
 
+ADHOC_SLICE_NODE_MACROS = ["~calldata", "~selfcode", "~extcode"]
+
+
+def _build_adhoc_slice_node(sub: LLLnode, start: LLLnode, length: LLLnode, np: int) -> LLLnode:
+    assert isinstance(length.value, int)  # `length` is constant which is validated before
+
+    # `msg.data` by `calldatacopy`
+    if sub.value == "~calldata":
+        node = [
+            "seq",
+            ["assert", ["le", ["add", start, length], "calldatasize"]],  # runtime bounds check
+            ["mstore", np, length],
+            ["calldatacopy", np + 32, start, length],
+            np,
+        ]
+        return LLLnode.from_list(node, typ=ByteArrayType(length.value), location="memory")
+
+    # `self.code` by `codecopy`
+    if sub.value == "~selfcode":
+        node = [
+            "seq",
+            ["assert", ["le", ["add", start, length], "codesize"]],  # runtime bounds check
+            ["mstore", np, length],
+            ["codecopy", np + 32, start, length],
+            np,
+        ]
+        return LLLnode.from_list(node, typ=ByteArrayType(length.value), location="memory")
+
+    # `<address>.code` by `extcodecopy`
+    assert sub.value == "~extcode" and len(sub.args) == 1
+    node = [
+        "with",
+        "_extcode_address",
+        sub.args[0],
+        [
+            "seq",
+            # runtime bounds check
+            [
+                "assert",
+                ["le", ["add", start, length], ["extcodesize", "_extcode_address"]],
+            ],
+            ["mstore", np, length],
+            ["extcodecopy", "_extcode_address", np + 32, start, length],
+            np,
+        ],
+    ]
+    return LLLnode.from_list(node, typ=ByteArrayType(length.value), location="memory")
+
+
 class Slice:
 
     _id = "slice"
@@ -280,56 +329,9 @@ class Slice:
         placeholder_node = LLLnode.from_list(np, typ=sub.typ, location="memory")
         placeholder_plus_32_node = LLLnode.from_list(np + 32, typ=sub.typ, location="memory")
 
-        # special handling for slice(msg.data)
-        if sub.value == "~calldata":
-            assert expr.args[0].value.id == "msg" and expr.args[0].attr == "data"
-            # if we are slicing msg.data, the length should
-            # be a constant, since msg.data can be of dynamic length
-            # we can't use its length as the maxlen
-            assert isinstance(length.value, int)  # sanity check
-            node = [
-                "seq",
-                ["assert", ["le", ["add", start, length], "calldatasize"]],  # runtime bounds check
-                ["mstore", np, length],
-                ["calldatacopy", np + 32, start, length],
-                np,
-            ]
-            return LLLnode.from_list(node, typ=ByteArrayType(length.value), location="memory")
-
-        # special handling for slice(self.code, start, length)
-        if sub.value == "~selfcode":
-            # `length` is constant (validated by `validate_address_code_attribute`)
-            assert isinstance(length.value, int)
-            node = [
-                "seq",
-                ["assert", ["le", ["add", start, length], "codesize"]],  # runtime bounds check
-                ["mstore", np, length],
-                ["codecopy", np + 32, start, length],
-                np,
-            ]
-            return LLLnode.from_list(node, typ=ByteArrayType(length.value), location="memory")
-
-        # special handling for slice(<address>.code, start, length)
-        if sub.value == "~extcode":
-            # `length` is constant (validated by `validate_address_code_attribute`)
-            assert isinstance(length.value, int)
-            node = [
-                "with",
-                "_extcode_address",
-                sub.args[0],
-                [
-                    "seq",
-                    # runtime bounds check
-                    [
-                        "assert",
-                        ["le", ["add", start, length], ["extcodesize", "_extcode_address"]],
-                    ],
-                    ["mstore", np, length],
-                    ["extcodecopy", "_extcode_address", np + 32, start, length],
-                    np,
-                ],
-            ]
-            return LLLnode.from_list(node, typ=ByteArrayType(length.value), location="memory")
+        # Handle `msg.data`, `self.code`, and `<address>.code`
+        if sub.value in ADHOC_SLICE_NODE_MACROS:
+            return _build_adhoc_slice_node(sub, start, length, np)
 
         # Copy over bytearray data
         # CMC 20210917 how does this routine work?
