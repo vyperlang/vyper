@@ -237,10 +237,9 @@ def _build_adhoc_slice_node(sub: LLLnode, start: LLLnode, length: LLLnode, np: i
             ["calldatacopy", np + 32, start, length],
             np,
         ]
-        return LLLnode.from_list(node, typ=ByteArrayType(length.value), location="memory")
 
     # `self.code` by `codecopy`
-    if sub.value == "~selfcode":
+    elif sub.value == "~selfcode":
         node = [
             "seq",
             ["assert", ["le", ["add", start, length], "codesize"]],  # runtime bounds check
@@ -248,26 +247,27 @@ def _build_adhoc_slice_node(sub: LLLnode, start: LLLnode, length: LLLnode, np: i
             ["codecopy", np + 32, start, length],
             np,
         ]
-        return LLLnode.from_list(node, typ=ByteArrayType(length.value), location="memory")
 
     # `<address>.code` by `extcodecopy`
-    assert sub.value == "~extcode" and len(sub.args) == 1
-    node = [
-        "with",
-        "_extcode_address",
-        sub.args[0],
-        [
-            "seq",
-            # runtime bounds check
+    else:
+        assert sub.value == "~extcode" and len(sub.args) == 1
+        node = [
+            "with",
+            "_extcode_address",
+            sub.args[0],
             [
-                "assert",
-                ["le", ["add", start, length], ["extcodesize", "_extcode_address"]],
+                "seq",
+                # runtime bounds check
+                [
+                    "assert",
+                    ["le", ["add", start, length], ["extcodesize", "_extcode_address"]],
+                ],
+                ["mstore", np, length],
+                ["extcodecopy", "_extcode_address", np + 32, start, length],
+                np,
             ],
-            ["mstore", np, length],
-            ["extcodecopy", "_extcode_address", np + 32, start, length],
-            np,
-        ],
-    ]
+        ]
+
     return LLLnode.from_list(node, typ=ByteArrayType(length.value), location="memory")
 
 
