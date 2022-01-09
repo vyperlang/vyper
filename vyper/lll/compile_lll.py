@@ -616,7 +616,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         height = 0
         withargs = {}
 
-        for arg in var_args:
+        for arg in reversed(var_args):
             assert isinstance(
                 arg.value, str
             )  # already checked for higher up but only the paranoid survive
