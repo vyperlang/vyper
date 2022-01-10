@@ -1,12 +1,15 @@
 import math
 from dataclasses import dataclass
-from typing import Optional
+from typing import Dict, Optional
 
 from vyper import ast as vy_ast
 from vyper.codegen.lll_node import Encoding
 from vyper.codegen.types import NodeType, parse_type
 from vyper.exceptions import StructureException
 from vyper.utils import cached_property, mkalphanum
+
+# dict from function names to signatures
+FunctionSignatures = Dict[str, "FunctionSignature"]
 
 
 # Function variable
