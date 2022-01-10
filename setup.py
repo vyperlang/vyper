@@ -1,15 +1,17 @@
 # -*- coding: utf-8 -*-
 
+import re
+
 from setuptools import find_packages, setup
 
 extras_require = {
     "test": [
-        "pytest>=5.4,<6.0",
+        "pytest>=6.2.5,<7.0",
         "pytest-cov>=2.10,<3.0",
         "pytest-instafail>=0.4,<1.0",
         "pytest-xdist>=1.32,<2.0",
-        "eth-tester[py-evm,blake2b-py]>=0.5.0b1,<0.6",
-        "py-evm[blake2b-py]==0.4.0a4",  # NOTE: temporarily pinned until we have support for py-evm 0.5.0a0+
+        "eth-tester[py-evm,blake2b-py]>=0.6.0b4,<0.7",
+        "py-evm[blake2b-py]>=0.5.0a1",
         "web3==5.21.0",
         "tox>=3.15,<4.0",
         "lark-parser==0.10.0",
@@ -34,9 +36,29 @@ extras_require["dev"] = (
 with open("README.md", "r") as f:
     long_description = f.read()
 
+
+# force commit hash to be appended to version even when tag is exact
+# (breaks PEP 440, but this is the debug info, not the version tag for pypi)
+def _local_version(version):
+    commithash = version.node[1:]  # git describe adds 'g' prefix
+    ret = f"+commit.{commithash}"
+    if version.dirty:
+        ret += "-dirty"
+    return ret
+
+
+def _global_version(version):
+    from setuptools_scm.version import guess_next_dev_version
+
+    # strip `.devN` suffix since it is not semver compatible
+    # minor regex hack to avoid messing too much with setuptools-scm internals
+    version_str = guess_next_dev_version(version)
+    return re.sub("\.dev\d+", "", version_str)
+
+
 setup(
     name="vyper",
-    use_scm_version=True,
+    use_scm_version={"local_scheme": _local_version, "version_scheme": _global_version},
     description="Vyper: the Pythonic Programming Language for the EVM",
     long_description=long_description,
     long_description_content_type="text/markdown",

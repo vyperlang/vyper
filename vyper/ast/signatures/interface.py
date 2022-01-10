@@ -6,8 +6,8 @@ import pkgutil
 import vyper.builtin_interfaces
 from vyper import ast as vy_ast
 from vyper.ast.signatures.function_signature import FunctionSignature
+from vyper.codegen.global_context import GlobalContext
 from vyper.exceptions import StructureException
-from vyper.old_codegen.global_context import GlobalContext
 
 
 # Populate built-in interfaces.

@@ -1,22 +1,23 @@
-from typing import Any, List, Optional, Tuple, Union
+# a contract.vy -- all functions and constructor
+
+from typing import Any, List, Tuple, Union
 
 from vyper import ast as vy_ast
 from vyper.ast.signatures.function_signature import FunctionSignature
+from vyper.codegen.core import make_setter
+from vyper.codegen.function_definitions import (
+    generate_lll_for_function,
+    is_default_func,
+    is_initializer,
+)
+from vyper.codegen.global_context import GlobalContext
+from vyper.codegen.lll_node import LLLnode
 from vyper.exceptions import (
     EventDeclarationException,
     FunctionDeclarationException,
     StructureException,
 )
-from vyper.old_codegen.function_definitions import (
-    generate_lll_for_function,
-    is_default_func,
-    is_initializer,
-)
-from vyper.old_codegen.global_context import GlobalContext
-from vyper.old_codegen.lll_node import LLLnode
-from vyper.old_codegen.parser_utils import make_setter
 from vyper.semantics.types.function import FunctionVisibility, StateMutability
-from vyper.typing import InterfaceImports
 from vyper.utils import LOADED_LIMITS
 
 # TODO remove this check
@@ -199,7 +200,16 @@ def parse_regular_functions(
                 ["add", start_pos + offset, "_lllsz"], typ=immutable.typ, location="memory"
             )
             rhs = LLLnode.from_list(memory_loc, typ=immutable.typ, location="memory")
-            data_section.append(make_setter(lhs, rhs, None))
+            data_section.append(
+                make_setter(
+                    lhs,
+                    rhs,
+                    # hack -- make_setter happens to not require memory
+                    # allocator for memory-memory copies. TODO fixme
+                    context=None,
+                    pos=None,
+                )
+            )
 
         data_section_size = sum([immutable.size * 32 for immutable in immutables])
         o.append(
@@ -277,17 +287,3 @@ def parse_tree_to_lll(global_ctx: GlobalContext) -> Tuple[LLLnode, LLLnode]:
         runtime = o.copy()
 
     return LLLnode.from_list(o), LLLnode.from_list(runtime)
-
-
-# TODO this function is dead code
-def parse_to_lll(
-    source_code: str, runtime_only: bool = False, interface_codes: Optional[InterfaceImports] = None
-) -> LLLnode:
-    vyper_module = vy_ast.parse_to_ast(source_code)
-    global_ctx = GlobalContext.get_global_context(vyper_module, interface_codes=interface_codes)
-    lll_nodes, lll_runtime = parse_tree_to_lll(global_ctx)
-
-    if runtime_only:
-        return lll_runtime
-    else:
-        return lll_nodes

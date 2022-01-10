@@ -6,13 +6,13 @@ Scoping and Declarations
 Variable Declaration
 ====================
 
-The first time a variable is referenced you must declare it's :ref:`type <types>`:
+The first time a variable is referenced you must declare its :ref:`type <types>`:
 
 .. code-block:: python
 
     data: int128
 
-In the above example we declare variable ``data`` with a type of ``int128``.
+In the above example, we declare the variable ``data`` with a type of ``int128``.
 
 Depending on the active scope, an initial value may or may not be assigned:
 
@@ -29,9 +29,9 @@ Storage variables can be marked as ``public`` during declaration:
 
     data: public(int128)
 
-The compiler automatically creates getter functions for all public storage variables. For the example above below, the compiler will generate a function called ``data`` that does not take any arguments and returns an ``int128``, the value of the state variable data.
+The compiler automatically creates getter functions for all public storage variables. For the example above, the compiler will generate a function called ``data`` that does not take any arguments and returns an ``int128``, the value of the state variable data.
 
-For public arrays, you can only retrieve a single element via the generated getter. This mechanism exists to avoid high gas costs when returning an entire array. The getter will accept an argument to specity which element to return, for example ``data(0)``.
+For public arrays, you can only retrieve a single element via the generated getter. This mechanism exists to avoid high gas costs when returning an entire array. The getter will accept an argument to specify which element to return, for example ``data(0)``.
 
 Declaring Immutable Variables
 --------------------------
@@ -68,7 +68,7 @@ You cannot directly declare tuple types. However, in certain cases you can use l
 
         # the return value of `foo` is assigned using a tuple
         (a, b) = self.foo()
-        
+
         # Can also skip the parenthesis
         a, b = self.foo()
 
@@ -184,7 +184,7 @@ Logical blocks created by ``for`` and ``if`` statements have their own scope. Fo
         else:
             x: bool = False
 
-In a ``for`` statement, the target variable exists within the scope of the loop. For example, the following contract is valid because ``i`` is no longer available upon exitting the loop:
+In a ``for`` statement, the target variable exists within the scope of the loop. For example, the following contract is valid because ``i`` is no longer available upon exiting the loop:
 
 .. code-block:: python
 

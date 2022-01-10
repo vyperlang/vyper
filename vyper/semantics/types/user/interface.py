@@ -2,6 +2,7 @@ from collections import OrderedDict
 from typing import Dict, List, Tuple, Union
 
 from vyper import ast as vy_ast
+from vyper.abi_types import ABI_Address, ABIType
 from vyper.ast.validation import validate_call_args
 from vyper.exceptions import InterfaceViolation, NamespaceCollision, StructureException
 from vyper.semantics.namespace import get_namespace, validate_identifier
@@ -15,7 +16,6 @@ from vyper.semantics.validation.utils import validate_expected_type, validate_un
 class InterfaceDefinition(MemberTypeDefinition):
 
     _type_members = {"address": AddressDefinition()}
-    canonical_type = "address"
 
     def __init__(
         self,
@@ -33,6 +33,10 @@ class InterfaceDefinition(MemberTypeDefinition):
 
     def get_signature(self):
         return (), AddressDefinition()
+
+    @property
+    def abi_type(self) -> ABIType:
+        return ABI_Address()
 
 
 class InterfacePrimitive:

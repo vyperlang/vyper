@@ -1,12 +1,10 @@
-import vyper.old_codegen.events as events
+import vyper.codegen.events as events
 import vyper.utils as util
 from vyper import ast as vy_ast
 from vyper.builtin_functions import STMT_DISPATCH_TABLE
-from vyper.exceptions import CompilerPanic, StructureException, TypeCheckFailure
-from vyper.old_codegen import external_call, self_call
-from vyper.old_codegen.context import Constancy, Context
-from vyper.old_codegen.expr import Expr
-from vyper.old_codegen.parser_utils import (
+from vyper.codegen import external_call, self_call
+from vyper.codegen.context import Constancy, Context
+from vyper.codegen.core import (
     LLLnode,
     getpos,
     make_byte_array_copier,
@@ -14,8 +12,10 @@ from vyper.old_codegen.parser_utils import (
     unwrap_location,
     zero_pad,
 )
-from vyper.old_codegen.return_ import make_return_stmt
-from vyper.old_codegen.types import BaseType, ByteArrayType, ListType, parse_type
+from vyper.codegen.expr import Expr
+from vyper.codegen.return_ import make_return_stmt
+from vyper.codegen.types import BaseType, ByteArrayType, SArrayType, parse_type
+from vyper.exceptions import CompilerPanic, StructureException, TypeCheckFailure
 
 
 class Stmt:
@@ -49,7 +49,6 @@ class Stmt:
     def parse_AnnAssign(self):
         typ = parse_type(
             self.stmt.annotation,
-            location="memory",
             custom_structs=self.context.structs,
         )
         varname = self.stmt.target.id
@@ -82,7 +81,7 @@ class Stmt:
             pos=getpos(self.stmt),
         )
 
-        lll_node = make_setter(variable_loc, sub, pos=getpos(self.stmt))
+        lll_node = make_setter(variable_loc, sub, self.context, pos=getpos(self.stmt))
 
         return lll_node
 
@@ -91,7 +90,7 @@ class Stmt:
         sub = Expr(self.stmt.value, self.context).lll_node
         target = self._get_target(self.stmt.target)
 
-        lll_node = make_setter(target, sub, pos=getpos(self.stmt))
+        lll_node = make_setter(target, sub, self.context, pos=getpos(self.stmt))
         lll_node.pos = getpos(self.stmt)
         return lll_node
 
@@ -157,7 +156,7 @@ class Stmt:
         finally:
             self.context.constancy = tmp
 
-        # TODO this is probably useful in parser_utils
+        # TODO this is probably useful in codegen.core
         # compare with eval_seq.
         def _get_last(lll):
             if len(lll.args) == 0:
@@ -249,7 +248,7 @@ class Stmt:
     def _parse_For_range(self):
         # attempt to use the type specified by type checking, fall back to `int256`
         # this is a stopgap solution to allow uint256 - it will be properly solved
-        # once we refactor `vyper.parser`
+        # once we refactor type system
         iter_typ = "int256"
         if "type" in self.stmt.target._metadata:
             iter_typ = self.stmt.target._metadata["type"]._id
@@ -338,11 +337,11 @@ class Stmt:
             # Allocate list to memory.
             count = iter_list_node.typ.count
             tmp_list = LLLnode.from_list(
-                obj=self.context.new_internal_variable(ListType(subtype, count)),
-                typ=ListType(subtype, count),
+                obj=self.context.new_internal_variable(SArrayType(subtype, count)),
+                typ=SArrayType(subtype, count),
                 location="memory",
             )
-            setter = make_setter(tmp_list, iter_list_node, pos=getpos(self.stmt))
+            setter = make_setter(tmp_list, iter_list_node, self.context, pos=getpos(self.stmt))
             body = [
                 "seq",
                 ["mstore", value_pos, ["mload", ["add", tmp_list, ["mul", ["mload", i_pos], 32]]]],

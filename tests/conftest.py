@@ -2,15 +2,15 @@ import logging
 from functools import wraps
 
 import pytest
-from eth_tester import EthereumTester
+from eth_tester import EthereumTester, PyEVMBackend
 from eth_utils import setup_DEBUG2_logging
 from hexbytes import HexBytes
 from web3 import Web3
 from web3.providers.eth_tester import EthereumTesterProvider
 
 from vyper import compiler
+from vyper.codegen.lll_node import LLLnode
 from vyper.lll import compile_lll, optimizer
-from vyper.old_codegen.parser_utils import LLLnode
 
 from .base_conftest import VyperContract, _get_contract, zero_gas_price_strategy
 
@@ -82,7 +82,7 @@ def get_contract_from_lll(w3, no_optimize):
         c = w3.eth.contract(abi=abi, bytecode=bytecode)
         deploy_transaction = c.constructor()
         tx_hash = deploy_transaction.transact()
-        address = w3.eth.getTransactionReceipt(tx_hash)["contractAddress"]
+        address = w3.eth.get_transaction_receipt(tx_hash)["contractAddress"]
         contract = w3.eth.contract(
             address,
             abi=abi,
@@ -100,9 +100,12 @@ def get_contract_module(no_optimize):
     This fixture is used for Hypothesis tests to ensure that
     the same contract is called over multiple runs of the test.
     """
-    tester = EthereumTester()
+    custom_genesis = PyEVMBackend._generate_genesis_params(overrides={"gas_limit": 4500000})
+    custom_genesis["base_fee_per_gas"] = 0
+    backend = PyEVMBackend(genesis_parameters=custom_genesis)
+    tester = EthereumTester(backend=backend)
     w3 = Web3(EthereumTesterProvider(tester))
-    w3.eth.setGasPriceStrategy(zero_gas_price_strategy)
+    w3.eth.set_gas_price_strategy(zero_gas_price_strategy)
 
     def get_contract_module(source_code, *args, **kwargs):
         return _get_contract(w3, source_code, no_optimize, *args, **kwargs)
@@ -111,11 +114,11 @@ def get_contract_module(no_optimize):
 
 
 def get_compiler_gas_estimate(code, func):
-    lll_nodes = compiler.phases.CompilerData(code).lll_nodes
+    lll_runtime = compiler.phases.CompilerData(code).lll_runtime
     if func:
-        return compiler.utils.build_gas_estimates(lll_nodes)[func] + 22000
+        return compiler.utils.build_gas_estimates(lll_runtime)[func] + 22000
     else:
-        return sum(compiler.utils.build_gas_estimates(lll_nodes).values()) + 22000
+        return sum(compiler.utils.build_gas_estimates(lll_runtime).values()) + 22000
 
 
 def check_gas_on_chain(w3, tester, code, func=None, res=None):

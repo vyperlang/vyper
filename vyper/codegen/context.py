@@ -3,8 +3,8 @@ import enum
 
 from vyper.ast import VyperNode
 from vyper.ast.signatures.function_signature import VariableRecord
+from vyper.codegen.types import NodeType
 from vyper.exceptions import CompilerPanic, FunctionDeclarationException
-from vyper.old_codegen.types import NodeType, get_size_of_type
 
 
 class Constancy(enum.Enum):
@@ -16,9 +16,9 @@ class Constancy(enum.Enum):
 class Context:
     def __init__(
         self,
-        vars,
         global_ctx,
         memory_allocator,
+        vars_=None,
         sigs=None,
         forvars=None,
         return_type=None,
@@ -29,32 +29,40 @@ class Context:
         sig=None,
     ):
         # In-memory variables, in the form (name, memory location, type)
-        self.vars = vars or {}
+        self.vars = vars_ or {}
+
         # Global variables, in the form (name, storage location, type)
         self.globals = global_ctx._globals
+
         # ABI objects, in the form {classname: ABI JSON}
         self.sigs = sigs or {"self": {}}
+
         # Variables defined in for loops, e.g. for i in range(6): ...
         self.forvars = forvars or {}
+
         # Return type of the function
         self.return_type = return_type
+
         # Is the function constant?
         self.constancy = constancy
+
         # Whether body is currently in an assert statement
         self.in_assertion = False
+
         # Whether we are currently parsing a range expression
         self.in_range_expr = False
+
         # Is the function payable?
         self.is_payable = is_payable
+
         # List of custom structs that have been defined.
         self.structs = global_ctx._structs
-        # Callback pointer to jump back to, used in internal functions.
-        self.callback_ptr = None
+
         self.is_internal = is_internal
-        # method_id of current function
-        # self.method_id = method_id
+
         # store global context
         self.global_ctx = global_ctx
+
         # full function signature
         self.sig = sig
         # Active scopes
@@ -182,7 +190,7 @@ class Context:
             # temporary requirement to support both new and old type objects
             var_size = typ.size_in_bytes  # type: ignore
         else:
-            var_size = 32 * get_size_of_type(typ)
+            var_size = typ.memory_bytes_required
         return self._new_variable(name, typ, var_size, False, is_mutable=is_mutable)
 
     # do we ever allocate immutable internal variables?
@@ -209,11 +217,11 @@ class Context:
             # temporary requirement to support both new and old type objects
             var_size = typ.size_in_bytes  # type: ignore
         else:
-            var_size = 32 * get_size_of_type(typ)
+            var_size = typ.memory_bytes_required
         return self._new_variable(name, typ, var_size, True)
 
-    def parse_type(self, ast_node, location):
-        return self.global_ctx.parse_type(ast_node, location)
+    def parse_type(self, ast_node):
+        return self.global_ctx.parse_type(ast_node)
 
     def lookup_var(self, varname):
         return self.vars[varname]

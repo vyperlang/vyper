@@ -1,5 +1,4 @@
 import binascii
-import functools
 import sys
 import traceback
 from typing import Dict, List, Union
@@ -194,25 +193,13 @@ VALID_LLL_MACROS = {
     "~codelen",
     "label",
     "goto",
+    "~extcode",
+    "~selfcode",
+    "~calldata",
 }
 
 # Available base types
 BASE_TYPES = {"int128", "int256", "decimal", "bytes32", "uint8", "uint256", "bool", "address"}
-
-
-def is_instances(instances, instance_type):
-    return all([isinstance(inst, instance_type) for inst in instances])
-
-
-def iterable_cast(cast_type):
-    def yf(func):
-        @functools.wraps(func)
-        def f(*args, **kwargs):
-            return cast_type(func(*args, **kwargs))
-
-        return f
-
-    return yf
 
 
 def indent(text: str, indent_chars: Union[str, List[str]] = " ", level: int = 1) -> str:

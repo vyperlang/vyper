@@ -4,6 +4,7 @@ from enum import Enum
 from typing import Any, Dict, Optional, Tuple, Type, Union
 
 from vyper import ast as vy_ast
+from vyper.abi_types import ABIType
 from vyper.exceptions import (
     CompilerPanic,
     ImmutableViolation,
@@ -246,7 +247,9 @@ class BaseTypeDefinition:
         The number of bytes that are required to store this type.
     """
 
+    # TODO CMC 2022-01-08 `is_dynamic_size` probably unused
     is_dynamic_size = False
+
     size_in_bytes = 32
     _id: str
 
@@ -265,11 +268,18 @@ class BaseTypeDefinition:
         self._modification_count = 0
 
     @property
-    def canonical_type(self) -> str:
+    def abi_type(self) -> ABIType:
+        """
+        The ABI type corresponding to this type
+        """
+        raise CompilerPanic("Method must be implemented by the inherited class")
+
+    @property
+    def canonical_abi_type(self) -> str:
         """
         The canonical name of this type. Used for ABI types and generating function signatures.
         """
-        return self._id
+        return self.abi_type.selector_name()
 
     def from_annotation(self, node: vy_ast.VyperNode, **kwargs: Any) -> None:
         # always raises, user should have used a primitive

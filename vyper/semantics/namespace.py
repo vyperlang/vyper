@@ -176,6 +176,8 @@ RESERVED_KEYWORDS = {
     # `address` members
     "balance",
     "codesize",
+    "codehash",
+    "code",
     "is_contract",
     # units
     "units",

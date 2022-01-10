@@ -88,7 +88,7 @@ Logging events is done using the ``log`` statement:
 
    log Transfer(msg.sender, _to, _amount)
 
-The order and types of arguments given must match the order of arguments used when declaring the event..
+The order and types of arguments given must match the order of arguments used when declaring the event.
 
 Listening for Events
 ====================

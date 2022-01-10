@@ -1,6 +1,7 @@
 from typing import Optional, Tuple, Type, Union
 
 from vyper import ast as vy_ast
+from vyper.abi_types import ABI_FixedMxN, ABI_GIntM, ABIType
 from vyper.exceptions import CompilerPanic, InvalidOperation, OverflowException
 from vyper.semantics.types.abstract import (
     FixedAbstractType,
@@ -78,6 +79,10 @@ class AbstractNumericDefinition(ValueTypeDefinition):
         # all comparators are valid on numeric types
         return
 
+    @property
+    def abi_type(self) -> ABIType:
+        return ABI_GIntM(self._bits, self._is_signed)
+
 
 class _SignedIntegerDefinition(AbstractNumericDefinition):
     """
@@ -148,8 +153,8 @@ class DecimalDefinition(FixedAbstractType, AbstractNumericDefinition):
     _invalid_op = vy_ast.Pow
 
     @property
-    def canonical_type(self) -> str:
-        return f"fixed{self._bits}x{self._decimal_places}"
+    def abi_type(self) -> ABIType:
+        return ABI_FixedMxN(self._bits, self._decimal_places, self._is_signed)
 
 
 # primitives

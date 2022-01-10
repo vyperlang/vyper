@@ -2,10 +2,10 @@ import re
 from enum import Enum, auto
 from typing import Any, List, Optional, Tuple, Union
 
+from vyper.codegen.types import BaseType, NodeType, ceil32
 from vyper.compiler.settings import VYPER_COLOR_OUTPUT
 from vyper.evm.opcodes import get_comb_opcodes
 from vyper.exceptions import CompilerPanic
-from vyper.old_codegen.types import BaseType, NodeType, ceil32
 from vyper.utils import VALID_LLL_MACROS, cached_property
 
 # Set default string representation for ints in LLL output.
@@ -92,6 +92,10 @@ class LLLnode:
         self.total_gas = None
         self.func_name = None
 
+        def _check(condition, err):
+            if not condition:
+                raise CompilerPanic(str(err))
+
         # Determine this node's valency (1 if it pushes a value on the stack,
         # 0 otherwise) and checks to make sure the number and valencies of
         # children are correct. Also, find an upper bound on gas consumption
@@ -104,8 +108,10 @@ class LLLnode:
             if self.value.upper() in get_comb_opcodes():
                 _, ins, outs, gas = get_comb_opcodes()[self.value.upper()]
                 self.valency = outs
-                if len(self.args) != ins:
-                    raise CompilerPanic(f"Number of arguments mismatched: {self.value} {self.args}")
+                _check(
+                    len(self.args) == ins,
+                    f"Number of arguments mismatched: {self.value} {self.args}",
+                )
                 # We add 2 per stack height at push time and take it back
                 # at pop time; this makes `break` easier to handle
                 self.gas = gas + 2 * (outs - ins)
@@ -114,11 +120,10 @@ class LLLnode:
                     # consumed for internal functions, therefore we whitelist this as a zero valency
                     # allowed argument.
                     zero_valency_whitelist = {"pass", "pop"}
-                    if arg.valency == 0 and arg.value not in zero_valency_whitelist:
-                        raise CompilerPanic(
-                            "Can't have a zerovalent argument to an opcode or a pseudo-opcode! "
-                            f"{arg.value}: {arg}. Please file a bug report."
-                        )
+                    _check(
+                        arg.valency == 1 or arg.value in zero_valency_whitelist,
+                        f"invalid argument to opcode or pseudo-opcode: {arg}",
+                    )
                     self.gas += arg.gas
                 # Dynamic gas cost: 8 gas for each byte of logging data
                 if self.value.upper()[0:3] == "LOG" and isinstance(self.args[1].value, int):
@@ -130,10 +135,12 @@ class LLLnode:
                 elif self.value.upper() == "SSTORE" and self.args[1].value != 0:
                     self.gas += 15000
                 # Dynamic gas cost: calldatacopy
-                elif self.value.upper() in ("CALLDATACOPY", "CODECOPY"):
+                elif self.value.upper() in ("CALLDATACOPY", "CODECOPY", "EXTCODECOPY"):
                     size = 34000
-                    if isinstance(self.args[2].value, int):
-                        size = self.args[2].value
+                    size_arg_index = 3 if self.value.upper() == "EXTCODECOPY" else 2
+                    size_arg = self.args[size_arg_index]
+                    if isinstance(size_arg.value, int):
+                        size = size_arg.value
                     self.gas += ceil32(size) // 32 * 3
                 # Gas limits in call
                 if self.value.upper() == "CALL" and isinstance(self.args[0].value, int):
@@ -144,82 +151,58 @@ class LLLnode:
                     self.gas = self.args[0].gas + max(self.args[1].gas, self.args[2].gas) + 3
                 if len(self.args) == 2:
                     self.gas = self.args[0].gas + self.args[1].gas + 17
-                if not self.args[0].valency:
-                    raise CompilerPanic(
-                        "Can't have a zerovalent argument as a test to an if "
-                        f"statement! {self.args[0]}"
-                    )
-                if len(self.args) not in (2, 3):
-                    raise CompilerPanic("If can only have 2 or 3 arguments")
+                _check(
+                    self.args[0].valency > 0,
+                    f"zerovalent argument as a test to an if statement: {self.args[0]}",
+                )
+                _check(len(self.args) in (2, 3), "if statement can only have 2 or 3 arguments")
                 self.valency = self.args[1].valency
             # With statements: with <var> <initial> <statement>
             elif self.value == "with":
-                if len(self.args) != 3:
-                    raise CompilerPanic(f"With statement must have 3 arguments: {self}")
-                if len(self.args[0].args) or not isinstance(self.args[0].value, str):
-                    raise CompilerPanic(
-                        f"First argument to with statement must be a variable: {self}"
-                    )
-                if not self.args[1].valency and self.args[1].value != "pass":
-                    raise CompilerPanic(
-                        (
-                            "Second argument to with statement (initial value) "
-                            f"cannot be zerovalent: {self.args[1]}"
-                        )
-                    )
+                _check(len(self.args) == 3, self)
+                _check(
+                    len(self.args[0].args) == 0 and isinstance(self.args[0].value, str),
+                    f"first argument to with statement must be a variable name: {self.args[0]}",
+                )
+                _check(
+                    self.args[1].valency == 1 or self.args[1].value == "pass",
+                    f"zerovalent argument to with statement: {self.args[1]}",
+                )
                 self.valency = self.args[2].valency
                 self.gas = sum([arg.gas for arg in self.args]) + 5
             # Repeat statements: repeat <index_memloc> <startval> <rounds> <body>
             elif self.value == "repeat":
-                is_invalid_repeat_count = any(
-                    (
-                        len(self.args[2].args),
-                        not isinstance(self.args[2].value, int),
-                        isinstance(self.args[2].value, int) and self.args[2].value <= 0,
-                    )
+                repeat_count = None
+                if len(self.args) == 4:
+                    counter_ptr = self.args[0]
+                    start = self.args[1]
+                    repeat_bound = self.args[2].value  # constant int
+                    body = self.args[3]
+                elif len(self.args) == 5:
+                    counter_ptr = self.args[0]
+                    start = self.args[1]
+                    repeat_count = self.args[2]
+                    repeat_bound = self.args[3].value  # constant int
+                    body = self.args[4]
+                _check(
+                    isinstance(repeat_bound, int) and repeat_bound > 0,
+                    f"repeat bound must be a compile-time positive integer: {self.args[2]}",
                 )
-
-                if is_invalid_repeat_count:
-                    raise CompilerPanic(
-                        (
-                            "Number of times repeated must be a constant nonzero "
-                            f"positive integer: {self.args[2]}"
-                        )
-                    )
-                if not self.args[0].valency:
-                    raise CompilerPanic(
-                        (
-                            "First argument to repeat (memory location) cannot be "
-                            f"zerovalent: {self.args[0]}"
-                        )
-                    )
-                if not self.args[1].valency:
-                    raise CompilerPanic(
-                        (
-                            "Second argument to repeat (start value) cannot be "
-                            f"zerovalent: {self.args[1]}"
-                        )
-                    )
-                if self.args[3].valency:
-                    raise CompilerPanic(
-                        (
-                            "Third argument to repeat (clause to be repeated) must "
-                            f"be zerovalent: {self.args[3]}"
-                        )
-                    )
+                _check(repeat_count is None or repeat_count.valency == 1, repeat_count)
+                _check(counter_ptr.valency == 1, counter_ptr)
+                _check(start.valency == 1, start)
+                _check(body.valency == 0, body)
                 self.valency = 0
-                rounds: int
-                if self.args[1].value in ("calldataload", "mload") or self.args[1].value == "sload":
-                    if isinstance(self.args[2].value, int):
-                        rounds = self.args[2].value
-                    else:
-                        raise CompilerPanic(f"Unsupported rounds argument type. {self.args[2]}")
-                else:
-                    if isinstance(self.args[2].value, int) and isinstance(self.args[1].value, int):
-                        rounds = abs(self.args[2].value - self.args[1].value)
-                    else:
-                        raise CompilerPanic(f"Unsupported second argument types. {self.args}")
-                self.gas = rounds * (self.args[3].gas + 50) + 30
+
+                self.gas = counter_ptr.gas + start.gas
+                self.gas += 3  # gas for repeat_bound
+                repeat_bound = int(repeat_bound)  # mypy complaint
+                self.gas += repeat_bound * (body.gas + 50) + 30
+                if repeat_count is not None:
+                    self.gas += repeat_count.gas
+                    # gas to calculate min(repeat_count, repeat_bound)
+                    self.gas += 29
+
             # Seq statements: seq <statement> <statement> ...
             elif self.value == "seq":
                 self.valency = self.args[-1].valency if self.args else 0
@@ -230,17 +213,19 @@ class LLLnode:
             # then JUMP to my_label.
             elif self.value == "goto":
                 for arg in self.args:
-                    if not arg.valency and arg.value != "pass":
-                        raise CompilerPanic(f"zerovalent argument to goto {self}")
+                    _check(
+                        arg.valency == 1 or arg.value == "pass",
+                        f"zerovalent argument to goto {arg}",
+                    )
+
                 self.valency = 0
                 self.gas = sum([arg.gas for arg in self.args])
             # Multi statements: multi <expr> <expr> ...
             elif self.value == "multi":
                 for arg in self.args:
-                    if not arg.valency:
-                        raise CompilerPanic(
-                            f"Multi expects all children to not be zerovalent: {arg}"
-                        )
+                    _check(
+                        arg.valency > 0, f"Multi expects all children to not be zerovalent: {arg}"
+                    )
                 self.valency = sum([arg.valency for arg in self.args])
                 self.gas = sum([arg.gas for arg in self.args])
             # LLL brackets (don't bother gas counting)
@@ -272,6 +257,59 @@ class LLLnode:
             self.value.lower() in VALID_LLL_MACROS or self.value.upper() in get_comb_opcodes()
         )
 
+    # This function is slightly confusing but abstracts a common pattern:
+    # when an LLL value needs to be computed once and then cached as an
+    # LLL value (if it is expensive, or more importantly if its computation
+    # includes side-effcts), cache it as an LLL variable named with the
+    # `name` param, and execute the `body` with the cached value. Otherwise,
+    # run the `body` without caching the LLL variable.
+    # Note that this may be an unneeded abstraction in the presence of an
+    # arbitrarily powerful optimization framework (which can detect unneeded
+    # caches) but for now still necessary - CMC 2021-12-11.
+    # usage:
+    # ```
+    # with lll_node.cache_when_complex("foo") as builder, foo:
+    #   ret = some_function(foo)
+    #   return builder.resolve(ret)
+    # ```
+    def cache_when_complex(self, name):
+        # this creates a magical block which maps to LLL `with`
+        class _WithBuilder:
+            def __init__(self, lll_node, name):
+                self.lll_node = lll_node
+                # a named LLL variable which represents the
+                # output of `lll_node`
+                self.lll_var = LLLnode.from_list(
+                    name, typ=lll_node.typ, location=lll_node.location, encoding=lll_node.encoding
+                )
+
+            def __enter__(self):
+                if self.lll_node.is_complex_lll:
+                    # return the named cache
+                    return self, self.lll_var
+                else:
+                    # it's a constant, just return that
+                    return self, self.lll_node
+
+            def __exit__(self, *args):
+                pass
+
+            # MUST be called at the end of building the expression
+            # in order to make sure the expression gets wrapped correctly
+            def resolve(self, body):
+                if self.lll_node.is_complex_lll:
+                    ret = ["with", self.lll_var, self.lll_node, body]
+                    if isinstance(body, LLLnode):
+                        return LLLnode.from_list(
+                            ret, typ=body.typ, location=body.location, encoding=body.encoding
+                        )
+                    else:
+                        return ret
+                else:
+                    return body
+
+        return _WithBuilder(self, name)
+
     @cached_property
     def contains_self_call(self):
         return getattr(self, "is_self_call", False) or any(x.contains_self_call for x in self.args)
@@ -282,6 +320,8 @@ class LLLnode:
     def __len__(self):
         return len(self.to_list())
 
+    # TODO this seems like a not useful and also confusing function
+    # check if dead code and remove - CMC 2021-12-13
     def to_list(self):
         return [self.value] + [a.to_list() for a in self.args]
 

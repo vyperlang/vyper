@@ -1,5 +1,6 @@
-# import pytest
 from decimal import Decimal
+
+import pytest
 
 
 # @pytest.mark.parametrize("string", ["a", "abc", "abcde", "potato"])
@@ -116,3 +117,53 @@ def abi_encode3(x: uint256, ensure_tuple: bool, include_method_id: bool) -> Byte
     human_encoded = abi_encode(f"({human_t})", (human_tuple,))
     assert c.abi_encode(*args, True, False).hex() == human_encoded.hex()
     assert c.abi_encode(*args, True, True).hex() == (method_id + human_encoded).hex()
+
+
+@pytest.mark.parametrize("type,value", [("Bytes", b"hello"), ("String", "hello")])
+def test_abi_encode_length_failing(get_contract, assert_compile_failed, type, value):
+    code = f"""
+struct WrappedBytes:
+    bs: {type}[6]
+
+@internal
+def foo():
+    x: WrappedBytes = WrappedBytes({{bs: {value}}})
+    y: {type}[96] = _abi_encode(x, ensure_tuple=True) # should be Bytes[128]
+    """
+
+    assert_compile_failed(lambda: get_contract(code))
+
+
+def test_side_effects_evaluation(get_contract, abi_encode):
+    contract_1 = """
+counter: uint256
+
+@external
+def __init__():
+    self.counter = 0
+
+@external
+def get_counter() -> (uint256, String[6]):
+    self.counter += 1
+    return (self.counter, "hello")
+    """
+
+    c = get_contract(contract_1)
+
+    contract_2 = """
+interface Foo:
+    def get_counter() -> (uint256, String[6]): nonpayable
+
+@external
+def foo(addr: address) -> Bytes[164]:
+    return _abi_encode(Foo(addr).get_counter(), method_id=0xdeadbeef)
+    """
+
+    c2 = get_contract(contract_2)
+
+    method_id = 0xDEADBEEF .to_bytes(4, "big")
+
+    # call to get_counter() should be evaluated only once
+    get_counter_encoded = abi_encode("((uint256,string))", ((1, "hello"),))
+
+    assert c2.foo(c.address).hex() == (method_id + get_counter_encoded).hex()

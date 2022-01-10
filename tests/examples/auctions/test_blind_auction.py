@@ -310,9 +310,9 @@ def test_blind_auction(w3, auction_contract):
     _values[2] = 300
     _fakes[2] = True
     _secrets[2] = (1234567).to_bytes(32, byteorder="big")
-    balance_before_reveal = w3.eth.getBalance(k2)
+    balance_before_reveal = w3.eth.get_balance(k2)
     auction_contract.reveal(3, _values, _fakes, _secrets, transact={"value": 0, "from": k2})
-    balance_after_reveal = w3.eth.getBalance(k2)
+    balance_after_reveal = w3.eth.get_balance(k2)
 
     #: Check that highest bidder and highest bid have updated
     assert auction_contract.highestBid() == 200
@@ -331,9 +331,9 @@ def test_blind_auction(w3, auction_contract):
     _values[1] = 275
     _fakes[1] = True
     _secrets[1] = (9876543).to_bytes(32, byteorder="big")
-    balance_before_reveal = w3.eth.getBalance(k3)
+    balance_before_reveal = w3.eth.get_balance(k3)
     auction_contract.reveal(2, _values, _fakes, _secrets, transact={"value": 0, "from": k3})
-    balance_after_reveal = w3.eth.getBalance(k3)
+    balance_after_reveal = w3.eth.get_balance(k3)
 
     #: Check that highest bidder and highest bid have NOT updated
     assert auction_contract.highestBidder() == k2
@@ -350,9 +350,9 @@ def test_blind_auction(w3, auction_contract):
     w3.testing.mine(REVEAL_TIME)
 
     # End the auction
-    balance_before_end = w3.eth.getBalance(k0)
+    balance_before_end = w3.eth.get_balance(k0)
     auction_contract.auctionEnd(transact={"value": 0, "from": k0})
-    balance_after_end = w3.eth.getBalance(k0)
+    balance_after_end = w3.eth.get_balance(k0)
 
     # Check that auction indeed ended
     assert auction_contract.ended() is True
@@ -361,7 +361,7 @@ def test_blind_auction(w3, auction_contract):
     assert balance_after_end == (balance_before_end + 200)
 
     # Check that k1 is able to withdraw their outbid bid
-    balance_before_withdraw = w3.eth.getBalance(k1)
+    balance_before_withdraw = w3.eth.get_balance(k1)
     auction_contract.withdraw(transact={"value": 0, "from": k1})
-    balance_after_withdraw = w3.eth.getBalance(k1)
+    balance_after_withdraw = w3.eth.get_balance(k1)
     assert balance_after_withdraw == (balance_before_withdraw + 100)

@@ -45,7 +45,7 @@ def public_foo3():
         "nonreentrant.foo": {"type": "nonreentrant lock", "location": "storage", "slot": 0},
         "nonreentrant.bar": {"type": "nonreentrant lock", "location": "storage", "slot": 1},
         "foo": {
-            "type": "HashMap[address, uint256][address, uint256]",
+            "type": "HashMap[address, uint256]",
             "location": "storage",
             "slot": 2,
         },

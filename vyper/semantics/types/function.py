@@ -24,6 +24,7 @@ from vyper.semantics.types.utils import (
     get_type_from_abi,
     get_type_from_annotation,
 )
+from vyper.semantics.types.value.boolean import BoolDefinition
 from vyper.semantics.types.value.numeric import Uint256Definition
 from vyper.semantics.validation.utils import validate_expected_type
 from vyper.utils import keccak256
@@ -305,7 +306,7 @@ class ContractFunction(BaseTypeDefinition):
 
         namespace = get_namespace()
         for arg, value in zip(node.args.args, defaults):
-            if arg.arg in ("gas", "value"):
+            if arg.arg in ("gas", "value", "skip_contract_check"):
                 raise ArgumentException(
                     f"Cannot use '{arg.arg}' as a variable name in a function input",
                     arg,
@@ -327,6 +328,8 @@ class ContractFunction(BaseTypeDefinition):
                         "Value must be literal or environment variable", value
                     )
                 validate_expected_type(value, type_definition)
+                # kludge because kwargs in signatures don't get visited by the annotator
+                value._metadata["type"] = type_definition
 
             arguments[arg.arg] = type_definition
 
@@ -397,7 +400,7 @@ class ContractFunction(BaseTypeDefinition):
         * For functions with default arguments, there is one key for each
           function signature.
         """
-        arg_types = [i.canonical_type for i in self.arguments.values()]
+        arg_types = [i.canonical_abi_type for i in self.arguments.values()]
 
         if not self.has_default_args:
             return _generate_method_id(self.name, arg_types)
@@ -443,7 +446,7 @@ class ContractFunction(BaseTypeDefinition):
         # for external calls, include gas and value as optional kwargs
         kwarg_keys = self.kwarg_keys.copy()
         if node.get("func.value.id") != "self":
-            kwarg_keys += ["gas", "value"]
+            kwarg_keys += ["gas", "value", "skip_contract_check"]
         validate_call_args(node, (self.min_arg_count, self.max_arg_count), kwarg_keys)
 
         if self.mutability < StateMutability.PAYABLE:
@@ -457,6 +460,10 @@ class ContractFunction(BaseTypeDefinition):
         for kwarg in node.keywords:
             if kwarg.arg in ("gas", "value"):
                 validate_expected_type(kwarg.value, Uint256Definition())
+            elif kwarg.arg in ("skip_contract_check"):
+                validate_expected_type(kwarg.value, BoolDefinition())
+                if not isinstance(kwarg.value, vy_ast.NameConstant):
+                    raise InvalidType("skip_contract_check must be literal bool", kwarg.value)
             else:
                 validate_expected_type(kwarg.arg, kwarg.value)
 
@@ -508,10 +515,10 @@ def _generate_abi_type(type_definition, name=""):
             "type": "tuple",
             "components": [_generate_abi_type(i) for i in type_definition.value_type],
         }
-    return {"name": name, "type": type_definition.canonical_type}
+    return {"name": name, "type": type_definition.canonical_abi_type}
 
 
-def _generate_method_id(name: str, canonical_types: List[str]) -> Dict[str, int]:
-    function_sig = f"{name}({','.join(canonical_types)})"
+def _generate_method_id(name: str, canonical_abi_types: List[str]) -> Dict[str, int]:
+    function_sig = f"{name}({','.join(canonical_abi_types)})"
     selector = keccak256(function_sig.encode())[:4].hex()
     return {function_sig: int(selector, 16)}

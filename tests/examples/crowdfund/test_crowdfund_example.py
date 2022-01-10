@@ -14,16 +14,16 @@ def test_crowdfund_example(c, w3):
     c.participate(transact={"value": 5})
 
     assert c.timelimit() == 60
-    assert c.deadline() - w3.eth.getBlock("latest").timestamp == 59
-    assert not w3.eth.getBlock("latest").timestamp >= c.deadline()  # expired
-    assert not w3.eth.getBalance(c.address) >= c.goal()  # not reached
+    assert c.deadline() - w3.eth.get_block("latest").timestamp == 59
+    assert not w3.eth.get_block("latest").timestamp >= c.deadline()  # expired
+    assert not w3.eth.get_balance(c.address) >= c.goal()  # not reached
     c.participate(transact={"value": 49})
     # assert c.reached()
-    pre_bal = w3.eth.getBalance(a1)
+    pre_bal = w3.eth.get_balance(a1)
     w3.testing.mine(100)
-    assert not w3.eth.getBlock("latest").number >= c.deadline()  # expired
+    assert not w3.eth.get_block("latest").number >= c.deadline()  # expired
     c.finalize(transact={})
-    post_bal = w3.eth.getBalance(a1)
+    post_bal = w3.eth.get_balance(a1)
     assert post_bal - pre_bal == 54
 
 
@@ -38,7 +38,7 @@ def test_crowdfund_example2(c, w3):
     w3.testing.mine(100)
     # assert c.expired()
     # assert not c.reached()
-    pre_bals = [w3.eth.getBalance(x) for x in [a3, a4, a5, a6]]
+    pre_bals = [w3.eth.get_balance(x) for x in [a3, a4, a5, a6]]
     c.refund(transact={})
-    post_bals = [w3.eth.getBalance(x) for x in [a3, a4, a5, a6]]
+    post_bals = [w3.eth.get_balance(x) for x in [a3, a4, a5, a6]]
     assert [y - x for x, y in zip(pre_bals, post_bals)] == [1, 2, 3, 4]

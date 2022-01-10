@@ -11,7 +11,7 @@ class MappingDefinition(IndexableTypeDefinition):
     _id = "HashMap"
 
     def __repr__(self):
-        return f"{self._id}[{self.key_type}, {self.value_type}]"
+        return f"HashMap[{self.key_type}, {self.value_type}]"
 
     def compare_type(self, other):
         return (

@@ -86,6 +86,7 @@ CONCISE_NORMALIZERS = (_none_addr,)
 @pytest.fixture
 def tester():
     custom_genesis = PyEVMBackend._generate_genesis_params(overrides={"gas_limit": 4500000})
+    custom_genesis["base_fee_per_gas"] = 0
     backend = PyEVMBackend(genesis_parameters=custom_genesis)
     return EthereumTester(backend=backend)
 
@@ -97,7 +98,7 @@ def zero_gas_price_strategy(web3, transaction_params=None):
 @pytest.fixture
 def w3(tester):
     w3 = Web3(EthereumTesterProvider(tester))
-    w3.eth.setGasPriceStrategy(zero_gas_price_strategy)
+    w3.eth.set_gas_price_strategy(zero_gas_price_strategy)
     return w3
 
 
@@ -108,6 +109,7 @@ def _get_contract(w3, source_code, no_optimize, *args, **kwargs):
         interface_codes=kwargs.pop("interface_codes", None),
         no_optimize=no_optimize,
         evm_version=kwargs.pop("evm_version", None),
+        show_gas_estimates=True,  # Enable gas estimates for testing
     )
     LARK_GRAMMAR.parse(source_code + "\n")  # Test grammar.
     abi = out["abi"]
@@ -122,7 +124,7 @@ def _get_contract(w3, source_code, no_optimize, *args, **kwargs):
     }
     tx_info.update(kwargs)
     tx_hash = deploy_transaction.transact(tx_info)
-    address = w3.eth.getTransactionReceipt(tx_hash)["contractAddress"]
+    address = w3.eth.get_transaction_receipt(tx_hash)["contractAddress"]
     return w3.eth.contract(
         address,
         abi=abi,
@@ -142,7 +144,7 @@ def get_contract(w3, no_optimize):
 @pytest.fixture
 def get_logs(w3):
     def get_logs(tx_hash, c, event_name):
-        tx_receipt = w3.eth.getTransactionReceipt(tx_hash)
+        tx_receipt = w3.eth.get_transaction_receipt(tx_hash)
         return c._classic_contract.events[event_name]().processReceipt(tx_receipt)
 
     return get_logs

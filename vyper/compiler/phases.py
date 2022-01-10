@@ -3,9 +3,10 @@ import warnings
 from typing import Optional, Tuple
 
 from vyper import ast as vy_ast
+from vyper.codegen import module
+from vyper.codegen.global_context import GlobalContext
+from vyper.codegen.lll_node import LLLnode
 from vyper.lll import compile_lll, optimizer
-from vyper.old_codegen import parser
-from vyper.old_codegen.global_context import GlobalContext
 from vyper.semantics import set_data_positions, validate_semantics
 from vyper.typing import InterfaceImports, StorageLayout
 
@@ -47,6 +48,8 @@ class CompilerData:
         interface_codes: Optional[InterfaceImports] = None,
         source_id: int = 0,
         no_optimize: bool = False,
+        storage_layout: StorageLayout = None,
+        show_gas_estimates: bool = False,
     ) -> None:
         """
         Initialization method.
@@ -63,12 +66,18 @@ class CompilerData:
             * JSON interfaces are given as lists, vyper interfaces as strings
         source_id : int, optional
             ID number used to identify this contract in the source map.
+        no_optimize: bool, optional
+            Turn off optimizations. Defaults to False
+        show_gas_estimates: bool, optional
+            Show gas estimates for abi and ir output modes
         """
         self.contract_name = contract_name
         self.source_code = source_code
         self.interface_codes = interface_codes
         self.source_id = source_id
         self.no_optimize = no_optimize
+        self.storage_layout_override = storage_layout
+        self.show_gas_estimates = show_gas_estimates
 
     @property
     def vyper_module(self) -> vy_ast.Module:
@@ -81,7 +90,7 @@ class CompilerData:
     def vyper_module_folded(self) -> vy_ast.Module:
         if not hasattr(self, "_vyper_module_folded"):
             self._vyper_module_folded, self._storage_layout = generate_folded_ast(
-                self.vyper_module, self.interface_codes
+                self.vyper_module, self.interface_codes, self.storage_layout_override
             )
 
         return self._vyper_module_folded
@@ -90,7 +99,7 @@ class CompilerData:
     def storage_layout(self) -> StorageLayout:
         if not hasattr(self, "_storage_layout"):
             self._vyper_module_folded, self._storage_layout = generate_folded_ast(
-                self.vyper_module, self.interface_codes
+                self.vyper_module, self.interface_codes, self.storage_layout_override
             )
 
         return self._storage_layout
@@ -109,13 +118,13 @@ class CompilerData:
         self._lll_nodes, self._lll_runtime = generate_lll_nodes(self.global_ctx, self.no_optimize)
 
     @property
-    def lll_nodes(self) -> parser.LLLnode:
+    def lll_nodes(self) -> LLLnode:
         if not hasattr(self, "_lll_nodes"):
             self._gen_lll()
         return self._lll_nodes
 
     @property
-    def lll_runtime(self) -> parser.LLLnode:
+    def lll_runtime(self) -> LLLnode:
         if not hasattr(self, "_lll_runtime"):
             self._gen_lll()
         return self._lll_runtime
@@ -167,7 +176,9 @@ def generate_ast(source_code: str, source_id: int, contract_name: str) -> vy_ast
 
 
 def generate_folded_ast(
-    vyper_module: vy_ast.Module, interface_codes: Optional[InterfaceImports]
+    vyper_module: vy_ast.Module,
+    interface_codes: Optional[InterfaceImports],
+    storage_layout_overrides: StorageLayout = None,
 ) -> Tuple[vy_ast.Module, StorageLayout]:
     """
     Perform constant folding operations on the Vyper AST.
@@ -190,7 +201,7 @@ def generate_folded_ast(
     vy_ast.folding.fold(vyper_module_folded)
     validate_semantics(vyper_module_folded, interface_codes)
     vy_ast.expansion.expand_annotated_ast(vyper_module_folded)
-    symbol_tables = set_data_positions(vyper_module_folded)
+    symbol_tables = set_data_positions(vyper_module_folded, storage_layout_overrides)
 
     return vyper_module_folded, symbol_tables
 
@@ -217,9 +228,7 @@ def generate_global_context(
     return GlobalContext.get_global_context(vyper_module, interface_codes=interface_codes)
 
 
-def generate_lll_nodes(
-    global_ctx: GlobalContext, no_optimize: bool
-) -> Tuple[parser.LLLnode, parser.LLLnode]:
+def generate_lll_nodes(global_ctx: GlobalContext, no_optimize: bool) -> Tuple[LLLnode, LLLnode]:
     """
     Generate the intermediate representation (LLL) from the contextualized AST.
 
@@ -240,14 +249,14 @@ def generate_lll_nodes(
         LLL to generate deployment bytecode
         LLL to generate runtime bytecode
     """
-    lll_nodes, lll_runtime = parser.parse_tree_to_lll(global_ctx)
+    lll_nodes, lll_runtime = module.parse_tree_to_lll(global_ctx)
     if not no_optimize:
         lll_nodes = optimizer.optimize(lll_nodes)
         lll_runtime = optimizer.optimize(lll_runtime)
     return lll_nodes, lll_runtime
 
 
-def generate_assembly(lll_nodes: parser.LLLnode, no_optimize: bool = False) -> list:
+def generate_assembly(lll_nodes: LLLnode, no_optimize: bool = False) -> list:
     """
     Generate assembly instructions from LLL.
 
