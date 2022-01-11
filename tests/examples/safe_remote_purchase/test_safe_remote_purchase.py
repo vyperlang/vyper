@@ -44,7 +44,7 @@ def test_initial_state(w3, assert_tx_failed, get_contract, get_balance, contract
     # Check if unlocked() works correctly after initialization
     assert c.unlocked() is True
     # Check that sellers (and buyers) balance is correct
-    assert get_balance() == ((a1_pre_bal - w3.toWei(2, "ether")), a1_pre_bal)
+    assert get_balance() == ((a0_pre_bal - w3.toWei(2, "ether")), a1_pre_bal)
 
 
 def test_abort(w3, assert_tx_failed, get_balance, get_contract, contract_code):
