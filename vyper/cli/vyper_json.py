@@ -27,7 +27,7 @@ TRANSLATE_MAP = {
     "interface": "interface",
     "ir": "ir_dict",
     "ir_json": "ir_dict",
-    #"metadata": "metadata",  # don't include  in "*" output for now
+    # "metadata": "metadata",  # don't include  in "*" output for now
     "layout": "layout",
     "userdoc": "userdoc",
 }
