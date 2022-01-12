@@ -19,7 +19,7 @@ jobs:
       run: pip install .[lint]
 
     - name: Run Black
-      run: black --check ./vyper ./tests ./setup.py
+      run: black --check ./vyper ./tests ./setup.py --extend-exclude ./vyper/version.py
 
     - name: Run flake8
       run: flake8 ./vyper ./tests
