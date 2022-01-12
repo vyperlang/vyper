@@ -25,7 +25,9 @@ TRANSLATE_MAP = {
     "evm.deployedBytecode.opcodes": "opcodes_runtime",
     "evm.deployedBytecode.sourceMap": "source_map",
     "interface": "interface",
-    "ir": "ir",
+    "ir": "ir_dict",
+    "ir_json": "ir_dict",
+    "metadata": "metadata",
     "layout": "layout",
     "userdoc": "userdoc",
 }
@@ -349,7 +351,10 @@ def format_to_output_dict(compiler_data: Dict) -> Dict:
         output_dict["contracts"][path] = {name: {}}
         output_contracts = output_dict["contracts"][path][name]
 
-        for key in ("abi", "devdoc", "interface", "ir", "userdoc"):
+        if "ir_dict" in data:
+            output_contracts["ir"] = data["ir_dict"]
+
+        for key in ("abi", "devdoc", "interface", "metadata", "userdoc"):
             if key in data:
                 output_contracts[key] = data[key]
 
@@ -357,14 +362,14 @@ def format_to_output_dict(compiler_data: Dict) -> Dict:
             output_contracts["evm"] = {"methodIdentifiers": data["method_identifiers"]}
 
         evm_keys = ("bytecode", "opcodes")
-        if next((i for i in evm_keys if i in data), False):
+        if any(i in data for i in evm_keys):
             evm = output_contracts.setdefault("evm", {}).setdefault("bytecode", {})
             if "bytecode" in data:
                 evm["object"] = data["bytecode"]
             if "opcodes" in data:
                 evm["opcodes"] = data["opcodes"]
 
-        if next((i for i in evm_keys if i + "_runtime" in data), False) or "source_map" in data:
+        if any(i + "_runtime" in data for i in evm_keys) or "source_map" in data:
             evm = output_contracts.setdefault("evm", {}).setdefault("deployedBytecode", {})
             if "bytecode_runtime" in data:
                 evm["object"] = data["bytecode_runtime"]
