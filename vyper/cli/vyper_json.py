@@ -27,7 +27,7 @@ TRANSLATE_MAP = {
     "interface": "interface",
     "ir": "ir_dict",
     "ir_json": "ir_dict",
-    "metadata": "metadata",
+    #"metadata": "metadata",  # don't include  in "*" output for now
     "layout": "layout",
     "userdoc": "userdoc",
 }
@@ -214,12 +214,14 @@ def get_input_dict_output_formats(input_dict: Dict, contract_sources: ContractCo
             outputs.remove(key)
             outputs.update([i for i in TRANSLATE_MAP if i.startswith(key)])
         if "*" in outputs:
-            outputs = sorted(TRANSLATE_MAP.values())
+            outputs = TRANSLATE_MAP.values()
         else:
             try:
-                outputs = sorted(TRANSLATE_MAP[i] for i in outputs)
+                outputs = [TRANSLATE_MAP[i] for i in outputs]
             except KeyError as e:
                 raise JSONError(f"Invalid outputSelection - {e}")
+
+        outputs = sorted(set(outputs))
 
         if path == "*":
             output_keys = list(contract_sources.keys())
