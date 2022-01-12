@@ -47,6 +47,7 @@ def make_return_stmt(lll_val: LLLnode, stmt: Any, context: Context) -> Optional[
         )
 
     if context.return_type is None:
+        jump_to_exit += ["return_pc"]
         return finalize(["pass"])
 
     if context.is_internal:

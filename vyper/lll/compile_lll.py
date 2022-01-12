@@ -50,6 +50,63 @@ def is_symbol(i):
     return isinstance(i, str) and i[:5] == "_sym_"
 
 
+# temporary optimization to handle stack items for return sequences
+# like `return return_ofst return_len`. this is kind of brittle because
+# it assumes the arguments are already on the stack, to be replaced
+# by better liveness analysis.
+# NOTE: modifies input in-place
+def _rewrite_return_sequences(lll_node, withargs = None):
+    args = lll_node.args
+    if lll_node.value == "return":
+        if args[0].value == "ret_ofst" and args[1].value == "ret_len":
+            lll_node.args[0].value = "pass"
+            lll_node.args[1].value = "pass"
+    if lll_node.value == "exit_to":
+        if args[0].value == "return_pc":
+            lll_node.value = "jump"
+            args[0].value = "pass"
+        else:
+            assert is_symbol(args[0].value)
+            args[0].value = args[0].value[5:]
+            lll_node.value = "goto"
+            if len(args) > 1 and args[1].value == "return_pc":
+                del args[1]
+
+    for t in lll_node.args:
+        _rewrite_return_sequences(t)
+
+def _handle_exit_to():
+    # dead code
+
+    return_pc = code.args[0]
+
+    # pop all vars in scope, then jump to return_pc
+    ret = []
+    if is_symbol(return_pc.value):
+        ret = ["POP"] * height + [return_pc]
+    elif return_pc.value in withargs:
+        _height = _height_of(return_pc.value)
+        assert height - _height >= 0
+        # (schedule the return_pc to be on top of the stack after POPping)
+        # POP up to the return_pc, swap it to the bottom of the scope,
+        # then POP everything else in scope
+        ret += ["POP"] * (_height - 1)
+        if height - _height > 0:
+            ret += ["SWAP" + str(height - _height)]
+        ret += ["POP"] * (height - _height)
+    else:  # general case, shouldn't happen now but for futureproof
+        ret += _compile_to_assembly(
+            return_pc, withargs=withargs, existing_labels=existing_labels, height=height
+        )
+        height += 1
+        ret += ["SWAP" + str(height)]
+        ret += ["POP"] * height
+
+    ret += ["JUMP"]
+    return ret
+
+
+
 def _assert_false():
     # use a shared failure block for common case of assert(x).
     # in the future we might want to change the code
@@ -107,6 +164,8 @@ def apply_line_numbers(func):
 
 @apply_line_numbers
 def compile_to_assembly(code, no_optimize=False):
+    _rewrite_return_sequences(code)
+
     res = _compile_to_assembly(code)
 
     _add_postambles(res)
@@ -631,32 +690,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         return ["_sym_" + label_name, "JUMPDEST"] + body_asm + pop_scoped_vars
 
     elif code.value == "exit_to":
-        return_pc = code.args[0]
-
-        # pop all vars in scope, then jump to return_pc
-        ret = []
-        if is_symbol(return_pc.value):
-            ret = ["POP"] * height + [return_pc]
-        elif return_pc.value in withargs:
-            _height = _height_of(return_pc.value)
-            assert height - _height >= 0
-            # (schedule the return_pc to be on top of the stack after POPping)
-            # POP up to the return_pc, swap it to the bottom of the scope,
-            # then POP everything else in scope
-            ret += ["POP"] * (_height - 1)
-            if height - _height > 0:
-                ret += ["SWAP" + str(height - _height)]
-            ret += ["POP"] * (height - _height)
-        else:  # general case, shouldn't happen now but for futureproof
-            ret += _compile_to_assembly(
-                return_pc, withargs=withargs, existing_labels=existing_labels, height=height
-            )
-            height += 1
-            ret += ["SWAP" + str(height)]
-            ret += ["POP"] * height
-
-        ret += ["JUMP"]
-        return ret
+        raise CodegenPanic("exit_to not implemented yet!")
 
     # inject debug opcode.
     elif code.value == "debugger":
