@@ -21,7 +21,7 @@ def make_return_stmt(lll_val: LLLnode, stmt: Any, context: Context) -> Optional[
 
     sig = context.sig
 
-    jump_to_exit = ["goto", sig.exit_sequence_label]
+    jump_to_exit = ["exit_to", f"_sym_{sig.exit_sequence_label}"]
 
     _pos = getpos(stmt)
 
@@ -52,6 +52,7 @@ def make_return_stmt(lll_val: LLLnode, stmt: Any, context: Context) -> Optional[
     if context.is_internal:
         dst = LLLnode.from_list(["return_buffer"], typ=context.return_type, location="memory")
         fill_return_buffer = make_setter(dst, lll_val, pos=_pos)
+        jump_to_exit += ["return_pc"]
 
         return finalize(fill_return_buffer)
 
