@@ -22,7 +22,7 @@ jobs:
       run: black --check --force-exclude=vyper/version.py ./vyper ./tests ./setup.py
 
     - name: Run flake8
-      run: flake8 ./vyper ./tests
+      run: flake8 ./vyper ./tests ./setup.py
       if: always()
 
     - name: Run isort
