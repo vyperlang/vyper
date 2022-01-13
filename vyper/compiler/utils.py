@@ -1,15 +1,10 @@
-from vyper.old_codegen.lll_node import LLLnode
+from vyper.codegen.lll_node import LLLnode
 
 
-def build_gas_estimates(lll_nodes: LLLnode) -> dict:
+def build_gas_estimates(lll_runtime: LLLnode) -> dict:
     gas_estimates: dict = {}
 
-    # Extract the stuff inside the LLL bracket
-    if lll_nodes.value == "seq":
-        if len(lll_nodes.args) > 0 and lll_nodes.args[-1].value == "return":
-            lll_nodes = lll_nodes.args[-1].args[1].args[0]
-
-    external_sub = next((i for i in lll_nodes.args if i.value == "with"), None)
+    external_sub = next((i for i in lll_runtime.args if i.value == "with"), None)
     if external_sub:
         for func_lll in external_sub.args[-1].args:
             if func_lll.func_name is not None:

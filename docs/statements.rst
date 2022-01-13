@@ -73,7 +73,7 @@ The ``log`` statement is used to log an event:
 
     log MyEvent(...)
 
-The event must have been previously declared
+The event must have been previously declared.
 
 See :ref:`Event Logging<event-logging>` for more information on events.
 
@@ -93,7 +93,7 @@ The ``raise`` statement triggers an exception and reverts the current call.
 
     raise "something went wrong"
 
-The error string is not required.
+The error string is not required. If it is provided, it is limited to 1024 bytes.
 
 assert
 ------
@@ -104,7 +104,7 @@ The ``assert`` statement makes an assertion about a given condition. If the cond
 
     assert x > 5, "value too low"
 
-The error string is not required.
+The error string is not required. If it is provided, it is limited to 1024 bytes.
 
 This method's behavior is equivalent to:
 

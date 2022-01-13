@@ -107,4 +107,4 @@ def get_chain_id() -> uint256:
     return chain.id
     """
     c = get_contract_with_gas_estimation(code, evm_version="istanbul")
-    assert c.get_chain_id() == 0  # Default value of py-evm
+    assert c.get_chain_id() == 131277322940537  # Default value of py-evm

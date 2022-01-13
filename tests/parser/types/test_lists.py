@@ -1,3 +1,5 @@
+import pytest
+
 from vyper.exceptions import ArrayIndexException, OverflowException
 
 
@@ -362,3 +364,94 @@ def foo() -> (uint256, uint256[3], uint256[2]):
     """
     c = get_contract(code)
     assert c.foo() == [666, [1, 2, 3], [88, 12]]
+
+
+def test_list_of_structs_arg(get_contract):
+    code = """
+struct Foo:
+    x: uint256
+    y: uint256
+
+@external
+def bar(_baz: Foo[3]) -> uint256:
+    sum: uint256 = 0
+    for i in range(3):
+        sum += _baz[i].x * _baz[i].y
+    return sum
+    """
+    c = get_contract(code)
+    c_input = [[x, y] for x, y in zip(range(3), range(3))]
+    assert c.bar(c_input) == 5  # 0 * 0 + 1 * 1 + 2 * 2
+
+
+def test_list_of_structs_arg_with_dynamic_type(get_contract):
+    code = """
+struct Foo:
+    x: uint256
+    _msg: String[32]
+
+@external
+def bar(_baz: Foo[3]) -> String[96]:
+    return concat(_baz[0]._msg, _baz[1]._msg, _baz[2]._msg)
+    """
+    c = get_contract(code)
+    c_input = [[i, msg] for i, msg in enumerate(("Hello ", "world", "!!!!"))]
+    assert c.bar(c_input) == "Hello world!!!!"
+
+
+@pytest.mark.parametrize(
+    "type,value",
+    [
+        ("decimal", [5.0, 11.0, 17.0, 29.0, 37.0, 41.0]),
+        ("uint8", [0, 1, 17, 250, 255, 2]),
+        ("int128", [0, -1, 1, -(2 ** 127), 2 ** 127 - 1, -50]),
+        ("int256", [0, -1, 1, -(2 ** 255), 2 ** 255 - 1, -50]),
+        ("uint256", [0, 1, 2 ** 8, 2 ** 255 + 1, 2 ** 256 - 1, 100]),
+        (
+            "uint256",
+            [2 ** 255 + 1, 2 ** 255 + 2, 2 ** 255 + 3, 2 ** 255 + 4, 2 ** 255 + 5, 2 ** 255 + 6],
+        ),
+        ("bool", [True, False, True, False, True, False]),
+    ],
+)
+def test_constant_list(get_contract, assert_tx_failed, type, value):
+    code = f"""
+MY_LIST: constant({type}[{len(value)}]) = {value}
+@external
+def ix(i: uint256) -> {type}:
+    return MY_LIST[i]
+    """
+    c = get_contract(code)
+    for i, p in enumerate(value):
+        assert c.ix(i) == p
+    # assert oob
+    assert_tx_failed(lambda: c.ix(len(value) + 1))
+
+
+def test_constant_list_address(get_contract, assert_tx_failed):
+    some_good_address = [
+        "0x0000000000000000000000000000000000012345",
+        "0x0000000000000000000000000000000000023456",
+        "0x0000000000000000000000000000000000034567",
+        "0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF",
+        "0xffffFFFfFFffffffffffffffFfFFFfffFFFfFFfE",
+        "0xFfffFfFFFfFFFFfFFfFFFfFFFfFFfFFFfFfFfFf1",
+    ]
+    code = """
+MY_LIST: constant(address[6]) = [
+    0x0000000000000000000000000000000000012345,
+    0x0000000000000000000000000000000000023456,
+    0x0000000000000000000000000000000000034567,
+    0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF,
+    0xffffFFFfFFffffffffffffffFfFFFfffFFFfFFfE,
+    0xFfffFfFFFfFFFFfFFfFFFfFFFfFFfFFFfFfFfFf1
+]
+@external
+def ix(i: uint256) -> address:
+    return MY_LIST[i]
+    """
+    c = get_contract(code)
+    for i, p in enumerate(some_good_address):
+        assert c.ix(i) == p
+    # assert oob
+    assert_tx_failed(lambda: c.ix(len(some_good_address) + 1))

@@ -218,6 +218,24 @@ def test_replace_userdefined_constant_no(source):
     assert vy_ast.compare_nodes(unmodified_ast, folded_ast)
 
 
+dummy_address = "0x000000000000000000000000000000000000dEaD"
+userdefined_attributes = [("b: uint256 = ADDR.balance", f"b: uint256 = {dummy_address}.balance")]
+
+
+@pytest.mark.parametrize("source", userdefined_attributes)
+def test_replace_userdefined_attribute(source):
+    preamble = f"ADDR: constant(address) = {dummy_address}"
+    l_source = f"{preamble}\n{source[0]}"
+    r_source = f"{preamble}\n{source[1]}"
+
+    l_ast = vy_ast.parse_to_ast(l_source)
+    folding.replace_user_defined_constants(l_ast)
+
+    r_ast = vy_ast.parse_to_ast(r_source)
+
+    assert vy_ast.compare_nodes(l_ast, r_ast)
+
+
 builtin_folding_functions = [("ceil(4.2)", "5"), ("floor(4.2)", "4")]
 
 builtin_folding_sources = [

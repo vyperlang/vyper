@@ -1,18 +1,22 @@
 import math
 from dataclasses import dataclass
+from typing import Dict, Optional
 
 from vyper import ast as vy_ast
+from vyper.codegen.lll_node import Encoding
+from vyper.codegen.types import NodeType, parse_type
 from vyper.exceptions import StructureException
-from vyper.old_codegen.lll_node import Encoding
-from vyper.old_codegen.types import NodeType, canonicalize_type, get_size_of_type, parse_type
 from vyper.utils import cached_property, mkalphanum
+
+# dict from function names to signatures
+FunctionSignatures = Dict[str, "FunctionSignature"]
 
 
 # Function variable
 # TODO move to context.py
 # TODO use dataclass
 class VariableRecord:
-    def __init__(
+    def __init__(  # type: ignore
         self,
         name,
         pos,
@@ -23,6 +27,8 @@ class VariableRecord:
         blockscopes=None,
         defined_at=None,
         is_internal=False,
+        is_immutable=False,
+        data_offset: Optional[int] = None,
     ):
         self.name = name
         self.pos = pos
@@ -33,6 +39,8 @@ class VariableRecord:
         self.blockscopes = [] if blockscopes is None else blockscopes
         self.defined_at = defined_at  # source code location variable record was defined.
         self.is_internal = is_internal
+        self.is_immutable = is_immutable
+        self.data_offset = data_offset  # location in data section
 
     def __repr__(self):
         ret = vars(self)
@@ -45,8 +53,9 @@ class VariableRecord:
             # temporary requirement to support both new and old type objects
             # we divide by 32 here because the returned value is denominated
             # in "slots" of 32 bytes each
+            # CMC 20211023 revisit this divide-by-32.
             return math.ceil(self.typ.size_in_bytes / 32)
-        return get_size_of_type(self.typ)
+        return math.ceil(self.typ.memory_bytes_required / 32)
 
 
 class ContractRecord(VariableRecord):
@@ -103,7 +112,7 @@ class FunctionSignature:
     # calculate the abi signature for a given set of kwargs
     def abi_signature_for_kwargs(self, kwargs):
         args = self.base_args + kwargs
-        return self.name + "(" + ",".join([canonicalize_type(arg.typ) for arg in args]) + ")"
+        return self.name + "(" + ",".join([arg.typ.abi_type.selector_name() for arg in args]) + ")"
 
     @cached_property
     def base_signature(self):
@@ -161,7 +170,6 @@ class FunctionSignature:
             argname = arg.arg
             argtyp = parse_type(
                 arg.annotation,
-                None,
                 sigs,
                 custom_structs=custom_structs,
             )
@@ -200,12 +208,11 @@ class FunctionSignature:
         if func_ast.returns:
             return_type = parse_type(
                 func_ast.returns,
-                None,
                 sigs,
                 custom_structs=custom_structs,
             )
             # sanity check: Output type must be canonicalizable
-            assert canonicalize_type(return_type)
+            assert return_type.abi_type.selector_name()
 
         return cls(
             name,

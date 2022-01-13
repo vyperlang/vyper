@@ -25,7 +25,9 @@ TRANSLATE_MAP = {
     "evm.deployedBytecode.opcodes": "opcodes_runtime",
     "evm.deployedBytecode.sourceMap": "source_map",
     "interface": "interface",
-    "ir": "ir",
+    "ir": "ir_dict",
+    "ir_json": "ir_dict",
+    # "metadata": "metadata",  # don't include  in "*" output for now
     "layout": "layout",
     "userdoc": "userdoc",
 }
@@ -48,7 +50,7 @@ def _parse_args(argv):
     parser.add_argument(
         "--version",
         action="version",
-        version=f"{vyper.__version__}+commit.{vyper.__commit__}",
+        version=vyper.__version__,
     )
     parser.add_argument(
         "-o",
@@ -143,9 +145,9 @@ def _standardize_path(path_str: str) -> str:
     return path.as_posix()
 
 
-def get_input_dict_settings(input_dict: Dict) -> Dict:
+def get_evm_version(input_dict: Dict) -> str:
     if "settings" not in input_dict:
-        return {"evm_version": DEFAULT_EVM_VERSION}
+        return DEFAULT_EVM_VERSION
 
     evm_version = input_dict["settings"].get("evmVersion", DEFAULT_EVM_VERSION)
     if evm_version in ("homestead", "tangerineWhistle", "spuriousDragon"):
@@ -153,7 +155,7 @@ def get_input_dict_settings(input_dict: Dict) -> Dict:
     if evm_version not in EVM_VERSIONS:
         raise JSONError(f"Unknown EVM version - '{evm_version}'")
 
-    return {"evm_version": evm_version}
+    return evm_version
 
 
 def get_input_dict_contracts(input_dict: Dict) -> ContractCodes:
@@ -212,12 +214,14 @@ def get_input_dict_output_formats(input_dict: Dict, contract_sources: ContractCo
             outputs.remove(key)
             outputs.update([i for i in TRANSLATE_MAP if i.startswith(key)])
         if "*" in outputs:
-            outputs = sorted(TRANSLATE_MAP.values())
+            outputs = TRANSLATE_MAP.values()
         else:
             try:
-                outputs = sorted(TRANSLATE_MAP[i] for i in outputs)
+                outputs = [TRANSLATE_MAP[i] for i in outputs]
             except KeyError as e:
                 raise JSONError(f"Invalid outputSelection - {e}")
+
+        outputs = sorted(set(outputs))
 
         if path == "*":
             output_keys = list(contract_sources.keys())
@@ -298,7 +302,8 @@ def compile_from_input_dict(
     if input_dict["language"] != "Vyper":
         raise JSONError(f"Invalid language '{input_dict['language']}' - Only Vyper is supported.")
 
-    settings = get_input_dict_settings(input_dict)
+    evm_version = get_evm_version(input_dict)
+    no_optimize = not input_dict["settings"].get("optimize", True)
 
     contract_sources: ContractCodes = get_input_dict_contracts(input_dict)
     interface_sources = get_input_dict_interfaces(input_dict)
@@ -320,7 +325,8 @@ def compile_from_input_dict(
                     output_formats[contract_path],
                     interface_codes=interface_codes,
                     initial_id=id_,
-                    evm_version=settings["evm_version"],
+                    no_optimize=no_optimize,
+                    evm_version=evm_version,
                 )
             except Exception as exc:
                 return exc_handler(contract_path, exc, "compiler"), {}
@@ -347,7 +353,10 @@ def format_to_output_dict(compiler_data: Dict) -> Dict:
         output_dict["contracts"][path] = {name: {}}
         output_contracts = output_dict["contracts"][path][name]
 
-        for key in ("abi", "devdoc", "interface", "ir", "userdoc"):
+        if "ir_dict" in data:
+            output_contracts["ir"] = data["ir_dict"]
+
+        for key in ("abi", "devdoc", "interface", "metadata", "userdoc"):
             if key in data:
                 output_contracts[key] = data[key]
 
@@ -355,14 +364,14 @@ def format_to_output_dict(compiler_data: Dict) -> Dict:
             output_contracts["evm"] = {"methodIdentifiers": data["method_identifiers"]}
 
         evm_keys = ("bytecode", "opcodes")
-        if next((i for i in evm_keys if i in data), False):
+        if any(i in data for i in evm_keys):
             evm = output_contracts.setdefault("evm", {}).setdefault("bytecode", {})
             if "bytecode" in data:
                 evm["object"] = data["bytecode"]
             if "opcodes" in data:
                 evm["opcodes"] = data["opcodes"]
 
-        if next((i for i in evm_keys if i + "_runtime" in data), False) or "source_map" in data:
+        if any(i + "_runtime" in data for i in evm_keys) or "source_map" in data:
             evm = output_contracts.setdefault("evm", {}).setdefault("deployedBytecode", {})
             if "bytecode_runtime" in data:
                 evm["object"] = data["bytecode_runtime"]

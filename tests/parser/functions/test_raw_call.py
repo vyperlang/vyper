@@ -18,6 +18,18 @@ def foo() -> Bytes[7]:
     assert c.foo() == b"moose"
 
 
+def test_raw_call_non_memory(get_contract):
+    source_code = """
+_foo: Bytes[5]
+@external
+def foo() -> Bytes[5]:
+    self._foo = b"moose"
+    return raw_call(0x0000000000000000000000000000000000000004, self._foo, max_outsize=5)
+    """
+    c = get_contract(source_code)
+    assert c.foo() == b"moose"
+
+
 def test_returndatasize_exceeds_max_outsize(get_contract):
     source_code = """
 @external
@@ -69,7 +81,7 @@ def create_and_return_forwarder(inp: address) -> address:
     c3 = c2.create_and_return_forwarder(c.address, call={})
     c2.create_and_return_forwarder(c.address, transact={})
 
-    c3_contract_code = w3.toBytes(w3.eth.getCode(c3))
+    c3_contract_code = w3.toBytes(w3.eth.get_code(c3))
 
     assert c3_contract_code[:10] == HexBytes(preamble)
     assert c3_contract_code[-15:] == HexBytes(callcode)
@@ -156,7 +168,7 @@ def set(i: int128, owner: address):
 
     # Call outer contract, that make a delegate call to inner_contract.
     tx_hash = outer_contract.set(1, a1, transact={})
-    assert w3.eth.getTransactionReceipt(tx_hash)["status"] == 1
+    assert w3.eth.get_transaction_receipt(tx_hash)["status"] == 1
     assert outer_contract.owners(1) == a1
 
 
@@ -250,6 +262,63 @@ def foo(_addr: address) -> int128:
     caller = get_contract(caller_source)
 
     assert_tx_failed(lambda: caller.foo(target.address))
+
+
+def test_checkable_raw_call(get_contract, assert_tx_failed):
+
+    target_source = """
+baz: int128
+@external
+def fail1(should_raise: bool):
+    if should_raise:
+        raise "fail"
+# test both paths for raw_call -
+# they are different depending if callee has or doesn't have returntype
+@external
+def fail2(should_raise: bool) -> int128:
+    if should_raise:
+        self.baz = self.baz + 1
+    return self.baz
+"""
+
+    caller_source = """
+@external
+@view
+def foo(_addr: address, should_raise: bool) -> uint256:
+    success: bool = True
+    response: Bytes[32] = b""
+    success, response = raw_call(
+        _addr,
+        _abi_encode(should_raise, method_id=method_id("fail1(bool)")),
+        max_outsize=32,
+        is_static_call=True,
+        revert_on_failure=False,
+    )
+    assert success == (not should_raise)
+    return 1
+@external
+@view
+def bar(_addr: address, should_raise: bool) -> uint256:
+    success: bool = True
+    response: Bytes[32] = b""
+    success, response = raw_call(
+        _addr,
+        _abi_encode(should_raise, method_id=method_id("fail2(bool)")),
+        max_outsize=32,
+        is_static_call=True,
+        revert_on_failure=False,
+    )
+    assert success == (not should_raise)
+    return 2
+    """
+
+    target = get_contract(target_source)
+    caller = get_contract(caller_source)
+
+    assert caller.foo(target.address, True) == 1
+    assert caller.foo(target.address, False) == 1
+    assert caller.bar(target.address, True) == 2
+    assert caller.bar(target.address, False) == 2
 
 
 uncompilable_code = [

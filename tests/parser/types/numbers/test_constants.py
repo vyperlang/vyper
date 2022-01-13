@@ -180,7 +180,7 @@ def test() -> uint256:
     """
 
     lll = compile_code(code, ["ir"])["ir"]
-    assert search_for_sublist(lll, ["mstore", [320], [2 ** 12 * some_prime]])
+    assert search_for_sublist(lll, ["mstore", [224], [2 ** 12 * some_prime]])
 
 
 def test_constant_lists(get_contract):
