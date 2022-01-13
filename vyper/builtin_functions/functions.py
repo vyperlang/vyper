@@ -1844,7 +1844,7 @@ res: decimal = 0.0
 for i in range(8):
     t: uint256 = 2**(7-i)
     p: uint256 = 2**t
-    if x >= p:
+    if x >= convert(p, decimal):
         x /= convert(p, decimal)
         res += convert(t, decimal)
 
