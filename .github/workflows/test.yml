@@ -15,11 +15,19 @@ jobs:
       with:
         python-version: 3.8
 
-    - name: Install Tox
-      run: pip install tox
+    - name: Install Dependencies
+      run: pip install .[lint]
 
-    - name: Run Tox
-      run: TOXENV=lint tox -r
+    - name: Run Black
+      run: black --check --force-exclude=vyper/version.py ./vyper ./tests ./setup.py
+
+    - name: Run flake8
+      run: flake8 ./vyper ./tests ./setup.py
+      if: always()
+
+    - name: Run isort
+      run: isort --check-only --diff ./vyper ./tests ./setup.py
+      if: always()
 
   docs:
     runs-on: ubuntu-latest
