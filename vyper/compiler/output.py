@@ -98,8 +98,14 @@ def build_metadata_output(compiler_data: CompilerData) -> dict:
     def _to_dict(sig):
         ret = vars(sig)
         ret["return_type"] = str(ret["return_type"])
-        for attr in ["gas", "func_ast_code"]:
+        for attr in ("gas", "func_ast_code"):
             del ret[attr]
+        for attr in ("args", "base_args", "default_args"):
+            if attr in ret:
+                ret[attr] = {arg.name: str(arg.typ) for arg in ret[attr]}
+        for k in ret["default_values"]:
+            # e.g. {"x": vy_ast.Int(..)} -> {"x": 1}
+            ret["default_values"][k] = ret["default_values"][k].node_source_code
         return ret
 
     return {"function_info": {name: _to_dict(sig) for (name, sig) in sigs.items()}}
