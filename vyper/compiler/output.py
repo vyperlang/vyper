@@ -98,6 +98,7 @@ def build_metadata_output(compiler_data: CompilerData) -> dict:
     def _to_dict(sig):
         ret = vars(sig)
         ret["return_type"] = str(ret["return_type"])
+        ret["_lll_identifier"] = sig._lll_identifier
         for attr in ("gas", "func_ast_code"):
             del ret[attr]
         for attr in ("args", "base_args", "default_args"):
