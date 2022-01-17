@@ -26,7 +26,7 @@ from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.abstract import IntegerAbstractType
 from vyper.semantics.types.bases import DataLocation
 from vyper.semantics.types.function import ContractFunction, FunctionVisibility, StateMutability
-from vyper.semantics.types.indexable.sequence import ArrayDefinition, TupleDefinition
+from vyper.semantics.types.indexable.sequence import ArrayDefinition, TupleDefinition, DynamicArrayDefinition
 from vyper.semantics.types.user.event import Event
 from vyper.semantics.types.user.struct import StructDefinition
 from vyper.semantics.types.utils import get_type_from_annotation
@@ -359,7 +359,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             type_list = [
                 i.value_type
                 for i in get_possible_types_from_node(node.iter)
-                if isinstance(i, ArrayDefinition)
+                if isinstance(i, (DynamicArrayDefinition, ArrayDefinition))
             ]
 
         if not type_list:
