@@ -117,15 +117,10 @@ class _ExprTypeChecker:
         # Restrict possible types if typedef is propagated in metadata
         if "type" in node._metadata:
             propagated_type = node._metadata["type"]
-            # Propagated typedef should be of type str
-            if type(propagated_type) is str:
-                for _, t in enumerate(types_list):
-                    if isinstance(t, (ArrayDefinition, TupleDefinition, DynamicArrayDefinition)):
-                        if propagated_type == t.value_type._id:
-                            types_list = [t]
-                    elif hasattr(t, "_id"):
-                        if propagated_type == t._id:
-                            types_list = [t]
+            for _, t in enumerate(types_list):
+                if type(propagated_type) is type(t):
+                    types_list = [t]
+                    break
 
         if all(isinstance(i, IntegerAbstractType) for i in types_list):
             # for numeric types, sort according by number of bits descending
