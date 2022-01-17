@@ -343,7 +343,7 @@ Member          Type        Description
 =============== =========== ==========================================================================
 ``balance``     ``uint256`` Balance of an address
 ``codehash``    ``bytes32`` Keccak of code at an address, ``EMPTY_BYTES32`` if no contract is deployed
-``codesize``    ``uint256`` Size of code deployed an address, in bytes
+``codesize``    ``uint256`` Size of code deployed at an address, in bytes
 ``is_contract`` ``bool``    Boolean indicating if a contract is deployed at an address
 ``code``        ``Bytes``   Contract bytecode
 =============== =========== ==========================================================================
