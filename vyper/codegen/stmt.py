@@ -6,6 +6,8 @@ from vyper.codegen import external_call, self_call
 from vyper.codegen.context import Constancy, Context
 from vyper.codegen.core import (
     LLLnode,
+    get_dyn_array_count,
+    get_element_ptr,
     getpos,
     make_byte_array_copier,
     make_setter,
@@ -14,7 +16,7 @@ from vyper.codegen.core import (
 )
 from vyper.codegen.expr import Expr
 from vyper.codegen.return_ import make_return_stmt
-from vyper.codegen.types import BaseType, ByteArrayType, SArrayType, parse_type
+from vyper.codegen.types import BaseType, ByteArrayType, DArrayType, SArrayType, parse_type
 from vyper.exceptions import CompilerPanic, StructureException, TypeCheckFailure
 
 
@@ -294,80 +296,63 @@ class Stmt:
 
     def _parse_For_list(self):
         with self.context.range_scope():
-            iter_list_node = Expr(self.stmt.iter, self.context).lll_node
-        if not isinstance(iter_list_node.typ.subtype, BaseType):  # Sanity check on list subtype.
+            iter_list = Expr(self.stmt.iter, self.context).lll_node
+
+        # TODO relax this restriction
+        if not isinstance(iter_list.typ.subtype, BaseType):
             return
 
-        iter_var_type = (
-            self.context.vars.get(self.stmt.iter.id).typ
-            if isinstance(self.stmt.iter, vy_ast.Name)
-            else None
-        )
+        # override with type inferred at typechecking time
         subtype = BaseType(self.stmt.target._metadata["type"]._id)
-        iter_list_node.typ.subtype = subtype
+        iter_list.typ.subtype = subtype
+
+        # user-supplied name for loop variable
         varname = self.stmt.target.id
-        value_pos = self.context.new_variable(varname, subtype)
-        i_pos = self.context.new_internal_variable(subtype)
+        loop_var = LLLnode.from_list(
+            self.context.new_variable(varname, subtype),
+            typ=subtype,
+            location="memory",
+        )
+
+        iptr = LLLnode.from_list(
+            self.context.new_internal_variable(BaseType("uint256")),
+            typ="uint256",
+            location="memory",
+        )
+
         self.context.forvars[varname] = True
 
-        # Is a list that is already allocated to memory.
-        if iter_var_type:
-            iter_var = self.context.vars.get(self.stmt.iter.id)
-            if iter_var.location == "calldata":
-                fetcher = "calldataload"
-            elif iter_var.location == "memory":
-                fetcher = "mload"
-            else:
-                return
-            body = [
-                "seq",
-                [
-                    "mstore",
-                    value_pos,
-                    [fetcher, ["add", iter_var.pos, ["mul", ["mload", i_pos], 32]]],
-                ],
-                parse_body(self.stmt.body, self.context),
-            ]
-            lll_node = LLLnode.from_list(
-                ["repeat", i_pos, 0, iter_var.size, body], typ=None, pos=getpos(self.stmt)
-            )
+        ret = ["seq"]
 
-        # List gets defined in the for statement.
-        elif isinstance(self.stmt.iter, vy_ast.List):
-            # Allocate list to memory.
-            count = iter_list_node.typ.count
+        # list literal, force it to memory first
+        if isinstance(self.stmt.iter, vy_ast.List):
+            count = iter_list.typ.count
             tmp_list = LLLnode.from_list(
                 obj=self.context.new_internal_variable(SArrayType(subtype, count)),
                 typ=SArrayType(subtype, count),
                 location="memory",
             )
-            setter = make_setter(tmp_list, iter_list_node, self.context, pos=getpos(self.stmt))
-            body = [
-                "seq",
-                ["mstore", value_pos, ["mload", ["add", tmp_list, ["mul", ["mload", i_pos], 32]]]],
-                parse_body(self.stmt.body, self.context),
-            ]
-            lll_node = LLLnode.from_list(
-                ["seq", setter, ["repeat", i_pos, 0, count, body]], typ=None, pos=getpos(self.stmt)
-            )
+            ret.append(make_setter(tmp_list, iter_list, self.context, pos=getpos(self.stmt)))
+            iter_list = tmp_list
 
-        # List contained in storage.
-        elif isinstance(self.stmt.iter, vy_ast.Attribute):
-            count = iter_list_node.typ.count
-            body = [
-                "seq",
-                ["mstore", value_pos, ["sload", ["add", iter_list_node, ["mload", i_pos]]]],
-                parse_body(self.stmt.body, self.context),
-            ]
-            lll_node = LLLnode.from_list(
-                ["seq", ["repeat", i_pos, 0, count, body]], typ=None, pos=getpos(self.stmt)
-            )
+        # set up the loop variable
+        loop_var_ast = getpos(self.stmt.target)
+        e = get_element_ptr(iter_list, iptr, array_bounds_check=False, pos=loop_var_ast)
+        body = [
+            "seq",
+            make_setter(loop_var, e, self.context, pos=loop_var_ast),
+            parse_body(self.stmt.body, self.context),
+        ]
 
-        # this kind of open access to the vars dict should be disallowed.
-        # we should use member functions to provide an API for these kinds
-        # of operations.
+        repeat_bound = iter_list.typ.count
+        if isinstance(iter_list.typ, DArrayType):
+            array_len = get_dyn_array_count(iter_list)
+            ret.append(["repeat", iptr, 0, array_len, repeat_bound, body])
+        else:
+            ret.append(["repeat", iptr, 0, repeat_bound, body])
+
         del self.context.forvars[varname]
-        return lll_node
+        return LLLnode.from_list(ret, pos=getpos(self.stmt))
 
     def parse_AugAssign(self):
         target = self._get_target(self.stmt.target)
