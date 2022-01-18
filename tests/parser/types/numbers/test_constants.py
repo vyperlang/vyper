@@ -1,4 +1,7 @@
+import itertools
 from decimal import Decimal
+
+import pytest
 
 from vyper.compiler import compile_code
 from vyper.exceptions import InvalidType
@@ -128,11 +131,14 @@ def test_add(a: uint256) -> uint256:
     assert c.test_add(7) == 40
 
 
-def test_custom_constants_fail(get_contract, assert_compile_failed, distinct_int_types):
-    type = distinct_int_types[0]
-    return_type = distinct_int_types[1]
+# Would be nice to put this somewhere accessible, like in vyper.types or something
+integer_types = ["uint8", "int128", "int256", "uint256"]
+
+
+@pytest.mark.parametrize("storage_type,return_type", itertools.permutations(integer_types, 2))
+def test_custom_constants_fail(get_contract, assert_compile_failed, storage_type, return_type):
     code = f"""
-MY_CONSTANT: constant({type}) = 1
+MY_CONSTANT: constant({storage_type}) = 1
 
 @external
 def foo() -> {return_type}:

@@ -1,3 +1,5 @@
+import itertools
+
 import pytest
 
 from vyper.exceptions import ArrayIndexException, InvalidType, OverflowException, TypeMismatch
@@ -428,11 +430,14 @@ def ix(i: uint256) -> {type}:
     assert_tx_failed(lambda: c.ix(len(value) + 1))
 
 
-def test_constant_list_fail(get_contract, assert_compile_failed, distinct_int_types):
-    type = distinct_int_types[0]
-    return_type = distinct_int_types[1]
+# Would be nice to put this somewhere accessible, like in vyper.types or something
+integer_types = ["uint8", "int128", "int256", "uint256"]
+
+
+@pytest.mark.parametrize("storage_type,return_type", itertools.permutations(integer_types, 2))
+def test_constant_list_fail(get_contract, assert_compile_failed, storage_type, return_type):
     code = f"""
-MY_CONSTANT: constant({type}[3]) = [1, 2, 3]
+MY_CONSTANT: constant({storage_type}[3]) = [1, 2, 3]
 
 @external
 def foo() -> {return_type}[3]:
@@ -441,11 +446,10 @@ def foo() -> {return_type}[3]:
     assert_compile_failed(lambda: get_contract(code), InvalidType)
 
 
-def test_constant_list_fail_2(get_contract, assert_compile_failed, distinct_int_types):
-    type = distinct_int_types[0]
-    return_type = distinct_int_types[1]
+@pytest.mark.parametrize("storage_type,return_type", itertools.permutations(integer_types, 2))
+def test_constant_list_fail_2(get_contract, assert_compile_failed, storage_type, return_type):
     code = f"""
-MY_CONSTANT: constant({type}[3]) = [1, 2, 3]
+MY_CONSTANT: constant({storage_type}[3]) = [1, 2, 3]
 
 @external
 def foo() -> {return_type}:
@@ -454,11 +458,10 @@ def foo() -> {return_type}:
     assert_compile_failed(lambda: get_contract(code), InvalidType)
 
 
-def test_constant_list_fail_3(get_contract, assert_compile_failed, distinct_int_types):
-    type = distinct_int_types[0]
-    return_type = distinct_int_types[1]
+@pytest.mark.parametrize("storage_type,return_type", itertools.permutations(integer_types, 2))
+def test_constant_list_fail_3(get_contract, assert_compile_failed, storage_type, return_type):
     code = f"""
-MY_CONSTANT: constant({type}[3]) = [1, 2, 3]
+MY_CONSTANT: constant({storage_type}[3]) = [1, 2, 3]
 
 @external
 def foo(i: uint256) -> {return_type}:
