@@ -1,7 +1,5 @@
 from decimal import Decimal
 
-import pytest
-
 from vyper.compiler import compile_code
 from vyper.exceptions import InvalidType
 
@@ -130,24 +128,9 @@ def test_add(a: uint256) -> uint256:
     assert c.test_add(7) == 40
 
 
-@pytest.mark.parametrize(
-    "type,return_type",
-    [
-        ("uint256", "uint8"),
-        ("uint256", "int128"),
-        ("uint256", "int256"),
-        ("uint8", "uint256"),
-        ("uint8", "int128"),
-        ("uint8", "int256"),
-        ("int128", "uint8"),
-        ("int128", "int256"),
-        ("int128", "uint256"),
-        ("int256", "uint8"),
-        ("int256", "int128"),
-        ("int256", "uint256"),
-    ],
-)
-def test_custom_constants_fail(get_contract, assert_compile_failed, type, return_type):
+def test_custom_constants_fail(get_contract, assert_compile_failed, distinct_int_types):
+    type = distinct_int_types[0]
+    return_type = distinct_int_types[1]
     code = f"""
 MY_CONSTANT: constant({type}) = 1
 

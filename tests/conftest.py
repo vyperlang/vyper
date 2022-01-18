@@ -1,5 +1,6 @@
 import logging
 from functools import wraps
+from itertools import product
 
 import pytest
 from eth_tester import EthereumTester, PyEVMBackend
@@ -208,3 +209,14 @@ def create2_address_of(keccak):
         return keccak(prefix + addr + salt + keccak(initcode))[12:]
 
     return _f
+
+
+def get_distinct_integer_types_combinations():
+    # TODO Replace with master list of integer types
+    types_list = ["uint8", "int128", "int256", "uint256"]
+    return [(t, rt) for (t, rt) in product(types_list, types_list) if t != rt]
+
+
+@pytest.fixture(params=get_distinct_integer_types_combinations())
+def distinct_int_types(request):
+    return request.param

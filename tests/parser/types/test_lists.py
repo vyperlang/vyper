@@ -428,24 +428,9 @@ def ix(i: uint256) -> {type}:
     assert_tx_failed(lambda: c.ix(len(value) + 1))
 
 
-@pytest.mark.parametrize(
-    "type,return_type",
-    [
-        ("uint256", "uint8"),
-        ("uint256", "int128"),
-        ("uint256", "int256"),
-        ("uint8", "uint256"),
-        ("uint8", "int128"),
-        ("uint8", "int256"),
-        ("int128", "uint8"),
-        ("int128", "int256"),
-        ("int128", "uint256"),
-        ("int256", "uint8"),
-        ("int256", "int128"),
-        ("int256", "uint256"),
-    ],
-)
-def test_constant_list_fail(get_contract, assert_compile_failed, type, return_type):
+def test_constant_list_fail(get_contract, assert_compile_failed, distinct_int_types):
+    type = distinct_int_types[0]
+    return_type = distinct_int_types[1]
     code = f"""
 MY_CONSTANT: constant({type}[3]) = [1, 2, 3]
 
@@ -456,24 +441,9 @@ def foo() -> {return_type}[3]:
     assert_compile_failed(lambda: get_contract(code), InvalidType)
 
 
-@pytest.mark.parametrize(
-    "type,return_type",
-    [
-        ("uint256", "uint8"),
-        ("uint256", "int128"),
-        ("uint256", "int256"),
-        ("uint8", "uint256"),
-        ("uint8", "int128"),
-        ("uint8", "int256"),
-        ("int128", "uint8"),
-        ("int128", "int256"),
-        ("int128", "uint256"),
-        ("int256", "uint8"),
-        ("int256", "int128"),
-        ("int256", "uint256"),
-    ],
-)
-def test_constant_list_fail_2(get_contract, assert_compile_failed, type, return_type):
+def test_constant_list_fail_2(get_contract, assert_compile_failed, distinct_int_types):
+    type = distinct_int_types[0]
+    return_type = distinct_int_types[1]
     code = f"""
 MY_CONSTANT: constant({type}[3]) = [1, 2, 3]
 
@@ -484,24 +454,9 @@ def foo() -> {return_type}:
     assert_compile_failed(lambda: get_contract(code), InvalidType)
 
 
-@pytest.mark.parametrize(
-    "type,return_type",
-    [
-        ("uint256", "uint8"),
-        ("uint256", "int128"),
-        ("uint256", "int256"),
-        ("uint8", "uint256"),
-        ("uint8", "int128"),
-        ("uint8", "int256"),
-        ("int128", "uint8"),
-        ("int128", "int256"),
-        ("int128", "uint256"),
-        ("int256", "uint8"),
-        ("int256", "int128"),
-        ("int256", "uint256"),
-    ],
-)
-def test_constant_list_fail_3(get_contract, assert_compile_failed, type, return_type):
+def test_constant_list_fail_3(get_contract, assert_compile_failed, distinct_int_types):
+    type = distinct_int_types[0]
+    return_type = distinct_int_types[1]
     code = f"""
 MY_CONSTANT: constant({type}[3]) = [1, 2, 3]
 
