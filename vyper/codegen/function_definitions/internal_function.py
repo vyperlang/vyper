@@ -61,7 +61,7 @@ def generate_lll_for_internal_function(
         "label",
         function_entry_label,
         stack_args,
-        ["seq"] + nonreentrant_pre + [parse_body(c, context) for c in code.body],
+        ["seq"] + nonreentrant_pre + [parse_body(code.body, context, ensure_terminated=True)],
     ]
 
     cleanup_routine = [

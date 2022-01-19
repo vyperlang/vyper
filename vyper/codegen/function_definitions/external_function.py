@@ -188,7 +188,7 @@ def generate_lll_for_external_function(code, sig, context, check_nonpayable):
 
     body += nonreentrant_pre
 
-    body += [parse_body(c, context) for c in code.body]
+    body += [parse_body(code.body, context, ensure_terminated=True)]
 
     # wrap the body in labeled block
     body = ["label", sig.external_function_base_entry_label, ["var_list"], body]
