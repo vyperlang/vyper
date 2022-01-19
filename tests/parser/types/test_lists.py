@@ -206,31 +206,33 @@ def test_multi4() -> uint256[2][2][2][2]:
     ]
 
 
-def test_uint256_accessor(get_contract_with_gas_estimation, assert_tx_failed):
-    code = """
+@pytest.mark.parametrize("type_", ["uint8", "uint256"])
+def test_unsigned_accessors(get_contract_with_gas_estimation, assert_tx_failed, type_):
+    code = f"""
 @external
-def bounds_check_uint256(ix: uint256) -> uint256:
+def bounds_check(ix: {type_}) -> uint256:
     xs: uint256[3] = [1,2,3]
     return xs[ix]
     """
     c = get_contract_with_gas_estimation(code)
-    assert c.bounds_check_uint256(0) == 1
-    assert c.bounds_check_uint256(2) == 3
-    assert_tx_failed(lambda: c.bounds_check_uint256(3))
+    assert c.bounds_check(0) == 1
+    assert c.bounds_check(2) == 3
+    assert_tx_failed(lambda: c.bounds_check(3))
 
 
-def test_int128_accessor(get_contract_with_gas_estimation, assert_tx_failed):
-    code = """
+@pytest.mark.parametrize("type_", ["int128", "int256"])
+def test_signed_accessors(get_contract_with_gas_estimation, assert_tx_failed, type_):
+    code = f"""
 @external
-def bounds_check_int128(ix: int128) -> uint256:
+def bounds_check(ix: {type_}) -> uint256:
     xs: uint256[3] = [1,2,3]
     return xs[ix]
     """
     c = get_contract_with_gas_estimation(code)
-    assert c.bounds_check_int128(0) == 1
-    assert c.bounds_check_int128(2) == 3
-    assert_tx_failed(lambda: c.bounds_check_int128(3))
-    assert_tx_failed(lambda: c.bounds_check_int128(-1))
+    assert c.bounds_check(0) == 1
+    assert c.bounds_check(2) == 3
+    assert_tx_failed(lambda: c.bounds_check(3))
+    assert_tx_failed(lambda: c.bounds_check(-1))
 
 
 def test_list_check_heterogeneous_types(get_contract_with_gas_estimation, assert_compile_failed):
