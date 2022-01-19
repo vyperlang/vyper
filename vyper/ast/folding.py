@@ -3,7 +3,7 @@ from typing import Optional, Union
 
 from vyper.ast import nodes as vy_ast
 from vyper.builtin_functions import DISPATCH_TABLE
-from vyper.exceptions import UnfoldableNode
+from vyper.exceptions import UnfoldableNode, VyperException
 from vyper.semantics.types.bases import BaseTypeDefinition, DataLocation
 from vyper.semantics.types.utils import get_type_from_annotation
 
@@ -179,7 +179,7 @@ def replace_user_defined_constants(vyper_module: vy_ast.Module) -> int:
         type_: Union[BaseTypeDefinition, None] = None
         try:
             type_ = get_type_from_annotation(node_annotation_arg, DataLocation.STORAGE)
-        except:  # noqa: E722
+        except VyperException:
             # Defer type exception handling to type checking stage for consistency
             pass
 
