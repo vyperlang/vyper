@@ -1,4 +1,3 @@
-# @version 0.3.1
 # Author: Sören Steiger, github.com/ssteiger
 # Edit: sonnhfit
 # License: MIT
@@ -18,8 +17,8 @@ interface ERC1155TokenReceiver:
     def onERC1155BatchReceived(
         _operator: address,
         _from: address,
-        _ids: uint256[BATCH_SIZE],
-        _values: uint256[BATCH_SIZE],
+        _ids: DynArray[uint256, BATCH_SIZE],
+        _values: DynArray[uint256, BATCH_SIZE],
         _data: Bytes[256]
     ) -> bytes32: view # TODO: should return bytes4
 
@@ -55,8 +54,8 @@ event TransferBatch:
     _operator: indexed(address)
     _from: indexed(address)
     _to: indexed(address)
-    _ids: uint256[BATCH_SIZE]
-    _value: uint256[BATCH_SIZE]
+    _ids: DynArray[uint256, BATCH_SIZE]
+    _value: DynArray[uint256, BATCH_SIZE]
 
 
 # @dev MUST emit when approval for a second party/operator address to manage all tokens for an owner address is enabled or disabled (absence of an event assumes disabled).
@@ -81,7 +80,7 @@ operators: HashMap[address, HashMap[address, bool]]
 
 
 # TODO: decide which batch size to use
-BATCH_SIZE: constant(uint256) = 5
+BATCH_SIZE: constant(uint256) = 128
 
 
 @external
@@ -150,13 +149,13 @@ def safeTransferFrom(
 def safeBatchTransferFrom(
     _from: address,
     _to: address,
-    _ids: uint256[BATCH_SIZE],
-    _values: uint256[BATCH_SIZE],
+    _ids: DynArray[uint256, BATCH_SIZE],
+    _values: DynArray[uint256, BATCH_SIZE],
     _data: Bytes[256]
   ):
     assert _from == msg.sender or (self.operators[_from])[msg.sender]
     assert _to != ZERO_ADDRESS
-    #assert len(_ids) == len(_values)
+    assert len(_ids) == len(_values)
 
     for i in range(BATCH_SIZE):
         assert self._balanceOf[_from][_ids[i]] >= _values[i]
@@ -192,12 +191,15 @@ def balanceOf(
 @external
 @view
 def balanceOfBatch(
-    _owner: address[BATCH_SIZE],
-    _ids: uint256[BATCH_SIZE]
-  ) -> uint256[BATCH_SIZE]:
-    returnValues: uint256[BATCH_SIZE] = empty(uint256[BATCH_SIZE])
+    _owners: DynArray[address, BATCH_SIZE],
+    _ids: DynArray[uint256, BATCH_SIZE]
+) -> DynArray[uint256, BATCH_SIZE]:
+    assert len(_owners) == len(_ids)
+
+    returnValues: DynArray[uint256, BATCH_SIZE] = empty(DynArray[uint256, BATCH_SIZE])
+
     for i in range(BATCH_SIZE):
-        returnValues[i] = self._balanceOf[_owner[i]][_ids[i]]
+        returnValues[i] = self._balanceOf[_owners[i]][_ids[i]]
     return returnValues
 
 
@@ -249,11 +251,11 @@ def mint(
 @external
 def mintBatch(
     _to: address,
-    _supplys: uint256[BATCH_SIZE],
+    _supplys: DynArray[uint256, BATCH_SIZE],
     _data: Bytes[256]
-  ) -> uint256[BATCH_SIZE]:
+  ) -> DynArray[uint256, BATCH_SIZE]:
     assert _to != ZERO_ADDRESS
-    ids: uint256[BATCH_SIZE] = empty(uint256[BATCH_SIZE])
+    ids: DynArray[uint256, BATCH_SIZE] = empty(DynArray[uint256, BATCH_SIZE])
     for i in range(BATCH_SIZE):
         self._balanceOf[msg.sender][self.tokensIdCount] = _supplys[i]
         self.tokensIdCount += 1
@@ -264,4 +266,4 @@ def mintBatch(
     return ids
 
 
-# TODO: specify a burn()/burnBatch() 
+# TODO: specify a burn()/burnBatch()
