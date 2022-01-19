@@ -14,7 +14,7 @@ from vyper.codegen.types import (
     TupleLike,
     TupleType,
     ceil32,
-    is_base_type,
+    is_integer_type,
     is_signed_num,
 )
 from vyper.evm.opcodes import version_check
@@ -399,8 +399,7 @@ def _get_element_ptr_array(parent, key, pos, array_bounds_check):
 
     assert isinstance(parent.typ, ArrayLike)
 
-    # TODO allow other integer types
-    if not is_base_type(key.typ, ("int128", "int256", "uint256")):
+    if not is_integer_type(key.typ):
         return
 
     subtype = parent.typ.subtype

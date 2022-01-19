@@ -72,8 +72,8 @@ class IntegerTypeInfo:
 _int_parser = re.compile("^(u?)int([0-9]+)$")
 
 
-def is_integer_type(typename: str) -> bool:
-    return _int_parser.fullmatch(typename) is not None
+def is_integer_type(t: "NodeType") -> bool:
+    return isinstance(t, BaseType) and _int_parser.fullmatch(t.typ) is not None
 
 
 def parse_integer_typeinfo(typename: str) -> IntegerTypeInfo:
@@ -88,7 +88,7 @@ def parse_integer_typeinfo(typename: str) -> IntegerTypeInfo:
 
 
 def _basetype_to_abi_type(t: "BaseType") -> ABIType:
-    if is_integer_type(t.typ):
+    if is_integer_type(t):
         typinfo = parse_integer_typeinfo(t.typ)
         return ABI_GIntM(typinfo.bits, typinfo.is_signed)
     if t.typ == "address":
