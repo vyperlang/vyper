@@ -415,8 +415,8 @@ Math
 
         @external
         @view
-        def foo(value: decimal) -> uint256:
-            return ceil(value)
+        def foo(x: decimal) -> int128:
+            return ceil(x)
 
     .. code-block:: python
 
@@ -433,8 +433,8 @@ Math
 
         @external
         @view
-        def foo(value: decimal) -> uint256:
-            return floor(value)
+        def foo(x: decimal) -> int128:
+            return floor(x)
 
     .. code-block:: python
 
