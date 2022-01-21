@@ -120,7 +120,7 @@ def data() -> int128:
 
     assert c.data() == 0
     # test all sorts of lists
-    for xs in [[3,5,7,9], [4,6,8], [1,2], [5], []]:
+    for xs in [[3, 5, 7, 9], [4, 6, 8], [1, 2], [5], []]:
         c.set(xs, transact={})
         assert c.data() == sum(xs)
 
