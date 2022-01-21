@@ -26,6 +26,18 @@ def data() -> int128:
     return -1""",
         3,
     ),
+    # basic for-in-dynamic array
+    (
+        """
+@external
+def data() -> int128:
+    s: DynArray[int128, 10] = [1, 2, 3, 4, 5]
+    for i in s:
+        if i >= 3:
+            return i
+    return -1""",
+        3,
+    ),
     # basic for-in-list literal
     (
         """
@@ -86,6 +98,31 @@ def data() -> int128:
     assert c.data() == -1
     c.set(transact={})
     assert c.data() == 7
+
+
+def test_basic_for_dyn_array_storage(get_contract_with_gas_estimation):
+    code = """
+x: DynArray[int128, 4]
+
+@external
+def set(xs: DynArray[int128, 4]):
+    self.x = xs
+
+@external
+def data() -> int128:
+    t: int128 = 0
+    for i in self.x:
+        t += i
+    return t
+    """
+
+    c = get_contract_with_gas_estimation(code)
+
+    assert c.data() == 0
+    # test all sorts of lists
+    for xs in [[3,5,7,9], [4,6,8], [1,2], [5], []]:
+        c.set(xs, transact={})
+        assert c.data() == sum(xs)
 
 
 def test_basic_for_list_storage_address(get_contract_with_gas_estimation):
@@ -169,6 +206,26 @@ def func(amounts: uint256[3]) -> uint256:
     c = get_contract_with_gas_estimation(code)
 
     assert c.func([100, 200, 300]) == 600
+
+
+def test_for_in_dyn_array(get_contract_with_gas_estimation):
+    code = """
+@external
+@view
+def func(amounts: DynArray[uint256, 3]) -> uint256:
+    total: uint256 = 0
+
+    # calculate total
+    for amount in amounts:
+        total += amount
+
+    return total
+    """
+
+    c = get_contract_with_gas_estimation(code)
+
+    assert c.func([100, 200, 300]) == 600
+    assert c.func([100, 200]) == 300
 
 
 GOOD_CODE = [
