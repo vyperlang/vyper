@@ -19,9 +19,11 @@ def new_type_to_old_type(typ: new.BasePrimitive) -> old.NodeType:
     if isinstance(typ, new.DecimalDefinition):
         return old.BaseType("decimal")
     if isinstance(typ, new.SignedIntegerAbstractType):
-        return old.BaseType("int" + str(typ._bits))
+        bits = typ._bits  # type: ignore
+        return old.BaseType("int" + str(bits))
     if isinstance(typ, new.UnsignedIntegerAbstractType):
-        return old.BaseType("uint" + str(typ._bits))
+        bits = typ._bits  # type: ignore
+        return old.BaseType("uint" + str(bits))
     if isinstance(typ, new.ArrayDefinition):
         return old.SArrayType(new_type_to_old_type(typ.value_type), typ.length)
     if isinstance(typ, new.DynamicArrayDefinition):
