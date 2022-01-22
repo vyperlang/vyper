@@ -1,6 +1,8 @@
+import itertools
+
 import pytest
 
-from vyper.exceptions import ArrayIndexException, OverflowException
+from vyper.exceptions import ArrayIndexException, InvalidType, OverflowException, TypeMismatch
 
 
 def test_list_tester_code(get_contract_with_gas_estimation):
@@ -481,3 +483,42 @@ def ix(i: uint256) -> decimal:
 
 
 # TODO test loops
+
+# Would be nice to put this somewhere accessible, like in vyper.types or something
+integer_types = ["uint8", "int128", "int256", "uint256"]
+
+
+@pytest.mark.parametrize("storage_type,return_type", itertools.permutations(integer_types, 2))
+def test_constant_list_fail(get_contract, assert_compile_failed, storage_type, return_type):
+    code = f"""
+MY_CONSTANT: constant(DynArray[{storage_type}, 3]) = [1, 2, 3]
+
+@external
+def foo() -> DynArray[{return_type}, 3]:
+    return MY_CONSTANT
+    """
+    assert_compile_failed(lambda: get_contract(code), InvalidType)
+
+
+@pytest.mark.parametrize("storage_type,return_type", itertools.permutations(integer_types, 2))
+def test_constant_list_fail_2(get_contract, assert_compile_failed, storage_type, return_type):
+    code = f"""
+MY_CONSTANT: constant(DynArray[{storage_type}, 3]) = [1, 2, 3]
+
+@external
+def foo() -> {return_type}:
+    return MY_CONSTANT[0]
+    """
+    assert_compile_failed(lambda: get_contract(code), InvalidType)
+
+
+@pytest.mark.parametrize("storage_type,return_type", itertools.permutations(integer_types, 2))
+def test_constant_list_fail_3(get_contract, assert_compile_failed, storage_type, return_type):
+    code = f"""
+MY_CONSTANT: constant(DynArray[{storage_type}, 3]) = [1, 2, 3]
+
+@external
+def foo(i: uint256) -> {return_type}:
+    return MY_CONSTANT[i]
+    """
+    assert_compile_failed(lambda: get_contract(code), TypeMismatch)
