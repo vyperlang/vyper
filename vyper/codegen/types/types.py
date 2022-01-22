@@ -415,7 +415,7 @@ def parse_type(item, sigs=None, custom_structs=None):
             FAIL()
 
     elif isinstance(item, vy_ast.Tuple):
-        members = [parse_type(x, custom_structs=custom_structs) for x in item.elements]
+        members = [parse_type(x, sigs=sigs, custom_structs=custom_structs) for x in item.elements]
         return TupleType(members)
 
     else:
