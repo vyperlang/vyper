@@ -369,12 +369,6 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         if not type_list:
             raise InvalidType("Not an iterable type", node.iter)
 
-        if next((i for i in type_list if isinstance(i, ArrayDefinition)), False):
-            raise StructureException("Cannot iterate over a nested list", node.iter)
-
-        if next((i for i in type_list if isinstance(i, StructDefinition)), False):
-            raise StructureException("Cannot iterate over a list of structs", node.iter)
-
         if isinstance(node.iter, (vy_ast.Name, vy_ast.Attribute)):
             # check for references to the iterated value within the body of the loop
             assign = _check_iterator_assign(node.iter, node)

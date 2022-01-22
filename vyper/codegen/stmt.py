@@ -17,6 +17,7 @@ from vyper.codegen.core import (
 from vyper.codegen.expr import Expr
 from vyper.codegen.return_ import make_return_stmt
 from vyper.codegen.types import BaseType, ByteArrayType, DArrayType, SArrayType, parse_type
+from vyper.codegen.types.convert import new_type_to_old_type
 from vyper.exceptions import CompilerPanic, StructureException, TypeCheckFailure
 
 
@@ -299,13 +300,10 @@ class Stmt:
         with self.context.range_scope():
             iter_list = Expr(self.stmt.iter, self.context).lll_node
 
-        # TODO relax this restriction
-        if not isinstance(iter_list.typ.subtype, BaseType):
-            return
-
         # override with type inferred at typechecking time
-        subtype = BaseType(self.stmt.target._metadata["type"]._id)
-        iter_list.typ.subtype = subtype
+        typ = new_type_to_old_type(self.stmt.iter._metadata["type"])
+        iter_list.typ = typ
+        subtype = typ.subtype
 
         # user-supplied name for loop variable
         varname = self.stmt.target.id
