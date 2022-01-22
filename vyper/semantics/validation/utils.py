@@ -19,7 +19,7 @@ from vyper.exceptions import (
 from vyper.semantics import types
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.abstract import IntegerAbstractType
-from vyper.semantics.types.bases import BaseTypeDefinition
+from vyper.semantics.types.bases import BaseTypeDefinition, DataLocation
 from vyper.semantics.types.indexable.sequence import (
     ArrayDefinition,
     DynamicArrayDefinition,
@@ -88,6 +88,8 @@ class _ExprTypeChecker:
     def get_possible_types_from_node(self, node, only_definitions=True):
         """
         Find all possible types for a given node.
+        If the node's metadata contains type information propagated from constant folding,
+        the possible types will be restricted to that which is extracted from the metadata.
 
         Arguments
         ---------
@@ -115,8 +117,21 @@ class _ExprTypeChecker:
                     raise InvalidReference("Expected a literal or variable", node)
 
         # Restrict possible types if typedef is propagated in metadata
-        if "type" in node._metadata:
-            propagated_type = node._metadata["type"]
+        if "constant_annotation" in node._metadata:
+            # TODO investigate this circular dependency
+            from vyper.semantics.types.utils import get_type_from_annotation
+
+            propagated_type = get_type_from_annotation(
+                node._metadata["constant_annotation"], DataLocation.STORAGE
+            )
+
+            if not isinstance(node, vy_ast.List) and isinstance(
+                propagated_type, (ArrayDefinition, DynamicArrayDefinition)
+            ):
+
+                # For array elements, extract the base type from the array definition
+                propagated_type = propagated_type.value_type
+
             for _, t in enumerate(types_list):
                 if type(propagated_type) is type(t):
                     types_list = [t]
