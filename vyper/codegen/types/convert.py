@@ -1,8 +1,9 @@
 # transition module to convert from new types to old types
 
-from vyper.exceptions import InvalidType
-import vyper.semantics.types as new
 import vyper.codegen.types as old
+import vyper.semantics.types as new
+from vyper.exceptions import InvalidType
+
 
 def new_type_to_old_type(typ: new.BasePrimitive) -> old.NodeType:
     if isinstance(typ, new.BoolDefinition):
@@ -28,5 +29,7 @@ def new_type_to_old_type(typ: new.BasePrimitive) -> old.NodeType:
     if isinstance(typ, new.TupleDefinition):
         return old.TupleType(typ.value_type)
     if isinstance(typ, new.StructDefinition):
-        return old.StructType({n: new_type_to_old_type(t) for (n, t) in typ.members.items()}, typ._id)
+        return old.StructType(
+            {n: new_type_to_old_type(t) for (n, t) in typ.members.items()}, typ._id
+        )
     raise InvalidType(f"unknown type {typ}")

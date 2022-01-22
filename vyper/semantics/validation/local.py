@@ -32,7 +32,6 @@ from vyper.semantics.types.indexable.sequence import (
     TupleDefinition,
 )
 from vyper.semantics.types.user.event import Event
-from vyper.semantics.types.user.struct import StructDefinition
 from vyper.semantics.types.utils import get_type_from_annotation
 from vyper.semantics.types.value.address import AddressDefinition
 from vyper.semantics.types.value.array_value import StringDefinition
