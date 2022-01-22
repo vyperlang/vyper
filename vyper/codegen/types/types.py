@@ -310,10 +310,9 @@ def make_struct_type(name, sigs, members, custom_structs):
     return StructType(o, name)
 
 
-# Parses an expression representing a type. Annotation refers to whether
-# the type is to be located in memory or storage
+# Parses an expression representing a type.
 # TODO: rename me to "lll_type_from_annotation"
-def parse_type(item, sigs=None, custom_structs=None):
+def parse_type(item, sigs, custom_structs):
     def _sanity_check(x):
         assert x, "typechecker missed this"
 
