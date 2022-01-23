@@ -301,15 +301,14 @@ class Stmt:
             iter_list = Expr(self.stmt.iter, self.context).lll_node
 
         # override with type inferred at typechecking time
-        typ = new_type_to_old_type(self.stmt.iter._metadata["type"])
-        iter_list.typ = typ
-        subtype = typ.subtype
+        target_type = new_type_to_old_type(self.stmt.target._metadata["type"])
+        iter_list.typ.subtype = target_type
 
         # user-supplied name for loop variable
         varname = self.stmt.target.id
         loop_var = LLLnode.from_list(
-            self.context.new_variable(varname, subtype),
-            typ=subtype,
+            self.context.new_variable(varname, target_type),
+            typ=target_type,
             location="memory",
         )
 
@@ -327,8 +326,8 @@ class Stmt:
         if isinstance(self.stmt.iter, vy_ast.List):
             count = iter_list.typ.count
             tmp_list = LLLnode.from_list(
-                obj=self.context.new_internal_variable(SArrayType(subtype, count)),
-                typ=SArrayType(subtype, count),
+                obj=self.context.new_internal_variable(iter_list.typ),
+                typ=iter_list.typ,
                 location="memory",
             )
             ret.append(make_setter(tmp_list, iter_list, self.context, pos=getpos(self.stmt)))
@@ -368,6 +367,7 @@ class Stmt:
                     col_offset=self.stmt.col_offset,
                     end_lineno=self.stmt.end_lineno,
                     end_col_offset=self.stmt.end_col_offset,
+                    node_source_code=self.stmt.get("node_source_code"),
                 ),
                 self.context,
             )
@@ -386,6 +386,7 @@ class Stmt:
                     col_offset=self.stmt.col_offset,
                     end_lineno=self.stmt.end_lineno,
                     end_col_offset=self.stmt.end_col_offset,
+                    node_source_code=self.stmt.get("node_source_code"),
                 ),
                 self.context,
             )

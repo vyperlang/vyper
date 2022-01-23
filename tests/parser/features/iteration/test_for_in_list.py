@@ -554,21 +554,6 @@ def foo():
     """,
         IteratorException,
     ),
-    # nested lists
-    """
-@external
-def foo():
-    x: uint256[5][2] = [[0, 1, 2, 3, 4], [2, 4, 6, 8, 10]]
-    for i in x:
-        pass
-    """,
-    """
-@external
-def foo():
-    x: uint256[5][2] = [[0, 1, 2, 3, 4], [2, 4, 6, 8, 10]]
-    for i in x[1]:
-        pass
-    """,
     (
         """
 @external
