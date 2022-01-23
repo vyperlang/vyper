@@ -89,7 +89,7 @@ class _ExprTypeChecker:
         """
         Find all possible types for a given node.
         If the node's metadata contains type information propagated from constant folding,
-        the possible types will be restricted to that which is extracted from the metadata.
+        then that type is returned.
 
         Arguments
         ---------
@@ -104,6 +104,24 @@ class _ExprTypeChecker:
         List
             A list of type objects
         """
+        # Early termination if typedef is propagated in metadata
+        if "constant_annotation" in node._metadata:
+            # TODO investigate this circular dependency
+            from vyper.semantics.types.utils import get_type_from_annotation
+
+            propagated_type = get_type_from_annotation(
+                node._metadata["constant_annotation"], DataLocation.UNSET
+            )
+
+            if not isinstance(node, vy_ast.List) and isinstance(
+                propagated_type, (ArrayDefinition, DynamicArrayDefinition)
+            ):
+
+                # For array elements, extract the base type from the array definition
+                propagated_type = propagated_type.value_type
+
+            return [propagated_type]
+
         fn = self._find_fn(node)
         types_list = fn(node)
         if only_definitions:
@@ -115,27 +133,6 @@ class _ExprTypeChecker:
                     )
                 else:
                     raise InvalidReference("Expected a literal or variable", node)
-
-        # Restrict possible types if typedef is propagated in metadata
-        if "constant_annotation" in node._metadata:
-            # TODO investigate this circular dependency
-            from vyper.semantics.types.utils import get_type_from_annotation
-
-            propagated_type = get_type_from_annotation(
-                node._metadata["constant_annotation"], DataLocation.STORAGE
-            )
-
-            if not isinstance(node, vy_ast.List) and isinstance(
-                propagated_type, (ArrayDefinition, DynamicArrayDefinition)
-            ):
-
-                # For array elements, extract the base type from the array definition
-                propagated_type = propagated_type.value_type
-
-            for _, t in enumerate(types_list):
-                if type(propagated_type) is type(t):
-                    types_list = [t]
-                    break
 
         if all(isinstance(i, IntegerAbstractType) for i in types_list):
             # for numeric types, sort according by number of bits descending
