@@ -66,6 +66,22 @@ def data() -> int128:
     return -1""",
         7,
     ),
+    # test more complicated literal
+    (
+        """
+struct S:
+    x: int128
+    y: int128
+
+@external
+def data() -> int128:
+    ret: int128 = 0
+    for ss in [[S({x:1, y:2})]]:
+        for s in ss:
+            ret += s.x + s.y
+    return ret""",
+        1+2,
+    ),
     # basic for-in-list addresses
     (
         """

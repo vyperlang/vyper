@@ -122,7 +122,7 @@ class LLLnode:
                     zero_valency_whitelist = {"pass", "pop"}
                     _check(
                         arg.valency == 1 or arg.value in zero_valency_whitelist,
-                        f"invalid argument to opcode or pseudo-opcode: {arg}",
+                        f"invalid argument to `{self.value}`: {arg}",
                     )
                     self.gas += arg.gas
                 # Dynamic gas cost: 8 gas for each byte of logging data
