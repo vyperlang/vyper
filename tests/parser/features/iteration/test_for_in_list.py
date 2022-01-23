@@ -38,6 +38,23 @@ def data() -> int128:
     return -1""",
         3,
     ),
+    # test more complicated type
+    (
+        """
+struct S:
+    x: int128
+    y: int128
+
+@external
+def data() -> int128:
+    sss: DynArray[DynArray[S, 10], 10] = [[S({x:1, y:2})], [S({x:3, y:4}), S({x:5, y:6}), S({x:7, y:8}), S({x:9, y:10})]]
+    ret: int128 = 0
+    for ss in sss:
+        for s in ss:
+            ret += s.x + s.y
+    return ret""",
+        sum(range(1,11)),
+    ),
     # basic for-in-list literal
     (
         """
