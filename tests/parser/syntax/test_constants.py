@@ -87,6 +87,16 @@ C1: constant(uint256) = block.number
     """,
         StateAccessViolation,
     ),
+    (
+        """
+struct Foo:
+    a: uint256
+    b: uint256
+
+CONST_BAR: constant(Foo) = Foo({a: 1, b: block.number})
+    """,
+        StateAccessViolation,
+    ),
     # cannot assign function result to a constant
     (
         """
@@ -194,6 +204,23 @@ MY_DECIMAL: constant(decimal) = -1e38
     """,
     """
 CONST_BYTES: constant(Bytes[4]) = b'1234'
+    """,
+    """
+struct Foo:
+    a: uint256
+    b: uint256
+
+CONST_BAR: constant(Foo) = Foo({a: 1, b: 2})
+    """,
+    """
+struct Foo:
+    a: uint256
+    b: uint256
+
+A: constant(uint256) = 1
+B: constant(uint256) = 2
+
+CONST_BAR: constant(Foo) = Foo({a: A, b: B})
     """,
 ]
 
