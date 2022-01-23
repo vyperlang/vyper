@@ -19,11 +19,12 @@ from vyper.exceptions import (
     VariableDeclarationException,
     VyperException,
 )
+from vyper.semantics.environment import get_constant_vars
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.bases import DataLocation
 from vyper.semantics.types.function import ContractFunction
 from vyper.semantics.types.user.event import Event
-from vyper.semantics.types.utils import check_literal, get_type_from_annotation
+from vyper.semantics.types.utils import check_constant, get_type_from_annotation
 from vyper.semantics.validation.base import VyperNodeVisitorBase
 from vyper.semantics.validation.utils import validate_expected_type, validate_unique_method_ids
 from vyper.typing import InterfaceDict
@@ -210,8 +211,12 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
         if is_constant:
             if not node.value:
                 raise VariableDeclarationException("Constant must be declared with a value", node)
-            if not check_literal(node.value):
+            if not check_constant(node.value):
                 raise StateAccessViolation("Value must be a literal", node.value)
+            if isinstance(node.value, vy_ast.Attribute):
+                # Check for environment variables
+                if node.value.get("value.id") in get_constant_vars():
+                    raise StateAccessViolation("Value must be a literal", node.value)
 
             validate_expected_type(node.value, type_definition)
             try:
