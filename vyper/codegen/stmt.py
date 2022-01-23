@@ -301,6 +301,7 @@ class Stmt:
             iter_list = Expr(self.stmt.iter, self.context).lll_node
 
         # override with type inferred at typechecking time
+        # TODO investigate why stmt.target.type != stmt.iter.type.subtype
         target_type = new_type_to_old_type(self.stmt.target._metadata["type"])
         iter_list.typ.subtype = target_type
 
