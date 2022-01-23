@@ -69,6 +69,19 @@ def data() -> int128:
     return -1""",
         7,
     ),
+    # test nested array
+    (
+        """
+@external
+def data() -> int128:
+    ret: int128 = 0
+    xss: int128[3][3] = [[1,2,3],[4,5,6],[7,8,9]]
+    for xs in xss:
+        for x in xs:
+            ret += x
+    return ret""",
+        sum(range(1, 10)),
+    ),
     # test more complicated literal
     (
         """
