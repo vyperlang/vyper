@@ -38,6 +38,26 @@ def data() -> int128:
     return -1""",
         3,
     ),
+    # test more complicated type
+    (
+        """
+struct S:
+    x: int128
+    y: int128
+
+@external
+def data() -> int128:
+    sss: DynArray[DynArray[S, 10], 10] = [
+        [S({x:1, y:2})],
+        [S({x:3, y:4}), S({x:5, y:6}), S({x:7, y:8}), S({x:9, y:10})]
+        ]
+    ret: int128 = 0
+    for ss in sss:
+        for s in ss:
+            ret += s.x + s.y
+    return ret""",
+        sum(range(1, 11)),
+    ),
     # basic for-in-list literal
     (
         """
@@ -48,6 +68,35 @@ def data() -> int128:
             return i
     return -1""",
         7,
+    ),
+    # test nested array
+    (
+        """
+@external
+def data() -> int128:
+    ret: int128 = 0
+    xss: int128[3][3] = [[1,2,3],[4,5,6],[7,8,9]]
+    for xs in xss:
+        for x in xs:
+            ret += x
+    return ret""",
+        sum(range(1, 10)),
+    ),
+    # test more complicated literal
+    (
+        """
+struct S:
+    x: int128
+    y: int128
+
+@external
+def data() -> int128:
+    ret: int128 = 0
+    for ss in [[S({x:1, y:2})]]:
+        for s in ss:
+            ret += s.x + s.y
+    return ret""",
+        1 + 2,
     ),
     # basic for-in-list addresses
     (
@@ -537,21 +586,6 @@ def foo():
     """,
         IteratorException,
     ),
-    # nested lists
-    """
-@external
-def foo():
-    x: uint256[5][2] = [[0, 1, 2, 3, 4], [2, 4, 6, 8, 10]]
-    for i in x:
-        pass
-    """,
-    """
-@external
-def foo():
-    x: uint256[5][2] = [[0, 1, 2, 3, 4], [2, 4, 6, 8, 10]]
-    for i in x[1]:
-        pass
-    """,
     (
         """
 @external
