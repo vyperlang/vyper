@@ -16,7 +16,7 @@ from vyper.codegen.core import (
 )
 from vyper.codegen.expr import Expr
 from vyper.codegen.return_ import make_return_stmt
-from vyper.codegen.types import BaseType, ByteArrayType, DArrayType, SArrayType, parse_type
+from vyper.codegen.types import BaseType, ByteArrayType, DArrayType, parse_type
 from vyper.codegen.types.convert import new_type_to_old_type
 from vyper.exceptions import CompilerPanic, StructureException, TypeCheckFailure
 
@@ -324,9 +324,8 @@ class Stmt:
 
         # list literal, force it to memory first
         if isinstance(self.stmt.iter, vy_ast.List):
-            count = iter_list.typ.count
             tmp_list = LLLnode.from_list(
-                obj=self.context.new_internal_variable(iter_list.typ),
+                self.context.new_internal_variable(iter_list.typ),
                 typ=iter_list.typ,
                 location="memory",
             )

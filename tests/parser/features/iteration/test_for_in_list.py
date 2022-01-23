@@ -47,13 +47,16 @@ struct S:
 
 @external
 def data() -> int128:
-    sss: DynArray[DynArray[S, 10], 10] = [[S({x:1, y:2})], [S({x:3, y:4}), S({x:5, y:6}), S({x:7, y:8}), S({x:9, y:10})]]
+    sss: DynArray[DynArray[S, 10], 10] = [
+        [S({x:1, y:2})],
+        [S({x:3, y:4}), S({x:5, y:6}), S({x:7, y:8}), S({x:9, y:10})]
+        ]
     ret: int128 = 0
     for ss in sss:
         for s in ss:
             ret += s.x + s.y
     return ret""",
-        sum(range(1,11)),
+        sum(range(1, 11)),
     ),
     # basic for-in-list literal
     (
@@ -80,7 +83,7 @@ def data() -> int128:
         for s in ss:
             ret += s.x + s.y
     return ret""",
-        1+2,
+        1 + 2,
     ),
     # basic for-in-list addresses
     (
