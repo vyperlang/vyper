@@ -90,11 +90,11 @@ C1: constant(uint256) = block.number
     # cannot assign function result to a constant
     (
         """
-@external
+@internal
 def foo() -> uint256:
     return 42
 
-c1: constant(uint256) = self.foo
+c1: constant(uint256) = self.foo()
      """,
         StateAccessViolation,
     ),
