@@ -3,7 +3,7 @@ from typing import Union
 
 from vyper.ast import nodes as vy_ast
 from vyper.builtin_functions import DISPATCH_TABLE
-from vyper.exceptions import UnfoldableNode
+from vyper.exceptions import UnfoldableNode, UnknownType
 from vyper.semantics.types.bases import BaseTypeDefinition, DataLocation
 from vyper.semantics.types.utils import get_type_from_annotation
 
@@ -176,15 +176,35 @@ def replace_user_defined_constants(vyper_module: vy_ast.Module) -> int:
 
         # Extract type definition from propagated annotation
         constant_annotation = node.get("annotation.args")[0]
-        type_ = (
-            get_type_from_annotation(constant_annotation, DataLocation.UNSET)
-            if constant_annotation
-            else None
-        )
+        try:
+            type_ = (
+                get_type_from_annotation(constant_annotation, DataLocation.UNSET)
+                if constant_annotation
+                else None
+            )
+        except UnknownType:
+            # Handle structs as user-defined types
+            type_ = None
 
         changed_nodes += replace_constant(
             vyper_module, node.target.id, node.value, False, type_=type_
         )
+
+        if isinstance(node.value, vy_ast.Call) and len(node.value.args) == 1:
+            if isinstance(node.value.args[0], vy_ast.Dict):
+
+                # If struct, replace references to each struct member with
+                # its literal value
+                struct_dict = node.value.args[0]
+
+                for k, v in zip(struct_dict.keys, struct_dict.values):
+                    changed_nodes += replace_constant(
+                        vyper_module,
+                        node.target.id,
+                        v,
+                        False,
+                        attribute_id=k.id,
+                    )
 
     return changed_nodes
 
@@ -204,6 +224,8 @@ def _replace(old_node, new_node, type_=None):
         new_node = new_node.from_node(old_node, elements=list_values)
         if type_:
             new_node._metadata["type"] = type_
+    elif isinstance(new_node, vy_ast.Call):
+        # Replace `Name` node with `Call` node
         return new_node
     else:
         raise UnfoldableNode
@@ -212,9 +234,10 @@ def _replace(old_node, new_node, type_=None):
 def replace_constant(
     vyper_module: vy_ast.Module,
     id_: str,
-    replacement_node: Union[vy_ast.Constant, vy_ast.List],
+    replacement_node: Union[vy_ast.Constant, vy_ast.List, vy_ast.Call],
     raise_on_error: bool,
     type_: BaseTypeDefinition = None,
+    attribute_id: str = None,
 ) -> int:
     """
     Replace references to a variable name with a literal value.
@@ -225,26 +248,43 @@ def replace_constant(
         Module-level ast node to perform replacement in.
     id_ : str
         String representing the `.id` attribute of the node(s) to be replaced.
-    replacement_node : Constant | List
+    replacement_node : Constant | List | Call
         Vyper ast node representing the literal value to be substituted in.
+        `Call` nodes are for whole struct constants.
     raise_on_error: bool
         Boolean indicating if `UnfoldableNode` exception should be raised or ignored.
     type_ : BaseTypeDefinition, optional
         Type definition to be propagated to type checker.
+    attribute_id: str
+        String representing the `.attr` attribute of an `Attribute` node that is
+        to be used to further filter nodes after getting descendants based on `id_`.
+        Used to propagate a struct member's name.
 
     Returns
     -------
     int
         Number of nodes that were replaced.
     """
+    is_struct = False
+
+    # Set is_struct to true if entire struct constant is being replaced
+    if isinstance(replacement_node, vy_ast.Call) and len(replacement_node.args) == 1:
+        if isinstance(replacement_node.args[0], vy_ast.Dict):
+            is_struct = True
+
+    # Set is_struct to true if struct member id is provided
+    if attribute_id:
+        is_struct = True
+
     changed_nodes = 0
 
     for node in vyper_module.get_descendants(vy_ast.Name, {"id": id_}, reverse=True):
         parent = node.get_ancestor()
 
         if isinstance(parent, vy_ast.Call) and node == parent.func:
-            # do not replace calls
-            continue
+            # do not replace calls that are not structs
+            if not is_struct:
+                continue
 
         # do not replace dictionary keys
         if isinstance(parent, vy_ast.Dict) and node in parent.keys:
@@ -256,6 +296,20 @@ def replace_constant(
 
             if assign and node in assign.target.get_descendants(include_self=True):
                 continue
+
+        if isinstance(parent, vy_ast.Attribute):
+            if is_struct:
+                if attribute_id:
+                    if parent.attr == attribute_id:
+                        # Replace constant if attribute matches current AST node
+                        node = parent
+                    else:
+                        # Otherwise, skip
+                        continue
+                else:
+                    # Skip if accessing attribute of struct but attribute string
+                    # is not provided
+                    continue
 
         try:
             new_node = _replace(node, replacement_node, type_=type_)
