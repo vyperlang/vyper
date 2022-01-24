@@ -236,7 +236,7 @@ def test_replace_userdefined_attribute(source):
     assert vy_ast.compare_nodes(l_ast, r_ast)
 
 
-userdefined_struct = [("b: Foo = FOO", "b: Foo = Foo({{a: 123, b: 456}})")]
+userdefined_struct = [("b: Foo = FOO", "b: Foo = Foo({a: 123, b: 456})")]
 
 
 @pytest.mark.parametrize("source", userdefined_struct)
@@ -246,7 +246,7 @@ struct Foo:
     a: uint256
     b: uint256
 
-FOO: constant(Foo) = Foo({{a: 123, b: 456}})
+FOO: constant(Foo) = Foo({a: 123, b: 456})
     """
     l_source = f"{preamble}\n{source[0]}"
     r_source = f"{preamble}\n{source[1]}"
@@ -269,7 +269,7 @@ struct Foo:
     a: uint256
     b: uint256
 
-FOO: constant(Foo) = Foo({{a: 123, b: 456}})
+FOO: constant(Foo) = Foo({a: 123, b: 456})
     """
     l_source = f"{preamble}\n{source[0]}"
     r_source = f"{preamble}\n{source[1]}"
