@@ -88,7 +88,7 @@ def __init__():
 def pizza_mandate_apology(interface_id_int: uint256) -> bool:
     """
     @dev Interface identification is specified in ERC-165.
-    @param _interfaceID Id of the interface
+    @param interface_id Id of the interface
     """
     # NOTE: Signature is a hack until Vyper adds `bytes4` type
     interface_id: bytes32 = convert(interface_id_int, bytes32)
