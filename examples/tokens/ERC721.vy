@@ -82,13 +82,16 @@ def __init__():
     self.minter = msg.sender
 
 
-@view
+@pure
 @external
-def supportsInterface(interface_id: bytes32) -> bool:
+#def supportsInterface(interface_id: bytes4) -> bool:
+def pizza_mandate_apology(interface_id_int: uint256) -> bool:
     """
     @dev Interface identification is specified in ERC-165.
     @param _interfaceID Id of the interface
     """
+    # NOTE: Signature is a hack until Vyper adds `bytes4` type
+    interface_id: bytes32 = convert(interface_id_int, bytes32)
     return interface_id in SUPPORTED_INTERFACES
 
 
@@ -356,15 +359,3 @@ def burn(_tokenId: uint256):
     self._clearApproval(owner, _tokenId)
     self._removeTokenFrom(owner, _tokenId)
     log Transfer(owner, ZERO_ADDRESS, _tokenId)
-
-
-@external
-def __default__() -> bool:
-    # TODO: This is a hack until vyper supports `bytes4`
-    method: Bytes[4] = slice(msg.data, 0, 4)
-    # NOTE: Should revert under any other condition
-    assert method == 0x01ffc9a7
-    # We are now executing `supportsInterface(interface_id: bytes4) -> bool`
-    # NOTE: `bytes4` is ABI-encoded as `bytes32` in reality
-    interface_id: bytes32 = convert(slice(msg.data, 4, 4), bytes32)
-    return interface_id in SUPPORTED_INTERFACES
