@@ -24,7 +24,7 @@ CONSTANT_ENVIRONMENT_VARS: Dict[str, Dict[str, type]] = {
         "sender": AddressDefinition,
         "value": Uint256Definition,
     },
-    "tx": {"origin": AddressDefinition},
+    "tx": {"origin": AddressDefinition, "gasprice": Uint256Definition},
 }
 
 
