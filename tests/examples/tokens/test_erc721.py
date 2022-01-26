@@ -186,6 +186,26 @@ def test_safeTransferFrom_by_owner(c, w3, assert_tx_failed, get_logs):
     assert c.balanceOf(operator) == 2
 
 
+def test_safeTransferFrom_overload_function(c, w3, assert_tx_failed, get_logs):
+    someone, operator = w3.eth.accounts[1:3]
+
+    # transfer by owner
+    tx_hash = c.safeTransferFrom(
+        someone, operator, SOMEONE_TOKEN_IDS[0], b"101", transact={"from": someone}
+    )
+
+    logs = get_logs(tx_hash, c, "Transfer")
+
+    assert len(logs) > 0
+    args = logs[0].args
+    assert args.sender == someone
+    assert args.receiver == operator
+    assert args.tokenId == SOMEONE_TOKEN_IDS[0]
+    assert c.ownerOf(SOMEONE_TOKEN_IDS[0]) == operator
+    assert c.balanceOf(someone) == 2
+    assert c.balanceOf(operator) == 2
+
+
 def test_safeTransferFrom_by_approved(c, w3, get_logs):
     someone, operator = w3.eth.accounts[1:3]
 
