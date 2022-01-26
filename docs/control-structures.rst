@@ -105,9 +105,9 @@ The `__default__` Function
 
 A contract can also have a default function, which is executed on a call to the contract if no other functions match the given function identifier (or if none was supplied at all, such as through someone sending it Eth). It is the same construct as fallback functions `in Solidity <https://solidity.readthedocs.io/en/latest/contracts.html?highlight=fallback#fallback-function>`_.
 
-This function is always named ``__default__``. It must be annotated with ``@external``. It cannot expect any input arguments and cannot return any values.
+This function is always named ``__default__``. It must be annotated with ``@external``. It cannot expect any input arguments.
 
-If the function is annotated as ``@payable``, this function is executed whenever the contract is sent Ether (without data). This is why the default function cannot accept arguments and return values - it is a design decision of Ethereum to make no differentiation between sending ether to a contract or a user address.
+If the function is annotated as ``@payable``, this function is executed whenever the contract is sent Ether (without data). This is why the default function cannot accept arguments - it is a design decision of Ethereum to make no differentiation between sending ether to a contract or a user address.
 
 .. code-block:: python
 
