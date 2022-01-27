@@ -25,6 +25,7 @@ Name                 Type             Value
 ``msg.sender``       ``address``      Sender of the message (current call)
 ``msg.value``        ``uint256``      Number of wei sent with the message
 ``tx.origin``        ``address``      Sender of the transaction (full call chain)
+``tx.gasprice``      ``uint256``      Gas price of current transaction in wei
 ==================== ================ =============================================
 
 .. note::

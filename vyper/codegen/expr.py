@@ -475,6 +475,8 @@ class Expr:
                 )
             elif key == "tx.origin":
                 return LLLnode.from_list(["origin"], typ="address", pos=getpos(self.expr))
+            elif key == "tx.gasprice":
+                return LLLnode.from_list(["gasprice"], typ="uint256", pos=getpos(self.expr))
             elif key == "chain.id":
                 if not version_check(begin="istanbul"):
                     raise EvmVersionException(
