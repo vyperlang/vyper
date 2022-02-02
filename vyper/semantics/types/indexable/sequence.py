@@ -2,7 +2,8 @@ from typing import Optional, Tuple, Union
 
 from vyper import ast as vy_ast
 from vyper.abi_types import ABI_DynamicArray, ABI_StaticArray, ABI_Tuple, ABIType
-from vyper.exceptions import ArrayIndexException, InvalidType, StructureException
+from vyper.ast.validation import validate_call_args
+from vyper.exceptions import ArrayIndexException, CallViolation, InvalidType, StructureException
 from vyper.semantics import validation
 from vyper.semantics.types.abstract import IntegerAbstractType
 from vyper.semantics.types.bases import (
@@ -10,6 +11,7 @@ from vyper.semantics.types.bases import (
     BaseTypeDefinition,
     DataLocation,
     IndexableTypeDefinition,
+    MemberTypeDefinition,
 )
 from vyper.semantics.types.value.numeric import Uint256Definition
 
@@ -116,7 +118,7 @@ class ArrayDefinition(_SequenceDefinition):
         return self.value_type.compare_type(other.value_type)
 
 
-class DynamicArrayDefinition(_SequenceDefinition):
+class DynamicArrayDefinition(_SequenceDefinition, MemberTypeDefinition):
     """
     Dynamic array type definition.
     """
@@ -131,6 +133,11 @@ class DynamicArrayDefinition(_SequenceDefinition):
         is_immutable: bool = False,
     ) -> None:
         super().__init__(value_type, length, "DynArray", location, is_immutable, is_public)
+
+        # Adding members here as otherwise DynamicArrayFunctionDefinition is not yet defined
+        # if added as _type_members
+        self.add_member("append", DynamicArrayFunctionDefinition("append", 0, 1))
+        self.add_member("pop", DynamicArrayFunctionDefinition("pop", 0, 0))
 
     def __repr__(self):
         return f"DynArray[{self.value_type}, {self.length}]"
@@ -166,6 +173,9 @@ class DynamicArrayDefinition(_SequenceDefinition):
         if self.length < other.length:
             return False
         return self.value_type.compare_type(other.value_type)
+
+    def fetch_call_return(self, node: vy_ast.Call) -> None:
+        pass
 
 
 class DynamicArrayPrimitive(BasePrimitive):
@@ -206,6 +216,41 @@ class DynamicArrayPrimitive(BasePrimitive):
             is_public,
             is_immutable,
         )
+
+
+class DynamicArrayFunctionDefinition(BaseTypeDefinition):
+    """
+    Dynamic array function type definition.
+
+    This class has no corresponding primitive.
+    """
+
+    _is_callable = True
+
+    def __init__(self, name: str, min_arg_count: int, max_arg_count: int) -> None:
+        super().__init__(DataLocation.UNSET)
+        self.name = name
+        self.min_arg_count = min_arg_count
+        self.max_arg_count = max_arg_count
+
+    def __repr__(self):
+        return f"dynamic array function '{self.name}'"
+
+    def fetch_call_return(self, node: vy_ast.Call) -> Optional[BaseTypeDefinition]:
+        validate_call_args(node, (self.min_arg_count, self.max_arg_count))
+
+        dynarray_definition = validation.utils.get_exact_type_from_node(node.func.value)
+        value_type = dynarray_definition.value_type
+        dynarray_length = dynarray_definition.length
+
+        if self.name == "append":
+            validation.utils.validate_expected_type(node.args[0], value_type)
+            return DynamicArrayDefinition(value_type, dynarray_length + 1)
+
+        elif self.name == "pop":
+            return value_type
+
+        raise CallViolation("Function on dynamic array does not exist", node)
 
 
 class TupleDefinition(_SequenceDefinition):
