@@ -11,7 +11,7 @@ extras_require = {
         "pytest-instafail>=0.4,<1.0",
         "pytest-xdist>=1.32,<2.0",
         "eth-tester[py-evm]>=0.6.0b4,<0.7",
-        "py-evm>=0.5.0a3",
+        "py-evm>=0.5.0a3,<0.6",
         "web3==5.27.0",
         "tox>=3.15,<4.0",
         "lark-parser==0.10.0",
