@@ -29,6 +29,7 @@ from vyper.semantics.types.function import ContractFunction, FunctionVisibility,
 from vyper.semantics.types.indexable.sequence import (
     ArrayDefinition,
     DynamicArrayDefinition,
+    DynamicArrayFunctionDefinition,
     TupleDefinition,
 )
 from vyper.semantics.types.user.event import Event
@@ -444,7 +445,6 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
     def visit_Expr(self, node):
         if not isinstance(node.value, vy_ast.Call):
             raise StructureException("Expressions without assignment are disallowed", node)
-
         fn_type = get_exact_type_from_node(node.value.func)
         if isinstance(fn_type, Event):
             raise StructureException("To call an event you must use the `log` statement", node)
@@ -463,9 +463,9 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                 raise StateAccessViolation(
                     f"Cannot call any function from a {self.func.mutability.value} function", node
                 )
-
         return_value = fn_type.fetch_call_return(node.value)
-        if return_value and not isinstance(fn_type, ContractFunction):
+        if return_value and not isinstance(fn_type, DynamicArrayFunctionDefinition) and \
+                not isinstance(fn_type, ContractFunction):
             raise StructureException(
                 f"Function '{fn_type._id}' cannot be called without assigning the result", node
             )
