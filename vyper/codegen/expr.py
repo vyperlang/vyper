@@ -326,7 +326,7 @@ class Expr:
             is_constructor = self.expr.get_ancestor(vy_ast.FunctionDef).get("name") == "__init__"
             if is_constructor:
                 # store memory position for later access in module.py in the variable record
-                memory_loc = self.context.new_variable(f"#immutable_{self.expr.id}", var.typ)
+                memory_loc = self.context.new_variable(self.expr.id, var.typ)
                 self.context.global_ctx._globals[self.expr.id].pos = memory_loc
                 # store the data offset in the variable record as well for accessing
                 data_offset = self.expr._metadata["type"].position.offset
