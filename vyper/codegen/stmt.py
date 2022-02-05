@@ -16,7 +16,8 @@ from vyper.codegen.core import (
 )
 from vyper.codegen.expr import Expr
 from vyper.codegen.return_ import make_return_stmt
-from vyper.codegen.types import BaseType, ByteArrayType, DArrayType, SArrayType, parse_type
+from vyper.codegen.types import BaseType, ByteArrayType, DArrayType, parse_type
+from vyper.codegen.types.convert import new_type_to_old_type
 from vyper.exceptions import CompilerPanic, StructureException, TypeCheckFailure
 
 
@@ -51,6 +52,7 @@ class Stmt:
     def parse_AnnAssign(self):
         typ = parse_type(
             self.stmt.annotation,
+            sigs=self.context.sigs,
             custom_structs=self.context.structs,
         )
         varname = self.stmt.target.id
@@ -298,19 +300,16 @@ class Stmt:
         with self.context.range_scope():
             iter_list = Expr(self.stmt.iter, self.context).lll_node
 
-        # TODO relax this restriction
-        if not isinstance(iter_list.typ.subtype, BaseType):
-            return
-
         # override with type inferred at typechecking time
-        subtype = BaseType(self.stmt.target._metadata["type"]._id)
-        iter_list.typ.subtype = subtype
+        # TODO investigate why stmt.target.type != stmt.iter.type.subtype
+        target_type = new_type_to_old_type(self.stmt.target._metadata["type"])
+        iter_list.typ.subtype = target_type
 
         # user-supplied name for loop variable
         varname = self.stmt.target.id
         loop_var = LLLnode.from_list(
-            self.context.new_variable(varname, subtype),
-            typ=subtype,
+            self.context.new_variable(varname, target_type),
+            typ=target_type,
             location="memory",
         )
 
@@ -326,10 +325,9 @@ class Stmt:
 
         # list literal, force it to memory first
         if isinstance(self.stmt.iter, vy_ast.List):
-            count = iter_list.typ.count
             tmp_list = LLLnode.from_list(
-                obj=self.context.new_internal_variable(SArrayType(subtype, count)),
-                typ=SArrayType(subtype, count),
+                self.context.new_internal_variable(iter_list.typ),
+                typ=iter_list.typ,
                 location="memory",
             )
             ret.append(make_setter(tmp_list, iter_list, self.context, pos=getpos(self.stmt)))
@@ -369,6 +367,7 @@ class Stmt:
                     col_offset=self.stmt.col_offset,
                     end_lineno=self.stmt.end_lineno,
                     end_col_offset=self.stmt.end_col_offset,
+                    node_source_code=self.stmt.get("node_source_code"),
                 ),
                 self.context,
             )
@@ -387,6 +386,7 @@ class Stmt:
                     col_offset=self.stmt.col_offset,
                     end_lineno=self.stmt.end_lineno,
                     end_col_offset=self.stmt.end_col_offset,
+                    node_source_code=self.stmt.get("node_source_code"),
                 ),
                 self.context,
             )

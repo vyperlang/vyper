@@ -32,7 +32,6 @@ from vyper.semantics.types.indexable.sequence import (
     TupleDefinition,
 )
 from vyper.semantics.types.user.event import Event
-from vyper.semantics.types.user.struct import StructDefinition
 from vyper.semantics.types.utils import get_type_from_annotation
 from vyper.semantics.types.value.address import AddressDefinition
 from vyper.semantics.types.value.array_value import StringDefinition
@@ -368,12 +367,6 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
 
         if not type_list:
             raise InvalidType("Not an iterable type", node.iter)
-
-        if next((i for i in type_list if isinstance(i, ArrayDefinition)), False):
-            raise StructureException("Cannot iterate over a nested list", node.iter)
-
-        if next((i for i in type_list if isinstance(i, StructDefinition)), False):
-            raise StructureException("Cannot iterate over a list of structs", node.iter)
 
         if isinstance(node.iter, (vy_ast.Name, vy_ast.Attribute)):
             # check for references to the iterated value within the body of the loop

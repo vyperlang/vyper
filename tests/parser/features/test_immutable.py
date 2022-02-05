@@ -32,6 +32,29 @@ def get_value() -> {typ}:
     assert c.get_value() == value
 
 
+@pytest.mark.parametrize("val", [0, 1, 2 ** 256 - 1])
+def test_usage_in_constructor(get_contract, val):
+    code = """
+A: immutable(uint256)
+a: public(uint256)
+
+
+@external
+def __init__(_a: uint256):
+    A = _a
+    self.a = A
+
+
+@external
+@view
+def a1() -> uint256:
+    return A
+    """
+
+    c = get_contract(code, val)
+    assert c.a1() == c.a() == val
+
+
 def test_multiple_immutable_values(get_contract):
     code = """
 a: immutable(uint256)
