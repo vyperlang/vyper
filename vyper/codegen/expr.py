@@ -430,9 +430,9 @@ class Expr:
             isinstance(self.expr.value, vy_ast.Name) and self.expr.value.id in ENVIRONMENT_VARIABLES
         ):
             key = f"{self.expr.value.id}.{self.expr.attr}"
-            if key == "msg.sender" and not self.context.is_internal:
+            if key == "msg.sender":
                 return LLLnode.from_list(["caller"], typ="address", pos=getpos(self.expr))
-            elif key == "msg.data" and not self.context.is_internal:
+            elif key == "msg.data":
                 # This adhoc node will be replaced with a valid node in `Slice/Len.build_LLL`
                 return LLLnode.from_list(["~calldata"], typ=ByteArrayType(0))
             elif key == "msg.value" and self.context.is_payable:
