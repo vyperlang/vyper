@@ -36,7 +36,9 @@ from vyper.codegen.types import (
     StringType,
     TupleType,
     is_base_type,
+    is_signed_num,
 )
+from vyper.codegen.types.convert import new_type_to_old_type
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
     ArgumentException,
@@ -1606,6 +1608,7 @@ class Abs(_SimpleBuiltinFunction):
             [
                 "if",
                 ["slt", "orig", 0],
+                # CMC 2022-02-05 pretty sure this assertion is pointless.
                 ["seq", ["assert", ["ne", "orig", ["sub", 0, "orig"]]], ["sub", 0, "orig"]],
                 "orig",
             ],
@@ -1719,6 +1722,59 @@ class CreateForwarderTo(_SimpleBuiltinFunction):
             add_gas_estimate=11000,
         )
 
+
+class _UnsafeMath:
+
+    _inputs = [("a", NumericAbstractType()), ("b", NumericAbstractType())]
+
+    def fetch_call_return(self, node):
+        validate_call_args(node, 2)
+
+        types_list = get_common_types(
+            *node.args, filter_fn=lambda x: isinstance(x, NumericAbstractType)
+        )
+        if not types_list:
+            raise TypeMismatch(f"unsafe_{self.op} called on dislike types", node)
+
+        return types_list.pop()
+
+    @validate_inputs
+    def build_LLL(self, expr, args, kwargs, context):
+        (a, b) = args
+        op = self.op
+
+        assert a.typ == b.typ, "unreachable"
+
+        otyp = a.typ
+
+        if not is_base_type(a, "decimal"):
+            if op == "div" and is_signed_num(a.typ.typ):
+                    op = "sdiv"
+            return LLLnode.from_list([op, a, b], typ=otyp)
+
+        # handle decimal case
+        if op in ("add", "sub"):
+            return LLLnode.from_list([op, a, b], typ=otyp)
+
+        if op == "mul":
+            return LLLnode.from_list(["sdiv", ["mul", a, b], DECIMAL_DIVISOR], typ=otyp)
+        if op == "div":
+            return LLLnode.from_list(["sdiv", ["mul", a, DECIMAL_DIVISOR], b], typ=otyp)
+
+        raise CompilerPanic(f"invalid function: unsafe_{self.op}")  # pragma: notest
+
+
+class UnsafeAdd(_UnsafeMath):
+    op = "add"
+
+class UnsafeSub(_UnsafeMath):
+    op = "sub"
+
+class UnsafeMul(_UnsafeMath):
+    op = "mul"
+
+class UnsafeDiv(_UnsafeMath):
+    op = "div"
 
 class _MinMax:
 
@@ -2045,6 +2101,10 @@ DISPATCH_TABLE = {
     "bitwise_not": BitwiseNot(),
     "uint256_addmod": AddMod(),
     "uint256_mulmod": MulMod(),
+    "unsafe_add": UnsafeAdd(),
+    "unsafe_sub": UnsafeSub(),
+    "unsafe_mul": UnsafeMul(),
+    "unsafe_div": UnsafeDiv(),
     "pow_mod256": PowMod256(),
     "sqrt": Sqrt(),
     "shift": Shift(),
