@@ -48,7 +48,7 @@ def foo(bar: uint256) -> Bytes[36]:
     assert contract.foo(42).hex() == expected_result
 
 
-@pytest.mark.parametrize("bar", [0, 1, 42, 2**256 - 1])
+@pytest.mark.parametrize("bar", [0, 1, 42, 2 ** 256 - 1])
 def test_calldata_private(get_contract, bar):
     code = """
 @external

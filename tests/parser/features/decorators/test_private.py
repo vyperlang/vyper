@@ -436,7 +436,7 @@ def whoami() -> address:
     addr = w3.eth.accounts[0]
     assert c.whoami() == addr
     # TODO figure out why this does not work
-    #assert c.whoami(transact={"from": addr}) == addr, "oh no"
+    # assert c.whoami(transact={"from": addr}) == addr, "oh no"
     assert c.i_am_me()
 
 
