@@ -19,7 +19,7 @@ from vyper.exceptions import (
 from vyper.semantics import types
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.abstract import IntegerAbstractType
-from vyper.semantics.types.bases import BaseTypeDefinition, DataLocation
+from vyper.semantics.types.bases import BaseTypeDefinition
 from vyper.semantics.types.indexable.sequence import (
     ArrayDefinition,
     DynamicArrayDefinition,
@@ -105,22 +105,8 @@ class _ExprTypeChecker:
             A list of type objects
         """
         # Early termination if typedef is propagated in metadata
-        if "constant_annotation" in node._metadata:
-            # TODO investigate this circular dependency
-            from vyper.semantics.types.utils import get_type_from_annotation
-
-            propagated_type = get_type_from_annotation(
-                node._metadata["constant_annotation"], DataLocation.UNSET
-            )
-
-            if not isinstance(node, vy_ast.List) and isinstance(
-                propagated_type, (ArrayDefinition, DynamicArrayDefinition)
-            ):
-
-                # For array elements, extract the base type from the array definition
-                propagated_type = propagated_type.value_type
-
-            return [propagated_type]
+        if "type" in node._metadata:
+            return [node._metadata["type"]]
 
         fn = self._find_fn(node)
         types_list = fn(node)

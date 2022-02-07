@@ -4,6 +4,8 @@ from typing import Union
 from vyper.ast import nodes as vy_ast
 from vyper.builtin_functions import DISPATCH_TABLE
 from vyper.exceptions import UnfoldableNode
+from vyper.semantics.types.bases import DataLocation
+from vyper.semantics.types.utils import get_type_from_annotation
 
 BUILTIN_CONSTANTS = {
     "EMPTY_BYTES32": (
@@ -172,7 +174,7 @@ def replace_user_defined_constants(vyper_module: vy_ast.Module) -> int:
             # annotation is not wrapped in `constant(...)`
             continue
 
-        # Extract typedef for propagation to type checker
+        # Extract type annotation for propagation
         constant_annotation = node.get("annotation.args")[0]
 
         changed_nodes += replace_constant(
@@ -185,17 +187,19 @@ def replace_user_defined_constants(vyper_module: vy_ast.Module) -> int:
 # TODO constant folding on log events
 
 
-def _replace(old_node, new_node, constant_annotation=None):
+def _replace(old_node, new_node, constant_annotation=None, type_=None):
+    if constant_annotation:
+        type_ = get_type_from_annotation(constant_annotation, DataLocation.UNSET)
     if isinstance(new_node, vy_ast.Constant):
         new_node = new_node.from_node(old_node, value=new_node.value)
-        if constant_annotation:
-            new_node._metadata["constant_annotation"] = constant_annotation
+        if type_:
+            new_node._metadata["type"] = type_
         return new_node
     elif isinstance(new_node, vy_ast.List):
-        list_values = [_replace(old_node, i, constant_annotation) for i in new_node.elements]
+        list_values = [_replace(old_node, i, type_=type_.value_type) for i in new_node.elements]
         new_node = new_node.from_node(old_node, elements=list_values)
-        if constant_annotation:
-            new_node._metadata["constant_annotation"] = constant_annotation
+        if type_:
+            new_node._metadata["type"] = type_
         return new_node
     else:
         raise UnfoldableNode
@@ -251,7 +255,7 @@ def replace_constant(
                 continue
 
         try:
-            new_node = _replace(node, replacement_node, constant_annotation)
+            new_node = _replace(node, replacement_node, constant_annotation=constant_annotation)
         except UnfoldableNode:
             if raise_on_error:
                 raise
