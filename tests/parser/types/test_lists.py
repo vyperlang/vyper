@@ -497,3 +497,63 @@ def ix(i: uint256) -> address:
         assert c.ix(i) == p
     # assert oob
     assert_tx_failed(lambda: c.ix(len(some_good_address) + 1))
+
+
+@pytest.mark.parametrize(
+    "type,value",
+    [
+        ("decimal", [[5.0, 11.0], [17.0, 29.0], [37.0, 41.0]]),
+        ("uint8", [[0, 1], [17, 250], [255, 2]]),
+        ("int128", [[0, -1], [1, -(2 ** 127)], [2 ** 127 - 1, -50]]),
+        ("int256", [[0, -1], [1, -(2 ** 255)], [2 ** 255 - 1, -50]]),
+        ("uint256", [[0, 1], [2 ** 8, 2 ** 255 + 1], [2 ** 256 - 1, 100]]),
+        (
+            "uint256",
+            [
+                [2 ** 255 + 1, 2 ** 255 + 2],
+                [2 ** 255 + 3, 2 ** 255 + 4],
+                [2 ** 255 + 5, 2 ** 255 + 6],
+            ],
+        ),
+        ("bool", [[True, False], [True, False], [True, False]]),
+    ],
+)
+def test_constant_nested_list(get_contract, assert_tx_failed, type, value):
+    code = f"""
+MY_LIST: constant({type}[{len(value[0])}][{len(value)}]) = {value}
+@external
+def ix(i: uint256, j: uint256) -> {type}:
+    return MY_LIST[i][j]
+    """
+    c = get_contract(code)
+    for i, p in enumerate(value):
+        for j, q in enumerate(p):
+            assert c.ix(i, j) == q
+    # assert oob
+    assert_tx_failed(lambda: c.ix(len(value) + 1, len(value[0]) + 1))
+
+
+@pytest.mark.parametrize("storage_type,return_type", itertools.permutations(integer_types, 2))
+def test_constant_nested_list_fail(get_contract, assert_compile_failed, storage_type, return_type):
+    code = f"""
+MY_CONSTANT: constant({storage_type}[2][3]) = [[1, 2], [3, 4], [5, 6]]
+
+@external
+def foo() -> {return_type}[2][3]:
+    return MY_CONSTANT
+    """
+    assert_compile_failed(lambda: get_contract(code), InvalidType)
+
+
+@pytest.mark.parametrize("storage_type,return_type", itertools.permutations(integer_types, 2))
+def test_constant_nested_list_fail_2(
+    get_contract, assert_compile_failed, storage_type, return_type
+):
+    code = f"""
+MY_CONSTANT: constant({storage_type}[2][3]) = [[1, 2], [3, 4], [5, 6]]
+
+@external
+def foo() -> {return_type}:
+    return MY_CONSTANT[0][0]
+    """
+    assert_compile_failed(lambda: get_contract(code), InvalidType)
