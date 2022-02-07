@@ -419,25 +419,34 @@ def __default__():
 
 def test_private_msg_sender(get_contract, w3):
     code = """
+event Addr:
+    addr: address
+
 @internal
+@view
 def _whoami() -> address:
     return msg.sender
 
 @external
+@view
 def i_am_me() -> bool:
     return msg.sender == self._whoami()
 
 @external
+@view
 def whoami() -> address:
+    log Addr(self._whoami())
     return self._whoami()
     """
 
     c = get_contract(code)
-    addr = w3.eth.accounts[0]
-    assert c.whoami() == addr
-    # TODO figure out why this does not work
-    # assert c.whoami(transact={"from": addr}) == addr, "oh no"
     assert c.i_am_me()
+
+    addr = w3.eth.accounts[1]
+    txhash = c.whoami(transact={"from": addr})
+    receipt = w3.eth.wait_for_transaction_receipt(txhash)
+    logged_addr = w3.toChecksumAddress(receipt.logs[0].data[-40:])
+    assert logged_addr == addr, "oh no"
 
 
 def test_nested_static_params_only(get_contract, assert_tx_failed):
