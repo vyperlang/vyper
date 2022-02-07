@@ -122,16 +122,14 @@ def _wordsize(location):
     raise CompilerPanic(f"invalid location {location}")  # pragma: no test
 
 
-# Copy dynamic array word-for-word (including layout)
-def make_dyn_array_copier(dst, src, context, pos=None):
+def _dynarray_make_setter(dst, src, context, pos=None):
     assert isinstance(src.typ, DArrayType)
     assert isinstance(dst.typ, DArrayType)
 
     with src.cache_when_complex("_src") as (b1, src):
-        if (
-            src.encoding in (Encoding.ABI, Encoding.JSON_ABI)
-            and src.typ.subtype.abi_type.is_dynamic()
-        ):
+        if src.typ.subtype.abi_type.is_dynamic():
+            # if the subtype is dynamic, for performance reasons
+            # we recursively call into make_setter instead of straight bytes copy
             uint = BaseType("uint256")
             iptr = LLLnode.from_list(
                 context.new_internal_variable(uint), typ=uint, location="memory"
@@ -676,10 +674,10 @@ def make_setter(left, right, context, pos):
         # TODO rethink/streamline the clamp_basetype logic
         if _needs_clamp(right.typ, right.encoding):
             with right.cache_when_complex("arr_ptr") as (b, right):
-                copier = make_dyn_array_copier(left, right, context, pos)
+                copier = _dynarray_make_setter(left, right, context, pos)
                 ret = b.resolve(["seq", clamp_dyn_array(right), copier])
         else:
-            ret = make_dyn_array_copier(left, right, context, pos)
+            ret = _dynarray_make_setter(left, right, context, pos)
 
         return LLLnode.from_list(ret)
 
