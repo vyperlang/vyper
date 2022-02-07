@@ -248,7 +248,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
 
         # stack: iptr, start
         o.extend(_compile_to_assembly(rounds, withargs, existing_labels, break_dest, height + 2))
-        # rounds = min(rounds, round_bound)
+        # assert rounds <= round_bound
         if rounds_bound is not None:
             # stack: iptr, start, rounds
             o.extend(
@@ -256,11 +256,10 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
                     rounds_bound, withargs, existing_labels, break_dest, height + 3
                 )
             )
-            t = mksymbol("min")
             # stack: iptr, start, rounds, rounds_bound
-            o.extend(["DUP2", "DUP2", "GT", t, "JUMPI", "SWAP1", t, "JUMPDEST", "POP"])
+            o.extend(["DUP2", "GT", "_sym_revert0", "JUMPI"])
+            # stack: iptr, start, rounds
 
-            # stack: iptr, start, min(rounds, round_bound) aka rounds
             # if (0 == rounds) { pop; goto end_dest; }
             t = mksymbol("rounds_nonzero")
             o.extend(["DUP1", t, "JUMPI", "POP", exit_dest, "JUMP", t, "JUMPDEST"])
