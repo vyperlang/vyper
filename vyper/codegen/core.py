@@ -286,8 +286,11 @@ def get_dyn_array_count(arg):
     return LLLnode.from_list([load_op(arg.location), arg], typ=typ)
 
 
-def append_dyn_array(darray_node, elem_node):
+def append_dyn_array(darray_node, elem_node, context, pos=None):
     assert isinstance(darray_node.typ, DArrayType)
+
+    assert darray_node.typ.count > 0, "jerk boy u r out"
+
     ret = ["seq"]
     with darray_node.cache_when_complex("darray") as b1, darray_node:
         len_ = get_dyn_array_count(darray_node)
@@ -296,7 +299,14 @@ def append_dyn_array(darray_node, elem_node):
             ret.append(store_op(darray_node.location), ["add", len_, 1])
             # NOTE: typechecks elem_node
             # NOTE skip array bounds check bc we already asserted len two lines up
-            ret.append(make_setter(get_element_ptr(darray_node, len_, array_bounds_check=False), elem_node, context=context, pos=pos))
+            ret.append(
+                make_setter(
+                    get_element_ptr(darray_node, len_, array_bounds_check=False),
+                    elem_node,
+                    context=context,
+                    pos=pos,
+                )
+            )
             return b1.resolve(b2.resolve(ret))
 
 
@@ -304,14 +314,16 @@ def pop_dyn_array(darray_node):
     assert isinstance(darray_node.typ, DArrayType)
     ret = ["seq"]
     with darray_node.cache_when_complex("darray") as b1, darray_node:
-        len_ = get_dyn_array_count(darray_node)
-        with len_.cache_when_complex("len") as b2, len_:
-            ret.append(["assert", ["ge", len_, 1]])
-            ret.append(store_op(darray_node.location), ["sub", len_, 1])
-            # haha
-            # TODO double check len
+
+        new_len = LLLnode.from_list(["sub", get_dyn_array_count(darray_node), 1])
+
+        with new_len.cache_when_complex("new_len") as b2, new_len:
+            # check that the original len is nonzero, i.e. (new_len != -1)
+            # NOTE: have optimizer rule for (eq new_len (-1)) but not (ne new_len (-1))
+            ret.append(["assert", ["iszero", ["eq", new_len, -1]]])
+            ret.append(store_op(darray_node.location), new_len)
             # NOTE skip array bounds check bc we already asserted len two lines up
-            ret.append(get_element_ptr(darray_node, len_, array_bounds_check=False))
+            ret.append(get_element_ptr(darray_node, new_len, array_bounds_check=False))
             return b1.resolve(b2.resolve(ret))
 
 

@@ -56,6 +56,7 @@ def optimize(lll_node: LLLnode) -> LLLnode:
 
 def apply_general_optimizations(node: LLLnode) -> LLLnode:
     # TODO refactor this into several functions
+
     argz = [apply_general_optimizations(arg) for arg in node.args]
 
     if node.value == "seq":
@@ -183,6 +184,16 @@ def apply_general_optimizations(node: LLLnode) -> LLLnode:
             add_gas_estimate=node.add_gas_estimate,
             valency=node.valency,
         )
+    elif node.value == "eq" and int_at(argz, 1) and argz[1].value == -1:
+        # in two's-complement, -1 is equal to bitwise_not(0)
+        return LLLnode.from_list(
+            ["iszero", ["not", argz[0]]],
+            node.typ,
+            node.location,
+            node.pos,
+            node.annotation,
+        )
+
     # (eq x y) has the same truthyness as (iszero (xor x y))
     # rewrite 'eq' as 'xor' in places where truthy is accepted.
     # (the sequence (if (iszero (xor x y))) will be translated to
