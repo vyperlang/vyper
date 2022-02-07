@@ -4,9 +4,9 @@ from vyper.codegen.abi_encoder import abi_encode
 from vyper.codegen.context import Context
 from vyper.codegen.core import (
     calculate_type_for_external_return,
+    check_assign,
     getpos,
     make_setter,
-    typecheck_assign,
     wrap_value_for_external_return,
 )
 from vyper.codegen.lll_node import LLLnode
@@ -31,7 +31,7 @@ def make_return_stmt(lll_val: LLLnode, stmt: Any, context: Context) -> Optional[
     else:
         # sanity typecheck
         _tmp = LLLnode("fake node", location="memory", typ=context.return_type)
-        typecheck_assign(_tmp, lll_val, context, _pos)
+        check_assign(_tmp, lll_val)
 
     # helper function
     def finalize(fill_return_buffer):

@@ -553,7 +553,7 @@ def _dummy_node_for_type(typ):
     return LLLnode("fake_node", typ=typ)
 
 
-def _typecheck_assign_bytes(left, right):
+def _check_assign_bytes(left, right):
     if right.typ.maxlen > left.typ.maxlen:
         raise TypeMismatch(f"Cannot cast from {right.typ} to {left.typ}")
     # stricter check for zeroing a byte array.
@@ -561,7 +561,7 @@ def _typecheck_assign_bytes(left, right):
         raise TypeMismatch(f"Bad type for clearing bytes: expected {left.typ} but got {right.typ}")
 
 
-def _typecheck_assign_list(left, right):
+def _check_assign_list(left, right):
     def FAIL():
         raise TypeCheckFailure(f"assigning {right.typ} to {left.typ}")
 
@@ -572,7 +572,7 @@ def _typecheck_assign_list(left, right):
     if isinstance(left, SArrayType):
         if left.typ.count != right.typ.count:
             FAIL()
-        typecheck_assign(_dummy_node_for_type(left.typ.subtyp), _dummy_node_for_type(right.typ.subtyp))
+        check_assign(_dummy_node_for_type(left.typ.subtyp), _dummy_node_for_type(right.typ.subtyp))
 
     if isinstance(left, DArrayType):
         if not isinstance(right, (DArrayType, SArrayType)):
@@ -583,12 +583,13 @@ def _typecheck_assign_list(left, right):
 
         # stricter check for zeroing
         if right.value is None and right.typ.count != left.typ.count:
-            raise TypeCheckFailure(f"Bad type for clearing bytes: expected {left.typ} but got {right.typ}")
-        typecheck_assign(_dummy_node_for_type(left.typ.subtyp), _dummy_node_for_type(right.typ.subtyp))
+            raise TypeCheckFailure(
+                f"Bad type for clearing bytes: expected {left.typ} but got {right.typ}"
+            )
+        check_assign(_dummy_node_for_type(left.typ.subtyp), _dummy_node_for_type(right.typ.subtyp))
 
 
-
-def _typecheck_assign_tuple(left, right):
+def _check_assign_tuple(left, right):
     def FAIL():
         raise TypeCheckFailure(f"assigning {right.typ} to {left.typ}")
 
@@ -602,7 +603,7 @@ def _typecheck_assign_tuple(left, right):
         for k in left.typ.members:
             if k not in right.typ.members:
                 FAIL()
-            typecheck_assign(
+            check_assign(
                 _dummy_node_for_type(left.typ.members[k]),
                 _dummy_node_for_type(right.typ.members[k]),
             )
@@ -618,25 +619,25 @@ def _typecheck_assign_tuple(left, right):
         if len(left.typ.members) != len(right.typ.members):
             FAIL()
         for (l, r) in zip(left.typ.members, right.typ.members):
-            typecheck_assign(_dummy_node_for_type(l), _dummy_node_for_type(r))
+            check_assign(_dummy_node_for_type(l), _dummy_node_for_type(r))
 
 
-# typecheck an assignment
+# sanity check an assignment
 # typechecking source code is done at an earlier phase
 # this function is more of a sanity check for typechecking internally
 # generated assignments
-def typecheck_assign(left, right):
+def check_assign(left, right):
     if isinstance(left.typ, ByteArrayLike):
-        _typecheck_assign_bytes(left, right)
+        _check_assign_bytes(left, right)
     if isinstance(left.typ, ArrayLike):
-        _typecheck_assign_list(left, right)
+        _check_assign_list(left, right)
     if isinstance(left.typ, TupleLike):
-        _typecheck_assign_tuple(left, right)
+        _check_assign_tuple(left, right)
 
 
 # Create an x=y statement, where the types may be compound
 def make_setter(left, right, context, pos):
-    typecheck_assign(left, right)
+    check_assign(left, right)
 
     # Basic types
     if isinstance(left.typ, BaseType):
