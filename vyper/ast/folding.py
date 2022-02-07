@@ -187,16 +187,15 @@ def replace_user_defined_constants(vyper_module: vy_ast.Module) -> int:
 # TODO constant folding on log events
 
 
-def _replace(old_node, new_node, constant_annotation=None, type_=None):
-    if constant_annotation:
-        type_ = get_type_from_annotation(constant_annotation, DataLocation.UNSET)
+def _replace(old_node, new_node, type_=None):
     if isinstance(new_node, vy_ast.Constant):
         new_node = new_node.from_node(old_node, value=new_node.value)
         if type_:
             new_node._metadata["type"] = type_
         return new_node
     elif isinstance(new_node, vy_ast.List):
-        list_values = [_replace(old_node, i, type_=type_.value_type) for i in new_node.elements]
+        base_type = type_.value_type if type_ else None
+        list_values = [_replace(old_node, i, type_=base_type) for i in new_node.elements]
         new_node = new_node.from_node(old_node, elements=list_values)
         if type_:
             new_node._metadata["type"] = type_
@@ -254,8 +253,15 @@ def replace_constant(
             if assign and node in assign.target.get_descendants(include_self=True):
                 continue
 
+        # Extract type definition from propagated annotation
+        type_ = (
+            get_type_from_annotation(constant_annotation, DataLocation.UNSET)
+            if constant_annotation
+            else None
+        )
+
         try:
-            new_node = _replace(node, replacement_node, constant_annotation=constant_annotation)
+            new_node = _replace(node, replacement_node, type_=type_)
         except UnfoldableNode:
             if raise_on_error:
                 raise
