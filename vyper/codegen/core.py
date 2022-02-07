@@ -54,16 +54,6 @@ def check_external_call(call_lll):
     return ["if", ["iszero", call_lll], propagate_revert_lll]
 
 
-def type_check_wrapper(fn):
-    def _wrapped(*args, **kwargs):
-        return_value = fn(*args, **kwargs)
-        if return_value is None:
-            raise TypeCheckFailure(f"{fn.__name__} {args} did not return a value")
-        return return_value
-
-    return _wrapped
-
-
 # Get a decimal number as a fraction with denominator multiple of 10
 def get_number_as_fraction(expr, context):
     literal = Decimal(expr.value)
@@ -124,7 +114,7 @@ def make_byte_array_copier(destination, source, pos=None):
         return builder.resolve(copy_bytes(destination, src, n_bytes, max_bytes, pos=pos))
 
 
-def _word_size(location):
+def _wordsize(location):
     if location in ("memory", "calldata", "code"):
         return 32
     if location == "storage":
@@ -133,18 +123,9 @@ def _word_size(location):
 
 
 # Copy dynamic array word-for-word (including layout)
-# TODO this code is very similar to make_byte_array_copier,
-# try to refactor.
 def make_dyn_array_copier(dst, src, context, pos=None):
     assert isinstance(src.typ, DArrayType)
     assert isinstance(dst.typ, DArrayType)
-
-    if src.typ.count > dst.typ.count:
-        raise TypeMismatch(f"Cannot cast from {src.typ} to {dst.typ}")
-
-    # stricter check for zeroing
-    if src.value is None and src.typ.count != dst.typ.count:
-        raise CompilerPanic(f"Bad type for clearing bytes: expected {dst.typ} but got {src.typ}")
 
     with src.cache_when_complex("_src") as (b1, src):
         if (
@@ -311,7 +292,7 @@ def _getelemptr_abi_helper(parent, member_t, ofst, pos=None, clamp=True):
     # e.g. [[1,2]] is encoded as 0x01 <len> 0x20 <inner array ofst> <encode(inner array)>
     # note that inner array ofst is 0x20, not 0x40.
     if has_length_word(parent.typ):
-        parent = add_ofst(parent, _word_size(parent.location) * DYNAMIC_ARRAY_OVERHEAD)
+        parent = add_ofst(parent, _wordsize(parent.location) * DYNAMIC_ARRAY_OVERHEAD)
 
     ofst_lll = add_ofst(parent, ofst)
 
@@ -400,7 +381,7 @@ def _get_element_ptr_array(parent, key, pos, array_bounds_check):
     assert isinstance(parent.typ, ArrayLike)
 
     if not is_integer_type(key.typ):
-        return
+        raise TypeCheckFailure(f"{key.typ} used as array index")
 
     subtype = parent.typ.subtype
 
@@ -418,7 +399,7 @@ def _get_element_ptr_array(parent, key, pos, array_bounds_check):
         # perform the check at compile time and elide the runtime check.
         # TODO make this an optimization on clamp ops
         if key.value < 0 or key.value >= parent.typ.count:
-            return  # TypeMismatch
+            raise TypeCheckFailure("OOB detected")
 
     elif array_bounds_check:
         clamp = "clamplt" if is_signed_num(key.typ) else "uclamplt"
@@ -451,7 +432,7 @@ def _get_element_ptr_array(parent, key, pos, array_bounds_check):
         ofst = ["mul", ix, element_size]
 
     if has_length_word(parent.typ):
-        data_ptr = add_ofst(parent, _word_size(parent.location) * DYNAMIC_ARRAY_OVERHEAD)
+        data_ptr = add_ofst(parent, _wordsize(parent.location) * DYNAMIC_ARRAY_OVERHEAD)
     else:
         data_ptr = parent
     return LLLnode.from_list(
@@ -465,7 +446,7 @@ def _get_element_ptr_mapping(parent, key, pos):
     key = unwrap_location(key)
 
     if key is None or parent.location != "storage":
-        raise CompilerPanic("bad dereference on mapping {parent}[{sub}]")
+        raise TypeCheckFailure("bad dereference on mapping {parent}[{sub}]")
 
     return LLLnode.from_list(["sha3_64", parent, key], typ=subtype, location="storage")
 
@@ -473,7 +454,6 @@ def _get_element_ptr_mapping(parent, key, pos):
 # Take a value representing a memory or storage location, and descend down to
 # an element or member variable
 # This is analogous (but not necessarily equivalent to) getelementptr in LLVM.
-@type_check_wrapper
 def get_element_ptr(parent, key, pos, array_bounds_check=True):
     with parent.cache_when_complex("val") as (b, parent):
         typ = parent.typ
@@ -570,9 +550,95 @@ def set_type_for_external_return(lll_val):
     lll_val.typ = calculate_type_for_external_return(lll_val.typ)
 
 
+# return a dummy LLLnode with the given type
+def _dummy_node_for_type(typ):
+    return LLLnode("fake_node", typ=typ)
+
+
+def _typecheck_assign_bytes(left, right):
+    if right.typ.maxlen > left.typ.maxlen:
+        raise TypeMismatch(f"Cannot cast from {right.typ} to {left.typ}")
+    # stricter check for zeroing a byte array.
+    if right.value is None and right.typ.maxlen != left.typ.maxlen:
+        raise TypeMismatch(f"Bad type for clearing bytes: expected {left.typ} but got {right.typ}")
+
+
+def _typecheck_assign_list(left, right):
+    def FAIL():
+        raise TypeCheckFailure(f"assigning {right.typ} to {left.typ}")
+
+    if left.value == "multi":
+        # Cannot do something like [a, b, c] = [1, 2, 3]
+        FAIL()
+
+    if isinstance(left, SArrayType):
+        if left.typ.count != right.typ.count:
+            FAIL()
+        typecheck_assign(_dummy_node_for_type(left.typ.subtyp), _dummy_node_for_type(right.typ.subtyp))
+
+    if isinstance(left, DArrayType):
+        if not isinstance(right, (DArrayType, SArrayType)):
+            FAIL()
+
+        if left.typ.count < right.typ.count:
+            FAIL()
+
+        # stricter check for zeroing
+        if right.value is None and right.typ.count != left.typ.count:
+            raise TypeCheckFailure(f"Bad type for clearing bytes: expected {left.typ} but got {right.typ}")
+        typecheck_assign(_dummy_node_for_type(left.typ.subtyp), _dummy_node_for_type(right.typ.subtyp))
+
+
+
+def _typecheck_assign_tuple(left, right):
+    def FAIL():
+        raise TypeCheckFailure(f"assigning {right.typ} to {left.typ}")
+
+    if right.value is None:
+        return
+
+    if not isinstance(right.typ, left.typ.__class__):
+        FAIL()
+
+    if isinstance(left.typ, StructType):
+        for k in left.typ.members:
+            if k not in right.typ.members:
+                FAIL()
+            typecheck_assign(
+                _dummy_node_for_type(left.typ.members[k]),
+                _dummy_node_for_type(right.typ.members[k]),
+            )
+
+        for k in right.typ.members:
+            if k not in left.typ.members:
+                FAIL()
+
+        if left.typ.name != right.typ.name:
+            FAIL()
+
+    else:
+        if len(left.typ.members) != len(right.typ.members):
+            FAIL()
+        for (l, r) in zip(left.typ.members, right.typ.members):
+            typecheck_assign(_dummy_node_for_type(l), _dummy_node_for_type(r))
+
+
+# typecheck an assignment
+# typechecking source code is done at an earlier phase
+# this function is more of a sanity check for typechecking internally
+# generated assignments
+def typecheck_assign(left, right):
+    if isinstance(left.typ, ByteArrayLike):
+        _typecheck_assign_bytes(left, right)
+    if isinstance(left.typ, ArrayLike):
+        _typecheck_assign_list(left, right)
+    if isinstance(left.typ, TupleLike):
+        _typecheck_assign_tuple(left, right)
+
+
 # Create an x=y statement, where the types may be compound
-@type_check_wrapper
 def make_setter(left, right, context, pos):
+    typecheck_assign(left, right)
 
     # Basic types
     if isinstance(left.typ, BaseType):
@@ -582,10 +648,8 @@ def make_setter(left, right, context, pos):
         if _needs_clamp(right.typ, enc):
             right = clamp_basetype(right)
 
-        if left.location == "storage":
-            return LLLnode.from_list(["sstore", left, right], typ=None)
-        elif left.location == "memory":
-            return LLLnode.from_list(["mstore", left, right], typ=None)
+        op = store_op(left.location)
+        return LLLnode.from_list([op, left, right], pos=pos)
 
     # Byte arrays
     elif isinstance(left.typ, ByteArrayLike):
@@ -600,9 +664,6 @@ def make_setter(left, right, context, pos):
         return LLLnode.from_list(ret)
 
     elif isinstance(left.typ, DArrayType):
-        if not _typecheck_list_make_setter(left, right):
-            return
-
         # handle literals
         if right.value == "multi":
             return _complex_make_setter(left, right, context, pos)
@@ -627,55 +688,13 @@ def make_setter(left, right, context, pos):
         return _complex_make_setter(left, right, context, pos)
 
 
-def _typecheck_list_make_setter(left, right):
-    if left.value == "multi":
-        # Cannot do something like [a, b, c] = [1, 2, 3]
-        return False
-    if isinstance(left, SArrayType):
-        if not (left.typ == right.typ and left.typ.count == right.typ.count):
-            return False
-    if isinstance(left, DArrayType):
-        if not (
-            isinstance(right, (DArrayType, SArrayType))
-            and left.typ.count >= right.typ.count
-            and left.typ.subtyp == right.typ.subtyp
-        ):
-            return False
-    return True
-
-
-def _typecheck_tuple_make_setter(left, right):
-    if right.value is not None:
-        if not isinstance(right.typ, left.typ.__class__):
-            return False
-        if isinstance(left.typ, StructType):
-            for k in left.typ.members:
-                if k not in right.typ.members:
-                    return False
-            for k in right.typ.members:
-                if k not in left.typ.members:
-                    return False
-            if left.typ.name != right.typ.name:
-                return False
-        else:
-            if len(left.typ.members) != len(right.typ.members):
-                return False
-    return True
-
-
-@type_check_wrapper
 def _complex_make_setter(left, right, context, pos):
     if isinstance(left.typ, ArrayLike):
-        # CMC 20211002 this might not be necessary
-        if not _typecheck_list_make_setter(left, right):
-            return
         # right.typ.count is not a typo, handles dyn array -> static array
         ixs = range(right.typ.count)
         keys = [LLLnode.from_list(i, typ="uint256") for i in ixs]
 
     if isinstance(left.typ, TupleLike):
-        if not _typecheck_tuple_make_setter(left, right):
-            return
         keys = left.typ.tuple_keys()
 
     # if len(keyz) == 0:
@@ -826,11 +845,10 @@ def _needs_clamp(t, encoding):
     return False
 
 
-@type_check_wrapper
 def clamp_bytestring(lll_node):
     t = lll_node.typ
     if not isinstance(t, ByteArrayLike):
-        return  # raises
+        raise CompilerPanic(f"{t} passed to clamp_bytestring")
     return ["assert", ["le", get_bytearray_length(lll_node), t.maxlen]]
 
 
@@ -841,11 +859,10 @@ def clamp_dyn_array(lll_node):
 
 
 # clampers for basetype
-@type_check_wrapper
 def clamp_basetype(lll_node):
     t = lll_node.typ
     if not isinstance(t, BaseType):
-        return  # raises
+        raise CompilerPanic(f"{t} passed to clamp_basetype")
 
     # copy of the input
     lll_node = unwrap_location(lll_node)
@@ -869,7 +886,7 @@ def clamp_basetype(lll_node):
     if t.typ in ("int256", "uint256", "bytes32"):
         return lll_node  # special case, no clamp.
 
-    return  # raises
+    raise CompilerPanic(f"{t} passed to clamp_basetype")
 
 
 def int_clamp(lll_node, bits, signed=False):

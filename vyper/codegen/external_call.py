@@ -6,11 +6,11 @@ from vyper.codegen.core import (
     check_external_call,
     get_element_ptr,
     getpos,
+    typecheck_assign,
     unwrap_location,
 )
 from vyper.codegen.lll_node import Encoding, LLLnode
 from vyper.codegen.types import TupleType, get_type_for_exact_size
-from vyper.codegen.types.check import check_assign
 from vyper.exceptions import StateAccessViolation, StructureException, TypeCheckFailure
 
 
@@ -23,7 +23,7 @@ def _pack_arguments(contract_sig, args, context, pos):
     # sanity typecheck - make sure the arguments can be assigned
     dst_tuple_t = TupleType([arg.typ for arg in contract_sig.args][: len(args)])
     _tmp = LLLnode("fake node", location="memory", typ=dst_tuple_t)
-    check_assign(_tmp, args_as_tuple, context, pos)
+    typecheck_assign(_tmp, args_as_tuple, context, pos)
 
     if contract_sig.return_type is not None:
         return_abi_t = calculate_type_for_external_return(contract_sig.return_type).abi_type
