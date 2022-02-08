@@ -26,7 +26,7 @@ TRANSLATE_MAP = {
     "evm.deployedBytecode.sourceMap": "source_map",
     "interface": "interface",
     "ir": "ir_dict",
-    "ir_json": "ir_dict",
+    "ir_runtime": "ir_runtime_dict",
     # "metadata": "metadata",  # don't include  in "*" output for now
     "layout": "layout",
     "userdoc": "userdoc",
