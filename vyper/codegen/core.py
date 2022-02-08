@@ -147,13 +147,11 @@ def _dynarray_make_setter(dst, src, context, pos=None):
 
         if should_loop:
             uint = BaseType("uint256")
-            iptr = LLLnode.from_list(
-                context.new_internal_variable(uint), typ=uint, location="memory"
-            )
+            i = LLLnode.from_list(context.fresh_varname("ix"), typ=uint)
 
             loop_body = make_setter(
-                get_element_ptr(dst, iptr, array_bounds_check=False, pos=pos),
-                get_element_ptr(src, iptr, array_bounds_check=False, pos=pos),
+                get_element_ptr(dst, i, array_bounds_check=False, pos=pos),
+                get_element_ptr(src, i, array_bounds_check=False, pos=pos),
                 context,
                 pos=pos,
             )
@@ -161,7 +159,7 @@ def _dynarray_make_setter(dst, src, context, pos=None):
 
             with get_dyn_array_count(src).cache_when_complex("len") as (b2, len_):
                 store_len = [store_op(dst.location), dst, len_]
-                loop = ["repeat", iptr, 0, len_, src.typ.count, loop_body]
+                loop = ["repeat", i, 0, len_, src.typ.count, loop_body]
 
                 return b1.resolve(b2.resolve(["seq", store_len, loop]))
 
@@ -221,9 +219,7 @@ def copy_bytes(dst, src, length, length_bound, pos=None):
         #   _src += 32
         #   sstore(_dst, mload(_src))
 
-        iptr = MemoryPositions.FREE_LOOP_INDEX
-        # TODO change `repeat` so `i` is saved on stack
-        i = ["mload", iptr]
+        i = LLLnode.from_list(context.fresh_varname("ix"), typ="uint256")
 
         # special case: rhs is zero
         if src.value is None:
@@ -254,7 +250,7 @@ def copy_bytes(dst, src, length, length_bound, pos=None):
         n_bound = ceil32(length_bound) // 32
         # TODO change `repeat` opcode so that `i` is on stack instead
         # of in memory
-        main_loop = ["repeat", iptr, 0, n, n_bound, setter]
+        main_loop = ["repeat", i, 0, n, n_bound, setter]
 
         return b1.resolve(
             b2.resolve(b3.resolve(LLLnode.from_list(main_loop, annotation=annotation, pos=pos)))

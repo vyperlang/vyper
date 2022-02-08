@@ -188,7 +188,9 @@ def parse_regular_functions(
         # when we codecopy the runtime code to memory
         immutables = sorted(immutables, key=lambda imm: imm.pos)
         start_pos = immutables[-1].pos + immutables[-1].size * 32
+
         # create sequence of actions to copy immutables to the end of the runtime code in memory
+        # TODO: if possible, just use identity precompile
         data_section = []
         for immutable in immutables:
             # store each immutable at the end of the runtime code
@@ -211,6 +213,7 @@ def parse_regular_functions(
                 )
             )
 
+        # TODO: use GlobalContext.immutable_section_size
         data_section_size = sum([immutable.size * 32 for immutable in immutables])
         o.append(
             [

@@ -85,24 +85,22 @@ def _encode_dyn_array_helper(dst, lll_node, context, pos):
         ret.append([store_op(dst.location), dst, len_])
 
         # prepare the loop
-        # TODO rework `repeat` to use stack variable so we don't
-        # have to allocate a memory variable
         t = BaseType("uint256")
-        iptr = LLLnode.from_list(context.new_internal_variable(t), typ=t, location="memory")
+        i = LLLnode.from_list(context.fresh_varname("ix"), typ=t)
 
         # offset of the i'th element in lll_node
         child_location = get_element_ptr(
-            lll_node, unwrap_location(iptr), array_bounds_check=False, pos=pos
+            lll_node, i, array_bounds_check=False, pos=pos
         )
 
         # offset of the i'th element in dst
         dst = add_ofst(dst, 32)  # jump past length word
         static_elem_size = child_abi_t.embedded_static_size()
-        static_ofst = ["mul", unwrap_location(iptr), static_elem_size]
+        static_ofst = ["mul", i, static_elem_size]
         loop_body = _encode_child_helper(
             dst, child_location, static_ofst, "dyn_child_ofst", context, pos=pos
         )
-        loop = ["repeat", iptr, 0, len_, lll_node.typ.count, loop_body]
+        loop = ["repeat", i, 0, len_, lll_node.typ.count, loop_body]
 
         x = ["seq", loop, "dyn_child_ofst"]
         start_dyn_ofst = ["mul", len_, static_elem_size]

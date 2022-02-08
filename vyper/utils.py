@@ -111,7 +111,7 @@ class MemoryPositions:
     MINDECIMAL = 64
     FREE_VAR_SPACE = 128
     FREE_VAR_SPACE2 = 160
-    FREE_LOOP_INDEX = 192
+    FREE_LOOP_INDEX = 192  # TODO remove me, no longer needed
     RESERVED_MEMORY = 224
 
 

@@ -170,9 +170,9 @@ class LLLnode:
                 )
                 self.valency = self.args[2].valency
                 self.gas = sum([arg.gas for arg in self.args]) + 5
-            # Repeat statements: repeat <index_memloc> <startval> <rounds> <body>
+            # Repeat statements: repeat <index_name> <startval> <rounds> <rounds_bound> <body>
             elif self.value == "repeat":
-                _check(len(self.args) == 5, "repeat(index_name, startval, rounds, body)")
+                _check(len(self.args) == 5, "repeat(index_name, startval, rounds, rounds_bound, body)")
 
                 counter_ptr = self.args[0]
                 start = self.args[1]

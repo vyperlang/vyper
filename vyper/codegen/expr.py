@@ -800,6 +800,8 @@ class Expr:
         left = Expr(self.expr.left, self.context).lll_node
         right = Expr(self.expr.right, self.context).lll_node
 
+        i = LLLnode.from_list(context.fresh_varname("ix"), typ="uint256")
+
         result_placeholder = self.context.new_internal_variable(BaseType("bool"))
         setter = []
 
@@ -816,19 +818,14 @@ class Expr:
             setter = make_setter(tmp_list, right, self.context, pos=getpos(self.expr))
             load_i_from_list = [
                 "mload",
-                ["add", tmp_list, ["mul", 32, ["mload", MemoryPositions.FREE_LOOP_INDEX]]],
+                ["add", tmp_list, ["mul", 32, i]],
             ]
+        # TODO refactor all this to use get_element_ptr
         elif right.location == "storage":
-            load_i_from_list = [
-                "sload",
-                ["add", right, ["mload", MemoryPositions.FREE_LOOP_INDEX]],
-            ]
+            load_i_from_list = [ "sload", ["add", right, i] ]
         else:
             load_operation = "mload" if right.location == "memory" else "calldataload"
-            load_i_from_list = [
-                load_operation,
-                ["add", right, ["mul", 32, ["mload", MemoryPositions.FREE_LOOP_INDEX]]],
-            ]
+            load_i_from_list = [ load_operation, ["add", right, ["mul", 32, i]] ]
 
         # Condition repeat loop has to break on.
         break_loop_condition = [
@@ -846,7 +843,7 @@ class Expr:
                 result_placeholder,
                 [
                     "repeat",
-                    MemoryPositions.FREE_LOOP_INDEX,
+                    i,
                     0,
                     right.typ.count,
                     break_loop_condition,
