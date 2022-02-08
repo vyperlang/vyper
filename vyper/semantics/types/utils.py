@@ -217,4 +217,4 @@ def generate_abi_type(type_definition, name=""):
             "type": "tuple",
             "components": [generate_abi_type(i) for i in type_definition.value_type],
         }
-    return {"name": name, "type": type_definition.canonical_type}
+    return {"name": name, "type": type_definition.canonical_abi_type}
