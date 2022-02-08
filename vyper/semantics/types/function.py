@@ -507,18 +507,3 @@ def _generate_method_id(name: str, canonical_abi_types: List[str]) -> Dict[str, 
     function_sig = f"{name}({','.join(canonical_abi_types)})"
     selector = keccak256(function_sig.encode())[:4].hex()
     return {function_sig: int(selector, 16)}
-
-
-def _generate_abi_type(type_definition, name=""):
-    if isinstance(type_definition, StructDefinition):
-        return {
-            "name": name,
-            "type": "tuple",
-            "components": [_generate_abi_type(v, k) for k, v in type_definition.members.items()],
-        }
-    if isinstance(type_definition, TupleDefinition):
-        return {
-            "type": "tuple",
-            "components": [_generate_abi_type(i) for i in type_definition.value_type],
-        }
-    return {"name": name, "type": type_definition.canonical_abi_type}
