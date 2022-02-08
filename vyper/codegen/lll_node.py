@@ -191,7 +191,6 @@ class LLLnode:
                 _check(repeat_count is None or repeat_count.valency == 1, repeat_count)
                 _check(counter_ptr.valency == 1, counter_ptr)
                 _check(start.valency == 1, start)
-                _check(body.valency == 0, body)
                 self.valency = 0
 
                 self.gas = counter_ptr.gas + start.gas

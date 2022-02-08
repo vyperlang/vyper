@@ -278,6 +278,10 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
                 height + 2,
             )
         )
+
+        # clean up any stack items left by body
+        o.extend(["POP"] * body.valency)
+
         # stack: iptr, exit_i
         # (with i (add 1 (mload iptr)) (seq (mstore iptr i) i))
         o.extend(
