@@ -224,6 +224,7 @@ def _replace(old_node, new_node, type_=None):
         new_node = new_node.from_node(old_node, elements=list_values)
         if type_:
             new_node._metadata["type"] = type_
+        return new_node
     elif isinstance(new_node, vy_ast.Call):
         # Replace `Name` node with `Call` node
         return new_node
