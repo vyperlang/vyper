@@ -4,7 +4,7 @@ from typing import Union
 from vyper.ast import nodes as vy_ast
 from vyper.builtin_functions import DISPATCH_TABLE
 from vyper.exceptions import UnfoldableNode
-from vyper.semantics.types.bases import DataLocation
+from vyper.semantics.types.bases import BaseTypeDefinition, DataLocation
 from vyper.semantics.types.utils import get_type_from_annotation
 
 BUILTIN_CONSTANTS = {
@@ -174,11 +174,16 @@ def replace_user_defined_constants(vyper_module: vy_ast.Module) -> int:
             # annotation is not wrapped in `constant(...)`
             continue
 
-        # Extract type annotation for propagation
+        # Extract type definition from propagated annotation
         constant_annotation = node.get("annotation.args")[0]
+        type_ = (
+            get_type_from_annotation(constant_annotation, DataLocation.UNSET)
+            if constant_annotation
+            else None
+        )
 
         changed_nodes += replace_constant(
-            vyper_module, node.target.id, node.value, False, constant_annotation=constant_annotation
+            vyper_module, node.target.id, node.value, False, type_=type_
         )
 
     return changed_nodes
@@ -209,7 +214,7 @@ def replace_constant(
     id_: str,
     replacement_node: Union[vy_ast.Constant, vy_ast.List],
     raise_on_error: bool,
-    constant_annotation: vy_ast.VyperNode = None,
+    type_: BaseTypeDefinition = None,
 ) -> int:
     """
     Replace references to a variable name with a literal value.
@@ -224,9 +229,8 @@ def replace_constant(
         Vyper ast node representing the literal value to be substituted in.
     raise_on_error: bool
         Boolean indicating if `UnfoldableNode` exception should be raised or ignored.
-    constant_annotation : VyperNode, optional
-        AST node to be propagated to type checker to extract type definition of
-        constant.
+    type_ : BaseTypeDefinition, optional
+        Type definition to be propagated to type checker.
 
     Returns
     -------
@@ -252,13 +256,6 @@ def replace_constant(
 
             if assign and node in assign.target.get_descendants(include_self=True):
                 continue
-
-        # Extract type definition from propagated annotation
-        type_ = (
-            get_type_from_annotation(constant_annotation, DataLocation.UNSET)
-            if constant_annotation
-            else None
-        )
 
         try:
             new_node = _replace(node, replacement_node, type_=type_)
