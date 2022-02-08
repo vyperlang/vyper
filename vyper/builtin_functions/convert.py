@@ -4,27 +4,23 @@ from decimal import Decimal
 
 from vyper import ast as vy_ast
 from vyper.builtin_functions.signatures import signature
-from vyper.evm.opcodes import version_check
-from vyper.exceptions import InvalidLiteral, StructureException, TypeMismatch
-from vyper.old_codegen.parser_utils import (
+from vyper.codegen.core import (
     LLLnode,
     add_ofst,
     clamp_basetype,
     get_bytearray_length,
     getpos,
+    int_clamp,
     load_op,
     shr,
 )
-from vyper.old_codegen.types import BaseType, ByteArrayType, StringType, get_type
+from vyper.codegen.types import BaseType, ByteArrayType, StringType, get_type
+from vyper.evm.opcodes import version_check
+from vyper.exceptions import InvalidLiteral, StructureException, TypeMismatch
 from vyper.utils import DECIMAL_DIVISOR, MemoryPositions, SizeLimits
 
 
-def byte_array_to_num(
-    arg,
-    expr,  # TODO dead argument
-    out_type,
-    offset=32,  # TODO probably dead argument
-):
+def byte_array_to_num(arg, out_type):
     """
     Takes a <32 byte array as input, and outputs a number.
     """
@@ -73,7 +69,7 @@ def to_bool(expr, args, kwargs, context):
                 expr,
             )
         else:
-            num = byte_array_to_num(in_arg, expr, "uint256")
+            num = byte_array_to_num(in_arg, "uint256")
             return LLLnode.from_list(
                 ["iszero", ["iszero", num]], typ=BaseType("bool"), pos=getpos(expr)
             )
@@ -97,7 +93,7 @@ def to_uint8(expr, args, kwargs, context):
             )
         else:
             # uint8 clamp is already applied in byte_array_to_num
-            in_arg = byte_array_to_num(in_arg, expr, "uint8")
+            in_arg = byte_array_to_num(in_arg, "uint8")
 
     else:
         # cast to output type so clamp_basetype works
@@ -166,7 +162,7 @@ def to_int128(expr, args, kwargs, context):
                 f"Cannot convert bytes array of max length {in_arg.typ.maxlen} to int128",
                 expr,
             )
-        return byte_array_to_num(in_arg, expr, "int128")
+        return byte_array_to_num(in_arg, "int128")
 
     elif input_type == "uint256":
         if in_arg.typ.is_literal:
@@ -175,12 +171,13 @@ def to_int128(expr, args, kwargs, context):
             else:
                 return LLLnode.from_list(in_arg, typ=BaseType("int128"), pos=getpos(expr))
 
-        else:
-            return LLLnode.from_list(
-                ["uclample", in_arg, ["mload", MemoryPositions.MAX_INT128]],
-                typ=BaseType("int128"),
-                pos=getpos(expr),
-            )
+        # !! do not use clamp_basetype. check that 0 <= input <= MAX_INT128.
+        res = int_clamp(in_arg, 127, signed=False)
+        return LLLnode.from_list(
+            res,
+            typ="int128",
+            pos=getpos(expr),
+        )
 
     elif input_type == "decimal":
         # cast to int128 so clamp_basetype works
@@ -245,7 +242,7 @@ def to_uint256(expr, args, kwargs, context):
                 f"Cannot convert bytes array of max length {in_arg.typ.maxlen} to uint256",
                 expr,
             )
-        return byte_array_to_num(in_arg, expr, "uint256")
+        return byte_array_to_num(in_arg, "uint256")
 
     else:
         raise InvalidLiteral(f"Invalid input for uint256: {in_arg}", expr)
@@ -313,7 +310,7 @@ def to_int256(expr, args, kwargs, context):
                 f"Cannot convert bytes array of max length {in_arg.typ.maxlen} to int256",
                 expr,
             )
-        return byte_array_to_num(in_arg, expr, "int256")
+        return byte_array_to_num(in_arg, "int256")
 
     else:
         raise InvalidLiteral(f"Invalid input for int256: {in_arg}", expr)
@@ -331,7 +328,7 @@ def to_decimal(expr, args, kwargs, context):
                 expr,
             )
         # use byte_array_to_num(int128) because it is cheaper to clamp int128
-        num = byte_array_to_num(in_arg, expr, "int128")
+        num = byte_array_to_num(in_arg, "int128")
         return LLLnode.from_list(
             ["mul", num, DECIMAL_DIVISOR], typ=BaseType("decimal"), pos=getpos(expr)
         )

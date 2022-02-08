@@ -2,15 +2,15 @@ import logging
 from functools import wraps
 
 import pytest
-from eth_tester import EthereumTester
+from eth_tester import EthereumTester, PyEVMBackend
 from eth_utils import setup_DEBUG2_logging
 from hexbytes import HexBytes
 from web3 import Web3
 from web3.providers.eth_tester import EthereumTesterProvider
 
 from vyper import compiler
+from vyper.codegen.lll_node import LLLnode
 from vyper.lll import compile_lll, optimizer
-from vyper.old_codegen.parser_utils import LLLnode
 
 from .base_conftest import VyperContract, _get_contract, zero_gas_price_strategy
 
@@ -35,6 +35,19 @@ def set_evm_verbose_logging():
 # vdb.set_evm_opcode_debugger()
 
 
+def pytest_addoption(parser):
+    parser.addoption(
+        "--no-optimize",
+        action="store_true",
+        help="disable asm and LLL optimizations",
+    )
+
+
+@pytest.fixture(scope="module")
+def no_optimize(pytestconfig):
+    return pytestconfig.getoption("no_optimize")
+
+
 @pytest.fixture
 def keccak():
     return Web3.keccak
@@ -57,15 +70,19 @@ def bytes_helper():
 
 
 @pytest.fixture
-def get_contract_from_lll(w3):
+def get_contract_from_lll(w3, no_optimize):
     def lll_compiler(lll, *args, **kwargs):
-        lll = optimizer.optimize(LLLnode.from_list(lll))
-        bytecode, _ = compile_lll.assembly_to_evm(compile_lll.compile_to_assembly(lll))
+        lll = LLLnode.from_list(lll)
+        if not no_optimize:
+            lll = optimizer.optimize(lll)
+        bytecode, _ = compile_lll.assembly_to_evm(
+            compile_lll.compile_to_assembly(lll, no_optimize=no_optimize)
+        )
         abi = kwargs.get("abi") or []
         c = w3.eth.contract(abi=abi, bytecode=bytecode)
         deploy_transaction = c.constructor()
         tx_hash = deploy_transaction.transact()
-        address = w3.eth.getTransactionReceipt(tx_hash)["contractAddress"]
+        address = w3.eth.get_transaction_receipt(tx_hash)["contractAddress"]
         contract = w3.eth.contract(
             address,
             abi=abi,
@@ -78,27 +95,30 @@ def get_contract_from_lll(w3):
 
 
 @pytest.fixture(scope="module")
-def get_contract_module():
+def get_contract_module(no_optimize):
     """
     This fixture is used for Hypothesis tests to ensure that
     the same contract is called over multiple runs of the test.
     """
-    tester = EthereumTester()
+    custom_genesis = PyEVMBackend._generate_genesis_params(overrides={"gas_limit": 4500000})
+    custom_genesis["base_fee_per_gas"] = 0
+    backend = PyEVMBackend(genesis_parameters=custom_genesis)
+    tester = EthereumTester(backend=backend)
     w3 = Web3(EthereumTesterProvider(tester))
-    w3.eth.setGasPriceStrategy(zero_gas_price_strategy)
+    w3.eth.set_gas_price_strategy(zero_gas_price_strategy)
 
     def get_contract_module(source_code, *args, **kwargs):
-        return _get_contract(w3, source_code, *args, **kwargs)
+        return _get_contract(w3, source_code, no_optimize, *args, **kwargs)
 
     return get_contract_module
 
 
 def get_compiler_gas_estimate(code, func):
-    lll_nodes = compiler.phases.CompilerData(code).lll_nodes
+    lll_runtime = compiler.phases.CompilerData(code).lll_runtime
     if func:
-        return compiler.utils.build_gas_estimates(lll_nodes)[func] + 22000
+        return compiler.utils.build_gas_estimates(lll_runtime)[func] + 22000
     else:
-        return sum(compiler.utils.build_gas_estimates(lll_nodes).values()) + 22000
+        return sum(compiler.utils.build_gas_estimates(lll_runtime).values()) + 22000
 
 
 def check_gas_on_chain(w3, tester, code, func=None, res=None):
@@ -133,10 +153,10 @@ def set_decorator_to_contract_function(w3, tester, contract, source_code, func):
 
 
 @pytest.fixture
-def get_contract_with_gas_estimation(tester, w3):
+def get_contract_with_gas_estimation(tester, w3, no_optimize):
     def get_contract_with_gas_estimation(source_code, *args, **kwargs):
 
-        contract = _get_contract(w3, source_code, *args, **kwargs)
+        contract = _get_contract(w3, source_code, no_optimize, *args, **kwargs)
         for abi in contract._classic_contract.functions.abi:
             if abi["type"] == "function":
                 set_decorator_to_contract_function(w3, tester, contract, source_code, abi["name"])
@@ -146,9 +166,9 @@ def get_contract_with_gas_estimation(tester, w3):
 
 
 @pytest.fixture
-def get_contract_with_gas_estimation_for_constants(w3):
+def get_contract_with_gas_estimation_for_constants(w3, no_optimize):
     def get_contract_with_gas_estimation_for_constants(source_code, *args, **kwargs):
-        return _get_contract(w3, source_code, *args, **kwargs)
+        return _get_contract(w3, source_code, no_optimize, *args, **kwargs)
 
     return get_contract_with_gas_estimation_for_constants
 

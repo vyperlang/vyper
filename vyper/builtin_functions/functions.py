@@ -4,9 +4,37 @@ import operator
 from decimal import Decimal
 
 from vyper import ast as vy_ast
+from vyper.abi_types import ABI_Tuple
 from vyper.ast.signatures.function_signature import VariableRecord
 from vyper.ast.validation import validate_call_args
 from vyper.builtin_functions.convert import convert
+from vyper.codegen.abi_encoder import abi_encode
+from vyper.codegen.core import (
+    LLLnode,
+    add_ofst,
+    check_external_call,
+    clamp_basetype,
+    copy_bytes,
+    ensure_in_memory,
+    eval_seq,
+    get_bytearray_length,
+    get_element_ptr,
+    getpos,
+    lll_tuple_from_args,
+    load_op,
+    unwrap_location,
+)
+from vyper.codegen.expr import Expr
+from vyper.codegen.keccak256_helper import keccak256_helper
+from vyper.codegen.types import (
+    BaseType,
+    ByteArrayLike,
+    ByteArrayType,
+    SArrayType,
+    StringType,
+    TupleType,
+    is_base_type,
+)
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
     ArgumentException,
@@ -21,24 +49,7 @@ from vyper.exceptions import (
     VyperException,
     ZeroDivisionException,
 )
-from vyper.old_codegen.abi import ABI_Tuple, abi_encode, abi_type_of, abi_type_of2
-from vyper.old_codegen.arg_clamps import int128_clamp
-from vyper.old_codegen.expr import Expr
-from vyper.old_codegen.keccak256_helper import keccak256_helper
-from vyper.old_codegen.parser_utils import (
-    LLLnode,
-    get_bytearray_length,
-    get_element_ptr,
-    getpos,
-    lll_tuple_from_args,
-    load_op,
-    make_byte_array_copier,
-    make_byte_slice_copier,
-    unwrap_location,
-)
-from vyper.old_codegen.types import BaseType, ByteArrayLike, ByteArrayType, ListType
-from vyper.old_codegen.types import StringType as OldStringType
-from vyper.old_codegen.types import is_base_type
+from vyper.semantics.types import BoolDefinition, DynamicArrayPrimitive, TupleDefinition
 from vyper.semantics.types.abstract import (
     ArrayValueAbstractType,
     BytesAbstractType,
@@ -212,6 +223,55 @@ class Convert:
         return convert(expr, context)
 
 
+ADHOC_SLICE_NODE_MACROS = ["~calldata", "~selfcode", "~extcode"]
+
+
+def _build_adhoc_slice_node(sub: LLLnode, start: LLLnode, length: LLLnode, np: int) -> LLLnode:
+    assert isinstance(length.value, int)  # `length` is constant which is validated before
+
+    # `msg.data` by `calldatacopy`
+    if sub.value == "~calldata":
+        node = [
+            "seq",
+            ["assert", ["le", ["add", start, length], "calldatasize"]],  # runtime bounds check
+            ["mstore", np, length],
+            ["calldatacopy", np + 32, start, length],
+            np,
+        ]
+
+    # `self.code` by `codecopy`
+    elif sub.value == "~selfcode":
+        node = [
+            "seq",
+            ["assert", ["le", ["add", start, length], "codesize"]],  # runtime bounds check
+            ["mstore", np, length],
+            ["codecopy", np + 32, start, length],
+            np,
+        ]
+
+    # `<address>.code` by `extcodecopy`
+    else:
+        assert sub.value == "~extcode" and len(sub.args) == 1
+        node = [
+            "with",
+            "_extcode_address",
+            sub.args[0],
+            [
+                "seq",
+                # runtime bounds check
+                [
+                    "assert",
+                    ["le", ["add", start, length], ["extcodesize", "_extcode_address"]],
+                ],
+                ["mstore", np, length],
+                ["extcodecopy", "_extcode_address", np + 32, start, length],
+                np,
+            ],
+        ]
+
+    return LLLnode.from_list(node, typ=ByteArrayType(length.value), location="memory")
+
+
 class Slice:
 
     _id = "slice"
@@ -262,30 +322,17 @@ class Slice:
         if isinstance(args[0].typ, ByteArrayType) or is_base_type(sub.typ, "bytes32"):
             ReturnType = ByteArrayType
         else:
-            ReturnType = OldStringType
+            ReturnType = StringType
 
         # Node representing the position of the output in memory
         # CMC 20210917 shouldn't this be a variable with newmaxlen?
         np = context.new_internal_variable(ReturnType(maxlen=sub_typ_maxlen + 32))
-        # TODO deallocate np
         placeholder_node = LLLnode.from_list(np, typ=sub.typ, location="memory")
         placeholder_plus_32_node = LLLnode.from_list(np + 32, typ=sub.typ, location="memory")
 
-        # special handling for slice(msg.data)
-        if sub.location == "calldata" and sub.value == 0:
-            assert expr.args[0].value.id == "msg" and expr.args[0].attr == "data"
-            # if we are slicing msg.data, the length should
-            # be a constant, since msg.data can be of dynamic length
-            # we can't use its length as the maxlen
-            assert isinstance(length.value, int)  # sanity check
-            node = [
-                "seq",
-                ["assert", ["le", ["add", start, length], "calldatasize"]],  # runtime bounds check
-                ["mstore", np, length],
-                ["calldatacopy", np + 32, start, length],
-                np,
-            ]
-            return LLLnode.from_list(node, typ=ByteArrayType(length.value), location="memory")
+        # Handle `msg.data`, `self.code`, and `<address>.code`
+        if sub.value in ADHOC_SLICE_NODE_MACROS:
+            return _build_adhoc_slice_node(sub, start, length, np)
 
         # Copy over bytearray data
         # CMC 20210917 how does this routine work?
@@ -318,7 +365,7 @@ class Slice:
                     location="memory",
                 )
 
-        copier = make_byte_slice_copier(
+        copier = copy_bytes(
             placeholder_plus_32_node,
             adj_sub,
             ["add", "_length", 32],  # CMC 20210917 shouldn't this just be _length
@@ -363,7 +410,7 @@ class Slice:
 class Len(_SimpleBuiltinFunction):
 
     _id = "len"
-    _inputs = [("b", ArrayValueAbstractType())]
+    _inputs = [("b", (ArrayValueAbstractType(), DynamicArrayPrimitive()))]
     _return_type = Uint256Definition()
 
     def evaluate(self, node):
@@ -380,11 +427,9 @@ class Len(_SimpleBuiltinFunction):
         return vy_ast.Int.from_node(node, value=length)
 
     def build_LLL(self, node, context):
-        if isinstance(node.args[0], vy_ast.Attribute):
-            key = f"{node.args[0].value.id}.{node.args[0].attr}"
-            if key == "msg.data":
-                return LLLnode.from_list(["calldatasize"], typ="uint256")
         arg = Expr(node.args[0], context).lll_node
+        if arg.value == "~calldata":
+            return LLLnode.from_list(["calldatasize"], typ="uint256")
         return get_bytearray_length(arg)
 
 
@@ -450,7 +495,7 @@ class Concat:
             prev_type = current_type
 
         if current_type == "String":
-            ReturnType = OldStringType
+            ReturnType = StringType
         else:
             ReturnType = ByteArrayType
 
@@ -505,7 +550,7 @@ class Concat:
                         arg,
                         [
                             "seq",
-                            make_byte_slice_copier(
+                            copy_bytes(
                                 placeholder_node_plus_32,
                                 argstart,
                                 length,
@@ -563,7 +608,8 @@ class Keccak256(_SimpleBuiltinFunction):
 
     @validate_inputs
     def build_LLL(self, expr, args, kwargs, context):
-        return keccak256_helper(expr, args, kwargs, context)
+        assert len(args) == 1
+        return keccak256_helper(expr, args[0], context)
 
 
 def _make_sha256_call(inp_start, inp_len, out_start, out_len):
@@ -625,56 +671,29 @@ class Sha256(_SimpleBuiltinFunction):
             )
         # bytearay-like input
         # special case if it's already in memory
-        if sub.location == "memory":
-            return LLLnode.from_list(
+        sub = ensure_in_memory(sub, context, pos=getpos(expr))
+
+        return LLLnode.from_list(
+            [
+                "with",
+                "_sub",
+                sub,
                 [
-                    "with",
-                    "_sub",
-                    sub,
-                    [
-                        "seq",
-                        _make_sha256_call(
-                            inp_start=["add", "_sub", 32],
-                            inp_len=["mload", "_sub"],
-                            out_start=MemoryPositions.FREE_VAR_SPACE,
-                            out_len=32,
-                        ),
-                        ["mload", MemoryPositions.FREE_VAR_SPACE],
-                    ],
+                    "seq",
+                    _make_sha256_call(
+                        # TODO use add_ofst if sub is statically known
+                        inp_start=["add", "_sub", 32],
+                        inp_len=["mload", "_sub"],
+                        out_start=MemoryPositions.FREE_VAR_SPACE,
+                        out_len=32,
+                    ),
+                    ["mload", MemoryPositions.FREE_VAR_SPACE],
                 ],
-                typ=BaseType("bytes32"),
-                pos=getpos(expr),
-                add_gas_estimate=SHA256_BASE_GAS + sub.typ.maxlen * SHA256_PER_WORD_GAS,
-            )
-        else:
-            # otherwise, copy it to memory and then call the precompile
-            placeholder = context.new_internal_variable(sub.typ)
-            placeholder_node = LLLnode.from_list(placeholder, typ=sub.typ, location="memory")
-            copier = make_byte_array_copier(
-                placeholder_node,
-                LLLnode.from_list("_sub", typ=sub.typ, location=sub.location),
-            )
-            return LLLnode.from_list(
-                [
-                    "with",
-                    "_sub",
-                    sub,
-                    [
-                        "seq",
-                        copier,
-                        _make_sha256_call(
-                            inp_start=["add", placeholder, 32],
-                            inp_len=["mload", placeholder],
-                            out_start=MemoryPositions.FREE_VAR_SPACE,
-                            out_len=32,
-                        ),
-                        ["mload", MemoryPositions.FREE_VAR_SPACE],
-                    ],
-                ],
-                typ=BaseType("bytes32"),
-                pos=getpos(expr),
-                add_gas_estimate=SHA256_BASE_GAS + sub.typ.maxlen * SHA256_PER_WORD_GAS,
-            )
+            ],
+            typ=BaseType("bytes32"),
+            pos=getpos(expr),
+            add_gas_estimate=SHA256_BASE_GAS + sub.typ.maxlen * SHA256_PER_WORD_GAS,
+        )
 
 
 class MethodID:
@@ -794,7 +813,7 @@ class ECAdd(_SimpleBuiltinFunction):
                 ["assert", ["staticcall", ["gas"], 6, placeholder_node, 128, placeholder_node, 64]],
                 placeholder_node,
             ],
-            typ=ListType(BaseType("uint256"), 2),
+            typ=SArrayType(BaseType("uint256"), 2),
             pos=getpos(expr),
             location="memory",
         )
@@ -824,7 +843,7 @@ class ECMul(_SimpleBuiltinFunction):
                 ["assert", ["staticcall", ["gas"], 7, placeholder_node, 96, placeholder_node, 64]],
                 placeholder_node,
             ],
-            typ=ListType(BaseType("uint256"), 2),
+            typ=SArrayType(BaseType("uint256"), 2),
             pos=pos,
             location="memory",
         )
@@ -938,22 +957,13 @@ class Extract32(_SimpleBuiltinFunction):
                 ],
                 typ=BaseType(ret_type),
                 pos=getpos(expr),
-                annotation="extracting 32 bytes",
+                annotation="extract32",
             )
-        if ret_type == "int128":
-            return LLLnode.from_list(
-                int128_clamp(o),
-                typ=BaseType("int128"),
-                pos=getpos(expr),
-            )
-        elif ret_type == "address":
-            return LLLnode.from_list(
-                ["uclamplt", o, ["mload", MemoryPositions.ADDRSIZE]],
-                typ=BaseType(ret_type),
-                pos=getpos(expr),
-            )
-        else:
-            return o
+        return LLLnode.from_list(
+            clamp_basetype(o),
+            typ=ret_type,
+            pos=getpos(expr),
+        )
 
 
 class AsWeiValue:
@@ -1067,14 +1077,23 @@ class RawCall(_SimpleBuiltinFunction):
         "value": Optional("uint256", zero_value),
         "is_delegate_call": Optional("bool", false_value),
         "is_static_call": Optional("bool", false_value),
+        "revert_on_failure": Optional("bool", true_value),
     }
     _return_type = None
 
     def fetch_call_return(self, node):
         super().fetch_call_return(node)
-        outsize = next((i.value for i in node.keywords if i.arg == "max_outsize"), None)
+
+        kwargz = {i.arg: i.value for i in node.keywords}
+
+        outsize = kwargz.get("max_outsize")
+        revert_on_failure = kwargz.get("revert_on_failure")
+        revert_on_failure = revert_on_failure.value if revert_on_failure is not None else True
+
         if outsize is None:
-            return None
+            if revert_on_failure:
+                return None
+            return BoolDefinition()
 
         if not isinstance(outsize, vy_ast.Int) or outsize.value < 0:
             raise
@@ -1083,58 +1102,75 @@ class RawCall(_SimpleBuiltinFunction):
             return_type = BytesArrayDefinition()
             return_type.set_min_length(outsize.value)
 
-            return return_type
+            if revert_on_failure:
+                return return_type
+            return TupleDefinition([BoolDefinition(), return_type])
 
     @validate_inputs
     def build_LLL(self, expr, args, kwargs, context):
         to, data = args
-        gas, value, outsize, delegate_call, static_call = (
+        gas, value, outsize, delegate_call, static_call, revert_on_failure = (
             kwargs["gas"],
             kwargs["value"],
             kwargs["max_outsize"],
             kwargs["is_delegate_call"],
             kwargs["is_static_call"],
+            kwargs["revert_on_failure"],
         )
-        for key in ("is_delegate_call", "is_static_call"):
+        for key in ("is_delegate_call", "is_static_call", "revert_on_failure"):
             if kwargs[key].typ.is_literal is False:
                 raise TypeMismatch(
                     f"The `{key}` parameter must be a static/literal boolean value", expr
                 )
-        if delegate_call.value and static_call.value:
+        # turn LLL literals into python values
+        revert_on_failure = revert_on_failure.value == 1
+        static_call = static_call.value == 1
+        delegate_call = delegate_call.value == 1
+
+        if delegate_call and static_call:
             raise ArgumentException(
                 "Call may use one of `is_delegate_call` or `is_static_call`, not both", expr
             )
-        if not static_call.value and context.is_constant():
+        if not static_call and context.is_constant():
             raise StateAccessViolation(
                 f"Cannot make modifying calls from {context.pp_constancy()},"
                 " use `is_static_call=True` to perform this action",
                 expr,
             )
-        placeholder = context.new_internal_variable(data.typ)
-        placeholder_node = LLLnode.from_list(placeholder, typ=data.typ, location="memory")
-        copier = make_byte_array_copier(placeholder_node, data, pos=getpos(expr))
-        output_placeholder = context.new_internal_variable(ByteArrayType(outsize))
+
+        eval_input_buf = ensure_in_memory(data, context, pos=getpos(expr))
+        input_buf = eval_seq(eval_input_buf)
+
         output_node = LLLnode.from_list(
-            output_placeholder,
+            context.new_internal_variable(ByteArrayType(outsize)),
             typ=ByteArrayType(outsize),
             location="memory",
         )
 
+        bool_ty = BaseType("bool")
+
+        if input_buf is None:
+            call_lll = ["with", "arg_buf", eval_input_buf]
+            input_buf = LLLnode.from_list("arg_buf")
+        else:
+            call_lll = ["seq", eval_input_buf]
+
         # build LLL for call or delegatecall
-        common_call_lll = [
-            ["add", placeholder_node, 32],
-            ["mload", placeholder_node],
+        common_call_args = [
+            add_ofst(input_buf, 32),
+            ["mload", input_buf],  # buf len
             # if there is no return value, the return offset can be 0
-            ["add", output_node, 32] if outsize else 0,
+            add_ofst(output_node, 32) if outsize else 0,
             outsize,
         ]
 
-        if delegate_call.value == 1:
-            call_lll = ["delegatecall", gas, to] + common_call_lll
-        elif static_call.value == 1:
-            call_lll = ["staticcall", gas, to] + common_call_lll
+        if delegate_call:
+            call_op = ["delegatecall", gas, to, *common_call_args]
+        elif static_call:
+            call_op = ["staticcall", gas, to, *common_call_args]
         else:
-            call_lll = ["call", gas, to, value] + common_call_lll
+            call_op = ["call", gas, to, value, *common_call_args]
+        call_lll += [call_op]
 
         # build sequence LLL
         if outsize:
@@ -1146,13 +1182,38 @@ class RawCall(_SimpleBuiltinFunction):
                 ["with", "_r", "returndatasize", ["if", ["gt", "_l", "_r"], "_r", "_l"]],
             ]
 
-            seq = ["seq", copier, ["assert", call_lll], ["mstore", output_node, size], output_node]
-            typ = ByteArrayType(outsize)
-        else:
-            seq = ["seq", copier, ["assert", call_lll]]
-            typ = None
+            # store output size and return output location
+            store_output_size = [
+                "with",
+                "output_pos",
+                output_node,
+                ["seq", ["mstore", "output_pos", size], "output_pos"],
+            ]
 
-        return LLLnode.from_list(seq, typ=typ, location="memory", pos=getpos(expr))
+            bytes_ty = ByteArrayType(outsize)
+
+            if revert_on_failure:
+                typ = bytes_ty
+                ret_lll = ["seq", check_external_call(call_lll), store_output_size]
+            else:
+                typ = TupleType([bool_ty, bytes_ty])
+                ret_lll = [
+                    "multi",
+                    # use LLLnode.from_list to make sure the types are
+                    # set properly on the "multi" members
+                    LLLnode.from_list(call_lll, typ=bool_ty),
+                    LLLnode.from_list(store_output_size, typ=bytes_ty, location="memory"),
+                ]
+
+        else:
+            if revert_on_failure:
+                typ = None
+                ret_lll = check_external_call(call_lll)
+            else:
+                typ = bool_ty
+                ret_lll = call_lll
+
+        return LLLnode.from_list(ret_lll, typ=typ, location="memory", pos=getpos(expr))
 
 
 class Send(_SimpleBuiltinFunction):
@@ -1238,47 +1299,22 @@ class RawLog:
             return LLLnode.from_list(
                 [
                     "seq",
+                    # TODO use make_setter
                     ["mstore", placeholder, unwrap_location(args[1])],
                     ["log" + str(len(topics)), placeholder, 32] + topics,
                 ],
-                typ=None,
                 pos=getpos(expr),
             )
-        if args[1].location == "memory":
-            return LLLnode.from_list(
-                [
-                    "with",
-                    "_arr",
-                    args[1],
-                    ["log" + str(len(topics)), ["add", "_arr", 32], ["mload", "_arr"]] + topics,
-                ],
-                typ=None,
-                pos=getpos(expr),
-            )
-        placeholder = context.new_internal_variable(args[1].typ)
-        placeholder_node = LLLnode.from_list(placeholder, typ=args[1].typ, location="memory")
-        copier = make_byte_array_copier(
-            placeholder_node,
-            LLLnode.from_list("_sub", typ=args[1].typ, location=args[1].location),
-            pos=getpos(expr),
-        )
+
+        input_buf = ensure_in_memory(args[1], context, pos=getpos(expr))
+
         return LLLnode.from_list(
             [
                 "with",
                 "_sub",
-                args[1],
-                [
-                    "seq",
-                    copier,
-                    [
-                        "log" + str(len(topics)),
-                        ["add", placeholder_node, 32],
-                        ["mload", placeholder_node],
-                    ]
-                    + topics,
-                ],
+                input_buf,
+                ["log" + str(len(topics)), ["add", "_sub", 32], ["mload", "_sub"], *topics],
             ],
-            typ=None,
             pos=getpos(expr),
         )
 
@@ -1798,7 +1834,7 @@ class Empty:
 
     @validate_inputs
     def build_LLL(self, expr, args, kwargs, context):
-        output_type = context.parse_type(expr.args[0], expr.args[0])
+        output_type = context.parse_type(expr.args[0])
         return LLLnode(None, typ=output_type, pos=getpos(expr))
 
 
@@ -1870,7 +1906,7 @@ class ABIEncode(_SimpleBuiltinFunction):
         arg_abi_types = []
         for arg in node.args:
             arg_t = get_exact_type_from_node(arg)
-            arg_abi_types.append(abi_type_of2(arg_t))
+            arg_abi_types.append(arg_t.abi_type)
 
         # special case, no tuple
         if len(arg_abi_types) == 1 and not self._ensure_tuple(node):
@@ -1903,7 +1939,7 @@ class ABIEncode(_SimpleBuiltinFunction):
         else:
             encode_input = lll_tuple_from_args(args)
 
-        input_abi_t = abi_type_of(encode_input.typ)
+        input_abi_t = encode_input.typ.abi_type
         maxlen = input_abi_t.size_bound()
         if method_id is not None:
             maxlen += 4
@@ -1920,13 +1956,17 @@ class ABIEncode(_SimpleBuiltinFunction):
             # overwrite the 28 bytes of zeros with the bytestring length
             ret += [["mstore", buf + 4, method_id]]
             # abi encode and grab length as stack item
-            length = abi_encode(buf + 36, encode_input, pos, returns_len=True)
+            length = abi_encode(
+                buf + 36, encode_input, context, pos, returns_len=True, bufsz=maxlen
+            )
             # write the output length to where bytestring stores its length
             ret += [["mstore", buf, ["add", length, 4]]]
 
         else:
             # abi encode and grab length as stack item
-            length = abi_encode(buf + 32, encode_input, pos, returns_len=True)
+            length = abi_encode(
+                buf + 32, encode_input, context, pos, returns_len=True, bufsz=maxlen
+            )
             # write the output length to where bytestring stores its length
             ret += [["mstore", buf, length]]
 

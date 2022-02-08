@@ -2,9 +2,10 @@ from typing import Optional
 
 from vyper import ast as vy_ast
 from vyper.ast.signatures.function_signature import ContractRecord, VariableRecord
+from vyper.codegen.types import InterfaceType, parse_type
 from vyper.exceptions import CompilerPanic, InvalidType, StructureException
-from vyper.old_codegen.types import InterfaceType, parse_type
 from vyper.typing import InterfaceImports
+from vyper.utils import cached_property
 
 
 # Datatype to store all global context information.
@@ -114,7 +115,7 @@ class GlobalContext:
                 # A struct must be defined before it is referenced.
                 # This feels like a semantic step and maybe should be pushed
                 # to a later compilation stage.
-                self.parse_type(member_type, "storage")
+                self.parse_type(member_type)
                 members.append((member_name, member_type))
             else:
                 raise StructureException("Structs can only contain variables", item)
@@ -201,28 +202,40 @@ class GlobalContext:
             if isinstance(item.annotation.args[0], vy_ast.Name) and item_name in self._contracts:
                 typ = InterfaceType(item_name)
             else:
-                typ = self.parse_type(item.annotation.args[0], "storage")
+                typ = self.parse_type(item.annotation.args[0])
             self._globals[item.target.id] = VariableRecord(
                 item.target.id,
                 len(self._globals),
                 typ,
                 True,
             )
+        elif self.get_call_func_name(item) == "immutable":
+            typ = self.parse_type(item.annotation.args[0])
+            self._globals[item.target.id] = VariableRecord(
+                item.target.id,
+                len(self._globals),
+                typ,
+                False,
+                is_immutable=True,
+            )
 
         elif isinstance(item.annotation, (vy_ast.Name, vy_ast.Call, vy_ast.Subscript)):
             self._globals[item.target.id] = VariableRecord(
                 item.target.id,
                 len(self._globals),
-                self.parse_type(item.annotation, "storage"),
+                self.parse_type(item.annotation),
                 True,
             )
         else:
             raise InvalidType("Invalid global type specified", item)
 
-    def parse_type(self, ast_node, location=None):
+    def parse_type(self, ast_node):
         return parse_type(
             ast_node,
-            location,
             sigs=self._contracts,
             custom_structs=self._structs,
         )
+
+    @cached_property
+    def immutable_section_size(self):
+        return sum([imm.size * 32 for imm in self._globals.values() if imm.is_immutable])

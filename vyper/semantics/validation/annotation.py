@@ -1,5 +1,6 @@
 from vyper import ast as vy_ast
 from vyper.exceptions import StructureException
+from vyper.semantics.types import ArrayDefinition
 from vyper.semantics.types.bases import BaseTypeDefinition
 from vyper.semantics.types.function import ContractFunction
 from vyper.semantics.types.user.event import Event
@@ -54,11 +55,6 @@ class StatementAnnotationVisitor(_AnnotationVisitorBase):
     def visit(self, node):
         super().visit(node)
 
-    def visit_Attribute(self, node):
-        # NOTE: required for msg.data node, removing borks and results in
-        # vyper.exceptions.StructureException: Cannot annotate: Attribute
-        pass
-
     def visit_AnnAssign(self, node):
         type_ = get_exact_type_from_node(node.target)
         self.expr_visitor.visit(node.target, type_)
@@ -94,6 +90,11 @@ class StatementAnnotationVisitor(_AnnotationVisitorBase):
     def visit_For(self, node):
         if isinstance(node.iter, (vy_ast.Name, vy_ast.Attribute)):
             self.expr_visitor.visit(node.iter)
+        # typecheck list literal as static array
+        if isinstance(node.iter, vy_ast.List):
+            value_type = get_common_types(*node.iter.elements).pop()
+            len_ = len(node.iter.elements)
+            self.expr_visitor.visit(node.iter, ArrayDefinition(value_type, len_))
 
 
 class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
@@ -147,8 +148,8 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
             if isinstance(node.right, vy_ast.List):
                 type_ = get_common_types(node.left, *node.right.elements).pop()
                 self.visit(node.left, type_)
-                for element in node.right.elements:
-                    self.visit(element, type_)
+                rlen = len(node.right.elements)
+                self.visit(node.right, ArrayDefinition(type_, rlen))
             else:
                 type_ = get_exact_type_from_node(node.right)
                 self.visit(node.right, type_)
@@ -172,7 +173,7 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
             return
         if type_ is None:
             type_ = get_possible_types_from_node(node)
-            if len(type_) == 1:
+            if len(type_) > 1:
                 type_ = type_.pop()
         node._metadata["type"] = type_
         for element in node.elements:
@@ -182,7 +183,20 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
         node._metadata["type"] = get_exact_type_from_node(node)
 
     def visit_Subscript(self, node, type_):
-        base_type = get_exact_type_from_node(node.value)
+        if isinstance(node.value, vy_ast.List):
+            possible_base_types = get_possible_types_from_node(node.value)
+
+            if len(possible_base_types) == 1:
+                base_type = possible_base_types.pop()
+
+            elif type_ and len(possible_base_types) > 1:
+                for possible_type in possible_base_types:
+                    if isinstance(possible_type.value_type, type(type_)):
+                        base_type = possible_type
+                        break
+
+        else:
+            base_type = get_exact_type_from_node(node.value)
         if isinstance(base_type, BaseTypeDefinition):
             # in the vast majority of cases `base_type` is a type definition,
             # however there are some edge cases with args to builtin functions

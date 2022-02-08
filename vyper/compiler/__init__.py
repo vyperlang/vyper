@@ -1,10 +1,18 @@
 from collections import OrderedDict
-from typing import Any, Callable, Optional, Sequence, Union
+from typing import Any, Callable, Dict, Optional, Sequence, Union
 
 from vyper.compiler import output
 from vyper.compiler.phases import CompilerData
 from vyper.evm.opcodes import DEFAULT_EVM_VERSION, evm_wrapper
-from vyper.typing import ContractCodes, InterfaceDict, InterfaceImports, OutputDict, OutputFormats
+from vyper.typing import (
+    ContractCodes,
+    ContractPath,
+    InterfaceDict,
+    InterfaceImports,
+    OutputDict,
+    OutputFormats,
+    StorageLayout,
+)
 
 OUTPUT_FORMATS = {
     # requires vyper_module
@@ -17,7 +25,9 @@ OUTPUT_FORMATS = {
     "external_interface": output.build_external_interface_output,
     "interface": output.build_interface_output,
     "ir": output.build_ir_output,
+    "ir_dict": output.build_ir_dict_output,
     "method_identifiers": output.build_method_identifiers_output,
+    "metadata": output.build_metadata_output,
     # requires assembly
     "abi": output.build_abi_output,
     "asm": output.build_asm_output,
@@ -37,7 +47,9 @@ def compile_codes(
     exc_handler: Union[Callable, None] = None,
     interface_codes: Union[InterfaceDict, InterfaceImports, None] = None,
     initial_id: int = 0,
-    use_ovm: bool = False,
+    no_optimize: bool = False,
+    storage_layouts: Dict[ContractPath, StorageLayout] = None,
+    show_gas_estimates: bool = False,
 ) -> OrderedDict:
     """
     Generate compiler output(s) from one or more contract source codes.
@@ -57,8 +69,10 @@ def compile_codes(
     evm_version: str, optional
         The target EVM ruleset to compile for. If not given, defaults to the latest
         implemented ruleset.
-    use_ovm: bool, optional
-        Whether or not to use the OVM backend. Defaults to False
+    no_optimize: bool, optional
+        Turn off optimizations. Defaults to False
+    show_gas_estimates: bool, optional
+        Show gas estimates for abi and ir output modes
     interface_codes: Dict, optional
         Interfaces that may be imported by the contracts during compilation.
 
@@ -85,6 +99,10 @@ def compile_codes(
     for source_id, contract_name in enumerate(sorted(contract_sources), start=initial_id):
         source_code = contract_sources[contract_name]
         interfaces: Any = interface_codes
+        storage_layout_override = None
+        if storage_layouts and contract_name in storage_layouts:
+            storage_layout_override = storage_layouts[contract_name]
+
         if (
             isinstance(interfaces, dict)
             and contract_name in interfaces
@@ -92,7 +110,15 @@ def compile_codes(
         ):
             interfaces = interfaces[contract_name]
 
-        compiler_data = CompilerData(source_code, contract_name, interfaces, source_id, use_ovm)
+        compiler_data = CompilerData(
+            source_code,
+            contract_name,
+            interfaces,
+            source_id,
+            no_optimize,
+            storage_layout_override,
+            show_gas_estimates,
+        )
         for output_format in output_formats[contract_name]:
             if output_format not in OUTPUT_FORMATS:
                 raise ValueError(f"Unsupported format type {repr(output_format)}")
@@ -116,7 +142,9 @@ def compile_code(
     output_formats: Optional[OutputFormats] = None,
     interface_codes: Optional[InterfaceImports] = None,
     evm_version: str = DEFAULT_EVM_VERSION,
-    use_ovm: bool = False,
+    no_optimize: bool = False,
+    storage_layout_override: StorageLayout = None,
+    show_gas_estimates: bool = False,
 ) -> dict:
     """
     Generate compiler output(s) from a single contract source code.
@@ -131,6 +159,10 @@ def compile_code(
     evm_version: str, optional
         The target EVM ruleset to compile for. If not given, defaults to the latest
         implemented ruleset.
+    no_optimize: bool, optional
+        Turn off optimizations. Defaults to False
+    show_gas_estimates: bool, optional
+        Show gas estimates for abi and ir output modes
     interface_codes: Dict, optional
         Interfaces that may be imported by the contracts during compilation.
 
@@ -144,11 +176,14 @@ def compile_code(
     """
 
     contract_sources = {UNKNOWN_CONTRACT_NAME: contract_source}
+    storage_layouts = {UNKNOWN_CONTRACT_NAME: storage_layout_override}
 
     return compile_codes(
         contract_sources,
         output_formats,
         interface_codes=interface_codes,
         evm_version=evm_version,
-        use_ovm=use_ovm,
+        no_optimize=no_optimize,
+        storage_layouts=storage_layouts,
+        show_gas_estimates=show_gas_estimates,
     )[UNKNOWN_CONTRACT_NAME]

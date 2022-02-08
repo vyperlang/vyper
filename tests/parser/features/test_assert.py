@@ -1,6 +1,11 @@
 import pytest
-from eth_abi import decode_single
 from eth_tester.exceptions import TransactionFailed
+
+
+# web3 returns f"execution reverted: {err_str}"
+# TODO move exception string parsing logic into assert_tx_failed
+def _fixup_err_str(s):
+    return s.replace("execution reverted: ", "")
 
 
 def test_assert_refund(w3, get_contract_with_gas_estimation, assert_tx_failed):
@@ -15,7 +20,7 @@ def foo():
     tx_hash = c.foo(transact={"from": a0, "gas": gas_sent, "gasPrice": 10})
     # More info on receipt status:
     # https://github.com/ethereum/EIPs/blob/master/EIPS/eip-658.md#specification.
-    tx_receipt = w3.eth.getTransactionReceipt(tx_hash)
+    tx_receipt = w3.eth.get_transaction_receipt(tx_hash)
     assert tx_receipt["status"] == 0
     # Checks for gas refund from revert
     assert tx_receipt["gasUsed"] < gas_sent
@@ -29,15 +34,15 @@ def test(a: int128) -> int128:
     return 1 + a
 
 @external
-def test2(a: int128, b: int128) -> int128:
+def test2(a: int128, b: int128, extra_reason: String[32]) -> int128:
     c: int128 = 11
     assert a > 1, "a is not large enough"
-    assert b == 1, "b may only be 1"
+    assert b == 1, concat("b may only be 1", extra_reason)
     return a + b + c
 
 @external
-def test3() :
-    raise "An exception"
+def test3(reason_str: String[32]):
+    raise reason_str
     """
     c = get_contract_with_gas_estimation(code)
 
@@ -45,21 +50,21 @@ def test3() :
     with pytest.raises(TransactionFailed) as e_info:
         c.test(0)
 
-    assert e_info.value.args[0] == "larger than one please"
+    assert _fixup_err_str(e_info.value.args[0]) == "larger than one please"
     # a = 0, b = 1
     with pytest.raises(TransactionFailed) as e_info:
-        c.test2(0, 1)
-    assert e_info.value.args[0] == "a is not large enough"
+        c.test2(0, 1, "")
+    assert _fixup_err_str(e_info.value.args[0]) == "a is not large enough"
     # a = 1, b = 0
     with pytest.raises(TransactionFailed) as e_info:
-        c.test2(2, 2)
-    assert e_info.value.args[0] == "b may only be 1"
+        c.test2(2, 2, " because I said so")
+    assert _fixup_err_str(e_info.value.args[0]) == "b may only be 1" + " because I said so"
     # return correct value
-    assert c.test2(5, 1) == 17
+    assert c.test2(5, 1, "") == 17
 
     with pytest.raises(TransactionFailed) as e_info:
-        c.test3()
-    assert e_info.value.args[0] == "An exception"
+        c.test3("An exception")
+    assert _fixup_err_str(e_info.value.args[0]) == "An exception"
 
 
 invalid_code = [
@@ -183,7 +188,7 @@ def test(x: uint256[3]) -> bool:
     assert_tx_failed(lambda: c.test([1, 3, 5]))
 
 
-def test_assest_reason_revert_length(w3, get_contract, memory_mocker):
+def test_assert_reason_revert_length(w3, get_contract, assert_tx_failed, memory_mocker):
     code = """
 @external
 def test() -> int128:
@@ -191,10 +196,4 @@ def test() -> int128:
     return 1
 """
     c = get_contract(code)
-    w3.manager.provider.ethereum_tester.backend.is_eip838_error = lambda err: False
-    with pytest.raises(TransactionFailed) as e_info:
-        c.test()
-    error_bytes = eval(e_info.value.args[0])
-    assert len(error_bytes) == 100
-    msg = decode_single("string", error_bytes[36:])
-    assert msg == "oops"
+    assert_tx_failed(lambda: c.test(), exc_text="oops")

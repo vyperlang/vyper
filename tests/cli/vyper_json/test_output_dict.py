@@ -22,8 +22,9 @@ def test_keys():
         "abi": data["abi"],
         "devdoc": data["devdoc"],
         "interface": data["interface"],
-        "ir": data["ir"],
+        "ir": data["ir_dict"],
         "userdoc": data["userdoc"],
+        "metadata": data["metadata"],
         "evm": {
             "bytecode": {"object": data["bytecode"], "opcodes": data["opcodes"]},
             "deployedBytecode": {

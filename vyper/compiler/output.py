@@ -5,11 +5,11 @@ from pathlib import Path
 import asttokens
 
 from vyper.ast import ast_to_dict, parse_natspec
+from vyper.codegen.lll_node import LLLnode
 from vyper.compiler.phases import CompilerData
 from vyper.compiler.utils import build_gas_estimates
 from vyper.evm import opcodes
 from vyper.lll import compile_lll
-from vyper.old_codegen.lll_node import LLLnode
 from vyper.semantics.types.function import FunctionVisibility, StateMutability
 from vyper.typing import StorageLayout
 from vyper.warnings import ContractSizeLimitWarning
@@ -74,7 +74,42 @@ def build_interface_output(compiler_data: CompilerData) -> str:
 
 
 def build_ir_output(compiler_data: CompilerData) -> LLLnode:
+    if compiler_data.show_gas_estimates:
+        LLLnode.repr_show_gas = True
     return compiler_data.lll_nodes
+
+
+def build_ir_dict_output(compiler_data: CompilerData) -> dict:
+    lll = compiler_data.lll_nodes
+
+    def _to_dict(lll_node):
+        args = lll_node.args
+        if len(args) > 0:
+            return {lll_node.value: [_to_dict(x) for x in args]}
+        return lll_node.value
+
+    return _to_dict(lll)
+
+
+def build_metadata_output(compiler_data: CompilerData) -> dict:
+    warnings.warn("metadata output format is unstable!")
+    sigs = compiler_data.function_signatures
+
+    def _to_dict(sig):
+        ret = vars(sig)
+        ret["return_type"] = str(ret["return_type"])
+        ret["_lll_identifier"] = sig._lll_identifier
+        for attr in ("gas", "func_ast_code"):
+            del ret[attr]
+        for attr in ("args", "base_args", "default_args"):
+            if attr in ret:
+                ret[attr] = {arg.name: str(arg.typ) for arg in ret[attr]}
+        for k in ret["default_values"]:
+            # e.g. {"x": vy_ast.Int(..)} -> {"x": 1}
+            ret["default_values"][k] = ret["default_values"][k].node_source_code
+        return ret
+
+    return {"function_info": {name: _to_dict(sig) for (name, sig) in sigs.items()}}
 
 
 def build_method_identifiers_output(compiler_data: CompilerData) -> dict:
@@ -86,20 +121,21 @@ def build_method_identifiers_output(compiler_data: CompilerData) -> dict:
 
 def build_abi_output(compiler_data: CompilerData) -> list:
     abi = compiler_data.vyper_module_folded._metadata["type"].to_abi_dict()
-    # Add gas estimates for each function to ABI
-    gas_estimates = build_gas_estimates(compiler_data.lll_nodes)
-    for func in abi:
-        try:
-            func_signature = func["name"]
-        except KeyError:
-            # constructor and fallback functions don't have a name
-            continue
+    if compiler_data.show_gas_estimates:
+        # Add gas estimates for each function to ABI
+        gas_estimates = build_gas_estimates(compiler_data.lll_runtime)
+        for func in abi:
+            try:
+                func_signature = func["name"]
+            except KeyError:
+                # constructor and fallback functions don't have a name
+                continue
 
-        func_name, _, _ = func_signature.partition("(")
-        # This check ensures we skip __init__ since it has no estimate
-        if func_name in gas_estimates:
-            # TODO: mutation
-            func["gas"] = gas_estimates[func_name]
+            func_name, _, _ = func_signature.partition("(")
+            # This check ensures we skip __init__ since it has no estimate
+            if func_name in gas_estimates:
+                # TODO: mutation
+                func["gas"] = gas_estimates[func_name]
     return abi
 
 
@@ -118,7 +154,7 @@ def _build_asm(asm_list):
     skip_newlines = 0
     for node in asm_list:
         if isinstance(node, list):
-            output_string += _build_asm(node)
+            output_string += "[ " + _build_asm(node) + "] "
             continue
 
         is_push = isinstance(node, str) and node.startswith("PUSH")
@@ -129,7 +165,8 @@ def _build_asm(asm_list):
         elif is_push:
             skip_newlines = int(node[4:]) - 1
         else:
-            output_string += "\n"
+            output_string += " "
+
     return output_string
 
 

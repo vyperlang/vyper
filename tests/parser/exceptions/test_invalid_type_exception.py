@@ -42,7 +42,7 @@ def foo():
     """
 @external
 def mint(_to: address, _value: uint256):
-    assert msg.sender == self,minter
+    assert msg.sender == self,msg.sender
     """,
     # Raise reason must be string
     """

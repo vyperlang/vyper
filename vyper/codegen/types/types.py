@@ -1,11 +1,25 @@
 import abc
 import copy
-import warnings
+import re
 from collections import OrderedDict
+from dataclasses import dataclass
 from typing import Any
 
 from vyper import ast as vy_ast
-from vyper.exceptions import CompilerPanic, InvalidType
+from vyper.abi_types import (
+    ABI_Address,
+    ABI_Bool,
+    ABI_Bytes,
+    ABI_BytesM,
+    ABI_DynamicArray,
+    ABI_FixedMxN,
+    ABI_GIntM,
+    ABI_StaticArray,
+    ABI_String,
+    ABI_Tuple,
+    ABIType,
+)
+from vyper.exceptions import ArgumentException, CompilerPanic, InvalidType
 from vyper.utils import BASE_TYPES, ceil32
 
 
@@ -22,16 +36,79 @@ class NodeType(abc.ABC):
         """
         pass
 
+    @property
+    @abc.abstractmethod
+    def memory_bytes_required(self) -> int:
+        """
+        Returns the number of bytes required to allocate in memory for this type
+        """
+        pass
 
-# Data structure for a type that represents a 32-byte object
+    @property
+    @abc.abstractmethod
+    def abi_type(self) -> ABIType:
+        """
+        Returns the ABI type of a Vyper type
+        """
+        pass
+
+    @property
+    def storage_size_in_words(self) -> int:
+        """
+        Returns the number of words required to allocate in storage for this type
+        """
+        r = self.memory_bytes_required
+        if r % 32 != 0:
+            raise CompilerPanic("Memory bytes must be multiple of 32")
+        return r // 32
+
+
+@dataclass
+class IntegerTypeInfo:
+    is_signed: bool
+    bits: int
+
+
+_int_parser = re.compile("^(u?)int([0-9]+)$")
+
+
+def is_integer_type(t: "NodeType") -> bool:
+    return isinstance(t, BaseType) and _int_parser.fullmatch(t.typ) is not None
+
+
+def parse_integer_typeinfo(typename: str) -> IntegerTypeInfo:
+    t = _int_parser.fullmatch(typename)
+    if not t:
+        raise InvalidType(f"Invalid integer type {typename}")  # pragma: notest
+
+    return IntegerTypeInfo(
+        is_signed=t.group(1) != "u",
+        bits=int(t.group(2)),
+    )
+
+
+def _basetype_to_abi_type(t: "BaseType") -> ABIType:
+    if is_integer_type(t):
+        typinfo = parse_integer_typeinfo(t.typ)
+        return ABI_GIntM(typinfo.bits, typinfo.is_signed)
+    if t.typ == "address":
+        return ABI_Address()
+    if t.typ == "bytes32":
+        # TODO must generalize to more bytes types
+        return ABI_BytesM(32)
+    if t.typ == "bool":
+        return ABI_Bool()
+    if t.typ == "decimal":
+        return ABI_FixedMxN(168, 10, True)
+
+    raise InvalidType(f"Unrecognized type {t}")  # pragma: notest
+
+
+# A type that represents a 1 word (32-byte) object
 class BaseType(NodeType):
-    def __init__(
-        self, typ, unit=False, positional=False, override_signature=False, is_literal=False
-    ):
-        self.typ = typ
-        if unit or positional:
-            raise CompilerPanic("Units are no longer supported")
-        self.override_signature = override_signature
+    def __init__(self, typename, is_literal=False):
+        self.typ = typename  # e.g. "uint256"
+        # TODO remove is_literal from the type itself
         self.is_literal = is_literal
 
     def eq(self, other):
@@ -39,6 +116,14 @@ class BaseType(NodeType):
 
     def __repr__(self):
         return str(self.typ)
+
+    @property
+    def abi_type(self):
+        return _basetype_to_abi_type(self)
+
+    @property
+    def memory_bytes_required(self):
+        return 32
 
 
 class InterfaceType(BaseType):
@@ -48,6 +133,10 @@ class InterfaceType(BaseType):
 
     def __eq__(self, other: Any) -> bool:
         return isinstance(other, BaseType) and other.typ == "address"
+
+    @property
+    def memory_bytes_required(self):
+        return 32
 
 
 class ByteArrayLike(NodeType):
@@ -61,10 +150,18 @@ class ByteArrayLike(NodeType):
     def eq_base(self, other):
         return type(self) is type(other)
 
+    @property
+    def memory_bytes_required(self):
+        return ceil32(self.maxlen) + 32 * DYNAMIC_ARRAY_OVERHEAD
+
 
 class StringType(ByteArrayLike):
     def __repr__(self):
         return f"String[{self.maxlen}]"
+
+    @property
+    def abi_type(self):
+        return ABI_String(self.maxlen)
 
 
 # Data structure for a byte array
@@ -72,9 +169,13 @@ class ByteArrayType(ByteArrayLike):
     def __repr__(self):
         return f"Bytes[{self.maxlen}]"
 
+    @property
+    def abi_type(self):
+        return ABI_Bytes(self.maxlen)
 
-# Data structure for a list with some fixed length
-class ListType(NodeType):
+
+# Data structure for a static array
+class ArrayLike(NodeType):
     def __init__(self, subtype, count, is_literal=False):
         self.subtype = subtype
         self.count = count
@@ -83,8 +184,33 @@ class ListType(NodeType):
     def eq(self, other):
         return other.subtype == self.subtype and other.count == self.count
 
+
+# Data structure for a static array
+class SArrayType(ArrayLike):
     def __repr__(self):
-        return repr(self.subtype) + "[" + str(self.count) + "]"
+        return f"{self.subtype}[{self.count}]"
+
+    @property
+    def memory_bytes_required(self):
+        return self.count * self.subtype.memory_bytes_required
+
+    @property
+    def abi_type(self):
+        return ABI_StaticArray(self.subtype.abi_type, self.count)
+
+
+# Data structure for a dynamic array
+class DArrayType(ArrayLike):
+    def __repr__(self):
+        return f"DynArray[{self.subtype}, {self.count}]"
+
+    @property
+    def memory_bytes_required(self):
+        return DYNAMIC_ARRAY_OVERHEAD * 32 + self.count * self.subtype.memory_bytes_required
+
+    @property
+    def abi_type(self):
+        return ABI_DynamicArray(self.subtype.abi_type, self.count)
 
 
 # Data structure for a key-value mapping
@@ -101,6 +227,14 @@ class MappingType(NodeType):
     def __repr__(self):
         return "HashMap[" + repr(self.valuetype) + ", " + repr(self.keytype) + "]"
 
+    @property
+    def memory_bytes_required(self):
+        raise InvalidType("Maps are not supported for function arguments or outputs.")
+
+    @property
+    def abi_type(self):
+        raise InvalidType("Maps are not ABI encodable")
+
 
 # Type which has heterogeneous members, i.e. Tuples and Structs
 class TupleLike(NodeType):
@@ -112,6 +246,14 @@ class TupleLike(NodeType):
 
     def tuple_items(self):
         raise NotImplementedError("compiler panic!: tuple_items must be implemented by TupleLike")
+
+    @property
+    def memory_bytes_required(self):
+        return sum([t.memory_bytes_required for t in self.tuple_members()])
+
+    @property
+    def abi_type(self):
+        return ABI_Tuple([t.abi_type for t in self.tuple_members()])
 
 
 # Data structure for a struct, e.g. {a: <type>, b: <type>}
@@ -154,35 +296,7 @@ class TupleType(TupleLike):
         return list(enumerate(self.members))
 
 
-# Convert type into common form used in ABI
-def canonicalize_type(t, is_indexed=False):
-    if isinstance(t, ByteArrayLike):
-        # Check to see if maxlen is small enough for events
-        byte_type = "string" if isinstance(t, StringType) else "bytes"
-        return byte_type
-
-    if isinstance(t, ListType):
-        if not isinstance(t.subtype, (ListType, BaseType)):
-            raise InvalidType(f"List of {t.subtype} not allowed")
-        return canonicalize_type(t.subtype) + f"[{t.count}]"
-
-    if isinstance(t, TupleLike):
-        return f"({','.join(canonicalize_type(x) for x in t.tuple_members())})"
-
-    if not isinstance(t, BaseType):
-        raise InvalidType(f"Cannot canonicalize non-base type: {t}")
-
-    t = t.typ
-    if t in ("int128", "int256", "uint8", "uint256", "bool", "address", "bytes32"):
-        return t
-    elif t == "decimal":
-        return "fixed168x10"
-
-    raise InvalidType(f"Invalid or unsupported type: {repr(t)}")
-
-
-# TODO location is unused
-def make_struct_type(name, location, sigs, members, custom_structs):
+def make_struct_type(name, sigs, members, custom_structs):
     o = OrderedDict()
 
     for key, value in members:
@@ -191,32 +305,39 @@ def make_struct_type(name, location, sigs, members, custom_structs):
                 f"Invalid member variable for struct {key.id}, expected a name.",
                 key,
             )
-        o[key.id] = parse_type(value, location, sigs=sigs, custom_structs=custom_structs)
+        o[key.id] = parse_type(value, sigs=sigs, custom_structs=custom_structs)
 
     return StructType(o, name)
 
 
-# Parses an expression representing a type. Annotation refers to whether
-# the type is to be located in memory or storage
-# TODO: location is unused
+# Parses an expression representing a type.
 # TODO: rename me to "lll_type_from_annotation"
-def parse_type(item, location=None, sigs=None, custom_structs=None):
+def parse_type(item, sigs, custom_structs):
+    def _sanity_check(x):
+        assert x, "typechecker missed this"
+
+    def FAIL():
+        raise InvalidType(f"{item.id}", item)
+
     # Base and custom types, e.g. num
     if isinstance(item, vy_ast.Name):
         if item.id in BASE_TYPES:
             return BaseType(item.id)
+
         elif (sigs is not None) and item.id in sigs:
             return InterfaceType(item.id)
+
         elif (custom_structs is not None) and (item.id in custom_structs):
             return make_struct_type(
                 item.id,
-                location,
                 sigs,
                 custom_structs[item.id],
                 custom_structs,
             )
+
         else:
-            raise InvalidType("Invalid base type: " + item.id, item)
+            FAIL()  # pragma: notest
+
     # Units, e.g. num (1/sec) or contracts
     elif isinstance(item, vy_ast.Call) and isinstance(item.func, vy_ast.Name):
         # Contract_types
@@ -224,97 +345,84 @@ def parse_type(item, location=None, sigs=None, custom_structs=None):
             if sigs and item.args[0].id in sigs:
                 return InterfaceType(item.args[0].id)
         # Struct types
-        if (custom_structs is not None) and (item.func.id in custom_structs):
+        elif (custom_structs is not None) and (item.func.id in custom_structs):
             return make_struct_type(
                 item.id,
-                location,
                 sigs,
                 custom_structs[item.id],
                 custom_structs,
             )
-        raise InvalidType("Units are no longer supported", item)
+        elif item.func.id == "immutable":
+            if len(item.args) != 1:
+                # is checked earlier but just for sanity, verify
+                # immutable call is given only one argument
+                raise ArgumentException("Invalid number of arguments to `immutable`", item)
+            return BaseType(item.args[0].id)
+
+        else:
+            FAIL()  # pragma: notest
+
     # Subscripts
     elif isinstance(item, vy_ast.Subscript):
         # Fixed size lists or bytearrays, e.g. num[100]
         if isinstance(item.slice.value, vy_ast.Int):
-            n_val = item.slice.value.n
-            if not isinstance(n_val, int) or n_val <= 0:
-                raise InvalidType(
-                    "Arrays / ByteArrays must have a positive integral number of elements",
-                    item.slice.value,
-                )
+            length = item.slice.value.n
+            _sanity_check(isinstance(length, int) and length > 0)
+
             # ByteArray
             if getattr(item.value, "id", None) == "Bytes":
-                return ByteArrayType(n_val)
+                return ByteArrayType(length)
             elif getattr(item.value, "id", None) == "String":
-                return StringType(n_val)
+                return StringType(length)
             # List
             else:
-                return ListType(
-                    parse_type(
-                        item.value,
-                        location,
-                        sigs,
-                        custom_structs=custom_structs,
-                    ),
-                    n_val,
+                value_type = parse_type(
+                    item.value,
+                    sigs,
+                    custom_structs=custom_structs,
                 )
+                return SArrayType(value_type, length)
+
+        elif item.value.id == "DynArray":
+
+            _sanity_check(isinstance(item.slice.value, vy_ast.Tuple))
+            length = item.slice.value.elements[1].n
+            _sanity_check(isinstance(length, int) and length > 0)
+
+            value_type_annotation = item.slice.value.elements[0]
+            value_type = parse_type(value_type_annotation, sigs, custom_structs=custom_structs)
+
+            return DArrayType(value_type, length)
+
         elif item.value.id in ("HashMap",) and isinstance(item.slice.value, vy_ast.Tuple):
+            # Mappings, e.g. HashMap[address, uint256]
             keytype = parse_type(
                 item.slice.value.elements[0],
-                None,
-                sigs,
+                sigs=sigs,
                 custom_structs=custom_structs,
             )
             return MappingType(
                 keytype,
                 parse_type(
                     item.slice.value.elements[1],
-                    location,
                     sigs,
                     custom_structs=custom_structs,
                 ),
             )
-        # Mappings, e.g. num[address]
+
         else:
-            raise InvalidType("Unknown list type.", item)
+            FAIL()
 
-    # Dicts, used to represent mappings, e.g. {uint: uint}. Key must be a base type
-    elif isinstance(item, vy_ast.Dict):
-        warnings.warn(
-            "Anonymous structs have been removed in" " favor of named structs, see VIP300",
-            DeprecationWarning,
-        )
-        raise InvalidType("Invalid type", item)
     elif isinstance(item, vy_ast.Tuple):
-        members = [parse_type(x, location, custom_structs=custom_structs) for x in item.elements]
+        members = [parse_type(x, sigs=sigs, custom_structs=custom_structs) for x in item.elements]
         return TupleType(members)
+
     else:
-        raise InvalidType("Invalid type", item)
+        FAIL()
 
 
-# byte array overhead, in words. (it should really be 1, but there are
-# some places in our calling convention where the layout expects 2)
-BYTE_ARRAY_OVERHEAD = 1
-
-
-# Gets the maximum number of memory or storage keys needed to ABI-encode
-# a given type
-def get_size_of_type(typ):
-    if isinstance(typ, BaseType):
-        return 1
-    elif isinstance(typ, ByteArrayLike):
-        # 1 word for offset (in static section), 1 word for length,
-        # up to maxlen words for actual data.
-        return ceil32(typ.maxlen) // 32 + BYTE_ARRAY_OVERHEAD
-    elif isinstance(typ, ListType):
-        return get_size_of_type(typ.subtype) * typ.count
-    elif isinstance(typ, MappingType):
-        raise InvalidType("Maps are not supported for function arguments or outputs.")
-    elif isinstance(typ, TupleLike):
-        return sum([get_size_of_type(v) for v in typ.tuple_members()])
-    else:
-        raise InvalidType(f"Can not get size of type, Unexpected type: {repr(typ)}")
+# dynamic array overhead, in words.
+DYNAMIC_ARRAY_OVERHEAD = 1
 
 
 def get_type_for_exact_size(n_bytes):
@@ -325,7 +433,7 @@ def get_type_for_exact_size(n_bytes):
     Returns:
       type: A type which can be passed to context.new_variable
     """
-    return ByteArrayType(n_bytes - 32 * BYTE_ARRAY_OVERHEAD)
+    return ByteArrayType(n_bytes - 32 * DYNAMIC_ARRAY_OVERHEAD)
 
 
 def get_type(input):
@@ -347,6 +455,12 @@ def is_numeric_type(typ):
         "uint256",
         "decimal",
     )
+
+
+def is_signed_num(typ):
+    if not is_numeric_type(typ):
+        return None
+    return typ.typ.startswith("u")
 
 
 # Is a type representing some particular base type?

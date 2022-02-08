@@ -1,31 +1,32 @@
 import vyper.utils as util
 from vyper import ast as vy_ast
-from vyper.exceptions import StateAccessViolation, StructureException, TypeCheckFailure
-from vyper.old_codegen.abi import abi_encode, abi_type_of
-from vyper.old_codegen.lll_node import Encoding, LLLnode
-from vyper.old_codegen.parser_utils import (
+from vyper.codegen.abi_encoder import abi_encode
+from vyper.codegen.core import (
     calculate_type_for_external_return,
+    check_external_call,
     get_element_ptr,
     getpos,
     unwrap_location,
 )
-from vyper.old_codegen.types import TupleType, canonicalize_type, get_type_for_exact_size
-from vyper.old_codegen.types.check import check_assign
+from vyper.codegen.lll_node import Encoding, LLLnode
+from vyper.codegen.types import TupleType, get_type_for_exact_size
+from vyper.codegen.types.check import check_assign
+from vyper.exceptions import StateAccessViolation, StructureException, TypeCheckFailure
 
 
 def _pack_arguments(contract_sig, args, context, pos):
     # abi encoding just treats all args as a big tuple
     args_tuple_t = TupleType([x.typ for x in args])
     args_as_tuple = LLLnode.from_list(["multi"] + [x for x in args], typ=args_tuple_t)
-    args_abi_t = abi_type_of(args_tuple_t)
+    args_abi_t = args_tuple_t.abi_type
 
     # sanity typecheck - make sure the arguments can be assigned
     dst_tuple_t = TupleType([arg.typ for arg in contract_sig.args][: len(args)])
     _tmp = LLLnode("fake node", location="memory", typ=dst_tuple_t)
-    check_assign(_tmp, args_as_tuple, pos)
+    check_assign(_tmp, args_as_tuple, context, pos)
 
     if contract_sig.return_type is not None:
-        return_abi_t = abi_type_of(calculate_type_for_external_return(contract_sig.return_type))
+        return_abi_t = calculate_type_for_external_return(contract_sig.return_type).abi_type
 
         # we use the same buffer for args and returndata,
         # so allocate enough space here for the returndata too.
@@ -41,7 +42,7 @@ def _pack_arguments(contract_sig, args, context, pos):
     args_ofst = buf + 28
     args_len = args_abi_t.size_bound() + 4
 
-    abi_signature = contract_sig.name + canonicalize_type(dst_tuple_t)
+    abi_signature = contract_sig.name + dst_tuple_t.abi_type.selector_name()
 
     # layout:
     # 32 bytes                 | args
@@ -55,7 +56,7 @@ def _pack_arguments(contract_sig, args, context, pos):
     if len(args) == 0:
         encode_args = ["pass"]
     else:
-        encode_args = abi_encode(buf + 32, args_as_tuple, pos)
+        encode_args = abi_encode(buf + 32, args_as_tuple, context, pos, bufsz=buflen)
 
     return buf, mstore_method_id + [encode_args], args_ofst, args_len
 
@@ -66,7 +67,7 @@ def _returndata_encoding(contract_sig):
     return Encoding.ABI
 
 
-def _unpack_returndata(buf, contract_sig, context, pos):
+def _unpack_returndata(buf, contract_sig, skip_contract_check, context, pos):
     return_t = contract_sig.return_type
     if return_t is None:
         return ["pass"], 0, 0
@@ -77,7 +78,7 @@ def _unpack_returndata(buf, contract_sig, context, pos):
     # so that the ABI decoding works correctly
     should_unwrap_abi_tuple = return_t != contract_sig.return_type
 
-    abi_return_t = abi_type_of(return_t)
+    abi_return_t = return_t.abi_type
 
     min_return_size = abi_return_t.min_size()
     max_return_size = abi_return_t.size_bound()
@@ -90,7 +91,8 @@ def _unpack_returndata(buf, contract_sig, context, pos):
     ret = []
     # runtime: min_return_size <= returndatasize
     # TODO move the -1 optimization to LLL optimizer
-    ret += [["assert", ["gt", "returndatasize", min_return_size - 1]]]
+    if not skip_contract_check:
+        ret += [["assert", ["gt", "returndatasize", min_return_size - 1]]]
 
     # add as the last LLLnode a pointer to the return data structure
 
@@ -112,16 +114,25 @@ def _unpack_returndata(buf, contract_sig, context, pos):
 
 
 def _external_call_helper(
-    contract_address, contract_sig, args_lll, context, pos=None, value=None, gas=None
+    contract_address,
+    contract_sig,
+    args_lll,
+    context,
+    pos=None,
+    value=None,
+    gas=None,
+    skip_contract_check=None,
 ):
 
     if value is None:
         value = 0
     if gas is None:
         gas = "gas"
+    if skip_contract_check is None:
+        skip_contract_check = False
 
     # sanity check
-    assert len(contract_sig.args) == len(args_lll)
+    assert len(contract_sig.base_args) <= len(args_lll) <= len(contract_sig.args)
 
     if context.is_constant() and contract_sig.mutability not in ("view", "pure"):
         # TODO is this already done in type checker?
@@ -135,11 +146,13 @@ def _external_call_helper(
 
     buf, arg_packer, args_ofst, args_len = _pack_arguments(contract_sig, args_lll, context, pos)
 
-    ret_unpacker, ret_ofst, ret_len = _unpack_returndata(buf, contract_sig, context, pos)
+    ret_unpacker, ret_ofst, ret_len = _unpack_returndata(
+        buf, contract_sig, skip_contract_check, context, pos
+    )
 
     sub += arg_packer
 
-    if contract_sig.return_type is None:
+    if contract_sig.return_type is None and not skip_contract_check:
         # if we do not expect return data, check that a contract exists at the
         # target address. we must perform this check BEFORE the call because
         # the contract might selfdestruct. on the other hand we can omit this
@@ -153,7 +166,7 @@ def _external_call_helper(
     else:
         call_op = ["call", gas, contract_address, value, args_ofst, args_len, ret_ofst, ret_len]
 
-    sub.append(["assert", call_op])
+    sub.append(check_external_call(call_op))
 
     if contract_sig.return_type is not None:
         sub += ret_unpacker
@@ -170,26 +183,30 @@ def _external_call_helper(
     return ret
 
 
-# TODO push me up to expr.py
-def get_gas_and_value(stmt_expr, context):
-    from vyper.old_codegen.expr import Expr  # TODO rethink this circular import
+def _get_special_kwargs(stmt_expr, context):
+    from vyper.codegen.expr import Expr  # TODO rethink this circular import
 
-    value, gas = None, None
+    value, gas, skip_contract_check = None, None, None
     for kw in stmt_expr.keywords:
         if kw.arg == "gas":
             gas = Expr.parse_value_expr(kw.value, context)
         elif kw.arg == "value":
             value = Expr.parse_value_expr(kw.value, context)
+        elif kw.arg == "skip_contract_check":
+            skip_contract_check = kw.value.value
+            assert isinstance(skip_contract_check, bool), "type checker missed this"
         else:
             raise TypeCheckFailure("Unexpected keyword argument")
-    return value, gas
+
+    # TODO maybe return a small dataclass to reduce verbosity
+    return value, gas, skip_contract_check
 
 
 def lll_for_external_call(stmt_expr, context):
-    from vyper.old_codegen.expr import Expr  # TODO rethink this circular import
+    from vyper.codegen.expr import Expr  # TODO rethink this circular import
 
     pos = getpos(stmt_expr)
-    value, gas = get_gas_and_value(stmt_expr, context)
+    value, gas, skip_contract_check = _get_special_kwargs(stmt_expr, context)
     args_lll = [Expr(x, context).lll_node for x in stmt_expr.args]
 
     if isinstance(stmt_expr.func, vy_ast.Attribute) and isinstance(
@@ -240,6 +257,7 @@ def lll_for_external_call(stmt_expr, context):
         pos,
         value=value,
         gas=gas,
+        skip_contract_check=skip_contract_check,
     )
     ret.annotation = stmt_expr.get("node_source_code")
 

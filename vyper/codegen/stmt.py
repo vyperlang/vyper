@@ -1,14 +1,24 @@
-import vyper.old_codegen.events as events
+import vyper.codegen.events as events
 import vyper.utils as util
 from vyper import ast as vy_ast
 from vyper.builtin_functions import STMT_DISPATCH_TABLE
-from vyper.exceptions import StructureException, TypeCheckFailure
-from vyper.old_codegen import external_call, self_call
-from vyper.old_codegen.context import Context
-from vyper.old_codegen.expr import Expr
-from vyper.old_codegen.parser_utils import LLLnode, getpos, make_setter, unwrap_location
-from vyper.old_codegen.return_ import make_return_stmt
-from vyper.old_codegen.types import BaseType, ByteArrayType, ListType, get_size_of_type, parse_type
+from vyper.codegen import external_call, self_call
+from vyper.codegen.context import Constancy, Context
+from vyper.codegen.core import (
+    LLLnode,
+    get_dyn_array_count,
+    get_element_ptr,
+    getpos,
+    make_byte_array_copier,
+    make_setter,
+    unwrap_location,
+    zero_pad,
+)
+from vyper.codegen.expr import Expr
+from vyper.codegen.return_ import make_return_stmt
+from vyper.codegen.types import BaseType, ByteArrayType, DArrayType, parse_type
+from vyper.codegen.types.convert import new_type_to_old_type
+from vyper.exceptions import CompilerPanic, StructureException, TypeCheckFailure
 
 
 class Stmt:
@@ -42,7 +52,7 @@ class Stmt:
     def parse_AnnAssign(self):
         typ = parse_type(
             self.stmt.annotation,
-            location="memory",
+            sigs=self.context.sigs,
             custom_structs=self.context.structs,
         )
         varname = self.stmt.target.id
@@ -75,7 +85,7 @@ class Stmt:
             pos=getpos(self.stmt),
         )
 
-        lll_node = make_setter(variable_loc, sub, pos=getpos(self.stmt))
+        lll_node = make_setter(variable_loc, sub, self.context, pos=getpos(self.stmt))
 
         return lll_node
 
@@ -84,7 +94,7 @@ class Stmt:
         sub = Expr(self.stmt.value, self.context).lll_node
         target = self._get_target(self.stmt.target)
 
-        lll_node = make_setter(target, sub, pos=getpos(self.stmt))
+        lll_node = make_setter(target, sub, self.context, pos=getpos(self.stmt))
         lll_node.pos = getpos(self.stmt)
         return lll_node
 
@@ -142,25 +152,49 @@ class Stmt:
         if isinstance(msg, vy_ast.Name) and msg.id == "UNREACHABLE":
             return LLLnode.from_list(["assert_unreachable", test_expr], typ=None, pos=getpos(msg))
 
-        reason_str_type = ByteArrayType(len(msg.value.strip()))
+        # set constant so that revert reason str is well behaved
+        try:
+            tmp = self.context.constancy
+            self.context.constancy = Constancy.Constant
+            msg_lll = Expr(msg, self.context).lll_node
+        finally:
+            self.context.constancy = tmp
 
-        # abi encode the reason string
-        sig_placeholder = self.context.new_internal_variable(BaseType(32))
+        # TODO this is probably useful in codegen.core
+        # compare with eval_seq.
+        def _get_last(lll):
+            if len(lll.args) == 0:
+                return lll.value
+            return _get_last(lll.args[-1])
+
+        # TODO maybe use ensure_in_memory
+        if msg_lll.location != "memory":
+            buf = self.context.new_internal_variable(msg_lll.typ)
+            instantiate_msg = make_byte_array_copier(buf, msg_lll)
+        else:
+            buf = _get_last(msg_lll)
+            if not isinstance(buf, int):
+                raise CompilerPanic(f"invalid bytestring {buf}\n{self}")
+            instantiate_msg = msg_lll
+
         # offset of bytes in (bytes,)
-        arg_placeholder = self.context.new_internal_variable(BaseType(32))
-        placeholder_bytes = Expr(msg, self.context).lll_node
-
         method_id = util.abi_method_id("Error(string)")
 
         # abi encode method_id + bytestring
+        assert buf >= 36, "invalid buffer"
+        # we don't mind overwriting other memory because we are
+        # getting out of here anyway.
+        _runtime_length = ["mload", buf]
         revert_seq = [
             "seq",
-            ["mstore", sig_placeholder, method_id],
-            ["mstore", arg_placeholder, 32],
-            placeholder_bytes,
-            ["revert", sig_placeholder + 28, int(32 + 4 + get_size_of_type(reason_str_type) * 32)],
+            instantiate_msg,
+            zero_pad(buf),
+            ["mstore", buf - 64, method_id],
+            ["mstore", buf - 32, 0x20],
+            ["revert", buf - 36, ["add", 4 + 32 + 32, ["ceil32", _runtime_length]]],
         ]
-        if test_expr:
+
+        if test_expr is not None:
             lll_node = ["if", ["iszero", test_expr], revert_seq]
         else:
             lll_node = revert_seq
@@ -183,7 +217,7 @@ class Stmt:
 
     def parse_Raise(self):
         if self.stmt.exc:
-            return self._assert_reason(0, self.stmt.exc)
+            return self._assert_reason(None, self.stmt.exc)
         else:
             return LLLnode.from_list(["revert", 0, 0], typ=None, pos=getpos(self.stmt))
 
@@ -218,7 +252,7 @@ class Stmt:
     def _parse_For_range(self):
         # attempt to use the type specified by type checking, fall back to `int256`
         # this is a stopgap solution to allow uint256 - it will be properly solved
-        # once we refactor `vyper.parser`
+        # once we refactor type system
         iter_typ = "int256"
         if "type" in self.stmt.target._metadata:
             iter_typ = self.stmt.target._metadata["type"]._id
@@ -264,80 +298,59 @@ class Stmt:
 
     def _parse_For_list(self):
         with self.context.range_scope():
-            iter_list_node = Expr(self.stmt.iter, self.context).lll_node
-        if not isinstance(iter_list_node.typ.subtype, BaseType):  # Sanity check on list subtype.
-            return
+            iter_list = Expr(self.stmt.iter, self.context).lll_node
 
-        iter_var_type = (
-            self.context.vars.get(self.stmt.iter.id).typ
-            if isinstance(self.stmt.iter, vy_ast.Name)
-            else None
-        )
-        subtype = BaseType(self.stmt.target._metadata["type"]._id)
-        iter_list_node.typ.subtype = subtype
+        # override with type inferred at typechecking time
+        # TODO investigate why stmt.target.type != stmt.iter.type.subtype
+        target_type = new_type_to_old_type(self.stmt.target._metadata["type"])
+        iter_list.typ.subtype = target_type
+
+        # user-supplied name for loop variable
         varname = self.stmt.target.id
-        value_pos = self.context.new_variable(varname, subtype)
-        i_pos = self.context.new_internal_variable(subtype)
+        loop_var = LLLnode.from_list(
+            self.context.new_variable(varname, target_type),
+            typ=target_type,
+            location="memory",
+        )
+
+        iptr = LLLnode.from_list(
+            self.context.new_internal_variable(BaseType("uint256")),
+            typ="uint256",
+            location="memory",
+        )
+
         self.context.forvars[varname] = True
 
-        # Is a list that is already allocated to memory.
-        if iter_var_type:
-            iter_var = self.context.vars.get(self.stmt.iter.id)
-            if iter_var.location == "calldata":
-                fetcher = "calldataload"
-            elif iter_var.location == "memory":
-                fetcher = "mload"
-            else:
-                return
-            body = [
-                "seq",
-                [
-                    "mstore",
-                    value_pos,
-                    [fetcher, ["add", iter_var.pos, ["mul", ["mload", i_pos], 32]]],
-                ],
-                parse_body(self.stmt.body, self.context),
-            ]
-            lll_node = LLLnode.from_list(
-                ["repeat", i_pos, 0, iter_var.size, body], typ=None, pos=getpos(self.stmt)
-            )
+        ret = ["seq"]
 
-        # List gets defined in the for statement.
-        elif isinstance(self.stmt.iter, vy_ast.List):
-            # Allocate list to memory.
-            count = iter_list_node.typ.count
+        # list literal, force it to memory first
+        if isinstance(self.stmt.iter, vy_ast.List):
             tmp_list = LLLnode.from_list(
-                obj=self.context.new_internal_variable(ListType(subtype, count)),
-                typ=ListType(subtype, count),
+                self.context.new_internal_variable(iter_list.typ),
+                typ=iter_list.typ,
                 location="memory",
             )
-            setter = make_setter(tmp_list, iter_list_node, pos=getpos(self.stmt))
-            body = [
-                "seq",
-                ["mstore", value_pos, ["mload", ["add", tmp_list, ["mul", ["mload", i_pos], 32]]]],
-                parse_body(self.stmt.body, self.context),
-            ]
-            lll_node = LLLnode.from_list(
-                ["seq", setter, ["repeat", i_pos, 0, count, body]], typ=None, pos=getpos(self.stmt)
-            )
+            ret.append(make_setter(tmp_list, iter_list, self.context, pos=getpos(self.stmt)))
+            iter_list = tmp_list
 
-        # List contained in storage.
-        elif isinstance(self.stmt.iter, vy_ast.Attribute):
-            count = iter_list_node.typ.count
-            body = [
-                "seq",
-                ["mstore", value_pos, ["sload", ["add", iter_list_node, ["mload", i_pos]]]],
-                parse_body(self.stmt.body, self.context),
-            ]
-            lll_node = LLLnode.from_list(
-                ["seq", ["repeat", i_pos, 0, count, body]], typ=None, pos=getpos(self.stmt)
-            )
+        # set up the loop variable
+        loop_var_ast = getpos(self.stmt.target)
+        e = get_element_ptr(iter_list, iptr, array_bounds_check=False, pos=loop_var_ast)
+        body = [
+            "seq",
+            make_setter(loop_var, e, self.context, pos=loop_var_ast),
+            parse_body(self.stmt.body, self.context),
+        ]
 
-        # this kind of open access to the vars dict should be disallowed.
-        # we should use member functions to provide an API for these kinds
-        # of operations.
+        repeat_bound = iter_list.typ.count
+        if isinstance(iter_list.typ, DArrayType):
+            array_len = get_dyn_array_count(iter_list)
+            ret.append(["repeat", iptr, 0, array_len, repeat_bound, body])
+        else:
+            ret.append(["repeat", iptr, 0, repeat_bound, body])
+
         del self.context.forvars[varname]
-        return lll_node
+        return LLLnode.from_list(ret, pos=getpos(self.stmt))
 
     def parse_AugAssign(self):
         target = self._get_target(self.stmt.target)
@@ -354,6 +367,7 @@ class Stmt:
                     col_offset=self.stmt.col_offset,
                     end_lineno=self.stmt.end_lineno,
                     end_col_offset=self.stmt.end_col_offset,
+                    node_source_code=self.stmt.get("node_source_code"),
                 ),
                 self.context,
             )
@@ -372,6 +386,7 @@ class Stmt:
                     col_offset=self.stmt.col_offset,
                     end_lineno=self.stmt.end_lineno,
                     end_col_offset=self.stmt.end_col_offset,
+                    node_source_code=self.stmt.get("node_source_code"),
                 ),
                 self.context,
             )
@@ -394,19 +409,21 @@ class Stmt:
         return make_return_stmt(lll_val, self.stmt, self.context)
 
     def _get_target(self, target):
+        _dbg_expr = target
+
         if isinstance(target, vy_ast.Name) and target.id in self.context.forvars:
-            raise TypeCheckFailure("Failed for-loop constancy check")
+            raise TypeCheckFailure(f"Failed constancy check\n{_dbg_expr}")
 
         if isinstance(target, vy_ast.Tuple):
             target = Expr(target, self.context).lll_node
             for node in target.args:
                 if (node.location == "storage" and self.context.is_constant()) or not node.mutable:
-                    raise TypeCheckFailure("Failed for-loop constancy check")
+                    raise TypeCheckFailure(f"Failed constancy check\n{_dbg_expr}")
             return target
 
         target = Expr.parse_variable_location(target, self.context)
         if (target.location == "storage" and self.context.is_constant()) or not target.mutable:
-            raise TypeCheckFailure("Failed for-loop constancy check")
+            raise TypeCheckFailure(f"Failed constancy check\n{_dbg_expr}")
         return target
 
 

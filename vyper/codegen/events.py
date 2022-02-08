@@ -1,12 +1,13 @@
 from typing import Tuple
 
+from vyper.abi_types import ABI_Tuple
+from vyper.codegen.abi_encoder import abi_encode
+from vyper.codegen.context import Context
+from vyper.codegen.core import getpos, lll_tuple_from_args, unwrap_location
+from vyper.codegen.keccak256_helper import keccak256_helper
+from vyper.codegen.lll_node import LLLnode
+from vyper.codegen.types.types import BaseType, ByteArrayLike, get_type_for_exact_size
 from vyper.exceptions import TypeMismatch
-from vyper.old_codegen.abi import ABI_Tuple, abi_encode, abi_type_of, abi_type_of2
-from vyper.old_codegen.context import Context
-from vyper.old_codegen.keccak256_helper import keccak256_helper
-from vyper.old_codegen.lll_node import LLLnode
-from vyper.old_codegen.parser_utils import getpos, lll_tuple_from_args, unwrap_location
-from vyper.old_codegen.types.types import BaseType, ByteArrayLike, get_type_for_exact_size
 from vyper.semantics.types import Event
 
 
@@ -19,7 +20,7 @@ def _encode_log_topics(expr, event_id, arg_nodes, context):
             value = unwrap_location(arg)
 
         elif isinstance(arg.typ, ByteArrayLike):
-            value = keccak256_helper(expr, [arg], kwargs=None, context=context)
+            value = keccak256_helper(expr, arg, context=context)
         else:
             # TODO block at higher level
             raise TypeMismatch("Event indexes may only be value types", expr)
@@ -48,7 +49,7 @@ def allocate_buffer_for_log(event: Event, context: Context) -> Tuple[int, int]:
     arg_types = [arg_t for arg_t, is_index in zip(arg_types, event.indexed) if not is_index]
 
     # all args get encoded as one big tuple
-    abi_t = ABI_Tuple([abi_type_of2(arg_t) for arg_t in arg_types])
+    abi_t = ABI_Tuple([t.abi_type for t in arg_types])
 
     # make a buffer for the encoded data output
     buf_maxlen = abi_t.size_bound()
@@ -76,11 +77,11 @@ def lll_node_for_log(expr, buf, _maxlen, event, topic_nodes, data_nodes, context
     data = lll_tuple_from_args(data_nodes)
 
     # sanity check, abi size_bound is the same calculated both ways
-    assert abi_type_of(data.typ).size_bound() == _maxlen, "bad buffer size"
+    assert data.typ.abi_type.size_bound() == _maxlen, "bad buffer size"
 
     # encode_data is an LLLnode which, cleverly, both encodes the data
     # and returns the length of the encoded data as a stack item.
-    encode_data = abi_encode(buf, data, pos=_pos, returns_len=True)
+    encode_data = abi_encode(buf, data, context, pos=_pos, returns_len=True, bufsz=_maxlen)
 
     assert len(topics) <= 4, "too many topics"  # sanity check
     log_opcode = "log" + str(len(topics))

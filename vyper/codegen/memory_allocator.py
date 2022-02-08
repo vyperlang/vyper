@@ -87,7 +87,7 @@ class MemoryAllocator:
             Start offset of the newly allocated memory.
         """
         if size % 32 != 0:
-            raise CompilerPanic("Memory misaligment, only multiples of 32 supported.")
+            raise CompilerPanic(f"tried to allocate {size} bytes, only multiples of 32 supported.")
 
         # check for deallocated memory prior to expanding
         for i, free_memory in enumerate(self.deallocated_mem):

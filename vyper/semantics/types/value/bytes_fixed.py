@@ -1,4 +1,5 @@
 from vyper import ast as vy_ast
+from vyper.abi_types import ABI_BytesM, ABIType
 from vyper.exceptions import InvalidLiteral
 from vyper.semantics.types.abstract import BytesAbstractType
 from vyper.semantics.types.bases import BasePrimitive, BaseTypeDefinition, ValueTypeDefinition
@@ -11,6 +12,10 @@ class Bytes32Definition(BytesAbstractType, ValueTypeDefinition):
     length = 32
     _length = 32
     _min_length = 32
+
+    @property
+    def abi_type(self) -> ABIType:
+        return ABI_BytesM(self.length)
 
 
 class Bytes32Primitive(BasePrimitive):

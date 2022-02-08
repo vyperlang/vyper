@@ -14,6 +14,7 @@ from vyper.exceptions import (
     NamespaceCollision,
     StateAccessViolation,
     StructureException,
+    SyntaxException,
     UndeclaredDefinition,
     VariableDeclarationException,
     VyperException,
@@ -95,19 +96,22 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
         module_node._metadata["type"] = interface
 
         # get list of internal function calls made by each function
-        call_function_names = set()
-        for node in self.ast.get_children(vy_ast.FunctionDef):
-            call_function_names.add(node.name)
-            self_members[node.name].internal_calls = set(
+        function_defs = self.ast.get_children(vy_ast.FunctionDef)
+        function_names = set(node.name for node in function_defs)
+        for node in function_defs:
+            calls_to_self = set(
                 i.func.attr for i in node.get_descendants(vy_ast.Call, {"func.value.id": "self"})
             )
+            # anything that is not a function call will get semantically checked later
+            calls_to_self = calls_to_self.intersection(function_names)
+            self_members[node.name].internal_calls = calls_to_self
             if node.name in self_members[node.name].internal_calls:
                 self_node = node.get_descendants(
                     vy_ast.Attribute, {"value.id": "self", "attr": node.name}
                 )[0]
                 raise CallViolation(f"Function '{node.name}' calls into itself", self_node)
 
-        for fn_name in sorted(call_function_names):
+        for fn_name in sorted(function_names):
 
             if fn_name not in self_members:
                 # the referenced function does not exist - this is an issue, but we'll report
@@ -148,16 +152,16 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
             self.namespace[interface_name].validate_implements(node)
             return
 
-        is_immutable, is_public = False, False
+        is_constant, is_public, is_immutable = False, False, False
         annotation = node.annotation
         if isinstance(annotation, vy_ast.Call):
             # the annotation is a function call, e.g. `foo: constant(uint256)`
             call_name = annotation.get("func.id")
-            if call_name in ("constant", "public"):
+            if call_name in ("constant", "public", "immutable"):
                 validate_call_args(annotation, 1)
                 if call_name == "constant":
                     # declaring a constant
-                    is_immutable = True
+                    is_constant = True
 
                 elif call_name == "public":
                     # declaring a public variable
@@ -167,15 +171,43 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
                     # we need this when builing the public getter
                     node._metadata["func_type"] = ContractFunction.from_AnnAssign(node)
 
+                elif call_name == "immutable":
+                    # declaring an immutable variable
+                    is_immutable = True
+
+                    # mutability is checked automatically preventing assignment
+                    # outside of the constructor, here we just check a value is assigned,
+                    # not necessarily where
+                    assignments = self.ast.get_descendants(
+                        vy_ast.Assign, filters={"target.id": node.target.id}
+                    )
+                    if not assignments:
+                        # Special error message for common wrong usages via `self.<immutable name>`
+                        wrong_self_attribute = self.ast.get_descendants(
+                            vy_ast.Attribute, {"value.id": "self", "attr": node.target.id}
+                        )
+                        message = (
+                            "Immutable variables must be accessed without 'self'"
+                            if len(wrong_self_attribute) > 0
+                            else "Immutable definition requires an assignment in the constructor"
+                        )
+                        raise SyntaxException(
+                            message,
+                            node.node_source_code,
+                            node.lineno,
+                            node.col_offset,
+                        )
+
                 # remove the outer call node, to handle cases such as `public(map(..))`
                 annotation = annotation.args[0]
 
+        data_loc = DataLocation.CODE if is_immutable else DataLocation.STORAGE
         type_definition = get_type_from_annotation(
-            annotation, DataLocation.STORAGE, is_immutable, is_public
+            annotation, data_loc, is_constant, is_public, is_immutable
         )
         node._metadata["type"] = type_definition
 
-        if is_immutable:
+        if is_constant:
             if not node.value:
                 raise VariableDeclarationException("Constant must be declared with a value", node)
             if not check_literal(node.value):
@@ -189,9 +221,17 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
             return
 
         if node.value:
+            var_type = "Immutable" if is_immutable else "Storage"
             raise VariableDeclarationException(
-                "Storage variables cannot have an initial value", node.value
+                f"{var_type} variables cannot have an initial value", node.value
             )
+
+        if is_immutable:
+            try:
+                self.namespace[name] = type_definition
+            except VyperException as exc:
+                raise exc.with_annotation(node) from None
+            return
 
         try:
             self.namespace.validate_assignment(name)

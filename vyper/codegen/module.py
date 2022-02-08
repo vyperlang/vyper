@@ -1,21 +1,23 @@
-from typing import Any, List, Optional, Tuple, Union
+# a contract.vy -- all functions and constructor
+
+from typing import Any, List, Tuple, Union
 
 from vyper import ast as vy_ast
-from vyper.ast.signatures.function_signature import FunctionSignature
+from vyper.ast.signatures.function_signature import FunctionSignature, FunctionSignatures
+from vyper.codegen.core import make_setter
+from vyper.codegen.function_definitions import (
+    generate_lll_for_function,
+    is_default_func,
+    is_initializer,
+)
+from vyper.codegen.global_context import GlobalContext
+from vyper.codegen.lll_node import LLLnode
 from vyper.exceptions import (
     EventDeclarationException,
     FunctionDeclarationException,
     StructureException,
 )
-from vyper.old_codegen.function_definitions import (
-    generate_lll_for_function,
-    is_default_func,
-    is_initializer,
-)
-from vyper.old_codegen.global_context import GlobalContext
-from vyper.old_codegen.lll_node import LLLnode
 from vyper.semantics.types.function import FunctionVisibility, StateMutability
-from vyper.typing import InterfaceImports
 from vyper.utils import LOADED_LIMITS
 
 # TODO remove this check
@@ -177,13 +179,60 @@ def parse_regular_functions(
     ]
     runtime.extend(internal_funcs)
 
-    # TODO CMC 20210911 why does the lll have a trailing 0
-    o.append(["return", 0, ["lll", runtime, 0]])
+    immutables = [_global for _global in global_ctx._globals.values() if _global.is_immutable]
+
+    # TODO: enable usage of the data section beyond just user defined immutables
+    # https://github.com/vyperlang/vyper/pull/2466#discussion_r722816358
+    if len(immutables) > 0:
+        # find position of the last immutable so we do not overwrite it in memory
+        # when we codecopy the runtime code to memory
+        immutables = sorted(immutables, key=lambda imm: imm.pos)
+        start_pos = immutables[-1].pos + immutables[-1].size * 32
+        # create sequence of actions to copy immutables to the end of the runtime code in memory
+        data_section = []
+        for immutable in immutables:
+            # store each immutable at the end of the runtime code
+            memory_loc, offset = (
+                immutable.pos,
+                immutable.data_offset,
+            )
+            lhs = LLLnode.from_list(
+                ["add", start_pos + offset, "_lllsz"], typ=immutable.typ, location="memory"
+            )
+            rhs = LLLnode.from_list(memory_loc, typ=immutable.typ, location="memory")
+            data_section.append(
+                make_setter(
+                    lhs,
+                    rhs,
+                    # hack -- make_setter happens to not require memory
+                    # allocator for memory-memory copies. TODO fixme
+                    context=None,
+                    pos=None,
+                )
+            )
+
+        data_section_size = sum([immutable.size * 32 for immutable in immutables])
+        o.append(
+            [
+                "with",
+                "_lllsz",  # keep size of runtime bytecode in sz var
+                ["lll", start_pos, runtime],  # store runtime code at `start_pos`
+                # sequence of copying immutables, with final action of returning the runtime code
+                ["seq", *data_section, ["return", start_pos, ["add", data_section_size, "_lllsz"]]],
+            ]
+        )
+
+    else:
+        # NOTE: lll macro first argument is the location in memory to store
+        # the compiled bytecode
+        # https://lll-docs.readthedocs.io/en/latest/lll_reference.html#code-lll
+        o.append(["return", 0, ["lll", 0, runtime]])
+
     return o, runtime
 
 
 # Main python parse tree => LLL method
-def parse_tree_to_lll(global_ctx: GlobalContext) -> Tuple[LLLnode, LLLnode]:
+def parse_tree_to_lll(global_ctx: GlobalContext) -> Tuple[LLLnode, LLLnode, FunctionSignatures]:
     _names_def = [_def.name for _def in global_ctx._defs]
     # Checks for duplicate function names
     if len(set(_names_def)) < len(_names_def):
@@ -237,18 +286,4 @@ def parse_tree_to_lll(global_ctx: GlobalContext) -> Tuple[LLLnode, LLLnode]:
     else:
         runtime = o.copy()
 
-    return LLLnode.from_list(o), LLLnode.from_list(runtime)
-
-
-# TODO this function is dead code
-def parse_to_lll(
-    source_code: str, runtime_only: bool = False, interface_codes: Optional[InterfaceImports] = None
-) -> LLLnode:
-    vyper_module = vy_ast.parse_to_ast(source_code)
-    global_ctx = GlobalContext.get_global_context(vyper_module, interface_codes=interface_codes)
-    lll_nodes, lll_runtime = parse_tree_to_lll(global_ctx)
-
-    if runtime_only:
-        return lll_runtime
-    else:
-        return lll_nodes
+    return LLLnode.from_list(o), LLLnode.from_list(runtime), sigs

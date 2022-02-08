@@ -274,7 +274,7 @@ def foo():
     }
 
     # Event is decoded correctly
-    timestamp = w3.eth.getBlock(w3.eth.blockNumber).timestamp
+    timestamp = w3.eth.get_block(w3.eth.block_number).timestamp
     logs = get_logs(tx_hash, c, "MyLog")
 
     assert logs[0].args.arg1 == [1, 2]
@@ -422,7 +422,7 @@ def foo():
     }
 
     # Event is decoded correctly
-    timestamp = w3.eth.getBlock(w3.eth.blockNumber).timestamp
+    timestamp = w3.eth.get_block(w3.eth.block_number).timestamp
     logs = get_logs(tx_hash, c, "MyLog")
     args = logs[0].args
     assert args.arg1 == 123

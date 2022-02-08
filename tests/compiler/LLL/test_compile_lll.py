@@ -1,8 +1,8 @@
 import pytest
 
+from vyper.codegen.lll_node import LLLnode
 from vyper.lll import compile_lll
 from vyper.lll.s_expressions import parse_s_exp
-from vyper.old_codegen.parser import LLLnode
 
 fail_list = [
     [-(2 ** 255) - 3],
@@ -41,12 +41,13 @@ def test_lll_from_s_expression(get_contract_from_lll):
   (return
     0
     (lll ; just return 32 byte of calldata back
+      0
       (seq
           (calldatacopy 0 4 32)
           (return 0 32)
           stop
         )
-      0)))
+      )))
     """
     abi = [
         {

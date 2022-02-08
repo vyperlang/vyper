@@ -12,7 +12,6 @@ from vyper.cli import vyper_json
 from vyper.cli.utils import extract_file_interface_imports, get_interface_file_path
 from vyper.compiler.settings import VYPER_TRACEBACK_LIMIT
 from vyper.evm.opcodes import DEFAULT_EVM_VERSION, EVM_VERSIONS
-from vyper.old_codegen import parser_utils
 from vyper.typing import ContractCodes, ContractPath, OutputFormats
 
 T = TypeVar("T")
@@ -34,6 +33,8 @@ external_interface - External interface of a contract, used for outside contract
 opcodes            - List of opcodes as a string
 opcodes_runtime    - List of runtime opcodes as a string
 ir                 - Intermediate representation in LLL
+ir_json            - Intermediate LLL representation in JSON format
+no-optimize        - Do not optimize (don't use this for production code)
 """
 
 combined_json_outputs = [
@@ -85,11 +86,11 @@ def _parse_args(argv):
     parser.add_argument(
         "--version",
         action="version",
-        version=f"{vyper.__version__}+commit.{vyper.__commit__}",
+        version=vyper.__version__,
     )
     parser.add_argument(
         "--show-gas-estimates",
-        help="Show gas estimates in ir output mode.",
+        help="Show gas estimates in abi and ir output mode.",
         action="store_true",
     )
     parser.add_argument(
@@ -99,6 +100,12 @@ def _parse_args(argv):
         dest="format",
     )
     parser.add_argument(
+        "--storage-layout-file",
+        help="Override storage slots provided by compiler",
+        dest="storage_layout",
+        nargs="+",
+    )
+    parser.add_argument(
         "--evm-version",
         help=f"Select desired EVM version (default {DEFAULT_EVM_VERSION})",
         choices=list(EVM_VERSIONS),
@@ -106,8 +113,8 @@ def _parse_args(argv):
         dest="evm_version",
     )
     parser.add_argument(
-        "--ovm",
-        help="EXPERIMENTAL: Use the OVM backend",
+        "--no-optimize",
+        help="Do not optimize",
         action="store_true",
     )
     parser.add_argument(
@@ -154,7 +161,8 @@ def _parse_args(argv):
         args.root_folder,
         args.show_gas_estimates,
         args.evm_version,
-        args.ovm,
+        args.no_optimize,
+        args.storage_layout,
     )
 
     if args.output_path:
@@ -225,11 +233,9 @@ def compile_files(
     root_folder: str = ".",
     show_gas_estimates: bool = False,
     evm_version: str = DEFAULT_EVM_VERSION,
-    use_ovm: bool = False,
+    no_optimize: bool = False,
+    storage_layout: Iterable[str] = None,
 ) -> OrderedDict:
-
-    if show_gas_estimates:
-        parser_utils.LLLnode.repr_show_gas = True
 
     root_path = Path(root_folder).resolve()
     if not root_path.exists():
@@ -247,6 +253,13 @@ def compile_files(
             # https://bugs.python.org/issue35107
             contract_sources[file_str] = fh.read() + "\n"
 
+    storage_layouts = OrderedDict()
+    if storage_layout:
+        for storage_file_name, contract_name in zip(storage_layout, contract_sources.keys()):
+            storage_file_path = Path(storage_file_name)
+            with storage_file_path.open() as sfh:
+                storage_layouts[contract_name] = json.load(sfh)
+
     show_version = False
     if "combined_json" in output_formats:
         if len(output_formats) > 1:
@@ -254,7 +267,7 @@ def compile_files(
         output_formats = combined_json_outputs
         show_version = True
 
-    translate_map = {"abi_python": "abi", "json": "abi", "ast": "ast_dict"}
+    translate_map = {"abi_python": "abi", "json": "abi", "ast": "ast_dict", "ir_json": "ir_dict"}
     final_formats = [translate_map.get(i, i) for i in output_formats]
 
     compiler_data = vyper.compile_codes(
@@ -263,7 +276,9 @@ def compile_files(
         exc_handler=exc_handler,
         interface_codes=get_interface_codes(root_path, contract_sources),
         evm_version=evm_version,
-        use_ovm=use_ovm,
+        no_optimize=no_optimize,
+        storage_layouts=storage_layouts,
+        show_gas_estimates=show_gas_estimates,
     )
     if show_version:
         compiler_data["version"] = vyper.__version__

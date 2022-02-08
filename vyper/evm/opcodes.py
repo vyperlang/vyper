@@ -187,6 +187,7 @@ PSEUDO_OPCODES: OpcodeMap = {
     "UCLAMPLT": (None, 2, 1, 25),
     "UCLAMPLE": (None, 2, 1, 30),
     "CLAMP_NONZERO": (None, 1, 1, 19),
+    "CODELOAD": (None, 1, 1, 9),
     "ASSERT": (None, 1, 0, 85),
     "ASSERT_UNREACHABLE": (None, 1, 0, 17),
     "PASS": (None, 0, 0, 0),
@@ -241,12 +242,13 @@ def _mk_version_opcodes(opcodes: OpcodeMap, idx: int) -> OpcodeRulesetMap:
     )
 
 
-_evm_opcodes: Dict[int, OpcodeRulesetMap] = dict(
-    (v, _mk_version_opcodes(OPCODES, v)) for v in EVM_VERSIONS.values()
-)
-_evm_combined: Dict[int, OpcodeRulesetMap] = dict(
-    (v, _mk_version_opcodes(COMB_OPCODES, v)) for v in EVM_VERSIONS.values()
-)
+_evm_opcodes: Dict[int, OpcodeRulesetMap] = {
+    v: _mk_version_opcodes(OPCODES, v) for v in EVM_VERSIONS.values()
+}
+
+_evm_combined: Dict[int, OpcodeRulesetMap] = {
+    v: _mk_version_opcodes(COMB_OPCODES, v) for v in EVM_VERSIONS.values()
+}
 
 
 def get_opcodes() -> OpcodeRulesetMap:
@@ -264,8 +266,5 @@ def version_check(begin: Optional[str] = None, end: Optional[str] = None) -> boo
         begin_idx = min(EVM_VERSIONS.values())
     else:
         begin_idx = EVM_VERSIONS[begin]
-    if end is None:
-        end_idx = max(EVM_VERSIONS.values())
-    else:
-        end_idx = EVM_VERSIONS[end]
+    end_idx = max(EVM_VERSIONS.values()) if end is None else EVM_VERSIONS[end]
     return begin_idx <= active_evm_version <= end_idx

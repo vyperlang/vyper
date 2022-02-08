@@ -43,7 +43,7 @@ class Event:
 
     @property
     def signature(self):
-        return f"{self.name}({','.join(v.canonical_type for v in self.arguments.values())})"
+        return f"{self.name}({','.join(v.canonical_abi_type for v in self.arguments.values())})"
 
     @classmethod
     def from_abi(cls, abi: Dict) -> "Event":

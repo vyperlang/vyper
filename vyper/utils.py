@@ -1,5 +1,4 @@
 import binascii
-import functools
 import sys
 import traceback
 from typing import Dict, List, Union
@@ -106,18 +105,14 @@ MAX_DECIMAL_PLACES = 10
 DECIMAL_DIVISOR = 10 ** MAX_DECIMAL_PLACES
 
 
-# Number of bytes in memory used for system purposes, not for variables
+# memory used for system purposes, not for variables
 class MemoryPositions:
-    ADDRSIZE = 32
-    MAX_INT128 = 64
-    MIN_INT128 = 96
-    MAXDECIMAL = 128
-    MINDECIMAL = 160
-    FREE_VAR_SPACE = 192
-    FREE_VAR_SPACE2 = 224
-    BLANK_SPACE = 256
-    FREE_LOOP_INDEX = 288
-    RESERVED_MEMORY = 320
+    MAXDECIMAL = 32
+    MINDECIMAL = 64
+    FREE_VAR_SPACE = 128
+    FREE_VAR_SPACE2 = 160
+    FREE_LOOP_INDEX = 192
+    RESERVED_MEMORY = 224
 
 
 # Sizes of different data types. Used to clamp types.
@@ -152,9 +147,6 @@ class SizeLimits:
 # Map representing all limits loaded into a contract as part of the initializer
 # code.
 LOADED_LIMITS: Dict[int, int] = {
-    MemoryPositions.ADDRSIZE: SizeLimits.ADDRSIZE,
-    MemoryPositions.MAX_INT128: SizeLimits.MAX_INT128,
-    MemoryPositions.MIN_INT128: SizeLimits.MIN_INT128,
     MemoryPositions.MAXDECIMAL: SizeLimits.MAXDECIMAL,
     MemoryPositions.MINDECIMAL: SizeLimits.MINDECIMAL,
 }
@@ -201,25 +193,13 @@ VALID_LLL_MACROS = {
     "~codelen",
     "label",
     "goto",
+    "~extcode",
+    "~selfcode",
+    "~calldata",
 }
 
 # Available base types
 BASE_TYPES = {"int128", "int256", "decimal", "bytes32", "uint8", "uint256", "bool", "address"}
-
-
-def is_instances(instances, instance_type):
-    return all([isinstance(inst, instance_type) for inst in instances])
-
-
-def iterable_cast(cast_type):
-    def yf(func):
-        @functools.wraps(func)
-        def f(*args, **kwargs):
-            return cast_type(func(*args, **kwargs))
-
-        return f
-
-    return yf
 
 
 def indent(text: str, indent_chars: Union[str, List[str]] = " ", level: int = 1) -> str:
