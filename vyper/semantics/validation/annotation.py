@@ -2,8 +2,7 @@ from vyper import ast as vy_ast
 from vyper.exceptions import StructureException
 from vyper.semantics.types import ArrayDefinition
 from vyper.semantics.types.bases import BaseTypeDefinition
-from vyper.semantics.types.indexable.sequence import DynamicArrayFunctionDefinition
-from vyper.semantics.types.function import ContractFunction
+from vyper.semantics.types.function import ContractFunction, MemberFunctionDefinition
 from vyper.semantics.types.user.event import Event
 from vyper.semantics.types.user.struct import StructPrimitive
 from vyper.semantics.validation.utils import (
@@ -137,9 +136,10 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
             # literal structs
             for value, arg_type in zip(node.args[0].values, list(call_type.members.values())):
                 self.visit(value, arg_type)
-        elif isinstance(call_type, DynamicArrayFunctionDefinition):
-            for arg in node.args:
-                self.visit(arg, node_type.value_type)
+        elif isinstance(call_type, MemberFunctionDefinition):
+            if node_type:
+                for arg in node.args:
+                    self.visit(arg, node_type.value_type)
         elif node.func.id not in ("empty", "range"):
             # builtin functions
             for arg in node.args:

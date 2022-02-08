@@ -25,11 +25,15 @@ from vyper.semantics.environment import CONSTANT_ENVIRONMENT_VARS, MUTABLE_ENVIR
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.abstract import IntegerAbstractType
 from vyper.semantics.types.bases import DataLocation
-from vyper.semantics.types.function import ContractFunction, FunctionVisibility, StateMutability
+from vyper.semantics.types.function import (
+    ContractFunction,
+    FunctionVisibility,
+    MemberFunctionDefinition,
+    StateMutability,
+)
 from vyper.semantics.types.indexable.sequence import (
     ArrayDefinition,
     DynamicArrayDefinition,
-    DynamicArrayFunctionDefinition,
     TupleDefinition,
 )
 from vyper.semantics.types.user.event import Event
@@ -464,8 +468,11 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                     f"Cannot call any function from a {self.func.mutability.value} function", node
                 )
         return_value = fn_type.fetch_call_return(node.value)
-        if return_value and not isinstance(fn_type, DynamicArrayFunctionDefinition) and \
-                not isinstance(fn_type, ContractFunction):
+        if (
+            return_value
+            and not isinstance(fn_type, MemberFunctionDefinition)
+            and not isinstance(fn_type, ContractFunction)
+        ):
             raise StructureException(
                 f"Function '{fn_type._id}' cannot be called without assigning the result", node
             )
