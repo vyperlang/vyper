@@ -296,7 +296,7 @@ class Stmt:
         loop_body.append(parse_body(self.stmt.body, self.context))
 
         lll_node = LLLnode.from_list(
-            ["repeat", i, start, rounds, rounds, parse_body(self.stmt.body, self.context)],
+            ["repeat", i, start, rounds, rounds, loop_body],
             pos=getpos(self.stmt),
         )
         del self.context.forvars[varname]

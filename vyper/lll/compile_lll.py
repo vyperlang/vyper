@@ -257,8 +257,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
 
             # stack: i, rounds
             # if (0 == rounds) { goto end_dest; }
-            t = mksymbol("rounds_nonzero")
-            o.extend(["DUP1", t, "JUMPI", exit_dest, "JUMP", t, "JUMPDEST"])
+            o.extend(["DUP1", "ISZERO", exit_dest, "JUMPI"])
 
         old_height = withargs.get(i_name.value, None)
 

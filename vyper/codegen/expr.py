@@ -796,29 +796,26 @@ class Expr:
         i = LLLnode.from_list(self.context.fresh_varname("in_ix"), typ="uint256")
 
         result_placeholder = self.context.new_internal_variable(BaseType("bool"))
-        setter = []
+
+        ret = ["seq"]
 
         # Load nth item from list in memory.
         if right.value == "multi":
             # Copy literal to memory to be compared.
             tmp_list = LLLnode.from_list(
-                obj=self.context.new_internal_variable(
-                    SArrayType(right.typ.subtype, right.typ.count)
-                ),
-                typ=SArrayType(right.typ.subtype, right.typ.count),
+                self.context.new_internal_variable(right.typ)
+                typ=right.typ,
                 location="memory",
             )
-            setter = make_setter(tmp_list, right, pos=getpos(self.expr))
-            load_i_from_list = [
-                "mload",
-                ["add", tmp_list, ["mul", 32, i]],
-            ]
-        # TODO refactor all this to use get_element_ptr
-        elif right.location == "storage":
+            ret.append(make_setter(tmp_list, right, pos=getpos(self.expr)))
+
+            right = tmp_list
+
+
+        if right.location == "storage":
             load_i_from_list = ["sload", ["add", right, i]]
         else:
-            load_operation = "mload" if right.location == "memory" else "calldataload"
-            load_i_from_list = [load_operation, ["add", right, ["mul", 32, i]]]
+            load_i_from_list = [load_op(right.location), ["add", right, ["mul", 32, i]]]
 
         # Condition repeat loop has to break on.
         break_loop_condition = [
@@ -826,6 +823,11 @@ class Expr:
             ["eq", unwrap_location(left), load_i_from_list],
             ["seq", ["mstore", "_result", 1], "break"],  # store true.
         ]
+
+        if isinstance(right.typ, SArrayType):
+            len_ = right.typ.count
+        else:
+            len_ = get_dyn_array_count(right)
 
         # Repeat loop to loop-compare each item in the list.
         for_loop_sequence = [
@@ -838,7 +840,7 @@ class Expr:
                     "repeat",
                     i,
                     0,
-                    right.typ.count,
+                    len_,
                     right.typ.count,
                     break_loop_condition,
                 ],
@@ -858,6 +860,7 @@ class Expr:
             compare_sequence = ["iszero", compare_sequence]
 
         annotation = self.expr.get("node_source_code")
+
         return LLLnode.from_list(compare_sequence, typ="bool", annotation=annotation)
 
     @staticmethod
