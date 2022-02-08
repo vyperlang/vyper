@@ -417,14 +417,36 @@ def __default__():
     assert w3.eth.get_balance(c.address) == w3.toWei(0.95, "ether")
 
 
-def test_private_msg_sender(get_contract, assert_compile_failed):
+def test_private_msg_sender(get_contract, w3):
     code = """
+event Addr:
+    addr: address
+
 @internal
+@view
 def _whoami() -> address:
     return msg.sender
+
+@external
+@view
+def i_am_me() -> bool:
+    return msg.sender == self._whoami()
+
+@external
+@view
+def whoami() -> address:
+    log Addr(self._whoami())
+    return self._whoami()
     """
 
-    assert_compile_failed(lambda: get_contract(code))
+    c = get_contract(code)
+    assert c.i_am_me()
+
+    addr = w3.eth.accounts[1]
+    txhash = c.whoami(transact={"from": addr})
+    receipt = w3.eth.wait_for_transaction_receipt(txhash)
+    logged_addr = w3.toChecksumAddress(receipt.logs[0].data[-40:])
+    assert logged_addr == addr, "oh no"
 
 
 def test_nested_static_params_only(get_contract, assert_tx_failed):

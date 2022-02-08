@@ -25,7 +25,7 @@ from vyper.semantics.environment import CONSTANT_ENVIRONMENT_VARS, MUTABLE_ENVIR
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.abstract import IntegerAbstractType
 from vyper.semantics.types.bases import DataLocation
-from vyper.semantics.types.function import ContractFunction, FunctionVisibility, StateMutability
+from vyper.semantics.types.function import ContractFunction, StateMutability
 from vyper.semantics.types.indexable.sequence import (
     ArrayDefinition,
     DynamicArrayDefinition,
@@ -165,14 +165,6 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         self.expr_visitor = _LocalExpressionVisitor()
         namespace.update(self.func.arguments)
 
-        if self.func.visibility is FunctionVisibility.INTERNAL:
-            node_list = fn_node.get_descendants(
-                vy_ast.Attribute, {"value.id": "msg", "attr": {"data", "sender"}}
-            )
-            if node_list:
-                raise StateAccessViolation(
-                    f"msg.{node_list[0].attr} is not allowed in internal functions", node_list[0]
-                )
         if self.func.mutability == StateMutability.PURE:
             node_list = fn_node.get_descendants(
                 vy_ast.Attribute,
