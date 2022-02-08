@@ -122,7 +122,7 @@ def _wordsize(location):
     raise CompilerPanic(f"invalid location {location}")  # pragma: no test
 
 
-def _dynarray_make_setter(dst, src, context, pos=None):
+def _dynarray_make_setter(dst, src, pos=None):
     assert isinstance(src.typ, DArrayType)
     assert isinstance(dst.typ, DArrayType)
 
@@ -147,12 +147,14 @@ def _dynarray_make_setter(dst, src, context, pos=None):
 
         if should_loop:
             uint = BaseType("uint256")
-            i = LLLnode.from_list(context.fresh_varname("ix"), typ=uint)
+
+            # note: name clobbering for the ix is OK because
+            # we never reach outside our level of nesting
+            i = LLLnode.from_list("copy_darray_ix", typ=uint)
 
             loop_body = make_setter(
                 get_element_ptr(dst, i, array_bounds_check=False, pos=pos),
                 get_element_ptr(src, i, array_bounds_check=False, pos=pos),
-                context,
                 pos=pos,
             )
             loop_body.annotation = f"{dst}[i] = {src}[i]"
@@ -219,7 +221,7 @@ def copy_bytes(dst, src, length, length_bound, pos=None):
         #   _src += 32
         #   sstore(_dst, mload(_src))
 
-        i = LLLnode.from_list(context.fresh_varname("ix"), typ="uint256")
+        i = LLLnode.from_list("copy_bytes_ix", typ="uint256")
 
         # special case: rhs is zero
         if src.value is None:
@@ -648,7 +650,7 @@ def check_assign(left, right):
 
 
 # Create an x=y statement, where the types may be compound
-def make_setter(left, right, context, pos):
+def make_setter(left, right, pos):
     check_assign(left, right)
 
     # Basic types
@@ -677,29 +679,29 @@ def make_setter(left, right, context, pos):
     elif isinstance(left.typ, DArrayType):
         # handle literals
         if right.value == "multi":
-            return _complex_make_setter(left, right, context, pos)
+            return _complex_make_setter(left, right, pos)
 
         # TODO should we enable this?
         # implicit conversion from sarray to darray
         # if isinstance(right.typ, SArrayType):
-        #    return _complex_make_setter(left, right, context, pos)
+        #    return _complex_make_setter(left, right, pos)
 
         # TODO rethink/streamline the clamp_basetype logic
         if _needs_clamp(right.typ, right.encoding):
             with right.cache_when_complex("arr_ptr") as (b, right):
-                copier = _dynarray_make_setter(left, right, context, pos)
+                copier = _dynarray_make_setter(left, right, pos)
                 ret = b.resolve(["seq", clamp_dyn_array(right), copier])
         else:
-            ret = _dynarray_make_setter(left, right, context, pos)
+            ret = _dynarray_make_setter(left, right, pos)
 
         return LLLnode.from_list(ret)
 
     # Arrays
     elif isinstance(left.typ, (SArrayType, TupleLike)):
-        return _complex_make_setter(left, right, context, pos)
+        return _complex_make_setter(left, right, pos)
 
 
-def _complex_make_setter(left, right, context, pos):
+def _complex_make_setter(left, right, pos):
     if isinstance(left.typ, ArrayLike):
         # right.typ.count is not a typo, handles dyn array -> static array
         ixs = range(right.typ.count)
@@ -733,7 +735,7 @@ def _complex_make_setter(left, right, context, pos):
         for k in keys:
             _l = get_element_ptr(left, k, pos=pos, array_bounds_check=False)
             _r = get_element_ptr(right, k, pos=pos, array_bounds_check=False)
-            ret.append(make_setter(_l, _r, context, pos))
+            ret.append(make_setter(_l, _r, pos))
 
         return b1.resolve(b2.resolve(LLLnode.from_list(ret)))
 

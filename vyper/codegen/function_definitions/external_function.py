@@ -60,7 +60,7 @@ def _register_function_args(context: Context, sig: FunctionSignature) -> List[LL
             # allocate a memory slot for it and copy
             p = context.new_variable(arg.name, arg.typ, is_mutable=False)
             dst = LLLnode(p, typ=arg.typ, location="memory")
-            ret.append(make_setter(dst, arg_lll, context, pos=pos))
+            ret.append(make_setter(dst, arg_lll, pos=pos))
         else:
             # leave it in place
             context.vars[arg.name] = VariableRecord(

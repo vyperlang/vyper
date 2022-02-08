@@ -1,12 +1,11 @@
 import contextlib
 import enum
+from typing import Optional
 
 from vyper.ast import VyperNode
 from vyper.ast.signatures.function_signature import VariableRecord
 from vyper.codegen.types import NodeType
 from vyper.exceptions import CompilerPanic, FunctionDeclarationException
-
-from typing import Optional
 
 
 class Constancy(enum.Enum):

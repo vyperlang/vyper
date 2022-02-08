@@ -38,14 +38,7 @@ from vyper.exceptions import (
     TypeMismatch,
 )
 from vyper.semantics.types import DynamicArrayDefinition
-from vyper.utils import (
-    DECIMAL_DIVISOR,
-    MemoryPositions,
-    SizeLimits,
-    bytes_to_int,
-    checksum_encode,
-    string_to_bytes,
-)
+from vyper.utils import DECIMAL_DIVISOR, SizeLimits, bytes_to_int, checksum_encode, string_to_bytes
 
 # var name: (lllnode, type)
 BUILTIN_CONSTANTS = {
@@ -501,7 +494,7 @@ class Expr:
             # return MY_LIST[ix]
             t = LLLnode(self.context.new_internal_variable(sub.typ), typ=sub.typ, location="memory")
             sub = LLLnode.from_list(
-                ["seq", make_setter(t, sub, self.context, pos=getpos(self.expr)), t],
+                ["seq", make_setter(t, sub, pos=getpos(self.expr)), t],
                 typ=sub.typ,
                 location="memory",
             )
@@ -800,7 +793,7 @@ class Expr:
         left = Expr(self.expr.left, self.context).lll_node
         right = Expr(self.expr.right, self.context).lll_node
 
-        i = LLLnode.from_list(context.fresh_varname("ix"), typ="uint256")
+        i = LLLnode.from_list(self.context.fresh_varname("in_ix"), typ="uint256")
 
         result_placeholder = self.context.new_internal_variable(BaseType("bool"))
         setter = []
@@ -815,17 +808,17 @@ class Expr:
                 typ=SArrayType(right.typ.subtype, right.typ.count),
                 location="memory",
             )
-            setter = make_setter(tmp_list, right, self.context, pos=getpos(self.expr))
+            setter = make_setter(tmp_list, right, pos=getpos(self.expr))
             load_i_from_list = [
                 "mload",
                 ["add", tmp_list, ["mul", 32, i]],
             ]
         # TODO refactor all this to use get_element_ptr
         elif right.location == "storage":
-            load_i_from_list = [ "sload", ["add", right, i] ]
+            load_i_from_list = ["sload", ["add", right, i]]
         else:
             load_operation = "mload" if right.location == "memory" else "calldataload"
-            load_i_from_list = [ load_operation, ["add", right, ["mul", 32, i]] ]
+            load_i_from_list = [load_operation, ["add", right, ["mul", 32, i]]]
 
         # Condition repeat loop has to break on.
         break_loop_condition = [
@@ -845,6 +838,7 @@ class Expr:
                     "repeat",
                     i,
                     0,
+                    right.typ.count,
                     right.typ.count,
                     break_loop_condition,
                 ],

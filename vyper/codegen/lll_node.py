@@ -172,16 +172,18 @@ class LLLnode:
                 self.gas = sum([arg.gas for arg in self.args]) + 5
             # Repeat statements: repeat <index_name> <startval> <rounds> <rounds_bound> <body>
             elif self.value == "repeat":
-                _check(len(self.args) == 5, "repeat(index_name, startval, rounds, rounds_bound, body)")
+                _check(
+                    len(self.args) == 5, "repeat(index_name, startval, rounds, rounds_bound, body)"
+                )
 
                 counter_ptr = self.args[0]
                 start = self.args[1]
                 repeat_count = self.args[2]
-                repeat_bound = self.args[3].value  # constant int
+                repeat_bound = self.args[3]
                 body = self.args[4]
 
                 _check(
-                    isinstance(repeat_bound, int) and repeat_bound > 0,
+                    isinstance(repeat_bound.value, int) and repeat_bound.value > 0,
                     f"repeat bound must be a compile-time positive integer: {self.args[2]}",
                 )
                 _check(repeat_count.valency == 1, repeat_count)
@@ -192,8 +194,8 @@ class LLLnode:
 
                 self.gas = counter_ptr.gas + start.gas
                 self.gas += 3  # gas for repeat_bound
-                repeat_bound = int(repeat_bound)  # fix mypy complaint
-                self.gas += repeat_bound * (body.gas + 50) + 30
+                int_bound = int(repeat_bound.value)
+                self.gas += int_bound * (body.gas + 50) + 30
 
                 if repeat_count != repeat_bound:
                     # gas for assert(repeat_count <= repeat_bound)

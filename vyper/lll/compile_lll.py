@@ -211,14 +211,14 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
     # }
     elif code.value == "repeat":
         o = []
-        if len(code.args) == 5:
-            i_name = code.args[0]
-            start = code.args[1]
-            rounds = code.args[2]
-            rounds_bound = code.args[3]
-            body = code.args[4]
-        else:
+        if len(code.args) != 5:
             raise CompilerPanic("bad number of repeat args")  # pragma: notest
+
+        i_name = code.args[0]
+        start = code.args[1]
+        rounds = code.args[2]
+        rounds_bound = code.args[3]
+        body = code.args[4]
 
         entry_dest, continue_dest, exit_dest = (
             mksymbol("loop_start"),
@@ -260,9 +260,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
             t = mksymbol("rounds_nonzero")
             o.extend(["DUP1", t, "JUMPI", exit_dest, "JUMP", t, "JUMPDEST"])
 
-
-        if i_name.value in withargs:
-            raise CodegenPanic(f"reused varname {i_label}")  # pragma: notest
+        old_height = withargs.get(i_name.value, None)
 
         withargs[i_name.value] = height
 
@@ -305,6 +303,9 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         # if (exit_i != new_i) { goto entry_dest }
         o.extend(["DUP2", "DUP2", "XOR", entry_dest, "JUMPI"])
         o.extend([exit_dest, "JUMPDEST", "POP", "POP"])
+
+        if old_height is not None:
+            withargs[i_name.value] = old_height
 
         return o
 

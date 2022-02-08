@@ -85,7 +85,7 @@ class Stmt:
             pos=getpos(self.stmt),
         )
 
-        lll_node = make_setter(variable_loc, sub, self.context, pos=getpos(self.stmt))
+        lll_node = make_setter(variable_loc, sub, pos=getpos(self.stmt))
 
         return lll_node
 
@@ -94,7 +94,7 @@ class Stmt:
         sub = Expr(self.stmt.value, self.context).lll_node
         target = self._get_target(self.stmt.target)
 
-        lll_node = make_setter(target, sub, self.context, pos=getpos(self.stmt))
+        lll_node = make_setter(target, sub, pos=getpos(self.stmt))
         lll_node.pos = getpos(self.stmt)
         return lll_node
 
@@ -284,10 +284,11 @@ class Stmt:
         if r < 1:
             return
 
-        i = self.stmt.target.id
-        iptr = self.context.new_variable(i, BaseType(iter_typ), pos=getpos(self.stmt))
+        varname = self.stmt.target.id
+        i = LLLnode.from_list(self.context.fresh_varname("range_ix"), typ="uint256")
+        iptr = self.context.new_variable(varname, BaseType(iter_typ), pos=getpos(self.stmt))
 
-        self.context.forvars[i] = True
+        self.context.forvars[varname] = True
 
         loop_body = ["seq"]
         # store the current value of i so it is accessible to userland
@@ -298,7 +299,7 @@ class Stmt:
             ["repeat", i, start, rounds, rounds, parse_body(self.stmt.body, self.context)],
             pos=getpos(self.stmt),
         )
-        del self.context.forvars[i]
+        del self.context.forvars[varname]
 
         return lll_node
 
@@ -319,7 +320,7 @@ class Stmt:
             location="memory",
         )
 
-        i = LLLnode.from_list(self.context.fresh_varname("ix"), typ="uint256")
+        i = LLLnode.from_list(self.context.fresh_varname("for_list_ix"), typ="uint256")
 
         self.context.forvars[varname] = True
 
@@ -332,7 +333,7 @@ class Stmt:
                 typ=iter_list.typ,
                 location="memory",
             )
-            ret.append(make_setter(tmp_list, iter_list, self.context, pos=getpos(self.stmt)))
+            ret.append(make_setter(tmp_list, iter_list, pos=getpos(self.stmt)))
             iter_list = tmp_list
 
         # set up the loop variable
@@ -340,7 +341,7 @@ class Stmt:
         e = get_element_ptr(iter_list, i, array_bounds_check=False, pos=loop_var_ast)
         body = [
             "seq",
-            make_setter(loop_var, e, self.context, pos=loop_var_ast),
+            make_setter(loop_var, e, pos=loop_var_ast),
             parse_body(self.stmt.body, self.context),
         ]
 
