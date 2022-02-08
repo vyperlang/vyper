@@ -36,7 +36,6 @@ from vyper.semantics.types.utils import get_type_from_annotation
 from vyper.semantics.types.value.address import AddressDefinition
 from vyper.semantics.types.value.array_value import StringDefinition
 from vyper.semantics.types.value.boolean import BoolDefinition
-from vyper.semantics.types.value.numeric import Uint256Definition
 from vyper.semantics.validation.annotation import StatementAnnotationVisitor
 from vyper.semantics.validation.base import VyperNodeVisitorBase
 from vyper.semantics.validation.utils import (
@@ -323,7 +322,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                     raise StateAccessViolation("Value must be a literal", node)
                 if args[0].value <= 0:
                     raise StructureException("For loop must have at least 1 iteration", args[0])
-                validate_expected_type(args[0], Uint256Definition())
+                validate_expected_type(args[0], IntegerAbstractType())
                 type_list = get_possible_types_from_node(args[0])
             else:
                 validate_expected_type(args[0], IntegerAbstractType())
