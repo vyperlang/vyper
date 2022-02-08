@@ -127,9 +127,25 @@ def _dynarray_make_setter(dst, src, context, pos=None):
     assert isinstance(dst.typ, DArrayType)
 
     with src.cache_when_complex("_src") as (b1, src):
-        if src.typ.subtype.abi_type.is_dynamic():
-            # if the subtype is dynamic, for performance reasons
-            # we recursively call into make_setter instead of straight bytes copy
+
+        # for ABI-encoded dynamic data, we must loop to unpack, since
+        # the layout does not match our memory layout
+        should_loop = (
+            src.encoding in (Encoding.ABI, Encoding.JSON_ABI)
+            and src.typ.subtype.abi_type.is_dynamic()
+        )
+
+        # if the subtype is dynamic, there might be a lot of
+        # unused space inside of each element. for instance
+        # DynArray[DynArray[uint256, 100], 5] where all the child
+        # arrays are empty - for this case, we recursively call
+        # into make_setter instead of straight bytes copy
+        # TODO we can make this heuristic more precise, e.g.
+        # loop when subtype.is_dynamic AND location == storage
+        # OR array_size <= /bound where loop is cheaper than memcpy/
+        should_loop |= src.typ.subtype.abi_type.is_dynamic()
+
+        if should_loop:
             uint = BaseType("uint256")
             iptr = LLLnode.from_list(
                 context.new_internal_variable(uint), typ=uint, location="memory"
