@@ -526,7 +526,6 @@ class MemberFunctionDefinition(BaseTypeDefinition):
         return f"{self.underlying_type._id} member function '{self.name}'"
 
     def fetch_call_return(self, node: vy_ast.Call) -> Optional[BaseTypeDefinition]:
-        print(self.__repr__())
         validate_call_args(node, (self.min_arg_count, self.max_arg_count))
 
         if isinstance(self.underlying_type, DynamicArrayDefinition):
