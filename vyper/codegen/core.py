@@ -410,7 +410,7 @@ def _get_element_ptr_array(parent, key, pos, array_bounds_check):
         # perform the check at compile time and elide the runtime check.
         # TODO make this an optimization on clamp ops
         if key.value < 0 or key.value >= parent.typ.count:
-            raise TypeCheckFailure("OOB detected")
+            raise TypeCheckFailure(f"{key.value} is out of bounds for {parent.typ}")
 
     elif array_bounds_check:
         clamp = "clamplt" if is_signed_num(key.typ) else "uclamplt"
