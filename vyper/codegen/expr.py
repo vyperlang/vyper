@@ -793,6 +793,10 @@ class Expr:
         left = Expr(self.expr.left, self.context).lll_node
         right = Expr(self.expr.right, self.context).lll_node
 
+        # temporary kludge to block #2637 bug
+        if not isinstance(left.typ, BaseType):
+            raise TypeMismatch("`in` not allowed for arrays of non-base types")
+
         i = LLLnode.from_list(self.context.fresh_varname("in_ix"), typ="uint256")
 
         result_placeholder = self.context.new_internal_variable(BaseType("bool"))
@@ -803,7 +807,7 @@ class Expr:
         if right.value == "multi":
             # Copy literal to memory to be compared.
             tmp_list = LLLnode.from_list(
-                self.context.new_internal_variable(right.typ)
+                self.context.new_internal_variable(right.typ),
                 typ=right.typ,
                 location="memory",
             )
@@ -830,7 +834,7 @@ class Expr:
             len_ = get_dyn_array_count(right)
 
         # Repeat loop to loop-compare each item in the list.
-        for_loop_sequence = [
+        ret.extend([
             ["mstore", result_placeholder, 0],
             [
                 "with",
@@ -846,22 +850,15 @@ class Expr:
                 ],
             ],
             ["mload", result_placeholder],
-        ]
-
-        # Save list to memory, so one can iterate over it,
-        # used when literal was created with tmp_list.
-        if setter:
-            compare_sequence = ["seq", setter] + for_loop_sequence
-        else:
-            compare_sequence = ["seq"] + for_loop_sequence
+        ])
 
         if isinstance(self.expr.op, vy_ast.NotIn):
             # for `not in`, invert the result
-            compare_sequence = ["iszero", compare_sequence]
+            ret = ["iszero", ret]
 
         annotation = self.expr.get("node_source_code")
 
-        return LLLnode.from_list(compare_sequence, typ="bool", annotation=annotation)
+        return LLLnode.from_list(ret, typ="bool", annotation=annotation)
 
     @staticmethod
     def _signed_to_unsigned_comparision_op(op):
