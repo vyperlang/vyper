@@ -229,8 +229,9 @@ ADHOC_SLICE_NODE_MACROS = ["~calldata", "~selfcode", "~extcode"]
 def _build_adhoc_slice_node(sub: LLLnode, start: LLLnode, length: LLLnode, np: int) -> LLLnode:
     # TODO validate at typechecker stage
     if not isinstance(length.value, int) or len(length.args) > 0:
+        macro_pretty_name = sub.value[1:]  # type: ignore
         raise InvalidLiteral(
-            f"slice({sub.value[1:]}) must use length which is a compile-time constant"
+            f"slice({macro_pretty_name} must use a compile-time constant for length argument"
         )
 
     # `msg.data` by `calldatacopy`

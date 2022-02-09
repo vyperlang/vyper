@@ -194,7 +194,7 @@ class Context:
             var_size = typ.memory_bytes_required
         return self._new_variable(name, typ, var_size, False, is_mutable=is_mutable)
 
-    def fresh_varname(self, name: Optional[str] = None):
+    def fresh_varname(self, name: Optional[str] = None) -> str:
         """
         return a unique
         """
