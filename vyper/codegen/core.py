@@ -665,6 +665,8 @@ def check_assign(left, right):
 
 
 _label = 0
+
+
 # TODO might want to coalesce with Context.fresh_varname and compile_lll.mksymbol
 def _freshname(name):
     global _label
