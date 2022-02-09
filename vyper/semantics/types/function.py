@@ -516,7 +516,6 @@ class MemberFunctionDefinition(BaseTypeDefinition):
         self, underlying_type: BaseTypeDefinition, name: str, min_arg_count: int, max_arg_count: int
     ) -> None:
         super().__init__(DataLocation.UNSET)
-        print("Underlying type: " + str(underlying_type))
         self.underlying_type = underlying_type
         self.name = name
         self.min_arg_count = min_arg_count
