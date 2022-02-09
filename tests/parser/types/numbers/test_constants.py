@@ -5,6 +5,7 @@ import pytest
 
 from vyper.compiler import compile_code
 from vyper.exceptions import InvalidType
+from vyper.utils import MemoryPositions
 
 
 def test_builtin_constants(get_contract_with_gas_estimation):
@@ -200,7 +201,9 @@ def test() -> uint256:
     """
 
     lll = compile_code(code, ["ir"])["ir"]
-    assert search_for_sublist(lll, ["mstore", [224], [2 ** 12 * some_prime]])
+    assert search_for_sublist(
+        lll, ["mstore", [MemoryPositions.RESERVED_MEMORY], [2 ** 12 * some_prime]]
+    )
 
 
 def test_constant_lists(get_contract):
