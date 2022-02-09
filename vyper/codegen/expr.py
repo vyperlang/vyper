@@ -799,7 +799,7 @@ class Expr:
 
         if isinstance(self.expr.op, vy_ast.In):
             eq_op = "eq"
-        if isinstance(self.expr.op, vy_ast.NotIn):
+        elif isinstance(self.expr.op, vy_ast.NotIn):
             eq_op = "ne"
         else:
             return  # pragma: notest
@@ -834,7 +834,8 @@ class Expr:
         else:
             len_ = get_dyn_array_count(right)
 
-        with unwrap_location(left).cache_when_complex("_l") as b, left:
+        left = unwrap_location(left)
+        with left.cache_when_complex("needle") as (b, left):
             # Condition repeat loop has to break on.
             # TODO maybe put result on the stack
             loop_body = [
