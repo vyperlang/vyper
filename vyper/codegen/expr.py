@@ -792,6 +792,7 @@ class Expr:
         right = Expr(self.expr.right, self.context).lll_node
 
         # temporary kludge to block #2637 bug
+        # TODO actually fix the bug
         if not isinstance(left.typ, BaseType):
             raise TypeMismatch(
                 "`in` not allowed for arrays of non-base types, tracked in issue #2637", self.expr
