@@ -130,7 +130,11 @@ class DynamicArrayDefinition(_SequenceDefinition):
         is_public: bool = False,
         is_immutable: bool = False,
     ) -> None:
-        super().__init__(value_type, length, "DynArray", location, is_immutable, is_public)
+        if self._warning_flag:
+            warnings.warn("DynArray is an experimental feature, please use with care")
+            self.__class__._warning_flag = False
+
+        super().__init__(value_type, length, "DynArray", location, is_constant, is_public, is_immutable)
 
     def __repr__(self):
         return f"DynArray[{self.value_type}, {self.length}]"
