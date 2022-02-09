@@ -150,7 +150,7 @@ def _dynarray_make_setter(dst, src, pos=None):
 
             # note: name clobbering for the ix is OK because
             # we never reach outside our level of nesting
-            i = LLLnode.from_list("copy_darray_ix", typ=uint)
+            i = LLLnode.from_list(_freshname("copy_darray_ix"), typ=uint)
 
             loop_body = make_setter(
                 get_element_ptr(dst, i, array_bounds_check=False, pos=pos),
@@ -221,7 +221,7 @@ def copy_bytes(dst, src, length, length_bound, pos=None):
         #   _src += 32
         #   sstore(_dst, mload(_src))
 
-        i = LLLnode.from_list("copy_bytes_ix", typ="uint256")
+        i = LLLnode.from_list(_freshname("copy_bytes_ix"), typ="uint256")
 
         # special case: rhs is zero
         if src.value is None:
@@ -662,6 +662,14 @@ def check_assign(left, right):
 
     else:  # pragma: nocover
         FAIL()
+
+
+_label = 0
+# TODO might want to coalesce with Context.fresh_varname and compile_lll.mksymbol
+def _freshname(name):
+    global _label
+    _label += 1
+    return f"{name}{_label}"
 
 
 # Create an x=y statement, where the types may be compound
