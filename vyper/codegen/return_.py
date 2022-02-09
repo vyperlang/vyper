@@ -5,6 +5,7 @@ from vyper.codegen.context import Context
 from vyper.codegen.core import (
     calculate_type_for_external_return,
     check_assign,
+    dummy_node_for_type,
     getpos,
     make_setter,
     wrap_value_for_external_return,
@@ -30,8 +31,7 @@ def make_return_stmt(lll_val: LLLnode, stmt: Any, context: Context) -> Optional[
 
     else:
         # sanity typecheck
-        _tmp = LLLnode("fake node", location="memory", typ=context.return_type)
-        check_assign(_tmp, lll_val)
+        check_assign(dummy_node_for_type(context.return_type), lll_val)
 
     # helper function
     def finalize(fill_return_buffer):

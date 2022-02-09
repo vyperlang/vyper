@@ -562,7 +562,7 @@ def set_type_for_external_return(lll_val):
 
 
 # return a dummy LLLnode with the given type
-def _dummy_node_for_type(typ):
+def dummy_node_for_type(typ):
     return LLLnode("fake_node", typ=typ)
 
 
@@ -575,64 +575,64 @@ def _check_assign_bytes(left, right):
 
 
 def _check_assign_list(left, right):
-    def FAIL():
+    def FAIL():  # pragma: nocover
         raise TypeCheckFailure(f"assigning {right.typ} to {left.typ}")
 
     if left.value == "multi":
         # Cannot do something like [a, b, c] = [1, 2, 3]
-        FAIL()
+        FAIL()  # pragma: notest
 
     if isinstance(left, SArrayType):
         if left.typ.count != right.typ.count:
-            FAIL()
-        check_assign(_dummy_node_for_type(left.typ.subtyp), _dummy_node_for_type(right.typ.subtyp))
+            FAIL()  # pragma: notest
+        check_assign(dummy_node_for_type(left.typ.subtyp), dummy_node_for_type(right.typ.subtyp))
 
     if isinstance(left, DArrayType):
         if not isinstance(right, (DArrayType, SArrayType)):
-            FAIL()
+            FAIL()  # pragma: notest
 
         if left.typ.count < right.typ.count:
-            FAIL()
+            FAIL()  # pragma: notest
 
         # stricter check for zeroing
         if right.value is None and right.typ.count != left.typ.count:
             raise TypeCheckFailure(
                 f"Bad type for clearing bytes: expected {left.typ} but got {right.typ}"
             )
-        check_assign(_dummy_node_for_type(left.typ.subtyp), _dummy_node_for_type(right.typ.subtyp))
+        check_assign(dummy_node_for_type(left.typ.subtyp), dummy_node_for_type(right.typ.subtyp))
 
 
 def _check_assign_tuple(left, right):
-    def FAIL():
+    def FAIL():  # pragma: nocover
         raise TypeCheckFailure(f"assigning {right.typ} to {left.typ}")
 
     if right.value is None:
         return
 
     if not isinstance(right.typ, left.typ.__class__):
-        FAIL()
+        FAIL()  # pragma: notest
 
     if isinstance(left.typ, StructType):
         for k in left.typ.members:
             if k not in right.typ.members:
-                FAIL()
+                FAIL()  # pragma: notest
             check_assign(
-                _dummy_node_for_type(left.typ.members[k]),
-                _dummy_node_for_type(right.typ.members[k]),
+                dummy_node_for_type(left.typ.members[k]),
+                dummy_node_for_type(right.typ.members[k]),
             )
 
         for k in right.typ.members:
             if k not in left.typ.members:
-                FAIL()
+                FAIL()  # pragma: notest
 
         if left.typ.name != right.typ.name:
-            FAIL()
+            FAIL()  # pragma: notest
 
     else:
         if len(left.typ.members) != len(right.typ.members):
-            FAIL()
+            FAIL()  # pragma: notest
         for (l, r) in zip(left.typ.members, right.typ.members):
-            check_assign(_dummy_node_for_type(l), _dummy_node_for_type(r))
+            check_assign(dummy_node_for_type(l), dummy_node_for_type(r))
 
 
 # sanity check an assignment
@@ -640,12 +640,20 @@ def _check_assign_tuple(left, right):
 # this function is more of a sanity check for typechecking internally
 # generated assignments
 def check_assign(left, right):
+    def FAIL():  # pragma: nocover
+        raise TypeCheckFailure(f"assigning {right.typ} to {left.typ}")
+
     if isinstance(left.typ, ByteArrayLike):
         _check_assign_bytes(left, right)
     if isinstance(left.typ, ArrayLike):
         _check_assign_list(left, right)
     if isinstance(left.typ, TupleLike):
         _check_assign_tuple(left, right)
+    if isinstance(left.typ, BaseType):
+        if left.typ != right.typ:
+            FAIL()  # pragma: notest
+
+    FAIL()  # pragma: notest
 
 
 # Create an x=y statement, where the types may be compound
