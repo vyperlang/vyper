@@ -122,8 +122,6 @@ class DynamicArrayDefinition(_SequenceDefinition):
     Dynamic array type definition.
     """
 
-    _warning_flag = True
-
     def __init__(
         self,
         value_type: BaseTypeDefinition,
@@ -133,9 +131,6 @@ class DynamicArrayDefinition(_SequenceDefinition):
         is_public: bool = False,
         is_immutable: bool = False,
     ) -> None:
-        if self._warning_flag:
-            warnings.warn("DynArray is an experimental feature, please use with care")
-            self.__class__._warning_flag = False
 
         super().__init__(
             value_type, length, "DynArray", location, is_constant, is_public, is_immutable
@@ -182,6 +177,8 @@ class DynamicArrayPrimitive(BasePrimitive):
     _type = DynamicArrayDefinition
     _valid_literal = (vy_ast.List,)
 
+    _warning_flag = True
+
     @classmethod
     def from_annotation(
         cls,
@@ -193,6 +190,10 @@ class DynamicArrayPrimitive(BasePrimitive):
     ) -> DynamicArrayDefinition:
         # TODO fix circular import
         from vyper.semantics.types.utils import get_type_from_annotation
+
+        if self._warning_flag:
+            warnings.warn("DynArray is an experimental feature, please use with care")
+            self.__class__._warning_flag = False
 
         if (
             not isinstance(node, vy_ast.Subscript)
