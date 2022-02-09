@@ -1,5 +1,7 @@
 from typing import Optional, Tuple, Union
 
+import warnings
+
 from vyper import ast as vy_ast
 from vyper.abi_types import ABI_DynamicArray, ABI_StaticArray, ABI_Tuple, ABIType
 from vyper.exceptions import ArrayIndexException, InvalidType, StructureException
@@ -120,6 +122,8 @@ class DynamicArrayDefinition(_SequenceDefinition):
     """
     Dynamic array type definition.
     """
+
+    _warning_flag = True
 
     def __init__(
         self,
