@@ -739,6 +739,8 @@ def _complex_make_setter(left, right, pos):
         ret = ["seq"]
 
         if isinstance(left.typ, DArrayType):
+            assert right.value == "multi"
+
             # write the length word
             store_length = [store_op(left.location), left, right.typ.count]
             ann = None

@@ -5,6 +5,7 @@ from vyper import ast as vy_ast
 from vyper.codegen import external_call, self_call
 from vyper.codegen.core import (
     clamp_basetype,
+    ensure_in_memory,
     get_dyn_array_count,
     get_element_ptr,
     get_number_as_fraction,
@@ -493,12 +494,7 @@ class Expr:
             # MY_LIST: constant(decimal[6])
             # ...
             # return MY_LIST[ix]
-            t = LLLnode(self.context.new_internal_variable(sub.typ), typ=sub.typ, location="memory")
-            sub = LLLnode.from_list(
-                ["seq", make_setter(t, sub, pos=getpos(self.expr)), t],
-                typ=sub.typ,
-                location="memory",
-            )
+            sub = ensure_in_memory(sub, self.context, pos=getpos(self.expr))
 
         if isinstance(sub.typ, MappingType):
             # TODO sanity check we are in a self.my_map[i] situation
@@ -513,6 +509,7 @@ class Expr:
 
         elif isinstance(sub.typ, TupleType):
             index = self.expr.slice.value.n
+            # note: this check should also happen in get_element_ptr
             if not 0 <= index < len(sub.typ.members):
                 return
         else:
@@ -797,16 +794,22 @@ class Expr:
         # temporary kludge to block #2637 bug
         if not isinstance(left.typ, BaseType):
             raise TypeMismatch(
-                "`in` not allowed for arrays of non-base types, tracked in issue #2637"
+                "`in` not allowed for arrays of non-base types, tracked in issue #2637", self.expr
             )
+
+        if isinstance(self.expr.op, vy_ast.In):
+            eq_op = "eq"
+        if isinstance(self.expr.op, vy_ast.NotIn):
+            eq_op = "ne"
+        else:
+            return  # pragma: notest
 
         i = LLLnode.from_list(self.context.fresh_varname("in_ix"), typ="uint256")
 
-        result_placeholder = self.context.new_internal_variable(BaseType("bool"))
+        found_ptr = self.context.new_internal_variable(BaseType("bool"))
 
         ret = ["seq"]
 
-        # Load nth item from list in memory.
         if right.value == "multi":
             # Copy literal to memory to be compared.
             tmp_list = LLLnode.from_list(
@@ -818,51 +821,39 @@ class Expr:
 
             right = tmp_list
 
+        # location of i'th item from list
         if right.location == "storage":
-            load_i_from_list = ["sload", ["add", right, i]]
+            ith_element_ptr = ["add", right, i]
         else:
-            load_i_from_list = [load_op(right.location), ["add", right, ["mul", 32, i]]]
+            ith_element_ptr = ["add", right, ["mul", 32, i]]
 
-        # Condition repeat loop has to break on.
-        break_loop_condition = [
-            "if",
-            ["eq", unwrap_location(left), load_i_from_list],
-            ["seq", ["mstore", "_result", 1], "break"],  # store true.
-        ]
+        ith_element = [load_op(right.location), ith_element_ptr]
 
         if isinstance(right.typ, SArrayType):
             len_ = right.typ.count
         else:
             len_ = get_dyn_array_count(right)
 
-        # Repeat loop to loop-compare each item in the list.
-        ret.extend(
-            [
-                ["mstore", result_placeholder, 0],
-                [
-                    "with",
-                    "_result",
-                    result_placeholder,
-                    [
-                        "repeat",
-                        i,
-                        0,
-                        len_,
-                        right.typ.count,
-                        break_loop_condition,
-                    ],
-                ],
-                ["mload", result_placeholder],
+        with unwrap_location(left).cache_when_complex("_l") as b, left:
+            # Condition repeat loop has to break on.
+            # TODO maybe put result on the stack
+            loop_body = [
+                "if",
+                [eq_op, left, ith_element],
+                ["seq", ["mstore", found_ptr, 1], "break"],  # store true.
             ]
-        )
+            loop = ["repeat", i, 0, len_, right.typ.count, loop_body]
 
-        if isinstance(self.expr.op, vy_ast.NotIn):
-            # for `not in`, invert the result
-            ret = ["iszero", ret]
+            ret.append(
+                [
+                    "seq",
+                    ["mstore", found_ptr, 0],
+                    loop,
+                    ["mload", found_ptr],
+                ]
+            )
 
-        annotation = self.expr.get("node_source_code")
-
-        return LLLnode.from_list(ret, typ="bool", annotation=annotation)
+            return LLLnode.from_list(b.resolve(ret), typ="bool")
 
     @staticmethod
     def _signed_to_unsigned_comparision_op(op):
@@ -884,14 +875,10 @@ class Expr:
         if right.value is None:
             return
 
-        if isinstance(left.typ, ByteArrayLike) and isinstance(right.typ, ByteArrayLike):
-            # TODO: Can this if branch be removed ^
-            pass
-
-        elif isinstance(self.expr.op, (vy_ast.In, vy_ast.NotIn)) and isinstance(
-            right.typ, (SArrayType, DArrayType)
-        ):
-            return self.build_in_comparator()
+        if isinstance(self.expr.op, (vy_ast.In, vy_ast.NotIn)):
+            if isinstance(right.typ, ArrayLike):
+                return self.build_in_comparator()
+            return  # pragma: notest
 
         if isinstance(self.expr.op, vy_ast.Gt):
             op = "sgt"
@@ -906,7 +893,7 @@ class Expr:
         elif isinstance(self.expr.op, vy_ast.NotEq):
             op = "ne"
         else:
-            return
+            return  # pragma: notest
 
         # Compare (limited to 32) byte arrays.
         if isinstance(left.typ, ByteArrayLike) and isinstance(right.typ, ByteArrayLike):
