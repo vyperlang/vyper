@@ -798,9 +798,9 @@ class Expr:
             )
 
         if isinstance(self.expr.op, vy_ast.In):
-            eq_op = "eq"
+            found, not_found = 1, 0
         elif isinstance(self.expr.op, vy_ast.NotIn):
-            eq_op = "ne"
+            found, not_found = 0, 1
         else:
             return  # pragma: notest
 
@@ -840,15 +840,15 @@ class Expr:
             # TODO maybe put result on the stack
             loop_body = [
                 "if",
-                [eq_op, left, ith_element],
-                ["seq", ["mstore", found_ptr, 1], "break"],  # store true.
+                ["eq", left, ith_element],
+                ["seq", ["mstore", found_ptr, found], "break"],  # store true.
             ]
             loop = ["repeat", i, 0, len_, right.typ.count, loop_body]
 
             ret.append(
                 [
                     "seq",
-                    ["mstore", found_ptr, 0],
+                    ["mstore", found_ptr, not_found],
                     loop,
                     ["mload", found_ptr],
                 ]
