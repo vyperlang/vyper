@@ -101,7 +101,7 @@ def make_byte_array_copier(destination, source, pos=None):
     if source.value is None and source.typ.maxlen != destination.typ.maxlen:
         raise TypeMismatch(
             f"Bad type for clearing bytes: expected {destination.typ} but got {source.typ}"
-        )
+        )  # pragma: notest
 
     with source.cache_when_complex("_src") as (builder, src):
         if src.value is None:
@@ -119,7 +119,7 @@ def _wordsize(location):
         return 32
     if location == "storage":
         return 1
-    raise CompilerPanic(f"invalid location {location}")  # pragma: no test
+    raise CompilerPanic(f"invalid location {location}")  # pragma: notest
 
 
 def _dynarray_make_setter(dst, src, pos=None):
@@ -239,14 +239,14 @@ def copy_bytes(dst, src, length, length_bound, pos=None):
         elif src.location == "storage":
             loader = [load_op(src.location), ["add", src, i]]
         else:
-            raise CompilerPanic(f"Unsupported location: {src.location}")
+            raise CompilerPanic(f"Unsupported location: {src.location}")  # pragma: notest
 
         if dst.location == "memory":
             setter = ["mstore", ["add", dst, ["mul", 32, i]], loader]
         elif dst.location == "storage":
             setter = ["sstore", ["add", dst, i], loader]
         else:
-            raise CompilerPanic(f"Unsupported location: {dst.location}")
+            raise CompilerPanic(f"Unsupported location: {dst.location}")  # pragma: notest
 
         n = ["div", ["ceil32", length], 32]
         n_bound = ceil32(length_bound) // 32
@@ -353,7 +353,7 @@ def _get_element_ptr_tuplelike(parent, key, pos):
 
     if parent.encoding in (Encoding.ABI, Encoding.JSON_ABI):
         if parent.location == "storage":
-            raise CompilerPanic("storage variables should not be abi encoded")
+            raise CompilerPanic("storage variables should not be abi encoded")  # pragma: notest
 
         member_t = typ.members[attrs[index]]
 
@@ -370,7 +370,7 @@ def _get_element_ptr_tuplelike(parent, key, pos):
         for i in range(index):
             ofst += typ.members[attrs[i]].memory_bytes_required
     else:
-        raise CompilerPanic("bad location {parent.location}")
+        raise CompilerPanic("bad location {parent.location}")  # pragma: notest
 
     return LLLnode.from_list(
         add_ofst(parent, ofst),
@@ -420,7 +420,7 @@ def _get_element_ptr_array(parent, key, pos, array_bounds_check):
 
     if parent.encoding in (Encoding.ABI, Encoding.JSON_ABI):
         if parent.location == "storage":
-            raise CompilerPanic("storage variables should not be abi encoded")
+            raise CompilerPanic("storage variables should not be abi encoded")  # pragma: notest
 
         member_abi_t = subtype.abi_type
 
@@ -479,7 +479,7 @@ def get_element_ptr(parent, key, pos, array_bounds_check=True):
             ret = _get_element_ptr_array(parent, key, pos, array_bounds_check)
 
         else:
-            raise CompilerPanic(f"get_element_ptr cannot be called on {typ}")
+            raise CompilerPanic(f"get_element_ptr cannot be called on {typ}")  # pragma: notest
 
         return b.resolve(ret)
 
@@ -493,7 +493,7 @@ def load_op(location):
         return "calldataload"
     if location == "code":
         return "codeload"
-    raise CompilerPanic(f"unreachable {location}")  # pragma: no test
+    raise CompilerPanic(f"unreachable {location}")  # pragma: notest
 
 
 def store_op(location):
@@ -501,7 +501,7 @@ def store_op(location):
         return "mstore"
     if location == "storage":
         return "sstore"
-    raise CompilerPanic(f"unreachable {location}")  # pragma: no test
+    raise CompilerPanic(f"unreachable {location}")  # pragma: notest
 
 
 # Unwrap location
@@ -568,10 +568,12 @@ def dummy_node_for_type(typ):
 
 def _check_assign_bytes(left, right):
     if right.typ.maxlen > left.typ.maxlen:
-        raise TypeMismatch(f"Cannot cast from {right.typ} to {left.typ}")
+        raise TypeMismatch(f"Cannot cast from {right.typ} to {left.typ}")  # pragma: notest
     # stricter check for zeroing a byte array.
     if right.value is None and right.typ.maxlen != left.typ.maxlen:
-        raise TypeMismatch(f"Bad type for clearing bytes: expected {left.typ} but got {right.typ}")
+        raise TypeMismatch(
+            f"Bad type for clearing bytes: expected {left.typ} but got {right.typ}"
+        )  # pragma: notest
 
 
 def _check_assign_list(left, right):
@@ -598,7 +600,7 @@ def _check_assign_list(left, right):
         if right.value is None and right.typ.count != left.typ.count:
             raise TypeCheckFailure(
                 f"Bad type for clearing bytes: expected {left.typ} but got {right.typ}"
-            )
+            )  # pragma: notest
         check_assign(dummy_node_for_type(left.typ.subtyp), dummy_node_for_type(right.typ.subtyp))
 
 
@@ -871,7 +873,7 @@ def _needs_clamp(t, encoding):
 def clamp_bytestring(lll_node):
     t = lll_node.typ
     if not isinstance(t, ByteArrayLike):
-        raise CompilerPanic(f"{t} passed to clamp_bytestring")
+        raise CompilerPanic(f"{t} passed to clamp_bytestring")  # pragma: notest
     return ["assert", ["le", get_bytearray_length(lll_node), t.maxlen]]
 
 
@@ -885,7 +887,7 @@ def clamp_dyn_array(lll_node):
 def clamp_basetype(lll_node):
     t = lll_node.typ
     if not isinstance(t, BaseType):
-        raise CompilerPanic(f"{t} passed to clamp_basetype")
+        raise CompilerPanic(f"{t} passed to clamp_basetype")  # pragma: notest
 
     # copy of the input
     lll_node = unwrap_location(lll_node)
@@ -909,7 +911,7 @@ def clamp_basetype(lll_node):
     if t.typ in ("int256", "uint256", "bytes32"):
         return lll_node  # special case, no clamp.
 
-    raise CompilerPanic(f"{t} passed to clamp_basetype")
+    raise CompilerPanic(f"{t} passed to clamp_basetype")  # pragma: notest
 
 
 def int_clamp(lll_node, bits, signed=False):
@@ -919,7 +921,7 @@ def int_clamp(lll_node, bits, signed=False):
     type-based dispatch and is a little safer.)
     """
     if bits >= 256:
-        raise CompilerPanic(f"invalid clamp: {bits}>=256 ({lll_node})")
+        raise CompilerPanic(f"invalid clamp: {bits}>=256 ({lll_node})")  # pragma: notest
     if signed:
         # example for bits==128:
         # if _val is in bounds,
