@@ -648,19 +648,20 @@ def check_assign(left, right):
         raise TypeCheckFailure(f"assigning {right.typ} to {left.typ} {left} {right}")
 
     if isinstance(left.typ, ByteArrayLike):
-        return _check_assign_bytes(left, right)
-    if isinstance(left.typ, ArrayLike):
-        return _check_assign_list(left, right)
-    if isinstance(left.typ, TupleLike):
-        return _check_assign_tuple(left, right)
+        _check_assign_bytes(left, right)
+    elif isinstance(left.typ, ArrayLike):
+        _check_assign_list(left, right)
+    elif isinstance(left.typ, TupleLike):
+        _check_assign_tuple(left, right)
 
-    if isinstance(left.typ, BaseType):
+    elif isinstance(left.typ, BaseType):
         # TODO once we propagate types from typechecker, introduce this check:
         # if left.typ != right.typ:
         #    FAIL()  # pragma: notest
-        return
+        pass
 
-    FAIL()  # pragma: notest
+    else:  # pragma: nocover
+        FAIL()
 
 
 # Create an x=y statement, where the types may be compound
