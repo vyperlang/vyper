@@ -111,8 +111,7 @@ class MemoryPositions:
     MINDECIMAL = 64
     FREE_VAR_SPACE = 128
     FREE_VAR_SPACE2 = 160
-    FREE_LOOP_INDEX = 192
-    RESERVED_MEMORY = 224
+    RESERVED_MEMORY = 192
 
 
 # Sizes of different data types. Used to clamp types.

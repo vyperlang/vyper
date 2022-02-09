@@ -200,33 +200,25 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         o.extend(_compile_to_assembly(code.args[2], withargs, existing_labels, break_dest, height))
         o.extend([end_symbol, "JUMPDEST"])
         return o
-    # repeat(counter_location, start, rounds, body)
-    # OR
     # repeat(counter_location, start, rounds, rounds_bound, body)
     # basically a do-while loop:
-    # rounds = min(rounds, rounds_bound)
+    #
+    # assert(rounds <= rounds_bound)
     # if (rounds > 0) {
     #   do {
-    #     body
+    #     body;
     #   } while (++i != start + rounds)
     # }
     elif code.value == "repeat":
         o = []
-        if len(code.args) == 4:
-            iptr = code.args[0]
-            start = code.args[1]
-            rounds = code.args[2]
-            rounds_bound = None
-            body = code.args[3]
-        elif len(code.args) == 5:
-            iptr = code.args[0]
-            start = code.args[1]
-            rounds = code.args[2]
-            rounds_bound = code.args[3]
-            body = code.args[4]
-        else:
-            # should not happen
-            raise CompilerPanic("bad number of repeat args")
+        if len(code.args) != 5:
+            raise CompilerPanic("bad number of repeat args")  # pragma: notest
+
+        i_name = code.args[0]
+        start = code.args[1]
+        rounds = code.args[2]
+        rounds_bound = code.args[3]
+        body = code.args[4]
 
         entry_dest, continue_dest, exit_dest = (
             mksymbol("loop_start"),
@@ -234,40 +226,51 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
             mksymbol("loop_exit"),
         )
 
-        o.extend(_compile_to_assembly(iptr, withargs, existing_labels, break_dest, height))
-        # stack: iptr
+        # stack: []
         o.extend(
             _compile_to_assembly(
                 start,
                 withargs,
                 existing_labels,
                 break_dest,
-                height + 1,
+                height,
             )
         )
 
-        # stack: iptr, start
-        o.extend(_compile_to_assembly(rounds, withargs, existing_labels, break_dest, height + 2))
-        # rounds = min(rounds, round_bound)
-        if rounds_bound is not None:
-            # stack: iptr, start, rounds
+        o.extend(_compile_to_assembly(rounds, withargs, existing_labels, break_dest, height + 1))
+
+        # stack: i
+
+        # assert rounds <= round_bound
+        if rounds != rounds_bound:
+            # stack: i, rounds
             o.extend(
                 _compile_to_assembly(
-                    rounds_bound, withargs, existing_labels, break_dest, height + 3
+                    rounds_bound, withargs, existing_labels, break_dest, height + 2
                 )
             )
-            t = mksymbol("min")
-            # stack: iptr, start, rounds, rounds_bound
-            o.extend(["DUP2", "DUP2", "GT", t, "JUMPI", "SWAP1", t, "JUMPDEST", "POP"])
+            # stack: i, rounds, rounds_bound
+            # assert rounds <= rounds_bound
+            # TODO this assertion should never fail,
+            # maybe drop it or jump to 0xFE
+            o.extend(["DUP2", "GT", "_sym_revert0", "JUMPI"])
 
-            # stack: iptr, start, min(rounds, round_bound) aka rounds
-            # if (0 == rounds) { pop; goto end_dest; }
-            t = mksymbol("rounds_nonzero")
-            o.extend(["DUP1", t, "JUMPI", "POP", exit_dest, "JUMP", t, "JUMPDEST"])
+            # stack: i, rounds
+            # if (0 == rounds) { goto end_dest; }
+            o.extend(["DUP1", "ISZERO", exit_dest, "JUMPI"])
 
-        # stack: iptr, start, rounds
-        o.extend(["DUP2", "DUP4", "MSTORE", "ADD"])
-        # stack: iptr, exit_i
+        old_height = withargs.get(i_name.value, None)
+
+        # stack: start, rounds
+        if start.value != 0:
+            o.extend(["DUP2", "ADD"])
+
+        # stack: i, exit_i
+        o.extend(["SWAP1"])
+
+        withargs[i_name.value] = height + 1
+
+        # stack: exit_i, i
         o.extend([entry_dest, "JUMPDEST"])
         o.extend(
             _compile_to_assembly(
@@ -278,27 +281,30 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
                 height + 2,
             )
         )
-        # stack: iptr, exit_i
-        # (with i (add 1 (mload iptr)) (seq (mstore iptr i) i))
+
+        # clean up any stack items left by body
+        o.extend(["POP"] * body.valency)
+
+        # stack: exit_i, i
+        # increment i:
         o.extend(
             [
                 continue_dest,
                 "JUMPDEST",
-                "DUP2",  # iptr, exit_i
-                "MLOAD",  # iptr, exit_i, i
                 "PUSH1",
                 1,
-                "ADD",  # iptr, exit_i, i+1 (new_i)
-                "DUP1",  # iptr, exit_i, new_i
-                "DUP4",  # iptr, exit_i, new_i, new_i, iptr
-                "MSTORE",
+                "ADD",
+                # stack: exit_i, i+1 (new_i)
             ]
         )
 
-        # stack: iptr, exit_i, new_i
+        # stack: exit_i, new_i
         # if (exit_i != new_i) { goto entry_dest }
-        o.extend(["DUP2", "XOR", entry_dest, "JUMPI"])
+        o.extend(["DUP2", "DUP2", "XOR", entry_dest, "JUMPI"])
         o.extend([exit_dest, "JUMPDEST", "POP", "POP"])
+
+        if old_height is not None:
+            withargs[i_name.value] = old_height
 
         return o
 

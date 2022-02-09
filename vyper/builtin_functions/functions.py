@@ -227,7 +227,12 @@ ADHOC_SLICE_NODE_MACROS = ["~calldata", "~selfcode", "~extcode"]
 
 
 def _build_adhoc_slice_node(sub: LLLnode, start: LLLnode, length: LLLnode, np: int) -> LLLnode:
-    assert isinstance(length.value, int)  # `length` is constant which is validated before
+    # TODO validate at typechecker stage
+    if not isinstance(length.value, int) or len(length.args) > 0:
+        macro_pretty_name = sub.value[1:]  # type: ignore
+        raise InvalidLiteral(
+            f"slice({macro_pretty_name} must use a compile-time constant for length argument"
+        )
 
     # `msg.data` by `calldatacopy`
     if sub.value == "~calldata":
@@ -325,7 +330,8 @@ class Slice:
             ReturnType = StringType
 
         # Node representing the position of the output in memory
-        # CMC 20210917 shouldn't this be a variable with newmaxlen?
+        # (allocate an extra 32 bytes because of unaligned word access
+        # described below)
         np = context.new_internal_variable(ReturnType(maxlen=sub_typ_maxlen + 32))
         placeholder_node = LLLnode.from_list(np, typ=sub.typ, location="memory")
         placeholder_plus_32_node = LLLnode.from_list(np + 32, typ=sub.typ, location="memory")
@@ -335,7 +341,23 @@ class Slice:
             return _build_adhoc_slice_node(sub, start, length, np)
 
         # Copy over bytearray data
-        # CMC 20210917 how does this routine work?
+
+        # because slice uses byte-addressing but we might have
+        # word-aligned data, this algorithm starts at some number
+        # of bytes before the data section starts, and might copy
+        # an extra word. this works even for bytes in storage because
+        # the destination is (byte-addressed) memory.
+        # the pseudocode for the hard case (storage):
+        #   let src and dst be regular vyper bytestrings
+        #   with one length word followed by data section.
+        #   dst_data = dst + 32
+        #   dst_data = dst_data - start % 32
+        #   src_data = src + 32
+        #   src_data = src_data + start // 32
+        #   copy_bytes(dst_data, src_data, length)
+        #   # set length AFTER copy because the length word has been clobbered!
+        #   setlength(src, length)
+        # TODO this function needs to be refactored for clarity
 
         if sub.location == "storage":
             adj_sub = LLLnode.from_list(
@@ -368,8 +390,11 @@ class Slice:
         copier = copy_bytes(
             placeholder_plus_32_node,
             adj_sub,
-            ["add", "_length", 32],  # CMC 20210917 shouldn't this just be _length
-            sub_typ_maxlen,
+            # add 32 because we have an unaligned word access during the
+            # copy (except in the case where (start % 32) == 0)
+            # TODO more accurate is (add length (ceil32 (mod start 32)))
+            ["add", "_length", 32],
+            32 + sub_typ_maxlen,
             pos=getpos(expr),
         )
 

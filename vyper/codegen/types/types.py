@@ -108,7 +108,8 @@ def _basetype_to_abi_type(t: "BaseType") -> ABIType:
 class BaseType(NodeType):
     def __init__(self, typename, is_literal=False):
         self.typ = typename  # e.g. "uint256"
-        # TODO remove is_literal from the type itself
+        # TODO remove is_literal,
+        # change to property on LLLnode: `isinstance(self.value, int)`
         self.is_literal = is_literal
 
     def eq(self, other):

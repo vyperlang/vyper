@@ -1,5 +1,6 @@
 import contextlib
 import enum
+from typing import Optional
 
 from vyper.ast import VyperNode
 from vyper.ast.signatures.function_signature import VariableRecord
@@ -193,6 +194,16 @@ class Context:
             var_size = typ.memory_bytes_required
         return self._new_variable(name, typ, var_size, False, is_mutable=is_mutable)
 
+    def fresh_varname(self, name: Optional[str] = None) -> str:
+        """
+        return a unique
+        """
+        if name is None:
+            name = "var"
+        t = self._internal_var_iter
+        self._internal_var_iter += 1
+        return f"{name}{t}"
+
     # do we ever allocate immutable internal variables?
     def new_internal_variable(self, typ: NodeType) -> int:
         """
@@ -209,9 +220,7 @@ class Context:
             Memory offset for the variable
         """
         # internal variable names begin with a number sign so there is no chance for collision
-        var_id = self._internal_var_iter
-        self._internal_var_iter += 1
-        name = f"#internal_{var_id}"
+        name = self.fresh_varname("#internal")
 
         if hasattr(typ, "size_in_bytes"):
             # temporary requirement to support both new and old type objects
