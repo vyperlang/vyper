@@ -641,17 +641,20 @@ def _check_assign_tuple(left, right):
 # generated assignments
 def check_assign(left, right):
     def FAIL():  # pragma: nocover
-        raise TypeCheckFailure(f"assigning {right.typ} to {left.typ}")
+        raise TypeCheckFailure(f"assigning {right.typ} to {left.typ} {left} {right}")
 
     if isinstance(left.typ, ByteArrayLike):
-        _check_assign_bytes(left, right)
+        return _check_assign_bytes(left, right)
     if isinstance(left.typ, ArrayLike):
-        _check_assign_list(left, right)
+        return _check_assign_list(left, right)
     if isinstance(left.typ, TupleLike):
-        _check_assign_tuple(left, right)
+        return _check_assign_tuple(left, right)
+
     if isinstance(left.typ, BaseType):
-        if left.typ != right.typ:
-            FAIL()  # pragma: notest
+        # TODO once we propagate types from typechecker, introduce this check:
+        #if left.typ != right.typ:
+        #    FAIL()  # pragma: notest
+        return
 
     FAIL()  # pragma: notest
 
