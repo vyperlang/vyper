@@ -250,8 +250,7 @@ def copy_bytes(dst, src, length, length_bound, pos=None):
 
         n = ["div", ["ceil32", length], 32]
         n_bound = ceil32(length_bound) // 32
-        # TODO change `repeat` opcode so that `i` is on stack instead
-        # of in memory
+
         main_loop = ["repeat", i, 0, n, n_bound, setter]
 
         return b1.resolve(
@@ -749,7 +748,7 @@ def ensure_in_memory(lll_var, context, pos=None):
 
     typ = lll_var.typ
     buf = LLLnode.from_list(context.new_internal_variable(typ), typ=typ, location="memory")
-    do_copy = make_setter(buf, lll_var, context, pos=pos)
+    do_copy = make_setter(buf, lll_var, pos=pos)
 
     return LLLnode.from_list(["seq", do_copy, buf], typ=typ, location="memory")
 

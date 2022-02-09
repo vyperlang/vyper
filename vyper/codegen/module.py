@@ -202,7 +202,7 @@ def parse_regular_functions(
                 ["add", start_pos + offset, "_lllsz"], typ=immutable.typ, location="memory"
             )
             rhs = LLLnode.from_list(memory_loc, typ=immutable.typ, location="memory")
-            data_section.append(make_setter(lhs, rhs))
+            data_section.append(make_setter(lhs, rhs, pos=None))
 
         # TODO: use GlobalContext.immutable_section_size
         data_section_size = sum([immutable.size * 32 for immutable in immutables])
