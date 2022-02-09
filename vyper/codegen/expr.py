@@ -796,7 +796,9 @@ class Expr:
 
         # temporary kludge to block #2637 bug
         if not isinstance(left.typ, BaseType):
-            raise TypeMismatch("`in` not allowed for arrays of non-base types")
+            raise TypeMismatch(
+                "`in` not allowed for arrays of non-base types, tracked in issue #2637"
+            )
 
         i = LLLnode.from_list(self.context.fresh_varname("in_ix"), typ="uint256")
 
@@ -887,7 +889,7 @@ class Expr:
             pass
 
         elif isinstance(self.expr.op, (vy_ast.In, vy_ast.NotIn)) and isinstance(
-            right.typ, SArrayType
+            right.typ, (SArrayType, DArrayType)
         ):
             return self.build_in_comparator()
 
@@ -914,6 +916,7 @@ class Expr:
             length_mismatch = left.typ.maxlen != right.typ.maxlen
             left_over_32 = left.typ.maxlen > 32
             right_over_32 = right.typ.maxlen > 32
+
             if length_mismatch or left_over_32 or right_over_32:
                 left_keccak = keccak256_helper(self.expr, left, self.context)
                 right_keccak = keccak256_helper(self.expr, right, self.context)
@@ -944,14 +947,21 @@ class Expr:
                 )
 
         # Compare other types.
-        if is_numeric_type(left.typ) and is_numeric_type(right.typ):
+        elif is_numeric_type(left.typ) and is_numeric_type(right.typ):
             if left.typ.typ == right.typ.typ == "uint256":
                 # this works because we only have one unsigned integer type
                 # in the future if others are added, this logic must be expanded
                 op = self._signed_to_unsigned_comparision_op(op)
 
-        elif op not in ("eq", "ne"):
-            return
+        elif isinstance(left.typ, BaseType) and isinstance(right.typ, BaseType):
+            if op not in ("eq", "ne"):
+                return
+        else:
+            # kludge to block behavior in #2638
+            # TODO actually implement equality for complex types
+            raise TypeMismatch(
+                "equality not yet supported for complex types, see issue #2638", self.expr
+            )
 
         return LLLnode.from_list([op, left, right], typ="bool", pos=getpos(self.expr))
 

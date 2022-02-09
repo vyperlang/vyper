@@ -266,6 +266,8 @@ def get_bytearray_length(arg):
 
 # get the number of elements at runtime
 def get_dyn_array_count(arg):
+    assert isinstance(arg.typ, DArrayType)
+
     typ = BaseType("uint256")
 
     if arg.value == "multi":
@@ -654,7 +656,7 @@ def check_assign(left, right):
 
     if isinstance(left.typ, BaseType):
         # TODO once we propagate types from typechecker, introduce this check:
-        #if left.typ != right.typ:
+        # if left.typ != right.typ:
         #    FAIL()  # pragma: notest
         return
 
