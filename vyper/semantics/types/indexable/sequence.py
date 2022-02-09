@@ -1,6 +1,5 @@
-from typing import Optional, Tuple, Union
-
 import warnings
+from typing import Optional, Tuple, Union
 
 from vyper import ast as vy_ast
 from vyper.abi_types import ABI_DynamicArray, ABI_StaticArray, ABI_Tuple, ABIType
@@ -138,7 +137,9 @@ class DynamicArrayDefinition(_SequenceDefinition):
             warnings.warn("DynArray is an experimental feature, please use with care")
             self.__class__._warning_flag = False
 
-        super().__init__(value_type, length, "DynArray", location, is_constant, is_public, is_immutable)
+        super().__init__(
+            value_type, length, "DynArray", location, is_constant, is_public, is_immutable
+        )
 
     def __repr__(self):
         return f"DynArray[{self.value_type}, {self.length}]"
