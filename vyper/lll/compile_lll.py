@@ -261,7 +261,6 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
 
         old_height = withargs.get(i_name.value, None)
 
-
         # stack: start, rounds
         if start.value != 0:
             o.extend(["DUP2", "ADD"])

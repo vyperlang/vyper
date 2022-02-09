@@ -5,6 +5,7 @@ from vyper import ast as vy_ast
 from vyper.codegen import external_call, self_call
 from vyper.codegen.core import (
     clamp_basetype,
+    get_dyn_array_count,
     get_element_ptr,
     get_number_as_fraction,
     getpos,
@@ -815,7 +816,6 @@ class Expr:
 
             right = tmp_list
 
-
         if right.location == "storage":
             load_i_from_list = ["sload", ["add", right, i]]
         else:
@@ -834,23 +834,25 @@ class Expr:
             len_ = get_dyn_array_count(right)
 
         # Repeat loop to loop-compare each item in the list.
-        ret.extend([
-            ["mstore", result_placeholder, 0],
+        ret.extend(
             [
-                "with",
-                "_result",
-                result_placeholder,
+                ["mstore", result_placeholder, 0],
                 [
-                    "repeat",
-                    i,
-                    0,
-                    len_,
-                    right.typ.count,
-                    break_loop_condition,
+                    "with",
+                    "_result",
+                    result_placeholder,
+                    [
+                        "repeat",
+                        i,
+                        0,
+                        len_,
+                        right.typ.count,
+                        break_loop_condition,
+                    ],
                 ],
-            ],
-            ["mload", result_placeholder],
-        ])
+                ["mload", result_placeholder],
+            ]
+        )
 
         if isinstance(self.expr.op, vy_ast.NotIn):
             # for `not in`, invert the result
