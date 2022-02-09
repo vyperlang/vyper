@@ -191,9 +191,9 @@ class DynamicArrayPrimitive(BasePrimitive):
         # TODO fix circular import
         from vyper.semantics.types.utils import get_type_from_annotation
 
-        if self._warning_flag:
+        if cls._warning_flag:
             warnings.warn("DynArray is an experimental feature, please use with care")
-            self.__class__._warning_flag = False
+            cls._warning_flag = False
 
         if (
             not isinstance(node, vy_ast.Subscript)
