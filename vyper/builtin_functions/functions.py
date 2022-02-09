@@ -227,7 +227,11 @@ ADHOC_SLICE_NODE_MACROS = ["~calldata", "~selfcode", "~extcode"]
 
 
 def _build_adhoc_slice_node(sub: LLLnode, start: LLLnode, length: LLLnode, np: int) -> LLLnode:
-    assert isinstance(length.value, int)  # `length` is constant which is validated before
+    # TODO validate at typechecker stage
+    if not isinstance(length.value, int) or len(length.args) > 0:
+        raise InvalidLiteral(
+            f"slice({sub.value[1:]}) must use length which is a compile-time constant"
+        )
 
     # `msg.data` by `calldatacopy`
     if sub.value == "~calldata":
