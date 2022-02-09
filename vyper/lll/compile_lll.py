@@ -261,7 +261,6 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
 
         old_height = withargs.get(i_name.value, None)
 
-        withargs[i_name.value] = height
 
         # stack: start, rounds
         if start.value != 0:
@@ -269,6 +268,8 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
 
         # stack: i, exit_i
         o.extend(["SWAP1"])
+
+        withargs[i_name.value] = height + 1
 
         # stack: exit_i, i
         o.extend([entry_dest, "JUMPDEST"])
