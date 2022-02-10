@@ -96,6 +96,8 @@ class LLLnode:
             if not condition:
                 raise CompilerPanic(str(err))
 
+        _check(self.value is not None, "None is not allowed as LLLnode value")
+
         # Determine this node's valency (1 if it pushes a value on the stack,
         # 0 otherwise) and checks to make sure the number and valencies of
         # children are correct. Also, find an upper bound on gas consumption
@@ -265,7 +267,7 @@ class LLLnode:
     # This function is slightly confusing but abstracts a common pattern:
     # when an LLL value needs to be computed once and then cached as an
     # LLL value (if it is expensive, or more importantly if its computation
-    # includes side-effcts), cache it as an LLL variable named with the
+    # includes side-effects), cache it as an LLL variable named with the
     # `name` param, and execute the `body` with the cached value. Otherwise,
     # run the `body` without caching the LLL variable.
     # Note that this may be an unneeded abstraction in the presence of an
@@ -283,10 +285,11 @@ class LLLnode:
             def __init__(self, lll_node, name):
                 # TODO figure out how to fix this circular import
                 from vyper.lll.optimizer import optimize
-                # see if the lll_node will be optimized because a
-                # non-literal expr could turn into a literal,
-                # (e.g. `(add 1 2)`)
                 self.lll_node = lll_node
+                # for caching purposes, see if the lll_node will be optimized
+                # because a non-literal expr could turn into a literal,
+                # (e.g. `(add 1 2)`)
+                # TODO this could really be moved into optimizer.py
                 self.should_cache = optimize(lll_node).is_complex_lll
 
                 # a named LLL variable which represents the
