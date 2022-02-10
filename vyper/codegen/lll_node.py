@@ -250,6 +250,8 @@ class LLLnode:
         self.gas += self.add_gas_estimate
 
     # the LLL should be cached.
+    # TODO make this private. turns out usages are all for the caching
+    # idiom that cache_when_complex addresses
     @property
     def is_complex_lll(self):
         return isinstance(self.value, str) and (
@@ -275,7 +277,14 @@ class LLLnode:
         # this creates a magical block which maps to LLL `with`
         class _WithBuilder:
             def __init__(self, lll_node, name):
+                # TODO figure out how to fix this circular import
+                from vyper.lll.optimizer import optimize
+                # see if the lll_node will be optimized because a
+                # non-literal expr could turn into a literal,
+                # (e.g. `(add 1 2)`)
                 self.lll_node = lll_node
+                self.should_cache = optimize(lll_node).is_complex_lll
+
                 # a named LLL variable which represents the
                 # output of `lll_node`
                 self.lll_var = LLLnode.from_list(
@@ -283,11 +292,11 @@ class LLLnode:
                 )
 
             def __enter__(self):
-                if self.lll_node.is_complex_lll:
+                if self.should_cache:
                     # return the named cache
                     return self, self.lll_var
                 else:
-                    # it's a constant, just return that
+                    # it's a constant (or will be optimized to one), just return that
                     return self, self.lll_node
 
             def __exit__(self, *args):
@@ -296,7 +305,7 @@ class LLLnode:
             # MUST be called at the end of building the expression
             # in order to make sure the expression gets wrapped correctly
             def resolve(self, body):
-                if self.lll_node.is_complex_lll:
+                if self.should_cache:
                     ret = ["with", self.lll_var, self.lll_node, body]
                     if isinstance(body, LLLnode):
                         return LLLnode.from_list(
