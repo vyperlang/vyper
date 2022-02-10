@@ -301,10 +301,8 @@ def getpos(node):
 
 
 def add_ofst(loc, ofst):
-    if isinstance(loc.value, int) and isinstance(ofst, int):
-        ret = loc.value + ofst
-    else:
-        ret = ["add", loc, ofst]
+    # note: constant adds get optimized
+    ret = ["add", loc, ofst]
     return LLLnode.from_list(ret, location=loc.location, encoding=loc.encoding)
 
 
@@ -409,9 +407,11 @@ def _get_element_ptr_array(parent, key, pos, array_bounds_check):
 
     subtype = parent.typ.subtype
 
-    # TODO this does not clamp
     if parent.value is None:
-        return LLLnode.from_list(None, typ=subtype)
+        # codegen for this case is a bit complicated since it requires
+        # a bounds check, so just block it. there is no reason to index
+        # into a literal empty array anyways!
+        raise TypeCheckFailure(f"indexing into zero array not allowed")
 
     if parent.value == "multi":
         assert isinstance(key.value, int)
@@ -419,17 +419,12 @@ def _get_element_ptr_array(parent, key, pos, array_bounds_check):
 
     ix = unwrap_location(key)
 
-    if key.typ.is_literal and isinstance(parent.typ, SArrayType):
-        # perform the check at compile time and elide the runtime check.
-        # TODO make this an optimization on clamp ops
-        if key.value < 0 or key.value >= parent.typ.count:
-            raise TypeCheckFailure(f"{key.value} is out of bounds for {parent.typ}")
-
-    elif array_bounds_check:
-        clamp = "clamplt" if is_signed_num(key.typ) else "uclamplt"
+    if array_bounds_check:
+        clamp_op = "clamplt" if is_signed_num(key.typ) else "uclamplt"
         is_darray = isinstance(parent.typ, DArrayType)
         bound = get_dyn_array_count(parent) if is_darray else parent.typ.count
-        ix = LLLnode.from_list([clamp, ix, bound], typ=ix.typ)
+        # NOTE: there are optimization rules for this when ix or bound is literal
+        ix = LLLnode.from_list([clamp_op, ix, bound], typ=ix.typ)
 
     if parent.encoding in (Encoding.ABI, Encoding.JSON_ABI):
         if parent.location == "storage":
@@ -437,11 +432,7 @@ def _get_element_ptr_array(parent, key, pos, array_bounds_check):
 
         member_abi_t = subtype.abi_type
 
-        if isinstance(ix.value, int):
-            # TODO this constant folding in LLL optimizer
-            ofst = ix.value * member_abi_t.embedded_static_size()
-        else:
-            ofst = ["mul", ix, member_abi_t.embedded_static_size()]
+        ofst = ["mul", ix, member_abi_t.embedded_static_size()]
 
         return _getelemptr_abi_helper(parent, subtype, ofst, pos)
 
@@ -450,15 +441,13 @@ def _get_element_ptr_array(parent, key, pos, array_bounds_check):
     elif parent.location in ("calldata", "memory", "code"):
         element_size = subtype.memory_bytes_required
 
-    if isinstance(ix.value, int):
-        ofst = ix.value * element_size
-    else:
-        ofst = ["mul", ix, element_size]
+    ofst = ["mul", ix, element_size]
 
     if has_length_word(parent.typ):
         data_ptr = add_ofst(parent, _wordsize(parent.location) * DYNAMIC_ARRAY_OVERHEAD)
     else:
         data_ptr = parent
+
     return LLLnode.from_list(
         add_ofst(data_ptr, ofst), typ=subtype, location=parent.location, pos=pos
     )
@@ -603,7 +592,7 @@ def _check_assign_list(left, right):
         check_assign(dummy_node_for_type(left.typ.subtyp), dummy_node_for_type(right.typ.subtyp))
 
     if isinstance(left, DArrayType):
-        if not isinstance(right, (DArrayType, SArrayType)):
+        if not isinstance(right, ArrayLike):
             FAIL()  # pragma: notest
 
         if left.typ.count < right.typ.count:
@@ -614,6 +603,7 @@ def _check_assign_list(left, right):
             raise TypeCheckFailure(
                 f"Bad type for clearing bytes: expected {left.typ} but got {right.typ}"
             )  # pragma: notest
+
         check_assign(dummy_node_for_type(left.typ.subtyp), dummy_node_for_type(right.typ.subtyp))
 
 

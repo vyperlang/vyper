@@ -138,19 +138,19 @@ def apply_general_optimizations(node: LLLnode) -> LLLnode:
             add_gas_estimate=node.add_gas_estimate,
             valency=node.valency,
         )
-    elif node.value == "clamp" and int_at(argz, 0) and int_at(argz, 1) and int_at(argz, 2):
+    elif node.value in ("clamp", "uclamp") and int_at(argz, 0) and int_at(argz, 1) and int_at(argz, 2):
         if get_int_at(argz, 0, True) > get_int_at(argz, 1, True):  # type: ignore
             raise Exception("Clamp always fails")
         elif get_int_at(argz, 1, True) > get_int_at(argz, 2, True):  # type: ignore
             raise Exception("Clamp always fails")
         else:
             return argz[1]
-    elif node.value == "clamp" and int_at(argz, 0) and int_at(argz, 1):
+    elif node.value in ("clamp", "uclamp") and int_at(argz, 0) and int_at(argz, 1):
         if get_int_at(argz, 0, True) > get_int_at(argz, 1, True):  # type: ignore
             raise Exception("Clamp always fails")
         else:
             return LLLnode(
-                "clample",
+                node.value + "le", # i.e., clample or uclample
                 [argz[1], argz[2]],
                 node.typ,
                 node.location,
@@ -173,6 +173,7 @@ def apply_general_optimizations(node: LLLnode) -> LLLnode:
             )
         else:
             raise Exception("Clamp always fails")
+    # TODO: (uclampgt 0 x) -> (iszero (iszero x))
     # [eq, x, 0] is the same as [iszero, x].
     elif node.value == "eq" and int_at(argz, 1) and argz[1].value == 0:
         return LLLnode(

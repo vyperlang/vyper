@@ -396,6 +396,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
     elif code.value in CLAMP_OP_NAMES:
         if isinstance(code.args[0].value, int) and isinstance(code.args[1].value, int):
             # Checks for clamp errors at compile time as opposed to run time
+            # TODO move these to optimizer.py
             args_0_val = code.args[0].value
             args_1_val = code.args[1].value
             is_free_of_clamp_errors = any(
