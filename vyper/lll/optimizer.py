@@ -55,6 +55,9 @@ def optimize(lll_node: LLLnode) -> LLLnode:
 
 
 def apply_general_optimizations(node: LLLnode) -> LLLnode:
+    # TODO add rules for modulus powers of 2
+    # TODO refactor this into several functions
+
     argz = [apply_general_optimizations(arg) for arg in node.args]
 
     value = node.value

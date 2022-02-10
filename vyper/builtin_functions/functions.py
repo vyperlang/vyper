@@ -12,6 +12,7 @@ from vyper.codegen.abi_encoder import abi_encode
 from vyper.codegen.core import (
     LLLnode,
     add_ofst,
+    bytes_data_ptr,
     check_external_call,
     clamp_basetype,
     copy_bytes,
@@ -309,127 +310,127 @@ class Slice:
     @validate_inputs
     def build_LLL(self, expr, args, kwargs, context):
 
-        sub, start, length = args
+        src, start, length = args
 
-        if is_base_type(sub.typ, "bytes32"):
-            if (start.typ.is_literal and length.typ.is_literal) and not (
-                0 <= start.value + length.value <= 32
-            ):
-                raise InvalidLiteral(
-                    "Invalid start / length values needs to be between 0 and 32.",
-                    expr,
-                )
-            sub_typ_maxlen = 32
-        else:
-            sub_typ_maxlen = sub.typ.maxlen
-
-        # Get returntype string or bytes
-        if isinstance(args[0].typ, ByteArrayType) or is_base_type(sub.typ, "bytes32"):
-            ReturnType = ByteArrayType
-        else:
-            ReturnType = StringType
-
-        # Node representing the position of the output in memory
-        # (allocate an extra 32 bytes because of unaligned word access
-        # described below)
-        np = context.new_internal_variable(ReturnType(maxlen=sub_typ_maxlen + 32))
-        placeholder_node = LLLnode.from_list(np, typ=sub.typ, location="memory")
-        placeholder_plus_32_node = LLLnode.from_list(np + 32, typ=sub.typ, location="memory")
-
-        # Handle `msg.data`, `self.code`, and `<address>.code`
-        if sub.value in ADHOC_SLICE_NODE_MACROS:
-            return _build_adhoc_slice_node(sub, start, length, np)
-
-        # Copy over bytearray data
-
-        # because slice uses byte-addressing but we might have
-        # word-aligned data, this algorithm starts at some number
-        # of bytes before the data section starts, and might copy
-        # an extra word. this works even for bytes in storage because
-        # the destination is (byte-addressed) memory.
-        # the pseudocode for the hard case (storage):
-        #   let src and dst be regular vyper bytestrings
-        #   with one length word followed by data section.
-        #   dst_data = dst + 32
-        #   dst_data = dst_data - start % 32
-        #   src_data = src + 32
-        #   src_data = src_data + start // 32
-        #   copy_bytes(dst_data, src_data, length)
-        #   # set length AFTER copy because the length word has been clobbered!
-        #   setlength(src, length)
-        # TODO this function needs to be refactored for clarity
-
-        if sub.location == "storage":
-            adj_sub = LLLnode.from_list(
-                ["add", sub, ["add", ["div", "_start", 32], 1]],
-                typ=sub.typ,
-                location=sub.location,
-            )
-        else:
-            adj_sub = LLLnode.from_list(
-                ["add", sub, ["add", ["sub", "_start", ["mod", "_start", 32]], 32]],
-                typ=sub.typ,
-                location=sub.location,
-            )
-
-        if is_base_type(sub.typ, "bytes32"):
-            # optimize case when the expression is like (mload 352) or (sload 0)
-            if len(sub.args) == 1 and getattr(sub.args[0], "location", None) is not None:
-                adj_sub = sub.args[0]
-            else:
-                adj_sub = LLLnode.from_list(
-                    [
-                        "seq",
-                        ["mstore", MemoryPositions.FREE_VAR_SPACE, sub],
-                        MemoryPositions.FREE_VAR_SPACE,
-                    ],
-                    typ=sub.typ,
-                    location="memory",
-                )
-
-        copier = copy_bytes(
-            placeholder_plus_32_node,
-            adj_sub,
-            # add 32 because we have an unaligned word access during the
-            # copy (except in the case where (start % 32) == 0)
-            # TODO more accurate is (add length (ceil32 (mod start 32)))
-            ["add", "_length", 32],
-            32 + sub_typ_maxlen,
-            pos=getpos(expr),
-        )
-
-        # New maximum length in the type of the result
-        newmaxlen = length.value if not len(length.args) else sub_typ_maxlen
-        if is_base_type(sub.typ, "bytes32"):
-            maxlen = 32
-        else:
-            maxlen = get_bytearray_length(sub)
-
-        out = [
-            "with",
-            "_start",
+        with src.cache_when_complex("src") as (b1, src), start.cache_when_complex("start") as (
+            b2,
             start,
-            [
-                "with",
-                "_length",
-                length,
-                [
-                    "with",
-                    "_opos",
-                    ["add", placeholder_node, ["mod", "_start", 32]],
-                    [
-                        "seq",
-                        ["assert", ["le", ["add", "_start", "_length"], maxlen]],
-                        copier,
-                        ["mstore", "_opos", "_length"],
-                        "_opos",
-                    ],
-                ],
-            ],
-        ]
-        return LLLnode.from_list(
-            out, typ=ReturnType(newmaxlen), location="memory", pos=getpos(expr)
-        )
+        ), length.cache_when_complex("length") as (b3, length):
+
+            is_bytes32 = is_base_type(src.typ, "bytes32")
+
+            if is_bytes32:
+                src_len = 32
+                src_maxlen = 32
+            else:
+                src_len = get_bytearray_length(src)
+                src_maxlen = src.typ.maxlen
+
+            if start.is_literal and length.is_literal:
+                # TODO this should be moved to typechecker
+                if not 0 <= start.value + length.value <= src_maxlen:
+                    raise InvalidLiteral(
+                        "slice out of bounds: slice({src.typ}, {start.value}, {length.value})",
+                        expr,
+                    )
+
+            dst_maxlen = length.value if length.is_literal else src_maxlen
+
+            # Get returntype string or bytes
+            assert isinstance(src.typ, ByteArrayLike) or is_bytes32
+            if isinstance(src.typ, StringType):
+                dst_typ = StringType(maxlen=dst_maxlen)
+            else:
+                dst_typ = ByteArrayType(maxlen=dst_maxlen)
+
+            # allocate a buffer for the return value
+            buf = context.new_internal_variable(dst_typ)
+            dst = LLLnode.from_list(buf, typ=dst_typ, location="memory")
+
+            # Handle `msg.data`, `self.code`, and `<address>.code`
+            if src.value in ADHOC_SLICE_NODE_MACROS:
+                return _build_adhoc_slice_node(src, start, length, buf)
+
+            if src.location is None:
+                assert is_bytes32
+                src = ensure_in_memory(src, context)
+
+            src_data = bytes_data_ptr(src)
+            dst_data = bytes_data_ptr(dst)
+
+            # general case. byte-for-byte copy
+            if src.location == "storage":
+                # because slice uses byte-addressing but storage
+                # is word-aligned, this algorithm starts at some number
+                # of bytes before the data section starts, and might copy
+                # an extra word. the pseudocode is:
+                #   dst_data = dst + 32
+                #   copy_dst = dst_data - start % 32
+                #   src_data = src + 32
+                #   copy_src = src_data + (start - start % 32) / 32
+                #   copy_bytes(copy_dst, copy_src, length)
+                #   //set length AFTER copy because the length word has been clobbered!
+                #   mstore(src, length)
+
+                # start at the first word-aligned address before `start`
+                # e.g. start == byte 7 -> we start copying from byte 0
+                #      start == byte 32 -> we start copying from byte 32
+                copy_src = LLLnode.from_list(
+                    ["add", src_data, ["div", start, 32]],
+                    location=src.location,
+                )
+
+                # destination is unaligned
+                # start == byte 0 -> we copy to dst_data + 0
+                # start == byte 7 -> we copy to dst_data - 25
+                # start == byte 33 -> we copy to dst_data - 31
+                #
+                # note (mod start 32) == (and start 31)
+                # TODO add optimizer rule for modulus-powers-of-two
+                # TODO this is fubar
+                copy_dst = LLLnode.from_list(
+                    ["add", dst_data, ["sub", ["and", 31, start], ["ceil32", start]]], location=dst.location
+                )
+
+                # TODO this is fubar
+                copy_len = ["add", length, ["mul", 32, ["iszero", ["iszero", ["and", 31, start]]]]]
+
+                # add 32 bytes to the copy maxlen unless
+                # we know the word access is not unaligned
+                if start.is_literal and start.value % 32 == 0:
+                    copy_maxlen = dst_maxlen
+                else:
+                    copy_maxlen = dst_maxlen + 32
+
+            else:
+                # all other address spaces (mem, calldata, code) we have
+                # byte-aligned access so we can just do the easy thing,
+                # memcopy(dst_data, src_data + dst_data)
+
+                copy_src = add_ofst(src_data, start)
+                copy_dst = dst_data
+                copy_len = length
+                copy_maxlen = dst_maxlen
+
+            do_copy = copy_bytes(
+                copy_dst,
+                copy_src,
+                copy_len,
+                copy_maxlen,
+                pos=getpos(expr),
+            )
+
+            # make sure we don't overrun the source buffer
+
+            ret = [
+                "seq",
+                ["assert", ["le", ["add", start, length], src_len]],  # bounds check
+                do_copy,
+                ["mstore", dst, length],  # set length
+                dst,  # return pointer to dst
+            ]
+            ret = LLLnode.from_list(ret, typ=dst_typ, location="memory", pos=getpos(expr))
+            return b1.resolve(b2.resolve(b3.resolve(ret)))
 
 
 class Len(_SimpleBuiltinFunction):

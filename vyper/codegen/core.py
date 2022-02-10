@@ -14,6 +14,7 @@ from vyper.codegen.types import (
     TupleLike,
     TupleType,
     ceil32,
+    is_base_type,
     is_integer_type,
 )
 from vyper.evm.opcodes import version_check
@@ -119,6 +120,16 @@ def _wordsize(location):
     if location == "storage":
         return 1
     raise CompilerPanic(f"invalid location {location}")  # pragma: notest
+
+
+def bytes_data_ptr(ptr):
+    if ptr.location is None:
+        raise CompilerPanic("tried to modify non-pointer type")
+    if is_base_type(ptr.typ, "bytes32"):
+        return ptr
+    if isinstance(ptr.typ, ByteArrayLike):
+        return add_ofst(ptr, _wordsize(ptr.location))
+    raise CompilerPanic(f"non bytes type {ptr.typ}")
 
 
 def _dynarray_make_setter(dst, src, pos=None):
