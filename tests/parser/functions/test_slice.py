@@ -113,6 +113,20 @@ def foo(x: uint256, y: uint256) -> (uint256, String[12]):
     assert c.foo(11, 1) == [2 ** 256 - 1, "d"]
 
 
+def test_slice_storage_bytes32(get_contract):
+    code = """
+bytez: bytes32
+@external
+def dice() -> Bytes[1]:
+    self.bytez = convert(65, bytes32)
+    c: Bytes[1] = slice(self.bytez, 31, 1)
+    return c
+    """
+
+    c = get_contract(code)
+    assert c.dice() == b"A"
+
+
 def test_slice_at_end(get_contract):
     code = """
 @external
