@@ -88,6 +88,31 @@ def foo(inp: Bytes[10], start: uint256, _len: uint256) -> Bytes[10]:
     assert_tx_failed(lambda: c.foo(b"badminton", 10, 0))
 
 
+def test_slice_private(get_contract):
+    # test there are no buffer overruns in the slice function
+    code = """
+bytez: public(String[12])
+
+@internal
+def _slice(start: uint256, length: uint256):
+    self.bytez = slice(self.bytez, start, length)
+
+@external
+def foo(x: uint256, y: uint256) -> (uint256, String[12]):
+    self.bytez = "hello, world"
+    dont_clobber_me: uint256 = MAX_UINT256
+    self._slice(x, y)
+    return dont_clobber_me, self.bytez
+    """
+    c = get_contract(code)
+    assert c.foo(0, 12) == [2 ** 256 - 1, "hello, world"]
+    assert c.foo(12, 0) == [2 ** 256 - 1, ""]
+    assert c.foo(7, 5) == [2 ** 256 - 1, "world"]
+    assert c.foo(0, 5) == [2 ** 256 - 1, "hello"]
+    assert c.foo(0, 1) == [2 ** 256 - 1, "h"]
+    assert c.foo(11, 1) == [2 ** 256 - 1, "d"]
+
+
 def test_slice_at_end(get_contract):
     code = """
 @external
