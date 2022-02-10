@@ -101,6 +101,7 @@ class LLLnode:
         # children are correct. Also, find an upper bound on gas consumption
         # Numbers
         if isinstance(self.value, int):
+            _check(len(self.args) == 0, "int can't have arguments")
             self.valency = 1
             self.gas = 5
         elif isinstance(self.value, str):
