@@ -200,6 +200,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         o.extend(_compile_to_assembly(code.args[2], withargs, existing_labels, break_dest, height))
         o.extend([end_symbol, "JUMPDEST"])
         return o
+
     # repeat(counter_location, start, rounds, rounds_bound, body)
     # basically a do-while loop:
     #
@@ -251,15 +252,14 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
             )
             # stack: i, rounds, rounds_bound
             # assert rounds <= rounds_bound
-            # TODO this assertion should never fail,
+            # TODO this runtime assertion should never fail for
+            # internally generated repeats.
             # maybe drop it or jump to 0xFE
             o.extend(["DUP2", "GT", "_sym_revert0", "JUMPI"])
 
             # stack: i, rounds
             # if (0 == rounds) { goto end_dest; }
             o.extend(["DUP1", "ISZERO", exit_dest, "JUMPI"])
-
-        old_height = withargs.get(i_name.value, None)
 
         # stack: start, rounds
         if start.value != 0:
@@ -268,6 +268,8 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         # stack: i, exit_i
         o.extend(["SWAP1"])
 
+        if i_name.value in withargs:
+            raise CompilerPanic(f"shadowed loop variable {i_name}")
         withargs[i_name.value] = height + 1
 
         # stack: exit_i, i
@@ -282,29 +284,19 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
             )
         )
 
+        del withargs[i_name.value]
+
         # clean up any stack items left by body
         o.extend(["POP"] * body.valency)
 
         # stack: exit_i, i
         # increment i:
-        o.extend(
-            [
-                continue_dest,
-                "JUMPDEST",
-                "PUSH1",
-                1,
-                "ADD",
-                # stack: exit_i, i+1 (new_i)
-            ]
-        )
+        o.extend([ continue_dest, "JUMPDEST", "PUSH1", 1, "ADD"])
 
-        # stack: exit_i, new_i
+        # stack: exit_i, i+1 (new_i)
         # if (exit_i != new_i) { goto entry_dest }
         o.extend(["DUP2", "DUP2", "XOR", entry_dest, "JUMPI"])
         o.extend([exit_dest, "JUMPDEST", "POP", "POP"])
-
-        if old_height is not None:
-            withargs[i_name.value] = old_height
 
         return o
 
