@@ -753,24 +753,19 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
             break_dest,
             height,
         )
+
     # e.g. 95 -> 96, 96 -> 96, 97 -> 128
     elif code.value == "ceil32":
+        # floor32(x) = x - x % 32 == x & 0b11..100000 == x & (~31)
+        # ceil32(x) = floor32(x + 31) == (x + 31) & (~31)
         return _compile_to_assembly(
-            IRnode.from_list(
-                [
-                    "with",
-                    "_val",
-                    code.args[0],
-                    # in mod32 arithmetic, the solution to x + y == 32 is
-                    # y = bitwise_not(x) & 31
-                    ["add", "_val", ["and", ["not", ["sub", "_val", 1]], 31]],
-                ]
-            ),
+            IRnode.from_list(["and", ["add", o, 31], ["not", 31]]),
             withargs,
             existing_labels,
             break_dest,
             height,
         )
+
     # jump to a symbol, and push variable # of arguments onto stack
     elif code.value == "goto":
         o = []
