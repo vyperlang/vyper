@@ -255,6 +255,10 @@ class LLLnode:
             self.value.lower() in VALID_LLL_MACROS or self.value.upper() in get_comb_opcodes()
         )
 
+    @property
+    def is_literal(self):
+        return isinstance(self.value, int) or self.value == "multi"
+
     # This function is slightly confusing but abstracts a common pattern:
     # when an LLL value needs to be computed once and then cached as an
     # LLL value (if it is expensive, or more importantly if its computation

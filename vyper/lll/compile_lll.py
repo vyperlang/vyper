@@ -291,7 +291,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
 
         # stack: exit_i, i
         # increment i:
-        o.extend([ continue_dest, "JUMPDEST", "PUSH1", 1, "ADD"])
+        o.extend([continue_dest, "JUMPDEST", "PUSH1", 1, "ADD"])
 
         # stack: exit_i, i+1 (new_i)
         # if (exit_i != new_i) { goto entry_dest }
