@@ -606,9 +606,6 @@ def _check_assign_tuple(left, right):
     def FAIL():  # pragma: nocover
         raise TypeCheckFailure(f"assigning {right.typ} to {left.typ}")
 
-    # if right.value == "~empty":
-    #    return
-
     if not isinstance(right.typ, left.typ.__class__):
         FAIL()  # pragma: notest
 
