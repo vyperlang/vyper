@@ -259,9 +259,11 @@ class LLLnode:
         # list of items not to cache. note can add other env variables
         # which do not change, e.g. calldatasize, coinbase, etc.
         do_not_cache = {"~empty"}
-        return isinstance(self.value, str) and (
-            self.value.lower() in VALID_LLL_MACROS or self.value.upper() in get_comb_opcodes()
-        ) and self.value.lower() not in do_not_cache
+        return (
+            isinstance(self.value, str)
+            and (self.value.lower() in VALID_LLL_MACROS or self.value.upper() in get_comb_opcodes())
+            and self.value.lower() not in do_not_cache
+        )
 
     # This function is slightly confusing but abstracts a common pattern:
     # when an LLL value needs to be computed once and then cached as an
@@ -284,6 +286,7 @@ class LLLnode:
             def __init__(self, lll_node, name):
                 # TODO figure out how to fix this circular import
                 from vyper.lll.optimizer import optimize
+
                 self.lll_node = lll_node
                 # for caching purposes, see if the lll_node will be optimized
                 # because a non-literal expr could turn into a literal,

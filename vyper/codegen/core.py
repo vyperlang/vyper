@@ -15,7 +15,6 @@ from vyper.codegen.types import (
     TupleType,
     ceil32,
     is_integer_type,
-    is_signed_num,
 )
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
@@ -402,7 +401,7 @@ def _get_element_ptr_array(parent, key, pos, array_bounds_check):
             # is a bit complicated when bounds check is required, so
             # block it. there is no reason to index into a literal empty
             # array anyways!
-            raise TypeCheckFailure(f"indexing into zero array not allowed")
+            raise TypeCheckFailure("indexing into zero array not allowed")
         return LLLnode.from_list("~empty", subtype)
 
     if parent.value == "multi":
@@ -607,7 +606,7 @@ def _check_assign_tuple(left, right):
     def FAIL():  # pragma: nocover
         raise TypeCheckFailure(f"assigning {right.typ} to {left.typ}")
 
-    #if right.value == "~empty":
+    # if right.value == "~empty":
     #    return
 
     if not isinstance(right.typ, left.typ.__class__):

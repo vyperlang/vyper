@@ -1,6 +1,7 @@
 import pytest
 import itertools
 
+
 def test_bytes_literal_code(get_contract_with_gas_estimation):
     bytes_literal_code = """
 @external
@@ -40,7 +41,7 @@ def baz4() -> Bytes[100]:
     print("Passed string literal test")
 
 
-@pytest.mark.parametrize("i,e,_s", itertools.product([95,96,97], [63,64,65], [31,32,33]))
+@pytest.mark.parametrize("i,e,_s", itertools.product([95, 96, 97], [63, 64, 65], [31, 32, 33]))
 def test_bytes_literal_splicing_fuzz(get_contract_with_gas_estimation, i, e, _s):
     kode = f"""
 moo: Bytes[100]
