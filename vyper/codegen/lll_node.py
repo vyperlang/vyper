@@ -256,9 +256,12 @@ class LLLnode:
     # idiom that cache_when_complex addresses
     @property
     def is_complex_lll(self):
+        # list of items not to cache. note can add other env variables
+        # which do not change, e.g. calldatasize, coinbase, etc.
+        do_not_cache = {"~empty"}
         return isinstance(self.value, str) and (
             self.value.lower() in VALID_LLL_MACROS or self.value.upper() in get_comb_opcodes()
-        )
+        ) and self.value.lower() not in do_not_cache
 
     @property
     def is_literal(self):
