@@ -320,10 +320,8 @@ class Slice:
             is_bytes32 = is_base_type(src.typ, "bytes32")
 
             if is_bytes32:
-                src_len = 32
                 src_maxlen = 32
             else:
-                src_len = get_bytearray_length(src)
                 src_maxlen = src.typ.maxlen
 
             if start.is_literal and length.is_literal:
@@ -355,8 +353,14 @@ class Slice:
                 assert is_bytes32
                 src = ensure_in_memory(src, context)
 
-            src_data = bytes_data_ptr(src)
             dst_data = bytes_data_ptr(dst)
+
+            if is_bytes32:
+                src_len = 32
+                src_data = src
+            else:
+                src_len = get_bytearray_length(src)
+                src_data = bytes_data_ptr(src)
 
             # general case. byte-for-byte copy
             if src.location == "storage":

@@ -123,14 +123,12 @@ def _wordsize(location):
     raise CompilerPanic(f"invalid location {location}")  # pragma: notest
 
 
+# TODO refactor: add similar fn for dyn_arrays
 def bytes_data_ptr(ptr):
     if ptr.location is None:
         raise CompilerPanic("tried to modify non-pointer type")
-    if is_base_type(ptr.typ, "bytes32"):
-        return ptr
-    if isinstance(ptr.typ, ByteArrayLike):
-        return add_ofst(ptr, _wordsize(ptr.location))
-    raise CompilerPanic(f"non bytes type {ptr.typ}")
+    assert isinstance(ptr.typ, ByteArrayLike)
+    return add_ofst(ptr, _wordsize(ptr.location))
 
 
 def _dynarray_make_setter(dst, src, pos=None):
