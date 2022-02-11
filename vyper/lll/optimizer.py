@@ -153,7 +153,8 @@ def apply_general_optimizations(node: LLLnode) -> LLLnode:
             raise Exception("Clamp always fails")
         else:
             return LLLnode(
-                node.value + "le",  # i.e., clample or uclample
+                # i.e., clample or uclample
+                node.value + "le",  # type: ignore
                 [argz[1], argz[2]],
                 node.typ,
                 node.location,

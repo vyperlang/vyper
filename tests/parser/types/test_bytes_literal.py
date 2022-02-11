@@ -1,5 +1,6 @@
-import pytest
 import itertools
+
+import pytest
 
 
 def test_bytes_literal_code(get_contract_with_gas_estimation):
