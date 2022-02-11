@@ -409,10 +409,13 @@ def _get_element_ptr_array(parent, key, pos, array_bounds_check):
     subtype = parent.typ.subtype
 
     if parent.value == "~empty":
-        # codegen for this case is a bit complicated since it requires
-        # a bounds check, so just block it. there is no reason to index
-        # into a literal empty array anyways!
-        raise TypeCheckFailure(f"indexing into zero array not allowed")
+        if array_bounds_check:
+            # this case was previously missing a bounds check. codegen
+            # is a bit complicated when bounds check is required, so
+            # block it. there is no reason to index into a literal empty
+            # array anyways!
+            raise TypeCheckFailure(f"indexing into zero array not allowed")
+        return LLLnode.from_list("~empty", subtype)
 
     if parent.value == "multi":
         assert isinstance(key.value, int)
