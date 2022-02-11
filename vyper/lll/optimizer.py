@@ -123,6 +123,12 @@ def apply_general_optimizations(node: LLLnode) -> LLLnode:
             value += "le"  # type: ignore
             argz = [argz[1], argz[2]]
 
+    elif node.value == "uclamplt" and int_at(argz, 0) and int_at(argz, 1):
+        if get_int_at(argz, 0, True) >= get_int_at(argz, 1, True):  # type: ignore
+            raise Exception("Clamp always fails")
+        value = argz[0].value
+        argz = []
+
     elif node.value == "clamp_nonzero" and int_at(argz, 0):
         if get_int_at(argz, 0) != 0:
             value = argz[0].value
@@ -131,6 +137,8 @@ def apply_general_optimizations(node: LLLnode) -> LLLnode:
             raise Exception("Clamp always fails")
 
     # TODO: (uclampgt 0 x) -> (iszero (iszero x))
+    # TODO: more clamp rules
+
     # [eq, x, 0] is the same as [iszero, x].
     elif node.value == "eq" and int_at(argz, 1) and argz[1].value == 0:
         value = "iszero"
