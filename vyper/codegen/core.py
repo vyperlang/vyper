@@ -170,7 +170,7 @@ def _dynarray_make_setter(dst, src, pos=None):
         else:
             element_size = src.typ.subtype.memory_bytes_required
             # 32 bytes + number of elements * size of element in bytes
-            n_bytes = ["add", ["mul", get_dyn_array_count(src), element_size], 32]
+            n_bytes = ["add", _mul(get_dyn_array_count(src), element_size), 32]
             max_bytes = src.typ.memory_bytes_required
 
         return b1.resolve(copy_bytes(dst, src, n_bytes, max_bytes, pos=pos))
@@ -234,14 +234,14 @@ def copy_bytes(dst, src, length, length_bound, pos=None):
                 loader = 0
 
         elif src.location in ("memory", "calldata", "code"):
-            loader = [load_op(src.location), ["add", src, ["mul", 32, i]]]
+            loader = [load_op(src.location), ["add", src, _mul(32, i)]]
         elif src.location == "storage":
             loader = [load_op(src.location), ["add", src, i]]
         else:
             raise CompilerPanic(f"Unsupported location: {src.location}")  # pragma: notest
 
         if dst.location == "memory":
-            setter = ["mstore", ["add", dst, ["mul", 32, i]], loader]
+            setter = ["mstore", ["add", dst, _mul(32, i)], loader]
         elif dst.location == "storage":
             setter = ["sstore", ["add", dst, i], loader]
         else:
@@ -289,9 +289,23 @@ def getpos(node):
 
 
 def add_ofst(loc, ofst):
-    # note: constant adds get optimized
-    ret = ["add", loc, ofst]
+    ofst = LLLnode.from_list(ofst)
+    if isinstance(loc.value, int) and isinstance(ofst.value, int):
+        ret = loc.value + ofst.value
+    else:
+        ret = ["add", loc, ofst]
     return LLLnode.from_list(ret, location=loc.location, encoding=loc.encoding)
+
+
+# TODO should really be handled in the optimizer.
+def _mul(x, y):
+    x = LLLnode.from_list(x)
+    y = LLLnode.from_list(y)
+    if isinstance(x.value, int) and isinstance(y.value, int):
+        ret = x.value * y.value
+    else:
+        ret = ["mul", x, y]
+    return LLLnode.from_list(ret)
 
 
 # Resolve pointer locations for ABI-encoded data
@@ -427,7 +441,7 @@ def _get_element_ptr_array(parent, key, pos, array_bounds_check):
 
         member_abi_t = subtype.abi_type
 
-        ofst = ["mul", ix, member_abi_t.embedded_static_size()]
+        ofst = _mul(ix, member_abi_t.embedded_static_size())
 
         return _getelemptr_abi_helper(parent, subtype, ofst, pos)
 
@@ -436,7 +450,7 @@ def _get_element_ptr_array(parent, key, pos, array_bounds_check):
     elif parent.location in ("calldata", "memory", "code"):
         element_size = subtype.memory_bytes_required
 
-    ofst = ["mul", ix, element_size]
+    ofst = _mul(ix, element_size)
 
     if has_length_word(parent.typ):
         data_ptr = add_ofst(parent, _wordsize(parent.location) * DYNAMIC_ARRAY_OVERHEAD)
