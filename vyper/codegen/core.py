@@ -421,7 +421,11 @@ def _get_element_ptr_array(parent, key, pos, array_bounds_check):
     ix = unwrap_location(key)
 
     if array_bounds_check:
-        clamp_op = "clamplt" if is_signed_num(key.typ) else "uclamplt"
+        # clamplt works, even for signed ints. since two's-complement
+        # is used, if the index is negative, (unsigned) LT will interpret
+        # it as a very large number, larger than any practical value for
+        # an array index, and the clamp will throw an error.
+        clamp_op = "uclamplt"
         is_darray = isinstance(parent.typ, DArrayType)
         bound = get_dyn_array_count(parent) if is_darray else parent.typ.count
         # NOTE: there are optimization rules for this when ix or bound is literal
