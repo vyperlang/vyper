@@ -10,7 +10,14 @@ def _make_tx(w3, address, signature, values):
     # helper function to broadcast transactions that fail clamping check
     sig = keccak(signature.encode()).hex()[:8]
     data = "".join(int(i).to_bytes(32, "big", signed=i < 0).hex() for i in values)
-    w3.eth.send_transaction({"to": address, "data": f"0x{sig}{data}"})
+    w3.eth.send_transaction(
+        {
+            "to": address,
+            "data": f"0x{sig}{data}",
+            "maxFeePerGas": 10000,
+            "maxPriorityFeePerGas": 10000,
+        }
+    )
 
 
 def test_bytes_clamper(assert_tx_failed, get_contract_with_gas_estimation):
