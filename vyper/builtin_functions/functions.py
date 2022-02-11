@@ -9,6 +9,7 @@ from vyper.ast.signatures.function_signature import VariableRecord
 from vyper.ast.validation import validate_call_args
 from vyper.builtin_functions.convert import convert
 from vyper.codegen.abi_encoder import abi_encode
+from vyper.codegen.context import Context
 from vyper.codegen.core import (
     LLLnode,
     add_ofst,
@@ -227,13 +228,17 @@ class Convert:
 ADHOC_SLICE_NODE_MACROS = ["~calldata", "~selfcode", "~extcode"]
 
 
-def _build_adhoc_slice_node(sub: LLLnode, start: LLLnode, length: LLLnode, np: int) -> LLLnode:
+def _build_adhoc_slice_node(sub: LLLnode, start: LLLnode, length: LLLnode, context: Context) -> LLLnode:
     # TODO validate at typechecker stage
-    if not isinstance(length.value, int) or len(length.args) > 0:
+    if not isinstance(length.value, int):
         macro_pretty_name = sub.value[1:]  # type: ignore
         raise InvalidLiteral(
             f"slice({macro_pretty_name} must use a compile-time constant for length argument"
         )
+
+    dst_typ = ByteArrayType(maxlen=length.value)
+    # allocate a buffer for the return value
+    np = context.new_internal_variable(dst_typ)
 
     # `msg.data` by `calldatacopy`
     if sub.value == "~calldata":
@@ -272,7 +277,7 @@ def _build_adhoc_slice_node(sub: LLLnode, start: LLLnode, length: LLLnode, np: i
                 ["mstore", np, length],
                 ["extcodecopy", "_extcode_address", np + 32, start, length],
                 np,
-            ],
+            ]
         ]
 
     return LLLnode.from_list(node, typ=ByteArrayType(length.value), location="memory")
@@ -312,6 +317,10 @@ class Slice:
 
         src, start, length = args
 
+        # Handle `msg.data`, `self.code`, and `<address>.code`
+        if src.value in ADHOC_SLICE_NODE_MACROS:
+            return _build_adhoc_slice_node(src, start, length, context)
+
         with src.cache_when_complex("src") as (b1, src), start.cache_when_complex("start") as (
             b2,
             start,
@@ -326,9 +335,9 @@ class Slice:
 
             if start.is_literal and length.is_literal:
                 # TODO this should be moved to typechecker
-                if not 0 <= start.value + length.value <= src_maxlen:
+                if not (0 <= start.value + length.value <= src_maxlen):
                     raise InvalidLiteral(
-                        "slice out of bounds: slice({src.typ}, {start.value}, {length.value})",
+                        f"slice out of bounds: slice({src.typ}, {start.value}, {length.value})",
                         expr,
                     )
 
@@ -345,12 +354,10 @@ class Slice:
             buf = context.new_internal_variable(dst_typ)
             dst = LLLnode.from_list(buf, typ=dst_typ, location="memory")
 
-            # Handle `msg.data`, `self.code`, and `<address>.code`
-            if src.value in ADHOC_SLICE_NODE_MACROS:
-                return _build_adhoc_slice_node(src, start, length, buf)
-
             if src.location is None:
-                assert is_bytes32
+                # it's not a pointer; force it to be one since
+                # copy_bytes works on pointers.
+                assert is_bytes32, src
                 src = ensure_in_memory(src, context)
 
             dst_data = bytes_data_ptr(dst)
