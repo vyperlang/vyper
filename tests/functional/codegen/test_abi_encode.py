@@ -167,3 +167,22 @@ def foo(addr: address) -> Bytes[164]:
     get_counter_encoded = abi_encode("((uint256,string))", ((1, "hello"),))
 
     assert c2.foo(c.address).hex() == (method_id + get_counter_encoded).hex()
+
+
+# test _abi_encode in private functions to check buffer overruns
+def test_abi_encode_private(get_contract, abi_encode):
+    code = """
+bytez: Bytes[96]
+@internal
+def _foo(bs: Bytes[32]):
+    self.bytez = _abi_encode(bs)
+
+@external
+def foo(bs: Bytes[32]) -> (uint256, Bytes[96]):
+    dont_clobber_me: uint256 = MAX_UINT256
+    self._foo(bs)
+    return dont_clobber_me, self.bytez
+    """
+    c = get_contract(code)
+    bs = "0" * 32
+    assert c.foo(bs) == [2 ** 256 - 1, abi_encode("(bytes)", (bs,))]
