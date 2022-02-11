@@ -155,6 +155,12 @@ class Context:
             var_pos = self.memory_allocator.expand_memory(var_size)
         else:
             var_pos = self.memory_allocator.allocate_memory(var_size)
+
+        if hasattr(self.sig, "frame_size"):
+            assert (
+                var_pos + var_size - MemoryPositions.RESERVED_MEMORY <= self.sig.frame_size
+            ), "function frame overrun"
+
         self.vars[name] = VariableRecord(
             name=name,
             pos=var_pos,
