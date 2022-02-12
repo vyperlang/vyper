@@ -228,7 +228,9 @@ class Convert:
 ADHOC_SLICE_NODE_MACROS = ["~calldata", "~selfcode", "~extcode"]
 
 
-def _build_adhoc_slice_node(sub: LLLnode, start: LLLnode, length: LLLnode, context: Context) -> LLLnode:
+def _build_adhoc_slice_node(
+    sub: LLLnode, start: LLLnode, length: LLLnode, context: Context
+) -> LLLnode:
     # TODO validate at typechecker stage
     if not isinstance(length.value, int):
         macro_pretty_name = sub.value[1:]  # type: ignore
@@ -277,7 +279,7 @@ def _build_adhoc_slice_node(sub: LLLnode, start: LLLnode, length: LLLnode, conte
                 ["mstore", np, length],
                 ["extcodecopy", "_extcode_address", np + 32, start, length],
                 np,
-            ]
+            ],
         ]
 
     return LLLnode.from_list(node, typ=ByteArrayType(length.value), location="memory")
