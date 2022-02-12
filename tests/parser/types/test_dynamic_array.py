@@ -771,6 +771,120 @@ def bar(_baz: DynArray[Foo, 3]) -> String[96]:
     assert c.bar(c_input) == "Hello world!!!!"
 
 
+def test_struct_of_lists(get_contract):
+    code = """
+struct Foo:
+    a1: DynArray[uint256, 2]
+    a2: DynArray[DynArray[uint256, 2], 2]
+    a3: DynArray[DynArray[DynArray[uint256, 2], 2], 2]
+
+@internal
+def _foo() -> DynArray[uint256, 2]:
+    return [3, 7]
+
+@internal
+def _foo2() -> DynArray[DynArray[uint256, 2], 2]:
+    y: DynArray[uint256, 2] = self._foo()
+    z: DynArray[uint256, 2] = [y[1], y[0]]
+    return [y, z]
+
+@internal
+def _foo3() -> DynArray[DynArray[DynArray[uint256, 2], 2], 2]:
+    y: DynArray[DynArray[uint256, 2], 2] = self._foo2()
+    z: DynArray[DynArray[uint256, 2], 2] = [y[1], y[0]]
+    return [y, z]
+
+@external
+def bar() -> DynArray[DynArray[DynArray[uint256, 2], 2], 2]:
+    foo: Foo = Foo({
+        a1: self._foo(),
+        a2: self._foo2(),
+        a3: self._foo3(),
+    })
+    return foo.a3
+    """
+    c = get_contract(code)
+    assert c.bar() == [[[3, 7], [7, 3]], [[7, 3], [3, 7]]]
+
+
+def test_nested_struct_of_lists(get_contract):
+    code = """
+struct nestedFoo:
+    a1: DynArray[DynArray[DynArray[uint256, 2], 2], 2]
+
+struct Foo:
+    b1: DynArray[DynArray[DynArray[nestedFoo, 2], 2], 2]
+
+@internal
+def _foo() -> nestedFoo:
+    return nestedFoo({a1: [
+        [[3, 7], [7, 3]],
+        [[7, 3], [3, 7]],
+    ]})
+
+@internal
+def _foo2() -> Foo:
+    _nF1: nestedFoo = self._foo()
+    return Foo({b1: [[[_nF1, _nF1], [_nF1, _nF1]], [[_nF1, _nF1], [_nF1, _nF1]]]})
+
+@internal
+def _foo3(f: Foo) -> Foo:
+    f.b1[0][1][0].a1[0][0] = [0, 0]
+    f.b1[1][0][0].a1[0][1] = [0, 0]
+    f.b1[1][1][0].a1[1][1] = [0, 0]
+    return f
+
+@external
+def bar() -> DynArray[DynArray[DynArray[uint256, 2], 2], 2]:
+    foo: Foo = self._foo2()
+    return self._foo3(foo).b1[1][1][0].a1
+
+@external
+def bar2() -> uint256:
+    foo: Foo = self._foo2()
+    newFoo: Foo = self._foo3(foo)
+    return newFoo.b1[1][1][0].a1[1][1][0] + \\
+        newFoo.b1[1][0][0].a1[0][1][1] + \\
+        newFoo.b1[0][1][0].a1[0][0][0]
+    """
+    c = get_contract(code)
+    assert c.bar() == [[[3, 7], [7, 3]], [[7, 3], [0, 0]]]
+    assert c.bar2() == 0
+
+
+def test_tuple_of_lists(get_contract):
+    code = """
+@internal
+def _foo() -> DynArray[uint256, 2]:
+    return [3, 7]
+
+@internal
+def _foo2() -> DynArray[DynArray[uint256, 2], 2]:
+    y: DynArray[uint256, 2] = self._foo()
+    z: DynArray[uint256, 2] = [y[1], y[0]]
+    return [y, z]
+
+@internal
+def _foo3() -> DynArray[DynArray[DynArray[uint256, 2], 2], 2]:
+    y: DynArray[DynArray[uint256, 2], 2] = self._foo2()
+    z: DynArray[DynArray[uint256, 2], 2] = [y[1], y[0]]
+    return [y, z]
+
+@internal
+def _foo4() -> (DynArray[DynArray[uint256, 2], 2], DynArray[DynArray[DynArray[uint256, 2], 2], 2]):
+    return (self._foo2(), self._foo3())
+
+@external
+def bar() -> uint256:
+    a: DynArray[DynArray[uint256, 2], 2] = [[0, 0], [0, 0]]
+    b: DynArray[DynArray[DynArray[uint256, 2], 2], 2] = [[[0, 0], [0, 0]], [[0, 0], [0, 0]]]
+    a, b = self._foo4()
+    return a[0][0] * b[1][0][1] + a[1][0] * b[0][1][0]
+    """
+    c = get_contract(code)
+    assert c.bar() == 58
+
+
 def test_constant_list(get_contract, assert_tx_failed):
     some_good_primes = [5.0, 11.0, 17.0, 29.0, 37.0, 41.0]
     code = f"""
