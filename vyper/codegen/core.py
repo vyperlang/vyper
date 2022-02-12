@@ -204,6 +204,14 @@ def copy_bytes(dst, src, length, length_bound, pos=None):
         b2,
         length,
     ), dst.cache_when_complex("dst") as (b3, dst):
+
+        # fast code for common case where num bytes is small
+        # TODO expand this for more cases where num words is less than ~8
+        if length_bound <= 32:
+            copy_op = [store_op(dst.location), dst, [load_op(src.location), src]]
+            ret = LLLnode.from_list(copy_op, annotation=annotation)
+            return b1.resolve(b2.resolve(b3.resolve(ret)))
+
         if dst.location == "memory" and src.location in ("memory", "calldata", "code"):
             # special cases: batch copy to memory
             if src.location == "memory":
