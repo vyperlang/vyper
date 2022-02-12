@@ -811,32 +811,31 @@ class Expr:
 
         ret = ["seq"]
 
-        if right.value == "multi":
-            # Copy literal to memory to be compared.
-            tmp_list = LLLnode.from_list(
-                self.context.new_internal_variable(right.typ),
-                typ=right.typ,
-                location="memory",
-            )
-            ret.append(make_setter(tmp_list, right, pos=getpos(self.expr)))
-
-            right = tmp_list
-
-        # location of i'th item from list
-        if right.location == "storage":
-            ith_element_ptr = ["add", right, i]
-        else:
-            ith_element_ptr = ["add", right, ["mul", 32, i]]
-
-        ith_element = [load_op(right.location), ith_element_ptr]
-
-        if isinstance(right.typ, SArrayType):
-            len_ = right.typ.count
-        else:
-            len_ = get_dyn_array_count(right)
-
         left = unwrap_location(left)
-        with left.cache_when_complex("needle") as (b, left):
+        with left.cache_when_complex("needle") as (b1, left), right.cache_when_complex(
+            "haystack"
+        ) as (b2, right):
+            if right.value == "multi":
+                # Copy literal to memory to be compared.
+                tmp_list = LLLnode.from_list(
+                    self.context.new_internal_variable(right.typ),
+                    typ=right.typ,
+                    location="memory",
+                )
+                ret.append(make_setter(tmp_list, right, pos=getpos(self.expr)))
+
+                right = tmp_list
+
+            # location of i'th item from list
+            pos = getpos(self.expr)
+            ith_element_ptr = get_element_ptr(right, i, array_bounds_check=False, pos=pos)
+            ith_element = unwrap_location(ith_element_ptr)
+
+            if isinstance(right.typ, SArrayType):
+                len_ = right.typ.count
+            else:
+                len_ = get_dyn_array_count(right)
+
             # Condition repeat loop has to break on.
             # TODO maybe put result on the stack
             loop_body = [
@@ -855,7 +854,7 @@ class Expr:
                 ]
             )
 
-            return LLLnode.from_list(b.resolve(ret), typ="bool")
+            return LLLnode.from_list(b1.resolve(b2.resolve(ret)), typ="bool")
 
     @staticmethod
     def _signed_to_unsigned_comparision_op(op):
