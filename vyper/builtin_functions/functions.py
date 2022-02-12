@@ -323,12 +323,17 @@ class Slice:
         if src.value in ADHOC_SLICE_NODE_MACROS:
             return _build_adhoc_slice_node(src, start, length, context)
 
+        is_bytes32 = is_base_type(src.typ, "bytes32")
+        if src.location is None:
+            # it's not a pointer; force it to be one since
+            # copy_bytes works on pointers.
+            assert is_bytes32, src
+            src = ensure_in_memory(src, context)
+
         with src.cache_when_complex("src") as (b1, src), start.cache_when_complex("start") as (
             b2,
             start,
         ), length.cache_when_complex("length") as (b3, length):
-
-            is_bytes32 = is_base_type(src.typ, "bytes32")
 
             if is_bytes32:
                 src_maxlen = 32
@@ -356,12 +361,6 @@ class Slice:
             buf = context.new_internal_variable(dst_typ)
             dst = LLLnode.from_list(buf, typ=dst_typ, location="memory")
 
-            if src.location is None:
-                # it's not a pointer; force it to be one since
-                # copy_bytes works on pointers.
-                assert is_bytes32, src
-                src = ensure_in_memory(src, context)
-
             dst_data = bytes_data_ptr(dst)
 
             if is_bytes32:
@@ -381,6 +380,7 @@ class Slice:
                 #   copy_dst = dst_data - start % 32
                 #   src_data = src + 32
                 #   copy_src = src_data + (start - start % 32) / 32
+                #            = src_data + (start // 32)
                 #   copy_bytes(copy_dst, copy_src, length)
                 #   //set length AFTER copy because the length word has been clobbered!
                 #   mstore(src, length)
@@ -393,12 +393,9 @@ class Slice:
                     location=src.location,
                 )
 
-                # destination is unaligned.
-                # start == byte 0 -> we copy to dst_data + 0
-                # start == byte 7 -> we copy to dst_data - 7
-                # start == byte 33 -> we copy to dst_data - 1
-                # aka. start = dst_data - start % 32
-                #
+                # e.g. start == byte 0 -> we copy to dst_data + 0
+                #      start == byte 7 -> we copy to dst_data - 7
+                #      start == byte 33 -> we copy to dst_data - 1
                 # TODO add optimizer rule for modulus-powers-of-two
                 copy_dst = LLLnode.from_list(
                     ["sub", dst_data, ["mod", start, 32]], location=dst.location
