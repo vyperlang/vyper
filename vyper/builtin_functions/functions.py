@@ -391,20 +391,19 @@ class Slice:
                     location=src.location,
                 )
 
-                # destination is unaligned
+                # destination is unaligned.
                 # start == byte 0 -> we copy to dst_data + 0
-                # start == byte 7 -> we copy to dst_data - 25
-                # start == byte 33 -> we copy to dst_data - 31
+                # start == byte 7 -> we copy to dst_data - 7
+                # start == byte 33 -> we copy to dst_data - 1
+                # aka. start = dst_data - start % 32
                 #
-                # note (mod start 32) == (and start 31)
                 # TODO add optimizer rule for modulus-powers-of-two
-                # TODO this is fubar
                 copy_dst = LLLnode.from_list(
-                    ["add", dst_data, ["sub", ["and", 31, start], ["ceil32", start]]], location=dst.location
+                    ["sub", dst_data, ["mod", start, 32]], location=dst.location
                 )
 
-                # TODO this is fubar
-                copy_len = ["add", length, ["mul", 32, ["iszero", ["iszero", ["and", 31, start]]]]]
+                # len + (32 if start % 32 > 0 else 0)
+                copy_len = ["add", length, ["mul", 32, ["iszero", ["iszero", ["mod", 32, start]]]]]
 
                 # add 32 bytes to the copy maxlen unless
                 # we know the word access is not unaligned
