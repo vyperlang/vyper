@@ -350,6 +350,13 @@ class Slice:
 
             dst_maxlen = length.value if length.is_literal else src_maxlen
 
+            buflen = dst_maxlen
+
+            # add 32 bytes to the buffer size bc word access might
+            # be unaligned (see below)
+            if src.location == "storage":
+                buflen += 32
+
             # Get returntype string or bytes
             assert isinstance(src.typ, ByteArrayLike) or is_bytes32
             if isinstance(src.typ, StringType):
@@ -358,7 +365,9 @@ class Slice:
                 dst_typ = ByteArrayType(maxlen=dst_maxlen)
 
             # allocate a buffer for the return value
-            buf = context.new_internal_variable(dst_typ)
+            buf = context.new_internal_variable(ByteArrayType(buflen))
+            # assign it the correct return type.
+            # (note mismatch between dst_maxlen and buflen)
             dst = LLLnode.from_list(buf, typ=dst_typ, location="memory")
 
             dst_data = bytes_data_ptr(dst)
@@ -403,13 +412,7 @@ class Slice:
 
                 # len + (32 if start % 32 > 0 else 0)
                 copy_len = ["add", length, ["mul", 32, ["iszero", ["iszero", ["mod", 32, start]]]]]
-
-                # add 32 bytes to the copy maxlen unless
-                # we know the word access is not unaligned
-                if start.is_literal and start.value % 32 == 0:
-                    copy_maxlen = dst_maxlen
-                else:
-                    copy_maxlen = dst_maxlen + 32
+                copy_maxlen = dst_maxlen
 
             else:
                 # all other address spaces (mem, calldata, code) we have
@@ -429,10 +432,9 @@ class Slice:
                 pos=getpos(expr),
             )
 
-            # make sure we don't overrun the source buffer
-
             ret = [
                 "seq",
+                # make sure we don't overrun the source buffer
                 ["assert", ["le", ["add", start, length], src_len]],  # bounds check
                 do_copy,
                 ["mstore", dst, length],  # set length
