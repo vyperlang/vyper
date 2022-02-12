@@ -244,6 +244,41 @@ def test_array(x: int128, y: int128, z: int128, w: int128) -> int128:
     assert c.test_array(2, 7, 1, 8) == -10908
 
 
+def test_member_in_list(get_contract_with_gas_estimation):
+    code = """
+@external
+def check(a: uint256) -> bool:
+    x: DynArray[uint256, 2] = [3, 7]
+    return a in x
+    """
+    c = get_contract_with_gas_estimation(code)
+    assert c.check(3) is True
+    assert c.check(7) is True
+    assert c.check(4) is False
+
+
+def test_member_in_nested_list(get_contract_with_gas_estimation):
+    code = """
+@external
+def check1(a: uint256) -> bool:
+    x: DynArray[DynArray[uint256, 2], 2] = [[3, 7], [9, 11]]
+    return a in x[0]
+
+@external
+def check2(a: uint256) -> bool:
+    x: DynArray[DynArray[uint256, 2], 2] = [[3, 7], [9, 11]]
+    return a in x[1]
+    """
+    c = get_contract_with_gas_estimation(code)
+    assert c.check1(3) is True
+    assert c.check1(7) is True
+    assert c.check1(4) is False
+
+    assert c.check2(9) is True
+    assert c.check2(11) is True
+    assert c.check2(3) is False
+
+
 def test_returns_lists(get_contract_with_gas_estimation):
     code = """
 @external
