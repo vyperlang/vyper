@@ -134,6 +134,100 @@ def foo():
     assert_compile_failed(lambda: get_contract(code))
 
 
+def test_abi_encode_dynarray(get_contract, abi_encode):
+    code = """
+@external
+def abi_encode(d: DynArray[uint256, 3], ensure_tuple: bool, include_method_id: bool) -> Bytes[164]:
+    if ensure_tuple:
+        if not include_method_id:
+            return _abi_encode(d) # default ensure_tuple=True
+        return _abi_encode(d, method_id=0xdeadbeef)
+    else:
+        if not include_method_id:
+            return _abi_encode(d, ensure_tuple=False)
+        return _abi_encode(d, ensure_tuple=False, method_id=0xdeadbeef)
+    """
+    c = get_contract(code)
+
+    method_id = 0xDEADBEEF .to_bytes(4, "big")
+
+    arg = [123, 456, 789]
+    assert c.abi_encode(arg, False, False).hex() == abi_encode("uint256[]", arg).hex()
+    assert c.abi_encode(arg, True, False).hex() == abi_encode("(uint256[])", (arg,)).hex()
+    assert c.abi_encode(arg, False, True).hex() == (method_id + abi_encode("uint256[]", arg)).hex()
+    assert (
+        c.abi_encode(arg, True, True).hex() == (method_id + abi_encode("(uint256[])", (arg,))).hex()
+    )
+
+
+def test_abi_encode_nested_dynarray(get_contract, abi_encode):
+    code = """
+@external
+def abi_encode(
+    d: DynArray[DynArray[uint256, 3], 3], ensure_tuple: bool, include_method_id: bool
+) -> Bytes[548]:
+    if ensure_tuple:
+        if not include_method_id:
+            return _abi_encode(d) # default ensure_tuple=True
+        return _abi_encode(d, method_id=0xdeadbeef)
+    else:
+        if not include_method_id:
+            return _abi_encode(d, ensure_tuple=False)
+        return _abi_encode(d, ensure_tuple=False, method_id=0xdeadbeef)
+    """
+    c = get_contract(code)
+
+    method_id = 0xDEADBEEF .to_bytes(4, "big")
+
+    arg = [[123, 456, 789], [234, 567, 891], [345, 678, 912]]
+    assert c.abi_encode(arg, False, False).hex() == abi_encode("uint256[][]", arg).hex()
+    assert c.abi_encode(arg, True, False).hex() == abi_encode("(uint256[][])", (arg,)).hex()
+    assert (
+        c.abi_encode(arg, False, True).hex() == (method_id + abi_encode("uint256[][]", arg)).hex()
+    )
+    assert (
+        c.abi_encode(arg, True, True).hex()
+        == (method_id + abi_encode("(uint256[][])", (arg,))).hex()
+    )
+
+
+def test_abi_encode_nested_dynarray_2(get_contract, abi_encode):
+    code = """
+@external
+def abi_encode(
+    d: DynArray[DynArray[DynArray[uint256, 3], 3], 3],
+    ensure_tuple: bool,
+    include_method_id: bool
+) -> Bytes[1700]:
+    if ensure_tuple:
+        if not include_method_id:
+            return _abi_encode(d) # default ensure_tuple=True
+        return _abi_encode(d, method_id=0xdeadbeef)
+    else:
+        if not include_method_id:
+            return _abi_encode(d, ensure_tuple=False)
+        return _abi_encode(d, ensure_tuple=False, method_id=0xdeadbeef)
+    """
+    c = get_contract(code)
+
+    method_id = 0xDEADBEEF .to_bytes(4, "big")
+
+    arg = [
+        [[123, 456, 789], [234, 567, 891], [345, 678, 912]],
+        [[234, 567, 891], [345, 678, 912], [123, 456, 789]],
+        [[345, 678, 912], [123, 456, 789], [234, 567, 891]],
+    ]
+    assert c.abi_encode(arg, False, False).hex() == abi_encode("uint256[][][]", arg).hex()
+    assert c.abi_encode(arg, True, False).hex() == abi_encode("(uint256[][][])", (arg,)).hex()
+    assert (
+        c.abi_encode(arg, False, True).hex() == (method_id + abi_encode("uint256[][][]", arg)).hex()
+    )
+    assert (
+        c.abi_encode(arg, True, True).hex()
+        == (method_id + abi_encode("(uint256[][][])", (arg,))).hex()
+    )
+
+
 def test_side_effects_evaluation(get_contract, abi_encode):
     contract_1 = """
 counter: uint256
