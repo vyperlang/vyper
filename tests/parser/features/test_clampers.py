@@ -13,6 +13,24 @@ def _make_tx(w3, address, signature, values):
     w3.eth.send_transaction({"to": address, "data": f"0x{sig}{data}"})
 
 
+def _make_abi_encode_tx(w3, abi_encode, address, signature, input_types, values):
+    # helper function to broadcast transactions where data is constructed from abi_encode
+    sig = keccak(signature.encode()).hex()[:8]
+    data = abi_encode(input_types, values).hex()
+    w3.eth.send_transaction({"to": address, "data": f"0x{sig}{data}"})
+
+
+def _make_dynarray_data(offset, length, values):
+    input = [offset] + [length] + values
+    data = "".join(int(i).to_bytes(32, "big", signed=i < 0).hex() for i in input)
+    return data
+
+
+def _make_invalid_dynarray_tx(w3, address, signature, data):
+    sig = keccak(signature.encode()).hex()[:8]
+    w3.eth.send_transaction({"to": address, "data": f"0x{sig}{data}"})
+
+
 def test_bytes_clamper(assert_tx_failed, get_contract_with_gas_estimation):
     clamper_test_code = """
 @external
@@ -310,3 +328,109 @@ def foo(b: int128[6][1][2]) -> int128[6][1][2]:
 
     c = get_contract(code)
     assert_tx_failed(lambda: _make_tx(w3, c.address, "foo(int128[6][1][2]])", values))
+
+
+@pytest.mark.parametrize("value", [0, 1, -1, 2 ** 127 - 1, -(2 ** 127)])
+def test_int128_dynarray_clamper_passing(w3, get_contract, abi_encode, value):
+    code = """
+@external
+def foo(a: uint256, b: DynArray[int128, 5], c: uint256) -> DynArray[int128, 5]:
+    return b
+    """
+
+    # on both ends of the array we place a `uint256` that would fail the clamp check,
+    # to ensure there are no off-by-one errors
+    values = (2 ** 127, ([value] * 5), 2 ** 127)
+
+    c = get_contract(code)
+    input_types = "(uint256,int128[],uint256)"
+    signature = f"foo{input_types}"
+
+    _make_abi_encode_tx(w3, abi_encode, c.address, signature, input_types, values)
+
+
+@pytest.mark.parametrize("bad_value", [2 ** 127, -(2 ** 127) - 1, 2 ** 255 - 1, -(2 ** 255)])
+@pytest.mark.parametrize("idx", range(5))
+def test_int128_dynarray_clamper_failing(
+    w3, abi_encode, assert_tx_failed, get_contract, bad_value, idx
+):
+    # ensure the invalid value is detected at all locations in the array
+    code = """
+@external
+def foo(b: int128[5]) -> int128[5]:
+    return b
+    """
+
+    values = [0] * 5
+    values[idx] = bad_value
+    signature = "foo(int128[])"
+
+    c = get_contract(code)
+
+    data = _make_dynarray_data(32, 5, values)
+    assert_tx_failed(lambda: _make_invalid_dynarray_tx(w3, c.address, signature, data))
+
+
+@pytest.mark.parametrize("value", [0, 1, -1, 2 ** 127 - 1, -(2 ** 127)])
+def test_int128_dynarray_looped_clamper_passing(w3, abi_encode, get_contract, value):
+    # when an array is > 5 items, the arg clamper runs in a loop to reduce bytecode size
+    code = """
+@external
+def foo(a: uint256, b: DynArray[int128, 10], c: uint256) -> DynArray[int128, 10]:
+    return b
+    """
+
+    values = (2 ** 127, ([value] * 10), 2 ** 127)
+    input_types = "(uint256,int128[],uint256)"
+    signature = f"foo{input_types}"
+
+    c = get_contract(code)
+    _make_abi_encode_tx(w3, abi_encode, c.address, signature, input_types, values)
+
+
+@pytest.mark.parametrize("value", [0, 1, -1, 2 ** 127 - 1, -(2 ** 127)])
+def test_multidimension_dynarray_clamper_passing(w3, abi_encode, get_contract, value):
+    code = """
+@external
+def foo(
+    a: uint256,
+    b: DynArray[DynArray[DynArray[DynArray[int128, 5], 6], 7], 8],
+    c: uint256
+) -> DynArray[DynArray[DynArray[DynArray[int128, 5], 6], 7], 8]:
+    return b
+    """
+
+    # 6 * 3 * 1 * 8 = 144, the total number of values in our multidimensional array
+    values = (2 ** 127, ([[[[value] * 5] * 6] * 7] * 8), 2 ** 127)
+    input_types = "(uint256,int128[][][][],uint256)"
+    signature = f"foo{input_types}"
+
+    c = get_contract(code)
+    _make_abi_encode_tx(w3, abi_encode, c.address, signature, input_types, values)
+
+
+@pytest.mark.parametrize("bad_value", [2 ** 127, -(2 ** 127) - 1, 2 ** 255 - 1, -(2 ** 255)])
+@pytest.mark.parametrize("idx", range(4))
+def test_multidimension_dynarray_clamper_failing(
+    w3, abi_encode, assert_tx_failed, get_contract, bad_value, idx
+):
+    code = """
+@external
+def foo(b: DynArray[DynArray[int128, 2], 2]) -> DynArray[DynArray[int128, 2], 2]:
+    return b
+    """
+
+    values = [[0] * 2] * 2
+    values[idx // 2][idx % 2] = bad_value
+
+    data = _make_dynarray_data(32, 2, [64, 160])  # Offset of nested arrays
+    for v in values:
+        # Length of 2
+        v = [2] + v
+        inner_data = "".join(int(_v).to_bytes(32, "big", signed=_v < 0).hex() for _v in v)
+        data += inner_data
+
+    signature = "foo(int128[][])"
+
+    c = get_contract(code)
+    assert_tx_failed(lambda: _make_invalid_dynarray_tx(w3, c.address, signature, data))
