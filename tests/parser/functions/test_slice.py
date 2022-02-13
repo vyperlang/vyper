@@ -152,6 +152,18 @@ def ret10_slice() -> Bytes[10]:
     assert c.ret10_slice() == b"A"
 
 
+def test_slice_convert(get_contract):
+    # test slice of converting between bytes32 and Bytes
+    code = """
+@external
+def f() -> bytes32:
+    a: Bytes[100] = convert("ab", Bytes[100])
+    return convert(slice(a, 0, 1), bytes32)
+    """
+    c = get_contract(code)
+    assert c.f() == b"a" + b"\x00" * 31
+
+
 code_bytes32 = [
     """
 foo: bytes32
