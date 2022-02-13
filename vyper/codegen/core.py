@@ -144,6 +144,7 @@ def _dynarray_make_setter(dst, src, pos=None):
         # loop when subtype.is_dynamic AND location == storage
         # OR array_size <= /bound where loop is cheaper than memcpy/
         should_loop |= src.typ.subtype.abi_type.is_dynamic()
+        should_loop |= _needs_clamp(src.typ.subtype, src.encoding)
 
         if should_loop:
             uint = BaseType("uint256")
