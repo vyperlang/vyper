@@ -52,7 +52,7 @@ def byte_array_to_num(arg, out_type):
     # convert by shr the number of zero bytes (converted to bits)
     # e.g. "abcd000000000000" -> bitcast(000000000000abcd, output_type)
     num_zero_bits = ["mul", 8, ["sub", 32, "len_"]]
-    bitcasted = LLLnode.from_list(shr(num_zero_bits, "val", typ=out_type))
+    bitcasted = LLLnode.from_list(shr(num_zero_bits, "val"), typ=out_type)
 
     result = clamp_basetype(bitcasted)
 
