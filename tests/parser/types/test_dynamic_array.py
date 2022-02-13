@@ -279,6 +279,42 @@ def check2(a: uint256) -> bool:
     assert c.check2(3) is False
 
 
+def test_member_in_updated_list(get_contract_with_gas_estimation):
+    code = """
+@external
+def foo() -> bool:
+    xs: DynArray[uint256, 3] = [2, 2, 2]
+    xs = [1, 1]
+    y: uint256 = 2
+    return y in xs
+    """
+    c = get_contract_with_gas_estimation(code)
+    assert c.foo() is False
+
+
+def test_member_in_updated_nested_list(get_contract_with_gas_estimation):
+    code = """
+@external
+def foo() -> bool:
+    xs: DynArray[DynArray[DynArray[uint256, 3], 3], 3] = [
+        [[2, 2, 2], [2, 2, 2], [2, 2, 2]],
+        [[2, 2, 2], [2, 2, 2], [2, 2, 2]],
+        [[2, 2, 2], [2, 2, 2], [2, 2, 2]],
+    ]
+    xs = [
+        [[1, 1], [1, 1], [1, 1]],
+        [[1, 1], [1, 1], [1, 1]],
+        [[1, 1], [1, 1], [1, 1]],
+    ]
+    y: uint256 = 2
+    return y in xs[0][0] or y in xs[0][1] or y in xs[0][2] or \\
+        y in xs[1][0] or y in xs[1][1] or y in xs[1][2] or \\
+        y in xs[2][0] or y in xs[2][1] or y in xs[2][2]
+    """
+    c = get_contract_with_gas_estimation(code)
+    assert c.foo() is False
+
+
 def test_returns_lists(get_contract_with_gas_estimation):
     code = """
 @external
