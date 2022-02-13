@@ -280,3 +280,42 @@ def foo(bs: Bytes[32]) -> (uint256, Bytes[96]):
     c = get_contract(code)
     bs = "0" * 32
     assert c.foo(bs) == [2 ** 256 - 1, abi_encode("(bytes)", (bs,))]
+
+
+def test_abi_encode_private_dynarray(get_contract, abi_encode):
+    code = """
+bytez: Bytes[160]
+@internal
+def _foo(bs: DynArray[uint256, 3]):
+    self.bytez = _abi_encode(bs)
+@external
+def foo(bs: DynArray[uint256, 3]) -> (uint256, Bytes[160]):
+    dont_clobber_me: uint256 = MAX_UINT256
+    self._foo(bs)
+    return dont_clobber_me, self.bytez
+    """
+    c = get_contract(code)
+    bs = [1, 2, 3]
+    assert c.foo(bs) == [2 ** 256 - 1, abi_encode("(uint256[])", (bs,))]
+
+
+def test_abi_encode_private_nested_dynarray(get_contract, abi_encode):
+    code = """
+bytez: Bytes[1696]
+@internal
+def _foo(bs: DynArray[DynArray[DynArray[uint256, 3], 3], 3]):
+    self.bytez = _abi_encode(bs)
+
+@external
+def foo(bs: DynArray[DynArray[DynArray[uint256, 3], 3], 3]) -> (uint256, Bytes[1696]):
+    dont_clobber_me: uint256 = MAX_UINT256
+    self._foo(bs)
+    return dont_clobber_me, self.bytez
+    """
+    c = get_contract(code)
+    bs = [
+        [[1, 2, 3], [4, 5, 6], [7, 8, 9]],
+        [[10, 11, 12], [13, 14, 15], [16, 17, 18]],
+        [[19, 20, 21], [22, 23, 24], [25, 26, 27]],
+    ]
+    assert c.foo(bs) == [2 ** 256 - 1, abi_encode("(uint256[][][])", (bs,))]
