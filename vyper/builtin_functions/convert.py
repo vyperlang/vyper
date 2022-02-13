@@ -12,9 +12,17 @@ from vyper.codegen.core import (
     getpos,
     int_clamp,
     load_op,
+    shl,
     shr,
+    wordsize,
 )
-from vyper.codegen.types import BaseType, ByteArrayType, StringType, get_type
+from vyper.codegen.types import (
+    DYNAMIC_ARRAY_OVERHEAD,
+    BaseType,
+    ByteArrayType,
+    StringType,
+    get_type,
+)
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import InvalidLiteral, StructureException, TypeMismatch
 from vyper.utils import DECIMAL_DIVISOR, MemoryPositions, SizeLimits
@@ -43,10 +51,12 @@ def byte_array_to_num(arg, out_type):
     # bytestring is right-padded with zeroes, int is left-padded.
     # convert by shr the number of zero bytes (converted to bits)
     # e.g. "abcd000000000000" -> bitcast(000000000000abcd, output_type)
-    bitcasted = LLLnode.from_list(shr("val", ["mul", 8, ["sub", 32, "len_"]]), typ=out_type)
+    num_zero_bits = ["mul", 8, ["sub", 32, "len_"]]
+    bitcasted = LLLnode.from_list(shr(num_zero_bits, "val"), typ=out_type)
 
     result = clamp_basetype(bitcasted)
 
+    # TODO use cache_when_complex for these `with` values
     ret = ["with", "val", data, ["with", "len_", len_, result]]
     if arg.is_complex_lll:
         ret = ["with", "bs_start", arg, ret]
@@ -419,16 +429,24 @@ def to_bytes32(expr, args, kwargs, context):
                 f"Unable to convert bytes[{_len}] to bytes32, max length is too " "large."
             )
 
-        if in_arg.location == "storage":
-            return LLLnode.from_list(["sload", ["add", in_arg, 1]], typ=BaseType("bytes32"))
-        else:
+        with in_arg.cache_when_complex("bytes") as (b1, in_arg):
             op = load_op(in_arg.location)
-            return LLLnode.from_list([op, ["add", in_arg, 32]], typ=BaseType("bytes32"))
+            ofst = wordsize(in_arg.location) * DYNAMIC_ARRAY_OVERHEAD
+            bytes_val = [op, ["add", in_arg, ofst]]
+
+            # zero out any dirty bytes (which can happen in the last
+            # word of a bytearray)
+            len_ = get_bytearray_length(in_arg)
+            num_zero_bits = LLLnode.from_list(["mul", ["sub", 32, len_], 8])
+            with num_zero_bits.cache_when_complex("bits") as (b2, num_zero_bits):
+                ret = shl(num_zero_bits, shr(num_zero_bits, bytes_val))
+                ret = b1.resolve(b2.resolve(ret))
 
     else:
-        return LLLnode(
-            value=in_arg.value, args=in_arg.args, typ=BaseType("bytes32"), pos=getpos(expr)
-        )
+        # literal
+        ret = in_arg
+
+    return LLLnode.from_list(ret, typ="bytes32", pos=getpos(expr))
 
 
 @signature(("bytes32", "uint256"), "*")
