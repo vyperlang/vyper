@@ -96,11 +96,14 @@ class LLLnode:
             if not condition:
                 raise CompilerPanic(str(err))
 
+        _check(self.value is not None, "None is not allowed as LLLnode value")
+
         # Determine this node's valency (1 if it pushes a value on the stack,
         # 0 otherwise) and checks to make sure the number and valencies of
         # children are correct. Also, find an upper bound on gas consumption
         # Numbers
         if isinstance(self.value, int):
+            _check(len(self.args) == 0, "int can't have arguments")
             self.valency = 1
             self.gas = 5
         elif isinstance(self.value, str):
@@ -249,16 +252,23 @@ class LLLnode:
         self.gas += self.add_gas_estimate
 
     # the LLL should be cached.
+    # TODO make this private. turns out usages are all for the caching
+    # idiom that cache_when_complex addresses
     @property
     def is_complex_lll(self):
-        return isinstance(self.value, str) and (
-            self.value.lower() in VALID_LLL_MACROS or self.value.upper() in get_comb_opcodes()
+        # list of items not to cache. note can add other env variables
+        # which do not change, e.g. calldatasize, coinbase, etc.
+        do_not_cache = {"~empty"}
+        return (
+            isinstance(self.value, str)
+            and (self.value.lower() in VALID_LLL_MACROS or self.value.upper() in get_comb_opcodes())
+            and self.value.lower() not in do_not_cache
         )
 
     # This function is slightly confusing but abstracts a common pattern:
     # when an LLL value needs to be computed once and then cached as an
     # LLL value (if it is expensive, or more importantly if its computation
-    # includes side-effcts), cache it as an LLL variable named with the
+    # includes side-effects), cache it as an LLL variable named with the
     # `name` param, and execute the `body` with the cached value. Otherwise,
     # run the `body` without caching the LLL variable.
     # Note that this may be an unneeded abstraction in the presence of an
@@ -274,7 +284,16 @@ class LLLnode:
         # this creates a magical block which maps to LLL `with`
         class _WithBuilder:
             def __init__(self, lll_node, name):
+                # TODO figure out how to fix this circular import
+                from vyper.lll.optimizer import optimize
+
                 self.lll_node = lll_node
+                # for caching purposes, see if the lll_node will be optimized
+                # because a non-literal expr could turn into a literal,
+                # (e.g. `(add 1 2)`)
+                # TODO this could really be moved into optimizer.py
+                self.should_cache = optimize(lll_node).is_complex_lll
+
                 # a named LLL variable which represents the
                 # output of `lll_node`
                 self.lll_var = LLLnode.from_list(
@@ -282,11 +301,11 @@ class LLLnode:
                 )
 
             def __enter__(self):
-                if self.lll_node.is_complex_lll:
+                if self.should_cache:
                     # return the named cache
                     return self, self.lll_var
                 else:
-                    # it's a constant, just return that
+                    # it's a constant (or will be optimized to one), just return that
                     return self, self.lll_node
 
             def __exit__(self, *args):
@@ -295,7 +314,7 @@ class LLLnode:
             # MUST be called at the end of building the expression
             # in order to make sure the expression gets wrapped correctly
             def resolve(self, body):
-                if self.lll_node.is_complex_lll:
+                if self.should_cache:
                     ret = ["with", self.lll_var, self.lll_node, body]
                     if isinstance(body, LLLnode):
                         return LLLnode.from_list(

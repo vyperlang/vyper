@@ -162,7 +162,6 @@ VALID_LLL_MACROS = {
     "break",
     "ceil32",
     "clamp",
-    "clamp",
     "clamp_nonzero",
     "clampge",
     "clampgt",
@@ -184,6 +183,7 @@ VALID_LLL_MACROS = {
     "sha3_32",
     "sha3_64",
     "sle",
+    "uclamp",
     "uclampge",
     "uclampgt",
     "uclample",
@@ -195,6 +195,7 @@ VALID_LLL_MACROS = {
     "~extcode",
     "~selfcode",
     "~calldata",
+    "~empty",
 }
 
 # Available base types
