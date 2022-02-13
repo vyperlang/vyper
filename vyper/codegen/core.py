@@ -114,7 +114,8 @@ def make_byte_array_copier(destination, source, pos=None):
         return builder.resolve(copy_bytes(destination, src, n_bytes, max_bytes, pos=pos))
 
 
-def _wordsize(location):
+# TODO maybe move me to types.py
+def wordsize(location):
     if location in ("memory", "calldata", "code"):
         return 32
     if location == "storage":
@@ -305,7 +306,7 @@ def _getelemptr_abi_helper(parent, member_t, ofst, pos=None, clamp=True):
     # e.g. [[1,2]] is encoded as 0x01 <len> 0x20 <inner array ofst> <encode(inner array)>
     # note that inner array ofst is 0x20, not 0x40.
     if has_length_word(parent.typ):
-        parent = add_ofst(parent, _wordsize(parent.location) * DYNAMIC_ARRAY_OVERHEAD)
+        parent = add_ofst(parent, wordsize(parent.location) * DYNAMIC_ARRAY_OVERHEAD)
 
     ofst_lll = add_ofst(parent, ofst)
 
@@ -445,7 +446,7 @@ def _get_element_ptr_array(parent, key, pos, array_bounds_check):
         ofst = ["mul", ix, element_size]
 
     if has_length_word(parent.typ):
-        data_ptr = add_ofst(parent, _wordsize(parent.location) * DYNAMIC_ARRAY_OVERHEAD)
+        data_ptr = add_ofst(parent, wordsize(parent.location) * DYNAMIC_ARRAY_OVERHEAD)
     else:
         data_ptr = parent
     return LLLnode.from_list(
@@ -856,13 +857,20 @@ def zero_pad(bytez_placeholder):
 
 
 # convenience rewrites for shr/sar/shl
-def shr(x, bits):
+def shr(bits, x):
     if version_check(begin="constantinople"):
         return ["shr", bits, x]
     return ["div", x, ["exp", 2, bits]]
 
 
-def sar(x, bits):
+# convenience rewrites for shr/sar/shl
+def shl(bits, x):
+    if version_check(begin="constantinople"):
+        return ["shl", bits, x]
+    return ["mul", x, ["exp", 2, bits]]
+
+
+def sar(bits, x):
     if version_check(begin="constantinople"):
         return ["sar", bits, x]
 
@@ -944,9 +952,9 @@ def int_clamp(lll_node, bits, signed=False):
         # _val >>> 127 == -1 for negative _val
         # -1 and 0 are the only numbers which are unchanged by sar,
         # so sar'ing (_val>>>127) one more bit should leave it unchanged.
-        assertion = ["assert", ["eq", sar("val", bits - 1), sar("val", bits)]]
+        assertion = ["assert", ["eq", sar(bits - 1, "val"), sar(bits, "val")]]
     else:
-        assertion = ["assert", ["iszero", shr("val", bits)]]
+        assertion = ["assert", ["iszero", shr(bits, "val")]]
 
     ret = ["with", "val", lll_node, ["seq", assertion, "val"]]
 

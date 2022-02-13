@@ -1469,6 +1469,7 @@ class Shift(_SimpleBuiltinFunction):
             shift_abs = ["sub", 0, "_s"]
 
         if version_check(begin="constantinople"):
+            # TODO use convenience functions shl and shr in codegen/core.py
             if args[1].typ.is_literal:
                 # optimization when SHL/SHR instructions are available shift distance is a literal
                 value = args[1].value
