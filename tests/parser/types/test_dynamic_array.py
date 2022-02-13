@@ -315,6 +315,88 @@ def foo() -> bool:
     assert c.foo() is False
 
 
+def test_member_in_list_lhs_side_effects(get_contract_with_gas_estimation):
+    code = """
+_counter: uint256
+
+@internal
+def counter() -> uint256:
+    self._counter = 1
+    return self._counter
+
+@external
+def bar() -> bool:
+    x: DynArray[uint256, 4] = [2, 2, 2, 2]
+    return self.counter() in x
+    """
+    c = get_contract_with_gas_estimation(code)
+    assert c.bar() is False
+
+
+def test_member_in_nested_list_lhs_side_effects(get_contract_with_gas_estimation):
+    code = """
+_counter: uint256
+
+@internal
+def counter() -> uint256:
+    self._counter = 1
+    return self._counter
+
+@external
+def bar() -> bool:
+    x: DynArray[DynArray[DynArray[uint256, 4], 4], 4] = [
+        [[2, 2, 2, 2], [2, 2, 2, 2], [2, 2, 2, 2]],
+        [[2, 2, 2, 2], [2, 2, 2, 2], [2, 2, 2, 2]],
+        [[2, 2, 2, 2], [2, 2, 2, 2], [2, 2, 2, 2]],
+    ]
+    return self.counter() in x[0][0]
+    """
+    c = get_contract_with_gas_estimation(code)
+    assert c.bar() is False
+
+
+def test_member_in_list_rhs_side_effects(get_contract_with_gas_estimation):
+    code = """
+counter: uint256
+
+@internal
+def foo() -> DynArray[uint256, 3]:
+    self.counter += 1
+    return [0,0,0]
+
+@external
+def bar() -> uint256:
+    self.counter = 0
+    t: bool = self.counter in self.foo()
+    return self.counter
+    """
+    c = get_contract_with_gas_estimation(code)
+    assert c.bar() == 1
+
+
+def test_member_in_nested_list_rhs_side_effects(get_contract_with_gas_estimation):
+    code = """
+counter: uint256
+
+@internal
+def foo() -> DynArray[DynArray[DynArray[uint256, 3], 3], 3]:
+    self.counter += 1
+    return [
+        [[0,0,0], [0,0,0], [0,0,0]],
+        [[0,0,0], [0,0,0], [0,0,0]],
+        [[0,0,0], [0,0,0], [0,0,0]]
+    ]
+
+@external
+def bar() -> uint256:
+    self.counter = 0
+    t: bool = self.counter in self.foo()[0][0]
+    return self.counter
+    """
+    c = get_contract_with_gas_estimation(code)
+    assert c.bar() == 1
+
+
 def test_returns_lists(get_contract_with_gas_estimation):
     code = """
 @external
