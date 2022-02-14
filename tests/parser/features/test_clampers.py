@@ -388,6 +388,25 @@ def foo(a: uint256, b: DynArray[int128, 10], c: uint256) -> DynArray[int128, 10]
     _make_abi_encode_tx(w3, abi_encode, c.address, signature, input_types, values)
 
 
+@pytest.mark.parametrize("bad_value", [2 ** 127, -(2 ** 127) - 1, 2 ** 255 - 1, -(2 ** 255)])
+@pytest.mark.parametrize("idx", range(10))
+def test_int128_dynarray_looped_clamper_failing(w3, assert_tx_failed, get_contract, bad_value, idx):
+    code = """
+@external
+def foo(b: DynArray[int128, 10]) -> DynArray[int128, 10]:
+    return b
+    """
+
+    values = [0] * 10
+    values[idx] = bad_value
+
+    c = get_contract(code)
+
+    data = _make_dynarray_data(32, 10, values)
+    signature = "foo(int128[])"
+    assert_tx_failed(lambda: _make_invalid_dynarray_tx(w3, c.address, signature, data))
+
+
 @pytest.mark.parametrize("value", [0, 1, -1, 2 ** 127 - 1, -(2 ** 127)])
 def test_multidimension_dynarray_clamper_passing(w3, abi_encode, get_contract, value):
     code = """
