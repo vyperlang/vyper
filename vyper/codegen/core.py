@@ -598,12 +598,14 @@ def _check_assign_list(left, right):
         FAIL()  # pragma: notest
 
     if isinstance(left, SArrayType):
+        if not isinstance(right, SArrayType):
+            FAIL()  # pragma: notest
         if left.typ.count != right.typ.count:
             FAIL()  # pragma: notest
         check_assign(dummy_node_for_type(left.typ.subtyp), dummy_node_for_type(right.typ.subtyp))
 
     if isinstance(left, DArrayType):
-        if not isinstance(right, ArrayLike):
+        if not isinstance(right, DArrayType):
             FAIL()  # pragma: notest
 
         if left.typ.count < right.typ.count:
@@ -736,10 +738,30 @@ def make_setter(left, right, pos):
 
 
 def _complex_make_setter(left, right, pos):
-    if isinstance(left.typ, ArrayLike):
-        # right.typ.count is not a typo, handles dyn array -> static array
-        ixs = range(right.typ.count)
-        keys = [LLLnode.from_list(i, typ="uint256") for i in ixs]
+    if right.value == "~empty" and left.location == "memory":
+        # optimized memzero
+        return mzero(left, left.typ.memory_bytes_required)
+
+    ret = ["seq"]
+
+    if isinstance(left.typ, DArrayType):
+        # handle dynarray literals
+        assert right.value == "multi"
+
+        # write the length word
+        store_length = [store_op(left.location), left, len(right.args)]
+        ann = None
+        if right.annotation is not None:
+            ann = f"len({right.annotation})"
+        store_length = LLLnode.from_list(store_length, annotation=ann)
+        ret.append(store_length)
+
+        n_items = len(right.args)
+        keys = [LLLnode.from_list(i, typ="uint256") for i in range(n_items)]
+
+    if isinstance(left.typ, SArrayType):
+        n_items = right.typ.count
+        keys = [LLLnode.from_list(i, typ="uint256") for i in range(n_items)]
 
     if isinstance(left.typ, TupleLike):
         keys = left.typ.tuple_keys()
@@ -747,31 +769,14 @@ def _complex_make_setter(left, right, pos):
     # if len(keyz) == 0:
     #    return LLLnode.from_list(["pass"])
 
-    if right.value == "~empty" and left.location == "memory":
-        # optimize memzero
-        return mzero(left, left.typ.memory_bytes_required)
-
     # general case
     # TODO use copy_bytes when the generated code is above a certain size
     with left.cache_when_complex("_L") as (b1, left), right.cache_when_complex("_R") as (b2, right):
 
-        ret = ["seq"]
-
-        if isinstance(left.typ, DArrayType):
-            assert right.value == "multi"
-
-            # write the length word
-            store_length = [store_op(left.location), left, right.typ.count]
-            ann = None
-            if right.annotation is not None:
-                ann = f"len({right.annotation})"
-            store_length = LLLnode.from_list(store_length, annotation=ann)
-            ret.append(store_length)
-
         for k in keys:
-            _l = get_element_ptr(left, k, pos=pos, array_bounds_check=False)
-            _r = get_element_ptr(right, k, pos=pos, array_bounds_check=False)
-            ret.append(make_setter(_l, _r, pos))
+            l_i = get_element_ptr(left, k, pos=pos, array_bounds_check=False)
+            r_i = get_element_ptr(right, k, pos=pos, array_bounds_check=False)
+            ret.append(make_setter(l_i, r_i, pos))
 
         return b1.resolve(b2.resolve(LLLnode.from_list(ret)))
 

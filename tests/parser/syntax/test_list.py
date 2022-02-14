@@ -94,7 +94,7 @@ bar: int128[3]
 def foo():
     self.bar = []
     """,
-        InvalidLiteral,
+        InvalidType,
     ),
     (
         """
