@@ -4,7 +4,6 @@ from vyper.codegen.core import (
     get_element_ptr,
     make_setter,
     store_op,
-    unwrap_location,
     zero_pad,
 )
 from vyper.codegen.lll_node import LLLnode
@@ -70,7 +69,7 @@ def _encode_dyn_array_helper(dst, lll_node, context, pos):
         buf = LLLnode.from_list(buf, typ=dst.typ, location="memory")
         return [
             "seq",
-            make_setter(buf, lll_node, context, pos),
+            make_setter(buf, lll_node, pos),
             ["set", "dyn_ofst", abi_encode(dst, buf, context, pos, returns_len=True)],
         ]
 
@@ -85,24 +84,20 @@ def _encode_dyn_array_helper(dst, lll_node, context, pos):
         ret.append([store_op(dst.location), dst, len_])
 
         # prepare the loop
-        # TODO rework `repeat` to use stack variable so we don't
-        # have to allocate a memory variable
         t = BaseType("uint256")
-        iptr = LLLnode.from_list(context.new_internal_variable(t), typ=t, location="memory")
+        i = LLLnode.from_list(context.fresh_varname("ix"), typ=t)
 
         # offset of the i'th element in lll_node
-        child_location = get_element_ptr(
-            lll_node, unwrap_location(iptr), array_bounds_check=False, pos=pos
-        )
+        child_location = get_element_ptr(lll_node, i, array_bounds_check=False, pos=pos)
 
         # offset of the i'th element in dst
         dst = add_ofst(dst, 32)  # jump past length word
         static_elem_size = child_abi_t.embedded_static_size()
-        static_ofst = ["mul", unwrap_location(iptr), static_elem_size]
+        static_ofst = ["mul", i, static_elem_size]
         loop_body = _encode_child_helper(
             dst, child_location, static_ofst, "dyn_child_ofst", context, pos=pos
         )
-        loop = ["repeat", iptr, 0, len_, lll_node.typ.count, loop_body]
+        loop = ["repeat", i, 0, len_, lll_node.typ.count, loop_body]
 
         x = ["seq", loop, "dyn_child_ofst"]
         start_dyn_ofst = ["mul", len_, static_elem_size]
@@ -166,7 +161,7 @@ def abi_encode(dst, lll_node, context, pos=None, bufsz=None, returns_len=False):
     # encoding by using make_setter, since our memory encoding happens
     # to be identical to the ABI encoding.
     if not abi_t.is_dynamic():
-        lll_ret.append(make_setter(dst, lll_node, context, pos))
+        lll_ret.append(make_setter(dst, lll_node, pos=pos))
         if returns_len:
             lll_ret.append(abi_t.embedded_static_size())
         return LLLnode.from_list(lll_ret, pos=pos, annotation=annotation)
@@ -179,10 +174,10 @@ def abi_encode(dst, lll_node, context, pos=None, bufsz=None, returns_len=False):
         dyn_ofst = "dyn_ofst"  # current offset in the dynamic section
 
         if isinstance(lll_node.typ, BaseType):
-            lll_ret.append(make_setter(dst, lll_node, context, pos=pos))
+            lll_ret.append(make_setter(dst, lll_node, pos=pos))
         elif isinstance(lll_node.typ, ByteArrayLike):
             # TODO optimize out repeated ceil32 calculation
-            lll_ret.append(make_setter(dst, lll_node, context, pos=pos))
+            lll_ret.append(make_setter(dst, lll_node, pos=pos))
             lll_ret.append(zero_pad(dst))
         elif isinstance(lll_node.typ, DArrayType):
             lll_ret.append(_encode_dyn_array_helper(dst, lll_node, context, pos))

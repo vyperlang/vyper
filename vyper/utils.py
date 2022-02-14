@@ -111,8 +111,7 @@ class MemoryPositions:
     MINDECIMAL = 64
     FREE_VAR_SPACE = 128
     FREE_VAR_SPACE2 = 160
-    FREE_LOOP_INDEX = 192
-    RESERVED_MEMORY = 224
+    RESERVED_MEMORY = 192
 
 
 # Sizes of different data types. Used to clamp types.
@@ -163,7 +162,6 @@ VALID_LLL_MACROS = {
     "break",
     "ceil32",
     "clamp",
-    "clamp",
     "clamp_nonzero",
     "clampge",
     "clampgt",
@@ -185,6 +183,7 @@ VALID_LLL_MACROS = {
     "sha3_32",
     "sha3_64",
     "sle",
+    "uclamp",
     "uclampge",
     "uclampgt",
     "uclample",
@@ -196,6 +195,7 @@ VALID_LLL_MACROS = {
     "~extcode",
     "~selfcode",
     "~calldata",
+    "~empty",
 }
 
 # Available base types

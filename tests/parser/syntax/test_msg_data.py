@@ -2,7 +2,7 @@ import pytest
 from eth_tester.exceptions import TransactionFailed
 
 from vyper import compiler
-from vyper.exceptions import StateAccessViolation, SyntaxException, TypeMismatch
+from vyper.exceptions import SyntaxException, TypeMismatch
 
 
 def test_variable_assignment(get_contract, keccak):
@@ -46,6 +46,19 @@ def foo(bar: uint256) -> Bytes[36]:
     expected_result = method_id + "00" * 31 + encoded_42
 
     assert contract.foo(42).hex() == expected_result
+
+
+@pytest.mark.parametrize("bar", [0, 1, 42, 2 ** 256 - 1])
+def test_calldata_private(get_contract, bar):
+    code = """
+@external
+def foo(bar: uint256) -> uint256:
+    data: Bytes[32] = slice(msg.data, 4, 32)
+    return convert(data, uint256)
+    """
+    c = get_contract(code)
+
+    assert c.foo(bar) == bar
 
 
 def test_memory_pointer_advances_appropriately(get_contract, keccak):
@@ -116,14 +129,6 @@ def foo() -> uint256:
     return bar
     """,
         SyntaxException,
-    ),
-    (
-        """
-@internal
-def foo() -> Bytes[4]:
-    return slice(msg.data, 0, 4)
-    """,
-        StateAccessViolation,
     ),
     (
         """

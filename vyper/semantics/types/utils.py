@@ -12,7 +12,7 @@ from vyper.exceptions import (
 )
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.bases import BaseTypeDefinition, DataLocation
-from vyper.semantics.types.indexable.sequence import ArrayDefinition
+from vyper.semantics.types.indexable.sequence import ArrayDefinition, TupleDefinition
 from vyper.semantics.validation.utils import get_exact_type_from_node, get_index_value
 
 
@@ -200,3 +200,21 @@ def check_constant(node: vy_ast.VyperNode) -> bool:
 
     value_type = get_exact_type_from_node(node)
     return getattr(value_type, "is_constant", False)
+
+
+def generate_abi_type(type_definition, name=""):
+    # TODO oof fixme
+    from vyper.semantics.types.user.struct import StructDefinition
+
+    if isinstance(type_definition, StructDefinition):
+        return {
+            "name": name,
+            "type": "tuple",
+            "components": [generate_abi_type(v, k) for k, v in type_definition.members.items()],
+        }
+    if isinstance(type_definition, TupleDefinition):
+        return {
+            "type": "tuple",
+            "components": [generate_abi_type(i) for i in type_definition.value_type],
+        }
+    return {"name": name, "type": type_definition.canonical_abi_type}

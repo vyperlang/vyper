@@ -1,6 +1,8 @@
+import itertools
+
 import pytest
 
-from vyper.exceptions import ArrayIndexException, OverflowException
+from vyper.exceptions import ArrayIndexException, InvalidType, OverflowException, TypeMismatch
 
 
 def test_list_tester_code(get_contract_with_gas_estimation):
@@ -206,24 +208,47 @@ def test_array_decimal_return3() -> DynArray[DynArray[decimal, 2], 2]:
 
 def test_mult_list(get_contract_with_gas_estimation):
     code = """
+nest3: DynArray[DynArray[DynArray[uint256, 2], 2], 2]
+nest4: DynArray[DynArray[DynArray[DynArray[uint256, 2], 2], 2], 2]
+
 @external
-def test_multi3() -> DynArray[DynArray[DynArray[uint256, 2], 2], 2]:
-    l: DynArray[DynArray[DynArray[uint256, 2], 2], 2] = [[[0, 0], [0, 4]], [[0, 0], [0, 123]]]
+def test_multi3_1() -> DynArray[DynArray[DynArray[uint256, 2], 2], 2]:
+    l: DynArray[DynArray[DynArray[uint256, 2], 2], 2] = [[[0, 0], [0, 4]], [[0, 7], [0, 123]]]
+    self.nest3 = l
+    return self.nest3
+
+@external
+def test_multi3_2() -> DynArray[DynArray[DynArray[uint256, 2], 2], 2]:
+    l: DynArray[DynArray[DynArray[uint256, 2], 2], 2] = [[[0, 0], [0, 4]], [[0, 7], [0, 123]]]
+    self.nest3 = l
+    l = self.nest3
     return l
 
 @external
-def test_multi4() -> DynArray[DynArray[DynArray[DynArray[uint256, 2], 2], 2], 2]:
+def test_multi4_1() -> DynArray[DynArray[DynArray[DynArray[uint256, 2], 2], 2], 2]:
     l: DynArray[DynArray[DynArray[DynArray[uint256, 2], 2], 2], 2] = [[[[1, 0], [0, 4]], [[0, 0], [0, 0]]], [[[444, 0], [0, 0]],[[1, 0], [0, 222]]]]  # noqa: E501
+    self.nest4 = l
+    l = self.nest4
     return l
+
+@external
+def test_multi4_2() -> DynArray[DynArray[DynArray[DynArray[uint256, 2], 2], 2], 2]:
+    l: DynArray[DynArray[DynArray[DynArray[uint256, 2], 2], 2], 2] = [[[[1, 0], [0, 4]], [[0, 0], [0, 0]]], [[[444, 0], [0, 0]],[[1, 0], [0, 222]]]]  # noqa: E501
+    self.nest4 = l
+    return self.nest4
     """
 
     c = get_contract_with_gas_estimation(code)
 
-    assert c.test_multi3() == [[[0, 0], [0, 4]], [[0, 0], [0, 123]]]
-    assert c.test_multi4() == [
+    nest3 = [[[0, 0], [0, 4]], [[0, 7], [0, 123]]]
+    assert c.test_multi3_1() == nest3
+    assert c.test_multi3_2() == nest3
+    nest4 = [
         [[[1, 0], [0, 4]], [[0, 0], [0, 0]]],
         [[[444, 0], [0, 0]], [[1, 0], [0, 222]]],
     ]
+    assert c.test_multi4_1() == nest4
+    assert c.test_multi4_2() == nest4
 
 
 def test_uint256_accessor(get_contract_with_gas_estimation, assert_tx_failed):
@@ -481,3 +506,42 @@ def ix(i: uint256) -> decimal:
 
 
 # TODO test loops
+
+# Would be nice to put this somewhere accessible, like in vyper.types or something
+integer_types = ["uint8", "int128", "int256", "uint256"]
+
+
+@pytest.mark.parametrize("storage_type,return_type", itertools.permutations(integer_types, 2))
+def test_constant_list_fail(get_contract, assert_compile_failed, storage_type, return_type):
+    code = f"""
+MY_CONSTANT: constant(DynArray[{storage_type}, 3]) = [1, 2, 3]
+
+@external
+def foo() -> DynArray[{return_type}, 3]:
+    return MY_CONSTANT
+    """
+    assert_compile_failed(lambda: get_contract(code), InvalidType)
+
+
+@pytest.mark.parametrize("storage_type,return_type", itertools.permutations(integer_types, 2))
+def test_constant_list_fail_2(get_contract, assert_compile_failed, storage_type, return_type):
+    code = f"""
+MY_CONSTANT: constant(DynArray[{storage_type}, 3]) = [1, 2, 3]
+
+@external
+def foo() -> {return_type}:
+    return MY_CONSTANT[0]
+    """
+    assert_compile_failed(lambda: get_contract(code), InvalidType)
+
+
+@pytest.mark.parametrize("storage_type,return_type", itertools.permutations(integer_types, 2))
+def test_constant_list_fail_3(get_contract, assert_compile_failed, storage_type, return_type):
+    code = f"""
+MY_CONSTANT: constant(DynArray[{storage_type}, 3]) = [1, 2, 3]
+
+@external
+def foo(i: uint256) -> {return_type}:
+    return MY_CONSTANT[i]
+    """
+    assert_compile_failed(lambda: get_contract(code), TypeMismatch)

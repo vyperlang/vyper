@@ -1,3 +1,8 @@
+import itertools
+
+import pytest
+
+
 def test_bytes_literal_code(get_contract_with_gas_estimation):
     bytes_literal_code = """
 @external
@@ -37,46 +42,44 @@ def baz4() -> Bytes[100]:
     print("Passed string literal test")
 
 
-def test_bytes_literal_splicing_fuzz(get_contract_with_gas_estimation):
-    for i in range(95, 96, 97):
-        kode = f"""
+@pytest.mark.parametrize("i,e,_s", itertools.product([95, 96, 97], [63, 64, 65], [31, 32, 33]))
+def test_bytes_literal_splicing_fuzz(get_contract_with_gas_estimation, i, e, _s):
+    kode = f"""
 moo: Bytes[100]
 
 @external
 def foo(s: uint256, L: uint256) -> Bytes[100]:
-        x: int128 = 27
-        r: Bytes[100] = slice(b"{("c" * i)}", s, L)
-        y: int128 = 37
-        if x * y == 999:
-            return r
-        return b"3434346667777"
+    x: int128 = 27
+    r: Bytes[100] = slice(b"{("c" * i)}", s, L)
+    y: int128 = 37
+    if x * y == 999:
+        return r
+    return b"3434346667777"
 
 @external
 def bar(s: uint256, L: uint256) -> Bytes[100]:
-        self.moo = b"{("c" * i)}"
-        x: int128 = 27
-        r: Bytes[100] = slice(self.moo, s, L)
-        y: int128  = 37
-        if x * y == 999:
-            return r
-        return b"3434346667777"
+    self.moo = b"{("c" * i)}"
+    x: int128 = 27
+    r: Bytes[100] = slice(self.moo, s, L)
+    y: int128  = 37
+    if x * y == 999:
+        return r
+    return b"3434346667777"
 
 @external
 def baz(s: uint256, L: uint256) -> Bytes[100]:
-        x: int128 = 27
-        self.moo = slice(b"{("c" * i)}", s, L)
-        y: int128 = 37
-        if x * y == 999:
-            return self.moo
-        return b"3434346667777"
-        """
+    x: int128 = 27
+    self.moo = slice(b"{("c" * i)}", s, L)
+    y: int128 = 37
+    if x * y == 999:
+        return self.moo
+    return b"3434346667777"
+    """
 
-        c = get_contract_with_gas_estimation(kode)
-        for e in range(63, 64, 65):
-            for _s in range(31, 32, 33):
-                o1 = c.foo(_s, e - _s)
-                o2 = c.bar(_s, e - _s)
-                o3 = c.baz(_s, e - _s)
-                assert o1 == o2 == o3 == b"c" * (e - _s), (i, _s, e - _s, o1, o2, o3)
+    c = get_contract_with_gas_estimation(kode)
+    o1 = c.foo(_s, e - _s)
+    o2 = c.bar(_s, e - _s)
+    o3 = c.baz(_s, e - _s)
+    assert o1 == o2 == o3 == b"c" * (e - _s), (i, _s, e - _s, o1, o2, o3)
 
     print("Passed string literal splicing fuzz-test")

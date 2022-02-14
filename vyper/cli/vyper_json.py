@@ -26,7 +26,7 @@ TRANSLATE_MAP = {
     "evm.deployedBytecode.sourceMap": "source_map",
     "interface": "interface",
     "ir": "ir_dict",
-    "ir_json": "ir_dict",
+    "ir_runtime": "ir_runtime_dict",
     # "metadata": "metadata",  # don't include  in "*" output for now
     "layout": "layout",
     "userdoc": "userdoc",
@@ -182,22 +182,47 @@ def get_input_dict_contracts(input_dict: Dict) -> ContractCodes:
 
 def get_input_dict_interfaces(input_dict: Dict) -> Dict:
     interface_sources: Dict = {}
+
     for path, value in input_dict.get("interfaces", {}).items():
         key = _standardize_path(path)
+
         if key.endswith(".json"):
-            if "abi" not in value:
+            # EthPM Manifest v3 (EIP-2678)
+            if "contractTypes" in value:
+                for name, ct in value["contractTypes"].items():
+                    if name in interface_sources:
+                        raise JSONError(f"Interface namespace collision: {name}")
+
+                    interface_sources[name] = {"type": "json", "code": ct["abi"]}
+
+                continue  # Skip to next interface
+
+            # ABI JSON file (`{"abi": List[ABI]}`)
+            elif "abi" in value:
+                interface = {"type": "json", "code": value["abi"]}
+
+            # ABI JSON file (`List[ABI]`)
+            elif isinstance(value, list):
+                interface = {"type": "json", "code": value}
+
+            else:
                 raise JSONError(f"Interface '{path}' must have 'abi' field")
-            interface = {"type": "json", "code": value["abi"]}
+
         elif key.endswith(".vy"):
             if "content" not in value:
                 raise JSONError(f"Interface '{path}' must have 'content' field")
+
             interface = {"type": "vyper", "code": value["content"]}
+
         else:
             raise JSONError(f"Interface '{path}' must have suffix '.vy' or '.json'")
+
         key = key.rsplit(".", maxsplit=1)[0]
         if key in interface_sources:
             raise JSONError(f"Interface namespace collision: {key}")
+
         interface_sources[key] = interface
+
     return interface_sources
 
 
@@ -248,6 +273,11 @@ def get_interface_codes(
     code = contract_sources[contract_path]
     interface_codes = extract_file_interface_imports(code)
     for interface_name, interface_path in interface_codes.items():
+        # If we know the interfaces already (e.g. EthPM Manifest file)
+        if interface_name in interface_sources:
+            interfaces[interface_name] = interface_sources[interface_name]
+            continue
+
         path = Path(contract_path).parent.joinpath(interface_path).as_posix()
         keys = [_standardize_path(path)]
         if not interface_path.startswith("."):
@@ -281,7 +311,29 @@ def get_interface_codes(
         with valid_path.open() as fh:
             code = fh.read()
         if valid_path.suffix == ".json":
-            interfaces[interface_name] = {"type": "json", "code": json.loads(code.encode())}
+            code_dict = json.loads(code.encode())
+            # EthPM Manifest v3 (EIP-2678)
+            if "contractTypes" in code_dict:
+                if interface_name not in code_dict["contractTypes"]:
+                    raise JSONError(f"'{interface_name}' not found in '{valid_path}'")
+
+                if "abi" not in code_dict["contractTypes"][interface_name]:
+                    raise JSONError(f"Missing abi for '{interface_name}' in '{valid_path}'")
+
+                abi = code_dict["contractTypes"][interface_name]["abi"]
+                interfaces[interface_name] = {"type": "json", "code": abi}
+
+            # ABI JSON (`{"abi": List[ABI]}`)
+            elif "abi" in code_dict:
+                interfaces[interface_name] = {"type": "json", "code": code_dict["abi"]}
+
+            # ABI JSON (`List[ABI]`)
+            elif isinstance(code_dict, list):
+                interfaces[interface_name] = {"type": "json", "code": code_dict}
+
+            else:
+                raise JSONError(f"Unexpected type in file: '{valid_path}'")
+
         else:
             interfaces[interface_name] = {"type": "vyper", "code": code}
 

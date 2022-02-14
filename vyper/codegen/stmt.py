@@ -85,7 +85,7 @@ class Stmt:
             pos=getpos(self.stmt),
         )
 
-        lll_node = make_setter(variable_loc, sub, self.context, pos=getpos(self.stmt))
+        lll_node = make_setter(variable_loc, sub, pos=getpos(self.stmt))
 
         return lll_node
 
@@ -94,7 +94,7 @@ class Stmt:
         sub = Expr(self.stmt.value, self.context).lll_node
         target = self._get_target(self.stmt.target)
 
-        lll_node = make_setter(target, sub, self.context, pos=getpos(self.stmt))
+        lll_node = make_setter(target, sub, pos=getpos(self.stmt))
         lll_node.pos = getpos(self.stmt)
         return lll_node
 
@@ -285,11 +285,18 @@ class Stmt:
             return
 
         varname = self.stmt.target.id
-        pos = self.context.new_variable(varname, BaseType(iter_typ), pos=getpos(self.stmt))
+        i = LLLnode.from_list(self.context.fresh_varname("range_ix"), typ="uint256")
+        iptr = self.context.new_variable(varname, BaseType(iter_typ), pos=getpos(self.stmt))
+
         self.context.forvars[varname] = True
+
+        loop_body = ["seq"]
+        # store the current value of i so it is accessible to userland
+        loop_body.append(["mstore", iptr, i])
+        loop_body.append(parse_body(self.stmt.body, self.context))
+
         lll_node = LLLnode.from_list(
-            ["repeat", pos, start, rounds, parse_body(self.stmt.body, self.context)],
-            typ=None,
+            ["repeat", i, start, rounds, rounds, loop_body],
             pos=getpos(self.stmt),
         )
         del self.context.forvars[varname]
@@ -313,11 +320,7 @@ class Stmt:
             location="memory",
         )
 
-        iptr = LLLnode.from_list(
-            self.context.new_internal_variable(BaseType("uint256")),
-            typ="uint256",
-            location="memory",
-        )
+        i = LLLnode.from_list(self.context.fresh_varname("for_list_ix"), typ="uint256")
 
         self.context.forvars[varname] = True
 
@@ -330,24 +333,25 @@ class Stmt:
                 typ=iter_list.typ,
                 location="memory",
             )
-            ret.append(make_setter(tmp_list, iter_list, self.context, pos=getpos(self.stmt)))
+            ret.append(make_setter(tmp_list, iter_list, pos=getpos(self.stmt)))
             iter_list = tmp_list
 
         # set up the loop variable
         loop_var_ast = getpos(self.stmt.target)
-        e = get_element_ptr(iter_list, iptr, array_bounds_check=False, pos=loop_var_ast)
+        e = get_element_ptr(iter_list, i, array_bounds_check=False, pos=loop_var_ast)
         body = [
             "seq",
-            make_setter(loop_var, e, self.context, pos=loop_var_ast),
+            make_setter(loop_var, e, pos=loop_var_ast),
             parse_body(self.stmt.body, self.context),
         ]
 
         repeat_bound = iter_list.typ.count
         if isinstance(iter_list.typ, DArrayType):
             array_len = get_dyn_array_count(iter_list)
-            ret.append(["repeat", iptr, 0, array_len, repeat_bound, body])
         else:
-            ret.append(["repeat", iptr, 0, repeat_bound, body])
+            array_len = repeat_bound
+
+        ret.append(["repeat", i, 0, array_len, repeat_bound, body])
 
         del self.context.forvars[varname]
         return LLLnode.from_list(ret, pos=getpos(self.stmt))

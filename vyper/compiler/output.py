@@ -79,16 +79,25 @@ def build_ir_output(compiler_data: CompilerData) -> LLLnode:
     return compiler_data.lll_nodes
 
 
+def build_ir_runtime_output(compiler_data: CompilerData) -> LLLnode:
+    if compiler_data.show_gas_estimates:
+        LLLnode.repr_show_gas = True
+    return compiler_data.lll_runtime
+
+
+def _lll_to_dict(lll_node):
+    args = lll_node.args
+    if len(args) > 0:
+        return {lll_node.value: [_lll_to_dict(x) for x in args]}
+    return lll_node.value
+
+
 def build_ir_dict_output(compiler_data: CompilerData) -> dict:
-    lll = compiler_data.lll_nodes
+    return _lll_to_dict(compiler_data.lll_nodes)
 
-    def _to_dict(lll_node):
-        args = lll_node.args
-        if len(args) > 0:
-            return {lll_node.value: [_to_dict(x) for x in args]}
-        return lll_node.value
 
-    return _to_dict(lll)
+def build_ir_runtime_dict_output(compiler_data: CompilerData) -> dict:
+    return _lll_to_dict(compiler_data.lll_runtime)
 
 
 def build_metadata_output(compiler_data: CompilerData) -> dict:

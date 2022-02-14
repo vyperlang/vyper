@@ -88,6 +88,8 @@ class _ExprTypeChecker:
     def get_possible_types_from_node(self, node, only_definitions=True):
         """
         Find all possible types for a given node.
+        If the node's metadata contains type information propagated from constant folding,
+        then that type is returned.
 
         Arguments
         ---------
@@ -102,6 +104,10 @@ class _ExprTypeChecker:
         List
             A list of type objects
         """
+        # Early termination if typedef is propagated in metadata
+        if "type" in node._metadata:
+            return [node._metadata["type"]]
+
         fn = self._find_fn(node)
         types_list = fn(node)
         if only_definitions:
@@ -113,6 +119,7 @@ class _ExprTypeChecker:
                     )
                 else:
                     raise InvalidReference("Expected a literal or variable", node)
+
         if all(isinstance(i, IntegerAbstractType) for i in types_list):
             # for numeric types, sort according by number of bits descending
             # we do this to ensure literals are cast with the largest possible type

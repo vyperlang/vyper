@@ -21,6 +21,7 @@ from vyper.semantics.types.user.struct import StructDefinition
 from vyper.semantics.types.utils import (
     StringEnum,
     check_constant,
+    generate_abi_type,
     get_type_from_abi,
     get_type_from_annotation,
 )
@@ -482,15 +483,15 @@ class ContractFunction(BaseTypeDefinition):
             abi_dict["type"] = "function"
             abi_dict["name"] = self.name
 
-        abi_dict["inputs"] = [_generate_abi_type(v, k) for k, v in self.arguments.items()]
+        abi_dict["inputs"] = [generate_abi_type(v, k) for k, v in self.arguments.items()]
 
         typ = self.return_type
         if typ is None:
             abi_dict["outputs"] = []
         elif isinstance(typ, TupleDefinition) and len(typ.value_type) > 1:  # type: ignore
-            abi_dict["outputs"] = [_generate_abi_type(i) for i in typ.value_type]  # type: ignore
+            abi_dict["outputs"] = [generate_abi_type(i) for i in typ.value_type]  # type: ignore
         else:
-            abi_dict["outputs"] = [_generate_abi_type(typ)]
+            abi_dict["outputs"] = [generate_abi_type(typ)]
 
         if self.has_default_args:
             # for functions with default args, return a dict for each possible arg count
@@ -536,21 +537,6 @@ class MemberFunctionDefinition(BaseTypeDefinition):
                 return value_type
 
         raise CallViolation("Function does not exist on given type", node)
-
-
-def _generate_abi_type(type_definition, name=""):
-    if isinstance(type_definition, StructDefinition):
-        return {
-            "name": name,
-            "type": "tuple",
-            "components": [_generate_abi_type(v, k) for k, v in type_definition.members.items()],
-        }
-    if isinstance(type_definition, TupleDefinition):
-        return {
-            "type": "tuple",
-            "components": [_generate_abi_type(i) for i in type_definition.value_type],
-        }
-    return {"name": name, "type": type_definition.canonical_abi_type}
 
 
 def _generate_method_id(name: str, canonical_abi_types: List[str]) -> Dict[str, int]:
