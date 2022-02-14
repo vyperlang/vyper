@@ -580,7 +580,7 @@ def test_append_pop(get_contract, assert_tx_failed, code, check_result, test_dat
 
 append_pop_complex_tests = [
     (
-        lambda typ: f"""
+        """
 @external
 def foo(x: {typ}) -> DynArray[{typ}, 2]:
     ys: DynArray[{typ}, 1] = []
@@ -590,7 +590,7 @@ def foo(x: {typ}) -> DynArray[{typ}, 2]:
         lambda x: [x],
     ),
     (
-        lambda typ: f"""
+        """
 my_array: DynArray[{typ}, 1]
 @external
 def foo(x: {typ}) -> DynArray[{typ}, 2]:
@@ -601,7 +601,7 @@ def foo(x: {typ}) -> DynArray[{typ}, 2]:
         lambda x: None,
     ),
     (
-        lambda typ: f"""
+        """
 my_array: DynArray[{typ}, 5]
 @external
 def foo(x: {typ}) -> (DynArray[{typ}, 5], {typ}):
@@ -611,7 +611,7 @@ def foo(x: {typ}) -> (DynArray[{typ}, 5], {typ}):
         lambda x: [[x], x],
     ),
     (
-        lambda typ: f"""
+        """
 my_array: DynArray[{typ}, 5]
 @external
 def foo(x: {typ}) -> ({typ}, DynArray[{typ}, 5]):
@@ -621,7 +621,7 @@ def foo(x: {typ}) -> ({typ}, DynArray[{typ}, 5]):
         lambda x: [x, []],
     ),
     (
-        lambda typ: f"""
+        """
 my_array: DynArray[{typ}, 5]
 @external
 def foo(x: {typ}) -> {typ}:
@@ -632,18 +632,22 @@ def foo(x: {typ}) -> {typ}:
 ]
 
 
-@pytest.mark.parametrize("generate_code,check_result", append_pop_complex_tests)
+@pytest.mark.parametrize("code_template,check_result", append_pop_complex_tests)
 @pytest.mark.parametrize("subtype", ["uint256[3]", "DynArray[uint256,3]", "DynArray[uint8, 4]", "Foo"])
 # TODO change this to fuzz random data
-def test_append_pop_complex(get_contract, assert_tx_failed, generate_code, check_result, subtype):
+def test_append_pop_complex(get_contract, assert_tx_failed, code_template, check_result, subtype):
+    code = code_template.format(typ=subtype)
     test_data = [1, 2, 3]
-    struct_def = """
+    if subtype == "Foo":
+        test_data = tuple(test_data)
+        struct_def = """
 struct Foo:
     x: uint256
     y: uint256
     z: uint256
-    """
-    code = struct_def + "\n" + generate_code(subtype)
+        """
+        code = struct_def + "\n" + code
+
     c = get_contract(code)
     expected_result = check_result(test_data)
     if expected_result is None:
