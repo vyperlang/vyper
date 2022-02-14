@@ -21,7 +21,6 @@ from vyper.codegen.types import (
     BaseType,
     ByteArrayLike,
     ByteArrayType,
-    DArrayType,
     InterfaceType,
     MappingType,
     SArrayType,
@@ -40,7 +39,6 @@ from vyper.exceptions import (
     TypeCheckFailure,
     TypeMismatch,
 )
-from vyper.semantics.types import DynamicArrayDefinition
 from vyper.utils import DECIMAL_DIVISOR, SizeLimits, bytes_to_int, checksum_encode, string_to_bytes
 
 # var name: (lllnode, type)
