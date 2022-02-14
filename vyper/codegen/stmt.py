@@ -151,7 +151,7 @@ class Stmt:
             arg = args[0]
             assert isinstance(darray.typ, DArrayType)
             assert arg.typ == darray.typ.subtype
-            return append_dyn_array(darray, arg, self.context, pos=getpos(self.stmt))
+            return append_dyn_array(darray, arg, pos=getpos(self.stmt))
 
         elif is_self_function:
             return self_call.lll_for_self_call(self.stmt, self.context)

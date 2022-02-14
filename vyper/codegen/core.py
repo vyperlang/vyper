@@ -281,7 +281,7 @@ def get_dyn_array_count(arg):
     return LLLnode.from_list([load_op(arg.location), arg], typ=typ)
 
 
-def append_dyn_array(darray_node, elem_node, context, pos=None):
+def append_dyn_array(darray_node, elem_node, pos=None):
     assert isinstance(darray_node.typ, DArrayType)
 
     assert darray_node.typ.count > 0, "jerk boy u r out"
@@ -304,21 +304,21 @@ def append_dyn_array(darray_node, elem_node, context, pos=None):
             return LLLnode.from_list(b1.resolve(b2.resolve(ret)), pos=pos)
 
 
-def pop_dyn_array(darray_node):
+def pop_dyn_array(darray_node, pos=None):
     assert isinstance(darray_node.typ, DArrayType)
     ret = ["seq"]
-    with darray_node.cache_when_complex("darray") as b1, darray_node:
+    with darray_node.cache_when_complex("darray") as (b1, darray_node):
+        old_len = get_dyn_array_count(darray_node)
+        new_len = LLLnode.from_list(["sub", old_len, 1], typ="uint256")
 
-        new_len = LLLnode.from_list(["sub", get_dyn_array_count(darray_node), 1])
-
-        with new_len.cache_when_complex("new_len") as b2, new_len:
+        with new_len.cache_when_complex("new_len") as (b2, new_len):
             # check that the original len is nonzero, i.e. (new_len != -1)
             # NOTE: have optimizer rule for (eq new_len (-1)) but not (ne new_len (-1))
             ret.append(["assert", ["iszero", ["eq", new_len, -1]]])
-            ret.append(store_op(darray_node.location), new_len)
+            ret.append([store_op(darray_node.location), darray_node, new_len])
             # NOTE skip array bounds check bc we already asserted len two lines up
-            ret.append(get_element_ptr(darray_node, new_len, array_bounds_check=False))
-            return b1.resolve(b2.resolve(ret))
+            ret.append(get_element_ptr(darray_node, new_len, array_bounds_check=False, pos=pos))
+            return LLLnode.from_list(b1.resolve(b2.resolve(ret)), pos=pos)
 
 
 def getpos(node):

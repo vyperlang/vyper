@@ -9,6 +9,7 @@ from vyper.codegen.core import (
     get_dyn_array_count,
     get_element_ptr,
     get_number_as_fraction,
+    pop_dyn_array,
     getpos,
     load_op,
     make_setter,
@@ -1038,6 +1039,13 @@ class Expr:
                 if ret is True:
                     arg_lll.typ = InterfaceType(function_name)  # Cast to Correct interface type.
                     return arg_lll
+
+        elif isinstance(self.expr.func, vy_ast.Attribute) and self.expr.func.attr == "pop":
+            darray = Expr(self.expr.func.value, self.context).lll_node
+            assert len(self.expr.args) == 0
+            assert isinstance(darray.typ, DArrayType)
+            return pop_dyn_array(darray, pos=getpos(self.expr))
+
         elif (
             isinstance(self.expr.func, vy_ast.Attribute)
             and isinstance(self.expr.func.value, vy_ast.Name)

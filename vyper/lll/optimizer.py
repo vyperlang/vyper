@@ -150,7 +150,7 @@ def apply_general_optimizations(node: LLLnode) -> LLLnode:
     # TODO handle (eq -1 x) as well
     elif node.value == "eq" and int_at(argz, 1) and argz[1].value == -1:
         value = "iszero"
-        argz = ["not", argz[0]]
+        argz = [LLLnode.from_list(["not", argz[0]])]
 
     # (eq x y) has the same truthyness as (iszero (xor x y))
     # rewrite 'eq' as 'xor' in places where truthy is accepted.
