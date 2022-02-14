@@ -22,6 +22,7 @@ from vyper.codegen.types import (
     BaseType,
     ByteArrayLike,
     ByteArrayType,
+    DArrayType,
     InterfaceType,
     MappingType,
     SArrayType,

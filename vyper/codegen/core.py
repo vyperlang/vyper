@@ -137,6 +137,24 @@ def _dynarray_make_setter(dst, src, pos=None):
     if src.value == "~empty":
         return LLLnode.from_list([store_op(dst.location), dst, 0], pos=pos)
 
+    if src.value == "multi":
+        # handle literals
+
+        # write the length word
+        store_length = [store_op(left.location), left, len(right.args)]
+        ann = None
+        if right.annotation is not None:
+            ann = f"len({right.annotation})"
+        store_length = LLLnode.from_list(store_length, annotation=ann)
+        ret.append(store_length)
+
+        n_items = len(right.args)
+        for i in range(n_items):
+            k = LLLnode.from_list(i, typ="uint256")
+            l_i = get_element_ptr(left, k, pos=pos, array_bounds_check=False)
+            r_i = get_element_ptr(right, k, pos=pos, array_bounds_check=False)
+            ret.append(make_setter(l_i, r_i, pos))
+
     with src.cache_when_complex("_src") as (b1, src):
 
         # for ABI-encoded dynamic data, we must loop to unpack, since
@@ -769,10 +787,6 @@ def make_setter(left, right, pos):
         return LLLnode.from_list(ret)
 
     elif isinstance(left.typ, DArrayType):
-        # handle literals
-        if right.value == "multi":
-            return _complex_make_setter(left, right, pos)
-
         # TODO should we enable this?
         # implicit conversion from sarray to darray
         # if isinstance(right.typ, SArrayType):
@@ -799,21 +813,6 @@ def _complex_make_setter(left, right, pos):
         return mzero(left, left.typ.memory_bytes_required)
 
     ret = ["seq"]
-
-    if isinstance(left.typ, DArrayType):
-        # handle dynarray literals
-        assert right.value == "multi"
-
-        # write the length word
-        store_length = [store_op(left.location), left, len(right.args)]
-        ann = None
-        if right.annotation is not None:
-            ann = f"len({right.annotation})"
-        store_length = LLLnode.from_list(store_length, annotation=ann)
-        ret.append(store_length)
-
-        n_items = len(right.args)
-        keys = [LLLnode.from_list(i, typ="uint256") for i in range(n_items)]
 
     if isinstance(left.typ, SArrayType):
         n_items = right.typ.count
