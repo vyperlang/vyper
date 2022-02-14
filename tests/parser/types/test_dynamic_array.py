@@ -334,39 +334,168 @@ def test_array(x: int128, y: int128, z: int128, w: int128) -> int128:
     assert c.test_array(2, 7, 1, 8) == -10908
 
 
-def test_member_in_list(get_contract_with_gas_estimation):
-    code = """
+@pytest.mark.parametrize(
+    "type,values,false_value",
+    [
+        ("uint256", [3, 7], 4),
+        (
+            "address",
+            [
+                "0x0000000000000000000000000000000000000012",
+                "0x0000000000000000000000000000000000000024",
+            ],
+            "0x0000000000000000000000000000000000000013",
+        ),
+        ("bool", [True, True], False),
+        (
+            "bytes32",
+            [
+                "0x0000000000000000000000000000000000000000000000000000000080ac58cd",
+                "0x0000000000000000000000000000000000000000000000000000000080ac58ce",
+            ],
+            "0x0000000000000000000000000000000000000000000000000000000080ac58cf",
+        ),
+    ],
+)
+def test_member_in_list(get_contract_with_gas_estimation, type, values, false_value):
+    code = f"""
 @external
-def check(a: uint256) -> bool:
-    x: DynArray[uint256, 2] = [3, 7]
+def check(a: {type}) -> bool:
+    x: DynArray[{type}, 2] = [{values[0]}, {values[1]}]
     return a in x
     """
     c = get_contract_with_gas_estimation(code)
-    assert c.check(3) is True
-    assert c.check(7) is True
-    assert c.check(4) is False
+    assert c.check(values[0]) is True
+    assert c.check(values[1]) is True
+    assert c.check(false_value) is False
 
 
-def test_member_in_nested_list(get_contract_with_gas_estimation):
-    code = """
+@pytest.mark.parametrize(
+    "type,values,false_values",
+    [
+        ("uint256", [[3, 7], [9, 11]], [4, 10]),
+        ("bool", [[True, True], [False, False]], [False, True]),
+    ],
+)
+def test_member_in_nested_list(get_contract_with_gas_estimation, type, values, false_values):
+    code = f"""
 @external
-def check1(a: uint256) -> bool:
-    x: DynArray[DynArray[uint256, 2], 2] = [[3, 7], [9, 11]]
+def check1(a: {type}) -> bool:
+    x: DynArray[DynArray[{type}, 2], 2] = {values}
     return a in x[0]
 
 @external
-def check2(a: uint256) -> bool:
-    x: DynArray[DynArray[uint256, 2], 2] = [[3, 7], [9, 11]]
+def check2(a: {type}) -> bool:
+    x: DynArray[DynArray[{type}, 2], 2] = {values}
     return a in x[1]
     """
     c = get_contract_with_gas_estimation(code)
-    assert c.check1(3) is True
-    assert c.check1(7) is True
-    assert c.check1(4) is False
+    assert c.check1(values[0][0]) is True
+    assert c.check1(values[0][1]) is True
+    assert c.check1(false_values[0]) is False
 
-    assert c.check2(9) is True
-    assert c.check2(11) is True
-    assert c.check2(3) is False
+    assert c.check2(values[1][0]) is True
+    assert c.check2(values[1][1]) is True
+    assert c.check2(false_values[1]) is False
+
+
+def test_member_in_nested_address_list(get_contract_with_gas_estimation):
+    code = """
+@external
+def check1(a: address) -> bool:
+    x: DynArray[DynArray[address, 2], 2] = [
+        [
+            0x0000000000000000000000000000000000000012,
+            0x0000000000000000000000000000000000000024,
+        ],
+        [
+            0x0000000000000000000000000000000000000036,
+            0x0000000000000000000000000000000000000048,
+        ],
+    ]
+    return a in x[0]
+
+@external
+def check2(a: address) -> bool:
+    x: DynArray[DynArray[address, 2], 2] = [
+        [
+            0x0000000000000000000000000000000000000012,
+            0x0000000000000000000000000000000000000024,
+        ],
+        [
+            0x0000000000000000000000000000000000000036,
+            0x0000000000000000000000000000000000000048,
+        ],
+    ]
+    return a in x[1]
+    """
+    c = get_contract_with_gas_estimation(code)
+    assert c.check1("0x0000000000000000000000000000000000000012") is True
+    assert c.check1("0x0000000000000000000000000000000000000024") is True
+    assert c.check1("0x0000000000000000000000000000000000000036") is False
+
+    assert c.check2("0x0000000000000000000000000000000000000036") is True
+    assert c.check2("0x0000000000000000000000000000000000000048") is True
+    assert c.check2("0x0000000000000000000000000000000000000024") is False
+
+
+(
+    "bytes32",
+    [
+        [
+            b"\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x80\\xac\\x58\\xca",  # noqa: E501
+            b"\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x80\\xac\\x58\\xcb",  # noqa: E501
+        ],
+        [
+            b"\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x80\\xac\\x58\\xcc",  # noqa: E501
+            b"\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x80\\xac\\x58\\xcd",  # noqa: E501
+        ],
+    ],
+    [
+        b"\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x80\\xac\\x58\\xcc",  # noqa: E501,
+        b"\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x80\\xac\\x58\\xce",  # noqa: E501
+    ],
+),
+
+
+def test_member_in_nested_bytes32_list(get_contract_with_gas_estimation):
+    code = """
+@external
+def check1(a: bytes32) -> bool:
+    x: DynArray[DynArray[bytes32, 2], 2] = [
+        [
+            0x0000000000000000000000000000000000000000000000000000000080ac58ca,
+            0x0000000000000000000000000000000000000000000000000000000080ac58cb,
+        ],
+        [
+            0x0000000000000000000000000000000000000000000000000000000080ac58cc,
+            0x0000000000000000000000000000000000000000000000000000000080ac58cd,
+        ],
+    ]
+    return a in x[0]
+
+@external
+def check2(a: bytes32) -> bool:
+    x: DynArray[DynArray[bytes32, 2], 2] = [
+        [
+            0x0000000000000000000000000000000000000000000000000000000080ac58ca,
+            0x0000000000000000000000000000000000000000000000000000000080ac58cb,
+        ],
+        [
+            0x0000000000000000000000000000000000000000000000000000000080ac58cc,
+            0x0000000000000000000000000000000000000000000000000000000080ac58cd,
+        ],
+    ]
+    return a in x[1]
+    """
+    c = get_contract_with_gas_estimation(code)
+    assert c.check1("0x0000000000000000000000000000000000000000000000000000000080ac58ca") is True
+    assert c.check1("0x0000000000000000000000000000000000000000000000000000000080ac58cb") is True
+    assert c.check1("0x0000000000000000000000000000000000000000000000000000000080ac58cc") is False
+
+    assert c.check2("0x0000000000000000000000000000000000000000000000000000000080ac58cc") is True
+    assert c.check2("0x0000000000000000000000000000000000000000000000000000000080ac58cd") is True
+    assert c.check2("0x0000000000000000000000000000000000000000000000000000000080ac58ca") is False
 
 
 def test_member_in_updated_list(get_contract_with_gas_estimation):
@@ -1048,6 +1177,59 @@ def bar() -> DynArray[DynArray[DynArray[uint256, 2], 2], 2]:
     """
     c = get_contract(code)
     assert c.bar() == [[[3, 7], [7, 3]], [[7, 3], [3, 7]]]
+
+
+def test_struct_of_lists_2(get_contract):
+    code = """
+struct Foo:
+    b: Bytes[32]
+    da: DynArray[int128, 5]
+    sa: int128[5]
+    some_int: int128
+
+@internal
+def _foo(x: int128) -> Foo:
+    f: Foo = Foo({
+        b: b"hello",
+        da: [x, x * 2],
+        sa: [x + 1, x + 2, x + 3, x + 4, x + 5],
+        some_int: x - 1
+    })
+    return f
+
+@external
+def bar(x: int128) -> DynArray[int128, 5]:
+    f: Foo = self._foo(x)
+    return f.da
+    """
+    c = get_contract(code)
+    assert c.bar(7) == [7, 14]
+
+
+def test_struct_of_lists_3(get_contract):
+    code = """
+struct Foo:
+    a: DynArray[int128, 3]
+    b: DynArray[address, 3]
+    c: DynArray[bool, 3]
+
+@internal
+def _foo(x: int128) -> Foo:
+    f: Foo = Foo({
+        a: [x, x * 2],
+        b: [0x0000000000000000000000000000000000000012],
+        c: [False, True, False]
+
+    })
+    return f
+
+@external
+def bar(x: int128) -> DynArray[int128, 3]:
+    f: Foo = self._foo(x)
+    return f.a
+    """
+    c = get_contract(code)
+    assert c.bar(7) == [7, 14]
 
 
 def test_nested_struct_of_lists(get_contract):
