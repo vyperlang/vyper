@@ -8,11 +8,11 @@ from vyper.codegen.core import (
     LLLnode,
     append_dyn_array,
     get_dyn_array_count,
-    pop_dyn_array,
     get_element_ptr,
     getpos,
     make_byte_array_copier,
     make_setter,
+    pop_dyn_array,
     unwrap_location,
     zero_pad,
 )
@@ -145,7 +145,10 @@ class Stmt:
             funcname = self.stmt.func.id
             return STMT_DISPATCH_TABLE[funcname].build_LLL(self.stmt, self.context)
 
-        elif isinstance(self.stmt.func, vy_ast.Attribute) and self.stmt.func.attr in ("append", "pop"):
+        elif isinstance(self.stmt.func, vy_ast.Attribute) and self.stmt.func.attr in (
+            "append",
+            "pop",
+        ):
             darray = Expr(self.stmt.func.value, self.context).lll_node
             args = [Expr(x, self.context).lll_node for x in self.stmt.args]
             if self.stmt.func.attr == "append":
