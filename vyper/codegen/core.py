@@ -331,14 +331,12 @@ def pop_dyn_array(darray_node, return_popped_item, pos=None):
     ret = ["seq"]
     typ = darray_node.typ.subtype
     with darray_node.cache_when_complex("darray") as (b1, darray_node):
-        old_len = get_dyn_array_count(darray_node)
+        old_len = ["clamp_nonzero", get_dyn_array_count(darray_node)]
         new_len = LLLnode.from_list(["sub", old_len, 1], typ="uint256")
 
         with new_len.cache_when_complex("new_len") as (b2, new_len):
-            # check that the original len is nonzero, i.e. (new_len != -1)
-            # NOTE: have optimizer rule for (eq new_len (-1)) but not (ne new_len (-1))
-            ret.append(["assert", ["iszero", ["eq", new_len, -1]]])
             ret.append([store_op(darray_node.location), darray_node, new_len])
+
             # NOTE skip array bounds check bc we already asserted len two lines up
             if return_popped_item:
                 popped_item = get_element_ptr(
