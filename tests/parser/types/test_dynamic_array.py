@@ -633,7 +633,7 @@ def foo(x: {typ}) -> {typ}:
 
 
 @pytest.mark.parametrize("generate_code,check_result", append_pop_complex_tests)
-@pytest.mark.parametrize("subtype", ["uint256[3]", "DynArray[uint256,3]", "Foo"])
+@pytest.mark.parametrize("subtype", ["uint256[3]", "DynArray[uint256,3]", "DynArray[uint8, 4]", "Foo"])
 # TODO change this to fuzz random data
 def test_append_pop_complex(get_contract, assert_tx_failed, generate_code, check_result, subtype):
     test_data = [1, 2, 3]
