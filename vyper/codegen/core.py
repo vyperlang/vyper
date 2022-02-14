@@ -307,6 +307,7 @@ def append_dyn_array(darray_node, elem_node, pos=None):
 def pop_dyn_array(darray_node, pos=None):
     assert isinstance(darray_node.typ, DArrayType)
     ret = ["seq"]
+    typ = darray_node.typ.subtype
     with darray_node.cache_when_complex("darray") as (b1, darray_node):
         old_len = get_dyn_array_count(darray_node)
         new_len = LLLnode.from_list(["sub", old_len, 1], typ="uint256")
@@ -317,8 +318,10 @@ def pop_dyn_array(darray_node, pos=None):
             ret.append(["assert", ["iszero", ["eq", new_len, -1]]])
             ret.append([store_op(darray_node.location), darray_node, new_len])
             # NOTE skip array bounds check bc we already asserted len two lines up
-            ret.append(get_element_ptr(darray_node, new_len, array_bounds_check=False, pos=pos))
-            return LLLnode.from_list(b1.resolve(b2.resolve(ret)), pos=pos)
+            popped_item = get_element_ptr(darray_node, new_len, array_bounds_check=False, pos=pos)
+            ret.append(popped_item)
+            typ = popped_item.typ
+            return LLLnode.from_list(b1.resolve(b2.resolve(ret)), typ=typ, pos=pos)
 
 
 def getpos(node):

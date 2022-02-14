@@ -25,6 +25,7 @@ from vyper.codegen.types import (
     InterfaceType,
     MappingType,
     SArrayType,
+    DArrayType,
     StringType,
     StructType,
     TupleType,
