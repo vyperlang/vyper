@@ -173,8 +173,6 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
         self.visit(node.value, type_)
 
     def visit_List(self, node, type_):
-        if not node.elements:
-            return
         if type_ is None:
             type_ = get_possible_types_from_node(node)
             if len(type_) > 1:

@@ -38,6 +38,11 @@ invalid_list = [
 def foo():
     raw_log(b"cow", b"dog")
     """,
+    """
+@external
+def foo():
+    xs: uint256[1] = []
+    """,
     # Must be a literal string.
     """
 @external
