@@ -31,6 +31,7 @@ from vyper.codegen.types import (
     is_base_type,
     is_numeric_type,
 )
+from vyper.codegen.types.convert import new_type_to_old_type
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
     CompilerPanic,
@@ -1048,17 +1049,14 @@ class Expr:
             return external_call.lll_for_external_call(self.expr, self.context)
 
     def parse_List(self):
+        pos = getpos(self.expr)
+        typ = new_type_to_old_type(self.expr._metadata["type"])
+        if len(self.expr.elements) == 0:
+            return LLLnode.from_list("~empty", typ=typ, pos=pos)
+
         multi_lll = [Expr(x, self.context).lll_node for x in self.expr.elements]
 
-        # TODO this type inference for out_type is wrong. instead should
-        # use self.expr._metadata["type"]
-        out_type = next((i.typ for i in multi_lll if not i.typ.is_literal), multi_lll[0].typ)
-        if isinstance(self.expr._metadata["type"], DynamicArrayDefinition):
-            typ = DArrayType(out_type, len(self.expr.elements), is_literal=True)
-        else:
-            typ = SArrayType(out_type, len(self.expr.elements), is_literal=True)
-
-        return LLLnode.from_list(["multi"] + multi_lll, typ=typ, pos=getpos(self.expr))
+        return LLLnode.from_list(["multi"] + multi_lll, typ=typ, pos=pos)
 
     def parse_Tuple(self):
         tuple_elements = [Expr(x, self.context).lll_node for x in self.expr.elements]

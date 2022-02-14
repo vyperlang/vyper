@@ -228,8 +228,14 @@ class _ExprTypeChecker:
 
     def types_from_List(self, node):
         # literal array
+
         if not node.elements:
-            raise InvalidLiteral("Cannot have an empty array", node)
+            # empty list literal `[]`
+            # subtype can be anything
+            types_list = types.get_types()
+            # 1 is minimum possible length for dynarray, assignable to anything
+            ret = [DynamicArrayDefinition(t, 1) for t in types_list]
+            return ret
 
         types_list = get_common_types(*node.elements)
 
