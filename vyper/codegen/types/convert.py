@@ -13,9 +13,9 @@ def new_type_to_old_type(typ: new.BasePrimitive) -> old.NodeType:
     if isinstance(typ, new.Bytes32Definition):
         return old.BaseType("bytes32")
     if isinstance(typ, new.BytesArrayDefinition):
-        return old.ByteArrayType(typ.count)
+        return old.ByteArrayType(typ.length)
     if isinstance(typ, new.StringDefinition):
-        return old.StringType(typ.count)
+        return old.StringType(typ.length)
     if isinstance(typ, new.DecimalDefinition):
         return old.BaseType("decimal")
     if isinstance(typ, new.SignedIntegerAbstractType):
