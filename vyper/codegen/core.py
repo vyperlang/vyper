@@ -319,12 +319,18 @@ def pop_dyn_array(darray_node, return_popped_item, pos=None):
             ret.append([store_op(darray_node.location), darray_node, new_len])
             # NOTE skip array bounds check bc we already asserted len two lines up
             if return_popped_item:
-                popped_item = get_element_ptr(darray_node, new_len, array_bounds_check=False, pos=pos)
+                popped_item = get_element_ptr(
+                    darray_node, new_len, array_bounds_check=False, pos=pos
+                )
                 ret.append(popped_item)
                 typ = popped_item.typ
+                location = popped_item.location
+                encoding = popped_item.encoding
             else:
-                typ = None
-            return LLLnode.from_list(b1.resolve(b2.resolve(ret)), typ=typ, pos=pos)
+                typ, location, encoding = None, None, None
+            return LLLnode.from_list(
+                b1.resolve(b2.resolve(ret)), typ=typ, location=location, encoding=encoding, pos=pos
+            )
 
 
 def getpos(node):
