@@ -127,7 +127,7 @@ def bytes_data_ptr(ptr):
     if ptr.location is None:
         raise CompilerPanic("tried to modify non-pointer type")
     assert isinstance(ptr.typ, ByteArrayLike)
-    return add_ofst(ptr, _wordsize(ptr.location))
+    return add_ofst(ptr, wordsize(ptr.location))
 
 
 def _dynarray_make_setter(dst, src, pos=None):
