@@ -287,22 +287,21 @@ def append_dyn_array(darray_node, elem_node, context, pos=None):
     assert darray_node.typ.count > 0, "jerk boy u r out"
 
     ret = ["seq"]
-    with darray_node.cache_when_complex("darray") as b1, darray_node:
+    with darray_node.cache_when_complex("darray") as (b1, darray_node):
         len_ = get_dyn_array_count(darray_node)
-        with len_.cache_when_complex("len") as b2, len_:
+        with len_.cache_when_complex("len") as (b2, len_):
             ret.append(["assert", ["le", len_, darray_node.typ.count - 1]])
-            ret.append(store_op(darray_node.location), ["add", len_, 1])
+            ret.append([store_op(darray_node.location), darray_node, ["add", len_, 1]])
             # NOTE: typechecks elem_node
             # NOTE skip array bounds check bc we already asserted len two lines up
             ret.append(
                 make_setter(
-                    get_element_ptr(darray_node, len_, array_bounds_check=False),
+                    get_element_ptr(darray_node, len_, array_bounds_check=False, pos=pos),
                     elem_node,
-                    context=context,
                     pos=pos,
                 )
             )
-            return b1.resolve(b2.resolve(ret))
+            return LLLnode.from_list(b1.resolve(b2.resolve(ret)), pos=pos)
 
 
 def pop_dyn_array(darray_node):
