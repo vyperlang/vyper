@@ -432,6 +432,81 @@ def foo() -> (uint256, uint256, uint256, uint256, uint256):
     assert c.foo() == [1, 2, 3, 4, 5]
 
 
+push_pop_tests = [
+    ("""
+my_array: DynArray[uint256, 5]
+@external
+def foo(xs: DynArray[uint256, 5]) -> DynArray[uint256, 5]:
+    for x in xs:
+        self.my_array.push(x)
+    return self.my_array
+""", lambda xs: xs),
+("""
+@external
+def foo(xs: DynArray[uint256, 5]) -> DynArray[uint256, 5]:
+    for x in xs:
+        self.my_array.push(x)
+    for x in xs:
+        self.my_array.pop()
+    return self.my_array
+""", lambda xs: []),
+# check order of evaluation.
+("""
+@external
+def foo(xs: DynArray[uint256, 5]) -> (DynArray[uint256, 5], uint256):
+    for x in xs:
+        self.my_array.push()
+    return self.my_array, self.my_array.pop()
+""", lambda xs: if len(xs) > 0 then (xs, xs[-1]) else None),
+# check order of evaluation.
+("""
+@external
+def foo(xs: DynArray[uint256, 5]) -> (DynArray[uint256, 5], uint256):
+    for x in xs:
+        self.my_array.push()
+    return self.my_array.pop(), self.my_array
+""", lambda xs: if len(xs) > 0 then (xs[-1], xs[:-1]) else None),
+# test memory arrays
+("""
+@external
+def foo(xs: DynArray[uint256, 5]) -> DynArray[uint256, 5]:
+    ys: DynArray[uint256, 5] = []
+    i: uint256 = 0
+    for x in xs:
+        if i >= len(xs) - 1:
+            break
+        ys.push(x)
+        i += 1
+
+    return ys
+""", lambda xs: xs[:-1]),
+# check overflow
+("""
+@external
+def foo(xs: DynArray[uint256, 6]) -> DynArray[uint256, 5]:
+    for x in xs:
+        self.my_array.push(x)
+    return self.my_array
+""", lambda xs: if len(xs) <= 5 then xs else None),
+# check underflow
+("""
+def foo(xs: DynArray[uint256, 5]) -> DynArray[uint256, 5]:
+    ys: DynArray[uint256, 5] = []
+    for x in xs:
+        ys.push(x)
+    for x in xs:
+        ys.pop()
+    ys.pop()  # fail
+    return ys
+""", lambda xs: None)
+# check underflow
+("""
+def foo() -> uint256:
+    return self.my_array.pop()
+""", lambda xs: None)
+]
+
+
 def test_so_many_things_you_should_never_do(get_contract):
     code = """
 @internal
