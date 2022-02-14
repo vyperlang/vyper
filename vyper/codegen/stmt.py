@@ -6,8 +6,8 @@ from vyper.codegen import external_call, self_call
 from vyper.codegen.context import Constancy, Context
 from vyper.codegen.core import (
     LLLnode,
-    get_dyn_array_count,
     append_dyn_array,
+    get_dyn_array_count,
     get_element_ptr,
     getpos,
     make_byte_array_copier,

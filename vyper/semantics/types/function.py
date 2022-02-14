@@ -17,7 +17,6 @@ from vyper.exceptions import (
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.bases import BaseTypeDefinition, DataLocation, StorageSlot
 from vyper.semantics.types.indexable.sequence import DynamicArrayDefinition, TupleDefinition
-from vyper.semantics.types.user.struct import StructDefinition
 from vyper.semantics.types.utils import (
     StringEnum,
     check_constant,

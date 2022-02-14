@@ -9,10 +9,10 @@ from vyper.codegen.core import (
     get_dyn_array_count,
     get_element_ptr,
     get_number_as_fraction,
-    pop_dyn_array,
     getpos,
     load_op,
     make_setter,
+    pop_dyn_array,
     unwrap_location,
 )
 from vyper.codegen.keccak256_helper import keccak256_helper

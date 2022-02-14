@@ -27,7 +27,6 @@ from vyper.semantics.types.abstract import IntegerAbstractType
 from vyper.semantics.types.bases import DataLocation
 from vyper.semantics.types.function import (
     ContractFunction,
-    FunctionVisibility,
     MemberFunctionDefinition,
     StateMutability,
 )
