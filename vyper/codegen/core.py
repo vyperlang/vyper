@@ -138,22 +138,25 @@ def _dynarray_make_setter(dst, src, pos=None):
         return LLLnode.from_list([store_op(dst.location), dst, 0], pos=pos)
 
     if src.value == "multi":
+        ret = ["seq"]
         # handle literals
 
         # write the length word
-        store_length = [store_op(left.location), left, len(right.args)]
+        store_length = [store_op(dst.location), dst, len(src.args)]
         ann = None
-        if right.annotation is not None:
-            ann = f"len({right.annotation})"
+        if src.annotation is not None:
+            ann = f"len({src.annotation})"
         store_length = LLLnode.from_list(store_length, annotation=ann)
         ret.append(store_length)
 
-        n_items = len(right.args)
+        n_items = len(src.args)
         for i in range(n_items):
             k = LLLnode.from_list(i, typ="uint256")
-            l_i = get_element_ptr(left, k, pos=pos, array_bounds_check=False)
-            r_i = get_element_ptr(right, k, pos=pos, array_bounds_check=False)
-            ret.append(make_setter(l_i, r_i, pos))
+            dst_i = get_element_ptr(dst, k, pos=pos, array_bounds_check=False)
+            src_i = get_element_ptr(src, k, pos=pos, array_bounds_check=False)
+            ret.append(make_setter(dst_i, src_i, pos))
+
+        return ret
 
     with src.cache_when_complex("_src") as (b1, src):
 
