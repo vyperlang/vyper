@@ -1044,7 +1044,7 @@ class Expr:
             darray = Expr(self.expr.func.value, self.context).lll_node
             assert len(self.expr.args) == 0
             assert isinstance(darray.typ, DArrayType)
-            return pop_dyn_array(darray, pos=getpos(self.expr))
+            return pop_dyn_array(darray, return_popped_item=True, pos=getpos(self.expr))
 
         elif (
             isinstance(self.expr.func, vy_ast.Attribute)
