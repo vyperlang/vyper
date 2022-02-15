@@ -143,12 +143,12 @@ def apply_general_optimizations(node: LLLnode) -> LLLnode:
     # TODO: more clamp rules
 
     # [eq, x, 0] is the same as [iszero, x].
-    # TODO handle (eq 0 x) as well
+    # TODO handle (ne 0 x) as well
     elif node.value == "eq" and int_at(argz, 1) and argz[1].value == 0:
         value = "iszero"
         argz = [argz[0]]
 
-    # TODO handle (eq -1 x) as well
+    # TODO handle (ne -1 x) as well
     elif node.value == "eq" and int_at(argz, 1) and argz[1].value == -1:
         value = "iszero"
         argz = [LLLnode.from_list(["not", argz[0]])]
