@@ -33,8 +33,8 @@ jobs:
           export input_tag=${{ github.event.inputs.tag }} &&
           git fetch --tags -f &&
           git checkout ${input_tag:-`git rev-list --tags --max-count=1`} &&
-          pip install . &&
           pip install pyinstaller &&
+          python setup.py install &&
           make freeze
 
       - name: Upload Artifact
