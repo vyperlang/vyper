@@ -12,6 +12,7 @@ from vyper.codegen.core import (
     getpos,
     load_op,
     make_setter,
+    pop_dyn_array,
     unwrap_location,
 )
 from vyper.codegen.keccak256_helper import keccak256_helper
@@ -21,6 +22,7 @@ from vyper.codegen.types import (
     BaseType,
     ByteArrayLike,
     ByteArrayType,
+    DArrayType,
     InterfaceType,
     MappingType,
     SArrayType,
@@ -1037,6 +1039,13 @@ class Expr:
                 if ret is True:
                     arg_lll.typ = InterfaceType(function_name)  # Cast to Correct interface type.
                     return arg_lll
+
+        elif isinstance(self.expr.func, vy_ast.Attribute) and self.expr.func.attr == "pop":
+            darray = Expr(self.expr.func.value, self.context).lll_node
+            assert len(self.expr.args) == 0
+            assert isinstance(darray.typ, DArrayType)
+            return pop_dyn_array(darray, return_popped_item=True, pos=getpos(self.expr))
+
         elif (
             isinstance(self.expr.func, vy_ast.Attribute)
             and isinstance(self.expr.func.value, vy_ast.Name)

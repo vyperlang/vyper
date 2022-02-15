@@ -106,7 +106,7 @@ def make_byte_array_copier(dst, src, pos=None):
         # set length word to 0.
         return LLLnode.from_list([store_op(dst.location), dst, 0], pos=pos)
 
-    with src.cache_when_complex("_src") as (builder, src):
+    with src.cache_when_complex("src") as (builder, src):
         n_bytes = ["add", get_bytearray_length(src), 32]
         max_bytes = src.typ.memory_bytes_required
 
@@ -137,7 +137,28 @@ def _dynarray_make_setter(dst, src, pos=None):
     if src.value == "~empty":
         return LLLnode.from_list([store_op(dst.location), dst, 0], pos=pos)
 
-    with src.cache_when_complex("_src") as (b1, src):
+    if src.value == "multi":
+        ret = ["seq"]
+        # handle literals
+
+        # write the length word
+        store_length = [store_op(dst.location), dst, len(src.args)]
+        ann = None
+        if src.annotation is not None:
+            ann = f"len({src.annotation})"
+        store_length = LLLnode.from_list(store_length, annotation=ann)
+        ret.append(store_length)
+
+        n_items = len(src.args)
+        for i in range(n_items):
+            k = LLLnode.from_list(i, typ="uint256")
+            dst_i = get_element_ptr(dst, k, pos=pos, array_bounds_check=False)
+            src_i = get_element_ptr(src, k, pos=pos, array_bounds_check=False)
+            ret.append(make_setter(dst_i, src_i, pos))
+
+        return ret
+
+    with src.cache_when_complex("darray_src") as (b1, src):
 
         # for ABI-encoded dynamic data, we must loop to unpack, since
         # the layout does not match our memory layout
@@ -171,7 +192,7 @@ def _dynarray_make_setter(dst, src, pos=None):
             )
             loop_body.annotation = f"{dst}[i] = {src}[i]"
 
-            with get_dyn_array_count(src).cache_when_complex("len") as (b2, len_):
+            with get_dyn_array_count(src).cache_when_complex("darray_count") as (b2, len_):
                 store_len = [store_op(dst.location), dst, len_]
                 loop = ["repeat", i, 0, len_, src.typ.count, loop_body]
 
@@ -200,10 +221,9 @@ def copy_bytes(dst, src, length, length_bound, pos=None):
     dst = LLLnode.from_list(dst)
     length = LLLnode.from_list(length)
 
-    with src.cache_when_complex("_src") as (b1, src), length.cache_when_complex("len") as (
-        b2,
-        length,
-    ), dst.cache_when_complex("dst") as (b3, dst):
+    with src.cache_when_complex("src") as (b1, src), length.cache_when_complex(
+        "copy_word_count"
+    ) as (b2, length,), dst.cache_when_complex("dst") as (b3, dst):
 
         # fast code for common case where num bytes is small
         # TODO expand this for more cases where num words is less than ~8
@@ -230,12 +250,12 @@ def copy_bytes(dst, src, length, length_bound, pos=None):
         # general case, copy word-for-word
         # pseudocode for our approach (memory-storage as example):
         # for i in range(len, bound=MAX_LEN):
-        #   sstore(_dst + i, mload(_src + i * 32))
+        #   sstore(_dst + i, mload(src + i * 32))
         # TODO should use something like
         # for i in range(len, bound=MAX_LEN):
         #   _dst += 1
-        #   _src += 32
-        #   sstore(_dst, mload(_src))
+        #   src += 32
+        #   sstore(_dst, mload(src))
 
         i = LLLnode.from_list(_freshname("copy_bytes_ix"), typ="uint256")
 
@@ -283,6 +303,55 @@ def get_dyn_array_count(arg):
         return LLLnode.from_list(0, typ=typ)
 
     return LLLnode.from_list([load_op(arg.location), arg], typ=typ)
+
+
+def append_dyn_array(darray_node, elem_node, pos=None):
+    assert isinstance(darray_node.typ, DArrayType)
+
+    assert darray_node.typ.count > 0, "jerk boy u r out"
+
+    ret = ["seq"]
+    with darray_node.cache_when_complex("darray") as (b1, darray_node):
+        len_ = get_dyn_array_count(darray_node)
+        with len_.cache_when_complex("old_darray_len") as (b2, len_):
+            ret.append(["assert", ["le", len_, darray_node.typ.count - 1]])
+            ret.append([store_op(darray_node.location), darray_node, ["add", len_, 1]])
+            # NOTE: typechecks elem_node
+            # NOTE skip array bounds check bc we already asserted len two lines up
+            ret.append(
+                make_setter(
+                    get_element_ptr(darray_node, len_, array_bounds_check=False, pos=pos),
+                    elem_node,
+                    pos=pos,
+                )
+            )
+            return LLLnode.from_list(b1.resolve(b2.resolve(ret)), pos=pos)
+
+
+def pop_dyn_array(darray_node, return_popped_item, pos=None):
+    assert isinstance(darray_node.typ, DArrayType)
+    ret = ["seq"]
+    with darray_node.cache_when_complex("darray") as (b1, darray_node):
+        old_len = ["clamp_nonzero", get_dyn_array_count(darray_node)]
+        new_len = LLLnode.from_list(["sub", old_len, 1], typ="uint256")
+
+        with new_len.cache_when_complex("new_len") as (b2, new_len):
+            ret.append([store_op(darray_node.location), darray_node, new_len])
+
+            # NOTE skip array bounds check bc we already asserted len two lines up
+            if return_popped_item:
+                popped_item = get_element_ptr(
+                    darray_node, new_len, array_bounds_check=False, pos=pos
+                )
+                ret.append(popped_item)
+                typ = popped_item.typ
+                location = popped_item.location
+                encoding = popped_item.encoding
+            else:
+                typ, location, encoding = None, None, None
+            return LLLnode.from_list(
+                b1.resolve(b2.resolve(ret)), typ=typ, location=location, encoding=encoding, pos=pos
+            )
 
 
 def getpos(node):
@@ -717,10 +786,6 @@ def make_setter(left, right, pos):
         return LLLnode.from_list(ret)
 
     elif isinstance(left.typ, DArrayType):
-        # handle literals
-        if right.value == "multi":
-            return _complex_make_setter(left, right, pos)
-
         # TODO should we enable this?
         # implicit conversion from sarray to darray
         # if isinstance(right.typ, SArrayType):
@@ -747,21 +812,6 @@ def _complex_make_setter(left, right, pos):
         return mzero(left, left.typ.memory_bytes_required)
 
     ret = ["seq"]
-
-    if isinstance(left.typ, DArrayType):
-        # handle dynarray literals
-        assert right.value == "multi"
-
-        # write the length word
-        store_length = [store_op(left.location), left, len(right.args)]
-        ann = None
-        if right.annotation is not None:
-            ann = f"len({right.annotation})"
-        store_length = LLLnode.from_list(store_length, annotation=ann)
-        ret.append(store_length)
-
-        n_items = len(right.args)
-        keys = [LLLnode.from_list(i, typ="uint256") for i in range(n_items)]
 
     if isinstance(left.typ, SArrayType):
         n_items = right.typ.count

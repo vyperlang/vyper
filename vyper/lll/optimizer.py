@@ -143,9 +143,15 @@ def apply_general_optimizations(node: LLLnode) -> LLLnode:
     # TODO: more clamp rules
 
     # [eq, x, 0] is the same as [iszero, x].
+    # TODO handle (ne 0 x) as well
     elif node.value == "eq" and int_at(argz, 1) and argz[1].value == 0:
         value = "iszero"
         argz = [argz[0]]
+
+    # TODO handle (ne -1 x) as well
+    elif node.value == "eq" and int_at(argz, 1) and argz[1].value == -1:
+        value = "iszero"
+        argz = [LLLnode.from_list(["not", argz[0]])]
 
     # (eq x y) has the same truthyness as (iszero (xor x y))
     # rewrite 'eq' as 'xor' in places where truthy is accepted.

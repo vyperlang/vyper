@@ -495,6 +495,7 @@ class BaseTypeDefinition:
         return True
 
 
+# TODO rename this: it's really for address/interface signature resolution
 class ValueTypeDefinition(BaseTypeDefinition):
     """
     Base class for types representing a single value.
@@ -514,7 +515,7 @@ class ValueTypeDefinition(BaseTypeDefinition):
         return (), self
 
 
-class MemberTypeDefinition(ValueTypeDefinition):
+class MemberTypeDefinition(BaseTypeDefinition):
     """
     Base class for types that have accessible members.
 

@@ -445,6 +445,220 @@ def foo() -> (uint256, uint256, uint256, uint256, uint256):
     assert c.foo() == [1, 2, 3, 4, 5]
 
 
+append_pop_tests = [
+    (
+        """
+my_array: DynArray[uint256, 5]
+@external
+def foo(xs: DynArray[uint256, 5]) -> DynArray[uint256, 5]:
+    for x in xs:
+        self.my_array.append(x)
+    return self.my_array
+    """,
+        lambda xs: xs,
+    ),
+    (
+        """
+my_array: DynArray[uint256, 5]
+@external
+def foo(xs: DynArray[uint256, 5]) -> DynArray[uint256, 5]:
+    for x in xs:
+        self.my_array.append(x)
+    for x in xs:
+        self.my_array.pop()
+    return self.my_array
+    """,
+        lambda xs: [],
+    ),
+    # check order of evaluation.
+    (
+        """
+my_array: DynArray[uint256, 5]
+@external
+def foo(xs: DynArray[uint256, 5]) -> (DynArray[uint256, 5], uint256):
+    for x in xs:
+        self.my_array.append(x)
+    return self.my_array, self.my_array.pop()
+    """,
+        lambda xs: None if len(xs) == 0 else [xs, xs[-1]],
+    ),
+    # check order of evaluation.
+    (
+        """
+my_array: DynArray[uint256, 5]
+@external
+def foo(xs: DynArray[uint256, 5]) -> (uint256, DynArray[uint256, 5]):
+    for x in xs:
+        self.my_array.append(x)
+    return self.my_array.pop(), self.my_array
+    """,
+        lambda xs: None if len(xs) == 0 else [xs[-1], xs[:-1]],
+    ),
+    # test memory arrays
+    (
+        """
+@external
+def foo(xs: DynArray[uint256, 5]) -> DynArray[uint256, 5]:
+    ys: DynArray[uint256, 5] = []
+    i: uint256 = 0
+    for x in xs:
+        if i >= len(xs) - 1:
+            break
+        ys.append(x)
+        i += 1
+
+    return ys
+    """,
+        lambda xs: xs[:-1],
+    ),
+    # check overflow
+    (
+        """
+my_array: DynArray[uint256, 5]
+@external
+def foo(xs: DynArray[uint256, 6]) -> DynArray[uint256, 5]:
+    for x in xs:
+        self.my_array.append(x)
+    return self.my_array
+    """,
+        lambda xs: None if len(xs) > 5 else xs,
+    ),
+    # pop to 0 elems
+    (
+        """
+@external
+def foo(xs: DynArray[uint256, 5]) -> DynArray[uint256, 5]:
+    ys: DynArray[uint256, 5] = []
+    for x in xs:
+        ys.append(x)
+    for x in xs:
+        ys.pop()
+    return ys
+    """,
+        lambda xs: [],
+    ),
+    # check underflow
+    (
+        """
+@external
+def foo(xs: DynArray[uint256, 5]) -> DynArray[uint256, 5]:
+    ys: DynArray[uint256, 5] = []
+    for x in xs:
+        ys.append(x)
+    for x in xs:
+        ys.pop()
+    ys.pop()  # fail
+    return ys
+    """,
+        lambda xs: None,
+    ),
+    # check underflow
+    (
+        """
+my_array: DynArray[uint256, 5]
+@external
+def foo(xs: DynArray[uint256, 5]) -> uint256:
+    return self.my_array.pop()
+    """,
+        lambda xs: None,
+    ),
+]
+
+
+@pytest.mark.parametrize("code,check_result", append_pop_tests)
+# TODO change this to fuzz random data
+@pytest.mark.parametrize("test_data", [[1, 2, 3, 4, 5][:i] for i in range(6)])
+def test_append_pop(get_contract, assert_tx_failed, code, check_result, test_data):
+    c = get_contract(code)
+    expected_result = check_result(test_data)
+    if expected_result is None:
+        # None is sentinel to indicate txn should revert
+        assert_tx_failed(lambda: c.foo(test_data))
+    else:
+        assert c.foo(test_data) == expected_result
+
+
+append_pop_complex_tests = [
+    (
+        """
+@external
+def foo(x: {typ}) -> DynArray[{typ}, 2]:
+    ys: DynArray[{typ}, 1] = []
+    ys.append(x)
+    return ys
+    """,
+        lambda x: [x],
+    ),
+    (
+        """
+my_array: DynArray[{typ}, 1]
+@external
+def foo(x: {typ}) -> DynArray[{typ}, 2]:
+    self.my_array.append(x)
+    self.my_array.append(x)  # fail
+    return self.my_array
+    """,
+        lambda x: None,
+    ),
+    (
+        """
+my_array: DynArray[{typ}, 5]
+@external
+def foo(x: {typ}) -> (DynArray[{typ}, 5], {typ}):
+    self.my_array.append(x)
+    return self.my_array, self.my_array.pop()
+    """,
+        lambda x: [[x], x],
+    ),
+    (
+        """
+my_array: DynArray[{typ}, 5]
+@external
+def foo(x: {typ}) -> ({typ}, DynArray[{typ}, 5]):
+    self.my_array.append(x)
+    return self.my_array.pop(), self.my_array
+    """,
+        lambda x: [x, []],
+    ),
+    (
+        """
+my_array: DynArray[{typ}, 5]
+@external
+def foo(x: {typ}) -> {typ}:
+    return self.my_array.pop()
+    """,
+        lambda x: None,
+    ),
+]
+
+
+@pytest.mark.parametrize("code_template,check_result", append_pop_complex_tests)
+@pytest.mark.parametrize(
+    "subtype", ["uint256[3]", "DynArray[uint256,3]", "DynArray[uint8, 4]", "Foo"]
+)
+# TODO change this to fuzz random data
+def test_append_pop_complex(get_contract, assert_tx_failed, code_template, check_result, subtype):
+    code = code_template.format(typ=subtype)
+    test_data = [1, 2, 3]
+    if subtype == "Foo":
+        test_data = tuple(test_data)
+        struct_def = """
+struct Foo:
+    x: uint256
+    y: uint256
+    z: uint256
+        """
+        code = struct_def + "\n" + code
+
+    c = get_contract(code)
+    expected_result = check_result(test_data)
+    if expected_result is None:
+        # None is sentinel to indicate txn should revert
+        assert_tx_failed(lambda: c.foo(test_data))
+    else:
+        assert c.foo(test_data) == expected_result
+
+
 def test_so_many_things_you_should_never_do(get_contract):
     code = """
 @internal

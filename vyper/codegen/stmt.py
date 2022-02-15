@@ -6,11 +6,13 @@ from vyper.codegen import external_call, self_call
 from vyper.codegen.context import Constancy, Context
 from vyper.codegen.core import (
     LLLnode,
+    append_dyn_array,
     get_dyn_array_count,
     get_element_ptr,
     getpos,
     make_byte_array_copier,
     make_setter,
+    pop_dyn_array,
     unwrap_location,
     zero_pad,
 )
@@ -142,6 +144,22 @@ class Stmt:
         if isinstance(self.stmt.func, vy_ast.Name):
             funcname = self.stmt.func.id
             return STMT_DISPATCH_TABLE[funcname].build_LLL(self.stmt, self.context)
+
+        elif isinstance(self.stmt.func, vy_ast.Attribute) and self.stmt.func.attr in (
+            "append",
+            "pop",
+        ):
+            darray = Expr(self.stmt.func.value, self.context).lll_node
+            args = [Expr(x, self.context).lll_node for x in self.stmt.args]
+            if self.stmt.func.attr == "append":
+                assert len(args) == 1
+                arg = args[0]
+                assert isinstance(darray.typ, DArrayType)
+                assert arg.typ == darray.typ.subtype
+                return append_dyn_array(darray, arg, pos=getpos(self.stmt))
+            else:
+                assert len(args) == 0
+                return pop_dyn_array(darray, return_popped_item=False, pos=getpos(self.stmt))
 
         elif is_self_function:
             return self_call.lll_for_self_call(self.stmt, self.context)

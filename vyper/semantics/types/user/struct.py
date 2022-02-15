@@ -10,13 +10,13 @@ from vyper.exceptions import (
     VariableDeclarationException,
 )
 from vyper.semantics.namespace import validate_identifier
-from vyper.semantics.types.bases import DataLocation, MemberTypeDefinition
+from vyper.semantics.types.bases import DataLocation, MemberTypeDefinition, ValueTypeDefinition
 from vyper.semantics.types.indexable.mapping import MappingDefinition
 from vyper.semantics.types.utils import get_type_from_annotation
 from vyper.semantics.validation.utils import validate_expected_type
 
 
-class StructDefinition(MemberTypeDefinition):
+class StructDefinition(MemberTypeDefinition, ValueTypeDefinition):
     def __init__(
         self,
         _id: str,

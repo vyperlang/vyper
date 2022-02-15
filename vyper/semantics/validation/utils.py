@@ -247,8 +247,8 @@ class _ExprTypeChecker:
         if len(types_list) > 0:
             count = len(node.elements)
             ret = []
-            ret.extend([DynamicArrayDefinition(t, count) for t in types_list])
             ret.extend([ArrayDefinition(t, count) for t in types_list])
+            ret.extend([DynamicArrayDefinition(t, count) for t in types_list])
             return ret
 
         raise InvalidLiteral("Array contains multiple, incompatible types", node)

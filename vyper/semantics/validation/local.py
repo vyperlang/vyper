@@ -25,7 +25,11 @@ from vyper.semantics.environment import CONSTANT_ENVIRONMENT_VARS, MUTABLE_ENVIR
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.abstract import IntegerAbstractType
 from vyper.semantics.types.bases import DataLocation
-from vyper.semantics.types.function import ContractFunction, StateMutability
+from vyper.semantics.types.function import (
+    ContractFunction,
+    MemberFunctionDefinition,
+    StateMutability,
+)
 from vyper.semantics.types.indexable.sequence import (
     ArrayDefinition,
     DynamicArrayDefinition,
@@ -435,7 +439,6 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
     def visit_Expr(self, node):
         if not isinstance(node.value, vy_ast.Call):
             raise StructureException("Expressions without assignment are disallowed", node)
-
         fn_type = get_exact_type_from_node(node.value.func)
         if isinstance(fn_type, Event):
             raise StructureException("To call an event you must use the `log` statement", node)
@@ -454,9 +457,12 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                 raise StateAccessViolation(
                     f"Cannot call any function from a {self.func.mutability.value} function", node
                 )
-
         return_value = fn_type.fetch_call_return(node.value)
-        if return_value and not isinstance(fn_type, ContractFunction):
+        if (
+            return_value
+            and not isinstance(fn_type, MemberFunctionDefinition)
+            and not isinstance(fn_type, ContractFunction)
+        ):
             raise StructureException(
                 f"Function '{fn_type._id}' cannot be called without assigning the result", node
             )
