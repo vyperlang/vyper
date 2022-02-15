@@ -106,7 +106,7 @@ def make_byte_array_copier(dst, src, pos=None):
         # set length word to 0.
         return LLLnode.from_list([store_op(dst.location), dst, 0], pos=pos)
 
-    with src.cache_when_complex("_src") as (builder, src):
+    with src.cache_when_complex("src") as (builder, src):
         n_bytes = ["add", get_bytearray_length(src), 32]
         max_bytes = src.typ.memory_bytes_required
 
@@ -158,7 +158,7 @@ def _dynarray_make_setter(dst, src, pos=None):
 
         return ret
 
-    with src.cache_when_complex("_src") as (b1, src):
+    with src.cache_when_complex("darray_src") as (b1, src):
 
         # for ABI-encoded dynamic data, we must loop to unpack, since
         # the layout does not match our memory layout
@@ -192,7 +192,7 @@ def _dynarray_make_setter(dst, src, pos=None):
             )
             loop_body.annotation = f"{dst}[i] = {src}[i]"
 
-            with get_dyn_array_count(src).cache_when_complex("len") as (b2, len_):
+            with get_dyn_array_count(src).cache_when_complex("darray_count") as (b2, len_):
                 store_len = [store_op(dst.location), dst, len_]
                 loop = ["repeat", i, 0, len_, src.typ.count, loop_body]
 
@@ -221,10 +221,9 @@ def copy_bytes(dst, src, length, length_bound, pos=None):
     dst = LLLnode.from_list(dst)
     length = LLLnode.from_list(length)
 
-    with src.cache_when_complex("_src") as (b1, src), length.cache_when_complex("len") as (
-        b2,
-        length,
-    ), dst.cache_when_complex("dst") as (b3, dst):
+    with src.cache_when_complex("src") as (b1, src), length.cache_when_complex(
+        "copy_word_count"
+    ) as (b2, length,), dst.cache_when_complex("dst") as (b3, dst):
 
         # fast code for common case where num bytes is small
         # TODO expand this for more cases where num words is less than ~8
@@ -251,12 +250,12 @@ def copy_bytes(dst, src, length, length_bound, pos=None):
         # general case, copy word-for-word
         # pseudocode for our approach (memory-storage as example):
         # for i in range(len, bound=MAX_LEN):
-        #   sstore(_dst + i, mload(_src + i * 32))
+        #   sstore(_dst + i, mload(src + i * 32))
         # TODO should use something like
         # for i in range(len, bound=MAX_LEN):
         #   _dst += 1
-        #   _src += 32
-        #   sstore(_dst, mload(_src))
+        #   src += 32
+        #   sstore(_dst, mload(src))
 
         i = LLLnode.from_list(_freshname("copy_bytes_ix"), typ="uint256")
 
@@ -314,7 +313,7 @@ def append_dyn_array(darray_node, elem_node, pos=None):
     ret = ["seq"]
     with darray_node.cache_when_complex("darray") as (b1, darray_node):
         len_ = get_dyn_array_count(darray_node)
-        with len_.cache_when_complex("len") as (b2, len_):
+        with len_.cache_when_complex("old_darray_len") as (b2, len_):
             ret.append(["assert", ["le", len_, darray_node.typ.count - 1]])
             ret.append([store_op(darray_node.location), darray_node, ["add", len_, 1]])
             # NOTE: typechecks elem_node
