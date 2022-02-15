@@ -466,6 +466,35 @@ A two dimensional list can be declared with ``_name: _ValueType[inner_size][oute
     # Returning the value in row 0 column 4 (in this case 14)
     return exampleList2D[0][4]
 
+.. index:: !dynarrays
+
+Dynamic Arrays
+----------------
+
+Dynamic arrays represent bounded arrays whose length can be modified at runtime, up to a bound specified in the type. They can be declared with ``_name: DynArray[_ValueType, _Integer]``.
+
+.. code-block:: python
+
+    # Defining a list
+    exampleList: DynArray[int128, 3]
+
+    # Setting values
+    exampleList = []
+    exampleList.append(42)
+    exampleList.append(120)
+
+    myValue: int128 = exampleList.pop()  # myValue == 120
+
+    # Returning a value
+    return exampleList[0]
+
+
+.. note::
+    Attempting to ``pop()`` an empty array or ``append()`` to a full array will result in a runtime REVERT. Attempting to pass an array in calldata which is larger than the array bound will result in a runtime REVERT.
+
+
+In the ABI, they are represented as ``_ValueType[]``. For instance, ``DynArray[int128, 3]`` gets represented at ``int128[]``.
+
 .. _types-struct:
 
 Structs
