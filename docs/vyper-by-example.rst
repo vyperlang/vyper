@@ -84,9 +84,6 @@ contract, we are provided with a built-in variable ``msg`` and we can access
 the public address of any method caller with ``msg.sender``. Similarly, the
 amount of ether a user sends can be accessed by calling ``msg.value``.
 
-.. note:: ``msg.sender`` and ``msg.value`` can only be accessed from external
-  functions. If you require these values within an internal function they must be passed as parameters.
-
 Here, we first check whether the current time is within the bidding period by
 comparing with the auction's start and end times using the ``assert`` function
 which takes any boolean statement. We also check to see if the new bid is greater
@@ -418,10 +415,6 @@ Let’s move onto the constructor.
   :language: python
   :lineno-start: 53
   :lines: 53-62
-
-.. note:: ``msg.sender`` and ``msg.value`` can only be accessed from external
-  functions. If you require these values within an internal function they must be
-  passed as parameters.
 
 In the constructor, we hard-coded the contract to accept an
 array argument of exactly two proposal names of type ``bytes32`` for the contracts
