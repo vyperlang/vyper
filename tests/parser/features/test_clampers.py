@@ -453,3 +453,50 @@ def foo(b: DynArray[DynArray[int128, 2], 2]) -> DynArray[DynArray[int128, 2], 2]
 
     c = get_contract(code)
     assert_tx_failed(lambda: _make_invalid_dynarray_tx(w3, c.address, signature, data))
+
+
+@pytest.mark.parametrize("value", [0, 1, -1, 2 ** 127 - 1, -(2 ** 127)])
+def test_dynarray_list_clamper_passing(w3, abi_encode, get_contract, value):
+    code = """
+@external
+def foo(
+    a: uint256,
+    b: DynArray[int128[5], 6],
+    c: uint256
+) -> DynArray[int128[5], 6]:
+    return b
+    """
+
+    # 6 * 3 * 1 * 8 = 144, the total number of values in our multidimensional array
+    values = (2 ** 127, ([[value] * 5] * 6), 2 ** 127)
+    input_types = "(uint256,int128[5][],uint256)"
+    signature = f"foo{input_types}"
+
+    c = get_contract(code)
+    _make_abi_encode_tx(w3, abi_encode, c.address, signature, input_types, values)
+
+
+@pytest.mark.parametrize("bad_value", [2 ** 127, -(2 ** 127) - 1, 2 ** 255 - 1, -(2 ** 255)])
+@pytest.mark.parametrize("idx", range(10))
+def test_dynarray_list_clamper_failing(
+    w3, abi_encode, assert_tx_failed, get_contract, bad_value, idx
+):
+    # ensure the invalid value is detected at all locations in the array
+    code = """
+@external
+def foo(b: DynArray[int128[5], 2]) -> DynArray[int128[5], 2]:
+    return b
+    """
+
+    values = [[0] * 5, [0] * 5]
+    values[idx // 5][idx % 5] = bad_value
+
+    data = _make_dynarray_data(32, 2, [64, 224])  # Offset of nested arrays
+    for v in values:
+        inner_data = "".join(int(_v).to_bytes(32, "big", signed=_v < 0).hex() for _v in v)
+        data += inner_data
+
+    print(data)
+    c = get_contract(code)
+    signature = "foo(int128[5][])"
+    assert_tx_failed(lambda: _make_invalid_dynarray_tx(w3, c.address, signature, data))
