@@ -90,27 +90,27 @@ def _codecopy_gas_bound(num_bytes):
 
 
 # Copy byte array word-for-word (including layout)
-def make_byte_array_copier(destination, source, pos=None):
-    assert isinstance(source.typ, ByteArrayLike)
-    assert isinstance(destination.typ, ByteArrayLike)
+def make_byte_array_copier(dst, src, pos=None):
+    assert isinstance(src.typ, ByteArrayLike)
+    assert isinstance(dst.typ, ByteArrayLike)
 
-    if source.typ.maxlen > destination.typ.maxlen:
-        raise TypeMismatch(f"Cannot cast from {source.typ} to {destination.typ}")
+    if src.typ.maxlen > dst.typ.maxlen:
+        raise TypeMismatch(f"Cannot cast from {src.typ} to {dst.typ}")
     # stricter check for zeroing a byte array.
-    if source.value == "~empty" and source.typ.maxlen != destination.typ.maxlen:
+    if src.value == "~empty" and src.typ.maxlen != dst.typ.maxlen:
         raise TypeMismatch(
-            f"Bad type for clearing bytes: expected {destination.typ} but got {source.typ}"
+            f"Bad type for clearing bytes: expected {dst.typ} but got {src.typ}"
         )  # pragma: notest
 
-    with source.cache_when_complex("_src") as (builder, src):
-        if src.value == "~empty":
-            n_bytes = 32  # size in bytes of length word
-            max_bytes = 32
-        else:
-            n_bytes = ["add", get_bytearray_length(src), 32]
-            max_bytes = src.typ.memory_bytes_required
+    if src.value == "~empty":
+        # set length word to 0.
+        return LLLnode.from_list([store_op(dst.location), dst, 0], pos=pos)
 
-        return builder.resolve(copy_bytes(destination, src, n_bytes, max_bytes, pos=pos))
+    with src.cache_when_complex("_src") as (builder, src):
+        n_bytes = ["add", get_bytearray_length(src), 32]
+        max_bytes = src.typ.memory_bytes_required
+
+        return builder.resolve(copy_bytes(dst, src, n_bytes, max_bytes, pos=pos))
 
 
 # TODO maybe move me to types.py
@@ -122,9 +122,20 @@ def wordsize(location):
     raise CompilerPanic(f"invalid location {location}")  # pragma: notest
 
 
+# TODO refactor: add similar fn for dyn_arrays
+def bytes_data_ptr(ptr):
+    if ptr.location is None:
+        raise CompilerPanic("tried to modify non-pointer type")
+    assert isinstance(ptr.typ, ByteArrayLike)
+    return add_ofst(ptr, wordsize(ptr.location))
+
+
 def _dynarray_make_setter(dst, src, pos=None):
     assert isinstance(src.typ, DArrayType)
     assert isinstance(dst.typ, DArrayType)
+
+    if src.value == "~empty":
+        return LLLnode.from_list([store_op(dst.location), dst, 0], pos=pos)
 
     with src.cache_when_complex("_src") as (b1, src):
 
@@ -166,14 +177,10 @@ def _dynarray_make_setter(dst, src, pos=None):
 
                 return b1.resolve(b2.resolve(["seq", store_len, loop]))
 
-        if src.value == "~empty":
-            n_bytes = 32  # size in bytes of length word
-            max_bytes = 32
-        else:
-            element_size = src.typ.subtype.memory_bytes_required
-            # 32 bytes + number of elements * size of element in bytes
-            n_bytes = ["add", _mul(get_dyn_array_count(src), element_size), 32]
-            max_bytes = src.typ.memory_bytes_required
+        element_size = src.typ.subtype.memory_bytes_required
+        # 32 bytes + number of elements * size of element in bytes
+        n_bytes = ["add", _mul(get_dyn_array_count(src), element_size), 32]
+        max_bytes = src.typ.memory_bytes_required
 
         return b1.resolve(copy_bytes(dst, src, n_bytes, max_bytes, pos=pos))
 
@@ -197,6 +204,14 @@ def copy_bytes(dst, src, length, length_bound, pos=None):
         b2,
         length,
     ), dst.cache_when_complex("dst") as (b3, dst):
+
+        # fast code for common case where num bytes is small
+        # TODO expand this for more cases where num words is less than ~8
+        if length_bound <= 32:
+            copy_op = [store_op(dst.location), dst, [load_op(src.location), src]]
+            ret = LLLnode.from_list(copy_op, annotation=annotation)
+            return b1.resolve(b2.resolve(b3.resolve(ret)))
+
         if dst.location == "memory" and src.location in ("memory", "calldata", "code"):
             # special cases: batch copy to memory
             if src.location == "memory":
@@ -224,18 +239,7 @@ def copy_bytes(dst, src, length, length_bound, pos=None):
 
         i = LLLnode.from_list(_freshname("copy_bytes_ix"), typ="uint256")
 
-        # special case: rhs is zero
-        if src.value == "~empty":
-            # e.g. empty(Bytes[])
-
-            if dst.location == "memory":
-                # CMC 20210917 TODO shouldn't this just be length
-                return mzero(dst, length_bound)
-
-            else:
-                loader = 0
-
-        elif src.location in ("memory", "calldata", "code"):
+        if src.location in ("memory", "calldata", "code"):
             loader = [load_op(src.location), ["add", src, _mul(32, i)]]
         elif src.location == "storage":
             loader = [load_op(src.location), ["add", src, i]]
