@@ -6,14 +6,14 @@ from vyper.abi_types import ABI_Address, ABIType
 from vyper.ast.validation import validate_call_args
 from vyper.exceptions import InterfaceViolation, NamespaceCollision, StructureException
 from vyper.semantics.namespace import get_namespace, validate_identifier
-from vyper.semantics.types.bases import DataLocation, MemberTypeDefinition
+from vyper.semantics.types.bases import DataLocation, MemberTypeDefinition, ValueTypeDefinition
 from vyper.semantics.types.function import ContractFunction
 from vyper.semantics.types.user.event import Event
 from vyper.semantics.types.value.address import AddressDefinition
 from vyper.semantics.validation.utils import validate_expected_type, validate_unique_method_ids
 
 
-class InterfaceDefinition(MemberTypeDefinition):
+class InterfaceDefinition(MemberTypeDefinition, ValueTypeDefinition):
 
     _type_members = {"address": AddressDefinition()}
 
