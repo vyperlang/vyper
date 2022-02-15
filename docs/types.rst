@@ -480,20 +480,25 @@ Dynamic arrays represent bounded arrays whose length can be modified at runtime,
 
     # Setting values
     exampleList = []
-    exampleList.append(42)
-    exampleList.append(120)
+    # exampleList.pop()  # would revert!
+    exampleList.append(42)  # exampleList now has length 1
+    exampleList.append(120)  # exampleList now has length 2
+    exampleList.append(356)  # exampleList now has length 3
+    # exampleList.append(1)  # would revert!
 
-    myValue: int128 = exampleList.pop()  # myValue == 120
+    myValue: int128 = exampleList.pop()  # myValue == 356, exampleList now has length 2
+
+    # myValue = exampleList[2]  # would revert!
 
     # Returning a value
     return exampleList[0]
 
 
 .. note::
-    Attempting to ``pop()`` an empty array or ``append()`` to a full array will result in a runtime REVERT. Attempting to pass an array in calldata which is larger than the array bound will result in a runtime REVERT.
+    Attempting to access data past the runtime length of an array, ``pop()`` an empty array or ``append()`` to a full array will result in a runtime ``REVERT``. Attempting to pass an array in calldata which is larger than the array bound will result in a runtime ``REVERT``.
 
 
-In the ABI, they are represented as ``_ValueType[]``. For instance, ``DynArray[int128, 3]`` gets represented at ``int128[]``.
+In the ABI, they are represented as ``_ValueType[]``. For instance, ``DynArray[int128, 3]`` gets represented as ``int128[]``.
 
 .. _types-struct:
 
