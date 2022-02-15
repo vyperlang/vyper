@@ -514,6 +514,8 @@ class ValueTypeDefinition(BaseTypeDefinition):
         return (), self
 
 
+# TODO revisit this inheritance hierarchy.
+# ValueTypeDefinition.get_signature() conflicts with DynamicArrayDefinition.get_signature()
 class MemberTypeDefinition(ValueTypeDefinition):
     """
     Base class for types that have accessible members.
