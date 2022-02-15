@@ -331,7 +331,6 @@ def append_dyn_array(darray_node, elem_node, pos=None):
 def pop_dyn_array(darray_node, return_popped_item, pos=None):
     assert isinstance(darray_node.typ, DArrayType)
     ret = ["seq"]
-    typ = darray_node.typ.subtype
     with darray_node.cache_when_complex("darray") as (b1, darray_node):
         old_len = ["clamp_nonzero", get_dyn_array_count(darray_node)]
         new_len = LLLnode.from_list(["sub", old_len, 1], typ="uint256")
