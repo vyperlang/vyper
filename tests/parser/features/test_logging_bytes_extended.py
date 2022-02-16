@@ -29,8 +29,8 @@ event MyLog:
 def foo():
     a: Bytes[64] = b'hellohellohellohellohellohellohellohellohello'
     b: Bytes[64] = b'hellohellohellohellohellohellohellohello'
-    c: Bytes[64] = b'hellohellohellohellohellohellohello'
-    log MyLog(a, b, c)
+    # test literal much smaller than buffer
+    log MyLog(a, b, b'hello')
     """
 
     c = get_contract_with_gas_estimation(code)

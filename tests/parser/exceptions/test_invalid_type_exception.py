@@ -49,6 +49,14 @@ def foo():
 def mint(_to: address, _value: uint256):
     assert msg.sender == self,msg.sender
     """,
+    # literal longer than event member
+    """
+event Foo:
+    message: String[1]
+@external
+def foo():
+    log Foo("abcd")
+    """,
     # Raise reason must be string
     """
 @external
