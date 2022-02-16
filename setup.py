@@ -81,8 +81,9 @@ setup(
         "semantic-version==2.8.5",
         "cached-property==1.5.2 ; python_version<'3.8'",
         "importlib-metadata ; python_version<'3.8'",
+        "wheel",
     ],
-    setup_requires=["pytest-runner", "setuptools_scm", "wheel"],
+    setup_requires=["pytest-runner", "setuptools_scm"],
     tests_require=extras_require["test"],
     extras_require=extras_require,
     entry_points={
