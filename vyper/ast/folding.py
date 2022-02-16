@@ -183,7 +183,9 @@ def replace_user_defined_constants(vyper_module: vy_ast.Module) -> int:
                 else None
             )
         except UnknownType:
-            # Handle structs as user-defined types
+            # handle user-defined types e.g. structs - it's OK to not
+            # propagate the type annotation here because user-defined
+            # types can be unambiguously inferred at typechecking time
             type_ = None
 
         changed_nodes += replace_constant(
