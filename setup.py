@@ -58,7 +58,11 @@ def _global_version(version):
 
 setup(
     name="vyper",
-    use_scm_version={"local_scheme": _local_version, "version_scheme": _global_version},
+    use_scm_version={
+        "local_scheme": _local_version,
+        "version_scheme": _global_version,
+        "write_to": "vyper/version.py",
+    },
     description="Vyper: the Pythonic Programming Language for the EVM",
     long_description=long_description,
     long_description_content_type="text/markdown",
@@ -78,7 +82,7 @@ setup(
         "cached-property==1.5.2 ; python_version<'3.8'",
         "importlib-metadata ; python_version<'3.8'",
     ],
-    setup_requires=["pytest-runner", "setuptools_scm"],
+    setup_requires=["pytest-runner", "setuptools_scm", "wheel"],
     tests_require=extras_require["test"],
     extras_require=extras_require,
     entry_points={

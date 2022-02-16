@@ -10,14 +10,4 @@ except ModuleNotFoundError:
 try:
     __version__ = _version(__name__)
 except PackageNotFoundError:
-    import re
-
-    from vyper.version import version as version_str
-
-    # strip `.devN` suffix since it is not semver compatible
-    # NOTE: see `_global_version()` in setup.py
-    version_str = re.sub(r"\.dev\d+", "", version_str)
-    # fix commit hash
-    # see `_local_version()` in setup.py
-    version_str = re.sub(r"\+g([a-f0-9]+).*", r"+commit.\1", version_str)
-    __version__ = version_str
+    from vyper.version import version as __version__
