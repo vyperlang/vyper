@@ -88,7 +88,7 @@ def foo(s: int128) -> int128:
     """
 
     c = get_contract(code, evm_version=evm_version)
-    _make_tx(w3, c.address, "foo(int128)", [value])
+    assert c.foo(value) == value
 
 
 @pytest.mark.parametrize("evm_version", list(EVM_VERSIONS))
@@ -105,7 +105,7 @@ def foo(s: int128) -> int128:
 
 
 @pytest.mark.parametrize("evm_version", list(EVM_VERSIONS))
-@pytest.mark.parametrize("value", [0, 1])
+@pytest.mark.parametrize("value", [True, False])
 def test_bool_clamper_passing(w3, get_contract, value, evm_version):
     code = """
 @external
@@ -114,7 +114,7 @@ def foo(s: bool) -> bool:
     """
 
     c = get_contract(code, evm_version=evm_version)
-    _make_tx(w3, c.address, "foo(bool)", [value])
+    assert c.foo(value) == value
 
 
 @pytest.mark.parametrize("evm_version", list(EVM_VERSIONS))
@@ -140,7 +140,7 @@ def foo(s: uint8) -> uint8:
     """
 
     c = get_contract(code, evm_version=evm_version)
-    _make_tx(w3, c.address, "foo(uint8)", [value])
+    assert c.foo(value) == value
 
 
 @pytest.mark.parametrize("evm_version", list(EVM_VERSIONS))
@@ -156,8 +156,21 @@ def foo(s: uint8) -> uint8:
 
 
 @pytest.mark.parametrize("evm_version", list(EVM_VERSIONS))
-@pytest.mark.parametrize("value", [0, 1, 2 ** 160 - 1])
-def test_address_clamper_passing(w3, get_contract, value, evm_version):
+@pytest.mark.parametrize(
+    "value,expected",
+    [
+        ("0x0000000000000000000000000000000000000000", None),
+        (
+            "0x0000000000000000000000000000000000000001",
+            "0x0000000000000000000000000000000000000001",
+        ),
+        (
+            "0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF",
+            "0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF",
+        ),
+    ],
+)
+def test_address_clamper_passing(w3, get_contract, value, expected, evm_version):
     code = """
 @external
 def foo(s: address) -> address:
@@ -165,7 +178,7 @@ def foo(s: address) -> address:
     """
 
     c = get_contract(code, evm_version=evm_version)
-    _make_tx(w3, c.address, "foo(address)", [value])
+    assert c.foo(value) == expected
 
 
 @pytest.mark.parametrize("evm_version", list(EVM_VERSIONS))
@@ -245,10 +258,9 @@ def foo(a: uint256, b: int128[5], c: uint256) -> int128[5]:
 
     # on both ends of the array we place a `uint256` that would fail the clamp check,
     # to ensure there are no off-by-one errors
-    values = [2 ** 127] + ([value] * 5) + [2 ** 127]
-
+    d = [value] * 5
     c = get_contract(code)
-    _make_tx(w3, c.address, "foo(uint256,int128[5],uint256)", values)
+    assert c.foo(2 ** 127, [value] * 5, 2 ** 127) == d
 
 
 @pytest.mark.parametrize("bad_value", [2 ** 127, -(2 ** 127) - 1, 2 ** 255 - 1, -(2 ** 255)])
@@ -277,10 +289,9 @@ def foo(a: uint256, b: int128[10], c: uint256) -> int128[10]:
     return b
     """
 
-    values = [2 ** 127] + ([value] * 10) + [2 ** 127]
-
+    d = [value] * 10
     c = get_contract(code)
-    _make_tx(w3, c.address, "foo(uint256,int128[10],uint256)", values)
+    assert c.foo(2 ** 127, d, 2 ** 127) == d
 
 
 @pytest.mark.parametrize("bad_value", [2 ** 127, -(2 ** 127) - 1, 2 ** 255 - 1, -(2 ** 255)])
@@ -308,10 +319,9 @@ def foo(a: uint256, b: int128[6][3][1][8], c: uint256) -> int128[6][3][1][8]:
     """
 
     # 6 * 3 * 1 * 8 = 144, the total number of values in our multidimensional array
-    values = [2 ** 127] + ([value] * 144) + [2 ** 127]
-
+    d = [[[[value] * 6] * 3] * 1] * 8
     c = get_contract(code)
-    _make_tx(w3, c.address, "foo(uint256,int128[6][3][1][8],uint256)", values)
+    assert c.foo(2 ** 127, d, 2 ** 127) == d
 
 
 @pytest.mark.parametrize("bad_value", [2 ** 127, -(2 ** 127) - 1, 2 ** 255 - 1, -(2 ** 255)])
@@ -331,7 +341,7 @@ def foo(b: int128[6][1][2]) -> int128[6][1][2]:
 
 
 @pytest.mark.parametrize("value", [0, 1, -1, 2 ** 127 - 1, -(2 ** 127)])
-def test_int128_dynarray_clamper_passing(w3, get_contract, abi_encode, value):
+def test_int128_dynarray_clamper_passing(w3, get_contract, value):
     code = """
 @external
 def foo(a: uint256, b: DynArray[int128, 5], c: uint256) -> DynArray[int128, 5]:
@@ -340,13 +350,9 @@ def foo(a: uint256, b: DynArray[int128, 5], c: uint256) -> DynArray[int128, 5]:
 
     # on both ends of the array we place a `uint256` that would fail the clamp check,
     # to ensure there are no off-by-one errors
-    values = (2 ** 127, ([value] * 5), 2 ** 127)
-
+    d = [value] * 5
     c = get_contract(code)
-    input_types = "(uint256,int128[],uint256)"
-    signature = f"foo{input_types}"
-
-    _make_abi_encode_tx(w3, abi_encode, c.address, signature, input_types, values)
+    assert c.foo(2 ** 127, d, 2 ** 127) == d
 
 
 @pytest.mark.parametrize("bad_value", [2 ** 127, -(2 ** 127) - 1, 2 ** 255 - 1, -(2 ** 255)])
@@ -372,20 +378,16 @@ def foo(b: int128[5]) -> int128[5]:
 
 
 @pytest.mark.parametrize("value", [0, 1, -1, 2 ** 127 - 1, -(2 ** 127)])
-def test_int128_dynarray_looped_clamper_passing(w3, abi_encode, get_contract, value):
+def test_int128_dynarray_looped_clamper_passing(w3, get_contract, value):
     # when an array is > 5 items, the arg clamper runs in a loop to reduce bytecode size
     code = """
 @external
 def foo(a: uint256, b: DynArray[int128, 10], c: uint256) -> DynArray[int128, 10]:
     return b
     """
-
-    values = (2 ** 127, ([value] * 10), 2 ** 127)
-    input_types = "(uint256,int128[],uint256)"
-    signature = f"foo{input_types}"
-
+    d = [value] * 10
     c = get_contract(code)
-    _make_abi_encode_tx(w3, abi_encode, c.address, signature, input_types, values)
+    assert c.foo(2 ** 127, d, 2 ** 127) == d
 
 
 @pytest.mark.parametrize("bad_value", [2 ** 127, -(2 ** 127) - 1, 2 ** 255 - 1, -(2 ** 255)])
@@ -408,7 +410,7 @@ def foo(b: DynArray[int128, 10]) -> DynArray[int128, 10]:
 
 
 @pytest.mark.parametrize("value", [0, 1, -1, 2 ** 127 - 1, -(2 ** 127)])
-def test_multidimension_dynarray_clamper_passing(w3, abi_encode, get_contract, value):
+def test_multidimension_dynarray_clamper_passing(w3, get_contract, value):
     code = """
 @external
 def foo(
@@ -418,14 +420,10 @@ def foo(
 ) -> DynArray[DynArray[DynArray[DynArray[int128, 5], 6], 7], 8]:
     return b
     """
-
-    # 6 * 3 * 1 * 8 = 144, the total number of values in our multidimensional array
-    values = (2 ** 127, ([[[[value] * 5] * 6] * 7] * 8), 2 ** 127)
-    input_types = "(uint256,int128[][][][],uint256)"
-    signature = f"foo{input_types}"
-
+    # Out of gas exception if outermost length is 6 and greater
+    d = [[[[value] * 5] * 6] * 7] * 8
     c = get_contract(code)
-    _make_abi_encode_tx(w3, abi_encode, c.address, signature, input_types, values)
+    assert c.foo(2 ** 127, d, 2 ** 127) == d
 
 
 @pytest.mark.parametrize("bad_value", [2 ** 127, -(2 ** 127) - 1, 2 ** 255 - 1, -(2 ** 255)])
@@ -466,14 +464,9 @@ def foo(
 ) -> DynArray[int128[5], 6]:
     return b
     """
-
-    # 6 * 3 * 1 * 8 = 144, the total number of values in our multidimensional array
-    values = (2 ** 127, ([[value] * 5] * 6), 2 ** 127)
-    input_types = "(uint256,int128[5][],uint256)"
-    signature = f"foo{input_types}"
-
+    d = [[value] * 5] * 6
     c = get_contract(code)
-    _make_abi_encode_tx(w3, abi_encode, c.address, signature, input_types, values)
+    assert c.foo(2 ** 127, d, 2 ** 127) == d
 
 
 @pytest.mark.parametrize("bad_value", [2 ** 127, -(2 ** 127) - 1, 2 ** 255 - 1, -(2 ** 255)])
@@ -491,12 +484,11 @@ def foo(b: DynArray[int128[5], 2]) -> DynArray[int128[5], 2]:
     values = [[0] * 5, [0] * 5]
     values[idx // 5][idx % 5] = bad_value
 
-    data = _make_dynarray_data(32, 2, [64, 224])  # Offset of nested arrays
+    data = _make_dynarray_data(32, 2, [])  # Offset of nested arrays
     for v in values:
         inner_data = "".join(int(_v).to_bytes(32, "big", signed=_v < 0).hex() for _v in v)
         data += inner_data
 
-    print(data)
     c = get_contract(code)
     signature = "foo(int128[5][])"
     assert_tx_failed(lambda: _make_invalid_dynarray_tx(w3, c.address, signature, data))
