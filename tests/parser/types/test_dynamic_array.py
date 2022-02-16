@@ -1143,6 +1143,30 @@ def bar(_baz: DynArray[Foo, 3]) -> String[96]:
     assert c.bar(c_input) == "Hello world!!!!"
 
 
+def test_list_of_structs_lists_with_nested_lists(get_contract, assert_tx_failed):
+    code = """
+struct Bar:
+    a: DynArray[uint8[2], 2]
+
+@external
+def foo(x: uint8) -> uint8:
+    b: DynArray[Bar[2], 2] = [
+        [
+            Bar({a: [[x, x + 1], [x + 2, x + 3]]}),
+            Bar({a: [[x + 4, x +5], [x + 6, x + 7]]})
+        ],
+        [
+            Bar({a: [[x + 8, x + 9], [x + 10, x + 11]]}),
+            Bar({a: [[x + 12, x + 13], [x + 14, x + 15]]})
+        ],
+    ]
+    return b[0][0].a[0][0] + b[0][1].a[1][1] + b[1][0].a[0][1] + b[1][1].a[1][0]
+    """
+    c = get_contract(code)
+    assert c.foo(17) == 98
+    assert_tx_failed(lambda: c.foo(241))
+
+
 def test_list_of_static_list(get_contract):
     code = """
 @external
