@@ -471,7 +471,7 @@ A two dimensional list can be declared with ``_name: _ValueType[inner_size][oute
 Dynamic Arrays
 ----------------
 
-Dynamic arrays represent bounded arrays whose length can be modified at runtime, up to a bound specified in the type. They can be declared with ``_name: DynArray[_ValueType, _Integer]``.
+Dynamic arrays represent bounded arrays whose length can be modified at runtime, up to a bound specified in the type. They can be declared with ``_name: DynArray[_Type, _Integer]``, where ``_Type`` can be of value type (except ``Bytes[N]`` and ``String[N]``) or reference type (except mappings).
 
 .. code-block:: python
 
@@ -498,7 +498,7 @@ Dynamic arrays represent bounded arrays whose length can be modified at runtime,
     Attempting to access data past the runtime length of an array, ``pop()`` an empty array or ``append()`` to a full array will result in a runtime ``REVERT``. Attempting to pass an array in calldata which is larger than the array bound will result in a runtime ``REVERT``.
 
 
-In the ABI, they are represented as ``_ValueType[]``. For instance, ``DynArray[int128, 3]`` gets represented as ``int128[]``.
+In the ABI, they are represented as ``_Type[]``. For instance, ``DynArray[int128, 3]`` gets represented as ``int128[]``, and ``DynArray[DynArray[int128, 3], 3]`` gets represented as ``int128[][]``.
 
 .. _types-struct:
 
