@@ -49,6 +49,11 @@ jobs:
 
     steps:
       - uses: actions/checkout@v2
+        with:
+            # grab the commit passed in via `tag`, if any
+            ref: ${{ github.event.inputs.tag }}
+            # need to fetch unshallow so that setuptools_scm can infer the version
+            fetch-depth: 0
 
       - name: Python
         uses: actions/setup-python@v2
@@ -57,9 +62,6 @@ jobs:
 
       - name: Generate Binary
         run: >-
-          export input_tag=${{ github.event.inputs.tag }} &&
-          git fetch --tags -f &&
-          git checkout ${input_tag:-`git rev-list --tags --max-count=1`} &&
           pip install . &&
           pip install pyinstaller &&
           ./make.cmd freeze
