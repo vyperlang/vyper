@@ -1,5 +1,5 @@
 from decimal import Decimal
-from typing import Union
+from typing import List, Union
 
 from vyper.ast import nodes as vy_ast
 from vyper.builtin_functions import DISPATCH_TABLE
@@ -199,14 +199,76 @@ def replace_user_defined_constants(vyper_module: vy_ast.Module) -> int:
                 # its literal value
                 struct_dict = node.value.args[0]
 
-                for k, v in zip(struct_dict.keys, struct_dict.values):
-                    changed_nodes += replace_constant(
-                        vyper_module,
-                        node.target.id,
-                        v,
-                        False,
-                        attribute_id=k.id,
-                    )
+                changed_nodes = _replace_struct_members(
+                    vyper_module, struct_dict, node.target.id, changed_nodes
+                )
+
+    return changed_nodes
+
+
+def _replace_struct_members(
+    vyper_module: vy_ast.Module,
+    dict_node: vy_ast.Dict,
+    id_: str,
+    changed_nodes: int,
+    parent_attribute_ids: List[str] = [],
+) -> int:
+    """
+    Helper function to recursively replace nested structs members
+
+    Arguments
+    ---------
+    vyper_module : Module
+        Top-level Vyper AST node.
+    dict_node: Dict
+        Vyper AST node representing the dict of a struct
+    id_: str
+        String representing the `.id` attribute of the node(s) to be replaced.
+        To be passed to replace_constant.
+    changed_nodes: int
+        Count of Vyper AST nodes that are to be replaced.
+    parent_attribute_ids: List[str], optional
+        List of parent attributes (representing the `.attr` attribute of an `Attribute` node)
+        that should be traceable from the node to be replaced.
+        Used to determine when a nested struct should be replaced.
+    Returns
+    -------
+    int
+        Number of nodes that were replaced.
+    """
+    for k, v in zip(dict_node.keys, dict_node.values):
+
+        if isinstance(v, vy_ast.Call) and isinstance(v.args[0], vy_ast.Dict):
+
+            # For nested structs, recursively replace the struct members based on
+            # the current level of nesting (i.e. Dict node)
+            new_struct_dict = v.args[0]
+
+            # Add current key's ID (i.e. struct member name) to a new parent attributes list
+            # A new list is needed in order to generate the correct paths for each key
+            new_parent_attribute_ids = parent_attribute_ids
+            if k.id not in parent_attribute_ids:
+                new_parent_attribute_ids = parent_attribute_ids + [k.id]
+
+            changed_nodes = _replace_struct_members(
+                vyper_module,
+                new_struct_dict,
+                id_,
+                changed_nodes,
+                new_parent_attribute_ids,
+            )
+
+        if len(parent_attribute_ids) > 0:
+            # If parent attributes are present, handle as nested structs
+            # Call replace_constant with parent attributes instead of the attribute id.
+            changed_nodes += replace_constant(
+                vyper_module, id_, v, False, parent_attribute_ids=parent_attribute_ids + [k.id]
+            )
+
+        else:
+            # If no parent attributes are present, handle as plain struct
+            # Call replace constant with attribute id
+            changed_nodes += replace_constant(vyper_module, id_, v, False, attribute_id=k.id)
 
     return changed_nodes
 
@@ -229,6 +291,14 @@ def _replace(old_node, new_node, type_=None):
         return new_node
     elif isinstance(new_node, vy_ast.Call):
         # Replace `Name` node with `Call` node
+        keyword = keywords = None
+        if hasattr(new_node, "keyword"):
+            keyword = new_node.keyword
+        if hasattr(new_node, "keywords"):
+            keywords = new_node.keywords
+        new_node = new_node.from_node(
+            old_node, func=new_node.func, args=new_node.args, keyword=keyword, keywords=keywords
+        )
         return new_node
     else:
         raise UnfoldableNode
@@ -241,6 +311,7 @@ def replace_constant(
     raise_on_error: bool,
     type_: BaseTypeDefinition = None,
     attribute_id: str = None,
+    parent_attribute_ids: List[str] = None,
 ) -> int:
     """
     Replace references to a variable name with a literal value.
@@ -258,10 +329,15 @@ def replace_constant(
         Boolean indicating if `UnfoldableNode` exception should be raised or ignored.
     type_ : BaseTypeDefinition, optional
         Type definition to be propagated to type checker.
-    attribute_id: str
+    attribute_id: str, optional
         String representing the `.attr` attribute of an `Attribute` node that is
         to be used to further filter nodes after getting descendants based on `id_`.
         Used to propagate a struct member's name.
+    parent_attribute_ids: List[str], optional
+        List of parent attributes (representing the `.attr` attribute of an `Attribute` node)
+        that should be traceable from the node to be replaced.
+        Used to further filter nodes after getting descendants based on `id_`.
+        Used to propagate a nested struct or nested struct member.
 
     Returns
     -------
@@ -276,7 +352,7 @@ def replace_constant(
             is_struct = True
 
     # Set is_struct to true if struct member id is provided
-    if attribute_id:
+    if attribute_id or parent_attribute_ids:
         is_struct = True
 
     changed_nodes = 0
@@ -302,9 +378,39 @@ def replace_constant(
 
         if isinstance(parent, vy_ast.Attribute):
             if is_struct:
-                if attribute_id:
+                if parent_attribute_ids and len(parent_attribute_ids) > 0:
+                    found = False
+                    for i in range(len(parent_attribute_ids)):
+                        # Iterate through the list of parent attributes
+                        parent_attr = parent_attribute_ids[i]
+                        if hasattr(parent, "attr"):
+                            if parent.attr != parent_attr:
+                                break
+                            else:
+                                if i == len(parent_attribute_ids) - 1:
+                                    if not hasattr(parent.get_ancestor(), "attr"):
+                                        # If all attributes match, and the current
+                                        # parent is not a nested member, continue with the
+                                        # replacement. Otherwise, continue.
+                                        found = True
+                                        break
+                                else:
+                                    # Continue iteration until all parent attributes
+                                    # are checked
+                                    parent = parent.get_ancestor()
+                        else:
+                            break
+
+                    # Only continue with the replacement if all attributes match
+                    if found:
+                        node = parent
+                    else:
+                        continue
+
+                elif attribute_id:
                     if parent.attr == attribute_id:
                         # Replace constant if attribute matches current AST node
+                        # for un-nested struct members
                         node = parent
                     else:
                         # Otherwise, skip
