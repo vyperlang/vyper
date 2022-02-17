@@ -202,8 +202,14 @@ def check_constant(node: vy_ast.VyperNode) -> bool:
         if len(args) == 1 and isinstance(args[0], vy_ast.Dict):
             for v in args[0].values:
                 # Check struct members
-                if not _check_literal(v):
-                    return False
+                if isinstance(v, vy_ast.Call):
+                    # If nested struct, check recursively
+                    if not check_constant(v):
+                        return False
+                else:
+                    # If not nested struct, check for literals
+                    if not _check_literal(v):
+                        return False
             return True
 
     value_type = get_exact_type_from_node(node)
