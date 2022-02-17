@@ -222,6 +222,22 @@ B: constant(uint256) = 2
 
 CONST_BAR: constant(Foo) = Foo({a: A, b: B})
     """,
+    """
+struct Foo:
+    a: uint256
+    b: uint256
+
+struct Bar:
+    c: Foo
+    d: int128
+
+A: constant(uint256) = 1
+B: constant(uint256) = 2
+C: constant(Foo) = Foo({a: A, b: B})
+D: constant(int128) = -1
+
+CONST_BAR: constant(Bar) = Bar({c: C, d: D})
+    """,
 ]
 
 

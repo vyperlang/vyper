@@ -1830,6 +1830,269 @@ def test(addr: address) -> int128:
     assert c2.test(c1.address) == 1
 
 
+def test_constant_nested_struct_return_external_contract_call_1(get_contract_with_gas_estimation):
+    contract_1 = """
+struct X:
+    x: int128
+    y: address
+
+struct A:
+    a: X
+    b: uint256
+
+BAR: constant(A) = A({a: X({x: 1, y: 0x0000000000000000000000000000000000012345}), b: 777})
+
+@external
+def out_literals() -> A:
+    return BAR
+    """
+
+    contract_2 = """
+struct X:
+    x: int128
+    y: address
+
+struct A:
+    a: X
+    b: uint256
+
+interface Test:
+    def out_literals() -> A : view
+
+@external
+def test(addr: address) -> (X, uint256):
+    ret: A = Test(addr).out_literals()
+    return ret.a, ret.b
+    """
+    c1 = get_contract_with_gas_estimation(contract_1)
+    c2 = get_contract_with_gas_estimation(contract_2)
+
+    assert c1.out_literals() == ((1, "0x0000000000000000000000000000000000012345"), 777)
+    assert c2.test(c1.address) == list(c1.out_literals())
+
+
+@pytest.mark.parametrize("i,ln,s,", [(100, 6, "abcde"), (41, 40, "a" * 34), (57, 70, "z" * 68)])
+def test_constant_nested_struct_return_external_contract_call_2(
+    get_contract_with_gas_estimation, i, ln, s
+):
+    contract_1 = f"""
+struct X:
+    x: int128
+    y: String[{ln}]
+    z: Bytes[{ln}]
+
+struct A:
+    a: X
+    b: uint256
+
+BAR: constant(A) = A({{a: X({{x: {i}, y: "{s}", z: b"{s}"}}), b: 777}})
+
+@external
+def get_struct_a() -> A:
+    return BAR
+    """
+
+    contract_2 = f"""
+struct X:
+    x: int128
+    y: String[{ln}]
+    z: Bytes[{ln}]
+
+struct A:
+    a: X
+    b: uint256
+
+interface Test:
+    def get_struct_a() -> A : view
+
+@external
+def test(addr: address) -> (X, uint256):
+    ret: A = Test(addr).get_struct_a()
+    return ret.a, ret.b
+
+    """
+    c1 = get_contract_with_gas_estimation(contract_1)
+    c2 = get_contract_with_gas_estimation(contract_2)
+
+    assert c1.get_struct_a() == ((i, s, bytes(s, "utf-8")), 777)
+    assert c2.test(c1.address) == list(c1.get_struct_a())
+
+
+def test_constant_nested_struct_return_external_contract_call_3(get_contract_with_gas_estimation):
+    contract_1 = """
+struct X:
+    x: int128
+    y: int128
+
+struct A:
+    a: X
+    b: uint256
+
+struct C:
+    c: A
+    d: bool
+
+BAR: constant(C) = C({c: A({a: X({x: 1, y: -1}), b: 777}), d: True})
+
+@external
+def out_literals() -> C:
+    return BAR
+    """
+
+    contract_2 = """
+struct X:
+    x: int128
+    y: int128
+
+struct A:
+    a: X
+    b: uint256
+
+struct C:
+    c: A
+    d: bool
+
+interface Test:
+    def out_literals() -> C : view
+
+@external
+def test(addr: address) -> (A, bool):
+    ret: C = Test(addr).out_literals()
+    return ret.c, ret.d
+    """
+    c1 = get_contract_with_gas_estimation(contract_1)
+    c2 = get_contract_with_gas_estimation(contract_2)
+
+    assert c1.out_literals() == (((1, -1), 777), True)
+    assert c2.test(c1.address) == list(c1.out_literals())
+
+
+def test_constant_nested_struct_member_return_external_contract_call_1(
+    get_contract_with_gas_estimation,
+):
+    contract_1 = """
+struct X:
+    x: int128
+    y: address
+
+struct A:
+    a: X
+    b: uint256
+
+BAR: constant(A) = A({a: X({x: 1, y: 0x0000000000000000000000000000000000012345}), b: 777})
+
+@external
+def get_y() -> address:
+    return BAR.a.y
+    """
+
+    contract_2 = """
+interface Test:
+    def get_y() -> address : view
+
+@external
+def test(addr: address) -> address:
+    ret: address = Test(addr).get_y()
+    return ret
+    """
+    c1 = get_contract_with_gas_estimation(contract_1)
+    c2 = get_contract_with_gas_estimation(contract_2)
+
+    assert c1.get_y() == "0x0000000000000000000000000000000000012345"
+    assert c2.test(c1.address) == "0x0000000000000000000000000000000000012345"
+
+
+@pytest.mark.parametrize("i,ln,s,", [(100, 6, "abcde"), (41, 40, "a" * 34), (57, 70, "z" * 68)])
+def test_constant_nested_struct_member_return_external_contract_call_2(
+    get_contract_with_gas_estimation, i, ln, s
+):
+    contract_1 = f"""
+struct X:
+    x: int128
+    y: String[{ln}]
+    z: Bytes[{ln}]
+
+struct A:
+    a: X
+    b: uint256
+    c: bool
+
+BAR: constant(A) = A({{a: X({{x: {i}, y: "{s}", z: b"{s}"}}), b: 777, c: True}})
+
+@external
+def get_y() -> String[{ln}]:
+    return BAR.a.y
+    """
+
+    contract_2 = f"""
+interface Test:
+    def get_y() -> String[{ln}] : view
+
+@external
+def test(addr: address) -> String[{ln}]:
+    ret: String[{ln}] = Test(addr).get_y()
+    return ret
+
+    """
+    c1 = get_contract_with_gas_estimation(contract_1)
+    c2 = get_contract_with_gas_estimation(contract_2)
+
+    assert c1.get_y() == s
+    assert c2.test(c1.address) == s
+
+
+def test_constant_nested_struct_member_return_external_contract_call_3(
+    get_contract_with_gas_estimation,
+):
+    contract_1 = """
+struct X:
+    x: int128
+    y: int128
+
+struct A:
+    a: X
+    b: uint256
+
+struct C:
+    c: A
+    d: bool
+
+BAR: constant(C) = C({c: A({a: X({x: 1, y: -1}), b: 777}), d: True})
+
+@external
+def get_y() -> int128:
+    return BAR.c.a.y
+
+@external
+def get_b() -> uint256:
+    return BAR.c.b
+    """
+
+    contract_2 = """
+interface Test:
+    def get_y() -> int128 : view
+    def get_b() -> uint256 : view
+
+@external
+def test(addr: address) -> int128:
+    ret: int128 = Test(addr).get_y()
+    return ret
+
+@external
+def test2(addr: address) -> uint256:
+    ret: uint256 = Test(addr).get_b()
+    return ret
+    """
+    c1 = get_contract_with_gas_estimation(contract_1)
+    c2 = get_contract_with_gas_estimation(contract_2)
+
+    assert c1.get_y() == -1
+    assert c2.test(c1.address) == -1
+
+    assert c1.get_b() == 777
+    assert c2.test2(c1.address) == 777
+
+
 def test_dynamically_sized_struct_external_contract_call(get_contract_with_gas_estimation):
     contract_1 = """
 struct X:
