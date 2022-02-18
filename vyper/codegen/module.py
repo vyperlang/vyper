@@ -169,16 +169,13 @@ def parse_regular_functions(
             external_seq.append(["assert", ["iszero", "callvalue"]])
             external_seq += nonpayable_funcs
 
-    # place fallback in same block as other external functions
-    # (consistency for external tools which parse our IR)
-    external_seq.append(["label", "fallback", ["var_list"], fallback_lll])
-
     # bytecode is organized by: external functions, fallback fn, internal functions
     # this way we save gas and reduce bytecode by not jumping over internal functions
     runtime = [
         "seq",
         func_init_lll(),
         ["with", "_calldata_method_id", ["mload", 0], external_seq],
+        ["label", "fallback", ["var_list"], fallback_lll],
     ]
     runtime.extend(internal_funcs)
 
