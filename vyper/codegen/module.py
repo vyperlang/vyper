@@ -169,6 +169,12 @@ def parse_regular_functions(
             external_seq.append(["assert", ["iszero", "callvalue"]])
             external_seq += nonpayable_funcs
 
+    # ensure the external jumptable section gets closed out
+    # (for basic block hygiene and also for zksync interpreter)
+    # NOTE: this jump gets optimized out in assembly since the
+    # fallback label is the immediate next instruction,
+    external_seq.append(["goto", "fallback"])
+
     # bytecode is organized by: external functions, fallback fn, internal functions
     # this way we save gas and reduce bytecode by not jumping over internal functions
     runtime = [
