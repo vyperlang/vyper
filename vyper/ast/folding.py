@@ -325,10 +325,6 @@ def replace_constant(
         Boolean indicating if `UnfoldableNode` exception should be raised or ignored.
     type_ : BaseTypeDefinition, optional
         Type definition to be propagated to type checker.
-    attribute_id: str, optional
-        String representing the `.attr` attribute of an `Attribute` node that is
-        to be used to further filter nodes after getting descendants based on `id_`.
-        Used to propagate a struct member's name.
     parent_attribute_ids: List[str], optional
         List of parent attributes (representing the `.attr` attribute of an `Attribute` node)
         that should be traceable from the node to be replaced.
