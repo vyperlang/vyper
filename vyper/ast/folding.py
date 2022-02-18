@@ -381,6 +381,8 @@ def replace_constant(
                     parent_attr = parent_attribute_ids[i]
                     if hasattr(parent, "attr"):
                         if parent.attr != parent_attr:
+                            # Early termination if parent attribute does not
+                            # match current node path
                             break
                         else:
                             if i == len(parent_attribute_ids) - 1:
@@ -398,7 +400,7 @@ def replace_constant(
                         # but there is an attribute to be checked, skip.
                         break
 
-                # Only replace if all parent attributes match
+                # Only replace if all parent attributes match. Otherwise, skip.
                 if found:
                     node = parent
                 else:
