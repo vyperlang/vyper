@@ -55,25 +55,37 @@ def is_symbol(i):
 # it assumes the arguments are already on the stack, to be replaced
 # by better liveness analysis.
 # NOTE: modifies input in-place
-def _rewrite_return_sequences(lll_node, withargs = None):
+def _rewrite_return_sequences(lll_node, label_params = None):
     args = lll_node.args
     if lll_node.value == "return":
         if args[0].value == "ret_ofst" and args[1].value == "ret_len":
             lll_node.args[0].value = "pass"
             lll_node.args[1].value = "pass"
     if lll_node.value == "exit_to":
+        # handle exit from private function
         if args[0].value == "return_pc":
-            lll_node.value = "jump"
-            args[0].value = "pass"
+            assert label_params is not None
+            if "return_buffer" in label_params:
+                lll_node.value = ["seq"]
+                _t = ["seq", ["pop", "pass"], ["jump", "pass"]]
+                lll_node.args = LLLnode.from_list(_t).args
+            else:
+                lll_node.value = "jump"
+                args[0].value = "pass"
         else:
+            # handle jump to cleanup
             assert is_symbol(args[0].value)
             args[0].value = args[0].value[5:]
             lll_node.value = "goto"
             if len(args) > 1 and args[1].value == "return_pc":
                 del args[1]
 
+    if lll_node.value == "label":
+        assert label_params is None, "nested parametrized label"
+        label_params = set(t.value for t in lll_node.args[1].args)
+
     for t in lll_node.args:
-        _rewrite_return_sequences(t)
+        _rewrite_return_sequences(t, label_params)
 
 
 def _assert_false():
