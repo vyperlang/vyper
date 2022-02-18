@@ -250,6 +250,7 @@ def _replace_struct_members(
             if k.id not in parent_attribute_ids:
                 new_parent_attribute_ids = parent_attribute_ids + [k.id]
 
+            # Recursive call to handle the next nested struct
             changed_nodes = _replace_struct_members(
                 vyper_module,
                 new_struct_dict,
@@ -258,17 +259,11 @@ def _replace_struct_members(
                 new_parent_attribute_ids,
             )
 
-        if len(parent_attribute_ids) > 0:
-            # If parent attributes are present, handle as nested structs
-            # Call replace_constant with parent attributes instead of the attribute id.
-            changed_nodes += replace_constant(
-                vyper_module, id_, v, False, parent_attribute_ids=parent_attribute_ids + [k.id]
-            )
-
-        else:
-            # If no parent attributes are present, handle as plain struct
-            # Call replace constant with attribute id
-            changed_nodes += replace_constant(vyper_module, id_, v, False, attribute_id=k.id)
+        # If parent attributes are present, handle as nested structs
+        # Call replace_constant with parent attributes instead of the attribute id.
+        changed_nodes += replace_constant(
+            vyper_module, id_, v, False, parent_attribute_ids=parent_attribute_ids + [k.id]
+        )
 
     return changed_nodes
 
@@ -310,7 +305,6 @@ def replace_constant(
     replacement_node: Union[vy_ast.Constant, vy_ast.List, vy_ast.Call],
     raise_on_error: bool,
     type_: BaseTypeDefinition = None,
-    attribute_id: str = None,
     parent_attribute_ids: List[str] = None,
 ) -> int:
     """
@@ -336,8 +330,8 @@ def replace_constant(
     parent_attribute_ids: List[str], optional
         List of parent attributes (representing the `.attr` attribute of an `Attribute` node)
         that should be traceable from the node to be replaced.
-        Used to further filter nodes after getting descendants based on `id_`.
-        Used to propagate a nested struct or nested struct member.
+        Used to further filter nodes successively after getting descendants based on `id_`.
+        Used to propagate nested struct names and struct member names (both plain and nested).
 
     Returns
     -------
@@ -346,13 +340,14 @@ def replace_constant(
     """
     is_struct = False
 
-    # Set is_struct to true if entire struct constant is being replaced
+    # Set is_struct to true if entire top-level struct constant is being replaced
     if isinstance(replacement_node, vy_ast.Call) and len(replacement_node.args) == 1:
         if isinstance(replacement_node.args[0], vy_ast.Dict):
             is_struct = True
 
     # Set is_struct to true if struct member id is provided
-    if attribute_id or parent_attribute_ids:
+    # Used for struct members (plain and nested) and nested structs
+    if parent_attribute_ids:
         is_struct = True
 
     changed_nodes = 0
@@ -399,25 +394,19 @@ def replace_constant(
                                     # are checked
                                     parent = parent.get_ancestor()
                         else:
+                            # If current parent does not have an `attr` field,
+                            # but there is an attribute to be checked, skip.
                             break
 
-                    # Only continue with the replacement if all attributes match
+                    # Only replace if all parent attributes match
                     if found:
                         node = parent
                     else:
                         continue
 
-                elif attribute_id:
-                    if parent.attr == attribute_id:
-                        # Replace constant if attribute matches current AST node
-                        # for un-nested struct members
-                        node = parent
-                    else:
-                        # Otherwise, skip
-                        continue
                 else:
-                    # Skip if accessing attribute of struct but attribute string
-                    # is not provided
+                    # Skip if accessing attribute of struct but parent attributes
+                    # are not provided
                     continue
 
         try:
