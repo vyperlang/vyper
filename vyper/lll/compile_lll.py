@@ -654,7 +654,10 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         body_asm = _compile_to_assembly(
             body, withargs=withargs, existing_labels=existing_labels, height=height
         )
-        pop_scoped_vars = ["POP"] * height
+        #pop_scoped_vars = ["POP"] * height
+        # for now, _rewrite_return_sequences forces
+        # label params to be consumed implicitly
+        pop_scoped_vars = []
 
         return ["_sym_" + label_name, "JUMPDEST"] + body_asm + pop_scoped_vars
 
