@@ -37,6 +37,7 @@ from vyper.codegen.types import (
     TupleType,
     is_base_type,
     is_signed_num,
+    parse_integer_typeinfo,
 )
 from vyper.codegen.types.convert import new_type_to_old_type
 from vyper.evm.opcodes import version_check
@@ -1774,12 +1775,12 @@ class _UnsafeMath:
         if op in ("add", "sub"):
             ret = decimal_mod([op, a, b])
         elif op == "mul":
-            ret = decimal_mod(["mul", a, b], DECIMAL_DIVISOR])
+            ret = decimal_mod(["sdiv", ["mul", a, b], DECIMAL_DIVISOR])
         elif op == "div":
             ret = ["sdiv", ["mul", a, DECIMAL_DIVISOR], b]
         else:
             raise CompilerPanic(f"invalid function: unsafe_{self.op}")  # pragma: notest
-        return LLLnode.from_list(ret, typ=otyp])
+        return LLLnode.from_list(ret, typ=otyp)
 
 
 class UnsafeAdd(_UnsafeMath):
