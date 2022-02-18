@@ -199,8 +199,10 @@ def replace_user_defined_constants(vyper_module: vy_ast.Module) -> int:
                 # its literal value
                 struct_dict = node.value.args[0]
 
+                # Pass empty list of parent attributes for first call to struct members
+                # helper function
                 changed_nodes = _replace_struct_members(
-                    vyper_module, struct_dict, node.target.id, changed_nodes
+                    vyper_module, struct_dict, node.target.id, changed_nodes, []
                 )
 
     return changed_nodes
@@ -211,7 +213,7 @@ def _replace_struct_members(
     dict_node: vy_ast.Dict,
     id_: str,
     changed_nodes: int,
-    parent_attribute_ids: List[str] = [],
+    parent_attribute_ids: List[str],
 ) -> int:
     """
     Helper function to recursively replace nested structs members
