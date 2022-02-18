@@ -1748,20 +1748,38 @@ class _UnsafeMath:
         otyp = a.typ
 
         if not is_base_type(a, "decimal"):
-            if op == "div" and is_signed_num(a.typ.typ):
-                    op = "sdiv"
-            return LLLnode.from_list([op, a, b], typ=otyp)
+            int_info = parse_integer_typeinfo(a.typ.typ)
+            mod_op = None
+            if op == "div" and int_info.is_signed:
+                op = "sdiv"
+
+            ret = [op, a, b]
+
+            if op in ("mul", "add", "sub") and int_info.bits < 256:
+                # wrap for ops which could under/overflow
+                if int_info.is_signed:
+                    # e.g. int8 -> (smod (add x y) -128)
+                    mod_op, mod_bound = "smod", -(2**(int_info.bits - 1))
+                else:
+                    # e.g. uint8 -> (mod (add x y) 256)
+                    # TODO mod_bound could be a really large literal
+                    mod_op, mod_bound = "mod", 2**int_info.bits
+                ret = [mod_op, ret, mod_bound]
+
+            return LLLnode.from_list(ret, typ=otyp)
 
         # handle decimal case
+        assert is_base_type(otyp, "decimal")
+        decimal_mod = lambda x: ["smod", x, -2**127 * DECIMAL_DIVISOR]
         if op in ("add", "sub"):
-            return LLLnode.from_list([op, a, b], typ=otyp)
-
-        if op == "mul":
-            return LLLnode.from_list(["sdiv", ["mul", a, b], DECIMAL_DIVISOR], typ=otyp)
-        if op == "div":
-            return LLLnode.from_list(["sdiv", ["mul", a, DECIMAL_DIVISOR], b], typ=otyp)
-
-        raise CompilerPanic(f"invalid function: unsafe_{self.op}")  # pragma: notest
+            ret = decimal_mod([op, a, b])
+        elif op == "mul":
+            ret = decimal_mod(["mul", a, b], DECIMAL_DIVISOR])
+        elif op == "div":
+            ret = ["sdiv", ["mul", a, DECIMAL_DIVISOR], b]
+        else:
+            raise CompilerPanic(f"invalid function: unsafe_{self.op}")  # pragma: notest
+        return LLLnode.from_list(ret, typ=otyp])
 
 
 class UnsafeAdd(_UnsafeMath):
