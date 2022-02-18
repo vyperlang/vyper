@@ -75,37 +75,6 @@ def _rewrite_return_sequences(lll_node, withargs = None):
     for t in lll_node.args:
         _rewrite_return_sequences(t)
 
-def _handle_exit_to():
-    # dead code
-
-    return_pc = code.args[0]
-
-    # pop all vars in scope, then jump to return_pc
-    ret = []
-    if is_symbol(return_pc.value):
-        ret = ["POP"] * height + [return_pc]
-    elif return_pc.value in withargs:
-        _height = _height_of(return_pc.value)
-        assert height - _height >= 0
-        # (schedule the return_pc to be on top of the stack after POPping)
-        # POP up to the return_pc, swap it to the bottom of the scope,
-        # then POP everything else in scope
-        ret += ["POP"] * (_height - 1)
-        if height - _height > 0:
-            ret += ["SWAP" + str(height - _height)]
-        ret += ["POP"] * (height - _height)
-    else:  # general case, shouldn't happen now but for futureproof
-        ret += _compile_to_assembly(
-            return_pc, withargs=withargs, existing_labels=existing_labels, height=height
-        )
-        height += 1
-        ret += ["SWAP" + str(height)]
-        ret += ["POP"] * height
-
-    ret += ["JUMP"]
-    return ret
-
-
 
 def _assert_false():
     # use a shared failure block for common case of assert(x).
