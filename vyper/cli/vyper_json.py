@@ -136,12 +136,11 @@ def exc_handler_to_dict(file_path: Union[str, None], exception: Exception, compo
 
 
 def _standardize_path(path_str: str) -> str:
-    root_path = Path("/__vyper").resolve()
-    path = root_path.joinpath(path_str.lstrip("/")).resolve()
+    pwd = Path(".").resolve()
     try:
-        path = path.relative_to(root_path)
+        path = Path(path_str).resolve().relative_to(pwd)
     except ValueError:
-        raise JSONError(f"{path_str} - path exists outside base folder")
+        raise ValueError(f"{path_str} - path exists outside base folder")
     return path.as_posix()
 
 
