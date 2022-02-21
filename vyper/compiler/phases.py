@@ -141,13 +141,13 @@ class CompilerData:
     @property
     def assembly(self) -> list:
         if not hasattr(self, "_assembly"):
-            self._assembly = generate_assembly(self.lll_nodes)
+            self._assembly = generate_assembly(self.lll_nodes, self.no_optimize)
         return self._assembly
 
     @property
     def assembly_runtime(self) -> list:
         if not hasattr(self, "_assembly_runtime"):
-            self._assembly_runtime = generate_assembly(self.lll_runtime)
+            self._assembly_runtime = generate_assembly(self.lll_runtime, self.no_optimize)
         return self._assembly_runtime
 
     @property
