@@ -1,3 +1,5 @@
+import inspect
+import sys
 from typing import Optional, Tuple, Type, Union
 
 from vyper import ast as vy_ast
@@ -5,6 +7,7 @@ from vyper.abi_types import ABI_FixedMxN, ABI_GIntM, ABIType
 from vyper.exceptions import CompilerPanic, InvalidOperation, OverflowException
 from vyper.semantics.types.abstract import (
     FixedAbstractType,
+    IntegerAbstractType,
     SignedIntegerAbstractType,
     UnsignedIntegerAbstractType,
 )
@@ -193,3 +196,10 @@ class DecimalPrimitive(_NumericPrimitive):
     _id = "decimal"
     _type = DecimalDefinition
     _valid_literal = (vy_ast.Decimal,)
+
+
+INTEGER_TYPES = [
+    c()._id
+    for _, c in inspect.getmembers(sys.modules[__name__], inspect.isclass)
+    if issubclass(c, IntegerAbstractType) and hasattr(c, "_id")
+]
