@@ -77,6 +77,6 @@ def make_return_stmt(lll_val: LLLnode, stmt: Any, context: Context) -> Optional[
         # CMC introduced `goto` with args so this enables us to replace `seq_unchecked` w/ `seq`
         # and then just append the arguments for the cleanup to the `jump_to_exit` list
         # check in vyper/codegen/self_call.py for an example
-        jump_to_exit += [return_buffer_ofst, encode_out]
+        jump_to_exit += [return_buffer_ofst, encode_out]  # type: ignore
 
         return finalize(["pass"])
