@@ -212,7 +212,7 @@ class LLLnode:
             # GOTO is a jump with args
             # e.g. (goto my_label x y z) will push x y and z onto the stack,
             # then JUMP to my_label.
-            elif self.value == "goto":
+            elif self.value in ("goto", "exit_to"):
                 for arg in self.args:
                     _check(
                         arg.valency == 1 or arg.value == "pass",
