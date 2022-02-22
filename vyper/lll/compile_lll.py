@@ -1,4 +1,5 @@
 import functools
+import copy
 
 from vyper.codegen.lll_node import LLLnode
 from vyper.evm.opcodes import get_opcodes
@@ -57,6 +58,7 @@ def is_symbol(i):
 # NOTE: modifies input in-place
 def _rewrite_return_sequences(lll_node, label_params = None):
     args = lll_node.args
+
     if lll_node.value == "return":
         if args[0].value == "ret_ofst" and args[1].value == "ret_len":
             lll_node.args[0].value = "pass"
@@ -64,26 +66,26 @@ def _rewrite_return_sequences(lll_node, label_params = None):
     if lll_node.value == "exit_to":
         # handle exit from private function
         if args[0].value == "return_pc":
-            assert label_params is not None
-            if "return_buffer" in label_params:
-                lll_node.value = ["seq"]
-                _t = ["seq", ["pop", "pass"], ["jump", "pass"]]
-                lll_node.args = LLLnode.from_list(_t).args
-            else:
-                lll_node.value = "jump"
-                args[0].value = "pass"
+            lll_node.value = "jump"
+            args[0].value = "pass"
         else:
             # handle jump to cleanup
             assert is_symbol(args[0].value)
-            args[0].value = args[0].value[5:]
-            lll_node.value = "goto"
-            if len(args) > 1 and args[1].value == "return_pc":
-                del args[1]
+            lll_node.value = "seq"
+
+            _t = ["seq"]
+            if "return_buffer" in label_params:
+                _t.append(["pop", "pass"])
+
+            dest = args[0].value[5:]  # `_sym_foo` -> `foo`
+            more_args = ["pass" if t.value == "return_pc" else t for t in args[1:]]
+            _t.append(["goto", dest] + more_args)
+            lll_node.args = LLLnode.from_list(_t).args
 
     if lll_node.value == "label":
         label_params = set(t.value for t in lll_node.args[1].args)
 
-    for t in lll_node.args:
+    for t in args:
         _rewrite_return_sequences(t, label_params)
 
 
@@ -144,6 +146,8 @@ def apply_line_numbers(func):
 
 @apply_line_numbers
 def compile_to_assembly(code, no_optimize=False):
+    # don't overwrite ir since the original might need to be output, e.g. `-f ir,asm`
+    code = copy.deepcopy(code)
     _rewrite_return_sequences(code)
 
     res = _compile_to_assembly(code)
