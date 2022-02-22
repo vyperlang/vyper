@@ -225,7 +225,7 @@ class LLLnode:
                 if not self.args[1].value == "var_list":
                     raise CodegenPanic(f"2nd argument to label must be var_list, {self}")
                 self.valency = 0
-                self.gas = 1
+                self.gas = 1 + sum(t.gas for t in self.args)
             # var_list names a variable number stack variables
             elif self.value == "var_list":
                 for arg in self.args:
