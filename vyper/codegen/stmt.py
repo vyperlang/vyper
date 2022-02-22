@@ -480,5 +480,5 @@ def parse_body(code, context, ensure_terminated=False):
         lll_node.append(parse_stmt(vy_ast.Return(value=None), context))
 
     # force zerovalent, even last statement
-    lll_node.append("pass") # CMC 2022-01-16 is this necessary?
+    lll_node.append("pass")  # CMC 2022-01-16 is this necessary?
     return LLLnode.from_list(lll_node, pos=getpos(code[0]) if code else None)

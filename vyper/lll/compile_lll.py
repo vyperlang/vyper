@@ -1,5 +1,5 @@
-import functools
 import copy
+import functools
 
 from vyper.codegen.lll_node import LLLnode
 from vyper.evm.opcodes import get_opcodes
@@ -56,7 +56,7 @@ def is_symbol(i):
 # it assumes the arguments are already on the stack, to be replaced
 # by better liveness analysis.
 # NOTE: modifies input in-place
-def _rewrite_return_sequences(lll_node, label_params = None):
+def _rewrite_return_sequences(lll_node, label_params=None):
     args = lll_node.args
 
     if lll_node.value == "return":
@@ -669,7 +669,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         body_asm = _compile_to_assembly(
             body, withargs=withargs, existing_labels=existing_labels, height=height
         )
-        #pop_scoped_vars = ["POP"] * height
+        # pop_scoped_vars = ["POP"] * height
         # for now, _rewrite_return_sequences forces
         # label params to be consumed implicitly
         pop_scoped_vars = []
