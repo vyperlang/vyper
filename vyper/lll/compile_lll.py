@@ -367,8 +367,13 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
     elif code.value == "cleanup_repeat":
         if not break_dest:
             raise CompilerPanic("Invalid break")
-        _, _, break_height = break_dest
         # clean up local vars and internal loop vars
+        _, _, break_height = break_dest
+        # except don't pop label params
+        if "return_buffer" in withargs:
+            break_height -= 1
+        if "return_pc" in withargs:
+            break_height -= 1
         return ["POP"] * break_height
     # With statements
     elif code.value == "with":

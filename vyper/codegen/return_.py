@@ -40,9 +40,10 @@ def make_return_stmt(lll_val: LLLnode, stmt: Any, context: Context) -> Optional[
             fill_return_buffer, annotation=f"fill return buffer {sig._lll_identifier}"
         )
         cleanup_loops = "cleanup_repeat" if context.forvars else "pass"
+        # NOTE: because stack analysis is incomplete, cleanup_repeat must
+        # come after fill_return_buffer otherwise the stack will break
         return LLLnode.from_list(
-            ["seq", cleanup_loops, fill_return_buffer, jump_to_exit],
-            typ=None,
+            ["seq", fill_return_buffer, cleanup_loops, jump_to_exit],
             pos=_pos,
         )
 
