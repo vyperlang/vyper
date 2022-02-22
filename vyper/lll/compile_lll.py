@@ -80,7 +80,7 @@ def _rewrite_return_sequences(lll_node, label_params = None):
             dest = args[0].value[5:]  # `_sym_foo` -> `foo`
             more_args = ["pass" if t.value == "return_pc" else t for t in args[1:]]
             _t.append(["goto", dest] + more_args)
-            lll_node.args = LLLnode.from_list(_t).args
+            lll_node.args = LLLnode.from_list(_t, pos=lll_node.pos).args
 
     if lll_node.value == "label":
         label_params = set(t.value for t in lll_node.args[1].args)
