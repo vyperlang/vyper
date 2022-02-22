@@ -81,7 +81,6 @@ def _rewrite_return_sequences(lll_node, label_params = None):
                 del args[1]
 
     if lll_node.value == "label":
-        assert label_params is None, "nested parametrized label"
         label_params = set(t.value for t in lll_node.args[1].args)
 
     for t in lll_node.args:
