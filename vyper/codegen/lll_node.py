@@ -4,8 +4,8 @@ from typing import Any, List, Optional, Tuple, Union
 
 from vyper.codegen.types import BaseType, NodeType, ceil32
 from vyper.compiler.settings import VYPER_COLOR_OUTPUT
-from vyper.evm.opcodes import get_comb_opcodes
-from vyper.exceptions import CompilerPanic
+from vyper.evm.opcodes import get_lll_opcodes
+from vyper.exceptions import CodegenPanic, CompilerPanic
 from vyper.utils import VALID_LLL_MACROS, cached_property
 
 # Set default string representation for ints in LLL output.
@@ -108,8 +108,8 @@ class LLLnode:
             self.gas = 5
         elif isinstance(self.value, str):
             # Opcodes and pseudo-opcodes (e.g. clamp)
-            if self.value.upper() in get_comb_opcodes():
-                _, ins, outs, gas = get_comb_opcodes()[self.value.upper()]
+            if self.value.upper() in get_lll_opcodes():
+                _, ins, outs, gas = get_lll_opcodes()[self.value.upper()]
                 self.valency = outs
                 _check(
                     len(self.args) == ins,
@@ -212,7 +212,7 @@ class LLLnode:
             # GOTO is a jump with args
             # e.g. (goto my_label x y z) will push x y and z onto the stack,
             # then JUMP to my_label.
-            elif self.value == "goto":
+            elif self.value in ("goto", "exit_to"):
                 for arg in self.args:
                     _check(
                         arg.valency == 1 or arg.value == "pass",
@@ -221,6 +221,19 @@ class LLLnode:
 
                 self.valency = 0
                 self.gas = sum([arg.gas for arg in self.args])
+            elif self.value == "label":
+                if not self.args[1].value == "var_list":
+                    raise CodegenPanic(f"2nd argument to label must be var_list, {self}")
+                self.valency = 0
+                self.gas = 1 + sum(t.gas for t in self.args)
+            # var_list names a variable number stack variables
+            elif self.value == "var_list":
+                for arg in self.args:
+                    if not isinstance(arg.value, str) or len(arg.args) > 0:
+                        raise CodegenPanic(f"var_list only takes strings: {self.args}")
+                self.valency = 0
+                self.gas = 0
+
             # Multi statements: multi <expr> <expr> ...
             elif self.value == "multi":
                 for arg in self.args:
@@ -261,7 +274,7 @@ class LLLnode:
         do_not_cache = {"~empty"}
         return (
             isinstance(self.value, str)
-            and (self.value.lower() in VALID_LLL_MACROS or self.value.upper() in get_comb_opcodes())
+            and (self.value.lower() in VALID_LLL_MACROS or self.value.upper() in get_lll_opcodes())
             and self.value.lower() not in do_not_cache
         )
 
@@ -371,7 +384,7 @@ class LLLnode:
     def _colorise_keywords(val):
         if val.lower() in VALID_LLL_MACROS:  # highlight macro
             return OKLIGHTMAGENTA + val + ENDC
-        elif val.upper() in get_comb_opcodes().keys():
+        elif val.upper() in get_lll_opcodes().keys():
             return OKMAGENTA + val + ENDC
         return val
 

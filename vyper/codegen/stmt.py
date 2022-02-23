@@ -10,6 +10,7 @@ from vyper.codegen.core import (
     get_dyn_array_count,
     get_element_ptr,
     getpos,
+    is_return_from_function,
     make_byte_array_copier,
     make_setter,
     pop_dyn_array,
@@ -448,8 +449,24 @@ def parse_stmt(stmt, context):
     return Stmt(stmt, context).lll_node
 
 
-# Parse a piece of code
-def parse_body(code, context):
+# check if a function body is "terminated"
+# a function is terminated if it ends with a return stmt, OR,
+# it ends with an if/else and both branches are terminated.
+# (if not, we need to insert a terminator so that the IR is well-formed)
+def _is_terminated(code):
+    last_stmt = code[-1]
+
+    if is_return_from_function(last_stmt):
+        return True
+
+    if isinstance(last_stmt, vy_ast.If):
+        if last_stmt.orelse:
+            return _is_terminated(last_stmt.body) and _is_terminated(last_stmt.orelse)
+    return False
+
+
+# codegen a list of statements
+def parse_body(code, context, ensure_terminated=False):
     if not isinstance(code, list):
         return parse_stmt(code, context)
 
@@ -457,5 +474,11 @@ def parse_body(code, context):
     for stmt in code:
         lll = parse_stmt(stmt, context)
         lll_node.append(lll)
-    lll_node.append("pass")  # force zerovalent, even last statement
+
+    # force using the return routine / exit_to cleanup for end of function
+    if ensure_terminated and context.return_type is None and not _is_terminated(code):
+        lll_node.append(parse_stmt(vy_ast.Return(value=None), context))
+
+    # force zerovalent, even last statement
+    lll_node.append("pass")  # CMC 2022-01-16 is this necessary?
     return LLLnode.from_list(lll_node, pos=getpos(code[0]) if code else None)

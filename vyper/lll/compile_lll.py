@@ -1,8 +1,9 @@
+import copy
 import functools
 
 from vyper.codegen.lll_node import LLLnode
 from vyper.evm.opcodes import get_opcodes
-from vyper.exceptions import CompilerPanic
+from vyper.exceptions import CodegenPanic, CompilerPanic
 from vyper.utils import MemoryPositions
 
 PUSH_OFFSET = 0x5F
@@ -48,6 +49,44 @@ def mkdebug(pc_debugger, pos):
 
 def is_symbol(i):
     return isinstance(i, str) and i[:5] == "_sym_"
+
+
+# temporary optimization to handle stack items for return sequences
+# like `return return_ofst return_len`. this is kind of brittle because
+# it assumes the arguments are already on the stack, to be replaced
+# by better liveness analysis.
+# NOTE: modifies input in-place
+def _rewrite_return_sequences(lll_node, label_params=None):
+    args = lll_node.args
+
+    if lll_node.value == "return":
+        if args[0].value == "ret_ofst" and args[1].value == "ret_len":
+            lll_node.args[0].value = "pass"
+            lll_node.args[1].value = "pass"
+    if lll_node.value == "exit_to":
+        # handle exit from private function
+        if args[0].value == "return_pc":
+            lll_node.value = "jump"
+            args[0].value = "pass"
+        else:
+            # handle jump to cleanup
+            assert is_symbol(args[0].value)
+            lll_node.value = "seq"
+
+            _t = ["seq"]
+            if "return_buffer" in label_params:
+                _t.append(["pop", "pass"])
+
+            dest = args[0].value[5:]  # `_sym_foo` -> `foo`
+            more_args = ["pass" if t.value == "return_pc" else t for t in args[1:]]
+            _t.append(["goto", dest] + more_args)
+            lll_node.args = LLLnode.from_list(_t, pos=lll_node.pos).args
+
+    if lll_node.value == "label":
+        label_params = set(t.value for t in lll_node.args[1].args)
+
+    for t in args:
+        _rewrite_return_sequences(t, label_params)
 
 
 def _assert_false():
@@ -107,6 +146,10 @@ def apply_line_numbers(func):
 
 @apply_line_numbers
 def compile_to_assembly(code, no_optimize=False):
+    # don't overwrite ir since the original might need to be output, e.g. `-f ir,asm`
+    code = copy.deepcopy(code)
+    _rewrite_return_sequences(code)
+
     res = _compile_to_assembly(code)
 
     _add_postambles(res)
@@ -122,6 +165,12 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         withargs = {}
     if not isinstance(withargs, dict):
         raise CompilerPanic(f"Incorrect type for withargs: {type(withargs)}")
+
+    def _height_of(witharg):
+        ret = height - withargs[witharg]
+        if ret > 16:
+            raise Exception("With statement too deep")
+        return ret
 
     if existing_labels is None:
         existing_labels = set()
@@ -145,9 +194,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         return ["PUSH" + str(len(bytez))] + bytez
     # Variables connected to with statements
     elif isinstance(code.value, str) and code.value in withargs:
-        if height - withargs[code.value] > 16:
-            raise Exception("With statement too deep")
-        return ["DUP" + str(height - withargs[code.value])]
+        return ["DUP" + str(_height_of(code.value))]
     # Setting variables connected to with statements
     elif code.value == "set":
         if len(code.args) != 2 or code.args[0].value not in withargs:
@@ -320,8 +367,13 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
     elif code.value == "cleanup_repeat":
         if not break_dest:
             raise CompilerPanic("Invalid break")
-        _, _, break_height = break_dest
         # clean up local vars and internal loop vars
+        _, _, break_height = break_dest
+        # except don't pop label params
+        if "return_buffer" in withargs:
+            break_height -= 1
+        if "return_pc" in withargs:
+            break_height -= 1
         return ["POP"] * break_height
     # With statements
     elif code.value == "with":
@@ -583,7 +635,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
             break_dest,
             height,
         )
-    # # jump to a symbol, and push variable arguments onto stack
+    # jump to a symbol, and push variable # of arguments onto stack
     elif code.value == "goto":
         o = []
         for i, c in enumerate(reversed(code.args[1:])):
@@ -594,14 +646,44 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         return [code.value]
     # set a symbol as a location.
     elif code.value == "label":
-        label_name = str(code.args[0])
+        label_name = code.args[0].value
+        assert isinstance(label_name, str)
 
         if label_name in existing_labels:
             raise Exception(f"Label with name {label_name} already exists!")
         else:
             existing_labels.add(label_name)
 
-        return ["_sym_" + label_name, "JUMPDEST"]
+        if code.args[1].value != "var_list":
+            raise CodegenPanic("2nd arg to label must be var_list")
+        var_args = code.args[1].args
+
+        body = code.args[2]
+
+        # new scope
+        height = 0
+        withargs = {}
+
+        for arg in reversed(var_args):
+            assert isinstance(
+                arg.value, str
+            )  # already checked for higher up but only the paranoid survive
+            withargs[arg.value] = height
+            height += 1
+
+        body_asm = _compile_to_assembly(
+            body, withargs=withargs, existing_labels=existing_labels, height=height
+        )
+        # pop_scoped_vars = ["POP"] * height
+        # for now, _rewrite_return_sequences forces
+        # label params to be consumed implicitly
+        pop_scoped_vars = []
+
+        return ["_sym_" + label_name, "JUMPDEST"] + body_asm + pop_scoped_vars
+
+    elif code.value == "exit_to":
+        raise CodegenPanic("exit_to not implemented yet!")
+
     # inject debug opcode.
     elif code.value == "debugger":
         return mkdebug(pc_debugger=False, pos=code.pos)

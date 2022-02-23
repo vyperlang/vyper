@@ -157,6 +157,7 @@ FUNCTION_WHITELIST = {
 }
 
 # List of valid LLL macros.
+# TODO move this somewhere else, like lll_node.py
 VALID_LLL_MACROS = {
     "assert",
     "break",
@@ -196,6 +197,7 @@ VALID_LLL_MACROS = {
     "~selfcode",
     "~calldata",
     "~empty",
+    "var_list",
 }
 
 # Available base types

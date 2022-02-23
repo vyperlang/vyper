@@ -21,7 +21,7 @@ def make_return_stmt(lll_val: LLLnode, stmt: Any, context: Context) -> Optional[
 
     sig = context.sig
 
-    jump_to_exit = ["goto", sig.exit_sequence_label]
+    jump_to_exit = ["exit_to", f"_sym_{sig.exit_sequence_label}"]
 
     _pos = getpos(stmt)
 
@@ -40,23 +40,21 @@ def make_return_stmt(lll_val: LLLnode, stmt: Any, context: Context) -> Optional[
             fill_return_buffer, annotation=f"fill return buffer {sig._lll_identifier}"
         )
         cleanup_loops = "cleanup_repeat" if context.forvars else "pass"
+        # NOTE: because stack analysis is incomplete, cleanup_repeat must
+        # come after fill_return_buffer otherwise the stack will break
         return LLLnode.from_list(
-            ["seq", cleanup_loops, fill_return_buffer, jump_to_exit],
-            typ=None,
+            ["seq", fill_return_buffer, cleanup_loops, jump_to_exit],
             pos=_pos,
         )
 
     if context.return_type is None:
+        jump_to_exit += ["return_pc"]
         return finalize(["pass"])
 
     if context.is_internal:
         dst = LLLnode.from_list(["return_buffer"], typ=context.return_type, location="memory")
-        fill_return_buffer = [
-            "with",
-            dst,
-            "pass",  # return_buffer is passed on the stack by caller
-            make_setter(dst, lll_val, pos=_pos),
-        ]
+        fill_return_buffer = make_setter(dst, lll_val, pos=_pos)
+        jump_to_exit += ["return_pc"]
 
         return finalize(fill_return_buffer)
 
@@ -80,6 +78,6 @@ def make_return_stmt(lll_val: LLLnode, stmt: Any, context: Context) -> Optional[
         # CMC introduced `goto` with args so this enables us to replace `seq_unchecked` w/ `seq`
         # and then just append the arguments for the cleanup to the `jump_to_exit` list
         # check in vyper/codegen/self_call.py for an example
-        jump_to_exit += [return_buffer_ofst, encode_out]
+        jump_to_exit += [return_buffer_ofst, encode_out]  # type: ignore
 
         return finalize(["pass"])
