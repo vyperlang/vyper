@@ -155,13 +155,12 @@ def foo(a: {typ}) -> {typ}:
     assert c.foo(100) == 31337
 
 
-@pytest.mark.parametrize("typ", ["int128", "uint256"])
-@pytest.mark.parametrize("val", range(20))
-def test_return_void_nested_repeater(get_contract, typ, val):
+@pytest.fixture(params=["int128", "uint256"])
+def test_return_void_nested_repeater_contract(request, get_contract):
     code = f"""
-result: {typ}
+result: {request.param}
 @internal
-def _final(a: {typ}):
+def _final(a: {request.param}):
     for i in range(10):
         for x in range(10):
             if i + x > a:
@@ -170,27 +169,32 @@ def _final(a: {typ}):
     self.result = 31337
 
 @internal
-def _middle(a: {typ}):
+def _middle(a: {request.param}):
     self._final(a)
 
 @external
-def foo(a: {typ}) -> {typ}:
+def foo(a: {request.param}) -> {request.param}:
     self._middle(a)
     return self.result
     """
     c = get_contract(code)
-    if val + 1 >= 19:
-        assert c.foo(val) == 31337
-    else:
-        assert c.foo(val) == val + 1
+    return c
 
 
-@pytest.mark.parametrize("typ", ["int128", "uint256"])
 @pytest.mark.parametrize("val", range(20))
-def test_external_nested_repeater(get_contract, typ, val):
+def test_return_void_nested_repeater(test_return_void_nested_repeater_contract, val):
+
+    if val + 1 >= 19:
+        assert test_return_void_nested_repeater_contract.foo(val) == 31337
+    else:
+        assert test_return_void_nested_repeater_contract.foo(val) == val + 1
+
+
+@pytest.fixture(params=["int128", "uint256"])
+def test_external_nested_repeater_contract(request, get_contract):
     code = f"""
 @external
-def foo(a: {typ}) -> {typ}:
+def foo(a: {request.param}) -> {request.param}:
     for i in range(10):
         for x in range(10):
             if i + x > a:
@@ -198,20 +202,25 @@ def foo(a: {typ}) -> {typ}:
     return 31337
     """
     c = get_contract(code)
-    if val + 1 >= 19:
-        assert c.foo(val) == 31337
-    else:
-        assert c.foo(val) == val + 1
+    return c
 
 
-@pytest.mark.parametrize("typ", ["int128", "uint256"])
 @pytest.mark.parametrize("val", range(20))
-def test_external_void_nested_repeater(get_contract, typ, val):
+def test_external_nested_repeater(test_external_nested_repeater_contract, val):
+
+    if val + 1 >= 19:
+        assert test_external_nested_repeater_contract.foo(val) == 31337
+    else:
+        assert test_external_nested_repeater_contract.foo(val) == val + 1
+
+
+@pytest.fixture(params=["int128", "uint256"])
+def test_external_void_nested_repeater_contract(request, get_contract):
     # test return out of loop in void external function
     code = f"""
-result: public({typ})
+result: public({request.param})
 @external
-def foo(a: {typ}):
+def foo(a: {request.param}):
     for i in range(10):
         for x in range(10):
             if i + x > a:
@@ -220,11 +229,17 @@ def foo(a: {typ}):
     self.result = 31337
     """
     c = get_contract(code)
-    c.foo(val, transact={})
+    return c
+
+
+@pytest.mark.parametrize("val", range(20))
+def test_external_void_nested_repeater(test_external_void_nested_repeater_contract, val):
+
+    test_external_void_nested_repeater_contract.foo(val, transact={})
     if val + 1 >= 19:
-        assert c.result() == 31337
+        assert test_external_void_nested_repeater_contract.result() == 31337
     else:
-        assert c.result() == val + 1
+        assert test_external_void_nested_repeater_contract.result() == val + 1
 
 
 @pytest.mark.parametrize("typ", ["int128", "uint256"])

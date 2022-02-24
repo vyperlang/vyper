@@ -283,8 +283,8 @@ def bounds_check_uint256(xs: DynArray[uint256, 3], ix: uint256) -> uint256:
     # TODO do bounds checks for nested darrays
 
 
-@pytest.mark.parametrize("list_", ([], [11], [11, 12], [11, 12, 13]))
-def test_dynarray_len(get_contract_with_gas_estimation, assert_tx_failed, list_):
+@pytest.fixture
+def test_dynarray_len_contract(get_contract_with_gas_estimation):
     code = """
 @external
 def darray_len(xs: DynArray[uint256, 3]) -> uint256:
@@ -292,7 +292,13 @@ def darray_len(xs: DynArray[uint256, 3]) -> uint256:
     """
 
     c = get_contract_with_gas_estimation(code)
-    assert c.darray_len(list_) == len(list_)
+    return c
+
+
+@pytest.mark.parametrize("list_", ([], [11], [11, 12], [11, 12, 13]))
+def test_dynarray_len(test_dynarray_len_contract, assert_tx_failed, list_):
+
+    assert test_dynarray_len_contract.darray_len(list_) == len(list_)
 
 
 def test_dynarray_too_large(get_contract_with_gas_estimation, assert_tx_failed):
