@@ -906,7 +906,7 @@ def assembly_to_evm(assembly, start_pos=0):
         else:
             pos += 1
 
-    posmap["_sym_codeend"] = pos
+    posmap["_sym_codeend"] = pos - start_pos
     o = b""
     for i, item in enumerate(assembly):
         if item == "DEBUG":
