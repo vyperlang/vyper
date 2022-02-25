@@ -1753,7 +1753,7 @@ class _UnsafeMath:
 
         ret = [op, a, b]
 
-        if op in ("mul", "add", "sub") and int_info.bits < 256:
+        if int_info.bits < 256:
             # wrap for ops which could under/overflow
             if int_info.is_signed:
                 # e.g. int128 -> (signextend 15 (add x y))
