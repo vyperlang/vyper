@@ -1,4 +1,5 @@
 import binascii
+import math
 import sys
 import traceback
 from typing import Dict, List, Union
@@ -114,6 +115,22 @@ def int_bounds(signed, bits):
     if signed:
         return -(2**(bits - 1)), (2**(bits - 1)) - 1
     return 0, (2**bits) - 1
+
+
+# EVM div semantics as a python function
+def evm_div(x, y):
+    if y == 0:
+        return 0
+    # note round-to-zero behavior compared to floordiv
+    return int(x / y)
+
+
+# EVM mod semantics as a python function
+def evm_mod(x, y):
+    if y == 0:
+        return 0
+    # this doesn't actually work when num digits exceeds fp precision
+    # return int(math.fmod(x, y))
 
 
 # memory used for system purposes, not for variables
