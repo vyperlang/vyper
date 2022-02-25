@@ -1,10 +1,9 @@
 import pytest
-import math
 import itertools
 import random
 import operator
 
-from vyper.utils import BASE_TYPES, DECIMAL_DIVISOR, int_bounds, evm_mod, evm_div
+from vyper.utils import BASE_TYPES, DECIMAL_DIVISOR, int_bounds, evm_div
 from vyper.codegen.types.types import BaseType, parse_integer_typeinfo
 
 # TODO something less janky
@@ -12,8 +11,8 @@ integer_types = sorted([t for t in BASE_TYPES if "int" in t])
 
 
 def _as_signed(x, bits):
-    if x > (2**(bits-1)) - 1:
-        return x - 2**bits
+    if x > (2 ** (bits - 1)) - 1:
+        return x - 2 ** bits
     return x
 
 
@@ -26,7 +25,7 @@ def test_unsafe_op_int(get_contract, typ, op):
 def foo(x: {typ}, y: {typ}) -> {typ}:
     return unsafe_{op}(x, y)
     """
-    fns = { "add": operator.add, "sub": operator.sub, "mul": operator.mul, "div": evm_div }
+    fns = {"add": operator.add, "sub": operator.sub, "mul": operator.mul, "div": evm_div}
     fn = fns[op]
 
     int_info = parse_integer_typeinfo(typ)
@@ -36,7 +35,7 @@ def foo(x: {typ}, y: {typ}) -> {typ}:
     xs = [random.randrange(lo, hi) for _ in range(100)]
     ys = [random.randrange(lo, hi) for _ in range(100)]
 
-    mod_bound = 2**int_info.bits
+    mod_bound = 2 ** int_info.bits
 
     # poor man's fuzzing - hypothesis doesn't make it easy
     # with the parametrized strategy
@@ -44,9 +43,7 @@ def foo(x: {typ}, y: {typ}) -> {typ}:
         xs += [lo, -1, 0, 1, hi]
         ys += [lo, -1, 0, 1, hi]
         for (x, y) in itertools.product(xs, ys):
-            res = fn(x, y)  # calculate evm smod
-
-            expected = _as_signed(evm_mod(res, mod_bound), int_info.bits)
+            expected = _as_signed(fn(x, y) % mod_bound, int_info.bits)
             assert c.foo(x, y) == expected
     else:
         xs += [0, 1, hi - 1, hi]

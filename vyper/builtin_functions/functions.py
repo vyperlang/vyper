@@ -36,10 +36,8 @@ from vyper.codegen.types import (
     StringType,
     TupleType,
     is_base_type,
-    is_signed_num,
     parse_integer_typeinfo,
 )
-from vyper.codegen.types.convert import new_type_to_old_type
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
     ArgumentException,
@@ -1750,7 +1748,6 @@ class _UnsafeMath:
 
         if not is_base_type(a, "decimal"):
             int_info = parse_integer_typeinfo(a.typ.typ)
-            mod_op = None
             if op == "div" and int_info.is_signed:
                 op = "sdiv"
 
@@ -1759,19 +1756,18 @@ class _UnsafeMath:
             if op in ("mul", "add", "sub") and int_info.bits < 256:
                 # wrap for ops which could under/overflow
                 if int_info.is_signed:
-                    # e.g. int8 -> (smod (add x y) -128)
-                    mod_op, mod_bound = "smod", -(2**(int_info.bits - 1))
+                    # e.g. int128 -> (signextend 15 (add x y))
+                    ret = ["signextend", int_info.bits // 8 - 1, ret]
                 else:
                     # e.g. uint8 -> (mod (add x y) 256)
                     # TODO mod_bound could be a really large literal
-                    mod_op, mod_bound = "mod", 2**int_info.bits
-                ret = [mod_op, ret, mod_bound]
+                    ret = ["mod", ret, 2 ** int_info.bits]
 
             return LLLnode.from_list(ret, typ=otyp)
 
         # handle decimal case
         assert is_base_type(otyp, "decimal")
-        decimal_mod = lambda x: ["smod", x, -2**127 * DECIMAL_DIVISOR]
+        decimal_mod = lambda x: ["smod", x, -(2 ** 127) * DECIMAL_DIVISOR]
         if op in ("add", "sub"):
             ret = decimal_mod([op, a, b])
         elif op == "mul":
@@ -1786,14 +1782,18 @@ class _UnsafeMath:
 class UnsafeAdd(_UnsafeMath):
     op = "add"
 
+
 class UnsafeSub(_UnsafeMath):
     op = "sub"
+
 
 class UnsafeMul(_UnsafeMath):
     op = "mul"
 
+
 class UnsafeDiv(_UnsafeMath):
     op = "div"
+
 
 class _MinMax:
 

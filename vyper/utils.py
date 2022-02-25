@@ -1,5 +1,4 @@
 import binascii
-import math
 import sys
 import traceback
 from typing import Dict, List, Union
@@ -113,8 +112,8 @@ def int_bounds(signed, bits):
         int_bounds(8, False) -> (0, 255)
     """
     if signed:
-        return -(2**(bits - 1)), (2**(bits - 1)) - 1
-    return 0, (2**bits) - 1
+        return -(2 ** (bits - 1)), (2 ** (bits - 1)) - 1
+    return 0, (2 ** bits) - 1
 
 
 # EVM div semantics as a python function
