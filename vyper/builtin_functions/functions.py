@@ -1724,13 +1724,14 @@ class CreateForwarderTo(_SimpleBuiltinFunction):
 
 class _UnsafeMath:
 
-    _inputs = [("a", NumericAbstractType()), ("b", NumericAbstractType())]
+    # TODO add unsafe math for `decimal`s
+    _inputs = [("a", IntegerAbstractType()), ("b", IntegerAbstractType())]
 
     def fetch_call_return(self, node):
         validate_call_args(node, 2)
 
         types_list = get_common_types(
-            *node.args, filter_fn=lambda x: isinstance(x, NumericAbstractType)
+            *node.args, filter_fn=lambda x: isinstance(x, IntegerAbstractType)
         )
         if not types_list:
             raise TypeMismatch(f"unsafe_{self.op} called on dislike types", node)
@@ -1746,37 +1747,25 @@ class _UnsafeMath:
 
         otyp = a.typ
 
-        if not is_base_type(a, "decimal"):
-            int_info = parse_integer_typeinfo(a.typ.typ)
-            if op == "div" and int_info.is_signed:
-                op = "sdiv"
+        int_info = parse_integer_typeinfo(a.typ.typ)
+        if op == "div" and int_info.is_signed:
+            op = "sdiv"
 
-            ret = [op, a, b]
+        ret = [op, a, b]
 
-            if op in ("mul", "add", "sub") and int_info.bits < 256:
-                # wrap for ops which could under/overflow
-                if int_info.is_signed:
-                    # e.g. int128 -> (signextend 15 (add x y))
-                    ret = ["signextend", int_info.bits // 8 - 1, ret]
-                else:
-                    # e.g. uint8 -> (mod (add x y) 256)
-                    # TODO mod_bound could be a really large literal
-                    ret = ["mod", ret, 2 ** int_info.bits]
+        if op in ("mul", "add", "sub") and int_info.bits < 256:
+            # wrap for ops which could under/overflow
+            if int_info.is_signed:
+                # e.g. int128 -> (signextend 15 (add x y))
+                ret = ["signextend", int_info.bits // 8 - 1, ret]
+            else:
+                # e.g. uint8 -> (mod (add x y) 256)
+                # TODO mod_bound could be a really large literal
+                ret = ["mod", ret, 2 ** int_info.bits]
 
-            return LLLnode.from_list(ret, typ=otyp)
-
-        # handle decimal case
-        assert is_base_type(otyp, "decimal")
-        decimal_mod = lambda x: ["smod", x, -(2 ** 127) * DECIMAL_DIVISOR]
-        if op in ("add", "sub"):
-            ret = decimal_mod([op, a, b])
-        elif op == "mul":
-            ret = decimal_mod(["sdiv", ["mul", a, b], DECIMAL_DIVISOR])
-        elif op == "div":
-            ret = ["sdiv", ["mul", a, DECIMAL_DIVISOR], b]
-        else:
-            raise CompilerPanic(f"invalid function: unsafe_{self.op}")  # pragma: notest
         return LLLnode.from_list(ret, typ=otyp)
+
+        # TODO handle decimal case
 
 
 class UnsafeAdd(_UnsafeMath):

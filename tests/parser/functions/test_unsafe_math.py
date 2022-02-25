@@ -1,10 +1,11 @@
-import pytest
 import itertools
-import random
 import operator
+import random
 
-from vyper.utils import BASE_TYPES, DECIMAL_DIVISOR, int_bounds, evm_div
-from vyper.codegen.types.types import BaseType, parse_integer_typeinfo
+import pytest
+
+from vyper.codegen.types.types import parse_integer_typeinfo
+from vyper.utils import BASE_TYPES, evm_div, int_bounds
 
 # TODO something less janky
 integer_types = sorted([t for t in BASE_TYPES if "int" in t])
@@ -48,7 +49,7 @@ def foo(x: {typ}, y: {typ}) -> {typ}:
     else:
         # 0x80 has some weird properties, like
         # it's a fixed point of multiplication by 0xFF
-        fixed_pt = 2**(int_info.bits - 1)
+        fixed_pt = 2 ** (int_info.bits - 1)
         xs += [0, 1, hi - 1, hi, fixed_pt]
         ys += [0, 1, hi - 1, hi, fixed_pt]
         for (x, y) in itertools.product(xs, ys):
