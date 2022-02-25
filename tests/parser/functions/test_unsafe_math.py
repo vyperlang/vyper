@@ -40,13 +40,16 @@ def foo(x: {typ}, y: {typ}) -> {typ}:
     # poor man's fuzzing - hypothesis doesn't make it easy
     # with the parametrized strategy
     if int_info.is_signed:
-        xs += [lo, -1, 0, 1, hi]
-        ys += [lo, -1, 0, 1, hi]
+        xs += [lo, lo + 1, -1, 0, 1, hi - 1, hi]
+        ys += [lo, lo + 1, -1, 0, 1, hi - 1, hi]
         for (x, y) in itertools.product(xs, ys):
             expected = _as_signed(fn(x, y) % mod_bound, int_info.bits)
             assert c.foo(x, y) == expected
     else:
-        xs += [0, 1, hi - 1, hi]
-        ys += [0, 1, hi - 1, hi]
+        # 0x80 has some weird properties, like
+        # it's a fixed point of multiplication by 0xFF
+        fixed_pt = 2**(int_info.bits - 1)
+        xs += [0, 1, hi - 1, hi, fixed_pt]
+        ys += [0, 1, hi - 1, hi, fixed_pt]
         for (x, y) in itertools.product(xs, ys):
             assert c.foo(x, y) == fn(x, y) % mod_bound
