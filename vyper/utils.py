@@ -120,8 +120,10 @@ def int_bounds(signed, bits):
 def evm_div(x, y):
     if y == 0:
         return 0
-    # note round-to-zero behavior compared to floordiv
-    return int(x / y)
+    # doesn't actually work:
+    #return int(x / y)
+    sign = -1 if (x * y) < 0 else 1
+    return sign * (abs(x) // abs(y))  # adapted from py-evm
 
 
 # EVM mod semantics as a python function
