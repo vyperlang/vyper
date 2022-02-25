@@ -33,8 +33,9 @@ def foo(x: {typ}, y: {typ}) -> {typ}:
     c = get_contract(code)
 
     lo, hi = int_bounds(int_info.is_signed, int_info.bits)
-    xs = [random.randrange(lo, hi) for _ in range(100)]
-    ys = [random.randrange(lo, hi) for _ in range(100)]
+    NUM_CASES = 50  # any more than this and fuzzer takes too long
+    xs = [random.randrange(lo, hi) for _ in range(NUM_CASES)]
+    ys = [random.randrange(lo, hi) for _ in range(NUM_CASES)]
 
     mod_bound = 2 ** int_info.bits
 
