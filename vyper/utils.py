@@ -129,8 +129,11 @@ def evm_div(x, y):
 def evm_mod(x, y):
     if y == 0:
         return 0
-    # this doesn't actually work when num digits exceeds fp precision
+
+    # this doesn't actually work when num digits exceeds fp precision:
     # return int(math.fmod(x, y))
+    sign = -1 if x < 0 else 1
+    return sign * (abs(x) % abs(y))  # adapted from py-evm
 
 
 # memory used for system purposes, not for variables

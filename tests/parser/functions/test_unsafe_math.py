@@ -44,8 +44,9 @@ def foo(x: {typ}, y: {typ}) -> {typ}:
         xs += [lo, -1, 0, 1, hi]
         ys += [lo, -1, 0, 1, hi]
         for (x, y) in itertools.product(xs, ys):
-            # TODO figure out signed modular arithmetic
-            expected = _as_signed(fn(x, y) % mod_bound, int_info.bits)
+            res = fn(x, y)  # calculate evm smod
+
+            expected = _as_signed(evm_mod(res, mod_bound), int_info.bits)
             assert c.foo(x, y) == expected
     else:
         xs += [0, 1, hi - 1, hi]
