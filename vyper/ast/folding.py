@@ -370,41 +370,36 @@ def replace_constant(
                 continue
 
         if isinstance(parent, vy_ast.Attribute) and is_struct:
-            if parent_attribute_ids and len(parent_attribute_ids) > 0:
-                found = False
-                for i in range(len(parent_attribute_ids)):
-                    # Iterate through the list of parent attributes
-                    parent_attr = parent_attribute_ids[i]
-                    if hasattr(parent, "attr"):
-                        if parent.attr != parent_attr:
-                            # Early termination if parent attribute does not
-                            # match current node path
-                            break
-                        else:
-                            if i == len(parent_attribute_ids) - 1:
-                                if not hasattr(parent.get_ancestor(), "attr"):
-                                    # If all attributes match, and the current
-                                    # parent is not a nested member, continue with the
-                                    # replacement. Otherwise, continue.
-                                    found = True
-                            else:
-                                # Continue iteration until all parent attributes
-                                # are checked
-                                parent = parent.get_ancestor()
-                    else:
-                        # If current parent does not have an `attr` field,
-                        # but there is an attribute to be checked, skip.
-                        break
-
-                # Only replace if all parent attributes match. Otherwise, skip.
-                if found:
-                    node = parent
-                else:
-                    continue
-
-            else:
+            if not parent_attribute_ids:
                 # Skip if accessing attribute of struct but parent attributes
                 # are not provided
+                continue
+
+            found = False
+            for i in range(len(parent_attribute_ids)):
+                if not hasattr(parent, "attr"):
+                    # If current parent does not have an `attr` field,
+                    # but there is an attribute to be checked, skip.
+                    break
+
+                # Iterate through the list of parent attributes
+                if parent.attr != parent_attribute_ids[i]:
+                    # Early termination if parent attribute does not match current node path
+                    break
+
+                if i == len(parent_attribute_ids) - 1 and not hasattr(
+                    parent.get_ancestor(), "attr"
+                ):
+                    # If all attributes match, and the current parent is not a nested member,
+                    # continue with the replacement. Otherwise, skip replacement.
+                    found = True
+                    node = parent
+
+                # Continue iteration until all parent attributes are checked
+                parent = parent.get_ancestor()
+
+            # Only replace if all parent attributes match. Otherwise, skip.
+            if not found:
                 continue
 
         try:
