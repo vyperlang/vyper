@@ -61,7 +61,7 @@ def get_foo() -> Bytes[3]:
 
 
 @pytest.fixture(params=list(EVM_VERSIONS))
-def test_int128_clamper_contract(request, get_contract):
+def int128_clamper(request, get_contract):
     code = """
 @external
 def foo(s: int128) -> int128:
@@ -73,21 +73,19 @@ def foo(s: int128) -> int128:
 
 
 @pytest.mark.parametrize("value", [0, 1, -1, 2 ** 127 - 1, -(2 ** 127)])
-def test_int128_clamper_passing(w3, test_int128_clamper_contract, value):
+def test_int128_clamper_passing(w3, int128_clamper, value):
 
-    _make_tx(w3, test_int128_clamper_contract.address, "foo(int128)", [value])
+    _make_tx(w3, int128_clamper.address, "foo(int128)", [value])
 
 
 @pytest.mark.parametrize("value", [2 ** 127, -(2 ** 127) - 1, 2 ** 255 - 1, -(2 ** 255)])
-def test_int128_clamper_failing(w3, assert_tx_failed, test_int128_clamper_contract, value):
+def test_int128_clamper_failing(w3, assert_tx_failed, int128_clamper, value):
 
-    assert_tx_failed(
-        lambda: _make_tx(w3, test_int128_clamper_contract.address, "foo(int128)", [value])
-    )
+    assert_tx_failed(lambda: _make_tx(w3, int128_clamper.address, "foo(int128)", [value]))
 
 
 @pytest.fixture(params=list(EVM_VERSIONS))
-def test_bool_clamper_contract(request, get_contract):
+def bool_clamper(request, get_contract):
     code = """
 @external
 def foo(s: bool) -> bool:
@@ -99,19 +97,19 @@ def foo(s: bool) -> bool:
 
 
 @pytest.mark.parametrize("value", [0, 1])
-def test_bool_clamper_passing(w3, test_bool_clamper_contract, value):
+def test_bool_clamper_passing(w3, bool_clamper, value):
 
-    _make_tx(w3, test_bool_clamper_contract.address, "foo(bool)", [value])
+    _make_tx(w3, bool_clamper.address, "foo(bool)", [value])
 
 
 @pytest.mark.parametrize("value", [2, 3, 4, 8, 16, 2 ** 256 - 1])
-def test_bool_clamper_failing(w3, assert_tx_failed, test_bool_clamper_contract, value):
+def test_bool_clamper_failing(w3, assert_tx_failed, bool_clamper, value):
 
-    assert_tx_failed(lambda: _make_tx(w3, test_bool_clamper_contract.address, "foo(bool)", [value]))
+    assert_tx_failed(lambda: _make_tx(w3, bool_clamper.address, "foo(bool)", [value]))
 
 
 @pytest.fixture(params=list(EVM_VERSIONS))
-def test_uint8_clamper_contract(request, get_contract):
+def uint8_clamper(request, get_contract):
     code = """
 @external
 def foo(s: uint8) -> uint8:
@@ -123,21 +121,19 @@ def foo(s: uint8) -> uint8:
 
 
 @pytest.mark.parametrize("value", list(range(2 ** 8)))
-def test_uint8_clamper_passing(w3, test_uint8_clamper_contract, value):
+def test_uint8_clamper_passing(w3, uint8_clamper, value):
 
-    _make_tx(w3, test_uint8_clamper_contract.address, "foo(uint8)", [value])
+    _make_tx(w3, uint8_clamper.address, "foo(uint8)", [value])
 
 
 @pytest.mark.parametrize("value", [-100, 256, 2 ** 10, 2 ** 16, 2 ** 32, 2 ** 256 - 1])
-def test_uint8_clamper_failing(w3, assert_tx_failed, test_uint8_clamper_contract, value):
+def test_uint8_clamper_failing(w3, assert_tx_failed, uint8_clamper, value):
 
-    assert_tx_failed(
-        lambda: _make_tx(w3, test_uint8_clamper_contract.address, "foo(uint8)", [value])
-    )
+    assert_tx_failed(lambda: _make_tx(w3, uint8_clamper.address, "foo(uint8)", [value]))
 
 
 @pytest.fixture(params=list(EVM_VERSIONS))
-def test_address_clamper_contract(request, get_contract):
+def address_clamper(request, get_contract):
     code = """
 @external
 def foo(s: address) -> address:
@@ -149,21 +145,19 @@ def foo(s: address) -> address:
 
 
 @pytest.mark.parametrize("value", [0, 1, 2 ** 160 - 1])
-def test_address_clamper_passing(w3, test_address_clamper_contract, value):
+def test_address_clamper_passing(w3, address_clamper, value):
 
-    _make_tx(w3, test_address_clamper_contract.address, "foo(address)", [value])
+    _make_tx(w3, address_clamper.address, "foo(address)", [value])
 
 
 @pytest.mark.parametrize("value", [2 ** 160, 2 ** 256 - 1])
-def test_address_clamper_failing(w3, assert_tx_failed, test_address_clamper_contract, value):
+def test_address_clamper_failing(w3, assert_tx_failed, address_clamper, value):
 
-    assert_tx_failed(
-        lambda: _make_tx(w3, test_address_clamper_contract.address, "foo(address)", [value])
-    )
+    assert_tx_failed(lambda: _make_tx(w3, address_clamper.address, "foo(address)", [value]))
 
 
 @pytest.fixture(params=list(EVM_VERSIONS))
-def test_decimal_clamper_contract(request, get_contract):
+def decimal_clamper(request, get_contract):
     code = """
 @external
 def foo(s: decimal) -> decimal:
@@ -193,9 +187,9 @@ def foo(s: decimal) -> decimal:
         "-170141183460469231731687303715884105727.9999999999",  # - (2 ** 127 - 0.0000000001)
     ],
 )
-def test_decimal_clamper_passing(test_decimal_clamper_contract, value):
+def test_decimal_clamper_passing(decimal_clamper, value):
 
-    assert test_decimal_clamper_contract.foo(Decimal(value)) == Decimal(value)
+    assert decimal_clamper.foo(Decimal(value)) == Decimal(value)
 
 
 @pytest.mark.parametrize(
@@ -207,13 +201,13 @@ def test_decimal_clamper_passing(test_decimal_clamper_contract, value):
         "-170141183460469231731687303715884105728.0000000001",  # - (2 ** 127 + 0.0000000001)
     ],
 )
-def test_decimal_clamper_failing(assert_tx_failed, test_decimal_clamper_contract, value):
+def test_decimal_clamper_failing(assert_tx_failed, decimal_clamper, value):
 
-    assert_tx_failed(lambda: test_decimal_clamper_contract.foo(Decimal(value)))
+    assert_tx_failed(lambda: decimal_clamper.foo(Decimal(value)))
 
 
 @pytest.fixture(params=list(EVM_VERSIONS))
-def test_int128_array_clamper_passing_contract(request, get_contract):
+def int128_array_clamper_passing(request, get_contract):
     code = """
 @external
 def foo(a: uint256, b: int128[5], c: uint256) -> int128[5]:
@@ -225,7 +219,7 @@ def foo(a: uint256, b: int128[5], c: uint256) -> int128[5]:
 
 
 @pytest.mark.parametrize("value", [0, 1, -1, 2 ** 127 - 1, -(2 ** 127)])
-def test_int128_array_clamper_passing(w3, test_int128_array_clamper_passing_contract, value):
+def test_int128_array_clamper_passing(w3, int128_array_clamper_passing, value):
 
     # on both ends of the array we place a `uint256` that would fail the clamp check,
     # to ensure there are no off-by-one errors
@@ -233,14 +227,14 @@ def test_int128_array_clamper_passing(w3, test_int128_array_clamper_passing_cont
 
     _make_tx(
         w3,
-        test_int128_array_clamper_passing_contract.address,
+        int128_array_clamper_passing.address,
         "foo(uint256,int128[5],uint256)",
         values,
     )
 
 
 @pytest.fixture
-def test_int128_array_clamper_failing_contract(get_contract):
+def int128_array_clamper_failing(get_contract):
     code = """
 @external
 def foo(b: int128[5]) -> int128[5]:
@@ -254,21 +248,19 @@ def foo(b: int128[5]) -> int128[5]:
 @pytest.mark.parametrize("bad_value", [2 ** 127, -(2 ** 127) - 1, 2 ** 255 - 1, -(2 ** 255)])
 @pytest.mark.parametrize("idx", range(5))
 def test_int128_array_clamper_failing(
-    w3, assert_tx_failed, test_int128_array_clamper_failing_contract, bad_value, idx
+    w3, assert_tx_failed, int128_array_clamper_failing, bad_value, idx
 ):
     # ensure the invalid value is detected at all locations in the array
     values = [0] * 5
     values[idx] = bad_value
 
     assert_tx_failed(
-        lambda: _make_tx(
-            w3, test_int128_array_clamper_failing_contract.address, "foo(int128[5])", values
-        )
+        lambda: _make_tx(w3, int128_array_clamper_failing.address, "foo(int128[5])", values)
     )
 
 
 @pytest.fixture
-def test_int128_array_looped_clamper_passing_contract(get_contract):
+def int128_array_looped_clamper_passing(get_contract):
     # when an array is > 5 items, the arg clamper runs in a loop to reduce bytecode size
     code = """
 @external
@@ -281,21 +273,19 @@ def foo(a: uint256, b: int128[10], c: uint256) -> int128[10]:
 
 
 @pytest.mark.parametrize("value", [0, 1, -1, 2 ** 127 - 1, -(2 ** 127)])
-def test_int128_array_looped_clamper_passing(
-    w3, test_int128_array_looped_clamper_passing_contract, value
-):
+def test_int128_array_looped_clamper_passing(w3, int128_array_looped_clamper_passing, value):
 
     values = [2 ** 127] + ([value] * 10) + [2 ** 127]
     _make_tx(
         w3,
-        test_int128_array_looped_clamper_passing_contract.address,
+        int128_array_looped_clamper_passing.address,
         "foo(uint256,int128[10],uint256)",
         values,
     )
 
 
 @pytest.fixture
-def test_int128_array_looped_clamper_failing_contract(get_contract):
+def int128_array_looped_clamper_failing(get_contract):
     code = """
 @external
 def foo(b: int128[10]) -> int128[10]:
@@ -309,21 +299,19 @@ def foo(b: int128[10]) -> int128[10]:
 @pytest.mark.parametrize("bad_value", [2 ** 127, -(2 ** 127) - 1, 2 ** 255 - 1, -(2 ** 255)])
 @pytest.mark.parametrize("idx", range(10))
 def test_int128_array_looped_clamper_failing(
-    w3, assert_tx_failed, test_int128_array_looped_clamper_failing_contract, bad_value, idx
+    w3, assert_tx_failed, int128_array_looped_clamper_failing, bad_value, idx
 ):
 
     values = [0] * 10
     values[idx] = bad_value
 
     assert_tx_failed(
-        lambda: _make_tx(
-            w3, test_int128_array_looped_clamper_failing_contract.address, "foo(int128[10])", values
-        )
+        lambda: _make_tx(w3, int128_array_looped_clamper_failing.address, "foo(int128[10])", values)
     )
 
 
 @pytest.fixture
-def test_multidimension_array_clamper_passing_contract(get_contract):
+def multidimension_array_clamper_passing(get_contract):
     code = """
 @external
 def foo(a: uint256, b: int128[6][3][1][8], c: uint256) -> int128[6][3][1][8]:
@@ -335,22 +323,20 @@ def foo(a: uint256, b: int128[6][3][1][8], c: uint256) -> int128[6][3][1][8]:
 
 
 @pytest.mark.parametrize("value", [0, 1, -1, 2 ** 127 - 1, -(2 ** 127)])
-def test_multidimension_array_clamper_passing(
-    w3, test_multidimension_array_clamper_passing_contract, value
-):
+def test_multidimension_array_clamper_passing(w3, multidimension_array_clamper_passing, value):
     # 6 * 3 * 1 * 8 = 144, the total number of values in our multidimensional array
     values = [2 ** 127] + ([value] * 144) + [2 ** 127]
 
     _make_tx(
         w3,
-        test_multidimension_array_clamper_passing_contract.address,
+        multidimension_array_clamper_passing.address,
         "foo(uint256,int128[6][3][1][8],uint256)",
         values,
     )
 
 
 @pytest.fixture
-def test_multidimension_array_clamper_failing_contract(get_contract):
+def multidimension_array_clamper_failing(get_contract):
     code = """
 @external
 def foo(b: int128[6][1][2]) -> int128[6][1][2]:
@@ -364,7 +350,7 @@ def foo(b: int128[6][1][2]) -> int128[6][1][2]:
 @pytest.mark.parametrize("bad_value", [2 ** 127, -(2 ** 127) - 1, 2 ** 255 - 1, -(2 ** 255)])
 @pytest.mark.parametrize("idx", range(12))
 def test_multidimension_array_clamper_failing(
-    w3, assert_tx_failed, test_multidimension_array_clamper_failing_contract, bad_value, idx
+    w3, assert_tx_failed, multidimension_array_clamper_failing, bad_value, idx
 ):
 
     values = [0] * 12
@@ -373,7 +359,7 @@ def test_multidimension_array_clamper_failing(
     assert_tx_failed(
         lambda: _make_tx(
             w3,
-            test_multidimension_array_clamper_failing_contract.address,
+            multidimension_array_clamper_failing.address,
             "foo(int128[6][1][2]])",
             values,
         )

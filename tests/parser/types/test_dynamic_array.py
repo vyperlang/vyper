@@ -284,7 +284,7 @@ def bounds_check_uint256(xs: DynArray[uint256, 3], ix: uint256) -> uint256:
 
 
 @pytest.fixture
-def test_dynarray_len_contract(get_contract_with_gas_estimation):
+def dynarray_len(get_contract_with_gas_estimation):
     code = """
 @external
 def darray_len(xs: DynArray[uint256, 3]) -> uint256:
@@ -296,9 +296,9 @@ def darray_len(xs: DynArray[uint256, 3]) -> uint256:
 
 
 @pytest.mark.parametrize("list_", ([], [11], [11, 12], [11, 12, 13]))
-def test_dynarray_len(test_dynarray_len_contract, assert_tx_failed, list_):
+def test_dynarray_len(dynarray_len, assert_tx_failed, list_):
 
-    assert test_dynarray_len_contract.darray_len(list_) == len(list_)
+    assert dynarray_len.darray_len(list_) == len(list_)
 
 
 def test_dynarray_too_large(get_contract_with_gas_estimation, assert_tx_failed):

@@ -24,7 +24,7 @@ def negate(a: int128) -> int128:
 
 
 @pytest.fixture
-def test_unary_sub_int128_pass_contract(get_contract):
+def unary_sub_int128_pass(get_contract):
     code = """@external
 def negate(a: int128) -> int128:
     return -(a)
@@ -34,9 +34,9 @@ def negate(a: int128) -> int128:
 
 
 @pytest.mark.parametrize("val", [-(2 ** 127) + 1, 0, 2 ** 127 - 1])
-def test_unary_sub_int128_pass(test_unary_sub_int128_pass_contract, val):
+def test_unary_sub_int128_pass(unary_sub_int128_pass, val):
 
-    assert test_unary_sub_int128_pass_contract.negate(val) == -val
+    assert unary_sub_int128_pass.negate(val) == -val
 
 
 min_decimal = -(2 ** 127) + 1
@@ -44,7 +44,7 @@ max_decimal = 2 ** 127 - 1
 
 
 @pytest.fixture
-def test_unary_sub_decimal_pass_contract(get_contract):
+def unary_sub_decimal_pass(get_contract):
     code = """@external
 def negate(a: decimal) -> decimal:
     return -(a)
@@ -54,9 +54,9 @@ def negate(a: decimal) -> decimal:
 
 
 @pytest.mark.parametrize("val", [min_decimal, 0, max_decimal])
-def test_unary_sub_decimal_pass(test_unary_sub_decimal_pass_contract, val):
+def test_unary_sub_decimal_pass(unary_sub_decimal_pass, val):
 
-    assert test_unary_sub_decimal_pass_contract.negate(val) == -val
+    assert unary_sub_decimal_pass.negate(val) == -val
 
 
 def test_negation_decimal(get_contract):
