@@ -1,5 +1,5 @@
 from decimal import Decimal
-from typing import List, Union
+from typing import List, Optional, Union
 
 from vyper.ast import nodes as vy_ast
 from vyper.builtin_functions import DISPATCH_TABLE
@@ -301,6 +301,64 @@ def _replace(old_node, new_node, type_=None):
         raise UnfoldableNode
 
 
+def _get_struct_attribute_root_node(
+    parent_attribute_node: vy_ast.VyperNode,
+    parent_attribute_ids: List[str],
+) -> Optional[vy_ast.Attribute]:
+    """
+    Helper function to return the root node of a constant struct member that should be replaced.
+
+    E.g. Assuming `Foo` is a constant struct with a nested struct `a`, that has a `b` member,
+    a reference to the nested constant `Foo.a.b` will be represented in the AST as:
+
+    `b`  (`Attribute` node)
+     |---> `a` (`Attribute` node)
+            |---> `Foo` (`Name` node)
+
+    To fold this constant, we need to identify `b` as the root node to be replaced.
+
+    Arguments
+    ---------
+    parent_attribute_node : VyperNode
+        Vyper ast node that is the parent to a `Name` node for a struct member
+    parent_attribute_ids: List[str], optional
+        List of parent attributes (representing the `.attr` attribute of an `Attribute` node)
+        that should be traceable from the node to be replaced.
+        Used to further filter nodes successively after getting descendants based on `id_`.
+        Used to propagate nested struct names and struct member names (both plain and nested).
+
+    Returns
+    -------
+    Attribute, optional
+        Vyper ast node that is the root of a constant struct member in the AST.
+    """
+
+    node_to_be_replaced = None
+    for i in range(len(parent_attribute_ids)):
+        if not isinstance(parent_attribute_node, vy_ast.Attribute):
+            # If current parent is not an Attribute node,
+            # but there is an attribute to be checked, skip.
+            break
+
+        # Iterate through the list of parent attributes
+        if parent_attribute_node.attr != parent_attribute_ids[i]:
+            # Early termination if parent attribute does not match current node path
+            break
+
+        if i == len(parent_attribute_ids) - 1 and not hasattr(
+            parent_attribute_node.get_ancestor(), "attr"
+        ):
+            # If all attributes match, and the current parent is not a nested member,
+            # continue with the replacement. Otherwise, skip replacement.
+            node_to_be_replaced = parent_attribute_node
+
+        # Continue iteration until all parent attributes are checked
+        parent_attribute_node = parent_attribute_node.get_ancestor()
+
+    # Only replace if all parent attributes match. Otherwise, skip.
+    return node_to_be_replaced
+
+
 def replace_constant(
     vyper_module: vy_ast.Module,
     id_: str,
@@ -375,31 +433,12 @@ def replace_constant(
                 # are not provided
                 continue
 
-            found = False
-            for i in range(len(parent_attribute_ids)):
-                if not hasattr(parent, "attr"):
-                    # If current parent does not have an `attr` field,
-                    # but there is an attribute to be checked, skip.
-                    break
+            node = _get_struct_attribute_root_node(
+                parent,
+                parent_attribute_ids,
+            )
 
-                # Iterate through the list of parent attributes
-                if parent.attr != parent_attribute_ids[i]:
-                    # Early termination if parent attribute does not match current node path
-                    break
-
-                if i == len(parent_attribute_ids) - 1 and not hasattr(
-                    parent.get_ancestor(), "attr"
-                ):
-                    # If all attributes match, and the current parent is not a nested member,
-                    # continue with the replacement. Otherwise, skip replacement.
-                    found = True
-                    node = parent
-
-                # Continue iteration until all parent attributes are checked
-                parent = parent.get_ancestor()
-
-            # Only replace if all parent attributes match. Otherwise, skip.
-            if not found:
+            if not node:
                 continue
 
         try:
