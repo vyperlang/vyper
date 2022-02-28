@@ -1,4 +1,6 @@
 import logging
+import os
+import pathlib
 from functools import wraps
 
 import pytest
@@ -212,6 +214,30 @@ def create2_address_of(keccak):
     return _f
 
 
+@pytest.fixture
+def vyper_contract(request):
+
+    # Get the absolute path of the Vyper test file
+    caller_directory = os.path.split(request.fspath)[0]
+    contract_file_path = pathlib.Path(os.path.join(caller_directory, request.param))
+
+    with contract_file_path.open() as fh:
+        # trailing newline fixes python parsing bug when source ends in a comment
+        # https://bugs.python.org/issue35107
+        source_code = fh.read() + "\n"
+
+    custom_genesis = PyEVMBackend._generate_genesis_params(overrides={"gas_limit": 4500000})
+    custom_genesis["base_fee_per_gas"] = 0
+    backend = PyEVMBackend(genesis_parameters=custom_genesis)
+    tester = EthereumTester(backend=backend)
+    w3 = Web3(EthereumTesterProvider(tester))
+    w3.eth.set_gas_price_strategy(zero_gas_price_strategy)
+
+    contract = _get_contract(w3, source_code, "no_optimize")
+
+    return contract
+
+
 def pytest_collect_file(parent, path):
     if path.ext == ".vy" and path.basename.startswith("test"):
         return VyperFile.from_parent(parent, fspath=path)
@@ -230,6 +256,7 @@ class VyperTestItem(pytest.Item):
 
     def runtest(self):
         try:
+
             compile_files(
                 [self.fspath],
                 ("bytecode",),
