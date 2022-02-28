@@ -204,7 +204,12 @@ def test_constant_success(good_code):
 
 
 @pytest.mark.parametrize(
-    "vyper_contract", ["constants/test_constantGetter1_Success.vy"], indirect=True
+    "vyper_contract",
+    [
+        "constants/test_constantGetter1_Success.vy",
+        "constants/test_constantGetter2_Success.vy",
+    ],
+    indirect=True,
 )
 def test_constant_success_2(vyper_contract):
     assert vyper_contract.foo() == 123
