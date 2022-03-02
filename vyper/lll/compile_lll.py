@@ -208,9 +208,11 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
     # Pass statements
     elif code.value in ("pass", "dummy"):
         return []
+
     # Code length
     elif code.value == "~codelen":
         return ["_sym_codeend"]
+
     # Calldataload equivalent for code
     elif code.value == "codeload":
         return _compile_to_assembly(
@@ -404,6 +406,8 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         o = []
         begincode = mksymbol("lll_begin")
         endcode = mksymbol("lll_end")
+        # TODO we could theoretically optimize out this JUMP to endcode,
+        # since it's only ever followed by a RETURN
         o.extend([endcode, "JUMP", begincode, "BLANK"])
 
         lll = _compile_to_assembly(code.args[1], {}, existing_labels, None, 0)
@@ -417,12 +421,20 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         # from start of bytecode).
         o.append(lll)
 
-        o.extend([endcode, "JUMPDEST", begincode, endcode, "SUB", begincode])
-        o.extend(_compile_to_assembly(code.args[0], withargs, existing_labels, break_dest, height))
+        codelen = len(lll)
 
+        o.extend([endcode, "JUMPDEST"])
+        o.extend(["PUSH2"] + num_to_bytearray(codelen) + ["DUP1"])
+        # stack: len len
+        o.append([begincode])
+        # stack: len len ofst
+        o.extend(_compile_to_assembly(code.args[0], withargs, existing_labels, break_dest, height))
+        # stack: len len ofst mem_ofst
         # COPY the code to memory for deploy
-        o.extend(["CODECOPY", begincode, endcode, "SUB"])
+        o.extend(["CODECOPY"])
+        # stack: len
         return o
+
     # Seq (used to piece together multiple statements)
     elif code.value == "seq":
         o = []
@@ -907,6 +919,7 @@ def assembly_to_evm(assembly, start_pos=0):
             pos += 1
 
     posmap["_sym_codeend"] = pos - start_pos
+
     o = b""
     for i, item in enumerate(assembly):
         if item == "DEBUG":

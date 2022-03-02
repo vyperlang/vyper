@@ -18,7 +18,7 @@ from vyper.exceptions import (
     StructureException,
 )
 from vyper.semantics.types.function import FunctionVisibility, StateMutability
-from vyper.utils import LOADED_LIMITS
+from vyper.utils import LOADED_LIMITS, MemoryPositions
 
 # TODO remove this check
 if not hasattr(vy_ast, "AnnAssign"):
@@ -179,48 +179,16 @@ def parse_regular_functions(
     ]
     runtime.extend(internal_funcs)
 
-    immutables = [_global for _global in global_ctx._globals.values() if _global.is_immutable]
+    # immutables are allocated from start of mem - ~ctor_immutables is a magic pointer
+    immutables_ofst = "~ctor_immutables"
+    immutables_len = global_ctx.immutable_section_bytes
 
-    # TODO: enable usage of the data section beyond just user defined immutables
-    # https://github.com/vyperlang/vyper/pull/2466#discussion_r722816358
-    if len(immutables) > 0:
-        # find position of the last immutable so we do not overwrite it in memory
-        # when we codecopy the runtime code to memory
-        immutables = sorted(immutables, key=lambda imm: imm.pos)
-        start_pos = immutables[-1].pos + immutables[-1].size * 32
+    if immutables_len > 0:
+        o.append(["staticcall", "gas", 4, immutables_ofst, immutables_len, "~runtime_immutables", immutables_len])
 
-        # create sequence of actions to copy immutables to the end of the runtime code in memory
-        # TODO: if possible, just use identity precompile
-        data_section = []
-        for immutable in immutables:
-            # store each immutable at the end of the runtime code
-            memory_loc, offset = (
-                immutable.pos,
-                immutable.data_offset,
-            )
-            lhs = LLLnode.from_list(
-                ["add", start_pos + offset, "_lllsz"], typ=immutable.typ, location="memory"
-            )
-            rhs = LLLnode.from_list(memory_loc, typ=immutable.typ, location="memory")
-            data_section.append(make_setter(lhs, rhs, pos=None))
-
-        # TODO: use GlobalContext.immutable_section_size
-        data_section_size = sum([immutable.size * 32 for immutable in immutables])
-        o.append(
-            [
-                "with",
-                "_lllsz",  # keep size of runtime bytecode in sz var
-                ["lll", start_pos, runtime],  # store runtime code at `start_pos`
-                # sequence of copying immutables, with final action of returning the runtime code
-                ["seq", *data_section, ["return", start_pos, ["add", data_section_size, "_lllsz"]]],
-            ]
-        )
-
-    else:
-        # NOTE: lll macro first argument is the location in memory to store
-        # the compiled bytecode
-        # https://lll-docs.readthedocs.io/en/latest/lll_reference.html#code-lll
-        o.append(["return", 0, ["lll", 0, runtime]])
+    # NOTE: lll macro first argument is the location in memory to store
+    # the compiled bytecode
+    o.append(["return", 0, ["add", immutables_len, ["lll", 0, runtime]]])
 
     return o, runtime
 

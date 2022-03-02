@@ -190,7 +190,6 @@ VALID_LLL_MACROS = {
     "uclample",
     "uclamplt",
     "with",
-    "~codelen",
     "label",
     "goto",
     "~extcode",
@@ -198,6 +197,10 @@ VALID_LLL_MACROS = {
     "~calldata",
     "~empty",
     "var_list",
+    "~codelen",
+    "~ctor_immutables",
+    "~runtime_immutables",
+    #"~data_ptr",  # TODO add (~data_ptr <ofst>) which can be optimized down to a push instruction
 }
 
 # Available base types

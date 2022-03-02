@@ -47,7 +47,7 @@ def _register_function_args(context: Context, sig: FunctionSignature) -> List[LL
     # tuple with the abi_encoded args
     if sig.is_init_func:
         base_args_ofst = LLLnode(
-            "~codelen", location="code", typ=base_args_t, encoding=Encoding.ABI
+            ["~codelen"], location="code", typ=base_args_t, encoding=Encoding.ABI
         )
     else:
         base_args_ofst = LLLnode(4, location="calldata", typ=base_args_t, encoding=Encoding.ABI)
