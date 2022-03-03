@@ -318,28 +318,21 @@ class Expr:
 
         elif self.expr._metadata["type"].is_immutable:
             var = self.context.globals[self.expr.id]
+            ofst = self.expr._metadata["type"].position.offset
 
             if self.context.sig.is_init_func:
-                offset = ["add", "~ctor_immutables", self.expr._metadata["type"].position.offset]
-                return LLLnode.from_list(
-                    offset,
-                    typ=var.typ,
-                    location="memory",
-                    pos=getpos(self.expr),
-                    annotation=self.expr.id,
-                    mutable=True,
-                )
-
+                mutable = True
             else:
-                offset = ["add", "~codelen", self.expr._metadata["type"].position.offset]
-                return LLLnode.from_list(
-                    offset,
-                    typ=var.typ,
-                    location="code",
-                    pos=getpos(self.expr),
-                    annotation=self.expr.id,
-                    mutable=False,
-                )
+                mutable = False
+
+            return LLLnode.from_list(
+                ofst,
+                typ=var.typ,
+                location="data",
+                pos=getpos(self.expr),
+                annotation=self.expr.id,
+                mutable=mutable,
+            )
 
     # x.y or x[5]
     def parse_Attribute(self):
@@ -473,7 +466,7 @@ class Expr:
                 return LLLnode.from_list(["chainid"], typ="uint256", pos=getpos(self.expr))
         # Other variables
         else:
-            sub = Expr.parse_variable_location(self.expr.value, self.context)
+            sub = Expr(self.expr.value, self.context).lll_node
             # contract type
             if isinstance(sub.typ, InterfaceType):
                 return sub

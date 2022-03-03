@@ -31,6 +31,13 @@ def num_to_bytearray(x):
     return o
 
 
+def PUSH(x):
+    bs = num_to_bytearray(x)
+    if len(bs) == 0:
+        bs = [0]
+    return [f"PUSH{len(bs)}"] + bs
+
+
 _next_symbol = 0
 
 
@@ -48,7 +55,23 @@ def mkdebug(pc_debugger, pos):
 
 
 def is_symbol(i):
-    return isinstance(i, str) and i[:5] == "_sym_"
+    return isinstance(i, str) and i.startswith("_sym_")
+
+
+def is_deploy_data_ofst(sym):
+    return isinstance(sym, str) and sym.startswith("_deploy_data_")
+
+
+def deploy_data_ofst(sym, t):
+    return int(sym[len("_deploy_data_"):])
+
+
+def is_data_ofst(sym):
+    return isinstance(sym, str) and sym.startswith("_data_codeend_")
+
+
+def data_ofst(sym, t):
+    return int(sym[len("_data_codeend_"):])
 
 
 # temporary optimization to handle stack items for return sequences
@@ -166,6 +189,13 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
     if not isinstance(withargs, dict):
         raise CompilerPanic(f"Incorrect type for withargs: {type(withargs)}")
 
+    def _data_ofst_of(loc, prefix):
+        if isinstance(loc.value, int):
+            return [f"{prefix}_{loc.value}"]
+        else:
+            loc = _compile_to_assembly(loc, withargs, existing_labels, break_dest, height)
+            return loc + [f"{prefix}_0", "ADD"]
+
     def _height_of(witharg):
         ret = height - withargs[witharg]
         if ret > 16:
@@ -184,17 +214,19 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
             o.extend(_compile_to_assembly(c, withargs, existing_labels, break_dest, height + i))
         o.append(code.value.upper())
         return o
+
     # Numbers
     elif isinstance(code.value, int):
         if code.value < -(2 ** 255):
             raise Exception(f"Value too low: {code.value}")
         elif code.value >= 2 ** 256:
             raise Exception(f"Value too high: {code.value}")
-        bytez = num_to_bytearray(code.value % 2 ** 256) or [0]
-        return ["PUSH" + str(len(bytez))] + bytez
+        return PUSH(code.value % 2**256)
+
     # Variables connected to with statements
     elif isinstance(code.value, str) and code.value in withargs:
         return ["DUP" + str(_height_of(code.value))]
+
     # Setting variables connected to with statements
     elif code.value == "set":
         if len(code.args) != 2 or code.args[0].value not in withargs:
@@ -205,41 +237,64 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
             "SWAP" + str(height - withargs[code.args[0].value]),
             "POP",
         ]
+
     # Pass statements
     # TODO remove "dummy"; no longer needed
     elif code.value in ("pass", "dummy"):
         return []
 
-    # Code length
-    elif code.value == "~codelen":
-        return ["_sym_codeend"]
+    # "mload" from data section of the code
+    elif code.value == "dload":
+        loc = code.args[0]
 
-    elif code.value == "~ctor_immutables":
-        # immutables are first variables allocated in ctor,
-        # see function_definitions/common.py
+        o = []
+        # codecopy 32 bytes to FREE_VAR_SPACE, then mload from FREE_VAR_SPACE
+        o.extend(PUSH(32))
+        o.extend(_data_ofst_of(loc, "_data_codeend"))
+        o.extend(PUSH(MemoryPositions.FREE_VAR_SPACE) + ["CODECOPY"])
+        o.extend(PUSH(MemoryPositions.FREE_VAR_SPACE) + ["MLOAD"])
+        return o
 
-        # n should be 1, but calculate it just for good measure
-        n = len(num_to_bytearray(MemoryPositions.RESERVED_MEMORY))
-        return [f"PUSH{n}", MemoryPositions.RESERVED_MEMORY]
+    # batch copy from data section of the code to memory
+    elif code.value == "dloadbytes":
+        loc = code.args[0]
+        len_ = code.args[1]
 
-    elif code.value == "~runtime_immutables":
-        return ["_sym_runtimelen"]
+        o = []
+        o.extend(_compile_to_assembly(len_, withargs, existing_labels, break_dest, height))
+        o.extend(_data_ofst_of(loc, "_data_codeend"))
+        o.extend(["CODECOPY"])
+        return o
 
-    # Calldataload equivalent for code
-    elif code.value == "codeload":
-        return _compile_to_assembly(
-            LLLnode.from_list(
-                [
-                    "seq",
-                    ["codecopy", MemoryPositions.FREE_VAR_SPACE, code.args[0], 32],
-                    ["mload", MemoryPositions.FREE_VAR_SPACE],
-                ]
-            ),
-            withargs,
-            existing_labels,
-            break_dest,
-            height,
-        )
+    # "mstore" to the data section of runtime code
+    elif code.value == "dstore":
+        loc = code.args[0]
+        val = code.args[1]
+
+        o = []
+        o.extend(_data_ofst_of(loc, "_deploy_data"))
+        o.extend(_compile_to_assembly(val, withargs, existing_labels, break_dest, height))
+        o.append("MSTORE")
+
+        return o
+
+    # batch copy from memory to the data section of runtime code
+    elif code.value == "dstorebytes":
+        dst = code.args[0]
+        src = code.args[1]
+        len_ = code.args[2]
+
+        o = []
+        # issue call to the identity precompile (staticcall gas 4 dst len src len)
+        o.extend(_compile_to_assembly(len_, withargs, existing_labels, break_dest, height))
+        o.extend(_data_ofst_of(dst, "_deploy_data"))
+        o.extend(["DUP2"])
+        o.extend(_compile_to_assembly(src, withargs, existing_labels, break_dest, height))
+        o.extend(PUSH(4) + ["GAS", "STATICCALL"])
+
+        return o
+
+
     # If statements (2 arguments, ie. if x: y)
     elif code.value == "if" and len(code.args) == 2:
         o = []
@@ -413,39 +468,40 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         else:
             del withargs[code.args[0].value]
         return o
-    # LLL statement (used to contain code inside code)
-    elif code.value == "lll":
+
+    # runtime statement (used to deploy runtime code)
+    elif code.value == "deploy":
+        _memsz = code.args[0]  # used later to calculate _sym_deploy_start
+        lll = code.args[1]
+        padding = code.args[2].value
+        assert isinstance(padding, int), "non-int padding"
+
+        begincode = mksymbol("runtime_begin")
+        subcode= _compile_to_assembly(lll, {}, existing_labels, None, 0)
+
         o = []
-        begincode = mksymbol("lll_begin")
-        endcode = mksymbol("lll_end")
-        # TODO we could theoretically optimize out this JUMP to endcode,
-        # since it's only ever followed by a RETURN
-        o.extend([endcode, "JUMP", begincode, "BLANK"])
 
-        lll = _compile_to_assembly(code.args[1], {}, existing_labels, None, 0)
+        o.extend(PUSH(len(subcode)))  # stack: len
+        o.extend(["_sym_deploy_start"])  # stack: len mem_ofst
+        o.extend([begincode])  # stack: len mem_ofst code_ofst
+        # COPY the code to memory for deploy
+        o.extend(["CODECOPY"])
 
+        runtime_len = len(lll) + padding  # include immutables in the runtime code
+        o.extend(PUSH(runtime_len)) # stack: len
+        o.extend(["_sym_deploy_start"]) # stack: mem_ofst
+        o.extend(["RETURN"])
+
+        # append the runtime code after the ctor code
+        o.extend([begincode, "BLANK"])
         # `append(...)` call here is intentional.
         # each sublist is essentially its own program with its
         # own symbols.
         # in the later step when the "lll" block compiled to EVM,
-        # compile_to_evm has logic to resolve symbols in "lll" to
-        # position from start of runtime-code (instead of position
-        # from start of bytecode).
-        o.append(lll)
+        # symbols in subcode are resolved to position from start of
+        # runtime-code (instead of position from start of bytecode).
+        o.append(subcode)
 
-        codelen = len(lll)
-        n = num_to_bytearray(codelen)
-
-        o.extend([endcode, "JUMPDEST"])
-        o.extend([f"PUSH{len(n)}"] + n + ["DUP1"])
-        # stack: len len
-        o.append(begincode)
-        # stack: len len ofst
-        o.extend(_compile_to_assembly(code.args[0], withargs, existing_labels, break_dest, height))
-        # stack: len len ofst mem_ofst
-        # COPY the code to memory for deploy
-        o.extend(["CODECOPY"])
-        # stack: len
         return o
 
     # Seq (used to piece together multiple statements)
@@ -918,10 +974,14 @@ def assembly_to_evm(assembly, start_pos=0):
                 posmap[item] = pos - start_pos
             else:
                 pos += 3  # PUSH2 highbits lowbits
+        elif is_deploy_data_ofst(item) or is_data_ofst(item):
+            pos += 3
         elif item == "BLANK":
             pos += 0
         elif isinstance(item, list):
             c, sub_map = assembly_to_evm(item, start_pos=pos)
+            ctor_memsize = item.args[0].value
+            assert isinstance(ctor_memsize, 0)
             assert runtime_code is None, "Multiple subcodes"
             runtime_code = c
             pos += len(c)
@@ -930,10 +990,14 @@ def assembly_to_evm(assembly, start_pos=0):
         else:
             pos += 1
 
-    posmap["_sym_codeend"] = pos - start_pos
+    code_end = pos - start_pos
 
     if runtime_code is not None:
-        posmap["_sym_runtimelen"] = len(runtime_code)
+        # minor optimization to minimize mem expansion:
+        # start runtime code so it will end at max(ctor_memsize, len(runtime_code))
+        # (instead of starting it at ctor_memsize)
+        runtime_code_end = max(ctor_memsize, len(runtime_code))
+        runtime_code_start = runtime_code_end - len(runtime_code)
 
     o = b""
     for i, item in enumerate(assembly):
@@ -942,6 +1006,12 @@ def assembly_to_evm(assembly, start_pos=0):
         elif is_symbol(item):
             if assembly[i + 1] != "JUMPDEST" and assembly[i + 1] != "BLANK":
                 o += bytes([PUSH_OFFSET + 2, posmap[item] // 256, posmap[item] % 256])
+        elif is_deploy_data_ofst(item):
+            ofst = deploy_data_ofst(item, runtime_code_end)
+            o += bytes([PUSH_OFFSET + 2, ofst // 256, ofst % 256])
+        elif is_data_ofst(item):
+            ofst = data_ofst(item, code_end)
+            o += bytes([PUSH_OFFSET + 2, ofst // 256, ofst % 256])
         elif isinstance(item, int):
             o += bytes([item])
         elif isinstance(item, str) and item.upper() in get_opcodes():
@@ -960,7 +1030,7 @@ def assembly_to_evm(assembly, start_pos=0):
             # Should never reach because, assembly is create in _compile_to_assembly.
             raise Exception("Weird symbol in assembly: " + str(item))  # pragma: no cover
 
-    assert len(o) == pos - start_pos
+    assert len(o) == pos - start_pos, (len(o), pos, start_pos)
     line_number_map["breakpoints"] = list(line_number_map["breakpoints"])
     line_number_map["pc_breakpoints"] = list(line_number_map["pc_breakpoints"])
     return o, line_number_map

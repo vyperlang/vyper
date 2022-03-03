@@ -90,7 +90,7 @@ def parse_external_interfaces(external_interfaces, global_ctx):
 
 
 def parse_regular_functions(
-    o, regular_functions, sigs, external_interfaces, global_ctx, default_function
+    o, regular_functions, sigs, external_interfaces, global_ctx, default_function, init_function
 ):
     # check for payable/nonpayable external functions to optimize nonpayable assertions
     func_types = [i._metadata["type"] for i in global_ctx._defs]
@@ -179,16 +179,15 @@ def parse_regular_functions(
     ]
     runtime.extend(internal_funcs)
 
-    # immutables are allocated from start of mem - ~ctor_immutables is a magic pointer
-    immutables_ofst = "~ctor_immutables"
     immutables_len = global_ctx.immutable_section_bytes
 
-    if immutables_len > 0:
-        o.append(["staticcall", "gas", 4, immutables_ofst, immutables_len, "~runtime_immutables", immutables_len])
+    if init_function:
+        memsize = init_function.context.memory_allocator.size_of_mem
+    else:
+        memsize = 0
 
-    # NOTE: lll macro first argument is the location in memory to store
-    # the compiled bytecode
-    o.append(["return", 0, ["add", immutables_len, ["lll", 0, runtime]]])
+    # note: (deploy mem_ofst, code, extra_padding)
+    o.append(["deploy", memsize, runtime, immutables_len])
 
     return o, runtime
 
@@ -228,7 +227,7 @@ def parse_tree_to_lll(global_ctx: GlobalContext) -> Tuple[LLLnode, LLLnode, Func
     # TODO: fix for #2251 is to move this after parse_regular_functions
     if init_function:
         o.append(init_func_init_lll())
-        init_func_lll, _frame_start, _frame_size = generate_lll_for_function(
+        init_func_lll, _frame_start, init_frame_size = generate_lll_for_function(
             init_function,
             {**{"self": sigs}, **external_interfaces},
             global_ctx,
@@ -244,6 +243,7 @@ def parse_tree_to_lll(global_ctx: GlobalContext) -> Tuple[LLLnode, LLLnode, Func
             external_interfaces,
             global_ctx,
             default_function,
+            init_func_lll,
         )
     else:
         runtime = o.copy()
