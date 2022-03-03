@@ -26,6 +26,15 @@ def pytest_addoption(parser):
     parser.addoption("--memorymock", action="store_true", help="Run tests with mock allocated vars")
 
 
+def pytest_ignore_collect(path, config):
+    if config.getoption("memorymock"):
+        # Ignore Vyper test files. Otherwise, execnet will throw an error.
+        # Example of error: https://gist.github.com/khamidou/6b7e8702f8fc0e8dd251
+        if path.ext == ".vy" and path.basename.startswith("test"):
+            return True
+    return False
+
+
 def pytest_generate_tests(metafunc):
     if "memory_mocker" in metafunc.fixturenames:
         params = range(1, 11, 2) if metafunc.config.getoption("memorymock") else [False]

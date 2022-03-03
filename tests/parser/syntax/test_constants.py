@@ -201,3 +201,15 @@ CONST_BYTES: constant(Bytes[4]) = b'1234'
 @pytest.mark.parametrize("good_code", valid_list)
 def test_constant_success(good_code):
     assert compiler.compile_code(good_code) is not None
+
+
+@pytest.mark.parametrize(
+    "vyper_contract",
+    [
+        "constants/test_constantGetter1_Success.vy",
+        "constants/test_constantGetter2_Success.vy",
+    ],
+    indirect=True,
+)
+def test_constant_success_2(vyper_contract):
+    assert vyper_contract.foo() == 123

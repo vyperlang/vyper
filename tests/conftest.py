@@ -1,4 +1,6 @@
 import logging
+import os
+import pathlib
 from functools import wraps
 
 import pytest
@@ -9,7 +11,9 @@ from web3 import Web3
 from web3.providers.eth_tester import EthereumTesterProvider
 
 from vyper import compiler
+from vyper.cli.vyper_compile import compile_files
 from vyper.codegen.lll_node import LLLnode
+from vyper.exceptions import VyperException
 from vyper.lll import compile_lll, optimizer
 
 from .base_conftest import VyperContract, _get_contract, zero_gas_price_strategy
@@ -208,3 +212,77 @@ def create2_address_of(keccak):
         return keccak(prefix + addr + salt + keccak(initcode))[12:]
 
     return _f
+
+
+@pytest.fixture
+def vyper_contract(request):
+
+    # Get the absolute path of the Vyper test file
+    caller_directory = os.path.split(request.fspath)[0]
+    contract_file_path = pathlib.Path(os.path.join(caller_directory, request.param))
+
+    with contract_file_path.open() as fh:
+        # trailing newline fixes python parsing bug when source ends in a comment
+        # https://bugs.python.org/issue35107
+        source_code = fh.read() + "\n"
+
+    custom_genesis = PyEVMBackend._generate_genesis_params(overrides={"gas_limit": 4500000})
+    custom_genesis["base_fee_per_gas"] = 0
+    backend = PyEVMBackend(genesis_parameters=custom_genesis)
+    tester = EthereumTester(backend=backend)
+    w3 = Web3(EthereumTesterProvider(tester))
+    w3.eth.set_gas_price_strategy(zero_gas_price_strategy)
+
+    contract = _get_contract(w3, source_code, "no_optimize")
+
+    return contract
+
+
+def pytest_collect_file(parent, path):
+    if path.ext == ".vy" and path.basename.startswith("test"):
+        return VyperFile.from_parent(parent, fspath=path)
+
+
+class VyperFile(pytest.File):
+    def collect(self):
+        filepath = str(self.fspath)
+        yield VyperTestItem.from_parent(self, name=filepath)
+
+
+class VyperTestItem(pytest.Item):
+    def __init__(self, name, parent):
+        super().__init__(name, parent)
+        self.test_condition = self.name[:-3].split("_")[-1]
+
+    def runtest(self):
+        try:
+
+            compile_files(
+                [self.fspath],
+                ("bytecode",),
+            )
+            self.test_result = "Success"
+
+        except VyperException as v:
+            self.test_result = v.__class__.__name__
+
+        except Exception:
+            self.test_result = "Fail"
+
+        if self.test_condition != self.test_result:
+            raise VyperTestException(self, self.name)
+
+    def repr_failure(self, excinfo):
+        if isinstance(excinfo.value, VyperTestException):
+            return (
+                f"Test failed : {self.name}\n"
+                f"Expected: {self.test_condition}\n"
+                f"Actual: {self.test_result}\n"
+            )
+
+    def reportinfo(self):
+        return self.fspath, 0, f"Vyper test file: {self.name}"
+
+
+class VyperTestException(Exception):
+    pass
