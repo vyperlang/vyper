@@ -152,6 +152,8 @@ class Context:
         self, name: str, typ: NodeType, var_size: int, is_internal: bool, is_mutable: bool = True
     ) -> int:
         if is_internal:
+            # TODO CMC 2022-03-02 change this to `.allocate_memory()`
+            # and make `expand_memory()` private.
             var_pos = self.memory_allocator.expand_memory(var_size)
         else:
             var_pos = self.memory_allocator.allocate_memory(var_size)

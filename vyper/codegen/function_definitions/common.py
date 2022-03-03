@@ -73,6 +73,10 @@ def generate_lll_for_function(
             sig=sig,
         )
 
+        if sig.is_init_func:
+            # reserve memory for immutables
+            memory_allocator.allocate_memory(global_ctx.immutable_section_bytes)
+
         if sig.internal:
             o = generate_lll_for_internal_function(code, sig, context)
         else:

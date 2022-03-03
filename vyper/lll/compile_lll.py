@@ -206,12 +206,24 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
             "POP",
         ]
     # Pass statements
+    # TODO remove "dummy"; no longer needed
     elif code.value in ("pass", "dummy"):
         return []
 
     # Code length
     elif code.value == "~codelen":
         return ["_sym_codeend"]
+
+    elif code.value == "~ctor_immutables":
+        # immutables are first variables allocated in ctor,
+        # see function_definitions/common.py
+
+        # n should be 1, but calculate it just for good measure
+        n = len(num_to_bytearray(MemoryPositions.RESERVED_MEMORY))
+        return [f"PUSH{n}", MemoryPositions.RESERVED_MEMORY]
+
+    elif code.value == "~runtime_immutables":
+        return ["_sym_runtimelen"]
 
     # Calldataload equivalent for code
     elif code.value == "codeload":
@@ -422,11 +434,12 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         o.append(lll)
 
         codelen = len(lll)
+        n = num_to_bytearray(codelen)
 
         o.extend([endcode, "JUMPDEST"])
-        o.extend(["PUSH2"] + num_to_bytearray(codelen) + ["DUP1"])
+        o.extend([f"PUSH{len(n)}"] + n + ["DUP1"])
         # stack: len len
-        o.append([begincode])
+        o.append(begincode)
         # stack: len len ofst
         o.extend(_compile_to_assembly(code.args[0], withargs, existing_labels, break_dest, height))
         # stack: len len ofst mem_ofst
@@ -871,8 +884,7 @@ def assembly_to_evm(assembly, start_pos=0):
     }
 
     posmap = {}
-    sub_assemblies = []
-    codes = []
+    runtime_code = None
     pos = start_pos
 
     # go through the code, resolving symbolic locations
@@ -910,8 +922,8 @@ def assembly_to_evm(assembly, start_pos=0):
             pos += 0
         elif isinstance(item, list):
             c, sub_map = assembly_to_evm(item, start_pos=pos)
-            sub_assemblies.append(item)
-            codes.append(c)
+            assert runtime_code is None, "Multiple subcodes"
+            runtime_code = c
             pos += len(c)
             for key in line_number_map:
                 line_number_map[key].update(sub_map[key])
@@ -919,6 +931,9 @@ def assembly_to_evm(assembly, start_pos=0):
             pos += 1
 
     posmap["_sym_codeend"] = pos - start_pos
+
+    if runtime_code is not None:
+        posmap["_sym_runtimelen"] = len(runtime_code)
 
     o = b""
     for i, item in enumerate(assembly):
@@ -940,10 +955,7 @@ def assembly_to_evm(assembly, start_pos=0):
         elif item == "BLANK":
             pass
         elif isinstance(item, list):
-            for j in range(len(sub_assemblies)):
-                if sub_assemblies[j] == item:
-                    o += codes[j]
-                    break
+            o += runtime_code
         else:
             # Should never reach because, assembly is create in _compile_to_assembly.
             raise Exception("Weird symbol in assembly: " + str(item))  # pragma: no cover
