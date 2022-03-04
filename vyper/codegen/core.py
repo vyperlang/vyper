@@ -248,7 +248,6 @@ def copy_bytes(dst, src, length, length_bound, pos=None):
             ret = LLLnode.from_list(copy_op, annotation=annotation, add_gas_estimate=gas_bound)
             return b1.resolve(b2.resolve(b3.resolve(ret)))
 
-
         if dst.location == "data" and src.location in ("memory", "data"):
             # TODO handle "calldata", "data" cases.
             if src.location == "memory":
@@ -257,7 +256,6 @@ def copy_bytes(dst, src, length, length_bound, pos=None):
                 gas_bound = _identity_gas_bound(length_bound)
             ret = LLLnode.from_list(copy_op, annotation=annotation, add_gas_estimate=gas_bound)
             return b1.resolve(b2.resolve(b3.resolve(ret)))
-
 
         # general case, copy word-for-word
         # pseudocode for our approach (memory-storage as example):

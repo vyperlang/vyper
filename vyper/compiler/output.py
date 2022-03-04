@@ -161,7 +161,7 @@ def build_layout_output(compiler_data: CompilerData) -> StorageLayout:
 def _build_asm(asm_list):
     output_string = ""
     in_push = 0
-    for i, node in enumerate(asm_list):
+    for node in asm_list:
 
         if isinstance(node, list):
             output_string += "[ " + _build_asm(node) + "] "

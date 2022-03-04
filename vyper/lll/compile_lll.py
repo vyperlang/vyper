@@ -231,7 +231,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
             raise Exception(f"Value too low: {code.value}")
         elif code.value >= 2 ** 256:
             raise Exception(f"Value too high: {code.value}")
-        return PUSH(code.value % 2**256)
+        return PUSH(code.value % 2 ** 256)
 
     # Variables connected to with statements
     elif isinstance(code.value, str) and code.value in withargs:
@@ -303,7 +303,6 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         o.extend(PUSH(4) + ["GAS", "STATICCALL"])
 
         return o
-
 
     # If statements (2 arguments, ie. if x: y)
     elif code.value == "if" and len(code.args) == 2:
@@ -499,8 +498,8 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         o.extend(["CODECOPY"])
 
         runtime_len = len(subcode) + padding  # include immutables in the runtime code
-        o.extend(PUSH(runtime_len)) # stack: len
-        o.extend(["_sym_deploy_start"]) # stack: mem_ofst
+        o.extend(PUSH(runtime_len))  # stack: len
+        o.extend(["_sym_deploy_start"])  # stack: mem_ofst
         o.extend(["RETURN"])
 
         # since the asm data structures are very primitive, to make sure
@@ -1011,7 +1010,7 @@ def assembly_to_evm(assembly, start_pos=0):
             else:
                 pos += 3  # PUSH2 highbits lowbits
         elif is_ofst(item):
-            assert is_symbol(assembly[i+1]) and isinstance(assembly[i+2], int)
+            assert is_symbol(assembly[i + 1]) and isinstance(assembly[i + 2], int)
             pos -= 1  # [_OFST, a, b] -> PUSH2 highbits(a+b) lowbits(a+b)
         elif item == "BLANK":
             pos += 0
@@ -1025,7 +1024,9 @@ def assembly_to_evm(assembly, start_pos=0):
             assert item[0] == "DEPLOY_MEM_OFST"
             ctor_mem_size = item[1]
 
-            runtime_code_start, runtime_code_end = _runtime_code_offsets(ctor_mem_size, len(runtime_code))
+            runtime_code_start, runtime_code_end = _runtime_code_offsets(
+                ctor_mem_size, len(runtime_code)
+            )
             assert runtime_code_end - runtime_code_start == len(runtime_code)
             pos += len(runtime_code)
             for key in line_number_map:

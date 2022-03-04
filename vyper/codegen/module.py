@@ -4,7 +4,6 @@ from typing import Any, List, Tuple, Union
 
 from vyper import ast as vy_ast
 from vyper.ast.signatures.function_signature import FunctionSignature, FunctionSignatures
-from vyper.codegen.core import make_setter
 from vyper.codegen.function_definitions import (
     generate_lll_for_function,
     is_default_func,
@@ -18,7 +17,7 @@ from vyper.exceptions import (
     StructureException,
 )
 from vyper.semantics.types.function import FunctionVisibility, StateMutability
-from vyper.utils import LOADED_LIMITS, MemoryPositions
+from vyper.utils import LOADED_LIMITS
 
 # TODO remove this check
 if not hasattr(vy_ast, "AnnAssign"):
