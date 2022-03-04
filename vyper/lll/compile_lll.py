@@ -510,7 +510,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         # since the asm data structures are very primitive, to make sure
         # assembly_to_evm is able to calculate data offsets correctly,
         # we pass the memsize via magic opcodes to the subcode
-        subcode = ["DEPLOY_MEM_OFST", memsize] + subcode
+        subcode = [f"_DEPLOY_MEM_OFST_{memsize}"] + subcode
 
         # append the runtime code after the ctor code
         o.extend([begincode, "BLANK"])
@@ -1019,15 +1019,15 @@ def assembly_to_evm(assembly, start_pos=0):
             pos -= 1  # [_OFST, a, b] -> PUSH2 highbits(a+b) lowbits(a+b)
         elif item == "BLANK":
             pos += 0
-        elif item == "DEPLOY_MEM_OFST":
-            # DEPLOY_MEM_OFST is followed by a single "opcode" which will
+        elif isinstance(item, str) and item.startswith("_DEPLOY_MEM_OFST_"):
+            # _DEPLOY_MEM_OFST is assembly magic which will
             # get removed during final assembly-to-bytecode
-            pos -= 1
+            pos += 0
         elif isinstance(item, list):
             assert runtime_code is None, "Multiple subcodes"
             runtime_code, sub_map = assembly_to_evm(item, start_pos=pos)
-            assert item[0] == "DEPLOY_MEM_OFST"
-            ctor_mem_size = item[1]
+            assert item[0].startswith("_DEPLOY_MEM_OFST_")
+            ctor_mem_size = int(item[0][len("_DEPLOY_MEM_OFST_") :])
 
             runtime_code_start, runtime_code_end = _runtime_code_offsets(
                 ctor_mem_size, len(runtime_code)
@@ -1057,8 +1057,7 @@ def assembly_to_evm(assembly, start_pos=0):
         if item in ("DEBUG", "BLANK"):
             continue  # skippable opcodes
 
-        elif item == "DEPLOY_MEM_OFST":
-            to_skip = 1
+        elif isinstance(item, str) and item.startswith("_DEPLOY_MEM_OFST_"):
             continue
 
         elif is_symbol(item):
