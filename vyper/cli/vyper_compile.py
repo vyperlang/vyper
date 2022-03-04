@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Dict, Iterable, Iterator, Set, TypeVar
 
 import vyper
+import vyper.codegen.lll_node as lll_node
 from vyper.cli import vyper_json
 from vyper.cli.utils import extract_file_interface_imports, get_interface_file_path
 from vyper.compiler.settings import VYPER_TRACEBACK_LIMIT
@@ -34,6 +35,7 @@ opcodes            - List of opcodes as a string
 opcodes_runtime    - List of runtime opcodes as a string
 ir                 - Intermediate representation in LLL
 ir_json            - Intermediate LLL representation in JSON format
+ir-hex             - Output IR and assembly constants in hex instead of decimal
 no-optimize        - Do not optimize (don't use this for production code)
 """
 
@@ -135,6 +137,10 @@ def _parse_args(argv):
         action="store_true",
     )
     parser.add_argument(
+        "--ir-hex",
+        action="store_true",
+    )
+    parser.add_argument(
         "-p", help="Set the root path for contract imports", default=".", dest="root_folder"
     )
     parser.add_argument("-o", help="Set the output path", dest="output_path")
@@ -152,6 +158,9 @@ def _parse_args(argv):
         # setting of zero so error printouts only include information about where
         # an error occurred in a Vyper source file.
         sys.tracebacklimit = 0
+
+    if args.ir_hex:
+        lll_node.AS_HEX_DEFAULT = True
 
     output_formats = tuple(uniq(args.format.split(",")))
 

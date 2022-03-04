@@ -173,6 +173,7 @@ VALID_LLL_MACROS = {
     "debugger",
     "ge",
     "if",
+    "select",
     "le",
     "lll",
     "ne",

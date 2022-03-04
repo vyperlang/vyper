@@ -1766,41 +1766,43 @@ class _MinMax:
                 return True
             return False
 
-        comparator = self._opcode
-        left, right = args[0], args[1]
-        if left.typ.typ == right.typ.typ:
-            if left.typ.typ != "uint256":
-                # if comparing like types that are not uint256, use SLT or SGT
-                comparator = f"s{comparator}"
-            o = ["if", [comparator, "_l", "_r"], "_r", "_l"]
-            otyp = left.typ
-            otyp.is_literal = False
-        elif _can_compare_with_uint256(left) and _can_compare_with_uint256(right):
-            o = ["if", [comparator, "_l", "_r"], "_r", "_l"]
-            if right.typ.typ == "uint256":
-                otyp = right.typ
-            else:
+        op = self._opcode
+
+        with args[0].cache_when_complex("_l") as (b1, left), args[1].cache_when_complex("_r") as (
+            b2,
+            right,
+        ):
+
+            if left.typ.typ == right.typ.typ:
+                if left.typ.typ != "uint256":
+                    # if comparing like types that are not uint256, use SLT or SGT
+                    op = f"s{op}"
+                o = ["select", [op, left, right], left, right]
                 otyp = left.typ
-            otyp.is_literal = False
-        else:
-            raise TypeMismatch(f"Minmax types incompatible: {left.typ.typ} {right.typ.typ}")
-        return LLLnode.from_list(
-            ["with", "_l", left, ["with", "_r", right, o]],
-            typ=otyp,
-            pos=getpos(expr),
-        )
+                otyp.is_literal = False
+
+            elif _can_compare_with_uint256(left) and _can_compare_with_uint256(right):
+                o = ["select", [op, left, right], left, right]
+                if right.typ.typ == "uint256":
+                    otyp = right.typ
+                else:
+                    otyp = left.typ
+                otyp.is_literal = False
+            else:
+                raise TypeMismatch(f"Minmax types incompatible: {left.typ.typ} {right.typ.typ}")
+            return LLLnode.from_list(b1.resolve(b2.resolve(o)), typ=otyp, pos=getpos(expr))
 
 
 class Min(_MinMax):
     _id = "min"
     _eval_fn = min
-    _opcode = "gt"
+    _opcode = "lt"
 
 
 class Max(_MinMax):
     _id = "max"
     _eval_fn = max
-    _opcode = "lt"
+    _opcode = "gt"
 
 
 class Sqrt(_SimpleBuiltinFunction):
