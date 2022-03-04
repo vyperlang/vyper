@@ -493,8 +493,8 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         o = []
 
         o.extend(PUSH(len(subcode)))  # stack: len
-        o.extend(["_sym_deploy_start"])  # stack: len mem_ofst
-        o.extend([begincode])  # stack: len mem_ofst code_ofst
+        o.extend([begincode])  # stack: len code_ofst
+        o.extend(["_sym_deploy_start"])  # stack: len code_ofst mem_ofst
         # COPY the code to memory for deploy
         o.extend(["CODECOPY"])
 
