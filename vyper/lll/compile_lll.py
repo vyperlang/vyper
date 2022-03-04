@@ -58,20 +58,30 @@ def is_symbol(i):
     return isinstance(i, str) and i.startswith("_sym_")
 
 
-def is_deploy_data_ofst(sym):
-    return isinstance(sym, str) and sym.startswith("_deploy_data_")
+def is_ofst(sym):
+    return isinstance(sym, str) and sym == "_OFST"
 
 
-def deploy_data_ofst(sym, t):
-    return int(sym[len("_deploy_data_"):])
+def _runtime_code_offsets(ctor_mem_size, runtime_codelen):
+    # we need two numbers to calculate where the runtime code
+    # should be copied to in memory (and making sure we don't
+    # trample immutables, which are written to during the ctor
+    # code): the memory allocated for the ctor and the length
+    # of the runtime code.
+    # after the ctor has run but before copying runtime code to
+    # memory, the layout is
+    # <ctor memory variables> ... | data section
+    # and after copying runtime code to memory (immediately before
+    # returning the runtime code):
+    # <runtime code>          ... | data section
+    # since the ctor memory variables and runtime code overlap,
+    # we start allocating the data section from
+    # `max(ctor_mem_size, runtime_code_size)`
 
+    runtime_code_end = max(ctor_mem_size, runtime_codelen)
+    runtime_code_start = runtime_code_end - runtime_codelen
 
-def is_data_ofst(sym):
-    return isinstance(sym, str) and sym.startswith("_data_codeend_")
-
-
-def data_ofst(sym, t):
-    return int(sym[len("_data_codeend_"):])
+    return runtime_code_start, runtime_code_end
 
 
 # temporary optimization to handle stack items for return sequences
@@ -191,7 +201,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
 
     def _data_ofst_of(loc, prefix):
         if isinstance(loc.value, int):
-            return [f"{prefix}_{loc.value}"]
+            return ["_OFST", prefix, loc.value]
         else:
             loc = _compile_to_assembly(loc, withargs, existing_labels, break_dest, height)
             return loc + [f"{prefix}_0", "ADD"]
@@ -250,7 +260,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         o = []
         # codecopy 32 bytes to FREE_VAR_SPACE, then mload from FREE_VAR_SPACE
         o.extend(PUSH(32))
-        o.extend(_data_ofst_of(loc, "_data_codeend"))
+        o.extend(_data_ofst_of(loc, "_sym_code_end"))
         o.extend(PUSH(MemoryPositions.FREE_VAR_SPACE) + ["CODECOPY"])
         o.extend(PUSH(MemoryPositions.FREE_VAR_SPACE) + ["MLOAD"])
         return o
@@ -262,7 +272,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
 
         o = []
         o.extend(_compile_to_assembly(len_, withargs, existing_labels, break_dest, height))
-        o.extend(_data_ofst_of(loc, "_data_codeend"))
+        o.extend(_data_ofst_of(loc, "_sym_code_end"))
         o.extend(["CODECOPY"])
         return o
 
@@ -272,7 +282,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         val = code.args[1]
 
         o = []
-        o.extend(_data_ofst_of(loc, "_deploy_data"))
+        o.extend(_data_ofst_of(loc, "_sym_deploy_end"))
         o.extend(_compile_to_assembly(val, withargs, existing_labels, break_dest, height))
         o.append("MSTORE")
 
@@ -287,7 +297,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         o = []
         # issue call to the identity precompile (staticcall gas 4 dst len src len)
         o.extend(_compile_to_assembly(len_, withargs, existing_labels, break_dest, height))
-        o.extend(_data_ofst_of(dst, "_deploy_data"))
+        o.extend(_data_ofst_of(dst, "_sym_deploy_end"))
         o.extend(["DUP2"])
         o.extend(_compile_to_assembly(src, withargs, existing_labels, break_dest, height))
         o.extend(PUSH(4) + ["GAS", "STATICCALL"])
@@ -471,13 +481,14 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
 
     # runtime statement (used to deploy runtime code)
     elif code.value == "deploy":
-        _memsz = code.args[0]  # used later to calculate _sym_deploy_start
+        memsize = code.args[0].value  # used later to calculate _sym_deploy_start
         lll = code.args[1]
         padding = code.args[2].value
+        assert isinstance(memsize, int), "non-int memsize"
         assert isinstance(padding, int), "non-int padding"
 
         begincode = mksymbol("runtime_begin")
-        subcode= _compile_to_assembly(lll, {}, existing_labels, None, 0)
+        subcode = _compile_to_assembly(lll, {}, existing_labels, None, 0)
 
         o = []
 
@@ -487,10 +498,15 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         # COPY the code to memory for deploy
         o.extend(["CODECOPY"])
 
-        runtime_len = len(lll) + padding  # include immutables in the runtime code
+        runtime_len = len(subcode) + padding  # include immutables in the runtime code
         o.extend(PUSH(runtime_len)) # stack: len
         o.extend(["_sym_deploy_start"]) # stack: mem_ofst
         o.extend(["RETURN"])
+
+        # since the asm data structures are very primitive, to make sure
+        # assembly_to_evm is able to calculate data offsets correctly,
+        # we pass the memsize via magic opcodes to the subcode
+        subcode = ["DEPLOY_MEM_OFST", memsize] + subcode
 
         # append the runtime code after the ctor code
         o.extend([begincode, "BLANK"])
@@ -960,7 +976,7 @@ def assembly_to_evm(assembly, start_pos=0):
     }
 
     posmap = {}
-    runtime_code = None
+    runtime_code, runtime_code_start, runtime_code_end = None, None, None
     pos = start_pos
 
     # go through the code, resolving symbolic locations
@@ -994,44 +1010,59 @@ def assembly_to_evm(assembly, start_pos=0):
                 posmap[item] = pos - start_pos
             else:
                 pos += 3  # PUSH2 highbits lowbits
-        elif is_deploy_data_ofst(item) or is_data_ofst(item):
-            pos += 3
+        elif is_ofst(item):
+            assert is_symbol(assembly[i+1]) and isinstance(assembly[i+2], int)
+            pos -= 1  # [_OFST, a, b] -> PUSH2 highbits(a+b) lowbits(a+b)
         elif item == "BLANK":
             pos += 0
+        elif item == "DEPLOY_MEM_OFST":
+            # DEPLOY_MEM_OFST is followed by a single "opcode" which will
+            # get removed during final assembly-to-bytecode
+            pos -= 1
         elif isinstance(item, list):
-            c, sub_map = assembly_to_evm(item, start_pos=pos)
-            ctor_memsize = item.args[0].value
-            assert isinstance(ctor_memsize, 0)
             assert runtime_code is None, "Multiple subcodes"
-            runtime_code = c
-            pos += len(c)
+            runtime_code, sub_map = assembly_to_evm(item, start_pos=pos)
+            assert item[0] == "DEPLOY_MEM_OFST"
+            ctor_mem_size = item[1]
+
+            runtime_code_start, runtime_code_end = _runtime_code_offsets(ctor_mem_size, len(runtime_code))
+            assert runtime_code_end - runtime_code_start == len(runtime_code)
+            pos += len(runtime_code)
             for key in line_number_map:
                 line_number_map[key].update(sub_map[key])
         else:
             pos += 1
 
     code_end = pos - start_pos
-
-    if runtime_code is not None:
-        # minor optimization to minimize mem expansion:
-        # start runtime code so it will end at max(ctor_memsize, len(runtime_code))
-        # (instead of starting it at ctor_memsize)
-        runtime_code_end = max(ctor_memsize, len(runtime_code))
-        runtime_code_start = runtime_code_end - len(runtime_code)
+    posmap["_sym_code_end"] = code_end
+    posmap["_sym_deploy_start"] = runtime_code_start
+    posmap["_sym_deploy_end"] = runtime_code_end
 
     o = b""
+
+    to_skip = 0
     for i, item in enumerate(assembly):
-        if item == "DEBUG":
-            continue  # skip debug
+        if to_skip > 0:
+            to_skip -= 1
+            continue
+
+        if item in ("DEBUG", "BLANK"):
+            continue  # skippable opcodes
+
+        elif item == "DEPLOY_MEM_OFST":
+            to_skip = 1
+            continue
+
         elif is_symbol(item):
             if assembly[i + 1] != "JUMPDEST" and assembly[i + 1] != "BLANK":
                 o += bytes([PUSH_OFFSET + 2, posmap[item] // 256, posmap[item] % 256])
-        elif is_deploy_data_ofst(item):
-            ofst = deploy_data_ofst(item, runtime_code_end)
+
+        elif is_ofst(item):
+            # _OFST _sym_foo 32
+            ofst = posmap[assembly[i + 1]] + assembly[i + 2]
             o += bytes([PUSH_OFFSET + 2, ofst // 256, ofst % 256])
-        elif is_data_ofst(item):
-            ofst = data_ofst(item, code_end)
-            o += bytes([PUSH_OFFSET + 2, ofst // 256, ofst % 256])
+            to_skip = 2
+
         elif isinstance(item, int):
             o += bytes([item])
         elif isinstance(item, str) and item.upper() in get_opcodes():
@@ -1042,8 +1073,6 @@ def assembly_to_evm(assembly, start_pos=0):
             o += bytes([DUP_OFFSET + int(item[3:])])
         elif item[:4] == "SWAP":
             o += bytes([SWAP_OFFSET + int(item[4:])])
-        elif item == "BLANK":
-            pass
         elif isinstance(item, list):
             o += runtime_code
         else:
