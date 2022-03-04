@@ -224,7 +224,7 @@ def parse_tree_to_lll(global_ctx: GlobalContext) -> Tuple[LLLnode, LLLnode, Func
     if global_ctx._contracts or global_ctx._interfaces:
         external_interfaces = parse_external_interfaces(external_interfaces, global_ctx)
 
-    # TODO: fix for #2251 is to move this after parse_regular_functions
+    init_func_lll = None
     if init_function:
         o.append(init_func_init_lll())
         init_func_lll, _frame_start, init_frame_size = generate_lll_for_function(
