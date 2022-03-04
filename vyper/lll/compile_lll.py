@@ -199,12 +199,16 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
     if not isinstance(withargs, dict):
         raise CompilerPanic(f"Incorrect type for withargs: {type(withargs)}")
 
-    def _data_ofst_of(loc, prefix):
-        if isinstance(loc.value, int):
-            return ["_OFST", prefix, loc.value]
+    def _data_ofst_of(sym, ofst):
+        # e.g. _OFST _sym_foo 32
+        assert is_symbol(sym)
+        if isinstance(ofst.value, int):
+            # resolve at compile time using magic _OFST op
+            return ["_OFST", sym, loc.value]
         else:
-            loc = _compile_to_assembly(loc, withargs, existing_labels, break_dest, height)
-            return loc + [f"{prefix}_0", "ADD"]
+            # if we can't resolve at compile time, resolve at runtime
+            ofst = _compile_to_assembly(ofst, withargs, existing_labels, break_dest, height)
+            return ofst + [sym, "ADD"]
 
     def _height_of(witharg):
         ret = height - withargs[witharg]
@@ -260,7 +264,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         o = []
         # codecopy 32 bytes to FREE_VAR_SPACE, then mload from FREE_VAR_SPACE
         o.extend(PUSH(32))
-        o.extend(_data_ofst_of(loc, "_sym_code_end"))
+        o.extend(_data_ofst_of("_sym_code_end", loc))
         o.extend(PUSH(MemoryPositions.FREE_VAR_SPACE) + ["CODECOPY"])
         o.extend(PUSH(MemoryPositions.FREE_VAR_SPACE) + ["MLOAD"])
         return o
@@ -272,7 +276,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
 
         o = []
         o.extend(_compile_to_assembly(len_, withargs, existing_labels, break_dest, height))
-        o.extend(_data_ofst_of(loc, "_sym_code_end"))
+        o.extend(_data_ofst_of("_sym_code_end", loc))
         o.extend(["CODECOPY"])
         return o
 
@@ -282,7 +286,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         val = code.args[1]
 
         o = []
-        o.extend(_data_ofst_of(loc, "_sym_deploy_end"))
+        o.extend(_data_ofst_of("_sym_deploy_end", loc))
         o.extend(_compile_to_assembly(val, withargs, existing_labels, break_dest, height))
         o.append("MSTORE")
 
@@ -297,7 +301,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         o = []
         # issue call to the identity precompile (staticcall gas 4 dst len src len)
         o.extend(_compile_to_assembly(len_, withargs, existing_labels, break_dest, height))
-        o.extend(_data_ofst_of(dst, "_sym_deploy_end"))
+        o.extend(_data_ofst_of("_sym_deploy_end", dst))
         o.extend(["DUP2"])
         o.extend(_compile_to_assembly(src, withargs, existing_labels, break_dest, height))
         o.extend(PUSH(4) + ["GAS", "STATICCALL"])
