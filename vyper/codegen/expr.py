@@ -550,10 +550,10 @@ class Expr:
                 )
 
         ltyp, rtyp = left.typ.typ, right.typ.typ
-        if ltyp != rtyp:
-            # Sanity check - ensure that we aren't dealing with different types
-            # This should be unreachable due to the type check pass
-            return
+
+        # Sanity check - ensure that we aren't dealing with different types
+        # This should be unreachable due to the type check pass
+        assert ltyp == rtyp, "unreachable"
 
         arith = None
         if isinstance(self.expr.op, (vy_ast.Add, vy_ast.Sub)):

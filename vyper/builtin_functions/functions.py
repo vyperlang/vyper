@@ -36,6 +36,7 @@ from vyper.codegen.types import (
     StringType,
     TupleType,
     is_base_type,
+    parse_integer_typeinfo,
 )
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
@@ -1606,6 +1607,7 @@ class Abs(_SimpleBuiltinFunction):
             [
                 "if",
                 ["slt", "orig", 0],
+                # CMC 2022-02-05 pretty sure this assertion is pointless.
                 ["seq", ["assert", ["ne", "orig", ["sub", 0, "orig"]]], ["sub", 0, "orig"]],
                 "orig",
             ],
@@ -1718,6 +1720,68 @@ class CreateForwarderTo(_SimpleBuiltinFunction):
             pos=getpos(expr),
             add_gas_estimate=11000,
         )
+
+
+class _UnsafeMath:
+
+    # TODO add unsafe math for `decimal`s
+    _inputs = [("a", IntegerAbstractType()), ("b", IntegerAbstractType())]
+
+    def fetch_call_return(self, node):
+        validate_call_args(node, 2)
+
+        types_list = get_common_types(
+            *node.args, filter_fn=lambda x: isinstance(x, IntegerAbstractType)
+        )
+        if not types_list:
+            raise TypeMismatch(f"unsafe_{self.op} called on dislike types", node)
+
+        return types_list.pop()
+
+    @validate_inputs
+    def build_LLL(self, expr, args, kwargs, context):
+        (a, b) = args
+        op = self.op
+
+        assert a.typ == b.typ, "unreachable"
+
+        otyp = a.typ
+
+        int_info = parse_integer_typeinfo(a.typ.typ)
+        if op == "div" and int_info.is_signed:
+            op = "sdiv"
+
+        ret = [op, a, b]
+
+        if int_info.bits < 256:
+            # wrap for ops which could under/overflow
+            if int_info.is_signed:
+                # e.g. int128 -> (signextend 15 (add x y))
+                ret = ["signextend", int_info.bits // 8 - 1, ret]
+            else:
+                # e.g. uint8 -> (mod (add x y) 256)
+                # TODO mod_bound could be a really large literal
+                ret = ["mod", ret, 2 ** int_info.bits]
+
+        return LLLnode.from_list(ret, typ=otyp)
+
+        # TODO handle decimal case
+
+
+class UnsafeAdd(_UnsafeMath):
+    op = "add"
+
+
+class UnsafeSub(_UnsafeMath):
+    op = "sub"
+
+
+class UnsafeMul(_UnsafeMath):
+    op = "mul"
+
+
+class UnsafeDiv(_UnsafeMath):
+    op = "div"
 
 
 class _MinMax:
@@ -2047,6 +2111,10 @@ DISPATCH_TABLE = {
     "bitwise_not": BitwiseNot(),
     "uint256_addmod": AddMod(),
     "uint256_mulmod": MulMod(),
+    "unsafe_add": UnsafeAdd(),
+    "unsafe_sub": UnsafeSub(),
+    "unsafe_mul": UnsafeMul(),
+    "unsafe_div": UnsafeDiv(),
     "pow_mod256": PowMod256(),
     "sqrt": Sqrt(),
     "shift": Shift(),
