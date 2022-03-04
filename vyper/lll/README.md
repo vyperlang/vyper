@@ -300,7 +300,7 @@ Compare or equal
 `(ne x y)` is equivalent to `(iszero (eq x y))`
 
 ### SELECT
-`(select cond x y)` is similar to `(if cond x y)` but it may evaluate both branches. It is analogous to LLVM `select` and is intended to compile to branchless code.
+`(select cond x y)` is similar to `(if cond x y)` but it may evaluate both branches. Whether or not both branches are taken is unspecified. It is analogous to LLVM `select` and is intended to compile to branchless code.
 
 ### CLAMP\*
 
