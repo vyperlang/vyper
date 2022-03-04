@@ -572,6 +572,26 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
             ]
         )
         return o
+    elif code.value == "select":
+        # b ^ ((a ^ b) * cond) where cond is 1 or 0
+        # let t = a ^ b
+        cond = code.args[0]
+        a = code.args[1]
+        b = code.args[2]
+
+        o = []
+        o.extend(_compile_to_assembly(b, withargs, existing_labels, break_dest, height))
+        o.extend(_compile_to_assembly(a, withargs, existing_labels, break_dest, height + 1))
+        # stack: b a
+        o.extend(["DUP2", "XOR"])
+        # stack: b t
+        o.extend(_compile_to_assembly(cond, withargs, existing_labels, break_dest, height + 2))
+        # stack: b t cond
+        o.extend(["MUL", "XOR"])
+
+        # stack: b ^ (t * cond)
+        return o
+
     # <= operator
     elif code.value == "le":
         return _compile_to_assembly(

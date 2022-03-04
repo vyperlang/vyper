@@ -299,6 +299,9 @@ Compare or equal
 
 `(ne x y)` is equivalent to `(iszero (eq x y))`
 
+### SELECT
+`(select cond x y)` is similar to `(if cond x y)` but it may evaluate both branches. It is analogous to LLVM `select` and is intended to compile to branchless code.
+
 ### CLAMP\*
 
 Clamp pseudo-opcodes ensure that an input is bounded by some other input(s), and returns its first input.
