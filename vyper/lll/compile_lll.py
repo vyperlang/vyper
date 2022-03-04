@@ -288,10 +288,8 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         val = code.args[1]
 
         o = []
-        o.extend(_data_ofst_of("_sym_deploy_end", loc, height))
-        o.extend(
-            _compile_to_assembly(val, withargs, existing_labels, break_dest, height=height + 1)
-        )
+        o.extend(_compile_to_assembly(val, withargs, existing_labels, break_dest, height))
+        o.extend(_data_ofst_of("_sym_deploy_end", loc, height + 1))
         o.append("MSTORE")
 
         return o
