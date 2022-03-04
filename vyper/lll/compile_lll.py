@@ -271,12 +271,14 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
 
     # batch copy from data section of the code to memory
     elif code.value == "dloadbytes":
-        loc = code.args[0]
-        len_ = code.args[1]
+        dst = code.args[0]
+        src = code.args[1]
+        len_ = code.args[2]
 
         o = []
         o.extend(_compile_to_assembly(len_, withargs, existing_labels, break_dest, height))
-        o.extend(_data_ofst_of("_sym_code_end", loc))
+        o.extend(_data_ofst_of("_sym_code_end", src))
+        o.extend(_compile_to_assembly(dst, withargs, existing_labels, break_dest, height))
         o.extend(["CODECOPY"])
         return o
 
