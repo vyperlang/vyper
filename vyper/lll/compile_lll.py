@@ -497,15 +497,12 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
 
         o = []
 
-        o.extend(PUSH(len(subcode)))  # stack: len
-        o.extend([begincode])  # stack: len code_ofst
-        o.extend(["_sym_deploy_start"])  # stack: len code_ofst mem_ofst
         # COPY the code to memory for deploy
-        o.extend(["CODECOPY"])
+        o.extend(["_sym_subcode_size", begincode, "_sym_deploy_start", "CODECOPY"])
 
-        runtime_len = len(subcode) + padding  # include immutables in the runtime code
-        o.extend(PUSH(runtime_len))  # stack: len
-        o.extend(["_sym_deploy_start"])  # stack: mem_ofst
+        # calculate the len of runtime code
+        o.extend(["_sym_subcode_size"] + PUSH(padding) + ["ADD"])  # stack: len
+        o.extend(["_sym_deploy_start"])  # stack: len mem_ofst
         o.extend(["RETURN"])
 
         # since the asm data structures are very primitive, to make sure
@@ -1044,6 +1041,8 @@ def assembly_to_evm(assembly, start_pos=0):
     posmap["_sym_code_end"] = code_end
     posmap["_sym_deploy_start"] = runtime_code_start
     posmap["_sym_deploy_end"] = runtime_code_end
+    if runtime_code is not None:
+        posmap["_sym_subcode_size"] = len(runtime_code)
 
     o = b""
 
