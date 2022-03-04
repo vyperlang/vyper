@@ -33,7 +33,7 @@ def foo(x: {typ}, y: {typ}) -> {typ}:
     c = get_contract(code)
 
     lo, hi = int_bounds(int_info.is_signed, int_info.bits)
-    NUM_CASES = 50  # any more than this and fuzzer takes too long
+    NUM_CASES = 33  # any more than this and fuzzer takes too long
     xs = [random.randrange(lo, hi) for _ in range(NUM_CASES)]
     ys = [random.randrange(lo, hi) for _ in range(NUM_CASES)]
 
