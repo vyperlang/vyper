@@ -187,7 +187,6 @@ PSEUDO_OPCODES: OpcodeMap = {
     "UCLAMPLT": (None, 2, 1, 25),
     "UCLAMPLE": (None, 2, 1, 30),
     "CLAMP_NONZERO": (None, 1, 1, 19),
-    "CODELOAD": (None, 1, 1, 9),
     "ASSERT": (None, 1, 0, 85),
     "ASSERT_UNREACHABLE": (None, 1, 0, 17),
     "PASS": (None, 0, 0, 0),
@@ -206,6 +205,10 @@ PSEUDO_OPCODES: OpcodeMap = {
     "SET": (None, 2, 0, 20),
     "NE": (None, 2, 1, 6),
     "DEBUGGER": (None, 0, 0, 0),
+    "DLOAD": (None, 1, 1, 9),
+    "DSTORE": (None, 2, 0, 9),
+    "DLOADBYTES": (None, 3, 0, 3),
+    "DSTOREBYTES": (None, 3, 0, 3),
 }
 
 LLL_OPCODES: OpcodeMap = {**OPCODES, **PSEUDO_OPCODES}

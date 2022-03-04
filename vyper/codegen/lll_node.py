@@ -242,10 +242,9 @@ class LLLnode:
                     )
                 self.valency = sum([arg.valency for arg in self.args])
                 self.gas = sum([arg.gas for arg in self.args])
-            # LLL brackets (don't bother gas counting)
-            elif self.value == "lll":
-                self.valency = 1
-                self.gas = NullAttractor()
+            elif self.value == "deploy":
+                self.valency = 0
+                self.gas = NullAttractor()  # unknown
             # Stack variables
             else:
                 self.valency = 1
