@@ -38,6 +38,16 @@ def PUSH(x):
     return [f"PUSH{len(bs)}"] + bs
 
 
+# push an exact number of bytes
+def PUSH_N(x, n):
+    o = []
+    for i in range(n):
+        o.insert(0, x % 256)
+        x //= 256
+    assert x == 0
+    return [f"PUSH{len(o)}"] + o
+
+
 _next_symbol = 0
 
 
@@ -56,6 +66,13 @@ def mkdebug(pc_debugger, pos):
 
 def is_symbol(i):
     return isinstance(i, str) and i.startswith("_sym_")
+
+
+# basically something like a symbol which gets resolved
+# during assembly, but requires 4 bytes of space.
+# (should only happen in deploy code)
+def is_mem_sym(i):
+    return isinstance(i, str) and i.startswith("_mem_")
 
 
 def is_ofst(sym):
@@ -201,7 +218,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
 
     def _data_ofst_of(sym, ofst, height_):
         # e.g. _OFST _sym_foo 32
-        assert is_symbol(sym)
+        assert is_symbol(sym) or is_mem_sym(sym)
         if isinstance(ofst.value, int):
             # resolve at compile time using magic _OFST op
             return ["_OFST", sym, ofst.value]
@@ -289,7 +306,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
 
         o = []
         o.extend(_compile_to_assembly(val, withargs, existing_labels, break_dest, height))
-        o.extend(_data_ofst_of("_sym_deploy_end", loc, height + 1))
+        o.extend(_data_ofst_of("_mem_deploy_end", loc, height + 1))
         o.append("MSTORE")
 
         return o
@@ -303,7 +320,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         o = []
         # issue call to the identity precompile (staticcall gas 4 dst len src len)
         o.extend(_compile_to_assembly(len_, withargs, existing_labels, break_dest, height))
-        o.extend(_data_ofst_of("_sym_deploy_end", dst, height + 1))
+        o.extend(_data_ofst_of("_mem_deploy_end", dst, height + 1))
         o.extend(["DUP2"])
         o.extend(_compile_to_assembly(src, withargs, existing_labels, break_dest, height + 3))
         o.extend(PUSH(4) + ["GAS", "STATICCALL"])
@@ -486,7 +503,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
 
     # runtime statement (used to deploy runtime code)
     elif code.value == "deploy":
-        memsize = code.args[0].value  # used later to calculate _sym_deploy_start
+        memsize = code.args[0].value  # used later to calculate _mem_deploy_start
         lll = code.args[1]
         padding = code.args[2].value
         assert isinstance(memsize, int), "non-int memsize"
@@ -498,11 +515,11 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         o = []
 
         # COPY the code to memory for deploy
-        o.extend(["_sym_subcode_size", begincode, "_sym_deploy_start", "CODECOPY"])
+        o.extend(["_sym_subcode_size", begincode, "_mem_deploy_start", "CODECOPY"])
 
         # calculate the len of runtime code
         o.extend(["_sym_subcode_size"] + PUSH(padding) + ["ADD"])  # stack: len
-        o.extend(["_sym_deploy_start"])  # stack: len mem_ofst
+        o.extend(["_mem_deploy_start"])  # stack: len mem_ofst
         o.extend(["RETURN"])
 
         # since the asm data structures are very primitive, to make sure
@@ -761,6 +778,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
             o.extend(_compile_to_assembly(c, withargs, existing_labels, break_dest, height + i))
         o.extend(["_sym_" + str(code.args[0]), "JUMP"])
         return o
+    # push a literal symbol
     elif isinstance(code.value, str) and is_symbol(code.value):
         return [code.value]
     # set a symbol as a location.
@@ -1012,9 +1030,14 @@ def assembly_to_evm(assembly, start_pos=0):
                 posmap[item] = pos - start_pos
             else:
                 pos += 3  # PUSH2 highbits lowbits
+        elif is_mem_sym(item):
+            pos += 5  # PUSH4 item
         elif is_ofst(item):
-            assert is_symbol(assembly[i + 1]) and isinstance(assembly[i + 2], int)
-            pos -= 1  # [_OFST, a, b] -> PUSH2 highbits(a+b) lowbits(a+b)
+            assert is_symbol(assembly[i + 1]) or is_mem_sym(assembly[i + 1])
+            assert isinstance(assembly[i + 2], int)
+            # [_OFST, _sym_foo, bar] -> PUSH2 (foo+bar)
+            # [_OFST, _mem_foo, bar] -> PUSH4 (foo+bar)
+            pos -= 1
         elif item == "BLANK":
             pos += 0
         elif isinstance(item, str) and item.startswith("_DEPLOY_MEM_OFST_"):
@@ -1039,8 +1062,8 @@ def assembly_to_evm(assembly, start_pos=0):
 
     code_end = pos - start_pos
     posmap["_sym_code_end"] = code_end
-    posmap["_sym_deploy_start"] = runtime_code_start
-    posmap["_sym_deploy_end"] = runtime_code_end
+    posmap["_mem_deploy_start"] = runtime_code_start
+    posmap["_mem_deploy_end"] = runtime_code_end
     if runtime_code is not None:
         posmap["_sym_subcode_size"] = len(runtime_code)
 
@@ -1060,12 +1083,19 @@ def assembly_to_evm(assembly, start_pos=0):
 
         elif is_symbol(item):
             if assembly[i + 1] != "JUMPDEST" and assembly[i + 1] != "BLANK":
-                o += bytes([PUSH_OFFSET + 2, posmap[item] // 256, posmap[item] % 256])
+                bytecode, _ = assembly_to_evm(PUSH_N(posmap[item], n=2))
+                o += bytecode
+
+        elif is_mem_sym(item):
+            bytecode, _ = assembly_to_evm(PUSH_N(posmap[item], n=4))
+            o += bytecode
 
         elif is_ofst(item):
             # _OFST _sym_foo 32
             ofst = posmap[assembly[i + 1]] + assembly[i + 2]
-            o += bytes([PUSH_OFFSET + 2, ofst // 256, ofst % 256])
+            n = 4 if is_mem_sym(assembly[i + 1]) else 2
+            bytecode, _ = assembly_to_evm(PUSH_N(ofst, n))
+            o += bytecode
             to_skip = 2
 
         elif isinstance(item, int):
