@@ -322,13 +322,15 @@ class Expr:
 
             if self.context.sig.is_init_func:
                 mutable = True
+                location = "immutables"
             else:
                 mutable = False
+                location = "data"
 
             return LLLnode.from_list(
                 ofst,
                 typ=var.typ,
-                location="data",
+                location=location,
                 pos=getpos(self.expr),
                 annotation=self.expr.id,
                 mutable=mutable,

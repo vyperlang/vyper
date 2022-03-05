@@ -274,7 +274,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
     elif code.value in ("pass", "dummy"):
         return []
 
-    # "mload" from data section of the code
+    # "mload" from data section of the currently executing code
     elif code.value == "dload":
         loc = code.args[0]
 
@@ -286,7 +286,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         o.extend(PUSH(MemoryPositions.FREE_VAR_SPACE) + ["MLOAD"])
         return o
 
-    # batch copy from data section of the code to memory
+    # batch copy from data section of the currently executing code to memory
     elif code.value == "dloadbytes":
         dst = code.args[0]
         src = code.args[1]
@@ -299,8 +299,18 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         o.extend(["CODECOPY"])
         return o
 
-    # "mstore" to the data section of runtime code
-    elif code.value == "dstore":
+    # "mload" from the data section of (to-be-deployed) runtime code
+    elif code.value == "iload":
+        loc = code.args[0]
+
+        o = []
+        o.extend(_data_ofst_of("_mem_deploy_end", loc, height))
+        o.append("MLOAD")
+
+        return o
+
+    # "mstore" to the data section of (to-be-deployed) runtime code
+    elif code.value == "istore":
         loc = code.args[0]
         val = code.args[1]
 
@@ -312,20 +322,8 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         return o
 
     # batch copy from memory to the data section of runtime code
-    elif code.value == "dstorebytes":
-        dst = code.args[0]
-        src = code.args[1]
-        len_ = code.args[2]
-
-        o = []
-        # issue call to the identity precompile (staticcall gas 4 dst len src len)
-        o.extend(_compile_to_assembly(len_, withargs, existing_labels, break_dest, height))
-        o.extend(_data_ofst_of("_mem_deploy_end", dst, height + 1))
-        o.extend(["DUP2"])
-        o.extend(_compile_to_assembly(src, withargs, existing_labels, break_dest, height + 3))
-        o.extend(PUSH(4) + ["GAS", "STATICCALL"])
-
-        return o
+    elif code.value == "istorebytes":
+        raise Exception("unimplemented")
 
     # If statements (2 arguments, ie. if x: y)
     elif code.value == "if" and len(code.args) == 2:

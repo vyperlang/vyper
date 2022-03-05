@@ -205,10 +205,10 @@ PSEUDO_OPCODES: OpcodeMap = {
     "SET": (None, 2, 0, 20),
     "NE": (None, 2, 1, 6),
     "DEBUGGER": (None, 0, 0, 0),
+    "ILOAD": (None, 1, 1, 6),
+    "ISTORE": (None, 2, 0, 6),
     "DLOAD": (None, 1, 1, 9),
-    "DSTORE": (None, 2, 0, 9),
     "DLOADBYTES": (None, 3, 0, 3),
-    "DSTOREBYTES": (None, 3, 0, 3),
 }
 
 LLL_OPCODES: OpcodeMap = {**OPCODES, **PSEUDO_OPCODES}

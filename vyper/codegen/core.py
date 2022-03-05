@@ -115,7 +115,7 @@ def make_byte_array_copier(dst, src, pos=None):
 
 # TODO maybe move me to types.py
 def wordsize(location):
-    if location in ("memory", "calldata", "data"):
+    if location in ("memory", "calldata", "data", "immutables"):
         return 32
     if location == "storage":
         return 1
@@ -234,6 +234,7 @@ def copy_bytes(dst, src, length, length_bound, pos=None):
 
         if dst.location == "memory" and src.location in ("memory", "calldata", "data"):
             # special cases: batch copy to memory
+            # TODO: iloadbytes
             if src.location == "memory":
                 copy_op = ["staticcall", "gas", 4, src, length, dst, length]
                 gas_bound = _identity_gas_bound(length_bound)
@@ -248,14 +249,10 @@ def copy_bytes(dst, src, length, length_bound, pos=None):
             ret = LLLnode.from_list(copy_op, annotation=annotation, add_gas_estimate=gas_bound)
             return b1.resolve(b2.resolve(b3.resolve(ret)))
 
-        if dst.location == "data" and src.location in ("memory", "data"):
-            # TODO handle "calldata", "data" cases.
-            if src.location == "memory":
-                copy_op = ["dstorebytes", dst, src, length]
-                # note: dstorebytes compiles to identity precompile
-                gas_bound = _identity_gas_bound(length_bound)
-            ret = LLLnode.from_list(copy_op, annotation=annotation, add_gas_estimate=gas_bound)
-            return b1.resolve(b2.resolve(b3.resolve(ret)))
+        if dst.location == "immutables" and src.location in ("memory", "data"):
+            # TODO istorebytes-from-mem, istorebytes-from-calldata(?)
+            # compile to identity, CODECOPY respectively.
+            pass
 
         # general case, copy word-for-word
         # pseudocode for our approach (memory-storage as example):
@@ -269,14 +266,14 @@ def copy_bytes(dst, src, length, length_bound, pos=None):
 
         i = LLLnode.from_list(_freshname("copy_bytes_ix"), typ="uint256")
 
-        if src.location in ("memory", "calldata", "data"):
+        if src.location in ("memory", "calldata", "data", "immutables"):
             loader = [load_op(src.location), ["add", src, _mul(32, i)]]
         elif src.location == "storage":
             loader = [load_op(src.location), ["add", src, i]]
         else:
             raise CompilerPanic(f"Unsupported location: {src.location}")  # pragma: notest
 
-        if dst.location in ("memory", "data"):
+        if dst.location in ("memory", "immutables"):
             setter = [store_op(dst.location), ["add", dst, _mul(32, i)], loader]
         elif dst.location == "storage":
             setter = ["sstore", ["add", dst, i], loader]
@@ -464,7 +461,7 @@ def _get_element_ptr_tuplelike(parent, key, pos):
     if parent.location == "storage":
         for i in range(index):
             ofst += typ.members[attrs[i]].storage_size_in_words
-    elif parent.location in ("calldata", "memory", "data"):
+    elif parent.location in ("calldata", "memory", "data", "immutables"):
         for i in range(index):
             ofst += typ.members[attrs[i]].memory_bytes_required
     else:
@@ -532,7 +529,7 @@ def _get_element_ptr_array(parent, key, pos, array_bounds_check):
 
     if parent.location == "storage":
         element_size = subtype.storage_size_in_words
-    elif parent.location in ("calldata", "memory", "data"):
+    elif parent.location in ("calldata", "memory", "data", "immutables"):
         element_size = subtype.memory_bytes_required
 
     ofst = _mul(ix, element_size)
@@ -589,7 +586,12 @@ def load_op(location):
     if location == "calldata":
         return "calldataload"
     if location == "data":
+        # refers to data section of currently executing code
         return "dload"
+    if location == "immutables":
+        # special address space for manipulating immutables before deploy
+        # only makes sense in a constructor
+        return "iload"
     raise CompilerPanic(f"unreachable {location}")  # pragma: notest
 
 
@@ -598,14 +600,14 @@ def store_op(location):
         return "mstore"
     if location == "storage":
         return "sstore"
-    if location == "data":
-        return "dstore"
+    if location == "immutables":
+        return "istore"
     raise CompilerPanic(f"unreachable {location}")  # pragma: notest
 
 
 # Unwrap location
 def unwrap_location(orig):
-    if orig.location in ("memory", "storage", "calldata", "data"):
+    if orig.location in ("memory", "storage", "calldata", "data", "immutables"):
         return LLLnode.from_list([load_op(orig.location), orig], typ=orig.typ)
     else:
         # CMC 20210909 TODO double check if this branch can be removed
