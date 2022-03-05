@@ -41,7 +41,7 @@ def PUSH(x):
 # push an exact number of bytes
 def PUSH_N(x, n):
     o = []
-    for i in range(n):
+    for _i in range(n):
         o.insert(0, x % 256)
         x //= 256
     assert x == 0
