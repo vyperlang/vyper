@@ -7,7 +7,8 @@ from vyper.codegen.stmt import parse_body
 def _strip_pos(lll_node):
     lll_node.pos = None
     for x in lll_node.args:
-        strip_pos(x)
+        _strip_pos(x)
+
 
 def generate_inline_function(code, variables, memory_allocator):
     ast_code = parse_to_ast(code)
