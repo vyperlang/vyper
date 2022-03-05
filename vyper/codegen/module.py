@@ -236,17 +236,16 @@ def parse_tree_to_lll(global_ctx: GlobalContext) -> Tuple[LLLnode, LLLnode, Func
     else:
         # for some reason, somebody may want to deploy a contract with no code,
         # or more likely, a "pure data" contract which contains immutables
-        runtime = ["seq"]
+        runtime = LLLnode.from_list(["seq"])
 
     immutables_len = global_ctx.immutable_section_bytes
 
     if init_function:
-        memsize = init_func_lll.context.memory_allocator.size_of_mem
+        memsize = init_func_lll.context.memory_allocator.size_of_mem  # type: ignore
     else:
         memsize = 0
 
     # note: (deploy mem_ofst, code, extra_padding)
-    o.append(["deploy", memsize, runtime, immutables_len])
-
+    o.append(["deploy", memsize, runtime, immutables_len])  # type: ignore
 
     return LLLnode.from_list(o), LLLnode.from_list(runtime), sigs
