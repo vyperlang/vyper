@@ -1607,7 +1607,7 @@ class Abs(_SimpleBuiltinFunction):
             [
                 "if",
                 ["slt", "orig", 0],
-                # CMC 2022-02-05 pretty sure this assertion is pointless.
+                # check orig != -2**255 (0 - (-2**255) == -2**255)
                 ["seq", ["assert", ["ne", "orig", ["sub", 0, "orig"]]], ["sub", 0, "orig"]],
                 "orig",
             ],

@@ -20,7 +20,11 @@ from vyper.abi_types import (
     ABIType,
 )
 from vyper.exceptions import ArgumentException, CompilerPanic, InvalidType
-from vyper.utils import BASE_TYPES, ceil32
+from vyper.utils import ceil32
+
+
+# Available base types
+BASE_TYPES = {"int128", "int256", "decimal", "bytes32", "uint8", "uint256", "bool", "address"}
 
 
 # Data structure for a type
@@ -437,16 +441,6 @@ def get_type_for_exact_size(n_bytes):
     return ByteArrayType(n_bytes - 32 * DYNAMIC_ARRAY_OVERHEAD)
 
 
-def get_type(input):
-    if not hasattr(input, "typ"):
-        typ, len = "num_literal", 32
-    elif hasattr(input.typ, "maxlen"):
-        typ, len = "Bytes", input.typ.maxlen
-    else:
-        typ, len = input.typ.typ, 32
-    return typ, len
-
-
 # Is a type representing a number?
 def is_numeric_type(typ):
     return isinstance(typ, BaseType) and typ.typ in (
@@ -469,3 +463,6 @@ def is_base_type(typ, btypes):
     if not isinstance(btypes, tuple):
         btypes = (btypes,)
     return isinstance(typ, BaseType) and typ.typ in btypes
+
+
+

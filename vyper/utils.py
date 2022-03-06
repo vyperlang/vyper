@@ -235,9 +235,6 @@ VALID_LLL_MACROS = {
     "var_list",
 }
 
-# Available base types
-BASE_TYPES = {"int128", "int256", "decimal", "bytes32", "uint8", "uint256", "bool", "address"}
-
 
 def indent(text: str, indent_chars: Union[str, List[str]] = " ", level: int = 1) -> str:
     """
