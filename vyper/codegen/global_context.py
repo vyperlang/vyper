@@ -236,6 +236,10 @@ class GlobalContext:
             custom_structs=self._structs,
         )
 
+    @property
+    def immutables(self):
+        return [t for t in self._globals.values() if t.is_immutable]
+
     @cached_property
-    def immutable_section_size(self):
-        return sum([imm.size * 32 for imm in self._globals.values() if imm.is_immutable])
+    def immutable_section_bytes(self):
+        return sum([imm.size * 32 for imm in self.immutables])

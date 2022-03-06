@@ -564,7 +564,7 @@ class Concat:
                 if arg.typ.maxlen == 0:
                     continue
                 # Get the length of the current argument
-                if arg.location in ("memory", "calldata", "code"):
+                if arg.location in ("memory", "calldata", "data", "immutables"):
                     length = LLLnode.from_list(
                         [load_op(arg.location), "_arg"], typ=BaseType("int128")
                     )

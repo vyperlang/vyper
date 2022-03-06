@@ -174,11 +174,9 @@ def _build_asm(asm_list):
                 output_string += " "
             in_push -= 1
         else:
-            assert isinstance(node, str), node
+            output_string += str(node) + " "
 
-            output_string += node + " "
-
-            if node.startswith("PUSH"):
+            if isinstance(node, str) and node.startswith("PUSH"):
                 assert in_push == 0
                 in_push = int(node[4:])
                 output_string += "0x"
