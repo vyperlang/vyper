@@ -427,20 +427,6 @@ def replace_constant(
             if assign and node in assign.target.get_descendants(include_self=True):
                 continue
 
-        if isinstance(parent, vy_ast.Attribute) and is_struct:
-            if not parent_attribute_ids:
-                # Skip if accessing attribute of struct but parent attributes
-                # are not provided
-                continue
-
-            node = _get_struct_attribute_root_node(
-                parent,
-                parent_attribute_ids,
-            )
-
-            if not node:
-                continue
-
         try:
             new_node = _replace(node, replacement_node, type_=type_)
         except UnfoldableNode:
