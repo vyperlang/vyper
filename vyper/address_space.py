@@ -48,6 +48,7 @@ class AddrSpace:
 
 MEMORY = AddrSpace("memory", 32, "mload", "mstore")
 STORAGE = AddrSpace("storage", 1, "sload", "sstore")
+TRANSIENT = AddrSpace("transient", 1, "tload", "tstore")
 CALLDATA = AddrSpace("calldata", 32, "calldataload")
 # immutables address space: "immutables" section of memory
 # which is read-write in deploy code but then gets turned into

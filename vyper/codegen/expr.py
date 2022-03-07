@@ -3,7 +3,7 @@ import math
 
 import vyper.codegen.arithmetic as arithmetic
 from vyper import ast as vy_ast
-from vyper.address_space import DATA, IMMUTABLES, MEMORY, STORAGE
+from vyper.address_space import DATA, IMMUTABLES, MEMORY, STORAGE, TRANSIENT
 from vyper.codegen import external_call, self_call
 from vyper.codegen.core import (
     clamp,
@@ -261,10 +261,11 @@ class Expr:
         elif isinstance(self.expr.value, vy_ast.Name) and self.expr.value.id == "self":
             type_ = self.expr._metadata["type"]
             var = self.context.globals[self.expr.attr]
+            location = TRANSIENT if var.is_transient else STORAGE
             return IRnode.from_list(
                 type_.position.position,
                 typ=var.typ,
-                location=STORAGE,
+                location=location,
                 annotation="self." + self.expr.attr,
             )
         # Reserved keywords

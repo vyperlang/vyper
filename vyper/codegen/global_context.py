@@ -164,6 +164,7 @@ class GlobalContext:
             typ,
             mutable=not is_immutable,
             is_immutable=is_immutable,
+            is_transient=item.is_transient,
         )
 
     @property

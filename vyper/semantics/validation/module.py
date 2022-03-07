@@ -177,6 +177,7 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
                 raise SyntaxException(message, node.node_source_code, node.lineno, node.col_offset)
 
         data_loc = DataLocation.CODE if node.is_immutable else DataLocation.STORAGE
+
         type_definition = get_type_from_annotation(
             node.annotation, data_loc, node.is_constant, node.is_public, node.is_immutable
         )

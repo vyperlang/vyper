@@ -29,6 +29,7 @@ class VariableRecord:
         defined_at=None,  # note: dead variable
         is_internal=False,
         is_immutable=False,
+        is_transient=False,
         data_offset: Optional[int] = None,
     ):
         self.name = name
@@ -41,6 +42,7 @@ class VariableRecord:
         self.defined_at = defined_at  # source code location variable record was defined.
         self.is_internal = is_internal
         self.is_immutable = is_immutable
+        self.is_transient = is_transient
         self.data_offset = data_offset  # location in data section
 
     def __repr__(self):

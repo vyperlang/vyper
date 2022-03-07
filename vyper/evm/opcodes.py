@@ -183,6 +183,8 @@ OPCODES: OpcodeMap = {
     "INVALID": (0xFE, 0, 0, 0),
     "DEBUG": (0xA5, 1, 0, 0),
     "BREAKPOINT": (0xA6, 0, 0, 0),
+    "TLOAD": (0xB3, 1, 1, 100),
+    "TSTORE": (0xB4, 2, 0, 100),
 }
 
 PSEUDO_OPCODES: OpcodeMap = {
