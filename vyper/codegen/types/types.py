@@ -463,6 +463,3 @@ def is_base_type(typ, btypes):
     if not isinstance(btypes, tuple):
         btypes = (btypes,)
     return isinstance(typ, BaseType) and typ.typ in btypes
-
-
-

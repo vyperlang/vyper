@@ -38,7 +38,10 @@ def _byte_array_to_num(arg, out_type, clamp):
         len_ = get_bytearray_length(bs_start)
         val = unwrap_location(get_bytearray_ptr(bs_start))
 
-        with len_.cache_when_complex("len_") as (b2, len_), val.cache_when_complex("val") as (b3, val):
+        with len_.cache_when_complex("len_") as (b2, len_), val.cache_when_complex("val") as (
+            b3,
+            val,
+        ):
 
             # converting a bytestring to a number:
             # bytestring is right-padded with zeroes, int is left-padded.
@@ -56,6 +59,7 @@ def _byte_array_to_num(arg, out_type, clamp):
                 annotation=f"__intrinsic__byte_array_to_num({out_type})",
             )
 
+
 def _check_bytes(expr, arg, output_type, max_input_bytes=32):
     if isinstance(arg.typ, ByteArrayLike):
         if arg.typ.maxlen > max_input_bytes:
@@ -69,11 +73,11 @@ def _check_bytes(expr, arg, output_type, max_input_bytes=32):
 
 
 def _fixed_to_int(x, decimals=10):
-    return ["sdiv", x, 10**decimals]
+    return ["sdiv", x, 10 ** decimals]
 
 
 def _int_to_fixed(x, decimals=10):
-    return ["mul", x, 10**decimals]
+    return ["mul", x, 10 ** decimals]
 
 
 @input_types(BASE_TYPES)
@@ -88,9 +92,7 @@ def to_bool(expr, arg, out_typ):
     # not `x >= 1.0 and x <= -1.0` since
     # we do not issue an (sdiv DECIMAL_DIVISOR)
 
-    return LLLnode.from_list(
-        ["iszero", ["iszero", arg]], typ=otyp, pos=getpos(expr)
-    )
+    return LLLnode.from_list(["iszero", ["iszero", arg]], typ=otyp, pos=getpos(expr))
 
 
 def _literal_int(expr, out_typ):
@@ -98,7 +100,7 @@ def _literal_int(expr, out_typ):
     (lo, hi) = int_bounds(int_info.is_signed, int_info.bits)
     if not (lo <= val <= hi):
         raise InvalidLiteral(f"Number out of range", expr)
-    return LLLnode.from_list(arg, typ=out_typ, is_literal=True,:pos=getpos(expr))
+    return LLLnode.from_list(arg, typ=out_typ, is_literal=True, pos=getpos(expr))
 
 
 # to generalized integer
@@ -146,7 +148,7 @@ def _to_int(expr, arg, out_typ):
         return LLLnode.from_list(ret, typ=out_typ, pos=getpos(expr))
 
 
-#@signature(("bool", "int128", "int256", "uint8", "uint256", "bytes32", "Bytes", "address"), "*")
+# @signature(("bool", "int128", "int256", "uint8", "uint256", "bytes32", "Bytes", "address"), "*")
 def to_decimal(expr, arg, _out_typ):
     if isinstance(expr, vy_ast.Constant):
         val = Decimal(expr.value)  # should work for Int, Decimal, Hex
@@ -159,7 +161,6 @@ def to_decimal(expr, arg, _out_typ):
             typ=BaseType(out_typ, is_literal=True),
             pos=getpos(self.expr),
         )
-
 
     # for the clamp, pretend it's int128 because int128 clamps are cheaper
 
