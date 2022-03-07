@@ -53,29 +53,6 @@ def check_external_call(call_lll):
     return ["if", ["iszero", call_lll], propagate_revert_lll]
 
 
-# Get a decimal number as a fraction with denominator multiple of 10
-def get_number_as_fraction(expr, context):
-    literal = Decimal(expr.value)
-    sign, digits, exponent = literal.as_tuple()
-
-    if exponent < -10:
-        raise InvalidLiteral(
-            f"`decimal` literal cannot have more than 10 decimal places: {literal}", expr
-        )
-
-    sign = -1 if sign == 1 else 1  # Positive Decimal has `sign` of 0, negative `sign` of 1
-    # Decimal `digits` is a tuple of each digit, so convert to a regular integer
-    top = int(Decimal((0, digits, 0)))
-    top = sign * top * 10 ** (exponent if exponent > 0 else 0)  # Convert to a fixed point integer
-    bottom = 1 if exponent > 0 else 10 ** abs(exponent)  # Make denominator a power of 10
-    assert Decimal(top) / Decimal(bottom) == literal  # Sanity check
-
-    # TODO: Would be best to raise >10 decimal place exception here
-    #       (unless Decimal is used more widely)
-
-    return expr.node_source_code, top, bottom
-
-
 # cost per byte of the identity precompile
 def _identity_gas_bound(num_bytes):
     return GAS_IDENTITY + GAS_IDENTITYWORD * (ceil32(num_bytes) // 32)

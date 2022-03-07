@@ -8,7 +8,6 @@ from vyper.codegen.core import (
     ensure_in_memory,
     get_dyn_array_count,
     get_element_ptr,
-    get_number_as_fraction,
     getpos,
     load_op,
     make_setter,
@@ -219,13 +218,12 @@ class Expr:
             )
 
     def parse_Decimal(self):
-        numstring, num, den = get_number_as_fraction(self.expr, self.context)
-        if not (SizeLimits.MIN_INT128 * den <= num <= SizeLimits.MAX_INT128 * den):
-            return
-        if DECIMAL_DIVISOR % den:
-            return
+        # sanity check that type checker did its job
+        assert isinstance(self.value, decimal.Decimal)
+        assert SizeLimits.MIN_DECIMAL <= self.value <= SizeLimits.MAX_DECIMAL
+
         return LLLnode.from_list(
-            num * DECIMAL_DIVISOR // den,
+            num * DECIMAL_DIVISOR,
             typ=BaseType("decimal", is_literal=True),
             pos=getpos(self.expr),
         )

@@ -162,7 +162,7 @@ class SizeLimits:
     def in_bounds(cls, type_str, value):
         assert isinstance(type_str, str)
         if type_str == "decimal":
-            return float(cls.MINDECIMAL) <= value <= float(cls.MAXDECIMAL)
+            return Decimal(cls.MINDECIMAL) <= value <= Decimal(cls.MAXDECIMAL)
         if type_str == "uint8":
             return 0 <= value <= cls.MAX_UINT8
         elif type_str == "uint256":
