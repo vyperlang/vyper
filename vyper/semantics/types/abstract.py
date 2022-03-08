@@ -41,7 +41,7 @@ class ArrayValueAbstractType(AbstractDataType):
 
 
 class BytesAbstractType(AbstractDataType):
-    """Abstract data class for bytes types (bytes32, bytes[])."""
+    """Abstract data class for bytes types (bytes, bytesM)."""
 
     _description = "bytes"
     _id = "bytes"
