@@ -47,6 +47,12 @@ class BytesAbstractType(AbstractDataType):
     _id = "bytes"
 
 
+class BytesMAbstractType(AbstractDataType):
+    """Abstract data class for fixed bytes types (bytes32, bytes4, ...)"""
+
+    _description = "bytes<M> where M<=32"
+
+
 class NumericAbstractType(AbstractDataType):
     """
     Abstract data class for numeric types (capable of arithmetic).
@@ -77,6 +83,7 @@ class UnsignedIntegerAbstractType(IntegerAbstractType):
     _id_list: Tuple = ("uint8", "uint256")
 
 
+# TODO rename me to DecimalAbstractType (confusion with BytesM - fixed bytes)
 class FixedAbstractType(NumericAbstractType):
     """
     Abstract data class for decimal numeric types.

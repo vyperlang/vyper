@@ -175,52 +175,20 @@ class Convert:
     def fetch_call_return(self, node):
         validate_call_args(node, 2)
         target_type = get_type_from_annotation(node.args[1], DataLocation.MEMORY)
-
         validate_expected_type(node.args[0], ValueTypeDefinition())
+
+        # block conversions between same type
         try:
             validate_expected_type(node.args[0], target_type)
         except VyperException:
             pass
         else:
-            # TODO remove this once it's possible in parser
             if not isinstance(target_type, Uint256Definition):
                 raise InvalidType(f"Value and target type are both '{target_type}'", node)
 
-        # TODO!
-        # try:
-        #     validation_fn = getattr(self, f"validate_to_{target_type._id}")
-        # except AttributeError:
-        #     raise InvalidType(
-        #         f"Unsupported destination type '{target_type}'", node.args[1]
-        #     ) from None
-
-        # validation_fn(initial_type)
+        # note: more type conversion validation happens in convert.py
 
         return target_type
-
-    def validate_to_bool(self, initial_type):
-        pass
-
-    def validate_to_decimal(self, initial_type):
-        pass
-
-    def validate_to_int128(self, initial_type):
-        pass
-
-    def validate_to_uint256(self, initial_type):
-        pass
-
-    def validate_to_bytes32(self, initial_type):
-        pass
-
-    def validate_to_string(self, initial_type):
-        pass
-
-    def validate_to_bytes(self, initial_type):
-        pass
-
-    def validate_to_address(self, initial_type):
-        pass
 
     def build_LLL(self, expr, context):
         return convert(expr, context)

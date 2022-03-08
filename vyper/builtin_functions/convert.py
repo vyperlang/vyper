@@ -1,14 +1,16 @@
 import math
 import warnings
 from decimal import Decimal
+import functools
 
 from vyper import ast as vy_ast
-from vyper.builtin_functions.signatures import signature
+from vyper.codegen.expr import Expr
 from vyper.codegen.core import (
     LLLnode,
     add_ofst,
     clamp_basetype,
     get_bytearray_length,
+    bytes_data_ptr,
     getpos,
     int_clamp,
     load_op,
@@ -18,14 +20,44 @@ from vyper.codegen.core import (
 )
 from vyper.codegen.types import (
     DYNAMIC_ARRAY_OVERHEAD,
+    is_integer_type,
+    is_bytes_m_type,
+    parse_bytes_m_info,
+    is_decimal_type,
+    parse_decimal_info,
+    parse_integer_typeinfo,
     BaseType,
     ByteArrayType,
+    ByteArrayLike,
     StringType,
-    get_type,
+    INTEGER_TYPES,
+    BYTES_M_TYPES,
+    is_base_type,
+    DECIMAL_TYPES,
 )
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import InvalidLiteral, StructureException, TypeMismatch
 from vyper.utils import DECIMAL_DIVISOR, MemoryPositions, SizeLimits
+from vyper.semantics.types.abstract import NumericAbstractType, BytesAbstractType, BytesMAbstractType, UnsignedIntegerAbstractType
+from vyper.semantics.types import AddressDefinition, BoolDefinition, BytesArrayDefinition, StringDefinition
+
+
+def _FAIL(ityp, otyp, pos=None):
+    raise TypeMismatch(f"Can't convert {ityp} to {otyp}", pos)
+
+
+def _input_types(*allowed_types):
+    def decorator(f):
+        @functools.wraps(f)
+        def g(expr, arg, out_typ):
+            # use new types bc typechecking is easier
+            ityp = expr.args[0]._metadata["type"]
+            ok = any(isinstance(ityp, t) for t in allowed_types)
+            if not ok:
+                _FAIL(expr._metadata["type"], out_typ, expr)
+            return f(expr, arg, out_typ)
+        return g
+    return decorator
 
 
 def _byte_array_to_num(arg, out_type, clamp):
@@ -36,7 +68,7 @@ def _byte_array_to_num(arg, out_type, clamp):
     with arg.cache_when_complex("bs_start") as (b1, bs_start):
 
         len_ = get_bytearray_length(bs_start)
-        val = unwrap_location(get_bytearray_ptr(bs_start))
+        val = unwrap_location(bytes_data_ptr(bs_start))
 
         with len_.cache_when_complex("len_") as (b2, len_), val.cache_when_complex("val") as (
             b3,
@@ -60,9 +92,17 @@ def _byte_array_to_num(arg, out_type, clamp):
             )
 
 
-def _check_bytes(expr, arg, output_type, max_input_bytes=32):
+def _fixed_to_int(x, out_typ, decimals=10):
+    return LLLnode.from_list(["sdiv", x, 10 ** decimals], out_typ)
+
+
+def _int_to_fixed(x, out_typ, decimals=10):
+    return LLLnode.from_list(["mul", x, 10 ** decimals])
+
+
+def _check_bytes(expr, arg, output_type, max_bytes_allowed):
     if isinstance(arg.typ, ByteArrayLike):
-        if arg.typ.maxlen > max_input_bytes:
+        if arg.typ.maxlen > max_bytes_allowed:
             raise TypeMismatch(
                 f"Cannot convert {arg.typ} to {output_type}",
                 expr,
@@ -72,27 +112,20 @@ def _check_bytes(expr, arg, output_type, max_input_bytes=32):
         assert output_type.memory_bytes_required == 32
 
 
-def _fixed_to_int(x, decimals=10):
-    return ["sdiv", x, 10 ** decimals]
-
-
-def _int_to_fixed(x, decimals=10):
-    return ["mul", x, 10 ** decimals]
-
-
-@input_types(BASE_TYPES)
+# any base type or bytes/string
+@_input_types(NumericAbstractType, AddressDefinition, BoolDefinition, BytesAbstractType)
 def to_bool(expr, arg, out_typ):
     otyp = BaseType("bool")
-    _check_bytes(expr, arg, otyp)
+    _check_bytes(expr, arg, otyp, 32)  # should we restrict to Bytes[1]?
 
     if isinstance(arg.typ, ByteArrayType):
-        arg = byte_array_to_num(arg, "uint256")
+        arg = _byte_array_to_num(arg, "uint256")
 
     # NOTE: for decimal, the behavior is x != 0.0,
     # not `x >= 1.0 and x <= -1.0` since
     # we do not issue an (sdiv DECIMAL_DIVISOR)
 
-    return LLLnode.from_list(["iszero", ["iszero", arg]], typ=otyp, pos=getpos(expr))
+    return LLLnode.from_list(["iszero", ["iszero", arg]], typ=otyp)
 
 
 def _literal_int(expr, out_typ):
@@ -100,55 +133,74 @@ def _literal_int(expr, out_typ):
     (lo, hi) = int_bounds(int_info.is_signed, int_info.bits)
     if not (lo <= val <= hi):
         raise InvalidLiteral(f"Number out of range", expr)
-    return LLLnode.from_list(arg, typ=out_typ, is_literal=True, pos=getpos(expr))
+    return LLLnode.from_list(arg, typ=out_typ, is_literal=True)
 
 
-# to generalized integer
-@input_types(FIXED_POINT_TYPES, INTEGER_TYPES, BYTES_M_TYPES, ByteArrayType)
-def _to_int(expr, arg, out_typ):
-    _check_bytes(expr, arg, out_typ)
+@_input_types(NumericAbstractType, BytesAbstractType, BoolDefinition)
+def to_int(expr, arg, out_typ):
 
     int_info = parse_integer_typeinfo(arg.typ.typ)
+
+    assert int_info.bits % 8 == 0
+    _check_bytes(expr, arg.typ, out_typ, int_info.bits // 8)
 
     if isinstance(expr, vy_ast.Constant):
         return _literal_int(expr, out_typ)
 
-    if isinstance(arg.typ, BytesLike):
-        # decide whether to do runtime clamp or not
-        if arg.typ.maxlen * 8 > int_info.bits:
-            raise TypeMismatch(f"Cannot cast {arg.typ} to {out_typ}", expr)
-        arg = byte_array_to_num(arg, out_typ, clamp=False)
+    if isinstance(arg.typ, ByteArrayLike):
+        arg = _byte_array_to_num(arg, out_typ, clamp=False)
 
-    if is_base_type(arg.typ, "decimal"):
-        # TODO: clamps
-        return LLLnode.from_list(["sdiv", in_arg, DECIMAL_DIVISOR], typ=out_typ)
+    if is_decimal_type(arg.typ):
+        info = parse_decimal_typeinfo(arg.typ.typ)
+        arg = _fixed_to_int(arg, out_typ, decimals=info.decimals)
 
-    if isinstance(arg.typ, BYTES_M_TYPES):
-        # TODO: clamps
-        pass
+    if is_bytes_m_type(arg.typ):
+        m = parse_bytes_m_info(arg.typ.typ)
+        m_bits = m * 8
+        # TODO this introduces unnecessary DUPs/POPs for
+        # conversion between bytes32 and uint256
+        with arg.cache_when_complex("arg") as (b, arg):
+            # NOTE bytesM to intN is like casting to bytesJ then intN
+            # (where J = N/8)
+            if m_bits < 256:  # TODO optimizer rule for this
+                arg = shr(256 - m_bits, arg)
+            is_downcast = m_bits > int_info.bits  # do we need to clamp?
+            if is_downcast:
+                arg = LLLnode.from_list(arg, typ=out_typ)
+                arg = clamp_basetype(arg)
 
-    if isinstance(arg.typ, INTEGER_TYPES):
-        ret = ["seq"]
+            arg = b.resolve(arg)
+
+    if is_integer_type(arg.typ):
         arg_info = parse_integer_typeinfo(arg.typ.typ)
 
         # generate clamps
-        # special clamp for int/sint conversions
+        # special clamp for uint/sint conversions
+        # uint -> sint requires input < sint::max_value
+        # sint -> uint requires input >= 0
+        # it turns out that these are both equivalent to
+        # checking that the top bit is set (e.g. for uint8
+        # that the 8th bit is set)
         if int_info.is_signed != arg_info.is_signed:
             # convert between signed and unsigned
             # e.g. uint256 -> int128, or int256 -> uint8
-            # double check this works for both ways??
-            ret.append(["assert", ["iszero", shr(int_info.bits, arg)]])
+            with arg.cache_when_complex("arg") as (b, arg):
+                tmp = ["seq"]
+                # NOTE: sar works for both ways, including uint256 <-> int256
+                tmp.append(["assert", ["iszero", sar(int_info.bits, arg)]])
+                tmp.append(arg)
+                arg = b.resolve(tmp)
+
         elif arg_info.bits > int_info.bits:
             # cast to out_type so clamp_basetype works
             arg = LLLnode.from_list(arg, typ=out_typ)
-            ret.append(clamp_basetype(arg))
         else:
-            ret.append(arg)
+            pass  # upcasting with no change in signedness; no clamp needed
 
-        return LLLnode.from_list(ret, typ=out_typ, pos=getpos(expr))
+    return LLLnode.from_list(arg, typ=out_typ)
 
 
-# @signature(("bool", "int128", "int256", "uint8", "uint256", "bytes32", "Bytes", "address"), "*")
+@_input_types(NumericAbstractType, BoolDefinition)
 def to_decimal(expr, arg, _out_typ):
     if isinstance(expr, vy_ast.Constant):
         val = Decimal(expr.value)  # should work for Int, Decimal, Hex
@@ -159,102 +211,87 @@ def to_decimal(expr, arg, _out_typ):
         return LLLnode.from_list(
             val * DECIMAL_DIVISOR,
             typ=BaseType(out_typ, is_literal=True),
-            pos=getpos(self.expr),
         )
 
     # for the clamp, pretend it's int128 because int128 clamps are cheaper
-
-    if isinstance(arg, BytesLike):
-        # TODO only clamp if input > 16 bytes?
-        arg = byte_array_to_num(arg, "int128", clamp=True)
-
-    if isinstance(arg.typ, INTEGER_TYPES):
+    # (and then multiply into the decimal base afterwards)
+    if is_integer_type(arg.typ):
         int_info = parse_integer_typeinfo(arg.typ.typ)
         if int_info.bits > 128:
             arg = int_clamp(arg, 128, is_signed=True)
 
-    # TODO bytesM? bool?
-
-    return LLLnode.from_list(["mul", DECIMAL_DIVISOR, arg], typ=out_typ, pos=getpos(expr))
+    return LLLnode.from_list(["mul", DECIMAL_DIVISOR, arg], typ=out_typ)
 
 
-@signature(("int128", "int256", "uint8", "uint256", "address", "Bytes", "bool", "decimal"), "*")
-def to_bytes32(expr, arg, _out_typ):
-    in_arg = args[0]
-    input_type, _len = get_type(in_arg)
+@_input_types(NumericAbstractType, AddressDefinition, BytesAbstractType, BoolDefinition)
+def to_bytes_m(expr, arg, out_typ):
+    m = parse_bytes_m_info(out_typ.typ)
+    _check_bytes(expr, arg, out_typ, max_bytes_allowed=m)
 
-    if input_type == "Bytes":
-        if _len > 32:
-            raise TypeMismatch(
-                f"Unable to convert bytes[{_len}] to bytes32, max length is too " "large."
-            )
+    if isinstance(arg.typ, ByteArrayType):
+        load = load_op(arg.location)
+        bytes_val = [load, bytes_data_ptr(arg)]
 
-        with in_arg.cache_when_complex("bytes") as (b1, in_arg):
-            op = load_op(in_arg.location)
-            ofst = wordsize(in_arg.location) * DYNAMIC_ARRAY_OVERHEAD
-            bytes_val = [load_op(in_arg.location), get_bytearray_ptr(in_arg)]
-
-            # zero out any dirty bytes (which can happen in the last
-            # word of a bytearray)
-            len_ = get_bytearray_length(in_arg)
-            num_zero_bits = LLLnode.from_list(["mul", ["sub", 32, len_], 8])
-            with num_zero_bits.cache_when_complex("bits") as (b2, num_zero_bits):
-                ret = shl(num_zero_bits, shr(num_zero_bits, bytes_val))
-                ret = b1.resolve(b2.resolve(ret))
+        # zero out any dirty bytes (which can happen in the last
+        # word of a bytearray)
+        len_ = get_bytearray_length(arg)
+        num_zero_bits = LLLnode.from_list(["mul", ["sub", 32, len_], 8])
+        with num_zero_bits.cache_when_complex("bits") as (b2, num_zero_bits):
+            ret = shl(num_zero_bits, shr(num_zero_bits, bytes_val))
+            ret = b1.resolve(b2.resolve(ret))
 
     else:
-        # literal
-        ret = in_arg
+        ret = arg
 
-    return LLLnode.from_list(ret, typ="bytes32", pos=getpos(expr))
+    return LLLnode.from_list(ret, typ=out_typ)
 
 
-@inputs(BYTES_M_TYPES, UINT_TYPES)
+@_input_types(BytesAbstractType, UnsignedIntegerAbstractType)
 def to_address(expr, arg, out_typ):
     should_clamp = True
-    if isinstance(arg.typ, BytesLike):
+    if isinstance(arg.typ, ByteArrayLike):
         # disallow casting from Bytes[N>20]
         if arg.typ.maxlen * 8 > 160:
             raise TypeMismatch(f"Cannot cast {arg.typ} to {out_typ}", expr)
-        arg = byte_array_to_num(arg, out_typ, clamp=False)
+        arg = _byte_array_to_num(arg, out_typ, clamp=False)
         should_clamp = False
 
-    if isinstance(arg.typ, INTEGER_TYPES):
-        should_clamp = typeinfo.bits > 160 or typeinfo.is_signed
+    if is_bytes_m_type(arg.typ):
+        m = parse_bytes_m_info(arg.typ.typ)
+        m_bits = m * 8
+        if m_bits < 256:
+            arg = shr(256 - m_bits, arg)
+
+        should_clamp = m_bits > 160
+
+    if is_integer_type(arg.typ):
+        int_info = parse_integer_typeinfo(arg.typ.typ)
+        should_clamp = int_info.bits > 160 or int_info.is_signed
 
     if should_clamp:
-        # cast to output type so clamp_basetype works
-        arg = LLLnode.from_list(arg, typ=out_typ)
-        return LLLnode.from_list(clamp_basetype(arg), typ=out_typ, pos=getpos(expr))
-    return LLLnode.from_list(arg, typ=out_typ, pos=getpos(expr))
+        # NOTE: cast to output type so clamp_basetype works
+        arg = clamp_basetype(LLLnode.from_list(arg, typ=out_typ))
+
+    return LLLnode.from_list(arg, typ=out_typ)
 
 
-def _to_bytelike(expr, arg, out_typ):
-    if bytetype == "String":
-        otyp = StringType(arg.typ.maxlen)
-    elif bytetype == "Bytes":
-        otyp = ByteArrayType(arg.typ.maxlen)
-    else:
-        raise TypeMismatch(f"Invalid {bytetype} supplied")
-
+# question: should we allow bytesM -> String?
+@_input_types(BytesArrayDefinition)
+def to_string(expr, arg, out_typ):
     _check_bytes(expr, arg, out_typ, out_typ.maxlen)
 
     # NOTE: this is a pointer cast
-    return LLLnode(
-        value=arg.value,
-        args=arg.args,
-        typ=out_typ,
-        pos=getpos(expr),
-        location=arg.location,
-    )
+    return LLLnode.from_list(arg, typ=out_typ)
 
 
-def to_string(expr, arg, out_typ):
-    return _to_bytelike(expr, args, out_typ)
-
-
+@_input_types(StringDefinition)
 def to_bytes(expr, arg, out_typ):
-    return _to_bytelike(expr, arg, out_typ)
+    _check_bytes(expr, arg, out_typ, out_typ.maxlen)
+
+    # TODO: more casts
+
+    # NOTE: this is a pointer cast
+    return LLLnode.from_list(arg, typ=out_typ)
 
 
 def convert(expr, context):
@@ -264,23 +301,24 @@ def convert(expr, context):
     arg = Expr(expr.args[0], context).lll_node
     out_typ = context.parse_type(expr.args[1])
 
-    if output_type in CONVERSION_TABLE:
-        return CONVERSION_TABLE[output_type](expr, arg, out_typ)
-    else:
-        raise StructureException(f"Conversion to {output_type} is invalid.", expr)
+    with arg.cache_when_complex("arg") as (b, arg):
+        if is_base_type(out_typ, "bool"):
+            ret = to_bool(expr, arg, out_typ)
+        elif is_base_type(out_typ, "address"):
+            ret = to_address(expr, arg, out_typ)
+        elif is_integer_type(out_typ):
+            ret = to_int(expr, arg, out_typ)
+        elif is_bytes_m_type(out_typ):
+            ret = to_bytes_m(expr, arg, out_typ)
+        elif is_decimal_type(out_typ):
+            ret = to_decimal(expr, arg, out_typ)
+        elif isinstance(out_typ, ByteArrayType):
+            ret = to_bytes(expr, arg, out_typ)
+        elif isinstance(out_typ, StringType):
+            ret = to_string(expr, arg, out_typ)
+        else:
+            raise StructureException(f"Conversion to {output_type} is invalid.", expr)
 
+        ret = b.resolve(ret)
 
-CONVERSION_TABLE = {
-    "bool": to_bool,
-    "address": (to_address, (BYTES_M_TYPES, UINT_TYPES)),
-    "String": to_string,
-    "Bytes": to_bytes,
-}
-for t in UNSIGNED_INTEER_TYPES:
-    CONVERSION_TABLE[t] = to_uint
-for t in SIGNED_INTEGER_TYPES:
-    CONVERSION_TABLE[t] = to_sint
-for t in FIXED_POINT_TYPES:
-    CONVERSION_TABLE[t] = to_fixed
-for t in BYTES_M_TYPES:
-    CONVERSION_TABLE[t] = to_bytes_m
+    return LLLnode.from_list(ret, pos=getpos(expr))

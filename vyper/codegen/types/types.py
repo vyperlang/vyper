@@ -24,8 +24,15 @@ from vyper.utils import ceil32
 
 
 # Available base types
-BASE_TYPES = {"int128", "int256", "decimal", "bytes32", "uint8", "uint256", "bool", "address"}
+UNSIGNED_INTEGER_TYPES = {"uint8", "uint256"}
+SIGNED_INTEGER_TYPES = {"int128", "int256"}
+INTEGER_TYPES = UNSIGNED_INTEGER_TYPES | SIGNED_INTEGER_TYPES
 
+BYTES_M_TYPES = {"bytes32"}
+DECIMAL_TYPES = {"decimal"}
+
+
+BASE_TYPES = INTEGER_TYPES | BYTES_M_TYPES | DECIMAL_TYPES | {"bool", "address"}
 
 # Data structure for a type
 class NodeType(abc.ABC):
@@ -67,10 +74,19 @@ class NodeType(abc.ABC):
         return r // 32
 
 
+# helper functions for handling old base types which are just strings
+# in the future these can be reified with new type system
+
 @dataclass
 class IntegerTypeInfo:
     is_signed: bool
     bits: int
+
+
+@dataclass
+class DecimalTypeInfo:
+    bits: int
+    decimals: int
 
 
 _int_parser = re.compile("^(u?)int([0-9]+)$")
@@ -91,19 +107,38 @@ def parse_integer_typeinfo(typename: str) -> IntegerTypeInfo:
     )
 
 
+def is_bytes_m_type(t: "NodeType") -> bool:
+    return isinstance(t, BaseType) and t.typ.startswith("bytes")
+
+
+def parse_bytes_m_info(typename: str) -> int:
+    return int(typename[len("bytes"):])
+
+
+def is_decimal_type(t: "NodeType") -> bool:
+    return isinstance(t, BaseType) and t.typ == "decimal"
+
+
+def parse_decimal_info(typename) -> DecimalTypeInfo:
+    # in the future, this will actually do parsing
+    assert typename == "decimal"
+    return DecimalTypeInfo(bits=168, decimals=10)
+
+
 def _basetype_to_abi_type(t: "BaseType") -> ABIType:
     if is_integer_type(t):
         typinfo = parse_integer_typeinfo(t.typ)
         return ABI_GIntM(typinfo.bits, typinfo.is_signed)
+    if is_decimal_type(t):
+        typinfo = parse_decimal_info(t.typ)
+        return ABI_FixedMxN(typinfo.bits, typinfo.decimals, True)
+    if is_bytes_m_type(t):
+        m = parse_bytes_m_info(t.typ)
+        return ABI_BytesM(m)
     if t.typ == "address":
         return ABI_Address()
-    if t.typ == "bytes32":
-        # TODO must generalize to more bytes types
-        return ABI_BytesM(32)
     if t.typ == "bool":
         return ABI_Bool()
-    if t.typ == "decimal":
-        return ABI_FixedMxN(168, 10, True)
 
     raise InvalidType(f"Unrecognized type {t}")  # pragma: notest
 
