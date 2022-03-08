@@ -247,6 +247,9 @@ def to_bytes_m(expr, arg, out_typ):
         # upper `1` bits)
         ret = shl(m_bits - int_bits, arg)
 
+    else:  # bool
+        ret = shl(256 - m_bits, arg)  # question: is this right?
+
     return LLLnode.from_list(ret, typ=out_typ)
 
 
