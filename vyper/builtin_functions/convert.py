@@ -64,40 +64,32 @@ def _byte_array_to_num(arg, out_type, clamp):
     """
     Generate LLL which takes a <32 byte array as input and returns a number
     """
+    len_ = get_bytearray_length(arg)
+    val = unwrap_location(bytes_data_ptr(arg))
 
-    with arg.cache_when_complex("bs_start") as (b1, bs_start):
+    # converting a bytestring to a number:
+    # bytestring is right-padded with zeroes, int is left-padded.
+    # convert by shr the number of zero bytes (converted to bits)
+    # e.g. "abcd000000000000" -> bitcast(000000000000abcd, output_type)
+    num_zero_bits = ["mul", 8, ["sub", 32, len_]]
+    result = LLLnode.from_list(shr(num_zero_bits, val), typ=out_type)
 
-        len_ = get_bytearray_length(bs_start)
-        val = unwrap_location(bytes_data_ptr(bs_start))
+    if clamp:
+        result = clamp_basetype(result)
 
-        with len_.cache_when_complex("len_") as (b2, len_), val.cache_when_complex("val") as (
-            b3,
-            val,
-        ):
-
-            # converting a bytestring to a number:
-            # bytestring is right-padded with zeroes, int is left-padded.
-            # convert by shr the number of zero bytes (converted to bits)
-            # e.g. "abcd000000000000" -> bitcast(000000000000abcd, output_type)
-            num_zero_bits = ["mul", 8, ["sub", 32, len_]]
-            result = LLLnode.from_list(shr(num_zero_bits, val), typ=out_type)
-
-            if clamp:
-                result = clamp_basetype(result)
-
-            return LLLnode.from_list(
-                b1.resolve(b2.resolve(b3.resolve(result))),
-                typ=BaseType(out_type),
-                annotation=f"__intrinsic__byte_array_to_num({out_type})",
-            )
+    return LLLnode.from_list(
+        result,
+        typ=BaseType(out_type),
+        annotation=f"__intrinsic__byte_array_to_num({out_type})",
+    )
 
 
 def _fixed_to_int(x, out_typ, decimals=10):
-    return LLLnode.from_list(["sdiv", x, 10 ** decimals], out_typ)
+    return LLLnode.from_list(["sdiv", x, 10 ** decimals], typ=out_typ)
 
 
 def _int_to_fixed(x, out_typ, decimals=10):
-    return LLLnode.from_list(["mul", x, 10 ** decimals])
+    return LLLnode.from_list(["mul", x, 10 ** decimals], typ=out_typ)
 
 
 def _check_bytes(expr, arg, output_type, max_bytes_allowed):
@@ -157,19 +149,16 @@ def to_int(expr, arg, out_typ):
     if is_bytes_m_type(arg.typ):
         m = parse_bytes_m_info(arg.typ.typ)
         m_bits = m * 8
-        # TODO this introduces unnecessary DUPs/POPs for
-        # conversion between bytes32 and uint256
-        with arg.cache_when_complex("arg") as (b, arg):
-            # NOTE bytesM to intN is like casting to bytesJ then intN
-            # (where J = N/8)
-            if m_bits < 256:  # TODO optimizer rule for this
-                arg = shr(256 - m_bits, arg)
-            is_downcast = m_bits > int_info.bits  # do we need to clamp?
-            if is_downcast:
-                arg = LLLnode.from_list(arg, typ=out_typ)
-                arg = clamp_basetype(arg)
 
-            arg = b.resolve(arg)
+        # NOTE bytesM to intN is like casting to bytesJ then intN
+        # (where J = N/8)
+        if m_bits < 256:  # TODO optimizer rule for this
+            arg = shr(256 - m_bits, arg)
+        is_downcast = m_bits > int_info.bits  # do we need to clamp?
+        if is_downcast:
+            arg = LLLnode.from_list(arg, typ=out_typ)
+            arg = clamp_basetype(arg)
+        # TODO we need signextend for signed ints.
 
     if is_integer_type(arg.typ):
         arg_info = parse_integer_typeinfo(arg.typ.typ)
@@ -184,12 +173,11 @@ def to_int(expr, arg, out_typ):
         if int_info.is_signed != arg_info.is_signed:
             # convert between signed and unsigned
             # e.g. uint256 -> int128, or int256 -> uint8
-            with arg.cache_when_complex("arg") as (b, arg):
-                tmp = ["seq"]
-                # NOTE: sar works for both ways, including uint256 <-> int256
-                tmp.append(["assert", ["iszero", sar(int_info.bits, arg)]])
-                tmp.append(arg)
-                arg = b.resolve(tmp)
+            tmp = ["seq"]
+            # NOTE: sar works for both ways, including uint256 <-> int256
+            tmp.append(["assert", ["iszero", sar(int_info.bits, arg)]])
+            tmp.append(arg)
+            arg = b.resolve(tmp)
 
         elif arg_info.bits > int_info.bits:
             # cast to out_type so clamp_basetype works
@@ -241,6 +229,7 @@ def to_bytes_m(expr, arg, out_typ):
             ret = b1.resolve(b2.resolve(ret))
 
     else:
+        # TODO shl for int types.
         ret = arg
 
     return LLLnode.from_list(ret, typ=out_typ)
