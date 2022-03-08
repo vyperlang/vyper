@@ -255,28 +255,25 @@ def to_bytes_m(expr, arg, out_typ):
 
 @_input_types(BytesAbstractType, UnsignedIntegerAbstractType)
 def to_address(expr, arg, out_typ):
-    should_clamp = True
     if isinstance(arg.typ, ByteArrayLike):
         # disallow casting from Bytes[N>20]
         if arg.typ.maxlen * 8 > 160:
             raise TypeMismatch(f"Cannot cast {arg.typ} to {out_typ}", expr)
         arg = _byte_array_to_num(arg, out_typ, clamp=False)
-        should_clamp = False
 
     elif is_bytes_m_type(arg.typ):
         m = parse_bytes_m_info(arg.typ.typ)
         m_bits = m * 8
-        arg = shr(256 - m_bits, arg)
 
-        should_clamp = m_bits > 160
+        if m > 20:
+            arg = bytes_clamp(arg, 20)
+        arg = shr(256 - m_bits, arg)
 
     elif is_integer_type(arg.typ):
         int_info = parse_integer_typeinfo(arg.typ.typ)
-        should_clamp = int_info.bits > 160 or int_info.is_signed
-
-    if should_clamp:
-        # NOTE: cast to output type so clamp_basetype works
-        arg = clamp_basetype(LLLnode.from_list(arg, typ=out_typ))
+        if int_info.bits > 160 or int_info.is_signed:
+            # NOTE: cast to output type so clamp_basetype works
+            arg = int_clamp(arg, 160, False)
 
     return LLLnode.from_list(arg, typ=out_typ)
 

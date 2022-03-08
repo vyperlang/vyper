@@ -1028,6 +1028,15 @@ def int_clamp(lll_node, bits, signed=False):
     return LLLnode.from_list(ret, annotation=f"int_clamp {lll_node.typ}")
 
 
+def bytes_clamp(lll_node: LLLnode, n_bytes: int) -> LLLnode:
+    if not (0 < n_bytes <= 32):
+        raise CompilerPanic(f"bad type: bytes{n_bytes}")
+    with lll_node.cache_when_complex("val") as (b, val):
+        assertion = ["assert", ["iszero", shl(n_bytes * 8, val)]]
+        ret = b.resolve(["seq", assertion, val])
+    return LLLnode.from_list(ret, annotation=f"bytes{n_bytes}_clamp")
+
+
 # e.g. for int8, promote 255 to -1
 def promote_signed_int(x, bits):
     assert bits % 8 == 0
