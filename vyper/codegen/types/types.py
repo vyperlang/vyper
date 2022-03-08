@@ -22,7 +22,6 @@ from vyper.abi_types import (
 from vyper.exceptions import ArgumentException, CompilerPanic, InvalidType
 from vyper.utils import ceil32
 
-
 # Available base types
 UNSIGNED_INTEGER_TYPES = {"uint8", "uint256"}
 SIGNED_INTEGER_TYPES = {"int128", "int256"}
@@ -33,6 +32,7 @@ DECIMAL_TYPES = {"decimal"}
 
 
 BASE_TYPES = INTEGER_TYPES | BYTES_M_TYPES | DECIMAL_TYPES | {"bool", "address"}
+
 
 # Data structure for a type
 class NodeType(abc.ABC):
@@ -77,6 +77,7 @@ class NodeType(abc.ABC):
 # helper functions for handling old base types which are just strings
 # in the future these can be reified with new type system
 
+
 @dataclass
 class IntegerTypeInfo:
     is_signed: bool
@@ -112,7 +113,7 @@ def is_bytes_m_type(t: "NodeType") -> bool:
 
 
 def parse_bytes_m_info(typename: str) -> int:
-    return int(typename[len("bytes"):])
+    return int(typename[len("bytes") :])
 
 
 def is_decimal_type(t: "NodeType") -> bool:

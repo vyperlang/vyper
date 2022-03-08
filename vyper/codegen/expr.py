@@ -1,5 +1,5 @@
+import decimal
 import math
-from decimal import Decimal
 
 from vyper import ast as vy_ast
 from vyper.codegen import external_call, self_call
@@ -99,7 +99,7 @@ def calculate_largest_power(a: int, num_bits: int, is_signed: bool) -> int:
 
     # NOTE: There is an edge case if `a` were left signed where the following
     #       operation would not work (`ln(a)` is undefined if `a <= 0`)
-    b = int(Decimal(value_bits) / (Decimal(a).ln() / Decimal(2).ln()))
+    b = int(decimal.Decimal(value_bits) / (decimal.Decimal(a).ln() / decimal.Decimal(2).ln()))
     if b <= 1:
         return 1  # Value is assumed to be in range, therefore power of 1 is max
 
@@ -155,7 +155,7 @@ def calculate_largest_base(b: int, num_bits: int, is_signed: bool) -> int:
         return 2 ** value_bits - 1  # Maximum value for type
 
     # Estimate (up to ~39 digits precision required)
-    a = math.ceil(2 ** (Decimal(value_bits) / Decimal(b)))
+    a = math.ceil(2 ** (decimal.Decimal(value_bits) / decimal.Decimal(b)))
     # Do a bit of iteration to ensure we have the exact number
     num_iterations = 0
     while (a + 1) ** b < 2 ** value_bits:
@@ -223,7 +223,7 @@ class Expr:
         assert SizeLimits.MIN_DECIMAL <= self.value <= SizeLimits.MAX_DECIMAL
 
         return LLLnode.from_list(
-            num * DECIMAL_DIVISOR,
+            int(self.value * DECIMAL_DIVISOR),
             typ=BaseType("decimal", is_literal=True),
             pos=getpos(self.expr),
         )

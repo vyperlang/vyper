@@ -1,4 +1,4 @@
-from decimal import Context, Decimal, setcontext
+from decimal import Context, setcontext
 
 from vyper import ast as vy_ast
 from vyper.codegen.lll_node import Encoding, LLLnode
@@ -20,7 +20,6 @@ from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
     CompilerPanic,
     DecimalOverrideException,
-    InvalidLiteral,
     StructureException,
     TypeCheckFailure,
     TypeMismatch,
@@ -555,6 +554,7 @@ def get_element_ptr(parent, key, pos, array_bounds_check=True):
         return b.resolve(ret)
 
 
+# TODO phase this out - make private and use load_word instead
 def load_op(location):
     if location == "memory":
         return "mload"
@@ -572,6 +572,7 @@ def load_op(location):
     raise CompilerPanic(f"unreachable {location}")  # pragma: notest
 
 
+# TODO phase this out - make private and use store_word instead
 def store_op(location):
     if location == "memory":
         return "mstore"
@@ -582,10 +583,18 @@ def store_op(location):
     raise CompilerPanic(f"unreachable {location}")  # pragma: notest
 
 
+def load_word(ptr: LLLnode) -> LLLnode:
+    return LLLnode.from_list([load_op(ptr.location), ptr])
+
+
+def store_word(ptr: LLLnode, val: LLLnode) -> LLLnode:
+    return LLLnode.from_list([store_op(ptr.location), ptr, val])
+
+
 # Unwrap location
 def unwrap_location(orig):
     if orig.location in ("memory", "storage", "calldata", "data", "immutables"):
-        return LLLnode.from_list([load_op(orig.location), orig], typ=orig.typ)
+        return LLLnode.from_list(load_word(orig), typ=orig.typ)
     else:
         # CMC 20210909 TODO double check if this branch can be removed
         if orig.value == "~empty":
@@ -1017,3 +1026,10 @@ def int_clamp(lll_node, bits, signed=False):
     ret = ["with", "val", lll_node, ["seq", assertion, "val"]]
 
     return LLLnode.from_list(ret, annotation=f"int_clamp {lll_node.typ}")
+
+
+# e.g. for int8, promote 255 to -1
+def promote_signed_int(x, bits):
+    assert bits % 8 == 0
+    ret = ["signextend", bits // 8 - 1, x]
+    return LLLnode.from_list(ret, annotation=f"promote int{bits}")

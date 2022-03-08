@@ -24,6 +24,7 @@ from vyper.codegen.core import (
     getpos,
     lll_tuple_from_args,
     load_op,
+    promote_signed_int,
     unwrap_location,
 )
 from vyper.codegen.expr import Expr
@@ -1725,7 +1726,7 @@ class _UnsafeMath:
             # wrap for ops which could under/overflow
             if int_info.is_signed:
                 # e.g. int128 -> (signextend 15 (add x y))
-                ret = ["signextend", int_info.bits // 8 - 1, ret]
+                ret = promote_signed_int(ret, int_info.bits)
             else:
                 # e.g. uint8 -> (mod (add x y) 256)
                 # TODO mod_bound could be a really large literal

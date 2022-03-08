@@ -95,6 +95,12 @@ def apply_general_optimizations(node: LLLnode) -> LLLnode:
         argz = []
         value = ceil32(t.value)
 
+    # x >> 0 == x << 0 == x
+    elif node.value in ("shl", "shr", "sar") and get_int_at(argz, 0) == 0:
+        value = argz[1].value
+        annotation = argz[1].annotation
+        argz = []
+
     elif node.value == "add" and get_int_at(argz, 0) == 0:
         value = argz[1].value
         annotation = argz[1].annotation

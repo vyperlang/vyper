@@ -1,4 +1,5 @@
 import binascii
+import decimal
 import sys
 import traceback
 from typing import Dict, List, Union
@@ -162,7 +163,7 @@ class SizeLimits:
     def in_bounds(cls, type_str, value):
         assert isinstance(type_str, str)
         if type_str == "decimal":
-            return Decimal(cls.MINDECIMAL) <= value <= Decimal(cls.MAXDECIMAL)
+            return decimal.Decimal(cls.MINDECIMAL) <= value <= decimal.Decimal(cls.MAXDECIMAL)
         if type_str == "uint8":
             return 0 <= value <= cls.MAX_UINT8
         elif type_str == "uint256":
