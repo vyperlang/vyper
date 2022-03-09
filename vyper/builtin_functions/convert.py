@@ -6,8 +6,10 @@ from vyper.codegen.core import (
     LLLnode,
     bytes_data_ptr,
     clamp_basetype,
+    bytes_clamp,
     get_bytearray_length,
     getpos,
+    unwrap_location,
     int_clamp,
     load_word,
     promote_signed_int,
@@ -115,7 +117,8 @@ def to_bool(expr, arg, out_typ):
     _check_bytes(expr, arg, otyp, 32)  # should we restrict to Bytes[1]?
 
     if isinstance(arg.typ, ByteArrayType):
-        arg = _byte_array_to_num(arg, "uint256")
+        # question: should clamp?
+        arg = _byte_array_to_num(arg, "uint256", clamp=False)
 
     # NOTE: for decimal, the behavior is x != 0.0,
     # not `x >= 1.0 and x <= -1.0` since
@@ -240,7 +243,7 @@ def to_bytes_m(expr, arg, out_typ):
             int_bits = 160
 
         if m_bits > int_bits:
-            raise _FAIL(expr, arg.typ, out_typ)
+            _FAIL(expr, arg.typ, out_typ)
 
         # no special handling for signed ints needed
         # (downcasting is disallowed so we don't need to deal with
@@ -258,7 +261,7 @@ def to_address(expr, arg, out_typ):
     if isinstance(arg.typ, ByteArrayLike):
         # disallow casting from Bytes[N>20]
         if arg.typ.maxlen * 8 > 160:
-            raise TypeMismatch(f"Cannot cast {arg.typ} to {out_typ}", expr)
+            _FAIL(arg.typ, out_typ, expr)
         arg = _byte_array_to_num(arg, out_typ, clamp=False)
 
     elif is_bytes_m_type(arg.typ):
@@ -267,7 +270,11 @@ def to_address(expr, arg, out_typ):
 
         if m > 20:
             arg = bytes_clamp(arg, 20)
-        arg = shr(256 - m_bits, arg)
+        # bytes32 -> shr 96
+        # bytes20 -> shr 96
+        # bytes19 -> shr 104
+        to_shift = max(256 - m_bits, 96)
+        arg = shr(to_shift, arg)
 
     elif is_integer_type(arg.typ):
         int_info = parse_integer_typeinfo(arg.typ.typ)
@@ -304,6 +311,8 @@ def convert(expr, context):
     arg = Expr(expr.args[0], context).lll_node
     out_typ = context.parse_type(expr.args[1])
 
+    if not isinstance(out_typ, ByteArrayLike):
+        arg = unwrap_location(arg)
     with arg.cache_when_complex("arg") as (b, arg):
         if is_base_type(out_typ, "bool"):
             ret = to_bool(expr, arg, out_typ)

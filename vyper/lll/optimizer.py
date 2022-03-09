@@ -99,7 +99,7 @@ def apply_general_optimizations(node: LLLnode) -> LLLnode:
     elif node.value in ("shl", "shr", "sar") and get_int_at(argz, 0) == 0:
         value = argz[1].value
         annotation = argz[1].annotation
-        argz = []
+        argz = argz[1].args
 
     elif node.value == "add" and get_int_at(argz, 0) == 0:
         value = argz[1].value
