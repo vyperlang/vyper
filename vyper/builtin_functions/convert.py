@@ -5,7 +5,6 @@ from vyper import ast as vy_ast
 from vyper.codegen.core import (
     LLLnode,
     bytes_data_ptr,
-    clamp_basetype,
     bytes_clamp,
     get_bytearray_length,
     getpos,
@@ -84,7 +83,7 @@ def _input_types(*allowed_types):
     return decorator
 
 
-def _byte_array_to_num(arg, out_type, clamp):
+def _byte_array_to_num(arg, out_type):
     """
     Generate LLL which takes a <32 byte array as input and returns a number
     """
@@ -97,9 +96,6 @@ def _byte_array_to_num(arg, out_type, clamp):
     # e.g. "abcd000000000000" -> bitcast(000000000000abcd, output_type)
     num_zero_bits = ["mul", 8, ["sub", 32, len_]]
     result = LLLnode.from_list(shr(num_zero_bits, val), typ=out_type)
-
-    if clamp:
-        result = clamp_basetype(result)
 
     return LLLnode.from_list(
         result,
@@ -135,7 +131,7 @@ def to_bool(expr, arg, out_typ):
 
     if isinstance(arg.typ, ByteArrayType):
         # question: should clamp?
-        arg = _byte_array_to_num(arg, out_typ, clamp=False)
+        arg = _byte_array_to_num(arg, out_typ)
 
     # NOTE: for decimal, the behavior is x != 0.0,
     # (we do not issue an `sdiv DECIMAL_DIVISOR`)
@@ -143,7 +139,6 @@ def to_bool(expr, arg, out_typ):
     return LLLnode.from_list(["iszero", ["iszero", arg]], typ=out_typ)
 
 
-# TODO do we need this or is this handled in the optimizer?
 def _literal_int(expr, out_typ):
     int_info = parse_integer_typeinfo(out_typ.typ)
     val = int(expr.value)  # should work for Int, Decimal, Hex
@@ -162,10 +157,11 @@ def to_int(expr, arg, out_typ):
     _check_bytes(expr, arg.typ, out_typ, int_info.bits // 8)
 
     if isinstance(expr, vy_ast.Constant):
+        # TODO: possible to reuse machinery from expr.py?
         return _literal_int(expr, out_typ)
 
     if isinstance(arg.typ, ByteArrayLike):
-        arg = _byte_array_to_num(arg, out_typ, clamp=False)
+        arg = _byte_array_to_num(arg, out_typ)
 
     if is_decimal_type(arg.typ):
         info = parse_decimal_info(arg.typ.typ)
@@ -175,26 +171,24 @@ def to_int(expr, arg, out_typ):
         m = parse_bytes_m_info(arg.typ.typ)
         m_bits = m * 8
 
-        # NOTE bytesM to intN is like casting to bytesJ then intN
-        # (where J = N/8)
-        arg = shr(256 - m_bits, arg)
-        is_downcast = m_bits > int_info.bits  # do we need to clamp?
-        if is_downcast:
-            arg = LLLnode.from_list(arg, typ=out_typ)
-            arg = clamp_basetype(arg)
         if int_info.is_signed:
-            arg = promote_signed_int(arg, int_info.bits)
+            # sar to preserve sign bit
+            arg = sar(256 - m_bits, arg)
+        else:
+            arg = shr(256 - m_bits, arg)
+
+        if m_bits > int_info.bits:
+            arg = int_clamp(arg, int_info.bits, signed=int_info.signed)
 
     if is_integer_type(arg.typ):
         arg_info = parse_integer_typeinfo(arg.typ.typ)
 
-        # generate clamps
         # special clamp for uint/sint conversions
         # uint -> sint requires input < sint::max_value
         # sint -> uint requires input >= 0
         # it turns out that these are both equivalent to
         # checking that the top bit is set (e.g. for uint8
-        # that the 8th bit is set)
+        # that the 8th bit is set, same for int8)
         if int_info.is_signed != arg_info.is_signed:
             # convert between signed and unsigned
             # e.g. uint256 -> int128, or int256 -> uint8
@@ -205,8 +199,7 @@ def to_int(expr, arg, out_typ):
             arg = tmp
 
         elif arg_info.bits > int_info.bits:
-            # cast to out_type so clamp_basetype works
-            arg = LLLnode.from_list(arg, typ=out_typ)
+            arg = int_clamp(arg, int_info.bits, int_info.is_signed)
         else:
             pass  # upcasting with no change in signedness; no clamp needed
 
@@ -216,6 +209,7 @@ def to_int(expr, arg, out_typ):
 @_input_types("int", "decimal", "bool")
 def to_decimal(expr, arg, out_typ):
     if isinstance(expr, vy_ast.Constant):
+        # TODO: possible to reuse machinery from expr.py?
         val = decimal.Decimal(expr.value)  # should work for Int, Decimal, Hex
         (lo, hi) = (SizeLimits.MIN_DECIMAL, SizeLimits.MAX_DECIMAL)
         if not (lo <= expr.val <= hi):
@@ -231,7 +225,7 @@ def to_decimal(expr, arg, out_typ):
     if is_integer_type(arg.typ):
         int_info = parse_integer_typeinfo(arg.typ.typ)
         if int_info.bits > 128:
-            arg = int_clamp(arg, 128, is_signed=True)
+            arg = int_clamp(arg, 128, signed=True)
 
     return _int_to_fixed(arg, out_typ)
 
@@ -239,6 +233,7 @@ def to_decimal(expr, arg, out_typ):
 @_input_types("int", "decimal", "bytes_m", "address", "bytes", "bool")
 def to_bytes_m(expr, arg, out_typ):
     m = parse_bytes_m_info(out_typ.typ)
+    m_bits = m * 8
     _check_bytes(expr, arg, out_typ, max_bytes_allowed=m)
 
     if isinstance(arg.typ, ByteArrayType):
@@ -253,21 +248,19 @@ def to_bytes_m(expr, arg, out_typ):
             ret = b.resolve(ret)
 
     elif is_integer_type(arg.typ) or is_base_type(arg.typ, "address"):
-        m_bits = m * 8
         if is_integer_type(arg.typ):
             int_bits = parse_integer_typeinfo(arg.typ.typ).bits
         else:  # address
             int_bits = 160
 
         if m_bits < int_bits:
+            # question: allow with runtime clamp?
+            # arg = int_clamp(m_bits, signed=int_info.signed)
             _FAIL(expr, arg.typ, out_typ)
 
-        # no special handling for signed ints needed
-        # (downcasting is disallowed so we don't need to deal with
-        # upper `1` bits)
-        ret = shl(m_bits - int_bits, arg)
+        ret = shl(256 - m_bits, arg)
 
-    elif is_bytes_m(arg.typ):
+    elif is_bytes_m_type(arg.typ):
         m_out = parse_bytes_m_info(arg.typ)
         # clamp if it's a downcast
         if m > m_out:
@@ -287,28 +280,31 @@ def to_address(expr, arg, out_typ):
         if parse_integer_typeinfo(arg.typ.typ).is_signed:
             _FAIL(arg.typ, out_typ, expr)
 
+    # TODO once we introduce uint160, we can just call
+    # to_int(expr, arg, uint160) bc the logic is equivalent.
+
     if isinstance(arg.typ, ByteArrayLike):
         # disallow casting from Bytes[N>20]
-        if arg.typ.maxlen * 8 > 160:
+        if arg.typ.maxlen > 20:
             _FAIL(arg.typ, out_typ, expr)
-        arg = _byte_array_to_num(arg, out_typ, clamp=False)
+        arg = _byte_array_to_num(arg, out_typ)
 
     elif is_bytes_m_type(arg.typ):
         m = parse_bytes_m_info(arg.typ.typ)
         m_bits = m * 8
 
-        if m > 20:
-            arg = bytes_clamp(arg, 20)
-        # bytes32 -> shr 96
+        # bytes32 -> shr 0
         # bytes20 -> shr 96
         # bytes19 -> shr 104
-        to_shift = max(256 - m_bits, 96)
-        arg = shr(to_shift, arg)
+        arg = LLLnode.from_list(shr(256 - m_bits, arg))
+
+        # clamp after shift
+        if m > 20:
+            arg = int_clamp(arg, 160, signed=False)
 
     elif is_integer_type(arg.typ):
         int_info = parse_integer_typeinfo(arg.typ.typ)
         if int_info.bits > 160 or int_info.is_signed:
-            # NOTE: cast to output type so clamp_basetype works
             arg = int_clamp(arg, 160, False)
 
     return LLLnode.from_list(arg, typ=out_typ)

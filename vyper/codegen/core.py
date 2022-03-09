@@ -1012,19 +1012,21 @@ def int_clamp(lll_node, bits, signed=False):
     """
     if bits >= 256:
         raise CompilerPanic(f"invalid clamp: {bits}>=256 ({lll_node})")  # pragma: notest
-    if signed:
-        # example for bits==128:
-        # if _val is in bounds,
-        # _val >>> 127 == 0 for positive _val
-        # _val >>> 127 == -1 for negative _val
-        # -1 and 0 are the only numbers which are unchanged by sar,
-        # so sar'ing (_val>>>127) one more bit should leave it unchanged.
-        assertion = ["assert", ["eq", sar(bits - 1, "val"), sar(bits, "val")]]
-    else:
-        assertion = ["assert", ["iszero", shr(bits, "val")]]
+    with lll_node.cache_when_complex("val") as (b, val):
+        if signed:
+            # example for bits==128:
+            # promote_signed_int(val, bits) is the "canonical" version of val
+            # if val is in bounds, the bits above bit 128 should be equal.
+            # (this works for both val >= 0 and val < 0. in the first case,
+            # all upper bits should be 0 if val is a valid int128,
+            # in the latter case, all upper bits should be 1.)
+            assertion = ["assert", ["eq", val, promote_signed_int(val, bits)]]
+        else:
+            assertion = ["assert", ["iszero", shr(bits, val)]]
 
-    ret = ["with", "val", lll_node, ["seq", assertion, "val"]]
+        ret = b.resolve(["seq", assertion, val])
 
+    # TODO fix this annotation
     return LLLnode.from_list(ret, annotation=f"int_clamp {lll_node.typ}")
 
 

@@ -2,8 +2,8 @@ from vyper.utils import checksum_encode
 
 def test_convert_from_bytes32(get_contract_with_gas_estimation):
     test_address = "0xF5D4020dCA6a62bB1efFcC9212AAF3c9819E30D7"
-    # right padded with zeroes
-    test_bytes = int(test_address, 16).to_bytes(20, "big").ljust(32, b"\00")
+    # left padded with zeroes
+    test_bytes = int(test_address, 16).to_bytes(20, "big").rjust(32, b"\00")
 
     test_bytes_to_address = """
 @external
@@ -16,8 +16,8 @@ def test_bytes_to_address(x: bytes32) -> address:
 
 
 def test_bytes32_clamping(get_contract, assert_tx_failed):
-    test_passing = (b"\xff" * 20).ljust(32, b"\x00")
-    test_fails = (b"\x01" + b"\xff" * 20).ljust(32, b"\x00")
+    test_passing = (b"\xff" * 20).rjust(32, b"\x00")
+    test_fails = (b"\x01" + b"\xff" * 20).rjust(32, b"\x00")
 
     test_bytes_to_address = """
 @external
