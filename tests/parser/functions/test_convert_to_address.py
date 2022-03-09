@@ -1,5 +1,6 @@
 from vyper.utils import checksum_encode
 
+
 def test_convert_from_bytes32(get_contract_with_gas_estimation):
     test_address = "0xF5D4020dCA6a62bB1efFcC9212AAF3c9819E30D7"
     # left padded with zeroes
@@ -28,7 +29,7 @@ def foo(x: bytes32) -> address:
     c = get_contract(test_bytes_to_address)
 
     assert_tx_failed(lambda: c.foo(test_fails))
-    assert c.foo(test_passing) == checksum_encode("0x" + "ff"*20)
+    assert c.foo(test_passing) == checksum_encode("0x" + "ff" * 20)
 
 
 def test_convert_from_uint256(get_contract_with_gas_estimation):
@@ -58,4 +59,4 @@ def foo(x: uint256) -> address:
     c = get_contract(test_bytes_to_address)
 
     assert_tx_failed(lambda: c.foo(test_fails))
-    assert c.foo(test_passing) == checksum_encode("0x" + "ff"*20)
+    assert c.foo(test_passing) == checksum_encode("0x" + "ff" * 20)

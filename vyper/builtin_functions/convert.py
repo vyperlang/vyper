@@ -1,20 +1,20 @@
 import decimal
 import functools
+import math
 
 from vyper import ast as vy_ast
 from vyper.codegen.core import (
     LLLnode,
-    bytes_data_ptr,
     bytes_clamp,
+    bytes_data_ptr,
     get_bytearray_length,
     getpos,
-    unwrap_location,
     int_clamp,
     load_word,
-    promote_signed_int,
     sar,
     shl,
     shr,
+    unwrap_location,
 )
 from vyper.codegen.expr import Expr
 from vyper.codegen.types import (
@@ -31,17 +31,6 @@ from vyper.codegen.types import (
     parse_integer_typeinfo,
 )
 from vyper.exceptions import InvalidLiteral, StructureException, TypeMismatch
-from vyper.semantics.types import (
-    AddressDefinition,
-    BoolDefinition,
-    BytesArrayDefinition,
-    StringDefinition,
-)
-from vyper.semantics.types.abstract import (
-    BytesAbstractType,
-    NumericAbstractType,
-    UnsignedIntegerAbstractType,
-)
 from vyper.utils import DECIMAL_DIVISOR, SizeLimits, int_bounds
 
 
@@ -61,7 +50,7 @@ def _type_class_of(typ):
     if is_decimal_type(typ):
         return "decimal"
     if isinstance(typ, BaseType):
-        return typ.typ # e.g., "bool"
+        return typ.typ  # e.g., "bool"
     if isinstance(typ, ByteArrayType):
         return "bytes"
     if isinstance(typ, StringType):
@@ -115,10 +104,7 @@ def _int_to_fixed(x, out_typ, decimals=10):
 def _check_bytes(expr, arg, output_type, max_bytes_allowed):
     if isinstance(arg.typ, ByteArrayLike):
         if arg.typ.maxlen > max_bytes_allowed:
-            raise TypeMismatch(
-                f"Cannot convert {arg.typ} to {output_type}",
-                expr,
-            )
+            _FAIL(arg.typ, output_type, expr)
     else:
         # sanity check. should not have conversions to non-base types
         assert output_type.memory_bytes_required == 32
@@ -206,19 +192,22 @@ def to_int(expr, arg, out_typ):
     return LLLnode.from_list(arg, typ=out_typ)
 
 
-@_input_types("int", "decimal", "bool")
+@_input_types("int", "bool")
 def to_decimal(expr, arg, out_typ):
     if isinstance(expr, vy_ast.Constant):
         # TODO: possible to reuse machinery from expr.py?
         val = decimal.Decimal(expr.value)  # should work for Int, Decimal, Hex
-        (lo, hi) = (SizeLimits.MIN_DECIMAL, SizeLimits.MAX_DECIMAL)
-        if not (lo <= expr.val <= hi):
+
+        val = val * DECIMAL_DIVISOR
+
+        (lo, hi) = (SizeLimits.MINDECIMAL, SizeLimits.MAXDECIMAL)
+        if not (lo <= val <= hi):
             raise InvalidLiteral("Number out of range", expr)
 
-        return LLLnode.from_list(
-            int(val * DECIMAL_DIVISOR),
-            typ=BaseType(out_typ, is_literal=True),
-        )
+        # sanity check type checker did its job
+        assert math.ceil(val) == math.floor(val)
+
+        return LLLnode.from_list(int(val), typ=out_typ)
 
     # for the clamp, pretend it's int128 because int128 clamps are cheaper
     # (and then multiply into the decimal base afterwards)
@@ -256,7 +245,7 @@ def to_bytes_m(expr, arg, out_typ):
         if m_bits < int_bits:
             # question: allow with runtime clamp?
             # arg = int_clamp(m_bits, signed=int_info.signed)
-            _FAIL(expr, arg.typ, out_typ)
+            _FAIL(arg.typ, out_typ, expr)
 
         ret = shl(256 - m_bits, arg)
 
@@ -333,28 +322,29 @@ def convert(expr, context):
     if len(expr.args) != 2:
         raise StructureException("The convert function expects two parameters.", expr)
 
-    arg = Expr(expr.args[0], context).lll_node
+    arg_ast = expr.args[0]
+    arg = Expr(arg_ast, context).lll_node
     out_typ = context.parse_type(expr.args[1])
 
     if isinstance(arg.typ, BaseType):
         arg = unwrap_location(arg)
     with arg.cache_when_complex("arg") as (b, arg):
         if is_base_type(out_typ, "bool"):
-            ret = to_bool(expr, arg, out_typ)
+            ret = to_bool(arg_ast, arg, out_typ)
         elif is_base_type(out_typ, "address"):
-            ret = to_address(expr, arg, out_typ)
+            ret = to_address(arg_ast, arg, out_typ)
         elif is_integer_type(out_typ):
-            ret = to_int(expr, arg, out_typ)
+            ret = to_int(arg_ast, arg, out_typ)
         elif is_bytes_m_type(out_typ):
-            ret = to_bytes_m(expr, arg, out_typ)
+            ret = to_bytes_m(arg_ast, arg, out_typ)
         elif is_decimal_type(out_typ):
-            ret = to_decimal(expr, arg, out_typ)
+            ret = to_decimal(arg_ast, arg, out_typ)
         elif isinstance(out_typ, ByteArrayType):
-            ret = to_bytes(expr, arg, out_typ)
+            ret = to_bytes(arg_ast, arg, out_typ)
         elif isinstance(out_typ, StringType):
-            ret = to_string(expr, arg, out_typ)
+            ret = to_string(arg_ast, arg, out_typ)
         else:
-            raise StructureException(f"Conversion to {out_typ} is invalid.", expr)
+            raise StructureException(f"Conversion to {out_typ} is invalid.", arg_ast)
 
         ret = b.resolve(ret)
 
