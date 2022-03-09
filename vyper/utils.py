@@ -74,7 +74,7 @@ def bytes_to_int(bytez):
 
 # Encodes an address using ethereum's checksum scheme
 def checksum_encode(addr):  # Expects an input of the form 0x<40 hex chars>
-    assert addr[:2] == "0x" and len(addr) == 42
+    assert addr[:2] == "0x" and len(addr) == 42, addr
     o = ""
     v = bytes_to_int(keccak256(addr[2:].lower().encode("utf-8")))
     for i, c in enumerate(addr[2:]):
@@ -149,7 +149,6 @@ class MemoryPositions:
 
 # Sizes of different data types. Used to clamp types.
 class SizeLimits:
-    ADDRSIZE = 2 ** 160
     MAX_INT128 = 2 ** 127 - 1
     MIN_INT128 = -(2 ** 127)
     MAX_INT256 = 2 ** 255 - 1

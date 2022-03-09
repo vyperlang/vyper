@@ -218,12 +218,13 @@ class Expr:
             )
 
     def parse_Decimal(self):
+        val = self.expr.value
         # sanity check that type checker did its job
-        assert isinstance(self.value, decimal.Decimal)
-        assert SizeLimits.MIN_DECIMAL <= self.value <= SizeLimits.MAX_DECIMAL
+        assert isinstance(val, decimal.Decimal)
+        assert SizeLimits.MINDECIMAL <= val <= SizeLimits.MAXDECIMAL
 
         return LLLnode.from_list(
-            int(self.value * DECIMAL_DIVISOR),
+            int(val * DECIMAL_DIVISOR),
             typ=BaseType("decimal", is_literal=True),
             pos=getpos(self.expr),
         )

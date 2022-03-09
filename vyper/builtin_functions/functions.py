@@ -168,9 +168,6 @@ class Ceil(_SimpleBuiltinFunction):
 
 class Convert:
 
-    # TODO this is just a wireframe, expand it with complete functionality
-    # https://github.com/vyperlang/vyper/issues/1093
-
     _id = "convert"
 
     def fetch_call_return(self, node):
@@ -188,7 +185,6 @@ class Convert:
                 raise InvalidType(f"Value and target type are both '{target_type}'", node)
 
         # note: more type conversion validation happens in convert.py
-
         return target_type
 
     def build_LLL(self, expr, context):
