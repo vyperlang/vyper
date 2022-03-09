@@ -89,6 +89,11 @@ class DecimalTypeInfo:
     bits: int
     decimals: int
 
+@dataclasee
+class BytesMTypeInfo:
+    m: int
+    m_bits: int # m_bits == m * 8, just convenient to have
+
 
 _int_parser = re.compile("^(u?)int([0-9]+)$")
 
@@ -112,8 +117,9 @@ def is_bytes_m_type(t: "NodeType") -> bool:
     return isinstance(t, BaseType) and t.typ.startswith("bytes")
 
 
-def parse_bytes_m_info(typename: str) -> int:
-    return int(typename[len("bytes") :])
+def parse_bytes_m_info(typename: str) -> BytesMTypeInfo:
+    m = int(typename[len("bytes") :])
+    return BytesMTypeInfo(m=m, m_bits=m*8)
 
 
 def is_decimal_type(t: "NodeType") -> bool:
@@ -128,14 +134,13 @@ def parse_decimal_info(typename) -> DecimalTypeInfo:
 
 def _basetype_to_abi_type(t: "BaseType") -> ABIType:
     if is_integer_type(t):
-        typinfo = parse_integer_typeinfo(t.typ)
-        return ABI_GIntM(typinfo.bits, typinfo.is_signed)
+        info = t._int_info
+        return ABI_GIntM(info.bits, info.signed)
     if is_decimal_type(t):
-        typinfo = parse_decimal_info(t.typ)
-        return ABI_FixedMxN(typinfo.bits, typinfo.decimals, True)
+        info = t._decimal_info
+        return ABI_FixedMxN(info.bits, info.decimals, signed=True)
     if is_bytes_m_type(t):
-        m = parse_bytes_m_info(t.typ)
-        return ABI_BytesM(m)
+        return ABI_BytesM(t._bytes_m_info.m)
     if t.typ == "address":
         return ABI_Address()
     if t.typ == "bool":
@@ -151,6 +156,18 @@ class BaseType(NodeType):
         # TODO remove is_literal,
         # change to property on LLLnode: `isinstance(self.value, int)`
         self.is_literal = is_literal
+
+        if is_integer_type(self):
+            self._int_info = parse_integer_typeinfo(typename)
+        if is_base_type(self, "address"):
+            self._int_info = IntegerTypeInfo(bits=160, signed=False)
+        # don't generate _int_info for bool,
+        # it doesn't really behave like an int in conversions
+        # and should have special handling in the codebase
+        if is_bytes_m_type(self):
+            self._bytes_info = parse_bytes_m_info(typename)
+        if is_decimal_type(self):
+            self._decimal_info = parse_decimal_info(typename)
 
     def eq(self, other):
         return self.typ == other.typ
