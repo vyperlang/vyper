@@ -9,6 +9,7 @@ from vyper.codegen.core import (
     bytes_data_ptr,
     get_bytearray_length,
     getpos,
+    clamp_basetype,
     int_clamp,
     load_word,
     sar,
@@ -192,11 +193,14 @@ def to_int(expr, arg, out_typ):
     return LLLnode.from_list(arg, typ=out_typ)
 
 
-@_input_types("int", "bool")
+@_input_types("int", "bool", "bytes_m")
 def to_decimal(expr, arg, out_typ):
     if isinstance(expr, vy_ast.Constant):
         # TODO: possible to reuse machinery from expr.py?
-        val = decimal.Decimal(expr.value)  # should work for Int, Decimal, Hex
+        if isinstance(expr, vy_ast.Hex):
+            val = decimal.Decimal(int(expr.value, 16))
+        else:
+            val = decimal.Decimal(expr.value)  # should work for Int, Decimal, Hex
 
         val = val * DECIMAL_DIVISOR
 
@@ -215,6 +219,15 @@ def to_decimal(expr, arg, out_typ):
         int_info = parse_integer_typeinfo(arg.typ.typ)
         if int_info.bits > 128:
             arg = int_clamp(arg, 128, signed=True)
+
+    if is_bytes_m_type(arg.typ):
+        m = parse_bytes_m_info(arg.typ.typ)
+        m_bits = m * 8
+        arg = shr(256 - m_bits, arg)
+        # TODO revisit this condition once we have more decimal types
+        if m_bits > 128:
+            arg = LLLnode.from_list(arg, typ=out_typ)
+            arg = clamp_basetype(arg)
 
     return _int_to_fixed(arg, out_typ)
 
