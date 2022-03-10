@@ -193,7 +193,7 @@ def to_int(expr, arg, out_typ):
         if int_info.is_signed != arg_info.is_signed:
             # note: same logic as int_clamp(arg, bits=int_info.bits - 1, signed=False)
             tmp = ["seq"]
-            tmp.append(["assert", ["iszero", shr(int_info.bits - 1), arg]])
+            tmp.append(["assert", ["iszero", shr(int_info.bits - 1, arg)]])
             tmp.append(arg)
             arg = tmp
 
