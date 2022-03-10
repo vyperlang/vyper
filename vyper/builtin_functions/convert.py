@@ -117,11 +117,17 @@ def _check_bytes(expr, arg, output_type, max_bytes_allowed):
 def _literal_int(expr, out_typ):
     # TODO: possible to reuse machinery from expr.py?
     int_info = out_typ._int_info
-    val = int(expr.value)  # should work for Int, Decimal, Hex
+    if isinstance(expr, vy_ast.Hex):
+        val = int(expr.value, 16)
+    elif isinstance(expr, vy_ast.Bytes):
+        val = int.from_bytes(expr.value, "big")
+    else:
+        # Int, Decimal
+        val = int(expr.value)
     (lo, hi) = int_bounds(int_info.is_signed, int_info.bits)
     if not (lo <= val <= hi):
         raise InvalidLiteral("Number out of range", expr)
-    return LLLnode.from_list(val, typ=out_typ, is_literal=True)
+    return LLLnode.from_list(val, typ=out_typ)
 
 
 def _literal_decimal(expr, out_typ):
@@ -158,7 +164,20 @@ def to_bool(expr, arg, out_typ):
     return LLLnode.from_list(["iszero", ["iszero", arg]], typ=out_typ)
 
 
-@_input_types("int", "bytes_m", "bytes", "bool")
+# special clamp for uint/sint conversions
+# uint -> sint requires input < sint::max_value
+# sint -> uint requires input >= 0
+# these are both equivalent to checking that the top bit is set
+# (e.g. for uint8 that the 8th bit is set, same for int8)
+def _signedness_clamp(arg, bits):
+    with arg.cache_when_complex("val") as (b, arg):
+        ret = ["seq"]
+        # note: same logic as int_clamp(arg, bits=int_info.bits - 1, signed=False)
+        ret.append(["assert", ["iszero", shr(bits - 1, arg)]])
+        ret.append(arg)
+        return b.resolve(LLLnode.from_list(ret, typ=arg.typ))
+
+@_input_types("int", "bytes_m", "decimal", "bytes", "address", "bool")
 def to_int(expr, arg, out_typ):
 
     int_info = out_typ._int_info
@@ -173,35 +192,36 @@ def to_int(expr, arg, out_typ):
         arg_info = arg.typ._decimal_info
         arg = _fixed_to_int(arg, out_typ, decimals=arg_info.decimals)
 
+        # uh really need to double check these clamp conditions
+        if not int_info.is_signed or int_info.bits < arg_info.bits:
+            arg = int_clamp(arg, int_info.bits)
+
     if isinstance(arg.typ, ByteArrayType):
         arg = _bytes_to_num(arg, out_typ, signed=int_info.is_signed)
 
     if is_bytes_m_type(arg.typ):
-        arg = _bytes_to_num(arg, out_typ, signed=int_info.is_signed)
         arg_info = arg.typ._bytes_info
-        if arg_info.bits > int_info.bits:
+        arg = _bytes_to_num(arg, out_typ, signed=int_info.is_signed)
+        if arg_info.m_bits > int_info.bits:
             arg = int_clamp(arg, int_info.bits, signed=int_info.is_signed)
 
     if is_integer_type(arg.typ):
         arg_info = arg.typ._int_info
 
-        # special clamp for uint/sint conversions
-        # uint -> sint requires input < sint::max_value
-        # sint -> uint requires input >= 0
-        # these are both equivalent to checking that the top bit is set
-        # (e.g. for uint8 that the 8th bit is set, same for int8)
         if int_info.is_signed != arg_info.is_signed:
-            # note: same logic as int_clamp(arg, bits=int_info.bits - 1, signed=False)
-            tmp = ["seq"]
-            tmp.append(["assert", ["iszero", shr(int_info.bits - 1, arg)]])
-            tmp.append(arg)
-            arg = tmp
+            arg = _signedness_clamp(arg, int_info.bits)
 
         # same signedness with downcast
         elif arg_info.bits > int_info.bits:
             arg = int_clamp(arg, int_info.bits, int_info.is_signed)
         else:
             pass  # upcasting with no change in signedness; no clamp needed
+
+    if is_base_type(arg.typ, "address"):
+        if int_info.is_signed:
+            _FAIL(arg.typ, out_typ, expr)
+        if int_info.bits > 160:
+            arg = int_clamp(arg, 160, signed=False)
 
     return LLLnode.from_list(arg, typ=out_typ)
 

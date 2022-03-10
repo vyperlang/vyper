@@ -16,7 +16,7 @@ def int128_to_uint256(inp: int128) -> (uint256, uint256, uint256):
     self.a = inp
     memory: uint256  = convert(inp, uint256)
     storage: uint256 = convert(self.a, uint256)
-    literal: uint256 = convert(1, uint256)
+    literal: uint256 = 1  # convert(1, uint256) fails because 1 is already uint256
     return  memory, storage, literal
 
 @external
