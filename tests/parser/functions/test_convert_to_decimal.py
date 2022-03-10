@@ -72,9 +72,9 @@ def foo(bar: bytes32) -> decimal:
 
     c = get_contract_with_gas_estimation(code)
     assert c.foo(b"\x00" * 32) == 0.0
-    assert c.foo(b"\xff" * 32) == -1.0
-    assert c.foo((b"\x00" * 31) + b"\x01") == 1.0
-    assert c.foo((b"\x00" * 30) + b"\x01\x00") == 256.0
+    assert c.foo(b"\xff" * 32) == Decimal("-1e-10")
+    assert c.foo((b"\x00" * 31) + b"\x01") == Decimal("1e-10")
+    assert c.foo((b"\x00" * 30) + b"\x01\x00") == Decimal("256e-10")
 
 
 def test_convert_from_bytes32_overflow(get_contract_with_gas_estimation, assert_compile_failed):
@@ -94,22 +94,22 @@ def foo(bar: Bytes[5]) -> decimal:
     return convert(bar, decimal)
 
 @external
-def goo(bar: Bytes[32]) -> decimal:
+def goo(bar: Bytes[16]) -> decimal:
     return convert(bar, decimal)
     """
 
     c = get_contract_with_gas_estimation(code)
 
     assert c.foo(b"\x00\x00\x00\x00\x00") == 0.0
-    assert c.foo(b"\x00\x07\x5B\xCD\x15") == 123456789.0
+    assert c.foo(b"\x00\x07\x5B\xCD\x15") == Decimal("123456789e-10")
 
     assert c.goo(b"") == 0.0
     assert c.goo(b"\x00") == 0.0
-    assert c.goo(b"\x01") == 1.0
-    assert c.goo(b"\x00\x01") == 1.0
-    assert c.goo(b"\x01\x00") == 256.0
-    assert c.goo(b"\x01\x00\x00\x00\x01") == 4294967297.0
-    assert c.goo(b"\xff" * 32) == -1.0
+    assert c.goo(b"\x01") == Decimal("1e-10")
+    assert c.goo(b"\x00\x01") == Decimal("1e-10")
+    assert c.goo(b"\x01\x00") == Decimal("256e-10")
+    assert c.goo(b"\x01\x00\x00\x00\x01") == Decimal("4294967297e-10")
+    assert c.goo(b"\xff" * 16) == Decimal("-1.0e-10")
 
 
 def test_convert_from_too_many_bytes(get_contract_with_gas_estimation, assert_compile_failed):
