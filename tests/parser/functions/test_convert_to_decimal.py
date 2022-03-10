@@ -137,44 +137,32 @@ def foobar() -> decimal:
     )
 
 
-def test_convert_from_address(get_contract_with_gas_estimation):
-    code = """
+def test_convert_from_address(get_contract, assert_compile_failed):
+    codes = ["""
 stor: address
-
-@external
-def conv(param: address) -> decimal:
-    return convert(param, decimal)
-
-@external
-def conv_zero_literal() -> decimal:
-    return convert(ZERO_ADDRESS, decimal)
-
 @external
 def conv_zero_stor() -> decimal:
     self.stor = ZERO_ADDRESS
     return convert(self.stor, decimal)
-
+""",
+"""
+@external
+def conv(param: address) -> decimal:
+    return convert(param, decimal)
+""",
+"""
+@external
+def conv_zero_literal() -> decimal:
+    return convert(ZERO_ADDRESS, decimal)
+""",
+"""
 @external
 def conv_neg1_literal() -> decimal:
     return convert(0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF, decimal)
-
-@external
-def conv_neg1_stor() -> decimal:
-    self.stor = 0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF
-    return convert(self.stor, decimal)
-    """
-
-    c = get_contract_with_gas_estimation(code)
-    assert c.conv(b"\x00" * 20) == 0.0
-    assert c.conv_zero_literal() == 0.0
-    assert c.conv_zero_stor() == 0.0
-
-    assert c.conv(b"\xff" * 20) == -1.0
-    assert c.conv_neg1_literal() == -1.0
-    assert c.conv_neg1_stor() == -1.0
-
-    assert c.conv((b"\x00" * 19) + b"\x01") == 1.0
-    assert c.conv((b"\x00" * 18) + b"\x01\x00") == 256.0
+"""
+]
+    for c in codes:
+        assert_compile_failed(lambda: get_contract(c), TypeMismatch)
 
 
 def test_convert_from_int256(get_contract_with_gas_estimation, assert_tx_failed):

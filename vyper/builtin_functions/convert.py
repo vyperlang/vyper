@@ -78,12 +78,12 @@ def _bytes_to_num(arg, out_typ, signed):
     # convert by shr the number of zero bytes (converted to bits)
     # e.g. "abcd000000000000" -> bitcast(000000000000abcd, output_type)
 
-    if isinstance(arg, ByteArrayLike):
+    if isinstance(arg.typ, ByteArrayLike):
         _len = get_bytearray_length(arg)
         arg = load_word(bytes_data_ptr(arg))
         num_zero_bits = ["mul", 8, ["sub", 32, _len]]
     elif is_bytes_m_type(arg.typ):
-        info = arg.typ._bytes_m_info
+        info = arg.typ._bytes_info
         num_zero_bits = 8 * (32 - info.m)
     else:
         raise CompilerPanic("unreachable")  # pragma: notest
@@ -164,7 +164,7 @@ def to_int(expr, arg, out_typ):
     int_info = out_typ._int_info
 
     assert int_info.bits % 8 == 0
-    _check_bytes(expr, arg.typ, out_typ, int_info.bits // 8)
+    _check_bytes(expr, arg, out_typ, int_info.bits // 8)
 
     if isinstance(expr, vy_ast.Constant):
         return _literal_int(expr, out_typ)
@@ -173,14 +173,14 @@ def to_int(expr, arg, out_typ):
         arg_info = arg.typ._decimal_info
         arg = _fixed_to_int(arg, out_typ, decimals=arg_info.decimals)
 
-    if isinstance(arg.typ, ByteArrayLike):
-        arg = _bytes_to_num(arg, out_typ, signed=int_info.signed)
+    if isinstance(arg.typ, ByteArrayType):
+        arg = _bytes_to_num(arg, out_typ, signed=int_info.is_signed)
 
     if is_bytes_m_type(arg.typ):
-        arg = _bytes_to_num(arg, out_typ, signed=int_info.signed)
-        arg_info = arg.typ._bytes_m_info
+        arg = _bytes_to_num(arg, out_typ, signed=int_info.is_signed)
+        arg_info = arg.typ._bytes_info
         if arg_info.bits > int_info.bits:
-            arg = int_clamp(arg, int_info.bits, signed=int_info.signed)
+            arg = int_clamp(arg, int_info.bits, signed=int_info.is_signed)
 
     if is_integer_type(arg.typ):
         arg_info = arg.typ._int_info
@@ -216,10 +216,13 @@ def to_decimal(expr, arg, out_typ):
 
     if isinstance(arg.typ, ByteArrayType):
         arg = _bytes_to_num(arg, out_typ, signed=True)
+        return LLLnode.from_list(arg, typ=out_typ)
+
     elif is_bytes_m_type(arg.typ):
+        info = arg.typ._bytes_info
         arg = _bytes_to_num(arg, out_typ, signed=True)
         # TODO revisit this condition once we have more decimal types
-        if arg.typ._bytes_m_info.m_bits > 128:
+        if info.m_bits > 128:
             arg = LLLnode.from_list(arg, typ=out_typ)
             arg = clamp_basetype(arg)
 
@@ -242,7 +245,7 @@ def to_decimal(expr, arg, out_typ):
 
 @_input_types("int", "decimal", "bytes_m", "address", "bytes", "bool")
 def to_bytes_m(expr, arg, out_typ):
-    out_info = out_typ.typ._bytes_m_info
+    out_info = out_typ._bytes_info
     _check_bytes(expr, arg, out_typ, max_bytes_allowed=out_info.m)
 
     if isinstance(arg.typ, ByteArrayType):
@@ -267,7 +270,7 @@ def to_bytes_m(expr, arg, out_typ):
         ret = shl(256 - out_info.m_bits, arg)
 
     elif is_bytes_m_type(arg.typ):
-        arg_info = arg.typ._bytes_m_info
+        arg_info = arg.typ._bytes_info
         # clamp if it's a downcast
         if arg_info.m > out_info.m:
             arg = bytes_clamp(arg, out_info.m)
@@ -279,11 +282,11 @@ def to_bytes_m(expr, arg, out_typ):
     return LLLnode.from_list(ret, typ=out_typ)
 
 
-@_input_types("bytes_m", "int")
+@_input_types("bytes_m", "int", "bytes")
 def to_address(expr, arg, out_typ):
     # question: should this be allowed?
     if is_integer_type(arg.typ):
-        if arg._int_info.is_signed:
+        if arg.typ._int_info.is_signed:
             _FAIL(arg.typ, out_typ, expr)
 
     # TODO once we introduce uint160, we can just call
@@ -292,11 +295,11 @@ def to_address(expr, arg, out_typ):
     # disallow casting from Bytes[N>20]
     _check_bytes(expr, arg, out_typ, 20)
 
-    if isinstance(arg.typ, ByteArrayLike):
+    if isinstance(arg.typ, ByteArrayType):
         arg = _bytes_to_num(arg, out_typ, signed=False)
 
     if is_bytes_m_type(arg.typ):
-        info = arg.typ._bytes_m_info
+        info = arg.typ._bytes_info
 
         arg = _bytes_to_num(arg, out_typ, signed=False)
 

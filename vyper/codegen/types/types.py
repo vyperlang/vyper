@@ -127,7 +127,7 @@ def is_decimal_type(t: "NodeType") -> bool:
     return isinstance(t, BaseType) and t.typ == "decimal"
 
 
-def parse_decimal_info(typename) -> DecimalTypeInfo:
+def parse_decimal_info(typename: str) -> DecimalTypeInfo:
     # in the future, this will actually do parsing
     assert typename == "decimal"
     return DecimalTypeInfo(bits=168, decimals=10)
@@ -136,12 +136,12 @@ def parse_decimal_info(typename) -> DecimalTypeInfo:
 def _basetype_to_abi_type(t: "BaseType") -> ABIType:
     if is_integer_type(t):
         info = t._int_info
-        return ABI_GIntM(info.bits, info.signed)
+        return ABI_GIntM(info.bits, info.is_signed)
     if is_decimal_type(t):
         info = t._decimal_info
         return ABI_FixedMxN(info.bits, info.decimals, signed=True)
     if is_bytes_m_type(t):
-        return ABI_BytesM(t._bytes_m_info.m)
+        return ABI_BytesM(t._bytes_info.m)
     if t.typ == "address":
         return ABI_Address()
     if t.typ == "bool":
@@ -161,7 +161,7 @@ class BaseType(NodeType):
         if is_integer_type(self):
             self._int_info = parse_integer_typeinfo(typename)
         if is_base_type(self, "address"):
-            self._int_info = IntegerTypeInfo(bits=160, signed=False)
+            self._int_info = IntegerTypeInfo(bits=160, is_signed=False)
         # don't generate _int_info for bool,
         # it doesn't really behave like an int in conversions
         # and should have special handling in the codebase
