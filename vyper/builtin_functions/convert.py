@@ -7,9 +7,9 @@ from vyper.codegen.core import (
     LLLnode,
     bytes_clamp,
     bytes_data_ptr,
+    clamp_basetype,
     get_bytearray_length,
     getpos,
-    clamp_basetype,
     int_clamp,
     load_word,
     sar,
@@ -27,11 +27,8 @@ from vyper.codegen.types import (
     is_bytes_m_type,
     is_decimal_type,
     is_integer_type,
-    parse_bytes_m_info,
-    parse_decimal_info,
-    parse_integer_typeinfo,
 )
-from vyper.exceptions import InvalidLiteral, StructureException, TypeMismatch
+from vyper.exceptions import CompilerPanic, InvalidLiteral, StructureException, TypeMismatch
 from vyper.utils import DECIMAL_DIVISOR, SizeLimits, int_bounds
 
 
@@ -86,8 +83,8 @@ def _bytes_to_num(arg, out_typ, signed):
         arg = load_word(bytes_data_ptr(arg))
         num_zero_bits = ["mul", 8, ["sub", 32, _len]]
     elif is_bytes_m_type(arg.typ):
-        m = parse_bytes_m_info(arg.typ.typ)
-        num_zero_bits = 8 * (32 - m)
+        info = arg.typ._bytes_m_info
+        num_zero_bits = 8 * (32 - info.m)
     else:
         raise CompilerPanic("unreachable")  # pragma: notest
 
@@ -96,8 +93,8 @@ def _bytes_to_num(arg, out_typ, signed):
     else:
         ret = shr(num_zero_bits, arg)
 
-    annotation=f"__intrinsic__byte_array_to_num({out_type})",
-    return LLLnode.from_list(result, typ=out_typ, annotation=annotation)
+    annotation = (f"__intrinsic__byte_array_to_num({out_typ})",)
+    return LLLnode.from_list(ret, annotation=annotation)
 
 
 def _fixed_to_int(x, out_typ, decimals=10):
@@ -119,7 +116,7 @@ def _check_bytes(expr, arg, output_type, max_bytes_allowed):
 
 def _literal_int(expr, out_typ):
     # TODO: possible to reuse machinery from expr.py?
-    int_info = parse_integer_typeinfo(out_typ.typ)
+    int_info = out_typ._int_info
     val = int(expr.value)  # should work for Int, Decimal, Hex
     (lo, hi) = int_bounds(int_info.is_signed, int_info.bits)
     if not (lo <= val <= hi):
@@ -215,7 +212,7 @@ def to_decimal(expr, arg, out_typ):
     _check_bytes(expr, arg, out_typ, max_bytes_allowed=16)
 
     if isinstance(expr, vy_ast.Constant):
-        return _literal_decimal(val, out_typ)
+        return _literal_decimal(expr, out_typ)
 
     if isinstance(arg.typ, ByteArrayType):
         arg = _bytes_to_num(arg, out_typ, signed=True)
@@ -231,7 +228,7 @@ def to_decimal(expr, arg, out_typ):
     # for the clamp, pretend it's int128 because int128 clamps are cheaper
     # (and then multiply into the decimal base afterwards)
     elif is_integer_type(arg.typ):
-        int_info = parse_integer_typeinfo(arg.typ.typ)
+        int_info = arg.typ._int_info
         if int_info.bits > 128:
             arg = int_clamp(arg, 128, signed=True)
 
@@ -277,7 +274,7 @@ def to_bytes_m(expr, arg, out_typ):
 
     else:
         # bool, decimal
-        ret = shl(256 - m_bits, arg)  # question: is this right?
+        ret = shl(256 - out_info.m_bits, arg)  # question: is this right?
 
     return LLLnode.from_list(ret, typ=out_typ)
 
@@ -286,7 +283,7 @@ def to_bytes_m(expr, arg, out_typ):
 def to_address(expr, arg, out_typ):
     # question: should this be allowed?
     if is_integer_type(arg.typ):
-        if parse_integer_typeinfo(arg.typ.typ).is_signed:
+        if arg._int_info.is_signed:
             _FAIL(arg.typ, out_typ, expr)
 
     # TODO once we introduce uint160, we can just call
@@ -296,18 +293,20 @@ def to_address(expr, arg, out_typ):
     _check_bytes(expr, arg, out_typ, 20)
 
     if isinstance(arg.typ, ByteArrayLike):
-        arg = _bytes_to_num(arg, out_typ)
+        arg = _bytes_to_num(arg, out_typ, signed=False)
 
     if is_bytes_m_type(arg.typ):
-        arg = _bytes_to_num(arg, out_typ)
+        info = arg.typ._bytes_m_info
+
+        arg = _bytes_to_num(arg, out_typ, signed=False)
 
         # clamp after shift
-        if m > 20:
+        if info.m > 20:
             arg = int_clamp(arg, 160, signed=False)
 
     elif is_integer_type(arg.typ):
-        int_info = parse_integer_typeinfo(arg.typ.typ)
-        if int_info.bits > 160 or int_info.is_signed:
+        arg_info = arg.typ._int_info
+        if arg_info.bits > 160 or arg_info.is_signed:
             arg = int_clamp(arg, 160, False)
 
     return LLLnode.from_list(arg, typ=out_typ)

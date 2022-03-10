@@ -89,10 +89,11 @@ class DecimalTypeInfo:
     bits: int
     decimals: int
 
-@dataclasee
+
+@dataclass
 class BytesMTypeInfo:
     m: int
-    m_bits: int # m_bits == m * 8, just convenient to have
+    m_bits: int  # m_bits == m * 8, just convenient to have
 
 
 _int_parser = re.compile("^(u?)int([0-9]+)$")
@@ -119,7 +120,7 @@ def is_bytes_m_type(t: "NodeType") -> bool:
 
 def parse_bytes_m_info(typename: str) -> BytesMTypeInfo:
     m = int(typename[len("bytes") :])
-    return BytesMTypeInfo(m=m, m_bits=m*8)
+    return BytesMTypeInfo(m=m, m_bits=m * 8)
 
 
 def is_decimal_type(t: "NodeType") -> bool:
