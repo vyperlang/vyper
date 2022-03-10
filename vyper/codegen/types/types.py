@@ -72,8 +72,8 @@ class IntegerTypeInfo:
 _int_parser = re.compile("^(u?)int([0-9]+)$")
 
 
-def is_integer_type(typename: str) -> bool:
-    return _int_parser.fullmatch(typename) is not None
+def is_integer_type(t: "NodeType") -> bool:
+    return isinstance(t, BaseType) and _int_parser.fullmatch(t.typ) is not None
 
 
 def parse_integer_typeinfo(typename: str) -> IntegerTypeInfo:
@@ -88,7 +88,7 @@ def parse_integer_typeinfo(typename: str) -> IntegerTypeInfo:
 
 
 def _basetype_to_abi_type(t: "BaseType") -> ABIType:
-    if is_integer_type(t.typ):
+    if is_integer_type(t):
         typinfo = parse_integer_typeinfo(t.typ)
         return ABI_GIntM(typinfo.bits, typinfo.is_signed)
     if t.typ == "address":
@@ -108,7 +108,8 @@ def _basetype_to_abi_type(t: "BaseType") -> ABIType:
 class BaseType(NodeType):
     def __init__(self, typename, is_literal=False):
         self.typ = typename  # e.g. "uint256"
-        # TODO remove is_literal from the type itself
+        # TODO remove is_literal,
+        # change to property on LLLnode: `isinstance(self.value, int)`
         self.is_literal = is_literal
 
     def eq(self, other):
@@ -310,10 +311,9 @@ def make_struct_type(name, sigs, members, custom_structs):
     return StructType(o, name)
 
 
-# Parses an expression representing a type. Annotation refers to whether
-# the type is to be located in memory or storage
+# Parses an expression representing a type.
 # TODO: rename me to "lll_type_from_annotation"
-def parse_type(item, sigs=None, custom_structs=None):
+def parse_type(item, sigs, custom_structs):
     def _sanity_check(x):
         assert x, "typechecker missed this"
 
@@ -415,7 +415,7 @@ def parse_type(item, sigs=None, custom_structs=None):
             FAIL()
 
     elif isinstance(item, vy_ast.Tuple):
-        members = [parse_type(x, custom_structs=custom_structs) for x in item.elements]
+        members = [parse_type(x, sigs=sigs, custom_structs=custom_structs) for x in item.elements]
         return TupleType(members)
 
     else:

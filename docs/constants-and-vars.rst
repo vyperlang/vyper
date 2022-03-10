@@ -25,11 +25,8 @@ Name                 Type             Value
 ``msg.sender``       ``address``      Sender of the message (current call)
 ``msg.value``        ``uint256``      Number of wei sent with the message
 ``tx.origin``        ``address``      Sender of the transaction (full call chain)
+``tx.gasprice``      ``uint256``      Gas price of current transaction in wei
 ==================== ================ =============================================
-
-.. note::
-
-    ``msg.data``, ``msg.sender`` and ``msg.value`` can only be accessed from external functions. If you require these values within a private function, they must be passed as parameters.
 
 .. note::
 

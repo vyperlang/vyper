@@ -25,7 +25,9 @@ OUTPUT_FORMATS = {
     "external_interface": output.build_external_interface_output,
     "interface": output.build_interface_output,
     "ir": output.build_ir_output,
+    "ir_runtime": output.build_ir_runtime_output,
     "ir_dict": output.build_ir_dict_output,
+    "ir_runtime_dict": output.build_ir_runtime_dict_output,
     "method_identifiers": output.build_method_identifiers_output,
     "metadata": output.build_metadata_output,
     # requires assembly

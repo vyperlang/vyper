@@ -101,6 +101,15 @@ def test():
     assert self.token.totalSupply() > 0
     """,
     """
+interface Foo:
+    def foo(): view
+
+@external
+def test() -> (bool, Foo):
+    x: Foo = Foo(msg.sender)
+    return True, x
+    """
+    """
 from vyper.interfaces import ERC20
 
 a: public(ERC20)

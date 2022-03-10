@@ -26,6 +26,38 @@ def data() -> int128:
     return -1""",
         3,
     ),
+    # basic for-in-dynamic array
+    (
+        """
+@external
+def data() -> int128:
+    s: DynArray[int128, 10] = [1, 2, 3, 4, 5]
+    for i in s:
+        if i >= 3:
+            return i
+    return -1""",
+        3,
+    ),
+    # test more complicated type
+    (
+        """
+struct S:
+    x: int128
+    y: int128
+
+@external
+def data() -> int128:
+    sss: DynArray[DynArray[S, 10], 10] = [
+        [S({x:1, y:2})],
+        [S({x:3, y:4}), S({x:5, y:6}), S({x:7, y:8}), S({x:9, y:10})]
+        ]
+    ret: int128 = 0
+    for ss in sss:
+        for s in ss:
+            ret += s.x + s.y
+    return ret""",
+        sum(range(1, 11)),
+    ),
     # basic for-in-list literal
     (
         """
@@ -36,6 +68,35 @@ def data() -> int128:
             return i
     return -1""",
         7,
+    ),
+    # test nested array
+    (
+        """
+@external
+def data() -> int128:
+    ret: int128 = 0
+    xss: int128[3][3] = [[1,2,3],[4,5,6],[7,8,9]]
+    for xs in xss:
+        for x in xs:
+            ret += x
+    return ret""",
+        sum(range(1, 10)),
+    ),
+    # test more complicated literal
+    (
+        """
+struct S:
+    x: int128
+    y: int128
+
+@external
+def data() -> int128:
+    ret: int128 = 0
+    for ss in [[S({x:1, y:2})]]:
+        for s in ss:
+            ret += s.x + s.y
+    return ret""",
+        1 + 2,
     ),
     # basic for-in-list addresses
     (
@@ -86,6 +147,31 @@ def data() -> int128:
     assert c.data() == -1
     c.set(transact={})
     assert c.data() == 7
+
+
+def test_basic_for_dyn_array_storage(get_contract_with_gas_estimation):
+    code = """
+x: DynArray[int128, 4]
+
+@external
+def set(xs: DynArray[int128, 4]):
+    self.x = xs
+
+@external
+def data() -> int128:
+    t: int128 = 0
+    for i in self.x:
+        t += i
+    return t
+    """
+
+    c = get_contract_with_gas_estimation(code)
+
+    assert c.data() == 0
+    # test all sorts of lists
+    for xs in [[3, 5, 7, 9], [4, 6, 8], [1, 2], [5], []]:
+        c.set(xs, transact={})
+        assert c.data() == sum(xs)
 
 
 def test_basic_for_list_storage_address(get_contract_with_gas_estimation):
@@ -169,6 +255,26 @@ def func(amounts: uint256[3]) -> uint256:
     c = get_contract_with_gas_estimation(code)
 
     assert c.func([100, 200, 300]) == 600
+
+
+def test_for_in_dyn_array(get_contract_with_gas_estimation):
+    code = """
+@external
+@view
+def func(amounts: DynArray[uint256, 3]) -> uint256:
+    total: uint256 = 0
+
+    # calculate total
+    for amount in amounts:
+        total += amount
+
+    return total
+    """
+
+    c = get_contract_with_gas_estimation(code)
+
+    assert c.func([100, 200, 300]) == 600
+    assert c.func([100, 200]) == 300
 
 
 GOOD_CODE = [
@@ -480,21 +586,6 @@ def foo():
     """,
         IteratorException,
     ),
-    # nested lists
-    """
-@external
-def foo():
-    x: uint256[5][2] = [[0, 1, 2, 3, 4], [2, 4, 6, 8, 10]]
-    for i in x:
-        pass
-    """,
-    """
-@external
-def foo():
-    x: uint256[5][2] = [[0, 1, 2, 3, 4], [2, 4, 6, 8, 10]]
-    for i in x[1]:
-        pass
-    """,
     (
         """
 @external

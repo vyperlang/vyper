@@ -1,6 +1,11 @@
+import itertools
 from decimal import Decimal
 
+import pytest
+
 from vyper.compiler import compile_code
+from vyper.exceptions import InvalidType
+from vyper.utils import MemoryPositions
 
 
 def test_builtin_constants(get_contract_with_gas_estimation):
@@ -127,6 +132,22 @@ def test_add(a: uint256) -> uint256:
     assert c.test_add(7) == 40
 
 
+# Would be nice to put this somewhere accessible, like in vyper.types or something
+integer_types = ["uint8", "int128", "int256", "uint256"]
+
+
+@pytest.mark.parametrize("storage_type,return_type", itertools.permutations(integer_types, 2))
+def test_custom_constants_fail(get_contract, assert_compile_failed, storage_type, return_type):
+    code = f"""
+MY_CONSTANT: constant({storage_type}) = 1
+
+@external
+def foo() -> {return_type}:
+    return MY_CONSTANT
+    """
+    assert_compile_failed(lambda: get_contract(code), InvalidType)
+
+
 def test_constant_address(get_contract):
     code = """
 OWNER: constant(address) = 0x0000000000000000000000000000000000000012
@@ -180,7 +201,9 @@ def test() -> uint256:
     """
 
     lll = compile_code(code, ["ir"])["ir"]
-    assert search_for_sublist(lll, ["mstore", [224], [2 ** 12 * some_prime]])
+    assert search_for_sublist(
+        lll, ["mstore", [MemoryPositions.RESERVED_MEMORY], [2 ** 12 * some_prime]]
+    )
 
 
 def test_constant_lists(get_contract):

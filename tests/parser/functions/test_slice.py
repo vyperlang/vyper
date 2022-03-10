@@ -88,6 +88,45 @@ def foo(inp: Bytes[10], start: uint256, _len: uint256) -> Bytes[10]:
     assert_tx_failed(lambda: c.foo(b"badminton", 10, 0))
 
 
+def test_slice_private(get_contract):
+    # test there are no buffer overruns in the slice function
+    code = """
+bytez: public(String[12])
+
+@internal
+def _slice(start: uint256, length: uint256):
+    self.bytez = slice(self.bytez, start, length)
+
+@external
+def foo(x: uint256, y: uint256) -> (uint256, String[12]):
+    self.bytez = "hello, world"
+    dont_clobber_me: uint256 = MAX_UINT256
+    self._slice(x, y)
+    return dont_clobber_me, self.bytez
+    """
+    c = get_contract(code)
+    assert c.foo(0, 12) == [2 ** 256 - 1, "hello, world"]
+    assert c.foo(12, 0) == [2 ** 256 - 1, ""]
+    assert c.foo(7, 5) == [2 ** 256 - 1, "world"]
+    assert c.foo(0, 5) == [2 ** 256 - 1, "hello"]
+    assert c.foo(0, 1) == [2 ** 256 - 1, "h"]
+    assert c.foo(11, 1) == [2 ** 256 - 1, "d"]
+
+
+def test_slice_storage_bytes32(get_contract):
+    code = """
+bytez: bytes32
+@external
+def dice() -> Bytes[1]:
+    self.bytez = convert(65, bytes32)
+    c: Bytes[1] = slice(self.bytez, 31, 1)
+    return c
+    """
+
+    c = get_contract(code)
+    assert c.dice() == b"A"
+
+
 def test_slice_at_end(get_contract):
     code = """
 @external
@@ -111,6 +150,18 @@ def ret10_slice() -> Bytes[10]:
 
     c = get_contract(code)
     assert c.ret10_slice() == b"A"
+
+
+def test_slice_convert(get_contract):
+    # test slice of converting between bytes32 and Bytes
+    code = """
+@external
+def f() -> bytes32:
+    a: Bytes[100] = convert("ab", Bytes[100])
+    return convert(slice(a, 0, 1), bytes32)
+    """
+    c = get_contract(code)
+    assert c.f() == b"a" + b"\x00" * 31
 
 
 code_bytes32 = [

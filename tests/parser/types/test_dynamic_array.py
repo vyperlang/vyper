@@ -1,6 +1,8 @@
+import itertools
+
 import pytest
 
-from vyper.exceptions import ArrayIndexException, OverflowException
+from vyper.exceptions import ArrayIndexException, InvalidType, OverflowException, TypeMismatch
 
 
 def test_list_tester_code(get_contract_with_gas_estimation):
@@ -78,6 +80,19 @@ def hoo2() -> DynArray[int128, 2]:
     return empty(DynArray[int128, 2])
 
 @external
+def hoo3() -> DynArray[int128, 2]:
+    return []
+
+@external
+def hoo4() -> DynArray[int128, 2]:
+    self.z = []
+    return self.z
+
+@external
+def hoo5() -> DynArray[DynArray[int128, 2], 2]:
+    return []
+
+@external
 def joo() -> DynArray[int128, 2]:
     self.z = [3, 5]
     x: DynArray[int128, 2] = self.z
@@ -123,8 +138,8 @@ def roo(inp: DynArray[decimal, 2]) -> DynArray[DynArray[decimal, 2], 2]:
     assert c.foo() == [3, 5]
     assert c.goo() == [3, 5]
     assert c.hoo() == [3, 5]
-    assert c.hoo1() == []
-    assert c.hoo2() == []
+    assert c.hoo1() == c.hoo2() == c.hoo3() == c.hoo4() == []
+    assert c.hoo5() == []
     assert c.joo() == [3, 5]
     assert c.koo() == [[1, 2], [3, 4]]
     assert c.loo() == [[1, 2], [3, 4]]
@@ -206,24 +221,47 @@ def test_array_decimal_return3() -> DynArray[DynArray[decimal, 2], 2]:
 
 def test_mult_list(get_contract_with_gas_estimation):
     code = """
+nest3: DynArray[DynArray[DynArray[uint256, 2], 2], 2]
+nest4: DynArray[DynArray[DynArray[DynArray[uint256, 2], 2], 2], 2]
+
 @external
-def test_multi3() -> DynArray[DynArray[DynArray[uint256, 2], 2], 2]:
-    l: DynArray[DynArray[DynArray[uint256, 2], 2], 2] = [[[0, 0], [0, 4]], [[0, 0], [0, 123]]]
+def test_multi3_1() -> DynArray[DynArray[DynArray[uint256, 2], 2], 2]:
+    l: DynArray[DynArray[DynArray[uint256, 2], 2], 2] = [[[0, 0], [0, 4]], [[0, 7], [0, 123]]]
+    self.nest3 = l
+    return self.nest3
+
+@external
+def test_multi3_2() -> DynArray[DynArray[DynArray[uint256, 2], 2], 2]:
+    l: DynArray[DynArray[DynArray[uint256, 2], 2], 2] = [[[0, 0], [0, 4]], [[0, 7], [0, 123]]]
+    self.nest3 = l
+    l = self.nest3
     return l
 
 @external
-def test_multi4() -> DynArray[DynArray[DynArray[DynArray[uint256, 2], 2], 2], 2]:
+def test_multi4_1() -> DynArray[DynArray[DynArray[DynArray[uint256, 2], 2], 2], 2]:
     l: DynArray[DynArray[DynArray[DynArray[uint256, 2], 2], 2], 2] = [[[[1, 0], [0, 4]], [[0, 0], [0, 0]]], [[[444, 0], [0, 0]],[[1, 0], [0, 222]]]]  # noqa: E501
+    self.nest4 = l
+    l = self.nest4
     return l
+
+@external
+def test_multi4_2() -> DynArray[DynArray[DynArray[DynArray[uint256, 2], 2], 2], 2]:
+    l: DynArray[DynArray[DynArray[DynArray[uint256, 2], 2], 2], 2] = [[[[1, 0], [0, 4]], [[0, 0], [0, 0]]], [[[444, 0], [0, 0]],[[1, 0], [0, 222]]]]  # noqa: E501
+    self.nest4 = l
+    return self.nest4
     """
 
     c = get_contract_with_gas_estimation(code)
 
-    assert c.test_multi3() == [[[0, 0], [0, 4]], [[0, 0], [0, 123]]]
-    assert c.test_multi4() == [
+    nest3 = [[[0, 0], [0, 4]], [[0, 7], [0, 123]]]
+    assert c.test_multi3_1() == nest3
+    assert c.test_multi3_2() == nest3
+    nest4 = [
         [[[1, 0], [0, 4]], [[0, 0], [0, 0]]],
         [[[444, 0], [0, 0]], [[1, 0], [0, 222]]],
     ]
+    assert c.test_multi4_1() == nest4
+    assert c.test_multi4_2() == nest4
 
 
 def test_uint256_accessor(get_contract_with_gas_estimation, assert_tx_failed):
@@ -407,6 +445,220 @@ def foo() -> (uint256, uint256, uint256, uint256, uint256):
     assert c.foo() == [1, 2, 3, 4, 5]
 
 
+append_pop_tests = [
+    (
+        """
+my_array: DynArray[uint256, 5]
+@external
+def foo(xs: DynArray[uint256, 5]) -> DynArray[uint256, 5]:
+    for x in xs:
+        self.my_array.append(x)
+    return self.my_array
+    """,
+        lambda xs: xs,
+    ),
+    (
+        """
+my_array: DynArray[uint256, 5]
+@external
+def foo(xs: DynArray[uint256, 5]) -> DynArray[uint256, 5]:
+    for x in xs:
+        self.my_array.append(x)
+    for x in xs:
+        self.my_array.pop()
+    return self.my_array
+    """,
+        lambda xs: [],
+    ),
+    # check order of evaluation.
+    (
+        """
+my_array: DynArray[uint256, 5]
+@external
+def foo(xs: DynArray[uint256, 5]) -> (DynArray[uint256, 5], uint256):
+    for x in xs:
+        self.my_array.append(x)
+    return self.my_array, self.my_array.pop()
+    """,
+        lambda xs: None if len(xs) == 0 else [xs, xs[-1]],
+    ),
+    # check order of evaluation.
+    (
+        """
+my_array: DynArray[uint256, 5]
+@external
+def foo(xs: DynArray[uint256, 5]) -> (uint256, DynArray[uint256, 5]):
+    for x in xs:
+        self.my_array.append(x)
+    return self.my_array.pop(), self.my_array
+    """,
+        lambda xs: None if len(xs) == 0 else [xs[-1], xs[:-1]],
+    ),
+    # test memory arrays
+    (
+        """
+@external
+def foo(xs: DynArray[uint256, 5]) -> DynArray[uint256, 5]:
+    ys: DynArray[uint256, 5] = []
+    i: uint256 = 0
+    for x in xs:
+        if i >= len(xs) - 1:
+            break
+        ys.append(x)
+        i += 1
+
+    return ys
+    """,
+        lambda xs: xs[:-1],
+    ),
+    # check overflow
+    (
+        """
+my_array: DynArray[uint256, 5]
+@external
+def foo(xs: DynArray[uint256, 6]) -> DynArray[uint256, 5]:
+    for x in xs:
+        self.my_array.append(x)
+    return self.my_array
+    """,
+        lambda xs: None if len(xs) > 5 else xs,
+    ),
+    # pop to 0 elems
+    (
+        """
+@external
+def foo(xs: DynArray[uint256, 5]) -> DynArray[uint256, 5]:
+    ys: DynArray[uint256, 5] = []
+    for x in xs:
+        ys.append(x)
+    for x in xs:
+        ys.pop()
+    return ys
+    """,
+        lambda xs: [],
+    ),
+    # check underflow
+    (
+        """
+@external
+def foo(xs: DynArray[uint256, 5]) -> DynArray[uint256, 5]:
+    ys: DynArray[uint256, 5] = []
+    for x in xs:
+        ys.append(x)
+    for x in xs:
+        ys.pop()
+    ys.pop()  # fail
+    return ys
+    """,
+        lambda xs: None,
+    ),
+    # check underflow
+    (
+        """
+my_array: DynArray[uint256, 5]
+@external
+def foo(xs: DynArray[uint256, 5]) -> uint256:
+    return self.my_array.pop()
+    """,
+        lambda xs: None,
+    ),
+]
+
+
+@pytest.mark.parametrize("code,check_result", append_pop_tests)
+# TODO change this to fuzz random data
+@pytest.mark.parametrize("test_data", [[1, 2, 3, 4, 5][:i] for i in range(6)])
+def test_append_pop(get_contract, assert_tx_failed, code, check_result, test_data):
+    c = get_contract(code)
+    expected_result = check_result(test_data)
+    if expected_result is None:
+        # None is sentinel to indicate txn should revert
+        assert_tx_failed(lambda: c.foo(test_data))
+    else:
+        assert c.foo(test_data) == expected_result
+
+
+append_pop_complex_tests = [
+    (
+        """
+@external
+def foo(x: {typ}) -> DynArray[{typ}, 2]:
+    ys: DynArray[{typ}, 1] = []
+    ys.append(x)
+    return ys
+    """,
+        lambda x: [x],
+    ),
+    (
+        """
+my_array: DynArray[{typ}, 1]
+@external
+def foo(x: {typ}) -> DynArray[{typ}, 2]:
+    self.my_array.append(x)
+    self.my_array.append(x)  # fail
+    return self.my_array
+    """,
+        lambda x: None,
+    ),
+    (
+        """
+my_array: DynArray[{typ}, 5]
+@external
+def foo(x: {typ}) -> (DynArray[{typ}, 5], {typ}):
+    self.my_array.append(x)
+    return self.my_array, self.my_array.pop()
+    """,
+        lambda x: [[x], x],
+    ),
+    (
+        """
+my_array: DynArray[{typ}, 5]
+@external
+def foo(x: {typ}) -> ({typ}, DynArray[{typ}, 5]):
+    self.my_array.append(x)
+    return self.my_array.pop(), self.my_array
+    """,
+        lambda x: [x, []],
+    ),
+    (
+        """
+my_array: DynArray[{typ}, 5]
+@external
+def foo(x: {typ}) -> {typ}:
+    return self.my_array.pop()
+    """,
+        lambda x: None,
+    ),
+]
+
+
+@pytest.mark.parametrize("code_template,check_result", append_pop_complex_tests)
+@pytest.mark.parametrize(
+    "subtype", ["uint256[3]", "DynArray[uint256,3]", "DynArray[uint8, 4]", "Foo"]
+)
+# TODO change this to fuzz random data
+def test_append_pop_complex(get_contract, assert_tx_failed, code_template, check_result, subtype):
+    code = code_template.format(typ=subtype)
+    test_data = [1, 2, 3]
+    if subtype == "Foo":
+        test_data = tuple(test_data)
+        struct_def = """
+struct Foo:
+    x: uint256
+    y: uint256
+    z: uint256
+        """
+        code = struct_def + "\n" + code
+
+    c = get_contract(code)
+    expected_result = check_result(test_data)
+    if expected_result is None:
+        # None is sentinel to indicate txn should revert
+        assert_tx_failed(lambda: c.foo(test_data))
+    else:
+        assert c.foo(test_data) == expected_result
+
+
 def test_so_many_things_you_should_never_do(get_contract):
     code = """
 @internal
@@ -481,3 +733,42 @@ def ix(i: uint256) -> decimal:
 
 
 # TODO test loops
+
+# Would be nice to put this somewhere accessible, like in vyper.types or something
+integer_types = ["uint8", "int128", "int256", "uint256"]
+
+
+@pytest.mark.parametrize("storage_type,return_type", itertools.permutations(integer_types, 2))
+def test_constant_list_fail(get_contract, assert_compile_failed, storage_type, return_type):
+    code = f"""
+MY_CONSTANT: constant(DynArray[{storage_type}, 3]) = [1, 2, 3]
+
+@external
+def foo() -> DynArray[{return_type}, 3]:
+    return MY_CONSTANT
+    """
+    assert_compile_failed(lambda: get_contract(code), InvalidType)
+
+
+@pytest.mark.parametrize("storage_type,return_type", itertools.permutations(integer_types, 2))
+def test_constant_list_fail_2(get_contract, assert_compile_failed, storage_type, return_type):
+    code = f"""
+MY_CONSTANT: constant(DynArray[{storage_type}, 3]) = [1, 2, 3]
+
+@external
+def foo() -> {return_type}:
+    return MY_CONSTANT[0]
+    """
+    assert_compile_failed(lambda: get_contract(code), InvalidType)
+
+
+@pytest.mark.parametrize("storage_type,return_type", itertools.permutations(integer_types, 2))
+def test_constant_list_fail_3(get_contract, assert_compile_failed, storage_type, return_type):
+    code = f"""
+MY_CONSTANT: constant(DynArray[{storage_type}, 3]) = [1, 2, 3]
+
+@external
+def foo(i: uint256) -> {return_type}:
+    return MY_CONSTANT[i]
+    """
+    assert_compile_failed(lambda: get_contract(code), TypeMismatch)

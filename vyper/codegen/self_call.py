@@ -57,10 +57,12 @@ def lll_for_self_call(stmt_expr, context):
 
     # allocate space for the return buffer
     # TODO allocate in stmt and/or expr.py
-    return_buffer = (
-        context.new_internal_variable(sig.return_type) if sig.return_type is not None else "pass"
-    )
-    return_buffer = LLLnode.from_list([return_buffer], annotation=f"{return_label}_return_buf")
+    if sig.return_type is not None:
+        return_buffer = LLLnode.from_list(
+            context.new_internal_variable(sig.return_type), annotation=f"{return_label}_return_buf"
+        )
+    else:
+        return_buffer = None
 
     # note: dst_tuple_t != args_tuple_t
     dst_tuple_t = TupleType([arg.typ for arg in sig.args])
@@ -80,26 +82,30 @@ def lll_for_self_call(stmt_expr, context):
         )
         copy_args.append(
             # --> args evaluate here <--
-            make_setter(tmp_args_buf, args_as_tuple, context, pos)
+            make_setter(tmp_args_buf, args_as_tuple, pos)
         )
 
-        copy_args.append(make_setter(args_dst, tmp_args_buf, context, pos))
+        copy_args.append(make_setter(args_dst, tmp_args_buf, pos))
 
     else:
-        copy_args = make_setter(args_dst, args_as_tuple, context, pos)
+        copy_args = make_setter(args_dst, args_as_tuple, pos)
+
+    goto_op = ["goto", sig.internal_function_label]
+    # pass return buffer to subroutine
+    if return_buffer is not None:
+        goto_op += [return_buffer]
+    # pass return label to subroutine
+    goto_op += [push_label_to_stack(return_label)]
 
     call_sequence = [
         "seq",
         copy_args,
-        [
-            "goto",
-            sig.internal_function_label,
-            return_buffer,  # pass return buffer to subroutine
-            push_label_to_stack(return_label),  # pass return label to subroutine
-        ],
-        ["label", return_label],
-        return_buffer,  # push return buffer location to stack
+        goto_op,
+        ["label", return_label, ["var_list"], "pass"],
     ]
+    if return_buffer is not None:
+        # push return buffer location to stack
+        call_sequence += [return_buffer]
 
     o = LLLnode.from_list(
         call_sequence,

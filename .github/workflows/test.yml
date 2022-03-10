@@ -15,11 +15,19 @@ jobs:
       with:
         python-version: 3.8
 
-    - name: Install Tox
-      run: pip install tox
+    - name: Install Dependencies
+      run: pip install .[lint]
 
-    - name: Run Tox
-      run: TOXENV=lint tox -r
+    - name: Run Black
+      run: black --check --force-exclude=vyper/version.py ./vyper ./tests ./setup.py
+
+    - name: Run flake8
+      run: flake8 ./vyper ./tests ./setup.py
+      if: always()
+
+    - name: Run isort
+      run: isort --check-only --diff ./vyper ./tests ./setup.py
+      if: always()
 
   docs:
     runs-on: ubuntu-latest
@@ -176,6 +184,47 @@ jobs:
 
     - name: Run Tox
       run: TOXENV=py39-no-opt tox -r
+
+
+  py310-core:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v1
+
+    - name: Set up Python 3.10
+      uses: actions/setup-python@v1
+      with:
+        python-version: "3.10"
+
+    - name: Install Tox
+      run: pip install tox
+
+    - name: Run Tox
+      run: TOXENV=py310-core tox -r
+
+    - name: Upload Coverage
+      uses: codecov/codecov-action@v1
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+        file: ./coverage.xml
+
+  py310-no-opt:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v1
+
+    - name: Set up Python 3.10
+      uses: actions/setup-python@v1
+      with:
+        python-version: "3.10"
+
+    - name: Install Tox
+      run: pip install tox
+
+    - name: Run Tox
+      run: TOXENV=py310-no-opt tox -r
 
 
   fuzzing:

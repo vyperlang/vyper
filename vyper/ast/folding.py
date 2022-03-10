@@ -4,6 +4,8 @@ from typing import Union
 from vyper.ast import nodes as vy_ast
 from vyper.builtin_functions import DISPATCH_TABLE
 from vyper.exceptions import UnfoldableNode
+from vyper.semantics.types.bases import BaseTypeDefinition, DataLocation
+from vyper.semantics.types.utils import get_type_from_annotation
 
 BUILTIN_CONSTANTS = {
     "EMPTY_BYTES32": (
@@ -172,7 +174,17 @@ def replace_user_defined_constants(vyper_module: vy_ast.Module) -> int:
             # annotation is not wrapped in `constant(...)`
             continue
 
-        changed_nodes += replace_constant(vyper_module, node.target.id, node.value, False)
+        # Extract type definition from propagated annotation
+        constant_annotation = node.get("annotation.args")[0]
+        type_ = (
+            get_type_from_annotation(constant_annotation, DataLocation.UNSET)
+            if constant_annotation
+            else None
+        )
+
+        changed_nodes += replace_constant(
+            vyper_module, node.target.id, node.value, False, type_=type_
+        )
 
     return changed_nodes
 
@@ -180,12 +192,19 @@ def replace_user_defined_constants(vyper_module: vy_ast.Module) -> int:
 # TODO constant folding on log events
 
 
-def _replace(old_node, new_node):
+def _replace(old_node, new_node, type_=None):
     if isinstance(new_node, vy_ast.Constant):
-        return new_node.from_node(old_node, value=new_node.value)
+        new_node = new_node.from_node(old_node, value=new_node.value)
+        if type_:
+            new_node._metadata["type"] = type_
+        return new_node
     elif isinstance(new_node, vy_ast.List):
-        list_values = [_replace(old_node, i) for i in new_node.elements]
-        return new_node.from_node(old_node, elements=list_values)
+        base_type = type_.value_type if type_ else None
+        list_values = [_replace(old_node, i, type_=base_type) for i in new_node.elements]
+        new_node = new_node.from_node(old_node, elements=list_values)
+        if type_:
+            new_node._metadata["type"] = type_
+        return new_node
     else:
         raise UnfoldableNode
 
@@ -195,6 +214,7 @@ def replace_constant(
     id_: str,
     replacement_node: Union[vy_ast.Constant, vy_ast.List],
     raise_on_error: bool,
+    type_: BaseTypeDefinition = None,
 ) -> int:
     """
     Replace references to a variable name with a literal value.
@@ -209,6 +229,8 @@ def replace_constant(
         Vyper ast node representing the literal value to be substituted in.
     raise_on_error: bool
         Boolean indicating if `UnfoldableNode` exception should be raised or ignored.
+    type_ : BaseTypeDefinition, optional
+        Type definition to be propagated to type checker.
 
     Returns
     -------
@@ -236,7 +258,7 @@ def replace_constant(
                 continue
 
         try:
-            new_node = _replace(node, replacement_node)
+            new_node = _replace(node, replacement_node, type_=type_)
         except UnfoldableNode:
             if raise_on_error:
                 raise

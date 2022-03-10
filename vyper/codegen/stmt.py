@@ -6,15 +6,21 @@ from vyper.codegen import external_call, self_call
 from vyper.codegen.context import Constancy, Context
 from vyper.codegen.core import (
     LLLnode,
+    append_dyn_array,
+    get_dyn_array_count,
+    get_element_ptr,
     getpos,
+    is_return_from_function,
     make_byte_array_copier,
     make_setter,
+    pop_dyn_array,
     unwrap_location,
     zero_pad,
 )
 from vyper.codegen.expr import Expr
 from vyper.codegen.return_ import make_return_stmt
-from vyper.codegen.types import BaseType, ByteArrayType, SArrayType, parse_type
+from vyper.codegen.types import BaseType, ByteArrayType, DArrayType, parse_type
+from vyper.codegen.types.convert import new_type_to_old_type
 from vyper.exceptions import CompilerPanic, StructureException, TypeCheckFailure
 
 
@@ -49,6 +55,7 @@ class Stmt:
     def parse_AnnAssign(self):
         typ = parse_type(
             self.stmt.annotation,
+            sigs=self.context.sigs,
             custom_structs=self.context.structs,
         )
         varname = self.stmt.target.id
@@ -81,7 +88,7 @@ class Stmt:
             pos=getpos(self.stmt),
         )
 
-        lll_node = make_setter(variable_loc, sub, self.context, pos=getpos(self.stmt))
+        lll_node = make_setter(variable_loc, sub, pos=getpos(self.stmt))
 
         return lll_node
 
@@ -90,7 +97,7 @@ class Stmt:
         sub = Expr(self.stmt.value, self.context).lll_node
         target = self._get_target(self.stmt.target)
 
-        lll_node = make_setter(target, sub, self.context, pos=getpos(self.stmt))
+        lll_node = make_setter(target, sub, pos=getpos(self.stmt))
         lll_node.pos = getpos(self.stmt)
         return lll_node
 
@@ -110,10 +117,6 @@ class Stmt:
     def parse_Log(self):
         event = self.stmt._metadata["type"]
 
-        # do this BEFORE evaluating args to LLL to protect the buffer
-        # from internal call clobbering
-        buf, _len = events.allocate_buffer_for_log(event, self.context)
-
         args = [Expr(arg, self.context).lll_node for arg in self.stmt.value.args]
 
         topic_lll = []
@@ -124,9 +127,7 @@ class Stmt:
             else:
                 data_lll.append(arg)
 
-        return events.lll_node_for_log(
-            self.stmt, buf, _len, event, topic_lll, data_lll, self.context
-        )
+        return events.lll_node_for_log(self.stmt, event, topic_lll, data_lll, self.context)
 
     def parse_Call(self):
         is_self_function = (
@@ -138,6 +139,22 @@ class Stmt:
         if isinstance(self.stmt.func, vy_ast.Name):
             funcname = self.stmt.func.id
             return STMT_DISPATCH_TABLE[funcname].build_LLL(self.stmt, self.context)
+
+        elif isinstance(self.stmt.func, vy_ast.Attribute) and self.stmt.func.attr in (
+            "append",
+            "pop",
+        ):
+            darray = Expr(self.stmt.func.value, self.context).lll_node
+            args = [Expr(x, self.context).lll_node for x in self.stmt.args]
+            if self.stmt.func.attr == "append":
+                assert len(args) == 1
+                arg = args[0]
+                assert isinstance(darray.typ, DArrayType)
+                assert arg.typ == darray.typ.subtype
+                return append_dyn_array(darray, arg, pos=getpos(self.stmt))
+            else:
+                assert len(args) == 0
+                return pop_dyn_array(darray, return_popped_item=False, pos=getpos(self.stmt))
 
         elif is_self_function:
             return self_call.lll_for_self_call(self.stmt, self.context)
@@ -281,11 +298,18 @@ class Stmt:
             return
 
         varname = self.stmt.target.id
-        pos = self.context.new_variable(varname, BaseType(iter_typ), pos=getpos(self.stmt))
+        i = LLLnode.from_list(self.context.fresh_varname("range_ix"), typ="uint256")
+        iptr = self.context.new_variable(varname, BaseType(iter_typ), pos=getpos(self.stmt))
+
         self.context.forvars[varname] = True
+
+        loop_body = ["seq"]
+        # store the current value of i so it is accessible to userland
+        loop_body.append(["mstore", iptr, i])
+        loop_body.append(parse_body(self.stmt.body, self.context))
+
         lll_node = LLLnode.from_list(
-            ["repeat", pos, start, rounds, parse_body(self.stmt.body, self.context)],
-            typ=None,
+            ["repeat", i, start, rounds, rounds, loop_body],
             pos=getpos(self.stmt),
         )
         del self.context.forvars[varname]
@@ -294,80 +318,56 @@ class Stmt:
 
     def _parse_For_list(self):
         with self.context.range_scope():
-            iter_list_node = Expr(self.stmt.iter, self.context).lll_node
-        if not isinstance(iter_list_node.typ.subtype, BaseType):  # Sanity check on list subtype.
-            return
+            iter_list = Expr(self.stmt.iter, self.context).lll_node
 
-        iter_var_type = (
-            self.context.vars.get(self.stmt.iter.id).typ
-            if isinstance(self.stmt.iter, vy_ast.Name)
-            else None
-        )
-        subtype = BaseType(self.stmt.target._metadata["type"]._id)
-        iter_list_node.typ.subtype = subtype
+        # override with type inferred at typechecking time
+        # TODO investigate why stmt.target.type != stmt.iter.type.subtype
+        target_type = new_type_to_old_type(self.stmt.target._metadata["type"])
+        iter_list.typ.subtype = target_type
+
+        # user-supplied name for loop variable
         varname = self.stmt.target.id
-        value_pos = self.context.new_variable(varname, subtype)
-        i_pos = self.context.new_internal_variable(subtype)
+        loop_var = LLLnode.from_list(
+            self.context.new_variable(varname, target_type),
+            typ=target_type,
+            location="memory",
+        )
+
+        i = LLLnode.from_list(self.context.fresh_varname("for_list_ix"), typ="uint256")
+
         self.context.forvars[varname] = True
 
-        # Is a list that is already allocated to memory.
-        if iter_var_type:
-            iter_var = self.context.vars.get(self.stmt.iter.id)
-            if iter_var.location == "calldata":
-                fetcher = "calldataload"
-            elif iter_var.location == "memory":
-                fetcher = "mload"
-            else:
-                return
-            body = [
-                "seq",
-                [
-                    "mstore",
-                    value_pos,
-                    [fetcher, ["add", iter_var.pos, ["mul", ["mload", i_pos], 32]]],
-                ],
-                parse_body(self.stmt.body, self.context),
-            ]
-            lll_node = LLLnode.from_list(
-                ["repeat", i_pos, 0, iter_var.size, body], typ=None, pos=getpos(self.stmt)
-            )
+        ret = ["seq"]
 
-        # List gets defined in the for statement.
-        elif isinstance(self.stmt.iter, vy_ast.List):
-            # Allocate list to memory.
-            count = iter_list_node.typ.count
+        # list literal, force it to memory first
+        if isinstance(self.stmt.iter, vy_ast.List):
             tmp_list = LLLnode.from_list(
-                obj=self.context.new_internal_variable(SArrayType(subtype, count)),
-                typ=SArrayType(subtype, count),
+                self.context.new_internal_variable(iter_list.typ),
+                typ=iter_list.typ,
                 location="memory",
             )
-            setter = make_setter(tmp_list, iter_list_node, self.context, pos=getpos(self.stmt))
-            body = [
-                "seq",
-                ["mstore", value_pos, ["mload", ["add", tmp_list, ["mul", ["mload", i_pos], 32]]]],
-                parse_body(self.stmt.body, self.context),
-            ]
-            lll_node = LLLnode.from_list(
-                ["seq", setter, ["repeat", i_pos, 0, count, body]], typ=None, pos=getpos(self.stmt)
-            )
+            ret.append(make_setter(tmp_list, iter_list, pos=getpos(self.stmt)))
+            iter_list = tmp_list
 
-        # List contained in storage.
-        elif isinstance(self.stmt.iter, vy_ast.Attribute):
-            count = iter_list_node.typ.count
-            body = [
-                "seq",
-                ["mstore", value_pos, ["sload", ["add", iter_list_node, ["mload", i_pos]]]],
-                parse_body(self.stmt.body, self.context),
-            ]
-            lll_node = LLLnode.from_list(
-                ["seq", ["repeat", i_pos, 0, count, body]], typ=None, pos=getpos(self.stmt)
-            )
+        # set up the loop variable
+        loop_var_ast = getpos(self.stmt.target)
+        e = get_element_ptr(iter_list, i, array_bounds_check=False, pos=loop_var_ast)
+        body = [
+            "seq",
+            make_setter(loop_var, e, pos=loop_var_ast),
+            parse_body(self.stmt.body, self.context),
+        ]
 
-        # this kind of open access to the vars dict should be disallowed.
-        # we should use member functions to provide an API for these kinds
-        # of operations.
+        repeat_bound = iter_list.typ.count
+        if isinstance(iter_list.typ, DArrayType):
+            array_len = get_dyn_array_count(iter_list)
+        else:
+            array_len = repeat_bound
+
+        ret.append(["repeat", i, 0, array_len, repeat_bound, body])
+
         del self.context.forvars[varname]
-        return lll_node
+        return LLLnode.from_list(ret, pos=getpos(self.stmt))
 
     def parse_AugAssign(self):
         target = self._get_target(self.stmt.target)
@@ -384,6 +384,7 @@ class Stmt:
                     col_offset=self.stmt.col_offset,
                     end_lineno=self.stmt.end_lineno,
                     end_col_offset=self.stmt.end_col_offset,
+                    node_source_code=self.stmt.get("node_source_code"),
                 ),
                 self.context,
             )
@@ -402,6 +403,7 @@ class Stmt:
                     col_offset=self.stmt.col_offset,
                     end_lineno=self.stmt.end_lineno,
                     end_col_offset=self.stmt.end_col_offset,
+                    node_source_code=self.stmt.get("node_source_code"),
                 ),
                 self.context,
             )
@@ -447,8 +449,24 @@ def parse_stmt(stmt, context):
     return Stmt(stmt, context).lll_node
 
 
-# Parse a piece of code
-def parse_body(code, context):
+# check if a function body is "terminated"
+# a function is terminated if it ends with a return stmt, OR,
+# it ends with an if/else and both branches are terminated.
+# (if not, we need to insert a terminator so that the IR is well-formed)
+def _is_terminated(code):
+    last_stmt = code[-1]
+
+    if is_return_from_function(last_stmt):
+        return True
+
+    if isinstance(last_stmt, vy_ast.If):
+        if last_stmt.orelse:
+            return _is_terminated(last_stmt.body) and _is_terminated(last_stmt.orelse)
+    return False
+
+
+# codegen a list of statements
+def parse_body(code, context, ensure_terminated=False):
     if not isinstance(code, list):
         return parse_stmt(code, context)
 
@@ -456,5 +474,11 @@ def parse_body(code, context):
     for stmt in code:
         lll = parse_stmt(stmt, context)
         lll_node.append(lll)
-    lll_node.append("pass")  # force zerovalent, even last statement
+
+    # force using the return routine / exit_to cleanup for end of function
+    if ensure_terminated and context.return_type is None and not _is_terminated(code):
+        lll_node.append(parse_stmt(vy_ast.Return(value=None), context))
+
+    # force zerovalent, even last statement
+    lll_node.append("pass")  # CMC 2022-01-16 is this necessary?
     return LLLnode.from_list(lll_node, pos=getpos(code[0]) if code else None)
