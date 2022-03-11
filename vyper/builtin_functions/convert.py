@@ -97,10 +97,12 @@ def _bytes_to_num(arg, out_typ, signed):
     return LLLnode.from_list(ret, annotation=annotation)
 
 
+# truncate from fixed point decimal to int
 def _fixed_to_int(x, out_typ, decimals=10):
     return LLLnode.from_list(["sdiv", x, 10 ** decimals], typ=out_typ)
 
 
+# promote from int to fixed point decimal
 def _int_to_fixed(x, out_typ, decimals=10):
     return LLLnode.from_list(["mul", x, 10 ** decimals], typ=out_typ)
 
