@@ -193,11 +193,17 @@ def to_int(expr, arg, out_typ):
 
     if is_decimal_type(arg.typ):
         arg_info = arg.typ._decimal_info
+
         arg = _fixed_to_int(arg, out_typ, decimals=arg_info.decimals)
 
-        # uh really need to double check these clamp conditions
-        if not int_info.is_signed or int_info.bits < arg_info.bits:
-            arg = int_clamp(arg, int_info.bits)
+        # clamp the output.
+        if int_info.is_signed != arg_info.is_signed:
+            arg = _signedness_clamp(arg, int_info.bits)
+        # same signedness with downcast
+        elif int_info.bits < arg_info.bits:
+            arg = int_clamp(arg, int_info.bits - 1)
+        else:
+            pass  # upcasting with no change in signedness; no clamp needed
 
     if isinstance(arg.typ, ByteArrayType):
         arg = _bytes_to_num(arg, out_typ, signed=int_info.is_signed)

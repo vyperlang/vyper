@@ -88,6 +88,7 @@ class IntegerTypeInfo:
 class DecimalTypeInfo:
     bits: int
     decimals: int
+    signed: bool  # always true for now but may change
 
 
 @dataclass
@@ -130,7 +131,7 @@ def is_decimal_type(t: "NodeType") -> bool:
 def parse_decimal_info(typename: str) -> DecimalTypeInfo:
     # in the future, this will actually do parsing
     assert typename == "decimal"
-    return DecimalTypeInfo(bits=168, decimals=10)
+    return DecimalTypeInfo(bits=168, decimals=10, is_signed=True)
 
 
 def _basetype_to_abi_type(t: "BaseType") -> ABIType:
