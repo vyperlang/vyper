@@ -137,7 +137,7 @@ def _literal_decimal(expr, out_typ):
     if isinstance(expr, vy_ast.Hex):
         val = decimal.Decimal(int(expr.value, 16))
     else:
-        val = decimal.Decimal(expr.value)  # should work for Int, Decimal, Hex
+        val = decimal.Decimal(expr.value)  # should work for Int, Decimal
 
     val = val * DECIMAL_DIVISOR
 
