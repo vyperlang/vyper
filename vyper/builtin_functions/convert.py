@@ -36,7 +36,8 @@ def _FAIL(ityp, otyp, pos=None):
     raise TypeMismatch(f"Can't convert {ityp} to {otyp}", pos)
 
 
-# generate a string representation of a type
+# helper function for `_input_types`
+# generates a string representation of a type
 # (makes up for lack of proper hierarchy in LLL type system)
 # (ideally would use type generated during annotation, but
 # not available for builtins)
