@@ -185,10 +185,17 @@ class GlobalContext:
         else:
             raise InvalidType("Invalid global type specified", item)
 
+    @property
+    def interface_names(self):
+        """
+        The set of names which are known to possibly be InterfaceType
+        """
+        return set(self._contracts.keys()) | set(self._interfaces.keys())
+
     def parse_type(self, ast_node):
         return parse_type(
             ast_node,
-            sigs=set(self._contracts.keys()) | set(self._interfaces.keys()),
+            sigs=self.interface_names,
             custom_structs=self._structs,
         )
 
