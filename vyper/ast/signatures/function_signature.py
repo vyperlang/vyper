@@ -58,11 +58,6 @@ class VariableRecord:
         return math.ceil(self.typ.memory_bytes_required / 32)
 
 
-class ContractRecord(VariableRecord):
-    def __init__(self, *args):
-        super(ContractRecord, self).__init__(*args)
-
-
 @dataclass
 class FunctionArg:
     name: str

@@ -438,7 +438,7 @@ class Stmt:
                     raise TypeCheckFailure(f"Failed constancy check\n{_dbg_expr}")
             return target
 
-        target = Expr.parse_variable_location(target, self.context)
+        target = Expr.parse_pointer_expr(target, self.context)
         if (target.location == "storage" and self.context.is_constant()) or not target.mutable:
             raise TypeCheckFailure(f"Failed constancy check\n{_dbg_expr}")
         return target
