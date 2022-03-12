@@ -370,7 +370,6 @@ def parse_type(item, sigs, custom_structs):
             length = item.slice.value.n
             _sanity_check(isinstance(length, int) and length > 0)
 
-
             # ByteArray
             if getattr(item.value, "id", None) == "Bytes":
                 return ByteArrayType(length)
