@@ -19,6 +19,7 @@ from .value.numeric import (
     Int128Definition,
     Uint256Definition,
 )
+from .user.interface import InterfaceDefinition
 
 # any more?
 
