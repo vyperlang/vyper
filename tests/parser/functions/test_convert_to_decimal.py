@@ -138,29 +138,30 @@ def foobar() -> decimal:
 
 
 def test_convert_from_address(get_contract, assert_compile_failed):
-    codes = ["""
+    codes = [
+        """
 stor: address
 @external
 def conv_zero_stor() -> decimal:
     self.stor = ZERO_ADDRESS
     return convert(self.stor, decimal)
 """,
-"""
+        """
 @external
 def conv(param: address) -> decimal:
     return convert(param, decimal)
 """,
-"""
+        """
 @external
 def conv_zero_literal() -> decimal:
     return convert(ZERO_ADDRESS, decimal)
 """,
-"""
+        """
 @external
 def conv_neg1_literal() -> decimal:
     return convert(0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF, decimal)
-"""
-]
+""",
+    ]
     for c in codes:
         assert_compile_failed(lambda: get_contract(c), TypeMismatch)
 

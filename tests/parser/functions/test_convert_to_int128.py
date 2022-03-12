@@ -1,5 +1,4 @@
 from vyper.exceptions import InvalidLiteral, OverflowException, TypeMismatch
-from vyper.utils import SizeLimits
 
 
 def test_convert_to_int128(get_contract_with_gas_estimation):

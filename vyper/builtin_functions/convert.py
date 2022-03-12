@@ -180,6 +180,7 @@ def _signedness_clamp(arg, bits):
         ret.append(arg)
         return b.resolve(LLLnode.from_list(ret, typ=arg.typ))
 
+
 @_input_types("int", "bytes_m", "decimal", "bytes", "address", "bool")
 def to_int(expr, arg, out_typ):
 
