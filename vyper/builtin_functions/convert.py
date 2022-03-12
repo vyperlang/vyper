@@ -251,6 +251,8 @@ def to_decimal(expr, arg, out_typ):
         info = arg.typ._bytes_info
         arg = _bytes_to_num(arg, out_typ, signed=True)
         # TODO revisit this condition once we have more decimal types
+        # and decimal bounds expand
+        # will be something like: if info.m_bits > 168
         if info.m_bits > 128:
             arg = LLLnode.from_list(arg, typ=out_typ)
             arg = clamp_basetype(arg)
@@ -261,6 +263,10 @@ def to_decimal(expr, arg, out_typ):
     # (and then multiply into the decimal base afterwards)
     elif is_integer_type(arg.typ):
         int_info = arg.typ._int_info
+        # TODO revisit this condition once we have more decimal types
+        # and decimal bounds expand. (note that right now decimal bounds
+        # are -2**127 and 2**127 - 1).
+        # will be something like: if info.m_bits > 168
         if int_info.bits > 128:
             arg = int_clamp(arg, 128, signed=True)
 
