@@ -1,4 +1,4 @@
-from vyper.exceptions import TypeMismatch, InvalidLiteral
+from vyper.exceptions import InvalidLiteral, TypeMismatch
 
 # TODO: generalize all these test_convert_to_* test files and parametrize across all the types
 # NOTE: test_convert_to_uint8 tests are in the tests/parser/types/numbers/test_uint8.py file
