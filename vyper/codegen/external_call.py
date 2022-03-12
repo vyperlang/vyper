@@ -1,5 +1,4 @@
 import vyper.utils as util
-from vyper import ast as vy_ast
 from vyper.codegen.abi_encoder import abi_encode
 from vyper.codegen.core import (
     calculate_type_for_external_return,
@@ -8,11 +7,10 @@ from vyper.codegen.core import (
     dummy_node_for_type,
     get_element_ptr,
     getpos,
-    unwrap_location,
 )
 from vyper.codegen.lll_node import Encoding, LLLnode
-from vyper.codegen.types import TupleType, get_type_for_exact_size, InterfaceType
-from vyper.exceptions import StateAccessViolation, StructureException, TypeCheckFailure
+from vyper.codegen.types import InterfaceType, TupleType, get_type_for_exact_size
+from vyper.exceptions import StateAccessViolation, TypeCheckFailure
 
 
 def _pack_arguments(contract_sig, args, context, pos):
