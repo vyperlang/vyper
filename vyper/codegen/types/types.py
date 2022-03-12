@@ -88,7 +88,7 @@ class IntegerTypeInfo:
 class DecimalTypeInfo:
     bits: int
     decimals: int
-    signed: bool  # always true for now but may change
+    is_signed: bool  # always true for now but may change
 
 
 @dataclass
