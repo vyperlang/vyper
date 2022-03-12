@@ -158,7 +158,7 @@ def to_bool(expr, arg, out_typ):
     _check_bytes(expr, arg, out_typ, 32)  # should we restrict to Bytes[1]?
 
     if isinstance(arg.typ, ByteArrayType):
-        # question: should clamp?
+        # no clamp. checks for any nonzero bytes.
         arg = _bytes_to_num(arg, out_typ, signed=False)
 
     # NOTE: for decimal, the behavior is x != 0.0,
@@ -207,7 +207,10 @@ def to_int(expr, arg, out_typ):
             pass  # upcasting with no change in signedness; no clamp needed
 
     if isinstance(arg.typ, ByteArrayType):
+        arg_typ = arg.typ
         arg = _bytes_to_num(arg, out_typ, signed=int_info.is_signed)
+        if arg_typ.maxlen * 8 > int_info.bits:
+            arg = int_clamp(arg, int_info.bits, signed=int_info.is_signed)
 
     if is_bytes_m_type(arg.typ):
         arg_info = arg.typ._bytes_info
@@ -245,7 +248,14 @@ def to_decimal(expr, arg, out_typ):
         return _literal_decimal(expr, out_typ)
 
     if isinstance(arg.typ, ByteArrayType):
+        arg_typ = arg.typ
         arg = _bytes_to_num(arg, out_typ, signed=True)
+        # TODO revisit this condition once we have more decimal types
+        # and decimal bounds expand
+        # will be something like: if info.m_bits > 168
+        if arg_typ.maxlen * 8 > 128:
+            arg = LLLnode.from_list(arg, typ=out_typ)
+            arg = clamp_basetype(arg)
         return LLLnode.from_list(arg, typ=out_typ)
 
     elif is_bytes_m_type(arg.typ):
@@ -329,14 +339,17 @@ def to_address(expr, arg, out_typ):
     # to_int(expr, arg, uint160) bc the logic is equivalent.
 
     # disallow casting from Bytes[N>20]
-    _check_bytes(expr, arg, out_typ, 20)
+    _check_bytes(expr, arg, out_typ, 32)
 
     if isinstance(arg.typ, ByteArrayType):
+        arg_typ = arg.typ
         arg = _bytes_to_num(arg, out_typ, signed=False)
+        # clamp after shift
+        if arg_typ.maxlen > 20:
+            arg = int_clamp(arg, 160, signed=False)
 
     if is_bytes_m_type(arg.typ):
         info = arg.typ._bytes_info
-
         arg = _bytes_to_num(arg, out_typ, signed=False)
 
         # clamp after shift
@@ -346,7 +359,7 @@ def to_address(expr, arg, out_typ):
     elif is_integer_type(arg.typ):
         arg_info = arg.typ._int_info
         if arg_info.bits > 160 or arg_info.is_signed:
-            arg = int_clamp(arg, 160, False)
+            arg = int_clamp(arg, 160, signed=False)
 
     return LLLnode.from_list(arg, typ=out_typ)
 
