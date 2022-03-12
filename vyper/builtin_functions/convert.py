@@ -187,7 +187,7 @@ def to_int(expr, arg, out_typ):
     int_info = out_typ._int_info
 
     assert int_info.bits % 8 == 0
-    _check_bytes(expr, arg, out_typ, int_info.bits // 8)
+    _check_bytes(expr, arg, out_typ, 32)
 
     if isinstance(expr, vy_ast.Constant):
         return _literal_int(expr, out_typ)
