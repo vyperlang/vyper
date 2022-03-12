@@ -165,6 +165,12 @@ idx: uint256
 def __init__():
     self.my_interface[self.idx] = MyInterface(ZERO_ADDRESS)
     """,
+    """
+interface MyInterface:
+    def kick(): payable
+
+kickers: HashMap[address, MyInterface]
+    """,
 ]
 
 
