@@ -1,7 +1,7 @@
 from vyper.interfaces import ERC20
 
 interface Exchange:
-    def token() -> address: view  # TODO: return ERC20
+    def token() -> ERC20: view
     def receive(_from: address, _amt: uint256): nonpayable
     def transfer(_to: address, _amt: uint256): nonpayable
 
@@ -33,8 +33,7 @@ def register():
     # NOTE: Should do checks that it hasn't already been set,
     #       which has to be rectified with any upgrade strategy.
     exchange: Exchange = Exchange(msg.sender)
-    token: ERC20 = ERC20(exchange.token())
-    self.exchanges[token] = exchange
+    self.exchanges[exchange.token()] = exchange
 
 
 @external

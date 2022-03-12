@@ -73,6 +73,7 @@ def parse_external_interfaces(external_interfaces, global_ctx):
             # Recognizes already-defined structs
             sig = FunctionSignature.from_definition(
                 _def,
+                sigs=global_ctx.interface_names,
                 interface_def=True,
                 constant_override=constant,
                 custom_structs=global_ctx._structs,

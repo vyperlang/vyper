@@ -11,7 +11,7 @@ from vyper.codegen.core import (
     unwrap_location,
 )
 from vyper.codegen.lll_node import Encoding, LLLnode
-from vyper.codegen.types import TupleType, get_type_for_exact_size
+from vyper.codegen.types import TupleType, get_type_for_exact_size, InterfaceType
 from vyper.exceptions import StateAccessViolation, StructureException, TypeCheckFailure
 
 
@@ -206,46 +206,13 @@ def lll_for_external_call(stmt_expr, context):
     from vyper.codegen.expr import Expr  # TODO rethink this circular import
 
     pos = getpos(stmt_expr)
+
+    contract_address = Expr.parse_value_expr(stmt_expr.func.value, context)
     value, gas, skip_contract_check = _get_special_kwargs(stmt_expr, context)
     args_lll = [Expr(x, context).lll_node for x in stmt_expr.args]
 
-    if isinstance(stmt_expr.func, vy_ast.Attribute) and isinstance(
-        stmt_expr.func.value, vy_ast.Call
-    ):
-        # e.g. `Foo(address).bar()`
-
-        # sanity check
-        assert len(stmt_expr.func.value.args) == 1
-        contract_name = stmt_expr.func.value.func.id
-        contract_address = Expr.parse_value_expr(stmt_expr.func.value.args[0], context)
-
-    elif (
-        isinstance(stmt_expr.func.value, vy_ast.Attribute)
-        and stmt_expr.func.value.attr in context.globals
-        # TODO check for self?
-        and hasattr(context.globals[stmt_expr.func.value.attr].typ, "name")
-    ):
-        # e.g. `self.foo.bar()`
-
-        # sanity check
-        assert stmt_expr.func.value.value.id == "self", stmt_expr
-
-        contract_name = context.globals[stmt_expr.func.value.attr].typ.name
-        type_ = stmt_expr.func.value._metadata["type"]
-        var = context.globals[stmt_expr.func.value.attr]
-        contract_address = unwrap_location(
-            LLLnode.from_list(
-                type_.position.position,
-                typ=var.typ,
-                location="storage",
-                pos=pos,
-                annotation="self." + stmt_expr.func.value.attr,
-            )
-        )
-    else:
-        # TODO catch this during type checking
-        raise StructureException("Unsupported operator.", stmt_expr)
-
+    assert isinstance(contract_address.typ, InterfaceType)
+    contract_name = contract_address.typ.name
     method_name = stmt_expr.func.attr
     contract_sig = context.sigs[contract_name][method_name]
 
