@@ -8,6 +8,7 @@ from .indexable.sequence import (
     TupleDefinition,
 )
 from .user.event import Event
+from .user.interface import InterfaceDefinition
 from .user.struct import StructDefinition
 from .value.address import AddressDefinition
 from .value.array_value import BytesArrayDefinition, StringDefinition
