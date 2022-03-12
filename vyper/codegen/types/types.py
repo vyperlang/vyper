@@ -314,6 +314,8 @@ def make_struct_type(name, sigs, members, custom_structs):
 # Parses an expression representing a type.
 # TODO: rename me to "lll_type_from_annotation"
 def parse_type(item, sigs, custom_structs):
+    # sigs: set of interface or contract names in scope
+    # custom_structs: struct definitions in scope
     def _sanity_check(x):
         assert x, "typechecker missed this"
 

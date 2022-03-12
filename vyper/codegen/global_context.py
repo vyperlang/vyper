@@ -188,7 +188,7 @@ class GlobalContext:
     def parse_type(self, ast_node):
         return parse_type(
             ast_node,
-            sigs=self._contracts,
+            sigs=set(self._contracts.keys()) | set(self._interfaces.keys()),
             custom_structs=self._structs,
         )
 
