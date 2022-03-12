@@ -202,7 +202,7 @@ def to_int(expr, arg, out_typ):
             arg = _signedness_clamp(arg, int_info.bits)
         # same signedness with downcast
         elif int_info.bits < arg_info.bits:
-            arg = int_clamp(arg, int_info.bits - 1)
+            arg = int_clamp(arg, int_info.bits, signed=int_info.is_signed)
         else:
             pass  # upcasting with no change in signedness; no clamp needed
 
