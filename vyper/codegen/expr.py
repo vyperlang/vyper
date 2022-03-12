@@ -1081,9 +1081,9 @@ class Expr:
     def parse_value_expr(cls, expr, context):
         return unwrap_location(cls(expr, context).lll_node)
 
-    # Parse an expression that represents an address in memory/calldata or storage.
+    # Parse an expression that represents a pointer to memory/calldata or storage.
     @classmethod
-    def parse_variable_location(cls, expr, context):
+    def parse_pointer_expr(cls, expr, context):
         o = cls(expr, context).lll_node
         if not o.location:
             raise StructureException("Looking for a variable location, instead got a value", expr)
