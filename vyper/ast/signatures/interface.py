@@ -4,10 +4,12 @@ import importlib
 import pkgutil
 
 import vyper.builtin_interfaces
-from vyper import ast as vy_ast
+import ast as python_ast
+import vyper.ast.nodes as vy_ast
+from vyper.ast.annotation import annotate_python_ast
 from vyper.ast.signatures.function_signature import FunctionSignature
 from vyper.codegen.global_context import GlobalContext
-from vyper.exceptions import StructureException
+from vyper.exceptions import StructureException, SyntaxException
 
 
 # Populate built-in interfaces.
@@ -28,18 +30,24 @@ def get_builtin_interfaces():
 
 
 def abi_type_to_ast(atype, expected_size):
-    if atype in ("int128", "uint256", "bool", "address", "bytes32"):
-        return vy_ast.Name(id=atype)
-    elif atype == "fixed168x10":
-        return vy_ast.Name(id="decimal")
+    def _parse_to_ast(expr_str):
+        try:
+            py_ast = python_ast.parse(expr_str) # note: py_ast is a Module
+            py_ast = annotate_python_ast(py_ast, expr_str)
+            # grab the first expression out of the "module"
+            return vy_ast.get_node(py_ast).body[0].value
+        except SyntaxException:
+            raise StructureException(f"Type {atype} not supported by vyper.")
+    if atype == "fixed168x10":
+        return _parse_to_ast("decimal")
     elif atype in ("bytes", "string"):
-        # expected_size is the maximum length for inputs, minimum length for outputs
-        return vy_ast.Subscript(
-            value=vy_ast.Name(id=atype.capitalize()),
-            slice=vy_ast.Index(value=vy_ast.Int(value=expected_size)),
-        )
+        # expected_size is the max length for inputs, min length for outputs
+        return _parse_to_ast(f"{atype.capitalize()}[{expected_size}]")
+    elif atype.endswith("[]"):
+        subtype = atype[:-2]
+        return _parse_to_ast(f"DynArray[{subtype}, {expected_size}]")
     else:
-        raise StructureException(f"Type {atype} not supported by vyper.")
+        return _parse_to_ast(atype)
 
 
 # Vyper defines a maximum length for bytes and string types, but Solidity does not.
