@@ -221,7 +221,7 @@ def to_int(expr, arg, out_typ):
     if is_integer_type(arg.typ):
         arg_info = arg.typ._int_info
 
-        if int_info.is_signed != arg_info.is_signed:
+        if int_info.is_signed != arg_info.is_signed and int_info.bits == arg_info.bits:
             arg = _signedness_clamp(arg, int_info.bits)
 
         # same signedness with downcast
