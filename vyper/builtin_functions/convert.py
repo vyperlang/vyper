@@ -7,7 +7,6 @@ from vyper.codegen.core import (
     LLLnode,
     bytes_clamp,
     bytes_data_ptr,
-    promote_signed_int,
     clamp_basetype,
     get_bytearray_length,
     getpos,
@@ -214,11 +213,10 @@ def to_int(expr, arg, out_typ):
 
     elif is_integer_type(arg.typ):
         arg_info = arg.typ._int_info
-        tmp = ["seq"]
         if int_info.is_signed != arg_info.is_signed:
             arg = _signedness_clamp(arg, arg_info.bits)
 
-        # if, not elif - could be two clamps
+        # if, not elif (could be two clamps!)
         if int_info.bits < arg_info.bits:
             arg = int_clamp(arg, int_info.bits, int_info.is_signed)
 
