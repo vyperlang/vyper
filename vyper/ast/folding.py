@@ -1,3 +1,4 @@
+import copy
 from decimal import Decimal
 from typing import Union
 
@@ -283,6 +284,8 @@ def replace_constant(
                 continue
 
         try:
+            # Codegen may mutate AST (particularly structs).
+            replacement_node = copy.deepcopy(replacement_node)
             new_node = _replace(node, replacement_node, type_=type_)
         except UnfoldableNode:
             if raise_on_error:
