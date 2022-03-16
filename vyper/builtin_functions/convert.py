@@ -7,6 +7,7 @@ from vyper.codegen.core import (
     LLLnode,
     bytes_clamp,
     bytes_data_ptr,
+    promote_signed_int,
     clamp_basetype,
     get_bytearray_length,
     getpos,
@@ -173,12 +174,7 @@ def to_bool(expr, arg, out_typ):
 # these are both equivalent to checking that the top bit is set
 # (e.g. for uint8 that the 8th bit is set, same for int8)
 def _signedness_clamp(arg, bits):
-    with arg.cache_when_complex("val") as (b, arg):
-        ret = ["seq"]
-        # note: same logic as int_clamp(arg, bits=int_info.bits - 1, signed=False)
-        ret.append(["assert", ["iszero", shr(bits - 1, arg)]])
-        ret.append(arg)
-        return b.resolve(LLLnode.from_list(ret, typ=arg.typ))
+    return int_clamp(arg, bits=bits - 1, signed=False)
 
 
 @_input_types("int", "bytes_m", "decimal", "bytes", "address", "bool")
@@ -192,45 +188,41 @@ def to_int(expr, arg, out_typ):
     if isinstance(expr, vy_ast.Constant):
         return _literal_int(expr, out_typ)
 
-    if is_decimal_type(arg.typ):
+    elif is_decimal_type(arg.typ):
         arg_info = arg.typ._decimal_info
 
         arg = _fixed_to_int(arg, out_typ, decimals=arg_info.decimals)
 
         # clamp the output.
         if int_info.is_signed != arg_info.is_signed:
-            arg = _signedness_clamp(arg, int_info.bits)
+            arg = _signedness_clamp(arg, arg_info.bits)
         # same signedness with downcast
-        elif int_info.bits < arg_info.bits:
+        if arg_info.bits > int_info.bits:
             arg = int_clamp(arg, int_info.bits, signed=int_info.is_signed)
-        else:
-            pass  # upcasting with no change in signedness; no clamp needed
 
-    if isinstance(arg.typ, ByteArrayType):
+    elif isinstance(arg.typ, ByteArrayType):
         arg_typ = arg.typ
         arg = _bytes_to_num(arg, out_typ, signed=int_info.is_signed)
         if arg_typ.maxlen * 8 > int_info.bits:
             arg = int_clamp(arg, int_info.bits, signed=int_info.is_signed)
 
-    if is_bytes_m_type(arg.typ):
+    elif is_bytes_m_type(arg.typ):
         arg_info = arg.typ._bytes_info
         arg = _bytes_to_num(arg, out_typ, signed=int_info.is_signed)
         if arg_info.m_bits > int_info.bits:
             arg = int_clamp(arg, int_info.bits, signed=int_info.is_signed)
 
-    if is_integer_type(arg.typ):
+    elif is_integer_type(arg.typ):
         arg_info = arg.typ._int_info
+        tmp = ["seq"]
+        if int_info.is_signed != arg_info.is_signed:
+            arg = _signedness_clamp(arg, arg_info.bits)
 
-        if int_info.is_signed != arg_info.is_signed and int_info.bits == arg_info.bits:
-            arg = _signedness_clamp(arg, int_info.bits)
-
-        # same signedness with downcast
-        elif arg_info.bits > int_info.bits:
+        # if, not elif - could be two clamps
+        if int_info.bits < arg_info.bits:
             arg = int_clamp(arg, int_info.bits, int_info.is_signed)
-        else:
-            pass  # upcasting with no change in signedness; no clamp needed
 
-    if is_base_type(arg.typ, "address"):
+    elif is_base_type(arg.typ, "address"):
         if int_info.is_signed:
             _FAIL(arg.typ, out_typ, expr)
         if int_info.bits > 160:
