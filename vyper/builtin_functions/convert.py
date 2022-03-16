@@ -211,7 +211,6 @@ def to_int(expr, arg, out_typ):
         if arg_info.m_bits > int_info.bits:
             arg = int_clamp(arg, int_info.bits, signed=int_info.is_signed)
 
-
     elif is_decimal_type(arg.typ):
         arg_info = arg.typ._decimal_info
         arg = _fixed_to_int(arg, out_typ, decimals=arg_info.decimals)
@@ -220,7 +219,6 @@ def to_int(expr, arg, out_typ):
     elif is_integer_type(arg.typ):
         arg_info = arg.typ._int_info
         arg = _to_int_clamp(arg, int_info, arg_info)
-
 
     elif is_base_type(arg.typ, "address"):
         if int_info.is_signed:
