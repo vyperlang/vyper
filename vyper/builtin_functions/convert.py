@@ -213,10 +213,12 @@ def to_int(expr, arg, out_typ):
 
     elif is_integer_type(arg.typ):
         arg_info = arg.typ._int_info
+
         if int_info.is_signed != arg_info.is_signed:
             arg = _signedness_clamp(arg, arg_info.bits)
 
         # if, not elif (could be two clamps!)
+        # TODO is it possible to make this more efficient?
         if int_info.bits < arg_info.bits:
             arg = int_clamp(arg, int_info.bits, int_info.is_signed)
 
