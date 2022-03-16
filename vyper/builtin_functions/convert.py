@@ -176,6 +176,18 @@ def _signedness_clamp(arg, bits):
     return int_clamp(arg, bits=bits - 1, signed=False)
 
 
+def _to_int_clamp(arg, dst_info, arg_info):
+    if dst_info.is_signed != arg_info.is_signed:
+        arg = _signedness_clamp(arg, arg_info.bits)
+
+    # if, not elif (could be two clamps!)
+    # TODO is it possible to make this more efficient?
+    if dst_info.bits < arg_info.bits:
+        arg = int_clamp(arg, dst_info.bits, dst_info.is_signed)
+
+    return arg
+
+
 @_input_types("int", "bytes_m", "decimal", "bytes", "address", "bool")
 def to_int(expr, arg, out_typ):
 
@@ -186,18 +198,6 @@ def to_int(expr, arg, out_typ):
 
     if isinstance(expr, vy_ast.Constant):
         return _literal_int(expr, out_typ)
-
-    elif is_decimal_type(arg.typ):
-        arg_info = arg.typ._decimal_info
-
-        arg = _fixed_to_int(arg, out_typ, decimals=arg_info.decimals)
-
-        # clamp the output.
-        if int_info.is_signed != arg_info.is_signed:
-            arg = _signedness_clamp(arg, arg_info.bits)
-        # same signedness with downcast
-        if arg_info.bits > int_info.bits:
-            arg = int_clamp(arg, int_info.bits, signed=int_info.is_signed)
 
     elif isinstance(arg.typ, ByteArrayType):
         arg_typ = arg.typ
@@ -211,16 +211,16 @@ def to_int(expr, arg, out_typ):
         if arg_info.m_bits > int_info.bits:
             arg = int_clamp(arg, int_info.bits, signed=int_info.is_signed)
 
+
+    elif is_decimal_type(arg.typ):
+        arg_info = arg.typ._decimal_info
+        arg = _fixed_to_int(arg, out_typ, decimals=arg_info.decimals)
+        arg = _to_int_clamp(arg, int_info, arg_info)
+
     elif is_integer_type(arg.typ):
         arg_info = arg.typ._int_info
+        arg = _to_int_clamp(arg, int_info, arg_info)
 
-        if int_info.is_signed != arg_info.is_signed:
-            arg = _signedness_clamp(arg, arg_info.bits)
-
-        # if, not elif (could be two clamps!)
-        # TODO is it possible to make this more efficient?
-        if int_info.bits < arg_info.bits:
-            arg = int_clamp(arg, int_info.bits, int_info.is_signed)
 
     elif is_base_type(arg.typ, "address"):
         if int_info.is_signed:
