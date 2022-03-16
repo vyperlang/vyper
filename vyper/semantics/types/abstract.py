@@ -50,7 +50,7 @@ class BytesAbstractType(AbstractDataType):
 class BytesMAbstractType(AbstractDataType):
     """Abstract data class for fixed bytes types (bytes32, bytes4, ...)"""
 
-    _description = "bytes<M> where M<=32"
+    # _description = "bytes<M> where M<=32"
 
 
 class NumericAbstractType(AbstractDataType):
