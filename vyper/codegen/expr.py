@@ -535,6 +535,14 @@ class Expr:
                     pos=pos,
                 )
 
+        # If the types do not match, check if type definition is propagated in node's metadata.
+        # This step is necessary for struct members.
+        if left.typ.typ != right.typ.typ:
+            if hasattr(self.expr.left, "_metadata") and "type" in self.expr.left._metadata:
+                left.typ = new_type_to_old_type(self.expr.left._metadata["type"])
+            if hasattr(self.expr.right, "_metadata") and "type" in self.expr.right._metadata:
+                right.typ = new_type_to_old_type(self.expr.left._metadata["type"])
+
         ltyp, rtyp = left.typ.typ, right.typ.typ
 
         # Sanity check - ensure that we aren't dealing with different types
