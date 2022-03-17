@@ -796,8 +796,31 @@ class Expr:
 
         # Compare (limited to 32) byte arrays.
         if isinstance(left.typ, ByteArrayLike) and isinstance(right.typ, ByteArrayLike):
+<<<<<<< HEAD
             left = Expr(self.expr.left, self.context).ir_node
             right = Expr(self.expr.right, self.context).ir_node
+=======
+            left = Expr(self.expr.left, self.context).lll_node
+            right = Expr(self.expr.right, self.context).lll_node
+
+            length_mismatch = left.typ.maxlen != right.typ.maxlen
+            empty_eq_length_array = left.typ.maxlen == right.typ.maxlen and (
+                right.value == "~empty" or left.value == "~empty"
+            )
+            left_over_32 = left.typ.maxlen > 32
+            right_over_32 = right.typ.maxlen > 32
+
+            if length_mismatch or empty_eq_length_array or left_over_32 or right_over_32:
+                left_keccak = keccak256_helper(self.expr, left, self.context)
+                right_keccak = keccak256_helper(self.expr, right, self.context)
+
+                if op == "eq" or op == "ne":
+                    return LLLnode.from_list(
+                        [op, left_keccak, right_keccak],
+                        typ="bool",
+                        pos=getpos(self.expr),
+                    )
+>>>>>>> handle empty byte array comparisons
 
             left_keccak = keccak256_helper(self.expr, left, self.context)
             right_keccak = keccak256_helper(self.expr, right, self.context)
