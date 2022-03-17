@@ -2,7 +2,7 @@ import functools
 
 from vyper import ast as vy_ast
 from vyper.codegen.expr import Expr
-from vyper.codegen.types import BaseType, ByteArrayType, StringType, is_base_type
+from vyper.codegen.types import BaseType, ByteArrayType, StringType, is_base_type, INTEGER_TYPES
 from vyper.exceptions import InvalidLiteral, StructureException, TypeMismatch
 from vyper.utils import SizeLimits
 
@@ -69,8 +69,8 @@ def process_arg(index, arg, expected_arg_typelist, function_name, context):
                 vsub = vsub or Expr.parse_value_expr(arg, context)
 
                 is_valid_integer = (
-                    (expected_arg in ("int128", "uint256") and isinstance(vsub.typ, BaseType))
-                    and (vsub.typ.typ in ("int128", "uint256") and vsub.typ.is_literal)
+                    (expected_arg in INTEGER_TYPES and isinstance(vsub.typ, BaseType))
+                    and (vsub.typ.typ in INTEGER_TYPES and vsub.typ.is_literal)
                     and (SizeLimits.in_bounds(expected_arg, vsub.value))
                 )
 
