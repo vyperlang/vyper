@@ -23,8 +23,8 @@ from vyper.exceptions import ArgumentException, CompilerPanic, InvalidType
 from vyper.utils import ceil32
 
 # Available base types
-UNSIGNED_INTEGER_TYPES = {"uint8", "uint256"}
-SIGNED_INTEGER_TYPES = {"int128", "int256"}
+UNSIGNED_INTEGER_TYPES = {f"uint{8*(i+1)}" for i in range(32)}
+SIGNED_INTEGER_TYPES = {f"int{8*(i+1)}" for i in range(32)}
 INTEGER_TYPES = UNSIGNED_INTEGER_TYPES | SIGNED_INTEGER_TYPES
 
 BYTES_M_TYPES = {"bytes32"}
