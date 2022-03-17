@@ -982,10 +982,12 @@ def clamp_basetype(lll_node):
     # copy of the input
     lll_node = unwrap_location(lll_node)
 
-    if t.typ in ("int128"):
-        return int_clamp(lll_node, 128, signed=True)
-    if t.typ == "uint8":
-        return int_clamp(lll_node, 8)
+    if is_integer_type(t):
+        if t._int_info.bits == 256:
+            return lll_node
+        else:
+            return int_clamp(lll_node, t._int_info.bits, signed=t._int_info.is_signed)
+
     if t.typ in ("decimal"):
         return [
             "clamp",
@@ -998,7 +1000,7 @@ def clamp_basetype(lll_node):
         return int_clamp(lll_node, 160)
     if t.typ in ("bool",):
         return int_clamp(lll_node, 1)
-    if t.typ in ("int256", "uint256", "bytes32"):
+    if t.typ in ("bytes32",):
         return lll_node  # special case, no clamp.
 
     raise CompilerPanic(f"{t} passed to clamp_basetype")  # pragma: notest
