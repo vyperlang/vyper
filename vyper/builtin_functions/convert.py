@@ -292,8 +292,8 @@ def to_bytes_m(expr, arg, out_typ):
         len_ = get_bytearray_length(arg)
         num_zero_bits = LLLnode.from_list(["mul", ["sub", 32, len_], 8])
         with num_zero_bits.cache_when_complex("bits") as (b, num_zero_bits):
-            ret = shl(num_zero_bits, shr(num_zero_bits, bytes_val))
-            ret = b.resolve(ret)
+            arg = shl(num_zero_bits, shr(num_zero_bits, bytes_val))
+            arg = b.resolve(arg)
 
     elif is_integer_type(arg.typ) or is_base_type(arg.typ, "address"):
         int_bits = arg.typ._int_info.bits
@@ -303,7 +303,7 @@ def to_bytes_m(expr, arg, out_typ):
             # arg = int_clamp(m_bits, signed=int_info.signed)
             _FAIL(arg.typ, out_typ, expr)
 
-        ret = shl(256 - out_info.m_bits, arg)
+        arg = shl(256 - out_info.m_bits, arg)
 
     elif is_bytes_m_type(arg.typ):
         arg_info = arg.typ._bytes_info
@@ -313,9 +313,9 @@ def to_bytes_m(expr, arg, out_typ):
 
     else:
         # bool, decimal
-        ret = shl(256 - out_info.m_bits, arg)  # question: is this right?
+        arg = shl(256 - out_info.m_bits, arg)  # question: is this right?
 
-    return LLLnode.from_list(ret, typ=out_typ)
+    return LLLnode.from_list(arg, typ=out_typ)
 
 
 @_input_types("bytes_m", "int", "bytes")
