@@ -176,7 +176,8 @@ def _signedness_clamp(arg, bits):
     return int_clamp(arg, bits=bits - 1, signed=False)
 
 
-def _to_int_clamp(arg, dst_info, arg_info):
+# clamp for dealing with conversions between numeric types (from arg to dst)
+def _num_clamp(arg, dst_info, arg_info):
     if dst_info.is_signed != arg_info.is_signed:
         arg = _signedness_clamp(arg, arg_info.bits)
 
@@ -214,11 +215,11 @@ def to_int(expr, arg, out_typ):
     elif is_decimal_type(arg.typ):
         arg_info = arg.typ._decimal_info
         arg = _fixed_to_int(arg, out_typ, decimals=arg_info.decimals)
-        arg = _to_int_clamp(arg, int_info, arg_info)
+        arg = _num_clamp(arg, int_info, arg_info)
 
     elif is_integer_type(arg.typ):
         arg_info = arg.typ._int_info
-        arg = _to_int_clamp(arg, int_info, arg_info)
+        arg = _num_clamp(arg, int_info, arg_info)
 
     elif is_base_type(arg.typ, "address"):
         if int_info.is_signed:
