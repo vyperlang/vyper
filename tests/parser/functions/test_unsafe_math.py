@@ -4,11 +4,11 @@ import random
 
 import pytest
 
-from vyper.codegen.types.types import parse_integer_typeinfo
-from vyper.utils import BASE_TYPES, evm_div, int_bounds
+from vyper.codegen.types.types import INTEGER_TYPES, parse_integer_typeinfo
+from vyper.utils import evm_div, int_bounds
 
 # TODO something less janky
-integer_types = sorted([t for t in BASE_TYPES if "int" in t])
+integer_types = sorted(list(INTEGER_TYPES))
 
 
 def _as_signed(x, bits):

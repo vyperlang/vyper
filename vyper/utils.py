@@ -1,4 +1,5 @@
 import binascii
+import decimal
 import sys
 import traceback
 from typing import Dict, List, Union
@@ -73,7 +74,7 @@ def bytes_to_int(bytez):
 
 # Encodes an address using ethereum's checksum scheme
 def checksum_encode(addr):  # Expects an input of the form 0x<40 hex chars>
-    assert addr[:2] == "0x" and len(addr) == 42
+    assert addr[:2] == "0x" and len(addr) == 42, addr
     o = ""
     v = bytes_to_int(keccak256(addr[2:].lower().encode("utf-8")))
     for i, c in enumerate(addr[2:]):
@@ -148,7 +149,6 @@ class MemoryPositions:
 
 # Sizes of different data types. Used to clamp types.
 class SizeLimits:
-    ADDRSIZE = 2 ** 160
     MAX_INT128 = 2 ** 127 - 1
     MIN_INT128 = -(2 ** 127)
     MAX_INT256 = 2 ** 255 - 1
@@ -162,7 +162,7 @@ class SizeLimits:
     def in_bounds(cls, type_str, value):
         assert isinstance(type_str, str)
         if type_str == "decimal":
-            return float(cls.MINDECIMAL) <= value <= float(cls.MAXDECIMAL)
+            return decimal.Decimal(cls.MINDECIMAL) <= value <= decimal.Decimal(cls.MAXDECIMAL)
         if type_str == "uint8":
             return 0 <= value <= cls.MAX_UINT8
         elif type_str == "uint256":
@@ -234,9 +234,6 @@ VALID_LLL_MACROS = {
     "~empty",
     "var_list",
 }
-
-# Available base types
-BASE_TYPES = {"int128", "int256", "decimal", "bytes32", "uint8", "uint256", "bool", "address"}
 
 
 def indent(text: str, indent_chars: Union[str, List[str]] = " ", level: int = 1) -> str:

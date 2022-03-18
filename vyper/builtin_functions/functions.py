@@ -24,6 +24,7 @@ from vyper.codegen.core import (
     getpos,
     lll_tuple_from_args,
     load_op,
+    promote_signed_int,
     unwrap_location,
 )
 from vyper.codegen.expr import Expr
@@ -167,60 +168,24 @@ class Ceil(_SimpleBuiltinFunction):
 
 class Convert:
 
-    # TODO this is just a wireframe, expand it with complete functionality
-    # https://github.com/vyperlang/vyper/issues/1093
-
     _id = "convert"
 
     def fetch_call_return(self, node):
         validate_call_args(node, 2)
         target_type = get_type_from_annotation(node.args[1], DataLocation.MEMORY)
-
         validate_expected_type(node.args[0], ValueTypeDefinition())
+
+        # block conversions between same type
         try:
             validate_expected_type(node.args[0], target_type)
         except VyperException:
             pass
         else:
-            # TODO remove this once it's possible in parser
             if not isinstance(target_type, Uint256Definition):
                 raise InvalidType(f"Value and target type are both '{target_type}'", node)
 
-        # TODO!
-        # try:
-        #     validation_fn = getattr(self, f"validate_to_{target_type._id}")
-        # except AttributeError:
-        #     raise InvalidType(
-        #         f"Unsupported destination type '{target_type}'", node.args[1]
-        #     ) from None
-
-        # validation_fn(initial_type)
-
+        # note: more type conversion validation happens in convert.py
         return target_type
-
-    def validate_to_bool(self, initial_type):
-        pass
-
-    def validate_to_decimal(self, initial_type):
-        pass
-
-    def validate_to_int128(self, initial_type):
-        pass
-
-    def validate_to_uint256(self, initial_type):
-        pass
-
-    def validate_to_bytes32(self, initial_type):
-        pass
-
-    def validate_to_string(self, initial_type):
-        pass
-
-    def validate_to_bytes(self, initial_type):
-        pass
-
-    def validate_to_address(self, initial_type):
-        pass
 
     def build_LLL(self, expr, context):
         return convert(expr, context)
@@ -1607,7 +1572,7 @@ class Abs(_SimpleBuiltinFunction):
             [
                 "if",
                 ["slt", "orig", 0],
-                # CMC 2022-02-05 pretty sure this assertion is pointless.
+                # clamp orig != -2**255 (because it maps to itself under negation)
                 ["seq", ["assert", ["ne", "orig", ["sub", 0, "orig"]]], ["sub", 0, "orig"]],
                 "orig",
             ],
@@ -1757,7 +1722,7 @@ class _UnsafeMath:
             # wrap for ops which could under/overflow
             if int_info.is_signed:
                 # e.g. int128 -> (signextend 15 (add x y))
-                ret = ["signextend", int_info.bits // 8 - 1, ret]
+                ret = promote_signed_int(ret, int_info.bits)
             else:
                 # e.g. uint8 -> (mod (add x y) 256)
                 # TODO mod_bound could be a really large literal

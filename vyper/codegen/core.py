@@ -1,4 +1,4 @@
-from decimal import Context, Decimal, setcontext
+from decimal import Context, setcontext
 
 from vyper import ast as vy_ast
 from vyper.codegen.lll_node import Encoding, LLLnode
@@ -20,7 +20,6 @@ from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
     CompilerPanic,
     DecimalOverrideException,
-    InvalidLiteral,
     StructureException,
     TypeCheckFailure,
     TypeMismatch,
@@ -51,29 +50,6 @@ def check_external_call(call_lll):
 
     propagate_revert_lll = ["seq", copy_revertdata, revert]
     return ["if", ["iszero", call_lll], propagate_revert_lll]
-
-
-# Get a decimal number as a fraction with denominator multiple of 10
-def get_number_as_fraction(expr, context):
-    literal = Decimal(expr.value)
-    sign, digits, exponent = literal.as_tuple()
-
-    if exponent < -10:
-        raise InvalidLiteral(
-            f"`decimal` literal cannot have more than 10 decimal places: {literal}", expr
-        )
-
-    sign = -1 if sign == 1 else 1  # Positive Decimal has `sign` of 0, negative `sign` of 1
-    # Decimal `digits` is a tuple of each digit, so convert to a regular integer
-    top = int(Decimal((0, digits, 0)))
-    top = sign * top * 10 ** (exponent if exponent > 0 else 0)  # Convert to a fixed point integer
-    bottom = 1 if exponent > 0 else 10 ** abs(exponent)  # Make denominator a power of 10
-    assert Decimal(top) / Decimal(bottom) == literal  # Sanity check
-
-    # TODO: Would be best to raise >10 decimal place exception here
-    #       (unless Decimal is used more widely)
-
-    return expr.node_source_code, top, bottom
 
 
 # cost per byte of the identity precompile
@@ -578,6 +554,7 @@ def get_element_ptr(parent, key, pos, array_bounds_check=True):
         return b.resolve(ret)
 
 
+# TODO phase this out - make private and use load_word instead
 def load_op(location):
     if location == "memory":
         return "mload"
@@ -595,6 +572,7 @@ def load_op(location):
     raise CompilerPanic(f"unreachable {location}")  # pragma: notest
 
 
+# TODO phase this out - make private and use store_word instead
 def store_op(location):
     if location == "memory":
         return "mstore"
@@ -605,10 +583,18 @@ def store_op(location):
     raise CompilerPanic(f"unreachable {location}")  # pragma: notest
 
 
+def load_word(ptr: LLLnode) -> LLLnode:
+    return LLLnode.from_list([load_op(ptr.location), ptr])
+
+
+def store_word(ptr: LLLnode, val: LLLnode) -> LLLnode:
+    return LLLnode.from_list([store_op(ptr.location), ptr, val])
+
+
 # Unwrap location
 def unwrap_location(orig):
     if orig.location in ("memory", "storage", "calldata", "data", "immutables"):
-        return LLLnode.from_list([load_op(orig.location), orig], typ=orig.typ)
+        return LLLnode.from_list(load_word(orig), typ=orig.typ)
     else:
         # CMC 20210909 TODO double check if this branch can be removed
         if orig.value == "~empty":
@@ -1026,17 +1012,35 @@ def int_clamp(lll_node, bits, signed=False):
     """
     if bits >= 256:
         raise CompilerPanic(f"invalid clamp: {bits}>=256 ({lll_node})")  # pragma: notest
-    if signed:
-        # example for bits==128:
-        # if _val is in bounds,
-        # _val >>> 127 == 0 for positive _val
-        # _val >>> 127 == -1 for negative _val
-        # -1 and 0 are the only numbers which are unchanged by sar,
-        # so sar'ing (_val>>>127) one more bit should leave it unchanged.
-        assertion = ["assert", ["eq", sar(bits - 1, "val"), sar(bits, "val")]]
-    else:
-        assertion = ["assert", ["iszero", shr(bits, "val")]]
+    with lll_node.cache_when_complex("val") as (b, val):
+        if signed:
+            # example for bits==128:
+            # promote_signed_int(val, bits) is the "canonical" version of val
+            # if val is in bounds, the bits above bit 128 should be equal.
+            # (this works for both val >= 0 and val < 0. in the first case,
+            # all upper bits should be 0 if val is a valid int128,
+            # in the latter case, all upper bits should be 1.)
+            assertion = ["assert", ["eq", val, promote_signed_int(val, bits)]]
+        else:
+            assertion = ["assert", ["iszero", shr(bits, val)]]
 
-    ret = ["with", "val", lll_node, ["seq", assertion, "val"]]
+        ret = b.resolve(["seq", assertion, val])
 
+    # TODO fix this annotation
     return LLLnode.from_list(ret, annotation=f"int_clamp {lll_node.typ}")
+
+
+def bytes_clamp(lll_node: LLLnode, n_bytes: int) -> LLLnode:
+    if not (0 < n_bytes <= 32):
+        raise CompilerPanic(f"bad type: bytes{n_bytes}")
+    with lll_node.cache_when_complex("val") as (b, val):
+        assertion = ["assert", ["iszero", shl(n_bytes * 8, val)]]
+        ret = b.resolve(["seq", assertion, val])
+    return LLLnode.from_list(ret, annotation=f"bytes{n_bytes}_clamp")
+
+
+# e.g. for int8, promote 255 to -1
+def promote_signed_int(x, bits):
+    assert bits % 8 == 0
+    ret = ["signextend", bits // 8 - 1, x]
+    return LLLnode.from_list(ret, annotation=f"promote int{bits}")
