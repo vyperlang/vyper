@@ -12,8 +12,9 @@ def new_type_to_old_type(typ: new.BasePrimitive) -> old.NodeType:
         return old.BaseType("address")
     if isinstance(typ, new.InterfaceDefinition):
         return old.InterfaceType(typ._id)
-    if isinstance(typ, new.Bytes32Definition):
-        return old.BaseType("bytes32")
+    if isinstance(typ, new.BytesMDefinition):
+        m = typ._length  # type: ignore
+        return old.BaseType(f"bytes{m}")
     if isinstance(typ, new.BytesArrayDefinition):
         return old.ByteArrayType(typ.length)
     if isinstance(typ, new.StringDefinition):
