@@ -5,7 +5,6 @@ from vyper.semantics.types.abstract import BytesMAbstractType
 from vyper.semantics.types.bases import BasePrimitive, BaseTypeDefinition, ValueTypeDefinition
 
 
-
 class BytesMDefinition(BytesMAbstractType, ValueTypeDefinition):
     @property
     def _id(self):
@@ -25,7 +24,7 @@ class BytesMPrimitive(BasePrimitive):
     def from_literal(cls, node: vy_ast.Constant) -> BaseTypeDefinition:
         if isinstance(node, vy_ast.Bytes) and len(node.value) != cls._length:
             raise InvalidLiteral("Invalid literal for type bytes32", node)
-        if isinstance(node, vy_ast.Hex) and len(node.value) != 2 + 2*cls._length:
+        if isinstance(node, vy_ast.Hex) and len(node.value) != 2 + 2 * cls._length:
             raise InvalidLiteral("Invalid literal for type bytes32", node)
         obj = super().from_literal(node)
         return obj
@@ -46,8 +45,14 @@ class Bytes32Primitive(BytesMPrimitive):
 
 for i in range(31):
     m = i + 1
-    definition = type(f"Bytes{m}Definition", (BytesMDefinition,), {"length": m, "_length": m, "_min_length": m})
-    prim = type(f"Bytes{m}Primitive", (BytesMPrimitive,), {"_length": m, "_type": definition, "_id": f"bytes{m}", "_length": m})
+    definition = type(
+        f"Bytes{m}Definition", (BytesMDefinition,), {"length": m, "_length": m, "_min_length": m}
+    )
+    prim = type(
+        f"Bytes{m}Primitive",
+        (BytesMPrimitive,),
+        {"_length": m, "_type": definition, "_id": f"bytes{m}", "_length": m},
+    )
 
     globals()[f"Bytes{m}Definition"] = definition
     globals()[f"Bytes{m}Primitive"] = prim

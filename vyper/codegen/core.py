@@ -14,8 +14,8 @@ from vyper.codegen.types import (
     TupleLike,
     TupleType,
     ceil32,
-    is_integer_type,
     is_bytes_m_type,
+    is_integer_type,
 )
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
