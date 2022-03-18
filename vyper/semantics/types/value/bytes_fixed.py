@@ -41,6 +41,8 @@ class Bytes32Definition(BytesMDefinition):
 
 class Bytes32Primitive(BytesMPrimitive):
     _type = Bytes32Definition
+    _length = 32
+    _id = "bytes32"
 
 
 for i in range(31):
