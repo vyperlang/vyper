@@ -1,11 +1,11 @@
 from vyper import ast as vy_ast
 from vyper.abi_types import ABI_BytesM, ABIType
 from vyper.exceptions import InvalidLiteral
-from vyper.semantics.types.abstract import BytesAbstractType, BytesMAbstractType
+from vyper.semantics.types.abstract import BytesMAbstractType
 from vyper.semantics.types.bases import BasePrimitive, BaseTypeDefinition, ValueTypeDefinition
 
 
-class Bytes32Definition(BytesAbstractType, BytesMAbstractType, ValueTypeDefinition):
+class Bytes32Definition(BytesMAbstractType, ValueTypeDefinition):
 
     # included for compatibility with bytes array methods
     _id = "bytes32"
