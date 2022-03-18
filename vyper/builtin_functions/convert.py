@@ -59,7 +59,9 @@ def _type_class_of(typ):
 def _input_types(*allowed_types):
     def decorator(f):
         @functools.wraps(f)
-        def g(expr, arg, out_typ):
+        def check_input_type(expr, arg, out_typ):
+            # convert arg to out_typ.
+            # (expr is the AST corresponding to `arg`)
             ityp = _type_class_of(arg.typ)
             ok = ityp in allowed_types
             # user safety: disallow convert from type to itself
@@ -68,7 +70,7 @@ def _input_types(*allowed_types):
                 _FAIL(arg.typ, out_typ, expr)
             return f(expr, arg, out_typ)
 
-        return g
+        return check_input_type
 
     return decorator
 
