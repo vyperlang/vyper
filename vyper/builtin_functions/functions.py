@@ -1572,7 +1572,7 @@ class Abs(_SimpleBuiltinFunction):
             [
                 "if",
                 ["slt", "orig", 0],
-                # check orig != -2**255 (0 - (-2**255) == -2**255)
+                # clamp orig != -2**255 (because it maps to itself under negation)
                 ["seq", ["assert", ["ne", "orig", ["sub", 0, "orig"]]], ["sub", 0, "orig"]],
                 "orig",
             ],
