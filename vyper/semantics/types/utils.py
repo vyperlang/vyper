@@ -178,12 +178,8 @@ def _check_literal(node: vy_ast.VyperNode) -> bool:
     if isinstance(node, vy_ast.Constant):
         return True
     elif isinstance(node, (vy_ast.Tuple, vy_ast.List)):
-        for item in node.elements:
-            if not _check_literal(item):
-                return False
-        return True
-    else:
-        return False
+        return all(_check_literal(item) for item in node.elements)
+    return False
 
 
 def check_constant(node: vy_ast.VyperNode) -> bool:
@@ -193,24 +189,16 @@ def check_constant(node: vy_ast.VyperNode) -> bool:
     if _check_literal(node):
         return True
     if isinstance(node, (vy_ast.Tuple, vy_ast.List)):
-        for item in node.elements:
-            if not check_constant(item):
-                return False
-        return True
+        return all(check_constant(item) for item in node.elements)
     if isinstance(node, vy_ast.Call):
         args = node.args
         if len(args) == 1 and isinstance(args[0], vy_ast.Dict):
-            for v in args[0].values:
-                # Check struct members
-                if isinstance(v, vy_ast.Call):
-                    # If nested struct, check recursively
-                    if not check_constant(v):
-                        return False
-                else:
-                    # If not nested struct, check for literals
-                    if not _check_literal(v):
-                        return False
-            return True
+            return all(
+                check_constant(v)
+                if isinstance(v, vy_ast.Call)  # Nested structs
+                else _check_literal(v)  # Literals
+                for v in args[0].values
+            )
 
     value_type = get_exact_type_from_node(node)
     return getattr(value_type, "is_constant", False)
