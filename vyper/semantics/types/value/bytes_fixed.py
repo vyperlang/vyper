@@ -6,6 +6,8 @@ from vyper.semantics.types.bases import BasePrimitive, BaseTypeDefinition, Value
 
 
 class BytesMDefinition(BytesMAbstractType, ValueTypeDefinition):
+    length: int
+
     @property
     def _id(self):
         return f"bytes{self.length}"
@@ -16,6 +18,7 @@ class BytesMDefinition(BytesMAbstractType, ValueTypeDefinition):
 
 
 class BytesMPrimitive(BasePrimitive):
+    _length: int
 
     _as_array = True
     _valid_literal = (vy_ast.Bytes, vy_ast.Hex)
