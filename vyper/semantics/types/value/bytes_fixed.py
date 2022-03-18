@@ -56,7 +56,7 @@ for i in range(31):
     prim = type(
         f"Bytes{m}Primitive",
         (BytesMPrimitive,),
-        {"_length": m, "_type": definition, "_id": f"bytes{m}", "_length": m},
+        {"_length": m, "_type": definition, "_id": f"bytes{m}"},
     )
 
     globals()[f"Bytes{m}Definition"] = definition
