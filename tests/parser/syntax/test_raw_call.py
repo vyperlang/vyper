@@ -1,7 +1,13 @@
 import pytest
 
 from vyper import compiler
-from vyper.exceptions import ArgumentException, InvalidType, TypeMismatch, StructureException, SyntaxException
+from vyper.exceptions import (
+    ArgumentException,
+    InvalidType,
+    StructureException,
+    SyntaxException,
+    TypeMismatch,
+)
 
 fail_list = [
     (

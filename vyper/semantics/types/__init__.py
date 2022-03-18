@@ -13,8 +13,7 @@ from .user.struct import StructDefinition
 from .value.address import AddressDefinition
 from .value.array_value import BytesArrayDefinition, StringDefinition
 from .value.boolean import BoolDefinition
-from .value.bytes_fixed import Bytes32Definition
-from .value.bytes_fixed import BytesMDefinition
+from .value.bytes_fixed import Bytes32Definition, BytesMDefinition
 from .value.numeric import Int128Definition  # type: ignore
 from .value.numeric import Uint256Definition  # type: ignore
 from .value.numeric import AbstractNumericDefinition, DecimalDefinition
