@@ -21,6 +21,7 @@ from vyper.codegen.types import (
     BaseType,
     ByteArrayLike,
     ByteArrayType,
+    is_bytes_m_type,
     DArrayType,
     InterfaceType,
     MappingType,
@@ -230,19 +231,34 @@ class Expr:
         )
 
     def parse_Hex(self):
-        orignum = self.expr.value
-        if len(orignum) == 42 and checksum_encode(orignum) == orignum:
+        typ = new_type_to_old_type(self.expr._metadata["type"])
+        typ.is_literal = True
+
+        pos = getpos(self.expr)
+
+        hexstr = self.expr.value
+
+        if is_base_type(typ, "address"):
+            # sanity check typechecker did its job
+            assert len(hexstr) == 42 and checksum_encode(hexstr) == hexstr
             return LLLnode.from_list(
                 int(self.expr.value, 16),
-                typ=BaseType("address", is_literal=True),
-                pos=getpos(self.expr),
+                typ=typ,
+                pos=pos,
             )
-        elif len(orignum) == 66:
-            return LLLnode.from_list(
-                int(self.expr.value, 16),
-                typ=BaseType("bytes32", is_literal=True),
-                pos=getpos(self.expr),
-            )
+
+        else:
+            # assert typechecker did its job
+            assert is_bytes_m_type(typ)
+
+            n_bytes = (len(hexstr) - 2) // 2 # e.g. "0x1234" is 2 bytes
+            assert n_bytes == typ._bytes_info.m
+
+            # bytes_m types are left padded with zeros
+            val = int(hexstr, 16) << 8 * (32 - typ._bytes_info.m)
+
+            typ.is_literal = True
+            return LLLnode.from_list(val, typ=typ, pos=pos)
 
     # String literals
     def parse_Str(self):
@@ -252,6 +268,10 @@ class Expr:
 
     # Byte literals
     def parse_Bytes(self):
+        typ = new_type_to_old_type(self.expr._metadata["type"])
+        if not isinstance(typ, ByteArrayType):
+            return # typecheck failure
+
         bytez = self.expr.s
         bytez_length = len(self.expr.s)
         typ = ByteArrayType(bytez_length, is_literal=True)
