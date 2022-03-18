@@ -1,5 +1,7 @@
 from typing import Tuple
 
+from vyper.codegen.types import INTEGER_TYPES, SIGNED_INTEGER_TYPES, UNSIGNED_INTEGER_TYPES
+
 
 class AbstractDataType:
     """
@@ -59,28 +61,28 @@ class NumericAbstractType(AbstractDataType):
     """
 
     _description = "numeric value"
-    _id_list: Tuple = ("int128", "int256", "decimal", "uint8", "uint256")
+    _id_list: Tuple = ("decimal",) + tuple(INTEGER_TYPES)
 
 
 class IntegerAbstractType(NumericAbstractType):
     """Abstract data class for integer numeric types (signed and unsigned)."""
 
     _description = "integer"
-    _id_list: Tuple = ("int128", "int256", "uint8", "uint256")
+    _id_list: Tuple = tuple(INTEGER_TYPES)
 
 
 class SignedIntegerAbstractType(IntegerAbstractType):
     """Abstract data class for signed integer numeric types."""
 
     _description = "signed integer"
-    _id_list: Tuple = ("int128", "int256")
+    _id_list: Tuple = tuple(SIGNED_INTEGER_TYPES)
 
 
 class UnsignedIntegerAbstractType(IntegerAbstractType):
     """Abstract data class for unsigned integer numeric types."""
 
     _description = "unsigned integer"
-    _id_list: Tuple = ("uint8", "uint256")
+    _id_list: Tuple = tuple(UNSIGNED_INTEGER_TYPES)
 
 
 # TODO rename me to DecimalAbstractType (confusion with BytesM - fixed bytes)

@@ -160,19 +160,16 @@ class SizeLimits:
 
     @classmethod
     def in_bounds(cls, type_str, value):
+        # TODO: fix this circular import
+        from vyper.codegen.types import parse_integer_typeinfo
+
         assert isinstance(type_str, str)
         if type_str == "decimal":
             return decimal.Decimal(cls.MINDECIMAL) <= value <= decimal.Decimal(cls.MAXDECIMAL)
-        if type_str == "uint8":
-            return 0 <= value <= cls.MAX_UINT8
-        elif type_str == "uint256":
-            return 0 <= value <= cls.MAX_UINT256
-        elif type_str == "int128":
-            return cls.MIN_INT128 <= value <= cls.MAX_INT128
-        elif type_str == "int256":
-            return cls.MIN_INT256 <= value <= cls.MAX_INT256
-        else:
-            raise Exception(f'Unknown type "{type_str}" supplied.')
+
+        int_info = parse_integer_typeinfo(type_str)
+        (lo, hi) = int_bounds(int_info.is_signed, int_info.bits)
+        return lo <= value <= hi
 
 
 # Map representing all limits loaded into a contract as part of the initializer
