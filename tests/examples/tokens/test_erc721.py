@@ -6,9 +6,9 @@ OPERATOR_TOKEN_ID = 10
 NEW_TOKEN_ID = 20
 INVALID_TOKEN_ID = 99
 ZERO_ADDRESS = "0x0000000000000000000000000000000000000000"
-ERC165_CHECK_CALL = "0x01ffc9a701ffc9a700000000000000000000000000000000000000000000000000000000"
-ERC165_INVALID_CALL = "0x01ffc9a7ffffffff00000000000000000000000000000000000000000000000000000000"
-ERC721_CHECK_CALL = "0x01ffc9a780ac58cd00000000000000000000000000000000000000000000000000000000"
+ERC165_SIG = "0x01ffc9a7"
+ERC165_INVALID_SIG = "0xffffffff"
+ERC721_SIG = "0x80ac58cd"
 
 
 @pytest.fixture
@@ -30,16 +30,15 @@ def test_erc165(w3, c):
     #   The source contract makes a STATICCALL to the destination address with input data:
     #       0x01ffc9a701ffc9a700000000000000000000000000000000000000000000000000000000
     #       and gas 30,000. This corresponds to `contract.supportsInterface(0x01ffc9a7)`
-    assert to_int(w3.eth.call({"to": c.address, "data": ERC165_CHECK_CALL, "gas": 30000})) == 1
+    assert c.supportsInterface(ERC165_SIG)
     #   If the call fails or return false, the destination contract does not implement ERC-165.
     #   If the call returns true, a second call is made with input data:
     #       0x01ffc9a7ffffffff00000000000000000000000000000000000000000000000000000000.
-    assert to_int(w3.eth.call({"to": c.address, "data": ERC165_INVALID_CALL})) == 0
+    assert not c.supportsInterface(ERC165_INVALID_SIG)
     #   If the second call fails or returns true, the destination contract does not implement
     #   ERC-165. Otherwise it implements ERC-165.
 
-    # NOTE: Just to check for ERC721 calls
-    assert to_int(w3.eth.call({"to": c.address, "data": ERC721_CHECK_CALL})) == 1
+    assert c.supportsInterface(ERC721_SIG)
 
 
 def test_balanceOf(c, w3, assert_tx_failed):

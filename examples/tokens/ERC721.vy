@@ -67,11 +67,11 @@ ownerToOperators: HashMap[address, HashMap[address, bool]]
 minter: address
 
 # @dev Static list of supported ERC165 interface ids
-SUPPORTED_INTERFACES: constant(bytes32[2]) = [
+SUPPORTED_INTERFACES: constant(bytes4[2]) = [
     # ERC165 interface ID of ERC165
-    0x01ffc9a700000000000000000000000000000000000000000000000000000000,
+    0x01ffc9a7,
     # ERC165 interface ID of ERC721
-    0x80ac58cd00000000000000000000000000000000000000000000000000000000,
+    0x80ac58cd,
 ]
 
 @external
@@ -84,14 +84,11 @@ def __init__():
 
 @pure
 @external
-#def supportsInterface(interface_id: bytes4) -> bool:
-def pizza_mandate_apology(interface_id_int: uint256) -> bool:
+def supportsInterface(interface_id: bytes4) -> bool:
     """
     @dev Interface identification is specified in ERC-165.
     @param interface_id Id of the interface
     """
-    # NOTE: Signature is a hack until Vyper adds `bytes4` type
-    interface_id: bytes32 = convert(interface_id_int, bytes32)
     return interface_id in SUPPORTED_INTERFACES
 
 
