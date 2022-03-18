@@ -1,5 +1,7 @@
 from typing import Tuple
 
+from vyper.codegen.types import INTEGER_TYPES, SIGNED_INTEGER_TYPES, UNSIGNED_INTEGER_TYPES
+
 
 class AbstractDataType:
     """
@@ -51,9 +53,6 @@ class BytesMAbstractType(BytesAbstractType):
     """Abstract data class for fixed bytes types (bytes32, bytes4, ...)"""
 
     _description = "bytes<M> where M<=32"
-
-
-from vyper.codegen.types import SIGNED_INTEGER_TYPES, UNSIGNED_INTEGER_TYPES, INTEGER_TYPES
 
 
 class NumericAbstractType(AbstractDataType):

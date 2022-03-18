@@ -2,7 +2,7 @@ import functools
 
 from vyper import ast as vy_ast
 from vyper.codegen.expr import Expr
-from vyper.codegen.types import BaseType, ByteArrayType, StringType, is_base_type, INTEGER_TYPES
+from vyper.codegen.types import INTEGER_TYPES, BaseType, ByteArrayType, StringType, is_base_type
 from vyper.exceptions import InvalidLiteral, StructureException, TypeMismatch
 from vyper.utils import SizeLimits
 

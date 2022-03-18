@@ -72,12 +72,10 @@ from vyper.semantics.types.value.array_value import (
     StringPrimitive,
 )
 from vyper.semantics.types.value.bytes_fixed import Bytes32Definition
-from vyper.semantics.types.value.numeric import (
-    DecimalDefinition,
-    Int128Definition,
-    Int256Definition,
-    Uint256Definition,
-)
+from vyper.semantics.types.value.numeric import Int128Definition  # type: ignore
+from vyper.semantics.types.value.numeric import Int256Definition  # type: ignore
+from vyper.semantics.types.value.numeric import Uint256Definition  # type: ignore
+from vyper.semantics.types.value.numeric import DecimalDefinition
 from vyper.semantics.validation.utils import (
     get_common_types,
     get_exact_type_from_node,
