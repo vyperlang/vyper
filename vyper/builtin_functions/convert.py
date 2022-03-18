@@ -76,7 +76,7 @@ def _input_types(*allowed_types):
 def _bytes_to_num(arg, out_typ, signed):
     # converting a bytestring to a number:
     # bytestring and bytes_m are right-padded with zeroes, int is left-padded.
-    # convert by shr the number of zero bytes (converted to bits)
+    # convert by shr or sar the number of zero bytes (converted to bits)
     # e.g. "abcd000000000000" -> bitcast(000000000000abcd, output_type)
 
     if isinstance(arg.typ, ByteArrayLike):
@@ -223,6 +223,7 @@ def to_int(expr, arg, out_typ):
 
     elif is_base_type(arg.typ, "address"):
         if int_info.is_signed:
+            # TODO if possible, refactor to move this validation close to the entry of the function
             _FAIL(arg.typ, out_typ, expr)
         if int_info.bits > 160:
             arg = int_clamp(arg, 160, signed=False)
@@ -269,6 +270,7 @@ def to_decimal(expr, arg, out_typ):
         # and decimal bounds expand. (note that right now decimal bounds
         # are -2**127 and 2**127 - 1).
         # will be something like: if info.m_bits > 168
+        # TODO this should probably use _num_clamp instead
         if int_info.bits > 128:
             arg = int_clamp(arg, 128, signed=True)
 
@@ -326,8 +328,9 @@ def to_address(expr, arg, out_typ):
         if arg.typ._int_info.is_signed:
             _FAIL(arg.typ, out_typ, expr)
 
-    # TODO once we introduce uint160, we can just call
-    # to_int(expr, arg, uint160) bc the logic is equivalent.
+    # TODO once we introduce uint160, we can just check that arg
+    # is unsigned, and then call to_int(expr, arg, uint160) because
+    # the logic is equivalent.
 
     # disallow casting from Bytes[N>20]
     _check_bytes(expr, arg, out_typ, 32)
