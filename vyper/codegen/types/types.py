@@ -27,7 +27,7 @@ UNSIGNED_INTEGER_TYPES = {f"uint{8*(i+1)}" for i in range(32)}
 SIGNED_INTEGER_TYPES = {f"int{8*(i+1)}" for i in range(32)}
 INTEGER_TYPES = UNSIGNED_INTEGER_TYPES | SIGNED_INTEGER_TYPES
 
-BYTES_M_TYPES = {"bytes32"}
+BYTES_M_TYPES = {f"bytes{i+1}" for i in range(32)}
 DECIMAL_TYPES = {"decimal"}
 
 

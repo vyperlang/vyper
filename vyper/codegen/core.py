@@ -15,6 +15,7 @@ from vyper.codegen.types import (
     TupleType,
     ceil32,
     is_integer_type,
+    is_bytes_m_type,
 )
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
@@ -1002,6 +1003,8 @@ def clamp_basetype(lll_node):
         return int_clamp(lll_node, 1)
     if t.typ in ("bytes32",):
         return lll_node  # special case, no clamp.
+    if is_bytes_m_type(t):
+        return bytes_clamp(lll_node, t._bytes_info.m)
 
     raise CompilerPanic(f"{t} passed to clamp_basetype")  # pragma: notest
 
