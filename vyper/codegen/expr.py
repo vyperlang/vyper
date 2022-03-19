@@ -514,34 +514,9 @@ class Expr:
             return
 
         pos = getpos(self.expr)
-        types = {left.typ.typ, right.typ.typ}
-        literals = {left.typ.is_literal, right.typ.is_literal}
 
-        # If one value of the operation is a literal, we recast it to match the non-literal type.
-        # We know this is OK because types were already verified in the actual typechecking pass.
-        # This is a temporary solution to not break codegen while we work toward removing types
-        # altogether at this stage of complition. @iamdefinitelyahuman
-        if literals == {True, False} and len(types) > 1 and "decimal" not in types:
-            if left.typ.is_literal and SizeLimits.in_bounds(right.typ.typ, left.value):
-                left = LLLnode.from_list(
-                    left.value,
-                    typ=BaseType(right.typ.typ, is_literal=True),
-                    pos=pos,
-                )
-            elif right.typ.is_literal and SizeLimits.in_bounds(left.typ.typ, right.value):
-                right = LLLnode.from_list(
-                    right.value,
-                    typ=BaseType(left.typ.typ, is_literal=True),
-                    pos=pos,
-                )
-
-        # If the types do not match, check if type definition is propagated in node's metadata.
-        # This step is necessary for struct members.
-        if left.typ.typ != right.typ.typ:
-            if hasattr(self.expr.left, "_metadata") and "type" in self.expr.left._metadata:
-                left.typ = new_type_to_old_type(self.expr.left._metadata["type"])
-            if hasattr(self.expr.right, "_metadata") and "type" in self.expr.right._metadata:
-                right.typ = new_type_to_old_type(self.expr.left._metadata["type"])
+        left.typ = new_type_to_old_type(self.expr.left._metadata["type"])
+        right.typ = new_type_to_old_type(self.expr.right._metadata["type"])
 
         ltyp, rtyp = left.typ.typ, right.typ.typ
 
