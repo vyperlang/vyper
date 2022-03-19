@@ -549,6 +549,25 @@ struct C:
 def get_y() -> int128:
     return C({c: A({a: X({x: 1, y: -1}), b: 777}), d: True}).c.a.y - 10
     """,
+    """
+struct X:
+    x: int128
+    y: int128
+
+struct A:
+    a: X
+    b: uint256
+
+struct C:
+    c: A
+    d: bool
+
+FOO: constant(C) = C({c: A({a: X({x: 1, y: -1}), b: 777}), d: True})
+
+@external
+def get_y() -> int128:
+    return FOO.c.a.y - 10
+    """,
 ]
 
 
