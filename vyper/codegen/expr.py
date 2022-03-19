@@ -268,10 +268,6 @@ class Expr:
 
     # Byte literals
     def parse_Bytes(self):
-        typ = new_type_to_old_type(self.expr._metadata["type"])
-        if not isinstance(typ, ByteArrayType):
-            return # typecheck failure
-
         bytez = self.expr.s
         bytez_length = len(self.expr.s)
         typ = ByteArrayType(bytez_length, is_literal=True)
