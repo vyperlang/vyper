@@ -231,16 +231,15 @@ class Expr:
         )
 
     def parse_Hex(self):
-        typ = new_type_to_old_type(self.expr._metadata["type"])
-        typ.is_literal = True
-
         pos = getpos(self.expr)
 
         hexstr = self.expr.value
 
-        if is_base_type(typ, "address"):
+        if len(hexstr) == 42:
             # sanity check typechecker did its job
-            assert len(hexstr) == 42 and checksum_encode(hexstr) == hexstr
+            assert checksum_encode(hexstr) == hexstr
+            typ = BaseType("address")
+            # TODO allow non-checksum encoded bytes20
             return LLLnode.from_list(
                 int(self.expr.value, 16),
                 typ=typ,
@@ -248,15 +247,14 @@ class Expr:
             )
 
         else:
-            # assert typechecker did its job
-            assert is_bytes_m_type(typ)
-
             n_bytes = (len(hexstr) - 2) // 2 # e.g. "0x1234" is 2 bytes
-            assert n_bytes == typ._bytes_info.m
+            # TODO: typ = new_type_to_old_type(self.expr._metadata["type"])
+            #       assert n_bytes == typ._bytes_info.m
 
             # bytes_m types are left padded with zeros
-            val = int(hexstr, 16) << 8 * (32 - typ._bytes_info.m)
+            val = int(hexstr, 16) << 8 * (32 - n_bytes)
 
+            typ = BaseType(f"bytes{n_bytes}", is_literal=True)
             typ.is_literal = True
             return LLLnode.from_list(val, typ=typ, pos=pos)
 
