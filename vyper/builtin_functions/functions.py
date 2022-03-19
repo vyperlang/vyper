@@ -1028,7 +1028,7 @@ class AsWeiValue:
         value, denom_name = args[0], args[1].decode()
 
         denom_divisor = next(v for k, v in self.wei_denoms.items() if denom_name in k)
-        if value.typ.typ == "uint256":
+        if value.typ.typ == "uint256" or value.typ.typ == "uint8":
             sub = [
                 "with",
                 "ans",
