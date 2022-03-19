@@ -21,7 +21,6 @@ from vyper.codegen.types import (
     BaseType,
     ByteArrayLike,
     ByteArrayType,
-    is_bytes_m_type,
     DArrayType,
     InterfaceType,
     MappingType,
@@ -247,7 +246,7 @@ class Expr:
             )
 
         else:
-            n_bytes = (len(hexstr) - 2) // 2 # e.g. "0x1234" is 2 bytes
+            n_bytes = (len(hexstr) - 2) // 2  # e.g. "0x1234" is 2 bytes
             # TODO: typ = new_type_to_old_type(self.expr._metadata["type"])
             #       assert n_bytes == typ._bytes_info.m
 

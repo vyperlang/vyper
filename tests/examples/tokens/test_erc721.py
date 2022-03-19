@@ -1,5 +1,4 @@
 import pytest
-from eth_utils import to_int
 
 SOMEONE_TOKEN_IDS = [1, 2, 3]
 OPERATOR_TOKEN_ID = 10

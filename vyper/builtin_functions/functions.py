@@ -1962,7 +1962,7 @@ class ABIEncode(_SimpleBuiltinFunction):
             return fourbytes_to_int(method_id.value)
 
         if isinstance(method_id, vy_ast.Hex):
-            hexstr = method_id.value # e.g. 0xdeadbeef
+            hexstr = method_id.value  # e.g. 0xdeadbeef
             _check(len(hexstr) // 2 - 1 <= 4)
             return int(hexstr, 16)
 
