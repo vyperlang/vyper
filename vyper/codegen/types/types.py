@@ -396,6 +396,8 @@ def parse_type(item, sigs, custom_structs):
                 custom_structs[item.id],
                 custom_structs,
             )
+        elif "type" in item._metadata:
+            return BaseType(item._metadata["type"])
 
         else:
             FAIL()  # pragma: notest
@@ -478,6 +480,9 @@ def parse_type(item, sigs, custom_structs):
     elif isinstance(item, vy_ast.Tuple):
         members = [parse_type(x, sigs=sigs, custom_structs=custom_structs) for x in item.elements]
         return TupleType(members)
+
+    elif "type" in item._metadata:
+        return BaseType(item._metadata["type"])
 
     else:
         FAIL()
