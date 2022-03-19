@@ -10,9 +10,9 @@ extras_require = {
         "pytest-cov>=2.10,<3.0",
         "pytest-instafail>=0.4,<1.0",
         "pytest-xdist>=1.32,<2.0",
-        "eth-tester[py-evm]>=0.6.0b4,<0.7",
-        "py-evm==0.5.0a1",  # NOTE: temporarily pinned until we have support for py-evm 0.5.0a0+
-        "web3==5.21.0",
+        "eth-tester[py-evm]>=0.6.0b6,<0.7",
+        "py-evm>=0.5.0a3,<0.6",
+        "web3==5.27.0",
         "tox>=3.15,<4.0",
         "lark-parser==0.10.0",
         "hypothesis[lark]>=5.37.1,<6.0",
@@ -58,7 +58,11 @@ def _global_version(version):
 
 setup(
     name="vyper",
-    use_scm_version={"local_scheme": _local_version, "version_scheme": _global_version},
+    use_scm_version={
+        "local_scheme": _local_version,
+        "version_scheme": _global_version,
+        "write_to": "vyper/version.py",
+    },
     description="Vyper: the Pythonic Programming Language for the EVM",
     long_description=long_description,
     long_description_content_type="text/markdown",
@@ -69,7 +73,7 @@ setup(
     keywords="ethereum evm smart contract language",
     include_package_data=True,
     packages=find_packages(exclude=("tests", "docs")),
-    python_requires=">=3.7,<3.10",
+    python_requires=">=3.7,<3.11",
     py_modules=["vyper"],
     install_requires=[
         "asttokens==2.0.5",
@@ -77,6 +81,7 @@ setup(
         "semantic-version==2.8.5",
         "cached-property==1.5.2 ; python_version<'3.8'",
         "importlib-metadata ; python_version<'3.8'",
+        "wheel",
     ],
     setup_requires=["pytest-runner", "setuptools_scm"],
     tests_require=extras_require["test"],
@@ -95,5 +100,6 @@ setup(
         "Programming Language :: Python :: 3.7",
         "Programming Language :: Python :: 3.8",
         "Programming Language :: Python :: 3.9",
+        "Programming Language :: Python :: 3.10",
     ],
 )

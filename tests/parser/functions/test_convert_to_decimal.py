@@ -72,9 +72,9 @@ def foo(bar: bytes32) -> decimal:
 
     c = get_contract_with_gas_estimation(code)
     assert c.foo(b"\x00" * 32) == 0.0
-    assert c.foo(b"\xff" * 32) == -1.0
-    assert c.foo((b"\x00" * 31) + b"\x01") == 1.0
-    assert c.foo((b"\x00" * 30) + b"\x01\x00") == 256.0
+    assert c.foo(b"\xff" * 32) == Decimal("-1e-10")
+    assert c.foo((b"\x00" * 31) + b"\x01") == Decimal("1e-10")
+    assert c.foo((b"\x00" * 30) + b"\x01\x00") == Decimal("256e-10")
 
 
 def test_convert_from_bytes32_overflow(get_contract_with_gas_estimation, assert_compile_failed):
@@ -94,22 +94,22 @@ def foo(bar: Bytes[5]) -> decimal:
     return convert(bar, decimal)
 
 @external
-def goo(bar: Bytes[32]) -> decimal:
+def goo(bar: Bytes[16]) -> decimal:
     return convert(bar, decimal)
     """
 
     c = get_contract_with_gas_estimation(code)
 
     assert c.foo(b"\x00\x00\x00\x00\x00") == 0.0
-    assert c.foo(b"\x00\x07\x5B\xCD\x15") == 123456789.0
+    assert c.foo(b"\x00\x07\x5B\xCD\x15") == Decimal("123456789e-10")
 
     assert c.goo(b"") == 0.0
     assert c.goo(b"\x00") == 0.0
-    assert c.goo(b"\x01") == 1.0
-    assert c.goo(b"\x00\x01") == 1.0
-    assert c.goo(b"\x01\x00") == 256.0
-    assert c.goo(b"\x01\x00\x00\x00\x01") == 4294967297.0
-    assert c.goo(b"\xff" * 32) == -1.0
+    assert c.goo(b"\x01") == Decimal("1e-10")
+    assert c.goo(b"\x00\x01") == Decimal("1e-10")
+    assert c.goo(b"\x01\x00") == Decimal("256e-10")
+    assert c.goo(b"\x01\x00\x00\x00\x01") == Decimal("4294967297e-10")
+    assert c.goo(b"\xff" * 16) == Decimal("-1.0e-10")
 
 
 def test_convert_from_too_many_bytes(get_contract_with_gas_estimation, assert_compile_failed):
@@ -137,44 +137,33 @@ def foobar() -> decimal:
     )
 
 
-def test_convert_from_address(get_contract_with_gas_estimation):
-    code = """
+def test_convert_from_address(get_contract, assert_compile_failed):
+    codes = [
+        """
 stor: address
-
-@external
-def conv(param: address) -> decimal:
-    return convert(param, decimal)
-
-@external
-def conv_zero_literal() -> decimal:
-    return convert(ZERO_ADDRESS, decimal)
-
 @external
 def conv_zero_stor() -> decimal:
     self.stor = ZERO_ADDRESS
     return convert(self.stor, decimal)
-
+""",
+        """
+@external
+def conv(param: address) -> decimal:
+    return convert(param, decimal)
+""",
+        """
+@external
+def conv_zero_literal() -> decimal:
+    return convert(ZERO_ADDRESS, decimal)
+""",
+        """
 @external
 def conv_neg1_literal() -> decimal:
     return convert(0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF, decimal)
-
-@external
-def conv_neg1_stor() -> decimal:
-    self.stor = 0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF
-    return convert(self.stor, decimal)
-    """
-
-    c = get_contract_with_gas_estimation(code)
-    assert c.conv(b"\x00" * 20) == 0.0
-    assert c.conv_zero_literal() == 0.0
-    assert c.conv_zero_stor() == 0.0
-
-    assert c.conv(b"\xff" * 20) == -1.0
-    assert c.conv_neg1_literal() == -1.0
-    assert c.conv_neg1_stor() == -1.0
-
-    assert c.conv((b"\x00" * 19) + b"\x01") == 1.0
-    assert c.conv((b"\x00" * 18) + b"\x01\x00") == 256.0
+""",
+    ]
+    for c in codes:
+        assert_compile_failed(lambda: get_contract(c), TypeMismatch)
 
 
 def test_convert_from_int256(get_contract_with_gas_estimation, assert_tx_failed):

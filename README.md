@@ -30,8 +30,6 @@ To compile a contract, use:
 vyper your_file_name.vy
 ```
 
-**Alternative for GitHub syntax highlighting: Add a `.gitattributes` file with the line `*.vy linguist-language=Python`**
-
 There is also an [online compiler](https://vyper.online/) available you can use to experiment with
 the language and compile to ``bytecode`` and/or ``LLL``.
 

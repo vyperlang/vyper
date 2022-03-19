@@ -55,18 +55,29 @@ def optimize(lll_node: LLLnode) -> LLLnode:
 
 
 def apply_general_optimizations(node: LLLnode) -> LLLnode:
+    # TODO add rules for modulus powers of 2
     # TODO refactor this into several functions
+
     argz = [apply_general_optimizations(arg) for arg in node.args]
+
+    value = node.value
+    typ = node.typ
+    location = node.location
+    pos = node.pos
+    annotation = node.annotation
+    add_gas_estimate = node.add_gas_estimate
+    valency = node.valency
 
     if node.value == "seq":
         _merge_memzero(argz)
         _merge_calldataload(argz)
 
     if node.value in arith and int_at(argz, 0) and int_at(argz, 1):
+        # compile-time arithmetic
         left, right = get_int_at(argz, 0), get_int_at(argz, 1)
         # `node.value in arith` implies that `node.value` is a `str`
-        calcer, symb = arith[str(node.value)]
-        new_value = calcer(left, right)
+        fn, symb = arith[str(node.value)]
+        value = fn(left, right)
         if argz[0].annotation and argz[1].annotation:
             annotation = argz[0].annotation + symb + argz[1].annotation
         elif argz[0].annotation or argz[1].annotation:
@@ -75,114 +86,79 @@ def apply_general_optimizations(node: LLLnode) -> LLLnode:
             )
         else:
             annotation = ""
-        return LLLnode(
-            new_value,
-            [],
-            node.typ,
-            None,
-            node.pos,
-            annotation,
-            add_gas_estimate=node.add_gas_estimate,
-            valency=node.valency,
-        )
+
+        argz = []
+
     elif node.value == "ceil32" and int_at(argz, 0):
         t = argz[0]
         annotation = f"ceil32({t.value})"
-        return LLLnode(ceil32(t.value), [], node.typ, None, annotation=annotation)
-    elif _is_constant_add(node, argz):
-        # `node.value in arith` implies that `node.value` is a `str`
-        calcer, symb = arith[str(node.value)]
-        if argz[0].annotation and argz[1].args[0].annotation:
-            annotation = argz[0].annotation + symb + argz[1].args[0].annotation
-        elif argz[0].annotation or argz[1].args[0].annotation:
-            annotation = (
-                (argz[0].annotation or str(argz[0].value))
-                + symb
-                + (argz[1].args[0].annotation or str(argz[1].args[0].value))
-            )
-        else:
-            annotation = ""
-        return LLLnode(
-            "add",
-            [
-                LLLnode(int(argz[0].value) + int(argz[1].args[0].value), annotation=annotation),
-                argz[1].args[1],
-            ],
-            node.typ,
-            None,
-            annotation=node.annotation,
-            add_gas_estimate=node.add_gas_estimate,
-            valency=node.valency,
-        )
+        argz = []
+        value = ceil32(t.value)
+
+    # x >> 0 == x << 0 == x
+    elif node.value in ("shl", "shr", "sar") and get_int_at(argz, 0) == 0:
+        value = argz[1].value
+        annotation = argz[1].annotation
+        argz = argz[1].args
+
     elif node.value == "add" and get_int_at(argz, 0) == 0:
-        return LLLnode(
-            argz[1].value,
-            argz[1].args,
-            node.typ,
-            node.location,
-            node.pos,
-            annotation=argz[1].annotation,
-            add_gas_estimate=node.add_gas_estimate,
-            valency=node.valency,
-        )
+        value = argz[1].value
+        annotation = argz[1].annotation
+        argz = argz[1].args
+
     elif node.value == "add" and get_int_at(argz, 1) == 0:
-        return LLLnode(
-            argz[0].value,
-            argz[0].args,
-            node.typ,
-            node.location,
-            node.pos,
-            argz[0].annotation,
-            add_gas_estimate=node.add_gas_estimate,
-            valency=node.valency,
-        )
-    elif node.value == "clamp" and int_at(argz, 0) and int_at(argz, 1) and int_at(argz, 2):
+        value = argz[0].value
+        annotation = argz[0].annotation
+        argz = argz[0].args
+
+    elif (
+        node.value in ("clamp", "uclamp")
+        and int_at(argz, 0)
+        and int_at(argz, 1)
+        and int_at(argz, 2)
+    ):
         if get_int_at(argz, 0, True) > get_int_at(argz, 1, True):  # type: ignore
             raise Exception("Clamp always fails")
         elif get_int_at(argz, 1, True) > get_int_at(argz, 2, True):  # type: ignore
             raise Exception("Clamp always fails")
         else:
             return argz[1]
-    elif node.value == "clamp" and int_at(argz, 0) and int_at(argz, 1):
+
+    elif node.value in ("clamp", "uclamp") and int_at(argz, 0) and int_at(argz, 1):
         if get_int_at(argz, 0, True) > get_int_at(argz, 1, True):  # type: ignore
             raise Exception("Clamp always fails")
         else:
-            return LLLnode(
-                "clample",
-                [argz[1], argz[2]],
-                node.typ,
-                node.location,
-                node.pos,
-                node.annotation,
-                add_gas_estimate=node.add_gas_estimate,
-                valency=node.valency,
-            )
+            # i.e., clample or uclample
+            value += "le"  # type: ignore
+            argz = [argz[1], argz[2]]
+
+    elif node.value == "uclamplt" and int_at(argz, 0) and int_at(argz, 1):
+        if get_int_at(argz, 0, True) >= get_int_at(argz, 1, True):  # type: ignore
+            raise Exception("Clamp always fails")
+        value = argz[0].value
+        argz = []
+
     elif node.value == "clamp_nonzero" and int_at(argz, 0):
         if get_int_at(argz, 0) != 0:
-            return LLLnode(
-                argz[0].value,
-                [],
-                node.typ,
-                node.location,
-                node.pos,
-                node.annotation,
-                add_gas_estimate=node.add_gas_estimate,
-                valency=node.valency,
-            )
+            value = argz[0].value
+            argz = []
         else:
             raise Exception("Clamp always fails")
+
+    # TODO: (uclampgt 0 x) -> (iszero (iszero x))
+    # TODO: more clamp rules
+
     # [eq, x, 0] is the same as [iszero, x].
+    # TODO handle (ne 0 x) as well
     elif node.value == "eq" and int_at(argz, 1) and argz[1].value == 0:
-        return LLLnode(
-            "iszero",
-            [argz[0]],
-            node.typ,
-            node.location,
-            node.pos,
-            node.annotation,
-            add_gas_estimate=node.add_gas_estimate,
-            valency=node.valency,
-        )
+        value = "iszero"
+        argz = [argz[0]]
+
+    # TODO handle (ne -1 x) as well
+    elif node.value == "eq" and int_at(argz, 1) and argz[1].value == -1:
+        value = "iszero"
+        argz = [LLLnode.from_list(["not", argz[0]])]
+
     # (eq x y) has the same truthyness as (iszero (xor x y))
     # rewrite 'eq' as 'xor' in places where truthy is accepted.
     # (the sequence (if (iszero (xor x y))) will be translated to
@@ -190,14 +166,7 @@ def apply_general_optimizations(node: LLLnode) -> LLLnode:
     #  optimized out)
     elif node.value in ("if", "assert") and argz[0].value == "eq":
         argz[0] = ["iszero", ["xor", *argz[0].args]]  # type: ignore
-        return LLLnode.from_list(
-            [node.value] + argz,  # type: ignore
-            typ=node.typ,
-            location=node.location,
-            pos=node.pos,
-            annotation=node.annotation,
-            # let from_list handle valency and gas_estimate
-        )
+
     elif node.value == "if" and len(argz) == 3:
         # if(x) compiles to jumpi(_, iszero(x))
         # there is an asm optimization for the sequence ISZERO ISZERO..JUMPI
@@ -205,38 +174,24 @@ def apply_general_optimizations(node: LLLnode) -> LLLnode:
         cond = argz[0]
         true_branch = argz[1]
         false_branch = argz[2]
-        return LLLnode.from_list(
-            ["if", ["iszero", cond], false_branch, true_branch],
-            typ=node.typ,
-            location=node.location,
-            pos=node.pos,
-            annotation=node.annotation,
-        )
-    elif node.total_gas is not None:
-        o = LLLnode(
-            node.value,
-            argz,
-            node.typ,
-            node.location,
-            node.pos,
-            node.annotation,
-            add_gas_estimate=node.add_gas_estimate,
-            valency=node.valency,
-        )
-        o.total_gas = node.total_gas - node.gas + o.gas
-        o.func_name = node.func_name
-        return o
-    else:
-        return LLLnode(
-            node.value,
-            argz,
-            node.typ,
-            node.location,
-            node.pos,
-            node.annotation,
-            add_gas_estimate=node.add_gas_estimate,
-            valency=node.valency,
-        )
+        contra_cond = LLLnode.from_list(["iszero", cond])
+
+        argz = [contra_cond, false_branch, true_branch]
+
+    ret = LLLnode.from_list(
+        [value, *argz],
+        typ=typ,
+        location=location,
+        pos=pos,
+        annotation=annotation,
+        add_gas_estimate=add_gas_estimate,
+        valency=valency,
+    )
+    if node.total_gas is not None:
+        ret.total_gas = node.total_gas - node.gas + ret.gas
+        ret.func_name = node.func_name
+
+    return ret
 
 
 def _merge_memzero(argz):

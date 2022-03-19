@@ -1,4 +1,5 @@
 import binascii
+import decimal
 import sys
 import traceback
 from typing import Dict, List, Union
@@ -73,7 +74,7 @@ def bytes_to_int(bytez):
 
 # Encodes an address using ethereum's checksum scheme
 def checksum_encode(addr):  # Expects an input of the form 0x<40 hex chars>
-    assert addr[:2] == "0x" and len(addr) == 42
+    assert addr[:2] == "0x" and len(addr) == 42, addr
     o = ""
     v = bytes_to_int(keccak256(addr[2:].lower().encode("utf-8")))
     for i, c in enumerate(addr[2:]):
@@ -105,19 +106,49 @@ MAX_DECIMAL_PLACES = 10
 DECIMAL_DIVISOR = 10 ** MAX_DECIMAL_PLACES
 
 
+def int_bounds(signed, bits):
+    """
+    calculate the bounds on an integer type
+    ex. int_bounds(8, True) -> (-128, 127)
+        int_bounds(8, False) -> (0, 255)
+    """
+    if signed:
+        return -(2 ** (bits - 1)), (2 ** (bits - 1)) - 1
+    return 0, (2 ** bits) - 1
+
+
+# EVM div semantics as a python function
+def evm_div(x, y):
+    if y == 0:
+        return 0
+    # doesn't actually work:
+    # return int(x / y)
+    sign = -1 if (x * y) < 0 else 1
+    return sign * (abs(x) // abs(y))  # adapted from py-evm
+
+
+# EVM mod semantics as a python function
+def evm_mod(x, y):
+    if y == 0:
+        return 0
+
+    # this doesn't actually work when num digits exceeds fp precision:
+    # return int(math.fmod(x, y))
+    sign = -1 if x < 0 else 1
+    return sign * (abs(x) % abs(y))  # adapted from py-evm
+
+
 # memory used for system purposes, not for variables
 class MemoryPositions:
     MAXDECIMAL = 32
     MINDECIMAL = 64
     FREE_VAR_SPACE = 128
     FREE_VAR_SPACE2 = 160
-    FREE_LOOP_INDEX = 192
-    RESERVED_MEMORY = 224
+    RESERVED_MEMORY = 192
 
 
 # Sizes of different data types. Used to clamp types.
 class SizeLimits:
-    ADDRSIZE = 2 ** 160
     MAX_INT128 = 2 ** 127 - 1
     MIN_INT128 = -(2 ** 127)
     MAX_INT256 = 2 ** 255 - 1
@@ -129,19 +160,16 @@ class SizeLimits:
 
     @classmethod
     def in_bounds(cls, type_str, value):
+        # TODO: fix this circular import
+        from vyper.codegen.types import parse_integer_typeinfo
+
         assert isinstance(type_str, str)
         if type_str == "decimal":
-            return float(cls.MINDECIMAL) <= value <= float(cls.MAXDECIMAL)
-        if type_str == "uint8":
-            return 0 <= value <= cls.MAX_UINT8
-        elif type_str == "uint256":
-            return 0 <= value <= cls.MAX_UINT256
-        elif type_str == "int128":
-            return cls.MIN_INT128 <= value <= cls.MAX_INT128
-        elif type_str == "int256":
-            return cls.MIN_INT256 <= value <= cls.MAX_INT256
-        else:
-            raise Exception(f'Unknown type "{type_str}" supplied.')
+            return decimal.Decimal(cls.MINDECIMAL) <= value <= decimal.Decimal(cls.MAXDECIMAL)
+
+        int_info = parse_integer_typeinfo(type_str)
+        (lo, hi) = int_bounds(int_info.is_signed, int_info.bits)
+        return lo <= value <= hi
 
 
 # Map representing all limits loaded into a contract as part of the initializer
@@ -158,22 +186,26 @@ FUNCTION_WHITELIST = {
 }
 
 # List of valid LLL macros.
+# TODO move this somewhere else, like lll_node.py
 VALID_LLL_MACROS = {
     "assert",
     "break",
+    "iload",
+    "istore",
+    "dload",
+    "dloadbytes",
     "ceil32",
-    "clamp",
     "clamp",
     "clamp_nonzero",
     "clampge",
     "clampgt",
     "clample",
     "clamplt",
-    "codeload",
     "continue",
     "debugger",
     "ge",
     "if",
+    "select",
     "le",
     "lll",
     "ne",
@@ -185,21 +217,20 @@ VALID_LLL_MACROS = {
     "sha3_32",
     "sha3_64",
     "sle",
+    "uclamp",
     "uclampge",
     "uclampgt",
     "uclample",
     "uclamplt",
     "with",
-    "~codelen",
     "label",
     "goto",
     "~extcode",
     "~selfcode",
     "~calldata",
+    "~empty",
+    "var_list",
 }
-
-# Available base types
-BASE_TYPES = {"int128", "int256", "decimal", "bytes32", "uint8", "uint256", "bool", "address"}
 
 
 def indent(text: str, indent_chars: Union[str, List[str]] = " ", level: int = 1) -> str:

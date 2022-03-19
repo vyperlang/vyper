@@ -2,7 +2,7 @@ import functools
 
 from vyper import ast as vy_ast
 from vyper.codegen.expr import Expr
-from vyper.codegen.types import BaseType, ByteArrayType, StringType, is_base_type
+from vyper.codegen.types import INTEGER_TYPES, BaseType, ByteArrayType, StringType, is_base_type
 from vyper.exceptions import InvalidLiteral, StructureException, TypeMismatch
 from vyper.utils import SizeLimits
 
@@ -64,14 +64,13 @@ def process_arg(index, arg, expected_arg_typelist, function_name, context):
             if isinstance(sub.typ, StringType):
                 return sub
         else:
-            # Does not work for unit-endowed types inside compound types, e.g. timestamp[2]
             parsed_expected_type = context.parse_type(vy_ast.parse_to_ast(expected_arg)[0].value)
             if isinstance(parsed_expected_type, BaseType):
                 vsub = vsub or Expr.parse_value_expr(arg, context)
 
                 is_valid_integer = (
-                    (expected_arg in ("int128", "uint256") and isinstance(vsub.typ, BaseType))
-                    and (vsub.typ.typ in ("int128", "uint256") and vsub.typ.is_literal)
+                    (expected_arg in INTEGER_TYPES and isinstance(vsub.typ, BaseType))
+                    and (vsub.typ.typ in INTEGER_TYPES and vsub.typ.is_literal)
                     and (SizeLimits.in_bounds(expected_arg, vsub.value))
                 )
 
@@ -83,63 +82,13 @@ def process_arg(index, arg, expected_arg_typelist, function_name, context):
                 vsub = vsub or Expr(arg, context).lll_node
                 if vsub.typ == parsed_expected_type:
                     return Expr(arg, context).lll_node
+
     if len(expected_arg_typelist) == 1:
         raise TypeMismatch(f"Expecting {expected_arg} for argument {index} of {function_name}", arg)
     else:
         raise TypeMismatch(
             f"Expecting one of {expected_arg_typelist} for argument {index} of {function_name}", arg
         )
-
-
-def signature(*argz, **kwargz):
-    def decorator(f):
-        @functools.wraps(f)
-        def g(element, context):
-            function_name = element.func.id
-            if len(element.args) > len(argz):
-                raise StructureException(
-                    f"Expected {len(argz)} arguments for {function_name}, "
-                    f"got {len(element.args)}",
-                    element,
-                )
-            subs = []
-            for i, expected_arg in enumerate(argz):
-                if len(element.args) > i:
-                    subs.append(
-                        process_arg(
-                            i + 1,
-                            element.args[i],
-                            expected_arg,
-                            function_name,
-                            context,
-                        )
-                    )
-                elif isinstance(expected_arg, Optional):
-                    subs.append(expected_arg.default)
-                else:
-                    raise StructureException(
-                        f"Not enough arguments for function: {element.func.id}", element
-                    )
-            kwsubs = {}
-            element_kw = {k.arg: k.value for k in element.keywords}
-            for k, expected_arg in kwargz.items():
-                if k not in element_kw:
-                    if isinstance(expected_arg, Optional):
-                        kwsubs[k] = expected_arg.default
-                    else:
-                        raise StructureException(
-                            f"Function {function_name} requires argument {k}", element
-                        )
-                else:
-                    kwsubs[k] = process_arg(k, element_kw[k], expected_arg, function_name, context)
-            for k, _arg in element_kw.items():
-                if k not in kwargz:
-                    raise StructureException(f"Unexpected argument: {k}", element)
-            return f(element, subs, kwsubs, context)
-
-        return g
-
-    return decorator
 
 
 def validate_inputs(wrapped_fn):

@@ -83,6 +83,17 @@ def test_interfaces_output():
     }
 
 
+def test_manifest_output():
+    input_json = {
+        "interfaces": {
+            "/bar.json": {"contractTypes": {"Bar": {"abi": BAR_ABI}}},
+        }
+    }
+    result = get_input_dict_interfaces(input_json)
+    assert isinstance(result, dict)
+    assert result == {"Bar": {"type": "json", "code": BAR_ABI}}
+
+
 # get_interface_codes tests
 
 

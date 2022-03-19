@@ -16,16 +16,16 @@ from vyper.exceptions import (
 )
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.bases import BaseTypeDefinition, DataLocation, StorageSlot
-from vyper.semantics.types.indexable.sequence import TupleDefinition
-from vyper.semantics.types.user.struct import StructDefinition
+from vyper.semantics.types.indexable.sequence import DynamicArrayDefinition, TupleDefinition
 from vyper.semantics.types.utils import (
     StringEnum,
     check_constant,
+    generate_abi_type,
     get_type_from_abi,
     get_type_from_annotation,
 )
 from vyper.semantics.types.value.boolean import BoolDefinition
-from vyper.semantics.types.value.numeric import Uint256Definition
+from vyper.semantics.types.value.numeric import Uint256Definition  # type: ignore
 from vyper.semantics.validation.utils import validate_expected_type
 from vyper.utils import keccak256
 
@@ -482,15 +482,15 @@ class ContractFunction(BaseTypeDefinition):
             abi_dict["type"] = "function"
             abi_dict["name"] = self.name
 
-        abi_dict["inputs"] = [_generate_abi_type(v, k) for k, v in self.arguments.items()]
+        abi_dict["inputs"] = [generate_abi_type(v, k) for k, v in self.arguments.items()]
 
         typ = self.return_type
         if typ is None:
             abi_dict["outputs"] = []
         elif isinstance(typ, TupleDefinition) and len(typ.value_type) > 1:  # type: ignore
-            abi_dict["outputs"] = [_generate_abi_type(i) for i in typ.value_type]  # type: ignore
+            abi_dict["outputs"] = [generate_abi_type(i) for i in typ.value_type]  # type: ignore
         else:
-            abi_dict["outputs"] = [_generate_abi_type(typ)]
+            abi_dict["outputs"] = [generate_abi_type(typ)]
 
         if self.has_default_args:
             # for functions with default args, return a dict for each possible arg count
@@ -503,19 +503,39 @@ class ContractFunction(BaseTypeDefinition):
             return [abi_dict]
 
 
-def _generate_abi_type(type_definition, name=""):
-    if isinstance(type_definition, StructDefinition):
-        return {
-            "name": name,
-            "type": "tuple",
-            "components": [_generate_abi_type(v, k) for k, v in type_definition.members.items()],
-        }
-    if isinstance(type_definition, TupleDefinition):
-        return {
-            "type": "tuple",
-            "components": [_generate_abi_type(i) for i in type_definition.value_type],
-        }
-    return {"name": name, "type": type_definition.canonical_abi_type}
+class MemberFunctionDefinition(BaseTypeDefinition):
+    """
+    Member function type definition.
+
+    This class has no corresponding primitive.
+    """
+
+    _is_callable = True
+
+    def __init__(
+        self, underlying_type: BaseTypeDefinition, name: str, min_arg_count: int, max_arg_count: int
+    ) -> None:
+        super().__init__(DataLocation.UNSET)
+        self.underlying_type = underlying_type
+        self.name = name
+        self.min_arg_count = min_arg_count
+        self.max_arg_count = max_arg_count
+
+    def __repr__(self):
+        return f"{self.underlying_type._id} member function '{self.name}'"
+
+    def fetch_call_return(self, node: vy_ast.Call) -> Optional[BaseTypeDefinition]:
+        validate_call_args(node, (self.min_arg_count, self.max_arg_count))
+
+        if isinstance(self.underlying_type, DynamicArrayDefinition):
+            if self.name == "append":
+                return None
+
+            elif self.name == "pop":
+                value_type = self.underlying_type.value_type
+                return value_type
+
+        raise CallViolation("Function does not exist on given type", node)
 
 
 def _generate_method_id(name: str, canonical_abi_types: List[str]) -> Dict[str, int]:

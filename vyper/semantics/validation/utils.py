@@ -88,6 +88,8 @@ class _ExprTypeChecker:
     def get_possible_types_from_node(self, node, only_definitions=True):
         """
         Find all possible types for a given node.
+        If the node's metadata contains type information propagated from constant folding,
+        then that type is returned.
 
         Arguments
         ---------
@@ -102,6 +104,10 @@ class _ExprTypeChecker:
         List
             A list of type objects
         """
+        # Early termination if typedef is propagated in metadata
+        if "type" in node._metadata:
+            return [node._metadata["type"]]
+
         fn = self._find_fn(node)
         types_list = fn(node)
         if only_definitions:
@@ -113,6 +119,7 @@ class _ExprTypeChecker:
                     )
                 else:
                     raise InvalidReference("Expected a literal or variable", node)
+
         if all(isinstance(i, IntegerAbstractType) for i in types_list):
             # for numeric types, sort according by number of bits descending
             # we do this to ensure literals are cast with the largest possible type
@@ -221,8 +228,14 @@ class _ExprTypeChecker:
 
     def types_from_List(self, node):
         # literal array
+
         if not node.elements:
-            raise InvalidLiteral("Cannot have an empty array", node)
+            # empty list literal `[]`
+            # subtype can be anything
+            types_list = types.get_types()
+            # 1 is minimum possible length for dynarray, assignable to anything
+            ret = [DynamicArrayDefinition(t, 1) for t in types_list]
+            return ret
 
         types_list = get_common_types(*node.elements)
 
@@ -234,8 +247,8 @@ class _ExprTypeChecker:
         if len(types_list) > 0:
             count = len(node.elements)
             ret = []
-            ret.extend([DynamicArrayDefinition(t, count) for t in types_list])
             ret.extend([ArrayDefinition(t, count) for t in types_list])
+            ret.extend([DynamicArrayDefinition(t, count) for t in types_list])
             return ret
 
         raise InvalidLiteral("Array contains multiple, incompatible types", node)
@@ -435,6 +448,7 @@ def validate_expected_type(node, expected_type):
             types_str = sorted(str(i) for i in given_types)
             given_str = f"{', '.join(types_str[:1])} or {types_str[-1]}"
 
+        # CMC 2022-02-14 maybe TypeMismatch would make more sense here
         raise InvalidType(
             f"Expected {expected_str} but literal can only be cast as {given_str}", node
         )

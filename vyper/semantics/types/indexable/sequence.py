@@ -1,3 +1,4 @@
+import warnings
 from typing import Optional, Tuple, Union
 
 from vyper import ast as vy_ast
@@ -10,8 +11,9 @@ from vyper.semantics.types.bases import (
     BaseTypeDefinition,
     DataLocation,
     IndexableTypeDefinition,
+    MemberTypeDefinition,
 )
-from vyper.semantics.types.value.numeric import Uint256Definition
+from vyper.semantics.types.value.numeric import Uint256Definition  # type: ignore
 
 
 class _SequenceDefinition(IndexableTypeDefinition):
@@ -116,7 +118,7 @@ class ArrayDefinition(_SequenceDefinition):
         return self.value_type.compare_type(other.value_type)
 
 
-class DynamicArrayDefinition(_SequenceDefinition):
+class DynamicArrayDefinition(_SequenceDefinition, MemberTypeDefinition):
     """
     Dynamic array type definition.
     """
@@ -130,7 +132,17 @@ class DynamicArrayDefinition(_SequenceDefinition):
         is_public: bool = False,
         is_immutable: bool = False,
     ) -> None:
-        super().__init__(value_type, length, "DynArray", location, is_immutable, is_public)
+
+        super().__init__(
+            value_type, length, "DynArray", location, is_constant, is_public, is_immutable
+        )
+
+        # Adding members here as otherwise MemberFunctionDefinition is not yet defined
+        # if added as _type_members
+        from vyper.semantics.types.function import MemberFunctionDefinition
+
+        self.add_member("append", MemberFunctionDefinition(self, "append", 0, 1))
+        self.add_member("pop", MemberFunctionDefinition(self, "pop", 0, 0))
 
     def __repr__(self):
         return f"DynArray[{self.value_type}, {self.length}]"
@@ -167,11 +179,16 @@ class DynamicArrayDefinition(_SequenceDefinition):
             return False
         return self.value_type.compare_type(other.value_type)
 
+    def fetch_call_return(self, node: vy_ast.Call) -> None:
+        pass
+
 
 class DynamicArrayPrimitive(BasePrimitive):
     _id = "DynArray"
     _type = DynamicArrayDefinition
     _valid_literal = (vy_ast.List,)
+
+    _warning_flag = True
 
     @classmethod
     def from_annotation(
@@ -184,6 +201,10 @@ class DynamicArrayPrimitive(BasePrimitive):
     ) -> DynamicArrayDefinition:
         # TODO fix circular import
         from vyper.semantics.types.utils import get_type_from_annotation
+
+        if cls._warning_flag:
+            warnings.warn("DynArray is an experimental feature, please use with care")
+            cls._warning_flag = False
 
         if (
             not isinstance(node, vy_ast.Subscript)

@@ -9,9 +9,11 @@ from vyper.ast.signatures.function_signature import VariableRecord
 from vyper.ast.validation import validate_call_args
 from vyper.builtin_functions.convert import convert
 from vyper.codegen.abi_encoder import abi_encode
+from vyper.codegen.context import Context
 from vyper.codegen.core import (
     LLLnode,
     add_ofst,
+    bytes_data_ptr,
     check_external_call,
     clamp_basetype,
     copy_bytes,
@@ -22,6 +24,7 @@ from vyper.codegen.core import (
     getpos,
     lll_tuple_from_args,
     load_op,
+    promote_signed_int,
     unwrap_location,
 )
 from vyper.codegen.expr import Expr
@@ -34,6 +37,7 @@ from vyper.codegen.types import (
     StringType,
     TupleType,
     is_base_type,
+    parse_integer_typeinfo,
 )
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
@@ -68,12 +72,10 @@ from vyper.semantics.types.value.array_value import (
     StringPrimitive,
 )
 from vyper.semantics.types.value.bytes_fixed import Bytes32Definition
-from vyper.semantics.types.value.numeric import (
-    DecimalDefinition,
-    Int128Definition,
-    Int256Definition,
-    Uint256Definition,
-)
+from vyper.semantics.types.value.numeric import Int128Definition  # type: ignore
+from vyper.semantics.types.value.numeric import Int256Definition  # type: ignore
+from vyper.semantics.types.value.numeric import Uint256Definition  # type: ignore
+from vyper.semantics.types.value.numeric import DecimalDefinition
 from vyper.semantics.validation.utils import (
     get_common_types,
     get_exact_type_from_node,
@@ -164,60 +166,24 @@ class Ceil(_SimpleBuiltinFunction):
 
 class Convert:
 
-    # TODO this is just a wireframe, expand it with complete functionality
-    # https://github.com/vyperlang/vyper/issues/1093
-
     _id = "convert"
 
     def fetch_call_return(self, node):
         validate_call_args(node, 2)
         target_type = get_type_from_annotation(node.args[1], DataLocation.MEMORY)
-
         validate_expected_type(node.args[0], ValueTypeDefinition())
+
+        # block conversions between same type
         try:
             validate_expected_type(node.args[0], target_type)
         except VyperException:
             pass
         else:
-            # TODO remove this once it's possible in parser
             if not isinstance(target_type, Uint256Definition):
                 raise InvalidType(f"Value and target type are both '{target_type}'", node)
 
-        # TODO!
-        # try:
-        #     validation_fn = getattr(self, f"validate_to_{target_type._id}")
-        # except AttributeError:
-        #     raise InvalidType(
-        #         f"Unsupported destination type '{target_type}'", node.args[1]
-        #     ) from None
-
-        # validation_fn(initial_type)
-
+        # note: more type conversion validation happens in convert.py
         return target_type
-
-    def validate_to_bool(self, initial_type):
-        pass
-
-    def validate_to_decimal(self, initial_type):
-        pass
-
-    def validate_to_int128(self, initial_type):
-        pass
-
-    def validate_to_uint256(self, initial_type):
-        pass
-
-    def validate_to_bytes32(self, initial_type):
-        pass
-
-    def validate_to_string(self, initial_type):
-        pass
-
-    def validate_to_bytes(self, initial_type):
-        pass
-
-    def validate_to_address(self, initial_type):
-        pass
 
     def build_LLL(self, expr, context):
         return convert(expr, context)
@@ -226,8 +192,19 @@ class Convert:
 ADHOC_SLICE_NODE_MACROS = ["~calldata", "~selfcode", "~extcode"]
 
 
-def _build_adhoc_slice_node(sub: LLLnode, start: LLLnode, length: LLLnode, np: int) -> LLLnode:
-    assert isinstance(length.value, int)  # `length` is constant which is validated before
+def _build_adhoc_slice_node(
+    sub: LLLnode, start: LLLnode, length: LLLnode, context: Context
+) -> LLLnode:
+    # TODO validate at typechecker stage
+    if not isinstance(length.value, int):
+        macro_pretty_name = sub.value[1:]  # type: ignore
+        raise InvalidLiteral(
+            f"slice({macro_pretty_name} must use a compile-time constant for length argument"
+        )
+
+    dst_typ = ByteArrayType(maxlen=length.value)
+    # allocate a buffer for the return value
+    np = context.new_internal_variable(dst_typ)
 
     # `msg.data` by `calldatacopy`
     if sub.value == "~calldata":
@@ -304,107 +281,131 @@ class Slice:
     @validate_inputs
     def build_LLL(self, expr, args, kwargs, context):
 
-        sub, start, length = args
-
-        if is_base_type(sub.typ, "bytes32"):
-            if (start.typ.is_literal and length.typ.is_literal) and not (
-                0 <= start.value + length.value <= 32
-            ):
-                raise InvalidLiteral(
-                    "Invalid start / length values needs to be between 0 and 32.",
-                    expr,
-                )
-            sub_typ_maxlen = 32
-        else:
-            sub_typ_maxlen = sub.typ.maxlen
-
-        # Get returntype string or bytes
-        if isinstance(args[0].typ, ByteArrayType) or is_base_type(sub.typ, "bytes32"):
-            ReturnType = ByteArrayType
-        else:
-            ReturnType = StringType
-
-        # Node representing the position of the output in memory
-        # CMC 20210917 shouldn't this be a variable with newmaxlen?
-        np = context.new_internal_variable(ReturnType(maxlen=sub_typ_maxlen + 32))
-        placeholder_node = LLLnode.from_list(np, typ=sub.typ, location="memory")
-        placeholder_plus_32_node = LLLnode.from_list(np + 32, typ=sub.typ, location="memory")
+        src, start, length = args
 
         # Handle `msg.data`, `self.code`, and `<address>.code`
-        if sub.value in ADHOC_SLICE_NODE_MACROS:
-            return _build_adhoc_slice_node(sub, start, length, np)
+        if src.value in ADHOC_SLICE_NODE_MACROS:
+            return _build_adhoc_slice_node(src, start, length, context)
 
-        # Copy over bytearray data
-        # CMC 20210917 how does this routine work?
+        is_bytes32 = is_base_type(src.typ, "bytes32")
+        if src.location is None:
+            # it's not a pointer; force it to be one since
+            # copy_bytes works on pointers.
+            assert is_bytes32, src
+            src = ensure_in_memory(src, context)
 
-        if sub.location == "storage":
-            adj_sub = LLLnode.from_list(
-                ["add", sub, ["add", ["div", "_start", 32], 1]],
-                typ=sub.typ,
-                location=sub.location,
-            )
-        else:
-            adj_sub = LLLnode.from_list(
-                ["add", sub, ["add", ["sub", "_start", ["mod", "_start", 32]], 32]],
-                typ=sub.typ,
-                location=sub.location,
-            )
+        with src.cache_when_complex("src") as (b1, src), start.cache_when_complex("start") as (
+            b2,
+            start,
+        ), length.cache_when_complex("length") as (b3, length):
 
-        if is_base_type(sub.typ, "bytes32"):
-            # optimize case when the expression is like (mload 352) or (sload 0)
-            if len(sub.args) == 1 and getattr(sub.args[0], "location", None) is not None:
-                adj_sub = sub.args[0]
+            if is_bytes32:
+                src_maxlen = 32
             else:
-                adj_sub = LLLnode.from_list(
-                    [
-                        "seq",
-                        ["mstore", MemoryPositions.FREE_VAR_SPACE, sub],
-                        MemoryPositions.FREE_VAR_SPACE,
-                    ],
-                    typ=sub.typ,
-                    location="memory",
+                src_maxlen = src.typ.maxlen
+
+            if start.is_literal and length.is_literal:
+                # TODO this should be moved to typechecker
+                if not (0 <= start.value + length.value <= src_maxlen):
+                    raise InvalidLiteral(
+                        f"slice out of bounds: slice({src.typ}, {start.value}, {length.value})",
+                        expr,
+                    )
+
+            dst_maxlen = length.value if length.is_literal else src_maxlen
+
+            buflen = dst_maxlen
+
+            # add 32 bytes to the buffer size bc word access might
+            # be unaligned (see below)
+            if src.location == "storage":
+                buflen += 32
+
+            # Get returntype string or bytes
+            assert isinstance(src.typ, ByteArrayLike) or is_bytes32
+            if isinstance(src.typ, StringType):
+                dst_typ = StringType(maxlen=dst_maxlen)
+            else:
+                dst_typ = ByteArrayType(maxlen=dst_maxlen)
+
+            # allocate a buffer for the return value
+            buf = context.new_internal_variable(ByteArrayType(buflen))
+            # assign it the correct return type.
+            # (note mismatch between dst_maxlen and buflen)
+            dst = LLLnode.from_list(buf, typ=dst_typ, location="memory")
+
+            dst_data = bytes_data_ptr(dst)
+
+            if is_bytes32:
+                src_len = 32
+                src_data = src
+            else:
+                src_len = get_bytearray_length(src)
+                src_data = bytes_data_ptr(src)
+
+            # general case. byte-for-byte copy
+            if src.location == "storage":
+                # because slice uses byte-addressing but storage
+                # is word-aligned, this algorithm starts at some number
+                # of bytes before the data section starts, and might copy
+                # an extra word. the pseudocode is:
+                #   dst_data = dst + 32
+                #   copy_dst = dst_data - start % 32
+                #   src_data = src + 32
+                #   copy_src = src_data + (start - start % 32) / 32
+                #            = src_data + (start // 32)
+                #   copy_bytes(copy_dst, copy_src, length)
+                #   //set length AFTER copy because the length word has been clobbered!
+                #   mstore(src, length)
+
+                # start at the first word-aligned address before `start`
+                # e.g. start == byte 7 -> we start copying from byte 0
+                #      start == byte 32 -> we start copying from byte 32
+                copy_src = LLLnode.from_list(
+                    ["add", src_data, ["div", start, 32]],
+                    location=src.location,
                 )
 
-        copier = copy_bytes(
-            placeholder_plus_32_node,
-            adj_sub,
-            ["add", "_length", 32],  # CMC 20210917 shouldn't this just be _length
-            sub_typ_maxlen,
-            pos=getpos(expr),
-        )
+                # e.g. start == byte 0 -> we copy to dst_data + 0
+                #      start == byte 7 -> we copy to dst_data - 7
+                #      start == byte 33 -> we copy to dst_data - 1
+                # TODO add optimizer rule for modulus-powers-of-two
+                copy_dst = LLLnode.from_list(
+                    ["sub", dst_data, ["mod", start, 32]], location=dst.location
+                )
 
-        # New maximum length in the type of the result
-        newmaxlen = length.value if not len(length.args) else sub_typ_maxlen
-        if is_base_type(sub.typ, "bytes32"):
-            maxlen = 32
-        else:
-            maxlen = get_bytearray_length(sub)
+                # len + (32 if start % 32 > 0 else 0)
+                copy_len = ["add", length, ["mul", 32, ["iszero", ["iszero", ["mod", 32, start]]]]]
+                copy_maxlen = dst_maxlen
 
-        out = [
-            "with",
-            "_start",
-            start,
-            [
-                "with",
-                "_length",
-                length,
-                [
-                    "with",
-                    "_opos",
-                    ["add", placeholder_node, ["mod", "_start", 32]],
-                    [
-                        "seq",
-                        ["assert", ["le", ["add", "_start", "_length"], maxlen]],
-                        copier,
-                        ["mstore", "_opos", "_length"],
-                        "_opos",
-                    ],
-                ],
-            ],
-        ]
-        return LLLnode.from_list(
-            out, typ=ReturnType(newmaxlen), location="memory", pos=getpos(expr)
-        )
+            else:
+                # all other address spaces (mem, calldata, code) we have
+                # byte-aligned access so we can just do the easy thing,
+                # memcopy(dst_data, src_data + dst_data)
+
+                copy_src = add_ofst(src_data, start)
+                copy_dst = dst_data
+                copy_len = length
+                copy_maxlen = dst_maxlen
+
+            do_copy = copy_bytes(
+                copy_dst,
+                copy_src,
+                copy_len,
+                copy_maxlen,
+                pos=getpos(expr),
+            )
+
+            ret = [
+                "seq",
+                # make sure we don't overrun the source buffer
+                ["assert", ["le", ["add", start, length], src_len]],  # bounds check
+                do_copy,
+                ["mstore", dst, length],  # set length
+                dst,  # return pointer to dst
+            ]
+            ret = LLLnode.from_list(ret, typ=dst_typ, location="memory", pos=getpos(expr))
+            return b1.resolve(b2.resolve(b3.resolve(ret)))
 
 
 class Len(_SimpleBuiltinFunction):
@@ -526,7 +527,7 @@ class Concat:
                 if arg.typ.maxlen == 0:
                     continue
                 # Get the length of the current argument
-                if arg.location in ("memory", "calldata", "code"):
+                if arg.location in ("memory", "calldata", "data", "immutables"):
                     length = LLLnode.from_list(
                         [load_op(arg.location), "_arg"], typ=BaseType("int128")
                     )
@@ -1444,6 +1445,7 @@ class Shift(_SimpleBuiltinFunction):
             shift_abs = ["sub", 0, "_s"]
 
         if version_check(begin="constantinople"):
+            # TODO use convenience functions shl and shr in codegen/core.py
             if args[1].typ.is_literal:
                 # optimization when SHL/SHR instructions are available shift distance is a literal
                 value = args[1].value
@@ -1568,6 +1570,7 @@ class Abs(_SimpleBuiltinFunction):
             [
                 "if",
                 ["slt", "orig", 0],
+                # clamp orig != -2**255 (because it maps to itself under negation)
                 ["seq", ["assert", ["ne", "orig", ["sub", 0, "orig"]]], ["sub", 0, "orig"]],
                 "orig",
             ],
@@ -1682,6 +1685,68 @@ class CreateForwarderTo(_SimpleBuiltinFunction):
         )
 
 
+class _UnsafeMath:
+
+    # TODO add unsafe math for `decimal`s
+    _inputs = [("a", IntegerAbstractType()), ("b", IntegerAbstractType())]
+
+    def fetch_call_return(self, node):
+        validate_call_args(node, 2)
+
+        types_list = get_common_types(
+            *node.args, filter_fn=lambda x: isinstance(x, IntegerAbstractType)
+        )
+        if not types_list:
+            raise TypeMismatch(f"unsafe_{self.op} called on dislike types", node)
+
+        return types_list.pop()
+
+    @validate_inputs
+    def build_LLL(self, expr, args, kwargs, context):
+        (a, b) = args
+        op = self.op
+
+        assert a.typ == b.typ, "unreachable"
+
+        otyp = a.typ
+
+        int_info = parse_integer_typeinfo(a.typ.typ)
+        if op == "div" and int_info.is_signed:
+            op = "sdiv"
+
+        ret = [op, a, b]
+
+        if int_info.bits < 256:
+            # wrap for ops which could under/overflow
+            if int_info.is_signed:
+                # e.g. int128 -> (signextend 15 (add x y))
+                ret = promote_signed_int(ret, int_info.bits)
+            else:
+                # e.g. uint8 -> (mod (add x y) 256)
+                # TODO mod_bound could be a really large literal
+                ret = ["mod", ret, 2 ** int_info.bits]
+
+        return LLLnode.from_list(ret, typ=otyp)
+
+        # TODO handle decimal case
+
+
+class UnsafeAdd(_UnsafeMath):
+    op = "add"
+
+
+class UnsafeSub(_UnsafeMath):
+    op = "sub"
+
+
+class UnsafeMul(_UnsafeMath):
+    op = "mul"
+
+
+class UnsafeDiv(_UnsafeMath):
+    op = "div"
+
+
 class _MinMax:
 
     _inputs = [("a", NumericAbstractType()), ("b", NumericAbstractType())]
@@ -1728,41 +1793,43 @@ class _MinMax:
                 return True
             return False
 
-        comparator = self._opcode
-        left, right = args[0], args[1]
-        if left.typ.typ == right.typ.typ:
-            if left.typ.typ != "uint256":
-                # if comparing like types that are not uint256, use SLT or SGT
-                comparator = f"s{comparator}"
-            o = ["if", [comparator, "_l", "_r"], "_r", "_l"]
-            otyp = left.typ
-            otyp.is_literal = False
-        elif _can_compare_with_uint256(left) and _can_compare_with_uint256(right):
-            o = ["if", [comparator, "_l", "_r"], "_r", "_l"]
-            if right.typ.typ == "uint256":
-                otyp = right.typ
-            else:
+        op = self._opcode
+
+        with args[0].cache_when_complex("_l") as (b1, left), args[1].cache_when_complex("_r") as (
+            b2,
+            right,
+        ):
+
+            if left.typ.typ == right.typ.typ:
+                if left.typ.typ != "uint256":
+                    # if comparing like types that are not uint256, use SLT or SGT
+                    op = f"s{op}"
+                o = ["select", [op, left, right], left, right]
                 otyp = left.typ
-            otyp.is_literal = False
-        else:
-            raise TypeMismatch(f"Minmax types incompatible: {left.typ.typ} {right.typ.typ}")
-        return LLLnode.from_list(
-            ["with", "_l", left, ["with", "_r", right, o]],
-            typ=otyp,
-            pos=getpos(expr),
-        )
+                otyp.is_literal = False
+
+            elif _can_compare_with_uint256(left) and _can_compare_with_uint256(right):
+                o = ["select", [op, left, right], left, right]
+                if right.typ.typ == "uint256":
+                    otyp = right.typ
+                else:
+                    otyp = left.typ
+                otyp.is_literal = False
+            else:
+                raise TypeMismatch(f"Minmax types incompatible: {left.typ.typ} {right.typ.typ}")
+            return LLLnode.from_list(b1.resolve(b2.resolve(o)), typ=otyp, pos=getpos(expr))
 
 
 class Min(_MinMax):
     _id = "min"
     _eval_fn = min
-    _opcode = "gt"
+    _opcode = "lt"
 
 
 class Max(_MinMax):
     _id = "max"
     _eval_fn = max
-    _opcode = "lt"
+    _opcode = "gt"
 
 
 class Sqrt(_SimpleBuiltinFunction):
@@ -1835,7 +1902,7 @@ class Empty:
     @validate_inputs
     def build_LLL(self, expr, args, kwargs, context):
         output_type = context.parse_type(expr.args[0])
-        return LLLnode(None, typ=output_type, pos=getpos(expr))
+        return LLLnode("~empty", typ=output_type, pos=getpos(expr))
 
 
 class ABIEncode(_SimpleBuiltinFunction):
@@ -2007,6 +2074,10 @@ DISPATCH_TABLE = {
     "bitwise_not": BitwiseNot(),
     "uint256_addmod": AddMod(),
     "uint256_mulmod": MulMod(),
+    "unsafe_add": UnsafeAdd(),
+    "unsafe_sub": UnsafeSub(),
+    "unsafe_mul": UnsafeMul(),
+    "unsafe_div": UnsafeDiv(),
     "pow_mod256": PowMod256(),
     "sqrt": Sqrt(),
     "shift": Shift(),

@@ -466,6 +466,40 @@ A two dimensional list can be declared with ``_name: _ValueType[inner_size][oute
     # Returning the value in row 0 column 4 (in this case 14)
     return exampleList2D[0][4]
 
+.. index:: !dynarrays
+
+Dynamic Arrays
+----------------
+
+Dynamic arrays represent bounded arrays whose length can be modified at runtime, up to a bound specified in the type. They can be declared with ``_name: DynArray[_Type, _Integer]``, where ``_Type`` can be of value type (except ``Bytes[N]`` and ``String[N]``) or reference type (except mappings).
+
+.. code-block:: python
+
+    # Defining a list
+    exampleList: DynArray[int128, 3]
+
+    # Setting values
+    exampleList = []
+    # exampleList.pop()  # would revert!
+    exampleList.append(42)  # exampleList now has length 1
+    exampleList.append(120)  # exampleList now has length 2
+    exampleList.append(356)  # exampleList now has length 3
+    # exampleList.append(1)  # would revert!
+
+    myValue: int128 = exampleList.pop()  # myValue == 356, exampleList now has length 2
+
+    # myValue = exampleList[2]  # would revert!
+
+    # Returning a value
+    return exampleList[0]
+
+
+.. note::
+    Attempting to access data past the runtime length of an array, ``pop()`` an empty array or ``append()`` to a full array will result in a runtime ``REVERT``. Attempting to pass an array in calldata which is larger than the array bound will result in a runtime ``REVERT``.
+
+
+In the ABI, they are represented as ``_Type[]``. For instance, ``DynArray[int128, 3]`` gets represented as ``int128[]``, and ``DynArray[DynArray[int128, 3], 3]`` gets represented as ``int128[][]``.
+
 .. _types-struct:
 
 Structs

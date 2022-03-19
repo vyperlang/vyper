@@ -8,17 +8,15 @@ from .indexable.sequence import (
     TupleDefinition,
 )
 from .user.event import Event
+from .user.interface import InterfaceDefinition
 from .user.struct import StructDefinition
 from .value.address import AddressDefinition
 from .value.array_value import BytesArrayDefinition, StringDefinition
 from .value.boolean import BoolDefinition
-from .value.bytes_fixed import Bytes32Definition
-from .value.numeric import (
-    AbstractNumericDefinition,
-    DecimalDefinition,
-    Int128Definition,
-    Uint256Definition,
-)
+from .value.bytes_fixed import Bytes32Definition, BytesMDefinition
+from .value.numeric import Int128Definition  # type: ignore
+from .value.numeric import Uint256Definition  # type: ignore
+from .value.numeric import AbstractNumericDefinition, DecimalDefinition
 
 # any more?
 

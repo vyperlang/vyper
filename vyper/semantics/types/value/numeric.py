@@ -9,6 +9,7 @@ from vyper.semantics.types.abstract import (
     UnsignedIntegerAbstractType,
 )
 from vyper.semantics.types.bases import BasePrimitive, BaseTypeDefinition, ValueTypeDefinition
+from vyper.utils import int_bounds
 
 
 class AbstractNumericDefinition(ValueTypeDefinition):
@@ -102,6 +103,7 @@ class _UnsignedIntegerDefinition(AbstractNumericDefinition):
     """
 
     _is_signed = False
+    _invalid_op = vy_ast.USub
 
     @property
     def _id(self):
@@ -126,23 +128,43 @@ class _NumericPrimitive(BasePrimitive):
 
 # definitions
 
+for i in range(32):
+    bits = 8 * (i + 1)
+    sint = f"Int{bits}Definition"
+    uint = f"Uint{bits}Definition"
+    # class Int128Definition(SignedIntegerAbstractType, _SignedIntegerDefinition):
+    #    _bits = 128
+    sint_def = type(sint, (SignedIntegerAbstractType, _SignedIntegerDefinition), {"_bits": bits})
+    # class Uint256Definition(UnsignedIntegerAbstractType, _UnsignedIntegerDefinition):
+    #    _bits = 256
+    uint_def = type(
+        uint, (UnsignedIntegerAbstractType, _UnsignedIntegerDefinition), {"_bits": bits}
+    )
 
-class Int128Definition(SignedIntegerAbstractType, _SignedIntegerDefinition):
-    _bits = 128
+    globals()[sint] = sint_def
+    globals()[uint] = uint_def
 
+    globals()[f"Int{bits}Primitive"] = type(
+        f"Int{bits}Primitive",
+        (_NumericPrimitive,),
+        {
+            "_bounds": int_bounds(signed=True, bits=bits),
+            "_id": f"int{bits}",
+            "_type": sint_def,
+            "_valid_literal": (vy_ast.Int,),
+        },
+    )
 
-class Int256Definition(SignedIntegerAbstractType, _SignedIntegerDefinition):
-    _bits = 256
-
-
-class Uint8Definition(UnsignedIntegerAbstractType, _UnsignedIntegerDefinition):
-    _bits = 8
-    _invalid_op = vy_ast.USub
-
-
-class Uint256Definition(UnsignedIntegerAbstractType, _UnsignedIntegerDefinition):
-    _bits = 256
-    _invalid_op = vy_ast.USub
+    globals()[f"Uint{bits}Primitive"] = type(
+        f"Uint{bits}Primitive",
+        (_NumericPrimitive,),
+        {
+            "_bounds": int_bounds(signed=False, bits=bits),
+            "_id": f"uint{bits}",
+            "_type": uint_def,
+            "_valid_literal": (vy_ast.Int,),
+        },
+    )
 
 
 class DecimalDefinition(FixedAbstractType, AbstractNumericDefinition):
@@ -158,34 +180,6 @@ class DecimalDefinition(FixedAbstractType, AbstractNumericDefinition):
 
 
 # primitives
-
-
-class Int128Primitive(_NumericPrimitive):
-    _bounds = (-(2 ** 127), 2 ** 127 - 1)
-    _id = "int128"
-    _type = Int128Definition
-    _valid_literal = (vy_ast.Int,)
-
-
-class Int256Primitive(_NumericPrimitive):
-    _bounds = (-(2 ** 255), 2 ** 255 - 1)
-    _id = "int256"
-    _type = Int256Definition
-    _valid_literal = (vy_ast.Int,)
-
-
-class Uint8Primitive(_NumericPrimitive):
-    _bounds = (0, 2 ** 8 - 1)
-    _id = "uint8"
-    _type = Uint8Definition
-    _valid_literal = (vy_ast.Int,)
-
-
-class Uint256Primitive(_NumericPrimitive):
-    _bounds = (0, 2 ** 256 - 1)
-    _id = "uint256"
-    _type = Uint256Definition
-    _valid_literal = (vy_ast.Int,)
 
 
 class DecimalPrimitive(_NumericPrimitive):

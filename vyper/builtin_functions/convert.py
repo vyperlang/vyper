@@ -1,510 +1,412 @@
+import decimal
+import functools
 import math
-import warnings
-from decimal import Decimal
 
 from vyper import ast as vy_ast
-from vyper.builtin_functions.signatures import signature
 from vyper.codegen.core import (
     LLLnode,
-    add_ofst,
+    bytes_clamp,
+    bytes_data_ptr,
     clamp_basetype,
     get_bytearray_length,
     getpos,
     int_clamp,
-    load_op,
+    load_word,
+    sar,
+    shl,
     shr,
+    unwrap_location,
 )
-from vyper.codegen.types import BaseType, ByteArrayType, StringType, get_type
-from vyper.evm.opcodes import version_check
-from vyper.exceptions import InvalidLiteral, StructureException, TypeMismatch
-from vyper.utils import DECIMAL_DIVISOR, MemoryPositions, SizeLimits
+from vyper.codegen.expr import Expr
+from vyper.codegen.types import (
+    BaseType,
+    ByteArrayLike,
+    ByteArrayType,
+    StringType,
+    is_base_type,
+    is_bytes_m_type,
+    is_decimal_type,
+    is_integer_type,
+)
+from vyper.exceptions import CompilerPanic, InvalidLiteral, StructureException, TypeMismatch
+from vyper.utils import DECIMAL_DIVISOR, SizeLimits, int_bounds
 
 
-def byte_array_to_num(arg, out_type):
-    """
-    Takes a <32 byte array as input, and outputs a number.
-    """
-    # the location of the bytestring
-    bs_start = (
-        LLLnode.from_list("bs_start", typ=arg.typ, location=arg.location, encoding=arg.encoding)
-        if arg.is_complex_lll
-        else arg
-    )
+def _FAIL(ityp, otyp, pos=None):
+    raise TypeMismatch(f"Can't convert {ityp} to {otyp}", pos)
 
-    if arg.location == "storage":
-        len_ = get_bytearray_length(bs_start)
-        data = LLLnode.from_list(["sload", add_ofst(bs_start, 1)], typ=BaseType("int256"))
-    else:
-        op = load_op(arg.location)
-        len_ = LLLnode.from_list([op, bs_start], typ=BaseType("int256"))
-        data = LLLnode.from_list([op, add_ofst(bs_start, 32)], typ=BaseType("int256"))
 
+# helper function for `_input_types`
+# generates a string representation of a type
+# (makes up for lack of proper hierarchy in LLL type system)
+# (ideally would use type generated during annotation, but
+# not available for builtins)
+def _type_class_of(typ):
+    if is_integer_type(typ):
+        return "int"
+    if is_bytes_m_type(typ):
+        return "bytes_m"
+    if is_decimal_type(typ):
+        return "decimal"
+    if isinstance(typ, BaseType):
+        return typ.typ  # e.g., "bool"
+    if isinstance(typ, ByteArrayType):
+        return "bytes"
+    if isinstance(typ, StringType):
+        return "string"
+
+
+def _input_types(*allowed_types):
+    def decorator(f):
+        @functools.wraps(f)
+        def check_input_type(expr, arg, out_typ):
+            # convert arg to out_typ.
+            # (expr is the AST corresponding to `arg`)
+            ityp = _type_class_of(arg.typ)
+            ok = ityp in allowed_types
+            # user safety: disallow convert from type to itself
+            ok &= arg.typ != out_typ
+            if not ok:
+                _FAIL(arg.typ, out_typ, expr)
+            return f(expr, arg, out_typ)
+
+        return check_input_type
+
+    return decorator
+
+
+def _bytes_to_num(arg, out_typ, signed):
     # converting a bytestring to a number:
-    # bytestring is right-padded with zeroes, int is left-padded.
-    # convert by shr the number of zero bytes (converted to bits)
+    # bytestring and bytes_m are right-padded with zeroes, int is left-padded.
+    # convert by shr or sar the number of zero bytes (converted to bits)
     # e.g. "abcd000000000000" -> bitcast(000000000000abcd, output_type)
-    bitcasted = LLLnode.from_list(shr("val", ["mul", 8, ["sub", 32, "len_"]]), typ=out_type)
 
-    result = clamp_basetype(bitcasted)
+    if isinstance(arg.typ, ByteArrayLike):
+        _len = get_bytearray_length(arg)
+        arg = load_word(bytes_data_ptr(arg))
+        num_zero_bits = ["mul", 8, ["sub", 32, _len]]
+    elif is_bytes_m_type(arg.typ):
+        info = arg.typ._bytes_info
+        num_zero_bits = 8 * (32 - info.m)
+    else:
+        raise CompilerPanic("unreachable")  # pragma: notest
 
-    ret = ["with", "val", data, ["with", "len_", len_, result]]
-    if arg.is_complex_lll:
-        ret = ["with", "bs_start", arg, ret]
-    return LLLnode.from_list(
-        ret,
-        typ=BaseType(out_type),
-        annotation=f"__intrinsic__byte_array_to_num({out_type})",
-    )
+    if signed:
+        ret = sar(num_zero_bits, arg)
+    else:
+        ret = shr(num_zero_bits, arg)
+
+    annotation = (f"__intrinsic__byte_array_to_num({out_typ})",)
+    return LLLnode.from_list(ret, annotation=annotation)
 
 
-@signature(("decimal", "int128", "int256", "uint8", "uint256", "address", "bytes32", "Bytes"), "*")
-def to_bool(expr, args, kwargs, context):
-    in_arg = args[0]
-    input_type, _ = get_type(in_arg)
+# truncate from fixed point decimal to int
+def _fixed_to_int(x, out_typ, decimals=10):
+    return LLLnode.from_list(["sdiv", x, 10 ** decimals], typ=out_typ)
 
-    if input_type == "Bytes":
-        if in_arg.typ.maxlen > 32:
-            raise TypeMismatch(
-                f"Cannot convert bytes array of max length {in_arg.typ.maxlen} to bool",
-                expr,
-            )
-        else:
-            num = byte_array_to_num(in_arg, "uint256")
-            return LLLnode.from_list(
-                ["iszero", ["iszero", num]], typ=BaseType("bool"), pos=getpos(expr)
-            )
+
+# promote from int to fixed point decimal
+def _int_to_fixed(x, out_typ, decimals=10):
+    return LLLnode.from_list(["mul", x, 10 ** decimals], typ=out_typ)
+
+
+def _check_bytes(expr, arg, output_type, max_bytes_allowed):
+    if isinstance(arg.typ, ByteArrayLike):
+        if arg.typ.maxlen > max_bytes_allowed:
+            _FAIL(arg.typ, output_type, expr)
+    else:
+        # sanity check. should not have conversions to non-base types
+        assert output_type.memory_bytes_required == 32
+
+
+def _literal_int(expr, out_typ):
+    # TODO: possible to reuse machinery from expr.py?
+    int_info = out_typ._int_info
+    if isinstance(expr, vy_ast.Hex):
+        val = int(expr.value, 16)
+    elif isinstance(expr, vy_ast.Bytes):
+        val = int.from_bytes(expr.value, "big")
+    else:
+        # Int, Decimal
+        val = int(expr.value)
+    (lo, hi) = int_bounds(int_info.is_signed, int_info.bits)
+    if not (lo <= val <= hi):
+        raise InvalidLiteral("Number out of range", expr)
+    return LLLnode.from_list(val, typ=out_typ)
+
+
+def _literal_decimal(expr, out_typ):
+    # TODO: possible to reuse machinery from expr.py?
+    if isinstance(expr, vy_ast.Hex):
+        val = decimal.Decimal(int(expr.value, 16))
+    else:
+        val = decimal.Decimal(expr.value)  # should work for Int, Decimal
+
+    val = val * DECIMAL_DIVISOR
+
+    (lo, hi) = (SizeLimits.MINDECIMAL, SizeLimits.MAXDECIMAL)
+    if not (lo <= val <= hi):
+        raise InvalidLiteral("Number out of range", expr)
+
+    # sanity check type checker did its job
+    assert math.ceil(val) == math.floor(val)
+
+    return LLLnode.from_list(int(val), typ=out_typ)
+
+
+# any base type or bytes/string
+@_input_types("int", "decimal", "bytes_m", "address", "bool", "bytes", "string")
+def to_bool(expr, arg, out_typ):
+    _check_bytes(expr, arg, out_typ, 32)  # should we restrict to Bytes[1]?
+
+    if isinstance(arg.typ, ByteArrayType):
+        # no clamp. checks for any nonzero bytes.
+        arg = _bytes_to_num(arg, out_typ, signed=False)
+
+    # NOTE: for decimal, the behavior is x != 0.0,
+    # (we do not issue an `sdiv DECIMAL_DIVISOR`)
+
+    return LLLnode.from_list(["iszero", ["iszero", arg]], typ=out_typ)
+
+
+# special clamp for uint/sint conversions
+# uint -> sint requires input < sint::max_value
+# sint -> uint requires input >= 0
+# these are both equivalent to checking that the top bit is set
+# (e.g. for uint8 that the 8th bit is set, same for int8)
+def _signedness_clamp(arg, bits):
+    return int_clamp(arg, bits=bits - 1, signed=False)
+
+
+# clamp for dealing with conversions between numeric types (from arg to dst)
+def _num_clamp(arg, dst_info, arg_info):
+    if dst_info.is_signed != arg_info.is_signed:
+        arg = _signedness_clamp(arg, arg_info.bits)
+
+    # if, not elif (could be two clamps!)
+    # TODO is it possible to make this more efficient?
+    if dst_info.bits < arg_info.bits:
+        arg = int_clamp(arg, dst_info.bits, dst_info.is_signed)
+
+    return arg
+
+
+@_input_types("int", "bytes_m", "decimal", "bytes", "address", "bool")
+def to_int(expr, arg, out_typ):
+
+    int_info = out_typ._int_info
+
+    assert int_info.bits % 8 == 0
+    _check_bytes(expr, arg, out_typ, 32)
+
+    if isinstance(expr, vy_ast.Constant):
+        return _literal_int(expr, out_typ)
+
+    elif isinstance(arg.typ, ByteArrayType):
+        arg_typ = arg.typ
+        arg = _bytes_to_num(arg, out_typ, signed=int_info.is_signed)
+        if arg_typ.maxlen * 8 > int_info.bits:
+            arg = int_clamp(arg, int_info.bits, signed=int_info.is_signed)
+
+    elif is_bytes_m_type(arg.typ):
+        arg_info = arg.typ._bytes_info
+        arg = _bytes_to_num(arg, out_typ, signed=int_info.is_signed)
+        if arg_info.m_bits > int_info.bits:
+            arg = int_clamp(arg, int_info.bits, signed=int_info.is_signed)
+
+    elif is_decimal_type(arg.typ):
+        arg_info = arg.typ._decimal_info
+        arg = _fixed_to_int(arg, out_typ, decimals=arg_info.decimals)
+        arg = _num_clamp(arg, int_info, arg_info)
+
+    elif is_integer_type(arg.typ):
+        arg_info = arg.typ._int_info
+        arg = _num_clamp(arg, int_info, arg_info)
+
+    elif is_base_type(arg.typ, "address"):
+        if int_info.is_signed:
+            # TODO if possible, refactor to move this validation close to the entry of the function
+            _FAIL(arg.typ, out_typ, expr)
+        if int_info.bits > 160:
+            arg = int_clamp(arg, 160, signed=False)
+
+    return LLLnode.from_list(arg, typ=out_typ)
+
+
+@_input_types("int", "bool", "bytes_m", "bytes")
+def to_decimal(expr, arg, out_typ):
+    # question: is converting from Bytes to decimal allowed?
+    _check_bytes(expr, arg, out_typ, max_bytes_allowed=16)
+
+    if isinstance(expr, vy_ast.Constant):
+        return _literal_decimal(expr, out_typ)
+
+    if isinstance(arg.typ, ByteArrayType):
+        arg_typ = arg.typ
+        arg = _bytes_to_num(arg, out_typ, signed=True)
+        # TODO revisit this condition once we have more decimal types
+        # and decimal bounds expand
+        # will be something like: if info.m_bits > 168
+        if arg_typ.maxlen * 8 > 128:
+            arg = LLLnode.from_list(arg, typ=out_typ)
+            arg = clamp_basetype(arg)
+        return LLLnode.from_list(arg, typ=out_typ)
+
+    elif is_bytes_m_type(arg.typ):
+        info = arg.typ._bytes_info
+        arg = _bytes_to_num(arg, out_typ, signed=True)
+        # TODO revisit this condition once we have more decimal types
+        # and decimal bounds expand
+        # will be something like: if info.m_bits > 168
+        if info.m_bits > 128:
+            arg = LLLnode.from_list(arg, typ=out_typ)
+            arg = clamp_basetype(arg)
+
+        return LLLnode.from_list(arg, typ=out_typ)
+
+    # for the clamp, pretend it's int128 because int128 clamps are cheaper
+    # (and then multiply into the decimal base afterwards)
+    elif is_integer_type(arg.typ):
+        int_info = arg.typ._int_info
+        # TODO revisit this condition once we have more decimal types
+        # and decimal bounds expand. (note that right now decimal bounds
+        # are -2**127 and 2**127 - 1).
+        # will be something like: if info.m_bits > 168
+        # TODO this should probably use _num_clamp instead
+        if int_info.bits > 128:
+            arg = int_clamp(arg, 128, signed=True)
+
+    elif is_base_type(arg.typ, "bool"):
+        pass
+    else:
+        raise CompilerPanic("unreachable")  # pragma: notest
+
+    return _int_to_fixed(arg, out_typ)
+
+
+@_input_types("int", "decimal", "bytes_m", "address", "bytes", "bool")
+def to_bytes_m(expr, arg, out_typ):
+    out_info = out_typ._bytes_info
+    _check_bytes(expr, arg, out_typ, max_bytes_allowed=out_info.m)
+
+    if isinstance(arg.typ, ByteArrayType):
+        bytes_val = load_word(bytes_data_ptr(arg))
+
+        # zero out any dirty bytes (which can happen in the last
+        # word of a bytearray)
+        len_ = get_bytearray_length(arg)
+        num_zero_bits = LLLnode.from_list(["mul", ["sub", 32, len_], 8])
+        with num_zero_bits.cache_when_complex("bits") as (b, num_zero_bits):
+            arg = shl(num_zero_bits, shr(num_zero_bits, bytes_val))
+            arg = b.resolve(arg)
+
+    elif is_integer_type(arg.typ) or is_base_type(arg.typ, "address"):
+        int_bits = arg.typ._int_info.bits
+
+        if out_info.m_bits < int_bits:
+            # question: allow with runtime clamp?
+            # arg = int_clamp(m_bits, signed=int_info.signed)
+            _FAIL(arg.typ, out_typ, expr)
+
+        arg = shl(256 - out_info.m_bits, arg)
+
+    elif is_bytes_m_type(arg.typ):
+        arg_info = arg.typ._bytes_info
+        # clamp if it's a downcast
+        if arg_info.m > out_info.m:
+            arg = bytes_clamp(arg, out_info.m)
 
     else:
-        return LLLnode.from_list(
-            ["iszero", ["iszero", in_arg]], typ=BaseType("bool"), pos=getpos(expr)
-        )
+        # bool, decimal
+        arg = shl(256 - out_info.m_bits, arg)  # question: is this right?
+
+    return LLLnode.from_list(arg, typ=out_typ)
 
 
-@signature(("decimal", "int128", "int256", "uint256", "bytes32", "Bytes"), "*")
-def to_uint8(expr, args, kwargs, context):
-    in_arg = args[0]
-    input_type, _ = get_type(in_arg)
+@_input_types("bytes_m", "int", "bytes")
+def to_address(expr, arg, out_typ):
+    # question: should this be allowed?
+    if is_integer_type(arg.typ):
+        if arg.typ._int_info.is_signed:
+            _FAIL(arg.typ, out_typ, expr)
 
-    if input_type == "Bytes":
-        if in_arg.typ.maxlen > 32:
-            raise TypeMismatch(
-                f"Cannot convert bytes array of max length {in_arg.typ.maxlen} to uint8",
-                expr,
-            )
-        else:
-            # uint8 clamp is already applied in byte_array_to_num
-            in_arg = byte_array_to_num(in_arg, "uint8")
+    # TODO once we introduce uint160, we can just check that arg
+    # is unsigned, and then call to_int(expr, arg, uint160) because
+    # the logic is equivalent.
 
-    else:
-        # cast to output type so clamp_basetype works
-        in_arg = LLLnode.from_list(in_arg, typ="uint8")
+    # disallow casting from Bytes[N>20]
+    _check_bytes(expr, arg, out_typ, 32)
 
-    return LLLnode.from_list(clamp_basetype(in_arg), typ=BaseType("uint8"), pos=getpos(expr))
+    if isinstance(arg.typ, ByteArrayType):
+        arg_typ = arg.typ
+        arg = _bytes_to_num(arg, out_typ, signed=False)
+        # clamp after shift
+        if arg_typ.maxlen > 20:
+            arg = int_clamp(arg, 160, signed=False)
 
+    if is_bytes_m_type(arg.typ):
+        info = arg.typ._bytes_info
+        arg = _bytes_to_num(arg, out_typ, signed=False)
 
-@signature(
-    (
-        "num_literal",
-        "bool",
-        "decimal",
-        "uint8",
-        "int256",
-        "uint256",
-        "address",
-        "bytes32",
-        "Bytes",
-        "String",
-    ),
-    "*",
-)
-def to_int128(expr, args, kwargs, context):
-    in_arg = args[0]
-    input_type, _ = get_type(in_arg)
+        # clamp after shift
+        if info.m > 20:
+            arg = int_clamp(arg, 160, signed=False)
 
-    if input_type == "num_literal":
-        if isinstance(in_arg, int):
-            if not SizeLimits.in_bounds("int128", in_arg):
-                raise InvalidLiteral(f"Number out of range: {in_arg}")
-            return LLLnode.from_list(in_arg, typ=BaseType("int128"), pos=getpos(expr))
-        elif isinstance(in_arg, Decimal):
-            if not SizeLimits.in_bounds("int128", math.trunc(in_arg)):
-                raise InvalidLiteral(f"Number out of range: {math.trunc(in_arg)}")
-            return LLLnode.from_list(math.trunc(in_arg), typ=BaseType("int128"), pos=getpos(expr))
-        else:
-            raise InvalidLiteral(f"Unknown numeric literal type: {in_arg}")
+    elif is_integer_type(arg.typ):
+        arg_info = arg.typ._int_info
+        if arg_info.bits > 160 or arg_info.is_signed:
+            arg = int_clamp(arg, 160, signed=False)
 
-    elif input_type in ("bytes32", "int256"):
-        if in_arg.typ.is_literal:
-            if not SizeLimits.in_bounds("int128", in_arg.value):
-                raise InvalidLiteral(f"Number out of range: {in_arg.value}", expr)
-            else:
-                return LLLnode.from_list(in_arg, typ=BaseType("int128"), pos=getpos(expr))
-        else:
-            # cast to output type so clamp_basetype works
-            in_arg = LLLnode.from_list(in_arg, typ="int128")
-            return LLLnode.from_list(
-                clamp_basetype(in_arg),
-                typ=BaseType("int128"),
-                pos=getpos(expr),
-            )
-
-    # CMC 20211020: what is the purpose of this .. it lops off 32 bits
-    elif input_type == "address":
-        return LLLnode.from_list(
-            ["signextend", 15, ["and", in_arg, (SizeLimits.ADDRSIZE - 1)]],
-            typ=BaseType("int128"),
-            pos=getpos(expr),
-        )
-
-    elif input_type in ("String", "Bytes"):
-        if in_arg.typ.maxlen > 32:
-            raise TypeMismatch(
-                f"Cannot convert bytes array of max length {in_arg.typ.maxlen} to int128",
-                expr,
-            )
-        return byte_array_to_num(in_arg, "int128")
-
-    elif input_type == "uint256":
-        if in_arg.typ.is_literal:
-            if not SizeLimits.in_bounds("int128", in_arg.value):
-                raise InvalidLiteral(f"Number out of range: {in_arg.value}", expr)
-            else:
-                return LLLnode.from_list(in_arg, typ=BaseType("int128"), pos=getpos(expr))
-
-        # !! do not use clamp_basetype. check that 0 <= input <= MAX_INT128.
-        res = int_clamp(in_arg, 127, signed=False)
-        return LLLnode.from_list(
-            res,
-            typ="int128",
-            pos=getpos(expr),
-        )
-
-    elif input_type == "decimal":
-        # cast to int128 so clamp_basetype works
-        res = LLLnode.from_list(["sdiv", in_arg, DECIMAL_DIVISOR], typ="int128")
-        return LLLnode.from_list(clamp_basetype(res), typ="int128", pos=getpos(expr))
-
-    elif input_type in ("bool", "uint8"):
-        # note: for int8, would need signextend
-        return LLLnode.from_list(in_arg, typ=BaseType("int128"), pos=getpos(expr))
-
-    else:
-        raise InvalidLiteral(f"Invalid input for int128: {in_arg}", expr)
+    return LLLnode.from_list(arg, typ=out_typ)
 
 
-@signature(
-    ("num_literal", "int128", "int256", "uint8", "bytes32", "Bytes", "address", "bool", "decimal"),
-    "*",
-)
-def to_uint256(expr, args, kwargs, context):
-    in_arg = args[0]
-    input_type, _ = get_type(in_arg)
+# question: should we allow bytesM -> String?
+@_input_types("bytes")
+def to_string(expr, arg, out_typ):
+    _check_bytes(expr, arg, out_typ, out_typ.maxlen)
 
-    if input_type == "num_literal":
-        if isinstance(in_arg, int):
-            if not SizeLimits.in_bounds("uint256", in_arg):
-                raise InvalidLiteral(f"Number out of range: {in_arg}")
-            return LLLnode.from_list(
-                in_arg,
-                typ=BaseType(
-                    "uint256",
-                ),
-                pos=getpos(expr),
-            )
-        elif isinstance(in_arg, Decimal):
-            if not SizeLimits.in_bounds("uint256", math.trunc(in_arg)):
-                raise InvalidLiteral(f"Number out of range: {math.trunc(in_arg)}")
-            return LLLnode.from_list(math.trunc(in_arg), typ=BaseType("uint256"), pos=getpos(expr))
-        else:
-            raise InvalidLiteral(f"Unknown numeric literal type: {in_arg}")
-
-    elif isinstance(in_arg, LLLnode) and input_type in ("int128", "int256"):
-        return LLLnode.from_list(["clampge", in_arg, 0], typ=BaseType("uint256"), pos=getpos(expr))
-
-    elif isinstance(in_arg, LLLnode) and input_type == "decimal":
-        return LLLnode.from_list(
-            ["div", ["clampge", in_arg, 0], DECIMAL_DIVISOR],
-            typ=BaseType("uint256"),
-            pos=getpos(expr),
-        )
-
-    elif isinstance(in_arg, LLLnode) and input_type in ("bool", "uint8"):
-        return LLLnode.from_list(in_arg, typ=BaseType("uint256"), pos=getpos(expr))
-
-    elif isinstance(in_arg, LLLnode) and input_type in ("bytes32", "address"):
-        return LLLnode(
-            value=in_arg.value, args=in_arg.args, typ=BaseType("uint256"), pos=getpos(expr)
-        )
-
-    elif isinstance(in_arg, LLLnode) and input_type == "Bytes":
-        if in_arg.typ.maxlen > 32:
-            raise InvalidLiteral(
-                f"Cannot convert bytes array of max length {in_arg.typ.maxlen} to uint256",
-                expr,
-            )
-        return byte_array_to_num(in_arg, "uint256")
-
-    else:
-        raise InvalidLiteral(f"Invalid input for uint256: {in_arg}", expr)
+    # NOTE: this is a pointer cast
+    return LLLnode.from_list(arg, typ=out_typ)
 
 
-# TODO address support isn't added yet because of weirdness with int128 -> address
-# conversions. in the next breaking release we should modify how address conversions work
-# so it can make sense for many signed integer types. @iamdefinitelyahuman
-@signature(
-    ("num_literal", "int128", "uint8", "uint256", "bytes32", "Bytes", "String", "bool", "decimal"),
-    "*",
-)
-def to_int256(expr, args, kwargs, context):
-    in_arg = args[0]
-    input_type, _ = get_type(in_arg)
+@_input_types("string")
+def to_bytes(expr, arg, out_typ):
+    _check_bytes(expr, arg, out_typ, out_typ.maxlen)
 
-    if input_type == "num_literal":
-        if isinstance(in_arg, int):
-            if not SizeLimits.in_bounds("int256", in_arg):
-                raise InvalidLiteral(f"Number out of range: {in_arg}")
-            return LLLnode.from_list(
-                in_arg,
-                typ=BaseType(
-                    "int256",
-                ),
-                pos=getpos(expr),
-            )
-        elif isinstance(in_arg, Decimal):
-            if not SizeLimits.in_bounds("int256", math.trunc(in_arg)):
-                raise InvalidLiteral(f"Number out of range: {math.trunc(in_arg)}")
-            return LLLnode.from_list(math.trunc(in_arg), typ=BaseType("int256"), pos=getpos(expr))
-        else:
-            raise InvalidLiteral(f"Unknown numeric literal type: {in_arg}")
+    # TODO: more casts
 
-    elif isinstance(in_arg, LLLnode) and input_type == "int128":
-        return LLLnode.from_list(in_arg, typ=BaseType("int256"), pos=getpos(expr))
-
-    elif isinstance(in_arg, LLLnode) and input_type == "uint256":
-        if version_check(begin="constantinople"):
-            upper_bound = ["shl", 255, 1]
-        else:
-            upper_bound = -(2 ** 255)
-        return LLLnode.from_list(
-            ["uclamplt", in_arg, upper_bound], typ=BaseType("int256"), pos=getpos(expr)
-        )
-
-    elif isinstance(in_arg, LLLnode) and input_type == "decimal":
-        return LLLnode.from_list(
-            ["sdiv", in_arg, DECIMAL_DIVISOR],
-            typ=BaseType("int256"),
-            pos=getpos(expr),
-        )
-
-    elif isinstance(in_arg, LLLnode) and input_type in ("bool", "uint8"):
-        return LLLnode.from_list(in_arg, typ=BaseType("int256"), pos=getpos(expr))
-
-    elif isinstance(in_arg, LLLnode) and input_type in ("bytes32", "address"):
-        return LLLnode(
-            value=in_arg.value, args=in_arg.args, typ=BaseType("int256"), pos=getpos(expr)
-        )
-
-    elif isinstance(in_arg, LLLnode) and input_type in ("Bytes", "String"):
-        if in_arg.typ.maxlen > 32:
-            raise TypeMismatch(
-                f"Cannot convert bytes array of max length {in_arg.typ.maxlen} to int256",
-                expr,
-            )
-        return byte_array_to_num(in_arg, "int256")
-
-    else:
-        raise InvalidLiteral(f"Invalid input for int256: {in_arg}", expr)
-
-
-@signature(("bool", "int128", "int256", "uint8", "uint256", "bytes32", "Bytes", "address"), "*")
-def to_decimal(expr, args, kwargs, context):
-    in_arg = args[0]
-    input_type, _ = get_type(in_arg)
-
-    if input_type == "Bytes":
-        if in_arg.typ.maxlen > 32:
-            raise TypeMismatch(
-                f"Cannot convert bytes array of max length {in_arg.typ.maxlen} to decimal",
-                expr,
-            )
-        # use byte_array_to_num(int128) because it is cheaper to clamp int128
-        num = byte_array_to_num(in_arg, "int128")
-        return LLLnode.from_list(
-            ["mul", num, DECIMAL_DIVISOR], typ=BaseType("decimal"), pos=getpos(expr)
-        )
-
-    else:
-        if input_type == "uint256":
-            if in_arg.typ.is_literal:
-                if not SizeLimits.in_bounds("int128", (in_arg.value * DECIMAL_DIVISOR)):
-                    raise InvalidLiteral(
-                        f"Number out of range: {in_arg.value}",
-                        expr,
-                    )
-                else:
-                    return LLLnode.from_list(
-                        ["mul", in_arg, DECIMAL_DIVISOR], typ=BaseType("decimal"), pos=getpos(expr)
-                    )
-            else:
-                return LLLnode.from_list(
-                    [
-                        "uclample",
-                        ["mul", in_arg, DECIMAL_DIVISOR],
-                        ["mload", MemoryPositions.MAXDECIMAL],
-                    ],
-                    typ=BaseType("decimal"),
-                    pos=getpos(expr),
-                )
-
-        elif input_type == "address":
-            return LLLnode.from_list(
-                [
-                    "mul",
-                    ["signextend", 15, ["and", in_arg, (SizeLimits.ADDRSIZE - 1)]],
-                    DECIMAL_DIVISOR,
-                ],
-                typ=BaseType("decimal"),
-                pos=getpos(expr),
-            )
-
-        elif input_type == "bytes32":
-            if in_arg.typ.is_literal:
-                if not SizeLimits.in_bounds("int128", (in_arg.value * DECIMAL_DIVISOR)):
-                    raise InvalidLiteral(
-                        f"Number out of range: {in_arg.value}",
-                        expr,
-                    )
-                else:
-                    return LLLnode.from_list(
-                        ["mul", in_arg, DECIMAL_DIVISOR], typ=BaseType("decimal"), pos=getpos(expr)
-                    )
-            else:
-                return LLLnode.from_list(
-                    [
-                        "clamp",
-                        ["mload", MemoryPositions.MINDECIMAL],
-                        ["mul", in_arg, DECIMAL_DIVISOR],
-                        ["mload", MemoryPositions.MAXDECIMAL],
-                    ],
-                    typ=BaseType("decimal"),
-                    pos=getpos(expr),
-                )
-
-        elif input_type == "int256":
-            # cast in_arg so clamp_basetype works
-            in_arg = LLLnode.from_list(in_arg, typ="int128")
-            return LLLnode.from_list(
-                ["mul", clamp_basetype(in_arg), DECIMAL_DIVISOR],
-                typ=BaseType("decimal"),
-                pos=getpos(expr),
-            )
-
-        elif input_type in ("uint8", "int128", "bool"):
-            return LLLnode.from_list(
-                ["mul", in_arg, DECIMAL_DIVISOR], typ=BaseType("decimal"), pos=getpos(expr)
-            )
-
-        else:
-            raise InvalidLiteral(f"Invalid input for decimal: {in_arg}", expr)
-
-
-@signature(("int128", "int256", "uint8", "uint256", "address", "Bytes", "bool", "decimal"), "*")
-def to_bytes32(expr, args, kwargs, context):
-    in_arg = args[0]
-    input_type, _len = get_type(in_arg)
-
-    if input_type == "Bytes":
-        if _len > 32:
-            raise TypeMismatch(
-                f"Unable to convert bytes[{_len}] to bytes32, max length is too " "large."
-            )
-
-        if in_arg.location == "storage":
-            return LLLnode.from_list(["sload", ["add", in_arg, 1]], typ=BaseType("bytes32"))
-        else:
-            op = load_op(in_arg.location)
-            return LLLnode.from_list([op, ["add", in_arg, 32]], typ=BaseType("bytes32"))
-
-    else:
-        return LLLnode(
-            value=in_arg.value, args=in_arg.args, typ=BaseType("bytes32"), pos=getpos(expr)
-        )
-
-
-@signature(("bytes32", "uint256"), "*")
-def to_address(expr, args, kwargs, context):
-    # cast to output type so clamp_basetype works
-    lll_node = LLLnode.from_list(args[0], typ="address")
-    return LLLnode.from_list(clamp_basetype(lll_node), typ=BaseType("address"), pos=getpos(expr))
-
-
-def _to_bytelike(expr, args, kwargs, context, bytetype):
-    if bytetype == "String":
-        ReturnType = StringType
-    elif bytetype == "Bytes":
-        ReturnType = ByteArrayType
-    else:
-        raise TypeMismatch(f"Invalid {bytetype} supplied")
-
-    in_arg = args[0]
-    if in_arg.typ.maxlen > args[1].slice.value.n:
-        raise TypeMismatch(
-            f"Cannot convert as input {bytetype} are larger than max length",
-            expr,
-        )
-
-    return LLLnode(
-        value=in_arg.value,
-        args=in_arg.args,
-        typ=ReturnType(in_arg.typ.maxlen),
-        pos=getpos(expr),
-        location=in_arg.location,
-    )
-
-
-@signature(("Bytes"), "*")
-def to_string(expr, args, kwargs, context):
-    return _to_bytelike(expr, args, kwargs, context, bytetype="String")
-
-
-@signature(("String"), "*")
-def to_bytes(expr, args, kwargs, context):
-    return _to_bytelike(expr, args, kwargs, context, bytetype="Bytes")
+    # NOTE: this is a pointer cast
+    return LLLnode.from_list(arg, typ=out_typ)
 
 
 def convert(expr, context):
     if len(expr.args) != 2:
         raise StructureException("The convert function expects two parameters.", expr)
-    if isinstance(expr.args[1], vy_ast.Str):
-        warnings.warn(
-            "String parameter has been removed (see VIP1026). " "Use a vyper type instead.",
-            DeprecationWarning,
-        )
 
-    if isinstance(expr.args[1], vy_ast.Name):
-        output_type = expr.args[1].id
-    elif isinstance(expr.args[1], (vy_ast.Subscript)) and isinstance(
-        expr.args[1].value, (vy_ast.Name)
-    ):
-        output_type = expr.args[1].value.id
-    else:
-        raise StructureException("Invalid conversion type, use valid Vyper type.", expr)
+    arg_ast = expr.args[0]
+    arg = Expr(arg_ast, context).lll_node
+    out_typ = context.parse_type(expr.args[1])
 
-    if output_type in CONVERSION_TABLE:
-        return CONVERSION_TABLE[output_type](expr, context)
-    else:
-        raise StructureException(f"Conversion to {output_type} is invalid.", expr)
+    if isinstance(arg.typ, BaseType):
+        arg = unwrap_location(arg)
+    with arg.cache_when_complex("arg") as (b, arg):
+        if is_base_type(out_typ, "bool"):
+            ret = to_bool(arg_ast, arg, out_typ)
+        elif is_base_type(out_typ, "address"):
+            ret = to_address(arg_ast, arg, out_typ)
+        elif is_integer_type(out_typ):
+            ret = to_int(arg_ast, arg, out_typ)
+        elif is_bytes_m_type(out_typ):
+            ret = to_bytes_m(arg_ast, arg, out_typ)
+        elif is_decimal_type(out_typ):
+            ret = to_decimal(arg_ast, arg, out_typ)
+        elif isinstance(out_typ, ByteArrayType):
+            ret = to_bytes(arg_ast, arg, out_typ)
+        elif isinstance(out_typ, StringType):
+            ret = to_string(arg_ast, arg, out_typ)
+        else:
+            raise StructureException(f"Conversion to {out_typ} is invalid.", arg_ast)
 
+        ret = b.resolve(ret)
 
-CONVERSION_TABLE = {
-    "bool": to_bool,
-    "int128": to_int128,
-    "int256": to_int256,
-    "uint8": to_uint8,
-    "uint256": to_uint256,
-    "decimal": to_decimal,
-    "bytes32": to_bytes32,
-    "address": to_address,
-    "String": to_string,
-    "Bytes": to_bytes,
-}
+    return LLLnode.from_list(ret, pos=getpos(expr))

@@ -38,11 +38,24 @@ invalid_list = [
 def foo():
     raw_log(b"cow", b"dog")
     """,
+    """
+@external
+def foo():
+    xs: uint256[1] = []
+    """,
     # Must be a literal string.
     """
 @external
 def mint(_to: address, _value: uint256):
     assert msg.sender == self,msg.sender
+    """,
+    # literal longer than event member
+    """
+event Foo:
+    message: String[1]
+@external
+def foo():
+    log Foo("abcd")
     """,
     # Raise reason must be string
     """

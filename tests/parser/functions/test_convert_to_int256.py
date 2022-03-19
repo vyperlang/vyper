@@ -24,7 +24,7 @@ def bytes32_to_num() -> (int256, int256):
 @external
 def bytes_to_num() -> (int256, int256):
     self.c = b'a'
-    literal: int256 = convert('a', int256)
+    literal: int256 = convert(b'a', int256)
     storage: int256 = convert(self.c, int256)
     return literal, storage
 

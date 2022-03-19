@@ -186,6 +186,47 @@ jobs:
       run: TOXENV=py39-no-opt tox -r
 
 
+  py310-core:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v1
+
+    - name: Set up Python 3.10
+      uses: actions/setup-python@v1
+      with:
+        python-version: "3.10"
+
+    - name: Install Tox
+      run: pip install tox
+
+    - name: Run Tox
+      run: TOXENV=py310-core tox -r
+
+    - name: Upload Coverage
+      uses: codecov/codecov-action@v1
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+        file: ./coverage.xml
+
+  py310-no-opt:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v1
+
+    - name: Set up Python 3.10
+      uses: actions/setup-python@v1
+      with:
+        python-version: "3.10"
+
+    - name: Install Tox
+      run: pip install tox
+
+    - name: Run Tox
+      run: TOXENV=py310-no-opt tox -r
+
+
   fuzzing:
     runs-on: ubuntu-latest
 

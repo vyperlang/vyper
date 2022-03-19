@@ -5,7 +5,7 @@ from vyper.semantics.types.user.struct import StructDefinition
 from vyper.semantics.types.value.address import AddressDefinition
 from vyper.semantics.types.value.array_value import BytesArrayDefinition
 from vyper.semantics.types.value.bytes_fixed import Bytes32Definition
-from vyper.semantics.types.value.numeric import Uint256Definition
+from vyper.semantics.types.value.numeric import Uint256Definition  # type: ignore
 
 CONSTANT_ENVIRONMENT_VARS: Dict[str, Dict[str, type]] = {
     "block": {
@@ -24,7 +24,7 @@ CONSTANT_ENVIRONMENT_VARS: Dict[str, Dict[str, type]] = {
         "sender": AddressDefinition,
         "value": Uint256Definition,
     },
-    "tx": {"origin": AddressDefinition},
+    "tx": {"origin": AddressDefinition, "gasprice": Uint256Definition},
 }
 
 

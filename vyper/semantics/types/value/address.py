@@ -3,14 +3,14 @@ from vyper.abi_types import ABI_Address, ABIType
 from vyper.exceptions import CompilerPanic, InvalidLiteral
 from vyper.utils import checksum_encode
 
-from ..bases import BasePrimitive, MemberTypeDefinition
+from ..bases import BasePrimitive, MemberTypeDefinition, ValueTypeDefinition
 from .array_value import BytesArrayDefinition
 from .boolean import BoolDefinition
 from .bytes_fixed import Bytes32Definition
-from .numeric import Uint256Definition
+from .numeric import Uint256Definition  # type: ignore
 
 
-class AddressDefinition(MemberTypeDefinition):
+class AddressDefinition(MemberTypeDefinition, ValueTypeDefinition):
     _id = "address"
     _type_members = {
         "balance": Uint256Definition(is_constant=True),

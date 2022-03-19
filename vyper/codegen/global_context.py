@@ -1,8 +1,8 @@
 from typing import Optional
 
 from vyper import ast as vy_ast
-from vyper.ast.signatures.function_signature import ContractRecord, VariableRecord
-from vyper.codegen.types import InterfaceType, parse_type
+from vyper.ast.signatures.function_signature import VariableRecord
+from vyper.codegen.types import parse_type
 from vyper.exceptions import CompilerPanic, InvalidType, StructureException
 from vyper.typing import InterfaceImports
 from vyper.utils import cached_property
@@ -133,32 +133,6 @@ class GlobalContext:
                 raise StructureException("Invalid contract reference", item)
         return _defs
 
-    def get_item_name_and_attributes(self, item, attributes):
-        is_map_invocation = (
-            isinstance(item, vy_ast.Call) and isinstance(item.func, vy_ast.Name)
-        ) and item.func.id == "HashMap"
-
-        if isinstance(item, vy_ast.Name):
-            return item.id, attributes
-        elif isinstance(item, vy_ast.AnnAssign):
-            return self.get_item_name_and_attributes(item.annotation, attributes)
-        elif isinstance(item, vy_ast.Subscript):
-            return self.get_item_name_and_attributes(item.value, attributes)
-        elif is_map_invocation:
-            if len(item.args) != 2:
-                raise StructureException(
-                    "Map type expects two type arguments HashMap[type1, type2]", item.func
-                )
-            return self.get_item_name_and_attributes(item.args, attributes)
-        # elif ist
-        elif isinstance(item, vy_ast.Call) and isinstance(item.func, vy_ast.Name):
-            attributes[item.func.id] = True
-            # Raise for multiple args
-            if len(item.args) != 1:
-                raise StructureException(f"{item.func.id} expects one arg (the type)")
-            return self.get_item_name_and_attributes(item.args[0], attributes)
-        return None, attributes
-
     @staticmethod
     def get_call_func_name(item):
         if isinstance(item.annotation, vy_ast.Call) and isinstance(
@@ -167,7 +141,6 @@ class GlobalContext:
             return item.annotation.func.id
 
     def add_globals_and_events(self, item):
-        item_attributes = {"public": False}
 
         if self._nonrentrant_counter:
             raise CompilerPanic("Re-entrancy lock was set before all storage slots were defined")
@@ -180,29 +153,11 @@ class GlobalContext:
         if self.get_call_func_name(item) == "constant":
             return
 
-        item_name, item_attributes = self.get_item_name_and_attributes(item, item_attributes)
-
         # references to `len(self._globals)` are remnants of deprecated code, retained
         # to preserve existing interfaces while we complete a larger refactor. location
         # and size of storage vars is handled in `vyper.context.validation.data_positions`
-        if item_name in self._contracts or item_name in self._interfaces:
-            if self.get_call_func_name(item) == "address":
-                raise StructureException(
-                    f"Persistent address({item_name}) style contract declarations "
-                    "are not support anymore."
-                    f" Use {item.target.id}: {item_name} instead"
-                )
-            self._globals[item.target.id] = ContractRecord(
-                item.target.id,
-                len(self._globals),
-                InterfaceType(item_name),
-                True,
-            )
-        elif self.get_call_func_name(item) == "public":
-            if isinstance(item.annotation.args[0], vy_ast.Name) and item_name in self._contracts:
-                typ = InterfaceType(item_name)
-            else:
-                typ = self.parse_type(item.annotation.args[0])
+        if self.get_call_func_name(item) == "public":
+            typ = self.parse_type(item.annotation.args[0])
             self._globals[item.target.id] = VariableRecord(
                 item.target.id,
                 len(self._globals),
@@ -220,22 +175,34 @@ class GlobalContext:
             )
 
         elif isinstance(item.annotation, (vy_ast.Name, vy_ast.Call, vy_ast.Subscript)):
+            typ = self.parse_type(item.annotation)
             self._globals[item.target.id] = VariableRecord(
                 item.target.id,
                 len(self._globals),
-                self.parse_type(item.annotation),
+                typ,
                 True,
             )
         else:
             raise InvalidType("Invalid global type specified", item)
 
+    @property
+    def interface_names(self):
+        """
+        The set of names which are known to possibly be InterfaceType
+        """
+        return set(self._contracts.keys()) | set(self._interfaces.keys())
+
     def parse_type(self, ast_node):
         return parse_type(
             ast_node,
-            sigs=self._contracts,
+            sigs=self.interface_names,
             custom_structs=self._structs,
         )
 
+    @property
+    def immutables(self):
+        return [t for t in self._globals.values() if t.is_immutable]
+
     @cached_property
-    def immutable_section_size(self):
-        return sum([imm.size * 32 for imm in self._globals.values() if imm.is_immutable])
+    def immutable_section_bytes(self):
+        return sum([imm.size * 32 for imm in self.immutables])

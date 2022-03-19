@@ -25,7 +25,11 @@ from vyper.semantics.environment import CONSTANT_ENVIRONMENT_VARS, MUTABLE_ENVIR
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.abstract import IntegerAbstractType
 from vyper.semantics.types.bases import DataLocation
-from vyper.semantics.types.function import ContractFunction, FunctionVisibility, StateMutability
+from vyper.semantics.types.function import (
+    ContractFunction,
+    MemberFunctionDefinition,
+    StateMutability,
+)
 from vyper.semantics.types.indexable.sequence import (
     ArrayDefinition,
     DynamicArrayDefinition,
@@ -36,7 +40,6 @@ from vyper.semantics.types.utils import get_type_from_annotation
 from vyper.semantics.types.value.address import AddressDefinition
 from vyper.semantics.types.value.array_value import StringDefinition
 from vyper.semantics.types.value.boolean import BoolDefinition
-from vyper.semantics.types.value.numeric import Uint256Definition
 from vyper.semantics.validation.annotation import StatementAnnotationVisitor
 from vyper.semantics.validation.base import VyperNodeVisitorBase
 from vyper.semantics.validation.utils import (
@@ -166,14 +169,6 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         self.expr_visitor = _LocalExpressionVisitor()
         namespace.update(self.func.arguments)
 
-        if self.func.visibility is FunctionVisibility.INTERNAL:
-            node_list = fn_node.get_descendants(
-                vy_ast.Attribute, {"value.id": "msg", "attr": {"data", "sender"}}
-            )
-            if node_list:
-                raise StateAccessViolation(
-                    f"msg.{node_list[0].attr} is not allowed in internal functions", node_list[0]
-                )
         if self.func.mutability == StateMutability.PURE:
             node_list = fn_node.get_descendants(
                 vy_ast.Attribute,
@@ -323,7 +318,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                     raise StateAccessViolation("Value must be a literal", node)
                 if args[0].value <= 0:
                     raise StructureException("For loop must have at least 1 iteration", args[0])
-                validate_expected_type(args[0], Uint256Definition())
+                validate_expected_type(args[0], IntegerAbstractType())
                 type_list = get_possible_types_from_node(args[0])
             else:
                 validate_expected_type(args[0], IntegerAbstractType())
@@ -444,7 +439,6 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
     def visit_Expr(self, node):
         if not isinstance(node.value, vy_ast.Call):
             raise StructureException("Expressions without assignment are disallowed", node)
-
         fn_type = get_exact_type_from_node(node.value.func)
         if isinstance(fn_type, Event):
             raise StructureException("To call an event you must use the `log` statement", node)
@@ -463,9 +457,12 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                 raise StateAccessViolation(
                     f"Cannot call any function from a {self.func.mutability.value} function", node
                 )
-
         return_value = fn_type.fetch_call_return(node.value)
-        if return_value and not isinstance(fn_type, ContractFunction):
+        if (
+            return_value
+            and not isinstance(fn_type, MemberFunctionDefinition)
+            and not isinstance(fn_type, ContractFunction)
+        ):
             raise StructureException(
                 f"Function '{fn_type._id}' cannot be called without assigning the result", node
             )
