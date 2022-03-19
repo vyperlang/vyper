@@ -283,26 +283,58 @@ def foo() -> (Bytes[5], Bytes[5]):
     assert a == b == b""
 
 
-@pytest.mark.parametrize("value,result", [("helloooo", False), ("hello", False), ("", True)])
-def test_empty_string_comparison(get_contract_with_gas_estimation, value, result):
-    contract = """
+@pytest.mark.parametrize(
+    "length,value,result",
+    [
+        (1, "a", False),
+        (1, "", True),
+        (8, "helloooo", False),
+        (8, "hello", False),
+        (8, "", True),
+        (40, "a", False),
+        (40, "hellohellohellohellohellohellohellohello", False),
+        (40, "", True),
+    ],
+)
+@pytest.mark.parametrize("op", ["==", "!="])
+def test_empty_string_comparison(get_contract_with_gas_estimation, length, value, result, op):
+    contract = f"""
 @external
-def foo(xs: String[8]) -> bool:
-    return xs == empty(String[8])
+def foo(xs: String[{length}]) -> bool:
+    return xs {op} empty(String[{length}])
     """
     c = get_contract_with_gas_estimation(contract)
-    assert c.foo(value) == result
+    if op == "==":
+        assert c.foo(value) == result
+    elif op == "!=":
+        assert c.foo(value) != result
 
 
-@pytest.mark.parametrize("value,result", [(b"helloooo", False), (b"hello", False), (b"", True)])
-def test_empty_bytes_comparison(get_contract_with_gas_estimation, value, result):
-    contract = """
+@pytest.mark.parametrize(
+    "length,value,result",
+    [
+        (1, b"a", False),
+        (1, b"", True),
+        (8, b"helloooo", False),
+        (8, b"hello", False),
+        (8, b"", True),
+        (40, b"a", False),
+        (40, b"hellohellohellohellohellohellohellohello", False),
+        (40, b"", True),
+    ],
+)
+@pytest.mark.parametrize("op", ["==", "!="])
+def test_empty_bytes_comparison(get_contract_with_gas_estimation, length, value, result, op):
+    contract = f"""
 @external
-def foo(xs: Bytes[8]) -> bool:
-    return empty(Bytes[8]) == xs
+def foo(xs: Bytes[{length}]) -> bool:
+    return empty(Bytes[{length}]) {op} xs
     """
     c = get_contract_with_gas_estimation(contract)
-    assert c.foo(value) == result
+    if op == "==":
+        assert c.foo(value) == result
+    elif op == "!=":
+        assert c.foo(value) != result
 
 
 def test_empty_struct(get_contract_with_gas_estimation):
