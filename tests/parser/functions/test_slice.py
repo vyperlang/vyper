@@ -301,9 +301,7 @@ def bar(foo: bytes32) -> Bytes[32]:
 def test_slice_bytes32_calldata(get_contract, code, start, length):
 
     c = get_contract(code.format(start=start, length=length))
-    assert (
-        c.bar(_generate_bytes(32)) == _generate_bytes(32)[start : start + length]
-    )
+    assert c.bar(_generate_bytes(32)) == _generate_bytes(32)[start : start + length]
 
 
 code_bytes32_calldata_extended = [
