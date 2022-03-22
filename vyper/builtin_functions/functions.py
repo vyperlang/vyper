@@ -258,23 +258,45 @@ class Slice:
     def fetch_call_return(self, node):
         validate_call_args(node, 3)
 
-        for arg in node.args[1:]:
-            validate_expected_type(arg, Uint256Definition())
-        if isinstance(node.args[2], vy_ast.Int) and node.args[2].value < 1:
-            raise ArgumentException("Length cannot be less than 1", node.args[2])
-
         validate_expected_type(node.args[0], (BytesAbstractType(), StringPrimitive()))
-        type_list = get_possible_types_from_node(node.args[0])
+
+        arg_type = get_possible_types_from_node(node.args[0]).pop()
+
         try:
             validate_expected_type(node.args[0], StringPrimitive())
             return_type = StringDefinition()
         except VyperException:
             return_type = BytesArrayDefinition()
 
-        if isinstance(node.args[2], vy_ast.Int):
-            return_type.set_length(node.args[2].value)
+        for arg in node.args[1:]:
+            validate_expected_type(arg, Uint256Definition())
+
+        # validate start and length are in bounds
+
+        start_expr = node.args[1]
+        length_expr = node.args[2]
+
+        start_literal = start_expr.value if isinstance(start_expr, vy_ast.Int) else None
+        length_literal = length_expr.value if isinstance(length_expr, vy_ast.Int) else None
+
+        if length_literal is not None:
+            if length_literal < 1:
+                raise ArgumentException("Length cannot be less than 1", length_expr)
+
+            if length_literal > arg_type.length:
+                raise ArgumentException("slice out of bounds for {arg_type}", length_expr)
+
+        if start_literal is not None:
+            if start_literal > arg_type.length:
+                raise ArgumentException("slice out of bounds for {arg_type}", start_expr)
+            if length_literal is not None and start_literal + length_literal > arg_type.length:
+                raise ArgumentException("slice out of bounds for {arg_type}", node)
+
+        # we know the length statically
+        if length_literal is not None:
+            return_type.set_length(length_literal)
         else:
-            return_type.set_min_length(type_list[0].length)
+            return_type.set_min_length(arg_type.length)
 
         return return_type
 
@@ -303,14 +325,6 @@ class Slice:
                 src_maxlen = 32
             else:
                 src_maxlen = src.typ.maxlen
-
-            if start.is_literal and length.is_literal:
-                # TODO this should be moved to typechecker
-                if not (0 <= start.value + length.value <= src_maxlen):
-                    raise InvalidLiteral(
-                        f"slice out of bounds: slice({src.typ}, {start.value}, {length.value})",
-                        expr,
-                    )
 
             dst_maxlen = length.value if length.is_literal else src_maxlen
 
