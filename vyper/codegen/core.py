@@ -199,7 +199,7 @@ def copy_bytes(dst, src, length, length_bound, pos=None):
     length = LLLnode.from_list(length)
 
     with src.cache_when_complex("src") as (b1, src), length.cache_when_complex(
-        "copy_word_count"
+        "copy_bytes_count"
     ) as (b2, length,), dst.cache_when_complex("dst") as (b3, dst):
 
         # fast code for common case where num bytes is small
