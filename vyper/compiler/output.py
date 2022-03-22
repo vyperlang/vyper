@@ -87,7 +87,7 @@ def build_ir_runtime_output(compiler_data: CompilerData) -> LLLnode:
 
 def _lll_to_dict(lll_node):
     args = lll_node.args
-    if len(args) > 0:
+    if len(args) > 0 or lll_node.value == "seq":
         return {lll_node.value: [_lll_to_dict(x) for x in args]}
     return lll_node.value
 
