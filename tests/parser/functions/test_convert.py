@@ -2,12 +2,17 @@ from decimal import Decimal
 
 import pytest
 
-from vyper.codegen.types import BYTES_M_TYPES, SIGNED_INTEGER_TYPES, UNSIGNED_INTEGER_TYPES
+from vyper.codegen.types import (
+    BASE_TYPES,
+    BYTES_M_TYPES,
+    SIGNED_INTEGER_TYPES,
+    UNSIGNED_INTEGER_TYPES,
+)
 from vyper.exceptions import InvalidType, TypeMismatch
 from vyper.utils import checksum_encode
 
 
-def _generate_test_cases_for_type(type_, bits=None):
+def _generate_valid_test_cases_for_type(type_, bits=None):
     """
     Helper function to generate the test cases for a specific type.
     """
@@ -56,6 +61,11 @@ def _generate_test_cases_for_type(type_, bits=None):
             "0x" + ("00" * (bits - 1)) + "01",
             checksum_encode("0x" + ("FF" * bits)) if bits == 20 else "0x" + ("FF" * bits),
         ]
+    elif type_ == "bool":
+        return [
+            True,
+            False,
+        ]
 
 
 def _generate_input_values_dict(in_type, out_type, cases, out_values):
@@ -66,21 +76,20 @@ def _generate_input_values_dict(in_type, out_type, cases, out_values):
     res = []
     for c, ov in zip(cases, out_values):
 
-        if (
-            in_type.startswith("bytes")
-            and out_type == "address"
-            and ov == "0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF"
-        ):
-            bits = int(in_type[5:])
-            ov = checksum_encode("0x" + "00" * (20 - bits) + "ff" * bits)
+        if out_type == "address" and ov == "0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF":
 
-        if (
-            in_type.startswith("uint")
-            and out_type == "address"
-            and ov == "0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF"
-        ):
-            bits = int(in_type[4:])
-            ov = checksum_encode("0x" + hex(c)[2:].rjust(40, "0"))
+            # Compute the output value where the output type is address
+            # and the placeholder value 0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF
+            # is used
+
+            if in_type.startswith("bytes"):
+                ov = checksum_encode("0x" + c[2:].rjust(40, "0"))
+
+            if in_type.startswith("Bytes"):
+                ov = checksum_encode("0x" + c.hex().rjust(40, "0"))
+
+            if in_type.startswith("uint"):
+                ov = checksum_encode("0x" + hex(c)[2:].rjust(40, "0"))
 
         res.append(
             {
@@ -107,13 +116,13 @@ def generate_test_convert_values(in_type, out_type, out_values):
         )
         for t in unsigned_integer_types:
             bits = int(t[4:])
-            cases = _generate_test_cases_for_type(in_type, bits)
+            cases = _generate_valid_test_cases_for_type(in_type, bits)
             result += _generate_input_values_dict(t, out_type, cases, out_values)
 
     elif in_type == "int":
         for t in SIGNED_INTEGER_TYPES:
             bits = int(t[3:])
-            cases = _generate_test_cases_for_type(in_type, bits)
+            cases = _generate_valid_test_cases_for_type(in_type, bits)
             result += _generate_input_values_dict(t, out_type, cases, out_values)
 
     elif in_type[:5] == "bytes":
@@ -124,17 +133,17 @@ def generate_test_convert_values(in_type, out_type, out_values):
         )
         for t in bytes_types:
             bits = int(t[5:])
-            cases = _generate_test_cases_for_type("bytes", bits)
+            cases = _generate_valid_test_cases_for_type("bytes", bits)
             result += _generate_input_values_dict(t, out_type, cases, out_values)
 
     elif in_type[:5] == "Bytes":
         bits = int(in_type[6:-1])
         print(bits)
-        cases = _generate_test_cases_for_type("Bytes", bits)
+        cases = _generate_valid_test_cases_for_type("Bytes", bits)
         result += _generate_input_values_dict(in_type, out_type, cases, out_values)
 
     elif in_type in ["decimal", "address"]:
-        cases = _generate_test_cases_for_type(in_type)
+        cases = _generate_valid_test_cases_for_type(in_type)
         result += _generate_input_values_dict(in_type, out_type, cases, out_values)
 
     return sorted(result, key=lambda d: d["in_type"])
@@ -170,9 +179,22 @@ def generate_test_convert_values(in_type, out_type, out_values):
             "0x0000000000000000000000000000000000000001",
             "0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF",  # Placeholder value
         ],
+    )
+    + generate_test_convert_values(
+        "Bytes[19]",
+        "address",
+        [
+            "0x0000000000000000000000000000000000000000",
+            "0x0000000000000000000000000000000000000000",
+            "0x0000000000000000000000000000000000000000",
+            "0x0000000000000000000000000000000000000001",
+            "0x0000000000000000000000000000000000000001",
+            "0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF",  # Placeholder value
+            "0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF",  # Placeholder value
+        ],
     ),
 )
-def test_convert_2(get_contract_with_gas_estimation, input_values):
+def test_convert(get_contract_with_gas_estimation, input_values):
 
     if (
         input_values["out_type"] == "address"
@@ -180,38 +202,43 @@ def test_convert_2(get_contract_with_gas_estimation, input_values):
     ):
         input_values["out_value"] = None
 
+    in_type = input_values["in_type"]
+    out_type = input_values["out_type"]
+    in_value = input_values["in_value"]
+    out_value = input_values["out_value"]
+
     contract_1 = f"""
 @external
-def test_convert() -> {input_values["out_type"]}:
-        return convert({input_values["in_value"]}, {input_values["out_type"]})
-        """
+def test_convert() -> {out_type}:
+    return convert({in_value}, {out_type})
+    """
 
     c1 = get_contract_with_gas_estimation(contract_1)
-    assert c1.test_convert() == input_values["out_value"]
+    assert c1.test_convert() == out_value
 
     contract_2 = f"""
 @external
-def test_input_convert(x: {input_values["in_type"]}) -> {input_values["out_type"]}:
-        return convert(x, {input_values["out_type"]})
-        """
+def test_input_convert(x: {in_type}) -> {out_type}:
+    return convert(x, {out_type})
+    """
 
     c2 = get_contract_with_gas_estimation(contract_2)
-    if input_values["in_type"] == "decimal":
-        assert c2.test_input_convert(Decimal(input_values["in_value"])) == input_values["out_value"]
+    if in_type == "decimal":
+        assert c2.test_input_convert(Decimal(in_value)) == out_value
     else:
-        assert c2.test_input_convert(input_values["in_value"]) == input_values["out_value"]
+        assert c2.test_input_convert(in_value) == out_value
 
     contract_3 = f"""
-bar: {input_values["in_type"]}
+bar: {in_type}
 
 @external
-def test_state_variable_convert() -> {input_values["out_type"]}:
-        self.bar = {input_values["in_value"]}
-        return convert(self.bar, {input_values["out_type"]})
-        """
+def test_state_variable_convert() -> {out_type}:
+    self.bar = {in_value}
+    return convert(self.bar, {out_type})
+    """
 
     c3 = get_contract_with_gas_estimation(contract_3)
-    assert c3.test_state_variable_convert() == input_values["out_value"]
+    assert c3.test_state_variable_convert() == out_value
 
 
 @pytest.mark.parametrize(
@@ -228,8 +255,8 @@ def test_convert_builtin_constant(
     contract = f"""
 @external
 def convert_builtin_constant() -> {out_type}:
-        return convert({builtin_constant}, {out_type})
-        """
+    return convert({builtin_constant}, {out_type})
+    """
 
     c = get_contract_with_gas_estimation(contract)
     assert c.convert_builtin_constant() == out_value
@@ -264,23 +291,60 @@ def test_convert(x: {in_type}) -> {out_type}:
         assert c.test_convert(in_value) == out_value
 
 
+def generate_test_cases_for_same_type_conversion():
+    """
+    Helper function to generate test cases for invalid conversion of same types.
+    """
+    res = []
+    for t in BASE_TYPES.union({"Bytes[32]"}):
+        if t.startswith("uint"):
+            bits = int(t[4:])
+            case = _generate_valid_test_cases_for_type("uint", bits)[0]
+
+        elif t.startswith("int"):
+            bits = int(t[3:])
+            case = _generate_valid_test_cases_for_type("int", bits)[0]
+
+        elif t.startswith("bytes"):
+            bits = int(t[5:])
+            case = _generate_valid_test_cases_for_type("bytes", bits)[0]
+
+        elif t.startswith("Bytes"):
+            bits = int(t[6:-1])
+            case = _generate_valid_test_cases_for_type("Bytes", bits)[0]
+
+        else:
+            case = _generate_valid_test_cases_for_type(t)[0]
+
+        res.append({"in_type": t, "out_type": t, "in_value": case, "exception": InvalidType})
+
+    return res
+
+
 @pytest.mark.parametrize(
-    "in_type,out_type,in_value,exception",
-    [
-        ("bool", "bool", True, InvalidType),
-        ("bool", "bool", False, InvalidType),
-        ("Bytes[33]", "bool", b"\xff" * 33, TypeMismatch),
-        (
-            "Bytes[63]",
-            "bool",
-            b"Hello darkness, my old friend I've come to talk with you again.",
-            TypeMismatch,
-        ),
+    "input_values",
+    generate_test_cases_for_same_type_conversion()
+    + [
+        {
+            "in_type": "Bytes[33]",
+            "out_type": "bool",
+            "in_value": b"\xff" * 33,
+            "exception": TypeMismatch,
+        },
+        {
+            "in_type": "Bytes[63]",
+            "out_type": "bool",
+            "in_value": b"Hello darkness, my old friend I've come to talk with you again.",
+            "exception": TypeMismatch,
+        },
     ],
 )
-def test_invalid_convert(
-    get_contract_with_gas_estimation, assert_compile_failed, in_type, out_type, in_value, exception
-):
+def test_invalid_convert(get_contract_with_gas_estimation, assert_compile_failed, input_values):
+
+    in_type = input_values["in_type"]
+    out_type = input_values["out_type"]
+    in_value = input_values["in_value"]
+    exception = input_values["exception"]
 
     contract_1 = f"""
 @external
@@ -308,8 +372,8 @@ def foo():
     contract_3 = f"""
 @external
 def foo(bar: {in_type}) -> {out_type}:
-        return convert(bar, {out_type})
-        """
+    return convert(bar, {out_type})
+    """
 
     assert_compile_failed(
         lambda: get_contract_with_gas_estimation(contract_3),
