@@ -101,12 +101,16 @@ def apply_general_optimizations(node: LLLnode) -> LLLnode:
         annotation = argz[1].annotation
         argz = argz[1].args
 
-    elif node.value == "add" and get_int_at(argz, 0) == 0:
+    elif (node.value == "add" and get_int_at(argz, 0) == 0) or (
+        node.value == "mul" and get_int_at(argz, 0) == 1
+    ):
         value = argz[1].value
         annotation = argz[1].annotation
         argz = argz[1].args
 
-    elif node.value == "add" and get_int_at(argz, 1) == 0:
+    elif (node.value == "add" and get_int_at(argz, 1) == 0) or (
+        node.value == "mul" and get_int_at(argz, 1) == 1
+    ):
         value = argz[0].value
         annotation = argz[0].annotation
         argz = argz[0].args
