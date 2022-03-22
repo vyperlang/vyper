@@ -390,7 +390,7 @@ class Slice:
 
                 # len + (32 if start % 32 > 0 else 0)
                 copy_len = ["add", length, ["mul", 32, ["iszero", ["iszero", ["mod", start, 32]]]]]
-                copy_maxlen = dst_maxlen
+                copy_maxlen = buflen
 
             else:
                 # all other address spaces (mem, calldata, code) we have
@@ -400,7 +400,7 @@ class Slice:
                 copy_src = add_ofst(src_data, start)
                 copy_dst = dst_data
                 copy_len = length
-                copy_maxlen = dst_maxlen
+                copy_maxlen = buflen
 
             do_copy = copy_bytes(
                 copy_dst,
