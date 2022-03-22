@@ -159,6 +159,11 @@ def apply_general_optimizations(node: LLLnode) -> LLLnode:
         value = "iszero"
         argz = [LLLnode.from_list(["not", argz[0]])]
 
+    elif node.value == "iszero" and int_at(argz, 0):
+        value = 1 if get_int_at(argz, 0) == 0 else 0
+        annotation = f"iszero({annotation})"
+        argz = []
+
     # (eq x y) has the same truthyness as (iszero (xor x y))
     # rewrite 'eq' as 'xor' in places where truthy is accepted.
     # (the sequence (if (iszero (xor x y))) will be translated to
