@@ -79,9 +79,7 @@ def do_splice() -> Bytes[100]:
         assert c.do_splice() == bytesdata[start : start + length]
 
 
-@pytest.mark.parametrize(
-    "location", ("storage", "calldata", "memory", "literal", "code")
-)
+@pytest.mark.parametrize("location", ("storage", "calldata", "memory", "literal", "code"))
 @pytest.mark.parametrize("bytesdata", _bytes_examples)
 @pytest.mark.parametrize("start", _fun_numbers)
 @pytest.mark.parametrize("literal_start", (True, False))
