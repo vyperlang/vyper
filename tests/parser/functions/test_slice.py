@@ -226,7 +226,7 @@ foo: bytes32
 
 @external
 def __init__():
-    self.foo = 0x0001020304050607080910111213141516171819202122232425262728293031
+    self.foo = 0x000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f
 
 @external
 def bar() -> Bytes[{length}]:
@@ -237,7 +237,7 @@ foo: bytes32
 
 @external
 def __init__():
-    self.foo = 0x0001020304050607080910111213141516171819202122232425262728293031
+    self.foo = 0x000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f
 
 @external
 def bar() -> Bytes[32]:
@@ -245,28 +245,27 @@ def bar() -> Bytes[32]:
     b: uint256 = {length}
     return slice(self.foo, a, b)
     """,
-    """
+    f"""
 foo: Bytes[32]
 
 @external
 def bar() -> Bytes[32]:
-    self.foo = b"\x00\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a\x0b\x0c\x0d\x0e\x0f"
-    self.foo = concat(self.foo, self.foo)
-    a: uint256 = {start}
-    b: uint256 = {length}
+    self.foo = {_generate_bytes(32)}
+    a: uint256 = {{start}}
+    b: uint256 = {{length}}
     return slice(convert(self.foo, bytes32), a, b)
     """,
     """
 @external
 def bar() -> Bytes[{length}]:
-    foo: bytes32 = 0x0001020304050607080910111213141516171819202122232425262728293031
+    foo: bytes32 = 0x000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f
     return slice(foo, {start}, {length})
     """,
     """
 @external
 def bar() -> Bytes[32]:
     b: uint256 = {length}
-    foo: bytes32 = 0x0001020304050607080910111213141516171819202122232425262728293031
+    foo: bytes32 = 0x000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f
     a: uint256 = {start}
     return slice(foo, a, b)
     """,
@@ -278,7 +277,7 @@ def bar() -> Bytes[32]:
 def test_slice_bytes32(get_contract, code, start, length):
 
     c = get_contract(code.format(start=start, length=length))
-    assert c.bar().hex() == _generate_bytes(32)[start : start + length]
+    assert c.bar() == _generate_bytes(32)[start : start + length]
 
 
 code_bytes32_calldata = [
@@ -303,7 +302,7 @@ def test_slice_bytes32_calldata(get_contract, code, start, length):
 
     c = get_contract(code.format(start=start, length=length))
     assert (
-        c.bar("0x" + _generate_bytes(32).hex()).hex() == _generate_bytes(32)[start : start + length]
+        c.bar(_generate_bytes(32)) == _generate_bytes(32)[start : start + length]
     )
 
 
