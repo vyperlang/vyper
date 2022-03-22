@@ -2,7 +2,7 @@ import operator
 from typing import List, Optional
 
 from vyper.codegen.lll_node import LLLnode
-from vyper.utils import LOADED_LIMITS, ceil32
+from vyper.utils import LOADED_LIMITS, ceil32, evm_div, evm_mod
 
 
 def get_int_at(args: List[LLLnode], pos: int, signed: bool = False) -> Optional[int]:
@@ -34,8 +34,8 @@ arith = {
     "add": (operator.add, "+"),
     "sub": (operator.sub, "-"),
     "mul": (operator.mul, "*"),
-    "div": (operator.floordiv, "/"),
-    "mod": (operator.mod, "%"),
+    "div": (evm_div, "/"),
+    "mod": (evm_mod, "%"),
 }
 
 
