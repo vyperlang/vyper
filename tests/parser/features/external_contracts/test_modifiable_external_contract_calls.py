@@ -243,8 +243,6 @@ def test_invalid_if_have_modifiability_not_declared(
     code = """
 interface Bar:
     def set_lucky(_lucky: int128): pass
-
-modifiable_bar_contract: public(Bar)
 """
     assert_compile_failed(
         lambda: get_contract_with_gas_estimation_for_constants(code), StructureException
