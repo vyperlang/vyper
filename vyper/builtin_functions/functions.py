@@ -375,7 +375,7 @@ class Slice:
                 )
 
                 # len + (32 if start % 32 > 0 else 0)
-                copy_len = ["add", length, ["mul", 32, ["iszero", ["iszero", ["mod", 32, start]]]]]
+                copy_len = ["add", length, ["mul", 32, ["iszero", ["iszero", ["mod", start, 32]]]]]
                 copy_maxlen = dst_maxlen
 
             else:
