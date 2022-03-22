@@ -141,7 +141,7 @@ def do_slice(inp: Bytes[100], start: uint256, length: uint256) -> Bytes[100]:
         assert_tx_failed(lambda: c.do_slice(bytesdata, start, length))
     else:
         c = get_contract(code, bytesdata)
-        assert c.do_slice(bytesdata, start, length) == bytesdata[start : start + length]
+        assert c.do_slice(bytesdata, start, length) == bytesdata[start : start + length], code
 
 
 def test_slice_private(get_contract):
