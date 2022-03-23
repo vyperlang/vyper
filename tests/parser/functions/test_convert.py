@@ -7,6 +7,7 @@ from vyper.codegen.types import (
     BYTES_M_TYPES,
     SIGNED_INTEGER_TYPES,
     UNSIGNED_INTEGER_TYPES,
+    parse_integer_typeinfo,
 )
 from vyper.exceptions import InvalidLiteral, InvalidType, TypeMismatch
 from vyper.utils import checksum_encode
@@ -16,10 +17,8 @@ def _get_type_N(type_):
     """
     Helper function to extract N from typeN (e.g. uint256, bytes32, Bytes[32])
     """
-    if type_.startswith("uint"):
-        return int(type_[4:])
-    if type_.startswith("int"):
-        return int(type_[3:])
+    if "int" in type_:
+        return parse_integer_typeinfo(type_).bits
     if type_.startswith("bytes"):
         return int(type_[5:])
     if type_.startswith("Bytes"):
