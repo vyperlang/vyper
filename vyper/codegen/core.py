@@ -348,7 +348,12 @@ def add_ofst(ptr, ofst):
 
 # shorthand util
 def _mul(x, y):
-    ret = ["mul", x, y]
+    x, y = LLLnode.from_list(x), LLLnode.from_list(y)
+    # NOTE: similar deal: duplicate with optimizer rule
+    if isinstance(x.value, int) and isinstance(y.value, int):
+        ret = x.value * y.value
+    else:
+        ret = ["mul", x, y]
     return LLLnode.from_list(ret)
 
 
