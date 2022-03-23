@@ -245,7 +245,32 @@ jobs:
     - name: Install Tox
       run: pip install tox
 
+    - name: Get Month
+      id: get-month
+      run: echo "::set-output name=date::$(/bin/date -u "+%Y%m")"
+      shell: bash
+
+    - name: Restore duration cache
+      uses: actions/cache@v2
+      id: test_durations_cache
+      with:
+        path: .test_durations
+        # reset the cache every month
+        key: ${{ runner.os }}-${{ steps.get-month.outputs.date }}-test-durations-cache-
+
+    - name: Check test durations existence
+      id: check_test_durations
+      uses: andstor/file-existence-action@v1
+      with:
+        files: .test_durations
+
+    - name: Run build test_duration
+      if: steps.check_test_durations.outputs.files_exists == 'false' # has to run on all, otherwise the first one that finishes creates an empty cache and lock the cache for others
+      id: build_cache_duration
+      run: TOXENV=fuzzing tox -r -- --store-durations
+
     - name: Run Tox
+      if: steps.check_test_durations.outputs.files_exists == 'true'
       run: TOXENV=fuzzing tox -r -- --splits 10 --group ${{ matrix.group }}
 
     - name: Upload Coverage
