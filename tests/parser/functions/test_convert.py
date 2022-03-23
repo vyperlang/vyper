@@ -9,7 +9,7 @@ from vyper.codegen.types import (
     UNSIGNED_INTEGER_TYPES,
     parse_integer_typeinfo,
 )
-from vyper.exceptions import InvalidLiteral, InvalidType, TypeMismatch
+from vyper.exceptions import InvalidLiteral, InvalidType, OverflowException, TypeMismatch
 from vyper.utils import checksum_encode
 
 
@@ -311,6 +311,18 @@ def generate_test_convert_values(in_type, out_type, out_values):
                 )
                 result += _generate_input_values_dict(in_type, t, updated_cases, updated_out_values)
 
+        elif out_type == "int":
+            for s in SIGNED_INTEGER_TYPES:
+                out_N = _get_type_N(s)
+                updated_cases, updated_out_values = zip(
+                    *[
+                        x
+                        for x in zip(cases, out_values)
+                        if (-(2 ** (out_N - 1)) <= Decimal(x[0]) <= 2 ** (out_N - 1) - 1)
+                    ]
+                )
+                result += _generate_input_values_dict(in_type, s, updated_cases, updated_out_values)
+
         else:
             result += _generate_input_values_dict(in_type, out_type, cases, out_values)
 
@@ -352,7 +364,8 @@ def generate_test_convert_values(in_type, out_type, out_values):
     return sorted(result, key=lambda d: d["in_type"])
 
 
-"""
+@pytest.mark.parametrize(
+    "input_values",
     # Convert to bool
     generate_test_convert_values("uint", "bool", [False, True, True, True])
     + generate_test_convert_values("int", "bool", [False, True, True, True, True, True, True])
@@ -409,10 +422,23 @@ def generate_test_convert_values(in_type, out_type, out_values):
     + generate_test_convert_values("uint", "int", [0, 1, "EVALUATE", "EVALUATE"])
     + generate_test_convert_values("bytes", "int", [0, 1, "EVALUATE"])
     + generate_test_convert_values("Bytes[32]", "int", [0, 0, 0, 1, 1, "EVALUATE", "EVALUATE"])
-"""
-
-
-@pytest.mark.parametrize("input_values", generate_test_convert_values("bool", "int", [1, 0]))
+    + generate_test_convert_values("bool", "int", [1, 0])
+    + generate_test_convert_values(
+        "decimal",
+        "int",
+        [
+            0,
+            0,
+            0,
+            1,
+            170141183460469231731687303715884105726,
+            0,
+            0,
+            -1,
+            -170141183460469231731687303715884105727,
+        ],
+    ),
+)
 def test_convert(get_contract_with_gas_estimation, input_values):
 
     if (
@@ -596,6 +622,36 @@ def generate_test_cases_for_same_type_conversion():
             "in_value": "-27.2319",
             "exception": InvalidLiteral,
         },
+        {
+            "in_type": "Bytes[33]",
+            "out_type": "int256",
+            "in_value": b"\xff" * 33,
+            "exception": TypeMismatch,
+        },
+        {
+            "in_type": "Bytes[63]",
+            "out_type": "int256",
+            "in_value": b"Hello darkness, my old friend I've come to talk with you again.",
+            "exception": TypeMismatch,
+        },
+        {
+            "in_type": "uint256",
+            "out_type": "int256",
+            "in_value": 2 ** 256 - 1,
+            "exception": InvalidLiteral,
+        },
+        {
+            "in_type": "uint256",
+            "out_type": "int256",
+            "in_value": 2 ** 255,
+            "exception": InvalidLiteral,
+        },
+        {
+            "in_type": "decimal",
+            "out_type": "int256",
+            "in_value": "180141183460469231731687303715884105728.0",
+            "exception": OverflowException,
+        },
     ],
 )
 def test_invalid_convert(
@@ -614,7 +670,7 @@ def foo():
     foobar: {out_type} = convert(bar, {out_type})
     """
 
-    if not exception or exception == InvalidLiteral:
+    if exception == InvalidLiteral:
         c1 = get_contract_with_gas_estimation(contract_1)
         assert_tx_failed(lambda: c1.foo())
 
@@ -641,9 +697,11 @@ def foo(bar: {in_type}) -> {out_type}:
     return convert(bar, {out_type})
     """
 
-    if not exception or exception == InvalidLiteral:
-        c1 = get_contract_with_gas_estimation(contract_1)
-        assert_tx_failed(lambda: c1.foo())
+    if exception in [InvalidLiteral, OverflowException]:
+        c3 = get_contract_with_gas_estimation(contract_3)
+        if in_type == "decimal":
+            in_value = Decimal(in_value)
+        assert_tx_failed(lambda: c3.foo(in_value))
 
     else:
         assert_compile_failed(
