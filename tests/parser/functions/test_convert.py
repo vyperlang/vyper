@@ -233,6 +233,11 @@ def _generate_input_values_dict(in_type, out_type, cases, out_values):
             if in_type.startswith("uint"):
                 ov = c
 
+        if out_type == "decimal" and ov == "EVALUATE":
+
+            if "int" in in_type:
+                ov = Decimal(c)
+
         res.append(
             {
                 "in_type": in_type,
@@ -274,7 +279,7 @@ def generate_test_convert_values(in_type, out_type, out_values):
     elif in_type[:5] == "bytes":
         for t in BYTES_M_TYPES:
             in_N = _get_type_N(t)
-            cases = _generate_valid_test_cases_for_type("bytes", in_N)
+            cases = _generate_valid_test_cases_for_type("bytes", count=in_N)
 
             # Skip bytes20 because it is treated as address type
             if in_N == 20:
@@ -293,7 +298,7 @@ def generate_test_convert_values(in_type, out_type, out_values):
 
     elif in_type[:5] == "Bytes":
         in_N = _get_type_N(in_type)
-        cases = _generate_valid_test_cases_for_type("Bytes", in_N)
+        cases = _generate_valid_test_cases_for_type("Bytes", count=in_N)
 
         if out_type == "uint":
             for u in UNSIGNED_INTEGER_TYPES:
@@ -311,7 +316,7 @@ def generate_test_convert_values(in_type, out_type, out_values):
         if out_type == "uint":
             for t in UNSIGNED_INTEGER_TYPES:
                 out_N = _get_type_N(t)
-                cases = _generate_valid_test_cases_for_type(in_type, out_N)
+                cases = _generate_valid_test_cases_for_type(in_type, count=out_N)
                 updated_cases, updated_out_values = zip(
                     *[x for x in zip(cases, out_values) if (Decimal(x[0]) > 0)]
                 )
@@ -320,7 +325,7 @@ def generate_test_convert_values(in_type, out_type, out_values):
         elif out_type == "int":
             for s in SIGNED_INTEGER_TYPES:
                 out_N = _get_type_N(s)
-                cases = _generate_valid_test_cases_for_type(in_type, out_N)
+                cases = _generate_valid_test_cases_for_type(in_type, count=out_N)
                 result += _generate_input_values_dict(in_type, s, cases, out_values)
 
         else:
@@ -330,7 +335,7 @@ def generate_test_convert_values(in_type, out_type, out_values):
     elif in_type == "int":
         for t in SIGNED_INTEGER_TYPES:
             in_N = _get_type_N(t)
-            cases = _generate_valid_test_cases_for_type(in_type, in_N)
+            cases = _generate_valid_test_cases_for_type(in_type, count=in_N)
 
             if out_type == "uint":
                 for u in UNSIGNED_INTEGER_TYPES:
@@ -341,12 +346,15 @@ def generate_test_convert_values(in_type, out_type, out_values):
                     result += _generate_input_values_dict(t, u, updated_cases, updated_out_values)
 
             else:
+                if out_type == "decimal":
+                    if in_N > 128:
+                        cases = _generate_valid_test_cases_for_type(in_type, count=128)
                 result += _generate_input_values_dict(t, out_type, cases, out_values)
 
     elif in_type == "uint":
         for t in UNSIGNED_INTEGER_TYPES:
             in_N = _get_type_N(t)
-            cases = _generate_valid_test_cases_for_type(in_type, in_N)
+            cases = _generate_valid_test_cases_for_type(in_type, count=in_N)
 
             if out_type == "int":
                 for s in SIGNED_INTEGER_TYPES:
@@ -354,11 +362,14 @@ def generate_test_convert_values(in_type, out_type, out_values):
 
                     # Update max values based on intN
                     if out_N <= in_N:
-                        cases = _generate_valid_test_cases_for_type(in_type, out_N - 1)
+                        cases = _generate_valid_test_cases_for_type(in_type, count=out_N - 1)
 
                     result += _generate_input_values_dict(t, s, cases, out_values)
 
             else:
+                if out_type == "decimal":
+                    if in_N >= 128:
+                        cases = _generate_valid_test_cases_for_type(in_type, count=127)
                 result += _generate_input_values_dict(t, out_type, cases, out_values)
 
     return sorted(result, key=lambda d: d["in_type"])
@@ -424,8 +435,14 @@ def generate_test_convert_values(in_type, out_type, out_values):
     + generate_test_convert_values(
         "decimal", "int", [0, 0, 0, 1, "EVALUATE", 0, 0, -1, "EVALUATE"]
     ),
+    # Convert to decimal
+    +generate_test_convert_values("bool", "decimal", [1.0, 0.0])
+    + generate_test_convert_values(
+        "int", "decimal", [0.0, 1.0, "EVALUATE", "EVALUATE", -1.0, "EVALUATE", "EVALUATE"]
+    )
+    + generate_test_convert_values("uint", "decimal", [0.0, 1.0, "EVALUATE", "EVALUATE"]),
 )
-def test_convert(get_contract_with_gas_estimation, input_values):
+def test_convert_pass(get_contract_with_gas_estimation, input_values):
 
     if (
         input_values["out_type"] == "address"
@@ -541,19 +558,19 @@ def generate_test_cases_for_same_type_conversion():
     for t in BASE_TYPES.union({"Bytes[32]"}):
         if t.startswith("uint"):
             bits = int(t[4:])
-            case = _generate_valid_test_cases_for_type("uint", bits)[0]
+            case = _generate_valid_test_cases_for_type("uint", count=bits)[0]
 
         elif t.startswith("int"):
             bits = int(t[3:])
-            case = _generate_valid_test_cases_for_type("int", bits)[0]
+            case = _generate_valid_test_cases_for_type("int", count=bits)[0]
 
         elif t.startswith("bytes"):
             bits = int(t[5:])
-            case = _generate_valid_test_cases_for_type("bytes", bits)[0]
+            case = _generate_valid_test_cases_for_type("bytes", count=bits)[0]
 
         elif t.startswith("Bytes"):
             bits = int(t[6:-1])
-            case = _generate_valid_test_cases_for_type("Bytes", bits)[0]
+            case = _generate_valid_test_cases_for_type("Bytes", count=bits)[0]
 
         else:
             case = _generate_valid_test_cases_for_type(t)[0]
