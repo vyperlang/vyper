@@ -45,17 +45,37 @@ def _generate_valid_test_cases_for_type(type_, count=None):
     """
     Helper function to generate the test cases for a specific type.
     """
-    if type_ == "uint":
-        return [0, 1, 2 ** count - 2, 2 ** count - 1]
-    elif type_ == "int":
+    if type_ == "address":
         return [
-            0,
-            1,
-            2 ** (count - 1) - 2,
-            2 ** (count - 1) - 1,
-            -(2 ** (count - 1)),
-            -(2 ** (count - 1) - 1),
+            "0x0000000000000000000000000000000000000000",
+            "0xF5D4020dCA6a62bB1efFcC9212AAF3c9819E30D7",
+            "0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF",
         ]
+
+    elif type_ == "bool":
+        return [
+            True,
+            False,
+        ]
+
+    elif type_ == "bytes":
+        return [
+            "0x" + ("00" * count),
+            "0x" + ("00" * (count - 1)) + "01",
+            checksum_encode("0x" + ("FF" * count)) if count == 20 else "0x" + ("FF" * count),
+        ]
+
+    elif type_ == "Bytes":
+        return [
+            b"",
+            b"\x00",
+            b"\x00" * count,
+            b"\x01",
+            b"\x00\x01",
+            b"\xff" * (count - 1) + b"\xfe",
+            b"\xff" * count,
+        ]
+
     elif type_ == "decimal":
         return [
             "0.0",
@@ -68,33 +88,19 @@ def _generate_valid_test_cases_for_type(type_, count=None):
             "-1.0",
             "-170141183460469231731687303715884105727.9999999999",  # - (2 ** 127 - 0.0000000001)
         ]
-    elif type_ == "address":
+
+    elif type_ == "int":
         return [
-            "0x0000000000000000000000000000000000000000",
-            "0xF5D4020dCA6a62bB1efFcC9212AAF3c9819E30D7",
-            "0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF",
+            0,
+            1,
+            2 ** (count - 1) - 2,
+            2 ** (count - 1) - 1,
+            -(2 ** (count - 1)),
+            -(2 ** (count - 1) - 1),
         ]
-    elif type_ == "Bytes":
-        return [
-            b"",
-            b"\x00",
-            b"\x00" * count,
-            b"\x01",
-            b"\x00\x01",
-            b"\xff" * (count - 1) + b"\xfe",
-            b"\xff" * count,
-        ]
-    elif type_ == "bytes":
-        return [
-            "0x" + ("00" * count),
-            "0x" + ("00" * (count - 1)) + "01",
-            checksum_encode("0x" + ("FF" * count)) if count == 20 else "0x" + ("FF" * count),
-        ]
-    elif type_ == "bool":
-        return [
-            True,
-            False,
-        ]
+
+    elif type_ == "uint":
+        return [0, 1, 2 ** count - 2, 2 ** count - 1]
 
 
 def _generate_input_values_dict(in_type, out_type, cases, out_values):
@@ -171,27 +177,24 @@ def generate_test_convert_values(in_type, out_type, out_values):
     Helper function to generate the test values for a generic input type.
     """
     result = []
-    if in_type == "uint":
-        for t in UNSIGNED_INTEGER_TYPES:
-            bits = _get_type_N(t)
-            cases = _generate_valid_test_cases_for_type(in_type, bits)
-            result += _generate_input_values_dict(t, out_type, cases, out_values)
+    if in_type == "address":
+        cases = _generate_valid_test_cases_for_type(in_type)
 
-    elif in_type == "int":
-        for t in SIGNED_INTEGER_TYPES:
-            bits = _get_type_N(t)
-            cases = _generate_valid_test_cases_for_type(in_type, bits)
+        if out_type == "uint":
+            for t in UNSIGNED_INTEGER_TYPES:
+                result += _generate_input_values_dict(in_type, t, cases, out_values)
 
-            if out_type == "uint":
-                for u in UNSIGNED_INTEGER_TYPES:
-                    out_N = _get_type_N(u)
-                    updated_cases, updated_out_values = zip(
-                        *[x for x in zip(cases, out_values) if (x[0] > 0 and x[0] <= 2 ** out_N)]
-                    )
-                    result += _generate_input_values_dict(t, u, updated_cases, updated_out_values)
+        else:
+            result += _generate_input_values_dict(in_type, out_type, cases, out_values)
 
-            else:
-                result += _generate_input_values_dict(t, out_type, cases, out_values)
+    elif in_type == "bool":
+        cases = _generate_valid_test_cases_for_type(in_type)
+
+        if out_type == "uint":
+            for t in UNSIGNED_INTEGER_TYPES:
+                result += _generate_input_values_dict(in_type, t, cases, out_values)
+        else:
+            result += _generate_input_values_dict(in_type, out_type, cases, out_values)
 
     elif in_type[:5] == "bytes":
         for t in BYTES_M_TYPES:
@@ -232,15 +235,27 @@ def generate_test_convert_values(in_type, out_type, out_values):
         else:
             result += _generate_input_values_dict(in_type, out_type, cases, out_values)
 
-    elif in_type == "address":
-        cases = _generate_valid_test_cases_for_type(in_type)
+    elif in_type == "int":
+        for t in SIGNED_INTEGER_TYPES:
+            bits = _get_type_N(t)
+            cases = _generate_valid_test_cases_for_type(in_type, bits)
 
-        if out_type == "uint":
-            for t in UNSIGNED_INTEGER_TYPES:
-                result += _generate_input_values_dict(in_type, t, cases, out_values)
+            if out_type == "uint":
+                for u in UNSIGNED_INTEGER_TYPES:
+                    out_N = _get_type_N(u)
+                    updated_cases, updated_out_values = zip(
+                        *[x for x in zip(cases, out_values) if (x[0] > 0 and x[0] <= 2 ** out_N)]
+                    )
+                    result += _generate_input_values_dict(t, u, updated_cases, updated_out_values)
 
-        else:
-            result += _generate_input_values_dict(in_type, out_type, cases, out_values)
+            else:
+                result += _generate_input_values_dict(t, out_type, cases, out_values)
+
+    elif in_type == "uint":
+        for t in UNSIGNED_INTEGER_TYPES:
+            bits = _get_type_N(t)
+            cases = _generate_valid_test_cases_for_type(in_type, bits)
+            result += _generate_input_values_dict(t, out_type, cases, out_values)
 
     return sorted(result, key=lambda d: d["in_type"])
 
@@ -296,12 +311,13 @@ generate_test_convert_values("uint", "bool", [False, True, True, True])
 )
 + generate_test_convert_values("address", "uint", [0, "EVALUATE", "EVALUATE"]),
 + generate_test_convert_values("bytes", "uint", [0, 1, "EVALUATE"])
++ generate_test_convert_values("int", "uint", [0, 1, "EVALUATE", "EVALUATE", None, None]),
 """
 
 
 @pytest.mark.parametrize(
     "input_values",
-    generate_test_convert_values("int", "uint", [0, 1, "EVALUATE", "EVALUATE", None, None]),
+    generate_test_convert_values("bool", "uint", [1, 0]),
 )
 def test_convert(get_contract_with_gas_estimation, input_values):
 
