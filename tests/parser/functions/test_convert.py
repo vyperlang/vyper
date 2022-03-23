@@ -12,20 +12,20 @@ from vyper.exceptions import InvalidType, TypeMismatch
 from vyper.utils import checksum_encode
 
 
-def _generate_valid_test_cases_for_type(type_, bits=None):
+def _generate_valid_test_cases_for_type(type_, count=None):
     """
     Helper function to generate the test cases for a specific type.
     """
     if type_ == "uint":
-        return [0, 1, 2 ** bits - 2, 2 ** bits - 1]
+        return [0, 1, 2 ** count - 2, 2 ** count - 1]
     elif type_ == "int":
         return [
             0,
             1,
-            2 ** (bits - 1) - 2,
-            2 ** (bits - 1) - 1,
-            -(2 ** (bits - 1)),
-            -(2 ** (bits - 1) - 1),
+            2 ** (count - 1) - 2,
+            2 ** (count - 1) - 1,
+            -(2 ** (count - 1)),
+            -(2 ** (count - 1) - 1),
         ]
     elif type_ == "decimal":
         return [
@@ -49,17 +49,17 @@ def _generate_valid_test_cases_for_type(type_, bits=None):
         return [
             b"",
             b"\x00",
-            b"\x00" * bits,
+            b"\x00" * count,
             b"\x01",
             b"\x00\x01",
-            b"\xff" * (bits - 1) + b"\xfe",
-            b"\xff" * bits,
+            b"\xff" * (count - 1) + b"\xfe",
+            b"\xff" * count,
         ]
     elif type_ == "bytes":
         return [
-            "0x" + ("00" * bits),
-            "0x" + ("00" * (bits - 1)) + "01",
-            checksum_encode("0x" + ("FF" * bits)) if bits == 20 else "0x" + ("FF" * bits),
+            "0x" + ("00" * count),
+            "0x" + ("00" * (count - 1)) + "01",
+            checksum_encode("0x" + ("FF" * count)) if count == 20 else "0x" + ("FF" * count),
         ]
     elif type_ == "bool":
         return [
@@ -82,14 +82,27 @@ def _generate_input_values_dict(in_type, out_type, cases, out_values):
             # and the placeholder value 0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF
             # is used
 
+            # Modify input value by clamping to 160 bits
+
             if in_type.startswith("bytes"):
-                ov = checksum_encode("0x" + c[2:].rjust(40, "0"))
+                bits = int(in_type[5:]) * 2
+                if bits == 20:
+                    continue
+                index = 2 if bits <= 40 else bits - 40 + 2
+                ov = checksum_encode("0x" + c[index:].rjust(40, "0"))
+                c = "0x" + "0" * (index - 2) + c[index:]
 
             if in_type.startswith("Bytes"):
-                ov = checksum_encode("0x" + c.hex().rjust(40, "0"))
+                bytes = int(in_type[6:-1])
+                index = 0 if bytes <= 20 else bytes - 20
+                ov = checksum_encode("0x" + c.hex()[index * 2 :].rjust(40, "0"))
+                c = b"\x00" * index + c[index:]
 
             if in_type.startswith("uint"):
-                ov = checksum_encode("0x" + hex(c)[2:].rjust(40, "0"))
+                bits = int(in_type[4:]) // 4
+                index = 2 if bits <= 40 else bits - 40 + 2
+                ov = checksum_encode("0x" + hex(c)[index:].rjust(40, "0"))
+                c = int("0x" + "0" * (index - 2) + hex(c)[index:], 16)
 
         res.append(
             {
@@ -108,13 +121,7 @@ def generate_test_convert_values(in_type, out_type, out_values):
     """
     result = []
     if in_type == "uint":
-
-        unsigned_integer_types = (
-            [u for u in UNSIGNED_INTEGER_TYPES if int(u[4:]) < 160]
-            if out_type == "address"
-            else UNSIGNED_INTEGER_TYPES
-        )
-        for t in unsigned_integer_types:
+        for t in UNSIGNED_INTEGER_TYPES:
             bits = int(t[4:])
             cases = _generate_valid_test_cases_for_type(in_type, bits)
             result += _generate_input_values_dict(t, out_type, cases, out_values)
@@ -126,20 +133,18 @@ def generate_test_convert_values(in_type, out_type, out_values):
             result += _generate_input_values_dict(t, out_type, cases, out_values)
 
     elif in_type[:5] == "bytes":
-        bytes_types = (
-            [b for b in BYTES_M_TYPES if int(b[5:]) < 20]
-            if out_type == "address"
-            else BYTES_M_TYPES
-        )
-        for t in bytes_types:
-            bits = int(t[5:])
-            cases = _generate_valid_test_cases_for_type("bytes", bits)
+        for t in BYTES_M_TYPES:
+            bytes = int(t[5:])
+
+            # Skip bytes20 if address is output type
+            if out_type == "address" and bytes == 20:
+                continue
+            cases = _generate_valid_test_cases_for_type("bytes", bytes)
             result += _generate_input_values_dict(t, out_type, cases, out_values)
 
     elif in_type[:5] == "Bytes":
-        bits = int(in_type[6:-1])
-        print(bits)
-        cases = _generate_valid_test_cases_for_type("Bytes", bits)
+        bytes = int(in_type[6:-1])
+        cases = _generate_valid_test_cases_for_type("Bytes", bytes)
         result += _generate_input_values_dict(in_type, out_type, cases, out_values)
 
     elif in_type in ["decimal", "address"]:
@@ -151,6 +156,7 @@ def generate_test_convert_values(in_type, out_type, out_values):
 
 @pytest.mark.parametrize(
     "input_values",
+    # Convert to bool
     generate_test_convert_values("uint", "bool", [False, True, True, True])
     + generate_test_convert_values("int", "bool", [False, True, True, True, True, True])
     + generate_test_convert_values(
@@ -161,6 +167,7 @@ def generate_test_convert_values(in_type, out_type, out_values):
         "Bytes[32]", "bool", [False, False, False, True, True, True, True]
     )
     + generate_test_convert_values("bytes", "bool", [False, True, True])
+    # Convert to address
     + generate_test_convert_values(
         "uint",
         "address",
@@ -181,7 +188,7 @@ def generate_test_convert_values(in_type, out_type, out_values):
         ],
     )
     + generate_test_convert_values(
-        "Bytes[19]",
+        "Bytes[32]",
         "address",
         [
             "0x0000000000000000000000000000000000000000",
