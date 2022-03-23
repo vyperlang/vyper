@@ -245,18 +245,13 @@ jobs:
     - name: Install Tox
       run: pip install tox
 
-    - name: Get Month
-      id: get-month
-      run: echo "::set-output name=date::$(/bin/date -u "+%Y%m")"
-      shell: bash
-
     - name: Restore duration cache
       uses: actions/cache@v2
       id: test_durations_cache
       with:
         path: .test_durations
-        # reset the cache every month
-        key: ${{ runner.os }}-${{ steps.get-month.outputs.date }}-test-durations-cache-
+        # change the version to reset the cache
+        key: ${{ runner.os }}-test-durations-cache-v1
 
     - name: Check test durations existence
       id: check_test_durations
