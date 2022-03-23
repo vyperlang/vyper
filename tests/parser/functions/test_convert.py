@@ -255,6 +255,9 @@ def generate_test_convert_values(in_type, out_type, out_values):
         if out_type == "uint":
             for t in UNSIGNED_INTEGER_TYPES:
                 result += _generate_input_values_dict(in_type, t, cases, out_values)
+        elif out_type == "int":
+            for s in SIGNED_INTEGER_TYPES:
+                result += _generate_input_values_dict(in_type, s, cases, out_values)
         else:
             result += _generate_input_values_dict(in_type, out_type, cases, out_values)
 
@@ -404,14 +407,12 @@ def generate_test_convert_values(in_type, out_type, out_values):
     )
     # Convert to int
     + generate_test_convert_values("uint", "int", [0, 1, "EVALUATE", "EVALUATE"])
-    + generate_test_convert_values("bytes", "int", [0, 1, "EVALUATE"]),
+    + generate_test_convert_values("bytes", "int", [0, 1, "EVALUATE"])
+    + generate_test_convert_values("Bytes[32]", "int", [0, 0, 0, 1, 1, "EVALUATE", "EVALUATE"])
 """
 
 
-@pytest.mark.parametrize(
-    "input_values",
-    generate_test_convert_values("Bytes[32]", "int", [0, 0, 0, 1, 1, "EVALUATE", "EVALUATE"]),
-)
+@pytest.mark.parametrize("input_values", generate_test_convert_values("bool", "int", [1, 0]))
 def test_convert(get_contract_with_gas_estimation, input_values):
 
     if (
