@@ -432,11 +432,9 @@ def generate_test_convert_values(in_type, out_type, out_values):
     + generate_test_convert_values("bytes", "int", [0, 1, "EVALUATE"])
     + generate_test_convert_values("Bytes[32]", "int", [0, 0, 0, 1, 1, "EVALUATE", "EVALUATE"])
     + generate_test_convert_values("bool", "int", [1, 0])
-    + generate_test_convert_values(
-        "decimal", "int", [0, 0, 0, 1, "EVALUATE", 0, 0, -1, "EVALUATE"]
-    ),
+    + generate_test_convert_values("decimal", "int", [0, 0, 0, 1, "EVALUATE", 0, 0, -1, "EVALUATE"])
     # Convert to decimal
-    +generate_test_convert_values("bool", "decimal", [1.0, 0.0])
+    + generate_test_convert_values("bool", "decimal", [1.0, 0.0])
     + generate_test_convert_values(
         "int", "decimal", [0.0, 1.0, "EVALUATE", "EVALUATE", -1.0, "EVALUATE", "EVALUATE"]
     )
@@ -533,6 +531,11 @@ def convert_builtin_constant() -> {out_type}:
         ("bytes32", "address", (b"\x01" + b"\xff" * 20).rjust(32, b"\x00"), None),
         ("uint256", "address", 2 ** 160, None),
         ("uint256", "address", 2 ** 160 - 1, checksum_encode("0x" + "ff" * 20)),
+        ("uint256", "decimal", 2 ** 127, None),
+        ("int256", "decimal", 2 ** 127, None),
+        ("int256", "decimal", 2 ** 255 - 1, None),
+        ("int256", "decimal", -(2 ** 127) - 1, None),
+        ("int256", "decimal", -(2 ** 255), None),
     ],
 )
 def test_convert_clamping(get_contract, assert_tx_failed, in_type, out_type, in_value, out_value):
@@ -655,6 +658,18 @@ def generate_test_cases_for_same_type_conversion():
             "out_type": "int256",
             "in_value": "180141183460469231731687303715884105728.0",
             "exception": OverflowException,
+        },
+        {
+            "in_type": "uint256",
+            "out_type": "decimal",
+            "in_value": 2 ** 127,
+            "exception": InvalidLiteral,
+        },
+        {
+            "in_type": "address",
+            "out_type": "decimal",
+            "in_value": "0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF",
+            "exception": TypeMismatch,
         },
     ],
 )
