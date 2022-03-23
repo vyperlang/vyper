@@ -152,6 +152,9 @@ def _generate_input_values_dict(in_type, out_type, cases, out_values):
                 # Compute output value
                 ov = int(c, 16)
 
+            if in_type.startswith("int"):
+                ov = c
+
         res.append(
             {
                 "in_type": in_type,
@@ -178,7 +181,17 @@ def generate_test_convert_values(in_type, out_type, out_values):
         for t in SIGNED_INTEGER_TYPES:
             bits = _get_type_N(t)
             cases = _generate_valid_test_cases_for_type(in_type, bits)
-            result += _generate_input_values_dict(t, out_type, cases, out_values)
+
+            if out_type == "uint":
+                for u in UNSIGNED_INTEGER_TYPES:
+                    out_N = _get_type_N(u)
+                    updated_cases, updated_out_values = zip(
+                        *[x for x in zip(cases, out_values) if (x[0] > 0 and x[0] <= 2 ** out_N)]
+                    )
+                    result += _generate_input_values_dict(t, u, updated_cases, updated_out_values)
+
+            else:
+                result += _generate_input_values_dict(t, out_type, cases, out_values)
 
     elif in_type[:5] == "bytes":
         for t in BYTES_M_TYPES:
@@ -282,12 +295,13 @@ generate_test_convert_values("uint", "bool", [False, True, True, True])
     "decimal", "uint", [0, 0, 0, 1, 170141183460469231731687303715884105726]
 )
 + generate_test_convert_values("address", "uint", [0, "EVALUATE", "EVALUATE"]),
-+
++ generate_test_convert_values("bytes", "uint", [0, 1, "EVALUATE"])
 """
 
 
 @pytest.mark.parametrize(
-    "input_values", generate_test_convert_values("bytes", "uint", [0, 1, "EVALUATE"])
+    "input_values",
+    generate_test_convert_values("int", "uint", [0, 1, "EVALUATE", "EVALUATE", None, None]),
 )
 def test_convert(get_contract_with_gas_estimation, input_values):
 
@@ -308,8 +322,14 @@ def test_convert() -> {out_type}:
     return convert({in_value}, {out_type})
     """
 
-    c1 = get_contract_with_gas_estimation(contract_1)
-    assert c1.test_convert() == out_value
+    skip_c1 = False
+    if "int" in in_type and "int" in out_type:
+        if in_value >= 0:
+            skip_c1 = True
+
+    if not skip_c1:
+        c1 = get_contract_with_gas_estimation(contract_1)
+        assert c1.test_convert() == out_value
 
     contract_2 = f"""
 @external
