@@ -8,7 +8,7 @@ from vyper.codegen.types import (
     SIGNED_INTEGER_TYPES,
     UNSIGNED_INTEGER_TYPES,
 )
-from vyper.exceptions import InvalidType, TypeMismatch
+from vyper.exceptions import InvalidLiteral, InvalidType, TypeMismatch
 from vyper.utils import checksum_encode
 
 
@@ -151,12 +151,24 @@ def _generate_input_values_dict(in_type, out_type, cases, out_values):
                 out_n = _get_nibble(out_type)
 
                 if in_n > out_n:
-                    # Clamp input value and compute output value
+                    # Clamp input value
                     index = in_n - out_n + 2
                     c = "0x" + "0" * (index - 2) + c[index:]
 
                 # Compute output value
                 ov = int(c, 16)
+
+            if in_type.startswith("Bytes"):
+                in_n = _get_nibble(in_type)
+                out_n = _get_nibble(out_type)
+
+                if in_n > out_n:
+                    # Clamp input value
+                    index = in_n - out_n
+                    c = b"\x00" * (index // 2) + c[index // 2 :]
+
+                # Compute output value
+                ov = int(c.hex(), 16)
 
             if in_type.startswith("int"):
                 ov = c
@@ -215,7 +227,13 @@ def generate_test_convert_values(in_type, out_type, out_values):
     elif in_type[:5] == "Bytes":
         bytes = _get_type_N(in_type)
         cases = _generate_valid_test_cases_for_type("Bytes", bytes)
-        result += _generate_input_values_dict(in_type, out_type, cases, out_values)
+
+        if out_type == "uint":
+            for u in UNSIGNED_INTEGER_TYPES:
+                result += _generate_input_values_dict(in_type, u, cases, out_values)
+
+        else:
+            result += _generate_input_values_dict(in_type, out_type, cases, out_values)
 
     elif in_type == "decimal":
         cases = _generate_valid_test_cases_for_type(in_type)
@@ -260,64 +278,61 @@ def generate_test_convert_values(in_type, out_type, out_values):
     return sorted(result, key=lambda d: d["in_type"])
 
 
-"""
-# Convert to bool
-generate_test_convert_values("uint", "bool", [False, True, True, True])
-+ generate_test_convert_values("int", "bool", [False, True, True, True, True, True])
-+ generate_test_convert_values(
-    "decimal", "bool", [False, True, True, True, True, True, True, True, True]
-)
-+ generate_test_convert_values("address", "bool", [False, True, True])
-+ generate_test_convert_values(
-    "Bytes[32]", "bool", [False, False, False, True, True, True, True]
-)
-+ generate_test_convert_values("bytes", "bool", [False, True, True])
-# Convert to address
-+ generate_test_convert_values(
-    "uint",
-    "address",
-    [
-        "0x0000000000000000000000000000000000000000",
-        "0x0000000000000000000000000000000000000001",
-        "EVALUATE",  # Placeholder value
-        "EVALUATE",  # Placeholder value
-    ],
-)
-+ generate_test_convert_values(
-    "bytes",
-    "address",
-    [
-        "0x0000000000000000000000000000000000000000",
-        "0x0000000000000000000000000000000000000001",
-        "EVALUATE",  # Placeholder value
-    ],
-)
-+ generate_test_convert_values(
-    "Bytes[32]",
-    "address",
-    [
-        "0x0000000000000000000000000000000000000000",
-        "0x0000000000000000000000000000000000000000",
-        "0x0000000000000000000000000000000000000000",
-        "0x0000000000000000000000000000000000000001",
-        "0x0000000000000000000000000000000000000001",
-        "EVALUATE",  # Placeholder value
-        "EVALUATE",  # Placeholder value
-    ],
-)
-# Convert to uint
-+ generate_test_convert_values(
-    "decimal", "uint", [0, 0, 0, 1, 170141183460469231731687303715884105726]
-)
-+ generate_test_convert_values("address", "uint", [0, "EVALUATE", "EVALUATE"]),
-+ generate_test_convert_values("bytes", "uint", [0, 1, "EVALUATE"])
-+ generate_test_convert_values("int", "uint", [0, 1, "EVALUATE", "EVALUATE", None, None]),
-"""
-
-
 @pytest.mark.parametrize(
     "input_values",
-    generate_test_convert_values("bool", "uint", [1, 0]),
+    # Convert to bool
+    generate_test_convert_values("uint", "bool", [False, True, True, True])
+    + generate_test_convert_values("int", "bool", [False, True, True, True, True, True])
+    + generate_test_convert_values(
+        "decimal", "bool", [False, True, True, True, True, True, True, True, True]
+    )
+    + generate_test_convert_values("address", "bool", [False, True, True])
+    + generate_test_convert_values(
+        "Bytes[32]", "bool", [False, False, False, True, True, True, True]
+    )
+    + generate_test_convert_values("bytes", "bool", [False, True, True])
+    # Convert to address
+    + generate_test_convert_values(
+        "uint",
+        "address",
+        [
+            "0x0000000000000000000000000000000000000000",
+            "0x0000000000000000000000000000000000000001",
+            "EVALUATE",  # Placeholder value
+            "EVALUATE",  # Placeholder value
+        ],
+    )
+    + generate_test_convert_values(
+        "bytes",
+        "address",
+        [
+            "0x0000000000000000000000000000000000000000",
+            "0x0000000000000000000000000000000000000001",
+            "EVALUATE",  # Placeholder value
+        ],
+    )
+    + generate_test_convert_values(
+        "Bytes[32]",
+        "address",
+        [
+            "0x0000000000000000000000000000000000000000",
+            "0x0000000000000000000000000000000000000000",
+            "0x0000000000000000000000000000000000000000",
+            "0x0000000000000000000000000000000000000001",
+            "0x0000000000000000000000000000000000000001",
+            "EVALUATE",  # Placeholder value
+            "EVALUATE",  # Placeholder value
+        ],
+    )
+    # Convert to uint
+    + generate_test_convert_values("address", "uint", [0, "EVALUATE", "EVALUATE"])
+    + generate_test_convert_values("bytes", "uint", [0, 1, "EVALUATE"])
+    + generate_test_convert_values("bool", "uint", [1, 0])
+    + generate_test_convert_values("Bytes[32]", "uint", [0, 0, 0, 1, 1, "EVALUATE", "EVALUATE"])
+    + generate_test_convert_values(
+        "decimal", "uint", [0, 0, 0, 1, 170141183460469231731687303715884105726]
+    )
+    + generate_test_convert_values("int", "uint", [0, 1, "EVALUATE", "EVALUATE", None, None]),
 )
 def test_convert(get_contract_with_gas_estimation, input_values):
 
@@ -468,9 +483,41 @@ def generate_test_cases_for_same_type_conversion():
             "in_value": b"Hello darkness, my old friend I've come to talk with you again.",
             "exception": TypeMismatch,
         },
+        {
+            "in_type": "Bytes[33]",
+            "out_type": "uint256",
+            "in_value": b"\xff" * 33,
+            "exception": TypeMismatch,
+        },
+        {
+            "in_type": "Bytes[63]",
+            "out_type": "uint256",
+            "in_value": b"Hello darkness, my old friend I've come to talk with you again.",
+            "exception": TypeMismatch,
+        },
+        {
+            "in_type": "int256",
+            "out_type": "uint256",
+            "in_value": -1,
+            "exception": InvalidLiteral,
+        },
+        {
+            "in_type": "int256",
+            "out_type": "uint256",
+            "in_value": -(2 ** 255),
+            "exception": InvalidLiteral,
+        },
+        {
+            "in_type": "decimal",
+            "out_type": "uint256",
+            "in_value": "-27.2319",
+            "exception": InvalidLiteral,
+        },
     ],
 )
-def test_invalid_convert(get_contract_with_gas_estimation, assert_compile_failed, input_values):
+def test_invalid_convert(
+    get_contract_with_gas_estimation, assert_compile_failed, assert_tx_failed, input_values
+):
 
     in_type = input_values["in_type"]
     out_type = input_values["out_type"]
@@ -484,10 +531,15 @@ def foo():
     foobar: {out_type} = convert(bar, {out_type})
     """
 
-    assert_compile_failed(
-        lambda: get_contract_with_gas_estimation(contract_1),
-        exception,
-    )
+    if not exception or exception == InvalidLiteral:
+        c1 = get_contract_with_gas_estimation(contract_1)
+        assert_tx_failed(lambda: c1.foo())
+
+    else:
+        assert_compile_failed(
+            lambda: get_contract_with_gas_estimation(contract_1),
+            exception,
+        )
 
     contract_2 = f"""
 @external
@@ -506,7 +558,23 @@ def foo(bar: {in_type}) -> {out_type}:
     return convert(bar, {out_type})
     """
 
+    if not exception or exception == InvalidLiteral:
+        c1 = get_contract_with_gas_estimation(contract_1)
+        assert_tx_failed(lambda: c1.foo())
+
+    else:
+        assert_compile_failed(
+            lambda: get_contract_with_gas_estimation(contract_3),
+            exception,
+        )
+
+    contract_4 = f"""
+@external
+def foo() -> {out_type}:
+    return convert({in_value}, {out_type})
+    """
+
     assert_compile_failed(
-        lambda: get_contract_with_gas_estimation(contract_3),
+        lambda: get_contract_with_gas_estimation(contract_4),
         exception,
     )
