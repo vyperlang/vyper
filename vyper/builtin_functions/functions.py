@@ -195,12 +195,7 @@ ADHOC_SLICE_NODE_MACROS = ["~calldata", "~selfcode", "~extcode"]
 def _build_adhoc_slice_node(
     sub: LLLnode, start: LLLnode, length: LLLnode, context: Context
 ) -> LLLnode:
-    # TODO validate at typechecker stage
-    if not isinstance(length.value, int):
-        macro_pretty_name = sub.value[1:]  # type: ignore
-        raise InvalidLiteral(
-            f"slice({macro_pretty_name} must use a compile-time constant for length argument"
-        )
+    assert length.is_literal, "typechecker failed"
 
     dst_typ = ByteArrayType(maxlen=length.value)
     # allocate a buffer for the return value
@@ -273,24 +268,31 @@ class Slice:
 
         # validate start and length are in bounds
 
+        arg = node.args[0]
         start_expr = node.args[1]
         length_expr = node.args[2]
+
+        # CMC 2022-03-22 NOTE slight code duplication with semantics/validation/local
+        is_adhoc_slice = arg.get("attr") == "code" or (
+            arg.get("value.id") == "msg" and arg.get("attr") == "data"
+        )
 
         start_literal = start_expr.value if isinstance(start_expr, vy_ast.Int) else None
         length_literal = length_expr.value if isinstance(length_expr, vy_ast.Int) else None
 
-        if length_literal is not None:
-            if length_literal < 1:
-                raise ArgumentException("Length cannot be less than 1", length_expr)
+        if not is_adhoc_slice:
+            if length_literal is not None:
+                if length_literal < 1:
+                    raise ArgumentException("Length cannot be less than 1", length_expr)
 
-            if length_literal > arg_type.length:
-                raise ArgumentException("slice out of bounds for {arg_type}", length_expr)
+                if length_literal > arg_type.length:
+                    raise ArgumentException(f"slice out of bounds for {arg_type}", length_expr)
 
-        if start_literal is not None:
-            if start_literal > arg_type.length:
-                raise ArgumentException("slice out of bounds for {arg_type}", start_expr)
-            if length_literal is not None and start_literal + length_literal > arg_type.length:
-                raise ArgumentException("slice out of bounds for {arg_type}", node)
+            if start_literal is not None:
+                if start_literal > arg_type.length:
+                    raise ArgumentException("slice out of bounds for {arg_type}", start_expr)
+                if length_literal is not None and start_literal + length_literal > arg_type.length:
+                    raise ArgumentException("slice out of bounds for {arg_type}", node)
 
         # we know the length statically
         if length_literal is not None:
