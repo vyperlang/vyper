@@ -70,7 +70,7 @@ def _generate_valid_test_cases_for_type(type_, count=None):
         return [
             "0x" + ("00" * count),
             "0x" + ("00" * (count - 1)) + "01",
-            checksum_encode("0x" + ("FF" * count)) if count == 20 else "0x" + ("FF" * count),
+            "0x" + ("FF" * count),
         ]
 
     elif type_ == "Bytes":
@@ -354,8 +354,7 @@ def generate_test_convert_values(in_type, out_type, out_values):
 
                     # Update max values based on intN
                     if out_N <= in_N:
-                        cases[-2] = 2 ** (out_N - 1) - 2
-                        cases[-1] = 2 ** (out_N - 1) - 1
+                        cases = _generate_valid_test_cases_for_type(in_type, out_N - 1)
 
                     result += _generate_input_values_dict(t, s, cases, out_values)
 
@@ -423,19 +422,7 @@ def generate_test_convert_values(in_type, out_type, out_values):
     + generate_test_convert_values("Bytes[32]", "int", [0, 0, 0, 1, 1, "EVALUATE", "EVALUATE"])
     + generate_test_convert_values("bool", "int", [1, 0])
     + generate_test_convert_values(
-        "decimal",
-        "int",
-        [
-            0,
-            0,
-            0,
-            1,
-            "EVALUATE",
-            0,
-            0,
-            -1,
-            "EVALUATE",
-        ],
+        "decimal", "int", [0, 0, 0, 1, "EVALUATE", 0, 0, -1, "EVALUATE"]
     ),
 )
 def test_convert(get_contract_with_gas_estimation, input_values):
