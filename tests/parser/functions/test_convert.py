@@ -12,6 +12,35 @@ from vyper.exceptions import InvalidType, TypeMismatch
 from vyper.utils import checksum_encode
 
 
+def _get_type_N(type_):
+    """
+    Helper function to extract N from typeN (e.g. uint256, bytes32, Bytes[32])
+    """
+    if type_.startswith("uint"):
+        return int(type_[4:])
+    if type_.startswith("int"):
+        return int(type_[3:])
+    if type_.startswith("bytes"):
+        return int(type_[5:])
+    if type_.startswith("Bytes"):
+        return int(type_[6:-1])
+    return None
+
+
+def _get_nibble(type_):
+    """
+    Helper function to extract number of nibbles from a type for hexadecimal string
+    """
+    type_N = _get_type_N(type_)
+    if type_.startswith("bytes"):
+        return type_N * 2
+    elif type_.startswith("Bytes"):
+        return type_N * 2
+    elif type_.startswith("uint"):
+        return type_N // 4
+    return None
+
+
 def _generate_valid_test_cases_for_type(type_, count=None):
     """
     Helper function to generate the test cases for a specific type.
@@ -76,7 +105,7 @@ def _generate_input_values_dict(in_type, out_type, cases, out_values):
     res = []
     for c, ov in zip(cases, out_values):
 
-        if out_type == "address" and ov == "0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF":
+        if out_type == "address" and ov == "EVALUATE":
 
             # Compute the output value where the output type is address
             # and the placeholder value 0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF
@@ -84,20 +113,19 @@ def _generate_input_values_dict(in_type, out_type, cases, out_values):
 
             # Modify input value by clamping to 160 bits
 
+            bits = _get_nibble(in_type)
+
             if in_type.startswith("bytes"):
-                bits = int(in_type[5:]) * 2
                 index = 2 if bits <= 40 else bits - 40 + 2
                 ov = checksum_encode("0x" + c[index:].rjust(40, "0"))
                 c = "0x" + "0" * (index - 2) + c[index:]
 
             if in_type.startswith("Bytes"):
-                bytes = int(in_type[6:-1])
-                index = 0 if bytes <= 20 else bytes - 20
-                ov = checksum_encode("0x" + c.hex()[index * 2 :].rjust(40, "0"))
-                c = b"\x00" * index + c[index:]
+                index = 0 if bits <= 40 else bits - 40
+                ov = checksum_encode("0x" + c.hex()[index:].rjust(40, "0"))
+                c = b"\x00" * (index // 2) + c[index // 2 :]
 
             if in_type.startswith("uint"):
-                bits = int(in_type[4:]) // 4
                 index = 2 if bits <= 40 else bits - 40 + 2
                 ov = checksum_encode("0x" + hex(c)[index:].rjust(40, "0"))
                 c = int("0x" + "0" * (index - 2) + hex(c)[index:], 16)
@@ -107,7 +135,7 @@ def _generate_input_values_dict(in_type, out_type, cases, out_values):
             # Modify input value by clamping to number of bits of uint
 
             if in_type == "address":
-                bits = int(out_type[4:]) // 4
+                bits = _get_nibble(out_type)
                 index = 42 - bits if bits <= 40 else 2
                 c = checksum_encode("0x" + "0" * (index - 2) + c[index:])
                 ov = int(c, 16)
@@ -130,19 +158,19 @@ def generate_test_convert_values(in_type, out_type, out_values):
     result = []
     if in_type == "uint":
         for t in UNSIGNED_INTEGER_TYPES:
-            bits = int(t[4:])
+            bits = _get_type_N(t)
             cases = _generate_valid_test_cases_for_type(in_type, bits)
             result += _generate_input_values_dict(t, out_type, cases, out_values)
 
     elif in_type == "int":
         for t in SIGNED_INTEGER_TYPES:
-            bits = int(t[3:])
+            bits = _get_type_N(t)
             cases = _generate_valid_test_cases_for_type(in_type, bits)
             result += _generate_input_values_dict(t, out_type, cases, out_values)
 
     elif in_type[:5] == "bytes":
         for t in BYTES_M_TYPES:
-            bytes = int(t[5:])
+            bytes = _get_type_N(t)
 
             # Skip bytes20 if address is output type
             if out_type == "address" and bytes == 20:
@@ -151,7 +179,7 @@ def generate_test_convert_values(in_type, out_type, out_values):
             result += _generate_input_values_dict(t, out_type, cases, out_values)
 
     elif in_type[:5] == "Bytes":
-        bytes = int(in_type[6:-1])
+        bytes = _get_type_N(in_type)
         cases = _generate_valid_test_cases_for_type("Bytes", bytes)
         result += _generate_input_values_dict(in_type, out_type, cases, out_values)
 
@@ -160,7 +188,7 @@ def generate_test_convert_values(in_type, out_type, out_values):
 
         if out_type == "uint":
             for t in UNSIGNED_INTEGER_TYPES:
-                bits = int(t[4:])
+                bits = _get_type_N(t)
                 updated_cases, updated_out_values = zip(
                     *[
                         x
@@ -189,51 +217,51 @@ def generate_test_convert_values(in_type, out_type, out_values):
 @pytest.mark.parametrize(
     "input_values",
     # Convert to bool
-    #    generate_test_convert_values("uint", "bool", [False, True, True, True])
-    #    + generate_test_convert_values("int", "bool", [False, True, True, True, True, True])
-    #    + generate_test_convert_values(
-    #        "decimal", "bool", [False, True, True, True, True, True, True, True, True]
-    #    )
-    #    + generate_test_convert_values("address", "bool", [False, True, True])
-    #    + generate_test_convert_values(
-    #        "Bytes[32]", "bool", [False, False, False, True, True, True, True]
-    #    )
-    #    + generate_test_convert_values("bytes", "bool", [False, True, True])
+    generate_test_convert_values("uint", "bool", [False, True, True, True])
+    + generate_test_convert_values("int", "bool", [False, True, True, True, True, True])
+    + generate_test_convert_values(
+        "decimal", "bool", [False, True, True, True, True, True, True, True, True]
+    )
+    + generate_test_convert_values("address", "bool", [False, True, True])
+    + generate_test_convert_values(
+        "Bytes[32]", "bool", [False, False, False, True, True, True, True]
+    )
+    + generate_test_convert_values("bytes", "bool", [False, True, True])
     # Convert to address
-    #    + generate_test_convert_values(
-    #        "uint",
-    #        "address",
-    #        [
-    #            "0x0000000000000000000000000000000000000000",
-    #            "0x0000000000000000000000000000000000000001",
-    #            "0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF",  # Placeholder value
-    #            "0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF",  # Placeholder value
-    #        ],
-    #    )
-    #    + generate_test_convert_values(
-    #        "bytes",
-    #        "address",
-    #        [
-    #            "0x0000000000000000000000000000000000000000",
-    #            "0x0000000000000000000000000000000000000001",
-    #            "0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF",  # Placeholder value
-    #        ],
-    #    )
-    #    + generate_test_convert_values(
-    #        "Bytes[32]",
-    #        "address",
-    #        [
-    #            "0x0000000000000000000000000000000000000000",
-    #            "0x0000000000000000000000000000000000000000",
-    #            "0x0000000000000000000000000000000000000000",
-    #            "0x0000000000000000000000000000000000000001",
-    #            "0x0000000000000000000000000000000000000001",
-    #            "0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF",  # Placeholder value
-    #            "0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF",  # Placeholder value
-    #        ],
-    #    ),
+    + generate_test_convert_values(
+        "uint",
+        "address",
+        [
+            "0x0000000000000000000000000000000000000000",
+            "0x0000000000000000000000000000000000000001",
+            "EVALUATE",  # Placeholder value
+            "EVALUATE",  # Placeholder value
+        ],
+    )
+    + generate_test_convert_values(
+        "bytes",
+        "address",
+        [
+            "0x0000000000000000000000000000000000000000",
+            "0x0000000000000000000000000000000000000001",
+            "EVALUATE",  # Placeholder value
+        ],
+    )
+    + generate_test_convert_values(
+        "Bytes[32]",
+        "address",
+        [
+            "0x0000000000000000000000000000000000000000",
+            "0x0000000000000000000000000000000000000000",
+            "0x0000000000000000000000000000000000000000",
+            "0x0000000000000000000000000000000000000001",
+            "0x0000000000000000000000000000000000000001",
+            "EVALUATE",  # Placeholder value
+            "EVALUATE",  # Placeholder value
+        ],
+    )
     # Convert to uint
-    +generate_test_convert_values(
+    + generate_test_convert_values(
         "decimal", "uint", [0, 0, 0, 1, 170141183460469231731687303715884105726]
     )
     + generate_test_convert_values("address", "uint", [0, "EVALUATE", "EVALUATE"]),
