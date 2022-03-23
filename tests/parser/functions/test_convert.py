@@ -94,6 +94,7 @@ def _generate_valid_test_cases_for_type(type_, count=None):
             1,
             2 ** (count - 1) - 2,
             2 ** (count - 1) - 1,
+            -1,
             -(2 ** (count - 1)),
             -(2 ** (count - 1) - 1),
         ]
@@ -281,7 +282,7 @@ def generate_test_convert_values(in_type, out_type, out_values):
     "input_values",
     # Convert to bool
     generate_test_convert_values("uint", "bool", [False, True, True, True])
-    + generate_test_convert_values("int", "bool", [False, True, True, True, True, True])
+    + generate_test_convert_values("int", "bool", [False, True, True, True, True, True, True])
     + generate_test_convert_values(
         "decimal", "bool", [False, True, True, True, True, True, True, True, True]
     )
@@ -331,7 +332,7 @@ def generate_test_convert_values(in_type, out_type, out_values):
     + generate_test_convert_values(
         "decimal", "uint", [0, 0, 0, 1, 170141183460469231731687303715884105726]
     )
-    + generate_test_convert_values("int", "uint", [0, 1, "EVALUATE", "EVALUATE", None, None]),
+    + generate_test_convert_values("int", "uint", [0, 1, "EVALUATE", "EVALUATE", None, None, None]),
 )
 def test_convert(get_contract_with_gas_estimation, input_values):
 
