@@ -90,11 +90,15 @@ def _generate_valid_test_cases_for_type(type_, count=None):
             "0.0000000001",
             "0.9999999999",
             "1.0",
-            "170141183460469231731687303715884105726.9999999999",  # 2 ** 127 - 1.0000000001
+            str(2 ** (count - 1) - 2) + ".9999999999"
+            if (count and count < 127)
+            else "170141183460469231731687303715884105726.9999999999",  # 2 ** 127 - 1.0000000001
             "-0.0000000001",
             "-0.9999999999",
             "-1.0",
-            "-170141183460469231731687303715884105727.9999999999",  # - (2 ** 127 - 0.0000000001)
+            str(-(2 ** (count - 1) - 1)) + ".9999999999" if (count and count < 127)
+            # - (2 ** 127 - 0.0000000001)
+            else "-170141183460469231731687303715884105727.9999999999",
         ]
 
     elif type_ == "int":
@@ -179,6 +183,9 @@ def _generate_input_values_dict(in_type, out_type, cases, out_values):
                 # Compute output value
                 ov = int(c.hex(), 16)
 
+            if in_type == "decimal":
+                ov = int(Decimal(c))
+
             if in_type.startswith("int"):
                 ov = c
 
@@ -219,6 +226,9 @@ def _generate_input_values_dict(in_type, out_type, cases, out_values):
                     ov = hex_to_signed_int(c.hex(), out_bits)
                 else:
                     ov = hex_to_signed_int(c.hex(), in_bits)
+
+            if in_type == "decimal":
+                ov = int(Decimal(c))
 
             if in_type.startswith("uint"):
                 ov = c
@@ -297,33 +307,24 @@ def generate_test_convert_values(in_type, out_type, out_values):
             result += _generate_input_values_dict(in_type, out_type, cases, out_values)
 
     elif in_type == "decimal":
-        cases = _generate_valid_test_cases_for_type(in_type)
 
         if out_type == "uint":
             for t in UNSIGNED_INTEGER_TYPES:
                 out_N = _get_type_N(t)
+                cases = _generate_valid_test_cases_for_type(in_type, out_N)
                 updated_cases, updated_out_values = zip(
-                    *[
-                        x
-                        for x in zip(cases, out_values)
-                        if (Decimal(x[0]) > 0 and Decimal(x[0]) <= 2 ** out_N)
-                    ]
+                    *[x for x in zip(cases, out_values) if (Decimal(x[0]) > 0)]
                 )
                 result += _generate_input_values_dict(in_type, t, updated_cases, updated_out_values)
 
         elif out_type == "int":
             for s in SIGNED_INTEGER_TYPES:
                 out_N = _get_type_N(s)
-                updated_cases, updated_out_values = zip(
-                    *[
-                        x
-                        for x in zip(cases, out_values)
-                        if (-(2 ** (out_N - 1)) <= Decimal(x[0]) <= 2 ** (out_N - 1) - 1)
-                    ]
-                )
-                result += _generate_input_values_dict(in_type, s, updated_cases, updated_out_values)
+                cases = _generate_valid_test_cases_for_type(in_type, out_N)
+                result += _generate_input_values_dict(in_type, s, cases, out_values)
 
         else:
+            cases = _generate_valid_test_cases_for_type(in_type)
             result += _generate_input_values_dict(in_type, out_type, cases, out_values)
 
     elif in_type == "int":
@@ -415,9 +416,7 @@ def generate_test_convert_values(in_type, out_type, out_values):
     + generate_test_convert_values("bytes", "uint", [0, 1, "EVALUATE"])
     + generate_test_convert_values("bool", "uint", [1, 0])
     + generate_test_convert_values("Bytes[32]", "uint", [0, 0, 0, 1, 1, "EVALUATE", "EVALUATE"])
-    + generate_test_convert_values(
-        "decimal", "uint", [0, 0, 0, 1, 170141183460469231731687303715884105726]
-    )
+    + generate_test_convert_values("decimal", "uint", [0, 0, 0, 1, "EVALUATE"])
     # Convert to int
     + generate_test_convert_values("uint", "int", [0, 1, "EVALUATE", "EVALUATE"])
     + generate_test_convert_values("bytes", "int", [0, 1, "EVALUATE"])
@@ -431,11 +430,11 @@ def generate_test_convert_values(in_type, out_type, out_values):
             0,
             0,
             1,
-            170141183460469231731687303715884105726,
+            "EVALUATE",
             0,
             0,
             -1,
-            -170141183460469231731687303715884105727,
+            "EVALUATE",
         ],
     ),
 )
@@ -468,6 +467,7 @@ def test_convert() -> {out_type}:
         skip_c1 = True
 
     if not skip_c1:
+
         c1 = get_contract_with_gas_estimation(contract_1)
         assert c1.test_convert() == out_value
 
