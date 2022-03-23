@@ -13,6 +13,13 @@ from vyper.exceptions import InvalidLiteral, InvalidType, TypeMismatch
 from vyper.utils import checksum_encode
 
 
+def hex_to_signed_int(hexstr, bits):
+    val = int(hexstr, 16)
+    if val & (1 << (bits - 1)):
+        val -= 1 << bits
+    return val
+
+
 def _get_type_N(type_):
     """
     Helper function to extract N from typeN (e.g. uint256, bytes32, Bytes[32])
@@ -35,6 +42,8 @@ def _get_nibble(type_):
         return type_N * 2
     elif type_.startswith("Bytes"):
         return type_N * 2
+    elif type_.startswith("int"):
+        return type_N // 4
     elif type_.startswith("uint"):
         return type_N // 4
     return None
@@ -175,6 +184,42 @@ def _generate_input_values_dict(in_type, out_type, cases, out_values):
 
         if out_type.startswith("int") and ov == "EVALUATE":
 
+            if in_type.startswith("bytes"):
+                in_bits = _get_type_N(in_type) * 8
+                out_bits = _get_type_N(out_type)
+
+                if in_bits >= out_bits:
+                    # Clamp input value
+                    in_nibbles = _get_nibble(in_type)
+                    out_nibbles = _get_nibble(out_type)
+
+                    index = (in_nibbles - out_nibbles) + 2
+                    largest_value_hex = hex(2 ** (out_bits - 1) - 1)
+
+                    c = "0x" + "0" * (index - 2) + largest_value_hex[2:]
+                    ov = hex_to_signed_int(c, out_bits)
+                else:
+                    ov = hex_to_signed_int(c, in_bits)
+
+            if in_type.startswith("Bytes"):
+                in_N = _get_type_N(in_type)
+                in_bits = in_N * 8
+                out_bits = _get_type_N(out_type)
+                out_bytes = out_bits // 8
+
+                if in_bits >= out_bits:
+                    # Clamp input value
+
+                    index = in_N - out_bytes
+                    largest_value_bytes = (2 ** (out_bits - 1) - 1).to_bytes(
+                        out_bytes, byteorder="big"
+                    )
+
+                    c = b"\x00" * (index) + largest_value_bytes
+                    ov = hex_to_signed_int(c.hex(), out_bits)
+                else:
+                    ov = hex_to_signed_int(c.hex(), in_bits)
+
             if in_type.startswith("uint"):
                 ov = c
 
@@ -219,12 +264,16 @@ def generate_test_convert_values(in_type, out_type, out_values):
             cases = _generate_valid_test_cases_for_type("bytes", in_N)
 
             # Skip bytes20 because it is treated as address type
-            if bytes == 20:
+            if in_N == 20:
                 continue
 
             if out_type == "uint":
                 for u in UNSIGNED_INTEGER_TYPES:
                     result += _generate_input_values_dict(t, u, cases, out_values)
+
+            elif out_type == "int":
+                for s in SIGNED_INTEGER_TYPES:
+                    result += _generate_input_values_dict(t, s, cases, out_values)
 
             else:
                 result += _generate_input_values_dict(t, out_type, cases, out_values)
@@ -236,6 +285,10 @@ def generate_test_convert_values(in_type, out_type, out_values):
         if out_type == "uint":
             for u in UNSIGNED_INTEGER_TYPES:
                 result += _generate_input_values_dict(in_type, u, cases, out_values)
+
+        elif out_type == "int":
+            for s in SIGNED_INTEGER_TYPES:
+                result += _generate_input_values_dict(in_type, s, cases, out_values)
 
         else:
             result += _generate_input_values_dict(in_type, out_type, cases, out_values)
@@ -297,66 +350,67 @@ def generate_test_convert_values(in_type, out_type, out_values):
 
 
 """
-# Convert to bool
-generate_test_convert_values("uint", "bool", [False, True, True, True])
-+ generate_test_convert_values("int", "bool", [False, True, True, True, True, True, True])
-+ generate_test_convert_values(
-    "decimal", "bool", [False, True, True, True, True, True, True, True, True]
-)
-+ generate_test_convert_values("address", "bool", [False, True, True])
-+ generate_test_convert_values(
-    "Bytes[32]", "bool", [False, False, False, True, True, True, True]
-)
-+ generate_test_convert_values("bytes", "bool", [False, True, True])
-# Convert to address
-+ generate_test_convert_values(
-    "uint",
-    "address",
-    [
-        "0x0000000000000000000000000000000000000000",
-        "0x0000000000000000000000000000000000000001",
-        "EVALUATE",  # Placeholder value
-        "EVALUATE",  # Placeholder value
-    ],
-)
-+ generate_test_convert_values(
-    "bytes",
-    "address",
-    [
-        "0x0000000000000000000000000000000000000000",
-        "0x0000000000000000000000000000000000000001",
-        "EVALUATE",  # Placeholder value
-    ],
-)
-+ generate_test_convert_values(
-    "Bytes[32]",
-    "address",
-    [
-        "0x0000000000000000000000000000000000000000",
-        "0x0000000000000000000000000000000000000000",
-        "0x0000000000000000000000000000000000000000",
-        "0x0000000000000000000000000000000000000001",
-        "0x0000000000000000000000000000000000000001",
-        "EVALUATE",  # Placeholder value
-        "EVALUATE",  # Placeholder value
-    ],
-)
-# Convert to uint
-+ generate_test_convert_values("address", "uint", [0, "EVALUATE", "EVALUATE"])
-+ generate_test_convert_values("bytes", "uint", [0, 1, "EVALUATE"])
-+ generate_test_convert_values("bool", "uint", [1, 0])
-+ generate_test_convert_values("Bytes[32]", "uint", [0, 0, 0, 1, 1, "EVALUATE", "EVALUATE"])
-+ generate_test_convert_values(
-    "decimal", "uint", [0, 0, 0, 1, 170141183460469231731687303715884105726]
-)
-
-
+    # Convert to bool
+    generate_test_convert_values("uint", "bool", [False, True, True, True])
+    + generate_test_convert_values("int", "bool", [False, True, True, True, True, True, True])
+    + generate_test_convert_values(
+        "decimal", "bool", [False, True, True, True, True, True, True, True, True]
+    )
+    + generate_test_convert_values("address", "bool", [False, True, True])
+    + generate_test_convert_values(
+        "Bytes[32]", "bool", [False, False, False, True, True, True, True]
+    )
+    + generate_test_convert_values("bytes", "bool", [False, True, True])
+    # Convert to address
+    + generate_test_convert_values(
+        "uint",
+        "address",
+        [
+            "0x0000000000000000000000000000000000000000",
+            "0x0000000000000000000000000000000000000001",
+            "EVALUATE",  # Placeholder value
+            "EVALUATE",  # Placeholder value
+        ],
+    )
+    + generate_test_convert_values(
+        "bytes",
+        "address",
+        [
+            "0x0000000000000000000000000000000000000000",
+            "0x0000000000000000000000000000000000000001",
+            "EVALUATE",  # Placeholder value
+        ],
+    )
+    + generate_test_convert_values(
+        "Bytes[32]",
+        "address",
+        [
+            "0x0000000000000000000000000000000000000000",
+            "0x0000000000000000000000000000000000000000",
+            "0x0000000000000000000000000000000000000000",
+            "0x0000000000000000000000000000000000000001",
+            "0x0000000000000000000000000000000000000001",
+            "EVALUATE",  # Placeholder value
+            "EVALUATE",  # Placeholder value
+        ],
+    )
+    # Convert to uint
+    + generate_test_convert_values("address", "uint", [0, "EVALUATE", "EVALUATE"])
+    + generate_test_convert_values("bytes", "uint", [0, 1, "EVALUATE"])
+    + generate_test_convert_values("bool", "uint", [1, 0])
+    + generate_test_convert_values("Bytes[32]", "uint", [0, 0, 0, 1, 1, "EVALUATE", "EVALUATE"])
+    + generate_test_convert_values(
+        "decimal", "uint", [0, 0, 0, 1, 170141183460469231731687303715884105726]
+    )
+    # Convert to int
+    + generate_test_convert_values("uint", "int", [0, 1, "EVALUATE", "EVALUATE"])
+    + generate_test_convert_values("bytes", "int", [0, 1, "EVALUATE"]),
 """
 
 
 @pytest.mark.parametrize(
     "input_values",
-    generate_test_convert_values("uint", "int", [0, 1, "EVALUATE", "EVALUATE"]),
+    generate_test_convert_values("Bytes[32]", "int", [0, 0, 0, 1, 1, "EVALUATE", "EVALUATE"]),
 )
 def test_convert(get_contract_with_gas_estimation, input_values):
 
@@ -381,6 +435,10 @@ def test_convert() -> {out_type}:
     if "int" in in_type and "int" in out_type:
         if in_value >= 0:
             skip_c1 = True
+
+    if in_type.startswith("bytes") and _get_type_N(in_type) != 32:
+        # Skip bytesN other than bytes32 because they get read as bytes32
+        skip_c1 = True
 
     if not skip_c1:
         c1 = get_contract_with_gas_estimation(contract_1)
