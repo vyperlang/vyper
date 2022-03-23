@@ -232,7 +232,7 @@ jobs:
 
     strategy:
       matrix:
-        group: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
+        group: [1, 2, 3, 4, 5, 6, 7, 8]
 
     steps:
     - uses: actions/checkout@v1
@@ -266,7 +266,7 @@ jobs:
 
     - name: Run Tox
       if: steps.check_test_durations.outputs.files_exists == 'true'
-      run: TOXENV=fuzzing tox -r -- --splits 20 --group ${{ matrix.group }}
+      run: TOXENV=fuzzing tox -r -- --splits 8 --group ${{ matrix.group }}
 
     - name: Upload Coverage
       uses: codecov/codecov-action@v1
