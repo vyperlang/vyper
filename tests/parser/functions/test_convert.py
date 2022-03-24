@@ -271,13 +271,13 @@ def _generate_input_values_dict(in_type, out_type, cases, out_values):
 
                     c = "0x" + "0" * (index - 2) + c[index:]
 
-                ov = Decimal(hex_to_signed_int(c, in_bits)) / 10 ** 10
+                ov = Decimal(hex_to_signed_int(c, in_bits)) / DECIMAL_DIVISOR
 
             if in_type.startswith("Bytes"):
                 in_N = _get_type_N(in_type)
                 in_bits = in_N * 8
 
-                ov = Decimal(hex_to_signed_int(c.hex(), in_bits)) / 10 ** 10
+                ov = Decimal(hex_to_signed_int(c.hex(), in_bits)) / DECIMAL_DIVISOR
 
             if "int" in in_type:
                 ov = Decimal(c)
@@ -425,8 +425,6 @@ def generate_test_convert_values(in_type, out_type, out_values):
 
         else:
             cases = _generate_valid_test_cases_for_type(in_type)
-            if out_type == "decimal":
-                cases = [c / (10 ** 10) for c in cases]
             result += _generate_input_values_dict(in_type, out_type, cases, out_values)
 
     elif in_type == "int":
@@ -612,13 +610,19 @@ def test_convert() -> {out_type}:
 
     skip_c1 = False
     if "int" in in_type and "int" in out_type:
+        # Skip conversion of positive integer literals because compiler reads them
+        # as target type.
         if in_value >= 0:
             skip_c1 = True
+
     if ("bytes" in in_type or "Bytes" in in_type) and out_type == "decimal":
         skip_c1 = True
 
     if "int" in in_type and "bytes" in out_type:
-        skip_c1 = True
+        # Skip conversion of integer literals because they are of uint256 / int256
+        # types, unless it is bytes32
+        if out_type != "bytes32":
+            skip_c1 = True
 
     if "Bytes" in in_type and "bytes" in out_type:
         if _get_type_N(in_type) == _get_type_N(out_type):
