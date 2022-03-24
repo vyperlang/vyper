@@ -13,10 +13,6 @@ from vyper.exceptions import InvalidLiteral, InvalidType, OverflowException, Typ
 from vyper.utils import DECIMAL_DIVISOR, checksum_encode
 
 
-def int_to_bytes_helper(val):
-    return (val).to_bytes(32, byteorder="big", signed=True)
-
-
 def hex_to_signed_int(hexstr, bits):
     val = int(hexstr, 16)
     if val & (1 << (bits - 1)):
@@ -130,15 +126,14 @@ def _generate_input_values_dict(in_type, out_type, cases, out_values):
     """
     Helper function to generate the test values for a specific input type and output type,
     and to modify the output values based on the input type and output type where necessary.
+
+    To defer the evaluation of the output value to this function, use "EVALUATE" as a
+    placeholder when defining the `out_values` in pytest.mark.parametrize.
     """
     res = []
     for c, ov in zip(cases, out_values):
 
         if out_type == "address" and ov == "EVALUATE":
-
-            # Compute the output value where the output type is address
-            # and the placeholder value 0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF
-            # is used
 
             # Modify input value by clamping to 160 bits
 
