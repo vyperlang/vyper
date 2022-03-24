@@ -6,6 +6,8 @@
 
 ### Commit message
 
+(Optional, but reviewers will appreciate it!)
+
 ```
 Summarize changes in around 50 characters or less
 
