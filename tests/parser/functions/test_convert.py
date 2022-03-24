@@ -456,17 +456,17 @@ def generate_test_convert_values(in_type, out_type, out_values):
     + generate_test_convert_values("decimal", "int", [0, 0, 0, 1, "EVALUATE", 0, 0, -1, "EVALUATE"])
     # Convert to decimal
     + generate_test_convert_values("bool", "decimal", [1.0, 0.0])
-    + generate_test_convert_values(
-        "int", "decimal", [0.0, 1.0, "EVALUATE", "EVALUATE", -1.0, "EVALUATE", "EVALUATE"]
-    )
-    + generate_test_convert_values("uint", "decimal", [0.0, 1.0, "EVALUATE", "EVALUATE"])
     + generate_test_convert_values("bytes", "decimal", ["EVALUATE", "EVALUATE", "EVALUATE"])
     + generate_test_convert_values(
         "Bytes[5]", "decimal", [0.0, 0.0, 0.0, "1e-10", "1e-10", "EVALUATE", "EVALUATE"]
     )
     + generate_test_convert_values(
         "Bytes[16]", "decimal", [0.0, 0.0, 0.0, "1e-10", "1e-10", "EVALUATE", "EVALUATE"]
-    ),
+    )
+    + generate_test_convert_values(
+        "int", "decimal", [0.0, 1.0, "EVALUATE", "EVALUATE", -1.0, "EVALUATE", "EVALUATE"]
+    )
+    + generate_test_convert_values("uint", "decimal", [0.0, 1.0, "EVALUATE", "EVALUATE"]),
 )
 def test_convert_pass(get_contract_with_gas_estimation, input_values):
 
@@ -510,12 +510,13 @@ def test_input_convert(x: {in_type}) -> {out_type}:
     """
 
     c2 = get_contract_with_gas_estimation(contract_2)
+
     if in_type == "decimal":
-        assert c2.test_input_convert(Decimal(in_value)) == out_value
-    elif out_type == "decimal":
-        assert c2.test_input_convert(in_value) == Decimal(out_value)
-    else:
-        assert c2.test_input_convert(in_value) == out_value
+        in_value = Decimal(in_value)
+    if out_type == "decimal":
+        out_value = Decimal(out_value)
+
+    assert c2.test_input_convert(in_value) == out_value
 
     contract_3 = f"""
 bar: {in_type}
@@ -527,10 +528,11 @@ def test_state_variable_convert() -> {out_type}:
     """
 
     c3 = get_contract_with_gas_estimation(contract_3)
+
     if out_type == "decimal":
-        assert c2.test_input_convert(in_value) == Decimal(out_value)
-    else:
-        assert c3.test_state_variable_convert() == out_value
+        out_value = Decimal(out_value)
+
+    assert c3.test_state_variable_convert() == out_value
 
 
 @pytest.mark.parametrize(
