@@ -251,7 +251,7 @@ jobs:
       with:
         path: .test_durations
         # change the version to reset the cache
-        key: ${{ runner.os }}-test-durations-cache-v1
+        key: ${{ runner.os }}-test-durations-cache-v2
 
     - name: Check test durations existence
       id: check_test_durations
