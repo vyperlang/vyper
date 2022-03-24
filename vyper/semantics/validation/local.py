@@ -14,7 +14,6 @@ from vyper.exceptions import (
     NonPayableViolation,
     StateAccessViolation,
     StructureException,
-    SyntaxException,
     TypeMismatch,
     VariableDeclarationException,
     VyperException,
@@ -25,7 +24,11 @@ from vyper.semantics.environment import CONSTANT_ENVIRONMENT_VARS, MUTABLE_ENVIR
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.abstract import IntegerAbstractType
 from vyper.semantics.types.bases import DataLocation
-from vyper.semantics.types.function import ContractFunction, StateMutability
+from vyper.semantics.types.function import (
+    ContractFunction,
+    MemberFunctionDefinition,
+    StateMutability,
+)
 from vyper.semantics.types.indexable.sequence import (
     ArrayDefinition,
     DynamicArrayDefinition,
@@ -124,24 +127,27 @@ def _validate_address_code_attribute(node: vy_ast.Attribute) -> None:
             ok_args = len(parent.args) == 3 and isinstance(parent.args[2], vy_ast.Int)
             if ok_func and ok_args:
                 return
-        raise SyntaxException(
+        raise StructureException(
             "(address).code is only allowed inside of a slice function with a constant length",
-            node.node_source_code,
-            node.lineno,  # type: ignore[attr-defined]
-            node.col_offset,  # type: ignore[attr-defined]
+            node,
         )
 
 
 def _validate_msg_data_attribute(node: vy_ast.Attribute) -> None:
     if isinstance(node.value, vy_ast.Name) and node.value.id == "msg" and node.attr == "data":
         parent = node.get_ancestor()
-        if parent.get("func.id") not in ("slice", "len"):
-            raise SyntaxException(
+        if not isinstance(parent, vy_ast.Call) or parent.get("func.id") not in ("slice", "len"):
+            raise StructureException(
                 "msg.data is only allowed inside of the slice or len functions",
-                node.node_source_code,
-                node.lineno,  # type: ignore[attr-defined]
-                node.col_offset,  # type: ignore[attr-defined]
+                node,
             )
+        if parent.get("func.id") == "slice":
+            ok_args = len(parent.args) == 3 and isinstance(parent.args[2], vy_ast.Int)
+            if not ok_args:
+                raise StructureException(
+                    "slice(msg.data) must use a compile-time constant for length argument",
+                    parent,
+                )
 
 
 class FunctionNodeVisitor(VyperNodeVisitorBase):
@@ -435,7 +441,6 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
     def visit_Expr(self, node):
         if not isinstance(node.value, vy_ast.Call):
             raise StructureException("Expressions without assignment are disallowed", node)
-
         fn_type = get_exact_type_from_node(node.value.func)
         if isinstance(fn_type, Event):
             raise StructureException("To call an event you must use the `log` statement", node)
@@ -454,9 +459,12 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                 raise StateAccessViolation(
                     f"Cannot call any function from a {self.func.mutability.value} function", node
                 )
-
         return_value = fn_type.fetch_call_return(node.value)
-        if return_value and not isinstance(fn_type, ContractFunction):
+        if (
+            return_value
+            and not isinstance(fn_type, MemberFunctionDefinition)
+            and not isinstance(fn_type, ContractFunction)
+        ):
             raise StructureException(
                 f"Function '{fn_type._id}' cannot be called without assigning the result", node
             )

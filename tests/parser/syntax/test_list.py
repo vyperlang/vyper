@@ -94,7 +94,7 @@ bar: int128[3]
 def foo():
     self.bar = []
     """,
-        InvalidLiteral,
+        InvalidType,
     ),
     (
         """
@@ -264,7 +264,7 @@ def foo():
         """
 @external
 def foo():
-    for str in [b"hello", b"world"]:
+    for str in [b"hello,", b"world"]:
         pass
     """,
         StructureException,

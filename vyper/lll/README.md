@@ -16,7 +16,7 @@ s_expr :=
   "set" IDENTIFIER s_expr |
   "seq" *s_expr |
   "if" s_expr s_expr [s_expr] |
-  "repeat" s_expr s_expr s_expr s_expr
+  "repeat" s_expr s_expr s_expr s_expr s_expr
 ```
 
 An LLL expression has a "valency" of 1 or 0. Valency of 1 means that it returns a stack item, valency of 0 means that it does not.
@@ -222,7 +222,7 @@ _sym_fls JUMPDEST STOP
 
 ### REPEAT
 
-`repeat <memloc> <start> <end> <body>` is a loop. It begins by storing `<start>` at `<memloc>` (which is the memory location of the loop variable), repeating the body and incrementing the loop variable until it is equal to <end>.
+`repeat <loop_varname> <start> <rounds> <rounds_bound> <body>` is a for loop. It creates a stack item whose starting value is `<start>`, and which can be accessed with `<loop_varname>`, repeating the body and incrementing the loop variable `<rounds>` times, i.e. until `<loop_varname> == <start> + <rounds>`. `<rounds_bound>` is provided as a compile-time constant; at the entrance to the loop, a runtime check is performed: `rounds <= rounds_bound`.
 
 Example:
 ```
@@ -299,6 +299,9 @@ Compare or equal
 
 `(ne x y)` is equivalent to `(iszero (eq x y))`
 
+### SELECT
+`(select cond x y)` is similar to `(if cond x y)` but it may evaluate both branches. Whether or not both branches are taken is unspecified. If `cond` is not in `(0, 1)` the behavior is undefined. It is analogous to LLVM `select` and is intended to compile to branchless code.
+
 ### CLAMP\*
 
 Clamp pseudo-opcodes ensure that an input is bounded by some other input(s), and returns its first input.
@@ -323,7 +326,7 @@ clampge
 
 sha3\_32 and sha3\_64 are shortcuts to access the EVM sha3 opcode. They copy the inputs to reserved memory space and then sha3 the input.
 
-`(sha3_32 x)` is equivalent to `(seq (mstore FREE_VAR_SPACE x) (sha3 FREE_VAR_SPACE 32))`, and `(sha3_64 x y)` is equivalent to `(seq (mstore FREE_VAR_SPACE2 y) (mstore FREE_VAR_SPACE x) (sha3 FREE_VAR_SPACE 64))`, where `FREE_VAR_SPACE` and `FREE_VAR_SPACE2` are memory locations reserved by the vyper compiler for scratch space. Their values are currently 192 and 224.
+`(sha3_32 x)` is equivalent to `(seq (mstore FREE_VAR_SPACE x) (sha3 FREE_VAR_SPACE 32))`, and `(sha3_64 x y)` is equivalent to `(seq (mstore FREE_VAR_SPACE2 y) (mstore FREE_VAR_SPACE x) (sha3 FREE_VAR_SPACE 64))`, where `FREE_VAR_SPACE` and `FREE_VAR_SPACE2` are memory locations reserved by the vyper compiler for scratch space. Their values are currently 128 and 160.
 
 
 ### CEIL32

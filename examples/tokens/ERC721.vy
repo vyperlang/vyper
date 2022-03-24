@@ -2,9 +2,11 @@
 # @author Ryuya Nakamura (@nrryuya)
 # Modified from: https://github.com/vyperlang/vyper/blob/de74722bf2d8718cca46902be165f9fe0e3641dd/examples/tokens/ERC721.vy
 
+from vyper.interfaces import ERC165
 from vyper.interfaces import ERC721
 
 implements: ERC721
+implements: ERC165
 
 # Interface for the contract called by safeTransferFrom()
 interface ERC721Receiver:
@@ -66,34 +68,30 @@ ownerToOperators: HashMap[address, HashMap[address, bool]]
 # @dev Address of minter, who can mint a token
 minter: address
 
-# @dev Mapping of interface id to bool about whether or not it's supported
-supportedInterfaces: HashMap[bytes32, bool]
-
-# @dev ERC165 interface ID of ERC165
-ERC165_INTERFACE_ID: constant(bytes32) = 0x0000000000000000000000000000000000000000000000000000000001ffc9a7
-
-# @dev ERC165 interface ID of ERC721
-ERC721_INTERFACE_ID: constant(bytes32) = 0x0000000000000000000000000000000000000000000000000000000080ac58cd
-
+# @dev Static list of supported ERC165 interface ids
+SUPPORTED_INTERFACES: constant(bytes4[2]) = [
+    # ERC165 interface ID of ERC165
+    0x01ffc9a7,
+    # ERC165 interface ID of ERC721
+    0x80ac58cd,
+]
 
 @external
 def __init__():
     """
     @dev Contract constructor.
     """
-    self.supportedInterfaces[ERC165_INTERFACE_ID] = True
-    self.supportedInterfaces[ERC721_INTERFACE_ID] = True
     self.minter = msg.sender
 
 
-@view
+@pure
 @external
-def supportsInterface(_interfaceID: bytes32) -> bool:
+def supportsInterface(interface_id: bytes4) -> bool:
     """
     @dev Interface identification is specified in ERC-165.
-    @param _interfaceID Id of the interface
+    @param interface_id Id of the interface
     """
-    return self.supportedInterfaces[_interfaceID]
+    return interface_id in SUPPORTED_INTERFACES
 
 
 ### VIEW FUNCTIONS ###

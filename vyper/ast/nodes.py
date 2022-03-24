@@ -1065,7 +1065,7 @@ class Compare(VyperNode):
         if not isinstance(left, Constant):
             raise UnfoldableNode("Node contains invalid field(s) for evaluation")
 
-        if isinstance(self.op, In):
+        if isinstance(self.op, (In, NotIn)):
             if not isinstance(right, List):
                 raise UnfoldableNode("Node contains invalid field(s) for evaluation")
             if next((i for i in right.elements if not isinstance(i, Constant)), None):

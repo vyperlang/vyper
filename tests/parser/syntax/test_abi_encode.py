@@ -82,6 +82,13 @@ def foo(x: Bytes[1]) -> Bytes[68]:
 def foo(x: Bytes[1]) -> Bytes[68]:
     return _abi_encode(x, ensure_tuple=False, method_id=0x12345678)
     """,
+    """
+BAR: constant(DynArray[uint256, 5]) = [1, 2, 3, 4, 5]
+
+@external
+def foo() -> Bytes[224]:
+    return _abi_encode(BAR)
+    """,
 ]
 
 

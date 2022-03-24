@@ -1,4 +1,4 @@
-from vyper.exceptions import InvalidLiteral
+from vyper.exceptions import InvalidLiteral, TypeMismatch
 
 # TODO: generalize all these test_convert_to_* test files and parametrize across all the types
 # NOTE: test_convert_to_uint8 tests are in the tests/parser/types/numbers/test_uint8.py file
@@ -16,7 +16,7 @@ def int128_to_uint256(inp: int128) -> (uint256, uint256, uint256):
     self.a = inp
     memory: uint256  = convert(inp, uint256)
     storage: uint256 = convert(self.a, uint256)
-    literal: uint256 = convert(1, uint256)
+    literal: uint256 = 1  # convert(1, uint256) fails because 1 is already uint256
     return  memory, storage, literal
 
 @external
@@ -61,7 +61,7 @@ def foo(bar: Bytes[33]) -> uint256:
     return convert(bar, uint256)
     """
 
-    assert_compile_failed(lambda: get_contract_with_gas_estimation(test_fail), InvalidLiteral)
+    assert_compile_failed(lambda: get_contract_with_gas_estimation(test_fail), TypeMismatch)
 
     test_fail = """
 @external
@@ -70,7 +70,7 @@ def foobar() -> uint256:
     return convert(barfoo, uint256)
     """
 
-    assert_compile_failed(lambda: get_contract_with_gas_estimation(test_fail), InvalidLiteral)
+    assert_compile_failed(lambda: get_contract_with_gas_estimation(test_fail), TypeMismatch)
 
 
 def test_convert_from_address(w3, get_contract):

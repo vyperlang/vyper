@@ -16,16 +16,16 @@ from vyper.exceptions import (
 )
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.bases import BaseTypeDefinition, DataLocation, StorageSlot
-from vyper.semantics.types.indexable.sequence import TupleDefinition
+from vyper.semantics.types.indexable.sequence import DynamicArrayDefinition, TupleDefinition
 from vyper.semantics.types.utils import (
     StringEnum,
-    check_constant,
+    check_kwargable,
     generate_abi_type,
     get_type_from_abi,
     get_type_from_annotation,
 )
 from vyper.semantics.types.value.boolean import BoolDefinition
-from vyper.semantics.types.value.numeric import Uint256Definition
+from vyper.semantics.types.value.numeric import Uint256Definition  # type: ignore
 from vyper.semantics.validation.utils import validate_expected_type
 from vyper.utils import keccak256
 
@@ -323,7 +323,7 @@ class ContractFunction(BaseTypeDefinition):
                 arg.annotation, location=DataLocation.CALLDATA, is_constant=True
             )
             if value is not None:
-                if not check_constant(value):
+                if not check_kwargable(value):
                     raise StateAccessViolation(
                         "Value must be literal or environment variable", value
                     )
@@ -501,6 +501,41 @@ class ContractFunction(BaseTypeDefinition):
             return result
         else:
             return [abi_dict]
+
+
+class MemberFunctionDefinition(BaseTypeDefinition):
+    """
+    Member function type definition.
+
+    This class has no corresponding primitive.
+    """
+
+    _is_callable = True
+
+    def __init__(
+        self, underlying_type: BaseTypeDefinition, name: str, min_arg_count: int, max_arg_count: int
+    ) -> None:
+        super().__init__(DataLocation.UNSET)
+        self.underlying_type = underlying_type
+        self.name = name
+        self.min_arg_count = min_arg_count
+        self.max_arg_count = max_arg_count
+
+    def __repr__(self):
+        return f"{self.underlying_type._id} member function '{self.name}'"
+
+    def fetch_call_return(self, node: vy_ast.Call) -> Optional[BaseTypeDefinition]:
+        validate_call_args(node, (self.min_arg_count, self.max_arg_count))
+
+        if isinstance(self.underlying_type, DynamicArrayDefinition):
+            if self.name == "append":
+                return None
+
+            elif self.name == "pop":
+                value_type = self.underlying_type.value_type
+                return value_type
+
+        raise CallViolation("Function does not exist on given type", node)
 
 
 def _generate_method_id(name: str, canonical_abi_types: List[str]) -> Dict[str, int]:

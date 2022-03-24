@@ -1,17 +1,16 @@
 import vyper.utils as util
-from vyper import ast as vy_ast
 from vyper.codegen.abi_encoder import abi_encode
 from vyper.codegen.core import (
     calculate_type_for_external_return,
+    check_assign,
     check_external_call,
+    dummy_node_for_type,
     get_element_ptr,
     getpos,
-    unwrap_location,
 )
 from vyper.codegen.lll_node import Encoding, LLLnode
-from vyper.codegen.types import TupleType, get_type_for_exact_size
-from vyper.codegen.types.check import check_assign
-from vyper.exceptions import StateAccessViolation, StructureException, TypeCheckFailure
+from vyper.codegen.types import InterfaceType, TupleType, get_type_for_exact_size
+from vyper.exceptions import StateAccessViolation, TypeCheckFailure
 
 
 def _pack_arguments(contract_sig, args, context, pos):
@@ -22,8 +21,7 @@ def _pack_arguments(contract_sig, args, context, pos):
 
     # sanity typecheck - make sure the arguments can be assigned
     dst_tuple_t = TupleType([arg.typ for arg in contract_sig.args][: len(args)])
-    _tmp = LLLnode("fake node", location="memory", typ=dst_tuple_t)
-    check_assign(_tmp, args_as_tuple, context, pos)
+    check_assign(dummy_node_for_type(dst_tuple_t), args_as_tuple)
 
     if contract_sig.return_type is not None:
         return_abi_t = calculate_type_for_external_return(contract_sig.return_type).abi_type
@@ -206,46 +204,13 @@ def lll_for_external_call(stmt_expr, context):
     from vyper.codegen.expr import Expr  # TODO rethink this circular import
 
     pos = getpos(stmt_expr)
+
+    contract_address = Expr.parse_value_expr(stmt_expr.func.value, context)
     value, gas, skip_contract_check = _get_special_kwargs(stmt_expr, context)
     args_lll = [Expr(x, context).lll_node for x in stmt_expr.args]
 
-    if isinstance(stmt_expr.func, vy_ast.Attribute) and isinstance(
-        stmt_expr.func.value, vy_ast.Call
-    ):
-        # e.g. `Foo(address).bar()`
-
-        # sanity check
-        assert len(stmt_expr.func.value.args) == 1
-        contract_name = stmt_expr.func.value.func.id
-        contract_address = Expr.parse_value_expr(stmt_expr.func.value.args[0], context)
-
-    elif (
-        isinstance(stmt_expr.func.value, vy_ast.Attribute)
-        and stmt_expr.func.value.attr in context.globals
-        # TODO check for self?
-        and hasattr(context.globals[stmt_expr.func.value.attr].typ, "name")
-    ):
-        # e.g. `self.foo.bar()`
-
-        # sanity check
-        assert stmt_expr.func.value.value.id == "self", stmt_expr
-
-        contract_name = context.globals[stmt_expr.func.value.attr].typ.name
-        type_ = stmt_expr.func.value._metadata["type"]
-        var = context.globals[stmt_expr.func.value.attr]
-        contract_address = unwrap_location(
-            LLLnode.from_list(
-                type_.position.position,
-                typ=var.typ,
-                location="storage",
-                pos=pos,
-                annotation="self." + stmt_expr.func.value.attr,
-            )
-        )
-    else:
-        # TODO catch this during type checking
-        raise StructureException("Unsupported operator.", stmt_expr)
-
+    assert isinstance(contract_address.typ, InterfaceType)
+    contract_name = contract_address.typ.name
     method_name = stmt_expr.func.attr
     contract_sig = context.sigs[contract_name][method_name]
 

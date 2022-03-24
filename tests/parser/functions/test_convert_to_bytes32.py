@@ -55,9 +55,9 @@ def bytes_to_bytes32_from_smaller(inp: Bytes[10]) -> bytes32:
     """
 
     c = get_contract_with_gas_estimation(code)
-    assert c.int128_to_bytes32(1) == [bytes_helper("", 31) + b"\x01"] * 3
-    assert c.int256_to_bytes32(1) == [bytes_helper("", 31) + b"\x01"] * 3
-    assert c.uint256_to_bytes32(1) == [bytes_helper("", 31) + b"\x01"] * 3
+    assert c.int128_to_bytes32(1) == [int(1).to_bytes(32, "big")] * 3
+    assert c.int256_to_bytes32(1) == [int(1).to_bytes(32, "big")] * 3
+    assert c.uint256_to_bytes32(1) == [int(1).to_bytes(32, "big")] * 3
     assert (
         c.address_to_bytes32(w3.eth.accounts[0])
         == [bytes_helper("", 12) + w3.toBytes(hexstr=w3.eth.accounts[0])] * 2
@@ -68,7 +68,7 @@ def bytes_to_bytes32_from_smaller(inp: Bytes[10]) -> bytes32:
 
 def test_convert_from_address(get_contract_with_gas_estimation):
     test_address = "0xF5D4020dCA6a62bB1efFcC9212AAF3c9819E30D7"
-    test_bytes = b"\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xF5\xD4\x02\x0d\xCA\x6a\x62\xbB\x1e\xfF\xcC\x92\x12\xAA\xF3\xc9\x81\x9E\x30\xD7"  # noqa: E501
+    test_bytes = int(test_address, 16).to_bytes(20, "big").rjust(32, b"\00")
 
     test_address_to_bytes = """
 @external

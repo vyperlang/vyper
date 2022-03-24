@@ -20,7 +20,18 @@ from vyper.abi_types import (
     ABIType,
 )
 from vyper.exceptions import ArgumentException, CompilerPanic, InvalidType
-from vyper.utils import BASE_TYPES, ceil32
+from vyper.utils import ceil32
+
+# Available base types
+UNSIGNED_INTEGER_TYPES = {f"uint{8*(i+1)}" for i in range(32)}
+SIGNED_INTEGER_TYPES = {f"int{8*(i+1)}" for i in range(32)}
+INTEGER_TYPES = UNSIGNED_INTEGER_TYPES | SIGNED_INTEGER_TYPES
+
+BYTES_M_TYPES = {f"bytes{i+1}" for i in range(32)}
+DECIMAL_TYPES = {"decimal"}
+
+
+BASE_TYPES = INTEGER_TYPES | BYTES_M_TYPES | DECIMAL_TYPES | {"bool", "address"}
 
 
 # Data structure for a type
@@ -63,10 +74,27 @@ class NodeType(abc.ABC):
         return r // 32
 
 
+# helper functions for handling old base types which are just strings
+# in the future these can be reified with new type system
+
+
 @dataclass
 class IntegerTypeInfo:
     is_signed: bool
     bits: int
+
+
+@dataclass
+class DecimalTypeInfo:
+    bits: int
+    decimals: int
+    is_signed: bool  # always true for now but may change
+
+
+@dataclass
+class BytesMTypeInfo:
+    m: int
+    m_bits: int  # m_bits == m * 8, just convenient to have
 
 
 _int_parser = re.compile("^(u?)int([0-9]+)$")
@@ -87,19 +115,38 @@ def parse_integer_typeinfo(typename: str) -> IntegerTypeInfo:
     )
 
 
+def is_bytes_m_type(t: "NodeType") -> bool:
+    return isinstance(t, BaseType) and t.typ.startswith("bytes")
+
+
+def parse_bytes_m_info(typename: str) -> BytesMTypeInfo:
+    m = int(typename[len("bytes") :])
+    return BytesMTypeInfo(m=m, m_bits=m * 8)
+
+
+def is_decimal_type(t: "NodeType") -> bool:
+    return isinstance(t, BaseType) and t.typ == "decimal"
+
+
+def parse_decimal_info(typename: str) -> DecimalTypeInfo:
+    # in the future, this will actually do parsing
+    assert typename == "decimal"
+    return DecimalTypeInfo(bits=168, decimals=10, is_signed=True)
+
+
 def _basetype_to_abi_type(t: "BaseType") -> ABIType:
     if is_integer_type(t):
-        typinfo = parse_integer_typeinfo(t.typ)
-        return ABI_GIntM(typinfo.bits, typinfo.is_signed)
+        info = t._int_info
+        return ABI_GIntM(info.bits, info.is_signed)
+    if is_decimal_type(t):
+        info = t._decimal_info
+        return ABI_FixedMxN(info.bits, info.decimals, signed=True)
+    if is_bytes_m_type(t):
+        return ABI_BytesM(t._bytes_info.m)
     if t.typ == "address":
         return ABI_Address()
-    if t.typ == "bytes32":
-        # TODO must generalize to more bytes types
-        return ABI_BytesM(32)
     if t.typ == "bool":
         return ABI_Bool()
-    if t.typ == "decimal":
-        return ABI_FixedMxN(168, 10, True)
 
     raise InvalidType(f"Unrecognized type {t}")  # pragma: notest
 
@@ -108,8 +155,21 @@ def _basetype_to_abi_type(t: "BaseType") -> ABIType:
 class BaseType(NodeType):
     def __init__(self, typename, is_literal=False):
         self.typ = typename  # e.g. "uint256"
-        # TODO remove is_literal from the type itself
+        # TODO remove is_literal,
+        # change to property on LLLnode: `isinstance(self.value, int)`
         self.is_literal = is_literal
+
+        if is_integer_type(self):
+            self._int_info = parse_integer_typeinfo(typename)
+        if is_base_type(self, "address"):
+            self._int_info = IntegerTypeInfo(bits=160, is_signed=False)
+        # don't generate _int_info for bool,
+        # it doesn't really behave like an int in conversions
+        # and should have special handling in the codebase
+        if is_bytes_m_type(self):
+            self._bytes_info = parse_bytes_m_info(typename)
+        if is_decimal_type(self):
+            self._decimal_info = parse_decimal_info(typename)
 
     def eq(self, other):
         return self.typ == other.typ
@@ -313,6 +373,8 @@ def make_struct_type(name, sigs, members, custom_structs):
 # Parses an expression representing a type.
 # TODO: rename me to "lll_type_from_annotation"
 def parse_type(item, sigs, custom_structs):
+    # sigs: set of interface or contract names in scope
+    # custom_structs: struct definitions in scope
     def _sanity_check(x):
         assert x, "typechecker missed this"
 
@@ -434,16 +496,6 @@ def get_type_for_exact_size(n_bytes):
       type: A type which can be passed to context.new_variable
     """
     return ByteArrayType(n_bytes - 32 * DYNAMIC_ARRAY_OVERHEAD)
-
-
-def get_type(input):
-    if not hasattr(input, "typ"):
-        typ, len = "num_literal", 32
-    elif hasattr(input.typ, "maxlen"):
-        typ, len = "Bytes", input.typ.maxlen
-    else:
-        typ, len = input.typ.typ, 32
-    return typ, len
 
 
 # Is a type representing a number?

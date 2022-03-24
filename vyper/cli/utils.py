@@ -9,10 +9,20 @@ from vyper.typing import InterfaceImports, SourceCode
 def get_interface_file_path(base_paths: Sequence, import_path: str) -> Path:
     relative_path = Path(import_path)
     for path in base_paths:
+        # Find ABI JSON files
         file_path = path.joinpath(relative_path)
         suffix = next((i for i in (".vy", ".json") if file_path.with_suffix(i).exists()), None)
         if suffix:
             return file_path.with_suffix(suffix)
+
+        # Find ethPM Manifest files (`from path.to.Manifest import InterfaceName`)
+        # NOTE: Use file parent because this assumes that `file_path`
+        #       coincides with an ABI interface file
+        file_path = file_path.parent
+        suffix = next((i for i in (".vy", ".json") if file_path.with_suffix(i).exists()), None)
+        if suffix:
+            return file_path.with_suffix(suffix)
+
     raise FileNotFoundError(f" Cannot locate interface '{import_path}{{.vy,.json}}'")
 
 
