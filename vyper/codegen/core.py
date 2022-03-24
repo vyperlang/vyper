@@ -199,13 +199,13 @@ def copy_bytes(dst, src, length, length_bound, pos=None):
     length = LLLnode.from_list(length)
 
     with src.cache_when_complex("src") as (b1, src), length.cache_when_complex(
-        "copy_word_count"
+        "copy_bytes_count"
     ) as (b2, length,), dst.cache_when_complex("dst") as (b3, dst):
 
         # fast code for common case where num bytes is small
         # TODO expand this for more cases where num words is less than ~8
         if length_bound <= 32:
-            copy_op = [store_op(dst.location), dst, [load_op(src.location), src]]
+            copy_op = STORE(dst, LOAD(src))
             ret = LLLnode.from_list(copy_op, annotation=annotation)
             return b1.resolve(b2.resolve(b3.resolve(ret)))
 
@@ -235,32 +235,17 @@ def copy_bytes(dst, src, length, length_bound, pos=None):
         # pseudocode for our approach (memory-storage as example):
         # for i in range(len, bound=MAX_LEN):
         #   sstore(_dst + i, mload(src + i * 32))
-        # TODO should use something like
-        # for i in range(len, bound=MAX_LEN):
-        #   _dst += 1
-        #   src += 32
-        #   sstore(_dst, mload(src))
-
         i = LLLnode.from_list(_freshname("copy_bytes_ix"), typ="uint256")
-
-        if src.location in ("memory", "calldata", "data", "immutables"):
-            loader = [load_op(src.location), ["add", src, _mul(32, i)]]
-        elif src.location == "storage":
-            loader = [load_op(src.location), ["add", src, i]]
-        else:
-            raise CompilerPanic(f"Unsupported location: {src.location}")  # pragma: notest
-
-        if dst.location in ("memory", "immutables"):
-            setter = [store_op(dst.location), ["add", dst, _mul(32, i)], loader]
-        elif dst.location == "storage":
-            setter = ["sstore", ["add", dst, i], loader]
-        else:
-            raise CompilerPanic(f"Unsupported location: {dst.location}")  # pragma: notest
 
         n = ["div", ["ceil32", length], 32]
         n_bound = ceil32(length_bound) // 32
 
-        main_loop = ["repeat", i, 0, n, n_bound, setter]
+        dst_i = add_ofst(dst, _mul(i, wordsize(dst.location)))
+        src_i = add_ofst(src, _mul(i, wordsize(src.location)))
+
+        copy_one_word = STORE(dst_i, LOAD(src_i))
+
+        main_loop = ["repeat", i, 0, n, n_bound, copy_one_word]
 
         return b1.resolve(
             b2.resolve(b3.resolve(LLLnode.from_list(main_loop, annotation=annotation, pos=pos)))
@@ -347,19 +332,24 @@ def getpos(node):
     )
 
 
-def add_ofst(loc, ofst):
+# TODO since this is always(?) used as add_ofst(ptr, n*wordsize(ptr.location))
+# maybe the API should be `add_words_to_ofst(ptr, n)` and handle the
+# wordsize multiplication inside
+def add_ofst(ptr, ofst):
     ofst = LLLnode.from_list(ofst)
-    if isinstance(loc.value, int) and isinstance(ofst.value, int):
-        ret = loc.value + ofst.value
+    if isinstance(ptr.value, int) and isinstance(ofst.value, int):
+        # NOTE: duplicate with optimizer rule (but removing this makes a
+        # test on --no-optimize mode use too much gas)
+        ret = ptr.value + ofst.value
     else:
-        ret = ["add", loc, ofst]
-    return LLLnode.from_list(ret, location=loc.location, encoding=loc.encoding)
+        ret = ["add", ptr, ofst]
+    return LLLnode.from_list(ret, location=ptr.location, encoding=ptr.encoding)
 
 
-# TODO should really be handled in the optimizer.
+# shorthand util
 def _mul(x, y):
-    x = LLLnode.from_list(x)
-    y = LLLnode.from_list(y)
+    x, y = LLLnode.from_list(x), LLLnode.from_list(y)
+    # NOTE: similar deal: duplicate with optimizer rule
     if isinstance(x.value, int) and isinstance(y.value, int):
         ret = x.value * y.value
     else:
@@ -555,7 +545,7 @@ def get_element_ptr(parent, key, pos, array_bounds_check=True):
         return b.resolve(ret)
 
 
-# TODO phase this out - make private and use load_word instead
+# TODO phase this out - make private and use LOAD instead
 def load_op(location):
     if location == "memory":
         return "mload"
@@ -573,7 +563,7 @@ def load_op(location):
     raise CompilerPanic(f"unreachable {location}")  # pragma: notest
 
 
-# TODO phase this out - make private and use store_word instead
+# TODO phase this out - make private and use STORE instead
 def store_op(location):
     if location == "memory":
         return "mstore"
@@ -584,18 +574,18 @@ def store_op(location):
     raise CompilerPanic(f"unreachable {location}")  # pragma: notest
 
 
-def load_word(ptr: LLLnode) -> LLLnode:
+def LOAD(ptr: LLLnode) -> LLLnode:
     return LLLnode.from_list([load_op(ptr.location), ptr])
 
 
-def store_word(ptr: LLLnode, val: LLLnode) -> LLLnode:
+def STORE(ptr: LLLnode, val: LLLnode) -> LLLnode:
     return LLLnode.from_list([store_op(ptr.location), ptr, val])
 
 
 # Unwrap location
 def unwrap_location(orig):
     if orig.location in ("memory", "storage", "calldata", "data", "immutables"):
-        return LLLnode.from_list(load_word(orig), typ=orig.typ)
+        return LLLnode.from_list(LOAD(orig), typ=orig.typ)
     else:
         # CMC 20210909 TODO double check if this branch can be removed
         if orig.value == "~empty":

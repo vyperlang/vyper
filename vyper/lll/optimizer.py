@@ -2,7 +2,7 @@ import operator
 from typing import List, Optional
 
 from vyper.codegen.lll_node import LLLnode
-from vyper.utils import LOADED_LIMITS, ceil32
+from vyper.utils import LOADED_LIMITS, ceil32, evm_div, evm_mod
 
 
 def get_int_at(args: List[LLLnode], pos: int, signed: bool = False) -> Optional[int]:
@@ -34,8 +34,8 @@ arith = {
     "add": (operator.add, "+"),
     "sub": (operator.sub, "-"),
     "mul": (operator.mul, "*"),
-    "div": (operator.floordiv, "/"),
-    "mod": (operator.mod, "%"),
+    "div": (evm_div, "/"),
+    "mod": (evm_mod, "%"),
 }
 
 
@@ -101,12 +101,16 @@ def apply_general_optimizations(node: LLLnode) -> LLLnode:
         annotation = argz[1].annotation
         argz = argz[1].args
 
-    elif node.value == "add" and get_int_at(argz, 0) == 0:
+    elif (node.value == "add" and get_int_at(argz, 0) == 0) or (
+        node.value == "mul" and get_int_at(argz, 0) == 1
+    ):
         value = argz[1].value
         annotation = argz[1].annotation
         argz = argz[1].args
 
-    elif node.value == "add" and get_int_at(argz, 1) == 0:
+    elif (node.value == "add" and get_int_at(argz, 1) == 0) or (
+        node.value == "mul" and get_int_at(argz, 1) == 1
+    ):
         value = argz[0].value
         annotation = argz[0].annotation
         argz = argz[0].args
@@ -158,6 +162,11 @@ def apply_general_optimizations(node: LLLnode) -> LLLnode:
     elif node.value == "eq" and int_at(argz, 1) and argz[1].value == -1:
         value = "iszero"
         argz = [LLLnode.from_list(["not", argz[0]])]
+
+    elif node.value == "iszero" and int_at(argz, 0):
+        value = 1 if get_int_at(argz, 0) == 0 else 0
+        annotation = f"iszero({annotation})"
+        argz = []
 
     # (eq x y) has the same truthyness as (iszero (xor x y))
     # rewrite 'eq' as 'xor' in places where truthy is accepted.

@@ -4,6 +4,7 @@ import math
 
 from vyper import ast as vy_ast
 from vyper.codegen.core import (
+    LOAD,
     LLLnode,
     bytes_clamp,
     bytes_data_ptr,
@@ -11,7 +12,6 @@ from vyper.codegen.core import (
     get_bytearray_length,
     getpos,
     int_clamp,
-    load_word,
     sar,
     shl,
     shr,
@@ -83,7 +83,7 @@ def _bytes_to_num(arg, out_typ, signed):
 
     if isinstance(arg.typ, ByteArrayLike):
         _len = get_bytearray_length(arg)
-        arg = load_word(bytes_data_ptr(arg))
+        arg = LOAD(bytes_data_ptr(arg))
         num_zero_bits = ["mul", 8, ["sub", 32, _len]]
     elif is_bytes_m_type(arg.typ):
         info = arg.typ._bytes_info
@@ -290,7 +290,7 @@ def to_bytes_m(expr, arg, out_typ):
     _check_bytes(expr, arg, out_typ, max_bytes_allowed=out_info.m)
 
     if isinstance(arg.typ, ByteArrayType):
-        bytes_val = load_word(bytes_data_ptr(arg))
+        bytes_val = LOAD(bytes_data_ptr(arg))
 
         # zero out any dirty bytes (which can happen in the last
         # word of a bytearray)
