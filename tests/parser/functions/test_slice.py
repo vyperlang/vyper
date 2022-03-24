@@ -36,6 +36,7 @@ def slice_tower_test(inp1: Bytes[50]) -> Bytes[50]:
 @pytest.mark.parametrize("literal_start", (True, False))
 @pytest.mark.parametrize("length", _fun_numbers)
 @pytest.mark.parametrize("literal_length", (True, False))
+@pytest.mark.fuzzing
 def test_slice_immutable(
     get_contract,
     assert_compile_failed,
@@ -85,6 +86,7 @@ def do_splice() -> Bytes[100]:
 @pytest.mark.parametrize("literal_start", (True, False))
 @pytest.mark.parametrize("length", _fun_numbers)
 @pytest.mark.parametrize("literal_length", (True, False))
+@pytest.mark.fuzzing
 def test_slice_bytes(
     get_contract,
     assert_compile_failed,
