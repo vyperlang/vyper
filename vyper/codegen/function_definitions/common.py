@@ -6,10 +6,10 @@ import vyper.ast as vy_ast
 from vyper.ast.signatures import FunctionSignature
 from vyper.codegen.context import Constancy, Context
 from vyper.codegen.core import check_single_exit
-from vyper.codegen.function_definitions.external_function import generate_lll_for_external_function
-from vyper.codegen.function_definitions.internal_function import generate_lll_for_internal_function
+from vyper.codegen.function_definitions.external_function import generate_ir_for_external_function
+from vyper.codegen.function_definitions.internal_function import generate_ir_for_internal_function
 from vyper.codegen.global_context import GlobalContext
-from vyper.codegen.lll_node import LLLnode
+from vyper.codegen.ir_node import IRnode
 from vyper.codegen.memory_allocator import MemoryAllocator
 from vyper.utils import MemoryPositions, calc_mem_gas
 
@@ -24,14 +24,14 @@ def is_default_func(code: vy_ast.FunctionDef) -> bool:
     return code.name == "__default__"
 
 
-def generate_lll_for_function(
+def generate_ir_for_function(
     code: vy_ast.FunctionDef,
     sigs: Dict[str, Dict[str, FunctionSignature]],
     global_ctx: GlobalContext,
     check_nonpayable: bool,
-) -> Tuple[LLLnode, int, int]:
+) -> Tuple[IRnode, int, int]:
     """
-    Parse a function and produce LLL code for the function, includes:
+    Parse a function and produce IR code for the function, includes:
         - Signature method if statement
         - Argument handling
         - Clamping and copying of arguments
@@ -74,9 +74,9 @@ def generate_lll_for_function(
         )
 
         if sig.internal:
-            o = generate_lll_for_internal_function(code, sig, context)
+            o = generate_ir_for_internal_function(code, sig, context)
         else:
-            o = generate_lll_for_external_function(code, sig, context, check_nonpayable)
+            o = generate_ir_for_external_function(code, sig, context, check_nonpayable)
         return o, context
 
     _, context = _run_pass(memory_allocator=None)

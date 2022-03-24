@@ -31,7 +31,7 @@ vyper your_file_name.vy
 ```
 
 There is also an [online compiler](https://vyper.online/) available you can use to experiment with
-the language and compile to ``bytecode`` and/or ``LLL``.
+the language and compile to ``bytecode`` and/or ``IR``.
 
 **Note: While the vyper version of the online compiler is updated on a regular basis it might
 be a bit behind the latest version found in the master branch of this repository.**
