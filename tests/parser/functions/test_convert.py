@@ -448,6 +448,9 @@ def generate_test_convert_values(in_type, out_type, out_values):
                     result += _generate_input_values_dict(t, b, cases, out_values)
 
             else:
+                if out_type == "decimal":
+                    if in_N > 128:
+                        cases = _generate_valid_test_cases_for_type(in_type, count=128)
                 result += _generate_input_values_dict(t, out_type, cases, out_values)
 
     elif in_type == "uint":
@@ -667,6 +670,21 @@ def test_state_variable_convert() -> {out_type}:
         out_value = Decimal(out_value)
 
     assert c3.test_state_variable_convert() == out_value
+
+    contract_4 = f"""
+
+@external
+def test_state_variable_convert() -> {out_type}:
+    bar: {in_type} = {in_value}
+    return convert(bar, {out_type})
+    """
+
+    c4 = get_contract_with_gas_estimation(contract_4)
+
+    if out_type == "decimal":
+        out_value = Decimal(out_value)
+
+    assert c4.test_state_variable_convert() == out_value
 
 
 @pytest.mark.parametrize(
