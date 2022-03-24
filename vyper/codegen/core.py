@@ -1,4 +1,4 @@
-from decimal import Context, Decimal, setcontext
+from decimal import Context, setcontext
 
 from vyper import ast as vy_ast
 from vyper.codegen.lll_node import Encoding, LLLnode
@@ -14,13 +14,13 @@ from vyper.codegen.types import (
     TupleLike,
     TupleType,
     ceil32,
+    is_bytes_m_type,
     is_integer_type,
 )
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
     CompilerPanic,
     DecimalOverrideException,
-    InvalidLiteral,
     StructureException,
     TypeCheckFailure,
     TypeMismatch,
@@ -51,29 +51,6 @@ def check_external_call(call_lll):
 
     propagate_revert_lll = ["seq", copy_revertdata, revert]
     return ["if", ["iszero", call_lll], propagate_revert_lll]
-
-
-# Get a decimal number as a fraction with denominator multiple of 10
-def get_number_as_fraction(expr, context):
-    literal = Decimal(expr.value)
-    sign, digits, exponent = literal.as_tuple()
-
-    if exponent < -10:
-        raise InvalidLiteral(
-            f"`decimal` literal cannot have more than 10 decimal places: {literal}", expr
-        )
-
-    sign = -1 if sign == 1 else 1  # Positive Decimal has `sign` of 0, negative `sign` of 1
-    # Decimal `digits` is a tuple of each digit, so convert to a regular integer
-    top = int(Decimal((0, digits, 0)))
-    top = sign * top * 10 ** (exponent if exponent > 0 else 0)  # Convert to a fixed point integer
-    bottom = 1 if exponent > 0 else 10 ** abs(exponent)  # Make denominator a power of 10
-    assert Decimal(top) / Decimal(bottom) == literal  # Sanity check
-
-    # TODO: Would be best to raise >10 decimal place exception here
-    #       (unless Decimal is used more widely)
-
-    return expr.node_source_code, top, bottom
 
 
 # cost per byte of the identity precompile
@@ -115,7 +92,7 @@ def make_byte_array_copier(dst, src, pos=None):
 
 # TODO maybe move me to types.py
 def wordsize(location):
-    if location in ("memory", "calldata", "code"):
+    if location in ("memory", "calldata", "data", "immutables"):
         return 32
     if location == "storage":
         return 1
@@ -232,20 +209,27 @@ def copy_bytes(dst, src, length, length_bound, pos=None):
             ret = LLLnode.from_list(copy_op, annotation=annotation)
             return b1.resolve(b2.resolve(b3.resolve(ret)))
 
-        if dst.location == "memory" and src.location in ("memory", "calldata", "code"):
+        if dst.location == "memory" and src.location in ("memory", "calldata", "data"):
             # special cases: batch copy to memory
+            # TODO: iloadbytes
             if src.location == "memory":
                 copy_op = ["staticcall", "gas", 4, src, length, dst, length]
                 gas_bound = _identity_gas_bound(length_bound)
             elif src.location == "calldata":
                 copy_op = ["calldatacopy", dst, src, length]
                 gas_bound = _calldatacopy_gas_bound(length_bound)
-            elif src.location == "code":
-                copy_op = ["codecopy", dst, src, length]
+            elif src.location == "data":
+                copy_op = ["dloadbytes", dst, src, length]
+                # note: dloadbytes compiles to CODECOPY
                 gas_bound = _codecopy_gas_bound(length_bound)
 
             ret = LLLnode.from_list(copy_op, annotation=annotation, add_gas_estimate=gas_bound)
             return b1.resolve(b2.resolve(b3.resolve(ret)))
+
+        if dst.location == "immutables" and src.location in ("memory", "data"):
+            # TODO istorebytes-from-mem, istorebytes-from-calldata(?)
+            # compile to identity, CODECOPY respectively.
+            pass
 
         # general case, copy word-for-word
         # pseudocode for our approach (memory-storage as example):
@@ -259,15 +243,15 @@ def copy_bytes(dst, src, length, length_bound, pos=None):
 
         i = LLLnode.from_list(_freshname("copy_bytes_ix"), typ="uint256")
 
-        if src.location in ("memory", "calldata", "code"):
+        if src.location in ("memory", "calldata", "data", "immutables"):
             loader = [load_op(src.location), ["add", src, _mul(32, i)]]
         elif src.location == "storage":
             loader = [load_op(src.location), ["add", src, i]]
         else:
             raise CompilerPanic(f"Unsupported location: {src.location}")  # pragma: notest
 
-        if dst.location == "memory":
-            setter = ["mstore", ["add", dst, _mul(32, i)], loader]
+        if dst.location in ("memory", "immutables"):
+            setter = [store_op(dst.location), ["add", dst, _mul(32, i)], loader]
         elif dst.location == "storage":
             setter = ["sstore", ["add", dst, i], loader]
         else:
@@ -454,7 +438,7 @@ def _get_element_ptr_tuplelike(parent, key, pos):
     if parent.location == "storage":
         for i in range(index):
             ofst += typ.members[attrs[i]].storage_size_in_words
-    elif parent.location in ("calldata", "memory", "code"):
+    elif parent.location in ("calldata", "memory", "data", "immutables"):
         for i in range(index):
             ofst += typ.members[attrs[i]].memory_bytes_required
     else:
@@ -522,7 +506,7 @@ def _get_element_ptr_array(parent, key, pos, array_bounds_check):
 
     if parent.location == "storage":
         element_size = subtype.storage_size_in_words
-    elif parent.location in ("calldata", "memory", "code"):
+    elif parent.location in ("calldata", "memory", "data", "immutables"):
         element_size = subtype.memory_bytes_required
 
     ofst = _mul(ix, element_size)
@@ -571,6 +555,7 @@ def get_element_ptr(parent, key, pos, array_bounds_check=True):
         return b.resolve(ret)
 
 
+# TODO phase this out - make private and use load_word instead
 def load_op(location):
     if location == "memory":
         return "mload"
@@ -578,23 +563,39 @@ def load_op(location):
         return "sload"
     if location == "calldata":
         return "calldataload"
-    if location == "code":
-        return "codeload"
+    if location == "data":
+        # refers to data section of currently executing code
+        return "dload"
+    if location == "immutables":
+        # special address space for manipulating immutables before deploy
+        # only makes sense in a constructor
+        return "iload"
     raise CompilerPanic(f"unreachable {location}")  # pragma: notest
 
 
+# TODO phase this out - make private and use store_word instead
 def store_op(location):
     if location == "memory":
         return "mstore"
     if location == "storage":
         return "sstore"
+    if location == "immutables":
+        return "istore"
     raise CompilerPanic(f"unreachable {location}")  # pragma: notest
+
+
+def load_word(ptr: LLLnode) -> LLLnode:
+    return LLLnode.from_list([load_op(ptr.location), ptr])
+
+
+def store_word(ptr: LLLnode, val: LLLnode) -> LLLnode:
+    return LLLnode.from_list([store_op(ptr.location), ptr, val])
 
 
 # Unwrap location
 def unwrap_location(orig):
-    if orig.location in ("memory", "storage", "calldata", "code"):
-        return LLLnode.from_list([load_op(orig.location), orig], typ=orig.typ)
+    if orig.location in ("memory", "storage", "calldata", "data", "immutables"):
+        return LLLnode.from_list(load_word(orig), typ=orig.typ)
     else:
         # CMC 20210909 TODO double check if this branch can be removed
         if orig.value == "~empty":
@@ -982,10 +983,12 @@ def clamp_basetype(lll_node):
     # copy of the input
     lll_node = unwrap_location(lll_node)
 
-    if t.typ in ("int128"):
-        return int_clamp(lll_node, 128, signed=True)
-    if t.typ == "uint8":
-        return int_clamp(lll_node, 8)
+    if is_integer_type(t):
+        if t._int_info.bits == 256:
+            return lll_node
+        else:
+            return int_clamp(lll_node, t._int_info.bits, signed=t._int_info.is_signed)
+
     if t.typ in ("decimal"):
         return [
             "clamp",
@@ -998,8 +1001,10 @@ def clamp_basetype(lll_node):
         return int_clamp(lll_node, 160)
     if t.typ in ("bool",):
         return int_clamp(lll_node, 1)
-    if t.typ in ("int256", "uint256", "bytes32"):
+    if t.typ in ("bytes32",):
         return lll_node  # special case, no clamp.
+    if is_bytes_m_type(t):
+        return bytes_clamp(lll_node, t._bytes_info.m)
 
     raise CompilerPanic(f"{t} passed to clamp_basetype")  # pragma: notest
 
@@ -1012,17 +1017,35 @@ def int_clamp(lll_node, bits, signed=False):
     """
     if bits >= 256:
         raise CompilerPanic(f"invalid clamp: {bits}>=256 ({lll_node})")  # pragma: notest
-    if signed:
-        # example for bits==128:
-        # if _val is in bounds,
-        # _val >>> 127 == 0 for positive _val
-        # _val >>> 127 == -1 for negative _val
-        # -1 and 0 are the only numbers which are unchanged by sar,
-        # so sar'ing (_val>>>127) one more bit should leave it unchanged.
-        assertion = ["assert", ["eq", sar(bits - 1, "val"), sar(bits, "val")]]
-    else:
-        assertion = ["assert", ["iszero", shr(bits, "val")]]
+    with lll_node.cache_when_complex("val") as (b, val):
+        if signed:
+            # example for bits==128:
+            # promote_signed_int(val, bits) is the "canonical" version of val
+            # if val is in bounds, the bits above bit 128 should be equal.
+            # (this works for both val >= 0 and val < 0. in the first case,
+            # all upper bits should be 0 if val is a valid int128,
+            # in the latter case, all upper bits should be 1.)
+            assertion = ["assert", ["eq", val, promote_signed_int(val, bits)]]
+        else:
+            assertion = ["assert", ["iszero", shr(bits, val)]]
 
-    ret = ["with", "val", lll_node, ["seq", assertion, "val"]]
+        ret = b.resolve(["seq", assertion, val])
 
+    # TODO fix this annotation
     return LLLnode.from_list(ret, annotation=f"int_clamp {lll_node.typ}")
+
+
+def bytes_clamp(lll_node: LLLnode, n_bytes: int) -> LLLnode:
+    if not (0 < n_bytes <= 32):
+        raise CompilerPanic(f"bad type: bytes{n_bytes}")
+    with lll_node.cache_when_complex("val") as (b, val):
+        assertion = ["assert", ["iszero", shl(n_bytes * 8, val)]]
+        ret = b.resolve(["seq", assertion, val])
+    return LLLnode.from_list(ret, annotation=f"bytes{n_bytes}_clamp")
+
+
+# e.g. for int8, promote 255 to -1
+def promote_signed_int(x, bits):
+    assert bits % 8 == 0
+    ret = ["signextend", bits // 8 - 1, x]
+    return LLLnode.from_list(ret, annotation=f"promote int{bits}")

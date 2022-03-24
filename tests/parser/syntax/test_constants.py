@@ -87,14 +87,24 @@ C1: constant(uint256) = block.number
     """,
         StateAccessViolation,
     ),
+    (
+        """
+struct Foo:
+    a: uint256
+    b: uint256
+
+CONST_BAR: constant(Foo) = Foo({a: 1, b: block.number})
+    """,
+        StateAccessViolation,
+    ),
     # cannot assign function result to a constant
     (
         """
-@external
+@internal
 def foo() -> uint256:
     return 42
 
-c1: constant(uint256) = self.foo
+c1: constant(uint256) = self.foo()
      """,
         StateAccessViolation,
     ),
@@ -194,6 +204,39 @@ MY_DECIMAL: constant(decimal) = -1e38
     """,
     """
 CONST_BYTES: constant(Bytes[4]) = b'1234'
+    """,
+    """
+struct Foo:
+    a: uint256
+    b: uint256
+
+CONST_BAR: constant(Foo) = Foo({a: 1, b: 2})
+    """,
+    """
+struct Foo:
+    a: uint256
+    b: uint256
+
+A: constant(uint256) = 1
+B: constant(uint256) = 2
+
+CONST_BAR: constant(Foo) = Foo({a: A, b: B})
+    """,
+    """
+struct Foo:
+    a: uint256
+    b: uint256
+
+struct Bar:
+    c: Foo
+    d: int128
+
+A: constant(uint256) = 1
+B: constant(uint256) = 2
+C: constant(Foo) = Foo({a: A, b: B})
+D: constant(int128) = -1
+
+CONST_BAR: constant(Bar) = Bar({c: C, d: D})
     """,
 ]
 

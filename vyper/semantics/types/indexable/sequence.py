@@ -13,7 +13,7 @@ from vyper.semantics.types.bases import (
     IndexableTypeDefinition,
     MemberTypeDefinition,
 )
-from vyper.semantics.types.value.numeric import Uint256Definition
+from vyper.semantics.types.value.numeric import Uint256Definition  # type: ignore
 
 
 class _SequenceDefinition(IndexableTypeDefinition):

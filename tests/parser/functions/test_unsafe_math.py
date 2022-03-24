@@ -4,11 +4,11 @@ import random
 
 import pytest
 
-from vyper.codegen.types.types import parse_integer_typeinfo
-from vyper.utils import BASE_TYPES, evm_div, int_bounds
+from vyper.codegen.types.types import INTEGER_TYPES, parse_integer_typeinfo
+from vyper.utils import evm_div, int_bounds
 
 # TODO something less janky
-integer_types = sorted([t for t in BASE_TYPES if "int" in t])
+integer_types = sorted(list(INTEGER_TYPES))
 
 
 def _as_signed(x, bits):
@@ -33,7 +33,8 @@ def foo(x: {typ}, y: {typ}) -> {typ}:
     c = get_contract(code)
 
     lo, hi = int_bounds(int_info.is_signed, int_info.bits)
-    NUM_CASES = 33  # any more than this and fuzzer takes too long
+    # (roughly 8k cases total generated)
+    NUM_CASES = 15
     xs = [random.randrange(lo, hi) for _ in range(NUM_CASES)]
     ys = [random.randrange(lo, hi) for _ in range(NUM_CASES)]
 

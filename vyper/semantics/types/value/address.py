@@ -7,7 +7,7 @@ from ..bases import BasePrimitive, MemberTypeDefinition, ValueTypeDefinition
 from .array_value import BytesArrayDefinition
 from .boolean import BoolDefinition
 from .bytes_fixed import Bytes32Definition
-from .numeric import Uint256Definition
+from .numeric import Uint256Definition  # type: ignore
 
 
 class AddressDefinition(MemberTypeDefinition, ValueTypeDefinition):

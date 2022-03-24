@@ -1,5 +1,5 @@
+import decimal
 import math
-from decimal import Decimal
 
 from vyper import ast as vy_ast
 from vyper.codegen import external_call, self_call
@@ -8,7 +8,6 @@ from vyper.codegen.core import (
     ensure_in_memory,
     get_dyn_array_count,
     get_element_ptr,
-    get_number_as_fraction,
     getpos,
     load_op,
     make_setter,
@@ -100,7 +99,7 @@ def calculate_largest_power(a: int, num_bits: int, is_signed: bool) -> int:
 
     # NOTE: There is an edge case if `a` were left signed where the following
     #       operation would not work (`ln(a)` is undefined if `a <= 0`)
-    b = int(Decimal(value_bits) / (Decimal(a).ln() / Decimal(2).ln()))
+    b = int(decimal.Decimal(value_bits) / (decimal.Decimal(a).ln() / decimal.Decimal(2).ln()))
     if b <= 1:
         return 1  # Value is assumed to be in range, therefore power of 1 is max
 
@@ -156,7 +155,7 @@ def calculate_largest_base(b: int, num_bits: int, is_signed: bool) -> int:
         return 2 ** value_bits - 1  # Maximum value for type
 
     # Estimate (up to ~39 digits precision required)
-    a = math.ceil(2 ** (Decimal(value_bits) / Decimal(b)))
+    a = math.ceil(2 ** (decimal.Decimal(value_bits) / decimal.Decimal(b)))
     # Do a bit of iteration to ensure we have the exact number
     num_iterations = 0
     while (a + 1) ** b < 2 ** value_bits:
@@ -219,31 +218,44 @@ class Expr:
             )
 
     def parse_Decimal(self):
-        numstring, num, den = get_number_as_fraction(self.expr, self.context)
-        if not (SizeLimits.MIN_INT128 * den <= num <= SizeLimits.MAX_INT128 * den):
-            return
-        if DECIMAL_DIVISOR % den:
-            return
+        val = self.expr.value
+        # sanity check that type checker did its job
+        assert isinstance(val, decimal.Decimal)
+        assert SizeLimits.MINDECIMAL <= val <= SizeLimits.MAXDECIMAL
+
         return LLLnode.from_list(
-            num * DECIMAL_DIVISOR // den,
+            int(val * DECIMAL_DIVISOR),
             typ=BaseType("decimal", is_literal=True),
             pos=getpos(self.expr),
         )
 
     def parse_Hex(self):
-        orignum = self.expr.value
-        if len(orignum) == 42 and checksum_encode(orignum) == orignum:
+        pos = getpos(self.expr)
+
+        hexstr = self.expr.value
+
+        if len(hexstr) == 42:
+            # sanity check typechecker did its job
+            assert checksum_encode(hexstr) == hexstr
+            typ = BaseType("address")
+            # TODO allow non-checksum encoded bytes20
             return LLLnode.from_list(
                 int(self.expr.value, 16),
-                typ=BaseType("address", is_literal=True),
-                pos=getpos(self.expr),
+                typ=typ,
+                pos=pos,
             )
-        elif len(orignum) == 66:
-            return LLLnode.from_list(
-                int(self.expr.value, 16),
-                typ=BaseType("bytes32", is_literal=True),
-                pos=getpos(self.expr),
-            )
+
+        else:
+            n_bytes = (len(hexstr) - 2) // 2  # e.g. "0x1234" is 2 bytes
+            # TODO: typ = new_type_to_old_type(self.expr._metadata["type"])
+            #       assert n_bytes == typ._bytes_info.m
+
+            # bytes_m types are left padded with zeros
+            val = int(hexstr, 16) << 8 * (32 - n_bytes)
+
+            typ = BaseType(f"bytes{n_bytes}", is_literal=True)
+            typ.is_literal = True
+            return LLLnode.from_list(val, typ=typ, pos=pos)
 
     # String literals
     def parse_Str(self):
@@ -315,39 +327,26 @@ class Expr:
             return LLLnode.from_list(
                 [obj], typ=BaseType(typ, is_literal=True), pos=getpos(self.expr)
             )
-        elif self.expr._metadata["type"].is_immutable:
-            # immutable variable
-            # need to handle constructor and outside constructor
-            var = self.context.globals[self.expr.id]
-            is_constructor = self.expr.get_ancestor(vy_ast.FunctionDef).get("name") == "__init__"
-            if is_constructor:
-                # store memory position for later access in module.py in the variable record
-                memory_loc = self.context.new_variable(self.expr.id, var.typ)
-                self.context.global_ctx._globals[self.expr.id].pos = memory_loc
-                # store the data offset in the variable record as well for accessing
-                data_offset = self.expr._metadata["type"].position.offset
-                self.context.global_ctx._globals[self.expr.id].data_offset = data_offset
 
-                return LLLnode.from_list(
-                    memory_loc,
-                    typ=var.typ,
-                    location="memory",
-                    pos=getpos(self.expr),
-                    annotation=self.expr.id,
-                    mutable=True,
-                )
+        elif self.expr._metadata["type"].is_immutable:
+            var = self.context.globals[self.expr.id]
+            ofst = self.expr._metadata["type"].position.offset
+
+            if self.context.sig.is_init_func:
+                mutable = True
+                location = "immutables"
             else:
-                immutable_section_size = self.context.global_ctx.immutable_section_size
-                offset = self.expr._metadata["type"].position.offset
-                # TODO: resolve code offsets for immutables at compile time
-                return LLLnode.from_list(
-                    ["sub", "codesize", immutable_section_size - offset],
-                    typ=var.typ,
-                    location="code",
-                    pos=getpos(self.expr),
-                    annotation=self.expr.id,
-                    mutable=False,
-                )
+                mutable = False
+                location = "data"
+
+            return LLLnode.from_list(
+                ofst,
+                typ=var.typ,
+                location=location,
+                pos=getpos(self.expr),
+                annotation=self.expr.id,
+                mutable=mutable,
+            )
 
     # x.y or x[5]
     def parse_Attribute(self):
@@ -481,7 +480,7 @@ class Expr:
                 return LLLnode.from_list(["chainid"], typ="uint256", pos=getpos(self.expr))
         # Other variables
         else:
-            sub = Expr.parse_variable_location(self.expr.value, self.context)
+            sub = Expr(self.expr.value, self.context).lll_node
             # contract type
             if isinstance(sub.typ, InterfaceType):
                 return sub
@@ -1094,9 +1093,9 @@ class Expr:
     def parse_value_expr(cls, expr, context):
         return unwrap_location(cls(expr, context).lll_node)
 
-    # Parse an expression that represents an address in memory/calldata or storage.
+    # Parse an expression that represents a pointer to memory/calldata or storage.
     @classmethod
-    def parse_variable_location(cls, expr, context):
+    def parse_pointer_expr(cls, expr, context):
         o = cls(expr, context).lll_node
         if not o.location:
             raise StructureException("Looking for a variable location, instead got a value", expr)

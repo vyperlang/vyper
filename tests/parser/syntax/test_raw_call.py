@@ -1,7 +1,13 @@
 import pytest
 
 from vyper import compiler
-from vyper.exceptions import ArgumentException, InvalidType, StructureException, SyntaxException
+from vyper.exceptions import (
+    ArgumentException,
+    InvalidType,
+    StructureException,
+    SyntaxException,
+    TypeMismatch,
+)
 
 fail_list = [
     (
@@ -26,9 +32,10 @@ def foo():
         """
 @external
 def foo():
+    # bytes20 instead of bytes32
     raw_log([], 0x1234567890123456789012345678901234567890)
     """,
-        InvalidType,
+        TypeMismatch,
     ),
     (
         """

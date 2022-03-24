@@ -87,7 +87,7 @@ def build_ir_runtime_output(compiler_data: CompilerData) -> LLLnode:
 
 def _lll_to_dict(lll_node):
     args = lll_node.args
-    if len(args) > 0:
+    if len(args) > 0 or lll_node.value == "seq":
         return {lll_node.value: [_lll_to_dict(x) for x in args]}
     return lll_node.value
 
@@ -174,11 +174,9 @@ def _build_asm(asm_list):
                 output_string += " "
             in_push -= 1
         else:
-            assert isinstance(node, str), node
+            output_string += str(node) + " "
 
-            output_string += node + " "
-
-            if node.startswith("PUSH"):
+            if isinstance(node, str) and node.startswith("PUSH"):
                 assert in_push == 0
                 in_push = int(node[4:])
                 output_string += "0x"

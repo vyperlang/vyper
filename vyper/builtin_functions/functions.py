@@ -24,6 +24,7 @@ from vyper.codegen.core import (
     getpos,
     lll_tuple_from_args,
     load_op,
+    promote_signed_int,
     unwrap_location,
 )
 from vyper.codegen.expr import Expr
@@ -71,12 +72,10 @@ from vyper.semantics.types.value.array_value import (
     StringPrimitive,
 )
 from vyper.semantics.types.value.bytes_fixed import Bytes32Definition
-from vyper.semantics.types.value.numeric import (
-    DecimalDefinition,
-    Int128Definition,
-    Int256Definition,
-    Uint256Definition,
-)
+from vyper.semantics.types.value.numeric import Int128Definition  # type: ignore
+from vyper.semantics.types.value.numeric import Int256Definition  # type: ignore
+from vyper.semantics.types.value.numeric import Uint256Definition  # type: ignore
+from vyper.semantics.types.value.numeric import DecimalDefinition
 from vyper.semantics.validation.utils import (
     get_common_types,
     get_exact_type_from_node,
@@ -167,60 +166,24 @@ class Ceil(_SimpleBuiltinFunction):
 
 class Convert:
 
-    # TODO this is just a wireframe, expand it with complete functionality
-    # https://github.com/vyperlang/vyper/issues/1093
-
     _id = "convert"
 
     def fetch_call_return(self, node):
         validate_call_args(node, 2)
         target_type = get_type_from_annotation(node.args[1], DataLocation.MEMORY)
-
         validate_expected_type(node.args[0], ValueTypeDefinition())
+
+        # block conversions between same type
         try:
             validate_expected_type(node.args[0], target_type)
         except VyperException:
             pass
         else:
-            # TODO remove this once it's possible in parser
             if not isinstance(target_type, Uint256Definition):
                 raise InvalidType(f"Value and target type are both '{target_type}'", node)
 
-        # TODO!
-        # try:
-        #     validation_fn = getattr(self, f"validate_to_{target_type._id}")
-        # except AttributeError:
-        #     raise InvalidType(
-        #         f"Unsupported destination type '{target_type}'", node.args[1]
-        #     ) from None
-
-        # validation_fn(initial_type)
-
+        # note: more type conversion validation happens in convert.py
         return target_type
-
-    def validate_to_bool(self, initial_type):
-        pass
-
-    def validate_to_decimal(self, initial_type):
-        pass
-
-    def validate_to_int128(self, initial_type):
-        pass
-
-    def validate_to_uint256(self, initial_type):
-        pass
-
-    def validate_to_bytes32(self, initial_type):
-        pass
-
-    def validate_to_string(self, initial_type):
-        pass
-
-    def validate_to_bytes(self, initial_type):
-        pass
-
-    def validate_to_address(self, initial_type):
-        pass
 
     def build_LLL(self, expr, context):
         return convert(expr, context)
@@ -564,7 +527,7 @@ class Concat:
                 if arg.typ.maxlen == 0:
                     continue
                 # Get the length of the current argument
-                if arg.location in ("memory", "calldata", "code"):
+                if arg.location in ("memory", "calldata", "data", "immutables"):
                     length = LLLnode.from_list(
                         [load_op(arg.location), "_arg"], typ=BaseType("int128")
                     )
@@ -1065,7 +1028,7 @@ class AsWeiValue:
         value, denom_name = args[0], args[1].decode()
 
         denom_divisor = next(v for k, v in self.wei_denoms.items() if denom_name in k)
-        if value.typ.typ == "uint256":
+        if value.typ.typ == "uint256" or value.typ.typ == "uint8":
             sub = [
                 "with",
                 "ans",
@@ -1607,7 +1570,7 @@ class Abs(_SimpleBuiltinFunction):
             [
                 "if",
                 ["slt", "orig", 0],
-                # CMC 2022-02-05 pretty sure this assertion is pointless.
+                # clamp orig != -2**255 (because it maps to itself under negation)
                 ["seq", ["assert", ["ne", "orig", ["sub", 0, "orig"]]], ["sub", 0, "orig"]],
                 "orig",
             ],
@@ -1757,7 +1720,7 @@ class _UnsafeMath:
             # wrap for ops which could under/overflow
             if int_info.is_signed:
                 # e.g. int128 -> (signextend 15 (add x y))
-                ret = ["signextend", int_info.bits // 8 - 1, ret]
+                ret = promote_signed_int(ret, int_info.bits)
             else:
                 # e.g. uint8 -> (mod (add x y) 256)
                 # TODO mod_bound could be a really large literal
@@ -1999,8 +1962,9 @@ class ABIEncode(_SimpleBuiltinFunction):
             return fourbytes_to_int(method_id.value)
 
         if isinstance(method_id, vy_ast.Hex):
-            _check(method_id.value <= 2 ** 32)
-            return method_id.value
+            hexstr = method_id.value  # e.g. 0xdeadbeef
+            _check(len(hexstr) // 2 - 1 <= 4)
+            return int(hexstr, 16)
 
         _check(False)
 

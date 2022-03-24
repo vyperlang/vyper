@@ -154,6 +154,23 @@ a: public(ERC20)
 def test():
     b: address = self.a.address
     """,
+    """
+interface MyInterface:
+    def some_func(): nonpayable
+
+my_interface: MyInterface[3]
+idx: uint256
+
+@external
+def __init__():
+    self.my_interface[self.idx] = MyInterface(ZERO_ADDRESS)
+    """,
+    """
+interface MyInterface:
+    def kick(): payable
+
+kickers: HashMap[address, MyInterface]
+    """,
 ]
 
 

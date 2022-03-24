@@ -38,16 +38,14 @@ def test_compile_lll_good(good_lll, get_contract_from_lll):
 def test_lll_from_s_expression(get_contract_from_lll):
     code = """
 (seq
-  (return
+  (deploy
     0
-    (lll ; just return 32 byte of calldata back
-      0
-      (seq
-          (calldatacopy 0 4 32)
-          (return 0 32)
-          stop
-        )
-      )))
+    (seq ; just return 32 byte of calldata back
+      (calldatacopy 0 4 32)
+      (return 0 32)
+      stop
+     )
+    0))
     """
     abi = [
         {
