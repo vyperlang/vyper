@@ -33,10 +33,8 @@ def foo(x: {typ}, y: {typ}) -> {typ}:
     c = get_contract(code)
 
     lo, hi = int_bounds(int_info.is_signed, int_info.bits)
-    # number of cases very much affects fuzzer time so test u/int256
-    # with more cases, and fewer cases for all other int types
-    # (roughly 5k cases total generated)
-    NUM_CASES = 40 if typ in ("int256", "uint256") else 5
+    # (roughly 8k cases total generated)
+    NUM_CASES = 15
     xs = [random.randrange(lo, hi) for _ in range(NUM_CASES)]
     ys = [random.randrange(lo, hi) for _ in range(NUM_CASES)]
 
