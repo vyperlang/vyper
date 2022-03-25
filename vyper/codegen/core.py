@@ -170,9 +170,9 @@ def _dynarray_make_setter(dst, src, pos=None):
         should_loop |= src.typ.subtype.abi_type.is_dynamic()
         should_loop |= _needs_clamp(src.typ.subtype, src.encoding)
 
-        with get_dyn_array_count(src).cache_when_complex("darray_count") as (b2, len_):
+        with get_dyn_array_count(src).cache_when_complex("darray_count") as (b2, count):
             ret = ["seq"]
-            ret.append(STORE(dst, len_))
+            ret.append(STORE(dst, count))
 
             if should_loop:
                 i = LLLnode.from_list(_freshname("copy_darray_ix"), typ="uint256")
@@ -184,12 +184,12 @@ def _dynarray_make_setter(dst, src, pos=None):
                 )
                 loop_body.annotation = f"{dst}[i] = {src}[i]"
 
-                ret.append(["repeat", i, 0, len_, src.typ.count, loop_body])
+                ret.append(["repeat", i, 0, count, src.typ.count, loop_body])
 
             else:
                 element_size = src.typ.subtype.memory_bytes_required
                 # number of elements * size of element in bytes
-                n_bytes = _mul(len_, element_size)
+                n_bytes = _mul(count, element_size)
                 max_bytes = src.typ.count * element_size
 
                 src_ = dynarray_data_ptr(src)
