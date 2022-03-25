@@ -85,17 +85,17 @@ def make_byte_array_copier(dst, src, pos=None):
 
     with src.cache_when_complex("src") as (b1, src):
         with get_bytearray_length(src).cache_when_complex("len") as (b2, len_):
-            n_bytes = get_bytearray_length(src)
+
             max_bytes = src.typ.maxlen
 
             ret = ["seq"]
             # store length
-            ret.append(STORE(dst, n_bytes))
+            ret.append(STORE(dst, len_))
 
             dst = bytes_data_ptr(dst)
             src = bytes_data_ptr(src)
 
-            ret.append(copy_bytes(dst, src, n_bytes, max_bytes))
+            ret.append(copy_bytes(dst, src, len_, max_bytes))
             return b1.resolve(b2.resolve(ret))
 
 
@@ -191,7 +191,7 @@ def _dynarray_make_setter(dst, src, pos=None):
             else:
                 element_size = src.typ.subtype.memory_bytes_required
                 # number of elements * size of element in bytes
-                n_bytes = _mul(get_dyn_array_count(src), element_size)
+                n_bytes = _mul(len_, element_size)
                 max_bytes = src.typ.count * element_size
 
                 src_ = dynarray_data_ptr(src)
