@@ -86,6 +86,37 @@ def _get_nibble(type_):
     return None
 
 
+def _get_case_type(type_):
+    """
+    Helper function to get the case type for `_generate_valid_test_cases_for_type`
+    """
+    if type_.startswith("uint"):
+        return "uint"
+
+    elif type_.startswith("int"):
+        return "int"
+
+    elif type_.startswith("bytes"):
+        return "bytes"
+
+    elif type_.startswith("Bytes"):
+        return "Bytes"
+    return type_
+
+
+def _get_all_types_for_case_type(case_type):
+    """
+    Helper function to all types for a given case type
+    """
+    if case_type == "int":
+        return SIGNED_INTEGER_TYPES
+    elif case_type == "uint":
+        return UNSIGNED_INTEGER_TYPES
+    elif case_type == "bytes":
+        return BYTES_M_TYPES
+    return case_type
+
+
 def _generate_valid_test_cases_for_type(type_, count=None):
     """
     Helper function to generate the test cases for a specific type.
@@ -515,20 +546,17 @@ def generate_test_convert_values(in_type, out_type, out_values):
 @pytest.mark.parametrize(
     "input_values",
     # Convert to bool
-    generate_test_convert_values("uint", "bool", [False, True, True, True])
-    + generate_test_convert_values("int", "bool", [False, True, True, True, True, True, True])
-    + generate_test_convert_values(
-        "decimal", "bool", [False, True, True, True, True, True, True, True, True]
-    )
-    + generate_test_convert_values("address", "bool", [False, True, True])
+    generate_test_convert_values("address", "bool", [False, True, True])
+    + generate_test_convert_values("bytes", "bool", [False, True, True])
     + generate_test_convert_values(
         "Bytes[32]", "bool", [False, False, False, True, True, True, True]
     )
-    + generate_test_convert_values("bytes", "bool", [False, True, True])
-    # Convert to address
     + generate_test_convert_values(
-        "uint", "address", [ZERO_ADDRESS, ONE_ADDRESS, "EVALUATE", "EVALUATE"]
+        "decimal", "bool", [False, True, True, True, True, True, True, True, True]
     )
+    + generate_test_convert_values("int", "bool", [False, True, True, True, True, True, True])
+    + generate_test_convert_values("uint", "bool", [False, True, True, True])
+    # Convert to address
     + generate_test_convert_values("bytes", "address", [ZERO_ADDRESS, ONE_ADDRESS, "EVALUATE"])
     + generate_test_convert_values(
         "Bytes[32]",
@@ -543,12 +571,16 @@ def generate_test_convert_values(in_type, out_type, out_values):
             "EVALUATE",
         ],
     )
+    + generate_test_convert_values(
+        "uint", "address", [ZERO_ADDRESS, ONE_ADDRESS, "EVALUATE", "EVALUATE"]
+    )
     # Convert to uint
     + generate_test_convert_values("address", "uint", [0, "EVALUATE", "EVALUATE"])
     + generate_test_convert_values("bytes", "uint", [0, 1, "EVALUATE"])
     + generate_test_convert_values("bool", "uint", [1, 0])
     + generate_test_convert_values("Bytes[32]", "uint", [0, 0, 0, 1, 1, "EVALUATE", "EVALUATE"])
     + generate_test_convert_values("decimal", "uint", [0, 0, 0, 1, "EVALUATE"])
+    + generate_test_convert_values("int", "uint", [0, 1, "EVALUATE", "EVALUATE", None, None])
     # Convert to int
     + generate_test_convert_values("uint", "int", [0, 1, "EVALUATE", "EVALUATE"])
     + generate_test_convert_values("bytes", "int", [0, 1, "EVALUATE"])
@@ -725,18 +757,7 @@ def generate_test_cases_for_same_type_conversion():
     res = []
     for t in TEST_TYPES:
         in_N = _get_type_N(t)
-        case_type = t
-        if t.startswith("uint"):
-            case_type = "uint"
-
-        elif t.startswith("int"):
-            case_type = "int"
-
-        elif t.startswith("bytes"):
-            case_type = "bytes"
-
-        elif t.startswith("Bytes"):
-            case_type = "Bytes"
+        case_type = _get_case_type(t)
 
         case = _generate_valid_test_cases_for_type(case_type, count=in_N)[0]
         res.append({"in_type": t, "out_type": t, "in_value": case, "exception": InvalidType})
@@ -923,19 +944,82 @@ def generate_test_cases_for_decimal_overflow():
     return res
 
 
+INVALID_CONVERSIONS = [
+    # (in_type, out_type, case type for out_type)
+    ("address", "decimal"),
+    ("address", "int"),
+    ("bool", "address"),
+    ("int", "address"),
+    ("decimal", "address"),
+]
+
+
+def generate_test_cases_for_dislike_type_mismatch():
+
+    res = []
+
+    for invalid_pair in INVALID_CONVERSIONS:
+
+        in_type = invalid_pair[0]
+        out_type = invalid_pair[1]
+
+        if in_type in TEST_TYPES and out_type in TEST_TYPES:
+            in_N = _get_type_N(in_type)
+            case = _generate_valid_test_cases_for_type(in_type, count=in_N)[-1]
+
+            res.append(
+                {
+                    "in_type": in_type,
+                    "out_type": out_type,
+                    "in_value": case,
+                    "exception": TypeMismatch,
+                }
+            )
+
+        elif in_type not in TEST_TYPES:
+            in_types = _get_all_types_for_case_type(in_type)
+
+            for i in in_types:
+                in_N = _get_type_N(i)
+                case = _generate_valid_test_cases_for_type(in_type, count=in_N)[-1]
+
+                res.append(
+                    {
+                        "in_type": i,
+                        "out_type": out_type,
+                        "in_value": case,
+                        "exception": TypeMismatch,
+                    }
+                )
+
+        elif out_type not in TEST_TYPES:
+
+            out_types = _get_all_types_for_case_type(out_type)
+            in_N = _get_type_N(in_type)
+            case = _generate_valid_test_cases_for_type(in_type, count=in_N)[-1]
+
+            for o in out_types:
+
+                res.append(
+                    {
+                        "in_type": in_type,
+                        "out_type": o,
+                        "in_value": case,
+                        "exception": TypeMismatch,
+                    }
+                )
+
+    return res
+
+
 @pytest.mark.parametrize(
     "input_values",
     generate_test_cases_for_same_type_conversion()
     + generate_test_cases_for_byte_array_type_mismatch()
     + generate_test_cases_for_invalid_numeric_conversion()
     + generate_test_cases_for_invalid_to_address_conversion()
+    + generate_test_cases_for_dislike_type_mismatch()
     + [
-        {
-            "in_type": "address",
-            "out_type": "decimal",
-            "in_value": "0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF",
-            "exception": TypeMismatch,
-        },
         {
             "in_type": "bytes32",
             "out_type": "decimal",
@@ -976,15 +1060,20 @@ def foo():
     foobar: {out_type} = convert({in_value}, {out_type})
     """
 
-    if exception in ("CLAMP",):
-        c2 = get_contract_with_gas_estimation(contract_2)
-        assert_tx_failed(lambda: c2.foo())
+    skip_c2 = False
+    if in_type == "address":
+        skip_c2 = True
 
-    else:
-        assert_compile_failed(
-            lambda: get_contract_with_gas_estimation(contract_2),
-            exception,
-        )
+    if not skip_c2:
+        if exception in ("CLAMP",):
+            c2 = get_contract_with_gas_estimation(contract_2)
+            assert_tx_failed(lambda: c2.foo())
+
+        else:
+            assert_compile_failed(
+                lambda: get_contract_with_gas_estimation(contract_2),
+                exception,
+            )
 
     # Test contract for clamping
     # Test cases for clamping failures produce an InvalidLiteral exception in contracts 2 and 4
@@ -1012,12 +1101,17 @@ def foo() -> {out_type}:
     return convert({in_value}, {out_type})
     """
 
-    if exception in ("CLAMP",):
-        c4 = get_contract_with_gas_estimation(contract_4)
-        assert_tx_failed(lambda: c4.foo())
+    skip_c4 = False
+    if in_type == "address":
+        skip_c4 = True
 
-    else:
-        assert_compile_failed(
-            lambda: get_contract_with_gas_estimation(contract_4),
-            exception,
-        )
+    if not skip_c4:
+        if exception in ("CLAMP",):
+            c4 = get_contract_with_gas_estimation(contract_4)
+            assert_tx_failed(lambda: c4.foo())
+
+        else:
+            assert_compile_failed(
+                lambda: get_contract_with_gas_estimation(contract_4),
+                exception,
+            )
