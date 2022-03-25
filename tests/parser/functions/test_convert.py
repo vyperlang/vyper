@@ -1,3 +1,4 @@
+import copy
 from decimal import Decimal
 
 import pytest
@@ -785,34 +786,32 @@ def generate_test_cases_for_same_type_conversion():
     return res
 
 
+def generate_test_cases_for_byte_array_type_mismatch():
+    res = []
+    case_1 = {"in_type": "Bytes[33]", "in_value": b"\xff" * 33, "exception": TypeMismatch}
+    case_2 = {
+        "in_type": "Bytes[63]",
+        "in_value": b"Hello darkness, my old friend I've come to talk with you again.",
+        "exception": TypeMismatch,
+    }
+    for t in BASE_TYPES:
+
+        updated_case_1 = copy.deepcopy(case_1)
+        updated_case_1["out_type"] = t
+
+        updated_case_2 = copy.deepcopy(case_2)
+        updated_case_2["out_type"] = t
+
+        res.extend([updated_case_1, updated_case_2])
+
+    return res
+
+
 @pytest.mark.parametrize(
     "input_values",
     generate_test_cases_for_same_type_conversion()
+    + generate_test_cases_for_byte_array_type_mismatch()
     + [
-        {
-            "in_type": "Bytes[33]",
-            "out_type": "bool",
-            "in_value": b"\xff" * 33,
-            "exception": TypeMismatch,
-        },
-        {
-            "in_type": "Bytes[63]",
-            "out_type": "bool",
-            "in_value": b"Hello darkness, my old friend I've come to talk with you again.",
-            "exception": TypeMismatch,
-        },
-        {
-            "in_type": "Bytes[33]",
-            "out_type": "uint256",
-            "in_value": b"\xff" * 33,
-            "exception": TypeMismatch,
-        },
-        {
-            "in_type": "Bytes[63]",
-            "out_type": "uint256",
-            "in_value": b"Hello darkness, my old friend I've come to talk with you again.",
-            "exception": TypeMismatch,
-        },
         {
             "in_type": "int256",
             "out_type": "uint256",
@@ -830,18 +829,6 @@ def generate_test_cases_for_same_type_conversion():
             "out_type": "uint256",
             "in_value": "-27.2319",
             "exception": InvalidLiteral,
-        },
-        {
-            "in_type": "Bytes[33]",
-            "out_type": "int256",
-            "in_value": b"\xff" * 33,
-            "exception": TypeMismatch,
-        },
-        {
-            "in_type": "Bytes[63]",
-            "out_type": "int256",
-            "in_value": b"Hello darkness, my old friend I've come to talk with you again.",
-            "exception": TypeMismatch,
         },
         {
             "in_type": "uint256",
@@ -878,18 +865,6 @@ def generate_test_cases_for_same_type_conversion():
             "out_type": "decimal",
             "in_value": "0x7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF",
             "exception": InvalidLiteral,
-        },
-        {
-            "in_type": "Bytes[33]",
-            "out_type": "decimal",
-            "in_value": b"\xff" * 33,
-            "exception": TypeMismatch,
-        },
-        {
-            "in_type": "Bytes[63]",
-            "out_type": "decimal",
-            "in_value": b"Hello darkness, my old friend I've come to talk with you again.",
-            "exception": TypeMismatch,
         },
     ],
 )
