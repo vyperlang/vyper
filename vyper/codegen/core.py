@@ -175,8 +175,6 @@ def _dynarray_make_setter(dst, src, pos=None):
             ret.append(STORE(dst, len_))
 
             if should_loop:
-                # note: name clobbering for the ix is OK because
-                # we never reach outside our level of nesting
                 i = LLLnode.from_list(_freshname("copy_darray_ix"), typ="uint256")
 
                 loop_body = make_setter(
