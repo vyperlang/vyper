@@ -1,4 +1,3 @@
-import copy
 from decimal import Decimal
 
 import pytest
@@ -21,13 +20,17 @@ TEST_TYPES = BASE_TYPES.union({"Bytes[32]"})
 MIN_DECIMAL_STR = (
     str(SizeLimits.MINDECIMAL)[:-MAX_DECIMAL_PLACES]
     + "."
-    + str(SizeLimits.MINDECIMAL)[-MAX_DECIMAL_PLACES:],
+    + str(SizeLimits.MINDECIMAL)[-MAX_DECIMAL_PLACES:]
 )
+
 MAX_DECIMAL_STR = (
     str(SizeLimits.MAXDECIMAL)[:-MAX_DECIMAL_PLACES]
     + "."
     + str(SizeLimits.MAXDECIMAL)[-MAX_DECIMAL_PLACES:]
 )
+
+ZERO_ADDRESS = "0x0000000000000000000000000000000000000000"
+ONE_ADDRESS = "0x0000000000000000000000000000000000000001"
 
 
 def hex_to_signed_int(hexstr, bits):
@@ -72,13 +75,9 @@ def _get_nibble(type_):
     Helper function to extract number of nibbles from a type for hexadecimal string
     """
     type_N = _get_type_N(type_)
-    if type_.startswith("bytes"):
+    if type_.startswith(("bytes", "Bytes")):
         return type_N * 2
-    elif type_.startswith("Bytes"):
-        return type_N * 2
-    elif type_.startswith("int"):
-        return type_N // 4
-    elif type_.startswith("uint"):
+    elif type_.startswith(("int", "uint")):
         return type_N // 4
     elif type_ == "decimal":
         return DECIMAL_BITS // 4
@@ -93,7 +92,7 @@ def _generate_valid_test_cases_for_type(type_, count=None):
     """
     if type_ == "address":
         return [
-            "0x0000000000000000000000000000000000000000",
+            ZERO_ADDRESS,
             "0xF5D4020dCA6a62bB1efFcC9212AAF3c9819E30D7",
             "0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF",
         ]
@@ -128,15 +127,15 @@ def _generate_valid_test_cases_for_type(type_, count=None):
             "0.0000000001",
             "0.9999999999",
             "1.0",
-            str(2 ** (count - 1) - 2) + ".9999999999"
+            str(2 ** (count - 1) - 1) + ".0000000000"
             if (count and count < 127)
-            else "170141183460469231731687303715884105726.9999999999",  # 2 ** 127 - 1.0000000001
+            else MAX_DECIMAL_STR,
             "-0.0000000001",
             "-0.9999999999",
             "-1.0",
-            str(-(2 ** (count - 1) - 1)) + ".9999999999" if (count and count < 127)
-            # - (2 ** 127 - 0.0000000001)
-            else "-170141183460469231731687303715884105727.9999999999",
+            str(-(2 ** (count - 1))) + ".0000000000"
+            if (count and count < 127)
+            else MIN_DECIMAL_STR,
         ]
 
     elif type_ == "int":
@@ -528,35 +527,20 @@ def generate_test_convert_values(in_type, out_type, out_values):
     + generate_test_convert_values("bytes", "bool", [False, True, True])
     # Convert to address
     + generate_test_convert_values(
-        "uint",
-        "address",
-        [
-            "0x0000000000000000000000000000000000000000",
-            "0x0000000000000000000000000000000000000001",
-            "EVALUATE",  # Placeholder value
-            "EVALUATE",  # Placeholder value
-        ],
+        "uint", "address", [ZERO_ADDRESS, ONE_ADDRESS, "EVALUATE", "EVALUATE"]
     )
-    + generate_test_convert_values(
-        "bytes",
-        "address",
-        [
-            "0x0000000000000000000000000000000000000000",
-            "0x0000000000000000000000000000000000000001",
-            "EVALUATE",  # Placeholder value
-        ],
-    )
+    + generate_test_convert_values("bytes", "address", [ZERO_ADDRESS, ONE_ADDRESS, "EVALUATE"])
     + generate_test_convert_values(
         "Bytes[32]",
         "address",
         [
-            "0x0000000000000000000000000000000000000000",
-            "0x0000000000000000000000000000000000000000",
-            "0x0000000000000000000000000000000000000000",
-            "0x0000000000000000000000000000000000000001",
-            "0x0000000000000000000000000000000000000001",
-            "EVALUATE",  # Placeholder value
-            "EVALUATE",  # Placeholder value
+            ZERO_ADDRESS,
+            ZERO_ADDRESS,
+            ZERO_ADDRESS,
+            ONE_ADDRESS,
+            ONE_ADDRESS,
+            "EVALUATE",
+            "EVALUATE",
         ],
     )
     # Convert to uint
@@ -623,10 +607,7 @@ def generate_test_convert_values(in_type, out_type, out_values):
 )
 def test_convert_pass(get_contract_with_gas_estimation, input_values):
 
-    if (
-        input_values["out_type"] == "address"
-        and input_values["out_value"] == "0x0000000000000000000000000000000000000000"
-    ):
+    if input_values["out_type"] == "address" and input_values["out_value"] == ZERO_ADDRESS:
         input_values["out_value"] = None
 
     in_type = input_values["in_type"]
@@ -794,21 +775,25 @@ def generate_test_cases_for_same_type_conversion():
 
 def generate_test_cases_for_byte_array_type_mismatch():
     res = []
-    case_1 = {"in_type": "Bytes[33]", "in_value": b"\xff" * 33, "exception": TypeMismatch}
-    case_2 = {
-        "in_type": "Bytes[63]",
-        "in_value": b"Hello darkness, my old friend I've come to talk with you again.",
-        "exception": TypeMismatch,
-    }
     for t in BASE_TYPES:
 
-        updated_case_1 = copy.deepcopy(case_1)
-        updated_case_1["out_type"] = t
+        res.append(
+            {
+                "in_type": "Bytes[33]",
+                "out_type": t,
+                "in_value": b"\xff" * 33,
+                "exception": TypeMismatch,
+            }
+        )
 
-        updated_case_2 = copy.deepcopy(case_2)
-        updated_case_2["out_type"] = t
-
-        res.extend([updated_case_1, updated_case_2])
+        res.append(
+            {
+                "in_type": "Bytes[63]",
+                "out_type": t,
+                "in_value": b"Hello darkness, my old friend I've come to talk with you again.",
+                "exception": TypeMismatch,
+            }
+        )
 
     return res
 
@@ -834,12 +819,7 @@ def _generate_test_cases_for_invalid_numeric_conversion():
                 )
 
         # Decimal
-        decimal_cases = [
-            "-1.0",
-            str(SizeLimits.MINDECIMAL)[:-MAX_DECIMAL_PLACES]
-            + "."
-            + str(SizeLimits.MINDECIMAL)[-MAX_DECIMAL_PLACES:],
-        ]
+        decimal_cases = ["-1.0", MIN_DECIMAL_STR]
 
         for d in decimal_cases:
             res.append(
