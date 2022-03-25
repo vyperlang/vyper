@@ -4,7 +4,7 @@ import vyper.utils as util
 from vyper.address_space import CALLDATA, DATA, MEMORY
 from vyper.ast.signatures.function_signature import FunctionSignature, VariableRecord
 from vyper.codegen.context import Context
-from vyper.codegen.core import get_element_ptr, getpos, make_setter
+from vyper.codegen.core import get_element_ptr, make_setter
 from vyper.codegen.expr import Expr
 from vyper.codegen.function_definitions.utils import get_nonreentrant_lock
 from vyper.codegen.ir_node import Encoding, IRnode
@@ -38,8 +38,6 @@ def _should_decode(typ):
 # register function args with the local calling context.
 # also allocate the ones that live in memory (i.e. kwargs)
 def _register_function_args(context: Context, sig: FunctionSignature) -> List[IRnode]:
-    pos = None
-
     ret = []
 
     # the type of the calldata
@@ -53,13 +51,13 @@ def _register_function_args(context: Context, sig: FunctionSignature) -> List[IR
 
     for i, arg in enumerate(sig.base_args):
 
-        arg_ir = get_element_ptr(base_args_ofst, i, pos=pos)
+        arg_ir = get_element_ptr(base_args_ofst, i)
 
         if _should_decode(arg.typ):
             # allocate a memory slot for it and copy
             p = context.new_variable(arg.name, arg.typ, is_mutable=False)
             dst = IRnode(p, typ=arg.typ, location=MEMORY)
-            ret.append(make_setter(dst, arg_ir, pos=pos))
+            ret.append(make_setter(dst, arg_ir))
         else:
             # leave it in place
             context.vars[arg.name] = VariableRecord(
@@ -80,7 +78,7 @@ def _annotated_method_id(abi_sig):
     return IRnode(method_id, annotation=annotation)
 
 
-def _generate_kwarg_handlers(context: Context, sig: FunctionSignature, pos: Any) -> List[Any]:
+def _generate_kwarg_handlers(context: Context, sig: FunctionSignature) -> List[Any]:
     # generate kwarg handlers.
     # since they might come in thru calldata or be default,
     # allocate them in memory and then fill it in based on calldata or default,
@@ -118,15 +116,15 @@ def _generate_kwarg_handlers(context: Context, sig: FunctionSignature, pos: Any)
             dst = context.lookup_var(arg_meta.name).pos
 
             lhs = IRnode(dst, location=MEMORY, typ=arg_meta.typ)
-            rhs = get_element_ptr(calldata_kwargs_ofst, k, pos=None, array_bounds_check=False)
-            ret.append(make_setter(lhs, rhs, pos))
+            rhs = get_element_ptr(calldata_kwargs_ofst, k, array_bounds_check=False)
+            ret.append(make_setter(lhs, rhs))
 
         for x in default_kwargs:
             dst = context.lookup_var(x.name).pos
             lhs = IRnode(dst, location=MEMORY, typ=x.typ)
             kw_ast_val = sig.default_values[x.name]  # e.g. `3` in x: int = 3
             rhs = Expr(kw_ast_val, context).ir_node
-            ret.append(make_setter(lhs, rhs, pos))
+            ret.append(make_setter(lhs, rhs))
 
         ret.append(["goto", sig.external_function_base_entry_label])
 
@@ -165,7 +163,6 @@ def generate_ir_for_external_function(code, sig, context, check_nonpayable):
     the function (clean up reentrancy storage variables)
     """
     func_type = code._metadata["type"]
-    pos = getpos(code)
 
     nonreentrant_pre, nonreentrant_post = get_nonreentrant_lock(func_type)
 
@@ -173,7 +170,7 @@ def generate_ir_for_external_function(code, sig, context, check_nonpayable):
     handle_base_args = _register_function_args(context, sig)
 
     # generate handlers for kwargs and register the variable records
-    kwarg_handlers = _generate_kwarg_handlers(context, sig, pos)
+    kwarg_handlers = _generate_kwarg_handlers(context, sig)
 
     body = ["seq"]
     # once optional args have been handled,
@@ -222,4 +219,4 @@ def generate_ir_for_external_function(code, sig, context, check_nonpayable):
         # TODO rethink this / make it clearer
         ret[-1][-1].append(func_common_ir)
 
-    return IRnode.from_list(ret, pos=getpos(code))
+    return IRnode.from_list(ret)

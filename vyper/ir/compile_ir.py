@@ -130,7 +130,7 @@ def _rewrite_return_sequences(ir_node, label_params=None):
             dest = args[0].value[5:]  # `_sym_foo` -> `foo`
             more_args = ["pass" if t.value == "return_pc" else t for t in args[1:]]
             _t.append(["goto", dest] + more_args)
-            ir_node.args = IRnode.from_list(_t, pos=ir_node.pos).args
+            ir_node.args = IRnode.from_list(_t, source_pos=ir_node.source_pos).args
 
     if ir_node.value == "label":
         label_params = set(t.value for t in ir_node.args[1].args)
@@ -186,7 +186,9 @@ def apply_line_numbers(func):
         code = args[0]
         ret = func(*args, **kwargs)
         new_ret = [
-            Instruction(i, code.pos) if isinstance(i, str) and not isinstance(i, Instruction) else i
+            Instruction(i, code.source_pos)
+            if isinstance(i, str) and not isinstance(i, Instruction)
+            else i
             for i in ret
         ]
         return new_ret
@@ -821,10 +823,10 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
 
     # inject debug opcode.
     elif code.value == "debugger":
-        return mkdebug(pc_debugger=False, pos=code.pos)
+        return mkdebug(pc_debugger=False, pos=code.source_pos)
     # inject debug opcode.
     elif code.value == "pc_debugger":
-        return mkdebug(pc_debugger=True, pos=code.pos)
+        return mkdebug(pc_debugger=True, pos=code.source_pos)
     else:
         raise Exception("Weird code element: " + repr(code))
 

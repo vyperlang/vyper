@@ -7,14 +7,13 @@ from vyper.codegen.core import (
     check_external_call,
     dummy_node_for_type,
     get_element_ptr,
-    getpos,
 )
 from vyper.codegen.ir_node import Encoding, IRnode
 from vyper.codegen.types import InterfaceType, TupleType, get_type_for_exact_size
 from vyper.exceptions import StateAccessViolation, TypeCheckFailure
 
 
-def _pack_arguments(contract_sig, args, context, pos):
+def _pack_arguments(contract_sig, args, context):
     # abi encoding just treats all args as a big tuple
     args_tuple_t = TupleType([x.typ for x in args])
     args_as_tuple = IRnode.from_list(["multi"] + [x for x in args], typ=args_tuple_t)
@@ -55,7 +54,7 @@ def _pack_arguments(contract_sig, args, context, pos):
     if len(args) == 0:
         encode_args = ["pass"]
     else:
-        encode_args = abi_encode(buf + 32, args_as_tuple, context, pos, bufsz=buflen)
+        encode_args = abi_encode(buf + 32, args_as_tuple, context, bufsz=buflen)
 
     return buf, mstore_method_id + [encode_args], args_ofst, args_len
 
@@ -66,7 +65,7 @@ def _returndata_encoding(contract_sig):
     return Encoding.ABI
 
 
-def _unpack_returndata(buf, contract_sig, skip_contract_check, context, pos):
+def _unpack_returndata(buf, contract_sig, skip_contract_check, context):
     return_t = contract_sig.return_type
     if return_t is None:
         return ["pass"], 0, 0
@@ -105,7 +104,7 @@ def _unpack_returndata(buf, contract_sig, skip_contract_check, context, pos):
     buf = IRnode(buf, typ=return_t, encoding=_returndata_encoding(contract_sig), location=MEMORY)
 
     if should_unwrap_abi_tuple:
-        buf = get_element_ptr(buf, 0, pos=None, array_bounds_check=False)
+        buf = get_element_ptr(buf, 0, array_bounds_check=False)
 
     ret += [buf]
 
@@ -117,10 +116,10 @@ def _external_call_helper(
     contract_sig,
     args_ir,
     context,
-    pos=None,
     value=None,
     gas=None,
     skip_contract_check=None,
+    expr=None,
 ):
 
     if value is None:
@@ -138,15 +137,15 @@ def _external_call_helper(
         raise StateAccessViolation(
             f"May not call state modifying function '{contract_sig.name}' "
             f"within {context.pp_constancy()}.",
-            pos,
+            expr,
         )
 
     sub = ["seq"]
 
-    buf, arg_packer, args_ofst, args_len = _pack_arguments(contract_sig, args_ir, context, pos)
+    buf, arg_packer, args_ofst, args_len = _pack_arguments(contract_sig, args_ir, context)
 
     ret_unpacker, ret_ofst, ret_len = _unpack_returndata(
-        buf, contract_sig, skip_contract_check, context, pos
+        buf, contract_sig, skip_contract_check, context
     )
 
     sub += arg_packer
@@ -171,12 +170,11 @@ def _external_call_helper(
         sub += ret_unpacker
 
     ret = IRnode.from_list(
-        # set the encoding to ABI here, downstream code will decode and add clampers.
         sub,
         typ=contract_sig.return_type,
         location=MEMORY,
+        # set the encoding to ABI here, downstream code will decode and add clampers.
         encoding=_returndata_encoding(contract_sig),
-        pos=pos,
     )
 
     return ret
@@ -204,8 +202,6 @@ def _get_special_kwargs(stmt_expr, context):
 def ir_for_external_call(stmt_expr, context):
     from vyper.codegen.expr import Expr  # TODO rethink this circular import
 
-    pos = getpos(stmt_expr)
-
     contract_address = Expr.parse_value_expr(stmt_expr.func.value, context)
     value, gas, skip_contract_check = _get_special_kwargs(stmt_expr, context)
     args_ir = [Expr(x, context).ir_node for x in stmt_expr.args]
@@ -220,10 +216,10 @@ def ir_for_external_call(stmt_expr, context):
         contract_sig,
         args_ir,
         context,
-        pos,
         value=value,
         gas=gas,
         skip_contract_check=skip_contract_check,
+        expr=stmt_expr,
     )
     ret.annotation = stmt_expr.get("node_source_code")
 

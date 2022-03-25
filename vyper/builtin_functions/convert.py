@@ -10,7 +10,6 @@ from vyper.codegen.core import (
     bytes_data_ptr,
     clamp_basetype,
     get_bytearray_length,
-    getpos,
     int_clamp,
     sar,
     shl,
@@ -409,4 +408,4 @@ def convert(expr, context):
 
         ret = b.resolve(ret)
 
-    return IRnode.from_list(ret, pos=getpos(expr))
+    return IRnode.from_list(ret)

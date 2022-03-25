@@ -1,5 +1,5 @@
 from vyper.address_space import MEMORY
-from vyper.codegen.core import getpos, make_setter
+from vyper.codegen.core import make_setter
 from vyper.codegen.ir_node import IRnode, push_label_to_stack
 from vyper.codegen.types import TupleType
 from vyper.exceptions import StateAccessViolation, StructureException
@@ -16,8 +16,6 @@ def _generate_label(name: str) -> str:
 
 def ir_for_self_call(stmt_expr, context):
     from vyper.codegen.expr import Expr  # TODO rethink this circular import
-
-    pos = getpos(stmt_expr)
 
     # ** Internal Call **
     # Steps:
@@ -47,7 +45,7 @@ def ir_for_self_call(stmt_expr, context):
         raise StateAccessViolation(
             f"May not call state modifying function "
             f"'{method_name}' within {context.pp_constancy()}.",
-            getpos(stmt_expr),
+            stmt_expr,
         )
 
     # TODO move me to type checker phase
@@ -83,13 +81,13 @@ def ir_for_self_call(stmt_expr, context):
         )
         copy_args.append(
             # --> args evaluate here <--
-            make_setter(tmp_args_buf, args_as_tuple, pos)
+            make_setter(tmp_args_buf, args_as_tuple)
         )
 
-        copy_args.append(make_setter(args_dst, tmp_args_buf, pos))
+        copy_args.append(make_setter(args_dst, tmp_args_buf))
 
     else:
-        copy_args = make_setter(args_dst, args_as_tuple, pos)
+        copy_args = make_setter(args_dst, args_as_tuple)
 
     goto_op = ["goto", sig.internal_function_label]
     # pass return buffer to subroutine
@@ -112,7 +110,6 @@ def ir_for_self_call(stmt_expr, context):
         call_sequence,
         typ=sig.return_type,
         location=MEMORY,
-        pos=pos,
         annotation=stmt_expr.get("node_source_code"),
         add_gas_estimate=sig.gas,
     )
