@@ -175,7 +175,7 @@ def _dynarray_make_setter(dst, src, pos=None):
             ret.append(STORE(dst, count))
 
             if should_loop:
-                i = LLLnode.from_list(_freshname("copy_darray_ix"), typ="uint256")
+                i = IRnode.from_list(_freshname("copy_darray_ix"), typ="uint256")
 
                 loop_body = make_setter(
                     get_element_ptr(dst, i, array_bounds_check=False, pos=pos),
