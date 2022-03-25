@@ -946,33 +946,45 @@ def generate_test_cases_for_decimal_overflow():
 
 INVALID_CONVERSIONS = [
     # (in_type, out_type, case type for out_type)
-    ("address", "decimal"),
-    ("address", "int"),
     ("bool", "address"),
     ("int", "address"),
     ("decimal", "address"),
+    ("address", "bytes4"),
+    ("address", "bytes8"),
+    ("address", "bytes12"),
+    ("address", "bytes16"),
+    ("address", "decimal"),
+    ("bytes24", "decimal"),
+    ("bytes28", "decimal"),
+    ("bytes32", "decimal"),
+    ("address", "int"),
 ]
 
 
 def generate_test_cases_for_dislike_type_mismatch():
 
     res = []
+    exception = TypeMismatch
 
     for invalid_pair in INVALID_CONVERSIONS:
 
         in_type = invalid_pair[0]
+        in_N = _get_type_N(in_type)
+        in_case_type = _get_case_type(in_type)
         out_type = invalid_pair[1]
 
+        if in_type.startswith("bytes") and out_type == "decimal":
+            exception = "CLAMP"
+
         if in_type in TEST_TYPES and out_type in TEST_TYPES:
-            in_N = _get_type_N(in_type)
-            case = _generate_valid_test_cases_for_type(in_type, count=in_N)[-1]
+            case = _generate_valid_test_cases_for_type(in_case_type, count=in_N)[-1]
 
             res.append(
                 {
                     "in_type": in_type,
                     "out_type": out_type,
                     "in_value": case,
-                    "exception": TypeMismatch,
+                    "exception": exception,
                 }
             )
 
@@ -981,22 +993,21 @@ def generate_test_cases_for_dislike_type_mismatch():
 
             for i in in_types:
                 in_N = _get_type_N(i)
-                case = _generate_valid_test_cases_for_type(in_type, count=in_N)[-1]
+                case = _generate_valid_test_cases_for_type(in_case_type, count=in_N)[-1]
 
                 res.append(
                     {
                         "in_type": i,
                         "out_type": out_type,
                         "in_value": case,
-                        "exception": TypeMismatch,
+                        "exception": exception,
                     }
                 )
 
         elif out_type not in TEST_TYPES:
 
             out_types = _get_all_types_for_case_type(out_type)
-            in_N = _get_type_N(in_type)
-            case = _generate_valid_test_cases_for_type(in_type, count=in_N)[-1]
+            case = _generate_valid_test_cases_for_type(in_case_type, count=in_N)[-1]
 
             for o in out_types:
 
@@ -1005,7 +1016,7 @@ def generate_test_cases_for_dislike_type_mismatch():
                         "in_type": in_type,
                         "out_type": o,
                         "in_value": case,
-                        "exception": TypeMismatch,
+                        "exception": exception,
                     }
                 )
 
@@ -1018,7 +1029,6 @@ def generate_test_cases_for_dislike_type_mismatch():
     + generate_test_cases_for_byte_array_type_mismatch()
     + generate_test_cases_for_invalid_numeric_conversion()
     + generate_test_cases_for_invalid_to_address_conversion()
-    + generate_test_cases_for_dislike_type_mismatch()
     + [
         {
             "in_type": "bytes32",
@@ -1027,6 +1037,7 @@ def generate_test_cases_for_dislike_type_mismatch():
             "exception": InvalidLiteral,
         },
     ],
+    generate_test_cases_for_dislike_type_mismatch(),
 )
 def test_invalid_convert(
     get_contract_with_gas_estimation, assert_compile_failed, assert_tx_failed, input_values
