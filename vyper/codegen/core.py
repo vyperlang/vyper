@@ -81,13 +81,22 @@ def make_byte_array_copier(dst, src, pos=None):
 
     if src.value == "~empty":
         # set length word to 0.
-        return IRnode.from_list([store_op(dst.location), dst, 0], pos=pos)
+        return STORE(dst, 0)
 
-    with src.cache_when_complex("src") as (builder, src):
-        n_bytes = ["add", get_bytearray_length(src), 32]
-        max_bytes = src.typ.memory_bytes_required
+    with src.cache_when_complex("src") as (b1, src):
+        with get_bytearray_length(src).cache_when_complex("len") as (b2, len_):
 
-        return builder.resolve(copy_bytes(dst, src, n_bytes, max_bytes, pos=pos))
+            max_bytes = src.typ.maxlen
+
+            ret = ["seq"]
+            # store length
+            ret.append(STORE(dst, len_))
+
+            dst = bytes_data_ptr(dst)
+            src = bytes_data_ptr(src)
+
+            ret.append(copy_bytes(dst, src, len_, max_bytes))
+            return b1.resolve(b2.resolve(ret))
 
 
 # TODO maybe move me to types.py
@@ -99,11 +108,17 @@ def wordsize(location):
     raise CompilerPanic(f"invalid location {location}")  # pragma: notest
 
 
-# TODO refactor: add similar fn for dyn_arrays
 def bytes_data_ptr(ptr):
     if ptr.location is None:
         raise CompilerPanic("tried to modify non-pointer type")
     assert isinstance(ptr.typ, ByteArrayLike)
+    return add_ofst(ptr, wordsize(ptr.location))
+
+
+def dynarray_data_ptr(ptr):
+    if ptr.location is None:
+        raise CompilerPanic("tried to modify non-pointer type")
+    assert isinstance(ptr.typ, DArrayType)
     return add_ofst(ptr, wordsize(ptr.location))
 
 
@@ -155,32 +170,33 @@ def _dynarray_make_setter(dst, src, pos=None):
         should_loop |= src.typ.subtype.abi_type.is_dynamic()
         should_loop |= _needs_clamp(src.typ.subtype, src.encoding)
 
-        if should_loop:
-            uint = BaseType("uint256")
+        with get_dyn_array_count(src).cache_when_complex("darray_count") as (b2, count):
+            ret = ["seq"]
+            ret.append(STORE(dst, count))
 
-            # note: name clobbering for the ix is OK because
-            # we never reach outside our level of nesting
-            i = IRnode.from_list(_freshname("copy_darray_ix"), typ=uint)
+            if should_loop:
+                i = LLLnode.from_list(_freshname("copy_darray_ix"), typ="uint256")
 
-            loop_body = make_setter(
-                get_element_ptr(dst, i, array_bounds_check=False, pos=pos),
-                get_element_ptr(src, i, array_bounds_check=False, pos=pos),
-                pos=pos,
-            )
-            loop_body.annotation = f"{dst}[i] = {src}[i]"
+                loop_body = make_setter(
+                    get_element_ptr(dst, i, array_bounds_check=False, pos=pos),
+                    get_element_ptr(src, i, array_bounds_check=False, pos=pos),
+                    pos=pos,
+                )
+                loop_body.annotation = f"{dst}[i] = {src}[i]"
 
-            with get_dyn_array_count(src).cache_when_complex("darray_count") as (b2, len_):
-                store_len = [store_op(dst.location), dst, len_]
-                loop = ["repeat", i, 0, len_, src.typ.count, loop_body]
+                ret.append(["repeat", i, 0, count, src.typ.count, loop_body])
 
-                return b1.resolve(b2.resolve(["seq", store_len, loop]))
+            else:
+                element_size = src.typ.subtype.memory_bytes_required
+                # number of elements * size of element in bytes
+                n_bytes = _mul(count, element_size)
+                max_bytes = src.typ.count * element_size
 
-        element_size = src.typ.subtype.memory_bytes_required
-        # 32 bytes + number of elements * size of element in bytes
-        n_bytes = ["add", _mul(get_dyn_array_count(src), element_size), 32]
-        max_bytes = src.typ.memory_bytes_required
+                src_ = dynarray_data_ptr(src)
+                dst_ = dynarray_data_ptr(dst)
+                ret.append(copy_bytes(dst_, src_, n_bytes, max_bytes))
 
-        return b1.resolve(copy_bytes(dst, src, n_bytes, max_bytes, pos=pos))
+            return b1.resolve(b2.resolve(ret))
 
 
 # Copy bytes
