@@ -11,12 +11,23 @@ from vyper.codegen.types import (
     parse_integer_typeinfo,
 )
 from vyper.exceptions import InvalidLiteral, InvalidType, OverflowException, TypeMismatch
-from vyper.utils import DECIMAL_DIVISOR, checksum_encode
+from vyper.utils import DECIMAL_DIVISOR, MAX_DECIMAL_PLACES, SizeLimits, checksum_encode
 
 # To update when Decimal bound is updated to 2 ** 168 / 10 ** 10
 DECIMAL_BITS = 160
 ADDRESS_BITS = 160
 TEST_TYPES = BASE_TYPES.union({"Bytes[32]"})
+
+MIN_DECIMAL_STR = (
+    str(SizeLimits.MINDECIMAL)[:-MAX_DECIMAL_PLACES]
+    + "."
+    + str(SizeLimits.MINDECIMAL)[-MAX_DECIMAL_PLACES:],
+)
+MAX_DECIMAL_STR = (
+    str(SizeLimits.MAXDECIMAL)[:-MAX_DECIMAL_PLACES]
+    + "."
+    + str(SizeLimits.MAXDECIMAL)[-MAX_DECIMAL_PLACES:]
+)
 
 
 def hex_to_signed_int(hexstr, bits):
@@ -738,11 +749,6 @@ def convert_builtin_constant() -> {out_type}:
         ("bytes32", "address", (b"\x01" + b"\xff" * 20).rjust(32, b"\x00"), None),
         ("uint256", "address", 2 ** 160, None),
         ("uint256", "address", 2 ** 160 - 1, checksum_encode("0x" + "ff" * 20)),
-        ("uint256", "decimal", 2 ** 127, None),
-        ("int256", "decimal", 2 ** 127, None),
-        ("int256", "decimal", 2 ** 255 - 1, None),
-        ("int256", "decimal", -(2 ** 127) - 1, None),
-        ("int256", "decimal", -(2 ** 255), None),
     ],
 )
 def test_convert_clamping(get_contract, assert_tx_failed, in_type, out_type, in_value, out_value):
@@ -807,41 +813,116 @@ def generate_test_cases_for_byte_array_type_mismatch():
     return res
 
 
+def _generate_test_cases_for_invalid_numeric_conversion():
+    res = []
+    # Outer loop = out_type
+    # Inner loop = in_type
+
+    # Convert to uint
+    for u in UNSIGNED_INTEGER_TYPES:
+        for s in SIGNED_INTEGER_TYPES:
+            out_N = _get_type_N(s)
+            cases = [-1, -(2 ** (out_N - 1))]
+            for c in cases:
+                res.append(
+                    {
+                        "in_type": s,
+                        "out_type": u,
+                        "in_value": c,
+                        "exception": InvalidLiteral,
+                    }
+                )
+
+        # Decimal
+        decimal_cases = [
+            "-1.0",
+            str(SizeLimits.MINDECIMAL)[:-MAX_DECIMAL_PLACES]
+            + "."
+            + str(SizeLimits.MINDECIMAL)[-MAX_DECIMAL_PLACES:],
+        ]
+
+        for d in decimal_cases:
+            res.append(
+                {
+                    "in_type": "decimal",
+                    "out_type": u,
+                    "in_value": d,
+                    "exception": InvalidLiteral,
+                }
+            )
+
+    # Convert to int
+    for s in SIGNED_INTEGER_TYPES:
+        out_N = _get_type_N(s)
+
+        for u in UNSIGNED_INTEGER_TYPES:
+            in_N = _get_type_N(u)
+            if in_N < out_N:
+                # Skip if max uint value is within bounds of int
+                continue
+            cases = [2 ** in_N - 1, 2 ** (in_N - 1)]
+            for c in cases:
+                res.append(
+                    {
+                        "in_type": u,
+                        "out_type": s,
+                        "in_value": c,
+                        "exception": InvalidLiteral,
+                    }
+                )
+
+        # Decimal
+        decimal_cases = [MIN_DECIMAL_STR, MAX_DECIMAL_STR]
+
+        if out_N < 128:
+            for d in decimal_cases:
+                res.append(
+                    {
+                        "in_type": "decimal",
+                        "out_type": s,
+                        "in_value": d,
+                        "exception": InvalidLiteral,
+                    }
+                )
+
+    # Convert to decimal
+    for u in UNSIGNED_INTEGER_TYPES:
+        in_N = _get_type_N(u)
+        if in_N >= 128:
+            cases = [2 ** in_N - 1, 2 ** (in_N - 1)]
+            for c in cases:
+                res.append(
+                    {
+                        "in_type": u,
+                        "out_type": "decimal",
+                        "in_value": c,
+                        "exception": InvalidLiteral,
+                    }
+                )
+
+    for s in SIGNED_INTEGER_TYPES:
+        in_N = _get_type_N(s)
+        if in_N > 128:
+            cases = [2 ** (in_N - 1) - 1, -(2 ** (in_N - 1))]
+            for c in cases:
+                res.append(
+                    {
+                        "in_type": s,
+                        "out_type": "decimal",
+                        "in_value": c,
+                        "exception": InvalidLiteral,
+                    }
+                )
+
+    return res
+
+
 @pytest.mark.parametrize(
     "input_values",
     generate_test_cases_for_same_type_conversion()
     + generate_test_cases_for_byte_array_type_mismatch()
+    + _generate_test_cases_for_invalid_numeric_conversion()
     + [
-        {
-            "in_type": "int256",
-            "out_type": "uint256",
-            "in_value": -1,
-            "exception": InvalidLiteral,
-        },
-        {
-            "in_type": "int256",
-            "out_type": "uint256",
-            "in_value": -(2 ** 255),
-            "exception": InvalidLiteral,
-        },
-        {
-            "in_type": "decimal",
-            "out_type": "uint256",
-            "in_value": "-27.2319",
-            "exception": InvalidLiteral,
-        },
-        {
-            "in_type": "uint256",
-            "out_type": "int256",
-            "in_value": 2 ** 256 - 1,
-            "exception": InvalidLiteral,
-        },
-        {
-            "in_type": "uint256",
-            "out_type": "int256",
-            "in_value": 2 ** 255,
-            "exception": InvalidLiteral,
-        },
         {
             "in_type": "decimal",
             "out_type": "int256",
@@ -905,6 +986,8 @@ def foo():
         exception,
     )
 
+    # Test contract for clamping
+    # Test cases for clamping failures produce an InvalidLiteral exception in contracts 2 and 4
     contract_3 = f"""
 @external
 def foo(bar: {in_type}) -> {out_type}:
