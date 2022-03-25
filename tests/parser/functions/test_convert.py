@@ -961,22 +961,22 @@ INVALID_CONVERSIONS = [
 ]
 
 
-def generate_test_cases_for_dislike_type_mismatch():
+def generate_test_cases_for_invalid_dislike_types_conversion():
 
     res = []
-    exception = TypeMismatch
 
     for invalid_pair in INVALID_CONVERSIONS:
 
         in_type = invalid_pair[0]
-        in_N = _get_type_N(in_type)
         in_case_type = _get_case_type(in_type)
         out_type = invalid_pair[1]
+        exception = TypeMismatch
 
         if in_type.startswith("bytes") and out_type == "decimal":
             exception = "CLAMP"
 
         if in_type in TEST_TYPES and out_type in TEST_TYPES:
+            in_N = _get_type_N(in_type)
             case = _generate_valid_test_cases_for_type(in_case_type, count=in_N)[-1]
 
             res.append(
@@ -1005,7 +1005,7 @@ def generate_test_cases_for_dislike_type_mismatch():
                 )
 
         elif out_type not in TEST_TYPES:
-
+            in_N = _get_type_N(in_type)
             out_types = _get_all_types_for_case_type(out_type)
             case = _generate_valid_test_cases_for_type(in_case_type, count=in_N)[-1]
 
@@ -1023,22 +1023,7 @@ def generate_test_cases_for_dislike_type_mismatch():
     return res
 
 
-@pytest.mark.parametrize(
-    "input_values",
-    generate_test_cases_for_same_type_conversion()
-    + generate_test_cases_for_byte_array_type_mismatch()
-    + generate_test_cases_for_invalid_numeric_conversion()
-    + generate_test_cases_for_invalid_to_address_conversion()
-    + [
-        {
-            "in_type": "bytes32",
-            "out_type": "decimal",
-            "in_value": "0x7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF",
-            "exception": InvalidLiteral,
-        },
-    ],
-    generate_test_cases_for_dislike_type_mismatch(),
-)
+@pytest.mark.parametrize("input_values", generate_test_cases_for_invalid_dislike_types_conversion())
 def test_invalid_convert(
     get_contract_with_gas_estimation, assert_compile_failed, assert_tx_failed, input_values
 ):
