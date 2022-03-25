@@ -1,9 +1,10 @@
+from vyper.address_space import MEMORY
 from vyper.codegen.core import (
+    STORE,
     add_ofst,
     get_dyn_array_count,
     get_element_ptr,
     make_setter,
-    store_op,
     zero_pad,
 )
 from vyper.codegen.ir_node import IRnode
@@ -66,7 +67,7 @@ def _encode_dyn_array_helper(dst, ir_node, context, pos):
     # TODO handle this upstream somewhere
     if ir_node.value == "multi":
         buf = context.new_internal_variable(dst.typ)
-        buf = IRnode.from_list(buf, typ=dst.typ, location="memory")
+        buf = IRnode.from_list(buf, typ=dst.typ, location=MEMORY)
         return [
             "seq",
             make_setter(buf, ir_node, pos),
@@ -81,7 +82,7 @@ def _encode_dyn_array_helper(dst, ir_node, context, pos):
     len_ = get_dyn_array_count(ir_node)
     with len_.cache_when_complex("len") as (b, len_):
         # set the length word
-        ret.append([store_op(dst.location), dst, len_])
+        ret.append(STORE(dst, len_))
 
         # prepare the loop
         t = BaseType("uint256")
@@ -144,7 +145,7 @@ def _encode_dyn_array_helper(dst, ir_node, context, pos):
 # otherwise it will return 0 items to the stack.
 def abi_encode(dst, ir_node, context, pos=None, bufsz=None, returns_len=False):
 
-    dst = IRnode.from_list(dst, typ=ir_node.typ, location="memory")
+    dst = IRnode.from_list(dst, typ=ir_node.typ, location=MEMORY)
     abi_t = dst.typ.abi_type
     size_bound = abi_t.size_bound()
 

@@ -2,14 +2,16 @@ import decimal
 import math
 
 from vyper import ast as vy_ast
+from vyper.address_space import DATA, IMMUTABLES, MEMORY, STORAGE
 from vyper.codegen import external_call, self_call
 from vyper.codegen.core import (
+    LOAD,
+    bytes_data_ptr,
     clamp_basetype,
     ensure_in_memory,
     get_dyn_array_count,
     get_element_ptr,
     getpos,
-    load_op,
     make_setter,
     pop_dyn_array,
     unwrap_location,
@@ -285,7 +287,7 @@ class Expr:
         return IRnode.from_list(
             ["seq"] + seq + [placeholder],
             typ=btype,
-            location="memory",
+            location=MEMORY,
             pos=getpos(self.expr),
             annotation=f"Create {btype}: {bytez}",
         )
@@ -334,10 +336,10 @@ class Expr:
 
             if self.context.sig.is_init_func:
                 mutable = True
-                location = "immutables"
+                location = IMMUTABLES
             else:
                 mutable = False
-                location = "data"
+                location = DATA
 
             return IRnode.from_list(
                 ofst,
@@ -416,7 +418,7 @@ class Expr:
             return IRnode.from_list(
                 type_.position.position,
                 typ=var.typ,
-                location="storage",
+                location=STORAGE,
                 pos=getpos(self.expr),
                 annotation="self." + self.expr.attr,
             )
@@ -820,7 +822,7 @@ class Expr:
                 tmp_list = IRnode.from_list(
                     self.context.new_internal_variable(right.typ),
                     typ=right.typ,
-                    location="memory",
+                    location=MEMORY,
                 )
                 ret.append(make_setter(tmp_list, right, pos=getpos(self.expr)))
 
@@ -922,13 +924,10 @@ class Expr:
             else:
 
                 def load_bytearray(side):
-                    if side.location == "storage":
-                        return ["sload", ["add", 1, side]]
-                    else:
-                        load = load_op(side.location)
-                        return [load, ["add", 32, side]]
+                    return LOAD(bytes_data_ptr(side))
 
                 return IRnode.from_list(
+                    # CMC 2022-03-24 TODO investigate this.
                     [op, load_bytearray(left), load_bytearray(right)],
                     typ="bool",
                     pos=getpos(self.expr),

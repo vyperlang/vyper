@@ -1,4 +1,5 @@
 import vyper.utils as util
+from vyper.address_space import MEMORY
 from vyper.codegen.abi_encoder import abi_encode
 from vyper.codegen.core import (
     calculate_type_for_external_return,
@@ -101,7 +102,7 @@ def _unpack_returndata(buf, contract_sig, skip_contract_check, context, pos):
     # in most cases, this simply will evaluate to ret.
     # in the special case where the return type has been wrapped
     # in a tuple AND its ABI type is dynamic, it expands to buf+32.
-    buf = IRnode(buf, typ=return_t, encoding=_returndata_encoding(contract_sig), location="memory")
+    buf = IRnode(buf, typ=return_t, encoding=_returndata_encoding(contract_sig), location=MEMORY)
 
     if should_unwrap_abi_tuple:
         buf = get_element_ptr(buf, 0, pos=None, array_bounds_check=False)
@@ -173,7 +174,7 @@ def _external_call_helper(
         # set the encoding to ABI here, downstream code will decode and add clampers.
         sub,
         typ=contract_sig.return_type,
-        location="memory",
+        location=MEMORY,
         encoding=_returndata_encoding(contract_sig),
         pos=pos,
     )

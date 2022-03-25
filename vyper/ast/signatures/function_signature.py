@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from typing import Dict, Optional
 
 from vyper import ast as vy_ast
+from vyper.address_space import MEMORY
 from vyper.codegen.ir_node import Encoding
 from vyper.codegen.types import NodeType, parse_type
 from vyper.exceptions import StructureException
@@ -23,7 +24,7 @@ class VariableRecord:
         typ,
         mutable,
         encoding=Encoding.VYPER,
-        location="memory",
+        location=MEMORY,
         blockscopes=None,
         defined_at=None,
         is_internal=False,

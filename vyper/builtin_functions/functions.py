@@ -5,6 +5,7 @@ from decimal import Decimal
 
 from vyper import ast as vy_ast
 from vyper.abi_types import ABI_Tuple
+from vyper.address_space import MEMORY, STORAGE
 from vyper.ast.signatures.function_signature import VariableRecord
 from vyper.ast.validation import validate_call_args
 from vyper.builtin_functions.convert import convert
@@ -23,7 +24,6 @@ from vyper.codegen.core import (
     get_element_ptr,
     getpos,
     ir_tuple_from_args,
-    load_op,
     promote_signed_int,
     unwrap_location,
 )
@@ -239,7 +239,7 @@ def _build_adhoc_slice_node(sub: IRnode, start: IRnode, length: IRnode, context:
             ],
         ]
 
-    return IRnode.from_list(node, typ=ByteArrayType(length.value), location="memory")
+    return IRnode.from_list(node, typ=ByteArrayType(length.value), location=MEMORY)
 
 
 class Slice:
@@ -332,7 +332,7 @@ class Slice:
 
             # add 32 bytes to the buffer size bc word access might
             # be unaligned (see below)
-            if src.location == "storage":
+            if src.location == STORAGE:
                 buflen += 32
 
             # Get returntype string or bytes
@@ -346,7 +346,7 @@ class Slice:
             buf = context.new_internal_variable(ByteArrayType(buflen))
             # assign it the correct return type.
             # (note mismatch between dst_maxlen and buflen)
-            dst = IRnode.from_list(buf, typ=dst_typ, location="memory")
+            dst = IRnode.from_list(buf, typ=dst_typ, location=MEMORY)
 
             dst_data = bytes_data_ptr(dst)
 
@@ -358,7 +358,7 @@ class Slice:
                 src_data = bytes_data_ptr(src)
 
             # general case. byte-for-byte copy
-            if src.location == "storage":
+            if src.location == STORAGE:
                 # because slice uses byte-addressing but storage
                 # is word-aligned, this algorithm starts at some number
                 # of bytes before the data section starts, and might copy
@@ -418,7 +418,7 @@ class Slice:
                 ["mstore", dst, length],  # set length
                 dst,  # return pointer to dst
             ]
-            ret = IRnode.from_list(ret, typ=dst_typ, location="memory", pos=getpos(expr))
+            ret = IRnode.from_list(ret, typ=dst_typ, location=MEMORY, pos=getpos(expr))
             return b1.resolve(b2.resolve(b3.resolve(ret)))
 
 
@@ -518,6 +518,9 @@ class Concat:
         total_maxlen = sum(
             [arg.typ.maxlen if isinstance(arg.typ, ByteArrayLike) else 32 for arg in args]
         )
+
+        # TODO: rewrite to use codegen.core routines
+
         # Node representing the position of the output in memory
         placeholder = context.new_internal_variable(ReturnType(total_maxlen))
         # Object representing the output
@@ -529,34 +532,23 @@ class Concat:
             placeholder_node = IRnode.from_list(
                 ["add", placeholder, "_poz"],
                 typ=ReturnType(total_maxlen),
-                location="memory",
+                location=MEMORY,
             )
             placeholder_node_plus_32 = IRnode.from_list(
                 ["add", ["add", placeholder, "_poz"], 32],
                 typ=ReturnType(total_maxlen),
-                location="memory",
+                location=MEMORY,
             )
             if isinstance(arg.typ, ReturnType):
                 # Ignore empty strings
                 if arg.typ.maxlen == 0:
                     continue
-                # Get the length of the current argument
-                if arg.location in ("memory", "calldata", "data", "immutables"):
-                    length = IRnode.from_list(
-                        [load_op(arg.location), "_arg"], typ=BaseType("int128")
-                    )
-                    argstart = IRnode.from_list(
-                        ["add", "_arg", 32],
-                        typ=arg.typ,
-                        location=arg.location,
-                    )
-                elif arg.location == "storage":
-                    length = IRnode.from_list(["sload", "_arg"], typ=BaseType("int128"))
-                    argstart = IRnode.from_list(
-                        ["add", "_arg", 1],
-                        typ=arg.typ,
-                        location=arg.location,
-                    )
+
+                length = [arg.location.load_op, "_arg"]
+                argstart = IRnode.from_list(
+                    ["add", "_arg", arg.location.wordsize], location=arg.location
+                )
+
                 # Make a copier to copy over data from that argument
                 seq.append(
                     [
@@ -594,7 +586,7 @@ class Concat:
         return IRnode.from_list(
             ["with", "_poz", 0, ["seq"] + seq],
             typ=ReturnType(total_maxlen),
-            location="memory",
+            location=MEMORY,
             pos=getpos(expr),
             annotation="concat",
         )
@@ -769,7 +761,7 @@ class ECRecover(_SimpleBuiltinFunction):
         placeholder_node = IRnode.from_list(
             context.new_internal_variable(ByteArrayType(128)),
             typ=ByteArrayType(128),
-            location="memory",
+            location=MEMORY,
         )
         return IRnode.from_list(
             [
@@ -815,7 +807,7 @@ class ECAdd(_SimpleBuiltinFunction):
         placeholder_node = IRnode.from_list(
             context.new_internal_variable(ByteArrayType(128)),
             typ=ByteArrayType(128),
-            location="memory",
+            location=MEMORY,
         )
         pos = getpos(expr)
         o = IRnode.from_list(
@@ -830,7 +822,7 @@ class ECAdd(_SimpleBuiltinFunction):
             ],
             typ=SArrayType(BaseType("uint256"), 2),
             pos=getpos(expr),
-            location="memory",
+            location=MEMORY,
         )
         return o
 
@@ -846,7 +838,7 @@ class ECMul(_SimpleBuiltinFunction):
         placeholder_node = IRnode.from_list(
             context.new_internal_variable(ByteArrayType(128)),
             typ=ByteArrayType(128),
-            location="memory",
+            location=MEMORY,
         )
         pos = getpos(expr)
         o = IRnode.from_list(
@@ -860,7 +852,7 @@ class ECMul(_SimpleBuiltinFunction):
             ],
             typ=SArrayType(BaseType("uint256"), 2),
             pos=pos,
-            location="memory",
+            location=MEMORY,
         )
         return o
 
@@ -906,15 +898,18 @@ class Extract32(_SimpleBuiltinFunction):
     def build_IR(self, expr, args, kwargs, context):
         sub, index = args
         ret_type = kwargs["output_type"]
+
         # Get length and specific element
-        if sub.location == "storage":
+        if sub.location == STORAGE:
             lengetter = IRnode.from_list(["sload", "_sub"], typ=BaseType("int128"))
             elementgetter = _storage_element_getter
 
         else:
-            op = load_op(sub.location)
+            op = sub.location.load_op
             lengetter = IRnode.from_list([op, "_sub"], typ=BaseType("int128"))
             elementgetter = _generic_element_getter(op)
+
+        # TODO rewrite all this with cache_when_complex and bitshifts
 
         # Special case: index known to be a multiple of 32
         if isinstance(index.value, int) and not index.value % 32:
@@ -1159,7 +1154,7 @@ class RawCall(_SimpleBuiltinFunction):
         output_node = IRnode.from_list(
             context.new_internal_variable(ByteArrayType(outsize)),
             typ=ByteArrayType(outsize),
-            location="memory",
+            location=MEMORY,
         )
 
         bool_ty = BaseType("bool")
@@ -1217,7 +1212,7 @@ class RawCall(_SimpleBuiltinFunction):
                     # use IRnode.from_list to make sure the types are
                     # set properly on the "multi" members
                     IRnode.from_list(call_ir, typ=bool_ty),
-                    IRnode.from_list(store_output_size, typ=bytes_ty, location="memory"),
+                    IRnode.from_list(store_output_size, typ=bytes_ty, location=MEMORY),
                 ]
 
         else:
@@ -1228,7 +1223,7 @@ class RawCall(_SimpleBuiltinFunction):
                 typ = bool_ty
                 ret_ir = call_ir
 
-        return IRnode.from_list(ret_ir, typ=typ, location="memory", pos=getpos(expr))
+        return IRnode.from_list(ret_ir, typ=typ, location=MEMORY, pos=getpos(expr))
 
 
 class Send(_SimpleBuiltinFunction):
@@ -1897,7 +1892,7 @@ else:
             ],
             typ=BaseType("decimal"),
             pos=getpos(expr),
-            location="memory",
+            location=MEMORY,
         )
 
 
@@ -2056,7 +2051,7 @@ class ABIEncode(_SimpleBuiltinFunction):
 
         return IRnode.from_list(
             ret,
-            location="memory",
+            location=MEMORY,
             typ=buf_t,
             pos=pos,
             annotation=f"abi_encode builtin ensure_tuple={self._ensure_tuple(expr)}",

@@ -1,10 +1,13 @@
 import vyper.codegen.events as events
 import vyper.utils as util
 from vyper import ast as vy_ast
+from vyper.address_space import MEMORY, STORAGE
 from vyper.builtin_functions import STMT_DISPATCH_TABLE
 from vyper.codegen import external_call, self_call
 from vyper.codegen.context import Constancy, Context
 from vyper.codegen.core import (
+    LOAD,
+    STORE,
     IRnode,
     append_dyn_array,
     get_dyn_array_count,
@@ -14,7 +17,6 @@ from vyper.codegen.core import (
     make_byte_array_copier,
     make_setter,
     pop_dyn_array,
-    unwrap_location,
     zero_pad,
 )
 from vyper.codegen.expr import Expr
@@ -84,7 +86,7 @@ class Stmt:
         variable_loc = IRnode.from_list(
             pos,
             typ=typ,
-            location="memory",
+            location=MEMORY,
             pos=getpos(self.stmt),
         )
 
@@ -181,7 +183,7 @@ class Stmt:
             return _get_last(ir.args[-1])
 
         # TODO maybe use ensure_in_memory
-        if msg_ir.location != "memory":
+        if msg_ir.location != MEMORY:
             buf = self.context.new_internal_variable(msg_ir.typ)
             instantiate_msg = make_byte_array_copier(buf, msg_ir)
         else:
@@ -330,7 +332,7 @@ class Stmt:
         loop_var = IRnode.from_list(
             self.context.new_variable(varname, target_type),
             typ=target_type,
-            location="memory",
+            location=MEMORY,
         )
 
         i = IRnode.from_list(self.context.fresh_varname("for_list_ix"), typ="uint256")
@@ -344,7 +346,7 @@ class Stmt:
             tmp_list = IRnode.from_list(
                 self.context.new_internal_variable(iter_list.typ),
                 typ=iter_list.typ,
-                location="memory",
+                location=MEMORY,
             )
             ret.append(make_setter(tmp_list, iter_list, pos=getpos(self.stmt)))
             iter_list = tmp_list
@@ -374,10 +376,11 @@ class Stmt:
         sub = Expr.parse_value_expr(self.stmt.value, self.context)
         if not isinstance(target.typ, BaseType):
             return
-        if target.location == "storage":
-            ir_node = Expr.parse_value_expr(
+
+        with target.cache_when_complex("_loc") as (b, target):
+            rhs = Expr.parse_value_expr(
                 vy_ast.BinOp(
-                    left=IRnode.from_list(["sload", "_stloc"], typ=target.typ, pos=target.pos),
+                    left=IRnode.from_list(LOAD(target), typ=target.typ, pos=target.pos),
                     right=sub,
                     op=self.stmt.op,
                     lineno=self.stmt.lineno,
@@ -388,30 +391,7 @@ class Stmt:
                 ),
                 self.context,
             )
-            return IRnode.from_list(
-                ["with", "_stloc", target, ["sstore", "_stloc", unwrap_location(ir_node)]],
-                typ=None,
-                pos=getpos(self.stmt),
-            )
-        elif target.location == "memory":
-            ir_node = Expr.parse_value_expr(
-                vy_ast.BinOp(
-                    left=IRnode.from_list(["mload", "_mloc"], typ=target.typ, pos=target.pos),
-                    right=sub,
-                    op=self.stmt.op,
-                    lineno=self.stmt.lineno,
-                    col_offset=self.stmt.col_offset,
-                    end_lineno=self.stmt.end_lineno,
-                    end_col_offset=self.stmt.end_col_offset,
-                    node_source_code=self.stmt.get("node_source_code"),
-                ),
-                self.context,
-            )
-            return IRnode.from_list(
-                ["with", "_mloc", target, ["mstore", "_mloc", unwrap_location(ir_node)]],
-                typ=None,
-                pos=getpos(self.stmt),
-            )
+            return b.resolve(STORE(target, rhs))
 
     def parse_Continue(self):
         return IRnode.from_list("continue", typ=None, pos=getpos(self.stmt))
@@ -434,12 +414,12 @@ class Stmt:
         if isinstance(target, vy_ast.Tuple):
             target = Expr(target, self.context).ir_node
             for node in target.args:
-                if (node.location == "storage" and self.context.is_constant()) or not node.mutable:
+                if (node.location == STORAGE and self.context.is_constant()) or not node.mutable:
                     raise TypeCheckFailure(f"Failed constancy check\n{_dbg_expr}")
             return target
 
         target = Expr.parse_pointer_expr(target, self.context)
-        if (target.location == "storage" and self.context.is_constant()) or not target.mutable:
+        if (target.location == STORAGE and self.context.is_constant()) or not target.mutable:
             raise TypeCheckFailure(f"Failed constancy check\n{_dbg_expr}")
         return target
 
