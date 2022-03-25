@@ -5,7 +5,7 @@ import math
 from vyper import ast as vy_ast
 from vyper.codegen.core import (
     LOAD,
-    LLLnode,
+    IRnode,
     bytes_clamp,
     bytes_data_ptr,
     clamp_basetype,
@@ -38,7 +38,7 @@ def _FAIL(ityp, otyp, pos=None):
 
 # helper function for `_input_types`
 # generates a string representation of a type
-# (makes up for lack of proper hierarchy in LLL type system)
+# (makes up for lack of proper hierarchy in IR type system)
 # (ideally would use type generated during annotation, but
 # not available for builtins)
 def _type_class_of(typ):
@@ -97,17 +97,17 @@ def _bytes_to_num(arg, out_typ, signed):
         ret = shr(num_zero_bits, arg)
 
     annotation = (f"__intrinsic__byte_array_to_num({out_typ})",)
-    return LLLnode.from_list(ret, annotation=annotation)
+    return IRnode.from_list(ret, annotation=annotation)
 
 
 # truncate from fixed point decimal to int
 def _fixed_to_int(x, out_typ, decimals=10):
-    return LLLnode.from_list(["sdiv", x, 10 ** decimals], typ=out_typ)
+    return IRnode.from_list(["sdiv", x, 10 ** decimals], typ=out_typ)
 
 
 # promote from int to fixed point decimal
 def _int_to_fixed(x, out_typ, decimals=10):
-    return LLLnode.from_list(["mul", x, 10 ** decimals], typ=out_typ)
+    return IRnode.from_list(["mul", x, 10 ** decimals], typ=out_typ)
 
 
 def _check_bytes(expr, arg, output_type, max_bytes_allowed):
@@ -132,7 +132,7 @@ def _literal_int(expr, out_typ):
     (lo, hi) = int_bounds(int_info.is_signed, int_info.bits)
     if not (lo <= val <= hi):
         raise InvalidLiteral("Number out of range", expr)
-    return LLLnode.from_list(val, typ=out_typ)
+    return IRnode.from_list(val, typ=out_typ)
 
 
 def _literal_decimal(expr, out_typ):
@@ -151,7 +151,7 @@ def _literal_decimal(expr, out_typ):
     # sanity check type checker did its job
     assert math.ceil(val) == math.floor(val)
 
-    return LLLnode.from_list(int(val), typ=out_typ)
+    return IRnode.from_list(int(val), typ=out_typ)
 
 
 # any base type or bytes/string
@@ -166,7 +166,7 @@ def to_bool(expr, arg, out_typ):
     # NOTE: for decimal, the behavior is x != 0.0,
     # (we do not issue an `sdiv DECIMAL_DIVISOR`)
 
-    return LLLnode.from_list(["iszero", ["iszero", arg]], typ=out_typ)
+    return IRnode.from_list(["iszero", ["iszero", arg]], typ=out_typ)
 
 
 # special clamp for uint/sint conversions
@@ -230,7 +230,7 @@ def to_int(expr, arg, out_typ):
         if int_info.bits > 160:
             arg = int_clamp(arg, 160, signed=False)
 
-    return LLLnode.from_list(arg, typ=out_typ)
+    return IRnode.from_list(arg, typ=out_typ)
 
 
 @_input_types("int", "bool", "bytes_m", "bytes")
@@ -248,9 +248,9 @@ def to_decimal(expr, arg, out_typ):
         # and decimal bounds expand
         # will be something like: if info.m_bits > 168
         if arg_typ.maxlen * 8 > 128:
-            arg = LLLnode.from_list(arg, typ=out_typ)
+            arg = IRnode.from_list(arg, typ=out_typ)
             arg = clamp_basetype(arg)
-        return LLLnode.from_list(arg, typ=out_typ)
+        return IRnode.from_list(arg, typ=out_typ)
 
     elif is_bytes_m_type(arg.typ):
         info = arg.typ._bytes_info
@@ -259,10 +259,10 @@ def to_decimal(expr, arg, out_typ):
         # and decimal bounds expand
         # will be something like: if info.m_bits > 168
         if info.m_bits > 128:
-            arg = LLLnode.from_list(arg, typ=out_typ)
+            arg = IRnode.from_list(arg, typ=out_typ)
             arg = clamp_basetype(arg)
 
-        return LLLnode.from_list(arg, typ=out_typ)
+        return IRnode.from_list(arg, typ=out_typ)
 
     # for the clamp, pretend it's int128 because int128 clamps are cheaper
     # (and then multiply into the decimal base afterwards)
@@ -295,7 +295,7 @@ def to_bytes_m(expr, arg, out_typ):
         # zero out any dirty bytes (which can happen in the last
         # word of a bytearray)
         len_ = get_bytearray_length(arg)
-        num_zero_bits = LLLnode.from_list(["mul", ["sub", 32, len_], 8])
+        num_zero_bits = IRnode.from_list(["mul", ["sub", 32, len_], 8])
         with num_zero_bits.cache_when_complex("bits") as (b, num_zero_bits):
             arg = shl(num_zero_bits, shr(num_zero_bits, bytes_val))
             arg = b.resolve(arg)
@@ -320,7 +320,7 @@ def to_bytes_m(expr, arg, out_typ):
         # bool, decimal
         arg = shl(256 - out_info.m_bits, arg)  # question: is this right?
 
-    return LLLnode.from_list(arg, typ=out_typ)
+    return IRnode.from_list(arg, typ=out_typ)
 
 
 @_input_types("bytes_m", "int", "bytes")
@@ -357,7 +357,7 @@ def to_address(expr, arg, out_typ):
         if arg_info.bits > 160 or arg_info.is_signed:
             arg = int_clamp(arg, 160, signed=False)
 
-    return LLLnode.from_list(arg, typ=out_typ)
+    return IRnode.from_list(arg, typ=out_typ)
 
 
 # question: should we allow bytesM -> String?
@@ -366,7 +366,7 @@ def to_string(expr, arg, out_typ):
     _check_bytes(expr, arg, out_typ, out_typ.maxlen)
 
     # NOTE: this is a pointer cast
-    return LLLnode.from_list(arg, typ=out_typ)
+    return IRnode.from_list(arg, typ=out_typ)
 
 
 @_input_types("string")
@@ -376,7 +376,7 @@ def to_bytes(expr, arg, out_typ):
     # TODO: more casts
 
     # NOTE: this is a pointer cast
-    return LLLnode.from_list(arg, typ=out_typ)
+    return IRnode.from_list(arg, typ=out_typ)
 
 
 def convert(expr, context):
@@ -384,7 +384,7 @@ def convert(expr, context):
         raise StructureException("The convert function expects two parameters.", expr)
 
     arg_ast = expr.args[0]
-    arg = Expr(arg_ast, context).lll_node
+    arg = Expr(arg_ast, context).ir_node
     out_typ = context.parse_type(expr.args[1])
 
     if isinstance(arg.typ, BaseType):
@@ -409,4 +409,4 @@ def convert(expr, context):
 
         ret = b.resolve(ret)
 
-    return LLLnode.from_list(ret, pos=getpos(expr))
+    return IRnode.from_list(ret, pos=getpos(expr))

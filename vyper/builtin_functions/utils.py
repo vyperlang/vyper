@@ -9,5 +9,5 @@ def generate_inline_function(code, variables, memory_allocator):
     new_context = Context(
         vars_=variables, global_ctx=GlobalContext(), memory_allocator=memory_allocator
     )
-    generated_lll = parse_body(ast_code.body, new_context)
-    return new_context, generated_lll
+    generated_ir = parse_body(ast_code.body, new_context)
+    return new_context, generated_ir
