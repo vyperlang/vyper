@@ -907,6 +907,22 @@ def generate_test_cases_for_invalid_to_address_conversion():
     return res
 
 
+def generate_test_cases_for_decimal_overflow():
+    res = []
+
+    for t in TEST_TYPES.difference({"Bytes[32]", "address", "decimal"}):
+        res.append(
+            {
+                "in_type": "decimal",
+                "out_type": t,
+                "in_value": "180141183460469231731687303715884105728.0",
+                "exception": OverflowException,
+            }
+        )
+
+    return res
+
+
 @pytest.mark.parametrize(
     "input_values",
     generate_test_cases_for_same_type_conversion()
@@ -914,12 +930,6 @@ def generate_test_cases_for_invalid_to_address_conversion():
     + generate_test_cases_for_invalid_numeric_conversion()
     + generate_test_cases_for_invalid_to_address_conversion()
     + [
-        {
-            "in_type": "decimal",
-            "out_type": "int256",
-            "in_value": "180141183460469231731687303715884105728.0",
-            "exception": OverflowException,
-        },
         {
             "in_type": "address",
             "out_type": "decimal",
