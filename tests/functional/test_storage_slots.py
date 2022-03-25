@@ -59,7 +59,7 @@ def test_storage_slots(get_contract):
     assert [c.b(i) for i in range(2)] == [7, 8]
     assert c.c() == b"thisisthirtytwobytesokhowdoyoudo"
     assert [c.d(i) for i in range(4)] == [-1, -2, -3, -4]
-    assert c.e() == "A reairiry long string but we wont use it all"
+    assert c.e() == "A realllllly long string but we wont use it all"
     assert c.f(0) == 33
     assert c.g(0) == (b"hello", [-66, 420], "another string")
     assert c.g(1) == (
@@ -84,7 +84,7 @@ def test_reentrancy_lock(get_contract):
     assert [c.b(i) for i in range(2)] == [7, 8]
     assert c.c() == b"thisisthirtytwobytesokhowdoyoudo"
     assert [c.d(i) for i in range(4)] == [-1, -2, -3, -4]
-    assert c.e() == "A reairiry long string but we wont use it all"
+    assert c.e() == "A realllllly long string but we wont use it all"
     assert c.f(0) == 33
     assert c.g(0) == (b"hello", [-66, 420], "another string")
     assert c.g(1) == (
