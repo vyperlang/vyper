@@ -718,35 +718,6 @@ def convert_builtin_constant() -> {out_type}:
     assert c.convert_builtin_constant() == out_value
 
 
-@pytest.mark.parametrize(
-    "in_type,out_type,in_value,out_value",
-    [
-        (
-            "bytes32",
-            "address",
-            (b"\xff" * 20).rjust(32, b"\x00"),
-            checksum_encode("0x" + "ff" * 20),
-        ),
-        ("bytes32", "address", (b"\x01" + b"\xff" * 20).rjust(32, b"\x00"), None),
-        ("uint256", "address", 2 ** 160, None),
-        ("uint256", "address", 2 ** 160 - 1, checksum_encode("0x" + "ff" * 20)),
-    ],
-)
-def test_convert_clamping(get_contract, assert_tx_failed, in_type, out_type, in_value, out_value):
-
-    contract = f"""
-@external
-def test_convert(x: {in_type}) -> {out_type}:
-    return convert(x, {out_type})
-    """
-
-    c = get_contract(contract)
-    if not out_value:
-        assert_tx_failed(lambda: c.test_convert(in_value))
-    else:
-        assert c.test_convert(in_value) == out_value
-
-
 def generate_test_cases_for_same_type_conversion():
     """
     Helper function to generate test cases for invalid conversion of same types.
@@ -798,7 +769,7 @@ def generate_test_cases_for_byte_array_type_mismatch():
     return res
 
 
-def _generate_test_cases_for_invalid_numeric_conversion():
+def generate_test_cases_for_invalid_numeric_conversion():
     res = []
     # Outer loop = out_type
     # Inner loop = in_type
@@ -897,23 +868,57 @@ def _generate_test_cases_for_invalid_numeric_conversion():
     return res
 
 
+def generate_test_cases_for_invalid_to_address_conversion():
+    res = []
+
+    for u in UNSIGNED_INTEGER_TYPES:
+        in_N = _get_type_N(u)
+        if in_N > 160:
+            cases = [2 ** 160, 2 ** in_N - 1, 2 ** (in_N - 1)]
+            for c in cases:
+                res.append(
+                    {
+                        "in_type": u,
+                        "out_type": "address",
+                        "in_value": c,
+                        "exception": "CLAMP",
+                    }
+                )
+
+    for b in BYTES_M_TYPES:
+        in_nibbles = _get_nibble(b)
+        out_nibbles = _get_nibble("address")
+        if in_nibbles > out_nibbles:
+            cases = [
+                "0x" + hex(2 ** 160)[2:].rjust(in_nibbles, "0"),
+                "0x" + "f" * in_nibbles,
+                "0x" + "f" * (in_nibbles - 1) + "e",
+            ]
+            for c in cases:
+                res.append(
+                    {
+                        "in_type": b,
+                        "out_type": "address",
+                        "in_value": c,
+                        "exception": "CLAMP",
+                    }
+                )
+
+    return res
+
+
 @pytest.mark.parametrize(
     "input_values",
     generate_test_cases_for_same_type_conversion()
     + generate_test_cases_for_byte_array_type_mismatch()
-    + _generate_test_cases_for_invalid_numeric_conversion()
+    + generate_test_cases_for_invalid_numeric_conversion()
+    + generate_test_cases_for_invalid_to_address_conversion()
     + [
         {
             "in_type": "decimal",
             "out_type": "int256",
             "in_value": "180141183460469231731687303715884105728.0",
             "exception": OverflowException,
-        },
-        {
-            "in_type": "uint256",
-            "out_type": "decimal",
-            "in_value": 2 ** 127,
-            "exception": InvalidLiteral,
         },
         {
             "in_type": "address",
@@ -945,7 +950,7 @@ def foo():
     foobar: {out_type} = convert(bar, {out_type})
     """
 
-    if exception == InvalidLiteral:
+    if exception in (InvalidLiteral, "CLAMP"):
         c1 = get_contract_with_gas_estimation(contract_1)
         assert_tx_failed(lambda: c1.foo())
 
@@ -961,10 +966,15 @@ def foo():
     foobar: {out_type} = convert({in_value}, {out_type})
     """
 
-    assert_compile_failed(
-        lambda: get_contract_with_gas_estimation(contract_2),
-        exception,
-    )
+    if exception in ("CLAMP",):
+        c2 = get_contract_with_gas_estimation(contract_2)
+        assert_tx_failed(lambda: c2.foo())
+
+    else:
+        assert_compile_failed(
+            lambda: get_contract_with_gas_estimation(contract_2),
+            exception,
+        )
 
     # Test contract for clamping
     # Test cases for clamping failures produce an InvalidLiteral exception in contracts 2 and 4
@@ -974,7 +984,7 @@ def foo(bar: {in_type}) -> {out_type}:
     return convert(bar, {out_type})
     """
 
-    if exception in [InvalidLiteral, OverflowException]:
+    if exception in (InvalidLiteral, OverflowException, "CLAMP"):
         c3 = get_contract_with_gas_estimation(contract_3)
         if in_type == "decimal":
             in_value = Decimal(in_value)
@@ -992,7 +1002,12 @@ def foo() -> {out_type}:
     return convert({in_value}, {out_type})
     """
 
-    assert_compile_failed(
-        lambda: get_contract_with_gas_estimation(contract_4),
-        exception,
-    )
+    if exception in ("CLAMP",):
+        c4 = get_contract_with_gas_estimation(contract_4)
+        assert_tx_failed(lambda: c4.foo())
+
+    else:
+        assert_compile_failed(
+            lambda: get_contract_with_gas_estimation(contract_4),
+            exception,
+        )
