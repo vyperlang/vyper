@@ -198,7 +198,7 @@ The following example describes the expected input format of ``vyper-json``. Com
             //    abi - The contract ABI
             //    ast - Abstract syntax tree
             //    interface - Derived interface of the contract, in proper Vyper syntax
-            //    ir - IR intermediate representation of the code
+            //    ir - intermediate representation of the code
             //    userdoc - Natspec user documentation
             //    devdoc - Natspec developer documentation
             //    evm.bytecode.object - Bytecode object

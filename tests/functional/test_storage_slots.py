@@ -26,7 +26,7 @@ def __init__():
     self.b = [7, 8]
     self.c = b"thisisthirtytwobytesokhowdoyoudo"
     self.d = [-1, -2, -3, -4]
-    self.e = "A reairiry long string but we wont use it all"
+    self.e = "A realllllly long string but we wont use it all"
     self.f = [33]
     self.g = [
         StructTwo({a: b"hello", b: [-66, 420], c: "another string"}),

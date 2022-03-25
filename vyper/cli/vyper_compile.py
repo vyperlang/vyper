@@ -33,8 +33,8 @@ interface          - Vyper interface of a contract
 external_interface - External interface of a contract, used for outside contract calls
 opcodes            - List of opcodes as a string
 opcodes_runtime    - List of runtime opcodes as a string
-ir                 - Intermediate representation in IR
-ir_json            - Intermediate IR representation in JSON format
+ir                 - Intermediate representation in list format
+ir_json            - Intermediate representation in JSON format
 ir-hex             - Output IR and assembly constants in hex instead of decimal
 no-optimize        - Do not optimize (don't use this for production code)
 """
