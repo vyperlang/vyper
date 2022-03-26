@@ -1,8 +1,8 @@
 import pytest
 
-from vyper.codegen.lll_node import LLLnode
-from vyper.lll import compile_lll
-from vyper.lll.s_expressions import parse_s_exp
+from vyper.codegen.ir_node import IRnode
+from vyper.ir import compile_ir
+from vyper.ir.s_expressions import parse_s_exp
 
 fail_list = [
     [-(2 ** 255) - 3],
@@ -16,9 +16,9 @@ fail_list = [
 ]
 
 
-@pytest.mark.parametrize("bad_lll", fail_list)
-def test_lll_compile_fail(bad_lll, get_contract_from_lll, assert_compile_failed):
-    assert_compile_failed(lambda: get_contract_from_lll(LLLnode.from_list(bad_lll)), Exception)
+@pytest.mark.parametrize("bad_ir", fail_list)
+def test_ir_compile_fail(bad_ir, get_contract_from_ir, assert_compile_failed):
+    assert_compile_failed(lambda: get_contract_from_ir(IRnode.from_list(bad_ir)), Exception)
 
 
 valid_list = [
@@ -30,24 +30,22 @@ valid_list = [
 ]
 
 
-@pytest.mark.parametrize("good_lll", valid_list)
-def test_compile_lll_good(good_lll, get_contract_from_lll):
-    get_contract_from_lll(LLLnode.from_list(good_lll))
+@pytest.mark.parametrize("good_ir", valid_list)
+def test_compile_ir_good(good_ir, get_contract_from_ir):
+    get_contract_from_ir(IRnode.from_list(good_ir))
 
 
-def test_lll_from_s_expression(get_contract_from_lll):
+def test_ir_from_s_expression(get_contract_from_ir):
     code = """
 (seq
-  (return
+  (deploy
     0
-    (lll ; just return 32 byte of calldata back
-      0
-      (seq
-          (calldatacopy 0 4 32)
-          (return 0 32)
-          stop
-        )
-      )))
+    (seq ; just return 32 byte of calldata back
+      (calldatacopy 0 4 32)
+      (return 0 32)
+      stop
+     )
+    0))
     """
     abi = [
         {
@@ -61,13 +59,13 @@ def test_lll_from_s_expression(get_contract_from_lll):
     ]
 
     s_expressions = parse_s_exp(code)
-    lll = LLLnode.from_list(s_expressions[0])
-    c = get_contract_from_lll(lll, abi=abi)
+    ir = IRnode.from_list(s_expressions[0])
+    c = get_contract_from_ir(ir, abi=abi)
     assert c.test(-123456) == -123456
 
 
 def test_pc_debugger():
-    debugger_lll = ["seq", ["mstore", 0, 32], ["pc_debugger"]]
-    lll_nodes = LLLnode.from_list(debugger_lll)
-    _, line_number_map = compile_lll.assembly_to_evm(compile_lll.compile_to_assembly(lll_nodes))
+    debugger_ir = ["seq", ["mstore", 0, 32], ["pc_debugger"]]
+    ir_nodes = IRnode.from_list(debugger_ir)
+    _, line_number_map = compile_ir.assembly_to_evm(compile_ir.compile_to_assembly(ir_nodes))
     assert line_number_map["pc_breakpoints"][0] == 5

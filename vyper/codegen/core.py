@@ -1,7 +1,7 @@
-from decimal import Context, Decimal, setcontext
+from decimal import Context, setcontext
 
 from vyper import ast as vy_ast
-from vyper.codegen.lll_node import Encoding, LLLnode
+from vyper.codegen.ir_node import Encoding, IRnode
 from vyper.codegen.types import (
     DYNAMIC_ARRAY_OVERHEAD,
     ArrayLike,
@@ -14,13 +14,13 @@ from vyper.codegen.types import (
     TupleLike,
     TupleType,
     ceil32,
+    is_bytes_m_type,
     is_integer_type,
 )
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
     CompilerPanic,
     DecimalOverrideException,
-    InvalidLiteral,
     StructureException,
     TypeCheckFailure,
     TypeMismatch,
@@ -45,35 +45,12 @@ setcontext(DecimalContextOverride(prec=78))
 
 
 # propagate revert message when calls to external contracts fail
-def check_external_call(call_lll):
+def check_external_call(call_ir):
     copy_revertdata = ["returndatacopy", 0, 0, "returndatasize"]
     revert = ["revert", 0, "returndatasize"]
 
-    propagate_revert_lll = ["seq", copy_revertdata, revert]
-    return ["if", ["iszero", call_lll], propagate_revert_lll]
-
-
-# Get a decimal number as a fraction with denominator multiple of 10
-def get_number_as_fraction(expr, context):
-    literal = Decimal(expr.value)
-    sign, digits, exponent = literal.as_tuple()
-
-    if exponent < -10:
-        raise InvalidLiteral(
-            f"`decimal` literal cannot have more than 10 decimal places: {literal}", expr
-        )
-
-    sign = -1 if sign == 1 else 1  # Positive Decimal has `sign` of 0, negative `sign` of 1
-    # Decimal `digits` is a tuple of each digit, so convert to a regular integer
-    top = int(Decimal((0, digits, 0)))
-    top = sign * top * 10 ** (exponent if exponent > 0 else 0)  # Convert to a fixed point integer
-    bottom = 1 if exponent > 0 else 10 ** abs(exponent)  # Make denominator a power of 10
-    assert Decimal(top) / Decimal(bottom) == literal  # Sanity check
-
-    # TODO: Would be best to raise >10 decimal place exception here
-    #       (unless Decimal is used more widely)
-
-    return expr.node_source_code, top, bottom
+    propagate_revert_ir = ["seq", copy_revertdata, revert]
+    return ["if", ["iszero", call_ir], propagate_revert_ir]
 
 
 # cost per byte of the identity precompile
@@ -104,29 +81,44 @@ def make_byte_array_copier(dst, src, pos=None):
 
     if src.value == "~empty":
         # set length word to 0.
-        return LLLnode.from_list([store_op(dst.location), dst, 0], pos=pos)
+        return STORE(dst, 0)
 
-    with src.cache_when_complex("src") as (builder, src):
-        n_bytes = ["add", get_bytearray_length(src), 32]
-        max_bytes = src.typ.memory_bytes_required
+    with src.cache_when_complex("src") as (b1, src):
+        with get_bytearray_length(src).cache_when_complex("len") as (b2, len_):
 
-        return builder.resolve(copy_bytes(dst, src, n_bytes, max_bytes, pos=pos))
+            max_bytes = src.typ.maxlen
+
+            ret = ["seq"]
+            # store length
+            ret.append(STORE(dst, len_))
+
+            dst = bytes_data_ptr(dst)
+            src = bytes_data_ptr(src)
+
+            ret.append(copy_bytes(dst, src, len_, max_bytes))
+            return b1.resolve(b2.resolve(ret))
 
 
 # TODO maybe move me to types.py
 def wordsize(location):
-    if location in ("memory", "calldata", "code"):
+    if location in ("memory", "calldata", "data", "immutables"):
         return 32
     if location == "storage":
         return 1
     raise CompilerPanic(f"invalid location {location}")  # pragma: notest
 
 
-# TODO refactor: add similar fn for dyn_arrays
 def bytes_data_ptr(ptr):
     if ptr.location is None:
         raise CompilerPanic("tried to modify non-pointer type")
     assert isinstance(ptr.typ, ByteArrayLike)
+    return add_ofst(ptr, wordsize(ptr.location))
+
+
+def dynarray_data_ptr(ptr):
+    if ptr.location is None:
+        raise CompilerPanic("tried to modify non-pointer type")
+    assert isinstance(ptr.typ, DArrayType)
     return add_ofst(ptr, wordsize(ptr.location))
 
 
@@ -135,7 +127,7 @@ def _dynarray_make_setter(dst, src, pos=None):
     assert isinstance(dst.typ, DArrayType)
 
     if src.value == "~empty":
-        return LLLnode.from_list([store_op(dst.location), dst, 0], pos=pos)
+        return IRnode.from_list([store_op(dst.location), dst, 0], pos=pos)
 
     if src.value == "multi":
         ret = ["seq"]
@@ -146,12 +138,12 @@ def _dynarray_make_setter(dst, src, pos=None):
         ann = None
         if src.annotation is not None:
             ann = f"len({src.annotation})"
-        store_length = LLLnode.from_list(store_length, annotation=ann)
+        store_length = IRnode.from_list(store_length, annotation=ann)
         ret.append(store_length)
 
         n_items = len(src.args)
         for i in range(n_items):
-            k = LLLnode.from_list(i, typ="uint256")
+            k = IRnode.from_list(i, typ="uint256")
             dst_i = get_element_ptr(dst, k, pos=pos, array_bounds_check=False)
             src_i = get_element_ptr(src, k, pos=pos, array_bounds_check=False)
             ret.append(make_setter(dst_i, src_i, pos))
@@ -178,115 +170,108 @@ def _dynarray_make_setter(dst, src, pos=None):
         should_loop |= src.typ.subtype.abi_type.is_dynamic()
         should_loop |= _needs_clamp(src.typ.subtype, src.encoding)
 
-        if should_loop:
-            uint = BaseType("uint256")
+        with get_dyn_array_count(src).cache_when_complex("darray_count") as (b2, count):
+            ret = ["seq"]
+            ret.append(STORE(dst, count))
 
-            # note: name clobbering for the ix is OK because
-            # we never reach outside our level of nesting
-            i = LLLnode.from_list(_freshname("copy_darray_ix"), typ=uint)
+            if should_loop:
+                i = IRnode.from_list(_freshname("copy_darray_ix"), typ="uint256")
 
-            loop_body = make_setter(
-                get_element_ptr(dst, i, array_bounds_check=False, pos=pos),
-                get_element_ptr(src, i, array_bounds_check=False, pos=pos),
-                pos=pos,
-            )
-            loop_body.annotation = f"{dst}[i] = {src}[i]"
+                loop_body = make_setter(
+                    get_element_ptr(dst, i, array_bounds_check=False, pos=pos),
+                    get_element_ptr(src, i, array_bounds_check=False, pos=pos),
+                    pos=pos,
+                )
+                loop_body.annotation = f"{dst}[i] = {src}[i]"
 
-            with get_dyn_array_count(src).cache_when_complex("darray_count") as (b2, len_):
-                store_len = [store_op(dst.location), dst, len_]
-                loop = ["repeat", i, 0, len_, src.typ.count, loop_body]
+                ret.append(["repeat", i, 0, count, src.typ.count, loop_body])
 
-                return b1.resolve(b2.resolve(["seq", store_len, loop]))
+            else:
+                element_size = src.typ.subtype.memory_bytes_required
+                # number of elements * size of element in bytes
+                n_bytes = _mul(count, element_size)
+                max_bytes = src.typ.count * element_size
 
-        element_size = src.typ.subtype.memory_bytes_required
-        # 32 bytes + number of elements * size of element in bytes
-        n_bytes = ["add", _mul(get_dyn_array_count(src), element_size), 32]
-        max_bytes = src.typ.memory_bytes_required
+                src_ = dynarray_data_ptr(src)
+                dst_ = dynarray_data_ptr(dst)
+                ret.append(copy_bytes(dst_, src_, n_bytes, max_bytes))
 
-        return b1.resolve(copy_bytes(dst, src, n_bytes, max_bytes, pos=pos))
+            return b1.resolve(b2.resolve(ret))
 
 
 # Copy bytes
 # Accepts 4 arguments:
-# (i) an LLL node for the start position of the source
-# (ii) an LLL node for the start position of the destination
-# (iii) an LLL node for the length (in bytes)
+# (i) an IR node for the start position of the source
+# (ii) an IR node for the start position of the destination
+# (iii) an IR node for the length (in bytes)
 # (iv) a constant for the max length (in bytes)
 # NOTE: may pad to ceil32 of `length`! If you ask to copy 1 byte, it may
 # copy an entire (32-byte) word, depending on the copy routine chosen.
 def copy_bytes(dst, src, length, length_bound, pos=None):
     annotation = f"copy_bytes from {src} to {dst}"
 
-    src = LLLnode.from_list(src)
-    dst = LLLnode.from_list(dst)
-    length = LLLnode.from_list(length)
+    src = IRnode.from_list(src)
+    dst = IRnode.from_list(dst)
+    length = IRnode.from_list(length)
 
     with src.cache_when_complex("src") as (b1, src), length.cache_when_complex(
-        "copy_word_count"
+        "copy_bytes_count"
     ) as (b2, length,), dst.cache_when_complex("dst") as (b3, dst):
 
         # fast code for common case where num bytes is small
         # TODO expand this for more cases where num words is less than ~8
         if length_bound <= 32:
-            copy_op = [store_op(dst.location), dst, [load_op(src.location), src]]
-            ret = LLLnode.from_list(copy_op, annotation=annotation)
+            copy_op = STORE(dst, LOAD(src))
+            ret = IRnode.from_list(copy_op, annotation=annotation)
             return b1.resolve(b2.resolve(b3.resolve(ret)))
 
-        if dst.location == "memory" and src.location in ("memory", "calldata", "code"):
+        if dst.location == "memory" and src.location in ("memory", "calldata", "data"):
             # special cases: batch copy to memory
+            # TODO: iloadbytes
             if src.location == "memory":
                 copy_op = ["staticcall", "gas", 4, src, length, dst, length]
                 gas_bound = _identity_gas_bound(length_bound)
             elif src.location == "calldata":
                 copy_op = ["calldatacopy", dst, src, length]
                 gas_bound = _calldatacopy_gas_bound(length_bound)
-            elif src.location == "code":
-                copy_op = ["codecopy", dst, src, length]
+            elif src.location == "data":
+                copy_op = ["dloadbytes", dst, src, length]
+                # note: dloadbytes compiles to CODECOPY
                 gas_bound = _codecopy_gas_bound(length_bound)
 
-            ret = LLLnode.from_list(copy_op, annotation=annotation, add_gas_estimate=gas_bound)
+            ret = IRnode.from_list(copy_op, annotation=annotation, add_gas_estimate=gas_bound)
             return b1.resolve(b2.resolve(b3.resolve(ret)))
+
+        if dst.location == "immutables" and src.location in ("memory", "data"):
+            # TODO istorebytes-from-mem, istorebytes-from-calldata(?)
+            # compile to identity, CODECOPY respectively.
+            pass
 
         # general case, copy word-for-word
         # pseudocode for our approach (memory-storage as example):
         # for i in range(len, bound=MAX_LEN):
         #   sstore(_dst + i, mload(src + i * 32))
-        # TODO should use something like
-        # for i in range(len, bound=MAX_LEN):
-        #   _dst += 1
-        #   src += 32
-        #   sstore(_dst, mload(src))
-
-        i = LLLnode.from_list(_freshname("copy_bytes_ix"), typ="uint256")
-
-        if src.location in ("memory", "calldata", "code"):
-            loader = [load_op(src.location), ["add", src, _mul(32, i)]]
-        elif src.location == "storage":
-            loader = [load_op(src.location), ["add", src, i]]
-        else:
-            raise CompilerPanic(f"Unsupported location: {src.location}")  # pragma: notest
-
-        if dst.location == "memory":
-            setter = ["mstore", ["add", dst, _mul(32, i)], loader]
-        elif dst.location == "storage":
-            setter = ["sstore", ["add", dst, i], loader]
-        else:
-            raise CompilerPanic(f"Unsupported location: {dst.location}")  # pragma: notest
+        i = IRnode.from_list(_freshname("copy_bytes_ix"), typ="uint256")
 
         n = ["div", ["ceil32", length], 32]
         n_bound = ceil32(length_bound) // 32
 
-        main_loop = ["repeat", i, 0, n, n_bound, setter]
+        dst_i = add_ofst(dst, _mul(i, wordsize(dst.location)))
+        src_i = add_ofst(src, _mul(i, wordsize(src.location)))
+
+        copy_one_word = STORE(dst_i, LOAD(src_i))
+
+        main_loop = ["repeat", i, 0, n, n_bound, copy_one_word]
 
         return b1.resolve(
-            b2.resolve(b3.resolve(LLLnode.from_list(main_loop, annotation=annotation, pos=pos)))
+            b2.resolve(b3.resolve(IRnode.from_list(main_loop, annotation=annotation, pos=pos)))
         )
 
 
 # get the number of bytes at runtime
 def get_bytearray_length(arg):
     typ = BaseType("uint256")
-    return LLLnode.from_list([load_op(arg.location), arg], typ=typ)
+    return IRnode.from_list([load_op(arg.location), arg], typ=typ)
 
 
 # get the number of elements at runtime
@@ -296,13 +281,13 @@ def get_dyn_array_count(arg):
     typ = BaseType("uint256")
 
     if arg.value == "multi":
-        return LLLnode.from_list(len(arg.args), typ=typ)
+        return IRnode.from_list(len(arg.args), typ=typ)
 
     if arg.value == "~empty":
         # empty(DynArray[])
-        return LLLnode.from_list(0, typ=typ)
+        return IRnode.from_list(0, typ=typ)
 
-    return LLLnode.from_list([load_op(arg.location), arg], typ=typ)
+    return IRnode.from_list([load_op(arg.location), arg], typ=typ)
 
 
 def append_dyn_array(darray_node, elem_node, pos=None):
@@ -325,7 +310,7 @@ def append_dyn_array(darray_node, elem_node, pos=None):
                     pos=pos,
                 )
             )
-            return LLLnode.from_list(b1.resolve(b2.resolve(ret)), pos=pos)
+            return IRnode.from_list(b1.resolve(b2.resolve(ret)), pos=pos)
 
 
 def pop_dyn_array(darray_node, return_popped_item, pos=None):
@@ -333,7 +318,7 @@ def pop_dyn_array(darray_node, return_popped_item, pos=None):
     ret = ["seq"]
     with darray_node.cache_when_complex("darray") as (b1, darray_node):
         old_len = ["clamp_nonzero", get_dyn_array_count(darray_node)]
-        new_len = LLLnode.from_list(["sub", old_len, 1], typ="uint256")
+        new_len = IRnode.from_list(["sub", old_len, 1], typ="uint256")
 
         with new_len.cache_when_complex("new_len") as (b2, new_len):
             ret.append([store_op(darray_node.location), darray_node, new_len])
@@ -349,7 +334,7 @@ def pop_dyn_array(darray_node, return_popped_item, pos=None):
                 encoding = popped_item.encoding
             else:
                 typ, location, encoding = None, None, None
-            return LLLnode.from_list(
+            return IRnode.from_list(
                 b1.resolve(b2.resolve(ret)), typ=typ, location=location, encoding=encoding, pos=pos
             )
 
@@ -363,24 +348,29 @@ def getpos(node):
     )
 
 
-def add_ofst(loc, ofst):
-    ofst = LLLnode.from_list(ofst)
-    if isinstance(loc.value, int) and isinstance(ofst.value, int):
-        ret = loc.value + ofst.value
+# TODO since this is always(?) used as add_ofst(ptr, n*wordsize(ptr.location))
+# maybe the API should be `add_words_to_ofst(ptr, n)` and handle the
+# wordsize multiplication inside
+def add_ofst(ptr, ofst):
+    ofst = IRnode.from_list(ofst)
+    if isinstance(ptr.value, int) and isinstance(ofst.value, int):
+        # NOTE: duplicate with optimizer rule (but removing this makes a
+        # test on --no-optimize mode use too much gas)
+        ret = ptr.value + ofst.value
     else:
-        ret = ["add", loc, ofst]
-    return LLLnode.from_list(ret, location=loc.location, encoding=loc.encoding)
+        ret = ["add", ptr, ofst]
+    return IRnode.from_list(ret, location=ptr.location, encoding=ptr.encoding)
 
 
-# TODO should really be handled in the optimizer.
+# shorthand util
 def _mul(x, y):
-    x = LLLnode.from_list(x)
-    y = LLLnode.from_list(y)
+    x, y = IRnode.from_list(x), IRnode.from_list(y)
+    # NOTE: similar deal: duplicate with optimizer rule
     if isinstance(x.value, int) and isinstance(y.value, int):
         ret = x.value * y.value
     else:
         ret = ["mul", x, y]
-    return LLLnode.from_list(ret)
+    return IRnode.from_list(ret)
 
 
 # Resolve pointer locations for ABI-encoded data
@@ -393,16 +383,16 @@ def _getelemptr_abi_helper(parent, member_t, ofst, pos=None, clamp=True):
     if has_length_word(parent.typ):
         parent = add_ofst(parent, wordsize(parent.location) * DYNAMIC_ARRAY_OVERHEAD)
 
-    ofst_lll = add_ofst(parent, ofst)
+    ofst_ir = add_ofst(parent, ofst)
 
     if member_abi_t.is_dynamic():
         # double dereference, according to ABI spec
         # TODO optimize special case: first dynamic item
         # offset is statically known.
-        ofst_lll = add_ofst(parent, unwrap_location(ofst_lll))
+        ofst_ir = add_ofst(parent, unwrap_location(ofst_ir))
 
-    return LLLnode.from_list(
-        ofst_lll,
+    return IRnode.from_list(
+        ofst_ir,
         typ=member_t,
         location=parent.location,
         encoding=parent.encoding,
@@ -431,7 +421,7 @@ def _get_element_ptr_tuplelike(parent, key, pos):
 
     # generated by empty() + make_setter
     if parent.value == "~empty":
-        return LLLnode.from_list("~empty", typ=subtype)
+        return IRnode.from_list("~empty", typ=subtype)
 
     if parent.value == "multi":
         assert parent.encoding != Encoding.ABI, "no abi-encoded literals"
@@ -454,13 +444,13 @@ def _get_element_ptr_tuplelike(parent, key, pos):
     if parent.location == "storage":
         for i in range(index):
             ofst += typ.members[attrs[i]].storage_size_in_words
-    elif parent.location in ("calldata", "memory", "code"):
+    elif parent.location in ("calldata", "memory", "data", "immutables"):
         for i in range(index):
             ofst += typ.members[attrs[i]].memory_bytes_required
     else:
         raise CompilerPanic(f"bad location {parent.location}")  # pragma: notest
 
-    return LLLnode.from_list(
+    return IRnode.from_list(
         add_ofst(parent, ofst),
         typ=subtype,
         location=parent.location,
@@ -491,7 +481,7 @@ def _get_element_ptr_array(parent, key, pos, array_bounds_check):
             # block it. there is no reason to index into a literal empty
             # array anyways!
             raise TypeCheckFailure("indexing into zero array not allowed")
-        return LLLnode.from_list("~empty", subtype)
+        return IRnode.from_list("~empty", subtype)
 
     if parent.value == "multi":
         assert isinstance(key.value, int)
@@ -508,7 +498,7 @@ def _get_element_ptr_array(parent, key, pos, array_bounds_check):
         is_darray = isinstance(parent.typ, DArrayType)
         bound = get_dyn_array_count(parent) if is_darray else parent.typ.count
         # NOTE: there are optimization rules for this when ix or bound is literal
-        ix = LLLnode.from_list([clamp_op, ix, bound], typ=ix.typ)
+        ix = IRnode.from_list([clamp_op, ix, bound], typ=ix.typ)
 
     if parent.encoding in (Encoding.ABI, Encoding.JSON_ABI):
         if parent.location == "storage":
@@ -522,7 +512,7 @@ def _get_element_ptr_array(parent, key, pos, array_bounds_check):
 
     if parent.location == "storage":
         element_size = subtype.storage_size_in_words
-    elif parent.location in ("calldata", "memory", "code"):
+    elif parent.location in ("calldata", "memory", "data", "immutables"):
         element_size = subtype.memory_bytes_required
 
     ofst = _mul(ix, element_size)
@@ -532,7 +522,7 @@ def _get_element_ptr_array(parent, key, pos, array_bounds_check):
     else:
         data_ptr = parent
 
-    return LLLnode.from_list(
+    return IRnode.from_list(
         add_ofst(data_ptr, ofst), typ=subtype, location=parent.location, pos=pos
     )
 
@@ -546,7 +536,7 @@ def _get_element_ptr_mapping(parent, key, pos):
     if key is None or parent.location != "storage":
         raise TypeCheckFailure("bad dereference on mapping {parent}[{sub}]")
 
-    return LLLnode.from_list(["sha3_64", parent, key], typ=subtype, location="storage")
+    return IRnode.from_list(["sha3_64", parent, key], typ=subtype, location="storage")
 
 
 # Take a value representing a memory or storage location, and descend down to
@@ -571,6 +561,7 @@ def get_element_ptr(parent, key, pos, array_bounds_check=True):
         return b.resolve(ret)
 
 
+# TODO phase this out - make private and use LOAD instead
 def load_op(location):
     if location == "memory":
         return "mload"
@@ -578,37 +569,53 @@ def load_op(location):
         return "sload"
     if location == "calldata":
         return "calldataload"
-    if location == "code":
-        return "codeload"
+    if location == "data":
+        # refers to data section of currently executing code
+        return "dload"
+    if location == "immutables":
+        # special address space for manipulating immutables before deploy
+        # only makes sense in a constructor
+        return "iload"
     raise CompilerPanic(f"unreachable {location}")  # pragma: notest
 
 
+# TODO phase this out - make private and use STORE instead
 def store_op(location):
     if location == "memory":
         return "mstore"
     if location == "storage":
         return "sstore"
+    if location == "immutables":
+        return "istore"
     raise CompilerPanic(f"unreachable {location}")  # pragma: notest
+
+
+def LOAD(ptr: IRnode) -> IRnode:
+    return IRnode.from_list([load_op(ptr.location), ptr])
+
+
+def STORE(ptr: IRnode, val: IRnode) -> IRnode:
+    return IRnode.from_list([store_op(ptr.location), ptr, val])
 
 
 # Unwrap location
 def unwrap_location(orig):
-    if orig.location in ("memory", "storage", "calldata", "code"):
-        return LLLnode.from_list([load_op(orig.location), orig], typ=orig.typ)
+    if orig.location in ("memory", "storage", "calldata", "data", "immutables"):
+        return IRnode.from_list(LOAD(orig), typ=orig.typ)
     else:
         # CMC 20210909 TODO double check if this branch can be removed
         if orig.value == "~empty":
-            return LLLnode.from_list(0, typ=orig.typ)
+            return IRnode.from_list(0, typ=orig.typ)
         return orig
 
 
-# utility function, constructs an LLL tuple out of a list of LLL nodes
-def lll_tuple_from_args(args):
+# utility function, constructs an IR tuple out of a list of IR nodes
+def ir_tuple_from_args(args):
     typ = TupleType([x.typ for x in args])
-    return LLLnode.from_list(["multi"] + [x for x in args], typ=typ)
+    return IRnode.from_list(["multi"] + [x for x in args], typ=typ)
 
 
-def _needs_external_call_wrap(lll_typ):
+def _needs_external_call_wrap(ir_typ):
     # for calls to ABI conforming contracts.
     # according to the ABI spec, return types are ALWAYS tuples even
     # if only one element is being returned.
@@ -625,31 +632,31 @@ def _needs_external_call_wrap(lll_typ):
     # including structs. MyStruct is returned as abi-encoded (MyStruct,).
     # (Sorry this is so confusing. I didn't make these rules.)
 
-    return not (isinstance(lll_typ, TupleType) and len(lll_typ.members) > 1)
+    return not (isinstance(ir_typ, TupleType) and len(ir_typ.members) > 1)
 
 
-def calculate_type_for_external_return(lll_typ):
-    if _needs_external_call_wrap(lll_typ):
-        return TupleType([lll_typ])
-    return lll_typ
+def calculate_type_for_external_return(ir_typ):
+    if _needs_external_call_wrap(ir_typ):
+        return TupleType([ir_typ])
+    return ir_typ
 
 
-def wrap_value_for_external_return(lll_val):
+def wrap_value_for_external_return(ir_val):
     # used for LHS promotion
-    if _needs_external_call_wrap(lll_val.typ):
-        return lll_tuple_from_args([lll_val])
+    if _needs_external_call_wrap(ir_val.typ):
+        return ir_tuple_from_args([ir_val])
     else:
-        return lll_val
+        return ir_val
 
 
-def set_type_for_external_return(lll_val):
+def set_type_for_external_return(ir_val):
     # used for RHS promotion
-    lll_val.typ = calculate_type_for_external_return(lll_val.typ)
+    ir_val.typ = calculate_type_for_external_return(ir_val.typ)
 
 
-# return a dummy LLLnode with the given type
+# return a dummy IRnode with the given type
 def dummy_node_for_type(typ):
-    return LLLnode("fake_node", typ=typ)
+    return IRnode("fake_node", typ=typ)
 
 
 def _check_assign_bytes(left, right):
@@ -751,7 +758,7 @@ def check_assign(left, right):
 _label = 0
 
 
-# TODO might want to coalesce with Context.fresh_varname and compile_lll.mksymbol
+# TODO might want to coalesce with Context.fresh_varname and compile_ir.mksymbol
 def _freshname(name):
     global _label
     _label += 1
@@ -771,7 +778,7 @@ def make_setter(left, right, pos):
             right = clamp_basetype(right)
 
         op = store_op(left.location)
-        return LLLnode.from_list([op, left, right], pos=pos)
+        return IRnode.from_list([op, left, right], pos=pos)
 
     # Byte arrays
     elif isinstance(left.typ, ByteArrayLike):
@@ -783,7 +790,7 @@ def make_setter(left, right, pos):
         else:
             ret = make_byte_array_copier(left, right, pos)
 
-        return LLLnode.from_list(ret)
+        return IRnode.from_list(ret)
 
     elif isinstance(left.typ, DArrayType):
         # TODO should we enable this?
@@ -799,7 +806,7 @@ def make_setter(left, right, pos):
         else:
             ret = _dynarray_make_setter(left, right, pos)
 
-        return LLLnode.from_list(ret)
+        return IRnode.from_list(ret)
 
     # Arrays
     elif isinstance(left.typ, (SArrayType, TupleLike)):
@@ -815,13 +822,13 @@ def _complex_make_setter(left, right, pos):
 
     if isinstance(left.typ, SArrayType):
         n_items = right.typ.count
-        keys = [LLLnode.from_list(i, typ="uint256") for i in range(n_items)]
+        keys = [IRnode.from_list(i, typ="uint256") for i in range(n_items)]
 
     if isinstance(left.typ, TupleLike):
         keys = left.typ.tuple_keys()
 
     # if len(keyz) == 0:
-    #    return LLLnode.from_list(["pass"])
+    #    return IRnode.from_list(["pass"])
 
     # general case
     # TODO use copy_bytes when the generated code is above a certain size
@@ -832,31 +839,31 @@ def _complex_make_setter(left, right, pos):
             r_i = get_element_ptr(right, k, pos=pos, array_bounds_check=False)
             ret.append(make_setter(l_i, r_i, pos))
 
-        return b1.resolve(b2.resolve(LLLnode.from_list(ret)))
+        return b1.resolve(b2.resolve(IRnode.from_list(ret)))
 
 
-def ensure_in_memory(lll_var, context, pos=None):
+def ensure_in_memory(ir_var, context, pos=None):
     """Ensure a variable is in memory. This is useful for functions
     which expect to operate on memory variables.
     """
-    if lll_var.location == "memory":
-        return lll_var
+    if ir_var.location == "memory":
+        return ir_var
 
-    typ = lll_var.typ
-    buf = LLLnode.from_list(context.new_internal_variable(typ), typ=typ, location="memory")
-    do_copy = make_setter(buf, lll_var, pos=pos)
+    typ = ir_var.typ
+    buf = IRnode.from_list(context.new_internal_variable(typ), typ=typ, location="memory")
+    do_copy = make_setter(buf, ir_var, pos=pos)
 
-    return LLLnode.from_list(["seq", do_copy, buf], typ=typ, location="memory")
+    return IRnode.from_list(["seq", do_copy, buf], typ=typ, location="memory")
 
 
-def eval_seq(lll_node):
+def eval_seq(ir_node):
     """Tries to find the "return" value of a `seq` statement, in order so
     that the value can be known without possibly evaluating side effects
     """
-    if lll_node.value in ("seq", "with") and len(lll_node.args) > 0:
-        return eval_seq(lll_node.args[-1])
-    if isinstance(lll_node.value, int):
-        return LLLnode.from_list(lll_node)
+    if ir_node.value in ("seq", "with") and len(ir_node.args) > 0:
+        return eval_seq(ir_node.args[-1])
+    if isinstance(ir_node.value, int):
+        return IRnode.from_list(ir_node)
     return None
 
 
@@ -899,7 +906,7 @@ def _check_return_body(node, node_list):
 def mzero(dst, nbytes):
     # calldatacopy from past-the-end gives zero bytes.
     # cf. YP H.2 (ops section) with CALLDATACOPY spec.
-    return LLLnode.from_list(
+    return IRnode.from_list(
         # calldatacopy mempos calldatapos len
         ["calldatacopy", dst, "calldatasize", nbytes],
         annotation="mzero",
@@ -917,7 +924,7 @@ def zero_pad(bytez_placeholder):
     #   followed by the *minimum* number of zero-bytes
     #   such that len(enc(X)) is a multiple of 32.
     num_zero_bytes = ["sub", ["ceil32", "len"], "len"]
-    return LLLnode.from_list(
+    return IRnode.from_list(
         ["with", "len", len_, ["with", "dst", dst, mzero("dst", num_zero_bytes)]],
         annotation="Zero pad",
     )
@@ -960,69 +967,91 @@ def _needs_clamp(t, encoding):
     return False
 
 
-def clamp_bytestring(lll_node):
-    t = lll_node.typ
+def clamp_bytestring(ir_node):
+    t = ir_node.typ
     if not isinstance(t, ByteArrayLike):
         raise CompilerPanic(f"{t} passed to clamp_bytestring")  # pragma: notest
-    return ["assert", ["le", get_bytearray_length(lll_node), t.maxlen]]
+    return ["assert", ["le", get_bytearray_length(ir_node), t.maxlen]]
 
 
-def clamp_dyn_array(lll_node):
-    t = lll_node.typ
+def clamp_dyn_array(ir_node):
+    t = ir_node.typ
     assert isinstance(t, DArrayType)
-    return ["assert", ["le", get_dyn_array_count(lll_node), t.count]]
+    return ["assert", ["le", get_dyn_array_count(ir_node), t.count]]
 
 
 # clampers for basetype
-def clamp_basetype(lll_node):
-    t = lll_node.typ
+def clamp_basetype(ir_node):
+    t = ir_node.typ
     if not isinstance(t, BaseType):
         raise CompilerPanic(f"{t} passed to clamp_basetype")  # pragma: notest
 
     # copy of the input
-    lll_node = unwrap_location(lll_node)
+    ir_node = unwrap_location(ir_node)
 
-    if t.typ in ("int128"):
-        return int_clamp(lll_node, 128, signed=True)
-    if t.typ == "uint8":
-        return int_clamp(lll_node, 8)
+    if is_integer_type(t):
+        if t._int_info.bits == 256:
+            return ir_node
+        else:
+            return int_clamp(ir_node, t._int_info.bits, signed=t._int_info.is_signed)
+
     if t.typ in ("decimal"):
         return [
             "clamp",
             ["mload", MemoryPositions.MINDECIMAL],
-            lll_node,
+            ir_node,
             ["mload", MemoryPositions.MAXDECIMAL],
         ]
 
     if t.typ in ("address",):
-        return int_clamp(lll_node, 160)
+        return int_clamp(ir_node, 160)
     if t.typ in ("bool",):
-        return int_clamp(lll_node, 1)
-    if t.typ in ("int256", "uint256", "bytes32"):
-        return lll_node  # special case, no clamp.
+        return int_clamp(ir_node, 1)
+    if t.typ in ("bytes32",):
+        return ir_node  # special case, no clamp.
+    if is_bytes_m_type(t):
+        return bytes_clamp(ir_node, t._bytes_info.m)
 
     raise CompilerPanic(f"{t} passed to clamp_basetype")  # pragma: notest
 
 
-def int_clamp(lll_node, bits, signed=False):
+def int_clamp(ir_node, bits, signed=False):
     """Generalized clamper for integer types. Takes the number of bits,
-    whether it's signed, and returns an LLL node which checks it is
+    whether it's signed, and returns an IR node which checks it is
     in bounds. (Consumers should use clamp_basetype instead which uses
     type-based dispatch and is a little safer.)
     """
     if bits >= 256:
-        raise CompilerPanic(f"invalid clamp: {bits}>=256 ({lll_node})")  # pragma: notest
-    if signed:
-        # example for bits==128:
-        # if _val is in bounds,
-        # _val >>> 127 == 0 for positive _val
-        # _val >>> 127 == -1 for negative _val
-        # -1 and 0 are the only numbers which are unchanged by sar,
-        # so sar'ing (_val>>>127) one more bit should leave it unchanged.
-        assertion = ["assert", ["eq", sar(bits - 1, "val"), sar(bits, "val")]]
-    else:
-        assertion = ["assert", ["iszero", shr(bits, "val")]]
+        raise CompilerPanic(f"invalid clamp: {bits}>=256 ({ir_node})")  # pragma: notest
+    with ir_node.cache_when_complex("val") as (b, val):
+        if signed:
+            # example for bits==128:
+            # promote_signed_int(val, bits) is the "canonical" version of val
+            # if val is in bounds, the bits above bit 128 should be equal.
+            # (this works for both val >= 0 and val < 0. in the first case,
+            # all upper bits should be 0 if val is a valid int128,
+            # in the latter case, all upper bits should be 1.)
+            assertion = ["assert", ["eq", val, promote_signed_int(val, bits)]]
+        else:
+            assertion = ["assert", ["iszero", shr(bits, val)]]
 
-    ret = ["with", "val", lll_node, ["seq", assertion, "val"]]
+        ret = b.resolve(["seq", assertion, val])
 
-    return LLLnode.from_list(ret, annotation=f"int_clamp {lll_node.typ}")
+    # TODO fix this annotation
+    return IRnode.from_list(ret, annotation=f"int_clamp {ir_node.typ}")
+
+
+def bytes_clamp(ir_node: IRnode, n_bytes: int) -> IRnode:
+    if not (0 < n_bytes <= 32):
+        raise CompilerPanic(f"bad type: bytes{n_bytes}")
+    with ir_node.cache_when_complex("val") as (b, val):
+        assertion = ["assert", ["iszero", shl(n_bytes * 8, val)]]
+        ret = b.resolve(["seq", assertion, val])
+    return IRnode.from_list(ret, annotation=f"bytes{n_bytes}_clamp")
+
+
+# e.g. for int8, promote 255 to -1
+def promote_signed_int(x, bits):
+    assert bits % 8 == 0
+    ret = ["signextend", bits // 8 - 1, x]
+    return IRnode.from_list(ret, annotation=f"promote int{bits}")

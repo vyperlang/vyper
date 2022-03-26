@@ -5,11 +5,11 @@ from pathlib import Path
 import asttokens
 
 from vyper.ast import ast_to_dict, parse_natspec
-from vyper.codegen.lll_node import LLLnode
+from vyper.codegen.ir_node import IRnode
 from vyper.compiler.phases import CompilerData
 from vyper.compiler.utils import build_gas_estimates
 from vyper.evm import opcodes
-from vyper.lll import compile_lll
+from vyper.ir import compile_ir
 from vyper.semantics.types.function import FunctionVisibility, StateMutability
 from vyper.typing import StorageLayout
 from vyper.warnings import ContractSizeLimitWarning
@@ -73,31 +73,31 @@ def build_interface_output(compiler_data: CompilerData) -> str:
     return out
 
 
-def build_ir_output(compiler_data: CompilerData) -> LLLnode:
+def build_ir_output(compiler_data: CompilerData) -> IRnode:
     if compiler_data.show_gas_estimates:
-        LLLnode.repr_show_gas = True
-    return compiler_data.lll_nodes
+        IRnode.repr_show_gas = True
+    return compiler_data.ir_nodes
 
 
-def build_ir_runtime_output(compiler_data: CompilerData) -> LLLnode:
+def build_ir_runtime_output(compiler_data: CompilerData) -> IRnode:
     if compiler_data.show_gas_estimates:
-        LLLnode.repr_show_gas = True
-    return compiler_data.lll_runtime
+        IRnode.repr_show_gas = True
+    return compiler_data.ir_runtime
 
 
-def _lll_to_dict(lll_node):
-    args = lll_node.args
-    if len(args) > 0:
-        return {lll_node.value: [_lll_to_dict(x) for x in args]}
-    return lll_node.value
+def _ir_to_dict(ir_node):
+    args = ir_node.args
+    if len(args) > 0 or ir_node.value == "seq":
+        return {ir_node.value: [_ir_to_dict(x) for x in args]}
+    return ir_node.value
 
 
 def build_ir_dict_output(compiler_data: CompilerData) -> dict:
-    return _lll_to_dict(compiler_data.lll_nodes)
+    return _ir_to_dict(compiler_data.ir_nodes)
 
 
 def build_ir_runtime_dict_output(compiler_data: CompilerData) -> dict:
-    return _lll_to_dict(compiler_data.lll_runtime)
+    return _ir_to_dict(compiler_data.ir_runtime)
 
 
 def build_metadata_output(compiler_data: CompilerData) -> dict:
@@ -107,7 +107,7 @@ def build_metadata_output(compiler_data: CompilerData) -> dict:
     def _to_dict(sig):
         ret = vars(sig)
         ret["return_type"] = str(ret["return_type"])
-        ret["_lll_identifier"] = sig._lll_identifier
+        ret["_ir_identifier"] = sig._ir_identifier
         for attr in ("gas", "func_ast_code"):
             del ret[attr]
         for attr in ("args", "base_args", "default_args"):
@@ -132,7 +132,7 @@ def build_abi_output(compiler_data: CompilerData) -> list:
     abi = compiler_data.vyper_module_folded._metadata["type"].to_abi_dict()
     if compiler_data.show_gas_estimates:
         # Add gas estimates for each function to ABI
-        gas_estimates = build_gas_estimates(compiler_data.lll_runtime)
+        gas_estimates = build_gas_estimates(compiler_data.ir_runtime)
         for func in abi:
             try:
                 func_signature = func["name"]
@@ -174,11 +174,9 @@ def _build_asm(asm_list):
                 output_string += " "
             in_push -= 1
         else:
-            assert isinstance(node, str), node
+            output_string += str(node) + " "
 
-            output_string += node + " "
-
-            if node.startswith("PUSH"):
+            if isinstance(node, str) and node.startswith("PUSH"):
                 assert in_push == 0
                 in_push = int(node[4:])
                 output_string += "0x"
@@ -187,7 +185,7 @@ def _build_asm(asm_list):
 
 
 def build_source_map_output(compiler_data: CompilerData) -> OrderedDict:
-    _, line_number_map = compile_lll.assembly_to_evm(compiler_data.assembly_runtime)
+    _, line_number_map = compile_ir.assembly_to_evm(compiler_data.assembly_runtime)
     # Sort line_number_map
     out = OrderedDict()
     for k in sorted(line_number_map.keys()):

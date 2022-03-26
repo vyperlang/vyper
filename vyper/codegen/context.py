@@ -152,6 +152,8 @@ class Context:
         self, name: str, typ: NodeType, var_size: int, is_internal: bool, is_mutable: bool = True
     ) -> int:
         if is_internal:
+            # TODO CMC 2022-03-02 change this to `.allocate_memory()`
+            # and make `expand_memory()` private.
             var_pos = self.memory_allocator.expand_memory(var_size)
         else:
             var_pos = self.memory_allocator.allocate_memory(var_size)
@@ -238,7 +240,7 @@ class Context:
     def lookup_var(self, varname):
         return self.vars[varname]
 
-    def lookup_internal_function(self, method_name, args_lll):
+    def lookup_internal_function(self, method_name, args_ir):
         # TODO is this the right module for me?
         """
         Using a list of args, find the internal method to use, and
@@ -259,12 +261,12 @@ class Context:
 
         _check(sig.internal)  # sanity check
         # should have been caught during type checking, sanity check anyway
-        _check(len(sig.base_args) <= len(args_lll) <= len(sig.args))
+        _check(len(sig.base_args) <= len(args_ir) <= len(sig.args))
 
         # more sanity check, that the types match
-        # _check(all(l.typ == r.typ for (l, r) in zip(args_lll, sig.args))
+        # _check(all(l.typ == r.typ for (l, r) in zip(args_ir, sig.args))
 
-        num_provided_kwargs = len(args_lll) - len(sig.base_args)
+        num_provided_kwargs = len(args_ir) - len(sig.base_args)
         num_kwargs = len(sig.default_args)
         kwargs_needed = num_kwargs - num_provided_kwargs
 

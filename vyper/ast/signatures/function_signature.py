@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from typing import Dict, Optional
 
 from vyper import ast as vy_ast
-from vyper.codegen.lll_node import Encoding
+from vyper.codegen.ir_node import Encoding
 from vyper.codegen.types import NodeType, parse_type
 from vyper.exceptions import StructureException
 from vyper.utils import cached_property, mkalphanum
@@ -58,11 +58,6 @@ class VariableRecord:
         return math.ceil(self.typ.memory_bytes_required / 32)
 
 
-class ContractRecord(VariableRecord):
-    def __init__(self, *args):
-        super(ContractRecord, self).__init__(*args)
-
-
 @dataclass
 class FunctionArg:
     name: str
@@ -102,7 +97,7 @@ class FunctionSignature:
         return input_name + ":"
 
     @cached_property
-    def _lll_identifier(self) -> str:
+    def _ir_identifier(self) -> str:
         # we could do a bit better than this but it just needs to be unique
         visibility = "internal" if self.internal else "external"
         argz = ",".join([str(arg.typ) for arg in self.args])
@@ -123,17 +118,17 @@ class FunctionSignature:
     def external_function_base_entry_label(self):
         assert not self.internal
 
-        return self._lll_identifier + "_common"
+        return self._ir_identifier + "_common"
 
     @property
     def internal_function_label(self):
         assert self.internal, "why are you doing this"
 
-        return self._lll_identifier
+        return self._ir_identifier
 
     @property
     def exit_sequence_label(self):
-        return self._lll_identifier + "_cleanup"
+        return self._ir_identifier + "_cleanup"
 
     def set_default_args(self):
         """Split base from kwargs and set member data structures"""

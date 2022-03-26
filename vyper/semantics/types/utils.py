@@ -171,34 +171,48 @@ def get_type_from_annotation(
         raise InvalidType(f"'{type_name}' is not a valid type", node) from None
 
 
-def check_literal(node: vy_ast.VyperNode) -> bool:
+def _check_literal(node: vy_ast.VyperNode) -> bool:
     """
     Check if the given node is a literal value.
     """
     if isinstance(node, vy_ast.Constant):
         return True
     elif isinstance(node, (vy_ast.Tuple, vy_ast.List)):
-        for item in node.elements:
-            if not check_literal(item):
-                return False
-        return True
-    else:
-        return False
+        return all(_check_literal(item) for item in node.elements)
+    return False
 
 
 def check_constant(node: vy_ast.VyperNode) -> bool:
     """
     Check if the given node is a literal or constant value.
     """
-    if check_literal(node):
+    if _check_literal(node):
         return True
     if isinstance(node, (vy_ast.Tuple, vy_ast.List)):
-        for item in node.elements:
-            if not check_constant(item):
-                return False
+        return all(check_constant(item) for item in node.elements)
+    if isinstance(node, vy_ast.Call):
+        args = node.args
+        if len(args) == 1 and isinstance(args[0], vy_ast.Dict):
+            return all(check_constant(v) for v in args[0].values)
+
+    return False
+
+
+def check_kwargable(node: vy_ast.VyperNode) -> bool:
+    """
+    Check if the given node can be used as a default arg
+    """
+    if _check_literal(node):
         return True
+    if isinstance(node, (vy_ast.Tuple, vy_ast.List)):
+        return all(check_kwargable(item) for item in node.elements)
+    if isinstance(node, vy_ast.Call):
+        args = node.args
+        if len(args) == 1 and isinstance(args[0], vy_ast.Dict):
+            return all(check_kwargable(v) for v in args[0].values)
 
     value_type = get_exact_type_from_node(node)
+    # is_constant here actually means not_assignable, and is to be renamed
     return getattr(value_type, "is_constant", False)
 
 

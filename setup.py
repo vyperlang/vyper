@@ -10,6 +10,7 @@ extras_require = {
         "pytest-cov>=2.10,<3.0",
         "pytest-instafail>=0.4,<1.0",
         "pytest-xdist>=1.32,<2.0",
+        "pytest-split>=0.7.0,<1.0",
         "eth-tester[py-evm]>=0.6.0b6,<0.7",
         "py-evm>=0.5.0a3,<0.6",
         "web3==5.27.0",
@@ -90,7 +91,7 @@ setup(
         "console_scripts": [
             "vyper=vyper.cli.vyper_compile:_parse_cli_args",
             "vyper-serve=vyper.cli.vyper_serve:_parse_cli_args",
-            "vyper-lll=vyper.cli.vyper_lll:_parse_cli_args",
+            "vyper-ir=vyper.cli.vyper_ir:_parse_cli_args",
             "vyper-json=vyper.cli.vyper_json:_parse_cli_args",
         ]
     },

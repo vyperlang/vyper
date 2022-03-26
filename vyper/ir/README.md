@@ -1,10 +1,10 @@
-# Introduction to LLL
+# Introduction to Vyper's IR
 
-LLL is Vyper's current intermediate representation. It is used as "a high level assembly". While LLL could theoretically compile to any backend which shares enough intrinsics with the EVM, this document assumes the reader has a good understanding of the EVM's execution model.
+VyperIR is Vyper's current intermediate representation. It is used as "a high level assembly". While VyperIR could theoretically compile to any backend which shares enough intrinsics with the EVM, this document assumes the reader has a good understanding of the EVM's execution model.
 
-# Structure of LLL
+# Structure of VyperIR
 
-The grammar of LLL is `(s_expr)` where `s_expr` is one of
+The grammar of VyperIR is `(s_expr)` where `s_expr` is one of
 
 ```
 s_expr :=
@@ -19,11 +19,11 @@ s_expr :=
   "repeat" s_expr s_expr s_expr s_expr s_expr
 ```
 
-An LLL expression has a "valency" of 1 or 0. Valency of 1 means that it returns a stack item, valency of 0 means that it does not.
+An IR expression has a "valency" of 1 or 0. Valency of 1 means that it returns a stack item, valency of 0 means that it does not.
 
-Vyper's current implementation of LLL can be referenced, mainly in [vyper/codegen/lll\_node.py](../codegen/lll_node.py) (which describes the internal API for constructing LLL) and in [vyper/lll/compile\_lll.py](../lll/compile_lll.py) (which describes how LLL is compiled to assembly and then to bytecode). Vyper's LLL output can be inspected by compiling a vyper contract with `vyper -f ir <contract.vy>`. Vyper also comes with a tool, `vyper-lll` which can be used to compile LLL directly to assembly or EVM bytecode.
+Vyper's current implementation of IR can be referenced, mainly in [vyper/codegen/ir\_node.py](../codegen/ir_node.py) (which describes the internal API for constructing IR) and in [vyper/ir/compile\_ir.py](../ir/compile_ir.py) (which describes how IR is compiled to assembly and then to bytecode). Vyper's IR output can be inspected by compiling a Vyper contract with `vyper -f ir <contract.vy>`. Vyper also comes with a tool, `vyper-ir` which can be used to compile IR (in Lisp syntax) directly to assembly or EVM bytecode.
 
-In the following examples, `_sym_<label>` is a location in code which will be resolved as the last step during conversion to opcodes. If it occurs before a `JUMPDEST`, is merely a marker in the code (and gets omitted in the bytecode). If it occurs anywhere else, it translates to `PUSH2 <location of jumpdest>`.
+In the following examples, `_sym_<label>` is a location in code which will be resolved as the last step during conversion to opcodes. If it occurs before a `JUMPDEST`, it is merely a marker in the code (and gets omitted in the bytecode). If it occurs anywhere else, it translates to `PUSH2 <location of jumpdest>`.
 
 ### INT\_LITERAL
 
@@ -126,7 +126,7 @@ POP POP           // POP y, POP x
 
 ### SEQ
 
-A seq expression ties together a sequence of LLL operations. Its valency is defined as the valency of the last element in the sequence. If any of the intervening operations (besides the last one) has nonzero valency, the output is POPped. (Its output can be used as an argument to another expression.)
+A seq expression ties together a sequence of IR operations. Its valency is defined as the valency of the last element in the sequence. If any of the intervening operations (besides the last one) has nonzero valency, the output is POPped. (Its output can be used as an argument to another expression.)
 
 Example:
 ```
@@ -157,7 +157,7 @@ PUSH1 5 PUSH1 4 PUSH1 3 PUSH1 2 PUSH1 1 CALLER GAS CALL
 
 ### GOTO
 
-jump to a label. Vyper’s dialect of LLL has two forms, simple goto and goto with args. The latter form is useful for implementing subroutines.
+jump to a label. VyperIR has two forms of goto, simple goto and goto with args. The latter form is useful for implementing subroutines.
 
 Example:
 ```
@@ -299,6 +299,9 @@ Compare or equal
 
 `(ne x y)` is equivalent to `(iszero (eq x y))`
 
+### SELECT
+`(select cond x y)` is similar to `(if cond x y)` but it may evaluate both branches. Whether or not both branches are taken is unspecified. If `cond` is not in `(0, 1)` the behavior is undefined. It is analogous to LLVM `select` and is intended to compile to branchless code.
+
 ### CLAMP\*
 
 Clamp pseudo-opcodes ensure that an input is bounded by some other input(s), and returns its first input.
@@ -335,4 +338,4 @@ def ceil32(x):
     return x if x % 32 == 0 else x + 32 - (x % 32)
 ```
 
-In LLL, `(ceil32 x)` is equivalent to `(with x_ x (sub (add x_ 31) (mod (x_ 1) 32)))`
+In IR, `(ceil32 x)` is equivalent to `(with x_ x (sub (add x_ 31) (mod (x_ 1) 32)))`
