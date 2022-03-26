@@ -568,6 +568,15 @@ FOO: constant(C) = C({c: A({a: X({x: 1, y: -1}), b: 777}), d: True})
 def get_y() -> int128:
     return FOO.c.a.y - 10
     """,
+    """
+struct C:
+    a: uint256
+    b: uint256
+
+@external
+def foo():
+    bar: C = C({a: 1, b: block.timestamp})
+    """,
 ]
 
 

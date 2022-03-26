@@ -1,11 +1,11 @@
 import operator
 from typing import List, Optional
 
-from vyper.codegen.lll_node import LLLnode
-from vyper.utils import LOADED_LIMITS, ceil32
+from vyper.codegen.ir_node import IRnode
+from vyper.utils import LOADED_LIMITS, ceil32, evm_div, evm_mod
 
 
-def get_int_at(args: List[LLLnode], pos: int, signed: bool = False) -> Optional[int]:
+def get_int_at(args: List[IRnode], pos: int, signed: bool = False) -> Optional[int]:
     value = args[pos].value
 
     if isinstance(value, int):
@@ -26,7 +26,7 @@ def get_int_at(args: List[LLLnode], pos: int, signed: bool = False) -> Optional[
         return o % 2 ** 256
 
 
-def int_at(args: List[LLLnode], pos: int, signed: bool = False) -> Optional[int]:
+def int_at(args: List[IRnode], pos: int, signed: bool = False) -> Optional[int]:
     return get_int_at(args, pos, signed) is not None
 
 
@@ -34,12 +34,12 @@ arith = {
     "add": (operator.add, "+"),
     "sub": (operator.sub, "-"),
     "mul": (operator.mul, "*"),
-    "div": (operator.floordiv, "/"),
-    "mod": (operator.mod, "%"),
+    "div": (evm_div, "/"),
+    "mod": (evm_mod, "%"),
 }
 
 
-def _is_constant_add(node: LLLnode, args: List[LLLnode]) -> bool:
+def _is_constant_add(node: IRnode, args: List[IRnode]) -> bool:
     return bool(
         (isinstance(node.value, str))
         and (node.value == "add" and int_at(args, 0))
@@ -47,14 +47,14 @@ def _is_constant_add(node: LLLnode, args: List[LLLnode]) -> bool:
     )
 
 
-def optimize(lll_node: LLLnode) -> LLLnode:
-    lll_node = apply_general_optimizations(lll_node)
-    lll_node = filter_unused_sizelimits(lll_node)
+def optimize(ir_node: IRnode) -> IRnode:
+    ir_node = apply_general_optimizations(ir_node)
+    ir_node = filter_unused_sizelimits(ir_node)
 
-    return lll_node
+    return ir_node
 
 
-def apply_general_optimizations(node: LLLnode) -> LLLnode:
+def apply_general_optimizations(node: IRnode) -> IRnode:
     # TODO add rules for modulus powers of 2
     # TODO refactor this into several functions
 
@@ -101,12 +101,16 @@ def apply_general_optimizations(node: LLLnode) -> LLLnode:
         annotation = argz[1].annotation
         argz = argz[1].args
 
-    elif node.value == "add" and get_int_at(argz, 0) == 0:
+    elif (node.value == "add" and get_int_at(argz, 0) == 0) or (
+        node.value == "mul" and get_int_at(argz, 0) == 1
+    ):
         value = argz[1].value
         annotation = argz[1].annotation
         argz = argz[1].args
 
-    elif node.value == "add" and get_int_at(argz, 1) == 0:
+    elif (node.value == "add" and get_int_at(argz, 1) == 0) or (
+        node.value == "mul" and get_int_at(argz, 1) == 1
+    ):
         value = argz[0].value
         annotation = argz[0].annotation
         argz = argz[0].args
@@ -157,7 +161,12 @@ def apply_general_optimizations(node: LLLnode) -> LLLnode:
     # TODO handle (ne -1 x) as well
     elif node.value == "eq" and int_at(argz, 1) and argz[1].value == -1:
         value = "iszero"
-        argz = [LLLnode.from_list(["not", argz[0]])]
+        argz = [IRnode.from_list(["not", argz[0]])]
+
+    elif node.value == "iszero" and int_at(argz, 0):
+        value = 1 if get_int_at(argz, 0) == 0 else 0
+        annotation = f"iszero({annotation})"
+        argz = []
 
     # (eq x y) has the same truthyness as (iszero (xor x y))
     # rewrite 'eq' as 'xor' in places where truthy is accepted.
@@ -174,11 +183,11 @@ def apply_general_optimizations(node: LLLnode) -> LLLnode:
         cond = argz[0]
         true_branch = argz[1]
         false_branch = argz[2]
-        contra_cond = LLLnode.from_list(["iszero", cond])
+        contra_cond = IRnode.from_list(["iszero", cond])
 
         argz = [contra_cond, false_branch, true_branch]
 
-    ret = LLLnode.from_list(
+    ret = IRnode.from_list(
         [value, *argz],
         typ=typ,
         location=location,
@@ -200,46 +209,46 @@ def _merge_memzero(argz):
     mstore_nodes: List = []
     initial_offset = 0
     total_length = 0
-    for lll_node in [i for i in argz if i.value != "pass"]:
+    for ir_node in [i for i in argz if i.value != "pass"]:
         if (
-            lll_node.value == "mstore"
-            and isinstance(lll_node.args[0].value, int)
-            and lll_node.args[1].value == 0
+            ir_node.value == "mstore"
+            and isinstance(ir_node.args[0].value, int)
+            and ir_node.args[1].value == 0
         ):
             # mstore of a zero value
-            offset = lll_node.args[0].value
+            offset = ir_node.args[0].value
             if not mstore_nodes:
                 initial_offset = offset
             if initial_offset + total_length == offset:
-                mstore_nodes.append(lll_node)
+                mstore_nodes.append(ir_node)
                 total_length += 32
                 continue
 
         if (
-            lll_node.value == "calldatacopy"
-            and isinstance(lll_node.args[0].value, int)
-            and lll_node.args[1].value == "calldatasize"
-            and isinstance(lll_node.args[2].value, int)
+            ir_node.value == "calldatacopy"
+            and isinstance(ir_node.args[0].value, int)
+            and ir_node.args[1].value == "calldatasize"
+            and isinstance(ir_node.args[2].value, int)
         ):
             # calldatacopy from the end of calldata - efficient zero'ing via `empty()`
-            offset, length = lll_node.args[0].value, lll_node.args[2].value
+            offset, length = ir_node.args[0].value, ir_node.args[2].value
             if not mstore_nodes:
                 initial_offset = offset
             if initial_offset + total_length == offset:
-                mstore_nodes.append(lll_node)
+                mstore_nodes.append(ir_node)
                 total_length += length
                 continue
 
         # if we get this far, the current node is not a zero'ing operation
         # it's time to apply the optimization if possible
         if len(mstore_nodes) > 1:
-            new_lll = LLLnode.from_list(
+            new_ir = IRnode.from_list(
                 ["calldatacopy", initial_offset, "calldatasize", total_length],
                 pos=mstore_nodes[0].pos,
             )
             # replace first zero'ing operation with optimized node and remove the rest
             idx = argz.index(mstore_nodes[0])
-            argz[idx] = new_lll
+            argz[idx] = new_ir
             for i in mstore_nodes[1:]:
                 argz.remove(i)
 
@@ -255,16 +264,16 @@ def _merge_calldataload(argz):
     initial_mem_offset = 0
     initial_calldata_offset = 0
     total_length = 0
-    for lll_node in [i for i in argz if i.value != "pass"]:
+    for ir_node in [i for i in argz if i.value != "pass"]:
         if (
-            lll_node.value == "mstore"
-            and isinstance(lll_node.args[0].value, int)
-            and lll_node.args[1].value == "calldataload"
-            and isinstance(lll_node.args[1].args[0].value, int)
+            ir_node.value == "mstore"
+            and isinstance(ir_node.args[0].value, int)
+            and ir_node.args[1].value == "calldataload"
+            and isinstance(ir_node.args[1].args[0].value, int)
         ):
             # mstore of a zero value
-            mem_offset = lll_node.args[0].value
-            calldata_offset = lll_node.args[1].args[0].value
+            mem_offset = ir_node.args[0].value
+            calldata_offset = ir_node.args[1].args[0].value
             if not mstore_nodes:
                 initial_mem_offset = mem_offset
                 initial_calldata_offset = calldata_offset
@@ -272,20 +281,20 @@ def _merge_calldataload(argz):
                 initial_mem_offset + total_length == mem_offset
                 and initial_calldata_offset + total_length == calldata_offset
             ):
-                mstore_nodes.append(lll_node)
+                mstore_nodes.append(ir_node)
                 total_length += 32
                 continue
 
         # if we get this far, the current node is a different operation
         # it's time to apply the optimization if possible
         if len(mstore_nodes) > 1:
-            new_lll = LLLnode.from_list(
+            new_ir = IRnode.from_list(
                 ["calldatacopy", initial_mem_offset, initial_calldata_offset, total_length],
                 pos=mstore_nodes[0].pos,
             )
             # replace first copy operation with optimized node and remove the rest
             idx = argz.index(mstore_nodes[0])
-            argz[idx] = new_lll
+            argz[idx] = new_ir
             for i in mstore_nodes[1:]:
                 argz.remove(i)
 
@@ -295,22 +304,22 @@ def _merge_calldataload(argz):
         mstore_nodes.clear()
 
 
-def filter_unused_sizelimits(lll_node: LLLnode) -> LLLnode:
-    # recursively search the LLL for mloads of the size limits, and then remove
+def filter_unused_sizelimits(ir_node: IRnode) -> IRnode:
+    # recursively search the IR for mloads of the size limits, and then remove
     # the initial mstore operations for size limits that are never referenced
     expected_offsets = set(LOADED_LIMITS)
-    seen_offsets = _find_mload_offsets(lll_node, expected_offsets, set())
+    seen_offsets = _find_mload_offsets(ir_node, expected_offsets, set())
     if expected_offsets == seen_offsets:
-        return lll_node
+        return ir_node
 
     unseen_offsets = expected_offsets.difference(seen_offsets)
-    _remove_mstore(lll_node, unseen_offsets)
+    _remove_mstore(ir_node, unseen_offsets)
 
-    return lll_node
+    return ir_node
 
 
-def _find_mload_offsets(lll_node: LLLnode, expected_offsets: set, seen_offsets: set) -> set:
-    for node in lll_node.args:
+def _find_mload_offsets(ir_node: IRnode, expected_offsets: set, seen_offsets: set) -> set:
+    for node in ir_node.args:
         if node.value == "mload" and node.args[0].value in expected_offsets:
             location = next(i for i in expected_offsets if i == node.args[0].value)
             seen_offsets.add(location)
@@ -320,9 +329,9 @@ def _find_mload_offsets(lll_node: LLLnode, expected_offsets: set, seen_offsets: 
     return seen_offsets
 
 
-def _remove_mstore(lll_node: LLLnode, offsets: set) -> None:
-    for node in lll_node.args.copy():
+def _remove_mstore(ir_node: IRnode, offsets: set) -> None:
+    for node in ir_node.args.copy():
         if node.value == "mstore" and node.args[0].value in offsets:
-            lll_node.args.remove(node)
+            ir_node.args.remove(node)
         else:
             _remove_mstore(node, offsets)

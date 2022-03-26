@@ -16,8 +16,8 @@ def __init__(a: uint256):
 
     # Make sure the init code does not access calldata
     opcodes = vyper.compile_code(code, ["opcodes"])["opcodes"].split(" ")
-    lll_return_idx = opcodes.index("JUMP")
+    ir_return_idx = opcodes.index("JUMP")
 
     assert "CALLDATACOPY" in opcodes
-    assert "CALLDATACOPY" not in opcodes[:lll_return_idx]
-    assert "CALLDATALOAD" not in opcodes[:lll_return_idx]
+    assert "CALLDATACOPY" not in opcodes[:ir_return_idx]
+    assert "CALLDATALOAD" not in opcodes[:ir_return_idx]

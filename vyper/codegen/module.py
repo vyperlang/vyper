@@ -5,12 +5,12 @@ from typing import Any, List, Tuple, Union
 from vyper import ast as vy_ast
 from vyper.ast.signatures.function_signature import FunctionSignature, FunctionSignatures
 from vyper.codegen.function_definitions import (
-    generate_lll_for_function,
+    generate_ir_for_function,
     is_default_func,
     is_initializer,
 )
 from vyper.codegen.global_context import GlobalContext
-from vyper.codegen.lll_node import LLLnode
+from vyper.codegen.ir_node import IRnode
 from vyper.exceptions import (
     EventDeclarationException,
     FunctionDeclarationException,
@@ -37,12 +37,12 @@ LIMIT_MEMORY_SET: List[Any] = [
 ]
 
 
-def func_init_lll():
-    return LLLnode.from_list(STORE_CALLDATA + LIMIT_MEMORY_SET, typ=None)
+def func_init_ir():
+    return IRnode.from_list(STORE_CALLDATA + LIMIT_MEMORY_SET, typ=None)
 
 
-def init_func_init_lll():
-    return LLLnode.from_list(["seq"] + LIMIT_MEMORY_SET, typ=None)
+def init_func_init_ir():
+    return IRnode.from_list(["seq"] + LIMIT_MEMORY_SET, typ=None)
 
 
 def parse_external_interfaces(external_interfaces, global_ctx):
@@ -109,44 +109,44 @@ def parse_regular_functions(
     # external function, we must perform the nonpayable check on every function
     check_per_function = is_default_payable and has_nonpayable
 
-    # generate LLL for regular functions
+    # generate IR for regular functions
     payable_funcs = []
     nonpayable_funcs = []
     internal_funcs = []
-    add_gas = func_init_lll().gas
+    add_gas = func_init_ir().gas
 
     for func_node in regular_functions:
         func_type = func_node._metadata["type"]
-        func_lll, frame_start, frame_size = generate_lll_for_function(
+        func_ir, frame_start, frame_size = generate_ir_for_function(
             func_node, {**{"self": sigs}, **external_interfaces}, global_ctx, check_per_function
         )
 
         if func_type.visibility == FunctionVisibility.INTERNAL:
-            internal_funcs.append(func_lll)
+            internal_funcs.append(func_ir)
 
         elif func_type.mutability == StateMutability.PAYABLE:
             add_gas += 30  # CMC 20210910 why?
-            payable_funcs.append(func_lll)
+            payable_funcs.append(func_ir)
 
         else:
             add_gas += 30  # CMC 20210910 why?
-            nonpayable_funcs.append(func_lll)
+            nonpayable_funcs.append(func_ir)
 
-        func_lll.total_gas += add_gas
+        func_ir.total_gas += add_gas
 
         # update sigs with metadata gathered from compiling the function so that
         # we can handle calls to self
         # TODO we only need to do this for internal functions; external functions
         # cannot be called via `self`
         sig = FunctionSignature.from_definition(func_node, external_interfaces, global_ctx._structs)
-        sig.gas = func_lll.total_gas
+        sig.gas = func_ir.total_gas
         sig.frame_start = frame_start
         sig.frame_size = frame_size
         sigs[sig.name] = sig
 
-    # generate LLL for fallback function
+    # generate IR for fallback function
     if default_function:
-        fallback_lll, _frame_start, _frame_size = generate_lll_for_function(
+        fallback_ir, _frame_start, _frame_size = generate_ir_for_function(
             default_function,
             {**{"self": sigs}, **external_interfaces},
             global_ctx,
@@ -154,7 +154,7 @@ def parse_regular_functions(
             check_per_function or not regular_functions,
         )
     else:
-        fallback_lll = LLLnode.from_list(["revert", 0, 0], typ=None, annotation="Default function")
+        fallback_ir = IRnode.from_list(["revert", 0, 0], typ=None, annotation="Default function")
 
     if check_per_function:
         external_seq = ["seq"] + payable_funcs + nonpayable_funcs
@@ -179,18 +179,18 @@ def parse_regular_functions(
     # this way we save gas and reduce bytecode by not jumping over internal functions
     runtime = [
         "seq",
-        func_init_lll(),
+        func_init_ir(),
         ["with", "_calldata_method_id", ["mload", 0], external_seq],
         close_selector_section,
-        ["label", "fallback", ["var_list"], fallback_lll],
+        ["label", "fallback", ["var_list"], fallback_ir],
     ]
     runtime.extend(internal_funcs)
 
     return runtime
 
 
-# Main python parse tree => LLL method
-def parse_tree_to_lll(global_ctx: GlobalContext) -> Tuple[LLLnode, LLLnode, FunctionSignatures]:
+# Main python parse tree => IR method
+def parse_tree_to_ir(global_ctx: GlobalContext) -> Tuple[IRnode, IRnode, FunctionSignatures]:
     _names_def = [_def.name for _def in global_ctx._defs]
     # Checks for duplicate function names
     if len(set(_names_def)) < len(_names_def):
@@ -217,20 +217,20 @@ def parse_tree_to_lll(global_ctx: GlobalContext) -> Tuple[LLLnode, LLLnode, Func
     sigs: dict = {}
     external_interfaces: dict = {}
     # Create the main statement
-    o: List[Union[str, LLLnode]] = ["seq"]
+    o: List[Union[str, IRnode]] = ["seq"]
     if global_ctx._contracts or global_ctx._interfaces:
         external_interfaces = parse_external_interfaces(external_interfaces, global_ctx)
 
-    init_func_lll = None
+    init_func_ir = None
     if init_function:
-        o.append(init_func_init_lll())
-        init_func_lll, _frame_start, init_frame_size = generate_lll_for_function(
+        o.append(init_func_init_ir())
+        init_func_ir, _frame_start, init_frame_size = generate_ir_for_function(
             init_function,
             {**{"self": sigs}, **external_interfaces},
             global_ctx,
             False,
         )
-        o.append(init_func_lll)
+        o.append(init_func_ir)
 
     if regular_functions or default_function:
         runtime = parse_regular_functions(
@@ -239,21 +239,21 @@ def parse_tree_to_lll(global_ctx: GlobalContext) -> Tuple[LLLnode, LLLnode, Func
             external_interfaces,
             global_ctx,
             default_function,
-            init_func_lll,
+            init_func_ir,
         )
     else:
         # for some reason, somebody may want to deploy a contract with no code,
         # or more likely, a "pure data" contract which contains immutables
-        runtime = LLLnode.from_list(["seq"])
+        runtime = IRnode.from_list(["seq"])
 
     immutables_len = global_ctx.immutable_section_bytes
 
     if init_function:
-        memsize = init_func_lll.context.memory_allocator.size_of_mem  # type: ignore
+        memsize = init_func_ir.context.memory_allocator.size_of_mem  # type: ignore
     else:
         memsize = 0
 
     # note: (deploy mem_ofst, code, extra_padding)
     o.append(["deploy", memsize, runtime, immutables_len])  # type: ignore
 
-    return LLLnode.from_list(o), LLLnode.from_list(runtime), sigs
+    return IRnode.from_list(o), IRnode.from_list(runtime), sigs

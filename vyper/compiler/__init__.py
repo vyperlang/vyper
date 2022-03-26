@@ -21,7 +21,7 @@ OUTPUT_FORMATS = {
     # requires global_ctx
     "devdoc": output.build_devdoc,
     "userdoc": output.build_userdoc,
-    # requires lll_node
+    # requires ir_node
     "external_interface": output.build_external_interface_output,
     "interface": output.build_interface_output,
     "ir": output.build_ir_output,

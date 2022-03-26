@@ -19,7 +19,7 @@ from vyper.semantics.types.bases import BaseTypeDefinition, DataLocation, Storag
 from vyper.semantics.types.indexable.sequence import DynamicArrayDefinition, TupleDefinition
 from vyper.semantics.types.utils import (
     StringEnum,
-    check_constant,
+    check_kwargable,
     generate_abi_type,
     get_type_from_abi,
     get_type_from_annotation,
@@ -323,7 +323,7 @@ class ContractFunction(BaseTypeDefinition):
                 arg.annotation, location=DataLocation.CALLDATA, is_constant=True
             )
             if value is not None:
-                if not check_constant(value):
+                if not check_kwargable(value):
                     raise StateAccessViolation(
                         "Value must be literal or environment variable", value
                     )

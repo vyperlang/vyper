@@ -190,7 +190,7 @@ PSEUDO_OPCODES: OpcodeMap = {
     "ASSERT": (None, 1, 0, 85),
     "ASSERT_UNREACHABLE": (None, 1, 0, 17),
     "PASS": (None, 0, 0, 0),
-    "DUMMY": (None, 0, 1, 0),  # tell LLL that no, there really is a stack item here
+    "DUMMY": (None, 0, 1, 0),  # tell IR that no, there really is a stack item here
     "BREAK": (None, 0, 0, 20),
     # cleanup_repeat cleans the stack similar to BREAK but without jumping to exit
     "CLEANUP_REPEAT": (None, 0, 0, 20),
@@ -211,7 +211,7 @@ PSEUDO_OPCODES: OpcodeMap = {
     "DLOADBYTES": (None, 3, 0, 3),
 }
 
-LLL_OPCODES: OpcodeMap = {**OPCODES, **PSEUDO_OPCODES}
+IR_OPCODES: OpcodeMap = {**OPCODES, **PSEUDO_OPCODES}
 
 
 def evm_wrapper(fn, *args, **kwargs):
@@ -247,8 +247,8 @@ def _mk_version_opcodes(opcodes: OpcodeMap, idx: int) -> OpcodeRulesetMap:
 _evm_opcodes: Dict[int, OpcodeRulesetMap] = {
     v: _mk_version_opcodes(OPCODES, v) for v in EVM_VERSIONS.values()
 }
-_lll_opcodes: Dict[int, OpcodeRulesetMap] = {
-    v: _mk_version_opcodes(LLL_OPCODES, v) for v in EVM_VERSIONS.values()
+_ir_opcodes: Dict[int, OpcodeRulesetMap] = {
+    v: _mk_version_opcodes(IR_OPCODES, v) for v in EVM_VERSIONS.values()
 }
 
 
@@ -256,8 +256,8 @@ def get_opcodes() -> OpcodeRulesetMap:
     return _evm_opcodes[active_evm_version]
 
 
-def get_lll_opcodes() -> OpcodeRulesetMap:
-    return _lll_opcodes[active_evm_version]
+def get_ir_opcodes() -> OpcodeRulesetMap:
+    return _ir_opcodes[active_evm_version]
 
 
 def version_check(begin: Optional[str] = None, end: Optional[str] = None) -> bool:

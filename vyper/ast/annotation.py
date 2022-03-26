@@ -195,12 +195,8 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
                     node.lineno,
                     node.col_offset,
                 )
-            if len(value) in (42, 66):
-                node.ast_type = "Hex"
-                node.n = value
-            else:
-                node.ast_type = "Bytes"
-                node.value = int(value, 16).to_bytes(len(value) // 2 - 1, "big")
+            node.ast_type = "Hex"
+            node.n = value
 
         elif value.lower()[:2] == "0b":
             node.ast_type = "Bytes"
