@@ -8,6 +8,14 @@ class AddrSpace:
     Object representing an "address space" (similar to the LLVM concept).
     It includes some information about the address space so that codegen
     can be written in a more generic way.
+
+    Attributes:
+        name: human-readable nickname for the address space
+        wordsize: the number of "slots" in this address space an EVM
+            word takes up. currently 1 for storage, and 32 for
+            everything else
+        load_op: the opcode for loading a word from this address space
+        store_op: the opcode for storing a word to this address space
     """
 
     name: str
