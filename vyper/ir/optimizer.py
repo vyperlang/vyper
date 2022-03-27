@@ -40,18 +40,11 @@ def _is_constant_add(node: IRnode, args: List[IRnode]) -> bool:
     )
 
 
-def optimize(ir_node: IRnode) -> IRnode:
-    ir_node = apply_general_optimizations(ir_node)
-    ir_node = filter_unused_sizelimits(ir_node)
-
-    return ir_node
-
-
-def apply_general_optimizations(node: IRnode) -> IRnode:
+def optimize(node: IRnode) -> IRnode:
     # TODO add rules for modulus powers of 2
     # TODO refactor this into several functions
 
-    argz = [apply_general_optimizations(arg) for arg in node.args]
+    argz = [optimize(arg) for arg in node.args]
 
     value = node.value
     typ = node.typ
