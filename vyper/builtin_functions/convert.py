@@ -263,24 +263,18 @@ def to_decimal(expr, arg, out_typ):
 
         return IRnode.from_list(arg, typ=out_typ)
 
-    # for the clamp, pretend it's int128 because int128 clamps are cheaper
-    # (and then multiply into the decimal base afterwards)
     elif is_integer_type(arg.typ):
         int_info = arg.typ._int_info
-        # TODO revisit this condition once we have more decimal types
-        # and decimal bounds expand. (note that right now decimal bounds
-        # are -2**127 and 2**127 - 1).
-        # will be something like: if info.m_bits > 168
-        # TODO this should probably use _num_clamp instead
-        if int_info.bits > 128:
-            arg = int_clamp(arg, 128, signed=True)
+        arg = _int_to_fixed(arg, out_typ)
+        if int_info.bits > info.bits:
+            arg = _num_clamp(arg, info, int_info)
+        return arg
 
     elif is_base_type(arg.typ, "bool"):
         pass
     else:
         raise CompilerPanic("unreachable")  # pragma: notest
 
-    return _int_to_fixed(arg, out_typ)
 
 
 @_input_types("int", "decimal", "bytes_m", "address", "bytes", "bool")
