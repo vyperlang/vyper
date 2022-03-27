@@ -16,8 +16,8 @@ BUILTIN_CONSTANTS = {
     "ZERO_ADDRESS": (vy_ast.Hex, "0x0000000000000000000000000000000000000000"),
     "MAX_INT128": (vy_ast.Int, 2 ** 127 - 1),
     "MIN_INT128": (vy_ast.Int, -(2 ** 127)),
-    "MAX_DECIMAL": (vy_ast.Decimal, Decimal(2 ** 127 - 1)),
-    "MIN_DECIMAL": (vy_ast.Decimal, Decimal(-(2 ** 127))),
+    "MAX_DECIMAL": (vy_ast.Decimal, Decimal(2 ** 167 - 1) / 10**10),
+    "MIN_DECIMAL": (vy_ast.Decimal, Decimal(-(2 ** 167) / 10**10)),
     "MAX_UINT256": (vy_ast.Int, 2 ** 256 - 1),
 }
 

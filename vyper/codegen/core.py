@@ -1,5 +1,3 @@
-from decimal import Context, setcontext
-
 from vyper import ast as vy_ast
 from vyper.address_space import CALLDATA, DATA, IMMUTABLES, MEMORY, STORAGE
 from vyper.codegen.ir_node import Encoding, IRnode
@@ -21,7 +19,6 @@ from vyper.codegen.types import (
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
     CompilerPanic,
-    DecimalOverrideException,
     StructureException,
     TypeCheckFailure,
     TypeMismatch,
@@ -33,16 +30,6 @@ from vyper.utils import (
     GAS_IDENTITYWORD,
     MemoryPositions,
 )
-
-
-class DecimalContextOverride(Context):
-    def __setattr__(self, name, value):
-        if name == "prec":
-            raise DecimalOverrideException("Overriding decimal precision disabled")
-        super().__setattr__(name, value)
-
-
-setcontext(DecimalContextOverride(prec=78))
 
 
 # propagate revert message when calls to external contracts fail

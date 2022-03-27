@@ -4,7 +4,19 @@ import sys
 import traceback
 from typing import Dict, List, Union
 
-from vyper.exceptions import InvalidLiteral
+from vyper.exceptions import InvalidLiteral, DecimalOverrideException
+
+
+class DecimalContextOverride(decimal.Context):
+    def __setattr__(self, name, value):
+        if name == "prec":
+            # CMC 2022-03-27: should we raise a warning instead of an exception?
+            raise DecimalOverrideException("Overriding decimal precision disabled")
+        super().__setattr__(name, value)
+
+
+decimal.setcontext(DecimalContextOverride(prec=78))
+
 
 try:
     from Crypto.Hash import keccak  # type: ignore
@@ -151,8 +163,12 @@ class SizeLimits:
     MIN_INT128 = -(2 ** 127)
     MAX_INT256 = 2 ** 255 - 1
     MIN_INT256 = -(2 ** 255)
-    MAXDECIMAL = 2 ** 167 - 1
-    MINDECIMAL = -(2 ** 167)
+    MAXDECIMAL = 2 ** 167 - 1  # maxdecimal as EVM value
+    MINDECIMAL = -(2 ** 167)   # mindecimal as EVM value
+    # min decimal allowed as Python value
+    MIN_AST_DECIMAL = -decimal.Decimal(2 ** 167) / DECIMAL_DIVISOR
+    # max decimal allowed as Python value
+    MAX_AST_DECIMAL = decimal.Decimal(2 ** 167 - 1) / DECIMAL_DIVISOR
     MAX_UINT8 = 2 ** 8 - 1
     MAX_UINT256 = 2 ** 256 - 1
 
