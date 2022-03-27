@@ -220,16 +220,14 @@ class Expr:
             )
 
     def parse_Decimal(self):
-        val = self.expr.value
+        val = self.expr.value * DECIMAL_DIVISOR
+
         # sanity check that type checker did its job
         assert isinstance(val, decimal.Decimal)
-        assert SizeLimits.MINDECIMAL <= val <= SizeLimits.MAXDECIMAL
+        assert SizeLimits.in_bounds("decimal", val)
+        assert math.ceil(val) == math.floor(val)
 
-        return IRnode.from_list(
-            int(val * DECIMAL_DIVISOR),
-            typ=BaseType("decimal", is_literal=True),
-            pos=getpos(self.expr),
-        )
+        return IRnode.from_list(val, typ=BaseType("decimal", is_literal=True))
 
     def parse_Hex(self):
         pos = getpos(self.expr)

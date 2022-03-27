@@ -17,7 +17,6 @@ from vyper.exceptions import (
     StructureException,
 )
 from vyper.semantics.types.function import FunctionVisibility, StateMutability
-from vyper.utils import LOADED_LIMITS
 
 # TODO remove this check
 if not hasattr(vy_ast, "AnnAssign"):
@@ -31,18 +30,10 @@ STORE_CALLDATA: List[Any] = [
     ["if", ["lt", "calldatasize", 4], ["goto", "fallback"]],
     ["calldatacopy", 28, 0, 4],
 ]
-# Store limit constants at fixed addresses in memory.
-LIMIT_MEMORY_SET: List[Any] = [
-    ["mstore", pos, limit_size] for pos, limit_size in LOADED_LIMITS.items()
-]
 
 
 def func_init_ir():
-    return IRnode.from_list(STORE_CALLDATA + LIMIT_MEMORY_SET, typ=None)
-
-
-def init_func_init_ir():
-    return IRnode.from_list(["seq"] + LIMIT_MEMORY_SET, typ=None)
+    return IRnode.from_list(STORE_CALLDATA, typ=None)
 
 
 def parse_external_interfaces(external_interfaces, global_ctx):
@@ -223,7 +214,6 @@ def parse_tree_to_ir(global_ctx: GlobalContext) -> Tuple[IRnode, IRnode, Functio
 
     init_func_ir = None
     if init_function:
-        o.append(init_func_init_ir())
         init_func_ir, _frame_start, init_frame_size = generate_ir_for_function(
             init_function,
             {**{"self": sigs}, **external_interfaces},

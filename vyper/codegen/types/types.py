@@ -81,16 +81,19 @@ class NodeType(abc.ABC):
 
 
 @dataclass
-class IntegerTypeInfo:
-    is_signed: bool
+class NumericTypeInfo:
     bits: int
+    is_signed: bool
 
 
 @dataclass
-class DecimalTypeInfo:
-    bits: int
+class IntegerTypeInfo(NumericTypeInfo):
+    pass
+
+
+@dataclass
+class DecimalTypeInfo(NumericTypeInfo):
     decimals: int
-    is_signed: bool  # always true for now but may change
 
 
 @dataclass
@@ -163,8 +166,10 @@ class BaseType(NodeType):
 
         if is_integer_type(self):
             self._int_info = parse_integer_typeinfo(typename)
+            self._num_info = self._int_info
         if is_base_type(self, "address"):
             self._int_info = IntegerTypeInfo(bits=160, is_signed=False)
+            self._num_info = self._int_info
         # don't generate _int_info for bool,
         # it doesn't really behave like an int in conversions
         # and should have special handling in the codebase
@@ -172,6 +177,7 @@ class BaseType(NodeType):
             self._bytes_info = parse_bytes_m_info(typename)
         if is_decimal_type(self):
             self._decimal_info = parse_decimal_info(typename)
+            self._num_info = self._decimal_info
 
     def eq(self, other):
         return self.typ == other.typ

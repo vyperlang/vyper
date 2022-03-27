@@ -144,8 +144,7 @@ def _literal_decimal(expr, out_typ):
 
     val = val * DECIMAL_DIVISOR
 
-    (lo, hi) = (SizeLimits.MINDECIMAL, SizeLimits.MAXDECIMAL)
-    if not (lo <= val <= hi):
+    if not SizeLimits.in_bounds("decimal", val):
         raise InvalidLiteral("Number out of range", expr)
 
     # sanity check type checker did its job
