@@ -9,6 +9,7 @@ from vyper.codegen.function_definitions import (
     is_default_func,
     is_initializer,
 )
+from vyper.codegen.core import shr
 from vyper.codegen.global_context import GlobalContext
 from vyper.codegen.ir_node import IRnode
 from vyper.exceptions import (
@@ -21,19 +22,6 @@ from vyper.semantics.types.function import FunctionVisibility, StateMutability
 # TODO remove this check
 if not hasattr(vy_ast, "AnnAssign"):
     raise Exception("Requires python 3.6 or higher for annotation support")
-
-# Header code
-STORE_CALLDATA: List[Any] = [
-    "seq",
-    # check that calldatasize is at least 4, otherwise
-    # calldataload will load zeros (cf. yellow paper).
-    ["if", ["lt", "calldatasize", 4], ["goto", "fallback"]],
-    ["calldatacopy", 28, 0, 4],
-]
-
-
-def func_init_ir():
-    return IRnode.from_list(STORE_CALLDATA, typ=None)
 
 
 def parse_external_interfaces(external_interfaces, global_ctx):
@@ -104,7 +92,7 @@ def parse_regular_functions(
     payable_funcs = []
     nonpayable_funcs = []
     internal_funcs = []
-    add_gas = func_init_ir().gas
+    add_gas = 0
 
     for func_node in regular_functions:
         func_type = func_node._metadata["type"]
@@ -170,8 +158,10 @@ def parse_regular_functions(
     # this way we save gas and reduce bytecode by not jumping over internal functions
     runtime = [
         "seq",
-        func_init_ir(),
-        ["with", "_calldata_method_id", ["mload", 0], external_seq],
+        # check that calldatasize is at least 4, otherwise
+        # calldataload will load zeros (cf. yellow paper).
+        ["if", ["lt", "calldatasize", 4], ["goto", "fallback"]],
+        ["with", "_calldata_method_id", shr(224, ["calldataload", 0]), external_seq],
         close_selector_section,
         ["label", "fallback", ["var_list"], fallback_ir],
     ]
