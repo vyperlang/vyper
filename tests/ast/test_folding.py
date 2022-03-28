@@ -45,13 +45,17 @@ def test_replace_binop_nested_intermediate_underflow():
 
 
 def test_replace_decimal_nested_intermediate_overflow():
-    test_ast = vy_ast.parse_to_ast("170141183460469231731687303715884105726.0 + 1.1 - 10.0")
+    test_ast = vy_ast.parse_to_ast(
+        "18707220957835557353007165858768422651595.9365500927 + 1e-10 - 1e-10"
+    )
     with pytest.raises(OverflowException):
         folding.fold(test_ast)
 
 
 def test_replace_decimal_nested_intermediate_underflow():
-    test_ast = vy_ast.parse_to_ast("-170141183460469231731687303715884105726.0 - 2.1 + 10.0")
+    test_ast = vy_ast.parse_to_ast(
+        "-18707220957835557353007165858768422651595.9365500928 - 1e-10 + 1e-10"
+    )
     with pytest.raises(OverflowException):
         folding.fold(test_ast)
 

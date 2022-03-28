@@ -1,10 +1,14 @@
+import math
 from decimal import Decimal
+
+import pytest
 
 from vyper.exceptions import InvalidLiteral, TypeMismatch
 
 
-def test_convert_from_int128(get_contract_with_gas_estimation):
-    code = """
+@pytest.mark.parametrize("inp", [1, -1, 2 ** 127 - 1, -(2 ** 127)])
+def test_convert_from_int128(get_contract_with_gas_estimation, inp):
+    code = f"""
 a: int128
 b: decimal
 
@@ -13,11 +17,11 @@ def int128_to_decimal(inp: int128) -> (decimal, decimal, decimal):
     self.a = inp
     memory: decimal = convert(inp, decimal)
     storage: decimal = convert(self.a, decimal)
-    literal: decimal = convert(1, decimal)
+    literal: decimal = convert({inp}, decimal)
     return  memory, storage, literal
 """
     c = get_contract_with_gas_estimation(code)
-    assert c.int128_to_decimal(1) == [1.0, 1.0, 1.0]
+    assert c.int128_to_decimal(inp) == [Decimal(inp)] * 3
 
 
 def test_convert_from_uint256(assert_tx_failed, get_contract_with_gas_estimation):
@@ -36,16 +40,19 @@ def test_passed_variable(a: uint256) -> decimal:
 
     assert c.test_variable() is True
     assert c.test_passed_variable(256) == 256
-    max_decimal = 2 ** 127 - 1
+
+    max_decimal = math.floor(Decimal(2 ** 167 - 1) / 10 ** 10)
     assert c.test_passed_variable(max_decimal) == Decimal(max_decimal)
-    assert_tx_failed(lambda: c.test_passed_variable(max_decimal + 1))
+
+    failing_decimal = max_decimal + 1
+    assert_tx_failed(lambda: c.test_passed_variable(failing_decimal))
 
 
 def test_convert_from_uint256_overflow(get_contract_with_gas_estimation, assert_compile_failed):
     code = """
 @external
 def foo() -> decimal:
-    return convert(2**127, decimal)
+    return convert(2**167, decimal)
     """
 
     assert_compile_failed(lambda: get_contract_with_gas_estimation(code), InvalidLiteral)
@@ -78,10 +85,12 @@ def foo(bar: bytes32) -> decimal:
 
 
 def test_convert_from_bytes32_overflow(get_contract_with_gas_estimation, assert_compile_failed):
-    code = """
+    # bytes for 2**167
+    failing_decimal_bytes = "0x" + (2 ** 167).to_bytes(32, byteorder="big").hex()
+    code = f"""
 @external
 def foo() -> decimal:
-    return convert(0x7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF, decimal)
+    return convert({failing_decimal_bytes}, decimal)
     """
 
     assert_compile_failed(lambda: get_contract_with_gas_estimation(code), InvalidLiteral)
@@ -176,9 +185,14 @@ def test(foo: int256) -> decimal:
     c = get_contract_with_gas_estimation(code)
     assert c.test(0) == 0
     assert c.test(-1) == -1
-    assert c.test(2 ** 127 - 1) == 2 ** 127 - 1
-    assert c.test(-(2 ** 127)) == -(2 ** 127)
-    assert_tx_failed(lambda: c.test(2 ** 127))
     assert_tx_failed(lambda: c.test(2 ** 255 - 1))
-    assert_tx_failed(lambda: c.test(-(2 ** 127) - 1))
     assert_tx_failed(lambda: c.test(-(2 ** 255)))
+
+    max_decimal = math.floor(Decimal(2 ** 167 - 1) / 10 ** 10)
+    assert c.test(max_decimal) == Decimal(max_decimal)
+
+    min_decimal = math.ceil(-Decimal(2 ** 167) / 10 ** 10)
+    assert c.test(min_decimal) == Decimal(min_decimal)
+
+    assert_tx_failed(lambda: c.test(max_decimal + 1))
+    assert_tx_failed(lambda: c.test(min_decimal - 1))

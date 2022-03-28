@@ -1,5 +1,3 @@
-from decimal import Context, setcontext
-
 from vyper import ast as vy_ast
 from vyper.address_space import CALLDATA, DATA, IMMUTABLES, MEMORY, STORAGE
 from vyper.codegen.ir_node import Encoding, IRnode
@@ -16,33 +14,12 @@ from vyper.codegen.types import (
     TupleType,
     ceil32,
     is_bytes_m_type,
+    is_decimal_type,
     is_integer_type,
 )
 from vyper.evm.opcodes import version_check
-from vyper.exceptions import (
-    CompilerPanic,
-    DecimalOverrideException,
-    StructureException,
-    TypeCheckFailure,
-    TypeMismatch,
-)
-from vyper.utils import (
-    GAS_CALLDATACOPY_WORD,
-    GAS_CODECOPY_WORD,
-    GAS_IDENTITY,
-    GAS_IDENTITYWORD,
-    MemoryPositions,
-)
-
-
-class DecimalContextOverride(Context):
-    def __setattr__(self, name, value):
-        if name == "prec":
-            raise DecimalOverrideException("Overriding decimal precision disabled")
-        super().__setattr__(name, value)
-
-
-setcontext(DecimalContextOverride(prec=78))
+from vyper.exceptions import CompilerPanic, StructureException, TypeCheckFailure, TypeMismatch
+from vyper.utils import GAS_CALLDATACOPY_WORD, GAS_CODECOPY_WORD, GAS_IDENTITY, GAS_IDENTITYWORD
 
 
 # propagate revert message when calls to external contracts fail
@@ -952,28 +929,22 @@ def clamp_basetype(ir_node):
     # copy of the input
     ir_node = unwrap_location(ir_node)
 
-    if is_integer_type(t):
-        if t._int_info.bits == 256:
+    if is_integer_type(t) or is_decimal_type(t):
+        if t._num_info.bits == 256:
             return ir_node
         else:
-            return int_clamp(ir_node, t._int_info.bits, signed=t._int_info.is_signed)
+            return int_clamp(ir_node, t._num_info.bits, signed=t._num_info.is_signed)
 
-    if t.typ in ("decimal"):
-        return [
-            "clamp",
-            ["mload", MemoryPositions.MINDECIMAL],
-            ir_node,
-            ["mload", MemoryPositions.MAXDECIMAL],
-        ]
+    if is_bytes_m_type(t):
+        if t._bytes_info.m == 32:
+            return ir_node  # special case, no clamp.
+        else:
+            return bytes_clamp(ir_node, t._bytes_info.m)
 
     if t.typ in ("address",):
         return int_clamp(ir_node, 160)
     if t.typ in ("bool",):
         return int_clamp(ir_node, 1)
-    if t.typ in ("bytes32",):
-        return ir_node  # special case, no clamp.
-    if is_bytes_m_type(t):
-        return bytes_clamp(ir_node, t._bytes_info.m)
 
     raise CompilerPanic(f"{t} passed to clamp_basetype")  # pragma: notest
 

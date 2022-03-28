@@ -2,7 +2,7 @@ import operator
 from typing import List, Optional
 
 from vyper.codegen.ir_node import IRnode
-from vyper.utils import LOADED_LIMITS, ceil32, evm_div, evm_mod
+from vyper.utils import ceil32, evm_div, evm_mod
 
 
 def get_int_at(args: List[IRnode], pos: int, signed: bool = False) -> Optional[int]:
@@ -10,13 +10,6 @@ def get_int_at(args: List[IRnode], pos: int, signed: bool = False) -> Optional[i
 
     if isinstance(value, int):
         o = value
-    elif (
-        value == "mload"
-        and args[pos].args[0].value in LOADED_LIMITS.keys()
-        and isinstance(args[pos].args[0].value, int)
-    ):
-        idx = int(args[pos].args[0].value)  # isinstance in if confirms type is int.
-        o = LOADED_LIMITS[idx]
     else:
         return None
 
@@ -47,18 +40,11 @@ def _is_constant_add(node: IRnode, args: List[IRnode]) -> bool:
     )
 
 
-def optimize(ir_node: IRnode) -> IRnode:
-    ir_node = apply_general_optimizations(ir_node)
-    ir_node = filter_unused_sizelimits(ir_node)
-
-    return ir_node
-
-
-def apply_general_optimizations(node: IRnode) -> IRnode:
+def optimize(node: IRnode) -> IRnode:
     # TODO add rules for modulus powers of 2
     # TODO refactor this into several functions
 
-    argz = [apply_general_optimizations(arg) for arg in node.args]
+    argz = [optimize(arg) for arg in node.args]
 
     value = node.value
     typ = node.typ
@@ -302,20 +288,6 @@ def _merge_calldataload(argz):
         initial_calldata_offset = 0
         total_length = 0
         mstore_nodes.clear()
-
-
-def filter_unused_sizelimits(ir_node: IRnode) -> IRnode:
-    # recursively search the IR for mloads of the size limits, and then remove
-    # the initial mstore operations for size limits that are never referenced
-    expected_offsets = set(LOADED_LIMITS)
-    seen_offsets = _find_mload_offsets(ir_node, expected_offsets, set())
-    if expected_offsets == seen_offsets:
-        return ir_node
-
-    unseen_offsets = expected_offsets.difference(seen_offsets)
-    _remove_mstore(ir_node, unseen_offsets)
-
-    return ir_node
 
 
 def _find_mload_offsets(ir_node: IRnode, expected_offsets: set, seen_offsets: set) -> set:

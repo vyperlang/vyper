@@ -2,9 +2,21 @@ import binascii
 import decimal
 import sys
 import traceback
-from typing import Dict, List, Union
+from typing import List, Union
 
-from vyper.exceptions import InvalidLiteral
+from vyper.exceptions import DecimalOverrideException, InvalidLiteral
+
+
+class DecimalContextOverride(decimal.Context):
+    def __setattr__(self, name, value):
+        if name == "prec":
+            # CMC 2022-03-27: should we raise a warning instead of an exception?
+            raise DecimalOverrideException("Overriding decimal precision disabled")
+        super().__setattr__(name, value)
+
+
+decimal.setcontext(DecimalContextOverride(prec=78))
+
 
 try:
     from Crypto.Hash import keccak  # type: ignore
@@ -140,11 +152,9 @@ def evm_mod(x, y):
 
 # memory used for system purposes, not for variables
 class MemoryPositions:
-    MAXDECIMAL = 32
-    MINDECIMAL = 64
-    FREE_VAR_SPACE = 128
-    FREE_VAR_SPACE2 = 160
-    RESERVED_MEMORY = 192
+    FREE_VAR_SPACE = 0
+    FREE_VAR_SPACE2 = 32
+    RESERVED_MEMORY = 64
 
 
 # Sizes of different data types. Used to clamp types.
@@ -153,31 +163,28 @@ class SizeLimits:
     MIN_INT128 = -(2 ** 127)
     MAX_INT256 = 2 ** 255 - 1
     MIN_INT256 = -(2 ** 255)
-    MAXDECIMAL = (2 ** 127 - 1) * DECIMAL_DIVISOR
-    MINDECIMAL = (-(2 ** 127)) * DECIMAL_DIVISOR
+    MAXDECIMAL = 2 ** 167 - 1  # maxdecimal as EVM value
+    MINDECIMAL = -(2 ** 167)  # mindecimal as EVM value
+    # min decimal allowed as Python value
+    MIN_AST_DECIMAL = -decimal.Decimal(2 ** 167) / DECIMAL_DIVISOR
+    # max decimal allowed as Python value
+    MAX_AST_DECIMAL = decimal.Decimal(2 ** 167 - 1) / DECIMAL_DIVISOR
     MAX_UINT8 = 2 ** 8 - 1
     MAX_UINT256 = 2 ** 256 - 1
 
     @classmethod
     def in_bounds(cls, type_str, value):
         # TODO: fix this circular import
-        from vyper.codegen.types import parse_integer_typeinfo
+        from vyper.codegen.types import parse_decimal_info, parse_integer_typeinfo
 
         assert isinstance(type_str, str)
         if type_str == "decimal":
-            return decimal.Decimal(cls.MINDECIMAL) <= value <= decimal.Decimal(cls.MAXDECIMAL)
+            info = parse_decimal_info(type_str)
+        else:
+            info = parse_integer_typeinfo(type_str)
 
-        int_info = parse_integer_typeinfo(type_str)
-        (lo, hi) = int_bounds(int_info.is_signed, int_info.bits)
+        (lo, hi) = int_bounds(info.is_signed, info.bits)
         return lo <= value <= hi
-
-
-# Map representing all limits loaded into a contract as part of the initializer
-# code.
-LOADED_LIMITS: Dict[int, int] = {
-    MemoryPositions.MAXDECIMAL: SizeLimits.MAXDECIMAL,
-    MemoryPositions.MINDECIMAL: SizeLimits.MINDECIMAL,
-}
 
 
 # Otherwise reserved words that are whitelisted for function declarations

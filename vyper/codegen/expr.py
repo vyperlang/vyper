@@ -44,19 +44,6 @@ from vyper.exceptions import (
 )
 from vyper.utils import DECIMAL_DIVISOR, SizeLimits, bytes_to_int, checksum_encode, string_to_bytes
 
-# var name: (irnode, type)
-BUILTIN_CONSTANTS = {
-    "EMPTY_BYTES32": (0, "bytes32"),
-    "ZERO_ADDRESS": (0, "address"),
-    "MAX_INT128": (SizeLimits.MAX_INT128, "int128"),
-    "MIN_INT128": (SizeLimits.MIN_INT128, "int128"),
-    "MAX_INT256": (SizeLimits.MAX_INT256, "int256"),
-    "MIN_INT256": (SizeLimits.MIN_INT256, "int256"),
-    "MAX_DECIMAL": (SizeLimits.MAXDECIMAL, "decimal"),
-    "MIN_DECIMAL": (SizeLimits.MINDECIMAL, "decimal"),
-    "MAX_UINT256": (SizeLimits.MAX_UINT256, "uint256"),
-}
-
 ENVIRONMENT_VARIABLES = {
     "block",
     "msg",
@@ -172,15 +159,6 @@ def calculate_largest_base(b: int, num_bits: int, is_signed: bool) -> int:
     return a
 
 
-def get_min_val_for_type(typ: str) -> int:
-    key = "MIN_" + typ.upper()
-    try:
-        min_val, _ = BUILTIN_CONSTANTS[key]
-    except KeyError as e:
-        raise TypeMismatch(f"Not a signed type: {typ}") from e
-    return min_val
-
-
 class Expr:
     # TODO: Once other refactors are made reevaluate all inline imports
 
@@ -213,14 +191,16 @@ class Expr:
             return IRnode.from_list(self.expr.n, typ=BaseType("uint256", is_literal=True))
 
     def parse_Decimal(self):
-        val = self.expr.value
+        val = self.expr.value * DECIMAL_DIVISOR
+
         # sanity check that type checker did its job
         assert isinstance(val, decimal.Decimal)
-        assert SizeLimits.MINDECIMAL <= val <= SizeLimits.MAXDECIMAL
+        assert SizeLimits.in_bounds("decimal", val)
+        assert math.ceil(val) == math.floor(val)
 
-        return IRnode.from_list(
-            int(val * DECIMAL_DIVISOR), typ=BaseType("decimal", is_literal=True)
-        )
+        val = int(val)
+
+        return IRnode.from_list(val, typ=BaseType("decimal", is_literal=True))
 
     def parse_Hex(self):
         hexstr = self.expr.value
@@ -298,10 +278,6 @@ class Expr:
                 annotation=self.expr.id,
                 mutable=var.mutable,
             )
-
-        elif self.expr.id in BUILTIN_CONSTANTS:
-            obj, typ = BUILTIN_CONSTANTS[self.expr.id]
-            return IRnode.from_list(obj, typ=BaseType(typ, is_literal=True))
 
         elif self.expr._metadata["type"].is_immutable:
             var = self.context.globals[self.expr.id]
@@ -864,7 +840,8 @@ class Expr:
             # kludge to block behavior in #2638
             # TODO actually implement equality for complex types
             raise TypeMismatch(
-                "equality not yet supported for complex types, see issue #2638", self.expr
+                f"operation not yet supported for {left.typ}, {right.typ}, see issue #2638",
+                self.expr.op,
             )
 
         return IRnode.from_list([op, left, right], typ="bool")
@@ -915,9 +892,10 @@ class Expr:
             if isinstance(operand.typ, BaseType) and operand.typ.typ == "bool":
                 return IRnode.from_list(["iszero", operand], typ="bool")
         elif isinstance(self.expr.op, vy_ast.USub) and is_numeric_type(operand.typ):
+            assert operand.typ._num_info.is_signed
             # Clamp on minimum integer value as we cannot negate that value
             # (all other integer values are fine)
-            min_int_val = get_min_val_for_type(operand.typ.typ)
+            min_int_val, _ = operand.typ._num_info.bounds
             return IRnode.from_list(
                 ["sub", 0, ["clampgt", operand, min_int_val]],
                 typ=operand.typ,

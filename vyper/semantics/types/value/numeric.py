@@ -9,7 +9,7 @@ from vyper.semantics.types.abstract import (
     UnsignedIntegerAbstractType,
 )
 from vyper.semantics.types.bases import BasePrimitive, BaseTypeDefinition, ValueTypeDefinition
-from vyper.utils import int_bounds
+from vyper.utils import SizeLimits, int_bounds
 
 
 class AbstractNumericDefinition(ValueTypeDefinition):
@@ -183,7 +183,7 @@ class DecimalDefinition(FixedAbstractType, AbstractNumericDefinition):
 
 
 class DecimalPrimitive(_NumericPrimitive):
-    _bounds = (-(2 ** 127), 2 ** 127 - 1)
+    _bounds = (SizeLimits.MIN_AST_DECIMAL, SizeLimits.MAX_AST_DECIMAL)
     _id = "decimal"
     _type = DecimalDefinition
     _valid_literal = (vy_ast.Decimal,)
