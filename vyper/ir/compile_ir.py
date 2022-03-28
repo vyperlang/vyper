@@ -58,8 +58,8 @@ def mksymbol(name=""):
     return f"_sym_{name}{_next_symbol}"
 
 
-def mkdebug(pc_debugger, pos):
-    i = Instruction("DEBUG", pos)
+def mkdebug(pc_debugger, source_pos):
+    i = Instruction("DEBUG", source_pos)
     i.pc_debugger = pc_debugger
     return [i]
 
