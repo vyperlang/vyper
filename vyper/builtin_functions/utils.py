@@ -4,10 +4,10 @@ from vyper.codegen.global_context import GlobalContext
 from vyper.codegen.stmt import parse_body
 
 
-def _strip_pos(ir_node):
-    ir_node.pos = None
+def _strip_source_pos(ir_node):
+    ir_node.source_pos = None
     for x in ir_node.args:
-        _strip_pos(x)
+        _strip_source_pos(x)
 
 
 def generate_inline_function(code, variables, memory_allocator):
@@ -22,5 +22,5 @@ def generate_inline_function(code, variables, memory_allocator):
     # NOTE if we ever use this for inlining user-code, it would make
     # sense to fix the offsets of the source positions in the generated
     # code instead of stripping them.
-    _strip_pos(generated_ir)
+    _strip_source_pos(generated_ir)
     return new_context, generated_ir
