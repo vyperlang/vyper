@@ -14,11 +14,11 @@ class AddrSpace:
 
     Attributes:
         name: human-readable nickname for the address space
-        load_op: the opcode for loading a word from this address space
-        store_op: the opcode for storing a word to this address space
         word_scale: a constant which helps calculate offsets in a given
             address space. 1 for word-addressable locations (storage),
             32 for byte-addressable locations (memory, calldata, code)
+        load_op: the opcode for loading a word from this address space
+        store_op: the opcode for storing a word to this address space
     """
 
     name: str
