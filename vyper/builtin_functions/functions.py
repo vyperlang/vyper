@@ -1858,20 +1858,20 @@ class Sqrt(_SimpleBuiltinFunction):
 
         arg = args[0]
         sqrt_code = """
-assert x >= 0.0
-z: decimal = 0.0
+assert VYPER_SQRT_x >= 0.0
+VYPER_SQRT_z: decimal = 0.0
 
-if x == 0.0:
-    z = 0.0
+if VYPER_SQRT_x == 0.0:
+    VYPER_SQRT_z = 0.0
 else:
-    z = x / 2.0 + 0.5
-    y: decimal = x
+    VYPER_SQRT_z = VYPER_SQRT_x / 2.0 + 0.5
+    VYPER_SQRT_y: decimal = VYPER_SQRT_x
 
     for i in range(256):
-        if z == y:
+        if VYPER_SQRT_z == VYPER_SQRT_y:
             break
-        y = z
-        z = (x / z + z) / 2.0
+        VYPER_SQRT_y = VYPER_SQRT_z
+        VYPER_SQRT_z = (VYPER_SQRT_x / VYPER_SQRT_z + VYPER_SQRT_z) / 2.0
         """
 
         x_type = BaseType("decimal")
@@ -1884,12 +1884,16 @@ else:
             new_var_pos = context.new_internal_variable(x_type)
             placeholder_copy = ["mstore", new_var_pos, arg]
         # Create input variables.
-        variables = {"x": VariableRecord(name="x", pos=new_var_pos, typ=x_type, mutable=False)}
+        variables = {
+            "VYPER_SQRT_x": VariableRecord(
+                name="VYPER_SQRT_x", pos=new_var_pos, typ=x_type, mutable=False
+            )
+        }
         # Create namespace and manually inject types
         namespace = get_namespace()
-        namespace["x"] = DecimalDefinition()
-        namespace["y"] = DecimalDefinition()
-        namespace["z"] = DecimalDefinition()
+        namespace["VYPER_SQRT_x"] = DecimalDefinition()
+        namespace["VYPER_SQRT_y"] = DecimalDefinition()
+        namespace["VYPER_SQRT_z"] = DecimalDefinition()
 
         # Generate inline IR.
         new_ctx, sqrt_ir = generate_inline_function(
