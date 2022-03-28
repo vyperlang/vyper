@@ -26,6 +26,14 @@ class AddrSpace:
     load_op: str
     store_op: Optional[str]
 
+    @property
+    def word_addressable(self):
+        return self.word_scale == 1
+
+    @property
+    def byte_addressable(self):
+        return self.word_scale == 32
+
 
 # alternative:
 # class Memory(AddrSpace):

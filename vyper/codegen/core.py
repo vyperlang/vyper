@@ -433,10 +433,10 @@ def _get_element_ptr_tuplelike(parent, key, pos):
 
         return _getelemptr_abi_helper(parent, member_t, ofst, pos)
 
-    if parent.location.word_scale == 1:
+    if parent.location.word_addressable:
         for i in range(index):
             ofst += typ.members[attrs[i]].storage_size_in_words
-    elif parent.location.word_scale == 32:
+    elif parent.location.byte_addressable:
         for i in range(index):
             ofst += typ.members[attrs[i]].memory_bytes_required
     else:
@@ -502,9 +502,9 @@ def _get_element_ptr_array(parent, key, pos, array_bounds_check):
 
         return _getelemptr_abi_helper(parent, subtype, ofst, pos)
 
-    if parent.location.word_scale == 1:
+    if parent.location.word_addressable:
         element_size = subtype.storage_size_in_words
-    elif parent.location.word_scale == 32:
+    elif parent.location.byte_addressable:
         element_size = subtype.memory_bytes_required
     else:
         raise CompilerPanic("unreachable")  # pragma: notest
