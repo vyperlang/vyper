@@ -53,6 +53,7 @@ from vyper.exceptions import (
     VyperException,
     ZeroDivisionException,
 )
+from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types import BoolDefinition, DynamicArrayPrimitive, TupleDefinition
 from vyper.semantics.types.abstract import (
     ArrayValueAbstractType,
@@ -1884,9 +1885,18 @@ else:
             placeholder_copy = ["mstore", new_var_pos, arg]
         # Create input variables.
         variables = {"x": VariableRecord(name="x", pos=new_var_pos, typ=x_type, mutable=False)}
+        # Create namespace and manually inject types
+        namespace = get_namespace()
+        namespace["x"] = DecimalDefinition()
+        namespace["y"] = DecimalDefinition()
+        namespace["z"] = DecimalDefinition()
+
         # Generate inline IR.
         new_ctx, sqrt_ir = generate_inline_function(
-            code=sqrt_code, variables=variables, memory_allocator=context.memory_allocator
+            code=sqrt_code,
+            variables=variables,
+            memory_allocator=context.memory_allocator,
+            namespace=namespace,
         )
         return IRnode.from_list(
             [
