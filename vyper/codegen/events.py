@@ -1,5 +1,5 @@
 from vyper.codegen.abi_encoder import abi_encode
-from vyper.codegen.core import getpos, ir_tuple_from_args, unwrap_location
+from vyper.codegen.core import ir_tuple_from_args, unwrap_location
 from vyper.codegen.ir_node import IRnode
 from vyper.codegen.keccak256_helper import keccak256_helper
 from vyper.codegen.types.types import BaseType, ByteArrayLike, get_type_for_exact_size
@@ -45,8 +45,6 @@ def ir_node_for_log(expr, event, topic_nodes, data_nodes, context):
       data_nodes: list of IRnodes which calculate the event data
       context: current memory/frame context
     """
-    _pos = getpos(expr)
-
     topics = _encode_log_topics(expr, event.event_id, topic_nodes, context)
 
     data = ir_tuple_from_args(data_nodes)
@@ -56,7 +54,7 @@ def ir_node_for_log(expr, event, topic_nodes, data_nodes, context):
 
     # encode_data is an IRnode which, cleverly, both encodes the data
     # and returns the length of the encoded data as a stack item.
-    encode_data = abi_encode(buf, data, context, pos=_pos, returns_len=True, bufsz=bufsz)
+    encode_data = abi_encode(buf, data, context, returns_len=True, bufsz=bufsz)
 
     assert len(topics) <= 4, "too many topics"  # sanity check
     log_opcode = "log" + str(len(topics))
@@ -64,7 +62,5 @@ def ir_node_for_log(expr, event, topic_nodes, data_nodes, context):
     return IRnode.from_list(
         [log_opcode, buf, encode_data] + topics,
         add_gas_estimate=_gas_bound(len(topics), bufsz),
-        typ=None,
-        pos=_pos,
         annotation=f"LOG event {event.signature}",
     )

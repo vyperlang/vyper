@@ -56,7 +56,7 @@ def _codecopy_gas_bound(num_bytes):
 
 
 # Copy byte array word-for-word (including layout)
-def make_byte_array_copier(dst, src, pos=None):
+def make_byte_array_copier(dst, src):
     assert isinstance(src.typ, ByteArrayLike)
     assert isinstance(dst.typ, ByteArrayLike)
 
@@ -102,7 +102,7 @@ def dynarray_data_ptr(ptr):
     return add_ofst(ptr, ptr.location.word_scale)
 
 
-def _dynarray_make_setter(dst, src, pos=None):
+def _dynarray_make_setter(dst, src):
     assert isinstance(src.typ, DArrayType)
     assert isinstance(dst.typ, DArrayType)
 
@@ -124,9 +124,9 @@ def _dynarray_make_setter(dst, src, pos=None):
         n_items = len(src.args)
         for i in range(n_items):
             k = IRnode.from_list(i, typ="uint256")
-            dst_i = get_element_ptr(dst, k, pos=pos, array_bounds_check=False)
-            src_i = get_element_ptr(src, k, pos=pos, array_bounds_check=False)
-            ret.append(make_setter(dst_i, src_i, pos))
+            dst_i = get_element_ptr(dst, k, array_bounds_check=False)
+            src_i = get_element_ptr(src, k, array_bounds_check=False)
+            ret.append(make_setter(dst_i, src_i))
 
         return ret
 
@@ -158,9 +158,8 @@ def _dynarray_make_setter(dst, src, pos=None):
                 i = IRnode.from_list(_freshname("copy_darray_ix"), typ="uint256")
 
                 loop_body = make_setter(
-                    get_element_ptr(dst, i, array_bounds_check=False, pos=pos),
-                    get_element_ptr(src, i, array_bounds_check=False, pos=pos),
-                    pos=pos,
+                    get_element_ptr(dst, i, array_bounds_check=False),
+                    get_element_ptr(src, i, array_bounds_check=False),
                 )
                 loop_body.annotation = f"{dst}[i] = {src}[i]"
 
@@ -187,7 +186,7 @@ def _dynarray_make_setter(dst, src, pos=None):
 # (iv) a constant for the max length (in bytes)
 # NOTE: may pad to ceil32 of `length`! If you ask to copy 1 byte, it may
 # copy an entire (32-byte) word, depending on the copy routine chosen.
-def copy_bytes(dst, src, length, length_bound, pos=None):
+def copy_bytes(dst, src, length, length_bound):
     annotation = f"copy_bytes from {src} to {dst}"
 
     src = IRnode.from_list(src)
@@ -244,7 +243,7 @@ def copy_bytes(dst, src, length, length_bound, pos=None):
         main_loop = ["repeat", i, 0, n, n_bound, copy_one_word]
 
         return b1.resolve(
-            b2.resolve(b3.resolve(IRnode.from_list(main_loop, annotation=annotation, pos=pos)))
+            b2.resolve(b3.resolve(IRnode.from_list(main_loop, annotation=annotation)))
         )
 
 
@@ -270,7 +269,7 @@ def get_dyn_array_count(arg):
     return IRnode.from_list(LOAD(arg), typ=typ)
 
 
-def append_dyn_array(darray_node, elem_node, pos=None):
+def append_dyn_array(darray_node, elem_node):
     assert isinstance(darray_node.typ, DArrayType)
 
     assert darray_node.typ.count > 0, "jerk boy u r out"
@@ -284,16 +283,12 @@ def append_dyn_array(darray_node, elem_node, pos=None):
             # NOTE: typechecks elem_node
             # NOTE skip array bounds check bc we already asserted len two lines up
             ret.append(
-                make_setter(
-                    get_element_ptr(darray_node, len_, array_bounds_check=False, pos=pos),
-                    elem_node,
-                    pos=pos,
-                )
+                make_setter(get_element_ptr(darray_node, len_, array_bounds_check=False), elem_node)
             )
-            return IRnode.from_list(b1.resolve(b2.resolve(ret)), pos=pos)
+            return IRnode.from_list(b1.resolve(b2.resolve(ret)))
 
 
-def pop_dyn_array(darray_node, return_popped_item, pos=None):
+def pop_dyn_array(darray_node, return_popped_item):
     assert isinstance(darray_node.typ, DArrayType)
     ret = ["seq"]
     with darray_node.cache_when_complex("darray") as (b1, darray_node):
@@ -305,9 +300,7 @@ def pop_dyn_array(darray_node, return_popped_item, pos=None):
 
             # NOTE skip array bounds check bc we already asserted len two lines up
             if return_popped_item:
-                popped_item = get_element_ptr(
-                    darray_node, new_len, array_bounds_check=False, pos=pos
-                )
+                popped_item = get_element_ptr(darray_node, new_len, array_bounds_check=False)
                 ret.append(popped_item)
                 typ = popped_item.typ
                 location = popped_item.location
@@ -315,7 +308,7 @@ def pop_dyn_array(darray_node, return_popped_item, pos=None):
             else:
                 typ, location, encoding = None, None, None
             return IRnode.from_list(
-                b1.resolve(b2.resolve(ret)), typ=typ, location=location, encoding=encoding, pos=pos
+                b1.resolve(b2.resolve(ret)), typ=typ, location=location, encoding=encoding
             )
 
 
@@ -354,7 +347,7 @@ def _mul(x, y):
 
 
 # Resolve pointer locations for ABI-encoded data
-def _getelemptr_abi_helper(parent, member_t, ofst, pos=None, clamp=True):
+def _getelemptr_abi_helper(parent, member_t, ofst, clamp=True):
     member_abi_t = member_t.abi_type
 
     # ABI encoding has length word and then pretends length is not there
@@ -376,13 +369,12 @@ def _getelemptr_abi_helper(parent, member_t, ofst, pos=None, clamp=True):
         typ=member_t,
         location=parent.location,
         encoding=parent.encoding,
-        pos=pos,
         annotation=f"{parent}{ofst}",
     )
 
 
 # TODO simplify this code, especially the ABI decoding
-def _get_element_ptr_tuplelike(parent, key, pos):
+def _get_element_ptr_tuplelike(parent, key):
     typ = parent.typ
     assert isinstance(typ, TupleLike)
 
@@ -419,7 +411,7 @@ def _get_element_ptr_tuplelike(parent, key, pos):
             member_abi_t = typ.members[attrs[i]].abi_type
             ofst += member_abi_t.embedded_static_size()
 
-        return _getelemptr_abi_helper(parent, member_t, ofst, pos)
+        return _getelemptr_abi_helper(parent, member_t, ofst)
 
     if parent.location.word_addressable:
         for i in range(index):
@@ -436,7 +428,6 @@ def _get_element_ptr_tuplelike(parent, key, pos):
         location=parent.location,
         encoding=parent.encoding,
         annotation=annotation,
-        pos=pos,
     )
 
 
@@ -445,7 +436,7 @@ def has_length_word(typ):
 
 
 # TODO simplify this code, especially the ABI decoding
-def _get_element_ptr_array(parent, key, pos, array_bounds_check):
+def _get_element_ptr_array(parent, key, array_bounds_check):
 
     assert isinstance(parent.typ, ArrayLike)
 
@@ -488,7 +479,7 @@ def _get_element_ptr_array(parent, key, pos, array_bounds_check):
 
         ofst = _mul(ix, member_abi_t.embedded_static_size())
 
-        return _getelemptr_abi_helper(parent, subtype, ofst, pos)
+        return _getelemptr_abi_helper(parent, subtype, ofst)
 
     if parent.location.word_addressable:
         element_size = subtype.storage_size_in_words
@@ -504,12 +495,10 @@ def _get_element_ptr_array(parent, key, pos, array_bounds_check):
     else:
         data_ptr = parent
 
-    return IRnode.from_list(
-        add_ofst(data_ptr, ofst), typ=subtype, location=parent.location, pos=pos
-    )
+    return IRnode.from_list(add_ofst(data_ptr, ofst), typ=subtype, location=parent.location)
 
 
-def _get_element_ptr_mapping(parent, key, pos):
+def _get_element_ptr_mapping(parent, key):
     assert isinstance(parent.typ, MappingType)
     subtype = parent.typ.valuetype
     key = unwrap_location(key)
@@ -524,18 +513,18 @@ def _get_element_ptr_mapping(parent, key, pos):
 # Take a value representing a memory or storage location, and descend down to
 # an element or member variable
 # This is analogous (but not necessarily equivalent to) getelementptr in LLVM.
-def get_element_ptr(parent, key, pos, array_bounds_check=True):
+def get_element_ptr(parent, key, array_bounds_check=True):
     with parent.cache_when_complex("val") as (b, parent):
         typ = parent.typ
 
         if isinstance(typ, TupleLike):
-            ret = _get_element_ptr_tuplelike(parent, key, pos)
+            ret = _get_element_ptr_tuplelike(parent, key)
 
         elif isinstance(typ, MappingType):
-            ret = _get_element_ptr_mapping(parent, key, pos)
+            ret = _get_element_ptr_mapping(parent, key)
 
         elif isinstance(typ, ArrayLike):
-            ret = _get_element_ptr_array(parent, key, pos, array_bounds_check)
+            ret = _get_element_ptr_array(parent, key, array_bounds_check)
 
         else:
             raise CompilerPanic(f"get_element_ptr cannot be called on {typ}")  # pragma: notest
@@ -729,7 +718,7 @@ def _freshname(name):
 
 
 # Create an x=y statement, where the types may be compound
-def make_setter(left, right, pos):
+def make_setter(left, right):
     check_assign(left, right)
 
     # Basic types
@@ -747,10 +736,10 @@ def make_setter(left, right, pos):
         # TODO rethink/streamline the clamp_basetype logic
         if _needs_clamp(right.typ, right.encoding):
             with right.cache_when_complex("bs_ptr") as (b, right):
-                copier = make_byte_array_copier(left, right, pos)
+                copier = make_byte_array_copier(left, right)
                 ret = b.resolve(["seq", clamp_bytestring(right), copier])
         else:
-            ret = make_byte_array_copier(left, right, pos)
+            ret = make_byte_array_copier(left, right)
 
         return IRnode.from_list(ret)
 
@@ -758,24 +747,24 @@ def make_setter(left, right, pos):
         # TODO should we enable this?
         # implicit conversion from sarray to darray
         # if isinstance(right.typ, SArrayType):
-        #    return _complex_make_setter(left, right, pos)
+        #    return _complex_make_setter(left, right)
 
         # TODO rethink/streamline the clamp_basetype logic
         if _needs_clamp(right.typ, right.encoding):
             with right.cache_when_complex("arr_ptr") as (b, right):
-                copier = _dynarray_make_setter(left, right, pos)
+                copier = _dynarray_make_setter(left, right)
                 ret = b.resolve(["seq", clamp_dyn_array(right), copier])
         else:
-            ret = _dynarray_make_setter(left, right, pos)
+            ret = _dynarray_make_setter(left, right)
 
         return IRnode.from_list(ret)
 
     # Arrays
     elif isinstance(left.typ, (SArrayType, TupleLike)):
-        return _complex_make_setter(left, right, pos)
+        return _complex_make_setter(left, right)
 
 
-def _complex_make_setter(left, right, pos):
+def _complex_make_setter(left, right):
     if right.value == "~empty" and left.location == MEMORY:
         # optimized memzero
         return mzero(left, left.typ.memory_bytes_required)
@@ -797,14 +786,14 @@ def _complex_make_setter(left, right, pos):
     with left.cache_when_complex("_L") as (b1, left), right.cache_when_complex("_R") as (b2, right):
 
         for k in keys:
-            l_i = get_element_ptr(left, k, pos=pos, array_bounds_check=False)
-            r_i = get_element_ptr(right, k, pos=pos, array_bounds_check=False)
-            ret.append(make_setter(l_i, r_i, pos))
+            l_i = get_element_ptr(left, k, array_bounds_check=False)
+            r_i = get_element_ptr(right, k, array_bounds_check=False)
+            ret.append(make_setter(l_i, r_i))
 
         return b1.resolve(b2.resolve(IRnode.from_list(ret)))
 
 
-def ensure_in_memory(ir_var, context, pos=None):
+def ensure_in_memory(ir_var, context):
     """Ensure a variable is in memory. This is useful for functions
     which expect to operate on memory variables.
     """
@@ -813,7 +802,7 @@ def ensure_in_memory(ir_var, context, pos=None):
 
     typ = ir_var.typ
     buf = IRnode.from_list(context.new_internal_variable(typ), typ=typ, location=MEMORY)
-    do_copy = make_setter(buf, ir_var, pos=pos)
+    do_copy = make_setter(buf, ir_var)
 
     return IRnode.from_list(["seq", do_copy, buf], typ=typ, location=MEMORY)
 

@@ -7,7 +7,6 @@ from vyper.codegen.core import (
     calculate_type_for_external_return,
     check_assign,
     dummy_node_for_type,
-    getpos,
     make_setter,
     wrap_value_for_external_return,
 )
@@ -23,8 +22,6 @@ def make_return_stmt(ir_val: IRnode, stmt: Any, context: Context) -> Optional[IR
     sig = context.sig
 
     jump_to_exit = ["exit_to", f"_sym_{sig.exit_sequence_label}"]
-
-    _pos = getpos(stmt)
 
     if context.return_type is None:
         if stmt.value is not None:
@@ -43,10 +40,7 @@ def make_return_stmt(ir_val: IRnode, stmt: Any, context: Context) -> Optional[IR
         cleanup_loops = "cleanup_repeat" if context.forvars else "pass"
         # NOTE: because stack analysis is incomplete, cleanup_repeat must
         # come after fill_return_buffer otherwise the stack will break
-        return IRnode.from_list(
-            ["seq", fill_return_buffer, cleanup_loops, jump_to_exit],
-            pos=_pos,
-        )
+        return IRnode.from_list(["seq", fill_return_buffer, cleanup_loops, jump_to_exit])
 
     if context.return_type is None:
         jump_to_exit += ["return_pc"]
@@ -54,7 +48,7 @@ def make_return_stmt(ir_val: IRnode, stmt: Any, context: Context) -> Optional[IR
 
     if context.is_internal:
         dst = IRnode.from_list(["return_buffer"], typ=context.return_type, location=MEMORY)
-        fill_return_buffer = make_setter(dst, ir_val, pos=_pos)
+        fill_return_buffer = make_setter(dst, ir_val)
         jump_to_exit += ["return_pc"]
 
         return finalize(fill_return_buffer)
@@ -69,9 +63,7 @@ def make_return_stmt(ir_val: IRnode, stmt: Any, context: Context) -> Optional[IR
 
         # encode_out is cleverly a sequence which does the abi-encoding and
         # also returns the length of the output as a stack element
-        encode_out = abi_encode(
-            return_buffer_ofst, ir_val, context, pos=_pos, returns_len=True, bufsz=maxlen
-        )
+        encode_out = abi_encode(return_buffer_ofst, ir_val, context, returns_len=True, bufsz=maxlen)
 
         # previously we would fill the return buffer and push the location and length onto the stack
         # inside of the `seq_unchecked` thereby leaving it for the function cleanup routine expects

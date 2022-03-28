@@ -1,7 +1,6 @@
 from vyper import ast as vy_ast
 from vyper.ast.signatures import FunctionSignature
 from vyper.codegen.context import Context
-from vyper.codegen.core import getpos
 from vyper.codegen.function_definitions.utils import get_nonreentrant_lock
 from vyper.codegen.ir_node import IRnode
 from vyper.codegen.stmt import parse_body
@@ -71,8 +70,4 @@ def generate_ir_for_internal_function(
         ["seq"] + nonreentrant_post + [["exit_to", "return_pc"]],
     ]
 
-    return IRnode.from_list(
-        ["seq", body, cleanup_routine],
-        typ=None,
-        pos=getpos(code),
-    )
+    return IRnode.from_list(["seq", body, cleanup_routine])

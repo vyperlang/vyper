@@ -10,7 +10,6 @@ from vyper.codegen.core import (
     bytes_data_ptr,
     clamp_basetype,
     get_bytearray_length,
-    getpos,
     int_clamp,
     sar,
     shl,
@@ -32,8 +31,8 @@ from vyper.exceptions import CompilerPanic, InvalidLiteral, StructureException, 
 from vyper.utils import DECIMAL_DIVISOR, SizeLimits
 
 
-def _FAIL(ityp, otyp, pos=None):
-    raise TypeMismatch(f"Can't convert {ityp} to {otyp}", pos)
+def _FAIL(ityp, otyp, source_expr=None):
+    raise TypeMismatch(f"Can't convert {ityp} to {otyp}", source_expr)
 
 
 # helper function for `_input_types`
@@ -416,4 +415,4 @@ def convert(expr, context):
 
         ret = b.resolve(ret)
 
-    return IRnode.from_list(ret, pos=getpos(expr))
+    return IRnode.from_list(ret)
