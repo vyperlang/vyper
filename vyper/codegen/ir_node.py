@@ -2,6 +2,7 @@ import re
 from enum import Enum, auto
 from typing import Any, List, Optional, Tuple, Union
 
+from vyper.address_space import AddrSpace
 from vyper.codegen.types import BaseType, NodeType, ceil32
 from vyper.compiler.settings import VYPER_COLOR_OUTPUT
 from vyper.evm.opcodes import get_ir_opcodes
@@ -64,7 +65,7 @@ class IRnode:
         value: Union[str, int],
         args: List["IRnode"] = None,
         typ: NodeType = None,
-        location: str = None,
+        location: Optional[AddrSpace] = None,
         pos: Optional[Tuple[int, int]] = None,
         annotation: Optional[str] = None,
         mutable: bool = True,
@@ -281,6 +282,12 @@ class IRnode:
     def is_literal(self):
         return isinstance(self.value, int) or self.value == "multi"
 
+    @property
+    def is_pointer(self):
+        # not used yet but should help refactor/clarify downstream code
+        # eventually
+        return self.location is not None
+
     # This function is slightly confusing but abstracts a common pattern:
     # when an IR value needs to be computed once and then cached as an
     # IR value (if it is expensive, or more importantly if its computation
@@ -440,7 +447,7 @@ class IRnode:
         cls,
         obj: Any,
         typ: NodeType = None,
-        location: str = None,
+        location: Optional[AddrSpace] = None,
         pos: Tuple[int, int] = None,
         annotation: Optional[str] = None,
         mutable: bool = True,

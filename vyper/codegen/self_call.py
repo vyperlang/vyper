@@ -1,3 +1,4 @@
+from vyper.address_space import MEMORY
 from vyper.codegen.core import getpos, make_setter
 from vyper.codegen.ir_node import IRnode, push_label_to_stack
 from vyper.codegen.types import TupleType
@@ -66,7 +67,7 @@ def ir_for_self_call(stmt_expr, context):
 
     # note: dst_tuple_t != args_tuple_t
     dst_tuple_t = TupleType([arg.typ for arg in sig.args])
-    args_dst = IRnode(sig.frame_start, typ=dst_tuple_t, location="memory")
+    args_dst = IRnode(sig.frame_start, typ=dst_tuple_t, location=MEMORY)
 
     # if one of the arguments is a self call, the argument
     # buffer could get borked. to prevent against that,
@@ -78,7 +79,7 @@ def ir_for_self_call(stmt_expr, context):
         tmp_args_buf = IRnode(
             context.new_internal_variable(dst_tuple_t),
             typ=dst_tuple_t,
-            location="memory",
+            location=MEMORY,
         )
         copy_args.append(
             # --> args evaluate here <--
@@ -110,7 +111,7 @@ def ir_for_self_call(stmt_expr, context):
     o = IRnode.from_list(
         call_sequence,
         typ=sig.return_type,
-        location="memory",
+        location=MEMORY,
         pos=pos,
         annotation=stmt_expr.get("node_source_code"),
         add_gas_estimate=sig.gas,

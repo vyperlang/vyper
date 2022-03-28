@@ -1,6 +1,7 @@
 from decimal import Context, setcontext
 
 from vyper import ast as vy_ast
+from vyper.address_space import CALLDATA, DATA, IMMUTABLES, MEMORY, STORAGE
 from vyper.codegen.ir_node import Encoding, IRnode
 from vyper.codegen.types import (
     DYNAMIC_ARRAY_OVERHEAD,
@@ -99,27 +100,18 @@ def make_byte_array_copier(dst, src, pos=None):
             return b1.resolve(b2.resolve(ret))
 
 
-# TODO maybe move me to types.py
-def wordsize(location):
-    if location in ("memory", "calldata", "data", "immutables"):
-        return 32
-    if location == "storage":
-        return 1
-    raise CompilerPanic(f"invalid location {location}")  # pragma: notest
-
-
 def bytes_data_ptr(ptr):
     if ptr.location is None:
         raise CompilerPanic("tried to modify non-pointer type")
     assert isinstance(ptr.typ, ByteArrayLike)
-    return add_ofst(ptr, wordsize(ptr.location))
+    return add_ofst(ptr, ptr.location.word_scale)
 
 
 def dynarray_data_ptr(ptr):
     if ptr.location is None:
         raise CompilerPanic("tried to modify non-pointer type")
     assert isinstance(ptr.typ, DArrayType)
-    return add_ofst(ptr, wordsize(ptr.location))
+    return add_ofst(ptr, ptr.location.word_scale)
 
 
 def _dynarray_make_setter(dst, src, pos=None):
@@ -127,14 +119,14 @@ def _dynarray_make_setter(dst, src, pos=None):
     assert isinstance(dst.typ, DArrayType)
 
     if src.value == "~empty":
-        return IRnode.from_list([store_op(dst.location), dst, 0], pos=pos)
+        return IRnode.from_list(STORE(dst, 0))
 
     if src.value == "multi":
         ret = ["seq"]
         # handle literals
 
         # write the length word
-        store_length = [store_op(dst.location), dst, len(src.args)]
+        store_length = STORE(dst, len(src.args))
         ann = None
         if src.annotation is not None:
             ann = f"len({src.annotation})"
@@ -225,16 +217,16 @@ def copy_bytes(dst, src, length, length_bound, pos=None):
             ret = IRnode.from_list(copy_op, annotation=annotation)
             return b1.resolve(b2.resolve(b3.resolve(ret)))
 
-        if dst.location == "memory" and src.location in ("memory", "calldata", "data"):
+        if dst.location == MEMORY and src.location in (MEMORY, CALLDATA, DATA):
             # special cases: batch copy to memory
             # TODO: iloadbytes
-            if src.location == "memory":
+            if src.location == MEMORY:
                 copy_op = ["staticcall", "gas", 4, src, length, dst, length]
                 gas_bound = _identity_gas_bound(length_bound)
-            elif src.location == "calldata":
+            elif src.location == CALLDATA:
                 copy_op = ["calldatacopy", dst, src, length]
                 gas_bound = _calldatacopy_gas_bound(length_bound)
-            elif src.location == "data":
+            elif src.location == DATA:
                 copy_op = ["dloadbytes", dst, src, length]
                 # note: dloadbytes compiles to CODECOPY
                 gas_bound = _codecopy_gas_bound(length_bound)
@@ -242,7 +234,7 @@ def copy_bytes(dst, src, length, length_bound, pos=None):
             ret = IRnode.from_list(copy_op, annotation=annotation, add_gas_estimate=gas_bound)
             return b1.resolve(b2.resolve(b3.resolve(ret)))
 
-        if dst.location == "immutables" and src.location in ("memory", "data"):
+        if dst.location == IMMUTABLES and src.location in (MEMORY, DATA):
             # TODO istorebytes-from-mem, istorebytes-from-calldata(?)
             # compile to identity, CODECOPY respectively.
             pass
@@ -256,8 +248,8 @@ def copy_bytes(dst, src, length, length_bound, pos=None):
         n = ["div", ["ceil32", length], 32]
         n_bound = ceil32(length_bound) // 32
 
-        dst_i = add_ofst(dst, _mul(i, wordsize(dst.location)))
-        src_i = add_ofst(src, _mul(i, wordsize(src.location)))
+        dst_i = add_ofst(dst, _mul(i, dst.location.word_scale))
+        src_i = add_ofst(src, _mul(i, src.location.word_scale))
 
         copy_one_word = STORE(dst_i, LOAD(src_i))
 
@@ -271,7 +263,7 @@ def copy_bytes(dst, src, length, length_bound, pos=None):
 # get the number of bytes at runtime
 def get_bytearray_length(arg):
     typ = BaseType("uint256")
-    return IRnode.from_list([load_op(arg.location), arg], typ=typ)
+    return IRnode.from_list(LOAD(arg), typ=typ)
 
 
 # get the number of elements at runtime
@@ -287,7 +279,7 @@ def get_dyn_array_count(arg):
         # empty(DynArray[])
         return IRnode.from_list(0, typ=typ)
 
-    return IRnode.from_list([load_op(arg.location), arg], typ=typ)
+    return IRnode.from_list(LOAD(arg), typ=typ)
 
 
 def append_dyn_array(darray_node, elem_node, pos=None):
@@ -300,7 +292,7 @@ def append_dyn_array(darray_node, elem_node, pos=None):
         len_ = get_dyn_array_count(darray_node)
         with len_.cache_when_complex("old_darray_len") as (b2, len_):
             ret.append(["assert", ["le", len_, darray_node.typ.count - 1]])
-            ret.append([store_op(darray_node.location), darray_node, ["add", len_, 1]])
+            ret.append(STORE(darray_node, ["add", len_, 1]))
             # NOTE: typechecks elem_node
             # NOTE skip array bounds check bc we already asserted len two lines up
             ret.append(
@@ -321,7 +313,7 @@ def pop_dyn_array(darray_node, return_popped_item, pos=None):
         new_len = IRnode.from_list(["sub", old_len, 1], typ="uint256")
 
         with new_len.cache_when_complex("new_len") as (b2, new_len):
-            ret.append([store_op(darray_node.location), darray_node, new_len])
+            ret.append(STORE(darray_node, new_len))
 
             # NOTE skip array bounds check bc we already asserted len two lines up
             if return_popped_item:
@@ -348,9 +340,9 @@ def getpos(node):
     )
 
 
-# TODO since this is always(?) used as add_ofst(ptr, n*wordsize(ptr.location))
+# TODO since this is always(?) used as add_ofst(ptr, n*ptr.location.word_scale)
 # maybe the API should be `add_words_to_ofst(ptr, n)` and handle the
-# wordsize multiplication inside
+# word_scale multiplication inside
 def add_ofst(ptr, ofst):
     ofst = IRnode.from_list(ofst)
     if isinstance(ptr.value, int) and isinstance(ofst.value, int):
@@ -381,7 +373,7 @@ def _getelemptr_abi_helper(parent, member_t, ofst, pos=None, clamp=True):
     # e.g. [[1,2]] is encoded as 0x01 <len> 0x20 <inner array ofst> <encode(inner array)>
     # note that inner array ofst is 0x20, not 0x40.
     if has_length_word(parent.typ):
-        parent = add_ofst(parent, wordsize(parent.location) * DYNAMIC_ARRAY_OVERHEAD)
+        parent = add_ofst(parent, parent.location.word_scale * DYNAMIC_ARRAY_OVERHEAD)
 
     ofst_ir = add_ofst(parent, ofst)
 
@@ -430,7 +422,7 @@ def _get_element_ptr_tuplelike(parent, key, pos):
     ofst = 0  # offset from parent start
 
     if parent.encoding in (Encoding.ABI, Encoding.JSON_ABI):
-        if parent.location == "storage":
+        if parent.location == STORAGE:
             raise CompilerPanic("storage variables should not be abi encoded")  # pragma: notest
 
         member_t = typ.members[attrs[index]]
@@ -441,10 +433,10 @@ def _get_element_ptr_tuplelike(parent, key, pos):
 
         return _getelemptr_abi_helper(parent, member_t, ofst, pos)
 
-    if parent.location == "storage":
+    if parent.location.word_addressable:
         for i in range(index):
             ofst += typ.members[attrs[i]].storage_size_in_words
-    elif parent.location in ("calldata", "memory", "data", "immutables"):
+    elif parent.location.byte_addressable:
         for i in range(index):
             ofst += typ.members[attrs[i]].memory_bytes_required
     else:
@@ -501,7 +493,7 @@ def _get_element_ptr_array(parent, key, pos, array_bounds_check):
         ix = IRnode.from_list([clamp_op, ix, bound], typ=ix.typ)
 
     if parent.encoding in (Encoding.ABI, Encoding.JSON_ABI):
-        if parent.location == "storage":
+        if parent.location == STORAGE:
             raise CompilerPanic("storage variables should not be abi encoded")  # pragma: notest
 
         member_abi_t = subtype.abi_type
@@ -510,15 +502,17 @@ def _get_element_ptr_array(parent, key, pos, array_bounds_check):
 
         return _getelemptr_abi_helper(parent, subtype, ofst, pos)
 
-    if parent.location == "storage":
+    if parent.location.word_addressable:
         element_size = subtype.storage_size_in_words
-    elif parent.location in ("calldata", "memory", "data", "immutables"):
+    elif parent.location.byte_addressable:
         element_size = subtype.memory_bytes_required
+    else:
+        raise CompilerPanic("unreachable")  # pragma: notest
 
     ofst = _mul(ix, element_size)
 
     if has_length_word(parent.typ):
-        data_ptr = add_ofst(parent, wordsize(parent.location) * DYNAMIC_ARRAY_OVERHEAD)
+        data_ptr = add_ofst(parent, parent.location.word_scale * DYNAMIC_ARRAY_OVERHEAD)
     else:
         data_ptr = parent
 
@@ -533,10 +527,10 @@ def _get_element_ptr_mapping(parent, key, pos):
     key = unwrap_location(key)
 
     # TODO when is key None?
-    if key is None or parent.location != "storage":
+    if key is None or parent.location != STORAGE:
         raise TypeCheckFailure("bad dereference on mapping {parent}[{sub}]")
 
-    return IRnode.from_list(["sha3_64", parent, key], typ=subtype, location="storage")
+    return IRnode.from_list(["sha3_64", parent, key], typ=subtype, location=STORAGE)
 
 
 # Take a value representing a memory or storage location, and descend down to
@@ -561,49 +555,30 @@ def get_element_ptr(parent, key, pos, array_bounds_check=True):
         return b.resolve(ret)
 
 
-# TODO phase this out - make private and use LOAD instead
-def load_op(location):
-    if location == "memory":
-        return "mload"
-    if location == "storage":
-        return "sload"
-    if location == "calldata":
-        return "calldataload"
-    if location == "data":
-        # refers to data section of currently executing code
-        return "dload"
-    if location == "immutables":
-        # special address space for manipulating immutables before deploy
-        # only makes sense in a constructor
-        return "iload"
-    raise CompilerPanic(f"unreachable {location}")  # pragma: notest
-
-
-# TODO phase this out - make private and use STORE instead
-def store_op(location):
-    if location == "memory":
-        return "mstore"
-    if location == "storage":
-        return "sstore"
-    if location == "immutables":
-        return "istore"
-    raise CompilerPanic(f"unreachable {location}")  # pragma: notest
-
-
 def LOAD(ptr: IRnode) -> IRnode:
-    return IRnode.from_list([load_op(ptr.location), ptr])
+    if ptr.location is None:
+        raise CompilerPanic("cannot dereference non-pointer type")
+    op = ptr.location.load_op
+    if op is None:
+        raise CompilerPanic(f"unreachable {ptr.location}")  # pragma: notest
+    return IRnode.from_list([op, ptr])
 
 
 def STORE(ptr: IRnode, val: IRnode) -> IRnode:
-    return IRnode.from_list([store_op(ptr.location), ptr, val])
+    if ptr.location is None:
+        raise CompilerPanic("cannot dereference non-pointer type")
+    op = ptr.location.store_op
+    if op is None:
+        raise CompilerPanic(f"unreachable {ptr.location}")  # pragma: notest
+    return IRnode.from_list([op, ptr, val])
 
 
 # Unwrap location
 def unwrap_location(orig):
-    if orig.location in ("memory", "storage", "calldata", "data", "immutables"):
+    if orig.location is not None:
         return IRnode.from_list(LOAD(orig), typ=orig.typ)
     else:
-        # CMC 20210909 TODO double check if this branch can be removed
+        # CMC 2022-03-24 TODO refactor so this branch can be removed
         if orig.value == "~empty":
             return IRnode.from_list(0, typ=orig.typ)
         return orig
@@ -777,8 +752,7 @@ def make_setter(left, right, pos):
         if _needs_clamp(right.typ, enc):
             right = clamp_basetype(right)
 
-        op = store_op(left.location)
-        return IRnode.from_list([op, left, right], pos=pos)
+        return STORE(left, right)
 
     # Byte arrays
     elif isinstance(left.typ, ByteArrayLike):
@@ -814,7 +788,7 @@ def make_setter(left, right, pos):
 
 
 def _complex_make_setter(left, right, pos):
-    if right.value == "~empty" and left.location == "memory":
+    if right.value == "~empty" and left.location == MEMORY:
         # optimized memzero
         return mzero(left, left.typ.memory_bytes_required)
 
@@ -846,14 +820,14 @@ def ensure_in_memory(ir_var, context, pos=None):
     """Ensure a variable is in memory. This is useful for functions
     which expect to operate on memory variables.
     """
-    if ir_var.location == "memory":
+    if ir_var.location == MEMORY:
         return ir_var
 
     typ = ir_var.typ
-    buf = IRnode.from_list(context.new_internal_variable(typ), typ=typ, location="memory")
+    buf = IRnode.from_list(context.new_internal_variable(typ), typ=typ, location=MEMORY)
     do_copy = make_setter(buf, ir_var, pos=pos)
 
-    return IRnode.from_list(["seq", do_copy, buf], typ=typ, location="memory")
+    return IRnode.from_list(["seq", do_copy, buf], typ=typ, location=MEMORY)
 
 
 def eval_seq(ir_node):

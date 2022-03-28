@@ -1,5 +1,6 @@
 from typing import Any, Optional
 
+from vyper.address_space import MEMORY
 from vyper.codegen.abi_encoder import abi_encode
 from vyper.codegen.context import Context
 from vyper.codegen.core import (
@@ -52,7 +53,7 @@ def make_return_stmt(ir_val: IRnode, stmt: Any, context: Context) -> Optional[IR
         return finalize(["pass"])
 
     if context.is_internal:
-        dst = IRnode.from_list(["return_buffer"], typ=context.return_type, location="memory")
+        dst = IRnode.from_list(["return_buffer"], typ=context.return_type, location=MEMORY)
         fill_return_buffer = make_setter(dst, ir_val, pos=_pos)
         jump_to_exit += ["return_pc"]
 

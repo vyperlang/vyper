@@ -65,6 +65,8 @@ class NodeType(abc.ABC):
 
     @property
     def storage_size_in_words(self) -> int:
+        # consider renaming if other word-addressable address spaces are
+        # added to EVM or exist in other arches
         """
         Returns the number of words required to allocate in storage for this type
         """
