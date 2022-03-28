@@ -173,6 +173,7 @@ class Context:
     def new_variable(
         self, name: str, typ: NodeType, pos: VyperNode = None, is_mutable: bool = True
     ) -> int:
+        # TODO remove dead arg: pos
         """
         Allocate memory for a user-defined variable.
 

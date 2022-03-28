@@ -1,5 +1,4 @@
 import copy
-from decimal import Decimal
 from typing import Union
 
 from vyper.ast import nodes as vy_ast
@@ -7,6 +6,7 @@ from vyper.builtin_functions import DISPATCH_TABLE
 from vyper.exceptions import UnfoldableNode, UnknownType
 from vyper.semantics.types.bases import BaseTypeDefinition, DataLocation
 from vyper.semantics.types.utils import get_type_from_annotation
+from vyper.utils import SizeLimits
 
 BUILTIN_CONSTANTS = {
     "EMPTY_BYTES32": (
@@ -16,8 +16,8 @@ BUILTIN_CONSTANTS = {
     "ZERO_ADDRESS": (vy_ast.Hex, "0x0000000000000000000000000000000000000000"),
     "MAX_INT128": (vy_ast.Int, 2 ** 127 - 1),
     "MIN_INT128": (vy_ast.Int, -(2 ** 127)),
-    "MAX_DECIMAL": (vy_ast.Decimal, Decimal(2 ** 127 - 1)),
-    "MIN_DECIMAL": (vy_ast.Decimal, Decimal(-(2 ** 127))),
+    "MAX_DECIMAL": (vy_ast.Decimal, SizeLimits.MAX_AST_DECIMAL),
+    "MIN_DECIMAL": (vy_ast.Decimal, SizeLimits.MIN_AST_DECIMAL),
     "MAX_UINT256": (vy_ast.Int, 2 ** 256 - 1),
 }
 

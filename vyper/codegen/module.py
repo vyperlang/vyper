@@ -1,9 +1,10 @@
 # a contract.vy -- all functions and constructor
 
-from typing import Any, List, Tuple, Union
+from typing import List, Tuple, Union
 
 from vyper import ast as vy_ast
 from vyper.ast.signatures.function_signature import FunctionSignature, FunctionSignatures
+from vyper.codegen.core import shr
 from vyper.codegen.function_definitions import (
     generate_ir_for_function,
     is_default_func,
@@ -17,32 +18,10 @@ from vyper.exceptions import (
     StructureException,
 )
 from vyper.semantics.types.function import FunctionVisibility, StateMutability
-from vyper.utils import LOADED_LIMITS
 
 # TODO remove this check
 if not hasattr(vy_ast, "AnnAssign"):
     raise Exception("Requires python 3.6 or higher for annotation support")
-
-# Header code
-STORE_CALLDATA: List[Any] = [
-    "seq",
-    # check that calldatasize is at least 4, otherwise
-    # calldataload will load zeros (cf. yellow paper).
-    ["if", ["lt", "calldatasize", 4], ["goto", "fallback"]],
-    ["calldatacopy", 28, 0, 4],
-]
-# Store limit constants at fixed addresses in memory.
-LIMIT_MEMORY_SET: List[Any] = [
-    ["mstore", pos, limit_size] for pos, limit_size in LOADED_LIMITS.items()
-]
-
-
-def func_init_ir():
-    return IRnode.from_list(STORE_CALLDATA + LIMIT_MEMORY_SET, typ=None)
-
-
-def init_func_init_ir():
-    return IRnode.from_list(["seq"] + LIMIT_MEMORY_SET, typ=None)
 
 
 def parse_external_interfaces(external_interfaces, global_ctx):
@@ -113,7 +92,7 @@ def parse_regular_functions(
     payable_funcs = []
     nonpayable_funcs = []
     internal_funcs = []
-    add_gas = func_init_ir().gas
+    add_gas = 0
 
     for func_node in regular_functions:
         func_type = func_node._metadata["type"]
@@ -179,8 +158,10 @@ def parse_regular_functions(
     # this way we save gas and reduce bytecode by not jumping over internal functions
     runtime = [
         "seq",
-        func_init_ir(),
-        ["with", "_calldata_method_id", ["mload", 0], external_seq],
+        # check that calldatasize is at least 4, otherwise
+        # calldataload will load zeros (cf. yellow paper).
+        ["if", ["lt", "calldatasize", 4], ["goto", "fallback"]],
+        ["with", "_calldata_method_id", shr(224, ["calldataload", 0]), external_seq],
         close_selector_section,
         ["label", "fallback", ["var_list"], fallback_ir],
     ]
@@ -223,7 +204,6 @@ def parse_tree_to_ir(global_ctx: GlobalContext) -> Tuple[IRnode, IRnode, Functio
 
     init_func_ir = None
     if init_function:
-        o.append(init_func_init_ir())
         init_func_ir, _frame_start, init_frame_size = generate_ir_for_function(
             init_function,
             {**{"self": sigs}, **external_interfaces},

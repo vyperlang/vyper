@@ -52,8 +52,14 @@ def test_arithmetic(a: int128) -> int128:
     assert c.test_int128(-(2 ** 127)) == [False, True]
     assert c.test_int128(0) == [False, False]
 
-    assert c.test_decimal(Decimal(2 ** 127 - 1)) == [True, False]
-    assert c.test_decimal(Decimal("-170141183460469231731687303715884105728")) == [False, True]
+    assert c.test_decimal(Decimal("18707220957835557353007165858768422651595.9365500927")) == [
+        True,
+        False,
+    ]
+    assert c.test_decimal(Decimal("-18707220957835557353007165858768422651595.9365500928")) == [
+        False,
+        True,
+    ]
     assert c.test_decimal(Decimal("0.1")) == [False, False]
 
     assert c.test_uint256(2 ** 256 - 1) is True
@@ -108,8 +114,8 @@ def zoo() -> uint256:
 
     assert c.joo() is None
 
-    assert c.koo() == Decimal(2 ** 127 - 1)
-    assert c.loo() == Decimal(-(2 ** 127))
+    assert c.koo() == Decimal(2 ** 167 - 1) / 10 ** 10
+    assert c.loo() == Decimal(-(2 ** 167)) / 10 ** 10
 
     assert c.zoo() == 2 ** 256 - 1
 

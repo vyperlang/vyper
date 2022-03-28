@@ -170,8 +170,8 @@ def foo(s: address) -> address:
         0,
         1,
         -1,
-        2 ** 127 - 1,
-        -(2 ** 127),
+        Decimal(2 ** 167 - 1) / 10 ** 10,
+        -Decimal(2 ** 167) / 10 ** 10,
         "0.0",
         "1.0",
         "-1.0",
@@ -179,8 +179,8 @@ def foo(s: address) -> address:
         "0.9999999999",
         "-0.0000000001",
         "-0.9999999999",
-        "170141183460469231731687303715884105726.9999999999",  # 2 ** 127 - 1.0000000001
-        "-170141183460469231731687303715884105727.9999999999",  # - (2 ** 127 - 0.0000000001)
+        "18707220957835557353007165858768422651595.9365500927",  # 2**167 - 1e-10
+        "-18707220957835557353007165858768422651595.9365500928",  # -2**167
     ],
 )
 def test_decimal_clamper_passing(get_contract, value, evm_version):
@@ -199,13 +199,13 @@ def foo(s: decimal) -> decimal:
 @pytest.mark.parametrize(
     "value",
     [
-        2 ** 127,
-        -(2 ** 127 + 1),
-        "170141183460469231731687303715884105727.0000000001",  # 2 ** 127 - 0.999999999
-        "-170141183460469231731687303715884105728.0000000001",  # - (2 ** 127 + 0.0000000001)
+        2 ** 167,
+        -(2 ** 167 + 1),
+        187072209578355573530071658587684226515959365500928,  # 2 ** 167
+        -187072209578355573530071658587684226515959365500929,  # - (2 ** 127 - 1e-10)
     ],
 )
-def test_decimal_clamper_failing(assert_tx_failed, get_contract, value, evm_version):
+def test_decimal_clamper_failing(w3, assert_tx_failed, get_contract, value, evm_version):
     code = """
 @external
 def foo(s: decimal) -> decimal:
@@ -214,7 +214,7 @@ def foo(s: decimal) -> decimal:
 
     c = get_contract(code, evm_version=evm_version)
 
-    assert_tx_failed(lambda: c.foo(Decimal(value)))
+    assert_tx_failed(lambda: _make_tx(w3, c.address, "foo(fixed168x10)", [value]))
 
 
 @pytest.mark.parametrize("value", [0, 1, -1, 2 ** 127 - 1, -(2 ** 127)])

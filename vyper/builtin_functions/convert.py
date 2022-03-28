@@ -10,7 +10,6 @@ from vyper.codegen.core import (
     bytes_data_ptr,
     clamp_basetype,
     get_bytearray_length,
-    getpos,
     int_clamp,
     sar,
     shl,
@@ -29,11 +28,11 @@ from vyper.codegen.types import (
     is_integer_type,
 )
 from vyper.exceptions import CompilerPanic, InvalidLiteral, StructureException, TypeMismatch
-from vyper.utils import DECIMAL_DIVISOR, SizeLimits, int_bounds
+from vyper.utils import DECIMAL_DIVISOR, SizeLimits
 
 
-def _FAIL(ityp, otyp, pos=None):
-    raise TypeMismatch(f"Can't convert {ityp} to {otyp}", pos)
+def _FAIL(ityp, otyp, source_expr=None):
+    raise TypeMismatch(f"Can't convert {ityp} to {otyp}", source_expr)
 
 
 # helper function for `_input_types`
@@ -101,13 +100,22 @@ def _bytes_to_num(arg, out_typ, signed):
 
 
 # truncate from fixed point decimal to int
-def _fixed_to_int(x, out_typ, decimals=10):
+def _fixed_to_int(x, out_typ):
+    decimals = x.typ._decimal_info.decimals
     return IRnode.from_list(["sdiv", x, 10 ** decimals], typ=out_typ)
 
 
 # promote from int to fixed point decimal
-def _int_to_fixed(x, out_typ, decimals=10):
-    return IRnode.from_list(["mul", x, 10 ** decimals], typ=out_typ)
+def _int_to_fixed(x, out_typ):
+    info = out_typ._decimal_info
+
+    lo, hi = info.bounds
+    decimals = info.decimals
+
+    clamp_op = "clamp" if info.is_signed else "uclamp"
+
+    # TODO is this clamp redundant with later num clamps?
+    return IRnode.from_list(["mul", [clamp_op, lo, x, hi], 10 ** decimals], typ=out_typ)
 
 
 def _check_bytes(expr, arg, output_type, max_bytes_allowed):
@@ -129,7 +137,7 @@ def _literal_int(expr, out_typ):
     else:
         # Int, Decimal
         val = int(expr.value)
-    (lo, hi) = int_bounds(int_info.is_signed, int_info.bits)
+    (lo, hi) = int_info.bounds
     if not (lo <= val <= hi):
         raise InvalidLiteral("Number out of range", expr)
     return IRnode.from_list(val, typ=out_typ)
@@ -144,8 +152,7 @@ def _literal_decimal(expr, out_typ):
 
     val = val * DECIMAL_DIVISOR
 
-    (lo, hi) = (SizeLimits.MINDECIMAL, SizeLimits.MAXDECIMAL)
-    if not (lo <= val <= hi):
+    if not SizeLimits.in_bounds("decimal", val):
         raise InvalidLiteral("Number out of range", expr)
 
     # sanity check type checker did its job
@@ -216,7 +223,7 @@ def to_int(expr, arg, out_typ):
 
     elif is_decimal_type(arg.typ):
         arg_info = arg.typ._decimal_info
-        arg = _fixed_to_int(arg, out_typ, decimals=arg_info.decimals)
+        arg = _fixed_to_int(arg, out_typ)
         arg = _num_clamp(arg, int_info, arg_info)
 
     elif is_integer_type(arg.typ):
@@ -250,6 +257,7 @@ def to_decimal(expr, arg, out_typ):
         if arg_typ.maxlen * 8 > 128:
             arg = IRnode.from_list(arg, typ=out_typ)
             arg = clamp_basetype(arg)
+
         return IRnode.from_list(arg, typ=out_typ)
 
     elif is_bytes_m_type(arg.typ):
@@ -264,24 +272,21 @@ def to_decimal(expr, arg, out_typ):
 
         return IRnode.from_list(arg, typ=out_typ)
 
-    # for the clamp, pretend it's int128 because int128 clamps are cheaper
-    # (and then multiply into the decimal base afterwards)
     elif is_integer_type(arg.typ):
         int_info = arg.typ._int_info
-        # TODO revisit this condition once we have more decimal types
-        # and decimal bounds expand. (note that right now decimal bounds
-        # are -2**127 and 2**127 - 1).
-        # will be something like: if info.m_bits > 168
-        # TODO this should probably use _num_clamp instead
-        if int_info.bits > 128:
-            arg = int_clamp(arg, 128, signed=True)
+        arg = _int_to_fixed(arg, out_typ)
+        out_info = out_typ._decimal_info
+        if int_info.bits > out_info.bits:
+            # TODO: _num_clamp probably not necessary bc already
+            # clamped in _int_to_fixed
+            arg = _num_clamp(arg, out_info, int_info)
+        return IRnode.from_list(arg, typ=out_typ)
 
     elif is_base_type(arg.typ, "bool"):
-        pass
+        arg = _int_to_fixed(arg, out_typ)
+        return IRnode.from_list(arg, typ=out_typ)
     else:
         raise CompilerPanic("unreachable")  # pragma: notest
-
-    return _int_to_fixed(arg, out_typ)
 
 
 @_input_types("int", "decimal", "bytes_m", "address", "bytes", "bool")
@@ -409,4 +414,4 @@ def convert(expr, context):
 
         ret = b.resolve(ret)
 
-    return IRnode.from_list(ret, pos=getpos(expr))
+    return IRnode.from_list(ret)

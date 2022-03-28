@@ -22,7 +22,6 @@ from vyper.codegen.core import (
     eval_seq,
     get_bytearray_length,
     get_element_ptr,
-    getpos,
     ir_tuple_from_args,
     promote_signed_int,
     unwrap_location,
@@ -132,7 +131,6 @@ class Floor(_SimpleBuiltinFunction):
                 ["sdiv", args[0], DECIMAL_DIVISOR],
             ],
             typ=BaseType("int128"),
-            pos=getpos(expr),
         )
 
 
@@ -160,7 +158,6 @@ class Ceil(_SimpleBuiltinFunction):
                 ["sdiv", ["add", args[0], DECIMAL_DIVISOR - 1], DECIMAL_DIVISOR],
             ],
             typ=BaseType("int128"),
-            pos=getpos(expr),
         )
 
 
@@ -407,7 +404,6 @@ class Slice:
                 copy_src,
                 copy_len,
                 copy_maxlen,
-                pos=getpos(expr),
             )
 
             ret = [
@@ -418,7 +414,7 @@ class Slice:
                 ["mstore", dst, length],  # set length
                 dst,  # return pointer to dst
             ]
-            ret = IRnode.from_list(ret, typ=dst_typ, location=MEMORY, pos=getpos(expr))
+            ret = IRnode.from_list(ret, typ=dst_typ, location=MEMORY)
             return b1.resolve(b2.resolve(b3.resolve(ret)))
 
 
@@ -562,7 +558,6 @@ class Concat:
                                 argstart,
                                 length,
                                 arg.typ.maxlen,
-                                pos=getpos(expr),
                             ),
                             # Change the position to start at the correct
                             # place to paste the next value
@@ -587,7 +582,6 @@ class Concat:
             ["with", "_poz", 0, ["seq"] + seq],
             typ=ReturnType(total_maxlen),
             location=MEMORY,
-            pos=getpos(expr),
             annotation="concat",
         )
 
@@ -673,12 +667,11 @@ class Sha256(_SimpleBuiltinFunction):
                     ["mload", MemoryPositions.FREE_VAR_SPACE],  # push value onto stack
                 ],
                 typ=BaseType("bytes32"),
-                pos=getpos(expr),
                 add_gas_estimate=SHA256_BASE_GAS + 1 * SHA256_PER_WORD_GAS,
             )
         # bytearay-like input
         # special case if it's already in memory
-        sub = ensure_in_memory(sub, context, pos=getpos(expr))
+        sub = ensure_in_memory(sub, context)
 
         return IRnode.from_list(
             [
@@ -698,7 +691,6 @@ class Sha256(_SimpleBuiltinFunction):
                 ],
             ],
             typ=BaseType("bytes32"),
-            pos=getpos(expr),
             add_gas_estimate=SHA256_BASE_GAS + sub.typ.maxlen * SHA256_PER_WORD_GAS,
         )
 
@@ -785,12 +777,11 @@ class ECRecover(_SimpleBuiltinFunction):
                 ["mload", MemoryPositions.FREE_VAR_SPACE],
             ],
             typ=BaseType("address"),
-            pos=getpos(expr),
         )
 
 
-def _getelem(arg, ind, pos):
-    return unwrap_location(get_element_ptr(arg, IRnode.from_list(ind, "int128"), pos=pos))
+def _getelem(arg, ind):
+    return unwrap_location(get_element_ptr(arg, IRnode.from_list(ind, "int128")))
 
 
 class ECAdd(_SimpleBuiltinFunction):
@@ -809,19 +800,17 @@ class ECAdd(_SimpleBuiltinFunction):
             typ=ByteArrayType(128),
             location=MEMORY,
         )
-        pos = getpos(expr)
         o = IRnode.from_list(
             [
                 "seq",
-                ["mstore", placeholder_node, _getelem(args[0], 0, pos)],
-                ["mstore", ["add", placeholder_node, 32], _getelem(args[0], 1, pos)],
-                ["mstore", ["add", placeholder_node, 64], _getelem(args[1], 0, pos)],
-                ["mstore", ["add", placeholder_node, 96], _getelem(args[1], 1, pos)],
+                ["mstore", placeholder_node, _getelem(args[0], 0)],
+                ["mstore", ["add", placeholder_node, 32], _getelem(args[0], 1)],
+                ["mstore", ["add", placeholder_node, 64], _getelem(args[1], 0)],
+                ["mstore", ["add", placeholder_node, 96], _getelem(args[1], 1)],
                 ["assert", ["staticcall", ["gas"], 6, placeholder_node, 128, placeholder_node, 64]],
                 placeholder_node,
             ],
             typ=SArrayType(BaseType("uint256"), 2),
-            pos=getpos(expr),
             location=MEMORY,
         )
         return o
@@ -840,18 +829,16 @@ class ECMul(_SimpleBuiltinFunction):
             typ=ByteArrayType(128),
             location=MEMORY,
         )
-        pos = getpos(expr)
         o = IRnode.from_list(
             [
                 "seq",
-                ["mstore", placeholder_node, _getelem(args[0], 0, pos)],
-                ["mstore", ["add", placeholder_node, 32], _getelem(args[0], 1, pos)],
+                ["mstore", placeholder_node, _getelem(args[0], 0)],
+                ["mstore", ["add", placeholder_node, 32], _getelem(args[0], 1)],
                 ["mstore", ["add", placeholder_node, 64], args[1]],
                 ["assert", ["staticcall", ["gas"], 7, placeholder_node, 96, placeholder_node, 64]],
                 placeholder_node,
             ],
             typ=SArrayType(BaseType("uint256"), 2),
-            pos=pos,
             location=MEMORY,
         )
         return o
@@ -966,13 +953,11 @@ class Extract32(_SimpleBuiltinFunction):
                     ],
                 ],
                 typ=BaseType(ret_type),
-                pos=getpos(expr),
                 annotation="extract32",
             )
         return IRnode.from_list(
             clamp_basetype(o),
             typ=ret_type,
-            pos=getpos(expr),
         )
 
 
@@ -1068,7 +1053,7 @@ class AsWeiValue:
         else:
             raise CompilerPanic(f"Unexpected type: {value.typ.typ}")
 
-        return IRnode.from_list(sub, typ=BaseType("uint256"), location=None, pos=getpos(expr))
+        return IRnode.from_list(sub, typ=BaseType("uint256"))
 
 
 zero_value = IRnode.from_list(0, typ=BaseType("uint256"))
@@ -1148,7 +1133,7 @@ class RawCall(_SimpleBuiltinFunction):
                 expr,
             )
 
-        eval_input_buf = ensure_in_memory(data, context, pos=getpos(expr))
+        eval_input_buf = ensure_in_memory(data, context)
         input_buf = eval_seq(eval_input_buf)
 
         output_node = IRnode.from_list(
@@ -1223,7 +1208,7 @@ class RawCall(_SimpleBuiltinFunction):
                 typ = bool_ty
                 ret_ir = call_ir
 
-        return IRnode.from_list(ret_ir, typ=typ, location=MEMORY, pos=getpos(expr))
+        return IRnode.from_list(ret_ir, typ=typ, location=MEMORY)
 
 
 class Send(_SimpleBuiltinFunction):
@@ -1242,8 +1227,6 @@ class Send(_SimpleBuiltinFunction):
             )
         return IRnode.from_list(
             ["assert", ["call", 0, to, value, 0, 0, 0, 0]],
-            typ=None,
-            pos=getpos(expr),
         )
 
 
@@ -1261,7 +1244,7 @@ class SelfDestruct(_SimpleBuiltinFunction):
                 f"Cannot {expr.func.id} inside {context.pp_constancy()}!",
                 expr.func,
             )
-        return IRnode.from_list(["selfdestruct", args[0]], typ=None, pos=getpos(expr))
+        return IRnode.from_list(["selfdestruct", args[0]])
 
 
 class BlockHash(_SimpleBuiltinFunction):
@@ -1275,7 +1258,6 @@ class BlockHash(_SimpleBuiltinFunction):
         return IRnode.from_list(
             ["blockhash", ["uclamplt", ["clampge", args[0], ["sub", ["number"], 256]], "number"]],
             typ=BaseType("bytes32"),
-            pos=getpos(expr),
         )
 
 
@@ -1313,10 +1295,9 @@ class RawLog:
                     ["mstore", placeholder, unwrap_location(args[1])],
                     ["log" + str(len(topics)), placeholder, 32] + topics,
                 ],
-                pos=getpos(expr),
             )
 
-        input_buf = ensure_in_memory(args[1], context, pos=getpos(expr))
+        input_buf = ensure_in_memory(args[1], context)
 
         return IRnode.from_list(
             [
@@ -1325,7 +1306,6 @@ class RawLog:
                 input_buf,
                 ["log" + str(len(topics)), ["add", "_sub", 32], ["mload", "_sub"], *topics],
             ],
-            pos=getpos(expr),
         )
 
 
@@ -1348,9 +1328,7 @@ class BitwiseAnd(_SimpleBuiltinFunction):
 
     @validate_inputs
     def build_IR(self, expr, args, kwargs, context):
-        return IRnode.from_list(
-            ["and", args[0], args[1]], typ=BaseType("uint256"), pos=getpos(expr)
-        )
+        return IRnode.from_list(["and", args[0], args[1]], typ=BaseType("uint256"))
 
 
 class BitwiseOr(_SimpleBuiltinFunction):
@@ -1372,7 +1350,7 @@ class BitwiseOr(_SimpleBuiltinFunction):
 
     @validate_inputs
     def build_IR(self, expr, args, kwargs, context):
-        return IRnode.from_list(["or", args[0], args[1]], typ=BaseType("uint256"), pos=getpos(expr))
+        return IRnode.from_list(["or", args[0], args[1]], typ=BaseType("uint256"))
 
 
 class BitwiseXor(_SimpleBuiltinFunction):
@@ -1394,9 +1372,7 @@ class BitwiseXor(_SimpleBuiltinFunction):
 
     @validate_inputs
     def build_IR(self, expr, args, kwargs, context):
-        return IRnode.from_list(
-            ["xor", args[0], args[1]], typ=BaseType("uint256"), pos=getpos(expr)
-        )
+        return IRnode.from_list(["xor", args[0], args[1]], typ=BaseType("uint256"))
 
 
 class BitwiseNot(_SimpleBuiltinFunction):
@@ -1419,7 +1395,7 @@ class BitwiseNot(_SimpleBuiltinFunction):
 
     @validate_inputs
     def build_IR(self, expr, args, kwargs, context):
-        return IRnode.from_list(["not", args[0]], typ=BaseType("uint256"), pos=getpos(expr))
+        return IRnode.from_list(["not", args[0]], typ=BaseType("uint256"))
 
 
 class Shift(_SimpleBuiltinFunction):
@@ -1460,7 +1436,7 @@ class Shift(_SimpleBuiltinFunction):
                     ir_node = ["shl", value, args[0]]
                 else:
                     ir_node = ["shr", abs(value), args[0]]
-                return IRnode.from_list(ir_node, typ=BaseType("uint256"), pos=getpos(expr))
+                return IRnode.from_list(ir_node, typ=BaseType("uint256"))
             else:
                 left_shift = ["shl", "_s", args[0]]
                 right_shift = ["shr", shift_abs, args[0]]
@@ -1480,11 +1456,7 @@ class Shift(_SimpleBuiltinFunction):
         else:
             node_list = right_shift
 
-        return IRnode.from_list(
-            ["with", "_s", args[1], node_list],
-            typ=BaseType("uint256"),
-            pos=getpos(expr),
-        )
+        return IRnode.from_list(["with", "_s", args[1], node_list], typ=BaseType("uint256"))
 
 
 class _AddMulMod(_SimpleBuiltinFunction):
@@ -1510,7 +1482,6 @@ class _AddMulMod(_SimpleBuiltinFunction):
         return IRnode.from_list(
             ["seq", ["assert", args[2]], [self._opcode, args[0], args[1], args[2]]],
             typ=BaseType("uint256"),
-            pos=getpos(expr),
         )
 
 
@@ -1546,7 +1517,7 @@ class PowMod256(_SimpleBuiltinFunction):
     def build_IR(self, expr, context):
         left = Expr.parse_value_expr(expr.args[0], context)
         right = Expr.parse_value_expr(expr.args[1], context)
-        return IRnode.from_list(["exp", left, right], typ=left.typ, pos=getpos(expr))
+        return IRnode.from_list(["exp", left, right], typ=left.typ)
 
 
 class Abs(_SimpleBuiltinFunction):
@@ -1582,7 +1553,7 @@ class Abs(_SimpleBuiltinFunction):
                 "orig",
             ],
         ]
-        return IRnode.from_list(sub, typ=BaseType("int256"), pos=getpos(expr))
+        return IRnode.from_list(sub, typ=BaseType("int256"))
 
 
 def get_create_forwarder_to_bytecode():
@@ -1687,7 +1658,6 @@ class CreateForwarderTo(_SimpleBuiltinFunction):
                 [op, *op_args],
             ],
             typ=BaseType("address"),
-            pos=getpos(expr),
             add_gas_estimate=11000,
         )
 
@@ -1824,7 +1794,7 @@ class _MinMax:
                 otyp.is_literal = False
             else:
                 raise TypeMismatch(f"Minmax types incompatible: {left.typ.typ} {right.typ.typ}")
-            return IRnode.from_list(b1.resolve(b2.resolve(o)), typ=otyp, pos=getpos(expr))
+            return IRnode.from_list(b1.resolve(b2.resolve(o)), typ=otyp)
 
 
 class Min(_MinMax):
@@ -1891,7 +1861,6 @@ else:
                 new_ctx.vars["z"].pos,
             ],
             typ=BaseType("decimal"),
-            pos=getpos(expr),
             location=MEMORY,
         )
 
@@ -1909,7 +1878,7 @@ class Empty:
     @validate_inputs
     def build_IR(self, expr, args, kwargs, context):
         output_type = context.parse_type(expr.args[0])
-        return IRnode("~empty", typ=output_type, pos=getpos(expr))
+        return IRnode("~empty", typ=output_type)
 
 
 class ABIEncode(_SimpleBuiltinFunction):
@@ -2022,8 +1991,6 @@ class ABIEncode(_SimpleBuiltinFunction):
         buf_t = ByteArrayType(maxlen=maxlen)
         buf = context.new_internal_variable(buf_t)
 
-        pos = getpos(expr)
-
         ret = ["seq"]
         if method_id is not None:
             # <32 bytes length> | <4 bytes method_id> | <everything else>
@@ -2031,17 +1998,13 @@ class ABIEncode(_SimpleBuiltinFunction):
             # overwrite the 28 bytes of zeros with the bytestring length
             ret += [["mstore", buf + 4, method_id]]
             # abi encode and grab length as stack item
-            length = abi_encode(
-                buf + 36, encode_input, context, pos, returns_len=True, bufsz=maxlen
-            )
+            length = abi_encode(buf + 36, encode_input, context, returns_len=True, bufsz=maxlen)
             # write the output length to where bytestring stores its length
             ret += [["mstore", buf, ["add", length, 4]]]
 
         else:
             # abi encode and grab length as stack item
-            length = abi_encode(
-                buf + 32, encode_input, context, pos, returns_len=True, bufsz=maxlen
-            )
+            length = abi_encode(buf + 32, encode_input, context, returns_len=True, bufsz=maxlen)
             # write the output length to where bytestring stores its length
             ret += [["mstore", buf, length]]
 
@@ -2053,7 +2016,6 @@ class ABIEncode(_SimpleBuiltinFunction):
             ret,
             location=MEMORY,
             typ=buf_t,
-            pos=pos,
             annotation=f"abi_encode builtin ensure_tuple={self._ensure_tuple(expr)}",
         )
 
