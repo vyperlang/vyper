@@ -15,6 +15,7 @@ from vyper.codegen.types import (
     ceil32,
     is_bytes_m_type,
     is_integer_type,
+    is_decimal_type,
 )
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import (

@@ -3,7 +3,7 @@ import copy
 import re
 from collections import OrderedDict
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Tuple
 
 from vyper import ast as vy_ast
 from vyper.abi_types import (
@@ -20,7 +20,7 @@ from vyper.abi_types import (
     ABIType,
 )
 from vyper.exceptions import ArgumentException, CompilerPanic, InvalidType
-from vyper.utils import ceil32
+from vyper.utils import ceil32, int_bounds
 
 # Available base types
 UNSIGNED_INTEGER_TYPES = {f"uint{8*(i+1)}" for i in range(32)}
@@ -84,6 +84,10 @@ class NodeType(abc.ABC):
 class NumericTypeInfo:
     bits: int
     is_signed: bool
+
+    @property
+    def bounds(self) -> Tuple[int, int]:
+        return int_bounds(signed=self.is_signed, bits=self.bits)
 
 
 @dataclass
@@ -508,19 +512,8 @@ def get_type_for_exact_size(n_bytes):
 
 # Is a type representing a number?
 def is_numeric_type(typ):
-    return isinstance(typ, BaseType) and typ.typ in (
-        "int128",
-        "int256",
-        "uint8",
-        "uint256",
-        "decimal",
-    )
-
-
-def is_signed_num(typ):
-    if not is_numeric_type(typ):
-        return None
-    return typ.typ.startswith("u")
+    # NOTE: not quite the same as hasattr(typ, "_num_info") (address has _num_info)
+    return is_integer_type(typ) or is_decimal_type(typ)
 
 
 # Is a type representing some particular base type?

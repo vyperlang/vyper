@@ -1405,7 +1405,7 @@ def get_lucky(gas_amount: uint256) -> int128:
     c2.set_contract(c1.address, transact={})
 
     assert c2.get_lucky(1000) == 656598
-    assert_tx_failed(lambda: c2.get_lucky(100))  # too little gas.
+    assert_tx_failed(lambda: c2.get_lucky(50))  # too little gas.
 
 
 def test_skip_contract_check(get_contract_with_gas_estimation):

@@ -18,6 +18,6 @@ def __init__(a: uint256):
     opcodes = vyper.compile_code(code, ["opcodes"])["opcodes"].split(" ")
     ir_return_idx = opcodes.index("JUMP")
 
-    assert "CALLDATACOPY" in opcodes
+    assert "CALLDATALOAD" in opcodes
     assert "CALLDATACOPY" not in opcodes[:ir_return_idx]
     assert "CALLDATALOAD" not in opcodes[:ir_return_idx]

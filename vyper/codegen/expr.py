@@ -206,6 +206,8 @@ class Expr:
         assert SizeLimits.in_bounds("decimal", val)
         assert math.ceil(val) == math.floor(val)
 
+        val = int(val)
+
         return IRnode.from_list(val, typ=BaseType("decimal", is_literal=True))
 
     def parse_Hex(self):
@@ -918,7 +920,7 @@ class Expr:
             # kludge to block behavior in #2638
             # TODO actually implement equality for complex types
             raise TypeMismatch(
-                "equality not yet supported for complex types, see issue #2638", self.expr
+                f"operation not yet supported for {left.typ}, {right.typ}, see issue #2638", self.expr.op
             )
 
         return IRnode.from_list([op, left, right], typ="bool", pos=getpos(self.expr))
@@ -972,7 +974,7 @@ class Expr:
             assert operand.typ._num_info.is_signed
             # Clamp on minimum integer value as we cannot negate that value
             # (all other integer values are fine)
-            min_int_val, _ = int_bounds(signed=True, bits=operand.typ._num_info.bits)
+            min_int_val, _ = operand.typ._num_info.bounds
             return IRnode.from_list(
                 ["sub", 0, ["clampgt", operand, min_int_val]],
                 typ=operand.typ,

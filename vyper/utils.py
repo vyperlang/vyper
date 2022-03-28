@@ -152,9 +152,9 @@ def evm_mod(x, y):
 
 # memory used for system purposes, not for variables
 class MemoryPositions:
-    FREE_VAR_SPACE = 32
-    FREE_VAR_SPACE2 = 64
-    RESERVED_MEMORY = 96
+    FREE_VAR_SPACE = 0
+    FREE_VAR_SPACE2 = 32
+    RESERVED_MEMORY = 64
 
 
 # Sizes of different data types. Used to clamp types.
@@ -175,11 +175,11 @@ class SizeLimits:
     @classmethod
     def in_bounds(cls, type_str, value):
         # TODO: fix this circular import
-        from vyper.codegen.types import parse_integer_typeinfo
+        from vyper.codegen.types import parse_integer_typeinfo, parse_decimal_info
 
         assert isinstance(type_str, str)
         if type_str == "decimal":
-            info = parse_decimal_typeinfo(type_str)
+            info = parse_decimal_info(type_str)
         else:
             info = parse_integer_typeinfo(type_str)
 
