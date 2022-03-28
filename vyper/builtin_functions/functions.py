@@ -5,13 +5,14 @@ from decimal import Decimal
 
 from vyper import ast as vy_ast
 from vyper.abi_types import ABI_Tuple
+from vyper.address_space import MEMORY, STORAGE
 from vyper.ast.signatures.function_signature import VariableRecord
 from vyper.ast.validation import validate_call_args
 from vyper.builtin_functions.convert import convert
 from vyper.codegen.abi_encoder import abi_encode
 from vyper.codegen.context import Context
 from vyper.codegen.core import (
-    LLLnode,
+    IRnode,
     add_ofst,
     bytes_data_ptr,
     check_external_call,
@@ -22,8 +23,7 @@ from vyper.codegen.core import (
     get_bytearray_length,
     get_element_ptr,
     getpos,
-    lll_tuple_from_args,
-    load_op,
+    ir_tuple_from_args,
     promote_signed_int,
     unwrap_location,
 )
@@ -123,8 +123,8 @@ class Floor(_SimpleBuiltinFunction):
         return vy_ast.Int.from_node(node, value=value)
 
     @validate_inputs
-    def build_LLL(self, expr, args, kwargs, context):
-        return LLLnode.from_list(
+    def build_IR(self, expr, args, kwargs, context):
+        return IRnode.from_list(
             [
                 "if",
                 ["slt", args[0], 0],
@@ -151,8 +151,8 @@ class Ceil(_SimpleBuiltinFunction):
         return vy_ast.Int.from_node(node, value=value)
 
     @validate_inputs
-    def build_LLL(self, expr, args, kwargs, context):
-        return LLLnode.from_list(
+    def build_IR(self, expr, args, kwargs, context):
+        return IRnode.from_list(
             [
                 "if",
                 ["slt", args[0], 0],
@@ -185,22 +185,15 @@ class Convert:
         # note: more type conversion validation happens in convert.py
         return target_type
 
-    def build_LLL(self, expr, context):
+    def build_IR(self, expr, context):
         return convert(expr, context)
 
 
 ADHOC_SLICE_NODE_MACROS = ["~calldata", "~selfcode", "~extcode"]
 
 
-def _build_adhoc_slice_node(
-    sub: LLLnode, start: LLLnode, length: LLLnode, context: Context
-) -> LLLnode:
-    # TODO validate at typechecker stage
-    if not isinstance(length.value, int):
-        macro_pretty_name = sub.value[1:]  # type: ignore
-        raise InvalidLiteral(
-            f"slice({macro_pretty_name} must use a compile-time constant for length argument"
-        )
+def _build_adhoc_slice_node(sub: IRnode, start: IRnode, length: IRnode, context: Context) -> IRnode:
+    assert length.is_literal, "typechecker failed"
 
     dst_typ = ByteArrayType(maxlen=length.value)
     # allocate a buffer for the return value
@@ -246,7 +239,7 @@ def _build_adhoc_slice_node(
             ],
         ]
 
-    return LLLnode.from_list(node, typ=ByteArrayType(length.value), location="memory")
+    return IRnode.from_list(node, typ=ByteArrayType(length.value), location=MEMORY)
 
 
 class Slice:
@@ -258,28 +251,57 @@ class Slice:
     def fetch_call_return(self, node):
         validate_call_args(node, 3)
 
-        for arg in node.args[1:]:
-            validate_expected_type(arg, Uint256Definition())
-        if isinstance(node.args[2], vy_ast.Int) and node.args[2].value < 1:
-            raise ArgumentException("Length cannot be less than 1", node.args[2])
-
         validate_expected_type(node.args[0], (BytesAbstractType(), StringPrimitive()))
-        type_list = get_possible_types_from_node(node.args[0])
+
+        arg_type = get_possible_types_from_node(node.args[0]).pop()
+
         try:
             validate_expected_type(node.args[0], StringPrimitive())
             return_type = StringDefinition()
         except VyperException:
             return_type = BytesArrayDefinition()
 
-        if isinstance(node.args[2], vy_ast.Int):
-            return_type.set_length(node.args[2].value)
+        for arg in node.args[1:]:
+            validate_expected_type(arg, Uint256Definition())
+
+        # validate start and length are in bounds
+
+        arg = node.args[0]
+        start_expr = node.args[1]
+        length_expr = node.args[2]
+
+        # CMC 2022-03-22 NOTE slight code duplication with semantics/validation/local
+        is_adhoc_slice = arg.get("attr") == "code" or (
+            arg.get("value.id") == "msg" and arg.get("attr") == "data"
+        )
+
+        start_literal = start_expr.value if isinstance(start_expr, vy_ast.Int) else None
+        length_literal = length_expr.value if isinstance(length_expr, vy_ast.Int) else None
+
+        if not is_adhoc_slice:
+            if length_literal is not None:
+                if length_literal < 1:
+                    raise ArgumentException("Length cannot be less than 1", length_expr)
+
+                if length_literal > arg_type.length:
+                    raise ArgumentException(f"slice out of bounds for {arg_type}", length_expr)
+
+            if start_literal is not None:
+                if start_literal > arg_type.length:
+                    raise ArgumentException("slice out of bounds for {arg_type}", start_expr)
+                if length_literal is not None and start_literal + length_literal > arg_type.length:
+                    raise ArgumentException("slice out of bounds for {arg_type}", node)
+
+        # we know the length statically
+        if length_literal is not None:
+            return_type.set_length(length_literal)
         else:
-            return_type.set_min_length(type_list[0].length)
+            return_type.set_min_length(arg_type.length)
 
         return return_type
 
     @validate_inputs
-    def build_LLL(self, expr, args, kwargs, context):
+    def build_IR(self, expr, args, kwargs, context):
 
         src, start, length = args
 
@@ -304,21 +326,13 @@ class Slice:
             else:
                 src_maxlen = src.typ.maxlen
 
-            if start.is_literal and length.is_literal:
-                # TODO this should be moved to typechecker
-                if not (0 <= start.value + length.value <= src_maxlen):
-                    raise InvalidLiteral(
-                        f"slice out of bounds: slice({src.typ}, {start.value}, {length.value})",
-                        expr,
-                    )
-
             dst_maxlen = length.value if length.is_literal else src_maxlen
 
             buflen = dst_maxlen
 
             # add 32 bytes to the buffer size bc word access might
             # be unaligned (see below)
-            if src.location == "storage":
+            if src.location == STORAGE:
                 buflen += 32
 
             # Get returntype string or bytes
@@ -332,7 +346,7 @@ class Slice:
             buf = context.new_internal_variable(ByteArrayType(buflen))
             # assign it the correct return type.
             # (note mismatch between dst_maxlen and buflen)
-            dst = LLLnode.from_list(buf, typ=dst_typ, location="memory")
+            dst = IRnode.from_list(buf, typ=dst_typ, location=MEMORY)
 
             dst_data = bytes_data_ptr(dst)
 
@@ -344,7 +358,7 @@ class Slice:
                 src_data = bytes_data_ptr(src)
 
             # general case. byte-for-byte copy
-            if src.location == "storage":
+            if src.location == STORAGE:
                 # because slice uses byte-addressing but storage
                 # is word-aligned, this algorithm starts at some number
                 # of bytes before the data section starts, and might copy
@@ -361,7 +375,7 @@ class Slice:
                 # start at the first word-aligned address before `start`
                 # e.g. start == byte 7 -> we start copying from byte 0
                 #      start == byte 32 -> we start copying from byte 32
-                copy_src = LLLnode.from_list(
+                copy_src = IRnode.from_list(
                     ["add", src_data, ["div", start, 32]],
                     location=src.location,
                 )
@@ -370,13 +384,13 @@ class Slice:
                 #      start == byte 7 -> we copy to dst_data - 7
                 #      start == byte 33 -> we copy to dst_data - 1
                 # TODO add optimizer rule for modulus-powers-of-two
-                copy_dst = LLLnode.from_list(
+                copy_dst = IRnode.from_list(
                     ["sub", dst_data, ["mod", start, 32]], location=dst.location
                 )
 
                 # len + (32 if start % 32 > 0 else 0)
-                copy_len = ["add", length, ["mul", 32, ["iszero", ["iszero", ["mod", 32, start]]]]]
-                copy_maxlen = dst_maxlen
+                copy_len = ["add", length, ["mul", 32, ["iszero", ["iszero", ["mod", start, 32]]]]]
+                copy_maxlen = buflen
 
             else:
                 # all other address spaces (mem, calldata, code) we have
@@ -386,7 +400,7 @@ class Slice:
                 copy_src = add_ofst(src_data, start)
                 copy_dst = dst_data
                 copy_len = length
-                copy_maxlen = dst_maxlen
+                copy_maxlen = buflen
 
             do_copy = copy_bytes(
                 copy_dst,
@@ -404,7 +418,7 @@ class Slice:
                 ["mstore", dst, length],  # set length
                 dst,  # return pointer to dst
             ]
-            ret = LLLnode.from_list(ret, typ=dst_typ, location="memory", pos=getpos(expr))
+            ret = IRnode.from_list(ret, typ=dst_typ, location=MEMORY, pos=getpos(expr))
             return b1.resolve(b2.resolve(b3.resolve(ret)))
 
 
@@ -427,10 +441,10 @@ class Len(_SimpleBuiltinFunction):
 
         return vy_ast.Int.from_node(node, value=length)
 
-    def build_LLL(self, node, context):
-        arg = Expr(node.args[0], context).lll_node
+    def build_IR(self, node, context):
+        arg = Expr(node.args[0], context).ir_node
         if arg.value == "~calldata":
-            return LLLnode.from_list(["calldatasize"], typ="uint256")
+            return IRnode.from_list(["calldatasize"], typ="uint256")
         return get_bytearray_length(arg)
 
 
@@ -470,8 +484,8 @@ class Concat:
         return_type.set_length(length)
         return return_type
 
-    def build_LLL(self, expr, context):
-        args = [Expr(arg, context).lll_node for arg in expr.args]
+    def build_IR(self, expr, context):
+        args = [Expr(arg, context).ir_node for arg in expr.args]
         if len(args) < 2:
             raise StructureException("Concat expects at least two arguments", expr)
 
@@ -504,6 +518,9 @@ class Concat:
         total_maxlen = sum(
             [arg.typ.maxlen if isinstance(arg.typ, ByteArrayLike) else 32 for arg in args]
         )
+
+        # TODO: rewrite to use codegen.core routines
+
         # Node representing the position of the output in memory
         placeholder = context.new_internal_variable(ReturnType(total_maxlen))
         # Object representing the output
@@ -512,37 +529,26 @@ class Concat:
         for arg in args:
             # Start pasting into a position the starts at zero, and keeps
             # incrementing as we concatenate arguments
-            placeholder_node = LLLnode.from_list(
+            placeholder_node = IRnode.from_list(
                 ["add", placeholder, "_poz"],
                 typ=ReturnType(total_maxlen),
-                location="memory",
+                location=MEMORY,
             )
-            placeholder_node_plus_32 = LLLnode.from_list(
+            placeholder_node_plus_32 = IRnode.from_list(
                 ["add", ["add", placeholder, "_poz"], 32],
                 typ=ReturnType(total_maxlen),
-                location="memory",
+                location=MEMORY,
             )
             if isinstance(arg.typ, ReturnType):
                 # Ignore empty strings
                 if arg.typ.maxlen == 0:
                     continue
-                # Get the length of the current argument
-                if arg.location in ("memory", "calldata", "data", "immutables"):
-                    length = LLLnode.from_list(
-                        [load_op(arg.location), "_arg"], typ=BaseType("int128")
-                    )
-                    argstart = LLLnode.from_list(
-                        ["add", "_arg", 32],
-                        typ=arg.typ,
-                        location=arg.location,
-                    )
-                elif arg.location == "storage":
-                    length = LLLnode.from_list(["sload", "_arg"], typ=BaseType("int128"))
-                    argstart = LLLnode.from_list(
-                        ["add", "_arg", 1],
-                        typ=arg.typ,
-                        location=arg.location,
-                    )
+
+                length = [arg.location.load_op, "_arg"]
+                argstart = IRnode.from_list(
+                    ["add", "_arg", arg.location.word_scale], location=arg.location
+                )
+
                 # Make a copier to copy over data from that argument
                 seq.append(
                     [
@@ -577,10 +583,10 @@ class Concat:
         seq.append(["mstore", placeholder, "_poz"])
         # Memory location of the output
         seq.append(placeholder)
-        return LLLnode.from_list(
+        return IRnode.from_list(
             ["with", "_poz", 0, ["seq"] + seq],
             typ=ReturnType(total_maxlen),
-            location="memory",
+            location=MEMORY,
             pos=getpos(expr),
             annotation="concat",
         )
@@ -608,7 +614,7 @@ class Keccak256(_SimpleBuiltinFunction):
         return vy_ast.Hex.from_node(node, value=hash_)
 
     @validate_inputs
-    def build_LLL(self, expr, args, kwargs, context):
+    def build_IR(self, expr, args, kwargs, context):
         assert len(args) == 1
         return keccak256_helper(expr, args[0], context)
 
@@ -650,11 +656,11 @@ class Sha256(_SimpleBuiltinFunction):
         return vy_ast.Hex.from_node(node, value=hash_)
 
     @validate_inputs
-    def build_LLL(self, expr, args, kwargs, context):
+    def build_IR(self, expr, args, kwargs, context):
         sub = args[0]
         # bytes32 input
         if is_base_type(sub.typ, "bytes32"):
-            return LLLnode.from_list(
+            return IRnode.from_list(
                 [
                     "seq",
                     ["mstore", MemoryPositions.FREE_VAR_SPACE, sub],
@@ -674,7 +680,7 @@ class Sha256(_SimpleBuiltinFunction):
         # special case if it's already in memory
         sub = ensure_in_memory(sub, context, pos=getpos(expr))
 
-        return LLLnode.from_list(
+        return IRnode.from_list(
             [
                 "with",
                 "_sub",
@@ -735,7 +741,7 @@ class MethodID:
     def fetch_call_return(self, node):
         raise CompilerPanic("method_id should always be folded")
 
-    def build_LLL(self, *args, **kwargs):
+    def build_IR(self, *args, **kwargs):
         raise CompilerPanic("method_id should always be folded")
 
 
@@ -751,13 +757,13 @@ class ECRecover(_SimpleBuiltinFunction):
     _return_type = AddressDefinition()
 
     @validate_inputs
-    def build_LLL(self, expr, args, kwargs, context):
-        placeholder_node = LLLnode.from_list(
+    def build_IR(self, expr, args, kwargs, context):
+        placeholder_node = IRnode.from_list(
             context.new_internal_variable(ByteArrayType(128)),
             typ=ByteArrayType(128),
-            location="memory",
+            location=MEMORY,
         )
-        return LLLnode.from_list(
+        return IRnode.from_list(
             [
                 "seq",
                 ["mstore", placeholder_node, args[0]],
@@ -784,7 +790,7 @@ class ECRecover(_SimpleBuiltinFunction):
 
 
 def _getelem(arg, ind, pos):
-    return unwrap_location(get_element_ptr(arg, LLLnode.from_list(ind, "int128"), pos=pos))
+    return unwrap_location(get_element_ptr(arg, IRnode.from_list(ind, "int128"), pos=pos))
 
 
 class ECAdd(_SimpleBuiltinFunction):
@@ -797,14 +803,14 @@ class ECAdd(_SimpleBuiltinFunction):
     _return_type = ArrayDefinition(Uint256Definition(), 2)
 
     @validate_inputs
-    def build_LLL(self, expr, args, kwargs, context):
-        placeholder_node = LLLnode.from_list(
+    def build_IR(self, expr, args, kwargs, context):
+        placeholder_node = IRnode.from_list(
             context.new_internal_variable(ByteArrayType(128)),
             typ=ByteArrayType(128),
-            location="memory",
+            location=MEMORY,
         )
         pos = getpos(expr)
-        o = LLLnode.from_list(
+        o = IRnode.from_list(
             [
                 "seq",
                 ["mstore", placeholder_node, _getelem(args[0], 0, pos)],
@@ -816,7 +822,7 @@ class ECAdd(_SimpleBuiltinFunction):
             ],
             typ=SArrayType(BaseType("uint256"), 2),
             pos=getpos(expr),
-            location="memory",
+            location=MEMORY,
         )
         return o
 
@@ -828,14 +834,14 @@ class ECMul(_SimpleBuiltinFunction):
     _return_type = ArrayDefinition(Uint256Definition(), 2)
 
     @validate_inputs
-    def build_LLL(self, expr, args, kwargs, context):
-        placeholder_node = LLLnode.from_list(
+    def build_IR(self, expr, args, kwargs, context):
+        placeholder_node = IRnode.from_list(
             context.new_internal_variable(ByteArrayType(128)),
             typ=ByteArrayType(128),
-            location="memory",
+            location=MEMORY,
         )
         pos = getpos(expr)
-        o = LLLnode.from_list(
+        o = IRnode.from_list(
             [
                 "seq",
                 ["mstore", placeholder_node, _getelem(args[0], 0, pos)],
@@ -846,14 +852,14 @@ class ECMul(_SimpleBuiltinFunction):
             ],
             typ=SArrayType(BaseType("uint256"), 2),
             pos=pos,
-            location="memory",
+            location=MEMORY,
         )
         return o
 
 
 def _generic_element_getter(op):
     def f(index):
-        return LLLnode.from_list(
+        return IRnode.from_list(
             [op, ["add", "_sub", ["add", 32, ["mul", 32, index]]]],
             typ=BaseType("int128"),
         )
@@ -862,7 +868,7 @@ def _generic_element_getter(op):
 
 
 def _storage_element_getter(index):
-    return LLLnode.from_list(
+    return IRnode.from_list(
         ["sload", ["add", "_sub", ["add", 1, index]]],
         typ=BaseType("int128"),
     )
@@ -889,22 +895,25 @@ class Extract32(_SimpleBuiltinFunction):
         return return_type
 
     @validate_inputs
-    def build_LLL(self, expr, args, kwargs, context):
+    def build_IR(self, expr, args, kwargs, context):
         sub, index = args
         ret_type = kwargs["output_type"]
+
         # Get length and specific element
-        if sub.location == "storage":
-            lengetter = LLLnode.from_list(["sload", "_sub"], typ=BaseType("int128"))
+        if sub.location == STORAGE:
+            lengetter = IRnode.from_list(["sload", "_sub"], typ=BaseType("int128"))
             elementgetter = _storage_element_getter
 
         else:
-            op = load_op(sub.location)
-            lengetter = LLLnode.from_list([op, "_sub"], typ=BaseType("int128"))
+            op = sub.location.load_op
+            lengetter = IRnode.from_list([op, "_sub"], typ=BaseType("int128"))
             elementgetter = _generic_element_getter(op)
+
+        # TODO rewrite all this with cache_when_complex and bitshifts
 
         # Special case: index known to be a multiple of 32
         if isinstance(index.value, int) and not index.value % 32:
-            o = LLLnode.from_list(
+            o = IRnode.from_list(
                 [
                     "with",
                     "_sub",
@@ -916,7 +925,7 @@ class Extract32(_SimpleBuiltinFunction):
             )
         # General case
         else:
-            o = LLLnode.from_list(
+            o = IRnode.from_list(
                 [
                     "with",
                     "_sub",
@@ -960,7 +969,7 @@ class Extract32(_SimpleBuiltinFunction):
                 pos=getpos(expr),
                 annotation="extract32",
             )
-        return LLLnode.from_list(
+        return IRnode.from_list(
             clamp_basetype(o),
             typ=ret_type,
             pos=getpos(expr),
@@ -1024,7 +1033,7 @@ class AsWeiValue:
         return self._return_type
 
     @validate_inputs
-    def build_LLL(self, expr, args, kwargs, context):
+    def build_IR(self, expr, args, kwargs, context):
         value, denom_name = args[0], args[1].decode()
 
         denom_divisor = next(v for k, v in self.wei_denoms.items() if denom_name in k)
@@ -1059,13 +1068,13 @@ class AsWeiValue:
         else:
             raise CompilerPanic(f"Unexpected type: {value.typ.typ}")
 
-        return LLLnode.from_list(sub, typ=BaseType("uint256"), location=None, pos=getpos(expr))
+        return IRnode.from_list(sub, typ=BaseType("uint256"), location=None, pos=getpos(expr))
 
 
-zero_value = LLLnode.from_list(0, typ=BaseType("uint256"))
-empty_value = LLLnode.from_list(0, typ=BaseType("bytes32"))
-false_value = LLLnode.from_list(0, typ=BaseType("bool", is_literal=True))
-true_value = LLLnode.from_list(1, typ=BaseType("bool", is_literal=True))
+zero_value = IRnode.from_list(0, typ=BaseType("uint256"))
+empty_value = IRnode.from_list(0, typ=BaseType("bytes32"))
+false_value = IRnode.from_list(0, typ=BaseType("bool", is_literal=True))
+true_value = IRnode.from_list(1, typ=BaseType("bool", is_literal=True))
 
 
 class RawCall(_SimpleBuiltinFunction):
@@ -1108,7 +1117,7 @@ class RawCall(_SimpleBuiltinFunction):
             return TupleDefinition([BoolDefinition(), return_type])
 
     @validate_inputs
-    def build_LLL(self, expr, args, kwargs, context):
+    def build_IR(self, expr, args, kwargs, context):
         to, data = args
         gas, value, outsize, delegate_call, static_call, revert_on_failure = (
             kwargs["gas"],
@@ -1123,7 +1132,7 @@ class RawCall(_SimpleBuiltinFunction):
                 raise TypeMismatch(
                     f"The `{key}` parameter must be a static/literal boolean value", expr
                 )
-        # turn LLL literals into python values
+        # turn IR literals into python values
         revert_on_failure = revert_on_failure.value == 1
         static_call = static_call.value == 1
         delegate_call = delegate_call.value == 1
@@ -1142,21 +1151,21 @@ class RawCall(_SimpleBuiltinFunction):
         eval_input_buf = ensure_in_memory(data, context, pos=getpos(expr))
         input_buf = eval_seq(eval_input_buf)
 
-        output_node = LLLnode.from_list(
+        output_node = IRnode.from_list(
             context.new_internal_variable(ByteArrayType(outsize)),
             typ=ByteArrayType(outsize),
-            location="memory",
+            location=MEMORY,
         )
 
         bool_ty = BaseType("bool")
 
         if input_buf is None:
-            call_lll = ["with", "arg_buf", eval_input_buf]
-            input_buf = LLLnode.from_list("arg_buf")
+            call_ir = ["with", "arg_buf", eval_input_buf]
+            input_buf = IRnode.from_list("arg_buf")
         else:
-            call_lll = ["seq", eval_input_buf]
+            call_ir = ["seq", eval_input_buf]
 
-        # build LLL for call or delegatecall
+        # build IR for call or delegatecall
         common_call_args = [
             add_ofst(input_buf, 32),
             ["mload", input_buf],  # buf len
@@ -1171,9 +1180,9 @@ class RawCall(_SimpleBuiltinFunction):
             call_op = ["staticcall", gas, to, *common_call_args]
         else:
             call_op = ["call", gas, to, value, *common_call_args]
-        call_lll += [call_op]
+        call_ir += [call_op]
 
-        # build sequence LLL
+        # build sequence IR
         if outsize:
             # return minimum of outsize and returndatasize
             size = [
@@ -1195,26 +1204,26 @@ class RawCall(_SimpleBuiltinFunction):
 
             if revert_on_failure:
                 typ = bytes_ty
-                ret_lll = ["seq", check_external_call(call_lll), store_output_size]
+                ret_ir = ["seq", check_external_call(call_ir), store_output_size]
             else:
                 typ = TupleType([bool_ty, bytes_ty])
-                ret_lll = [
+                ret_ir = [
                     "multi",
-                    # use LLLnode.from_list to make sure the types are
+                    # use IRnode.from_list to make sure the types are
                     # set properly on the "multi" members
-                    LLLnode.from_list(call_lll, typ=bool_ty),
-                    LLLnode.from_list(store_output_size, typ=bytes_ty, location="memory"),
+                    IRnode.from_list(call_ir, typ=bool_ty),
+                    IRnode.from_list(store_output_size, typ=bytes_ty, location=MEMORY),
                 ]
 
         else:
             if revert_on_failure:
                 typ = None
-                ret_lll = check_external_call(call_lll)
+                ret_ir = check_external_call(call_ir)
             else:
                 typ = bool_ty
-                ret_lll = call_lll
+                ret_ir = call_ir
 
-        return LLLnode.from_list(ret_lll, typ=typ, location="memory", pos=getpos(expr))
+        return IRnode.from_list(ret_ir, typ=typ, location=MEMORY, pos=getpos(expr))
 
 
 class Send(_SimpleBuiltinFunction):
@@ -1224,14 +1233,14 @@ class Send(_SimpleBuiltinFunction):
     _return_type = None
 
     @validate_inputs
-    def build_LLL(self, expr, args, kwargs, context):
+    def build_IR(self, expr, args, kwargs, context):
         to, value = args
         if context.is_constant():
             raise StateAccessViolation(
                 f"Cannot send ether inside {context.pp_constancy()}!",
                 expr,
             )
-        return LLLnode.from_list(
+        return IRnode.from_list(
             ["assert", ["call", 0, to, value, 0, 0, 0, 0]],
             typ=None,
             pos=getpos(expr),
@@ -1246,13 +1255,13 @@ class SelfDestruct(_SimpleBuiltinFunction):
     _is_terminus = True
 
     @validate_inputs
-    def build_LLL(self, expr, args, kwargs, context):
+    def build_IR(self, expr, args, kwargs, context):
         if context.is_constant():
             raise StateAccessViolation(
                 f"Cannot {expr.func.id} inside {context.pp_constancy()}!",
                 expr.func,
             )
-        return LLLnode.from_list(["selfdestruct", args[0]], typ=None, pos=getpos(expr))
+        return IRnode.from_list(["selfdestruct", args[0]], typ=None, pos=getpos(expr))
 
 
 class BlockHash(_SimpleBuiltinFunction):
@@ -1262,8 +1271,8 @@ class BlockHash(_SimpleBuiltinFunction):
     _return_type = Bytes32Definition()
 
     @validate_inputs
-    def build_LLL(self, expr, args, kwargs, contact):
-        return LLLnode.from_list(
+    def build_IR(self, expr, args, kwargs, contact):
+        return IRnode.from_list(
             ["blockhash", ["uclamplt", ["clampge", args[0], ["sub", ["number"], 256]], "number"]],
             typ=BaseType("bytes32"),
             pos=getpos(expr),
@@ -1286,7 +1295,7 @@ class RawLog:
         validate_expected_type(node.args[1], BytesAbstractType())
 
     @validate_inputs
-    def build_LLL(self, expr, args, kwargs, context):
+    def build_IR(self, expr, args, kwargs, context):
         if not isinstance(args[0], vy_ast.List) or len(args[0].elements) > 4:
             raise StructureException("Expecting a list of 0-4 topics as first argument", args[0])
         topics = []
@@ -1297,7 +1306,7 @@ class RawLog:
             topics.append(arg)
         if args[1].typ == BaseType("bytes32"):
             placeholder = context.new_internal_variable(BaseType("bytes32"))
-            return LLLnode.from_list(
+            return IRnode.from_list(
                 [
                     "seq",
                     # TODO use make_setter
@@ -1309,7 +1318,7 @@ class RawLog:
 
         input_buf = ensure_in_memory(args[1], context, pos=getpos(expr))
 
-        return LLLnode.from_list(
+        return IRnode.from_list(
             [
                 "with",
                 "_sub",
@@ -1338,8 +1347,8 @@ class BitwiseAnd(_SimpleBuiltinFunction):
         return vy_ast.Int.from_node(node, value=value)
 
     @validate_inputs
-    def build_LLL(self, expr, args, kwargs, context):
-        return LLLnode.from_list(
+    def build_IR(self, expr, args, kwargs, context):
+        return IRnode.from_list(
             ["and", args[0], args[1]], typ=BaseType("uint256"), pos=getpos(expr)
         )
 
@@ -1362,10 +1371,8 @@ class BitwiseOr(_SimpleBuiltinFunction):
         return vy_ast.Int.from_node(node, value=value)
 
     @validate_inputs
-    def build_LLL(self, expr, args, kwargs, context):
-        return LLLnode.from_list(
-            ["or", args[0], args[1]], typ=BaseType("uint256"), pos=getpos(expr)
-        )
+    def build_IR(self, expr, args, kwargs, context):
+        return IRnode.from_list(["or", args[0], args[1]], typ=BaseType("uint256"), pos=getpos(expr))
 
 
 class BitwiseXor(_SimpleBuiltinFunction):
@@ -1386,8 +1393,8 @@ class BitwiseXor(_SimpleBuiltinFunction):
         return vy_ast.Int.from_node(node, value=value)
 
     @validate_inputs
-    def build_LLL(self, expr, args, kwargs, context):
-        return LLLnode.from_list(
+    def build_IR(self, expr, args, kwargs, context):
+        return IRnode.from_list(
             ["xor", args[0], args[1]], typ=BaseType("uint256"), pos=getpos(expr)
         )
 
@@ -1411,8 +1418,8 @@ class BitwiseNot(_SimpleBuiltinFunction):
         return vy_ast.Int.from_node(node, value=value)
 
     @validate_inputs
-    def build_LLL(self, expr, args, kwargs, context):
-        return LLLnode.from_list(["not", args[0]], typ=BaseType("uint256"), pos=getpos(expr))
+    def build_IR(self, expr, args, kwargs, context):
+        return IRnode.from_list(["not", args[0]], typ=BaseType("uint256"), pos=getpos(expr))
 
 
 class Shift(_SimpleBuiltinFunction):
@@ -1438,7 +1445,7 @@ class Shift(_SimpleBuiltinFunction):
         return vy_ast.Int.from_node(node, value=value)
 
     @validate_inputs
-    def build_LLL(self, expr, args, kwargs, context):
+    def build_IR(self, expr, args, kwargs, context):
         if args[1].typ.is_literal:
             shift_abs = abs(args[1].value)
         else:
@@ -1450,10 +1457,10 @@ class Shift(_SimpleBuiltinFunction):
                 # optimization when SHL/SHR instructions are available shift distance is a literal
                 value = args[1].value
                 if value >= 0:
-                    lll_node = ["shl", value, args[0]]
+                    ir_node = ["shl", value, args[0]]
                 else:
-                    lll_node = ["shr", abs(value), args[0]]
-                return LLLnode.from_list(lll_node, typ=BaseType("uint256"), pos=getpos(expr))
+                    ir_node = ["shr", abs(value), args[0]]
+                return IRnode.from_list(ir_node, typ=BaseType("uint256"), pos=getpos(expr))
             else:
                 left_shift = ["shl", "_s", args[0]]
                 right_shift = ["shr", shift_abs, args[0]]
@@ -1473,7 +1480,7 @@ class Shift(_SimpleBuiltinFunction):
         else:
             node_list = right_shift
 
-        return LLLnode.from_list(
+        return IRnode.from_list(
             ["with", "_s", args[1], node_list],
             typ=BaseType("uint256"),
             pos=getpos(expr),
@@ -1499,8 +1506,8 @@ class _AddMulMod(_SimpleBuiltinFunction):
         return vy_ast.Int.from_node(node, value=value)
 
     @validate_inputs
-    def build_LLL(self, expr, args, kwargs, context):
-        return LLLnode.from_list(
+    def build_IR(self, expr, args, kwargs, context):
+        return IRnode.from_list(
             ["seq", ["assert", args[2]], [self._opcode, args[0], args[1], args[2]]],
             typ=BaseType("uint256"),
             pos=getpos(expr),
@@ -1536,10 +1543,10 @@ class PowMod256(_SimpleBuiltinFunction):
         value = (left.value ** right.value) % (2 ** 256)
         return vy_ast.Int.from_node(node, value=value)
 
-    def build_LLL(self, expr, context):
+    def build_IR(self, expr, context):
         left = Expr.parse_value_expr(expr.args[0], context)
         right = Expr.parse_value_expr(expr.args[1], context)
-        return LLLnode.from_list(["exp", left, right], typ=left.typ, pos=getpos(expr))
+        return IRnode.from_list(["exp", left, right], typ=left.typ, pos=getpos(expr))
 
 
 class Abs(_SimpleBuiltinFunction):
@@ -1561,7 +1568,7 @@ class Abs(_SimpleBuiltinFunction):
 
         return vy_ast.Int.from_node(node, value=value)
 
-    def build_LLL(self, expr, context):
+    def build_IR(self, expr, context):
         value = Expr.parse_value_expr(expr.args[0], context)
         sub = [
             "with",
@@ -1575,12 +1582,12 @@ class Abs(_SimpleBuiltinFunction):
                 "orig",
             ],
         ]
-        return LLLnode.from_list(sub, typ=BaseType("int256"), pos=getpos(expr))
+        return IRnode.from_list(sub, typ=BaseType("int256"), pos=getpos(expr))
 
 
 def get_create_forwarder_to_bytecode():
     # NOTE cyclic import?
-    from vyper.lll.compile_lll import assembly_to_evm
+    from vyper.ir.compile_ir import assembly_to_evm
 
     loader_asm = [
         "PUSH1",
@@ -1637,7 +1644,7 @@ class CreateForwarderTo(_SimpleBuiltinFunction):
     _return_type = AddressDefinition()
 
     @validate_inputs
-    def build_LLL(self, expr, args, kwargs, context):
+    def build_IR(self, expr, args, kwargs, context):
         value = kwargs["value"]
         salt = kwargs["salt"]
         should_use_create2 = "salt" in [kwarg.arg for kwarg in expr.keywords]
@@ -1671,7 +1678,7 @@ class CreateForwarderTo(_SimpleBuiltinFunction):
             op = "create2"
             op_args.append(salt)
 
-        return LLLnode.from_list(
+        return IRnode.from_list(
             [
                 "seq",
                 ["mstore", placeholder, forwarder_preamble],
@@ -1702,7 +1709,7 @@ class _UnsafeMath:
         return types_list.pop()
 
     @validate_inputs
-    def build_LLL(self, expr, args, kwargs, context):
+    def build_IR(self, expr, args, kwargs, context):
         (a, b) = args
         op = self.op
 
@@ -1726,7 +1733,7 @@ class _UnsafeMath:
                 # TODO mod_bound could be a really large literal
                 ret = ["mod", ret, 2 ** int_info.bits]
 
-        return LLLnode.from_list(ret, typ=otyp)
+        return IRnode.from_list(ret, typ=otyp)
 
         # TODO handle decimal case
 
@@ -1781,7 +1788,7 @@ class _MinMax:
         return types_list.pop()
 
     @validate_inputs
-    def build_LLL(self, expr, args, kwargs, context):
+    def build_IR(self, expr, args, kwargs, context):
         def _can_compare_with_uint256(operand):
             if operand.typ.typ == "uint256":
                 return True
@@ -1817,7 +1824,7 @@ class _MinMax:
                 otyp.is_literal = False
             else:
                 raise TypeMismatch(f"Minmax types incompatible: {left.typ.typ} {right.typ.typ}")
-            return LLLnode.from_list(b1.resolve(b2.resolve(o)), typ=otyp, pos=getpos(expr))
+            return IRnode.from_list(b1.resolve(b2.resolve(o)), typ=otyp, pos=getpos(expr))
 
 
 class Min(_MinMax):
@@ -1839,7 +1846,7 @@ class Sqrt(_SimpleBuiltinFunction):
     _return_type = DecimalDefinition()
 
     @validate_inputs
-    def build_LLL(self, expr, args, kwargs, context):
+    def build_IR(self, expr, args, kwargs, context):
         # TODO check out this import
         from vyper.builtin_functions.utils import generate_inline_function
 
@@ -1872,20 +1879,20 @@ else:
             placeholder_copy = ["mstore", new_var_pos, arg]
         # Create input variables.
         variables = {"x": VariableRecord(name="x", pos=new_var_pos, typ=x_type, mutable=False)}
-        # Generate inline LLL.
-        new_ctx, sqrt_lll = generate_inline_function(
+        # Generate inline IR.
+        new_ctx, sqrt_ir = generate_inline_function(
             code=sqrt_code, variables=variables, memory_allocator=context.memory_allocator
         )
-        return LLLnode.from_list(
+        return IRnode.from_list(
             [
                 "seq",
                 placeholder_copy,  # load x variable
-                sqrt_lll,
+                sqrt_ir,
                 new_ctx.vars["z"].pos,
             ],
             typ=BaseType("decimal"),
             pos=getpos(expr),
-            location="memory",
+            location=MEMORY,
         )
 
 
@@ -1900,9 +1907,9 @@ class Empty:
         return type_
 
     @validate_inputs
-    def build_LLL(self, expr, args, kwargs, context):
+    def build_IR(self, expr, args, kwargs, context):
         output_type = context.parse_type(expr.args[0])
-        return LLLnode("~empty", typ=output_type, pos=getpos(expr))
+        return IRnode("~empty", typ=output_type, pos=getpos(expr))
 
 
 class ABIEncode(_SimpleBuiltinFunction):
@@ -1992,10 +1999,10 @@ class ABIEncode(_SimpleBuiltinFunction):
         ret.set_length(maxlen)
         return ret
 
-    def build_LLL(self, expr, context):
+    def build_IR(self, expr, context):
         method_id = self._method_id(expr)
 
-        args = [Expr(arg, context).lll_node for arg in expr.args]
+        args = [Expr(arg, context).ir_node for arg in expr.args]
 
         if len(args) < 1:
             raise StructureException("abi_encode expects at least one argument", expr)
@@ -2005,7 +2012,7 @@ class ABIEncode(_SimpleBuiltinFunction):
             # special case, no tuple
             encode_input = args[0]
         else:
-            encode_input = lll_tuple_from_args(args)
+            encode_input = ir_tuple_from_args(args)
 
         input_abi_t = encode_input.typ.abi_type
         maxlen = input_abi_t.size_bound()
@@ -2042,9 +2049,9 @@ class ABIEncode(_SimpleBuiltinFunction):
         # TODO location is statically known, optimize this out
         ret += [buf]
 
-        return LLLnode.from_list(
+        return IRnode.from_list(
             ret,
-            location="memory",
+            location=MEMORY,
             typ=buf_t,
             pos=pos,
             annotation=f"abi_encode builtin ensure_tuple={self._ensure_tuple(expr)}",

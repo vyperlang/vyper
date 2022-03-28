@@ -250,8 +250,9 @@ jobs:
       id: test_durations_cache
       with:
         path: .test_durations
-        # change the version to reset the cache
-        key: ${{ runner.os }}-test-durations-cache-v1
+        # change the version to reset the cache, do this if
+        # the fuzzer tests get unbalanced
+        key: ${{ runner.os }}-test-durations-cache-v2
 
     - name: Check test durations existence
       id: check_test_durations

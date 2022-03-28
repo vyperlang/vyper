@@ -65,6 +65,8 @@ class NodeType(abc.ABC):
 
     @property
     def storage_size_in_words(self) -> int:
+        # consider renaming if other word-addressable address spaces are
+        # added to EVM or exist in other arches
         """
         Returns the number of words required to allocate in storage for this type
         """
@@ -156,7 +158,7 @@ class BaseType(NodeType):
     def __init__(self, typename, is_literal=False):
         self.typ = typename  # e.g. "uint256"
         # TODO remove is_literal,
-        # change to property on LLLnode: `isinstance(self.value, int)`
+        # change to property on IRnode: `isinstance(self.value, int)`
         self.is_literal = is_literal
 
         if is_integer_type(self):
@@ -371,7 +373,7 @@ def make_struct_type(name, sigs, members, custom_structs):
 
 
 # Parses an expression representing a type.
-# TODO: rename me to "lll_type_from_annotation"
+# TODO: rename me to "ir_type_from_annotation"
 def parse_type(item, sigs, custom_structs):
     # sigs: set of interface or contract names in scope
     # custom_structs: struct definitions in scope

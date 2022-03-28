@@ -200,9 +200,9 @@ def test() -> uint256:
     return ret
     """
 
-    lll = compile_code(code, ["ir"])["ir"]
+    ir = compile_code(code, ["ir"])["ir"]
     assert search_for_sublist(
-        lll, ["mstore", [MemoryPositions.RESERVED_MEMORY], [2 ** 12 * some_prime]]
+        ir, ["mstore", [MemoryPositions.RESERVED_MEMORY], [2 ** 12 * some_prime]]
     )
 
 

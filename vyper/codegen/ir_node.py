@@ -2,13 +2,14 @@ import re
 from enum import Enum, auto
 from typing import Any, List, Optional, Tuple, Union
 
+from vyper.address_space import AddrSpace
 from vyper.codegen.types import BaseType, NodeType, ceil32
 from vyper.compiler.settings import VYPER_COLOR_OUTPUT
-from vyper.evm.opcodes import get_lll_opcodes
+from vyper.evm.opcodes import get_ir_opcodes
 from vyper.exceptions import CodegenPanic, CompilerPanic
-from vyper.utils import VALID_LLL_MACROS, cached_property
+from vyper.utils import VALID_IR_MACROS, cached_property
 
-# Set default string representation for ints in LLL output.
+# Set default string representation for ints in IR output.
 AS_HEX_DEFAULT = False
 
 if VYPER_COLOR_OUTPUT:
@@ -51,20 +52,20 @@ class Encoding(Enum):
     # future: packed
 
 
-# Data structure for LLL parse tree
-class LLLnode:
+# Data structure for IR parse tree
+class IRnode:
     repr_show_gas = False
     gas: int
     valency: int
-    args: List["LLLnode"]
+    args: List["IRnode"]
     value: Union[str, int]
 
     def __init__(
         self,
         value: Union[str, int],
-        args: List["LLLnode"] = None,
+        args: List["IRnode"] = None,
         typ: NodeType = None,
-        location: str = None,
+        location: Optional[AddrSpace] = None,
         pos: Optional[Tuple[int, int]] = None,
         annotation: Optional[str] = None,
         mutable: bool = True,
@@ -96,7 +97,7 @@ class LLLnode:
             if not condition:
                 raise CompilerPanic(str(err))
 
-        _check(self.value is not None, "None is not allowed as LLLnode value")
+        _check(self.value is not None, "None is not allowed as IRnode value")
 
         # Determine this node's valency (1 if it pushes a value on the stack,
         # 0 otherwise) and checks to make sure the number and valencies of
@@ -108,8 +109,8 @@ class LLLnode:
             self.gas = 5
         elif isinstance(self.value, str):
             # Opcodes and pseudo-opcodes (e.g. clamp)
-            if self.value.upper() in get_lll_opcodes():
-                _, ins, outs, gas = get_lll_opcodes()[self.value.upper()]
+            if self.value.upper() in get_ir_opcodes():
+                _, ins, outs, gas = get_ir_opcodes()[self.value.upper()]
                 self.valency = outs
                 _check(
                     len(self.args) == ins,
@@ -251,11 +252,11 @@ class LLLnode:
                 self.gas = 3
         elif self.value is None:
             self.valency = 1
-            # None LLLnodes always get compiled into something else, e.g.
+            # None IRnodes always get compiled into something else, e.g.
             # mzero or PUSH1 0, and the gas will get re-estimated then.
             self.gas = 3
         else:
-            raise CompilerPanic(f"Invalid value for LLL AST node: {self.value}")
+            raise CompilerPanic(f"Invalid value for IR AST node: {self.value}")
         assert isinstance(self.args, list)
 
         if valency is not None:
@@ -263,17 +264,17 @@ class LLLnode:
 
         self.gas += self.add_gas_estimate
 
-    # the LLL should be cached.
+    # the IR should be cached.
     # TODO make this private. turns out usages are all for the caching
     # idiom that cache_when_complex addresses
     @property
-    def is_complex_lll(self):
+    def is_complex_ir(self):
         # list of items not to cache. note can add other env variables
         # which do not change, e.g. calldatasize, coinbase, etc.
         do_not_cache = {"~empty"}
         return (
             isinstance(self.value, str)
-            and (self.value.lower() in VALID_LLL_MACROS or self.value.upper() in get_lll_opcodes())
+            and (self.value.lower() in VALID_IR_MACROS or self.value.upper() in get_ir_opcodes())
             and self.value.lower() not in do_not_cache
         )
 
@@ -281,48 +282,54 @@ class LLLnode:
     def is_literal(self):
         return isinstance(self.value, int) or self.value == "multi"
 
+    @property
+    def is_pointer(self):
+        # not used yet but should help refactor/clarify downstream code
+        # eventually
+        return self.location is not None
+
     # This function is slightly confusing but abstracts a common pattern:
-    # when an LLL value needs to be computed once and then cached as an
-    # LLL value (if it is expensive, or more importantly if its computation
-    # includes side-effects), cache it as an LLL variable named with the
+    # when an IR value needs to be computed once and then cached as an
+    # IR value (if it is expensive, or more importantly if its computation
+    # includes side-effects), cache it as an IR variable named with the
     # `name` param, and execute the `body` with the cached value. Otherwise,
-    # run the `body` without caching the LLL variable.
+    # run the `body` without caching the IR variable.
     # Note that this may be an unneeded abstraction in the presence of an
     # arbitrarily powerful optimization framework (which can detect unneeded
     # caches) but for now still necessary - CMC 2021-12-11.
     # usage:
     # ```
-    # with lll_node.cache_when_complex("foo") as builder, foo:
+    # with ir_node.cache_when_complex("foo") as builder, foo:
     #   ret = some_function(foo)
     #   return builder.resolve(ret)
     # ```
     def cache_when_complex(self, name):
-        # this creates a magical block which maps to LLL `with`
+        # this creates a magical block which maps to IR `with`
         class _WithBuilder:
-            def __init__(self, lll_node, name):
+            def __init__(self, ir_node, name):
                 # TODO figure out how to fix this circular import
-                from vyper.lll.optimizer import optimize
+                from vyper.ir.optimizer import optimize
 
-                self.lll_node = lll_node
-                # for caching purposes, see if the lll_node will be optimized
+                self.ir_node = ir_node
+                # for caching purposes, see if the ir_node will be optimized
                 # because a non-literal expr could turn into a literal,
                 # (e.g. `(add 1 2)`)
                 # TODO this could really be moved into optimizer.py
-                self.should_cache = optimize(lll_node).is_complex_lll
+                self.should_cache = optimize(ir_node).is_complex_ir
 
-                # a named LLL variable which represents the
-                # output of `lll_node`
-                self.lll_var = LLLnode.from_list(
-                    name, typ=lll_node.typ, location=lll_node.location, encoding=lll_node.encoding
+                # a named IR variable which represents the
+                # output of `ir_node`
+                self.ir_var = IRnode.from_list(
+                    name, typ=ir_node.typ, location=ir_node.location, encoding=ir_node.encoding
                 )
 
             def __enter__(self):
                 if self.should_cache:
                     # return the named cache
-                    return self, self.lll_var
+                    return self, self.ir_var
                 else:
                     # it's a constant (or will be optimized to one), just return that
-                    return self, self.lll_node
+                    return self, self.ir_node
 
             def __exit__(self, *args):
                 pass
@@ -331,9 +338,9 @@ class LLLnode:
             # in order to make sure the expression gets wrapped correctly
             def resolve(self, body):
                 if self.should_cache:
-                    ret = ["with", self.lll_var, self.lll_node, body]
-                    if isinstance(body, LLLnode):
-                        return LLLnode.from_list(
+                    ret = ["with", self.ir_var, self.ir_node, body]
+                    if isinstance(body, IRnode):
+                        return IRnode.from_list(
                             ret, typ=body.typ, location=body.location, encoding=body.encoding
                         )
                     else:
@@ -381,9 +388,9 @@ class LLLnode:
 
     @staticmethod
     def _colorise_keywords(val):
-        if val.lower() in VALID_LLL_MACROS:  # highlight macro
+        if val.lower() in VALID_IR_MACROS:  # highlight macro
             return OKLIGHTMAGENTA + val + ENDC
-        elif val.upper() in get_lll_opcodes().keys():
+        elif val.upper() in get_ir_opcodes().keys():
             return OKMAGENTA + val + ENDC
         return val
 
@@ -440,18 +447,18 @@ class LLLnode:
         cls,
         obj: Any,
         typ: NodeType = None,
-        location: str = None,
+        location: Optional[AddrSpace] = None,
         pos: Tuple[int, int] = None,
         annotation: Optional[str] = None,
         mutable: bool = True,
         add_gas_estimate: int = 0,
         valency: Optional[int] = None,
         encoding: Encoding = Encoding.VYPER,
-    ) -> "LLLnode":
+    ) -> "IRnode":
         if isinstance(typ, str):
             typ = BaseType(typ)
 
-        if isinstance(obj, LLLnode):
+        if isinstance(obj, IRnode):
             # note: this modify-and-returnclause is a little weird since
             # the input gets modified. CC 20191121.
             if typ is not None:
