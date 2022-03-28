@@ -44,7 +44,6 @@ from vyper.exceptions import (
 )
 from vyper.utils import DECIMAL_DIVISOR, SizeLimits, bytes_to_int, checksum_encode, string_to_bytes
 
-
 ENVIRONMENT_VARIABLES = {
     "block",
     "msg",

@@ -4,7 +4,7 @@ import sys
 import traceback
 from typing import List, Union
 
-from vyper.exceptions import InvalidLiteral, DecimalOverrideException
+from vyper.exceptions import DecimalOverrideException, InvalidLiteral
 
 
 class DecimalContextOverride(decimal.Context):
@@ -175,7 +175,7 @@ class SizeLimits:
     @classmethod
     def in_bounds(cls, type_str, value):
         # TODO: fix this circular import
-        from vyper.codegen.types import parse_integer_typeinfo, parse_decimal_info
+        from vyper.codegen.types import parse_decimal_info, parse_integer_typeinfo
 
         assert isinstance(type_str, str)
         if type_str == "decimal":

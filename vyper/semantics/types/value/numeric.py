@@ -9,7 +9,7 @@ from vyper.semantics.types.abstract import (
     UnsignedIntegerAbstractType,
 )
 from vyper.semantics.types.bases import BasePrimitive, BaseTypeDefinition, ValueTypeDefinition
-from vyper.utils import int_bounds, SizeLimits
+from vyper.utils import SizeLimits, int_bounds
 
 
 class AbstractNumericDefinition(ValueTypeDefinition):

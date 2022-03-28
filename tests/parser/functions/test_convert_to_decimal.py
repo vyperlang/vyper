@@ -1,5 +1,6 @@
-from decimal import Decimal
 import math
+from decimal import Decimal
+
 import pytest
 
 from vyper.exceptions import InvalidLiteral, TypeMismatch

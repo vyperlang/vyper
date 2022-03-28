@@ -14,22 +14,12 @@ from vyper.codegen.types import (
     TupleType,
     ceil32,
     is_bytes_m_type,
-    is_integer_type,
     is_decimal_type,
+    is_integer_type,
 )
 from vyper.evm.opcodes import version_check
-from vyper.exceptions import (
-    CompilerPanic,
-    StructureException,
-    TypeCheckFailure,
-    TypeMismatch,
-)
-from vyper.utils import (
-    GAS_CALLDATACOPY_WORD,
-    GAS_CODECOPY_WORD,
-    GAS_IDENTITY,
-    GAS_IDENTITYWORD,
-)
+from vyper.exceptions import CompilerPanic, StructureException, TypeCheckFailure, TypeMismatch
+from vyper.utils import GAS_CALLDATACOPY_WORD, GAS_CODECOPY_WORD, GAS_IDENTITY, GAS_IDENTITYWORD
 
 
 # propagate revert message when calls to external contracts fail

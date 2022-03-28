@@ -4,12 +4,12 @@ from typing import List, Tuple, Union
 
 from vyper import ast as vy_ast
 from vyper.ast.signatures.function_signature import FunctionSignature, FunctionSignatures
+from vyper.codegen.core import shr
 from vyper.codegen.function_definitions import (
     generate_ir_for_function,
     is_default_func,
     is_initializer,
 )
-from vyper.codegen.core import shr
 from vyper.codegen.global_context import GlobalContext
 from vyper.codegen.ir_node import IRnode
 from vyper.exceptions import (
