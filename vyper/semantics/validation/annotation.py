@@ -148,13 +148,16 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
             self.visit(value)
 
     def visit_Call(self, node, type_):
-        if hasattr(node.func, "id"):
 
+        try:
+            call_type = get_exact_type_from_node(node.func)
+        except UndeclaredDefinition:
+            call_type = None
+
+        # Builtin functions, structs and events
+        if hasattr(node.func, "id"):
             node._metadata["type"] = type_
-            try:
-                call_type = get_exact_type_from_node(node.func)
-            except UndeclaredDefinition:
-                call_type = None
+
             if isinstance(call_type, StructPrimitive):
                 # literal structs
                 for value, arg_type in zip(node.args[0].values, list(call_type.members.values())):
@@ -167,6 +170,7 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
             else:
                 # builtin functions
                 if hasattr(call_type, "_id") and node.func.id not in ("empty",):
+                    # Exclude slice and raw_log because `_inputs` do not correspond to args
                     if hasattr(call_type, "_inputs") and call_type._id not in ("slice", "raw_log"):
                         for arg, inputs in zip(node.args, call_type._inputs):
                             self.visit(arg, inputs[1])
@@ -184,15 +188,14 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
                         for arg, inputs in zip(node.args, call_type._inputs):
                             self.visit(arg, inputs[1])
 
+                    # "range", which is not a builtin function
                     else:
                         for arg in node.args:
                             self.visit(arg, None)
 
         else:
-            call_type = get_exact_type_from_node(node.func)
             node_type = type_ or call_type.fetch_call_return(node)
             node._metadata["type"] = node_type
-            self.visit(node.func)
 
             if isinstance(call_type, (Event, ContractFunction)):
                 # events and internal function calls
@@ -203,6 +206,8 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
                 if node_type:
                     for arg in node.args:
                         self.visit(arg, node_type.value_type)
+
+            self.visit(node.func)
 
     def visit_Compare(self, node, type_):
         if isinstance(node.op, (vy_ast.In, vy_ast.NotIn)):

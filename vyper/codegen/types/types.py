@@ -453,8 +453,7 @@ def parse_type(item, sigs, custom_structs):
             return BaseType(item.value._metadata["type"]._id)
 
         elif isinstance(item.value, vy_ast.Subscript):
-            type_ = item._metadata["type"]
-            return BaseType(type_._id)
+            return BaseType(item._metadata["type"]._id)
 
         elif item.value.id == "DynArray":
 
