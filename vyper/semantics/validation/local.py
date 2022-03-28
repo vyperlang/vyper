@@ -65,20 +65,6 @@ def validate_functions(vy_module: vy_ast.Module) -> None:
     err_list.raise_if_not_empty()
 
 
-def validate_inline_function(vy_module: vy_ast.Module) -> None:
-
-    err_list = ExceptionList()
-    namespace = get_namespace()
-    for node in vy_module.get_children():
-        with namespace.enter_scope():
-            try:
-                StatementAnnotationVisitor(node, namespace)
-            except VyperException as e:
-                err_list.append(e)
-
-    err_list.raise_if_not_empty()
-
-
 def _is_terminus_node(node: vy_ast.VyperNode) -> bool:
     if getattr(node, "_is_terminus", None):
         return True

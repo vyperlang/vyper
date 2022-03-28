@@ -80,6 +80,7 @@ class _ExprTypeChecker:
         Type object
         """
         types_list = self.get_possible_types_from_node(node, only_definitions)
+
         if len(types_list) > 1:
             raise StructureException("Ambiguous type", node)
         return types_list[0]
