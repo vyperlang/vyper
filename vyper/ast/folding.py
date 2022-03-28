@@ -1,5 +1,4 @@
 import copy
-from decimal import Decimal
 from typing import Union
 
 from vyper.ast import nodes as vy_ast

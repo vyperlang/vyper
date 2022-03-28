@@ -1,6 +1,6 @@
 # a contract.vy -- all functions and constructor
 
-from typing import Any, List, Tuple, Union
+from typing import List, Tuple, Union
 
 from vyper import ast as vy_ast
 from vyper.ast.signatures.function_signature import FunctionSignature, FunctionSignatures

@@ -5,7 +5,7 @@ import pytest
 from vyper.exceptions import InvalidLiteral, TypeMismatch
 
 
-@pytest.mark.parametrize("inp", [1, -1, 2**127 - 1, -(2**127)])
+@pytest.mark.parametrize("inp", [1, -1, 2 ** 127 - 1, -(2 ** 127)])
 def test_convert_from_int128(get_contract_with_gas_estimation, inp):
     code = f"""
 a: int128
@@ -40,7 +40,7 @@ def test_passed_variable(a: uint256) -> decimal:
     assert c.test_variable() is True
     assert c.test_passed_variable(256) == 256
 
-    max_decimal = math.floor( Decimal(2 ** 167 - 1) / 10**10)
+    max_decimal = math.floor(Decimal(2 ** 167 - 1) / 10 ** 10)
     assert c.test_passed_variable(max_decimal) == Decimal(max_decimal)
 
     failing_decimal = max_decimal + 1
@@ -85,7 +85,7 @@ def foo(bar: bytes32) -> decimal:
 
 def test_convert_from_bytes32_overflow(get_contract_with_gas_estimation, assert_compile_failed):
     # bytes for 2**167
-    failing_decimal_bytes = "0x" + (2**167).to_bytes(32, byteorder="big").hex()
+    failing_decimal_bytes = "0x" + (2 ** 167).to_bytes(32, byteorder="big").hex()
     code = f"""
 @external
 def foo() -> decimal:
@@ -187,10 +187,10 @@ def test(foo: int256) -> decimal:
     assert_tx_failed(lambda: c.test(2 ** 255 - 1))
     assert_tx_failed(lambda: c.test(-(2 ** 255)))
 
-    max_decimal = math.floor(Decimal(2**167 - 1) / 10 ** 10)
+    max_decimal = math.floor(Decimal(2 ** 167 - 1) / 10 ** 10)
     assert c.test(max_decimal) == Decimal(max_decimal)
 
-    min_decimal = math.ceil(-Decimal(2**167) / 10 ** 10)
+    min_decimal = math.ceil(-Decimal(2 ** 167) / 10 ** 10)
     assert c.test(min_decimal) == Decimal(min_decimal)
 
     assert_tx_failed(lambda: c.test(max_decimal + 1))

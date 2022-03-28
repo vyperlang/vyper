@@ -2,7 +2,7 @@ import binascii
 import decimal
 import sys
 import traceback
-from typing import Dict, List, Union
+from typing import List, Union
 
 from vyper.exceptions import InvalidLiteral, DecimalOverrideException
 
@@ -164,7 +164,7 @@ class SizeLimits:
     MAX_INT256 = 2 ** 255 - 1
     MIN_INT256 = -(2 ** 255)
     MAXDECIMAL = 2 ** 167 - 1  # maxdecimal as EVM value
-    MINDECIMAL = -(2 ** 167)   # mindecimal as EVM value
+    MINDECIMAL = -(2 ** 167)  # mindecimal as EVM value
     # min decimal allowed as Python value
     MIN_AST_DECIMAL = -decimal.Decimal(2 ** 167) / DECIMAL_DIVISOR
     # max decimal allowed as Python value

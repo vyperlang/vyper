@@ -29,7 +29,6 @@ from vyper.utils import (
     GAS_CODECOPY_WORD,
     GAS_IDENTITY,
     GAS_IDENTITYWORD,
-    MemoryPositions,
 )
 
 

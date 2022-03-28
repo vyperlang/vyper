@@ -289,7 +289,6 @@ def to_decimal(expr, arg, out_typ):
         raise CompilerPanic("unreachable")  # pragma: notest
 
 
-
 @_input_types("int", "decimal", "bytes_m", "address", "bytes", "bool")
 def to_bytes_m(expr, arg, out_typ):
     out_info = out_typ._bytes_info

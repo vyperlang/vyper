@@ -841,7 +841,8 @@ class Expr:
             # kludge to block behavior in #2638
             # TODO actually implement equality for complex types
             raise TypeMismatch(
-                f"operation not yet supported for {left.typ}, {right.typ}, see issue #2638", self.expr.op
+                f"operation not yet supported for {left.typ}, {right.typ}, see issue #2638",
+                self.expr.op,
             )
 
         return IRnode.from_list([op, left, right], typ="bool")
