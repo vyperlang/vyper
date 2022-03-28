@@ -1,25 +1,28 @@
 from dataclasses import dataclass
 from typing import Optional
 
+# TODO consider renaming this module to avoid confusion with the EVM
+# concept of addresses (160-bit account IDs).
+
 
 @dataclass(frozen=True)
 class AddrSpace:
     """
-    Object representing an "address space" (similar to the LLVM concept).
-    It includes some information about the address space so that codegen
-    can be written in a more generic way.
+    Object representing info about the "address space", analogous to the
+    LLVM concept. It includes some metadata so that codegen can be
+    written in a more generic way.
 
     Attributes:
         name: human-readable nickname for the address space
-        wordsize: the number of "slots" in this address space an EVM
-            word takes up. currently 1 for storage, and 32 for
-            everything else
         load_op: the opcode for loading a word from this address space
         store_op: the opcode for storing a word to this address space
+        word_scale: a constant which helps calculate offsets in a given
+            address space. 1 for word-addressable locations (storage),
+            32 for byte-addressable locations (memory, calldata, code)
     """
 
     name: str
-    wordsize: int
+    word_scale: int
     load_op: str
     store_op: Optional[str]
 
@@ -27,7 +30,7 @@ class AddrSpace:
 # alternative:
 # class Memory(AddrSpace):
 #   @property
-#   def wordsize(self):
+#   def word_scale(self):
 #     return 32
 # # implement more properties...
 #

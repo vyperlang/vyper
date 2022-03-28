@@ -546,7 +546,7 @@ class Concat:
 
                 length = [arg.location.load_op, "_arg"]
                 argstart = IRnode.from_list(
-                    ["add", "_arg", arg.location.wordsize], location=arg.location
+                    ["add", "_arg", arg.location.word_scale], location=arg.location
                 )
 
                 # Make a copier to copy over data from that argument

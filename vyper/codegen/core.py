@@ -104,14 +104,14 @@ def bytes_data_ptr(ptr):
     if ptr.location is None:
         raise CompilerPanic("tried to modify non-pointer type")
     assert isinstance(ptr.typ, ByteArrayLike)
-    return add_ofst(ptr, ptr.location.wordsize)
+    return add_ofst(ptr, ptr.location.word_scale)
 
 
 def dynarray_data_ptr(ptr):
     if ptr.location is None:
         raise CompilerPanic("tried to modify non-pointer type")
     assert isinstance(ptr.typ, DArrayType)
-    return add_ofst(ptr, ptr.location.wordsize)
+    return add_ofst(ptr, ptr.location.word_scale)
 
 
 def _dynarray_make_setter(dst, src, pos=None):
@@ -248,8 +248,8 @@ def copy_bytes(dst, src, length, length_bound, pos=None):
         n = ["div", ["ceil32", length], 32]
         n_bound = ceil32(length_bound) // 32
 
-        dst_i = add_ofst(dst, _mul(i, dst.location.wordsize))
-        src_i = add_ofst(src, _mul(i, src.location.wordsize))
+        dst_i = add_ofst(dst, _mul(i, dst.location.word_scale))
+        src_i = add_ofst(src, _mul(i, src.location.word_scale))
 
         copy_one_word = STORE(dst_i, LOAD(src_i))
 
@@ -340,9 +340,9 @@ def getpos(node):
     )
 
 
-# TODO since this is always(?) used as add_ofst(ptr, n*ptr.location.wordsize)
+# TODO since this is always(?) used as add_ofst(ptr, n*ptr.location.word_scale)
 # maybe the API should be `add_words_to_ofst(ptr, n)` and handle the
-# wordsize multiplication inside
+# word_scale multiplication inside
 def add_ofst(ptr, ofst):
     ofst = IRnode.from_list(ofst)
     if isinstance(ptr.value, int) and isinstance(ofst.value, int):
@@ -373,7 +373,7 @@ def _getelemptr_abi_helper(parent, member_t, ofst, pos=None, clamp=True):
     # e.g. [[1,2]] is encoded as 0x01 <len> 0x20 <inner array ofst> <encode(inner array)>
     # note that inner array ofst is 0x20, not 0x40.
     if has_length_word(parent.typ):
-        parent = add_ofst(parent, parent.location.wordsize * DYNAMIC_ARRAY_OVERHEAD)
+        parent = add_ofst(parent, parent.location.word_scale * DYNAMIC_ARRAY_OVERHEAD)
 
     ofst_ir = add_ofst(parent, ofst)
 
@@ -433,10 +433,10 @@ def _get_element_ptr_tuplelike(parent, key, pos):
 
         return _getelemptr_abi_helper(parent, member_t, ofst, pos)
 
-    if parent.location.wordsize == 1:
+    if parent.location.word_scale == 1:
         for i in range(index):
             ofst += typ.members[attrs[i]].storage_size_in_words
-    elif parent.location.wordsize == 32:
+    elif parent.location.word_scale == 32:
         for i in range(index):
             ofst += typ.members[attrs[i]].memory_bytes_required
     else:
@@ -502,9 +502,9 @@ def _get_element_ptr_array(parent, key, pos, array_bounds_check):
 
         return _getelemptr_abi_helper(parent, subtype, ofst, pos)
 
-    if parent.location.wordsize == 1:
+    if parent.location.word_scale == 1:
         element_size = subtype.storage_size_in_words
-    elif parent.location.wordsize == 32:
+    elif parent.location.word_scale == 32:
         element_size = subtype.memory_bytes_required
     else:
         raise CompilerPanic("unreachable")  # pragma: notest
@@ -512,7 +512,7 @@ def _get_element_ptr_array(parent, key, pos, array_bounds_check):
     ofst = _mul(ix, element_size)
 
     if has_length_word(parent.typ):
-        data_ptr = add_ofst(parent, parent.location.wordsize * DYNAMIC_ARRAY_OVERHEAD)
+        data_ptr = add_ofst(parent, parent.location.word_scale * DYNAMIC_ARRAY_OVERHEAD)
     else:
         data_ptr = parent
 
