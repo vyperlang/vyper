@@ -5,7 +5,7 @@ from typing import Dict, Tuple
 import vyper.ast as vy_ast
 from vyper.ast.signatures import FunctionSignature
 from vyper.codegen.context import Constancy, Context
-from vyper.codegen.core import check_single_exit
+from vyper.codegen.core import check_single_exit, getpos
 from vyper.codegen.function_definitions.external_function import generate_ir_for_external_function
 from vyper.codegen.function_definitions.internal_function import generate_ir_for_internal_function
 from vyper.codegen.global_context import GlobalContext
@@ -77,6 +77,9 @@ def generate_ir_for_function(
             o = generate_ir_for_internal_function(code, sig, context)
         else:
             o = generate_ir_for_external_function(code, sig, context, check_nonpayable)
+
+        o.source_pos = getpos(code)
+
         return o, context
 
     _, context = _run_pass(memory_allocator=None)

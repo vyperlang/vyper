@@ -202,22 +202,15 @@ class Expr:
             raise TypeCheckFailure(f"{type(node).__name__} node did not produce IR. {self.expr}")
 
         self.ir_node.annotation = self.expr.get("node_source_code")
+        self.ir_node.source_pos = getpos(self.expr)
 
     def parse_Int(self):
         # Literal (mostly likely) becomes int256
         if self.expr.n < 0:
-            return IRnode.from_list(
-                self.expr.n,
-                typ=BaseType("int256", is_literal=True),
-                pos=getpos(self.expr),
-            )
+            return IRnode.from_list(self.expr.n, typ=BaseType("int256", is_literal=True))
         # Literal is large enough (mostly likely) becomes uint256.
         else:
-            return IRnode.from_list(
-                self.expr.n,
-                typ=BaseType("uint256", is_literal=True),
-                pos=getpos(self.expr),
-            )
+            return IRnode.from_list(self.expr.n, typ=BaseType("uint256", is_literal=True))
 
     def parse_Decimal(self):
         val = self.expr.value
@@ -226,14 +219,10 @@ class Expr:
         assert SizeLimits.MINDECIMAL <= val <= SizeLimits.MAXDECIMAL
 
         return IRnode.from_list(
-            int(val * DECIMAL_DIVISOR),
-            typ=BaseType("decimal", is_literal=True),
-            pos=getpos(self.expr),
+            int(val * DECIMAL_DIVISOR), typ=BaseType("decimal", is_literal=True)
         )
 
     def parse_Hex(self):
-        pos = getpos(self.expr)
-
         hexstr = self.expr.value
 
         if len(hexstr) == 42:
@@ -241,11 +230,7 @@ class Expr:
             assert checksum_encode(hexstr) == hexstr
             typ = BaseType("address")
             # TODO allow non-checksum encoded bytes20
-            return IRnode.from_list(
-                int(self.expr.value, 16),
-                typ=typ,
-                pos=pos,
-            )
+            return IRnode.from_list(int(self.expr.value, 16), typ=typ)
 
         else:
             n_bytes = (len(hexstr) - 2) // 2  # e.g. "0x1234" is 2 bytes
@@ -257,7 +242,7 @@ class Expr:
 
             typ = BaseType(f"bytes{n_bytes}", is_literal=True)
             typ.is_literal = True
-            return IRnode.from_list(val, typ=typ, pos=pos)
+            return IRnode.from_list(val, typ=typ)
 
     # String literals
     def parse_Str(self):
@@ -288,30 +273,21 @@ class Expr:
             ["seq"] + seq + [placeholder],
             typ=btype,
             location=MEMORY,
-            pos=getpos(self.expr),
             annotation=f"Create {btype}: {bytez}",
         )
 
     # True, False, None constants
     def parse_NameConstant(self):
         if self.expr.value is True:
-            return IRnode.from_list(
-                1,
-                typ=BaseType("bool", is_literal=True),
-                pos=getpos(self.expr),
-            )
+            return IRnode.from_list(1, typ=BaseType("bool", is_literal=True))
         elif self.expr.value is False:
-            return IRnode.from_list(
-                0,
-                typ=BaseType("bool", is_literal=True),
-                pos=getpos(self.expr),
-            )
+            return IRnode.from_list(0, typ=BaseType("bool", is_literal=True))
 
     # Variable names
     def parse_Name(self):
 
         if self.expr.id == "self":
-            return IRnode.from_list(["address"], typ="address", pos=getpos(self.expr))
+            return IRnode.from_list(["address"], typ="address")
         elif self.expr.id in self.context.vars:
             var = self.context.vars[self.expr.id]
             return IRnode.from_list(
@@ -319,16 +295,13 @@ class Expr:
                 typ=var.typ,
                 location=var.location,  # either 'memory' or 'calldata' storage is handled above.
                 encoding=var.encoding,
-                pos=getpos(self.expr),
                 annotation=self.expr.id,
                 mutable=var.mutable,
             )
 
         elif self.expr.id in BUILTIN_CONSTANTS:
             obj, typ = BUILTIN_CONSTANTS[self.expr.id]
-            return IRnode.from_list(
-                [obj], typ=BaseType(typ, is_literal=True), pos=getpos(self.expr)
-            )
+            return IRnode.from_list(obj, typ=BaseType(typ, is_literal=True))
 
         elif self.expr._metadata["type"].is_immutable:
             var = self.context.globals[self.expr.id]
@@ -345,7 +318,6 @@ class Expr:
                 ofst,
                 typ=var.typ,
                 location=location,
-                pos=getpos(self.expr),
                 annotation=self.expr.id,
                 mutable=mutable,
             )
@@ -364,12 +336,7 @@ class Expr:
                     seq = ["selfbalance"]
                 else:
                     seq = ["balance", addr]
-                return IRnode.from_list(
-                    seq,
-                    typ=BaseType("uint256"),
-                    location=None,
-                    pos=getpos(self.expr),
-                )
+                return IRnode.from_list(seq, typ=BaseType("uint256"))
         # x.codesize: codesize of address x
         elif self.expr.attr == "codesize" or self.expr.attr == "is_contract":
             addr = Expr.parse_value_expr(self.expr.value, self.context)
@@ -383,12 +350,7 @@ class Expr:
                 else:
                     eval_code = ["gt", ["extcodesize", addr], 0]
                     output_type = "bool"
-                return IRnode.from_list(
-                    eval_code,
-                    typ=BaseType(output_type),
-                    location=None,
-                    pos=getpos(self.expr),
-                )
+                return IRnode.from_list(eval_code, typ=BaseType(output_type))
         # x.codehash: keccak of address x
         elif self.expr.attr == "codehash":
             addr = Expr.parse_value_expr(self.expr.value, self.context)
@@ -397,12 +359,7 @@ class Expr:
                     "address.codehash is unavailable prior to constantinople ruleset", self.expr
                 )
             if is_base_type(addr.typ, "address"):
-                return IRnode.from_list(
-                    ["extcodehash", addr],
-                    typ=BaseType("bytes32"),
-                    location=None,
-                    pos=getpos(self.expr),
-                )
+                return IRnode.from_list(["extcodehash", addr], typ=BaseType("bytes32"))
         # x.code: codecopy/extcodecopy of address x
         elif self.expr.attr == "code":
             addr = Expr.parse_value_expr(self.expr.value, self.context)
@@ -419,7 +376,6 @@ class Expr:
                 type_.position.position,
                 typ=var.typ,
                 location=STORAGE,
-                pos=getpos(self.expr),
                 annotation="self." + self.expr.attr,
             )
         # Reserved keywords
@@ -428,58 +384,38 @@ class Expr:
         ):
             key = f"{self.expr.value.id}.{self.expr.attr}"
             if key == "msg.sender":
-                return IRnode.from_list(["caller"], typ="address", pos=getpos(self.expr))
+                return IRnode.from_list(["caller"], typ="address")
             elif key == "msg.data":
                 # This adhoc node will be replaced with a valid node in `Slice/Len.build_IR`
                 return IRnode.from_list(["~calldata"], typ=ByteArrayType(0))
             elif key == "msg.value" and self.context.is_payable:
-                return IRnode.from_list(
-                    ["callvalue"],
-                    typ=BaseType("uint256"),
-                    pos=getpos(self.expr),
-                )
+                return IRnode.from_list(["callvalue"], typ=BaseType("uint256"))
             elif key == "msg.gas":
-                return IRnode.from_list(
-                    ["gas"],
-                    typ="uint256",
-                    pos=getpos(self.expr),
-                )
+                return IRnode.from_list(["gas"], typ="uint256")
             elif key == "block.difficulty":
-                return IRnode.from_list(
-                    ["difficulty"],
-                    typ="uint256",
-                    pos=getpos(self.expr),
-                )
+                return IRnode.from_list(["difficulty"], typ="uint256")
             elif key == "block.timestamp":
-                return IRnode.from_list(
-                    ["timestamp"],
-                    typ=BaseType("uint256"),
-                    pos=getpos(self.expr),
-                )
+                return IRnode.from_list(["timestamp"], typ=BaseType("uint256"))
             elif key == "block.coinbase":
-                return IRnode.from_list(["coinbase"], typ="address", pos=getpos(self.expr))
+                return IRnode.from_list(["coinbase"], typ="address")
             elif key == "block.number":
-                return IRnode.from_list(["number"], typ="uint256", pos=getpos(self.expr))
+                return IRnode.from_list(["number"], typ="uint256")
             elif key == "block.gaslimit":
-                return IRnode.from_list(["gaslimit"], typ="uint256", pos=getpos(self.expr))
+                return IRnode.from_list(["gaslimit"], typ="uint256")
             elif key == "block.basefee":
-                return IRnode.from_list(["basefee"], typ="uint256", pos=getpos(self.expr))
+                return IRnode.from_list(["basefee"], typ="uint256")
             elif key == "block.prevhash":
-                return IRnode.from_list(
-                    ["blockhash", ["sub", "number", 1]],
-                    typ="bytes32",
-                    pos=getpos(self.expr),
-                )
+                return IRnode.from_list(["blockhash", ["sub", "number", 1]], typ="bytes32")
             elif key == "tx.origin":
-                return IRnode.from_list(["origin"], typ="address", pos=getpos(self.expr))
+                return IRnode.from_list(["origin"], typ="address")
             elif key == "tx.gasprice":
-                return IRnode.from_list(["gasprice"], typ="uint256", pos=getpos(self.expr))
+                return IRnode.from_list(["gasprice"], typ="uint256")
             elif key == "chain.id":
                 if not version_check(begin="istanbul"):
                     raise EvmVersionException(
                         "chain.id is unavailable prior to istanbul ruleset", self.expr
                     )
-                return IRnode.from_list(["chainid"], typ="uint256", pos=getpos(self.expr))
+                return IRnode.from_list(["chainid"], typ="uint256")
         # Other variables
         else:
             sub = Expr(self.expr.value, self.context).ir_node
@@ -487,7 +423,7 @@ class Expr:
             if isinstance(sub.typ, InterfaceType):
                 return sub
             if isinstance(sub.typ, StructType) and self.expr.attr in sub.typ.members:
-                return get_element_ptr(sub, self.expr.attr, pos=getpos(self.expr))
+                return get_element_ptr(sub, self.expr.attr)
 
     def parse_Subscript(self):
         sub = Expr(self.expr.value, self.context).ir_node
@@ -496,7 +432,7 @@ class Expr:
             # MY_LIST: constant(decimal[6])
             # ...
             # return MY_LIST[ix]
-            sub = ensure_in_memory(sub, self.context, pos=getpos(self.expr))
+            sub = ensure_in_memory(sub, self.context)
 
         if isinstance(sub.typ, MappingType):
             # TODO sanity check we are in a self.my_map[i] situation
@@ -517,7 +453,7 @@ class Expr:
         else:
             return
 
-        ir_node = get_element_ptr(sub, index, pos=getpos(self.expr))
+        ir_node = get_element_ptr(sub, index)
         ir_node.mutable = sub.mutable
         return ir_node
 
@@ -528,7 +464,6 @@ class Expr:
         if not is_numeric_type(left.typ) or not is_numeric_type(right.typ):
             return
 
-        pos = getpos(self.expr)
         types = {left.typ.typ, right.typ.typ}
         literals = {left.typ.is_literal, right.typ.is_literal}
 
@@ -538,17 +473,9 @@ class Expr:
         # altogether at this stage of complition. @iamdefinitelyahuman
         if literals == {True, False} and len(types) > 1 and "decimal" not in types:
             if left.typ.is_literal and SizeLimits.in_bounds(right.typ.typ, left.value):
-                left = IRnode.from_list(
-                    left.value,
-                    typ=BaseType(right.typ.typ, is_literal=True),
-                    pos=pos,
-                )
+                left = IRnode.from_list(left.value, typ=BaseType(right.typ.typ, is_literal=True))
             elif right.typ.is_literal and SizeLimits.in_bounds(left.typ.typ, right.value):
-                right = IRnode.from_list(
-                    right.value,
-                    typ=BaseType(left.typ.typ, is_literal=True),
-                    pos=pos,
-                )
+                right = IRnode.from_list(right.value, typ=BaseType(left.typ.typ, is_literal=True))
 
         ltyp, rtyp = left.typ.typ, right.typ.typ
 
@@ -723,10 +650,11 @@ class Expr:
         elif isinstance(self.expr.op, vy_ast.Pow):
             new_typ = BaseType(ltyp)
 
+            # TODO optimizer rule for special cases
             if self.expr.left.get("value") == 1:
-                return IRnode.from_list([1], typ=new_typ, pos=pos)
+                return IRnode.from_list([1], typ=new_typ)
             if self.expr.left.get("value") == 0:
-                return IRnode.from_list(["iszero", right], typ=new_typ, pos=pos)
+                return IRnode.from_list(["iszero", right], typ=new_typ)
 
             if ltyp == "int128":
                 is_signed = True
@@ -749,7 +677,6 @@ class Expr:
                 return IRnode.from_list(
                     ["seq", ["assert", clamp], ["exp", left, right]],
                     typ=new_typ,
-                    pos=pos,
                 )
             elif isinstance(self.expr.right, vy_ast.Int):
                 value = self.expr.right.value
@@ -759,9 +686,7 @@ class Expr:
                 else:
                     clamp = ["lt", left, upper_bound]
                 return IRnode.from_list(
-                    ["seq", ["assert", clamp], ["exp", left, right]],
-                    typ=new_typ,
-                    pos=pos,
+                    ["seq", ["assert", clamp], ["exp", left, right]], typ=new_typ
                 )
             else:
                 # `a ** b` where neither `a` or `b` are known
@@ -787,7 +712,7 @@ class Expr:
                 clamp_basetype(arith),
             ],
         ]
-        return IRnode.from_list(p, typ=new_typ, pos=pos)
+        return IRnode.from_list(p, typ=new_typ)
 
     def build_in_comparator(self):
         left = Expr(self.expr.left, self.context).ir_node
@@ -820,17 +745,14 @@ class Expr:
             if right.value == "multi":
                 # Copy literal to memory to be compared.
                 tmp_list = IRnode.from_list(
-                    self.context.new_internal_variable(right.typ),
-                    typ=right.typ,
-                    location=MEMORY,
+                    self.context.new_internal_variable(right.typ), typ=right.typ, location=MEMORY
                 )
-                ret.append(make_setter(tmp_list, right, pos=getpos(self.expr)))
+                ret.append(make_setter(tmp_list, right))
 
                 right = tmp_list
 
             # location of i'th item from list
-            pos = getpos(self.expr)
-            ith_element_ptr = get_element_ptr(right, i, array_bounds_check=False, pos=pos)
+            ith_element_ptr = get_element_ptr(right, i, array_bounds_check=False)
             ith_element = unwrap_location(ith_element_ptr)
 
             if isinstance(right.typ, SArrayType):
@@ -912,11 +834,7 @@ class Expr:
                 right_keccak = keccak256_helper(self.expr, right, self.context)
 
                 if op == "eq" or op == "ne":
-                    return IRnode.from_list(
-                        [op, left_keccak, right_keccak],
-                        typ="bool",
-                        pos=getpos(self.expr),
-                    )
+                    return IRnode.from_list([op, left_keccak, right_keccak], typ="bool")
 
                 else:
                     return
@@ -930,7 +848,6 @@ class Expr:
                     # CMC 2022-03-24 TODO investigate this.
                     [op, load_bytearray(left), load_bytearray(right)],
                     typ="bool",
-                    pos=getpos(self.expr),
                 )
 
         # Compare other types.
@@ -950,7 +867,7 @@ class Expr:
                 "equality not yet supported for complex types, see issue #2638", self.expr
             )
 
-        return IRnode.from_list([op, left, right], typ="bool", pos=getpos(self.expr))
+        return IRnode.from_list([op, left, right], typ="bool")
 
     def parse_BoolOp(self):
         for value in self.expr.values:
@@ -996,7 +913,7 @@ class Expr:
         operand = Expr.parse_value_expr(self.expr.operand, self.context)
         if isinstance(self.expr.op, vy_ast.Not):
             if isinstance(operand.typ, BaseType) and operand.typ.typ == "bool":
-                return IRnode.from_list(["iszero", operand], typ="bool", pos=getpos(self.expr))
+                return IRnode.from_list(["iszero", operand], typ="bool")
         elif isinstance(self.expr.op, vy_ast.USub) and is_numeric_type(operand.typ):
             # Clamp on minimum integer value as we cannot negate that value
             # (all other integer values are fine)
@@ -1004,7 +921,6 @@ class Expr:
             return IRnode.from_list(
                 ["sub", 0, ["clampgt", operand, min_int_val]],
                 typ=operand.typ,
-                pos=getpos(self.expr),
             )
 
     def _is_valid_interface_assign(self):
@@ -1042,7 +958,10 @@ class Expr:
             darray = Expr(self.expr.func.value, self.context).ir_node
             assert len(self.expr.args) == 0
             assert isinstance(darray.typ, DArrayType)
-            return pop_dyn_array(darray, return_popped_item=True, pos=getpos(self.expr))
+            return pop_dyn_array(
+                darray,
+                return_popped_item=True,
+            )
 
         elif (
             isinstance(self.expr.func, vy_ast.Attribute)
@@ -1054,19 +973,18 @@ class Expr:
             return external_call.ir_for_external_call(self.expr, self.context)
 
     def parse_List(self):
-        pos = getpos(self.expr)
         typ = new_type_to_old_type(self.expr._metadata["type"])
         if len(self.expr.elements) == 0:
-            return IRnode.from_list("~empty", typ=typ, pos=pos)
+            return IRnode.from_list("~empty", typ=typ)
 
         multi_ir = [Expr(x, self.context).ir_node for x in self.expr.elements]
 
-        return IRnode.from_list(["multi"] + multi_ir, typ=typ, pos=pos)
+        return IRnode.from_list(["multi"] + multi_ir, typ=typ)
 
     def parse_Tuple(self):
         tuple_elements = [Expr(x, self.context).ir_node for x in self.expr.elements]
         typ = TupleType([x.typ for x in tuple_elements], is_literal=True)
-        multi_ir = IRnode.from_list(["multi"] + tuple_elements, typ=typ, pos=getpos(self.expr))
+        multi_ir = IRnode.from_list(["multi"] + tuple_elements, typ=typ)
         return multi_ir
 
     @staticmethod
@@ -1084,7 +1002,6 @@ class Expr:
         return IRnode.from_list(
             ["multi"] + [member_subs[key] for key in member_subs.keys()],
             typ=StructType(member_typs, name, is_literal=True),
-            pos=getpos(expr),
         )
 
     # Parse an expression that results in a value

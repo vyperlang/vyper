@@ -63,7 +63,7 @@ def apply_general_optimizations(node: IRnode) -> IRnode:
     value = node.value
     typ = node.typ
     location = node.location
-    pos = node.pos
+    source_pos = node.source_pos
     annotation = node.annotation
     add_gas_estimate = node.add_gas_estimate
     valency = node.valency
@@ -191,7 +191,7 @@ def apply_general_optimizations(node: IRnode) -> IRnode:
         [value, *argz],
         typ=typ,
         location=location,
-        pos=pos,
+        source_pos=source_pos,
         annotation=annotation,
         add_gas_estimate=add_gas_estimate,
         valency=valency,
@@ -244,7 +244,7 @@ def _merge_memzero(argz):
         if len(mstore_nodes) > 1:
             new_ir = IRnode.from_list(
                 ["calldatacopy", initial_offset, "calldatasize", total_length],
-                pos=mstore_nodes[0].pos,
+                source_pos=mstore_nodes[0].source_pos,
             )
             # replace first zero'ing operation with optimized node and remove the rest
             idx = argz.index(mstore_nodes[0])
@@ -290,7 +290,7 @@ def _merge_calldataload(argz):
         if len(mstore_nodes) > 1:
             new_ir = IRnode.from_list(
                 ["calldatacopy", initial_mem_offset, initial_calldata_offset, total_length],
-                pos=mstore_nodes[0].pos,
+                source_pos=mstore_nodes[0].source_pos,
             )
             # replace first copy operation with optimized node and remove the rest
             idx = argz.index(mstore_nodes[0])

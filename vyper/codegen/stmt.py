@@ -41,16 +41,17 @@ class Stmt:
             raise TypeCheckFailure("Statement node did not produce IR")
 
         self.ir_node.annotation = self.stmt.get("node_source_code")
+        self.ir_node.source_pos = getpos(self.stmt)
 
     def parse_Expr(self):
         return Stmt(self.stmt.value, self.context).ir_node
 
     def parse_Pass(self):
-        return IRnode.from_list("pass", typ=None, pos=getpos(self.stmt))
+        return IRnode.from_list("pass")
 
     def parse_Name(self):
         if self.stmt.id == "vdb":
-            return IRnode("debugger", typ=None, pos=getpos(self.stmt))
+            return IRnode("debugger")
         else:
             raise StructureException(f"Unsupported statement type: {type(self.stmt)}", self.stmt)
 
@@ -61,7 +62,7 @@ class Stmt:
             custom_structs=self.context.structs,
         )
         varname = self.stmt.target.id
-        pos = self.context.new_variable(varname, typ, pos=self.stmt)
+        pos = self.context.new_variable(varname, typ)
         if self.stmt.value is None:
             return
 
@@ -80,17 +81,11 @@ class Stmt:
             sub = IRnode(
                 util.bytes_to_int(self.stmt.value.s),
                 typ=BaseType("bytes32"),
-                pos=getpos(self.stmt),
             )
 
-        variable_loc = IRnode.from_list(
-            pos,
-            typ=typ,
-            location=MEMORY,
-            pos=getpos(self.stmt),
-        )
+        variable_loc = IRnode.from_list(pos, typ=typ, location=MEMORY)
 
-        ir_node = make_setter(variable_loc, sub, pos=getpos(self.stmt))
+        ir_node = make_setter(variable_loc, sub)
 
         return ir_node
 
@@ -99,8 +94,7 @@ class Stmt:
         sub = Expr(self.stmt.value, self.context).ir_node
         target = self._get_target(self.stmt.target)
 
-        ir_node = make_setter(target, sub, pos=getpos(self.stmt))
-        ir_node.pos = getpos(self.stmt)
+        ir_node = make_setter(target, sub)
         return ir_node
 
     def parse_If(self):
@@ -113,7 +107,7 @@ class Stmt:
         with self.context.block_scope():
             test_expr = Expr.parse_value_expr(self.stmt.test, self.context)
             body = ["if", test_expr, parse_body(self.stmt.body, self.context)] + add_on
-            ir_node = IRnode.from_list(body, typ=None, pos=getpos(self.stmt))
+            ir_node = IRnode.from_list(body)
         return ir_node
 
     def parse_Log(self):
@@ -153,10 +147,10 @@ class Stmt:
                 arg = args[0]
                 assert isinstance(darray.typ, DArrayType)
                 assert arg.typ == darray.typ.subtype
-                return append_dyn_array(darray, arg, pos=getpos(self.stmt))
+                return append_dyn_array(darray, arg)
             else:
                 assert len(args) == 0
-                return pop_dyn_array(darray, return_popped_item=False, pos=getpos(self.stmt))
+                return pop_dyn_array(darray, return_popped_item=False)
 
         elif is_self_function:
             return self_call.ir_for_self_call(self.stmt, self.context)
@@ -165,7 +159,7 @@ class Stmt:
 
     def _assert_reason(self, test_expr, msg):
         if isinstance(msg, vy_ast.Name) and msg.id == "UNREACHABLE":
-            return IRnode.from_list(["assert_unreachable", test_expr], typ=None, pos=getpos(msg))
+            return IRnode.from_list(["assert_unreachable", test_expr])
 
         # set constant so that revert reason str is well behaved
         try:
@@ -214,27 +208,28 @@ class Stmt:
         else:
             ir_node = revert_seq
 
-        return IRnode.from_list(ir_node, typ=None, pos=getpos(self.stmt))
+        return IRnode.from_list(ir_node)
 
     def parse_Assert(self):
         test_expr = Expr.parse_value_expr(self.stmt.test, self.context)
         if test_expr.typ.is_literal:
             if test_expr.value == 1:
                 # skip literal assertions that always pass
-                return IRnode.from_list(["pass"], typ=None, pos=getpos(self.stmt))
+                # TODO move this to optimizer
+                return IRnode.from_list(["pass"])
             else:
                 test_expr = test_expr.value
 
         if self.stmt.msg:
             return self._assert_reason(test_expr, self.stmt.msg)
         else:
-            return IRnode.from_list(["assert", test_expr], typ=None, pos=getpos(self.stmt))
+            return IRnode.from_list(["assert", test_expr])
 
     def parse_Raise(self):
         if self.stmt.exc:
             return self._assert_reason(None, self.stmt.exc)
         else:
-            return IRnode.from_list(["revert", 0, 0], typ=None, pos=getpos(self.stmt))
+            return IRnode.from_list(["revert", 0, 0])
 
     def _check_valid_range_constant(self, arg_ast_node, raise_exception=True):
         with self.context.range_scope():
@@ -279,15 +274,15 @@ class Stmt:
         # Type 1 for, e.g. for i in range(10): ...
         if num_of_args == 1:
             arg0_val = self._get_range_const_value(arg0)
-            start = IRnode.from_list(0, typ=iter_typ, pos=getpos(self.stmt))
+            start = IRnode.from_list(0, typ=iter_typ)
             rounds = arg0_val
 
         # Type 2 for, e.g. for i in range(100, 110): ...
         elif self._check_valid_range_constant(self.stmt.iter.args[1], raise_exception=False)[0]:
             arg0_val = self._get_range_const_value(arg0)
             arg1_val = self._get_range_const_value(self.stmt.iter.args[1])
-            start = IRnode.from_list(arg0_val, typ=iter_typ, pos=getpos(self.stmt))
-            rounds = IRnode.from_list(arg1_val - arg0_val, typ=iter_typ, pos=getpos(self.stmt))
+            start = IRnode.from_list(arg0_val, typ=iter_typ)
+            rounds = IRnode.from_list(arg1_val - arg0_val, typ=iter_typ)
 
         # Type 3 for, e.g. for i in range(x, x + 10): ...
         else:
@@ -301,7 +296,7 @@ class Stmt:
 
         varname = self.stmt.target.id
         i = IRnode.from_list(self.context.fresh_varname("range_ix"), typ="uint256")
-        iptr = self.context.new_variable(varname, BaseType(iter_typ), pos=getpos(self.stmt))
+        iptr = self.context.new_variable(varname, BaseType(iter_typ))
 
         self.context.forvars[varname] = True
 
@@ -310,10 +305,7 @@ class Stmt:
         loop_body.append(["mstore", iptr, i])
         loop_body.append(parse_body(self.stmt.body, self.context))
 
-        ir_node = IRnode.from_list(
-            ["repeat", i, start, rounds, rounds, loop_body],
-            pos=getpos(self.stmt),
-        )
+        ir_node = IRnode.from_list(["repeat", i, start, rounds, rounds, loop_body])
         del self.context.forvars[varname]
 
         return ir_node
@@ -330,9 +322,7 @@ class Stmt:
         # user-supplied name for loop variable
         varname = self.stmt.target.id
         loop_var = IRnode.from_list(
-            self.context.new_variable(varname, target_type),
-            typ=target_type,
-            location=MEMORY,
+            self.context.new_variable(varname, target_type), typ=target_type, location=MEMORY
         )
 
         i = IRnode.from_list(self.context.fresh_varname("for_list_ix"), typ="uint256")
@@ -348,15 +338,14 @@ class Stmt:
                 typ=iter_list.typ,
                 location=MEMORY,
             )
-            ret.append(make_setter(tmp_list, iter_list, pos=getpos(self.stmt)))
+            ret.append(make_setter(tmp_list, iter_list))
             iter_list = tmp_list
 
         # set up the loop variable
-        loop_var_ast = getpos(self.stmt.target)
-        e = get_element_ptr(iter_list, i, array_bounds_check=False, pos=loop_var_ast)
+        e = get_element_ptr(iter_list, i, array_bounds_check=False)
         body = [
             "seq",
-            make_setter(loop_var, e, pos=loop_var_ast),
+            make_setter(loop_var, e),
             parse_body(self.stmt.body, self.context),
         ]
 
@@ -369,7 +358,7 @@ class Stmt:
         ret.append(["repeat", i, 0, array_len, repeat_bound, body])
 
         del self.context.forvars[varname]
-        return IRnode.from_list(ret, pos=getpos(self.stmt))
+        return IRnode.from_list(ret)
 
     def parse_AugAssign(self):
         target = self._get_target(self.stmt.target)
@@ -380,7 +369,7 @@ class Stmt:
         with target.cache_when_complex("_loc") as (b, target):
             rhs = Expr.parse_value_expr(
                 vy_ast.BinOp(
-                    left=IRnode.from_list(LOAD(target), typ=target.typ, pos=target.pos),
+                    left=IRnode.from_list(LOAD(target), typ=target.typ),
                     right=sub,
                     op=self.stmt.op,
                     lineno=self.stmt.lineno,
@@ -394,10 +383,10 @@ class Stmt:
             return b.resolve(STORE(target, rhs))
 
     def parse_Continue(self):
-        return IRnode.from_list("continue", typ=None, pos=getpos(self.stmt))
+        return IRnode.from_list("continue")
 
     def parse_Break(self):
-        return IRnode.from_list("break", typ=None, pos=getpos(self.stmt))
+        return IRnode.from_list("break")
 
     def parse_Return(self):
         ir_val = None
@@ -461,4 +450,4 @@ def parse_body(code, context, ensure_terminated=False):
 
     # force zerovalent, even last statement
     ir_node.append("pass")  # CMC 2022-01-16 is this necessary?
-    return IRnode.from_list(ir_node, pos=getpos(code[0]) if code else None)
+    return IRnode.from_list(ir_node)
