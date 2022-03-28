@@ -62,7 +62,7 @@ class Stmt:
             custom_structs=self.context.structs,
         )
         varname = self.stmt.target.id
-        pos = self.context.new_variable(varname, typ, pos=self.stmt)
+        pos = self.context.new_variable(varname, typ)
         if self.stmt.value is None:
             return
 
@@ -95,7 +95,6 @@ class Stmt:
         target = self._get_target(self.stmt.target)
 
         ir_node = make_setter(target, sub)
-        ir_node.pos = getpos(self.stmt)
         return ir_node
 
     def parse_If(self):

@@ -31,8 +31,8 @@ from vyper.exceptions import CompilerPanic, InvalidLiteral, StructureException, 
 from vyper.utils import DECIMAL_DIVISOR, SizeLimits, int_bounds
 
 
-def _FAIL(ityp, otyp, pos=None):
-    raise TypeMismatch(f"Can't convert {ityp} to {otyp}", pos)
+def _FAIL(ityp, otyp, source_expr=None):
+    raise TypeMismatch(f"Can't convert {ityp} to {otyp}", source_expr)
 
 
 # helper function for `_input_types`
