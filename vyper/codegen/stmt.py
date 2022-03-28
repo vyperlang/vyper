@@ -19,7 +19,7 @@ from vyper.codegen.core import (
 )
 from vyper.codegen.expr import Expr
 from vyper.codegen.return_ import make_return_stmt
-from vyper.codegen.types import BaseType, ByteArrayType, DArrayType, parse_type
+from vyper.codegen.types import INTEGER_TYPES, BaseType, ByteArrayType, DArrayType, parse_type
 from vyper.codegen.types.convert import new_type_to_old_type
 from vyper.exceptions import CompilerPanic, StructureException, TypeCheckFailure
 
@@ -116,9 +116,7 @@ class Stmt:
 
     def parse_Log(self):
         event = self.stmt._metadata["type"]
-
         args = [Expr(arg, self.context).ir_node for arg in self.stmt.value.args]
-
         topic_ir = []
         data_ir = []
         for arg, is_indexed in zip(args, event.indexed):
@@ -238,11 +236,10 @@ class Stmt:
         with self.context.range_scope():
             # TODO should catch if raise_exception == False?
             arg_expr = Expr.parse_value_expr(arg_ast_node, self.context)
-
         is_integer_literal = (
             isinstance(arg_expr.typ, BaseType)
-            and arg_expr.typ.is_literal
-            and arg_expr.typ.typ in {"uint256", "int256"}
+            and isinstance(arg_expr.value, int)
+            and arg_expr.typ.typ in INTEGER_TYPES
         )
         if not is_integer_literal and raise_exception:
             raise StructureException(
@@ -269,7 +266,6 @@ class Stmt:
         iter_typ = "int256"
         if "type" in self.stmt.target._metadata:
             iter_typ = self.stmt.target._metadata["type"]._id
-
         # Get arg0
         arg0 = self.stmt.iter.args[0]
         num_of_args = len(self.stmt.iter.args)
@@ -372,7 +368,12 @@ class Stmt:
     def parse_AugAssign(self):
         target = self._get_target(self.stmt.target)
         sub = Expr.parse_value_expr(self.stmt.value, self.context)
-        if not isinstance(target.typ, BaseType):
+        target_typ = parse_type(
+            self.stmt.target,
+            sigs=self.context.sigs,
+            custom_structs=self.context.structs,
+        )
+        if not isinstance(target_typ, BaseType):
             return
         if target.location == "storage":
             ir_node = Expr.parse_value_expr(

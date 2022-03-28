@@ -396,8 +396,9 @@ def parse_type(item, sigs, custom_structs):
                 custom_structs[item.id],
                 custom_structs,
             )
+
         elif "type" in item._metadata:
-            return BaseType(item._metadata["type"])
+            return BaseType(item._metadata["type"]._id)
 
         else:
             FAIL()  # pragma: notest
@@ -405,6 +406,7 @@ def parse_type(item, sigs, custom_structs):
     # Units, e.g. num (1/sec) or contracts
     elif isinstance(item, vy_ast.Call) and isinstance(item.func, vy_ast.Name):
         # Contract_types
+
         if item.func.id == "address":
             if sigs and item.args[0].id in sigs:
                 return InterfaceType(item.args[0].id)
@@ -447,6 +449,13 @@ def parse_type(item, sigs, custom_structs):
                 )
                 return SArrayType(value_type, length)
 
+        if isinstance(item.value, vy_ast.Attribute):
+            return BaseType(item.value._metadata["type"]._id)
+
+        elif isinstance(item.value, vy_ast.Subscript):
+            type_ = item._metadata["type"]
+            return BaseType(type_._id)
+
         elif item.value.id == "DynArray":
 
             _sanity_check(isinstance(item.slice.value, vy_ast.Tuple))
@@ -482,7 +491,7 @@ def parse_type(item, sigs, custom_structs):
         return TupleType(members)
 
     elif "type" in item._metadata:
-        return BaseType(item._metadata["type"])
+        return BaseType(item._metadata["type"]._id)
 
     else:
         FAIL()

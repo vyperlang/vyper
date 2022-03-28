@@ -203,17 +203,22 @@ class Expr:
 
     def parse_Int(self):
         # Literal (mostly likely) becomes int256
+        typ = (
+            new_type_to_old_type(self.expr._metadata["type"])
+            if "type" in self.expr._metadata
+            else None
+        )
         if self.expr.n < 0:
             return IRnode.from_list(
                 self.expr.n,
-                typ=BaseType("int256", is_literal=True),
+                typ=typ if typ else BaseType("int256", is_literal=True),
                 pos=getpos(self.expr),
             )
         # Literal is large enough (mostly likely) becomes uint256.
         else:
             return IRnode.from_list(
                 self.expr.n,
-                typ=BaseType("uint256", is_literal=True),
+                typ=typ if typ else BaseType("uint256", is_literal=True),
                 pos=getpos(self.expr),
             )
 
@@ -527,9 +532,16 @@ class Expr:
             return
 
         pos = getpos(self.expr)
-
-        left.typ = new_type_to_old_type(self.expr.left._metadata["type"])
-        right.typ = new_type_to_old_type(self.expr.right._metadata["type"])
+        left.typ = (
+            new_type_to_old_type(self.expr.left._metadata["type"])
+            if isinstance(self.expr.left, vy_ast.VyperNode)
+            else self.expr.left.typ
+        )
+        right.typ = (
+            new_type_to_old_type(self.expr.right._metadata["type"])
+            if isinstance(self.expr.right, vy_ast.VyperNode)
+            else self.expr.right.typ
+        )
 
         ltyp, rtyp = left.typ.typ, right.typ.typ
 
