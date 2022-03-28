@@ -278,6 +278,8 @@ def to_decimal(expr, arg, out_typ):
         arg = _int_to_fixed(arg, out_typ)
         out_info = out_typ._decimal_info
         if int_info.bits > out_info.bits:
+            # TODO: _num_clamp probably not necessary bc already
+            # clamped in _int_to_fixed
             arg = _num_clamp(arg, out_info, int_info)
         return IRnode.from_list(arg, typ=out_typ)
 
