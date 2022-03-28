@@ -56,11 +56,11 @@ def process_arg(index, arg, expected_arg_typelist, function_name, context):
         elif expected_arg == "*":
             return arg
         elif expected_arg == "Bytes":
-            sub = Expr(arg, context).lll_node
+            sub = Expr(arg, context).ir_node
             if isinstance(sub.typ, ByteArrayType):
                 return sub
         elif expected_arg == "String":
-            sub = Expr(arg, context).lll_node
+            sub = Expr(arg, context).ir_node
             if isinstance(sub.typ, StringType):
                 return sub
         else:
@@ -79,9 +79,9 @@ def process_arg(index, arg, expected_arg_typelist, function_name, context):
                 elif is_valid_integer:
                     return vsub
             else:
-                vsub = vsub or Expr(arg, context).lll_node
+                vsub = vsub or Expr(arg, context).ir_node
                 if vsub.typ == parsed_expected_type:
-                    return Expr(arg, context).lll_node
+                    return Expr(arg, context).ir_node
 
     if len(expected_arg_typelist) == 1:
         raise TypeMismatch(f"Expecting {expected_arg} for argument {index} of {function_name}", arg)
@@ -95,7 +95,7 @@ def validate_inputs(wrapped_fn):
     """
     Validate input arguments on builtin functions.
 
-    Applied as a wrapper on the `build_LLL` method of
+    Applied as a wrapper on the `build_IR` method of
     classes in `vyper.functions.functions`.
     """
 

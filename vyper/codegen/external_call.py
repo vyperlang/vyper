@@ -1,4 +1,5 @@
 import vyper.utils as util
+from vyper.address_space import MEMORY
 from vyper.codegen.abi_encoder import abi_encode
 from vyper.codegen.core import (
     calculate_type_for_external_return,
@@ -8,7 +9,7 @@ from vyper.codegen.core import (
     get_element_ptr,
     getpos,
 )
-from vyper.codegen.lll_node import Encoding, LLLnode
+from vyper.codegen.ir_node import Encoding, IRnode
 from vyper.codegen.types import InterfaceType, TupleType, get_type_for_exact_size
 from vyper.exceptions import StateAccessViolation, TypeCheckFailure
 
@@ -16,7 +17,7 @@ from vyper.exceptions import StateAccessViolation, TypeCheckFailure
 def _pack_arguments(contract_sig, args, context, pos):
     # abi encoding just treats all args as a big tuple
     args_tuple_t = TupleType([x.typ for x in args])
-    args_as_tuple = LLLnode.from_list(["multi"] + [x for x in args], typ=args_tuple_t)
+    args_as_tuple = IRnode.from_list(["multi"] + [x for x in args], typ=args_tuple_t)
     args_abi_t = args_tuple_t.abi_type
 
     # sanity typecheck - make sure the arguments can be assigned
@@ -88,11 +89,11 @@ def _unpack_returndata(buf, contract_sig, skip_contract_check, context, pos):
     # revert when returndatasize is not in bounds
     ret = []
     # runtime: min_return_size <= returndatasize
-    # TODO move the -1 optimization to LLL optimizer
+    # TODO move the -1 optimization to IR optimizer
     if not skip_contract_check:
         ret += [["assert", ["gt", "returndatasize", min_return_size - 1]]]
 
-    # add as the last LLLnode a pointer to the return data structure
+    # add as the last IRnode a pointer to the return data structure
 
     # the return type has been wrapped by the calling contract;
     # unwrap it so downstream code isn't confused.
@@ -101,7 +102,7 @@ def _unpack_returndata(buf, contract_sig, skip_contract_check, context, pos):
     # in most cases, this simply will evaluate to ret.
     # in the special case where the return type has been wrapped
     # in a tuple AND its ABI type is dynamic, it expands to buf+32.
-    buf = LLLnode(buf, typ=return_t, encoding=_returndata_encoding(contract_sig), location="memory")
+    buf = IRnode(buf, typ=return_t, encoding=_returndata_encoding(contract_sig), location=MEMORY)
 
     if should_unwrap_abi_tuple:
         buf = get_element_ptr(buf, 0, pos=None, array_bounds_check=False)
@@ -114,7 +115,7 @@ def _unpack_returndata(buf, contract_sig, skip_contract_check, context, pos):
 def _external_call_helper(
     contract_address,
     contract_sig,
-    args_lll,
+    args_ir,
     context,
     pos=None,
     value=None,
@@ -130,7 +131,7 @@ def _external_call_helper(
         skip_contract_check = False
 
     # sanity check
-    assert len(contract_sig.base_args) <= len(args_lll) <= len(contract_sig.args)
+    assert len(contract_sig.base_args) <= len(args_ir) <= len(contract_sig.args)
 
     if context.is_constant() and contract_sig.mutability not in ("view", "pure"):
         # TODO is this already done in type checker?
@@ -142,7 +143,7 @@ def _external_call_helper(
 
     sub = ["seq"]
 
-    buf, arg_packer, args_ofst, args_len = _pack_arguments(contract_sig, args_lll, context, pos)
+    buf, arg_packer, args_ofst, args_len = _pack_arguments(contract_sig, args_ir, context, pos)
 
     ret_unpacker, ret_ofst, ret_len = _unpack_returndata(
         buf, contract_sig, skip_contract_check, context, pos
@@ -169,11 +170,11 @@ def _external_call_helper(
     if contract_sig.return_type is not None:
         sub += ret_unpacker
 
-    ret = LLLnode.from_list(
+    ret = IRnode.from_list(
         # set the encoding to ABI here, downstream code will decode and add clampers.
         sub,
         typ=contract_sig.return_type,
-        location="memory",
+        location=MEMORY,
         encoding=_returndata_encoding(contract_sig),
         pos=pos,
     )
@@ -200,14 +201,14 @@ def _get_special_kwargs(stmt_expr, context):
     return value, gas, skip_contract_check
 
 
-def lll_for_external_call(stmt_expr, context):
+def ir_for_external_call(stmt_expr, context):
     from vyper.codegen.expr import Expr  # TODO rethink this circular import
 
     pos = getpos(stmt_expr)
 
     contract_address = Expr.parse_value_expr(stmt_expr.func.value, context)
     value, gas, skip_contract_check = _get_special_kwargs(stmt_expr, context)
-    args_lll = [Expr(x, context).lll_node for x in stmt_expr.args]
+    args_ir = [Expr(x, context).ir_node for x in stmt_expr.args]
 
     assert isinstance(contract_address.typ, InterfaceType)
     contract_name = contract_address.typ.name
@@ -217,7 +218,7 @@ def lll_for_external_call(stmt_expr, context):
     ret = _external_call_helper(
         contract_address,
         contract_sig,
-        args_lll,
+        args_ir,
         context,
         pos,
         value=value,

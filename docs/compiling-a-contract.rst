@@ -6,7 +6,7 @@ Command-Line Compiler Tools
 
 Vyper includes the following command-line scripts for compiling contracts:
 
-* ``vyper``: Compiles vyper contract files into ``LLL`` or bytecode
+* ``vyper``: Compiles vyper contract files into ``IR`` or bytecode
 * ``vyper-json``: Provides a JSON interface to the compiler
 
 .. note::
@@ -198,7 +198,7 @@ The following example describes the expected input format of ``vyper-json``. Com
             //    abi - The contract ABI
             //    ast - Abstract syntax tree
             //    interface - Derived interface of the contract, in proper Vyper syntax
-            //    ir - LLL intermediate representation of the code
+            //    ir - intermediate representation of the code
             //    userdoc - Natspec user documentation
             //    devdoc - Natspec developer documentation
             //    evm.bytecode.object - Bytecode object

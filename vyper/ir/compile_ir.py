@@ -1,7 +1,7 @@
 import copy
 import functools
 
-from vyper.codegen.lll_node import LLLnode
+from vyper.codegen.ir_node import IRnode
 from vyper.evm.opcodes import get_opcodes
 from vyper.exceptions import CodegenPanic, CompilerPanic
 from vyper.utils import MemoryPositions
@@ -106,22 +106,22 @@ def _runtime_code_offsets(ctor_mem_size, runtime_codelen):
 # it assumes the arguments are already on the stack, to be replaced
 # by better liveness analysis.
 # NOTE: modifies input in-place
-def _rewrite_return_sequences(lll_node, label_params=None):
-    args = lll_node.args
+def _rewrite_return_sequences(ir_node, label_params=None):
+    args = ir_node.args
 
-    if lll_node.value == "return":
+    if ir_node.value == "return":
         if args[0].value == "ret_ofst" and args[1].value == "ret_len":
-            lll_node.args[0].value = "pass"
-            lll_node.args[1].value = "pass"
-    if lll_node.value == "exit_to":
+            ir_node.args[0].value = "pass"
+            ir_node.args[1].value = "pass"
+    if ir_node.value == "exit_to":
         # handle exit from private function
         if args[0].value == "return_pc":
-            lll_node.value = "jump"
+            ir_node.value = "jump"
             args[0].value = "pass"
         else:
             # handle jump to cleanup
             assert is_symbol(args[0].value)
-            lll_node.value = "seq"
+            ir_node.value = "seq"
 
             _t = ["seq"]
             if "return_buffer" in label_params:
@@ -130,10 +130,10 @@ def _rewrite_return_sequences(lll_node, label_params=None):
             dest = args[0].value[5:]  # `_sym_foo` -> `foo`
             more_args = ["pass" if t.value == "return_pc" else t for t in args[1:]]
             _t.append(["goto", dest] + more_args)
-            lll_node.args = LLLnode.from_list(_t, pos=lll_node.pos).args
+            ir_node.args = IRnode.from_list(_t, pos=ir_node.pos).args
 
-    if lll_node.value == "label":
-        label_params = set(t.value for t in lll_node.args[1].args)
+    if ir_node.value == "label":
+        label_params = set(t.value for t in ir_node.args[1].args)
 
     for t in args:
         _rewrite_return_sequences(t, label_params)
@@ -157,7 +157,7 @@ def _add_postambles(asm_ops):
 
     if len(to_append) > 0:
         # for some reason there might not be a STOP at the end of asm_ops.
-        # (generally vyper programs will have it but raw LLL might not).
+        # (generally vyper programs will have it but raw IR might not).
         asm_ops.append("STOP")
         asm_ops.extend(to_append)
 
@@ -208,7 +208,7 @@ def compile_to_assembly(code, no_optimize=False):
     return res
 
 
-# Compiles LLL to assembly
+# Compiles IR to assembly
 @apply_line_numbers
 def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=None, height=0):
     if withargs is None:
@@ -502,13 +502,13 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
     # runtime statement (used to deploy runtime code)
     elif code.value == "deploy":
         memsize = code.args[0].value  # used later to calculate _mem_deploy_start
-        lll = code.args[1]
+        ir = code.args[1]
         padding = code.args[2].value
         assert isinstance(memsize, int), "non-int memsize"
         assert isinstance(padding, int), "non-int padding"
 
         begincode = mksymbol("runtime_begin")
-        subcode = _compile_to_assembly(lll, {}, existing_labels, None, 0)
+        subcode = _compile_to_assembly(ir, {}, existing_labels, None, 0)
 
         o = []
 
@@ -530,7 +530,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         # `append(...)` call here is intentional.
         # each sublist is essentially its own program with its
         # own symbols.
-        # in the later step when the "lll" block compiled to EVM,
+        # in the later step when the "ir" block compiled to EVM,
         # symbols in subcode are resolved to position from start of
         # runtime-code (instead of position from start of bytecode).
         o.append(subcode)
@@ -709,7 +709,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
     # <= operator
     elif code.value == "le":
         return _compile_to_assembly(
-            LLLnode.from_list(["iszero", ["gt", code.args[0], code.args[1]]]),
+            IRnode.from_list(["iszero", ["gt", code.args[0], code.args[1]]]),
             withargs,
             existing_labels,
             break_dest,
@@ -718,7 +718,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
     # >= operator
     elif code.value == "ge":
         return _compile_to_assembly(
-            LLLnode.from_list(["iszero", ["lt", code.args[0], code.args[1]]]),
+            IRnode.from_list(["iszero", ["lt", code.args[0], code.args[1]]]),
             withargs,
             existing_labels,
             break_dest,
@@ -727,7 +727,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
     # <= operator
     elif code.value == "sle":
         return _compile_to_assembly(
-            LLLnode.from_list(["iszero", ["sgt", code.args[0], code.args[1]]]),
+            IRnode.from_list(["iszero", ["sgt", code.args[0], code.args[1]]]),
             withargs,
             existing_labels,
             break_dest,
@@ -736,7 +736,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
     # >= operator
     elif code.value == "sge":
         return _compile_to_assembly(
-            LLLnode.from_list(["iszero", ["slt", code.args[0], code.args[1]]]),
+            IRnode.from_list(["iszero", ["slt", code.args[0], code.args[1]]]),
             withargs,
             existing_labels,
             break_dest,
@@ -745,7 +745,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
     # != operator
     elif code.value == "ne":
         return _compile_to_assembly(
-            LLLnode.from_list(["iszero", ["eq", code.args[0], code.args[1]]]),
+            IRnode.from_list(["iszero", ["eq", code.args[0], code.args[1]]]),
             withargs,
             existing_labels,
             break_dest,
@@ -754,7 +754,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
     # e.g. 95 -> 96, 96 -> 96, 97 -> 128
     elif code.value == "ceil32":
         return _compile_to_assembly(
-            LLLnode.from_list(
+            IRnode.from_list(
                 [
                     "with",
                     "_val",
@@ -853,10 +853,10 @@ def note_breakpoint(line_number_map, item, pos):
 
 
 def _prune_unreachable_code(assembly):
-    # In converting LLL to assembly we sometimes end up with unreachable
+    # In converting IR to assembly we sometimes end up with unreachable
     # instructions - POPing to clear the stack or STOPing execution at the
     # end of a function that has already returned or reverted. This should
-    # be addressed in the LLL, but for now we do a final sanity check here
+    # be addressed in the IR, but for now we do a final sanity check here
     # to avoid unnecessary bytecode bloat.
     i = 0
     while i < len(assembly) - 1:

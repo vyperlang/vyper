@@ -185,9 +185,9 @@ FUNCTION_WHITELIST = {
     "send",
 }
 
-# List of valid LLL macros.
-# TODO move this somewhere else, like lll_node.py
-VALID_LLL_MACROS = {
+# List of valid IR macros.
+# TODO move this somewhere else, like ir_node.py
+VALID_IR_MACROS = {
     "assert",
     "break",
     "iload",
@@ -207,7 +207,7 @@ VALID_LLL_MACROS = {
     "if",
     "select",
     "le",
-    "lll",
+    "deploy",
     "ne",
     "pass",
     "repeat",
