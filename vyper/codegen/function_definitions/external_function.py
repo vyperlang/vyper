@@ -4,7 +4,7 @@ import vyper.utils as util
 from vyper.address_space import CALLDATA, DATA, MEMORY
 from vyper.ast.signatures.function_signature import FunctionSignature, VariableRecord
 from vyper.codegen.context import Context
-from vyper.codegen.core import get_element_ptr, make_setter
+from vyper.codegen.core import get_element_ptr, make_setter, getpos
 from vyper.codegen.expr import Expr
 from vyper.codegen.function_definitions.utils import get_nonreentrant_lock
 from vyper.codegen.ir_node import Encoding, IRnode
@@ -57,6 +57,8 @@ def _register_function_args(context: Context, sig: FunctionSignature) -> List[IR
             # allocate a memory slot for it and copy
             p = context.new_variable(arg.name, arg.typ, is_mutable=False)
             dst = IRnode(p, typ=arg.typ, location=MEMORY)
+            dst.source_pos = getpos(arg.ast_source)
+
             ret.append(make_setter(dst, arg_ir))
         else:
             # leave it in place
@@ -116,12 +118,15 @@ def _generate_kwarg_handlers(context: Context, sig: FunctionSignature) -> List[A
             dst = context.lookup_var(arg_meta.name).pos
 
             lhs = IRnode(dst, location=MEMORY, typ=arg_meta.typ)
+            lhs.source_pos = getpos(arg_meta.ast_source)
+
             rhs = get_element_ptr(calldata_kwargs_ofst, k, array_bounds_check=False)
             ret.append(make_setter(lhs, rhs))
 
         for x in default_kwargs:
             dst = context.lookup_var(x.name).pos
             lhs = IRnode(dst, location=MEMORY, typ=x.typ)
+            lhs.source_pos = getpos(x.ast_source)
             kw_ast_val = sig.default_values[x.name]  # e.g. `3` in x: int = 3
             rhs = Expr(kw_ast_val, context).ir_node
             ret.append(make_setter(lhs, rhs))
