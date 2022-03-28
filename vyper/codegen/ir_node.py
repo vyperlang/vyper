@@ -66,7 +66,7 @@ class IRnode:
         args: List["IRnode"] = None,
         typ: NodeType = None,
         location: Optional[AddrSpace] = None,
-        pos: Optional[Tuple[int, int]] = None,
+        source_pos: Optional[Tuple[int, int]] = None,
         annotation: Optional[str] = None,
         mutable: bool = True,
         add_gas_estimate: int = 0,
@@ -82,7 +82,7 @@ class IRnode:
         assert isinstance(typ, NodeType) or typ is None, repr(typ)
         self.typ = typ
         self.location = location
-        self.pos = pos
+        self.source_pos = source_pos
         self.annotation = annotation
         self.mutable = mutable
         self.add_gas_estimate = add_gas_estimate
@@ -371,7 +371,7 @@ class IRnode:
             and self.args == other.args
             and self.typ == other.typ
             and self.location == other.location
-            and self.pos == other.pos
+            and self.source_pos == other.source_pos
             and self.annotation == other.annotation
             and self.mutable == other.mutable
             and self.add_gas_estimate == other.add_gas_estimate
@@ -411,13 +411,13 @@ class IRnode:
         if self.repr_show_gas and self.gas:
             o += OKBLUE + "{" + ENDC + str(self.gas) + OKBLUE + "} " + ENDC  # add gas for info.
         o += "[" + self._colorise_keywords(self.repr_value)
-        prev_lineno = self.pos[0] if self.pos else None
+        prev_lineno = self.source_pos[0] if self.source_pos else None
         arg_lineno = None
         annotated = False
         has_inner_newlines = False
         for arg in self.args:
             o += ",\n  "
-            arg_lineno = arg.pos[0] if arg.pos else None
+            arg_lineno = arg.source_pos[0] if arg.source_pos else None
             if arg_lineno is not None and arg_lineno != prev_lineno and self.value in ("seq", "if"):
                 o += f"# Line {(arg_lineno)}\n  "
                 prev_lineno = arg_lineno
@@ -448,7 +448,7 @@ class IRnode:
         obj: Any,
         typ: NodeType = None,
         location: Optional[AddrSpace] = None,
-        pos: Tuple[int, int] = None,
+        source_pos: Optional[Tuple[int, int]] = None,
         annotation: Optional[str] = None,
         mutable: bool = True,
         add_gas_estimate: int = 0,
@@ -463,8 +463,8 @@ class IRnode:
             # the input gets modified. CC 20191121.
             if typ is not None:
                 obj.typ = typ
-            if obj.pos is None:
-                obj.pos = pos
+            if obj.source_pos is None:
+                obj.source_pos = source_pos
             if obj.location is None:
                 obj.location = location
             if obj.encoding is None:
@@ -477,7 +477,6 @@ class IRnode:
                 [],
                 typ,
                 location=location,
-                pos=pos,
                 annotation=annotation,
                 mutable=mutable,
                 add_gas_estimate=add_gas_estimate,
@@ -487,12 +486,12 @@ class IRnode:
         else:
             return cls(
                 obj[0],
-                [cls.from_list(o, pos=pos) for o in obj[1:]],
+                [cls.from_list(o, source_pos=source_pos) for o in obj[1:]],
                 typ,
                 location=location,
-                pos=pos,
                 annotation=annotation,
                 mutable=mutable,
+                source_pos=source_pos,
                 add_gas_estimate=add_gas_estimate,
                 valency=valency,
                 encoding=encoding,
