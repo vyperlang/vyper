@@ -19,19 +19,21 @@ class AddrSpace:
             32 for byte-addressable locations (memory, calldata, code)
         load_op: the opcode for loading a word from this address space
         store_op: the opcode for storing a word to this address space
+            (an address space is read-only if store_op is None)
     """
 
     name: str
     word_scale: int
     load_op: str
-    store_op: Optional[str]
+    # TODO maybe make positional instead of defaulting to None
+    store_op: Optional[str] = None
 
     @property
-    def word_addressable(self):
+    def word_addressable(self) -> bool:
         return self.word_scale == 1
 
     @property
-    def byte_addressable(self):
+    def byte_addressable(self) -> bool:
         return self.word_scale == 32
 
 
@@ -46,10 +48,10 @@ class AddrSpace:
 
 MEMORY = AddrSpace("memory", 32, "mload", "mstore")
 STORAGE = AddrSpace("storage", 1, "sload", "sstore")
-CALLDATA = AddrSpace("calldata", 32, "calldataload", None)
+CALLDATA = AddrSpace("calldata", 32, "calldataload")
 # immutables address space: "immutables" section of memory
 # which is read-write in deploy code but then gets turned into
 # the "data" section of the runtime code
 IMMUTABLES = AddrSpace("immutables", 32, "iload", "istore")
 # data addrspace: "data" section of runtime code, read-only.
-DATA = AddrSpace("data", 32, "dload", None)
+DATA = AddrSpace("data", 32, "dload")
