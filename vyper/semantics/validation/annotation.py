@@ -7,6 +7,7 @@ from vyper.semantics.types.function import ContractFunction, MemberFunctionDefin
 from vyper.semantics.types.indexable.sequence import DynamicArrayDefinition
 from vyper.semantics.types.user.event import Event
 from vyper.semantics.types.user.struct import StructPrimitive
+from vyper.semantics.types.value.numeric import Int256Definition, Uint256Definition  # type: ignore
 from vyper.semantics.validation.utils import (
     get_common_types,
     get_exact_type_from_node,
@@ -134,10 +135,10 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
     def visit_BinOp(self, node, type_):
         if type_:
             node._metadata["type"] = type_
-        else:
-            type_ = get_common_types(node.left, node.right)
-            if len(type_) == 1:
-                type_ = type_.pop()
+
+        type_ = get_common_types(node.left, node.right)
+        if len(type_) == 1:
+            type_ = type_.pop()
 
         self.visit(node.left, type_)
         self.visit(node.right, type_)
@@ -165,9 +166,8 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
 
             else:
                 # builtin functions
-                if node.func.id not in ("empty",):
-
-                    if hasattr(call_type, "_inputs"):
+                if hasattr(call_type, "_id") and node.func.id not in ("empty",):
+                    if hasattr(call_type, "_inputs") and call_type._id not in ("slice", "raw_log"):
                         for arg, inputs in zip(node.args, call_type._inputs):
                             self.visit(arg, inputs[1])
 
@@ -177,6 +177,16 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
 
                     for kwarg in node.keywords:
                         self.visit(kwarg.value, None)
+
+                else:
+                    # _UnsafeMath function classes do not have id attribute
+                    if hasattr(call_type, "_inputs"):
+                        for arg, inputs in zip(node.args, call_type._inputs):
+                            self.visit(arg, inputs[1])
+
+                    else:
+                        for arg in node.args:
+                            self.visit(arg, None)
 
         else:
             call_type = get_exact_type_from_node(node.func)
@@ -225,10 +235,15 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
     def visit_Int(self, node, type_):
         if type_:
             # Only set if is a defined integer type (i.e. must not be IntegerAbstractType)
-            if isinstance(
-                type_, (SignedIntegerAbstractType, UnsignedIntegerAbstractType)
-            ) and hasattr(type_, "bits"):
-                node._metadata["type"] = type_
+            if isinstance(type_, (SignedIntegerAbstractType, UnsignedIntegerAbstractType)):
+                if hasattr(type_, "_bits"):
+                    node._metadata["type"] = type_
+                else:
+                    # Cast to largest possible type
+                    if isinstance(type_, SignedIntegerAbstractType):
+                        node._metadata["type"] = Int256Definition()
+                    elif isinstance(type_, UnsignedIntegerAbstractType):
+                        node._metadata["type"] = Uint256Definition()
 
     def visit_List(self, node, type_):
         if type_ is None or not isinstance(type_, (ArrayDefinition, DynamicArrayDefinition)):

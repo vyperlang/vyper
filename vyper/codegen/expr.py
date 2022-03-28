@@ -527,7 +527,6 @@ class Expr:
     def parse_BinOp(self):
         left = Expr.parse_value_expr(self.expr.left, self.context)
         right = Expr.parse_value_expr(self.expr.right, self.context)
-
         if not is_numeric_type(left.typ) or not is_numeric_type(right.typ):
             return
 
