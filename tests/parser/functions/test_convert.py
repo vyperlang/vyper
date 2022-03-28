@@ -184,197 +184,31 @@ def _generate_valid_test_cases_for_type(type_, count=None):
         return [0, 1, 2 ** count - 2, 2 ** count - 1]
 
 
-def _generate_input_values_dict(in_type, out_type, cases, out_values):
-    """
-    Helper function to generate the test values for a specific input type and output type,
-    and to modify the output values based on the input type and output type where necessary.
+def _generate_input_values_dict_from_address(out_type, cases, out_values):
 
-    To defer the evaluation of the output value to this function, use None as a
-    placeholder when defining the `out_values` in pytest.mark.parametrize.
-    """
     res = []
+
     for c, ov in zip(cases, out_values):
+        in_nibbles = _get_nibble("address")
+        out_nibbles = _get_nibble(out_type)
 
-        if out_type == "address" and ov is None:
-
-            # Modify input value by clamping to 160 bits
-            n = _get_nibble(in_type)
-            out_nibbles = _get_nibble(out_type)
-
-            if in_type.startswith("bytes"):
-                index = 2 if n <= out_nibbles else n - out_nibbles + 2
-                ov = checksum_encode("0x" + c[index:].rjust(out_nibbles, "0"))
-                c = "0x" + "0" * (index - 2) + c[index:]
-
-            elif in_type.startswith("Bytes"):
-                index = 0 if n <= out_nibbles else n - out_nibbles
-                ov = checksum_encode("0x" + c.hex()[index:].rjust(out_nibbles, "0"))
-                c = b"\x00" * (index // 2) + c[index // 2 :]
-
-            elif in_type.startswith("uint"):
-                index = 2 if n <= out_nibbles else n - out_nibbles + 2
-                ov = checksum_encode("0x" + hex(c)[index:].rjust(out_nibbles, "0"))
-                c = int("0x" + "0" * (index - 2) + hex(c)[index:], 16)
-
-        elif out_type.startswith("uint") and ov is None:
-
-            # Modify input value by clamping to number of bits of uint
-
-            if in_type == "address":
-                in_nibbles = _get_nibble(in_type)
-                out_nibbles = _get_nibble(out_type)
-                index = in_nibbles + 2 - out_nibbles if out_nibbles <= in_nibbles else 2
-                c = checksum_encode("0x" + "0" * (index - 2) + c[index:])
-                ov = int(c, 16)
-
-            elif in_type.startswith("bytes"):
-                in_nibbles = _get_nibble(in_type)
-                out_nibbles = _get_nibble(out_type)
-
-                if in_nibbles > out_nibbles:
-                    # Clamp input value
-                    index = in_nibbles - out_nibbles + 2
-                    c = "0x" + "0" * (index - 2) + c[index:]
-
-                # Compute output value
-                ov = int(c, 16)
-
-            elif in_type.startswith("Bytes"):
-                in_nibbles = _get_nibble(in_type)
-                out_nibbles = _get_nibble(out_type)
-
-                if in_nibbles > out_nibbles:
-                    # Clamp input value
-                    index = in_nibbles - out_nibbles
-                    c = b"\x00" * (index // 2) + c[index // 2 :]
-
-                # Compute output value
-                ov = int(c.hex(), 16)
-
-            elif in_type == "decimal":
-                ov = int(Decimal(c))
-
-            elif in_type.startswith("int"):
-                ov = c
-
-        elif out_type.startswith("int") and ov is None:
-
-            if in_type.startswith("bytes"):
-                in_bits = _get_bits(in_type)
-                out_bits = _get_type_N(out_type)
-
-                if in_bits >= out_bits:
-                    # Clamp input value
-                    in_nibbles = _get_nibble(in_type)
-                    out_nibbles = _get_nibble(out_type)
-
-                    index = (in_nibbles - out_nibbles) + 2
-                    largest_value_hex = hex(2 ** (out_bits - 1) - 1)
-
-                    c = "0x" + "0" * (index - 2) + largest_value_hex[2:]
-                    ov = hex_to_signed_int(c, out_bits)
-                else:
-                    ov = hex_to_signed_int(c, in_bits)
-
-            elif in_type.startswith("Bytes"):
-                in_N = _get_type_N(in_type)
-                in_bits = _get_bits(in_type)
-                out_bits = _get_type_N(out_type)
-                out_bytes = out_bits // 8
-
-                if in_bits >= out_bits:
-                    # Clamp input value
-
-                    index = in_N - out_bytes
-                    largest_value_bytes = (2 ** (out_bits - 1) - 1).to_bytes(
-                        out_bytes, byteorder="big"
-                    )
-
-                    c = b"\x00" * (index) + largest_value_bytes
-                    ov = hex_to_signed_int(c.hex(), out_bits)
-                else:
-                    ov = hex_to_signed_int(c.hex(), in_bits)
-
-            elif in_type == "decimal":
-                ov = int(Decimal(c))
-
-            elif in_type.startswith("uint"):
-                ov = c
-
-        elif out_type == "decimal" and ov is None:
-            #################################################################################
-            # NOTE: Vyper uses a decimal divisor of 10000000000 (or 10^10).
-            #
-            #       This means that `decimal` type variables can store values
-            #       that are of 1/10000000000.
-            #
-            #       Because of this, when converting from `decimal` to `bytes32`,
-            #       the conversion can be thought of as converting integer result of
-            #       the decimal value of interest multiplied by 10000000000.
-            #
-            #       For example, converting the decimal value `5.0` to `byte32`
-            #       can be thought of as giving the `bytes32` value of the integer
-            #       result of 5 * 10000000000 = 50000000000
-            #################################################################################
-            out_bits = DECIMAL_BITS
-
-            if in_type.startswith("bytes"):
-                in_bits = _get_bits(in_type)
-
-                if in_bits >= out_bits:
-                    # Clamp input value
-                    in_nibbles = _get_nibble(in_type)
-                    index = in_nibbles - (out_bits // 4) + 2
-
-                    c = "0x" + "0" * (index - 2) + c[index:]
-
-                ov = Decimal(hex_to_signed_int(c, in_bits)) / DECIMAL_DIVISOR
-
-            elif in_type.startswith("Bytes"):
-                in_bits = _get_bits(in_type)
-
-                ov = Decimal(hex_to_signed_int(c.hex(), in_bits)) / DECIMAL_DIVISOR
-
-            elif in_type.startswith(("int", "uint")):
-                ov = Decimal(c)
+        if out_type.startswith("uint") and ov is None:
+            index = in_nibbles + 2 - out_nibbles if out_nibbles <= in_nibbles else 2
+            c = checksum_encode("0x" + "0" * (index - 2) + c[index:])
+            ov = int(c, 16)
 
         elif out_type.startswith("bytes") and ov is None:
-            out_nibbles = _get_nibble(out_type)
-
-            if in_type == "address":
-                ov = bytes.fromhex(c[2:].rjust(out_nibbles, "0"))
-
-            elif in_type == "bool":
-                ov = bytes.fromhex(hex(int(c))[2].rjust(out_nibbles, "0"))
-
-            elif in_type.startswith("Bytes"):
-                ov = bytes.fromhex(c.hex().ljust(out_nibbles, "0"))
-
-            elif in_type == "decimal":
-                in_hex_str = signed_int_to_hex(int(Decimal(c) * DECIMAL_DIVISOR), 256)[2:].rjust(
-                    64, "0"
-                )
-                if out_nibbles < 64:
-                    index = 64 - (out_nibbles)
-                    in_hex_str = in_hex_str[index:]
-                ov = bytes.fromhex(in_hex_str)
-
-            elif in_type.startswith("uint"):
-                ov = bytes.fromhex(hex(c)[2:].rjust(out_nibbles, "0"))
-
-            elif in_type.startswith("int"):
-                in_N = _get_type_N(in_type)
-                msb = "f" if c < 0 else "0"
-                ov = bytes.fromhex(signed_int_to_hex(c, in_N)[2:].rjust(out_nibbles, msb))
+            ov = bytes.fromhex(c[2:].rjust(out_nibbles, "0"))
 
         res.append(
             {
-                "in_type": in_type,
+                "in_type": "address",
                 "out_type": out_type,
                 "in_value": c,
                 "out_value": ov,
             }
         )
+
     return res
 
 
@@ -389,16 +223,38 @@ def generate_test_convert_values_from_address(out_type, out_values):
             out_bits = _get_bits(b)
             if out_bits < ADDRESS_BITS or out_N == ADDRESS_BITS // 8:
                 continue
-            result += _generate_input_values_dict("address", b, cases, out_values)
+            result += _generate_input_values_dict_from_address(b, cases, out_values)
 
     elif out_type == "uint":
         for t in UNSIGNED_INTEGER_TYPES:
-            result += _generate_input_values_dict("address", t, cases, out_values)
+            result += _generate_input_values_dict_from_address(t, cases, out_values)
 
     else:
-        result += _generate_input_values_dict("address", out_type, cases, out_values)
+        result += _generate_input_values_dict_from_address(out_type, cases, out_values)
 
     return result
+
+
+def _generate_input_values_dict_from_bool(out_type, cases, out_values):
+
+    res = []
+
+    for c, ov in zip(cases, out_values):
+
+        if out_type.startswith("bytes") and ov is None:
+            out_nibbles = _get_nibble(out_type)
+            ov = bytes.fromhex(hex(int(c))[2].rjust(out_nibbles, "0"))
+
+        res.append(
+            {
+                "in_type": "bool",
+                "out_type": out_type,
+                "in_value": c,
+                "out_value": ov,
+            }
+        )
+
+    return res
 
 
 def generate_test_convert_values_from_bool(out_type, out_values):
@@ -408,20 +264,79 @@ def generate_test_convert_values_from_bool(out_type, out_values):
 
     if out_type == "bytes":
         for b in BYTES_M_TYPES:
-            result += _generate_input_values_dict("bool", b, cases, out_values)
+            result += _generate_input_values_dict_from_bool(b, cases, out_values)
 
     elif out_type == "int":
         for s in SIGNED_INTEGER_TYPES:
-            result += _generate_input_values_dict("bool", s, cases, out_values)
+            result += _generate_input_values_dict_from_bool(s, cases, out_values)
 
     elif out_type == "uint":
         for t in UNSIGNED_INTEGER_TYPES:
-            result += _generate_input_values_dict("bool", t, cases, out_values)
+            result += _generate_input_values_dict_from_bool(t, cases, out_values)
 
     else:
-        result += _generate_input_values_dict("bool", out_type, cases, out_values)
+        result += _generate_input_values_dict_from_bool(out_type, cases, out_values)
 
     return result
+
+
+def _generate_input_values_dict_from_bytes(in_type, out_type, cases, out_values):
+
+    res = []
+
+    for c, ov in zip(cases, out_values):
+
+        in_nibbles = _get_nibble(in_type)
+        out_nibbles = _get_nibble(out_type)
+        in_bits = _get_bits(in_type)
+        out_bits = _get_type_N(out_type)
+
+        if out_type == "address" and ov is None:
+            # Modify input value by clamping to 160 bits
+
+            index = 2 if in_nibbles <= out_nibbles else in_nibbles - out_nibbles + 2
+            ov = checksum_encode("0x" + c[index:].rjust(out_nibbles, "0"))
+            c = "0x" + "0" * (index - 2) + c[index:]
+
+        elif out_type.startswith("uint") and ov is None:
+            if in_nibbles > out_nibbles:
+                # Clamp input value
+                index = in_nibbles - out_nibbles + 2
+                c = "0x" + "0" * (index - 2) + c[index:]
+
+            # Compute output value
+            ov = int(c, 16)
+
+        elif out_type.startswith("int") and ov is None:
+            if in_bits >= out_bits:
+                # Clamp input value
+
+                index = (in_nibbles - out_nibbles) + 2
+                largest_value_hex = hex(2 ** (out_bits - 1) - 1)
+
+                c = "0x" + "0" * (index - 2) + largest_value_hex[2:]
+                ov = hex_to_signed_int(c, out_bits)
+            else:
+                ov = hex_to_signed_int(c, in_bits)
+
+        elif out_type == "decimal" and ov is None:
+            if in_bits >= DECIMAL_BITS:
+                # Clamp input value
+                index = in_nibbles - (DECIMAL_BITS // 4) + 2
+                c = "0x" + "0" * (index - 2) + c[index:]
+
+            ov = Decimal(hex_to_signed_int(c, in_bits)) / DECIMAL_DIVISOR
+
+        res.append(
+            {
+                "in_type": in_type,
+                "out_type": out_type,
+                "in_value": c,
+                "out_value": ov,
+            }
+        )
+
+    return res
 
 
 def generate_test_convert_values_from_bytes(out_type, out_values):
@@ -438,16 +353,74 @@ def generate_test_convert_values_from_bytes(out_type, out_values):
 
         if out_type == "int":
             for s in SIGNED_INTEGER_TYPES:
-                result += _generate_input_values_dict(t, s, cases, out_values)
+                result += _generate_input_values_dict_from_bytes(t, s, cases, out_values)
 
         elif out_type == "uint":
             for u in UNSIGNED_INTEGER_TYPES:
-                result += _generate_input_values_dict(t, u, cases, out_values)
+                result += _generate_input_values_dict_from_bytes(t, u, cases, out_values)
 
         else:
-            result += _generate_input_values_dict(t, out_type, cases, out_values)
+            result += _generate_input_values_dict_from_bytes(t, out_type, cases, out_values)
 
     return result
+
+
+def _generate_input_values_dict_from_Bytes(in_type, out_type, cases, out_values):
+
+    res = []
+
+    for c, ov in zip(cases, out_values):
+
+        in_nibbles = _get_nibble(in_type)
+        out_nibbles = _get_nibble(out_type)
+        in_bits = _get_bits(in_type)
+        out_bits = _get_type_N(out_type)
+
+        if out_type == "address" and ov is None:
+            index = 0 if in_nibbles <= out_nibbles else in_nibbles - out_nibbles
+            ov = checksum_encode("0x" + c.hex()[index:].rjust(out_nibbles, "0"))
+            c = b"\x00" * (index // 2) + c[index // 2 :]
+
+        elif out_type.startswith("uint") and ov is None:
+            if in_nibbles > out_nibbles:
+                # Clamp input value
+                index = in_nibbles - out_nibbles
+                c = b"\x00" * (index // 2) + c[index // 2 :]
+
+            # Compute output value
+            ov = int(c.hex(), 16)
+
+        elif out_type.startswith("int") and ov is None:
+            in_N = _get_type_N(in_type)
+            out_bytes = out_bits // 8
+
+            if in_bits >= out_bits:
+                # Clamp input value
+
+                index = in_N - out_bytes
+                largest_value_bytes = (2 ** (out_bits - 1) - 1).to_bytes(out_bytes, byteorder="big")
+
+                c = b"\x00" * (index) + largest_value_bytes
+                ov = hex_to_signed_int(c.hex(), out_bits)
+            else:
+                ov = hex_to_signed_int(c.hex(), in_bits)
+
+        elif out_type == "decimal" and ov is None:
+            ov = Decimal(hex_to_signed_int(c.hex(), in_bits)) / DECIMAL_DIVISOR
+
+        elif out_type.startswith("bytes") and ov is None:
+            ov = bytes.fromhex(c.hex().ljust(out_nibbles, "0"))
+
+        res.append(
+            {
+                "in_type": in_type,
+                "out_type": out_type,
+                "in_value": c,
+                "out_value": ov,
+            }
+        )
+
+    return res
 
 
 def generate_test_convert_values_from_Bytes(in_type, out_type, out_values):
@@ -461,20 +434,50 @@ def generate_test_convert_values_from_Bytes(in_type, out_type, out_values):
             out_N = _get_type_N(b)
             if out_N < in_N:
                 continue
-            result += _generate_input_values_dict(in_type, b, cases, out_values)
+            result += _generate_input_values_dict_from_Bytes(in_type, b, cases, out_values)
 
     elif out_type == "int":
         for s in SIGNED_INTEGER_TYPES:
-            result += _generate_input_values_dict(in_type, s, cases, out_values)
+            result += _generate_input_values_dict_from_Bytes(in_type, s, cases, out_values)
 
     elif out_type == "uint":
         for u in UNSIGNED_INTEGER_TYPES:
-            result += _generate_input_values_dict(in_type, u, cases, out_values)
+            result += _generate_input_values_dict_from_Bytes(in_type, u, cases, out_values)
 
     else:
-        result += _generate_input_values_dict(in_type, out_type, cases, out_values)
+        result += _generate_input_values_dict_from_Bytes(in_type, out_type, cases, out_values)
 
     return result
+
+
+def _generate_input_values_dict_from_decimal(out_type, cases, out_values):
+
+    res = []
+
+    for c, ov in zip(cases, out_values):
+
+        if out_type.startswith(("int", "uint")) and ov is None:
+            ov = int(Decimal(c))
+
+        elif out_type.startswith("bytes") and ov is None:
+            out_nibbles = _get_nibble(out_type)
+            in_hex_str = signed_int_to_hex(int(Decimal(c) * DECIMAL_DIVISOR), 256)[2:].rjust(
+                64, "0"
+            )
+            if out_nibbles < 64:
+                index = 64 - (out_nibbles)
+                in_hex_str = in_hex_str[index:]
+            ov = bytes.fromhex(in_hex_str)
+
+        res.append(
+            {
+                "in_type": "decimal",
+                "out_type": out_type,
+                "in_value": c,
+                "out_value": ov,
+            }
+        )
+    return res
 
 
 def generate_test_convert_values_from_decimal(out_type, out_values):
@@ -484,13 +487,13 @@ def generate_test_convert_values_from_decimal(out_type, out_values):
 
     if out_type == "bytes":
         for b in BYTES_M_TYPES:
-            result += _generate_input_values_dict("decimal", b, cases, out_values)
+            result += _generate_input_values_dict_from_decimal(b, cases, out_values)
 
     elif out_type == "int":
         for s in SIGNED_INTEGER_TYPES:
             out_N = _get_type_N(s)
             cases = _generate_valid_test_cases_for_type("decimal", count=out_N)
-            result += _generate_input_values_dict("decimal", s, cases, out_values)
+            result += _generate_input_values_dict_from_decimal(s, cases, out_values)
 
     elif out_type == "uint":
         for t in UNSIGNED_INTEGER_TYPES:
@@ -499,9 +502,39 @@ def generate_test_convert_values_from_decimal(out_type, out_values):
             updated_cases, updated_out_values = zip(
                 *[x for x in zip(cases, out_values) if (Decimal(x[0]) > 0)]
             )
-            result += _generate_input_values_dict("decimal", t, updated_cases, updated_out_values)
+            result += _generate_input_values_dict_from_decimal(t, updated_cases, updated_out_values)
 
     return result
+
+
+def _generate_input_values_dict_from_int(in_type, out_type, cases, out_values):
+
+    res = []
+
+    for c, ov in zip(cases, out_values):
+
+        if out_type.startswith("uint") and ov is None:
+            ov = c
+
+        elif out_type == "decimal" and ov is None:
+            ov = Decimal(c)
+
+        elif out_type.startswith("bytes") and ov is None:
+            out_nibbles = _get_nibble(out_type)
+            in_N = _get_type_N(in_type)
+            msb = "f" if c < 0 else "0"
+            ov = bytes.fromhex(signed_int_to_hex(c, in_N)[2:].rjust(out_nibbles, msb))
+
+        res.append(
+            {
+                "in_type": in_type,
+                "out_type": out_type,
+                "in_value": c,
+                "out_value": ov,
+            }
+        )
+
+    return res
 
 
 def generate_test_convert_values_from_int(out_type, out_values):
@@ -517,7 +550,7 @@ def generate_test_convert_values_from_int(out_type, out_values):
                 out_bits = _get_bits(b)
                 if out_bits < in_N:
                     continue
-                result += _generate_input_values_dict(t, b, cases, out_values)
+                result += _generate_input_values_dict_from_int(t, b, cases, out_values)
 
         elif out_type == "uint":
             for u in UNSIGNED_INTEGER_TYPES:
@@ -525,15 +558,53 @@ def generate_test_convert_values_from_int(out_type, out_values):
                 updated_cases, updated_out_values = zip(
                     *[x for x in zip(cases, out_values) if (x[0] > 0 and x[0] <= 2 ** out_N)]
                 )
-                result += _generate_input_values_dict(t, u, updated_cases, updated_out_values)
+                result += _generate_input_values_dict_from_int(
+                    t, u, updated_cases, updated_out_values
+                )
 
         else:
             if out_type == "decimal":
                 if in_N > 128:
                     cases = _generate_valid_test_cases_for_type("int", count=128)
-            result += _generate_input_values_dict(t, out_type, cases, out_values)
+            result += _generate_input_values_dict_from_int(t, out_type, cases, out_values)
 
     return result
+
+
+def _generate_input_values_dict_from_uint(in_type, out_type, cases, out_values):
+
+    res = []
+
+    for c, ov in zip(cases, out_values):
+
+        in_nibbles = _get_nibble(in_type)
+        out_nibbles = _get_nibble(out_type)
+
+        if out_type == "address" and ov is None:
+            # Modify input value by clamping to 160 bits
+            index = 2 if in_nibbles <= out_nibbles else in_nibbles - out_nibbles + 2
+            ov = checksum_encode("0x" + hex(c)[index:].rjust(out_nibbles, "0"))
+            c = int("0x" + "0" * (index - 2) + hex(c)[index:], 16)
+
+        elif out_type.startswith("int") and ov is None:
+            ov = c
+
+        elif out_type == "decimal" and ov is None:
+            ov = Decimal(c)
+
+        elif out_type.startswith("bytes") and ov is None:
+            ov = bytes.fromhex(hex(c)[2:].rjust(out_nibbles, "0"))
+
+        res.append(
+            {
+                "in_type": in_type,
+                "out_type": out_type,
+                "in_value": c,
+                "out_value": ov,
+            }
+        )
+
+    return res
 
 
 def generate_test_convert_values_from_uint(out_type, out_values):
@@ -549,7 +620,7 @@ def generate_test_convert_values_from_uint(out_type, out_values):
                 out_bits = _get_bits(b)
                 if out_bits < in_N:
                     continue
-                result += _generate_input_values_dict(t, b, cases, out_values)
+                result += _generate_input_values_dict_from_uint(t, b, cases, out_values)
 
         elif out_type == "int":
             for s in SIGNED_INTEGER_TYPES:
@@ -559,13 +630,13 @@ def generate_test_convert_values_from_uint(out_type, out_values):
                 if out_N <= in_N:
                     cases = _generate_valid_test_cases_for_type("uint", count=out_N - 1)
 
-                result += _generate_input_values_dict(t, s, cases, out_values)
+                result += _generate_input_values_dict_from_uint(t, s, cases, out_values)
 
         else:
             if out_type == "decimal":
                 if in_N >= 128:
                     cases = _generate_valid_test_cases_for_type("uint", count=127)
-            result += _generate_input_values_dict(t, out_type, cases, out_values)
+            result += _generate_input_values_dict_from_uint(t, out_type, cases, out_values)
 
     return result
 
