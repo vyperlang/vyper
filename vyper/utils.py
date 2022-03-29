@@ -1,9 +1,22 @@
 import binascii
+import decimal
 import sys
 import traceback
-from typing import Dict, List, Union
+from typing import List, Union
 
-from vyper.exceptions import InvalidLiteral
+from vyper.exceptions import DecimalOverrideException, InvalidLiteral
+
+
+class DecimalContextOverride(decimal.Context):
+    def __setattr__(self, name, value):
+        if name == "prec":
+            # CMC 2022-03-27: should we raise a warning instead of an exception?
+            raise DecimalOverrideException("Overriding decimal precision disabled")
+        super().__setattr__(name, value)
+
+
+decimal.setcontext(DecimalContextOverride(prec=78))
+
 
 try:
     from Crypto.Hash import keccak  # type: ignore
@@ -73,7 +86,7 @@ def bytes_to_int(bytez):
 
 # Encodes an address using ethereum's checksum scheme
 def checksum_encode(addr):  # Expects an input of the form 0x<40 hex chars>
-    assert addr[:2] == "0x" and len(addr) == 42
+    assert addr[:2] == "0x" and len(addr) == 42, addr
     o = ""
     v = bytes_to_int(keccak256(addr[2:].lower().encode("utf-8")))
     for i, c in enumerate(addr[2:]):
@@ -105,50 +118,73 @@ MAX_DECIMAL_PLACES = 10
 DECIMAL_DIVISOR = 10 ** MAX_DECIMAL_PLACES
 
 
+def int_bounds(signed, bits):
+    """
+    calculate the bounds on an integer type
+    ex. int_bounds(8, True) -> (-128, 127)
+        int_bounds(8, False) -> (0, 255)
+    """
+    if signed:
+        return -(2 ** (bits - 1)), (2 ** (bits - 1)) - 1
+    return 0, (2 ** bits) - 1
+
+
+# EVM div semantics as a python function
+def evm_div(x, y):
+    if y == 0:
+        return 0
+    # doesn't actually work:
+    # return int(x / y)
+    sign = -1 if (x * y) < 0 else 1
+    return sign * (abs(x) // abs(y))  # adapted from py-evm
+
+
+# EVM mod semantics as a python function
+def evm_mod(x, y):
+    if y == 0:
+        return 0
+
+    # this doesn't actually work when num digits exceeds fp precision:
+    # return int(math.fmod(x, y))
+    sign = -1 if x < 0 else 1
+    return sign * (abs(x) % abs(y))  # adapted from py-evm
+
+
 # memory used for system purposes, not for variables
 class MemoryPositions:
-    MAXDECIMAL = 32
-    MINDECIMAL = 64
-    FREE_VAR_SPACE = 128
-    FREE_VAR_SPACE2 = 160
-    RESERVED_MEMORY = 192
+    FREE_VAR_SPACE = 0
+    FREE_VAR_SPACE2 = 32
+    RESERVED_MEMORY = 64
 
 
 # Sizes of different data types. Used to clamp types.
 class SizeLimits:
-    ADDRSIZE = 2 ** 160
     MAX_INT128 = 2 ** 127 - 1
     MIN_INT128 = -(2 ** 127)
     MAX_INT256 = 2 ** 255 - 1
     MIN_INT256 = -(2 ** 255)
-    MAXDECIMAL = (2 ** 127 - 1) * DECIMAL_DIVISOR
-    MINDECIMAL = (-(2 ** 127)) * DECIMAL_DIVISOR
+    MAXDECIMAL = 2 ** 167 - 1  # maxdecimal as EVM value
+    MINDECIMAL = -(2 ** 167)  # mindecimal as EVM value
+    # min decimal allowed as Python value
+    MIN_AST_DECIMAL = -decimal.Decimal(2 ** 167) / DECIMAL_DIVISOR
+    # max decimal allowed as Python value
+    MAX_AST_DECIMAL = decimal.Decimal(2 ** 167 - 1) / DECIMAL_DIVISOR
     MAX_UINT8 = 2 ** 8 - 1
     MAX_UINT256 = 2 ** 256 - 1
 
     @classmethod
     def in_bounds(cls, type_str, value):
+        # TODO: fix this circular import
+        from vyper.codegen.types import parse_decimal_info, parse_integer_typeinfo
+
         assert isinstance(type_str, str)
         if type_str == "decimal":
-            return float(cls.MINDECIMAL) <= value <= float(cls.MAXDECIMAL)
-        if type_str == "uint8":
-            return 0 <= value <= cls.MAX_UINT8
-        elif type_str == "uint256":
-            return 0 <= value <= cls.MAX_UINT256
-        elif type_str == "int128":
-            return cls.MIN_INT128 <= value <= cls.MAX_INT128
-        elif type_str == "int256":
-            return cls.MIN_INT256 <= value <= cls.MAX_INT256
+            info = parse_decimal_info(type_str)
         else:
-            raise Exception(f'Unknown type "{type_str}" supplied.')
+            info = parse_integer_typeinfo(type_str)
 
-
-# Map representing all limits loaded into a contract as part of the initializer
-# code.
-LOADED_LIMITS: Dict[int, int] = {
-    MemoryPositions.MAXDECIMAL: SizeLimits.MAXDECIMAL,
-    MemoryPositions.MINDECIMAL: SizeLimits.MINDECIMAL,
-}
+        (lo, hi) = int_bounds(info.is_signed, info.bits)
+        return lo <= value <= hi
 
 
 # Otherwise reserved words that are whitelisted for function declarations
@@ -156,10 +192,15 @@ FUNCTION_WHITELIST = {
     "send",
 }
 
-# List of valid LLL macros.
-VALID_LLL_MACROS = {
+# List of valid IR macros.
+# TODO move this somewhere else, like ir_node.py
+VALID_IR_MACROS = {
     "assert",
     "break",
+    "iload",
+    "istore",
+    "dload",
+    "dloadbytes",
     "ceil32",
     "clamp",
     "clamp_nonzero",
@@ -167,13 +208,13 @@ VALID_LLL_MACROS = {
     "clampgt",
     "clample",
     "clamplt",
-    "codeload",
     "continue",
     "debugger",
     "ge",
     "if",
+    "select",
     "le",
-    "lll",
+    "deploy",
     "ne",
     "pass",
     "repeat",
@@ -189,17 +230,14 @@ VALID_LLL_MACROS = {
     "uclample",
     "uclamplt",
     "with",
-    "~codelen",
     "label",
     "goto",
     "~extcode",
     "~selfcode",
     "~calldata",
     "~empty",
+    "var_list",
 }
-
-# Available base types
-BASE_TYPES = {"int128", "int256", "decimal", "bytes32", "uint8", "uint256", "bool", "address"}
 
 
 def indent(text: str, indent_chars: Union[str, List[str]] = " ", level: int = 1) -> str:

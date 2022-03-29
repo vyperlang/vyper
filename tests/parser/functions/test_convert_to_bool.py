@@ -35,7 +35,7 @@ def foo() -> bool:
 
 @external
 def hoo() -> bool:
-    return convert(-100.0, bool)
+    return convert(-0.1, bool)
 
 @external
 def goo() -> bool:
@@ -48,7 +48,7 @@ def foobar() -> bool:
 
 @external
 def hoonar() -> bool:
-    self.nar = -100.0
+    self.nar = -0.1
     return convert(self.nar, bool)
 
 @external

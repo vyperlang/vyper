@@ -29,8 +29,8 @@ event MyLog:
 def foo():
     a: Bytes[64] = b'hellohellohellohellohellohellohellohellohello'
     b: Bytes[64] = b'hellohellohellohellohellohellohellohello'
-    c: Bytes[64] = b'hellohellohellohellohellohellohello'
-    log MyLog(a, b, c)
+    # test literal much smaller than buffer
+    log MyLog(a, b, b'hello')
     """
 
     c = get_contract_with_gas_estimation(code)
@@ -38,7 +38,7 @@ def foo():
 
     assert log[0].args.arg1 == b"hello" * 9
     assert log[0].args.arg2 == b"hello" * 8
-    assert log[0].args.arg3 == b"hello" * 7
+    assert log[0].args.arg3 == b"hello" * 1
 
 
 def test_bytes_logging_extended_passthrough(get_contract_with_gas_estimation, get_logs):

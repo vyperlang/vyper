@@ -7,7 +7,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from socketserver import ThreadingMixIn
 
 import vyper
-from vyper.codegen import lll_node
+from vyper.codegen import ir_node
 from vyper.evm.opcodes import DEFAULT_EVM_VERSION
 from vyper.exceptions import VyperException
 
@@ -29,7 +29,7 @@ def _parse_args(argv):
     args = parser.parse_args(argv)
 
     if ":" in args.bind_address:
-        lll_node.VYPER_COLOR_OUTPUT = False
+        ir_node.VYPER_COLOR_OUTPUT = False
         runserver(*args.bind_address.split(":"))
     else:
         print('Provide bind address in "{address}:{port}" format')

@@ -183,7 +183,8 @@ def _validate_numeric_bounds(
     node: Union["BinOp", "UnaryOp"], value: Union[decimal.Decimal, int]
 ) -> None:
     if isinstance(value, decimal.Decimal):
-        lower, upper = SizeLimits.MIN_INT128, SizeLimits.MAX_INT128
+        # this will change if/when we add more decimal types
+        lower, upper = SizeLimits.MIN_AST_DECIMAL, SizeLimits.MAX_AST_DECIMAL
     elif isinstance(value, int):
         lower, upper = SizeLimits.MIN_INT256, SizeLimits.MAX_UINT256
     else:

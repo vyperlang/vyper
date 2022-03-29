@@ -10,7 +10,8 @@ extras_require = {
         "pytest-cov>=2.10,<3.0",
         "pytest-instafail>=0.4,<1.0",
         "pytest-xdist>=1.32,<2.0",
-        "eth-tester[py-evm]>=0.6.0b4,<0.7",
+        "pytest-split>=0.7.0,<1.0",
+        "eth-tester[py-evm]>=0.6.0b6,<0.7",
         "py-evm>=0.5.0a3,<0.6",
         "web3==5.27.0",
         "tox>=3.15,<4.0",
@@ -19,6 +20,7 @@ extras_require = {
     ],
     "lint": [
         "black==21.9b0",
+        "click<8.1.0",  # temporary pin - black21.9b0 fails with 8.1.0
         "flake8==3.9.2",
         "flake8-bugbear==20.1.4",
         "flake8-use-fstring==1.1",
@@ -58,7 +60,11 @@ def _global_version(version):
 
 setup(
     name="vyper",
-    use_scm_version={"local_scheme": _local_version, "version_scheme": _global_version},
+    use_scm_version={
+        "local_scheme": _local_version,
+        "version_scheme": _global_version,
+        "write_to": "vyper/version.py",
+    },
     description="Vyper: the Pythonic Programming Language for the EVM",
     long_description=long_description,
     long_description_content_type="text/markdown",
@@ -77,6 +83,7 @@ setup(
         "semantic-version==2.8.5",
         "cached-property==1.5.2 ; python_version<'3.8'",
         "importlib-metadata ; python_version<'3.8'",
+        "wheel",
     ],
     setup_requires=["pytest-runner", "setuptools_scm"],
     tests_require=extras_require["test"],
@@ -85,7 +92,7 @@ setup(
         "console_scripts": [
             "vyper=vyper.cli.vyper_compile:_parse_cli_args",
             "vyper-serve=vyper.cli.vyper_serve:_parse_cli_args",
-            "vyper-lll=vyper.cli.vyper_lll:_parse_cli_args",
+            "vyper-ir=vyper.cli.vyper_ir:_parse_cli_args",
             "vyper-json=vyper.cli.vyper_json:_parse_cli_args",
         ]
     },

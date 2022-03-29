@@ -80,7 +80,7 @@ def test() -> bool:
 
 def test_builtin_interfaces_parse():
     assert len(extract_sigs({"type": "vyper", "code": ERC20.interface_code})) == 6
-    assert len(extract_sigs({"type": "vyper", "code": ERC721.interface_code})) == 10
+    assert len(extract_sigs({"type": "vyper", "code": ERC721.interface_code})) == 9
 
 
 def test_extract_sigs_ignores_imports():

@@ -281,7 +281,27 @@ def foo(a: uint256 = msg.value): pass
     """
 @external
 def foo(a: uint256 = 2**8): pass
-     """,
+    """,
+    """
+struct Bar:
+    a: address
+    b: uint256
+
+@external
+def foo(bar: Bar = Bar({a: msg.sender, b: 1})): pass
+    """,
+    """
+struct Baz:
+    c: address
+    d: int128
+
+struct Bar:
+    a: address
+    b: Baz
+
+@external
+def foo(bar: Bar = Bar({a: msg.sender, b: Baz({c: block.coinbase, d: -10})})): pass
+    """,
 ]
 
 

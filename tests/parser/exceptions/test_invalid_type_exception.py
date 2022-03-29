@@ -20,8 +20,6 @@ x: [bar(int128), baz(baffle)]
     """
 struct A:
     b: B
-struct B:
-    a: A
     """,
 ]
 
@@ -48,6 +46,14 @@ def foo():
 @external
 def mint(_to: address, _value: uint256):
     assert msg.sender == self,msg.sender
+    """,
+    # literal longer than event member
+    """
+event Foo:
+    message: String[1]
+@external
+def foo():
+    log Foo("abcd")
     """,
     # Raise reason must be string
     """

@@ -1,11 +1,12 @@
-from decimal import Decimal
+import copy
 from typing import Union
 
 from vyper.ast import nodes as vy_ast
 from vyper.builtin_functions import DISPATCH_TABLE
-from vyper.exceptions import UnfoldableNode
+from vyper.exceptions import UnfoldableNode, UnknownType
 from vyper.semantics.types.bases import BaseTypeDefinition, DataLocation
 from vyper.semantics.types.utils import get_type_from_annotation
+from vyper.utils import SizeLimits
 
 BUILTIN_CONSTANTS = {
     "EMPTY_BYTES32": (
@@ -15,8 +16,8 @@ BUILTIN_CONSTANTS = {
     "ZERO_ADDRESS": (vy_ast.Hex, "0x0000000000000000000000000000000000000000"),
     "MAX_INT128": (vy_ast.Int, 2 ** 127 - 1),
     "MIN_INT128": (vy_ast.Int, -(2 ** 127)),
-    "MAX_DECIMAL": (vy_ast.Decimal, Decimal(2 ** 127 - 1)),
-    "MIN_DECIMAL": (vy_ast.Decimal, Decimal(-(2 ** 127))),
+    "MAX_DECIMAL": (vy_ast.Decimal, SizeLimits.MAX_AST_DECIMAL),
+    "MIN_DECIMAL": (vy_ast.Decimal, SizeLimits.MIN_AST_DECIMAL),
     "MAX_UINT256": (vy_ast.Int, 2 ** 256 - 1),
 }
 
@@ -176,11 +177,17 @@ def replace_user_defined_constants(vyper_module: vy_ast.Module) -> int:
 
         # Extract type definition from propagated annotation
         constant_annotation = node.get("annotation.args")[0]
-        type_ = (
-            get_type_from_annotation(constant_annotation, DataLocation.UNSET)
-            if constant_annotation
-            else None
-        )
+        try:
+            type_ = (
+                get_type_from_annotation(constant_annotation, DataLocation.UNSET)
+                if constant_annotation
+                else None
+            )
+        except UnknownType:
+            # handle user-defined types e.g. structs - it's OK to not
+            # propagate the type annotation here because user-defined
+            # types can be unambiguously inferred at typechecking time
+            type_ = None
 
         changed_nodes += replace_constant(
             vyper_module, node.target.id, node.value, False, type_=type_
@@ -205,6 +212,17 @@ def _replace(old_node, new_node, type_=None):
         if type_:
             new_node._metadata["type"] = type_
         return new_node
+    elif isinstance(new_node, vy_ast.Call):
+        # Replace `Name` node with `Call` node
+        keyword = keywords = None
+        if hasattr(new_node, "keyword"):
+            keyword = new_node.keyword
+        if hasattr(new_node, "keywords"):
+            keywords = new_node.keywords
+        new_node = new_node.from_node(
+            old_node, func=new_node.func, args=new_node.args, keyword=keyword, keywords=keywords
+        )
+        return new_node
     else:
         raise UnfoldableNode
 
@@ -212,7 +230,7 @@ def _replace(old_node, new_node, type_=None):
 def replace_constant(
     vyper_module: vy_ast.Module,
     id_: str,
-    replacement_node: Union[vy_ast.Constant, vy_ast.List],
+    replacement_node: Union[vy_ast.Constant, vy_ast.List, vy_ast.Call],
     raise_on_error: bool,
     type_: BaseTypeDefinition = None,
 ) -> int:
@@ -225,8 +243,9 @@ def replace_constant(
         Module-level ast node to perform replacement in.
     id_ : str
         String representing the `.id` attribute of the node(s) to be replaced.
-    replacement_node : Constant | List
+    replacement_node : Constant | List | Call
         Vyper ast node representing the literal value to be substituted in.
+        `Call` nodes are for struct constants.
     raise_on_error: bool
         Boolean indicating if `UnfoldableNode` exception should be raised or ignored.
     type_ : BaseTypeDefinition, optional
@@ -237,14 +256,21 @@ def replace_constant(
     int
         Number of nodes that were replaced.
     """
+    is_struct = False
+
+    if isinstance(replacement_node, vy_ast.Call) and len(replacement_node.args) == 1:
+        if isinstance(replacement_node.args[0], vy_ast.Dict):
+            is_struct = True
+
     changed_nodes = 0
 
     for node in vyper_module.get_descendants(vy_ast.Name, {"id": id_}, reverse=True):
         parent = node.get_ancestor()
 
         if isinstance(parent, vy_ast.Call) and node == parent.func:
-            # do not replace calls
-            continue
+            # do not replace calls that are not structs
+            if not is_struct:
+                continue
 
         # do not replace dictionary keys
         if isinstance(parent, vy_ast.Dict) and node in parent.keys:
@@ -258,6 +284,8 @@ def replace_constant(
                 continue
 
         try:
+            # Codegen may mutate AST (particularly structs).
+            replacement_node = copy.deepcopy(replacement_node)
             new_node = _replace(node, replacement_node, type_=type_)
         except UnfoldableNode:
             if raise_on_error:
