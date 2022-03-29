@@ -149,8 +149,7 @@ def _literal_decimal(expr, out_typ):
         val = decimal.Decimal(int(expr.value, 16))
     else:
         val = decimal.Decimal(expr.value)  # should work for Int, Decimal
-
-    val = val * DECIMAL_DIVISOR
+        val *= DECIMAL_DIVISOR
 
     if not SizeLimits.in_bounds("decimal", val):
         raise InvalidLiteral("Number out of range", expr)
