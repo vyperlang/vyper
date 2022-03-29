@@ -98,6 +98,7 @@ def _dynarray_make_setter(dst, src):
     if src.value == "~empty":
         return IRnode.from_list(STORE(dst, 0))
 
+
     if src.value == "multi":
         ret = ["seq"]
         # handle literals
@@ -119,14 +120,18 @@ def _dynarray_make_setter(dst, src):
 
         return ret
 
+
     with src.cache_when_complex("darray_src") as (b1, src):
 
         # for ABI-encoded dynamic data, we must loop to unpack, since
         # the layout does not match our memory layout
-        should_loop = (
+        can_batch_copy = not (
             src.encoding in (Encoding.ABI, Encoding.JSON_ABI)
             and src.typ.subtype.abi_type.is_dynamic()
         )
+        # if the source data needs clamping, we cannot do straight
+        # bytes copy; we must call into make_setter for the clamping logic.
+        can_batch_copy &= not needs_clamp(src.typ.subtype, src.encoding)
 
         # if the subtype is dynamic, there might be a lot of
         # unused space inside of each element. for instance
@@ -136,15 +141,24 @@ def _dynarray_make_setter(dst, src):
         # TODO we can make this heuristic more precise, e.g.
         # loop when subtype.is_dynamic AND location == storage
         # OR array_size <= /bound where loop is cheaper than memcpy/
-        should_loop |= src.typ.subtype.abi_type.is_dynamic()
-        should_loop |= needs_clamp(src.typ.subtype, src.encoding)
+        can_batch_copy &= not src.typ.subtype.abi_type.is_dynamic()
 
         with get_dyn_array_count(src).cache_when_complex("darray_count") as (b2, count):
             ret = ["seq"]
 
             ret.append(STORE(dst, count))
 
-            if should_loop:
+            if can_batch_copy:
+                element_size = src.typ.subtype.memory_bytes_required
+                # number of elements * size of element in bytes
+                n_bytes = _mul(count, element_size)
+                max_bytes = src.typ.count * element_size
+
+                src_ = dynarray_data_ptr(src)
+                dst_ = dynarray_data_ptr(dst)
+                ret.append(copy_bytes(dst_, src_, n_bytes, max_bytes))
+
+            else:
                 i = IRnode.from_list(_freshname("copy_darray_ix"), typ="uint256")
 
                 loop_body = make_setter(
@@ -154,16 +168,6 @@ def _dynarray_make_setter(dst, src):
                 loop_body.annotation = f"{dst}[i] = {src}[i]"
 
                 ret.append(["repeat", i, 0, count, src.typ.count, loop_body])
-
-            else:
-                element_size = src.typ.subtype.memory_bytes_required
-                # number of elements * size of element in bytes
-                n_bytes = _mul(count, element_size)
-                max_bytes = src.typ.count * element_size
-
-                src_ = dynarray_data_ptr(src)
-                dst_ = dynarray_data_ptr(dst)
-                ret.append(copy_bytes(dst_, src_, n_bytes, max_bytes))
 
             return b1.resolve(b2.resolve(ret))
 
@@ -759,12 +763,6 @@ def make_setter(left, right):
         return IRnode.from_list(ret)
 
     elif isinstance(left.typ, DArrayType):
-        # TODO should we enable this?
-        # implicit conversion from sarray to darray
-        # if isinstance(right.typ, SArrayType):
-        #    return _complex_make_setter(left, right)
-
-        # TODO rethink/streamline the clamp_basetype logic
         if needs_clamp(right.typ, right.encoding):
             with right.cache_when_complex("arr_ptr") as (b, right):
                 copier = _dynarray_make_setter(left, right)
@@ -784,6 +782,18 @@ def _complex_make_setter(left, right):
         # optimized memzero
         return mzero(left, left.typ.memory_bytes_required)
 
+    can_batch_copy = not needs_clamp(right.typ, right.encoding) and not right.typ.abi_type.is_dynamic()
+    can_batch_copy &= (left.is_pointer and right.is_pointer)
+    _len = left.typ.memory_bytes_required
+
+    if can_batch_copy:
+        assert _len == left.typ.storage_size_in_words * 32  # only the paranoid survive
+        # TODO: push unrolling capability down to copy_bytes
+        if _len > 256:  # only loop if > 8 words
+            return copy_bytes(left, right, _len, _len)
+
+
+    # general case, including literals.
     ret = ["seq"]
 
     if isinstance(left.typ, SArrayType):
@@ -793,11 +803,6 @@ def _complex_make_setter(left, right):
     if isinstance(left.typ, TupleLike):
         keys = left.typ.tuple_keys()
 
-    # if len(keyz) == 0:
-    #    return IRnode.from_list(["pass"])
-
-    # general case
-    # TODO use copy_bytes when the generated code is above a certain size
     with left.cache_when_complex("_L") as (b1, left), right.cache_when_complex("_R") as (b2, right):
 
         for k in keys:
