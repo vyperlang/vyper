@@ -1,3 +1,4 @@
+import math
 from decimal import Decimal
 
 import pytest
@@ -10,24 +11,11 @@ from vyper.codegen.types import (
     parse_integer_typeinfo,
 )
 from vyper.exceptions import InvalidLiteral, InvalidType, OverflowException, TypeMismatch
-from vyper.utils import DECIMAL_DIVISOR, MAX_DECIMAL_PLACES, SizeLimits, checksum_encode
+from vyper.utils import DECIMAL_DIVISOR, MAX_DECIMAL_PLACES, SizeLimits, checksum_encode, int_bounds
 
-# To update when Decimal bound is updated to 2 ** 168 / 10 ** 10
-DECIMAL_BITS = 160
+DECIMAL_BITS = 167
 ADDRESS_BITS = 160
 TEST_TYPES = BASE_TYPES.union({"Bytes[32]"})
-
-MIN_DECIMAL_STR = (
-    str(SizeLimits.MINDECIMAL)[:-MAX_DECIMAL_PLACES]
-    + "."
-    + str(SizeLimits.MINDECIMAL)[-MAX_DECIMAL_PLACES:]
-)
-
-MAX_DECIMAL_STR = (
-    str(SizeLimits.MAXDECIMAL)[:-MAX_DECIMAL_PLACES]
-    + "."
-    + str(SizeLimits.MAXDECIMAL)[-MAX_DECIMAL_PLACES:]
-)
 
 ZERO_ADDRESS = "0x0000000000000000000000000000000000000000"
 ONE_ADDRESS = "0x0000000000000000000000000000000000000001"
@@ -117,71 +105,69 @@ def _get_all_types_for_case_type(case_type):
     return case_type
 
 
-def _generate_valid_test_cases_for_type(type_, count=None):
+def _generate_valid_test_cases_for_type(type_):
     """
     Helper function to generate the test cases for a specific type.
     """
-    if type_ == "address":
+    case_type = _get_case_type(type_)
+    type_N = _get_type_N(type_)
+    if case_type == "address":
         return [
             ZERO_ADDRESS,
             "0xF5D4020dCA6a62bB1efFcC9212AAF3c9819E30D7",
             "0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF",
         ]
 
-    elif type_ == "bool":
+    elif case_type == "bool":
         return [
             True,
             False,
         ]
 
-    elif type_ == "bytes":
+    elif case_type == "bytes":
         return [
-            "0x" + ("00" * count),
-            "0x" + ("00" * (count - 1)) + "01",
-            "0x" + ("FF" * count),
+            "0x" + ("00" * type_N),
+            "0x" + ("00" * (type_N - 1)) + "01",
+            "0x" + ("FF" * type_N),
         ]
 
-    elif type_ == "Bytes":
+    elif case_type == "Bytes":
         return [
             b"",
             b"\x00",
-            b"\x00" * count,
+            b"\x00" * type_N,
             b"\x01",
             b"\x00\x01",
-            b"\xff" * (count - 1) + b"\xfe",
-            b"\xff" * count,
+            b"\xff" * (type_N - 1) + b"\xfe",
+            b"\xff" * type_N,
         ]
 
-    elif type_ == "decimal":
+    elif case_type == "decimal":
         return [
             "0.0",
             "0.0000000001",
             "0.9999999999",
             "1.0",
-            str(2 ** (count - 1) - 1) + ".0000000000"
-            if (count and count < 127)
-            else MAX_DECIMAL_STR,
+            format(SizeLimits.MAX_AST_DECIMAL, f".{MAX_DECIMAL_PLACES}f"),
             "-0.0000000001",
             "-0.9999999999",
             "-1.0",
-            str(-(2 ** (count - 1))) + ".0000000000"
-            if (count and count < 127)
-            else MIN_DECIMAL_STR,
+            format(SizeLimits.MIN_AST_DECIMAL, f".{MAX_DECIMAL_PLACES}f"),
         ]
 
-    elif type_ == "int":
+    elif case_type == "int":
         return [
             0,
             1,
-            2 ** (count - 1) - 2,
-            2 ** (count - 1) - 1,
+            2 ** (type_N - 1) - 2,
+            2 ** (type_N - 1) - 1,
             -1,
-            -(2 ** (count - 1)),
-            -(2 ** (count - 1) - 1),
+            -(2 ** (type_N - 1)),
+            -(2 ** (type_N - 1) - 1),
         ]
 
-    elif type_ == "uint":
-        return [0, 1, 2 ** count - 2, 2 ** count - 1]
+    elif case_type == "uint":
+        return [0, 1, 2 ** type_N - 2, 2 ** type_N - 1]
 
 
 def _generate_input_values_dict_from_address(out_type, cases, out_values):
@@ -345,7 +331,7 @@ def generate_test_convert_values_from_bytes(out_type, out_values):
 
     for t in BYTES_M_TYPES:
         in_N = _get_type_N(t)
-        cases = _generate_valid_test_cases_for_type("bytes", count=in_N)
+        cases = _generate_valid_test_cases_for_type(t)
 
         # Skip bytes20 because it is treated as address type
         if in_N == ADDRESS_BITS // 8:
@@ -427,7 +413,7 @@ def generate_test_convert_values_from_Bytes(in_type, out_type, out_values):
 
     result = []
     in_N = _get_type_N(in_type)
-    cases = _generate_valid_test_cases_for_type("Bytes", count=in_N)
+    cases = _generate_valid_test_cases_for_type(in_type)
 
     if out_type == "bytes":
         for b in BYTES_M_TYPES:
@@ -483,7 +469,7 @@ def _generate_input_values_dict_from_decimal(out_type, cases, out_values):
 def generate_test_convert_values_from_decimal(out_type, out_values):
 
     result = []
-    cases = _generate_valid_test_cases_for_type("decimal", count=128)
+    cases = _generate_valid_test_cases_for_type("decimal")
 
     if out_type == "bytes":
         for b in BYTES_M_TYPES:
@@ -492,17 +478,24 @@ def generate_test_convert_values_from_decimal(out_type, out_values):
     elif out_type == "int":
         for s in SIGNED_INTEGER_TYPES:
             out_N = _get_type_N(s)
-            cases = _generate_valid_test_cases_for_type("decimal", count=out_N)
+            out_type_min, out_type_max = int_bounds(True, out_N)
+            for i in range(len(cases)):
+                if Decimal(cases[i]) >= out_type_max:
+                    cases[i] = format(out_type_max, f".{MAX_DECIMAL_PLACES}f")
+                elif Decimal(cases[i]) <= out_type_min:
+                    cases[i] = format(out_type_min, f".{MAX_DECIMAL_PLACES}f")
             result += _generate_input_values_dict_from_decimal(s, cases, out_values)
 
     elif out_type == "uint":
         for t in UNSIGNED_INTEGER_TYPES:
             out_N = _get_type_N(t)
-            cases = _generate_valid_test_cases_for_type("decimal", count=out_N)
-            updated_cases, updated_out_values = zip(
-                *[x for x in zip(cases, out_values) if (Decimal(x[0]) > 0)]
-            )
-            result += _generate_input_values_dict_from_decimal(t, updated_cases, updated_out_values)
+            out_type_min, out_type_max = int_bounds(False, out_N)
+            for i in range(len(cases)):
+                if Decimal(cases[i]) >= out_type_max:
+                    cases[i] = format(out_type_max, f".{MAX_DECIMAL_PLACES}f")
+                elif Decimal(cases[i]) <= out_type_min:
+                    cases[i] = format(out_type_min, f".{MAX_DECIMAL_PLACES}f")
+            result += _generate_input_values_dict_from_decimal(t, cases, out_values)
 
     return result
 
@@ -543,7 +536,7 @@ def generate_test_convert_values_from_int(out_type, out_values):
 
     for t in SIGNED_INTEGER_TYPES:
         in_N = _get_type_N(t)
-        cases = _generate_valid_test_cases_for_type("int", count=in_N)
+        cases = _generate_valid_test_cases_for_type(t)
 
         if out_type == "bytes":
             for b in BYTES_M_TYPES:
@@ -564,8 +557,12 @@ def generate_test_convert_values_from_int(out_type, out_values):
 
         else:
             if out_type == "decimal":
-                if in_N > 128:
-                    cases = _generate_valid_test_cases_for_type("int", count=128)
+                for i in range(len(cases)):
+                    if cases[i] >= math.floor(SizeLimits.MAX_AST_DECIMAL):
+                        cases[i] = math.floor(SizeLimits.MAX_AST_DECIMAL)
+                    elif cases[i] <= math.ceil(SizeLimits.MIN_AST_DECIMAL):
+                        cases[i] = math.ceil(SizeLimits.MIN_AST_DECIMAL)
+
             result += _generate_input_values_dict_from_int(t, out_type, cases, out_values)
 
     return result
@@ -613,7 +610,7 @@ def generate_test_convert_values_from_uint(out_type, out_values):
 
     for t in UNSIGNED_INTEGER_TYPES:
         in_N = _get_type_N(t)
-        cases = _generate_valid_test_cases_for_type("uint", count=in_N)
+        cases = _generate_valid_test_cases_for_type(t)
 
         if out_type == "bytes":
             for b in BYTES_M_TYPES:
@@ -624,18 +621,22 @@ def generate_test_convert_values_from_uint(out_type, out_values):
 
         elif out_type == "int":
             for s in SIGNED_INTEGER_TYPES:
-                out_N = _get_type_N(s)
-
                 # Update max values based on intN
-                if out_N <= in_N:
-                    cases = _generate_valid_test_cases_for_type("uint", count=out_N - 1)
+                out_N = _get_type_N(s)
+                out_type_min, out_type_max = int_bounds(True, out_N)
+                for i in range(len(cases)):
+                    if cases[i] > out_type_max:
+                        cases[i] = out_type_max
 
                 result += _generate_input_values_dict_from_uint(t, s, cases, out_values)
 
         else:
             if out_type == "decimal":
-                if in_N >= 128:
-                    cases = _generate_valid_test_cases_for_type("uint", count=127)
+                for i in range(len(cases)):
+                    if cases[i] >= math.floor(SizeLimits.MAX_AST_DECIMAL):
+                        cases[i] = math.floor(SizeLimits.MAX_AST_DECIMAL)
+                    elif cases[i] <= math.ceil(SizeLimits.MIN_AST_DECIMAL):
+                        cases[i] = math.ceil(SizeLimits.MIN_AST_DECIMAL)
             result += _generate_input_values_dict_from_uint(t, out_type, cases, out_values)
 
     return result
@@ -836,10 +837,7 @@ def generate_test_cases_for_same_type_conversion():
     """
     res = []
     for t in TEST_TYPES:
-        in_N = _get_type_N(t)
-        case_type = _get_case_type(t)
-
-        case = _generate_valid_test_cases_for_type(case_type, count=in_N)[0]
+        case = _generate_valid_test_cases_for_type(t)[0]
         res.append({"in_type": t, "out_type": t, "in_value": case, "exception": InvalidType})
 
     return res
@@ -891,7 +889,7 @@ def generate_test_cases_for_invalid_numeric_conversion():
                 )
 
         # Decimal
-        decimal_cases = ["-1.0", MIN_DECIMAL_STR]
+        decimal_cases = ["-1.0", SizeLimits.MIN_AST_DECIMAL]
 
         for d in decimal_cases:
             res.append(
@@ -924,7 +922,7 @@ def generate_test_cases_for_invalid_numeric_conversion():
                 )
 
         # Decimal
-        decimal_cases = [MIN_DECIMAL_STR, MAX_DECIMAL_STR]
+        decimal_cases = [SizeLimits.MIN_AST_DECIMAL, SizeLimits.MAX_AST_DECIMAL]
 
         if out_N < 128:
             for d in decimal_cases:
@@ -1048,7 +1046,6 @@ def generate_test_cases_for_invalid_dislike_types_conversion():
     for invalid_pair in INVALID_CONVERSIONS:
 
         in_type = invalid_pair[0]
-        in_case_type = _get_case_type(in_type)
         out_type = invalid_pair[1]
         exception = TypeMismatch
 
@@ -1056,8 +1053,7 @@ def generate_test_cases_for_invalid_dislike_types_conversion():
             exception = "CLAMP"
 
         if in_type in TEST_TYPES and out_type in TEST_TYPES:
-            in_N = _get_type_N(in_type)
-            case = _generate_valid_test_cases_for_type(in_case_type, count=in_N)[-1]
+            case = _generate_valid_test_cases_for_type(in_type)[-1]
 
             res.append(
                 {
@@ -1072,8 +1068,7 @@ def generate_test_cases_for_invalid_dislike_types_conversion():
             in_types = _get_all_types_for_case_type(in_type)
 
             for i in in_types:
-                in_N = _get_type_N(i)
-                case = _generate_valid_test_cases_for_type(in_case_type, count=in_N)[-1]
+                case = _generate_valid_test_cases_for_type(i)[-1]
 
                 res.append(
                     {
@@ -1085,9 +1080,8 @@ def generate_test_cases_for_invalid_dislike_types_conversion():
                 )
 
         elif out_type not in TEST_TYPES:
-            in_N = _get_type_N(in_type)
             out_types = _get_all_types_for_case_type(out_type)
-            case = _generate_valid_test_cases_for_type(in_case_type, count=in_N)[-1]
+            case = _generate_valid_test_cases_for_type(in_type)[-1]
 
             for o in out_types:
 
