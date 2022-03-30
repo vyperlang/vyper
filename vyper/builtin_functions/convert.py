@@ -67,7 +67,9 @@ def _input_types(*allowed_types):
                 _FAIL(arg.typ, out_typ, expr)
 
             # user safety: disallow convert from type to itself
-            if arg.typ == out_typ:
+            # note allowance of [u]int256; this is due to type inference
+            # on literals not quite working yet.
+            if arg.typ == out_typ and not is_base_type(arg.typ, ("uint256", "int256")):
                 raise InvalidType("value and target are both {out_typ}", expr)
 
             return f(expr, arg, out_typ)
