@@ -41,7 +41,8 @@ def _encode_child_helper(buf, child, static_ofst, dyn_ofst, context):
 
     if not child_abi_t.is_dynamic():
         # easy
-        ret.append(abi_encode(static_loc, child, context, returns_len=False))
+        _bufsz = child_abi_t.size_bound()
+        ret.append(abi_encode(static_loc, child, context, _bufsz, returns_len=False))
     else:
         # hard
         ret.append(["mstore", static_loc, dyn_ofst])
@@ -50,7 +51,8 @@ def _encode_child_helper(buf, child, static_ofst, dyn_ofst, context):
         # member, the location is statically known.
         child_dst = ["add", buf, dyn_ofst]
 
-        child_len = abi_encode(child_dst, child, context, returns_len=True)
+        _bufsz = child_abi_t.size_bound()
+        child_len = abi_encode(child_dst, child, context, _bufsz, returns_len=True)
 
         # increment dyn ofst for return_len
         # (optimization note:
@@ -68,10 +70,11 @@ def _encode_dyn_array_helper(dst, ir_node, context):
     if ir_node.value == "multi":
         buf = context.new_internal_variable(dst.typ)
         buf = IRnode.from_list(buf, typ=dst.typ, location=MEMORY)
+        _bufsz = dst.typ.memory_bytes_required
         return [
             "seq",
             make_setter(buf, ir_node),
-            ["set", "dyn_ofst", abi_encode(dst, buf, context, returns_len=True)],
+            ["set", "dyn_ofst", abi_encode(dst, buf, context, _bufsz, returns_len=True)],
         ]
 
     subtyp = ir_node.typ.subtype
