@@ -143,13 +143,14 @@ def _encode_dyn_array_helper(dst, ir_node, context):
 # returns_len is a calling convention parameter; if set to true,
 # the abi_encode routine will push the output len onto the stack,
 # otherwise it will return 0 items to the stack.
-def abi_encode(dst, ir_node, context, bufsz=None, returns_len=False):
+def abi_encode(dst, ir_node, context, bufsz, returns_len=False):
 
     dst = IRnode.from_list(dst, typ=ir_node.typ, location=MEMORY)
     abi_t = dst.typ.abi_type
     size_bound = abi_t.size_bound()
 
-    if bufsz is not None and bufsz < size_bound:
+    assert isinstance(bufsz, int)
+    if bufsz < size_bound:
         raise CompilerPanic("buffer provided to abi_encode not large enough")
 
     if size_bound < dst.typ.memory_bytes_required:
