@@ -1,14 +1,14 @@
-from vyper.codegen.lll_node import LLLnode
+from vyper.codegen.ir_node import IRnode
 
 
-def build_gas_estimates(lll_runtime: LLLnode) -> dict:
+def build_gas_estimates(ir_runtime: IRnode) -> dict:
     gas_estimates: dict = {}
 
-    external_sub = next((i for i in lll_runtime.args if i.value == "with"), None)
+    external_sub = next((i for i in ir_runtime.args if i.value == "with"), None)
     if external_sub:
-        for func_lll in external_sub.args[-1].args:
-            if func_lll.func_name is not None:
-                gas_estimates[func_lll.func_name] = func_lll.total_gas
+        for func_ir in external_sub.args[-1].args:
+            if func_ir.func_name is not None:
+                gas_estimates[func_ir.func_name] = func_ir.total_gas
 
     return gas_estimates
 

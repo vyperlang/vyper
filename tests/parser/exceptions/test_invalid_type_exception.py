@@ -20,8 +20,6 @@ x: [bar(int128), baz(baffle)]
     """
 struct A:
     b: B
-struct B:
-    a: A
     """,
 ]
 

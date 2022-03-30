@@ -18,7 +18,7 @@ event Approval:
     spender: indexed(address)
     value: uint256
 
-name: public(String[64])
+name: public(String[32])
 symbol: public(String[32])
 decimals: public(uint8)
 
@@ -35,7 +35,7 @@ minter: address
 
 
 @external
-def __init__(_name: String[64], _symbol: String[32], _decimals: uint8, _supply: uint256):
+def __init__(_name: String[32], _symbol: String[32], _decimals: uint8, _supply: uint256):
     init_supply: uint256 = _supply * 10 ** convert(_decimals, uint256)
     self.name = _name
     self.symbol = _symbol

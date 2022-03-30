@@ -1,12 +1,14 @@
+from vyper.interfaces import ERC20
+
 interface Exchange:
-    def token() -> address: view
+    def token() -> ERC20: view
     def receive(_from: address, _amt: uint256): nonpayable
     def transfer(_to: address, _amt: uint256): nonpayable
 
 
 exchange_codehash: public(bytes32)
 # Maps token addresses to exchange addresses
-exchanges: public(HashMap[address, address])
+exchanges: public(HashMap[ERC20, Exchange])
 
 
 @external
@@ -30,12 +32,13 @@ def register():
     # NOTE: Use exchange's token address because it should be globally unique
     # NOTE: Should do checks that it hasn't already been set,
     #       which has to be rectified with any upgrade strategy.
-    self.exchanges[Exchange(msg.sender).token()] = msg.sender
+    exchange: Exchange = Exchange(msg.sender)
+    self.exchanges[exchange.token()] = exchange
 
 
 @external
-def trade(_token1: address, _token2: address, _amt: uint256):
+def trade(_token1: ERC20, _token2: ERC20, _amt: uint256):
     # Perform a straight exchange of token1 to token 2 (1:1 price)
     # NOTE: Any practical implementation would need to solve the price oracle problem
-    Exchange(self.exchanges[_token1]).receive(msg.sender, _amt)
-    Exchange(self.exchanges[_token2]).transfer(msg.sender, _amt)
+    self.exchanges[_token1].receive(msg.sender, _amt)
+    self.exchanges[_token2].transfer(msg.sender, _amt)

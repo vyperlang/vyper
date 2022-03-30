@@ -1,22 +1,21 @@
 from vyper import ast as vy_ast
 from vyper.ast.signatures import FunctionSignature
 from vyper.codegen.context import Context
-from vyper.codegen.core import getpos
 from vyper.codegen.function_definitions.utils import get_nonreentrant_lock
-from vyper.codegen.lll_node import LLLnode
+from vyper.codegen.ir_node import IRnode
 from vyper.codegen.stmt import parse_body
 
 
-def generate_lll_for_internal_function(
+def generate_ir_for_internal_function(
     code: vy_ast.FunctionDef, sig: FunctionSignature, context: Context
-) -> LLLnode:
+) -> IRnode:
     """
     Parse a internal function (FuncDef), and produce full function body.
 
     :param sig: the FuntionSignature
     :param code: ast of function
     :param context: current calling context
-    :return: function body in LLL
+    :return: function body in IR
     """
 
     # The calling convention is:
@@ -71,8 +70,4 @@ def generate_lll_for_internal_function(
         ["seq"] + nonreentrant_post + [["exit_to", "return_pc"]],
     ]
 
-    return LLLnode.from_list(
-        ["seq", body, cleanup_routine],
-        typ=None,
-        pos=getpos(code),
-    )
+    return IRnode.from_list(["seq", body, cleanup_routine])

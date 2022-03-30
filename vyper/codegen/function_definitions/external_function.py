@@ -1,12 +1,13 @@
 from typing import Any, List
 
 import vyper.utils as util
+from vyper.address_space import CALLDATA, DATA, MEMORY
 from vyper.ast.signatures.function_signature import FunctionSignature, VariableRecord
 from vyper.codegen.context import Context
 from vyper.codegen.core import get_element_ptr, getpos, make_setter
 from vyper.codegen.expr import Expr
 from vyper.codegen.function_definitions.utils import get_nonreentrant_lock
-from vyper.codegen.lll_node import Encoding, LLLnode
+from vyper.codegen.ir_node import Encoding, IRnode
 from vyper.codegen.stmt import parse_body
 from vyper.codegen.types.types import (
     BaseType,
@@ -36,9 +37,7 @@ def _should_decode(typ):
 
 # register function args with the local calling context.
 # also allocate the ones that live in memory (i.e. kwargs)
-def _register_function_args(context: Context, sig: FunctionSignature) -> List[LLLnode]:
-    pos = None
-
+def _register_function_args(context: Context, sig: FunctionSignature) -> List[IRnode]:
     ret = []
 
     # the type of the calldata
@@ -46,29 +45,30 @@ def _register_function_args(context: Context, sig: FunctionSignature) -> List[LL
 
     # tuple with the abi_encoded args
     if sig.is_init_func:
-        base_args_ofst = LLLnode(
-            "~codelen", location="code", typ=base_args_t, encoding=Encoding.ABI
-        )
+        base_args_ofst = IRnode(0, location=DATA, typ=base_args_t, encoding=Encoding.ABI)
     else:
-        base_args_ofst = LLLnode(4, location="calldata", typ=base_args_t, encoding=Encoding.ABI)
+        base_args_ofst = IRnode(4, location=CALLDATA, typ=base_args_t, encoding=Encoding.ABI)
 
     for i, arg in enumerate(sig.base_args):
 
-        arg_lll = get_element_ptr(base_args_ofst, i, pos=pos)
+        arg_ir = get_element_ptr(base_args_ofst, i)
 
         if _should_decode(arg.typ):
             # allocate a memory slot for it and copy
             p = context.new_variable(arg.name, arg.typ, is_mutable=False)
-            dst = LLLnode(p, typ=arg.typ, location="memory")
-            ret.append(make_setter(dst, arg_lll, pos=pos))
+            dst = IRnode(p, typ=arg.typ, location=MEMORY)
+
+            copy_arg = make_setter(dst, arg_ir)
+            copy_arg.source_pos = getpos(arg.ast_source)
+            ret.append(copy_arg)
         else:
             # leave it in place
             context.vars[arg.name] = VariableRecord(
                 name=arg.name,
-                pos=arg_lll,
+                pos=arg_ir,
                 typ=arg.typ,
                 mutable=False,
-                location=arg_lll.location,
+                location=arg_ir.location,
                 encoding=Encoding.ABI,
             )
 
@@ -78,10 +78,10 @@ def _register_function_args(context: Context, sig: FunctionSignature) -> List[LL
 def _annotated_method_id(abi_sig):
     method_id = util.abi_method_id(abi_sig)
     annotation = f"{hex(method_id)}: {abi_sig}"
-    return LLLnode(method_id, annotation=annotation)
+    return IRnode(method_id, annotation=annotation)
 
 
-def _generate_kwarg_handlers(context: Context, sig: FunctionSignature, pos: Any) -> List[Any]:
+def _generate_kwarg_handlers(context: Context, sig: FunctionSignature) -> List[Any]:
     # generate kwarg handlers.
     # since they might come in thru calldata or be default,
     # allocate them in memory and then fill it in based on calldata or default,
@@ -90,7 +90,7 @@ def _generate_kwarg_handlers(context: Context, sig: FunctionSignature, pos: Any)
     # (if (eq _method_id <method_id>)
     #    copy calldata args to memory
     #    write default args to memory
-    #    goto external_function_common_lll
+    #    goto external_function_common_ir
 
     def handler_for(calldata_kwargs, default_kwargs):
         calldata_args = sig.base_args + calldata_kwargs
@@ -100,8 +100,8 @@ def _generate_kwarg_handlers(context: Context, sig: FunctionSignature, pos: Any)
         abi_sig = sig.abi_signature_for_kwargs(calldata_kwargs)
         method_id = _annotated_method_id(abi_sig)
 
-        calldata_kwargs_ofst = LLLnode(
-            4, location="calldata", typ=calldata_args_t, encoding=Encoding.ABI
+        calldata_kwargs_ofst = IRnode(
+            4, location=CALLDATA, typ=calldata_args_t, encoding=Encoding.ABI
         )
 
         # a sequence of statements to strictify kwargs into memory
@@ -118,16 +118,24 @@ def _generate_kwarg_handlers(context: Context, sig: FunctionSignature, pos: Any)
 
             dst = context.lookup_var(arg_meta.name).pos
 
-            lhs = LLLnode(dst, location="memory", typ=arg_meta.typ)
-            rhs = get_element_ptr(calldata_kwargs_ofst, k, pos=None, array_bounds_check=False)
-            ret.append(make_setter(lhs, rhs, pos))
+            lhs = IRnode(dst, location=MEMORY, typ=arg_meta.typ)
+
+            rhs = get_element_ptr(calldata_kwargs_ofst, k, array_bounds_check=False)
+
+            copy_arg = make_setter(lhs, rhs)
+            copy_arg.source_pos = getpos(arg_meta.ast_source)
+            ret.append(copy_arg)
 
         for x in default_kwargs:
             dst = context.lookup_var(x.name).pos
-            lhs = LLLnode(dst, location="memory", typ=x.typ)
+            lhs = IRnode(dst, location=MEMORY, typ=x.typ)
+            lhs.source_pos = getpos(x.ast_source)
             kw_ast_val = sig.default_values[x.name]  # e.g. `3` in x: int = 3
-            rhs = Expr(kw_ast_val, context).lll_node
-            ret.append(make_setter(lhs, rhs, pos))
+            rhs = Expr(kw_ast_val, context).ir_node
+
+            copy_arg = make_setter(lhs, rhs)
+            copy_arg.source_pos = getpos(x.ast_source)
+            ret.append(copy_arg)
 
         ret.append(["goto", sig.external_function_base_entry_label])
 
@@ -156,17 +164,16 @@ def _generate_kwarg_handlers(context: Context, sig: FunctionSignature, pos: Any)
 # TODO it would be nice if this returned a data structure which were
 # amenable to generating a jump table instead of the linear search for
 # method_id we have now.
-def generate_lll_for_external_function(code, sig, context, check_nonpayable):
+def generate_ir_for_external_function(code, sig, context, check_nonpayable):
     # TODO type hints:
-    # def generate_lll_for_external_function(
+    # def generate_ir_for_external_function(
     #    code: vy_ast.FunctionDef, sig: FunctionSignature, context: Context, check_nonpayable: bool,
-    # ) -> LLLnode:
-    """Return the LLL for an external function. Includes code to inspect the method_id,
+    # ) -> IRnode:
+    """Return the IR for an external function. Includes code to inspect the method_id,
     enter the function (nonpayable and reentrancy checks), handle kwargs and exit
     the function (clean up reentrancy storage variables)
     """
     func_type = code._metadata["type"]
-    pos = getpos(code)
 
     nonreentrant_pre, nonreentrant_post = get_nonreentrant_lock(func_type)
 
@@ -174,7 +181,7 @@ def generate_lll_for_external_function(code, sig, context, check_nonpayable):
     handle_base_args = _register_function_args(context, sig)
 
     # generate handlers for kwargs and register the variable records
-    kwarg_handlers = _generate_kwarg_handlers(context, sig, pos)
+    kwarg_handlers = _generate_kwarg_handlers(context, sig)
 
     body = ["seq"]
     # once optional args have been handled,
@@ -207,20 +214,20 @@ def generate_lll_for_external_function(code, sig, context, check_nonpayable):
     # wrap the exit in a labeled block
     exit = ["label", sig.exit_sequence_label, exit_sequence_args, exit_sequence]
 
-    # the lll which comprises the main body of the function,
+    # the ir which comprises the main body of the function,
     # besides any kwarg handling
-    func_common_lll = ["seq", body, exit]
+    func_common_ir = ["seq", body, exit]
 
     if sig.is_default_func or sig.is_init_func:
         ret = ["seq"]
         # add a goto to make the function entry look like other functions
         # (for zksync interpreter)
         ret.append(["goto", sig.external_function_base_entry_label])
-        ret.append(func_common_lll)
+        ret.append(func_common_ir)
     else:
         ret = kwarg_handlers
         # sneak the base code into the kwarg handler
         # TODO rethink this / make it clearer
-        ret[-1][-1].append(func_common_lll)
+        ret[-1][-1].append(func_common_ir)
 
-    return LLLnode.from_list(ret, pos=getpos(code))
+    return IRnode.from_list(ret)

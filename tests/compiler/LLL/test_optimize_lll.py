@@ -1,7 +1,7 @@
 import pytest
 
-from vyper.codegen.lll_node import LLLnode
-from vyper.lll import optimizer
+from vyper.codegen.ir_node import IRnode
+from vyper.ir import optimizer
 
 optimize_list = [
     (["eq", 1, 0], ["iszero", 1]),
@@ -12,10 +12,10 @@ optimize_list = [
 ]
 
 
-@pytest.mark.parametrize("lll", optimize_list)
-def test_lll_compile_fail(lll):
-    optimized = optimizer.optimize(LLLnode.from_list(lll[0]))
+@pytest.mark.parametrize("ir", optimize_list)
+def test_ir_compile_fail(ir):
+    optimized = optimizer.optimize(IRnode.from_list(ir[0]))
     optimized.repr_show_gas = True
-    hand_optimized = LLLnode.from_list(lll[1])
+    hand_optimized = IRnode.from_list(ir[1])
     hand_optimized.repr_show_gas = True
     assert optimized == hand_optimized

@@ -1,5 +1,6 @@
-from vyper.codegen.core import getpos, make_setter
-from vyper.codegen.lll_node import LLLnode, push_label_to_stack
+from vyper.address_space import MEMORY
+from vyper.codegen.core import make_setter
+from vyper.codegen.ir_node import IRnode, push_label_to_stack
 from vyper.codegen.types import TupleType
 from vyper.exceptions import StateAccessViolation, StructureException
 
@@ -13,10 +14,8 @@ def _generate_label(name: str) -> str:
     return f"label{_label_counter}"
 
 
-def lll_for_self_call(stmt_expr, context):
+def ir_for_self_call(stmt_expr, context):
     from vyper.codegen.expr import Expr  # TODO rethink this circular import
-
-    pos = getpos(stmt_expr)
 
     # ** Internal Call **
     # Steps:
@@ -28,16 +27,16 @@ def lll_for_self_call(stmt_expr, context):
 
     method_name = stmt_expr.func.attr
 
-    pos_args_lll = [Expr(x, context).lll_node for x in stmt_expr.args]
+    pos_args_ir = [Expr(x, context).ir_node for x in stmt_expr.args]
 
-    sig, kw_vals = context.lookup_internal_function(method_name, pos_args_lll)
+    sig, kw_vals = context.lookup_internal_function(method_name, pos_args_ir)
 
-    kw_args_lll = [Expr(x, context).lll_node for x in kw_vals]
+    kw_args_ir = [Expr(x, context).ir_node for x in kw_vals]
 
-    args_lll = pos_args_lll + kw_args_lll
+    args_ir = pos_args_ir + kw_args_ir
 
-    args_tuple_t = TupleType([x.typ for x in args_lll])
-    args_as_tuple = LLLnode.from_list(["multi"] + [x for x in args_lll], typ=args_tuple_t)
+    args_tuple_t = TupleType([x.typ for x in args_ir])
+    args_as_tuple = IRnode.from_list(["multi"] + [x for x in args_ir], typ=args_tuple_t)
 
     # register callee to help calculate our starting frame offset
     context.register_callee(sig.frame_size)
@@ -46,7 +45,7 @@ def lll_for_self_call(stmt_expr, context):
         raise StateAccessViolation(
             f"May not call state modifying function "
             f"'{method_name}' within {context.pp_constancy()}.",
-            getpos(stmt_expr),
+            stmt_expr,
         )
 
     # TODO move me to type checker phase
@@ -58,7 +57,7 @@ def lll_for_self_call(stmt_expr, context):
     # allocate space for the return buffer
     # TODO allocate in stmt and/or expr.py
     if sig.return_type is not None:
-        return_buffer = LLLnode.from_list(
+        return_buffer = IRnode.from_list(
             context.new_internal_variable(sig.return_type), annotation=f"{return_label}_return_buf"
         )
     else:
@@ -66,7 +65,7 @@ def lll_for_self_call(stmt_expr, context):
 
     # note: dst_tuple_t != args_tuple_t
     dst_tuple_t = TupleType([arg.typ for arg in sig.args])
-    args_dst = LLLnode(sig.frame_start, typ=dst_tuple_t, location="memory")
+    args_dst = IRnode(sig.frame_start, typ=dst_tuple_t, location=MEMORY)
 
     # if one of the arguments is a self call, the argument
     # buffer could get borked. to prevent against that,
@@ -75,20 +74,20 @@ def lll_for_self_call(stmt_expr, context):
     if args_as_tuple.contains_self_call:
         copy_args = ["seq"]
         # TODO deallocate me
-        tmp_args_buf = LLLnode(
+        tmp_args_buf = IRnode(
             context.new_internal_variable(dst_tuple_t),
             typ=dst_tuple_t,
-            location="memory",
+            location=MEMORY,
         )
         copy_args.append(
             # --> args evaluate here <--
-            make_setter(tmp_args_buf, args_as_tuple, pos)
+            make_setter(tmp_args_buf, args_as_tuple)
         )
 
-        copy_args.append(make_setter(args_dst, tmp_args_buf, pos))
+        copy_args.append(make_setter(args_dst, tmp_args_buf))
 
     else:
-        copy_args = make_setter(args_dst, args_as_tuple, pos)
+        copy_args = make_setter(args_dst, args_as_tuple)
 
     goto_op = ["goto", sig.internal_function_label]
     # pass return buffer to subroutine
@@ -107,11 +106,10 @@ def lll_for_self_call(stmt_expr, context):
         # push return buffer location to stack
         call_sequence += [return_buffer]
 
-    o = LLLnode.from_list(
+    o = IRnode.from_list(
         call_sequence,
         typ=sig.return_type,
-        location="memory",
-        pos=pos,
+        location=MEMORY,
         annotation=stmt_expr.get("node_source_code"),
         add_gas_estimate=sig.gas,
     )

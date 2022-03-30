@@ -1,4 +1,4 @@
-def test_with_depth(get_contract_from_lll, assert_compile_failed):
+def test_with_depth(get_contract_from_ir, assert_compile_failed):
     _16_with_statements = [
         "with",
         "var_1",
@@ -156,11 +156,11 @@ def test_with_depth(get_contract_from_lll, assert_compile_failed):
             ],
         ],
     ]
-    get_contract_from_lll(_16_with_statements)
-    assert_compile_failed(lambda: get_contract_from_lll(_17_with_statements), Exception)
+    get_contract_from_ir(_16_with_statements)
+    assert_compile_failed(lambda: get_contract_from_ir(_17_with_statements), Exception)
 
 
-def test_with_set_depth(get_contract_from_lll, assert_compile_failed):
+def test_with_set_depth(get_contract_from_ir, assert_compile_failed):
     _16_with_statements = [
         "with",
         "var_1",
@@ -324,5 +324,5 @@ def test_with_set_depth(get_contract_from_lll, assert_compile_failed):
         ],
     ]
 
-    get_contract_from_lll(_16_with_statements)
-    assert_compile_failed(lambda: get_contract_from_lll(_17_with_statements), Exception)
+    get_contract_from_ir(_16_with_statements)
+    assert_compile_failed(lambda: get_contract_from_ir(_17_with_statements), Exception)

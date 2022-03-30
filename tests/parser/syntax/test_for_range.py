@@ -22,6 +22,15 @@ def foo():
     for i in range(x, x + 10):
         pass
     """,
+    """
+interface Foo:
+    def kick(): nonpayable
+foos: Foo[3]
+@external
+def kick_foos():
+    for foo in self.foos:
+        foo.kick()
+    """,
 ]
 
 
