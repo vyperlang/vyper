@@ -70,7 +70,7 @@ def _encode_dyn_array_helper(dst, ir_node, context):
     if ir_node.value == "multi":
         buf = context.new_internal_variable(dst.typ)
         buf = IRnode.from_list(buf, typ=dst.typ, location=MEMORY)
-        _bufsz = dst.typ.memory_bytes_required
+        _bufsz = dst.typ.abi_type.size_bound()
         return [
             "seq",
             make_setter(buf, ir_node),
