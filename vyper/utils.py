@@ -59,7 +59,7 @@ def mkalphanum(s):
 
 
 def round_towards_zero(d: decimal.Decimal) -> int:
-    return d.to_integral_exact(decimal.ROUND_DOWN)
+    return int(d.to_integral_exact(decimal.ROUND_DOWN))
 
 
 # Converts string to bytes
