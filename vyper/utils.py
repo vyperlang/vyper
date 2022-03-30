@@ -139,6 +139,7 @@ def evm_div(x, y):
         return 0
     # doesn't actually work:
     # return int(x / y)
+    # NOTE: should be same as: round_towards_zero(Decimal(x)/Decimal(y))
     sign = -1 if (x * y) < 0 else 1
     return sign * (abs(x) // abs(y))  # adapted from py-evm
 
