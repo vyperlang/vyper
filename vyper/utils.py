@@ -58,6 +58,10 @@ def mkalphanum(s):
     return "".join([c if c.isalnum() else "_" for c in s])
 
 
+def round_towards_zero(d: decimal.Decimal) -> int:
+    return d.to_integral_exact(decimal.ROUND_DOWN)
+
+
 # Converts string to bytes
 def string_to_bytes(str):
     bytez = b""

@@ -87,6 +87,9 @@ class NumericTypeInfo:
 
     @property
     def bounds(self) -> Tuple[int, int]:
+        # The bounds of this type
+        # (note behavior for decimal: int value in IR land,
+        # rather than Decimal value in Python land)
         return int_bounds(signed=self.is_signed, bits=self.bits)
 
 

@@ -28,7 +28,7 @@ from vyper.codegen.types import (
     is_integer_type,
 )
 from vyper.exceptions import CompilerPanic, InvalidLiteral, StructureException, TypeMismatch
-from vyper.utils import DECIMAL_DIVISOR, SizeLimits
+from vyper.utils import DECIMAL_DIVISOR, SizeLimits, round_towards_zero
 
 
 def _FAIL(ityp, otyp, source_expr=None):
@@ -109,12 +109,15 @@ def _fixed_to_int(x, out_typ):
 def _int_to_fixed(x, out_typ):
     info = out_typ._decimal_info
 
-    lo, hi = info.bounds
     decimals = info.decimals
+    lo, hi = info.bounds
+
+    # TODO should these be in decimal_info?
+    lo = round_towards_zero(decimal.Decimal(lo) / 10 ** decimals)
+    hi = round_towards_zero(decimal.Decimal(hi) / 10 ** decimals)
 
     clamp_op = "clamp" if info.is_signed else "uclamp"
 
-    # TODO is this clamp redundant with later num clamps?
     return IRnode.from_list(["mul", [clamp_op, lo, x, hi], 10 ** decimals], typ=out_typ)
 
 
