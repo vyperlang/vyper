@@ -27,7 +27,13 @@ from vyper.codegen.types import (
     is_decimal_type,
     is_integer_type,
 )
-from vyper.exceptions import CompilerPanic, InvalidType, InvalidLiteral, StructureException, TypeMismatch
+from vyper.exceptions import (
+    CompilerPanic,
+    InvalidLiteral,
+    InvalidType,
+    StructureException,
+    TypeMismatch,
+)
 from vyper.utils import DECIMAL_DIVISOR, SizeLimits, round_towards_zero
 
 
@@ -284,7 +290,6 @@ def to_decimal(expr, arg, out_typ):
         return IRnode.from_list(arg, typ=out_typ)
 
     elif is_integer_type(arg.typ):
-        int_info = arg.typ._int_info
         arg = _int_to_fixed(arg, out_typ)
         return IRnode.from_list(arg, typ=out_typ)
 
