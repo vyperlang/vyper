@@ -171,6 +171,7 @@ def abi_encode(dst, ir_node, context, bufsz, returns_len=False):
     # encoding by using make_setter, since our memory encoding happens
     # to be identical to the ABI encoding.
     if abi_encoding_matches_vyper(ir_node.typ):
+        # NOTE: make_setter handles changes of location and encoding
         ir_ret.append(make_setter(dst, ir_node))
         if returns_len:
             assert abi_t.embedded_static_size() == ir_node.typ.memory_bytes_required

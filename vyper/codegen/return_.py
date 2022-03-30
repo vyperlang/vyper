@@ -5,6 +5,7 @@ from vyper.codegen.abi_encoder import abi_encode, abi_encoding_matches_vyper
 from vyper.codegen.context import Context
 from vyper.codegen.core import (
     calculate_type_for_external_return,
+    needs_clamp,
     check_assign,
     dummy_node_for_type,
     make_setter,
@@ -61,7 +62,10 @@ def make_return_stmt(ir_val: IRnode, stmt: Any, context: Context) -> Optional[IR
         # optimize: if the value already happens to be ABI encoded in
         # memory, don't bother running abi_encode, just return the
         # buffer it is in.
-        if abi_encoding_matches_vyper(ir_val.typ) and ir_val.location == MEMORY:
+        can_skip_encode = abi_encoding_matches_vyper(ir_val.typ) and ir_val.location == MEMORY and not needs_clamp(ir_val.typ, ir_val.encoding)
+        can_skip_encode &= not needs_clamp(ir_val.typ, ir_val.encoding)
+
+        if can_skip_encode:
             assert ir_val.typ.memory_bytes_required == maxlen
             jump_to_exit += [ir_val, maxlen]  # type: ignore
             return finalize(["pass"])
