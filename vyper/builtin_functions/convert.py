@@ -103,9 +103,23 @@ def _bytes_to_num(arg, out_typ, signed):
 
 
 # truncate from fixed point decimal to int
-def _fixed_to_int(x, out_typ):
-    decimals = x.typ._decimal_info.decimals
-    return IRnode.from_list(["sdiv", x, 10 ** decimals], typ=out_typ)
+def _fixed_to_int(arg, out_typ):
+    arg_info = arg.typ._decimal_info
+    out_info = out_typ._int_info
+
+    decimals = arg_info.decimals
+
+    out_bits_used = arg_info.bits - math.log(10 ** decimals, 2)
+
+    arg = IRnode.from_list(["sdiv", arg, 10 ** decimals], typ=out_typ)
+
+    if (out_info.bits == 256 or arg_info.bits == 256) and arg_info.is_signed != out_info.is_signed:
+        arg = IRnode.from_list(["clampge", arg, 0], typ=arg.typ)
+
+    if out_bits_used > out_info.bits:
+        arg = int_clamp(arg, out_info.bits, out_info.is_signed)
+
+    return arg
 
 
 # promote from int to fixed point decimal
@@ -116,13 +130,13 @@ def _int_to_fixed(x, out_typ):
 
     lo, hi = info.bounds
 
-    # TODO should these be in decimal_info?
     lo = round_towards_zero(decimal.Decimal(lo) / 10 ** decimals)
     hi = round_towards_zero(decimal.Decimal(hi) / 10 ** decimals)
 
-    clamp_op = "clamp" if info.is_signed else "uclamp"
+    # TODO: when can we skip this clamp?
+    CLAMP = "clamp" if info.is_signed else "uclamp"
 
-    return IRnode.from_list(["mul", [clamp_op, lo, x, hi], 10 ** decimals], typ=out_typ)
+    return IRnode.from_list(["mul", [CLAMP, lo, x, hi], 10 ** decimals], typ=out_typ)
 
 
 def _check_bytes(expr, arg, output_type, max_bytes_allowed):
@@ -183,24 +197,13 @@ def to_bool(expr, arg, out_typ):
     return IRnode.from_list(["iszero", ["iszero", arg]], typ=out_typ)
 
 
-# special clamp for uint/sint conversions
-# uint -> sint requires input < sint::max_value
-# sint -> uint requires input >= 0
-# these are both equivalent to checking that the top bit is set
-# (e.g. for uint8 that the 8th bit is set, same for int8)
-def _signedness_clamp(arg, bits):
-    return int_clamp(arg, bits=bits - 1, signed=False)
+# clamp for dealing with conversions between int types (from arg to dst)
+def _int_to_int(arg, out_info, arg_info):
+    if (out_info.bits == 256 or arg_info.bits == 256) and arg_info.is_signed != out_info.is_signed:
+        arg = IRnode.from_list(["clampge", arg, 0], typ=arg.typ)
 
-
-# clamp for dealing with conversions between numeric types (from arg to dst)
-def _num_clamp(arg, dst_info, arg_info):
-    if dst_info.is_signed != arg_info.is_signed and dst_info.bits <= arg_info.bits:
-        arg = _signedness_clamp(arg, arg_info.bits)
-
-    # if, not elif (could be two clamps!)
-    # TODO is it possible to make this more efficient?
-    if dst_info.bits < arg_info.bits:
-        arg = int_clamp(arg, dst_info.bits, dst_info.is_signed)
+    if out_info.bits < 256 and out_info.bits < arg_info.bits:
+        arg = int_clamp(arg, out_info.bits, out_info.is_signed)
 
     return arg
 
@@ -231,11 +234,10 @@ def to_int(expr, arg, out_typ):
     elif is_decimal_type(arg.typ):
         arg_info = arg.typ._decimal_info
         arg = _fixed_to_int(arg, out_typ)
-        arg = _num_clamp(arg, int_info, arg_info)
 
     elif is_integer_type(arg.typ):
         arg_info = arg.typ._int_info
-        arg = _num_clamp(arg, int_info, arg_info)
+        arg = _int_to_int(arg, int_info, arg_info)
 
     elif is_base_type(arg.typ, "address"):
         if int_info.is_signed:

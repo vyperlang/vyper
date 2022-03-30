@@ -116,6 +116,7 @@ def is_integer_type(t: "NodeType") -> bool:
     return isinstance(t, BaseType) and _int_parser.fullmatch(t.typ) is not None
 
 
+# TODO maybe move this to vyper.utils
 def parse_integer_typeinfo(typename: str) -> IntegerTypeInfo:
     t = _int_parser.fullmatch(typename)
     if not t:
