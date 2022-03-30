@@ -1,7 +1,7 @@
 from typing import Any, Optional
 
 from vyper.address_space import MEMORY
-from vyper.codegen.abi_encoder import abi_encode
+from vyper.codegen.abi_encoder import abi_encode, abi_encoding_matches_vyper
 from vyper.codegen.context import Context
 from vyper.codegen.core import (
     calculate_type_for_external_return,
@@ -55,10 +55,22 @@ def make_return_stmt(ir_val: IRnode, stmt: Any, context: Context) -> Optional[IR
 
     else:  # return from external function
 
-        ir_val = wrap_value_for_external_return(ir_val)
-
         external_return_type = calculate_type_for_external_return(context.return_type)
         maxlen = external_return_type.abi_type.size_bound()
+
+        # optimize: if the value already happens to be ABI encoded in
+        # memory, don't bother running abi_encode, just return the
+        # buffer it is in.
+        if abi_encoding_matches_vyper(ir_val.typ) and ir_val.location == MEMORY:
+            assert ir_val.typ.memory_bytes_required == maxlen
+            jump_to_exit += [ir_val, maxlen]  # type: ignore
+            return finalize(["pass"])
+
+
+        ir_val = wrap_value_for_external_return(ir_val)
+
+        # general case: abi_encode the data to a newly allocated buffer
+        # and return the buffer
         return_buffer_ofst = context.new_internal_variable(get_type_for_exact_size(maxlen))
 
         # encode_out is cleverly a sequence which does the abi-encoding and

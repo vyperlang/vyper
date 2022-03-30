@@ -112,6 +112,14 @@ def _encode_dyn_array_helper(dst, ir_node, context):
         return b.resolve(ret)
 
 
+def abi_encoding_matches_vyper(typ):
+    """
+    returns True if the ABI encoding matches vyper's memory encoding of
+    a type, otherwise False
+    """
+    return not typ.abi_type.is_dynamic()
+
+
 # assume dst is a pointer to a buffer located in memory which has at
 # least static_size + dynamic_size_bound allocated.
 # The basic strategy is this:
@@ -162,9 +170,10 @@ def abi_encode(dst, ir_node, context, bufsz, returns_len=False):
     # fastpath: if there is no dynamic data, we can optimize the
     # encoding by using make_setter, since our memory encoding happens
     # to be identical to the ABI encoding.
-    if not abi_t.is_dynamic():
+    if abi_encoding_matches_vyper(ir_node.typ):
         ir_ret.append(make_setter(dst, ir_node))
         if returns_len:
+            assert abi_t.embedded_static_size() == ir_node.typ.memory_bytes_required
             ir_ret.append(abi_t.embedded_static_size())
         return IRnode.from_list(ir_ret, annotation=annotation)
 
