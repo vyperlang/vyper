@@ -326,7 +326,7 @@ def to_bytes_m(expr, arg, out_typ):
 
     else:
         # bool, decimal
-        arg = shl(256 - out_info.m_bits, arg)  # question: is this right?
+        arg = shl(256 - out_info.m_bits, arg)
 
     return IRnode.from_list(arg, typ=out_typ)
 
@@ -338,34 +338,7 @@ def to_address(expr, arg, out_typ):
         if arg.typ._int_info.is_signed:
             _FAIL(arg.typ, out_typ, expr)
 
-    # TODO once we introduce uint160, we can just check that arg
-    # is unsigned, and then call to_int(expr, arg, uint160) because
-    # the logic is equivalent.
-
-    # disallow casting from Bytes[N>20]
-    _check_bytes(expr, arg, out_typ, 32)
-
-    if isinstance(arg.typ, ByteArrayType):
-        arg_typ = arg.typ
-        arg = _bytes_to_num(arg, out_typ, signed=False)
-        # clamp after shift
-        if arg_typ.maxlen > 20:
-            arg = int_clamp(arg, 160, signed=False)
-
-    if is_bytes_m_type(arg.typ):
-        info = arg.typ._bytes_info
-        arg = _bytes_to_num(arg, out_typ, signed=False)
-
-        # clamp after shift
-        if info.m > 20:
-            arg = int_clamp(arg, 160, signed=False)
-
-    elif is_integer_type(arg.typ):
-        arg_info = arg.typ._int_info
-        if arg_info.bits > 160 or arg_info.is_signed:
-            arg = int_clamp(arg, 160, signed=False)
-
-    return IRnode.from_list(arg, typ=out_typ)
+    return to_int(expr, arg, out_typ)
 
 
 # question: should we allow bytesM -> String?
