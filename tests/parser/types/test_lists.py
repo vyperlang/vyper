@@ -211,7 +211,7 @@ def test_array(x: int128, y: int128, z: int128, w: int128) -> int128:
     assert c.test_array(2, 7, 1, 8) == -10908
 
 
-def test_array_negative_accessor(get_contract_with_gas_estimation):
+def test_array_negative_accessor(get_contract_with_gas_estimation, assert_compile_failed):
     array_negative_accessor = """
 @external
 def test_array(x: int128, y: int128, z: int128, w: int128) -> int128:
@@ -223,11 +223,10 @@ def test_array(x: int128, y: int128, z: int128, w: int128) -> int128:
     return a[-4] * 1000 + a[-3] * 100 + a[-2] * 10 + a[-1]
     """
 
-    c = get_contract_with_gas_estimation(array_negative_accessor)
-    assert c.test_array(2, 7, 1, 8) == 2718
+    assert_compile_failed(
+        lambda: get_contract_with_gas_estimation(array_negative_accessor), ArrayIndexException
+    )
 
-
-def test_two_d_array_negative_accessor(get_contract_with_gas_estimation):
     two_d_array_negative_accessor = """
 @external
 def test_array(x: int128, y: int128, z: int128, w: int128) -> int128:
@@ -239,11 +238,10 @@ def test_array(x: int128, y: int128, z: int128, w: int128) -> int128:
     return a[-2][-2] * 1000 + a[-2][-1] * 100 + a[-1][-2] * 10 + a[-1][-1]
     """
 
-    c = get_contract_with_gas_estimation(two_d_array_negative_accessor)
-    assert c.test_array(2, 7, 1, 8) == 2718
+    assert_compile_failed(
+        lambda: get_contract_with_gas_estimation(two_d_array_negative_accessor), ArrayIndexException
+    )
 
-
-def test_three_d_array_negative_accessor(get_contract_with_gas_estimation):
     three_d_array_negative_accessor = """
 @external
 def test_array(x: int128, y: int128, z: int128, w: int128) -> int128:
@@ -260,11 +258,11 @@ def test_array(x: int128, y: int128, z: int128, w: int128) -> int128:
         a[-1][-1][-1] * 1000 + a[-1][-1][-2] * 100 + a[-1][-2][-1] * 10 + a[-1][-2][-2]
     """
 
-    c = get_contract_with_gas_estimation(three_d_array_negative_accessor)
-    assert c.test_array(2, 7, 1, 8) == -5454
+    assert_compile_failed(
+        lambda: get_contract_with_gas_estimation(three_d_array_negative_accessor),
+        ArrayIndexException,
+    )
 
-
-def test_four_d_array_negative_accessor(get_contract_with_gas_estimation):
     four_d_array_negative_accessor = """
 @external
 def test_array(x: int128, y: int128, z: int128, w: int128) -> int128:
@@ -297,8 +295,10 @@ def test_array(x: int128, y: int128, z: int128, w: int128) -> int128:
         a[-1][-1][-2][-1] * 10 + a[-1][-1][-2][-2]
     """
 
-    c = get_contract_with_gas_estimation(four_d_array_negative_accessor)
-    assert c.test_array(2, 7, 1, 8) == -10908
+    assert_compile_failed(
+        lambda: get_contract_with_gas_estimation(four_d_array_negative_accessor),
+        ArrayIndexException,
+    )
 
 
 def test_returns_lists(get_contract_with_gas_estimation):
