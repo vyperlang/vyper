@@ -27,7 +27,7 @@ from vyper.codegen.types import (
     is_decimal_type,
     is_integer_type,
 )
-from vyper.exceptions import CompilerPanic, InvalidLiteral, StructureException, TypeMismatch
+from vyper.exceptions import CompilerPanic, InvalidType, InvalidLiteral, StructureException, TypeMismatch
 from vyper.utils import DECIMAL_DIVISOR, SizeLimits, round_towards_zero
 
 
@@ -63,10 +63,13 @@ def _input_types(*allowed_types):
             # (expr is the AST corresponding to `arg`)
             ityp = _type_class_of(arg.typ)
             ok = ityp in allowed_types
-            # user safety: disallow convert from type to itself
-            ok &= arg.typ != out_typ
             if not ok:
                 _FAIL(arg.typ, out_typ, expr)
+
+            # user safety: disallow convert from type to itself
+            if arg.typ == out_typ:
+                raise InvalidType("value and target are both {out_typ}", expr)
+
             return f(expr, arg, out_typ)
 
         return check_input_type
