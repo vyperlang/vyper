@@ -240,7 +240,6 @@ def to_int(expr, arg, out_typ):
             arg = int_clamp(arg, int_info.bits, signed=int_info.is_signed)
 
     elif is_decimal_type(arg.typ):
-        arg_info = arg.typ._decimal_info
         arg = _fixed_to_int(arg, out_typ)
 
     elif is_integer_type(arg.typ):
