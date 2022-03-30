@@ -113,6 +113,7 @@ def _int_to_fixed(x, out_typ):
     info = out_typ._decimal_info
 
     decimals = info.decimals
+
     lo, hi = info.bounds
 
     # TODO should these be in decimal_info?
@@ -193,7 +194,7 @@ def _signedness_clamp(arg, bits):
 
 # clamp for dealing with conversions between numeric types (from arg to dst)
 def _num_clamp(arg, dst_info, arg_info):
-    if dst_info.is_signed != arg_info.is_signed:
+    if dst_info.is_signed != arg_info.is_signed and dst_info.bits <= arg_info.bits:
         arg = _signedness_clamp(arg, arg_info.bits)
 
     # if, not elif (could be two clamps!)
