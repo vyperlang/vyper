@@ -5,18 +5,20 @@ from itertools import permutations
 import pytest
 from eth_abi import decode_single, encode_single
 from eth_utils import add_0x_prefix, clamp, remove_0x_prefix
+from web3.exceptions import ValidationError
 
 from vyper.codegen.types import (
     BASE_TYPES,
     BYTES_M_TYPES,
+    DECIMAL_TYPES,
+    INTEGER_TYPES,
     SIGNED_INTEGER_TYPES,
     UNSIGNED_INTEGER_TYPES,
     parse_bytes_m_info,
     parse_decimal_info,
     parse_integer_typeinfo,
 )
-
-# from vyper.exceptions import InvalidLiteral, InvalidType, OverflowException, TypeMismatch
+from vyper.exceptions import InvalidLiteral, InvalidType, OverflowException, TypeMismatch
 from vyper.utils import (
     DECIMAL_DIVISOR,
     MAX_DECIMAL_PLACES,
@@ -462,16 +464,6 @@ def generate_passing_test_cases(type_pairs):
     res = []
 
     for tp in type_pairs:
-
-        # Exclude uint to int conversions due to bug causing excessive number of errors
-        # TODO: Remove once fixed
-
-        # if tp[0].startswith("int") and tp[1].startswith("uint"):
-        #    continue
-
-        # if not tp[0].startswith("bytes") and not tp[1].startswith("decimal"):
-        #    continue
-
         if can_convert(tp[0], tp[1]):
             res += generate_passing_test_cases_for_pair(tp[0], tp[1])
 
@@ -575,3 +567,352 @@ def test_state_variable_convert() -> {out_type}:
         out_value = Decimal(out_value)
 
     assert c4.test_state_variable_convert() == out_value
+
+
+@pytest.mark.parametrize(
+    "builtin_constant,out_type,out_value",
+    [
+        ("ZERO_ADDRESS", "bool", False),
+        ("msg.sender", "bool", True),
+    ],
+)
+def test_convert_builtin_constant(
+    get_contract_with_gas_estimation, builtin_constant, out_type, out_value
+):
+
+    contract = f"""
+@external
+def convert_builtin_constant() -> {out_type}:
+    return convert({builtin_constant}, {out_type})
+    """
+
+    c = get_contract_with_gas_estimation(contract)
+    assert c.convert_builtin_constant() == out_value
+
+
+def generate_test_cases_for_same_type_conversion():
+    """
+    Helper function to generate test cases for invalid conversion of same types.
+    """
+    res = []
+
+    # uint256 to uint256 conversion is currently valid
+    # TODO: add this test case once https://github.com/vyperlang/vyper/issues/2722 is fixed
+    for t in TEST_TYPES.difference({"uint256"}):
+        case = generate_default_cases_for_in_type(t)[0]
+        res.append({"in_type": t, "out_type": t, "in_value": case, "exception": InvalidType})
+
+    return res
+
+
+def generate_test_cases_for_byte_array_type_mismatch():
+    res = []
+    for t in BASE_TYPES:
+
+        res.append(
+            {
+                "in_type": "Bytes[33]",
+                "out_type": t,
+                "in_value": b"\xff" * 33,
+                "exception": TypeMismatch,
+            }
+        )
+
+        res.append(
+            {
+                "in_type": "Bytes[63]",
+                "out_type": t,
+                "in_value": b"Hello darkness, my old friend I've come to talk with you again.",
+                "exception": TypeMismatch,
+            }
+        )
+
+    return res
+
+
+def generate_test_cases_for_invalid_numeric_conversion():
+    """
+    Helper function to generate invalid numeric conversions:
+    1. Negative numbers to uint
+    2. Out of bounds
+    """
+    res = []
+
+    for tp in list(permutations(INTEGER_TYPES.union(DECIMAL_TYPES), 2)):
+
+        o_typ = tp[0]
+        i_typ = tp[1]
+
+        ot = _get_case_type(o_typ)
+        it = _get_case_type(i_typ)
+
+        if ot == it:
+            continue
+
+        cases = generate_default_cases_for_in_type(i_typ)
+
+        # Cast decimals to numeric value
+        if it == "decimal":
+            cases = [Decimal(c) for c in cases]
+
+        if ot in ["int", "uint"]:
+            ot_int_info = parse_integer_typeinfo(o_typ)
+            (ot_lo, ot_hi) = int_bounds(ot_int_info.is_signed, ot_int_info.bits)
+
+        # Filter for invalid test cases
+        if ot == "uint":
+            if it == "int":
+                continue
+            cases = [c for c in cases if c < 0]
+
+        elif ot == "int":
+            cases = [c for c in cases if (c < ot_lo or c > ot_hi)]
+            import sys
+
+            sys.stdout.write("cases: " + str(cases) + "\n")
+
+        elif ot == "decimal":
+            cases = [
+                c
+                for c in cases
+                if (c < SizeLimits.MIN_AST_DECIMAL or c > SizeLimits.MAX_AST_DECIMAL)
+            ]
+
+        for c in cases:
+            # Cast decimal values back to string
+            if it == "decimal":
+                c = format(c, f".{MAX_DECIMAL_PLACES}f")
+
+            res.append(
+                {
+                    "in_type": i_typ,
+                    "out_type": o_typ,
+                    "in_value": c,
+                    "exception": InvalidLiteral,
+                }
+            )
+
+    return res
+
+
+def generate_test_cases_for_clamped_address_conversion():
+    """
+    Helper function to generate conversions from valid types to address with
+    too large a value (i.e. will be clamped).
+    """
+    res = []
+
+    for u in UNSIGNED_INTEGER_TYPES:
+        it_int_info = parse_integer_typeinfo(u)
+        if it_int_info.bits > 160:
+            cases = [2 ** 160, 2 ** it_int_info.bits - 1, 2 ** (it_int_info.bits - 1)]
+            for c in cases:
+                res.append(
+                    {
+                        "in_type": u,
+                        "out_type": "address",
+                        "in_value": c,
+                        "exception": InvalidLiteral,
+                    }
+                )
+
+    for b in BYTES_M_TYPES:
+        in_nibbles = _get_nibble(b)
+        out_nibbles = _get_nibble("address")
+        if in_nibbles > out_nibbles:
+            cases = [
+                add_0x_prefix(remove_0x_prefix(hex(2 ** 160)).rjust(in_nibbles, "0")),
+                add_0x_prefix("f" * in_nibbles),
+                add_0x_prefix("f" * (in_nibbles - 1) + "e"),
+            ]
+            for c in cases:
+                res.append(
+                    {
+                        "in_type": b,
+                        "out_type": "address",
+                        "in_value": c,
+                        "exception": None,
+                    }
+                )
+
+    return res
+
+
+def generate_test_cases_for_decimal_overflow():
+    """
+    Helper function to generate test cases for conversions from decimal to a valid
+    type but with an overflow value.
+    """
+    res = []
+
+    for t in TEST_TYPES.difference({"Bytes[32]", "address", "decimal"}):
+        res.append(
+            {
+                "in_type": "decimal",
+                "out_type": t,
+                # Exceeds by 0.0000000001
+                "in_value": "18707220957835557353007165858768422651595.9365500928",
+                "exception": OverflowException,
+            }
+        )
+
+    return res
+
+
+INVALID_CONVERSIONS = (
+    [
+        # (in_type, out_type
+        ("bool", "address"),
+        ("decimal", "address"),
+        ("address", "bytes4"),
+        ("address", "bytes8"),
+        ("address", "bytes12"),
+        ("address", "bytes16"),
+        ("address", "decimal"),
+        ("bytes24", "decimal"),
+        ("bytes28", "decimal"),
+        ("bytes32", "decimal"),
+    ]
+    + [(i[1], "address") for i in enumerate(SIGNED_INTEGER_TYPES)]
+    + [("address", i[1]) for i in enumerate(SIGNED_INTEGER_TYPES)]
+)
+
+
+def generate_test_cases_for_invalid_dislike_types_conversion():
+    """
+    Helper function to generate test cases for invalid dislike types conversions
+    as specified in INVALID_CONVERSIONS.
+    """
+    res = []
+
+    for tp in INVALID_CONVERSIONS:
+
+        o_typ = tp[1]
+        i_typ = tp[0]
+
+        if can_convert(o_typ, i_typ):
+            continue
+
+        case = generate_default_cases_for_in_type(i_typ)[-1]
+
+        res.append(
+            {
+                "in_type": i_typ,
+                "out_type": o_typ,
+                "in_value": case,
+                "exception": TypeMismatch,
+            }
+        )
+
+    return res
+
+
+@pytest.mark.parametrize(
+    "input_values",
+    generate_test_cases_for_same_type_conversion()
+    + generate_test_cases_for_byte_array_type_mismatch()
+    + generate_test_cases_for_invalid_numeric_conversion()
+    + generate_test_cases_for_clamped_address_conversion()
+    + generate_test_cases_for_decimal_overflow()
+    + generate_test_cases_for_invalid_dislike_types_conversion(),
+)
+def test_invalid_convert(
+    get_contract_with_gas_estimation, assert_compile_failed, assert_tx_failed, input_values
+):
+    """
+    Test multiple contracts and check for a specific exception.
+    If no exception is provided, a runtime revert is expected (e.g. clamping).
+    """
+
+    in_type = input_values["in_type"]
+    out_type = input_values["out_type"]
+    in_value = input_values["in_value"]
+    exception = input_values["exception"]
+
+    skip_c2 = skip_c4 = False
+
+    if in_type.startswith("int") and out_type == "address":
+        skip_c2 = skip_c4 = True
+
+    if in_type.startswith("bytes"):
+        skip_c2 = skip_c4 = True
+
+    if in_type == "address":
+        skip_c2 = skip_c4 = True
+
+    contract_1 = f"""
+@external
+def foo():
+    bar: {in_type} = {in_value}
+    foobar: {out_type} = convert(bar, {out_type})
+    """
+
+    if exception is None or exception in (InvalidLiteral,):
+        c1 = get_contract_with_gas_estimation(contract_1)
+        assert_tx_failed(lambda: c1.foo())
+
+    else:
+        assert_compile_failed(
+            lambda: get_contract_with_gas_estimation(contract_1),
+            exception,
+        )
+
+    contract_2 = f"""
+@external
+def foo():
+    foobar: {out_type} = convert({in_value}, {out_type})
+    """
+
+    if not skip_c2:
+        if exception is None:
+            c2 = get_contract_with_gas_estimation(contract_2)
+            assert_tx_failed(lambda: c2.foo())
+
+        else:
+            assert_compile_failed(
+                lambda: get_contract_with_gas_estimation(contract_2),
+                exception,
+            )
+
+    # Test contract for clamping
+    # Test cases for clamping failures produce an InvalidLiteral exception in contracts 2 and 4
+    contract_3 = f"""
+@external
+def foo(bar: {in_type}) -> {out_type}:
+    return convert(bar, {out_type})
+    """
+
+    if exception is None or exception in (InvalidLiteral, OverflowException):
+        c3 = get_contract_with_gas_estimation(contract_3)
+        if in_type == "decimal":
+
+            # Overflow decimal throws ValidationError because it cannot be validated
+            # based on ABI type "fixed168x10"
+            with pytest.raises(ValidationError):
+                assert_tx_failed(lambda: c3.foo(Decimal(in_value)))
+
+        else:
+            assert_tx_failed(lambda: c3.foo(in_value))
+
+    else:
+        assert_compile_failed(
+            lambda: get_contract_with_gas_estimation(contract_3),
+            exception,
+        )
+
+    contract_4 = f"""
+@external
+def foo() -> {out_type}:
+    return convert({in_value}, {out_type})
+    """
+
+    if not skip_c4:
+        if exception is None:
+            c4 = get_contract_with_gas_estimation(contract_4)
+            assert_tx_failed(lambda: c4.foo())
+
+        else:
+            assert_compile_failed(
+                lambda: get_contract_with_gas_estimation(contract_4),
+                exception,
+            )
