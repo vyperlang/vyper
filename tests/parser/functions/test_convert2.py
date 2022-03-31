@@ -174,9 +174,6 @@ def extract_io_value(o_typ, i_typ, input_val):
     if ot in ["int", "uint"]:
         ot_int_info = parse_integer_typeinfo(o_typ)
 
-    # if it == "decimal":
-    #    it_dec_info = parse_decimal_info(i_typ)
-
     if ot == "decimal":
         ot_dec_info = parse_decimal_info(o_typ)
 
@@ -220,12 +217,7 @@ def extract_io_value(o_typ, i_typ, input_val):
                 (ot_lo, ot_hi) = int_bounds(ot_int_info.is_signed, ot_int_info.bits)
                 # Override output value with clamped value
                 output_val = clamp(ot_lo, ot_hi, output_val)
-                input_val_hex_str = remove_0x_prefix(
-                    signed_int_to_hex(output_val, ot_int_info.bits)
-                    if ot_int_info.is_signed
-                    else hex(output_val)
-                ).rjust(2, "0")
-                input_val = bytes.fromhex(input_val_hex_str).rjust(in_bytes, b"\x00")
+                input_val = encode_single(o_typ, output_val)[-in_bytes:]
 
         elif it == "bytes":
 
@@ -241,14 +233,7 @@ def extract_io_value(o_typ, i_typ, input_val):
                 (ot_lo, ot_hi) = int_bounds(ot_int_info.is_signed, ot_int_info.bits)
                 # Override default output value with clamped value
                 output_val = clamp(ot_lo, ot_hi, output_val)
-                input_val_hex_str = (
-                    signed_int_to_hex(output_val, ot_int_info.bits)
-                    if ot_int_info.is_signed
-                    else hex(output_val)
-                )
-                input_val = add_0x_prefix(
-                    remove_0x_prefix(input_val_hex_str).rjust(in_nibbles, "0")
-                )
+                input_val = add_0x_prefix(encode_single(o_typ, output_val).hex()[-in_nibbles:])
 
     if ot == "uint" and it == "address":
         (ot_lo, ot_hi) = int_bounds(ot_int_info.is_signed, ot_int_info.bits)
@@ -261,14 +246,7 @@ def extract_io_value(o_typ, i_typ, input_val):
             # Input must have fewer than M bytes set
             (ot_lo, ot_hi) = int_bounds(it_int_info.is_signed, ot_int_info.m_bits)
             input_val = clamp(ot_lo, ot_hi, input_val)
-
-            if it_int_info.is_signed:
-                msb = "f" if input_val < 0 else "0"
-                output_hex_str = remove_0x_prefix(
-                    signed_int_to_hex(input_val, it_int_info.bits)
-                ).rjust(ot_bytes_info.m, msb)
-            else:
-                output_hex_str = remove_0x_prefix(hex(input_val)).rjust(out_nibbles, "0")
+            output_hex_str = encode_single(i_typ, input_val).hex()[-out_nibbles:]
 
         elif it == "decimal":
             input_val_raw = int(Decimal(input_val) * DECIMAL_DIVISOR)
@@ -276,18 +254,11 @@ def extract_io_value(o_typ, i_typ, input_val):
             if ot_bytes_info.m_bits <= DECIMAL_BITS:
                 (ot_lo, ot_hi) = int_bounds(True, ot_bytes_info.m_bits)
                 input_val_clamped = clamp(ot_lo, ot_hi, input_val_raw)
-            # Otherwise, clamp to decimal size
-            else:
-                input_val_clamped = clamp(
-                    SizeLimits.MINDECIMAL, SizeLimits.MAXDECIMAL, input_val_raw
+                input_val = format(
+                    Decimal(input_val_clamped) / DECIMAL_DIVISOR, f".{MAX_DECIMAL_PLACES}f"
                 )
 
-            input_val = format(
-                Decimal(input_val_clamped) / DECIMAL_DIVISOR, f".{MAX_DECIMAL_PLACES}f"
-            )
-            output_hex_str = remove_0x_prefix(
-                signed_int_to_hex(input_val_clamped, DECIMAL_BITS)
-            ).rjust(out_nibbles, "0")
+            output_hex_str = encode_single("fixed168x10", Decimal(input_val)).hex()[-out_nibbles:]
 
         elif it == "Bytes":
             output_hex_str = input_val.hex().ljust(out_nibbles, "0")
@@ -373,19 +344,15 @@ def extract_io_value(o_typ, i_typ, input_val):
 
         elif it == "Bytes":
             in_bytes = _get_type_N(i_typ)
+            in_bits = in_bytes * 8
             if input_val == b"":
                 output_val = Decimal("0")
             else:
                 # Convert Bytes to raw integer value, clamp and then convert to decimal
-                output_val = (
-                    Decimal(
-                        clamp(
-                            SizeLimits.MINDECIMAL,
-                            SizeLimits.MAXDECIMAL,
-                            hex_to_int(input_val.hex()),
-                        )
-                    )
-                    / DECIMAL_DIVISOR
+                output_val = clamp(
+                    SizeLimits.MIN_AST_DECIMAL,
+                    SizeLimits.MAX_AST_DECIMAL,
+                    Decimal(hex_to_signed_int(input_val.hex(), in_bits)) / DECIMAL_DIVISOR,
                 )
                 input_val = encode_single("fixed168x10", output_val)[-in_bytes:]
 
@@ -498,11 +465,12 @@ def generate_passing_test_cases(type_pairs):
 
         # Exclude uint to int conversions due to bug causing excessive number of errors
         # TODO: Remove once fixed
-        if tp[0].startswith("int") and tp[1].startswith("uint"):
-            continue
 
-        if not tp[0].startswith("uint") and not tp[1].startswith("Bytes"):
-            continue
+        # if tp[0].startswith("int") and tp[1].startswith("uint"):
+        #    continue
+
+        # if not tp[0].startswith("bytes") and not tp[1].startswith("decimal"):
+        #    continue
 
         if can_convert(tp[0], tp[1]):
             res += generate_passing_test_cases_for_pair(tp[0], tp[1])
