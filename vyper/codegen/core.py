@@ -137,10 +137,11 @@ def _dynarray_make_setter(dst, src):
         # loop when subtype.is_dynamic AND location == storage
         # OR array_size <= /bound where loop is cheaper than memcpy/
         should_loop |= src.typ.subtype.abi_type.is_dynamic()
-        should_loop |= _needs_clamp(src.typ.subtype, src.encoding)
+        should_loop |= needs_clamp(src.typ.subtype, src.encoding)
 
         with get_dyn_array_count(src).cache_when_complex("darray_count") as (b2, count):
             ret = ["seq"]
+
             ret.append(STORE(dst, count))
 
             if should_loop:
@@ -175,6 +176,7 @@ def _dynarray_make_setter(dst, src):
 # (iv) a constant for the max length (in bytes)
 # NOTE: may pad to ceil32 of `length`! If you ask to copy 1 byte, it may
 # copy an entire (32-byte) word, depending on the copy routine chosen.
+# TODO maybe always pad to ceil32, to reduce dirty bytes bugs
 def copy_bytes(dst, src, length, length_bound):
     annotation = f"copy_bytes from {src} to {dst}"
 
@@ -623,6 +625,8 @@ def _check_assign_list(left, right):
             FAIL()  # pragma: notest
         if left.typ.count != right.typ.count:
             FAIL()  # pragma: notest
+
+        # TODO recurse into left, right if literals?
         check_assign(dummy_node_for_type(left.typ.subtyp), dummy_node_for_type(right.typ.subtyp))
 
     if isinstance(left, DArrayType):
@@ -638,6 +642,7 @@ def _check_assign_list(left, right):
                 f"Bad type for clearing bytes: expected {left.typ} but got {right.typ}"
             )  # pragma: notest
 
+        # TODO recurse into left, right if literals?
         check_assign(dummy_node_for_type(left.typ.subtyp), dummy_node_for_type(right.typ.subtyp))
 
 
@@ -652,6 +657,7 @@ def _check_assign_tuple(left, right):
         for k in left.typ.members:
             if k not in right.typ.members:
                 FAIL()  # pragma: notest
+            # TODO recurse into left, right if literals?
             check_assign(
                 dummy_node_for_type(left.typ.members[k]),
                 dummy_node_for_type(right.typ.members[k]),
@@ -668,6 +674,7 @@ def _check_assign_tuple(left, right):
         if len(left.typ.members) != len(right.typ.members):
             FAIL()  # pragma: notest
         for (l, r) in zip(left.typ.members, right.typ.members):
+            # TODO recurse into left, right if literals?
             check_assign(dummy_node_for_type(l), dummy_node_for_type(r))
 
 
@@ -706,6 +713,25 @@ def _freshname(name):
     return f"{name}{_label}"
 
 
+# returns True if t is ABI encoded and is a type that needs any kind of
+# validation
+def needs_clamp(t, encoding):
+    if encoding not in (Encoding.ABI, Encoding.JSON_ABI):
+        return False
+    if isinstance(t, (ByteArrayLike, DArrayType)):
+        if encoding == Encoding.JSON_ABI:
+            # don't have bytestring size bound from json, don't clamp
+            return False
+        return True
+    if isinstance(t, BaseType) and t.typ not in ("int256", "uint256", "bytes32"):
+        return True
+    if isinstance(t, SArrayType):
+        return needs_clamp(t.subtype, encoding)
+    if isinstance(t, TupleLike):
+        return any(needs_clamp(m, encoding) for m in t.tuple_members())
+    return False
+
+
 # Create an x=y statement, where the types may be compound
 def make_setter(left, right):
     check_assign(left, right)
@@ -715,7 +741,7 @@ def make_setter(left, right):
         enc = right.encoding  # unwrap_location butchers encoding
         right = unwrap_location(right)
         # TODO rethink/streamline the clamp_basetype logic
-        if _needs_clamp(right.typ, enc):
+        if needs_clamp(right.typ, enc):
             right = clamp_basetype(right)
 
         return STORE(left, right)
@@ -723,7 +749,7 @@ def make_setter(left, right):
     # Byte arrays
     elif isinstance(left.typ, ByteArrayLike):
         # TODO rethink/streamline the clamp_basetype logic
-        if _needs_clamp(right.typ, right.encoding):
+        if needs_clamp(right.typ, right.encoding):
             with right.cache_when_complex("bs_ptr") as (b, right):
                 copier = make_byte_array_copier(left, right)
                 ret = b.resolve(["seq", clamp_bytestring(right), copier])
@@ -739,7 +765,7 @@ def make_setter(left, right):
         #    return _complex_make_setter(left, right)
 
         # TODO rethink/streamline the clamp_basetype logic
-        if _needs_clamp(right.typ, right.encoding):
+        if needs_clamp(right.typ, right.encoding):
             with right.cache_when_complex("arr_ptr") as (b, right):
                 copier = _dynarray_make_setter(left, right)
                 ret = b.resolve(["seq", clamp_dyn_array(right), copier])
@@ -892,19 +918,6 @@ def sar(bits, x):
     # "This is not equivalent to PUSH1 2 EXP SDIV, since it rounds
     # differently. See SDIV(-1, 2) == 0, while SAR(-1, 1) == -1."
     return ["sdiv", ["add", ["slt", x, 0], x], ["exp", 2, bits]]
-
-
-def _needs_clamp(t, encoding):
-    if encoding not in (Encoding.ABI, Encoding.JSON_ABI):
-        return False
-    if isinstance(t, (ByteArrayLike, DArrayType)):
-        if encoding == Encoding.JSON_ABI:
-            # don't have bytestring size bound from json, don't clamp
-            return False
-        return True
-    if isinstance(t, BaseType) and t.typ not in ("int256", "uint256", "bytes32"):
-        return True
-    return False
 
 
 def clamp_bytestring(ir_node):

@@ -1,13 +1,14 @@
 from typing import Any, Optional
 
 from vyper.address_space import MEMORY
-from vyper.codegen.abi_encoder import abi_encode
+from vyper.codegen.abi_encoder import abi_encode, abi_encoding_matches_vyper
 from vyper.codegen.context import Context
 from vyper.codegen.core import (
     calculate_type_for_external_return,
     check_assign,
     dummy_node_for_type,
     make_setter,
+    needs_clamp,
     wrap_value_for_external_return,
 )
 from vyper.codegen.ir_node import IRnode
@@ -55,22 +56,36 @@ def make_return_stmt(ir_val: IRnode, stmt: Any, context: Context) -> Optional[IR
 
     else:  # return from external function
 
-        ir_val = wrap_value_for_external_return(ir_val)
-
         external_return_type = calculate_type_for_external_return(context.return_type)
         maxlen = external_return_type.abi_type.size_bound()
+
+        # optimize: if the value already happens to be ABI encoded in
+        # memory, don't bother running abi_encode, just return the
+        # buffer it is in.
+        can_skip_encode = (
+            abi_encoding_matches_vyper(ir_val.typ)
+            and ir_val.location == MEMORY
+            # ensure it has already been validated - could be
+            # unvalidated ABI encoded returndata for example
+            and not needs_clamp(ir_val.typ, ir_val.encoding)
+        )
+
+        if can_skip_encode:
+            assert ir_val.typ.memory_bytes_required == maxlen  # type: ignore
+            jump_to_exit += [ir_val, maxlen]  # type: ignore
+            return finalize(["pass"])
+
+        ir_val = wrap_value_for_external_return(ir_val)
+
+        # general case: abi_encode the data to a newly allocated buffer
+        # and return the buffer
         return_buffer_ofst = context.new_internal_variable(get_type_for_exact_size(maxlen))
 
         # encode_out is cleverly a sequence which does the abi-encoding and
         # also returns the length of the output as a stack element
-        encode_out = abi_encode(return_buffer_ofst, ir_val, context, returns_len=True, bufsz=maxlen)
+        return_len = abi_encode(return_buffer_ofst, ir_val, context, returns_len=True, bufsz=maxlen)
 
-        # previously we would fill the return buffer and push the location and length onto the stack
-        # inside of the `seq_unchecked` thereby leaving it for the function cleanup routine expects
-        # the return_ofst and return_len to be on the stack
-        # CMC introduced `goto` with args so this enables us to replace `seq_unchecked` w/ `seq`
-        # and then just append the arguments for the cleanup to the `jump_to_exit` list
-        # check in vyper/codegen/self_call.py for an example
-        jump_to_exit += [return_buffer_ofst, encode_out]  # type: ignore
+        # append ofst and len to exit_to the cleanup subroutine
+        jump_to_exit += [return_buffer_ofst, return_len]  # type: ignore
 
         return finalize(["pass"])
