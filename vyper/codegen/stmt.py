@@ -16,7 +16,6 @@ from vyper.codegen.core import (
     get_element_ptr,
     getpos,
     is_return_from_function,
-    make_byte_array_copier,
     make_setter,
     pop_dyn_array,
     zero_pad,
@@ -183,7 +182,7 @@ class Stmt:
         # TODO maybe use ensure_in_memory
         if msg_ir.location != MEMORY:
             buf = self.context.new_internal_variable(msg_ir.typ)
-            instantiate_msg = make_byte_array_copier(buf, msg_ir)
+            instantiate_msg = make_setter(buf, msg_ir)
         else:
             buf = _get_last(msg_ir)
             if not isinstance(buf, int):

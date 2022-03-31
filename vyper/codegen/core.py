@@ -45,7 +45,7 @@ def _codecopy_gas_bound(num_bytes):
 
 
 # Copy byte array word-for-word (including layout)
-def make_byte_array_copier(dst, src):
+def _bytestring_make_setter(dst, src):
     assert isinstance(src.typ, ByteArrayLike)
     assert isinstance(dst.typ, ByteArrayLike)
 
@@ -91,87 +91,8 @@ def dynarray_data_ptr(ptr):
     return add_ofst(ptr, ptr.location.word_scale)
 
 
-def _dynarray_make_setter(dst, src):
-    assert isinstance(src.typ, DArrayType)
-    assert isinstance(dst.typ, DArrayType)
-
-    if src.value == "~empty":
-        return IRnode.from_list(STORE(dst, 0))
-
-    if src.value == "multi":
-        ret = ["seq"]
-        # handle literals
-
-        # write the length word
-        store_length = STORE(dst, len(src.args))
-        ann = None
-        if src.annotation is not None:
-            ann = f"len({src.annotation})"
-        store_length = IRnode.from_list(store_length, annotation=ann)
-        ret.append(store_length)
-
-        n_items = len(src.args)
-        for i in range(n_items):
-            k = IRnode.from_list(i, typ="uint256")
-            dst_i = get_element_ptr(dst, k, array_bounds_check=False)
-            src_i = get_element_ptr(src, k, array_bounds_check=False)
-            ret.append(make_setter(dst_i, src_i))
-
-        return ret
-
-    with src.cache_when_complex("darray_src") as (b1, src):
-
-        # for ABI-encoded dynamic data, we must loop to unpack, since
-        # the layout does not match our memory layout
-        can_batch_copy = not (
-            src.encoding in (Encoding.ABI, Encoding.JSON_ABI)
-            and src.typ.subtype.abi_type.is_dynamic()
-        )
-        # if the source data needs clamping, we cannot do straight
-        # bytes copy; we must call into make_setter for the clamping logic.
-        can_batch_copy &= not needs_clamp(src.typ.subtype, src.encoding)
-
-        # if the subtype is dynamic, there might be a lot of
-        # unused space inside of each element. for instance
-        # DynArray[DynArray[uint256, 100], 5] where all the child
-        # arrays are empty - for this case, we recursively call
-        # into make_setter instead of straight bytes copy
-        # TODO we can make this heuristic more precise, e.g.
-        # loop when subtype.is_dynamic AND location == storage
-        # OR array_size <= /bound where loop is cheaper than memcpy/
-        can_batch_copy &= not src.typ.subtype.abi_type.is_dynamic()
-
-        with get_dyn_array_count(src).cache_when_complex("darray_count") as (b2, count):
-            ret = ["seq"]
-
-            ret.append(STORE(dst, count))
-
-            if can_batch_copy:
-                element_size = src.typ.subtype.memory_bytes_required
-                # number of elements * size of element in bytes
-                n_bytes = _mul(count, element_size)
-                max_bytes = src.typ.count * element_size
-
-                src_ = dynarray_data_ptr(src)
-                dst_ = dynarray_data_ptr(dst)
-                ret.append(copy_bytes(dst_, src_, n_bytes, max_bytes))
-
-            else:
-                i = IRnode.from_list(_freshname("copy_darray_ix"), typ="uint256")
-
-                loop_body = make_setter(
-                    get_element_ptr(dst, i, array_bounds_check=False),
-                    get_element_ptr(src, i, array_bounds_check=False),
-                )
-                loop_body.annotation = f"{dst}[i] = {src}[i]"
-
-                ret.append(["repeat", i, 0, count, src.typ.count, loop_body])
-
-            return b1.resolve(b2.resolve(ret))
-
-
-# below how many words should we unroll vs loop or staticcall?
-UNROLL_WORD_COPY_TUNING = 8 * 32
+# below how many bytes should we unroll vs loop or staticcall?
+UNROLL_WORD_BYTES_TUNING = 8 * 32
 
 
 # Copy bytes
@@ -199,7 +120,7 @@ def copy_bytes(dst, src, length, length_bound):
         batch_copy_op_exists = dst.location == MEMORY and src.location in (CALLDATA, DATA)
         if (
             length.is_literal
-            and length.value < UNROLL_WORD_COPY_TUNING
+            and length.value < 32 * UNROLL_WORD_BYTES_TUNING
             and not batch_copy_op_exists
         ):
             ret = ["seq"]
@@ -270,16 +191,18 @@ def get_bytearray_length(arg):
 def get_dyn_array_count(arg):
     assert isinstance(arg.typ, DArrayType)
 
+    ann = None if arg.annotation is None else f"len({arg.annotation})"
+
     typ = BaseType("uint256")
 
     if arg.value == "multi":
-        return IRnode.from_list(len(arg.args), typ=typ)
+        return IRnode.from_list(len(arg.args), typ=typ, annotation=ann)
 
     if arg.value == "~empty":
         # empty(DynArray[])
-        return IRnode.from_list(0, typ=typ)
+        return IRnode.from_list(0, typ=typ, annotation=ann)
 
-    return IRnode.from_list(LOAD(arg), typ=typ)
+    return IRnode.from_list(LOAD(arg), typ=typ, annotation=ann)
 
 
 def append_dyn_array(darray_node, elem_node):
@@ -526,6 +449,8 @@ def _get_element_ptr_mapping(parent, key):
 # Take a value representing a memory or storage location, and descend down to
 # an element or member variable
 # This is analogous (but not necessarily equivalent to) getelementptr in LLVM.
+# Note that this correctly resolves the double indirection for dynamic types
+# if parent.encoding is set to Encoding.ABI
 def get_element_ptr(parent, key, array_bounds_check=True):
     with parent.cache_when_complex("val") as (b, parent):
         typ = parent.typ
@@ -754,97 +679,191 @@ def needs_clamp(t, encoding):
     return False
 
 
-# Create an x=y statement, where the types may be compound
-def make_setter(left, right):
+def _is_list_literal(x: IRnode) -> bool:
+    return x.value == "multi"
+
+
+def make_setter(left: IRnode, right: IRnode) -> IRnode:
+    """
+    Generalized routine to copy an object from right to left.
+
+    Arguments:
+        left: An IRnode pointer or list of pointers, the destination to copy into
+        right: An IRnode value, could be a literal
+
+    Returns:
+        An IRnode with the copy instructions (typ=None)
+    """
     check_assign(left, right)
 
-    # Basic types
-    if isinstance(left.typ, BaseType):
-        enc = right.encoding  # unwrap_location butchers encoding
-        right = unwrap_location(right)
-        # TODO rethink/streamline the clamp_basetype logic
-        if needs_clamp(right.typ, enc):
-            right = clamp_basetype(right)
+    ann_l = left.typ if left.annotation is None else left.annotation
+    ann_r = right.typ if right.annotation is None else right.annotation
+    ann = f"_make_setter({ann_l}, {ann_r})"
 
-        return STORE(left, right)
+    with left.cache_when_complex("_L") as (b1, left), right.cache_when_complex("_R") as (b2, right):
 
-    # Byte arrays
-    elif isinstance(left.typ, ByteArrayLike):
-        # TODO rethink/streamline the clamp_basetype logic
-        if needs_clamp(right.typ, right.encoding):
-            with right.cache_when_complex("bs_ptr") as (b, right):
-                copier = make_byte_array_copier(left, right)
-                ret = b.resolve(["seq", clamp_bytestring(right), copier])
-        else:
-            ret = make_byte_array_copier(left, right)
+        def _finalize(ret):
+            ret = IRnode.from_list(ret, annotation=ann)
+            return b1.resolve(b2.resolve(ret))
 
-        return IRnode.from_list(ret)
+        # Basic types
+        if isinstance(left.typ, BaseType):
+            enc = right.encoding  # unwrap_location butchers encoding
+            right = unwrap_location(right)
+            # TODO rethink/streamline the needs_clamp logic
+            if needs_clamp(right.typ, enc):
+                right = clamp_basetype(right)
 
-    elif isinstance(left.typ, DArrayType):
-        if needs_clamp(right.typ, right.encoding):
-            with right.cache_when_complex("arr_ptr") as (b, right):
-                copier = _dynarray_make_setter(left, right)
-                ret = b.resolve(["seq", clamp_dyn_array(right), copier])
-        else:
-            ret = _dynarray_make_setter(left, right)
+            return _finalize(STORE(left, right))
 
-        return IRnode.from_list(ret)
+        # Byte arrays
+        if isinstance(left.typ, ByteArrayLike):
+            ret = ["seq"]
+            # TODO rethink/streamline the needs_clamp logic
+            if needs_clamp(right.typ, right.encoding):
+                ret.append(clamp_bytestring(right))
+            ret.append(_bytestring_make_setter(left, right))
 
-    # Arrays
-    elif isinstance(left.typ, (SArrayType, TupleLike)):
-        return _complex_make_setter(left, right)
+            return _finalize(ret)
+
+        if isinstance(left.typ, DArrayType):
+            ret = ["seq"]
+            # TODO rethink/streamline the needs_clamp logic
+            if needs_clamp(right.typ, right.encoding):
+                ret.append(clamp_dyn_array(right))
+            ret.append(_dynarray_make_setter(left, right))
+
+            return _finalize(ret)
+
+        # Arrays
+        if isinstance(left.typ, (SArrayType, TupleLike)):
+            return _finalize(_complex_make_setter(left, right))
+
+        raise CompilerPanic("unreachable type")  # pragma: notest
 
 
 ROLL_ARRAY_TUNING = 5
 
 
-def _complex_make_setter(left, right):
-    if right.value == "~empty" and left.location == MEMORY:
-        # optimized memzero
-        return mzero(left, left.typ.memory_bytes_required)
+def _ir_loop_make_setter(dst, src, n, n_bound):
+    # TODO: cache when complex
+    i = IRnode.from_list(_freshname("copy_array_ix"), typ="uint256")
 
-    can_batch_copy = (
-        not needs_clamp(right.typ, right.encoding) and not right.typ.abi_type.is_dynamic()
+    loop_body = make_setter(
+        get_element_ptr(dst, i, array_bounds_check=False),
+        get_element_ptr(src, i, array_bounds_check=False),
     )
-    can_batch_copy &= left.is_pointer and right.is_pointer
-    _len = left.typ.memory_bytes_required
+    loop_body.annotation = f"{dst}[i] = {src}[i]"
 
-    if can_batch_copy:
-        assert _len == left.typ.storage_size_in_words * 32  # only the paranoid survive
-        return copy_bytes(left, right, _len, _len)
-
-    if isinstance(left.typ, SArrayType) and left.typ.count > ROLL_ARRAY_TUNING:
-        n = left.typ.count
-
-        i = IRnode.from_list(_freshname("copy_sarray_ix"), typ="uint256")
-
-        loop_body = make_setter(
-            get_element_ptr(left, i, array_bounds_check=False),
-            get_element_ptr(right, i, array_bounds_check=False),
-        )
-        loop_body.annotation = f"{left}[i] = {right}[i]"
-
-        return IRnode.from_list(["repeat", i, 0, n, n, loop_body])
+    ret = ["repeat", i, 0, n, n_bound, loop_body]
+    return IRnode.from_list(ret, annotation="__loop_make_setter")
 
 
-    # general case, including literals.
+# works for static arrays, and also tuples. works for literals.
+def _unroll_loop_make_setter(dst, src, keys):
     ret = ["seq"]
 
-    if isinstance(left.typ, SArrayType):
-        n_items = right.typ.count
+    for k in keys:
+        dst_i = get_element_ptr(dst, k, array_bounds_check=False)
+        src_i = get_element_ptr(src, k, array_bounds_check=False)
+        ret.append(make_setter(dst_i, src_i))
+
+    return IRnode.from_list(ret, annotation="__seq_make_setter")
+
+
+def _dynarray_make_setter(dst, src):
+    assert isinstance(src.typ, DArrayType)
+    assert isinstance(dst.typ, DArrayType)
+
+    if src.value == "~empty":
+        return IRnode.from_list(STORE(dst, 0))
+
+    with get_dyn_array_count(src).cache_when_complex("count") as (b1, count):
+        ret = ["seq"]
+        # write the length word
+        store_length = STORE(dst, count)
+        ret.append(store_length)
+
+        if _is_list_literal(src):
+            # is literal list, generate instructions
+            # to set every element of the lhs
+            assert isinstance(count.value, int), src
+            ret.append(_unroll_loop_make_setter(dst, src, range(count.value)))
+            return IRnode.from_list(ret)
+
+        # for ABI-encoded dynamic data, we must loop to unpack, since
+        # the layout does not match our memory layout
+        can_batch_copy = not (
+            src.encoding in (Encoding.ABI, Encoding.JSON_ABI)
+            and src.typ.subtype.abi_type.is_dynamic()
+        )
+        # if the subtype needs clamping, we cannot do straight
+        # bytes copy; we must call into make_setter for the clamping logic.
+        can_batch_copy &= not needs_clamp(src.typ.subtype, src.encoding)
+
+        # if the subtype is dynamic, there might be a lot of
+        # unused space inside of each element. for instance
+        # DynArray[DynArray[uint256, 100], 5] where all the child
+        # arrays are empty - for this case, we call make_setter in
+        # a loop instead of straight bytes copy
+        # TODO we can make this heuristic more precise, e.g.
+        # loop when subtype.is_dynamic AND location == storage
+        # OR array_size <= /bound where loop is cheaper than memcpy/
+        should_batch_copy = not src.typ.subtype.abi_type.is_dynamic()
+
+        if can_batch_copy and should_batch_copy:
+            element_size = src.typ.subtype.memory_bytes_required
+            # number of elements * size of element in bytes
+            n_bytes = _mul(count, element_size)
+            max_bytes = src.typ.count * element_size
+
+            src_ = dynarray_data_ptr(src)
+            dst_ = dynarray_data_ptr(dst)
+            ret.append(copy_bytes(dst_, src_, n_bytes, max_bytes))
+
+        else:
+            ret = _ir_loop_make_setter(dst, src, count, src.typ.count)
+
+        return b1.resolve(ret)
+
+
+def _complex_make_setter(dst, src):
+    # make_setter for complex, statically sized types. tuple and sarray
+    if src.value == "~empty" and dst.location == MEMORY:
+        # optimized memzero
+        return mzero(dst, dst.typ.memory_bytes_required)
+
+    can_batch_copy = (
+        not needs_clamp(src.typ, src.encoding)
+        and not src.typ.abi_type.is_dynamic()
+        and dst.is_pointer
+        and src.is_pointer
+    )
+
+    if can_batch_copy:
+        _len = dst.typ.memory_bytes_required
+        assert _len == dst.typ.storage_size_in_words * 32  # only the paranoid survive
+        return copy_bytes(dst, src, _len, _len)
+
+    if (
+        isinstance(dst.typ, SArrayType)
+        and dst.typ.count > ROLL_ARRAY_TUNING
+        and not _is_list_literal(src)
+    ):
+        assert dst.is_pointer and src.is_pointer
+        assert dst.typ.count == src.typ.count
+        n = dst.typ.count
+        ret = _ir_loop_make_setter(dst, src, n, n)
+        return IRnode.from_list(ret)
+
+    # general case, including literals.
+    if isinstance(dst.typ, SArrayType):
+        n_items = src.typ.count
         keys = [IRnode.from_list(i, typ="uint256") for i in range(n_items)]
+    if isinstance(dst.typ, TupleLike):
+        keys = dst.typ.tuple_keys()
 
-    if isinstance(left.typ, TupleLike):
-        keys = left.typ.tuple_keys()
-
-    with left.cache_when_complex("_L") as (b1, left), right.cache_when_complex("_R") as (b2, right):
-
-        for k in keys:
-            l_i = get_element_ptr(left, k, array_bounds_check=False)
-            r_i = get_element_ptr(right, k, array_bounds_check=False)
-            ret.append(make_setter(l_i, r_i))
-
-        return b1.resolve(b2.resolve(IRnode.from_list(ret)))
+    return _unroll_loop_make_setter(dst, src, keys)
 
 
 def ensure_in_memory(ir_var, context):
