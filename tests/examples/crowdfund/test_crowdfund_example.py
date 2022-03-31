@@ -3,7 +3,7 @@ import pytest
 
 @pytest.fixture
 def c(w3, get_contract):
-    with open("examples/crowdfund.vy") as f:
+    with open("examples/crowdfund/crowdfund.vy") as f:
         contract_code = f.read()
         contract = get_contract(contract_code, *[w3.eth.accounts[1], 50, 60])
     return contract
