@@ -67,7 +67,6 @@ def make_return_stmt(ir_val: IRnode, stmt: Any, context: Context) -> Optional[IR
             and ir_val.location == MEMORY
             and not needs_clamp(ir_val.typ, ir_val.encoding)
         )
-        can_skip_encode &= not needs_clamp(ir_val.typ, ir_val.encoding)
 
         if can_skip_encode:
             assert ir_val.typ.memory_bytes_required == maxlen  # type: ignore
@@ -82,14 +81,9 @@ def make_return_stmt(ir_val: IRnode, stmt: Any, context: Context) -> Optional[IR
 
         # encode_out is cleverly a sequence which does the abi-encoding and
         # also returns the length of the output as a stack element
-        encode_out = abi_encode(return_buffer_ofst, ir_val, context, returns_len=True, bufsz=maxlen)
+        return_len = abi_encode(return_buffer_ofst, ir_val, context, returns_len=True, bufsz=maxlen)
 
-        # previously we would fill the return buffer and push the location and length onto the stack
-        # inside of the `seq_unchecked` thereby leaving it for the function cleanup routine expects
-        # the return_ofst and return_len to be on the stack
-        # CMC introduced `goto` with args so this enables us to replace `seq_unchecked` w/ `seq`
-        # and then just append the arguments for the cleanup to the `jump_to_exit` list
-        # check in vyper/codegen/self_call.py for an example
-        jump_to_exit += [return_buffer_ofst, encode_out]  # type: ignore
+        # append ofst and len to exit_to the cleanup subroutine
+        jump_to_exit += [return_buffer_ofst, return_len]  # type: ignore
 
         return finalize(["pass"])
