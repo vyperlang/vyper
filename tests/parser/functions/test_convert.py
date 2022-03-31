@@ -644,16 +644,8 @@ def generate_test_cases_for_invalid_numeric_conversion():
             (ot_lo, ot_hi) = int_bounds(ot_int_info.is_signed, ot_int_info.bits)
 
         # Filter for invalid test cases
-        if ot == "uint":
-            if it == "int":
-                continue
-            cases = [c for c in cases if c < 0]
-
-        elif ot == "int":
+        if ot in ["int", "uint"]:
             cases = [c for c in cases if (c < ot_lo or c > ot_hi)]
-            import sys
-
-            sys.stdout.write("cases: " + str(cases) + "\n")
 
         elif ot == "decimal":
             cases = [
