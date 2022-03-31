@@ -278,7 +278,7 @@ A decimal is a type to store a decimal fixed point value.
 Values
 ******
 
-A value with a precision of 10 decimal places between -2\ :sup:`127` and (2\ :sup:`127` - 1).
+A value with a precision of 10 decimal places between -18707220957835557353007165858768422651595.9365500928 (-2\ :sup:`167` / 10\ :sup:`10`) and 18707220957835557353007165858768422651595.9365500927 ((2\ :sup:`167` - 1) / 10\ :sup:`10`).
 
 In order for a literal to be interpreted as ``decimal`` it must include a decimal point.
 
