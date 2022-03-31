@@ -47,10 +47,6 @@ def hex_to_signed_int(hexstr, bits):
     return val
 
 
-def signed_int_to_hex(val, bits):
-    return hex((val + (1 << bits)) % (1 << bits))
-
-
 def _get_type_N(type_):
     """
     Helper function to extract N from typeN (e.g. uint256, bytes32, Bytes[32])
@@ -100,19 +96,6 @@ def _get_case_type(type_):
     return type_
 
 
-def _get_all_types_for_case_type(case_type):
-    """
-    Helper function to all types for a given case type
-    """
-    if case_type == "int":
-        return SIGNED_INTEGER_TYPES
-    elif case_type == "uint":
-        return UNSIGNED_INTEGER_TYPES
-    elif case_type == "bytes":
-        return BYTES_M_TYPES
-    return case_type
-
-
 def can_convert(o_typ, i_typ):
     """
     Checks whether conversion from one type to another is valid.
@@ -121,11 +104,10 @@ def can_convert(o_typ, i_typ):
     ot = _get_case_type(o_typ)
 
     # Skip bytes20 because they are treated as addresses
-    if it == "bytes" and _get_type_N(i_typ) == 20:
+    if i_typ == "bytes20":
         return False
 
     # Check
-
     if ot == "bool":
         return it in ["int", "uint", "decimal", "bytes", "Bytes", "address"]
 
@@ -154,7 +136,7 @@ def can_convert(o_typ, i_typ):
         return it in ["uint", "bytes", "Bytes"]
 
 
-def extract_io_value(o_typ, i_typ, input_val):
+def generate_valid_input_output_values(o_typ, i_typ, input_val):
     """
     Modify the test case if necessary, and generate the expected value.
     Returns a tuple of (test_case, expected_value).
@@ -364,7 +346,7 @@ def extract_io_value(o_typ, i_typ, input_val):
 def generate_default_cases_for_in_type(i_typ):
     """
     Generate the default test cases based on input type only.
-    Test cases may be subsequently modified in `extract_io_value()`.
+    Test cases may be subsequently modified in `generate_valid_input_output_values()`.
     """
 
     it = _get_case_type(i_typ)
@@ -437,7 +419,7 @@ def generate_passing_test_cases_for_pair(o_typ, i_typ):
 
     # Manipulate default cases and generate output values
     for c in cases:
-        (input_val, expected_val) = extract_io_value(o_typ, i_typ, c)
+        (input_val, expected_val) = generate_valid_input_output_values(o_typ, i_typ, c)
 
         if expected_val is None:
             continue
@@ -497,6 +479,7 @@ def test_convert() -> {out_type}:
             skip_c1 = True
 
     if in_type.startswith(("bytes", "Bytes")) and out_type.startswith(("int", "uint", "decimal")):
+        # Raw bytes are treated as uint256
         skip_c1 = True
 
     if in_type.startswith(("int", "uint")) and out_type.startswith("bytes"):
@@ -506,10 +489,11 @@ def test_convert() -> {out_type}:
             skip_c1 = True
 
     if in_type.startswith("Bytes") and out_type.startswith("bytes"):
-        if _get_type_N(in_type) == _get_type_N(out_type):
+        # Skip if length of Bytes[N] is same as size of bytesM
+        if len(in_value) == parse_bytes_m_info(out_type).m:
             skip_c1 = True
 
-    if in_type.startswith("bytes") and _get_type_N(in_type) != 32:
+    if in_type.startswith("bytes") and parse_bytes_m_info(in_type).m != 32:
         # Skip bytesN other than bytes32 because they get read as bytes32
         skip_c1 = True
 
