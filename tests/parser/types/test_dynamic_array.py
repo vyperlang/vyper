@@ -190,6 +190,432 @@ def test_array(x: int128, y: int128, z: int128, w: int128) -> int128:
     print("Passed complex array accessor test")
 
 
+def test_three_d_array_accessor(get_contract_with_gas_estimation):
+    three_d_array_accessor = """
+@external
+def test_array(x: int128, y: int128, z: int128, w: int128) -> int128:
+    a: DynArray[DynArray[DynArray[int128, 2], 2], 2] = [[[0, 0], [0, 0]], [[0, 0], [0, 0]]]
+    a[0][0][0] = x
+    a[0][0][1] = y
+    a[0][1][0] = z
+    a[0][1][1] = w
+    a[1][0][0] = -x
+    a[1][0][1] = -y
+    a[1][1][0] = -z
+    a[1][1][1] = -w
+    return a[0][0][0] * 1000 + a[0][0][1] * 100 + a[0][1][0] * 10 + a[0][1][1] + \\
+        a[1][1][1] * 1000 + a[1][1][0] * 100 + a[1][0][1] * 10 + a[1][0][0]
+    """
+
+    c = get_contract_with_gas_estimation(three_d_array_accessor)
+    assert c.test_array(2, 7, 1, 8) == -5454
+
+
+def test_four_d_array_accessor(get_contract_with_gas_estimation):
+    four_d_array_accessor = """
+@external
+def test_array(x: int128, y: int128, z: int128, w: int128) -> int128:
+    a: DynArray[DynArray[DynArray[DynArray[int128, 2], 2], 2], 2] = \\
+        [[[[0, 0], [0, 0]], [[0, 0], [0, 0]]], [[[0, 0], [0, 0]], [[0, 0], [0, 0]]]]
+    a[0][0][0][0] = x
+    a[0][0][0][1] = y
+    a[0][0][1][0] = z
+    a[0][0][1][1] = w
+    a[0][1][0][0] = -x
+    a[0][1][0][1] = -y
+    a[0][1][1][0] = -z
+    a[0][1][1][1] = -w
+
+    a[1][0][0][0] = x + 1
+    a[1][0][0][1] = y + 1
+    a[1][0][1][0] = z + 1
+    a[1][0][1][1] = w + 1
+    a[1][1][0][0] = - (x + 1)
+    a[1][1][0][1] = - (y + 1)
+    a[1][1][1][0] = - (z + 1)
+    a[1][1][1][1] = - (w + 1)
+    return a[0][0][0][0] * 1000 + a[0][0][0][1] * 100 + a[0][0][1][0] * 10 + a[0][0][1][1] + \\
+        a[0][1][1][1] * 1000 + a[0][1][1][0] * 100 + a[0][1][0][1] * 10 + a[0][1][0][0] + \\
+        a[1][0][0][0] * 1000 + a[1][0][0][1] * 100 + a[1][0][1][0] * 10 + a[1][0][1][1] + \\
+        a[1][1][1][1] * 1000 + a[1][1][1][0] * 100 + a[1][1][0][1] * 10 + a[1][1][0][0]
+    """
+
+    c = get_contract_with_gas_estimation(four_d_array_accessor)
+    assert c.test_array(2, 7, 1, 8) == -10908
+
+
+def test_array_negative_accessor(get_contract_with_gas_estimation, assert_compile_failed):
+    array_negative_accessor = """
+@external
+def test_array(x: int128, y: int128, z: int128, w: int128) -> int128:
+    a: DynArray[int128, 4] = [0, 0, 0, 0]
+    a[0] = x
+    a[1] = y
+    a[2] = z
+    a[3] = w
+    return a[-4] * 1000 + a[-3] * 100 + a[-2] * 10 + a[-1]
+    """
+
+    assert_compile_failed(
+        lambda: get_contract_with_gas_estimation(array_negative_accessor), ArrayIndexException
+    )
+
+    two_d_array_negative_accessor = """
+@external
+def test_array(x: int128, y: int128, z: int128, w: int128) -> int128:
+    a: DynArray[DynArray[int128, 2], 2] = [[0, 0], [0, 0]]
+    a[0][0] = x
+    a[0][1] = y
+    a[1][0] = z
+    a[1][1] = w
+    return a[-2][-2] * 1000 + a[-2][-1] * 100 + a[-1][-2] * 10 + a[-1][-1]
+    """
+
+    assert_compile_failed(
+        lambda: get_contract_with_gas_estimation(two_d_array_negative_accessor), ArrayIndexException
+    )
+
+    three_d_array_negative_accessor = """
+@external
+def test_array(x: int128, y: int128, z: int128, w: int128) -> int128:
+    a: DynArray[DynArray[DynArray[int128, 2], 2], 2] = [[[0, 0], [0, 0]], [[0, 0], [0, 0]]]
+    a[0][0][0] = x
+    a[0][0][1] = y
+    a[0][1][0] = z
+    a[0][1][1] = w
+    a[1][0][0] = -x
+    a[1][0][1] = -y
+    a[1][1][0] = -z
+    a[1][1][1] = -w
+    return a[-2][-2][-2] * 1000 + a[-2][-2][-1] * 100 + a[-2][-1][-2] * 10 + a[-2][-1][-1] + \\
+        a[-1][-1][-1] * 1000 + a[-1][-1][-2] * 100 + a[-1][-2][-1] * 10 + a[-1][-2][-2]
+    """
+
+    assert_compile_failed(
+        lambda: get_contract_with_gas_estimation(three_d_array_negative_accessor),
+        ArrayIndexException,
+    )
+
+    four_d_array_negative_accessor = """
+@external
+def test_array(x: int128, y: int128, z: int128, w: int128) -> int128:
+    a: DynArray[DynArray[DynArray[DynArray[int128, 2], 2], 2], 2] = \\
+        [[[[0, 0], [0, 0]], [[0, 0], [0, 0]]], [[[0, 0], [0, 0]], [[0, 0], [0, 0]]]]
+    a[0][0][0][0] = x
+    a[0][0][0][1] = y
+    a[0][0][1][0] = z
+    a[0][0][1][1] = w
+    a[0][1][0][0] = -x
+    a[0][1][0][1] = -y
+    a[0][1][1][0] = -z
+    a[0][1][1][1] = -w
+
+    a[1][0][0][0] = x + 1
+    a[1][0][0][1] = y + 1
+    a[1][0][1][0] = z + 1
+    a[1][0][1][1] = w + 1
+    a[1][1][0][0] = - (x + 1)
+    a[1][1][0][1] = - (y + 1)
+    a[1][1][1][0] = - (z + 1)
+    a[1][1][1][1] = - (w + 1)
+    return a[-2][-2][-2][-2] * 1000 + a[-2][-2][-2][-1] * 100 + \\
+        a[-2][-2][-1][-2] * 10 + a[-2][-2][-1][-1] + \\
+        a[-2][-1][-1][-1] * 1000 + a[-2][-1][-1][-2] * \\
+        100 + a[-2][-1][-2][-1] * 10 + a[-2][-1][-2][-2] + \\
+        a[-1][-2][-2][-2] * 1000 + a[-1][-2][-2][-1] * \\
+        100 + a[-1][-2][-1][-2] * 10 + a[-1][-2][-1][-1] + \\
+        a[-1][-1][-1][-1] * 1000 + a[-1][-1][-1][-2] * \\
+        100 + a[-1][-1][-2][-1] * 10 + a[-1][-1][-2][-2]
+    """
+
+    assert_compile_failed(
+        lambda: get_contract_with_gas_estimation(four_d_array_negative_accessor),
+        ArrayIndexException,
+    )
+
+
+@pytest.mark.parametrize(
+    "type,values,false_value",
+    [
+        ("uint256", [3, 7], 4),
+        (
+            "address",
+            [
+                "0x0000000000000000000000000000000000000012",
+                "0x0000000000000000000000000000000000000024",
+            ],
+            "0x0000000000000000000000000000000000000013",
+        ),
+        ("bool", [True, True], False),
+        (
+            "bytes32",
+            [
+                "0x0000000000000000000000000000000000000000000000000000000080ac58cd",
+                "0x0000000000000000000000000000000000000000000000000000000080ac58ce",
+            ],
+            "0x0000000000000000000000000000000000000000000000000000000080ac58cf",
+        ),
+    ],
+)
+def test_member_in_list(get_contract_with_gas_estimation, type, values, false_value):
+    code = f"""
+@external
+def check(a: {type}) -> bool:
+    x: DynArray[{type}, 2] = [{values[0]}, {values[1]}]
+    return a in x
+    """
+    c = get_contract_with_gas_estimation(code)
+    assert c.check(values[0]) is True
+    assert c.check(values[1]) is True
+    assert c.check(false_value) is False
+
+
+@pytest.mark.parametrize(
+    "type,values,false_values",
+    [
+        ("uint256", [[3, 7], [9, 11]], [4, 10]),
+        ("bool", [[True, True], [False, False]], [False, True]),
+    ],
+)
+def test_member_in_nested_list(get_contract_with_gas_estimation, type, values, false_values):
+    code = f"""
+@external
+def check1(a: {type}) -> bool:
+    x: DynArray[DynArray[{type}, 2], 2] = {values}
+    return a in x[0]
+
+@external
+def check2(a: {type}) -> bool:
+    x: DynArray[DynArray[{type}, 2], 2] = {values}
+    return a in x[1]
+    """
+    c = get_contract_with_gas_estimation(code)
+    assert c.check1(values[0][0]) is True
+    assert c.check1(values[0][1]) is True
+    assert c.check1(false_values[0]) is False
+
+    assert c.check2(values[1][0]) is True
+    assert c.check2(values[1][1]) is True
+    assert c.check2(false_values[1]) is False
+
+
+def test_member_in_nested_address_list(get_contract_with_gas_estimation):
+    code = """
+@external
+def check1(a: address) -> bool:
+    x: DynArray[DynArray[address, 2], 2] = [
+        [
+            0x0000000000000000000000000000000000000012,
+            0x0000000000000000000000000000000000000024,
+        ],
+        [
+            0x0000000000000000000000000000000000000036,
+            0x0000000000000000000000000000000000000048,
+        ],
+    ]
+    return a in x[0]
+
+@external
+def check2(a: address) -> bool:
+    x: DynArray[DynArray[address, 2], 2] = [
+        [
+            0x0000000000000000000000000000000000000012,
+            0x0000000000000000000000000000000000000024,
+        ],
+        [
+            0x0000000000000000000000000000000000000036,
+            0x0000000000000000000000000000000000000048,
+        ],
+    ]
+    return a in x[1]
+    """
+    c = get_contract_with_gas_estimation(code)
+    assert c.check1("0x0000000000000000000000000000000000000012") is True
+    assert c.check1("0x0000000000000000000000000000000000000024") is True
+    assert c.check1("0x0000000000000000000000000000000000000036") is False
+
+    assert c.check2("0x0000000000000000000000000000000000000036") is True
+    assert c.check2("0x0000000000000000000000000000000000000048") is True
+    assert c.check2("0x0000000000000000000000000000000000000024") is False
+
+
+(
+    "bytes32",
+    [
+        [
+            b"\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x80\\xac\\x58\\xca",  # noqa: E501
+            b"\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x80\\xac\\x58\\xcb",  # noqa: E501
+        ],
+        [
+            b"\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x80\\xac\\x58\\xcc",  # noqa: E501
+            b"\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x80\\xac\\x58\\xcd",  # noqa: E501
+        ],
+    ],
+    [
+        b"\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x80\\xac\\x58\\xcc",  # noqa: E501,
+        b"\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x80\\xac\\x58\\xce",  # noqa: E501
+    ],
+),
+
+
+def test_member_in_nested_bytes32_list(get_contract_with_gas_estimation):
+    code = """
+@external
+def check1(a: bytes32) -> bool:
+    x: DynArray[DynArray[bytes32, 2], 2] = [
+        [
+            0x0000000000000000000000000000000000000000000000000000000080ac58ca,
+            0x0000000000000000000000000000000000000000000000000000000080ac58cb,
+        ],
+        [
+            0x0000000000000000000000000000000000000000000000000000000080ac58cc,
+            0x0000000000000000000000000000000000000000000000000000000080ac58cd,
+        ],
+    ]
+    return a in x[0]
+
+@external
+def check2(a: bytes32) -> bool:
+    x: DynArray[DynArray[bytes32, 2], 2] = [
+        [
+            0x0000000000000000000000000000000000000000000000000000000080ac58ca,
+            0x0000000000000000000000000000000000000000000000000000000080ac58cb,
+        ],
+        [
+            0x0000000000000000000000000000000000000000000000000000000080ac58cc,
+            0x0000000000000000000000000000000000000000000000000000000080ac58cd,
+        ],
+    ]
+    return a in x[1]
+    """
+    c = get_contract_with_gas_estimation(code)
+    assert c.check1("0x0000000000000000000000000000000000000000000000000000000080ac58ca") is True
+    assert c.check1("0x0000000000000000000000000000000000000000000000000000000080ac58cb") is True
+    assert c.check1("0x0000000000000000000000000000000000000000000000000000000080ac58cc") is False
+
+    assert c.check2("0x0000000000000000000000000000000000000000000000000000000080ac58cc") is True
+    assert c.check2("0x0000000000000000000000000000000000000000000000000000000080ac58cd") is True
+    assert c.check2("0x0000000000000000000000000000000000000000000000000000000080ac58ca") is False
+
+
+def test_member_in_updated_list(get_contract_with_gas_estimation):
+    code = """
+@external
+def foo() -> bool:
+    xs: DynArray[uint256, 3] = [2, 2, 2]
+    xs = [1, 1]
+    y: uint256 = 2
+    return y in xs
+    """
+    c = get_contract_with_gas_estimation(code)
+    assert c.foo() is False
+
+
+def test_member_in_updated_nested_list(get_contract_with_gas_estimation):
+    code = """
+@external
+def foo() -> bool:
+    xs: DynArray[DynArray[DynArray[uint256, 3], 3], 3] = [
+        [[2, 2, 2], [2, 2, 2], [2, 2, 2]],
+        [[2, 2, 2], [2, 2, 2], [2, 2, 2]],
+        [[2, 2, 2], [2, 2, 2], [2, 2, 2]],
+    ]
+    xs = [
+        [[1, 1], [1, 1], [1, 1]],
+        [[1, 1], [1, 1], [1, 1]],
+        [[1, 1], [1, 1], [1, 1]],
+    ]
+    y: uint256 = 2
+    return y in xs[0][0] or y in xs[0][1] or y in xs[0][2] or \\
+        y in xs[1][0] or y in xs[1][1] or y in xs[1][2] or \\
+        y in xs[2][0] or y in xs[2][1] or y in xs[2][2]
+    """
+    c = get_contract_with_gas_estimation(code)
+    assert c.foo() is False
+
+
+def test_member_in_list_lhs_side_effects(get_contract_with_gas_estimation):
+    code = """
+_counter: uint256
+
+@internal
+def counter() -> uint256:
+    self._counter = 1
+    return self._counter
+
+@external
+def bar() -> bool:
+    x: DynArray[uint256, 4] = [2, 2, 2, 2]
+    return self.counter() in x
+    """
+    c = get_contract_with_gas_estimation(code)
+    assert c.bar() is False
+
+
+def test_member_in_nested_list_lhs_side_effects(get_contract_with_gas_estimation):
+    code = """
+_counter: uint256
+
+@internal
+def counter() -> uint256:
+    self._counter = 1
+    return self._counter
+
+@external
+def bar() -> bool:
+    x: DynArray[DynArray[DynArray[uint256, 4], 4], 4] = [
+        [[2, 2, 2, 2], [2, 2, 2, 2], [2, 2, 2, 2]],
+        [[2, 2, 2, 2], [2, 2, 2, 2], [2, 2, 2, 2]],
+        [[2, 2, 2, 2], [2, 2, 2, 2], [2, 2, 2, 2]],
+    ]
+    return self.counter() in x[0][0]
+    """
+    c = get_contract_with_gas_estimation(code)
+    assert c.bar() is False
+
+
+def test_member_in_list_rhs_side_effects(get_contract_with_gas_estimation):
+    code = """
+counter: uint256
+
+@internal
+def foo() -> DynArray[uint256, 3]:
+    self.counter += 1
+    return [0,0,0]
+
+@external
+def bar() -> uint256:
+    self.counter = 0
+    t: bool = self.counter in self.foo()
+    return self.counter
+    """
+    c = get_contract_with_gas_estimation(code)
+    assert c.bar() == 1
+
+
+def test_member_in_nested_list_rhs_side_effects(get_contract_with_gas_estimation):
+    code = """
+counter: uint256
+
+@internal
+def foo() -> DynArray[DynArray[DynArray[uint256, 3], 3], 3]:
+    self.counter += 1
+    return [
+        [[0,0,0], [0,0,0], [0,0,0]],
+        [[0,0,0], [0,0,0], [0,0,0]],
+        [[0,0,0], [0,0,0], [0,0,0]]
+    ]
+
+@external
+def bar() -> uint256:
+    self.counter = 0
+    t: bool = self.counter in self.foo()[0][0]
+    return self.counter
+    """
+    c = get_contract_with_gas_estimation(code)
+    assert c.bar() == 1
+
+
 def test_returns_lists(get_contract_with_gas_estimation):
     code = """
 @external
@@ -715,6 +1141,242 @@ def bar(_baz: DynArray[Foo, 3]) -> String[96]:
     c = get_contract(code)
     c_input = [[i, msg] for i, msg in enumerate(("Hello ", "world", "!!!!"))]
     assert c.bar(c_input) == "Hello world!!!!"
+
+
+def test_list_of_structs_lists_with_nested_lists(get_contract, assert_tx_failed):
+    code = """
+struct Bar:
+    a: DynArray[uint8[2], 2]
+
+@external
+def foo(x: uint8) -> uint8:
+    b: DynArray[Bar[2], 2] = [
+        [
+            Bar({a: [[x, x + 1], [x + 2, x + 3]]}),
+            Bar({a: [[x + 4, x +5], [x + 6, x + 7]]})
+        ],
+        [
+            Bar({a: [[x + 8, x + 9], [x + 10, x + 11]]}),
+            Bar({a: [[x + 12, x + 13], [x + 14, x + 15]]})
+        ],
+    ]
+    return b[0][0].a[0][0] + b[0][1].a[1][1] + b[1][0].a[0][1] + b[1][1].a[1][0]
+    """
+    c = get_contract(code)
+    assert c.foo(17) == 98
+    assert_tx_failed(lambda: c.foo(241))
+
+
+def test_list_of_static_list(get_contract):
+    code = """
+@external
+def bar(x: int128) -> DynArray[int128[2], 2]:
+    a: DynArray[int128[2], 2] = [[x, x * 2], [x * 3, x * 4]]
+    return a
+
+@external
+def foo(x: int128) -> int128:
+    a: DynArray[int128[2], 2] = [[x, x * 2], [x * 3, x * 4]]
+    return a[0][0] * a[1][1]
+    """
+    c = get_contract(code)
+    assert c.bar(7) == [[7, 14], [21, 28]]
+    assert c.foo(7) == 196
+
+
+def test_list_of_static_nested_list(get_contract):
+    code = """
+@external
+def bar(x: int128) -> DynArray[int128[2][2], 2]:
+    a: DynArray[int128[2][2], 2] = [
+        [[x, x * 2], [x * 3, x * 4]],
+        [[x * 5, x * 6], [x * 7, x * 8]],
+    ]
+    return a
+
+@external
+def foo(x: int128) -> int128:
+    a: DynArray[int128[2][2], 2] = [
+        [[x, x * 2], [x * 3, x * 4]],
+        [[x * 5, x * 6], [x * 7, x * 8]],
+    ]
+    return a[0][0][0] * a[1][1][1]
+    """
+    c = get_contract(code)
+    assert c.bar(7) == [[[7, 14], [21, 28]], [[35, 42], [49, 56]]]
+    assert c.foo(7) == 392
+
+
+def test_struct_of_lists(get_contract):
+    code = """
+struct Foo:
+    a1: DynArray[uint256, 2]
+    a2: DynArray[DynArray[uint256, 2], 2]
+    a3: DynArray[DynArray[DynArray[uint256, 2], 2], 2]
+
+@internal
+def _foo() -> DynArray[uint256, 2]:
+    return [3, 7]
+
+@internal
+def _foo2() -> DynArray[DynArray[uint256, 2], 2]:
+    y: DynArray[uint256, 2] = self._foo()
+    z: DynArray[uint256, 2] = [y[1], y[0]]
+    return [y, z]
+
+@internal
+def _foo3() -> DynArray[DynArray[DynArray[uint256, 2], 2], 2]:
+    y: DynArray[DynArray[uint256, 2], 2] = self._foo2()
+    z: DynArray[DynArray[uint256, 2], 2] = [y[1], y[0]]
+    return [y, z]
+
+@external
+def bar() -> DynArray[DynArray[DynArray[uint256, 2], 2], 2]:
+    foo: Foo = Foo({
+        a1: self._foo(),
+        a2: self._foo2(),
+        a3: self._foo3(),
+    })
+    return foo.a3
+    """
+    c = get_contract(code)
+    assert c.bar() == [[[3, 7], [7, 3]], [[7, 3], [3, 7]]]
+
+
+def test_struct_of_lists_2(get_contract):
+    code = """
+struct Foo:
+    b: Bytes[32]
+    da: DynArray[int128, 5]
+    sa: int128[5]
+    some_int: int128
+
+@internal
+def _foo(x: int128) -> Foo:
+    f: Foo = Foo({
+        b: b"hello",
+        da: [x, x * 2],
+        sa: [x + 1, x + 2, x + 3, x + 4, x + 5],
+        some_int: x - 1
+    })
+    return f
+
+@external
+def bar(x: int128) -> DynArray[int128, 5]:
+    f: Foo = self._foo(x)
+    return f.da
+    """
+    c = get_contract(code)
+    assert c.bar(7) == [7, 14]
+
+
+def test_struct_of_lists_3(get_contract):
+    code = """
+struct Foo:
+    a: DynArray[int128, 3]
+    b: DynArray[address, 3]
+    c: DynArray[bool, 3]
+
+@internal
+def _foo(x: int128) -> Foo:
+    f: Foo = Foo({
+        a: [x, x * 2],
+        b: [0x0000000000000000000000000000000000000012],
+        c: [False, True, False]
+
+    })
+    return f
+
+@external
+def bar(x: int128) -> DynArray[int128, 3]:
+    f: Foo = self._foo(x)
+    return f.a
+    """
+    c = get_contract(code)
+    assert c.bar(7) == [7, 14]
+
+
+def test_nested_struct_of_lists(get_contract, assert_compile_failed, no_optimize):
+    code = """
+struct nestedFoo:
+    a1: DynArray[DynArray[DynArray[uint256, 2], 2], 2]
+
+struct Foo:
+    b1: DynArray[DynArray[DynArray[nestedFoo, 2], 2], 2]
+
+@internal
+def _foo() -> nestedFoo:
+    return nestedFoo({a1: [
+        [[3, 7], [7, 3]],
+        [[7, 3], [3, 7]],
+    ]})
+
+@internal
+def _foo2() -> Foo:
+    _nF1: nestedFoo = self._foo()
+    return Foo({b1: [[[_nF1, _nF1], [_nF1, _nF1]], [[_nF1, _nF1], [_nF1, _nF1]]]})
+
+@internal
+def _foo3(f: Foo) -> Foo:
+    f.b1[0][1][0].a1[0][0] = [0, 0]
+    f.b1[1][0][0].a1[0][1] = [0, 0]
+    f.b1[1][1][0].a1[1][1] = [0, 0]
+    return f
+
+@external
+def bar() -> DynArray[DynArray[DynArray[uint256, 2], 2], 2]:
+    foo: Foo = self._foo2()
+    return self._foo3(foo).b1[1][1][0].a1
+
+@external
+def bar2() -> uint256:
+    foo: Foo = self._foo2()
+    newFoo: Foo = self._foo3(foo)
+    return newFoo.b1[1][1][0].a1[1][1][0] + \\
+        newFoo.b1[1][0][0].a1[0][1][1] + \\
+        newFoo.b1[0][1][0].a1[0][0][0]
+    """
+
+    if no_optimize:
+        # fails at assembly stage with too many stack variables
+        assert_compile_failed(lambda: get_contract(code), Exception)
+    else:
+        c = get_contract(code)
+        assert c.bar() == [[[3, 7], [7, 3]], [[7, 3], [0, 0]]]
+        assert c.bar2() == 0
+
+
+def test_tuple_of_lists(get_contract):
+    code = """
+@internal
+def _foo() -> DynArray[uint256, 2]:
+    return [3, 7]
+
+@internal
+def _foo2() -> DynArray[DynArray[uint256, 2], 2]:
+    y: DynArray[uint256, 2] = self._foo()
+    z: DynArray[uint256, 2] = [y[1], y[0]]
+    return [y, z]
+
+@internal
+def _foo3() -> DynArray[DynArray[DynArray[uint256, 2], 2], 2]:
+    y: DynArray[DynArray[uint256, 2], 2] = self._foo2()
+    z: DynArray[DynArray[uint256, 2], 2] = [y[1], y[0]]
+    return [y, z]
+
+@internal
+def _foo4() -> (DynArray[DynArray[uint256, 2], 2], DynArray[DynArray[DynArray[uint256, 2], 2], 2]):
+    return (self._foo2(), self._foo3())
+
+@external
+def bar() -> uint256:
+    a: DynArray[DynArray[uint256, 2], 2] = [[0, 0], [0, 0]]
+    b: DynArray[DynArray[DynArray[uint256, 2], 2], 2] = [[[0, 0], [0, 0]], [[0, 0], [0, 0]]]
+    a, b = self._foo4()
+    return a[0][0] * b[1][0][1] + a[1][0] * b[0][1][0]
+    """
+    c = get_contract(code)
+    assert c.bar() == 58
 
 
 def test_constant_list(get_contract, assert_tx_failed):

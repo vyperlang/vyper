@@ -85,3 +85,96 @@ def foo() -> int128:
         get_contract_with_gas_estimation(large_input_code_2, *[2 ** 130])
 
     print("Passed invalid input tests")
+
+
+def test_nested_dynamic_array_constructor_arg(w3, get_contract_with_gas_estimation):
+    code = """
+foo: uint256
+
+@external
+def __init__(x: DynArray[DynArray[uint256, 3], 3]):
+    self.foo = x[0][2] + x[1][1] + x[2][0]
+
+@external
+def get_foo() -> uint256:
+    return self.foo
+    """
+    c = get_contract_with_gas_estimation(code, *[[[3, 5, 7], [11, 13, 17], [19, 23, 29]]])
+    assert c.get_foo() == 39
+
+
+def test_nested_dynamic_array_constructor_arg_2(w3, get_contract_with_gas_estimation):
+    code = """
+foo: int128
+
+@external
+def __init__(x: DynArray[DynArray[DynArray[int128, 3], 3], 3]):
+    self.foo = x[0][1][2] * x[1][1][1] * x[2][1][0] - x[0][0][0] - x[1][1][1] - x[2][2][2]
+
+@external
+def get_foo() -> int128:
+    return self.foo
+    """
+    c = get_contract_with_gas_estimation(
+        code,
+        *[
+            [
+                [[3, 5, 7], [11, 13, 17], [19, 23, 29]],
+                [[-3, -5, -7], [-11, -13, -17], [-19, -23, -29]],
+                [[-31, -37, -41], [-43, -47, -53], [-59, -61, -67]],
+            ]
+        ],
+    )
+    assert c.get_foo() == 9580
+
+
+def test_initialise_nested_dynamic_array(w3, get_contract_with_gas_estimation):
+    code = """
+foo: DynArray[DynArray[uint256, 3], 3]
+
+@external
+def __init__(x: uint256, y: uint256, z: uint256):
+    self.foo = [
+        [x, y, z],
+        [x * 1000 + y, y * 1000 + z, z * 1000 + x],
+        [z * 2, y * 3, x * 4],
+    ]
+
+@external
+def get_foo() -> DynArray[DynArray[uint256, 3], 3]:
+    return self.foo
+    """
+    c = get_contract_with_gas_estimation(code, *[37, 41, 73])
+    assert c.get_foo() == [[37, 41, 73], [37041, 41073, 73037], [146, 123, 148]]
+
+
+def test_initialise_nested_dynamic_array_2(w3, get_contract_with_gas_estimation):
+    code = """
+foo: DynArray[DynArray[DynArray[int128, 3], 3], 3]
+
+@external
+def __init__(x: int128, y: int128, z: int128):
+    self.foo = [
+        [[x, y, z], [y, z, x], [z, y, x]],
+        [
+            [x * 1000 + y, y * 1000 + z, z * 1000 + x],
+            [- (x * 1000 + y), - (y * 1000 + z), - (z * 1000 + x)],
+            [- (x * 1000) + y, - (y * 1000) + z, - (z * 1000) + x],
+        ],
+        [
+            [z * 2, y * 3, x * 4],
+            [z * (-2), y * (-3), x * (-4)],
+            [z * (-y), y * (-x), x * (-z)],
+        ],
+    ]
+
+@external
+def get_foo() -> DynArray[DynArray[DynArray[int128, 3], 3], 3]:
+    return self.foo
+    """
+    c = get_contract_with_gas_estimation(code, *[37, 41, 73])
+    assert c.get_foo() == [
+        [[37, 41, 73], [41, 73, 37], [73, 41, 37]],
+        [[37041, 41073, 73037], [-37041, -41073, -73037], [-36959, -40927, -72963]],
+        [[146, 123, 148], [-146, -123, -148], [-2993, -1517, -2701]],
+    ]
