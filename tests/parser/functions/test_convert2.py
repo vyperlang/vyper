@@ -17,7 +17,14 @@ from vyper.codegen.types import (
 )
 
 # from vyper.exceptions import InvalidLiteral, InvalidType, OverflowException, TypeMismatch
-from vyper.utils import DECIMAL_DIVISOR, MAX_DECIMAL_PLACES, SizeLimits, checksum_encode, int_bounds
+from vyper.utils import (
+    DECIMAL_DIVISOR,
+    MAX_DECIMAL_PLACES,
+    SizeLimits,
+    bytes_to_int,
+    checksum_encode,
+    int_bounds,
+)
 
 DECIMAL_BITS = 168
 ADDRESS_BITS = 160
@@ -25,6 +32,9 @@ TEST_TYPES = BASE_TYPES.union({"Bytes[32]"})
 
 ZERO_ADDRESS = "0x0000000000000000000000000000000000000000"
 ONE_ADDRESS = "0x0000000000000000000000000000000000000001"
+MAX_ADDRESS = "0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF"
+MAX_ADDRESS_INT_VALUE = int(MAX_ADDRESS, 16)
+MIN_ADDRESS_INT_VALUE = 0
 
 
 def hex_to_signed_int(hexstr, bits):
@@ -138,7 +148,7 @@ def can_convert(o_typ, i_typ):
         return it in ["int", "uint", "decimal", "address"]
 
     elif ot == "address":
-        return it in ["bool", "uint", "bytes"]
+        return it in ["uint", "bytes", "Bytes"]
 
 
 def extract_io_value(o_typ, i_typ, input_val):
@@ -153,6 +163,9 @@ def extract_io_value(o_typ, i_typ, input_val):
     output_val = None
 
     # Extract relevant info
+
+    in_nibbles = _get_nibble(i_typ)
+    out_nibbles = _get_nibble(o_typ)
 
     if it in ["int", "uint"]:
         it_int_info = parse_integer_typeinfo(i_typ)
@@ -192,8 +205,6 @@ def extract_io_value(o_typ, i_typ, input_val):
         if it == "Bytes":
             in_bytes = _get_type_N(i_typ)
             in_bits = in_bytes * 8
-            in_nibbles = _get_nibble(i_typ)
-            out_nibbles = _get_nibble(o_typ)
 
             out_bytes = ot_int_info.bits // 8
 
@@ -220,8 +231,6 @@ def extract_io_value(o_typ, i_typ, input_val):
                     )
 
         elif it == "bytes":
-            in_nibbles = _get_nibble(i_typ)
-            out_nibbles = _get_nibble(o_typ)
             if ot == "uint":
                 if in_nibbles > out_nibbles:
                     # Clamp input value
@@ -241,8 +250,6 @@ def extract_io_value(o_typ, i_typ, input_val):
                     output_val = hex_to_signed_int(input_val, it_bytes_info.m_bits)
 
     if ot == "uint" and it == "address":
-        in_nibbles = _get_nibble(i_typ)
-        out_nibbles = _get_nibble(o_typ)
 
         (ot_lo, ot_hi) = int_bounds(ot_int_info.is_signed, ot_int_info.bits)
         output_val = clamp(ot_lo, ot_hi, int(input_val, 16))
@@ -286,28 +293,29 @@ def extract_io_value(o_typ, i_typ, input_val):
         output_val = bytes.fromhex(output_hex_str)
 
     if ot == "address":
-        # Modify input value by clamping to 160 bits
-        in_nibbles = _get_nibble(i_typ)
-        out_nibbles = _get_nibble(o_typ)
-        index = 2 if in_nibbles <= out_nibbles else in_nibbles - out_nibbles + 2
-
+        # Modify input value by clamping to the max address value
         if it == "uint":
-            output_hex_str = hex(input_val)[index:].rjust(out_nibbles, "0")
-            input_val = int(add_0x_prefix("0" * (index - 2) + hex(input_val)[index:]), 16)
+            input_val = input_val_raw = clamp(
+                MIN_ADDRESS_INT_VALUE, MAX_ADDRESS_INT_VALUE, input_val
+            )
 
         elif it == "bytes":
-            output_hex_str = input_val[index:].rjust(out_nibbles, "0")
-            input_val = add_0x_prefix("0" * (index - 2) + input_val[index:])
+            input_val_raw = clamp(MIN_ADDRESS_INT_VALUE, MAX_ADDRESS_INT_VALUE, int(input_val, 16))
+            input_val = add_0x_prefix(remove_0x_prefix(hex(input_val_raw)).rjust(in_nibbles, "0"))
 
         elif it == "Bytes":
-            index = index - 2  # Remove the 0x
-            output_hex_str = input_val.hex()[index:].rjust(out_nibbles, "0")
-            input_val = b"\x00" * (index // 2) + input_val[index // 2 :]
+            in_N = _get_type_N(i_typ)
+            input_val_raw = clamp(
+                MIN_ADDRESS_INT_VALUE, MAX_ADDRESS_INT_VALUE, bytes_to_int(input_val)
+            )
+            # Need to cast hex value to at least 2 digits so that single char hex
+            # values do not throw for hex() e.g. 0x1, 0x0
+            input_val = bytes.fromhex(remove_0x_prefix(hex(input_val_raw)).rjust(2, "0")).rjust(
+                in_N, b"\x00"
+            )
 
-        elif it == "bool":
-            output_hex_str = hex(int(input_val))[2].rjust(out_nibbles, "0")
-
-        output_val = checksum_encode(add_0x_prefix(output_hex_str))
+        output_hex_str = remove_0x_prefix(hex(input_val_raw))
+        output_val = checksum_encode(add_0x_prefix(output_hex_str.rjust(out_nibbles, "0")))
 
     if ot == "bool":
 
@@ -341,12 +349,10 @@ def extract_io_value(o_typ, i_typ, input_val):
             output_val = Decimal(input_val)
 
         elif it == "bytes":
-            in_nibbles = _get_nibble(i_typ)
             if it_bytes_info.m_bits > ot_dec_info.bits:
                 # Clamp input value
                 index = in_nibbles - (ot_dec_info.bits // 4) + 2
-
-                # Manually set to largest decimal prefix
+                # Manually set to largest decimal prefix in bits
                 input_val = add_0x_prefix("0" * (index - 2) + "7" + input_val[index + 1 :])
 
             output_val = (
@@ -355,20 +361,19 @@ def extract_io_value(o_typ, i_typ, input_val):
 
         elif it == "Bytes":
             in_bytes = _get_type_N(i_typ)
-            in_bits = in_bytes * 8
             if input_val == b"":
                 output_val = Decimal("0")
             else:
-                input_val_raw_before = (
-                    Decimal(hex_to_signed_int(input_val.hex(), in_bits)) / DECIMAL_DIVISOR
+                # Convert Bytes to raw integer value, clamp and then convert to decimal
+                output_val = (
+                    Decimal(
+                        clamp(
+                            SizeLimits.MINDECIMAL, SizeLimits.MAXDECIMAL, int(input_val.hex(), 16)
+                        )
+                    )
+                    / DECIMAL_DIVISOR
                 )
-                # Validate input is within bounds
-                input_val_raw_after = clamp(
-                    SizeLimits.MIN_AST_DECIMAL, SizeLimits.MAX_AST_DECIMAL, input_val_raw_before
-                )
-                if input_val_raw_after != input_val_raw_before:
-                    input_val = encode_single("fixed168x10", input_val_raw_after)[-in_bytes:]
-                output_val = input_val_raw_after
+                input_val = encode_single("fixed168x10", output_val)[-in_bytes:]
 
     return input_val, output_val
 
@@ -434,7 +439,7 @@ def generate_default_cases_for_in_type(i_typ):
             ZERO_ADDRESS,
             ONE_ADDRESS,
             "0xF5D4020dCA6a62bB1efFcC9212AAF3c9819E30D7",
-            "0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF",
+            MAX_ADDRESS,
         ]
 
     return []
@@ -480,6 +485,9 @@ def generate_passing_test_cases(type_pairs):
         # Exclude uint to int conversions due to bug causing excessive number of errors
         # TODO: Remove once fixed
         if tp[0].startswith("int") and tp[1].startswith("uint"):
+            continue
+
+        if tp[0] != "address":
             continue
 
         if can_convert(tp[0], tp[1]):
