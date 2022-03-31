@@ -326,7 +326,7 @@ clampge
 
 sha3\_32 and sha3\_64 are shortcuts to access the EVM sha3 opcode. They copy the inputs to reserved memory space and then sha3 the input.
 
-`(sha3_32 x)` is equivalent to `(seq (mstore FREE_VAR_SPACE x) (sha3 FREE_VAR_SPACE 32))`, and `(sha3_64 x y)` is equivalent to `(seq (mstore FREE_VAR_SPACE2 y) (mstore FREE_VAR_SPACE x) (sha3 FREE_VAR_SPACE 64))`, where `FREE_VAR_SPACE` and `FREE_VAR_SPACE2` are memory locations reserved by the vyper compiler for scratch space. Their values are currently 128 and 160.
+`(sha3_32 x)` is equivalent to `(seq (mstore FREE_VAR_SPACE x) (sha3 FREE_VAR_SPACE 32))`, and `(sha3_64 x y)` is equivalent to `(seq (mstore FREE_VAR_SPACE2 y) (mstore FREE_VAR_SPACE x) (sha3 FREE_VAR_SPACE 64))`, where `FREE_VAR_SPACE` and `FREE_VAR_SPACE2` are memory locations reserved by the vyper compiler for scratch space. Their values are currently 0 and 32.
 
 
 ### CEIL32
