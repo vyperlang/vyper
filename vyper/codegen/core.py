@@ -795,6 +795,9 @@ def make_setter(left, right):
         return _complex_make_setter(left, right)
 
 
+ROLL_ARRAY_TUNING = 5
+
+
 def _complex_make_setter(left, right):
     if right.value == "~empty" and left.location == MEMORY:
         # optimized memzero
@@ -809,6 +812,20 @@ def _complex_make_setter(left, right):
     if can_batch_copy:
         assert _len == left.typ.storage_size_in_words * 32  # only the paranoid survive
         return copy_bytes(left, right, _len, _len)
+
+    if isinstance(left.typ, SArrayType) and left.typ.count > ROLL_ARRAY_TUNING:
+        n = left.typ.count
+
+        i = IRnode.from_list(_freshname("copy_sarray_ix"), typ="uint256")
+
+        loop_body = make_setter(
+            get_element_ptr(left, i, array_bounds_check=False),
+            get_element_ptr(right, i, array_bounds_check=False),
+        )
+        loop_body.annotation = f"{left}[i] = {right}[i]"
+
+        return IRnode.from_list(["repeat", i, 0, n, n, loop_body])
+
 
     # general case, including literals.
     ret = ["seq"]
