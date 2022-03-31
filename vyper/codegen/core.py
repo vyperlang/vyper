@@ -137,7 +137,7 @@ def _dynarray_make_setter(dst, src):
         # loop when subtype.is_dynamic AND location == storage
         # OR array_size <= /bound where loop is cheaper than memcpy/
         should_loop |= src.typ.subtype.abi_type.is_dynamic()
-        should_loop |= _needs_clamp(src.typ.subtype, src.encoding)
+        should_loop |= needs_clamp(src.typ.subtype, src.encoding)
 
         with get_dyn_array_count(src).cache_when_complex("darray_count") as (b2, count):
             ret = ["seq"]
@@ -713,6 +713,25 @@ def _freshname(name):
     return f"{name}{_label}"
 
 
+# returns True if t is ABI encoded and is a type that needs any kind of
+# validation
+def needs_clamp(t, encoding):
+    if encoding not in (Encoding.ABI, Encoding.JSON_ABI):
+        return False
+    if isinstance(t, (ByteArrayLike, DArrayType)):
+        if encoding == Encoding.JSON_ABI:
+            # don't have bytestring size bound from json, don't clamp
+            return False
+        return True
+    if isinstance(t, BaseType) and t.typ not in ("int256", "uint256", "bytes32"):
+        return True
+    if isinstance(t, SArrayType):
+        return needs_clamp(t.subtype, encoding)
+    if isinstance(t, TupleLike):
+        return any(needs_clamp(m, encoding) for m in t.tuple_members())
+    return False
+
+
 # Create an x=y statement, where the types may be compound
 def make_setter(left, right):
     check_assign(left, right)
@@ -722,7 +741,7 @@ def make_setter(left, right):
         enc = right.encoding  # unwrap_location butchers encoding
         right = unwrap_location(right)
         # TODO rethink/streamline the clamp_basetype logic
-        if _needs_clamp(right.typ, enc):
+        if needs_clamp(right.typ, enc):
             right = clamp_basetype(right)
 
         return STORE(left, right)
@@ -730,7 +749,7 @@ def make_setter(left, right):
     # Byte arrays
     elif isinstance(left.typ, ByteArrayLike):
         # TODO rethink/streamline the clamp_basetype logic
-        if _needs_clamp(right.typ, right.encoding):
+        if needs_clamp(right.typ, right.encoding):
             with right.cache_when_complex("bs_ptr") as (b, right):
                 copier = make_byte_array_copier(left, right)
                 ret = b.resolve(["seq", clamp_bytestring(right), copier])
@@ -746,7 +765,7 @@ def make_setter(left, right):
         #    return _complex_make_setter(left, right)
 
         # TODO rethink/streamline the clamp_basetype logic
-        if _needs_clamp(right.typ, right.encoding):
+        if needs_clamp(right.typ, right.encoding):
             with right.cache_when_complex("arr_ptr") as (b, right):
                 copier = _dynarray_make_setter(left, right)
                 ret = b.resolve(["seq", clamp_dyn_array(right), copier])
@@ -899,25 +918,6 @@ def sar(bits, x):
     # "This is not equivalent to PUSH1 2 EXP SDIV, since it rounds
     # differently. See SDIV(-1, 2) == 0, while SAR(-1, 1) == -1."
     return ["sdiv", ["add", ["slt", x, 0], x], ["exp", 2, bits]]
-
-
-# returns True if t is ABI encoded and is a type that needs any kind of
-# validation
-def _needs_clamp(t, encoding):
-    if encoding not in (Encoding.ABI, Encoding.JSON_ABI):
-        return False
-    if isinstance(t, (ByteArrayLike, DArrayType)):
-        if encoding == Encoding.JSON_ABI:
-            # don't have bytestring size bound from json, don't clamp
-            return False
-        return True
-    if isinstance(t, BaseType) and t.typ not in ("int256", "uint256", "bytes32"):
-        return True
-    if isinstance(t, SArrayType):
-        return _needs_clamp(t.subtype, encoding)
-    if isinstance(t, TupleLike):
-        return any(_needs_clamp(m, encoding) for m in t.tuple_members())
-    return False
 
 
 def clamp_bytestring(ir_node):
