@@ -172,7 +172,7 @@ def test_type_converter_setter_test(get_contract_with_gas_estimation):
 pap: decimal[2][2]
 
 @external
-def goo() -> int128:
+def goo() -> int256:
     self.pap = [[1.0, 2.0], [3.0, 4.0]]
     return floor(
         self.pap[0][0] +
