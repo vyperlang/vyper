@@ -172,6 +172,10 @@ def _dynarray_make_setter(dst, src):
             return b1.resolve(b2.resolve(ret))
 
 
+# below how many words should we unroll vs loop or staticcall?
+UNROLL_WORD_COPY_TUNING = 8 * 32
+
+
 # Copy bytes
 # Accepts 4 arguments:
 # (i) an IR node for the start position of the source
@@ -191,6 +195,18 @@ def copy_bytes(dst, src, length, length_bound):
     with src.cache_when_complex("src") as (b1, src), length.cache_when_complex(
         "copy_bytes_count"
     ) as (b2, length), dst.cache_when_complex("dst") as (b3, dst):
+
+        # unroll if we know the loop would be more expensive than unrolling
+        # (also prefer it to identity precompile). roughly, this is around 7 words.
+        batch_copy_op_exists = dst.location == MEMORY and src.location in (CALLDATA, DATA)
+        if length.is_literal and length.value < UNROLL_WORD_COPY_TUNING and not batch_copy_op_exists:
+            ret = ["seq"]
+            for i in range(ceil32(length.value) // 32):
+                dst_i = add_ofst(dst, dst.location.word_scale * i)
+                src_i = add_ofst(src, src.location.word_scale * i)
+                ret.append(STORE(dst_i, LOAD(src_i)))
+            ret = IRnode.from_list(ret, annotation=annotation)
+            return b1.resolve(b2.resolve(b3.resolve(ret)))
 
         # fast code for common case where num bytes is small
         # TODO expand this for more cases where num words is less than ~8
@@ -788,9 +804,7 @@ def _complex_make_setter(left, right):
 
     if can_batch_copy:
         assert _len == left.typ.storage_size_in_words * 32  # only the paranoid survive
-        # TODO: push unrolling capability down to copy_bytes
-        if _len > 256:  # only loop if > 8 words
-            return copy_bytes(left, right, _len, _len)
+        return copy_bytes(left, right, _len, _len)
 
 
     # general case, including literals.
