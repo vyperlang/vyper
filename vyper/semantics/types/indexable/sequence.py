@@ -1,4 +1,3 @@
-import warnings
 from typing import Optional, Tuple, Union
 
 from vyper import ast as vy_ast
@@ -188,8 +187,6 @@ class DynamicArrayPrimitive(BasePrimitive):
     _type = DynamicArrayDefinition
     _valid_literal = (vy_ast.List,)
 
-    _warning_flag = True
-
     @classmethod
     def from_annotation(
         cls,
@@ -201,10 +198,6 @@ class DynamicArrayPrimitive(BasePrimitive):
     ) -> DynamicArrayDefinition:
         # TODO fix circular import
         from vyper.semantics.types.utils import get_type_from_annotation
-
-        if cls._warning_flag:
-            warnings.warn("DynArray is an experimental feature, please use with care")
-            cls._warning_flag = False
 
         if (
             not isinstance(node, vy_ast.Subscript)

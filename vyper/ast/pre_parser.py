@@ -128,21 +128,6 @@ def pre_parse(code: str) -> Tuple[ModificationOffsets, str]:
                     start[1],
                 )
 
-            if typ == NAME and string == "contract" and start[1] == 0:
-                raise SyntaxException(
-                    "The `contract` keyword has been deprecated. Please use `interface`",
-                    code,
-                    start[0],
-                    start[1],
-                )
-            if typ == NAME and string == "log" and token_list[i + 1].string == ".":
-                raise SyntaxException(
-                    "`log` is no longer an object, please use it as a statement instead",
-                    code,
-                    start[0],
-                    start[1],
-                )
-
             if typ == NAME:
                 if string in VYPER_CLASS_TYPES and start[1] == 0:
                     toks = [TokenInfo(NAME, "class", start, end, line)]
