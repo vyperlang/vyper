@@ -23,6 +23,7 @@ from vyper.utils import (
     SizeLimits,
     bytes_to_int,
     checksum_encode,
+    hex_to_int,
     int_bounds,
 )
 
@@ -33,12 +34,12 @@ TEST_TYPES = BASE_TYPES.union({"Bytes[32]"})
 ZERO_ADDRESS = "0x0000000000000000000000000000000000000000"
 ONE_ADDRESS = "0x0000000000000000000000000000000000000001"
 MAX_ADDRESS = "0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF"
-MAX_ADDRESS_INT_VALUE = int(MAX_ADDRESS, 16)
-MIN_ADDRESS_INT_VALUE = 0
+MAX_ADDRESS_INT_VALUE = hex_to_int(MAX_ADDRESS)
+MIN_ADDRESS_INT_VALUE = hex_to_int(ZERO_ADDRESS)
 
 
 def hex_to_signed_int(hexstr, bits):
-    val = int(hexstr, 16)
+    val = hex_to_int(hexstr)
     if val & (1 << (bits - 1)):
         val -= 1 << bits
     return val
@@ -192,77 +193,74 @@ def extract_io_value(o_typ, i_typ, input_val):
             (ot_lo, ot_hi) = int_bounds(ot_int_info.is_signed, ot_int_info.bits)
             input_val = output_val = clamp(ot_lo, ot_hi, input_val)
 
-        if it == "decimal":
+        elif it == "decimal":
             # Clamp
             (ot_lo, ot_hi) = int_bounds(ot_int_info.is_signed, ot_int_info.bits)
             input_val_clamped = clamp(ot_lo, ot_hi, Decimal(input_val))
             input_val = format(Decimal(input_val_clamped), f".{MAX_DECIMAL_PLACES}f")
             output_val = int(input_val_clamped)
 
-        if it == "bool":
+        elif it == "bool":
             output_val = int(input_val)
 
-        if it == "Bytes":
+        elif it == "Bytes":
             in_bytes = _get_type_N(i_typ)
             in_bits = in_bytes * 8
-
             out_bytes = ot_int_info.bits // 8
 
+            # Default output value
+            output_val = (
+                hex_to_signed_int(input_val.hex(), in_bits)
+                if ot_int_info.is_signed
+                else bytes_to_int(input_val)
+            )
+
+            # If input Bytes[N] is greater than output integer size, clamp to integer size
             if in_bytes >= out_bytes:
-                index = in_bytes - out_bytes
-                largest_value_bytes = (2 ** (ot_int_info.bits - 1) - 1).to_bytes(
-                    out_bytes, byteorder="big"
-                )
-                input_val = b"\x00" * index + largest_value_bytes
-
-            if ot == "uint":
-                output_val = int(input_val.hex(), 16) if input_val != b"" else 0
-
-            elif ot == "int":
-                if in_bytes >= out_bytes:
-                    output_val = (
-                        hex_to_signed_int(input_val.hex(), ot_int_info.bits)
-                        if input_val != b""
-                        else 0
-                    )
-                else:
-                    output_val = (
-                        hex_to_signed_int(input_val.hex(), in_bits) if input_val != b"" else 0
-                    )
+                (ot_lo, ot_hi) = int_bounds(ot_int_info.is_signed, ot_int_info.bits)
+                # Override output value with clamped value
+                output_val = clamp(ot_lo, ot_hi, output_val)
+                input_val_hex_str = remove_0x_prefix(
+                    signed_int_to_hex(output_val, ot_int_info.bits)
+                    if ot_int_info.is_signed
+                    else hex(output_val)
+                ).rjust(2, "0")
+                input_val = bytes.fromhex(input_val_hex_str).rjust(in_bytes, b"\x00")
 
         elif it == "bytes":
-            if ot == "uint":
-                if in_nibbles > out_nibbles:
-                    # Clamp input value
-                    index = in_nibbles - out_nibbles + 2
-                    input_val = add_0x_prefix("0" * (index - 2) + input_val[index:])
 
-                output_val = int(input_val, 16)
+            # Default output value
+            output_val = (
+                hex_to_signed_int(input_val, it_bytes_info.m_bits)
+                if ot_int_info.is_signed
+                else hex_to_int(input_val)
+            )
 
-            elif ot == "int":
-                if it_bytes_info.m_bits >= ot_int_info.bits:
-                    index = (in_nibbles - out_nibbles) + 2
-                    largest_value_hex = hex(2 ** (ot_int_info.bits - 1) - 1)
-
-                    input_val = add_0x_prefix("0" * (index - 2) + largest_value_hex[2:])
-                    output_val = hex_to_signed_int(input_val, ot_int_info.bits)
-                else:
-                    output_val = hex_to_signed_int(input_val, it_bytes_info.m_bits)
+            # Clamp to output integer size if input byte size is greater
+            if it_bytes_info.m_bits >= ot_int_info.bits:
+                (ot_lo, ot_hi) = int_bounds(ot_int_info.is_signed, ot_int_info.bits)
+                # Override default output value with clamped value
+                output_val = clamp(ot_lo, ot_hi, output_val)
+                input_val_hex_str = (
+                    signed_int_to_hex(output_val, ot_int_info.bits)
+                    if ot_int_info.is_signed
+                    else hex(output_val)
+                )
+                input_val = add_0x_prefix(
+                    remove_0x_prefix(input_val_hex_str).rjust(in_nibbles, "0")
+                )
 
     if ot == "uint" and it == "address":
-
         (ot_lo, ot_hi) = int_bounds(ot_int_info.is_signed, ot_int_info.bits)
-        output_val = clamp(ot_lo, ot_hi, int(input_val, 16))
+        output_val = clamp(ot_lo, ot_hi, hex_to_int(input_val))
         # Value should always give a valid address after clamping
         input_val = checksum_encode(decode_single("address", encode_single(o_typ, output_val)))
 
     if ot == "bytes":
-        out_nibbles = _get_nibble(o_typ)
         if it in ["int", "uint"]:
             # Input must have fewer than M bytes set
-            if ot_bytes_info.m_bits < it_int_info.bits:
-                (ot_lo, ot_hi) = int_bounds(it_int_info.is_signed, ot_int_info.m_bits)
-                input_val = clamp(ot_lo, ot_hi, input_val)
+            (ot_lo, ot_hi) = int_bounds(it_int_info.is_signed, ot_int_info.m_bits)
+            input_val = clamp(ot_lo, ot_hi, input_val)
 
             if it_int_info.is_signed:
                 msb = "f" if input_val < 0 else "0"
@@ -273,48 +271,62 @@ def extract_io_value(o_typ, i_typ, input_val):
                 output_hex_str = remove_0x_prefix(hex(input_val)).rjust(out_nibbles, "0")
 
         elif it == "decimal":
+            input_val_raw = int(Decimal(input_val) * DECIMAL_DIVISOR)
+            # If output byteN size is smaller than decimal, clamp to byte size.
+            if ot_bytes_info.m_bits <= DECIMAL_BITS:
+                (ot_lo, ot_hi) = int_bounds(True, ot_bytes_info.m_bits)
+                input_val_clamped = clamp(ot_lo, ot_hi, input_val_raw)
+            # Otherwise, clamp to decimal size
+            else:
+                input_val_clamped = clamp(
+                    SizeLimits.MINDECIMAL, SizeLimits.MAXDECIMAL, input_val_raw
+                )
 
-            output_hex_str = signed_int_to_hex(int(Decimal(input_val) * DECIMAL_DIVISOR), 256)[
-                2:
-            ].rjust(64, "0")
-            if out_nibbles < 64:
-                index = 64 - (out_nibbles)
-                output_hex_str = output_hex_str[index:]
+            input_val = format(
+                Decimal(input_val_clamped) / DECIMAL_DIVISOR, f".{MAX_DECIMAL_PLACES}f"
+            )
+            output_hex_str = remove_0x_prefix(
+                signed_int_to_hex(input_val_clamped, DECIMAL_BITS)
+            ).rjust(out_nibbles, "0")
 
         elif it == "Bytes":
             output_hex_str = input_val.hex().ljust(out_nibbles, "0")
 
         elif it == "bool":
-            output_hex_str = hex(int(input_val))[2].rjust(out_nibbles, "0")
+            output_hex_str = remove_0x_prefix(hex(int(input_val))).rjust(out_nibbles, "0")
 
         elif it == "address":
-            output_hex_str = input_val[2:].rjust(out_nibbles, "0")
+            output_hex_str = remove_0x_prefix(input_val).rjust(out_nibbles, "0")
 
         output_val = bytes.fromhex(output_hex_str)
 
     if ot == "address":
         # Modify input value by clamping to the max address value
         if it == "uint":
-            input_val = input_val_raw = clamp(
+            input_val = input_val_clamped = clamp(
                 MIN_ADDRESS_INT_VALUE, MAX_ADDRESS_INT_VALUE, input_val
             )
 
         elif it == "bytes":
-            input_val_raw = clamp(MIN_ADDRESS_INT_VALUE, MAX_ADDRESS_INT_VALUE, int(input_val, 16))
-            input_val = add_0x_prefix(remove_0x_prefix(hex(input_val_raw)).rjust(in_nibbles, "0"))
+            input_val_clamped = clamp(
+                MIN_ADDRESS_INT_VALUE, MAX_ADDRESS_INT_VALUE, hex_to_int(input_val)
+            )
+            input_val = add_0x_prefix(
+                remove_0x_prefix(hex(input_val_clamped)).rjust(in_nibbles, "0")
+            )
 
         elif it == "Bytes":
             in_N = _get_type_N(i_typ)
-            input_val_raw = clamp(
+            input_val_clamped = clamp(
                 MIN_ADDRESS_INT_VALUE, MAX_ADDRESS_INT_VALUE, bytes_to_int(input_val)
             )
             # Need to cast hex value to at least 2 digits so that single char hex
             # values do not throw for hex() e.g. 0x1, 0x0
-            input_val = bytes.fromhex(remove_0x_prefix(hex(input_val_raw)).rjust(2, "0")).rjust(
+            input_val = bytes.fromhex(remove_0x_prefix(hex(input_val_clamped)).rjust(2, "0")).rjust(
                 in_N, b"\x00"
             )
 
-        output_hex_str = remove_0x_prefix(hex(input_val_raw))
+        output_hex_str = remove_0x_prefix(hex(input_val_clamped))
         output_val = checksum_encode(add_0x_prefix(output_hex_str.rjust(out_nibbles, "0")))
 
     if ot == "bool":
@@ -326,10 +338,10 @@ def extract_io_value(o_typ, i_typ, input_val):
             output_val = Decimal(input_val) != 0
 
         elif it == "bytes":
-            output_val = int(input_val, 16) != 0
+            output_val = hex_to_int(input_val) != 0
 
         elif it == "Bytes":
-            output_val = bool(int(input_val.hex(), 16)) if input_val != b"" else False
+            output_val = bool(hex_to_int(input_val.hex())) if input_val != b"" else False
 
         elif it == "address":
             output_val = False if input_val == ZERO_ADDRESS else True
@@ -368,7 +380,9 @@ def extract_io_value(o_typ, i_typ, input_val):
                 output_val = (
                     Decimal(
                         clamp(
-                            SizeLimits.MINDECIMAL, SizeLimits.MAXDECIMAL, int(input_val.hex(), 16)
+                            SizeLimits.MINDECIMAL,
+                            SizeLimits.MAXDECIMAL,
+                            hex_to_int(input_val.hex()),
                         )
                     )
                     / DECIMAL_DIVISOR
@@ -487,7 +501,7 @@ def generate_passing_test_cases(type_pairs):
         if tp[0].startswith("int") and tp[1].startswith("uint"):
             continue
 
-        if tp[0] != "address":
+        if not tp[0].startswith("uint") and not tp[1].startswith("Bytes"):
             continue
 
         if can_convert(tp[0], tp[1]):
