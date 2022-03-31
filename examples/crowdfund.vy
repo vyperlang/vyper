@@ -55,7 +55,9 @@ def refund():
             self.refundIndex = self.nextFunderIndex
             return
 
-        send(self.funders[i].sender, self.funders[i].value)
+        sender: address = self.funders[i].sender
+        value: uint256 = self.funders[i].value
         self.funders[i] = empty(Funder)
+        send(sender, value)
 
     self.refundIndex = ind + 30
