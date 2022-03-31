@@ -117,15 +117,19 @@ def _fixed_to_int(arg, out_typ):
 
     decimals = arg_info.decimals
 
-    out_bits_used = arg_info.bits - math.log(10 ** decimals, 2)
+    arg_lo, arg_hi = arg_info.bounds
+
+    arg_lo = arg_lo * 10 ** decimals
+    arg_hi = arg_hi * 10 ** decimals
+
+    out_lo, out_hi = out_info.bounds
+
+    if arg_lo < out_lo:
+        arg = ["clampge", arg, out_lo]
+    if arg_hi > out_hi:
+        arg = ["clample", arg, out_hi]
 
     arg = IRnode.from_list(["sdiv", arg, 10 ** decimals], typ=out_typ)
-
-    if (out_info.bits == 256 or arg_info.bits == 256) and arg_info.is_signed != out_info.is_signed:
-        arg = IRnode.from_list(["clampge", arg, 0], typ=arg.typ)
-
-    if out_bits_used > out_info.bits:
-        arg = int_clamp(arg, out_info.bits, out_info.is_signed)
 
     return arg
 
@@ -136,15 +140,34 @@ def _int_to_fixed(x, out_typ):
 
     decimals = info.decimals
 
-    lo, hi = info.bounds
+    out_lo, out_hi = info.bounds
 
-    lo = round_towards_zero(decimal.Decimal(lo) / 10 ** decimals)
-    hi = round_towards_zero(decimal.Decimal(hi) / 10 ** decimals)
+    out_lo = round_towards_zero(decimal.Decimal(out_lo) / 10 ** decimals)
+    out_hi = round_towards_zero(decimal.Decimal(out_hi) / 10 ** decimals)
 
-    # TODO: when can we skip this clamp?
-    CLAMP = "clamp" if info.is_signed else "uclamp"
+    arg_lo, arg_hi = x._int_info.bounds
 
-    return IRnode.from_list(["mul", [CLAMP, lo, x, hi], 10 ** decimals], typ=out_typ)
+    if arg_lo < out_lo:
+        x = ["clampge", out_lo]
+    if arg_hi > out_hi:
+        x = ["clample", out_hi]
+
+    return IRnode.from_list(["mul", x, 10 ** decimals], typ=out_typ)
+
+
+# clamp for dealing with conversions between int types (from arg to dst)
+def _int_to_int(arg, out_info, arg_info):
+    arg_lo, arg_hi = arg_info.bounds
+
+    out_lo, out_hi = out_info.bounds
+
+    if arg_lo < out_lo:
+        arg = ["clampge", arg, out_lo]
+
+    if arg_hi > out_hi:
+        arg = ["clample", arg, out_hi]
+
+    return arg
 
 
 def _check_bytes(expr, arg, output_type, max_bytes_allowed):
@@ -203,17 +226,6 @@ def to_bool(expr, arg, out_typ):
     # (we do not issue an `sdiv DECIMAL_DIVISOR`)
 
     return IRnode.from_list(["iszero", ["iszero", arg]], typ=out_typ)
-
-
-# clamp for dealing with conversions between int types (from arg to dst)
-def _int_to_int(arg, out_info, arg_info):
-    if (out_info.bits == 256 or arg_info.bits == 256) and arg_info.is_signed != out_info.is_signed:
-        arg = IRnode.from_list(["clampge", arg, 0], typ=arg.typ)
-
-    if out_info.bits < 256 and out_info.bits < arg_info.bits:
-        arg = int_clamp(arg, out_info.bits, out_info.is_signed)
-
-    return arg
 
 
 @_input_types("int", "bytes_m", "decimal", "bytes", "address", "bool")
@@ -301,6 +313,7 @@ def to_decimal(expr, arg, out_typ):
 @_input_types("int", "decimal", "bytes_m", "address", "bytes", "bool")
 def to_bytes_m(expr, arg, out_typ):
     out_info = out_typ._bytes_info
+
     _check_bytes(expr, arg, out_typ, max_bytes_allowed=out_info.m)
 
     if isinstance(arg.typ, ByteArrayType):
