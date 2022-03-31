@@ -20,7 +20,7 @@ def __init__(_beneficiary: address, _goal: uint256, _timelimit: uint256):
 def participate():
     assert block.timestamp < self.deadline, "deadline not met (yet)"
 
-    self.funders[msg.sender] = msg.value
+    self.funders[msg.sender] += msg.value
 
 # Enough money was raised! Send funds to the beneficiary
 @external
