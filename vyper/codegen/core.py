@@ -98,7 +98,6 @@ def _dynarray_make_setter(dst, src):
     if src.value == "~empty":
         return IRnode.from_list(STORE(dst, 0))
 
-
     if src.value == "multi":
         ret = ["seq"]
         # handle literals
@@ -119,7 +118,6 @@ def _dynarray_make_setter(dst, src):
             ret.append(make_setter(dst_i, src_i))
 
         return ret
-
 
     with src.cache_when_complex("darray_src") as (b1, src):
 
@@ -199,7 +197,11 @@ def copy_bytes(dst, src, length, length_bound):
         # unroll if we know the loop would be more expensive than unrolling
         # (also prefer it to identity precompile). roughly, this is around 7 words.
         batch_copy_op_exists = dst.location == MEMORY and src.location in (CALLDATA, DATA)
-        if length.is_literal and length.value < UNROLL_WORD_COPY_TUNING and not batch_copy_op_exists:
+        if (
+            length.is_literal
+            and length.value < UNROLL_WORD_COPY_TUNING
+            and not batch_copy_op_exists
+        ):
             ret = ["seq"]
             for i in range(ceil32(length.value) // 32):
                 dst_i = add_ofst(dst, dst.location.word_scale * i)
@@ -798,14 +800,15 @@ def _complex_make_setter(left, right):
         # optimized memzero
         return mzero(left, left.typ.memory_bytes_required)
 
-    can_batch_copy = not needs_clamp(right.typ, right.encoding) and not right.typ.abi_type.is_dynamic()
-    can_batch_copy &= (left.is_pointer and right.is_pointer)
+    can_batch_copy = (
+        not needs_clamp(right.typ, right.encoding) and not right.typ.abi_type.is_dynamic()
+    )
+    can_batch_copy &= left.is_pointer and right.is_pointer
     _len = left.typ.memory_bytes_required
 
     if can_batch_copy:
         assert _len == left.typ.storage_size_in_words * 32  # only the paranoid survive
         return copy_bytes(left, right, _len, _len)
-
 
     # general case, including literals.
     ret = ["seq"]
