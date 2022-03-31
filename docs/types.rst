@@ -397,13 +397,11 @@ A byte array with a fixed size.
 The syntax being ``Bytes[maxLen]``, where ``maxLen`` is an integer which denotes the maximum number of bytes.
 On the ABI level the Fixed-size bytes array is annotated as ``bytes``.
 
-Bytes literals may be given as bytes strings, hexadecimal, or binary.
+Bytes literals may be given as bytes strings.
 
 .. code-block:: python
 
     bytes_string: Bytes[100] = b"\x01"
-    hex_bytes: Bytes[100] = 0x01
-    binary_bytes: Bytes[100] = 0b00000001
 
 .. index:: !string
 
