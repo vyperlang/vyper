@@ -380,6 +380,7 @@ def generate_default_cases_for_in_type(i_typ):
         return [
             add_0x_prefix("00" * it_bytes_info.m),
             add_0x_prefix("00" * (it_bytes_info.m - 1) + "01"),
+            add_0x_prefix("7F" + "FF" * (it_bytes_info.m - 1)),
             add_0x_prefix("FF" * (it_bytes_info.m - 1) + "FE"),
             add_0x_prefix("FF" * it_bytes_info.m),
         ]
@@ -392,6 +393,7 @@ def generate_default_cases_for_in_type(i_typ):
             b"\x00" * bytes_N,
             b"\x01",
             b"\x00\x01",
+            b"\x7f" + b"\xff" * (bytes_N - 1),
             b"\xff" * (bytes_N - 1) + b"\xfe",
             b"\xff" * bytes_N,
         ]
@@ -515,11 +517,11 @@ def test_input_convert(x: {in_type}) -> {out_type}:
     c2 = get_contract_with_gas_estimation(contract_2)
 
     if in_type == "decimal":
-        in_value = Decimal(in_value)
-    if out_type == "decimal":
-        out_value = Decimal(out_value)
-
-    assert c2.test_input_convert(in_value) == out_value
+        assert c2.test_input_convert(Decimal(in_value)) == out_value
+    elif out_type == "decimal":
+        assert c2.test_input_convert(in_value) == Decimal(out_value)
+    else:
+        assert c2.test_input_convert(in_value) == out_value
 
     contract_3 = f"""
 bar: {in_type}
@@ -533,9 +535,9 @@ def test_state_variable_convert() -> {out_type}:
     c3 = get_contract_with_gas_estimation(contract_3)
 
     if out_type == "decimal":
-        out_value = Decimal(out_value)
-
-    assert c3.test_state_variable_convert() == out_value
+        assert c3.test_state_variable_convert() == Decimal(out_value)
+    else:
+        assert c3.test_state_variable_convert() == out_value
 
     contract_4 = f"""
 
@@ -548,9 +550,9 @@ def test_state_variable_convert() -> {out_type}:
     c4 = get_contract_with_gas_estimation(contract_4)
 
     if out_type == "decimal":
-        out_value = Decimal(out_value)
-
-    assert c4.test_state_variable_convert() == out_value
+        assert c4.test_state_variable_convert() == Decimal(out_value)
+    else:
+        assert c4.test_state_variable_convert() == out_value
 
 
 @pytest.mark.parametrize(
