@@ -37,6 +37,6 @@ def refund():
     assert self.funders[msg.sender] > 0
 
     value: uint256 = self.funders[msg.sender]
-    self.funders[msg.sender] = empty(uint256)
+    self.funders[msg.sender] = 0
 
     send(msg.sender, value)

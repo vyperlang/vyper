@@ -275,14 +275,14 @@ the funds will be sent to the  beneficiary at the end of the campaign deadline.
 Participants will be refunded their respective contributions if the total
 funding does not reach its target goal.
 
-.. literalinclude:: ../examples/crowdfund/crowdfund.vy
+.. literalinclude:: ../examples/crowdfund.vy
   :language: python
   :linenos:
 
 Most of this code should be relatively straightforward after going through our
 previous examples. Let's dive right in.
 
-.. literalinclude:: ../examples/crowdfund/crowdfund.vy
+.. literalinclude:: ../examples/crowdfund.vy
   :language: python
   :lineno-start: 3
   :lines: 3-13
@@ -309,7 +309,7 @@ once the crowdfunding period is over—as determined by the ``deadline`` and
 of all participants. ``refundIndex`` is a variable for bookkeeping purposes in
 order to avoid gas limit issues in the scenario of a refund.
 
-.. literalinclude:: ../examples/crowdfund/crowdfund.vy
+.. literalinclude:: ../examples/crowdfund.vy
   :language: python
   :lineno-start: 17
   :lines: 17-22
@@ -322,7 +322,7 @@ a definitive end time for the crowdfunding period.
 
 Now lets take a look at how a person can participate in the crowdfund.
 
-.. literalinclude:: ../examples/crowdfund/crowdfund.vy
+.. literalinclude:: ../examples/crowdfund.vy
   :language: python
   :lineno-start: 26
   :lines: 26-34
@@ -336,7 +336,7 @@ into a struct and then saved into the ``funders`` mapping with
 mapping, ``self.nextFunderIndex`` increments appropriately to properly index
 each participant.
 
-.. literalinclude:: ../examples/crowdfund/crowdfund.vy
+.. literalinclude:: ../examples/crowdfund.vy
   :language: python
   :lineno-start: 38
   :lines: 38-43
@@ -357,7 +357,7 @@ We can finalize the campaign if all goes well, but what happens if the
 crowdfunding campaign isn't successful? We're going to need a way to refund
 all the participants.
 
-.. literalinclude:: ../examples/crowdfund/crowdfund.vy
+.. literalinclude:: ../examples/crowdfund.vy
   :language: python
   :lineno-start: 47
   :lines: 47-61
