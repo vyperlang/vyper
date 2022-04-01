@@ -2,7 +2,13 @@ import itertools
 
 import pytest
 
-from vyper.exceptions import ArrayIndexException, InvalidType, OverflowException, TypeMismatch
+from vyper.exceptions import (
+    ArrayIndexException,
+    InvalidType,
+    OverflowException,
+    StructureException,
+    TypeMismatch,
+)
 
 
 def test_list_tester_code(get_contract_with_gas_estimation):
@@ -1434,3 +1440,29 @@ def foo(i: uint256) -> {return_type}:
     return MY_CONSTANT[i]
     """
     assert_compile_failed(lambda: get_contract(code), TypeMismatch)
+
+
+INVALID_ARRAY_VALUES = [
+    """
+a: DynArray[Bytes[5], 2]
+    """,
+    """
+a: DynArray[String[5], 2]
+    """,
+    """
+a: DynArray[DynArray[Bytes[5], 2], 2]
+    """,
+    """
+a: DynArray[DynArray[String[5], 2], 2]
+    """,
+]
+
+
+@pytest.mark.parametrize("invalid_contracts", INVALID_ARRAY_VALUES)
+def test_invalid_dyn_array_values(
+    get_contract_with_gas_estimation, assert_compile_failed, invalid_contracts
+):
+
+    assert_compile_failed(
+        lambda: get_contract_with_gas_estimation(invalid_contracts), StructureException
+    )
