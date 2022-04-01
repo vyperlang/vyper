@@ -38,6 +38,16 @@ def test_func() -> int128:
 def __init__(a: int128 = 12):
     pass
     """,
+    """
+@external
+def __init__() -> uint256:
+    return 1
+    """,
+    """
+@external
+def __init__() -> bool:
+    pass
+    """,
 ]
 
 
