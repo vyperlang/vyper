@@ -440,7 +440,9 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
 
     def visit_Expr(self, node):
         if not isinstance(node.value, vy_ast.Call):
+            # CMC 2022-04-01 this seems in the wrong place.
             raise StructureException("Expressions without assignment are disallowed", node)
+
         fn_type = get_exact_type_from_node(node.value.func)
         if isinstance(fn_type, Event):
             raise StructureException("To call an event you must use the `log` statement", node)
@@ -459,6 +461,10 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                 raise StateAccessViolation(
                     f"Cannot call any function from a {self.func.mutability.value} function", node
                 )
+
+        if isinstance(fn_type, MemberFunctionDefinition) and fn_type.is_modifying:
+            fn_type.underlying_type.validate_modification(node)
+
         return_value = fn_type.fetch_call_return(node.value)
         if (
             return_value

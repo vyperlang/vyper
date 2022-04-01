@@ -440,7 +440,7 @@ class BaseTypeDefinition:
         """
         raise StructureException(f"Type '{self}' does not support members", node)
 
-    def validate_modification(self, node: Union[vy_ast.Assign, vy_ast.AugAssign]) -> None:
+    def validate_modification(self, node: Union[vy_ast.Assign, vy_ast.AugAssign, vy_ast.Call]) -> None:
         """
         Validate an attempt to modify this value.
 
@@ -448,7 +448,7 @@ class BaseTypeDefinition:
 
         Arguments
         ---------
-        node : Assign | AugAssign
+        node : Assign | AugAssign | Call
             Vyper ast node of the modifying action.
         """
         if self.location == DataLocation.CALLDATA:

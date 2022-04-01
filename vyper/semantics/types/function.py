@@ -512,17 +512,28 @@ class MemberFunctionDefinition(BaseTypeDefinition):
     Member function type definition.
 
     This class has no corresponding primitive.
+
+    (examples for (x <DynArray[int128, 3]>).append(1))
+
+    Arguments:
+        underlying_type: the type this method is attached to. ex. DynArray[int128, 3]
+        name: the name of this method. ex. "append"
+        arg_types: the argument types this method accepts. ex. [int128]
+        return_type: the return type of this method. ex. None
+        is_modifying: whether this method modifies the object it is attached to. ex. True
     """
 
     _is_callable = True
 
     def __init__(
-        self, underlying_type: BaseTypeDefinition, name: str, arg_types: List[BaseTypeDefinition]
+            self, underlying_type: BaseTypeDefinition, name: str, arg_types: List[BaseTypeDefinition], return_type: BaseTypeDefinition, is_modifying: bool
     ) -> None:
         super().__init__(DataLocation.UNSET)
         self.underlying_type = underlying_type
         self.name = name
         self.arg_types = arg_types
+        self.return_type = return_type
+        self.is_modifying = is_modifying
 
     def __repr__(self):
         return f"{self.underlying_type._id} member function '{self.name}'"
@@ -532,17 +543,10 @@ class MemberFunctionDefinition(BaseTypeDefinition):
 
         assert len(node.args) == len(self.arg_types)  # validate_call_args postcondition
         for arg, expected_type in zip(node.args, self.arg_types):
+            # CMC 2022-04-01 this should probably be in the validation module
             validate_expected_type(arg, expected_type)
 
-        if isinstance(self.underlying_type, DynamicArrayDefinition):
-            if self.name == "append":
-                return None
-
-            elif self.name == "pop":
-                value_type = self.underlying_type.value_type
-                return value_type
-
-        raise CallViolation("Function does not exist on given type", node)
+        return self.return_type
 
 
 def _generate_method_id(name: str, canonical_abi_types: List[str]) -> Dict[str, int]:
