@@ -517,19 +517,22 @@ class MemberFunctionDefinition(BaseTypeDefinition):
     _is_callable = True
 
     def __init__(
-        self, underlying_type: BaseTypeDefinition, name: str, min_arg_count: int, max_arg_count: int
+        self, underlying_type: BaseTypeDefinition, name: str, arg_types: List[BaseTypeDefinition]
     ) -> None:
         super().__init__(DataLocation.UNSET)
         self.underlying_type = underlying_type
         self.name = name
-        self.min_arg_count = min_arg_count
-        self.max_arg_count = max_arg_count
+        self.arg_types = arg_types
 
     def __repr__(self):
         return f"{self.underlying_type._id} member function '{self.name}'"
 
     def fetch_call_return(self, node: vy_ast.Call) -> Optional[BaseTypeDefinition]:
-        validate_call_args(node, (self.min_arg_count, self.max_arg_count))
+        validate_call_args(node, len(self.arg_types))
+
+        assert len(node.args) == len(self.arg_types)  # validate_call_args postcondition
+        for arg, expected_type in zip(node.args, self.arg_types):
+            validate_expected_type(arg, expected_type)
 
         if isinstance(self.underlying_type, DynamicArrayDefinition):
             if self.name == "append":
