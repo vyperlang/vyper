@@ -229,25 +229,23 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
     def visit_Assign(self, node):
         if isinstance(node.value, vy_ast.Tuple):
             raise StructureException("Right-hand side of assignment cannot be a tuple", node.value)
+
         target = get_exact_type_from_node(node.target)
+
         validate_expected_type(node.value, target)
-        if self.func.mutability <= StateMutability.VIEW and target.location == DataLocation.STORAGE:
-            raise StateAccessViolation(
-                f"Cannot modify storage in a {self.func.mutability.value} function", node
-            )
-        target.validate_modification(node)
+        target.validate_modification(node, self.func.mutability)
+
         self.expr_visitor.visit(node.value)
 
     def visit_AugAssign(self, node):
         if isinstance(node.value, vy_ast.Tuple):
             raise StructureException("Right-hand side of assignment cannot be a tuple", node.value)
+
         target = get_exact_type_from_node(node.target)
+
         validate_expected_type(node.value, target)
-        if self.func.mutability <= StateMutability.VIEW and target.location == DataLocation.STORAGE:
-            raise StateAccessViolation(
-                f"Cannot modify storage in a {self.func.mutability.value} function", node
-            )
-        target.validate_modification(node)
+        target.validate_modification(node, self.func.mutability)
+
         self.expr_visitor.visit(node.value)
 
     def visit_Raise(self, node):
@@ -463,7 +461,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                 )
 
         if isinstance(fn_type, MemberFunctionDefinition) and fn_type.is_modifying:
-            fn_type.underlying_type.validate_modification(node)
+            fn_type.underlying_type.validate_modification(node, self.func.mutability)
 
         return_value = fn_type.fetch_call_return(node.value)
         if (

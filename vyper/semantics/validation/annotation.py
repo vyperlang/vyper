@@ -202,7 +202,7 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
         if isinstance(base_type, BaseTypeDefinition):
             # in the vast majority of cases `base_type` is a type definition,
             # however there are some edge cases with args to builtin functions
-            self.visit(node.slice, base_type.get_index_type(node.slice.value))
+            self.visit(node.slice, base_type.get_subscripted_type(node.slice.value))
         self.visit(node.value, base_type)
 
     def visit_Tuple(self, node, type_):

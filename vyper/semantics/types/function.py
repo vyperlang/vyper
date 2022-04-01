@@ -16,7 +16,7 @@ from vyper.exceptions import (
 )
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.bases import BaseTypeDefinition, DataLocation, StorageSlot
-from vyper.semantics.types.indexable.sequence import DynamicArrayDefinition, TupleDefinition
+from vyper.semantics.types.indexable.sequence import TupleDefinition
 from vyper.semantics.types.utils import (
     StringEnum,
     check_kwargable,
@@ -520,13 +520,17 @@ class MemberFunctionDefinition(BaseTypeDefinition):
         name: the name of this method. ex. "append"
         arg_types: the argument types this method accepts. ex. [int128]
         return_type: the return type of this method. ex. None
-        is_modifying: whether this method modifies the object it is attached to. ex. True
     """
 
     _is_callable = True
 
     def __init__(
-            self, underlying_type: BaseTypeDefinition, name: str, arg_types: List[BaseTypeDefinition], return_type: BaseTypeDefinition, is_modifying: bool
+        self,
+        underlying_type: BaseTypeDefinition,
+        name: str,
+        arg_types: List[BaseTypeDefinition],
+        return_type: Optional[BaseTypeDefinition],
+        is_modifying: bool,
     ) -> None:
         super().__init__(DataLocation.UNSET)
         self.underlying_type = underlying_type
