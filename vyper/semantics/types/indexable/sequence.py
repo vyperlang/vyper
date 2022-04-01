@@ -218,7 +218,9 @@ class DynamicArrayPrimitive(BasePrimitive):
                 node,
             )
 
-        value_type = get_type_from_annotation(node.slice.value.elements[0], location, is_constant, is_public, is_immutable)
+        value_type = get_type_from_annotation(
+            node.slice.value.elements[0], location, is_constant, is_public, is_immutable
+        )
 
         if isinstance(value_type, (BytesArrayDefinition, StringDefinition)):
             raise StructureException(f"{value_type._id} arrays are not supported", node)

@@ -3,13 +3,12 @@ import itertools
 import pytest
 
 from vyper.exceptions import (
-    ArrayIndexException,
     ArgumentException,
+    ArrayIndexException,
     ImmutableViolation,
-    StateAccessViolation,
-    InvalidLiteral,
     InvalidType,
     OverflowException,
+    StateAccessViolation,
     StructureException,
     TypeMismatch,
 )
@@ -1032,38 +1031,53 @@ def foo() -> DynArray[{subtyp}, 3]:
 
 
 invalid_appends_pops = [
-    ("""
+    (
+        """
 @external
 def foo() -> DynArray[uint256, 3]:
     x: DynArray[uint256, 3] = []
     x.append()
-    """, ArgumentException),
-    ("""
+    """,
+        ArgumentException,
+    ),
+    (
+        """
 @external
 def foo() -> DynArray[uint256, 3]:
     x: DynArray[uint256, 3] = []
     x.append(1,2)
-    """, ArgumentException),
-    ("""
+    """,
+        ArgumentException,
+    ),
+    (
+        """
 @external
 def foo() -> DynArray[uint256, 3]:
     x: DynArray[uint256, 3] = []
     x.pop(1)
-    """, ArgumentException),
-    ("""
+    """,
+        ArgumentException,
+    ),
+    (
+        """
 @external
 def foo(x: DynArray[uint256, 3]) -> DynArray[uint256, 3]:
     x.append(1)
     return x
-    """, ImmutableViolation),
-    ("""
+    """,
+        ImmutableViolation,
+    ),
+    (
+        """
 foo: DynArray[uint256, 3]
 @external
 @view
 def bar() -> DynArray[uint256, 3]:
     self.foo.append(1)
     return self.foo
-    """, StateAccessViolation),
+    """,
+        StateAccessViolation,
+    ),
 ]
 
 

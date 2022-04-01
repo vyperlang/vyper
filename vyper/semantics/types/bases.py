@@ -435,7 +435,6 @@ class BaseTypeDefinition:
         """
         raise StructureException(f"Type '{self}' does not support indexing", node)
 
-
     def get_member(self, key: str, node: vy_ast.Attribute) -> "BaseTypeDefinition":
         """
         Validate an attribute reference and return the given type for the member.
