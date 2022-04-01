@@ -336,6 +336,10 @@ class ContractFunction(BaseTypeDefinition):
         # return types
         if node.returns is None:
             return_type = None
+        elif node.name == "__init__":
+            raise FunctionDeclarationException(
+                "Constructor may not have a return type", node.returns
+            )
         elif isinstance(node.returns, (vy_ast.Name, vy_ast.Call, vy_ast.Subscript)):
             return_type = get_type_from_annotation(node.returns, location=DataLocation.MEMORY)
         elif isinstance(node.returns, vy_ast.Tuple):
