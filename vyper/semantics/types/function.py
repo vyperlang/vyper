@@ -16,7 +16,7 @@ from vyper.exceptions import (
 )
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.bases import BaseTypeDefinition, DataLocation, StorageSlot
-from vyper.semantics.types.indexable.sequence import DynamicArrayDefinition, TupleDefinition
+from vyper.semantics.types.indexable.sequence import TupleDefinition
 from vyper.semantics.types.utils import (
     StringEnum,
     check_kwargable,
@@ -512,34 +512,45 @@ class MemberFunctionDefinition(BaseTypeDefinition):
     Member function type definition.
 
     This class has no corresponding primitive.
+
+    (examples for (x <DynArray[int128, 3]>).append(1))
+
+    Arguments:
+        underlying_type: the type this method is attached to. ex. DynArray[int128, 3]
+        name: the name of this method. ex. "append"
+        arg_types: the argument types this method accepts. ex. [int128]
+        return_type: the return type of this method. ex. None
     """
 
     _is_callable = True
 
     def __init__(
-        self, underlying_type: BaseTypeDefinition, name: str, min_arg_count: int, max_arg_count: int
+        self,
+        underlying_type: BaseTypeDefinition,
+        name: str,
+        arg_types: List[BaseTypeDefinition],
+        return_type: Optional[BaseTypeDefinition],
+        is_modifying: bool,
     ) -> None:
         super().__init__(DataLocation.UNSET)
         self.underlying_type = underlying_type
         self.name = name
-        self.min_arg_count = min_arg_count
-        self.max_arg_count = max_arg_count
+        self.arg_types = arg_types
+        self.return_type = return_type
+        self.is_modifying = is_modifying
 
     def __repr__(self):
         return f"{self.underlying_type._id} member function '{self.name}'"
 
     def fetch_call_return(self, node: vy_ast.Call) -> Optional[BaseTypeDefinition]:
-        validate_call_args(node, (self.min_arg_count, self.max_arg_count))
+        validate_call_args(node, len(self.arg_types))
 
-        if isinstance(self.underlying_type, DynamicArrayDefinition):
-            if self.name == "append":
-                return None
+        assert len(node.args) == len(self.arg_types)  # validate_call_args postcondition
+        for arg, expected_type in zip(node.args, self.arg_types):
+            # CMC 2022-04-01 this should probably be in the validation module
+            validate_expected_type(arg, expected_type)
 
-            elif self.name == "pop":
-                value_type = self.underlying_type.value_type
-                return value_type
-
-        raise CallViolation("Function does not exist on given type", node)
+        return self.return_type
 
 
 def _generate_method_id(name: str, canonical_abi_types: List[str]) -> Dict[str, int]:

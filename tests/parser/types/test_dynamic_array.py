@@ -3,9 +3,12 @@ import itertools
 import pytest
 
 from vyper.exceptions import (
+    ArgumentException,
     ArrayIndexException,
+    ImmutableViolation,
     InvalidType,
     OverflowException,
+    StateAccessViolation,
     StructureException,
     TypeMismatch,
 )
@@ -995,6 +998,92 @@ def foo(xs: DynArray[uint256, 5]) -> uint256:
         lambda xs: None,
     ),
 ]
+
+
+@pytest.mark.parametrize("subtyp", ["uint8", "int128", "uint256"])
+def test_append_literal(get_contract, subtyp):
+    data = [1, 2, 3]
+    if subtyp == "int128":
+        data = [-1, 2, 3]
+    code = f"""
+@external
+def foo() -> DynArray[{subtyp}, 3]:
+    x: DynArray[{subtyp}, 3] = []
+    x.append({data[0]})
+    x.append({data[1]})
+    x.append({data[2]})
+    return x
+    """
+    c = get_contract(code)
+    assert c.foo() == data
+
+
+@pytest.mark.parametrize("subtyp,lit", [("uint8", 256), ("uint256", -1), ("int128", 2 ** 127)])
+def test_append_invalid_literal(get_contract, assert_compile_failed, subtyp, lit):
+    code = f"""
+@external
+def foo() -> DynArray[{subtyp}, 3]:
+    x: DynArray[{subtyp}, 3] = []
+    x.append({lit})
+    return x
+    """
+    assert_compile_failed(lambda: get_contract(code), InvalidType)
+
+
+invalid_appends_pops = [
+    (
+        """
+@external
+def foo() -> DynArray[uint256, 3]:
+    x: DynArray[uint256, 3] = []
+    x.append()
+    """,
+        ArgumentException,
+    ),
+    (
+        """
+@external
+def foo() -> DynArray[uint256, 3]:
+    x: DynArray[uint256, 3] = []
+    x.append(1,2)
+    """,
+        ArgumentException,
+    ),
+    (
+        """
+@external
+def foo() -> DynArray[uint256, 3]:
+    x: DynArray[uint256, 3] = []
+    x.pop(1)
+    """,
+        ArgumentException,
+    ),
+    (
+        """
+@external
+def foo(x: DynArray[uint256, 3]) -> DynArray[uint256, 3]:
+    x.append(1)
+    return x
+    """,
+        ImmutableViolation,
+    ),
+    (
+        """
+foo: DynArray[uint256, 3]
+@external
+@view
+def bar() -> DynArray[uint256, 3]:
+    self.foo.append(1)
+    return self.foo
+    """,
+        StateAccessViolation,
+    ),
+]
+
+
+@pytest.mark.parametrize("code,exception_type", invalid_appends_pops)
+def test_invalid_append_pop(get_contract, assert_compile_failed, code, exception_type):
+    assert_compile_failed(lambda: get_contract(code), exception_type)
 
 
 @pytest.mark.parametrize("code,check_result", append_pop_tests)
