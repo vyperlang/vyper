@@ -126,7 +126,7 @@ def _fixed_to_int(arg, out_typ):
     if arg_lo < out_lo:
         arg = ["clampge", arg, out_lo]
     if arg_hi > out_hi:
-        arg = ["clample", arg, out_hi]
+        arg = ["uclample", arg, out_hi]
 
     arg = IRnode.from_list(["sdiv", arg, 10 ** decimals], typ=out_typ)
 
@@ -149,7 +149,7 @@ def _int_to_fixed(arg, out_typ):
     if arg_lo < out_lo:
         x = ["clampge", arg, out_lo]
     if arg_hi > out_hi:
-        x = ["clample", arg, out_hi]
+        x = ["uclample", arg, out_hi]
 
     return IRnode.from_list(["mul", arg, 10 ** decimals], typ=out_typ)
 
@@ -166,8 +166,7 @@ def _int_to_int(arg, out_info, arg_info):
 
     if arg_hi > out_hi:
         # CHECK: uint256 -> int128 - arg_lo, out_lo = 2**256 - 1, 0
-        CLAMPLE = "clample" if arg_info.is_signed else "uclample"
-        arg = [CLAMPLE, arg, out_hi]
+        arg = ["uclample", arg, out_hi]
 
     return arg
 
