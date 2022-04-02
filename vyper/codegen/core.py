@@ -21,6 +21,13 @@ from vyper.evm.opcodes import version_check
 from vyper.exceptions import CompilerPanic, StructureException, TypeCheckFailure, TypeMismatch
 from vyper.utils import GAS_CALLDATACOPY_WORD, GAS_CODECOPY_WORD, GAS_IDENTITY, GAS_IDENTITYWORD
 
+# below how many bytes should we unroll vs loop or staticcall?
+UNROLL_WORD_BYTES_TUNING = 8 * 32
+
+
+# above how many words should we roll an array copy operation?
+ROLL_ARRAY_TUNING = 5
+
 
 # propagate revert message when calls to external contracts fail
 def check_external_call(call_ir):
@@ -89,10 +96,6 @@ def dynarray_data_ptr(ptr):
         raise CompilerPanic("tried to modify non-pointer type")
     assert isinstance(ptr.typ, DArrayType)
     return add_ofst(ptr, ptr.location.word_scale)
-
-
-# below how many bytes should we unroll vs loop or staticcall?
-UNROLL_WORD_BYTES_TUNING = 8 * 32
 
 
 # Copy bytes
@@ -741,9 +744,6 @@ def make_setter(left: IRnode, right: IRnode) -> IRnode:
             return _finalize(_complex_make_setter(left, right))
 
         raise CompilerPanic("unreachable type")  # pragma: notest
-
-
-ROLL_ARRAY_TUNING = 5
 
 
 def _ir_loop_make_setter(dst, src, n, n_bound):
