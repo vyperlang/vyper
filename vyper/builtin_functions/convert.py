@@ -119,10 +119,9 @@ def _fixed_to_int(arg, out_typ):
 
     arg_lo, arg_hi = arg_info.bounds
 
-    arg_lo = arg_lo * 10 ** decimals
-    arg_hi = arg_hi * 10 ** decimals
-
     out_lo, out_hi = out_info.bounds
+    out_lo = out_lo * 10 ** decimals
+    out_hi = out_hi * 10 ** decimals
 
     if arg_lo < out_lo:
         arg = ["clampge", arg, out_lo]
@@ -135,24 +134,24 @@ def _fixed_to_int(arg, out_typ):
 
 
 # promote from int to fixed point decimal
-def _int_to_fixed(x, out_typ):
-    info = out_typ._decimal_info
+def _int_to_fixed(arg, out_typ):
+    out_info = out_typ._decimal_info
 
-    decimals = info.decimals
+    decimals = out_info.decimals
 
-    out_lo, out_hi = info.bounds
+    out_lo, out_hi = out_info.bounds
 
     out_lo = round_towards_zero(decimal.Decimal(out_lo) / 10 ** decimals)
     out_hi = round_towards_zero(decimal.Decimal(out_hi) / 10 ** decimals)
 
-    arg_lo, arg_hi = x._int_info.bounds
+    arg_lo, arg_hi = arg.typ._int_info.bounds
 
     if arg_lo < out_lo:
-        x = ["clampge", out_lo]
+        x = ["clampge", arg, out_lo]
     if arg_hi > out_hi:
-        x = ["clample", out_hi]
+        x = ["clample", arg, out_hi]
 
-    return IRnode.from_list(["mul", x, 10 ** decimals], typ=out_typ)
+    return IRnode.from_list(["mul", arg, 10 ** decimals], typ=out_typ)
 
 
 # clamp for dealing with conversions between int types (from arg to dst)
@@ -162,10 +161,13 @@ def _int_to_int(arg, out_info, arg_info):
     out_lo, out_hi = out_info.bounds
 
     if arg_lo < out_lo:
+        # CHECK: uint256 -> int128 - arg_lo, out_lo = 0, -2**127
         arg = ["clampge", arg, out_lo]
 
     if arg_hi > out_hi:
-        arg = ["clample", arg, out_hi]
+        # CHECK: uint256 -> int128 - arg_lo, out_lo = 2**256 - 1, 0
+        CLAMPLE = "clample" if arg_info.is_signed else "uclample"
+        arg = [CLAMPLE, arg, out_hi]
 
     return arg
 
