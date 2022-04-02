@@ -788,8 +788,9 @@ def _dynarray_make_setter(dst, src):
         if _is_list_literal(src):
             # is literal list, generate instructions
             # to set every element of the lhs
-            assert isinstance(count.value, int), src
-            ret.append(_unroll_loop_make_setter(dst, src, range(count.value)))
+            assert isinstance(count.value, int)
+            keys = [IRnode.from_list(i, typ="uint256") for i in range(count.value)]
+            ret.append(_unroll_loop_make_setter(dst, src, keys))
             return IRnode.from_list(ret)
 
         # for ABI-encoded dynamic data, we must loop to unpack, since
