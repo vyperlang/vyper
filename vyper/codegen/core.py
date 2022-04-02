@@ -757,7 +757,7 @@ def _ir_loop_make_setter(dst, src, n, n_bound):
     loop_body.annotation = f"{dst}[i] = {src}[i]"
 
     ret = ["repeat", i, 0, n, n_bound, loop_body]
-    return IRnode.from_list(ret, annotation="__loop_make_setter")
+    return IRnode.from_list(ret)
 
 
 # works for static arrays, and also tuples. works for literals.
@@ -769,7 +769,7 @@ def _unroll_loop_make_setter(dst, src, keys):
         src_i = get_element_ptr(src, k, array_bounds_check=False)
         ret.append(make_setter(dst_i, src_i))
 
-    return IRnode.from_list(ret, annotation="__seq_make_setter")
+    return IRnode.from_list(ret)
 
 
 def _dynarray_make_setter(dst, src):
