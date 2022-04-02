@@ -700,21 +700,22 @@ def make_setter(left: IRnode, right: IRnode) -> IRnode:
     ann_r = right.typ if right.annotation is None else right.annotation
     ann = f"_make_setter({ann_l}, {ann_r})"
 
+    # Basic types
+    if isinstance(left.typ, BaseType):
+        enc = right.encoding  # unwrap_location butchers encoding
+        right = unwrap_location(right)
+        # TODO rethink/streamline the needs_clamp logic
+        if needs_clamp(right.typ, enc):
+            right = clamp_basetype(right)
+
+        return IRnode.from_list(STORE(left, right), annotation=ann)
+
+    # pointer/complex types
     with left.cache_when_complex("_L") as (b1, left), right.cache_when_complex("_R") as (b2, right):
 
         def _finalize(ret):
             ret = IRnode.from_list(ret, annotation=ann)
             return b1.resolve(b2.resolve(ret))
-
-        # Basic types
-        if isinstance(left.typ, BaseType):
-            enc = right.encoding  # unwrap_location butchers encoding
-            right = unwrap_location(right)
-            # TODO rethink/streamline the needs_clamp logic
-            if needs_clamp(right.typ, enc):
-                right = clamp_basetype(right)
-
-            return _finalize(STORE(left, right))
 
         # Byte arrays
         if isinstance(left.typ, ByteArrayLike):
