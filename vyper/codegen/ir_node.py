@@ -320,7 +320,11 @@ class IRnode:
                 # a named IR variable which represents the
                 # output of `ir_node`
                 self.ir_var = IRnode.from_list(
-                    name, typ=ir_node.typ, location=ir_node.location, encoding=ir_node.encoding, annotation=ir_node.annotation
+                    name,
+                    typ=ir_node.typ,
+                    location=ir_node.location,
+                    encoding=ir_node.encoding,
+                    annotation=ir_node.annotation,
                 )
 
             def __enter__(self):
