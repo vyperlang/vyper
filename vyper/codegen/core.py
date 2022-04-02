@@ -260,28 +260,15 @@ def getpos(node):
     )
 
 
-# TODO since this is always(?) used as add_ofst(ptr, n*ptr.location.word_scale)
-# maybe the API should be `add_words_to_ofst(ptr, n)` and handle the
-# word_scale multiplication inside
+# add an offset to a pointer, keeping location and encoding info
 def add_ofst(ptr, ofst):
-    ofst = IRnode.from_list(ofst)
-    if isinstance(ptr.value, int) and isinstance(ofst.value, int):
-        # NOTE: duplicate with optimizer rule (but removing this makes a
-        # test on --no-optimize mode use too much gas)
-        ret = ptr.value + ofst.value
-    else:
-        ret = ["add", ptr, ofst]
+    ret = ["add", ptr, ofst]
     return IRnode.from_list(ret, location=ptr.location, encoding=ptr.encoding)
 
 
 # shorthand util
 def _mul(x, y):
-    x, y = IRnode.from_list(x), IRnode.from_list(y)
-    # NOTE: similar deal: duplicate with optimizer rule
-    if isinstance(x.value, int) and isinstance(y.value, int):
-        ret = x.value * y.value
-    else:
-        ret = ["mul", x, y]
+    ret = ["mul", x, y]
     return IRnode.from_list(ret)
 
 
