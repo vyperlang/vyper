@@ -126,7 +126,8 @@ def _fixed_to_int(arg, out_typ):
     if arg_lo < out_lo:
         arg = ["clampge", arg, out_lo]
     if arg_hi > out_hi:
-        arg = ["uclample", arg, out_hi]
+        CLAMPLE = "uclample" if arg_info.is_signed != out_info.is_signed else "clample"
+        arg = [CLAMPLE, arg, out_hi]
 
     arg = IRnode.from_list(["sdiv", arg, 10 ** decimals], typ=out_typ)
 
@@ -136,6 +137,7 @@ def _fixed_to_int(arg, out_typ):
 # promote from int to fixed point decimal
 def _int_to_fixed(arg, out_typ):
     out_info = out_typ._decimal_info
+    arg_info = arg.typ._int_info
 
     decimals = out_info.decimals
 
@@ -144,18 +146,21 @@ def _int_to_fixed(arg, out_typ):
     out_lo = round_towards_zero(decimal.Decimal(out_lo) / 10 ** decimals)
     out_hi = round_towards_zero(decimal.Decimal(out_hi) / 10 ** decimals)
 
-    arg_lo, arg_hi = arg.typ._int_info.bounds
+    arg_lo, arg_hi = arg_info.bounds
 
     if arg_lo < out_lo:
         x = ["clampge", arg, out_lo]
     if arg_hi > out_hi:
-        x = ["uclample", arg, out_hi]
+        CLAMPLE = "uclample" if arg_info.is_signed != out_info.is_signed else "clample"
+        arg = [CLAMPLE, arg, out_hi]
 
     return IRnode.from_list(["mul", arg, 10 ** decimals], typ=out_typ)
 
 
 # clamp for dealing with conversions between int types (from arg to dst)
-def _int_to_int(arg, out_info, arg_info):
+def _int_to_int(arg, out_info):
+    arg_info = arg.typ._int_info
+
     arg_lo, arg_hi = arg_info.bounds
 
     out_lo, out_hi = out_info.bounds
@@ -166,7 +171,8 @@ def _int_to_int(arg, out_info, arg_info):
 
     if arg_hi > out_hi:
         # CHECK: uint256 -> int128 - arg_lo, out_lo = 2**256 - 1, 0
-        arg = ["uclample", arg, out_hi]
+        CLAMPLE = "uclample" if arg_info.is_signed != out_info.is_signed else "clample"
+        arg = [CLAMPLE, arg, out_hi]
 
     return arg
 
@@ -256,8 +262,7 @@ def to_int(expr, arg, out_typ):
         arg = _fixed_to_int(arg, out_typ)
 
     elif is_integer_type(arg.typ):
-        arg_info = arg.typ._int_info
-        arg = _int_to_int(arg, int_info, arg_info)
+        arg = _int_to_int(arg, int_info)
 
     elif is_base_type(arg.typ, "address"):
         if int_info.is_signed:
@@ -272,6 +277,8 @@ def to_int(expr, arg, out_typ):
 @_input_types("int", "bool", "bytes_m", "bytes")
 def to_decimal(expr, arg, out_typ):
     _check_bytes(expr, arg, out_typ, 32)
+
+    out_info = out_typ._decimal_info
 
     if isinstance(expr, vy_ast.Constant):
         return _literal_decimal(expr, out_typ)
@@ -305,7 +312,8 @@ def to_decimal(expr, arg, out_typ):
         return IRnode.from_list(arg, typ=out_typ)
 
     elif is_base_type(arg.typ, "bool"):
-        arg = _int_to_fixed(arg, out_typ)
+        # TODO: consider adding _int_info to bool so we can use _int_to_fixed
+        arg = ["mul", arg, 10**out_info.decimals]
         return IRnode.from_list(arg, typ=out_typ)
     else:
         raise CompilerPanic("unreachable")  # pragma: notest
