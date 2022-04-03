@@ -167,10 +167,20 @@ def _int_to_int(arg, out_typ):
     arg_info = arg.typ._int_info
     out_info = out_typ._int_info
 
-    # TODO: this generates not very good code size, we can probably do better
-    clamped_arg = _clamp_numeric_convert(arg, arg_info.bounds, out_info.bounds, arg_info.is_signed)
+    # do the same thing as
+    # _clamp_numeric_convert(arg, arg_info.bounds, out_info.bounds, arg_info.is_signed)
+    # but with better code size.
+    if arg_info.is_signed and not out_info.is_signed:
+        arg = IRnode.from_list(["clampge", arg, 0])
+        if out_info.bits < arg_info.bits:
+            arg = int_clamp(arg, out_info.bits, True)
+    elif not arg_info.is_signed and out_info.is_signed:
+        # e.g., (clample arg (2**127 - 1))
+        arg = int_clamp(arg, out_info.bits - 1, signed=False)
+    elif out_info.bits < 256 and out_info.bits < arg_info.bits:
+        arg = int_clamp(arg, out_info.bits, out_info.is_signed)
 
-    return IRnode.from_list(clamped_arg, typ=out_typ)
+    return IRnode.from_list(arg, typ=out_typ)
 
 
 def _check_bytes(expr, arg, output_type, max_bytes_allowed):
