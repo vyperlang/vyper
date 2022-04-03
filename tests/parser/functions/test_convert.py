@@ -788,12 +788,12 @@ def generate_test_cases_for_invalid_dislike_types_conversion():
 
 @pytest.mark.parametrize(
     "input_values",
-    generate_test_cases_for_same_type_conversion()
-    + generate_test_cases_for_byte_array_type_mismatch()
-    + generate_test_cases_for_invalid_numeric_conversion()
-    + generate_test_cases_for_clamped_address_conversion()
-    + generate_test_cases_for_decimal_overflow()
-    + generate_test_cases_for_invalid_dislike_types_conversion(),
+    # generate_test_cases_for_same_type_conversion()
+    # + generate_test_cases_for_byte_array_type_mismatch()
+    generate_test_cases_for_invalid_numeric_conversion()
+    # + generate_test_cases_for_clamped_address_conversion()
+    # + generate_test_cases_for_decimal_overflow()
+    # + generate_test_cases_for_invalid_dislike_types_conversion(),
 )
 @pytest.mark.fuzzing
 def test_invalid_convert(
@@ -866,10 +866,14 @@ def foo(bar: {in_type}) -> {out_type}:
         c3 = get_contract_with_gas_estimation(contract_3)
         if in_type == "decimal":
 
-            # Overflow decimal throws ValidationError because it cannot be validated
-            # based on ABI type "fixed168x10"
-            with pytest.raises(ValidationError):
+            if SizeLimits.MIN_AST_DECIMAL <= Decimal(in_value) <= SizeLimits.MAX_AST_DECIMAL:
                 assert_tx_failed(lambda: c3.foo(Decimal(in_value)))
+
+            else:
+                # Overflow decimal throws ValidationError because it cannot be validated
+                # based on ABI type "fixed168x10"
+                with pytest.raises(ValidationError):
+                    assert_tx_failed(lambda: c3.foo(Decimal(in_value)))
 
         else:
             assert_tx_failed(lambda: c3.foo(in_value))
