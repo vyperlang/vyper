@@ -134,6 +134,163 @@ def foo():
     assert_compile_failed(lambda: get_contract(code))
 
 
+def test_abi_encode_dynarray(get_contract, abi_encode):
+    code = """
+@external
+def abi_encode(d: DynArray[uint256, 3], ensure_tuple: bool, include_method_id: bool) -> Bytes[164]:
+    if ensure_tuple:
+        if not include_method_id:
+            return _abi_encode(d) # default ensure_tuple=True
+        return _abi_encode(d, method_id=0xdeadbeef)
+    else:
+        if not include_method_id:
+            return _abi_encode(d, ensure_tuple=False)
+        return _abi_encode(d, ensure_tuple=False, method_id=0xdeadbeef)
+    """
+    c = get_contract(code)
+
+    method_id = 0xDEADBEEF .to_bytes(4, "big")
+
+    arg = [123, 456, 789]
+    assert c.abi_encode(arg, False, False).hex() == abi_encode("uint256[]", arg).hex()
+    assert c.abi_encode(arg, True, False).hex() == abi_encode("(uint256[])", (arg,)).hex()
+    assert c.abi_encode(arg, False, True).hex() == (method_id + abi_encode("uint256[]", arg)).hex()
+    assert (
+        c.abi_encode(arg, True, True).hex() == (method_id + abi_encode("(uint256[])", (arg,))).hex()
+    )
+
+
+nested_2d_array_args = [
+    [[123, 456, 789], [234, 567, 891], [345, 678, 912]],
+    [[], [], []],
+    [[123, 456], [234, 567, 891]],
+    [[123, 456, 789], [234, 567], [345]],
+    [[123], [], [345, 678, 912]],
+    [[], [], [345, 678, 912]],
+    [[], [], [345]],
+    [[], [234], []],
+    [[], [234, 567, 891], []],
+    [[]],
+    [[123], [234]],
+]
+
+
+@pytest.mark.parametrize("args", nested_2d_array_args)
+def test_abi_encode_nested_dynarray(get_contract, abi_encode, args):
+    code = """
+@external
+def abi_encode(
+    d: DynArray[DynArray[uint256, 3], 3], ensure_tuple: bool, include_method_id: bool
+) -> Bytes[548]:
+    if ensure_tuple:
+        if not include_method_id:
+            return _abi_encode(d) # default ensure_tuple=True
+        return _abi_encode(d, method_id=0xdeadbeef)
+    else:
+        if not include_method_id:
+            return _abi_encode(d, ensure_tuple=False)
+        return _abi_encode(d, ensure_tuple=False, method_id=0xdeadbeef)
+    """
+    c = get_contract(code)
+
+    method_id = 0xDEADBEEF .to_bytes(4, "big")
+
+    assert c.abi_encode(args, False, False).hex() == abi_encode("uint256[][]", args).hex()
+    assert c.abi_encode(args, True, False).hex() == abi_encode("(uint256[][])", (args,)).hex()
+    assert (
+        c.abi_encode(args, False, True).hex() == (method_id + abi_encode("uint256[][]", args)).hex()
+    )
+    assert (
+        c.abi_encode(args, True, True).hex()
+        == (method_id + abi_encode("(uint256[][])", (args,))).hex()
+    )
+
+
+nested_3d_array_args = [
+    [
+        [[123, 456, 789], [234, 567, 891], [345, 678, 912]],
+        [[234, 567, 891], [345, 678, 912], [123, 456, 789]],
+        [[345, 678, 912], [123, 456, 789], [234, 567, 891]],
+    ],
+    [
+        [[123, 789], [234], [345, 678, 912]],
+        [[234, 567], [345, 678]],
+        [[345]],
+    ],
+    [
+        [[123], [234, 567, 891]],
+        [[234]],
+    ],
+    [
+        [[], [], []],
+        [[], [], []],
+        [[], [], []],
+    ],
+    [
+        [[123, 456, 789], [234, 567, 891], [345, 678, 912]],
+        [[234, 567, 891], [345, 678, 912]],
+        [[]],
+    ],
+    [
+        [[]],
+        [[]],
+        [[234]],
+    ],
+    [
+        [[123]],
+        [[]],
+        [[]],
+    ],
+    [
+        [[]],
+        [[123]],
+        [[]],
+    ],
+    [
+        [[123, 456, 789], [234, 567]],
+        [[234]],
+        [[567], [912], [345]],
+    ],
+    [
+        [[]],
+    ],
+]
+
+
+@pytest.mark.parametrize("args", nested_3d_array_args)
+def test_abi_encode_nested_dynarray_2(get_contract, abi_encode, args):
+    code = """
+@external
+def abi_encode(
+    d: DynArray[DynArray[DynArray[uint256, 3], 3], 3],
+    ensure_tuple: bool,
+    include_method_id: bool
+) -> Bytes[1700]:
+    if ensure_tuple:
+        if not include_method_id:
+            return _abi_encode(d) # default ensure_tuple=True
+        return _abi_encode(d, method_id=0xdeadbeef)
+    else:
+        if not include_method_id:
+            return _abi_encode(d, ensure_tuple=False)
+        return _abi_encode(d, ensure_tuple=False, method_id=0xdeadbeef)
+    """
+    c = get_contract(code)
+
+    method_id = 0xDEADBEEF .to_bytes(4, "big")
+
+    assert c.abi_encode(args, False, False).hex() == abi_encode("uint256[][][]", args).hex()
+    assert c.abi_encode(args, True, False).hex() == abi_encode("(uint256[][][])", (args,)).hex()
+    assert (
+        c.abi_encode(args, False, True).hex()
+        == (method_id + abi_encode("uint256[][][]", args)).hex()
+    )
+    assert (
+        c.abi_encode(args, True, True).hex()
+        == (method_id + abi_encode("(uint256[][][])", (args,))).hex()
+    )
+
+
 def test_side_effects_evaluation(get_contract, abi_encode):
     contract_1 = """
 counter: uint256
@@ -186,3 +343,42 @@ def foo(bs: Bytes[32]) -> (uint256, Bytes[96]):
     c = get_contract(code)
     bs = "0" * 32
     assert c.foo(bs) == [2 ** 256 - 1, abi_encode("(bytes)", (bs,))]
+
+
+def test_abi_encode_private_dynarray(get_contract, abi_encode):
+    code = """
+bytez: Bytes[160]
+@internal
+def _foo(bs: DynArray[uint256, 3]):
+    self.bytez = _abi_encode(bs)
+@external
+def foo(bs: DynArray[uint256, 3]) -> (uint256, Bytes[160]):
+    dont_clobber_me: uint256 = MAX_UINT256
+    self._foo(bs)
+    return dont_clobber_me, self.bytez
+    """
+    c = get_contract(code)
+    bs = [1, 2, 3]
+    assert c.foo(bs) == [2 ** 256 - 1, abi_encode("(uint256[])", (bs,))]
+
+
+def test_abi_encode_private_nested_dynarray(get_contract, abi_encode):
+    code = """
+bytez: Bytes[1696]
+@internal
+def _foo(bs: DynArray[DynArray[DynArray[uint256, 3], 3], 3]):
+    self.bytez = _abi_encode(bs)
+
+@external
+def foo(bs: DynArray[DynArray[DynArray[uint256, 3], 3], 3]) -> (uint256, Bytes[1696]):
+    dont_clobber_me: uint256 = MAX_UINT256
+    self._foo(bs)
+    return dont_clobber_me, self.bytez
+    """
+    c = get_contract(code)
+    bs = [
+        [[1, 2, 3], [4, 5, 6], [7, 8, 9]],
+        [[10, 11, 12], [13, 14, 15], [16, 17, 18]],
+        [[19, 20, 21], [22, 23, 24], [25, 26, 27]],
+    ]
+    assert c.foo(bs) == [2 ** 256 - 1, abi_encode("(uint256[][][])", (bs,))]

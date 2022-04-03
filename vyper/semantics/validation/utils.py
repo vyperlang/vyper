@@ -270,10 +270,15 @@ class _ExprTypeChecker:
         # index access, e.g. `foo[1]`
         if isinstance(node.value, vy_ast.List):
             types_list = self.get_possible_types_from_node(node.value)
-            return [base_type.get_index_type(node.slice.value) for base_type in types_list]
+            ret = []
+            for t in types_list:
+                t.validate_index_type(node.slice.value)
+                ret.append(t.get_subscripted_type(node.slice.value))
+            return ret
 
-        base_type = self.get_exact_type_from_node(node.value)
-        return [base_type.get_index_type(node.slice.value)]
+        t = self.get_exact_type_from_node(node.value)
+        t.validate_index_type(node.slice.value)
+        return [t.get_subscripted_type(node.slice.value)]
 
     def types_from_Tuple(self, node):
         types_list = [self.get_exact_type_from_node(i) for i in node.elements]
