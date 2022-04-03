@@ -145,8 +145,9 @@ def _int_to_fixed(arg, out_typ):
     out_lo, out_hi = out_info.bounds
 
     arg_lo, arg_hi = arg_info.bounds
-    arg_lo = arg_lo * DIVISOR
-    arg_hi = arg_hi * DIVISOR
+
+    out_lo = round_towards_zero(decimal.Decimal(out_lo) / DIVISOR)
+    out_hi = round_towards_zero(decimal.Decimal(out_hi) / DIVISOR)
 
     clamped_arg = arg
 
