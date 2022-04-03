@@ -167,7 +167,7 @@ def _int_to_int(arg, out_info):
 
     if arg_lo < out_lo:
         CLAMPGE = "clampge" if arg_info.is_signed else "uclampge"
-        arg = ["clampge", arg, out_lo]
+        arg = [CLAMPGE, arg, out_lo]
 
     if arg_hi > out_hi:
         CLAMPLE = "clample" if arg_info.is_signed else "uclample"
