@@ -146,7 +146,7 @@ def _int_to_fixed(arg, out_typ):
 
     arg_lo, arg_hi = arg_info.bounds
     arg_lo = arg_lo * DIVISOR
-    arg_hi = arg_lo * DIVISOR
+    arg_hi = arg_hi * DIVISOR
 
     clamped_arg = arg
 
