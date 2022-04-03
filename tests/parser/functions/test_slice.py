@@ -210,6 +210,36 @@ def ret10_slice() -> Bytes[10]:
     assert c.ret10_slice() == b"A"
 
 
+def test_slice_equality(get_contract):
+    # test for equality with dirty bytes
+    code = """
+@external
+def assert_eq() -> bool:
+    dirty_bytes: String[4] = "abcd"
+    dirty_bytes = slice(dirty_bytes, 0, 3)
+    clean_bytes: String[4] = "abc"
+    return dirty_bytes == clean_bytes
+    """
+
+    c = get_contract(code)
+    assert c.assert_eq()
+
+
+def test_slice_inequality(get_contract):
+    # test for equality with dirty bytes
+    code = """
+@external
+def assert_ne() -> bool:
+    dirty_bytes: String[4] = "abcd"
+    dirty_bytes = slice(dirty_bytes, 0, 3)
+    clean_bytes: String[4] = "abcd"
+    return dirty_bytes != clean_bytes
+    """
+
+    c = get_contract(code)
+    assert c.assert_ne()
+
+
 def test_slice_convert(get_contract):
     # test slice of converting between bytes32 and Bytes
     code = """

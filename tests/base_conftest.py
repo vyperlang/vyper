@@ -85,7 +85,9 @@ CONCISE_NORMALIZERS = (_none_addr,)
 
 @pytest.fixture(scope="module")
 def tester():
-    custom_genesis = PyEVMBackend._generate_genesis_params(overrides={"gas_limit": 4500000})
+    # set absurdly high gas limit so that london basefee never adjusts
+    # (note: 2**63 - 1 is max that evm allows)
+    custom_genesis = PyEVMBackend._generate_genesis_params(overrides={"gas_limit": 10 ** 10})
     custom_genesis["base_fee_per_gas"] = 0
     backend = PyEVMBackend(genesis_parameters=custom_genesis)
     return EthereumTester(backend=backend)

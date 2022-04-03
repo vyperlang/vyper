@@ -10,6 +10,8 @@ from vyper.codegen.core import (
     STORE,
     IRnode,
     append_dyn_array,
+    check_assign,
+    dummy_node_for_type,
     get_dyn_array_count,
     get_element_ptr,
     getpos,
@@ -143,10 +145,12 @@ class Stmt:
             darray = Expr(self.stmt.func.value, self.context).ir_node
             args = [Expr(x, self.context).ir_node for x in self.stmt.args]
             if self.stmt.func.attr == "append":
+                # sanity checks
                 assert len(args) == 1
                 arg = args[0]
                 assert isinstance(darray.typ, DArrayType)
-                assert arg.typ == darray.typ.subtype
+                check_assign(dummy_node_for_type(darray.typ.subtype), dummy_node_for_type(arg.typ))
+
                 return append_dyn_array(darray, arg)
             else:
                 assert len(args) == 0

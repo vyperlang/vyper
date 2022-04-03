@@ -112,7 +112,7 @@ If the function is annotated as ``@payable``, this function is executed whenever
 .. code-block:: python
 
     event Payment:
-        amount: int128
+        amount: uint256
         sender: indexed(address)
 
     @external

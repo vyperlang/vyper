@@ -20,8 +20,10 @@ class MappingDefinition(IndexableTypeDefinition):
             and self.value_type == other.value_type
         )
 
-    def get_index_type(self, node):
+    def validate_index_type(self, node):
         validate_expected_type(node, self.key_type)
+
+    def get_subscripted_type(self, node):
         return self.value_type
 
 

@@ -5,8 +5,6 @@ from vyper import ast as vy_ast
 from vyper.address_space import DATA, IMMUTABLES, MEMORY, STORAGE
 from vyper.codegen import external_call, self_call
 from vyper.codegen.core import (
-    LOAD,
-    bytes_data_ptr,
     clamp_basetype,
     ensure_in_memory,
     get_dyn_array_count,
@@ -801,30 +799,15 @@ class Expr:
             left = Expr(self.expr.left, self.context).ir_node
             right = Expr(self.expr.right, self.context).ir_node
 
-            length_mismatch = left.typ.maxlen != right.typ.maxlen
-            left_over_32 = left.typ.maxlen > 32
-            right_over_32 = right.typ.maxlen > 32
+            left_keccak = keccak256_helper(self.expr, left, self.context)
+            right_keccak = keccak256_helper(self.expr, right, self.context)
 
-            if length_mismatch or left_over_32 or right_over_32:
-                left_keccak = keccak256_helper(self.expr, left, self.context)
-                right_keccak = keccak256_helper(self.expr, right, self.context)
-
-                if op == "eq" or op == "ne":
-                    return IRnode.from_list([op, left_keccak, right_keccak], typ="bool")
-
-                else:
-                    return
-
+            if op not in ("eq", "ne"):
+                return  # raises
             else:
-
-                def load_bytearray(side):
-                    return LOAD(bytes_data_ptr(side))
-
-                return IRnode.from_list(
-                    # CMC 2022-03-24 TODO investigate this.
-                    [op, load_bytearray(left), load_bytearray(right)],
-                    typ="bool",
-                )
+                # use hash even for Bytes[N<=32], because there could be dirty
+                # bytes past the bytes data.
+                return IRnode.from_list([op, left_keccak, right_keccak], typ="bool")
 
         # Compare other types.
         elif is_numeric_type(left.typ) and is_numeric_type(right.typ):
