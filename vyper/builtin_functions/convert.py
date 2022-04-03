@@ -110,7 +110,7 @@ def _bytes_to_num(arg, out_typ, signed):
     return IRnode.from_list(ret, annotation=annotation)
 
 
-def _clamp_numeric(arg, arg_bounds, out_bounds, signed):
+def _clamp_numeric_convert(arg, arg_bounds, out_bounds, signed):
     arg_lo, arg_hi = arg_bounds
     out_lo, out_hi = out_bounds
 
@@ -139,7 +139,7 @@ def _fixed_to_int(arg: IRnode, out_typ: BaseType) -> IRnode:
     out_lo = out_lo * DIVISOR
     out_hi = out_hi * DIVISOR
 
-    clamped_arg = _numeric_clamp(arg, arg_info.bounds, (out_lo, out_hi), arg_info.is_signed)
+    clamped_arg = _clamp_numeric_convert(arg, arg_info.bounds, (out_lo, out_hi), arg_info.is_signed)
 
     assert arg_info.is_signed, "should use unsigned div"  # stub in case we ever add ufixed
     return IRnode.from_list(["sdiv", clamped_arg, DIVISOR], typ=out_typ)
@@ -157,7 +157,7 @@ def _int_to_fixed(arg: IRnode, out_typ: BaseType) -> IRnode:
     out_lo = round_towards_zero(decimal.Decimal(out_lo) / DIVISOR)
     out_hi = round_towards_zero(decimal.Decimal(out_hi) / DIVISOR)
 
-    clamped_arg = _numeric_clamp(arg, arg_info.bounds, (out_lo, out_hi), arg_info.is_signed)
+    clamped_arg = _clamp_numeric_convert(arg, arg_info.bounds, (out_lo, out_hi), arg_info.is_signed)
 
     return IRnode.from_list(["mul", clamped_arg, DIVISOR], typ=out_typ)
 
@@ -168,7 +168,7 @@ def _int_to_int(arg: IRnode, out_typ: BaseType) -> IRnode:
     out_info = out_typ._int_info
 
     # TODO: this generates not very good code size, we can probably do better
-    clamped_arg = _numeric_clamp(arg, arg_info.bounds, out_info.bounds, arg_info.is_signed)
+    clamped_arg = _clamp_numeric_convert(arg, arg_info.bounds, out_info.bounds, arg_info.is_signed)
 
     return IRnode.from_list(clamped_arg, typ=out_typ)
 
