@@ -148,7 +148,7 @@ def _fixed_to_int(arg: IRnode, out_typ: BaseType) -> IRnode:
 # promote from int to fixed point decimal
 def _int_to_fixed(arg: IRnode, out_typ: BaseType) -> IRnode:
     arg_info = arg.typ._int_info
-    out_info = arg.typ._decimal_info
+    out_info = out_typ._decimal_info
 
     DIVISOR = 10 ** out_info.decimals
 
