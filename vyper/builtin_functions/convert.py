@@ -149,7 +149,7 @@ def _int_to_fixed(arg, out_typ):
     arg_lo, arg_hi = arg_info.bounds
 
     if arg_lo < out_lo:
-        x = ["clampge", arg, out_lo]
+        arg = ["clampge", arg, out_lo]
     if arg_hi > out_hi:
         CLAMPLE = "uclample" if arg_info.is_signed != out_info.is_signed else "clample"
         arg = [CLAMPLE, arg, out_hi]
