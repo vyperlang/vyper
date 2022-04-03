@@ -194,9 +194,7 @@ def _literal_int(expr, out_typ):
         val = int(expr.value, 16)
     elif isinstance(expr, vy_ast.Bytes):
         val = int.from_bytes(expr.value, "big")
-    elif isinstance(expr, vy_ast.Int):
-        val = expr.value
-    elif isinstance(expr, vy_ast.Decimal):
+    elif isinstance(expr, (vy_ast.Int, vy_ast.Decimal, vy_ast.NameConstant)):
         val = expr.value
     else:  # pragma: nocover
         raise CompilerPanic("unreachable")
