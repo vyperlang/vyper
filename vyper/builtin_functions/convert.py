@@ -115,13 +115,13 @@ def _fixed_to_int(arg, out_typ):
     arg_info = arg.typ._decimal_info
     out_info = out_typ._int_info
 
-    decimals = arg_info.decimals
+    DIVISOR = 10 ** arg_info.decimals
 
     arg_lo, arg_hi = arg_info.bounds
 
     out_lo, out_hi = out_info.bounds
-    out_lo = out_lo * 10 ** decimals
-    out_hi = out_hi * 10 ** decimals
+    out_lo = out_lo * DIVISOR
+    out_hi = out_hi * DIVISOR
 
     if arg_lo < out_lo:
         arg = ["clampge", arg, out_lo]
@@ -129,7 +129,8 @@ def _fixed_to_int(arg, out_typ):
         CLAMPLE = "uclample" if arg_info.is_signed != out_info.is_signed else "clample"
         arg = [CLAMPLE, arg, out_hi]
 
-    arg = IRnode.from_list(["sdiv", arg, 10 ** decimals], typ=out_typ)
+    assert arg_info.is_signed, "should use unsigned div"  # stub in case we ever add ufixed
+    arg = IRnode.from_list(["sdiv", arg, DIVISOR], typ=out_typ)
 
     return arg
 
@@ -139,22 +140,23 @@ def _int_to_fixed(arg, out_typ):
     out_info = out_typ._decimal_info
     arg_info = arg.typ._int_info
 
-    decimals = out_info.decimals
+    DIVISOR = 10 ** out_info.decimals
 
     out_lo, out_hi = out_info.bounds
 
-    out_lo = round_towards_zero(decimal.Decimal(out_lo) / 10 ** decimals)
-    out_hi = round_towards_zero(decimal.Decimal(out_hi) / 10 ** decimals)
-
     arg_lo, arg_hi = arg_info.bounds
+    arg_lo = arg_lo * DIVISOR
+    arg_hi = arg_lo * DIVISOR
+
+    clamped_arg = arg
 
     if arg_lo < out_lo:
-        arg = ["clampge", arg, out_lo]
+        clamped_arg = ["clampge", clamped_arg, out_lo]
     if arg_hi > out_hi:
         CLAMPLE = "uclample" if arg_info.is_signed != out_info.is_signed else "clample"
-        arg = [CLAMPLE, arg, out_hi]
+        clamped_arg = [CLAMPLE, clamped_arg, out_hi]
 
-    return IRnode.from_list(["mul", arg, 10 ** decimals], typ=out_typ)
+    return IRnode.from_list(["mul", clamped_arg, DIVISOR], typ=out_typ)
 
 
 # clamp for dealing with conversions between int types (from arg to dst)
@@ -192,12 +194,20 @@ def _literal_int(expr, out_typ):
         val = int(expr.value, 16)
     elif isinstance(expr, vy_ast.Bytes):
         val = int.from_bytes(expr.value, "big")
-    else:
-        # Int, Decimal
-        val = int(expr.value)
+    elif isinstance(expr, vy_ast.Int):
+        val = expr.value
+    elif isinstance(expr, vy_ast.Decimal):
+        val = expr.value
+    else:  # pragma: nocover
+        raise CompilerPanic("unreachable")
+
     (lo, hi) = int_info.bounds
     if not (lo <= val <= hi):
         raise InvalidLiteral("Number out of range", expr)
+
+    # cast to int AFTER bounds check (ensures decimal is in bounds before truncation)
+    val = int(val)
+
     return IRnode.from_list(val, typ=out_typ)
 
 
