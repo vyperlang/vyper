@@ -313,7 +313,7 @@ def to_decimal(expr, arg, out_typ):
 
     elif is_base_type(arg.typ, "bool"):
         # TODO: consider adding _int_info to bool so we can use _int_to_fixed
-        arg = ["mul", arg, 10**out_info.decimals]
+        arg = ["mul", arg, 10 ** out_info.decimals]
         return IRnode.from_list(arg, typ=out_typ)
     else:
         raise CompilerPanic("unreachable")  # pragma: notest
