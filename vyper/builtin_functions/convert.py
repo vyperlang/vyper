@@ -166,12 +166,11 @@ def _int_to_int(arg, out_info):
     out_lo, out_hi = out_info.bounds
 
     if arg_lo < out_lo:
-        # CHECK: uint256 -> int128 - arg_lo, out_lo = 0, -2**127
+        CLAMPGE = "clampge" if arg_info.is_signed else "uclampge"
         arg = ["clampge", arg, out_lo]
 
     if arg_hi > out_hi:
-        # CHECK: uint256 -> int128 - arg_lo, out_lo = 2**256 - 1, 0
-        CLAMPLE = "uclample" if arg_info.is_signed != out_info.is_signed else "clample"
+        CLAMPLE = "clample" if arg_info.is_signed else "uclample"
         arg = [CLAMPLE, arg, out_hi]
 
     return arg
