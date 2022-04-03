@@ -457,6 +457,7 @@ def generate_passing_test_cases(type_pairs):
 @pytest.mark.parametrize(
     "input_values", generate_passing_test_cases(list(permutations(TEST_TYPES, 2)))
 )
+@pytest.mark.fuzzing
 def test_convert_pass(get_contract_with_gas_estimation, input_values):
 
     if input_values["out_type"] == "address" and input_values["out_value"] == ZERO_ADDRESS:
@@ -794,6 +795,7 @@ def generate_test_cases_for_invalid_dislike_types_conversion():
     + generate_test_cases_for_decimal_overflow()
     + generate_test_cases_for_invalid_dislike_types_conversion(),
 )
+@pytest.mark.fuzzing
 def test_invalid_convert(
     get_contract_with_gas_estimation, assert_compile_failed, assert_tx_failed, input_values
 ):
