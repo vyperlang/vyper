@@ -127,7 +127,7 @@ def _clamp_numeric_convert(arg, arg_bounds, out_bounds, signed):
 
 
 # truncate from fixed point decimal to int
-def _fixed_to_int(arg: IRnode, out_typ: BaseType) -> IRnode:
+def _fixed_to_int(arg, out_typ):
     arg_info = arg.typ._decimal_info
     out_info = out_typ._int_info
 
@@ -146,7 +146,7 @@ def _fixed_to_int(arg: IRnode, out_typ: BaseType) -> IRnode:
 
 
 # promote from int to fixed point decimal
-def _int_to_fixed(arg: IRnode, out_typ: BaseType) -> IRnode:
+def _int_to_fixed(arg, out_typ):
     arg_info = arg.typ._int_info
     out_info = out_typ._decimal_info
 
@@ -163,7 +163,7 @@ def _int_to_fixed(arg: IRnode, out_typ: BaseType) -> IRnode:
 
 
 # clamp for dealing with conversions between int types (from arg to dst)
-def _int_to_int(arg: IRnode, out_typ: BaseType) -> IRnode:
+def _int_to_int(arg, out_typ):
     arg_info = arg.typ._int_info
     out_info = out_typ._int_info
 
