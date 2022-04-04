@@ -1,22 +1,21 @@
 from vyper import ast as vy_ast
 from vyper.ast.signatures import FunctionSignature
 from vyper.codegen.context import Context
-from vyper.codegen.core import getpos
 from vyper.codegen.function_definitions.utils import get_nonreentrant_lock
-from vyper.codegen.lll_node import LLLnode
+from vyper.codegen.ir_node import IRnode
 from vyper.codegen.stmt import parse_body
 
 
-def generate_lll_for_internal_function(
+def generate_ir_for_internal_function(
     code: vy_ast.FunctionDef, sig: FunctionSignature, context: Context
-) -> LLLnode:
+) -> IRnode:
     """
     Parse a internal function (FuncDef), and produce full function body.
 
     :param sig: the FuntionSignature
     :param code: ast of function
     :param context: current calling context
-    :return: function body in LLL
+    :return: function body in IR
     """
 
     # The calling convention is:
@@ -52,17 +51,23 @@ def generate_lll_for_internal_function(
     function_entry_label = sig.internal_function_label
     cleanup_label = sig.exit_sequence_label
 
-    # jump to the label which was passed in via stack
-    stop_func = LLLnode.from_list(["jump", "pass"], annotation="jump to return address")
+    stack_args = ["var_list"]
+    if func_type.return_type:
+        stack_args += ["return_buffer"]
+    stack_args += ["return_pc"]
 
-    enter = [["label", function_entry_label]] + nonreentrant_pre
+    body = [
+        "label",
+        function_entry_label,
+        stack_args,
+        ["seq"] + nonreentrant_pre + [parse_body(code.body, context, ensure_terminated=True)],
+    ]
 
-    body = [parse_body(c, context) for c in code.body]
+    cleanup_routine = [
+        "label",
+        cleanup_label,
+        ["var_list", "return_pc"],
+        ["seq"] + nonreentrant_post + [["exit_to", "return_pc"]],
+    ]
 
-    exit = [["label", cleanup_label]] + nonreentrant_post + [stop_func]
-
-    return LLLnode.from_list(
-        ["seq"] + enter + body + exit,
-        typ=None,
-        pos=getpos(code),
-    )
+    return IRnode.from_list(["seq", body, cleanup_routine])

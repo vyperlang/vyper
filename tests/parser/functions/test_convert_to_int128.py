@@ -1,5 +1,4 @@
 from vyper.exceptions import InvalidLiteral, OverflowException, TypeMismatch
-from vyper.utils import SizeLimits
 
 
 def test_convert_to_int128(get_contract_with_gas_estimation):
@@ -25,7 +24,7 @@ def bytes32_to_num() -> (int128, int128):
 @external
 def bytes_to_num() -> (int128, int128):
     self.c = b'a'
-    literal: int128 = convert('a', int128)
+    literal: int128 = convert(b'a', int128)
     storage: int128 = convert(self.c, int128)
     return literal, storage
 
@@ -59,7 +58,7 @@ def foo(bar: Bytes[5]) -> int128:
 
     test_success = """
 @external
-def foo(bar: Bytes[32]) -> int128:
+def foo(bar: Bytes[16]) -> int128:
     return convert(bar, int128)
     """
 
@@ -70,9 +69,7 @@ def foo(bar: Bytes[32]) -> int128:
     assert c.foo(b"\x00\x01") == 1
     assert c.foo(b"\x01\x00") == 256
     assert c.foo(b"\x01\x00\x00\x00\x01") == 4294967297
-    assert c.foo(b"\xff" * 32) == -1
-    assert_tx_failed(lambda: c.foo(b"\x80" + b"\xff" * 31))
-    assert_tx_failed(lambda: c.foo(b"\x01" * 33))
+    assert c.foo(b"\xff" * 16) == -1
 
     bytes_to_num_code = """
 astor: Bytes[10]
@@ -257,108 +254,13 @@ def foo() -> int128:
     )
 
 
-def test_convert_from_address(w3, get_contract):
+def test_convert_from_address(get_contract, assert_compile_failed):
     code = """
-stor: address
-
 @external
 def testCompiles():
     x: int128 = convert(msg.sender, int128)
-
-@external
-def conv_neg1_stor() -> int128:
-    self.stor = 0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF
-    return convert(self.stor, int128)
-
-@external
-def conv_neg1_literal() -> int128:
-    return convert(0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF, int128)
-
-@external
-def conv_neg1_stor_alt() -> int128:
-    self.stor = 0x00000000fFFFffffffFfFfFFffFfFffFFFfFffff
-    return convert(self.stor, int128)
-
-@external
-def conv_neg1_literal_alt() -> int128:
-    return convert(0x00000000fFFFffffffFfFfFFffFfFffFFFfFffff, int128)
-
-@external
-def conv_min_stor() -> int128:
-    self.stor = 0x0000000080000000000000000000000000000000
-    return convert(self.stor, int128)
-
-@external
-def conv_min_literal() -> int128:
-    return convert(0x0000000080000000000000000000000000000000, int128)
-
-@external
-def conv_min_stor_alt() -> int128:
-    self.stor = 0x1234567880000000000000000000000000000000
-    return convert(self.stor, int128)
-
-@external
-def conv_min_literal_alt() -> int128:
-    return convert(0x1234567880000000000000000000000000000000, int128)
-
-@external
-def conv_zero_stor() -> int128:
-    self.stor = ZERO_ADDRESS
-    return convert(self.stor, int128)
-
-@external
-def conv_zero_literal() -> int128:
-    return convert(ZERO_ADDRESS, int128)
-
-@external
-def conv_zero_stor_alt() -> int128:
-    self.stor = 0xffFFfFFf00000000000000000000000000000000
-    return convert(self.stor, int128)
-
-@external
-def conv_zero_literal_alt() -> int128:
-    return convert(0xffFFfFFf00000000000000000000000000000000, int128)
-
-@external
-def conv_max_stor() -> int128:
-    self.stor = 0xFffffFff7FFFFFFfFffFffFfFFffFffFFfFfffFF
-    return convert(self.stor, int128)
-
-@external
-def conv_max_literal() -> int128:
-    return convert(0xFffffFff7FFFFFFfFffFffFfFFffFffFFfFfffFF, int128)
-
-@external
-def conv_max_stor_alt() -> int128:
-    self.stor = 0x000000007FfFFffffFFFFfffffffFffFfFffffFF
-    return convert(self.stor, int128)
-
-@external
-def conv_max_literal_alt() -> int128:
-    return convert(0x000000007FfFFffffFFFFfffffffFffFfFffffFF, int128)
     """
-
-    c = get_contract(code)
-
-    assert c.conv_neg1_stor() == -1
-    assert c.conv_neg1_literal() == -1
-    assert c.conv_neg1_stor_alt() == -1
-    assert c.conv_neg1_literal_alt() == -1
-
-    assert c.conv_min_stor() == SizeLimits.MIN_INT128
-    assert c.conv_min_literal() == SizeLimits.MIN_INT128
-    assert c.conv_min_stor_alt() == SizeLimits.MIN_INT128
-    assert c.conv_min_literal_alt() == SizeLimits.MIN_INT128
-
-    assert c.conv_zero_stor() == 0
-    assert c.conv_zero_literal() == 0
-    assert c.conv_zero_stor_alt() == 0
-    assert c.conv_zero_literal_alt() == 0
-
-    assert c.conv_max_stor() == SizeLimits.MAX_INT128
-    assert c.conv_max_literal() == SizeLimits.MAX_INT128
-    assert c.conv_max_stor_alt() == SizeLimits.MAX_INT128
-    assert c.conv_max_literal_alt() == SizeLimits.MAX_INT128
+    assert_compile_failed(lambda: get_contract(code), TypeMismatch)
 
 
 def test_convert_from_int256(get_contract_with_gas_estimation, assert_tx_failed):

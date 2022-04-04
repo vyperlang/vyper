@@ -3,7 +3,7 @@ import copy
 import re
 from collections import OrderedDict
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Tuple
 
 from vyper import ast as vy_ast
 from vyper.abi_types import (
@@ -20,7 +20,18 @@ from vyper.abi_types import (
     ABIType,
 )
 from vyper.exceptions import ArgumentException, CompilerPanic, InvalidType
-from vyper.utils import BASE_TYPES, ceil32
+from vyper.utils import ceil32, int_bounds
+
+# Available base types
+UNSIGNED_INTEGER_TYPES = {f"uint{8*(i+1)}" for i in range(32)}
+SIGNED_INTEGER_TYPES = {f"int{8*(i+1)}" for i in range(32)}
+INTEGER_TYPES = UNSIGNED_INTEGER_TYPES | SIGNED_INTEGER_TYPES
+
+BYTES_M_TYPES = {f"bytes{i+1}" for i in range(32)}
+DECIMAL_TYPES = {"decimal"}
+
+
+BASE_TYPES = INTEGER_TYPES | BYTES_M_TYPES | DECIMAL_TYPES | {"bool", "address"}
 
 
 # Data structure for a type
@@ -54,6 +65,8 @@ class NodeType(abc.ABC):
 
     @property
     def storage_size_in_words(self) -> int:
+        # consider renaming if other word-addressable address spaces are
+        # added to EVM or exist in other arches
         """
         Returns the number of words required to allocate in storage for this type
         """
@@ -63,10 +76,37 @@ class NodeType(abc.ABC):
         return r // 32
 
 
+# helper functions for handling old base types which are just strings
+# in the future these can be reified with new type system
+
+
 @dataclass
-class IntegerTypeInfo:
-    is_signed: bool
+class NumericTypeInfo:
     bits: int
+    is_signed: bool
+
+    @property
+    def bounds(self) -> Tuple[int, int]:
+        # The bounds of this type
+        # (note behavior for decimal: int value in IR land,
+        # rather than Decimal value in Python land)
+        return int_bounds(signed=self.is_signed, bits=self.bits)
+
+
+@dataclass
+class IntegerTypeInfo(NumericTypeInfo):
+    pass
+
+
+@dataclass
+class DecimalTypeInfo(NumericTypeInfo):
+    decimals: int
+
+
+@dataclass
+class BytesMTypeInfo:
+    m: int
+    m_bits: int  # m_bits == m * 8, just convenient to have
 
 
 _int_parser = re.compile("^(u?)int([0-9]+)$")
@@ -76,6 +116,7 @@ def is_integer_type(t: "NodeType") -> bool:
     return isinstance(t, BaseType) and _int_parser.fullmatch(t.typ) is not None
 
 
+# TODO maybe move this to vyper.utils
 def parse_integer_typeinfo(typename: str) -> IntegerTypeInfo:
     t = _int_parser.fullmatch(typename)
     if not t:
@@ -87,19 +128,38 @@ def parse_integer_typeinfo(typename: str) -> IntegerTypeInfo:
     )
 
 
+def is_bytes_m_type(t: "NodeType") -> bool:
+    return isinstance(t, BaseType) and t.typ.startswith("bytes")
+
+
+def parse_bytes_m_info(typename: str) -> BytesMTypeInfo:
+    m = int(typename[len("bytes") :])
+    return BytesMTypeInfo(m=m, m_bits=m * 8)
+
+
+def is_decimal_type(t: "NodeType") -> bool:
+    return isinstance(t, BaseType) and t.typ == "decimal"
+
+
+def parse_decimal_info(typename: str) -> DecimalTypeInfo:
+    # in the future, this will actually do parsing
+    assert typename == "decimal"
+    return DecimalTypeInfo(bits=168, decimals=10, is_signed=True)
+
+
 def _basetype_to_abi_type(t: "BaseType") -> ABIType:
     if is_integer_type(t):
-        typinfo = parse_integer_typeinfo(t.typ)
-        return ABI_GIntM(typinfo.bits, typinfo.is_signed)
+        info = t._int_info
+        return ABI_GIntM(info.bits, info.is_signed)
+    if is_decimal_type(t):
+        info = t._decimal_info
+        return ABI_FixedMxN(info.bits, info.decimals, signed=True)
+    if is_bytes_m_type(t):
+        return ABI_BytesM(t._bytes_info.m)
     if t.typ == "address":
         return ABI_Address()
-    if t.typ == "bytes32":
-        # TODO must generalize to more bytes types
-        return ABI_BytesM(32)
     if t.typ == "bool":
         return ABI_Bool()
-    if t.typ == "decimal":
-        return ABI_FixedMxN(168, 10, True)
 
     raise InvalidType(f"Unrecognized type {t}")  # pragma: notest
 
@@ -109,8 +169,23 @@ class BaseType(NodeType):
     def __init__(self, typename, is_literal=False):
         self.typ = typename  # e.g. "uint256"
         # TODO remove is_literal,
-        # change to property on LLLnode: `isinstance(self.value, int)`
+        # change to property on IRnode: `isinstance(self.value, int)`
         self.is_literal = is_literal
+
+        if is_integer_type(self):
+            self._int_info = parse_integer_typeinfo(typename)
+            self._num_info = self._int_info
+        if is_base_type(self, "address"):
+            self._int_info = IntegerTypeInfo(bits=160, is_signed=False)
+            self._num_info = self._int_info
+        # don't generate _int_info for bool,
+        # it doesn't really behave like an int in conversions
+        # and should have special handling in the codebase
+        if is_bytes_m_type(self):
+            self._bytes_info = parse_bytes_m_info(typename)
+        if is_decimal_type(self):
+            self._decimal_info = parse_decimal_info(typename)
+            self._num_info = self._decimal_info
 
     def eq(self, other):
         return self.typ == other.typ
@@ -312,8 +387,10 @@ def make_struct_type(name, sigs, members, custom_structs):
 
 
 # Parses an expression representing a type.
-# TODO: rename me to "lll_type_from_annotation"
+# TODO: rename me to "ir_type_from_annotation"
 def parse_type(item, sigs, custom_structs):
+    # sigs: set of interface or contract names in scope
+    # custom_structs: struct definitions in scope
     def _sanity_check(x):
         assert x, "typechecker missed this"
 
@@ -437,31 +514,10 @@ def get_type_for_exact_size(n_bytes):
     return ByteArrayType(n_bytes - 32 * DYNAMIC_ARRAY_OVERHEAD)
 
 
-def get_type(input):
-    if not hasattr(input, "typ"):
-        typ, len = "num_literal", 32
-    elif hasattr(input.typ, "maxlen"):
-        typ, len = "Bytes", input.typ.maxlen
-    else:
-        typ, len = input.typ.typ, 32
-    return typ, len
-
-
 # Is a type representing a number?
 def is_numeric_type(typ):
-    return isinstance(typ, BaseType) and typ.typ in (
-        "int128",
-        "int256",
-        "uint8",
-        "uint256",
-        "decimal",
-    )
-
-
-def is_signed_num(typ):
-    if not is_numeric_type(typ):
-        return None
-    return typ.typ.startswith("u")
+    # NOTE: not quite the same as hasattr(typ, "_num_info") (address has _num_info)
+    return is_integer_type(typ) or is_decimal_type(typ)
 
 
 # Is a type representing some particular base type?
