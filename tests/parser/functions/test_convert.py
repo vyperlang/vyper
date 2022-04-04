@@ -733,7 +733,21 @@ def generate_test_cases_for_decimal_overflow():
                 "in_type": "decimal",
                 "out_type": t,
                 # Exceeds by 0.0000000001
-                "in_value": "18707220957835557353007165858768422651595.9365500928",
+                "in_value": format(
+                    SizeLimits.MAX_AST_DECIMAL + Decimal("0.0000000001"), f".{MAX_DECIMAL_PLACES}f"
+                ),
+                "exception": OverflowException,
+            }
+        )
+
+        res.append(
+            {
+                "in_type": "decimal",
+                "out_type": t,
+                # Exceeds by 0.0000000001
+                "in_value": format(
+                    SizeLimits.MIN_AST_DECIMAL - Decimal("0.0000000001"), f".{MAX_DECIMAL_PLACES}f"
+                ),
                 "exception": OverflowException,
             }
         )
