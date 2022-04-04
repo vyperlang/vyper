@@ -59,6 +59,9 @@ def mkalphanum(s):
 
 
 def round_towards_zero(d: decimal.Decimal) -> int:
+    # TODO double check if this can just be int(d)
+    # (but either way keep this util function bc it's easier at a glance
+    # to understand what round_towards_zero() does instead of int())
     return int(d.to_integral_exact(decimal.ROUND_DOWN))
 
 
