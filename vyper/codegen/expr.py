@@ -39,6 +39,7 @@ from vyper.exceptions import (
     StructureException,
     TypeCheckFailure,
     TypeMismatch,
+    UnimplementedException,
 )
 from vyper.utils import DECIMAL_DIVISOR, SizeLimits, bytes_to_int, checksum_encode, string_to_bytes
 
@@ -669,7 +670,8 @@ class Expr:
                 return
 
         if arith is None:
-            return
+            op_str = self.expr.op._pretty
+            raise UnimplementedException(f"Not implemented: {ltyp} {op_str} {rtyp}")
 
         arith = IRnode.from_list(arith, typ=new_typ)
 

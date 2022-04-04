@@ -291,6 +291,10 @@ class VyperInternalException(Exception):
         )
 
 
+class UnimplementedException(VyperInternalException):
+    """Some feature is not implemented"""
+
+
 class CompilerPanic(VyperInternalException):
     """General unexpected error during compilation."""
 

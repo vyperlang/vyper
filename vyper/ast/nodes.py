@@ -914,18 +914,21 @@ class BinOp(VyperNode):
 class Add(VyperNode):
     __slots__ = ()
     _description = "addition"
+    _pretty = "+"
     _op = operator.add
 
 
 class Sub(VyperNode):
     __slots__ = ()
     _description = "subtraction"
+    _pretty = "-"
     _op = operator.sub
 
 
 class Mult(VyperNode):
     __slots__ = ()
     _description = "multiplication"
+    _pretty = "*"
 
     def _op(self, left, right):
         assert type(left) is type(right)
@@ -942,6 +945,7 @@ class Mult(VyperNode):
 class Div(VyperNode):
     __slots__ = ()
     _description = "division"
+    _pretty = "/"
 
     def _op(self, left, right):
         # evaluate the operation using true division or floor division
@@ -968,6 +972,7 @@ class Div(VyperNode):
 class Mod(VyperNode):
     __slots__ = ()
     _description = "modulus"
+    _pretty = "%"
 
     def _op(self, left, right):
         if not right:
@@ -982,6 +987,7 @@ class Mod(VyperNode):
 class Pow(VyperNode):
     __slots__ = ()
     _description = "exponentiation"
+    _pretty = "**"
 
     def _op(self, left, right):
         if isinstance(left, decimal.Decimal):
