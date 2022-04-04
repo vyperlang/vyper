@@ -171,9 +171,12 @@ def _int_to_int(arg, out_typ):
     # _clamp_numeric_convert(arg, arg_info.bounds, out_info.bounds, arg_info.is_signed)
     # but with better code size.
     if arg_info.is_signed and not out_info.is_signed:
-        arg = IRnode.from_list(["clampge", arg, 0])
         if out_info.bits < arg_info.bits:
+            # note: below implies (clampge arg 0), since
+            # out_info.bits < 256 in this branch.
             arg = int_clamp(arg, out_info.bits, True)
+        else:
+            arg = IRnode.from_list(["clampge", arg, 0])
     elif not arg_info.is_signed and out_info.is_signed:
         # e.g., (clample arg (2**127 - 1))
         arg = int_clamp(arg, out_info.bits - 1, signed=False)
