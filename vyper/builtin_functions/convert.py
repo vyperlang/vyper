@@ -122,7 +122,7 @@ def _clamp_numeric_convert(arg, arg_bounds, out_bounds, arg_is_signed):
 
     if arg_hi > out_hi:
         # out_hi must be smaller than MAX_UINT256, so clample makes sense.
-        assert out_hi < 2**256 - 1, "bad assumption in numeric convert"
+        assert out_hi < 2 ** 256 - 1, "bad assumption in numeric convert"
         CLAMPLE = "clample" if arg_is_signed else "uclample"
         arg = [CLAMPLE, arg, out_hi]
 
