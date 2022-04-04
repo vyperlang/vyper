@@ -5,7 +5,7 @@ import json
 import sys
 import warnings
 from pathlib import Path
-from typing import Callable, Dict, Tuple, Union, List, Hashable, Any
+from typing import Any, Callable, Dict, Hashable, List, Tuple, Union
 
 import vyper
 from vyper.cli.utils import extract_file_interface_imports, get_interface_file_path
@@ -436,7 +436,10 @@ def format_to_output_dict(compiler_data: Dict) -> Dict:
 
 # https://stackoverflow.com/a/49518779
 def _raise_on_duplicate_keys(ordered_pairs: List[Tuple[Hashable, Any]]) -> Dict:
-    """Raise ValueError if a duplicate key exists in provided ordered list of pairs, otherwise return a dict."""
+    """
+    Raise JSONError if a duplicate key exists in provided ordered list
+    of pairs, otherwise return a dict.
+    """
     dict_out = {}
     for key, val in ordered_pairs:
         if key in dict_out:
@@ -455,7 +458,9 @@ def compile_json(
     try:
         if isinstance(input_json, str):
             try:
-                input_dict: Dict = json.loads(input_json, object_pairs_hook=_raise_on_duplicate_keys)
+                input_dict: Dict = json.loads(
+                    input_json, object_pairs_hook=_raise_on_duplicate_keys
+                )
             except json.decoder.JSONDecodeError as exc:
                 new_exc = JSONError(str(exc), exc.lineno, exc.colno)
                 return exc_handler(json_path, new_exc, "json")
