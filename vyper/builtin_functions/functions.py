@@ -1023,7 +1023,7 @@ class AsWeiValue:
         value, denom_name = args[0], args[1].decode()
 
         denom_divisor = next(v for k, v in self.wei_denoms.items() if denom_name in k)
-        if value.typ.typ.startswith("uint"):
+        if value.typ.typ == "uint256" or value.typ.typ == "uint8":
             sub = [
                 "with",
                 "ans",
@@ -1037,7 +1037,7 @@ class AsWeiValue:
                     "ans",
                 ],
             ]
-        elif value.typ.typ.startswith("int"):
+        elif value.typ.typ == "int128":
             # signed types do not require bounds checks because the
             # largest possible converted value will not overflow 2**256
             sub = [
