@@ -140,7 +140,7 @@ def _standardize_path(path_str: str) -> str:
     try:
         path = Path(path_str).resolve().relative_to(pwd)
     except ValueError:
-        raise ValueError(f"{path_str} - path exists outside base folder")
+        raise JSONError(f"{path_str} - path exists outside base folder")
     return path.as_posix()
 
 
