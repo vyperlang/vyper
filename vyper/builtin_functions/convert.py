@@ -110,12 +110,12 @@ def _bytes_to_num(arg, out_typ, signed):
     return IRnode.from_list(ret, annotation=annotation)
 
 
-def _clamp_numeric_convert(arg, arg_bounds, out_bounds, signed):
+def _clamp_numeric_convert(arg, arg_bounds, out_bounds, arg_is_signed):
     arg_lo, arg_hi = arg_bounds
     out_lo, out_hi = out_bounds
 
-    CLAMPGE = "clampge" if signed else "uclampge"
-    CLAMPLE = "clample" if signed else "uclample"
+    CLAMPGE = "clampge" if arg_is_signed else "uclampge"
+    CLAMPLE = "clample" if arg_is_signed else "uclample"
 
     if arg_lo < out_lo:
         arg = [CLAMPGE, arg, out_lo]
