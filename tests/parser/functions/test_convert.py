@@ -682,7 +682,11 @@ def generate_test_cases_for_clamped_address_conversion():
     for u in UNSIGNED_INTEGER_TYPES:
         it_int_info = parse_integer_typeinfo(u)
         if it_int_info.bits > ADDRESS_BITS:
-            cases = [2 ** 160, 2 ** it_int_info.bits - 1, 2 ** (it_int_info.bits - 1)]
+            cases = [
+                MAX_ADDRESS_INT_VALUE + 1,
+                2 ** it_int_info.bits - 1,
+                2 ** (it_int_info.bits - 1),
+            ]
             for c in cases:
                 res.append(
                     {
@@ -697,7 +701,9 @@ def generate_test_cases_for_clamped_address_conversion():
         it_bytes_info = parse_bytes_m_info(b)
         if it_bytes_info.m_bits > ADDRESS_BITS:
             cases = [
-                add_0x_prefix(encode_single("uint256", (2 ** 160))[-it_bytes_info.m :].hex()),
+                add_0x_prefix(
+                    encode_single("uint256", (MAX_ADDRESS_INT_VALUE + 1))[-it_bytes_info.m :].hex()
+                ),
                 add_0x_prefix((b"\xff" * it_bytes_info.m).hex()),
                 add_0x_prefix((b"\xff" * (it_bytes_info.m - 1) + b"\xfe").hex()),
             ]
