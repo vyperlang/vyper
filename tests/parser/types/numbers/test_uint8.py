@@ -2,6 +2,8 @@ import itertools as it
 
 import pytest
 
+from vyper.codegen.types import parse_integer_typeinfo
+
 
 def test_exponent_base_zero(get_contract):
     code = """
@@ -177,21 +179,26 @@ def max_ne() -> (bool):
 # TODO: create a tests/parser/functions/test_convert_to_uint8.py file
 
 
-def test_uint8_convert_clamps(get_contract, assert_tx_failed):
-    code = """
+@pytest.mark.parametrize("in_typ", ["int256", "uint256", "int128", "uint128"])
+def test_uint8_convert_clamps(get_contract, assert_tx_failed, in_typ):
+    code = f"""
 @external
-def conversion(_x: int256) -> uint8:
+def conversion(_x: {in_typ}) -> uint8:
     return convert(_x, uint8)
     """
 
     c = get_contract(code)
 
-    # below bounds
-    for val in [-(2 ** 129), -3232, -256, -1]:
-        assert_tx_failed(lambda: c.conversion(val))
+    int_info = parse_integer_typeinfo(in_typ)
+
+    if int_info.is_signed:
+        # below bounds
+        for val in [int_info.bounds[0], -(2 ** 127), -3232, -256, -1]:
+            assert_tx_failed(lambda: c.conversion(val))
 
     # above bounds
-    for val in [256, 3000, 2 ** 128, 2 ** 200]:
+    above_bounds = [256, 3000, 2 ** 126, int_info.bounds[1]]
+    for val in above_bounds:
         assert_tx_failed(lambda: c.conversion(val))
 
     # within bounds

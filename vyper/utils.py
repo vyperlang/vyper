@@ -58,6 +58,13 @@ def mkalphanum(s):
     return "".join([c if c.isalnum() else "_" for c in s])
 
 
+def round_towards_zero(d: decimal.Decimal) -> int:
+    # TODO double check if this can just be int(d)
+    # (but either way keep this util function bc it's easier at a glance
+    # to understand what round_towards_zero() does instead of int())
+    return int(d.to_integral_exact(decimal.ROUND_DOWN))
+
+
 # Converts string to bytes
 def string_to_bytes(str):
     bytez = b""
@@ -135,6 +142,7 @@ def evm_div(x, y):
         return 0
     # doesn't actually work:
     # return int(x / y)
+    # NOTE: should be same as: round_towards_zero(Decimal(x)/Decimal(y))
     sign = -1 if (x * y) < 0 else 1
     return sign * (abs(x) // abs(y))  # adapted from py-evm
 

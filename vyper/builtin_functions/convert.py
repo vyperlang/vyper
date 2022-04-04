@@ -27,8 +27,14 @@ from vyper.codegen.types import (
     is_decimal_type,
     is_integer_type,
 )
-from vyper.exceptions import CompilerPanic, InvalidLiteral, StructureException, TypeMismatch
-from vyper.utils import DECIMAL_DIVISOR, SizeLimits
+from vyper.exceptions import (
+    CompilerPanic,
+    InvalidLiteral,
+    InvalidType,
+    StructureException,
+    TypeMismatch,
+)
+from vyper.utils import DECIMAL_DIVISOR, SizeLimits, round_towards_zero
 
 
 def _FAIL(ityp, otyp, source_expr=None):
@@ -63,10 +69,15 @@ def _input_types(*allowed_types):
             # (expr is the AST corresponding to `arg`)
             ityp = _type_class_of(arg.typ)
             ok = ityp in allowed_types
-            # user safety: disallow convert from type to itself
-            ok &= arg.typ != out_typ
             if not ok:
                 _FAIL(arg.typ, out_typ, expr)
+
+            # user safety: disallow convert from type to itself
+            # note allowance of [u]int256; this is due to type inference
+            # on literals not quite working yet.
+            if arg.typ == out_typ and not is_base_type(arg.typ, ("uint256", "int256")):
+                raise InvalidType("value and target are both {out_typ}", expr)
+
             return f(expr, arg, out_typ)
 
         return check_input_type
@@ -99,23 +110,67 @@ def _bytes_to_num(arg, out_typ, signed):
     return IRnode.from_list(ret, annotation=annotation)
 
 
+def _clamp_numeric_convert(arg, arg_bounds, out_bounds, signed):
+    arg_lo, arg_hi = arg_bounds
+    out_lo, out_hi = out_bounds
+
+    CLAMPGE = "clampge" if signed else "uclampge"
+    CLAMPLE = "clample" if signed else "uclample"
+
+    if arg_lo < out_lo:
+        arg = [CLAMPGE, arg, out_lo]
+
+    if arg_hi > out_hi:
+        arg = [CLAMPLE, arg, out_hi]
+
+    return arg
+
+
 # truncate from fixed point decimal to int
-def _fixed_to_int(x, out_typ):
-    decimals = x.typ._decimal_info.decimals
-    return IRnode.from_list(["sdiv", x, 10 ** decimals], typ=out_typ)
+def _fixed_to_int(arg, out_typ):
+    arg_info = arg.typ._decimal_info
+    out_info = out_typ._int_info
+
+    DIVISOR = 10 ** arg_info.decimals
+
+    # block inputs which are out of bounds before truncation.
+    # e.g., convert(255.1, uint8) should revert or fail to compile.
+    out_lo, out_hi = out_info.bounds
+    out_lo = out_lo * DIVISOR
+    out_hi = out_hi * DIVISOR
+
+    clamped_arg = _clamp_numeric_convert(arg, arg_info.bounds, (out_lo, out_hi), arg_info.is_signed)
+
+    assert arg_info.is_signed, "should use unsigned div"  # stub in case we ever add ufixed
+    return IRnode.from_list(["sdiv", clamped_arg, DIVISOR], typ=out_typ)
 
 
 # promote from int to fixed point decimal
-def _int_to_fixed(x, out_typ):
-    info = out_typ._decimal_info
+def _int_to_fixed(arg, out_typ):
+    arg_info = arg.typ._int_info
+    out_info = out_typ._decimal_info
 
-    lo, hi = info.bounds
-    decimals = info.decimals
+    DIVISOR = 10 ** out_info.decimals
 
-    clamp_op = "clamp" if info.is_signed else "uclamp"
+    # block inputs which are out of bounds before promotion
+    out_lo, out_hi = out_info.bounds
+    out_lo = round_towards_zero(decimal.Decimal(out_lo) / DIVISOR)
+    out_hi = round_towards_zero(decimal.Decimal(out_hi) / DIVISOR)
 
-    # TODO is this clamp redundant with later num clamps?
-    return IRnode.from_list(["mul", [clamp_op, lo, x, hi], 10 ** decimals], typ=out_typ)
+    clamped_arg = _clamp_numeric_convert(arg, arg_info.bounds, (out_lo, out_hi), arg_info.is_signed)
+
+    return IRnode.from_list(["mul", clamped_arg, DIVISOR], typ=out_typ)
+
+
+# clamp for dealing with conversions between int types (from arg to dst)
+def _int_to_int(arg, out_typ):
+    arg_info = arg.typ._int_info
+    out_info = out_typ._int_info
+
+    # TODO: this generates not very good code size, we can probably do better
+    clamped_arg = _clamp_numeric_convert(arg, arg_info.bounds, out_info.bounds, arg_info.is_signed)
+
+    return IRnode.from_list(clamped_arg, typ=out_typ)
 
 
 def _check_bytes(expr, arg, output_type, max_bytes_allowed):
@@ -134,12 +189,18 @@ def _literal_int(expr, out_typ):
         val = int(expr.value, 16)
     elif isinstance(expr, vy_ast.Bytes):
         val = int.from_bytes(expr.value, "big")
-    else:
-        # Int, Decimal
-        val = int(expr.value)
+    elif isinstance(expr, (vy_ast.Int, vy_ast.Decimal, vy_ast.NameConstant)):
+        val = expr.value
+    else:  # pragma: nocover
+        raise CompilerPanic("unreachable")
+
     (lo, hi) = int_info.bounds
     if not (lo <= val <= hi):
         raise InvalidLiteral("Number out of range", expr)
+
+    # cast to int AFTER bounds check (ensures decimal is in bounds before truncation)
+    val = int(val)
+
     return IRnode.from_list(val, typ=out_typ)
 
 
@@ -176,28 +237,6 @@ def to_bool(expr, arg, out_typ):
     return IRnode.from_list(["iszero", ["iszero", arg]], typ=out_typ)
 
 
-# special clamp for uint/sint conversions
-# uint -> sint requires input < sint::max_value
-# sint -> uint requires input >= 0
-# these are both equivalent to checking that the top bit is set
-# (e.g. for uint8 that the 8th bit is set, same for int8)
-def _signedness_clamp(arg, bits):
-    return int_clamp(arg, bits=bits - 1, signed=False)
-
-
-# clamp for dealing with conversions between numeric types (from arg to dst)
-def _num_clamp(arg, dst_info, arg_info):
-    if dst_info.is_signed != arg_info.is_signed:
-        arg = _signedness_clamp(arg, arg_info.bits)
-
-    # if, not elif (could be two clamps!)
-    # TODO is it possible to make this more efficient?
-    if dst_info.bits < arg_info.bits:
-        arg = int_clamp(arg, dst_info.bits, dst_info.is_signed)
-
-    return arg
-
-
 @_input_types("int", "bytes_m", "decimal", "bytes", "address", "bool")
 def to_int(expr, arg, out_typ):
 
@@ -222,13 +261,10 @@ def to_int(expr, arg, out_typ):
             arg = int_clamp(arg, int_info.bits, signed=int_info.is_signed)
 
     elif is_decimal_type(arg.typ):
-        arg_info = arg.typ._decimal_info
         arg = _fixed_to_int(arg, out_typ)
-        arg = _num_clamp(arg, int_info, arg_info)
 
     elif is_integer_type(arg.typ):
-        arg_info = arg.typ._int_info
-        arg = _num_clamp(arg, int_info, arg_info)
+        arg = _int_to_int(arg, out_typ)
 
     elif is_base_type(arg.typ, "address"):
         if int_info.is_signed:
@@ -242,8 +278,9 @@ def to_int(expr, arg, out_typ):
 
 @_input_types("int", "bool", "bytes_m", "bytes")
 def to_decimal(expr, arg, out_typ):
-    # question: is converting from Bytes to decimal allowed?
-    _check_bytes(expr, arg, out_typ, max_bytes_allowed=16)
+    _check_bytes(expr, arg, out_typ, 32)
+
+    out_info = out_typ._decimal_info
 
     if isinstance(expr, vy_ast.Constant):
         return _literal_decimal(expr, out_typ)
@@ -273,17 +310,12 @@ def to_decimal(expr, arg, out_typ):
         return IRnode.from_list(arg, typ=out_typ)
 
     elif is_integer_type(arg.typ):
-        int_info = arg.typ._int_info
         arg = _int_to_fixed(arg, out_typ)
-        out_info = out_typ._decimal_info
-        if int_info.bits > out_info.bits:
-            # TODO: _num_clamp probably not necessary bc already
-            # clamped in _int_to_fixed
-            arg = _num_clamp(arg, out_info, int_info)
         return IRnode.from_list(arg, typ=out_typ)
 
     elif is_base_type(arg.typ, "bool"):
-        arg = _int_to_fixed(arg, out_typ)
+        # TODO: consider adding _int_info to bool so we can use _int_to_fixed
+        arg = ["mul", arg, 10 ** out_info.decimals]
         return IRnode.from_list(arg, typ=out_typ)
     else:
         raise CompilerPanic("unreachable")  # pragma: notest
@@ -292,6 +324,7 @@ def to_decimal(expr, arg, out_typ):
 @_input_types("int", "decimal", "bytes_m", "address", "bytes", "bool")
 def to_bytes_m(expr, arg, out_typ):
     out_info = out_typ._bytes_info
+
     _check_bytes(expr, arg, out_typ, max_bytes_allowed=out_info.m)
 
     if isinstance(arg.typ, ByteArrayType):
@@ -323,7 +356,7 @@ def to_bytes_m(expr, arg, out_typ):
 
     else:
         # bool, decimal
-        arg = shl(256 - out_info.m_bits, arg)  # question: is this right?
+        arg = shl(256 - out_info.m_bits, arg)
 
     return IRnode.from_list(arg, typ=out_typ)
 
@@ -335,34 +368,7 @@ def to_address(expr, arg, out_typ):
         if arg.typ._int_info.is_signed:
             _FAIL(arg.typ, out_typ, expr)
 
-    # TODO once we introduce uint160, we can just check that arg
-    # is unsigned, and then call to_int(expr, arg, uint160) because
-    # the logic is equivalent.
-
-    # disallow casting from Bytes[N>20]
-    _check_bytes(expr, arg, out_typ, 32)
-
-    if isinstance(arg.typ, ByteArrayType):
-        arg_typ = arg.typ
-        arg = _bytes_to_num(arg, out_typ, signed=False)
-        # clamp after shift
-        if arg_typ.maxlen > 20:
-            arg = int_clamp(arg, 160, signed=False)
-
-    if is_bytes_m_type(arg.typ):
-        info = arg.typ._bytes_info
-        arg = _bytes_to_num(arg, out_typ, signed=False)
-
-        # clamp after shift
-        if info.m > 20:
-            arg = int_clamp(arg, 160, signed=False)
-
-    elif is_integer_type(arg.typ):
-        arg_info = arg.typ._int_info
-        if arg_info.bits > 160 or arg_info.is_signed:
-            arg = int_clamp(arg, 160, signed=False)
-
-    return IRnode.from_list(arg, typ=out_typ)
+    return to_int(expr, arg, out_typ)
 
 
 # question: should we allow bytesM -> String?
