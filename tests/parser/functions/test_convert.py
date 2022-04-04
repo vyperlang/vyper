@@ -1,4 +1,3 @@
-import math
 from decimal import Decimal
 from itertools import permutations
 
@@ -27,6 +26,7 @@ from vyper.utils import (
     checksum_encode,
     hex_to_int,
     int_bounds,
+    round_towards_zero,
 )
 
 DECIMAL_BITS = 168
@@ -41,6 +41,9 @@ MIN_ADDRESS_INT_VALUE = hex_to_int(ZERO_ADDRESS)
 
 
 def hex_to_signed_int(hexstr, bits):
+    """
+    Helper function to convert a hex value to signed integer
+    """
     val = hex_to_int(hexstr)
     if val & (1 << (bits - 1)):
         val -= 1 << bits
@@ -57,6 +60,7 @@ def _get_type_N(type_):
         return parse_bytes_m_info(type_).m
     if type_.startswith("Bytes"):
         return int(type_[6:-1])
+
     return None
 
 
@@ -75,6 +79,7 @@ def _get_nibble(type_):
         return ADDRESS_BITS // 4
     elif type_ == "bool":
         return 1
+
     return None
 
 
@@ -84,15 +89,13 @@ def _get_case_type(type_):
     """
     if type_.startswith("uint"):
         return "uint"
-
     elif type_.startswith("int"):
         return "int"
-
     elif type_.startswith("bytes"):
         return "bytes"
-
     elif type_.startswith("Bytes"):
         return "Bytes"
+
     return type_
 
 
@@ -148,7 +151,6 @@ def generate_valid_input_output_values(o_typ, i_typ, input_val):
     output_val = None
 
     # Extract relevant info
-
     in_nibbles = _get_nibble(i_typ)
     out_nibbles = _get_nibble(o_typ)
 
@@ -204,7 +206,6 @@ def generate_valid_input_output_values(o_typ, i_typ, input_val):
                 input_val = encode_single(o_typ, output_val)[-in_bytes:]
 
         elif it == "bytes":
-
             # Default output value
             output_val = (
                 hex_to_signed_int(input_val, it_bytes_info.m_bits)
@@ -304,10 +305,9 @@ def generate_valid_input_output_values(o_typ, i_typ, input_val):
     if ot == "decimal":
 
         if it in ["int", "uint"]:
-
             input_val = clamp(
-                math.ceil(SizeLimits.MIN_AST_DECIMAL),
-                math.floor(SizeLimits.MAX_AST_DECIMAL),
+                round_towards_zero(SizeLimits.MIN_AST_DECIMAL),
+                round_towards_zero(SizeLimits.MAX_AST_DECIMAL),
                 input_val,
             )
             output_val = Decimal(input_val)
@@ -329,6 +329,7 @@ def generate_valid_input_output_values(o_typ, i_typ, input_val):
         elif it == "Bytes":
             in_bytes = _get_type_N(i_typ)
             in_bits = in_bytes * 8
+
             if input_val == b"":
                 output_val = Decimal("0")
             else:
@@ -351,7 +352,6 @@ def generate_default_cases_for_in_type(i_typ):
 
     it = _get_case_type(i_typ)
 
-    # Generate default cases based on input type only
     if it in ("int", "uint"):
         it_int_info = parse_integer_typeinfo(i_typ)
         (it_lo, it_hi) = int_bounds(it_int_info.is_signed, it_int_info.bits)
@@ -505,7 +505,6 @@ def test_convert() -> {out_type}:
         skip_c1 = True
 
     if not skip_c1:
-
         c1 = get_contract_with_gas_estimation(contract_1)
         assert c1.test_convert() == out_value
 
@@ -583,8 +582,8 @@ def generate_test_cases_for_same_type_conversion():
     """
     res = []
 
-    # uint256 to uint256 conversion is currently valid
-    # TODO: add this test case once https://github.com/vyperlang/vyper/issues/2722 is fixed
+    # uint256 conversion is currently valid due to type inference on literals
+    # not quite working yet
     for t in TEST_TYPES.difference({"uint256"}):
         case = generate_default_cases_for_in_type(t)[0]
         res.append({"in_type": t, "out_type": t, "in_value": case, "exception": InvalidType})
@@ -593,7 +592,12 @@ def generate_test_cases_for_same_type_conversion():
 
 
 def generate_test_cases_for_byte_array_type_mismatch():
+    """
+    Helper function to generate test cases for invalid conversion of byte arrays
+    greater than 32 in size.
+    """
     res = []
+
     for t in BASE_TYPES:
 
         res.append(
@@ -621,7 +625,7 @@ def generate_test_cases_for_invalid_numeric_conversion():
     """
     Helper function to generate invalid numeric conversions:
     1. Negative numbers to uint
-    2. Out of bounds
+    2. Input value is out of bounds of the output type
     """
     res = []
 
@@ -642,6 +646,7 @@ def generate_test_cases_for_invalid_numeric_conversion():
         if it == "decimal":
             cases = [Decimal(c) for c in cases]
 
+        # Extract numeric bounds
         if ot in ["int", "uint"]:
             ot_int_info = parse_integer_typeinfo(o_typ)
             (ot_lo, ot_hi) = int_bounds(ot_int_info.is_signed, ot_int_info.bits)
@@ -788,12 +793,12 @@ def generate_test_cases_for_invalid_dislike_types_conversion():
 
 @pytest.mark.parametrize(
     "input_values",
-    # generate_test_cases_for_same_type_conversion()
-    # + generate_test_cases_for_byte_array_type_mismatch()
-    generate_test_cases_for_invalid_numeric_conversion()
-    # + generate_test_cases_for_clamped_address_conversion()
-    # + generate_test_cases_for_decimal_overflow()
-    # + generate_test_cases_for_invalid_dislike_types_conversion(),
+    generate_test_cases_for_same_type_conversion()
+    + generate_test_cases_for_byte_array_type_mismatch()
+    + generate_test_cases_for_invalid_numeric_conversion()
+    + generate_test_cases_for_clamped_address_conversion()
+    + generate_test_cases_for_decimal_overflow()
+    + generate_test_cases_for_invalid_dislike_types_conversion(),
 )
 @pytest.mark.fuzzing
 def test_invalid_convert(
