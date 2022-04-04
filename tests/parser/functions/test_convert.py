@@ -64,25 +64,6 @@ def _get_type_N(type_):
     return None
 
 
-def _get_nibble(type_):
-    """
-    Helper function to extract number of nibbles from a type for hexadecimal string
-    """
-    type_N = _get_type_N(type_)
-    if type_.startswith(("bytes", "Bytes")):
-        return type_N * 2
-    elif type_.startswith(("int", "uint")):
-        return type_N // 4
-    elif type_ == "decimal":
-        return DECIMAL_BITS // 4
-    elif type_ == "address":
-        return ADDRESS_BITS // 4
-    elif type_ == "bool":
-        return 1
-
-    return None
-
-
 def _get_case_type(type_):
     """
     Helper function to get the case type for `_generate_valid_test_cases_for_type`
@@ -118,14 +99,18 @@ def can_convert(o_typ, i_typ):
         return it in ["uint", "decimal", "bytes", "Bytes", "bool"]
 
     elif ot == "uint":
-        return it in ["uint", "decimal", "bytes", "Bytes", "address", "bool"]
+        return it in ["int", "decimal", "bytes", "Bytes", "address", "bool"]
 
     elif ot == "decimal":
         return it in ["int", "uint", "bytes", "Bytes", "bool"]
 
     elif ot == "bytes":
         ot_bytes_info = parse_bytes_m_info(o_typ)
-        if it == "Bytes":
+        if it in ["int", "uint"]:
+            # bytesN must be of equal or larger size to [u]intM
+            it_int_info = parse_integer_typeinfo(i_typ)
+            return ot_bytes_info.m_bits >= it_int_info.bits
+        elif it == "Bytes":
             # bytesN must be of equal or larger size to Bytes[M]
             return ot_bytes_info.m >= _get_type_N(i_typ)
         elif it == "address":
@@ -151,8 +136,11 @@ def generate_valid_input_output_values(o_typ, i_typ, input_val):
     output_val = None
 
     # Extract relevant info
-    in_nibbles = _get_nibble(i_typ)
-    out_nibbles = _get_nibble(o_typ)
+    if it == "Bytes":
+        in_bytes = _get_type_N(i_typ)
+
+    if ot == "Bytes":
+        out_bytes = _get_type_N(o_typ)
 
     if it in ["int", "uint"]:
         it_int_info = parse_integer_typeinfo(i_typ)
@@ -218,7 +206,9 @@ def generate_valid_input_output_values(o_typ, i_typ, input_val):
                 (ot_lo, ot_hi) = int_bounds(ot_int_info.is_signed, ot_int_info.bits)
                 # Override default output value with clamped value
                 output_val = clamp(ot_lo, ot_hi, output_val)
-                input_val = add_0x_prefix(encode_single(o_typ, output_val).hex()[-in_nibbles:])
+                input_val = add_0x_prefix(
+                    encode_single(o_typ, output_val)[-it_bytes_info.m :].hex()
+                )
 
     if ot == "uint" and it == "address":
         (ot_lo, ot_hi) = int_bounds(ot_int_info.is_signed, ot_int_info.bits)
@@ -229,9 +219,9 @@ def generate_valid_input_output_values(o_typ, i_typ, input_val):
     if ot == "bytes":
         if it in ["int", "uint"]:
             # Input must have fewer than M bytes set
-            (ot_lo, ot_hi) = int_bounds(it_int_info.is_signed, ot_int_info.m_bits)
+            (ot_lo, ot_hi) = int_bounds(it_int_info.is_signed, ot_bytes_info.m_bits)
             input_val = clamp(ot_lo, ot_hi, input_val)
-            output_hex_str = encode_single(i_typ, input_val).hex()[-out_nibbles:]
+            output_val = encode_single(i_typ, input_val)[-ot_bytes_info.m :]
 
         elif it == "decimal":
             input_val_raw = int(Decimal(input_val) * DECIMAL_DIVISOR)
@@ -243,18 +233,13 @@ def generate_valid_input_output_values(o_typ, i_typ, input_val):
                     Decimal(input_val_clamped) / DECIMAL_DIVISOR, f".{MAX_DECIMAL_PLACES}f"
                 )
 
-            output_hex_str = encode_single("fixed168x10", Decimal(input_val)).hex()[-out_nibbles:]
+            output_val = encode_single("fixed168x10", Decimal(input_val))[-ot_bytes_info.m :]
 
         elif it == "Bytes":
-            output_hex_str = input_val.hex().ljust(out_nibbles, "0")
+            output_val = input_val.ljust(ot_bytes_info.m, b"\x00")
 
-        elif it == "bool":
-            output_hex_str = remove_0x_prefix(hex(int(input_val))).rjust(out_nibbles, "0")
-
-        elif it == "address":
-            output_hex_str = remove_0x_prefix(input_val).rjust(out_nibbles, "0")
-
-        output_val = bytes.fromhex(output_hex_str)
+        elif it in ["address", "bool"]:
+            output_val = encode_single(i_typ, input_val)[-ot_bytes_info.m :]
 
     if ot == "address":
         # Modify input value by clamping to the max address value
@@ -268,7 +253,7 @@ def generate_valid_input_output_values(o_typ, i_typ, input_val):
                 MIN_ADDRESS_INT_VALUE, MAX_ADDRESS_INT_VALUE, hex_to_int(input_val)
             )
             input_val = add_0x_prefix(
-                remove_0x_prefix(hex(input_val_clamped)).rjust(in_nibbles, "0")
+                encode_single("uint160", input_val_clamped)[-it_bytes_info.m :].hex()
             )
 
         elif it == "Bytes":
@@ -282,8 +267,9 @@ def generate_valid_input_output_values(o_typ, i_typ, input_val):
                 in_N, b"\x00"
             )
 
-        output_hex_str = remove_0x_prefix(hex(input_val_clamped))
-        output_val = checksum_encode(add_0x_prefix(output_hex_str.rjust(out_nibbles, "0")))
+        output_val = checksum_encode(
+            decode_single("address", encode_single("uint160", input_val_clamped))
+        )
 
     if ot == "bool":
 
@@ -318,9 +304,14 @@ def generate_valid_input_output_values(o_typ, i_typ, input_val):
         elif it == "bytes":
             if it_bytes_info.m_bits > ot_dec_info.bits:
                 # Clamp input value
-                index = in_nibbles - (ot_dec_info.bits // 4) + 2
-                # Manually set to largest decimal prefix in bits
-                input_val = add_0x_prefix("0" * (index - 2) + "7" + input_val[index + 1 :])
+                input_val = clamp(
+                    round_towards_zero(SizeLimits.MIN_AST_DECIMAL),
+                    round_towards_zero(SizeLimits.MAX_AST_DECIMAL),
+                    Decimal(hex_to_signed_int(input_val, it_bytes_info.m_bits)) / DECIMAL_DIVISOR,
+                )
+                input_val = add_0x_prefix(
+                    encode_single("fixed168x10", input_val)[-it_bytes_info.m :].hex()
+                )
 
             output_val = (
                 Decimal(hex_to_signed_int(input_val, it_bytes_info.m_bits)) / DECIMAL_DIVISOR
@@ -448,6 +439,8 @@ def generate_passing_test_cases(type_pairs):
     res = []
 
     for tp in type_pairs:
+        if not tp[0].startswith("decimal") and not tp[1].startswith("bytes"):
+            continue
         if can_convert(tp[0], tp[1]):
             res += generate_passing_test_cases_for_pair(tp[0], tp[1])
 
@@ -688,7 +681,7 @@ def generate_test_cases_for_clamped_address_conversion():
 
     for u in UNSIGNED_INTEGER_TYPES:
         it_int_info = parse_integer_typeinfo(u)
-        if it_int_info.bits > 160:
+        if it_int_info.bits > ADDRESS_BITS:
             cases = [2 ** 160, 2 ** it_int_info.bits - 1, 2 ** (it_int_info.bits - 1)]
             for c in cases:
                 res.append(
@@ -701,13 +694,12 @@ def generate_test_cases_for_clamped_address_conversion():
                 )
 
     for b in BYTES_M_TYPES:
-        in_nibbles = _get_nibble(b)
-        out_nibbles = _get_nibble("address")
-        if in_nibbles > out_nibbles:
+        it_bytes_info = parse_bytes_m_info(b)
+        if it_bytes_info.m_bits > ADDRESS_BITS:
             cases = [
-                add_0x_prefix(remove_0x_prefix(hex(2 ** 160)).rjust(in_nibbles, "0")),
-                add_0x_prefix("f" * in_nibbles),
-                add_0x_prefix("f" * (in_nibbles - 1) + "e"),
+                add_0x_prefix(encode_single("uint256", (2 ** 160))[-it_bytes_info.m :].hex()),
+                add_0x_prefix((b"\xff" * it_bytes_info.m).hex()),
+                add_0x_prefix((b"\xff" * (it_bytes_info.m - 1) + b"\xfe").hex()),
             ]
             for c in cases:
                 res.append(
