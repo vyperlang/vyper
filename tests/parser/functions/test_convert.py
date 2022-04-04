@@ -159,14 +159,13 @@ def generate_valid_input_output_values(o_typ, i_typ, input_val):
 
     # Manipulate input value and convert
     if ot in ["int", "uint"]:
+        (ot_lo, ot_hi) = int_bounds(ot_int_info.is_signed, ot_int_info.bits)
 
         if it in ["int", "uint"]:
-            (ot_lo, ot_hi) = int_bounds(ot_int_info.is_signed, ot_int_info.bits)
             input_val = output_val = clamp(ot_lo, ot_hi, input_val)
 
         elif it == "decimal":
             # Clamp
-            (ot_lo, ot_hi) = int_bounds(ot_int_info.is_signed, ot_int_info.bits)
             input_val_clamped = clamp(ot_lo, ot_hi, Decimal(input_val))
             input_val = format(Decimal(input_val_clamped), f".{MAX_DECIMAL_PLACES}f")
             output_val = int(input_val_clamped)
@@ -175,7 +174,6 @@ def generate_valid_input_output_values(o_typ, i_typ, input_val):
             output_val = int(input_val)
 
         elif it == "Bytes":
-            in_bytes = _get_type_N(i_typ)
             in_bits = in_bytes * 8
             out_bytes = ot_int_info.bits // 8
 
@@ -188,7 +186,6 @@ def generate_valid_input_output_values(o_typ, i_typ, input_val):
 
             # If input Bytes[N] is greater than output integer size, clamp to integer size
             if in_bytes >= out_bytes:
-                (ot_lo, ot_hi) = int_bounds(ot_int_info.is_signed, ot_int_info.bits)
                 # Override output value with clamped value
                 output_val = clamp(ot_lo, ot_hi, output_val)
                 input_val = encode_single(o_typ, output_val)[-in_bytes:]
@@ -203,7 +200,6 @@ def generate_valid_input_output_values(o_typ, i_typ, input_val):
 
             # Clamp to output integer size if input byte size is greater
             if it_bytes_info.m_bits >= ot_int_info.bits:
-                (ot_lo, ot_hi) = int_bounds(ot_int_info.is_signed, ot_int_info.bits)
                 # Override default output value with clamped value
                 output_val = clamp(ot_lo, ot_hi, output_val)
                 input_val = add_0x_prefix(
@@ -318,7 +314,6 @@ def generate_valid_input_output_values(o_typ, i_typ, input_val):
             )
 
         elif it == "Bytes":
-            in_bytes = _get_type_N(i_typ)
             in_bits = in_bytes * 8
 
             if input_val == b"":
