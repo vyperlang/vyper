@@ -3,7 +3,7 @@ from itertools import permutations
 
 import pytest
 from eth_abi import decode_single, encode_single
-from eth_utils import add_0x_prefix, clamp, remove_0x_prefix
+from eth_utils import add_0x_prefix, clamp
 from web3.exceptions import ValidationError
 
 from vyper.codegen.types import (
@@ -259,9 +259,7 @@ def generate_valid_input_output_values(o_typ, i_typ, input_val):
             )
             # Need to cast hex value to at least 2 digits so that single char hex
             # values do not throw for hex() e.g. 0x1, 0x0
-            input_val = bytes.fromhex(remove_0x_prefix(hex(input_val_clamped)).rjust(2, "0")).rjust(
-                in_N, b"\x00"
-            )
+            input_val = encode_single("uint160", input_val_clamped)[-in_N:]
 
         output_val = checksum_encode(
             decode_single("address", encode_single("uint160", input_val_clamped))
@@ -434,8 +432,6 @@ def generate_passing_test_cases(type_pairs):
     res = []
 
     for tp in type_pairs:
-        if not tp[0].startswith("decimal") and not tp[1].startswith("bytes"):
-            continue
         if can_convert(tp[0], tp[1]):
             res += generate_passing_test_cases_for_pair(tp[0], tp[1])
 
