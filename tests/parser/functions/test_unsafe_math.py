@@ -11,12 +11,6 @@ from vyper.utils import evm_div, int_bounds
 integer_types = sorted(list(INTEGER_TYPES))
 
 
-def _as_signed(x, bits):
-    if x > (2 ** (bits - 1)) - 1:
-        return x - 2 ** bits
-    return x
-
-
 @pytest.mark.parametrize("typ", integer_types)
 @pytest.mark.parametrize("op", ["add", "sub", "mul", "div"])
 @pytest.mark.fuzzing
@@ -34,11 +28,10 @@ def foo(x: {typ}, y: {typ}) -> {typ}:
 
     lo, hi = int_bounds(int_info.is_signed, int_info.bits)
     # (roughly 8k cases total generated)
+    # TODO refactor to use fixtures
     NUM_CASES = 15
     xs = [random.randrange(lo, hi) for _ in range(NUM_CASES)]
     ys = [random.randrange(lo, hi) for _ in range(NUM_CASES)]
-
-    mod_bound = 2 ** int_info.bits
 
     # poor man's fuzzing - hypothesis doesn't make it easy
     # with the parametrized strategy
@@ -46,9 +39,11 @@ def foo(x: {typ}, y: {typ}) -> {typ}:
         xs += [lo, lo + 1, -1, 0, 1, hi - 1, hi]
         ys += [lo, lo + 1, -1, 0, 1, hi - 1, hi]
         for (x, y) in itertools.product(xs, ys):
-            expected = _as_signed(fn(x, y) % mod_bound, int_info.bits)
+            expected = unsigned_to_signed(fn(x, y), int_info.bits)
             assert c.foo(x, y) == expected
     else:
+        mod_bound = 2 ** int_info.bits
+
         # 0x80 has some weird properties, like
         # it's a fixed point of multiplication by 0xFF
         fixed_pt = 2 ** (int_info.bits - 1)

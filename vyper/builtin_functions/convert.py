@@ -133,7 +133,7 @@ def _fixed_to_int(arg, out_typ):
     arg_info = arg.typ._decimal_info
     out_info = out_typ._int_info
 
-    DIVISOR = 10 ** arg_info.decimals
+    DIVISOR = arg_info.divisor
 
     # block inputs which are out of bounds before truncation.
     # e.g., convert(255.1, uint8) should revert or fail to compile.
@@ -152,7 +152,7 @@ def _int_to_fixed(arg, out_typ):
     arg_info = arg.typ._int_info
     out_info = out_typ._decimal_info
 
-    DIVISOR = 10 ** out_info.decimals
+    DIVISOR = out_info.divisor
 
     # block inputs which are out of bounds before promotion
     out_lo, out_hi = out_info.bounds

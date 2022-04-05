@@ -39,6 +39,17 @@ def fourbytes_to_int(inp):
     return (inp[0] << 24) + (inp[1] << 16) + (inp[2] << 8) + inp[3]
 
 
+def signed_to_unsigned(int_, bits):
+    return int_ % 2 ** bits
+
+
+def unsigned_to_signed(int_, bits):
+    int_ %= 2 ** bits
+    if int_ > (2 ** (bits - 1)) - 1:
+        return int_ - (2 ** bits)
+    return int_
+
+
 # utility function for debugging purposes
 def trace(n=5, out=sys.stderr):
     print("BEGIN TRACE", file=out)

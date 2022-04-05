@@ -4,6 +4,7 @@ import re
 from collections import OrderedDict
 from dataclasses import dataclass
 from typing import Any, Tuple
+from decimal import Decimal
 
 from vyper import ast as vy_ast
 from vyper.abi_types import (
@@ -101,6 +102,21 @@ class IntegerTypeInfo(NumericTypeInfo):
 @dataclass
 class DecimalTypeInfo(NumericTypeInfo):
     decimals: int
+
+    @property
+    def divisor(self) -> int:
+        # maybe better API is to return Decimal.
+        return 10 ** self.decimals
+
+    @property
+    def epsilon(self) -> Decimal:
+        return 1 / Decimal(self.divisor)
+
+    @property
+    def decimal_bounds(self) -> Tuple[Decimal, Decimal]:
+        lo, hi = self.bounds
+        DIVISOR = Decimal(self.divisor)
+        return lo / DIVISOR, hi / DIVISOR
 
 
 @dataclass
