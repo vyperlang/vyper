@@ -1,3 +1,4 @@
+# NOTE: Copied from https://github.com/fubuloubu/ERC4626/blob/1a10b051928b11eeaad15d80397ed36603c2a49b/contracts/VyperVault.vy
 from vyper.interfaces import ERC20
 from vyper.interfaces import ERC4626
 
