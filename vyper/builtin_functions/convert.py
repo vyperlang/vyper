@@ -174,21 +174,29 @@ def _int_to_int(arg, out_typ):
     # _clamp_numeric_convert(arg, arg_info.bounds, out_info.bounds, arg_info.is_signed)
     # but with better code size and gas.
     if arg_info.is_signed and not out_info.is_signed:
+
         # e.g. (clample (clampge arg 0) (2**128 - 1))
         if out_info.bits < arg_info.bits:
-            # e.g., uclample arg (2**128 - 1)
             # note: below also implies (clampge arg 0), since
             # out_info.bits < 256 in this branch.
+            # (similar to: (assert (iszero (shr out_bits arg))))
             arg = int_clamp(arg, out_info.bits, signed=False)
+
         else:
             # special case for out_bits == 256, since
-            # int_clamp(arg, 256, False) does not make sense.
+            # (clample arg (2**256 - 1)) does not make sense.
+            # (see similar branch in _clamp_numeric_convert)
             arg = IRnode.from_list(["clampge", arg, 0])
+
     elif not arg_info.is_signed and out_info.is_signed:
         # e.g. (uclample (uclampge arg 0) (2**127 - 1))
+        # (similar to: (assert (iszero (shr (out_bits - 1) arg))))
         arg = int_clamp(arg, out_info.bits - 1, signed=False)
-    elif out_info.bits < 256 and out_info.bits < arg_info.bits:
-        # signs are the same, we can use regular int clampers
+
+    elif out_info.bits < arg_info.bits:
+        assert out_info.bits < 256, "unreachable"
+        # narrowing operation, signs are the same.
+        # we can just use regular int clampers.
         arg = int_clamp(arg, out_info.bits, out_info.is_signed)
 
     return IRnode.from_list(arg, typ=out_typ)
