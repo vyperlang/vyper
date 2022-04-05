@@ -27,7 +27,7 @@ st_decimals = st.decimals(
 def test_floor_ceil(get_contract, value, fn_name):
     source = f"""
 @external
-def foo(a: decimal) -> int128:
+def foo(a: decimal) -> int256:
     return {fn_name}(a)
     """
     contract = get_contract(source)
