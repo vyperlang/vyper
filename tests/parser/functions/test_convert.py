@@ -312,7 +312,12 @@ def _py_convert(val, i_typ, o_typ):
         val_bits = val_bits[-32:]
 
     if _padding_direction(i_typ) != _padding_direction(o_typ):
-        n = o_detail.type_bytes
+        # subtle! the padding conversion follows the bytes argument
+        if i_detail.type_class in ("bytes", "Bytes"):
+            n = i_detail.type_bytes
+        else:
+            n = o_detail.type_bytes
+
         val_bits = _padconvert(val_bits, _padding_direction(o_typ), n)
 
     if getattr(o_detail.info, "is_signed", False) and i_detail.type_class == "bytes":
