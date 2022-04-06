@@ -296,10 +296,7 @@ def to_decimal(expr, arg, out_typ):
     if isinstance(arg.typ, ByteArrayType):
         arg_typ = arg.typ
         arg = _bytes_to_num(arg, out_typ, signed=True)
-        # TODO revisit this condition once we have more decimal types
-        # and decimal bounds expand
-        # will be something like: if info.m_bits > 168
-        if arg_typ.maxlen * 8 > 128:
+        if arg_typ.maxlen * 8 > 168:
             arg = IRnode.from_list(arg, typ=out_typ)
             arg = clamp_basetype(arg)
 
@@ -308,10 +305,7 @@ def to_decimal(expr, arg, out_typ):
     elif is_bytes_m_type(arg.typ):
         info = arg.typ._bytes_info
         arg = _bytes_to_num(arg, out_typ, signed=True)
-        # TODO revisit this condition once we have more decimal types
-        # and decimal bounds expand
-        # will be something like: if info.m_bits > 168
-        if info.m_bits > 128:
+        if info.m_bits > 168:
             arg = IRnode.from_list(arg, typ=out_typ)
             arg = clamp_basetype(arg)
 
