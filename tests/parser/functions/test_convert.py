@@ -187,7 +187,6 @@ def _cases_for_Bytes(typ):
     return uniq(ret)
 
 
-@pytest.fixture
 def cases_for_type(typ):
     detail = _parse_type(typ)
     if detail.type_class == "int":
