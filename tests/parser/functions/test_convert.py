@@ -49,7 +49,7 @@ class TestType:
     type_name: str
     type_bytes: int  # number of nonzero bytes this type can take
     type_class: str  # e.g. int, uint, String, decimal
-    type_info: Any  # e.g. DecimalInfo
+    info: Any  # e.g. DecimalInfo
 
     @property
     def abi_type(self):
@@ -71,12 +71,12 @@ class _OutOfBounds(Exception):
 def _parse_type(typename):
     if typename.startswith("uint") or typename.startswith("int"):
         info = parse_integer_typeinfo(typename)
-        assert info.m_bits % 8 == 0
-        return TestType(typename, info.m_bits // 8, "int", info)
+        assert info.bits % 8 == 0
+        return TestType(typename, info.bits // 8, "int", info)
     elif typename == "decimal":
         info = parse_decimal_info(typename)
-        assert info.m_bits % 8 == 0
-        return TestType(typename, info.m_bits // 8, "decimal", info)
+        assert info.bits % 8 == 0
+        return TestType(typename, info.bits // 8, "decimal", info)
     elif typename.startswith("bytes"):
         info = parse_bytes_m_info(typename)
         return TestType(typename, info.m, "bytes", info)
@@ -86,12 +86,21 @@ def _parse_type(typename):
     elif typename.startswith("String"):
         assert typename == "String[32]"  # TODO test others
         return TestType(typename, 32, "Bytes", info)
+    elif typename == "address":
+        return TestType(typename, 20, "address", None)
+    elif typename == "bool":
+        return TestType(typename, 1, "bool", None)
+
+    raise AssertionError(f"no info {typename}")
 
 
 def can_convert(i_typ, o_typ):
     """
     Checks whether conversion from one type to another is valid.
     """
+    if i_typ == o_typ:
+        return False
+
     i_detail = _parse_type(i_typ)
     o_detail = _parse_type(o_typ)
 
@@ -100,7 +109,7 @@ def can_convert(i_typ, o_typ):
 
     if i_detail.type_class == "int":
         ret = o_detail.type_class in ("int", "decimal", "bytes", "Bytes")
-        if not i_typ.info.is_signed:
+        if not i_detail.info.is_signed:
             ret |= o_typ == "address"
         return ret
 
@@ -109,8 +118,9 @@ def can_convert(i_typ, o_typ):
             # bytesN must be of equal or larger size to [u]intM
             return i_detail.type_bytes <= o_detail.type_bytes
 
-        elif i_detail.type_class == "decimal":
-            return True  # this may be an inconsistency in the spec.
+        # the fact that any bytes can be converted to decimal but not all ints
+        # may be an inconsistency in the spec
+        return i_detail.type_class in ("decimal", "bytes")
 
     elif i_detail.type_class == "Bytes":
         return o_detail.type_class in ("int", "decimal", "address")
@@ -121,7 +131,7 @@ def can_convert(i_typ, o_typ):
     elif i_typ == "address":
         return o_typ in ("uint", "bytes")
 
-    raise AssertionError("unreachable")
+    raise AssertionError(f"unreachable {i_typ} {o_typ}")
 
 
 def uniq(xs):
@@ -293,52 +303,57 @@ def _py_convert(o_typ, i_typ, val):
         return None
 
 
-@pytest.fixture
-def all_pairs():
-    return itertools.product(BASE_TYPES, BASE_TYPES)
+# the matrix of all type pairs
+ALL_PAIRS = itertools.product(BASE_TYPES, BASE_TYPES)
 
 
-@pytest.fixture
-def allowed_pairs(all_pairs):
-    return [(i, o) for (i, o) in all_pairs if can_convert(i, o)]
+# pairs which can compile
+CONVERTIBLE_PAIRS = [(i, o) for (i, o) in ALL_PAIRS if can_convert(i, o)]
 
 
-@pytest.fixture
-def disallowed_pairs(all_pairs):
-    return [(i, o) for (i, o) in all_pairs if not can_convert(i, o)]
+# pairs which shouldn't even compile
+NON_CONVERTIBLE_PAIRS = [(i, o) for (i, o) in ALL_PAIRS if not can_convert(i, o)]
 
 
-# TODO double check scoping
-@pytest.fixture
+_CASES_CACHE = {}
+
+
 def cases_for_pair(i_typ, o_typ):
     """
-    Fixture to generate all cases for pair
+    Helper function to generate all cases for pair
     """
+    if (i_typ, o_typ) in _CASES_CACHE:
+        # cache the cases for reproducibility, to ensure test_passing_cases and test_failing_cases
+        # test exactly the two halves of the produced cases.
+        return _CASES_CACHE[(i_typ, o_typ)]
+
     cases = cases_for_type(i_typ) + cases_for_type(o_typ)
 
     # only return cases which are valid for the input type
-    return _filter_cases(cases, i_typ)
+    cases = _filter_cases(cases, i_typ)
+
+    _CASES_CACHE[(i_typ, o_typ)] = cases
+
+    return cases
 
 
-@pytest.fixture
-def passing_cases_for_pair(i_typ, o_typ, cases_for_pair):
+def passing_cases_for_pair(i_typ, o_typ):
     """
-    Fixture to generate passing test cases for a pair of types.
+    Helper function to generate valid test cases
     """
-    return [c for c in cases_for_pair if _py_convert(c, i_typ, o_typ) is not None]
+    return [c for c in cases_for_pair(i_typ, o_typ) if _py_convert(c, i_typ, o_typ) is None]
 
 
-@pytest.fixture
-def failing_cases_for_pair(i_typ, o_typ, cases_for_pair):
+def reverting_cases_for_pair(i_typ, o_typ):
     """
-    Fixture to generate test cases which should raise either a compile time
-    failure or runtime revert
+    Helper function to generate test cases which should raise either a
+    compile time failure or runtime revert
     """
-    return [c for c in cases_for_pair if _py_convert(c, i_typ, o_typ) is None]
+    return [c for c in cases_for_pair(i_typ, o_typ) if _py_convert(c, i_typ, o_typ) is None]
 
 
-@pytest.mark.parametrize("i_typ,o_typ", allowed_pairs)
-@pytest.mark.parametrize("val", passing_cases_for_pair)
+@pytest.mark.parametrize("i_typ,o_typ", CONVERTIBLE_PAIRS)
+@pytest.mark.parametrize("val", passing_cases_for_pair(i_typ, o_typ))
 @pytest.mark.fuzzing
 def test_convert_pass(get_contract_with_gas_estimation, assert_compile_failed, i_typ, o_typ, val):
     contract_1 = f"""
@@ -453,7 +468,7 @@ def foo(x: {typ}) -> {typ}:
     assert_compile_failed(lambda: get_contract(code), InvalidType)
 
 
-@pytest.mark.parametrized("typ", disallowed_pairs)
+@pytest.mark.parametrized("typ", NON_CONVERTIBLE_PAIRS)
 def test_type_conversion_blocked(get_contract, assert_compile_failed, typ):
     code = """
 @external
@@ -483,7 +498,7 @@ def foo() -> {typ}:
 
 
 @pytest.mark.parametrize("i_typ,o_typ", allowed_pairs)
-@pytest.mark.parametrize("val", failing_cases_for_pair)
+@pytest.mark.parametrize("val", reverting_cases_for_pair(i_typ, o_typ))
 @pytest.mark.fuzzing
 def test_conversion_failures(
     get_contract_with_gas_estimation, assert_compile_failed, assert_tx_failed, i_typ, o_typ, val
