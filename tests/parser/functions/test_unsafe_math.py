@@ -5,7 +5,7 @@ import random
 import pytest
 
 from vyper.codegen.types.types import INTEGER_TYPES, parse_integer_typeinfo
-from vyper.utils import evm_div, int_bounds
+from vyper.utils import evm_div, int_bounds, unsigned_to_signed
 
 # TODO something less janky
 integer_types = sorted(list(INTEGER_TYPES))
