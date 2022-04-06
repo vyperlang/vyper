@@ -2,7 +2,7 @@ from decimal import Decimal
 import itertools
 from typing import Any
 import random
-from dataclass import dataclass
+from dataclasses import dataclass
 
 import pytest
 from eth_abi import decode_single, encode_single
@@ -187,7 +187,7 @@ def _cases_for_Bytes(typ):
     return uniq(ret)
 
 
-@pytest.fixture()
+@pytest.fixture
 def cases_for_type(typ):
     detail = _parse_type(typ)
     if detail.type_class == "int":
