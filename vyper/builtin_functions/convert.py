@@ -31,13 +31,15 @@ from vyper.exceptions import (
     CompilerPanic,
     InvalidLiteral,
     InvalidType,
-    StructureException,
     TypeMismatch,
+    StructureException,
 )
 from vyper.utils import DECIMAL_DIVISOR, SizeLimits, round_towards_zero
 
 
 def _FAIL(ityp, otyp, source_expr=None):
+    # TODO consider changing this to InvalidType to be consistent
+    # with the case when types are equal.
     raise TypeMismatch(f"Can't convert {ityp} to {otyp}", source_expr)
 
 
