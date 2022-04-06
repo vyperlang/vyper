@@ -340,6 +340,12 @@ def to_bytes_m(expr, arg, out_typ):
             arg = shl(num_zero_bits, shr(num_zero_bits, bytes_val))
             arg = b.resolve(arg)
 
+    elif is_bytes_m_type(arg.typ):
+        arg_info = arg.typ._bytes_info
+        # clamp if it's a downcast
+        if arg_info.m > out_info.m:
+            arg = bytes_clamp(arg, out_info.m)
+
     elif is_integer_type(arg.typ) or is_base_type(arg.typ, "address"):
         int_bits = arg.typ._int_info.bits
 
@@ -350,14 +356,13 @@ def to_bytes_m(expr, arg, out_typ):
 
         arg = shl(256 - out_info.m_bits, arg)
 
-    elif is_bytes_m_type(arg.typ):
-        arg_info = arg.typ._bytes_info
-        # clamp if it's a downcast
-        if arg_info.m > out_info.m:
-            arg = bytes_clamp(arg, out_info.m)
+    elif is_decimal_type(arg.typ):
+        if out_info.m_bits < arg.typ._decimal_info.bits:
+            _FAIL(arg.typ, out_typ, expr)
+        arg = shl(256 - out_info.m_bits, arg)
 
     else:
-        # bool, decimal
+        # bool
         arg = shl(256 - out_info.m_bits, arg)
 
     return IRnode.from_list(arg, typ=out_typ)
