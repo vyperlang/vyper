@@ -33,17 +33,18 @@ def foo(x: {typ}, y: {typ}) -> {typ}:
     xs = [random.randrange(lo, hi) for _ in range(NUM_CASES)]
     ys = [random.randrange(lo, hi) for _ in range(NUM_CASES)]
 
+    mod_bound = 2 ** int_info.bits
+
     # poor man's fuzzing - hypothesis doesn't make it easy
     # with the parametrized strategy
     if int_info.is_signed:
         xs += [lo, lo + 1, -1, 0, 1, hi - 1, hi]
         ys += [lo, lo + 1, -1, 0, 1, hi - 1, hi]
         for (x, y) in itertools.product(xs, ys):
-            expected = unsigned_to_signed(fn(x, y), int_info.bits)
+            expected = unsigned_to_signed(fn(x, y) % mod_bound, int_info.bits)
+
             assert c.foo(x, y) == expected
     else:
-        mod_bound = 2 ** int_info.bits
-
         # 0x80 has some weird properties, like
         # it's a fixed point of multiplication by 0xFF
         fixed_pt = 2 ** (int_info.bits - 1)

@@ -11,6 +11,7 @@ import eth_abi.exceptions
 from vyper.codegen.types import (
     BASE_TYPES,
     INTEGER_TYPES,
+    SIGNED_INTEGER_TYPES,
     parse_bytes_m_info,
     parse_decimal_info,
     parse_integer_typeinfo,
@@ -27,6 +28,8 @@ from vyper.utils import (
     round_towards_zero,
 )
 import enum
+
+setattr(eth_abi.utils.string.abbr, "__defaults__", (79,))
 
 ADDRESS_BITS = 160
 
@@ -69,7 +72,7 @@ class _OutOfBounds(Exception):
 
 
 def _parse_type(typename):
-    if typename.startswith("uint") or typename.startswith("int"):
+    if typename.startswith(("uint", "int")):
         info = parse_integer_typeinfo(typename)
         assert info.bits % 8 == 0
         return TestType(typename, info.bits // 8, "int", info)
@@ -108,6 +111,9 @@ def can_convert(i_typ, o_typ):
         return True
 
     if i_detail.type_class == "int":
+        if o_detail.type_class == "bytes":
+            return i_detail.type_bytes <= o_detail.type_bytes
+
         ret = o_detail.type_class in ("int", "decimal", "bytes", "Bytes")
         if not i_detail.info.is_signed:
             ret |= o_typ == "address"
@@ -145,8 +151,9 @@ def _cases_for_int(typ):
 
     ret = [lo - 1, lo, lo + 1, -1, 0, 1, hi - 1, hi, hi + 1]
 
-    NUM_RANDOM_CASES = 6
-    ret.extend(random.randrange(lo, hi) for _ in range(NUM_RANDOM_CASES))
+    # random cases cause reproducibility issues. TODO fixme
+    #NUM_RANDOM_CASES = 6
+    #ret.extend(random.randrange(lo, hi) for _ in range(NUM_RANDOM_CASES))
 
     return ret
 
@@ -157,23 +164,25 @@ def _cases_for_decimal(typ):
     lo, hi = info.decimal_bounds
     DIVISOR = info.divisor
 
-    ret = [lo - 1, lo, lo + 1, -1, 0, 1, hi - 1, hi, hi + 1]
+    ret = [Decimal(i) for i in [-1, 0, 1]]
+    ret.extend([lo - 1, lo, lo + 1, hi - 1, hi, hi + 1])
 
     ret.extend(
         [lo - DECIMAL_EPSILON, lo + DECIMAL_EPSILON, hi - DECIMAL_EPSILON, hi + DECIMAL_EPSILON]
     )
 
-    # use int values because randrange can't generate fractional decimals
-    int_lo, int_hi = info.bounds  # e.g. -(2**167)
-    NUM_RANDOM_CASES = 10  # more than int, just for paranoia's sake
-    ret.extend(random.randrange(int_lo, int_hi) / DIVISOR for _ in range(NUM_RANDOM_CASES))
+    # random cases cause reproducibility issues. TODO fixme
+    # (use int values because randrange can't generate fractional decimals)
+    #int_lo, int_hi = info.bounds  # e.g. -(2**167)
+    #NUM_RANDOM_CASES = 10  # more than int, just for paranoia's sake
+    #ret.extend(random.randrange(int_lo, int_hi) / DIVISOR for _ in range(NUM_RANDOM_CASES))
 
     return ret
 
 
 def _cases_for_address(_typ):
     cases = _filter_cases(_cases_for_int("uint160"), "uint160")
-    return [_py_convert("address", "uint160", c) for c in cases]
+    return [_py_convert(c, "uint160", "address") for c in cases]
 
 
 def _cases_for_bool(_typ):
@@ -186,7 +195,7 @@ def _cases_for_bytes(typ):
     # reuse the cases for the equivalent int type
     equiv_int_type = f"uint{m_bits}"
     cases = _filter_cases(_cases_for_int(equiv_int_type), equiv_int_type)
-    return [_py_convert(typ, equiv_int_type, c) for c in cases]
+    return [_py_convert(c, equiv_int_type, typ) for c in cases]
 
 
 def _cases_for_Bytes(typ):
@@ -197,7 +206,8 @@ def _cases_for_Bytes(typ):
     return uniq(ret)
 
 
-def cases_for_type(typ):
+# generate all cases of interest for a type, potentially including invalid cases
+def interesting_cases_for_type(typ):
     detail = _parse_type(typ)
     if detail.type_class == "int":
         return _cases_for_int(typ)
@@ -215,12 +225,17 @@ def cases_for_type(typ):
 
 def _filter_cases(cases, i_typ):
     cases = uniq(cases)
-    return [c for c in cases if _py_convert(c, i_typ, i_typ) is not None]
+    def _in_bounds(c):
+        try:
+            return _py_convert(c, i_typ, i_typ) is not None
+        except eth_abi.exceptions.ValueOutOfBounds:
+            return False
+    return [c for c in cases if _in_bounds(c)]
 
 
-class _PadDirection(enum.auto):
-    Left: str
-    Right: str
+class _PadDirection(enum.Enum):
+    Left = enum.auto()
+    Right = enum.auto()
 
 
 def _padding_direction(typ):
@@ -237,12 +252,12 @@ def _padconvert(val_bits, direction, n):
     """
     assert len(val_bits) == 32
 
-    # right- to left- padded
-    if direction == _PadDirection.Left:
-        return val_bits[-n:] + val_bits[:-n]
-
     # convert left-padded to right-padded
     if direction == _PadDirection.Right:
+        return val_bits[-n:] + val_bits[:-n]
+
+    # right- to left- padded
+    if direction == _PadDirection.Left:
         return val_bits[n:] + val_bits[:n]
 
 
@@ -262,7 +277,11 @@ def _to_bits(val, i_typ):
 
 
 def _signextend(val_bytes, bits):
-    return _to_bits(f"int{bits}", unsigned_to_signed(int(val_bytes), bits))
+    as_uint = int.from_bytes(val_bytes, byteorder="big")
+
+    as_sint = unsigned_to_signed(as_uint, bits)
+
+    return (as_sint % 2**256).to_bytes(32, byteorder="big")
 
 
 def _convert_decimal_to_int(val, o_typ):
@@ -272,12 +291,15 @@ def _convert_decimal_to_int(val, o_typ):
     return round_towards_zero(val)
 
 
-def _py_convert(o_typ, i_typ, val):
+def _py_convert(val, i_typ, o_typ):
     """
     Perform conversion on the Python representation of a Vyper value.
     Returns None if the conversion is invalid (i.e., would revert in Vyper)
     """
-    if i_typ.type_name == "decimal" and o_typ.type_name in INTEGER_TYPES:
+    i_detail = _parse_type(i_typ)
+    o_detail = _parse_type(o_typ)
+
+    if i_typ == "decimal" and o_typ in INTEGER_TYPES:
         # note special behavior for decimal: catch OOB before truncation.
         try:
             val = _convert_decimal_to_int(val, o_typ)
@@ -286,17 +308,22 @@ def _py_convert(o_typ, i_typ, val):
 
     val_bits = _to_bits(val, i_typ)
 
-    if i_typ.type_class in ("Bytes", "String"):
+    if i_detail.type_class in ("Bytes", "String"):
         val_bits = val_bits[-32:]
 
     if _padding_direction(i_typ) != _padding_direction(o_typ):
-        n = o_typ.type_bytes
+        n = o_detail.type_bytes
         val_bits = _padconvert(val_bits, _padding_direction(o_typ), n)
 
-    if getattr(o_typ.info, "is_signed", False):
-        val_bits = _signextend(val_bits)
+    if getattr(o_detail.info, "is_signed", False) and i_detail.type_class == "bytes":
+        #val_bits = _signextend(val_bits, o_detail.info.bits)
+        n_bits = i_detail.type_bytes * 8
+        val_bits = _signextend(val_bits, n_bits)
 
     try:
+        if o_typ == "bool":
+            return _from_bits(val_bits, "uint256") != 0
+
         return _from_bits(val_bits, o_typ)
 
     except _OutOfBounds:
@@ -315,69 +342,92 @@ CONVERTIBLE_PAIRS = [(i, o) for (i, o) in ALL_PAIRS if can_convert(i, o)]
 NON_CONVERTIBLE_PAIRS = [(i, o) for (i, o) in ALL_PAIRS if not can_convert(i, o)]
 
 
-_CASES_CACHE = {}
+#_CASES_CACHE = {}
 
 
 def cases_for_pair(i_typ, o_typ):
     """
     Helper function to generate all cases for pair
     """
-    if (i_typ, o_typ) in _CASES_CACHE:
-        # cache the cases for reproducibility, to ensure test_passing_cases and test_failing_cases
-        # test exactly the two halves of the produced cases.
-        return _CASES_CACHE[(i_typ, o_typ)]
+    #if (i_typ, o_typ) in _CASES_CACHE:
+    #    # cache the cases for reproducibility, to ensure test_passing_cases and test_failing_cases
+    #    # test exactly the two halves of the produced cases.
+    #    return _CASES_CACHE[(i_typ, o_typ)]
 
-    cases = cases_for_type(i_typ) + cases_for_type(o_typ)
-
+    cases = interesting_cases_for_type(i_typ)
     # only return cases which are valid for the input type
     cases = _filter_cases(cases, i_typ)
 
-    _CASES_CACHE[(i_typ, o_typ)] = cases
+    for c in interesting_cases_for_type(o_typ):
+        # convert back into i_typ
+        try:
+            c = _py_convert(c, o_typ, i_typ)
+            if c is not None:
+                cases.append(c)
+        except eth_abi.exceptions.ValueOutOfBounds:
+            pass
+
+    #_CASES_CACHE[(i_typ, o_typ)] = cases
 
     return cases
 
 
-def passing_cases_for_pair(i_typ, o_typ):
-    """
-    Helper function to generate valid test cases
-    """
-    return [c for c in cases_for_pair(i_typ, o_typ) if _py_convert(c, i_typ, o_typ) is None]
+def generate_passing_cases():
+    ret = []
+    for i_typ, o_typ in CONVERTIBLE_PAIRS:
+        cases = cases_for_pair(i_typ, o_typ)
+        for c in cases:
+            # only add convertible cases
+            if _py_convert(c, i_typ, o_typ) is not None:
+                ret.append( (i_typ, o_typ, c))
+    return ret
 
 
-def reverting_cases_for_pair(i_typ, o_typ):
-    """
-    Helper function to generate test cases which should raise either a
-    compile time failure or runtime revert
-    """
-    return [c for c in cases_for_pair(i_typ, o_typ) if _py_convert(c, i_typ, o_typ) is None]
+def generate_reverting_cases():
+    ret = []
+    for i_typ, o_typ in CONVERTIBLE_PAIRS:
+        cases = cases_for_pair(i_typ, o_typ)
+        for c in cases:
+            if _py_convert(c, i_typ, o_typ) is None:
+                ret.append( (i_typ, o_typ, c))
+    return ret
 
 
-@pytest.mark.parametrize("i_typ,o_typ", CONVERTIBLE_PAIRS)
-@pytest.mark.parametrize("val", passing_cases_for_pair(i_typ, o_typ))
+def _vyper_literal(val, typ):
+    detail = _parse_type(typ)
+    if detail.type_class == "bytes":
+        return "0x" + val.hex()
+    return str(val)
+
+
+@pytest.mark.parametrize("i_typ,o_typ,val", generate_passing_cases())
 @pytest.mark.fuzzing
 def test_convert_pass(get_contract_with_gas_estimation, assert_compile_failed, i_typ, o_typ, val):
     contract_1 = f"""
 @external
 def test_convert() -> {o_typ}:
-    return convert({val}, {o_typ})
+    return convert({_vyper_literal(val, i_typ)}, {o_typ})
     """
 
     c1_exception = None
-    if i_typ.startswith(("int", "uint")) and o_typ.startswith(("int", "uint")):
+    if i_typ in INTEGER_TYPES and o_typ in INTEGER_TYPES:
         # Skip conversion of positive integer literals because compiler reads them
         # as target type.
         if val >= 0:
-            c1_exception = InvalidLiteral
+            c1_exception = InvalidType
+
+    if i_typ in SIGNED_INTEGER_TYPES and o_typ in SIGNED_INTEGER_TYPES and val < 0:
+        c1_exception = InvalidType
 
     # if i_typ.startswith(("bytes", "Bytes")) and o_typ.startswith(("int", "uint", "decimal")):
     # Raw bytes are treated as uint256
     # skip_c1 = True
 
-    # if in_type.startswith(("int", "uint")) and out_type.startswith("bytes"):
-    # Skip conversion of integer literals because they are of uint256 / int256
-    # types, unless it is bytes32
-    # if out_type != "bytes32":
-    #    skip_c1 = True
+    if i_typ.startswith(("int", "uint")) and o_typ.startswith("bytes"):
+    # integer literals get upcasted to uint256 / int256 types, so the convert
+    # will not compile unless it is bytes32
+        if o_typ != "bytes32":
+           c1_exception = TypeMismatch
 
     # if in_type.startswith("Bytes") and out_type.startswith("bytes"):
     # Skip if length of Bytes[N] is same as size of bytesM
@@ -397,7 +447,7 @@ def test_convert() -> {o_typ}:
         assert_compile_failed(lambda: get_contract_with_gas_estimation(contract_1), c1_exception)
     else:
         c1 = get_contract_with_gas_estimation(contract_1)
-        assert c1.test_convert() == _py_convert(val)
+        assert c1.test_convert() == _py_convert(val, i_typ, o_typ)
 
     contract_2 = f"""
 @external
@@ -406,29 +456,29 @@ def test_input_convert(x: {i_typ}) -> {o_typ}:
     """
 
     c2 = get_contract_with_gas_estimation(contract_2)
-    assert c2.test_input_convert(val) == _py_convert(val)
+    assert c2.test_input_convert(val) == _py_convert(val, i_typ, o_typ)
 
     contract_3 = f"""
 bar: {i_typ}
 
 @external
 def test_state_variable_convert() -> {o_typ}:
-    self.bar = {i_typ}
+    self.bar = {_vyper_literal(val, i_typ)}
     return convert(self.bar, {o_typ})
     """
 
     c3 = get_contract_with_gas_estimation(contract_3)
-    assert c3.test_state_variable_convert() == _py_convert(val)
+    assert c3.test_state_variable_convert() == _py_convert(val, i_typ, o_typ)
 
     contract_4 = f"""
 @external
 def test_memory_variable_convert() -> {o_typ}:
-    bar: {i_typ} = {val}
+    bar: {i_typ} = {_vyper_literal(val, i_typ)}
     return convert(bar, {o_typ})
     """
 
     c4 = get_contract_with_gas_estimation(contract_4)
-    assert c4.test_state_variable_convert() == _py_convert(val)
+    assert c4.test_memory_variable_convert() == _py_convert(val, i_typ, o_typ)
 
 
 # TODO CMC 2022-04-06 I think this test is somewhat unnecessary.
@@ -478,7 +528,7 @@ def foo(x: {typ}) -> {typ}:
     assert_compile_failed(lambda: get_contract(code), TypeMismatch)
 
 
-@pytest.mark.parametrize(TEST_TYPES)
+@pytest.mark.parametrize("typ", TEST_TYPES)
 def test_bytes_too_large_cases(get_contract, assert_compile_failed, typ):
     code_1 = """
 @external
@@ -497,8 +547,7 @@ def foo() -> {typ}:
     assert_compile_failed(lambda: get_contract(code_2, TypeMismatch))
 
 
-@pytest.mark.parametrize("i_typ,o_typ", allowed_pairs)
-@pytest.mark.parametrize("val", reverting_cases_for_pair(i_typ, o_typ))
+@pytest.mark.parametrize("i_typ,o_typ,val", generate_reverting_cases())
 @pytest.mark.fuzzing
 def test_conversion_failures(
     get_contract_with_gas_estimation, assert_compile_failed, assert_tx_failed, i_typ, o_typ, val
@@ -521,7 +570,7 @@ def test_conversion_failures(
     contract_1 = f"""
 @external
 def foo() -> {o_typ}:
-    return convert({val}, {o_typ})
+    return convert({_vyper_literal(val, i_typ)}, {o_typ})
     """
 
     if not skip_c1:
@@ -533,7 +582,7 @@ def foo() -> {o_typ}:
     contract_2 = f"""
 @external
 def foo():
-    bar: {i_typ} = {val}
+    bar: {i_typ} = {_vyper_literal(val, i_typ)}
     foobar: {o_typ} = convert(bar, {o_typ})
     """
 

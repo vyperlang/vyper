@@ -40,11 +40,12 @@ def fourbytes_to_int(inp):
 
 
 def signed_to_unsigned(int_, bits):
-    return int_ % 2 ** bits
+    if int_ < 0:
+        return int_ + 2 ** bits
+    return int_
 
 
 def unsigned_to_signed(int_, bits):
-    int_ %= 2 ** bits
     if int_ > (2 ** (bits - 1)) - 1:
         return int_ - (2 ** bits)
     return int_
