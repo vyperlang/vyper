@@ -34,7 +34,7 @@ from vyper.exceptions import (
     TypeMismatch,
     StructureException,
 )
-from vyper.utils import DECIMAL_DIVISOR, SizeLimits, round_towards_zero
+from vyper.utils import DECIMAL_DIVISOR, SizeLimits, round_towards_zero, unsigned_to_signed
 
 
 def _FAIL(ityp, otyp, source_expr=None):
@@ -138,8 +138,8 @@ def _fixed_to_int(arg, out_typ):
     # block inputs which are out of bounds before truncation.
     # e.g., convert(255.1, uint8) should revert or fail to compile.
     out_lo, out_hi = out_info.bounds
-    out_lo = out_lo * DIVISOR
-    out_hi = out_hi * DIVISOR
+    out_lo = int(out_lo * DIVISOR)
+    out_hi = int(out_hi * DIVISOR)
 
     clamped_arg = _clamp_numeric_convert(arg, arg_info.bounds, (out_lo, out_hi), arg_info.is_signed)
 
@@ -156,8 +156,8 @@ def _int_to_fixed(arg, out_typ):
 
     # block inputs which are out of bounds before promotion
     out_lo, out_hi = out_info.bounds
-    out_lo = round_towards_zero(decimal.Decimal(out_lo) / DIVISOR)
-    out_hi = round_towards_zero(decimal.Decimal(out_hi) / DIVISOR)
+    out_lo = round_towards_zero(out_lo / DIVISOR)
+    out_hi = round_towards_zero(out_hi / DIVISOR)
 
     clamped_arg = _clamp_numeric_convert(arg, arg_info.bounds, (out_lo, out_hi), arg_info.is_signed)
 
@@ -189,8 +189,15 @@ def _literal_int(expr, out_typ):
     int_info = out_typ._int_info
     if isinstance(expr, vy_ast.Hex):
         val = int(expr.value, 16)
+        # apply sign extension
+        if int_info.is_signed:
+            val = unsigned_to_signed(val, int_info.bits)
     elif isinstance(expr, vy_ast.Bytes):
         val = int.from_bytes(expr.value, "big")
+        # apply sign extension
+        if int_info.is_signed:
+            val = unsigned_to_signed(val, int_info.bits)
+
     elif isinstance(expr, (vy_ast.Int, vy_ast.Decimal, vy_ast.NameConstant)):
         val = expr.value
     else:  # pragma: nocover

@@ -104,18 +104,17 @@ class DecimalTypeInfo(NumericTypeInfo):
     decimals: int
 
     @property
-    def divisor(self) -> int:
-        # maybe better API is to return Decimal.
-        return 10 ** self.decimals
+    def divisor(self) -> Decimal:
+        return Decimal(10 ** self.decimals)
 
     @property
     def epsilon(self) -> Decimal:
-        return 1 / Decimal(self.divisor)
+        return 1 / self.divisor
 
     @property
     def decimal_bounds(self) -> Tuple[Decimal, Decimal]:
         lo, hi = self.bounds
-        DIVISOR = Decimal(self.divisor)
+        DIVISOR = self.divisor
         return lo / DIVISOR, hi / DIVISOR
 
 
