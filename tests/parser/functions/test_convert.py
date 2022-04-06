@@ -1,18 +1,12 @@
 from decimal import Decimal
-from itertools import permutations
+import itertools
 
 import pytest
 from eth_abi import decode_single, encode_single
-from eth_utils import add_0x_prefix, clamp
-from web3.exceptions import ValidationError
 
 from vyper.codegen.types import (
     BASE_TYPES,
-    BYTES_M_TYPES,
-    DECIMAL_TYPES,
     INTEGER_TYPES,
-    SIGNED_INTEGER_TYPES,
-    UNSIGNED_INTEGER_TYPES,
     parse_bytes_m_info,
     parse_decimal_info,
     parse_integer_typeinfo,
@@ -20,7 +14,6 @@ from vyper.codegen.types import (
 from vyper.exceptions import InvalidLiteral, InvalidType, OverflowException, TypeMismatch
 from vyper.utils import (
     DECIMAL_DIVISOR,
-    MAX_DECIMAL_PLACES,
     SizeLimits,
     bytes_to_int,
     checksum_encode,
@@ -252,7 +245,7 @@ def _signextend(val_bytes, bits):
 
 
 def _convert_decimal_to_int(val, o_typ):
-    if not _int_in_bounds(val, o_typ):
+    if not SizeLimits.in_bounds(o_typ, val):
         raise _OutOfBounds(val)
 
     return round_towards_zero(val)
@@ -487,7 +480,7 @@ def foo() -> {typ}:
 
 
 # generate_test_cases_for_same_type_conversion()
-@pytest.mark.parametrize("i_typ,o_typ", allowed_types)
+@pytest.mark.parametrize("i_typ,o_typ", allowed_pairs)
 @pytest.mark.parametrize("val", invalid_cases_for_pair)
 @pytest.mark.fuzzing
 def test_conversion_failures(
@@ -499,13 +492,13 @@ def test_conversion_failures(
     """
     skip_c1 = False
 
-    if in_type.startswith("int") and out_type == "address":
+    if i_typ.startswith("int") and out_type == "address":
         skip_c1 = True
 
-    if in_type.startswith("bytes"):
+    if i_typ.startswith("bytes"):
         skip_c1 = True
 
-    if in_type == "address":
+    if i_typ == "address":
         skip_c1 = True
 
     contract_1 = f"""
