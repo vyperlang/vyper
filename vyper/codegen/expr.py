@@ -878,8 +878,10 @@ class Expr:
                 return IRnode.from_list(["iszero", operand], typ="bool")
         elif isinstance(self.expr.op, vy_ast.USub) and is_numeric_type(operand.typ):
             assert operand.typ._num_info.is_signed
-            # Clamp on minimum integer value as we cannot negate that value
-            # (all other integer values are fine)
+            # Clamp on minimum signed integer value as we cannot negate that
+            # value (all other integer values are fine)
+            # CMC 2022-04-06 maybe this could be branchless with:
+            # max(val, 0 - val)
             min_int_val, _ = operand.typ._num_info.bounds
             return IRnode.from_list(
                 ["sub", 0, ["clampgt", operand, min_int_val]],

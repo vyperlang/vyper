@@ -32,7 +32,7 @@ def _should_decode(typ):
         return _should_decode(typ.subtype)
     if isinstance(typ, TupleLike):
         return any(_should_decode(t) for t in typ.tuple_members())
-    raise CompilerPanic(f"_should_decode({typ})")
+    raise CompilerPanic(f"_should_decode({typ})")  # pragma: notest
 
 
 # register function args with the local calling context.
