@@ -189,19 +189,19 @@ def _literal_int(expr, out_typ):
     int_info = out_typ._int_info
     if isinstance(expr, vy_ast.Hex):
         val = int(expr.value, 16)
-        # apply sign extension
-        if int_info.is_signed:
-            val = unsigned_to_signed(val, int_info.bits)
     elif isinstance(expr, vy_ast.Bytes):
         val = int.from_bytes(expr.value, "big")
-        # apply sign extension
-        if int_info.is_signed:
-            val = unsigned_to_signed(val, int_info.bits)
-
     elif isinstance(expr, (vy_ast.Int, vy_ast.Decimal, vy_ast.NameConstant)):
         val = expr.value
     else:  # pragma: nocover
         raise CompilerPanic("unreachable")
+
+
+    # apply sign extension, if expected
+    # (e.g. convert(0xff <bytes1>, int8) == -1.
+    if isinstance(expr, (vy_ast.Hex, vy_ast.Bytes)) and int_info.is_signed:
+        val = unsigned_to_signed(val, int_info.bits)
+
 
     (lo, hi) = int_info.bounds
     if not (lo <= val <= hi):
@@ -227,7 +227,14 @@ def _literal_decimal(expr, out_typ):
     # sanity check type checker did its job
     assert math.ceil(val) == math.floor(val)
 
-    return IRnode.from_list(int(val), typ=out_typ)
+    val = int(val)
+
+    # apply sign extension, if expected
+    out_info = out_typ._decimal_info
+    if out_info.is_signed:
+        val = unsigned_to_signed(val, out_info.bits)
+
+    return IRnode.from_list(val, typ=out_typ)
 
 
 # any base type or bytes/string
