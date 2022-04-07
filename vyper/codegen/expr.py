@@ -39,6 +39,7 @@ from vyper.exceptions import (
     StructureException,
     TypeCheckFailure,
     TypeMismatch,
+    UnimplementedException,
 )
 from vyper.utils import DECIMAL_DIVISOR, SizeLimits, bytes_to_int, checksum_encode, string_to_bytes
 
@@ -669,7 +670,8 @@ class Expr:
                 return
 
         if arith is None:
-            return
+            op_str = self.expr.op._pretty
+            raise UnimplementedException(f"Not implemented: {ltyp} {op_str} {rtyp}", self.expr.op)
 
         arith = IRnode.from_list(arith, typ=new_typ)
 
@@ -876,8 +878,10 @@ class Expr:
                 return IRnode.from_list(["iszero", operand], typ="bool")
         elif isinstance(self.expr.op, vy_ast.USub) and is_numeric_type(operand.typ):
             assert operand.typ._num_info.is_signed
-            # Clamp on minimum integer value as we cannot negate that value
-            # (all other integer values are fine)
+            # Clamp on minimum signed integer value as we cannot negate that
+            # value (all other integer values are fine)
+            # CMC 2022-04-06 maybe this could be branchless with:
+            # max(val, 0 - val)
             min_int_val, _ = operand.typ._num_info.bounds
             return IRnode.from_list(
                 ["sub", 0, ["clampgt", operand, min_int_val]],
