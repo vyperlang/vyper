@@ -246,20 +246,30 @@ def _padding_direction(typ):
     return _PadDirection.Left
 
 
-def _padconvert(val_bits, direction, n):
+# TODO this could be a function in vyper.builtin_functions.convert
+# which implements literal folding and also serves as a reference/spec
+def _padconvert(val_bits, direction, n, padding_byte = None):
     """
     Takes the ABI representation of a value, and convert the padding if needed.
-    Note: do not strip dirty bytes, just swap the two halves of the bytestring.
+    If fill_zeroes is false, the two halves of the bytestring are just swapped
+    and the dirty bytes remain dirty. If fill_zeroes is true, the the padding
+    bytes get set to 0
     """
     assert len(val_bits) == 32
 
     # convert left-padded to right-padded
     if direction == _PadDirection.Right:
-        return val_bits[-n:] + val_bits[:-n]
+        tail = val_bits[:-n]
+        if padding_byte is not None:
+            tail = padding_byte * len(tail)
+        return val_bits[-n:] + tail
 
     # right- to left- padded
     if direction == _PadDirection.Left:
-        return val_bits[n:] + val_bits[:n]
+        head = val_bits[n:]
+        if padding_byte is not None:
+            head = padding_byte * len(head)
+        return head + val_bits[:n]
 
 
 def _from_bits(val_bits, o_typ):
@@ -312,6 +322,11 @@ def _py_convert(val, i_typ, o_typ):
     i_detail = _parse_type(i_typ)
     o_detail = _parse_type(o_typ)
 
+    if i_detail.type_class == "int" and o_detail.type_class == "int":
+        if not SizeLimits.in_bounds(o_typ, val):
+            return None
+        return val
+
     if i_typ == "decimal" and o_typ in INTEGER_TYPES:
         return _convert_decimal_to_int(val, o_typ)
 
@@ -319,22 +334,22 @@ def _py_convert(val, i_typ, o_typ):
         # Note: Decimal(True) == Decimal("1")
         return _convert_int_to_decimal(val, o_typ)
 
-    if o_typ == "decimal" and i_detail.type_class in ("bool", "int"):
-        ret = Decimal()
-
     val_bits = _to_bits(val, i_typ)
 
     if i_detail.type_class in ("Bytes", "String"):
-        val_bits = val_bits[-32:]
+        val_bits = val_bits[32:]
 
     if _padding_direction(i_typ) != _padding_direction(o_typ):
         # subtle! the padding conversion follows the bytes argument
         if i_detail.type_class in ("bytes", "Bytes"):
             n = i_detail.type_bytes
+            padding_byte = None
         else:
+            # output type is bytes
             n = o_detail.type_bytes
+            padding_byte = b"\x00"
 
-        val_bits = _padconvert(val_bits, _padding_direction(o_typ), n)
+        val_bits = _padconvert(val_bits, _padding_direction(o_typ), n, padding_byte)
 
     if getattr(o_detail.info, "is_signed", False) and i_detail.type_class == "bytes":
         n_bits = i_detail.type_bytes * 8
@@ -345,6 +360,7 @@ def _py_convert(val, i_typ, o_typ):
             return _from_bits(val_bits, "uint256") != 0
 
         ret = _from_bits(val_bits, o_typ)
+
         if o_typ == "address":
             return checksum_encode(ret)
         return ret
@@ -406,7 +422,7 @@ def generate_passing_cases():
             # only add convertible cases
             if _py_convert(c, i_typ, o_typ) is not None:
                 ret.append( (i_typ, o_typ, c))
-    return sorted(ret)
+    return reversed(sorted(ret))
 
 
 def generate_reverting_cases():
@@ -432,7 +448,7 @@ def _vyper_literal(val, typ):
 
 @pytest.mark.parametrize("i_typ,o_typ,val", generate_passing_cases())
 @pytest.mark.fuzzing
-def test_convert_pass(get_contract_with_gas_estimation, assert_compile_failed, i_typ, o_typ, val):
+def test_convert_passing(get_contract_with_gas_estimation, assert_compile_failed, i_typ, o_typ, val):
 
     expected_val = _py_convert(val, i_typ, o_typ)
     if o_typ == "address" and expected_val == "0x" + "00" * 20:
@@ -447,13 +463,15 @@ def test_convert() -> {o_typ}:
 
     c1_exception = None
     skip_c1 = False
-    if i_typ in INTEGER_TYPES and o_typ in INTEGER_TYPES:
+    if i_typ in INTEGER_TYPES and o_typ in INTEGER_TYPES - {"uint256"}:
         # Skip conversion of positive integer literals because compiler reads them
         # as target type.
         if val >= 0:
             c1_exception = InvalidType
 
     if i_typ in SIGNED_INTEGER_TYPES and o_typ in SIGNED_INTEGER_TYPES and val < 0:
+        # similar, skip conversion of negative integer literals because compiler
+        # infers them as target type.
         c1_exception = InvalidType
 
     # if i_typ.startswith(("bytes", "Bytes")) and o_typ.startswith(("int", "uint", "decimal")):
@@ -594,27 +612,36 @@ def test_conversion_failures(
     Test multiple contracts and check for a specific exception.
     If no exception is provided, a runtime revert is expected (e.g. clamping).
     """
-    skip_c1 = False
-
-    if i_typ.startswith("int") and o_typ == "address":
-        skip_c1 = True
-
-    if i_typ.startswith("bytes"):
-        skip_c1 = True
-
-    if i_typ == "address":
-        skip_c1 = True
-
     contract_1 = f"""
 @external
 def foo() -> {o_typ}:
     return convert({_vyper_literal(val, i_typ)}, {o_typ})
     """
 
+    c1_exception = InvalidLiteral
+
+    if i_typ.startswith(("int", "uint")) and o_typ.startswith("bytes"):
+    # integer literals get upcasted to uint256 / int256 types, so the convert
+    # will not compile unless it is bytes32
+        if o_typ != "bytes32":
+           c1_exception = TypeMismatch
+
+
+    # compile-time folding not implemented for these:
+    skip_c1 = False
+    #if o_typ.startswith("int") and i_typ == "address":
+    #    skip_c1 = True
+
+    if o_typ.startswith("bytes"):
+        skip_c1 = True
+
+    if o_typ == "address":
+        skip_c1 = True
+
     if not skip_c1:
         assert_compile_failed(
             lambda: get_contract_with_gas_estimation(contract_1),
-            InvalidLiteral,
+            c1_exception
         )
 
     contract_2 = f"""
@@ -624,8 +651,11 @@ def foo():
     foobar: {o_typ} = convert(bar, {o_typ})
     """
 
-    c2 = get_contract_with_gas_estimation(contract_2)
-    assert_tx_failed(lambda: c2.foo())
+    skip_c2 = i_typ == "bytes20"  # can't handle bytes20 literals
+
+    if not skip_c2:
+        c2 = get_contract_with_gas_estimation(contract_2)
+        assert_tx_failed(lambda: c2.foo())
 
     contract_3 = f"""
 @external
