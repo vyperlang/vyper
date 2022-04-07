@@ -13,6 +13,7 @@ from vyper.codegen.abi_encoder import abi_encode
 from vyper.codegen.context import Context
 from vyper.codegen.core import (
     IRnode,
+    STORE,
     add_ofst,
     bytes_data_ptr,
     check_external_call,
@@ -506,82 +507,60 @@ class Concat:
                 )
             prev_type = current_type
 
-        if current_type == "String":
-            ReturnType = StringType
-        else:
-            ReturnType = ByteArrayType
-
         # Maximum length of the output
-        total_maxlen = sum(
+        dst_maxlen = sum(
             [arg.typ.maxlen if isinstance(arg.typ, ByteArrayLike) else 32 for arg in args]
         )
 
-        # TODO: rewrite to use codegen.core routines
+        if current_type == "String":
+            ret_typ = String(maxlen=dst_maxlen)
+        else:
+            ret_typ = ByteArrayType(maxlen=dst_maxlen)
 
         # Node representing the position of the output in memory
-        placeholder = context.new_internal_variable(ReturnType(total_maxlen))
-        # Object representing the output
-        seq = []
-        # For each argument we are concatenating...
+        dst = IRnode.from_list(
+            context.new_internal_variable(ret_typ),
+            typ=ret_typ,
+            location = MEMORY,
+            annotation = "concat destination"
+        )
+
+        ret = ["seq"]
+        # stack item representing our current offset in the dst buffer
+        ofst = "concat_ofst"
+
+        # TODO: optimize for the case where all lengths are statically known.
         for arg in args:
-            # Start pasting into a position the starts at zero, and keeps
-            # incrementing as we concatenate arguments
-            placeholder_node = IRnode.from_list(
-                ["add", placeholder, "_poz"],
-                typ=ReturnType(total_maxlen),
-                location=MEMORY,
-            )
-            placeholder_node_plus_32 = IRnode.from_list(
-                ["add", ["add", placeholder, "_poz"], 32],
-                typ=ReturnType(total_maxlen),
-                location=MEMORY,
-            )
-            if isinstance(arg.typ, ReturnType):
+
+            dst_data_ptr = add_ofst(bytes_data_ptr(dst), ofst)
+
+            if isinstance(arg.typ, ByteArrayLike):
                 # Ignore empty strings
                 if arg.typ.maxlen == 0:
                     continue
 
-                length = [arg.location.load_op, "_arg"]
-                argstart = IRnode.from_list(
-                    ["add", "_arg", arg.location.word_scale], location=arg.location
-                )
+                with arg.cache_when_complex("arg") as (b1, arg):
+                    argdata = bytes_data_ptr(arg)
 
-                # Make a copier to copy over data from that argument
-                seq.append(
-                    [
-                        "with",
-                        "_arg",
-                        arg,
-                        [
-                            "seq",
-                            copy_bytes(
-                                placeholder_node_plus_32,
-                                argstart,
-                                length,
-                                arg.typ.maxlen,
-                            ),
-                            # Change the position to start at the correct
-                            # place to paste the next value
-                            ["set", "_poz", ["add", "_poz", length]],
-                        ],
-                    ]
-                )
+                    with get_bytearray_length(arg).cache_when_complex("len") as (b2, arglen):
+                        do_copy = ["seq",
+                            copy_bytes(dst_data_ptr, argdata, arglen, arg.typ.maxlen),
+                            ["set", ofst, ["add", ofst, arglen]],
+                        ]
+                        ret.append(b1.resolve(b2.resolve(do_copy)))
+
             else:
-                seq.append(
-                    [
-                        "seq",
-                        ["mstore", ["add", placeholder_node, 32], unwrap_location(arg)],
-                        ["set", "_poz", ["add", "_poz", 32]],
-                    ]
-                )
-        # The position, after all arguments are processing, equals the total
-        # length. Paste this in to make the output a proper bytearray
-        seq.append(["mstore", placeholder, "_poz"])
+                ret.append(STORE(dst, unwrap_location(arg)))
+                ret.append(["set", ofst, ["add", ofst, arg.typ._bytes_info.m]])
+
+        ret.append(STORE(dst, ofst))
+
         # Memory location of the output
-        seq.append(placeholder)
+        ret.append(dst)
+
         return IRnode.from_list(
-            ["with", "_poz", 0, ["seq"] + seq],
-            typ=ReturnType(total_maxlen),
+            ["with", ofst, 0, ret],
+            typ=ret_typ,
             location=MEMORY,
             annotation="concat",
         )
