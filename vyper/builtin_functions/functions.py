@@ -37,6 +37,7 @@ from vyper.codegen.types import (
     StringType,
     TupleType,
     is_base_type,
+    is_bytes_m_type,
     parse_integer_typeinfo,
 )
 from vyper.evm.opcodes import version_check
@@ -489,18 +490,18 @@ class Concat:
 
         prev_type = ""
         for _, (expr_arg, arg) in enumerate(zip(expr.args, args)):
-            if not isinstance(arg.typ, ByteArrayLike) and not is_base_type(arg.typ, "bytes32"):
+            if not isinstance(arg.typ, ByteArrayLike) and not is_bytes_m_type(arg.typ):
                 raise TypeMismatch("Concat expects string, bytes or bytes32 objects", expr_arg)
 
             current_type = (
                 "Bytes"
-                if isinstance(arg.typ, ByteArrayType) or is_base_type(arg.typ, "bytes32")
+                if isinstance(arg.typ, ByteArrayType) or is_bytes_m_type(arg.typ)
                 else "String"
             )
             if prev_type and current_type != prev_type:
                 raise TypeMismatch(
                     (
-                        "Concat expects consistant use of string or byte types, "
+                        "Concat expects consistent use of string or byte types, "
                         "user either bytes or string."
                     ),
                     expr_arg,
@@ -509,7 +510,10 @@ class Concat:
 
         # Maximum length of the output
         dst_maxlen = sum(
-            [arg.typ.maxlen if isinstance(arg.typ, ByteArrayLike) else 32 for arg in args]
+            [
+                arg.typ.maxlen if isinstance(arg.typ, ByteArrayLike) else arg.typ._bytes_info.m
+                for arg in args
+            ]
         )
 
         if current_type == "String":
