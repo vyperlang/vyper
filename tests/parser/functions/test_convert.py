@@ -1,12 +1,14 @@
-from decimal import Decimal
+import enum
 import itertools
-from typing import Any
-import random
-from dataclasses import dataclass
 
+# import random
+from dataclasses import dataclass
+from decimal import Decimal
+from typing import Any
+
+import eth_abi.exceptions
 import pytest
 from eth_abi import decode_single, encode_single
-import eth_abi.exceptions
 
 from vyper.codegen.types import (
     BASE_TYPES,
@@ -16,20 +18,14 @@ from vyper.codegen.types import (
     parse_decimal_info,
     parse_integer_typeinfo,
 )
-from vyper.exceptions import InvalidLiteral, InvalidType, OverflowException, TypeMismatch
+from vyper.exceptions import InvalidLiteral, InvalidType, TypeMismatch
 from vyper.utils import (
     DECIMAL_DIVISOR,
     SizeLimits,
-    bytes_to_int,
     checksum_encode,
-    hex_to_int,
-    int_bounds,
-    unsigned_to_signed,
     round_towards_zero,
+    unsigned_to_signed,
 )
-import enum
-
-setattr(eth_abi.utils.string.abbr, "__defaults__", (79,))
 
 TEST_TYPES = BASE_TYPES | {"Bytes[32]"}
 
@@ -153,8 +149,8 @@ def _cases_for_int(typ):
     ret = [lo - 1, lo, lo + 1, -1, 0, 1, hi - 1, hi, hi + 1]
 
     # random cases cause reproducibility issues. TODO fixme
-    #NUM_RANDOM_CASES = 6
-    #ret.extend(random.randrange(lo, hi) for _ in range(NUM_RANDOM_CASES))
+    # NUM_RANDOM_CASES = 6
+    # ret.extend(random.randrange(lo, hi) for _ in range(NUM_RANDOM_CASES))
 
     return ret
 
@@ -163,7 +159,6 @@ def _cases_for_decimal(typ):
     info = parse_decimal_info(typ)
 
     lo, hi = info.decimal_bounds
-    DIVISOR = info.divisor
 
     ret = [Decimal(i) for i in [-1, 0, 1]]
     ret.extend([lo - 1, lo, lo + 1, hi - 1, hi, hi + 1])
@@ -174,9 +169,10 @@ def _cases_for_decimal(typ):
 
     # random cases cause reproducibility issues. TODO fixme
     # (use int values because randrange can't generate fractional decimals)
-    #int_lo, int_hi = info.bounds  # e.g. -(2**167)
-    #NUM_RANDOM_CASES = 10  # more than int, just for paranoia's sake
-    #ret.extend(random.randrange(int_lo, int_hi) / DIVISOR for _ in range(NUM_RANDOM_CASES))
+    # int_lo, int_hi = info.bounds  # e.g. -(2**167)
+    # NUM_RANDOM_CASES = 10  # more than int, just for paranoia's sake
+    # DIVISOR = info.divisor
+    # ret.extend(random.randrange(int_lo, int_hi) / DIVISOR for _ in range(NUM_RANDOM_CASES))
 
     return ret
 
@@ -226,11 +222,13 @@ def interesting_cases_for_type(typ):
 
 def _filter_cases(cases, i_typ):
     cases = uniq(cases)
+
     def _in_bounds(c):
         try:
             return _py_convert(c, i_typ, i_typ) is not None
         except eth_abi.exceptions.ValueOutOfBounds:
             return False
+
     return [c for c in cases if _in_bounds(c)]
 
 
@@ -248,7 +246,7 @@ def _padding_direction(typ):
 
 # TODO this could be a function in vyper.builtin_functions.convert
 # which implements literal folding and also serves as a reference/spec
-def _padconvert(val_bits, direction, n, padding_byte = None):
+def _padconvert(val_bits, direction, n, padding_byte=None):
     """
     Takes the ABI representation of a value, and convert the padding if needed.
     If fill_zeroes is false, the two halves of the bytestring are just swapped
@@ -292,7 +290,7 @@ def _signextend(val_bytes, bits):
 
     as_sint = unsigned_to_signed(as_uint, bits)
 
-    return (as_sint % 2**256).to_bytes(32, byteorder="big")
+    return (as_sint % 2 ** 256).to_bytes(32, byteorder="big")
 
 
 def _convert_decimal_to_int(val, o_typ):
@@ -384,14 +382,14 @@ def non_convertible_pairs():
     return [(i, o) for (i, o) in all_pairs() if not can_convert(i, o)]
 
 
-#_CASES_CACHE = {}
+# _CASES_CACHE = {}
 
 
 def cases_for_pair(i_typ, o_typ):
     """
     Helper function to generate all cases for pair
     """
-    #if (i_typ, o_typ) in _CASES_CACHE:
+    # if (i_typ, o_typ) in _CASES_CACHE:
     #    # cache the cases for reproducibility, to ensure test_passing_cases and test_failing_cases
     #    # test exactly the two halves of the produced cases.
     #    return _CASES_CACHE[(i_typ, o_typ)]
@@ -409,7 +407,7 @@ def cases_for_pair(i_typ, o_typ):
         except eth_abi.exceptions.ValueOutOfBounds:
             pass
 
-    #_CASES_CACHE[(i_typ, o_typ)] = cases
+    # _CASES_CACHE[(i_typ, o_typ)] = cases
 
     return cases
 
@@ -421,7 +419,7 @@ def generate_passing_cases():
         for c in cases:
             # only add convertible cases
             if _py_convert(c, i_typ, o_typ) is not None:
-                ret.append( (i_typ, o_typ, c))
+                ret.append((i_typ, o_typ, c))
     return reversed(sorted(ret))
 
 
@@ -431,7 +429,7 @@ def generate_reverting_cases():
         cases = cases_for_pair(i_typ, o_typ)
         for c in cases:
             if _py_convert(c, i_typ, o_typ) is None:
-                ret.append( (i_typ, o_typ, c))
+                ret.append((i_typ, o_typ, c))
     return sorted(ret)
 
 
@@ -448,7 +446,9 @@ def _vyper_literal(val, typ):
 
 @pytest.mark.parametrize("i_typ,o_typ,val", generate_passing_cases())
 @pytest.mark.fuzzing
-def test_convert_passing(get_contract_with_gas_estimation, assert_compile_failed, i_typ, o_typ, val):
+def test_convert_passing(
+    get_contract_with_gas_estimation, assert_compile_failed, i_typ, o_typ, val
+):
 
     expected_val = _py_convert(val, i_typ, o_typ)
     if o_typ == "address" and expected_val == "0x" + "00" * 20:
@@ -474,24 +474,11 @@ def test_convert() -> {o_typ}:
         # infers them as target type.
         c1_exception = InvalidType
 
-    # if i_typ.startswith(("bytes", "Bytes")) and o_typ.startswith(("int", "uint", "decimal")):
-    # Raw bytes are treated as uint256
-    # skip_c1 = True
-
     if i_typ.startswith(("int", "uint")) and o_typ.startswith("bytes"):
-    # integer literals get upcasted to uint256 / int256 types, so the convert
-    # will not compile unless it is bytes32
+        # integer literals get upcasted to uint256 / int256 types, so the convert
+        # will not compile unless it is bytes32
         if o_typ != "bytes32":
-           c1_exception = TypeMismatch
-
-    # if in_type.startswith("Bytes") and out_type.startswith("bytes"):
-    # Skip if length of Bytes[N] is same as size of bytesM
-    # if len(val) == parse_bytes_m_info(out_type).m:
-    #    skip_c1 = True
-
-    # if in_type.startswith("bytes") and parse_bytes_m_info(in_type).m != 32:
-    # Skip bytesN other than bytes32 because they get read as bytes32
-    #    skip_c1 = True
+            c1_exception = TypeMismatch
 
     if i_typ == "bytes20":
         # Skip because raw bytes20 is treated as address
@@ -503,7 +490,6 @@ def test_convert() -> {o_typ}:
     elif not skip_c1:
         c1 = get_contract_with_gas_estimation(contract_1)
         assert c1.test_convert() == expected_val
-
 
     contract_2 = f"""
 @external
@@ -518,13 +504,16 @@ def test_input_convert(x: {i_typ}) -> {o_typ}:
 bar: {i_typ}
 
 @external
-def test_state_variable_convert(x: {i_typ}) -> {o_typ}:
-    self.bar = x
+def test_state_variable_convert() -> {o_typ}:
+    self.bar = {_vyper_literal(val, i_typ)}
     return convert(self.bar, {o_typ})
     """
 
-    c3 = get_contract_with_gas_estimation(contract_3)
-    assert c3.test_state_variable_convert(val) == expected_val
+    skip_c3 = i_typ == "bytes20"  # literals do not work
+
+    if not skip_c3:
+        c3 = get_contract_with_gas_estimation(contract_3)
+        assert c3.test_state_variable_convert() == expected_val
 
     contract_4 = f"""
 @external
@@ -621,15 +610,14 @@ def foo() -> {o_typ}:
     c1_exception = InvalidLiteral
 
     if i_typ.startswith(("int", "uint")) and o_typ.startswith("bytes"):
-    # integer literals get upcasted to uint256 / int256 types, so the convert
-    # will not compile unless it is bytes32
+        # integer literals get upcasted to uint256 / int256 types, so the convert
+        # will not compile unless it is bytes32
         if o_typ != "bytes32":
-           c1_exception = TypeMismatch
-
+            c1_exception = TypeMismatch
 
     # compile-time folding not implemented for these:
     skip_c1 = False
-    #if o_typ.startswith("int") and i_typ == "address":
+    # if o_typ.startswith("int") and i_typ == "address":
     #    skip_c1 = True
 
     if o_typ.startswith("bytes"):
@@ -639,10 +627,7 @@ def foo() -> {o_typ}:
         skip_c1 = True
 
     if not skip_c1:
-        assert_compile_failed(
-            lambda: get_contract_with_gas_estimation(contract_1),
-            c1_exception
-        )
+        assert_compile_failed(lambda: get_contract_with_gas_estimation(contract_1), c1_exception)
 
     contract_2 = f"""
 @external

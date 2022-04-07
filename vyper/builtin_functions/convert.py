@@ -31,8 +31,8 @@ from vyper.exceptions import (
     CompilerPanic,
     InvalidLiteral,
     InvalidType,
-    TypeMismatch,
     StructureException,
+    TypeMismatch,
 )
 from vyper.utils import DECIMAL_DIVISOR, SizeLimits, round_towards_zero, unsigned_to_signed
 
@@ -210,7 +210,6 @@ def _literal_int(expr, arg_typ, out_typ):
     else:  # pragma: nocover
         raise CompilerPanic("unreachable")
 
-
     if isinstance(expr, (vy_ast.Hex, vy_ast.Bytes)) and int_info.is_signed:
         val = _signextend(expr, val, arg_typ)
 
@@ -240,7 +239,6 @@ def _literal_decimal(expr, arg_typ, out_typ):
     out_info = out_typ._decimal_info
     if isinstance(expr, (vy_ast.Hex, vy_ast.Bytes)) and out_info.is_signed:
         val = _signextend(expr, val, arg_typ)
-
 
     if not SizeLimits.in_bounds("decimal", val):
         raise InvalidLiteral("Number out of range", expr)

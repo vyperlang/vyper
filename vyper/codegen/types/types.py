@@ -3,8 +3,8 @@ import copy
 import re
 from collections import OrderedDict
 from dataclasses import dataclass
-from typing import Any, Tuple
 from decimal import Decimal
+from typing import Any, Tuple
 
 from vyper import ast as vy_ast
 from vyper.abi_types import (
