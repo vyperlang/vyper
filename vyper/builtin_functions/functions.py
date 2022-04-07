@@ -12,8 +12,8 @@ from vyper.builtin_functions.convert import convert
 from vyper.codegen.abi_encoder import abi_encode
 from vyper.codegen.context import Context
 from vyper.codegen.core import (
-    IRnode,
     STORE,
+    IRnode,
     add_ofst,
     bytes_data_ptr,
     check_external_call,
@@ -513,7 +513,7 @@ class Concat:
         )
 
         if current_type == "String":
-            ret_typ = String(maxlen=dst_maxlen)
+            ret_typ = StringType(maxlen=dst_maxlen)
         else:
             ret_typ = ByteArrayType(maxlen=dst_maxlen)
 
@@ -521,8 +521,8 @@ class Concat:
         dst = IRnode.from_list(
             context.new_internal_variable(ret_typ),
             typ=ret_typ,
-            location = MEMORY,
-            annotation = "concat destination"
+            location=MEMORY,
+            annotation="concat destination",
         )
 
         ret = ["seq"]
@@ -532,7 +532,7 @@ class Concat:
         # TODO: optimize for the case where all lengths are statically known.
         for arg in args:
 
-            dst_data_ptr = add_ofst(bytes_data_ptr(dst), ofst)
+            dst_data = add_ofst(bytes_data_ptr(dst), ofst)
 
             if isinstance(arg.typ, ByteArrayLike):
                 # Ignore empty strings
@@ -543,14 +543,15 @@ class Concat:
                     argdata = bytes_data_ptr(arg)
 
                     with get_bytearray_length(arg).cache_when_complex("len") as (b2, arglen):
-                        do_copy = ["seq",
-                            copy_bytes(dst_data_ptr, argdata, arglen, arg.typ.maxlen),
+                        do_copy = [
+                            "seq",
+                            copy_bytes(dst_data, argdata, arglen, arg.typ.maxlen),
                             ["set", ofst, ["add", ofst, arglen]],
                         ]
                         ret.append(b1.resolve(b2.resolve(do_copy)))
 
             else:
-                ret.append(STORE(dst, unwrap_location(arg)))
+                ret.append(STORE(dst_data, unwrap_location(arg)))
                 ret.append(["set", ofst, ["add", ofst, arg.typ._bytes_info.m]])
 
         ret.append(STORE(dst, ofst))
