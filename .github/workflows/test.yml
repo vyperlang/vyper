@@ -95,11 +95,10 @@ jobs:
         file: ./coverage.xml
 
 
-  tests-success:
+  core-tests-success:
     if: ${{ always() }}
     # summary result from test matrix.
     # see https://github.community/t/status-check-for-a-matrix-jobs/127354/7
-    name: Core tests
     runs-on: ubuntu-latest
     needs: tests
     steps:
