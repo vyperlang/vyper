@@ -107,8 +107,10 @@ def can_convert(i_typ, o_typ):
     i_detail = _parse_type(i_typ)
     o_detail = _parse_type(o_typ)
 
-    if i_typ == "bool" or o_typ == "bool":
+    if o_typ == "bool":
         return True
+    if i_typ == "bool":
+        return o_typ not in {"address"}
 
     if i_detail.type_class == "int":
         if o_detail.type_class == "bytes":
@@ -285,10 +287,19 @@ def _signextend(val_bytes, bits):
 
 
 def _convert_decimal_to_int(val, o_typ):
+    # note special behavior for decimal: catch OOB before truncation.
     if not SizeLimits.in_bounds(o_typ, val):
-        raise _OutOfBounds(val)
+        return None
 
     return round_towards_zero(val)
+
+
+def _convert_int_to_decimal(val, o_typ):
+    ret = Decimal(val)
+    if not SizeLimits.in_bounds(o_typ, ret):
+        return None
+
+    return ret
 
 
 def _py_convert(val, i_typ, o_typ):
@@ -300,11 +311,14 @@ def _py_convert(val, i_typ, o_typ):
     o_detail = _parse_type(o_typ)
 
     if i_typ == "decimal" and o_typ in INTEGER_TYPES:
-        # note special behavior for decimal: catch OOB before truncation.
-        try:
-            val = _convert_decimal_to_int(val, o_typ)
-        except _OutOfBounds:
-            return None
+        return _convert_decimal_to_int(val, o_typ)
+
+    if i_detail.type_class in ("bool", "int") and o_typ == "decimal":
+        # Note: Decimal(True) == Decimal("1")
+        return _convert_int_to_decimal(val, o_typ)
+
+    if o_typ == "decimal" and i_detail.type_class in ("bool", "int"):
+        ret = Decimal()
 
     val_bits = _to_bits(val, i_typ)
 
@@ -321,7 +335,6 @@ def _py_convert(val, i_typ, o_typ):
         val_bits = _padconvert(val_bits, _padding_direction(o_typ), n)
 
     if getattr(o_detail.info, "is_signed", False) and i_detail.type_class == "bytes":
-        #val_bits = _signextend(val_bits, o_detail.info.bits)
         n_bits = i_detail.type_bytes * 8
         val_bits = _signextend(val_bits, n_bits)
 
@@ -329,22 +342,28 @@ def _py_convert(val, i_typ, o_typ):
         if o_typ == "bool":
             return _from_bits(val_bits, "uint256") != 0
 
-        return _from_bits(val_bits, o_typ)
+        ret = _from_bits(val_bits, o_typ)
+        if o_typ == "address":
+            return checksum_encode(ret)
+        return ret
 
     except _OutOfBounds:
         return None
 
 
 # the matrix of all type pairs
-ALL_PAIRS = itertools.product(BASE_TYPES, BASE_TYPES)
+def all_pairs():
+    return sorted(itertools.product(BASE_TYPES, BASE_TYPES))
 
 
 # pairs which can compile
-CONVERTIBLE_PAIRS = [(i, o) for (i, o) in ALL_PAIRS if can_convert(i, o)]
+def convertible_pairs():
+    return [(i, o) for (i, o) in all_pairs() if can_convert(i, o)]
 
 
 # pairs which shouldn't even compile
-NON_CONVERTIBLE_PAIRS = [(i, o) for (i, o) in ALL_PAIRS if not can_convert(i, o)]
+def non_convertible_pairs():
+    return [(i, o) for (i, o) in all_pairs() if not can_convert(i, o)]
 
 
 #_CASES_CACHE = {}
@@ -379,23 +398,23 @@ def cases_for_pair(i_typ, o_typ):
 
 def generate_passing_cases():
     ret = []
-    for i_typ, o_typ in CONVERTIBLE_PAIRS:
+    for i_typ, o_typ in convertible_pairs():
         cases = cases_for_pair(i_typ, o_typ)
         for c in cases:
             # only add convertible cases
             if _py_convert(c, i_typ, o_typ) is not None:
                 ret.append( (i_typ, o_typ, c))
-    return ret
+    return sorted(ret)
 
 
 def generate_reverting_cases():
     ret = []
-    for i_typ, o_typ in CONVERTIBLE_PAIRS:
+    for i_typ, o_typ in convertible_pairs():
         cases = cases_for_pair(i_typ, o_typ)
         for c in cases:
             if _py_convert(c, i_typ, o_typ) is None:
                 ret.append( (i_typ, o_typ, c))
-    return ret
+    return sorted(ret)
 
 
 def _vyper_literal(val, typ):
@@ -408,6 +427,12 @@ def _vyper_literal(val, typ):
 @pytest.mark.parametrize("i_typ,o_typ,val", generate_passing_cases())
 @pytest.mark.fuzzing
 def test_convert_pass(get_contract_with_gas_estimation, assert_compile_failed, i_typ, o_typ, val):
+
+    expected_val = _py_convert(val, i_typ, o_typ)
+    if o_typ == "address" and expected_val == "0x" + "00" * 20:
+        # web3 has special formatter for zero address
+        expected_val = None
+
     contract_1 = f"""
 @external
 def test_convert() -> {o_typ}:
@@ -443,16 +468,16 @@ def test_convert() -> {o_typ}:
     # Skip bytesN other than bytes32 because they get read as bytes32
     #    skip_c1 = True
 
-    if i_typ.startswith("address") and o_typ == "bytes20":
-        # Skip because raw address value is treated as bytes20
-        # skip_c1 = True
-        pass
+    if i_typ == "bytes20" and o_typ == "address":
+        # Skip because raw bytes20 is treated as address
+        c1_exception = (InvalidLiteral, TypeMismatch)
 
     if c1_exception is not None:
         assert_compile_failed(lambda: get_contract_with_gas_estimation(contract_1), c1_exception)
     else:
         c1 = get_contract_with_gas_estimation(contract_1)
-        assert c1.test_convert() == _py_convert(val, i_typ, o_typ)
+        assert c1.test_convert() == expected_val
+
 
     contract_2 = f"""
 @external
@@ -461,7 +486,7 @@ def test_input_convert(x: {i_typ}) -> {o_typ}:
     """
 
     c2 = get_contract_with_gas_estimation(contract_2)
-    assert c2.test_input_convert(val) == _py_convert(val, i_typ, o_typ)
+    assert c2.test_input_convert(val) == expected_val
 
     contract_3 = f"""
 bar: {i_typ}
@@ -472,8 +497,16 @@ def test_state_variable_convert() -> {o_typ}:
     return convert(self.bar, {o_typ})
     """
 
-    c3 = get_contract_with_gas_estimation(contract_3)
-    assert c3.test_state_variable_convert() == _py_convert(val, i_typ, o_typ)
+    c3_exception = None
+    if i_typ == "bytes20" and o_typ == "address":
+        # Skip because raw bytes20 is treated as address
+        c3_exception = (InvalidLiteral, TypeMismatch)
+
+    if c3_exception is not None:
+        assert_compile_failed(lambda: get_contract_with_gas_estimation(contract_3, c3_exception))
+    else:
+        c3 = get_contract_with_gas_estimation(contract_3)
+        assert c3.test_state_variable_convert() == expected_val
 
     contract_4 = f"""
 @external
@@ -482,8 +515,17 @@ def test_memory_variable_convert() -> {o_typ}:
     return convert(bar, {o_typ})
     """
 
-    c4 = get_contract_with_gas_estimation(contract_4)
-    assert c4.test_memory_variable_convert() == _py_convert(val, i_typ, o_typ)
+    c4_exception = None
+    if i_typ == "bytes20" and o_typ == "address":
+        # Skip because raw bytes20 is treated as address
+        # revisit when bytes20 works
+        c4_exception = (InvalidLiteral, TypeMismatch)
+
+    if c4_exception is not None:
+        assert_compile_failed(lambda: get_contract_with_gas_estimation(contract_4, c4_exception))
+    else:
+        c4 = get_contract_with_gas_estimation(contract_4)
+        assert c4.test_memory_variable_convert() == expected_val
 
 
 # TODO CMC 2022-04-06 I think this test is somewhat unnecessary.
@@ -510,7 +552,7 @@ def convert_builtin_constant() -> {out_type}:
 
 # uint256 conversion is currently valid due to type inference on literals
 # not quite working yet
-same_type_conversion_blocked = TEST_TYPES - {"uint256"}
+same_type_conversion_blocked = sorted(TEST_TYPES - {"uint256"})
 
 
 @pytest.mark.parametrized("typ", same_type_conversion_blocked)
@@ -523,7 +565,7 @@ def foo(x: {typ}) -> {typ}:
     assert_compile_failed(lambda: get_contract(code), InvalidType)
 
 
-@pytest.mark.parametrized("typ", NON_CONVERTIBLE_PAIRS)
+@pytest.mark.parametrized("typ", non_convertible_pairs())
 def test_type_conversion_blocked(get_contract, assert_compile_failed, typ):
     code = """
 @external
@@ -533,7 +575,7 @@ def foo(x: {typ}) -> {typ}:
     assert_compile_failed(lambda: get_contract(code), TypeMismatch)
 
 
-@pytest.mark.parametrize("typ", TEST_TYPES)
+@pytest.mark.parametrize("typ", sorted(TEST_TYPES))
 def test_bytes_too_large_cases(get_contract, assert_compile_failed, typ):
     code_1 = """
 @external
