@@ -96,13 +96,15 @@ jobs:
 
 
   tests-success:
+    if: ${{ always() }}
     # summary result from test matrix.
-    # see https://github.community/t/status-check-for-a-matrix-jobs/127354
+    # see https://github.community/t/status-check-for-a-matrix-jobs/127354/7
     name: Core tests
     runs-on: ubuntu-latest
     needs: tests
     steps:
-    - run: echo Done!
+      - name: Check tests tests all succeeded
+        if: ${{ needs.tests.result != 'success' }}
 
   # fuzzing + slow/exhaustive tests (things that are too slow to run in
   # the regular test suite)
@@ -155,12 +157,16 @@ jobs:
         file: ./coverage.xml
 
   slow-tests-success:
+    if: ${{ always() }}
     # summary result from test matrix.
-    # see https://github.community/t/status-check-for-a-matrix-jobs/127354
+    # see https://github.community/t/status-check-for-a-matrix-jobs/127354/7
     runs-on: ubuntu-latest
     needs: fuzzing
+
     steps:
-    - run: echo Done!
+      - name: Check slow tests all succeeded
+        if: ${{ needs.fuzzing.result != 'success' }}
+        run: exit 1
 
   memory:
     runs-on: ubuntu-latest
