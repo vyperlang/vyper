@@ -132,7 +132,11 @@ def can_convert(i_typ, o_typ):
         return o_detail.type_class in ("int", "bool")
 
     elif i_typ == "address":
-        return o_typ in ("uint", "bytes")
+        if o_detail.type_class == "bytes":
+            return i_detail.type_bytes < o_detail.type_bytes
+        elif o_detail.type_class == "int":
+            return not o_detail.info.is_signed
+        return False
 
     raise AssertionError(f"unreachable {i_typ} {o_typ}")
 
