@@ -112,17 +112,21 @@ def _bytes_to_num(arg, out_typ, signed):
     return IRnode.from_list(ret, annotation=annotation)
 
 
-def _clamp_numeric_convert(arg, arg_bounds, out_bounds, signed):
+def _clamp_numeric_convert(arg, arg_bounds, out_bounds, arg_is_signed):
     arg_lo, arg_hi = arg_bounds
     out_lo, out_hi = out_bounds
 
-    CLAMPGE = "clampge" if signed else "uclampge"
-    CLAMPLE = "clample" if signed else "uclample"
-
     if arg_lo < out_lo:
+        # if not arg_is_signed, arg_lo is 0, so this branch cannot be hit
+        assert arg_is_signed, "bad assumption in numeric convert"
+        CLAMPGE = "clampge"
         arg = [CLAMPGE, arg, out_lo]
 
     if arg_hi > out_hi:
+        # out_hi must be smaller than MAX_UINT256, so clample makes sense.
+        # add an assertion, just in case this assumption ever changes.
+        assert out_hi < 2 ** 256 - 1, "bad assumption in numeric convert"
+        CLAMPLE = "clample" if arg_is_signed else "uclample"
         arg = [CLAMPLE, arg, out_hi]
 
     return arg
@@ -169,10 +173,46 @@ def _int_to_int(arg, out_typ):
     arg_info = arg.typ._int_info
     out_info = out_typ._int_info
 
-    # TODO: this generates not very good code size, we can probably do better
-    clamped_arg = _clamp_numeric_convert(arg, arg_info.bounds, out_info.bounds, arg_info.is_signed)
+    # do the same thing as
+    # _clamp_numeric_convert(arg, arg_info.bounds, out_info.bounds, arg_info.is_signed)
+    # but with better code size and gas.
+    if arg_info.is_signed and not out_info.is_signed:
 
-    return IRnode.from_list(clamped_arg, typ=out_typ)
+        # e.g. (clample (clampge arg 0) (2**128 - 1))
+
+        # note that when out_info.bits == 256,
+        # (clample arg 2**256 - 1) does not make sense.
+        # see similar assertion in _clamp_numeric_convert.
+
+        if out_info.bits < arg_info.bits:
+
+            assert out_info.bits < 256, "unreachable"
+            # note: because of the usage of signed=False, and the fact
+            # that out_bits < 256 in this branch, below implies
+            # not only (clample arg 2**128 - 1) but also (clampge arg 0).
+            arg = int_clamp(arg, out_info.bits, signed=False)
+
+        else:
+            # note: this also works for out_bits == 256.
+            arg = IRnode.from_list(["clampge", arg, 0])
+
+    elif not arg_info.is_signed and out_info.is_signed:
+        # e.g. (uclample (uclampge arg 0) (2**127 - 1))
+        # (note that (uclampge arg 0) always evaluates to true.)
+        arg = int_clamp(arg, out_info.bits - 1, signed=False)
+
+    elif out_info.bits < arg_info.bits:
+        assert out_info.bits < 256, "unreachable"
+        # narrowing conversion, signs are the same.
+        # we can just use regular int clampers.
+        arg = int_clamp(arg, out_info.bits, out_info.is_signed)
+
+    else:
+        # widening conversion, signs are the same.
+        # we do not have to do any clamps.
+        assert arg_info.is_signed == out_info.is_signed and out_info.bits >= arg_info.bits
+
+    return IRnode.from_list(arg, typ=out_typ)
 
 
 def _check_bytes(expr, arg, output_type, max_bytes_allowed):
