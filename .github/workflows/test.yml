@@ -86,7 +86,7 @@ jobs:
       run: pip install tox
 
     - name: Run Tox
-      run: TOXENV=py${{ matrix.python-version[1] }}-${{ matrix.flag }} tox -r -- --reruns 6 --reruns-delay 10 -r aR tests/
+      run: TOXENV=py${{ matrix.python-version[1] }}-${{ matrix.flag }} tox -r -- --reruns 10 --reruns-delay 1 -r aR tests/
 
     - name: Upload Coverage
       uses: codecov/codecov-action@v1
@@ -144,11 +144,11 @@ jobs:
     - name: Run build test_duration
       if: steps.check_test_durations.outputs.files_exists == 'false' # has to run on all, otherwise the first one that finishes creates an empty cache and lock the cache for others
       id: build_cache_duration
-      run: TOXENV=fuzzing tox -r -- --store-durations --reruns 6 --reruns-delay 10 -r aR tests/
+      run: TOXENV=fuzzing tox -r -- --store-durations --reruns 10 --reruns-delay 1 -r aR tests/
 
     - name: Run Tox
       if: steps.check_test_durations.outputs.files_exists == 'true'
-      run: TOXENV=fuzzing tox -r -- --splits 45 --group ${{ matrix.group }} --reruns 6 --reruns-delay 10 -r aR tests/
+      run: TOXENV=fuzzing tox -r -- --splits 45 --group ${{ matrix.group }} --reruns 10 --reruns-delay 1 -r aR tests/
 
     - name: Upload Coverage
       uses: codecov/codecov-action@v1
