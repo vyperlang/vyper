@@ -105,6 +105,7 @@ class DecimalTypeInfo(NumericTypeInfo):
 
     @property
     def divisor(self) -> Decimal:
+        # TODO reconsider if this API should return int
         return Decimal(10 ** self.decimals)
 
     @property

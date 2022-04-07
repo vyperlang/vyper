@@ -144,7 +144,7 @@ def _fixed_to_int(arg, out_typ):
     clamped_arg = _clamp_numeric_convert(arg, arg_info.bounds, (out_lo, out_hi), arg_info.is_signed)
 
     assert arg_info.is_signed, "should use unsigned div"  # stub in case we ever add ufixed
-    return IRnode.from_list(["sdiv", clamped_arg, DIVISOR], typ=out_typ)
+    return IRnode.from_list(["sdiv", clamped_arg, int(DIVISOR)], typ=out_typ)
 
 
 # promote from int to fixed point decimal
@@ -161,7 +161,7 @@ def _int_to_fixed(arg, out_typ):
 
     clamped_arg = _clamp_numeric_convert(arg, arg_info.bounds, (out_lo, out_hi), arg_info.is_signed)
 
-    return IRnode.from_list(["mul", clamped_arg, DIVISOR], typ=out_typ)
+    return IRnode.from_list(["mul", clamped_arg, int(DIVISOR)], typ=out_typ)
 
 
 # clamp for dealing with conversions between int types (from arg to dst)
