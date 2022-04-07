@@ -671,7 +671,7 @@ class Expr:
 
         if arith is None:
             op_str = self.expr.op._pretty
-            raise UnimplementedException(f"Not implemented: {ltyp} {op_str} {rtyp}")
+            raise UnimplementedException(f"Not implemented: {ltyp} {op_str} {rtyp}", self.expr.op)
 
         arith = IRnode.from_list(arith, typ=new_typ)
 

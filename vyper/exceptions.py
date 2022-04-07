@@ -269,6 +269,10 @@ class ParserException(Exception):
     """Contract source cannot be parsed."""
 
 
+class UnimplementedException(VyperException):
+    """Some feature is known to be not implemented"""
+
+
 class VyperInternalException(Exception):
     """
     Base Vyper internal exception class.
@@ -276,8 +280,8 @@ class VyperInternalException(Exception):
     This exception is not raised directly, it is subclassed by other internal
     exceptions.
 
-    Internal exceptions are raised as a means of passing information between
-    compiler processes. They should never be exposed to the user.
+    Internal exceptions are raised as a means of telling the user that the
+    compiler has panicked, and that filing a bug report would be appropriate.
     """
 
     def __init__(self, message=""):
@@ -289,10 +293,6 @@ class VyperInternalException(Exception):
             "Please create an issue on Github to notify the developers.\n"
             "https://github.com/vyperlang/vyper/issues/new?template=bug.md"
         )
-
-
-class UnimplementedException(VyperInternalException):
-    """Some feature is not implemented"""
 
 
 class CompilerPanic(VyperInternalException):
