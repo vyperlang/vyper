@@ -124,6 +124,7 @@ def _clamp_numeric_convert(arg, arg_bounds, out_bounds, arg_is_signed):
 
     if arg_hi > out_hi:
         # out_hi must be smaller than MAX_UINT256, so clample makes sense.
+        # add an assertion, just in case this assumption ever changes.
         assert out_hi < 2 ** 256 - 1, "bad assumption in numeric convert"
         CLAMPLE = "clample" if arg_is_signed else "uclample"
         arg = [CLAMPLE, arg, out_hi]
@@ -178,28 +179,38 @@ def _int_to_int(arg, out_typ):
     if arg_info.is_signed and not out_info.is_signed:
 
         # e.g. (clample (clampge arg 0) (2**128 - 1))
+
+        # note that when out_info.bits == 256,
+        # (clample arg 2**256 - 1) does not make sense.
+        # see similar assertion in _clamp_numeric_convert.
+
         if out_info.bits < arg_info.bits:
-            # note: below also implies (clampge arg 0), since
-            # out_info.bits < 256 in this branch.
-            # (similar to: (assert (iszero (shr out_bits arg))))
+
+            assert out_info.bits < 256, "unreachable"
+            # note: because of the usage of signed=False, and the fact
+            # that out_bits < 256 in this branch, below implies
+            # not only (clample arg 2**128 - 1) but also (clampge arg 0).
             arg = int_clamp(arg, out_info.bits, signed=False)
 
         else:
-            # special case for out_bits == 256, since
-            # (clample arg (2**256 - 1)) does not make sense.
-            # (see similar branch in _clamp_numeric_convert)
+            # note: this also works for out_bits == 256.
             arg = IRnode.from_list(["clampge", arg, 0])
 
     elif not arg_info.is_signed and out_info.is_signed:
         # e.g. (uclample (uclampge arg 0) (2**127 - 1))
-        # (similar to: (assert (iszero (shr (out_bits - 1) arg))))
+        # (note that (uclampge arg 0) always evaluates to true.)
         arg = int_clamp(arg, out_info.bits - 1, signed=False)
 
     elif out_info.bits < arg_info.bits:
         assert out_info.bits < 256, "unreachable"
-        # narrowing operation, signs are the same.
+        # narrowing conversion, signs are the same.
         # we can just use regular int clampers.
         arg = int_clamp(arg, out_info.bits, out_info.is_signed)
+
+    else:
+        # widening conversion, signs are the same.
+        # we do not have to do any clamps.
+        assert arg_info.is_signed == out_info.is_signed and out_info.bits >= arg_info.bits
 
     return IRnode.from_list(arg, typ=out_typ)
 
