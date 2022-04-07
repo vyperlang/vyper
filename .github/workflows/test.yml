@@ -71,7 +71,7 @@ jobs:
         # run in default (optimized) and --no-optimize mode
         flag: ["core", "no-opt"]
 
-    name: ${{ matrix.python-version[0] }}-${{ matrix.flag }}
+    name: py${{ matrix.python-version[1] }}-${{ matrix.flag }}
 
     steps:
     - uses: actions/checkout@v1
