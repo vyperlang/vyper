@@ -420,7 +420,7 @@ def generate_passing_cases():
             # only add convertible cases
             if _py_convert(c, i_typ, o_typ) is not None:
                 ret.append((i_typ, o_typ, c))
-    return reversed(sorted(ret))
+    return sorted(ret)
 
 
 def generate_reverting_cases():
