@@ -468,8 +468,9 @@ def test_convert() -> {o_typ}:
     # Skip bytesN other than bytes32 because they get read as bytes32
     #    skip_c1 = True
 
-    if i_typ == "bytes20" and o_typ == "address":
+    if i_typ == "bytes20":
         # Skip because raw bytes20 is treated as address
+        # revisit when bytes20 works.
         c1_exception = (InvalidLiteral, TypeMismatch)
 
     if c1_exception is not None:
@@ -498,8 +499,9 @@ def test_state_variable_convert() -> {o_typ}:
     """
 
     c3_exception = None
-    if i_typ == "bytes20" and o_typ == "address":
+    if i_typ == "bytes20":
         # Skip because raw bytes20 is treated as address
+        # revisit when bytes20 works.
         c3_exception = (InvalidLiteral, TypeMismatch)
 
     if c3_exception is not None:
@@ -516,9 +518,9 @@ def test_memory_variable_convert() -> {o_typ}:
     """
 
     c4_exception = None
-    if i_typ == "bytes20" and o_typ == "address":
+    if i_typ == "bytes20":
         # Skip because raw bytes20 is treated as address
-        # revisit when bytes20 works
+        # revisit when bytes20 works.
         c4_exception = (InvalidLiteral, TypeMismatch)
 
     if c4_exception is not None:
