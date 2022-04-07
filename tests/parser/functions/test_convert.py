@@ -130,7 +130,10 @@ def can_convert(i_typ, o_typ):
         return o_detail.type_class in ("int", "decimal", "address")
 
     elif i_typ == "decimal":
-        return o_detail.type_class in ("int", "bytes", "bool")
+        if o_detail.type_class == "bytes":
+            return i_detail.type_bytes <= o_detail.type_bytes
+
+        return o_detail.type_class in ("int", "bool")
 
     elif i_typ == "address":
         return o_typ in ("uint", "bytes")
