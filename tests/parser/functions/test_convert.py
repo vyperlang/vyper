@@ -482,6 +482,10 @@ def test_convert() -> {o_typ}:
         if o_typ != "bytes32":
             c1_exception = TypeMismatch
 
+    if i_typ == "address" and o_typ == "bytes20":
+        # type of arg is inferrred to be bytes20
+        c1_exception = InvalidType
+
     if i_typ == "bytes20":
         # Skip because raw bytes20 is treated as address
         # revisit when bytes20 works.
