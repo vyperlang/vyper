@@ -77,10 +77,10 @@ def _parse_type(typename):
         return TestType(typename, info.m, "bytes", info)
     elif typename.startswith("Bytes"):
         assert typename == "Bytes[32]"  # TODO test others
-        return TestType(typename, 32, "Bytes", info)
+        return TestType(typename, 32, "Bytes", None)
     elif typename.startswith("String"):
         assert typename == "String[32]"  # TODO test others
-        return TestType(typename, 32, "Bytes", info)
+        return TestType(typename, 32, "String", None)
     elif typename == "address":
         return TestType(typename, 20, "address", None)
     elif typename == "bool":
@@ -120,7 +120,7 @@ def can_convert(i_typ, o_typ):
 
         # the fact that any bytes can be converted to decimal but not all ints
         # may be an inconsistency in the spec
-        return i_detail.type_class in ("decimal", "bytes")
+        return o_detail.type_class in ("decimal", "bytes")
 
     elif i_detail.type_class == "Bytes":
         return o_detail.type_class in ("int", "decimal", "address")
@@ -567,7 +567,7 @@ def foo(x: {typ}) -> {typ}:
     assert_compile_failed(lambda: get_contract(code), InvalidType)
 
 
-@pytest.mark.parametrized("typ", non_convertible_pairs())
+@pytest.mark.parametrize("typ", non_convertible_pairs())
 def test_type_conversion_blocked(get_contract, assert_compile_failed, typ):
     code = """
 @external
