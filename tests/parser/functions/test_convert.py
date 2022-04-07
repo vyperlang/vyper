@@ -114,13 +114,11 @@ def can_convert(i_typ, o_typ):
         return ret
 
     elif i_detail.type_class == "bytes":
-        if o_detail.type_class in ("int", "Bytes", "address"):
-            # bytesN must be of equal or larger size to [u]intM
+        if o_detail.type_class == "Bytes":
+            # bytesN must be of equal or smaller size to the input
             return i_detail.type_bytes <= o_detail.type_bytes
 
-        # the fact that any bytes can be converted to decimal but not all ints
-        # may be an inconsistency in the spec
-        return o_detail.type_class in ("decimal", "bytes")
+        return o_detail.type_class in ("decimal", "bytes", "int", "address")
 
     elif i_detail.type_class == "Bytes":
         return o_detail.type_class in ("int", "decimal", "address")
@@ -133,7 +131,7 @@ def can_convert(i_typ, o_typ):
 
     elif i_typ == "address":
         if o_detail.type_class == "bytes":
-            return i_detail.type_bytes < o_detail.type_bytes
+            return i_detail.type_bytes <= o_detail.type_bytes
         elif o_detail.type_class == "int":
             return not o_detail.info.is_signed
         return False
@@ -383,7 +381,7 @@ def convertible_pairs():
 
 # pairs which shouldn't even compile
 def non_convertible_pairs():
-    return [(i, o) for (i, o) in all_pairs() if not can_convert(i, o)]
+    return [(i, o) for (i, o) in all_pairs() if not can_convert(i, o) and i != o]
 
 
 # _CASES_CACHE = {}
@@ -567,12 +565,12 @@ def foo(x: {typ}) -> {typ}:
     assert_compile_failed(lambda: get_contract(code), InvalidType)
 
 
-@pytest.mark.parametrize("typ", non_convertible_pairs())
-def test_type_conversion_blocked(get_contract, assert_compile_failed, typ):
-    code = """
+@pytest.mark.parametrize("i_typ,o_typ", non_convertible_pairs())
+def test_type_conversion_blocked(get_contract, assert_compile_failed, i_typ, o_typ):
+    code = f"""
 @external
-def foo(x: {typ}) -> {typ}:
-    return convert(x, {typ})
+def foo(x: {i_typ}) -> {o_typ}:
+    return convert(x, {o_typ})
     """
     assert_compile_failed(lambda: get_contract(code), TypeMismatch)
 
