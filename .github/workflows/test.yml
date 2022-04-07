@@ -158,7 +158,7 @@ jobs:
     # summary result from test matrix.
     # see https://github.community/t/status-check-for-a-matrix-jobs/127354
     runs-on: ubuntu-latest
-    needs: build
+    needs: fuzzing
     steps:
     - run: echo Done!
 
