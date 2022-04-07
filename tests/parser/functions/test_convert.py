@@ -43,7 +43,7 @@ class TestType:
 
     type_name: str
     type_bytes: int  # number of nonzero bytes this type can take
-    type_class: str  # e.g. int, uint, String, decimal
+    type_class: str  # e.g. int, bytes, String, decimal
     info: Any  # e.g. DecimalInfo
 
     @property
@@ -51,7 +51,7 @@ class TestType:
         if self.type_name == "decimal":
             return "fixed168x10"
         if self.type_class in ("Bytes", "String"):
-            return self.type_name.lower()
+            return self.type_class.lower()
         return self.type_name
 
 
