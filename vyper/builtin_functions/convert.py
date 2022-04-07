@@ -184,7 +184,21 @@ def _check_bytes(expr, arg, output_type, max_bytes_allowed):
         assert output_type.memory_bytes_required == 32
 
 
-def _literal_int(expr, out_typ):
+# apply sign extension, if expected. note that the sign bit
+# is always taken to be the first bit of the bytestring.
+# (e.g. convert(0xff <bytes1>, int16) == -1.
+def _signextend(expr, val, arg_typ):
+    if isinstance(expr, vy_ast.Hex):
+        assert len(expr.value[2:]) // 2 == arg_typ._bytes_info.m
+        n_bits = arg_typ._bytes_info.m_bits
+    else:
+        assert len(expr.value) == arg_typ.maxlen
+        n_bits = arg_typ.maxlen * 8
+
+    return unsigned_to_signed(val, n_bits)
+
+
+def _literal_int(expr, arg_typ, out_typ):
     # TODO: possible to reuse machinery from expr.py?
     int_info = out_typ._int_info
     if isinstance(expr, vy_ast.Hex):
@@ -197,11 +211,8 @@ def _literal_int(expr, out_typ):
         raise CompilerPanic("unreachable")
 
 
-    # apply sign extension, if expected
-    # (e.g. convert(0xff <bytes1>, int8) == -1.
     if isinstance(expr, (vy_ast.Hex, vy_ast.Bytes)) and int_info.is_signed:
-        val = unsigned_to_signed(val, int_info.bits)
-
+        val = _signextend(expr, val, arg_typ)
 
     (lo, hi) = int_info.bounds
     if not (lo <= val <= hi):
@@ -213,8 +224,7 @@ def _literal_int(expr, out_typ):
     return IRnode.from_list(val, typ=out_typ)
 
 
-def _literal_decimal(expr, out_typ):
-    # TODO: possible to reuse machinery from expr.py?
+def _literal_decimal(expr, arg_typ, out_typ):
     if isinstance(expr, vy_ast.Hex):
         val = decimal.Decimal(int(expr.value, 16))
     else:
@@ -231,8 +241,8 @@ def _literal_decimal(expr, out_typ):
 
     # apply sign extension, if expected
     out_info = out_typ._decimal_info
-    if out_info.is_signed:
-        val = unsigned_to_signed(val, out_info.bits)
+    if isinstance(expr, (vy_ast.Hex, vy_ast.Bytes)) and out_info.is_signed:
+        val = _signextend(expr, val, arg_typ)
 
     return IRnode.from_list(val, typ=out_typ)
 
@@ -261,7 +271,7 @@ def to_int(expr, arg, out_typ):
     _check_bytes(expr, arg, out_typ, 32)
 
     if isinstance(expr, vy_ast.Constant):
-        return _literal_int(expr, out_typ)
+        return _literal_int(expr, arg.typ, out_typ)
 
     elif isinstance(arg.typ, ByteArrayType):
         arg_typ = arg.typ
@@ -298,7 +308,7 @@ def to_decimal(expr, arg, out_typ):
     out_info = out_typ._decimal_info
 
     if isinstance(expr, vy_ast.Constant):
-        return _literal_decimal(expr, out_typ)
+        return _literal_decimal(expr, arg.typ, out_typ)
 
     if isinstance(arg.typ, ByteArrayType):
         arg_typ = arg.typ
