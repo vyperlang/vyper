@@ -144,11 +144,11 @@ jobs:
     - name: Run build test_duration
       if: steps.check_test_durations.outputs.files_exists == 'false' # has to run on all, otherwise the first one that finishes creates an empty cache and lock the cache for others
       id: build_cache_duration
-      run: TOXENV=fuzzing tox -r -- --store-durations --reruns 6 --rerun-delay 10
+      run: TOXENV=fuzzing tox -r -- --store-durations --reruns 6 --reruns-delay 10
 
     - name: Run Tox
       if: steps.check_test_durations.outputs.files_exists == 'true'
-      run: TOXENV=fuzzing tox -r -- --splits 45 --group ${{ matrix.group }} --reruns 6 --rerun-delay 10
+      run: TOXENV=fuzzing tox -r -- --splits 45 --group ${{ matrix.group }} --reruns 6 --reruns-delay 10
 
     - name: Upload Coverage
       uses: codecov/codecov-action@v1
