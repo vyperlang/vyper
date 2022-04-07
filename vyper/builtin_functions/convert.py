@@ -231,9 +231,6 @@ def _literal_decimal(expr, arg_typ, out_typ):
         val = decimal.Decimal(expr.value)  # should work for Int, Decimal
         val *= DECIMAL_DIVISOR
 
-    if not SizeLimits.in_bounds("decimal", val):
-        raise InvalidLiteral("Number out of range", expr)
-
     # sanity check type checker did its job
     assert math.ceil(val) == math.floor(val)
 
@@ -243,6 +240,10 @@ def _literal_decimal(expr, arg_typ, out_typ):
     out_info = out_typ._decimal_info
     if isinstance(expr, (vy_ast.Hex, vy_ast.Bytes)) and out_info.is_signed:
         val = _signextend(expr, val, arg_typ)
+
+
+    if not SizeLimits.in_bounds("decimal", val):
+        raise InvalidLiteral("Number out of range", expr)
 
     return IRnode.from_list(val, typ=out_typ)
 
