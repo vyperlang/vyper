@@ -553,9 +553,9 @@ def convert_builtin_constant() -> {out_type}:
 same_type_conversion_blocked = sorted(TEST_TYPES - {"uint256"})
 
 
-@pytest.mark.parametrized("typ", same_type_conversion_blocked)
+@pytest.mark.parametrize("typ", same_type_conversion_blocked)
 def test_same_type_conversion_blocked(get_contract, assert_compile_failed, typ):
-    code = """
+    code = f"""
 @external
 def foo(x: {typ}) -> {typ}:
     return convert(x, {typ})
@@ -575,7 +575,7 @@ def foo(x: {typ}) -> {typ}:
 
 @pytest.mark.parametrize("typ", sorted(TEST_TYPES))
 def test_bytes_too_large_cases(get_contract, assert_compile_failed, typ):
-    code_1 = """
+    code_1 = f"""
 @external
 def foo(x: Bytes[33]) -> {typ}:
     return convert(x, {typ})
