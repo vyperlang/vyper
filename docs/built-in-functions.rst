@@ -405,7 +405,7 @@ Math
         >>> ExampleContract.foo(-31337)
         31337
 
-.. py:function:: ceil(value: decimal) -> int128
+.. py:function:: ceil(value: decimal) -> int256
 
     Round a decimal up to the nearest integer.
 
@@ -415,7 +415,7 @@ Math
 
         @external
         @view
-        def foo(x: decimal) -> int128:
+        def foo(x: decimal) -> int256:
             return ceil(x)
 
     .. code-block:: python
@@ -423,7 +423,7 @@ Math
         >>> ExampleContract.foo(3.1337)
         4
 
-.. py:function:: floor(value: decimal) -> int128
+.. py:function:: floor(value: decimal) -> int256
 
     Round a decimal down to the nearest integer.
 
@@ -433,7 +433,7 @@ Math
 
         @external
         @view
-        def foo(x: decimal) -> int128:
+        def foo(x: decimal) -> int256:
             return floor(x)
 
     .. code-block:: python
