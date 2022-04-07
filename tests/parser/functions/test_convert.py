@@ -294,8 +294,11 @@ def _convert_decimal_to_int(val, o_typ):
 
 
 def _convert_int_to_decimal(val, o_typ):
+    detail = _parse_type(o_typ)
     ret = Decimal(val)
-    if not SizeLimits.in_bounds(o_typ, ret):
+    # note: SizeLimits.in_bounds is for the EVM int value, not the python value
+    lo, hi = detail.info.decimal_bounds
+    if not lo <= ret <= hi:
         return None
 
     return ret
