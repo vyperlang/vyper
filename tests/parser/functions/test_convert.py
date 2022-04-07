@@ -598,6 +598,33 @@ def foo() -> {typ}:
     assert_compile_failed(lambda: get_contract(code_2, TypeMismatch))
 
 
+@pytest.mark.parametrize("n", range(1, 33))
+def test_Bytes_to_bytes(get_contract, n):
+    t_bytes = f"bytes{n}"
+    t_Bytes = f"Bytes[{n}]"
+
+    test_data = b"\xff" * n
+
+    code1 = f"""
+@external
+def foo() -> {t_bytes}:
+    x: {t_Bytes} = {test_data}
+    return convert(x, {t_bytes})
+    """
+    c1 = get_contract(code1)
+    assert c1.foo() == test_data
+
+    code2 = f"""
+bar: {t_Bytes}
+@external
+def foo() -> {t_bytes}:
+    self.bar = {test_data}
+    return convert(self.bar, {t_bytes})
+    """
+    c2 = get_contract(code2)
+    assert c2.foo() == test_data
+
+
 @pytest.mark.parametrize("i_typ,o_typ,val", generate_reverting_cases())
 @pytest.mark.fuzzing
 def test_conversion_failures(
