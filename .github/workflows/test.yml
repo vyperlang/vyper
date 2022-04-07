@@ -146,7 +146,7 @@ jobs:
 
     - name: Run Tox
       if: steps.check_test_durations.outputs.files_exists == 'true'
-      run: TOXENV=fuzzing tox -r -- --splits 16 --group ${{ matrix.group }}
+      run: TOXENV=fuzzing tox -r -- --splits 45 --group ${{ matrix.group }}
 
     - name: Upload Coverage
       uses: codecov/codecov-action@v1
