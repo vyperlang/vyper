@@ -71,7 +71,6 @@ from vyper.semantics.types.value.array_value import (
     StringPrimitive,
 )
 from vyper.semantics.types.value.bytes_fixed import Bytes32Definition
-from vyper.semantics.types.value.numeric import Int128Definition  # type: ignore
 from vyper.semantics.types.value.numeric import Int256Definition  # type: ignore
 from vyper.semantics.types.value.numeric import Uint256Definition  # type: ignore
 from vyper.semantics.types.value.numeric import DecimalDefinition
@@ -111,7 +110,8 @@ class Floor(_SimpleBuiltinFunction):
 
     _id = "floor"
     _inputs = [("value", DecimalDefinition())]
-    _return_type = Int128Definition()
+    # TODO: maybe use int136?
+    _return_type = Int256Definition()
 
     def evaluate(self, node):
         validate_call_args(node, 1)
@@ -130,7 +130,7 @@ class Floor(_SimpleBuiltinFunction):
                 ["sdiv", ["sub", args[0], DECIMAL_DIVISOR - 1], DECIMAL_DIVISOR],
                 ["sdiv", args[0], DECIMAL_DIVISOR],
             ],
-            typ=BaseType("int128"),
+            typ=BaseType("int256"),
         )
 
 
@@ -138,7 +138,8 @@ class Ceil(_SimpleBuiltinFunction):
 
     _id = "ceil"
     _inputs = [("value", DecimalDefinition())]
-    _return_type = Int128Definition()
+    # TODO: maybe use int136?
+    _return_type = Int256Definition()
 
     def evaluate(self, node):
         validate_call_args(node, 1)
@@ -157,7 +158,7 @@ class Ceil(_SimpleBuiltinFunction):
                 ["sdiv", args[0], DECIMAL_DIVISOR],
                 ["sdiv", ["add", args[0], DECIMAL_DIVISOR - 1], DECIMAL_DIVISOR],
             ],
-            typ=BaseType("int128"),
+            typ=BaseType("int256"),
         )
 
 

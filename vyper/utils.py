@@ -39,6 +39,30 @@ def fourbytes_to_int(inp):
     return (inp[0] << 24) + (inp[1] << 16) + (inp[2] << 8) + inp[3]
 
 
+def signed_to_unsigned(int_, bits):
+    """
+    Reinterpret a signed integer with n bits as an unsigned integer.
+    The implementation is unforgiving in that it assumes the input is in
+    bounds for int<bits>, in order to fail more loudly (and not hide
+    errors in modular reasoning in consumers of this function).
+    """
+    if int_ < 0:
+        return int_ + 2 ** bits
+    return int_
+
+
+def unsigned_to_signed(int_, bits):
+    """
+    Reinterpret an unsigned integer with n bits as a signed integer.
+    The implementation is unforgiving in that it assumes the input is in
+    bounds for uint<bits>, in order to fail more loudly (and not hide
+    errors in modular reasoning in consumers of this function).
+    """
+    if int_ > (2 ** (bits - 1)) - 1:
+        return int_ - (2 ** bits)
+    return int_
+
+
 # utility function for debugging purposes
 def trace(n=5, out=sys.stderr):
     print("BEGIN TRACE", file=out)
