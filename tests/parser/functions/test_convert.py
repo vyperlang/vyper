@@ -440,6 +440,7 @@ def test_convert() -> {o_typ}:
     """
 
     c1_exception = None
+    skip_c1 = False
     if i_typ in INTEGER_TYPES and o_typ in INTEGER_TYPES:
         # Skip conversion of positive integer literals because compiler reads them
         # as target type.
@@ -471,11 +472,11 @@ def test_convert() -> {o_typ}:
     if i_typ == "bytes20":
         # Skip because raw bytes20 is treated as address
         # revisit when bytes20 works.
-        c1_exception = (InvalidLiteral, TypeMismatch)
+        skip_c1 = True
 
     if c1_exception is not None:
         assert_compile_failed(lambda: get_contract_with_gas_estimation(contract_1), c1_exception)
-    else:
+    elif not skip_c1:
         c1 = get_contract_with_gas_estimation(contract_1)
         assert c1.test_convert() == expected_val
 
@@ -493,41 +494,23 @@ def test_input_convert(x: {i_typ}) -> {o_typ}:
 bar: {i_typ}
 
 @external
-def test_state_variable_convert() -> {o_typ}:
-    self.bar = {_vyper_literal(val, i_typ)}
+def test_state_variable_convert(x: {i_typ}) -> {o_typ}:
+    self.bar = x
     return convert(self.bar, {o_typ})
     """
 
-    c3_exception = None
-    if i_typ == "bytes20":
-        # Skip because raw bytes20 is treated as address
-        # revisit when bytes20 works.
-        c3_exception = (InvalidLiteral, TypeMismatch)
-
-    if c3_exception is not None:
-        assert_compile_failed(lambda: get_contract_with_gas_estimation(contract_3, c3_exception))
-    else:
-        c3 = get_contract_with_gas_estimation(contract_3)
-        assert c3.test_state_variable_convert() == expected_val
+    c3 = get_contract_with_gas_estimation(contract_3)
+    assert c3.test_state_variable_convert(val) == expected_val
 
     contract_4 = f"""
 @external
-def test_memory_variable_convert() -> {o_typ}:
-    bar: {i_typ} = {_vyper_literal(val, i_typ)}
-    return convert(bar, {o_typ})
+def test_memory_variable_convert(x: {i_typ}) -> {o_typ}:
+    y: {i_typ} = x
+    return convert(y, {o_typ})
     """
 
-    c4_exception = None
-    if i_typ == "bytes20":
-        # Skip because raw bytes20 is treated as address
-        # revisit when bytes20 works.
-        c4_exception = (InvalidLiteral, TypeMismatch)
-
-    if c4_exception is not None:
-        assert_compile_failed(lambda: get_contract_with_gas_estimation(contract_4, c4_exception))
-    else:
-        c4 = get_contract_with_gas_estimation(contract_4)
-        assert c4.test_memory_variable_convert() == expected_val
+    c4 = get_contract_with_gas_estimation(contract_4)
+    assert c4.test_memory_variable_convert(val) == expected_val
 
 
 # TODO CMC 2022-04-06 I think this test is somewhat unnecessary.
