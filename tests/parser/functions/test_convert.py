@@ -31,13 +31,9 @@ import enum
 
 setattr(eth_abi.utils.string.abbr, "__defaults__", (79,))
 
-ADDRESS_BITS = 160
-
 TEST_TYPES = BASE_TYPES | {"Bytes[32]"}
 
 ZERO_ADDRESS = "0x0000000000000000000000000000000000000000"
-ONE_ADDRESS = "0x0000000000000000000000000000000000000001"
-MAX_ADDRESS = "0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF"
 
 # decimal increment, aka smallest decimal > 0
 DECIMAL_EPSILON = Decimal(1) / DECIMAL_DIVISOR
@@ -421,6 +417,10 @@ def _vyper_literal(val, typ):
     detail = _parse_type(typ)
     if detail.type_class == "bytes":
         return "0x" + val.hex()
+    if detail.type_class == "decimal":
+        tmp = val
+        val = val.quantize(DECIMAL_EPSILON)
+        assert tmp == val
     return str(val)
 
 
