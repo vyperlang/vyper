@@ -294,8 +294,8 @@ def to_int(expr, arg, out_typ):
         if int_info.is_signed:
             # TODO if possible, refactor to move this validation close to the entry of the function
             _FAIL(arg.typ, out_typ, expr)
-        if int_info.bits > 160:
-            arg = int_clamp(arg, 160, signed=False)
+        if int_info.bits < 160:
+            arg = int_clamp(arg, int_info.bits, signed=False)
 
     return IRnode.from_list(arg, typ=out_typ)
 
