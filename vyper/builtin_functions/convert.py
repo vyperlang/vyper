@@ -186,7 +186,7 @@ def _check_bytes(expr, arg, output_type, max_bytes_allowed):
 
 # apply sign extension, if expected. note that the sign bit
 # is always taken to be the first bit of the bytestring.
-# (e.g. convert(0xff <bytes1>, int16) == -1.
+# (e.g. convert(0xff <bytes1>, int16) == -1)
 def _signextend(expr, val, arg_typ):
     if isinstance(expr, vy_ast.Hex):
         assert len(expr.value[2:]) // 2 == arg_typ._bytes_info.m
@@ -372,11 +372,14 @@ def to_bytes_m(expr, arg, out_typ):
             # arg = int_clamp(m_bits, signed=int_info.signed)
             _FAIL(arg.typ, out_typ, expr)
 
+        # note: neg numbers not OOB. keep sign bit
         arg = shl(256 - out_info.m_bits, arg)
 
     elif is_decimal_type(arg.typ):
         if out_info.m_bits < arg.typ._decimal_info.bits:
             _FAIL(arg.typ, out_typ, expr)
+
+        # note: neg numbers not OOB. keep sign bit
         arg = shl(256 - out_info.m_bits, arg)
 
     else:
