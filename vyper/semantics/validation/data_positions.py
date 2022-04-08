@@ -214,7 +214,7 @@ def set_memory_offsets(fn_node: vy_ast.FunctionDef) -> None:
     pass
 
 
-def set_code_offsets(vyper_module: vy_ast.Module) -> None:
+def set_code_offsets(vyper_module: vy_ast.Module) -> Dict:
 
     ret = {}
     offset = 0
@@ -228,7 +228,12 @@ def set_code_offsets(vyper_module: vy_ast.Module) -> None:
 
         # this could have better typing but leave it untyped until
         # we understand the use case better
-        ret[node.target.id] = {"type": str(type_), "location": "code", "offset": offset, "length": len_ }
+        ret[node.target.id] = {
+            "type": str(type_),
+            "location": "code",
+            "offset": offset,
+            "length": len_,
+        }
 
         offset += len_
 
