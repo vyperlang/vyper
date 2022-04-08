@@ -20,12 +20,14 @@ def set_data_positions(
     vyper_module : vy_ast.Module
         Top-level Vyper AST node that has already been annotated with type data.
     """
-    set_code_offsets(vyper_module)
-    return (
+    code_offsets = set_code_offsets(vyper_module)
+    storage_slots = (
         set_storage_slots_with_overrides(vyper_module, storage_layout_overrides)
         if storage_layout_overrides is not None
         else set_storage_slots(vyper_module)
     )
+
+    return dict(**code_offsets, **storage_slots)
 
 
 class StorageAllocator:
@@ -214,6 +216,7 @@ def set_memory_offsets(fn_node: vy_ast.FunctionDef) -> None:
 
 def set_code_offsets(vyper_module: vy_ast.Module) -> None:
 
+    ret = {}
     offset = 0
     for node in vyper_module.get_children(
         vy_ast.AnnAssign, filters={"annotation.func.id": "immutable"}
@@ -221,4 +224,12 @@ def set_code_offsets(vyper_module: vy_ast.Module) -> None:
         type_ = node._metadata["type"]
         type_.set_position(CodeOffset(offset))
 
-        offset += math.ceil(type_.size_in_bytes / 32) * 32
+        len_ = math.ceil(type_.size_in_bytes / 32) * 32
+
+        # this could have better typing but leave it untyped until
+        # we understand the use case better
+        ret[node.target.id] = {"type": str(type_), "location": "code", "offset": offset, "length": len_ }
+
+        offset += len_
+
+    return ret
