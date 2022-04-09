@@ -547,6 +547,7 @@ class Concat:
                     argdata = bytes_data_ptr(arg)
 
                     with get_bytearray_length(arg).cache_when_complex("len") as (b2, arglen):
+
                         do_copy = [
                             "seq",
                             copy_bytes(dst_data, argdata, arglen, arg.typ.maxlen),
