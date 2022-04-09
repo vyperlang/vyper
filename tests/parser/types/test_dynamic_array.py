@@ -755,7 +755,7 @@ def bounds_check_int128(ix: int128) -> uint256:
     assert_tx_failed(lambda: c.bounds_check_int128(-1))
 
 
-def test_list_check_heterogeneous_types(get_contract_with_gas_estimation, assert_compile_failed):
+def test_index_exception(get_contract_with_gas_estimation, assert_compile_failed):
     code = """
 @external
 def fail() -> uint256:
@@ -763,6 +763,7 @@ def fail() -> uint256:
     return xs[3]
     """
     assert_compile_failed(lambda: get_contract_with_gas_estimation(code), ArrayIndexException)
+
     code = """
 @external
 def fail() -> uint256:
@@ -888,6 +889,20 @@ my_array: DynArray[uint256, 5]
 def foo(xs: DynArray[uint256, 5]) -> DynArray[uint256, 5]:
     for x in xs:
         self.my_array.append(x)
+    return self.my_array
+    """,
+        lambda xs: xs,
+    ),
+    (
+        """
+my_array: DynArray[uint256, 5]
+some_var: uint256
+@external
+def foo(xs: DynArray[uint256, 5]) -> DynArray[uint256, 5]:
+    for x in xs:
+        self.some_var = x
+        # test that typechecker for append args works
+        self.my_array.append(self.some_var)
     return self.my_array
     """,
         lambda xs: xs,
