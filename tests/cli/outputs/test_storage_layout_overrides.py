@@ -75,6 +75,28 @@ def public_foo3():
     assert out["layout"] == storage_layout_override
 
 
+def test_immutables_layout():
+    code = """
+name: String[32]
+SYMBOL: immutable(String[32])
+DECIMALS: immutable(uint8)
+
+@external
+def __init__():
+    SYMBOL = "VYPR"
+    DECIMALS = 18
+    """
+
+    expected_layout = {
+        "name": {"type": "String[32]", "location": "storage", "slot": 0},
+        "SYMBOL": {"type": "String[32]", "offset": 0, "length": 64},
+        "DECIMALS": {"type": "uint8", "offset": 64, "length": 32},
+    }
+
+    out = compile_code(code, output_formats=["layout"])
+    assert out["layout"] == expected_layout
+
+
 def test_simple_collision():
     code = """
 name: public(String[64])
