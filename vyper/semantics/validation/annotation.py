@@ -137,9 +137,9 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
             for value, arg_type in zip(node.args[0].values, list(call_type.members.values())):
                 self.visit(value, arg_type)
         elif isinstance(call_type, MemberFunctionDefinition):
-            if node_type:
-                for arg in node.args:
-                    self.visit(arg, node_type.value_type)
+            assert len(node.args) == len(call_type.arg_types)
+            for arg, arg_type in zip(node.args, call_type.arg_types):
+                self.visit(arg, arg_type)
         elif node.func.id not in ("empty", "range"):
             # builtin functions
             for arg in node.args:
