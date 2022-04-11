@@ -143,6 +143,7 @@ def small_bytes4(a: bytes8, b: Bytes[32], c: bytes8) -> Bytes[48]:
     contract = get_contract_with_gas_estimation(code)
 
     i = 0
+
     def bytes_for_len(n):
         nonlocal i
         # bytes constructor with state
