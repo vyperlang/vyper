@@ -1,5 +1,3 @@
-import random
-
 from vyper.exceptions import TypeMismatch
 
 
@@ -145,8 +143,7 @@ def small_bytes4(a: bytes8, b: Bytes[32], c: bytes8) -> Bytes[48]:
     contract = get_contract_with_gas_estimation(code)
 
     def bytes_for_len(n):
-        # note: python 3.9 has `randbytes` for this.
-        return random.randrange(2 ** (8 * n)).to_bytes(n, "big")
+        return bytes([i % 256 for i in range(1, n + 1)])
 
     a, b = bytes_for_len(1), bytes_for_len(2)
     assert contract.small_bytes1(a, b) == a + b
