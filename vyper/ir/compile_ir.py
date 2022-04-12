@@ -758,8 +758,9 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
     elif code.value == "ceil32":
         # floor32(x) = x - x % 32 == x & 0b11..100000 == x & (~31)
         # ceil32(x) = floor32(x + 31) == (x + 31) & (~31)
+        x = code.args[0]
         return _compile_to_assembly(
-            IRnode.from_list(["and", ["add", o, 31], ["not", 31]]),
+            IRnode.from_list(["and", ["add", x, 31], ["not", 31]]),
             withargs,
             existing_labels,
             break_dest,
