@@ -222,7 +222,8 @@ def copy_bytes(dst, src, length, length_bound):
         #   sstore(_dst + i, mload(src + i * 32))
         i = IRnode.from_list(_freshname("copy_bytes_ix"), typ="uint256")
 
-        n = ["div", ["ceil32", length], 32]
+        # optimized form of (div (ceil32 len) 32)
+        n = ["div", ["add", 31, length], 32]
         n_bound = ceil32(length_bound) // 32
 
         dst_i = add_ofst(dst, _mul(i, dst.location.word_scale))
@@ -874,7 +875,8 @@ def zero_pad(bytez_placeholder):
     #   the actual value of X as a byte sequence,
     #   followed by the *minimum* number of zero-bytes
     #   such that len(enc(X)) is a multiple of 32.
-    num_zero_bytes = ["sub", ["ceil32", "len"], "len"]
+    # optimized form of ceil32(len) - len:
+    num_zero_bytes = ["and", 31, ["sub", 0, "len"]]
     return IRnode.from_list(
         ["with", "len", len_, ["with", "dst", dst, mzero("dst", num_zero_bytes)]],
         annotation="Zero pad",
