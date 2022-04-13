@@ -24,6 +24,7 @@ from vyper.codegen.types import (
     DArrayType,
     InterfaceType,
     MappingType,
+    is_bytes_m_type,
     SArrayType,
     StringType,
     StructType,
@@ -204,14 +205,16 @@ class Expr:
     def parse_Hex(self):
         hexstr = self.expr.value
 
-        if len(hexstr) == 42:
+        inferred_type = new_type_to_old_type(self.expr._metadata["type"])
+
+        if is_base_type(inferred_type, "address"):
+
             # sanity check typechecker did its job
-            assert checksum_encode(hexstr) == hexstr
+            assert len(hexstr) == 42 and checksum_encode(hexstr) == hexstr
             typ = BaseType("address")
-            # TODO allow non-checksum encoded bytes20
             return IRnode.from_list(int(self.expr.value, 16), typ=typ)
 
-        else:
+        elif is_bytes_m_type(inferred_type):
             n_bytes = (len(hexstr) - 2) // 2  # e.g. "0x1234" is 2 bytes
             # TODO: typ = new_type_to_old_type(self.expr._metadata["type"])
             #       assert n_bytes == typ._bytes_info.m
