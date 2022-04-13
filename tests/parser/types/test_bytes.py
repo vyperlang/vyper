@@ -320,6 +320,14 @@ def assign():
     """,
         InvalidType,
     ),
+    (
+        """
+@external
+def assign():
+    xs: bytes4 = 0x1234abcdef # bytes5 literal
+    """,
+        InvalidType,
+    ),
 ]
 
 
