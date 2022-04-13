@@ -175,7 +175,7 @@ def _dynarray_make_setter(dst, src):
 # copy an entire (32-byte) word, depending on the copy routine chosen.
 # TODO maybe always pad to ceil32, to reduce dirty bytes bugs
 def copy_bytes(dst, src, length, length_bound):
-    annotation = f"copy_bytes from {src} to {dst}"
+    annotation = f"copy up to {length_bound} bytes from {src} to {dst}"
 
     src = IRnode.from_list(src)
     dst = IRnode.from_list(dst)
@@ -184,6 +184,11 @@ def copy_bytes(dst, src, length, length_bound):
     with src.cache_when_complex("src") as (b1, src), length.cache_when_complex(
         "copy_bytes_count"
     ) as (b2, length), dst.cache_when_complex("dst") as (b3, dst):
+
+        assert length_bound >= 0
+
+        if length_bound == 0:
+            return IRnode.from_list(["seq"], annotation=annotation)
 
         # fast code for common case where num bytes is small
         # TODO expand this for more cases where num words is less than ~8
