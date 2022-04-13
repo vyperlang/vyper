@@ -24,12 +24,12 @@ from vyper.codegen.types import (
     DArrayType,
     InterfaceType,
     MappingType,
-    is_bytes_m_type,
     SArrayType,
     StringType,
     StructType,
     TupleType,
     is_base_type,
+    is_bytes_m_type,
     is_numeric_type,
 )
 from vyper.codegen.types.convert import new_type_to_old_type
