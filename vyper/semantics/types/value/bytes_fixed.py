@@ -21,12 +21,10 @@ class BytesMPrimitive(BasePrimitive):
     _length: int
 
     _as_array = True
-    _valid_literal = (vy_ast.Bytes, vy_ast.Hex)
+    _valid_literal = (vy_ast.Hex,)
 
     @classmethod
     def from_literal(cls, node: vy_ast.Constant) -> BaseTypeDefinition:
-        if isinstance(node, vy_ast.Bytes) and len(node.value) != cls._length:
-            raise InvalidLiteral("Invalid literal for type bytes32", node)
         if isinstance(node, vy_ast.Hex) and len(node.value) != 2 + 2 * cls._length:
             raise InvalidLiteral("Invalid literal for type bytes32", node)
         obj = super().from_literal(node)
