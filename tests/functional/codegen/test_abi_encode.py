@@ -397,7 +397,6 @@ def foo(ensure_tuple: bool) -> Bytes[96]:
 
     c = get_contract(code)
 
-    arg = ""
     # eth-abi does not encode zero-length string correctly -
     # see eth-abi #157.
     expected_output = b"\x00" * 32
