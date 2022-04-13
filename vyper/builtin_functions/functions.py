@@ -310,11 +310,10 @@ class Slice:
             return _build_adhoc_slice_node(src, start, length, context)
 
         is_bytes32 = is_base_type(src.typ, "bytes32")
-        # TODO bytes32 and ~empty cases could be made more efficient.
         if src.location is None:
             # it's not a pointer; force it to be one since
             # copy_bytes works on pointers.
-            assert is_bytes32 or src.value == "~empty", src
+            assert is_bytes32, src
             src = ensure_in_memory(src, context)
 
         with src.cache_when_complex("src") as (b1, src), start.cache_when_complex("start") as (
