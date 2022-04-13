@@ -593,11 +593,8 @@ def _check_assign_bytes(left, right):
         raise TypeMismatch(f"Cannot cast from {right.typ} to {left.typ}")  # pragma: notest
 
     # stricter check for zeroing a byte array.
-    if right.value == "~empty":
-        if right.typ.maxlen != left.typ.maxlen:
-            raise TypeMismatch(
-                f"Cannot cast from empty({right.typ}) to {left.typ}"
-            )  # pragma: notest
+    if right.value == "~empty" and right.typ.maxlen != left.typ.maxlen:
+        raise TypeMismatch(f"Cannot cast from empty({right.typ}) to {left.typ}")  # pragma: notest
 
 
 def _check_assign_list(left, right):
