@@ -3,36 +3,14 @@ from typing import Any, List
 import vyper.utils as util
 from vyper.address_space import CALLDATA, DATA, MEMORY
 from vyper.ast.signatures.function_signature import FunctionSignature, VariableRecord
+from vyper.codegen.abi_encoder import abi_encoding_matches_vyper
 from vyper.codegen.context import Context
-from vyper.codegen.core import get_element_ptr, getpos, make_setter
+from vyper.codegen.core import get_element_ptr, getpos, make_setter, needs_clamp
 from vyper.codegen.expr import Expr
 from vyper.codegen.function_definitions.utils import get_nonreentrant_lock
 from vyper.codegen.ir_node import Encoding, IRnode
 from vyper.codegen.stmt import parse_body
-from vyper.codegen.types.types import (
-    BaseType,
-    ByteArrayLike,
-    DArrayType,
-    SArrayType,
-    TupleLike,
-    TupleType,
-)
-from vyper.exceptions import CompilerPanic
-
-
-def _should_decode(typ):
-    # either a basetype which needs to be clamped
-    # or a complex type which contains something that
-    # needs to be clamped.
-    if isinstance(typ, BaseType):
-        return typ.typ not in ("int256", "uint256", "bytes32")
-    if isinstance(typ, (ByteArrayLike, DArrayType)):
-        return True
-    if isinstance(typ, SArrayType):
-        return _should_decode(typ.subtype)
-    if isinstance(typ, TupleLike):
-        return any(_should_decode(t) for t in typ.tuple_members())
-    raise CompilerPanic(f"_should_decode({typ})")  # pragma: notest
+from vyper.codegen.types.types import TupleType
 
 
 # register function args with the local calling context.
@@ -53,7 +31,7 @@ def _register_function_args(context: Context, sig: FunctionSignature) -> List[IR
 
         arg_ir = get_element_ptr(base_args_ofst, i)
 
-        if _should_decode(arg.typ):
+        if needs_clamp(arg.typ, Encoding.ABI):
             # allocate a memory slot for it and copy
             p = context.new_variable(arg.name, arg.typ, is_mutable=False)
             dst = IRnode(p, typ=arg.typ, location=MEMORY)
@@ -62,6 +40,7 @@ def _register_function_args(context: Context, sig: FunctionSignature) -> List[IR
             copy_arg.source_pos = getpos(arg.ast_source)
             ret.append(copy_arg)
         else:
+            assert abi_encoding_matches_vyper(arg.typ)
             # leave it in place
             context.vars[arg.name] = VariableRecord(
                 name=arg.name,

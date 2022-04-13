@@ -123,10 +123,7 @@ def _dynarray_make_setter(dst, src):
 
         # for ABI-encoded dynamic data, we must loop to unpack, since
         # the layout does not match our memory layout
-        should_loop = (
-            src.encoding in (Encoding.ABI, Encoding.JSON_ABI)
-            and src.typ.subtype.abi_type.is_dynamic()
-        )
+        should_loop = src.encoding == Encoding.ABI and src.typ.subtype.abi_type.is_dynamic()
 
         # if the subtype is dynamic, there might be a lot of
         # unused space inside of each element. for instance
@@ -379,7 +376,7 @@ def _get_element_ptr_tuplelike(parent, key):
 
     ofst = 0  # offset from parent start
 
-    if parent.encoding in (Encoding.ABI, Encoding.JSON_ABI):
+    if parent.encoding == Encoding.ABI:
         if parent.location == STORAGE:
             raise CompilerPanic("storage variables should not be abi encoded")  # pragma: notest
 
@@ -449,7 +446,7 @@ def _get_element_ptr_array(parent, key, array_bounds_check):
         # NOTE: there are optimization rules for this when ix or bound is literal
         ix = IRnode.from_list([clamp_op, ix, bound], typ=ix.typ)
 
-    if parent.encoding in (Encoding.ABI, Encoding.JSON_ABI):
+    if parent.encoding == Encoding.ABI:
         if parent.location == STORAGE:
             raise CompilerPanic("storage variables should not be abi encoded")  # pragma: notest
 
@@ -703,20 +700,20 @@ def _freshname(name):
 # returns True if t is ABI encoded and is a type that needs any kind of
 # validation
 def needs_clamp(t, encoding):
-    if encoding not in (Encoding.ABI, Encoding.JSON_ABI):
+    if encoding == Encoding.VYPER:
         return False
+    if encoding != Encoding.ABI:
+        raise CompilerPanic("unreachable")  # pragma: notest
     if isinstance(t, (ByteArrayLike, DArrayType)):
-        if encoding == Encoding.JSON_ABI:
-            # don't have bytestring size bound from json, don't clamp
-            return False
         return True
-    if isinstance(t, BaseType) and t.typ not in ("int256", "uint256", "bytes32"):
-        return True
+    if isinstance(t, BaseType):
+        return t.typ not in ("int256", "uint256", "bytes32")
     if isinstance(t, SArrayType):
         return needs_clamp(t.subtype, encoding)
     if isinstance(t, TupleLike):
         return any(needs_clamp(m, encoding) for m in t.tuple_members())
-    return False
+
+    raise CompilerPanic("unreachable")  # pragma: notest
 
 
 # Create an x=y statement, where the types may be compound
