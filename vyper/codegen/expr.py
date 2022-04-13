@@ -237,9 +237,6 @@ class Expr:
         return self._make_bytelike(typ, bytez, bytez_length)
 
     def _make_bytelike(self, btype, bytez, bytez_length):
-        if bytez == b"":
-            return IRnode.from_list("~empty", typ=btype, annotation=f"empty {btype}")
-
         placeholder = self.context.new_internal_variable(btype)
         seq = []
         seq.append(["mstore", placeholder, bytez_length])

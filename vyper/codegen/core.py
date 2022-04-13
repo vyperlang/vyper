@@ -185,6 +185,8 @@ def copy_bytes(dst, src, length, length_bound):
         if length_bound == 0:
             return IRnode.from_list(["seq"], annotation=annotation)
 
+        assert src.is_pointer and dst.is_pointer
+
         # fast code for common case where num bytes is small
         # TODO expand this for more cases where num words is less than ~8
         if length_bound <= 32:
@@ -589,10 +591,10 @@ def dummy_node_for_type(typ):
 def _check_assign_bytes(left, right):
     if right.typ.maxlen > left.typ.maxlen:
         raise TypeMismatch(f"Cannot cast from {right.typ} to {left.typ}")  # pragma: notest
+
     # stricter check for zeroing a byte array.
     if right.value == "~empty":
-        # maxlen == 0 for b"" literals; we can be less strict with those.
-        if right.typ.maxlen > 0 and right.typ.maxlen != left.typ.maxlen:
+        if right.typ.maxlen != left.typ.maxlen:
             raise TypeMismatch(
                 f"Cannot cast from empty({right.typ}) to {left.typ}"
             )  # pragma: notest
