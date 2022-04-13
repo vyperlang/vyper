@@ -317,7 +317,6 @@ class Slice:
             assert is_bytes32 or src.value == "~empty", src
             src = ensure_in_memory(src, context)
 
-
         with src.cache_when_complex("src") as (b1, src), start.cache_when_complex("start") as (
             b2,
             start,

@@ -45,17 +45,12 @@ def _codecopy_gas_bound(num_bytes):
 
 
 # Copy byte array word-for-word (including layout)
+# TODO make this a private function
 def make_byte_array_copier(dst, src):
     assert isinstance(src.typ, ByteArrayLike)
     assert isinstance(dst.typ, ByteArrayLike)
 
-    if src.typ.maxlen > dst.typ.maxlen:
-        raise TypeMismatch(f"Cannot cast from {src.typ} to {dst.typ}")
-    # stricter check for zeroing a byte array.
-    if src.value == "~empty" and src.typ.maxlen != dst.typ.maxlen:
-        raise TypeMismatch(
-            f"Bad type for clearing bytes: expected {dst.typ} but got {src.typ}"
-        )  # pragma: notest
+    _check_assign_bytes(dst, src)
 
     if src.value == "~empty":
         # set length word to 0.
@@ -595,10 +590,12 @@ def _check_assign_bytes(left, right):
     if right.typ.maxlen > left.typ.maxlen:
         raise TypeMismatch(f"Cannot cast from {right.typ} to {left.typ}")  # pragma: notest
     # stricter check for zeroing a byte array.
-    if right.value == "~empty" and right.typ.maxlen != left.typ.maxlen:
-        raise TypeMismatch(
-            f"Bad type for clearing bytes: expected {left.typ} but got {right.typ}"
-        )  # pragma: notest
+    if right.value == "~empty":
+        # maxlen == 0 for b"" literals; we can be less strict with those.
+        if right.typ.maxlen > 0 and right.typ.maxlen != left.typ.maxlen:
+            raise TypeMismatch(
+                f"Cannot cast from empty({right.typ}) to {left.typ}"
+            )  # pragma: notest
 
 
 def _check_assign_list(left, right):
