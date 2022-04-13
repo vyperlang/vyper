@@ -398,7 +398,7 @@ def foo(ensure_tuple: bool) -> Bytes[96]:
     c = get_contract(code)
 
     # eth-abi does not encode zero-length string correctly -
-    # see eth-abi #157.
+    # see https://github.com/ethereum/eth-abi/issues/157
     expected_output = b"\x00" * 32
     assert c.foo(False) == expected_output
     expected_output = b"\x00" * 31 + b"\x20" + b"\x00" * 32
