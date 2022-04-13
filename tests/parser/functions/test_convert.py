@@ -486,11 +486,6 @@ def test_convert() -> {o_typ}:
         # type of arg is inferrred to be bytes20
         c1_exception = InvalidType
 
-    if i_typ == "bytes20":
-        # Skip because raw bytes20 is treated as address
-        # revisit when bytes20 works.
-        skip_c1 = True
-
     if c1_exception is not None:
         assert_compile_failed(lambda: get_contract_with_gas_estimation(contract_1), c1_exception)
     elif not skip_c1:
@@ -515,11 +510,8 @@ def test_state_variable_convert() -> {o_typ}:
     return convert(self.bar, {o_typ})
     """
 
-    skip_c3 = i_typ == "bytes20"  # literals do not work
-
-    if not skip_c3:
-        c3 = get_contract_with_gas_estimation(contract_3)
-        assert c3.test_state_variable_convert() == expected_val
+    c3 = get_contract_with_gas_estimation(contract_3)
+    assert c3.test_state_variable_convert() == expected_val
 
     contract_4 = f"""
 @external
@@ -669,11 +661,8 @@ def foo():
     foobar: {o_typ} = convert(bar, {o_typ})
     """
 
-    skip_c2 = i_typ == "bytes20"  # can't handle bytes20 literals
-
-    if not skip_c2:
-        c2 = get_contract_with_gas_estimation(contract_2)
-        assert_tx_failed(lambda: c2.foo())
+    c2 = get_contract_with_gas_estimation(contract_2)
+    assert_tx_failed(lambda: c2.foo())
 
     contract_3 = f"""
 @external
