@@ -325,6 +325,4 @@ def assign():
 
 @pytest.mark.parametrize("code,exc", cases_invalid_assignments)
 def test_invalid_assignments(get_contract, assert_compile_failed, code, exc):
-    code = """
-    """
     assert_compile_failed(lambda: get_contract(code), exc)
