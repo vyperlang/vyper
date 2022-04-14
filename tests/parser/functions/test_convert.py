@@ -650,7 +650,7 @@ def foo() -> {o_typ}:
     if o_typ.startswith("bytes"):
         skip_c1 = True
 
-    #if o_typ in ("address", "bytes20"):
+    # if o_typ in ("address", "bytes20"):
     #    skip_c1 = True
 
     if not skip_c1:

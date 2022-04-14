@@ -42,7 +42,13 @@ from vyper.exceptions import (
     TypeMismatch,
     UnimplementedException,
 )
-from vyper.utils import DECIMAL_DIVISOR, SizeLimits, bytes_to_int, is_checksum_encoded, string_to_bytes
+from vyper.utils import (
+    DECIMAL_DIVISOR,
+    SizeLimits,
+    bytes_to_int,
+    is_checksum_encoded,
+    string_to_bytes,
+)
 
 ENVIRONMENT_VARIABLES = {
     "block",
