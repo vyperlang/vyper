@@ -115,6 +115,10 @@ def bytes_to_int(bytez):
     return o
 
 
+def is_checksum_encoded(addr):
+    return addr == checksum_encode(addr)
+
+
 # Encodes an address using ethereum's checksum scheme
 def checksum_encode(addr):  # Expects an input of the form 0x<40 hex chars>
     assert addr[:2] == "0x" and len(addr) == 42, addr

@@ -15,7 +15,7 @@ from vyper.exceptions import (
     UnfoldableNode,
     ZeroDivisionException,
 )
-from vyper.utils import MAX_DECIMAL_PLACES, SizeLimits, annotate_source_code, checksum_encode
+from vyper.utils import MAX_DECIMAL_PLACES, SizeLimits, annotate_source_code
 
 NODE_BASE_ATTRIBUTES = (
     "_children",
@@ -774,12 +774,8 @@ class Hex(Constant):
     def validate(self):
         if len(self.value) % 2:
             raise InvalidLiteral("Hex notation requires an even number of digits", self)
-        if len(self.value) == 42 and checksum_encode(self.value) != self.value:
-            raise InvalidLiteral(
-                "Address checksum mismatch. If you are sure this is the right "
-                f"address, the correct checksummed form is: {checksum_encode(self.value)}",
-                self,
-            )
+        if "_" in self.value:
+            raise InvalidLiteral("Underscores not allowed in hex literals", self)
 
 
 class Str(Constant):
