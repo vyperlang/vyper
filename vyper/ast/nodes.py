@@ -774,6 +774,8 @@ class Hex(Constant):
     def validate(self):
         if len(self.value) % 2:
             raise InvalidLiteral("Hex notation requires an even number of digits", self)
+        if "_" in self.value:
+            raise InvalidLiteral("Underscores not allowed in hex literals", self)
 
 
 class Str(Constant):
