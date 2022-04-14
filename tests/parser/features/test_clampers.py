@@ -99,9 +99,9 @@ def foo(s: bytes{n}) -> bytes{n}:
 @pytest.mark.parametrize("n", list(range(1, 32)))  # bytes32 always passes
 def test_bytes_m_clamper_failing(w3, get_contract, assert_tx_failed, n, evm_version):
     values = []
-    values.append(b"\x00" * n + b"\x80") # just one bit set
-    values.append(b"\xff" * n + b"\x80") # n*8 + 1 bits set
-    values.append(b"\x00" * 31 + b"\x01") # bytes32
+    values.append(b"\x00" * n + b"\x80")  # just one bit set
+    values.append(b"\xff" * n + b"\x80")  # n*8 + 1 bits set
+    values.append(b"\x00" * 31 + b"\x01")  # bytes32
     values.append(b"\xff" * 32)  # bytes32
     values.append(bytes(range(32)))  # 0x00010203..1f
     values.append(bytes(range(1, 33)))  # 0x01020304..a0
@@ -138,11 +138,11 @@ def foo(s: int{bits}) -> int{bits}:
 
 
 @pytest.mark.parametrize("evm_version", list(EVM_VERSIONS))
-@pytest.mark.parametrize("n", list(range(31))) # int256 does not clamp
+@pytest.mark.parametrize("n", list(range(31)))  # int256 does not clamp
 def test_sint_clamper_failing(w3, assert_tx_failed, get_contract, n, evm_version):
     bits = 8 * (n + 1)
     lo, hi = int_bounds(True, bits)
-    values = [-2 ** 255, 2 ** 255 - 1, lo - 1, hi + 1]
+    values = [-(2 ** 255), 2 ** 255 - 1, lo - 1, hi + 1]
     code = f"""
 @external
 def foo(s: int{bits}) -> int{bits}:
@@ -184,7 +184,7 @@ def foo(s: bool) -> bool:
 @pytest.mark.parametrize("n", list(range(32)))
 def test_uint_clamper_passing(w3, get_contract, evm_version, n):
     bits = 8 * (n + 1)
-    values = [0, 1, 2**bits - 1]
+    values = [0, 1, 2 ** bits - 1]
     code = f"""
 @external
 def foo(s: uint{bits}) -> uint{bits}:
@@ -200,7 +200,7 @@ def foo(s: uint{bits}) -> uint{bits}:
 @pytest.mark.parametrize("n", list(range(31)))  # uint256 has no failing cases
 def test_uint_clamper_failing(w3, assert_tx_failed, get_contract, evm_version, n):
     bits = 8 * (n + 1)
-    values = [-1, -2**255, 2**bits]
+    values = [-1, -(2 ** 255), 2 ** bits]
     code = f"""
 @external
 def foo(s: uint{bits}) -> uint{bits}:
