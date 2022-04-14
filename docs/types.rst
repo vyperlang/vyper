@@ -600,10 +600,10 @@ All type conversions in Vyper must be made explicitly using the built-in ``conve
 * Except for conversions involving decimals and bools, the input is bit-for-bit preserved
 * Conversions to bool map all nonzero inputs to 1.
 * When converting from decimals to integers, the input is truncated towards zero.
-* Converting between right-padded (bytes, Bytes, String) and left-padded types, results in a rotation to convert the padding. For instance, converting from bytes20 to address would result in rotating the input by 12 bytes to the right.
-* Converting between signed and unsigned integers reverts if the input is < 0.
-* Narrowing conversions (e.g., int256 -> int128) check that the input is in bounds for the output type.
-* Converting between bytes and int types results in sign-extension if the output type is signed. For instance, converting 0xff (bytes1) to int8 returns -1.
-* Converting between bytes and int types which have different sizes follows the rule of going through the closest integer type, first. For instance, bytes1 -> int16 is like bytes1 -> int8 -> int16 (signextend, then widen). uint8 -> bytes20 is like uint8 -> uint160 -> bytes20 (rotate left 12 bytes).
+* Converting between right-padded (bytes, Bytes, String) and left-padded types, results in a rotation to convert the padding. For instance, converting from ``bytes20`` to ``address`` would result in rotating the input by 12 bytes to the right.
+* Converting between signed and unsigned integers reverts if the input is negative.
+* Narrowing conversions (e.g., ``convert(<int256>, int128``) check that the input is in bounds for the output type.
+* Converting between bytes and int types results in sign-extension if the output type is signed. For instance, converting ``0xff`` (``bytes1``) to ``int8`` returns ``-1``.
+* Converting between bytes and int types which have different sizes follows the rule of going through the closest integer type, first. For instance, ``bytes1`` -> ``int16`` is like ``bytes1`` -> ``int8`` -> ``int16`` (signextend, then widen). ``uint8`` -> ``bytes20`` is like ``uint8`` -> ``uint160`` -> ``bytes20`` (rotate left 12 bytes).
 
 A small reference implementation is maintained as part of vyper's test suite, it can be found `here <https://github.com/vyperlang/vyper/blob/c4c6afd07801a0cc0038cdd4007cc43860c54193/tests/parser/functions/test_convert.py#L318>`_.
