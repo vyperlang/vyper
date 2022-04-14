@@ -205,25 +205,32 @@ class Expr:
     def parse_Hex(self):
         hexstr = self.expr.value
 
-        inferred_type = new_type_to_old_type(self.expr._metadata["type"])
+        t = self.expr._metadata.get("type")
+
+        n_bytes = (len(hexstr) - 2) // 2  # e.g. "0x1234" is 2 bytes
+
+        if t is not None:
+            inferred_type = new_type_to_old_type(self.expr._metadata["type"])
+        # This branch is a band-aid to deal with bytes20 vs address literals
+        # TODO handle this properly in the type checker
+        elif len(hexstr) == 42:
+            inferred_type = BaseType("address", is_literal=True)
+        else:
+            inferred_type = BaseType(f"bytes{n_bytes}", is_literal=True)
 
         if is_base_type(inferred_type, "address"):
-
             # sanity check typechecker did its job
             assert len(hexstr) == 42 and checksum_encode(hexstr) == hexstr
             typ = BaseType("address")
             return IRnode.from_list(int(self.expr.value, 16), typ=typ)
 
         elif is_bytes_m_type(inferred_type):
-            n_bytes = (len(hexstr) - 2) // 2  # e.g. "0x1234" is 2 bytes
-            # TODO: typ = new_type_to_old_type(self.expr._metadata["type"])
-            #       assert n_bytes == typ._bytes_info.m
+            assert n_bytes == inferred_type._bytes_info.m
 
             # bytes_m types are left padded with zeros
             val = int(hexstr, 16) << 8 * (32 - n_bytes)
 
             typ = BaseType(f"bytes{n_bytes}", is_literal=True)
-            typ.is_literal = True
             return IRnode.from_list(val, typ=typ)
 
     # String literals
