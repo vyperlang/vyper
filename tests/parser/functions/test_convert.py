@@ -488,6 +488,10 @@ def test_convert() -> {o_typ}:
     if i_typ == "bytes20" and is_checksum_encoded(_vyper_literal(val, "bytes20")):
         skip_c1 = True
 
+    # typechecker inference borked, ambiguity with bytes20
+    if i_typ == "address" and o_typ == "bytes20" and val == val.lower():
+        skip_c1 = True
+
     if c1_exception is not None:
         assert_compile_failed(lambda: get_contract_with_gas_estimation(contract_1), c1_exception)
     elif not skip_c1:
