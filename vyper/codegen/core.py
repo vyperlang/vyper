@@ -45,17 +45,12 @@ def _codecopy_gas_bound(num_bytes):
 
 
 # Copy byte array word-for-word (including layout)
+# TODO make this a private function
 def make_byte_array_copier(dst, src):
     assert isinstance(src.typ, ByteArrayLike)
     assert isinstance(dst.typ, ByteArrayLike)
 
-    if src.typ.maxlen > dst.typ.maxlen:
-        raise TypeMismatch(f"Cannot cast from {src.typ} to {dst.typ}")
-    # stricter check for zeroing a byte array.
-    if src.value == "~empty" and src.typ.maxlen != dst.typ.maxlen:
-        raise TypeMismatch(
-            f"Bad type for clearing bytes: expected {dst.typ} but got {src.typ}"
-        )  # pragma: notest
+    _check_assign_bytes(dst, src)
 
     if src.value == "~empty":
         # set length word to 0.
@@ -175,7 +170,7 @@ def _dynarray_make_setter(dst, src):
 # copy an entire (32-byte) word, depending on the copy routine chosen.
 # TODO maybe always pad to ceil32, to reduce dirty bytes bugs
 def copy_bytes(dst, src, length, length_bound):
-    annotation = f"copy_bytes from {src} to {dst}"
+    annotation = f"copy up to {length_bound} bytes from {src} to {dst}"
 
     src = IRnode.from_list(src)
     dst = IRnode.from_list(dst)
@@ -184,6 +179,13 @@ def copy_bytes(dst, src, length, length_bound):
     with src.cache_when_complex("src") as (b1, src), length.cache_when_complex(
         "copy_bytes_count"
     ) as (b2, length), dst.cache_when_complex("dst") as (b3, dst):
+
+        assert length_bound >= 0
+
+        if length_bound == 0:
+            return IRnode.from_list(["seq"], annotation=annotation)
+
+        assert src.is_pointer and dst.is_pointer
 
         # fast code for common case where num bytes is small
         # TODO expand this for more cases where num words is less than ~8
@@ -590,11 +592,10 @@ def dummy_node_for_type(typ):
 def _check_assign_bytes(left, right):
     if right.typ.maxlen > left.typ.maxlen:
         raise TypeMismatch(f"Cannot cast from {right.typ} to {left.typ}")  # pragma: notest
+
     # stricter check for zeroing a byte array.
     if right.value == "~empty" and right.typ.maxlen != left.typ.maxlen:
-        raise TypeMismatch(
-            f"Bad type for clearing bytes: expected {left.typ} but got {right.typ}"
-        )  # pragma: notest
+        raise TypeMismatch(f"Cannot cast from empty({right.typ}) to {left.typ}")  # pragma: notest
 
 
 def _check_assign_list(left, right):

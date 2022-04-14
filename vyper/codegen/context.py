@@ -241,7 +241,7 @@ class Context:
     def lookup_var(self, varname):
         return self.vars[varname]
 
-    def lookup_internal_function(self, method_name, args_ir):
+    def lookup_internal_function(self, method_name, args_ir, ast_source):
         # TODO is this the right module for me?
         """
         Using a list of args, find the internal method to use, and
@@ -257,7 +257,8 @@ class Context:
             raise FunctionDeclarationException(
                 "Function does not exist or has not been declared yet "
                 "(reminder: functions cannot call functions later in code "
-                f"than themselves): {method_name}"
+                "than themselves)",
+                ast_source,
             )
 
         _check(sig.internal)  # sanity check

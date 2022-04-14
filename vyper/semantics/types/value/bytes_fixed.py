@@ -25,9 +25,17 @@ class BytesMPrimitive(BasePrimitive):
 
     @classmethod
     def from_literal(cls, node: vy_ast.Constant) -> BaseTypeDefinition:
-        if isinstance(node, vy_ast.Hex) and len(node.value) != 2 + 2 * cls._length:
-            raise InvalidLiteral("Invalid literal for type bytes32", node)
         obj = super().from_literal(node)
+        val = node.value
+        m = cls._length
+
+        if len(val) != 2 + 2 * m:
+            raise InvalidLiteral("Invalid literal for type bytes32", node)
+
+        nibbles = val[2:]  # strip leading 0x
+        if nibbles not in (nibbles.lower(), nibbles.upper()):
+            raise InvalidLiteral(f"Cannot mix uppercase and lowercase for bytes{m} literal", node)
+
         return obj
 
 

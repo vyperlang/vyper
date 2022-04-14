@@ -29,7 +29,7 @@ def ir_for_self_call(stmt_expr, context):
 
     pos_args_ir = [Expr(x, context).ir_node for x in stmt_expr.args]
 
-    sig, kw_vals = context.lookup_internal_function(method_name, pos_args_ir)
+    sig, kw_vals = context.lookup_internal_function(method_name, pos_args_ir, stmt_expr)
 
     kw_args_ir = [Expr(x, context).ir_node for x in kw_vals]
 

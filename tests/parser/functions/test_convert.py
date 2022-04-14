@@ -23,6 +23,7 @@ from vyper.utils import (
     DECIMAL_DIVISOR,
     SizeLimits,
     checksum_encode,
+    is_checksum_encoded,
     round_towards_zero,
     unsigned_to_signed,
 )
@@ -482,13 +483,13 @@ def test_convert() -> {o_typ}:
         if o_typ != "bytes32":
             c1_exception = TypeMismatch
 
-    if i_typ == "address" and o_typ == "bytes20":
-        # type of arg is inferrred to be bytes20
-        c1_exception = InvalidType
+    # Skip bytes20 literals when there is ambiguity with `address` since address takes precedence.
+    # generally happens when there are only digits in the literal.
+    if i_typ == "bytes20" and is_checksum_encoded(_vyper_literal(val, "bytes20")):
+        skip_c1 = True
 
-    if i_typ == "bytes20":
-        # Skip because raw bytes20 is treated as address
-        # revisit when bytes20 works.
+    # typechecker inference borked, ambiguity with bytes20
+    if i_typ == "address" and o_typ == "bytes20" and val == val.lower():
         skip_c1 = True
 
     if c1_exception is not None:
@@ -515,11 +516,8 @@ def test_state_variable_convert() -> {o_typ}:
     return convert(self.bar, {o_typ})
     """
 
-    skip_c3 = i_typ == "bytes20"  # literals do not work
-
-    if not skip_c3:
-        c3 = get_contract_with_gas_estimation(contract_3)
-        assert c3.test_state_variable_convert() == expected_val
+    c3 = get_contract_with_gas_estimation(contract_3)
+    assert c3.test_state_variable_convert() == expected_val
 
     contract_4 = f"""
 @external
@@ -656,8 +654,8 @@ def foo() -> {o_typ}:
     if o_typ.startswith("bytes"):
         skip_c1 = True
 
-    if o_typ == "address":
-        skip_c1 = True
+    # if o_typ in ("address", "bytes20"):
+    #    skip_c1 = True
 
     if not skip_c1:
         assert_compile_failed(lambda: get_contract_with_gas_estimation(contract_1), c1_exception)
@@ -669,11 +667,8 @@ def foo():
     foobar: {o_typ} = convert(bar, {o_typ})
     """
 
-    skip_c2 = i_typ == "bytes20"  # can't handle bytes20 literals
-
-    if not skip_c2:
-        c2 = get_contract_with_gas_estimation(contract_2)
-        assert_tx_failed(lambda: c2.foo())
+    c2 = get_contract_with_gas_estimation(contract_2)
+    assert_tx_failed(lambda: c2.foo())
 
     contract_3 = f"""
 @external
