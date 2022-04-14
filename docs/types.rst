@@ -358,11 +358,11 @@ Syntax as follows: ``_address.<member>``, where ``_address`` is of the type ``ad
 
     ``_address.code`` requires the usage of :func:`slice <slice>` to explicitly extract a section of contract bytecode. If the extracted section exceeds the bounds of bytecode, this will throw. You can check the size of ``_address.code`` using ``_address.codesize``.
 
-32-bit-wide Byte Array
+M-byte-wide Byte Array
 ----------------------
 
-**Keyword:** ``bytes32``
-This is a 32-bit-wide byte array that is otherwise similar to byte arrays.
+**Keyword:** ``bytesM``
+This is an M-byte-wide byte array that is otherwise similar to dynamic byte arrays. On an ABI level, it is annotated as bytesM (e.g., bytes32).
 
 **Example:**
 ::
@@ -371,6 +371,8 @@ This is a 32-bit-wide byte array that is otherwise similar to byte arrays.
     hash: bytes32
     # Assignment
     self.hash = _hash
+
+    some_method_id: bytes4 = 0x01abcdefab
 
 Operators
 *********
