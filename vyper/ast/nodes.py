@@ -774,12 +774,6 @@ class Hex(Constant):
     def validate(self):
         if len(self.value) % 2:
             raise InvalidLiteral("Hex notation requires an even number of digits", self)
-        if len(self.value) == 42 and checksum_encode(self.value) != self.value:
-            raise InvalidLiteral(
-                "Address checksum mismatch. If you are sure this is the right "
-                f"address, the correct checksummed form is: {checksum_encode(self.value)}",
-                self,
-            )
 
 
 class Str(Constant):

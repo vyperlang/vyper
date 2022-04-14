@@ -36,8 +36,14 @@ class AddressPrimitive(BasePrimitive):
         super().from_literal(node)
         addr = node.value
         if len(addr) != 42:
-            raise InvalidLiteral("Invalid literal for type 'address'", node)
+            n_bytes = (len(addr) - 2) // 2
+            raise InvalidLiteral("Invalid address. Expected 20 bytes, got {n_bytes}.", node)
+
         if checksum_encode(addr) != addr:
-            # this should have been caught in `vyper.ast.nodes.Hex.validate`
-            raise CompilerPanic("Address checksum mismatch")
+            raise InvalidLiteral(
+                "Address checksum mismatch. If you are sure this is the right "
+                f"address, the correct checksummed form is: {checksum_encode(addr)}",
+                node,
+            )
+
         return AddressDefinition()
