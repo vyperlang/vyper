@@ -395,8 +395,12 @@ def test_ok() -> Bytes[2]:
     return self.foo.ok()
 
 @external
-def test_fail() -> Bytes[3]:
+def test_fail1() -> Bytes[3]:
     return self.foo.should_fail()
+
+@external
+def test_fail2() -> Bytes[3]:
+    return concat(self.foo.should_fail(), b"")
     """
 
     bad_c = get_contract(external_contract)
@@ -405,7 +409,8 @@ def test_fail() -> Bytes[3]:
     assert bad_c.should_fail() == b"123"
 
     assert c.test_ok() == b"12"
-    assert_tx_failed(lambda: c.test_fail())
+    assert_tx_failed(lambda: c.test_fail1())
+    assert_tx_failed(lambda: c.test_fail2())
 
 
 # test data returned from external interface gets clamped
