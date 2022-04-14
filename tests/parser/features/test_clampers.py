@@ -80,6 +80,47 @@ def get_foo() -> Bytes[3]:
 
 
 @pytest.mark.parametrize("evm_version", list(EVM_VERSIONS))
+@pytest.mark.parametrize("n", list(range(1, 33)))
+def test_bytes_m_clamper_passing(w3, get_contract, n, evm_version):
+    values = [b"\xff" * (i + 1) for i in range(n)]
+
+    code = f"""
+@external
+def foo(s: bytes{n}) -> bytes{n}:
+    return s
+    """
+
+    c = get_contract(code, evm_version=evm_version)
+    for v in values:
+        assert c.foo(v) == v.ljust(n, b"\x00")
+
+
+@pytest.mark.parametrize("evm_version", list(EVM_VERSIONS))
+@pytest.mark.parametrize("n", list(range(1, 32)))  # bytes32 always passes
+def test_bytes_m_clamper_failing(w3, get_contract, assert_tx_failed, n, evm_version):
+    values = []
+    values.append(b"\x00" * n + b"\x80") # just one bit set
+    values.append(b"\xff" * n + b"\x80") # n*8 + 1 bits set
+    values.append(b"\x00" * 31 + b"\x01") # bytes32
+    values.append(b"\xff" * 32)  # bytes32
+    values.append(bytes(range(32)))  # 0x00010203..1f
+    values.append(bytes(range(1, 33)))  # 0x01020304..a0
+    values.append(b"\xff" * 32)
+
+    code = f"""
+@external
+def foo(s: bytes{n}) -> bytes{n}:
+    return s
+    """
+
+    c = get_contract(code, evm_version=evm_version)
+    for v in values:
+        # munge for `_make_tx`
+        v = int.from_bytes(v, byteorder="big")
+        assert_tx_failed(lambda: _make_tx(w3, c.address, f"foo(bytes{n})", [v]))
+
+
+@pytest.mark.parametrize("evm_version", list(EVM_VERSIONS))
 @pytest.mark.parametrize("n", list(range(32)))
 def test_sint_clamper_passing(w3, get_contract, n, evm_version):
     bits = 8 * (n + 1)
