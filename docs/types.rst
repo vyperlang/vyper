@@ -595,75 +595,15 @@ Type        Default Value
 Type Conversions
 ================
 
-All type conversions in Vyper must be made explicitly using the built-in ``convert(a: atype, btype)`` function. Currently, the following type conversions are supported:
+All type conversions in Vyper must be made explicitly using the built-in ``convert(a: atype, btype)`` function. Type conversions in Vyper are designed to be safe and intuitive. All type conversions will check that the input is in bounds for the output type. The general principles are:
 
-================ ================== ==================================== ==================================
-In (``atype``)   Out (``btype``)    Allowable Values                     Additional Notes
-================ ================== ==================================== ==================================
-``address``      ``bool``           All                                  Returns ``a != ZERO_ADDRESS``
-``address``      ``decimal``        All                                  | Extract the rightmost
-                                                                         | sixteen bytes only
-``address``      ``int128``         All                                  | Extract the rightmost
-                                                                         | sixteen bytes only
-``address``      ``uint256``        All
-``address``      ``bytes32``        All
-``bool``         ``decimal``        All                                  ``0.0`` or ``1.0``
-``bool``         ``uint8``          All                                  ``0`` or ``1``
-``bool``         ``int128``         All                                  ``0`` or ``1``
-``bool``         ``int256``         All                                  ``0`` or ``1``
-``bool``         ``uint256``        All                                  ``0`` or ``1``
-``bool``         ``bytes32``        All                                  ``0x00`` or ``0x01``
-``decimal``      ``bool``           All                                  Returns ``a != 0.0``
-``decimal``      ``uint8``          ``MAX_UINT8 >= a >= 0.0``            | Cannot convert negative values.
-                                                                         | Value is truncated.
-``decimal``      ``int128``         All                                  Value is truncated
-``decimal``      ``int256``         All                                  Value is truncated
-``decimal``      ``uint256``        ``a >= 0.0``                         Cannot convert negative values
-``decimal``      ``bytes32``        All
-``int128``       ``bool``           All                                  Returns ``a != 0``
-``int128``       ``decimal``        All
-``int128``       ``uint8``          ``MAX_UINT8 >= a >= 0.0``            Cannot convert negative values
-``int128``       ``int256``         All
-``int128``       ``uint256``        ``a >= 0``                           Cannot convert negative values
-``int128``       ``bytes32``        All
-``uint8``        ``bool``           All                                  Returns ``a != 0``
-``uint8``        ``decimal``        All
-``uint8``        ``int128``         All
-``uint8``        ``int256``         All
-``uint8``        ``uint256``        All
-``uint8``        ``bytes32``        All
-``int256``       ``bool``           All                                  Returns ``a != 0``
-``int256``       ``decimal``        ``MAX_INT128 >= a >= MIN_INT128``
-``int256``       ``uint8``          ``MAX_UINT8 >= a >= 0``              Cannot convert negative values
-``int256``       ``int128``         ``MAX_INT128 >= a >= MIN_INT128``
-``int256``       ``uint256``        ``a >= 0``                           Cannot convert negative values
-``int256``       ``bytes32``        All
-``uint256``      ``address``        ``ADDRSIZE - 1 >= a >= 0``
-``uint256``      ``bool``           All                                  Returns ``a != 0``
-``uint256``      ``decimal``        ``a <= MAX_DECIMAL``
-``uint256``      ``uint8``          ``a <= MAX_UINT8``
-``uint256``      ``int128``         ``a <= MAX_INT128``
-``uint256``      ``int256``         ``a <= MAX_INT256``
-``uint256``      ``bytes32``        All
-``bytes32``      ``address``        ``2**ADDRSIZE - 1 >= a >= 0``
-``bytes32``      ``bool``           All                                  ``True`` if ``a`` is not empty
-``bytes32``      ``decimal``        All
-``bytes32``      ``uint8``          ``a <= MAX_UINT8``
-``bytes32``      ``int128``         ``MAX_INT128 >= a >= MIN_INT128``
-``bytes32``      ``int256``         All
-``bytes32``      ``uint256``        All
-``Bytes[N]``     ``bool``           ``N <= 32``                          ``True`` if ``a`` is not empty
-``Bytes[N]``     ``decimal``        | ``N <= 32``
-                                    | ``MAX_INT128 >= a >= MIN_INT128``
-``Bytes[N]``     ``uint8``          | ``N <= 32``
-                                    | ``a <= MAX_UINT8``
-``Bytes[N]``     ``int128``         | ``N <= 32``
-                                    | ``MAX_INT128 >= a >= MIN_INT128``
-``Bytes[N]``     ``int256``         All
-``Bytes[N]``     ``uint256``        ``N <= 32``
-``Bytes[N]``     ``bytes32``        ``N <= 32``
-``Bytes[N]``     ``String[M]``      ``N <= M``
-``String[N]``    ``int128``         ``N <= 16``
-``String[N]``    ``int256``         ``N <= 32``
-``String[N]``    ``Bytes[M]``       ``N <= M``
-================ ================== ==================================== ==================================
+* Except for conversions involving decimals and bools, the input is bit-for-bit preserved
+* Conversions to bool map all nonzero inputs to 1.
+* When converting from decimals to integers, the input is truncated towards zero.
+* Converting between right-padded (bytes, Bytes, String) and left-padded types, results in a rotation to convert the padding. For instance, converting from bytes20 to address would result in rotating the input by 12 bytes to the right.
+* Converting between signed and unsigned integers reverts if the input is < 0.
+* Narrowing conversions (e.g., int256 -> int128) check that the input is in bounds for the output type.
+* Converting between bytes and int types results in sign-extension if the output type is signed. For instance, converting 0xff (bytes1) to int8 returns -1.
+* Converting between bytes and int types which have different sizes follows the rule of going through the closest integer type, first. For instance, bytes1 -> int16 is like bytes1 -> int8 -> int16 (signextend, then widen). uint8 -> bytes20 is like uint8 -> uint160 -> bytes20 (rotate left 12 bytes).
+
+A small reference implementation is maintained as part of vyper's test suite, it can be found at [https://github.com/vyperlang/vyper/blob/c4c6afd07801a0cc0038cdd4007cc43860c54193/tests/parser/functions/test_convert.py#L318].

@@ -334,7 +334,7 @@ Data Manipulation
     Converts a variable or literal from one type to another.
 
     * ``value``: Value to convert
-    * ``type_``: The destination type to convert to (``bool``, ``decimal``, ``int128``, ``uint256`` or ``bytes32``)
+    * ``type_``: The destination type to convert to (e.g., ``bool``, ``decimal``, ``int128``, ``uint256`` or ``bytes32``)
 
     Returns a value of the type specified by ``type_``.
 
