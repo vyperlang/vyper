@@ -4,6 +4,7 @@ import pytest
 from eth_utils import keccak
 
 from vyper.evm.opcodes import EVM_VERSIONS
+from vyper.utils import int_bounds
 
 
 def _make_tx(w3, address, signature, values):
@@ -79,29 +80,37 @@ def get_foo() -> Bytes[3]:
 
 
 @pytest.mark.parametrize("evm_version", list(EVM_VERSIONS))
-@pytest.mark.parametrize("value", [0, 1, -1, 2 ** 127 - 1, -(2 ** 127)])
-def test_int128_clamper_passing(w3, get_contract, value, evm_version):
-    code = """
+@pytest.mark.parametrize("n", list(range(32)))
+def test_sint_clamper_passing(w3, get_contract, n, evm_version):
+    bits = 8 * (n + 1)
+    lo, hi = int_bounds(True, bits)
+    values = [-1, 0, 1, lo, hi]
+    code = f"""
 @external
-def foo(s: int128) -> int128:
+def foo(s: int{bits}) -> int{bits}:
     return s
     """
 
     c = get_contract(code, evm_version=evm_version)
-    assert c.foo(value) == value
+    for v in values:
+        assert c.foo(v) == v
 
 
 @pytest.mark.parametrize("evm_version", list(EVM_VERSIONS))
-@pytest.mark.parametrize("value", [2 ** 127, -(2 ** 127) - 1, 2 ** 255 - 1, -(2 ** 255)])
-def test_int128_clamper_failing(w3, assert_tx_failed, get_contract, value, evm_version):
-    code = """
+@pytest.mark.parametrize("n", list(range(31))) # int256 does not clamp
+def test_sint_clamper_failing(w3, assert_tx_failed, get_contract, n, evm_version):
+    bits = 8 * (n + 1)
+    lo, hi = int_bounds(True, bits)
+    values = [-2 ** 255, 2 ** 255 - 1, lo - 1, hi + 1]
+    code = f"""
 @external
-def foo(s: int128) -> int128:
+def foo(s: int{bits}) -> int{bits}:
     return s
     """
 
     c = get_contract(code, evm_version=evm_version)
-    assert_tx_failed(lambda: _make_tx(w3, c.address, "foo(int128)", [value]))
+    for v in values:
+        assert_tx_failed(lambda: _make_tx(w3, c.address, f"foo(int{bits})", [v]))
 
 
 @pytest.mark.parametrize("evm_version", list(EVM_VERSIONS))
