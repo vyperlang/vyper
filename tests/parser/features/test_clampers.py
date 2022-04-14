@@ -131,28 +131,34 @@ def foo(s: bool) -> bool:
 
 
 @pytest.mark.parametrize("evm_version", list(EVM_VERSIONS))
-@pytest.mark.parametrize("value", list(range(2 ** 8)))
-def test_uint8_clamper_passing(w3, get_contract, value, evm_version):
-    code = """
+@pytest.mark.parametrize("n", list(range(32)))
+def test_uint_clamper_passing(w3, get_contract, evm_version, n):
+    bits = 8 * (n + 1)
+    values = [0, 1, 2**bits - 1]
+    code = f"""
 @external
-def foo(s: uint8) -> uint8:
+def foo(s: uint{bits}) -> uint{bits}:
     return s
     """
 
     c = get_contract(code, evm_version=evm_version)
-    assert c.foo(value) == value
+    for v in values:
+        assert c.foo(v) == v
 
 
 @pytest.mark.parametrize("evm_version", list(EVM_VERSIONS))
-@pytest.mark.parametrize("value", [-100, 256, 2 ** 10, 2 ** 16, 2 ** 32, 2 ** 256 - 1])
-def test_uint8_clamper_failing(w3, assert_tx_failed, get_contract, value, evm_version):
-    code = """
+@pytest.mark.parametrize("n", list(range(31)))  # uint256 has no failing cases
+def test_uint_clamper_failing(w3, assert_tx_failed, get_contract, evm_version, n):
+    bits = 8 * (n + 1)
+    values = [-1, -2**255, 2**bits]
+    code = f"""
 @external
-def foo(s: uint8) -> uint8:
+def foo(s: uint{bits}) -> uint{bits}:
     return s
     """
     c = get_contract(code, evm_version=evm_version)
-    assert_tx_failed(lambda: _make_tx(w3, c.address, "foo(uint8)", [value]))
+    for v in values:
+        assert_tx_failed(lambda: _make_tx(w3, c.address, f"foo(uint{bits})", [v]))
 
 
 @pytest.mark.parametrize("evm_version", list(EVM_VERSIONS))
