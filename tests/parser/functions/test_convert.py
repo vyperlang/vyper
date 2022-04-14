@@ -23,6 +23,7 @@ from vyper.utils import (
     DECIMAL_DIVISOR,
     SizeLimits,
     checksum_encode,
+    is_checksum_encoded,
     round_towards_zero,
     unsigned_to_signed,
 )
@@ -482,9 +483,10 @@ def test_convert() -> {o_typ}:
         if o_typ != "bytes32":
             c1_exception = TypeMismatch
 
-    if i_typ == "address" and o_typ == "bytes20":
-        # type of arg is inferrred to be bytes20
-        c1_exception = InvalidType
+    # Skip bytes20 literals when there is ambiguity with `address` since address takes precedence.
+    # generally happens when there are only digits in the literal.
+    if i_typ == "bytes20" and is_checksum_encoded(_vyper_literal(val, "bytes20")):
+        skip_c1 = True
 
     if c1_exception is not None:
         assert_compile_failed(lambda: get_contract_with_gas_estimation(contract_1), c1_exception)
@@ -648,8 +650,8 @@ def foo() -> {o_typ}:
     if o_typ.startswith("bytes"):
         skip_c1 = True
 
-    if o_typ == "address":
-        skip_c1 = True
+    #if o_typ in ("address", "bytes20"):
+    #    skip_c1 = True
 
     if not skip_c1:
         assert_compile_failed(lambda: get_contract_with_gas_estimation(contract_1), c1_exception)
