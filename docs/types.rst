@@ -606,4 +606,4 @@ All type conversions in Vyper must be made explicitly using the built-in ``conve
 * Converting between bytes and int types results in sign-extension if the output type is signed. For instance, converting 0xff (bytes1) to int8 returns -1.
 * Converting between bytes and int types which have different sizes follows the rule of going through the closest integer type, first. For instance, bytes1 -> int16 is like bytes1 -> int8 -> int16 (signextend, then widen). uint8 -> bytes20 is like uint8 -> uint160 -> bytes20 (rotate left 12 bytes).
 
-A small reference implementation is maintained as part of vyper's test suite, it can be found _here: https://github.com/vyperlang/vyper/blob/c4c6afd07801a0cc0038cdd4007cc43860c54193/tests/parser/functions/test_convert.py#L318.
+A small reference implementation is maintained as part of vyper's test suite, it can be found `here <https://github.com/vyperlang/vyper/blob/c4c6afd07801a0cc0038cdd4007cc43860c54193/tests/parser/functions/test_convert.py#L318>`_.
