@@ -15,7 +15,7 @@ from vyper.exceptions import (
     UnfoldableNode,
     ZeroDivisionException,
 )
-from vyper.utils import MAX_DECIMAL_PLACES, SizeLimits, annotate_source_code, checksum_encode
+from vyper.utils import MAX_DECIMAL_PLACES, SizeLimits, annotate_source_code
 
 NODE_BASE_ATTRIBUTES = (
     "_children",

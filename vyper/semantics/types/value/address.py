@@ -1,6 +1,6 @@
 from vyper import ast as vy_ast
 from vyper.abi_types import ABI_Address, ABIType
-from vyper.exceptions import CompilerPanic, InvalidLiteral
+from vyper.exceptions import InvalidLiteral
 from vyper.utils import checksum_encode
 
 from ..bases import BasePrimitive, MemberTypeDefinition, ValueTypeDefinition
@@ -37,7 +37,7 @@ class AddressPrimitive(BasePrimitive):
         addr = node.value
         if len(addr) != 42:
             n_bytes = (len(addr) - 2) // 2
-            raise InvalidLiteral("Invalid address. Expected 20 bytes, got {n_bytes}.", node)
+            raise InvalidLiteral(f"Invalid address. Expected 20 bytes, got {n_bytes}.", node)
 
         if checksum_encode(addr) != addr:
             raise InvalidLiteral(
