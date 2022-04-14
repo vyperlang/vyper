@@ -42,7 +42,7 @@ from vyper.exceptions import (
     TypeMismatch,
     UnimplementedException,
 )
-from vyper.utils import DECIMAL_DIVISOR, SizeLimits, bytes_to_int, checksum_encode, string_to_bytes
+from vyper.utils import DECIMAL_DIVISOR, SizeLimits, bytes_to_int, is_checksum_encoded, string_to_bytes
 
 ENVIRONMENT_VARIABLES = {
     "block",
@@ -220,7 +220,7 @@ class Expr:
 
         if is_base_type(inferred_type, "address"):
             # sanity check typechecker did its job
-            assert len(hexstr) == 42 and checksum_encode(hexstr) == hexstr
+            assert len(hexstr) == 42 and is_checksum_encoded(hexstr)
             typ = BaseType("address")
             return IRnode.from_list(int(self.expr.value, 16), typ=typ)
 
