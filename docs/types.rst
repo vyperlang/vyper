@@ -286,7 +286,7 @@ Byte Arrays
 
 **Keyword:** ``Bytes``
 
-A byte array with a fixed size.
+A byte array with a max size.
 
 The syntax being ``Bytes[maxLen]``, where ``maxLen`` is an integer which denotes the maximum number of bytes.
 On the ABI level the Fixed-size bytes array is annotated as ``bytes``.
