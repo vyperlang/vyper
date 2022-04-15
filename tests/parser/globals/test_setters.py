@@ -1,5 +1,6 @@
 from vyper.exceptions import InvalidAttribute
 
+
 def test_multi_setter_test(get_contract_with_gas_estimation):
     multi_setter_test = """
 dog: int128[3]
