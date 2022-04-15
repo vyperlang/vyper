@@ -545,97 +545,6 @@ Math
         >>> ExampleContract.foo(11, 2, 5)
         2
 
-Utilities
-=========
-
-.. py:function:: as_wei_value(_value, unit: str) -> uint256
-
-    Take an amount of ether currency specified by a number and a unit and return the integer quantity of wei equivalent to that amount.
-
-    * ``_value``: Value for the ether unit. Any numeric type may be used, however the value cannot be negative.
-    * ``unit``: Ether unit name (e.g. ``"wei"``, ``"ether"``, ``"gwei"``, etc.) indicating the denomination of ``_value``. Must be given as a literal string.
-
-    .. code-block:: python
-
-        @external
-        @view
-        def foo(s: String[32]) -> uint256:
-            return as_wei_value(1.337, "ether")
-
-    .. code-block:: python
-
-        >>> ExampleContract.foo(1)
-        1337000000000000000
-
-.. py:function:: blockhash(block_num: uint256) -> bytes32
-
-    Return the hash of the block at the specified height.
-
-    .. note::
-
-        The EVM only provides access to the most recent 256 blocks. This function returns ``EMPTY_BYTES32`` if the block number is greater than or equal to the current block number or more than 256 blocks behind the current block.
-
-    .. code-block:: python
-
-        @external
-        @view
-        def foo() -> bytes32:
-            return blockhash(block.number - 16)
-
-    .. code-block:: python
-
-        >>> ExampleContract.foo()
-        0xf3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
-
-.. py:function:: empty(typename) -> Any
-
-    Return a value which is the default (zeroed) value of its type. Useful for initializing new memory variables.
-
-    * ``typename``: Name of the type
-
-    .. code-block:: python
-
-        @external
-        @view
-        def foo():
-            x: uint256[2][5] = empty(uint256[2][5])
-
-.. py:function:: len(b: Union[Bytes, String]) -> uint256
-
-    Return the length of a given ``Bytes`` or ``String``.
-
-    .. code-block:: python
-
-        @external
-        @view
-        def foo(s: String[32]) -> uint256:
-            return len(s)
-
-    .. code-block:: python
-
-        >>> ExampleContract.foo("hello")
-        5
-
-.. py:function:: method_id(method, output_type: type = Bytes[4]) -> Union[bytes32, Bytes[4]]
-
-    Takes a function declaration and returns its method_id (used in data field to call it).
-
-    * ``method``: Method declaration as given as a literal string
-    * ``output_type``: The type of output (``Bytes[4]`` or ``bytes32``). Defaults to ``Bytes[4]``.
-
-    Returns a value of the type specified by ``output_type``.
-
-    .. code-block:: python
-
-        @external
-        @view
-        def foo() -> Bytes[4]:
-            return method_id('transfer(address,uint256)', output_type=Bytes[4])
-
-    .. code-block:: python
-
-        >>> ExampleContract.foo()
-
 .. py:function:: unsafe_add(x: integer, y: integer) -> integer
 
     Add ``x`` and ``y``, without checking for overflow. ``x`` and ``y`` must both be integers of the same type. If the result exceeds the bounds of the input type, it will be wrapped.
@@ -760,10 +669,100 @@ Utilities
         >>> ExampleContract.bar(-128, -1)
         -128
 
-
 .. note::
     Performance note: this will compile to a single DIV or SDIV instruction, depending on if the inputs are unsigned or signed (respectively).
 
+
+Utilities
+=========
+
+.. py:function:: as_wei_value(_value, unit: str) -> uint256
+
+    Take an amount of ether currency specified by a number and a unit and return the integer quantity of wei equivalent to that amount.
+
+    * ``_value``: Value for the ether unit. Any numeric type may be used, however the value cannot be negative.
+    * ``unit``: Ether unit name (e.g. ``"wei"``, ``"ether"``, ``"gwei"``, etc.) indicating the denomination of ``_value``. Must be given as a literal string.
+
+    .. code-block:: python
+
+        @external
+        @view
+        def foo(s: String[32]) -> uint256:
+            return as_wei_value(1.337, "ether")
+
+    .. code-block:: python
+
+        >>> ExampleContract.foo(1)
+        1337000000000000000
+
+.. py:function:: blockhash(block_num: uint256) -> bytes32
+
+    Return the hash of the block at the specified height.
+
+    .. note::
+
+        The EVM only provides access to the most recent 256 blocks. This function returns ``EMPTY_BYTES32`` if the block number is greater than or equal to the current block number or more than 256 blocks behind the current block.
+
+    .. code-block:: python
+
+        @external
+        @view
+        def foo() -> bytes32:
+            return blockhash(block.number - 16)
+
+    .. code-block:: python
+
+        >>> ExampleContract.foo()
+        0xf3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+
+.. py:function:: empty(typename) -> Any
+
+    Return a value which is the default (zeroed) value of its type. Useful for initializing new memory variables.
+
+    * ``typename``: Name of the type
+
+    .. code-block:: python
+
+        @external
+        @view
+        def foo():
+            x: uint256[2][5] = empty(uint256[2][5])
+
+.. py:function:: len(b: Union[Bytes, String]) -> uint256
+
+    Return the length of a given ``Bytes`` or ``String``.
+
+    .. code-block:: python
+
+        @external
+        @view
+        def foo(s: String[32]) -> uint256:
+            return len(s)
+
+    .. code-block:: python
+
+        >>> ExampleContract.foo("hello")
+        5
+
+.. py:function:: method_id(method, output_type: type = Bytes[4]) -> Union[bytes32, Bytes[4]]
+
+    Takes a function declaration and returns its method_id (used in data field to call it).
+
+    * ``method``: Method declaration as given as a literal string
+    * ``output_type``: The type of output (``Bytes[4]`` or ``bytes32``). Defaults to ``Bytes[4]``.
+
+    Returns a value of the type specified by ``output_type``.
+
+    .. code-block:: python
+
+        @external
+        @view
+        def foo() -> Bytes[4]:
+            return method_id('transfer(address,uint256)', output_type=Bytes[4])
+
+    .. code-block:: python
+
+        >>> ExampleContract.foo()
 
 .. py:function:: _abi_encode(*args, ensure_tuple: bool = True) -> Bytes[<depends on input>]
 
