@@ -48,19 +48,19 @@ Operator              Description
 Short-circuiting of boolean operators (``or`` and ``and``) is consistent with
 the behavior of Python.
 
-.. index:: ! int256, ! int, ! integer
+.. index:: ! intN, ! int, ! signed integer
 
-Signed Integer (256 bit)
+Signed Integer
 ------------------------
 
-**Keyword:** ``int256``
+**Keyword:** ``intN`` (e.g., ``int128``)
 
-A signed integer (256 bit) is a type to store positive and negative integers.
+A signed integer which can store positive and negative integers. ``N`` must be a multiple of 8 between 8 and 256 (inclusive).
 
 Values
 ******
 
-Signed integer values between -2\ :sup:`255` and (2\ :sup:`255` - 1), inclusive.
+Signed integer values between -2\ :sup:`N` and (2\ :sup:`N` - 1), inclusive.
 
 Integer literals cannot have a decimal point even if the decimal value is zero. For example, ``2.0`` cannot be interpreted as an integer.
 
@@ -83,7 +83,7 @@ Operator    Description
 ``x > y``   Greater than
 ==========  ================
 
-``x`` and ``y`` must be of the type ``int256``.
+``x`` and ``y`` must both be of the same type.
 
 Arithmetic Operators
 ^^^^^^^^^^^^^^^^^^^^
@@ -100,80 +100,26 @@ Operator       Description
 ``x % y``      Modulo
 =============  ======================
 
-``x`` and ``y`` must be of the type ``int256``.
+``x`` and ``y`` must both be of the same type.
 
-.. index:: ! int128
+.. index:: ! uint, ! uintN, ! unsigned integer
 
-Signed Integer (128 bit)
-------------------------
-
-**Keyword:** ``int128``
-
-A signed integer (128 bit) is a type to store positive and negative integers.
-
-Values
-******
-
-Signed integer values between -2\ :sup:`127` and (2\ :sup:`127` - 1), inclusive.
-
-Integer literals cannot have a decimal point even if the decimal value is zero. For example, ``2.0`` cannot be interpreted as an integer.
-
-Operators
-*********
-
-Comparisons
-^^^^^^^^^^^
-
-Comparisons return a boolean value.
-
-==========  ================
-Operator    Description
-==========  ================
-``x < y``   Less than
-``x <= y``  Less than or equal to
-``x == y``  Equals
-``x != y``  Does not equal
-``x >= y``  Greater than or equal to
-``x > y``   Greater than
-==========  ================
-
-``x`` and ``y`` must be of the type ``int128``.
-
-Arithmetic Operators
-^^^^^^^^^^^^^^^^^^^^
-
-=============  ======================
-Operator       Description
-=============  ======================
-``x + y``      Addition
-``x - y``      Subtraction
-``-x``         Unary minus/Negation
-``x * y``      Multiplication
-``x / y``      Division
-``x**y``       Exponentiation
-``x % y``      Modulo
-=============  ======================
-
-``x`` and ``y`` must be of the type ``int128``.
-
-.. index:: ! unit, ! uint8
-
-Unsigned Integer (8 bit)
+Unsigned Integer (N bit)
 --------------------------
 
 **Keyword:** ``uint8``
 
-An unsigned integer (8 bit) is a type to store non-negative integers.
+A unsigned integer which can store positive integers. ``N`` must be a multiple of 8 between 8 and 256 (inclusive).
 
 Values
 ******
 
-Integer values between 0 and (2\ :sup:`8`-1).
+Integer values between 0 and (2\ :sup:`N`-1).
 
 Integer literals cannot have a decimal point even if the decimal value is zero. For example, ``2.0`` cannot be interpreted as an integer.
 
 .. note::
-    Integer literals are interpreted as ``int128`` by default. In cases where ``uint8`` is more appropriate, such as assignment, the literal might be interpreted as ``uint8``. Example: ``_variable: uint8 = _literal``. In order to explicitly cast a literal to a ``uint8`` use ``convert(_literal, uint8)``.
+    Integer literals are interpreted as ``int256`` by default. In cases where ``uint8`` is more appropriate, such as assignment, the literal might be interpreted as ``uint8``. Example: ``_variable: uint8 = _literal``. In order to explicitly cast a literal to a ``uint8`` use ``convert(_literal, uint8)``.
 
 Operators
 *********
@@ -194,7 +140,7 @@ Operator    Description
 ``x > y``   Greater than
 ==========  ================
 
-``x`` and ``y`` must be of the type ``uint8``.
+``x`` and ``y`` must be of the same type.
 
 Arithmetic Operators
 ^^^^^^^^^^^^^^^^^^^^
@@ -210,63 +156,7 @@ Operator                     Description
 ``x % y``                    Modulo
 ===========================  ======================
 
-``x`` and ``y`` must be of the type ``uint8``.
-
-.. index:: ! unit, ! uint256
-
-Unsigned Integer (256 bit)
---------------------------
-
-**Keyword:** ``uint256``
-
-An unsigned integer (256 bit) is a type to store non-negative integers.
-
-Values
-******
-
-Integer values between 0 and (2\ :sup:`256`-1).
-
-Integer literals cannot have a decimal point even if the decimal value is zero. For example, ``2.0`` cannot be interpreted as an integer.
-
-.. note::
-    Integer literals are interpreted as ``int128`` by default. In cases where ``uint256`` is more appropriate, such as assignment, the literal might be interpreted as ``uint256``. Example: ``_variable: uint256 = _literal``. In order to explicitly cast a literal to a ``uint256`` use ``convert(_literal, uint256)``.
-
-Operators
-*********
-
-Comparisons
-^^^^^^^^^^^
-
-Comparisons return a boolean value.
-
-==========  ================
-Operator    Description
-==========  ================
-``x < y``   Less than
-``x <= y``  Less than or equal to
-``x == y``  Equals
-``x != y``  Does not equal
-``x >= y``  Greater than or equal to
-``x > y``   Greater than
-==========  ================
-
-``x`` and ``y`` must be of the type ``uint256``.
-
-Arithmetic Operators
-^^^^^^^^^^^^^^^^^^^^
-
-===========================  ======================
-Operator                     Description
-===========================  ======================
-``x + y``                    Addition
-``x - y``                    Subtraction
-``x * y``                    Multiplication
-``x / y``                    Division
-``x**y``                     Exponentiation
-``x % y``                    Modulo
-===========================  ======================
-
-``x`` and ``y`` must be of the type ``uint256``.
+``x`` and ``y`` must be of the same type.
 
 Decimals
 --------
@@ -281,6 +171,8 @@ Values
 A value with a precision of 10 decimal places between -18707220957835557353007165858768422651595.9365500928 (-2\ :sup:`167` / 10\ :sup:`10`) and 18707220957835557353007165858768422651595.9365500927 ((2\ :sup:`167` - 1) / 10\ :sup:`10`).
 
 In order for a literal to be interpreted as ``decimal`` it must include a decimal point.
+
+The ABI type (for computing method identifiers) of ``decimal`` is ``fixed168x10``.
 
 Operators
 *********
