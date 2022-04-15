@@ -553,12 +553,12 @@ Math
 
         @external
         @view
-        def foo(x: uint8, y: uint8) -> uint256:
+        def foo(x: uint8, y: uint8) -> uint8:
             return unsafe_add(x, y)
 
         @external
         @view
-        def bar(x: int8, y: int8) -> uint256:
+        def bar(x: int8, y: int8) -> int8:
             return unsafe_add(x, y)
 
 
@@ -584,12 +584,12 @@ Math
 
         @external
         @view
-        def foo(x: uint8, y: uint8) -> uint256:
+        def foo(x: uint8, y: uint8) -> uint8:
             return unsafe_sub(x, y)
 
         @external
         @view
-        def bar(x: int8, y: int8) -> uint256:
+        def bar(x: int8, y: int8) -> int8:
             return unsafe_sub(x, y)
 
 
@@ -616,12 +616,12 @@ Math
 
         @external
         @view
-        def foo(x: uint8, y: uint8) -> uint256:
+        def foo(x: uint8, y: uint8) -> uint8:
             return unsafe_mul(x, y)
 
         @external
         @view
-        def bar(x: int8, y: int8) -> uint256:
+        def bar(x: int8, y: int8) -> int8:
             return unsafe_mul(x, y)
 
 
@@ -651,12 +651,12 @@ Math
 
         @external
         @view
-        def foo(x: uint8, y: uint8) -> uint256:
+        def foo(x: uint8, y: uint8) -> uint8:
             return unsafe_div(x, y)
 
         @external
         @view
-        def bar(x: int8, y: int8) -> uint256:
+        def bar(x: int8, y: int8) -> int8:
             return unsafe_div(x, y)
 
 
