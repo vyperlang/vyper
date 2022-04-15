@@ -980,6 +980,8 @@ class Expr:
             sub = Expr(value, context).ir_node
             member_subs[key.id] = sub
             member_typs[key.id] = sub.typ
+
+        # TODO: get struct type from context.global_ctx.parse_type(name)
         return IRnode.from_list(
             ["multi"] + [member_subs[key] for key in member_subs.keys()],
             typ=StructType(member_typs, name, is_literal=True),

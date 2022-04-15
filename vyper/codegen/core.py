@@ -52,6 +52,7 @@ def make_byte_array_copier(dst, src):
 
     _check_assign_bytes(dst, src)
 
+    # TODO: remove this branch, copy_bytes and get_bytearray_length should handle
     if src.value == "~empty":
         # set length word to 0.
         return STORE(dst, 0)
@@ -244,6 +245,9 @@ def copy_bytes(dst, src, length, length_bound):
 # get the number of bytes at runtime
 def get_bytearray_length(arg):
     typ = BaseType("uint256")
+
+    # TODO add "~empty" case to mirror get_dyn_array_count
+
     return IRnode.from_list(LOAD(arg), typ=typ)
 
 
