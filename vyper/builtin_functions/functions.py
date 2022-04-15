@@ -488,6 +488,7 @@ class Concat:
         if len(args) < 2:
             raise StructureException("Concat expects at least two arguments", expr)
 
+        # TODO move this type checking into `fetch_call_return`
         prev_type = ""
         for _, (expr_arg, arg) in enumerate(zip(expr.args, args)):
             if not isinstance(arg.typ, ByteArrayLike) and not is_bytes_m_type(arg.typ):

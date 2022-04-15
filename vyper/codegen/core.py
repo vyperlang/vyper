@@ -120,6 +120,9 @@ def _dynarray_make_setter(dst, src):
         # the layout does not match our memory layout
         should_loop = src.encoding == Encoding.ABI and src.typ.subtype.abi_type.is_dynamic()
 
+        # if the data is not validated, we must loop to unpack
+        should_loop |= needs_clamp(src.typ.subtype, src.encoding)
+
         # if the subtype is dynamic, there might be a lot of
         # unused space inside of each element. for instance
         # DynArray[DynArray[uint256, 100], 5] where all the child
@@ -129,7 +132,6 @@ def _dynarray_make_setter(dst, src):
         # loop when subtype.is_dynamic AND location == storage
         # OR array_size <= /bound where loop is cheaper than memcpy/
         should_loop |= src.typ.subtype.abi_type.is_dynamic()
-        should_loop |= needs_clamp(src.typ.subtype, src.encoding)
 
         with get_dyn_array_count(src).cache_when_complex("darray_count") as (b2, count):
             ret = ["seq"]
@@ -180,9 +182,10 @@ def copy_bytes(dst, src, length, length_bound):
         "copy_bytes_count"
     ) as (b2, length), dst.cache_when_complex("dst") as (b3, dst):
 
-        assert length_bound >= 0
+        assert isinstance(length_bound, int) and length_bound >= 0
 
-        if length_bound == 0:
+        # performance and correctness: do not clobber dst
+        if length_bound == 0 or length.value == 0:
             return IRnode.from_list(["seq"], annotation=annotation)
 
         assert src.is_pointer and dst.is_pointer
@@ -254,7 +257,7 @@ def get_dyn_array_count(arg):
         return IRnode.from_list(len(arg.args), typ=typ)
 
     if arg.value == "~empty":
-        # empty(DynArray[])
+        # empty(DynArray[...])
         return IRnode.from_list(0, typ=typ)
 
     return IRnode.from_list(LOAD(arg), typ=typ)
@@ -281,6 +284,7 @@ def append_dyn_array(darray_node, elem_node):
 
 def pop_dyn_array(darray_node, return_popped_item):
     assert isinstance(darray_node.typ, DArrayType)
+    assert darray_node.encoding == Encoding.VYPER
     ret = ["seq"]
     with darray_node.cache_when_complex("darray") as (b1, darray_node):
         old_len = ["clamp_nonzero", get_dyn_array_count(darray_node)]
@@ -295,12 +299,9 @@ def pop_dyn_array(darray_node, return_popped_item):
                 ret.append(popped_item)
                 typ = popped_item.typ
                 location = popped_item.location
-                encoding = popped_item.encoding
             else:
-                typ, location, encoding = None, None, None
-            return IRnode.from_list(
-                b1.resolve(b2.resolve(ret)), typ=typ, location=location, encoding=encoding
-            )
+                typ, location = None, None
+            return IRnode.from_list(b1.resolve(b2.resolve(ret)), typ=typ, location=location)
 
 
 def getpos(node):
@@ -535,6 +536,7 @@ def unwrap_location(orig):
     else:
         # CMC 2022-03-24 TODO refactor so this branch can be removed
         if orig.value == "~empty":
+            # must be word type
             return IRnode.from_list(0, typ=orig.typ)
         return orig
 
@@ -823,12 +825,9 @@ def eval_seq(ir_node):
 def is_return_from_function(node):
     if isinstance(node, vy_ast.Expr) and node.get("value.func.id") == "selfdestruct":
         return True
-    if isinstance(node, vy_ast.Return):
+    if isinstance(node, (vy_ast.Return, vy_ast.Raise)):
         return True
-    elif isinstance(node, vy_ast.Raise):
-        return True
-    else:
-        return False
+    return False
 
 
 def check_single_exit(fn_node):
