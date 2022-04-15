@@ -573,7 +573,7 @@ Math
         -2
 
 .. note::
-    Performance note: for the native word types of the EVM ``uint256`` and ``int256``, this will compile to a single ADD instruction, since the EVM natively wraps addition on 256-bit words.
+    Performance note: for the native word types of the EVM ``uint256`` and ``int256``, this will compile to a single ``ADD`` instruction, since the EVM natively wraps addition on 256-bit words.
 
 .. py:function:: unsafe_sub(x: integer, y: integer) -> integer
 
@@ -603,7 +603,7 @@ Math
         127
 
 .. note::
-    Performance note: for the native word types of the EVM ``uint256`` and ``int256``, this will compile to a single SUB instruction, since the EVM natively wraps subtraction on 256-bit words.
+    Performance note: for the native word types of the EVM ``uint256`` and ``int256``, this will compile to a single ``SUB`` instruction, since the EVM natively wraps subtraction on 256-bit words.
 
 
 .. py:function:: unsafe_mul(x: integer, y: integer) -> integer
@@ -638,7 +638,7 @@ Math
         -128
 
 .. note::
-    Performance note: for the native word types of the EVM ``uint256`` and ``int256``, this will compile to a single MUL instruction, since the EVM natively wraps multiplication on 256-bit words.
+    Performance note: for the native word types of the EVM ``uint256`` and ``int256``, this will compile to a single ``MUL`` instruction, since the EVM natively wraps multiplication on 256-bit words.
 
 
 .. py:function:: unsafe_div(x: integer, y: integer) -> integer
@@ -670,7 +670,7 @@ Math
         -128
 
 .. note::
-    Performance note: this will compile to a single DIV or SDIV instruction, depending on if the inputs are unsigned or signed (respectively).
+    Performance note: this will compile to a single ``SDIV`` or ``DIV`` instruction, depending on if the inputs are signed or unsigned (respectively).
 
 
 Utilities
