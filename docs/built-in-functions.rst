@@ -563,6 +563,7 @@ Math
 
 
     .. code-block:: python
+
         >>> ExampleContract.foo(1, 1)
         2
 
@@ -593,6 +594,7 @@ Math
 
 
     .. code-block:: python
+
         >>> ExampleContract.foo(4, 3)
         1
 
