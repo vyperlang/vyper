@@ -636,9 +636,137 @@ Utilities
 
         >>> ExampleContract.foo()
 
-.. py:function:: _abi_encode(\*args, ensure_tuple: bool = True) -> Bytes[<depends on input>]
+.. py:function:: unsafe_add(x: integer, y: integer) -> integer
 
-    BETA, USE WITH CARE.
+    Add ``x`` and ``y``, without checking for overflow. ``x`` and ``y`` must both be integers of the same type. If the result exceeds the bounds of the input type, it will be wrapped.
+
+    .. code-block:: python
+
+        @external
+        @view
+        def foo(x: uint8, y: uint8) -> uint256:
+            return unsafe_add(x, y)
+
+        @external
+        @view
+        def bar(x: int8, y: int8) -> uint256:
+            return unsafe_add(x, y)
+
+
+    .. code-block:: python
+        >>> ExampleContract.foo(1, 1)
+        2
+
+        >>> ExampleContract.foo(255, 255)
+        254
+
+        >>> ExampleContract.bar(127, 127)
+        -2
+
+.. note::
+    Performance note: for the native word types of the EVM ``uint256`` and ``int256``, this will compile to a single ADD instruction, since the EVM natively wraps addition on 256-bit words.
+
+.. py:function:: unsafe_sub(x: integer, y: integer) -> integer
+
+    Subtract ``x`` and ``y``, without checking for overflow. ``x`` and ``y`` must both be integers of the same type. If the result underflows the bounds of the input type, it will be wrapped.
+
+    .. code-block:: python
+
+        @external
+        @view
+        def foo(x: uint8, y: uint8) -> uint256:
+            return unsafe_sub(x, y)
+
+        @external
+        @view
+        def bar(x: int8, y: int8) -> uint256:
+            return unsafe_sub(x, y)
+
+
+    .. code-block:: python
+        >>> ExampleContract.foo(4, 3)
+        1
+
+        >>> ExampleContract.foo(0, 1)
+        255
+
+        >>> ExampleContract.bar(-128, 1)
+        127
+
+.. note::
+    Performance note: for the native word types of the EVM ``uint256`` and ``int256``, this will compile to a single SUB instruction, since the EVM natively wraps subtraction on 256-bit words.
+
+
+.. py:function:: unsafe_mul(x: integer, y: integer) -> integer
+
+    Multiply ``x`` and ``y``, without checking for overflow. ``x`` and ``y`` must both be integers of the same type. If the result exceeds the bounds of the input type, it will be wrapped.
+
+    .. code-block:: python
+
+        @external
+        @view
+        def foo(x: uint8, y: uint8) -> uint256:
+            return unsafe_mul(x, y)
+
+        @external
+        @view
+        def bar(x: int8, y: int8) -> uint256:
+            return unsafe_mul(x, y)
+
+
+    .. code-block:: python
+
+        >>> ExampleContract.foo(1, 1)
+        1
+
+        >>> ExampleContract.foo(255, 255)
+        1
+
+        >>> ExampleContract.bar(-128, -128)
+        0
+
+        >>> ExampleContract.bar(127, -128)
+        -128
+
+.. note::
+    Performance note: for the native word types of the EVM ``uint256`` and ``int256``, this will compile to a single MUL instruction, since the EVM natively wraps multiplication on 256-bit words.
+
+
+.. py:function:: unsafe_div(x: integer, y: integer) -> integer
+
+    Divide ``x`` and ``y``, without checking for division-by-zero. ``x`` and ``y`` must both be integers of the same type. If the denominator is zero, the result will (following EVM semantics) be zero.
+
+    .. code-block:: python
+
+        @external
+        @view
+        def foo(x: uint8, y: uint8) -> uint256:
+            return unsafe_div(x, y)
+
+        @external
+        @view
+        def bar(x: int8, y: int8) -> uint256:
+            return unsafe_div(x, y)
+
+
+    .. code-block:: python
+
+        >>> ExampleContract.foo(1, 1)
+        1
+
+        >>> ExampleContract.foo(1, 0)
+        0
+
+        >>> ExampleContract.bar(-128, -1)
+        -128
+
+
+.. note::
+    Performance note: this will compile to a single DIV or SDIV instruction, depending on if the inputs are unsigned or signed (respectively).
+
+
+.. py:function:: _abi_encode(*args, ensure_tuple: bool = True) -> Bytes[<depends on input>]
+
     Takes a variable number of args as input, and returns the ABIv2-encoded bytestring. Used for packing arguments to raw_call, EIP712 and other cases where a consistent and efficient serialization method is needed.
     Once this function has seen more use we provisionally plan to put it into the ``ethereum.abi`` namespace.
 
