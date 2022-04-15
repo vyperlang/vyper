@@ -6,6 +6,7 @@ from vyper.ast.validation import validate_call_args
 from vyper.exceptions import (
     NamespaceCollision,
     StructureException,
+    InvalidAttribute,
     UnknownAttribute,
     VariableDeclarationException,
 )
@@ -93,10 +94,13 @@ class StructPrimitive:
             )
 
         members = self.members.copy()
-        for key, value in zip(node.args[0].keys, node.args[0].values):
+        for key, value, expected_key in zip(node.args[0].keys, node.args[0].values, self.members.keys()):
             if key is None or key.get("id") not in members:
                 raise UnknownAttribute("Unknown or duplicate struct member", key or value)
+            if key.id != expected_key:
+                raise InvalidAttribute(f'Struct keys are required to be in order, but got `{key.id}` instead of `{expected_key}`. (Reminder: the keys in this struct are {list(self.members.items())})', key)
             validate_expected_type(value, members.pop(key.id))
+
         if members:
             raise VariableDeclarationException(
                 f"Struct declaration does not define all fields: {', '.join(list(members))}",
