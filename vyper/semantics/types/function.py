@@ -469,16 +469,13 @@ class ContractFunction(BaseTypeDefinition):
                 if not isinstance(kwarg.value, vy_ast.NameConstant):
                     raise InvalidType("skip_contract_check must be literal bool", kwarg.value)
             else:
-                if not isinstance(kwarg.arg, vy_ast.VyperNode):
-                    raise ArgumentException(
-                        (
-                            "Usage of kwarg in Vyper is restricted to gas=, "
-                            "value= and skip_contract_check="
-                        ),
-                        kwarg.value,
-                    )
-                # To preserve for future kwargs (?)
-                validate_expected_type(kwarg.arg, kwarg.value)
+                raise ArgumentException(
+                    (
+                        "Usage of kwarg in Vyper is restricted to gas=, "
+                        "value= and skip_contract_check="
+                    ),
+                    kwarg.value,
+                )
 
         return self.return_type
 
