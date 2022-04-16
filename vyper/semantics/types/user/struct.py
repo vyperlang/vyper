@@ -4,6 +4,7 @@ from vyper import ast as vy_ast
 from vyper.abi_types import ABI_Tuple, ABIType
 from vyper.ast.validation import validate_call_args
 from vyper.exceptions import (
+    InvalidAttribute,
     NamespaceCollision,
     StructureException,
     UnknownAttribute,
@@ -93,10 +94,21 @@ class StructPrimitive:
             )
 
         members = self.members.copy()
-        for key, value in zip(node.args[0].keys, node.args[0].values):
+        keys = list(self.members.keys())
+        for i, (key, value) in enumerate(zip(node.args[0].keys, node.args[0].values)):
             if key is None or key.get("id") not in members:
                 raise UnknownAttribute("Unknown or duplicate struct member", key or value)
+            expected_key = keys[i]
+            if key.id != expected_key:
+                raise InvalidAttribute(
+                    "Struct keys are required to be in order, but got "
+                    f"`{key.id}` instead of `{expected_key}`. (Reminder: the "
+                    f"keys in this struct are {list(self.members.items())})",
+                    key,
+                )
+
             validate_expected_type(value, members.pop(key.id))
+
         if members:
             raise VariableDeclarationException(
                 f"Struct declaration does not define all fields: {', '.join(list(members))}",
