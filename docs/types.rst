@@ -102,6 +102,9 @@ Operator       Description
 
 ``x`` and ``y`` must both be of the same type.
 
+.. note::
+    Arithmetic is currently only available for ``int128`` and ``int256`` types.
+
 .. index:: ! uint, ! uintN, ! unsigned integer
 
 Unsigned Integer (N bit)
@@ -157,6 +160,9 @@ Operator                     Description
 ===========================  ======================
 
 ``x`` and ``y`` must be of the same type.
+
+.. note::
+    Arithmetic is currently only available for ``uint8`` and ``uint256`` types.
 
 Decimals
 --------
@@ -499,4 +505,4 @@ All type conversions in Vyper must be made explicitly using the built-in ``conve
 * Converting between bytes and int types results in sign-extension if the output type is signed. For instance, converting ``0xff`` (``bytes1``) to ``int8`` returns ``-1``.
 * Converting between bytes and int types which have different sizes follows the rule of going through the closest integer type, first. For instance, ``bytes1 -> int16`` is like ``bytes1 -> int8 -> int16`` (signextend, then widen). ``uint8 -> bytes20`` is like ``uint8 -> uint160 -> bytes20`` (rotate left 12 bytes).
 
-A small Python reference implementation is maintained as part of vyper's test suite, it can be found `here <https://github.com/vyperlang/vyper/blob/c4c6afd07801a0cc0038cdd4007cc43860c54193/tests/parser/functions/test_convert.py#L318>`_. The motivation and more detailed discussion of the rules can be found `here <https://github.com/vyperlang/vyper/issues/2507>`_.
+A small Python reference implementation is maintained as part of Vyper's test suite, it can be found `here <https://github.com/vyperlang/vyper/blob/c4c6afd07801a0cc0038cdd4007cc43860c54193/tests/parser/functions/test_convert.py#L318>`_. The motivation and more detailed discussion of the rules can be found `here <https://github.com/vyperlang/vyper/issues/2507>`_.
