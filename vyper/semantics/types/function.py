@@ -477,6 +477,8 @@ class ContractFunction(BaseTypeDefinition):
                         ),
                         kwarg.value,
                     )
+                # To preserve for future kwargs (?)
+                validate_expected_type(kwarg.arg, kwarg.value)
 
         return self.return_type
 
