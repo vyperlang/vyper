@@ -473,7 +473,7 @@ def get_levenshtein_string(key: str, namespace: Dict[str, Any], threshold: float
         or an empty string.
     """
     distances = sorted([(i, levenshtein_norm(key, i)) for i in namespace], key=lambda k: k[1])
-    if distances[0][1] <= threshold:
+    if len(distances) > 0 and distances[0][1] <= threshold:
         return f" Did you mean '{distances[0][0]}?'"
     return ""
 
