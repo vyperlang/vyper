@@ -3,6 +3,7 @@ from pytest import raises
 
 from vyper import compiler
 from vyper.exceptions import (
+    InvalidAttribute,
     InvalidType,
     UndeclaredDefinition,
     UnknownAttribute,
@@ -70,7 +71,29 @@ struct S:
     b: decimal
 @external
 def foo() -> int128:
-    s: S = S({b: 1.2, c: 1, d: 33, e: 55})
+    s: S = S({a: 1})
+    """,
+        VariableDeclarationException,
+    ),
+    (
+        """
+struct S:
+    a: int128
+    b: decimal
+@external
+def foo() -> int128:
+    s: S = S({b: 1.2, a: 1})
+    """,
+        InvalidAttribute,
+    ),
+    (
+        """
+struct S:
+    a: int128
+    b: decimal
+@external
+def foo() -> int128:
+    s: S = S({a: 1, b: 1.2, c: 1, d: 33, e: 55})
     return s.a
     """,
         UnknownAttribute,
@@ -107,12 +130,8 @@ def foo() -> bool:
 
 @pytest.mark.parametrize("bad_code", fail_list)
 def test_as_wei_fail(bad_code):
-    if isinstance(bad_code, tuple):
-        with raises(bad_code[1]):
-            compiler.compile_code(bad_code[0])
-    else:
-        with raises(VariableDeclarationException):
-            compiler.compile_code(bad_code)
+    with raises(bad_code[1]):
+        compiler.compile_code(bad_code[0])
 
 
 valid_list = [
