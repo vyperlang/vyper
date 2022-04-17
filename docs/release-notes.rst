@@ -30,6 +30,7 @@ Non-breaking changes and improvements:
 * Add subroutines to Vyper IR (`#2598 <https://github.com/vyperlang/vyper/pull/2598>`_)
 * Add ``select`` opcode to Vyper IR (`#2690 <https://github.com/vyperlang/vyper/pull/2690>`_)
 * Allow lists of any type as loop variables (`#2616 <https://github.com/vyperlang/vyper/pull/2616>`_)
+* Improve suggestions in error messages (`#2806 <https://github.com/vyperlang/vyper/pull/2806>`_)
 
 Notable Fixes:
 
