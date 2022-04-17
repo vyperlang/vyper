@@ -474,7 +474,7 @@ class ContractFunction(BaseTypeDefinition):
                         "Usage of kwarg in Vyper is restricted to gas=, "
                         "value= and skip_contract_check="
                     ),
-                    kwarg.value,
+                    kwarg,
                 )
 
         return self.return_type
