@@ -97,9 +97,8 @@ def get_levenshtein_error_suggestions(key: str, namespace: Dict[str, Any], thres
         return ""
 
     distances = sorted([(i, levenshtein_norm(key, i)) for i in namespace], key=lambda k: k[1])
-    min_levenshtein_val = distances[0][1]
-    if len(distances) > 0 and min_levenshtein_val <= threshold:
-        if distances[1][1] == min_levenshtein_val:
+    if len(distances) > 0 and distances[0][1] <= threshold:
+        if len(distances) >= 2 and distances[0][1] == distances[1][1]:
             return f"Did you mean '{distances[0][0]}' or '{distances[1][0]}'?"
         else:
             return f"Did you mean '{distances[0][0]}'?"
