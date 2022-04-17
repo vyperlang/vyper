@@ -1,15 +1,14 @@
-# @version >=0.3.1
+# @version >=0.3.2
 
 # @dev Implementation of ERC-1155 non-fungible token standard
-# @dev depends on Dynarray and bytes4, which will be available with 0.3.2 release
 # @dev ownable, with approval, OPENSEA compatible (name, symbol)
 # @author Dr. Pixel (github: @Doc-Pixel)
 
 ############### variables ###############
-# maximum items in a batch call. Set to 20, figure out what the practical limits are.
+# maximum items in a batch call. Set to 128, to be determined what the practical limits are.
 BATCH_SIZE: constant(uint256) = 128             
 
-# initial URI length set to 255. Check internet standards and subtract IDs. Should not be that long, keep eye on IPFS hashes. 
+# URI length set to 1024. 
 MAX_URI_LENGTH: constant(uint256) = 1024        
 
 # the contract owner
@@ -25,8 +24,13 @@ uri: public(String[MAX_URI_LENGTH])
 name: public(String[1024])
 symbol: public(String[1024])
 
+# Interface IDs
+ERC165_INTERFACE_ID: constant(bytes4)  = 0x01ffc9a7
+ERC1155_INTERFACE_ID: constant(bytes4) = 0xd9b67a26
+ERC1155_INTERFACE_ID_METADATA: constant(bytes4) = 0x0e89341c
+
 # mappings
-supportsInterfaces: HashMap[bytes4, bool] 
+supportsInterfaces: constant(bytes4[3]) = [ERC165_INTERFACE_ID, ERC1155_INTERFACE_ID, ERC1155_INTERFACE_ID_METADATA]
 
 # Mapping from token ID to account balances
 balances: HashMap[uint256,HashMap[address, uint256]]            
@@ -34,10 +38,7 @@ balances: HashMap[uint256,HashMap[address, uint256]]
 # Mapping from account to operator approvals
 operatorApprovals: HashMap[address, HashMap[address, bool]]     
 
-# Interface IDs
-ERC165_INTERFACE_ID: constant(bytes4)  = 0x01ffc9a7
-ERC1155_INTERFACE_ID: constant(bytes4) = 0xd9b67a26
-ERC1155_INTERFACE_ID_METADATA: constant(bytes4) = 0x0e89341c
+
 
 ############### events ###############
 event Paused:
@@ -119,9 +120,6 @@ def __init__(name: String[1024], symbol: String[1024], uri: String[1024]):
     self.name = name
     self.symbol = symbol
     self.paused = False 
-    self.supportsInterfaces[ERC165_INTERFACE_ID] = True
-    self.supportsInterfaces[ERC1155_INTERFACE_ID] = True
-    self.supportsInterfaces[ERC1155_INTERFACE_ID_METADATA] = True
     self.owner = msg.sender
     self.uri = uri
 
