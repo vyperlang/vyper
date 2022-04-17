@@ -155,7 +155,7 @@ def get_type_from_annotation(
     try:
         type_obj = namespace[type_name]
     except UndeclaredDefinition:
-        levenshtein_string = get_levenshtein_string(type_name, namespace, 0.2)
+        levenshtein_string = get_levenshtein_string(type_name, namespace, 0.3)
         raise UnknownType(
             f"No builtin or user-defined type named '{type_name}'.{levenshtein_string}",
             node,

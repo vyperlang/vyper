@@ -472,9 +472,13 @@ def get_levenshtein_string(key: str, namespace: Dict[str, Any], threshold: float
     :return: The error message snippet if the Levenshtein value is below the threshold,
         or an empty string.
     """
+
+    if key is None or key == "":
+        return ""
+
     distances = sorted([(i, levenshtein_norm(key, i)) for i in namespace], key=lambda k: k[1])
     if len(distances) > 0 and distances[0][1] <= threshold:
-        return f" Did you mean '{distances[0][0]}?'"
+        return f" Did you mean '{distances[0][0]}'?"
     return ""
 
 
