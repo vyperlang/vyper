@@ -18,6 +18,7 @@ from vyper.exceptions import (
     UnknownAttribute,
 )
 from vyper.semantics.types.abstract import AbstractDataType
+from vyper.utils import levenshtein_norm
 
 
 class DataLocation(Enum):
@@ -585,7 +586,12 @@ class MemberTypeDefinition(BaseTypeDefinition):
             type_.location = self.location
             type_.is_constant = self.is_constant
             return type_
-        raise UnknownAttribute(f"{self} has no member '{key}'", node)
+        distances = sorted(
+            [(i, levenshtein_norm(key, i)) for i in self.members], key=lambda k: k[1]
+        )
+        raise UnknownAttribute(
+            f"{self} has no member '{key}'. Did you mean '{distances[0][0]}'?", node
+        )
 
     def __repr__(self):
         return f"{self._id}"

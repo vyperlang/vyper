@@ -7,6 +7,7 @@ from vyper.exceptions import (
     StructureException,
     UndeclaredDefinition,
 )
+from vyper.utils import levenshtein_norm
 
 
 class Namespace(dict):
@@ -42,7 +43,10 @@ class Namespace(dict):
 
     def __getitem__(self, key):
         if key not in self:
-            raise UndeclaredDefinition(f"'{key}' has not been declared")
+            distances = sorted([(i, levenshtein_norm(key, i)) for i in self], key=lambda k: k[1])
+            raise UndeclaredDefinition(
+                f"'{key}' has not been declared. Did you mean {distances[0][0]}?"
+            )
         return super().__getitem__(key)
 
     def __enter__(self):

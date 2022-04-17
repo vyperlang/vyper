@@ -15,6 +15,7 @@ from vyper.semantics.types.bases import DataLocation, MemberTypeDefinition, Valu
 from vyper.semantics.types.indexable.mapping import MappingDefinition
 from vyper.semantics.types.utils import get_type_from_annotation
 from vyper.semantics.validation.utils import validate_expected_type
+from vyper.utils import levenshtein_norm
 
 
 class StructDefinition(MemberTypeDefinition, ValueTypeDefinition):
@@ -97,7 +98,13 @@ class StructPrimitive:
         keys = list(self.members.keys())
         for i, (key, value) in enumerate(zip(node.args[0].keys, node.args[0].values)):
             if key is None or key.get("id") not in members:
-                raise UnknownAttribute("Unknown or duplicate struct member", key or value)
+                distances = sorted(
+                    [(i, levenshtein_norm(key.get("id"), i)) for i in members], key=lambda k: k[1]
+                )
+                raise UnknownAttribute(
+                    f"Unknown or duplicate struct member. Did you mean '{distances[0][0]}'?",
+                    key or value,
+                )
             expected_key = keys[i]
             if key.id != expected_key:
                 raise InvalidAttribute(

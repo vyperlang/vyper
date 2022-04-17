@@ -14,6 +14,7 @@ from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.bases import BaseTypeDefinition, DataLocation
 from vyper.semantics.types.indexable.sequence import ArrayDefinition, TupleDefinition
 from vyper.semantics.validation.utils import get_exact_type_from_node, get_index_value
+from vyper.utils import levenshtein_norm
 
 
 class StringEnum(enum.Enum):
@@ -154,7 +155,13 @@ def get_type_from_annotation(
     try:
         type_obj = namespace[type_name]
     except UndeclaredDefinition:
-        raise UnknownType(f"No builtin or user-defined type named '{type_name}'", node) from None
+        distances = sorted(
+            [(i, levenshtein_norm(type_name, i)) for i in namespace], key=lambda k: k[1]
+        )
+        raise UnknownType(
+            f"No builtin or user-defined type named '{type_name}'. Did you mean {distances[0][0]}?",
+            node,
+        ) from None
 
     if getattr(type_obj, "_as_array", False) and isinstance(node, vy_ast.Subscript):
         # TODO: handle `is_immutable` for arrays

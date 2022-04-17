@@ -27,6 +27,7 @@ from vyper.semantics.types.indexable.sequence import (
 )
 from vyper.semantics.types.value.array_value import BytesArrayDefinition, StringDefinition
 from vyper.semantics.types.value.boolean import BoolDefinition
+from vyper.utils import levenshtein_norm
 
 
 def _validate_op(node, types_list, validation_fn_name):
@@ -151,8 +152,16 @@ class _ExprTypeChecker:
                     f"'{name}' is not a storage variable, it should not be prepended with self",
                     node,
                 ) from None
+
+            distances = sorted(
+                [(i, levenshtein_norm(name, i)) for i in var.members], key=lambda k: k[1]
+            )
             raise UndeclaredDefinition(
-                f"Storage variable '{name}' has not been declared", node
+                (
+                    f"Storage variable '{name}' has not been declared. "
+                    f"Did you mean '{distances[0][0]}'?"
+                ),
+                node,
             ) from None
 
     def types_from_BinOp(self, node):
