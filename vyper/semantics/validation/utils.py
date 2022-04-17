@@ -27,7 +27,7 @@ from vyper.semantics.types.indexable.sequence import (
 )
 from vyper.semantics.types.value.array_value import BytesArrayDefinition, StringDefinition
 from vyper.semantics.types.value.boolean import BoolDefinition
-from vyper.utils import levenshtein_norm
+from vyper.utils import get_levenshtein_string
 
 
 def _validate_op(node, types_list, validation_fn_name):
@@ -153,14 +153,9 @@ class _ExprTypeChecker:
                     node,
                 ) from None
 
-            distances = sorted(
-                [(i, levenshtein_norm(name, i)) for i in var.members], key=lambda k: k[1]
-            )
+            levenshtein_string = get_levenshtein_string(name, var.members, 0.4)
             raise UndeclaredDefinition(
-                (
-                    f"Storage variable '{name}' has not been declared. "
-                    f"Did you mean '{distances[0][0]}'?"
-                ),
+                f"Storage variable '{name}' has not been declared.{levenshtein_string}",
                 node,
             ) from None
 

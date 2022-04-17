@@ -2,7 +2,7 @@ import binascii
 import decimal
 import sys
 import traceback
-from typing import List, Union
+from typing import Any, Dict, List, Union
 
 from vyper.exceptions import DecimalOverrideException, InvalidLiteral
 
@@ -451,6 +451,31 @@ def levenshtein(source: str, target: str) -> int:
     # At this point, the matrix is full, and the biggest prefixes are just the
     # strings themselves, so this is the desired distance
     return matrix[len(source)][len(target)]
+
+
+def get_levenshtein_string(key: str, namespace: Dict[str, Any], threshold: float):
+    """
+    Generate an error message snippet for the first value in the provided namespace
+    with the shortest normalized Levenshtein distance from the given key if that distance
+    is below the threshold. Otherwise, return an empty string.
+
+    As a heuristic, the threshold value is inversely correlated to the size of the namespace.
+    For a small namespace (e.g. struct members), the threshold value can be the maximum of
+    1.0 since the key must be one of the defined struct members. For a large namespace
+    (e.g. types, builtin functions and state variables), the threshold value should be lower
+    to ensure the matches are relevant.
+
+    :param key: A string of the identifier being accessed
+    :param namespace: A dictionary of the possible identifiers
+    :param threshold: A floating value between 0.0 and 1.0
+
+    :return: The error message snippet if the Levenshtein value is below the threshold,
+        or an empty string.
+    """
+    distances = sorted([(i, levenshtein_norm(key, i)) for i in namespace], key=lambda k: k[1])
+    if distances[0][1] <= threshold:
+        return f" Did you mean '{distances[0][0]}?'"
+    return ""
 
 
 __all__ = [
