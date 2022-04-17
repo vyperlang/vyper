@@ -4,6 +4,9 @@
 # @dev ownable, with approval, OPENSEA compatible (name, symbol)
 # @author Dr. Pixel (github: @Doc-Pixel)
 
+############### imports ###############
+from vyper.interfaces import ERC165
+
 ############### variables ###############
 # maximum items in a batch call. Set to 128, to be determined what the practical limits are.
 BATCH_SIZE: constant(uint256) = 128             
@@ -93,13 +96,7 @@ event ApprovalForAll:
     approved: bool
 
 ############### interfaces ###############
-
-interface IERC165:
-    # @dev IERC165 interface definition.
-    # @param account the account granting the operator approval rights
-    # @param operator the approved operator
-    # @param approved the approval status. True of False.
-    def supportsInterface(_interfaceId: bytes4) -> bool: payable
+implements: ERC165
 
 interface IERC1155Receiver:
     def onERC1155Received(operator: address, fromAddress: address, to: address, id: uint256, _value: uint256, data: bytes32) -> bytes32: payable
