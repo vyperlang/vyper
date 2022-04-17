@@ -6,7 +6,7 @@ Release Notes
 v0.3.2
 ******
 
-Date released: TBD
+Date released: 2022-04-17
 
 Breaking changes:
 
