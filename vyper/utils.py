@@ -453,7 +453,7 @@ def levenshtein(source: str, target: str) -> int:
     return matrix[len(source)][len(target)]
 
 
-def get_levenshtein_string(key: str, namespace: Dict[str, Any], threshold: float):
+def get_levenshtein_string(key: str, namespace: Dict[str, Any], threshold: float) -> str:
     """
     Generate an error message snippet for the first value in the provided namespace
     with the shortest normalized Levenshtein distance from the given key if that distance
