@@ -6,12 +6,20 @@
 # @author Dr. Pixel (github: @Doc-Pixel)
 
 ############### variables ###############
-BATCH_SIZE: constant(uint256) = 128             # maximum items in a batch call. Set to 20, figure out what the practical limits are.
-MAX_URI_LENGTH: constant(uint256) = 1024        # initial URI length set to 255. Check internet standards and subtract IDs. Should not be that long, keep eye on IPFS hashes. 
+# maximum items in a batch call. Set to 20, figure out what the practical limits are.
+BATCH_SIZE: constant(uint256) = 128             
 
-owner: public(address)                          # the contract owner
-paused: public(bool)                            # pause status True / False
-uri: public(String[1024])                     # keep an eye on the total length
+# initial URI length set to 255. Check internet standards and subtract IDs. Should not be that long, keep eye on IPFS hashes. 
+MAX_URI_LENGTH: constant(uint256) = 1024        
+
+# the contract owner
+owner: public(address)                          
+
+# pause status True / False
+paused: public(bool)                            
+
+# the contracts URI to find the metadata
+uri: public(String[MAX_URI_LENGTH])                     
 
 # NFT marketplace compatibility
 name: public(String[1024])
@@ -19,8 +27,12 @@ symbol: public(String[1024])
 
 # mappings
 supportsInterfaces: HashMap[bytes4, bool] 
-balances: HashMap[uint256,HashMap[address, uint256]]            # Mapping from token ID to account balances
-operatorApprovals: HashMap[address, HashMap[address, bool]]     # Mapping from account to operator approvals
+
+# Mapping from token ID to account balances
+balances: HashMap[uint256,HashMap[address, uint256]]            
+
+# Mapping from account to operator approvals
+operatorApprovals: HashMap[address, HashMap[address, bool]]     
 
 # Interface IDs
 ERC165_INTERFACE_ID: constant(bytes4)  = 0x01ffc9a7
@@ -96,6 +108,22 @@ interface IERC1155MetadataURI:
     def uri(id: uint256) -> String[MAX_URI_LENGTH]: payable
 
 ############### functions ###############
+
+@external
+def __init__(name: String[1024], symbol: String[1024], uri: String[1024]):
+    # @dev contract initialization on deployment
+    # @dev will set name and symbol, interfaces, owner and URI
+    # @param name the smart contract name
+    # @param symbol the smart contract symbol
+    # @param uri the new uri for the contract
+    self.name = name
+    self.symbol = symbol
+    self.paused = False 
+    self.supportsInterfaces[ERC165_INTERFACE_ID] = True
+    self.supportsInterfaces[ERC1155_INTERFACE_ID] = True
+    self.supportsInterfaces[ERC1155_INTERFACE_ID_METADATA] = True
+    self.owner = msg.sender
+    self.uri = uri
 
 ## contract status ##
 @external
@@ -328,20 +356,8 @@ def setURI(uri: String[MAX_URI_LENGTH]):
 
 @external
 def supportsInterface(interfaceId: bytes4) -> bool:
-    return self.supportsInterfaces[interfaceId]
-
-@external
-def __init__(name: String[1024], symbol: String[1024], uri: String[1024]):
-    # @dev contract initialization on deployment
-    # @dev will set name and symbol, interfaces, owner and URI
-    # @param name the smart contract name
-    # @param symbol the smart contract symbol
-    # @param uri the new uri for the contract
-    self.name = name
-    self.symbol = symbol
-    self.paused = False 
-    self.supportsInterfaces[ERC165_INTERFACE_ID] = True
-    self.supportsInterfaces[ERC1155_INTERFACE_ID] = True
-    self.supportsInterfaces[ERC1155_INTERFACE_ID_METADATA] = True
-    self.owner = msg.sender
-    self.uri = uri
+    return interfaceId in [
+        ERC165_INTERFACE_ID,
+        ERC1155_INTERFACE_ID,
+        ERC1155_INTERFACE_ID_METADATA, 
+    ] 
