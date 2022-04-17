@@ -13,8 +13,8 @@ from vyper.exceptions import (
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.bases import BaseTypeDefinition, DataLocation
 from vyper.semantics.types.indexable.sequence import ArrayDefinition, TupleDefinition
+from vyper.semantics.validation.levenshtein_utils import get_levenshtein_error_suggestions
 from vyper.semantics.validation.utils import get_exact_type_from_node, get_index_value
-from vyper.utils import get_levenshtein_string
 
 
 class StringEnum(enum.Enum):
@@ -155,9 +155,9 @@ def get_type_from_annotation(
     try:
         type_obj = namespace[type_name]
     except UndeclaredDefinition:
-        levenshtein_string = get_levenshtein_string(type_name, namespace, 0.3)
+        suggestions_str = get_levenshtein_error_suggestions(type_name, namespace, 0.3)
         raise UnknownType(
-            f"No builtin or user-defined type named '{type_name}'.{levenshtein_string}",
+            f"No builtin or user-defined type named '{type_name}'. {suggestions_str}",
             node,
         ) from None
 

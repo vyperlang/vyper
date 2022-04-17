@@ -14,8 +14,8 @@ from vyper.semantics.namespace import validate_identifier
 from vyper.semantics.types.bases import DataLocation, MemberTypeDefinition, ValueTypeDefinition
 from vyper.semantics.types.indexable.mapping import MappingDefinition
 from vyper.semantics.types.utils import get_type_from_annotation
+from vyper.semantics.validation.levenshtein_utils import get_levenshtein_error_suggestions
 from vyper.semantics.validation.utils import validate_expected_type
-from vyper.utils import get_levenshtein_string
 
 
 class StructDefinition(MemberTypeDefinition, ValueTypeDefinition):
@@ -98,9 +98,9 @@ class StructPrimitive:
         keys = list(self.members.keys())
         for i, (key, value) in enumerate(zip(node.args[0].keys, node.args[0].values)):
             if key is None or key.get("id") not in members:
-                levenshtein_string = get_levenshtein_string(key.get("id"), members, 1.0)
+                suggestions_str = get_levenshtein_error_suggestions(key.get("id"), members, 1.0)
                 raise UnknownAttribute(
-                    f"Unknown or duplicate struct member.{levenshtein_string}",
+                    f"Unknown or duplicate struct member. {suggestions_str}",
                     key or value,
                 )
             expected_key = keys[i]

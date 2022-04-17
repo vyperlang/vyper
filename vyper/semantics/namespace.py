@@ -7,7 +7,7 @@ from vyper.exceptions import (
     StructureException,
     UndeclaredDefinition,
 )
-from vyper.utils import get_levenshtein_string
+from vyper.semantics.validation.levenshtein_utils import get_levenshtein_error_suggestions
 
 
 class Namespace(dict):
@@ -43,8 +43,8 @@ class Namespace(dict):
 
     def __getitem__(self, key):
         if key not in self:
-            levenshtein_string = get_levenshtein_string(key, self, 0.2)
-            raise UndeclaredDefinition(f"'{key}' has not been declared.{levenshtein_string}")
+            suggestions_str = get_levenshtein_error_suggestions(key, self, 0.2)
+            raise UndeclaredDefinition(f"'{key}' has not been declared. {suggestions_str}")
         return super().__getitem__(key)
 
     def __enter__(self):

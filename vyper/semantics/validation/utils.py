@@ -27,7 +27,7 @@ from vyper.semantics.types.indexable.sequence import (
 )
 from vyper.semantics.types.value.array_value import BytesArrayDefinition, StringDefinition
 from vyper.semantics.types.value.boolean import BoolDefinition
-from vyper.utils import get_levenshtein_string
+from vyper.semantics.validation.levenshtein_utils import get_levenshtein_error_suggestions
 
 
 def _validate_op(node, types_list, validation_fn_name):
@@ -153,9 +153,9 @@ class _ExprTypeChecker:
                     node,
                 ) from None
 
-            levenshtein_string = get_levenshtein_string(name, var.members, 0.4)
+            suggestions_str = get_levenshtein_error_suggestions(name, var.members, 0.4)
             raise UndeclaredDefinition(
-                f"Storage variable '{name}' has not been declared.{levenshtein_string}",
+                f"Storage variable '{name}' has not been declared. {suggestions_str}",
                 node,
             ) from None
 
