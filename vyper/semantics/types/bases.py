@@ -18,6 +18,7 @@ from vyper.exceptions import (
     UnknownAttribute,
 )
 from vyper.semantics.types.abstract import AbstractDataType
+from vyper.semantics.validation.levenshtein_utils import get_levenshtein_error_suggestions
 
 
 class DataLocation(Enum):
@@ -585,7 +586,8 @@ class MemberTypeDefinition(BaseTypeDefinition):
             type_.location = self.location
             type_.is_constant = self.is_constant
             return type_
-        raise UnknownAttribute(f"{self} has no member '{key}'", node)
+        suggestions_str = get_levenshtein_error_suggestions(key, self.members, 0.3)
+        raise UnknownAttribute(f"{self} has no member '{key}'. {suggestions_str}", node)
 
     def __repr__(self):
         return f"{self._id}"
