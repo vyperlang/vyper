@@ -1,6 +1,9 @@
+
+# brownie test
 import pytest
 import brownie
 from brownie import ZERO_ADDRESS, accounts
+from web3.exceptions import ValidationError
 
 # ERC1155 ownable, opensea compatible tests
 # @author Dr. Pixel (github: @Doc-Pixel)
@@ -21,7 +24,6 @@ minBatchSetOf10 = [1,1,1,1,1,1,1,1,1,1]
 mintConflictBatch = [1,2,3]
 
 ##### test fixtures #####
-
 @pytest.fixture
 def NFT_contract(ERC1155ownable, accounts, scope="module", autouse=True):
     yield accounts[0].deploy(ERC1155ownable, CONTRACT_NAME, CONTRACT_SYMBOL, CONTRACT_URI)
@@ -39,7 +41,7 @@ def test_mint(NFT_contract):
     with brownie.reverts():
         # mint with non-owner
         NFT_contract.mint(accounts[1], 4, 1, '', {"from": accounts[3]})
-
+    # assert_tx_failed(NFT_contract.mint(accounts[1], 4, 1, '', {"from": accounts[3]}))
     with brownie.reverts():
         # mint to zero address
         NFT_contract.mint(ZERO_ADDRESS, 4, 1, '', {"from": accounts[0]})
@@ -48,7 +50,6 @@ def test_mint(NFT_contract):
 @pytest.fixture
 def test_mint_batch(NFT_contract):
     NFT_contract.mintBatch(accounts[1], mintBatch, minBatchSetOf10, '', {"from": accounts[0]})
-    # NFT_contract.mintBatch(accounts[1], mintBatch2, minBatchSetOf10, '', {"from": accounts[0]})
 
     with brownie.reverts():
         # mint with non-owner
@@ -74,18 +75,15 @@ def test_initial_state(NFT_contract):
     assert NFT_contract.uri() == CONTRACT_URI
 
     # interfaces set up correctly?
-    tx1 = NFT_contract.supportsInterface(ERC165_INTERFACE_ID) 
-    returnValue1 =  tx1.return_value
-    assert returnValue1 == True
-    
-    tx2 = NFT_contract.supportsInterface(ERC1155_INTERFACE_ID) 
-    returnValue2 =  tx2.return_value
-    assert returnValue2 == True
-    
-    tx3 = NFT_contract.supportsInterface(ERC1155_INTERFACE_ID_METADATA) 
-    returnValue3 =  tx3.return_value
-    assert returnValue3 == True
+    assert NFT_contract.supportsInterface(ERC165_INTERFACE_ID) 
+    # tx1 = NFT_contract.supportsInterface(ERC165_INTERFACE_ID) 
+    # returnValue1 =  tx1.return_value
+    # assert returnValue1 == True
 
+    assert NFT_contract.supportsInterface(ERC1155_INTERFACE_ID) 
+        
+    assert NFT_contract.supportsInterface(ERC1155_INTERFACE_ID_METADATA) 
+    
 
 def test_pause(NFT_contract):
     # check the pause status, pause, check, unpause, check, with owner and non-owner accounts
@@ -171,46 +169,26 @@ def test_URI(NFT_contract, accounts):
 def test_mint_single_balanceOf(NFT_contract, accounts, test_mint):
     # Use the test_mint fixture to mint the tokens. 
     # this test checks the balances of this test
-    tx1 = NFT_contract.balanceOf(accounts[1],1)
-    returnValue1 =  tx1.return_value
-    assert returnValue1 == 1
+    assert NFT_contract.balanceOf(accounts[1],1) == 1
+    assert NFT_contract.balanceOf(accounts[1],2) == 1
+    assert NFT_contract.balanceOf(accounts[1],3) == 1
     
-    tx2 = NFT_contract.balanceOf(accounts[1],2)
-    returnValue2 =  tx2.return_value
-    assert returnValue2 == 1
-    
-    tx3 = NFT_contract.balanceOf(accounts[1],3)
-    returnValue3 =  tx3.return_value
-    assert returnValue3 == 1
-
+    # assert_tx_failed  
     with brownie.reverts():
-        tx4 = NFT_contract.balanceOf(ZERO_ADDRESS,3)
-        returnValue4 =  tx4.return_value
-        assert returnValue4 == 1
+        assert NFT_contract.balanceOf(ZERO_ADDRESS,3) == 1
 
 def test_mint_batch_balanceOf(NFT_contract, accounts, test_mint_batch):
     # Use the test_mint_batch fixture to mint the tokens. 
     # this test checks the balances of this test
-    tx1 = NFT_contract.balanceOf(accounts[1],1)
-    returnValue1 =  tx1.return_value
-    assert returnValue1 == 1
-    
-    tx2 = NFT_contract.balanceOf(accounts[1],2)
-    returnValue2 =  tx2.return_value
-    assert returnValue2 == 1
-    
-    tx3 = NFT_contract.balanceOf(accounts[1],3)
-    returnValue3 =  tx3.return_value
-    assert returnValue3 == 1
-
+    assert NFT_contract.balanceOf(accounts[1],1) == 1
+    assert NFT_contract.balanceOf(accounts[1],2) == 1
+    assert NFT_contract.balanceOf(accounts[1],3) == 1
 
 def test_safeTransferFrom_balanceOf_single(NFT_contract, accounts, test_mint):
     # transfer NFT 1 from account 1 to account 2 use test_mint_single fixture
 
-    tx1 = NFT_contract.balanceOf(accounts[1],1, {"from": accounts[1]})
-    returnValue1 =  tx1.return_value
-    assert returnValue1 == 1
-
+    assert NFT_contract.balanceOf(accounts[1],1, {"from": accounts[1]}) == 1
+    
     with brownie.reverts():
         # try to transfer item from non item owner account
         NFT_contract.safeTransferFrom(accounts[1], accounts[2], 1, 1, '', {"from": accounts[2]})
@@ -232,37 +210,31 @@ def test_safeTransferFrom_balanceOf_single(NFT_contract, accounts, test_mint):
         NFT_contract.safeTransferFrom(accounts[1], accounts[2], 500, 1, '', {"from": accounts[1]})
 
     NFT_contract.safeTransferFrom(accounts[1], accounts[2], 1, 1, '', {"from": accounts[1]})
-    tx2 = NFT_contract.balanceOf(accounts[2],1, {"from": accounts[0]})
-    returnValue2 =  tx2.return_value
-    assert returnValue2 == 1
-
+    
+    assert NFT_contract.balanceOf(accounts[2],1, {"from": accounts[0]}) == 1
+    
     with brownie.reverts():
         # try to transfer item again. to trigger zero balance
         NFT_contract.safeTransferFrom(accounts[1], accounts[2], 1, 1, '', {"from": accounts[1]})
 
-    tx3 = NFT_contract.balanceOf(accounts[1],1, {"from": accounts[0]})
-    returnValue3 =  tx3.return_value
-    assert returnValue3 == 0
-
+    assert NFT_contract.balanceOf(accounts[1],1, {"from": accounts[0]}) == 0
+    
 
 # TODO: mint 20 NFTs [1:20] and check the balance for each
 def test_mintBatch_balanceOf(NFT_contract, accounts, test_mint_batch):
     # Use the mint three fixture to mint the tokens. 
     # this test checks the balances of this test
     for i in range (1,10):
-        tx1 = NFT_contract.balanceOf(accounts[1], i, {"from": accounts[1]})
-        returnValue1 =  tx1.return_value
-        assert returnValue1 == 1
-
+        assert NFT_contract.balanceOf(accounts[1], i, {"from": accounts[1]}) == 1
+        
         with brownie.reverts():
-            tx2 = NFT_contract.balanceOf(ZERO_ADDRESS, i, {"from": accounts[1]})
+            assert NFT_contract.balanceOf(ZERO_ADDRESS, i, {"from": accounts[1]}) == 1
     
 def test_safeBatchTransferFrom_balanceOf_batch(NFT_contract, accounts, test_mint_batch):
     # transfer NFT 1 from account 1 to account 2 use test_mint_single fixture
 
-    tx1 = NFT_contract.balanceOf(accounts[1],1, {"from": accounts[1]})
-    returnValue1 =  tx1.return_value
-    assert returnValue1 == 1
+    NFT_contract.balanceOf(accounts[1],1, {"from": accounts[1]}) == 1
+    
 
     with brownie.reverts():
         # try to transfer item from non item owner account
@@ -297,24 +269,14 @@ def test_safeBatchTransferFrom_balanceOf_batch(NFT_contract, accounts, test_mint
 
 
     with brownie.reverts():
-        tx2 = NFT_contract.balanceOfBatch([accounts[2],accounts[2],accounts[2]],[1,2], {"from": accounts[0]})
-        returnValue2 =  tx2.return_value
-        assert returnValue2 == [1,1,1]
-    
-    tx2 = NFT_contract.balanceOfBatch([accounts[2],accounts[2],accounts[2]],[1,2,3], {"from": accounts[0]})
-    returnValue2 =  tx2.return_value
-    assert returnValue2 == [1,1,1]
-
-    tx3 = NFT_contract.balanceOf(accounts[1],1, {"from": accounts[0]})
-    returnValue3 =  tx3.return_value
-    assert returnValue3 == 0
-
+        assert NFT_contract.balanceOfBatch([accounts[2],accounts[2],accounts[2]],[1,2], {"from": accounts[0]}) == [1,1,1]
+        
+    assert NFT_contract.balanceOfBatch([accounts[2],accounts[2],accounts[2]],[1,2,3], {"from": accounts[0]}) == [1,1,1]
+    assert NFT_contract.balanceOf(accounts[1],1, {"from": accounts[0]}) == 0
 
 def test_mint_one_burn_one(NFT_contract, accounts, test_mint):
     # check the balance
-    tx1 = NFT_contract.balanceOf(accounts[1],1, {"from": accounts[1]})
-    returnValue1 =  tx1.return_value
-    assert returnValue1 == 1
+    assert NFT_contract.balanceOf(accounts[1],1, {"from": accounts[1]}) == 1
 
     with brownie.reverts():
         # try and burn an item we don't control
@@ -330,16 +292,12 @@ def test_mint_one_burn_one(NFT_contract, accounts, test_mint):
 
     NFT_contract.burn(1,1,{"from": accounts[1]})
 
-    tx1 = NFT_contract.balanceOf(accounts[1],1, {"from": accounts[1]})
-    returnValue1 =  tx1.return_value
-    assert returnValue1 == 0
+    assert NFT_contract.balanceOf(accounts[1],1, {"from": accounts[1]}) == 0
 
 
 def test_mint_batch_burn_batch(NFT_contract, accounts, test_mint_batch):
     # check the balance
-    tx1 = NFT_contract.balanceOfBatch([accounts[1],accounts[1],accounts[1]],[1,2,3], {"from": accounts[1]})
-    returnValue1 =  tx1.return_value
-    assert returnValue1 == [1,1,1]
+    assert NFT_contract.balanceOfBatch([accounts[1],accounts[1],accounts[1]],[1,2,3], {"from": accounts[1]}) == [1,1,1]
 
     with brownie.reverts():
         # try and burn a batch we don't control
@@ -360,19 +318,14 @@ def test_mint_batch_burn_batch(NFT_contract, accounts, test_mint_batch):
     # burn existing
     NFT_contract.burnBatch([1,2],[1,1],{"from": accounts[1]})
 
-    tx1 = NFT_contract.balanceOfBatch([accounts[1],accounts[1],accounts[1]],[1,2,3], {"from": accounts[1]})
-    returnValue1 =  tx1.return_value
-    assert returnValue1 != [1,1,1]
-    assert returnValue1 == [0,0,1]
+    assert NFT_contract.balanceOfBatch([accounts[1],accounts[1],accounts[1]],[1,2,3], {"from": accounts[1]}) == [0,0,1]
+
 
     # burn again, should revert
     with brownie.reverts():
         NFT_contract.burnBatch([1,2],[1,1],{"from": accounts[1]})
 
-    tx1 = NFT_contract.balanceOfBatch([accounts[1],accounts[1],accounts[1]],[1,2,3], {"from": accounts[1]})
-    returnValue1 =  tx1.return_value
-    assert returnValue1 != [1,1,1]
-    assert returnValue1 == [0,0,1]
+    assert NFT_contract.balanceOfBatch([accounts[1],accounts[1],accounts[1]],[1,2,3], {"from": accounts[1]}) == [0,0,1]
 
 
 def test_approval_functions(NFT_contract, accounts, test_mint_batch):

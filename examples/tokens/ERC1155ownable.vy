@@ -170,6 +170,7 @@ def renounceOwnership():
     log OwnershipTransferred(oldOwner, ZERO_ADDRESS)
 
 ## balance ##
+@view
 @external
 def balanceOf(account: address, id: uint256) -> uint256:
     # @dev check the balance for a specific ID and address
@@ -181,6 +182,7 @@ def balanceOf(account: address, id: uint256) -> uint256:
     return self.balances[id][account]
 
 @external
+@view
 def balanceOfBatch(accounts: DynArray[address, BATCH_SIZE], ids: DynArray[uint256, BATCH_SIZE]) -> DynArray[uint256,BATCH_SIZE]:  #uint256[BATCH_SIZE]:
     # @dev check the balance for an array of specific IDs and addresses
     # @dev will return an array of balances
@@ -287,6 +289,7 @@ def setApprovalForAll(owner: address, operator: address, approved: bool):
     log ApprovalForAll(owner, operator, approved)
 
 @external 
+@view
 def isApprovedForAll(account: address, operator: address) -> bool:
     # @dev check wether operator is approved as an operator for the account
     # @param account the NFT owner address
@@ -349,6 +352,7 @@ def setURI(uri: String[MAX_URI_LENGTH]):
     assert self.uri != uri, "new and current URI are identical"
     self.uri = uri
 
+@pure
 @external
 def supportsInterface(interfaceId: bytes4) -> bool:
     return interfaceId in [
