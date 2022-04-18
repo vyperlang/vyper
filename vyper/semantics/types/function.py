@@ -1,3 +1,4 @@
+import re
 import warnings
 from collections import OrderedDict
 from typing import Any, Dict, List, Optional, Tuple
@@ -469,10 +470,20 @@ class ContractFunction(BaseTypeDefinition):
                 if not isinstance(kwarg.value, vy_ast.NameConstant):
                     raise InvalidType("skip_contract_check must be literal bool", kwarg.value)
             else:
+                kwarg_pattern = fr"{kwarg.arg}\s*=\s*{re.escape(kwarg.value.node_source_code)}"
+                modified_line = re.sub(
+                    kwarg_pattern, kwarg.value.node_source_code, node.node_source_code
+                )
+                error_suggestion = (
+                    f"\n(hint: Try removing the kwarg: `{modified_line}`)"
+                    if modified_line != node.node_source_code
+                    else ""
+                )
+
                 raise ArgumentException(
                     (
                         "Usage of kwarg in Vyper is restricted to gas=, "
-                        "value= and skip_contract_check="
+                        f"value= and skip_contract_check=. {error_suggestion}"
                     ),
                     kwarg,
                 )
