@@ -3,6 +3,7 @@ from vyper.exceptions import StructureException
 from vyper.semantics.types import ArrayDefinition
 from vyper.semantics.types.bases import BaseTypeDefinition
 from vyper.semantics.types.function import ContractFunction, MemberFunctionDefinition
+from vyper.semantics.types.indexable.mapping import MappingDefinition
 from vyper.semantics.types.user.event import Event
 from vyper.semantics.types.user.struct import StructPrimitive
 from vyper.semantics.validation.utils import (
@@ -208,7 +209,10 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
         if isinstance(base_type, BaseTypeDefinition):
             # in the vast majority of cases `base_type` is a type definition,
             # however there are some edge cases with args to builtin functions
-            self.visit(node.slice, base_type.get_subscripted_type(node.slice.value))
+            if isinstance(base_type, MappingDefinition):
+                self.visit(node.slice, base_type.key_type)
+            else:
+                self.visit(node.slice, base_type.get_subscripted_type(node.slice.value))
         self.visit(node.value, base_type)
 
     def visit_Tuple(self, node, type_):
