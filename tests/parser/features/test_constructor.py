@@ -20,6 +20,26 @@ def returnMoose() -> int128:
     print("Passed init argument test")
 
 
+def test_constructor_mapping(get_contract_with_gas_estimation):
+    contract = """
+foo: HashMap[bytes4, bool]
+
+X: constant(bytes4) = 0x01ffc9a7
+
+@external
+def __init__():
+    self.foo[X] = True
+
+@external
+@view
+def check_foo(a: bytes4) -> bool:
+    return self.foo[a]
+    """
+
+    c = get_contract_with_gas_estimation(contract)
+    assert c.check_foo("0x01ffc9a7") is True
+
+
 def test_constructor_advanced_code(get_contract_with_gas_estimation):
     constructor_advanced_code = """
 twox: int128
