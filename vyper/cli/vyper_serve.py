@@ -18,7 +18,9 @@ def _parse_cli_args():
 
 def _parse_args(argv):
     parser = argparse.ArgumentParser(description="Serve Vyper compiler as an HTTP Service")
-    parser.add_argument("--version", action="version", version=f"{vyper.__version__}+commit{vyper.__commit__}")
+    parser.add_argument(
+        "--version", action="version", version=f"{vyper.__version__}+commit{vyper.__commit__}"
+    )
     parser.add_argument(
         "-b",
         help="Address to bind JSON server on, default: localhost:8000",
