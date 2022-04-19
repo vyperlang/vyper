@@ -625,3 +625,6 @@ class IndexableTypeDefinition(BaseTypeDefinition):
     def get_signature(self) -> Tuple[Tuple, Optional[BaseTypeDefinition]]:
         new_args, return_type = self.value_type.get_signature()
         return (self.key_type,) + new_args, return_type
+
+    def get_index_type(self):
+        return self.key_type
