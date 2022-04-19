@@ -53,7 +53,7 @@ clean-build:
 	@rm -fr _build/ # docs build dir
 	@rm -fr dist/
 	@rm -fr *.egg-info
-	@rm -f vyper/version.py
+	@rm -f vyper/version.py vyper/vyper_git_version.txt vyper/vyper_git_commithash.txt
 	@rm -f *.spec
 
 clean-docs:
