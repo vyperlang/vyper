@@ -56,9 +56,13 @@ def _global_version(version):
     return re.sub(r"\.dev\d+", "", version_str)
 
 
-hash_file_rel_path = os.path.join("vyper", "vyper_git_version.txt")
+hash_file_rel_path = os.path.join("vyper", "vyper_git_commithash.txt")
 hashfile = os.path.relpath(hash_file_rel_path)
 
+# there is no way in setuptools-scm to get metadata besides the package
+# version into version.py. (and we need that version to be PEP440 compliant
+# in order to get it into pypi). so, add the commit hash to the package
+# separately, in order so that we can add it to `vyper --version`.
 try:
     commithash = subprocess.check_output("git rev-parse --short HEAD".split())
     commithash_str = commithash.decode("utf-8").strip()
