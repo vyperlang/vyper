@@ -470,6 +470,8 @@ class ContractFunction(BaseTypeDefinition):
                 if not isinstance(kwarg.value, vy_ast.NameConstant):
                     raise InvalidType("skip_contract_check must be literal bool", kwarg.value)
             else:
+                # Generate the modified source code string with the kwarg removed
+                # as a suggestion to the user.
                 kwarg_pattern = fr"{kwarg.arg}\s*=\s*{re.escape(kwarg.value.node_source_code)}"
                 modified_line = re.sub(
                     kwarg_pattern, kwarg.value.node_source_code, node.node_source_code
