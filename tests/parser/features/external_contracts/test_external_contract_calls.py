@@ -1495,6 +1495,14 @@ interface Bar:
 def foo(a: address):
     Bar(a).bar(1)
     """,
+    """
+interface Bar:
+    def bar(x: uint256, y: uint256) -> uint256: view
+
+@external
+def foo(a: address, x: uint256, y: uint256):
+    Bar(a).bar(x, y=y)
+    """,
 ]
 
 
