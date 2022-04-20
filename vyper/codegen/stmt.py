@@ -239,15 +239,10 @@ class Stmt:
         with self.context.range_scope():
             # TODO should catch if raise_exception == False?
             arg_expr = Expr.parse_value_expr(arg_ast_node, self.context)
-
-        is_integer_literal = (
-            isinstance(arg_expr.typ, BaseType)
-            and arg_expr.typ.is_literal
-            and arg_expr.typ.typ in {"uint256", "int256"}
-        )
+        is_integer_literal = isinstance(arg_expr.typ, BaseType) and arg_expr.typ.is_literal
         if not is_integer_literal and raise_exception:
             raise StructureException(
-                "Range only accepts literal (constant) values of type uint256 or int256",
+                "Range only accepts literal (constant) values",
                 arg_ast_node,
             )
         return is_integer_literal, arg_expr
