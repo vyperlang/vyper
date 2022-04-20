@@ -36,6 +36,7 @@ from vyper.codegen.types import (
     SArrayType,
     StringType,
     TupleType,
+    get_type_for_exact_size,
     is_base_type,
     is_bytes_m_type,
     parse_integer_typeinfo,
@@ -86,6 +87,7 @@ from vyper.utils import (
     DECIMAL_DIVISOR,
     MemoryPositions,
     SizeLimits,
+    abi_method_id,
     bytes_to_int,
     fourbytes_to_int,
     keccak256,
@@ -1867,6 +1869,38 @@ class Empty:
         return IRnode("~empty", typ=output_type)
 
 
+class Print(_SimpleBuiltinFunction):
+    _id = "print"
+    _inputs = [("arg", "*")]
+
+    def fetch_call_return(self, node):
+        validate_call_args(node, 1)
+        return None
+
+    @validate_inputs
+    def build_IR(self, expr, args, kwargs, context):
+        args = [Expr(arg, context).ir_node for arg in expr.args]
+        args_tuple_t = TupleType([x.typ for x in args])
+        args_as_tuple = IRnode.from_list(["multi"] + [x for x in args], typ=args_tuple_t)
+        args_abi_t = args_tuple_t.abi_type
+        sig = "log" + "(" + ",".join([arg.typ.abi_type.selector_name() for arg in args]) + ")"
+        method_id = abi_method_id(sig)
+
+        buflen = 32 + args_abi_t.size_bound()
+
+        # 32 bytes extra space for the method id
+        buf = context.new_internal_variable(get_type_for_exact_size(buflen))
+
+        ret = ["seq"]
+        ret.append(["mstore", buf, method_id])
+        encode = abi_encode(buf + 32, args_as_tuple, context, buflen, returns_len=True)
+
+        CONSOLE_ADDRESS = 0x000000000000000000636F6E736F6C652E6C6F67
+        ret.append(["staticcall", "gas", CONSOLE_ADDRESS, buf + 28, encode, 0, 0])
+
+        return IRnode.from_list(ret, annotation="print:" + sig)
+
+
 class ABIEncode(_SimpleBuiltinFunction):
     _id = "_abi_encode"  # TODO prettier to rename this to abi.encode
     # signature: *, ensure_tuple=<literal_bool> -> Bytes[<calculated len>]
@@ -2046,6 +2080,7 @@ DISPATCH_TABLE = {
 
 STMT_DISPATCH_TABLE = {
     "send": Send(),
+    "print": Print(),
     "selfdestruct": SelfDestruct(),
     "raw_call": RawCall(),
     "raw_log": RawLog(),
