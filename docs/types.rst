@@ -50,7 +50,7 @@ the behavior of Python.
 
 .. index:: ! intN, ! int, ! signed integer
 
-Signed Integer
+Signed Integer (N bit)
 ------------------------
 
 **Keyword:** ``intN`` (e.g., ``int128``)
@@ -60,7 +60,7 @@ A signed integer which can store positive and negative integers. ``N`` must be a
 Values
 ******
 
-Signed integer values between -2\ :sup:`N` and (2\ :sup:`N` - 1), inclusive.
+Signed integer values between -2\ :sup:`N-1` and (2\ :sup:`N-1` - 1), inclusive.
 
 Integer literals cannot have a decimal point even if the decimal value is zero. For example, ``2.0`` cannot be interpreted as an integer.
 
@@ -110,7 +110,7 @@ Operator       Description
 Unsigned Integer (N bit)
 --------------------------
 
-**Keyword:** ``uint8``
+**Keyword:** ``uintN`` (e.g., ``uint8``)
 
 A unsigned integer which can store positive integers. ``N`` must be a multiple of 8 between 8 and 256 (inclusive).
 
@@ -495,7 +495,7 @@ Type Conversions
 
 All type conversions in Vyper must be made explicitly using the built-in ``convert(a: atype, btype)`` function. Type conversions in Vyper are designed to be safe and intuitive. All type conversions will check that the input is in bounds for the output type. The general principles are:
 
-* Except for conversions involving decimals and bools, the input is bit-for-bit preserved
+* Except for conversions involving decimals and bools, the input is bit-for-bit preserved.
 * Conversions to bool map all nonzero inputs to 1.
 * When converting from decimals to integers, the input is truncated towards zero.
 * ``address`` types are treated as ``uint160``, except conversions with signed integers and decimals are not allowed.

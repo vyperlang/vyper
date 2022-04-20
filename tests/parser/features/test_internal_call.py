@@ -449,6 +449,15 @@ def bar(a: int128) -> int128:
 def foo() -> int128:
     return self.bar(1, 2)
     """,
+    """
+@internal
+def _foo(x: uint256, y: uint256 = 1):
+    pass
+
+@external
+def foo(x: uint256, y: uint256):
+    self._foo(x, y=y)
+    """,
 ]
 
 
