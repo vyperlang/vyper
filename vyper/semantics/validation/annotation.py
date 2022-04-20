@@ -142,8 +142,14 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
                 self.visit(arg, arg_type)
         elif node.func.id not in ("empty", "range"):
             # builtin functions
+            arg_type = None
+            if node.func.id in ("min", "max") and any(isinstance(a, vy_ast.Int) for a in node.args):
+                arg_type = get_common_types(*node.args)
+                if len(arg_type) > 0:
+                    arg_type = arg_type.pop()
+
             for arg in node.args:
-                self.visit(arg, None)
+                self.visit(arg, arg_type)
             for kwarg in node.keywords:
                 self.visit(kwarg.value, None)
 
@@ -175,6 +181,9 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
 
     def visit_Index(self, node, type_):
         self.visit(node.value, type_)
+
+    def visit_Int(self, node, type_):
+        node._metadata["type"] = type_
 
     def visit_List(self, node, type_):
         if type_ is None:
