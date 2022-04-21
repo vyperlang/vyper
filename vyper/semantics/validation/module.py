@@ -25,6 +25,7 @@ from vyper.semantics.types.function import ContractFunction
 from vyper.semantics.types.user.event import Event
 from vyper.semantics.types.utils import check_constant, get_type_from_annotation
 from vyper.semantics.validation.base import VyperNodeVisitorBase
+from vyper.semantics.validation.levenshtein_utils import get_levenshtein_error_suggestions
 from vyper.semantics.validation.utils import validate_expected_type, validate_unique_method_ids
 from vyper.typing import InterfaceDict
 
@@ -305,7 +306,8 @@ def _add_import(
     if module == "vyper.interfaces":
         interface_codes = _get_builtin_interfaces()
     if name not in interface_codes:
-        raise UndeclaredDefinition(f"Unknown interface: {name}", node)
+        suggestions_str = get_levenshtein_error_suggestions(name, _get_builtin_interfaces(), 1.0)
+        raise UndeclaredDefinition(f"Unknown interface: {name}. {suggestions_str}", node)
 
     if interface_codes[name]["type"] == "vyper":
         interface_ast = vy_ast.parse_to_ast(interface_codes[name]["code"], contract_name=name)

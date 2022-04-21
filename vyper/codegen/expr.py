@@ -29,6 +29,7 @@ from vyper.codegen.types import (
     StructType,
     TupleType,
     is_base_type,
+    is_bytes_m_type,
     is_numeric_type,
 )
 from vyper.codegen.types.convert import new_type_to_old_type
@@ -39,8 +40,15 @@ from vyper.exceptions import (
     StructureException,
     TypeCheckFailure,
     TypeMismatch,
+    UnimplementedException,
 )
-from vyper.utils import DECIMAL_DIVISOR, SizeLimits, bytes_to_int, checksum_encode, string_to_bytes
+from vyper.utils import (
+    DECIMAL_DIVISOR,
+    SizeLimits,
+    bytes_to_int,
+    is_checksum_encoded,
+    string_to_bytes,
+)
 
 ENVIRONMENT_VARIABLES = {
     "block",
@@ -203,23 +211,32 @@ class Expr:
     def parse_Hex(self):
         hexstr = self.expr.value
 
-        if len(hexstr) == 42:
+        t = self.expr._metadata.get("type")
+
+        n_bytes = (len(hexstr) - 2) // 2  # e.g. "0x1234" is 2 bytes
+
+        if t is not None:
+            inferred_type = new_type_to_old_type(self.expr._metadata["type"])
+        # This branch is a band-aid to deal with bytes20 vs address literals
+        # TODO handle this properly in the type checker
+        elif len(hexstr) == 42:
+            inferred_type = BaseType("address", is_literal=True)
+        else:
+            inferred_type = BaseType(f"bytes{n_bytes}", is_literal=True)
+
+        if is_base_type(inferred_type, "address"):
             # sanity check typechecker did its job
-            assert checksum_encode(hexstr) == hexstr
+            assert len(hexstr) == 42 and is_checksum_encoded(hexstr)
             typ = BaseType("address")
-            # TODO allow non-checksum encoded bytes20
             return IRnode.from_list(int(self.expr.value, 16), typ=typ)
 
-        else:
-            n_bytes = (len(hexstr) - 2) // 2  # e.g. "0x1234" is 2 bytes
-            # TODO: typ = new_type_to_old_type(self.expr._metadata["type"])
-            #       assert n_bytes == typ._bytes_info.m
+        elif is_bytes_m_type(inferred_type):
+            assert n_bytes == inferred_type._bytes_info.m
 
             # bytes_m types are left padded with zeros
             val = int(hexstr, 16) << 8 * (32 - n_bytes)
 
             typ = BaseType(f"bytes{n_bytes}", is_literal=True)
-            typ.is_literal = True
             return IRnode.from_list(val, typ=typ)
 
     # String literals
@@ -669,7 +686,8 @@ class Expr:
                 return
 
         if arith is None:
-            return
+            op_str = self.expr.op._pretty
+            raise UnimplementedException(f"Not implemented: {ltyp} {op_str} {rtyp}", self.expr.op)
 
         arith = IRnode.from_list(arith, typ=new_typ)
 
@@ -876,8 +894,10 @@ class Expr:
                 return IRnode.from_list(["iszero", operand], typ="bool")
         elif isinstance(self.expr.op, vy_ast.USub) and is_numeric_type(operand.typ):
             assert operand.typ._num_info.is_signed
-            # Clamp on minimum integer value as we cannot negate that value
-            # (all other integer values are fine)
+            # Clamp on minimum signed integer value as we cannot negate that
+            # value (all other integer values are fine)
+            # CMC 2022-04-06 maybe this could be branchless with:
+            # max(val, 0 - val)
             min_int_val, _ = operand.typ._num_info.bounds
             return IRnode.from_list(
                 ["sub", 0, ["clampgt", operand, min_int_val]],

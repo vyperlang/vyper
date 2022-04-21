@@ -48,19 +48,19 @@ Operator              Description
 Short-circuiting of boolean operators (``or`` and ``and``) is consistent with
 the behavior of Python.
 
-.. index:: ! int256, ! int, ! integer
+.. index:: ! intN, ! int, ! signed integer
 
-Signed Integer (256 bit)
+Signed Integer (N bit)
 ------------------------
 
-**Keyword:** ``int256``
+**Keyword:** ``intN`` (e.g., ``int128``)
 
-A signed integer (256 bit) is a type to store positive and negative integers.
+A signed integer which can store positive and negative integers. ``N`` must be a multiple of 8 between 8 and 256 (inclusive).
 
 Values
 ******
 
-Signed integer values between -2\ :sup:`255` and (2\ :sup:`255` - 1), inclusive.
+Signed integer values between -2\ :sup:`N-1` and (2\ :sup:`N-1` - 1), inclusive.
 
 Integer literals cannot have a decimal point even if the decimal value is zero. For example, ``2.0`` cannot be interpreted as an integer.
 
@@ -83,7 +83,7 @@ Operator    Description
 ``x > y``   Greater than
 ==========  ================
 
-``x`` and ``y`` must be of the type ``int256``.
+``x`` and ``y`` must both be of the same type.
 
 Arithmetic Operators
 ^^^^^^^^^^^^^^^^^^^^
@@ -100,80 +100,29 @@ Operator       Description
 ``x % y``      Modulo
 =============  ======================
 
-``x`` and ``y`` must be of the type ``int256``.
+``x`` and ``y`` must both be of the same type.
 
-.. index:: ! int128
+.. note::
+    Arithmetic is currently only available for ``int128`` and ``int256`` types.
 
-Signed Integer (128 bit)
-------------------------
+.. index:: ! uint, ! uintN, ! unsigned integer
 
-**Keyword:** ``int128``
-
-A signed integer (128 bit) is a type to store positive and negative integers.
-
-Values
-******
-
-Signed integer values between -2\ :sup:`127` and (2\ :sup:`127` - 1), inclusive.
-
-Integer literals cannot have a decimal point even if the decimal value is zero. For example, ``2.0`` cannot be interpreted as an integer.
-
-Operators
-*********
-
-Comparisons
-^^^^^^^^^^^
-
-Comparisons return a boolean value.
-
-==========  ================
-Operator    Description
-==========  ================
-``x < y``   Less than
-``x <= y``  Less than or equal to
-``x == y``  Equals
-``x != y``  Does not equal
-``x >= y``  Greater than or equal to
-``x > y``   Greater than
-==========  ================
-
-``x`` and ``y`` must be of the type ``int128``.
-
-Arithmetic Operators
-^^^^^^^^^^^^^^^^^^^^
-
-=============  ======================
-Operator       Description
-=============  ======================
-``x + y``      Addition
-``x - y``      Subtraction
-``-x``         Unary minus/Negation
-``x * y``      Multiplication
-``x / y``      Division
-``x**y``       Exponentiation
-``x % y``      Modulo
-=============  ======================
-
-``x`` and ``y`` must be of the type ``int128``.
-
-.. index:: ! unit, ! uint8
-
-Unsigned Integer (8 bit)
+Unsigned Integer (N bit)
 --------------------------
 
-**Keyword:** ``uint8``
+**Keyword:** ``uintN`` (e.g., ``uint8``)
 
-An unsigned integer (8 bit) is a type to store non-negative integers.
+A unsigned integer which can store positive integers. ``N`` must be a multiple of 8 between 8 and 256 (inclusive).
 
 Values
 ******
 
-Integer values between 0 and (2\ :sup:`8`-1).
+Integer values between 0 and (2\ :sup:`N`-1).
 
 Integer literals cannot have a decimal point even if the decimal value is zero. For example, ``2.0`` cannot be interpreted as an integer.
 
 .. note::
-    Integer literals are interpreted as ``int128`` by default. In cases where ``uint8`` is more appropriate, such as assignment, the literal might be interpreted as ``uint8``. Example: ``_variable: uint8 = _literal``. In order to explicitly cast a literal to a ``uint8`` use ``convert(_literal, uint8)``.
+    Integer literals are interpreted as ``int256`` by default. In cases where ``uint8`` is more appropriate, such as assignment, the literal might be interpreted as ``uint8``. Example: ``_variable: uint8 = _literal``. In order to explicitly cast a literal to a ``uint8`` use ``convert(_literal, uint8)``.
 
 Operators
 *********
@@ -194,7 +143,7 @@ Operator    Description
 ``x > y``   Greater than
 ==========  ================
 
-``x`` and ``y`` must be of the type ``uint8``.
+``x`` and ``y`` must be of the same type.
 
 Arithmetic Operators
 ^^^^^^^^^^^^^^^^^^^^
@@ -210,63 +159,10 @@ Operator                     Description
 ``x % y``                    Modulo
 ===========================  ======================
 
-``x`` and ``y`` must be of the type ``uint8``.
-
-.. index:: ! unit, ! uint256
-
-Unsigned Integer (256 bit)
---------------------------
-
-**Keyword:** ``uint256``
-
-An unsigned integer (256 bit) is a type to store non-negative integers.
-
-Values
-******
-
-Integer values between 0 and (2\ :sup:`256`-1).
-
-Integer literals cannot have a decimal point even if the decimal value is zero. For example, ``2.0`` cannot be interpreted as an integer.
+``x`` and ``y`` must be of the same type.
 
 .. note::
-    Integer literals are interpreted as ``int128`` by default. In cases where ``uint256`` is more appropriate, such as assignment, the literal might be interpreted as ``uint256``. Example: ``_variable: uint256 = _literal``. In order to explicitly cast a literal to a ``uint256`` use ``convert(_literal, uint256)``.
-
-Operators
-*********
-
-Comparisons
-^^^^^^^^^^^
-
-Comparisons return a boolean value.
-
-==========  ================
-Operator    Description
-==========  ================
-``x < y``   Less than
-``x <= y``  Less than or equal to
-``x == y``  Equals
-``x != y``  Does not equal
-``x >= y``  Greater than or equal to
-``x > y``   Greater than
-==========  ================
-
-``x`` and ``y`` must be of the type ``uint256``.
-
-Arithmetic Operators
-^^^^^^^^^^^^^^^^^^^^
-
-===========================  ======================
-Operator                     Description
-===========================  ======================
-``x + y``                    Addition
-``x - y``                    Subtraction
-``x * y``                    Multiplication
-``x / y``                    Division
-``x**y``                     Exponentiation
-``x % y``                    Modulo
-===========================  ======================
-
-``x`` and ``y`` must be of the type ``uint256``.
+    Arithmetic is currently only available for ``uint8`` and ``uint256`` types.
 
 Decimals
 --------
@@ -281,6 +177,8 @@ Values
 A value with a precision of 10 decimal places between -18707220957835557353007165858768422651595.9365500928 (-2\ :sup:`167` / 10\ :sup:`10`) and 18707220957835557353007165858768422651595.9365500927 ((2\ :sup:`167` - 1) / 10\ :sup:`10`).
 
 In order for a literal to be interpreted as ``decimal`` it must include a decimal point.
+
+The ABI type (for computing method identifiers) of ``decimal`` is ``fixed168x10``.
 
 Operators
 *********
@@ -358,11 +256,11 @@ Syntax as follows: ``_address.<member>``, where ``_address`` is of the type ``ad
 
     ``_address.code`` requires the usage of :func:`slice <slice>` to explicitly extract a section of contract bytecode. If the extracted section exceeds the bounds of bytecode, this will throw. You can check the size of ``_address.code`` using ``_address.codesize``.
 
-32-bit-wide Byte Array
+M-byte-wide Fixed Size Byte Array
 ----------------------
 
-**Keyword:** ``bytes32``
-This is a 32-bit-wide byte array that is otherwise similar to byte arrays.
+**Keyword:** ``bytesM``
+This is an M-byte-wide byte array that is otherwise similar to dynamically sized byte arrays. On an ABI level, it is annotated as bytesM (e.g., bytes32).
 
 **Example:**
 ::
@@ -371,6 +269,8 @@ This is a 32-bit-wide byte array that is otherwise similar to byte arrays.
     hash: bytes32
     # Assignment
     self.hash = _hash
+
+    some_method_id: bytes4 = 0x01abcdefab
 
 Operators
 *********
@@ -392,7 +292,7 @@ Byte Arrays
 
 **Keyword:** ``Bytes``
 
-A byte array with a fixed size.
+A byte array with a max size.
 
 The syntax being ``Bytes[maxLen]``, where ``maxLen`` is an integer which denotes the maximum number of bytes.
 On the ABI level the Fixed-size bytes array is annotated as ``bytes``.
@@ -593,75 +493,16 @@ Type        Default Value
 Type Conversions
 ================
 
-All type conversions in Vyper must be made explicitly using the built-in ``convert(a: atype, btype)`` function. Currently, the following type conversions are supported:
+All type conversions in Vyper must be made explicitly using the built-in ``convert(a: atype, btype)`` function. Type conversions in Vyper are designed to be safe and intuitive. All type conversions will check that the input is in bounds for the output type. The general principles are:
 
-================ ================== ==================================== ==================================
-In (``atype``)   Out (``btype``)    Allowable Values                     Additional Notes
-================ ================== ==================================== ==================================
-``address``      ``bool``           All                                  Returns ``a != ZERO_ADDRESS``
-``address``      ``decimal``        All                                  | Extract the rightmost
-                                                                         | sixteen bytes only
-``address``      ``int128``         All                                  | Extract the rightmost
-                                                                         | sixteen bytes only
-``address``      ``uint256``        All
-``address``      ``bytes32``        All
-``bool``         ``decimal``        All                                  ``0.0`` or ``1.0``
-``bool``         ``uint8``          All                                  ``0`` or ``1``
-``bool``         ``int128``         All                                  ``0`` or ``1``
-``bool``         ``int256``         All                                  ``0`` or ``1``
-``bool``         ``uint256``        All                                  ``0`` or ``1``
-``bool``         ``bytes32``        All                                  ``0x00`` or ``0x01``
-``decimal``      ``bool``           All                                  Returns ``a != 0.0``
-``decimal``      ``uint8``          ``MAX_UINT8 >= a >= 0.0``            | Cannot convert negative values.
-                                                                         | Value is truncated.
-``decimal``      ``int128``         All                                  Value is truncated
-``decimal``      ``int256``         All                                  Value is truncated
-``decimal``      ``uint256``        ``a >= 0.0``                         Cannot convert negative values
-``decimal``      ``bytes32``        All
-``int128``       ``bool``           All                                  Returns ``a != 0``
-``int128``       ``decimal``        All
-``int128``       ``uint8``          ``MAX_UINT8 >= a >= 0.0``            Cannot convert negative values
-``int128``       ``int256``         All
-``int128``       ``uint256``        ``a >= 0``                           Cannot convert negative values
-``int128``       ``bytes32``        All
-``uint8``        ``bool``           All                                  Returns ``a != 0``
-``uint8``        ``decimal``        All
-``uint8``        ``int128``         All
-``uint8``        ``int256``         All
-``uint8``        ``uint256``        All
-``uint8``        ``bytes32``        All
-``int256``       ``bool``           All                                  Returns ``a != 0``
-``int256``       ``decimal``        ``MAX_INT128 >= a >= MIN_INT128``
-``int256``       ``uint8``          ``MAX_UINT8 >= a >= 0``              Cannot convert negative values
-``int256``       ``int128``         ``MAX_INT128 >= a >= MIN_INT128``
-``int256``       ``uint256``        ``a >= 0``                           Cannot convert negative values
-``int256``       ``bytes32``        All
-``uint256``      ``address``        ``ADDRSIZE - 1 >= a >= 0``
-``uint256``      ``bool``           All                                  Returns ``a != 0``
-``uint256``      ``decimal``        ``a <= MAX_DECIMAL``
-``uint256``      ``uint8``          ``a <= MAX_UINT8``
-``uint256``      ``int128``         ``a <= MAX_INT128``
-``uint256``      ``int256``         ``a <= MAX_INT256``
-``uint256``      ``bytes32``        All
-``bytes32``      ``address``        ``2**ADDRSIZE - 1 >= a >= 0``
-``bytes32``      ``bool``           All                                  ``True`` if ``a`` is not empty
-``bytes32``      ``decimal``        All
-``bytes32``      ``uint8``          ``a <= MAX_UINT8``
-``bytes32``      ``int128``         ``MAX_INT128 >= a >= MIN_INT128``
-``bytes32``      ``int256``         All
-``bytes32``      ``uint256``        All
-``Bytes[N]``     ``bool``           ``N <= 32``                          ``True`` if ``a`` is not empty
-``Bytes[N]``     ``decimal``        | ``N <= 32``
-                                    | ``MAX_INT128 >= a >= MIN_INT128``
-``Bytes[N]``     ``uint8``          | ``N <= 32``
-                                    | ``a <= MAX_UINT8``
-``Bytes[N]``     ``int128``         | ``N <= 32``
-                                    | ``MAX_INT128 >= a >= MIN_INT128``
-``Bytes[N]``     ``int256``         All
-``Bytes[N]``     ``uint256``        ``N <= 32``
-``Bytes[N]``     ``bytes32``        ``N <= 32``
-``Bytes[N]``     ``String[M]``      ``N <= M``
-``String[N]``    ``int128``         ``N <= 16``
-``String[N]``    ``int256``         ``N <= 32``
-``String[N]``    ``Bytes[M]``       ``N <= M``
-================ ================== ==================================== ==================================
+* Except for conversions involving decimals and bools, the input is bit-for-bit preserved.
+* Conversions to bool map all nonzero inputs to 1.
+* When converting from decimals to integers, the input is truncated towards zero.
+* ``address`` types are treated as ``uint160``, except conversions with signed integers and decimals are not allowed.
+* Converting between right-padded (``bytes``, ``Bytes``, ``String``) and left-padded types, results in a rotation to convert the padding. For instance, converting from ``bytes20`` to ``address`` would result in rotating the input by 12 bytes to the right.
+* Converting between signed and unsigned integers reverts if the input is negative.
+* Narrowing conversions (e.g., ``int256 -> int128``) check that the input is in bounds for the output type.
+* Converting between bytes and int types results in sign-extension if the output type is signed. For instance, converting ``0xff`` (``bytes1``) to ``int8`` returns ``-1``.
+* Converting between bytes and int types which have different sizes follows the rule of going through the closest integer type, first. For instance, ``bytes1 -> int16`` is like ``bytes1 -> int8 -> int16`` (signextend, then widen). ``uint8 -> bytes20`` is like ``uint8 -> uint160 -> bytes20`` (rotate left 12 bytes).
+
+A small Python reference implementation is maintained as part of Vyper's test suite, it can be found `here <https://github.com/vyperlang/vyper/blob/c4c6afd07801a0cc0038cdd4007cc43860c54193/tests/parser/functions/test_convert.py#L318>`_. The motivation and more detailed discussion of the rules can be found `here <https://github.com/vyperlang/vyper/issues/2507>`_.

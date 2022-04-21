@@ -15,7 +15,7 @@ from vyper.exceptions import (
     UnfoldableNode,
     ZeroDivisionException,
 )
-from vyper.utils import MAX_DECIMAL_PLACES, SizeLimits, annotate_source_code, checksum_encode
+from vyper.utils import MAX_DECIMAL_PLACES, SizeLimits, annotate_source_code
 
 NODE_BASE_ATTRIBUTES = (
     "_children",
@@ -752,9 +752,9 @@ class Decimal(Num):
     def validate(self):
         if self.value.as_tuple().exponent < -MAX_DECIMAL_PLACES:
             raise InvalidLiteral("Vyper supports a maximum of ten decimal points", self)
-        if self.value < SizeLimits.MIN_INT128:
+        if self.value < SizeLimits.MIN_AST_DECIMAL:
             raise OverflowException("Value is below lower bound for decimal types", self)
-        if self.value > SizeLimits.MAX_INT128:
+        if self.value > SizeLimits.MAX_AST_DECIMAL:
             raise OverflowException("Value exceeds upper bound for decimal types", self)
 
 
@@ -772,14 +772,10 @@ class Hex(Constant):
     _translated_fields = {"n": "value"}
 
     def validate(self):
+        if "_" in self.value:
+            raise InvalidLiteral("Underscores not allowed in hex literals", self)
         if len(self.value) % 2:
             raise InvalidLiteral("Hex notation requires an even number of digits", self)
-        if len(self.value) == 42 and checksum_encode(self.value) != self.value:
-            raise InvalidLiteral(
-                "Address checksum mismatch. If you are sure this is the right "
-                f"address, the correct checksummed form is: {checksum_encode(self.value)}",
-                self,
-            )
 
 
 class Str(Constant):
@@ -914,18 +910,21 @@ class BinOp(VyperNode):
 class Add(VyperNode):
     __slots__ = ()
     _description = "addition"
+    _pretty = "+"
     _op = operator.add
 
 
 class Sub(VyperNode):
     __slots__ = ()
     _description = "subtraction"
+    _pretty = "-"
     _op = operator.sub
 
 
 class Mult(VyperNode):
     __slots__ = ()
     _description = "multiplication"
+    _pretty = "*"
 
     def _op(self, left, right):
         assert type(left) is type(right)
@@ -942,6 +941,7 @@ class Mult(VyperNode):
 class Div(VyperNode):
     __slots__ = ()
     _description = "division"
+    _pretty = "/"
 
     def _op(self, left, right):
         # evaluate the operation using true division or floor division
@@ -968,6 +968,7 @@ class Div(VyperNode):
 class Mod(VyperNode):
     __slots__ = ()
     _description = "modulus"
+    _pretty = "%"
 
     def _op(self, left, right):
         if not right:
@@ -982,6 +983,7 @@ class Mod(VyperNode):
 class Pow(VyperNode):
     __slots__ = ()
     _description = "exponentiation"
+    _pretty = "**"
 
     def _op(self, left, right):
         if isinstance(left, decimal.Decimal):
