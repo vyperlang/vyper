@@ -123,6 +123,9 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
         for value in node.values:
             self.visit(value)
 
+    def visit_Bytes(self, node, type_):
+        node._metadata["type"] = type_
+
     def visit_Call(self, node, type_):
         call_type = get_exact_type_from_node(node.func)
         node_type = type_ or call_type.fetch_call_return(node)
@@ -142,24 +145,8 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
                 self.visit(arg, arg_type)
         elif node.func.id not in ("empty", "range"):
             # builtin functions
-            arg_type = None
-            if (
-                node.func.id
-                in (
-                    "min",
-                    "max",
-                    "unsafe_add",
-                    "unsafe_sub",
-                    "unsafe_mul",
-                    "unsafe_div",
-                )
-                and any(isinstance(a, vy_ast.Int) for a in node.args)
-            ):
-                arg_type = get_common_types(*node.args)
-                if len(arg_type) > 0:
-                    arg_type = arg_type.pop()
-
-            for arg in node.args:
+            arg_types = call_type.infer_arg_types(node)
+            for arg, arg_type in zip(node.args, arg_types):
                 self.visit(arg, arg_type)
             for kwarg in node.keywords:
                 self.visit(kwarg.value, None)
@@ -188,6 +175,9 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
         node._metadata["type"] = type_
 
     def visit_Dict(self, node, type_):
+        node._metadata["type"] = type_
+
+    def visit_Hex(self, node, type_):
         node._metadata["type"] = type_
 
     def visit_Index(self, node, type_):

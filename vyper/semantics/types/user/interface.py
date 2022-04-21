@@ -77,6 +77,9 @@ class InterfacePrimitive:
 
         return InterfaceDefinition(self._id, self.members)
 
+    def infer_arg_types(self, node):
+        return [AddressDefinition()]
+
     def validate_implements(self, node: vy_ast.AnnAssign) -> None:
         namespace = get_namespace()
         # check for missing functions

@@ -107,6 +107,9 @@ class _SimpleBuiltinFunction:
         if self._return_type:
             return self._return_type
 
+    def infer_arg_types(self, node):
+        return [i[1] for i in self._inputs]
+
 
 class Floor(_SimpleBuiltinFunction):
 
@@ -168,9 +171,12 @@ class Convert:
 
     _id = "convert"
 
+    def _get_target_type(self, node):
+        return get_type_from_annotation(node.args[1], DataLocation.MEMORY)
+
     def fetch_call_return(self, node):
         validate_call_args(node, 2)
-        target_type = get_type_from_annotation(node.args[1], DataLocation.MEMORY)
+        target_type = self._get_target_type(node)
         validate_expected_type(node.args[0], ValueTypeDefinition())
 
         # block conversions between same type
@@ -184,6 +190,14 @@ class Convert:
 
         # note: more type conversion validation happens in convert.py
         return target_type
+
+    def infer_arg_types(self, node):
+        target_type = self._get_target_type(node)
+        value_types = get_possible_types_from_node(node.args[0])
+        if len(value_types) == 0:
+            raise StructureException("Ambiguous type", node)
+        value_type = value_types.pop()
+        return [value_type, target_type]
 
     def build_IR(self, expr, context):
         return convert(expr, context)
@@ -248,12 +262,15 @@ class Slice:
     _inputs = [("b", ("Bytes", "bytes32", "String")), ("start", "uint256"), ("length", "uint256")]
     _return_type = None
 
+    def _get_slice_type(self, node):
+        return get_possible_types_from_node(node.args[0]).pop()
+
     def fetch_call_return(self, node):
         validate_call_args(node, 3)
 
         validate_expected_type(node.args[0], (BytesAbstractType(), StringPrimitive()))
 
-        arg_type = get_possible_types_from_node(node.args[0]).pop()
+        arg_type = self._get_slice_type(node)
 
         try:
             validate_expected_type(node.args[0], StringPrimitive())
@@ -299,6 +316,10 @@ class Slice:
             return_type.set_min_length(arg_type.length)
 
         return return_type
+
+    def infer_arg_types(self, node):
+        slice_type = self._get_slice_type(node)
+        return [slice_type, Uint256Definition(), Uint256Definition()]
 
     @validate_inputs
     def build_IR(self, expr, args, kwargs, context):
@@ -451,6 +472,12 @@ class Concat:
 
     _id = "concat"
 
+    def _get_concat_types(self, node):
+        res = []
+        for arg in node.args:
+            res.append(get_possible_types_from_node(arg).pop())
+        return res
+
     def fetch_call_return(self, node):
         if len(node.args) < 2:
             raise ArgumentException("Invalid argument count: expected at least 2", node)
@@ -473,8 +500,8 @@ class Concat:
             validate_expected_type(arg, type_)
 
         length = 0
-        for arg in node.args:
-            length += get_possible_types_from_node(arg).pop().length
+        for arg_type in self._get_concat_types(node):
+            length += arg_type.length
 
         if isinstance(type_, BytesAbstractType):
             return_type = BytesArrayDefinition()
@@ -482,6 +509,9 @@ class Concat:
             return_type = StringDefinition()
         return_type.set_length(length)
         return return_type
+
+    def infer_arg_types(self, node):
+        return self._get_concat_types(node)
 
     def build_IR(self, expr, context):
         args = [Expr(arg, context).ir_node for arg in expr.args]
@@ -867,6 +897,14 @@ class Extract32(_SimpleBuiltinFunction):
 
         return return_type
 
+    def infer_arg_types(self, node):
+        bytes_type = get_possible_types_from_node(node.args[0]).pop()
+        possible_start_types = get_possible_types_from_node(node.args[1])
+        start_type = [
+            s for s in possible_start_types if isinstance(s, SignedIntegerAbstractType)
+        ].pop()
+        return [bytes_type, start_type]
+
     @validate_inputs
     def build_IR(self, expr, args, kwargs, context):
         sub, index = args
@@ -1003,6 +1041,10 @@ class AsWeiValue:
         validate_expected_type(node.args[0], NumericAbstractType())
         return self._return_type
 
+    def infer_arg_types(self, node):
+        value_type = get_possible_types_from_node(node.args[0]).pop()
+        return [value_type, None]
+
     @validate_inputs
     def build_IR(self, expr, args, kwargs, context):
         value, denom_name = args[0], args[1].decode()
@@ -1086,6 +1128,10 @@ class RawCall(_SimpleBuiltinFunction):
             if revert_on_failure:
                 return return_type
             return TupleDefinition([BoolDefinition(), return_type])
+
+    def infer_arg_types(self, node):
+        data_type = get_possible_types_from_node(node.args[1]).pop()
+        return [AddressDefinition(), data_type]
 
     @validate_inputs
     def build_IR(self, expr, args, kwargs, context):
@@ -1262,6 +1308,12 @@ class RawLog:
             )
         validate_expected_type(node.args[1], BytesAbstractType())
 
+    def infer_arg_types(self, node):
+        res = []
+        for arg in node.args:
+            res.append(get_possible_types_from_node(arg).pop())
+        return res
+
     @validate_inputs
     def build_IR(self, expr, args, kwargs, context):
         if not isinstance(args[0], vy_ast.List) or len(args[0].elements) > 4:
@@ -1405,6 +1457,11 @@ class Shift(_SimpleBuiltinFunction):
         else:
             value = (value << shift) % (2 ** 256)
         return vy_ast.Int.from_node(node, value=value)
+
+    def infer_arg_types(self, node):
+        shift_types = get_possible_types_from_node(node.args[1])
+        shift_type = [s for s in shift_types if isinstance(s, SignedIntegerAbstractType)].pop()
+        return [Uint256Definition(), shift_type]
 
     @validate_inputs
     def build_IR(self, expr, args, kwargs, context):
@@ -1653,9 +1710,7 @@ class _UnsafeMath:
     # TODO add unsafe math for `decimal`s
     _inputs = [("a", IntegerAbstractType()), ("b", IntegerAbstractType())]
 
-    def fetch_call_return(self, node):
-        validate_call_args(node, 2)
-
+    def _get_common_type(self, node):
         types_list = get_common_types(
             *node.args, filter_fn=lambda x: isinstance(x, IntegerAbstractType)
         )
@@ -1663,6 +1718,14 @@ class _UnsafeMath:
             raise TypeMismatch(f"unsafe_{self.op} called on dislike types", node)
 
         return types_list.pop()
+
+    def fetch_call_return(self, node):
+        validate_call_args(node, 2)
+        return self._get_common_type(node)
+
+    def infer_arg_types(self, node):
+        type_ = self._get_common_type(node)
+        return [type_, type_]
 
     @validate_inputs
     def build_IR(self, expr, args, kwargs, context):
@@ -1714,6 +1777,15 @@ class _MinMax:
 
     _inputs = [("a", NumericAbstractType()), ("b", NumericAbstractType())]
 
+    def _get_common_type(self, node):
+        types_list = get_common_types(
+            *node.args, filter_fn=lambda x: isinstance(x, NumericAbstractType)
+        )
+        if not types_list:
+            raise TypeMismatch
+
+        return types_list.pop()
+
     def evaluate(self, node):
         validate_call_args(node, 2)
         if not isinstance(node.args[0], type(node.args[1])):
@@ -1737,14 +1809,11 @@ class _MinMax:
 
     def fetch_call_return(self, node):
         validate_call_args(node, 2)
+        return self._get_common_type(node)
 
-        types_list = get_common_types(
-            *node.args, filter_fn=lambda x: isinstance(x, NumericAbstractType)
-        )
-        if not types_list:
-            raise TypeMismatch
-
-        return types_list.pop()
+    def infer_arg_types(self, node):
+        type_ = self._get_common_type(node)
+        return [type_, type_]
 
     @validate_inputs
     def build_IR(self, expr, args, kwargs, context):
@@ -1864,6 +1933,9 @@ class Empty:
         type_ = get_type_from_annotation(node.args[0], DataLocation.MEMORY)
         return type_
 
+    def infer_arg_types(self, node):
+        return [None]
+
     @validate_inputs
     def build_IR(self, expr, args, kwargs, context):
         output_type = context.parse_type(expr.args[0])
@@ -1956,6 +2028,12 @@ class ABIEncode(_SimpleBuiltinFunction):
         ret = BytesArrayDefinition()
         ret.set_length(maxlen)
         return ret
+
+    def infer_arg_types(self, node):
+        res = []
+        for arg in node.args:
+            res.append(get_exact_type_from_node(arg))
+        return res
 
     def build_IR(self, expr, context):
         method_id = self._method_id(expr)
