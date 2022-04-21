@@ -194,9 +194,6 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
         self.visit(node.value, type_)
 
     def visit_Int(self, node, type_):
-        if type_ is None:
-            possible_types = get_possible_types_from_node(node)
-            type_ = possible_types.pop()
         node._metadata["type"] = type_
 
     def visit_List(self, node, type_):
