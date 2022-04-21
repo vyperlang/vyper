@@ -71,6 +71,11 @@ def trace(n=5, out=sys.stderr):
     print("END TRACE", file=out)
 
 
+# print a warning
+def vyper_warn(msg, prefix="Warning: ", file_=sys.stderr):
+    print(f"{prefix}{msg}", file=file_)
+
+
 # converts a signature like Func(bool,uint256,address) to its 4 byte method ID
 # TODO replace manual calculations in codebase with this
 def abi_method_id(method_sig):
@@ -113,6 +118,10 @@ def bytes_to_int(bytez):
     for b in bytez:
         o = o * 256 + b
     return o
+
+
+def is_checksum_encoded(addr):
+    return addr == checksum_encode(addr)
 
 
 # Encodes an address using ethereum's checksum scheme

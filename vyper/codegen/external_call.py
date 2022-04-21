@@ -6,10 +6,12 @@ from vyper.codegen.core import (
     check_assign,
     check_external_call,
     dummy_node_for_type,
-    get_element_ptr,
+    make_setter,
+    needs_clamp,
 )
 from vyper.codegen.ir_node import Encoding, IRnode
 from vyper.codegen.types import InterfaceType, TupleType, get_type_for_exact_size
+from vyper.codegen.types.convert import new_type_to_old_type
 from vyper.exceptions import StateAccessViolation, TypeCheckFailure
 
 
@@ -59,22 +61,19 @@ def _pack_arguments(contract_sig, args, context):
     return buf, mstore_method_id + [encode_args], args_ofst, args_len
 
 
-def _returndata_encoding(contract_sig):
-    if contract_sig.is_from_json:
-        return Encoding.JSON_ABI
-    return Encoding.ABI
+def _unpack_returndata(buf, contract_sig, skip_contract_check, context, expr):
+    # expr.func._metadata["type"].return_type is more accurate
+    # than contract_sig.return_type in the case of JSON interfaces.
+    ast_return_t = expr.func._metadata["type"].return_type
 
-
-def _unpack_returndata(buf, contract_sig, skip_contract_check, context):
-    return_t = contract_sig.return_type
-    if return_t is None:
+    if ast_return_t is None:
         return ["pass"], 0, 0
 
+    # sanity check
+    return_t = new_type_to_old_type(ast_return_t)
+    check_assign(dummy_node_for_type(return_t), dummy_node_for_type(contract_sig.return_type))
+
     return_t = calculate_type_for_external_return(return_t)
-    # if the abi signature has a different type than
-    # the vyper type, we need to wrap and unwrap the type
-    # so that the ABI decoding works correctly
-    should_unwrap_abi_tuple = return_t != contract_sig.return_type
 
     abi_return_t = return_t.abi_type
 
@@ -88,25 +87,30 @@ def _unpack_returndata(buf, contract_sig, skip_contract_check, context):
     # revert when returndatasize is not in bounds
     ret = []
     # runtime: min_return_size <= returndatasize
-    # TODO move the -1 optimization to IR optimizer
     if not skip_contract_check:
-        ret += [["assert", ["gt", "returndatasize", min_return_size - 1]]]
+        ret += [["assert", ["ge", "returndatasize", min_return_size]]]
 
-    # add as the last IRnode a pointer to the return data structure
+    encoding = Encoding.ABI
 
-    # the return type has been wrapped by the calling contract;
-    # unwrap it so downstream code isn't confused.
-    # basically this expands to buf+32 if the return type has been wrapped
-    # in a tuple AND its ABI type is dynamic.
-    # in most cases, this simply will evaluate to ret.
-    # in the special case where the return type has been wrapped
-    # in a tuple AND its ABI type is dynamic, it expands to buf+32.
-    buf = IRnode(buf, typ=return_t, encoding=_returndata_encoding(contract_sig), location=MEMORY)
+    buf = IRnode.from_list(
+        buf,
+        typ=return_t,
+        location=MEMORY,
+        encoding=encoding,
+        annotation=f"{expr.node_source_code} returndata buffer",
+    )
 
-    if should_unwrap_abi_tuple:
-        buf = get_element_ptr(buf, 0, array_bounds_check=False)
+    assert isinstance(return_t, TupleType)
+    # unpack strictly
+    if needs_clamp(return_t, encoding):
+        buf2 = IRnode.from_list(
+            context.new_internal_variable(return_t), typ=return_t, location=MEMORY
+        )
 
-    ret += [buf]
+        ret.append(make_setter(buf2, buf))
+        ret.append(buf2)
+    else:
+        ret.append(buf)
 
     return ret, ret_ofst, ret_len
 
@@ -145,7 +149,7 @@ def _external_call_helper(
     buf, arg_packer, args_ofst, args_len = _pack_arguments(contract_sig, args_ir, context)
 
     ret_unpacker, ret_ofst, ret_len = _unpack_returndata(
-        buf, contract_sig, skip_contract_check, context
+        buf, contract_sig, skip_contract_check, context, expr
     )
 
     sub += arg_packer
@@ -169,15 +173,7 @@ def _external_call_helper(
     if contract_sig.return_type is not None:
         sub += ret_unpacker
 
-    ret = IRnode.from_list(
-        sub,
-        typ=contract_sig.return_type,
-        location=MEMORY,
-        # set the encoding to ABI here, downstream code will decode and add clampers.
-        encoding=_returndata_encoding(contract_sig),
-    )
-
-    return ret
+    return IRnode.from_list(sub, typ=contract_sig.return_type, location=MEMORY)
 
 
 def _get_special_kwargs(stmt_expr, context):

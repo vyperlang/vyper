@@ -338,4 +338,4 @@ def ceil32(x):
     return x if x % 32 == 0 else x + 32 - (x % 32)
 ```
 
-In IR, `(ceil32 x)` is equivalent to `(with x_ x (sub (add x_ 31) (mod (x_ 1) 32)))`
+In IR, `(ceil32 x)` is equivalent to `(and (add x 31) (not 31))`

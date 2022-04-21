@@ -32,7 +32,7 @@ def new_type_to_old_type(typ: new.BasePrimitive) -> old.NodeType:
     if isinstance(typ, new.DynamicArrayDefinition):
         return old.DArrayType(new_type_to_old_type(typ.value_type), typ.length)
     if isinstance(typ, new.TupleDefinition):
-        return old.TupleType(typ.value_type)
+        return old.TupleType([new_type_to_old_type(t) for t in typ.value_type])
     if isinstance(typ, new.StructDefinition):
         return old.StructType(
             {n: new_type_to_old_type(t) for (n, t) in typ.members.items()}, typ._id

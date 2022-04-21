@@ -17,9 +17,6 @@ def _deconstruct_complex_type(ir_node):
     ir_t = ir_node.typ
     assert isinstance(ir_t, (TupleLike, SArrayType))
 
-    if ir_node.value == "multi":  # is literal
-        return ir_node.args
-
     if isinstance(ir_t, TupleLike):
         ks = ir_t.tuple_keys()
     else:
@@ -155,7 +152,6 @@ def abi_encoding_matches_vyper(typ):
 # the abi_encode routine will push the output len onto the stack,
 # otherwise it will return 0 items to the stack.
 def abi_encode(dst, ir_node, context, bufsz, returns_len=False):
-
     dst = IRnode.from_list(dst, typ=ir_node.typ, location=MEMORY)
     abi_t = dst.typ.abi_type
     size_bound = abi_t.size_bound()

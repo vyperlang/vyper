@@ -137,9 +137,9 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
             for value, arg_type in zip(node.args[0].values, list(call_type.members.values())):
                 self.visit(value, arg_type)
         elif isinstance(call_type, MemberFunctionDefinition):
-            if node_type:
-                for arg in node.args:
-                    self.visit(arg, node_type.value_type)
+            assert len(node.args) == len(call_type.arg_types)
+            for arg, arg_type in zip(node.args, call_type.arg_types):
+                self.visit(arg, arg_type)
         elif node.func.id not in ("empty", "range"):
             # builtin functions
             for arg in node.args:
@@ -164,6 +164,10 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
             self.visit(node.right, type_)
 
     def visit_Constant(self, node, type_):
+        if type_ is None:
+            possible_types = get_possible_types_from_node(node)
+            if len(possible_types) == 1:
+                type_ = possible_types.pop()
         node._metadata["type"] = type_
 
     def visit_Dict(self, node, type_):
@@ -175,6 +179,8 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
     def visit_List(self, node, type_):
         if type_ is None:
             type_ = get_possible_types_from_node(node)
+            # CMC 2022-04-14 this seems sus. try to only annotate
+            # if get_possible_types only returns 1 type
             if len(type_) >= 1:
                 type_ = type_.pop()
         node._metadata["type"] = type_
