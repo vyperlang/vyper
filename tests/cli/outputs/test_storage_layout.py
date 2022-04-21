@@ -43,25 +43,23 @@ def public_foo3():
         output_formats=["layout"],
     )
 
-    assert out["layout"] == {
-        "nonreentrant.foo": {"type": "nonreentrant lock", "location": "storage", "slot": 0},
-        "nonreentrant.bar": {"type": "nonreentrant lock", "location": "storage", "slot": 1},
+    assert out["layout"]["storage_layout"] == {
+        "nonreentrant.foo": {"type": "nonreentrant lock", "slot": 0},
+        "nonreentrant.bar": {"type": "nonreentrant lock", "slot": 1},
         "foo": {
             "type": "HashMap[address, uint256]",
-            "location": "storage",
             "slot": 2,
         },
         "arr": {
             "type": "DynArray[uint256, 3]",
-            "location": "storage",
             "slot": 3,
         },
-        "baz": {"type": "Bytes[65]", "location": "storage", "slot": 7},
-        "bar": {"type": "uint256", "location": "storage", "slot": 11},
+        "baz": {"type": "Bytes[65]", "slot": 7},
+        "bar": {"type": "uint256", "slot": 11},
     }
 
 
-def test_immutables_layout():
+def test_storage_and_immutables_layout():
     code = """
 name: String[32]
 SYMBOL: immutable(String[32])
@@ -74,9 +72,11 @@ def __init__():
     """
 
     expected_layout = {
-        "DECIMALS": {"length": 32, "location": "code", "offset": 64, "type": "uint8"},
-        "SYMBOL": {"length": 64, "location": "code", "offset": 0, "type": "String[32]"},
-        "name": {"location": "storage", "slot": 0, "type": "String[32]"},
+        "code_layout": {
+            "DECIMALS": {"length": 32, "offset": 64, "type": "uint8"},
+            "SYMBOL": {"length": 64, "offset": 0, "type": "String[32]"},
+        },
+        "storage_layout": {"name": {"slot": 0, "type": "String[32]"}},
     }
 
     out = compile_code(code, output_formats=["layout"])
