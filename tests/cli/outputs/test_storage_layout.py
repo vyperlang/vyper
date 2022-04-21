@@ -21,6 +21,8 @@ def public_foo2():
 def _bar():
     pass
 
+arr: DynArray[uint256, 3]
+
 # mix it up a little
 baz: Bytes[65]
 bar: uint256
@@ -49,6 +51,11 @@ def public_foo3():
             "location": "storage",
             "slot": 2,
         },
-        "baz": {"type": "Bytes[65]", "location": "storage", "slot": 3},
-        "bar": {"type": "uint256", "location": "storage", "slot": 7},
+        "arr": {
+            "type": "DynArray[uint256, 3]",
+            "location": "storage",
+            "slot": 3,
+        },
+        "baz": {"type": "Bytes[65]", "location": "storage", "slot": 7},
+        "bar": {"type": "uint256", "location": "storage", "slot": 11},
     }
