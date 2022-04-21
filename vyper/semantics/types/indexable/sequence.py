@@ -162,7 +162,7 @@ class DynamicArrayDefinition(_SequenceDefinition, MemberTypeDefinition):
     # TODO rename me to memory_bytes_required
     @property
     def size_in_bytes(self):
-        return self.value_type.size_in_bytes * self.length
+        return 32 + self.value_type.size_in_bytes * self.length
 
     def validate_index_type(self, node):
         if isinstance(node, vy_ast.Int):
