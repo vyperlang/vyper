@@ -30,6 +30,16 @@ def test_array_value_types(build_node, type_str, location, length, size):
 @pytest.mark.parametrize("type_str", BASE_TYPES)
 @pytest.mark.parametrize("location", LOCATIONS)
 @pytest.mark.parametrize("length", range(1, 4))
+def test_dynamic_array_lengths(build_node, type_str, location, length):
+    node = build_node(f"DynArray[{type_str}, {length}]")
+    type_definition = get_type_from_annotation(node, location)
+
+    assert type_definition.size_in_bytes == 32 + length * 32
+
+
+@pytest.mark.parametrize("type_str", BASE_TYPES)
+@pytest.mark.parametrize("location", LOCATIONS)
+@pytest.mark.parametrize("length", range(1, 4))
 def test_base_types_as_arrays(build_node, type_str, location, length):
     node = build_node(f"{type_str}[{length}]")
     type_definition = get_type_from_annotation(node, location)
