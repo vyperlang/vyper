@@ -143,7 +143,18 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
         elif node.func.id not in ("empty", "range"):
             # builtin functions
             arg_type = None
-            if node.func.id in ("min", "max") and any(isinstance(a, vy_ast.Int) for a in node.args):
+            if (
+                node.func.id
+                in (
+                    "min",
+                    "max",
+                    "unsafe_add",
+                    "unsafe_sub",
+                    "unsafe_mul",
+                    "unsafe_div",
+                )
+                and any(isinstance(a, vy_ast.Int) for a in node.args)
+            ):
                 arg_type = get_common_types(*node.args)
                 if len(arg_type) > 0:
                     arg_type = arg_type.pop()
