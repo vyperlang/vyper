@@ -1723,10 +1723,13 @@ class _MinMax:
 
         left, right = (i.value for i in node.args)
         if isinstance(left, Decimal) and (
-            min(left, right) < -(2 ** 127) or max(left, right) >= 2 ** 127
+            min(left, right) < SizeLimits.MIN_AST_DECIMAL
+            or max(left, right) > SizeLimits.MAX_AST_DECIMAL
         ):
             raise InvalidType("Decimal value is outside of allowable range", node)
-        if isinstance(left, int) and (min(left, right) < 0 and max(left, right) >= 2 ** 127):
+        if isinstance(left, int) and (
+            min(left, right) < 0 and max(left, right) >= SizeLimits.MAX_INT256
+        ):
             raise TypeMismatch("Cannot perform action between dislike numeric types", node)
 
         value = self._eval_fn(left, right)
