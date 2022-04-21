@@ -331,7 +331,7 @@ class VyperNode:
     def __repr__(self):
         cls = type(self)
         class_repr = f"{cls.__module__}.{cls.__qualname__}"
-        return f"{class_repr}:\n{self.annotated_source}"
+        return f"{class_repr}:\n{self._annotated_source}"
 
     @property
     def _annotated_source(self):
