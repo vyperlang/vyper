@@ -21,7 +21,7 @@ def _parse_args(argv):
     parser.add_argument(
         "--version",
         action="version",
-        version=f"{vyper.__version__}",
+        version=f"{vyper.__version__}+commit{vyper.__commit__}",
     )
     parser.add_argument(
         "-f",

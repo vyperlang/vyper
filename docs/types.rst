@@ -50,7 +50,7 @@ the behavior of Python.
 
 .. index:: ! intN, ! int, ! signed integer
 
-Signed Integer
+Signed Integer (N bit)
 ------------------------
 
 **Keyword:** ``intN`` (e.g., ``int128``)
@@ -60,7 +60,7 @@ A signed integer which can store positive and negative integers. ``N`` must be a
 Values
 ******
 
-Signed integer values between -2\ :sup:`N` and (2\ :sup:`N` - 1), inclusive.
+Signed integer values between -2\ :sup:`N-1` and (2\ :sup:`N-1` - 1), inclusive.
 
 Integer literals cannot have a decimal point even if the decimal value is zero. For example, ``2.0`` cannot be interpreted as an integer.
 
@@ -102,12 +102,15 @@ Operator       Description
 
 ``x`` and ``y`` must both be of the same type.
 
+.. note::
+    Arithmetic is currently only available for ``int128`` and ``int256`` types.
+
 .. index:: ! uint, ! uintN, ! unsigned integer
 
 Unsigned Integer (N bit)
 --------------------------
 
-**Keyword:** ``uint8``
+**Keyword:** ``uintN`` (e.g., ``uint8``)
 
 A unsigned integer which can store positive integers. ``N`` must be a multiple of 8 between 8 and 256 (inclusive).
 
@@ -157,6 +160,9 @@ Operator                     Description
 ===========================  ======================
 
 ``x`` and ``y`` must be of the same type.
+
+.. note::
+    Arithmetic is currently only available for ``uint8`` and ``uint256`` types.
 
 Decimals
 --------
@@ -489,7 +495,7 @@ Type Conversions
 
 All type conversions in Vyper must be made explicitly using the built-in ``convert(a: atype, btype)`` function. Type conversions in Vyper are designed to be safe and intuitive. All type conversions will check that the input is in bounds for the output type. The general principles are:
 
-* Except for conversions involving decimals and bools, the input is bit-for-bit preserved
+* Except for conversions involving decimals and bools, the input is bit-for-bit preserved.
 * Conversions to bool map all nonzero inputs to 1.
 * When converting from decimals to integers, the input is truncated towards zero.
 * ``address`` types are treated as ``uint160``, except conversions with signed integers and decimals are not allowed.
@@ -499,4 +505,4 @@ All type conversions in Vyper must be made explicitly using the built-in ``conve
 * Converting between bytes and int types results in sign-extension if the output type is signed. For instance, converting ``0xff`` (``bytes1``) to ``int8`` returns ``-1``.
 * Converting between bytes and int types which have different sizes follows the rule of going through the closest integer type, first. For instance, ``bytes1 -> int16`` is like ``bytes1 -> int8 -> int16`` (signextend, then widen). ``uint8 -> bytes20`` is like ``uint8 -> uint160 -> bytes20`` (rotate left 12 bytes).
 
-A small Python reference implementation is maintained as part of vyper's test suite, it can be found `here <https://github.com/vyperlang/vyper/blob/c4c6afd07801a0cc0038cdd4007cc43860c54193/tests/parser/functions/test_convert.py#L318>`_. The motivation and more detailed discussion of the rules can be found `here <https://github.com/vyperlang/vyper/issues/2507>`_.
+A small Python reference implementation is maintained as part of Vyper's test suite, it can be found `here <https://github.com/vyperlang/vyper/blob/c4c6afd07801a0cc0038cdd4007cc43860c54193/tests/parser/functions/test_convert.py#L318>`_. The motivation and more detailed discussion of the rules can be found `here <https://github.com/vyperlang/vyper/issues/2507>`_.
