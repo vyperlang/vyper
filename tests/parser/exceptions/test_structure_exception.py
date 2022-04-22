@@ -98,6 +98,21 @@ def __init__():
     """
 n: HashMap[uint256, bool][3][3]
     """,
+    """
+m1: HashMap[uint8, uint8]
+m2: HashMap[uint8, uint8]
+
+@external
+def __init__():
+    self.m1 = self.m2
+    """,
+    """
+m1: HashMap[uint8, uint8]
+
+@external
+def __init__():
+    self.m1 = 234
+    """,
 ]
 
 
