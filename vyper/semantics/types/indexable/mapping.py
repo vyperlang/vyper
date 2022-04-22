@@ -40,6 +40,10 @@ class MappingPrimitive(BasePrimitive):
         is_public: bool = False,
         is_immutable: bool = False,
     ) -> MappingDefinition:
+        if isinstance(node, vy_ast.Subscript) and isinstance(
+            node.slice.value, (vy_ast.Int, vy_ast.Name)
+        ):
+            raise StructureException("HashMap arrays are not supported", node)
         if (
             not isinstance(node, vy_ast.Subscript)
             or not isinstance(node.slice, vy_ast.Index)
