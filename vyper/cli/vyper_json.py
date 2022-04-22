@@ -136,11 +136,18 @@ def exc_handler_to_dict(file_path: Union[str, None], exception: Exception, compo
 
 
 def _standardize_path(path_str: str) -> str:
-    pwd = Path(".").resolve()
     try:
-        path = Path(path_str).resolve().relative_to(pwd)
+        path = Path(path_str)
+
+        if path.is_absolute():
+            path = path.resolve()
+        else:
+            pwd = Path(".").resolve()
+            path = path.resolve().relative_to(pwd)
+
     except ValueError:
         raise JSONError(f"{path_str} - path exists outside base folder")
+
     return path.as_posix()
 
 
