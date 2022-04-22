@@ -193,10 +193,15 @@ class Convert:
 
     def infer_arg_types(self, node):
         target_type = self._get_target_type(node)
-        value_types = get_possible_types_from_node(node.args[0])
-        if len(value_types) == 0:
-            raise StructureException("Ambiguous type", node)
-        value_type = value_types.pop()
+        if isinstance(node.args[0], vy_ast.Int):
+            value_type = Uint256Definition() if node.args[0].value > 0 else Int256Definition()
+        else:
+            value_types = get_possible_types_from_node(node.args[0])
+            if len(value_types) == 0:
+                raise StructureException("Ambiguous type", node)
+            value_type = value_types.pop()
+        if target_type.compare_type(value_type):
+            raise InvalidType(f"Value and target type are both '{target_type}'", node)
         return [value_type, target_type]
 
     def build_IR(self, expr, context):
