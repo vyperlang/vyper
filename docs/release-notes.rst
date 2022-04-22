@@ -3,6 +3,19 @@
 Release Notes
 #############
 
+v0.3.3
+******
+
+Date released: 2022-04-22
+
+This is a bugfix release. It patches an off-by-one error in the storage allocation mechanism for dynamic arrays reported by @haltman-at in `#2820 <https://github.com/vyperlang/vyper/issues/2820>`_
+
+Other fixes and improvements:
+
+* Add a ``print`` built-in which allows printing debugging messages in hardhat. (`#2818 <https://github.com/vyperlang/vyper/pull/2818>`_)
+* Fix various error messages (`#2798 <https://github.com/vyperlang/vyper/pull/2798>`_, `#2805 <https://github.com/vyperlang/vyper/pull/2805>`_)
+
+
 v0.3.2
 ******
 
