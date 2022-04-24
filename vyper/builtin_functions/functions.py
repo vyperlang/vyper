@@ -30,6 +30,7 @@ from vyper.codegen.core import (
 from vyper.codegen.expr import Expr
 from vyper.codegen.keccak256_helper import keccak256_helper
 from vyper.codegen.types import (
+    INTEGER_TYPES,
     BaseType,
     ByteArrayLike,
     ByteArrayType,
@@ -174,6 +175,17 @@ class Convert:
     def _get_target_type(self, node):
         return get_type_from_annotation(node.args[1], DataLocation.MEMORY)
 
+    def evaluate(self, node):
+        validate_call_args(node, 2)
+        if isinstance(node.args[0], vy_ast.Int) and node.args[1].id in INTEGER_TYPES:
+            target_type = parse_integer_typeinfo(node.args[1].id)
+            value = node.args[0].value
+            lo, hi = target_type.bounds
+            if value < lo or value > hi:
+                raise OverflowException(f"Literal is outside of allowable range for {target_type}")
+            return vy_ast.Int.from_node(node, value=value)
+        raise UnfoldableNode
+
     def fetch_call_return(self, node):
         validate_call_args(node, 2)
         target_type = self._get_target_type(node)
@@ -193,13 +205,10 @@ class Convert:
 
     def infer_arg_types(self, node):
         target_type = self._get_target_type(node)
-        if isinstance(node.args[0], vy_ast.Int):
-            value_type = NumericAbstractType()
-        else:
-            value_types = get_possible_types_from_node(node.args[0])
-            if len(value_types) == 0:
-                raise StructureException("Ambiguous type for value", node)
-            value_type = value_types.pop()
+        value_types = get_possible_types_from_node(node.args[0])
+        if len(value_types) == 0:
+            raise StructureException("Ambiguous type for value", node)
+        value_type = value_types.pop()
         if target_type.compare_type(value_type):
             raise InvalidType(f"Value and target type are both '{target_type}'", node)
         return [value_type, target_type]
