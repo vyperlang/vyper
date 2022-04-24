@@ -357,7 +357,7 @@ class ContractFunction(BaseTypeDefinition):
         if hasattr(self, "reentrancy_key_position"):
             raise CompilerPanic("Position was already assigned")
         if self.nonreentrant is None:
-            raise CompilerPanic("No reentrant key {self}")
+            raise CompilerPanic(f"No reentrant key {self}")
         # sanity check even though implied by the type
         if position._location != DataLocation.STORAGE:
             raise CompilerPanic("Non-storage reentrant key")
