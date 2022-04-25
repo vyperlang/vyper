@@ -71,6 +71,11 @@ def trace(n=5, out=sys.stderr):
     print("END TRACE", file=out)
 
 
+# print a warning
+def vyper_warn(msg, prefix="Warning: ", file_=sys.stderr):
+    print(f"{prefix}{msg}", file=file_)
+
+
 # converts a signature like Func(bool,uint256,address) to its 4 byte method ID
 # TODO replace manual calculations in codebase with this
 def abi_method_id(method_sig):
