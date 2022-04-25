@@ -63,7 +63,7 @@ def returnten() -> int128:
 @external
 def create_and_call_returnten(inp: address) -> int128:
     x: address = create_forwarder_to(inp)
-    o: int128 = extract32(raw_call(x, convert("\xd0\x1f\xb1\xb8", Bytes[4]), max_outsize=32, gas=50000), 0, output_type=int128)  # noqa: E501
+    o: int128 = extract32(raw_call(x, b"\\xd0\\x1f\\xb1\\xb8", max_outsize=32, gas=50000), 0, output_type=int128)  # noqa: E501
     return o
 
 @external
@@ -105,7 +105,7 @@ def returnten() -> int128:
 @external
 def create_and_call_returnten(inp: address) -> int128:
     x: address = create_forwarder_to(inp)
-    o: int128 = extract32(raw_call(x, convert("\xd0\x1f\xb1\xb8", Bytes[4]), max_outsize=32, gas=50000), 0, output_type=int128)  # noqa: E501
+    o: int128 = extract32(raw_call(x, b"\\xd0\\x1f\\xb1\\xb8", max_outsize=32, gas=50000), 0, output_type=int128)  # noqa: E501
     return o
 
 @external
