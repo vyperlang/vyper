@@ -365,15 +365,9 @@ def test_max_batch_size_violation(NFT_contract, accounts):
 
 def test_ownership_functions(NFT_contract):
     # change owner from account 0 to account 1 and back
-    # check all changes by calling isOwner and owner functions
-    tx1 = NFT_contract.isOwner()
-    returnValue1 =  tx1.return_value
-    assert returnValue1 == True
-    assert NFT_contract.owner() == accounts[0]
+    # check all changes by calling owner function
 
-    tx2 = NFT_contract.isOwner({'from': accounts[1]})
-    returnValue2 =  tx2.return_value
-    assert returnValue2 == False
+    assert NFT_contract.owner() == accounts[0]
 
     with brownie.reverts():
         # try to transfer ownership from non-owner account
@@ -388,31 +382,14 @@ def test_ownership_functions(NFT_contract):
         NFT_contract.transferOwnership(ZERO_ADDRESS)    
     
     NFT_contract.transferOwnership(accounts[1])
-    
-    tx1 = NFT_contract.isOwner()
-    returnValue1 =  tx1.return_value
-    assert returnValue1 == False
-
-    tx2 = NFT_contract.isOwner({'from': accounts[1]})
-    returnValue2 =  tx2.return_value
-    assert returnValue2 == True
     assert NFT_contract.owner() == accounts[1]
 
     NFT_contract.transferOwnership(accounts[0],{'from': accounts[1]})
-    
-    tx1 = NFT_contract.isOwner()
-    returnValue1 =  tx1.return_value
-    assert returnValue1 == True
     assert NFT_contract.owner() == accounts[0]
 
-    tx2 = NFT_contract.isOwner({'from': accounts[1]})
-    returnValue2 =  tx2.return_value
-    assert returnValue2 == False
 
 def test_renounce_ownership(NFT_contract):
-    tx1 = NFT_contract.isOwner()
-    returnValue1 =  tx1.return_value
-    assert returnValue1 == True
+
     assert NFT_contract.owner() == accounts[0]
 
     with brownie.reverts():
@@ -420,8 +397,4 @@ def test_renounce_ownership(NFT_contract):
         NFT_contract.renounceOwnership({"from": accounts[2]})    
 
     NFT_contract.renounceOwnership()
-
-    tx1 = NFT_contract.isOwner()
-    returnValue1 =  tx1.return_value
-    assert returnValue1 == False
     assert NFT_contract.owner() == ZERO_ADDRESS

@@ -18,6 +18,7 @@ MAX_URI_LENGTH: constant(uint256) = 1024
 owner: public(address)                          
 
 # pause status True / False
+# @dev not part of the core spec but a common feature for NFT projects
 paused: public(bool)                            
 
 # the contracts URI to find the metadata
@@ -40,8 +41,6 @@ balances: HashMap[uint256,HashMap[address, uint256]]
 
 # Mapping from account to operator approvals
 operatorApprovals: HashMap[address, HashMap[address, bool]]     
-
-
 
 ############### events ###############
 event Paused:
@@ -103,7 +102,7 @@ interface IERC1155Receiver:
     def onERC1155BatchReceived(operator: address, fromAddress: address, to: address, _ids: DynArray[uint256, BATCH_SIZE], _amounts: DynArray[uint256, BATCH_SIZE], data: bytes32) -> bytes32: payable
 
 interface IERC1155MetadataURI:
-    def uri(id: uint256) -> String[MAX_URI_LENGTH]: payable
+    def uri(id: uint256) -> String[MAX_URI_LENGTH]: view
 
 ############### functions ###############
 
@@ -125,6 +124,7 @@ def __init__(name: String[1024], symbol: String[1024], uri: String[1024]):
 def pause():
     # @dev Pause the contract, checks if the caller is the owner and if the contract is paused already
     # @dev emits a pause event 
+    # @dev not part of the core spec but a common feature for NFT projects
     assert self.owner == msg.sender, "Ownable: caller is not the owner"
     assert not self.paused, " the contract is already paused"
     self.paused = True
@@ -134,17 +134,13 @@ def pause():
 def unpause():
     # @dev Unpause the contract, checks if the caller is the owner and if the contract is paused already
     # @dev emits an unpause event 
+    # @dev not part of the core spec but a common feature for NFT projects
     assert self.owner == msg.sender, "Ownable: caller is not the owner"
     assert self.paused, "the contract is not paused"
     self.paused = False
     log unPaused(msg.sender)
 
 ## ownership ##
-@external
-def isOwner() -> bool:
-    # @dev if the calling user it the owner, return true. Otherwise false
-    return self.owner == msg.sender
-
 @external
 def transferOwnership(newOwner: address):
     # @dev Transfer the ownership. Checks for contract pause status, current owner and prevent transferring to
