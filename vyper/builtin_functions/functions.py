@@ -72,6 +72,7 @@ from vyper.semantics.types.abstract import (
     IntegerAbstractType,
     NumericAbstractType,
     SignedIntegerAbstractType,
+    UnsignedIntegerAbstractType,
 )
 from vyper.semantics.types.bases import DataLocation, ValueTypeDefinition
 from vyper.semantics.types.indexable.sequence import ArrayDefinition
@@ -433,6 +434,8 @@ class Convert:
         value_types = get_possible_types_from_node(node.args[0])
         if len(value_types) == 0:
             raise StructureException("Ambiguous type for value", node)
+        if all([isinstance(v, IntegerAbstractType) for v in value_types]):
+            value_types = [v for v in value_types if isinstance(v, UnsignedIntegerAbstractType)]
         return value_types.pop()
 
     def evaluate(self, node):
