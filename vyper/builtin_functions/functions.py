@@ -1,7 +1,14 @@
+import enum
 import hashlib
 import math
 import operator
+from dataclasses import dataclass
 from decimal import Decimal
+from typing import Any
+
+import eth_abi.exceptions
+from eth_abi import decode_single, encode_single
+from eth_utils import add_0x_prefix, remove_0x_prefix
 
 from vyper import ast as vy_ast
 from vyper.abi_types import ABI_Tuple
@@ -30,6 +37,7 @@ from vyper.codegen.core import (
 from vyper.codegen.expr import Expr
 from vyper.codegen.keccak256_helper import keccak256_helper
 from vyper.codegen.types import (
+    BYTES_M_TYPES,
     INTEGER_TYPES,
     BaseType,
     ByteArrayLike,
@@ -39,6 +47,8 @@ from vyper.codegen.types import (
     TupleType,
     is_base_type,
     is_bytes_m_type,
+    parse_bytes_m_info,
+    parse_decimal_info,
     parse_integer_typeinfo,
 )
 from vyper.evm.opcodes import version_check
@@ -88,8 +98,11 @@ from vyper.utils import (
     MemoryPositions,
     SizeLimits,
     bytes_to_int,
+    checksum_encode,
     fourbytes_to_int,
     keccak256,
+    round_towards_zero,
+    unsigned_to_signed,
 )
 
 from .signatures import Optional, validate_inputs
@@ -168,6 +181,193 @@ class Ceil(_SimpleBuiltinFunction):
         )
 
 
+@dataclass
+class SimpleVyperType:
+    """
+    Simple class to model Vyper types.
+    """
+
+    type_name: str
+    type_bytes: int  # number of nonzero bytes this type can take
+    type_class: str  # e.g. int, bytes, String, decimal
+    info: Any  # e.g. DecimalInfo
+
+    @property
+    def abi_type(self):
+        if self.type_name == "decimal":
+            return "fixed168x10"
+        if self.type_class in ("Bytes", "String"):
+            return self.type_class.lower()
+        return self.type_name
+
+
+class _OutOfBounds(Exception):
+    """
+    A Python-level conversion is out of bounds
+    """
+
+    pass
+
+
+def parse_type(typename):
+    if typename.startswith(("uint", "int")):
+        info = parse_integer_typeinfo(typename)
+        assert info.bits % 8 == 0
+        return SimpleVyperType(typename, info.bits // 8, "int", info)
+    elif typename == "decimal":
+        info = parse_decimal_info(typename)
+        assert info.bits % 8 == 0
+        return SimpleVyperType(typename, info.bits // 8, "decimal", info)
+    elif typename.startswith("bytes"):
+        info = parse_bytes_m_info(typename)
+        return SimpleVyperType(typename, info.m, "bytes", info)
+    elif typename.startswith("Bytes"):
+        assert typename == "Bytes[32]"  # TODO test others
+        return SimpleVyperType(typename, 32, "Bytes", None)
+    elif typename.startswith("String"):
+        assert typename == "String[32]"  # TODO test others
+        return SimpleVyperType(typename, 32, "String", None)
+    elif typename == "address":
+        return SimpleVyperType(typename, 20, "address", None)
+    elif typename == "bool":
+        return SimpleVyperType(typename, 1, "bool", None)
+
+    raise AssertionError(f"no info {typename}")
+
+
+class _PadDirection(enum.Enum):
+    Left = enum.auto()
+    Right = enum.auto()
+
+
+def _padding_direction(typ):
+    detail = parse_type(typ)
+    if detail.type_class in ("bytes", "String", "Bytes"):
+        return _PadDirection.Right
+    return _PadDirection.Left
+
+
+def _padconvert(val_bits, direction, n, padding_byte=None):
+    """
+    Takes the ABI representation of a value, and convert the padding if needed.
+    If fill_zeroes is false, the two halves of the bytestring are just swapped
+    and the dirty bytes remain dirty. If fill_zeroes is true, the the padding
+    bytes get set to 0
+    """
+    assert len(val_bits) == 32
+
+    # convert left-padded to right-padded
+    if direction == _PadDirection.Right:
+        tail = val_bits[:-n]
+        if padding_byte is not None:
+            tail = padding_byte * len(tail)
+        return val_bits[-n:] + tail
+
+    # right- to left- padded
+    if direction == _PadDirection.Left:
+        head = val_bits[n:]
+        if padding_byte is not None:
+            head = padding_byte * len(head)
+        return head + val_bits[:n]
+
+
+def _from_bits(val_bits, o_typ):
+    # o_typ: the type to convert to
+    detail = parse_type(o_typ)
+    try:
+        return decode_single(detail.abi_type, val_bits)
+    except eth_abi.exceptions.NonEmptyPaddingBytes:
+        raise _OutOfBounds() from None
+
+
+def _to_bits(val, i_typ):
+    # i_typ: the type to convert from
+    detail = parse_type(i_typ)
+    return encode_single(detail.abi_type, val)
+
+
+def _signextend(val_bytes, bits):
+    as_uint = int.from_bytes(val_bytes, byteorder="big")
+
+    as_sint = unsigned_to_signed(as_uint, bits)
+
+    return (as_sint % 2 ** 256).to_bytes(32, byteorder="big")
+
+
+def _convert_decimal_to_int(val, o_typ):
+    # note special behavior for decimal: catch OOB before truncation.
+    if not SizeLimits.in_bounds(o_typ, val):
+        return None
+
+    return round_towards_zero(val)
+
+
+def _convert_int_to_decimal(val, o_typ):
+    detail = parse_type(o_typ)
+    ret = Decimal(val)
+    # note: SizeLimits.in_bounds is for the EVM int value, not the python value
+    lo, hi = detail.info.decimal_bounds
+    if not lo <= ret <= hi:
+        return None
+
+    return ret
+
+
+def py_convert(val, i_typ, o_typ):
+    """
+    Perform conversion on the Python representation of a Vyper value.
+    Returns None if the conversion is invalid (i.e., would revert in Vyper)
+    """
+    i_detail = parse_type(i_typ)
+    o_detail = parse_type(o_typ)
+
+    if i_detail.type_class == "int" and o_detail.type_class == "int":
+        if not SizeLimits.in_bounds(o_typ, val):
+            return None
+        return val
+
+    if i_typ == "decimal" and o_typ in INTEGER_TYPES:
+        return _convert_decimal_to_int(val, o_typ)
+
+    if i_detail.type_class in ("bool", "int") and o_typ == "decimal":
+        # Note: Decimal(True) == Decimal("1")
+        return _convert_int_to_decimal(val, o_typ)
+
+    val_bits = _to_bits(val, i_typ)
+
+    if i_detail.type_class in ("Bytes", "String"):
+        val_bits = val_bits[32:]
+
+    if _padding_direction(i_typ) != _padding_direction(o_typ):
+        # subtle! the padding conversion follows the bytes argument
+        if i_detail.type_class in ("bytes", "Bytes"):
+            n = i_detail.type_bytes
+            padding_byte = None
+        else:
+            # output type is bytes
+            n = o_detail.type_bytes
+            padding_byte = b"\x00"
+
+        val_bits = _padconvert(val_bits, _padding_direction(o_typ), n, padding_byte)
+
+    if getattr(o_detail.info, "is_signed", False) and i_detail.type_class == "bytes":
+        n_bits = i_detail.type_bytes * 8
+        val_bits = _signextend(val_bits, n_bits)
+
+    try:
+        if o_typ == "bool":
+            return _from_bits(val_bits, "uint256") != 0
+
+        ret = _from_bits(val_bits, o_typ)
+
+        if o_typ == "address":
+            return checksum_encode(ret)
+        return ret
+
+    except _OutOfBounds:
+        return None
+
+
 class Convert:
 
     _id = "convert"
@@ -175,15 +375,44 @@ class Convert:
     def _get_target_type(self, node):
         return get_type_from_annotation(node.args[1], DataLocation.MEMORY)
 
+    def _get_value_type(self, node):
+        value_types = get_possible_types_from_node(node.args[0])
+        if len(value_types) == 0:
+            raise StructureException("Ambiguous type for value", node)
+        return value_types.pop()
+
     def evaluate(self, node):
+        if not isinstance(node.args[0], (vy_ast.Int, vy_ast.Hex, vy_ast.NameConstant)):
+            # Unable to fold if node is not a literal
+            raise UnfoldableNode
+
         validate_call_args(node, 2)
-        if isinstance(node.args[0], vy_ast.Int) and node.args[1].id in INTEGER_TYPES:
-            target_type = parse_integer_typeinfo(node.args[1].id)
-            value = node.args[0].value
-            lo, hi = target_type.bounds
-            if value < lo or value > hi:
-                raise OverflowException(f"Literal is outside of allowable range for {target_type}")
+        target_type = self._get_target_type(node)
+        value_type = self._get_value_type(node)
+        value = node.args[0].value
+        if isinstance(node.args[0], vy_ast.Hex):
+            value = bytes.fromhex(remove_0x_prefix(value))
+        value = py_convert(value, value_type._id, target_type._id)
+
+        if not value:
+            # Conversion is invalid but this exception can be raised in codegen
+            raise UnfoldableNode
+
+        if target_type._id in INTEGER_TYPES:
             return vy_ast.Int.from_node(node, value=value)
+
+        elif target_type._id in BYTES_M_TYPES:
+            return vy_ast.Hex.from_node(node, value=add_0x_prefix(value.hex()))
+
+        elif target_type._id == "address":
+            return vy_ast.Hex.from_node(node, value=value)
+
+        elif target_type._id == "bool":
+            return vy_ast.NameConstant.from_node(node, value=value)
+
+        elif target_type._id == "Decimal":
+            return vy_ast.Decimal.from_node(node, value=value)
+
         raise UnfoldableNode
 
     def fetch_call_return(self, node):
@@ -205,10 +434,7 @@ class Convert:
 
     def infer_arg_types(self, node):
         target_type = self._get_target_type(node)
-        value_types = get_possible_types_from_node(node.args[0])
-        if len(value_types) == 0:
-            raise StructureException("Ambiguous type for value", node)
-        value_type = value_types.pop()
+        value_type = self._get_value_type(node)
         if target_type.compare_type(value_type):
             raise InvalidType(f"Value and target type are both '{target_type}'", node)
         return [value_type, target_type]
