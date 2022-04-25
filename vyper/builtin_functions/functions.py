@@ -406,10 +406,7 @@ class Convert:
 
         if isinstance(node.args[0], vy_ast.Hex):
             value = bytes.fromhex(remove_0x_prefix(value))
-        elif isinstance(node.args[0], vy_ast.Str):
-            # py_convert does not handle non-ascii strings
-            if not value.isascii():
-                raise UnfoldableNode
+
         value = py_convert(value, value_type._id, target_vy_type.type_name)
 
         if value is None:
