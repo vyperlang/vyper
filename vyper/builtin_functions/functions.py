@@ -398,9 +398,15 @@ class Convert:
         target_vy_type = parse_type(target_type._id)
         value_type = self._get_value_type(node)
         value = node.args[0].value
+
         if isinstance(node.args[0], vy_ast.Hex):
             value = bytes.fromhex(remove_0x_prefix(value))
+        elif isinstance(node.args[0], vy_ast.Str):
+            # py_convert does not handle non-ascii strings
+            if not value.isascii():
+                raise UnfoldableNode
         value = py_convert(value, value_type._id, target_vy_type.type_name)
+
         if value is None:
             # Conversion is invalid but this exception can be raised in codegen
             raise UnfoldableNode
