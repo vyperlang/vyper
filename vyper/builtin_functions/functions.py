@@ -614,9 +614,9 @@ class Slice:
 
             if start_literal is not None:
                 if start_literal > arg_type.length:
-                    raise ArgumentException("slice out of bounds for {arg_type}", start_expr)
+                    raise ArgumentException(f"slice out of bounds for {arg_type}", start_expr)
                 if length_literal is not None and start_literal + length_literal > arg_type.length:
-                    raise ArgumentException("slice out of bounds for {arg_type}", node)
+                    raise ArgumentException(f"slice out of bounds for {arg_type}", node)
 
         # we know the length statically
         if length_literal is not None:
