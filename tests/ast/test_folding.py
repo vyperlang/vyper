@@ -292,7 +292,10 @@ FOO: constant(Foo) = Foo({f1: Bar({b1: 123, b2: 456}), f2: 789})
     assert vy_ast.compare_nodes(l_ast, r_ast)
 
 
-builtin_folding_functions = [("ceil(4.2)", "5"), ("floor(4.2)", "4")]
+builtin_folding_functions = [
+    ("ceil(4.2)", "5"),
+    ("floor(4.2)", "4"),
+]
 
 builtin_folding_sources = [
     "{}",
@@ -309,6 +312,29 @@ builtin_folding_sources = [
 def test_replace_builtins(source, original, result):
     original_ast = vy_ast.parse_to_ast(source.format(original))
     target_ast = vy_ast.parse_to_ast(source.format(result))
+
+    folding.replace_builtin_functions(original_ast)
+
+    assert vy_ast.compare_nodes(original_ast, target_ast)
+
+
+convert_folding_functions = [
+    ("int64", "convert(123, int64)", "123"),
+    ("bool", "convert(1.0, bool)", "True"),
+    ("address", "convert(123, address)", "0x000000000000000000000000000000000000007B"),
+    ("bytes4", "convert(123, bytes4)", "0x0000007b"),
+]
+
+convert_folding_sources = [
+    "def foo(): x: {} = {}",
+]
+
+
+@pytest.mark.parametrize("source", convert_folding_sources)
+@pytest.mark.parametrize("target_type,original,result", convert_folding_functions)
+def test_replace_convert_builtin(source, target_type, original, result):
+    original_ast = vy_ast.parse_to_ast(source.format(target_type, original))
+    target_ast = vy_ast.parse_to_ast(source.format(target_type, result))
 
     folding.replace_builtin_functions(original_ast)
 
