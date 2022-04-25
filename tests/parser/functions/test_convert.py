@@ -261,12 +261,6 @@ def test_convert() -> {o_typ}:
     c1_exception = None
     skip_c1 = False
 
-    if i_typ.startswith(("int", "uint")) and o_typ.startswith("bytes"):
-        # integer literals get upcasted to uint256 / int256 types, so the convert
-        # will not compile unless it is bytes32
-        if o_typ != "bytes32":
-            c1_exception = TypeMismatch
-
     # Skip bytes20 literals when there is ambiguity with `address` since address takes precedence.
     # generally happens when there are only digits in the literal.
     if i_typ == "bytes20" and is_checksum_encoded(_vyper_literal(val, "bytes20")):
