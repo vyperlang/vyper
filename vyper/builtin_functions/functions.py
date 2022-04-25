@@ -388,9 +388,11 @@ class Convert:
 
     def evaluate(self, node):
         if not isinstance(
-            node.args[0], (vy_ast.Bytes, vy_ast.Hex, vy_ast.Int, vy_ast.NameConstant, vy_ast.Str)
+            node.args[0], (vy_ast.Decimal, vy_ast.Hex, vy_ast.Int, vy_ast.NameConstant)
         ):
             # Unable to fold if node is not a literal
+            # For vy_ast.Bytes and vy_ast.Str, handle in codegen due to the need
+            # to check for bounds manually and handle non-ascii strings
             raise UnfoldableNode
 
         validate_call_args(node, 2)
@@ -401,10 +403,7 @@ class Convert:
 
         if isinstance(node.args[0], vy_ast.Hex):
             value = bytes.fromhex(remove_0x_prefix(value))
-        elif isinstance(node.args[0], vy_ast.Str):
-            # py_convert does not handle non-ascii strings
-            if not value.isascii():
-                raise UnfoldableNode
+
         value = py_convert(value, value_type._id, target_vy_type.type_name)
 
         if value is None:
@@ -420,8 +419,6 @@ class Convert:
             "decimal": vy_ast.Decimal,
             "int": vy_ast.Int,
             "bytes": vy_ast.Hex,
-            "Bytes": vy_ast.Bytes,
-            "String": vy_ast.Str,
         }
 
         new_node = translate_map[target_vy_type.type_class].from_node(node, value=value)
