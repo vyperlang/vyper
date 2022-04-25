@@ -37,7 +37,6 @@ from vyper.codegen.core import (
 from vyper.codegen.expr import Expr
 from vyper.codegen.keccak256_helper import keccak256_helper
 from vyper.codegen.types import (
-    BYTES_M_TYPES,
     INTEGER_TYPES,
     BaseType,
     ByteArrayLike,
@@ -225,11 +224,11 @@ def parse_type(typename):
         info = parse_bytes_m_info(typename)
         return SimpleVyperType(typename, info.m, "bytes", info)
     elif typename.startswith("Bytes"):
-        assert typename == "Bytes[32]"  # TODO test others
-        return SimpleVyperType(typename, 32, "Bytes", None)
+        size = typename[6:-1]
+        return SimpleVyperType(typename, size, "Bytes", None)
     elif typename.startswith("String"):
-        assert typename == "String[32]"  # TODO test others
-        return SimpleVyperType(typename, 32, "String", None)
+        size = typename[7:-1]
+        return SimpleVyperType(typename, size, "String", None)
     elif typename == "address":
         return SimpleVyperType(typename, 20, "address", None)
     elif typename == "bool":
@@ -338,7 +337,10 @@ def py_convert(val, i_typ, o_typ):
 
     val_bits = _to_bits(val, i_typ)
 
-    if i_detail.type_class in ("Bytes", "String"):
+    if i_detail.type_class in ("Bytes", "String") and o_detail.type_class not in (
+        "Bytes",
+        "String",
+    ):
         val_bits = val_bits[32:]
 
     if _padding_direction(i_typ) != _padding_direction(o_typ):
@@ -385,38 +387,41 @@ class Convert:
         return value_types.pop()
 
     def evaluate(self, node):
-        if not isinstance(node.args[0], (vy_ast.Int, vy_ast.Hex, vy_ast.NameConstant)):
+        if not isinstance(
+            node.args[0], (vy_ast.Bytes, vy_ast.Hex, vy_ast.Int, vy_ast.NameConstant, vy_ast.Str)
+        ):
             # Unable to fold if node is not a literal
             raise UnfoldableNode
 
         validate_call_args(node, 2)
         target_type = self._get_target_type(node)
+        target_vy_type = parse_type(target_type._id)
         value_type = self._get_value_type(node)
         value = node.args[0].value
         if isinstance(node.args[0], vy_ast.Hex):
             value = bytes.fromhex(remove_0x_prefix(value))
-        value = py_convert(value, value_type._id, target_type._id)
-
-        if not value:
+        value = py_convert(value, value_type._id, target_vy_type.type_name)
+        if value is None:
             # Conversion is invalid but this exception can be raised in codegen
             raise UnfoldableNode
 
-        if target_type._id in INTEGER_TYPES:
-            return vy_ast.Int.from_node(node, value=value)
+        if target_vy_type.type_class in ("bytes", "Bytes"):
+            value = add_0x_prefix(value.hex())
 
-        elif target_type._id in BYTES_M_TYPES:
-            return vy_ast.Hex.from_node(node, value=add_0x_prefix(value.hex()))
+        translate_map = {
+            "address": vy_ast.Hex,
+            "bool": vy_ast.NameConstant,
+            "decimal": vy_ast.Decimal,
+            "int": vy_ast.Int,
+            "bytes": vy_ast.Hex,
+            "Bytes": vy_ast.Bytes,
+            "String": vy_ast.Str,
+        }
 
-        elif target_type._id == "address":
-            return vy_ast.Hex.from_node(node, value=value)
+        new_node = translate_map[target_vy_type.type_class].from_node(node, value=value)
+        new_node._metadata["type"] = target_type
 
-        elif target_type._id == "bool":
-            return vy_ast.NameConstant.from_node(node, value=value)
-
-        elif target_type._id == "Decimal":
-            return vy_ast.Decimal.from_node(node, value=value)
-
-        raise UnfoldableNode
+        return new_node
 
     def fetch_call_return(self, node):
         validate_call_args(node, 2)
