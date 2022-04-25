@@ -224,10 +224,10 @@ def parse_type(typename):
         info = parse_bytes_m_info(typename)
         return SimpleVyperType(typename, info.m, "bytes", info)
     elif typename.startswith("Bytes"):
-        size = typename[6:-1]
+        size = int(typename[6:-1])
         return SimpleVyperType(typename, size, "Bytes", None)
     elif typename.startswith("String"):
-        size = typename[7:-1]
+        size = int(typename[7:-1])
         return SimpleVyperType(typename, size, "String", None)
     elif typename == "address":
         return SimpleVyperType(typename, 20, "address", None)
@@ -235,6 +235,55 @@ def parse_type(typename):
         return SimpleVyperType(typename, 1, "bool", None)
 
     raise AssertionError(f"no info {typename}")
+
+
+def can_convert(i_typ, o_typ):
+    """
+    Checks whether conversion from one type to another is valid.
+    """
+    if i_typ == o_typ:
+        return False
+
+    i_detail = parse_type(i_typ)
+    o_detail = parse_type(o_typ)
+
+    if o_typ == "bool":
+        return True
+    if i_typ == "bool":
+        return o_detail.type_class not in ("address", "String", "Bytes")
+
+    if i_detail.type_class == "int":
+        if o_detail.type_class == "bytes":
+            return i_detail.type_bytes <= o_detail.type_bytes
+
+        ret = o_detail.type_class in ("int", "decimal")
+        if not i_detail.info.is_signed:
+            ret |= o_typ == "address"
+        return ret
+
+    elif i_detail.type_class == "bytes":
+        return o_detail.type_class in ("decimal", "bytes", "int", "address")
+
+    elif i_detail.type_class == "Bytes":
+        return o_detail.type_class in ("int", "decimal", "address", "bytes", "String")
+
+    elif i_typ == "decimal":
+        if o_detail.type_class == "bytes":
+            return i_detail.type_bytes <= o_detail.type_bytes
+
+        return o_detail.type_class in ("int", "bool")
+
+    elif i_typ == "address":
+        if o_detail.type_class == "bytes":
+            return i_detail.type_bytes <= o_detail.type_bytes
+        elif o_detail.type_class == "int":
+            return not o_detail.info.is_signed
+        return False
+
+    elif i_detail.type_class == "String":
+        return o_detail.type_class == "Bytes"
+
+    raise AssertionError(f"unreachable {i_typ} {o_typ}")
 
 
 class _PadDirection(enum.Enum):
@@ -396,9 +445,13 @@ class Convert:
 
         validate_call_args(node, 2)
         target_type = self._get_target_type(node)
-        target_vy_type = parse_type(target_type._id)
+        target_vy_type = parse_type(repr(target_type))
+
         value_type = self._get_value_type(node)
         value = node.args[0].value
+
+        if not can_convert(repr(value_type), repr(target_type)):
+            raise TypeMismatch(f"Can't convert {value_type} to {target_type}", node)
 
         if target_vy_type.type_class == "bytes" and isinstance(node.args[0], vy_ast.Bytes):
             if len(value) > target_vy_type.type_bytes:
@@ -407,7 +460,7 @@ class Convert:
         if isinstance(node.args[0], vy_ast.Hex):
             value = bytes.fromhex(remove_0x_prefix(value))
 
-        value = py_convert(value, value_type._id, target_vy_type.type_name)
+        value = py_convert(value, repr(value_type), target_vy_type.type_name)
 
         if value is None:
             # Conversion is invalid but this exception can be raised in codegen
@@ -2073,17 +2126,6 @@ class _MinMax:
 
     @validate_inputs
     def build_IR(self, expr, args, kwargs, context):
-        def _can_compare_with_uint256(operand):
-            if operand.typ.typ == "uint256":
-                return True
-            elif (
-                operand.typ.typ == "int128"
-                and operand.typ.is_literal
-                and SizeLimits.in_bounds("uint256", operand.value)
-            ):  # noqa: E501
-                return True
-            return False
-
         op = self._opcode
 
         with args[0].cache_when_complex("_l") as (b1, left), args[1].cache_when_complex("_r") as (
@@ -2099,13 +2141,6 @@ class _MinMax:
                 otyp = left.typ
                 otyp.is_literal = False
 
-            elif _can_compare_with_uint256(left) and _can_compare_with_uint256(right):
-                o = ["select", [op, left, right], left, right]
-                if right.typ.typ == "uint256":
-                    otyp = right.typ
-                else:
-                    otyp = left.typ
-                otyp.is_literal = False
             else:
                 raise TypeMismatch(f"Minmax types incompatible: {left.typ.typ} {right.typ.typ}")
             return IRnode.from_list(b1.resolve(b2.resolve(o)), typ=otyp)

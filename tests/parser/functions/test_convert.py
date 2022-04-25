@@ -6,7 +6,7 @@ from decimal import Decimal
 import eth_abi.exceptions
 import pytest
 
-from vyper.builtin_functions import parse_type, py_convert
+from vyper.builtin_functions import can_convert, parse_type, py_convert
 from vyper.codegen.types import BASE_TYPES, parse_decimal_info, parse_integer_typeinfo
 from vyper.exceptions import InvalidLiteral, InvalidType, TypeMismatch
 from vyper.utils import DECIMAL_DIVISOR, is_checksum_encoded
@@ -17,56 +17,6 @@ ZERO_ADDRESS = "0x0000000000000000000000000000000000000000"
 
 # decimal increment, aka smallest decimal > 0
 DECIMAL_EPSILON = Decimal(1) / DECIMAL_DIVISOR
-
-
-def can_convert(i_typ, o_typ):
-    """
-    Checks whether conversion from one type to another is valid.
-    """
-    if i_typ == o_typ:
-        return False
-
-    i_detail = parse_type(i_typ)
-    o_detail = parse_type(o_typ)
-
-    if o_typ == "bool":
-        return True
-    if i_typ == "bool":
-        return o_typ not in {"address"}
-
-    if i_detail.type_class == "int":
-        if o_detail.type_class == "bytes":
-            return i_detail.type_bytes <= o_detail.type_bytes
-
-        ret = o_detail.type_class in ("int", "decimal", "bytes", "Bytes")
-        if not i_detail.info.is_signed:
-            ret |= o_typ == "address"
-        return ret
-
-    elif i_detail.type_class == "bytes":
-        if o_detail.type_class == "Bytes":
-            # bytesN must be of equal or smaller size to the input
-            return i_detail.type_bytes <= o_detail.type_bytes
-
-        return o_detail.type_class in ("decimal", "bytes", "int", "address")
-
-    elif i_detail.type_class == "Bytes":
-        return o_detail.type_class in ("int", "decimal", "address")
-
-    elif i_typ == "decimal":
-        if o_detail.type_class == "bytes":
-            return i_detail.type_bytes <= o_detail.type_bytes
-
-        return o_detail.type_class in ("int", "bool")
-
-    elif i_typ == "address":
-        if o_detail.type_class == "bytes":
-            return i_detail.type_bytes <= o_detail.type_bytes
-        elif o_detail.type_class == "int":
-            return not o_detail.info.is_signed
-        return False
-
-    raise AssertionError(f"unreachable {i_typ} {o_typ}")
 
 
 def uniq(xs):
