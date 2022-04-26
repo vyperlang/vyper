@@ -11,6 +11,20 @@ def foo():
     b: Bytes[1] = b"\x05"
     x: uint256 = as_wei_value(b, "babbage")
     """,
+    """
+@external
+def foo():
+    a: uint256 = 3
+    b: int128 = 4
+    c: uint256 = min(a, b)
+    """,
+    """
+@external
+def broken():
+    a : uint256 = 3
+    b : int128 = 4
+    c : uint256 = unsafe_add(a, b)
+    """,
 ]
 
 
