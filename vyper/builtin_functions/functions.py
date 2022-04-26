@@ -463,13 +463,9 @@ class Convert:
         type_set = set([repr(value_type), repr(target_type)])
         # Exclude uint256 and int256 casting for integers that fit only into either
         if not can_convert(repr(value_type), repr(target_type)) and (
-            type_set != {"uint256"} and type_set != {"int256"}
+            type_set not in [{"uint256"}, {"int256"}]
         ):
             raise TypeMismatch(f"Can't convert {value_type} to {target_type}", node)
-
-        if target_vy_type.type_class == "bytes" and isinstance(node.args[0], vy_ast.Bytes):
-            if len(value) > target_vy_type.type_bytes:
-                raise TypeMismatch(f"Can't convert {value_type} to {target_type}", node)
 
         if isinstance(node.args[0], vy_ast.Hex):
             value = bytes.fromhex(remove_0x_prefix(value))
@@ -477,8 +473,10 @@ class Convert:
         value = py_convert(value, repr(value_type), target_vy_type.type_name)
 
         if value is None:
-            # Conversion is invalid but this exception can be raised in codegen
-            raise UnfoldableNode
+            if target_vy_type.type_class in ("int", "decimal", "address"):
+                raise InvalidLiteral("Number out of range", node.args[0])
+            # Conversion is invalid
+            raise TypeMismatch(f"Can't convert {value_type} to {target_type}", node)
 
         if target_vy_type.type_class in ("bytes", "Bytes"):
             value = add_0x_prefix(value.hex())
