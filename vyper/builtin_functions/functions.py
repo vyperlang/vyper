@@ -434,8 +434,8 @@ class Convert:
         if len(value_types) == 0:
             raise StructureException("Ambiguous type for value", node)
         if all([isinstance(v, IntegerAbstractType) for v in value_types]):
-            # Get the widest (and unsigned if available) type
-            return value_types[0]
+            # Get the smallest (and unsigned if available) type
+            value_types = sorted(value_types, key=lambda v: (v._is_signed, v._bits), reverse=True)
         return value_types.pop()
 
     def evaluate(self, node):
