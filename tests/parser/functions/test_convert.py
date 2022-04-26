@@ -349,6 +349,63 @@ def foo() -> {t_bytes}:
     assert c2.foo() == test_data
 
 
+@pytest.mark.parametrize("n", range(1, 33))
+@pytest.mark.parametrize("in_type,out_type", [("String", "Bytes"), ("Bytes", "String")])
+def test_Bytes_String_conversion(get_contract, n, in_type, out_type):
+    t_in = f"{in_type}[{n}]"
+    t_out = f"{out_type}[{n}]"
+
+    raw_test_data = b"1" * n
+    test_data = raw_test_data if in_type == "Bytes" else '"' + raw_test_data.decode("utf-8") + '"'
+    expected = raw_test_data.decode("utf-8") if out_type == "String" else raw_test_data
+
+    code1 = f"""
+@external
+def foo() -> {t_out}:
+    x: {t_in} = {test_data}
+    return convert(x, {t_out})
+    """
+    c1 = get_contract(code1)
+    assert c1.foo() == expected
+
+    code2 = f"""
+bar: {t_in}
+@external
+def foo() -> {t_out}:
+    self.bar = {test_data}
+    return convert(self.bar, {t_out})
+    """
+    c2 = get_contract(code2)
+    assert c2.foo() == expected
+
+
+@pytest.mark.parametrize("n", range(1, 33))
+@pytest.mark.parametrize("in_type,out_type", [("String", "Bytes"), ("Bytes", "String")])
+def test_Bytes_String_conversion_invalid(assert_compile_failed, get_contract, n, in_type, out_type):
+    t_in = f"{in_type}[{n + 1}]"
+    t_out = f"{out_type}[{n}]"
+
+    raw_test_data = b"1" * (n + 1)
+    test_data = raw_test_data if in_type == "Bytes" else '"' + raw_test_data.decode("utf-8") + '"'
+
+    code1 = f"""
+@external
+def foo() -> {t_out}:
+    x: {t_in} = {test_data}
+    return convert(x, {t_out})
+    """
+    assert_compile_failed(lambda: get_contract(code1), TypeMismatch)
+
+    code2 = f"""
+bar: {t_in}
+@external
+def foo() -> {t_out}:
+    self.bar = {test_data}
+    return convert(self.bar, {t_out})
+    """
+    assert_compile_failed(lambda: get_contract(code2), TypeMismatch)
+
+
 @pytest.mark.parametrize("i_typ,o_typ,val", generate_reverting_cases())
 @pytest.mark.fuzzing
 def test_conversion_failures(
