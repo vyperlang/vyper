@@ -280,9 +280,7 @@ def convert_builtin_constant() -> {out_type}:
     assert c.convert_builtin_constant() == out_value
 
 
-# uint256 conversion is currently valid due to type inference on literals
-# not quite working yet
-same_type_conversion_blocked = sorted(TEST_TYPES - {"uint256"})
+same_type_conversion_blocked = sorted(TEST_TYPES)
 
 
 @pytest.mark.parametrize("typ", same_type_conversion_blocked)
@@ -369,8 +367,9 @@ def foo() -> {o_typ}:
     c1_exception = InvalidLiteral
 
     if i_typ.startswith(("int", "uint")) and o_typ.startswith("bytes"):
-        # integer literals get upcasted to uint256 / int256 types, so the convert
-        # will not compile unless it is bytes32
+        # integer literals get casted to the smallest possible type, and raises
+        # a TypeMismatch exception if out of bounds, except for bytes32 which requires
+        # a value beyond all numeric types' bounds before it is out of bounds.
         if o_typ != "bytes32":
             c1_exception = TypeMismatch
 
