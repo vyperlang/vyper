@@ -450,10 +450,30 @@ class Convert:
         target_type = self._get_target_type(node)
         target_vy_type = parse_type(repr(target_type))
 
-        value_type = self._get_value_type(node)
+        value_types = get_possible_types_from_node(node.args[0])
+        if all([isinstance(v, IntegerAbstractType) for v in value_types]):
+            # Get the smallest (and unsigned if available) type for non-integer types
+            if not isinstance(target_type, IntegerAbstractType):
+                value_types = sorted(
+                    value_types, key=lambda v: (v._is_signed, v._bits), reverse=True
+                )
+            else:
+                # Exclude target type to avoid type mismatch due to same type
+                value_types = [
+                    v
+                    for v in value_types
+                    if (not v.compare_type(target_type) or isinstance(v, Uint256Definition))
+                ]
+                if len(value_types) == 0:
+                    raise StructureException("Ambiguous type for value", node)
+        value_type = value_types.pop()
         value = node.args[0].value
 
-        if not can_convert(repr(value_type), repr(target_type)):
+        type_set = set([repr(value_type), repr(target_type)])
+        # Exclude uint256 and int256 casting for integers that fit only into either
+        if not can_convert(repr(value_type), repr(target_type)) and (
+            type_set != {"uint256"} and type_set != {"int256"}
+        ):
             raise TypeMismatch(f"Can't convert {value_type} to {target_type}", node)
 
         if target_vy_type.type_class == "bytes" and isinstance(node.args[0], vy_ast.Bytes):
@@ -506,7 +526,10 @@ class Convert:
 
     def infer_arg_types(self, node):
         target_type = self._get_target_type(node)
-        value_type = self._get_value_type(node)
+        value_types = get_possible_types_from_node(node.args[0])
+        if len(value_types) == 0:
+            raise StructureException("Ambiguous type for value", node)
+        value_type = value_types.pop()
         if target_type.compare_type(value_type):
             raise InvalidType(f"Value and target type are both '{target_type}'", node)
         return [value_type, target_type]
