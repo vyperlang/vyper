@@ -429,15 +429,6 @@ class Convert:
     def _get_target_type(self, node):
         return get_type_from_annotation(node.args[1], DataLocation.MEMORY)
 
-    def _get_value_type(self, node):
-        value_types = get_possible_types_from_node(node.args[0])
-        if len(value_types) == 0:
-            raise StructureException("Ambiguous type for value", node)
-        if all([isinstance(v, IntegerAbstractType) for v in value_types]):
-            # Get the smallest (and unsigned if available) type
-            value_types = sorted(value_types, key=lambda v: (v._is_signed, v._bits), reverse=True)
-        return value_types.pop()
-
     def evaluate(self, node):
         if not isinstance(
             node.args[0],
