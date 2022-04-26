@@ -2108,7 +2108,7 @@ class _MinMax:
             *node.args, filter_fn=lambda x: isinstance(x, NumericAbstractType)
         )
         if not types_list:
-            raise TypeMismatch
+            raise TypeMismatch("Cannot perform action between dislike numeric types", node)
 
         return types_list.pop()
 
