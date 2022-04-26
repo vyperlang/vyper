@@ -265,7 +265,9 @@ def can_convert(i_typ, o_typ):
         return o_detail.type_class in ("decimal", "bytes", "int", "address")
 
     elif i_detail.type_class == "Bytes":
-        return o_detail.type_class in ("int", "decimal", "address", "bytes", "String")
+        if o_detail.type_class in ("bytes", "String"):
+            return i_detail.type_bytes <= o_detail.type_bytes
+        return o_detail.type_class in ("int", "decimal", "address")
 
     elif i_typ == "decimal":
         if o_detail.type_class == "bytes":
@@ -281,7 +283,7 @@ def can_convert(i_typ, o_typ):
         return False
 
     elif i_detail.type_class == "String":
-        return o_detail.type_class == "Bytes"
+        return o_detail.type_class == "Bytes" and i_detail.type_bytes <= o_detail.type_bytes
 
     raise AssertionError(f"unreachable {i_typ} {o_typ}")
 
