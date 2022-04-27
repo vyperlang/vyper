@@ -11,6 +11,9 @@ from vyper.interfaces import ERC165
 # maximum items in a batch call. Set to 128, to be determined what the practical limits are.
 BATCH_SIZE: constant(uint256) = 128             
 
+# callback number of bytes
+CALLBACK_NUMBYTES: constant(uint256) = 4096
+
 # URI length set to 1024. 
 MAX_URI_LENGTH: constant(uint256) = 1024        
 
@@ -107,8 +110,8 @@ event URI:
 implements: ERC165
 
 interface IERC1155Receiver:
-    def onERC1155Received(operator: address, sender: address, receiver: address, id: uint256, _value: uint256, data: bytes32) -> bytes32: payable
-    def onERC1155BatchReceived(operator: address, sender: address, receiver: address, _ids: DynArray[uint256, BATCH_SIZE], _amounts: DynArray[uint256, BATCH_SIZE], data: bytes32) -> bytes32: payable
+    def onERC1155Received(operator: address, sender: address, id: uint256, _value: uint256, data: bytes32) -> bytes32: payable
+    def onERC1155BatchReceived(operator: address, sender: address, _ids: DynArray[uint256, CALLBACK_NUMBYTES], _amounts: DynArray[uint256, BATCH_SIZE], data: bytes32) -> bytes32: payable
 
 interface IERC1155MetadataURI:
     def uri(id: uint256) -> String[MAX_URI_LENGTH]: view
