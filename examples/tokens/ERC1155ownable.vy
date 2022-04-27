@@ -25,8 +25,8 @@ paused: public(bool)
 uri: public(String[MAX_URI_LENGTH])                     
 
 # NFT marketplace compatibility
-name: public(String[1024])
-symbol: public(String[1024])
+name: public(String[128])
+symbol: public(String[16])
 
 # Interface IDs
 ERC165_INTERFACE_ID: constant(bytes4)  = 0x01ffc9a7
@@ -94,12 +94,20 @@ event ApprovalForAll:
     operator: indexed(address)
     approved: bool
 
+event URI:
+    # @dev This emits when the URI gets changed
+    # @param value the new URI
+    # @param id the ID 
+    value: String[MAX_URI_LENGTH]
+    id: uint256
+
+
 ############### interfaces ###############
 implements: ERC165
 
 interface IERC1155Receiver:
-    def onERC1155Received(operator: address, fromAddress: address, to: address, id: uint256, _value: uint256, data: bytes32) -> bytes32: payable
-    def onERC1155BatchReceived(operator: address, fromAddress: address, to: address, _ids: DynArray[uint256, BATCH_SIZE], _amounts: DynArray[uint256, BATCH_SIZE], data: bytes32) -> bytes32: payable
+    def onERC1155Received(operator: address, sender: address, receiver: address, id: uint256, _value: uint256, data: bytes32) -> bytes32: payable
+    def onERC1155BatchReceived(operator: address, sender: address, receiver: address, _ids: DynArray[uint256, BATCH_SIZE], _amounts: DynArray[uint256, BATCH_SIZE], data: bytes32) -> bytes32: payable
 
 interface IERC1155MetadataURI:
     def uri(id: uint256) -> String[MAX_URI_LENGTH]: view
@@ -107,7 +115,7 @@ interface IERC1155MetadataURI:
 ############### functions ###############
 
 @external
-def __init__(name: String[1024], symbol: String[1024], uri: String[1024]):
+def __init__(name: String[128], symbol: String[16], uri: String[1024]):
     # @dev contract initialization on deployment
     # @dev will set name and symbol, interfaces, owner and URI
     # @param name the smart contract name
@@ -347,6 +355,7 @@ def setURI(uri: String[MAX_URI_LENGTH]):
     assert not self.paused, "The contract has been paused"
     assert self.uri != uri, "new and current URI are identical"
     self.uri = uri
+    log URI(uri, 0)
 
 @pure
 @external
