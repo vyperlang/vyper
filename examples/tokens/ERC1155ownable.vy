@@ -15,6 +15,7 @@ BATCH_SIZE: constant(uint256) = 128
 MAX_URI_LENGTH: constant(uint256) = 1024        
 
 # the contract owner
+# @dev not part of the core spec but a common feature for NFT projects
 owner: public(address)                          
 
 # pause status True / False
