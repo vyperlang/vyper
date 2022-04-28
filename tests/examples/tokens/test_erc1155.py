@@ -313,4 +313,4 @@ def test_renounce_ownership(erc1155, w3, assert_tx_failed):
 
     erc1155.renounceOwnership(transact={"from": w3.eth.accounts[0]})
 
-    assert erc1155.owner() == None
+    assert (lambda: erc1155.owner() == ZERO_ADDRESS)
