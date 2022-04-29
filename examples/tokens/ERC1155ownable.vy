@@ -1,4 +1,4 @@
-# @version >=0.3.2
+# @version >=0.3.3
 
 # @dev Implementation of ERC-1155 non-fungible token standard
 # @dev ownable, with approval, OPENSEA compatible (name, symbol)
@@ -178,7 +178,7 @@ def renounceOwnership():
     log OwnershipTransferred(oldOwner, ZERO_ADDRESS)
 
 ## balance ##
-@view
+# @view
 @external
 def balanceOf(account: address, id: uint256) -> uint256:
     # @dev check the balance for a specific ID and address
@@ -191,7 +191,7 @@ def balanceOf(account: address, id: uint256) -> uint256:
 
 @external
 @view
-def balanceOfBatch(accounts: DynArray[address, BATCH_SIZE], ids: DynArray[uint256, BATCH_SIZE]) -> DynArray[uint256,BATCH_SIZE]:  #uint256[BATCH_SIZE]:
+def balanceOfBatch(accounts: DynArray[address, BATCH_SIZE], ids: DynArray[uint256, BATCH_SIZE]) -> DynArray[uint256,BATCH_SIZE]:  # uint256[BATCH_SIZE]:
     # @dev check the balance for an array of specific IDs and addresses
     # @dev will return an array of balances
     # @dev Can also be used to check ownership of an ID
@@ -366,6 +366,11 @@ def uri(id: uint256) -> String[MAX_URI_LENGTH]:
     # @dev retrieve the uri, this function can optionally be extended to return dynamic uris. out of scope.
     # @param id NFT ID to retrieve the uri for. 
     return self._uri
+
+# @external
+# @view
+# def owner() -> address:
+#     return self.owner
 
 @pure
 @external

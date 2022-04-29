@@ -19,45 +19,38 @@ minBatchSetOf10 = [1,1,1,1,1,1,1,1,1,1]
 mintConflictBatch = [1,2,3]
 
 @pytest.fixture
-def erc1155(get_contract, w3):
+def erc1155(get_contract, w3, assert_tx_failed):
     owner, a1, a2, a3, a4, a5 = w3.eth.accounts[0:6]
     with open("examples/tokens/ERC1155ownable.vy") as f:
         code = f.read()
     c = get_contract(code, *[CONTRACT_NAME, CONTRACT_SYMBOL, CONTRACT_URI])
-    return c
 
-##### test fixtures #####
-
-@pytest.fixture
-def test_mint(erc1155, w3, assert_tx_failed):
-    owner, a1, a2, a3, a4, a5 = w3.eth.accounts[0:6]
-    erc1155.mint(a1, 1, 1, '')
-    erc1155.mint(a1, 2, 1, '')
-    erc1155.mint(a1, 3, 1, '')
+    c.mint(a1, 1, 1, '', transact={"from": owner})
+    c.mint(a1, 2, 1, '', transact={"from": owner})
+    c.mint(a1, 3, 1, '', transact={"from": owner})
+    c.mint(a1, 4, 1, '', transact={"from": owner})
     
-    assert_tx_failed(lambda: erc1155.mint(a1, 4, 1, '', transact={"from": a3}))
-    assert_tx_failed(lambda: erc1155.mint(ZERO_ADDRESS, 4, 1, '', transact={"from": owner}))
+    assert_tx_failed(lambda: c.mint(a1, 4, 1, '', transact={"from": a3}))
+    assert_tx_failed(lambda: c.mint(ZERO_ADDRESS, 4, 1, '', transact={"from": owner}))
 
-    assert (lambda: erc1155.balanceOf(a1,1) == 1)
-    assert (lambda: erc1155.balanceOf(a1,2) == 1)
-    assert (lambda: erc1155.balanceOf(a1,3) == 1)
+    assert c.balanceOf(a1,1) == 1
+    assert c.balanceOf(a1,2) == 1
+    assert c.balanceOf(a1,3) == 1
+    assert c.balanceOf(a1,4) == 1
 
     # check ZERO_ADDRESS balance (should fail)
-    assert_tx_failed(lambda: erc1155.balanceOf(ZERO_ADDRESS,3) == 1)
-
-
-@pytest.fixture
-def test_mint_batch(erc1155, w3, assert_tx_failed):
+    assert_tx_failed(lambda: c.balanceOf(ZERO_ADDRESS,3, transact={"from": owner}) == 1)
     owner, a1, a2, a3, a4, a5 = w3.eth.accounts[0:6]
-    erc1155.mintBatch(a1, mintBatch, minBatchSetOf10, '')
-    erc1155.mintBatch(a3, mintBatch2, minBatchSetOf10, '')
-    # assert_tx_failed(lambda: erc1155.mintBatch(a1, mintBatch, minBatchSetOf10, '', transact={"from": a2}))
-    assert (lambda: erc1155.balanceOf(a1,1) == 1)
-    assert (lambda: erc1155.balanceOf(a1,2) == 1)
-    assert (lambda: erc1155.balanceOf(a1,3) == 1)
-    assert_tx_failed(lambda: erc1155.mintBatch(ZERO_ADDRESS, mintBatch, minBatchSetOf10, ''))
-    assert_tx_failed(lambda: erc1155.mintBatch(a1, [1,2,3], [1,1], ''))
+    c.mintBatch(a1, mintBatch, minBatchSetOf10, '', transact={"from": owner})
+    c.mintBatch(a3, mintBatch2, minBatchSetOf10, '', transact={"from": owner})
+    # assert_tx_failed(lambda: c.mintBatch(a1, mintBatch, minBatchSetOf10, '', transact={"from": a2}))
+    assert c.balanceOf(a1,1) == 1
+    assert c.balanceOf(a1,2) == 1
+    assert c.balanceOf(a1,3) == 1
+    assert_tx_failed(lambda: c.mintBatch(ZERO_ADDRESS, mintBatch, minBatchSetOf10, '', transact={"from": owner}))
+    assert_tx_failed(lambda: c.mintBatch(a1, [1,2,3], [1,1], '', transact={"from": owner}))
 
+    return c
 
 ##### tests #####
 
@@ -138,12 +131,10 @@ def test_URI(erc1155, w3,assert_tx_failed):
 
     assert_tx_failed(lambda: erc1155.setURI(CONTRACT_URI))
 
-def test_safeTransferFrom_balanceOf_single(erc1155, w3, test_mint, assert_tx_failed):
+def test_safeTransferFrom_balanceOf_single(erc1155, w3, assert_tx_failed):
     owner, a1, a2, a3, a4, a5 = w3.eth.accounts[0:6]
-    # transfer NFT 1 from account 1 to account 2 use test_mint_single fixture
-    erc1155.mint(a1, 4, 1, '', transact={"from": owner})
-    assert (lambda: erc1155.balanceOf(a1,4, transact={"from": a1}) == 1)
     
+   
     # transfer by non-owner
     assert_tx_failed(lambda: erc1155.safeTransferFrom(a1, a2, 4, 1, '', transact={"from": a2}))
     
@@ -162,23 +153,23 @@ def test_safeTransferFrom_balanceOf_single(erc1155, w3, test_mint, assert_tx_fai
     erc1155.mint(a1, 21, 1, '', transact={"from": owner})
     erc1155.safeTransferFrom(a1, a2, 21, 1, '', transact={"from": a1})
     
-    assert (lambda: erc1155.balanceOf(a2,1, transact={"from": owner}) == 1)
+    assert erc1155.balanceOf(a2,21) == 1
     
     # try to transfer item again
     assert_tx_failed(lambda: erc1155.safeTransferFrom(a1, a2, 21, 1, '', transact={"from": a1}))
-    assert (lambda: erc1155.balanceOf(a1,1, {"from": w3.eth.owner}) == 0)
+    assert erc1155.balanceOf(a1,21) == 0
     
 
 # TODO: mint 20 NFTs [1:20] and check the balance for each
-def test_mintBatch_balanceOf(erc1155, w3, test_mint_batch, assert_tx_failed):
+def test_mintBatch_balanceOf(erc1155, w3, assert_tx_failed):  # test_mint_batch
     owner, a1, a2, a3, a4, a5 = w3.eth.accounts[0:6]
     # Use the mint three fixture to mint the tokens. 
     # this test checks the balances of this test
     for i in range (1,10):
-        assert (lambda: erc1155.balanceOf(a1, i, transact={"from": a1}) == 1)
+        assert erc1155.balanceOf(a1, i) == 1
         assert_tx_failed(lambda: erc1155.balanceOf(ZERO_ADDRESS, i, transact={"from": a1}) == 1)
     
-def test_safeBatchTransferFrom_balanceOf_batch(erc1155, w3, test_mint_batch, assert_tx_failed):
+def test_safeBatchTransferFrom_balanceOf_batch(erc1155, w3, assert_tx_failed):  # test_mint_batch
     owner, a1, a2, a3, a4, a5 = w3.eth.accounts[0:6]
 
     # transfer NFT 1 from account 1 to account 2 use test_mint_single fixture
@@ -202,14 +193,14 @@ def test_safeBatchTransferFrom_balanceOf_batch(erc1155, w3, test_mint_batch, ass
 
     # try to transfer nonexisting item
     assert_tx_failed(lambda: erc1155.safeBatchTransferFrom(a1, a2, [1,2,500], [1,1,1], '', transact={"from": a1}))
-    assert (lambda: erc1155.safeBatchTransferFrom(a1, a2, [1,2,3], [1,1,1], '', transact={"from": a1}))
+    assert erc1155.safeBatchTransferFrom(a1, a2, [1,2,3], [1,1,1], '', transact={"from": a1})
     
     # try to transfer again, our balances are zero now, should fail
     assert_tx_failed(lambda: erc1155.safeBatchTransferFrom(a1, a2, [1,2,3], [1,1,1], '', transact={"from": a1}))
     assert_tx_failed(lambda: erc1155.balanceOfBatch([a2,a2,a2],[1,2], transact={"from": owner}) == [1,1,1])
         
-    assert (lambda: erc1155.balanceOfBatch([a2,a2,a2],[1,2,3], transact={"from": owner}) == [1,1,1])
-    assert (lambda: erc1155.balanceOf(a1,1, transact={"from": owner}) == 0)
+    assert erc1155.balanceOfBatch([a2,a2,a2],[1,2,3]) == [1,1,1]
+    assert erc1155.balanceOf(a1,1) == 0
 
 def test_mint_one_burn_one(erc1155, w3, assert_tx_failed):
     owner, a1, a2, a3, a4, a5 = w3.eth.accounts[0:6]
@@ -217,8 +208,8 @@ def test_mint_one_burn_one(erc1155, w3, assert_tx_failed):
     # check the balance from an owner and non-owner account 
     erc1155.mint(owner, 21, 1, '', transact={"from": owner})
 
-    assert (lambda: erc1155.balanceOf(owner,21, transact={"from": owner}) == 1)
-    assert (lambda: erc1155.balanceOf(owner,21, transact={"from": a1}) == 1)
+    assert erc1155.balanceOf(owner,21) == 1
+    assert erc1155.balanceOf(owner,21) == 1
 
     # try and burn an item we don't control
     assert_tx_failed(lambda: erc1155.burn(21,1,transact={"from": a3}))
@@ -231,16 +222,16 @@ def test_mint_one_burn_one(erc1155, w3, assert_tx_failed):
 
     erc1155.burn(21,1, transact={"from": owner})
 
-    assert (lambda: erc1155.balanceOf(owner,21, transact={"from": a1}) == 0)
+    assert erc1155.balanceOf(owner,21) == 0
 
 
 def test_mint_batch_burn_batch(erc1155, w3, assert_tx_failed):
     owner, a1, a2, a3, a4, a5 = w3.eth.accounts[0:6]
     # mint NFTs 11-20
-    erc1155.mintBatch(a3, mintBatch2, minBatchSetOf10, '',transact={"from":owner})
+    
 
     # check the balance
-    assert (lambda: erc1155.balanceOfBatch([a1, a1, a1],[1,2,3], transact={"from": a1}) == [1,1,1])
+    assert erc1155.balanceOfBatch([a3, a3, a3],[11,12,13]) == [1,1,1]
 
     # try and burn a batch we don't control
     assert_tx_failed(lambda: erc1155.burnBatch([11,12],[1,1]))
@@ -257,15 +248,15 @@ def test_mint_batch_burn_batch(erc1155, w3, assert_tx_failed):
     # burn existing
     erc1155.burnBatch([11,12],[1,1],transact={"from": a3})
 
-    assert (lambda: erc1155.balanceOfBatch([a1,a1,a1],[11,12,13], transact={"from": a1}) == [0,0,1])
+    assert erc1155.balanceOfBatch([a3,a3,a3],[11,12,13]) == [0,0,1]
 
     # burn again, should revert
-    assert_tx_failed(lambda: erc1155.burnBatch([1,2],[1,1],transact={"from": a1}))
+    assert_tx_failed(lambda: erc1155.burnBatch([11,12],[1,1],transact={"from": a3}))
 
-    assert (lambda: erc1155.balanceOfBatch([a1,a1,a1],[1,2,3], transact={"from": a1}) == [0,0,1])
+    assert (lambda: erc1155.balanceOfBatch([a3,a3,a3],[1,2,3]) == [0,0,1])
 
 
-def test_approval_functions(erc1155, w3, test_mint_batch, assert_tx_failed):
+def test_approval_functions(erc1155, w3, assert_tx_failed):  # test_mint_batch
     owner, a1, a2, a3, a4, a5 = w3.eth.accounts[0:6]
     # self-approval by the owner
     assert_tx_failed(lambda: erc1155.setApprovalForAll(a5, a5,True, transact={"from": a5}))
@@ -312,8 +303,9 @@ def test_ownership_functions(erc1155, w3, assert_tx_failed,tester):
     assert_tx_failed(lambda: erc1155.transferOwnership("0x0000000000000000000000000000000000000000"))
 
     # Transfer ownership to account 1    
-    erc1155.transferOwnership(a1)
-    assert (lambda: erc1155.owner() == a1)
+    erc1155.transferOwnership(a1,transact={"from": owner})
+    # assert erc1155.owner() == a1
+    assert erc1155.owner() == a1
 
 def test_renounce_ownership(erc1155, w3, assert_tx_failed):
     owner, a1, a2, a3, a4, a5 = w3.eth.accounts[0:6]
@@ -323,4 +315,5 @@ def test_renounce_ownership(erc1155, w3, assert_tx_failed):
 
     erc1155.renounceOwnership(transact={"from": owner})
 
-    assert (lambda: erc1155.owner() == ZERO_ADDRESS)
+    # assert erc1155.owner() == ZERO_ADDRESS
+    assert erc1155.owner() == None
