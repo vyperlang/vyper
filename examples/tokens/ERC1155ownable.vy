@@ -38,7 +38,6 @@ ERC1155_INTERFACE_ID: constant(bytes4) = 0xd9b67a26
 ERC1155_INTERFACE_ID_METADATA: constant(bytes4) = 0x0e89341c
 
 # mappings
-supportsInterfaces: constant(bytes4[3]) = [ERC165_INTERFACE_ID, ERC1155_INTERFACE_ID, ERC1155_INTERFACE_ID_METADATA]
 
 # Mapping from token ID to account balances
 balances: HashMap[uint256,HashMap[address, uint256]]            
@@ -138,7 +137,7 @@ def pause():
     # @dev emits a pause event 
     # @dev not part of the core spec but a common feature for NFT projects
     assert self.owner == msg.sender, "Ownable: caller is not the owner"
-    assert not self.paused, " the contract is already paused"
+    assert not self.paused, "the contract is already paused"
     self.paused = True
     log Paused(msg.sender)
 
@@ -198,11 +197,10 @@ def balanceOfBatch(accounts: DynArray[address, BATCH_SIZE], ids: DynArray[uint25
     # @param accounts a dynamic array of the addresses to check the balance for
     # @param ids a dynamic array of the token IDs to check the balance
     assert len(accounts) == len(ids), "ERC1155: accounts and ids length mismatch"
-    batchBalances: DynArray[uint256, BATCH_SIZE] = empty(DynArray[uint256,BATCH_SIZE])
+    batchBalances: DynArray[uint256, BATCH_SIZE] = []
     j: uint256 = 0
     for i in ids:
-        tempBalance: uint256 = self.balances[i][accounts[j]]
-        batchBalances.append(tempBalance)
+        batchBalances.append(self.balances[i][accounts[j]])
         j += 1
     return batchBalances
 
@@ -218,7 +216,7 @@ def mint(receiver: address, id: uint256, amount:uint256, data:bytes32):
     assert not self.paused, "The contract has been paused"
     assert self.owner == msg.sender, "Only the contract owner can mint"
     assert receiver != ZERO_ADDRESS, "Can not mint to ZERO ADDRESS"
-    operator:address = msg.sender
+    operator: address = msg.sender
     self.balances[id][receiver] += amount
     log TransferSingle(operator, ZERO_ADDRESS, receiver, id, amount)
 
@@ -240,7 +238,7 @@ def mintBatch(receiver: address, ids: DynArray[uint256, BATCH_SIZE], amounts: Dy
     for i in range(BATCH_SIZE):
         if i >= len(ids):
             break
-        self.balances[ids[i]][receiver] = amounts[i]
+        self.balances[ids[i]][receiver] += amounts[i]
     
     log TransferBatch(operator, ZERO_ADDRESS, receiver, ids, amounts)
 
@@ -254,12 +252,8 @@ def burn(id: uint256, amount: uint256):
     # @param amount of tokens to burnfor this ID
     assert not self.paused, "The contract has been paused"
     assert self.balances[id][msg.sender] > 0 , "caller does not own this ID"
-    operator: address = msg.sender
-    fromBalance: uint256 = self.balances[id][msg.sender]
-    assert fromBalance >= amount, "ERC1155: burn amount exceeds balance"
-    self.balances[id][msg.sender] = fromBalance - amount
-
-    log TransferSingle(operator, msg.sender, ZERO_ADDRESS, id, amount)
+    self.balances[id][msg.sender] -= amount
+    log TransferSingle(msg.sender, msg.sender, ZERO_ADDRESS, id, amount)
     
 @external
 def burnBatch(ids: DynArray[uint256, BATCH_SIZE], amounts: DynArray[uint256, BATCH_SIZE]):
@@ -275,14 +269,9 @@ def burnBatch(ids: DynArray[uint256, BATCH_SIZE], amounts: DynArray[uint256, BAT
     for i in range(BATCH_SIZE):
         if i >= len(ids):
             break
-        assert self.balances[ids[i]][msg.sender] > 0 , "Caller does not own this ID or ZERO balance"
-        id: uint256 = ids[i]
-        amount: uint256 = amounts[i]
-        fromBalance: uint256 = self.balances[id][msg.sender]
-        assert fromBalance >= amount, "ERC1155: burn amount exceeds balance"
-        self.balances[id][msg.sender] = fromBalance - amount
+        self.balances[ids[i]][msg.sender] -= amounts[i]
     
-    log TransferBatch(operator, msg.sender, ZERO_ADDRESS, ids, amounts)
+    log TransferBatch(msg.sender, msg.sender, ZERO_ADDRESS, ids, amounts)
 
 ## approval ##
 @external
@@ -302,7 +291,6 @@ def isApprovedForAll(account: address, operator: address) -> bool:
     # @dev check wether operator is approved as an operator for the account
     # @param account the NFT owner address
     # @param operator the operator address
-    assert self.paused == False, "The contract has been paused"
     return self.operatorApprovals[account][operator]
 
 @external
@@ -314,13 +302,10 @@ def safeTransferFrom(sender: address, receiver: address, id: uint256, amount: ui
     # @param amount the amount of tokens for the specified id
     assert not self.paused, "The contract has been paused"
     assert receiver != ZERO_ADDRESS, "ERC1155: transfer to the zero address"
-    assert receiver != sender, "ERC1155: transfer to self"
-    assert (sender == msg.sender) or (self.operatorApprovals[sender][msg.sender] == True), "Caller is neither owner nor approved operator for this ID"
+    assert sender == msg.sender or self.operatorApprovals[sender][msg.sender], "Caller is neither owner nor approved operator for this ID"
     assert self.balances[id][sender] > 0 , "caller does not own this ID or ZERO balance"
     operator: address = msg.sender
-    fromBalance: uint256 = self.balances[id][sender]
-    assert fromBalance >= amount, "ERC1155: insufficient balance for transfer"
-    self.balances[id][sender] = fromBalance - amount
+    self.balances[id][sender] -= amount
     self.balances[id][receiver] += amount
     log TransferSingle(operator, sender, receiver, id, amount)
 
@@ -333,20 +318,15 @@ def safeBatchTransferFrom(sender: address, receiver: address, ids: DynArray[uint
     # @param amounts a dynamic array of the amounts for the specified list of ids.
     assert not self.paused, "The contract has been paused"
     assert receiver != ZERO_ADDRESS, "ERC1155: transfer to the zero address"
-    assert (sender == msg.sender) or (self.operatorApprovals[sender][msg.sender] == True), "Caller is neither owner nor approved operator for this ID"
+    assert sender == msg.sender or self.operatorApprovals[sender][msg.sender], "Caller is neither owner nor approved operator for this ID"
     assert len(ids) == len(amounts), "ERC1155: ids and amounts length mismatch"
-    assert sender != receiver, "sending to self"
     operator: address = msg.sender
     for i in range(BATCH_SIZE):
         if i >= len(ids):
             break
-        assert self.balances[ids[i]][sender] > 0 , "caller does not own this ID or ZERO balance"
         id: uint256 = ids[i]
         amount: uint256 = amounts[i]
-        fromBalance: uint256 = self.balances[id][sender]
-        assert fromBalance >= amount, "ERC1155: transfer amount exceeds balance"
-        # self.balances[id][msg.sender] = fromBalance - amount
-        self.balances[id][sender] = fromBalance - amount
+        self.balances[id][sender] -= amount
         self.balances[id][receiver] += amount
     
     log TransferBatch(operator, sender, receiver, ids, amounts)
