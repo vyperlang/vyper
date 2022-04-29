@@ -55,7 +55,6 @@ Internal functions (marked with the ``@internal`` decorator) are only accessible
     def calculate(amount: uint256) -> uint256:
         return self._times_two(amount)
 
-Internal functions do not have access to ``msg.sender`` or ``msg.value``. If you require these values within an internal function you must pass them as parameters.
 
 Mutability
 ----------
