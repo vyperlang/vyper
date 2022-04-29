@@ -26,7 +26,7 @@ owner: public(address)
 paused: public(bool)                            
 
 # the contracts URI to find the metadata
-uri: public(String[MAX_URI_LENGTH])                     
+_uri: String[MAX_URI_LENGTH]
 
 # NFT marketplace compatibility
 name: public(String[128])
@@ -129,7 +129,7 @@ def __init__(name: String[128], symbol: String[16], uri: String[1024]):
     self.symbol = symbol
     self.paused = False 
     self.owner = msg.sender
-    self.uri = uri
+    self._uri = uri
 
 ## contract status ##
 @external
@@ -351,15 +351,21 @@ def safeBatchTransferFrom(sender: address, receiver: address, ids: DynArray[uint
     
     log TransferBatch(operator, sender, receiver, ids, amounts)
 
-# misc #
+# URI #
 @external
 def setURI(uri: String[MAX_URI_LENGTH]):
     # @dev set the URI for the contract
     # @param uri the new uri for the contract
     assert not self.paused, "The contract has been paused"
-    assert self.uri != uri, "new and current URI are identical"
-    self.uri = uri
+    assert self._uri != uri, "new and current URI are identical"
+    self._uri = uri
     log URI(uri, 0)
+
+@external
+def uri(id: uint256) -> String[MAX_URI_LENGTH]:
+    # @dev retrieve the uri, this function can optionally be extended to return dynamic uris. out of scope.
+    # @param id NFT ID to retrieve the uri for. 
+    return self._uri
 
 @pure
 @external
