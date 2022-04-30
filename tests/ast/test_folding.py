@@ -2,7 +2,8 @@ import pytest
 
 from vyper import ast as vy_ast
 from vyper.ast import folding
-from vyper.exceptions import OverflowException
+from vyper.codegen.types import INTEGER_TYPES, parse_integer_typeinfo
+from vyper.exceptions import InvalidType, OverflowException, TypeMismatch
 
 
 def test_integration():
@@ -313,3 +314,62 @@ def test_replace_builtins(source, original, result):
     folding.replace_builtin_functions(original_ast)
 
     assert vy_ast.compare_nodes(original_ast, target_ast)
+
+
+@pytest.mark.parametrize("op", ["+", "-", "*", "/", "%", "**"])
+@pytest.mark.parametrize("constant_type", sorted(INTEGER_TYPES))
+@pytest.mark.parametrize("return_type", sorted(INTEGER_TYPES))
+def test_replace_constant_fail(
+    get_contract_with_gas_estimation, assert_compile_failed, op, constant_type, return_type
+):
+    c1 = f"""
+a: constant({constant_type}) = 2
+
+@external
+def foo() -> {return_type}:
+    return a {op} 2
+    """
+
+    c2 = f"""
+a: constant({constant_type}) = 255
+b: constant({return_type}) = 1
+
+@external
+def foo() -> {return_type}:
+    return a + b
+    """
+
+    if constant_type != return_type:
+        assert_compile_failed(lambda: get_contract_with_gas_estimation(c1), InvalidType)
+        assert_compile_failed(lambda: get_contract_with_gas_estimation(c2), TypeMismatch)
+
+
+@pytest.mark.parametrize(
+    "return_type,bounds", [(t, parse_integer_typeinfo(t).bounds) for t in sorted(INTEGER_TYPES)]
+)
+def test_replace_constant_overflow(
+    get_contract_with_gas_estimation, assert_compile_failed, return_type, bounds
+):
+    lo = bounds[0]
+    hi = bounds[1]
+
+    c1 = f"""
+a: constant({return_type}) = {hi}
+b: constant({return_type}) = 1
+
+@external
+def foo() -> {return_type}:
+    return a + b
+    """
+
+    c2 = f"""
+a: constant({return_type}) = {lo}
+b: constant({return_type}) = 1
+
+@external
+def foo() -> {return_type}:
+    return a - b
+    """
+
+    assert_compile_failed(lambda: get_contract_with_gas_estimation(c1), OverflowException)
+    assert_compile_failed(lambda: get_contract_with_gas_estimation(c2), OverflowException)
