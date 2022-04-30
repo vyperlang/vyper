@@ -215,7 +215,7 @@ def abi_encode(dst, ir_node, context, bufsz, returns_len=False):
             elif abi_t.is_complex_type():
                 ir_ret.append("dyn_ofst")
             else:
-                raise CompilerPanic("unknown type {ir_node.typ}")
+                raise CompilerPanic(f"unknown type {ir_node.typ}")
 
         if abi_t.is_dynamic() and abi_t.is_complex_type():
             dyn_section_start = abi_t.static_size()
