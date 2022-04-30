@@ -905,8 +905,30 @@ class BinOp(VyperNode):
             raise UnfoldableNode("Node contains invalid field(s) for evaluation")
 
         value = self.op._op(left.value, right.value)
-        _validate_numeric_bounds(self, value)
-        return type(left).from_node(self, value=value)
+
+        # Simple typechecking
+        left_type = self.left._metadata.get("type", None)
+        right_type = self.right._metadata.get("type", None)
+        types = {left_type, right_type}
+        if None not in types and not left_type.compare_type(right_type):
+            raise TypeMismatch(
+                f"Cannot perform {self.op._description} between dislike types", self.op
+            )
+
+        type_ = list(types - {None})[0] if len(types - {None}) > 0 else None
+        # Validate constants according to their type if defined
+        if type_ and not SizeLimits.in_bounds(repr(type_), value):
+            raise OverflowException(
+                f"Result of {self.op.description} ({value}) is outside bounds of {type_}",
+                self.op,
+            )
+        else:
+            _validate_numeric_bounds(self, value)
+
+        folded = type(left).from_node(self, value=value)
+        if type_:
+            folded._metadata["type"] = type_
+        return folded
 
 
 class Add(VyperNode):
