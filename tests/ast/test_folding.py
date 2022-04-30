@@ -319,6 +319,7 @@ def test_replace_builtins(source, original, result):
 @pytest.mark.parametrize("op", ["+", "-", "*", "/", "%", "**"])
 @pytest.mark.parametrize("constant_type", sorted(INTEGER_TYPES))
 @pytest.mark.parametrize("return_type", sorted(INTEGER_TYPES))
+@pytest.mark.fuzzing
 def test_replace_constant_fail(
     get_contract_with_gas_estimation, assert_compile_failed, op, constant_type, return_type
 ):
