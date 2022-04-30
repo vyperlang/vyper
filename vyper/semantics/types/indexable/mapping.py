@@ -40,10 +40,6 @@ class MappingPrimitive(BasePrimitive):
         is_public: bool = False,
         is_immutable: bool = False,
     ) -> MappingDefinition:
-        if isinstance(node, vy_ast.Subscript) and isinstance(
-            node.slice.value, (vy_ast.Int, vy_ast.Name)
-        ):
-            raise StructureException("HashMap arrays are not supported", node)
         if (
             not isinstance(node, vy_ast.Subscript)
             or not isinstance(node.slice, vy_ast.Index)
@@ -51,7 +47,11 @@ class MappingPrimitive(BasePrimitive):
             or len(node.slice.value.elements) != 2
         ):
             raise StructureException(
-                "HashMap must be defined with a key type and a value type", node
+                (
+                    "HashMap must be defined with a key type and a value type, "
+                    "e.g. my_hashmap: HashMap[k, v]"
+                ),
+                node,
             )
         if location != DataLocation.STORAGE or is_immutable:
             raise StructureException("HashMap can only be declared as a storage variable", node)
