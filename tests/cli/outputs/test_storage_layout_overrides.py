@@ -10,15 +10,17 @@ a: uint256
 b: uint256"""
 
     storage_layout_overrides = {
-        "a": {"type": "uint256", "location": "storage", "slot": 1},
-        "b": {"type": "uint256", "location": "storage", "slot": 0},
+        "a": {"type": "uint256", "slot": 1},
+        "b": {"type": "uint256", "slot": 0},
     }
+
+    expected_output = {"storage_layout": storage_layout_overrides, "code_layout": {}}
 
     out = compile_code(
         code, output_formats=["layout"], storage_layout_override=storage_layout_overrides
     )
 
-    assert out["layout"] == storage_layout_overrides
+    assert out["layout"] == expected_output
 
 
 def test_storage_layout_for_more_complex():
@@ -57,22 +59,23 @@ def public_foo3():
     """
 
     storage_layout_override = {
-        "nonreentrant.foo": {"type": "nonreentrant lock", "location": "storage", "slot": 8},
-        "nonreentrant.bar": {"type": "nonreentrant lock", "location": "storage", "slot": 7},
+        "nonreentrant.foo": {"type": "nonreentrant lock", "slot": 8},
+        "nonreentrant.bar": {"type": "nonreentrant lock", "slot": 7},
         "foo": {
             "type": "HashMap[address, uint256]",
-            "location": "storage",
             "slot": 1,
         },
-        "baz": {"type": "Bytes[65]", "location": "storage", "slot": 2},
-        "bar": {"type": "uint256", "location": "storage", "slot": 6},
+        "baz": {"type": "Bytes[65]", "slot": 2},
+        "bar": {"type": "uint256", "slot": 6},
     }
+
+    expected_output = {"storage_layout": storage_layout_override, "code_layout": {}}
 
     out = compile_code(
         code, output_formats=["layout"], storage_layout_override=storage_layout_override
     )
 
-    assert out["layout"] == storage_layout_override
+    assert out["layout"] == expected_output
 
 
 def test_simple_collision():
@@ -81,8 +84,8 @@ name: public(String[64])
 symbol: public(String[32])"""
 
     storage_layout_override = {
-        "name": {"location": "storage", "slot": 0, "type": "String[64]"},
-        "symbol": {"location": "storage", "slot": 1, "type": "String[32]"},
+        "name": {"slot": 0, "type": "String[64]"},
+        "symbol": {"slot": 1, "type": "String[32]"},
     }
 
     with pytest.raises(
@@ -101,7 +104,7 @@ name: public(String[64])
 symbol: public(String[32])"""
 
     storage_layout_override = {
-        "name": {"location": "storage", "slot": 0, "type": "String[64]"},
+        "name": {"slot": 0, "type": "String[64]"},
     }
 
     with pytest.raises(
