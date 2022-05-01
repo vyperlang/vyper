@@ -488,7 +488,7 @@ def _get_element_ptr_mapping(parent, key):
 
     # TODO when is key None?
     if key is None or parent.location != STORAGE:
-        raise TypeCheckFailure("bad dereference on mapping {parent}[{sub}]")
+        raise TypeCheckFailure(f"bad dereference on mapping {parent}[{key}]")
 
     return IRnode.from_list(["sha3_64", parent, key], typ=subtype, location=STORAGE)
 

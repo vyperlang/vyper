@@ -3,6 +3,61 @@
 Release Notes
 #############
 
+v0.3.3
+******
+
+Date released: 2022-04-22
+
+This is a bugfix release. It patches an off-by-one error in the storage allocation mechanism for dynamic arrays reported by @haltman-at in `#2820 <https://github.com/vyperlang/vyper/issues/2820>`_
+
+Other fixes and improvements:
+
+* Add a ``print`` built-in which allows printing debugging messages in hardhat. (`#2818 <https://github.com/vyperlang/vyper/pull/2818>`_)
+* Fix various error messages (`#2798 <https://github.com/vyperlang/vyper/pull/2798>`_, `#2805 <https://github.com/vyperlang/vyper/pull/2805>`_)
+
+
+v0.3.2
+******
+
+Date released: 2022-04-17
+
+Breaking changes:
+
+* Increase the bounds of the ``decimal`` type (`#2730 <https://github.com/vyperlang/vyper/pull/2730>`_)
+* Generalize and simplify the semantics of the ``convert`` builtin (`#2694 <https://github.com/vyperlang/vyper/pull/2694>`_)
+* Restrict hex and bytes literals (`#2736 <https://github.com/vyperlang/vyper/pull/2736>`_, `#2872 <https://github.com/vyperlang/vyper/pull/2782>`_)
+
+Non-breaking changes and improvements:
+
+* Implement dynamic arrays (`#2556 <https://github.com/vyperlang/vyper/pull/2556>`_, `#2606 <https://github.com/vyperlang/vyper/pull/2606>`_, `#2615 <https://github.com/vyperlang/vyper/pull/2615>`_)
+* Support all ABIv2 integer and bytes types (`#2705 <https://github.com/vyperlang/vyper/pull/2705>`_)
+* Add storage layout override mechanism (`#2593 <https://github.com/vyperlang/vyper/pull/2593>`_)
+* Support ``<address>.code`` attribute (`#2583 <https://github.com/vyperlang/vyper/pull/2583>`_)
+* Add ``tx.gasprice`` builtin (`#2624 <https://github.com/vyperlang/vyper/pull/2624>`_)
+* Allow structs as constant variables (`#2617 <https://github.com/vyperlang/vyper/pull/2617>`_)
+* Implement ``skip_contract_check`` kwarg (`#2551 <https://github.com/vyperlang/vyper/pull/2551>`_)
+* Support EIP-2678 ethPM manifest files (`#2628 <https://github.com/vyperlang/vyper/pull/2628>`_)
+* Add ``metadata`` output format (`#2597 <https://github.com/vyperlang/vyper/pull/2597>`_)
+* Allow ``msg.*`` variables in internal functions (`#2632 <https://github.com/vyperlang/vyper/pull/2632>`_)
+* Add ``unsafe_`` arithmetic builtins (`#2629 <https://github.com/vyperlang/vyper/pull/2629>`_)
+* Add subroutines to Vyper IR (`#2598 <https://github.com/vyperlang/vyper/pull/2598>`_)
+* Add ``select`` opcode to Vyper IR (`#2690 <https://github.com/vyperlang/vyper/pull/2690>`_)
+* Allow lists of any type as loop variables (`#2616 <https://github.com/vyperlang/vyper/pull/2616>`_)
+* Improve suggestions in error messages (`#2806 <https://github.com/vyperlang/vyper/pull/2806>`_)
+
+Notable Fixes:
+
+* Clamping of returndata from external calls in complex expressions (`GHSA-4mrx-6fxm-8jpg <https://github.com/vyperlang/vyper/security/advisories/GHSA-4mrx-6fxm-8jpg>`_, `GHSA-j2x6-9323-fp7h <https://github.com/vyperlang/vyper/security/advisories/GHSA-j2x6-9323-fp7h>`_)
+* Bytestring equality for (N<=32) (`GHSA-7vrm-3jc8-5wwm <https://github.com/vyperlang/vyper/security/advisories/GHSA-7vrm-3jc8-5wwm>`_)
+* Typechecking of constant variables (`#2580 <https://github.com/vyperlang/vyper/pull/2580>`_, `#2603 <https://github.com/vyperlang/vyper/pull/2603>`_)
+* Referencing immutables in constructor (`#2627 <https://github.com/vyperlang/vyper/pull/2627>`_)
+* Arrays of interfaces in for loops (`#2699 <https://github.com/vyperlang/vyper/pull/2699>`_)
+
+Lots of optimizations, refactoring and other fixes made it into this release! For the full list, please see the `changelog <https://github.com/vyperlang/vyper/compare/v0.3.1...v0.3.2>`_.
+
+Special thanks to @tserg for typechecker fixes and significant testing of new features! Additional contributors to this release include @abdullathedruid, @hi-ogawa, @skellet0r, @fubuloubu, @onlymaresia, @SwapOperator, @hitsuzen-eth, @Sud0u53r, @davidhq.
+
+
 v0.3.1
 *******
 

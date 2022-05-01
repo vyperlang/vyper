@@ -4,6 +4,7 @@ from vyper import ast as vy_ast
 from vyper.abi_types import ABI_Tuple, ABIType
 from vyper.ast.validation import validate_call_args
 from vyper.exceptions import (
+    InvalidAttribute,
     NamespaceCollision,
     StructureException,
     UnknownAttribute,
@@ -13,6 +14,7 @@ from vyper.semantics.namespace import validate_identifier
 from vyper.semantics.types.bases import DataLocation, MemberTypeDefinition, ValueTypeDefinition
 from vyper.semantics.types.indexable.mapping import MappingDefinition
 from vyper.semantics.types.utils import get_type_from_annotation
+from vyper.semantics.validation.levenshtein_utils import get_levenshtein_error_suggestions
 from vyper.semantics.validation.utils import validate_expected_type
 
 
@@ -93,10 +95,25 @@ class StructPrimitive:
             )
 
         members = self.members.copy()
-        for key, value in zip(node.args[0].keys, node.args[0].values):
+        keys = list(self.members.keys())
+        for i, (key, value) in enumerate(zip(node.args[0].keys, node.args[0].values)):
             if key is None or key.get("id") not in members:
-                raise UnknownAttribute("Unknown or duplicate struct member", key or value)
+                suggestions_str = get_levenshtein_error_suggestions(key.get("id"), members, 1.0)
+                raise UnknownAttribute(
+                    f"Unknown or duplicate struct member. {suggestions_str}",
+                    key or value,
+                )
+            expected_key = keys[i]
+            if key.id != expected_key:
+                raise InvalidAttribute(
+                    "Struct keys are required to be in order, but got "
+                    f"`{key.id}` instead of `{expected_key}`. (Reminder: the "
+                    f"keys in this struct are {list(self.members.items())})",
+                    key,
+                )
+
             validate_expected_type(value, members.pop(key.id))
+
         if members:
             raise VariableDeclarationException(
                 f"Struct declaration does not define all fields: {', '.join(list(members))}",
@@ -123,7 +140,9 @@ def build_primitive_from_node(base_node: vy_ast.EventDef) -> StructPrimitive:
     members: OrderedDict = OrderedDict()
     for node in base_node.body:
         if not isinstance(node, vy_ast.AnnAssign):
-            raise StructureException("Structs can only variable definitions", node)
+            raise StructureException(
+                "Struct declarations can only contain variable definitions", node
+            )
         if node.value is not None:
             raise StructureException("Cannot assign a value during struct declaration", node)
         if not isinstance(node.target, vy_ast.Name):

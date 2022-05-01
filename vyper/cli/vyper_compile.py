@@ -35,7 +35,7 @@ opcodes            - List of opcodes as a string
 opcodes_runtime    - List of runtime opcodes as a string
 ir                 - Intermediate representation in list format
 ir_json            - Intermediate representation in JSON format
-ir-hex             - Output IR and assembly constants in hex instead of decimal
+hex-ir             - Output IR and assembly constants in hex instead of decimal
 no-optimize        - Do not optimize (don't use this for production code)
 """
 
@@ -88,7 +88,7 @@ def _parse_args(argv):
     parser.add_argument(
         "--version",
         action="version",
-        version=vyper.__version__,
+        version=f"{vyper.__version__}+commit.{vyper.__commit__}",
     )
     parser.add_argument(
         "--show-gas-estimates",
@@ -137,7 +137,7 @@ def _parse_args(argv):
         action="store_true",
     )
     parser.add_argument(
-        "--ir-hex",
+        "--hex-ir",
         action="store_true",
     )
     parser.add_argument(
@@ -159,7 +159,7 @@ def _parse_args(argv):
         # an error occurred in a Vyper source file.
         sys.tracebacklimit = 0
 
-    if args.ir_hex:
+    if args.hex_ir:
         ir_node.AS_HEX_DEFAULT = True
 
     output_formats = tuple(uniq(args.format.split(",")))
