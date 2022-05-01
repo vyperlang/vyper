@@ -39,25 +39,31 @@ def fourbytes_to_int(inp):
     return (inp[0] << 24) + (inp[1] << 16) + (inp[2] << 8) + inp[3]
 
 
-def signed_to_unsigned(int_, bits):
+def signed_to_unsigned(int_, bits, strict=False):
     """
     Reinterpret a signed integer with n bits as an unsigned integer.
     The implementation is unforgiving in that it assumes the input is in
     bounds for int<bits>, in order to fail more loudly (and not hide
     errors in modular reasoning in consumers of this function).
     """
+    if strict:
+        lo, hi = int_bounds(int_, signed=True, bits=bits)
+        assert lo <= int_ <= hi
     if int_ < 0:
         return int_ + 2 ** bits
     return int_
 
 
-def unsigned_to_signed(int_, bits):
+def unsigned_to_signed(int_, bits, strict=False):
     """
     Reinterpret an unsigned integer with n bits as a signed integer.
     The implementation is unforgiving in that it assumes the input is in
     bounds for uint<bits>, in order to fail more loudly (and not hide
     errors in modular reasoning in consumers of this function).
     """
+    if strict:
+        lo, hi = int_bounds(int_, signed=False, bits=bits)
+        assert lo <= int_ <= hi
     if int_ > (2 ** (bits - 1)) - 1:
         return int_ - (2 ** bits)
     return int_
