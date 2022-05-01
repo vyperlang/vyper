@@ -109,7 +109,13 @@ event URI:
 implements: ERC165
 
 interface IERC1155Receiver:
-    def onERC1155Received(operator: address, sender: address, id: uint256, _value: uint256, data: bytes32) -> bytes32: payable
+    def onERC1155Received(
+       operator: address,
+       sender: address,
+       id: uint256,
+       amount: uint256,
+       data: Bytes[CALLBACK_NUMBYTES],
+   ) -> bytes32: payable
     def onERC1155BatchReceived(
         operator: address,
         sender: address,
