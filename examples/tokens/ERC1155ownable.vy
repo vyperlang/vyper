@@ -110,7 +110,13 @@ implements: ERC165
 
 interface IERC1155Receiver:
     def onERC1155Received(operator: address, sender: address, id: uint256, _value: uint256, data: bytes32) -> bytes32: payable
-    def onERC1155BatchReceived(operator: address, sender: address, _ids: DynArray[uint256, CALLBACK_NUMBYTES], _amounts: DynArray[uint256, BATCH_SIZE], data: bytes32) -> bytes32: payable
+    def onERC1155BatchReceived(
+        operator: address,
+        sender: address,
+        ids: DynArray[uint256, BATCH_SIZE],
+        amounts: DynArray[uint256, BATCH_SIZE],
+        data: Bytes[CALLBACK_NUMBYTES],
+    ) -> bytes4: payable
 
 interface IERC1155MetadataURI:
     def uri(id: uint256) -> String[MAX_URI_LENGTH]: view
