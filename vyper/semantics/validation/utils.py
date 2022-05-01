@@ -454,12 +454,15 @@ def validate_expected_type(node, expected_type):
         if len(given_types) == 1:
             given_str = str(given_types[0])
         else:
-            types_str = sorted(str(i) for i in given_types)
+            types_str = sorted([str(i) for i in given_types], key=lambda x: (len(x), x))
             given_str = f"{', '.join(types_str[:1])} or {types_str[-1]}"
 
-        # CMC 2022-02-14 maybe TypeMismatch would make more sense here
-        raise InvalidType(
-            f"Expected {expected_str} but literal can only be cast as {given_str}", node
+        raise TypeMismatch(
+            (
+                f"Expected {expected_str} but literal cannot be cast as {expected_str}. "
+                f"Do you mean {given_str}?"
+            ),
+            node,
         )
 
 
