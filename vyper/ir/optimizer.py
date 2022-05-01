@@ -288,22 +288,3 @@ def _merge_calldataload(argz):
         initial_calldata_offset = 0
         total_length = 0
         mstore_nodes.clear()
-
-
-def _find_mload_offsets(ir_node: IRnode, expected_offsets: set, seen_offsets: set) -> set:
-    for node in ir_node.args:
-        if node.value == "mload" and node.args[0].value in expected_offsets:
-            location = next(i for i in expected_offsets if i == node.args[0].value)
-            seen_offsets.add(location)
-        else:
-            seen_offsets.update(_find_mload_offsets(node, expected_offsets, seen_offsets))
-
-    return seen_offsets
-
-
-def _remove_mstore(ir_node: IRnode, offsets: set) -> None:
-    for node in ir_node.args.copy():
-        if node.value == "mstore" and node.args[0].value in offsets:
-            ir_node.args.remove(node)
-        else:
-            _remove_mstore(node, offsets)
