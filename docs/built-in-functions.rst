@@ -794,3 +794,12 @@ Utilities
         "0000000000000000000000000000000000000000000000000000000000000040"
         "0000000000000000000000000000000000000000000000000000000000000003"
         "3233340000000000000000000000000000000000000000000000000000000000"
+
+
+.. py:function:: print(*args) -> None
+
+    "prints" the arguments by issuing a static call to the "console" address, ``0x000000000000000000636F6E736F6C652E6C6F67``. This is supported by some smart contract development frameworks.
+
+.. note::
+
+    Issuing of the static call is *NOT* mode-dependent (that is, it is not removed from production code), although the compiler will issue a warning whenever ``print`` is used.
