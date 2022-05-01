@@ -911,9 +911,7 @@ class BinOp(VyperNode):
         right_type = self.right._metadata.get("type", None)
         types = {left_type, right_type}
         if None not in types and not left_type.compare_type(right_type):
-            raise TypeMismatch(
-                f"Cannot perform {self.op._description} between dislike types", self.op
-            )
+            raise UnfoldableNode(f"Cannot perform {self.op._description} between dislike types")
 
         type_ = list(types - {None})[0] if len(types - {None}) > 0 else None
         # Validate constants according to their type if defined
@@ -1114,8 +1112,8 @@ class Compare(VyperNode):
         types = {left_type, right_type}
 
         if None not in types and not left_type.compare_type(right_type):
-            raise TypeMismatch(
-                f"Cannot perform {self.op._description} comparison between dislike types", self.op
+            raise UnfoldableNode(
+                f"Cannot perform {self.op._description} comparison between dislike types"
             )
 
         if None in types and len(types) == 2:
