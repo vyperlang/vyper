@@ -17,6 +17,7 @@ from vyper.typing import (
 OUTPUT_FORMATS = {
     # requires vyper_module
     "ast_dict": output.build_ast_dict,
+    "unfolded_ast_dict": output.build_unfolded_ast_dict,
     "layout": output.build_layout_output,
     # requires global_ctx
     "devdoc": output.build_devdoc,

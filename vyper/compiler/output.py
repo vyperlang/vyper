@@ -23,6 +23,14 @@ def build_ast_dict(compiler_data: CompilerData) -> dict:
     return ast_dict
 
 
+def build_unfolded_ast_dict(compiler_data: CompilerData) -> dict:
+    unfolded_ast_dict = {
+        "contract_name": compiler_data.contract_name,
+        "ast": ast_to_dict(compiler_data.vyper_module_unfolded),
+    }
+    return unfolded_ast_dict
+
+
 def build_devdoc(compiler_data: CompilerData) -> dict:
     userdoc, devdoc = parse_natspec(compiler_data.vyper_module_folded)
     return devdoc

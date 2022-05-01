@@ -17,6 +17,7 @@ from vyper.utils import keccak256
 TRANSLATE_MAP = {
     "abi": "abi",
     "ast": "ast_dict",
+    "unfolded_ast": "unfolded_ast_dict",
     "devdoc": "devdoc",
     "evm.methodIdentifiers": "method_identifiers",
     "evm.bytecode.object": "bytecode",
@@ -406,6 +407,9 @@ def format_to_output_dict(compiler_data: Dict) -> Dict:
         output_dict["sources"][path] = {"id": id_}
         if "ast_dict" in data:
             output_dict["sources"][path]["ast"] = data["ast_dict"]["ast"]
+
+        if "unfolded_ast_dict" in data:
+            output_dict["sources"][path]["unfolded_ast"] = data["unfolded_ast_dict"]["ast"]
 
         name = Path(path).stem
         output_dict["contracts"][path] = {name: {}}
