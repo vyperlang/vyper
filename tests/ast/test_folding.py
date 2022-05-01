@@ -332,7 +332,7 @@ def foo() -> {return_type}:
     """
 
     c2 = f"""
-a: constant({constant_type}) = 255
+a: constant({constant_type}) = 2
 b: constant({return_type}) = 1
 
 @external
