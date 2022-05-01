@@ -1108,6 +1108,36 @@ class Compare(VyperNode):
         if not isinstance(self.op, (Eq, NotEq)) and not isinstance(left, (Int, Decimal)):
             raise TypeMismatch(f"Invalid literal types for {self.op.description} comparison", self)
 
+        # Simple typechecking
+        left_type = self.left._metadata.get("type", None)
+        right_type = self.right._metadata.get("type", None)
+        types = {left_type, right_type}
+
+        if None not in types and not left_type.compare_type(right_type):
+            raise TypeMismatch(
+                f"Cannot perform {self.op._description} comparison between dislike types", self.op
+            )
+
+        if None in types and len(types) == 2:
+            if left_type and not SizeLimits.in_bounds(repr(left_type), right.value):
+                # Check right value is in bounds
+                raise OverflowException(
+                    (
+                        f"The right literal's ({right.value}) is outside bounds of the ",
+                        f"left operand's type ({left_type})",
+                    ),
+                    self.op,
+                )
+            elif right_type and not SizeLimits.in_bounds(repr(right_type), left.value):
+                # Check left value is in bounds
+                raise OverflowException(
+                    (
+                        f"The left literal's value ({left.value}) is outside bounds of the "
+                        f"right operand's type ({right_type})"
+                    ),
+                    self.op,
+                )
+
         value = self.op._op(left.value, right.value)
         return NameConstant.from_node(self, value=value)
 
