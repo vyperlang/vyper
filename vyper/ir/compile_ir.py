@@ -1,7 +1,7 @@
 import copy
 import functools
 
-from vyper.codegen.ir_node import IRnode
+from vyper.codegen.ir_node import CLAMP_OP_NAMES, IRnode
 from vyper.evm.opcodes import get_opcodes
 from vyper.exceptions import CodegenPanic, CompilerPanic
 from vyper.utils import MemoryPositions
@@ -9,18 +9,6 @@ from vyper.utils import MemoryPositions
 PUSH_OFFSET = 0x5F
 DUP_OFFSET = 0x7F
 SWAP_OFFSET = 0x8F
-
-
-CLAMP_OP_NAMES = {
-    "uclamplt",
-    "uclample",
-    "clamplt",
-    "clample",
-    "uclampgt",
-    "uclampge",
-    "clampgt",
-    "clampge",
-}
 
 
 def num_to_bytearray(x):

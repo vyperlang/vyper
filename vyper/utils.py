@@ -47,7 +47,7 @@ def signed_to_unsigned(int_, bits, strict=False):
     errors in modular reasoning in consumers of this function).
     """
     if strict:
-        lo, hi = int_bounds(int_, signed=True, bits=bits)
+        lo, hi = int_bounds(signed=True, bits=bits)
         assert lo <= int_ <= hi
     if int_ < 0:
         return int_ + 2 ** bits
@@ -62,7 +62,7 @@ def unsigned_to_signed(int_, bits, strict=False):
     errors in modular reasoning in consumers of this function).
     """
     if strict:
-        lo, hi = int_bounds(int_, signed=False, bits=bits)
+        lo, hi = int_bounds(signed=False, bits=bits)
         assert lo <= int_ <= hi
     if int_ > (2 ** (bits - 1)) - 1:
         return int_ - (2 ** bits)
@@ -70,9 +70,9 @@ def unsigned_to_signed(int_, bits, strict=False):
 
 
 def is_power_of_two(n: int) -> bool:
-    #busted for ints wider than 53 bits:
-    #t = math.log(n, 2)
-    #return math.ceil(t) == math.floor(t)
+    # busted for ints wider than 53 bits:
+    # t = math.log(n, 2)
+    # return math.ceil(t) == math.floor(t)
     return n != 0 and ((n & (n - 1)) == 0)
 
 
@@ -189,8 +189,8 @@ def int_bounds(signed, bits):
 
 # e.g. -1 -> -(2**256 - 1)
 def evm_twos_complement(x: int) -> int:
-    #return ((o + 2 ** 255) % 2 ** 256) - 2 ** 255
-    return ((2**256 - 1) ^ x) + 1
+    # return ((o + 2 ** 255) % 2 ** 256) - 2 ** 255
+    return ((2 ** 256 - 1) ^ x) + 1
 
 
 # EVM div semantics as a python function

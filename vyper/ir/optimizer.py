@@ -1,50 +1,244 @@
 import operator
-from typing import List, Optional
+from typing import List, Optional, Union
 
-from vyper.codegen.ir_node import IRnode
-from vyper.utils import ceil32, evm_div, evm_mod
+from vyper.codegen.ir_node import CLAMP_OP_NAMES, IRnode
+from vyper.evm.opcodes import version_check
+from vyper.exceptions import StaticAssertionException
+from vyper.utils import (
+    ceil32,
+    evm_div,
+    evm_mod,
+    int_log2,
+    is_power_of_two,
+    signed_to_unsigned,
+    unsigned_to_signed,
+)
+
+SIGNED = False
+UNSIGNED = True
 
 
-def get_int_at(args: List[IRnode], pos: int, signed: bool = False) -> Optional[int]:
-    value = args[pos].value
-
-    if isinstance(value, int):
-        o = value
+# unsigned: convert python num to evm unsigned word
+#   e.g. unsigned=True : -1 -> 0xFF...FF
+#        unsigned=False: 0xFF...FF -> -1
+def _evm_int(node: IRnode, unsigned: bool = True) -> Optional[int]:
+    if isinstance(node.value, int):
+        o = node.value
     else:
         return None
 
-    if signed or o < 0:
-        return ((o + 2 ** 255) % 2 ** 256) - 2 ** 255
+    if unsigned:
+        return signed_to_unsigned(o, 256, strict=True)
     else:
-        return o % 2 ** 256
+        return unsigned_to_signed(o, 256, strict=True)
 
 
-def int_at(args: List[IRnode], pos: int, signed: bool = False) -> Optional[int]:
-    return get_int_at(args, pos, signed) is not None
+def _is_int(node: IRnode) -> bool:
+    return isinstance(node.value, int)
 
 
 arith = {
-    "add": (operator.add, "+"),
-    "sub": (operator.sub, "-"),
-    "mul": (operator.mul, "*"),
-    "div": (evm_div, "/"),
-    "mod": (evm_mod, "%"),
+    "add": (operator.add, "+", SIGNED),
+    "sub": (operator.sub, "-", SIGNED),
+    "mul": (operator.mul, "*", SIGNED),
+    "div": (evm_div, "/", UNSIGNED),
+    "sdiv": (evm_div, "/", SIGNED),
+    "mod": (evm_mod, "%", UNSIGNED),
+    "smod": (evm_mod, "%", SIGNED),
+    "eq": (operator.eq, "==", UNSIGNED),
+    "ne": (operator.ne, "!=", UNSIGNED),
+    "lt": (operator.lt, "<", UNSIGNED),
+    "le": (operator.le, "<=", UNSIGNED),
+    "gt": (operator.gt, ">", UNSIGNED),
+    "ge": (operator.ge, ">=", UNSIGNED),
+    "slt": (operator.lt, "<", SIGNED),
+    "sle": (operator.le, "<=", SIGNED),
+    "sgt": (operator.gt, ">", SIGNED),
+    "sge": (operator.ge, ">=", SIGNED),
 }
 
-
-def _is_constant_add(node: IRnode, args: List[IRnode]) -> bool:
-    return bool(
-        (isinstance(node.value, str))
-        and (node.value == "add" and int_at(args, 0))
-        and (args[1].value == "add" and int_at(args[1].args, 0))
-    )
+# quick typedefs, maybe move these to IRnode
+IRVal = Union[str, int]
+IRArgs = List[IRnode]
 
 
-def optimize(node: IRnode) -> IRnode:
-    # TODO add rules for modulus powers of 2
-    # TODO refactor this into several functions
+# def _optimize_binop(
+#    binop: str, args: IRArgs, ann: Optional[str], parent_op: Any = None
+# ) -> Tuple[IRVal, IRArgs, Optional[str]]:
+def _optimize_binop(binop, args, ann, parent_op):
 
-    argz = [optimize(arg) for arg in node.args]
+    fn, symb, unsigned = arith[binop]
+
+    # local version of _evm_int which defaults to the current binop's signedness
+    def _int(x, unsigned=unsigned):
+        return _evm_int(x, unsigned=unsigned)
+
+    l_ann = args[0].annotation or str(args[0])
+    r_ann = args[1].annotation or str(args[1])
+    new_ann = l_ann + symb + r_ann
+    if ann is not None:
+        new_ann = f"{ann} ({new_ann})"
+
+    if _is_int(args[0]) and _is_int(args[1]):
+        # compile-time arithmetic
+        left, right = _int(args[0]), _int(args[1])
+        new_val = fn(left, right)
+        return new_val, [], new_ann
+
+    new_val = None
+    new_args = None
+
+    # we can return truthy values instead of actual math
+    is_truthy = parent_op in {"if", "assert", "iszero"}
+
+    ##
+    # ARITHMETIC
+    ##
+
+    # if the op is commutative, move the literal to the second position
+    # to make the later logic cleaner
+    if binop in {"add", "mul"} and _is_int(args[0]):
+        new_args = [args[1], args[0]]
+
+    if binop in {"add", "sub"} and _int(args[1]) == 0:
+        new_val = args[0]
+        new_args = []
+
+    elif binop in {"mul", "div", "sdiv", "mod", "smod"} and _int(args[1]) == 0:
+        new_val = 0
+        new_args = []
+
+    elif binop in {"mod", "smod"} and _int(args[1]) == 1:
+        new_val = 0
+        new_args = []
+
+    elif binop in {"mul", "div", "sdiv"} and _int(args[1]) == 1:
+        new_val = args[0]
+        new_args = []
+
+    # x * -1 == 0 - x
+    elif binop in {"mul", "sdiv"} and _int(args[1], SIGNED) == -1:
+        new_val = "sub"
+        new_args = [0, args[0]]
+
+    # maybe OK:
+    # elif binop == "div" and _int(args[1], UNSIGNED) == MAX_UINT256:
+    #    # (div x (2**256 - 1)) == (eq x (2**256 - 1))
+    #    new_val = "eq"
+    #    args = args
+
+    elif binop in {"mod", "div", "mul"} and is_power_of_two(_int(args[1])):
+        assert unsigned == UNSIGNED, "something's not right"
+
+        # shave two gas off mod/div/mul for powers of two
+        if binop == "mod":
+            new_val = "and"
+            new_args = [args[0], int_log2(_int(args[1]))]
+        if binop == "div" and version_check(begin="constantinople"):
+            new_val = "shr"
+            # recall shr/shl have unintuitive arg order
+            new_args = [int_log2(_int(args[1])), args[0]]
+        # note: no rule for sdiv since it rounds differently from sar
+        if binop == "mul" and version_check(begin="constantinople"):
+            new_val = "shl"
+            new_args = [int_log2(_int(args[1])), args[0]]
+
+    ##
+    # COMPARISONS
+    ##
+
+    # (le x 0) seems like a linting issue actually
+    elif binop in {"eq", "le"} and _int(args[1]) == 0:
+        new_val = "iszero"
+        new_args = [args[0]]
+
+    # note: in places where truthy is accepted, sequences of
+    # ISZERO ISZERO will be optimized out, so we try to rewrite
+    # some operations to include iszero
+    elif is_truthy:
+        if binop == "eq":
+            # x == 0xff...ff => ~x == 0
+            if _int(args[1], UNSIGNED) == 2 ** 256 - 1:
+                new_val = "iszero"
+                new_args = ["not", args[0]]
+            else:
+                # (eq x y) has the same truthyness as (iszero (xor x y))
+                new_val = "iszero"
+                new_args = [["xor", *args]]
+        # no rule needed for "ne" as it will get compiled to
+        # `(iszero (eq x y))` anyways.
+
+        # TODO can we do this?
+        # if val == "div":
+        #    val = "gt"
+        #    args = ["iszero", args]
+
+        elif binop in ("sgt", "gt") and _is_int(args[1]):
+            new_val = "sge" if binop == "sgt" else "ge"
+            new_args = [args[0], _int(args[1]) + 1]
+
+        elif binop in ("slt", "lt") and _is_int(args[1]):
+            new_val = "sle" if binop == "slt" else "le"
+            new_args = [args[0], _int(args[1]) - 1]
+
+    elif binop == "ge" and _int(args[1]) == 0:
+        new_val = 1
+        new_args = []
+
+    elif binop == "lt":
+        if _int(args[1]) == 0:
+            new_val = 0
+            new_args = []
+        if _int(args[1]) == 1:
+            new_val = "iszero"
+            new_args = [args[0]]
+
+    # gt x 0 => x != 0
+    elif binop == "gt" and _int(args[1]) == 0:
+        new_val = "iszero"
+        new_args = ["iszero", args[0]]
+
+    ##
+    # BITWISE OPS
+    ##
+
+    # x >> 0 == x << 0 == x
+    elif binop in ("shl", "shr", "sar") and _int(args[0]) == 0:
+        new_val = args[1].value
+        new_ann = args[1].annotation
+        new_args = args[1].args
+
+    if new_val is None:
+        return binop, args, ann
+
+    return new_val, new_args, new_ann
+
+
+def _optimize_clamps(clamp_op, args, parent):
+    if clamp_op in ("clamp", "uclamp"):
+        clample = clamp_op + "le"
+        inner = [clample, args[0], args[1]]
+        outer = [clample, inner, args[2]]
+        to_optimize = outer
+
+    else:
+        unsigned = clamp_op.startswith("u")
+
+        # extract last two chars of the op, e.g. "clamplt" -> "lt"
+        compare_op = clamp_op[-2:]
+
+        if not unsigned:
+            # e.g., "ge" -> "sge"
+            compare_op = "s" + compare_op
+
+        with args[0].cache_when_complex("clamp_arg") as (b1, arg):
+            to_optimize = ["seq", ["assert", compare_op, arg, args[1]], arg]
+
+    return optimize(IRnode.from_list(to_optimize), parent)
+
+
+def optimize(node: IRnode, parent: Optional[IRnode] = None) -> IRnode:
+    argz = [optimize(arg, node) for arg in node.args]
 
     value = node.value
     typ = node.typ
@@ -54,113 +248,23 @@ def optimize(node: IRnode) -> IRnode:
     add_gas_estimate = node.add_gas_estimate
     valency = node.valency
 
-    if node.value == "seq":
+    if value == "seq":
         _merge_memzero(argz)
         _merge_calldataload(argz)
 
-    if node.value in arith and int_at(argz, 0) and int_at(argz, 1):
-        # compile-time arithmetic
-        left, right = get_int_at(argz, 0), get_int_at(argz, 1)
-        # `node.value in arith` implies that `node.value` is a `str`
-        fn, symb = arith[str(node.value)]
-        value = fn(left, right)
-        if argz[0].annotation and argz[1].annotation:
-            annotation = argz[0].annotation + symb + argz[1].annotation
-        elif argz[0].annotation or argz[1].annotation:
-            annotation = (
-                (argz[0].annotation or str(left)) + symb + (argz[1].annotation or str(right))
-            )
-        else:
-            annotation = ""
+    if value in arith:
+        parent_op = parent.value if parent is not None else None
+        value, argz, annotation = _optimize_binop(value, argz, annotation, parent_op)
 
-        argz = []
+    elif node.value in CLAMP_OP_NAMES:
+        return _optimize_clamps(node.value, argz, parent)
 
-    elif node.value == "ceil32" and int_at(argz, 0):
+    # TODO just expand this
+    elif node.value == "ceil32" and _is_int(argz[0]):
         t = argz[0]
         annotation = f"ceil32({t.value})"
         argz = []
         value = ceil32(t.value)
-
-    # x >> 0 == x << 0 == x
-    elif node.value in ("shl", "shr", "sar") and get_int_at(argz, 0) == 0:
-        value = argz[1].value
-        annotation = argz[1].annotation
-        argz = argz[1].args
-
-    elif (node.value == "add" and get_int_at(argz, 0) == 0) or (
-        node.value == "mul" and get_int_at(argz, 0) == 1
-    ):
-        value = argz[1].value
-        annotation = argz[1].annotation
-        argz = argz[1].args
-
-    elif (node.value == "add" and get_int_at(argz, 1) == 0) or (
-        node.value == "mul" and get_int_at(argz, 1) == 1
-    ):
-        value = argz[0].value
-        annotation = argz[0].annotation
-        argz = argz[0].args
-
-    elif (
-        node.value in ("clamp", "uclamp")
-        and int_at(argz, 0)
-        and int_at(argz, 1)
-        and int_at(argz, 2)
-    ):
-        if get_int_at(argz, 0, True) > get_int_at(argz, 1, True):  # type: ignore
-            raise Exception("Clamp always fails")
-        elif get_int_at(argz, 1, True) > get_int_at(argz, 2, True):  # type: ignore
-            raise Exception("Clamp always fails")
-        else:
-            return argz[1]
-
-    elif node.value in ("clamp", "uclamp") and int_at(argz, 0) and int_at(argz, 1):
-        if get_int_at(argz, 0, True) > get_int_at(argz, 1, True):  # type: ignore
-            raise Exception("Clamp always fails")
-        else:
-            # i.e., clample or uclample
-            value += "le"  # type: ignore
-            argz = [argz[1], argz[2]]
-
-    elif node.value == "uclamplt" and int_at(argz, 0) and int_at(argz, 1):
-        if get_int_at(argz, 0, True) >= get_int_at(argz, 1, True):  # type: ignore
-            raise Exception("Clamp always fails")
-        value = argz[0].value
-        argz = []
-
-    elif node.value == "clamp_nonzero" and int_at(argz, 0):
-        if get_int_at(argz, 0) != 0:
-            value = argz[0].value
-            argz = []
-        else:
-            raise Exception("Clamp always fails")
-
-    # TODO: (uclampgt 0 x) -> (iszero (iszero x))
-    # TODO: more clamp rules
-
-    # [eq, x, 0] is the same as [iszero, x].
-    # TODO handle (ne 0 x) as well
-    elif node.value == "eq" and int_at(argz, 1) and argz[1].value == 0:
-        value = "iszero"
-        argz = [argz[0]]
-
-    # TODO handle (ne -1 x) as well
-    elif node.value == "eq" and int_at(argz, 1) and argz[1].value == -1:
-        value = "iszero"
-        argz = [IRnode.from_list(["not", argz[0]])]
-
-    elif node.value == "iszero" and int_at(argz, 0):
-        value = 1 if get_int_at(argz, 0) == 0 else 0
-        annotation = f"iszero({annotation})"
-        argz = []
-
-    # (eq x y) has the same truthyness as (iszero (xor x y))
-    # rewrite 'eq' as 'xor' in places where truthy is accepted.
-    # (the sequence (if (iszero (xor x y))) will be translated to
-    #  XOR ISZERO ISZERO ..JUMPI and the ISZERO ISZERO will be
-    #  optimized out)
-    elif node.value in ("if", "assert") and argz[0].value == "eq":
-        argz[0] = ["iszero", ["xor", *argz[0].args]]  # type: ignore
 
     elif node.value == "if" and len(argz) == 3:
         # if(x) compiles to jumpi(_, iszero(x))
@@ -173,6 +277,17 @@ def optimize(node: IRnode) -> IRnode:
 
         argz = [contra_cond, false_branch, true_branch]
 
+    elif node.value in ("assert", "assert_unreachable") and _is_int(argz[0]):
+        if _evm_int(argz[0]) == 0:
+            raise StaticAssertionException(
+                f"assertion found to fail at compile time: {node}", source_pos
+            )
+        else:
+            value = "seq"
+            argz = []
+
+    # NOTE: this is really slow (compile-time).
+    # maybe should optimize the tree in-place
     ret = IRnode.from_list(
         [value, *argz],
         typ=typ,
