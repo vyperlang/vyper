@@ -213,8 +213,7 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
             # return a base type of BytesArrayPrimitive or StringPrimitive
             # based on the namespace (see types_from_Name in validation/utils)
             self.visit(node.slice, base_type.get_index_type())
-
-        self.visit(node.value, base_type)
+            self.visit(node.value, base_type)
 
     def visit_Tuple(self, node, type_):
         node._metadata["type"] = type_
