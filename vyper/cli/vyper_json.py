@@ -5,7 +5,7 @@ import json
 import sys
 import warnings
 from pathlib import Path
-from typing import Callable, Dict, Tuple, Union
+from typing import Any, Callable, Dict, Hashable, List, Tuple, Union
 
 import vyper
 from vyper.cli.utils import extract_file_interface_imports, get_interface_file_path
@@ -50,7 +50,7 @@ def _parse_args(argv):
     parser.add_argument(
         "--version",
         action="version",
-        version=vyper.__version__,
+        version=f"{vyper.__version__}+commit.{vyper.__commit__}",
     )
     parser.add_argument(
         "-o",
@@ -136,12 +136,18 @@ def exc_handler_to_dict(file_path: Union[str, None], exception: Exception, compo
 
 
 def _standardize_path(path_str: str) -> str:
-    root_path = Path("/__vyper").resolve()
-    path = root_path.joinpath(path_str.lstrip("/")).resolve()
     try:
-        path = path.relative_to(root_path)
+        path = Path(path_str)
+
+        if path.is_absolute():
+            path = path.resolve()
+        else:
+            pwd = Path(".").resolve()
+            path = path.resolve().relative_to(pwd)
+
     except ValueError:
         raise JSONError(f"{path_str} - path exists outside base folder")
+
     return path.as_posix()
 
 
@@ -435,6 +441,21 @@ def format_to_output_dict(compiler_data: Dict) -> Dict:
     return output_dict
 
 
+# https://stackoverflow.com/a/49518779
+def _raise_on_duplicate_keys(ordered_pairs: List[Tuple[Hashable, Any]]) -> Dict:
+    """
+    Raise JSONError if a duplicate key exists in provided ordered list
+    of pairs, otherwise return a dict.
+    """
+    dict_out = {}
+    for key, val in ordered_pairs:
+        if key in dict_out:
+            raise JSONError(f"Duplicate key: {key}")
+        else:
+            dict_out[key] = val
+    return dict_out
+
+
 def compile_json(
     input_json: Union[Dict, str],
     exc_handler: Callable = exc_handler_raises,
@@ -444,7 +465,9 @@ def compile_json(
     try:
         if isinstance(input_json, str):
             try:
-                input_dict: Dict = json.loads(input_json)
+                input_dict: Dict = json.loads(
+                    input_json, object_pairs_hook=_raise_on_duplicate_keys
+                )
             except json.decoder.JSONDecodeError as exc:
                 new_exc = JSONError(str(exc), exc.lineno, exc.colno)
                 return exc_handler(json_path, new_exc, "json")

@@ -20,12 +20,14 @@ def set_data_positions(
     vyper_module : vy_ast.Module
         Top-level Vyper AST node that has already been annotated with type data.
     """
-    set_code_offsets(vyper_module)
-    return (
+    code_offsets = set_code_offsets(vyper_module)
+    storage_slots = (
         set_storage_slots_with_overrides(vyper_module, storage_layout_overrides)
         if storage_layout_overrides is not None
         else set_storage_slots(vyper_module)
     )
+
+    return {"storage_layout": storage_slots, "code_layout": code_offsets}
 
 
 class StorageAllocator:
@@ -102,7 +104,6 @@ def set_storage_slots_with_overrides(
 
             ret[variable_name] = {
                 "type": "nonreentrant lock",
-                "location": "storage",
                 "slot": reentrant_slot,
             }
         else:
@@ -131,7 +132,7 @@ def set_storage_slots_with_overrides(
             reserved_slots.reserve_slot_range(var_slot, storage_length, node.target.id)
             type_.set_position(StorageSlot(var_slot))
 
-            ret[node.target.id] = {"type": str(type_), "location": "storage", "slot": var_slot}
+            ret[node.target.id] = {"type": str(type_), "slot": var_slot}
         else:
             raise StorageLayoutException(
                 f"Could not find storage_slot for {node.target.id}. "
@@ -174,7 +175,6 @@ def set_storage_slots(vyper_module: vy_ast.Module) -> StorageLayout:
         # we nail down the format better
         ret[variable_name] = {
             "type": "nonreentrant lock",
-            "location": "storage",
             "slot": storage_slot,
         }
 
@@ -193,7 +193,7 @@ def set_storage_slots(vyper_module: vy_ast.Module) -> StorageLayout:
 
         # this could have better typing but leave it untyped until
         # we understand the use case better
-        ret[node.target.id] = {"type": str(type_), "location": "storage", "slot": storage_slot}
+        ret[node.target.id] = {"type": str(type_), "slot": storage_slot}
 
         # CMC 2021-07-23 note that HashMaps get assigned a slot here.
         # I'm not sure if it's safe to avoid allocating that slot
@@ -212,8 +212,9 @@ def set_memory_offsets(fn_node: vy_ast.FunctionDef) -> None:
     pass
 
 
-def set_code_offsets(vyper_module: vy_ast.Module) -> None:
+def set_code_offsets(vyper_module: vy_ast.Module) -> Dict:
 
+    ret = {}
     offset = 0
     for node in vyper_module.get_children(
         vy_ast.AnnAssign, filters={"annotation.func.id": "immutable"}
@@ -221,4 +222,16 @@ def set_code_offsets(vyper_module: vy_ast.Module) -> None:
         type_ = node._metadata["type"]
         type_.set_position(CodeOffset(offset))
 
-        offset += math.ceil(type_.size_in_bytes / 32) * 32
+        len_ = math.ceil(type_.size_in_bytes / 32) * 32
+
+        # this could have better typing but leave it untyped until
+        # we understand the use case better
+        ret[node.target.id] = {
+            "type": str(type_),
+            "offset": offset,
+            "length": len_,
+        }
+
+        offset += len_
+
+    return ret

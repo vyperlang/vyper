@@ -80,6 +80,39 @@ def foo():
 def foo():
     true: int128 = 3
     """,
+    """
+n: HashMap[uint256, bool][3]
+    """,
+    """
+a: constant(uint256) = 3
+n: public(HashMap[uint256, Y][a])
+    """,
+    """
+a: immutable(uint256)
+n: public(HashMap[uint256, bool][a])
+
+@external
+def __init__():
+    a = 3
+    """,
+    """
+n: HashMap[uint256, bool][3][3]
+    """,
+    """
+m1: HashMap[uint8, uint8]
+m2: HashMap[uint8, uint8]
+
+@external
+def __init__():
+    self.m1 = self.m2
+    """,
+    """
+m1: HashMap[uint8, uint8]
+
+@external
+def __init__():
+    self.m1 = 234
+    """,
 ]
 
 

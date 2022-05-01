@@ -285,7 +285,7 @@ class BaseTypeDefinition:
         """
         return self.abi_type.selector_name()
 
-    def from_annotation(self, node: vy_ast.VyperNode, **kwargs: Any) -> None:
+    def from_annotation(self, node: vy_ast.VyperNode, *args: Any, **kwargs: Any) -> None:
         # always raises, user should have used a primitive
         raise StructureException("Value is not a type", node)
 

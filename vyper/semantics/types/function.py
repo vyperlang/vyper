@@ -1,3 +1,4 @@
+import re
 import warnings
 from collections import OrderedDict
 from typing import Any, Dict, List, Optional, Tuple
@@ -356,7 +357,7 @@ class ContractFunction(BaseTypeDefinition):
         if hasattr(self, "reentrancy_key_position"):
             raise CompilerPanic("Position was already assigned")
         if self.nonreentrant is None:
-            raise CompilerPanic("No reentrant key {self}")
+            raise CompilerPanic(f"No reentrant key {self}")
         # sanity check even though implied by the type
         if position._location != DataLocation.STORAGE:
             raise CompilerPanic("Non-storage reentrant key")
@@ -469,7 +470,25 @@ class ContractFunction(BaseTypeDefinition):
                 if not isinstance(kwarg.value, vy_ast.NameConstant):
                     raise InvalidType("skip_contract_check must be literal bool", kwarg.value)
             else:
-                validate_expected_type(kwarg.arg, kwarg.value)
+                # Generate the modified source code string with the kwarg removed
+                # as a suggestion to the user.
+                kwarg_pattern = fr"{kwarg.arg}\s*=\s*{re.escape(kwarg.value.node_source_code)}"
+                modified_line = re.sub(
+                    kwarg_pattern, kwarg.value.node_source_code, node.node_source_code
+                )
+                error_suggestion = (
+                    f"\n(hint: Try removing the kwarg: `{modified_line}`)"
+                    if modified_line != node.node_source_code
+                    else ""
+                )
+
+                raise ArgumentException(
+                    (
+                        "Usage of kwarg in Vyper is restricted to gas=, "
+                        f"value= and skip_contract_check=. {error_suggestion}"
+                    ),
+                    kwarg,
+                )
 
         return self.return_type
 

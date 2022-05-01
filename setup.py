@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 
+import os
 import re
+import subprocess
 
 from setuptools import find_packages, setup
 
@@ -40,14 +42,9 @@ with open("README.md", "r") as f:
     long_description = f.read()
 
 
-# force commit hash to be appended to version even when tag is exact
-# (breaks PEP 440, but this is the debug info, not the version tag for pypi)
+# strip local version
 def _local_version(version):
-    commithash = version.node[1:]  # git describe adds 'g' prefix
-    ret = f"+commit.{commithash}"
-    if version.dirty:
-        ret += "-dirty"
-    return ret
+    return ""
 
 
 def _global_version(version):
@@ -57,6 +54,22 @@ def _global_version(version):
     # minor regex hack to avoid messing too much with setuptools-scm internals
     version_str = guess_next_dev_version(version)
     return re.sub(r"\.dev\d+", "", version_str)
+
+
+hash_file_rel_path = os.path.join("vyper", "vyper_git_commithash.txt")
+hashfile = os.path.relpath(hash_file_rel_path)
+
+# there is no way in setuptools-scm to get metadata besides the package
+# version into version.py. (and we need that version to be PEP440 compliant
+# in order to get it into pypi). so, add the commit hash to the package
+# separately, in order so that we can add it to `vyper --version`.
+try:
+    commithash = subprocess.check_output("git rev-parse --short HEAD".split())
+    commithash_str = commithash.decode("utf-8").strip()
+    with open(hashfile, "w") as fh:
+        fh.write(commithash_str)
+except subprocess.CalledProcessError:
+    pass
 
 
 setup(
@@ -105,4 +118,5 @@ setup(
         "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",
     ],
+    data_files=[("", [hash_file_rel_path])],
 )
