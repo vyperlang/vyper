@@ -20,6 +20,26 @@ def returnMoose() -> int128:
     print("Passed init argument test")
 
 
+def test_constructor_mapping(get_contract_with_gas_estimation):
+    contract = """
+foo: HashMap[bytes4, bool]
+
+X: constant(bytes4) = 0x01ffc9a7
+
+@external
+def __init__():
+    self.foo[X] = True
+
+@external
+@view
+def check_foo(a: bytes4) -> bool:
+    return self.foo[a]
+    """
+
+    c = get_contract_with_gas_estimation(contract)
+    assert c.check_foo("0x01ffc9a7") is True
+
+
 def test_constructor_advanced_code(get_contract_with_gas_estimation):
     constructor_advanced_code = """
 twox: int128
@@ -85,6 +105,46 @@ def foo() -> int128:
         get_contract_with_gas_estimation(large_input_code_2, *[2 ** 130])
 
     print("Passed invalid input tests")
+
+
+def test_initialise_array_with_constant_key(get_contract_with_gas_estimation):
+    contract = """
+X: constant(uint256) = 4
+
+foo: int16[X]
+
+@external
+def __init__():
+    self.foo[X-1] = -2
+
+@external
+@view
+def check_foo(a: uint256) -> int16:
+    return self.foo[a]
+    """
+
+    c = get_contract_with_gas_estimation(contract)
+    assert c.check_foo(3) == -2
+
+
+def test_initialise_dynarray_with_constant_key(get_contract_with_gas_estimation):
+    contract = """
+X: constant(int16) = 4
+
+foo: DynArray[int16, X]
+
+@external
+def __init__():
+    self.foo = [X - 3, X - 4, X - 5, X - 6]
+
+@external
+@view
+def check_foo(a: uint64) -> int16:
+    return self.foo[a]
+    """
+
+    c = get_contract_with_gas_estimation(contract)
+    assert c.check_foo(3) == -2
 
 
 def test_nested_dynamic_array_constructor_arg(w3, get_contract_with_gas_estimation):

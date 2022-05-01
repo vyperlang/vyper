@@ -205,10 +205,16 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
 
         else:
             base_type = get_exact_type_from_node(node.value)
-        if isinstance(base_type, BaseTypeDefinition):
-            # in the vast majority of cases `base_type` is a type definition,
-            # however there are some edge cases with args to builtin functions
-            self.visit(node.slice, base_type.get_subscripted_type(node.slice.value))
+
+        if not isinstance(base_type, BaseTypeDefinition):
+            # some nodes are straight type annotations e.g. `String[100]` in
+            # `empty(String[100])`. (other instances are raw_call, convert and
+            # slice). skip annotating them because they do not conform to
+            # the BaseTypeDefinition API (and anyways we do not need to
+            # annotate them!)
+            return
+
+        self.visit(node.slice, base_type.get_index_type())
         self.visit(node.value, base_type)
 
     def visit_Tuple(self, node, type_):

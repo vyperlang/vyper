@@ -29,6 +29,7 @@ from vyper.semantics.types.function import (
     MemberFunctionDefinition,
     StateMutability,
 )
+from vyper.semantics.types.indexable.mapping import MappingDefinition
 from vyper.semantics.types.indexable.sequence import (
     ArrayDefinition,
     DynamicArrayDefinition,
@@ -231,6 +232,10 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             raise StructureException("Right-hand side of assignment cannot be a tuple", node.value)
 
         target = get_exact_type_from_node(node.target)
+        if isinstance(target, MappingDefinition):
+            raise StructureException(
+                "Left-hand side of assignment cannot be a HashMap without a key", node
+            )
 
         validate_expected_type(node.value, target)
         target.validate_modification(node, self.func.mutability)

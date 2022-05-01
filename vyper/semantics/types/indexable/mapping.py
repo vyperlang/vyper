@@ -47,7 +47,11 @@ class MappingPrimitive(BasePrimitive):
             or len(node.slice.value.elements) != 2
         ):
             raise StructureException(
-                "HashMap must be defined with a key type and a value type", node
+                (
+                    "HashMap must be defined with a key type and a value type, "
+                    "e.g. my_hashmap: HashMap[k, v]"
+                ),
+                node,
             )
         if location != DataLocation.STORAGE or is_immutable:
             raise StructureException("HashMap can only be declared as a storage variable", node)
