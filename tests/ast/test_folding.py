@@ -374,3 +374,53 @@ def foo() -> {return_type}:
 
     assert_compile_failed(lambda: get_contract_with_gas_estimation(c1), OverflowException)
     assert_compile_failed(lambda: get_contract_with_gas_estimation(c2), OverflowException)
+
+
+@pytest.mark.parametrize("op", ["<", "<=", "==", "!=", ">", ">="])
+@pytest.mark.parametrize(
+    "constant_type,bounds", [(t, parse_integer_typeinfo(t).bounds) for t in sorted(INTEGER_TYPES)]
+)
+@pytest.mark.fuzzing
+def test_replace_compare_constant_overflow(
+    get_contract_with_gas_estimation, assert_compile_failed, op, constant_type, bounds
+):
+    lo = bounds[0]
+    hi = bounds[1]
+
+    c1 = f"""
+a: constant({constant_type}) = 2
+
+@external
+def foo() -> bool:
+    return a {op} {hi + 1}
+    """
+
+    c2 = f"""
+a: constant({constant_type}) = 2
+
+@external
+def foo() -> bool:
+    return a {op} {lo - 1}
+    """
+
+    assert_compile_failed(lambda: get_contract_with_gas_estimation(c1), OverflowException)
+    assert_compile_failed(lambda: get_contract_with_gas_estimation(c2), OverflowException)
+
+
+@pytest.mark.parametrize("op", ["<", "<=", "==", "!=", ">", ">="])
+@pytest.mark.parametrize("constant_type_1", sorted(INTEGER_TYPES))
+@pytest.mark.parametrize("constant_type_2", sorted(INTEGER_TYPES))
+@pytest.mark.fuzzing
+def test_replace_compare_constant_type_mismatch(
+    get_contract_with_gas_estimation, assert_compile_failed, op, constant_type_1, constant_type_2
+):
+    c = f"""
+a: constant({constant_type_1}) = 2
+b: constant({constant_type_2}) = 1
+
+@external
+def foo() -> bool:
+    return a {op} b
+    """
+    if constant_type_1 != constant_type_2:
+        assert_compile_failed(lambda: get_contract_with_gas_estimation(c), TypeMismatch)
