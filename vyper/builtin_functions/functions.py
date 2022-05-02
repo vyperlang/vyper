@@ -689,7 +689,7 @@ class MethodID:
     _id = "method_id"
 
     def evaluate(self, node):
-        validate_call_args(node, 1, ["output_type"])
+        validate_call_args(node, 1)
 
         args = node.args
         if not isinstance(args[0], vy_ast.Str):
@@ -697,27 +697,8 @@ class MethodID:
         if " " in args[0].value:
             raise InvalidLiteral("Invalid function signature - no spaces allowed.")
 
-        if node.keywords:
-            return_type = get_type_from_annotation(node.keywords[0].value, DataLocation.UNSET)
-            if isinstance(return_type, Bytes32Definition):
-                length = 32
-            elif isinstance(return_type, BytesArrayDefinition) and return_type.length == 4:
-                length = 4
-            else:
-                raise ArgumentException("output_type must be bytes[4] or bytes32", node.keywords[0])
-        else:
-            # if `output_type` is not given, default to `bytes[4]`
-            length = 4
-
-        method_id = fourbytes_to_int(keccak256(args[0].value.encode())[:4])
-        value = method_id.to_bytes(length, "big")
-
-        if length == 32:
-            return vy_ast.Hex.from_node(node, value=f"0x{value.hex()}")
-        elif length == 4:
-            return vy_ast.Bytes.from_node(node, value=value)
-        else:
-            raise CompilerPanic
+        method_id = keccak256(args[0].value.encode())[:4]
+        return vy_ast.Hex.from_node(node, value=f"0x{method_id.hex()}")
 
     def fetch_call_return(self, node):
         raise CompilerPanic("method_id should always be folded")
