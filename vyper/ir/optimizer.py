@@ -337,7 +337,7 @@ def _merge_memzero(argz):
     mstore_nodes: List = []
     initial_offset = 0
     total_length = 0
-    for ir_node in [i for i in argz if i.value != "pass"]:
+    for ir_node in argz:
         if (
             ir_node.value == "mstore"
             and isinstance(ir_node.args[0].value, int)
@@ -390,7 +390,7 @@ def _merge_memzero(argz):
 def _remove_empty_seqs(argz):
     i = 0
     while i < len(argz):
-        if argz[i].value == "seq" and len(argz[i].args) == 0:
+        if argz[i].value in ("seq", "pass") and len(argz[i].args) == 0:
             del argz[i]
         else:
             i += 1
@@ -403,7 +403,7 @@ def _merge_calldataload(argz):
     initial_mem_offset = 0
     initial_calldata_offset = 0
     total_length = 0
-    for ir_node in [i for i in argz if i.value != "pass"]:
+    for ir_node in argz:
         if (
             ir_node.value == "mstore"
             and isinstance(ir_node.args[0].value, int)
