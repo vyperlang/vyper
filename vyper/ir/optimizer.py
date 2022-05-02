@@ -38,9 +38,9 @@ def _is_int(node: IRnode) -> bool:
 
 
 arith = {
-    "add": (operator.add, "+", SIGNED),
-    "sub": (operator.sub, "-", SIGNED),
-    "mul": (operator.mul, "*", SIGNED),
+    "add": (operator.add, "+", UNSIGNED),
+    "sub": (operator.sub, "-", UNSIGNED),
+    "mul": (operator.mul, "*", UNSIGNED),
     "div": (evm_div, "/", UNSIGNED),
     "sdiv": (evm_div, "/", SIGNED),
     "mod": (evm_mod, "%", UNSIGNED),
@@ -83,6 +83,11 @@ def _optimize_binop(binop, args, ann, parent_op):
         # compile-time arithmetic
         left, right = _int(args[0]), _int(args[1])
         new_val = fn(left, right)
+        # wrap.
+        new_val = new_val % 2**256
+        # wrap signedly
+        if not unsigned:
+            new_val = unsigned_to_signed(new_val, strict=True)
         return new_val, [], new_ann
 
     new_val = None
@@ -101,7 +106,7 @@ def _optimize_binop(binop, args, ann, parent_op):
         new_args = [args[1], args[0]]
 
     if binop in {"add", "sub"} and _int(args[1]) == 0:
-        new_val = args[0]
+        new_val = args[0].value
         new_args = []
 
     elif binop in {"mul", "div", "sdiv", "mod", "smod"} and _int(args[1]) == 0:
@@ -113,7 +118,7 @@ def _optimize_binop(binop, args, ann, parent_op):
         new_args = []
 
     elif binop in {"mul", "div", "sdiv"} and _int(args[1]) == 1:
-        new_val = args[0]
+        new_val = args[0].value
         new_args = []
 
     # x * -1 == 0 - x
@@ -127,9 +132,8 @@ def _optimize_binop(binop, args, ann, parent_op):
     #    new_val = "eq"
     #    args = args
 
-    elif binop in {"mod", "div", "mul"} and is_power_of_two(_int(args[1])):
-        assert unsigned == UNSIGNED, "something's not right"
-
+    elif binop in {"mod", "div", "mul"} and _is_int(args[1]) and is_power_of_two(_int(args[1])):
+        assert unsigned == UNSIGNED, "something's not right."
         # shave two gas off mod/div/mul for powers of two
         if binop == "mod":
             new_val = "and"
@@ -219,22 +223,22 @@ def _optimize_clamps(clamp_op, args, parent):
         clample = clamp_op + "le"
         inner = [clample, args[0], args[1]]
         outer = [clample, inner, args[2]]
-        to_optimize = outer
+        to_optimize = IRnode.from_list(outer)
 
     else:
-        unsigned = clamp_op.startswith("u")
-
         # extract last two chars of the op, e.g. "clamplt" -> "lt"
         compare_op = clamp_op[-2:]
 
+        unsigned = clamp_op.startswith("u")
         if not unsigned:
-            # e.g., "ge" -> "sge"
+            # e.g., "lt" -> "slt"
             compare_op = "s" + compare_op
 
         with args[0].cache_when_complex("clamp_arg") as (b1, arg):
-            to_optimize = ["seq", ["assert", compare_op, arg, args[1]], arg]
+            to_optimize = ["seq", ["assert", [compare_op, arg, args[1]]], arg]
+            to_optimize = b1.resolve(IRnode.from_list(to_optimize))
 
-    return optimize(IRnode.from_list(to_optimize), parent)
+    return optimize(to_optimize, parent)
 
 
 def optimize(node: IRnode, parent: Optional[IRnode] = None) -> IRnode:
