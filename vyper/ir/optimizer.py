@@ -73,10 +73,11 @@ def _optimize_binop(binop, args, ann, parent_op):
     def _int(x, unsigned=unsigned):
         return _evm_int(x, unsigned=unsigned)
 
-    l_ann = args[0].annotation or str(args[0])
-    r_ann = args[1].annotation or str(args[1])
-    new_ann = l_ann + symb + r_ann
+    new_ann = None
     if ann is not None:
+        l_ann = args[0].annotation or str(args[0])
+        r_ann = args[1].annotation or str(args[1])
+        new_ann = l_ann + symb + r_ann
         new_ann = f"{ann} ({new_ann})"
 
     if _is_int(args[0]) and _is_int(args[1]):
@@ -88,7 +89,7 @@ def _optimize_binop(binop, args, ann, parent_op):
         # wrap signedly
         if not unsigned:
             new_val = unsigned_to_signed(new_val, strict=True)
-        return new_val, [], new_ann
+        return False, new_val, [], new_ann
 
     new_val = None
     new_args = None
@@ -214,9 +215,9 @@ def _optimize_binop(binop, args, ann, parent_op):
         new_args = args[1].args
 
     if new_val is None:
-        return binop, args, ann
+        return False, binop, args, ann
 
-    return new_val, new_args, new_ann
+    return True, new_val, new_args, new_ann
 
 
 def _optimize_clamps(clamp_op, args, parent):
@@ -253,13 +254,21 @@ def optimize(node: IRnode, parent: Optional[IRnode] = None) -> IRnode:
     add_gas_estimate = node.add_gas_estimate
     valency = node.valency
 
+    optimize_more = False
+
     if value == "seq":
         _merge_memzero(argz)
         _merge_calldataload(argz)
+        _remove_empty_seqs(argz)
+
+        # (seq x) => (x) for cleanliness and
+        # to avoid blocking other optimizations
+        if len(argz) == 1:
+            return argz[0]
 
     if value in arith:
         parent_op = parent.value if parent is not None else None
-        value, argz, annotation = _optimize_binop(value, argz, annotation, parent_op)
+        optimize_more, value, argz, annotation = _optimize_binop(value, argz, annotation, parent_op)
 
     elif node.value in CLAMP_OP_NAMES:
         return _optimize_clamps(node.value, argz, parent)
@@ -306,6 +315,8 @@ def optimize(node: IRnode, parent: Optional[IRnode] = None) -> IRnode:
         ret.total_gas = node.total_gas - node.gas + ret.gas
         ret.func_name = node.func_name
 
+    if optimize_more:
+        ret = optimize(ret, parent=parent)
     return ret
 
 
@@ -361,6 +372,18 @@ def _merge_memzero(argz):
         initial_offset = 0
         total_length = 0
         mstore_nodes.clear()
+
+
+# remove things like [seq, seq, seq] because they interfere with
+# other optimizer steps
+def _remove_empty_seqs(argz):
+    i = 0
+    test_node = IRnode.from_list("seq")
+    while i < len(argz):
+        if argz[i].value == "seq" and len(argz[i].args) == 0:
+            del argz[i]
+        else:
+            i += 1
 
 
 def _merge_calldataload(argz):
