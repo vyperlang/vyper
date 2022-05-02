@@ -73,6 +73,7 @@ from vyper.semantics.types.value.array_value import (
     StringDefinition,
     StringPrimitive,
 )
+from vyper.semantics.types.value.bytes_fixed import Bytes4Definition  # type: ignore
 from vyper.semantics.types.value.bytes_fixed import Bytes32Definition
 from vyper.semantics.types.value.numeric import Int256Definition  # type: ignore
 from vyper.semantics.types.value.numeric import Uint256Definition  # type: ignore
@@ -697,8 +698,21 @@ class MethodID:
         if " " in args[0].value:
             raise InvalidLiteral("Invalid function signature - no spaces allowed.")
 
-        method_id = keccak256(args[0].value.encode())[:4]
-        return vy_ast.Hex.from_node(node, value=f"0x{method_id.hex()}")
+        if node.keywords:
+            return_type = get_type_from_annotation(node.keywords[0].value, DataLocation.UNSET)
+            if not isinstance(return_type, Bytes4Definition) and not (
+                isinstance(return_type, BytesArrayDefinition) and return_type.length == 4
+            ):
+                raise ArgumentException("output_type must be bytes4 or Bytes[4]", node.keywords[0])
+        else:
+            return_type = Bytes4Definition()
+
+        value = keccak256(args[0].value.encode())[:4]
+
+        if isinstance(return_type, Bytes4Definition):
+            return vy_ast.Hex.from_node(node, value=f"0x{value.hex()}")
+        elif isinstance(return_type, BytesArrayDefinition):
+            return vy_ast.Bytes.from_node(node, value=value)
 
     def fetch_call_return(self, node):
         raise CompilerPanic("method_id should always be folded")
