@@ -85,7 +85,7 @@ def _optimize_binop(binop, args, ann, parent_op):
         left, right = _int(args[0]), _int(args[1])
         new_val = fn(left, right)
         # wrap.
-        new_val = new_val % 2**256
+        new_val = new_val % 2 ** 256
         # wrap in a signed way.
         if not unsigned:
             new_val = unsigned_to_signed(new_val, strict=True)
@@ -173,7 +173,6 @@ def _optimize_binop(binop, args, ann, parent_op):
     elif binop == "gt" and _int(args[1]) == 0:
         new_val = "iszero"
         new_args = [["iszero", args[0]]]
-
 
     # note: in places where truthy is accepted, sequences of
     # ISZERO ISZERO will be optimized out, so we try to rewrite
@@ -390,7 +389,6 @@ def _merge_memzero(argz):
 # other optimizer steps
 def _remove_empty_seqs(argz):
     i = 0
-    test_node = IRnode.from_list("seq")
     while i < len(argz):
         if argz[i].value == "seq" and len(argz[i].args) == 0:
             del argz[i]
