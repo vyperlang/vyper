@@ -133,12 +133,12 @@ interface IERC1155MetadataURI:
 def __init__(name: String[128], symbol: String[16], uri: String[1024]):
     # @dev contract initialization on deployment
     # @dev will set name and symbol, interfaces, owner and URI
+    # @dev self.paused will default to false
     # @param name the smart contract name
     # @param symbol the smart contract symbol
     # @param uri the new uri for the contract
     self.name = name
     self.symbol = symbol
-    self.paused = False 
     self.owner = msg.sender
     self._uri = uri
 
@@ -187,18 +187,6 @@ def renounceOwnership():
     oldOwner: address = self.owner
     self.owner = ZERO_ADDRESS
     log OwnershipTransferred(oldOwner, ZERO_ADDRESS)
-
-# ## balance ##
-# # @view
-# @external
-# def balanceOf(account: address, id: uint256) -> uint256:
-#     # @dev check the balance for a specific ID and address
-#     # @dev will return the balance if the id is owned by the address
-#     # @dev Can also be used to check ownership of an ID
-#     # @param account the address to check the balance for
-#     # @param id the token ID to check the balance
-#     assert account != ZERO_ADDRESS, "Please enter a valid address"
-#     return self.balances[id][account]
 
 @external
 @view
@@ -296,14 +284,6 @@ def setApprovalForAll(owner: address, operator: address, approved: bool):
     assert owner != operator, "ERC1155: setting approval status for self"
     self.isApprovedForAll[owner][operator] = approved
     log ApprovalForAll(owner, operator, approved)
-
-# @external 
-# @view
-# def isApprovedForAll(account: address, operator: address) -> bool:
-#     # @dev check wether operator is approved as an operator for the account
-#     # @param account the NFT owner address
-#     # @param operator the operator address
-#     return self.operatorApprovals[account][operator]
 
 @external
 def safeTransferFrom(sender: address, receiver: address, id: uint256, amount: uint256, bytes: bytes32):
