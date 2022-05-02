@@ -200,6 +200,7 @@ def generate_unfolded_ast(
 
     vy_ast.validation.validate_literal_nodes(vyper_module)
     vy_ast.folding.replace_builtin_constants(vyper_module)
+    vy_ast.folding.replace_builtin_functions(vyper_module)
     validate_semantics(vyper_module, interface_codes)
 
     return vyper_module
