@@ -156,6 +156,24 @@ def _optimize_binop(binop, args, ann, parent_op):
         new_val = "iszero"
         new_args = [args[0]]
 
+    elif binop == "ge" and _int(args[1]) == 0:
+        new_val = 1
+        new_args = []
+
+    elif binop == "lt":
+        if _int(args[1]) == 0:
+            new_val = 0
+            new_args = []
+        if _int(args[1]) == 1:
+            new_val = "iszero"
+            new_args = [args[0]]
+
+    # gt x 0 => x != 0
+    elif binop == "gt" and _int(args[1]) == 0:
+        new_val = "iszero"
+        new_args = [["iszero", args[0]]]
+
+
     # note: in places where truthy is accepted, sequences of
     # ISZERO ISZERO will be optimized out, so we try to rewrite
     # some operations to include iszero
@@ -184,23 +202,6 @@ def _optimize_binop(binop, args, ann, parent_op):
         elif binop in ("slt", "lt") and _is_int(args[1]):
             new_val = "sle" if binop == "slt" else "le"
             new_args = [args[0], _int(args[1]) - 1]
-
-    elif binop == "ge" and _int(args[1]) == 0:
-        new_val = 1
-        new_args = []
-
-    elif binop == "lt":
-        if _int(args[1]) == 0:
-            new_val = 0
-            new_args = []
-        if _int(args[1]) == 1:
-            new_val = "iszero"
-            new_args = [args[0]]
-
-    # gt x 0 => x != 0
-    elif binop == "gt" and _int(args[1]) == 0:
-        new_val = "iszero"
-        new_args = ["iszero", [args[0]]]
 
     ##
     # BITWISE OPS
