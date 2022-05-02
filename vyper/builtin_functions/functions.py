@@ -690,7 +690,7 @@ class MethodID:
     _id = "method_id"
 
     def evaluate(self, node):
-        validate_call_args(node, 1)
+        validate_call_args(node, 1, ["output_type"])
 
         args = node.args
         if not isinstance(args[0], vy_ast.Str):
