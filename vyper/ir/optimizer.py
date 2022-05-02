@@ -86,7 +86,7 @@ def _optimize_binop(binop, args, ann, parent_op):
         new_val = fn(left, right)
         # wrap.
         new_val = new_val % 2**256
-        # wrap signedly
+        # wrap in a signed way.
         if not unsigned:
             new_val = unsigned_to_signed(new_val, strict=True)
         return False, new_val, [], new_ann
@@ -280,16 +280,28 @@ def optimize(node: IRnode, parent: Optional[IRnode] = None) -> IRnode:
         argz = []
         value = ceil32(t.value)
 
-    elif node.value == "if" and len(argz) == 3:
-        # if(x) compiles to jumpi(_, iszero(x))
-        # there is an asm optimization for the sequence ISZERO ISZERO..JUMPI
-        # so we swap the branches here to activate that optimization.
-        cond = argz[0]
-        true_branch = argz[1]
-        false_branch = argz[2]
-        contra_cond = IRnode.from_list(["iszero", cond])
+    elif node.value == "if":
+        # optimize out the branch
+        if _is_int(argz[0]):
+            # if false
+            if _evm_int(argz[0]) == 0:
+                # return the else branch (or [] if there is no else)
+                return argz[2:]
+            # if true
+            else:
+                # return the first branch
+                return argz[1]
 
-        argz = [contra_cond, false_branch, true_branch]
+        elif len(argz) == 3:
+            # if(x) compiles to jumpi(_, iszero(x))
+            # there is an asm optimization for the sequence ISZERO ISZERO..JUMPI
+            # so we swap the branches here to activate that optimization.
+            cond = argz[0]
+            true_branch = argz[1]
+            false_branch = argz[2]
+            contra_cond = IRnode.from_list(["iszero", cond])
+
+            argz = [contra_cond, false_branch, true_branch]
 
     elif node.value in ("assert", "assert_unreachable") and _is_int(argz[0]):
         if _evm_int(argz[0]) == 0:
