@@ -15,7 +15,7 @@ interface ERC721Receiver:
             _from: address,
             _tokenId: uint256,
             _data: Bytes[1024]
-        ) -> bytes32: view
+        ) -> bytes4: view
 
 
 # @dev Emits when ownership of any NFT changes by any mechanism. This event emits when NFTs are
@@ -265,7 +265,6 @@ def safeTransferFrom(
          Throws if `_tokenId` is not a valid NFT.
          If `_to` is a smart contract, it calls `onERC721Received` on `_to` and throws if
          the return value is not `bytes4(keccak256("onERC721Received(address,address,uint256,bytes)"))`.
-         NOTE: bytes4 is represented by bytes32 with padding
     @param _from The current owner of the NFT.
     @param _to The new owner.
     @param _tokenId The NFT to transfer.
@@ -273,9 +272,9 @@ def safeTransferFrom(
     """
     self._transferFrom(_from, _to, _tokenId, msg.sender)
     if _to.is_contract: # check if `_to` is a contract address
-        returnValue: bytes32 = ERC721Receiver(_to).onERC721Received(msg.sender, _from, _tokenId, _data)
+        returnValue: bytes4 = ERC721Receiver(_to).onERC721Received(msg.sender, _from, _tokenId, _data)
         # Throws if transfer destination is a contract which does not implement 'onERC721Received'
-        assert returnValue == method_id("onERC721Received(address,address,uint256,bytes)", output_type=bytes32)
+        assert returnValue == method_id("onERC721Received(address,address,uint256,bytes)", output_type=bytes4)
 
 
 @external
