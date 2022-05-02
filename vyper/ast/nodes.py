@@ -142,9 +142,10 @@ def _to_dict(value):
     if isinstance(value, VyperNode):
         return value.to_dict()
 
+    from vyper.semantics.types import Event
     from vyper.semantics.types.bases import BaseTypeDefinition
 
-    if isinstance(value, BaseTypeDefinition):
+    if isinstance(value, (BaseTypeDefinition, Event)):
         return repr(value)
 
     if isinstance(value, (int, str, decimal.Decimal)) or value is None:
