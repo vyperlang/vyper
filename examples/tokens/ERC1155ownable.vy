@@ -40,7 +40,7 @@ ERC1155_INTERFACE_ID_METADATA: constant(bytes4) = 0x0e89341c
 # mappings
 
 # Mapping from token ID to account balances
-balanceOf: public(HashMap[uint256,HashMap[address, uint256]])
+balanceOf: public(HashMap[address, HashMap[uint256, uint256]])
 
 # Mapping from account to operator approvals
 isApprovedForAll: public( HashMap[address, HashMap[address, bool]])
@@ -200,7 +200,7 @@ def balanceOfBatch(accounts: DynArray[address, BATCH_SIZE], ids: DynArray[uint25
     batchBalances: DynArray[uint256, BATCH_SIZE] = []
     j: uint256 = 0
     for i in ids:
-        batchBalances.append(self.balanceOf[i][accounts[j]])
+        batchBalances.append(self.balanceOf[accounts[j]][i])
         j += 1
     return batchBalances
 
@@ -217,7 +217,7 @@ def mint(receiver: address, id: uint256, amount:uint256, data:bytes32):
     assert self.owner == msg.sender, "Only the contract owner can mint"
     assert receiver != ZERO_ADDRESS, "Can not mint to ZERO ADDRESS"
     operator: address = msg.sender
-    self.balanceOf[id][receiver] += amount
+    self.balanceOf[receiver][id] += amount
     log TransferSingle(operator, ZERO_ADDRESS, receiver, id, amount)
 
 
@@ -238,7 +238,7 @@ def mintBatch(receiver: address, ids: DynArray[uint256, BATCH_SIZE], amounts: Dy
     for i in range(BATCH_SIZE):
         if i >= len(ids):
             break
-        self.balanceOf[ids[i]][receiver] += amounts[i]
+        self.balanceOf[receiver][ids[i]] += amounts[i]
     
     log TransferBatch(operator, ZERO_ADDRESS, receiver, ids, amounts)
 
@@ -251,8 +251,8 @@ def burn(id: uint256, amount: uint256):
     # @param id the ID of the token to burn
     # @param amount of tokens to burnfor this ID
     assert not self.paused, "The contract has been paused"
-    assert self.balanceOf[id][msg.sender] > 0 , "caller does not own this ID"
-    self.balanceOf[id][msg.sender] -= amount
+    assert self.balanceOf[msg.sender][id] > 0 , "caller does not own this ID"
+    self.balanceOf[msg.sender][id] -= amount
     log TransferSingle(msg.sender, msg.sender, ZERO_ADDRESS, id, amount)
     
 @external
@@ -269,7 +269,7 @@ def burnBatch(ids: DynArray[uint256, BATCH_SIZE], amounts: DynArray[uint256, BAT
     for i in range(BATCH_SIZE):
         if i >= len(ids):
             break
-        self.balanceOf[ids[i]][msg.sender] -= amounts[i]
+        self.balanceOf[msg.sender][ids[i]] -= amounts[i]
     
     log TransferBatch(msg.sender, msg.sender, ZERO_ADDRESS, ids, amounts)
 
@@ -295,11 +295,10 @@ def safeTransferFrom(sender: address, receiver: address, id: uint256, amount: ui
     assert not self.paused, "The contract has been paused"
     assert receiver != ZERO_ADDRESS, "ERC1155: transfer to the zero address"
     assert sender != receiver
-    assert sender == msg.sender or self.isApprovedForAll[sender][msg.sender], "Caller is neither owner nor approved operator for this ID"
-    assert self.balanceOf[id][sender] > 0 , "caller does not own this ID or ZERO balance"
+    assert self.balanceOf[sender][id] > 0 , "caller does not own this ID or ZERO balance"
     operator: address = msg.sender
-    self.balanceOf[id][sender] -= amount
-    self.balanceOf[id][receiver] += amount
+    self.balanceOf[sender][id] -= amount
+    self.balanceOf[receiver][id] += amount
     log TransferSingle(operator, sender, receiver, id, amount)
 
 @external
@@ -320,8 +319,8 @@ def safeBatchTransferFrom(sender: address, receiver: address, ids: DynArray[uint
             break
         id: uint256 = ids[i]
         amount: uint256 = amounts[i]
-        self.balanceOf[id][sender] -= amount
-        self.balanceOf[id][receiver] += amount
+        self.balanceOf[sender][id] -= amount
+        self.balanceOf[receiver][id] += amount
     
     log TransferBatch(operator, sender, receiver, ids, amounts)
 
