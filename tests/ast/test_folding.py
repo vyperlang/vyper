@@ -360,7 +360,7 @@ b: constant({return_type}) = 1
 
 @external
 def foo() -> {return_type}:
-    return a + b
+    return b + a
     """
 
     c2 = f"""
@@ -400,7 +400,7 @@ a: constant({constant_type}) = 2
 
 @external
 def foo() -> bool:
-    return a {op} {lo - 1}
+    return {lo - 1} {op} a
     """
 
     assert_compile_failed(lambda: get_contract_with_gas_estimation(c1), OverflowException)
