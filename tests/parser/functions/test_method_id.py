@@ -1,3 +1,6 @@
+import pytest
+
+
 def test_method_id_test(get_contract_with_gas_estimation):
     method_id_test = """
 @external
@@ -13,36 +16,10 @@ def returnten() -> int128:
     assert c.returnten() == 10
 
 
-def test_method_id_bytes32(get_contract):
+def test_method_id(get_contract):
     code = """
 @external
-def sig() -> bytes32:
-    return method_id('transfer(address,uint256)', output_type=bytes32)
-    """
-    c = get_contract(code)
-    sig = c.sig()
-
-    assert len(sig) == 32
-    assert sig[-4:] == b"\xa9\x05\x9c\xbb"
-
-
-def test_method_id_bytes4(get_contract):
-    code = """
-@external
-def sig() -> Bytes[4]:
-    return method_id('transfer(address,uint256)', output_type=Bytes[4])
-    """
-    c = get_contract(code)
-    sig = c.sig()
-
-    # assert len(sig) == 4
-    assert sig == b"\xa9\x05\x9c\xbb"
-
-
-def test_method_id_bytes4_default(get_contract):
-    code = """
-@external
-def sig() -> Bytes[4]:
+def sig() -> bytes4:
     return method_id('transfer(address,uint256)')
     """
     c = get_contract(code)
@@ -55,16 +32,17 @@ def sig() -> Bytes[4]:
 def test_method_id_invalid_space(get_contract, assert_compile_failed):
     code = """
 @external
-def sig() -> bytes32:
-    return method_id('transfer(address, uint256)', output_type=bytes32)
+def sig() -> bytes4:
+    return method_id('transfer(address, uint256)')
     """
     assert_compile_failed(lambda: get_contract(code))
 
 
-def test_method_id_invalid_type(get_contract, assert_compile_failed):
-    code = """
+@pytest.mark.parametrize("return_type", ["int128", "bytes32", "Bytes[4]"])
+def test_method_id_invalid_type(get_contract, assert_compile_failed, return_type):
+    code = f"""
 @external
-def sig() -> int128:
-    return method_id('transfer(address,uint256)', output_type=int128)
+def sig() -> {return_type}:
+    return method_id('transfer(address,uint256)')
     """
     assert_compile_failed(lambda: get_contract(code))
