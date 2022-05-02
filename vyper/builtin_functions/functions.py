@@ -386,7 +386,6 @@ class Slice:
                 # e.g. start == byte 0 -> we copy to dst_data + 0
                 #      start == byte 7 -> we copy to dst_data - 7
                 #      start == byte 33 -> we copy to dst_data - 1
-                # TODO add optimizer rule for modulus-powers-of-two
                 copy_dst = IRnode.from_list(
                     ["sub", dst_data, ["mod", start, 32]], location=dst.location
                 )

@@ -269,7 +269,7 @@ def append_dyn_array(darray_node, elem_node):
     with darray_node.cache_when_complex("darray") as (b1, darray_node):
         len_ = get_dyn_array_count(darray_node)
         with len_.cache_when_complex("old_darray_len") as (b2, len_):
-            ret.append(["assert", ["le", len_, darray_node.typ.count - 1]])
+            ret.append(["assert", ["lt", len_, darray_node.typ.count]])
             ret.append(STORE(darray_node, ["add", len_, 1]))
             # NOTE: typechecks elem_node
             # NOTE skip array bounds check bc we already asserted len two lines up
@@ -876,7 +876,7 @@ def zero_pad(bytez_placeholder):
     #   followed by the *minimum* number of zero-bytes
     #   such that len(enc(X)) is a multiple of 32.
     # optimized form of ceil32(len) - len:
-    num_zero_bytes = ["and", 31, ["sub", 0, "len"]]
+    num_zero_bytes = ["mod", 32, ["sub", 0, "len"]]
     return IRnode.from_list(
         ["with", "len", len_, ["with", "dst", dst, mzero("dst", num_zero_bytes)]],
         annotation="Zero pad",
