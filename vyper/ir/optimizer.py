@@ -1,7 +1,7 @@
 import operator
 from typing import List, Optional, Union
 
-from vyper.codegen.ir_node import CLAMP_OP_NAMES, IRnode
+from vyper.codegen.ir_node import IRnode
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import StaticAssertionException
 from vyper.utils import (
@@ -231,29 +231,6 @@ def _optimize_arith(binop, args, ann, parent_op):
     return True, new_val, new_args, new_ann
 
 
-def _optimize_clamps(clamp_op, args, parent):
-    if clamp_op in ("clamp", "uclamp"):
-        clample = clamp_op + "le"
-        inner = [clample, args[0], args[1]]
-        outer = [clample, inner, args[2]]
-        to_optimize = IRnode.from_list(outer)
-
-    else:
-        # extract last two chars of the op, e.g. "clamplt" -> "lt"
-        compare_op = clamp_op[-2:]
-
-        unsigned = clamp_op.startswith("u")
-        if not unsigned:
-            # e.g., "lt" -> "slt"
-            compare_op = "s" + compare_op
-
-        with args[0].cache_when_complex("clamp_arg") as (b1, arg):
-            to_optimize = ["seq", ["assert", [compare_op, arg, args[1]]], arg]
-            to_optimize = b1.resolve(IRnode.from_list(to_optimize))
-
-    return optimize(to_optimize, parent)
-
-
 def optimize(node: IRnode, parent: Optional[IRnode] = None) -> IRnode:
     argz = [optimize(arg, node) for arg in node.args]
 
@@ -293,9 +270,6 @@ def optimize(node: IRnode, parent: Optional[IRnode] = None) -> IRnode:
         value = argz[1].value
         annotation = argz[1].annotation
         argz = argz[1].args
-
-    elif node.value in CLAMP_OP_NAMES:
-        return _optimize_clamps(node.value, argz, parent)
 
     # TODO just expand this
     elif node.value == "ceil32" and _is_int(argz[0]):

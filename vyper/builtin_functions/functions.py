@@ -17,6 +17,8 @@ from vyper.codegen.core import (
     add_ofst,
     bytes_data_ptr,
     check_external_call,
+    clamp,
+    clamp2,
     clamp_basetype,
     copy_bytes,
     ensure_in_memory,
@@ -891,7 +893,9 @@ class Extract32(_SimpleBuiltinFunction):
                     "with",
                     "_sub",
                     sub,
-                    elementgetter(["div", ["clamp", 0, index, ["sub", lengetter, 32]], 32]),
+                    elementgetter(
+                        ["div", clamp2(0, index, ["sub", lengetter, 32], signed=True), 32]
+                    ),
                 ],
                 typ=BaseType(ret_type),
                 annotation="extracting 32 bytes",
@@ -910,7 +914,7 @@ class Extract32(_SimpleBuiltinFunction):
                         [
                             "with",
                             "_index",
-                            ["clamp", 0, index, ["sub", "_len", 32]],
+                            clamp2(0, index, ["sub", "_len", 32], signed=True),
                             [
                                 "with",
                                 "_mi32",
@@ -1242,7 +1246,7 @@ class BlockHash(_SimpleBuiltinFunction):
     @validate_inputs
     def build_IR(self, expr, args, kwargs, contact):
         return IRnode.from_list(
-            ["blockhash", ["uclamplt", ["clampge", args[0], ["sub", ["number"], 256]], "number"]],
+            ["blockhash", clamp("lt", clamp("sge", args[0], ["sub", ["number"], 256]), "number")],
             typ=BaseType("bytes32"),
         )
 

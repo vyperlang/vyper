@@ -283,7 +283,7 @@ def pop_dyn_array(darray_node, return_popped_item):
     assert isinstance(darray_node.typ, DArrayType)
     ret = ["seq"]
     with darray_node.cache_when_complex("darray") as (b1, darray_node):
-        old_len = ["clamp_nonzero", get_dyn_array_count(darray_node)]
+        old_len = clamp("gt", get_dyn_array_count(darray_node), 0)
         new_len = IRnode.from_list(["sub", old_len, 1], typ="uint256")
 
         with new_len.cache_when_complex("new_len") as (b2, new_len):
@@ -439,15 +439,14 @@ def _get_element_ptr_array(parent, key, array_bounds_check):
     ix = unwrap_location(key)
 
     if array_bounds_check:
-        # clamplt works, even for signed ints. since two's-complement
+        is_darray = isinstance(parent.typ, DArrayType)
+        bound = get_dyn_array_count(parent) if is_darray else parent.typ.count
+        # uclamplt works, even for signed ints. since two's-complement
         # is used, if the index is negative, (unsigned) LT will interpret
         # it as a very large number, larger than any practical value for
         # an array index, and the clamp will throw an error.
-        clamp_op = "uclamplt"
-        is_darray = isinstance(parent.typ, DArrayType)
-        bound = get_dyn_array_count(parent) if is_darray else parent.typ.count
         # NOTE: there are optimization rules for this when ix or bound is literal
-        ix = IRnode.from_list([clamp_op, ix, bound], typ=ix.typ)
+        ix = clamp("lt", ix, bound)
 
     if parent.encoding == Encoding.ABI:
         if parent.location == STORAGE:
@@ -989,3 +988,18 @@ def promote_signed_int(x, bits):
     assert bits % 8 == 0
     ret = ["signextend", bits // 8 - 1, x]
     return IRnode.from_list(ret, annotation=f"promote int{bits}")
+
+
+def clamp(op, arg, bound):
+    with arg.cache_when_complex("clamp_arg") as (b1, arg):
+        assertion = ["assert", [op, arg, bound]]
+        ret = ["seq", assertion, arg]
+        return IRnode.from_list(b1.resolve(ret), typ=arg.typ)
+
+
+def clamp2(arg, lo, hi, signed):
+    with arg.cache_when_complex("clamp2_arg") as (b1, arg):
+        GE = "sge" if signed else "ge"
+        LE = "sle" if signed else "le"
+        ret = ["seq", ["assert", [GE, arg, lo]], ["assert", [LE, arg, hi]], arg]
+        return IRnode.from_list(b1.resolve(ret), typ=arg.typ)
