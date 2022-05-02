@@ -700,7 +700,7 @@ class MethodID:
 
         if node.keywords:
             return_type = get_type_from_annotation(node.keywords[0].value, DataLocation.UNSET)
-            if not isinstance(return_type, Bytes4Definition):
+            if isinstance(return_type, Bytes4Definition):
                 is_bytes4 = True
             elif isinstance(return_type, BytesArrayDefinition) and return_type.length == 4:
                 is_bytes4 = False
