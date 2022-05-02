@@ -138,7 +138,7 @@ def _optimize_binop(binop, args, ann, parent_op):
         # shave two gas off mod/div/mul for powers of two
         if binop == "mod":
             new_val = "and"
-            new_args = [args[0], int_log2(_int(args[1]))]
+            new_args = [args[0], _int(args[1]) - 1]
         if binop == "div" and version_check(begin="constantinople"):
             new_val = "shr"
             # recall shr/shl have unintuitive arg order
