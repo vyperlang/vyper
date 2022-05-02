@@ -221,7 +221,7 @@ def foo() -> int128:
 def foo(_addr: address) -> int128:
     _response: Bytes[32] = raw_call(
         _addr,
-        method_id("foo()"),
+        method_id("foo()", output_type=Bytes[4]),
         max_outsize=32,
         is_static_call=True,
     )
@@ -251,7 +251,7 @@ def foo() -> int128:
 def foo(_addr: address) -> int128:
     _response: Bytes[32] = raw_call(
         _addr,
-        method_id("foo()"),
+        method_id("foo()", output_type=Bytes[4]),
         max_outsize=32,
         is_static_call=True,
     )
@@ -327,7 +327,7 @@ uncompilable_code = [
 @external
 @view
 def foo(_addr: address):
-    raw_call(_addr, method_id("foo()"))
+    raw_call(_addr, method_id("foo()", output_type=Bytes[4]))
     """,
         StateAccessViolation,
     ),
@@ -335,7 +335,9 @@ def foo(_addr: address):
         """
 @external
 def foo(_addr: address):
-    raw_call(_addr, method_id("foo()"), is_delegate_call=True, is_static_call=True)
+    raw_call(
+        _addr, method_id("foo()", output_type=Bytes[4]), is_delegate_call=True, is_static_call=True
+    )
     """,
         ArgumentException,
     ),
