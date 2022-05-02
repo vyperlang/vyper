@@ -698,20 +698,23 @@ class MethodID:
         if " " in args[0].value:
             raise InvalidLiteral("Invalid function signature - no spaces allowed.")
 
-        # If `output_type` is not given, default to `bytes4`
-        is_bytes4 = True
         if node.keywords:
             return_type = get_type_from_annotation(node.keywords[0].value, DataLocation.UNSET)
-            if isinstance(return_type, BytesArrayDefinition) and return_type.length == 4:
+            if not isinstance(return_type, Bytes4Definition):
+                is_bytes4 = True
+            elif isinstance(return_type, BytesArrayDefinition) and return_type.length == 4:
                 is_bytes4 = False
-            elif not isinstance(return_type, Bytes4Definition):
+            else:
                 raise ArgumentException("output_type must be bytes4 or Bytes[4]", node.keywords[0])
+        else:
+            # If `output_type` is not given, default to `bytes4`
+            is_bytes4 = True
 
         value = abi_method_id(args[0].value)
 
-        if is_bytes4 is True:
+        if is_bytes4:
             return vy_ast.Hex.from_node(node, value=hex(value))
-        elif is_bytes4 is False:
+        else:
             return vy_ast.Bytes.from_node(node, value=value.to_bytes(4, "big"))
 
     def fetch_call_return(self, node):
