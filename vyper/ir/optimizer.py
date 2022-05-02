@@ -88,7 +88,7 @@ def _optimize_binop(binop, args, ann, parent_op):
         new_val = new_val % 2 ** 256
         # wrap in a signed way.
         if not unsigned:
-            new_val = unsigned_to_signed(new_val, strict=True)
+            new_val = unsigned_to_signed(new_val, 256, strict=True)
         return False, new_val, [], new_ann
 
     new_val = None
