@@ -76,7 +76,9 @@ def is_power_of_two(n: int) -> bool:
     return n != 0 and ((n & (n - 1)) == 0)
 
 
-
+# https://stackoverflow.com/a/71122440/
+def int_log2(n: int) -> int:
+    return n.bit_length() - 1
 
 
 # utility function for debugging purposes
