@@ -73,6 +73,7 @@ from vyper.semantics.types.value.array_value import (
     StringDefinition,
     StringPrimitive,
 )
+from vyper.semantics.types.value.bytes_fixed import Bytes4Definition  # type: ignore
 from vyper.semantics.types.value.bytes_fixed import Bytes32Definition
 from vyper.semantics.types.value.numeric import Int256Definition  # type: ignore
 from vyper.semantics.types.value.numeric import Uint256Definition  # type: ignore
@@ -699,25 +700,19 @@ class MethodID:
 
         if node.keywords:
             return_type = get_type_from_annotation(node.keywords[0].value, DataLocation.UNSET)
-            if isinstance(return_type, Bytes32Definition):
-                length = 32
-            elif isinstance(return_type, BytesArrayDefinition) and return_type.length == 4:
-                length = 4
-            else:
-                raise ArgumentException("output_type must be bytes[4] or bytes32", node.keywords[0])
+            if not isinstance(return_type, Bytes4Definition) and not (
+                isinstance(return_type, BytesArrayDefinition) and return_type.length == 4
+            ):
+                raise ArgumentException("output_type must be bytes4 or Bytes[4]", node.keywords[0])
         else:
-            # if `output_type` is not given, default to `bytes[4]`
-            length = 4
+            return_type = Bytes4Definition()
 
-        method_id = fourbytes_to_int(keccak256(args[0].value.encode())[:4])
-        value = method_id.to_bytes(length, "big")
+        value = keccak256(args[0].value.encode())[:4]
 
-        if length == 32:
+        if isinstance(return_type, Bytes4Definition):
             return vy_ast.Hex.from_node(node, value=f"0x{value.hex()}")
-        elif length == 4:
+        elif isinstance(return_type, BytesArrayDefinition):
             return vy_ast.Bytes.from_node(node, value=value)
-        else:
-            raise CompilerPanic
 
     def fetch_call_return(self, node):
         raise CompilerPanic("method_id should always be folded")
