@@ -103,11 +103,11 @@ def _optimize_binop(binop, args, ann, parent_op):
     # if the op is commutative, move the literal to the second position
     # to make the later logic cleaner
     if binop in {"add", "mul"} and _is_int(args[0]):
-        new_args = [args[1], args[0]]
+        args = [args[1], args[0]]
 
     if binop in {"add", "sub"} and _int(args[1]) == 0:
         new_val = args[0].value
-        new_args = []
+        new_args = args[0].args
 
     elif binop in {"mul", "div", "sdiv", "mod", "smod"} and _int(args[1]) == 0:
         new_val = 0
@@ -119,7 +119,7 @@ def _optimize_binop(binop, args, ann, parent_op):
 
     elif binop in {"mul", "div", "sdiv"} and _int(args[1]) == 1:
         new_val = args[0].value
-        new_args = []
+        new_args = args[0].args
 
     # x * -1 == 0 - x
     elif binop in {"mul", "sdiv"} and _int(args[1], SIGNED) == -1:
@@ -164,7 +164,7 @@ def _optimize_binop(binop, args, ann, parent_op):
             # x == 0xff...ff => ~x == 0
             if _int(args[1], UNSIGNED) == 2 ** 256 - 1:
                 new_val = "iszero"
-                new_args = ["not", args[0]]
+                new_args = [["not", args[0]]]
             else:
                 # (eq x y) has the same truthyness as (iszero (xor x y))
                 new_val = "iszero"
@@ -200,7 +200,7 @@ def _optimize_binop(binop, args, ann, parent_op):
     # gt x 0 => x != 0
     elif binop == "gt" and _int(args[1]) == 0:
         new_val = "iszero"
-        new_args = ["iszero", args[0]]
+        new_args = ["iszero", [args[0]]]
 
     ##
     # BITWISE OPS
