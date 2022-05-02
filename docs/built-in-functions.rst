@@ -746,21 +746,20 @@ Utilities
         >>> ExampleContract.foo("hello")
         5
 
-.. py:function:: method_id(method, output_type: type = Bytes[4]) -> Union[bytes32, Bytes[4]]
+.. py:function:: method_id(method) -> bytes4
 
     Takes a function declaration and returns its method_id (used in data field to call it).
 
     * ``method``: Method declaration as given as a literal string
-    * ``output_type``: The type of output (``Bytes[4]`` or ``bytes32``). Defaults to ``Bytes[4]``.
 
-    Returns a value of the type specified by ``output_type``.
+    Returns a ``bytes4`` value.
 
     .. code-block:: python
 
         @external
         @view
-        def foo() -> Bytes[4]:
-            return method_id('transfer(address,uint256)', output_type=Bytes[4])
+        def foo() -> bytes4:
+            return method_id('transfer(address,uint256)')
 
     .. code-block:: python
 
