@@ -69,6 +69,16 @@ def unsigned_to_signed(int_, bits, strict=False):
     return int_
 
 
+def is_power_of_two(n: int) -> bool:
+    #busted for ints wider than 53 bits:
+    #t = math.log(n, 2)
+    #return math.ceil(t) == math.floor(t)
+    return n != 0 and ((n & (n - 1)) == 0)
+
+
+
+
+
 # utility function for debugging purposes
 def trace(n=5, out=sys.stderr):
     print("BEGIN TRACE", file=out)
@@ -175,12 +185,16 @@ def int_bounds(signed, bits):
     return 0, (2 ** bits) - 1
 
 
+# e.g. -1 -> -(2**256 - 1)
+def evm_twos_complement(x: int) -> int:
+    #return ((o + 2 ** 255) % 2 ** 256) - 2 ** 255
+    return ((2**256 - 1) ^ x) + 1
+
+
 # EVM div semantics as a python function
 def evm_div(x, y):
     if y == 0:
         return 0
-    # doesn't actually work:
-    # return int(x / y)
     # NOTE: should be same as: round_towards_zero(Decimal(x)/Decimal(y))
     sign = -1 if (x * y) < 0 else 1
     return sign * (abs(x) // abs(y))  # adapted from py-evm
@@ -191,8 +205,6 @@ def evm_mod(x, y):
     if y == 0:
         return 0
 
-    # this doesn't actually work when num digits exceeds fp precision:
-    # return int(math.fmod(x, y))
     sign = -1 if x < 0 else 1
     return sign * (abs(x) % abs(y))  # adapted from py-evm
 
