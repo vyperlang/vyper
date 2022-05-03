@@ -196,9 +196,18 @@ class Convert:
         value_types = get_possible_types_from_node(node.args[0])
         if len(value_types) == 0:
             raise StructureException("Ambiguous type for value", node)
+
+        if all([isinstance(v, IntegerAbstractType) for v in value_types]):
+            # Get the smallest (and unsigned if available) type for non-integer output types
+            if not isinstance(target_type, IntegerAbstractType):
+                value_types = sorted(
+                    value_types, key=lambda v: (v._is_signed, v._bits), reverse=True
+                )
+
         value_type = value_types.pop()
         if target_type.compare_type(value_type):
             raise InvalidType(f"Value and target type are both '{target_type}'", node)
+
         return [value_type, target_type]
 
     def build_IR(self, expr, context):
