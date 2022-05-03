@@ -23,14 +23,16 @@ UNSIGNED = True
 #        unsigned=False: 0xFF...FF -> -1
 def _evm_int(node: IRnode, unsigned: bool = True) -> Optional[int]:
     if isinstance(node.value, int):
-        o = node.value
+        ret = node.value
     else:
         return None
 
-    if unsigned:
-        return signed_to_unsigned(o, 256, strict=True)
-    else:
-        return unsigned_to_signed(o, 256, strict=True)
+    if unsigned and ret < 0:
+        return signed_to_unsigned(ret, 256, strict=True)
+    elif not unsigned and ret > 2**255 - 1:
+        return unsigned_to_signed(ret, 256, strict=True)
+
+    return ret
 
 
 def _is_int(node: IRnode) -> bool:
