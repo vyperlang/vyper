@@ -174,12 +174,9 @@ class Convert:
 
     _id = "convert"
 
-    def _get_target_type(self, node):
-        return get_type_from_annotation(node.args[1], DataLocation.MEMORY)
-
     def fetch_call_return(self, node):
         validate_call_args(node, 2)
-        target_type = self._get_target_type(node)
+        _, target_type = self.infer_arg_types(node)
         validate_expected_type(node.args[0], ValueTypeDefinition())
 
         # block conversions between same type
@@ -195,7 +192,7 @@ class Convert:
         return target_type
 
     def infer_arg_types(self, node):
-        target_type = self._get_target_type(node)
+        target_type = get_type_from_annotation(node.args[1], DataLocation.MEMORY)
         value_types = get_possible_types_from_node(node.args[0])
         if len(value_types) == 0:
             raise StructureException("Ambiguous type for value", node)
@@ -267,15 +264,12 @@ class Slice:
     _inputs = [("b", ("Bytes", "bytes32", "String")), ("start", "uint256"), ("length", "uint256")]
     _return_type = None
 
-    def _get_slice_type(self, node):
-        return get_possible_types_from_node(node.args[0]).pop()
-
     def fetch_call_return(self, node):
         validate_call_args(node, 3)
 
         validate_expected_type(node.args[0], (BytesAbstractType(), StringPrimitive()))
 
-        arg_type = self._get_slice_type(node)
+        arg_type, _, _ = self.infer_arg_types(node)
 
         try:
             validate_expected_type(node.args[0], StringPrimitive())
@@ -323,7 +317,7 @@ class Slice:
         return return_type
 
     def infer_arg_types(self, node):
-        slice_type = self._get_slice_type(node)
+        slice_type = get_possible_types_from_node(node.args[0]).pop()
         return [slice_type, Uint256Definition(), Uint256Definition()]
 
     @validate_inputs
@@ -477,12 +471,6 @@ class Concat:
 
     _id = "concat"
 
-    def _get_concat_types(self, node):
-        res = []
-        for arg in node.args:
-            res.append(get_possible_types_from_node(arg).pop())
-        return res
-
     def fetch_call_return(self, node):
         if len(node.args) < 2:
             raise ArgumentException("Invalid argument count: expected at least 2", node)
@@ -505,7 +493,7 @@ class Concat:
             validate_expected_type(arg, type_)
 
         length = 0
-        for arg_type in self._get_concat_types(node):
+        for arg_type in self.infer_arg_types(node):
             length += arg_type.length
 
         if isinstance(type_, BytesAbstractType):
@@ -516,7 +504,10 @@ class Concat:
         return return_type
 
     def infer_arg_types(self, node):
-        return self._get_concat_types(node)
+        res = []
+        for arg in node.args:
+            res.append(get_possible_types_from_node(arg).pop())
+        return res
 
     def build_IR(self, expr, context):
         args = [Expr(arg, context).ir_node for arg in expr.args]
@@ -904,10 +895,14 @@ class Extract32(_SimpleBuiltinFunction):
 
     def infer_arg_types(self, node):
         bytes_type = get_possible_types_from_node(node.args[0]).pop()
-        possible_start_types = get_possible_types_from_node(node.args[1])
-        start_type = [
-            s for s in possible_start_types if isinstance(s, SignedIntegerAbstractType)
-        ].pop()
+        possible_start_types = [
+            s
+            for s in get_possible_types_from_node(node.args[1])
+            if isinstance(s, SignedIntegerAbstractType) and s._bits <= 128
+        ]
+        if len(possible_start_types) == 0:
+            raise InvalidLiteral("Value out of range for int128", node.args[1])
+        start_type = possible_start_types.pop()
         return [bytes_type, start_type]
 
     @validate_inputs
@@ -2033,8 +2028,7 @@ class ABIEncode(_SimpleBuiltinFunction):
         # figure out the output type by converting
         # the types to ABI_Types and calling size_bound API
         arg_abi_types = []
-        for arg in node.args:
-            arg_t = get_exact_type_from_node(arg)
+        for arg_t in self.infer_arg_types(node):
             arg_abi_types.append(arg_t.abi_type)
 
         # special case, no tuple
