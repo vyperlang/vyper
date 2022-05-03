@@ -292,10 +292,7 @@ FOO: constant(Foo) = Foo({f1: Bar({b1: 123, b2: 456}), f2: 789})
     assert vy_ast.compare_nodes(l_ast, r_ast)
 
 
-builtin_folding_functions = [
-    ("ceil(4.2)", "5"),
-    ("floor(4.2)", "4"),
-]
+builtin_folding_functions = [("ceil(4.2)", "5"), ("floor(4.2)", "4")]
 
 builtin_folding_sources = [
     "{}",
@@ -312,62 +309,6 @@ builtin_folding_sources = [
 def test_replace_builtins(source, original, result):
     original_ast = vy_ast.parse_to_ast(source.format(original))
     target_ast = vy_ast.parse_to_ast(source.format(result))
-
-    folding.replace_builtin_functions(original_ast)
-
-    assert vy_ast.compare_nodes(original_ast, target_ast)
-
-
-convert_folding_functions = [
-    ("int64", "convert(123, int64)", "123"),
-    ("bool", "convert(1.0, bool)", "True"),
-    ("address", "convert(123, address)", "0x000000000000000000000000000000000000007B"),
-    ("bytes4", "convert(123, bytes4)", "0x0000007b"),
-    ("decimal", "convert(123, decimal)", "123.0"),
-    ("String[2]", 'convert(b"hi", String[2])', '"hi"'),
-    ("Bytes[2]", 'convert("hi", Bytes[2])', 'b"hi"'),
-    ("uint96", "convert(0x1234, uint96)", "4660"),
-    ("bytes4", 'convert(b"\\x00\\x00\\x00\\x01", bytes4)', "0x00000001"),
-    ("int224", "convert(True, int224)", "1"),
-]
-
-convert_folding_sources = [
-    "def foo(): x: {} = {}",
-]
-
-
-@pytest.mark.parametrize("source", convert_folding_sources)
-@pytest.mark.parametrize("target_type,original,result", convert_folding_functions)
-def test_replace_convert_builtin(source, target_type, original, result):
-    original_ast = vy_ast.parse_to_ast(source.format(target_type, original))
-    target_ast = vy_ast.parse_to_ast(source.format(target_type, result))
-
-    folding.replace_builtin_functions(original_ast)
-
-    assert vy_ast.compare_nodes(original_ast, target_ast)
-
-
-convert_folding_functions_two = [
-    ("uint8", "int64", "convert(123, int64)", "123"),
-    ("decimal", "bool", "convert(1.0, bool)", "True"),
-    ("uint64", "address", "convert(123, address)", "0x000000000000000000000000000000000000007B"),
-    ("uint80", "bytes4", "convert(123, bytes4)", "0x0000007b"),
-    ("uint16", "decimal", "convert(123, decimal)", "123.0"),
-    ("Bytes[2]", "String[2]", 'convert(b"hi", String[2])', '"hi"'),
-    ("String[2]", "Bytes[2]", 'convert("hi", Bytes[2])', 'b"hi"'),
-    ("bytes4", "uint96", "convert(0x1234, uint96)", "4660"),
-    ("Bytes[4]", "bytes4", 'convert(b"\\x00\\x00\\x00\\x01", bytes4)', "0x00000001"),
-    ("bool", "int224", "convert(True, int224)", "1"),
-]
-
-convert_folding_sources_two = ["def foo(x: {}) -> {}: return {}"]
-
-
-@pytest.mark.parametrize("source", convert_folding_sources_two)
-@pytest.mark.parametrize("value_type,target_type,original,result", convert_folding_functions_two)
-def test_replace_convert_builtin_two(source, value_type, target_type, original, result):
-    original_ast = vy_ast.parse_to_ast(source.format(value_type, target_type, original))
-    target_ast = vy_ast.parse_to_ast(source.format(value_type, target_type, result))
 
     folding.replace_builtin_functions(original_ast)
 

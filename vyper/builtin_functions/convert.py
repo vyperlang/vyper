@@ -1,5 +1,8 @@
+import decimal
 import functools
+import math
 
+from vyper import ast as vy_ast
 from vyper.codegen.core import (
     LOAD,
     IRnode,
@@ -24,8 +27,14 @@ from vyper.codegen.types import (
     is_decimal_type,
     is_integer_type,
 )
-from vyper.exceptions import CompilerPanic, InvalidType, StructureException, TypeMismatch
-from vyper.utils import round_towards_zero
+from vyper.exceptions import (
+    CompilerPanic,
+    InvalidLiteral,
+    InvalidType,
+    StructureException,
+    TypeMismatch,
+)
+from vyper.utils import DECIMAL_DIVISOR, SizeLimits, round_towards_zero, unsigned_to_signed
 
 
 def _FAIL(ityp, otyp, source_expr=None):
@@ -69,7 +78,7 @@ def _input_types(*allowed_types):
             # note allowance of [u]int256; this is due to type inference
             # on literals not quite working yet.
             if arg.typ == out_typ and not is_base_type(arg.typ, ("uint256", "int256")):
-                raise InvalidType(f"value and target are both {out_typ}", expr)
+                raise InvalidType("value and target are both {out_typ}", expr)
 
             return f(expr, arg, out_typ)
 
@@ -215,6 +224,68 @@ def _check_bytes(expr, arg, output_type, max_bytes_allowed):
         assert output_type.memory_bytes_required == 32
 
 
+# apply sign extension, if expected. note that the sign bit
+# is always taken to be the first bit of the bytestring.
+# (e.g. convert(0xff <bytes1>, int16) == -1)
+def _signextend(expr, val, arg_typ):
+    if isinstance(expr, vy_ast.Hex):
+        assert len(expr.value[2:]) // 2 == arg_typ._bytes_info.m
+        n_bits = arg_typ._bytes_info.m_bits
+    else:
+        assert len(expr.value) == arg_typ.maxlen
+        n_bits = arg_typ.maxlen * 8
+
+    return unsigned_to_signed(val, n_bits)
+
+
+def _literal_int(expr, arg_typ, out_typ):
+    # TODO: possible to reuse machinery from expr.py?
+    int_info = out_typ._int_info
+    if isinstance(expr, vy_ast.Hex):
+        val = int(expr.value, 16)
+    elif isinstance(expr, vy_ast.Bytes):
+        val = int.from_bytes(expr.value, "big")
+    elif isinstance(expr, (vy_ast.Int, vy_ast.Decimal, vy_ast.NameConstant)):
+        val = expr.value
+    else:  # pragma: nocover
+        raise CompilerPanic("unreachable")
+
+    if isinstance(expr, (vy_ast.Hex, vy_ast.Bytes)) and int_info.is_signed:
+        val = _signextend(expr, val, arg_typ)
+
+    (lo, hi) = int_info.bounds
+    if not (lo <= val <= hi):
+        raise InvalidLiteral("Number out of range", expr)
+
+    # cast to int AFTER bounds check (ensures decimal is in bounds before truncation)
+    val = int(val)
+
+    return IRnode.from_list(val, typ=out_typ)
+
+
+def _literal_decimal(expr, arg_typ, out_typ):
+    if isinstance(expr, vy_ast.Hex):
+        val = decimal.Decimal(int(expr.value, 16))
+    else:
+        val = decimal.Decimal(expr.value)  # should work for Int, Decimal
+        val *= DECIMAL_DIVISOR
+
+    # sanity check type checker did its job
+    assert math.ceil(val) == math.floor(val)
+
+    val = int(val)
+
+    # apply sign extension, if expected
+    out_info = out_typ._decimal_info
+    if isinstance(expr, (vy_ast.Hex, vy_ast.Bytes)) and out_info.is_signed:
+        val = _signextend(expr, val, arg_typ)
+
+    if not SizeLimits.in_bounds("decimal", val):
+        raise InvalidLiteral("Number out of range", expr)
+
+    return IRnode.from_list(val, typ=out_typ)
+
+
 # any base type or bytes/string
 @_input_types("int", "decimal", "bytes_m", "address", "bool", "bytes", "string")
 def to_bool(expr, arg, out_typ):
@@ -238,7 +309,10 @@ def to_int(expr, arg, out_typ):
     assert int_info.bits % 8 == 0
     _check_bytes(expr, arg, out_typ, 32)
 
-    if isinstance(arg.typ, ByteArrayType):
+    if isinstance(expr, vy_ast.Constant):
+        return _literal_int(expr, arg.typ, out_typ)
+
+    elif isinstance(arg.typ, ByteArrayType):
         arg_typ = arg.typ
         arg = _bytes_to_num(arg, out_typ, signed=int_info.is_signed)
         if arg_typ.maxlen * 8 > int_info.bits:
@@ -271,6 +345,9 @@ def to_decimal(expr, arg, out_typ):
     _check_bytes(expr, arg, out_typ, 32)
 
     out_info = out_typ._decimal_info
+
+    if isinstance(expr, vy_ast.Constant):
+        return _literal_decimal(expr, arg.typ, out_typ)
 
     if isinstance(arg.typ, ByteArrayType):
         arg_typ = arg.typ
