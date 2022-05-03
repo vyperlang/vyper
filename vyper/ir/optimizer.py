@@ -75,6 +75,13 @@ def _optimize_binop(binop, args, ann, parent_op):
     def _int(x, unsigned=unsigned):
         return _evm_int(x, unsigned=unsigned)
 
+    def _wrap(x, unsigned=unsigned):
+        x %= 2 ** 256
+        # wrap in a signed way.
+        if not unsigned:
+            x = unsigned_to_signed(x, 256, strict=True)
+        return x
+
     new_ann = None
     if ann is not None:
         l_ann = args[0].annotation or str(args[0])
@@ -86,11 +93,7 @@ def _optimize_binop(binop, args, ann, parent_op):
         # compile-time arithmetic
         left, right = _int(args[0]), _int(args[1])
         new_val = fn(left, right)
-        # wrap.
-        new_val = new_val % 2 ** 256
-        # wrap in a signed way.
-        if not unsigned:
-            new_val = unsigned_to_signed(new_val, 256, strict=True)
+        new_val = _wrap(new_val)
         return False, new_val, [], new_ann
 
     new_val = None
@@ -177,13 +180,26 @@ def _optimize_binop(binop, args, ann, parent_op):
         #    val = "gt"
         #    args = ["iszero", args]
 
-        elif binop in ("sgt", "gt") and _is_int(args[1]):
-            new_val = "sge" if binop == "sgt" else "ge"
-            new_args = [args[0], _int(args[1]) + 1]
+        elif binop in {"sgt", "gt", "slt", "lt"} and _is_int(args[1]):
+            assert unsigned == (not binop.startswith("s")), "yikes"
+            op_is_gt = binop.endswith("gt")
+            rhs = _int(args[1])
 
-        elif binop in ("slt", "lt") and _is_int(args[1]):
-            new_val = "sle" if binop == "slt" else "le"
-            new_args = [args[0], _int(args[1]) - 1]
+            # x > 1 => x >= 2
+            # x < 1 => x <= 0
+            new_rhs = rhs + 1 if op_is_gt else rhs - 1
+
+            if _wrap(new_rhs) != new_rhs:
+                # always false. ex. (gt x MAX_UINT256)
+                # note that the wrapped version (ge x 0) is always true.
+                new_val = 0
+                new_args = []
+
+            else:
+                # e.g. "sgt" => "sge"
+                new_val = binop.replace("t", "e")
+                new_args = [args[0], new_rhs]
+
 
     # (le x 0) seems like a linting issue actually
     elif binop in {"eq", "le"} and _int(args[1]) == 0:
