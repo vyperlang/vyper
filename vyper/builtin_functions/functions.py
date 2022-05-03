@@ -705,10 +705,10 @@ class MethodID:
             elif isinstance(return_type, BytesArrayDefinition) and return_type.length == 4:
                 is_bytes4 = False
             else:
-                raise ArgumentException("output_type must be bytes4 or Bytes[4]", node.keywords[0])
+                raise ArgumentException("output_type must be Bytes[4] or bytes4", node.keywords[0])
         else:
-            # If `output_type` is not given, default to `bytes4`
-            is_bytes4 = True
+            # If `output_type` is not given, default to `Bytes[4]`
+            is_bytes4 = False
 
         value = abi_method_id(args[0].value)
 
