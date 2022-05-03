@@ -304,7 +304,7 @@ def optimize(node: IRnode, parent: Optional[IRnode] = None) -> IRnode:
             # if false
             if _evm_int(argz[0]) == 0:
                 # return the else branch (or [] if there is no else)
-                return IRnode.from_list(["seq"] + argz[2:])
+                return IRnode("seq", argz[2:])
             # if true
             else:
                 # return the first branch
