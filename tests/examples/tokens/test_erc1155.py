@@ -29,7 +29,7 @@ def erc1155(get_contract, w3, assert_tx_failed):
 
     c.mintBatch(a1, mintBatch, minBatchSetOf10, "", transact={"from": owner})
     c.mintBatch(a3, mintBatch2, minBatchSetOf10, "", transact={"from": owner})
-    
+
     assert c.balanceOf(a1, 1) == 1
     assert c.balanceOf(a1, 2) == 1
     assert c.balanceOf(a1, 3) == 1
@@ -362,4 +362,3 @@ def test_renounce_ownership(erc1155, w3, assert_tx_failed):
     erc1155.renounceOwnership(transact={"from": owner})
 
     # assert erc1155.owner() == ZERO_ADDRESS
-   
