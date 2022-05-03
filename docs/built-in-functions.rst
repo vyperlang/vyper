@@ -746,12 +746,12 @@ Utilities
         >>> ExampleContract.foo("hello")
         5
 
-.. py:function:: method_id(method, output_type: type = Bytes[4]) -> Union[bytes32, Bytes[4]]
+.. py:function:: method_id(method, output_type: type = Bytes[4]) -> Union[Bytes[4], bytes4]
 
     Takes a function declaration and returns its method_id (used in data field to call it).
 
     * ``method``: Method declaration as given as a literal string
-    * ``output_type``: The type of output (``Bytes[4]`` or ``bytes32``). Defaults to ``Bytes[4]``.
+    * ``output_type``: The type of output (``Bytes[4]`` or ``bytes4``). Defaults to ``Bytes[4]``.
 
     Returns a value of the type specified by ``output_type``.
 
@@ -794,3 +794,12 @@ Utilities
         "0000000000000000000000000000000000000000000000000000000000000040"
         "0000000000000000000000000000000000000000000000000000000000000003"
         "3233340000000000000000000000000000000000000000000000000000000000"
+
+
+.. py:function:: print(*args) -> None
+
+    "prints" the arguments by issuing a static call to the "console" address, ``0x000000000000000000636F6E736F6C652E6C6F67``. This is supported by some smart contract development frameworks.
+
+.. note::
+
+    Issuing of the static call is *NOT* mode-dependent (that is, it is not removed from production code), although the compiler will issue a warning whenever ``print`` is used.

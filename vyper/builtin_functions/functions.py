@@ -73,6 +73,7 @@ from vyper.semantics.types.value.array_value import (
     StringDefinition,
     StringPrimitive,
 )
+from vyper.semantics.types.value.bytes_fixed import Bytes4Definition  # type: ignore
 from vyper.semantics.types.value.bytes_fixed import Bytes32Definition
 from vyper.semantics.types.value.numeric import Int256Definition  # type: ignore
 from vyper.semantics.types.value.numeric import Uint256Definition  # type: ignore
@@ -698,25 +699,22 @@ class MethodID:
 
         if node.keywords:
             return_type = get_type_from_annotation(node.keywords[0].value, DataLocation.UNSET)
-            if isinstance(return_type, Bytes32Definition):
-                length = 32
+            if isinstance(return_type, Bytes4Definition):
+                is_bytes4 = True
             elif isinstance(return_type, BytesArrayDefinition) and return_type.length == 4:
-                length = 4
+                is_bytes4 = False
             else:
-                raise ArgumentException("output_type must be bytes[4] or bytes32", node.keywords[0])
+                raise ArgumentException("output_type must be Bytes[4] or bytes4", node.keywords[0])
         else:
-            # if `output_type` is not given, default to `bytes[4]`
-            length = 4
+            # If `output_type` is not given, default to `Bytes[4]`
+            is_bytes4 = False
 
-        method_id = fourbytes_to_int(keccak256(args[0].value.encode())[:4])
-        value = method_id.to_bytes(length, "big")
+        value = abi_method_id(args[0].value)
 
-        if length == 32:
-            return vy_ast.Hex.from_node(node, value=f"0x{value.hex()}")
-        elif length == 4:
-            return vy_ast.Bytes.from_node(node, value=value)
+        if is_bytes4:
+            return vy_ast.Hex.from_node(node, value=hex(value))
         else:
-            raise CompilerPanic
+            return vy_ast.Bytes.from_node(node, value=value.to_bytes(4, "big"))
 
     def fetch_call_return(self, node):
         raise CompilerPanic("method_id should always be folded")
@@ -1741,7 +1739,7 @@ class _MinMax:
             *node.args, filter_fn=lambda x: isinstance(x, NumericAbstractType)
         )
         if not types_list:
-            raise TypeMismatch
+            raise TypeMismatch("Cannot perform action between dislike numeric types", node)
 
         return types_list.pop()
 
@@ -1871,7 +1869,6 @@ class Empty:
 
 class Print(_SimpleBuiltinFunction):
     _id = "print"
-    _inputs = [("arg", "*")]
 
     _warned = False
 
@@ -1880,11 +1877,9 @@ class Print(_SimpleBuiltinFunction):
             vyper_warn("`print` should only be used for debugging!\n" + node._annotated_source)
             self._warned = True
 
-        validate_call_args(node, 1)
         return None
 
-    @validate_inputs
-    def build_IR(self, expr, args, kwargs, context):
+    def build_IR(self, expr, context):
         args = [Expr(arg, context).ir_node for arg in expr.args]
         args_tuple_t = TupleType([x.typ for x in args])
         args_as_tuple = IRnode.from_list(["multi"] + [x for x in args], typ=args_tuple_t)
