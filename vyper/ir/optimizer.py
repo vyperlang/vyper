@@ -29,7 +29,7 @@ def _evm_int(node: IRnode, unsigned: bool = True) -> Optional[int]:
 
     if unsigned and ret < 0:
         return signed_to_unsigned(ret, 256, strict=True)
-    elif not unsigned and ret > 2**255 - 1:
+    elif not unsigned and ret > 2 ** 255 - 1:
         return unsigned_to_signed(ret, 256, strict=True)
 
     return ret
@@ -200,7 +200,6 @@ def _optimize_binop(binop, args, ann, parent_op):
                 new_val = binop.replace("t", "e")
                 new_args = [args[0], new_rhs]
 
-
     # (le x 0) seems like a linting issue actually
     elif binop in {"eq", "le"} and _int(args[1]) == 0:
         new_val = "iszero"
@@ -325,7 +324,8 @@ def optimize(node: IRnode, parent: Optional[IRnode] = None) -> IRnode:
     elif node.value in ("assert", "assert_unreachable") and _is_int(argz[0]):
         if _evm_int(argz[0]) == 0:
             raise StaticAssertionException(
-                f"assertion found to fail at compile time: {node}", source_pos
+                f"assertion found to fail at compile time. (hint: did you mean `raise`?) {node}",
+                source_pos,
             )
         else:
             value = "seq"
