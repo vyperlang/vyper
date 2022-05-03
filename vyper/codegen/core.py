@@ -876,7 +876,7 @@ def zero_pad(bytez_placeholder):
     #   followed by the *minimum* number of zero-bytes
     #   such that len(enc(X)) is a multiple of 32.
     # optimized form of ceil32(len) - len:
-    num_zero_bytes = ["mod", 32, ["sub", 0, "len"]]
+    num_zero_bytes = ["mod", ["sub", 0, "len"], 32]
     return IRnode.from_list(
         ["with", "len", len_, ["with", "dst", dst, mzero("dst", num_zero_bytes)]],
         annotation="Zero pad",
