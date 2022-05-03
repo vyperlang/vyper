@@ -29,7 +29,7 @@ def erc1155(get_contract, w3, assert_tx_failed):
 
     c.mintBatch(a1, mintBatch, minBatchSetOf10, "", transact={"from": owner})
     c.mintBatch(a3, mintBatch2, minBatchSetOf10, "", transact={"from": owner})
-    # assert_tx_failed(lambda: c.mintBatch(a1, mintBatch, minBatchSetOf10, '', transact={"from": a2}))
+    
     assert c.balanceOf(a1, 1) == 1
     assert c.balanceOf(a1, 2) == 1
     assert c.balanceOf(a1, 3) == 1
@@ -54,7 +54,7 @@ def erc1155(get_contract, w3, assert_tx_failed):
     return c
 
 
-##### tests #####
+# tests
 
 
 def test_initial_state(erc1155):
@@ -76,14 +76,14 @@ def test_pause(erc1155, w3, assert_tx_failed):
     owner, a1, a2, a3, a4, a5 = w3.eth.accounts[0:6]
     # check the pause status, pause, check, unpause, check, with owner and non-owner w3.eth.accounts
     # this test will check all the function that should not work when paused.
-    assert erc1155.paused() == False
+    assert not erc1155.paused()
 
     # try to pause the contract from a non owner account
     assert_tx_failed(lambda: erc1155.pause(transact={"from": a1}))
 
     # now pause the contract and check status
     erc1155.pause(transact={"from": owner})
-    assert erc1155.paused() == True
+    assert erc1155.paused()
 
     # try pausing a paused contract
     assert_tx_failed(lambda: erc1155.pause())
@@ -120,7 +120,7 @@ def test_pause(erc1155, w3, assert_tx_failed):
     assert_tx_failed(lambda: erc1155.unpause(transact={"from": a1}))
 
     erc1155.unpause(transact={"from": owner})
-    assert erc1155.paused() == False
+    assert not erc1155.paused()
 
     # try un pausing an unpaused contract
     assert_tx_failed(lambda: erc1155.unpause())
@@ -362,4 +362,4 @@ def test_renounce_ownership(erc1155, w3, assert_tx_failed):
     erc1155.renounceOwnership(transact={"from": owner})
 
     # assert erc1155.owner() == ZERO_ADDRESS
-    assert erc1155.owner() == None
+   
