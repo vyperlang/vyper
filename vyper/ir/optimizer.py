@@ -277,14 +277,14 @@ def optimize(node: IRnode, parent: Optional[IRnode] = None) -> IRnode:
     if value == "seq":
         _merge_memzero(argz)
         _merge_calldataload(argz)
-        _remove_empty_seqs(argz)
+        optimize_more = _remove_empty_seqs(argz)
 
         # (seq x) => (x) for cleanliness and
         # to avoid blocking other optimizations
         if len(argz) == 1:
             return argz[0]
 
-    if value in arith:
+    elif value in arith:
         parent_op = parent.value if parent is not None else None
         optimize_more, value, argz, annotation = _optimize_binop(value, argz, annotation, parent_op)
 
@@ -408,12 +408,15 @@ def _merge_memzero(argz):
 # remove things like [seq, seq, seq] because they interfere with
 # other optimizer steps
 def _remove_empty_seqs(argz):
+    changed = False
     i = 0
-    while i < len(argz):
+    while i < len(argz) - 1:
         if argz[i].value in ("seq", "pass") and len(argz[i].args) == 0:
+            changed = True
             del argz[i]
         else:
             i += 1
+    return changed
 
 
 def _merge_calldataload(argz):
