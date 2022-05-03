@@ -1,16 +1,11 @@
-from vyper.codegen.ir_node import IRnode
+from typing import Dict
+
+from vyper.ast.signatures import FunctionSignature
 
 
-def build_gas_estimates(ir_runtime: IRnode) -> dict:
-    gas_estimates: dict = {}
-
-    external_sub = next((i for i in ir_runtime.args if i.value == "with"), None)
-    if external_sub:
-        for func_ir in external_sub.args[-1].args:
-            if func_ir.func_name is not None:
-                gas_estimates[func_ir.func_name] = func_ir.total_gas
-
-    return gas_estimates
+def build_gas_estimates(function_sigs: Dict[str, FunctionSignature]) -> dict:
+    # note: `.gas` is added to FunctionSignature in vyper/codegen/module.py
+    return {k: v.gas for (k, v) in function_sigs.items()}
 
 
 def expand_source_map(compressed_map: str) -> list:
