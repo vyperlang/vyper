@@ -116,6 +116,10 @@ class IRnode:
         # Numbers
         if isinstance(self.value, int):
             _check(len(self.args) == 0, "int can't have arguments")
+
+            # integers must be in the range (MIN_INT256, MAX_UINT256)
+            _check(-(2 ** 255) <= self.value < 2 ** 256, "out of range")
+
             self.valency = 1
             self.gas = 5
         elif isinstance(self.value, str):
