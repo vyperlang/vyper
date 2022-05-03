@@ -41,7 +41,7 @@ def sig() -> Bytes[4]:
 def test_method_id_bytes4_default(get_contract):
     code = """
 @external
-def sig() -> bytes4:
+def sig() -> Bytes[4]:
     return method_id('transfer(address,uint256)')
     """
     c = get_contract(code)
