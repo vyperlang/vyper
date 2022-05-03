@@ -1931,7 +1931,6 @@ class Empty:
 
 class Print(_SimpleBuiltinFunction):
     _id = "print"
-    _inputs = [("arg", "*")]
 
     _warned = False
 
@@ -1940,11 +1939,9 @@ class Print(_SimpleBuiltinFunction):
             vyper_warn("`print` should only be used for debugging!\n" + node._annotated_source)
             self._warned = True
 
-        validate_call_args(node, 1)
         return None
 
-    @validate_inputs
-    def build_IR(self, expr, args, kwargs, context):
+    def build_IR(self, expr, context):
         args = [Expr(arg, context).ir_node for arg in expr.args]
         args_tuple_t = TupleType([x.typ for x in args])
         args_as_tuple = IRnode.from_list(["multi"] + [x for x in args], typ=args_tuple_t)

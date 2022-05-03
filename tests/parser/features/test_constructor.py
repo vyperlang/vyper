@@ -129,7 +129,7 @@ def check_foo(a: uint256) -> int16:
 
 def test_initialise_dynarray_with_constant_key(get_contract_with_gas_estimation):
     contract = """
-X: constant(uint64) = 4
+X: constant(int16) = 4
 
 foo: DynArray[int16, X]
 
