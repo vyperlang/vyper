@@ -161,6 +161,7 @@ def _optimize_arith(binop, args, ann, parent_op):
     # some operations to include iszero
     # (note ordering; truthy optimizations should come first
     # to avoid getting clobbered by other branches)
+    # TODO: rethink structure of is_truthy optimizations.
     elif is_truthy:
         if binop == "eq":
             # x == 0xff...ff => ~x == 0
@@ -204,6 +205,9 @@ def _optimize_arith(binop, args, ann, parent_op):
         new_val = "iszero"
         new_args = [args[0]]
 
+    # TODO: these comparisons are incomplete, e.g. slt x MIN_INT256.
+    # figure out if we can combine with the logic in is_truthy to be
+    # more generic
     elif binop == "ge" and _int(args[1]) == 0:
         new_val = 1
         new_args = []
@@ -310,7 +314,7 @@ def optimize(node: IRnode, parent: Optional[IRnode] = None) -> IRnode:
             # if false
             if _evm_int(argz[0]) == 0:
                 # return the else branch (or [] if there is no else)
-                return IRnode("seq", argz[2:])
+                return optimize(IRnode("seq", argz[2:]), parent)
             # if true
             else:
                 # return the first branch
