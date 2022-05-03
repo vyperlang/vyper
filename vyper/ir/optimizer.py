@@ -298,6 +298,10 @@ def optimize(node: IRnode, parent: Optional[IRnode] = None) -> IRnode:
         argz = []
         value = ceil32(t.value)
 
+    elif value == "iszero" and _is_int(argz[0]):
+        value = int(argz[0].value == 0)  # int(bool) == 1 if bool else 0
+        argz = []
+
     elif node.value == "if":
         # optimize out the branch
         if _is_int(argz[0]):
