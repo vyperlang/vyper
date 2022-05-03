@@ -4,11 +4,12 @@ from vyper.codegen.ir_node import IRnode
 from vyper.ir import optimizer
 
 optimize_list = [
-    (["eq", 1, 0], ["iszero", 1]),
-    (["eq", 1, 2], ["eq", 1, 2]),  # noop
-    (["if", ["eq", 1, 2], "pass"], ["if", ["iszero", ["xor", 1, 2]], "pass"]),
-    (["assert", ["eq", 1, 2]], ["assert", ["iszero", ["xor", 1, 2]]]),
-    (["mstore", 0, ["eq", 1, 2]], ["mstore", 0, ["eq", 1, 2]]),  # noop
+    (["eq", 1, 2], [0]),
+    (["eq", "x", 0], ["iszero", "x"]),
+    (["if", ["eq", 1, 2], "pass"], ["seq"]),
+    (["if", ["eq", "x", "y"], "pass"], ["if", ["iszero", ["xor", "x", "y"]], "pass"]),
+    (["assert", ["eq", "x", "y"]], ["assert", ["iszero", ["xor", "x", "y"]]]),
+    (["mstore", 0, ["eq", 1, 2]], ["mstore", 0, 0]),
 ]
 
 
