@@ -64,11 +64,10 @@ IRVal = Union[str, int]
 IRArgs = List[IRnode]
 
 
-# def _optimize_binop(
+# def _optimize_arith(
 #    binop: str, args: IRArgs, ann: Optional[str], parent_op: Any = None
 # ) -> Tuple[IRVal, IRArgs, Optional[str]]:
-def _optimize_binop(binop, args, ann, parent_op):
-
+def _optimize_arith(binop, args, ann, parent_op):
     fn, symb, unsigned = arith[binop]
 
     # local version of _evm_int which defaults to the current binop's signedness
@@ -222,16 +221,6 @@ def _optimize_binop(binop, args, ann, parent_op):
         new_val = "iszero"
         new_args = [["iszero", args[0]]]
 
-    ##
-    # BITWISE OPS
-    ##
-
-    # x >> 0 == x << 0 == x
-    elif binop in ("shl", "shr", "sar") and _int(args[0]) == 0:
-        new_val = args[1].value
-        new_ann = args[1].annotation
-        new_args = args[1].args
-
     if new_val is None:
         return False, binop, args, ann
 
@@ -286,7 +275,20 @@ def optimize(node: IRnode, parent: Optional[IRnode] = None) -> IRnode:
 
     elif value in arith:
         parent_op = parent.value if parent is not None else None
-        optimize_more, value, argz, annotation = _optimize_binop(value, argz, annotation, parent_op)
+        optimize_more, value, argz, annotation = _optimize_arith(value, argz, annotation, parent_op)
+
+    ###
+    # BITWISE OPS
+    ###
+    # note, don't optimize these too much as these kinds of expressions
+    # may be hand optimized for codesize. we can optimize bitwise ops
+    # more, once we have a pipeline which optimizes for codesize.
+    elif value in ("shl", "shr", "sar") and argz[0].value == 0:
+        # x >> 0 == x << 0 == x
+        optimize_more = True
+        value = argz[1].value
+        annotation = argz[1].annotation
+        argz = argz[1].args
 
     elif node.value in CLAMP_OP_NAMES:
         return _optimize_clamps(node.value, argz, parent)
