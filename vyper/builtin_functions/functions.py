@@ -198,6 +198,11 @@ class Convert:
                     value_types, key=lambda v: (v._is_signed, v._bits), reverse=True
                 )
 
+            # For integer types, remove the target type to enable type casting
+            # TODO: This branch can probably be removed once folding is up
+            else:
+                value_types = [i for i in value_types if not target_type.compare_type(i)]
+
         value_type = value_types.pop()
 
         # block conversions between same type
