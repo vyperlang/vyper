@@ -307,7 +307,7 @@ class ContractFunction(BaseTypeDefinition):
 
         namespace = get_namespace()
         for arg, value in zip(node.args.args, defaults):
-            if arg.arg in ("gas", "value", "skip_contract_check"):
+            if arg.arg in ("gas", "value", "skip_contract_check", "if_empty_return_override"):
                 raise ArgumentException(
                     f"Cannot use '{arg.arg}' as a variable name in a function input",
                     arg,
@@ -451,7 +451,7 @@ class ContractFunction(BaseTypeDefinition):
         # for external calls, include gas and value as optional kwargs
         kwarg_keys = self.kwarg_keys.copy()
         if node.get("func.value.id") != "self":
-            kwarg_keys += ["gas", "value", "skip_contract_check"]
+            kwarg_keys += ["gas", "value", "skip_contract_check", "if_empty_return_override"]
         validate_call_args(node, (self.min_arg_count, self.max_arg_count), kwarg_keys)
 
         if self.mutability < StateMutability.PAYABLE:
@@ -465,10 +465,12 @@ class ContractFunction(BaseTypeDefinition):
         for kwarg in node.keywords:
             if kwarg.arg in ("gas", "value"):
                 validate_expected_type(kwarg.value, Uint256Definition())
-            elif kwarg.arg in ("skip_contract_check"):
+            elif kwarg.arg in ("skip_contract_check",):
                 validate_expected_type(kwarg.value, BoolDefinition())
                 if not isinstance(kwarg.value, vy_ast.NameConstant):
                     raise InvalidType("skip_contract_check must be literal bool", kwarg.value)
+            elif kwarg.arg in ("if_empty_return_override",):
+                validate_expected_type(kwarg.value, self.return_type)
             else:
                 # Generate the modified source code string with the kwarg removed
                 # as a suggestion to the user.

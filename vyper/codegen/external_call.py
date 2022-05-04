@@ -1,3 +1,5 @@
+from dataclasses import dataclass
+
 import vyper.utils as util
 from vyper.address_space import MEMORY
 from vyper.codegen.abi_encoder import abi_encode
@@ -13,6 +15,14 @@ from vyper.codegen.ir_node import Encoding, IRnode
 from vyper.codegen.types import InterfaceType, TupleType, get_type_for_exact_size
 from vyper.codegen.types.convert import new_type_to_old_type
 from vyper.exceptions import StateAccessViolation, TypeCheckFailure
+
+
+@dataclass
+class _SpecialKwargs:
+    value: IRnode
+    gas: IRnode
+    skip_contract_check: bool
+    if_empty_return_override: IRnode
 
 
 def _pack_arguments(contract_sig, args, context):
@@ -61,7 +71,7 @@ def _pack_arguments(contract_sig, args, context):
     return buf, mstore_method_id + [encode_args], args_ofst, args_len
 
 
-def _unpack_returndata(buf, contract_sig, skip_contract_check, context, expr):
+def _unpack_returndata(buf, contract_sig, skip_contract_check, return_override, context, expr):
     # expr.func._metadata["type"].return_type is more accurate
     # than contract_sig.return_type in the case of JSON interfaces.
     ast_return_t = expr.func._metadata["type"].return_type
@@ -86,9 +96,28 @@ def _unpack_returndata(buf, contract_sig, skip_contract_check, context, expr):
 
     # revert when returndatasize is not in bounds
     ret = []
+    # except when return_override is provided.
     # runtime: min_return_size <= returndatasize
     if not skip_contract_check:
-        ret += [["assert", ["ge", "returndatasize", min_return_size]]]
+        check = ["assert", ["ge", "returndatasize", min_return_size]]
+    else:
+        check = ["seq"]
+
+    if return_override is not None:
+        # if returndatasize == 0:
+        #    copy return override to buf
+        # else:
+        #    assert returndatasize >= min_return_size
+        ret.append(
+            [
+                "if",
+                ["eq", "returndatasize", 0],
+                abi_encode(buf, return_override, context, ret_len),
+                check,
+            ]
+        )
+    else:
+        ret.append(check)
 
     encoding = Encoding.ABI
 
@@ -120,18 +149,9 @@ def _external_call_helper(
     contract_sig,
     args_ir,
     context,
-    value=None,
-    gas=None,
-    skip_contract_check=None,
+    special_kwargs,
     expr=None,
 ):
-
-    if value is None:
-        value = 0
-    if gas is None:
-        gas = "gas"
-    if skip_contract_check is None:
-        skip_contract_check = False
 
     # sanity check
     assert len(contract_sig.base_args) <= len(args_ir) <= len(contract_sig.args)
@@ -149,12 +169,17 @@ def _external_call_helper(
     buf, arg_packer, args_ofst, args_len = _pack_arguments(contract_sig, args_ir, context)
 
     ret_unpacker, ret_ofst, ret_len = _unpack_returndata(
-        buf, contract_sig, skip_contract_check, context, expr
+        buf,
+        contract_sig,
+        special_kwargs.skip_contract_check,
+        special_kwargs.if_empty_return_override,
+        context,
+        expr,
     )
 
     sub += arg_packer
 
-    if contract_sig.return_type is None and not skip_contract_check:
+    if contract_sig.return_type is None and not special_kwargs.skip_contract_check:
         # if we do not expect return data, check that a contract exists at the
         # target address. we must perform this check BEFORE the call because
         # the contract might selfdestruct. on the other hand we can omit this
@@ -164,9 +189,26 @@ def _external_call_helper(
         sub.append(["assert", ["extcodesize", contract_address]])
 
     if context.is_constant() or contract_sig.mutability in ("view", "pure"):
-        call_op = ["staticcall", gas, contract_address, args_ofst, args_len, ret_ofst, ret_len]
+        call_op = [
+            "staticcall",
+            special_kwargs.gas,
+            contract_address,
+            args_ofst,
+            args_len,
+            ret_ofst,
+            ret_len,
+        ]
     else:
-        call_op = ["call", gas, contract_address, value, args_ofst, args_len, ret_ofst, ret_len]
+        call_op = [
+            "call",
+            special_kwargs.gas,
+            contract_address,
+            special_kwargs.value,
+            args_ofst,
+            args_len,
+            ret_ofst,
+            ret_len,
+        ]
 
     sub.append(check_external_call(call_op))
 
@@ -176,35 +218,39 @@ def _external_call_helper(
     return IRnode.from_list(sub, typ=contract_sig.return_type, location=MEMORY)
 
 
-def _get_special_kwargs(stmt_expr, context):
+def _get_special_kwargs(call_expr, context):
     from vyper.codegen.expr import Expr  # TODO rethink this circular import
 
-    value, gas, skip_contract_check = None, None, None
-    for kw in stmt_expr.keywords:
-        if kw.arg == "gas":
-            gas = Expr.parse_value_expr(kw.value, context)
-        elif kw.arg == "value":
-            value = Expr.parse_value_expr(kw.value, context)
-        elif kw.arg == "skip_contract_check":
-            skip_contract_check = kw.value.value
-            assert isinstance(skip_contract_check, bool), "type checker missed this"
-        else:
-            raise TypeCheckFailure("Unexpected keyword argument")
+    def _bool(x):
+        assert x in (0, 1), "type checker missed this"
+        return bool(x)
 
-    # TODO maybe return a small dataclass to reduce verbosity
-    return value, gas, skip_contract_check
+    # turn kwargs into dict
+    call_kwargs = {kw.arg: Expr.parse_value_expr(kw.value, context) for kw in call_expr.keywords}
+
+    ret = _SpecialKwargs(
+        value=IRnode.from_list(call_kwargs.pop("value", 0)),
+        gas=IRnode.from_list(call_kwargs.pop("gas", "gas")),
+        skip_contract_check=_bool(call_kwargs.pop("skip_contract_check", 0)),
+        if_empty_return_override=call_kwargs.pop("if_empty_return_override"),
+    )
+
+    if call_kwargs != {}:
+        raise TypeCheckFailure(f"Unexpected keyword arguments: {call_kwargs}")
+
+    return ret
 
 
-def ir_for_external_call(stmt_expr, context):
+def ir_for_external_call(call_expr, context):
     from vyper.codegen.expr import Expr  # TODO rethink this circular import
 
-    contract_address = Expr.parse_value_expr(stmt_expr.func.value, context)
-    value, gas, skip_contract_check = _get_special_kwargs(stmt_expr, context)
-    args_ir = [Expr(x, context).ir_node for x in stmt_expr.args]
+    contract_address = Expr.parse_value_expr(call_expr.func.value, context)
+    special_kwargs = _get_special_kwargs(call_expr, context)
+    args_ir = [Expr(x, context).ir_node for x in call_expr.args]
 
     assert isinstance(contract_address.typ, InterfaceType)
     contract_name = contract_address.typ.name
-    method_name = stmt_expr.func.attr
+    method_name = call_expr.func.attr
     contract_sig = context.sigs[contract_name][method_name]
 
     ret = _external_call_helper(
@@ -212,11 +258,8 @@ def ir_for_external_call(stmt_expr, context):
         contract_sig,
         args_ir,
         context,
-        value=value,
-        gas=gas,
-        skip_contract_check=skip_contract_check,
-        expr=stmt_expr,
+        special_kwargs=special_kwargs,
+        expr=call_expr,
     )
-    ret.annotation = stmt_expr.get("node_source_code")
 
     return ret
