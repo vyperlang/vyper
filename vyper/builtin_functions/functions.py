@@ -1781,21 +1781,19 @@ class _UnsafeMath:
     # TODO add unsafe math for `decimal`s
     _inputs = [("a", IntegerAbstractType()), ("b", IntegerAbstractType())]
 
-    def _get_common_type(self, node):
+    def fetch_call_return(self, node):
+        return_type = self.infer_arg_types(node).pop()
+        return return_type
+
+    def infer_arg_types(self, node):
+        validate_call_args(node, 2)
         types_list = get_common_types(
             *node.args, filter_fn=lambda x: isinstance(x, IntegerAbstractType)
         )
         if not types_list:
             raise TypeMismatch(f"unsafe_{self.op} called on dislike types", node)
 
-        return types_list.pop()
-
-    def fetch_call_return(self, node):
-        validate_call_args(node, 2)
-        return self._get_common_type(node)
-
-    def infer_arg_types(self, node):
-        type_ = self._get_common_type(node)
+        type_ = types_list.pop()
         return [type_, type_]
 
     @validate_inputs
@@ -1848,15 +1846,6 @@ class _MinMax:
 
     _inputs = [("a", NumericAbstractType()), ("b", NumericAbstractType())]
 
-    def _get_common_type(self, node):
-        types_list = get_common_types(
-            *node.args, filter_fn=lambda x: isinstance(x, NumericAbstractType)
-        )
-        if not types_list:
-            raise TypeMismatch("Cannot perform action between dislike numeric types", node)
-
-        return types_list.pop()
-
     def evaluate(self, node):
         validate_call_args(node, 2)
         if not isinstance(node.args[0], type(node.args[1])):
@@ -1879,11 +1868,19 @@ class _MinMax:
         return type(node.args[0]).from_node(node, value=value)
 
     def fetch_call_return(self, node):
-        validate_call_args(node, 2)
-        return self._get_common_type(node)
+        return_type = self.infer_arg_types(node).pop()
+        return return_type
 
     def infer_arg_types(self, node):
-        type_ = self._get_common_type(node)
+        validate_call_args(node, 2)
+        types_list = get_common_types(
+            *node.args, filter_fn=lambda x: isinstance(x, NumericAbstractType)
+        )
+        if not types_list:
+            raise TypeMismatch("Cannot perform action between dislike numeric types", node)
+
+        type_ = types_list.pop()
+
         return [type_, type_]
 
     @validate_inputs
