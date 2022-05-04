@@ -169,9 +169,9 @@ def _optimize_arith(binop, args, ann, parent_op):
                 new_val = "iszero"
                 new_args = [["not", args[0]]]
             else:
-                # (eq x y) has the same truthyness as (iszero (xor x y))
+                # (eq x y) has the same truthyness as (iszero (sub x y))
                 new_val = "iszero"
-                new_args = [["xor", *args]]
+                new_args = [["sub", *args]]
         # no rule needed for "ne" as it will get compiled to
         # `(iszero (eq x y))` anyways.
 
