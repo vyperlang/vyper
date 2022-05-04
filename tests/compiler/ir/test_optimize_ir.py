@@ -1,6 +1,7 @@
 import pytest
 
 from vyper.codegen.ir_node import IRnode
+from vyper.exceptions import StaticAssertionException
 from vyper.ir import optimizer
 
 optimize_list = [
@@ -11,6 +12,8 @@ optimize_list = [
     (["if", ["eq", 1, 2], "pass"], ["seq"]),
     (["if", ["eq", 1, 1], 3, 4], [3]),
     (["if", ["eq", 1, 2], 3, 4], [4]),
+    (["seq", ["assert", ["lt", 1, 2]]], ["seq"]),
+    (["seq", ["assert", ["lt", 1, 2]], 2], [2]),
     # condition rewriter
     (["if", ["eq", "x", "y"], "pass"], ["if", ["iszero", ["xor", "x", "y"]], "pass"]),
     (["if", "cond", 1, 0], ["if", ["iszero", "cond"], 0, 1]),
@@ -24,6 +27,19 @@ optimize_list = [
     (["le", "x", 0], ["iszero", "x"]),
     (["lt", "x", 0], [0]),
     (["slt", "x", -(2 ** 255)], ["slt", "x", -(2 ** 255)]),  # unimplemented
+    # tricky conditions
+    (["sgt", 2 ** 256 - 1, 0], [0]),  # -1 > 0
+    (["gt", 2 ** 256 - 1, 0], [1]),  # -1 > 0
+    (["gt", 2 ** 255, 0], [1]),  # 0x80 > 0
+    (["sgt", 2 ** 255, 0], [0]),  # 0x80 > 0
+    (["sgt", 2 ** 255, 2 ** 255 - 1], [0]),  # 0x80 > 0x81
+    (["gt", -(2 ** 255), 2 ** 255 - 1], [1]),  # 0x80 > 0x81
+    (["slt", 2 ** 255, 2 ** 255 - 1], [1]),  # 0x80 < 0x7f
+    (["lt", -(2 ** 255), 2 ** 255 - 1], [0]),  # 0x80 < 0x7f
+    (["sle", -1, 2 ** 256 - 1], [1]),  # -1 <= -1
+    (["sge", -(2 ** 255), 2 ** 255], [1]),  # 0x80 >= 0x80
+    (["sgt", -(2 ** 255), 2 ** 255], [0]),  # 0x80 > 0x80
+    (["slt", 2 ** 255, -(2 ** 255)], [0]),  # 0x80 < 0x80
     # arithmetic
     (["add", "x", 0], ["x"]),
     (["add", 0, "x"], ["x"]),
@@ -49,13 +65,55 @@ optimize_list = [
     (["shr", 0, "x"], ["x"]),
     (["sar", 0, "x"], ["x"]),
     (["shl", 0, "x"], ["x"]),
+    # nested optimizations
+    (["eq", 0, ["sub", 1, 1]], [1]),
+    (["eq", 0, ["add", 2 ** 255, 2 ** 255]], [1]),  # test compile-time wrapping
+    (["eq", 0, ["add", 2 ** 255, -(2 ** 255)]], [1]),  # test compile-time wrapping
+    (["eq", -1, ["add", 0, -1]], [1]),  # test compile-time wrapping
+    (["eq", -1, ["add", 2 ** 255, 2 ** 255 - 1]], [1]),  # test compile-time wrapping
+    (["eq", -1, ["add", -(2 ** 255), 2 ** 255 - 1]], [1]),  # test compile-time wrapping
+    (["eq", -2, ["add", 2 ** 256 - 1, 2 ** 256 - 1]], [1]),  # test compile-time wrapping
 ]
 
 
 @pytest.mark.parametrize("ir", optimize_list)
-def test_ir_compile_fail(ir):
+def test_ir_optimizer(ir):
     optimized = optimizer.optimize(IRnode.from_list(ir[0]))
     optimized.repr_show_gas = True
     hand_optimized = IRnode.from_list(ir[1])
     hand_optimized.repr_show_gas = True
     assert optimized == hand_optimized
+
+
+static_assertions_list = [
+    ["assert", ["eq", 2, 1]],
+    ["assert", ["ne", 1, 1]],
+    ["assert", ["sub", 1, 1]],
+    ["assert", ["lt", 2, 1]],
+    ["assert", ["lt", 1, 1]],
+    ["assert", ["lt", "x", 0]],  # +x < 0
+    ["assert", ["le", 1, 0]],
+    ["assert", ["le", 2 ** 256 - 1, 0]],
+    ["assert", ["gt", 1, 2]],
+    ["assert", ["gt", 1, 1]],
+    ["assert", ["gt", 0, 2 ** 256 - 1]],
+    ["assert", ["gt", "x", 2 ** 256 - 1]],
+    ["assert", ["ge", 1, 2]],
+    ["assert", ["ge", 1, 2]],
+    ["assert", ["slt", 2, 1]],
+    ["assert", ["slt", 1, 1]],
+    ["assert", ["slt", 0, 2 ** 256 - 1]],  # 0 < -1
+    ["assert", ["slt", -(2 ** 255), 2 ** 255]],  # 0x80 < 0x80
+    ["assert", ["sle", 0, 2 ** 255]],  # 0 < 0x80
+    ["assert", ["sgt", 1, 2]],
+    ["assert", ["sgt", 1, 1]],
+    ["assert", ["sgt", 2 ** 256 - 1, 0]],  # -1 > 0
+    ["assert", ["sgt", 2 ** 255, -(2 ** 255)]],  # 0x80 > 0x80
+    ["assert", ["sge", 2 ** 255, 0]],  # 0x80 > 0
+]
+
+
+@pytest.mark.parametrize("ir", static_assertions_list)
+def test_static_assertions(ir, assert_compile_failed):
+    ir = IRnode.from_list(ir)
+    assert_compile_failed(lambda: optimizer.optimize(ir), StaticAssertionException)
