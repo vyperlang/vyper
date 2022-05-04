@@ -1003,7 +1003,7 @@ def _optimize_assembly(assembly):
         if isinstance(x, list):
             _optimize_assembly(x)
 
-    while True:
+    for _ in range(1024):
         changed = False
 
         changed |= _prune_unreachable_code(assembly)
@@ -1014,7 +1014,9 @@ def _optimize_assembly(assembly):
         changed |= _stack_peephole_opts(assembly)
 
         if not changed:
-            break
+            return
+
+    raise CompilerPanic("infinite loop detected during assembly reduction")  # pragma: notest
 
 
 # Assembles assembly into EVM
