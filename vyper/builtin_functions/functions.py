@@ -201,12 +201,13 @@ class Convert:
             # For integer types, remove the target type to enable type casting
             # TODO: This branch can probably be removed once folding is up
             else:
-                value_types = [i for i in value_types if not target_type.compare_type(i)]
+                if len(value_types) > 1:
+                    value_types = [i for i in value_types if not target_type.compare_type(i)]
 
         value_type = value_types.pop()
 
         # block conversions between same type
-        if target_type.compare_type(value_type) and not isinstance(target_type, Uint256Definition):
+        if target_type.compare_type(value_type):
             raise InvalidType(f"Value and target type are both '{target_type}'", node)
 
         return [value_type, target_type]
