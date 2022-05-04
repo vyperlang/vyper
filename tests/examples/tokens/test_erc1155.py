@@ -130,10 +130,10 @@ def test_URI(erc1155, w3, assert_tx_failed):
     owner, a1, a2, a3, a4, a5 = w3.eth.accounts[0:6]
     # change contract URI and restore.
     assert erc1155.uri(0) == CONTRACT_URI
-    erc1155.setURI(NEW_CONTRACT_URI, transact={"from": a1})
+    erc1155.setURI(NEW_CONTRACT_URI, transact={"from": owner})
     assert erc1155.uri(0) == NEW_CONTRACT_URI
     assert erc1155.uri(0) != CONTRACT_URI
-    erc1155.setURI(CONTRACT_URI, transact={"from": a1})
+    erc1155.setURI(CONTRACT_URI, transact={"from": owner})
     assert erc1155.uri(0) != NEW_CONTRACT_URI
     assert erc1155.uri(0) == CONTRACT_URI
 
