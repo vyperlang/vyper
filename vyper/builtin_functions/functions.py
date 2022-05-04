@@ -272,7 +272,7 @@ class Slice:
     def fetch_call_return(self, node):
         arg_type, _, _ = self.infer_arg_types(node)
 
-        if isinstance(arg_type, StringPrimitive):
+        if isinstance(arg_type, StringDefinition):
             return_type = StringDefinition()
         else:
             return_type = BytesArrayDefinition()
@@ -317,7 +317,7 @@ class Slice:
         validate_call_args(node, 3)
 
         slice_type = get_possible_types_from_node(node.args[0]).pop()
-        if not isinstance(slice_type, (BytesAbstractType, StringPrimitive)):
+        if not isinstance(slice_type, (BytesAbstractType, StringDefinition)):
             expected_str = f"one of {', '.join(str(i) for i in self._inputs[0][1])}"
             raise InvalidType(
                 f"Expected one of {expected_str} but value can only be cast as {str(slice_type)}",
