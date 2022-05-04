@@ -64,6 +64,12 @@ def mint(_to: address, _value: uint256):
     """
 x: int128[3.5]
     """,
+    """
+@external
+def foo():
+    b: Bytes[1] = b"\x05"
+    x: uint256 = as_wei_value(b, "babbage")
+    """,
 ]
 
 

@@ -2,7 +2,7 @@ import pytest
 
 from vyper.compiler import compile_code
 from vyper.evm.opcodes import EVM_VERSIONS
-from vyper.exceptions import InvalidType
+from vyper.exceptions import TypeMismatch
 
 code = """
 @external
@@ -81,7 +81,7 @@ fail_list = [
 def foo(x: uint8, y: int128) -> uint256:
     return shift(x, y)
     """,
-        InvalidType,
+        TypeMismatch,
     ),
     (
         """
@@ -89,7 +89,7 @@ def foo(x: uint8, y: int128) -> uint256:
 def foo(x: uint256, y: int136) -> uint256:
     return shift(x, y)
     """,
-        InvalidType,
+        TypeMismatch,
     ),
 ]
 

@@ -1,6 +1,6 @@
 import pytest
 
-from vyper.exceptions import ArgumentException, TypeMismatch
+from vyper.exceptions import ArgumentException, InvalidType, TypeMismatch
 
 
 def test_concat(get_contract_with_gas_estimation):
@@ -199,7 +199,7 @@ def large_output(a: String[33], b: address) -> String[64]:
     c: String[64] = concat(a, b)
     return c
     """,
-        TypeMismatch,
+        InvalidType,
     ),
     (
         """

@@ -18,7 +18,7 @@ def foo(inp: Bytes[10]) -> Bytes[2]:
 def foo(inp: int128) -> Bytes[3]:
     return slice(inp, 2, 3)
     """,
-        TypeMismatch,
+        InvalidType,
     ),
     (
         """

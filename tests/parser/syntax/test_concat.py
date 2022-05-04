@@ -47,7 +47,7 @@ def cat_list(y: int128) -> Bytes[40]:
     x: int128[1] = [y]
     return concat("test", y)
     """,
-        TypeMismatch,
+        InvalidType,
     ),
 ]
 
