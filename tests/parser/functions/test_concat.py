@@ -1,4 +1,6 @@
-from vyper.exceptions import TypeMismatch
+import pytest
+
+from vyper.exceptions import ArgumentException, TypeMismatch
 
 
 def test_concat(get_contract_with_gas_estimation):
@@ -180,12 +182,46 @@ def small_bytes4(a: bytes8, b: Bytes[32], c: bytes8) -> Bytes[48]:
     assert contract.small_bytes4(a, b, c) == a + b + c
 
 
-def test_large_output(get_contract_with_gas_estimation, assert_compile_failed):
-    code = """
+fail_list = [
+    (
+        """
 @external
 def large_output(a: String[33], b: String[33]) -> String[64]:
     c: String[64] = concat(a, b)
     return c
-    """
+    """,
+        TypeMismatch,
+    ),
+    (
+        """
+@external
+def large_output(a: String[33], b: address) -> String[64]:
+    c: String[64] = concat(a, b)
+    return c
+    """,
+        TypeMismatch,
+    ),
+    (
+        """
+@external
+def large_output(a: String[33]) -> String[33]:
+    c: String[33] = concat(a)
+    return c
+    """,
+        ArgumentException,
+    ),
+    (
+        """
+@external
+def large_output(a: String[33], b: String[33], reverse=True) -> String[64]:
+    c: String[64] = concat(a, b)
+    return c
+    """,
+        ArgumentException,
+    ),
+]
 
-    assert_compile_failed(lambda: get_contract_with_gas_estimation(code), TypeMismatch)
+
+@pytest.mark.parametrize("bad_code,exc", fail_list)
+def test_concat_fail(get_contract_with_gas_estimation, bad_code, exc, assert_compile_failed):
+    assert_compile_failed(lambda: get_contract_with_gas_estimation(bad_code), exc)

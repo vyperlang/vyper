@@ -1232,3 +1232,37 @@ def foo():
 
     topic3 = f"0x{keccak256(b'madness!').hex()}"
     assert receipt["logs"][0]["topics"][3] == topic3
+
+
+fail_list = [
+    (
+        """
+@external
+def foo():
+    raw_log([1, 2], b"moo")
+    """,
+        InvalidType,
+    ),
+    (
+        """
+@external
+def foo():
+    raw_log([1, 2], b"moo")
+    """,
+        InvalidType,
+    ),
+    (
+        """
+@external
+def foo():
+    a: DynArray[bytes32, 1] = [0x1234567812345678123456781234567812345678123456781234567812345678]
+    raw_log(a, b"moo2")
+    """,
+        InvalidType,
+    ),
+]
+
+
+@pytest.mark.parametrize("bad_code,exc", fail_list)
+def test_raw_log_fail(get_contract_with_gas_estimation, bad_code, exc, assert_compile_failed):
+    assert_compile_failed(lambda: get_contract_with_gas_estimation(bad_code), exc)

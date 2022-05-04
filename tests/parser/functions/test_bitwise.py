@@ -2,6 +2,7 @@ import pytest
 
 from vyper.compiler import compile_code
 from vyper.evm.opcodes import EVM_VERSIONS
+from vyper.exceptions import InvalidType
 
 code = """
 @external
@@ -71,3 +72,28 @@ def right(x: uint256) -> uint256:
     c = get_contract(code, evm_version=evm_version)
     assert c.left(80) == 10
     assert c.right(80) == 640
+
+
+fail_list = [
+    (
+        """
+@external
+def foo(x: uint8, y: int128) -> uint256:
+    return shift(x, y)
+    """,
+        InvalidType,
+    ),
+    (
+        """
+@external
+def foo(x: uint256, y: int136) -> uint256:
+    return shift(x, y)
+    """,
+        InvalidType,
+    ),
+]
+
+
+@pytest.mark.parametrize("bad_code,exc", fail_list)
+def test_shift_fail(get_contract_with_gas_estimation, bad_code, exc, assert_compile_failed):
+    assert_compile_failed(lambda: get_contract_with_gas_estimation(bad_code), exc)

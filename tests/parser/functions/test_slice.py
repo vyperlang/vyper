@@ -1,6 +1,6 @@
 import pytest
 
-from vyper.exceptions import ArgumentException
+from vyper.exceptions import ArgumentException, InvalidType
 
 _fun_bytes32_bounds = [(0, 32), (3, 29), (27, 5), (0, 5), (5, 3), (30, 2)]
 
@@ -380,3 +380,20 @@ def test_slice_bytes32_calldata_extended(get_contract, code, result):
         c.bar(3, "0x0001020304050607080910111213141516171819202122232425262728293031", 5).hex()
         == result
     )
+
+
+fail_list = [
+    (
+        """
+@external
+def bar(a: uint256, foo: address) -> Bytes[32]:
+    return slice(foo, 0, a)
+    """,
+        InvalidType,
+    ),
+]
+
+
+@pytest.mark.parametrize("bad_code,exc", fail_list)
+def test_slice_fail(get_contract_with_gas_estimation, bad_code, exc, assert_compile_failed):
+    assert_compile_failed(lambda: get_contract_with_gas_estimation(bad_code), exc)
