@@ -294,7 +294,7 @@ def optimize(node: IRnode, parent: Optional[IRnode] = None) -> IRnode:
                 # return the first branch
                 return argz[1]
 
-        elif len(argz) == 3:
+        elif len(argz) == 3 and argz[0].value != "iszero":
             # if(x) compiles to jumpi(_, iszero(x))
             # there is an asm optimization for the sequence ISZERO ISZERO..JUMPI
             # so we swap the branches here to activate that optimization.
@@ -304,6 +304,7 @@ def optimize(node: IRnode, parent: Optional[IRnode] = None) -> IRnode:
             contra_cond = IRnode.from_list(["iszero", cond])
 
             argz = [contra_cond, false_branch, true_branch]
+            # set optimize_more = True?
 
     elif node.value in ("assert", "assert_unreachable") and _is_int(argz[0]):
         if _evm_int(argz[0]) == 0:
