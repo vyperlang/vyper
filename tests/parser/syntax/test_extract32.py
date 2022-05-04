@@ -1,23 +1,40 @@
 import pytest
-from pytest import raises
 
-from vyper import compiler
-from vyper.exceptions import TypeMismatch
+from vyper.exceptions import InvalidType, TypeMismatch
 
 fail_list = [
-    """
+    (
+        """
 @external
 def foo() -> uint256:
     return extract32(b"cowcowcowcowcowccowcowcowcowcowccowcowcowcowcowccowcowcowcowcowc", 0)
-    """
+    """,
+        TypeMismatch,
+    ),
+    (
+        """
+@external
+def foo(inp: address) -> int128:
+    return extract32(inp, 0, output_type=int128)
+    """,
+        InvalidType,
+    ),
+    (
+        """
+@external
+def foo(inp: Bytes[32]) -> int128:
+    b: int136 = 1
+    return extract32(inp, b, output_type=int128)
+    """,
+        TypeMismatch,
+    ),
 ]
 
 
-@pytest.mark.parametrize("bad_code", fail_list)
-def test_extract32_fail(bad_code):
+@pytest.mark.parametrize("bad_code,exc", fail_list)
+def test_extract32_fail(assert_compile_failed, get_contract_with_gas_estimation, bad_code, exc):
 
-    with raises(TypeMismatch):
-        compiler.compile_code(bad_code)
+    assert_compile_failed(lambda: get_contract_with_gas_estimation(bad_code), exc)
 
 
 valid_list = [
@@ -48,5 +65,5 @@ def foo() -> uint256:
 
 
 @pytest.mark.parametrize("good_code", valid_list)
-def test_extract32_success(good_code):
-    assert compiler.compile_code(good_code) is not None
+def test_extract32_success(get_contract_with_gas_estimation, good_code):
+    assert get_contract_with_gas_estimation(good_code) is not None

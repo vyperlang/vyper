@@ -342,15 +342,6 @@ def foo(_addr: address):
         """
 @external
 @view
-def foo(_addr: bytes4):
-    raw_call(_addr, method_id("foo()"))
-    """,
-        InvalidType,
-    ),
-    (
-        """
-@external
-@view
 def foo(_addr: address):
     raw_call(_addr, 256)
     """,

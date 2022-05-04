@@ -1,8 +1,3 @@
-import pytest
-
-from vyper.exceptions import InvalidType
-
-
 def test_extract32_extraction(assert_tx_failed, get_contract_with_gas_estimation):
     extract32_code = """
 y: Bytes[100]
@@ -89,29 +84,3 @@ def foq(inp: Bytes[32]) -> address:
     assert_tx_failed(lambda: c.foq(b"crow" * 8))
 
     print("Passed extract32 test")
-
-
-fail_list = [
-    (
-        """
-@external
-def foo(inp: address) -> int128:
-    return extract32(inp, 0, output_type=int128)
-    """,
-        InvalidType,
-    ),
-    (
-        """
-@external
-def foo(inp: Bytes[32]) -> int128:
-    b: int136 = 1
-    return extract32(inp, b, output_type=int128)
-    """,
-        InvalidType,
-    ),
-]
-
-
-@pytest.mark.parametrize("bad_code,exc", fail_list)
-def test_extract_fail(get_contract_with_gas_estimation, bad_code, exc, assert_compile_failed):
-    assert_compile_failed(lambda: get_contract_with_gas_estimation(bad_code), exc)
