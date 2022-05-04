@@ -22,7 +22,7 @@ class _SpecialKwargs:
     value: IRnode
     gas: IRnode
     skip_contract_check: bool
-    if_empty_return_override: IRnode
+    default_return_value: IRnode
 
 
 def _pack_arguments(contract_sig, args, context):
@@ -172,7 +172,7 @@ def _external_call_helper(
         buf,
         contract_sig,
         special_kwargs.skip_contract_check,
-        special_kwargs.if_empty_return_override,
+        special_kwargs.default_return_value,
         context,
         expr,
     )
@@ -232,7 +232,7 @@ def _get_special_kwargs(call_expr, context):
         value=IRnode.from_list(call_kwargs.pop("value", 0)),
         gas=IRnode.from_list(call_kwargs.pop("gas", "gas")),
         skip_contract_check=_bool(call_kwargs.pop("skip_contract_check", 0)),
-        if_empty_return_override=call_kwargs.pop("if_empty_return_override"),
+        default_return_value=call_kwargs.pop("default_return_value"),
     )
 
     if call_kwargs != {}:
