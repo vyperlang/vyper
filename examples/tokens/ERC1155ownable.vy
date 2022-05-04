@@ -295,6 +295,7 @@ def safeTransferFrom(sender: address, receiver: address, id: uint256, amount: ui
     assert not self.paused, "The contract has been paused"
     assert receiver != ZERO_ADDRESS, "ERC1155: transfer to the zero address"
     assert sender != receiver
+    assert sender == msg.sender or self.isApprovedForAll[sender][msg.sender], "Caller is neither owner nor approved operator for this ID"
     assert self.balanceOf[sender][id] > 0 , "caller does not own this ID or ZERO balance"
     operator: address = msg.sender
     self.balanceOf[sender][id] -= amount
