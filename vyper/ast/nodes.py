@@ -142,12 +142,6 @@ def _to_dict(value):
     if isinstance(value, VyperNode):
         return value.to_dict()
 
-    from vyper.semantics.types import Event
-    from vyper.semantics.types.bases import BaseTypeDefinition
-
-    if isinstance(value, (BaseTypeDefinition, Event)):
-        return repr(value)
-
     if isinstance(value, (int, str, decimal.Decimal)) or value is None:
         return value
 
@@ -157,18 +151,7 @@ def _to_dict(value):
     if isinstance(value, list):
         return [_to_dict(x) for x in value]
 
-    if isinstance(value, dict):
-        ret = value
-    else:
-        typename = type(value).__name__
-        if hasattr(value, "__dict__"):
-            return typename
-        ret = {typename: vars(value)}
-
-    for k in list(ret.keys()):
-        ret[k] = _to_dict(ret[k])
-
-    return ret
+    return str(value)
 
 
 def _node_filter(node, filters):
