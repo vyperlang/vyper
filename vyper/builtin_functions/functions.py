@@ -52,7 +52,6 @@ from vyper.exceptions import (
     StructureException,
     TypeMismatch,
     UnfoldableNode,
-    VyperException,
     ZeroDivisionException,
 )
 from vyper.semantics.types import BoolDefinition, DynamicArrayPrimitive, TupleDefinition
@@ -62,8 +61,9 @@ from vyper.semantics.types.abstract import (
     IntegerAbstractType,
     NumericAbstractType,
     SignedIntegerAbstractType,
+    UnsignedIntegerAbstractType,
 )
-from vyper.semantics.types.bases import DataLocation, ValueTypeDefinition
+from vyper.semantics.types.bases import DataLocation
 from vyper.semantics.types.indexable.sequence import ArrayDefinition
 from vyper.semantics.types.utils import get_type_from_annotation
 from vyper.semantics.types.value.address import AddressDefinition
@@ -103,14 +103,17 @@ SHA256_PER_WORD_GAS = 12
 
 class _SimpleBuiltinFunction:
     def fetch_call_return(self, node):
-        validate_call_args(node, len(self._inputs), getattr(self, "_kwargs", []))
-        for arg, (_, expected) in zip(node.args, self._inputs):
-            validate_expected_type(arg, expected)
+        self.infer_arg_types(node)
 
         if self._return_type:
             return self._return_type
 
     def infer_arg_types(self, node):
+        validate_call_args(node, len(self._inputs), getattr(self, "_kwargs", []))
+
+        for arg, (_, expected) in zip(node.args, self._inputs):
+            validate_expected_type(arg, expected)
+
         return [i[1] for i in self._inputs]
 
 
@@ -175,23 +178,14 @@ class Convert:
     _id = "convert"
 
     def fetch_call_return(self, node):
-        validate_call_args(node, 2)
-        _, target_type = self.infer_arg_types(node)
-        validate_expected_type(node.args[0], ValueTypeDefinition())
-
-        # block conversions between same type
-        try:
-            validate_expected_type(node.args[0], target_type)
-        except VyperException:
-            pass
-        else:
-            if not isinstance(target_type, Uint256Definition):
-                raise InvalidType(f"Value and target type are both '{target_type}'", node)
+        value_type, target_type = self.infer_arg_types(node)
 
         # note: more type conversion validation happens in convert.py
         return target_type
 
     def infer_arg_types(self, node):
+        validate_call_args(node, 2)
+
         target_type = get_type_from_annotation(node.args[1], DataLocation.MEMORY)
         value_types = get_possible_types_from_node(node.args[0])
         if len(value_types) == 0:
@@ -205,7 +199,9 @@ class Convert:
                 )
 
         value_type = value_types.pop()
-        if target_type.compare_type(value_type):
+
+        # block conversions between same type
+        if target_type.compare_type(value_type) and not isinstance(target_type, Uint256Definition):
             raise InvalidType(f"Value and target type are both '{target_type}'", node)
 
         return [value_type, target_type]
@@ -274,20 +270,12 @@ class Slice:
     _return_type = None
 
     def fetch_call_return(self, node):
-        validate_call_args(node, 3)
-
-        validate_expected_type(node.args[0], (BytesAbstractType(), StringPrimitive()))
-
         arg_type, _, _ = self.infer_arg_types(node)
 
-        try:
-            validate_expected_type(node.args[0], StringPrimitive())
+        if isinstance(arg_type, StringPrimitive):
             return_type = StringDefinition()
-        except VyperException:
+        else:
             return_type = BytesArrayDefinition()
-
-        for arg in node.args[1:]:
-            validate_expected_type(arg, Uint256Definition())
 
         # validate start and length are in bounds
 
@@ -326,7 +314,19 @@ class Slice:
         return return_type
 
     def infer_arg_types(self, node):
+        validate_call_args(node, 3)
+
         slice_type = get_possible_types_from_node(node.args[0]).pop()
+        if not isinstance(slice_type, (BytesAbstractType, StringPrimitive)):
+            expected_str = f"one of {', '.join(str(i) for i in self._inputs[0][1])}"
+            raise InvalidType(
+                f"Expected one of {expected_str} but value can only be cast as {str(slice_type)}",
+                node,
+            )
+
+        for arg in node.args[1:]:
+            validate_expected_type(arg, Uint256Definition())
+
         return [slice_type, Uint256Definition(), Uint256Definition()]
 
     @validate_inputs
@@ -481,31 +481,13 @@ class Concat:
     _id = "concat"
 
     def fetch_call_return(self, node):
-        if len(node.args) < 2:
-            raise ArgumentException("Invalid argument count: expected at least 2", node)
-
-        if node.keywords:
-            raise ArgumentException("Keyword arguments are not accepted here", node.keywords[0])
-
-        type_ = None
-        for expected in (BytesAbstractType(), StringPrimitive()):
-            try:
-                validate_expected_type(node.args[0], expected)
-                type_ = expected
-            except (InvalidType, TypeMismatch):
-                pass
-        if type_ is None:
-            raise TypeMismatch("Concat values must be bytes or string", node.args[0])
+        arg_types = self.infer_arg_types(node)
 
         length = 0
-        for arg in node.args[1:]:
-            validate_expected_type(arg, type_)
+        for arg_t in arg_types:
+            length += arg_t.length
 
-        length = 0
-        for arg_type in self.infer_arg_types(node):
-            length += arg_type.length
-
-        if isinstance(type_, BytesAbstractType):
+        if isinstance(arg_types[0], BytesAbstractType):
             return_type = BytesArrayDefinition()
         else:
             return_type = StringDefinition()
@@ -513,9 +495,19 @@ class Concat:
         return return_type
 
     def infer_arg_types(self, node):
+        if len(node.args) < 2:
+            raise ArgumentException("Invalid argument count: expected at least 2", node)
+
+        if node.keywords:
+            raise ArgumentException("Keyword arguments are not accepted here", node.keywords[0])
+
         res = []
         for arg in node.args:
-            res.append(get_possible_types_from_node(arg).pop())
+            arg_t = get_possible_types_from_node(arg).pop()
+            if not isinstance(arg_t, (BytesAbstractType, StringDefinition)):
+                raise TypeMismatch("Concat values must be bytes or string", arg)
+            res.append(arg_t)
+
         return res
 
     def build_IR(self, expr, context):
@@ -903,16 +895,24 @@ class Extract32(_SimpleBuiltinFunction):
         return return_type
 
     def infer_arg_types(self, node):
-        bytes_type = get_possible_types_from_node(node.args[0]).pop()
+        b_type = get_possible_types_from_node(node.args[0]).pop()
+        if not isinstance(b_type, BytesArrayDefinition):
+            raise InvalidType(
+                f"Expected Bytes[N] but value can only be cast as {str(b_type)}", node.args[0]
+            )
+
         possible_start_types = [
             s
             for s in get_possible_types_from_node(node.args[1])
             if isinstance(s, SignedIntegerAbstractType) and s._bits <= 128
         ]
         if len(possible_start_types) == 0:
-            raise InvalidLiteral("Value out of range for int128", node.args[1])
+            raise InvalidType(
+                "Start value must be of a signed integer type up to int128", node.args[1]
+            )
         start_type = possible_start_types.pop()
-        return [bytes_type, start_type]
+
+        return [b_type, start_type]
 
     @validate_inputs
     def build_IR(self, expr, args, kwargs, context):
@@ -1047,11 +1047,15 @@ class AsWeiValue:
         return vy_ast.Int.from_node(node, value=int(value * denom))
 
     def fetch_call_return(self, node):
-        validate_expected_type(node.args[0], NumericAbstractType())
+        self.infer_arg_types(node)
         return self._return_type
 
     def infer_arg_types(self, node):
         value_type = get_possible_types_from_node(node.args[0]).pop()
+        if not isinstance(value_type, NumericAbstractType):
+            raise InvalidType(
+                f"Expected a numeric type but value can only be cast as {str(value_type)}",
+            )
         return [value_type, None]
 
     @validate_inputs
@@ -1139,8 +1143,19 @@ class RawCall(_SimpleBuiltinFunction):
             return TupleDefinition([BoolDefinition(), return_type])
 
     def infer_arg_types(self, node):
+        to_type = get_possible_types_from_node(node.args[0]).pop()
+        if not isinstance(to_type, AddressDefinition):
+            raise InvalidType(
+                f"Expected address but value can only be cast as {str(to_type)}", node.args[0]
+            )
+
         data_type = get_possible_types_from_node(node.args[1]).pop()
-        return [AddressDefinition(), data_type]
+        if not isinstance(data_type, BytesArrayDefinition):
+            raise InvalidType(
+                f"Expected Bytes[N] but value can only be cast as {str(data_type)}", node.args[1]
+            )
+
+        return [to_type, data_type]
 
     @validate_inputs
     def build_IR(self, expr, args, kwargs, context):
@@ -1308,20 +1323,37 @@ class RawLog:
     _inputs = [("topics", "*"), ("data", ("bytes32", "Bytes"))]
 
     def fetch_call_return(self, node):
+        self.infer_arg_types(node)
+
+    def infer_arg_types(self, node):
         validate_call_args(node, 2)
         if not isinstance(node.args[0], vy_ast.List) or len(node.args[0].elements) > 4:
             raise InvalidType("Expecting a list of 0-4 topics as first argument", node.args[0])
-        if node.args[0].elements:
-            validate_expected_type(
-                node.args[0], ArrayDefinition(Bytes32Definition(), len(node.args[0].elements))
-            )
-        validate_expected_type(node.args[1], BytesAbstractType())
 
-    def infer_arg_types(self, node):
-        res = []
-        for arg in node.args:
-            res.append(get_possible_types_from_node(arg).pop())
-        return res
+        if node.args[0].elements:
+            topic_types = get_possible_types_from_node(node.args[0])
+            topic_type = [i for i in topic_types if isinstance(i, ArrayDefinition)].pop()
+            expected_type = ArrayDefinition(Bytes32Definition(), len(node.args[0].elements))
+            if not topic_type.compare_type(expected_type):
+                raise InvalidType(
+                    (
+                        f"Expected {str(expected_type)} but "
+                        f"value can only be cast as {str(topic_type)}"
+                    ),
+                    node.args[0],
+                )
+        else:
+            topic_type = None
+
+        data_type = get_possible_types_from_node(node.args[1]).pop()
+
+        if not isinstance(data_type, BytesAbstractType):
+            expected_str = " or ".join(str(i) for i in self._inputs[1][1])
+            raise InvalidType(
+                f"Expected {expected_str} but value can only be cast as {str(data_type)}",
+            )
+
+        return [topic_type, data_type]
 
     @validate_inputs
     def build_IR(self, expr, args, kwargs, context):
@@ -1468,9 +1500,39 @@ class Shift(_SimpleBuiltinFunction):
         return vy_ast.Int.from_node(node, value=value)
 
     def infer_arg_types(self, node):
+        value_types = get_possible_types_from_node(node.args[0])
+
+        # Get largest integer type for literals
+        value_type = sorted(
+            [i for i in value_types if isinstance(i, UnsignedIntegerAbstractType)],
+            key=lambda x: x._bits,
+        ).pop()
+        if not isinstance(value_type, Uint256Definition):
+            raise InvalidType(
+                (
+                    f"Expected {str(self._inputs[0][1])} but "
+                    f"value can only be cast as {str(value_type)}"
+                ),
+                node.args[0],
+            )
+
         shift_types = get_possible_types_from_node(node.args[1])
-        shift_type = [s for s in shift_types if isinstance(s, SignedIntegerAbstractType)].pop()
-        return [Uint256Definition(), shift_type]
+        filtered_shift_types = sorted(
+            [s for s in shift_types if isinstance(s, SignedIntegerAbstractType) and s._bits <= 128],
+            key=lambda x: x._bits,
+        )
+
+        if len(filtered_shift_types) == 0:
+            raise InvalidType(
+                (
+                    f"Expected signed integer up to int128 but "
+                    f"value can only be cast as {str(shift_types.pop())}"
+                ),
+                node.args[1],
+            )
+        shift_type = filtered_shift_types.pop()
+
+        return [value_type, shift_type]
 
     @validate_inputs
     def build_IR(self, expr, args, kwargs, context):
