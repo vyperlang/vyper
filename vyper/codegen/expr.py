@@ -7,7 +7,6 @@ from vyper.codegen import external_call, self_call
 import vyper.codegen.arithmetic as arithmetic
 from vyper.codegen.core import (
     clamp,
-    clamp_basetype,
     ensure_in_memory,
     get_dyn_array_count,
     get_element_ptr,
@@ -535,10 +534,11 @@ class Expr:
 
             if ret is None:
                 op_str = self.expr.op._pretty
-                raise UnimplementedException(f"Not implemented: {ltyp} {op_str} {rtyp}", self.expr.op)
+                raise UnimplementedException(
+                    f"Not implemented: {ltyp} {op_str} {rtyp}", self.expr.op
+                )
 
             return IRnode.from_list(b1.resolve(b2.resolve(ret)), typ=out_typ)
-
 
     def build_in_comparator(self):
         left = Expr(self.expr.left, self.context).ir_node

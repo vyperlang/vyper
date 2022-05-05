@@ -2,6 +2,8 @@ from vyper.evm.opcodes import version_check
 from vyper.codegen.ir_node import IRnode
 from vyper.codegen.core import clamp_basetype, clamp
 from vyper.codegen.types import is_integer_type
+from vyper.exceptions import CompilerPanic
+
 
 def safe_add(x: IRnode, y: IRnode):
     # precondition: x.typ.typ == t.typ.typ
@@ -75,9 +77,9 @@ def safe_mul(x: IRnode, y: IRnode):
 
     with res.cache_when_complex("ans") as (b1, res):
 
-        ok = IRnode(1) # true
+        ok = IRnode(1)  # true
 
-        if num_info.bits > 128: # check overflow mod 256
+        if num_info.bits > 128:  # check overflow mod 256
             # assert (res/l == r || l == 0)
             DIV = "sdiv" if num_info.is_signed else "div"
             ok = ["or", ["eq", [DIV, res, y], x], ["iszero", y]]
@@ -131,12 +133,12 @@ def safe_div(x: IRnode, y: IRnode):
             upper_bound = ["shl", 255, 1]
         else:
             upper_bound = -(2 ** 255)
-        if not left.is_literal and not right.typ.is_literal:
+        if not x.is_literal and not y.typ.is_literal:
             ok = ["or", ["ne", x, ["not", 0]], ["ne", y, upper_bound]]
         # TODO push this constant folding into the optimizer
-        elif left.is_literal and left.value == -(2 ** 255):
+        elif x.is_literal and x.value == -(2 ** 255):
             ok = ["ne", x, ["not", 0]]
-        elif right.is_literal and right.value == -1:
+        elif y.is_literal and y.value == -1:
             ok = ["ne", y, upper_bound]
 
     DIV = "sdiv" if num_info.is_signed else "div"
