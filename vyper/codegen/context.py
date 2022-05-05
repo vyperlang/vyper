@@ -82,15 +82,6 @@ class Context:
     def is_constant(self):
         return self.constancy is Constancy.Constant or self.in_assertion or self.in_range_expr
 
-    def register_callee(self, frame_size):
-        self._callee_frame_sizes.append(frame_size)
-
-    @property
-    def max_callee_frame_size(self):
-        if len(self._callee_frame_sizes) == 0:
-            return 0
-        return max(self._callee_frame_sizes)
-
     #
     # Context Managers
     # - Context managers are used to ensure proper wrapping of scopes and context states.

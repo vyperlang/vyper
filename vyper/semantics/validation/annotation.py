@@ -50,7 +50,7 @@ class StatementAnnotationVisitor(_AnnotationVisitorBase):
     def __init__(self, fn_node: vy_ast.FunctionDef, namespace: dict) -> None:
         self.func = fn_node._metadata["type"]
         self.namespace = namespace
-        self.expr_visitor = ExpressionAnnotationVisitor()
+        self.expr_visitor = ExpressionAnnotationVisitor(self.func)
 
     def visit(self, node):
         super().visit(node)
@@ -101,6 +101,9 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
 
     ignored_types = ()
 
+    def __init__(self, fn_node: ContractFunction):
+        self.func = fn_node
+
     def visit(self, node, type_=None):
         # the statement visitor sometimes passes type information about expressions
         super().visit(node, type_)
@@ -128,6 +131,10 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
         node_type = type_ or call_type.fetch_call_return(node)
         node._metadata["type"] = node_type
         self.visit(node.func)
+
+        if isinstance(call_type, ContractFunction):
+            self.func.called_functions.add(call_type)
+
         if isinstance(call_type, (Event, ContractFunction)):
             # events and internal function calls
             for arg, arg_type in zip(node.args, list(call_type.arguments.values())):

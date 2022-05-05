@@ -8,6 +8,28 @@ from vyper.typing import InterfaceImports
 from vyper.utils import cached_property
 
 
+def _topsort_helper(functions):
+    #  single pass to get a topsort of functions, but may have duplicates
+    _lookup = {f.name: f for f in functions}
+
+    ret = []
+    for f in functions:
+        # called_functions is a list of ContractFunctions, need to map
+        # back to FunctionDefs.
+        callees = [_lookup[t.name] for t in f._metadata["type"].called_functions]
+        ret.extend(_topsort(callees))
+        ret.append(f)
+
+    return ret
+
+
+def _topsort(functions):
+    # strip duplicates
+    ret = list(dict.fromkeys(_topsort_helper(functions)))
+
+    return ret
+
+
 # Datatype to store all global context information.
 class GlobalContext:
     def __init__(self):
@@ -20,7 +42,7 @@ class GlobalContext:
         self._structs = dict()
         self._events = list()
         self._globals = dict()
-        self._defs = list()
+        self._function_defs = list()
         self._nonrentrant_counter = 0
         self._nonrentrant_keys = dict()
 
@@ -51,7 +73,7 @@ class GlobalContext:
                 global_ctx.add_globals_and_events(item)
             # Function definitions
             elif isinstance(item, vy_ast.FunctionDef):
-                global_ctx._defs.append(item)
+                global_ctx._function_defs.append(item)
             elif isinstance(item, vy_ast.ImportFrom):
                 interface_name = item.name
                 assigned_name = item.alias or item.name
@@ -92,6 +114,9 @@ class GlobalContext:
                     for func_sig in sigs:
                         func_sig.defined_in_interface = interface_name
                         global_ctx._interface[func_sig.sig] = func_sig
+
+
+        global_ctx._function_defs = _topsort(global_ctx._function_defs)
 
         return global_ctx
 

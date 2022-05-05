@@ -122,6 +122,9 @@ class ContractFunction(BaseTypeDefinition):
         self.mutability = state_mutability
         self.nonreentrant = nonreentrant
 
+        # a list of internal functions this function calls
+        self.called_functions = set()
+
     def __repr__(self):
         return f"contract function '{self.name}'"
 

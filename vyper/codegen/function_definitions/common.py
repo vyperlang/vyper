@@ -46,48 +46,36 @@ def generate_ir_for_function(
     # Validate return statements.
     check_single_exit(code)
 
-    # in order to statically allocate function frames,
-    # we codegen functions in two passes.
-    # one pass is just called for its side effects on the context/memory
-    # allocator. once that pass is finished, we inspect the context
-    # to see what the max frame size of any callee in the function was,
-    # then we run the codegen again with the max frame size as
-    # the start of the frame for this function.
-    def _run_pass(memory_allocator=None):
-        # Create a local (per function) context.
-        if memory_allocator is None:
-            memory_allocator = MemoryAllocator()
-        nonlocal sig
-        sig = copy.deepcopy(sig)  # just in case
-        context = Context(
-            vars_=None,
-            global_ctx=global_ctx,
-            sigs=sigs,
-            memory_allocator=memory_allocator,
-            return_type=sig.return_type,
-            constancy=Constancy.Constant
-            if sig.mutability in ("view", "pure")
-            else Constancy.Mutable,
-            is_payable=sig.mutability == "payable",
-            is_internal=sig.internal,
-            sig=sig,
-        )
+    callees = code._metadata["type"].called_functions
 
-        if sig.internal:
-            o = generate_ir_for_internal_function(code, sig, context)
-        else:
-            o = generate_ir_for_external_function(code, sig, context, check_nonpayable)
+    if len(callees) == 0:
+        allocate_start = 0
+    else:
+        max_callee_frame_size = max(sigs["self"][c.name].frame_size for c in callees)
+        allocate_start = max_callee_frame_size + MemoryPositions.RESERVED_MEMORY
 
-        o.source_pos = getpos(code)
+    memory_allocator = MemoryAllocator(allocate_start)
 
-        return o, context
+    context = Context(
+        vars_=None,
+        global_ctx=global_ctx,
+        sigs=sigs,
+        memory_allocator=memory_allocator,
+        return_type=sig.return_type,
+        constancy=Constancy.Constant
+        if sig.mutability in ("view", "pure")
+        else Constancy.Mutable,
+        is_payable=sig.mutability == "payable",
+        is_internal=sig.internal,
+        sig=sig,
+    )
 
-    _, context = _run_pass(memory_allocator=None)
+    if sig.internal:
+        o = generate_ir_for_internal_function(code, sig, context)
+    else:
+        o = generate_ir_for_external_function(code, sig, context, check_nonpayable)
 
-    allocate_start = context.max_callee_frame_size
-    allocate_start += MemoryPositions.RESERVED_MEMORY
-
-    o, context = _run_pass(memory_allocator=MemoryAllocator(allocate_start))
+    o.source_pos = getpos(code)
 
     frame_size = context.memory_allocator.size_of_mem - MemoryPositions.RESERVED_MEMORY
 

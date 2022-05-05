@@ -510,7 +510,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         assert isinstance(padding, int), "non-int padding"
 
         begincode = mksymbol("runtime_begin")
-        subcode = _compile_to_assembly(ir, {}, existing_labels, None, 0)
+        subcode = _compile_to_assembly(ir, {}, None, None, 0)
 
         o = []
 

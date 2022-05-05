@@ -38,9 +38,6 @@ def ir_for_self_call(stmt_expr, context):
     args_tuple_t = TupleType([x.typ for x in args_ir])
     args_as_tuple = IRnode.from_list(["multi"] + [x for x in args_ir], typ=args_tuple_t)
 
-    # register callee to help calculate our starting frame offset
-    context.register_callee(sig.frame_size)
-
     if context.is_constant() and sig.mutability not in ("view", "pure"):
         raise StateAccessViolation(
             f"May not call state modifying function "

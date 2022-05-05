@@ -69,10 +69,10 @@ def parse_external_interfaces(external_interfaces, global_ctx):
 
 
 def parse_regular_functions(
-    regular_functions, sigs, external_interfaces, global_ctx, default_function, init_function
+    regular_functions, sigs, external_interfaces, global_ctx, default_function
 ):
     # check for payable/nonpayable external functions to optimize nonpayable assertions
-    func_types = [i._metadata["type"] for i in global_ctx._defs]
+    func_types = [f._metadata["type"] for f in global_ctx._function_defs]
     mutabilities = [i.mutability for i in func_types if i.visibility == FunctionVisibility.EXTERNAL]
     has_payable = any(i == StateMutability.PAYABLE for i in mutabilities)
     has_nonpayable = any(i != StateMutability.PAYABLE for i in mutabilities)
@@ -93,6 +93,7 @@ def parse_regular_functions(
     nonpayable_funcs = []
     internal_funcs = []
     add_gas = 0
+    internal_func_map = {}
 
     for func_node in regular_functions:
         func_type = func_node._metadata["type"]
@@ -102,6 +103,7 @@ def parse_regular_functions(
 
         if func_type.visibility == FunctionVisibility.INTERNAL:
             internal_funcs.append(func_ir)
+            internal_func_map[func_node.name] = func_ir
 
         elif func_type.mutability == StateMutability.PAYABLE:
             add_gas += 30  # CMC 20210910 why?
@@ -167,18 +169,14 @@ def parse_regular_functions(
     ]
     runtime.extend(internal_funcs)
 
-    return runtime
+    return runtime, internal_func_map
 
 
 # Main python parse tree => IR method
 def parse_tree_to_ir(global_ctx: GlobalContext) -> Tuple[IRnode, IRnode, FunctionSignatures]:
-    _names_def = [_def.name for _def in global_ctx._defs]
-    # Checks for duplicate function names
-    if len(set(_names_def)) < len(_names_def):
-        raise FunctionDeclarationException(
-            "Duplicate function name: "
-            f"{[name for name in _names_def if _names_def.count(name) > 1][0]}"
-        )
+    _func_lookup = {f.name: f for f in global_ctx._function_defs}
+
+    # CMC 2022-05-05 TODO this is probably dead code.
     _names_events = [_event.name for _event in global_ctx._events]
     # Checks for duplicate event names
     if len(set(_names_events)) < len(_names_events):
@@ -187,12 +185,12 @@ def parse_tree_to_ir(global_ctx: GlobalContext) -> Tuple[IRnode, IRnode, Functio
             {[name for name in _names_events if _names_events.count(name) > 1][0]}"""
         )
     # Initialization function
-    init_function = next((_def for _def in global_ctx._defs if is_initializer(_def)), None)
+    init_function = next((_def for _def in global_ctx._function_defs if is_initializer(_def)), None)
     # Default function
-    default_function = next((i for i in global_ctx._defs if is_default_func(i)), None)
+    default_function = next((i for i in global_ctx._function_defs if is_default_func(i)), None)
 
     regular_functions = [
-        _def for _def in global_ctx._defs if not is_initializer(_def) and not is_default_func(_def)
+        _def for _def in global_ctx._function_defs if not is_initializer(_def) and not is_default_func(_def)
     ]
 
     sigs: dict = {}
@@ -202,29 +200,31 @@ def parse_tree_to_ir(global_ctx: GlobalContext) -> Tuple[IRnode, IRnode, Functio
     if global_ctx._contracts or global_ctx._interfaces:
         external_interfaces = parse_external_interfaces(external_interfaces, global_ctx)
 
+    if regular_functions or default_function:
+        runtime, internal_functions = parse_regular_functions(
+            regular_functions,
+            sigs,
+            external_interfaces,
+            global_ctx,
+            default_function,
+        )
+    else:
+        # for some reason, somebody may want to deploy a contract with no code,
+        # or more likely, a "pure data" contract which contains immutables
+        runtime = IRnode.from_list(["seq"])
+
     init_func_ir = None
     if init_function:
-        init_func_ir, _frame_start, init_frame_size = generate_ir_for_function(
+        for f in init_function._metadata["type"].called_functions:
+            o.append(internal_functions[f.name])
+
+        init_func_ir, frame_start, init_frame_size = generate_ir_for_function(
             init_function,
             {**{"self": sigs}, **external_interfaces},
             global_ctx,
             False,
         )
         o.append(init_func_ir)
-
-    if regular_functions or default_function:
-        runtime = parse_regular_functions(
-            regular_functions,
-            sigs,
-            external_interfaces,
-            global_ctx,
-            default_function,
-            init_func_ir,
-        )
-    else:
-        # for some reason, somebody may want to deploy a contract with no code,
-        # or more likely, a "pure data" contract which contains immutables
-        runtime = IRnode.from_list(["seq"])
 
     immutables_len = global_ctx.immutable_section_bytes
 
