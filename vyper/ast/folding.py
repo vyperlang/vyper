@@ -3,7 +3,7 @@ from typing import Union
 
 from vyper.ast import nodes as vy_ast
 from vyper.builtin_functions import DISPATCH_TABLE
-from vyper.exceptions import OverflowException, TypeMismatch, UnfoldableNode, UnknownType
+from vyper.exceptions import OverflowException, UnfoldableNode, UnknownType
 from vyper.semantics.types.bases import BaseTypeDefinition, DataLocation
 from vyper.semantics.types.utils import get_type_from_annotation
 from vyper.utils import SizeLimits
@@ -43,16 +43,15 @@ def fold(vyper_module: vy_ast.Module) -> None:
 
 
 def _validate_literal_ops_types(node):
-    # Checks if there are any type mismatches for constants of different types
+    # Performs simple typechecking to catch constants of different types
     left, right = node.left, node.right
     value = node.op._op(left.value, right.value)
 
-    # Simple typechecking
     left_type = node.left._metadata.get("type", None)
     right_type = node.right._metadata.get("type", None)
     types = {left_type, right_type}
     if None not in types and not left_type.compare_type(right_type):
-        raise TypeMismatch(f"Cannot perform {node.op._description} between dislike types")
+        raise UnfoldableNode(f"Cannot perform {node.op._description} between dislike types")
 
     type_ = list(types - {None})[0] if len(types - {None}) > 0 else None
 
@@ -63,6 +62,7 @@ def _validate_literal_ops_types(node):
                 f"Result of {node.op.description} ({value}) is outside bounds of {type_}",
                 node.op,
             )
+
     elif isinstance(node, vy_ast.Compare):
         if None in types and len(types) == 2:
             if left_type and not SizeLimits.in_bounds(str(left_type), right.value):
@@ -110,7 +110,8 @@ def replace_literal_ops(vyper_module: vy_ast.Module) -> int:
             new_node = node.evaluate()
             if isinstance(node, (vy_ast.BinOp, vy_ast.Compare)):
                 type_ = _validate_literal_ops_types(node)
-                if isinstance(node, vy_ast.BinOp):
+
+                if type_ is not None and isinstance(node, vy_ast.BinOp):
                     new_node._metadata["type"] = type_
 
         except UnfoldableNode:

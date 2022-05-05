@@ -905,11 +905,9 @@ class BinOp(VyperNode):
             raise UnfoldableNode("Node contains invalid field(s) for evaluation")
 
         value = self.op._op(left.value, right.value)
-
         _validate_numeric_bounds(self, value)
 
-        folded = type(left).from_node(self, value=value)
-        return folded
+        return type(left).from_node(self, value=value)
 
 
 class Add(VyperNode):
