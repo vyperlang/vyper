@@ -83,14 +83,18 @@ class CompilerData:
     @property
     def vyper_module(self) -> vy_ast.Module:
         if not hasattr(self, "_vyper_module"):
-            self._vyper_module = generate_ast(
-                self.source_code,
-                self.source_id,
-                self.contract_name,
-                self.interface_codes,
-            )
+            self._vyper_module = generate_ast(self.source_code, self.source_id, self.contract_name)
 
         return self._vyper_module
+
+    @property
+    def vyper_module_unfolded(self) -> vy_ast.Module:
+        if not hasattr(self, "_vyper_module_unfolded"):
+            self._vyper_module_unfolded = generate_unfolded_ast(
+                self.vyper_module, self.interface_codes
+            )
+
+        return self._vyper_module_unfolded
 
     @property
     def vyper_module_folded(self) -> vy_ast.Module:
@@ -168,12 +172,7 @@ class CompilerData:
         return self._bytecode_runtime
 
 
-def generate_ast(
-    source_code: str,
-    source_id: int,
-    contract_name: str,
-    interface_codes: Optional[InterfaceImports],
-) -> vy_ast.Module:
+def generate_ast(source_code: str, source_id: int, contract_name: str) -> vy_ast.Module:
     """
     Generate a Vyper AST from source code.
 
@@ -191,7 +190,14 @@ def generate_ast(
     vy_ast.Module
         Top-level Vyper AST node
     """
-    vyper_module = vy_ast.parse_to_ast(source_code, source_id, contract_name)
+    return vy_ast.parse_to_ast(source_code, source_id, contract_name)
+
+
+def generate_unfolded_ast(
+    vyper_module: vy_ast.Module,
+    interface_codes: Optional[InterfaceImports],
+) -> vy_ast.Module:
+
     vy_ast.validation.validate_literal_nodes(vyper_module)
     vy_ast.folding.replace_builtin_constants(vyper_module)
     vy_ast.folding.replace_builtin_functions(vyper_module)
