@@ -2,7 +2,11 @@ from vyper import ast as vy_ast
 from vyper.exceptions import StructureException
 from vyper.semantics.types import ArrayDefinition
 from vyper.semantics.types.bases import BaseTypeDefinition
-from vyper.semantics.types.function import ContractFunction, MemberFunctionDefinition
+from vyper.semantics.types.function import (
+    ContractFunction,
+    MemberFunctionDefinition,
+    FunctionVisibility,
+)
 from vyper.semantics.types.user.event import Event
 from vyper.semantics.types.user.struct import StructPrimitive
 from vyper.semantics.validation.utils import (
@@ -132,11 +136,14 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
         node._metadata["type"] = node_type
         self.visit(node.func)
 
-        if isinstance(call_type, ContractFunction):
+        if (
+            isinstance(call_type, ContractFunction)
+            and call_type.visibility == FunctionVisibility.INTERNAL
+        ):
             self.func.called_functions.add(call_type)
 
         if isinstance(call_type, (Event, ContractFunction)):
-            # events and internal function calls
+            # events and function calls
             for arg, arg_type in zip(node.args, list(call_type.arguments.values())):
                 self.visit(arg, arg_type)
         elif isinstance(call_type, StructPrimitive):
