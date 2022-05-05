@@ -115,7 +115,6 @@ class GlobalContext:
                         func_sig.defined_in_interface = interface_name
                         global_ctx._interface[func_sig.sig] = func_sig
 
-
         global_ctx._function_defs = _topsort(global_ctx._function_defs)
 
         return global_ctx

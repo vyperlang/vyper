@@ -1,5 +1,4 @@
 # can't use from [module] import [object] because it breaks mocks in testing
-import copy
 from typing import Dict, Tuple
 
 import vyper.ast as vy_ast
@@ -51,7 +50,11 @@ def generate_ir_for_function(
     if len(callees) == 0:
         allocate_start = 0
     else:
-        max_callee_frame_size = max(sigs["self"][c.name].frame_size for c in callees)
+
+        def get_frame_size(name):
+            return sigs["self"][name].frame_size  # type: ignore
+
+        max_callee_frame_size = max(get_frame_size(c.name) for c in callees)
         allocate_start = max_callee_frame_size + MemoryPositions.RESERVED_MEMORY
 
     memory_allocator = MemoryAllocator(allocate_start)
@@ -62,9 +65,7 @@ def generate_ir_for_function(
         sigs=sigs,
         memory_allocator=memory_allocator,
         return_type=sig.return_type,
-        constancy=Constancy.Constant
-        if sig.mutability in ("view", "pure")
-        else Constancy.Mutable,
+        constancy=Constancy.Constant if sig.mutability in ("view", "pure") else Constancy.Mutable,
         is_payable=sig.mutability == "payable",
         is_internal=sig.internal,
         sig=sig,
@@ -85,8 +86,8 @@ def generate_ir_for_function(
     else:
         # frame size for internal function does not need to be adjusted
         # since it is already accounted for by the caller
-        o.total_gas = o.gas
+        o.total_gas = o.gas  # type: ignore
 
-    o.context = context
+    o.context = context  # type: ignore
     o.func_name = sig.name
     return o, allocate_start, frame_size

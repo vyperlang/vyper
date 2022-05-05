@@ -174,8 +174,6 @@ def parse_regular_functions(
 
 # Main python parse tree => IR method
 def parse_tree_to_ir(global_ctx: GlobalContext) -> Tuple[IRnode, IRnode, FunctionSignatures]:
-    _func_lookup = {f.name: f for f in global_ctx._function_defs}
-
     # CMC 2022-05-05 TODO this is probably dead code.
     _names_events = [_event.name for _event in global_ctx._events]
     # Checks for duplicate event names
@@ -190,7 +188,9 @@ def parse_tree_to_ir(global_ctx: GlobalContext) -> Tuple[IRnode, IRnode, Functio
     default_function = next((i for i in global_ctx._function_defs if is_default_func(i)), None)
 
     regular_functions = [
-        _def for _def in global_ctx._function_defs if not is_initializer(_def) and not is_default_func(_def)
+        _def
+        for _def in global_ctx._function_defs
+        if not is_initializer(_def) and not is_default_func(_def)
     ]
 
     sigs: dict = {}

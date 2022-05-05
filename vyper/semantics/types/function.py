@@ -1,7 +1,7 @@
 import re
 import warnings
 from collections import OrderedDict
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 from vyper import ast as vy_ast
 from vyper.ast.validation import validate_call_args
@@ -123,7 +123,7 @@ class ContractFunction(BaseTypeDefinition):
         self.nonreentrant = nonreentrant
 
         # a list of internal functions this function calls
-        self.called_functions = set()
+        self.called_functions: Set["ContractFunction"] = set()
 
     def __repr__(self):
         return f"contract function '{self.name}'"
