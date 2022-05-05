@@ -10,6 +10,7 @@ from vyper.codegen.core import (
     dummy_node_for_type,
     make_setter,
     needs_clamp,
+    wrap_value_for_external_return,
 )
 from vyper.codegen.ir_node import Encoding, IRnode
 from vyper.codegen.types import InterfaceType, TupleType, get_type_for_exact_size
@@ -18,25 +19,25 @@ from vyper.exceptions import StateAccessViolation, TypeCheckFailure
 
 
 @dataclass
-class _SpecialKwargs:
+class _CallKwargs:
     value: IRnode
     gas: IRnode
     skip_contract_check: bool
     default_return_value: IRnode
 
 
-def _pack_arguments(contract_sig, args, context):
+def _pack_arguments(fn_sig, args, context):
     # abi encoding just treats all args as a big tuple
     args_tuple_t = TupleType([x.typ for x in args])
     args_as_tuple = IRnode.from_list(["multi"] + [x for x in args], typ=args_tuple_t)
     args_abi_t = args_tuple_t.abi_type
 
     # sanity typecheck - make sure the arguments can be assigned
-    dst_tuple_t = TupleType([arg.typ for arg in contract_sig.args][: len(args)])
+    dst_tuple_t = TupleType([arg.typ for arg in fn_sig.args][: len(args)])
     check_assign(dummy_node_for_type(dst_tuple_t), args_as_tuple)
 
-    if contract_sig.return_type is not None:
-        return_abi_t = calculate_type_for_external_return(contract_sig.return_type).abi_type
+    if fn_sig.return_type is not None:
+        return_abi_t = calculate_type_for_external_return(fn_sig.return_type).abi_type
 
         # we use the same buffer for args and returndata,
         # so allocate enough space here for the returndata too.
@@ -52,7 +53,7 @@ def _pack_arguments(contract_sig, args, context):
     args_ofst = buf + 28
     args_len = args_abi_t.size_bound() + 4
 
-    abi_signature = contract_sig.name + dst_tuple_t.abi_type.selector_name()
+    abi_signature = fn_sig.name + dst_tuple_t.abi_type.selector_name()
 
     # layout:
     # 32 bytes                 | args
@@ -61,19 +62,18 @@ def _pack_arguments(contract_sig, args, context):
     # if we were only targeting constantinople, we could align
     # to buf (and also keep code size small) by using
     # (mstore buf (shl signature.method_id 224))
-    mstore_method_id = [["mstore", buf, util.abi_method_id(abi_signature)]]
+    pack_args = ["seq"]
+    pack_args.append(["mstore", buf, util.abi_method_id(abi_signature)])
 
-    if len(args) == 0:
-        encode_args = ["pass"]
-    else:
-        encode_args = abi_encode(buf + 32, args_as_tuple, context, bufsz=buflen)
+    if len(args) != 0:
+        pack_args.append(abi_encode(buf + 32, args_as_tuple, context, bufsz=buflen))
 
-    return buf, mstore_method_id + [encode_args], args_ofst, args_len
+    return buf, pack_args, args_ofst, args_len
 
 
-def _unpack_returndata(buf, contract_sig, skip_contract_check, return_override, context, expr):
+def _unpack_returndata(buf, fn_sig, call_kwargs, context, expr):
     # expr.func._metadata["type"].return_type is more accurate
-    # than contract_sig.return_type in the case of JSON interfaces.
+    # than fn_sig.return_type in the case of JSON interfaces.
     ast_return_t = expr.func._metadata["type"].return_type
 
     if ast_return_t is None:
@@ -81,11 +81,11 @@ def _unpack_returndata(buf, contract_sig, skip_contract_check, return_override, 
 
     # sanity check
     return_t = new_type_to_old_type(ast_return_t)
-    check_assign(dummy_node_for_type(return_t), dummy_node_for_type(contract_sig.return_type))
+    check_assign(dummy_node_for_type(return_t), dummy_node_for_type(fn_sig.return_type))
 
-    return_t = calculate_type_for_external_return(return_t)
+    wrapped_return_t = calculate_type_for_external_return(return_t)
 
-    abi_return_t = return_t.abi_type
+    abi_return_t = wrapped_return_t.abi_type
 
     min_return_size = abi_return_t.min_size()
     max_return_size = abi_return_t.size_bound()
@@ -94,92 +94,79 @@ def _unpack_returndata(buf, contract_sig, skip_contract_check, return_override, 
     ret_ofst = buf
     ret_len = max_return_size
 
-    # revert when returndatasize is not in bounds
-    ret = []
-    # except when return_override is provided.
-    # runtime: min_return_size <= returndatasize
-    if not skip_contract_check:
-        check = ["assert", ["ge", "returndatasize", min_return_size]]
-    else:
-        check = ["seq"]
-
-    if return_override is not None:
-        # if returndatasize == 0:
-        #    copy return override to buf
-        # else:
-        #    assert returndatasize >= min_return_size
-        ret.append(
-            [
-                "if",
-                ["eq", "returndatasize", 0],
-                abi_encode(buf, return_override, context, ret_len),
-                check,
-            ]
-        )
-    else:
-        ret.append(check)
-
     encoding = Encoding.ABI
 
     buf = IRnode.from_list(
         buf,
-        typ=return_t,
+        typ=wrapped_return_t,
         location=MEMORY,
         encoding=encoding,
         annotation=f"{expr.node_source_code} returndata buffer",
     )
 
-    assert isinstance(return_t, TupleType)
+    unpacker = ["seq"]
+
+    # revert when returndatasize is not in bounds
+    # (except when return_override is provided.)
+    if not call_kwargs.skip_contract_check:
+        unpacker.append(["assert", ["ge", "returndatasize", min_return_size]])
+
+    assert isinstance(wrapped_return_t, TupleType)
+
     # unpack strictly
-    if needs_clamp(return_t, encoding):
-        buf2 = IRnode.from_list(
-            context.new_internal_variable(return_t), typ=return_t, location=MEMORY
-        )
+    if needs_clamp(wrapped_return_t, encoding):
+        return_buf = context.new_internal_variable(wrapped_return_t)
+        return_buf = IRnode.from_list(return_buf, typ=wrapped_return_t, location=MEMORY)
 
-        ret.append(make_setter(buf2, buf))
-        ret.append(buf2)
+        # note: make_setter does ABI decoding and clamps
+        unpacker.append(make_setter(return_buf, buf))
     else:
-        ret.append(buf)
+        return_buf = buf
 
-    return ret, ret_ofst, ret_len
+    if call_kwargs.default_return_value is not None:
+        # if returndatasize == 0:
+        #    copy return override to buf
+        # else:
+        #    do the other stuff
+
+        override_value = wrap_value_for_external_return(call_kwargs.default_return_value)
+        stomp_return_buffer = make_setter(return_buf, override_value)
+        unpacker = ["if", ["eq", "returndatasize", 0], stomp_return_buffer, unpacker]
+
+    unpacker = ["seq", unpacker, return_buf]
+
+    return unpacker, ret_ofst, ret_len
 
 
 def _external_call_helper(
     contract_address,
-    contract_sig,
+    fn_sig,
     args_ir,
     context,
-    special_kwargs,
-    expr=None,
+    call_kwargs,
+    expr,
 ):
 
     # sanity check
-    assert len(contract_sig.base_args) <= len(args_ir) <= len(contract_sig.args)
+    assert len(fn_sig.base_args) <= len(args_ir) <= len(fn_sig.args)
 
-    if context.is_constant() and contract_sig.mutability not in ("view", "pure"):
+    if context.is_constant() and fn_sig.mutability not in ("view", "pure"):
         # TODO is this already done in type checker?
         raise StateAccessViolation(
-            f"May not call state modifying function '{contract_sig.name}' "
+            f"May not call state modifying function '{fn_sig.name}' "
             f"within {context.pp_constancy()}.",
             expr,
         )
 
     sub = ["seq"]
 
-    buf, arg_packer, args_ofst, args_len = _pack_arguments(contract_sig, args_ir, context)
+    buf, arg_packer, args_ofst, args_len = _pack_arguments(fn_sig, args_ir, context)
 
-    ret_unpacker, ret_ofst, ret_len = _unpack_returndata(
-        buf,
-        contract_sig,
-        special_kwargs.skip_contract_check,
-        special_kwargs.default_return_value,
-        context,
-        expr,
-    )
+    ret_unpacker, ret_ofst, ret_len = _unpack_returndata(buf, fn_sig, call_kwargs, context, expr)
 
     sub += arg_packer
 
-    if contract_sig.return_type is None and not special_kwargs.skip_contract_check:
+    if fn_sig.return_type is None and not call_kwargs.skip_contract_check:
         # if we do not expect return data, check that a contract exists at the
         # target address. we must perform this check BEFORE the call because
         # the contract might selfdestruct. on the other hand we can omit this
@@ -188,34 +175,21 @@ def _external_call_helper(
         # selfdestructs).
         sub.append(["assert", ["extcodesize", contract_address]])
 
-    if context.is_constant() or contract_sig.mutability in ("view", "pure"):
-        call_op = [
-            "staticcall",
-            special_kwargs.gas,
-            contract_address,
-            args_ofst,
-            args_len,
-            ret_ofst,
-            ret_len,
-        ]
+    gas = call_kwargs.gas
+    value = call_kwargs.value
+    if context.is_constant() or fn_sig.mutability in ("view", "pure"):
+        call_op = ["staticcall", gas, contract_address, args_ofst, args_len, buf, ret_len]
     else:
-        call_op = [
-            "call",
-            special_kwargs.gas,
-            contract_address,
-            special_kwargs.value,
-            args_ofst,
-            args_len,
-            ret_ofst,
-            ret_len,
-        ]
+        call_op = ["call", gas, contract_address, value, args_ofst, args_len, buf, ret_len]
 
     sub.append(check_external_call(call_op))
 
-    if contract_sig.return_type is not None:
-        sub += ret_unpacker
+    fn_type = expr.func._metadata["type"]
+    return_type = new_type_to_old_type(fn_type.return_type)
+    if return_type is not None:
+        sub.append(ret_unpacker)
 
-    return IRnode.from_list(sub, typ=contract_sig.return_type, location=MEMORY)
+    return IRnode.from_list(sub, typ=return_type, location=MEMORY)
 
 
 def _get_special_kwargs(call_expr, context):
@@ -225,10 +199,9 @@ def _get_special_kwargs(call_expr, context):
         assert x in (0, 1), "type checker missed this"
         return bool(x)
 
-    # turn kwargs into dict
     call_kwargs = {kw.arg: Expr.parse_value_expr(kw.value, context) for kw in call_expr.keywords}
 
-    ret = _SpecialKwargs(
+    ret = _CallKwargs(
         value=IRnode.from_list(call_kwargs.pop("value", 0)),
         gas=IRnode.from_list(call_kwargs.pop("gas", "gas")),
         skip_contract_check=_bool(call_kwargs.pop("skip_contract_check", 0)),
@@ -245,20 +218,20 @@ def ir_for_external_call(call_expr, context):
     from vyper.codegen.expr import Expr  # TODO rethink this circular import
 
     contract_address = Expr.parse_value_expr(call_expr.func.value, context)
-    special_kwargs = _get_special_kwargs(call_expr, context)
+    call_kwargs = _get_special_kwargs(call_expr, context)
     args_ir = [Expr(x, context).ir_node for x in call_expr.args]
 
     assert isinstance(contract_address.typ, InterfaceType)
     contract_name = contract_address.typ.name
     method_name = call_expr.func.attr
-    contract_sig = context.sigs[contract_name][method_name]
+    fn_sig = context.sigs[contract_name][method_name]
 
     ret = _external_call_helper(
         contract_address,
-        contract_sig,
+        fn_sig,
         args_ir,
         context,
-        special_kwargs=special_kwargs,
+        call_kwargs=call_kwargs,
         expr=call_expr,
     )
 
