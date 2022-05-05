@@ -57,7 +57,6 @@ class StatementAnnotationVisitor(_AnnotationVisitorBase):
 
     def visit_AnnAssign(self, node):
         type_ = get_exact_type_from_node(node.target)
-        node._metadata["type"] = type_
         self.expr_visitor.visit(node.target, type_)
         self.expr_visitor.visit(node.value, type_)
 
@@ -66,13 +65,11 @@ class StatementAnnotationVisitor(_AnnotationVisitorBase):
 
     def visit_Assign(self, node):
         type_ = get_exact_type_from_node(node.target)
-        node._metadata["type"] = type_
         self.expr_visitor.visit(node.target, type_)
         self.expr_visitor.visit(node.value, type_)
 
     def visit_AugAssign(self, node):
         type_ = get_exact_type_from_node(node.target)
-        node._metadata["type"] = type_
         self.expr_visitor.visit(node.target, type_)
         self.expr_visitor.visit(node.value, type_)
 
