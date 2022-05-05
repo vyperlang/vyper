@@ -47,7 +47,7 @@ class GlobalContext:
     # Parse top-level functions and variables
     @classmethod
     def get_global_context(
-        cls, vyper_module: "vy_ast.Module", interface_codes: Optional[InterfaceImports] = None
+        cls, vyper_module: "vy_ast.Module", interface_codes: Optional[InterfaceImports] = None, should_topsort=True
     ) -> "GlobalContext":
         # TODO is this a cyclic import?
         from vyper.ast.signatures.interface import extract_sigs, get_builtin_interfaces
@@ -113,7 +113,9 @@ class GlobalContext:
                         func_sig.defined_in_interface = interface_name
                         global_ctx._interface[func_sig.sig] = func_sig
 
-        global_ctx._function_defs = _topsort(global_ctx._function_defs)
+        # relies on annotation phase having been run.
+        if should_topsort:
+            global_ctx._function_defs = _topsort(global_ctx._function_defs)
 
         return global_ctx
 

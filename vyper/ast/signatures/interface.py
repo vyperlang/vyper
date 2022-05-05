@@ -98,9 +98,9 @@ def mk_full_signature_from_json(abi):
 def _get_external_signatures(global_ctx, sig_formatter=lambda x: x):
     ret = []
 
-    for code in global_ctx._defs:
+    for func_ast in global_ctx._function_defs:
         sig = FunctionSignature.from_definition(
-            code,
+            func_ast,
             sigs=global_ctx._contracts,
             custom_structs=global_ctx._structs,
         )
@@ -130,7 +130,7 @@ def extract_sigs(sig_code, interface_name=None):
             )
             or (isinstance(i, vy_ast.AnnAssign) and i.target.id != "implements")
         ]
-        global_ctx = GlobalContext.get_global_context(interface_ast)
+        global_ctx = GlobalContext.get_global_context(interface_ast, should_topsort=False)
         return _get_external_signatures(global_ctx)
     elif sig_code["type"] == "json":
         return mk_full_signature_from_json(sig_code["code"])
