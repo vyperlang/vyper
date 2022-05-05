@@ -3,7 +3,7 @@ from typing import List, Optional, Union
 
 from vyper.codegen.ir_node import IRnode
 from vyper.evm.opcodes import version_check
-from vyper.exceptions import StaticAssertionException
+from vyper.exceptions import CompilerPanic, StaticAssertionException
 from vyper.utils import (
     ceil32,
     evm_div,
@@ -64,6 +64,19 @@ IRVal = Union[str, int]
 IRArgs = List[IRnode]
 
 
+COMMUTATIVE_OPS = {"add", "mul", "eq", "ne"}
+COMPARISON_OPS = {"gt", "sgt", "ge", "sge", "lt", "slt", "le", "sle"}
+
+
+def _flip_comparison_op(opname):
+    assert opname in COMPARISON_OPS
+    if "g" in opname:
+        return opname.replace("g", "l")
+    if "l" in opname:
+        return opname.replace("l", "g")
+    raise CompilerPanic(f"bad comparison op {opname}")
+
+
 # def _optimize_arith(
 #    binop: str, args: IRArgs, ann: Optional[str], parent_op: Any = None
 # ) -> Tuple[IRVal, IRArgs, Optional[str]]:
@@ -105,9 +118,13 @@ def _optimize_arith(binop, args, ann, parent_op):
     # ARITHMETIC
     ##
 
-    # if the op is commutative, move the literal to the second position
-    # to make the later logic cleaner
-    if binop in {"add", "mul"} and _is_int(args[0]):
+    # for commutative or comparison ops, move the literal to the second
+    # position to make the later logic cleaner
+    if binop in COMMUTATIVE_OPS and _is_int(args[0]):
+        args = [args[1], args[0]]
+
+    if binop in COMPARISON_OPS and _is_int(args[0]):
+        binop = _flip_comparison_op(binop)
         args = [args[1], args[0]]
 
     if binop in {"add", "sub"} and _int(args[1]) == 0:

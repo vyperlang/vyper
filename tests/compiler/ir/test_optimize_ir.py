@@ -25,7 +25,17 @@ optimize_list = [
     (["iszero", ["gt", "x", 2 ** 256 - 1]], [1]),  # x >= MAX_UINT256 == False
     (["iszero", ["sgt", "x", 2 ** 255 - 1]], [1]),  # signed x >= MAX_INT256 == False
     (["le", "x", 0], ["iszero", "x"]),
+    (["le", 0, "x"], [1]),
     (["lt", "x", 0], [0]),
+    (["lt", 0, "x"], ["iszero", ["iszero", "x"]]),
+    (["gt", 5, "x"], ["lt", "x", 5]),
+    (["ge", 5, "x"], ["le", "x", 5]),
+    (["lt", 5, "x"], ["gt", "x", 5]),
+    (["le", 5, "x"], ["ge", "x", 5]),
+    (["sgt", 5, "x"], ["slt", "x", 5]),
+    (["sge", 5, "x"], ["sle", "x", 5]),
+    (["slt", 5, "x"], ["sgt", "x", 5]),
+    (["sle", 5, "x"], ["sge", "x", 5]),
     (["slt", "x", -(2 ** 255)], ["slt", "x", -(2 ** 255)]),  # unimplemented
     # tricky conditions
     (["sgt", 2 ** 256 - 1, 0], [0]),  # -1 > 0
