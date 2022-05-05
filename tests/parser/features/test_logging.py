@@ -8,6 +8,7 @@ from vyper.exceptions import (
     EventDeclarationException,
     InvalidType,
     NamespaceCollision,
+    StructureException,
     TypeMismatch,
     UndeclaredDefinition,
 )
@@ -1257,6 +1258,23 @@ def foo():
 def foo():
     a: DynArray[bytes32, 1] = [0x1234567812345678123456781234567812345678123456781234567812345678]
     raw_log(a, b"moo2")
+    """,
+        InvalidType,
+    ),
+    (
+        """
+@external
+def foo():
+    raw_log([b"cow"], b"dog")
+    """,
+        (StructureException, InvalidType),
+    ),
+    (
+        """
+@external
+def foo():
+    # bytes20 instead of bytes32
+    raw_log([], 0x1234567890123456789012345678901234567890)
     """,
         InvalidType,
     ),
