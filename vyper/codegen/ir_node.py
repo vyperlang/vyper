@@ -111,16 +111,22 @@ class IRnode:
         self,
         value: Union[str, int],
         args: List["IRnode"] = None,
-        typ: NodeType = None,
+        typ: Optional[NodeType] = None,
         location: Optional[AddrSpace] = None,
         source_pos: Optional[Tuple[int, int]] = None,
         annotation: Optional[str] = None,
         mutable: bool = True,
         add_gas_estimate: int = 0,
-        encoding: Encoding = Encoding.VYPER,
+        encoding: Optional[Encoding] = None,
     ):
+        if isinstance(typ, str):
+            typ = BaseType(typ)
+
         if args is None:
             args = []
+
+        if encoding is None:
+            encoding = Encoding.VYPER
 
         self.value = value
         self.args = args
@@ -462,24 +468,21 @@ class IRnode:
         annotation: Optional[str] = None,
         mutable: bool = True,
         add_gas_estimate: int = 0,
-        encoding: Encoding = Encoding.VYPER,
+        encoding: Optional[Encoding] = None,
     ) -> "IRnode":
-        if isinstance(typ, str):
-            typ = BaseType(typ)
-
         if isinstance(obj, IRnode):
-            # note: this modify-and-returnclause is a little weird since
-            # the input gets modified. CC 20191121.
-            if typ is not None:
-                obj.typ = typ
-            if obj.source_pos is None:
-                obj.source_pos = source_pos
-            if obj.location is None:
-                obj.location = location
-            if obj.encoding is None:
-                obj.encoding = encoding
-
-            return obj
+            args = obj.args.copy()  # shallow copy should be ok
+            return IRnode(
+                obj.value,
+                args,
+                typ=typ or obj.typ,
+                location=location or obj.location,
+                source_pos=source_pos or obj.source_pos,
+                annotation=annotation or obj.annotation,
+                mutable=mutable,
+                add_gas_estimate=add_gas_estimate or obj.add_gas_estimate,
+                encoding=encoding or obj.encoding,
+            )
         elif not isinstance(obj, list):
             return cls(
                 obj,
