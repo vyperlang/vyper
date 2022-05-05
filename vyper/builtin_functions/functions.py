@@ -322,13 +322,8 @@ class Slice:
     def infer_arg_types(self, node):
         validate_call_args(node, 3)
 
+        validate_expected_type(node.args[0], (BytesAbstractType(), StringPrimitive()))
         slice_type = get_possible_types_from_node(node.args[0]).pop()
-        if not isinstance(slice_type, (BytesAbstractType, StringDefinition)):
-            expected_str = f"one of {', '.join(str(i) for i in self._inputs[0][1])}"
-            raise InvalidType(
-                f"Expected {expected_str} but value can only be cast as {slice_type}",
-                node,
-            )
 
         for arg in node.args[1:]:
             validate_expected_type(arg, Uint256Definition())
@@ -509,9 +504,8 @@ class Concat:
 
         ret = []
         for arg in node.args:
+            validate_expected_type(arg, (BytesAbstractType(), StringDefinition()))
             arg_t = get_possible_types_from_node(arg).pop()
-            if not isinstance(arg_t, (BytesAbstractType, StringDefinition)):
-                raise InvalidType("Concat values must be bytes or string", arg)
             ret.append(arg_t)
 
         return ret
@@ -901,12 +895,8 @@ class Extract32(_SimpleBuiltinFunction):
         return return_type
 
     def infer_arg_types(self, node):
+        validate_expected_type(node.args[0], BytesArrayDefinition())
         b_type = get_possible_types_from_node(node.args[0]).pop()
-        if not isinstance(b_type, BytesArrayDefinition):
-            raise InvalidType(
-                f"Expected Bytes[N] but value can only be cast as {b_type}", node.args[0]
-            )
-
         validate_expected_type(node.args[1], Int128Definition())
 
         return [b_type, Int128Definition()]
@@ -1048,12 +1038,8 @@ class AsWeiValue:
         return self._return_type
 
     def infer_arg_types(self, node):
+        validate_expected_type(node.args[0], NumericAbstractType())
         value_type = get_possible_types_from_node(node.args[0]).pop()
-        if not isinstance(value_type, NumericAbstractType):
-            raise InvalidType(
-                f"Expected a numeric type but value can only be cast as {value_type}",
-                node.args[0],
-            )
         return [value_type, None]
 
     @validate_inputs
@@ -1144,12 +1130,8 @@ class RawCall(_SimpleBuiltinFunction):
         super().infer_arg_types(node)
 
         validate_expected_type(node.args[0], AddressDefinition())
-
+        validate_expected_type(node.args[1], BytesArrayDefinition())
         data_type = get_possible_types_from_node(node.args[1]).pop()
-        if not isinstance(data_type, BytesArrayDefinition):
-            raise InvalidType(
-                f"Expected Bytes[N] but value can only be cast as {data_type}", node.args[1]
-            )
 
         return [AddressDefinition(), data_type]
 
@@ -1330,11 +1312,7 @@ class RawLog:
             topic_types = get_possible_types_from_node(node.args[0])
             topic_type = [i for i in topic_types if isinstance(i, ArrayDefinition)].pop()
             expected_type = ArrayDefinition(Bytes32Definition(), len(node.args[0].elements))
-            if not topic_type.compare_type(expected_type):
-                raise InvalidType(
-                    f"Expected {expected_type} but value can only be cast as {topic_type}",
-                    node.args[0],
-                )
+            validate_expected_type(node.args[0], expected_type)
         else:
             topic_type = None
 

@@ -47,7 +47,7 @@ def cat_list(y: int128) -> Bytes[40]:
     x: int128[1] = [y]
     return concat("test", y)
     """,
-        InvalidType,
+        TypeMismatch,
     ),
     (
         """
@@ -65,7 +65,7 @@ def large_output(a: String[33], b: address) -> String[64]:
     c: String[64] = concat(a, b)
     return c
     """,
-        InvalidType,
+        TypeMismatch,
     ),
     (
         """
