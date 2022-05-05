@@ -4,8 +4,8 @@ from vyper.semantics.types import ArrayDefinition
 from vyper.semantics.types.bases import BaseTypeDefinition
 from vyper.semantics.types.function import (
     ContractFunction,
-    MemberFunctionDefinition,
     FunctionVisibility,
+    MemberFunctionDefinition,
 )
 from vyper.semantics.types.user.event import Event
 from vyper.semantics.types.user.struct import StructPrimitive

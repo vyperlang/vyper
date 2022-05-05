@@ -8,26 +8,24 @@ from vyper.typing import InterfaceImports
 from vyper.utils import cached_property
 
 
-def _topsort_helper(functions):
+def _topsort_helper(functions, lookup):
     #  single pass to get a topsort of functions, but may have duplicates
-    _lookup = {f.name: f for f in functions}
 
     ret = []
     for f in functions:
         # called_functions is a list of ContractFunctions, need to map
         # back to FunctionDefs.
-        callees = [_lookup[t.name] for t in f._metadata["type"].called_functions]
-        ret.extend(_topsort(callees))
+        callees = [lookup[t.name] for t in f._metadata["type"].called_functions]
+        ret.extend(_topsort_helper(callees, lookup))
         ret.append(f)
 
     return ret
 
 
 def _topsort(functions):
+    lookup = {f.name: f for f in functions}
     # strip duplicates
-    ret = list(dict.fromkeys(_topsort_helper(functions)))
-
-    return ret
+    return list(dict.fromkeys(_topsort_helper(functions, lookup)))
 
 
 # Datatype to store all global context information.
