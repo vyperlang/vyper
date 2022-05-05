@@ -101,10 +101,12 @@ SHA256_BASE_GAS = 60
 SHA256_PER_WORD_GAS = 12
 
 
-class _SimpleBuiltinFunction:
+class _BuiltinFunction:
     def __repr__(self):
         return f"builtin function {self._id}"
 
+
+class _SimpleBuiltinFunction(_BuiltinFunction):
     def fetch_call_return(self, node):
         validate_call_args(node, len(self._inputs), getattr(self, "_kwargs", []))
         for arg, (_, expected) in zip(node.args, self._inputs):
@@ -170,12 +172,9 @@ class Ceil(_SimpleBuiltinFunction):
         )
 
 
-class Convert:
+class Convert(_BuiltinFunction):
 
     _id = "convert"
-
-    def __repr__(self):
-        return f"builtin function {self._id}"
 
     def fetch_call_return(self, node):
         validate_call_args(node, 2)
@@ -251,14 +250,11 @@ def _build_adhoc_slice_node(sub: IRnode, start: IRnode, length: IRnode, context:
     return IRnode.from_list(node, typ=ByteArrayType(length.value), location=MEMORY)
 
 
-class Slice:
+class Slice(_BuiltinFunction):
 
     _id = "slice"
     _inputs = [("b", ("Bytes", "bytes32", "String")), ("start", "uint256"), ("length", "uint256")]
     _return_type = None
-
-    def __repr__(self):
-        return f"builtin function {self._id}"
 
     def fetch_call_return(self, node):
         validate_call_args(node, 3)
@@ -459,12 +455,9 @@ class Len(_SimpleBuiltinFunction):
         return get_bytearray_length(arg)
 
 
-class Concat:
+class Concat(_BuiltinFunction):
 
     _id = "concat"
-
-    def __repr__(self):
-        return f"builtin function {self._id}"
 
     def fetch_call_return(self, node):
         if len(node.args) < 2:
@@ -696,12 +689,9 @@ class Sha256(_SimpleBuiltinFunction):
         )
 
 
-class MethodID:
+class MethodID(_BuiltinFunction):
 
     _id = "method_id"
-
-    def __repr__(self):
-        return f"builtin function {self._id}"
 
     def evaluate(self, node):
         validate_call_args(node, 1, ["output_type"])
@@ -965,7 +955,7 @@ class Extract32(_SimpleBuiltinFunction):
         )
 
 
-class AsWeiValue:
+class AsWeiValue(_BuiltinFunction):
 
     _id = "as_wei_value"
     _inputs = [("value", NumericAbstractType()), ("unit", "str_literal")]
@@ -989,9 +979,6 @@ class AsWeiValue:
         ("ether",): 10 ** 18,
         ("kether", "grand"): 10 ** 21,
     }
-
-    def __repr__(self):
-        return f"builtin function {self._id}"
 
     def evaluate(self, node):
         validate_call_args(node, 2)
@@ -1268,13 +1255,10 @@ class BlockHash(_SimpleBuiltinFunction):
         )
 
 
-class RawLog:
+class RawLog(_BuiltinFunction):
 
     _id = "raw_log"
     _inputs = [("topics", "*"), ("data", ("bytes32", "Bytes"))]
-
-    def __repr__(self):
-        return f"builtin function {self._id}"
 
     def fetch_call_return(self, node):
         validate_call_args(node, 2)
@@ -1672,7 +1656,7 @@ class CreateForwarderTo(_SimpleBuiltinFunction):
         )
 
 
-class _UnsafeMath:
+class _UnsafeMath(_BuiltinFunction):
 
     # TODO add unsafe math for `decimal`s
     _inputs = [("a", IntegerAbstractType()), ("b", IntegerAbstractType())]
@@ -1737,12 +1721,9 @@ class UnsafeDiv(_UnsafeMath):
     op = "div"
 
 
-class _MinMax:
+class _MinMax(_BuiltinFunction):
 
     _inputs = [("a", NumericAbstractType()), ("b", NumericAbstractType())]
-
-    def __repr__(self):
-        return f"builtin function {self._id}"
 
     def evaluate(self, node):
         validate_call_args(node, 2)
@@ -1881,13 +1862,10 @@ else:
         )
 
 
-class Empty:
+class Empty(_BuiltinFunction):
 
     _id = "empty"
     _inputs = [("typename", "*")]
-
-    def __repr__(self):
-        return f"builtin function {self._id}"
 
     def fetch_call_return(self, node):
         validate_call_args(node, 1)
