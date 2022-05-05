@@ -29,7 +29,6 @@ devdoc             - Natspec developer documentation
 combined_json      - All of the above format options combined as single JSON output
 layout             - Storage layout of a Vyper contract
 ast                - AST in JSON format
-unfolded_ast       - Unfolded AST in JSON format
 interface          - Vyper interface of a contract
 external_interface - External interface of a contract, used for outside contract calls
 opcodes            - List of opcodes as a string
@@ -307,7 +306,6 @@ def compile_files(
         "abi_python": "abi",
         "json": "abi",
         "ast": "ast_dict",
-        "unfolded_ast": "unfolded_ast_dict",
         "ir_json": "ir_dict",
     }
     final_formats = [translate_map.get(i, i) for i in output_formats]

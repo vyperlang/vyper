@@ -20,7 +20,6 @@ def test_keys():
     assert output_json["sources"]["foo.vy"] == {
         "id": 0,
         "ast": data["ast_dict"]["ast"],
-        "unfolded_ast": data["unfolded_ast_dict"]["ast"],
     }
     assert output_json["contracts"]["foo.vy"]["foo"] == {
         "abi": data["abi"],
