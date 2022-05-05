@@ -57,6 +57,9 @@ arith = {
     "sle": (operator.le, "<=", SIGNED),
     "sgt": (operator.gt, ">", SIGNED),
     "sge": (operator.ge, ">=", SIGNED),
+    "or": (operator.or_, "|", UNSIGNED),
+    "and": (operator.and_, "&", UNSIGNED),
+    "xor": (operator.xor, "^", UNSIGNED),
 }
 
 # quick typedefs, maybe move these to IRnode
@@ -64,7 +67,7 @@ IRVal = Union[str, int]
 IRArgs = List[IRnode]
 
 
-COMMUTATIVE_OPS = {"add", "mul", "eq", "ne"}
+COMMUTATIVE_OPS = {"add", "mul", "eq", "ne", "and", "or", "xor"}
 COMPARISON_OPS = {"gt", "sgt", "ge", "sge", "lt", "slt", "le", "sle"}
 
 
@@ -114,6 +117,12 @@ def _optimize_arith(binop, args, ann, parent_op):
     # we can return truthy values instead of actual math
     is_truthy = parent_op in {"if", "assert", "iszero"}
 
+    def _conservative_eq(x, y):
+        # whether x evaluates to the same value as y at runtime.
+        # TODO we can do better than this check, but we need to be
+        # conservative in case x has side effects.
+        return x.args == y.args == [] and x.value == y.value and not x.is_complex_ir
+
     ##
     # ARITHMETIC
     ##
@@ -127,11 +136,19 @@ def _optimize_arith(binop, args, ann, parent_op):
         binop = _flip_comparison_op(binop)
         args = [args[1], args[0]]
 
-    if binop in {"add", "sub"} and _int(args[1]) == 0:
+    if binop in {"add", "sub", "xor", "or"} and _int(args[1]) == 0:
+        # x + 0 == x - 0 == x | 0 == x ^ 0 == x
         new_val = args[0].value
         new_args = args[0].args
 
-    elif binop in {"mul", "div", "sdiv", "mod", "smod"} and _int(args[1]) == 0:
+    elif binop in {"sub", "xor"} and _conservative_eq(args[0], args[1]):
+        # x - x == x ^ x == 0
+        new_val = 0
+        new_args = []
+
+    # TODO associativity rules
+
+    elif binop in {"mul", "div", "sdiv", "mod", "smod", "and"} and _int(args[1]) == 0:
         new_val = 0
         new_args = []
 
@@ -168,6 +185,19 @@ def _optimize_arith(binop, args, ann, parent_op):
         if binop == "mul" and version_check(begin="constantinople"):
             new_val = "shl"
             new_args = [int_log2(_int(args[1])), args[0]]
+
+    elif binop in {"and", "or", "xor"} and _int(args[1]) == 2 ** 256 - 1:
+        if binop == "and":
+            new_val = args[0].value
+            new_args = args[0].args
+        elif binop == "xor":
+            new_val = "not"
+            new_args = [args[0]]
+        elif binop == "or":
+            new_val = args[1].value
+            new_args = []
+        else:  # pragma: nocover
+            raise CompilerPanic("unreachable")
 
     ##
     # COMPARISONS
@@ -216,6 +246,12 @@ def _optimize_arith(binop, args, ann, parent_op):
                 # e.g. "sgt" => "sge"
                 new_val = binop.replace("t", "e")
                 new_args = [args[0], new_rhs]
+
+        elif binop == "or" and _is_int(args[1]):
+            # (x | y != 0) for any (y != 0)
+            if _int(args[1]) != 0:
+                new_val = 1
+                new_args = []
 
     # (le x 0) seems like a linting issue actually
     elif binop in {"eq", "le"} and _int(args[1]) == 0:

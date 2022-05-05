@@ -54,6 +54,9 @@ optimize_list = [
     (["add", "x", 0], ["x"]),
     (["add", 0, "x"], ["x"]),
     (["sub", "x", 0], ["x"]),
+    (["sub", "x", "x"], [0]),
+    (["sub", ["sload", 0], ["sload", 0]], ["sub", ["sload", 0], ["sload", 0]]),  # no-op
+    (["sub", ["callvalue"], ["callvalue"]], ["sub", ["callvalue"], ["callvalue"]]),  # no-op
     (["mul", "x", 1], ["x"]),
     (["div", "x", 1], ["x"]),
     (["sdiv", "x", 1], ["x"]),
@@ -75,6 +78,21 @@ optimize_list = [
     (["shr", 0, "x"], ["x"]),
     (["sar", 0, "x"], ["x"]),
     (["shl", 0, "x"], ["x"]),
+    (["and", 1, 2], [0]),
+    (["or", 1, 2], [3]),
+    (["xor", 1, 2], [3]),
+    (["xor", 3, 2], [1]),
+    (["and", 0, "x"], [0]),
+    (["and", "x", 0], [0]),
+    (["or", "x", 0], ["x"]),
+    (["or", 0, "x"], ["x"]),
+    (["xor", "x", 0], ["x"]),
+    (["xor", "x", 1], ["xor", "x", 1]),  # no-op
+    (["and", "x", 1], ["and", "x", 1]),  # no-op
+    (["or", "x", 1], ["or", "x", 1]),  # no-op
+    (["xor", 0, "x"], ["x"]),
+    (["iszero", ["or", "x", 1]], [0]),
+    (["iszero", ["or", 2, "x"]], [0]),
     # nested optimizations
     (["eq", 0, ["sub", 1, 1]], [1]),
     (["eq", 0, ["add", 2 ** 255, 2 ** 255]], [1]),  # test compile-time wrapping
