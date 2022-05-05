@@ -19,6 +19,12 @@ def broken():
     b : int128 = 4
     c : uint256 = unsafe_add(a, b)
     """,
+    """
+@external
+def foo():
+    b: Bytes[1] = b"\x05"
+    x: uint256 = as_wei_value(b, "babbage")
+    """,
 ]
 
 
