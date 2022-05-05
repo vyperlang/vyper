@@ -1,3 +1,4 @@
+from vyper.evm.opcodes import version_check
 from vyper.codegen.ir_node import IRnode
 from vyper.codegen.core import clamp_basetype, clamp
 from vyper.codegen.types import is_integer_type
@@ -64,6 +65,12 @@ def safe_mul(x: IRnode, y: IRnode):
     # precondition: x.typ.typ == y.typ.typ
     num_info = x.typ._num_info
 
+    # optimizer rules work better if second operand is literal
+    if x.is_literal:
+        tmp = x
+        x = y
+        y = tmp
+
     res = IRnode.from_list(["mul", x, y], typ=x.typ.typ)
 
     with res.cache_when_complex("ans") as (b1, res):
@@ -73,7 +80,7 @@ def safe_mul(x: IRnode, y: IRnode):
         if num_info.bits > 128: # check overflow mod 256
             # assert (res/l == r || l == 0)
             DIV = "sdiv" if num_info.is_signed else "div"
-            ok = ["or", ["eq", [DIV, res, x], y], ["iszero", x]]
+            ok = ["or", ["eq", [DIV, res, y], x], ["iszero", y]]
 
         if x.typ.typ == "int256":
             # special case:
@@ -85,17 +92,17 @@ def safe_mul(x: IRnode, y: IRnode):
             else:
                 upper_bound = -(2 ** 255)
 
-            if not left.is_literal and not right.is_literal:
+            if not x.is_literal and not y.is_literal:
                 # TODO can simplify this condition?
-                bounds_check = ["or", ["ne", "l", ["not", 0]], ["ne", "r", upper_bound]]
+                bounds_check = ["or", ["ne", x, ["not", 0]], ["ne", y, upper_bound]]
 
             # TODO push some of this constant folding into optimizer
-            elif left.is_literal and left.value == -1:
-                bounds_check = ["ne", "r", upper_bound]
-            elif right.is_literal and right.value == -(2 ** 255):
-                bounds_check = ["ne", "l", ["not", 0]]
+            elif x.is_literal and x.value == -1:
+                bounds_check = ["ne", y, upper_bound]
+            elif y.is_literal and y.value == -(2 ** 255):
+                bounds_check = ["ne", x, ["not", 0]]
             else:
-                bounds_check = "pass"
+                bounds_check = 1
 
             ok = ["and", bounds_check, ok]
 
