@@ -45,7 +45,6 @@ def fold(vyper_module: vy_ast.Module) -> None:
 def _validate_literal_ops_types(node):
     # Performs simple typechecking to catch constants of different types
     left, right = node.left, node.right
-    value = node.op._op(left.value, right.value)
 
     left_type = node.left._metadata.get("type", None)
     right_type = node.right._metadata.get("type", None)
@@ -57,6 +56,7 @@ def _validate_literal_ops_types(node):
 
     # Validate constants according to their type if defined
     if isinstance(node, vy_ast.BinOp):
+        value = node.op._op(left.value, right.value)
         if type_ and not SizeLimits.in_bounds(str(type_), value):
             raise OverflowException(
                 f"Result of {node.op.description} ({value}) is outside bounds of {type_}",
@@ -111,7 +111,7 @@ def replace_literal_ops(vyper_module: vy_ast.Module) -> int:
             if isinstance(node, (vy_ast.BinOp, vy_ast.Compare)):
                 type_ = _validate_literal_ops_types(node)
 
-                if type_ is not None and isinstance(node, vy_ast.BinOp):
+                if type_ and isinstance(node, vy_ast.BinOp):
                     new_node._metadata["type"] = type_
 
         except UnfoldableNode:

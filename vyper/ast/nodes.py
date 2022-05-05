@@ -906,7 +906,6 @@ class BinOp(VyperNode):
 
         value = self.op._op(left.value, right.value)
         _validate_numeric_bounds(self, value)
-
         return type(left).from_node(self, value=value)
 
 
