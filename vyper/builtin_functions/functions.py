@@ -189,7 +189,7 @@ class Convert:
         target_type = get_type_from_annotation(node.args[1], DataLocation.MEMORY)
         value_types = get_possible_types_from_node(node.args[0])
         if len(value_types) == 0:
-            raise StructureException("Ambiguous type for value", node)
+            raise CompilerPanic("No possible type for value", node)
 
         if all([isinstance(v, IntegerAbstractType) for v in value_types]):
             # Get the smallest (and unsigned if available) type for non-integer output types
@@ -326,7 +326,7 @@ class Slice:
         if not isinstance(slice_type, (BytesAbstractType, StringDefinition)):
             expected_str = f"one of {', '.join(str(i) for i in self._inputs[0][1])}"
             raise InvalidType(
-                f"Expected {expected_str} but value can only be cast as {str(slice_type)}",
+                f"Expected {expected_str} but value can only be cast as {slice_type}",
                 node,
             )
 
@@ -507,14 +507,14 @@ class Concat:
         if node.keywords:
             raise ArgumentException("Keyword arguments are not accepted here", node.keywords[0])
 
-        res = []
+        ret = []
         for arg in node.args:
             arg_t = get_possible_types_from_node(arg).pop()
             if not isinstance(arg_t, (BytesAbstractType, StringDefinition)):
                 raise InvalidType("Concat values must be bytes or string", arg)
-            res.append(arg_t)
+            ret.append(arg_t)
 
-        return res
+        return ret
 
     def build_IR(self, expr, context):
         args = [Expr(arg, context).ir_node for arg in expr.args]
@@ -904,7 +904,7 @@ class Extract32(_SimpleBuiltinFunction):
         b_type = get_possible_types_from_node(node.args[0]).pop()
         if not isinstance(b_type, BytesArrayDefinition):
             raise InvalidType(
-                f"Expected Bytes[N] but value can only be cast as {str(b_type)}", node.args[0]
+                f"Expected Bytes[N] but value can only be cast as {b_type}", node.args[0]
             )
 
         validate_expected_type(node.args[1], Int128Definition())
@@ -1051,7 +1051,8 @@ class AsWeiValue:
         value_type = get_possible_types_from_node(node.args[0]).pop()
         if not isinstance(value_type, NumericAbstractType):
             raise InvalidType(
-                f"Expected a numeric type but value can only be cast as {str(value_type)}",
+                f"Expected a numeric type but value can only be cast as {value_type}",
+                node.args[0],
             )
         return [value_type, None]
 
@@ -1147,7 +1148,7 @@ class RawCall(_SimpleBuiltinFunction):
         data_type = get_possible_types_from_node(node.args[1]).pop()
         if not isinstance(data_type, BytesArrayDefinition):
             raise InvalidType(
-                f"Expected Bytes[N] but value can only be cast as {str(data_type)}", node.args[1]
+                f"Expected Bytes[N] but value can only be cast as {data_type}", node.args[1]
             )
 
         return [AddressDefinition(), data_type]
@@ -1331,10 +1332,7 @@ class RawLog:
             expected_type = ArrayDefinition(Bytes32Definition(), len(node.args[0].elements))
             if not topic_type.compare_type(expected_type):
                 raise InvalidType(
-                    (
-                        f"Expected {str(expected_type)} but "
-                        f"value can only be cast as {str(topic_type)}"
-                    ),
+                    f"Expected {expected_type} but value can only be cast as {topic_type}",
                     node.args[0],
                 )
         else:
@@ -1345,7 +1343,7 @@ class RawLog:
         if not isinstance(data_type, BytesAbstractType):
             expected_str = " or ".join(str(i) for i in self._inputs[1][1])
             raise InvalidType(
-                f"Expected {expected_str} but value can only be cast as {str(data_type)}",
+                f"Expected {expected_str} but value can only be cast as {data_type}", node.args[1]
             )
 
         return [topic_type, data_type]
@@ -2084,10 +2082,10 @@ class ABIEncode(_SimpleBuiltinFunction):
         return ret
 
     def infer_arg_types(self, node):
-        res = []
+        ret = []
         for arg in node.args:
-            res.append(get_exact_type_from_node(arg))
-        return res
+            ret.append(get_exact_type_from_node(arg))
+        return ret
 
     def build_IR(self, expr, context):
         method_id = self._method_id(expr)
