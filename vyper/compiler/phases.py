@@ -88,6 +88,17 @@ class CompilerData:
         return self._vyper_module
 
     @property
+    def vyper_module_unfolded(self) -> vy_ast.Module:
+        # This phase is intended to generate an AST for tooling use, and is not
+        # used in the compilation process.
+        if not hasattr(self, "_vyper_module_unfolded"):
+            self._vyper_module_unfolded = generate_unfolded_ast(
+                self.vyper_module, self.interface_codes
+            )
+
+        return self._vyper_module_unfolded
+
+    @property
     def vyper_module_folded(self) -> vy_ast.Module:
         if not hasattr(self, "_vyper_module_folded"):
             self._vyper_module_folded, self._storage_layout = generate_folded_ast(
@@ -182,6 +193,20 @@ def generate_ast(source_code: str, source_id: int, contract_name: str) -> vy_ast
         Top-level Vyper AST node
     """
     return vy_ast.parse_to_ast(source_code, source_id, contract_name)
+
+
+def generate_unfolded_ast(
+    vyper_module: vy_ast.Module,
+    interface_codes: Optional[InterfaceImports],
+) -> vy_ast.Module:
+
+    vy_ast.validation.validate_literal_nodes(vyper_module)
+    vy_ast.folding.replace_builtin_constants(vyper_module)
+    vy_ast.folding.replace_builtin_functions(vyper_module)
+    # note: validate_semantics does type inference on the AST
+    validate_semantics(vyper_module, interface_codes)
+
+    return vyper_module
 
 
 def generate_folded_ast(
