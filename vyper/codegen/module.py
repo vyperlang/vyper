@@ -183,14 +183,12 @@ def parse_tree_to_ir(global_ctx: GlobalContext) -> Tuple[IRnode, IRnode, Functio
             {[name for name in _names_events if _names_events.count(name) > 1][0]}"""
         )
     # Initialization function
-    init_function = next((_def for _def in global_ctx._function_defs if is_initializer(_def)), None)
+    init_function = next((f for f in global_ctx._function_defs if is_initializer(f)), None)
     # Default function
-    default_function = next((i for i in global_ctx._function_defs if is_default_func(i)), None)
+    default_function = next((f for f in global_ctx._function_defs if is_default_func(f)), None)
 
     regular_functions = [
-        _def
-        for _def in global_ctx._function_defs
-        if not is_initializer(_def) and not is_default_func(_def)
+        f for f in global_ctx._function_defs if not is_initializer(f) and not is_default_func(f)
     ]
 
     sigs: dict = {}
