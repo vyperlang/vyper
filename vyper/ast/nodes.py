@@ -141,17 +141,7 @@ def _to_dict(value):
     # if value is a Vyper node, convert to a dict
     if isinstance(value, VyperNode):
         return value.to_dict()
-
-    if isinstance(value, (int, str, decimal.Decimal)) or value is None:
-        return value
-
-    if isinstance(value, (bytes, bytearray)):
-        return value.decode("utf-8")
-
-    if isinstance(value, list):
-        return [_to_dict(x) for x in value]
-
-    return str(value)
+    return value
 
 
 def _node_filter(node, filters):
@@ -400,9 +390,9 @@ class VyperNode:
             else:
                 ast_dict[key] = _to_dict(value)
 
-        for k, v in self._metadata.items():
-            if v:
-                ast_dict[k] = _to_dict(v)
+        if "type" in self._metadata:
+            ast_dict["type"] = str(self._metadata["type"])
+
         return ast_dict
 
     def get_ancestor(self, node_type: Union["VyperNode", tuple, None] = None) -> "VyperNode":

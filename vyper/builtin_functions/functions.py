@@ -102,6 +102,9 @@ SHA256_PER_WORD_GAS = 12
 
 
 class _SimpleBuiltinFunction:
+    def __repr__(self):
+        return f"builtin function {self._id}"
+
     def fetch_call_return(self, node):
         validate_call_args(node, len(self._inputs), getattr(self, "_kwargs", []))
         for arg, (_, expected) in zip(node.args, self._inputs):
@@ -170,6 +173,9 @@ class Ceil(_SimpleBuiltinFunction):
 class Convert:
 
     _id = "convert"
+
+    def __repr__(self):
+        return f"builtin function {self._id}"
 
     def fetch_call_return(self, node):
         validate_call_args(node, 2)
@@ -250,6 +256,9 @@ class Slice:
     _id = "slice"
     _inputs = [("b", ("Bytes", "bytes32", "String")), ("start", "uint256"), ("length", "uint256")]
     _return_type = None
+
+    def __repr__(self):
+        return f"builtin function {self._id}"
 
     def fetch_call_return(self, node):
         validate_call_args(node, 3)
@@ -453,6 +462,9 @@ class Len(_SimpleBuiltinFunction):
 class Concat:
 
     _id = "concat"
+
+    def __repr__(self):
+        return f"builtin function {self._id}"
 
     def fetch_call_return(self, node):
         if len(node.args) < 2:
@@ -687,6 +699,9 @@ class Sha256(_SimpleBuiltinFunction):
 class MethodID:
 
     _id = "method_id"
+
+    def __repr__(self):
+        return f"builtin function {self._id}"
 
     def evaluate(self, node):
         validate_call_args(node, 1, ["output_type"])
@@ -975,6 +990,9 @@ class AsWeiValue:
         ("kether", "grand"): 10 ** 21,
     }
 
+    def __repr__(self):
+        return f"builtin function {self._id}"
+
     def evaluate(self, node):
         validate_call_args(node, 2)
         if not isinstance(node.args[1], vy_ast.Str):
@@ -1254,6 +1272,9 @@ class RawLog:
 
     _id = "raw_log"
     _inputs = [("topics", "*"), ("data", ("bytes32", "Bytes"))]
+
+    def __repr__(self):
+        return f"builtin function {self._id}"
 
     def fetch_call_return(self, node):
         validate_call_args(node, 2)
@@ -1656,6 +1677,9 @@ class _UnsafeMath:
     # TODO add unsafe math for `decimal`s
     _inputs = [("a", IntegerAbstractType()), ("b", IntegerAbstractType())]
 
+    def __repr__(self):
+        return f"builtin function unsafe_{self.op}"
+
     def fetch_call_return(self, node):
         validate_call_args(node, 2)
 
@@ -1716,6 +1740,9 @@ class UnsafeDiv(_UnsafeMath):
 class _MinMax:
 
     _inputs = [("a", NumericAbstractType()), ("b", NumericAbstractType())]
+
+    def __repr__(self):
+        return f"builtin function {self._id}"
 
     def evaluate(self, node):
         validate_call_args(node, 2)
@@ -1858,6 +1885,9 @@ class Empty:
 
     _id = "empty"
     _inputs = [("typename", "*")]
+
+    def __repr__(self):
+        return f"builtin function {self._id}"
 
     def fetch_call_return(self, node):
         validate_call_args(node, 1)

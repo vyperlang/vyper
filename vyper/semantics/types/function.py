@@ -124,7 +124,7 @@ class ContractFunction(BaseTypeDefinition):
 
     def __repr__(self):
         arg_types = ",".join(repr(a) for a in self.arguments.values())
-        return f"contract function {self.name}({arg_types}) -> {self.return_type}"
+        return f"contract function {self.name}({arg_types})"
 
     @classmethod
     def from_abi(cls, abi: Dict) -> "ContractFunction":
