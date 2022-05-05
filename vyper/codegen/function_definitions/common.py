@@ -48,14 +48,15 @@ def generate_ir_for_function(
     callees = code._metadata["type"].called_functions
 
     if len(callees) == 0:
-        allocate_start = 0
+        max_callee_frame_size = 0
     else:
 
         def get_frame_size(name):
             return sigs["self"][name].frame_size  # type: ignore
 
         max_callee_frame_size = max(get_frame_size(c.name) for c in callees)
-        allocate_start = max_callee_frame_size + MemoryPositions.RESERVED_MEMORY
+
+    allocate_start = max_callee_frame_size + MemoryPositions.RESERVED_MEMORY
 
     memory_allocator = MemoryAllocator(allocate_start)
 
