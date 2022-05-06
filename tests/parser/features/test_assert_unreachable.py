@@ -2,7 +2,7 @@ def test_assure_refund(w3, get_contract):
     code = """
 @external
 def foo():
-    assert msg.sender == convert(0, address), UNREACHABLE
+    assert msg.sender != msg.sender, UNREACHABLE
     """
 
     c = get_contract(code)
