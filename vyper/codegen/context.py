@@ -244,12 +244,8 @@ class Context:
 
         sig = self.sigs["self"].get(method_name, None)
         if sig is None:
-            raise FunctionDeclarationException(
-                "Function does not exist or has not been declared yet "
-                "(reminder: functions cannot call functions later in code "
-                "than themselves)",
-                ast_source,
-            )
+            err_msg = f"Function self.{method_name} does not exist"
+            raise FunctionDeclarationException(err_msg, ast_source)
 
         _check(sig.internal)  # sanity check
         # should have been caught during type checking, sanity check anyway
