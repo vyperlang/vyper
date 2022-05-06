@@ -62,7 +62,7 @@ def ir_for_self_call(stmt_expr, context):
 
     # note: dst_tuple_t != args_tuple_t
     dst_tuple_t = TupleType([arg.typ for arg in sig.args])
-    args_dst = IRnode(sig.frame_start, typ=dst_tuple_t, location=MEMORY)
+    args_dst = IRnode(sig.frame_info.frame_start, typ=dst_tuple_t, location=MEMORY)
 
     # if one of the arguments is a self call, the argument
     # buffer could get borked. to prevent against that,

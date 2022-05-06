@@ -259,7 +259,7 @@ def generate_ir_nodes(
         IR to generate deployment bytecode
         IR to generate runtime bytecode
     """
-    ir_nodes, ir_runtime, function_sigs = module.parse_tree_to_ir(global_ctx)
+    ir_nodes, ir_runtime, function_sigs = module.generate_ir_for_module(global_ctx)
     if not no_optimize:
         ir_nodes = optimizer.optimize(ir_nodes)
         ir_runtime = optimizer.optimize(ir_runtime)

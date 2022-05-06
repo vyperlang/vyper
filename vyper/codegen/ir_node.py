@@ -87,10 +87,6 @@ class IRnode:
         self.encoding = encoding
         self.as_hex = AS_HEX_DEFAULT
 
-        # Optional annotation properties for gas estimation
-        self.total_gas = None
-        self.func_name = None
-
         def _check(condition, err):
             if not condition:
                 raise CompilerPanic(str(err))
@@ -260,7 +256,11 @@ class IRnode:
         if valency is not None:
             self.valency = valency
 
-        self.gas += self.add_gas_estimate
+        self.gas
+
+    @property
+    def total_gas(self):
+        return self.gas + self.add_gas_estimate
 
     # the IR should be cached.
     # TODO make this private. turns out usages are all for the caching

@@ -1,35 +1,46 @@
 # a contract.vy -- all functions and constructor
 
-from typing import List, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union, Any
 
 from vyper import ast as vy_ast
 from vyper.ast.signatures.function_signature import FunctionSignature, FunctionSignatures
 from vyper.codegen.core import shr
-from vyper.codegen.function_definitions import (
-    generate_ir_for_function,
-    is_default_func,
-    is_initializer,
-)
+from vyper.codegen.function_definitions import generate_ir_for_function
 from vyper.codegen.global_context import GlobalContext
 from vyper.codegen.ir_node import IRnode
-from vyper.exceptions import (
-    EventDeclarationException,
-    FunctionDeclarationException,
-    StructureException,
-)
-from vyper.semantics.types.function import FunctionVisibility, StateMutability
-
-# TODO remove this check
-if not hasattr(vy_ast, "AnnAssign"):
-    raise Exception("Requires python 3.6 or higher for annotation support")
+from vyper.exceptions import CompilerPanic, FunctionDeclarationException, StructureException
+from vyper.semantics.types.function import StateMutability
 
 
+def _topsort_helper(functions, lookup):
+    #  single pass to get a global topological sort of functions (so that each
+    # function comes after each of its callees). may have duplicates, which get
+    # filtered out in _topsort()
+
+    ret = []
+    for f in functions:
+        # called_functions is a list of ContractFunctions, need to map
+        # back to FunctionDefs.
+        callees = [lookup[t.name] for t in f._metadata["type"].called_functions]
+        ret.extend(_topsort_helper(callees, lookup))
+        ret.append(f)
+
+    return ret
+
+
+def _topsort(functions):
+    lookup = {f.name: f for f in functions}
+    # strip duplicates
+    return list(dict.fromkeys(_topsort_helper(functions, lookup)))
+
+
+# TODO this should really live in GlobalContext
 def parse_external_interfaces(external_interfaces, global_ctx):
     for _interfacename in global_ctx._contracts:
-        # TODO factor me into helper function
         _interface_defs = global_ctx._contracts[_interfacename]
         _defnames = [_def.name for _def in _interface_defs]
         interface = {}
+        # CMC 2022-05-06: TODO this seems like dead code
         if len(set(_defnames)) < len(_interface_defs):
             raise FunctionDeclarationException(
                 "Duplicate function name: "
@@ -49,6 +60,7 @@ def parse_external_interfaces(external_interfaces, global_ctx):
                 constant = True if _def.body[0].value.id in ("view", "pure") else False
             else:
                 raise StructureException("state mutability of call type must be specified", _def)
+
             # Recognizes already-defined structs
             sig = FunctionSignature.from_definition(
                 _def,
@@ -68,21 +80,19 @@ def parse_external_interfaces(external_interfaces, global_ctx):
     return external_interfaces
 
 
-def parse_regular_functions(
-    regular_functions, sigs, external_interfaces, global_ctx, default_function
-):
-    # check for payable/nonpayable external functions to optimize nonpayable assertions
-    func_types = [f._metadata["type"] for f in global_ctx._function_defs]
-    mutabilities = [i.mutability for i in func_types if i.visibility == FunctionVisibility.EXTERNAL]
-    has_payable = any(i == StateMutability.PAYABLE for i in mutabilities)
-    has_nonpayable = any(i != StateMutability.PAYABLE for i in mutabilities)
+# codegen for all external functions + callvalue/calldata checks + method selector routines
+def _runtime_ir(external_functions, all_sigs, global_ctx, default_function):
+    has_payable = any(
+        f._metadata["type"].mutability == StateMutability.PAYABLE for f in external_functions
+    )
+    has_nonpayable = any(
+        f._metadata["type"].mutability != StateMutability.PAYABLE for f in external_functions
+    )
 
     is_default_payable = (
         default_function is not None
         and default_function._metadata["type"].mutability == StateMutability.PAYABLE
     )
-
-    # TODO streamline the nonpayable check logic
 
     # when a contract has a payable default function and at least one nonpayable
     # external function, we must perform the nonpayable check on every function
@@ -91,55 +101,29 @@ def parse_regular_functions(
     # generate IR for regular functions
     payable_funcs = []
     nonpayable_funcs = []
-    internal_funcs = []
-    add_gas = 0
-    internal_func_map = {}
 
-    for func_node in regular_functions:
-        func_type = func_node._metadata["type"]
-        func_ir, frame_start, frame_size = generate_ir_for_function(
-            func_node, {**{"self": sigs}, **external_interfaces}, global_ctx, check_per_function
-        )
+    for func_ast in external_functions:
+        func_type = func_ast._metadata["type"]
+        func_ir = generate_ir_for_function(func_ast, all_sigs, global_ctx, check_per_function)
 
-        if func_type.visibility == FunctionVisibility.INTERNAL:
-            internal_funcs.append(func_ir)
-            internal_func_map[func_node.name] = func_ir
-
-        elif func_type.mutability == StateMutability.PAYABLE:
-            add_gas += 30  # CMC 20210910 why?
+        if func_type.mutability == StateMutability.PAYABLE:
             payable_funcs.append(func_ir)
-
         else:
-            add_gas += 30  # CMC 20210910 why?
             nonpayable_funcs.append(func_ir)
 
-        func_ir.total_gas += add_gas
-
-        # update sigs with metadata gathered from compiling the function so that
-        # we can handle calls to self
-        # TODO we only need to do this for internal functions; external functions
-        # cannot be called via `self`
-        sig = FunctionSignature.from_definition(func_node, external_interfaces, global_ctx._structs)
-        sig.gas = func_ir.total_gas
-        sig.frame_start = frame_start
-        sig.frame_size = frame_size
-        sigs[sig.name] = sig
-
     # generate IR for fallback function
+    # include a nonpayable check here if the contract only has a default function
+    nonpayable_check = check_per_function or not external_functions
+
     if default_function:
-        fallback_ir, _frame_start, _frame_size = generate_ir_for_function(
-            default_function,
-            {**{"self": sigs}, **external_interfaces},
-            global_ctx,
-            # include a nonpayble check here if the contract only has a default function
-            check_per_function or not regular_functions,
+        fallback_ir = generate_ir_for_function(
+            default_function, all_sigs, global_ctx, nonpayable_check
         )
     else:
-        fallback_ir = IRnode.from_list(["revert", 0, 0], typ=None, annotation="Default function")
+        fallback_ir = IRnode.from_list(["revert", 0, 0], annotation="Default function")
 
     if check_per_function:
         external_seq = ["seq"] + payable_funcs + nonpayable_funcs
-
     else:
         # payable functions are placed prior to nonpayable functions
         # and seperated by a nonpayable assertion
@@ -156,7 +140,7 @@ def parse_regular_functions(
     # fallback label is the immediate next instruction,
     close_selector_section = ["goto", "fallback"]
 
-    # bytecode is organized by: external functions, fallback fn, internal functions
+    # bytecode is organized by: external functions, fallback fn, internal_functions
     # this way we save gas and reduce bytecode by not jumping over internal functions
     runtime = [
         "seq",
@@ -167,71 +151,97 @@ def parse_regular_functions(
         close_selector_section,
         ["label", "fallback", ["var_list"], fallback_ir],
     ]
-    runtime.extend(internal_funcs)
 
-    return runtime, internal_func_map
+    return runtime
 
 
 # Main python parse tree => IR method
-def parse_tree_to_ir(global_ctx: GlobalContext) -> Tuple[IRnode, IRnode, FunctionSignatures]:
-    # CMC 2022-05-05 TODO this is probably dead code.
-    _names_events = [_event.name for _event in global_ctx._events]
-    # Checks for duplicate event names
-    if len(set(_names_events)) < len(_names_events):
-        raise EventDeclarationException(
-            f"""Duplicate event name:
-            {[name for name in _names_events if _names_events.count(name) > 1][0]}"""
-        )
-    # Initialization function
-    init_function = next((f for f in global_ctx._function_defs if is_initializer(f)), None)
-    # Default function
-    default_function = next((f for f in global_ctx._function_defs if is_default_func(f)), None)
+def generate_ir_for_module(global_ctx: GlobalContext) -> Tuple[IRnode, IRnode, FunctionSignatures]:
+    # order functions so that each function comes after all of its callees
+    function_defs = _topsort(global_ctx._function_defs)
 
-    regular_functions = [
-        f for f in global_ctx._function_defs if not is_initializer(f) and not is_default_func(f)
-    ]
-
-    sigs: dict = {}
-    external_interfaces: dict = {}
-    # Create the main statement
-    o: List[Union[str, IRnode]] = ["seq"]
+    # FunctionSignatures for all interfaces defined in this module
+    all_sigs: Dict[str, Dict[str, FunctionSignature]] = {}
     if global_ctx._contracts or global_ctx._interfaces:
-        external_interfaces = parse_external_interfaces(external_interfaces, global_ctx)
+        all_sigs = parse_external_interfaces(all_sigs, global_ctx)
 
-    if regular_functions or default_function:
-        runtime, internal_functions = parse_regular_functions(
-            regular_functions,
-            sigs,
-            external_interfaces,
-            global_ctx,
-            default_function,
-        )
+    init_function: Optional[vy_ast.FunctionDef] = None
+    default_function: Optional[vy_ast.FunctionDef] = None
+    external_functions: List[vy_ast.FunctionDef] = []
+    sigs: Dict[str, FunctionSignature] = {}
+
+    # generate all signatures
+    # TODO really this should live in GlobalContext
+    for f in function_defs:
+        sig = FunctionSignature.from_definition(f, all_sigs, global_ctx._structs)
+        # add it to the global namespace.
+        sigs[sig.name] = sig
+        # a little hacky, eventually FunctionSignature should be
+        # merged with ContractFunction
+        f._metadata["signature"] = sig
+
+    assert "self" not in all_sigs
+    all_sigs["self"] = sigs
+
+    # generate IR for internal functions
+    # create a map of the functions since they might live in both
+    # runtime and deploy code (if init function calls them)
+    internal_functions: Dict[str, IRnode] = {}
+
+    for f in function_defs:
+        if not f._metadata["type"].is_internal:
+            continue
+
+        # note: check_nonpayable is N/A for internal functions
+        ir = generate_ir_for_function(f, all_sigs, global_ctx, check_nonpayable=False)
+        internal_functions[f.name] = ir
+
+    for f in function_defs:
+        sig = f._metadata["signature"]
+        if not f._metadata["type"].is_external:
+            continue
+
+        if sig.is_regular_function:
+            external_functions.append(f)
+
+        elif sig.is_init_func:
+            init_function = f
+
+        elif sig.is_default_func:
+            default_function = f
+
+        else:  # pragma: nocover
+            raise CompilerPanic("unreachable")
+
+    if external_functions or default_function:
+        runtime = _runtime_ir(external_functions, all_sigs, global_ctx, default_function)
+        # TODO: prune unreachable functions
+        runtime.extend(internal_functions.values())
     else:
-        # for some reason, somebody may want to deploy a contract with no code,
-        # or more likely, a "pure data" contract which contains immutables
-        runtime = IRnode.from_list(["seq"])
+        # for some reason, somebody may want to deploy a contract with no
+        # external functions, or more likely, a "pure data" contract which
+        # contains immutables
+        runtime = ["seq"]
 
-    init_func_ir = None
-    if init_function:
-        for f in init_function._metadata["type"].called_functions:
-            o.append(internal_functions[f.name])
-
-        init_func_ir, frame_start, init_frame_size = generate_ir_for_function(
-            init_function,
-            {**{"self": sigs}, **external_interfaces},
-            global_ctx,
-            False,
-        )
-        o.append(init_func_ir)
-
+    deploy_code: List[Any] = ["seq"]
     immutables_len = global_ctx.immutable_section_bytes
-
     if init_function:
-        memsize = init_func_ir.context.memory_allocator.size_of_mem  # type: ignore
+        init_func_ir = generate_ir_for_function(init_function, all_sigs, global_ctx, False)
+        deploy_code.append(init_func_ir)
+
+        # pass the amount of memory allocated for the init function
+        # so that deployment does not clobber while preparing immutables
+        # note: (deploy mem_ofst, code, extra_padding)
+        init_mem_used = init_function._metadata["signature"].frame_info.mem_used
+        deploy_code.append(["deploy", init_mem_used, runtime, immutables_len])
+
+        # internal functions come after everything else
+        for f in init_function._metadata["type"].called_functions:
+            deploy_code.append(internal_functions[f.name])
+
     else:
-        memsize = 0
+        if immutables_len != 0:
+            raise CompilerPanic("unreachable")
+        deploy_code.append(["deploy", 0, runtime, 0])
 
-    # note: (deploy mem_ofst, code, extra_padding)
-    o.append(["deploy", memsize, runtime, immutables_len])  # type: ignore
-
-    return IRnode.from_list(o), IRnode.from_list(runtime), sigs
+    return IRnode.from_list(deploy_code), IRnode.from_list(runtime), sigs

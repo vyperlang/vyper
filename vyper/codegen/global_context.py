@@ -8,27 +8,8 @@ from vyper.typing import InterfaceImports
 from vyper.utils import cached_property
 
 
-def _topsort_helper(functions, lookup):
-    #  single pass to get a topsort of functions, but may have duplicates
-
-    ret = []
-    for f in functions:
-        # called_functions is a list of ContractFunctions, need to map
-        # back to FunctionDefs.
-        callees = [lookup[t.name] for t in f._metadata["type"].called_functions]
-        ret.extend(_topsort_helper(callees, lookup))
-        ret.append(f)
-
-    return ret
-
-
-def _topsort(functions):
-    lookup = {f.name: f for f in functions}
-    # strip duplicates
-    return list(dict.fromkeys(_topsort_helper(functions, lookup)))
-
-
 # Datatype to store all global context information.
+# TODO: rename me to ModuleInfo
 class GlobalContext:
     def __init__(self):
         # Oh jesus, just leave this. So confusing!
@@ -46,11 +27,11 @@ class GlobalContext:
 
     # Parse top-level functions and variables
     @classmethod
+    # TODO rename me to `from_module`
     def get_global_context(
         cls,
         vyper_module: "vy_ast.Module",
         interface_codes: Optional[InterfaceImports] = None,
-        should_topsort: bool = True,
     ) -> "GlobalContext":
         # TODO is this a cyclic import?
         from vyper.ast.signatures.interface import extract_sigs, get_builtin_interfaces
@@ -115,10 +96,6 @@ class GlobalContext:
                     for func_sig in sigs:
                         func_sig.defined_in_interface = interface_name
                         global_ctx._interface[func_sig.sig] = func_sig
-
-        # relies on annotation phase having been run.
-        if should_topsort:
-            global_ctx._function_defs = _topsort(global_ctx._function_defs)
 
         return global_ctx
 

@@ -182,9 +182,6 @@ def optimize(node: IRnode) -> IRnode:
         add_gas_estimate=add_gas_estimate,
         valency=valency,
     )
-    if node.total_gas is not None:
-        ret.total_gas = node.total_gas - node.gas + ret.gas
-        ret.func_name = node.func_name
 
     return ret
 

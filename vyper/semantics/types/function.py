@@ -400,6 +400,14 @@ class ContractFunction(BaseTypeDefinition):
         )
 
     @property
+    def is_external(self) -> bool:
+        return self.visibility == FunctionVisibility.EXTERNAL
+
+    @property
+    def is_internal(self) -> bool:
+        return self.visibility == FunctionVisibility.INTERNAL
+
+    @property
     def method_ids(self) -> Dict[str, int]:
         """
         Dict of `{signature: four byte selector}` for this function.

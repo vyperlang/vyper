@@ -22,11 +22,7 @@ class Context:
         vars_=None,
         sigs=None,
         forvars=None,
-        return_type=None,
         constancy=Constancy.Mutable,
-        is_internal=False,
-        is_payable=False,
-        # method_id="",
         sig=None,
     ):
         # In-memory variables, in the form (name, memory location, type)
@@ -41,9 +37,6 @@ class Context:
         # Variables defined in for loops, e.g. for i in range(6): ...
         self.forvars = forvars or {}
 
-        # Return type of the function
-        self.return_type = return_type
-
         # Is the function constant?
         self.constancy = constancy
 
@@ -53,13 +46,8 @@ class Context:
         # Whether we are currently parsing a range expression
         self.in_range_expr = False
 
-        # Is the function payable?
-        self.is_payable = is_payable
-
         # List of custom structs that have been defined.
         self.structs = global_ctx._structs
-
-        self.is_internal = is_internal
 
         # store global context
         self.global_ctx = global_ctx
@@ -73,14 +61,25 @@ class Context:
         # Not intended to be accessed directly
         self.memory_allocator = memory_allocator
 
-        self._callee_frame_sizes = []
-
-        # Intermented values, used for internal IDs
+        # Incremented values, used for internal IDs
         self._internal_var_iter = 0
         self._scope_id_iter = 0
 
     def is_constant(self):
         return self.constancy is Constancy.Constant or self.in_assertion or self.in_range_expr
+
+    # convenience propreties
+    @property
+    def is_payable(self):
+        return self.sig.mutability == "payable"
+
+    @property
+    def is_internal(self):
+        return self.sig.internal
+
+    @property
+    def return_type(self):
+        return self.sig.return_type
 
     #
     # Context Managers
