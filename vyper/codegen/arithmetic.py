@@ -3,6 +3,8 @@ from vyper.codegen.ir_node import IRnode
 from vyper.codegen.core import clamp_basetype, clamp
 from vyper.codegen.types import is_integer_type
 from vyper.exceptions import CompilerPanic
+import math
+import decimal
 
 
 def calculate_largest_power(a: int, num_bits: int, is_signed: bool) -> int:
@@ -278,18 +280,18 @@ def safe_pow(x: IRnode, y: IRnode):
     if x.is_literal:
         upper_bound = calculate_largest_power(x.value, num_info.bits, num_info.is_signed) + 1
         # for signed integers, this also prevents negative values
-        ok = ["lt", right, upper_bound]
-        ret = ["seq", ["assert", clamp], ["exp", left, right]]
+        ok = ["lt", y, upper_bound]
 
     elif y.is_literal:
         upper_bound = calculate_largest_base(y.value, num_info.bits, num_info.is_signed) + 1
-        if is_signed:
-            ok = ["and", ["slt", left, upper_bound], ["sgt", left, -upper_bound]]
+        if num_info.is_signed:
+            ok = ["and", ["slt", x, upper_bound], ["sgt", x, -upper_bound]]
         else:
-            ok = ["lt", left, upper_bound]
-        ret = ["seq", ["assert", ok], ["exp", left, right]]
+            ok = ["lt", x, upper_bound]
     else:
         # `a ** b` where neither `a` or `b` are known
         # TODO this is currently unreachable, once we implement a way to do it safely
         # remove the check in `vyper/context/types/value/numeric.py`
         return
+
+    return ["seq", ["assert", ok], ["exp", x, y]]
