@@ -47,6 +47,7 @@ arith = {
     "sdiv": (evm_div, "/", SIGNED),
     "mod": (evm_mod, "%", UNSIGNED),
     "smod": (evm_mod, "%", SIGNED),
+    "exp": (operator.pow, "**", UNSIGNED),
     "eq": (operator.eq, "==", UNSIGNED),
     "ne": (operator.ne, "!=", UNSIGNED),
     "lt": (operator.lt, "<", UNSIGNED),
@@ -164,6 +165,20 @@ def _optimize_arith(binop, args, ann, parent_op):
     elif binop in {"mul", "sdiv"} and _int(args[1], SIGNED) == -1:
         new_val = "sub"
         new_args = [0, args[0]]
+
+    elif binop == "exp":
+        # n ** 0 == (0 if n == 0 else 1)
+        if _int(args[1]) == 0:
+            new_val = "iszero"
+            new_args = [args[0]]
+        # n ** 1 == n
+        if _int(args[1]) == 1:
+            new_val = args[0].value
+            new_args = args[0].args
+        # 0 ** n == 0; 1 ** n == 1
+        if _int(args[0]) in (0, 1):
+            new_val = _int(args[0])
+            new_args = []
 
     # maybe OK:
     # elif binop == "div" and _int(args[1], UNSIGNED) == MAX_UINT256:
