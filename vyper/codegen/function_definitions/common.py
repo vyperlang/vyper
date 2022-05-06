@@ -1,5 +1,5 @@
 # can't use from [module] import [object] because it breaks mocks in testing
-from typing import Dict, Tuple
+from typing import Dict
 
 import vyper.ast as vy_ast
 from vyper.ast.signatures import FrameInfo, FunctionSignature
@@ -38,9 +38,7 @@ def generate_ir_for_function(
     for c in callees:
         frame_info = sigs["self"][c.name].frame_info
         assert frame_info is not None  # make mypy happy
-        max_callee_frame_size = max(
-            max_callee_frame_size, frame_info.frame_size
-        )
+        max_callee_frame_size = max(max_callee_frame_size, frame_info.frame_size)
 
     allocate_start = max_callee_frame_size + MemoryPositions.RESERVED_MEMORY
 

@@ -130,7 +130,7 @@ def extract_sigs(sig_code, interface_name=None):
             )
             or (isinstance(i, vy_ast.AnnAssign) and i.target.id != "implements")
         ]
-        global_ctx = GlobalContext.get_global_context(interface_ast, should_topsort=False)
+        global_ctx = GlobalContext.get_global_context(interface_ast)
         return _get_external_signatures(global_ctx)
     elif sig_code["type"] == "json":
         return mk_full_signature_from_json(sig_code["code"])
