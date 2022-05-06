@@ -43,37 +43,25 @@ def calculate_largest_power(a: int, num_bits: int, is_signed: bool) -> int:
     if a in (0, 1):
         raise CompilerPanic("Exponential operation is useless!")
 
-    # NOTE: There is an edge case if `a` were left signed where the following
-    #       operation would not work (`ln(a)` is undefined if `a <= 0`)
-    b = int(decimal.Decimal(value_bits) / (decimal.Decimal(a).ln() / decimal.Decimal(2).ln()))
+
+    # a ** x == 2**value_bits
+    # x ln(a) == ln(2**value_bits)
+    # x == ln(2**value_bits) / ln(a)
+
+    ln_max_val = decimal.Decimal(2**value_bits).ln()
+    ln_a = decimal.Decimal(a).ln()
+    b = ln_max_val / ln_a
+
+    # x < ln(2**value_bits) / ln(a)
+    if not a_is_negative:
+        b = b.next_minus()
+
+    b = int(b)
+
     if b <= 1:
         return 1  # Value is assumed to be in range, therefore power of 1 is max
 
-    # Do a bit of iteration to ensure we have the exact number
-
-    # CMC 2022-05-06 (TODO we should be able to this with algebra
-    # instead of looping):
-    # a ** x == 2**value_bits
-    # x ln(a) = ln(2**value_bits)
-    # x = ln(2**value_bits) / ln(a)
-
-    num_iterations = 0
-    while a ** (b + 1) < 2 ** value_bits:
-        b += 1
-        num_iterations += 1
-        assert num_iterations < 10000
-    while a ** b >= 2 ** value_bits:
-        b -= 1
-        num_iterations += 1
-        assert num_iterations < 10000
-
-    # Edge case: If a is negative and the values of a and b are such that:
-    #               (a) ** (b + 1) == -(2 ** value_bits)
-    #            we can actually squeak one more out of it because it's on the edge
-    if a_is_negative and (-a) ** (b + 1) == -(2 ** value_bits):  # NOTE: a = abs(a)
-        return b + 1
-    else:
-        return b  # Exact
+    return b
 
 
 def calculate_largest_base(b: int, num_bits: int, is_signed: bool) -> int:
