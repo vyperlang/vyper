@@ -267,8 +267,11 @@ def safe_div(x: IRnode, y: IRnode):
             ok = ["ne", y, upper_bound]
 
     if is_decimal_type(x.typ):
-        # TODO: if MAX_DECIMAL * 10**decimal could wrap, we would need
-        # to do a bounds check.
+        lo, hi = num_info.bounds
+        if max(abs(lo), abs(hi)) * num_info.divisor > 2**256 - 1:
+            # stub to prevent us from adding fixed point numbers we don't know
+            # how to deal with
+            raise UnimplementedException("safe mul for decimal{num_info.bits}x{num_info.decimals}")
         x = ["mul", x, int(num_info.divisor)]
 
     DIV = "sdiv" if num_info.is_signed else "div"
