@@ -237,6 +237,7 @@ def _optimize_arith(binop, args, ann, parent_op):
         # no rule needed for "ne" as it will get compiled to
         # `(iszero (eq x y))` anyways.
 
+
         # TODO can we do this?
         # if val == "div":
         #    val = "gt"
@@ -288,8 +289,8 @@ def _optimize_arith(binop, args, ann, parent_op):
             new_val = "iszero"
             new_args = [args[0]]
 
-    # gt x 0 => x != 0
-    elif binop == "gt" and _int(args[1]) == 0:
+    # gt x 0 == x != 0 == (iszero (iszero x))
+    elif binop in ("gt", "ne") and _int(args[1]) == 0:
         new_val = "iszero"
         new_args = [["iszero", args[0]]]
 
