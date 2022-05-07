@@ -76,6 +76,6 @@ def generate_ir_for_function(
         # it is already accounted for by the caller.
         pass
 
-    sig.gas_estimate = o.total_gas
+    sig.gas_estimate = o.gas
 
     return o
