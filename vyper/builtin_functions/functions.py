@@ -178,7 +178,8 @@ class Convert:
     _id = "convert"
 
     def fetch_call_return(self, node):
-        value_type, target_type = self.infer_arg_types(node)
+        self.infer_arg_types(node)
+        target_type = get_type_from_annotation(node.args[1], DataLocation.MEMORY)
 
         # note: more type conversion validation happens in convert.py
         return target_type
@@ -210,7 +211,7 @@ class Convert:
         if target_type.compare_type(value_type):
             raise InvalidType(f"Value and target type are both '{target_type}'", node)
 
-        return [value_type, target_type]
+        return [value_type, None]
 
     def build_IR(self, expr, context):
         return convert(expr, context)
