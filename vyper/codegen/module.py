@@ -128,14 +128,11 @@ def _runtime_ir(runtime_functions, all_sigs, global_ctx):
 
     # note: if the user does not provide one, the default fallback function
     # reverts anyway. so it does not hurt to batch the payable check.
-    is_default_payable = (
-        default_function is not None
-        and default_function._metadata["type"].mutability == StateMutability.PAYABLE
-    )
+    default_is_nonpayable = default_function is None or not _is_payable(default_function)
 
     # when a contract has a nonpayable default function,
     # we can do a single check for all nonpayable functions
-    batch_payable_check = len(nonpayables) > 0 or not is_default_payable
+    batch_payable_check = len(nonpayables) > 0 and default_is_nonpayable
     skip_nonpayable_check = batch_payable_check
 
     selector_section = ["seq"]

@@ -57,7 +57,7 @@ def generate_ir_for_function(
         assert skip_nonpayable_check is False
         o = generate_ir_for_internal_function(code, sig, context)
     else:
-        if sig.mutability == "payable" and not sig.is_default_func:
+        if sig.mutability == "payable":
             assert skip_nonpayable_check is False  # nonsense
         o = generate_ir_for_external_function(code, sig, context, skip_nonpayable_check)
 
