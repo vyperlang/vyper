@@ -283,6 +283,9 @@ def safe_mod(x: IRnode, y: IRnode):
 
 def safe_pow(x: IRnode, y: IRnode):
     num_info = x.typ._num_info
+    if not is_integer_type(x.typ):
+        # type checker should have caught this
+        raise TypeCheckFailure("non-integer pow")
 
     if x.is_literal:
         upper_bound = calculate_largest_power(x.value, num_info.bits, num_info.is_signed) + 1
