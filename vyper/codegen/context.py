@@ -238,19 +238,15 @@ class Context:
         the kwargs which need to be filled in by the compiler
         """
 
+        sig = self.sigs["self"].get(method_name, None)
+
         def _check(cond, s="Unreachable"):
             if not cond:
                 raise CompilerPanic(s)
-
-        sig = self.sigs["self"].get(method_name, None)
-        if sig is None:
-            err_msg = f"Function self.{method_name} does not exist"
-            raise FunctionDeclarationException(err_msg, ast_source)
-
-        _check(sig.internal)  # sanity check
-        # should have been caught during type checking, sanity check anyway
+        # these should have been caught during type checking; sanity check
+        _check(sig is not None)
+        _check(sig.internal)
         _check(len(sig.base_args) <= len(args_ir) <= len(sig.args))
-
         # more sanity check, that the types match
         # _check(all(l.typ == r.typ for (l, r) in zip(args_ir, sig.args))
 
