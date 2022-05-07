@@ -62,7 +62,7 @@ def generate_ir_for_function(
     o.source_pos = getpos(code)
 
     frame_size = context.memory_allocator.size_of_mem - MemoryPositions.RESERVED_MEMORY
-    sig.gas = o.total_gas
+
     sig.set_frame_info(FrameInfo(allocate_start, frame_size))
 
     if not sig.internal:
@@ -73,5 +73,7 @@ def generate_ir_for_function(
         # note: internal functions do not need to adjust gas estimate since
         # it is already accounted for by the caller.
         pass
+
+    sig.gas_estimate = o.total_gas
 
     return o

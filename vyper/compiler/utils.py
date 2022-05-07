@@ -4,8 +4,9 @@ from vyper.ast.signatures import FunctionSignature
 
 
 def build_gas_estimates(function_sigs: Dict[str, FunctionSignature]) -> dict:
-    # note: `.gas` is added to FunctionSignature in vyper/codegen/module.py
-    return {k: v.gas for (k, v) in function_sigs.items()}
+    # note: `.gas_estimate` is added to FunctionSignature
+    # in vyper/codegen/function_definitions/common.py
+    return {k: v.gas_estimate for (k, v) in function_sigs.items()}
 
 
 def expand_source_map(compressed_map: str) -> list:
