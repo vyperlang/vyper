@@ -123,7 +123,8 @@ class ContractFunction(BaseTypeDefinition):
         self.nonreentrant = nonreentrant
 
     def __repr__(self):
-        return f"contract function '{self.name}'"
+        arg_types = ",".join(repr(a) for a in self.arguments.values())
+        return f"contract function {self.name}({arg_types})"
 
     @classmethod
     def from_abi(cls, abi: Dict) -> "ContractFunction":
