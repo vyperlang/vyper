@@ -102,6 +102,14 @@ SHA256_BASE_GAS = 60
 SHA256_PER_WORD_GAS = 12
 
 
+class TypeTypeDefinition:
+    def __init__(self, typestr):
+        self.typestr = typestr
+
+    def __repr__(self):
+        return f"type({self.typestr})"
+
+
 class _BuiltinFunction:
     def __repr__(self):
         return f"builtin function {self._id}"
@@ -217,7 +225,7 @@ class Convert(_BuiltinFunction):
         if target_type.compare_type(value_type):
             raise InvalidType(f"Value and target type are both '{target_type}'", node)
 
-        return [value_type, None]
+        return [value_type, TypeTypeDefinition(node.args[1])]
 
     def build_IR(self, expr, context):
         return convert(expr, context)
@@ -279,7 +287,11 @@ def _build_adhoc_slice_node(sub: IRnode, start: IRnode, length: IRnode, context:
 class Slice(_BuiltinFunction):
 
     _id = "slice"
-    _inputs = [("b", ("Bytes", "bytes32", "String")), ("start", "uint256"), ("length", "uint256")]
+    _inputs = [
+        ("b", (Bytes32Definition(), BytesArrayPrimitive(), StringPrimitive())),
+        ("start", Uint256Definition()),
+        ("length", Uint256Definition()),
+    ]
     _return_type = None
 
     def fetch_call_return(self, node):
@@ -329,12 +341,9 @@ class Slice(_BuiltinFunction):
     def infer_arg_types(self, node):
         validate_call_args(node, 3)
 
-        validate_expected_type(node.args[0], (BytesAbstractType(), StringPrimitive()))
+        for arg, (_, expected_type) in zip(node.args, self._inputs):
+            validate_expected_type(arg, expected_type)
         slice_type = get_possible_types_from_node(node.args[0]).pop()
-
-        for arg in node.args[1:]:
-            validate_expected_type(arg, Uint256Definition())
-
         return [slice_type, Uint256Definition(), Uint256Definition()]
 
     @validate_inputs
@@ -1302,7 +1311,7 @@ class BlockHash(_SimpleBuiltinFunction):
 class RawLog(_BuiltinFunction):
 
     _id = "raw_log"
-    _inputs = [("topics", "*"), ("data", ("bytes32", "Bytes"))]
+    _inputs = [("topics", "*"), ("data", (Bytes32Definition(), BytesArrayPrimitive()))]
 
     def fetch_call_return(self, node):
         self.infer_arg_types(node)
@@ -1935,7 +1944,7 @@ class Empty(_BuiltinFunction):
         return type_
 
     def infer_arg_types(self, node):
-        return [None]
+        return [TypeTypeDefinition(node.args[0])]
 
     @validate_inputs
     def build_IR(self, expr, args, kwargs, context):

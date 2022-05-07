@@ -31,6 +31,12 @@ def process_arg(index, arg, expected_arg_typelist, function_name, context):
         if hasattr(expected_arg, "_id"):
             expected_arg = expected_arg._id
 
+        if hasattr(expected_arg, "typestr"):
+            return arg
+
+        if expected_arg is None:
+            return arg
+
         if expected_arg == "num_literal":
             if isinstance(arg, (vy_ast.Int, vy_ast.Decimal)):
                 return arg.n
@@ -101,7 +107,7 @@ def validate_inputs(wrapped_fn):
 
     @functools.wraps(wrapped_fn)
     def decorator_fn(self, node, context):
-        argz = [i[1] for i in self._inputs]
+        argz = self.infer_arg_types(node)
         kwargz = getattr(self, "_kwargs", {})
         function_name = node.func.id
         if len(node.args) > len(argz):
