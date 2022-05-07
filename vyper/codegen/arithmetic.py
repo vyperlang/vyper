@@ -173,14 +173,14 @@ def safe_sub(x: IRnode, y: IRnode):
             # else:
             #   ans <= l  # aka (iszero (ans > l))
             # aka: (r < 0) == (ans > l)
-            clamp = ["eq", ["slt", y, 0], ["sgt", res, x]]
+            ok = ["eq", ["slt", y, 0], ["sgt", res, x]]
         else:
             # note this is "equivalent" to the unsigned form
             # of the above (because y < 0 == False)
             #       ["eq", ["lt", y, 0], ["gt", res, x]]
-            clamp = ["le", res, x]
+            ok = ["le", res, x]
 
-        return b1.resolve(["seq", ["assert", clamp], res])
+        return b1.resolve(["seq", ["assert", ok], res])
 
     raise CompilerPanic("unreachable")  # pragma: notest
 
