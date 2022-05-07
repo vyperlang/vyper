@@ -53,7 +53,7 @@ class Encoding(Enum):
 # Data structure for IR parse tree
 class IRnode:
     repr_show_gas = False
-    gas: int
+    _gas: int
     valency: int
     args: List["IRnode"]
     value: Union[str, int]

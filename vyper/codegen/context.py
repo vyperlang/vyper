@@ -243,6 +243,7 @@ class Context:
         def _check(cond, s="Unreachable"):
             if not cond:
                 raise CompilerPanic(s)
+
         # these should have been caught during type checking; sanity check
         _check(sig is not None)
         _check(sig.internal)
