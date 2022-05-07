@@ -94,7 +94,7 @@ class FunctionSignature:
         self.return_type = return_type
         self.mutability = mutability
         self.internal = internal
-        self.gas = None
+        self.gas_estimate = None
         self.nonreentrant_key = nonreentrant_key
         self.func_ast_code = func_ast_code
         self.is_from_json = is_from_json

@@ -80,59 +80,81 @@ def parse_external_interfaces(external_interfaces, global_ctx):
     return external_interfaces
 
 
-# codegen for all external functions + callvalue/calldata checks + method selector routines
-def _runtime_ir(external_functions, all_sigs, global_ctx, default_function):
-    has_payable = any(
-        f._metadata["type"].mutability == StateMutability.PAYABLE for f in external_functions
-    )
-    has_nonpayable = any(
-        f._metadata["type"].mutability != StateMutability.PAYABLE for f in external_functions
-    )
+def _is_init_func(func_ast):
+    return func_ast._metadata["signature"].is_init_func
+
+
+def _is_default_func(func_ast):
+    return func_ast._metadata["signature"].is_default_func
+
+
+def _is_internal(func_ast):
+    return func_ast._metadata["type"].is_internal
+
+
+def _is_payable(func_ast):
+    return func_ast._metadata["type"].mutability == StateMutability.PAYABLE
+
+
+# codegen for all runtime functions + callvalue/calldata checks + method selector routines
+def _runtime_ir(runtime_functions, all_sigs, global_ctx):
+    # categorize the runtime functions because we will organize the runtime
+    # code into the following sections:
+    # payable functions, nonpayable functions, fallback function, internal_functions
+    internal_functions = [f for f in runtime_functions if _is_internal(f)]
+
+    external_functions = [f for f in runtime_functions if not _is_internal(f)]
+    default_function = next((f for f in external_functions if _is_default_func(f)), None)
+
+    # functions that need to go exposed in the selector section
+    regular_functions = [f for f in external_functions if not _is_default_func(f)]
+    payables = [f for f in regular_functions if _is_payable(f)]
+    nonpayables = [f for f in regular_functions if not _is_payable(f)]
+
+    # create a map of the IR functions since they might live in both
+    # runtime and deploy code (if init function calls them)
+    internal_functions_map: Dict[str, IRnode] = {}
+
+    for func_ast in internal_functions:
+        func_ir = generate_ir_for_function(func_ast, all_sigs, global_ctx, False)
+        internal_functions_map[func_ast.name] = func_ir
+
+    # for some reason, somebody may want to deploy a contract with no
+    # external functions, or more likely, a "pure data" contract which
+    # contains immutables
+    if len(external_functions) == 0:
+        # TODO: prune internal functions in this case?
+        return ["seq"] + list(internal_functions_map.values()), internal_functions_map
 
     is_default_payable = (
         default_function is not None
         and default_function._metadata["type"].mutability == StateMutability.PAYABLE
     )
 
-    # when a contract has a payable default function and at least one nonpayable
-    # external function, we must perform the nonpayable check on every function
-    check_per_function = is_default_payable and has_nonpayable
+    # when a contract has a nonpayable default function,
+    # we can do a single check for all nonpayable functions
+    batch_payable_check = len(nonpayables) > 0 or not is_default_payable
+    skip_nonpayable_check = batch_payable_check
 
-    # generate IR for regular functions
-    payable_funcs = []
-    nonpayable_funcs = []
+    selector_section = ["seq"]
 
-    for func_ast in external_functions:
-        func_type = func_ast._metadata["type"]
-        func_ir = generate_ir_for_function(func_ast, all_sigs, global_ctx, check_per_function)
+    for func_ast in payables:
+        func_ir = generate_ir_for_function(func_ast, all_sigs, global_ctx, False)
+        selector_section.append(func_ir)
 
-        if func_type.mutability == StateMutability.PAYABLE:
-            payable_funcs.append(func_ir)
-        else:
-            nonpayable_funcs.append(func_ir)
+    if batch_payable_check:
+        selector_section.append(["assert", ["iszero", "callvalue"]])
 
-    # generate IR for fallback function
-    # include a nonpayable check here if the contract only has a default function
-    nonpayable_check = check_per_function or not external_functions
+    for func_ast in nonpayables:
+        func_ir = generate_ir_for_function(func_ast, all_sigs, global_ctx, skip_nonpayable_check)
+        selector_section.append(func_ir)
 
     if default_function:
         fallback_ir = generate_ir_for_function(
-            default_function, all_sigs, global_ctx, nonpayable_check
+            default_function, all_sigs, global_ctx, skip_nonpayable_check
         )
     else:
         fallback_ir = IRnode.from_list(["revert", 0, 0], annotation="Default function")
-
-    if check_per_function:
-        external_seq = ["seq"] + payable_funcs + nonpayable_funcs
-    else:
-        # payable functions are placed prior to nonpayable functions
-        # and seperated by a nonpayable assertion
-        external_seq = ["seq"]
-        if has_payable:
-            external_seq += payable_funcs
-        if has_nonpayable:
-            external_seq.append(["assert", ["iszero", "callvalue"]])
-            external_seq += nonpayable_funcs
 
     # ensure the external jumptable section gets closed out
     # (for basic block hygiene and also for zksync interpreter)
@@ -140,35 +162,35 @@ def _runtime_ir(external_functions, all_sigs, global_ctx, default_function):
     # fallback label is the immediate next instruction,
     close_selector_section = ["goto", "fallback"]
 
-    # bytecode is organized by: external functions, fallback fn, internal_functions
-    # this way we save gas and reduce bytecode by not jumping over internal functions
     runtime = [
         "seq",
         # check that calldatasize is at least 4, otherwise
         # calldataload will load zeros (cf. yellow paper).
         ["if", ["lt", "calldatasize", 4], ["goto", "fallback"]],
-        ["with", "_calldata_method_id", shr(224, ["calldataload", 0]), external_seq],
+        ["with", "_calldata_method_id", shr(224, ["calldataload", 0]), selector_section],
         close_selector_section,
         ["label", "fallback", ["var_list"], fallback_ir],
     ]
 
-    return runtime
+    # TODO: prune unreachable functions?
+    runtime.extend(internal_functions_map.values())
+
+    return runtime, internal_functions_map
 
 
-# Main python parse tree => IR method
+# take a GlobalContext, which is basically
+# and generate the runtime and deploy IR, also return the dict of all signatures
 def generate_ir_for_module(global_ctx: GlobalContext) -> Tuple[IRnode, IRnode, FunctionSignatures]:
     # order functions so that each function comes after all of its callees
     function_defs = _topsort(global_ctx._function_defs)
 
     # FunctionSignatures for all interfaces defined in this module
-    all_sigs: Dict[str, Dict[str, FunctionSignature]] = {}
+    all_sigs: Dict[str, FunctionSignatures] = {}
     if global_ctx._contracts or global_ctx._interfaces:
         all_sigs = parse_external_interfaces(all_sigs, global_ctx)
 
     init_function: Optional[vy_ast.FunctionDef] = None
-    default_function: Optional[vy_ast.FunctionDef] = None
-    external_functions: List[vy_ast.FunctionDef] = []
-    sigs: Dict[str, FunctionSignature] = {}
+    sigs: FunctionSignatures = {}
 
     # generate all signatures
     # TODO really this should live in GlobalContext
@@ -177,51 +199,16 @@ def generate_ir_for_module(global_ctx: GlobalContext) -> Tuple[IRnode, IRnode, F
         # add it to the global namespace.
         sigs[sig.name] = sig
         # a little hacky, eventually FunctionSignature should be
-        # merged with ContractFunction
+        # merged with ContractFunction and we can remove this.
         f._metadata["signature"] = sig
 
     assert "self" not in all_sigs
     all_sigs["self"] = sigs
 
-    # generate IR for internal functions
-    # create a map of the functions since they might live in both
-    # runtime and deploy code (if init function calls them)
-    internal_functions: Dict[str, IRnode] = {}
+    runtime_functions = [f for f in function_defs if not _is_init_func(f)]
+    init_function = next((f for f in function_defs if _is_init_func(f)), None)
 
-    for f in function_defs:
-        if not f._metadata["type"].is_internal:
-            continue
-
-        # note: check_nonpayable is N/A for internal functions
-        ir = generate_ir_for_function(f, all_sigs, global_ctx, check_nonpayable=False)
-        internal_functions[f.name] = ir
-
-    for f in function_defs:
-        sig = f._metadata["signature"]
-        if not f._metadata["type"].is_external:
-            continue
-
-        if sig.is_regular_function:
-            external_functions.append(f)
-
-        elif sig.is_init_func:
-            init_function = f
-
-        elif sig.is_default_func:
-            default_function = f
-
-        else:  # pragma: nocover
-            raise CompilerPanic("unreachable")
-
-    if external_functions or default_function:
-        runtime = _runtime_ir(external_functions, all_sigs, global_ctx, default_function)
-        # TODO: prune unreachable functions
-        runtime.extend(internal_functions.values())
-    else:
-        # for some reason, somebody may want to deploy a contract with no
-        # external functions, or more likely, a "pure data" contract which
-        # contains immutables
-        runtime = ["seq"]
+    runtime, internal_functions = _runtime_ir(runtime_functions, all_sigs, global_ctx)
 
     deploy_code: List[Any] = ["seq"]
     immutables_len = global_ctx.immutable_section_bytes

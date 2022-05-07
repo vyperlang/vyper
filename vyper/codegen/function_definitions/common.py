@@ -17,7 +17,7 @@ def generate_ir_for_function(
     code: vy_ast.FunctionDef,
     sigs: Dict[str, Dict[str, FunctionSignature]],  # all signatures in all namespaces
     global_ctx: GlobalContext,
-    check_nonpayable: bool,
+    skip_nonpayable_check: bool,
 ) -> IRnode:
     """
     Parse a function and produce IR code for the function, includes:
@@ -54,10 +54,12 @@ def generate_ir_for_function(
     )
 
     if sig.internal:
-        assert check_nonpayable is False
+        assert skip_nonpayable_check is False
         o = generate_ir_for_internal_function(code, sig, context)
     else:
-        o = generate_ir_for_external_function(code, sig, context, check_nonpayable)
+        if sig.mutability == "payable":
+            assert skip_nonpayable_check is False  # nonsense
+        o = generate_ir_for_external_function(code, sig, context, skip_nonpayable_check)
 
     o.source_pos = getpos(code)
 
