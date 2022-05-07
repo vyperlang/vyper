@@ -950,7 +950,6 @@ def clamp_basetype(ir_node):
     return IRnode.from_list(ret, typ=ir_node.typ)
 
 
-
 def int_clamp(ir_node, bits, signed=False):
     """Generalized clamper for integer types. Takes the number of bits,
     whether it's signed, and returns an IR node which checks it is

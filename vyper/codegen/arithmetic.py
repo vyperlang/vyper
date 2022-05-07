@@ -228,7 +228,7 @@ def safe_mul(x: IRnode, y: IRnode):
                 bounds_check = ["ne", x, ["not", 0]]
             else:
                 # trigger optimizer rule: -1 & x == x
-                bounds_check = 2**256 - 1
+                bounds_check = 2 ** 256 - 1
 
             ok = ["and", bounds_check, ok]
 
