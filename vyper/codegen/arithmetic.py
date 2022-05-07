@@ -1,7 +1,7 @@
 from vyper.evm.opcodes import version_check
 from vyper.codegen.ir_node import IRnode
 from vyper.codegen.core import clamp_basetype, clamp
-from vyper.codegen.types import is_integer_type
+from vyper.codegen.types import is_integer_type, is_decimal_type
 from vyper.exceptions import CompilerPanic
 import math
 import decimal
@@ -130,8 +130,7 @@ def calculate_largest_base(b: int, num_bits: int, is_signed: bool) -> int:
 
 def safe_add(x: IRnode, y: IRnode):
     # precondition: x.typ.typ == t.typ.typ
-
-    num_info = x.typ._int_info if is_integer_type(x.typ) else x.typ._decimal_info
+    num_info = x.typ._num_info
 
     res = IRnode.from_list(["add", x, y], typ=x.typ.typ)
 
@@ -198,16 +197,17 @@ def safe_mul(x: IRnode, y: IRnode):
 
     res = IRnode.from_list(["mul", x, y], typ=x.typ.typ)
 
+    DIV = "sdiv" if num_info.is_signed else "div"
+
     with res.cache_when_complex("ans") as (b1, res):
 
         ok = IRnode(1)  # true
 
         if num_info.bits > 128:  # check overflow mod 256
             # assert (res/l == r || l == 0)
-            DIV = "sdiv" if num_info.is_signed else "div"
             ok = ["or", ["eq", [DIV, res, y], x], ["iszero", y]]
 
-        if x.typ.typ == "int256":
+        if num_info.bits == 256 and num_info.is_signed:
             # special case:
             # in the sdiv check, if (l==-1 and r==-2**255),
             # -2**255<res> / -1<l> will return -2**255<r>.
@@ -227,7 +227,8 @@ def safe_mul(x: IRnode, y: IRnode):
             elif y.is_literal and y.value == -(2 ** 255):
                 bounds_check = ["ne", x, ["not", 0]]
             else:
-                bounds_check = 1
+                # trigger optimizer rule: -1 & x == x
+                bounds_check = 2**256 - 1
 
             ok = ["and", bounds_check, ok]
 
@@ -238,9 +239,10 @@ def safe_mul(x: IRnode, y: IRnode):
         # (if bits == 256, clamp_basetype is a no-op)
         res = clamp_basetype(res)
 
-        clamp = ["assert", ok]
+        if is_decimal_type(res.typ):
+            res = IRnode.from_list([DIV, res, int(num_info.divisor)])
 
-        res = IRnode.from_list(["seq", clamp, res], typ=res.typ)
+        res = IRnode.from_list(["seq", ["assert", ok], res], typ=res.typ)
 
         return b1.resolve(res)
 
@@ -263,6 +265,11 @@ def safe_div(x: IRnode, y: IRnode):
             ok = ["ne", x, ["not", 0]]
         elif y.is_literal and y.value == -1:
             ok = ["ne", y, upper_bound]
+
+    if is_decimal_type(x.typ):
+        # TODO: if MAX_DECIMAL * 10**decimal could wrap, we would need
+        # to do a bounds check.
+        x = ["mul", x, int(num_info.divisor)]
 
     DIV = "sdiv" if num_info.is_signed else "div"
     return ["seq", ["assert", ok], [DIV, x, clamp("gt", y, 0)]]
