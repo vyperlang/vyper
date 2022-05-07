@@ -126,6 +126,8 @@ def _runtime_ir(runtime_functions, all_sigs, global_ctx):
         # TODO: prune internal functions in this case?
         return ["seq"] + list(internal_functions_map.values()), internal_functions_map
 
+    # note: if the user does not provide one, the default fallback function
+    # reverts anyway. so it does not hurt to batch the payable check.
     is_default_payable = (
         default_function is not None
         and default_function._metadata["type"].mutability == StateMutability.PAYABLE
