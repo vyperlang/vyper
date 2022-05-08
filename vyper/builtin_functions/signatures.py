@@ -42,19 +42,18 @@ def process_arg(index, arg, expected_arg_typelist, function_name, context):
     if not isinstance(expected_arg_typelist, tuple):
         expected_arg_typelist = (expected_arg_typelist,)
 
+    # Workaround for non-empty topics argument to raw_log
+    if isinstance(arg, vy_ast.List):
+        ret = []
+        for a in arg.elements:
+            r = Expr.parse_value_expr(a, context)
+            ret.append(r)
+        return ret
+
     vsub = None
     for expected_arg in expected_arg_typelist:
 
         # temporary hack, once we refactor this package none of this will exist
-
-        # Workaround for non-empty topics argument to raw_log
-        if isinstance(arg, vy_ast.List):
-            ret = []
-            for a in arg.elements:
-                r = Expr.parse_value_expr(a, context)
-                ret.append(r)
-            return ret
-
         if isinstance(expected_arg, (BytesArrayDefinition, StringDefinition)):
             return Expr(arg, context).ir_node
 

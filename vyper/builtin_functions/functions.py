@@ -675,6 +675,11 @@ class Sha256(_SimpleBuiltinFunction):
         hash_ = f"0x{hashlib.sha256(value).hexdigest()}"
         return vy_ast.Hex.from_node(node, value=hash_)
 
+    def infer_arg_types(self, node):
+        validate_expected_type(node.args[0], self._inputs[0][1])
+        value_type = get_possible_types_from_node(node.args[0]).pop()
+        return [value_type]
+
     @validate_inputs
     def build_IR(self, expr, args, kwargs, context):
         sub = args[0]
