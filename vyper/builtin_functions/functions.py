@@ -994,6 +994,8 @@ class Extract32(_SimpleBuiltinFunction):
 class AsWeiValue(_BuiltinFunction):
 
     _id = "as_wei_value"
+    # "str_literal" is a placeholder that gets transformed to DenominationDefinition
+    # during infer_arg_types
     _inputs = [("value", NumericAbstractType()), ("unit", "str_literal")]
     _return_type = Uint256Definition()
 
@@ -1343,12 +1345,7 @@ class RawLog(_BuiltinFunction):
 
     @validate_inputs
     def build_IR(self, expr, args, kwargs, context):
-        topics = []
-        for elt in args[0].elements:
-            arg = Expr.parse_value_expr(elt, context)
-            if not is_base_type(arg.typ, "bytes32"):
-                raise TypeMismatch("Expecting a bytes32 argument as topic", elt)
-            topics.append(arg)
+        topics = args[0]
         if args[1].typ == BaseType("bytes32"):
             placeholder = context.new_internal_variable(BaseType("bytes32"))
             return IRnode.from_list(

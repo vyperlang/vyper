@@ -2,9 +2,9 @@ import functools
 
 from vyper import ast as vy_ast
 from vyper.codegen.expr import Expr
-from vyper.codegen.types import INTEGER_TYPES, BaseType, ByteArrayType, StringType, is_base_type
+from vyper.codegen.types import INTEGER_TYPES, BaseType, is_base_type
 from vyper.exceptions import InvalidLiteral, StructureException, TypeMismatch
-from vyper.semantics.types.indexable.sequence import ArrayDefinition
+from vyper.semantics.types.value.array_value import BytesArrayDefinition, StringDefinition
 from vyper.utils import SizeLimits
 
 
@@ -48,8 +48,15 @@ def process_arg(index, arg, expected_arg_typelist, function_name, context):
         # temporary hack, once we refactor this package none of this will exist
 
         # Workaround for non-empty topics argument to raw_log
-        if isinstance(expected_arg, ArrayDefinition):
-            return arg
+        if isinstance(arg, vy_ast.List):
+            ret = []
+            for a in arg.elements:
+                r = Expr.parse_value_expr(a, context)
+                ret.append(r)
+            return ret
+
+        if isinstance(expected_arg, (BytesArrayDefinition, StringDefinition)):
+            return Expr(arg, context).ir_node
 
         if hasattr(expected_arg, "_id"):
             expected_arg = expected_arg._id
@@ -75,35 +82,11 @@ def process_arg(index, arg, expected_arg_typelist, function_name, context):
         if expected_arg == "num_literal":
             if isinstance(arg, (vy_ast.Int, vy_ast.Decimal)):
                 return arg.n
-        elif expected_arg == "str_literal":
-            if isinstance(arg, vy_ast.Str):
-                bytez = b""
-                for c in arg.s:
-                    if ord(c) >= 256:
-                        raise InvalidLiteral(
-                            f"Cannot insert special character {c} into byte array",
-                            arg,
-                        )
-                    bytez += bytes([ord(c)])
-                return bytez
-        elif expected_arg == "bytes_literal":
-            if isinstance(arg, vy_ast.Bytes):
-                return arg.s
         elif expected_arg == "name_literal":
             if isinstance(arg, vy_ast.Name):
                 return arg.id
             elif isinstance(arg, vy_ast.Subscript) and arg.value.id == "Bytes":
                 return f"Bytes[{arg.slice.value.n}]"
-        elif expected_arg == "*":
-            return arg
-        elif expected_arg == "Bytes":
-            sub = Expr(arg, context).ir_node
-            if isinstance(sub.typ, ByteArrayType):
-                return sub
-        elif expected_arg == "String":
-            sub = Expr(arg, context).ir_node
-            if isinstance(sub.typ, StringType):
-                return sub
         else:
             parsed_expected_type = context.parse_type(vy_ast.parse_to_ast(expected_arg)[0].value)
             if isinstance(parsed_expected_type, BaseType):
