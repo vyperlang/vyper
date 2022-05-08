@@ -95,19 +95,11 @@ from vyper.utils import (
     vyper_warn,
 )
 
-from .signatures import Optional, validate_inputs
+from .signatures import DenominationDefinition, Optional, TypeTypeDefinition, validate_inputs
 
 SHA256_ADDRESS = 2
 SHA256_BASE_GAS = 60
 SHA256_PER_WORD_GAS = 12
-
-
-class TypeTypeDefinition:
-    def __init__(self, typestr):
-        self.typestr = typestr
-
-    def __repr__(self):
-        return f"type({self.typestr})"
 
 
 class _BuiltinFunction:
@@ -618,7 +610,7 @@ class Concat(_BuiltinFunction):
 class Keccak256(_SimpleBuiltinFunction):
 
     _id = "keccak256"
-    _inputs = [("value", (Bytes32Definition(), BytesArrayPrimitive(), StringPrimitive()))]
+    _inputs = [("value", (BytesAbstractType(), StringDefinition()))]
     _return_type = Bytes32Definition()
 
     def evaluate(self, node):
@@ -635,6 +627,11 @@ class Keccak256(_SimpleBuiltinFunction):
 
         hash_ = f"0x{keccak256(value).hex()}"
         return vy_ast.Hex.from_node(node, value=hash_)
+
+    def infer_arg_types(self, node):
+        validate_expected_type(node.args[0], self._inputs[0][1])
+        value_type = get_possible_types_from_node(node.args[0]).pop()
+        return [value_type]
 
     @validate_inputs
     def build_IR(self, expr, args, kwargs, context):
@@ -1019,8 +1016,7 @@ class AsWeiValue(_BuiltinFunction):
         ("kether", "grand"): 10 ** 21,
     }
 
-    def evaluate(self, node):
-        validate_call_args(node, 2)
+    def _validate_denomination(self, node):
         if not isinstance(node.args[1], vy_ast.Str):
             raise ArgumentException(
                 "Wei denomination must be given as a literal string", node.args[1]
@@ -1031,6 +1027,11 @@ class AsWeiValue(_BuiltinFunction):
             raise ArgumentException(
                 f"Unknown denomination: {node.args[1].value}", node.args[1]
             ) from None
+        return DenominationDefinition(node.args[1].value, denom)
+
+    def evaluate(self, node):
+        validate_call_args(node, 2)
+        denom = self._validate_denomination(node)
 
         if not isinstance(node.args[0], (vy_ast.Decimal, vy_ast.Int)):
             raise UnfoldableNode
@@ -1044,7 +1045,7 @@ class AsWeiValue(_BuiltinFunction):
         if isinstance(value, Decimal) and value >= 2 ** 127:
             raise InvalidLiteral("Value out of range for decimal", node.args[0])
 
-        return vy_ast.Int.from_node(node, value=int(value * denom))
+        return vy_ast.Int.from_node(node, value=int(value * denom.value))
 
     def fetch_call_return(self, node):
         self.infer_arg_types(node)
@@ -1053,7 +1054,8 @@ class AsWeiValue(_BuiltinFunction):
     def infer_arg_types(self, node):
         validate_expected_type(node.args[0], NumericAbstractType())
         value_type = get_possible_types_from_node(node.args[0]).pop()
-        return [value_type, None]
+        denomination_type = self._validate_denomination(node)
+        return [value_type, denomination_type]
 
     @validate_inputs
     def build_IR(self, expr, args, kwargs, context):
@@ -1103,7 +1105,7 @@ true_value = IRnode.from_list(1, typ=BaseType("bool", is_literal=True))
 class RawCall(_SimpleBuiltinFunction):
 
     _id = "raw_call"
-    _inputs = [("to", AddressDefinition()), ("data", BytesArrayPrimitive())]
+    _inputs = [("to", AddressDefinition()), ("data", BytesAbstractType())]
     _kwargs = {
         "max_outsize": Optional("num_literal", 0),
         "gas": Optional("uint256", "gas"),
@@ -1341,8 +1343,6 @@ class RawLog(_BuiltinFunction):
 
     @validate_inputs
     def build_IR(self, expr, args, kwargs, context):
-        if not isinstance(args[0], vy_ast.List) or len(args[0].elements) > 4:
-            raise StructureException("Expecting a list of 0-4 topics as first argument", args[0])
         topics = []
         for elt in args[0].elements:
             arg = Expr.parse_value_expr(elt, context)

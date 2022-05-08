@@ -4,6 +4,7 @@ from vyper import ast as vy_ast
 from vyper.codegen.expr import Expr
 from vyper.codegen.types import INTEGER_TYPES, BaseType, ByteArrayType, StringType, is_base_type
 from vyper.exceptions import InvalidLiteral, StructureException, TypeMismatch
+from vyper.semantics.types.indexable.sequence import ArrayDefinition
 from vyper.utils import SizeLimits
 
 
@@ -11,6 +12,23 @@ class Optional(object):
     def __init__(self, typ, default):
         self.typ = typ
         self.default = default
+
+
+class DenominationDefinition:
+    def __init__(self, denomination_str, value):
+        self.name = denomination_str
+        self.value = value
+
+    def __repr__(self):
+        return f"denomination({self.name})"
+
+
+class TypeTypeDefinition:
+    def __init__(self, typestr):
+        self.typestr = typestr
+
+    def __repr__(self):
+        return f"type({self.typestr})"
 
 
 def process_arg(index, arg, expected_arg_typelist, function_name, context):
@@ -28,14 +46,31 @@ def process_arg(index, arg, expected_arg_typelist, function_name, context):
     for expected_arg in expected_arg_typelist:
 
         # temporary hack, once we refactor this package none of this will exist
+
+        # Workaround for non-empty topics argument to raw_log
+        if isinstance(expected_arg, ArrayDefinition):
+            return arg
+
         if hasattr(expected_arg, "_id"):
             expected_arg = expected_arg._id
 
         if hasattr(expected_arg, "typestr"):
             return arg
 
+        # Workaround for empty topics argument to raw_log
         if expected_arg is None:
             return arg
+
+        if isinstance(expected_arg, DenominationDefinition):
+            bytez = b""
+            for c in arg.s:
+                if ord(c) >= 256:
+                    raise InvalidLiteral(
+                        f"Cannot insert special character {c} into byte array",
+                        arg,
+                    )
+                bytez += bytes([ord(c)])
+            return bytez
 
         if expected_arg == "num_literal":
             if isinstance(arg, (vy_ast.Int, vy_ast.Decimal)):
