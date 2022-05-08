@@ -15,15 +15,6 @@ class Optional(object):
         self.default = default
 
 
-class DenominationDefinition:
-    def __init__(self, denomination_str, value):
-        self.name = denomination_str
-        self.value = value
-
-    def __repr__(self):
-        return f"denomination({self.name})"
-
-
 class TypeTypeDefinition:
     def __init__(self, typestr):
         self.typestr = typestr
@@ -58,7 +49,7 @@ def process_arg(index, arg, expected_arg, function_name, context):
     if expected_arg is None:
         return arg
 
-    if isinstance(expected_arg, DenominationDefinition):
+    if isinstance(expected_arg, "str_literal"):
         bytez = b""
         for c in arg.s:
             if ord(c) >= 256:

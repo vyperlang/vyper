@@ -96,7 +96,7 @@ from vyper.utils import (
     vyper_warn,
 )
 
-from .signatures import DenominationDefinition, Optional, TypeTypeDefinition, validate_inputs
+from .signatures import Optional, TypeTypeDefinition, validate_inputs
 
 SHA256_ADDRESS = 2
 SHA256_BASE_GAS = 60
@@ -1041,7 +1041,8 @@ class AsWeiValue(_BuiltinFunction):
         ("kether", "grand"): 10 ** 21,
     }
 
-    def _validate_denomination(self, node):
+    def evaluate(self, node):
+        validate_call_args(node, 2)
         if not isinstance(node.args[1], vy_ast.Str):
             raise ArgumentException(
                 "Wei denomination must be given as a literal string", node.args[1]
@@ -1052,11 +1053,6 @@ class AsWeiValue(_BuiltinFunction):
             raise ArgumentException(
                 f"Unknown denomination: {node.args[1].value}", node.args[1]
             ) from None
-        return DenominationDefinition(node.args[1].value, denom)
-
-    def evaluate(self, node):
-        validate_call_args(node, 2)
-        denom = self._validate_denomination(node)
 
         if not isinstance(node.args[0], (vy_ast.Decimal, vy_ast.Int)):
             raise UnfoldableNode
@@ -1070,7 +1066,7 @@ class AsWeiValue(_BuiltinFunction):
         if isinstance(value, Decimal) and value >= 2 ** 127:
             raise InvalidLiteral("Value out of range for decimal", node.args[0])
 
-        return vy_ast.Int.from_node(node, value=int(value * denom.value))
+        return vy_ast.Int.from_node(node, value=int(value * denom))
 
     def fetch_call_return(self, node):
         self.infer_arg_types(node)
@@ -1079,8 +1075,7 @@ class AsWeiValue(_BuiltinFunction):
     def infer_arg_types(self, node):
         validate_expected_type(node.args[0], NumericAbstractType())
         value_type = get_possible_types_from_node(node.args[0]).pop()
-        denomination_type = self._validate_denomination(node)
-        return [value_type, denomination_type]
+        return [value_type, "str_literal"]
 
     @validate_inputs
     def build_IR(self, expr, args, kwargs, context):
