@@ -2,11 +2,10 @@ import functools
 
 from vyper import ast as vy_ast
 from vyper.codegen.expr import Expr
-from vyper.codegen.types import INTEGER_TYPES, BaseType, is_base_type
 from vyper.exceptions import InvalidLiteral, StructureException
 from vyper.semantics.types.abstract import UnsignedIntegerAbstractType
+from vyper.semantics.types.bases import BaseTypeDefinition
 from vyper.semantics.types.value.array_value import BytesArrayDefinition, StringDefinition
-from vyper.utils import SizeLimits
 
 
 class Optional(object):
@@ -24,7 +23,6 @@ class TypeTypeDefinition:
 
 
 def process_arg(index, arg, expected_arg, function_name, context):
-
     # Workaround for non-empty topics argument to raw_log
     if isinstance(arg, vy_ast.List):
         ret = []
@@ -33,55 +31,34 @@ def process_arg(index, arg, expected_arg, function_name, context):
             ret.append(r)
         return ret
 
-    vsub = None
-
-    # temporary hack, once we refactor this package none of this will exist
     if isinstance(expected_arg, (BytesArrayDefinition, StringDefinition)):
         return Expr(arg, context).ir_node
 
-    if hasattr(expected_arg, "_id"):
-        expected_arg = expected_arg._id
+    elif isinstance(expected_arg, BaseTypeDefinition):
+        return Expr.parse_value_expr(arg, context)
 
-    if isinstance(expected_arg, TypeTypeDefinition):
+    elif isinstance(expected_arg, TypeTypeDefinition):
         return expected_arg.typestr
 
-    # Workaround for empty topics argument to raw_log
-    if expected_arg is None:
-        return arg
-
-    if expected_arg == "str_literal":
-        bytez = b""
-        for c in arg.s:
-            if ord(c) >= 256:
-                raise InvalidLiteral(
-                    f"Cannot insert special character {c} into byte array",
-                    arg,
-                )
-            bytez += bytes([ord(c)])
-        return bytez
-
-    if isinstance(expected_arg, UnsignedIntegerAbstractType):
+    elif isinstance(expected_arg, UnsignedIntegerAbstractType):
         if isinstance(arg, (vy_ast.Int, vy_ast.Decimal)):
             return arg.n
+
     else:
-        parsed_expected_type = context.parse_type(vy_ast.parse_to_ast(expected_arg)[0].value)
-        if isinstance(parsed_expected_type, BaseType):
-            vsub = vsub or Expr.parse_value_expr(arg, context)
+        # Workaround for empty topics argument to raw_log
+        if expected_arg is None:
+            return arg
 
-            is_valid_integer = (
-                (expected_arg in INTEGER_TYPES and isinstance(vsub.typ, BaseType))
-                and (vsub.typ.typ in INTEGER_TYPES and vsub.typ.is_literal)
-                and (SizeLimits.in_bounds(expected_arg, vsub.value))
-            )
-
-            if is_base_type(vsub.typ, expected_arg):
-                return vsub
-            elif is_valid_integer:
-                return vsub
-        else:
-            vsub = vsub or Expr(arg, context).ir_node
-            if vsub.typ == parsed_expected_type:
-                return Expr(arg, context).ir_node
+        elif expected_arg == "str_literal":
+            bytez = b""
+            for c in arg.s:
+                if ord(c) >= 256:
+                    raise InvalidLiteral(
+                        f"Cannot insert special character {c} into byte array",
+                        arg,
+                    )
+                bytez += bytes([ord(c)])
+            return bytez
 
 
 def validate_inputs(wrapped_fn):
