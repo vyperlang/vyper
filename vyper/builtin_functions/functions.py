@@ -109,7 +109,7 @@ class _BuiltinFunction:
 
     def infer_kwarg_types(self, node):
         if node.keywords:
-            return {i.arg: None for i in self._kwargs}
+            return {i: v.typ for i, v in self._kwargs.items()}
         return {}
 
 
@@ -1127,12 +1127,12 @@ class RawCall(_SimpleBuiltinFunction):
     _id = "raw_call"
     _inputs = [("to", AddressDefinition()), ("data", BytesAbstractType())]
     _kwargs = {
-        "max_outsize": Optional("num_literal", 0),
-        "gas": Optional("uint256", "gas"),
-        "value": Optional("uint256", zero_value),
-        "is_delegate_call": Optional("bool", false_value),
-        "is_static_call": Optional("bool", false_value),
-        "revert_on_failure": Optional("bool", true_value),
+        "max_outsize": Optional(UnsignedIntegerAbstractType(), 0),
+        "gas": Optional(Uint256Definition(), "gas"),
+        "value": Optional(Uint256Definition(), zero_value),
+        "is_delegate_call": Optional(BoolDefinition(), false_value),
+        "is_static_call": Optional(BoolDefinition(), false_value),
+        "revert_on_failure": Optional(BoolDefinition(), true_value),
     }
     _return_type = None
 
@@ -1169,16 +1169,6 @@ class RawCall(_SimpleBuiltinFunction):
         data_type = get_possible_types_from_node(node.args[1]).pop()
 
         return [AddressDefinition(), data_type]
-
-    def infer_kwarg_types(self, node):
-        return {
-            "max_outsize": UnsignedIntegerAbstractType(),
-            "gas": Uint256Definition(),
-            "value": Uint256Definition(),
-            "is_delegate_call": BoolDefinition(),
-            "is_static_call": BoolDefinition(),
-            "revert_on_failure": BoolDefinition(),
-        }
 
     @validate_inputs
     def build_IR(self, expr, args, kwargs, context):
@@ -1707,14 +1697,11 @@ class CreateForwarderTo(_SimpleBuiltinFunction):
 
     _id = "create_forwarder_to"
     _inputs = [("target", AddressDefinition())]
-    _kwargs = {"value": Optional("uint256", zero_value), "salt": Optional("bytes32", empty_value)}
+    _kwargs = {
+        "value": Optional(Uint256Definition(), zero_value),
+        "salt": Optional(Bytes32Definition(), empty_value),
+    }
     _return_type = AddressDefinition()
-
-    def infer_kwarg_types(self, node):
-        return {
-            "value": Uint256Definition(),
-            "salt": Bytes32Definition(),
-        }
 
     @validate_inputs
     def build_IR(self, expr, args, kwargs, context):
