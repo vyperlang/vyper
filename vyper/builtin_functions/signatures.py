@@ -49,7 +49,7 @@ def process_arg(index, arg, expected_arg, function_name, context):
     if expected_arg is None:
         return arg
 
-    if isinstance(expected_arg, "str_literal"):
+    if expected_arg == "str_literal":
         bytez = b""
         for c in arg.s:
             if ord(c) >= 256:
