@@ -3,7 +3,8 @@ import functools
 from vyper import ast as vy_ast
 from vyper.codegen.expr import Expr
 from vyper.codegen.types import INTEGER_TYPES, BaseType, is_base_type
-from vyper.exceptions import InvalidLiteral, StructureException, TypeMismatch
+from vyper.exceptions import InvalidLiteral, StructureException
+from vyper.semantics.types.abstract import UnsignedIntegerAbstractType
 from vyper.semantics.types.value.array_value import BytesArrayDefinition, StringDefinition
 from vyper.utils import SizeLimits
 
@@ -31,16 +32,7 @@ class TypeTypeDefinition:
         return f"type({self.typestr})"
 
 
-def process_arg(index, arg, expected_arg_typelist, function_name, context):
-
-    # temporary hack to support abstract types
-    if hasattr(expected_arg_typelist, "_id_list"):
-        expected_arg_typelist = expected_arg_typelist._id_list
-
-    if isinstance(expected_arg_typelist, Optional):
-        expected_arg_typelist = expected_arg_typelist.typ
-    if not isinstance(expected_arg_typelist, tuple):
-        expected_arg_typelist = (expected_arg_typelist,)
+def process_arg(index, arg, expected_arg, function_name, context):
 
     # Workaround for non-empty topics argument to raw_log
     if isinstance(arg, vy_ast.List):
@@ -51,67 +43,54 @@ def process_arg(index, arg, expected_arg_typelist, function_name, context):
         return ret
 
     vsub = None
-    for expected_arg in expected_arg_typelist:
 
-        # temporary hack, once we refactor this package none of this will exist
-        if isinstance(expected_arg, (BytesArrayDefinition, StringDefinition)):
-            return Expr(arg, context).ir_node
+    # temporary hack, once we refactor this package none of this will exist
+    if isinstance(expected_arg, (BytesArrayDefinition, StringDefinition)):
+        return Expr(arg, context).ir_node
 
-        if hasattr(expected_arg, "_id"):
-            expected_arg = expected_arg._id
+    if hasattr(expected_arg, "_id"):
+        expected_arg = expected_arg._id
 
-        if hasattr(expected_arg, "typestr"):
-            return arg
+    if isinstance(expected_arg, TypeTypeDefinition):
+        return expected_arg.typestr
 
-        # Workaround for empty topics argument to raw_log
-        if expected_arg is None:
-            return arg
+    # Workaround for empty topics argument to raw_log
+    if expected_arg is None:
+        return arg
 
-        if isinstance(expected_arg, DenominationDefinition):
-            bytez = b""
-            for c in arg.s:
-                if ord(c) >= 256:
-                    raise InvalidLiteral(
-                        f"Cannot insert special character {c} into byte array",
-                        arg,
-                    )
-                bytez += bytes([ord(c)])
-            return bytez
-
-        if expected_arg == "num_literal":
-            if isinstance(arg, (vy_ast.Int, vy_ast.Decimal)):
-                return arg.n
-        elif expected_arg == "name_literal":
-            if isinstance(arg, vy_ast.Name):
-                return arg.id
-            elif isinstance(arg, vy_ast.Subscript) and arg.value.id == "Bytes":
-                return f"Bytes[{arg.slice.value.n}]"
-        else:
-            parsed_expected_type = context.parse_type(vy_ast.parse_to_ast(expected_arg)[0].value)
-            if isinstance(parsed_expected_type, BaseType):
-                vsub = vsub or Expr.parse_value_expr(arg, context)
-
-                is_valid_integer = (
-                    (expected_arg in INTEGER_TYPES and isinstance(vsub.typ, BaseType))
-                    and (vsub.typ.typ in INTEGER_TYPES and vsub.typ.is_literal)
-                    and (SizeLimits.in_bounds(expected_arg, vsub.value))
+    if isinstance(expected_arg, DenominationDefinition):
+        bytez = b""
+        for c in arg.s:
+            if ord(c) >= 256:
+                raise InvalidLiteral(
+                    f"Cannot insert special character {c} into byte array",
+                    arg,
                 )
+            bytez += bytes([ord(c)])
+        return bytez
 
-                if is_base_type(vsub.typ, expected_arg):
-                    return vsub
-                elif is_valid_integer:
-                    return vsub
-            else:
-                vsub = vsub or Expr(arg, context).ir_node
-                if vsub.typ == parsed_expected_type:
-                    return Expr(arg, context).ir_node
-
-    if len(expected_arg_typelist) == 1:
-        raise TypeMismatch(f"Expecting {expected_arg} for argument {index} of {function_name}", arg)
+    if isinstance(expected_arg, UnsignedIntegerAbstractType):
+        if isinstance(arg, (vy_ast.Int, vy_ast.Decimal)):
+            return arg.n
     else:
-        raise TypeMismatch(
-            f"Expecting one of {expected_arg_typelist} for argument {index} of {function_name}", arg
-        )
+        parsed_expected_type = context.parse_type(vy_ast.parse_to_ast(expected_arg)[0].value)
+        if isinstance(parsed_expected_type, BaseType):
+            vsub = vsub or Expr.parse_value_expr(arg, context)
+
+            is_valid_integer = (
+                (expected_arg in INTEGER_TYPES and isinstance(vsub.typ, BaseType))
+                and (vsub.typ.typ in INTEGER_TYPES and vsub.typ.is_literal)
+                and (SizeLimits.in_bounds(expected_arg, vsub.value))
+            )
+
+            if is_base_type(vsub.typ, expected_arg):
+                return vsub
+            elif is_valid_integer:
+                return vsub
+        else:
+            vsub = vsub or Expr(arg, context).ir_node
+            if vsub.typ == parsed_expected_type:
+                return Expr(arg, context).ir_node
 
 
 def validate_inputs(wrapped_fn):
@@ -149,18 +128,16 @@ def validate_inputs(wrapped_fn):
                 raise StructureException(f"Not enough arguments for function: {node.func.id}", node)
         kwsubs = {}
         node_kw = {k.arg: k.value for k in node.keywords}
-        for k, expected_arg in kwargz.items():
-            if k not in node_kw:
-                if not isinstance(expected_arg, Optional):
-                    raise StructureException(
-                        f"Function {function_name} requires argument {k}", node
-                    )
-                kwsubs[k] = expected_arg.default
-            else:
-                kwsubs[k] = process_arg(k, node_kw[k], expected_arg, function_name, context)
-        for k, _arg in node_kw.items():
-            if k not in kwargz:
-                raise StructureException(f"Unexpected argument: {k}", node)
+        node_kw_types = self.infer_kwarg_types(node)
+        if kwargz:
+            for k, expected_arg in self._kwargs.items():
+                if k not in node_kw:
+                    kwsubs[k] = expected_arg.default
+                else:
+                    kwsubs[k] = process_arg(k, node_kw[k], node_kw_types[k], function_name, context)
+            for k, _arg in node_kw.items():
+                if k not in kwargz:
+                    raise StructureException(f"Unexpected argument: {k}", node)
         return wrapped_fn(self, node, subs, kwsubs, context)
 
     return decorator_fn

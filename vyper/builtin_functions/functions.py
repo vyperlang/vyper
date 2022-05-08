@@ -61,6 +61,7 @@ from vyper.semantics.types.abstract import (
     IntegerAbstractType,
     NumericAbstractType,
     SignedIntegerAbstractType,
+    UnsignedIntegerAbstractType,
 )
 from vyper.semantics.types.bases import DataLocation
 from vyper.semantics.types.indexable.sequence import ArrayDefinition
@@ -105,6 +106,11 @@ SHA256_PER_WORD_GAS = 12
 class _BuiltinFunction:
     def __repr__(self):
         return f"builtin function {self._id}"
+
+    def infer_kwarg_types(self, node):
+        if node.keywords:
+            return {i.arg: None for i in self._kwargs}
+        return {}
 
 
 class _SimpleBuiltinFunction(_BuiltinFunction):
@@ -893,6 +899,7 @@ class Extract32(_SimpleBuiltinFunction):
 
     _id = "extract32"
     _inputs = [("b", BytesArrayPrimitive()), ("start", SignedIntegerAbstractType())]
+    # "name_literal" is a placeholder value
     _kwargs = {"output_type": Optional("name_literal", "bytes32")}
     _return_type = None
 
@@ -915,6 +922,17 @@ class Extract32(_SimpleBuiltinFunction):
         validate_expected_type(node.args[1], Int128Definition())
 
         return [b_type, Int128Definition()]
+
+    def infer_kwarg_types(self, node):
+        if node.keywords:
+            output_type = get_type_from_annotation(node.keywords[0].value, DataLocation.MEMORY)
+            if not isinstance(
+                output_type, (AddressDefinition, Bytes32Definition, IntegerAbstractType)
+            ):
+                raise
+        else:
+            output_type = Bytes32Definition()
+        return {"output_type": TypeTypeDefinition(str(output_type))}
 
     @validate_inputs
     def build_IR(self, expr, args, kwargs, context):
@@ -1156,6 +1174,16 @@ class RawCall(_SimpleBuiltinFunction):
         data_type = get_possible_types_from_node(node.args[1]).pop()
 
         return [AddressDefinition(), data_type]
+
+    def infer_kwarg_types(self, node):
+        return {
+            "max_outsize": UnsignedIntegerAbstractType(),
+            "gas": Uint256Definition(),
+            "value": Uint256Definition(),
+            "is_delegate_call": BoolDefinition(),
+            "is_static_call": BoolDefinition(),
+            "revert_on_failure": BoolDefinition(),
+        }
 
     @validate_inputs
     def build_IR(self, expr, args, kwargs, context):
@@ -1686,6 +1714,12 @@ class CreateForwarderTo(_SimpleBuiltinFunction):
     _inputs = [("target", AddressDefinition())]
     _kwargs = {"value": Optional("uint256", zero_value), "salt": Optional("bytes32", empty_value)}
     _return_type = AddressDefinition()
+
+    def infer_kwarg_types(self, node):
+        return {
+            "value": Uint256Definition(),
+            "salt": Bytes32Definition(),
+        }
 
     @validate_inputs
     def build_IR(self, expr, args, kwargs, context):
