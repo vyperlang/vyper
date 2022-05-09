@@ -303,6 +303,12 @@ def safe_pow(x, y):
         raise TypeCheckFailure("non-integer pow")
 
     if isinstance(x.value, int):
+        # cannot pass 1 or 0 to `calculate_largest_power`
+        if x.value == 1:
+            return IRnode.from_list([1])
+        if x.value == 0:
+            return IRnode.from_list(["iszero", y])
+
         upper_bound = calculate_largest_power(x.value, num_info.bits, num_info.is_signed) + 1
         # for signed integers, this also prevents negative values
         ok = ["lt", y, upper_bound]
