@@ -2020,6 +2020,11 @@ class ABIEncode(_SimpleBuiltinFunction):
     # ://docs.soliditylang.org/en/v0.8.6/abi-spec.html#function-selector-and-argument-encoding
     # if this is turned off, then bytes will be encoded as bytes.
 
+    _kwargs = {
+        "ensure_tuple": Optional(BoolDefinition(), true_value),
+        "method_id": Optional(BytesAbstractType(), None),
+    }
+
     @staticmethod
     # this should probably be a utility function
     def _exactly_one(xs):
