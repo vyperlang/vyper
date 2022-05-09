@@ -1,6 +1,7 @@
-from hexbytes import HexBytes
-from vyper.utils import keccak256, checksum_encode
 import rlp
+from hexbytes import HexBytes
+
+from vyper.utils import checksum_encode, keccak256
 
 
 def initcode(_addr):
