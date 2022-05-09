@@ -293,7 +293,6 @@ def optimize(node: IRnode, parent: Optional[IRnode] = None) -> IRnode:
     source_pos = node.source_pos
     annotation = node.annotation
     add_gas_estimate = node.add_gas_estimate
-    valency = node.valency
 
     optimize_more = False
 
@@ -378,7 +377,6 @@ def optimize(node: IRnode, parent: Optional[IRnode] = None) -> IRnode:
         source_pos=source_pos,
         annotation=annotation,
         add_gas_estimate=add_gas_estimate,
-        valency=valency,
     )
     if node.total_gas is not None:
         ret.total_gas = node.total_gas - node.gas + ret.gas

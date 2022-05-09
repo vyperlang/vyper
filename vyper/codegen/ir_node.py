@@ -68,7 +68,6 @@ class IRnode:
         annotation: Optional[str] = None,
         mutable: bool = True,
         add_gas_estimate: int = 0,
-        valency: Optional[int] = None,
         encoding: Encoding = Encoding.VYPER,
     ):
         if args is None:
@@ -261,9 +260,6 @@ class IRnode:
             raise CompilerPanic(f"Invalid value for IR AST node: {self.value}")
         assert isinstance(self.args, list)
 
-        if valency is not None:
-            self.valency = valency
-
         self.gas += self.add_gas_estimate
 
     # the IR should be cached.
@@ -454,7 +450,6 @@ class IRnode:
         annotation: Optional[str] = None,
         mutable: bool = True,
         add_gas_estimate: int = 0,
-        valency: Optional[int] = None,
         encoding: Encoding = Encoding.VYPER,
     ) -> "IRnode":
         if isinstance(typ, str):
@@ -482,7 +477,6 @@ class IRnode:
                 annotation=annotation,
                 mutable=mutable,
                 add_gas_estimate=add_gas_estimate,
-                valency=valency,
                 encoding=encoding,
             )
         else:
@@ -495,6 +489,5 @@ class IRnode:
                 mutable=mutable,
                 source_pos=source_pos,
                 add_gas_estimate=add_gas_estimate,
-                valency=valency,
                 encoding=encoding,
             )
