@@ -210,33 +210,35 @@ def safe_mul(x, y):
         ok = IRnode(1)  # true
 
         if num_info.bits > 128:  # check overflow mod 256
-            # assert (res/l == r || l == 0)
+            # assert (res/y == x || y == 0)
             ok = ["or", ["eq", [DIV, res, y], x], ["iszero", y]]
 
-        if num_info.bits == 256 and num_info.is_signed:
+        # int256
+        if num_info.is_signed and num_info.bits == 256:
             # special case:
-            # in the sdiv check, if (l==-1 and r==-2**255),
-            # -2**255<res> / -1<l> will return -2**255<r>.
-            # need to check for this case.
+            # in the above sdiv check, if (r==-1 and l==-2**255),
+            # -2**255<res> / -1<r> will return -2**255<l>.
+            # need to check: not (r == -1 and l == -2**255)
             if version_check(begin="constantinople"):
                 upper_bound = ["shl", 255, 1]
             else:
                 upper_bound = -(2 ** 255)
 
+            check_x = ["ne", x, upper_bound]
+            check_y = ["ne", ["not", y], 0]
+
             if not x.is_literal and not y.is_literal:
                 # TODO can simplify this condition?
-                bounds_check = ["or", ["ne", x, ["not", 0]], ["ne", y, upper_bound]]
+                ok = ["and", ok, ["or", check_x, check_y]]
 
             # TODO push some of this constant folding into optimizer
-            elif x.is_literal and x.value == -1:
-                bounds_check = ["ne", y, upper_bound]
-            elif y.is_literal and y.value == -(2 ** 255):
-                bounds_check = ["ne", x, ["not", 0]]
+            elif x.is_literal and x.value == -(2 ** 255):
+                ok = ["and", ok, check_y]
+            elif y.is_literal and y.value == -1:
+                ok = ["and", ok, check_x]
             else:
-                # trigger optimizer rule: -1 & x == x
-                bounds_check = 2 ** 256 - 1
-
-            ok = ["and", bounds_check, ok]
+                # x or y is a literal, and not an evil value
+                ok = ok
 
         # check overflow mod <bits>
         # NOTE: if 128 < bits < 256, `x * y` could be between
@@ -265,6 +267,7 @@ def safe_div(x, y):
             upper_bound = ["shl", 255, 1]
         else:
             upper_bound = -(2 ** 255)
+
         if not x.is_literal and not y.typ.is_literal:
             ok = ["or", ["ne", y, ["not", 0]], ["ne", x, upper_bound]]
         # TODO push this constant folding into the optimizer
