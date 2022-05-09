@@ -42,7 +42,6 @@ from vyper.exceptions import (
     TypeMismatch,
     UnimplementedException,
 )
-from vyper.semantics.types.abstract import SignedIntegerAbstractType, UnsignedIntegerAbstractType
 from vyper.utils import (
     DECIMAL_DIVISOR,
     SizeLimits,
@@ -190,18 +189,10 @@ class Expr:
         self.ir_node.source_pos = getpos(self.expr)
 
     def parse_Int(self):
-        propagated_type = self.expr._metadata.get("type")
-        typ_ = (
-            propagated_type._id
-            if isinstance(propagated_type, (SignedIntegerAbstractType, UnsignedIntegerAbstractType))
-            else None
-        )
-        if self.expr.n < 0:
-            typ_ = typ_ or "int256"
-        # Literal is large enough (mostly likely) becomes uint256.
-        else:
-            typ_ = typ_ or "uint256"
-        return IRnode.from_list(self.expr.n, typ=BaseType(typ_, is_literal=True))
+        typ_ = self.expr._metadata.get("type")
+        if not typ_:
+            raise CompilerPanic("Type of integer literal is unknown")
+        return IRnode.from_list(self.expr.n, typ=BaseType(str(typ_), is_literal=True))
 
     def parse_Decimal(self):
         val = self.expr.value * DECIMAL_DIVISOR

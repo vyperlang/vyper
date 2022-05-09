@@ -466,6 +466,7 @@ class ContractFunction(BaseTypeDefinition):
         for kwarg in node.keywords:
             if kwarg.arg in ("gas", "value"):
                 validate_expected_type(kwarg.value, Uint256Definition())
+                kwarg.value._metadata["type"] = Uint256Definition()
             elif kwarg.arg in ("skip_contract_check"):
                 validate_expected_type(kwarg.value, BoolDefinition())
                 if not isinstance(kwarg.value, vy_ast.NameConstant):
@@ -473,7 +474,7 @@ class ContractFunction(BaseTypeDefinition):
             else:
                 # Generate the modified source code string with the kwarg removed
                 # as a suggestion to the user.
-                kwarg_pattern = fr"{kwarg.arg}\s*=\s*{re.escape(kwarg.value.node_source_code)}"
+                kwarg_pattern = rf"{kwarg.arg}\s*=\s*{re.escape(kwarg.value.node_source_code)}"
                 modified_line = re.sub(
                     kwarg_pattern, kwarg.value.node_source_code, node.node_source_code
                 )

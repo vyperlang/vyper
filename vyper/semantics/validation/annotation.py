@@ -52,42 +52,42 @@ class StatementAnnotationVisitor(_AnnotationVisitorBase):
         self.namespace = namespace
         self.expr_visitor = ExpressionAnnotationVisitor()
 
-    def visit(self, node):
-        super().visit(node)
+    def visit(self, node, type_=None):
+        super().visit(node, type_)
 
-    def visit_AnnAssign(self, node):
+    def visit_AnnAssign(self, node, type_):
         type_ = get_exact_type_from_node(node.target)
         self.expr_visitor.visit(node.target, type_)
         self.expr_visitor.visit(node.value, type_)
 
-    def visit_Assert(self, node):
+    def visit_Assert(self, node, type_):
         self.expr_visitor.visit(node.test)
 
-    def visit_Assign(self, node):
+    def visit_Assign(self, node, type_):
         type_ = get_exact_type_from_node(node.target)
         self.expr_visitor.visit(node.target, type_)
         self.expr_visitor.visit(node.value, type_)
 
-    def visit_AugAssign(self, node):
+    def visit_AugAssign(self, node, type_):
         type_ = get_exact_type_from_node(node.target)
         self.expr_visitor.visit(node.target, type_)
         self.expr_visitor.visit(node.value, type_)
 
-    def visit_Expr(self, node):
+    def visit_Expr(self, node, type_):
         self.expr_visitor.visit(node.value)
 
-    def visit_If(self, node):
+    def visit_If(self, node, type_):
         self.expr_visitor.visit(node.test)
 
-    def visit_Log(self, node):
+    def visit_Log(self, node, type_):
         node._metadata["type"] = self.namespace[node.value.func.id]
         self.expr_visitor.visit(node.value)
 
-    def visit_Return(self, node):
+    def visit_Return(self, node, type_):
         if node.value is not None:
             self.expr_visitor.visit(node.value, self.func.return_type)
 
-    def visit_For(self, node):
+    def visit_For(self, node, type_):
         if isinstance(node.iter, (vy_ast.Name, vy_ast.Attribute)):
             self.expr_visitor.visit(node.iter)
         # typecheck list literal as static array
@@ -135,6 +135,8 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
             # events and internal function calls
             for arg, arg_type in zip(node.args, list(call_type.arguments.values())):
                 self.visit(arg, arg_type)
+            for kwarg in node.keywords:
+                self.visit(kwarg.value, None)
         elif isinstance(call_type, StructPrimitive):
             # literal structs
             for value, arg_type in zip(node.args[0].values, list(call_type.members.values())):
@@ -148,8 +150,9 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
             arg_types = call_type.infer_arg_types(node)
             for arg, arg_type in zip(node.args, arg_types):
                 self.visit(arg, arg_type)
+            kwarg_types = call_type.infer_kwarg_types(node)
             for kwarg in node.keywords:
-                self.visit(kwarg.value, None)
+                self.visit(kwarg.value, kwarg_types[kwarg.arg])
 
     def visit_Compare(self, node, type_):
         if isinstance(node.op, (vy_ast.In, vy_ast.NotIn)):
@@ -184,7 +187,15 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
         self.visit(node.value, type_)
 
     def visit_Int(self, node, type_):
-        node._metadata["type"] = type_
+        if type_:
+            if not hasattr(type_, "_id"):
+                # Filter for IntegerAbstractType and set it to the largest unsigned type
+                possible_types = sorted(
+                    get_possible_types_from_node(node), key=lambda x: (x._bits, len(str(x)))
+                )
+                node._metadata["type"] = possible_types.pop()
+            else:
+                node._metadata["type"] = type_
 
     def visit_List(self, node, type_):
         if type_ is None:

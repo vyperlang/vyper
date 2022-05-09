@@ -81,6 +81,9 @@ class InterfacePrimitive:
         validate_expected_type(node.args[0], AddressDefinition())
         return [AddressDefinition()]
 
+    def infer_kwarg_types(self, node):
+        return {}
+
     def validate_implements(self, node: vy_ast.AnnAssign) -> None:
         namespace = get_namespace()
         # check for missing functions
