@@ -157,8 +157,6 @@ def safe_add(x, y):
         ret = IRnode.from_list(["seq", ["assert", ok], res])
         return b1.resolve(ret)
 
-    raise CompilerPanic("unreachable")  # pragma: notest
-
 
 # def safe_sub(x: IRnode, y: IRnode) -> IRnode:
 def safe_sub(x, y):
@@ -186,8 +184,6 @@ def safe_sub(x, y):
 
         ret = IRnode.from_list(["seq", ["assert", ok], res])
         return b1.resolve(ret)
-
-    raise CompilerPanic("unreachable")  # pragma: notest
 
 
 # def safe_mul(x: IRnode, y: IRnode) -> IRnode:
@@ -238,7 +234,7 @@ def safe_mul(x, y):
                 ok = ["and", ok, check_x]
             else:
                 # x or y is a literal, and not an evil value
-                ok = ok
+                pass
 
         # check overflow mod <bits>
         # NOTE: if 128 < bits < 256, `x * y` could be between
