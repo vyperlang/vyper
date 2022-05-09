@@ -266,12 +266,12 @@ def safe_div(x, y):
         else:
             upper_bound = -(2 ** 255)
         if not x.is_literal and not y.typ.is_literal:
-            ok = ["or", ["ne", x, ["not", 0]], ["ne", y, upper_bound]]
+            ok = ["or", ["ne", y, ["not", 0]], ["ne", x, upper_bound]]
         # TODO push this constant folding into the optimizer
         elif x.is_literal and x.value == -(2 ** 255):
-            ok = ["ne", x, ["not", 0]]
+            ok = ["ne", y, ["not", 0]]
         elif y.is_literal and y.value == -1:
-            ok = ["ne", y, upper_bound]
+            ok = ["ne", x, upper_bound]
 
     check = ["assert", ok]
 

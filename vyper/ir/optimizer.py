@@ -167,18 +167,19 @@ def _optimize_arith(binop, args, ann, parent_op):
         new_args = [0, args[0]]
 
     elif binop == "exp":
-        # n ** 0 == (0 if n == 0 else 1)
-        if _int(args[1]) == 0:
+        # n ** 0 == 1 (forall n)
+        # 1 ** n == 1
+        if _int(args[1]) == 0 or _int(args[0]) == 1:
+            new_val = 1
+            new_args = []
+        # 0 ** n == (1 if n == 0 else 0)
+        if _int(args[0]) == 0:
             new_val = "iszero"
-            new_args = [args[0]]
+            new_args = [args[1]]
         # n ** 1 == n
         if _int(args[1]) == 1:
             new_val = args[0].value
             new_args = args[0].args
-        # 0 ** n == 0; 1 ** n == 1
-        if _int(args[0]) in (0, 1):
-            new_val = _int(args[0])
-            new_args = []
 
     # maybe OK:
     # elif binop == "div" and _int(args[1], UNSIGNED) == MAX_UINT256:
