@@ -124,7 +124,8 @@ def _runtime_ir(runtime_functions, all_sigs, global_ctx):
     # contains immutables
     if len(external_functions) == 0:
         # TODO: prune internal functions in this case?
-        return ["seq"] + list(internal_functions_map.values()), internal_functions_map
+        runtime = ["seq"] + list(internal_functions_map.values())
+        return runtime, internal_functions_map
 
     # note: if the user does not provide one, the default fallback function
     # reverts anyway. so it does not hurt to batch the payable check.
