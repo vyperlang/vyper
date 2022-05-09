@@ -2,7 +2,7 @@ import functools
 
 from vyper import ast as vy_ast
 from vyper.codegen.expr import Expr
-from vyper.exceptions import InvalidLiteral, StructureException
+from vyper.exceptions import CompilerPanic, InvalidLiteral, StructureException
 from vyper.semantics.types.abstract import UnsignedIntegerAbstractType
 from vyper.semantics.types.bases import BaseTypeDefinition
 from vyper.semantics.types.indexable.sequence import ArrayDefinition
@@ -23,7 +23,7 @@ class TypeTypeDefinition:
         return f"type({self.typestr})"
 
 
-def process_arg(index, arg, expected_arg, function_name, context):
+def process_arg(index, arg, expected_arg_type, function_name, context):
     # Workaround for non-empty topics argument to raw_log
     if isinstance(arg, vy_ast.List):
         ret = []
@@ -32,25 +32,25 @@ def process_arg(index, arg, expected_arg, function_name, context):
             ret.append(r)
         return ret
 
-    if isinstance(expected_arg, (BytesArrayDefinition, StringDefinition, ArrayDefinition)):
+    if isinstance(expected_arg_type, (BytesArrayDefinition, StringDefinition, ArrayDefinition)):
         return Expr(arg, context).ir_node
 
-    elif isinstance(expected_arg, BaseTypeDefinition):
+    elif isinstance(expected_arg_type, BaseTypeDefinition):
         return Expr.parse_value_expr(arg, context)
 
-    elif isinstance(expected_arg, TypeTypeDefinition):
-        return expected_arg.typestr
+    elif isinstance(expected_arg_type, TypeTypeDefinition):
+        return expected_arg_type.typestr
 
-    elif isinstance(expected_arg, UnsignedIntegerAbstractType):
+    elif isinstance(expected_arg_type, UnsignedIntegerAbstractType):
         if isinstance(arg, (vy_ast.Int, vy_ast.Decimal)):
             return arg.n
 
     else:
         # Workaround for empty topics argument to raw_log
-        if expected_arg is None:
+        if expected_arg_type is None:
             return arg
 
-        elif expected_arg == "str_literal":
+        elif expected_arg_type == "str_literal":
             bytez = b""
             for c in arg.s:
                 if ord(c) >= 256:
@@ -60,6 +60,8 @@ def process_arg(index, arg, expected_arg, function_name, context):
                     )
                 bytez += bytes([ord(c)])
             return bytez
+
+    raise CompilerPanic(f"Unexpected type for builtin function argument: {expected_arg_type}")
 
 
 def validate_inputs(wrapped_fn):
@@ -80,19 +82,17 @@ def validate_inputs(wrapped_fn):
                 f"Expected {len(argz)} arguments for {function_name}, got {len(node.args)}", node
             )
         subs = []
-        for i, expected_arg in enumerate(argz):
+        for i, expected_arg_type in enumerate(argz):
             if len(node.args) > i:
                 subs.append(
                     process_arg(
                         i + 1,
                         node.args[i],
-                        expected_arg,
+                        expected_arg_type,
                         function_name,
                         context,
                     )
                 )
-            elif isinstance(expected_arg, Optional):
-                subs.append(expected_arg.default)
             else:
                 raise StructureException(f"Not enough arguments for function: {node.func.id}", node)
         kwsubs = {}
