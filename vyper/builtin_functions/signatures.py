@@ -5,6 +5,7 @@ from vyper.codegen.expr import Expr
 from vyper.exceptions import InvalidLiteral, StructureException
 from vyper.semantics.types.abstract import UnsignedIntegerAbstractType
 from vyper.semantics.types.bases import BaseTypeDefinition
+from vyper.semantics.types.indexable.sequence import ArrayDefinition
 from vyper.semantics.types.value.array_value import BytesArrayDefinition, StringDefinition
 
 
@@ -31,7 +32,7 @@ def process_arg(index, arg, expected_arg, function_name, context):
             ret.append(r)
         return ret
 
-    if isinstance(expected_arg, (BytesArrayDefinition, StringDefinition)):
+    if isinstance(expected_arg, (BytesArrayDefinition, StringDefinition, ArrayDefinition)):
         return Expr(arg, context).ir_node
 
     elif isinstance(expected_arg, BaseTypeDefinition):
