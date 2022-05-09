@@ -70,11 +70,9 @@ def generate_ir_for_function(
     if not sig.internal:
         # adjust gas estimate to include cost of mem expansion
         # frame_size of external function includes all private functions called
+        # (note: internal functions do not need to adjust gas estimate since
+        # it is already accounted for by the caller.)
         o.add_gas_estimate += calc_mem_gas(sig.frame_info.mem_used)
-    else:
-        # note: internal functions do not need to adjust gas estimate since
-        # it is already accounted for by the caller.
-        pass
 
     sig.gas_estimate = o.gas
 
