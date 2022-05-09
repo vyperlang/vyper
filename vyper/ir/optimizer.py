@@ -237,7 +237,6 @@ def _optimize_arith(binop, args, ann, parent_op):
         # no rule needed for "ne" as it will get compiled to
         # `(iszero (eq x y))` anyways.
 
-
         # TODO can we do this?
         # if val == "div":
         #    val = "gt"

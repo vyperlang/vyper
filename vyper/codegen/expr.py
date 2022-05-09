@@ -1,10 +1,10 @@
 import decimal
 import math
 
+import vyper.codegen.arithmetic as arithmetic
 from vyper import ast as vy_ast
 from vyper.address_space import DATA, IMMUTABLES, MEMORY, STORAGE
 from vyper.codegen import external_call, self_call
-import vyper.codegen.arithmetic as arithmetic
 from vyper.codegen.core import (
     clamp,
     ensure_in_memory,
@@ -35,14 +35,7 @@ from vyper.codegen.types import (
 )
 from vyper.codegen.types.convert import new_type_to_old_type
 from vyper.evm.opcodes import version_check
-from vyper.exceptions import (
-    CompilerPanic,
-    EvmVersionException,
-    StructureException,
-    TypeCheckFailure,
-    TypeMismatch,
-    UnimplementedException,
-)
+from vyper.exceptions import EvmVersionException, StructureException, TypeCheckFailure, TypeMismatch
 from vyper.utils import (
     DECIMAL_DIVISOR,
     SizeLimits,

@@ -1,10 +1,11 @@
-from vyper.evm.opcodes import version_check
-from vyper.codegen.ir_node import IRnode
-from vyper.codegen.core import clamp_basetype, clamp
-from vyper.codegen.types import is_integer_type, is_decimal_type
-from vyper.exceptions import CompilerPanic
-import math
 import decimal
+import math
+
+from vyper.codegen.core import clamp, clamp_basetype
+from vyper.codegen.ir_node import IRnode
+from vyper.codegen.types import BaseType, is_decimal_type, is_integer_type
+from vyper.evm.opcodes import version_check
+from vyper.exceptions import CompilerPanic, TypeCheckFailure, UnimplementedException
 
 
 def calculate_largest_power(a: int, num_bits: int, is_signed: bool) -> int:
@@ -128,8 +129,9 @@ def calculate_largest_base(b: int, num_bits: int, is_signed: bool) -> int:
     return a
 
 
-def safe_add(x: IRnode, y: IRnode):
-    # precondition: x.typ.typ == t.typ.typ
+# def safe_add(x: IRnode, y: IRnode) -> IRnode:
+def safe_add(x, y):
+    assert x.typ is not None and x.typ == y.typ and isinstance(x.typ, BaseType)
     num_info = x.typ._num_info
 
     res = IRnode.from_list(["add", x, y], typ=x.typ.typ)
@@ -145,19 +147,21 @@ def safe_add(x: IRnode, y: IRnode):
             # else:
             #   ans >= l  # aka (iszero (ans < l))
             # aka: (r < 0) == (ans < l)
-            clamp = ["eq", ["slt", y, 0], ["slt", res, x]]
+            ok = ["eq", ["slt", y, 0], ["slt", res, x]]
         else:
             # note this is "equivalent" to the unsigned form
             # of the above (because y < 0 == False)
             #       ["eq", ["lt", y, 0], ["lt", res, x]]
-            clamp = ["ge", res, x]
+            ok = ["ge", res, x]
 
-        return b1.resolve(["seq", clamp, res])
+        ret = IRnode.from_list(["seq", ["assert", ok], res])
+        return b1.resolve(ret)
 
     raise CompilerPanic("unreachable")  # pragma: notest
 
 
-def safe_sub(x: IRnode, y: IRnode):
+# def safe_sub(x: IRnode, y: IRnode) -> IRnode:
+def safe_sub(x, y):
     num_info = x.typ._num_info
 
     res = IRnode.from_list(["sub", x, y], typ=x.typ.typ)
@@ -180,12 +184,14 @@ def safe_sub(x: IRnode, y: IRnode):
             #       ["eq", ["lt", y, 0], ["gt", res, x]]
             ok = ["le", res, x]
 
-        return b1.resolve(["seq", ["assert", ok], res])
+        ret = IRnode.from_list(["seq", ["assert", ok], res])
+        return b1.resolve(ret)
 
     raise CompilerPanic("unreachable")  # pragma: notest
 
 
-def safe_mul(x: IRnode, y: IRnode):
+# def safe_mul(x: IRnode, y: IRnode) -> IRnode:
+def safe_mul(x, y):
     # precondition: x.typ.typ == y.typ.typ
     num_info = x.typ._num_info
 
@@ -247,7 +253,8 @@ def safe_mul(x: IRnode, y: IRnode):
         return b1.resolve(res)
 
 
-def safe_div(x: IRnode, y: IRnode):
+# def safe_div(x: IRnode, y: IRnode) -> IRnode:
+def safe_div(x, y):
     num_info = x.typ._num_info
 
     ok = IRnode(1)  # true
@@ -266,36 +273,41 @@ def safe_div(x: IRnode, y: IRnode):
         elif y.is_literal and y.value == -1:
             ok = ["ne", y, upper_bound]
 
+    check = ["assert", ok]
+
     if is_decimal_type(x.typ):
         lo, hi = num_info.bounds
-        if max(abs(lo), abs(hi)) * num_info.divisor > 2**256 - 1:
+        if max(abs(lo), abs(hi)) * num_info.divisor > 2 ** 256 - 1:
             # stub to prevent us from adding fixed point numbers we don't know
             # how to deal with
             raise UnimplementedException("safe mul for decimal{num_info.bits}x{num_info.decimals}")
         x = ["mul", x, int(num_info.divisor)]
 
     DIV = "sdiv" if num_info.is_signed else "div"
-    return ["seq", ["assert", ok], [DIV, x, clamp("gt", y, 0)]]
+
+    return IRnode.from_list(["seq", check, [DIV, x, clamp("gt", y, 0)]])
 
 
-def safe_mod(x: IRnode, y: IRnode):
+# def safe_mod(x: IRnode, y: IRnode) -> IRnode:
+def safe_mod(x, y):
     num_info = x.typ._num_info
     MOD = "smod" if num_info.is_signed else "mod"
-    return ["seq", [MOD, x, clamp("gt", y, 0)]]
+    return IRnode.from_list([MOD, x, clamp("gt", y, 0)])
 
 
-def safe_pow(x: IRnode, y: IRnode):
+# def safe_pow(x: IRnode, y: IRnode) -> IRnode:
+def safe_pow(x, y):
     num_info = x.typ._num_info
     if not is_integer_type(x.typ):
         # type checker should have caught this
         raise TypeCheckFailure("non-integer pow")
 
-    if x.is_literal:
+    if isinstance(x.value, int):
         upper_bound = calculate_largest_power(x.value, num_info.bits, num_info.is_signed) + 1
         # for signed integers, this also prevents negative values
         ok = ["lt", y, upper_bound]
 
-    elif y.is_literal:
+    elif isinstance(y.value, int):
         upper_bound = calculate_largest_base(y.value, num_info.bits, num_info.is_signed) + 1
         if num_info.is_signed:
             ok = ["and", ["slt", x, upper_bound], ["sgt", x, -upper_bound]]
@@ -307,4 +319,4 @@ def safe_pow(x: IRnode, y: IRnode):
         # remove the check in `vyper/context/types/value/numeric.py`
         return
 
-    return ["seq", ["assert", ok], ["exp", x, y]]
+    return IRnode.from_list(["seq", ["assert", ok], ["exp", x, y]])
