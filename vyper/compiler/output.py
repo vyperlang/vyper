@@ -108,7 +108,7 @@ def build_metadata_output(compiler_data: CompilerData) -> dict:
         ret = vars(sig)
         ret["return_type"] = str(ret["return_type"])
         ret["_ir_identifier"] = sig._ir_identifier
-        for attr in ("gas", "func_ast_code"):
+        for attr in ("gas_estimate", "func_ast_code"):
             del ret[attr]
         for attr in ("args", "base_args", "default_args"):
             if attr in ret:
@@ -132,7 +132,7 @@ def build_abi_output(compiler_data: CompilerData) -> list:
     abi = compiler_data.vyper_module_folded._metadata["type"].to_abi_dict()
     if compiler_data.show_gas_estimates:
         # Add gas estimates for each function to ABI
-        gas_estimates = build_gas_estimates(compiler_data.ir_runtime)
+        gas_estimates = build_gas_estimates(compiler_data.function_signatures)
         for func in abi:
             try:
                 func_signature = func["name"]
@@ -143,7 +143,6 @@ def build_abi_output(compiler_data: CompilerData) -> list:
             func_name, _, _ = func_signature.partition("(")
             # This check ensures we skip __init__ since it has no estimate
             if func_name in gas_estimates:
-                # TODO: mutation
                 func["gas"] = gas_estimates[func_name]
     return abi
 
