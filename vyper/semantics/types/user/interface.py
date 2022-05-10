@@ -4,13 +4,14 @@ from typing import Dict, List, Tuple, Union
 from vyper import ast as vy_ast
 from vyper.abi_types import ABI_Address, ABIType
 from vyper.ast.validation import validate_call_args
-from vyper.exceptions import InterfaceViolation, NamespaceCollision, StructureException
+from vyper.exceptions import InterfaceViolation, NamespaceCollision, StructureException, UnknownAttribute
 from vyper.semantics.namespace import get_namespace, validate_identifier
 from vyper.semantics.types.bases import DataLocation, MemberTypeDefinition, ValueTypeDefinition
 from vyper.semantics.types.function import ContractFunction
 from vyper.semantics.types.user.event import Event
 from vyper.semantics.types.value.address import AddressDefinition
 from vyper.semantics.validation.utils import validate_expected_type, validate_unique_method_ids
+from vyper.semantics.validation.levenshtein_utils import get_levenshtein_error_suggestions
 
 
 class InterfaceDefinition(MemberTypeDefinition, ValueTypeDefinition):
@@ -54,6 +55,13 @@ class InterfacePrimitive:
 
     def __repr__(self):
         return f"{self._id} declaration object"
+
+    # follow MemberTypeDefinition API
+    def get_member(self, key, node):
+        if key in self.events:
+            return self.events[key]
+        suggestions_str = get_levenshtein_error_suggestions(key, self.members, 0.3)
+        raise UnknownAttribute(f"{self} has no member '{key}'. {suggestions_str}", node)
 
     def from_annotation(
         self,

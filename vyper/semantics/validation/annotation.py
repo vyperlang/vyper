@@ -80,7 +80,7 @@ class StatementAnnotationVisitor(_AnnotationVisitorBase):
         self.expr_visitor.visit(node.test)
 
     def visit_Log(self, node):
-        node._metadata["type"] = self.namespace[node.value.func.id]
+        node._metadata["type"] = get_exact_type_from_node(node.value.func)
         self.expr_visitor.visit(node.value)
 
     def visit_Return(self, node):
