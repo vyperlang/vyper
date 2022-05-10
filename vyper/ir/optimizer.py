@@ -252,7 +252,8 @@ def _optimize_arith(binop, args, ann, parent_op):
             # x < 1 => x <= 0
             new_rhs = rhs + 1 if op_is_gt else rhs - 1
 
-            if _wrap(new_rhs) != new_rhs:
+            in_bounds = _wrap(new_rhs) == new_rhs
+            if not in_bounds:
                 # always false. ex. (gt x MAX_UINT256)
                 # note that the wrapped version (ge x 0) is always true.
                 new_val = 0
