@@ -104,7 +104,12 @@ SHA256_BASE_GAS = 60
 SHA256_PER_WORD_GAS = 12
 
 
-class _SimpleBuiltinFunction:
+class _BuiltinFunction:
+    def __repr__(self):
+        return f"builtin function {self._id}"
+
+
+class _SimpleBuiltinFunction(_BuiltinFunction):
     def fetch_call_return(self, node):
         validate_call_args(node, len(self._inputs), getattr(self, "_kwargs", []))
         for arg, (_, expected) in zip(node.args, self._inputs):
@@ -170,7 +175,7 @@ class Ceil(_SimpleBuiltinFunction):
         )
 
 
-class Convert:
+class Convert(_BuiltinFunction):
 
     _id = "convert"
 
@@ -248,7 +253,7 @@ def _build_adhoc_slice_node(sub: IRnode, start: IRnode, length: IRnode, context:
     return IRnode.from_list(node, typ=ByteArrayType(length.value), location=MEMORY)
 
 
-class Slice:
+class Slice(_BuiltinFunction):
 
     _id = "slice"
     _inputs = [("b", ("Bytes", "bytes32", "String")), ("start", "uint256"), ("length", "uint256")]
@@ -452,7 +457,7 @@ class Len(_SimpleBuiltinFunction):
         return get_bytearray_length(arg)
 
 
-class Concat:
+class Concat(_BuiltinFunction):
 
     _id = "concat"
 
@@ -686,7 +691,7 @@ class Sha256(_SimpleBuiltinFunction):
         )
 
 
-class MethodID:
+class MethodID(_BuiltinFunction):
 
     _id = "method_id"
 
@@ -951,7 +956,7 @@ class Extract32(_SimpleBuiltinFunction):
         )
 
 
-class AsWeiValue:
+class AsWeiValue(_BuiltinFunction):
 
     _id = "as_wei_value"
     _inputs = [("value", NumericAbstractType()), ("unit", "str_literal")]
@@ -1251,7 +1256,7 @@ class BlockHash(_SimpleBuiltinFunction):
         )
 
 
-class RawLog:
+class RawLog(_BuiltinFunction):
 
     _id = "raw_log"
     _inputs = [("topics", "*"), ("data", ("bytes32", "Bytes"))]
@@ -1652,10 +1657,13 @@ class CreateForwarderTo(_SimpleBuiltinFunction):
         )
 
 
-class _UnsafeMath:
+class _UnsafeMath(_BuiltinFunction):
 
     # TODO add unsafe math for `decimal`s
     _inputs = [("a", IntegerAbstractType()), ("b", IntegerAbstractType())]
+
+    def __repr__(self):
+        return f"builtin function unsafe_{self.op}"
 
     def fetch_call_return(self, node):
         validate_call_args(node, 2)
@@ -1714,7 +1722,7 @@ class UnsafeDiv(_UnsafeMath):
     op = "div"
 
 
-class _MinMax:
+class _MinMax(_BuiltinFunction):
 
     _inputs = [("a", NumericAbstractType()), ("b", NumericAbstractType())]
 
@@ -1855,7 +1863,7 @@ else:
         )
 
 
-class Empty:
+class Empty(_BuiltinFunction):
 
     _id = "empty"
     _inputs = [("typename", "*")]

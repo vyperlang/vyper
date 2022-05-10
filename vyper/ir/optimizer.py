@@ -378,9 +378,6 @@ def optimize(node: IRnode, parent: Optional[IRnode] = None) -> IRnode:
         annotation=annotation,
         add_gas_estimate=add_gas_estimate,
     )
-    if node.total_gas is not None:
-        ret.total_gas = node.total_gas - node.gas + ret.gas
-        ret.func_name = node.func_name
 
     if optimize_more:
         ret = optimize(ret, parent=parent)

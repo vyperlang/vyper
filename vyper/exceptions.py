@@ -18,7 +18,7 @@ class ExceptionList(list):
             raise self[0]
         elif len(self) > 1:
             err_msg = ["Compilation failed with the following errors:"]
-            err_msg += [f"{type(i).__name__}: {i}" for i in self]
+            err_msg += [f"{type(i).__name__}: {i}" for i in reversed(self)]
             raise VyperException("\n\n".join(err_msg))
 
 
