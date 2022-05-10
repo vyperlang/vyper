@@ -17,6 +17,8 @@ from vyper.codegen.core import (
     add_ofst,
     bytes_data_ptr,
     check_external_call,
+    clamp,
+    clamp2,
     clamp_basetype,
     copy_bytes,
     ensure_in_memory,
@@ -102,7 +104,12 @@ SHA256_BASE_GAS = 60
 SHA256_PER_WORD_GAS = 12
 
 
-class _SimpleBuiltinFunction:
+class _BuiltinFunction:
+    def __repr__(self):
+        return f"builtin function {self._id}"
+
+
+class _SimpleBuiltinFunction(_BuiltinFunction):
     def fetch_call_return(self, node):
         validate_call_args(node, len(self._inputs), getattr(self, "_kwargs", []))
         for arg, (_, expected) in zip(node.args, self._inputs):
@@ -168,7 +175,7 @@ class Ceil(_SimpleBuiltinFunction):
         )
 
 
-class Convert:
+class Convert(_BuiltinFunction):
 
     _id = "convert"
 
@@ -246,7 +253,7 @@ def _build_adhoc_slice_node(sub: IRnode, start: IRnode, length: IRnode, context:
     return IRnode.from_list(node, typ=ByteArrayType(length.value), location=MEMORY)
 
 
-class Slice:
+class Slice(_BuiltinFunction):
 
     _id = "slice"
     _inputs = [("b", ("Bytes", "bytes32", "String")), ("start", "uint256"), ("length", "uint256")]
@@ -387,7 +394,6 @@ class Slice:
                 # e.g. start == byte 0 -> we copy to dst_data + 0
                 #      start == byte 7 -> we copy to dst_data - 7
                 #      start == byte 33 -> we copy to dst_data - 1
-                # TODO add optimizer rule for modulus-powers-of-two
                 copy_dst = IRnode.from_list(
                     ["sub", dst_data, ["mod", start, 32]], location=dst.location
                 )
@@ -451,7 +457,7 @@ class Len(_SimpleBuiltinFunction):
         return get_bytearray_length(arg)
 
 
-class Concat:
+class Concat(_BuiltinFunction):
 
     _id = "concat"
 
@@ -685,7 +691,7 @@ class Sha256(_SimpleBuiltinFunction):
         )
 
 
-class MethodID:
+class MethodID(_BuiltinFunction):
 
     _id = "method_id"
 
@@ -892,7 +898,9 @@ class Extract32(_SimpleBuiltinFunction):
                     "with",
                     "_sub",
                     sub,
-                    elementgetter(["div", ["clamp", 0, index, ["sub", lengetter, 32]], 32]),
+                    elementgetter(
+                        ["div", clamp2(0, index, ["sub", lengetter, 32], signed=True), 32]
+                    ),
                 ],
                 typ=BaseType(ret_type),
                 annotation="extracting 32 bytes",
@@ -911,7 +919,7 @@ class Extract32(_SimpleBuiltinFunction):
                         [
                             "with",
                             "_index",
-                            ["clamp", 0, index, ["sub", "_len", 32]],
+                            clamp2(0, index, ["sub", "_len", 32], signed=True),
                             [
                                 "with",
                                 "_mi32",
@@ -948,7 +956,7 @@ class Extract32(_SimpleBuiltinFunction):
         )
 
 
-class AsWeiValue:
+class AsWeiValue(_BuiltinFunction):
 
     _id = "as_wei_value"
     _inputs = [("value", NumericAbstractType()), ("unit", "str_literal")]
@@ -1243,12 +1251,12 @@ class BlockHash(_SimpleBuiltinFunction):
     @validate_inputs
     def build_IR(self, expr, args, kwargs, contact):
         return IRnode.from_list(
-            ["blockhash", ["uclamplt", ["clampge", args[0], ["sub", ["number"], 256]], "number"]],
+            ["blockhash", clamp("lt", clamp("sge", args[0], ["sub", ["number"], 256]), "number")],
             typ=BaseType("bytes32"),
         )
 
 
-class RawLog:
+class RawLog(_BuiltinFunction):
 
     _id = "raw_log"
     _inputs = [("topics", "*"), ("data", ("bytes32", "Bytes"))]
@@ -1649,10 +1657,13 @@ class CreateForwarderTo(_SimpleBuiltinFunction):
         )
 
 
-class _UnsafeMath:
+class _UnsafeMath(_BuiltinFunction):
 
     # TODO add unsafe math for `decimal`s
     _inputs = [("a", IntegerAbstractType()), ("b", IntegerAbstractType())]
+
+    def __repr__(self):
+        return f"builtin function unsafe_{self.op}"
 
     def fetch_call_return(self, node):
         validate_call_args(node, 2)
@@ -1711,7 +1722,7 @@ class UnsafeDiv(_UnsafeMath):
     op = "div"
 
 
-class _MinMax:
+class _MinMax(_BuiltinFunction):
 
     _inputs = [("a", NumericAbstractType()), ("b", NumericAbstractType())]
 
@@ -1852,7 +1863,7 @@ else:
         )
 
 
-class Empty:
+class Empty(_BuiltinFunction):
 
     _id = "empty"
     _inputs = [("typename", "*")]

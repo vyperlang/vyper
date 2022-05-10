@@ -11,18 +11,6 @@ DUP_OFFSET = 0x7F
 SWAP_OFFSET = 0x8F
 
 
-CLAMP_OP_NAMES = {
-    "uclamplt",
-    "uclample",
-    "clamplt",
-    "clample",
-    "uclampgt",
-    "uclampge",
-    "clampgt",
-    "clampge",
-}
-
-
 def num_to_bytearray(x):
     o = []
     while x > 0:
@@ -510,7 +498,8 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         assert isinstance(padding, int), "non-int padding"
 
         begincode = mksymbol("runtime_begin")
-        subcode = _compile_to_assembly(ir, {}, existing_labels, None, 0)
+
+        subcode = _compile_to_assembly(ir)
 
         o = []
 
@@ -560,98 +549,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         o.extend(["ISZERO"])
         o.extend(_assert_false())
         return o
-    # Unsigned/signed clamp, check less-than
-    elif code.value in CLAMP_OP_NAMES:
-        if isinstance(code.args[0].value, int) and isinstance(code.args[1].value, int):
-            # Checks for clamp errors at compile time as opposed to run time
-            # TODO move these to optimizer.py
-            args_0_val = code.args[0].value
-            args_1_val = code.args[1].value
-            is_free_of_clamp_errors = any(
-                (
-                    code.value in ("uclamplt", "clamplt") and 0 <= args_0_val < args_1_val,
-                    code.value in ("uclample", "clample") and 0 <= args_0_val <= args_1_val,
-                    code.value in ("uclampgt", "clampgt") and 0 <= args_0_val > args_1_val,
-                    code.value in ("uclampge", "clampge") and 0 <= args_0_val >= args_1_val,
-                )
-            )
-            if is_free_of_clamp_errors:
-                return _compile_to_assembly(
-                    code.args[0],
-                    withargs,
-                    existing_labels,
-                    break_dest,
-                    height,
-                )
-            else:
-                raise Exception(
-                    f"Invalid {code.value} with values {code.args[0]} and {code.args[1]}"
-                )
-        o = _compile_to_assembly(code.args[0], withargs, existing_labels, break_dest, height)
-        o.extend(
-            _compile_to_assembly(
-                code.args[1],
-                withargs,
-                existing_labels,
-                break_dest,
-                height + 1,
-            )
-        )
-        o.extend(["DUP2"])
-        # Stack: num num bound
-        if code.value == "uclamplt":
-            o.extend(["LT", "ISZERO"])
-        elif code.value == "clamplt":
-            o.extend(["SLT", "ISZERO"])
-        elif code.value == "uclample":
-            o.extend(["GT"])
-        elif code.value == "clample":
-            o.extend(["SGT"])
-        elif code.value == "uclampgt":
-            o.extend(["GT", "ISZERO"])
-        elif code.value == "clampgt":
-            o.extend(["SGT", "ISZERO"])
-        elif code.value == "uclampge":
-            o.extend(["LT"])
-        elif code.value == "clampge":
-            o.extend(["SLT"])
-        o.extend(_assert_false())
-        return o
-    # Signed clamp, check against upper and lower bounds
-    elif code.value in ("clamp", "uclamp"):
-        comp1 = "SGT" if code.value == "clamp" else "GT"
-        comp2 = "SLT" if code.value == "clamp" else "LT"
-        o = _compile_to_assembly(code.args[0], withargs, existing_labels, break_dest, height)
-        o.extend(
-            _compile_to_assembly(
-                code.args[1],
-                withargs,
-                existing_labels,
-                break_dest,
-                height + 1,
-            )
-        )
-        o.extend(["DUP1"])
-        o.extend(
-            _compile_to_assembly(
-                code.args[2],
-                withargs,
-                existing_labels,
-                break_dest,
-                height + 3,
-            )
-        )
-        o.extend(["SWAP1", comp1])
-        o.extend(_assert_false())
-        o.extend(["DUP1", "SWAP2", "SWAP1", comp2])
-        o.extend(_assert_false())
-        return o
-    # Checks that a value is nonzero
-    elif code.value == "clamp_nonzero":
-        o = _compile_to_assembly(code.args[0], withargs, existing_labels, break_dest, height)
-        o.extend(["DUP1", "ISZERO"])
-        o.extend(_assert_false())
-        return o
+
     # SHA3 a single value
     elif code.value == "sha3_32":
         o = _compile_to_assembly(code.args[0], withargs, existing_labels, break_dest, height)
@@ -856,18 +754,23 @@ def _prune_unreachable_code(assembly):
     # end of a function that has already returned or reverted. This should
     # be addressed in the IR, but for now we do a final sanity check here
     # to avoid unnecessary bytecode bloat.
+    changed = False
     i = 0
     while i < len(assembly) - 1:
         if assembly[i] in ("JUMP", "RETURN", "REVERT", "STOP") and not (
             is_symbol(assembly[i + 1]) or assembly[i + 1] == "JUMPDEST"
         ):
+            changed = True
             del assembly[i + 1]
         else:
             i += 1
 
+    return changed
+
 
 def _prune_inefficient_jumps(assembly):
     # prune sequences `_sym_x JUMP _sym_x JUMPDEST` to `_sym_x JUMPDEST`
+    changed = False
     i = 0
     while i < len(assembly) - 4:
         if (
@@ -877,9 +780,12 @@ def _prune_inefficient_jumps(assembly):
             and assembly[i + 3] == "JUMPDEST"
         ):
             # delete _sym_x JUMP
+            changed = True
             del assembly[i : i + 2]
         else:
             i += 1
+
+    return changed
 
 
 def _merge_jumpdests(assembly):
@@ -888,6 +794,7 @@ def _merge_jumpdests(assembly):
     # intermediate jumps.
     # (Usually a chain of JUMPs is created by a nested block,
     # or some nested if statements.)
+    changed = False
     i = 0
     while i < len(assembly) - 3:
         if is_symbol(assembly[i]) and assembly[i + 1] == "JUMPDEST":
@@ -900,6 +807,7 @@ def _merge_jumpdests(assembly):
                 for j in range(len(assembly)):
                     if assembly[j] == current_symbol and i != j:
                         assembly[j] = new_symbol
+                        changed = True
             elif is_symbol(assembly[i + 2]) and assembly[i + 3] == "JUMP":
                 # _sym_x JUMPDEST _sym_y JUMP
                 # replace all instances of _sym_x with _sym_y
@@ -908,14 +816,20 @@ def _merge_jumpdests(assembly):
                 for j in range(len(assembly)):
                     if assembly[j] == current_symbol and i != j:
                         assembly[j] = new_symbol
+                        changed = True
 
         i += 1
 
+    return changed
+
 
 def _merge_iszero(assembly):
+    changed = False
+
     i = 0
     while i < len(assembly) - 2:
         if assembly[i : i + 3] == ["ISZERO", "ISZERO", "ISZERO"]:
+            changed = True
             del assembly[i : i + 2]
         else:
             i += 1
@@ -928,12 +842,17 @@ def _merge_iszero(assembly):
             and is_symbol(assembly[i + 2])
             and assembly[i + 3] == "JUMPI"
         ):
+            changed = True
             del assembly[i : i + 2]
         else:
             i += 1
 
+    return changed
+
 
 def _prune_unused_jumpdests(assembly):
+    changed = False
+
     used_jumpdests = set()
 
     # find all used jumpdests
@@ -945,27 +864,35 @@ def _prune_unused_jumpdests(assembly):
     i = 0
     while i < len(assembly) - 2:
         if is_symbol(assembly[i]) and assembly[i] not in used_jumpdests:
+            changed = True
             del assembly[i : i + 2]
         else:
             i += 1
 
+    return changed
+
 
 def _stack_peephole_opts(assembly):
+    changed = False
     i = 0
     while i < len(assembly) - 2:
         # usually generated by with statements that return their input like
         # (with x (...x))
         if assembly[i : i + 3] == ["DUP1", "SWAP1", "POP"]:
             # DUP1 SWAP1 POP == no-op
+            changed = True
             del assembly[i : i + 3]
             continue
         # usually generated by nested with statements that don't return like
         # (with x (with y ...))
         if assembly[i : i + 3] == ["SWAP1", "POP", "POP"]:
             # SWAP1 POP POP == POP POP
+            changed = True
             del assembly[i]
             continue
         i += 1
+
+    return changed
 
 
 # optimize assembly, in place
@@ -974,12 +901,20 @@ def _optimize_assembly(assembly):
         if isinstance(x, list):
             _optimize_assembly(x)
 
-    _prune_unreachable_code(assembly)
-    _merge_iszero(assembly)
-    _merge_jumpdests(assembly)
-    _prune_inefficient_jumps(assembly)
-    _prune_unused_jumpdests(assembly)
-    _stack_peephole_opts(assembly)
+    for _ in range(1024):
+        changed = False
+
+        changed |= _prune_unreachable_code(assembly)
+        changed |= _merge_iszero(assembly)
+        changed |= _merge_jumpdests(assembly)
+        changed |= _prune_inefficient_jumps(assembly)
+        changed |= _prune_unused_jumpdests(assembly)
+        changed |= _stack_peephole_opts(assembly)
+
+        if not changed:
+            return
+
+    raise CompilerPanic("infinite loop detected during assembly reduction")  # pragma: notest
 
 
 # Assembles assembly into EVM
