@@ -228,7 +228,7 @@ def _optimize_arith(binop, args, ann, parent_op):
         #    args = ["iszero", args]
 
         elif binop in {"sgt", "gt", "slt", "lt"} and _is_int(args[1]):
-            assert unsigned == (not binop.startswith("s")), "yikes"
+            assert unsigned == (not binop.startswith("s")), "signed opcodes should start with s"
             op_is_gt = binop.endswith("gt")
             rhs = _int(args[1])
 
