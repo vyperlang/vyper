@@ -216,13 +216,6 @@ class Stmt:
 
     def parse_Assert(self):
         test_expr = Expr.parse_value_expr(self.stmt.test, self.context)
-        if test_expr.typ.is_literal:
-            if test_expr.value == 1:
-                # skip literal assertions that always pass
-                # TODO move this to optimizer
-                return IRnode.from_list(["pass"])
-            else:
-                test_expr = test_expr.value
 
         if self.stmt.msg:
             return self._assert_reason(test_expr, self.stmt.msg)

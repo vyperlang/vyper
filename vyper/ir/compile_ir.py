@@ -11,18 +11,6 @@ DUP_OFFSET = 0x7F
 SWAP_OFFSET = 0x8F
 
 
-CLAMP_OP_NAMES = {
-    "uclamplt",
-    "uclample",
-    "clamplt",
-    "clample",
-    "uclampgt",
-    "uclampge",
-    "clampgt",
-    "clampge",
-}
-
-
 def num_to_bytearray(x):
     o = []
     while x > 0:
@@ -561,98 +549,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         o.extend(["ISZERO"])
         o.extend(_assert_false())
         return o
-    # Unsigned/signed clamp, check less-than
-    elif code.value in CLAMP_OP_NAMES:
-        if isinstance(code.args[0].value, int) and isinstance(code.args[1].value, int):
-            # Checks for clamp errors at compile time as opposed to run time
-            # TODO move these to optimizer.py
-            args_0_val = code.args[0].value
-            args_1_val = code.args[1].value
-            is_free_of_clamp_errors = any(
-                (
-                    code.value in ("uclamplt", "clamplt") and 0 <= args_0_val < args_1_val,
-                    code.value in ("uclample", "clample") and 0 <= args_0_val <= args_1_val,
-                    code.value in ("uclampgt", "clampgt") and 0 <= args_0_val > args_1_val,
-                    code.value in ("uclampge", "clampge") and 0 <= args_0_val >= args_1_val,
-                )
-            )
-            if is_free_of_clamp_errors:
-                return _compile_to_assembly(
-                    code.args[0],
-                    withargs,
-                    existing_labels,
-                    break_dest,
-                    height,
-                )
-            else:
-                raise Exception(
-                    f"Invalid {code.value} with values {code.args[0]} and {code.args[1]}"
-                )
-        o = _compile_to_assembly(code.args[0], withargs, existing_labels, break_dest, height)
-        o.extend(
-            _compile_to_assembly(
-                code.args[1],
-                withargs,
-                existing_labels,
-                break_dest,
-                height + 1,
-            )
-        )
-        o.extend(["DUP2"])
-        # Stack: num num bound
-        if code.value == "uclamplt":
-            o.extend(["LT", "ISZERO"])
-        elif code.value == "clamplt":
-            o.extend(["SLT", "ISZERO"])
-        elif code.value == "uclample":
-            o.extend(["GT"])
-        elif code.value == "clample":
-            o.extend(["SGT"])
-        elif code.value == "uclampgt":
-            o.extend(["GT", "ISZERO"])
-        elif code.value == "clampgt":
-            o.extend(["SGT", "ISZERO"])
-        elif code.value == "uclampge":
-            o.extend(["LT"])
-        elif code.value == "clampge":
-            o.extend(["SLT"])
-        o.extend(_assert_false())
-        return o
-    # Signed clamp, check against upper and lower bounds
-    elif code.value in ("clamp", "uclamp"):
-        comp1 = "SGT" if code.value == "clamp" else "GT"
-        comp2 = "SLT" if code.value == "clamp" else "LT"
-        o = _compile_to_assembly(code.args[0], withargs, existing_labels, break_dest, height)
-        o.extend(
-            _compile_to_assembly(
-                code.args[1],
-                withargs,
-                existing_labels,
-                break_dest,
-                height + 1,
-            )
-        )
-        o.extend(["DUP1"])
-        o.extend(
-            _compile_to_assembly(
-                code.args[2],
-                withargs,
-                existing_labels,
-                break_dest,
-                height + 3,
-            )
-        )
-        o.extend(["SWAP1", comp1])
-        o.extend(_assert_false())
-        o.extend(["DUP1", "SWAP2", "SWAP1", comp2])
-        o.extend(_assert_false())
-        return o
-    # Checks that a value is nonzero
-    elif code.value == "clamp_nonzero":
-        o = _compile_to_assembly(code.args[0], withargs, existing_labels, break_dest, height)
-        o.extend(["DUP1", "ISZERO"])
-        o.extend(_assert_false())
-        return o
+
     # SHA3 a single value
     elif code.value == "sha3_32":
         o = _compile_to_assembly(code.args[0], withargs, existing_labels, break_dest, height)
