@@ -4,14 +4,19 @@ from typing import Dict, List, Tuple, Union
 from vyper import ast as vy_ast
 from vyper.abi_types import ABI_Address, ABIType
 from vyper.ast.validation import validate_call_args
-from vyper.exceptions import InterfaceViolation, NamespaceCollision, StructureException, UnknownAttribute
+from vyper.exceptions import (
+    InterfaceViolation,
+    NamespaceCollision,
+    StructureException,
+    UnknownAttribute,
+)
 from vyper.semantics.namespace import get_namespace, validate_identifier
 from vyper.semantics.types.bases import DataLocation, MemberTypeDefinition, ValueTypeDefinition
 from vyper.semantics.types.function import ContractFunction
 from vyper.semantics.types.user.event import Event
 from vyper.semantics.types.value.address import AddressDefinition
-from vyper.semantics.validation.utils import validate_expected_type, validate_unique_method_ids
 from vyper.semantics.validation.levenshtein_utils import get_levenshtein_error_suggestions
+from vyper.semantics.validation.utils import validate_expected_type, validate_unique_method_ids
 
 
 class InterfaceDefinition(MemberTypeDefinition, ValueTypeDefinition):
