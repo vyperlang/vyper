@@ -54,7 +54,13 @@ from vyper.exceptions import (
     UnfoldableNode,
     ZeroDivisionException,
 )
-from vyper.semantics.types import BoolDefinition, DynamicArrayPrimitive, TupleDefinition
+from vyper.semantics.types import (
+    ArrayDefinition,
+    BoolDefinition,
+    DynamicArrayDefinition,
+    DynamicArrayPrimitive,
+    TupleDefinition,
+)
 from vyper.semantics.types.abstract import (
     ArrayValueAbstractType,
     BytesAbstractType,
@@ -64,7 +70,6 @@ from vyper.semantics.types.abstract import (
     UnsignedIntegerAbstractType,
 )
 from vyper.semantics.types.bases import DataLocation
-from vyper.semantics.types.indexable.sequence import ArrayDefinition
 from vyper.semantics.types.utils import get_type_from_annotation
 from vyper.semantics.types.value.address import AddressDefinition
 from vyper.semantics.types.value.array_value import (
@@ -1333,7 +1338,10 @@ class BlockHash(_SimpleBuiltinFunction):
 class RawLog(_BuiltinFunction):
 
     _id = "raw_log"
-    _inputs = [("topics", "*"), ("data", (Bytes32Definition(), BytesArrayPrimitive()))]
+    _inputs = [
+        ("topics", DynamicArrayDefinition(Bytes32Definition(), 4)),
+        ("data", (Bytes32Definition(), BytesArrayPrimitive())),
+    ]
 
     def fetch_call_return(self, node):
         self.infer_arg_types(node)
@@ -1344,12 +1352,7 @@ class RawLog(_BuiltinFunction):
             raise InvalidType("Expecting a list of 0-4 topics as first argument", node.args[0])
 
         if node.args[0].elements:
-            topic_types = get_possible_types_from_node(node.args[0])
-            topic_type = [i for i in topic_types if isinstance(i, ArrayDefinition)].pop()
-            expected_type = ArrayDefinition(Bytes32Definition(), len(node.args[0].elements))
-            validate_expected_type(node.args[0], expected_type)
-        else:
-            topic_type = None
+            validate_expected_type(node.args[0], self._inputs[0][1])
 
         data_type = get_possible_types_from_node(node.args[1]).pop()
 
@@ -1359,23 +1362,32 @@ class RawLog(_BuiltinFunction):
                 f"Expected {expected_str} but value can only be cast as {data_type}", node.args[1]
             )
 
-        return [topic_type, data_type]
+        return [self._inputs[0][1], data_type]
 
-    @validate_inputs
-    def build_IR(self, expr, args, kwargs, context):
-        topics = args[0]
-        if args[1].typ == BaseType("bytes32"):
+    def build_IR(self, expr, context):
+        topics = []
+        for a in expr.args[0].elements:
+            r = Expr.parse_value_expr(a, context)
+            topics.append(r)
+
+        _, data_type = self.infer_arg_types(expr)
+        if isinstance(data_type, Bytes32Definition):
+            data = Expr.parse_value_expr(expr.args[1], context)
+        else:
+            data = Expr(expr.args[1], context).ir_node
+
+        if data.typ == BaseType("bytes32"):
             placeholder = context.new_internal_variable(BaseType("bytes32"))
             return IRnode.from_list(
                 [
                     "seq",
                     # TODO use make_setter
-                    ["mstore", placeholder, unwrap_location(args[1])],
+                    ["mstore", placeholder, unwrap_location(data)],
                     ["log" + str(len(topics)), placeholder, 32] + topics,
                 ],
             )
 
-        input_buf = ensure_in_memory(args[1], context)
+        input_buf = ensure_in_memory(data, context)
 
         return IRnode.from_list(
             [

@@ -3,10 +3,13 @@ import functools
 from vyper import ast as vy_ast
 from vyper.codegen.expr import Expr
 from vyper.exceptions import CompilerPanic, InvalidLiteral, StructureException
-from vyper.semantics.types.abstract import UnsignedIntegerAbstractType
+from vyper.semantics.types import (
+    ArrayDefinition,
+    BytesArrayDefinition,
+    StringDefinition,
+    UnsignedIntegerAbstractType,
+)
 from vyper.semantics.types.bases import BaseTypeDefinition
-from vyper.semantics.types.indexable.sequence import ArrayDefinition
-from vyper.semantics.types.value.array_value import BytesArrayDefinition, StringDefinition
 
 
 class Optional(object):
@@ -24,14 +27,6 @@ class TypeTypeDefinition:
 
 
 def process_arg(index, arg, expected_arg_type, function_name, context):
-    # Workaround for non-empty topics argument to raw_log
-    if isinstance(arg, vy_ast.List):
-        ret = []
-        for a in arg.elements:
-            r = Expr.parse_value_expr(a, context)
-            ret.append(r)
-        return ret
-
     if isinstance(expected_arg_type, (BytesArrayDefinition, StringDefinition, ArrayDefinition)):
         return Expr(arg, context).ir_node
 
@@ -42,15 +37,12 @@ def process_arg(index, arg, expected_arg_type, function_name, context):
         return expected_arg_type.typestr
 
     elif isinstance(expected_arg_type, UnsignedIntegerAbstractType):
-        if isinstance(arg, (vy_ast.Int, vy_ast.Decimal)):
+        if isinstance(arg, vy_ast.Int):
             return arg.n
 
     else:
-        # Workaround for empty topics argument to raw_log
-        if expected_arg_type is None:
-            return arg
-
-        elif expected_arg_type == "str_literal":
+        # Handle cases where expected_arg_type is a string
+        if expected_arg_type == "str_literal":
             bytez = b""
             for c in arg.s:
                 if ord(c) >= 256:
