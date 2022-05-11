@@ -138,77 +138,24 @@ def _unpack_returndata(buf, fn_sig, call_kwargs, context, expr):
     return unpacker, ret_ofst, ret_len
 
 
-def _external_call_helper(
-    contract_address,
-    fn_sig,
-    args_ir,
-    context,
-    call_kwargs,
-    expr,
-):
-
-    # sanity check
-    assert len(fn_sig.base_args) <= len(args_ir) <= len(fn_sig.args)
-
-    if context.is_constant() and fn_sig.mutability not in ("view", "pure"):
-        # TODO is this already done in type checker?
-        raise StateAccessViolation(
-            f"May not call state modifying function '{fn_sig.name}' "
-            f"within {context.pp_constancy()}.",
-            expr,
-        )
-
-    sub = ["seq"]
-
-    buf, arg_packer, args_ofst, args_len = _pack_arguments(fn_sig, args_ir, context)
-
-    ret_unpacker, ret_ofst, ret_len = _unpack_returndata(buf, fn_sig, call_kwargs, context, expr)
-
-    sub += arg_packer
-
-    if fn_sig.return_type is None and not call_kwargs.skip_contract_check:
-        # if we do not expect return data, check that a contract exists at the
-        # target address. we must perform this check BEFORE the call because
-        # the contract might selfdestruct. on the other hand we can omit this
-        # when we _do_ expect return data because we later check
-        # `returndatasize` (that check works even if the contract
-        # selfdestructs).
-        sub.append(["assert", ["extcodesize", contract_address]])
-
-    gas = call_kwargs.gas
-    value = call_kwargs.value
-    if context.is_constant() or fn_sig.mutability in ("view", "pure"):
-        call_op = ["staticcall", gas, contract_address, args_ofst, args_len, buf, ret_len]
-    else:
-        call_op = ["call", gas, contract_address, value, args_ofst, args_len, buf, ret_len]
-
-    sub.append(check_external_call(call_op))
-
-    fn_type = expr.func._metadata["type"]
-    return_type = new_type_to_old_type(fn_type.return_type)
-    if return_type is not None:
-        sub.append(ret_unpacker)
-
-    return IRnode.from_list(sub, typ=return_type, location=MEMORY)
-
-
-def _get_special_kwargs(call_expr, context):
+def _parse_kwargs(call_expr, context):
     from vyper.codegen.expr import Expr  # TODO rethink this circular import
 
     def _bool(x):
-        assert x in (0, 1), "type checker missed this"
-        return bool(x)
+        assert x.value in (0, 1), "type checker missed this"
+        return bool(x.value)
 
-    call_kwargs = {kw.arg: Expr.parse_value_expr(kw.value, context) for kw in call_expr.keywords}
+    # note: codegen for kwarg values in AST order
+    call_kwargs = {kw.arg: Expr(kw.value, context).ir_node for kw in call_expr.keywords}
 
     ret = _CallKwargs(
-        value=IRnode.from_list(call_kwargs.pop("value", 0)),
-        gas=IRnode.from_list(call_kwargs.pop("gas", "gas")),
-        skip_contract_check=_bool(call_kwargs.pop("skip_contract_check", 0)),
-        default_return_value=call_kwargs.pop("default_return_value"),
+        value = unwrap_location(call_kwargs.pop("value", IRnode(0)))
+        gas = unwrap_location(call_kwargs.pop("gas", IRnode("gas")))
+        skip_contract_check = _bool(call_kwargs.pop("skip_contract_check", IRnode(0)))
+        default_return_value = call_kwargs.pop("default_return_value", None)
     )
 
-    if call_kwargs != {}:
+    if len(call_kwargs) != 0:
         raise TypeCheckFailure(f"Unexpected keyword arguments: {call_kwargs}")
 
     return ret
@@ -218,21 +165,51 @@ def ir_for_external_call(call_expr, context):
     from vyper.codegen.expr import Expr  # TODO rethink this circular import
 
     contract_address = Expr.parse_value_expr(call_expr.func.value, context)
-    call_kwargs = _get_special_kwargs(call_expr, context)
+    call_kwargs = _parse_kwargs(call_expr, context)
     args_ir = [Expr(x, context).ir_node for x in call_expr.args]
 
     assert isinstance(contract_address.typ, InterfaceType)
     contract_name = contract_address.typ.name
-    method_name = call_expr.func.attr
+    method_name = call_expr.func.name
+
     fn_sig = context.sigs[contract_name][method_name]
 
-    ret = _external_call_helper(
-        contract_address,
-        fn_sig,
-        args_ir,
-        context,
-        call_kwargs=call_kwargs,
-        expr=call_expr,
-    )
+    # sanity check
+    assert len(fn_sig.base_args) <= len(args_ir) <= len(fn_sig.args)
 
-    return ret
+    ret = ["seq"]
+
+    buf, arg_packer, args_ofst, args_len = _pack_arguments(fn_sig, args_ir, context)
+
+    ret_unpacker, ret_ofst, ret_len = _unpack_returndata(buf, fn_sig, call_kwargs, context, expr)
+
+    ret += arg_packer
+
+    if fn_sig.return_type is None and not call_kwargs.skip_contract_check:
+        # if we do not expect return data, check that a contract exists at the
+        # target address. we must perform this check BEFORE the call because
+        # the contract might selfdestruct. on the other hand we can omit this
+        # when we _do_ expect return data because we later check
+        # `returndatasize` (that check works even if the contract
+        # selfdestructs).
+        ret.append(["assert", ["extcodesize", contract_address]])
+
+    gas = call_kwargs.gas
+    value = call_kwargs.value
+    if context.is_constant():
+        assert fn_sig.mutability in ("view", "pure"), "typechecker missed this"
+
+    # condition could be fn_sig.mutability in ("view", "pure")
+    if fn_sig.mutability in ("view", "pure"):
+        call_op = ["staticcall", gas, contract_address, args_ofst, args_len, buf, ret_len]
+    else:
+        call_op = ["call", gas, contract_address, value, args_ofst, args_len, buf, ret_len]
+
+    ret.append(check_external_call(call_op))
+
+    fn_type = call_expr.func._metadata["type"]
+    return_type = new_type_to_old_type(fn_type.return_type)
+    if return_type is not None:
+        ret.append(ret_unpacker)
+
+    return IRnode.from_list(ret, typ=return_type, location=MEMORY)
