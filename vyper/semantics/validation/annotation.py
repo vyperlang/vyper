@@ -52,42 +52,42 @@ class StatementAnnotationVisitor(_AnnotationVisitorBase):
         self.namespace = namespace
         self.expr_visitor = ExpressionAnnotationVisitor()
 
-    def visit(self, node, type_=None):
-        super().visit(node, type_)
+    def visit(self, node):
+        super().visit(node)
 
-    def visit_AnnAssign(self, node, type_):
+    def visit_AnnAssign(self, node):
         type_ = get_exact_type_from_node(node.target)
         self.expr_visitor.visit(node.target, type_)
         self.expr_visitor.visit(node.value, type_)
 
-    def visit_Assert(self, node, type_):
+    def visit_Assert(self, node):
         self.expr_visitor.visit(node.test)
 
-    def visit_Assign(self, node, type_):
+    def visit_Assign(self, node):
         type_ = get_exact_type_from_node(node.target)
         self.expr_visitor.visit(node.target, type_)
         self.expr_visitor.visit(node.value, type_)
 
-    def visit_AugAssign(self, node, type_):
+    def visit_AugAssign(self, node):
         type_ = get_exact_type_from_node(node.target)
         self.expr_visitor.visit(node.target, type_)
         self.expr_visitor.visit(node.value, type_)
 
-    def visit_Expr(self, node, type_):
+    def visit_Expr(self, node):
         self.expr_visitor.visit(node.value)
 
-    def visit_If(self, node, type_):
+    def visit_If(self, node):
         self.expr_visitor.visit(node.test)
 
-    def visit_Log(self, node, type_):
+    def visit_Log(self, node):
         node._metadata["type"] = self.namespace[node.value.func.id]
         self.expr_visitor.visit(node.value)
 
-    def visit_Return(self, node, type_):
+    def visit_Return(self, node):
         if node.value is not None:
             self.expr_visitor.visit(node.value, self.func.return_type)
 
-    def visit_For(self, node, type_):
+    def visit_For(self, node):
         if isinstance(node.iter, (vy_ast.Name, vy_ast.Attribute)):
             self.expr_visitor.visit(node.iter)
         # typecheck list literal as static array
