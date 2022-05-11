@@ -1971,7 +1971,15 @@ class Empty(_BuiltinFunction):
 
     def infer_arg_types(self, node):
         validate_call_args(node, 1)
-        input_type = get_type_from_annotation(node.args[0], DataLocation.MEMORY)
+        input_arg = node.args[0]
+        # Struct definitions are not available in the namespace when validate_inputs
+        # calls infer_arg_types. As a workaround, the argument node is annotated
+        # during the initial calls to infer_arg_types during typechecking.
+        if "type" in input_arg._metadata:
+            input_type = input_arg._metadata["type"]
+        else:
+            input_type = get_type_from_annotation(input_arg, DataLocation.MEMORY)
+            input_arg._metadata["type"] = input_type
         return [TypeTypeDefinition(input_type)]
 
     @validate_inputs
