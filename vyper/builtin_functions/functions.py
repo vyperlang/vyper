@@ -1014,8 +1014,6 @@ class Extract32(_SimpleBuiltinFunction):
 class AsWeiValue(_BuiltinFunction):
 
     _id = "as_wei_value"
-    # "str_literal" is a placeholder that gets transformed to DenominationDefinition
-    # during infer_arg_types
     _inputs = [("value", NumericAbstractType()), ("unit", StringDefinition())]
     _return_type = Uint256Definition()
 
@@ -1072,11 +1070,13 @@ class AsWeiValue(_BuiltinFunction):
     def infer_arg_types(self, node):
         validate_expected_type(node.args[0], NumericAbstractType())
         value_type = get_possible_types_from_node(node.args[0]).pop()
-        return [value_type, "str_literal"]
+        denomination_type = get_exact_type_from_node(node.args[1])
+        return [value_type, denomination_type]
 
     @validate_inputs
     def build_IR(self, expr, args, kwargs, context):
-        value, denom_name = args[0], args[1].decode()
+        value = args[0]
+        denom_name = expr.args[1].s
 
         denom_divisor = next(v for k, v in self.wei_denoms.items() if denom_name in k)
         if value.typ.typ == "uint256" or value.typ.typ == "uint8":
