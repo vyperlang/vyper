@@ -10,12 +10,13 @@ from vyper.codegen.core import (
     dummy_node_for_type,
     make_setter,
     needs_clamp,
+    unwrap_location,
     wrap_value_for_external_return,
 )
 from vyper.codegen.ir_node import Encoding, IRnode
 from vyper.codegen.types import InterfaceType, TupleType, get_type_for_exact_size
 from vyper.codegen.types.convert import new_type_to_old_type
-from vyper.exceptions import StateAccessViolation, TypeCheckFailure
+from vyper.exceptions import TypeCheckFailure
 
 
 @dataclass
@@ -149,10 +150,10 @@ def _parse_kwargs(call_expr, context):
     call_kwargs = {kw.arg: Expr(kw.value, context).ir_node for kw in call_expr.keywords}
 
     ret = _CallKwargs(
-        value = unwrap_location(call_kwargs.pop("value", IRnode(0)))
-        gas = unwrap_location(call_kwargs.pop("gas", IRnode("gas")))
-        skip_contract_check = _bool(call_kwargs.pop("skip_contract_check", IRnode(0)))
-        default_return_value = call_kwargs.pop("default_return_value", None)
+        value=unwrap_location(call_kwargs.pop("value", IRnode(0))),
+        gas=unwrap_location(call_kwargs.pop("gas", IRnode("gas"))),
+        skip_contract_check=_bool(call_kwargs.pop("skip_contract_check", IRnode(0))),
+        default_return_value=call_kwargs.pop("default_return_value", None),
     )
 
     if len(call_kwargs) != 0:
@@ -181,7 +182,9 @@ def ir_for_external_call(call_expr, context):
 
     buf, arg_packer, args_ofst, args_len = _pack_arguments(fn_sig, args_ir, context)
 
-    ret_unpacker, ret_ofst, ret_len = _unpack_returndata(buf, fn_sig, call_kwargs, context, expr)
+    ret_unpacker, ret_ofst, ret_len = _unpack_returndata(
+        buf, fn_sig, call_kwargs, context, call_expr
+    )
 
     ret += arg_packer
 

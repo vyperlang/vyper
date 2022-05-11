@@ -2326,7 +2326,7 @@ def foo(_addr: address, _addr2: address) -> int128:
     assert_tx_failed(lambda: c2.foo(c1.address, "0x1234567890123456789012345678901234567890"))
 
 
-def test_default_override(get_contract):
+def test_default_override(get_contract, assert_tx_failed):
     bad_erc20_code = """
 @external
 def transfer(receiver: address, amount: uint256):
@@ -2352,14 +2352,14 @@ def transferBorked(erc20: ERC20, receiver: address, amount: uint256):
     c.safeTransfer(bad_erc20.address, c.address, 0)
 
 
-def test_default_override2(get_contract):
-    bad_code1 = """
+def test_default_override2(get_contract, assert_tx_failed):
+    bad_code_1 = """
 @external
 def return_64_bytes() -> bool:
     return True
     """
 
-    bad_code2 = """
+    bad_code_2 = """
 @external
 def return_64_bytes():
     pass
