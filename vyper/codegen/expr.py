@@ -191,9 +191,7 @@ class Expr:
     def parse_Int(self):
         typ_ = self.expr._metadata.get("type")
         if not typ_:
-            # Workaround for sqrt builtin
-            typ_ = "uint256"
-            # raise CompilerPanic("Type of integer literal is unknown")
+            raise CompilerPanic("Type of integer literal is unknown")
         return IRnode.from_list(self.expr.n, typ=BaseType(str(typ_), is_literal=True))
 
     def parse_Decimal(self):

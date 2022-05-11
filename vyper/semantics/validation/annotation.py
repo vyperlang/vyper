@@ -47,8 +47,8 @@ class StatementAnnotationVisitor(_AnnotationVisitorBase):
         vy_ast.Raise,
     )
 
-    def __init__(self, fn_node: vy_ast.FunctionDef, namespace: dict) -> None:
-        self.func = fn_node._metadata["type"]
+    def __init__(self, namespace: dict, fn_node: vy_ast.FunctionDef = None) -> None:
+        self.func = fn_node._metadata["type"] if fn_node else None
         self.namespace = namespace
         self.expr_visitor = ExpressionAnnotationVisitor()
 

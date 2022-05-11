@@ -2,6 +2,7 @@ from vyper.ast import parse_to_ast
 from vyper.codegen.context import Context
 from vyper.codegen.global_context import GlobalContext
 from vyper.codegen.stmt import parse_body
+from vyper.semantics.validation.local import FunctionNodeVisitor
 
 
 def _strip_source_pos(ir_node):
@@ -10,8 +11,15 @@ def _strip_source_pos(ir_node):
         _strip_source_pos(x)
 
 
-def generate_inline_function(code, variables, memory_allocator):
+def generate_inline_function(code, variables, memory_allocator, namespace):
     ast_code = parse_to_ast(code)
+
+    # Annotate the AST with the provided (temporary) namespace
+    if namespace:
+        sv = FunctionNodeVisitor(vyper_module=ast_code, namespace=namespace)
+        for n in ast_code.body:
+            sv.visit(n)
+
     new_context = Context(
         vars_=variables, global_ctx=GlobalContext(), memory_allocator=memory_allocator
     )

@@ -54,6 +54,7 @@ from vyper.exceptions import (
     UnfoldableNode,
     ZeroDivisionException,
 )
+from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types import (
     ArrayDefinition,
     BoolDefinition,
@@ -1947,9 +1948,15 @@ else:
             placeholder_copy = ["mstore", new_var_pos, arg]
         # Create input variables.
         variables = {"x": VariableRecord(name="x", pos=new_var_pos, typ=x_type, mutable=False)}
+        # Temporary namespace to annotate AST
+        namespace = get_namespace()
+        namespace.update({"x": DecimalDefinition()})
         # Generate inline IR.
         new_ctx, sqrt_ir = generate_inline_function(
-            code=sqrt_code, variables=variables, memory_allocator=context.memory_allocator
+            code=sqrt_code,
+            variables=variables,
+            memory_allocator=context.memory_allocator,
+            namespace=namespace,
         )
         return IRnode.from_list(
             [
