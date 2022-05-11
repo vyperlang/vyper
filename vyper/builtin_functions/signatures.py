@@ -1,57 +1,37 @@
 import functools
 
-from vyper import ast as vy_ast
 from vyper.codegen.expr import Expr
-from vyper.exceptions import CompilerPanic, InvalidLiteral, StructureException
-from vyper.semantics.types import (
-    ArrayDefinition,
-    BytesArrayDefinition,
-    StringDefinition,
-    UnsignedIntegerAbstractType,
-)
+from vyper.codegen.types.convert import new_type_to_old_type
+from vyper.exceptions import CompilerPanic
+from vyper.semantics.types import ArrayDefinition, BytesArrayDefinition, StringDefinition
 from vyper.semantics.types.bases import BaseTypeDefinition
 
 
 class Optional(object):
-    def __init__(self, typ, default):
+    def __init__(self, typ, default, require_literal=False):
         self.typ = typ
         self.default = default
+        self.require_literal = require_literal
 
 
 class TypeTypeDefinition:
-    def __init__(self, typestr):
-        self.typestr = typestr
+    def __init__(self, typedef):
+        self.typedef = typedef
 
     def __repr__(self):
         return f"type({self.typestr})"
 
 
-def process_arg(index, arg, expected_arg_type, function_name, context):
+def process_arg(arg, expected_arg_type, context):
     if isinstance(expected_arg_type, (BytesArrayDefinition, StringDefinition, ArrayDefinition)):
         return Expr(arg, context).ir_node
 
+    # TODO: Builtins should not require value expressions
     elif isinstance(expected_arg_type, BaseTypeDefinition):
         return Expr.parse_value_expr(arg, context)
 
     elif isinstance(expected_arg_type, TypeTypeDefinition):
-        return expected_arg_type.typestr
-
-    elif isinstance(expected_arg_type, UnsignedIntegerAbstractType):
-        if isinstance(arg, vy_ast.Int):
-            return arg.n
-
-    else:
-        # Handle cases where expected_arg_type is a string
-        if expected_arg_type == "str_literal":
-            bytez = b""
-            for c in arg.s:
-                if ord(c) >= 256:
-                    raise InvalidLiteral(
-                        f"Cannot insert special character {c} into byte array",
-                        arg,
-                    )
-                bytez += bytes([ord(c)])
-            return bytez
+        return new_type_to_old_type(expected_arg_type.typedef)
 
     raise CompilerPanic(f"Unexpected type for builtin function argument: {expected_arg_type}")
 
@@ -66,27 +46,10 @@ def validate_inputs(wrapped_fn):
 
     @functools.wraps(wrapped_fn)
     def decorator_fn(self, node, context):
-        argz = self.infer_arg_types(node)
+        arg_types = self.infer_arg_types(node)
         kwargz = getattr(self, "_kwargs", {})
-        function_name = node.func.id
-        if len(node.args) > len(argz):
-            raise StructureException(
-                f"Expected {len(argz)} arguments for {function_name}, got {len(node.args)}", node
-            )
-        subs = []
-        for i, expected_arg_type in enumerate(argz):
-            if len(node.args) > i:
-                subs.append(
-                    process_arg(
-                        i + 1,
-                        node.args[i],
-                        expected_arg_type,
-                        function_name,
-                        context,
-                    )
-                )
-            else:
-                raise StructureException(f"Not enough arguments for function: {node.func.id}", node)
+        assert len(node.args) == len(arg_types)
+        subs = [process_arg(arg, arg_type, context) for arg, arg_type in zip(node.args, arg_types)]
         kwsubs = {}
         node_kw = {k.arg: k.value for k in node.keywords}
         node_kw_types = self.infer_kwarg_types(node)
@@ -95,10 +58,11 @@ def validate_inputs(wrapped_fn):
                 if k not in node_kw:
                     kwsubs[k] = expected_arg.default
                 else:
-                    kwsubs[k] = process_arg(k, node_kw[k], node_kw_types[k], function_name, context)
-            for k, _arg in node_kw.items():
-                if k not in kwargz:
-                    raise StructureException(f"Unexpected argument: {k}", node)
+                    # For literals, skip process_arg and set the AST node value
+                    if expected_arg.require_literal:
+                        kwsubs[k] = node_kw[k].n
+                    else:
+                        kwsubs[k] = process_arg(node_kw[k], node_kw_types[k], context)
         return wrapped_fn(self, node, subs, kwsubs, context)
 
     return decorator_fn

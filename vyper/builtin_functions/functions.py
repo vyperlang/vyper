@@ -54,7 +54,6 @@ from vyper.exceptions import (
     UnfoldableNode,
     ZeroDivisionException,
 )
-from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types import (
     ArrayDefinition,
     BoolDefinition,
@@ -68,7 +67,6 @@ from vyper.semantics.types.abstract import (
     IntegerAbstractType,
     NumericAbstractType,
     SignedIntegerAbstractType,
-    UnsignedIntegerAbstractType,
 )
 from vyper.semantics.types.bases import DataLocation
 from vyper.semantics.types.utils import get_type_from_annotation
@@ -229,7 +227,7 @@ class Convert(_BuiltinFunction):
         if target_type.compare_type(value_type):
             raise InvalidType(f"Value and target type are both '{target_type}'", node)
 
-        return [value_type, TypeTypeDefinition(node.args[1])]
+        return [value_type, TypeTypeDefinition(target_type)]
 
     def build_IR(self, expr, context):
         return convert(expr, context)
@@ -905,24 +903,17 @@ class Extract32(_SimpleBuiltinFunction):
 
     _id = "extract32"
     _inputs = [("b", BytesArrayPrimitive()), ("start", SignedIntegerAbstractType())]
-    # "name_literal" is a placeholder value
+    # "name_literal" is a placeholder value for TypeTypeDefinition
     _kwargs = {"output_type": Optional("name_literal", "bytes32")}
     _return_type = None
 
     def fetch_call_return(self, node):
         super().fetch_call_return(node)
-        if node.keywords:
-            return_type = get_type_from_annotation(node.keywords[0].value, DataLocation.MEMORY)
-            if not isinstance(
-                return_type, (AddressDefinition, Bytes32Definition, IntegerAbstractType)
-            ):
-                raise
-        else:
-            return_type = Bytes32Definition()
-
+        return_type = self.infer_kwarg_types(node)["output_type"].typedef
         return return_type
 
     def infer_arg_types(self, node):
+        validate_call_args(node, 2, list(self._kwargs.keys()))
         validate_expected_type(node.args[0], BytesArrayDefinition())
         b_type = get_possible_types_from_node(node.args[0]).pop()
         validate_expected_type(node.args[1], Int128Definition())
@@ -938,7 +929,7 @@ class Extract32(_SimpleBuiltinFunction):
                 raise
         else:
             output_type = Bytes32Definition()
-        return {"output_type": TypeTypeDefinition(str(output_type))}
+        return {"output_type": TypeTypeDefinition(output_type)}
 
     @validate_inputs
     def build_IR(self, expr, args, kwargs, context):
@@ -966,7 +957,7 @@ class Extract32(_SimpleBuiltinFunction):
                     sub,
                     elementgetter(["div", ["clamp", 0, index, ["sub", lengetter, 32]], 32]),
                 ],
-                typ=BaseType(ret_type),
+                typ=ret_type,
                 annotation="extracting 32 bytes",
             )
         # General case
@@ -1011,7 +1002,7 @@ class Extract32(_SimpleBuiltinFunction):
                         ],
                     ],
                 ],
-                typ=BaseType(ret_type),
+                typ=ret_type,
                 annotation="extract32",
             )
         return IRnode.from_list(
@@ -1025,7 +1016,7 @@ class AsWeiValue(_BuiltinFunction):
     _id = "as_wei_value"
     # "str_literal" is a placeholder that gets transformed to DenominationDefinition
     # during infer_arg_types
-    _inputs = [("value", NumericAbstractType()), ("unit", "str_literal")]
+    _inputs = [("value", NumericAbstractType()), ("unit", StringDefinition())]
     _return_type = Uint256Definition()
 
     wei_denoms = {
@@ -1133,7 +1124,7 @@ class RawCall(_SimpleBuiltinFunction):
     _id = "raw_call"
     _inputs = [("to", AddressDefinition()), ("data", BytesAbstractType())]
     _kwargs = {
-        "max_outsize": Optional(UnsignedIntegerAbstractType(), 0),
+        "max_outsize": Optional(Uint256Definition(), 0, require_literal=True),
         "gas": Optional(Uint256Definition(), "gas"),
         "value": Optional(Uint256Definition(), zero_value),
         "is_delegate_call": Optional(BoolDefinition(), false_value),
@@ -1948,15 +1939,14 @@ else:
             placeholder_copy = ["mstore", new_var_pos, arg]
         # Create input variables.
         variables = {"x": VariableRecord(name="x", pos=new_var_pos, typ=x_type, mutable=False)}
-        # Temporary namespace to annotate AST
-        namespace = get_namespace()
-        namespace.update({"x": DecimalDefinition()})
+        # Dictionary to update old (i.e. typecheck) namespace
+        variables_2 = {"x": DecimalDefinition()}
         # Generate inline IR.
         new_ctx, sqrt_ir = generate_inline_function(
             code=sqrt_code,
             variables=variables,
+            variables_2=variables_2,
             memory_allocator=context.memory_allocator,
-            namespace=namespace,
         )
         return IRnode.from_list(
             [
@@ -1976,16 +1966,17 @@ class Empty(_BuiltinFunction):
     _inputs = [("typename", "*")]
 
     def fetch_call_return(self, node):
-        validate_call_args(node, 1)
-        type_ = get_type_from_annotation(node.args[0], DataLocation.MEMORY)
+        type_ = self.infer_arg_types(node)[0].typedef
         return type_
 
     def infer_arg_types(self, node):
-        return [TypeTypeDefinition(node.args[0])]
+        validate_call_args(node, 1)
+        input_type = get_type_from_annotation(node.args[0], DataLocation.MEMORY)
+        return [TypeTypeDefinition(input_type)]
 
     @validate_inputs
     def build_IR(self, expr, args, kwargs, context):
-        output_type = context.parse_type(expr.args[0])
+        output_type = args[0]
         return IRnode("~empty", typ=output_type)
 
 
