@@ -596,11 +596,11 @@ def _annotate_nested_default_args(node, type_definition):
         for e in node.elements:
             if isinstance(e, vy_ast.Constant):
                 e._metadata["type"] = type_definition.value_type
-            elif isinstance(e, vy_ast.List, vy_ast.Call):
+            elif isinstance(e, (vy_ast.List, vy_ast.Call)):
                 _annotate_nested_default_args(e, type_definition.value_type)
     elif isinstance(type_definition, StructDefinition):
         for e, t in zip(node.args[0].values, type_definition.members.values()):
             if isinstance(e, vy_ast.Constant):
                 e._metadata["type"] = t
-            elif isinstance(e, vy_ast.Call):
+            elif isinstance(e, (vy_ast.List, vy_ast.Call)):
                 _annotate_nested_default_args(e, t)
