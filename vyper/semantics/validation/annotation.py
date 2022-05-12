@@ -115,6 +115,7 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
             type_ = get_common_types(node.left, node.right)
             if len(type_) == 1:
                 type_ = type_.pop()
+        node._metadata["type"] = type_
 
         self.visit(node.left, type_)
         self.visit(node.right, type_)
@@ -209,7 +210,8 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
             self.visit(element, type_.value_type)
 
     def visit_Name(self, node, type_):
-        node._metadata["type"] = get_exact_type_from_node(node)
+        if "type" not in node._metadata:
+            node._metadata["type"] = get_exact_type_from_node(node)
 
     def visit_Subscript(self, node, type_):
         if isinstance(node.value, vy_ast.List):
@@ -226,6 +228,8 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
 
         else:
             base_type = get_exact_type_from_node(node.value)
+
+        node._metadata["type"] = type_
 
         if not isinstance(base_type, BaseTypeDefinition):
             # some nodes are straight type annotations e.g. `String[100]` in
@@ -248,4 +252,5 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
             type_ = get_possible_types_from_node(node.operand)
             if len(type_) == 1:
                 type_ = type_.pop()
+        node._metadata["type"] = type_
         self.visit(node.operand, type_)

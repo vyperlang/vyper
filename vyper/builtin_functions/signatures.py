@@ -19,7 +19,7 @@ class TypeTypeDefinition:
         self.typedef = typedef
 
     def __repr__(self):
-        return f"type({self.typestr})"
+        return f"type({self.typedef})"
 
 
 def process_arg(arg, expected_arg_type, context):
@@ -46,13 +46,13 @@ def validate_inputs(wrapped_fn):
 
     @functools.wraps(wrapped_fn)
     def decorator_fn(self, node, context):
-        arg_types = self.infer_arg_types(node)
+        arg_types = [a._metadata["type"] for a in node.args]
         kwargz = getattr(self, "_kwargs", {})
         assert len(node.args) == len(arg_types)
         subs = [process_arg(arg, arg_type, context) for arg, arg_type in zip(node.args, arg_types)]
         kwsubs = {}
         node_kw = {k.arg: k.value for k in node.keywords}
-        node_kw_types = self.infer_kwarg_types(node)
+        node_kw_types = {k.arg: k.value._metadata["type"] for k in node.keywords}
         if kwargz:
             for k, expected_arg in self._kwargs.items():
                 if k not in node_kw:

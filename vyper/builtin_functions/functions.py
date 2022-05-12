@@ -926,10 +926,15 @@ class Extract32(_SimpleBuiltinFunction):
             if not isinstance(
                 output_type, (AddressDefinition, Bytes32Definition, IntegerAbstractType)
             ):
-                raise
+                raise InvalidType(
+                    "Output type must be one of bytes32, int128 or address", node.keywords[0].value
+                )
+            output_typedef = TypeTypeDefinition(output_type)
+            node.keywords[0].value._metadata["type"] = output_typedef
         else:
-            output_type = Bytes32Definition()
-        return {"output_type": TypeTypeDefinition(output_type)}
+            output_typedef = TypeTypeDefinition(Bytes32Definition())
+
+        return {"output_type": output_typedef}
 
     @validate_inputs
     def build_IR(self, expr, args, kwargs, context):
@@ -1971,16 +1976,12 @@ class Empty(_BuiltinFunction):
 
     def infer_arg_types(self, node):
         validate_call_args(node, 1)
-        input_arg = node.args[0]
-        # Struct definitions are not available in the namespace when validate_inputs
-        # calls infer_arg_types. As a workaround, the argument node is annotated
-        # during the initial calls to infer_arg_types during typechecking.
-        if "type" in input_arg._metadata:
-            input_type = input_arg._metadata["type"]
-        else:
-            input_type = get_type_from_annotation(input_arg, DataLocation.MEMORY)
-            input_arg._metadata["type"] = input_type
-        return [TypeTypeDefinition(input_type)]
+        input_typedef = TypeTypeDefinition(
+            get_type_from_annotation(node.args[0], DataLocation.MEMORY)
+        )
+        # Annotate argument AST node because empty is skipped in visit_Call
+        node.args[0]._metadata["type"] = input_typedef
+        return [input_typedef]
 
     @validate_inputs
     def build_IR(self, expr, args, kwargs, context):
