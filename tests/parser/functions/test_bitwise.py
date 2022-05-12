@@ -24,6 +24,10 @@ def _bitwise_not(x: uint256) -> uint256:
 @external
 def _shift(x: uint256, y: int128) -> uint256:
     return shift(x, y)
+
+@external
+def _negatedShift(x: uint256, y: int128) -> uint256:
+    return shift(x, -y)
     """
 
 
@@ -55,6 +59,14 @@ def test_test_bitwise(get_contract_with_gas_estimation, evm_version):
     assert c._shift(x, -1) == x // 2
     assert c._shift(x, -3) == x // 8
     assert c._shift(x, -256) == 0
+    assert c._negatedShift(x, -3) == x * 8
+    assert c._negatedShift(x, -255) == 0
+    assert c._negatedShift(y, -255) == 2 ** 255
+    assert c._negatedShift(x, -256) == 0
+    assert c._negatedShift(x, -0) == x
+    assert c._negatedShift(x, 1) == x // 2
+    assert c._negatedShift(x, 3) == x // 8
+    assert c._negatedShift(x, 256) == 0
 
 
 @pytest.mark.parametrize("evm_version", list(EVM_VERSIONS))

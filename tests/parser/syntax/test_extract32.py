@@ -1,6 +1,6 @@
 import pytest
 
-from vyper.exceptions import TypeMismatch
+from vyper.exceptions import InvalidType, TypeMismatch
 
 fail_list = [
     (
@@ -27,6 +27,14 @@ def foo(inp: Bytes[32]) -> int128:
     return extract32(inp, b, output_type=int128)
     """,
         TypeMismatch,
+    ),
+    (
+        """
+@external
+def foo(inp: Bytes[32]) -> bool:
+    return extract32(inp, 0, output_type=bool)
+    """,
+        InvalidType,
     ),
 ]
 
