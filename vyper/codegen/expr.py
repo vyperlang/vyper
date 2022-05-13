@@ -193,7 +193,9 @@ class Expr:
         typ_ = self.expr._metadata.get("type")
         if not typ_:
             raise CompilerPanic("Type of integer literal is unknown")
-        return IRnode.from_list(self.expr.n, typ=BaseType(str(typ_), is_literal=True))
+        new_typ = new_type_to_old_type(typ_)
+        new_typ.is_literal = True
+        return IRnode.from_list(self.expr.n, typ=new_typ)
 
     def parse_Decimal(self):
         val = self.expr.value * DECIMAL_DIVISOR
