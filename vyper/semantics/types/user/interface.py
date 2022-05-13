@@ -59,13 +59,13 @@ class InterfacePrimitive:
         self.events = events
 
     def __repr__(self):
-        return f"{self._id} declaration object"
+        return f"{self._id} interface object"
 
     # follow MemberTypeDefinition API
     def get_member(self, key, node):
         if key in self.events:
             return self.events[key]
-        suggestions_str = get_levenshtein_error_suggestions(key, self.members, 0.3)
+        suggestions_str = get_levenshtein_error_suggestions(key, self.events, 0.3)
         raise UnknownAttribute(f"{self} has no member '{key}'. {suggestions_str}", node)
 
     def from_annotation(
