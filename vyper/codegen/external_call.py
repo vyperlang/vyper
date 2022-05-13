@@ -17,6 +17,7 @@ from vyper.codegen.ir_node import Encoding, IRnode
 from vyper.codegen.types import InterfaceType, TupleType, get_type_for_exact_size
 from vyper.codegen.types.convert import new_type_to_old_type
 from vyper.exceptions import TypeCheckFailure
+from vyper.semantics.types.function import StateMutability
 
 
 @dataclass
@@ -27,18 +28,20 @@ class _CallKwargs:
     default_return_value: IRnode
 
 
-def _pack_arguments(fn_sig, args, context):
+def _pack_arguments(fn_type, args, context):
     # abi encoding just treats all args as a big tuple
     args_tuple_t = TupleType([x.typ for x in args])
     args_as_tuple = IRnode.from_list(["multi"] + [x for x in args], typ=args_tuple_t)
     args_abi_t = args_tuple_t.abi_type
 
     # sanity typecheck - make sure the arguments can be assigned
-    dst_tuple_t = TupleType([arg.typ for arg in fn_sig.args][: len(args)])
+    dst_tuple_t = TupleType(
+        [new_type_to_old_type(typ) for typ in fn_type.arguments.values()][: len(args)]
+    )
     check_assign(dummy_node_for_type(dst_tuple_t), args_as_tuple)
 
-    if fn_sig.return_type is not None:
-        return_abi_t = calculate_type_for_external_return(fn_sig.return_type).abi_type
+    if fn_type.return_type is not None:
+        return_abi_t = calculate_type_for_external_return(fn_type.return_type).abi_type
 
         # we use the same buffer for args and returndata,
         # so allocate enough space here for the returndata too.
@@ -54,7 +57,7 @@ def _pack_arguments(fn_sig, args, context):
     args_ofst = buf + 28
     args_len = args_abi_t.size_bound() + 4
 
-    abi_signature = fn_sig.name + dst_tuple_t.abi_type.selector_name()
+    abi_signature = fn_type.name + dst_tuple_t.abi_type.selector_name()
 
     # layout:
     # 32 bytes                 | args
@@ -72,17 +75,13 @@ def _pack_arguments(fn_sig, args, context):
     return buf, pack_args, args_ofst, args_len
 
 
-def _unpack_returndata(buf, fn_sig, call_kwargs, context, expr):
-    # expr.func._metadata["type"].return_type is more accurate
-    # than fn_sig.return_type in the case of JSON interfaces.
-    ast_return_t = expr.func._metadata["type"].return_type
+def _unpack_returndata(buf, fn_type, call_kwargs, context, expr):
+    ast_return_t = fn_type.return_type
 
     if ast_return_t is None:
         return ["pass"], 0, 0
 
-    # sanity check
     return_t = new_type_to_old_type(ast_return_t)
-    check_assign(dummy_node_for_type(return_t), dummy_node_for_type(fn_sig.return_type))
 
     wrapped_return_t = calculate_type_for_external_return(return_t)
 
@@ -170,25 +169,25 @@ def ir_for_external_call(call_expr, context):
     args_ir = [Expr(x, context).ir_node for x in call_expr.args]
 
     assert isinstance(contract_address.typ, InterfaceType)
-    contract_name = contract_address.typ.name
-    method_name = call_expr.func.attr
 
-    fn_sig = context.sigs[contract_name][method_name]
+    # expr.func._metadata["type"].return_type is more accurate
+    # than fn_sig.return_type in the case of JSON interfaces.
+    fn_type = call_expr.func._metadata["type"]
 
     # sanity check
-    assert len(fn_sig.base_args) <= len(args_ir) <= len(fn_sig.args)
+    assert fn_type.min_arg_count <= len(args_ir) <= fn_type.max_arg_count
 
     ret = ["seq"]
 
-    buf, arg_packer, args_ofst, args_len = _pack_arguments(fn_sig, args_ir, context)
+    buf, arg_packer, args_ofst, args_len = _pack_arguments(fn_type, args_ir, context)
 
     ret_unpacker, ret_ofst, ret_len = _unpack_returndata(
-        buf, fn_sig, call_kwargs, context, call_expr
+        buf, fn_type, call_kwargs, context, call_expr
     )
 
     ret += arg_packer
 
-    if fn_sig.return_type is None and not call_kwargs.skip_contract_check:
+    if fn_type.return_type is None and not call_kwargs.skip_contract_check:
         # if we do not expect return data, check that a contract exists at the
         # target address. we must perform this check BEFORE the call because
         # the contract might selfdestruct. on the other hand we can omit this
@@ -199,18 +198,18 @@ def ir_for_external_call(call_expr, context):
 
     gas = call_kwargs.gas
     value = call_kwargs.value
-    if context.is_constant():
-        assert fn_sig.mutability in ("view", "pure"), "typechecker missed this"
 
-    # condition could be fn_sig.mutability in ("view", "pure")
-    if fn_sig.mutability in ("view", "pure"):
+    use_staticcall = fn_type.mutability in (StateMutability.VIEW, StateMutability.PURE)
+    if context.is_constant():
+        assert use_staticcall, "typechecker missed this"
+
+    if use_staticcall:
         call_op = ["staticcall", gas, contract_address, args_ofst, args_len, buf, ret_len]
     else:
         call_op = ["call", gas, contract_address, value, args_ofst, args_len, buf, ret_len]
 
     ret.append(check_external_call(call_op))
 
-    fn_type = call_expr.func._metadata["type"]
     return_t = None
     if fn_type.return_type is not None:
         return_t = new_type_to_old_type(fn_type.return_type)
