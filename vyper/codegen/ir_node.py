@@ -68,7 +68,6 @@ class IRnode:
         annotation: Optional[str] = None,
         mutable: bool = True,
         add_gas_estimate: int = 0,
-        valency: Optional[int] = None,
         encoding: Encoding = Encoding.VYPER,
     ):
         if args is None:
@@ -99,6 +98,10 @@ class IRnode:
         # Numbers
         if isinstance(self.value, int):
             _check(len(self.args) == 0, "int can't have arguments")
+
+            # integers must be in the range (MIN_INT256, MAX_UINT256)
+            _check(-(2 ** 255) <= self.value < 2 ** 256, "out of range")
+
             self.valency = 1
             self._gas = 5
         elif isinstance(self.value, str):
@@ -252,9 +255,6 @@ class IRnode:
         else:
             raise CompilerPanic(f"Invalid value for IR AST node: {self.value}")
         assert isinstance(self.args, list)
-
-        if valency is not None:
-            self.valency = valency
 
     # TODO would be nice to rename to `gas_estimate` or `gas_bound`
     @property
@@ -449,7 +449,6 @@ class IRnode:
         annotation: Optional[str] = None,
         mutable: bool = True,
         add_gas_estimate: int = 0,
-        valency: Optional[int] = None,
         encoding: Encoding = Encoding.VYPER,
     ) -> "IRnode":
         if isinstance(typ, str):
@@ -477,7 +476,6 @@ class IRnode:
                 annotation=annotation,
                 mutable=mutable,
                 add_gas_estimate=add_gas_estimate,
-                valency=valency,
                 encoding=encoding,
             )
         else:
@@ -490,6 +488,5 @@ class IRnode:
                 mutable=mutable,
                 source_pos=source_pos,
                 add_gas_estimate=add_gas_estimate,
-                valency=valency,
                 encoding=encoding,
             )

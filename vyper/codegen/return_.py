@@ -33,19 +33,19 @@ def make_return_stmt(ir_val: IRnode, stmt: Any, context: Context) -> Optional[IR
         check_assign(dummy_node_for_type(context.return_type), ir_val)
 
     # helper function
+    # do NOT bypass this. jump_to_exit may do important function cleanup.
     def finalize(fill_return_buffer):
-        # do NOT bypass this. jump_to_exit may do important function cleanup.
         fill_return_buffer = IRnode.from_list(
             fill_return_buffer, annotation=f"fill return buffer {sig._ir_identifier}"
         )
-        cleanup_loops = "cleanup_repeat" if context.forvars else "pass"
+        cleanup_loops = "cleanup_repeat" if context.forvars else "seq"
         # NOTE: because stack analysis is incomplete, cleanup_repeat must
         # come after fill_return_buffer otherwise the stack will break
         return IRnode.from_list(["seq", fill_return_buffer, cleanup_loops, jump_to_exit])
 
     if context.return_type is None:
         jump_to_exit += ["return_pc"]
-        return finalize(["pass"])
+        return finalize(["seq"])
 
     if context.is_internal:
         dst = IRnode.from_list(["return_buffer"], typ=context.return_type, location=MEMORY)

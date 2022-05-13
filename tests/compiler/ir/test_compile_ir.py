@@ -23,10 +23,10 @@ def test_ir_compile_fail(bad_ir, get_contract_from_ir, assert_compile_failed):
 
 valid_list = [
     ["pass"],
-    ["clamplt", ["mload", 0], 300],
-    ["clampgt", ["mload", 0], -1],
-    ["uclampgt", 1, ["mload", 0]],
-    ["uclampge", ["mload", 0], 0],
+    ["assert", ["slt", ["mload", 0], 300]],
+    ["assert", ["sgt", ["mload", 0], -1]],
+    ["assert", ["gt", 1, ["mload", 0]]],
+    ["assert", ["ge", ["mload", 0], 0]],
 ]
 
 
