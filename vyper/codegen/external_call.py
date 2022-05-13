@@ -171,7 +171,7 @@ def ir_for_external_call(call_expr, context):
 
     assert isinstance(contract_address.typ, InterfaceType)
     contract_name = contract_address.typ.name
-    method_name = call_expr.func.name
+    method_name = call_expr.func.attr
 
     fn_sig = context.sigs[contract_name][method_name]
 
@@ -211,8 +211,9 @@ def ir_for_external_call(call_expr, context):
     ret.append(check_external_call(call_op))
 
     fn_type = call_expr.func._metadata["type"]
-    return_type = new_type_to_old_type(fn_type.return_type)
-    if return_type is not None:
+    return_t = None
+    if fn_type.return_type is not None:
+        return_t = new_type_to_old_type(fn_type.return_type)
         ret.append(ret_unpacker)
 
-    return IRnode.from_list(ret, typ=return_type, location=MEMORY)
+    return IRnode.from_list(ret, typ=return_t, location=MEMORY)
