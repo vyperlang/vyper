@@ -46,6 +46,7 @@ class Stmt:
         self.ir_node.source_pos = getpos(self.stmt)
 
     def parse_Expr(self):
+        # TODO: follow analysis modules and dispatch down to expr.py
         return Stmt(self.stmt.value, self.context).ir_node
 
     def parse_Pass(self):
@@ -128,6 +129,8 @@ class Stmt:
         return events.ir_node_for_log(self.stmt, event, topic_ir, data_ir, self.context)
 
     def parse_Call(self):
+        # TODO use expr.func.type.is_internal once type annotations
+        # are consistently available.
         is_self_function = (
             (isinstance(self.stmt.func, vy_ast.Attribute))
             and isinstance(self.stmt.func.value, vy_ast.Name)
@@ -142,6 +145,7 @@ class Stmt:
             "append",
             "pop",
         ):
+            # TODO: consider moving this to builtins
             darray = Expr(self.stmt.func.value, self.context).ir_node
             args = [Expr(x, self.context).ir_node for x in self.stmt.args]
             if self.stmt.func.attr == "append":
