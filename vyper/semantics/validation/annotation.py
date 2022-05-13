@@ -84,7 +84,7 @@ class StatementAnnotationVisitor(_AnnotationVisitorBase):
         self.expr_visitor.visit(node.value)
 
     def visit_Return(self, node):
-        if node.value is not None:
+        if self.func and node.value is not None:
             self.expr_visitor.visit(node.value, self.func.return_type)
 
     def visit_For(self, node):
@@ -101,7 +101,7 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
 
     ignored_types = ()
 
-    def __init__(self, fn_node: ContractFunction):
+    def __init__(self, fn_node: ContractFunction=None):
         self.func = fn_node
 
     def visit(self, node, type_=None):
@@ -136,7 +136,7 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
         node._metadata["type"] = node_type
         self.visit(node.func)
 
-        if isinstance(call_type, ContractFunction) and call_type.is_internal:
+        if self.func and isinstance(call_type, ContractFunction) and call_type.is_internal:
             self.func.called_functions.add(call_type)
 
         if isinstance(call_type, (Event, ContractFunction)):
