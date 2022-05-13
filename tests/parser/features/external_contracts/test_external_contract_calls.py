@@ -2366,14 +2366,15 @@ def return_64_bytes():
     """
 
     code = """
+struct BoolPair:
+    x: bool
+    y: bool
 interface Foo:
-    def foo() -> (bool, bool): nonpayable
+    def return_64_bytes() -> BoolPair: nonpayable
 @external
 def bar(foo: Foo):
-    x: bool = False
-    y: bool = False
-    x, y = foo.return_64_bytes(receiver, amount, default_return_value=(True, True))
-    assert x and y
+    t: BoolPair = foo.return_64_bytes(default_return_value=BoolPair({x: True, y:True}))
+    assert t.x and t.y
     """
     bad_1 = get_contract(bad_code_1)
     bad_2 = get_contract(bad_code_2)
