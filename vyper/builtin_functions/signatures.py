@@ -30,6 +30,7 @@ def process_arg(arg, expected_arg_type, context):
     elif isinstance(expected_arg_type, BaseTypeDefinition):
         return Expr.parse_value_expr(arg, context)
 
+    # If the input value is a typestring, return the equivalent codegen type for IR generation
     elif isinstance(expected_arg_type, TypeTypeDefinition):
         return new_type_to_old_type(expected_arg_type.typedef)
 

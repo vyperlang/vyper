@@ -114,13 +114,16 @@ class _BuiltinFunction:
         return f"builtin function {self._id}"
 
     def infer_kwarg_types(self, node):
-        if node.keywords:
-            return {i: v.typ for i, v in self._kwargs.items()}
-        return {}
+        return {i.arg: self._kwargs[i.arg].typ for i in node.keywords}
 
 
 class _SimpleBuiltinFunction(_BuiltinFunction):
+
+    _kwargs = {}
+
     def fetch_call_return(self, node):
+        # Call infer_arg_types to validate arguments and derive the type definitions
+        # for annotation
         self.infer_arg_types(node)
 
         if self._return_type:
@@ -196,21 +199,20 @@ class Convert(_BuiltinFunction):
     _id = "convert"
 
     def fetch_call_return(self, node):
-        self.infer_arg_types(node)
-        target_type = get_type_from_annotation(node.args[1], DataLocation.MEMORY)
+        _, target_typedef = self.infer_arg_types(node)
 
         # note: more type conversion validation happens in convert.py
-        return target_type
+        return target_typedef.typedef
 
     def infer_arg_types(self, node):
         validate_call_args(node, 2)
 
-        target_type = get_type_from_annotation(node.args[1], DataLocation.MEMORY)
+        target_type = get_type_from_annotation(node.args[1], DataLocation.UNSET)
         value_types = get_possible_types_from_node(node.args[0])
         if len(value_types) == 0:
             raise CompilerPanic("No possible type for value", node)
 
-        if all([isinstance(v, IntegerAbstractType) for v in value_types]):
+        if all(isinstance(v, IntegerAbstractType) for v in value_types):
             # Get the smallest (and unsigned if available) type for non-integer output types
             if not isinstance(target_type, IntegerAbstractType):
                 value_types = sorted(
@@ -345,6 +347,7 @@ class Slice(_BuiltinFunction):
     def infer_arg_types(self, node):
         validate_call_args(node, 3)
 
+        assert len(node.args) == len(self._inputs)
         for arg, (_, expected_type) in zip(node.args, self._inputs):
             validate_expected_type(arg, expected_type)
         slice_type = get_possible_types_from_node(node.args[0]).pop()
@@ -522,9 +525,20 @@ class Concat(_BuiltinFunction):
             raise ArgumentException("Keyword arguments are not accepted here", node.keywords[0])
 
         ret = []
+        prev_typeclass = None
         for arg in node.args:
             validate_expected_type(arg, (BytesAbstractType(), StringDefinition()))
             arg_t = get_possible_types_from_node(arg).pop()
+            current_typeclass = "Bytes" if isinstance(arg_t, BytesAbstractType) else "String"
+            if prev_typeclass and current_typeclass != prev_typeclass:
+                raise TypeMismatch(
+                    (
+                        "Concat expects consistent use of string or bytes types, "
+                        "use either string or bytes."
+                    ),
+                    arg,
+                )
+            prev_typeclass = current_typeclass
             ret.append(arg_t)
 
         return ret
@@ -534,26 +548,6 @@ class Concat(_BuiltinFunction):
         if len(args) < 2:
             raise StructureException("Concat expects at least two arguments", expr)
 
-        prev_type = ""
-        for _, (expr_arg, arg) in enumerate(zip(expr.args, args)):
-            if not isinstance(arg.typ, ByteArrayLike) and not is_bytes_m_type(arg.typ):
-                raise TypeMismatch("Concat expects string, bytes or bytes32 objects", expr_arg)
-
-            current_type = (
-                "Bytes"
-                if isinstance(arg.typ, ByteArrayType) or is_bytes_m_type(arg.typ)
-                else "String"
-            )
-            if prev_type and current_type != prev_type:
-                raise TypeMismatch(
-                    (
-                        "Concat expects consistent use of string or byte types, "
-                        "user either bytes or string."
-                    ),
-                    expr_arg,
-                )
-            prev_type = current_type
-
         # Maximum length of the output
         dst_maxlen = sum(
             [
@@ -562,10 +556,10 @@ class Concat(_BuiltinFunction):
             ]
         )
 
-        if current_type == "String":
-            ret_typ = StringType(maxlen=dst_maxlen)
-        else:
+        if isinstance(args[0].typ, ByteArrayType) or is_bytes_m_type(args[0].typ):
             ret_typ = ByteArrayType(maxlen=dst_maxlen)
+        else:
+            ret_typ = StringType(maxlen=dst_maxlen)
 
         # Node representing the position of the output in memory
         dst = IRnode.from_list(
