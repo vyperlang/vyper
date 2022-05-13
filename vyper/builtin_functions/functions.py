@@ -1348,13 +1348,8 @@ class RawLog(_BuiltinFunction):
         if node.args[0].elements:
             validate_expected_type(node.args[0], self._inputs[0][1])
 
+        validate_expected_type(node.args[1], self._inputs[1][1])
         data_type = get_possible_types_from_node(node.args[1]).pop()
-
-        if not isinstance(data_type, BytesAbstractType):
-            expected_str = " or ".join(str(i) for i in self._inputs[1][1])
-            raise InvalidType(
-                f"Expected {expected_str} but value can only be cast as {data_type}", node.args[1]
-            )
 
         return [self._inputs[0][1], data_type]
 
@@ -2095,7 +2090,8 @@ class ABIEncode(_SimpleBuiltinFunction):
         # figure out the output type by converting
         # the types to ABI_Types and calling size_bound API
         arg_abi_types = []
-        for arg_t in self.infer_arg_types(node):
+        arg_types = self.infer_arg_types(node)
+        for arg_t in arg_types:
             arg_abi_types.append(arg_t.abi_type)
 
         # special case, no tuple

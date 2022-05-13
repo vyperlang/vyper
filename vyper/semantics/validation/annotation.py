@@ -101,7 +101,7 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
 
     ignored_types = ()
 
-    def __init__(self, fn_node: ContractFunction=None):
+    def __init__(self, fn_node: ContractFunction = None):
         self.func = fn_node
 
     def visit(self, node, type_=None):
@@ -153,7 +153,7 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
             assert len(node.args) == len(call_type.arg_types)
             for arg, arg_type in zip(node.args, call_type.arg_types):
                 self.visit(arg, arg_type)
-        elif node.func.id not in ("empty", "range"):
+        elif node.func.id not in ("range",):
             # builtin functions
             arg_types = call_type.infer_arg_types(node)
             for arg, arg_type in zip(node.args, arg_types):
