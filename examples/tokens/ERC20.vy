@@ -8,16 +8,6 @@ from vyper.interfaces import ERC20Detailed
 implements: ERC20
 implements: ERC20Detailed
 
-event Transfer:
-    sender: indexed(address)
-    receiver: indexed(address)
-    value: uint256
-
-event Approval:
-    owner: indexed(address)
-    spender: indexed(address)
-    value: uint256
-
 name: public(String[32])
 symbol: public(String[32])
 decimals: public(uint8)
@@ -43,7 +33,7 @@ def __init__(_name: String[32], _symbol: String[32], _decimals: uint8, _supply: 
     self.balanceOf[msg.sender] = init_supply
     self.totalSupply = init_supply
     self.minter = msg.sender
-    log Transfer(ZERO_ADDRESS, msg.sender, init_supply)
+    log ERC20.Transfer(ZERO_ADDRESS, msg.sender, init_supply)
 
 
 
@@ -58,7 +48,7 @@ def transfer(_to : address, _value : uint256) -> bool:
     #       so the following subtraction would revert on insufficient balance
     self.balanceOf[msg.sender] -= _value
     self.balanceOf[_to] += _value
-    log Transfer(msg.sender, _to, _value)
+    log ERC20.Transfer(msg.sender, _to, _value)
     return True
 
 
@@ -77,7 +67,7 @@ def transferFrom(_from : address, _to : address, _value : uint256) -> bool:
     # NOTE: vyper does not allow underflows
     #      so the following subtraction would revert on insufficient allowance
     self.allowance[_from][msg.sender] -= _value
-    log Transfer(_from, _to, _value)
+    log ERC20.Transfer(_from, _to, _value)
     return True
 
 
@@ -93,7 +83,7 @@ def approve(_spender : address, _value : uint256) -> bool:
     @param _value The amount of tokens to be spent.
     """
     self.allowance[msg.sender][_spender] = _value
-    log Approval(msg.sender, _spender, _value)
+    log ERC20.Approval(msg.sender, _spender, _value)
     return True
 
 
@@ -110,7 +100,7 @@ def mint(_to: address, _value: uint256):
     assert _to != ZERO_ADDRESS
     self.totalSupply += _value
     self.balanceOf[_to] += _value
-    log Transfer(ZERO_ADDRESS, _to, _value)
+    log ERC20.Transfer(ZERO_ADDRESS, _to, _value)
 
 
 @internal
@@ -124,7 +114,7 @@ def _burn(_to: address, _value: uint256):
     assert _to != ZERO_ADDRESS
     self.totalSupply -= _value
     self.balanceOf[_to] -= _value
-    log Transfer(_to, ZERO_ADDRESS, _value)
+    log ERC20.Transfer(_to, ZERO_ADDRESS, _value)
 
 
 @external

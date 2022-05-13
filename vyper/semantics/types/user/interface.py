@@ -100,18 +100,10 @@ class InterfacePrimitive:
             or not hasattr(namespace["self"].members[name], "compare_signature")
             or not namespace["self"].members[name].compare_signature(type_)
         ]
-        # check for missing events
-        unimplemented += [
-            name
-            for name, event in self.events.items()
-            if name not in namespace
-            or not isinstance(namespace[name], Event)
-            or namespace[name].event_id != event.event_id
-        ]
         if unimplemented:
             missing_str = ", ".join(sorted(unimplemented))
             raise InterfaceViolation(
-                f"Contract does not implement all interface functions or events: {missing_str}",
+                f"Contract does not implement all interface functions: {missing_str}",
                 node,
             )
 
