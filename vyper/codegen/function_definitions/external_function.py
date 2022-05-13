@@ -143,7 +143,7 @@ def _generate_kwarg_handlers(context: Context, sig: FunctionSignature) -> List[A
 # TODO it would be nice if this returned a data structure which were
 # amenable to generating a jump table instead of the linear search for
 # method_id we have now.
-def generate_ir_for_external_function(code, sig, context, check_nonpayable):
+def generate_ir_for_external_function(code, sig, context, skip_nonpayable_check):
     # TODO type hints:
     # def generate_ir_for_external_function(
     #    code: vy_ast.FunctionDef, sig: FunctionSignature, context: Context, check_nonpayable: bool,
@@ -167,7 +167,7 @@ def generate_ir_for_external_function(code, sig, context, check_nonpayable):
     # generate the main body of the function
     body += handle_base_args
 
-    if check_nonpayable and sig.mutability != "payable":
+    if sig.mutability != "payable" and not skip_nonpayable_check:
         # if the contract contains payable functions, but this is not one of them
         # add an assertion that the value of the call is zero
         body += [["assert", ["iszero", "callvalue"]]]

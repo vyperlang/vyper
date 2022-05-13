@@ -98,9 +98,9 @@ def mk_full_signature_from_json(abi):
 def _get_external_signatures(global_ctx, sig_formatter=lambda x: x):
     ret = []
 
-    for code in global_ctx._defs:
+    for func_ast in global_ctx._function_defs:
         sig = FunctionSignature.from_definition(
-            code,
+            func_ast,
             sigs=global_ctx._contracts,
             custom_structs=global_ctx._structs,
         )

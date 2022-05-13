@@ -1,7 +1,7 @@
 import re
 import warnings
 from collections import OrderedDict
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 from vyper import ast as vy_ast
 from vyper.ast.validation import validate_call_args
@@ -126,6 +126,9 @@ class ContractFunction(BaseTypeDefinition):
         self.visibility = function_visibility
         self.mutability = state_mutability
         self.nonreentrant = nonreentrant
+
+        # a list of internal functions this function calls
+        self.called_functions: Set["ContractFunction"] = set()
 
     def __repr__(self):
         arg_types = ",".join(repr(a) for a in self.arguments.values())
@@ -405,6 +408,14 @@ class ContractFunction(BaseTypeDefinition):
             function_visibility=FunctionVisibility.EXTERNAL,
             state_mutability=StateMutability.VIEW,
         )
+
+    @property
+    def is_external(self) -> bool:
+        return self.visibility == FunctionVisibility.EXTERNAL
+
+    @property
+    def is_internal(self) -> bool:
+        return self.visibility == FunctionVisibility.INTERNAL
 
     @property
     def method_ids(self) -> Dict[str, int]:
