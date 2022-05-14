@@ -153,7 +153,7 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
             assert len(node.args) == len(call_type.arg_types)
             for arg, arg_type in zip(node.args, call_type.arg_types):
                 self.visit(arg, arg_type)
-        elif node.func.id not in ("range",):
+        elif node.func.id not in ("empty", "range"):
             # builtin functions
             arg_types = call_type.infer_arg_types(node)
             for arg, arg_type in zip(node.args, arg_types):
@@ -217,8 +217,7 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
             self.visit(element, type_.value_type)
 
     def visit_Name(self, node, type_):
-        if "type" not in node._metadata:
-            node._metadata["type"] = get_exact_type_from_node(node)
+        node._metadata["type"] = type_
 
     def visit_Subscript(self, node, type_):
         if isinstance(node.value, vy_ast.List):

@@ -2,6 +2,7 @@ import hashlib
 import math
 import operator
 from decimal import Decimal
+from typing import Dict
 
 from vyper import ast as vy_ast
 from vyper.abi_types import ABI_Tuple
@@ -119,7 +120,7 @@ class _BuiltinFunction:
 
 class _SimpleBuiltinFunction(_BuiltinFunction):
 
-    _kwargs = {}
+    _kwargs: Dict[str, Optional] = {}
 
     def fetch_call_return(self, node):
         # Call infer_arg_types to validate arguments and derive the type definitions
