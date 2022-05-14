@@ -3,7 +3,7 @@ import functools
 from vyper.ast import nodes as vy_ast
 from vyper.codegen.expr import Expr
 from vyper.codegen.types.convert import new_type_to_old_type
-from vyper.exceptions import CompilerPanic
+from vyper.exceptions import CompilerPanic, TypeMismatch
 from vyper.semantics.types import (
     AbstractNumericDefinition,
     ArrayDefinition,
@@ -32,7 +32,7 @@ class TypeTypeDefinition:
 def _process_optional_literal_value(optional_obj, kwarg_node):
     # Returns the literal value from the corresponding AST node for a kwarg
     if not isinstance(kwarg_node, vy_ast.Constant):
-        raise TypeMismatch("Value for kwarg must be a literal")
+        raise TypeMismatch("Value for kwarg must be a literal", kwarg_node)
 
     if isinstance(optional_obj.typ, BoolDefinition):
         return kwarg_node.value
