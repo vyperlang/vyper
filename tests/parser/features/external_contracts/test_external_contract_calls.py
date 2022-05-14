@@ -2324,3 +2324,62 @@ def foo(_addr: address, _addr2: address) -> int128:
 
     assert c2.foo(c1.address, c1.address) == 123
     assert_tx_failed(lambda: c2.foo(c1.address, "0x1234567890123456789012345678901234567890"))
+
+
+def test_default_override(get_contract, assert_tx_failed):
+    bad_erc20_code = """
+@external
+def transfer(receiver: address, amount: uint256):
+    pass
+    """
+
+    code = """
+from vyper.interfaces import ERC20
+@external
+def safeTransfer(erc20: ERC20, receiver: address, amount: uint256):
+    assert erc20.transfer(receiver, amount, default_return_value=True)
+
+@external
+def transferBorked(erc20: ERC20, receiver: address, amount: uint256):
+    assert erc20.transfer(receiver, amount)
+    """
+    bad_erc20 = get_contract(bad_erc20_code)
+    c = get_contract(code)
+
+    # demonstrate transfer failing
+    assert_tx_failed(lambda: c.transferBorked(bad_erc20.address, c.address, 0))
+    # would fail without default_return_value
+    c.safeTransfer(bad_erc20.address, c.address, 0)
+
+
+def test_default_override2(get_contract, assert_tx_failed):
+    bad_code_1 = """
+@external
+def return_64_bytes() -> bool:
+    return True
+    """
+
+    bad_code_2 = """
+@external
+def return_64_bytes():
+    pass
+    """
+
+    code = """
+struct BoolPair:
+    x: bool
+    y: bool
+interface Foo:
+    def return_64_bytes() -> BoolPair: nonpayable
+@external
+def bar(foo: Foo):
+    t: BoolPair = foo.return_64_bytes(default_return_value=BoolPair({x: True, y:True}))
+    assert t.x and t.y
+    """
+    bad_1 = get_contract(bad_code_1)
+    bad_2 = get_contract(bad_code_2)
+    c = get_contract(code)
+
+    # fails due to returndatasize being nonzero but also lt 64
+    assert_tx_failed(lambda: c.bar(bad_1.address))
+    c.bar(bad_2.address)

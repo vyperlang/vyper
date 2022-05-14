@@ -937,6 +937,7 @@ class Expr:
                     return arg_ir
 
         elif isinstance(self.expr.func, vy_ast.Attribute) and self.expr.func.attr == "pop":
+            # TODO consider moving this to builtins
             darray = Expr(self.expr.func.value, self.context).ir_node
             assert len(self.expr.args) == 0
             assert isinstance(darray.typ, DArrayType)
@@ -946,10 +947,12 @@ class Expr:
             )
 
         elif (
+            # TODO use expr.func.type.is_internal once
+            # type annotations are consistently available
             isinstance(self.expr.func, vy_ast.Attribute)
             and isinstance(self.expr.func.value, vy_ast.Name)
             and self.expr.func.value.id == "self"
-        ):  # noqa: E501
+        ):
             return self_call.ir_for_self_call(self.expr, self.context)
         else:
             return external_call.ir_for_external_call(self.expr, self.context)
