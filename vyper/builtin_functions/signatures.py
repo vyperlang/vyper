@@ -1,5 +1,6 @@
 import functools
 
+from vyper.ast import nodes as vy_ast
 from vyper.codegen.expr import Expr
 from vyper.codegen.types.convert import new_type_to_old_type
 from vyper.exceptions import CompilerPanic
@@ -30,6 +31,9 @@ class TypeTypeDefinition:
 
 def _process_optional_literal_value(optional_obj, kwarg_node):
     # Returns the literal value from the corresponding AST node for a kwarg
+    if not isinstance(kwarg_node, vy_ast.Constant):
+        raise TypeMismatch("Value for kwarg must be a literal")
+
     if isinstance(optional_obj.typ, BoolDefinition):
         return kwarg_node.value
     elif isinstance(optional_obj.typ, AbstractNumericDefinition):
@@ -77,7 +81,7 @@ def validate_inputs(wrapped_fn):
                 else:
                     # For literals, skip process_arg and set the AST node value
                     if expected_arg.require_literal:
-                        kwsubs[k] = _process_optional_literal_value(node_kw[k])
+                        kwsubs[k] = _process_optional_literal_value(expected_arg, node_kw[k])
                     else:
                         kwsubs[k] = process_arg(node_kw[k], node_kw_types[k], context)
         return wrapped_fn(self, node, subs, kwsubs, context)

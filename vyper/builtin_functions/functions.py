@@ -1126,8 +1126,6 @@ class AsWeiValue(_BuiltinFunction):
 
 zero_value = IRnode.from_list(0, typ=BaseType("uint256"))
 empty_value = IRnode.from_list(0, typ=BaseType("bytes32"))
-false_value = IRnode.from_list(0, typ=BaseType("bool", is_literal=True))
-true_value = IRnode.from_list(1, typ=BaseType("bool", is_literal=True))
 
 
 class RawCall(_SimpleBuiltinFunction):
@@ -1136,11 +1134,11 @@ class RawCall(_SimpleBuiltinFunction):
     _inputs = [("to", AddressDefinition()), ("data", BytesAbstractType())]
     _kwargs = {
         "max_outsize": Optional(Uint256Definition(), 0, require_literal=True),
-        "gas": Optional(Uint256Definition(), "gas", require_literal=True),
-        "value": Optional(Uint256Definition(), zero_value, require_literal=True),
-        "is_delegate_call": Optional(BoolDefinition(), false_value, require_literal=True),
-        "is_static_call": Optional(BoolDefinition(), false_value),
-        "revert_on_failure": Optional(BoolDefinition(), true_value),
+        "gas": Optional(Uint256Definition(), "gas"),
+        "value": Optional(Uint256Definition(), zero_value),
+        "is_delegate_call": Optional(BoolDefinition(), False, require_literal=True),
+        "is_static_call": Optional(BoolDefinition(), False, require_literal=True),
+        "revert_on_failure": Optional(BoolDefinition(), True, require_literal=True),
     }
     _return_type = None
 
@@ -1189,15 +1187,6 @@ class RawCall(_SimpleBuiltinFunction):
             kwargs["is_static_call"],
             kwargs["revert_on_failure"],
         )
-        for key in ("is_delegate_call", "is_static_call", "revert_on_failure"):
-            if kwargs[key].typ.is_literal is False:
-                raise TypeMismatch(
-                    f"The `{key}` parameter must be a static/literal boolean value", expr
-                )
-        # turn IR literals into python values
-        revert_on_failure = revert_on_failure.value == 1
-        static_call = static_call.value == 1
-        delegate_call = delegate_call.value == 1
 
         if delegate_call and static_call:
             raise ArgumentException(
@@ -2041,7 +2030,7 @@ class ABIEncode(_SimpleBuiltinFunction):
     # if this is turned off, then bytes will be encoded as bytes.
 
     _kwargs = {
-        "ensure_tuple": Optional(BoolDefinition(), true_value),
+        "ensure_tuple": Optional(BoolDefinition(), True, require_literal=True),
         "method_id": Optional(BytesAbstractType(), None),
     }
 
