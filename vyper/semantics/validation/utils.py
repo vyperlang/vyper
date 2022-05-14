@@ -124,7 +124,7 @@ class _ExprTypeChecker:
         if all(isinstance(i, IntegerAbstractType) for i in types_list):
             # for numeric types, sort according by number of bits descending
             # we do this to ensure literals are cast with the largest possible type
-            return sorted(types_list, key=lambda k: (k._bits, not k._is_signed))
+            return sorted(types_list, key=lambda k: (k._bits, not k._is_signed), reverse=True)
         return types_list
 
     def _find_fn(self, node):

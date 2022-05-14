@@ -404,6 +404,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                             f"which potentially modifies iterated storage variable '{iter_name}'",
                             call_node,
                         )
+        self.expr_visitor.visit(node.iter)
 
         for_loop_exceptions = []
         iter_name = node.target.id

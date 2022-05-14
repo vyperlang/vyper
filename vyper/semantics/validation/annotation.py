@@ -97,7 +97,7 @@ class StatementAnnotationVisitor(_AnnotationVisitorBase):
             self.expr_visitor.visit(node.iter, ArrayDefinition(value_type, len_))
 
         if isinstance(node.iter, vy_ast.Call) and node.iter.func.id == "range":
-            iter_type = get_common_types(*node.iter.args).pop()
+            iter_type = node.target._metadata["type"]
             for a in node.iter.args:
                 self.expr_visitor.visit(a, iter_type)
 
