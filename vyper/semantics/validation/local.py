@@ -424,7 +424,6 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                     # type information is applied directly because the scope is
                     # closed prior to the call to `StatementAnnotationVisitor`
                     node.target._metadata["type"] = type_
-                    self.expr_visitor.visit(node.iter, type_)
                     return
                 except (TypeMismatch, InvalidOperation) as exc:
                     for_loop_exceptions.append(exc)
@@ -496,14 +495,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
 
 
 class _LocalExpressionVisitor(VyperNodeVisitorBase):
-    ignored_types = (
-        vy_ast.Bytes,
-        vy_ast.Decimal,
-        vy_ast.Hex,
-        vy_ast.Name,
-        vy_ast.NameConstant,
-        vy_ast.Str,
-    )
+    ignored_types = (vy_ast.Constant, vy_ast.Name)
     scope_name = "function"
 
     def visit(self, node, type_=None):
@@ -541,10 +533,6 @@ class _LocalExpressionVisitor(VyperNodeVisitorBase):
 
     def visit_Index(self, node, type_):
         self.visit(node.value)
-
-    def visit_Int(self, node, type_):
-        if type_:
-            node._metadata["type"] = type_
 
     def visit_List(self, node, type_):
         for element in node.elements:
