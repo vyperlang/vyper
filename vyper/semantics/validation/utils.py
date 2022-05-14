@@ -106,7 +106,7 @@ class _ExprTypeChecker:
             A list of type objects
         """
         # Early termination if typedef is propagated in metadata
-        if "type" in node._metadata:
+        if "type" in node._metadata and node._metadata["type"]:
             return [node._metadata["type"]]
 
         fn = self._find_fn(node)
@@ -124,7 +124,7 @@ class _ExprTypeChecker:
         if all(isinstance(i, IntegerAbstractType) for i in types_list):
             # for numeric types, sort according by number of bits descending
             # we do this to ensure literals are cast with the largest possible type
-            return sorted(types_list, key=lambda k: (k._bits, not k._is_signed), reverse=True)
+            return sorted(types_list, key=lambda k: (k._bits, not k._is_signed))
         return types_list
 
     def _find_fn(self, node):

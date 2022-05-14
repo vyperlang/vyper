@@ -215,14 +215,9 @@ class Convert(_BuiltinFunction):
 
         if all(isinstance(v, IntegerAbstractType) for v in value_types):
             # Get the smallest (and unsigned if available) type for non-integer output types
-            if not isinstance(target_type, IntegerAbstractType):
-                value_types = sorted(
-                    value_types, key=lambda v: (v._is_signed, v._bits), reverse=True
-                )
-
-            # For integer types, remove the target type to enable type casting
-            # TODO: This branch can probably be removed once folding is up
-            else:
+            if isinstance(target_type, IntegerAbstractType):
+                # For integer types, remove the target type to enable type casting
+                # TODO: This branch can probably be removed once folding is up
                 if len(value_types) > 1:
                     value_types = [i for i in value_types if not target_type.compare_type(i)]
 
