@@ -195,6 +195,27 @@ class Ceil(_SimpleBuiltinFunction):
         )
 
 
+def _filter_possible_int_literal_types(possible_value_types, target_type):
+    # For conversion of integer literals:
+    # 1. Get the smallest (and unsigned if available) type for non-integer target types
+    # 2. For integer target types, remove the target type from list of possible types
+    #    to enable type casting
+    #    TODO: This branch can probably be removed once folding is up
+    if len(possible_value_types) > 1 and all(
+        isinstance(v, IntegerAbstractType) for v in possible_value_types
+    ):
+        if not isinstance(target_type, IntegerAbstractType):
+            possible_value_types = sorted(
+                possible_value_types, key=lambda v: (v._is_signed, v._bits), reverse=True
+            )
+        else:
+            possible_value_types = [
+                i for i in possible_value_types if not target_type.compare_type(i)
+            ]
+
+    return possible_value_types
+
+
 class Convert(_BuiltinFunction):
 
     _id = "convert"
@@ -213,16 +234,7 @@ class Convert(_BuiltinFunction):
         if len(value_types) == 0:
             raise CompilerPanic("No possible type for value", node)
 
-        if (
-            all(isinstance(v, IntegerAbstractType) for v in value_types)
-            and isinstance(target_type, IntegerAbstractType)
-            and len(value_types) > 1
-        ):
-            # For integer types, remove the target type to enable type casting
-            # TODO: This branch can probably be removed once folding is up
-            value_types = [i for i in value_types if not target_type.compare_type(i)]
-
-        value_type = value_types.pop()
+        value_type = _filter_possible_int_literal_types(value_types, target_type).pop()
 
         # block conversions between same type
         if target_type.compare_type(value_type):
