@@ -3,7 +3,13 @@ import functools
 from vyper.codegen.expr import Expr
 from vyper.codegen.types.convert import new_type_to_old_type
 from vyper.exceptions import CompilerPanic
-from vyper.semantics.types import ArrayDefinition, BytesArrayDefinition, StringDefinition
+from vyper.semantics.types import (
+    AbstractNumericDefinition,
+    ArrayDefinition,
+    BoolDefinition,
+    BytesArrayDefinition,
+    StringDefinition,
+)
 from vyper.semantics.types.bases import BaseTypeDefinition
 
 
@@ -20,6 +26,16 @@ class TypeTypeDefinition:
 
     def __repr__(self):
         return f"type({self.typedef})"
+
+
+def _process_optional_literal_value(optional_obj, kwarg_node):
+    # Returns the literal value from the corresponding AST node for a kwarg
+    if isinstance(optional_obj.typ, BoolDefinition):
+        return kwarg_node.value
+    elif isinstance(optional_obj.typ, AbstractNumericDefinition):
+        return kwarg_node.n
+
+    raise CompilerPanic("Unexpected type for optional kwarg")
 
 
 def process_arg(arg, expected_arg_type, context):
@@ -61,7 +77,7 @@ def validate_inputs(wrapped_fn):
                 else:
                     # For literals, skip process_arg and set the AST node value
                     if expected_arg.require_literal:
-                        kwsubs[k] = node_kw[k].n
+                        kwsubs[k] = _process_optional_literal_value(node_kw[k])
                     else:
                         kwsubs[k] = process_arg(node_kw[k], node_kw_types[k], context)
         return wrapped_fn(self, node, subs, kwsubs, context)

@@ -1136,9 +1136,9 @@ class RawCall(_SimpleBuiltinFunction):
     _inputs = [("to", AddressDefinition()), ("data", BytesAbstractType())]
     _kwargs = {
         "max_outsize": Optional(Uint256Definition(), 0, require_literal=True),
-        "gas": Optional(Uint256Definition(), "gas"),
-        "value": Optional(Uint256Definition(), zero_value),
-        "is_delegate_call": Optional(BoolDefinition(), false_value),
+        "gas": Optional(Uint256Definition(), "gas", require_literal=True),
+        "value": Optional(Uint256Definition(), zero_value, require_literal=True),
+        "is_delegate_call": Optional(BoolDefinition(), false_value, require_literal=True),
         "is_static_call": Optional(BoolDefinition(), false_value),
         "revert_on_failure": Optional(BoolDefinition(), true_value),
     }
