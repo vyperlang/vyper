@@ -106,7 +106,7 @@ class _ExprTypeChecker:
             A list of type objects
         """
         # Early termination if typedef is propagated in metadata
-        if "type" in node._metadata and node._metadata["type"]:
+        if "type" in node._metadata:
             return [node._metadata["type"]]
 
         fn = self._find_fn(node)
