@@ -64,21 +64,6 @@ def foo(x: {typ}) -> {typ}:
 
 
 @pytest.mark.parametrize("typ,lo,hi,bits", PARAMS)
-def test_num_divided_by_num(get_contract_with_gas_estimation, typ, lo, hi, bits):
-    code = f"""
-@external
-def foo(inp: {typ}) -> {typ}:
-    y: {typ} = 5/inp
-    return y
-    """
-    c = get_contract_with_gas_estimation(code)
-    assert c.foo(2) == 2
-    assert c.foo(5) == 1
-    assert c.foo(10) == 0
-    assert c.foo(50) == 0
-
-
-@pytest.mark.parametrize("typ,lo,hi,bits", PARAMS)
 def test_negative_nums(get_contract_with_gas_estimation, typ, lo, hi, bits):
     negative_nums_code = f"""
 @external
@@ -162,32 +147,6 @@ def num_sub() -> {typ}:
         assert_compile_failed(lambda: get_contract(code), InvalidType)
 
 
-@pytest.mark.parametrize("typ,lo,hi,bits", PARAMS)
-def test_add_3(get_contract, assert_tx_failed, typ, lo, hi, bits):
-    code = f"""
-@external
-def add_hi(i: {typ}) -> {typ}:
-    return {hi} + i
-
-@external
-def add_lo(i: {typ}) -> {typ}:
-    return {lo} + i
-    """
-    c = get_contract(code)
-
-    assert c.add_hi(0) == hi
-    assert c.add_hi(-1) == hi - 1
-
-    assert_tx_failed(lambda: c.add_hi(1))
-    assert_tx_failed(lambda: c.add_hi(2))
-
-    assert c.add_lo(0) == lo
-    assert c.add_lo(1) == lo + 1
-
-    assert_tx_failed(lambda: c.add_lo(-1))
-    assert_tx_failed(lambda: c.add_lo(-2))
-
-
 @pytest.mark.parametrize("op", ["+", "-", "*", "/", "%"])
 @pytest.mark.parametrize("typ,lo,hi,bits", PARAMS)
 @pytest.mark.fuzzing
@@ -241,7 +200,6 @@ def foo() -> {typ}:
         hi // 2 - 1,
         hi // 2,
         hi // 2 + 1,
-        (hi + 1) // 2,
         hi - 1,
         hi,
     ]
@@ -296,30 +254,3 @@ def foo(a: {typ}) -> {typ}:
     assert c.foo(-2) == 2
 
     assert_tx_failed(lambda: c.foo(lo))
-
-
-@pytest.mark.parametrize("typ,lo,hi,bits", PARAMS)
-def test_literal_negative_int(get_contract, assert_tx_failed, typ, lo, hi, bits):
-    code = f"""
-@external
-def sub_one(a: {typ}) -> {typ}:
-    return a + -1
-
-@external
-def add_one(a: {typ}) -> {typ}:
-    return a - -1
-    """
-
-    c = get_contract(code)
-
-    assert c.sub_one(23) == 22
-    assert c.add_one(23) == 24
-
-    assert c.sub_one(-23) == -24
-    assert c.add_one(-23) == -22
-
-    assert c.sub_one(lo + 1) == lo
-    assert c.add_one(hi - 1) == hi
-
-    assert_tx_failed(lambda: c.sub_one(lo))
-    assert_tx_failed(lambda: c.add_one(hi))
