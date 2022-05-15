@@ -5,7 +5,7 @@ import random
 import pytest
 
 from vyper.codegen.types.types import UNSIGNED_INTEGER_TYPES, parse_integer_typeinfo
-from vyper.exceptions import InvalidType, OverflowException
+from vyper.exceptions import InvalidType, OverflowException, ZeroDivisionException
 from vyper.utils import SizeLimits, evm_div, evm_mod, int_bounds
 
 PARAMS = []

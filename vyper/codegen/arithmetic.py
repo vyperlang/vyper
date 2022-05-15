@@ -292,7 +292,6 @@ def safe_div(x, y):
                 # x or y is a literal, and not an evil value.
                 pass
 
-
         elif num_info.is_signed and is_integer_type(typ):
             lo, hi = num_info.bounds
             # we need to throw on min_value(typ) / -1,
@@ -311,6 +310,7 @@ def safe_div(x, y):
 
         check = ["assert", ok]
         return IRnode.from_list(b1.resolve(["seq", check, res]))
+
 
 # def safe_mod(x: IRnode, y: IRnode) -> IRnode:
 def safe_mod(x, y):

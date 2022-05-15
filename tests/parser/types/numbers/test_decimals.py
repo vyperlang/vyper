@@ -1,10 +1,9 @@
-from decimal import Decimal, getcontext, ROUND_DOWN
+from decimal import ROUND_DOWN, Decimal, getcontext
 
 import pytest
 
 from vyper.exceptions import DecimalOverrideException, TypeMismatch
-
-from vyper.utils import DECIMAL_DIVISOR, SizeLimits, DECIMAL_EPSILON, round_towards_zero
+from vyper.utils import DECIMAL_EPSILON, SizeLimits
 
 
 def test_decimal_override():
