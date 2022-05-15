@@ -97,7 +97,7 @@ def foo() -> {typ}:
     ys += [random.randrange(lo, hi) for _ in range(NUM_CASES)]
 
     # mirror signed integer tests
-    assert 2 ** (bits // 2) in xs and (2**bits) - 1 in ys
+    assert 2 ** (bits // 2) in xs and (2 ** bits) - 1 in ys
 
     for (x, y) in itertools.product(xs, ys):
         expected = fn(x, y)
