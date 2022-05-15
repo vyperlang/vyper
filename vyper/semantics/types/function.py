@@ -19,6 +19,7 @@ from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.bases import BaseTypeDefinition, DataLocation, StorageSlot
 from vyper.semantics.types.indexable.sequence import TupleDefinition
 from vyper.semantics.types.utils import (
+    OptionalInput,
     StringEnum,
     check_kwargable,
     generate_abi_type,
@@ -127,10 +128,10 @@ class ContractFunction(BaseTypeDefinition):
 
         # special kwargs that are allowed in call site
         self.call_site_kwargs = {
-            "gas": Uint256Definition(),
-            "value": Uint256Definition(),
-            "skip_contract_check": BoolDefinition(),
-            "default_return_value": return_type,
+            "gas": OptionalInput(Uint256Definition(), "gas"),
+            "value": OptionalInput(Uint256Definition(), 0),
+            "skip_contract_check": OptionalInput(BoolDefinition(), False, require_literal=True),
+            "default_return_value": OptionalInput(return_type, None),
         }
 
     def __repr__(self):
@@ -483,7 +484,13 @@ class ContractFunction(BaseTypeDefinition):
         # TODO this should be moved to validate_call_args
         for kwarg in node.keywords:
             if kwarg.arg in self.call_site_kwargs:
-                validate_expected_type(kwarg.value, self.call_site_kwargs[kwarg.arg])
+                kwarg_optional_object = self.call_site_kwargs[kwarg.arg]
+                validate_expected_type(kwarg.value, kwarg_optional_object.typ)
+                if kwarg_optional_object.require_literal:
+                    if not isinstance(kwarg.value, vy_ast.Constant):
+                        raise InvalidType(
+                            f"{kwarg.arg} must be literal {kwarg_optional_object.typ}", kwarg.value
+                        )
             else:
                 # Generate the modified source code string with the kwarg removed
                 # as a suggestion to the user.

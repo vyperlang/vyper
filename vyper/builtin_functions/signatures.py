@@ -14,13 +14,6 @@ from vyper.semantics.types import (
 from vyper.semantics.types.bases import BaseTypeDefinition
 
 
-class Optional(object):
-    def __init__(self, typ, default, require_literal=False):
-        self.typ = typ
-        self.default = default
-        self.require_literal = require_literal
-
-
 class TypeTypeDefinition:
     def __init__(self, typedef):
         self.typedef = typedef

@@ -17,6 +17,13 @@ from vyper.semantics.validation.levenshtein_utils import get_levenshtein_error_s
 from vyper.semantics.validation.utils import get_exact_type_from_node, get_index_value
 
 
+class OptionalInput(object):
+    def __init__(self, typ, default, require_literal=False):
+        self.typ = typ
+        self.default = default
+        self.require_literal = require_literal
+
+
 class StringEnum(enum.Enum):
     @staticmethod
     def auto():

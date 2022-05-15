@@ -155,7 +155,7 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
                 self.visit(arg, arg_type)
             for kwarg in node.keywords:
                 # We should only see special kwargs
-                self.visit(kwarg.value, call_type.call_site_kwargs[kwarg.arg])
+                self.visit(kwarg.value, call_type.call_site_kwargs[kwarg.arg].typ)
         elif isinstance(call_type, StructPrimitive):
             # literal structs
             for value, arg_type in zip(node.args[0].values, list(call_type.members.values())):
