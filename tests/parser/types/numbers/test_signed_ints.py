@@ -147,7 +147,16 @@ def num_sub() -> {typ}:
         assert_compile_failed(lambda: get_contract(code), InvalidType)
 
 
-@pytest.mark.parametrize("op", ["+", "-", "*", "/", "%"])
+ARITHMETIC_OPS = {
+    "+": operator.add,
+    "-": operator.sub,
+    "*": operator.mul,
+    "/": evm_div,
+    "%": evm_mod,
+}
+
+
+@pytest.mark.parametrize("op", sorted(ARITHMETIC_OPS.keys()))
 @pytest.mark.parametrize("typ,lo,hi,bits", PARAMS)
 @pytest.mark.fuzzing
 def test_arithmetic_thorough(
@@ -234,6 +243,58 @@ def foo() -> {typ}:
             assert_tx_failed(lambda: get_contract(code_2).foo(x))
             assert_tx_failed(lambda: get_contract(code_3).foo(y))
             assert_compile_failed(lambda: get_contract(code_4), InvalidType)
+
+
+COMPARISON_OPS = {
+    "eq": operator.eq,
+    "ne": operator.ne,
+    ">": operator.gt,
+    ">=": operator.ge,
+    "<": operator.lt,
+    "<=": operator.le,
+}
+
+
+@pytest.mark.parametrize("op", sorted(COMPARISON_OPS.keys()))
+@pytest.mark.parametrize("typ,lo,hi,bits", PARAMS)
+def test_comparators(get_contract, op, typ, lo, hi, bits):
+    code_1 = """
+@external
+def foo(x: {typ}, y: {typ}) -> bool:
+    return x {op} y
+    """
+
+    fn = COMPARISON_OPS[op]
+
+    c = get_contract(code_1)
+
+    # note: constant folding is tested in tests/ast/folding
+    special_cases = [
+        lo,
+        lo + 1,
+        lo // 2,
+        lo // 2 - 1,
+        lo // 2 + 1,
+        -3,
+        -2,
+        -1,
+        0,
+        1,
+        2,
+        3,
+        hi // 2 - 1,
+        hi // 2,
+        hi // 2 + 1,
+        hi - 1,
+        hi,
+    ]
+
+    xs = special_cases.copy()
+    ys = special_cases.copy()
+
+    for x, y in itertools.product(xs, ys):
+        expected = fn(x, y)
+        assert c.foo(x, y) is expected
 
 
 @pytest.mark.parametrize("typ,lo,hi,bits", PARAMS)

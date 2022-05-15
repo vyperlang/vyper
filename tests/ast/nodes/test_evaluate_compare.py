@@ -6,14 +6,35 @@ from vyper import ast as vy_ast
 from vyper.exceptions import UnfoldableNode
 
 
+# TODO expand to all signed types
 @pytest.mark.fuzzing
 @settings(max_examples=50, deadline=1000)
 @given(left=st.integers(), right=st.integers())
 @pytest.mark.parametrize("op", ["==", "!=", "<", "<=", ">=", ">"])
-def test_compare_eq(get_contract, op, left, right):
+def test_compare_eq_signed(get_contract, op, left, right):
     source = f"""
 @external
 def foo(a: int128, b: int128) -> bool:
+    return a {op} b
+    """
+    contract = get_contract(source)
+
+    vyper_ast = vy_ast.parse_to_ast(f"{left} {op} {right}")
+    old_node = vyper_ast.body[0].value
+    new_node = old_node.evaluate()
+
+    assert contract.foo(left, right) == new_node.value
+
+
+# TODO expand to all unsigned types
+@pytest.mark.fuzzing
+@settings(max_examples=50, deadline=1000)
+@given(left=st.integers(), right=st.integers())
+@pytest.mark.parametrize("op", ["==", "!=", "<", "<=", ">=", ">"])
+def test_compare_eq_unsigned(get_contract, op, left, right):
+    source = f"""
+@external
+def foo(a: uint128, b: uint128) -> bool:
     return a {op} b
     """
     contract = get_contract(source)
