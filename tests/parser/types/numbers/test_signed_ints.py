@@ -242,7 +242,7 @@ def foo() -> {typ}:
             assert_tx_failed(lambda: c.foo(x, y))
             assert_tx_failed(lambda: get_contract(code_2).foo(x))
             assert_tx_failed(lambda: get_contract(code_3).foo(y))
-            assert_compile_failed(lambda: get_contract(code_4), InvalidType)
+            assert_compile_failed(lambda: get_contract(code_4), (InvalidType, OverflowException))
 
 
 COMPARISON_OPS = {
@@ -259,7 +259,7 @@ COMPARISON_OPS = {
 @pytest.mark.parametrize("typ,lo,hi,bits", PARAMS)
 @pytest.mark.fuzzing
 def test_comparators(get_contract, op, typ, lo, hi, bits):
-    code_1 = """
+    code_1 = f"""
 @external
 def foo(x: {typ}, y: {typ}) -> bool:
     return x {op} y
