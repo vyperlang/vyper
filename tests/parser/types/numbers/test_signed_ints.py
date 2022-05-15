@@ -220,8 +220,8 @@ def foo() -> {typ}:
     NUM_CASES = 15
     # poor man's fuzzing - hypothesis doesn't make it easy
     # with the parametrized strategy
-    xs = [random.randrange(lo, hi) for _ in range(NUM_CASES)]
-    ys = [random.randrange(lo, hi) for _ in range(NUM_CASES)]
+    xs += [random.randrange(lo, hi) for _ in range(NUM_CASES)]
+    ys += [random.randrange(lo, hi) for _ in range(NUM_CASES)]
 
     # edge cases that are tricky to reason about and MUST be tested
     assert lo in xs and -1 in ys
