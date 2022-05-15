@@ -246,8 +246,8 @@ def foo() -> {typ}:
 
 
 COMPARISON_OPS = {
-    "eq": operator.eq,
-    "ne": operator.ne,
+    "==": operator.eq,
+    "!=": operator.ne,
     ">": operator.gt,
     ">=": operator.ge,
     "<": operator.lt,
@@ -257,6 +257,7 @@ COMPARISON_OPS = {
 
 @pytest.mark.parametrize("op", sorted(COMPARISON_OPS.keys()))
 @pytest.mark.parametrize("typ,lo,hi,bits", PARAMS)
+@pytest.mark.fuzzing
 def test_comparators(get_contract, op, typ, lo, hi, bits):
     code_1 = """
 @external

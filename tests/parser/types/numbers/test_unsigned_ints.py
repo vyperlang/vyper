@@ -17,7 +17,7 @@ for t in sorted(UNSIGNED_INTEGER_TYPES):
 
 @pytest.mark.parametrize("typ,lo,hi,bits", PARAMS)
 def test_exponent_base_zero(get_contract, typ, lo, hi, bits):
-    code = """
+    code = f"""
 @external
 def foo(x: {typ}) -> {typ}:
     return 0 ** x
@@ -31,7 +31,7 @@ def foo(x: {typ}) -> {typ}:
 
 @pytest.mark.parametrize("typ,lo,hi,bits", PARAMS)
 def test_exponent_base_one(get_contract, typ, lo, hi, bits):
-    code = """
+    code = f"""
 @external
 def foo(x: {typ}) -> {typ}:
     return 1 ** x
@@ -120,8 +120,8 @@ def foo() -> {typ}:
 
 
 COMPARISON_OPS = {
-    "eq": operator.eq,
-    "ne": operator.ne,
+    "==": operator.eq,
+    "!=": operator.ne,
     ">": operator.gt,
     ">=": operator.ge,
     "<": operator.lt,
@@ -131,8 +131,9 @@ COMPARISON_OPS = {
 
 @pytest.mark.parametrize("op", sorted(COMPARISON_OPS.keys()))
 @pytest.mark.parametrize("typ,lo,hi,bits", PARAMS)
+@pytest.mark.fuzzing
 def test_comparators(get_contract, op, typ, lo, hi, bits):
-    code_1 = """
+    code_1 = f"""
 @external
 def foo(x: {typ}, y: {typ}) -> bool:
     return x {op} y
