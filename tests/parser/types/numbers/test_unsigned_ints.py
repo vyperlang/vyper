@@ -97,23 +97,30 @@ def foo() -> {typ}:
     ys += [random.randrange(lo, hi) for _ in range(NUM_CASES)]
 
     # mirror signed integer tests
-    assert 2 ** (bits // 2) in xs and (2 ** bits) - 1 in ys
+    assert 2 ** (bits - 1) in xs and (2 ** bits) - 1 in ys
 
     for (x, y) in itertools.product(xs, ys):
         expected = fn(x, y)
-        ok = SizeLimits.in_bounds(typ, expected)
+        in_bounds = SizeLimits.in_bounds(typ, expected)
         # safediv and safemod disallow divisor == 0
-        ok &= not (y == 0 and op in ("/", "%"))
+        div_by_zero = y == 0 and op in ("/", "%")
+
+        ok = in_bounds and div_by_zero
 
         code_2 = code_2_template.format(typ=typ, op=op, y=y)
         code_3 = code_3_template.format(typ=typ, op=op, x=x)
         code_4 = code_4_template.format(typ=typ, op=op, x=x, y=y)
 
-        if SizeLimits.in_bounds(typ, expected):
+        if ok:
             assert c.foo(x, y) == expected
             assert get_contract(code_2).foo(x) == expected
             assert get_contract(code_3).foo(y) == expected
             assert get_contract(code_4).foo() == expected
+        elif div_by_zero:
+            assert_tx_failed(lambda: c.foo(x, y))
+            assert_compile_failed(lambda: get_contract(code_2), ZeroDivisionException)
+            assert_tx_failed(lambda: get_contract(code_3).foo(y))
+            assert_compile_failed(lambda: get_contract(code_4), ZeroDivisionException)
         else:
             assert_tx_failed(lambda: c.foo(x, y))
             assert_tx_failed(lambda: get_contract(code_2).foo(x))
