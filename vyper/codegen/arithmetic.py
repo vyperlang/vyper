@@ -258,28 +258,9 @@ def safe_mul(x, y):
 # def safe_div(x: IRnode, y: IRnode) -> IRnode:
 def safe_div(x, y):
     num_info = x.typ._num_info
+    typ = x.typ
 
     ok = [1]  # true
-
-    # TODO: refactor this condition / push some things into the optimizer
-    if x.typ.typ == "int256":
-        if version_check(begin="constantinople"):
-            upper_bound = ["shl", 255, 1]
-        else:
-            upper_bound = -(2 ** 255)
-
-        if not x.is_literal and not y.typ.is_literal:
-            ok = ["or", ["ne", y, ["not", 0]], ["ne", x, upper_bound]]
-        # TODO push these rules into the optimizer
-        elif x.is_literal and x.value == -(2 ** 255):
-            ok = ["ne", y, ["not", 0]]
-        elif y.is_literal and y.value == -1:
-            ok = ["ne", x, upper_bound]
-        else:
-            # x or y is a literal, and not an evil value.
-            pass
-
-    check = ["assert", ok]
 
     if is_decimal_type(x.typ):
         lo, hi = num_info.bounds
@@ -290,9 +271,46 @@ def safe_div(x, y):
         x = ["mul", x, num_info.divisor]
 
     DIV = "sdiv" if num_info.is_signed else "div"
+    res = IRnode.from_list([DIV, x, clamp("gt", y, 0)], typ=typ)
+    with res.cache_when_complex("res") as (b1, res):
 
-    return IRnode.from_list(["seq", check, [DIV, x, clamp("gt", y, 0)]])
+        # TODO: refactor this condition / push some things into the optimizer
+        if num_info.is_signed and num_info.bits == 256:
+            if version_check(begin="constantinople"):
+                upper_bound = ["shl", 255, 1]
+            else:
+                upper_bound = -(2 ** 255)
 
+            if not x.is_literal and not y.typ.is_literal:
+                ok = ["or", ["ne", y, ["not", 0]], ["ne", x, upper_bound]]
+            # TODO push these rules into the optimizer
+            elif x.is_literal and x.value == -(2 ** 255):
+                ok = ["ne", y, ["not", 0]]
+            elif y.is_literal and y.value == -1:
+                ok = ["ne", x, upper_bound]
+            else:
+                # x or y is a literal, and not an evil value.
+                pass
+
+
+        elif num_info.is_signed and is_integer_type(typ):
+            lo, hi = num_info.bounds
+            # we need to throw on min_value(typ) / -1,
+            # but we can skip if one of the operands is a literal and not
+            # the evil value
+            can_skip_clamp = (x.is_literal and x.value != lo) or (y.is_literal and y.value != -1)
+            if not can_skip_clamp:
+                # clamp_basetype has fewer ops than the int256 rule.
+                res = clamp_basetype(res)
+
+        elif is_decimal_type(typ):
+            # always clamp decimals, since decimal division can actually
+            # result in something larger than either operand (e.g. 1.0 / 0.1)
+            # TODO maybe use safe_mul
+            res = clamp_basetype(res)
+
+        check = ["assert", ok]
+        return IRnode.from_list(b1.resolve(["seq", check, res]))
 
 # def safe_mod(x: IRnode, y: IRnode) -> IRnode:
 def safe_mod(x, y):
