@@ -217,7 +217,7 @@ def foo() -> {typ}:
 
     # note: (including special cases, roughly 8k cases total generated)
 
-    NUM_CASES = 15
+    NUM_CASES = 10
     # poor man's fuzzing - hypothesis doesn't make it easy
     # with the parametrized strategy
     xs += [random.randrange(lo, hi) for _ in range(NUM_CASES)]

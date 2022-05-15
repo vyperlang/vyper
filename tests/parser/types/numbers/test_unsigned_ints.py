@@ -90,7 +90,7 @@ def foo() -> {typ}:
     special_cases = [0, 1, 2, 3, hi // 2 - 1, hi // 2, hi // 2 + 1, hi - 2, hi - 1, hi]
     xs = special_cases.copy()
     ys = special_cases.copy()
-    NUM_CASES = 15
+    NUM_CASES = 10
     # poor man's fuzzing - hypothesis doesn't make it easy
     # with the parametrized strategy
     xs += [random.randrange(lo, hi) for _ in range(NUM_CASES)]
