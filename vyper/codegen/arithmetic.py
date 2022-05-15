@@ -206,6 +206,8 @@ def safe_mul(x, y):
 
     with res.cache_when_complex("ans") as (b1, res):
 
+        ok = [1]  # True
+
         if num_info.bits > 128:  # check overflow mod 256
             # assert (res/y == x | y == 0)
             ok = ["or", ["eq", [DIV, res, y], x], ["iszero", y]]
@@ -236,7 +238,7 @@ def safe_mul(x, y):
             else:
                 # x or y is a literal, and we have determined it is
                 # not an evil value
-                ok = [1]  # True
+                pass
 
         # check overflow mod <bits>
         # NOTE: if 128 < bits < 256, `x * y` could be between
@@ -257,6 +259,8 @@ def safe_mul(x, y):
 def safe_div(x, y):
     num_info = x.typ._num_info
 
+    ok = [1]  # true
+
     # TODO: refactor this condition / push some things into the optimizer
     if x.typ.typ == "int256":
         if version_check(begin="constantinople"):
@@ -273,7 +277,7 @@ def safe_div(x, y):
             ok = ["ne", x, upper_bound]
         else:
             # x or y is a literal, and not an evil value.
-            ok = [1]  # true
+            pass
 
     check = ["assert", ok]
 
