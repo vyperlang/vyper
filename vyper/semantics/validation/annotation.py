@@ -52,6 +52,11 @@ class StatementAnnotationVisitor(_AnnotationVisitorBase):
         self.namespace = namespace
         self.expr_visitor = ExpressionAnnotationVisitor(self.func)
 
+        if fn_node:
+            assert len(self.func.kwarg_keys) == len(fn_node.args.defaults)
+            for kw, val in zip(self.func.kwarg_keys, fn_node.args.defaults):
+                self.expr_visitor.visit(val, self.func.arguments[kw])
+
     def visit(self, node):
         super().visit(node)
 
@@ -149,7 +154,8 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
             for arg, arg_type in zip(node.args, list(call_type.arguments.values())):
                 self.visit(arg, arg_type)
             for kwarg in node.keywords:
-                self.visit(kwarg.value, None)
+                # We should only see special kwargs
+                self.visit(kwarg.value, call_type.call_site_kwargs[kwarg.arg])
         elif isinstance(call_type, StructPrimitive):
             # literal structs
             for value, arg_type in zip(node.args[0].values, list(call_type.members.values())):
