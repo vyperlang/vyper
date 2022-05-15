@@ -376,6 +376,9 @@ class Expr:
                 ret = arithmetic.safe_mod(x, y)
             elif isinstance(self.expr.op, vy_ast.Pow):
                 ret = arithmetic.safe_pow(x, y)
+            else:
+                return  # raises
+
             return IRnode.from_list(b1.resolve(b2.resolve(ret)), typ=out_typ)
 
     def build_in_comparator(self):

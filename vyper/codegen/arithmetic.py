@@ -283,7 +283,7 @@ def safe_div(x, y):
             # stub to prevent us from adding fixed point numbers we don't know
             # how to deal with
             raise UnimplementedException("safe_mul for decimal{num_info.bits}x{num_info.decimals}")
-        x = ["mul", x, int(num_info.divisor)]
+        x = ["mul", x, num_info.divisor]
 
     DIV = "sdiv" if num_info.is_signed else "div"
 
