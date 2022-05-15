@@ -174,6 +174,7 @@ GAS_CALLDATACOPY_WORD = 3
 # A decimal value can store multiples of 1/DECIMAL_DIVISOR
 MAX_DECIMAL_PLACES = 10
 DECIMAL_DIVISOR = 10 ** MAX_DECIMAL_PLACES
+DECIMAL_EPSILON = decimal.Decimal(1) / DECIMAL_DIVISOR
 
 
 def int_bounds(signed, bits):
