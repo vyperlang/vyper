@@ -240,15 +240,15 @@ def safe_mul(x, y):
                 # not an evil value
                 pass
 
+        if is_decimal_type(res.typ):
+            res = IRnode.from_list([DIV, res, num_info.divisor], typ=res.typ)
+
         # check overflow mod <bits>
         # NOTE: if 128 < bits < 256, `x * y` could be between
         # MAX_<bits> and 2**256 OR it could overflow past 2**256.
         # so, we check for overflow in mod 256 AS WELL AS mod <bits>
         # (if bits == 256, clamp_basetype is a no-op)
         res = clamp_basetype(res)
-
-        if is_decimal_type(res.typ):
-            res = IRnode.from_list([DIV, res, num_info.divisor])
 
         res = IRnode.from_list(["seq", ["assert", ok], res], typ=res.typ)
 
