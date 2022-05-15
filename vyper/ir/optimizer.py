@@ -142,9 +142,13 @@ def _optimize_arith(binop, args, ann, parent_op):
         new_val = args[0].value
         new_args = args[0].args
 
-    elif binop in {"sub", "xor"} and _conservative_eq(args[0], args[1]):
-        # x - x == x ^ x == 0
-        new_val = 0
+    elif binop in {"sub", "xor", "eq", "ne"} and _conservative_eq(args[0], args[1]):
+        if binop == "eq":
+            # (x == x) == 1
+            new_val = 1
+        else:
+            # x - x == x ^ x == x != x == 0
+            new_val = 0
         new_args = []
 
     # TODO associativity rules

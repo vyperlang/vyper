@@ -98,6 +98,7 @@ optimize_list = [
     (["and", "x", 1], ["and", "x", 1]),  # no-op
     (["or", "x", 1], ["or", "x", 1]),  # no-op
     (["xor", 0, "x"], ["x"]),
+    (["xor", "x", "x"], [0]),
     (["iszero", ["or", "x", 1]], [0]),
     (["iszero", ["or", 2, "x"]], [0]),
     # nested optimizations
@@ -108,6 +109,9 @@ optimize_list = [
     (["eq", -1, ["add", 2 ** 255, 2 ** 255 - 1]], [1]),  # test compile-time wrapping
     (["eq", -1, ["add", -(2 ** 255), 2 ** 255 - 1]], [1]),  # test compile-time wrapping
     (["eq", -2, ["add", 2 ** 256 - 1, 2 ** 256 - 1]], [1]),  # test compile-time wrapping
+    (["eq", "x", "x"], [1])
+    (["eq", "callvalue", "callvalue"], ["eq", "callvalue", "callvalue"])
+    (["ne", "x", "x"], [0])
 ]
 
 
