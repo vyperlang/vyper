@@ -206,15 +206,7 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
         self.visit(node.value, type_)
 
     def visit_Int(self, node, type_):
-        if type_:
-            if not hasattr(type_, "_id"):
-                # Filter for IntegerAbstractType and set it to the largest unsigned type
-                possible_types = sorted(
-                    get_possible_types_from_node(node), key=lambda x: (x._bits, len(str(x)))
-                )
-                node._metadata["type"] = possible_types.pop()
-            else:
-                node._metadata["type"] = type_
+        node._metadata["type"] = type_
 
     def visit_List(self, node, type_):
         if type_ is None:
