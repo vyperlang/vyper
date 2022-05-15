@@ -246,7 +246,7 @@ def safe_mul(x, y):
         res = clamp_basetype(res)
 
         if is_decimal_type(res.typ):
-            res = IRnode.from_list([DIV, res, int(num_info.divisor)])
+            res = IRnode.from_list([DIV, res, num_info.divisor])
 
         res = IRnode.from_list(["seq", ["assert", ok], res], typ=res.typ)
 
@@ -273,8 +273,7 @@ def safe_div(x, y):
             ok = ["ne", x, upper_bound]
         else:
             # x or y is a literal, and not an evil value.
-            ok = [1] # true
-
+            ok = [1]  # true
 
     check = ["assert", ok]
 
