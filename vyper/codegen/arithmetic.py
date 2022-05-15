@@ -152,6 +152,7 @@ def safe_add(x, y):
             # note this is "equivalent" to the unsigned form
             # of the above (because y < 0 == False)
             #       ["eq", ["lt", y, 0], ["lt", res, x]]
+            # TODO push down into optimizer rules.
             ok = ["ge", res, x]
 
         ret = IRnode.from_list(["seq", ["assert", ok], res])
@@ -180,6 +181,7 @@ def safe_sub(x, y):
             # note this is "equivalent" to the unsigned form
             # of the above (because y < 0 == False)
             #       ["eq", ["lt", y, 0], ["gt", res, x]]
+            # TODO push down into optimizer rules.
             ok = ["le", res, x]
 
         ret = IRnode.from_list(["seq", ["assert", ok], res])
@@ -191,7 +193,8 @@ def safe_mul(x, y):
     # precondition: x.typ.typ == y.typ.typ
     num_info = x.typ._num_info
 
-    # optimizer rules work better if second operand is literal
+    # optimizer rules work better for the safemul checks below
+    # if second operand is literal
     if x.is_literal:
         tmp = x
         x = y
@@ -203,10 +206,8 @@ def safe_mul(x, y):
 
     with res.cache_when_complex("ans") as (b1, res):
 
-        ok = IRnode(1)  # true
-
         if num_info.bits > 128:  # check overflow mod 256
-            # assert (res/y == x || y == 0)
+            # assert (res/y == x | y == 0)
             ok = ["or", ["eq", [DIV, res, y], x], ["iszero", y]]
 
         # int256
@@ -233,13 +234,14 @@ def safe_mul(x, y):
             elif y.is_literal and y.value == -1:
                 ok = ["and", ok, check_x]
             else:
-                # x or y is a literal, and not an evil value
-                pass
+                # x or y is a literal, and we have determined it is
+                # not an evil value
+                ok = [1]  # True
 
         # check overflow mod <bits>
         # NOTE: if 128 < bits < 256, `x * y` could be between
-        # MAX_<bits> and 2**256 OR it could overflow past 2**256. so,
-        # we check for overflow in mod 256 AND mod <bits>
+        # MAX_<bits> and 2**256 OR it could overflow past 2**256.
+        # so, we check for overflow in mod 256 AS WELL AS mod <bits>
         # (if bits == 256, clamp_basetype is a no-op)
         res = clamp_basetype(res)
 
@@ -255,8 +257,6 @@ def safe_mul(x, y):
 def safe_div(x, y):
     num_info = x.typ._num_info
 
-    ok = IRnode(1)  # true
-
     # TODO: refactor this condition / push some things into the optimizer
     if x.typ.typ == "int256":
         if version_check(begin="constantinople"):
@@ -266,11 +266,15 @@ def safe_div(x, y):
 
         if not x.is_literal and not y.typ.is_literal:
             ok = ["or", ["ne", y, ["not", 0]], ["ne", x, upper_bound]]
-        # TODO push this constant folding into the optimizer
+        # TODO push these rules into the optimizer
         elif x.is_literal and x.value == -(2 ** 255):
             ok = ["ne", y, ["not", 0]]
         elif y.is_literal and y.value == -1:
             ok = ["ne", x, upper_bound]
+        else:
+            # x or y is a literal, and not an evil value.
+            ok = [1] # true
+
 
     check = ["assert", ok]
 
@@ -279,7 +283,7 @@ def safe_div(x, y):
         if max(abs(lo), abs(hi)) * num_info.divisor > 2 ** 256 - 1:
             # stub to prevent us from adding fixed point numbers we don't know
             # how to deal with
-            raise UnimplementedException("safe mul for decimal{num_info.bits}x{num_info.decimals}")
+            raise UnimplementedException("safe_mul for decimal{num_info.bits}x{num_info.decimals}")
         x = ["mul", x, int(num_info.divisor)]
 
     DIV = "sdiv" if num_info.is_signed else "div"
@@ -301,7 +305,7 @@ def safe_pow(x, y):
         # type checker should have caught this
         raise TypeCheckFailure("non-integer pow")
 
-    if isinstance(x.value, int):
+    if x.is_literal:
         # cannot pass 1 or 0 to `calculate_largest_power`
         if x.value == 1:
             return IRnode.from_list([1])
@@ -312,7 +316,7 @@ def safe_pow(x, y):
         # for signed integers, this also prevents negative values
         ok = ["lt", y, upper_bound]
 
-    elif isinstance(y.value, int):
+    elif y.is_literal:
         upper_bound = calculate_largest_base(y.value, num_info.bits, num_info.is_signed) + 1
         if num_info.is_signed:
             ok = ["and", ["slt", x, upper_bound], ["sgt", x, -upper_bound]]

@@ -223,6 +223,9 @@ def foo() -> {typ}:
     xs = [random.randrange(lo, hi) for _ in range(NUM_CASES)]
     ys = [random.randrange(lo, hi) for _ in range(NUM_CASES)]
 
+    # edge cases that are tricky to reason about and MUST be tested
+    assert lo in xs and -1 in ys
+
     for (x, y) in itertools.product(xs, ys):
         expected = fn(x, y)
         ok = SizeLimits.in_bounds(typ, expected)
