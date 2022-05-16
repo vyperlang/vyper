@@ -29,7 +29,7 @@ def foo(a: int128, b: int128) -> bool:
 # TODO expand to all unsigned types
 @pytest.mark.fuzzing
 @settings(max_examples=50, deadline=1000)
-@given(left=st.integers(), right=st.integers())
+@given(left=st.integers(min_value=0), right=st.integers(min_value=0))
 @pytest.mark.parametrize("op", ["==", "!=", "<", "<=", ">=", ">"])
 def test_compare_eq_unsigned(get_contract, op, left, right):
     source = f"""
