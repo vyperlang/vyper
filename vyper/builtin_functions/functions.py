@@ -72,7 +72,7 @@ from vyper.semantics.types.abstract import (
     SignedIntegerAbstractType,
 )
 from vyper.semantics.types.bases import DataLocation
-from vyper.semantics.types.utils import OptionalInput, get_type_from_annotation
+from vyper.semantics.types.utils import KwargSettings, get_type_from_annotation
 from vyper.semantics.types.value.address import AddressDefinition
 from vyper.semantics.types.value.array_value import (
     BytesArrayDefinition,
@@ -120,7 +120,7 @@ class _BuiltinFunction:
 
 class _SimpleBuiltinFunction(_BuiltinFunction):
 
-    _kwargs: Dict[str, OptionalInput] = {}
+    _kwargs: Dict[str, KwargSettings] = {}
 
     def fetch_call_return(self, node):
         # Call infer_arg_types to validate arguments and derive the type definitions
@@ -908,7 +908,7 @@ class Extract32(_SimpleBuiltinFunction):
     _id = "extract32"
     _inputs = [("b", BytesArrayPrimitive()), ("start", SignedIntegerAbstractType())]
     # "name_literal" is a placeholder value for TypeTypeDefinition
-    _kwargs = {"output_type": OptionalInput("name_literal", "bytes32")}
+    _kwargs = {"output_type": KwargSettings("name_literal", "bytes32")}
     _return_type = None
 
     def fetch_call_return(self, node):
@@ -1133,12 +1133,12 @@ class RawCall(_SimpleBuiltinFunction):
     _id = "raw_call"
     _inputs = [("to", AddressDefinition()), ("data", BytesAbstractType())]
     _kwargs = {
-        "max_outsize": OptionalInput(Uint256Definition(), 0, require_literal=True),
-        "gas": OptionalInput(Uint256Definition(), "gas"),
-        "value": OptionalInput(Uint256Definition(), zero_value),
-        "is_delegate_call": OptionalInput(BoolDefinition(), False, require_literal=True),
-        "is_static_call": OptionalInput(BoolDefinition(), False, require_literal=True),
-        "revert_on_failure": OptionalInput(BoolDefinition(), True, require_literal=True),
+        "max_outsize": KwargSettings(Uint256Definition(), 0, require_literal=True),
+        "gas": KwargSettings(Uint256Definition(), "gas"),
+        "value": KwargSettings(Uint256Definition(), zero_value),
+        "is_delegate_call": KwargSettings(BoolDefinition(), False, require_literal=True),
+        "is_static_call": KwargSettings(BoolDefinition(), False, require_literal=True),
+        "revert_on_failure": KwargSettings(BoolDefinition(), True, require_literal=True),
     }
     _return_type = None
 
@@ -1697,8 +1697,8 @@ class CreateForwarderTo(_SimpleBuiltinFunction):
     _id = "create_forwarder_to"
     _inputs = [("target", AddressDefinition())]
     _kwargs = {
-        "value": OptionalInput(Uint256Definition(), zero_value),
-        "salt": OptionalInput(Bytes32Definition(), empty_value),
+        "value": KwargSettings(Uint256Definition(), zero_value),
+        "salt": KwargSettings(Bytes32Definition(), empty_value),
     }
     _return_type = AddressDefinition()
 
@@ -2030,8 +2030,8 @@ class ABIEncode(_SimpleBuiltinFunction):
     # if this is turned off, then bytes will be encoded as bytes.
 
     _kwargs = {
-        "ensure_tuple": OptionalInput(BoolDefinition(), True, require_literal=True),
-        "method_id": OptionalInput(BytesAbstractType(), None),
+        "ensure_tuple": KwargSettings(BoolDefinition(), True, require_literal=True),
+        "method_id": KwargSettings(BytesAbstractType(), None),
     }
 
     @staticmethod

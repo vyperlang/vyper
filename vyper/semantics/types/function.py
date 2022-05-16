@@ -19,7 +19,7 @@ from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.bases import BaseTypeDefinition, DataLocation, StorageSlot
 from vyper.semantics.types.indexable.sequence import TupleDefinition
 from vyper.semantics.types.utils import (
-    OptionalInput,
+    KwargSettings,
     StringEnum,
     check_kwargable,
     generate_abi_type,
@@ -128,10 +128,10 @@ class ContractFunction(BaseTypeDefinition):
 
         # special kwargs that are allowed in call site
         self.call_site_kwargs = {
-            "gas": OptionalInput(Uint256Definition(), "gas"),
-            "value": OptionalInput(Uint256Definition(), 0),
-            "skip_contract_check": OptionalInput(BoolDefinition(), False, require_literal=True),
-            "default_return_value": OptionalInput(return_type, None),
+            "gas": KwargSettings(Uint256Definition(), "gas"),
+            "value": KwargSettings(Uint256Definition(), 0),
+            "skip_contract_check": KwargSettings(BoolDefinition(), False, require_literal=True),
+            "default_return_value": KwargSettings(return_type, None),
         }
 
     def __repr__(self):
