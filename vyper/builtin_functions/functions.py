@@ -1354,7 +1354,12 @@ class RawLog(_BuiltinFunction):
     @validate_inputs
     def build_IR(self, expr, args, kwargs, context):
         topics_length = len(expr.args[0].elements)
-        topics = [] if topics_length == 0 else args[0][1:]
+        topics = args[0].args
+
+        if topics_length > 0:
+            assert args[0].value == "multi"
+        else:
+            assert args[0].value == "~empty"
 
         _, data_type = self.infer_arg_types(expr)
         data = args[1]
