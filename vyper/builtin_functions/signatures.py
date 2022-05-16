@@ -9,6 +9,7 @@ from vyper.semantics.types import (
     ArrayDefinition,
     BoolDefinition,
     BytesArrayDefinition,
+    DynamicArrayDefinition,
     StringDefinition,
 )
 from vyper.semantics.types.bases import BaseTypeDefinition
@@ -36,7 +37,10 @@ def _process_optional_literal_value(optional_obj, kwarg_node):
 
 
 def process_arg(arg, expected_arg_type, context):
-    if isinstance(expected_arg_type, (BytesArrayDefinition, StringDefinition, ArrayDefinition)):
+    if isinstance(
+        expected_arg_type,
+        (BytesArrayDefinition, StringDefinition, ArrayDefinition, DynamicArrayDefinition),
+    ):
         return Expr(arg, context).ir_node
 
     # TODO: Builtins should not require value expressions

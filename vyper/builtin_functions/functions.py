@@ -1351,17 +1351,13 @@ class RawLog(_BuiltinFunction):
 
         return [self._inputs[0][1], data_type]
 
-    def build_IR(self, expr, context):
-        topics = []
-        for a in expr.args[0].elements:
-            r = Expr.parse_value_expr(a, context)
-            topics.append(r)
+    @validate_inputs
+    def build_IR(self, expr, args, kwargs, context):
+        topics_length = len(expr.args[0].elements)
+        topics = [] if topics_length == 0 else args[0][1:]
 
         _, data_type = self.infer_arg_types(expr)
-        if isinstance(data_type, Bytes32Definition):
-            data = Expr.parse_value_expr(expr.args[1], context)
-        else:
-            data = Expr(expr.args[1], context).ir_node
+        data = args[1]
 
         if data.typ == BaseType("bytes32"):
             placeholder = context.new_internal_variable(BaseType("bytes32"))
@@ -1370,7 +1366,7 @@ class RawLog(_BuiltinFunction):
                     "seq",
                     # TODO use make_setter
                     ["mstore", placeholder, unwrap_location(data)],
-                    ["log" + str(len(topics)), placeholder, 32] + topics,
+                    ["log" + str(topics_length), placeholder, 32] + topics,
                 ],
             )
 
@@ -1381,7 +1377,7 @@ class RawLog(_BuiltinFunction):
                 "with",
                 "_sub",
                 input_buf,
-                ["log" + str(len(topics)), ["add", "_sub", 32], ["mload", "_sub"], *topics],
+                ["log" + str(topics_length), ["add", "_sub", 32], ["mload", "_sub"], *topics],
             ],
         )
 
