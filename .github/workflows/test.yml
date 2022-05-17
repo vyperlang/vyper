@@ -106,10 +106,21 @@ jobs:
         if: ${{ needs.tests.result != 'success' }}
         run: exit 1
 
+  fetch-test-durations:
+    runs-on: ubuntu-latest
+    steps:
+      # fetch test durations
+      # NOTE: if the tests get poorly distributed, run this and commit the resulting `.test_durations` file to the `vyper-test-durations` repo.
+      # `TOXENV=fuzzing tox -r -- --store-durations --reruns 10 --reruns-delay 1 -r aR tests/`
+      - name: Fetch test-durations
+        run: curl --location "https://raw.githubusercontent.com/vyperlang/vyper-test-durations/02997e82f03b14f8a88a270db070adb0912bccfb/test_durations" -o .test_durations
+
+
   # fuzzing + slow/exhaustive tests (things that are too slow to run in
   # the regular test suite)
   fuzzing:
     runs-on: ubuntu-latest
+    needs: fetch-test-durations
 
     strategy:
       matrix:
@@ -126,28 +137,7 @@ jobs:
     - name: Install Tox
       run: pip install tox
 
-    - name: Restore duration cache
-      uses: actions/cache@v2
-      id: test_durations_cache
-      with:
-        path: .test_durations
-        # change the version to reset the cache, do this if
-        # the fuzzer tests get unbalanced
-        key: ${{ runner.os }}-test-durations-cache-v2
-
-    - name: Check test durations existence
-      id: check_test_durations
-      uses: andstor/file-existence-action@v1
-      with:
-        files: .test_durations
-
-    - name: Run build test_duration
-      if: steps.check_test_durations.outputs.files_exists == 'false' # has to run on all, otherwise the first one that finishes creates an empty cache and lock the cache for others
-      id: build_cache_duration
-      run: TOXENV=fuzzing tox -r -- --store-durations --reruns 10 --reruns-delay 1 -r aR tests/
-
     - name: Run Tox
-      if: steps.check_test_durations.outputs.files_exists == 'true'
       run: TOXENV=fuzzing tox -r -- --splits 45 --group ${{ matrix.group }} --reruns 10 --reruns-delay 1 -r aR tests/
 
     - name: Upload Coverage
