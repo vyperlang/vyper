@@ -195,27 +195,6 @@ class Ceil(_SimpleBuiltinFunction):
         )
 
 
-def _filter_possible_int_literal_types(possible_value_types, target_type):
-    # For conversion of integer literals:
-    # 1. Get the smallest (and unsigned if available) type for non-integer target types
-    # 2. For integer target types, remove the target type from list of possible types
-    #    to enable type casting
-    #    TODO: This branch can probably be removed once folding is up
-    if len(possible_value_types) > 1 and all(
-        isinstance(v, IntegerAbstractType) for v in possible_value_types
-    ):
-        if not isinstance(target_type, IntegerAbstractType):
-            possible_value_types = sorted(
-                possible_value_types, key=lambda v: (v._is_signed, v._bits), reverse=True
-            )
-        else:
-            possible_value_types = [
-                i for i in possible_value_types if not target_type.compare_type(i)
-            ]
-
-    return possible_value_types
-
-
 class Convert(_BuiltinFunction):
 
     _id = "convert"
@@ -226,15 +205,28 @@ class Convert(_BuiltinFunction):
         # note: more type conversion validation happens in convert.py
         return target_typedef.typedef
 
+    # TODO: push this down into convert.py for more consistency
     def infer_arg_types(self, node):
         validate_call_args(node, 2)
 
         target_type = get_type_from_annotation(node.args[1], DataLocation.UNSET)
         value_types = get_possible_types_from_node(node.args[0])
-        if len(value_types) == 0:
-            raise CompilerPanic("No possible type for value", node)
 
-        value_type = _filter_possible_int_literal_types(value_types, target_type).pop()
+        # For `convert` of integer literals, we need to match type inference rules in
+        # convert.py codegen routines.
+        # TODO: This can probably be removed once constant folding for `convert` is implemented
+        if len(value_types) > 1 and all( isinstance(v, IntegerAbstractType) for v in value_types):
+            # Get the smallest (and unsigned if available) type for non-integer target types
+            # (note this is different from the ordering returned by `get_possible_types_from_node`)
+            if not isinstance(target_type, IntegerAbstractType):
+                value_types = sorted(
+                    value_types, key=lambda v: (v._is_signed, v._bits), reverse=True
+                )
+            else:
+                # filter out the target type from list of possible types
+                value_types = [ i for i in value_types if not target_type.compare_type(i)]
+
+        value_type = value_types.pop()
 
         # block conversions between same type
         if target_type.compare_type(value_type):
