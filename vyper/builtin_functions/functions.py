@@ -1171,6 +1171,7 @@ class RawCall(_SimpleBuiltinFunction):
     @validate_inputs
     def build_IR(self, expr, args, kwargs, context):
         to, data = args
+        # TODO: must compile in source code order, left-to-right
         gas, value, outsize, delegate_call, static_call, revert_on_failure = (
             kwargs["gas"],
             kwargs["value"],
