@@ -164,7 +164,7 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
             assert len(node.args) == len(call_type.arg_types)
             for arg, arg_type in zip(node.args, call_type.arg_types):
                 self.visit(arg, arg_type)
-        elif node.func.id not in ("empty", "range"):
+        else:
             # builtin functions
             arg_types = call_type.infer_arg_types(node)
             for arg, arg_type in zip(node.args, arg_types):

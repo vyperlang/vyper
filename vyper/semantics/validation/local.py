@@ -23,7 +23,7 @@ from vyper.exceptions import (
 from vyper.semantics.environment import CONSTANT_ENVIRONMENT_VARS, MUTABLE_ENVIRONMENT_VARS
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.abstract import IntegerAbstractType
-from vyper.semantics.types.bases import DataLocation
+from vyper.semantics.types.bases import BaseTypeDefinition, DataLocation
 from vyper.semantics.types.function import (
     ContractFunction,
     MemberFunctionDefinition,
@@ -502,50 +502,50 @@ class _LocalExpressionVisitor(VyperNodeVisitorBase):
     def visit(self, node, type_=None):
         super().visit(node, type_)
 
-    def visit_Attribute(self, node, type_):
+    def visit_Attribute(self, node: vy_ast.Attribute, type_: Optional[BaseTypeDefinition]):
         self.visit(node.value)
         _validate_msg_data_attribute(node)
         _validate_address_code_attribute(node)
 
-    def visit_BinOp(self, node, type_):
+    def visit_BinOp(self, node: vy_ast.BinOp, type_: Optional[BaseTypeDefinition]):
         self.visit(node.left, type_)
         self.visit(node.right, type_)
 
-    def visit_BoolOp(self, node, type_):
+    def visit_BoolOp(self, node: vy_ast.BoolOp, type_: Optional[BaseTypeDefinition]):
         for value in node.values:  # type: ignore[attr-defined]
             self.visit(value)
 
-    def visit_Call(self, node, type_):
+    def visit_Call(self, node: vy_ast.Call, type_: Optional[BaseTypeDefinition]):
         self.visit(node.func)
         for arg in node.args:
             self.visit(arg, type_)
         for kwarg in node.keywords:
             self.visit(kwarg.value)
 
-    def visit_Compare(self, node, type_):
+    def visit_Compare(self, node: vy_ast.Call, type_: Optional[BaseTypeDefinition]):
         self.visit(node.left)  # type: ignore[attr-defined]
         self.visit(node.right)  # type: ignore[attr-defined]
 
-    def visit_Dict(self, node, type_):
+    def visit_Dict(self, node: vy_ast.Dict, type_: Optional[BaseTypeDefinition]):
         for key in node.keys:
             self.visit(key)
         for value in node.values:
             self.visit(value)
 
-    def visit_Index(self, node, type_):
+    def visit_Index(self, node: vy_ast.Index, type_: Optional[BaseTypeDefinition]):
         self.visit(node.value)
 
-    def visit_List(self, node, type_):
+    def visit_List(self, node: vy_ast.List, type_: Optional[BaseTypeDefinition]):
         for element in node.elements:
             self.visit(element)
 
-    def visit_Subscript(self, node, type_):
+    def visit_Subscript(self, node: vy_ast.Subscript, type_: Optional[BaseTypeDefinition]):
         self.visit(node.value)
         self.visit(node.slice)
 
-    def visit_Tuple(self, node, type_):
+    def visit_Tuple(self, node: vy_ast.Tuple, type_: Optional[BaseTypeDefinition]):
         for element in node.elements:
             self.visit(element)
 
-    def visit_UnaryOp(self, node, type_):
+    def visit_UnaryOp(self, node: vy_ast.UnaryOp, type_: Optional[BaseTypeDefinition]):
         self.visit(node.operand)  # type: ignore[attr-defined]

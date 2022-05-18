@@ -70,6 +70,7 @@ from vyper.semantics.types.abstract import (
     IntegerAbstractType,
     NumericAbstractType,
     SignedIntegerAbstractType,
+    UnsignedIntegerAbstractType,
 )
 from vyper.semantics.types.bases import DataLocation
 from vyper.semantics.types.utils import KwargSettings, get_type_from_annotation
@@ -82,7 +83,6 @@ from vyper.semantics.types.value.array_value import (
 )
 from vyper.semantics.types.value.bytes_fixed import Bytes4Definition  # type: ignore
 from vyper.semantics.types.value.bytes_fixed import Bytes32Definition
-from vyper.semantics.types.value.numeric import Int128Definition  # type: ignore
 from vyper.semantics.types.value.numeric import Int256Definition  # type: ignore
 from vyper.semantics.types.value.numeric import Uint256Definition  # type: ignore
 from vyper.semantics.types.value.numeric import DecimalDefinition
@@ -110,15 +110,7 @@ SHA256_BASE_GAS = 60
 SHA256_PER_WORD_GAS = 12
 
 
-class _BuiltinFunction:
-    def __repr__(self):
-        return f"builtin function {self._id}"
-
-    def infer_kwarg_types(self, node):
-        return {i.arg: self._kwargs[i.arg].typ for i in node.keywords}
-
-
-class _SimpleBuiltinFunction(_BuiltinFunction):
+class _SimpleBuiltinFunction:
 
     _kwargs: Dict[str, KwargSettings] = {}
 
@@ -137,6 +129,12 @@ class _SimpleBuiltinFunction(_BuiltinFunction):
             validate_expected_type(arg, expected)
 
         return [i[1] for i in self._inputs]
+
+    def infer_kwarg_types(self, node):
+        return {i.arg: self._kwargs[i.arg].typ for i in node.keywords}
+
+    def __repr__(self):
+        return f"builtin function {self._id}"
 
 
 class Floor(_SimpleBuiltinFunction):
@@ -216,7 +214,7 @@ def _filter_possible_int_literal_types(possible_value_types, target_type):
     return possible_value_types
 
 
-class Convert(_BuiltinFunction):
+class Convert(_SimpleBuiltinFunction):
 
     _id = "convert"
 
@@ -299,7 +297,7 @@ def _build_adhoc_slice_node(sub: IRnode, start: IRnode, length: IRnode, context:
     return IRnode.from_list(node, typ=ByteArrayType(length.value), location=MEMORY)
 
 
-class Slice(_BuiltinFunction):
+class Slice(_SimpleBuiltinFunction):
 
     _id = "slice"
     _inputs = [
@@ -508,7 +506,7 @@ class Len(_SimpleBuiltinFunction):
         return get_bytearray_length(arg)
 
 
-class Concat(_BuiltinFunction):
+class Concat(_SimpleBuiltinFunction):
 
     _id = "concat"
 
@@ -740,7 +738,7 @@ class Sha256(_SimpleBuiltinFunction):
         )
 
 
-class MethodID(_BuiltinFunction):
+class MethodID(_SimpleBuiltinFunction):
 
     _id = "method_id"
 
@@ -773,6 +771,12 @@ class MethodID(_BuiltinFunction):
             return vy_ast.Bytes.from_node(node, value=value.to_bytes(4, "big"))
 
     def fetch_call_return(self, node):
+        raise CompilerPanic("method_id should always be folded")
+
+    def infer_arg_types(self, node):
+        raise CompilerPanic("method_id should always be folded")
+
+    def infer_kwarg_types(self, node):
         raise CompilerPanic("method_id should always be folded")
 
     def build_IR(self, *args, **kwargs):
@@ -906,7 +910,7 @@ def _storage_element_getter(index):
 class Extract32(_SimpleBuiltinFunction):
 
     _id = "extract32"
-    _inputs = [("b", BytesArrayPrimitive()), ("start", SignedIntegerAbstractType())]
+    _inputs = [("b", BytesArrayPrimitive()), ("start", UnsignedIntegerAbstractType())]
     # "name_literal" is a placeholder value for TypeTypeDefinition
     _kwargs = {"output_type": KwargSettings("name_literal", "bytes32")}
     _return_type = None
@@ -920,9 +924,9 @@ class Extract32(_SimpleBuiltinFunction):
         validate_call_args(node, 2, list(self._kwargs.keys()))
         validate_expected_type(node.args[0], BytesArrayDefinition())
         b_type = get_possible_types_from_node(node.args[0]).pop()
-        validate_expected_type(node.args[1], Int128Definition())
+        validate_expected_type(node.args[1], UnsignedIntegerAbstractType())
 
-        return [b_type, Int128Definition()]
+        return [b_type, Uint256Definition()]
 
     def infer_kwarg_types(self, node):
         if node.keywords:
@@ -931,7 +935,7 @@ class Extract32(_SimpleBuiltinFunction):
                 output_type, (AddressDefinition, Bytes32Definition, IntegerAbstractType)
             ):
                 raise InvalidType(
-                    "Output type must be one of bytes32, int128 or address", node.keywords[0].value
+                    "Output type must be one of integer, bytes32 or address", node.keywords[0].value
                 )
             output_typedef = TypeTypeDefinition(output_type)
             node.keywords[0].value._metadata["type"] = output_typedef
@@ -1022,7 +1026,7 @@ class Extract32(_SimpleBuiltinFunction):
         )
 
 
-class AsWeiValue(_BuiltinFunction):
+class AsWeiValue(_SimpleBuiltinFunction):
 
     _id = "as_wei_value"
     _inputs = [("value", NumericAbstractType()), ("unit", StringDefinition())]
@@ -1327,7 +1331,7 @@ class BlockHash(_SimpleBuiltinFunction):
         )
 
 
-class RawLog(_BuiltinFunction):
+class RawLog(_SimpleBuiltinFunction):
 
     _id = "raw_log"
     _inputs = [
@@ -1356,10 +1360,7 @@ class RawLog(_BuiltinFunction):
         topics_length = len(expr.args[0].elements)
         topics = args[0].args
 
-        if topics_length > 0:
-            assert args[0].value == "multi"
-        else:
-            assert args[0].value == "~empty"
+        assert args[0].value in ("~empty", "multi")
 
         _, data_type = self.infer_arg_types(expr)
         data = args[1]
@@ -1499,12 +1500,10 @@ class Shift(_SimpleBuiltinFunction):
         return vy_ast.Int.from_node(node, value=value)
 
     def infer_arg_types(self, node):
-        validate_call_args(node, 2)
-
-        validate_expected_type(node.args[0], Uint256Definition())
-        validate_expected_type(node.args[1], Int128Definition())
-
-        return [Uint256Definition(), Int128Definition()]
+        ret = super().infer_arg_types(node)
+        # return a concrete type instead of SignedIntegerAbstractType
+        ret[1] = get_possible_types_from_node(node.args[1]).pop()
+        return ret
 
     @validate_inputs
     def build_IR(self, expr, args, kwargs, context):
@@ -1751,7 +1750,7 @@ class CreateForwarderTo(_SimpleBuiltinFunction):
         )
 
 
-class _UnsafeMath(_BuiltinFunction):
+class _UnsafeMath(_SimpleBuiltinFunction):
 
     # TODO add unsafe math for `decimal`s
     _inputs = [("a", IntegerAbstractType()), ("b", IntegerAbstractType())]
@@ -1820,7 +1819,7 @@ class UnsafeDiv(_UnsafeMath):
     op = "div"
 
 
-class _MinMax(_BuiltinFunction):
+class _MinMax(_SimpleBuiltinFunction):
 
     _inputs = [("a", NumericAbstractType()), ("b", NumericAbstractType())]
 
@@ -1833,13 +1832,10 @@ class _MinMax(_BuiltinFunction):
 
         left, right = (i.value for i in node.args)
         if isinstance(left, Decimal) and (
-            min(left, right) < SizeLimits.MIN_AST_DECIMAL
-            or max(left, right) > SizeLimits.MAX_AST_DECIMAL
+            min(left, right) < -(2 ** 127) or max(left, right) >= 2 ** 127
         ):
             raise InvalidType("Decimal value is outside of allowable range", node)
-        if isinstance(left, int) and (
-            min(left, right) < 0 and max(left, right) >= SizeLimits.MAX_INT256
-        ):
+        if isinstance(left, int) and (min(left, right) < 0 and max(left, right) >= 2 ** 127):
             raise TypeMismatch("Cannot perform action between dislike numeric types", node)
 
         value = self._eval_fn(left, right)
@@ -1956,7 +1952,7 @@ else:
         )
 
 
-class Empty(_BuiltinFunction):
+class Empty(_SimpleBuiltinFunction):
 
     _id = "empty"
     _inputs = [("typename", "*")]
