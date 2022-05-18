@@ -193,7 +193,7 @@ class Ceil(_SimpleBuiltinFunction):
         )
 
 
-class Convert(_BuiltinFunction):
+class Convert(_SimpleBuiltinFunction):
 
     _id = "convert"
 
@@ -213,7 +213,7 @@ class Convert(_BuiltinFunction):
         # For `convert` of integer literals, we need to match type inference rules in
         # convert.py codegen routines.
         # TODO: This can probably be removed once constant folding for `convert` is implemented
-        if len(value_types) > 1 and all( isinstance(v, IntegerAbstractType) for v in value_types):
+        if len(value_types) > 1 and all(isinstance(v, IntegerAbstractType) for v in value_types):
             # Get the smallest (and unsigned if available) type for non-integer target types
             # (note this is different from the ordering returned by `get_possible_types_from_node`)
             if not isinstance(target_type, IntegerAbstractType):
@@ -222,7 +222,7 @@ class Convert(_BuiltinFunction):
                 )
             else:
                 # filter out the target type from list of possible types
-                value_types = [ i for i in value_types if not target_type.compare_type(i)]
+                value_types = [i for i in value_types if not target_type.compare_type(i)]
 
         value_type = value_types.pop()
 
@@ -1043,8 +1043,7 @@ class AsWeiValue(_SimpleBuiltinFunction):
         ("kether", "grand"): 10 ** 21,
     }
 
-    def evaluate(self, node):
-        validate_call_args(node, 2)
+    def _check_denomination(self, node):
         if not isinstance(node.args[1], vy_ast.Str):
             raise ArgumentException(
                 "Wei denomination must be given as a literal string", node.args[1]
@@ -1055,6 +1054,12 @@ class AsWeiValue(_SimpleBuiltinFunction):
             raise ArgumentException(
                 f"Unknown denomination: {node.args[1].value}", node.args[1]
             ) from None
+
+        return denom
+
+    def evaluate(self, node):
+        validate_call_args(node, 2)
+        denom = self._check_denomination(node)
 
         if not isinstance(node.args[0], (vy_ast.Decimal, vy_ast.Int)):
             raise UnfoldableNode
@@ -1083,9 +1088,8 @@ class AsWeiValue(_SimpleBuiltinFunction):
     @validate_inputs
     def build_IR(self, expr, args, kwargs, context):
         value = args[0]
-        denom_name = expr.args[1].s
 
-        denom_divisor = next(v for k, v in self.wei_denoms.items() if denom_name in k)
+        denom_divisor = self._check_denomination(expr)
         if value.typ.typ == "uint256" or value.typ.typ == "uint8":
             sub = [
                 "with",

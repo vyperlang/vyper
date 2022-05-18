@@ -5,9 +5,7 @@ from vyper.codegen.expr import Expr
 from vyper.codegen.types.convert import new_type_to_old_type
 from vyper.exceptions import CompilerPanic, TypeMismatch
 from vyper.semantics.types import (
-    AbstractNumericDefinition,
     ArrayDefinition,
-    BoolDefinition,
     BytesArrayDefinition,
     DynamicArrayDefinition,
     StringDefinition,
@@ -38,7 +36,8 @@ def process_arg(arg, expected_arg_type, context):
     elif isinstance(expected_arg_type, TypeTypeDefinition):
         return new_type_to_old_type(expected_arg_type.typedef)
 
-    raise CompilerPanic(f"Unexpected type: {expected_arg_type}") # pragma: notest
+    raise CompilerPanic(f"Unexpected type: {expected_arg_type}")  # pragma: notest
+
 
 def process_kwarg(kwarg_node, kwarg_settings, context):
     if kwarg_settings.require_literal:
