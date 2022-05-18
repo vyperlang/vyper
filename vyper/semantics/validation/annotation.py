@@ -223,29 +223,34 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
         node._metadata["type"] = get_exact_type_from_node(node)
 
     def visit_Subscript(self, node, type_):
-        if not isinstance(type_, BaseTypeDefinition):
+        # Set base_type to None if it is a typestring
+        if type_ and not isinstance(type_, BaseTypeDefinition):
+            base_type = None
+        else:
+            if isinstance(node.value, vy_ast.List):
+                possible_base_types = get_possible_types_from_node(node.value)
+
+                if len(possible_base_types) == 1:
+                    base_type = possible_base_types.pop()
+
+                elif type_ and len(possible_base_types) > 1:
+                    for possible_type in possible_base_types:
+                        if isinstance(possible_type.value_type, type(type_)):
+                            base_type = possible_type
+                            break
+
+            else:
+                base_type = get_exact_type_from_node(node.value)
+
+        node._metadata["type"] = type_
+
+        if not isinstance(base_type, BaseTypeDefinition):
             # some nodes are straight type annotations e.g. `String[100]` in
             # `empty(String[100])`. (other instances are raw_call, convert and
             # slice). skip annotating them because they do not conform to
             # the BaseTypeDefinition API (and anyways we do not need to
             # annotate them!)
-            node._metadata["type"] = type_
             return
-
-        if isinstance(node.value, vy_ast.List):
-            possible_base_types = get_possible_types_from_node(node.value)
-
-            if len(possible_base_types) == 1:
-                base_type = possible_base_types.pop()
-
-            elif type_ and len(possible_base_types) > 1:
-                for possible_type in possible_base_types:
-                    if isinstance(possible_type.value_type, type(type_)):
-                        base_type = possible_type
-                        break
-
-        else:
-            base_type = get_exact_type_from_node(node.value)
 
         self.visit(node.slice, base_type.get_index_type())
         self.visit(node.value, base_type)
