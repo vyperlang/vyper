@@ -105,7 +105,7 @@ def foo() -> {typ}:
         # safediv and safemod disallow divisor == 0
         div_by_zero = y == 0 and op in ("/", "%")
 
-        ok = in_bounds and div_by_zero
+        ok = in_bounds and not div_by_zero
 
         code_2 = code_2_template.format(typ=typ, op=op, y=y)
         code_3 = code_3_template.format(typ=typ, op=op, x=x)
