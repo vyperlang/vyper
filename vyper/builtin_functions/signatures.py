@@ -23,19 +23,6 @@ class TypeTypeDefinition:
         return f"type({self.typedef})"
 
 
-def _process_optional_literal_value(optional_obj, kwarg_node):
-    # Returns the literal value from the corresponding AST node for a kwarg
-    if not isinstance(kwarg_node, vy_ast.Constant):
-        raise TypeMismatch("Value for kwarg must be a literal", kwarg_node)
-
-    if isinstance(optional_obj.typ, BoolDefinition):
-        return kwarg_node.value
-    elif isinstance(optional_obj.typ, AbstractNumericDefinition):
-        return kwarg_node.n
-
-    raise CompilerPanic("Unexpected type for optional kwarg")
-
-
 def process_arg(arg, expected_arg_type, context):
     if isinstance(
         expected_arg_type,
@@ -51,7 +38,16 @@ def process_arg(arg, expected_arg_type, context):
     elif isinstance(expected_arg_type, TypeTypeDefinition):
         return new_type_to_old_type(expected_arg_type.typedef)
 
-    raise CompilerPanic(f"Unexpected type for builtin function argument: {expected_arg_type}")
+    raise CompilerPanic(f"Unexpected type: {expected_arg_type}") # pragma: notest
+
+def process_kwarg(kwarg_node, kwarg_settings, context):
+    if kwarg_settings.require_literal:
+        if not isinstance(kwarg_node, vy_ast.Constant):
+            raise TypeMismatch("Value for kwarg must be a literal", kwarg_node)
+
+        return kwarg_node.value
+
+    return process_arg(kwarg_node, kwarg_settings.typ, context)
 
 
 def validate_inputs(wrapped_fn):
@@ -64,23 +60,22 @@ def validate_inputs(wrapped_fn):
 
     @functools.wraps(wrapped_fn)
     def decorator_fn(self, node, context):
-        arg_types = [a._metadata["type"] for a in node.args]
-        kwargz = getattr(self, "_kwargs", {})
-        assert len(node.args) == len(arg_types)
-        subs = [process_arg(arg, arg_type, context) for arg, arg_type in zip(node.args, arg_types)]
+        subs = []
+        for arg in node.args:
+            subs.append(process_arg(arg, arg._metadata["type"], context))
+
         kwsubs = {}
-        node_kw = {k.arg: k.value for k in node.keywords}
-        node_kw_types = {k.arg: k.value._metadata["type"] for k in node.keywords}
-        if kwargz:
-            for k, expected_arg in self._kwargs.items():
-                if k not in node_kw:
-                    kwsubs[k] = expected_arg.default
-                else:
-                    # For literals, skip process_arg and set the AST node value
-                    if expected_arg.require_literal:
-                        kwsubs[k] = _process_optional_literal_value(expected_arg, node_kw[k])
-                    else:
-                        kwsubs[k] = process_arg(node_kw[k], node_kw_types[k], context)
+
+        # note: must compile in source code order, left-to-right
+        for k in node.keywords:
+            kwarg_settings = self._kwargs[k.arg]
+            kwsubs[k.arg] = process_kwarg(k.value, kwarg_settings, context)
+
+        # add kwargs which were not specified in the source
+        for k, expected_arg in self._kwargs.items():
+            if k not in kwsubs:
+                kwsubs[k] = expected_arg.default
+
         return wrapped_fn(self, node, subs, kwsubs, context)
 
     return decorator_fn
