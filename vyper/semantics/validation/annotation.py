@@ -223,7 +223,7 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
         node._metadata["type"] = get_exact_type_from_node(node)
 
     def visit_Subscript(self, node, type_):
-        if type_ and not isinstance(type_, BaseTypeDefinition):
+        if not isinstance(type_, BaseTypeDefinition):
             # some nodes are straight type annotations e.g. `String[100]` in
             # `empty(String[100])`. (other instances are raw_call, convert and
             # slice). skip annotating them because they do not conform to
