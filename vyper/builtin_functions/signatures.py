@@ -39,14 +39,14 @@ def process_arg(arg, expected_arg_type, context):
     raise CompilerPanic(f"Unexpected type: {expected_arg_type}")  # pragma: notest
 
 
-def process_kwarg(kwarg_node, kwarg_settings, context):
+def process_kwarg(kwarg_node, kwarg_settings, expected_kwarg_type, context):
     if kwarg_settings.require_literal:
         if not isinstance(kwarg_node, vy_ast.Constant):
             raise TypeMismatch("Value for kwarg must be a literal", kwarg_node)
 
         return kwarg_node.value
 
-    return process_arg(kwarg_node, kwarg_settings.typ, context)
+    return process_arg(kwarg_node, expected_kwarg_type, context)
 
 
 def validate_inputs(wrapped_fn):
@@ -66,9 +66,11 @@ def validate_inputs(wrapped_fn):
         kwsubs = {}
 
         # note: must compile in source code order, left-to-right
+        expected_kwarg_types = self.infer_kwarg_types(node)
         for k in node.keywords:
             kwarg_settings = self._kwargs[k.arg]
-            kwsubs[k.arg] = process_kwarg(k.value, kwarg_settings, context)
+            expected_kwarg_type = expected_kwarg_types[k.arg]
+            kwsubs[k.arg] = process_kwarg(k.value, kwarg_settings, expected_kwarg_type, context)
 
         # add kwargs which were not specified in the source
         for k, expected_arg in self._kwargs.items():

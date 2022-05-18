@@ -223,20 +223,24 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
         node._metadata["type"] = get_exact_type_from_node(node)
 
     def visit_Subscript(self, node, type_):
-        if isinstance(node.value, vy_ast.List):
-            possible_base_types = get_possible_types_from_node(node.value)
-
-            if len(possible_base_types) == 1:
-                base_type = possible_base_types.pop()
-
-            elif type_ and len(possible_base_types) > 1:
-                for possible_type in possible_base_types:
-                    if isinstance(possible_type.value_type, type(type_)):
-                        base_type = possible_type
-                        break
-
+        # Set base_type to None if it is a typestring
+        if type_ and not isinstance(type_, BaseTypeDefinition):
+            base_type = None
         else:
-            base_type = get_exact_type_from_node(node.value)
+            if isinstance(node.value, vy_ast.List):
+                possible_base_types = get_possible_types_from_node(node.value)
+
+                if len(possible_base_types) == 1:
+                    base_type = possible_base_types.pop()
+
+                elif type_ and len(possible_base_types) > 1:
+                    for possible_type in possible_base_types:
+                        if isinstance(possible_type.value_type, type(type_)):
+                            base_type = possible_type
+                            break
+
+            else:
+                base_type = get_exact_type_from_node(node.value)
 
         node._metadata["type"] = type_
 
