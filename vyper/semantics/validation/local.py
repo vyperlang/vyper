@@ -170,9 +170,9 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         namespace: dict,
     ) -> None:
         self.vyper_module = vyper_module
-        self.fn_node = fn_node if fn_node else None
+        self.fn_node = fn_node
         self.namespace = namespace
-        self.func = fn_node._metadata.get("type")
+        self.func = fn_node._metadata["type"]
         self.annotation_visitor = StatementAnnotationVisitor(fn_node, namespace)
         self.expr_visitor = _LocalExpressionVisitor()
 
