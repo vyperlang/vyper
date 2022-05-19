@@ -1,8 +1,10 @@
+from vyper import ast as vy_ast
 from vyper.ast import parse_to_ast
 from vyper.codegen.context import Context
 from vyper.codegen.global_context import GlobalContext
 from vyper.codegen.stmt import parse_body
 from vyper.semantics.namespace import Namespace, override_global_namespace
+from vyper.semantics.types.function import ContractFunction, FunctionVisibility, StateMutability
 from vyper.semantics.validation.local import FunctionNodeVisitor
 
 
@@ -18,7 +20,19 @@ def generate_inline_function(code, variables, variables_2, memory_allocator):
     namespace = Namespace()
     namespace.update(variables_2)
     with override_global_namespace(namespace):
-        sv = FunctionNodeVisitor(vyper_module=ast_code, namespace=namespace)
+        fn_node = vy_ast.FunctionDef()
+        fn_node.body = []
+        fn_node.args = vy_ast.arguments(defaults=[])
+        fn_node._metadata["type"] = ContractFunction(
+            "sqrt_builtin",
+            {},
+            0,
+            0,
+            None,
+            FunctionVisibility.INTERNAL,
+            StateMutability.NONPAYABLE,
+        )
+        sv = FunctionNodeVisitor(ast_code, fn_node, namespace)
         for n in ast_code.body:
             sv.visit(n)
 

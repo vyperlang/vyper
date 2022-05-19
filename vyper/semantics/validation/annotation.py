@@ -47,15 +47,14 @@ class StatementAnnotationVisitor(_AnnotationVisitorBase):
         vy_ast.Raise,
     )
 
-    def __init__(self, namespace: dict, fn_node: vy_ast.FunctionDef = None) -> None:
-        self.func = fn_node._metadata["type"] if fn_node else None
+    def __init__(self, fn_node: vy_ast.FunctionDef, namespace: dict) -> None:
+        self.func = fn_node._metadata.get("type")
         self.namespace = namespace
         self.expr_visitor = ExpressionAnnotationVisitor(self.func)
 
-        if fn_node:
-            assert len(self.func.kwarg_keys) == len(fn_node.args.defaults)
-            for kw, val in zip(self.func.kwarg_keys, fn_node.args.defaults):
-                self.expr_visitor.visit(val, self.func.arguments[kw])
+        assert len(self.func.kwarg_keys) == len(fn_node.args.defaults)
+        for kw, val in zip(self.func.kwarg_keys, fn_node.args.defaults):
+            self.expr_visitor.visit(val, self.func.arguments[kw])
 
     def visit(self, node):
         super().visit(node)
@@ -89,7 +88,7 @@ class StatementAnnotationVisitor(_AnnotationVisitorBase):
         self.expr_visitor.visit(node.value)
 
     def visit_Return(self, node):
-        if self.func and node.value is not None:
+        if node.value is not None:
             self.expr_visitor.visit(node.value, self.func.return_type)
 
     def visit_For(self, node):
@@ -111,7 +110,7 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
 
     ignored_types = ()
 
-    def __init__(self, fn_node: ContractFunction = None):
+    def __init__(self, fn_node: ContractFunction):
         self.func = fn_node
 
     def visit(self, node, type_=None):
@@ -146,7 +145,7 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
         node._metadata["type"] = node_type
         self.visit(node.func)
 
-        if self.func and isinstance(call_type, ContractFunction) and call_type.is_internal:
+        if isinstance(call_type, ContractFunction) and call_type.is_internal:
             self.func.called_functions.add(call_type)
 
         if isinstance(call_type, (Event, ContractFunction)):

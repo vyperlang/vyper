@@ -61,7 +61,7 @@ def validate_functions(vy_module: vy_ast.Module) -> None:
     for node in vy_module.get_children(vy_ast.FunctionDef):
         with namespace.enter_scope():
             try:
-                FunctionNodeVisitor(vy_module, namespace, fn_node=node)
+                FunctionNodeVisitor(vy_module, node, namespace)
             except VyperException as e:
                 err_list.append(e)
 
@@ -166,49 +166,49 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
     def __init__(
         self,
         vyper_module: vy_ast.Module,
+        fn_node: vy_ast.FunctionDef,
         namespace: dict,
-        fn_node: vy_ast.FunctionDef = None,
     ) -> None:
         self.vyper_module = vyper_module
         self.fn_node = fn_node if fn_node else None
         self.namespace = namespace
-        self.func = fn_node._metadata["type"] if fn_node else None
-        self.annotation_visitor = StatementAnnotationVisitor(namespace, fn_node=fn_node)
+        self.func = fn_node._metadata.get("type")
+        self.annotation_visitor = StatementAnnotationVisitor(fn_node, namespace)
         self.expr_visitor = _LocalExpressionVisitor()
-        if fn_node:
-            namespace.update(self.func.arguments)
 
-            if self.func.mutability == StateMutability.PURE:
-                node_list = fn_node.get_descendants(
-                    vy_ast.Attribute,
-                    {
-                        "value.id": set(CONSTANT_ENVIRONMENT_VARS.keys()).union(
-                            set(MUTABLE_ENVIRONMENT_VARS.keys())
-                        )
-                    },
-                )
-                if node_list:
-                    raise StateAccessViolation(
-                        "not allowed to query contract or environment variables in pure functions",
-                        node_list[0],
-                    )
-            if self.func.mutability is not StateMutability.PAYABLE:
-                node_list = fn_node.get_descendants(
-                    vy_ast.Attribute, {"value.id": "msg", "attr": "value"}
-                )
-                if node_list:
-                    raise NonPayableViolation(
-                        "msg.value is not allowed in non-payable functions", node_list[0]
-                    )
+        namespace.update(self.func.arguments)
 
-            for node in fn_node.body:
-                self.visit(node)
-            if self.func.return_type:
-                if not check_for_terminus(fn_node.body):
-                    raise FunctionDeclarationException(
-                        f"Missing or unmatched return statements in function '{fn_node.name}'",
-                        fn_node,
+        if self.func.mutability == StateMutability.PURE:
+            node_list = fn_node.get_descendants(
+                vy_ast.Attribute,
+                {
+                    "value.id": set(CONSTANT_ENVIRONMENT_VARS.keys()).union(
+                        set(MUTABLE_ENVIRONMENT_VARS.keys())
                     )
+                },
+            )
+            if node_list:
+                raise StateAccessViolation(
+                    "not allowed to query contract or environment variables in pure functions",
+                    node_list[0],
+                )
+        if self.func.mutability is not StateMutability.PAYABLE:
+            node_list = fn_node.get_descendants(
+                vy_ast.Attribute, {"value.id": "msg", "attr": "value"}
+            )
+            if node_list:
+                raise NonPayableViolation(
+                    "msg.value is not allowed in non-payable functions", node_list[0]
+                )
+
+        for node in fn_node.body:
+            self.visit(node)
+        if self.func.return_type:
+            if not check_for_terminus(fn_node.body):
+                raise FunctionDeclarationException(
+                    f"Missing or unmatched return statements in function '{fn_node.name}'",
+                    fn_node,
+                )
 
     def visit(self, node):
         super().visit(node)
