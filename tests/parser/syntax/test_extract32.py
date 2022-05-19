@@ -9,7 +9,7 @@ fail_list = [
 def foo() -> uint256:
     return extract32(b"cowcowcowcowcowccowcowcowcowcowccowcowcowcowcowccowcowcowcowcowc", 0)
     """,
-        TypeMismatch,
+        TypeMismatch,  # default return type is bytes32
     ),
     (
         """
@@ -17,7 +17,7 @@ def foo() -> uint256:
 def foo(inp: address) -> int128:
     return extract32(inp, 0, output_type=int128)
     """,
-        TypeMismatch,
+        TypeMismatch,  # can't extract32 on an address
     ),
     (
         """
@@ -26,7 +26,7 @@ def foo(inp: Bytes[32]) -> int128:
     b: int136 = 1
     return extract32(inp, b, output_type=int128)
     """,
-        TypeMismatch,
+        TypeMismatch,  # `start` must be an unsigned integer
     ),
     (
         """
@@ -35,7 +35,7 @@ def foo(inp: Bytes[32]) -> int128:
     b: int128 = -1
     return extract32(inp, b, output_type=int128)
     """,
-        TypeMismatch,
+        TypeMismatch,  # `start` must be an unsigned integer
     ),
     (
         """
@@ -43,7 +43,7 @@ def foo(inp: Bytes[32]) -> int128:
 def foo(inp: Bytes[32]) -> bool:
     return extract32(inp, 0, output_type=bool)
     """,
-        InvalidType,
+        InvalidType,  # output_type can't be bool
     ),
 ]
 

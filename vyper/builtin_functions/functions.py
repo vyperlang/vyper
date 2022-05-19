@@ -41,7 +41,6 @@ from vyper.codegen.types import (
     TupleType,
     get_type_for_exact_size,
     is_base_type,
-    is_bytes_m_type,
     parse_integer_typeinfo,
 )
 from vyper.evm.opcodes import version_check
@@ -128,7 +127,7 @@ class _SimpleBuiltinFunction:
         for arg, (_, expected) in zip(node.args, self._inputs):
             validate_expected_type(arg, expected)
 
-        return [i[1] for i in self._inputs]
+        return [expected for (_, expected) in self._inputs]
 
     def infer_kwarg_types(self, node):
         return {i.arg: self._kwargs[i.arg].typ for i in node.keywords}
@@ -555,10 +554,10 @@ class Concat(_SimpleBuiltinFunction):
             ]
         )
 
-        if isinstance(args[0].typ, ByteArrayType) or is_bytes_m_type(args[0].typ):
-            ret_typ = ByteArrayType(maxlen=dst_maxlen)
-        else:
+        if isinstance(args[0].typ, StringType):
             ret_typ = StringType(maxlen=dst_maxlen)
+        else:
+            ret_typ = ByteArrayType(maxlen=dst_maxlen)
 
         # Node representing the position of the output in memory
         dst = IRnode.from_list(
@@ -1043,7 +1042,7 @@ class AsWeiValue(_SimpleBuiltinFunction):
         ("kether", "grand"): 10 ** 21,
     }
 
-    def _check_denomination(self, node):
+    def get_denomination(self, node):
         if not isinstance(node.args[1], vy_ast.Str):
             raise ArgumentException(
                 "Wei denomination must be given as a literal string", node.args[1]
@@ -1059,7 +1058,7 @@ class AsWeiValue(_SimpleBuiltinFunction):
 
     def evaluate(self, node):
         validate_call_args(node, 2)
-        denom = self._check_denomination(node)
+        denom = self.get_denomination(node)
 
         if not isinstance(node.args[0], (vy_ast.Decimal, vy_ast.Int)):
             raise UnfoldableNode
@@ -1089,7 +1088,7 @@ class AsWeiValue(_SimpleBuiltinFunction):
     def build_IR(self, expr, args, kwargs, context):
         value = args[0]
 
-        denom_divisor = self._check_denomination(expr)
+        denom_divisor = self.get_denomination(expr)
         if value.typ.typ == "uint256" or value.typ.typ == "uint8":
             sub = [
                 "with",
@@ -1359,7 +1358,6 @@ class RawLog(_SimpleBuiltinFunction):
 
         assert args[0].value in ("~empty", "multi")
 
-        _, data_type = self.infer_arg_types(expr)
         data = args[1]
 
         if data.typ == BaseType("bytes32"):
@@ -1928,7 +1926,7 @@ else:
             placeholder_copy = ["mstore", new_var_pos, arg]
         # Create input variables.
         variables = {"x": VariableRecord(name="x", pos=new_var_pos, typ=x_type, mutable=False)}
-        # Dictionary to update old (i.e. typecheck) namespace
+        # Dictionary to update new (i.e. typecheck) namespace
         variables_2 = {"x": DecimalDefinition()}
         # Generate inline IR.
         new_ctx, sqrt_ir = generate_inline_function(

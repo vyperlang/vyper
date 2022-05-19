@@ -61,7 +61,8 @@ def validate_inputs(wrapped_fn):
     def decorator_fn(self, node, context):
         subs = []
         for arg in node.args:
-            subs.append(process_arg(arg, arg._metadata["type"], context))
+            arg_ir = process_arg(arg, arg._metadata["type"], context)
+            subs.append(arg_ir)
 
         kwsubs = {}
 

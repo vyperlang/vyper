@@ -23,8 +23,8 @@ def foo(x: {typ}, y: {typ}) -> {typ}:
 
     contract_2 = """
 @external
-def foo(x: {}) -> {}:
-    return unsafe_{}(x, {})
+def foo(x: {in_typ}) -> {out_typ}:
+    return unsafe_{op}(x, {literal})
     """
 
     fns = {"add": operator.add, "sub": operator.sub, "mul": operator.mul, "div": evm_div}
@@ -52,7 +52,7 @@ def foo(x: {}) -> {}:
 
             assert c1.foo(x, y) == expected
 
-            c2 = get_contract(contract_2.format(typ, typ, op, y))
+            c2 = get_contract(contract_2.format(in_typ=typ, out_typ=typ, op=op, literal=y))
             assert c2.foo(x) == expected
 
     else:
@@ -62,7 +62,8 @@ def foo(x: {}) -> {}:
         xs += [0, 1, hi - 1, hi, fixed_pt]
         ys += [0, 1, hi - 1, hi, fixed_pt]
         for (x, y) in itertools.product(xs, ys):
-            assert c1.foo(x, y) == fn(x, y) % mod_bound
+            expected = fn(x, y) % mod_bound
+            assert c1.foo(x, y) == expected
 
-            c2 = get_contract(contract_2.format(typ, typ, op, y))
-            assert c2.foo(x) == fn(x, y) % mod_bound
+            c2 = get_contract(contract_2.format(in_typ=typ, out_typ=typ, op=op, literal=y))
+            assert c2.foo(x) == expected

@@ -484,12 +484,12 @@ class ContractFunction(BaseTypeDefinition):
         # TODO this should be moved to validate_call_args
         for kwarg in node.keywords:
             if kwarg.arg in self.call_site_kwargs:
-                kwarg_optional_object = self.call_site_kwargs[kwarg.arg]
-                validate_expected_type(kwarg.value, kwarg_optional_object.typ)
-                if kwarg_optional_object.require_literal:
+                kwarg_settings = self.call_site_kwargs[kwarg.arg]
+                validate_expected_type(kwarg.value, kwarg_settings.typ)
+                if kwarg_settings.require_literal:
                     if not isinstance(kwarg.value, vy_ast.Constant):
                         raise InvalidType(
-                            f"{kwarg.arg} must be literal {kwarg_optional_object.typ}", kwarg.value
+                            f"{kwarg.arg} must be literal {kwarg_settings.typ}", kwarg.value
                         )
             else:
                 # Generate the modified source code string with the kwarg removed
