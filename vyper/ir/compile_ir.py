@@ -5,6 +5,7 @@ from vyper.codegen.ir_node import IRnode
 from vyper.evm.opcodes import get_opcodes
 from vyper.exceptions import CodegenPanic, CompilerPanic
 from vyper.utils import MemoryPositions
+from vyper.version import version_tuple
 
 PUSH_OFFSET = 0x5F
 DUP_OFFSET = 0x7F
@@ -918,7 +919,7 @@ def _optimize_assembly(assembly):
 
 
 # Assembles assembly into EVM
-def assembly_to_evm(assembly, start_pos=0):
+def assembly_to_evm(assembly, start_pos=0, insert_vyper_signature=False):
     line_number_map = {
         "breakpoints": set(),
         "pc_breakpoints": set(),
@@ -977,7 +978,9 @@ def assembly_to_evm(assembly, start_pos=0):
             pos += 0
         elif isinstance(item, list):
             assert runtime_code is None, "Multiple subcodes"
-            runtime_code, sub_map = assembly_to_evm(item, start_pos=pos)
+            runtime_code, sub_map = assembly_to_evm(
+                item, start_pos=pos, insert_vyper_signature=True
+            )
             assert item[0].startswith("_DEPLOY_MEM_OFST_")
             ctor_mem_size = int(item[0][len("_DEPLOY_MEM_OFST_") :])
 
@@ -1048,4 +1051,6 @@ def assembly_to_evm(assembly, start_pos=0):
     assert len(o) == pos - start_pos, (len(o), pos, start_pos)
     line_number_map["breakpoints"] = list(line_number_map["breakpoints"])
     line_number_map["pc_breakpoints"] = list(line_number_map["pc_breakpoints"])
+    if insert_vyper_signature:
+        o += b"VYPR" + bytes(list(version_tuple))
     return o, line_number_map
