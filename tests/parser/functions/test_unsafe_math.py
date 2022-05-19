@@ -23,7 +23,7 @@ def foo(x: {typ}, y: {typ}) -> {typ}:
 
     contract_2 = """
 @external
-def foo(x: {in_typ}) -> {out_typ}:
+def foo(x: {typ}) -> {typ}:
     return unsafe_{op}(x, {literal})
     """
 
@@ -52,7 +52,7 @@ def foo(x: {in_typ}) -> {out_typ}:
 
             assert c1.foo(x, y) == expected
 
-            c2 = get_contract(contract_2.format(in_typ=typ, out_typ=typ, op=op, literal=y))
+            c2 = get_contract(contract_2.format(typ=typ, op=op, literal=y))
             assert c2.foo(x) == expected
 
     else:
@@ -65,5 +65,5 @@ def foo(x: {in_typ}) -> {out_typ}:
             expected = fn(x, y) % mod_bound
             assert c1.foo(x, y) == expected
 
-            c2 = get_contract(contract_2.format(in_typ=typ, out_typ=typ, op=op, literal=y))
+            c2 = get_contract(contract_2.format(typ=typ, op=op, literal=y))
             assert c2.foo(x) == expected
