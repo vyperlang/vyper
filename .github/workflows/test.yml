@@ -113,7 +113,7 @@ jobs:
       # NOTE: if the tests get poorly distributed, run this and commit the resulting `.test_durations` file to the `vyper-test-durations` repo.
       # `TOXENV=fuzzing tox -r -- --store-durations --reruns 10 --reruns-delay 1 -r aR tests/`
       - name: Fetch test-durations
-        run: curl --location "https://raw.githubusercontent.com/vyperlang/vyper-test-durations/02997e82f03b14f8a88a270db070adb0912bccfb/test_durations" -o .test_durations
+        run: curl --location "https://raw.githubusercontent.com/vyperlang/vyper-test-durations/2879eae3fefb4eb664914df93e545f9d15fe74fb/test_durations" -o .test_durations
 
 
   # fuzzing + slow/exhaustive tests (things that are too slow to run in
