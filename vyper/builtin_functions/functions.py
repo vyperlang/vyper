@@ -1335,17 +1335,15 @@ class RawLog(_SimpleBuiltinFunction):
         self.infer_arg_types(node)
 
     def infer_arg_types(self, node):
-        validate_call_args(node, 2)
+        ret = super().infer_arg_types(node)
+
         if not isinstance(node.args[0], vy_ast.List) or len(node.args[0].elements) > 4:
             raise InvalidType("Expecting a list of 0-4 topics as first argument", node.args[0])
 
-        if node.args[0].elements:
-            validate_expected_type(node.args[0], self._inputs[0][1])
+        # return a concrete type for `data`
+        ret[1] = get_possible_types_from_node(node.args[1]).pop()
 
-        validate_expected_type(node.args[1], self._inputs[1][1])
-        data_type = get_possible_types_from_node(node.args[1]).pop()
-
-        return [self._inputs[0][1], data_type]
+        return ret
 
     @validate_inputs
     def build_IR(self, expr, args, kwargs, context):
