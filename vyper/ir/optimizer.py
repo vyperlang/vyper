@@ -39,6 +39,12 @@ def _is_int(node: IRnode) -> bool:
     return isinstance(node.value, int)
 
 
+def _deep_contains(node, node_or_list):
+    if isinstance(node_or_list, list):
+        return any(_deep_contains(node, t) for t in node_or_list)
+    return node is node_or_list
+
+
 arith = {
     "add": (operator.add, "+", UNSIGNED),
     "sub": (operator.sub, "-", UNSIGNED),
@@ -278,7 +284,13 @@ def _optimize_arith(binop, args, ann, parent_op):
         new_val = "iszero"
         new_args = [["iszero", args[0]]]
 
-    if new_val is None:
+    rollback = (
+        new_val is None
+        or (args[0].is_complex_ir and not _deep_contains(new_args, args[0]))
+        or (args[1].is_complex_ir and not _deep_contains(new_args, args[1]))
+    )
+
+    if rollback:
         return False, binop, args, ann
 
     return True, new_val, new_args, new_ann
@@ -294,6 +306,16 @@ def optimize(node: IRnode, parent: Optional[IRnode] = None) -> IRnode:
     annotation = node.annotation
     add_gas_estimate = node.add_gas_estimate
 
+    def finalize(ir_node):
+        return IRnode.from_list(
+            ir_node,
+            typ=typ,
+            location=location,
+            source_pos=source_pos,
+            annotation=annotation,
+            add_gas_estimate=add_gas_estimate,
+        )
+
     optimize_more = False
 
     if value == "seq":
@@ -308,6 +330,7 @@ def optimize(node: IRnode, parent: Optional[IRnode] = None) -> IRnode:
 
     elif value in arith:
         parent_op = parent.value if parent is not None else None
+
         optimize_more, value, argz, annotation = _optimize_arith(value, argz, annotation, parent_op)
 
     ###
@@ -370,17 +393,11 @@ def optimize(node: IRnode, parent: Optional[IRnode] = None) -> IRnode:
 
     # NOTE: this is really slow (compile-time).
     # maybe should optimize the tree in-place
-    ret = IRnode.from_list(
-        [value, *argz],
-        typ=typ,
-        location=location,
-        source_pos=source_pos,
-        annotation=annotation,
-        add_gas_estimate=add_gas_estimate,
-    )
+    ret = finalize(IRnode.from_list([value, *argz]))
 
     if optimize_more:
         ret = optimize(ret, parent=parent)
+
     return ret
 
 
