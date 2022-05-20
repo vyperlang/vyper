@@ -1052,5 +1052,6 @@ def assembly_to_evm(assembly, start_pos=0, insert_vyper_signature=False):
     line_number_map["breakpoints"] = list(line_number_map["breakpoints"])
     line_number_map["pc_breakpoints"] = list(line_number_map["pc_breakpoints"])
     if insert_vyper_signature:
-        o += b"VYPR" + bytes(list(version_tuple))
+        # CBOR encoded: {"VYPR": [major,minor,patch]}
+        o += b"\xa1\x64VYPR\x83" + bytes(list(version_tuple))
     return o, line_number_map
