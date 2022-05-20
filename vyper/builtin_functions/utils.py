@@ -20,6 +20,9 @@ def generate_inline_function(code, variables, variables_2, memory_allocator):
     namespace = Namespace()
     namespace.update(variables_2)
     with override_global_namespace(namespace):
+        # Initialise a placeholder `FunctionDef` AST node and corresponding
+        # `ContractFunction` type to rely on the annotation visitors in semantics
+        # module.
         fn_node = vy_ast.FunctionDef()
         fn_node.body = []
         fn_node.args = vy_ast.arguments(defaults=[])

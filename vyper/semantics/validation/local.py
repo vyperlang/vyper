@@ -244,8 +244,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             )
 
         validate_expected_type(node.value, target)
-        if self.func:
-            target.validate_modification(node, self.func.mutability)
+        target.validate_modification(node, self.func.mutability)
 
         self.expr_visitor.visit(node.value)
         self.expr_visitor.visit(node.target)
@@ -524,7 +523,7 @@ class _LocalExpressionVisitor(VyperNodeVisitorBase):
         for kwarg in node.keywords:
             self.visit(kwarg.value)
 
-    def visit_Compare(self, node: vy_ast.Call, type_: OptionalType) -> None:
+    def visit_Compare(self, node: vy_ast.Compare, type_: OptionalType) -> None:
         self.visit(node.left)  # type: ignore[attr-defined]
         self.visit(node.right)  # type: ignore[attr-defined]
 
