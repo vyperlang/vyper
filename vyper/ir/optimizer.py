@@ -39,9 +39,9 @@ def _is_int(node: IRnode) -> bool:
     return isinstance(node.value, int)
 
 
-def _deep_contains(node, node_or_list):
+def _deep_contains(node_or_list, node):
     if isinstance(node_or_list, list):
-        return any(_deep_contains(node, t) for t in node_or_list)
+        return any(_deep_contains(t, node) for t in node_or_list)
     return node is node_or_list
 
 

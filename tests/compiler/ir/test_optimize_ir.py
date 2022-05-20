@@ -8,6 +8,7 @@ optimize_list = [
     (["eq", 1, 2], [0]),
     (["lt", 1, 2], [1]),
     (["eq", "x", 0], ["iszero", "x"]),
+    (["eq", ["sload", 0], 0], ["iszero", ["sload", 0]]),
     # branch pruner
     (["if", ["eq", 1, 2], "pass"], ["seq"]),
     (["if", ["eq", 1, 1], 3, 4], [3]),
@@ -22,10 +23,12 @@ optimize_list = [
     (["mstore", 0, ["eq", 1, 2]], ["mstore", 0, 0]),
     # conditions
     (["ge", "x", 0], [1]),  # x >= 0 == True
+    (["ge", ["sload", 0], 0], None),  # no-op
     (["iszero", ["gt", "x", 2 ** 256 - 1]], [1]),  # x >= MAX_UINT256 == False
     (["iszero", ["sgt", "x", 2 ** 255 - 1]], [1]),  # signed x >= MAX_INT256 == False
     (["le", "x", 0], ["iszero", "x"]),
     (["le", 0, "x"], [1]),
+    (["le", 0, ["sload", 0]], ["ge", ["sload", 0], 0]),  # no-op
     (["lt", "x", 0], [0]),
     (["lt", 0, "x"], ["iszero", ["iszero", "x"]]),
     (["gt", 5, "x"], ["lt", "x", 5]),
@@ -55,29 +58,37 @@ optimize_list = [
     (["add", 0, "x"], ["x"]),
     (["sub", "x", 0], ["x"]),
     (["sub", "x", "x"], [0]),
-    (["sub", ["sload", 0], ["sload", 0]], ["sub", ["sload", 0], ["sload", 0]]),  # no-op
-    (["sub", ["callvalue"], ["callvalue"]], ["sub", ["callvalue"], ["callvalue"]]),  # no-op
+    (["sub", ["sload", 0], ["sload", 0]], None),
+    (["sub", ["callvalue"], ["callvalue"]], None),
     (["mul", "x", 1], ["x"]),
     (["div", "x", 1], ["x"]),
     (["sdiv", "x", 1], ["x"]),
     (["mod", "x", 1], [0]),
+    (["mod", ["sload", 0], 1], None),
     (["smod", "x", 1], [0]),
     (["mul", "x", -1], ["sub", 0, "x"]),
     (["sdiv", "x", -1], ["sub", 0, "x"]),
     (["mul", "x", 0], [0]),
+    (["mul", ["sload", 0], 0], None),
     (["div", "x", 0], [0]),
+    (["div", ["sload", 0], 0], None),
     (["sdiv", "x", 0], [0]),
+    (["sdiv", ["sload", 0], 0], None),
     (["mod", "x", 0], [0]),
+    (["mod", ["sload", 0], 0], None),
     (["smod", "x", 0], [0]),
     (["mul", "x", 32], ["shl", 5, "x"]),
     (["div", "x", 64], ["shr", 6, "x"]),
     (["mod", "x", 128], ["and", "x", 127]),
-    (["sdiv", "x", 64], ["sdiv", "x", 64]),  # no-op
-    (["smod", "x", 64], ["smod", "x", 64]),  # no-op
+    (["sdiv", "x", 64], None),
+    (["smod", "x", 64], None),
     # bitwise ops
     (["shr", 0, "x"], ["x"]),
     (["sar", 0, "x"], ["x"]),
     (["shl", 0, "x"], ["x"]),
+    (["shr", 256, "x"], None),
+    (["sar", 256, "x"], None),
+    (["shl", 256, "x"], None),
     (["and", 1, 2], [0]),
     (["or", 1, 2], [3]),
     (["xor", 1, 2], [3]),
@@ -87,12 +98,13 @@ optimize_list = [
     (["or", "x", 0], ["x"]),
     (["or", 0, "x"], ["x"]),
     (["xor", "x", 0], ["x"]),
-    (["xor", "x", 1], ["xor", "x", 1]),  # no-op
-    (["and", "x", 1], ["and", "x", 1]),  # no-op
-    (["or", "x", 1], ["or", "x", 1]),  # no-op
+    (["xor", "x", 1], None),
+    (["and", "x", 1], None),
+    (["or", "x", 1], None),
     (["xor", 0, "x"], ["x"]),
     (["iszero", ["or", "x", 1]], [0]),
     (["iszero", ["or", 2, "x"]], [0]),
+    (["iszero", ["or", 1, ["sload", 0]]], ["iszero", ["or", ["sload", 0], 1]]),  # TODO: should compile to ["seq", ["sload", 0], 1]
     # nested optimizations
     (["eq", 0, ["sub", 1, 1]], [1]),
     (["eq", 0, ["add", 2 ** 255, 2 ** 255]], [1]),  # test compile-time wrapping
@@ -108,9 +120,13 @@ optimize_list = [
 def test_ir_optimizer(ir):
     optimized = optimizer.optimize(IRnode.from_list(ir[0]))
     optimized.repr_show_gas = True
-    hand_optimized = IRnode.from_list(ir[1])
-    hand_optimized.repr_show_gas = True
-    assert optimized == hand_optimized
+    if ir[1] is None:
+        # no-op, assert optimizer does nothing
+        expected = IRnode.from_list(ir[0])
+    else:
+        expected = IRnode.from_list(ir[1])
+    expected.repr_show_gas = True
+    assert optimized == expected
 
 
 static_assertions_list = [
