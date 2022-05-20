@@ -113,20 +113,24 @@ class _SimpleBuiltinFunction:
 
     _kwargs: Dict[str, KwargSettings] = {}
 
-    def fetch_call_return(self, node):
-        # Call infer_arg_types to validate arguments and derive the type definitions
-        # for annotation
-        self.infer_arg_types(node)
-
-        if self._return_type:
-            return self._return_type
-
-    def infer_arg_types(self, node):
+    def _validate_arg_types(self, node):
         validate_call_args(node, len(self._inputs), getattr(self, "_kwargs", []))
 
         for arg, (_, expected) in zip(node.args, self._inputs):
             validate_expected_type(arg, expected)
 
+        return
+
+    def fetch_call_return(self, node):
+        # Call infer_arg_types to validate arguments and derive the type definitions
+        # for annotation
+        self._validate_arg_types(node)
+
+        if self._return_type:
+            return self._return_type
+
+    def infer_arg_types(self, node):
+        self._validate_arg_types(node)
         return [expected for (_, expected) in self._inputs]
 
     def infer_kwarg_types(self, node):
@@ -343,10 +347,10 @@ class Slice(_SimpleBuiltinFunction):
         return return_type
 
     def infer_arg_types(self, node):
-        ret = super().infer_arg_types(node)
+        self._validate_arg_types(node)
         # return a concrete type for `b`
-        ret[0] = get_possible_types_from_node(node.args[0]).pop()
-        return ret
+        b_type = get_possible_types_from_node(node.args[0]).pop()
+        return [b_type, self._inputs[1][1], self._inputs[2][1]]
 
     @validate_inputs
     def build_IR(self, expr, args, kwargs, context):
@@ -629,10 +633,10 @@ class Keccak256(_SimpleBuiltinFunction):
         return vy_ast.Hex.from_node(node, value=hash_)
 
     def infer_arg_types(self, node):
-        ret = super().infer_arg_types(node)
+        self._validate_arg_types(node)
         # return a concrete type for `value`
-        ret[0] = get_possible_types_from_node(node.args[0]).pop()
-        return ret
+        value_type = get_possible_types_from_node(node.args[0]).pop()
+        return [value_type]
 
     @validate_inputs
     def build_IR(self, expr, args, kwargs, context):
@@ -677,10 +681,10 @@ class Sha256(_SimpleBuiltinFunction):
         return vy_ast.Hex.from_node(node, value=hash_)
 
     def infer_arg_types(self, node):
-        ret = super().infer_arg_types(node)
+        self._validate_arg_types(node)
         # return a concrete type for `value`
-        ret[0] = get_possible_types_from_node(node.args[0]).pop()
-        return ret
+        value_type = get_possible_types_from_node(node.args[0]).pop()
+        return [value_type]
 
     @validate_inputs
     def build_IR(self, expr, args, kwargs, context):
@@ -906,17 +910,14 @@ class Extract32(_SimpleBuiltinFunction):
     _return_type = None
 
     def fetch_call_return(self, node):
-        super().fetch_call_return(node)
+        self._validate_arg_types(node)
         return_type = self.infer_kwarg_types(node)["output_type"].typedef
         return return_type
 
     def infer_arg_types(self, node):
-        ret = super().infer_arg_types(node)
-        # return a concrete type for `b`
-        ret[0] = get_possible_types_from_node(node.args[0]).pop()
-        # return a concrete type instead of UnsignedIntegerAbstractType
-        ret[1] = Uint256Definition()
-        return ret
+        self._validate_arg_types(node)
+        input_type = get_possible_types_from_node(node.args[0]).pop()
+        return [input_type, Uint256Definition()]
 
     def infer_kwarg_types(self, node):
         if node.keywords:
@@ -1078,10 +1079,10 @@ class AsWeiValue(_SimpleBuiltinFunction):
         return self._return_type
 
     def infer_arg_types(self, node):
-        ret = super().infer_arg_types(node)
+        self._validate_arg_types(node)
         # return a concrete type instead of NumericAbstractType
-        ret[0] = get_possible_types_from_node(node.args[0]).pop()
-        return ret
+        value_type = get_possible_types_from_node(node.args[0]).pop()
+        return [value_type, self._inputs[1][1]]
 
     @validate_inputs
     def build_IR(self, expr, args, kwargs, context):
@@ -1141,7 +1142,7 @@ class RawCall(_SimpleBuiltinFunction):
     _return_type = None
 
     def fetch_call_return(self, node):
-        super().fetch_call_return(node)
+        self._validate_arg_types(node)
 
         kwargz = {i.arg: i.value for i in node.keywords}
 
@@ -1166,10 +1167,10 @@ class RawCall(_SimpleBuiltinFunction):
             return TupleDefinition([BoolDefinition(), return_type])
 
     def infer_arg_types(self, node):
-        ret = super().infer_arg_types(node)
-        # return a concrete type instead of BytesAbstractType
-        ret[1] = get_possible_types_from_node(node.args[1]).pop()
-        return ret
+        self._validate_arg_types(node)
+        # return a concrete type for `data`
+        data_type = get_possible_types_from_node(node.args[1]).pop()
+        return [self._inputs[0][1], data_type]
 
     @validate_inputs
     def build_IR(self, expr, args, kwargs, context):
@@ -1335,15 +1336,15 @@ class RawLog(_SimpleBuiltinFunction):
         self.infer_arg_types(node)
 
     def infer_arg_types(self, node):
-        ret = super().infer_arg_types(node)
+        self._validate_arg_types(node)
 
         if not isinstance(node.args[0], vy_ast.List) or len(node.args[0].elements) > 4:
             raise InvalidType("Expecting a list of 0-4 topics as first argument", node.args[0])
 
         # return a concrete type for `data`
-        ret[1] = get_possible_types_from_node(node.args[1]).pop()
+        data_type = get_possible_types_from_node(node.args[1]).pop()
 
-        return ret
+        return [self._inputs[0][1], data_type]
 
     @validate_inputs
     def build_IR(self, expr, args, kwargs, context):
@@ -1489,10 +1490,10 @@ class Shift(_SimpleBuiltinFunction):
         return vy_ast.Int.from_node(node, value=value)
 
     def infer_arg_types(self, node):
-        ret = super().infer_arg_types(node)
+        self._validate_arg_types(node)
         # return a concrete type instead of SignedIntegerAbstractType
-        ret[1] = get_possible_types_from_node(node.args[1]).pop()
-        return ret
+        shift_type = get_possible_types_from_node(node.args[1]).pop()
+        return [self._inputs[0][1], shift_type]
 
     @validate_inputs
     def build_IR(self, expr, args, kwargs, context):
@@ -1752,7 +1753,7 @@ class _UnsafeMath(_SimpleBuiltinFunction):
         return return_type
 
     def infer_arg_types(self, node):
-        ret = super().infer_arg_types(node)
+        self._validate_arg_types(node)
 
         types_list = get_common_types(
             *node.args, filter_fn=lambda x: isinstance(x, IntegerAbstractType)
@@ -1761,10 +1762,7 @@ class _UnsafeMath(_SimpleBuiltinFunction):
             raise TypeMismatch(f"unsafe_{self.op} called on dislike types", node)
 
         type_ = types_list.pop()
-        # return a concrete type instead of IntegerAbstractType
-        ret[0] = ret[1] = type_
-
-        return ret
+        return [type_, type_]
 
     @validate_inputs
     def build_IR(self, expr, args, kwargs, context):
@@ -1839,7 +1837,7 @@ class _MinMax(_SimpleBuiltinFunction):
         return return_type
 
     def infer_arg_types(self, node):
-        ret = super().infer_arg_types(node)
+        self._validate_arg_types(node)
 
         types_list = get_common_types(
             *node.args, filter_fn=lambda x: isinstance(x, NumericAbstractType)
@@ -1848,10 +1846,7 @@ class _MinMax(_SimpleBuiltinFunction):
             raise TypeMismatch("Cannot perform action between dislike numeric types", node)
 
         type_ = types_list.pop()
-        # return a concrete type instead of NumericAbstractType
-        ret[0] = ret[1] = type_
-
-        return ret
+        return [type_, type_]
 
     @validate_inputs
     def build_IR(self, expr, args, kwargs, context):
