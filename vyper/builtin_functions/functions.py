@@ -1955,8 +1955,6 @@ class Empty(_SimpleBuiltinFunction):
         input_typedef = TypeTypeDefinition(
             get_type_from_annotation(node.args[0], DataLocation.MEMORY)
         )
-        # Annotate argument AST node because empty is skipped in visit_Call
-        node.args[0]._metadata["type"] = input_typedef
         return [input_typedef]
 
     @validate_inputs

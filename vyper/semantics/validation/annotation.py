@@ -219,7 +219,9 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
             self.visit(element, type_.value_type)
 
     def visit_Name(self, node, type_):
-        node._metadata["type"] = get_exact_type_from_node(node)
+        if not type_:
+            type_ = get_exact_type_from_node(node)
+        node._metadata["type"] = type_
 
     def visit_Subscript(self, node, type_):
         node._metadata["type"] = type_
