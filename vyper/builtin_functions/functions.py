@@ -122,8 +122,6 @@ class _SimpleBuiltinFunction:
         return
 
     def fetch_call_return(self, node):
-        # Call infer_arg_types to validate arguments and derive the type definitions
-        # for annotation
         self._validate_arg_types(node)
 
         if self._return_type:
