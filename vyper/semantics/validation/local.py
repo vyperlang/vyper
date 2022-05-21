@@ -164,10 +164,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
     scope_name = "function"
 
     def __init__(
-        self,
-        vyper_module: vy_ast.Module,
-        fn_node: vy_ast.FunctionDef,
-        namespace: dict,
+        self, vyper_module: vy_ast.Module, fn_node: vy_ast.FunctionDef, namespace: dict
     ) -> None:
         self.vyper_module = vyper_module
         self.fn_node = fn_node
@@ -175,7 +172,6 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         self.func = fn_node._metadata["type"]
         self.annotation_visitor = StatementAnnotationVisitor(fn_node, namespace)
         self.expr_visitor = _LocalExpressionVisitor()
-
         namespace.update(self.func.arguments)
 
         if self.func.mutability == StateMutability.PURE:
