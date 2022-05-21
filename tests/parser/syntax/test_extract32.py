@@ -23,7 +23,7 @@ def foo(inp: address) -> int128:
         """
 @external
 def foo(inp: Bytes[32]) -> int128:
-    b: int136 = 1
+    b: int128 = 1
     return extract32(inp, b, output_type=int128)
     """,
         TypeMismatch,  # `start` must be an unsigned integer
@@ -32,10 +32,9 @@ def foo(inp: Bytes[32]) -> int128:
         """
 @external
 def foo(inp: Bytes[32]) -> int128:
-    b: int128 = -1
-    return extract32(inp, b, output_type=int128)
+    return extract32(inp, -1, output_type=int128)
     """,
-        TypeMismatch,  # `start` must be an unsigned integer
+        InvalidType,  # `start` cannot be negative
     ),
     (
         """
