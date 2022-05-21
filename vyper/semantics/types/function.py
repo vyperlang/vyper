@@ -458,7 +458,7 @@ class ContractFunction(BaseTypeDefinition):
 
     def fetch_call_return(self, node: vy_ast.Call) -> Optional[BaseTypeDefinition]:
         if node.get("func.value.id") == "self" and self.visibility == FunctionVisibility.EXTERNAL:
-            raise CallViolation("Cannnot call external functions via 'self'", node)
+            raise CallViolation("Cannot call external functions via 'self'", node)
 
         # for external calls, include gas and value as optional kwargs
         kwarg_keys = self.kwarg_keys.copy()
@@ -469,7 +469,7 @@ class ContractFunction(BaseTypeDefinition):
         if self.mutability < StateMutability.PAYABLE:
             kwarg_node = next((k for k in node.keywords if k.arg == "value"), None)
             if kwarg_node is not None:
-                raise CallViolation("Cannnot send ether to nonpayable function", kwarg_node)
+                raise CallViolation("Cannot send ether to nonpayable function", kwarg_node)
 
         for arg, expected in zip(node.args, self.arguments.values()):
             validate_expected_type(arg, expected)
