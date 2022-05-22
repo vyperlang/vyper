@@ -75,7 +75,7 @@ def _pack_arguments(fn_type, args, context):
     return buf, pack_args, args_ofst, args_len
 
 
-def _unpack_returndata(buf, fn_type, call_kwargs, context, expr):
+def _unpack_returndata(buf, fn_type, call_kwargs, contract_address, context, expr):
     ast_return_t = fn_type.return_type
 
     if ast_return_t is None:
@@ -130,7 +130,10 @@ def _unpack_returndata(buf, fn_type, call_kwargs, context, expr):
         #    do the other stuff
 
         override_value = wrap_value_for_external_return(call_kwargs.default_return_value)
-        stomp_return_buffer = make_setter(return_buf, override_value)
+        stomp_return_buffer = ["seq"]
+        if not call_kwargs.skip_contract_check:
+            stomp_return_buffer.append(_extcodesize_check(contract_address))
+        stomp_return_buffer.append(make_setter(return_buf, override_value))
         unpacker = ["if", ["eq", "returndatasize", 0], stomp_return_buffer, unpacker]
 
     unpacker = ["seq", unpacker, return_buf]
@@ -161,6 +164,10 @@ def _parse_kwargs(call_expr, context):
     return ret
 
 
+def _extcodesize_check(address):
+    return ["assert", ["extcodesize", address]]
+
+
 def ir_for_external_call(call_expr, context):
     from vyper.codegen.expr import Expr  # TODO rethink this circular import
 
@@ -182,7 +189,7 @@ def ir_for_external_call(call_expr, context):
     buf, arg_packer, args_ofst, args_len = _pack_arguments(fn_type, args_ir, context)
 
     ret_unpacker, ret_ofst, ret_len = _unpack_returndata(
-        buf, fn_type, call_kwargs, context, call_expr
+        buf, fn_type, call_kwargs, contract_address, context, call_expr
     )
 
     ret += arg_packer
@@ -194,7 +201,7 @@ def ir_for_external_call(call_expr, context):
         # when we _do_ expect return data because we later check
         # `returndatasize` (that check works even if the contract
         # selfdestructs).
-        ret.append(["assert", ["extcodesize", contract_address]])
+        ret.append(_extcodesize_check(contract_address))
 
     gas = call_kwargs.gas
     value = call_kwargs.value
