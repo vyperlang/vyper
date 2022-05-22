@@ -156,7 +156,6 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
     ignored_types = (
         vy_ast.Break,
         vy_ast.Constant,
-        vy_ast.Continue,
         vy_ast.Pass,
     )
     scope_name = "function"
@@ -268,6 +267,11 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         except InvalidType:
             raise InvalidType("Assertion test value must be a boolean", node.test)
         self.expr_visitor.visit(node.test)
+
+    def visit_Continue(self, node):
+        for_node = node.get_ancestor(vy_ast.For)
+        if for_node is None:
+            raise StructureException("`continue` must be enclosed in a `for` loop", node)
 
     def visit_Return(self, node):
         values = node.value
