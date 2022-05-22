@@ -164,13 +164,13 @@ class CompilerData:
     @property
     def bytecode(self) -> bytes:
         if not hasattr(self, "_bytecode"):
-            self._bytecode = generate_bytecode(self.assembly)
+            self._bytecode = generate_bytecode(self.assembly, is_runtime=True)
         return self._bytecode
 
     @property
     def bytecode_runtime(self) -> bytes:
         if not hasattr(self, "_bytecode_runtime"):
-            self._bytecode_runtime = generate_bytecode(self.assembly_runtime)
+            self._bytecode_runtime = generate_bytecode(self.assembly_runtime, is_runtime=True)
         return self._bytecode_runtime
 
 
@@ -323,7 +323,7 @@ def _find_nested_opcode(assembly, key):
         return any(_find_nested_opcode(x, key) for x in sublists)
 
 
-def generate_bytecode(assembly: list) -> bytes:
+def generate_bytecode(assembly: list, is_runtime=False) -> bytes:
     """
     Generate bytecode from assembly instructions.
 
@@ -337,4 +337,4 @@ def generate_bytecode(assembly: list) -> bytes:
     bytes
         Final compiled bytecode.
     """
-    return compile_ir.assembly_to_evm(assembly)[0]
+    return compile_ir.assembly_to_evm(assembly, insert_vyper_signature=is_runtime)[0]
