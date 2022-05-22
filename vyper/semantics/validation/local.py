@@ -270,7 +270,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
 
     def visit_Continue(self, node):
         for_node = node.get_ancestor(vy_ast.For)
-        if not for_node:
+        if for_node is None:
             raise StructureException("`continue` must be enclosed in a `for` loop", node)
 
     def visit_Return(self, node):
