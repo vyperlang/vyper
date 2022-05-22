@@ -2351,6 +2351,10 @@ def transferBorked(erc20: ERC20, receiver: address, amount: uint256):
     # would fail without default_return_value
     c.safeTransfer(bad_erc20.address, c.address, 0)
 
+    # default_return_value should fail on EOAs (addresses with no code)
+    random_address = "0x0000000000000000000000000000000000001234"
+    assert_tx_failed(lambda: c.safeTransfer(random_address, c.address, 1))
+
 
 def test_default_override2(get_contract, assert_tx_failed):
     bad_code_1 = """
