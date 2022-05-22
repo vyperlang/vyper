@@ -191,7 +191,7 @@ class Expr:
 
     def parse_Int(self):
         typ_ = self.expr._metadata.get("type")
-        if not typ_:
+        if typ_ is None:
             raise CompilerPanic("Type of integer literal is unknown")
         new_typ = new_type_to_old_type(typ_)
         new_typ.is_literal = True

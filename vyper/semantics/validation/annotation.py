@@ -219,7 +219,7 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
             self.visit(element, type_.value_type)
 
     def visit_Name(self, node, type_):
-        if type_ and not isinstance(type_, BaseTypeDefinition):
+        if type_ is not None and not isinstance(type_, BaseTypeDefinition):
             # some nodes are straight type annotations e.g. `String[100]` in
             # `empty(String[100])`. In these cases, the type is wrapped in a
             # `TypeTypeDefinition` object, and it should be annotated as such
@@ -231,7 +231,7 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
     def visit_Subscript(self, node, type_):
         node._metadata["type"] = type_
 
-        if type_ and not isinstance(type_, BaseTypeDefinition):
+        if type_ is not None and not isinstance(type_, BaseTypeDefinition):
             # some nodes are straight type annotations e.g. `String[100]` in
             # `empty(String[100])`. (other instances are raw_call, convert and
             # slice). skip annotating them because they do not conform to
@@ -245,7 +245,7 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
             if len(possible_base_types) == 1:
                 base_type = possible_base_types.pop()
 
-            elif type_ and len(possible_base_types) > 1:
+            elif type_ is not None and len(possible_base_types) > 1:
                 for possible_type in possible_base_types:
                     if isinstance(possible_type.value_type, type(type_)):
                         base_type = possible_type
