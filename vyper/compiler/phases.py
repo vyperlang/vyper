@@ -164,7 +164,7 @@ class CompilerData:
     @property
     def bytecode(self) -> bytes:
         if not hasattr(self, "_bytecode"):
-            self._bytecode = generate_bytecode(self.assembly, is_runtime=True)
+            self._bytecode = generate_bytecode(self.assembly, is_runtime=False)
         return self._bytecode
 
     @property
@@ -323,7 +323,7 @@ def _find_nested_opcode(assembly, key):
         return any(_find_nested_opcode(x, key) for x in sublists)
 
 
-def generate_bytecode(assembly: list, is_runtime=False) -> bytes:
+def generate_bytecode(assembly: list, is_runtime: bool = False) -> bytes:
     """
     Generate bytecode from assembly instructions.
 
