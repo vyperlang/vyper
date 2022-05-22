@@ -508,7 +508,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         o.extend(["_sym_subcode_size", begincode, "_mem_deploy_start", "CODECOPY"])
 
         # calculate the len of runtime code
-        o.extend(["_sym_subcode_size"] + PUSH(padding) + ["ADD"])  # stack: len
+        o.extend(["_OFST", "_sym_subcode_size", padding])  # stack: len
         o.extend(["_mem_deploy_start"])  # stack: len mem_ofst
         o.extend(["RETURN"])
 
@@ -931,6 +931,11 @@ def assembly_to_evm(assembly, start_pos=0, insert_vyper_signature=False):
     runtime_code, runtime_code_start, runtime_code_end = None, None, None
     pos = start_pos
 
+    bytecode_suffix = b""
+    if insert_vyper_signature:
+        # CBOR encoded: {"vyper": [major,minor,patch]}
+        bytecode_suffix += b"\xa1\x65vyper\x83" + bytes(list(version_tuple))
+
     # go through the code, resolving symbolic locations
     # (i.e. JUMPDEST locations) to actual code locations
     for i, item in enumerate(assembly):
@@ -981,6 +986,7 @@ def assembly_to_evm(assembly, start_pos=0, insert_vyper_signature=False):
             runtime_code, sub_map = assembly_to_evm(
                 item, start_pos=pos, insert_vyper_signature=True
             )
+
             assert item[0].startswith("_DEPLOY_MEM_OFST_")
             ctor_mem_size = int(item[0][len("_DEPLOY_MEM_OFST_") :])
 
@@ -993,6 +999,8 @@ def assembly_to_evm(assembly, start_pos=0, insert_vyper_signature=False):
                 line_number_map[key].update(sub_map[key])
         else:
             pos += 1
+
+    pos += len(bytecode_suffix)
 
     code_end = pos - start_pos
     posmap["_sym_code_end"] = code_end
@@ -1048,10 +1056,9 @@ def assembly_to_evm(assembly, start_pos=0, insert_vyper_signature=False):
             # Should never reach because, assembly is create in _compile_to_assembly.
             raise Exception("Weird symbol in assembly: " + str(item))  # pragma: no cover
 
+    o += bytecode_suffix
+
     assert len(o) == pos - start_pos, (len(o), pos, start_pos)
     line_number_map["breakpoints"] = list(line_number_map["breakpoints"])
     line_number_map["pc_breakpoints"] = list(line_number_map["pc_breakpoints"])
-    if insert_vyper_signature:
-        # CBOR encoded: {"vyper": [major,minor,patch]}
-        o += b"\xa1\x65vyper\x83" + bytes(list(version_tuple))
     return o, line_number_map
