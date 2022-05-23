@@ -492,7 +492,7 @@ def foo():
     """,
         ImmutableViolation,
     ),
-     # invalid modification of dynarray
+    # invalid modification of dynarray
     (
         """
 @external
@@ -503,7 +503,7 @@ def foo():
     """,
         ImmutableViolation,
     ),
-     # invalid modification of dynarray
+    # invalid modification of dynarray
     (
         """
 array: DynArray[uint256, 5]
@@ -522,7 +522,7 @@ def foo():
     """,
         ImmutableViolation,
     ),
-     (
+    (
         """
 @external
 def foo(x: int128):

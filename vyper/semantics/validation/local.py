@@ -108,7 +108,11 @@ def _check_iterator_assign(
         attr_node = node.get_ancestor(vy_ast.Attribute)
         # note the use of get_descendants() blocks statements like
         # self.my_array[i].append(x)
-        if attr_node is not None and node in attr_node.value.get_descendants(include_self=True) and attr_node.attr in ("append", "pop", "extend"):
+        if (
+            attr_node is not None
+            and node in attr_node.value.get_descendants(include_self=True)
+            and attr_node.attr in ("append", "pop", "extend")
+        ):
             return node
 
     return None
