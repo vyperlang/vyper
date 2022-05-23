@@ -88,7 +88,7 @@ def check_for_terminus(node_list: list) -> bool:
     return False
 
 
-def _check_iterator_assign(
+def _check_iterator_modification(
     target_node: vy_ast.VyperNode, search_node: vy_ast.VyperNode
 ) -> Optional[vy_ast.VyperNode]:
     similar_nodes = [
@@ -100,7 +100,19 @@ def _check_iterator_assign(
     for node in similar_nodes:
         # raise if the node is the target of an assignment statement
         assign_node = node.get_ancestor((vy_ast.Assign, vy_ast.AugAssign))
+        # note the use of get_descendants() blocks statements like
+        # self.my_array[i] = x
         if assign_node and node in assign_node.target.get_descendants(include_self=True):
+            return node
+
+        attr_node = node.get_ancestor(vy_ast.Attribute)
+        # note the use of get_descendants() blocks statements like
+        # self.my_array[i].append(x)
+        if (
+            attr_node is not None
+            and node in attr_node.value.get_descendants(include_self=True)
+            and attr_node.attr in ("append", "pop", "extend")
+        ):
             return node
 
     return None
@@ -374,7 +386,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
 
         if isinstance(node.iter, (vy_ast.Name, vy_ast.Attribute)):
             # check for references to the iterated value within the body of the loop
-            assign = _check_iterator_assign(node.iter, node)
+            assign = _check_iterator_modification(node.iter, node)
             if assign:
                 raise ImmutableViolation("Cannot modify array during iteration", assign)
 
@@ -385,7 +397,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                 fn_name = call_node.func.attr
 
                 fn_node = self.vyper_module.get_children(vy_ast.FunctionDef, {"name": fn_name})[0]
-                if _check_iterator_assign(node.iter, fn_node):
+                if _check_iterator_modification(node.iter, fn_node):
                     # check for direct modification
                     raise ImmutableViolation(
                         f"Cannot call '{fn_name}' inside for loop, it potentially "
@@ -396,7 +408,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                 for name in self.namespace["self"].members[fn_name].recursive_calls:
                     # check for indirect modification
                     fn_node = self.vyper_module.get_children(vy_ast.FunctionDef, {"name": name})[0]
-                    if _check_iterator_assign(node.iter, fn_node):
+                    if _check_iterator_modification(node.iter, fn_node):
                         raise ImmutableViolation(
                             f"Cannot call '{fn_name}' inside for loop, it may call to '{name}' "
                             f"which potentially modifies iterated storage variable '{iter_name}'",
