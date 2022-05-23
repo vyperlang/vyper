@@ -100,7 +100,15 @@ def _check_iterator_assign(
     for node in similar_nodes:
         # raise if the node is the target of an assignment statement
         assign_node = node.get_ancestor((vy_ast.Assign, vy_ast.AugAssign))
+        # note the use of get_descendants() blocks statements like
+        # self.my_array[i] = x
         if assign_node and node in assign_node.target.get_descendants(include_self=True):
+            return node
+
+        attr_node = node.get_ancestor(vy_ast.Attribute)
+        # note the use of get_descendants() blocks statements like
+        # self.my_array[i].append(x)
+        if attr_node is not None and node in attr_node.value.get_descendants(include_self=True) and attr_node.attr in ("append", "pop", "extend"):
             return node
 
     return None
