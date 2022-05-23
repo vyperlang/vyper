@@ -5,6 +5,7 @@ from vyper.codegen.ir_node import IRnode
 from vyper.evm.opcodes import get_opcodes
 from vyper.exceptions import CodegenPanic, CompilerPanic
 from vyper.utils import MemoryPositions
+from vyper.version import version_tuple
 
 PUSH_OFFSET = 0x5F
 DUP_OFFSET = 0x7F
@@ -507,7 +508,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         o.extend(["_sym_subcode_size", begincode, "_mem_deploy_start", "CODECOPY"])
 
         # calculate the len of runtime code
-        o.extend(["_sym_subcode_size"] + PUSH(padding) + ["ADD"])  # stack: len
+        o.extend(["_OFST", "_sym_subcode_size", padding])  # stack: len
         o.extend(["_mem_deploy_start"])  # stack: len mem_ofst
         o.extend(["RETURN"])
 
@@ -918,7 +919,7 @@ def _optimize_assembly(assembly):
 
 
 # Assembles assembly into EVM
-def assembly_to_evm(assembly, start_pos=0):
+def assembly_to_evm(assembly, start_pos=0, insert_vyper_signature=False):
     line_number_map = {
         "breakpoints": set(),
         "pc_breakpoints": set(),
@@ -929,6 +930,11 @@ def assembly_to_evm(assembly, start_pos=0):
     posmap = {}
     runtime_code, runtime_code_start, runtime_code_end = None, None, None
     pos = start_pos
+
+    bytecode_suffix = b""
+    if insert_vyper_signature:
+        # CBOR encoded: {"vyper": [major,minor,patch]}
+        bytecode_suffix += b"\xa1\x65vyper\x83" + bytes(list(version_tuple))
 
     # go through the code, resolving symbolic locations
     # (i.e. JUMPDEST locations) to actual code locations
@@ -977,7 +983,10 @@ def assembly_to_evm(assembly, start_pos=0):
             pos += 0
         elif isinstance(item, list):
             assert runtime_code is None, "Multiple subcodes"
-            runtime_code, sub_map = assembly_to_evm(item, start_pos=pos)
+            runtime_code, sub_map = assembly_to_evm(
+                item, start_pos=pos, insert_vyper_signature=True
+            )
+
             assert item[0].startswith("_DEPLOY_MEM_OFST_")
             ctor_mem_size = int(item[0][len("_DEPLOY_MEM_OFST_") :])
 
@@ -990,6 +999,8 @@ def assembly_to_evm(assembly, start_pos=0):
                 line_number_map[key].update(sub_map[key])
         else:
             pos += 1
+
+    pos += len(bytecode_suffix)
 
     code_end = pos - start_pos
     posmap["_sym_code_end"] = code_end
@@ -1044,6 +1055,8 @@ def assembly_to_evm(assembly, start_pos=0):
         else:
             # Should never reach because, assembly is create in _compile_to_assembly.
             raise Exception("Weird symbol in assembly: " + str(item))  # pragma: no cover
+
+    o += bytecode_suffix
 
     assert len(o) == pos - start_pos, (len(o), pos, start_pos)
     line_number_map["breakpoints"] = list(line_number_map["breakpoints"])
