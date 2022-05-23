@@ -104,7 +104,10 @@ optimize_list = [
     (["xor", 0, "x"], ["x"]),
     (["iszero", ["or", "x", 1]], [0]),
     (["iszero", ["or", 2, "x"]], [0]),
-    (["iszero", ["or", 1, ["sload", 0]]], ["iszero", ["or", ["sload", 0], 1]]),  # TODO: should compile to ["seq", ["sload", 0], 1]
+    (
+        ["iszero", ["or", 1, ["sload", 0]]],
+        ["iszero", ["or", ["sload", 0], 1]],
+    ),  # TODO: should compile to ["seq", ["sload", 0], 1]
     # nested optimizations
     (["eq", 0, ["sub", 1, 1]], [1]),
     (["eq", 0, ["add", 2 ** 255, 2 ** 255]], [1]),  # test compile-time wrapping
