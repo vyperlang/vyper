@@ -2333,11 +2333,24 @@ def transfer(receiver: address, amount: uint256):
     pass
     """
 
+    negative_transfer_code = """
+@external
+def transfer(receiver: address, amount: uint256) -> bool:
+    return False
+    """
+
+    self_destructing_code = """
+@external
+def transfer(receiver: address, amount: uint256):
+    selfdestruct(msg.sender)
+    """
+
     code = """
 from vyper.interfaces import ERC20
 @external
-def safeTransfer(erc20: ERC20, receiver: address, amount: uint256):
+def safeTransfer(erc20: ERC20, receiver: address, amount: uint256) -> uint256:
     assert erc20.transfer(receiver, amount, default_return_value=True)
+    return 7
 
 @external
 def transferBorked(erc20: ERC20, receiver: address, amount: uint256):
@@ -2349,11 +2362,22 @@ def transferBorked(erc20: ERC20, receiver: address, amount: uint256):
     # demonstrate transfer failing
     assert_tx_failed(lambda: c.transferBorked(bad_erc20.address, c.address, 0))
     # would fail without default_return_value
-    c.safeTransfer(bad_erc20.address, c.address, 0)
+    assert c.safeTransfer(bad_erc20.address, c.address, 0) == 7
+
+    # check that `default_return_value` does not stomp valid returndata.
+    negative_contract = get_contract(negative_transfer_code)
+    assert_tx_failed(lambda: c.safeTransfer(negative_contract.address, c.address, 0))
 
     # default_return_value should fail on EOAs (addresses with no code)
     random_address = "0x0000000000000000000000000000000000001234"
     assert_tx_failed(lambda: c.safeTransfer(random_address, c.address, 1))
+
+    # in this case, the extcodesize check runs after the token contract
+    # selfdestructs. however, extcodesize still returns nonzero until
+    # later (i.e., after this transaction), so we still pass
+    # the extcodesize check.
+    self_destructing_contract = get_contract(self_destructing_code)
+    assert c.safeTransfer(self_destructing_contract.address, c.address, 0) == 7
 
 
 def test_default_override2(get_contract, assert_tx_failed):
