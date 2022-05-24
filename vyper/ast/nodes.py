@@ -686,6 +686,10 @@ class Log(VyperNode):
     __slots__ = ("value",)
 
 
+class EnumDef(VyperNode):
+    __slots__ = ("name", "body")
+
+
 class EventDef(VyperNode):
     __slots__ = ("name", "body")
 

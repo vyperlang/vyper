@@ -119,6 +119,7 @@ def extract_sigs(sig_code, interface_name=None):
                 i,
                 (
                     vy_ast.FunctionDef,
+                    vy_ast.EnumDef,
                     vy_ast.EventDef,
                     vy_ast.StructDef,
                     vy_ast.InterfaceDef,

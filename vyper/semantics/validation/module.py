@@ -23,6 +23,7 @@ from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.bases import DataLocation
 from vyper.semantics.types.function import ContractFunction
 from vyper.semantics.types.user.event import Event
+from vyper.semantics.types.user.enum import Enum
 from vyper.semantics.types.utils import check_constant, get_type_from_annotation
 from vyper.semantics.validation.base import VyperNodeVisitorBase
 from vyper.semantics.validation.levenshtein_utils import get_levenshtein_error_suggestions
@@ -248,6 +249,13 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
             node.target._metadata["type"] = type_definition
         except NamespaceCollision:
             raise NamespaceCollision(f"Value '{name}' has already been declared", node) from None
+        except VyperException as exc:
+            raise exc.with_annotation(node) from None
+
+    def visit_EnumDef(self, node):
+        obj = Enum.from_EnumDef(node)
+        try:
+            self.namespace[node.name] = obj
         except VyperException as exc:
             raise exc.with_annotation(node) from None
 

@@ -49,6 +49,9 @@ class GlobalContext:
             elif isinstance(item, vy_ast.EventDef):
                 continue
 
+            elif isinstance(item, vy_ast.EnumDef):
+                continue
+
             # Statements of the form:
             # variable_name: type
             elif isinstance(item, vy_ast.AnnAssign):
