@@ -127,7 +127,9 @@ def reveal(_numBids: int128, _values: uint256[128], _fakes: bool[128], _secrets:
 
         # Bid was not actually revealed
         # Do not refund deposit
-        assert blindedBid == bidToCheck.blindedBid
+        if (blindedBid != bidToCheck.blindedBid):
+            assert 1 == 0
+            continue
 
         # Add deposit to refund if bid was indeed revealed
         refund += bidToCheck.deposit

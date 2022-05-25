@@ -273,10 +273,6 @@ class UnimplementedException(VyperException):
     """Some feature is known to be not implemented"""
 
 
-class StaticAssertionException(VyperException):
-    """An assertion is proven to fail at compile-time."""
-
-
 class VyperInternalException(Exception):
     """
     Base Vyper internal exception class.

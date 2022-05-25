@@ -95,7 +95,8 @@ def test_multiple_levels2(assert_tx_failed, get_contract_with_gas_estimation):
     inner_code = """
 @external
 def returnten() -> int128:
-    raise
+    assert False
+    return 10
     """
 
     c = get_contract_with_gas_estimation(inner_code)

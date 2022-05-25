@@ -39,46 +39,28 @@ def fourbytes_to_int(inp):
     return (inp[0] << 24) + (inp[1] << 16) + (inp[2] << 8) + inp[3]
 
 
-def signed_to_unsigned(int_, bits, strict=False):
+def signed_to_unsigned(int_, bits):
     """
     Reinterpret a signed integer with n bits as an unsigned integer.
     The implementation is unforgiving in that it assumes the input is in
     bounds for int<bits>, in order to fail more loudly (and not hide
     errors in modular reasoning in consumers of this function).
     """
-    if strict:
-        lo, hi = int_bounds(signed=True, bits=bits)
-        assert lo <= int_ <= hi
     if int_ < 0:
         return int_ + 2 ** bits
     return int_
 
 
-def unsigned_to_signed(int_, bits, strict=False):
+def unsigned_to_signed(int_, bits):
     """
     Reinterpret an unsigned integer with n bits as a signed integer.
     The implementation is unforgiving in that it assumes the input is in
     bounds for uint<bits>, in order to fail more loudly (and not hide
     errors in modular reasoning in consumers of this function).
     """
-    if strict:
-        lo, hi = int_bounds(signed=False, bits=bits)
-        assert lo <= int_ <= hi
     if int_ > (2 ** (bits - 1)) - 1:
         return int_ - (2 ** bits)
     return int_
-
-
-def is_power_of_two(n: int) -> bool:
-    # busted for ints wider than 53 bits:
-    # t = math.log(n, 2)
-    # return math.ceil(t) == math.floor(t)
-    return n != 0 and ((n & (n - 1)) == 0)
-
-
-# https://stackoverflow.com/a/71122440/
-def int_log2(n: int) -> int:
-    return n.bit_length() - 1
 
 
 # utility function for debugging purposes
@@ -187,16 +169,12 @@ def int_bounds(signed, bits):
     return 0, (2 ** bits) - 1
 
 
-# e.g. -1 -> -(2**256 - 1)
-def evm_twos_complement(x: int) -> int:
-    # return ((o + 2 ** 255) % 2 ** 256) - 2 ** 255
-    return ((2 ** 256 - 1) ^ x) + 1
-
-
 # EVM div semantics as a python function
 def evm_div(x, y):
     if y == 0:
         return 0
+    # doesn't actually work:
+    # return int(x / y)
     # NOTE: should be same as: round_towards_zero(Decimal(x)/Decimal(y))
     sign = -1 if (x * y) < 0 else 1
     return sign * (abs(x) // abs(y))  # adapted from py-evm
@@ -207,6 +185,8 @@ def evm_mod(x, y):
     if y == 0:
         return 0
 
+    # this doesn't actually work when num digits exceeds fp precision:
+    # return int(math.fmod(x, y))
     sign = -1 if x < 0 else 1
     return sign * (abs(x) % abs(y))  # adapted from py-evm
 
@@ -263,6 +243,12 @@ VALID_IR_MACROS = {
     "dload",
     "dloadbytes",
     "ceil32",
+    "clamp",
+    "clamp_nonzero",
+    "clampge",
+    "clampgt",
+    "clample",
+    "clamplt",
     "continue",
     "debugger",
     "ge",
@@ -279,6 +265,11 @@ VALID_IR_MACROS = {
     "sha3_32",
     "sha3_64",
     "sle",
+    "uclamp",
+    "uclampge",
+    "uclampgt",
+    "uclample",
+    "uclamplt",
     "with",
     "label",
     "goto",

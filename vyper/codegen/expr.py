@@ -5,7 +5,6 @@ from vyper import ast as vy_ast
 from vyper.address_space import DATA, IMMUTABLES, MEMORY, STORAGE
 from vyper.codegen import external_call, self_call
 from vyper.codegen.core import (
-    clamp,
     clamp_basetype,
     ensure_in_memory,
     get_dyn_array_count,
@@ -589,7 +588,7 @@ class Expr:
                 divisor = "r"
             else:
                 # only apply the non-zero clamp when r is not a constant
-                divisor = clamp("gt", "r", 0)
+                divisor = ["clamp_nonzero", "r"]
 
             if ltyp in ("uint8", "uint256"):
                 arith = ["div", "l", divisor]
@@ -632,7 +631,7 @@ class Expr:
                 divisor = "r"
             else:
                 # only apply the non-zero clamp when r is not a constant
-                divisor = clamp("gt", "r", 0)
+                divisor = ["clamp_nonzero", "r"]
 
             if ltyp in ("uint8", "uint256"):
                 arith = ["mod", "l", divisor]
@@ -665,20 +664,20 @@ class Expr:
                 value = self.expr.left.value
                 upper_bound = calculate_largest_power(value, num_bits, is_signed) + 1
                 # for signed integers, this also prevents negative values
-                clamp_cond = ["lt", right, upper_bound]
+                clamp = ["lt", right, upper_bound]
                 return IRnode.from_list(
-                    ["seq", ["assert", clamp_cond], ["exp", left, right]],
+                    ["seq", ["assert", clamp], ["exp", left, right]],
                     typ=new_typ,
                 )
             elif isinstance(self.expr.right, vy_ast.Int):
                 value = self.expr.right.value
                 upper_bound = calculate_largest_base(value, num_bits, is_signed) + 1
                 if is_signed:
-                    clamp_cond = ["and", ["slt", left, upper_bound], ["sgt", left, -upper_bound]]
+                    clamp = ["and", ["slt", left, upper_bound], ["sgt", left, -upper_bound]]
                 else:
-                    clamp_cond = ["lt", left, upper_bound]
+                    clamp = ["lt", left, upper_bound]
                 return IRnode.from_list(
-                    ["seq", ["assert", clamp_cond], ["exp", left, right]], typ=new_typ
+                    ["seq", ["assert", clamp], ["exp", left, right]], typ=new_typ
                 )
             else:
                 # `a ** b` where neither `a` or `b` are known
@@ -901,7 +900,7 @@ class Expr:
             # max(val, 0 - val)
             min_int_val, _ = operand.typ._num_info.bounds
             return IRnode.from_list(
-                ["sub", 0, clamp("sgt", operand, min_int_val)],
+                ["sub", 0, ["clampgt", operand, min_int_val]],
                 typ=operand.typ,
             )
 

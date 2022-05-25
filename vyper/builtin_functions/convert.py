@@ -8,7 +8,6 @@ from vyper.codegen.core import (
     IRnode,
     bytes_clamp,
     bytes_data_ptr,
-    clamp,
     clamp_basetype,
     get_bytearray_length,
     int_clamp,
@@ -120,14 +119,15 @@ def _clamp_numeric_convert(arg, arg_bounds, out_bounds, arg_is_signed):
     if arg_lo < out_lo:
         # if not arg_is_signed, arg_lo is 0, so this branch cannot be hit
         assert arg_is_signed, "bad assumption in numeric convert"
-        arg = clamp("sge", arg, out_lo)
+        CLAMPGE = "clampge"
+        arg = [CLAMPGE, arg, out_lo]
 
     if arg_hi > out_hi:
         # out_hi must be smaller than MAX_UINT256, so clample makes sense.
         # add an assertion, just in case this assumption ever changes.
         assert out_hi < 2 ** 256 - 1, "bad assumption in numeric convert"
-        CLAMP_OP = "sle" if arg_is_signed else "le"
-        arg = clamp(CLAMP_OP, arg, out_hi)
+        CLAMPLE = "clample" if arg_is_signed else "uclample"
+        arg = [CLAMPLE, arg, out_hi]
 
     return arg
 
@@ -194,7 +194,7 @@ def _int_to_int(arg, out_typ):
 
         else:
             # note: this also works for out_bits == 256.
-            arg = clamp("sge", arg, 0)
+            arg = IRnode.from_list(["clampge", arg, 0])
 
     elif not arg_info.is_signed and out_info.is_signed:
         # e.g. (uclample (uclampge arg 0) (2**127 - 1))

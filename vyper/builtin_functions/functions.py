@@ -17,8 +17,6 @@ from vyper.codegen.core import (
     add_ofst,
     bytes_data_ptr,
     check_external_call,
-    clamp,
-    clamp2,
     clamp_basetype,
     copy_bytes,
     ensure_in_memory,
@@ -394,6 +392,7 @@ class Slice(_BuiltinFunction):
                 # e.g. start == byte 0 -> we copy to dst_data + 0
                 #      start == byte 7 -> we copy to dst_data - 7
                 #      start == byte 33 -> we copy to dst_data - 1
+                # TODO add optimizer rule for modulus-powers-of-two
                 copy_dst = IRnode.from_list(
                     ["sub", dst_data, ["mod", start, 32]], location=dst.location
                 )
@@ -898,9 +897,7 @@ class Extract32(_SimpleBuiltinFunction):
                     "with",
                     "_sub",
                     sub,
-                    elementgetter(
-                        ["div", clamp2(0, index, ["sub", lengetter, 32], signed=True), 32]
-                    ),
+                    elementgetter(["div", ["clamp", 0, index, ["sub", lengetter, 32]], 32]),
                 ],
                 typ=BaseType(ret_type),
                 annotation="extracting 32 bytes",
@@ -919,7 +916,7 @@ class Extract32(_SimpleBuiltinFunction):
                         [
                             "with",
                             "_index",
-                            clamp2(0, index, ["sub", "_len", 32], signed=True),
+                            ["clamp", 0, index, ["sub", "_len", 32]],
                             [
                                 "with",
                                 "_mi32",
@@ -1251,7 +1248,7 @@ class BlockHash(_SimpleBuiltinFunction):
     @validate_inputs
     def build_IR(self, expr, args, kwargs, contact):
         return IRnode.from_list(
-            ["blockhash", clamp("lt", clamp("sge", args[0], ["sub", ["number"], 256]), "number")],
+            ["blockhash", ["uclamplt", ["clampge", args[0], ["sub", ["number"], 256]], "number"]],
             typ=BaseType("bytes32"),
         )
 
