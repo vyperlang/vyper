@@ -192,7 +192,6 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                     fn_node,
                 )
 
-
         if self.func.mutability == StateMutability.PURE:
             node_list = fn_node.get_descendants(
                 vy_ast.Attribute,
@@ -480,9 +479,12 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                     node,
                 )
 
-            if self.func.mutability == StateMutability.PURE and fn_type.mutability != StateMutability.PURE:
+            if (
+                fn_type.mutability != StateMutability.PURE
+                and self.func.mutability == StateMutability.PURE
+            ):
                 raise StateAccessViolation(
-                    f"Cannot call non-pure function from a pure function", node
+                    "Cannot call non-pure function from a pure function", node
                 )
 
         if isinstance(fn_type, MemberFunctionDefinition) and fn_type.is_modifying:
