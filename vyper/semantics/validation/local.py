@@ -480,9 +480,8 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                 )
 
             # can call internal, pure functions from pure functions
-            if (
-                self.func.mutability == StateMutability.PURE
-                and (fn_type.is_external or fn_type.mutability != StateMutability.PURE)
+            if self.func.mutability == StateMutability.PURE and (
+                fn_type.is_external or fn_type.mutability != StateMutability.PURE
             ):
                 raise StateAccessViolation(
                     "Cannot call non-pure function from a pure function", node
