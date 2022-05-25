@@ -183,6 +183,15 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         self.expr_visitor = _LocalExpressionVisitor()
         namespace.update(self.func.arguments)
 
+        for node in fn_node.body:
+            self.visit(node)
+        if self.func.return_type:
+            if not check_for_terminus(fn_node.body):
+                raise FunctionDeclarationException(
+                    f"Missing or unmatched return statements in function '{fn_node.name}'",
+                    fn_node,
+                )
+
         if self.func.mutability == StateMutability.PURE:
             node_list = fn_node.get_descendants(
                 vy_ast.Attribute,
@@ -192,7 +201,11 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                     )
                 },
             )
-            if node_list:
+            for node in node_list:
+                t = node._metadata.get("type")
+                if isinstance(t, ContractFunction) and t.mutability == StateMutability.PURE:
+                    # allowed
+                    continue
                 raise StateAccessViolation(
                     "not allowed to query contract or environment variables in pure functions",
                     node_list[0],
@@ -204,15 +217,6 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             if node_list:
                 raise NonPayableViolation(
                     "msg.value is not allowed in non-payable functions", node_list[0]
-                )
-
-        for node in fn_node.body:
-            self.visit(node)
-        if self.func.return_type:
-            if not check_for_terminus(fn_node.body):
-                raise FunctionDeclarationException(
-                    f"Missing or unmatched return statements in function '{fn_node.name}'",
-                    fn_node,
                 )
 
     def visit(self, node):
@@ -475,9 +479,12 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                     node,
                 )
 
-            if self.func.mutability == StateMutability.PURE:
+            if (
+                self.func.mutability == StateMutability.PURE
+                and fn_type.mutability != StateMutability.PURE
+            ):
                 raise StateAccessViolation(
-                    f"Cannot call any function from a {self.func.mutability.value} function", node
+                    "Cannot call non-pure function from a pure function", node
                 )
 
         if isinstance(fn_type, MemberFunctionDefinition) and fn_type.is_modifying:
