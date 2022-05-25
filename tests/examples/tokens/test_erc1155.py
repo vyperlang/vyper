@@ -9,8 +9,8 @@ CONTRACT_SYMBOL = "T1155"
 
 CONTRACT_URI = "https://mydomain.io/NFTdata/{id}"
 NEW_CONTRACT_URI = "https://mynewdomain.io/NFTdata/{id}"
-CONTRACT_METADATA_URI = 'https://mydomain.io/NFTdata/collectionMetaData.json'
-NEW_CONTRACT_METADATA_URI = 'https://mydomain.io/NFTdata/newCollectionMetaData.json'
+CONTRACT_METADATA_URI = "https://mydomain.io/NFTdata/collectionMetaData.json"
+NEW_CONTRACT_METADATA_URI = "https://mydomain.io/NFTdata/newCollectionMetaData.json"
 
 ERC165_INTERFACE_ID = "0x01ffc9a7"
 ERC1155_INTERFACE_ID = "0xd9b67a26"
@@ -134,7 +134,9 @@ def test_contractURI(erc1155, w3, assert_tx_failed):
     owner, a1, a2, a3, a4, a5 = w3.eth.accounts[0:6]
     # change contract URI and restore.
     assert erc1155.contractURI() == CONTRACT_METADATA_URI
-    assert_tx_failed (lambda: erc1155.setContractURI(NEW_CONTRACT_METADATA_URI, transact={"from": a1}))
+    assert_tx_failed(
+        lambda: erc1155.setContractURI(NEW_CONTRACT_METADATA_URI, transact={"from": a1})
+    )
     erc1155.setContractURI(NEW_CONTRACT_METADATA_URI, transact={"from": owner})
     assert erc1155.contractURI() == NEW_CONTRACT_METADATA_URI
     assert erc1155.contractURI() != CONTRACT_METADATA_URI
@@ -143,7 +145,6 @@ def test_contractURI(erc1155, w3, assert_tx_failed):
     assert erc1155.contractURI() == CONTRACT_METADATA_URI
 
     assert_tx_failed(lambda: erc1155.setContractURI(CONTRACT_METADATA_URI))
-
 
 
 def test_URI(erc1155, w3, assert_tx_failed):
