@@ -21,7 +21,7 @@ def test_pure_call(get_contract_with_gas_estimation_for_constants):
 def _foo() -> int128:
     return 5
 
-@view
+@pure
 @external
 def foo() -> int128:
     return self._foo()
