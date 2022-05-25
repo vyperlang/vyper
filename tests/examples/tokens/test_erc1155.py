@@ -30,7 +30,7 @@ def erc1155(get_contract, w3, assert_tx_failed):
     with open("examples/tokens/ERC1155ownable.vy") as f:
         code = f.read()
     c = get_contract(code, *[CONTRACT_NAME, CONTRACT_SYMBOL, CONTRACT_URI, CONTRACT_METADATA_URI])
-
+    assert c.owner() == owner
     c.mintBatch(a1, mintBatch, minBatchSetOf10, "", transact={"from": owner})
     c.mintBatch(a3, mintBatch2, minBatchSetOf10, "", transact={"from": owner})
 
@@ -134,14 +134,15 @@ def test_contractURI(erc1155, w3, assert_tx_failed):
     owner, a1, a2, a3, a4, a5 = w3.eth.accounts[0:6]
     # change contract URI and restore.
     assert erc1155.contractURI() == CONTRACT_METADATA_URI
-    erc1155.setContractURI(NEW_CONTRACT_METADATA_URI, transact={"from": a1})
+    assert_tx_failed (lambda: erc1155.setContractURI(NEW_CONTRACT_METADATA_URI, transact={"from": a1}))
+    erc1155.setContractURI(NEW_CONTRACT_METADATA_URI, transact={"from": owner})
     assert erc1155.contractURI() == NEW_CONTRACT_METADATA_URI
     assert erc1155.contractURI() != CONTRACT_METADATA_URI
-    erc1155.setContractURI(CONTRACT_METADATA_URI, transact={"from": a1})
+    erc1155.setContractURI(CONTRACT_METADATA_URI, transact={"from": owner})
     assert erc1155.contractURI() != NEW_CONTRACT_METADATA_URI
     assert erc1155.contractURI() == CONTRACT_METADATA_URI
 
-    assert_tx_failed(lambda: erc1155.setContractURI(CONTRACT_URI))
+    assert_tx_failed(lambda: erc1155.setContractURI(CONTRACT_METADATA_URI))
 
 
 
