@@ -88,6 +88,17 @@ class CompilerData:
         return self._vyper_module
 
     @property
+    def vyper_module_unfolded(self) -> vy_ast.Module:
+        # This phase is intended to generate an AST for tooling use, and is not
+        # used in the compilation process.
+        if not hasattr(self, "_vyper_module_unfolded"):
+            self._vyper_module_unfolded = generate_unfolded_ast(
+                self.vyper_module, self.interface_codes
+            )
+
+        return self._vyper_module_unfolded
+
+    @property
     def vyper_module_folded(self) -> vy_ast.Module:
         if not hasattr(self, "_vyper_module_folded"):
             self._vyper_module_folded, self._storage_layout = generate_folded_ast(
@@ -153,13 +164,13 @@ class CompilerData:
     @property
     def bytecode(self) -> bytes:
         if not hasattr(self, "_bytecode"):
-            self._bytecode = generate_bytecode(self.assembly)
+            self._bytecode = generate_bytecode(self.assembly, is_runtime=False)
         return self._bytecode
 
     @property
     def bytecode_runtime(self) -> bytes:
         if not hasattr(self, "_bytecode_runtime"):
-            self._bytecode_runtime = generate_bytecode(self.assembly_runtime)
+            self._bytecode_runtime = generate_bytecode(self.assembly_runtime, is_runtime=True)
         return self._bytecode_runtime
 
 
@@ -182,6 +193,20 @@ def generate_ast(source_code: str, source_id: int, contract_name: str) -> vy_ast
         Top-level Vyper AST node
     """
     return vy_ast.parse_to_ast(source_code, source_id, contract_name)
+
+
+def generate_unfolded_ast(
+    vyper_module: vy_ast.Module,
+    interface_codes: Optional[InterfaceImports],
+) -> vy_ast.Module:
+
+    vy_ast.validation.validate_literal_nodes(vyper_module)
+    vy_ast.folding.replace_builtin_constants(vyper_module)
+    vy_ast.folding.replace_builtin_functions(vyper_module)
+    # note: validate_semantics does type inference on the AST
+    validate_semantics(vyper_module, interface_codes)
+
+    return vyper_module
 
 
 def generate_folded_ast(
@@ -259,7 +284,7 @@ def generate_ir_nodes(
         IR to generate deployment bytecode
         IR to generate runtime bytecode
     """
-    ir_nodes, ir_runtime, function_sigs = module.parse_tree_to_ir(global_ctx)
+    ir_nodes, ir_runtime, function_sigs = module.generate_ir_for_module(global_ctx)
     if not no_optimize:
         ir_nodes = optimizer.optimize(ir_nodes)
         ir_runtime = optimizer.optimize(ir_runtime)
@@ -298,7 +323,7 @@ def _find_nested_opcode(assembly, key):
         return any(_find_nested_opcode(x, key) for x in sublists)
 
 
-def generate_bytecode(assembly: list) -> bytes:
+def generate_bytecode(assembly: list, is_runtime: bool = False) -> bytes:
     """
     Generate bytecode from assembly instructions.
 
@@ -312,4 +337,4 @@ def generate_bytecode(assembly: list) -> bytes:
     bytes
         Final compiled bytecode.
     """
-    return compile_ir.assembly_to_evm(assembly)[0]
+    return compile_ir.assembly_to_evm(assembly, insert_vyper_signature=is_runtime)[0]

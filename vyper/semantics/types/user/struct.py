@@ -140,7 +140,9 @@ def build_primitive_from_node(base_node: vy_ast.EventDef) -> StructPrimitive:
     members: OrderedDict = OrderedDict()
     for node in base_node.body:
         if not isinstance(node, vy_ast.AnnAssign):
-            raise StructureException("Structs can only variable definitions", node)
+            raise StructureException(
+                "Struct declarations can only contain variable definitions", node
+            )
         if node.value is not None:
             raise StructureException("Cannot assign a value during struct declaration", node)
         if not isinstance(node.target, vy_ast.Name):

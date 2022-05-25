@@ -29,6 +29,7 @@ from vyper.semantics.types.function import (
     MemberFunctionDefinition,
     StateMutability,
 )
+from vyper.semantics.types.indexable.mapping import MappingDefinition
 from vyper.semantics.types.indexable.sequence import (
     ArrayDefinition,
     DynamicArrayDefinition,
@@ -87,7 +88,7 @@ def check_for_terminus(node_list: list) -> bool:
     return False
 
 
-def _check_iterator_assign(
+def _check_iterator_modification(
     target_node: vy_ast.VyperNode, search_node: vy_ast.VyperNode
 ) -> Optional[vy_ast.VyperNode]:
     similar_nodes = [
@@ -99,7 +100,19 @@ def _check_iterator_assign(
     for node in similar_nodes:
         # raise if the node is the target of an assignment statement
         assign_node = node.get_ancestor((vy_ast.Assign, vy_ast.AugAssign))
+        # note the use of get_descendants() blocks statements like
+        # self.my_array[i] = x
         if assign_node and node in assign_node.target.get_descendants(include_self=True):
+            return node
+
+        attr_node = node.get_ancestor(vy_ast.Attribute)
+        # note the use of get_descendants() blocks statements like
+        # self.my_array[i].append(x)
+        if (
+            attr_node is not None
+            and node in attr_node.value.get_descendants(include_self=True)
+            and attr_node.attr in ("append", "pop", "extend")
+        ):
             return node
 
     return None
@@ -155,7 +168,6 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
     ignored_types = (
         vy_ast.Break,
         vy_ast.Constant,
-        vy_ast.Continue,
         vy_ast.Pass,
     )
     scope_name = "function"
@@ -171,6 +183,15 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         self.expr_visitor = _LocalExpressionVisitor()
         namespace.update(self.func.arguments)
 
+        for node in fn_node.body:
+            self.visit(node)
+        if self.func.return_type:
+            if not check_for_terminus(fn_node.body):
+                raise FunctionDeclarationException(
+                    f"Missing or unmatched return statements in function '{fn_node.name}'",
+                    fn_node,
+                )
+
         if self.func.mutability == StateMutability.PURE:
             node_list = fn_node.get_descendants(
                 vy_ast.Attribute,
@@ -180,7 +201,11 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                     )
                 },
             )
-            if node_list:
+            for node in node_list:
+                t = node._metadata.get("type")
+                if isinstance(t, ContractFunction) and t.mutability == StateMutability.PURE:
+                    # allowed
+                    continue
                 raise StateAccessViolation(
                     "not allowed to query contract or environment variables in pure functions",
                     node_list[0],
@@ -192,15 +217,6 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             if node_list:
                 raise NonPayableViolation(
                     "msg.value is not allowed in non-payable functions", node_list[0]
-                )
-
-        for node in fn_node.body:
-            self.visit(node)
-        if self.func.return_type:
-            if not check_for_terminus(fn_node.body):
-                raise FunctionDeclarationException(
-                    f"Missing or unmatched return statements in function '{fn_node.name}'",
-                    fn_node,
                 )
 
     def visit(self, node):
@@ -231,6 +247,10 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             raise StructureException("Right-hand side of assignment cannot be a tuple", node.value)
 
         target = get_exact_type_from_node(node.target)
+        if isinstance(target, MappingDefinition):
+            raise StructureException(
+                "Left-hand side of assignment cannot be a HashMap without a key", node
+            )
 
         validate_expected_type(node.value, target)
         target.validate_modification(node, self.func.mutability)
@@ -263,6 +283,11 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         except InvalidType:
             raise InvalidType("Assertion test value must be a boolean", node.test)
         self.expr_visitor.visit(node.test)
+
+    def visit_Continue(self, node):
+        for_node = node.get_ancestor(vy_ast.For)
+        if for_node is None:
+            raise StructureException("`continue` must be enclosed in a `for` loop", node)
 
     def visit_Return(self, node):
         values = node.value
@@ -365,7 +390,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
 
         if isinstance(node.iter, (vy_ast.Name, vy_ast.Attribute)):
             # check for references to the iterated value within the body of the loop
-            assign = _check_iterator_assign(node.iter, node)
+            assign = _check_iterator_modification(node.iter, node)
             if assign:
                 raise ImmutableViolation("Cannot modify array during iteration", assign)
 
@@ -376,7 +401,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                 fn_name = call_node.func.attr
 
                 fn_node = self.vyper_module.get_children(vy_ast.FunctionDef, {"name": fn_name})[0]
-                if _check_iterator_assign(node.iter, fn_node):
+                if _check_iterator_modification(node.iter, fn_node):
                     # check for direct modification
                     raise ImmutableViolation(
                         f"Cannot call '{fn_name}' inside for loop, it potentially "
@@ -387,7 +412,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                 for name in self.namespace["self"].members[fn_name].recursive_calls:
                     # check for indirect modification
                     fn_node = self.vyper_module.get_children(vy_ast.FunctionDef, {"name": name})[0]
-                    if _check_iterator_assign(node.iter, fn_node):
+                    if _check_iterator_modification(node.iter, fn_node):
                         raise ImmutableViolation(
                             f"Cannot call '{fn_name}' inside for loop, it may call to '{name}' "
                             f"which potentially modifies iterated storage variable '{iter_name}'",
@@ -454,9 +479,12 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                     node,
                 )
 
-            if self.func.mutability == StateMutability.PURE:
+            if (
+                self.func.mutability == StateMutability.PURE
+                and fn_type.mutability != StateMutability.PURE
+            ):
                 raise StateAccessViolation(
-                    f"Cannot call any function from a {self.func.mutability.value} function", node
+                    "Cannot call non-pure function from a pure function", node
                 )
 
         if isinstance(fn_type, MemberFunctionDefinition) and fn_type.is_modifying:

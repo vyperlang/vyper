@@ -470,6 +470,58 @@ def foo(x: int128):
     """,
         ImmutableViolation,
     ),
+    # invalid modification of dynarray
+    (
+        """
+@external
+def foo():
+    xs: DynArray[uint256, 5] = [1,2,3]
+    for x in xs:
+        xs.pop()
+    """,
+        ImmutableViolation,
+    ),
+    # invalid modification of dynarray
+    (
+        """
+@external
+def foo():
+    xs: DynArray[uint256, 5] = [1,2,3]
+    for x in xs:
+        xs.append(x)
+    """,
+        ImmutableViolation,
+    ),
+    # invalid modification of dynarray
+    (
+        """
+@external
+def foo():
+    xs: DynArray[DynArray[uint256, 5], 5] = [[1,2,3]]
+    for x in xs:
+        x.pop()
+    """,
+        ImmutableViolation,
+    ),
+    # invalid modification of dynarray
+    (
+        """
+array: DynArray[uint256, 5]
+@internal
+def a():
+    self.b()
+
+@internal
+def b():
+    self.array.pop()
+
+@external
+def foo():
+    for x in self.array:
+        self.a()
+    """,
+        ImmutableViolation,
+    ),
     (
         """
 @external

@@ -25,7 +25,7 @@ def foo(x: Bytes[1]) -> Bytes[32]:
 @external
 def foo(x: uint256) -> Bytes[36]:
     _ensure_tuple: bool = False
-    _method_id: Bytes[4] = method_id("foo()")
+    _method_id: Bytes[4] = method_id("foo()", output_type=Bytes[4])
     return _abi_encode(x, ensure_tuple=_ensure_tuple, method_id=_method_id)
     """,
         TypeMismatch,  # ensure_tuple and method_id both must be literals

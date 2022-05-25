@@ -12,7 +12,7 @@ def test_assert_refund(w3, get_contract_with_gas_estimation, assert_tx_failed):
     code = """
 @external
 def foo():
-    assert 1 == 2
+    raise
     """
     c = get_contract_with_gas_estimation(code)
     a0 = w3.eth.accounts[0]

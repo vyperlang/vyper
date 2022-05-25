@@ -1,1 +1,1 @@
-from .function_signature import FunctionSignature, VariableRecord
+from .function_signature import FrameInfo, FunctionSignature, VariableRecord
