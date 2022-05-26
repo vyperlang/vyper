@@ -23,7 +23,7 @@ from vyper.exceptions import (
 from vyper.semantics.environment import CONSTANT_ENVIRONMENT_VARS, MUTABLE_ENVIRONMENT_VARS
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.abstract import IntegerAbstractType
-from vyper.semantics.types.bases import BaseTypeDefinition, DataLocation
+from vyper.semantics.types.bases import DataLocation
 from vyper.semantics.types.function import (
     ContractFunction,
     MemberFunctionDefinition,
@@ -48,8 +48,6 @@ from vyper.semantics.validation.utils import (
     get_possible_types_from_node,
     validate_expected_type,
 )
-
-OptionalType = Optional[BaseTypeDefinition]
 
 
 def validate_functions(vy_module: vy_ast.Module) -> None:
