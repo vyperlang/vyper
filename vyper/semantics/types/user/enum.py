@@ -2,7 +2,7 @@ from typing import Dict, List
 
 from vyper import ast as vy_ast
 from vyper.ast.validation import validate_call_args
-from vyper.exceptions import EventDeclarationException, NamespaceCollision, StructureException
+from vyper.exceptions import EnumDeclarationException, NamespaceCollision, StructureException
 from vyper.semantics.namespace import validate_identifier
 from vyper.semantics.types.bases import DataLocation
 from vyper.semantics.types.utils import (
@@ -47,27 +47,27 @@ class Enum:
         Arguments
         ---------
         abi : dict
-            An object from a JSON ABI interface, representing an event.
+            An object from a JSON ABI interface, representing an enum.
 
         Returns
         -------
-        Event object.
+        Enum object.
         """
         members: List = List()
         return Enum(abi["name"], abi["inputs"])
 
     @classmethod
-    def from_EnumDef(cls, base_node: vy_ast.EventDef) -> "Enum":
+    def from_EnumDef(cls, base_node: vy_ast.EnumDef) -> "Enum":
         """
-        Generate an `Event` object from a Vyper ast node.
+        Generate an `Enum` object from a Vyper ast node.
 
         Arguments
         ---------
-        base_node : EventDef
-            Vyper ast node defining the event
+        base_node : EnumDef
+            Vyper ast node defining the enum
         Returns
         -------
-        Event
+        Enum
         """
         members: List = []
 
@@ -78,7 +78,7 @@ class Enum:
             member_name = node.value.id
             if member_name in members:
                 raise NamespaceCollision(
-                    f"Event member '{member_name}' has already been declared", node.value
+                    f"Enum member '{member_name}' has already been declared", node.value
                 )
 
             members.append(member_name)
