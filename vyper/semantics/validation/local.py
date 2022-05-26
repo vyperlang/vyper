@@ -496,53 +496,50 @@ class _LocalExpressionVisitor(VyperNodeVisitorBase):
     ignored_types = (vy_ast.Constant, vy_ast.Name)
     scope_name = "function"
 
-    def visit(self, node, type_=None):
-        super().visit(node, type_)
-
-    def visit_Attribute(self, node: vy_ast.Attribute, type_: OptionalType) -> None:
+    def visit_Attribute(self, node: vy_ast.Attribute) -> None:
         self.visit(node.value)
         _validate_msg_data_attribute(node)
         _validate_address_code_attribute(node)
 
-    def visit_BinOp(self, node: vy_ast.BinOp, type_: OptionalType) -> None:
-        self.visit(node.left, type_)
-        self.visit(node.right, type_)
+    def visit_BinOp(self, node: vy_ast.BinOp) -> None:
+        self.visit(node.left)
+        self.visit(node.right)
 
-    def visit_BoolOp(self, node: vy_ast.BoolOp, type_: OptionalType) -> None:
+    def visit_BoolOp(self, node: vy_ast.BoolOp) -> None:
         for value in node.values:  # type: ignore[attr-defined]
             self.visit(value)
 
-    def visit_Call(self, node: vy_ast.Call, type_: OptionalType) -> None:
+    def visit_Call(self, node: vy_ast.Call) -> None:
         self.visit(node.func)
         for arg in node.args:
             self.visit(arg)
         for kwarg in node.keywords:
             self.visit(kwarg.value)
 
-    def visit_Compare(self, node: vy_ast.Compare, type_: OptionalType) -> None:
+    def visit_Compare(self, node: vy_ast.Compare) -> None:
         self.visit(node.left)  # type: ignore[attr-defined]
         self.visit(node.right)  # type: ignore[attr-defined]
 
-    def visit_Dict(self, node: vy_ast.Dict, type_: OptionalType) -> None:
+    def visit_Dict(self, node: vy_ast.Dict) -> None:
         for key in node.keys:
             self.visit(key)
         for value in node.values:
             self.visit(value)
 
-    def visit_Index(self, node: vy_ast.Index, type_: OptionalType) -> None:
+    def visit_Index(self, node: vy_ast.Index) -> None:
         self.visit(node.value)
 
-    def visit_List(self, node: vy_ast.List, type_: OptionalType) -> None:
+    def visit_List(self, node: vy_ast.List) -> None:
         for element in node.elements:
             self.visit(element)
 
-    def visit_Subscript(self, node: vy_ast.Subscript, type_: OptionalType) -> None:
+    def visit_Subscript(self, node: vy_ast.Subscript) -> None:
         self.visit(node.value)
         self.visit(node.slice)
 
-    def visit_Tuple(self, node: vy_ast.Tuple, type_: OptionalType) -> None:
+    def visit_Tuple(self, node: vy_ast.Tuple) -> None:
         for element in node.elements:
             self.visit(element)
 
-    def visit_UnaryOp(self, node: vy_ast.UnaryOp, type_: OptionalType) -> None:
+    def visit_UnaryOp(self, node: vy_ast.UnaryOp) -> None:
         self.visit(node.operand)  # type: ignore[attr-defined]
