@@ -905,6 +905,7 @@ class Extract32(_SimpleBuiltinFunction):
     _inputs = [("b", BytesArrayPrimitive()), ("start", UnsignedIntegerAbstractType())]
     # "TYPE_DEFINITION" is a placeholder value for a type definition string, and
     # will be replaced by a `TypeTypeDefinition` object in `infer_kwarg_types`
+    # (note that it is ignored in validate_args)
     _kwargs = {"output_type": KwargSettings("TYPE_DEFINITION", "bytes32")}
     _return_type = None
 
@@ -1948,6 +1949,7 @@ class Empty(_SimpleBuiltinFunction):
     _id = "empty"
     # "TYPE_DEFINITION" is a placeholder value for a type definition string, and
     # will be replaced by a `TypeTypeDefinition` object in `infer_arg_types`
+    # (note that it is ignored in `validate_args`)
     _inputs = [("typename", "TYPE_DEFINITION")]
 
     def fetch_call_return(self, node):
