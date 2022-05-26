@@ -15,7 +15,15 @@ valid_list = [
 enum Action:
     buy
     sale
+    """,
     """
+enum Action:
+    buy
+    sale
+@external
+def run() -> Action:
+    return Action.buy
+    """,
 ]
 
 @pytest.mark.parametrize("good_code", valid_list)
