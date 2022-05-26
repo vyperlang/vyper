@@ -515,7 +515,7 @@ class _LocalExpressionVisitor(VyperNodeVisitorBase):
     def visit_Call(self, node: vy_ast.Call, type_: OptionalType) -> None:
         self.visit(node.func)
         for arg in node.args:
-            self.visit(arg, type_)
+            self.visit(arg)
         for kwarg in node.keywords:
             self.visit(kwarg.value)
 

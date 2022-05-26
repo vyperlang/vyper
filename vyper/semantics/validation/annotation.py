@@ -221,9 +221,10 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
     def visit_Name(self, node, type_):
         if type_ is not None and not isinstance(type_, BaseTypeDefinition):
             # some nodes are straight type annotations e.g. `String[100]` in
-            # `empty(String[100])`. In these cases, the type is wrapped in a
-            # `TypeTypeDefinition` object, and it should be annotated as such
-            # becayse `get_exact_type_from_node` will throw an error for typestrings.
+            # `empty(String[100])`. (other instances are raw_call, convert and
+            # slice). skip annotating them because they do not conform to
+            # the BaseTypeDefinition API (and anyways we do not need to
+            # annotate them!)
             node._metadata["type"] = type_
         else:
             node._metadata["type"] = get_exact_type_from_node(node)

@@ -903,8 +903,9 @@ class Extract32(_SimpleBuiltinFunction):
 
     _id = "extract32"
     _inputs = [("b", BytesArrayPrimitive()), ("start", UnsignedIntegerAbstractType())]
-    # "name_literal" is a placeholder value for TypeTypeDefinition
-    _kwargs = {"output_type": KwargSettings("name_literal", "bytes32")}
+    # "TYPE_DEFINITION" is a placeholder value for a type definition string, and
+    # will be replaced by a `TypeTypeDefinition` object in `infer_kwarg_types`
+    _kwargs = {"output_type": KwargSettings("TYPE_DEFINITION", "bytes32")}
     _return_type = None
 
     def fetch_call_return(self, node):
@@ -1349,6 +1350,7 @@ class RawLog(_SimpleBuiltinFunction):
         topics_length = len(expr.args[0].elements)
         topics = args[0].args
 
+        # sanity check topics is a literal list
         assert args[0].value in ("~empty", "multi")
 
         data = args[1]
@@ -1944,7 +1946,9 @@ else:
 class Empty(_SimpleBuiltinFunction):
 
     _id = "empty"
-    _inputs = [("typename", "*")]
+    # "TYPE_DEFINITION" is a placeholder value for a type definition string, and
+    # will be replaced by a `TypeTypeDefinition` object in `infer_arg_types`
+    _inputs = [("typename", "TYPE_DEFINITION")]
 
     def fetch_call_return(self, node):
         type_ = self.infer_arg_types(node)[0].typedef
