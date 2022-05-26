@@ -306,9 +306,9 @@ def optimize(node: IRnode, parent: Optional[IRnode] = None) -> IRnode:
     annotation = node.annotation
     add_gas_estimate = node.add_gas_estimate
 
-    def finalize(ir_node):
+    def finalize(ir_builder):
         return IRnode.from_list(
-            ir_node,
+            ir_builder,
             typ=typ,
             location=location,
             source_pos=source_pos,
@@ -395,8 +395,8 @@ def optimize(node: IRnode, parent: Optional[IRnode] = None) -> IRnode:
             argz = []
 
     # NOTE: this is really slow (compile-time).
-    # maybe should optimize the tree in-place
-    ret = finalize(IRnode.from_list([value, *argz]))
+    # ideal would be to optimize the tree in-place
+    ret = finalize([value, *argz])
 
     if optimize_more:
         ret = optimize(ret, parent=parent)
