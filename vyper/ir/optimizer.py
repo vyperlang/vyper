@@ -115,7 +115,7 @@ def _optimize_arith(binop, args, ann, parent_op):
         left, right = _int(args[0]), _int(args[1])
         new_val = fn(left, right)
         new_val = _wrap(new_val)
-        return False, new_val, [], new_ann
+        return new_val, [], new_ann
 
     new_val = None
     new_args = None
@@ -291,9 +291,9 @@ def _optimize_arith(binop, args, ann, parent_op):
     )
 
     if rollback:
-        return False, binop, args, ann
+        return None
 
-    return True, new_val, new_args, new_ann
+    return new_val, new_args, new_ann
 
 
 def optimize(node: IRnode, parent: Optional[IRnode] = None) -> IRnode:
@@ -331,7 +331,10 @@ def optimize(node: IRnode, parent: Optional[IRnode] = None) -> IRnode:
     elif value in arith:
         parent_op = parent.value if parent is not None else None
 
-        optimize_more, value, argz, annotation = _optimize_arith(value, argz, annotation, parent_op)
+        res = _optimize_arith(value, argz, annotation, parent_op)
+        if res is not None:
+            optimize_more = True
+            value, argz, annotation = res
 
     ###
     # BITWISE OPS
