@@ -216,8 +216,7 @@ class BasePrimitive:
 
     @classmethod
     def get_member(cls, key: str, node: vy_ast.Attribute) -> None:
-        # always raises - do not implement in inherited classes
-        raise StructureException("Types do not have members", node)
+        raise StructureException("{cls} does not have members", node)
 
     @classmethod
     def validate_modification(
