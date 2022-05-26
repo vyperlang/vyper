@@ -334,7 +334,7 @@ class Expr:
             addr = Expr.parse_value_expr(self.expr.value, self.context)
             if is_base_type(addr.typ, "address"):
                 if self.expr.attr == "codesize":
-                    if self.expr.value.id == "self":
+                    if self.expr.get("value.id") == "self":
                         eval_code = ["codesize"]
                     else:
                         eval_code = ["extcodesize", addr]
