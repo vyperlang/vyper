@@ -2,7 +2,12 @@ from typing import Dict, List
 
 from vyper import ast as vy_ast
 from vyper.ast.validation import validate_call_args
-from vyper.exceptions import EnumDeclarationException, NamespaceCollision, StructureException, UnimplementedException
+from vyper.exceptions import (
+    EnumDeclarationException,
+    NamespaceCollision,
+    StructureException,
+    UnimplementedException,
+)
 from vyper.semantics.namespace import validate_identifier
 from vyper.semantics.types.bases import DataLocation, MemberTypeDefinition, ValueTypeDefinition
 from vyper.semantics.types.utils import (

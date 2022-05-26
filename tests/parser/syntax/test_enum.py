@@ -1,4 +1,3 @@
-
 import pytest
 
 from vyper import compiler
@@ -25,6 +24,7 @@ def run() -> Action:
     return Action.buy
     """,
 ]
+
 
 @pytest.mark.parametrize("good_code", valid_list)
 def test_enum_success(good_code):

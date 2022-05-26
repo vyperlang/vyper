@@ -162,8 +162,10 @@ class VariableDeclarationException(VyperException):
 class FunctionDeclarationException(VyperException):
     """Invalid function declaration."""
 
+
 class EnumDeclarationException(VyperException):
     """Invalid enum declaration."""
+
 
 class EventDeclarationException(VyperException):
     """Invalid event declaration."""
