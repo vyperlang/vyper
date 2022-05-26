@@ -61,12 +61,12 @@ def increment_counter() -> uint256:
     self.counter += 1
     return self.counter
 @external
-def foo() -> uint256:
-    x: bool = self.increment_counter() >= 0
-    return self.counter
+def foo() -> (uint256, uint256):
+    x: uint256 = unsafe_mul(self.increment_counter(), 0)
+    return x, self.counter
     """
     c = get_contract(code)
-    assert c.foo() == 1
+    assert c.foo() == [0, 1]
 
 
 def test_selfcall_code_3(get_contract_with_gas_estimation, keccak):
