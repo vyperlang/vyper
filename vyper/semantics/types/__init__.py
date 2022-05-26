@@ -10,6 +10,7 @@ from .indexable.sequence import (
 from .user.event import Event
 from .user.interface import InterfaceDefinition
 from .user.struct import StructDefinition
+from .user.enum import EnumDefinition
 from .value.address import AddressDefinition
 from .value.array_value import BytesArrayDefinition, StringDefinition
 from .value.boolean import BoolDefinition

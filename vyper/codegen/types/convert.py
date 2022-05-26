@@ -37,4 +37,6 @@ def new_type_to_old_type(typ: new.BasePrimitive) -> old.NodeType:
         return old.StructType(
             {n: new_type_to_old_type(t) for (n, t) in typ.members.items()}, typ._id
         )
+    if isinstance(typ, new.EnumDefinition):
+        return old.EnumType(typ._id, typ.members.copy())
     raise InvalidType(f"unknown type {typ}")

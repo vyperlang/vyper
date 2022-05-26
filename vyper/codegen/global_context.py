@@ -6,6 +6,8 @@ from vyper.codegen.types import parse_type
 from vyper.exceptions import CompilerPanic, InvalidType, StructureException
 from vyper.typing import InterfaceImports
 from vyper.utils import cached_property
+from vyper.semantics.types.user.enum import EnumPrimitive
+from vyper.codegen.types.convert import new_type_to_old_type
 
 
 # Datatype to store all global context information.
@@ -20,6 +22,7 @@ class GlobalContext:
 
         self._structs = dict()
         self._events = list()
+        self._enums = dict()
         self._globals = dict()
         self._function_defs = list()
         self._nonrentrant_counter = 0
@@ -50,7 +53,7 @@ class GlobalContext:
                 continue
 
             elif isinstance(item, vy_ast.EnumDef):
-                continue
+                global_ctx._enums[item.name] = EnumPrimitive.from_EnumDef(item)
 
             # Statements of the form:
             # variable_name: type
@@ -200,6 +203,12 @@ class GlobalContext:
         return set(self._contracts.keys()) | set(self._interfaces.keys())
 
     def parse_type(self, ast_node):
+
+        if ast_node.get("id") in self._enums:
+            enum_prim = self._enums[ast_node.id]
+            enum_def = enum_prim.from_annotation(ast_node)
+            return new_type_to_old_type(enum_def)
+
         return parse_type(
             ast_node,
             sigs=self.interface_names,

@@ -231,6 +231,20 @@ class InterfaceType(BaseType):
         return 32
 
 
+class EnumType(BaseType):
+    def __init__(self, name, members):
+        super().__init__("uint256")
+        self.name = name
+        self.members = members
+
+    def __eq__(self, other):
+        return self.name == other.name and self.members == other.members
+
+    @property
+    def memory_bytes_required(self):
+        return 32
+
+
 class ByteArrayLike(NodeType):
     def __init__(self, maxlen, is_literal=False):
         self.maxlen = maxlen
@@ -404,7 +418,7 @@ def make_struct_type(name, sigs, members, custom_structs):
 
 # Parses an expression representing a type.
 # TODO: rename me to "ir_type_from_annotation"
-def parse_type(item, sigs, custom_structs):
+def parse_type(item, sigs, custom_structs, enums):
     # sigs: set of interface or contract names in scope
     # custom_structs: struct definitions in scope
     def _sanity_check(x):
@@ -418,10 +432,10 @@ def parse_type(item, sigs, custom_structs):
         if item.id in BASE_TYPES:
             return BaseType(item.id)
 
-        elif (sigs is not None) and item.id in sigs:
+        elif item.id in sigs:
             return InterfaceType(item.id)
 
-        elif (custom_structs is not None) and (item.id in custom_structs):
+        elif item.id in custom_structs:
             return make_struct_type(
                 item.id,
                 sigs,
