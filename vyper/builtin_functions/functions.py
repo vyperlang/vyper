@@ -1807,6 +1807,64 @@ class Max(_MinMax):
     _opcode = "gt"
 
 
+class UintToStr(_SimpleBuiltinFunction):
+    _id = "uint2str"
+    _inputs = [("x", Uint256Definition())]  # should allow any uint?
+    _return_type = StringDefinition(78)
+
+    @validate_inputs
+    def build_IR(self, expr, args, kwargs, context):
+        return_t = StringType(78)
+
+        with args[0].cache_when_complex("val") as (b1, val):
+
+            buf = context.new_internal_variable(return_t)
+
+            i = IRnode.from_list(context.fresh_varname("uint2str_i"), typ="uint256")
+
+            ret = ["repeat", i, 0, 79, 79]
+
+            body = [
+                "seq",
+                [
+                    "if",
+                    ["eq", val, 0],
+                    # clobber val, and return it as a pointer
+                    [
+                        "seq",
+                        ["mstore", ["sub", buf + 78, i], i],
+                        ["set", val, ["sub", buf + 78, i]],
+                        "break",
+                    ],
+                    [
+                        "seq",
+                        [
+                            "mstore",
+                            ["sub", buf + 78, i],
+                            ["add", 48, ["mod", val, 10]],
+                        ],
+                        ["set", val, ["div", val, 10]],
+                    ],
+                ],
+            ]
+            ret.append(body)
+
+            # "0" has hex representation 0x00..0130..00
+            # if (val == 0) {
+            #   return "0"
+            # } else {
+            #   do the loop
+            # }
+            ret = [
+                "if",
+                ["eq", val, 0],
+                ["seq", ["mstore", buf + 1, 0x0130], buf],
+                ["seq", ret, val],
+            ]
+
+            return b1.resolve(IRnode.from_list(ret, location=MEMORY, typ=return_t))
+
+
 class Sqrt(_SimpleBuiltinFunction):
 
     _id = "sqrt"
@@ -2084,6 +2142,7 @@ DISPATCH_TABLE = {
     "unsafe_mul": UnsafeMul(),
     "unsafe_div": UnsafeDiv(),
     "pow_mod256": PowMod256(),
+    "uint2str": UintToStr(),
     "sqrt": Sqrt(),
     "shift": Shift(),
     "create_forwarder_to": CreateForwarderTo(),
