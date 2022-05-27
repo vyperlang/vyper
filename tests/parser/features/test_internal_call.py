@@ -51,6 +51,24 @@ def return_hash_of_rzpadded_cow() -> bytes32:
     print("Passed single fixed-size argument self-call test")
 
 
+# test that side-effecting self calls do not get optimized out
+def test_selfcall_optimizer(get_contract):
+    code = """
+counter: uint256
+
+@internal
+def increment_counter() -> uint256:
+    self.counter += 1
+    return self.counter
+@external
+def foo() -> (uint256, uint256):
+    x: uint256 = unsafe_mul(self.increment_counter(), 0)
+    return x, self.counter
+    """
+    c = get_contract(code)
+    assert c.foo() == [0, 1]
+
+
 def test_selfcall_code_3(get_contract_with_gas_estimation, keccak):
     selfcall_code_3 = """
 @internal
