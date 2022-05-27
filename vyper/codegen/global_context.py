@@ -213,6 +213,7 @@ class GlobalContext:
             ast_node,
             sigs=self.interface_names,
             custom_structs=self._structs,
+            enums=self._enums,
         )
 
     @property

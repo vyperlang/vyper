@@ -402,7 +402,7 @@ class TupleType(TupleLike):
         return list(enumerate(self.members))
 
 
-def make_struct_type(name, sigs, members, custom_structs):
+def make_struct_type(name, sigs, members, custom_structs, enums):
     o = OrderedDict()
 
     for key, value in members:
@@ -411,7 +411,7 @@ def make_struct_type(name, sigs, members, custom_structs):
                 f"Invalid member variable for struct {key.id}, expected a name.",
                 key,
             )
-        o[key.id] = parse_type(value, sigs=sigs, custom_structs=custom_structs)
+        o[key.id] = parse_type(value, sigs=sigs, custom_structs=custom_structs, enums=enums)
 
     return StructType(o, name)
 
@@ -435,13 +435,11 @@ def parse_type(item, sigs, custom_structs, enums):
         elif item.id in sigs:
             return InterfaceType(item.id)
 
+        elif item.id in enums:
+            return EnumType(item.id)
+
         elif item.id in custom_structs:
-            return make_struct_type(
-                item.id,
-                sigs,
-                custom_structs[item.id],
-                custom_structs,
-            )
+            return make_struct_type(item.id, sigs, custom_structs[item.id], custom_structs, enums)
 
         else:
             FAIL()  # pragma: notest
@@ -454,12 +452,7 @@ def parse_type(item, sigs, custom_structs, enums):
                 return InterfaceType(item.args[0].id)
         # Struct types
         elif (custom_structs is not None) and (item.func.id in custom_structs):
-            return make_struct_type(
-                item.id,
-                sigs,
-                custom_structs[item.id],
-                custom_structs,
-            )
+            return make_struct_type(item.id, sigs, custom_structs[item.id], custom_structs, enums)
         elif item.func.id == "immutable":
             if len(item.args) != 1:
                 # is checked earlier but just for sanity, verify

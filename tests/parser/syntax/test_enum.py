@@ -23,6 +23,22 @@ enum Action:
 def run() -> Action:
     return Action.buy
     """,
+    """
+enum Action:
+    buy
+    sale
+
+struct Order:
+    action: Action
+    amount: uint256
+
+@external
+def run() -> Order:
+    return Order({
+        action: Action.buy,
+        amount: 10**18
+        })
+    """,
 ]
 
 
