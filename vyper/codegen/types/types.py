@@ -436,7 +436,7 @@ def parse_type(item, sigs, custom_structs, enums):
             return InterfaceType(item.id)
 
         elif item.id in enums:
-            return EnumType(item.id)
+            return EnumType(item.id, enums[item.id].members)
 
         elif item.id in custom_structs:
             return make_struct_type(item.id, sigs, custom_structs[item.id], custom_structs, enums)
