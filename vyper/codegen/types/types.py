@@ -424,6 +424,9 @@ def parse_type(item, sigs, custom_structs, enums):
     def _sanity_check(x):
         assert x, "typechecker missed this"
 
+    def _parse_type(item):
+        return parse_type(item, sigs, custom_structs, enums)
+
     def FAIL():
         raise InvalidType(f"{item.id}", item)
 
@@ -477,11 +480,7 @@ def parse_type(item, sigs, custom_structs, enums):
                 return StringType(length)
             # List
             else:
-                value_type = parse_type(
-                    item.value,
-                    sigs,
-                    custom_structs=custom_structs,
-                )
+                value_type = _parse_type(item.value)
                 return SArrayType(value_type, length)
 
         elif item.value.id == "DynArray":
@@ -491,32 +490,22 @@ def parse_type(item, sigs, custom_structs, enums):
             _sanity_check(isinstance(length, int) and length > 0)
 
             value_type_annotation = item.slice.value.elements[0]
-            value_type = parse_type(value_type_annotation, sigs, custom_structs=custom_structs)
+            value_type = _parse_type(value_type_annotation)
 
             return DArrayType(value_type, length)
 
         elif item.value.id in ("HashMap",) and isinstance(item.slice.value, vy_ast.Tuple):
             # Mappings, e.g. HashMap[address, uint256]
-            keytype = parse_type(
-                item.slice.value.elements[0],
-                sigs=sigs,
-                custom_structs=custom_structs,
-            )
-            return MappingType(
-                keytype,
-                parse_type(
-                    item.slice.value.elements[1],
-                    sigs,
-                    custom_structs=custom_structs,
-                ),
-            )
+            key_type = _parse_type(item.slice.value.elements[0])
+            value_type = _parse_type(item.slice.value.elements[1])
+            return MappingType(key_type, value_type)
 
         else:
             FAIL()
 
     elif isinstance(item, vy_ast.Tuple):
-        members = [parse_type(x, sigs=sigs, custom_structs=custom_structs) for x in item.elements]
-        return TupleType(members)
+        member_types = [_parse_type(t)] for t in item.elements]
+        return TupleType(member_types)
 
     else:
         FAIL()
