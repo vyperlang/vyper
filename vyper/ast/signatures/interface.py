@@ -82,13 +82,13 @@ def mk_full_signature_from_json(abi):
             decorator_list.append(vy_ast.Name(id="payable"))
 
         sig = FunctionSignature.from_definition(
-            func_ast=vy_ast.FunctionDef(
+            vy_ast.FunctionDef(
                 name=func["name"],
                 args=vy_ast.arguments(args=args),
                 decorator_list=decorator_list,
                 returns=returns,
             ),
-            custom_structs=dict(),
+            GlobalContext(),  # dummy
             is_from_json=True,
         )
         sigs.append(sig)
@@ -99,11 +99,7 @@ def _get_external_signatures(global_ctx, sig_formatter=lambda x: x):
     ret = []
 
     for func_ast in global_ctx._function_defs:
-        sig = FunctionSignature.from_definition(
-            func_ast,
-            sigs=global_ctx._contracts,
-            custom_structs=global_ctx._structs,
-        )
+        sig = FunctionSignature.from_definition(func_ast, global_ctx)
         if not sig.internal:
             ret.append(sig_formatter(sig))
     return ret
