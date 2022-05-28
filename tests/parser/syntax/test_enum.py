@@ -1,13 +1,6 @@
 import pytest
 
 from vyper import compiler
-from vyper.exceptions import (
-    ArgumentException,
-    InvalidReference,
-    StructureException,
-    TypeMismatch,
-    UnknownAttribute,
-)
 
 valid_list = [
     """

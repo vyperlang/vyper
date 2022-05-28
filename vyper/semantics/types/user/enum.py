@@ -1,23 +1,16 @@
 from typing import Dict, List
 
 from vyper import ast as vy_ast
-from vyper.ast.validation import validate_call_args
+from vyper.abi_types import ABI_GIntM
 from vyper.exceptions import (
     EnumDeclarationException,
-    NamespaceCollision,
     StructureException,
     UnimplementedException,
+    UnknownAttribute,
 )
 from vyper.semantics.namespace import validate_identifier
 from vyper.semantics.types.bases import DataLocation, MemberTypeDefinition, ValueTypeDefinition
-from vyper.semantics.types.utils import (
-    generate_abi_type,
-    get_type_from_abi,
-    get_type_from_annotation,
-)
-from vyper.abi_types import ABI_GIntM
-from vyper.semantics.validation.utils import validate_expected_type
-from vyper.utils import keccak256
+from vyper.semantics.validation.levenshtein_utils import get_levenshtein_error_suggestions
 
 
 class EnumDefinition(MemberTypeDefinition, ValueTypeDefinition):
@@ -68,7 +61,7 @@ class EnumPrimitive:
         return f"{self.name}({','.join(v.canonical_abi_type for v in self.arguments)})"
 
     @classmethod
-    def from_abi(cls, abi: Dict) -> "Enum":
+    def from_abi(cls, abi: Dict) -> "EnumPrimitive":
         """
         Generate an `Enum` object from an ABI interface.
 
@@ -84,7 +77,7 @@ class EnumPrimitive:
         raise UnimplementedException("enum from ABI")
 
     @classmethod
-    def from_EnumDef(cls, base_node: vy_ast.EnumDef) -> "Enum":
+    def from_EnumDef(cls, base_node: vy_ast.EnumDef) -> "EnumPrimitive":
         """
         Generate an `Enum` object from a Vyper ast node.
 
@@ -99,12 +92,12 @@ class EnumPrimitive:
         members: Dict = {}
 
         if len(base_node.body) == 1 and isinstance(base_node.body[0], vy_ast.Pass):
-            return Enum(base_node.name, members)
+            raise EnumDeclarationException("Enum must have members")
 
         for i, node in enumerate(base_node.body):
             member_name = node.value.id
             if member_name in members:
-                raise NamespaceCollision(
+                raise EnumDeclarationException(
                     f"Enum member '{member_name}' has already been declared", node.value
                 )
 
@@ -135,7 +128,7 @@ class EnumPrimitive:
         is_immutable: bool = False,
     ) -> EnumDefinition:
         if not isinstance(node, vy_ast.Name):
-            raise StructureException("Invalid type assignment", node)
+            raise StructureException("Invalid type", node)
         return EnumDefinition(
             self.name, self.members, location, is_constant, is_public, is_immutable
         )

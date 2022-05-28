@@ -23,7 +23,7 @@ from vyper.codegen.core import (
 )
 from vyper.codegen.expr import Expr
 from vyper.codegen.return_ import make_return_stmt
-from vyper.codegen.types import BaseType, ByteArrayType, DArrayType, parse_type
+from vyper.codegen.types import BaseType, ByteArrayType, DArrayType
 from vyper.codegen.types.convert import new_type_to_old_type
 from vyper.exceptions import CompilerPanic, StructureException, TypeCheckFailure
 
