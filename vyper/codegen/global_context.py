@@ -203,12 +203,6 @@ class GlobalContext:
         return set(self._contracts.keys()) | set(self._interfaces.keys())
 
     def parse_type(self, ast_node):
-
-        if ast_node.get("id") in self._enums:
-            enum_prim = self._enums[ast_node.id]
-            enum_def = enum_prim.from_annotation(ast_node)
-            return new_type_to_old_type(enum_def)
-
         return parse_type(
             ast_node,
             sigs=self.interface_names,

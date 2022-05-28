@@ -15,6 +15,7 @@ from vyper.semantics.types.utils import (
     get_type_from_abi,
     get_type_from_annotation,
 )
+from vyper.abi_types import ABI_GIntM
 from vyper.semantics.validation.utils import validate_expected_type
 from vyper.utils import keccak256
 
@@ -33,6 +34,12 @@ class EnumDefinition(MemberTypeDefinition, ValueTypeDefinition):
         super().__init__(location, is_constant, is_public, is_immutable)
         for key, val in members.items():
             self.add_member(key, val)
+
+    @property
+    def abi_type(self):
+        # note: not compatible with solidity enums - those have
+        # ABI type uint8.
+        return ABI_GIntM(m_bits=256, signed=False)
 
 
 class EnumPrimitive:

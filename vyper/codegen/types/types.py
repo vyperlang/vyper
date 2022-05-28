@@ -439,7 +439,7 @@ def parse_type(item, sigs, custom_structs, enums):
             return InterfaceType(item.id)
 
         elif item.id in enums:
-            return EnumType(item.id, enums[item.id].members)
+            return EnumType(item.id, enums[item.id].members.copy())
 
         elif item.id in custom_structs:
             return make_struct_type(item.id, sigs, custom_structs[item.id], custom_structs, enums)
@@ -454,8 +454,9 @@ def parse_type(item, sigs, custom_structs, enums):
             if sigs and item.args[0].id in sigs:
                 return InterfaceType(item.args[0].id)
         # Struct types
-        elif (custom_structs is not None) and (item.func.id in custom_structs):
+        elif item.func.id in custom_structs:
             return make_struct_type(item.id, sigs, custom_structs[item.id], custom_structs, enums)
+
         elif item.func.id == "immutable":
             if len(item.args) != 1:
                 # is checked earlier but just for sanity, verify
@@ -504,7 +505,7 @@ def parse_type(item, sigs, custom_structs, enums):
             FAIL()
 
     elif isinstance(item, vy_ast.Tuple):
-        member_types = [_parse_type(t)] for t in item.elements]
+        member_types = [_parse_type(t) for t in item.elements]
         return TupleType(member_types)
 
     else:
