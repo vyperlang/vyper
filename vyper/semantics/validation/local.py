@@ -394,7 +394,11 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             if assign:
                 raise ImmutableViolation("Cannot modify array during iteration", assign)
 
-        if node.iter.get("value.id") == "self":
+        # Check if `iter` is a storage variable. get_descendants` is used to check for
+        # nested `self` (e.g. structs)
+        iter_is_storage_var = len(node.iter.get_descendants(vy_ast.Name, {"id": "self"})) > 0
+
+        if iter_is_storage_var:
             # check if iterated value may be modified by function calls inside the loop
             iter_name = node.iter.attr
             for call_node in node.get_descendants(vy_ast.Call, {"func.value.id": "self"}):
