@@ -143,7 +143,7 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
 
             self_members[fn_name].recursive_calls = function_set
 
-    def visit_AnnAssign(self, node):
+    def visit_VariableDef(self, node):
         name = node.get("target.id")
         if name is None:
             raise VariableDeclarationException("Invalid module-level assignment", node)
@@ -170,7 +170,7 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
 
                     # generate function type and add to metadata
                     # we need this when builing the public getter
-                    node._metadata["func_type"] = ContractFunction.from_AnnAssign(node)
+                    node._metadata["func_type"] = ContractFunction.from_VariableDef(node)
 
                 elif call_name == "immutable":
                     # declaring an immutable variable

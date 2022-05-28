@@ -223,7 +223,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         super().visit(node)
         self.annotation_visitor.visit(node)
 
-    def visit_AnnAssign(self, node):
+    def visit_VariableDef(self, node):
         name = node.get("target.id")
         if name is None:
             raise VariableDeclarationException("Invalid assignment", node)

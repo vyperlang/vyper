@@ -127,6 +127,14 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
 
         return node
 
+    def visit_AnnAssign(self, node):
+        """
+        Convert the `AnnAssign` node into a Vyper `VariableDef` node.
+        """
+        self.generic_visit(node)
+        node.ast_type = "VariableDef"
+        return node
+
     def visit_Subscript(self, node):
         """
         Maintain consistency of `Subscript.slice` across python versions.

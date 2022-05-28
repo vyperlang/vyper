@@ -89,7 +89,7 @@ class Event:
             return Event(base_node.name, members, indexed)
 
         for node in base_node.body:
-            if not isinstance(node, vy_ast.AnnAssign):
+            if not isinstance(node, vy_ast.VariableDef):
                 raise StructureException("Events can only contain variable definitions", node)
             if node.value is not None:
                 raise StructureException("Cannot assign a value during event declaration", node)

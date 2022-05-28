@@ -139,7 +139,7 @@ def get_type_from_annotation(
     Arguments
     ---------
     node : VyperNode
-        Vyper ast node from the `annotation` member of an `AnnAssign` node.
+        Vyper ast node from the `annotation` member of a `VariableDef` node.
 
     Returns
     -------

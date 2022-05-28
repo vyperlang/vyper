@@ -51,7 +51,7 @@ class GlobalContext:
 
             # Statements of the form:
             # variable_name: type
-            elif isinstance(item, vy_ast.AnnAssign):
+            elif isinstance(item, vy_ast.VariableDef):
                 global_ctx.add_globals_and_events(item)
             # Function definitions
             elif isinstance(item, vy_ast.FunctionDef):
@@ -104,7 +104,7 @@ class GlobalContext:
         members = []
 
         for item in node.body:
-            if isinstance(item, vy_ast.AnnAssign):
+            if isinstance(item, vy_ast.VariableDef):
                 member_name = item.target
                 member_type = item.annotation
                 # Check well-formedness of member names

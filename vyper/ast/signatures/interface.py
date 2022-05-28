@@ -128,7 +128,7 @@ def extract_sigs(sig_code, interface_name=None):
                     # vy_ast.ImportFrom,
                 ),
             )
-            or (isinstance(i, vy_ast.AnnAssign) and i.target.id != "implements")
+            or (isinstance(i, vy_ast.VariableDef) and i.target.id != "implements")
         ]
         global_ctx = GlobalContext.get_global_context(interface_ast)
         return _get_external_signatures(global_ctx)

@@ -77,7 +77,7 @@ class InterfacePrimitive:
 
         return InterfaceDefinition(self._id, self.members)
 
-    def validate_implements(self, node: vy_ast.AnnAssign) -> None:
+    def validate_implements(self, node: vy_ast.VariableDef) -> None:
         namespace = get_namespace()
         # check for missing functions
         unimplemented = [
@@ -194,13 +194,13 @@ def _get_module_definitions(base_node: vy_ast.Module) -> Tuple[OrderedDict, Dict
                     # only keep the `ContractFunction` with the longest set of input args
                     continue
             functions[node.name] = func
-    for node in base_node.get_children(vy_ast.AnnAssign, {"annotation.func.id": "public"}):
+    for node in base_node.get_children(vy_ast.VariableDef, {"annotation.func.id": "public"}):
         name = node.target.id
         if name in functions:
             raise NamespaceCollision(
                 f"Interface contains multiple functions named '{name}'", base_node
             )
-        functions[name] = ContractFunction.from_AnnAssign(node)
+        functions[name] = ContractFunction.from_VariableDef(node)
     for node in base_node.get_children(vy_ast.EventDef):
         name = node.name
         if name in functions or name in events:

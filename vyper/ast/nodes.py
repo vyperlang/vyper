@@ -1214,8 +1214,46 @@ class Assign(VyperNode):
         super().__init__(*args, **kwargs)
 
 
-class AnnAssign(VyperNode):
-    __slots__ = ("target", "annotation", "value", "simple")
+class VariableDef(VyperNode):
+    """
+    A variable declaration.
+
+    Excludes `simple` attribute from Python `AnnAssign` node.
+
+    Attributes
+    ----------
+    target : VyperNode
+        Left-hand side of the assignment.
+    value : VyperNode
+        Right-hand side of the assignment.
+    annotation : VyperNode
+        Type of variable.
+    is_state_variable : bool, optional
+        If true, indicates that the variable is a state variable.
+    is_constant : bool, optional
+        If true, indicates that the variable is a constant variable.
+    is_public : bool, optional
+        If true, indicates that the variable is a public state variable.
+    is_immutable : bool, optional
+        If true, indicates that the variable is an immutable variable.
+    """
+
+    __slots__ = (
+        "target",
+        "annotation",
+        "value",
+        "is_state_variable",
+        "is_constant",
+        "is_public",
+        "is_immutable",
+    )
+
+    def __init__(self, *args, **kwargs):
+        self.is_state_variable = False
+        self.is_constant = False
+        self.is_public = False
+        self.is_immutable = False
+        super().__init__(*args, **kwargs)
 
 
 class AugAssign(VyperNode):
