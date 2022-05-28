@@ -145,6 +145,7 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
 
     def visit_VariableDef(self, node):
         name = node.get("target.id")
+        node.is_state_variable = True
         if name is None:
             raise VariableDeclarationException("Invalid module-level assignment", node)
 
@@ -207,6 +208,9 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
             annotation, data_loc, is_constant, is_public, is_immutable
         )
         node._metadata["type"] = type_definition
+        node.is_constant = is_constant
+        node.is_public = is_public
+        node.is_immutable = is_immutable
 
         if is_constant:
             if not node.value:
