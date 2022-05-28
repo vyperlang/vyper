@@ -50,6 +50,8 @@ class EnumPrimitive:
         for key in members.keys():
             validate_identifier(key)
         self.name = name
+        if len(members.keys()) > 256:
+            raise EnumDeclarationException("Enums are limited to 256 members!")
         self.members = members
 
     def __repr__(self):

@@ -322,7 +322,9 @@ class Expr:
             typ = new_type_to_old_type(typ)
         if isinstance(typ, EnumType):
             assert typ.name == self.expr.value.id
-            value = typ.members[self.expr.attr]
+            # 0, 1, 2, .. 255
+            enum_id = typ.members[self.expr.attr]
+            value = 2 ** enum_id  # 0 => 0001, 1 => 0010, 2 => 0100, etc.
             return IRnode.from_list(value, typ=typ)
 
         # x.balance: balance of address x
