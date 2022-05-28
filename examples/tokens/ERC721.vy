@@ -68,6 +68,8 @@ ownerToOperators: HashMap[address, HashMap[address, bool]]
 # @dev Address of minter, who can mint a token
 minter: address
 
+baseURL: String[53]
+
 # @dev Static list of supported ERC165 interface ids
 SUPPORTED_INTERFACES: constant(bytes4[2]) = [
     # ERC165 interface ID of ERC165
@@ -82,6 +84,7 @@ def __init__():
     @dev Contract constructor.
     """
     self.minter = msg.sender
+    self.baseURL = "some url"
 
 
 @pure
@@ -357,3 +360,9 @@ def burn(_tokenId: uint256):
     self._clearApproval(owner, _tokenId)
     self._removeTokenFrom(owner, _tokenId)
     log Transfer(owner, ZERO_ADDRESS, _tokenId)
+
+
+@view
+@external
+def tokenURL(tokenId: uint256) -> String[132]:
+    return concat(self.baseURL, uint2str(tokenId))
