@@ -84,7 +84,7 @@ def __init__():
     @dev Contract constructor.
     """
     self.minter = msg.sender
-    self.baseURL = "some url"
+    self.baseURL = "https://api.babby.xyz/metadata/"
 
 
 @pure
