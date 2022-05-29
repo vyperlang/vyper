@@ -2,6 +2,7 @@ import hashlib
 import math
 import operator
 from decimal import Decimal
+from typing import Tuple
 
 from vyper import ast as vy_ast
 from vyper.abi_types import ABI_Tuple
@@ -2067,7 +2068,10 @@ class ABIDecode(_SimpleBuiltinFunction):
     def _output_types(self, node):
         output_types_list = self._kwarg_dict(node).get("types")
         if len(output_types_list.elements) < 1:
-            raise StructureException("_abi_decode expects at least one output type", output_types)
+            raise StructureException(
+                "_abi_decode expects at least one output type",
+                output_types_list,
+            )
 
         output_types: Tuple = ()
         for o in output_types_list.elements:
