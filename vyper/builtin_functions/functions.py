@@ -1812,6 +1812,15 @@ class MkStr(_SimpleBuiltinFunction):
     _inputs = [("x", Uint256Definition())]  # should allow any uint?
     _return_type = StringDefinition(78)
 
+    def evaluate(self, node):
+        validate_call_args(node, 1)
+        if not isinstance(node.args[0], vy_ast.Int):
+            raise UnfoldableNode
+
+        value = str(node.args[0].value)
+        return vy_ast.Str.from_node(node, value=value)
+
+
     @validate_inputs
     def build_IR(self, expr, args, kwargs, context):
         return_t = StringType(78)
