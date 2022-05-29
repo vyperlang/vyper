@@ -1807,8 +1807,8 @@ class Max(_MinMax):
     _opcode = "gt"
 
 
-class UintToStr(_SimpleBuiltinFunction):
-    _id = "uint2str"
+class MkStr(_SimpleBuiltinFunction):
+    _id = "str"
     _inputs = [("x", Uint256Definition())]  # should allow any uint?
     _return_type = StringDefinition(78)
 
@@ -2142,7 +2142,7 @@ DISPATCH_TABLE = {
     "unsafe_mul": UnsafeMul(),
     "unsafe_div": UnsafeDiv(),
     "pow_mod256": PowMod256(),
-    "uint2str": UintToStr(),
+    "str": MkStr(),
     "sqrt": Sqrt(),
     "shift": Shift(),
     "create_forwarder_to": CreateForwarderTo(),
