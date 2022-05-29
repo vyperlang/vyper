@@ -43,6 +43,7 @@ from vyper.codegen.types import (
     is_bytes_m_type,
     parse_integer_typeinfo,
 )
+from vyper.codegen.types.convert import new_type_to_old_type
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
     ArgumentException,
@@ -2057,6 +2058,7 @@ class ABIEncode(_SimpleBuiltinFunction):
 
 class ABIDecode(_SimpleBuiltinFunction):
     _id = "_abi__decode"
+    _inputs = [("data", BytesArrayPrimitive())]
 
     @staticmethod
     def _kwarg_dict(node):
@@ -2074,10 +2076,33 @@ class ABIDecode(_SimpleBuiltinFunction):
         return TupleDefinition(output_types)
 
     def fetch_call_return(self, node):
+        self.infer_arg_types(node)
         output_types = self._output_types(node)
         return output_types
 
+    def infer_arg_types(self, node):
+        # TODO refactor once 2817 is merged
+        validate_expected_type(node.args[0], self._inputs[0][1])
+        data_type = get_exact_type_from_node(node.args[0])
+        return [data_type]
+
     def build_IR(self, expr, context):
+        output_types = self._output_types(expr)._member_types
+        # Figure out the expected length for data
+        output_types_sizes = [new_type_to_old_type(o).abi_type.size_bound() for o in output_types]
+
+        data_type_size = self.infer_arg_types(expr)[0].length
+
+        # TODO must it be strict equality?
+        if data_type_size != sum(output_types_sizes):
+            raise StructureException(
+                (
+                    "Mismatch between size of input and size of decoded types. "
+                    f"Expected {sum(output_types_sizes)} but input is only {data_type_size}."
+                ),
+                expr.args[0],
+            )
+
         pass
 
 
