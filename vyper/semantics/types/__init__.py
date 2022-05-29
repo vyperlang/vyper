@@ -1,14 +1,13 @@
 from . import indexable, user, value
 from .abstract import SignedIntegerAbstractType, UnsignedIntegerAbstractType
 from .bases import BasePrimitive
+from .indexable.mapping import MappingDefinition
 from .indexable.sequence import (
     ArrayDefinition,
     DynamicArrayDefinition,
     DynamicArrayPrimitive,
     TupleDefinition,
 )
-from .indexable.mapping import MappingDefinition
-
 from .user.enum import EnumDefinition
 from .user.event import Event
 from .user.interface import InterfaceDefinition

@@ -40,5 +40,7 @@ def new_type_to_old_type(typ: new.BasePrimitive) -> old.NodeType:
     if isinstance(typ, new.EnumDefinition):
         return old.EnumType(typ._id, typ.members.copy())
     if isinstance(typ, new.MappingDefinition):
-        return old.MappingType(new_type_to_old_type(typ.key_type), new_type_to_old_type(typ.value_type))
+        return old.MappingType(
+            new_type_to_old_type(typ.key_type), new_type_to_old_type(typ.value_type)
+        )
     raise InvalidType(f"unknown type {typ}")
