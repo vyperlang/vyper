@@ -7,6 +7,8 @@ from .indexable.sequence import (
     DynamicArrayPrimitive,
     TupleDefinition,
 )
+from .indexable.mapping import MappingDefinition
+
 from .user.enum import EnumDefinition
 from .user.event import Event
 from .user.interface import InterfaceDefinition
