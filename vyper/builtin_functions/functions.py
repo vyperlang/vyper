@@ -2055,8 +2055,35 @@ class ABIEncode(_SimpleBuiltinFunction):
         )
 
 
+class ABIDecode(_SimpleBuiltinFunction):
+    _id = "_abi__decode"
+
+    @staticmethod
+    def _kwarg_dict(node):
+        return {i.arg: i.value for i in node.keywords}
+
+    def _output_types(self, node):
+        output_types_list = self._kwarg_dict(node).get("types")
+        if len(output_types_list.elements) < 1:
+            raise StructureException("_abi_decode expects at least one output type", output_types)
+
+        output_types: Tuple = ()
+        for o in output_types_list.elements:
+            output_types += (get_type_from_annotation(o, DataLocation.UNSET),)
+
+        return TupleDefinition(output_types)
+
+    def fetch_call_return(self, node):
+        output_types = self._output_types(node)
+        return output_types
+
+    def build_IR(self, expr, context):
+        pass
+
+
 DISPATCH_TABLE = {
     "_abi_encode": ABIEncode(),
+    "_abi_decode": ABIDecode(),
     "floor": Floor(),
     "ceil": Ceil(),
     "convert": Convert(),

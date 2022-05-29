@@ -152,6 +152,8 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
             for arg in node.args:
                 self.visit(arg, None)
             for kwarg in node.keywords:
+                if node.func.id == "_abi_decode":
+                    continue
                 self.visit(kwarg.value, None)
 
     def visit_Compare(self, node, type_):
