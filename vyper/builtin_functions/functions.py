@@ -2114,10 +2114,13 @@ class ABIDecode(_SimpleBuiltinFunction):
 
         output_typ = new_type_to_old_type(output_types)
         data = Expr(expr.args[0], context).ir_node
+        data = ensure_in_memory(data, context)
+        data_ptr = bytes_data_ptr(data)
+
         buf = context.new_internal_variable(ByteArrayType(data_type_size))
 
         return IRnode.from_list(
-            buf,
+            data_ptr,
             typ=output_typ,
             location=data.location,
             encoding=Encoding.ABI,
