@@ -31,6 +31,7 @@ from vyper.codegen.core import (
     unwrap_location,
 )
 from vyper.codegen.expr import Expr
+from vyper.codegen.ir_node import Encoding
 from vyper.codegen.keccak256_helper import keccak256_helper
 from vyper.codegen.types import (
     BaseType,
@@ -2058,7 +2059,7 @@ class ABIEncode(_SimpleBuiltinFunction):
 
 
 class ABIDecode(_SimpleBuiltinFunction):
-    _id = "_abi__decode"
+    _id = "_abi_decode"
     _inputs = [("data", BytesArrayPrimitive())]
 
     @staticmethod
@@ -2082,6 +2083,8 @@ class ABIDecode(_SimpleBuiltinFunction):
     def fetch_call_return(self, node):
         self.infer_arg_types(node)
         output_types = self._output_types(node)
+        if len(output_types._member_types) == 1:
+            return output_types[0]
         return output_types
 
     def infer_arg_types(self, node):
@@ -2091,9 +2094,11 @@ class ABIDecode(_SimpleBuiltinFunction):
         return [data_type]
 
     def build_IR(self, expr, context):
-        output_types = self._output_types(expr)._member_types
+        output_types = self._output_types(expr)
         # Figure out the expected length for data
-        output_types_sizes = [new_type_to_old_type(o).abi_type.size_bound() for o in output_types]
+        output_types_sizes = [
+            new_type_to_old_type(o).abi_type.size_bound() for o in output_types._member_types
+        ]
 
         data_type_size = self.infer_arg_types(expr)[0].length
 
@@ -2107,7 +2112,17 @@ class ABIDecode(_SimpleBuiltinFunction):
                 expr.args[0],
             )
 
-        pass
+        output_typ = new_type_to_old_type(output_types)
+        data = Expr(expr.args[0], context).ir_node
+        buf = context.new_internal_variable(ByteArrayType(data_type_size))
+
+        return IRnode.from_list(
+            buf,
+            typ=output_typ,
+            location=data.location,
+            encoding=Encoding.ABI,
+            annotation="abi_decode builtin",
+        )
 
 
 DISPATCH_TABLE = {
