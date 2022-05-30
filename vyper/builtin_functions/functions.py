@@ -1896,7 +1896,6 @@ class MkStr(_SimpleBuiltinFunction):
         value = str(node.args[0].value)
         return vy_ast.Str.from_node(node, value=value)
 
-
     @validate_inputs
     def build_IR(self, expr, args, kwargs, context):
         return_t = StringType(78)
