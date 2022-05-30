@@ -23,5 +23,5 @@ def sell() -> Action:
     
     """
     c = get_contract(code)
-    assert c.buy() == 0
-    assert c.sell() == 1
+    assert c.buy() == 1
+    assert c.sell() == 2
