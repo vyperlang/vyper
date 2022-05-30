@@ -12,4 +12,4 @@ def abi_decode(x: Bytes[64]) -> (uint256, uint256):
 
     arg1 = 123
     arg2 = 456
-    assert c.abi_decode(abi_encode("(uint256,uint256)", (arg1, arg2))) == (123, 456)
+    assert tuple(c.abi_decode(abi_encode("(uint256,uint256)", (arg1, arg2)))) == (123, 456)
