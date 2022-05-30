@@ -340,13 +340,13 @@ Data Manipulation
 
     For more details on available type conversions, see :ref:`type_conversions`.
 
-.. py:function:: extract32(b: Bytes, start: int128, output_type=bytes32) -> Any
+.. py:function:: extract32(b: Bytes, start: uint256, output_type=bytes32) -> Any
 
     Extract a value from a ``Bytes`` list.
 
     * ``b``: ``Bytes`` list to extract from
     * ``start``: Start point to extract from
-    * ``output_type``: Type of output (``bytes32``, ``int128``, or ``address``). Defaults to ``bytes32``.
+    * ``output_type``: Type of output (``bytes32``, ``integer``, or ``address``). Defaults to ``bytes32``.
 
     Returns a value of the type specified by ``output_type``.
 

@@ -56,6 +56,11 @@ class _SequenceDefinition(IndexableTypeDefinition):
         new_args, return_type = self.value_type.get_signature()
         return (Uint256Definition(),) + new_args, return_type
 
+    def get_index_type(self) -> BaseTypeDefinition:
+        # override the default behaviour to return `Uint256Definition` for
+        # type annotation
+        return Uint256Definition()
+
 
 # TODO rename me to StaticArrayDefinition?
 class ArrayDefinition(_SequenceDefinition):

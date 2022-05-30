@@ -39,6 +39,12 @@ def _is_int(node: IRnode) -> bool:
     return isinstance(node.value, int)
 
 
+def _deep_contains(node_or_list, node):
+    if isinstance(node_or_list, list):
+        return any(_deep_contains(t, node) for t in node_or_list)
+    return node is node_or_list
+
+
 arith = {
     "add": (operator.add, "+", UNSIGNED),
     "sub": (operator.sub, "-", UNSIGNED),
@@ -110,7 +116,7 @@ def _optimize_arith(binop, args, ann, parent_op):
         left, right = _int(args[0]), _int(args[1])
         new_val = fn(left, right)
         new_val = _wrap(new_val)
-        return False, new_val, [], new_ann
+        return new_val, [], new_ann
 
     new_val = None
     new_args = None
@@ -299,10 +305,16 @@ def _optimize_arith(binop, args, ann, parent_op):
         new_val = "iszero"
         new_args = [["iszero", args[0]]]
 
-    if new_val is None:
-        return False, binop, args, ann
+    rollback = (
+        new_val is None
+        or (args[0].is_complex_ir and not _deep_contains(new_args, args[0]))
+        or (args[1].is_complex_ir and not _deep_contains(new_args, args[1]))
+    )
 
-    return True, new_val, new_args, new_ann
+    if rollback:
+        return None
+
+    return new_val, new_args, new_ann
 
 
 def optimize(node: IRnode, parent: Optional[IRnode] = None) -> IRnode:
@@ -314,6 +326,16 @@ def optimize(node: IRnode, parent: Optional[IRnode] = None) -> IRnode:
     source_pos = node.source_pos
     annotation = node.annotation
     add_gas_estimate = node.add_gas_estimate
+
+    def finalize(ir_builder):
+        return IRnode.from_list(
+            ir_builder,
+            typ=typ,
+            location=location,
+            source_pos=source_pos,
+            annotation=annotation,
+            add_gas_estimate=add_gas_estimate,
+        )
 
     optimize_more = False
 
@@ -329,7 +351,11 @@ def optimize(node: IRnode, parent: Optional[IRnode] = None) -> IRnode:
 
     elif value in arith:
         parent_op = parent.value if parent is not None else None
-        optimize_more, value, argz, annotation = _optimize_arith(value, argz, annotation, parent_op)
+
+        res = _optimize_arith(value, argz, annotation, parent_op)
+        if res is not None:
+            optimize_more = True
+            value, argz, annotation = res
 
     ###
     # BITWISE OPS
@@ -390,18 +416,12 @@ def optimize(node: IRnode, parent: Optional[IRnode] = None) -> IRnode:
             argz = []
 
     # NOTE: this is really slow (compile-time).
-    # maybe should optimize the tree in-place
-    ret = IRnode.from_list(
-        [value, *argz],
-        typ=typ,
-        location=location,
-        source_pos=source_pos,
-        annotation=annotation,
-        add_gas_estimate=add_gas_estimate,
-    )
+    # ideal would be to optimize the tree in-place
+    ret = finalize([value, *argz])
 
     if optimize_more:
         ret = optimize(ret, parent=parent)
+
     return ret
 
 

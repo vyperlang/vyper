@@ -46,6 +46,7 @@ class Stmt:
         self.ir_node.source_pos = getpos(self.stmt)
 
     def parse_Expr(self):
+        # TODO: follow analysis modules and dispatch down to expr.py
         return Stmt(self.stmt.value, self.context).ir_node
 
     def parse_Pass(self):
@@ -128,6 +129,8 @@ class Stmt:
         return events.ir_node_for_log(self.stmt, event, topic_ir, data_ir, self.context)
 
     def parse_Call(self):
+        # TODO use expr.func.type.is_internal once type annotations
+        # are consistently available.
         is_self_function = (
             (isinstance(self.stmt.func, vy_ast.Attribute))
             and isinstance(self.stmt.func.value, vy_ast.Name)
@@ -142,6 +145,7 @@ class Stmt:
             "append",
             "pop",
         ):
+            # TODO: consider moving this to builtins
             darray = Expr(self.stmt.func.value, self.context).ir_node
             args = [Expr(x, self.context).ir_node for x in self.stmt.args]
             if self.stmt.func.attr == "append":
@@ -228,25 +232,13 @@ class Stmt:
         else:
             return IRnode.from_list(["revert", 0, 0])
 
-    def _check_valid_range_constant(self, arg_ast_node, raise_exception=True):
+    def _check_valid_range_constant(self, arg_ast_node):
         with self.context.range_scope():
-            # TODO should catch if raise_exception == False?
             arg_expr = Expr.parse_value_expr(arg_ast_node, self.context)
-
-        is_integer_literal = (
-            isinstance(arg_expr.typ, BaseType)
-            and arg_expr.typ.is_literal
-            and arg_expr.typ.typ in {"uint256", "int256"}
-        )
-        if not is_integer_literal and raise_exception:
-            raise StructureException(
-                "Range only accepts literal (constant) values of type uint256 or int256",
-                arg_ast_node,
-            )
-        return is_integer_literal, arg_expr
+        return arg_expr
 
     def _get_range_const_value(self, arg_ast_node):
-        _, arg_expr = self._check_valid_range_constant(arg_ast_node)
+        arg_expr = self._check_valid_range_constant(arg_ast_node)
         return arg_expr.value
 
     def parse_For(self):
@@ -275,7 +267,7 @@ class Stmt:
             rounds = arg0_val
 
         # Type 2 for, e.g. for i in range(100, 110): ...
-        elif self._check_valid_range_constant(self.stmt.iter.args[1], raise_exception=False)[0]:
+        elif self._check_valid_range_constant(self.stmt.iter.args[1]).typ.is_literal:
             arg0_val = self._get_range_const_value(arg0)
             arg1_val = self._get_range_const_value(self.stmt.iter.args[1])
             start = IRnode.from_list(arg0_val, typ=iter_typ)
