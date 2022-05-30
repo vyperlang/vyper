@@ -15,16 +15,23 @@ integer_types = sorted(list(INTEGER_TYPES))
 @pytest.mark.parametrize("op", ["add", "sub", "mul", "div"])
 @pytest.mark.fuzzing
 def test_unsafe_op_int(get_contract, typ, op):
-    code = f"""
+    contract_1 = f"""
 @external
 def foo(x: {typ}, y: {typ}) -> {typ}:
     return unsafe_{op}(x, y)
     """
+
+    contract_2 = """
+@external
+def foo(x: {typ}) -> {typ}:
+    return unsafe_{op}(x, {literal})
+    """
+
     fns = {"add": operator.add, "sub": operator.sub, "mul": operator.mul, "div": evm_div}
     fn = fns[op]
 
     int_info = parse_integer_typeinfo(typ)
-    c = get_contract(code)
+    c1 = get_contract(contract_1)
 
     lo, hi = int_bounds(int_info.is_signed, int_info.bits)
     # (roughly 8k cases total generated)
@@ -43,7 +50,11 @@ def foo(x: {typ}, y: {typ}) -> {typ}:
         for (x, y) in itertools.product(xs, ys):
             expected = unsigned_to_signed(fn(x, y) % mod_bound, int_info.bits)
 
-            assert c.foo(x, y) == expected
+            assert c1.foo(x, y) == expected
+
+            c2 = get_contract(contract_2.format(typ=typ, op=op, literal=y))
+            assert c2.foo(x) == expected
+
     else:
         # 0x80 has some weird properties, like
         # it's a fixed point of multiplication by 0xFF
@@ -51,4 +62,8 @@ def foo(x: {typ}, y: {typ}) -> {typ}:
         xs += [0, 1, hi - 1, hi, fixed_pt]
         ys += [0, 1, hi - 1, hi, fixed_pt]
         for (x, y) in itertools.product(xs, ys):
-            assert c.foo(x, y) == fn(x, y) % mod_bound
+            expected = fn(x, y) % mod_bound
+            assert c1.foo(x, y) == expected
+
+            c2 = get_contract(contract_2.format(typ=typ, op=op, literal=y))
+            assert c2.foo(x) == expected

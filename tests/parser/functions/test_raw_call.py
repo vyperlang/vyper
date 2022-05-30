@@ -1,9 +1,8 @@
 import pytest
 from hexbytes import HexBytes
 
-from vyper import compiler
 from vyper.builtin_functions import get_create_forwarder_to_bytecode
-from vyper.exceptions import ArgumentException, StateAccessViolation
+from vyper.exceptions import ArgumentException, InvalidType, StateAccessViolation
 
 pytestmark = pytest.mark.usefixtures("memory_mocker")
 
@@ -63,7 +62,7 @@ def returnten() -> int128:
 @external
 def create_and_call_returnten(inp: address) -> int128:
     x: address = create_forwarder_to(inp)
-    o: int128 = extract32(raw_call(x, convert("\xd0\x1f\xb1\xb8", Bytes[4]), max_outsize=32, gas=50000), 0, output_type=int128)  # noqa: E501
+    o: int128 = extract32(raw_call(x, b"\\xd0\\x1f\\xb1\\xb8", max_outsize=32, gas=50000), 0, output_type=int128)  # noqa: E501
     return o
 
 @external
@@ -104,7 +103,7 @@ def returnten() -> int128:
 @external
 def create_and_call_returnten(inp: address) -> int128:
     x: address = create_forwarder_to(inp)
-    o: int128 = extract32(raw_call(x, convert("\xd0\x1f\xb1\xb8", Bytes[4]), max_outsize=32, gas=50000), 0, output_type=int128)  # noqa: E501
+    o: int128 = extract32(raw_call(x, b"\\xd0\\x1f\\xb1\\xb8", max_outsize=32, gas=50000), 0, output_type=int128)  # noqa: E501
     return o
 
 @external
@@ -338,10 +337,20 @@ def foo(_addr: address):
     """,
         ArgumentException,
     ),
+    (
+        """
+@external
+@view
+def foo(_addr: address):
+    raw_call(_addr, 256)
+    """,
+        InvalidType,
+    ),
 ]
 
 
 @pytest.mark.parametrize("source_code,exc", uncompilable_code)
-def test_invalid_type_exception(source_code, exc):
-    with pytest.raises(exc):
-        compiler.compile_code(source_code)
+def test_invalid_type_exception(
+    assert_compile_failed, get_contract_with_gas_estimation, source_code, exc
+):
+    assert_compile_failed(lambda: get_contract_with_gas_estimation(source_code), exc)

@@ -1,3 +1,4 @@
+import contextlib
 import re
 
 from vyper.evm.opcodes import OPCODES
@@ -100,6 +101,19 @@ def get_namespace():
     except NameError:
         _namespace = Namespace()
         return _namespace
+
+
+@contextlib.contextmanager
+def override_global_namespace(ns):
+    global _namespace
+    tmp = _namespace
+    try:
+        # clobber global namespace
+        _namespace = ns
+        yield
+    finally:
+        # unclobber
+        _namespace = tmp
 
 
 def validate_identifier(attr):

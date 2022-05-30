@@ -19,6 +19,7 @@ from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.bases import BaseTypeDefinition, DataLocation, StorageSlot
 from vyper.semantics.types.indexable.sequence import TupleDefinition
 from vyper.semantics.types.utils import (
+    KwargSettings,
     StringEnum,
     check_kwargable,
     generate_abi_type,
@@ -124,6 +125,14 @@ class ContractFunction(BaseTypeDefinition):
 
         # a list of internal functions this function calls
         self.called_functions: Set["ContractFunction"] = set()
+
+        # special kwargs that are allowed in call site
+        self.call_site_kwargs = {
+            "gas": KwargSettings(Uint256Definition(), "gas"),
+            "value": KwargSettings(Uint256Definition(), 0),
+            "skip_contract_check": KwargSettings(BoolDefinition(), False, require_literal=True),
+            "default_return_value": KwargSettings(return_type, None),
+        }
 
     def __repr__(self):
         arg_types = ",".join(repr(a) for a in self.arguments.values())
@@ -333,8 +342,6 @@ class ContractFunction(BaseTypeDefinition):
                         "Value must be literal or environment variable", value
                     )
                 validate_expected_type(value, type_definition)
-                # kludge because kwargs in signatures don't get visited by the annotator
-                value._metadata["type"] = type_definition
 
             arguments[arg.arg] = type_definition
 
@@ -463,7 +470,7 @@ class ContractFunction(BaseTypeDefinition):
         # for external calls, include gas and value as optional kwargs
         kwarg_keys = self.kwarg_keys.copy()
         if node.get("func.value.id") != "self":
-            kwarg_keys += ["gas", "value", "skip_contract_check", "default_return_value"]
+            kwarg_keys += list(self.call_site_kwargs.keys())
         validate_call_args(node, (self.min_arg_count, self.max_arg_count), kwarg_keys)
 
         if self.mutability < StateMutability.PAYABLE:
@@ -474,19 +481,20 @@ class ContractFunction(BaseTypeDefinition):
         for arg, expected in zip(node.args, self.arguments.values()):
             validate_expected_type(arg, expected)
 
+        # TODO this should be moved to validate_call_args
         for kwarg in node.keywords:
-            if kwarg.arg in ("gas", "value"):
-                validate_expected_type(kwarg.value, Uint256Definition())
-            elif kwarg.arg in ("skip_contract_check",):
-                validate_expected_type(kwarg.value, BoolDefinition())
-                if not isinstance(kwarg.value, vy_ast.NameConstant):
-                    raise InvalidType("skip_contract_check must be literal bool", kwarg.value)
-            elif kwarg.arg in ("default_return_value",):
-                validate_expected_type(kwarg.value, self.return_type)
+            if kwarg.arg in self.call_site_kwargs:
+                kwarg_settings = self.call_site_kwargs[kwarg.arg]
+                validate_expected_type(kwarg.value, kwarg_settings.typ)
+                if kwarg_settings.require_literal:
+                    if not isinstance(kwarg.value, vy_ast.Constant):
+                        raise InvalidType(
+                            f"{kwarg.arg} must be literal {kwarg_settings.typ}", kwarg.value
+                        )
             else:
                 # Generate the modified source code string with the kwarg removed
                 # as a suggestion to the user.
-                kwarg_pattern = fr"{kwarg.arg}\s*=\s*{re.escape(kwarg.value.node_source_code)}"
+                kwarg_pattern = rf"{kwarg.arg}\s*=\s*{re.escape(kwarg.value.node_source_code)}"
                 modified_line = re.sub(
                     kwarg_pattern, kwarg.value.node_source_code, node.node_source_code
                 )
@@ -498,8 +506,9 @@ class ContractFunction(BaseTypeDefinition):
 
                 raise ArgumentException(
                     (
-                        "Usage of kwarg in Vyper is restricted to gas=, "
-                        f"value= and skip_contract_check=. {error_suggestion}"
+                        "Usage of kwarg in Vyper is restricted to "
+                        + ", ".join([f"{k}=" for k in self.call_site_kwargs.keys()])
+                        + f". {error_suggestion}"
                     ),
                     kwarg,
                 )

@@ -256,6 +256,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         target.validate_modification(node, self.func.mutability)
 
         self.expr_visitor.visit(node.value)
+        self.expr_visitor.visit(node.target)
 
     def visit_AugAssign(self, node):
         if isinstance(node.value, vy_ast.Tuple):
