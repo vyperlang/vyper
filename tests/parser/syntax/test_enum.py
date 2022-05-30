@@ -6,12 +6,12 @@ valid_list = [
     """
 enum Action:
     buy
-    sale
+    sell
     """,
     """
 enum Action:
     buy
-    sale
+    sell
 @external
 def run() -> Action:
     return Action.buy
@@ -19,7 +19,7 @@ def run() -> Action:
     """
 enum Action:
     buy
-    sale
+    sell
 
 struct Order:
     action: Action
