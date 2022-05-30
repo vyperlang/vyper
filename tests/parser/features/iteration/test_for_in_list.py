@@ -597,6 +597,19 @@ def test_for() -> int128:
     """,
         TypeMismatch,
     ),
+    (
+        """
+@external
+def test_for() -> int128:
+    a: int128 = 0
+    b: uint256 = 0
+    for i in range(5):
+        a = i
+        b = i
+    return a
+    """,
+        TypeMismatch,
+    ),
 ]
 
 
