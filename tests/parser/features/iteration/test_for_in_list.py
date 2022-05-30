@@ -439,6 +439,80 @@ def data() -> int128:
     """,
         ImmutableViolation,
     ),
+    # alter nested storage list in internal function call within for loop
+    (
+        """
+struct Foo:
+    foo: uint256[4]
+
+my_array2: Foo
+
+@internal
+def doStuff(i: uint256) -> uint256:
+    self.my_array2.foo[i] = i
+    return i
+
+@internal
+def _helper():
+    i: uint256 = 0
+    for item in self.my_array2.foo:
+        self.doStuff(i)
+        i += 1
+    """,
+        ImmutableViolation,
+    ),
+    # alter doubly nested storage list in internal function call within for loop
+    (
+        """
+struct Foo:
+    foo: uint256[4]
+
+struct Bar:
+    bar: Foo
+    baz: uint256
+
+my_array2: Bar
+
+@internal
+def doStuff(i: uint256) -> uint256:
+    self.my_array2.bar.foo[i] = i
+    return i
+
+@internal
+def _helper():
+    i: uint256 = 0
+    for item in self.my_array2.bar.foo:
+        self.doStuff(i)
+        i += 1
+    """,
+        ImmutableViolation,
+    ),
+    # alter entire struct with nested storage list in internal function call within for loop
+    (
+        """
+struct Foo:
+    foo: uint256[4]
+
+my_array2: Foo
+
+@internal
+def doStuff():
+    self.my_array2.foo = [
+        block.timestamp + 1,
+        block.timestamp + 2,
+        block.timestamp + 3,
+        block.timestamp + 4
+    ]
+
+@internal
+def _helper():
+    i: uint256 = 0
+    for item in self.my_array2.foo:
+        self.doStuff()
+        i += 1
+    """,
+        ImmutableViolation,
+    ),
     # invalid nested loop
     (
         """

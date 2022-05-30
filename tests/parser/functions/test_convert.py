@@ -13,7 +13,6 @@ from eth_abi import decode_single, encode_single
 from vyper.codegen.types import (
     BASE_TYPES,
     INTEGER_TYPES,
-    SIGNED_INTEGER_TYPES,
     parse_bytes_m_info,
     parse_decimal_info,
     parse_integer_typeinfo,
@@ -466,22 +465,6 @@ def test_convert() -> {o_typ}:
 
     c1_exception = None
     skip_c1 = False
-    if i_typ in INTEGER_TYPES and o_typ in INTEGER_TYPES - {"uint256"}:
-        # Skip conversion of positive integer literals because compiler reads them
-        # as target type.
-        if val >= 0:
-            c1_exception = InvalidType
-
-    if i_typ in SIGNED_INTEGER_TYPES and o_typ in SIGNED_INTEGER_TYPES and val < 0:
-        # similar, skip conversion of negative integer literals because compiler
-        # infers them as target type.
-        c1_exception = InvalidType
-
-    if i_typ.startswith(("int", "uint")) and o_typ.startswith("bytes"):
-        # integer literals get upcasted to uint256 / int256 types, so the convert
-        # will not compile unless it is bytes32
-        if o_typ != "bytes32":
-            c1_exception = TypeMismatch
 
     # Skip bytes20 literals when there is ambiguity with `address` since address takes precedence.
     # generally happens when there are only digits in the literal.
