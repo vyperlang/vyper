@@ -44,7 +44,6 @@ from vyper.codegen.types import (
     is_base_type,
     parse_integer_typeinfo,
 )
-from vyper.codegen.types.convert import new_type_to_old_type
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
     ArgumentException,
@@ -2161,16 +2160,32 @@ class ABIEncode(_SimpleBuiltinFunction):
 class ABIDecode(_SimpleBuiltinFunction):
     _id = "_abi_decode"
     _inputs = [("data", BytesArrayPrimitive())]
+    _kwargs = {"types": KwargSettings("TYPE_DEFINITION", None)}
 
-    @staticmethod
-    def _kwarg_dict(node):
-        return {i.arg: i.value for i in node.keywords}
+    def fetch_call_return(self, node):
+        self.infer_arg_types(node)
+        output_types = self.infer_kwarg_types(node).get("types").typedef
+        if len(output_types._member_types) == 1:
+            return output_types[0]
+        return output_types
 
-    def _output_types(self, node):
-        output_types_list = self._kwarg_dict(node).get("types")
+    def infer_arg_types(self, node):
+        self._validate_arg_types(node)
+        data_type = get_exact_type_from_node(node.args[0])
+        return [data_type]
+
+    def infer_kwarg_types(self, node):
+        kwargz = {i.arg: i.value for i in node.keywords}
+        output_types_list = kwargz.get("types")
+        if output_types_list is None:
+            raise ArgumentException("Output types must be specified", node)
+
+        if not isinstance(output_types_list, vy_ast.List):
+            raise ArgumentException("Output types must be provided as a list", node.keywords)
+
         if len(output_types_list.elements) < 1:
             raise StructureException(
-                "_abi_decode expects at least one output type",
+                "`_abi_decode` expects at least one output type",
                 output_types_list,
             )
 
@@ -2178,46 +2193,29 @@ class ABIDecode(_SimpleBuiltinFunction):
         for o in output_types_list.elements:
             output_types += (get_type_from_annotation(o, DataLocation.UNSET),)
 
-        return TupleDefinition(output_types)
+        return {"types": TypeTypeDefinition(TupleDefinition(output_types))}
 
-    def fetch_call_return(self, node):
-        self.infer_arg_types(node)
-        output_types = self._output_types(node)
-        if len(output_types._member_types) == 1:
-            return output_types[0]
-        return output_types
+    @validate_inputs
+    def build_IR(self, expr, args, kwargs, context):
+        data = args[0]
+        output_typ = kwargs["types"]
 
-    def infer_arg_types(self, node):
-        # TODO refactor once 2817 is merged
-        validate_expected_type(node.args[0], self._inputs[0][1])
-        data_type = get_exact_type_from_node(node.args[0])
-        return [data_type]
-
-    def build_IR(self, expr, context):
-        output_types = self._output_types(expr)
         # Figure out the expected length for data
-        output_types_sizes = [
-            new_type_to_old_type(o).abi_type.size_bound() for o in output_types._member_types
-        ]
-
-        data_type_size = self.infer_arg_types(expr)[0].length
+        output_typ_sizes = [o[1].abi_type.size_bound() for o in output_typ.tuple_items()]
+        data_typ_size = data.value
 
         # TODO must it be strict equality?
-        if data_type_size != sum(output_types_sizes):
+        if data_typ_size != sum(output_typ_sizes):
             raise StructureException(
                 (
                     "Mismatch between size of input and size of decoded types. "
-                    f"Expected {sum(output_types_sizes)} but input is only {data_type_size}."
+                    f"Expected {sum(output_typ_sizes)} but input is only {data_typ_size}."
                 ),
                 expr.args[0],
             )
 
-        output_typ = new_type_to_old_type(output_types)
-        data = Expr(expr.args[0], context).ir_node
         data = ensure_in_memory(data, context)
         data_ptr = bytes_data_ptr(data)
-
-        buf = context.new_internal_variable(ByteArrayType(data_type_size))
 
         return IRnode.from_list(
             data_ptr,
