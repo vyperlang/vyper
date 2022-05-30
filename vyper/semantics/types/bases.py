@@ -216,7 +216,7 @@ class BasePrimitive:
 
     @classmethod
     def get_member(cls, key: str, node: vy_ast.Attribute) -> None:
-        raise StructureException("{cls} does not have members", node)
+        raise StructureException(f"{cls} does not have members", node)
 
     @classmethod
     def validate_modification(
