@@ -33,6 +33,7 @@ enum Action:
     """,
         EnumDeclarationException,
     ),
+    ("enum Foo:\n" + "\n".join([f"    member{i}" for i in range(257)]), EnumDeclarationException),
 ]
 
 
@@ -72,6 +73,7 @@ def run() -> Order:
         amount: 10**18
         })
     """,
+    "enum Foo:\n" + "\n".join([f"    member{i}" for i in range(256)]),
 ]
 
 
