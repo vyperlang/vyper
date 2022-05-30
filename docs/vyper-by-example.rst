@@ -299,20 +299,15 @@ way are, by default, private.
 The ``funders`` variable is initiated as a mapping where the key is a number,
 and the value is a struct representing the contribution of each participant.
 This struct contains each participant's public address and their respective
-value contributed to the fund. The key corresponding to each struct in the
-mapping will be represented by the variable ``nextFunderIndex`` which is
-incremented with each additional contributing participant. Variables initialized
-with the ``int128`` type without an explicit value, such as ``nextFunderIndex``,
-defaults to ``0``. The ``beneficiary`` will be the final receiver of the funds
+value contributed to the fund. The ``beneficiary`` will be the final receiver of the funds
 once the crowdfunding period is over—as determined by the ``deadline`` and
 ``timelimit`` variables. The ``goal`` variable is the target total contribution
-of all participants. ``refundIndex`` is a variable for bookkeeping purposes in
-order to avoid gas limit issues in the scenario of a refund.
+of all participants.
 
 .. literalinclude:: ../examples/crowdfund.vy
   :language: python
-  :lineno-start: 17
-  :lines: 17-22
+  :lineno-start: 9
+  :lines: 9-15
 
 Our constructor function takes 3 arguments: the beneficiary's address, the goal
 in wei value, and the difference in time from start to finish of the
@@ -324,8 +319,8 @@ Now lets take a look at how a person can participate in the crowdfund.
 
 .. literalinclude:: ../examples/crowdfund.vy
   :language: python
-  :lineno-start: 26
-  :lines: 26-34
+  :lineno-start: 17
+  :lines: 17-23
 
 Once again, we see the ``@payable`` decorator on a method, which allows a
 person to send some ether along with a call to the method. In this case,
@@ -338,8 +333,8 @@ each participant.
 
 .. literalinclude:: ../examples/crowdfund.vy
   :language: python
-  :lineno-start: 38
-  :lines: 38-43
+  :lineno-start: 25
+  :lines: 25-31
 
 The ``finalize()`` method is used to complete the crowdfunding process. However,
 to complete the crowdfunding, the method first checks to see if the crowdfunding
@@ -359,8 +354,8 @@ all the participants.
 
 .. literalinclude:: ../examples/crowdfund.vy
   :language: python
-  :lineno-start: 47
-  :lines: 47-61
+  :lineno-start: 33
+  :lines: 33-42
 
 In the ``refund()`` method, we first check that the crowdfunding period is
 indeed over and that the total collected balance is less than the ``goal`` with
