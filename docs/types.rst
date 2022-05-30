@@ -322,12 +322,12 @@ Enums
 
 **Keyword:** ``enum``
 
-Enums are custom defined types. An enum must have at least one member, and can hold up to a maximum of 256 members,
-The options are represented by ``uint256`` values, starting from 0.
+Enums are custom defined types. An enum must have at least one member, and can hold up to a maximum of 256 members.
+The members are represented by ``uint256`` values in the form of 2\ :sup:`N` where ``N`` is the index of the member (``1 <= N <= 256``).
 
 .. code-block:: python
 
-    # Defining an enum
+    # Defining an enum with two members
     enum Roles:
         admin
         user
