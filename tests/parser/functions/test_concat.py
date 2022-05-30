@@ -1,6 +1,3 @@
-from vyper.exceptions import TypeMismatch
-
-
 def test_concat(get_contract_with_gas_estimation):
     test_concat = """
 @external
@@ -178,14 +175,3 @@ def small_bytes4(a: bytes8, b: Bytes[32], c: bytes8) -> Bytes[48]:
 
     a, b, c = bytes_for_len(8), bytes_for_len(0), bytes_for_len(8)
     assert contract.small_bytes4(a, b, c) == a + b + c
-
-
-def test_large_output(get_contract_with_gas_estimation, assert_compile_failed):
-    code = """
-@external
-def large_output(a: String[33], b: String[33]) -> String[64]:
-    c: String[64] = concat(a, b)
-    return c
-    """
-
-    assert_compile_failed(lambda: get_contract_with_gas_estimation(code), TypeMismatch)

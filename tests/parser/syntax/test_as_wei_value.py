@@ -1,8 +1,6 @@
 import pytest
-from pytest import raises
 
-from vyper import compiler
-from vyper.exceptions import ArgumentException, StructureException
+from vyper.exceptions import ArgumentException, InvalidType, StructureException
 
 fail_list = [
     (
@@ -22,13 +20,20 @@ def foo() -> int128:
     """,
         StructureException,
     ),
+    (
+        """
+@external
+def foo():
+    x: int128 = as_wei_value(0xf5, "szabo")
+    """,
+        InvalidType,
+    ),
 ]
 
 
 @pytest.mark.parametrize("bad_code,exc", fail_list)
-def test_as_wei_fail(bad_code, exc):
-    with raises(exc):
-        compiler.compile_code(bad_code)
+def test_as_wei_fail(get_contract_with_gas_estimation, bad_code, exc, assert_compile_failed):
+    assert_compile_failed(lambda: get_contract_with_gas_estimation(bad_code), exc)
 
 
 valid_list = [
@@ -58,5 +63,5 @@ def foo() -> uint256:
 
 
 @pytest.mark.parametrize("good_code", valid_list)
-def test_as_wei_success(good_code):
-    assert compiler.compile_code(good_code) is not None
+def test_as_wei_success(good_code, get_contract_with_gas_estimation):
+    assert get_contract_with_gas_estimation(good_code) is not None

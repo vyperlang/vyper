@@ -1,7 +1,7 @@
 import copy
 from collections import OrderedDict
 from enum import Enum
-from typing import Any, Dict, Optional, Tuple, Type, Union
+from typing import Any, Dict, List, Optional, Tuple, Type, Union
 
 from vyper import ast as vy_ast
 from vyper.abi_types import ABIType
@@ -406,6 +406,25 @@ class BaseTypeDefinition:
         -------
         BaseTypeDefinition, optional
             Type generated as a result of the call.
+        """
+        raise StructureException("Value is not callable", node)
+
+    def infer_arg_types(self, node: vy_ast.Call) -> List[Union["BaseTypeDefinition", None]]:
+        """
+        Performs the necessary type inference and returns the call's arguments' types.
+
+        This method must raise if the value is not callable, or the type for a call
+        argument cannot be determined.
+
+        Arguments
+        ---------
+        node : Call
+            Vyper ast node of call action to perform type inference.
+
+        Returns
+        -------
+        BaseTypeDefinition, optional
+            List of types for the call's arguments.
         """
         raise StructureException("Value is not callable", node)
 
