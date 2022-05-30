@@ -1,10 +1,7 @@
 import pytest
 
 from vyper import compiler
-from vyper.exceptions import (
-    NamespaceCollision,
-    EnumDeclarationException,
-)
+from vyper.exceptions import EnumDeclarationException, NamespaceCollision
 
 fail_list = [
     (
