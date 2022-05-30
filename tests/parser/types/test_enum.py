@@ -31,4 +31,3 @@ def cancel() -> Action:
     assert c.buy() == 1
     assert c.sell() == 2
     assert c.cancel() == 4
-
