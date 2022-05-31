@@ -10,8 +10,8 @@ event Action:
     pass
 
 enum Action:
-    buy
-    sell
+    BUY
+    SELL
     """,
         NamespaceCollision,
     ),
@@ -25,8 +25,8 @@ enum Action:
     (
         """
 enum Action:
-    buy
-    buy
+    BUY
+    BUY
     """,
         EnumDeclarationException,
     ),
@@ -43,21 +43,21 @@ def test_interfaces_fail(bad_code):
 valid_list = [
     """
 enum Action:
-    buy
-    sell
+    BUY
+    SELL
     """,
     """
 enum Action:
-    buy
-    sell
+    BUY
+    SELL
 @external
 def run() -> Action:
-    return Action.buy
+    return Action.BUY
     """,
     """
 enum Action:
-    buy
-    sell
+    BUY
+    SELL
 
 struct Order:
     action: Action
@@ -66,7 +66,7 @@ struct Order:
 @external
 def run() -> Order:
     return Order({
-        action: Action.buy,
+        action: Action.BUY,
         amount: 10**18
         })
     """,

@@ -1,24 +1,24 @@
 def test_values_should_be_increasing_ints(get_contract):
     code = """
 enum Action:
-    buy
-    sell
-    cancel
+    BUY
+    SELL
+    CANCEL
 
 @external
 @view
 def buy() -> Action:
-    return Action.buy
+    return Action.BUY
 
 @external
 @view
 def sell() -> Action:
-    return Action.sell
+    return Action.SELL
 
 @external
 @view
 def cancel() -> Action:
-    return Action.cancel
+    return Action.CANCEL
     """
     c = get_contract(code)
     assert c.buy() == 1
