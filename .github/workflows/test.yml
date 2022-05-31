@@ -111,7 +111,6 @@ jobs:
   # the regular test suite)
   fuzzing:
     runs-on: ubuntu-latest
-    needs: fetch-test-durations
 
     strategy:
       matrix:
