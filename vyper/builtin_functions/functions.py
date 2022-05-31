@@ -2166,7 +2166,7 @@ class ABIDecode(_SimpleBuiltinFunction):
         self.infer_arg_types(node)
         output_types = self.infer_kwarg_types(node).get("types").typedef
         if len(output_types._member_types) == 1:
-            return output_types[0]
+            return output_types._member_types[0]
         return output_types
 
     def infer_arg_types(self, node):
@@ -2199,17 +2199,20 @@ class ABIDecode(_SimpleBuiltinFunction):
     def build_IR(self, expr, args, kwargs, context):
         data = args[0]
         output_typ = kwargs["types"]
+        if len(output_typ.tuple_items()) == 1:
+            output_typ = output_typ.tuple_items()[0][1]
+            output_typ_sizes = [output_typ.abi_type.size_bound()]
+        else:
+            output_typ_sizes = [o[1].abi_type.size_bound() for o in output_typ.tuple_items()]
 
         # Figure out the expected length for data
-        output_typ_sizes = [o[1].abi_type.size_bound() for o in output_typ.tuple_items()]
-        data_typ_size = data.value
+        data_typ_size = self.infer_arg_types(expr)[0].length
 
-        # TODO must it be strict equality?
-        if data_typ_size != sum(output_typ_sizes):
+        if data_typ_size < sum(output_typ_sizes):
             raise StructureException(
                 (
                     "Mismatch between size of input and size of decoded types. "
-                    f"Expected {sum(output_typ_sizes)} but input is only {data_typ_size}."
+                    f"Expected at least {sum(output_typ_sizes)} but input is {data_typ_size}."
                 ),
                 expr.args[0],
             )
