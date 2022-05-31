@@ -323,20 +323,20 @@ Enums
 **Keyword:** ``enum``
 
 Enums are custom defined types. An enum must have at least one member, and can hold up to a maximum of 256 members.
-The members are represented by ``uint256`` values in the form of 2\ :sup:`N` where ``N`` is the index of the member (``1 <= N <= 256``).
+The members are represented by ``uint256`` values in the form of 2\ :sup:`n` where ``n`` is the index of the member in the range ``0 <= n <= 255``.
 
 .. code-block:: python
 
     # Defining an enum with two members
     enum Roles:
-        admin
-        user
+        ADMIN
+        USER
 
     # Declaring an enum variable
-    role: Roles = Roles.admin
+    role: Roles = Roles.ADMIN
 
     # Returning a member
-    return Roles.admin
+    return Roles.ADMIN
 
 .. index:: !reference
 
