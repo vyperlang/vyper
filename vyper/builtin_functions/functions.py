@@ -43,6 +43,7 @@ from vyper.codegen.types import (
     is_base_type,
     parse_integer_typeinfo,
 )
+from vyper.codegen.types.convert import new_type_to_old_type
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
     ArgumentException,
@@ -1885,8 +1886,13 @@ class Max(_MinMax):
 
 class MkStr(_SimpleBuiltinFunction):
     _id = "str"
-    _inputs = [("x", Uint256Definition())]  # should allow any uint?
-    _return_type = StringDefinition(78)
+    _inputs = [("x", UnsignedIntegerAbstractType())]  # should allow any uint?
+
+    def fetch_call_return(self, node):
+        arg_t = self.infer_arg_types(node)[0]
+        bits = arg_t._bits
+        len_needed = math.ceil(bits * math.log(2) / math.log(10))
+        return StringDefinition(len_needed)
 
     def evaluate(self, node):
         validate_call_args(node, 1)
@@ -1896,9 +1902,15 @@ class MkStr(_SimpleBuiltinFunction):
         value = str(node.args[0].value)
         return vy_ast.Str.from_node(node, value=value)
 
+    def infer_arg_types(self, node):
+        self._validate_arg_types(node)
+        input_type = get_possible_types_from_node(node.args[0]).pop()
+        return [input_type]
+
     @validate_inputs
     def build_IR(self, expr, args, kwargs, context):
-        return_t = StringType(78)
+        return_t = new_type_to_old_type(self.fetch_call_return(expr))
+        n_digits = return_t.maxlen
 
         with args[0].cache_when_complex("val") as (b1, val):
 
@@ -1906,7 +1918,7 @@ class MkStr(_SimpleBuiltinFunction):
 
             i = IRnode.from_list(context.fresh_varname("uint2str_i"), typ="uint256")
 
-            ret = ["repeat", i, 0, 79, 79]
+            ret = ["repeat", i, 0, n_digits + 1, n_digits + 1]
 
             body = [
                 "seq",
@@ -1916,15 +1928,15 @@ class MkStr(_SimpleBuiltinFunction):
                     # clobber val, and return it as a pointer
                     [
                         "seq",
-                        ["mstore", ["sub", buf + 78, i], i],
-                        ["set", val, ["sub", buf + 78, i]],
+                        ["mstore", ["sub", buf + n_digits, i], i],
+                        ["set", val, ["sub", buf + n_digits, i]],
                         "break",
                     ],
                     [
                         "seq",
                         [
                             "mstore",
-                            ["sub", buf + 78, i],
+                            ["sub", buf + n_digits, i],
                             ["add", 48, ["mod", val, 10]],
                         ],
                         ["set", val, ["div", val, 10]],
