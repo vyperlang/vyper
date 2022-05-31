@@ -109,11 +109,11 @@ jobs:
   fetch-test-durations:
     runs-on: ubuntu-latest
     steps:
-      # fetch test durations
-      # NOTE: if the tests get poorly distributed, run this and commit the resulting `.test_durations` file to the `vyper-test-durations` repo.
-      # `TOXENV=fuzzing tox -r -- --store-durations --reruns 10 --reruns-delay 1 -r aR tests/`
-      - name: Fetch test-durations
-        run: curl --location "https://raw.githubusercontent.com/vyperlang/vyper-test-durations/2879eae3fefb4eb664914df93e545f9d15fe74fb/test_durations" -o .test_durations
+    # fetch test durations
+    # NOTE: if the tests get poorly distributed, run this and commit the resulting `.test_durations` file to the `vyper-test-durations` repo.
+    # `TOXENV=fuzzing tox -r -- --store-durations --reruns 10 --reruns-delay 1 -r aR tests/`
+    - name: Fetch test-durations
+      run: curl --location "https://raw.githubusercontent.com/vyperlang/vyper-test-durations/2879eae3fefb4eb664914df93e545f9d15fe74fb/test_durations" -o .test_durations
 
 
   # fuzzing + slow/exhaustive tests (things that are too slow to run in
@@ -136,6 +136,9 @@ jobs:
 
     - name: Install Tox
       run: pip install tox
+
+    - name: show test-durations
+      run: ls -a
 
     - name: Run Tox
       run: TOXENV=fuzzing tox -r -- --splits 45 --group ${{ matrix.group }} --reruns 10 --reruns-delay 1 -r aR tests/
