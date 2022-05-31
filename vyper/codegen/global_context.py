@@ -4,6 +4,7 @@ from vyper import ast as vy_ast
 from vyper.ast.signatures.function_signature import VariableRecord
 from vyper.codegen.types import parse_type
 from vyper.exceptions import CompilerPanic, InvalidType, StructureException
+from vyper.semantics.types.user.enum import EnumPrimitive
 from vyper.typing import InterfaceImports
 from vyper.utils import cached_property
 
@@ -20,6 +21,7 @@ class GlobalContext:
 
         self._structs = dict()
         self._events = list()
+        self._enums = dict()
         self._globals = dict()
         self._function_defs = list()
         self._nonrentrant_counter = 0
@@ -48,6 +50,9 @@ class GlobalContext:
 
             elif isinstance(item, vy_ast.EventDef):
                 continue
+
+            elif isinstance(item, vy_ast.EnumDef):
+                global_ctx._enums[item.name] = EnumPrimitive.from_EnumDef(item)
 
             # Statements of the form:
             # variable_name: type
@@ -201,6 +206,7 @@ class GlobalContext:
             ast_node,
             sigs=self.interface_names,
             custom_structs=self._structs,
+            enums=self._enums,
         )
 
     @property

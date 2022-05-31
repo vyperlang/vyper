@@ -5,7 +5,7 @@ from typing import Dict, Optional
 from vyper import ast as vy_ast
 from vyper.address_space import MEMORY
 from vyper.codegen.ir_node import Encoding
-from vyper.codegen.types import NodeType, parse_type
+from vyper.codegen.types import NodeType
 from vyper.exceptions import StructureException
 from vyper.utils import MemoryPositions, cached_property, mkalphanum
 
@@ -166,25 +166,17 @@ class FunctionSignature:
     def from_definition(
         cls,
         func_ast,  # vy_ast.FunctionDef
-        sigs=None,  # TODO replace sigs and custom_structs with GlobalContext?
-        custom_structs=None,
+        global_ctx,
         interface_def=False,
         constant_override=False,  # CMC 20210907 what does this do?
         is_from_json=False,
     ):
-        if custom_structs is None:
-            custom_structs = {}
-
         name = func_ast.name
 
         args = []
         for arg in func_ast.args.args:
             argname = arg.arg
-            argtyp = parse_type(
-                arg.annotation,
-                sigs,
-                custom_structs=custom_structs,
-            )
+            argtyp = global_ctx.parse_type(arg.annotation)
 
             args.append(FunctionArg(argname, argtyp, arg))
 
@@ -218,11 +210,7 @@ class FunctionSignature:
         # and NOT def foo() -> type: ..., then it's null
         return_type = None
         if func_ast.returns:
-            return_type = parse_type(
-                func_ast.returns,
-                sigs,
-                custom_structs=custom_structs,
-            )
+            return_type = global_ctx.parse_type(func_ast.returns)
             # sanity check: Output type must be canonicalizable
             assert return_type.abi_type.selector_name()
 
