@@ -536,15 +536,15 @@ function definitions.
   :lines: 3-27
 
 We initiate the ``company`` variable to be of type ``address`` that's public.
-The ``totalShares`` variable is of type ``currency_value``, which in this case
+The ``totalShares`` variable is of type ``uint256``, which in this case
 represents the total available shares of the company. The ``price`` variable
 represents the wei value of a share and ``holdings`` is a mapping that maps an
 address to the number of shares the address owns.
 
 .. literalinclude:: ../examples/stock/company.vy
   :language: python
-  :lineno-start: 30
-  :lines: 30-40
+  :lineno-start: 29
+  :lines: 29-40
 
 In the constructor, we set up the contract to check for valid inputs during
 the initialization of the contract via the two ``assert`` statements. If the
@@ -555,7 +555,7 @@ company's address is initialized to hold all shares of the company in the
 .. literalinclude:: ../examples/stock/company.vy
   :language: python
   :lineno-start: 42
-  :lines: 42-52
+  :lines: 42-46
 
 We will be seeing a few ``@view`` decorators in this contract—which is
 used to decorate methods that simply read the contract state or return a simple
@@ -573,8 +573,8 @@ company's holding.
 
 .. literalinclude:: ../examples/stock/company.vy
   :language: python
-  :lineno-start: 55
-  :lines: 55-70
+  :lineno-start: 51
+  :lines: 51-64
 
 The ``buyStock()`` method is a ``@payable`` method which takes an amount of
 ether sent and calculates the ``buyOrder`` (the stock value equivalence at
@@ -585,8 +585,8 @@ Now that people can buy shares, how do we check someone's holdings?
 
 .. literalinclude:: ../examples/stock/company.vy
   :language: python
-  :lineno-start: 73
-  :lines: 73-82
+  :lineno-start: 66
+  :lines: 66-71
 
 The ``_getHolding()`` is another ``@view`` method that takes an ``address``
 and returns its corresponding stock holdings by keying into ``self.holdings``.
@@ -594,16 +594,16 @@ Again, an external function ``getHolding()`` is included to allow access.
 
 .. literalinclude:: ../examples/stock/company.vy
   :language: python
-  :lineno-start: 85
-  :lines: 85-88
+  :lineno-start: 72
+  :lines: 72-76
 
 To check the ether balance of the company, we can simply call the getter method
 ``cash()``.
 
 .. literalinclude:: ../examples/stock/company.vy
   :language: python
-  :lineno-start: 91
-  :lines: 91-107
+  :lineno-start: 78
+  :lines: 78-95
 
 To sell a stock, we have the ``sellStock()`` method which takes a number of
 stocks a person wishes to sell, and sends the equivalent value in ether to the
@@ -615,8 +615,8 @@ from the seller and given to the company. The ethers are then sent to the seller
 
 .. literalinclude:: ../examples/stock/company.vy
   :language: python
-  :lineno-start: 111
-  :lines: 111-122
+  :lineno-start: 97
+  :lines: 97-110
 
 A stockholder can also transfer their stock to another stockholder with the
 ``transferStock()`` method. The method takes a receiver address and the number
@@ -626,8 +626,8 @@ both conditions are satisfied, the transfer is made.
 
 .. literalinclude:: ../examples/stock/company.vy
   :language: python
-  :lineno-start: 125
-  :lines: 125-136
+  :lineno-start: 112
+  :lines: 112-124
 
 The company is also allowed to pay out an amount in ether to an address by
 calling the ``payBill()`` method. This method should only be callable by the
@@ -638,8 +638,8 @@ sends its ether to an address.
 
 .. literalinclude:: ../examples/stock/company.vy
   :language: python
-  :lineno-start: 139
-  :lines: 139-148
+  :lineno-start: 126
+  :lines: 126-130
 
 We can also check how much the company has raised by multiplying the number of
 shares the company has sold and the price of each share. Internally, we get
@@ -647,8 +647,8 @@ this value by calling the ``_debt()`` method. Externally it is accessed via ``de
 
 .. literalinclude:: ../examples/stock/company.vy
   :language: python
-  :lineno-start: 153
-  :lines: 153-156
+  :lineno-start: 132
+  :lines: 132-138
 
 Finally, in this ``worth()`` method, we can check the worth of a company by
 subtracting its debt from its ether balance.
