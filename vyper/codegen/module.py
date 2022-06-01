@@ -64,10 +64,9 @@ def parse_external_interfaces(external_interfaces, global_ctx):
             # Recognizes already-defined structs
             sig = FunctionSignature.from_definition(
                 _def,
-                sigs=global_ctx.interface_names,
+                global_ctx,
                 interface_def=True,
                 constant_override=constant,
-                custom_structs=global_ctx._structs,
             )
             interface[sig.name] = sig
         external_interfaces[_interfacename] = interface
@@ -195,7 +194,7 @@ def generate_ir_for_module(global_ctx: GlobalContext) -> Tuple[IRnode, IRnode, F
     # generate all signatures
     # TODO really this should live in GlobalContext
     for f in function_defs:
-        sig = FunctionSignature.from_definition(f, all_sigs, global_ctx._structs)
+        sig = FunctionSignature.from_definition(f, global_ctx)
         # add it to the global namespace.
         sigs[sig.name] = sig
         # a little hacky, eventually FunctionSignature should be

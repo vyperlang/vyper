@@ -23,6 +23,7 @@ from vyper.codegen.types import (
     ByteArrayLike,
     ByteArrayType,
     DArrayType,
+    EnumType,
     InterfaceType,
     MappingType,
     SArrayType,
@@ -202,6 +203,16 @@ class Expr:
 
     # x.y or x[5]
     def parse_Attribute(self):
+        typ = self.expr._metadata.get("type")
+        if typ is not None:
+            typ = new_type_to_old_type(typ)
+        if isinstance(typ, EnumType):
+            assert typ.name == self.expr.value.id
+            # 0, 1, 2, .. 255
+            enum_id = typ.members[self.expr.attr]
+            value = 2 ** enum_id  # 0 => 0001, 1 => 0010, 2 => 0100, etc.
+            return IRnode.from_list(value, typ=typ)
+
         # x.balance: balance of address x
         if self.expr.attr == "balance":
             addr = Expr.parse_value_expr(self.expr.value, self.context)

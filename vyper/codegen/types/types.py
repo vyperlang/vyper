@@ -230,6 +230,20 @@ class InterfaceType(BaseType):
         return 32
 
 
+class EnumType(BaseType):
+    def __init__(self, name, members):
+        super().__init__("uint256")
+        self.name = name
+        self.members = members
+
+    def __eq__(self, other):
+        return self.name == other.name and self.members == other.members
+
+    @property
+    def memory_bytes_required(self):
+        return 32
+
+
 class ByteArrayLike(NodeType):
     def __init__(self, maxlen, is_literal=False):
         self.maxlen = maxlen
@@ -387,7 +401,7 @@ class TupleType(TupleLike):
         return list(enumerate(self.members))
 
 
-def make_struct_type(name, sigs, members, custom_structs):
+def make_struct_type(name, sigs, members, custom_structs, enums):
     o = OrderedDict()
 
     for key, value in members:
@@ -396,18 +410,21 @@ def make_struct_type(name, sigs, members, custom_structs):
                 f"Invalid member variable for struct {key.id}, expected a name.",
                 key,
             )
-        o[key.id] = parse_type(value, sigs=sigs, custom_structs=custom_structs)
+        o[key.id] = parse_type(value, sigs=sigs, custom_structs=custom_structs, enums=enums)
 
     return StructType(o, name)
 
 
 # Parses an expression representing a type.
 # TODO: rename me to "ir_type_from_annotation"
-def parse_type(item, sigs, custom_structs):
+def parse_type(item, sigs, custom_structs, enums):
     # sigs: set of interface or contract names in scope
     # custom_structs: struct definitions in scope
     def _sanity_check(x):
         assert x, "typechecker missed this"
+
+    def _parse_type(item):
+        return parse_type(item, sigs, custom_structs, enums)
 
     def FAIL():
         raise InvalidType(f"{item.id}", item)
@@ -417,16 +434,14 @@ def parse_type(item, sigs, custom_structs):
         if item.id in BASE_TYPES:
             return BaseType(item.id)
 
-        elif (sigs is not None) and item.id in sigs:
+        elif item.id in sigs:
             return InterfaceType(item.id)
 
-        elif (custom_structs is not None) and (item.id in custom_structs):
-            return make_struct_type(
-                item.id,
-                sigs,
-                custom_structs[item.id],
-                custom_structs,
-            )
+        elif item.id in enums:
+            return EnumType(item.id, enums[item.id].members.copy())
+
+        elif item.id in custom_structs:
+            return make_struct_type(item.id, sigs, custom_structs[item.id], custom_structs, enums)
 
         else:
             FAIL()  # pragma: notest
@@ -438,13 +453,9 @@ def parse_type(item, sigs, custom_structs):
             if sigs and item.args[0].id in sigs:
                 return InterfaceType(item.args[0].id)
         # Struct types
-        elif (custom_structs is not None) and (item.func.id in custom_structs):
-            return make_struct_type(
-                item.id,
-                sigs,
-                custom_structs[item.id],
-                custom_structs,
-            )
+        elif item.func.id in custom_structs:
+            return make_struct_type(item.id, sigs, custom_structs[item.id], custom_structs, enums)
+
         elif item.func.id == "immutable":
             if len(item.args) != 1:
                 # is checked earlier but just for sanity, verify
@@ -469,11 +480,7 @@ def parse_type(item, sigs, custom_structs):
                 return StringType(length)
             # List
             else:
-                value_type = parse_type(
-                    item.value,
-                    sigs,
-                    custom_structs=custom_structs,
-                )
+                value_type = _parse_type(item.value)
                 return SArrayType(value_type, length)
 
         elif item.value.id == "DynArray":
@@ -483,32 +490,22 @@ def parse_type(item, sigs, custom_structs):
             _sanity_check(isinstance(length, int) and length > 0)
 
             value_type_annotation = item.slice.value.elements[0]
-            value_type = parse_type(value_type_annotation, sigs, custom_structs=custom_structs)
+            value_type = _parse_type(value_type_annotation)
 
             return DArrayType(value_type, length)
 
         elif item.value.id in ("HashMap",) and isinstance(item.slice.value, vy_ast.Tuple):
             # Mappings, e.g. HashMap[address, uint256]
-            keytype = parse_type(
-                item.slice.value.elements[0],
-                sigs=sigs,
-                custom_structs=custom_structs,
-            )
-            return MappingType(
-                keytype,
-                parse_type(
-                    item.slice.value.elements[1],
-                    sigs,
-                    custom_structs=custom_structs,
-                ),
-            )
+            key_type = _parse_type(item.slice.value.elements[0])
+            value_type = _parse_type(item.slice.value.elements[1])
+            return MappingType(key_type, value_type)
 
         else:
             FAIL()
 
     elif isinstance(item, vy_ast.Tuple):
-        members = [parse_type(x, sigs=sigs, custom_structs=custom_structs) for x in item.elements]
-        return TupleType(members)
+        member_types = [_parse_type(t) for t in item.elements]
+        return TupleType(member_types)
 
     else:
         FAIL()
