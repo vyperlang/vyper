@@ -12,7 +12,7 @@ def abi_decode_single(x: Bytes[32]) -> uint256:
     return a
 
 @external
-def abi_decode_single_2(x: Bytes[160]) -> String[5]:
+def abi_decode_single_2(x: Bytes[64]) -> String[5]:
     a: String[5] = ""
     a = _abi_decode(x, types=[String[5]])
     return a
@@ -42,7 +42,7 @@ def abi_decode3(x: Bytes[160]) -> (address, int128, bool, decimal, bytes32):
     return a, b, c, d, e
 
 @external
-def abi_decode4(x: Bytes[192]) -> (String[5], address):
+def abi_decode4(x: Bytes[128]) -> (String[5], address):
     a: String[5] = ""
     b: address = ZERO_ADDRESS
     a, b = _abi_decode(x, types=[String[5], address])
@@ -121,7 +121,7 @@ def abi_decode(x: Bytes[160]) -> DynArray[uint256, 3]:
     return a
     """
 
-    c = get_contract(contract)
+    c = get_contract(contract, skip_grammar=True)
 
     arg = [123, 456, 789]
     assert c.abi_decode(abi_encode("uint256[]", arg)) == arg

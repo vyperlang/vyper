@@ -104,7 +104,7 @@ def w3(tester):
     return w3
 
 
-def _get_contract(w3, source_code, no_optimize, *args, **kwargs):
+def _get_contract(w3, source_code, no_optimize, skip_grammar, *args, **kwargs):
     out = compiler.compile_code(
         source_code,
         ["abi", "bytecode"],
@@ -113,7 +113,8 @@ def _get_contract(w3, source_code, no_optimize, *args, **kwargs):
         evm_version=kwargs.pop("evm_version", None),
         show_gas_estimates=True,  # Enable gas estimates for testing
     )
-    LARK_GRAMMAR.parse(source_code + "\n")  # Test grammar.
+    if skip_grammar is not True:
+        LARK_GRAMMAR.parse(source_code + "\n")  # Test grammar.
     abi = out["abi"]
     bytecode = out["bytecode"]
     value = kwargs.pop("value_in_eth", 0) * 10 ** 18  # Handle deploying with an eth value.
@@ -137,8 +138,8 @@ def _get_contract(w3, source_code, no_optimize, *args, **kwargs):
 
 @pytest.fixture(scope="module")
 def get_contract(w3, no_optimize):
-    def get_contract(source_code, *args, **kwargs):
-        return _get_contract(w3, source_code, no_optimize, *args, **kwargs)
+    def get_contract(source_code, skip_grammar=False, *args, **kwargs):
+        return _get_contract(w3, source_code, no_optimize, skip_grammar, *args, **kwargs)
 
     return get_contract
 
