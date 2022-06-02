@@ -112,6 +112,22 @@ def abi_decode(x: Bytes[96]) -> uint256[3]:
     assert c.abi_decode(abi_encode("uint256[3]", arg)) == arg
 
 
+def test_abi_decode_array2(get_contract, abi_encode):
+    contract = """
+@external
+def abi_decode(x: Bytes[128]) -> (uint256[3], bool):
+    a: uint256[3] = [0, 0, 0]
+    b: bool = False
+    a, b = _abi_decode(x)
+    return a, b
+    """
+
+    c = get_contract(contract)
+
+    arg = ([123, 456, 789], True)
+    assert tuple(c.abi_decode(abi_encode("(uint256[3],bool)", arg))) == arg
+
+
 def test_abi_decode_dynarray(get_contract, abi_encode):
     contract = """
 @external
@@ -125,6 +141,22 @@ def abi_decode(x: Bytes[160]) -> DynArray[uint256, 3]:
 
     arg = [123, 456, 789]
     assert c.abi_decode(abi_encode("uint256[]", arg)) == arg
+
+
+def test_abi_decode_dynarray2(get_contract, abi_encode):
+    contract = """
+@external
+def abi_decode(x: Bytes[192]) -> (bool, DynArray[uint256, 3]):
+    a: DynArray[uint256, 3] = [0, 0, 0]
+    b: bool = False
+    b, a = _abi_decode(x)
+    return b, a
+    """
+
+    c = get_contract(contract)
+
+    arg = (True, [123, 456, 789])
+    assert tuple(c.abi_decode(abi_encode("(bool,uint256[])", arg))) == arg
 
 
 def test_abi_decode_return(get_contract, abi_encode):
