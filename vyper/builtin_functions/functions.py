@@ -2,7 +2,7 @@ import hashlib
 import math
 import operator
 from decimal import Decimal
-from typing import Dict, Tuple
+from typing import Dict
 
 from vyper import ast as vy_ast
 from vyper.abi_types import ABI_Tuple
@@ -44,6 +44,7 @@ from vyper.codegen.types import (
     is_base_type,
     parse_integer_typeinfo,
 )
+from vyper.codegen.types.convert import new_type_to_old_type
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
     ArgumentException,
@@ -2160,52 +2161,43 @@ class ABIEncode(_SimpleBuiltinFunction):
 class ABIDecode(_SimpleBuiltinFunction):
     _id = "_abi_decode"
     _inputs = [("data", BytesArrayPrimitive())]
-    _kwargs = {"types": KwargSettings("TYPE_DEFINITION", None)}
 
     def fetch_call_return(self, node):
         self.infer_arg_types(node)
-        output_types = self.infer_kwarg_types(node).get("types").typedef
-        if len(output_types._member_types) == 1:
-            return output_types._member_types[0]
-        return output_types
+
+        # Get parent node for type inference
+        parent_node = node.get_ancestor()
+        if isinstance(parent_node, vy_ast.Assign):
+            output_type = parent_node._metadata["type"]
+
+        elif isinstance(parent_node, vy_ast.Return):
+            func_node = node.get_ancestor(vy_ast.FunctionDef)
+            output_type = func_node._metadata["type"].return_type
+
+        else:
+            raise StructureException("Unable to determine the return type of abi_decode", node)
+
+        return output_type
 
     def infer_arg_types(self, node):
         self._validate_arg_types(node)
         data_type = get_exact_type_from_node(node.args[0])
         return [data_type]
 
-    def infer_kwarg_types(self, node):
-        kwargz = {i.arg: i.value for i in node.keywords}
-        output_types_list = kwargz.get("types")
-        if output_types_list is None:
-            raise ArgumentException("Output types must be specified", node)
-
-        if not isinstance(output_types_list, vy_ast.List):
-            raise ArgumentException("Output types must be provided as a list", node.keywords)
-
-        if len(output_types_list.elements) < 1:
-            raise StructureException(
-                "`_abi_decode` expects at least one output type",
-                output_types_list,
-            )
-
-        output_types: Tuple = ()
-        for o in output_types_list.elements:
-            output_types += (get_type_from_annotation(o, DataLocation.UNSET),)
-
-        return {"types": TypeTypeDefinition(TupleDefinition(output_types))}
-
     @validate_inputs
     def build_IR(self, expr, args, kwargs, context):
         data = args[0]
-        output_typ = kwargs["types"]
-        if len(output_typ.tuple_items()) == 1:
-            output_typ = output_typ.tuple_items()[0][1]
-            output_typ_sizes = [output_typ.abi_type.size_bound()]
-        else:
-            output_typ_sizes = [o[1].abi_type.size_bound() for o in output_typ.tuple_items()]
+        new_output_typ = self.fetch_call_return(expr)
+        old_output_typ = new_type_to_old_type(new_output_typ)
 
-        # Figure out the expected length for data
+        # Determine the expected size of the data based on the LHS
+        if isinstance(new_output_typ, TupleDefinition):
+            output_typ_sizes = [o[1].abi_type.size_bound() for o in old_output_typ.tuple_items()]
+        else:
+            # output_typ = output_typ.tuple_items()[0][1]
+            output_typ_sizes = [old_output_typ.abi_type.size_bound()]
+
+        # Get the size of data
         data_typ_size = self.infer_arg_types(expr)[0].length
 
         if data_typ_size < sum(output_typ_sizes):
@@ -2222,7 +2214,7 @@ class ABIDecode(_SimpleBuiltinFunction):
 
         return IRnode.from_list(
             data_ptr,
-            typ=output_typ,
+            typ=old_output_typ,
             location=data.location,
             encoding=Encoding.ABI,
             annotation="abi_decode builtin",

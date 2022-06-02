@@ -113,9 +113,7 @@ def _get_contract(w3, source_code, no_optimize, *args, **kwargs):
         evm_version=kwargs.pop("evm_version", None),
         show_gas_estimates=True,  # Enable gas estimates for testing
     )
-    skip_grammar = kwargs.pop("skip_grammar", False)
-    if skip_grammar is not True:
-        LARK_GRAMMAR.parse(source_code + "\n")  # Test grammar.
+    LARK_GRAMMAR.parse(source_code + "\n")  # Test grammar.
     abi = out["abi"]
     bytecode = out["bytecode"]
     value = kwargs.pop("value_in_eth", 0) * 10 ** 18  # Handle deploying with an eth value.

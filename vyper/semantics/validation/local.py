@@ -247,6 +247,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             raise StructureException("Right-hand side of assignment cannot be a tuple", node.value)
 
         target = get_exact_type_from_node(node.target)
+        node._metadata["type"] = target
         if isinstance(target, MappingDefinition):
             raise StructureException(
                 "Left-hand side of assignment cannot be a HashMap without a key", node
