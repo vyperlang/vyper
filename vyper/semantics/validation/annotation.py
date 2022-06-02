@@ -170,8 +170,6 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
                 self.visit(arg, arg_type)
             kwarg_types = call_type.infer_kwarg_types(node)
             for kwarg in node.keywords:
-                if node.func.id == "_abi_decode":
-                    continue
                 self.visit(kwarg.value, kwarg_types[kwarg.arg])
 
     def visit_Compare(self, node, type_):
