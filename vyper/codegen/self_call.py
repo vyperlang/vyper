@@ -38,9 +38,6 @@ def ir_for_self_call(stmt_expr, context):
     args_tuple_t = TupleType([x.typ for x in args_ir])
     args_as_tuple = IRnode.from_list(["multi"] + [x for x in args_ir], typ=args_tuple_t)
 
-    # register callee to help calculate our starting frame offset
-    context.register_callee(sig.frame_size)
-
     if context.is_constant() and sig.mutability not in ("view", "pure"):
         raise StateAccessViolation(
             f"May not call state modifying function "
@@ -65,7 +62,7 @@ def ir_for_self_call(stmt_expr, context):
 
     # note: dst_tuple_t != args_tuple_t
     dst_tuple_t = TupleType([arg.typ for arg in sig.args])
-    args_dst = IRnode(sig.frame_start, typ=dst_tuple_t, location=MEMORY)
+    args_dst = IRnode(sig.frame_info.frame_start, typ=dst_tuple_t, location=MEMORY)
 
     # if one of the arguments is a self call, the argument
     # buffer could get borked. to prevent against that,
@@ -111,7 +108,7 @@ def ir_for_self_call(stmt_expr, context):
         typ=sig.return_type,
         location=MEMORY,
         annotation=stmt_expr.get("node_source_code"),
-        add_gas_estimate=sig.gas,
+        add_gas_estimate=sig.gas_estimate,
     )
     o.is_self_call = True
     return o

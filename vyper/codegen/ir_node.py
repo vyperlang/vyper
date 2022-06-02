@@ -53,7 +53,7 @@ class Encoding(Enum):
 # Data structure for IR parse tree
 class IRnode:
     repr_show_gas = False
-    gas: int
+    _gas: int
     valency: int
     args: List["IRnode"]
     value: Union[str, int]
@@ -68,7 +68,6 @@ class IRnode:
         annotation: Optional[str] = None,
         mutable: bool = True,
         add_gas_estimate: int = 0,
-        valency: Optional[int] = None,
         encoding: Encoding = Encoding.VYPER,
     ):
         if args is None:
@@ -87,10 +86,6 @@ class IRnode:
         self.encoding = encoding
         self.as_hex = AS_HEX_DEFAULT
 
-        # Optional annotation properties for gas estimation
-        self.total_gas = None
-        self.func_name = None
-
         def _check(condition, err):
             if not condition:
                 raise CompilerPanic(str(err))
@@ -103,8 +98,12 @@ class IRnode:
         # Numbers
         if isinstance(self.value, int):
             _check(len(self.args) == 0, "int can't have arguments")
+
+            # integers must be in the range (MIN_INT256, MAX_UINT256)
+            _check(-(2 ** 255) <= self.value < 2 ** 256, "out of range")
+
             self.valency = 1
-            self.gas = 5
+            self._gas = 5
         elif isinstance(self.value, str):
             # Opcodes and pseudo-opcodes (e.g. clamp)
             if self.value.upper() in get_ir_opcodes():
@@ -116,7 +115,7 @@ class IRnode:
                 )
                 # We add 2 per stack height at push time and take it back
                 # at pop time; this makes `break` easier to handle
-                self.gas = gas + 2 * (outs - ins)
+                self._gas = gas + 2 * (outs - ins)
                 for arg in self.args:
                     # pop and pass are used to push/pop values on the stack to be
                     # consumed for internal functions, therefore we whitelist this as a zero valency
@@ -126,16 +125,16 @@ class IRnode:
                         arg.valency == 1 or arg.value in zero_valency_whitelist,
                         f"invalid argument to `{self.value}`: {arg}",
                     )
-                    self.gas += arg.gas
+                    self._gas += arg.gas
                 # Dynamic gas cost: 8 gas for each byte of logging data
                 if self.value.upper()[0:3] == "LOG" and isinstance(self.args[1].value, int):
-                    self.gas += self.args[1].value * 8
+                    self._gas += self.args[1].value * 8
                 # Dynamic gas cost: non-zero-valued call
                 if self.value.upper() == "CALL" and self.args[2].value != 0:
-                    self.gas += 34000
+                    self._gas += 34000
                 # Dynamic gas cost: filling sstore (ie. not clearing)
                 elif self.value.upper() == "SSTORE" and self.args[1].value != 0:
-                    self.gas += 15000
+                    self._gas += 15000
                 # Dynamic gas cost: calldatacopy
                 elif self.value.upper() in ("CALLDATACOPY", "CODECOPY", "EXTCODECOPY"):
                     size = 34000
@@ -143,16 +142,16 @@ class IRnode:
                     size_arg = self.args[size_arg_index]
                     if isinstance(size_arg.value, int):
                         size = size_arg.value
-                    self.gas += ceil32(size) // 32 * 3
+                    self._gas += ceil32(size) // 32 * 3
                 # Gas limits in call
                 if self.value.upper() == "CALL" and isinstance(self.args[0].value, int):
-                    self.gas += self.args[0].value
+                    self._gas += self.args[0].value
             # If statements
             elif self.value == "if":
                 if len(self.args) == 3:
-                    self.gas = self.args[0].gas + max(self.args[1].gas, self.args[2].gas) + 3
+                    self._gas = self.args[0].gas + max(self.args[1].gas, self.args[2].gas) + 3
                 if len(self.args) == 2:
-                    self.gas = self.args[0].gas + self.args[1].gas + 17
+                    self._gas = self.args[0].gas + self.args[1].gas + 17
                 _check(
                     self.args[0].valency > 0,
                     f"zerovalent argument as a test to an if statement: {self.args[0]}",
@@ -171,7 +170,7 @@ class IRnode:
                     f"zerovalent argument to with statement: {self.args[1]}",
                 )
                 self.valency = self.args[2].valency
-                self.gas = sum([arg.gas for arg in self.args]) + 5
+                self._gas = sum([arg.gas for arg in self.args]) + 5
             # Repeat statements: repeat <index_name> <startval> <rounds> <rounds_bound> <body>
             elif self.value == "repeat":
                 _check(
@@ -194,19 +193,19 @@ class IRnode:
 
                 self.valency = 0
 
-                self.gas = counter_ptr.gas + start.gas
-                self.gas += 3  # gas for repeat_bound
+                self._gas = counter_ptr.gas + start.gas
+                self._gas += 3  # gas for repeat_bound
                 int_bound = int(repeat_bound.value)
-                self.gas += int_bound * (body.gas + 50) + 30
+                self._gas += int_bound * (body.gas + 50) + 30
 
                 if repeat_count != repeat_bound:
                     # gas for assert(repeat_count <= repeat_bound)
-                    self.gas += 18
+                    self._gas += 18
 
             # Seq statements: seq <statement> <statement> ...
             elif self.value == "seq":
                 self.valency = self.args[-1].valency if self.args else 0
-                self.gas = sum([arg.gas for arg in self.args]) + 30
+                self._gas = sum([arg.gas for arg in self.args]) + 30
 
             # GOTO is a jump with args
             # e.g. (goto my_label x y z) will push x y and z onto the stack,
@@ -219,19 +218,19 @@ class IRnode:
                     )
 
                 self.valency = 0
-                self.gas = sum([arg.gas for arg in self.args])
+                self._gas = sum([arg.gas for arg in self.args])
             elif self.value == "label":
                 if not self.args[1].value == "var_list":
                     raise CodegenPanic(f"2nd argument to label must be var_list, {self}")
                 self.valency = 0
-                self.gas = 1 + sum(t.gas for t in self.args)
+                self._gas = 1 + sum(t.gas for t in self.args)
             # var_list names a variable number stack variables
             elif self.value == "var_list":
                 for arg in self.args:
                     if not isinstance(arg.value, str) or len(arg.args) > 0:
                         raise CodegenPanic(f"var_list only takes strings: {self.args}")
                 self.valency = 0
-                self.gas = 0
+                self._gas = 0
 
             # Multi statements: multi <expr> <expr> ...
             elif self.value == "multi":
@@ -240,27 +239,27 @@ class IRnode:
                         arg.valency > 0, f"Multi expects all children to not be zerovalent: {arg}"
                     )
                 self.valency = sum([arg.valency for arg in self.args])
-                self.gas = sum([arg.gas for arg in self.args])
+                self._gas = sum([arg.gas for arg in self.args])
             elif self.value == "deploy":
                 self.valency = 0
-                self.gas = NullAttractor()  # unknown
+                self._gas = NullAttractor()  # unknown
             # Stack variables
             else:
                 self.valency = 1
-                self.gas = 3
+                self._gas = 3
         elif self.value is None:
             self.valency = 1
             # None IRnodes always get compiled into something else, e.g.
             # mzero or PUSH1 0, and the gas will get re-estimated then.
-            self.gas = 3
+            self._gas = 3
         else:
             raise CompilerPanic(f"Invalid value for IR AST node: {self.value}")
         assert isinstance(self.args, list)
 
-        if valency is not None:
-            self.valency = valency
-
-        self.gas += self.add_gas_estimate
+    # TODO would be nice to rename to `gas_estimate` or `gas_bound`
+    @property
+    def gas(self):
+        return self._gas + self.add_gas_estimate
 
     # the IR should be cached.
     # TODO make this private. turns out usages are all for the caching
@@ -450,7 +449,6 @@ class IRnode:
         annotation: Optional[str] = None,
         mutable: bool = True,
         add_gas_estimate: int = 0,
-        valency: Optional[int] = None,
         encoding: Encoding = Encoding.VYPER,
     ) -> "IRnode":
         if isinstance(typ, str):
@@ -478,7 +476,6 @@ class IRnode:
                 annotation=annotation,
                 mutable=mutable,
                 add_gas_estimate=add_gas_estimate,
-                valency=valency,
                 encoding=encoding,
             )
         else:
@@ -491,6 +488,5 @@ class IRnode:
                 mutable=mutable,
                 source_pos=source_pos,
                 add_gas_estimate=add_gas_estimate,
-                valency=valency,
                 encoding=encoding,
             )

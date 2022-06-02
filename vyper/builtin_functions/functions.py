@@ -17,6 +17,8 @@ from vyper.codegen.core import (
     add_ofst,
     bytes_data_ptr,
     check_external_call,
+    clamp,
+    clamp2,
     clamp_basetype,
     copy_bytes,
     ensure_in_memory,
@@ -36,6 +38,7 @@ from vyper.codegen.types import (
     SArrayType,
     StringType,
     TupleType,
+    get_type_for_exact_size,
     is_base_type,
     is_bytes_m_type,
     parse_integer_typeinfo,
@@ -72,6 +75,7 @@ from vyper.semantics.types.value.array_value import (
     StringDefinition,
     StringPrimitive,
 )
+from vyper.semantics.types.value.bytes_fixed import Bytes4Definition  # type: ignore
 from vyper.semantics.types.value.bytes_fixed import Bytes32Definition
 from vyper.semantics.types.value.numeric import Int256Definition  # type: ignore
 from vyper.semantics.types.value.numeric import Uint256Definition  # type: ignore
@@ -86,9 +90,11 @@ from vyper.utils import (
     DECIMAL_DIVISOR,
     MemoryPositions,
     SizeLimits,
+    abi_method_id,
     bytes_to_int,
     fourbytes_to_int,
     keccak256,
+    vyper_warn,
 )
 
 from .signatures import Optional, validate_inputs
@@ -98,7 +104,12 @@ SHA256_BASE_GAS = 60
 SHA256_PER_WORD_GAS = 12
 
 
-class _SimpleBuiltinFunction:
+class _BuiltinFunction:
+    def __repr__(self):
+        return f"builtin function {self._id}"
+
+
+class _SimpleBuiltinFunction(_BuiltinFunction):
     def fetch_call_return(self, node):
         validate_call_args(node, len(self._inputs), getattr(self, "_kwargs", []))
         for arg, (_, expected) in zip(node.args, self._inputs):
@@ -164,7 +175,7 @@ class Ceil(_SimpleBuiltinFunction):
         )
 
 
-class Convert:
+class Convert(_BuiltinFunction):
 
     _id = "convert"
 
@@ -242,7 +253,7 @@ def _build_adhoc_slice_node(sub: IRnode, start: IRnode, length: IRnode, context:
     return IRnode.from_list(node, typ=ByteArrayType(length.value), location=MEMORY)
 
 
-class Slice:
+class Slice(_BuiltinFunction):
 
     _id = "slice"
     _inputs = [("b", ("Bytes", "bytes32", "String")), ("start", "uint256"), ("length", "uint256")]
@@ -288,9 +299,9 @@ class Slice:
 
             if start_literal is not None:
                 if start_literal > arg_type.length:
-                    raise ArgumentException("slice out of bounds for {arg_type}", start_expr)
+                    raise ArgumentException(f"slice out of bounds for {arg_type}", start_expr)
                 if length_literal is not None and start_literal + length_literal > arg_type.length:
-                    raise ArgumentException("slice out of bounds for {arg_type}", node)
+                    raise ArgumentException(f"slice out of bounds for {arg_type}", node)
 
         # we know the length statically
         if length_literal is not None:
@@ -383,7 +394,6 @@ class Slice:
                 # e.g. start == byte 0 -> we copy to dst_data + 0
                 #      start == byte 7 -> we copy to dst_data - 7
                 #      start == byte 33 -> we copy to dst_data - 1
-                # TODO add optimizer rule for modulus-powers-of-two
                 copy_dst = IRnode.from_list(
                     ["sub", dst_data, ["mod", start, 32]], location=dst.location
                 )
@@ -447,7 +457,7 @@ class Len(_SimpleBuiltinFunction):
         return get_bytearray_length(arg)
 
 
-class Concat:
+class Concat(_BuiltinFunction):
 
     _id = "concat"
 
@@ -681,7 +691,7 @@ class Sha256(_SimpleBuiltinFunction):
         )
 
 
-class MethodID:
+class MethodID(_BuiltinFunction):
 
     _id = "method_id"
 
@@ -696,25 +706,22 @@ class MethodID:
 
         if node.keywords:
             return_type = get_type_from_annotation(node.keywords[0].value, DataLocation.UNSET)
-            if isinstance(return_type, Bytes32Definition):
-                length = 32
+            if isinstance(return_type, Bytes4Definition):
+                is_bytes4 = True
             elif isinstance(return_type, BytesArrayDefinition) and return_type.length == 4:
-                length = 4
+                is_bytes4 = False
             else:
-                raise ArgumentException("output_type must be bytes[4] or bytes32", node.keywords[0])
+                raise ArgumentException("output_type must be Bytes[4] or bytes4", node.keywords[0])
         else:
-            # if `output_type` is not given, default to `bytes[4]`
-            length = 4
+            # If `output_type` is not given, default to `Bytes[4]`
+            is_bytes4 = False
 
-        method_id = fourbytes_to_int(keccak256(args[0].value.encode())[:4])
-        value = method_id.to_bytes(length, "big")
+        value = abi_method_id(args[0].value)
 
-        if length == 32:
-            return vy_ast.Hex.from_node(node, value=f"0x{value.hex()}")
-        elif length == 4:
-            return vy_ast.Bytes.from_node(node, value=value)
+        if is_bytes4:
+            return vy_ast.Hex.from_node(node, value=hex(value))
         else:
-            raise CompilerPanic
+            return vy_ast.Bytes.from_node(node, value=value.to_bytes(4, "big"))
 
     def fetch_call_return(self, node):
         raise CompilerPanic("method_id should always be folded")
@@ -891,7 +898,9 @@ class Extract32(_SimpleBuiltinFunction):
                     "with",
                     "_sub",
                     sub,
-                    elementgetter(["div", ["clamp", 0, index, ["sub", lengetter, 32]], 32]),
+                    elementgetter(
+                        ["div", clamp2(0, index, ["sub", lengetter, 32], signed=True), 32]
+                    ),
                 ],
                 typ=BaseType(ret_type),
                 annotation="extracting 32 bytes",
@@ -910,7 +919,7 @@ class Extract32(_SimpleBuiltinFunction):
                         [
                             "with",
                             "_index",
-                            ["clamp", 0, index, ["sub", "_len", 32]],
+                            clamp2(0, index, ["sub", "_len", 32], signed=True),
                             [
                                 "with",
                                 "_mi32",
@@ -947,7 +956,7 @@ class Extract32(_SimpleBuiltinFunction):
         )
 
 
-class AsWeiValue:
+class AsWeiValue(_BuiltinFunction):
 
     _id = "as_wei_value"
     _inputs = [("value", NumericAbstractType()), ("unit", "str_literal")]
@@ -1242,12 +1251,12 @@ class BlockHash(_SimpleBuiltinFunction):
     @validate_inputs
     def build_IR(self, expr, args, kwargs, contact):
         return IRnode.from_list(
-            ["blockhash", ["uclamplt", ["clampge", args[0], ["sub", ["number"], 256]], "number"]],
+            ["blockhash", clamp("lt", clamp("sge", args[0], ["sub", ["number"], 256]), "number")],
             typ=BaseType("bytes32"),
         )
 
 
-class RawLog:
+class RawLog(_BuiltinFunction):
 
     _id = "raw_log"
     _inputs = [("topics", "*"), ("data", ("bytes32", "Bytes"))]
@@ -1648,10 +1657,13 @@ class CreateForwarderTo(_SimpleBuiltinFunction):
         )
 
 
-class _UnsafeMath:
+class _UnsafeMath(_BuiltinFunction):
 
     # TODO add unsafe math for `decimal`s
     _inputs = [("a", IntegerAbstractType()), ("b", IntegerAbstractType())]
+
+    def __repr__(self):
+        return f"builtin function unsafe_{self.op}"
 
     def fetch_call_return(self, node):
         validate_call_args(node, 2)
@@ -1710,7 +1722,7 @@ class UnsafeDiv(_UnsafeMath):
     op = "div"
 
 
-class _MinMax:
+class _MinMax(_BuiltinFunction):
 
     _inputs = [("a", NumericAbstractType()), ("b", NumericAbstractType())]
 
@@ -1739,7 +1751,7 @@ class _MinMax:
             *node.args, filter_fn=lambda x: isinstance(x, NumericAbstractType)
         )
         if not types_list:
-            raise TypeMismatch
+            raise TypeMismatch("Cannot perform action between dislike numeric types", node)
 
         return types_list.pop()
 
@@ -1851,7 +1863,7 @@ else:
         )
 
 
-class Empty:
+class Empty(_BuiltinFunction):
 
     _id = "empty"
     _inputs = [("typename", "*")]
@@ -1865,6 +1877,43 @@ class Empty:
     def build_IR(self, expr, args, kwargs, context):
         output_type = context.parse_type(expr.args[0])
         return IRnode("~empty", typ=output_type)
+
+
+class Print(_SimpleBuiltinFunction):
+    _id = "print"
+
+    _warned = False
+
+    def fetch_call_return(self, node):
+        if not self._warned:
+            vyper_warn("`print` should only be used for debugging!\n" + node._annotated_source)
+            self._warned = True
+
+        return None
+
+    def build_IR(self, expr, context):
+        args = [Expr(arg, context).ir_node for arg in expr.args]
+        args_tuple_t = TupleType([x.typ for x in args])
+        args_as_tuple = IRnode.from_list(["multi"] + [x for x in args], typ=args_tuple_t)
+        args_abi_t = args_tuple_t.abi_type
+        # create a signature like "log(uint256)"
+        sig = "log" + "(" + ",".join([arg.typ.abi_type.selector_name() for arg in args]) + ")"
+        method_id = abi_method_id(sig)
+
+        buflen = 32 + args_abi_t.size_bound()
+
+        # 32 bytes extra space for the method id
+        buf = context.new_internal_variable(get_type_for_exact_size(buflen))
+
+        ret = ["seq"]
+        ret.append(["mstore", buf, method_id])
+        encode = abi_encode(buf + 32, args_as_tuple, context, buflen, returns_len=True)
+
+        # debug address that tooling uses
+        CONSOLE_ADDRESS = 0x000000000000000000636F6E736F6C652E6C6F67
+        ret.append(["staticcall", "gas", CONSOLE_ADDRESS, buf + 28, encode, 0, 0])
+
+        return IRnode.from_list(ret, annotation="print:" + sig)
 
 
 class ABIEncode(_SimpleBuiltinFunction):
@@ -2046,6 +2095,7 @@ DISPATCH_TABLE = {
 
 STMT_DISPATCH_TABLE = {
     "send": Send(),
+    "print": Print(),
     "selfdestruct": SelfDestruct(),
     "raw_call": RawCall(),
     "raw_log": RawLog(),

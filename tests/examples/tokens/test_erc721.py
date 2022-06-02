@@ -257,8 +257,8 @@ def onERC721Received(
         _from: address,
         _tokenId: uint256,
         _data: Bytes[1024]
-    ) -> bytes32:
-    return method_id("onERC721Received(address,address,uint256,bytes)", output_type=bytes32)
+    ) -> bytes4:
+    return method_id("onERC721Received(address,address,uint256,bytes)", output_type=bytes4)
     """
     )
     tx_hash = c.safeTransferFrom(

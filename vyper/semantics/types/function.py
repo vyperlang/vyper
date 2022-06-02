@@ -1,7 +1,7 @@
 import re
 import warnings
 from collections import OrderedDict
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 from vyper import ast as vy_ast
 from vyper.ast.validation import validate_call_args
@@ -122,8 +122,12 @@ class ContractFunction(BaseTypeDefinition):
         self.mutability = state_mutability
         self.nonreentrant = nonreentrant
 
+        # a list of internal functions this function calls
+        self.called_functions: Set["ContractFunction"] = set()
+
     def __repr__(self):
-        return f"contract function '{self.name}'"
+        arg_types = ",".join(repr(a) for a in self.arguments.values())
+        return f"contract function {self.name}({arg_types})"
 
     @classmethod
     def from_abi(cls, abi: Dict) -> "ContractFunction":
@@ -307,7 +311,7 @@ class ContractFunction(BaseTypeDefinition):
 
         namespace = get_namespace()
         for arg, value in zip(node.args.args, defaults):
-            if arg.arg in ("gas", "value", "skip_contract_check"):
+            if arg.arg in ("gas", "value", "skip_contract_check", "default_return_value"):
                 raise ArgumentException(
                     f"Cannot use '{arg.arg}' as a variable name in a function input",
                     arg,
@@ -357,7 +361,7 @@ class ContractFunction(BaseTypeDefinition):
         if hasattr(self, "reentrancy_key_position"):
             raise CompilerPanic("Position was already assigned")
         if self.nonreentrant is None:
-            raise CompilerPanic("No reentrant key {self}")
+            raise CompilerPanic(f"No reentrant key {self}")
         # sanity check even though implied by the type
         if position._location != DataLocation.STORAGE:
             raise CompilerPanic("Non-storage reentrant key")
@@ -395,6 +399,14 @@ class ContractFunction(BaseTypeDefinition):
             function_visibility=FunctionVisibility.EXTERNAL,
             state_mutability=StateMutability.VIEW,
         )
+
+    @property
+    def is_external(self) -> bool:
+        return self.visibility == FunctionVisibility.EXTERNAL
+
+    @property
+    def is_internal(self) -> bool:
+        return self.visibility == FunctionVisibility.INTERNAL
 
     @property
     def method_ids(self) -> Dict[str, int]:
@@ -446,18 +458,18 @@ class ContractFunction(BaseTypeDefinition):
 
     def fetch_call_return(self, node: vy_ast.Call) -> Optional[BaseTypeDefinition]:
         if node.get("func.value.id") == "self" and self.visibility == FunctionVisibility.EXTERNAL:
-            raise CallViolation("Cannnot call external functions via 'self'", node)
+            raise CallViolation("Cannot call external functions via 'self'", node)
 
         # for external calls, include gas and value as optional kwargs
         kwarg_keys = self.kwarg_keys.copy()
         if node.get("func.value.id") != "self":
-            kwarg_keys += ["gas", "value", "skip_contract_check"]
+            kwarg_keys += ["gas", "value", "skip_contract_check", "default_return_value"]
         validate_call_args(node, (self.min_arg_count, self.max_arg_count), kwarg_keys)
 
         if self.mutability < StateMutability.PAYABLE:
             kwarg_node = next((k for k in node.keywords if k.arg == "value"), None)
             if kwarg_node is not None:
-                raise CallViolation("Cannnot send ether to nonpayable function", kwarg_node)
+                raise CallViolation("Cannot send ether to nonpayable function", kwarg_node)
 
         for arg, expected in zip(node.args, self.arguments.values()):
             validate_expected_type(arg, expected)
@@ -465,10 +477,12 @@ class ContractFunction(BaseTypeDefinition):
         for kwarg in node.keywords:
             if kwarg.arg in ("gas", "value"):
                 validate_expected_type(kwarg.value, Uint256Definition())
-            elif kwarg.arg in ("skip_contract_check"):
+            elif kwarg.arg in ("skip_contract_check",):
                 validate_expected_type(kwarg.value, BoolDefinition())
                 if not isinstance(kwarg.value, vy_ast.NameConstant):
                     raise InvalidType("skip_contract_check must be literal bool", kwarg.value)
+            elif kwarg.arg in ("default_return_value",):
+                validate_expected_type(kwarg.value, self.return_type)
             else:
                 # Generate the modified source code string with the kwarg removed
                 # as a suggestion to the user.

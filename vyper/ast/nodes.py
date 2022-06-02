@@ -331,16 +331,18 @@ class VyperNode:
     def __repr__(self):
         cls = type(self)
         class_repr = f"{cls.__module__}.{cls.__qualname__}"
+        return f"{class_repr}:\n{self._annotated_source}"
 
-        source_annotation = annotate_source_code(
+    @property
+    def _annotated_source(self):
+        # return source with context / line/col info
+        return annotate_source_code(
             self.full_source_code,
             self.lineno,
             self.col_offset,
             context_lines=VYPER_ERROR_CONTEXT_LINES,
             line_numbers=VYPER_ERROR_LINE_NUMBERS,
         )
-
-        return f"{class_repr}:\n{source_annotation}"
 
     @property
     def description(self):
@@ -387,6 +389,10 @@ class VyperNode:
                 ast_dict[key] = [_to_dict(i) for i in value]
             else:
                 ast_dict[key] = _to_dict(value)
+
+        if "type" in self._metadata:
+            ast_dict["type"] = str(self._metadata["type"])
+
         return ast_dict
 
     def get_ancestor(self, node_type: Union["VyperNode", tuple, None] = None) -> "VyperNode":

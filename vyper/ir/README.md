@@ -302,25 +302,6 @@ Compare or equal
 ### SELECT
 `(select cond x y)` is similar to `(if cond x y)` but it may evaluate both branches. Whether or not both branches are taken is unspecified. If `cond` is not in `(0, 1)` the behavior is undefined. It is analogous to LLVM `select` and is intended to compile to branchless code.
 
-### CLAMP\*
-
-Clamp pseudo-opcodes ensure that an input is bounded by some other input(s), and returns its first input.
-
-`(uclamp x y z)` is equivalent to `(with x_ x (with y_ y (with z_ z (seq (assert (gt x_ y_)) (assert (lt x_ z_)) x_))))`
-
-`clamp` is equivalent to `uclamp` but with `sgt` and `slt` instead of `gt` and `lt`.
-
-`(uclamplt x y)` is equivalent to `(with x_ x (with y_ y (seq (assert lt x_ y_) x_)))`
-The remaining clamp opcodes behave similarly. They are,
-```
-uclample
-clamplt
-clample
-uclampgt
-uclampge
-clampgt
-clampge
-```
 
 ### SHA3\_32, SHA3\_64
 
