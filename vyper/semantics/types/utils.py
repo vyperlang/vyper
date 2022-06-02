@@ -255,9 +255,14 @@ def generate_abi_type(type_definition, name=""):
         }
     if isinstance(type_definition, (ArrayDefinition, DynamicArrayDefinition)):
         if isinstance(type_definition.value_type, StructDefinition):
+            if isinstance(type_definition, ArrayDefinition):
+                type_ = f"tuple[{type_definition.length}]"
+            else:
+                type_ = "tuple[]"
+
             return {
                 "name": name,
-                "type": "tuple[]",
+                "type": type_,
                 "components": generate_abi_type(type_definition.value_type)["components"],
             }
 
