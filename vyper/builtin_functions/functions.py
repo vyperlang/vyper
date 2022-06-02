@@ -2212,13 +2212,15 @@ class ABIDecode(_SimpleBuiltinFunction):
         data = ensure_in_memory(data, context)
         data_ptr = bytes_data_ptr(data)
 
-        return IRnode.from_list(
+        ret = IRnode.from_list(
             data_ptr,
             typ=old_output_typ,
             location=data.location,
             encoding=Encoding.ABI,
             annotation="abi_decode builtin",
         )
+        ret.encoding = Encoding.ABI
+        return ret
 
 
 DISPATCH_TABLE = {
