@@ -23,6 +23,7 @@ from vyper.codegen.types import (
     ByteArrayLike,
     ByteArrayType,
     DArrayType,
+    EnumType,
     InterfaceType,
     MappingType,
     SArrayType,
@@ -190,12 +191,12 @@ class Expr:
         self.ir_node.source_pos = getpos(self.expr)
 
     def parse_Int(self):
-        # Literal (mostly likely) becomes int256
-        if self.expr.n < 0:
-            return IRnode.from_list(self.expr.n, typ=BaseType("int256", is_literal=True))
-        # Literal is large enough (mostly likely) becomes uint256.
-        else:
-            return IRnode.from_list(self.expr.n, typ=BaseType("uint256", is_literal=True))
+        typ_ = self.expr._metadata.get("type")
+        if typ_ is None:
+            raise CompilerPanic("Type of integer literal is unknown")
+        new_typ = new_type_to_old_type(typ_)
+        new_typ.is_literal = True
+        return IRnode.from_list(self.expr.n, typ=new_typ)
 
     def parse_Decimal(self):
         val = self.expr.value * DECIMAL_DIVISOR
@@ -316,6 +317,16 @@ class Expr:
 
     # x.y or x[5]
     def parse_Attribute(self):
+        typ = self.expr._metadata.get("type")
+        if typ is not None:
+            typ = new_type_to_old_type(typ)
+        if isinstance(typ, EnumType):
+            assert typ.name == self.expr.value.id
+            # 0, 1, 2, .. 255
+            enum_id = typ.members[self.expr.attr]
+            value = 2 ** enum_id  # 0 => 0001, 1 => 0010, 2 => 0100, etc.
+            return IRnode.from_list(value, typ=typ)
+
         # x.balance: balance of address x
         if self.expr.attr == "balance":
             addr = Expr.parse_value_expr(self.expr.value, self.context)
@@ -334,7 +345,7 @@ class Expr:
             addr = Expr.parse_value_expr(self.expr.value, self.context)
             if is_base_type(addr.typ, "address"):
                 if self.expr.attr == "codesize":
-                    if self.expr.value.id == "self":
+                    if self.expr.get("value.id") == "self":
                         eval_code = ["codesize"]
                     else:
                         eval_code = ["extcodesize", addr]

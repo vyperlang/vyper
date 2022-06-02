@@ -23,7 +23,7 @@ from vyper.codegen.core import (
 )
 from vyper.codegen.expr import Expr
 from vyper.codegen.return_ import make_return_stmt
-from vyper.codegen.types import BaseType, ByteArrayType, DArrayType, parse_type
+from vyper.codegen.types import BaseType, ByteArrayType, DArrayType
 from vyper.codegen.types.convert import new_type_to_old_type
 from vyper.exceptions import CompilerPanic, StructureException, TypeCheckFailure
 
@@ -59,11 +59,7 @@ class Stmt:
             raise StructureException(f"Unsupported statement type: {type(self.stmt)}", self.stmt)
 
     def parse_AnnAssign(self):
-        typ = parse_type(
-            self.stmt.annotation,
-            sigs=self.context.sigs,
-            custom_structs=self.context.structs,
-        )
+        typ = self.context.parse_type(self.stmt.annotation)
         varname = self.stmt.target.id
         pos = self.context.new_variable(varname, typ)
         if self.stmt.value is None:
@@ -232,25 +228,13 @@ class Stmt:
         else:
             return IRnode.from_list(["revert", 0, 0])
 
-    def _check_valid_range_constant(self, arg_ast_node, raise_exception=True):
+    def _check_valid_range_constant(self, arg_ast_node):
         with self.context.range_scope():
-            # TODO should catch if raise_exception == False?
             arg_expr = Expr.parse_value_expr(arg_ast_node, self.context)
-
-        is_integer_literal = (
-            isinstance(arg_expr.typ, BaseType)
-            and arg_expr.typ.is_literal
-            and arg_expr.typ.typ in {"uint256", "int256"}
-        )
-        if not is_integer_literal and raise_exception:
-            raise StructureException(
-                "Range only accepts literal (constant) values of type uint256 or int256",
-                arg_ast_node,
-            )
-        return is_integer_literal, arg_expr
+        return arg_expr
 
     def _get_range_const_value(self, arg_ast_node):
-        _, arg_expr = self._check_valid_range_constant(arg_ast_node)
+        arg_expr = self._check_valid_range_constant(arg_ast_node)
         return arg_expr.value
 
     def parse_For(self):
@@ -279,7 +263,7 @@ class Stmt:
             rounds = arg0_val
 
         # Type 2 for, e.g. for i in range(100, 110): ...
-        elif self._check_valid_range_constant(self.stmt.iter.args[1], raise_exception=False)[0]:
+        elif self._check_valid_range_constant(self.stmt.iter.args[1]).typ.is_literal:
             arg0_val = self._get_range_const_value(arg0)
             arg1_val = self._get_range_const_value(self.stmt.iter.args[1])
             start = IRnode.from_list(arg0_val, typ=iter_typ)
