@@ -12,7 +12,11 @@ from vyper.exceptions import (
 )
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.bases import BaseTypeDefinition, DataLocation
-from vyper.semantics.types.indexable.sequence import ArrayDefinition, TupleDefinition
+from vyper.semantics.types.indexable.sequence import (
+    ArrayDefinition,
+    DynamicArrayDefinition,
+    TupleDefinition,
+)
 from vyper.semantics.validation.levenshtein_utils import get_levenshtein_error_suggestions
 from vyper.semantics.validation.utils import get_exact_type_from_node, get_index_value
 
@@ -249,4 +253,12 @@ def generate_abi_type(type_definition, name=""):
             "type": "tuple",
             "components": [generate_abi_type(i) for i in type_definition.value_type],
         }
+    if isinstance(type_definition, (ArrayDefinition, DynamicArrayDefinition)):
+        if isinstance(type_definition.value_type, StructDefinition):
+            return {
+                "name": name,
+                "type": "tuple[]",
+                "components": generate_abi_type(type_definition.value_type)["components"],
+            }
+
     return {"name": name, "type": type_definition.canonical_abi_type}
