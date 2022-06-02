@@ -359,19 +359,6 @@ class Expr:
         if not is_numeric_type(left.typ) or not is_numeric_type(right.typ):
             return
 
-        types = {left.typ.typ, right.typ.typ}
-        literals = {left.typ.is_literal, right.typ.is_literal}
-
-        # If one value of the operation is a literal, we recast it to match the non-literal type.
-        # We know this is OK because types were already verified in the actual typechecking pass.
-        # This is a temporary solution to not break codegen while we work toward removing types
-        # altogether at this stage of complition. @iamdefinitelyahuman
-        if literals == {True, False} and len(types) > 1 and "decimal" not in types:
-            if left.typ.is_literal and SizeLimits.in_bounds(right.typ.typ, left.value):
-                left = IRnode.from_list(left.value, typ=BaseType(right.typ.typ, is_literal=True))
-            elif right.typ.is_literal and SizeLimits.in_bounds(left.typ.typ, right.value):
-                right = IRnode.from_list(right.value, typ=BaseType(left.typ.typ, is_literal=True))
-
         ltyp, rtyp = left.typ.typ, right.typ.typ
 
         # Sanity check - ensure that we aren't dealing with different types
