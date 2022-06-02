@@ -122,7 +122,7 @@ optimize_list = [
     (["eq", -1, ["add", -(2 ** 255), 2 ** 255 - 1]], [1]),  # test compile-time wrapping
     (["eq", -2, ["add", 2 ** 256 - 1, 2 ** 256 - 1]], [1]),  # test compile-time wrapping
     (["eq", "x", "x"], [1]),
-    (["eq", "callvalue", "callvalue"], ["eq", "callvalue", "callvalue"]),
+    (["eq", "callvalue", "callvalue"], None),
     (["ne", "x", "x"], [0]),
 ]
 
