@@ -2190,21 +2190,16 @@ class ABIDecode(_SimpleBuiltinFunction):
         new_output_typ = self.fetch_call_return(expr)
         old_output_typ = new_type_to_old_type(new_output_typ)
 
-        # Determine the expected size of the data based on the LHS
-        if isinstance(new_output_typ, TupleDefinition):
-            output_typ_sizes = [o[1].abi_type.size_bound() for o in old_output_typ.tuple_items()]
-        else:
-            # output_typ = output_typ.tuple_items()[0][1]
-            output_typ_sizes = [old_output_typ.abi_type.size_bound()]
+        output_type_size = new_output_typ.abi_type.size_bound()
 
         # Get the size of data
         data_typ_size = self.infer_arg_types(expr)[0].length
 
-        if data_typ_size < sum(output_typ_sizes):
+        if data_typ_size < output_type_size:
             raise StructureException(
                 (
                     "Mismatch between size of input and size of decoded types. "
-                    f"Expected at least {sum(output_typ_sizes)} but input is {data_typ_size}."
+                    f"Expected at least {output_type_size} but input is {data_typ_size}."
                 ),
                 expr.args[0],
             )
