@@ -36,7 +36,13 @@ from vyper.codegen.types import (
 )
 from vyper.codegen.types.convert import new_type_to_old_type
 from vyper.evm.opcodes import version_check
-from vyper.exceptions import EvmVersionException, StructureException, TypeCheckFailure, TypeMismatch
+from vyper.exceptions import (
+    CompilerPanic,
+    EvmVersionException,
+    StructureException,
+    TypeCheckFailure,
+    TypeMismatch,
+)
 from vyper.utils import (
     DECIMAL_DIVISOR,
     SizeLimits,
