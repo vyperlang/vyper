@@ -26,9 +26,9 @@ paused: public(bool)
 
 # the contracts URI to find the metadata
 _uri: String[MAX_URI_LENGTH]
-_contractUri: String[MAX_URI_LENGTH]
+contractURI: public(String[MAX_URI_LENGTH])
 
-# NFT marketplace compatibility
+# Name and symbol are not part of the ERC1155 standard. For opensea compatibility
 name: public(String[128])
 symbol: public(String[16])
 
@@ -130,7 +130,7 @@ def __init__(name: String[128], symbol: String[16], uri: String[1024], contractU
     self.symbol = symbol
     self.owner = msg.sender
     self._uri = uri
-    self._contractUri = contractUri
+    self.contractURI = contractUri
 
 ## contract status ##
 @external
@@ -366,22 +366,14 @@ def uri(id: uint256) -> String[MAX_URI_LENGTH]:
 def setContractURI(contractUri: String[MAX_URI_LENGTH]):
     """
     @dev set the contractURI for the contract. points to collection metadata file
+    @dev This function is opensea specific and is required to properly show collection metadata and image
     @param contractUri the new urcontractUri for the contract
     """
     assert not self.paused, "The contract has been paused"
-    assert self._contractUri != contractUri, "new and current URI are identical"
+    assert self.contractURI != contractUri, "new and current URI are identical"
     assert msg.sender == self.owner, "Only the contract owner can update the URI"
-    self._contractUri = contractUri
+    self.contractURI = contractUri
     log evtContractURI(contractUri, 0)
-
-
-@view
-@external
-def contractURI() -> String[MAX_URI_LENGTH]:
-    """
-    @dev retrieve the contractUri to retrieve the collection metadata
-    """
-    return self._contractUri
 
 @pure
 @external
