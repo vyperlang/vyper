@@ -25,7 +25,7 @@ owner: public(address)
 paused: public(bool)                            
 
 # the contracts URI to find the metadata
-_uri: String[MAX_URI_LENGTH]
+uri: public(String[MAX_URI_LENGTH])
 contractURI: public(String[MAX_URI_LENGTH])
 
 # Name and symbol are not part of the ERC1155 standard. For opensea compatibility
@@ -86,12 +86,6 @@ event URI:
     value: String[MAX_URI_LENGTH]
     id: uint256
 
-event evtContractURI:
-    # This emits when the contractURI gets changed
-    value: String[MAX_URI_LENGTH]
-    id: uint256
-
-
 ############### interfaces ###############
 implements: ERC165
 
@@ -129,7 +123,7 @@ def __init__(name: String[128], symbol: String[16], uri: String[1024], contractU
     self.name = name
     self.symbol = symbol
     self.owner = msg.sender
-    self._uri = uri
+    self.uri = uri
     self.contractURI = contractUri
 
 ## contract status ##
@@ -347,19 +341,19 @@ def setURI(uri: String[MAX_URI_LENGTH]):
     @param uri the new uri for the contract
     """
     assert not self.paused, "The contract has been paused"
-    assert self._uri != uri, "new and current URI are identical"
+    assert self.uri != uri, "new and current URI are identical"
     assert msg.sender == self.owner, "Only the contract owner can update the URI"
-    self._uri = uri
+    self.uri = uri
     log URI(uri, 0)
 
-@view
-@external
-def uri(id: uint256) -> String[MAX_URI_LENGTH]:
-    """
-    @dev retrieve the uri, this function can optionally be extended to return dynamic uris. out of scope.
-    @param id NFT ID to retrieve the uri for. 
-    """
-    return self._uri
+# @view
+# @external
+# def uri(id: uint256) -> String[MAX_URI_LENGTH]:
+#     """
+#     @dev retrieve the uri, this function can optionally be extended to return dynamic uris. out of scope.
+#     @param id NFT ID to retrieve the uri for. 
+#     """
+#     return self._uri
 
 # URI #
 @external
@@ -373,7 +367,7 @@ def setContractURI(contractUri: String[MAX_URI_LENGTH]):
     assert self.contractURI != contractUri, "new and current URI are identical"
     assert msg.sender == self.owner, "Only the contract owner can update the URI"
     self.contractURI = contractUri
-    log evtContractURI(contractUri, 0)
+    log URI(contractUri, 0)
 
 @pure
 @external
