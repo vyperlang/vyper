@@ -95,10 +95,12 @@ from vyper.semantics.validation.utils import (
 from vyper.utils import (
     DECIMAL_DIVISOR,
     EIP_170_LIMIT,
+    SHA3_PER_WORD,
     MemoryPositions,
     SizeLimits,
     abi_method_id,
     bytes_to_int,
+    ceil32,
     fourbytes_to_int,
     keccak256,
     vyper_warn,
@@ -1693,7 +1695,7 @@ class CreateForwarderTo(_SimpleBuiltinFunction):
         salt = kwargs["salt"]
         should_use_create2 = "salt" in [kwarg.arg for kwarg in expr.keywords]
 
-        context.check_is_not_constant("create")
+        context.check_is_not_constant("create", expr)
 
         placeholder = context.new_internal_variable(ByteArrayType(96))
 
@@ -1754,7 +1756,7 @@ def _create_preamble(codesize):
     evm = assembly_to_evm(asm)[0]
     assert len(evm) == evm_len, evm
 
-    shl_bits = (evm_len - 1) * 8  # codesize needs to go right after the PUSH2
+    shl_bits = (evm_len - 3) * 8  # codesize needs to go right after the PUSH2
     return ["or", bytes_to_int(evm), shl(shl_bits, ["and", 0xFFFF, codesize])], evm_len
 
 
@@ -1782,6 +1784,8 @@ class Create(_SimpleBuiltinFunction):
         value = kwargs["value"]
         salt = kwargs["salt"]
         should_use_create2 = "salt" in [kwarg.arg for kwarg in expr.keywords]
+
+        add_gas_estimate = 200 * bytecode.typ.maxlen
 
         context.check_is_not_constant("create", expr)
 
@@ -1811,21 +1815,29 @@ class Create(_SimpleBuiltinFunction):
                 if should_use_create2:
                     op = "create2"
                     op_args.append(salt)
+                    add_gas_estimate = SHA3_PER_WORD * ceil32(bytecode.typ.maxlen) // 32
 
                 with IRnode.from_list([op, *op_args]).cache_when_complex("created_address") as (
                     b3,
                     created_address,
                 ):
+                    t = ["seq"]
+
+                    # revert if contract creation failed
+                    t.append(["assert", created_address])
 
                     # restore the length of the bytestring
-                    ir.append(["mstore", bytecode, length])
-                    ir.append(created_address)
+                    t.append(["mstore", bytecode, length])
 
-                    ret = IRnode.from_list(
-                        ir, typ=BaseType("address"), add_gas_estimate=200 * bytecode.typ.maxlen
-                    )
+                    # return the created address on the stack
+                    t.append(created_address)
+                    ir.append(b3.resolve(t))
 
-                    return b1.resolve(b2.resolve(b3.resolve(ret)))
+                ret = IRnode.from_list(
+                    ir, typ=BaseType("address"), add_gas_estimate=add_gas_estimate
+                )
+
+                return b1.resolve(b2.resolve(ret))
 
 
 class CreateCopyOf(_SimpleBuiltinFunction):
@@ -1876,9 +1888,23 @@ class CreateCopyOf(_SimpleBuiltinFunction):
                     op_args.append(salt)
 
                 # TODO: revert if extcodesize is 0?
-                ir.append([op, *op_args])
 
-                ret = IRnode.from_list(ir, typ=BaseType("address"), add_gas_estimate=4_800_000)
+                with IRnode.from_list([op, *op_args]).cache_when_complex("created_address") as (
+                    b4,
+                    created_address,
+                ):
+                    t = ["seq"]
+                    # revert if contract creation failed
+                    t.append(["assert", created_address])
+                    t.append(created_address)
+                    ir.append(b4.resolve(t))
+
+                ret = IRnode.from_list(
+                    ir,
+                    typ=BaseType("address"),
+                    add_gas_estimate=200 * EIP_170_LIMIT
+                    + SHA3_PER_WORD * ceil32(EIP_170_LIMIT) // 32,
+                )
 
                 return b1.resolve(b2.resolve(b3.resolve(ret)))
 
