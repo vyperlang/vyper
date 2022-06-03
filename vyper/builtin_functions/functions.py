@@ -28,6 +28,7 @@ from vyper.codegen.core import (
     get_element_ptr,
     ir_tuple_from_args,
     promote_signed_int,
+    shl,
     unwrap_location,
 )
 from vyper.codegen.expr import Expr
@@ -93,6 +94,7 @@ from vyper.semantics.validation.utils import (
 )
 from vyper.utils import (
     DECIMAL_DIVISOR,
+    EIP_170_LIMIT,
     MemoryPositions,
     SizeLimits,
     abi_method_id,
@@ -1283,11 +1285,7 @@ class Send(_SimpleBuiltinFunction):
     @validate_inputs
     def build_IR(self, expr, args, kwargs, context):
         to, value = args
-        if context.is_constant():
-            raise StateAccessViolation(
-                f"Cannot send ether inside {context.pp_constancy()}!",
-                expr,
-            )
+        context.check_is_not_constant("send ether", expr)
         return IRnode.from_list(
             ["assert", ["call", 0, to, value, 0, 0, 0, 0]],
         )
@@ -1302,11 +1300,7 @@ class SelfDestruct(_SimpleBuiltinFunction):
 
     @validate_inputs
     def build_IR(self, expr, args, kwargs, context):
-        if context.is_constant():
-            raise StateAccessViolation(
-                f"Cannot {expr.func.id} inside {context.pp_constancy()}!",
-                expr.func,
-            )
+        context.check_is_not_constant("selfdestruct", expr)
         return IRnode.from_list(["selfdestruct", args[0]])
 
 
@@ -1699,11 +1693,8 @@ class CreateForwarderTo(_SimpleBuiltinFunction):
         salt = kwargs["salt"]
         should_use_create2 = "salt" in [kwarg.arg for kwarg in expr.keywords]
 
-        if context.is_constant():
-            raise StateAccessViolation(
-                f"Cannot make calls from {context.pp_constancy()}",
-                expr,
-            )
+        context.check_is_not_constant("create")
+
         placeholder = context.new_internal_variable(ByteArrayType(96))
 
         loader_evm, forwarder_pre_evm, forwarder_post_evm = get_create_forwarder_to_bytecode()
@@ -1741,6 +1732,31 @@ class CreateForwarderTo(_SimpleBuiltinFunction):
         )
 
 
+# helper function which returns the code starting from 0x0a with len `codesize`
+# note it assumes codesize <= 64kb
+def _create_preamble(codesize):
+
+    from vyper.ir.compile_ir import assembly_to_evm
+
+    evm_len = 0x0A
+    asm = [
+        "PUSH2",
+        0x00, 0x00,  # blank space for codesize
+        "RETURNDATASIZE",
+        "DUP2",
+        "PUSH1",
+        evm_len,
+        "RETURNDATASIZE",
+        "CODECOPY",
+        "RETURN",
+    ]
+    evm = assembly_to_evm(asm)[0]
+    assert len(evm) == evm_len, evm
+
+    shl_bits = (evm_len - 1) * 8  # codesize needs to go right after the PUSH2
+    return ["or", bytes_to_int(evm), shl(shl_bits, ["and", 0xFFFF, codesize])], evm_len
+
+
 class Create(_SimpleBuiltinFunction):
 
     _id = "create"
@@ -1755,6 +1771,8 @@ class Create(_SimpleBuiltinFunction):
         self._validate_arg_types(node)
         # return a concrete type for `value`
         value_type = get_possible_types_from_node(node.args[0]).pop()
+        if value_type.length > EIP_170_LIMIT:
+            raise TypeMismatch("Bytecode length exceeds EIP 170 limit of 24kb", node)
         return [value_type]
 
     @validate_inputs
@@ -1764,29 +1782,46 @@ class Create(_SimpleBuiltinFunction):
         salt = kwargs["salt"]
         should_use_create2 = "salt" in [kwarg.arg for kwarg in expr.keywords]
 
-        if context.is_constant():
-            raise StateAccessViolation(
-                f"Cannot make calls from {context.pp_constancy()}",
-                expr,
-            )
+        context.check_is_not_constant("create", expr)
 
         bytecode = ensure_in_memory(bytecode, context)
 
         with bytecode.cache_when_complex("create_bytes") as (b1, bytecode):
-            op = "create"
-            op_args = [value, bytes_data_ptr(bytecode), get_bytearray_length(bytecode)]
+            with get_bytearray_length(bytecode).cache_when_complex("len") as (b2, length):
+                ir = ["seq"]
 
-            if should_use_create2:
-                op = "create2"
-                op_args.append(salt)
+                # TODO check `length > 0`?
 
-            return b1.resolve(
-                IRnode.from_list(
-                    [op, *op_args],
-                    typ=BaseType("address"),
-                    add_gas_estimate=11000,
-                )
-            )
+                # construct the initcode.
+                # store the preamble at msize + 22 bytes of zero padding.
+                # note that this CLOBBERS the bytestring length;
+                # need to restore it later.
+                preamble, preamble_len = _create_preamble(length)
+                ir.append(["mstore", bytecode, preamble])
+
+                # current layout: 00...00 (22 0's) | preamble | bytecode
+                op = "create"
+                op_args = [
+                    value,
+                    add_ofst(bytecode, 32 - preamble_len),  # initcode offset
+                    ["add", length, preamble_len],  # initcode len
+                ]
+
+                if should_use_create2:
+                    op = "create2"
+                    op_args.append(salt)
+
+                with IRnode.from_list([op, *op_args]).cache_when_complex("created_address") as (b3, created_address):
+
+                    # restore the length of the bytestring
+                    ir.append(["mstore", bytecode, length])
+                    ir.append(created_address)
+
+                    ret = IRnode.from_list(
+                        ir, typ=BaseType("address"), add_gas_estimate=200 * bytecode.typ.maxlen
+                    )
+
+                    return b1.resolve(b2.resolve(b3.resolve(ret)))
 
 
 class CreateCopyOf(_SimpleBuiltinFunction):
@@ -1805,26 +1840,32 @@ class CreateCopyOf(_SimpleBuiltinFunction):
         salt = kwargs["salt"]
         should_use_create2 = "salt" in [kwarg.arg for kwarg in expr.keywords]
 
-        if context.is_constant():
-            raise StateAccessViolation(
-                f"Cannot make calls from {context.pp_constancy()}",
-                expr,
-            )
+        context.check_is_not_constant("create", expr)
 
         target = args[0]
 
         with target.cache_when_complex("create_target") as (b1, target):
             codesize = IRnode.from_list(["extcodesize", target])
-            mem_ofst = IRnode.from_list(["msize"])
+            msize = IRnode.from_list(["msize"])
             with codesize.cache_when_complex("target_codesize") as (
                 b2,
                 codesize,
-            ), mem_ofst.cache_when_complex("mem_ofst") as (b3, mem_ofst):
-                # copy the target code into memory
-                ir = ["seq", ["extcodecopy", target, mem_ofst, 0, codesize]]
+            ), msize.cache_when_complex("mem_ofst") as (b3, mem_ofst):
+                ir = ["seq"]
+                # store the preamble at msize + 22 (zero padding)
+                preamble, preamble_len = _create_preamble(codesize)
+                ir.append(["mstore", mem_ofst, preamble])
+
+                # copy the target code into memory. current layout:
+                # msize | 00...00 (22 0's) | preamble | bytecode
+                ir.append(["extcodecopy", target, add_ofst(mem_ofst, 32), 0, codesize])
 
                 op = "create"
-                op_args = [value, mem_ofst, codesize]
+                op_args = [
+                    value,
+                    add_ofst(mem_ofst, 32 - preamble_len),
+                    ["add", codesize, preamble_len],
+                ]
 
                 if should_use_create2:
                     op = "create2"
@@ -1833,17 +1874,9 @@ class CreateCopyOf(_SimpleBuiltinFunction):
                 # TODO: revert if extcodesize is 0?
                 ir.append([op, *op_args])
 
-                return b1.resolve(
-                    b2.resolve(
-                        b3.resolve(
-                            IRnode.from_list(
-                                ir,
-                                typ=BaseType("address"),
-                                add_gas_estimate=11000,
-                            )
-                        )
-                    )
-                )
+                ret = IRnode.from_list(ir, typ=BaseType("address"), add_gas_estimate=4_800_000)
+
+                return b1.resolve(b2.resolve(b3.resolve(ret)))
 
 
 class _UnsafeMath(_SimpleBuiltinFunction):
