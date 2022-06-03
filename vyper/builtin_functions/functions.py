@@ -1727,7 +1727,12 @@ class CreateForwarderTo(_SimpleBuiltinFunction):
                 ["mstore", placeholder, forwarder_preamble],
                 ["mstore", ["add", placeholder, preamble_length], target_address],
                 ["mstore", ["add", placeholder, preamble_length + 20], forwarder_post],
-                [op, *op_args],
+                [
+                    "with",
+                    "created_address",
+                    [op, *op_args],
+                    ["seq", ["assert", "created_address"], "created_address"],
+                ],
             ],
             typ=BaseType("address"),
             add_gas_estimate=11000,
