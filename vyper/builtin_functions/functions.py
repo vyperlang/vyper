@@ -2167,7 +2167,7 @@ class ABIDecode(_SimpleBuiltinFunction):
 
         # Get parent node for type inference
         parent_node = node.get_ancestor()
-        if isinstance(parent_node, vy_ast.Assign):
+        if isinstance(parent_node, (vy_ast.Assign, vy_ast.AnnAssign)):
             output_type = parent_node._metadata["type"]
 
         elif isinstance(parent_node, vy_ast.Return):

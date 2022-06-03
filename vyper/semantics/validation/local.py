@@ -234,6 +234,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             )
 
         type_definition = get_type_from_annotation(node.annotation, DataLocation.MEMORY)
+        node._metadata["type"] = type_definition
         validate_expected_type(node.value, type_definition)
 
         try:

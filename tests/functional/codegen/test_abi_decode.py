@@ -367,3 +367,16 @@ def abi_decode(x: Bytes[64]) -> (address, int128):
     encoded = abi_encode("(address,int128)", (test_addr, 123))
 
     assert tuple(c.abi_decode(encoded)) == (expected_test_addr, 123)
+
+
+def test_abi_decode_annassign(get_contract, abi_encode):
+    contract = """
+@external
+def abi_decode(x: Bytes[32]) -> uint256:
+    a: uint256 = _abi_decode(x)
+    return a
+    """
+    c = get_contract(contract)
+
+    encoded = abi_encode("uint256", 123)
+    assert c.abi_decode(encoded) == 123
