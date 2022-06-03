@@ -98,8 +98,10 @@ def foo(s: MyStruct) -> MyStruct:
     assert func_abi["inputs"][0] == expected_input
 
 
-@pytest.mark.parametrize("type", ["DynArray[NestedStruct, 2]", "NestedStruct[2]"])
-def test_nested_struct(type):
+@pytest.mark.parametrize(
+    "type,abi_type", [("DynArray[NestedStruct, 2]", "tuple[]"), ("NestedStruct[2]", "tuple[2]")]
+)
+def test_nested_struct(type, abi_type):
     code = f"""
 struct MyStruct:
     a: address
@@ -141,7 +143,7 @@ def getStructList() -> {type}:
                         {"name": "foo", "type": "uint256"},
                     ],
                     "name": "",
-                    "type": "tuple[]",
+                    "type": f"{abi_type}",
                 }
             ],
             "stateMutability": "view",

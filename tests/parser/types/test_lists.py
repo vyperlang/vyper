@@ -547,6 +547,121 @@ def bar(_baz: Foo[3]) -> String[96]:
     assert c.bar(c_input) == "Hello world!!!!"
 
 
+def test_list_of_nested_struct_arrays(get_contract):
+    code = """
+struct Ded:
+    a: uint256[3]
+    b: bool
+
+struct Foo:
+    c: uint256
+    d: uint256
+    e: Ded
+
+struct Bar:
+    f: DynArray[Foo, 3]
+    g: DynArray[uint256, 3]
+
+@external
+def bar(_bar: Bar[3]) -> uint256:
+    sum: uint256 = 0
+    for i in range(3):
+        sum += _bar[i].f[0].e.a[0] * _bar[i].f[1].e.a[1]
+    return sum
+    """
+    c = get_contract(code)
+    c_input = [
+        (
+            (
+                (
+                    123,
+                    456,
+                    (
+                        [1, 2, 3],
+                        False,
+                    ),
+                ),
+                (
+                    123,
+                    456,
+                    (
+                        [1, 2, 3],
+                        False,
+                    ),
+                ),
+                (
+                    123,
+                    456,
+                    (
+                        [1, 2, 3],
+                        False,
+                    ),
+                ),
+            ),
+            [9, 8, 7],
+        ),
+        (
+            (
+                (
+                    123,
+                    456,
+                    (
+                        [2, 3, 4],
+                        False,
+                    ),
+                ),
+                (
+                    123,
+                    456,
+                    (
+                        [2, 3, 4],
+                        False,
+                    ),
+                ),
+                (
+                    123,
+                    456,
+                    (
+                        [2, 3, 4],
+                        False,
+                    ),
+                ),
+            ),
+            [9, 8, 7],
+        ),
+        (
+            (
+                (
+                    123,
+                    456,
+                    (
+                        [4, 5, 6],
+                        False,
+                    ),
+                ),
+                (
+                    123,
+                    456,
+                    (
+                        [4, 5, 6],
+                        False,
+                    ),
+                ),
+                (
+                    123,
+                    456,
+                    (
+                        [4, 5, 6],
+                        False,
+                    ),
+                ),
+            ),
+            [9, 8, 7],
+        ),
+    ]
+    assert c.bar(c_input) == 28
+
+
 @pytest.mark.parametrize(
     "type,value",
     [
