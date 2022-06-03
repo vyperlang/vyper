@@ -1707,6 +1707,111 @@ class CreateForwarderTo(_SimpleBuiltinFunction):
         )
 
 
+class Create(_SimpleBuiltinFunction):
+
+    _id = "create"
+    _inputs = [("bytecode", BytesArrayPrimitive())]
+    _kwargs = {
+        "value": KwargSettings(Uint256Definition(), zero_value),
+        "salt": KwargSettings(Bytes32Definition(), empty_value),
+    }
+    _return_type = AddressDefinition()
+
+    def infer_arg_types(self, node):
+        self._validate_arg_types(node)
+        # return a concrete type for `value`
+        value_type = get_possible_types_from_node(node.args[0]).pop()
+        return [value_type]
+
+    @validate_inputs
+    def build_IR(self, expr, args, kwargs, context):
+        bytecode = args[0]
+        value = kwargs["value"]
+        salt = kwargs["salt"]
+        should_use_create2 = "salt" in [kwarg.arg for kwarg in expr.keywords]
+
+        if context.is_constant():
+            raise StateAccessViolation(
+                f"Cannot make calls from {context.pp_constancy()}",
+                expr,
+            )
+
+        bytecode = ensure_in_memory(bytecode, context)
+
+        with bytecode.cache_when_complex("create_bytes") as (b1, bytecode):
+            op = "create"
+            op_args = [value, bytes_data_ptr(bytecode), get_bytearray_length(bytecode)]
+
+            if should_use_create2:
+                op = "create2"
+                op_args.append(salt)
+
+            return b1.resolve(
+                IRnode.from_list(
+                    [op, *op_args],
+                    typ=BaseType("address"),
+                    add_gas_estimate=11000,
+                )
+            )
+
+
+class CreateCopyOf(_SimpleBuiltinFunction):
+
+    _id = "create_copy_of"
+    _inputs = [("target", AddressDefinition())]
+    _kwargs = {
+        "value": KwargSettings(Uint256Definition(), zero_value),
+        "salt": KwargSettings(Bytes32Definition(), empty_value),
+    }
+    _return_type = AddressDefinition()
+
+    @validate_inputs
+    def build_IR(self, expr, args, kwargs, context):
+        value = kwargs["value"]
+        salt = kwargs["salt"]
+        should_use_create2 = "salt" in [kwarg.arg for kwarg in expr.keywords]
+
+        if context.is_constant():
+            raise StateAccessViolation(
+                f"Cannot make calls from {context.pp_constancy()}",
+                expr,
+            )
+
+        target = args[0]
+
+        with target.cache_when_complex("create_target") as (b1, target):
+            codesize = IRnode.from_list(["extcodesize", target])
+            mem_ofst = IRnode.from_list(["msize"])
+            with codesize.cache_when_complex("target_codesize") as (
+                b2,
+                codesize,
+            ), mem_ofst.cache_when_complex("mem_ofst") as (b3, mem_ofst):
+                # copy the target code into memory
+                ir = ["seq", ["extcodecopy", target, mem_ofst, 0, codesize]]
+
+                op = "create"
+                op_args = [value, mem_ofst, codesize]
+
+                if should_use_create2:
+                    op = "create2"
+                    op_args.append(salt)
+
+                # TODO: revert if extcodesize is 0?
+                ir.append([op, *op_args])
+
+                return b1.resolve(
+                    b2.resolve(
+                        b3.resolve(
+                            IRnode.from_list(
+                                ir,
+                                typ=BaseType("address"),
+                                add_gas_estimate=11000,
+                            )
+                        )
+                    )
+                )
+
+
 class _UnsafeMath(_SimpleBuiltinFunction):
 
     # TODO add unsafe math for `decimal`s
@@ -2313,6 +2418,8 @@ DISPATCH_TABLE = {
     "sqrt": Sqrt(),
     "shift": Shift(),
     "create_forwarder_to": CreateForwarderTo(),
+    "create_copy_of": CreateCopyOf(),
+    "create": Create(),
     "min": Min(),
     "max": Max(),
     "empty": Empty(),
@@ -2326,6 +2433,8 @@ STMT_DISPATCH_TABLE = {
     "raw_call": RawCall(),
     "raw_log": RawLog(),
     "create_forwarder_to": CreateForwarderTo(),
+    "create_copy_of": CreateCopyOf(),
+    "create": Create(),
 }
 
 BUILTIN_FUNCTIONS = {**STMT_DISPATCH_TABLE, **DISPATCH_TABLE}.keys()
