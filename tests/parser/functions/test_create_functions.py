@@ -117,7 +117,7 @@ def test2(a: uint256) -> Bytes[100]:
     assert receipt["gasUsed"] < GAS_SENT
 
 
-def test_create2_forwarder_to_create(get_contract, create2_address_of, keccak):
+def test_create2_forwarder_to_create(get_contract, create2_address_of, keccak, assert_tx_failed):
     code = """
 main: address
 
@@ -133,6 +133,10 @@ def test(_salt: bytes32) -> address:
     assert HexBytes(c.test(salt)) == create2_address_of(
         c.address, salt, eip1167_initcode(c.address)
     )
+
+    c.test(salt, transact={})
+    # revert on collision
+    assert_tx_failed(lambda: c.test(salt, transact={}))
 
 
 def test_create(get_contract, w3, keccak, create2_address_of, assert_tx_failed):
