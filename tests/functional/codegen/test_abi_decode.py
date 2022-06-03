@@ -131,17 +131,6 @@ def abi_decode_struct(x: Bytes[544]) -> Human:
     )
 
 
-def test_abi_decode_length_mismatch(get_contract, assert_compile_failed):
-    contract = """
-@external
-def foo(x: Bytes[32]):
-    a: uint256 = 0
-    b: uint256 = 0
-    a, b = _abi_decode(x)
-    """
-    assert_compile_failed(lambda: get_contract(contract), StructureException)
-
-
 @pytest.mark.parametrize(
     "type,abi_type,size",
     [("uint256[3]", "uint256[3]", 96), ("DynArray[uint256, 3]", "uint256[]", 160)],
@@ -380,3 +369,30 @@ def abi_decode(x: Bytes[32]) -> uint256:
 
     encoded = abi_encode("uint256", 123)
     assert c.abi_decode(encoded) == 123
+
+
+FAIL_LIST = [
+    (
+        """
+@external
+def foo(x: Bytes[32]):
+    a: uint256 = 0
+    b: uint256 = 0
+    a, b = _abi_decode(x)
+    """,
+        StructureException,  # Size of input data is smaller than expected output
+    ),
+    (
+        """
+@external
+def foo(x: Bytes[32]):
+    _abi_decode(x)
+    """,
+        StructureException,  # Unable to determine expected output types
+    ),
+]
+
+
+@pytest.mark.parametrize("bad_code,exception", FAIL_LIST)
+def test_abi_decode_length_mismatch(get_contract, assert_compile_failed, bad_code, exception):
+    assert_compile_failed(lambda: get_contract(bad_code), exception)
