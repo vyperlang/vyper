@@ -1741,7 +1741,8 @@ def _create_preamble(codesize):
     evm_len = 0x0A
     asm = [
         "PUSH2",
-        0x00, 0x00,  # blank space for codesize
+        0x00,
+        0x00,  # blank space for codesize
         "RETURNDATASIZE",
         "DUP2",
         "PUSH1",
@@ -1811,7 +1812,10 @@ class Create(_SimpleBuiltinFunction):
                     op = "create2"
                     op_args.append(salt)
 
-                with IRnode.from_list([op, *op_args]).cache_when_complex("created_address") as (b3, created_address):
+                with IRnode.from_list([op, *op_args]).cache_when_complex("created_address") as (
+                    b3,
+                    created_address,
+                ):
 
                     # restore the length of the bytestring
                     ir.append(["mstore", bytecode, length])
