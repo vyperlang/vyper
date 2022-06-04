@@ -238,6 +238,27 @@ def check_kwargable(node: vy_ast.VyperNode) -> bool:
     return getattr(value_type, "is_constant", False)
 
 
+def _generate_components_if_struct(type_definition):
+    """
+    Helper function to generate the `components` for a struct in a multidimensional
+    static array.
+
+    Returns the `components` value from `generate_abi_type` of a struct if the
+    static array is of struct type. Otherwise, return None.
+    """
+    from vyper.semantics.types.user.struct import StructDefinition
+
+    if isinstance(type_definition, StructDefinition):
+        return generate_abi_type(type_definition)["components"]
+
+    # Early termination if not a struct, static array or dynamic array
+    if not isinstance(type_definition, (ArrayDefinition, DynamicArrayDefinition)):
+        return None
+
+    # Recursively get the value type since it is a static/dynamic array
+    return _generate_components_if_struct(type_definition.value_type)
+
+
 def generate_abi_type(type_definition, name=""):
     # TODO oof fixme
     from vyper.semantics.types.user.struct import StructDefinition
@@ -255,15 +276,25 @@ def generate_abi_type(type_definition, name=""):
         }
     if isinstance(type_definition, (ArrayDefinition, DynamicArrayDefinition)):
         if isinstance(type_definition.value_type, StructDefinition):
-            if isinstance(type_definition, ArrayDefinition):
-                type_ = f"tuple[{type_definition.length}]"
-            else:
-                type_ = "tuple[]"
-
+            # For structs, set `components` as the struct's components directly
             return {
                 "name": name,
-                "type": type_,
+                "type": type_definition.canonical_abi_type,
                 "components": generate_abi_type(type_definition.value_type)["components"],
             }
+
+        elif isinstance(type_definition.value_type, (ArrayDefinition, DynamicArrayDefinition)):
+            # For static and dynamic arrays, set `components` if the value type is a struct.
+            # Otherwise, the `canonical_abi_type` is sufficient.
+            ret = {
+                "name": name,
+                "type": type_definition.canonical_abi_type,
+            }
+
+            struct_components = _generate_components_if_struct(type_definition.value_type)
+            if struct_components is not None:
+                ret["components"] = struct_components
+
+            return ret
 
     return {"name": name, "type": type_definition.canonical_abi_type}

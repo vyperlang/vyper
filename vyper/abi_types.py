@@ -262,8 +262,9 @@ class ABI_DynamicArray(ABIType):
 
 
 class ABI_Tuple(ABIType):
-    def __init__(self, subtyps):
+    def __init__(self, subtyps, is_struct=False):
         self.subtyps = subtyps
+        self.is_struct = is_struct
 
     def is_dynamic(self):
         return any([t.is_dynamic() for t in self.subtyps])
@@ -281,4 +282,6 @@ class ABI_Tuple(ABIType):
         return True
 
     def selector_name(self):
+        if self.is_struct:
+            return "tuple"
         return "(" + ",".join(t.selector_name() for t in self.subtyps) + ")"

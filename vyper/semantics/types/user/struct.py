@@ -46,7 +46,7 @@ class StructDefinition(MemberTypeDefinition, ValueTypeDefinition):
 
     @property
     def abi_type(self) -> ABIType:
-        return ABI_Tuple([t.abi_type for t in self.members.values()])
+        return ABI_Tuple([t.abi_type for t in self.members.values()], is_struct=True)
 
 
 class StructPrimitive:
