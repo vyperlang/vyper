@@ -163,6 +163,7 @@ def _runtime_ir(runtime_functions, all_sigs, global_ctx):
 
     runtime = [
         "seq",
+        ["mstore", 0x40, 0x80],
         # check that calldatasize is at least 4, otherwise
         # calldataload will load zeros (cf. yellow paper).
         ["if", ["lt", "calldatasize", 4], ["goto", "fallback"]],
