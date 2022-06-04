@@ -559,7 +559,7 @@ struct Foo:
     e: Ded
 
 struct Bar:
-    f: DynArray[Foo, 3]
+    f: Foo[3]
     g: DynArray[uint256, 3]
 
 @external
@@ -579,6 +579,21 @@ def bar(_bar: Bar[3]) -> uint256:
     ]
 
     assert c.bar(c_input) == 20
+
+
+def test_2d_list_of_struct(get_contract):
+    code = """
+struct Bar:
+    a: uint256
+    b: uint256
+
+@external
+def foo(x: Bar[2][2]) -> uint256:
+    return x[0][0].a + x[1][1].b
+    """
+    c = get_contract(code)
+    c_input = [([i, i * 2], [i * 3, i * 4]) for i in range(1, 3)]
+    assert c.foo(c_input) == 9
 
 
 @pytest.mark.parametrize(

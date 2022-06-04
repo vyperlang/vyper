@@ -150,3 +150,43 @@ def getStructList() -> {type}:
             "type": "function",
         }
     ]
+
+
+@pytest.mark.parametrize(
+    "type,abi_type", [("DynArray[DynArray[Foo, 2], 2]", "tuple[][]"), ("Foo[2][2]", "tuple[2][2]")]
+)
+def test_2d_list_of_struct(type, abi_type):
+    code = f"""
+struct Foo:
+    a: uint256
+    b: uint256
+
+@view
+@external
+def bar(x: {type}):
+    pass
+    """
+
+    out = compile_code(
+        code,
+        output_formats=["abi"],
+    )
+
+    assert out["abi"] == [
+        {
+            "inputs": [
+                {
+                    "components": [
+                        {"name": "a", "type": "uint256"},
+                        {"name": "b", "type": "uint256"},
+                    ],
+                    "name": "x",
+                    "type": f"{abi_type}",
+                }
+            ],
+            "name": "bar",
+            "outputs": [],
+            "stateMutability": "view",
+            "type": "function",
+        }
+    ]
