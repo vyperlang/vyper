@@ -118,8 +118,9 @@ class ArrayDefinition(_SequenceDefinition):
     def abi_type(self) -> ABIType:
         return ABI_StaticArray(self.value_type.abi_type, self.length)
 
-    def json_abi_name(self):
-        return f"{self.subtyp.json_abi_name()}[{self.m_elems}]"
+    @property
+    def json_abi_type(self):
+        return f"{self.value_type.json_abi_type}[{self.length}]"
 
     def json_abi(self, name=""):
         from vyper.semantics.types.user.struct import StructDefinition
@@ -211,8 +212,9 @@ class DynamicArrayDefinition(_SequenceDefinition, MemberTypeDefinition):
     def abi_type(self) -> ABIType:
         return ABI_DynamicArray(self.value_type.abi_type, self.length)
 
-    def json_abi_name(self):
-        return f"{self.subtyp.json_abi_name()}[]"
+    @property
+    def json_abi_type(self):
+        return f"{self.value_type.json_abi_type}[]"
 
     def json_abi(self, name=""):
         from vyper.semantics.types.user.struct import StructDefinition
