@@ -289,7 +289,7 @@ class BaseTypeDefinition:
         """
         The JSON format of this type.
         """
-        return self.abi_type.json_abi_name()
+        return self.abi_type.selector_name()
 
     def json_abi(self, name: str = "") -> Dict[str, Any]:
         """

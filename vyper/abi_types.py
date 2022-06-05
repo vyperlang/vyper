@@ -54,10 +54,6 @@ class ABIType:
     def selector_name(self):
         raise NotImplementedError("ABIType.selector_name")
 
-    # The representation of the type for JSON ABI
-    def json_abi_name(self):
-        return self.selector_name()
-
     # Whether the type is a tuple at the ABI level.
     # (This is important because if it does, it needs an offset.
     #   Compare the difference in encoding between `bytes` and `(bytes,)`.)
@@ -197,9 +193,6 @@ class ABI_StaticArray(ABIType):
     def selector_name(self):
         return f"{self.subtyp.selector_name()}[{self.m_elems}]"
 
-    def json_abi_name(self):
-        return f"{self.subtyp.json_abi_name()}[{self.m_elems}]"
-
     def is_complex_type(self):
         return True
 
@@ -264,17 +257,13 @@ class ABI_DynamicArray(ABIType):
     def selector_name(self):
         return f"{self.subtyp.selector_name()}[]"
 
-    def json_abi_name(self):
-        return f"{self.subtyp.json_abi_name()}[]"
-
     def is_complex_type(self):
         return True
 
 
 class ABI_Tuple(ABIType):
-    def __init__(self, subtyps, is_struct=False):
+    def __init__(self, subtyps):
         self.subtyps = subtyps
-        self.is_struct = is_struct
 
     def is_dynamic(self):
         return any([t.is_dynamic() for t in self.subtyps])
@@ -293,8 +282,3 @@ class ABI_Tuple(ABIType):
 
     def selector_name(self):
         return "(" + ",".join(t.selector_name() for t in self.subtyps) + ")"
-
-    def json_abi_name(self):
-        if self.is_struct:
-            return "tuple"
-        return self.selector_name()
