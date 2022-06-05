@@ -1326,6 +1326,21 @@ def foo(x: DynArray[DynArray[Bar, 2], 2]) -> uint256:
     assert c.foo(c_input) == 9
 
 
+def test_3d_list_of_struct(get_contract):
+    code = """
+struct Bar:
+    a: uint256
+    b: uint256
+
+@external
+def foo(x: DynArray[DynArray[DynArray[Bar, 2], 2], 2]) -> uint256:
+    return x[0][0][0].a + x[1][1][1].b
+    """
+    c = get_contract(code)
+    c_input = [([([i, i * 2], [i * 3, i * 4]) for i in range(1, 3)])] * 2
+    assert c.foo(c_input) == 9
+
+
 def test_list_of_static_list(get_contract):
     code = """
 @external
