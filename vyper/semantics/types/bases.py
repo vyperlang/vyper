@@ -291,7 +291,7 @@ class BaseTypeDefinition:
         """
         return self.abi_type.json_abi_name()
 
-    def json_abi(self, name: str="") -> Dict[str, Any]:
+    def json_abi(self, name: str = "") -> Dict[str, Any]:
         """
         The JSON ABI output
         """
