@@ -284,6 +284,13 @@ class BaseTypeDefinition:
         """
         return self.abi_type.selector_name()
 
+    @property
+    def json_abi_type(self) -> str:
+        """
+        The JSON format of this type.
+        """
+        return self.abi_type.json_abi_name()
+
     def from_annotation(self, node: vy_ast.VyperNode, *args: Any, **kwargs: Any) -> None:
         # always raises, user should have used a primitive
         raise StructureException("Value is not a type", node)

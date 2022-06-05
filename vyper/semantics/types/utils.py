@@ -279,7 +279,7 @@ def generate_abi_type(type_definition, name=""):
             # For structs, set `components` as the struct's components directly
             return {
                 "name": name,
-                "type": type_definition.canonical_abi_type,
+                "type": type_definition.json_abi_type,
                 "components": generate_abi_type(type_definition.value_type)["components"],
             }
 
@@ -288,7 +288,7 @@ def generate_abi_type(type_definition, name=""):
             # Otherwise, the `canonical_abi_type` is sufficient.
             ret = {
                 "name": name,
-                "type": type_definition.canonical_abi_type,
+                "type": type_definition.json_abi_type,
             }
 
             struct_components = _generate_components_if_struct(type_definition.value_type)
@@ -297,4 +297,4 @@ def generate_abi_type(type_definition, name=""):
 
             return ret
 
-    return {"name": name, "type": type_definition.canonical_abi_type}
+    return {"name": name, "type": type_definition.json_abi_type}

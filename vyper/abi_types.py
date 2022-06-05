@@ -54,6 +54,10 @@ class ABIType:
     def selector_name(self):
         raise NotImplementedError("ABIType.selector_name")
 
+    # The representation of the type for JSON ABI
+    def json_abi_name(self):
+        return self.selector_name()
+
     # Whether the type is a tuple at the ABI level.
     # (This is important because if it does, it needs an offset.
     #   Compare the difference in encoding between `bytes` and `(bytes,)`.)
@@ -83,6 +87,9 @@ class ABI_GIntM(ABIType):
     def selector_name(self):
         return ("" if self.signed else "u") + f"int{self.m_bits}"
 
+    def json_abi_name(self):
+        return self.selector_name()
+
     def is_complex_type(self):
         return False
 
@@ -96,6 +103,9 @@ class ABI_Address(ABI_GIntM):
     def selector_name(self):
         return "address"
 
+    def json_abi_name(self):
+        return self.selector_name()
+
 
 # bool: equivalent to uint8 restricted to the values 0 and 1.
 #  For computing the function selector, bool is used.
@@ -107,6 +117,9 @@ class ABI_Bool(ABI_GIntM):
 
     def selector_name(self):
         return "bool"
+
+    def json_abi_name(self):
+        return self.selector_name()
 
 
 # fixed<M>x<N>: signed fixed-point decimal number of M bits, 8 <= M <= 256,
@@ -134,6 +147,9 @@ class ABI_FixedMxN(ABIType):
     def selector_name(self):
         return ("" if self.signed else "u") + f"fixed{self.m_bits}x{self.n_places}"
 
+    def json_abi_name(self):
+        return self.selector_name()
+
     def is_complex_type(self):
         return False
 
@@ -155,6 +171,9 @@ class ABI_BytesM(ABIType):
     def selector_name(self):
         return f"bytes{self.m_bytes}"
 
+    def json_abi_name(self):
+        return self.selector_name()
+
     def is_complex_type(self):
         return False
 
@@ -167,6 +186,9 @@ class ABI_Function(ABI_BytesM):
 
     def selector_name(self):
         return "function"
+
+    def json_abi_name(self):
+        return self.selector_name()
 
 
 # <type>[M]: a fixed-length array of M elements, M >= 0, of the given type.
@@ -191,7 +213,10 @@ class ABI_StaticArray(ABIType):
         return self.m_elems * self.subtyp.embedded_min_dynamic_size()
 
     def selector_name(self):
-        return f"{self.subtyp.selector_name()}[{self.m_elems}]"
+        return f"{self.subtyp.json_abi_name()}[{self.m_elems}]"
+
+    def json_abi_name(self):
+        return self.selector_name()
 
     def is_complex_type(self):
         return True
@@ -222,6 +247,9 @@ class ABI_Bytes(ABIType):
     def selector_name(self):
         return "bytes"
 
+    def json_abi_name(self):
+        return self.selector_name()
+
     def is_complex_type(self):
         return False
 
@@ -229,6 +257,9 @@ class ABI_Bytes(ABIType):
 class ABI_String(ABI_Bytes):
     def selector_name(self):
         return "string"
+
+    def json_abi_name(self):
+        return self.selector_name()
 
 
 class ABI_DynamicArray(ABIType):
@@ -255,7 +286,10 @@ class ABI_DynamicArray(ABIType):
         return 32
 
     def selector_name(self):
-        return f"{self.subtyp.selector_name()}[]"
+        return f"{self.subtyp.json_abi_name()}[]"
+
+    def json_abi_name(self):
+        return self.selector_name()
 
     def is_complex_type(self):
         return True
@@ -282,6 +316,9 @@ class ABI_Tuple(ABIType):
         return True
 
     def selector_name(self):
+        return "(" + ",".join(t.selector_name() for t in self.subtyps) + ")"
+
+    def json_abi_name(self):
         if self.is_struct:
             return "tuple"
-        return "(" + ",".join(t.selector_name() for t in self.subtyps) + ")"
+        return self.selector_name()
