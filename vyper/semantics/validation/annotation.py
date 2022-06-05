@@ -172,6 +172,10 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
             for kwarg in node.keywords:
                 self.visit(kwarg.value, kwarg_types[kwarg.arg])
 
+            # Annotate output type for `_abi_decode` from LHS
+            if node.func.id == "_abi_decode":
+                node._metadata["output_type"] = type_
+
     def visit_Compare(self, node, type_):
         if isinstance(node.op, (vy_ast.In, vy_ast.NotIn)):
             if isinstance(node.right, vy_ast.List):

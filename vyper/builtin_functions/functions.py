@@ -2165,18 +2165,10 @@ class ABIDecode(_SimpleBuiltinFunction):
     def fetch_call_return(self, node):
         self.infer_arg_types(node)
 
-        # Get parent node for type inference
-        parent_node = node.get_ancestor()
-        if isinstance(parent_node, (vy_ast.Assign, vy_ast.AnnAssign)):
-            output_type = parent_node._metadata["type"]
-
-        elif isinstance(parent_node, vy_ast.Return):
-            func_node = node.get_ancestor(vy_ast.FunctionDef)
-            output_type = func_node._metadata["type"].return_type
-
-        else:
+        if "output_type" not in node._metadata:
             raise StructureException("Unable to determine the return type of abi_decode", node)
 
+        output_type = node._metadata["output_type"]
         return output_type
 
     def infer_arg_types(self, node):
