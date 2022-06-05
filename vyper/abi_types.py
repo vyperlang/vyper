@@ -229,9 +229,6 @@ class ABI_Bytes(ABIType):
     def selector_name(self):
         return "bytes"
 
-    def json_abi_name(self):
-        return self.selector_name()
-
     def is_complex_type(self):
         return False
 
@@ -239,9 +236,6 @@ class ABI_Bytes(ABIType):
 class ABI_String(ABI_Bytes):
     def selector_name(self):
         return "string"
-
-    def json_abi_name(self):
-        return self.selector_name()
 
 
 class ABI_DynamicArray(ABIType):
@@ -268,10 +262,10 @@ class ABI_DynamicArray(ABIType):
         return 32
 
     def selector_name(self):
-        return f"{self.subtyp.json_abi_name()}[]"
+        return f"{self.subtyp.selector_name()}[]"
 
     def json_abi_name(self):
-        return self.selector_name()
+        return f"{self.subtyp.json_abi_name()}[]"
 
     def is_complex_type(self):
         return True
