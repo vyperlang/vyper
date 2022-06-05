@@ -2,7 +2,6 @@ import hashlib
 import math
 import operator
 from decimal import Decimal
-from typing import Dict
 
 from vyper import ast as vy_ast
 from vyper.abi_types import ABI_Tuple
@@ -110,40 +109,11 @@ from vyper.utils import (
     vyper_warn,
 )
 
-from .signatures import validate_inputs
+from .signatures import _SimpleBuiltinFunction, validate_inputs
 
 SHA256_ADDRESS = 2
 SHA256_BASE_GAS = 60
 SHA256_PER_WORD_GAS = 12
-
-
-class _SimpleBuiltinFunction:
-
-    _kwargs: Dict[str, KwargSettings] = {}
-
-    def _validate_arg_types(self, node):
-        validate_call_args(node, len(self._inputs), getattr(self, "_kwargs", []))
-
-        for arg, (_, expected) in zip(node.args, self._inputs):
-            validate_expected_type(arg, expected)
-
-        return
-
-    def fetch_call_return(self, node):
-        self._validate_arg_types(node)
-
-        if self._return_type:
-            return self._return_type
-
-    def infer_arg_types(self, node):
-        self._validate_arg_types(node)
-        return [expected for (_, expected) in self._inputs]
-
-    def infer_kwarg_types(self, node):
-        return {i.arg: self._kwargs[i.arg].typ for i in node.keywords}
-
-    def __repr__(self):
-        return f"builtin function {self._id}"
 
 
 class Floor(_SimpleBuiltinFunction):
@@ -1263,9 +1233,7 @@ class Send(_SimpleBuiltinFunction):
     def build_IR(self, expr, args, kwargs, context):
         to, value = args
         context.check_is_not_constant("send ether", expr)
-        return IRnode.from_list(
-            ["assert", ["call", 0, to, value, 0, 0, 0, 0]],
-        )
+        return IRnode.from_list(["assert", ["call", 0, to, value, 0, 0, 0, 0]])
 
 
 class SelfDestruct(_SimpleBuiltinFunction):
@@ -1603,7 +1571,34 @@ class Abs(_SimpleBuiltinFunction):
         return IRnode.from_list(sub, typ=BaseType("int256"))
 
 
-def get_create_forwarder_to_bytecode():
+# CREATE* functions
+
+# create helper functions
+# generates CREATE op sequence + zero check for result
+def _create_ir(value, buf, length, salt=None, checked=True):
+    args = [value, buf, length]
+    create_op = "create"
+    if salt is not None:
+        create_op = "create2"
+        args.append(salt)
+
+    ret = IRnode.from_list([create_op, *args])
+
+    if not checked:
+        return ret
+
+    return clamp("ne", ret, 0)
+
+
+# calculate the gas used by create for a given number of bytes
+def _create_addl_gas_estimate(size, should_use_create2):
+    ret = 200 * size
+    if should_use_create2:
+        ret += SHA3_PER_WORD * ceil32(size) // 32
+    return ret
+
+
+def _eip1167_bytecode():
     # NOTE cyclic import?
     from vyper.ir.compile_ir import assembly_to_evm
 
@@ -1654,78 +1649,9 @@ def get_create_forwarder_to_bytecode():
     )
 
 
-class CreateMinimalProxyTo(_SimpleBuiltinFunction):
-
-    _id = "create_minimal_proxy_to"
-    _inputs = [("target", AddressDefinition())]
-    _kwargs = {
-        "value": KwargSettings(Uint256Definition(), zero_value),
-        "salt": KwargSettings(Bytes32Definition(), empty_value),
-    }
-    _return_type = AddressDefinition()
-
-    @validate_inputs
-    def build_IR(self, expr, args, kwargs, context):
-        value = kwargs["value"]
-        salt = kwargs["salt"]
-        should_use_create2 = "salt" in [kwarg.arg for kwarg in expr.keywords]
-
-        context.check_is_not_constant("create", expr)
-
-        placeholder = context.new_internal_variable(ByteArrayType(96))
-
-        loader_evm, forwarder_pre_evm, forwarder_post_evm = get_create_forwarder_to_bytecode()
-        # Adjust to 32-byte boundaries
-        preamble_length = len(loader_evm) + len(forwarder_pre_evm)
-        forwarder_preamble = bytes_to_int(
-            loader_evm + forwarder_pre_evm + b"\x00" * (32 - preamble_length)
-        )
-        forwarder_post = bytes_to_int(forwarder_post_evm + b"\x00" * (32 - len(forwarder_post_evm)))
-
-        if args[0].typ.is_literal:
-            target_address = args[0].value * 2 ** 96
-        elif version_check(begin="constantinople"):
-            target_address = ["shl", 96, args[0]]
-        else:
-            target_address = ["mul", args[0], 2 ** 96]
-
-        op = "create"
-        op_args = [value, placeholder, preamble_length + 20 + len(forwarder_post_evm)]
-
-        if should_use_create2:
-            op = "create2"
-            op_args.append(salt)
-
-        return IRnode.from_list(
-            [
-                "seq",
-                ["mstore", placeholder, forwarder_preamble],
-                ["mstore", ["add", placeholder, preamble_length], target_address],
-                ["mstore", ["add", placeholder, preamble_length + 20], forwarder_post],
-                [
-                    "with",
-                    "created_address",
-                    [op, *op_args],
-                    ["seq", ["assert", "created_address"], "created_address"],
-                ],
-            ],
-            typ=BaseType("address"),
-            add_gas_estimate=11000,
-        )
-
-
-class CreateForwarderTo(CreateMinimalProxyTo):
-    _warned_flag = False
-
-    def build_IR(self, expr, args, kwargs, context):
-        if not self.__class__._warned_flag:
-            vyper_warn("`create_forwarder_to` has been renamed to `create_minimal_proxy_to`!")
-            self.__class__._warned_flag = True
-
-        super().build_IR(self, expr, args, kwargs, context)
-
-# helper function which returns the code starting from 0x0a with len `codesize`
-# note it assumes codesize <= 64kb
+# "standard" initcode for code which can be larger than 256 bytes.
+# returns the code starting from 0x0a with len `codesize`.
+# NOTE: it assumes codesize <= 64kb
 def _create_preamble(codesize):
 
     from vyper.ir.compile_ir import assembly_to_evm
@@ -1733,8 +1659,9 @@ def _create_preamble(codesize):
     evm_len = 0x0A
     asm = [
         "PUSH2",
+        # blank space for codesize
         0x00,
-        0x00,  # blank space for codesize
+        0x00,
         "RETURNDATASIZE",
         "DUP2",
         "PUSH1",
@@ -1746,108 +1673,174 @@ def _create_preamble(codesize):
     evm = assembly_to_evm(asm)[0]
     assert len(evm) == evm_len, evm
 
+    # truncate codesize to bottom two bytes
+    # note: maybe safer to not truncate? very unlikely that codesize
+    # would be > 0xffff, and if it is, maybe want to fail more loudly
+    codesize = ["and", 0xFFFF, codesize]
+
     shl_bits = (evm_len - 3) * 8  # codesize needs to go right after the PUSH2
-    return ["or", bytes_to_int(evm), shl(shl_bits, ["and", 0xFFFF, codesize])], evm_len
+    # mask codesize into the aforementioned "blank space"
+    return ["or", bytes_to_int(evm), shl(shl_bits, codesize)], evm_len
 
 
-class Create(_SimpleBuiltinFunction):
-
-    _id = "create"
-    _inputs = [("bytecode", BytesArrayPrimitive())]
+class _CreateBase(_SimpleBuiltinFunction):
     _kwargs = {
         "value": KwargSettings(Uint256Definition(), zero_value),
         "salt": KwargSettings(Bytes32Definition(), empty_value),
     }
     _return_type = AddressDefinition()
 
-    def infer_arg_types(self, node):
-        self._validate_arg_types(node)
-        # return a concrete type for `value`
-        value_type = get_possible_types_from_node(node.args[0]).pop()
-        if value_type.length > EIP_170_LIMIT:
-            raise TypeMismatch("Bytecode length exceeds EIP 170 limit of 24kb", node)
-        return [value_type]
-
     @validate_inputs
     def build_IR(self, expr, args, kwargs, context):
-        bytecode = args[0]
+        # errmsg something like "Cannot use {self._id} in pure fn"
+        context.check_is_not_constant("use {self._id}", expr)
+
         value = kwargs["value"]
         salt = kwargs["salt"]
         should_use_create2 = "salt" in [kwarg.arg for kwarg in expr.keywords]
+        if not should_use_create2:
+            salt = None
 
-        add_gas_estimate = 200 * bytecode.typ.maxlen
+        ir_builder = self._build_create_IR(expr, args, value, salt, context)
 
-        context.check_is_not_constant("create", expr)
+        add_gas_estimate = self._add_gas_estimate(args, should_use_create2)
 
-        bytecode = ensure_in_memory(bytecode, context)
+        return IRnode.from_list(
+            ir_builder,
+            typ=BaseType("address"),
+            annotation=self._id,
+            add_gas_estimate=add_gas_estimate,
+        )
 
-        with bytecode.cache_when_complex("create_bytes") as (b1, bytecode):
-            with get_bytearray_length(bytecode).cache_when_complex("len") as (b2, length):
+
+class CreateMinimalProxyTo(_CreateBase):
+    # create an EIP1167 "minimal proxy" to the target contract
+
+    _id = "create_minimal_proxy_to"
+    _inputs = [("target", AddressDefinition())]
+
+    def _add_gas_estimate(self, args, should_use_create2):
+        loader_evm, _, _ = _eip1167_bytecode()
+        return _create_addl_gas_estimate(len(loader_evm), should_use_create2)
+
+    def _build_create_IR(self, expr, args, value, salt, context):
+
+        target_address = args[0]
+
+        buf = context.new_internal_variable(ByteArrayType(96))
+
+        loader_evm, forwarder_pre_evm, forwarder_post_evm = _eip1167_bytecode()
+        # Adjust to 32-byte boundaries
+        preamble_length = len(loader_evm) + len(forwarder_pre_evm)
+        forwarder_preamble = bytes_to_int(
+            loader_evm + forwarder_pre_evm + b"\x00" * (32 - preamble_length)
+        )
+        forwarder_post = bytes_to_int(forwarder_post_evm + b"\x00" * (32 - len(forwarder_post_evm)))
+
+        # left-align the target
+        if target_address.typ.is_literal:
+            # note: should move to optimizer once we have
+            # codesize optimization pipeline
+            aligned_target = args[0].value << 96
+        else:
+            aligned_target = shl(96, target_address)
+
+        buf_len = preamble_length + 20 + len(forwarder_post_evm)
+
+        return [
+            "seq",
+            ["mstore", buf, forwarder_preamble],
+            ["mstore", ["add", buf, preamble_length], aligned_target],
+            ["mstore", ["add", buf, preamble_length + 20], forwarder_post],
+            _create_ir(value, buf, buf_len, salt=salt),
+        ]
+
+
+class CreateForwarderTo(CreateMinimalProxyTo):
+    _warned_flag = False
+
+    def build_IR(self, expr, args, kwargs, context):
+        if not self.__class__._warned_flag:
+            vyper_warn("`create_forwarder_to` is a deprecated alias of `create_minimal_proxy_to`!")
+            self.__class__._warned_flag = True
+
+        super().build_IR(self, expr, args, kwargs, context)
+
+
+class CreateWithCodeOf(_CreateBase):
+
+    _id = "create_with_code_of"
+    _inputs = [("target", AddressDefinition())]
+
+    @staticmethod
+    # encode provided args for the initcode
+    def _encode_args(dst, ctor_args, context):
+
+        to_encode = ir_tuple_from_args(ctor_args)
+
+        # pretend we allocated enough memory for the encoder
+        # (we didn't, but we are clobbering unused memory so it's safe.)
+        pretend_bufsz = to_encode.typ.abi_type.size_bound()
+
+        # return a complex expression which writes to memory and returns
+        # the length of the encoded data
+        return abi_encode(dst, to_encode, context, bufsz=pretend_bufsz, returns_len=True)
+
+    def _add_gas_estimate(self, args, should_use_create2):
+        ctor_args = ir_tuple_from_args(args[1:])
+        # max possible size of init code
+        maxlen = EIP_170_LIMIT + ctor_args.typ.abi_type.size_bound()
+        return _create_addl_gas_estimate(maxlen, should_use_create2)
+
+    def _build_create_IR(self, expr, args, value, salt, context):
+        target = args[0]
+        ctor_args = args[1:]
+
+        with target.cache_when_complex("create_target") as (b1, target):
+            codesize = IRnode.from_list(["extcodesize", target])
+            # copy code to memory starting from msize. we are clobbering
+            # unused memory so it's safe.
+            msize = IRnode.from_list(["msize"])
+            with codesize.cache_when_complex("target_codesize") as (
+                b2,
+                codesize,
+            ), msize.cache_when_complex("mem_ofst") as (b3, mem_ofst):
                 ir = ["seq"]
 
-                # TODO check `length > 0`?
+                # copy the target code into memory.
+                # layout starting from mem_ofst:
+                # 00...00 (22 0's) | preamble | bytecode
+                ir.append(["extcodecopy", target, mem_ofst, 0, codesize])
 
-                # construct the initcode.
-                # store the preamble at msize + 22 bytes of zero padding.
-                # note that this CLOBBERS the bytestring length;
-                # need to restore it later.
-                preamble, preamble_len = _create_preamble(length)
-                ir.append(["mstore", bytecode, preamble])
+                # theoretically, dst = "msize", but just be safe.
+                if len(ctor_args) > 0:
+                    dst = add_ofst(mem_ofst, codesize)
+                    encoded_args_len = self._encode_args(dst, ctor_args, context)
+                else:
+                    encoded_args_len = 0
 
-                # current layout: 00...00 (22 0's) | preamble | bytecode
-                op = "create"
-                op_args = [
-                    value,
-                    add_ofst(bytecode, 32 - preamble_len),  # initcode offset
-                    ["add", length, preamble_len],  # initcode len
-                ]
+                length = ["add", codesize, encoded_args_len]
 
-                if should_use_create2:
-                    op = "create2"
-                    op_args.append(salt)
-                    add_gas_estimate = SHA3_PER_WORD * ceil32(bytecode.typ.maxlen) // 32
+                # TODO assert extcodesize > 0?
+                ir.append(_create_ir(mem_ofst, length, value, salt))
 
-                with IRnode.from_list([op, *op_args]).cache_when_complex("created_address") as (
-                    b3,
-                    created_address,
-                ):
-                    t = ["seq"]
-
-                    # revert if contract creation failed
-                    t.append(["assert", created_address])
-
-                    # restore the length of the bytestring
-                    t.append(["mstore", bytecode, length])
-
-                    # return the created address on the stack
-                    t.append(created_address)
-                    ir.append(b3.resolve(t))
-
-                ret = IRnode.from_list(
-                    ir, typ=BaseType("address"), add_gas_estimate=add_gas_estimate
-                )
-
-                return b1.resolve(b2.resolve(ret))
+                return b1.resolve(b2.resolve(b3.resolve(ir)))
 
 
-class CreateCopyOf(_SimpleBuiltinFunction):
+class CreateCopyOf(_CreateBase):
 
     _id = "create_copy_of"
     _inputs = [("target", AddressDefinition())]
-    _kwargs = {
-        "value": KwargSettings(Uint256Definition(), zero_value),
-        "salt": KwargSettings(Bytes32Definition(), empty_value),
-    }
-    _return_type = AddressDefinition()
 
-    @validate_inputs
-    def build_IR(self, expr, args, kwargs, context):
-        value = kwargs["value"]
-        salt = kwargs["salt"]
-        should_use_create2 = "salt" in [kwarg.arg for kwarg in expr.keywords]
+    @property
+    def _preamble_len(self):
+        return 10
 
-        context.check_is_not_constant("create", expr)
+    def _add_gas_estimate(self, args, should_use_create2):
+        # max possible runtime length + preamble length
+        return _create_addl_gas_estimate(EIP_170_LIMIT + self._preamble_len, should_use_create2)
 
+    def _build_create_IR(self, expr, args, value, salt, context):
         target = args[0]
 
         with target.cache_when_complex("create_target") as (b1, target):
@@ -1858,45 +1851,24 @@ class CreateCopyOf(_SimpleBuiltinFunction):
                 codesize,
             ), msize.cache_when_complex("mem_ofst") as (b3, mem_ofst):
                 ir = ["seq"]
+
                 # store the preamble at msize + 22 (zero padding)
                 preamble, preamble_len = _create_preamble(codesize)
+                assert preamble_len == self._preamble_len
+
                 ir.append(["mstore", mem_ofst, preamble])
 
                 # copy the target code into memory. current layout:
                 # msize | 00...00 (22 0's) | preamble | bytecode
                 ir.append(["extcodecopy", target, add_ofst(mem_ofst, 32), 0, codesize])
 
-                op = "create"
-                op_args = [
-                    value,
-                    add_ofst(mem_ofst, 32 - preamble_len),
-                    ["add", codesize, preamble_len],
-                ]
+                buf = add_ofst(mem_ofst, 32 - preamble_len)
+                buf_len = ["add", codesize, preamble_len]
 
-                if should_use_create2:
-                    op = "create2"
-                    op_args.append(salt)
+                # TODO check extcodesize > 0?
+                ir.append(_create_ir(buf, buf_len, value, salt))
 
-                # TODO: revert if extcodesize is 0?
-
-                with IRnode.from_list([op, *op_args]).cache_when_complex("created_address") as (
-                    b4,
-                    created_address,
-                ):
-                    t = ["seq"]
-                    # revert if contract creation failed
-                    t.append(["assert", created_address])
-                    t.append(created_address)
-                    ir.append(b4.resolve(t))
-
-                ret = IRnode.from_list(
-                    ir,
-                    typ=BaseType("address"),
-                    add_gas_estimate=200 * EIP_170_LIMIT
-                    + SHA3_PER_WORD * ceil32(EIP_170_LIMIT) // 32,
-                )
-
-                return b1.resolve(b2.resolve(b3.resolve(ret)))
+                return b1.resolve(b2.resolve(b3.resolve(ir)))
 
 
 class _UnsafeMath(_SimpleBuiltinFunction):
@@ -2504,9 +2476,10 @@ DISPATCH_TABLE = {
     "uint2str": Uint2Str(),
     "sqrt": Sqrt(),
     "shift": Shift(),
+    "create_minimal_proxy_to": CreateMinimalProxyTo(),
     "create_forwarder_to": CreateForwarderTo(),
     "create_copy_of": CreateCopyOf(),
-    "create": Create(),
+    "create_with_code_of": CreateWithCodeOf(),
     "min": Min(),
     "max": Max(),
     "empty": Empty(),
@@ -2519,9 +2492,10 @@ STMT_DISPATCH_TABLE = {
     "selfdestruct": SelfDestruct(),
     "raw_call": RawCall(),
     "raw_log": RawLog(),
+    "create_minimal_proxy_to": CreateMinimalProxyTo(),
     "create_forwarder_to": CreateForwarderTo(),
     "create_copy_of": CreateCopyOf(),
-    "create": Create(),
+    "create_with_code_of": CreateWithCodeOf(),
 }
 
 BUILTIN_FUNCTIONS = {**STMT_DISPATCH_TABLE, **DISPATCH_TABLE}.keys()
