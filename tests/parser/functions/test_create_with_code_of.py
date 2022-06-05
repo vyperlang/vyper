@@ -1,4 +1,7 @@
+import rlp
 from hexbytes import HexBytes
+
+from vyper.utils import checksum_encode, keccak256
 
 
 def initcode(_addr):
@@ -20,7 +23,11 @@ def test() -> address:
 
     c = get_contract(code)
 
-    assert c.test() == "0x4F9DA333DCf4E5A53772791B95c161B2FC041859"
+    address_bits = int(c.address, 16)
+    nonce = 1
+    rlp_encoded = rlp.encode([address_bits, nonce])
+    expected_create_address = keccak256(rlp_encoded)[12:].rjust(20, b"\x00")
+    assert c.test() == checksum_encode("0x" + expected_create_address.hex())
 
 
 def test_create_forwarder_to_call(get_contract, w3):

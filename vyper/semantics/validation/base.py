@@ -8,7 +8,7 @@ class VyperNodeVisitorBase:
     ignored_types: Tuple = ()
     scope_name = ""
 
-    def visit(self, node):
+    def visit(self, node, *args):
         if isinstance(node, self.ignored_types):
             return
         node_type = type(node).__name__
@@ -18,4 +18,4 @@ class VyperNodeVisitorBase:
                 f"Unsupported syntax for {self.scope_name} namespace: {node_type}",
                 node,
             )
-        visitor_fn(node)
+        visitor_fn(node, *args)

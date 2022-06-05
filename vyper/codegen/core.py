@@ -276,7 +276,7 @@ def append_dyn_array(darray_node, elem_node):
     with darray_node.cache_when_complex("darray") as (b1, darray_node):
         len_ = get_dyn_array_count(darray_node)
         with len_.cache_when_complex("old_darray_len") as (b2, len_):
-            ret.append(["assert", ["le", len_, darray_node.typ.count - 1]])
+            ret.append(["assert", ["lt", len_, darray_node.typ.count]])
             ret.append(STORE(darray_node, ["add", len_, 1]))
             # NOTE: typechecks elem_node
             # NOTE skip array bounds check bc we already asserted len two lines up
@@ -291,7 +291,7 @@ def pop_dyn_array(darray_node, return_popped_item):
     assert darray_node.encoding == Encoding.VYPER
     ret = ["seq"]
     with darray_node.cache_when_complex("darray") as (b1, darray_node):
-        old_len = ["clamp_nonzero", get_dyn_array_count(darray_node)]
+        old_len = clamp("gt", get_dyn_array_count(darray_node), 0)
         new_len = IRnode.from_list(["sub", old_len, 1], typ="uint256")
 
         with new_len.cache_when_complex("new_len") as (b2, new_len):
@@ -444,15 +444,14 @@ def _get_element_ptr_array(parent, key, array_bounds_check):
     ix = unwrap_location(key)
 
     if array_bounds_check:
-        # clamplt works, even for signed ints. since two's-complement
+        is_darray = isinstance(parent.typ, DArrayType)
+        bound = get_dyn_array_count(parent) if is_darray else parent.typ.count
+        # uclamplt works, even for signed ints. since two's-complement
         # is used, if the index is negative, (unsigned) LT will interpret
         # it as a very large number, larger than any practical value for
         # an array index, and the clamp will throw an error.
-        clamp_op = "uclamplt"
-        is_darray = isinstance(parent.typ, DArrayType)
-        bound = get_dyn_array_count(parent) if is_darray else parent.typ.count
         # NOTE: there are optimization rules for this when ix or bound is literal
-        ix = IRnode.from_list([clamp_op, ix, bound], typ=ix.typ)
+        ix = clamp("lt", ix, bound)
 
     if parent.encoding == Encoding.ABI:
         if parent.location == STORAGE:
@@ -879,7 +878,7 @@ def zero_pad(bytez_placeholder):
     #   followed by the *minimum* number of zero-bytes
     #   such that len(enc(X)) is a multiple of 32.
     # optimized form of ceil32(len) - len:
-    num_zero_bytes = ["and", 31, ["sub", 0, "len"]]
+    num_zero_bytes = ["mod", ["sub", 0, "len"], 32]
     return IRnode.from_list(
         ["with", "len", len_, ["with", "dst", dst, mzero("dst", num_zero_bytes)]],
         annotation="Zero pad",
@@ -992,3 +991,18 @@ def promote_signed_int(x, bits):
     assert bits % 8 == 0
     ret = ["signextend", bits // 8 - 1, x]
     return IRnode.from_list(ret, annotation=f"promote int{bits}")
+
+
+def clamp(op, arg, bound):
+    with IRnode.from_list(arg).cache_when_complex("clamp_arg") as (b1, arg):
+        assertion = ["assert", [op, arg, bound]]
+        ret = ["seq", assertion, arg]
+        return IRnode.from_list(b1.resolve(ret), typ=arg.typ)
+
+
+def clamp2(lo, arg, hi, signed):
+    with IRnode.from_list(arg).cache_when_complex("clamp2_arg") as (b1, arg):
+        GE = "sge" if signed else "ge"
+        LE = "sle" if signed else "le"
+        ret = ["seq", ["assert", [GE, arg, lo]], ["assert", [LE, arg, hi]], arg]
+        return IRnode.from_list(b1.resolve(ret), typ=arg.typ)

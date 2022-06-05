@@ -317,6 +317,27 @@ On the ABI level the Fixed-size bytes array is annotated as ``string``.
 
     example_str: String[100] = "Test String"
 
+Enums
+-----
+
+**Keyword:** ``enum``
+
+Enums are custom defined types. An enum must have at least one member, and can hold up to a maximum of 256 members.
+The members are represented by ``uint256`` values in the form of 2\ :sup:`n` where ``n`` is the index of the member in the range ``0 <= n <= 255``.
+
+.. code-block:: python
+
+    # Defining an enum with two members
+    enum Roles:
+        ADMIN
+        USER
+
+    # Declaring an enum variable
+    role: Roles = Roles.ADMIN
+
+    # Returning a member
+    return Roles.ADMIN
+
 .. index:: !reference
 
 Reference Types

@@ -302,7 +302,12 @@ def compile_files(
         output_formats = combined_json_outputs
         show_version = True
 
-    translate_map = {"abi_python": "abi", "json": "abi", "ast": "ast_dict", "ir_json": "ir_dict"}
+    translate_map = {
+        "abi_python": "abi",
+        "json": "abi",
+        "ast": "ast_dict",
+        "ir_json": "ir_dict",
+    }
     final_formats = [translate_map.get(i, i) for i in output_formats]
 
     compiler_data = vyper.compile_codes(

@@ -389,6 +389,10 @@ class VyperNode:
                 ast_dict[key] = [_to_dict(i) for i in value]
             else:
                 ast_dict[key] = _to_dict(value)
+
+        if "type" in self._metadata:
+            ast_dict["type"] = str(self._metadata["type"])
+
         return ast_dict
 
     def get_ancestor(self, node_type: Union["VyperNode", tuple, None] = None) -> "VyperNode":
@@ -680,6 +684,10 @@ class Return(VyperNode):
 
 class Log(VyperNode):
     __slots__ = ("value",)
+
+
+class EnumDef(VyperNode):
+    __slots__ = ("name", "body")
 
 
 class EventDef(VyperNode):

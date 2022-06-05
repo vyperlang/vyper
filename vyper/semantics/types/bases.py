@@ -1,7 +1,7 @@
 import copy
 from collections import OrderedDict
 from enum import Enum
-from typing import Any, Dict, Optional, Tuple, Type, Union
+from typing import Any, Dict, List, Optional, Tuple, Type, Union
 
 from vyper import ast as vy_ast
 from vyper.abi_types import ABIType
@@ -216,8 +216,7 @@ class BasePrimitive:
 
     @classmethod
     def get_member(cls, key: str, node: vy_ast.Attribute) -> None:
-        # always raises - do not implement in inherited classes
-        raise StructureException("Types do not have members", node)
+        raise StructureException(f"{cls} does not have members", node)
 
     @classmethod
     def validate_modification(
@@ -406,6 +405,25 @@ class BaseTypeDefinition:
         -------
         BaseTypeDefinition, optional
             Type generated as a result of the call.
+        """
+        raise StructureException("Value is not callable", node)
+
+    def infer_arg_types(self, node: vy_ast.Call) -> List[Union["BaseTypeDefinition", None]]:
+        """
+        Performs the necessary type inference and returns the call's arguments' types.
+
+        This method must raise if the value is not callable, or the type for a call
+        argument cannot be determined.
+
+        Arguments
+        ---------
+        node : Call
+            Vyper ast node of call action to perform type inference.
+
+        Returns
+        -------
+        BaseTypeDefinition, optional
+            List of types for the call's arguments.
         """
         raise StructureException("Value is not callable", node)
 
@@ -625,3 +643,6 @@ class IndexableTypeDefinition(BaseTypeDefinition):
     def get_signature(self) -> Tuple[Tuple, Optional[BaseTypeDefinition]]:
         new_args, return_type = self.value_type.get_signature()
         return (self.key_type,) + new_args, return_type
+
+    def get_index_type(self):
+        return self.key_type
