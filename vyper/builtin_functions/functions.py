@@ -277,10 +277,7 @@ def _build_adhoc_slice_node(sub: IRnode, start: IRnode, length: IRnode, context:
             [
                 "seq",
                 # runtime bounds check
-                [
-                    "assert",
-                    ["le", ["add", start, length], ["extcodesize", "_extcode_address"]],
-                ],
+                ["assert", ["le", ["add", start, length], ["extcodesize", "_extcode_address"]]],
                 ["mstore", np, length],
                 ["extcodecopy", "_extcode_address", np + 32, start, length],
                 np,
@@ -426,8 +423,7 @@ class Slice(_SimpleBuiltinFunction):
                 # e.g. start == byte 7 -> we start copying from byte 0
                 #      start == byte 32 -> we start copying from byte 32
                 copy_src = IRnode.from_list(
-                    ["add", src_data, ["div", start, 32]],
-                    location=src.location,
+                    ["add", src_data, ["div", start, 32]], location=src.location
                 )
 
                 # e.g. start == byte 0 -> we copy to dst_data + 0
@@ -451,12 +447,7 @@ class Slice(_SimpleBuiltinFunction):
                 copy_len = length
                 copy_maxlen = buflen
 
-            do_copy = copy_bytes(
-                copy_dst,
-                copy_src,
-                copy_len,
-                copy_maxlen,
-            )
+            do_copy = copy_bytes(copy_dst, copy_src, copy_len, copy_maxlen)
 
             ret = [
                 "seq",
@@ -602,10 +593,7 @@ class Concat(_SimpleBuiltinFunction):
         ret.append(dst)
 
         return IRnode.from_list(
-            ["with", ofst, 0, ret],
-            typ=ret_typ,
-            location=MEMORY,
-            annotation="concat",
+            ["with", ofst, 0, ret], typ=ret_typ, location=MEMORY, annotation="concat"
         )
 
 
@@ -885,18 +873,14 @@ class ECMul(_SimpleBuiltinFunction):
 def _generic_element_getter(op):
     def f(index):
         return IRnode.from_list(
-            [op, ["add", "_sub", ["add", 32, ["mul", 32, index]]]],
-            typ=BaseType("int128"),
+            [op, ["add", "_sub", ["add", 32, ["mul", 32, index]]]], typ=BaseType("int128")
         )
 
     return f
 
 
 def _storage_element_getter(index):
-    return IRnode.from_list(
-        ["sload", ["add", "_sub", ["add", 1, index]]],
-        typ=BaseType("int128"),
-    )
+    return IRnode.from_list(["sload", ["add", "_sub", ["add", 1, index]]], typ=BaseType("int128"))
 
 
 class Extract32(_SimpleBuiltinFunction):
@@ -1011,10 +995,7 @@ class Extract32(_SimpleBuiltinFunction):
                 typ=ret_type,
                 annotation="extract32",
             )
-        return IRnode.from_list(
-            clamp_basetype(o),
-            typ=ret_type,
-        )
+        return IRnode.from_list(clamp_basetype(o), typ=ret_type)
 
 
 class AsWeiValue(_SimpleBuiltinFunction):
@@ -1028,16 +1009,8 @@ class AsWeiValue(_SimpleBuiltinFunction):
         ("femtoether", "kwei", "babbage"): 10 ** 3,
         ("picoether", "mwei", "lovelace"): 10 ** 6,
         ("nanoether", "gwei", "shannon"): 10 ** 9,
-        (
-            "microether",
-            "szabo",
-        ): 10
-        ** 12,
-        (
-            "milliether",
-            "finney",
-        ): 10
-        ** 15,
+        ("microether", "szabo"): 10 ** 12,
+        ("milliether", "finney"): 10 ** 15,
         ("ether",): 10 ** 18,
         ("kether", "grand"): 10 ** 21,
     }
@@ -1106,11 +1079,7 @@ class AsWeiValue(_SimpleBuiltinFunction):
         elif value.typ.typ == "int128":
             # signed types do not require bounds checks because the
             # largest possible converted value will not overflow 2**256
-            sub = [
-                "seq",
-                ["assert", ["sgt", value, -1]],
-                ["mul", value, denom_divisor],
-            ]
+            sub = ["seq", ["assert", ["sgt", value, -1]], ["mul", value, denom_divisor]]
         elif value.typ.typ == "decimal":
             sub = [
                 "seq",
@@ -1284,13 +1253,8 @@ class Send(_SimpleBuiltinFunction):
     def build_IR(self, expr, args, kwargs, context):
         to, value = args
         if context.is_constant():
-            raise StateAccessViolation(
-                f"Cannot send ether inside {context.pp_constancy()}!",
-                expr,
-            )
-        return IRnode.from_list(
-            ["assert", ["call", 0, to, value, 0, 0, 0, 0]],
-        )
+            raise StateAccessViolation(f"Cannot send ether inside {context.pp_constancy()}!", expr)
+        return IRnode.from_list(["assert", ["call", 0, to, value, 0, 0, 0, 0]])
 
 
 class SelfDestruct(_SimpleBuiltinFunction):
@@ -1304,8 +1268,7 @@ class SelfDestruct(_SimpleBuiltinFunction):
     def build_IR(self, expr, args, kwargs, context):
         if context.is_constant():
             raise StateAccessViolation(
-                f"Cannot {expr.func.id} inside {context.pp_constancy()}!",
-                expr.func,
+                f"Cannot {expr.func.id} inside {context.pp_constancy()}!", expr.func
             )
         return IRnode.from_list(["selfdestruct", args[0]])
 
@@ -1364,7 +1327,7 @@ class RawLog(_SimpleBuiltinFunction):
                     # TODO use make_setter
                     ["mstore", placeholder, unwrap_location(data)],
                     ["log" + str(topics_length), placeholder, 32] + topics,
-                ],
+                ]
             )
 
         input_buf = ensure_in_memory(data, context)
@@ -1375,7 +1338,7 @@ class RawLog(_SimpleBuiltinFunction):
                 "_sub",
                 input_buf,
                 ["log" + str(topics_length), ["add", "_sub", 32], ["mload", "_sub"], *topics],
-            ],
+            ]
         )
 
 
@@ -1700,10 +1663,7 @@ class CreateForwarderTo(_SimpleBuiltinFunction):
         should_use_create2 = "salt" in [kwarg.arg for kwarg in expr.keywords]
 
         if context.is_constant():
-            raise StateAccessViolation(
-                f"Cannot make calls from {context.pp_constancy()}",
-                expr,
-            )
+            raise StateAccessViolation(f"Cannot make calls from {context.pp_constancy()}", expr)
         placeholder = context.new_internal_variable(ByteArrayType(96))
 
         loader_evm, forwarder_pre_evm, forwarder_post_evm = get_create_forwarder_to_bytecode()
@@ -1933,12 +1893,7 @@ else:
             memory_allocator=context.memory_allocator,
         )
         return IRnode.from_list(
-            [
-                "seq",
-                placeholder_copy,  # load x variable
-                sqrt_ir,
-                new_ctx.vars["z"].pos,
-            ],
+            ["seq", placeholder_copy, sqrt_ir, new_ctx.vars["z"].pos],  # load x variable
             typ=BaseType("decimal"),
             location=MEMORY,
         )

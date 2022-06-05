@@ -644,8 +644,7 @@ def _check_assign_tuple(left, right):
                 FAIL()  # pragma: notest
             # TODO recurse into left, right if literals?
             check_assign(
-                dummy_node_for_type(left.typ.members[k]),
-                dummy_node_for_type(right.typ.members[k]),
+                dummy_node_for_type(left.typ.members[k]), dummy_node_for_type(right.typ.members[k])
             )
 
         for k in right.typ.members:

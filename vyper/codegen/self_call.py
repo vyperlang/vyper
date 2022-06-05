@@ -72,9 +72,7 @@ def ir_for_self_call(stmt_expr, context):
         copy_args = ["seq"]
         # TODO deallocate me
         tmp_args_buf = IRnode(
-            context.new_internal_variable(dst_tuple_t),
-            typ=dst_tuple_t,
-            location=MEMORY,
+            context.new_internal_variable(dst_tuple_t), typ=dst_tuple_t, location=MEMORY
         )
         copy_args.append(
             # --> args evaluate here <--
@@ -93,12 +91,7 @@ def ir_for_self_call(stmt_expr, context):
     # pass return label to subroutine
     goto_op += [push_label_to_stack(return_label)]
 
-    call_sequence = [
-        "seq",
-        copy_args,
-        goto_op,
-        ["label", return_label, ["var_list"], "pass"],
-    ]
+    call_sequence = ["seq", copy_args, goto_op, ["label", return_label, ["var_list"], "pass"]]
     if return_buffer is not None:
         # push return buffer location to stack
         call_sequence += [return_buffer]

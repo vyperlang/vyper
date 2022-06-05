@@ -17,9 +17,7 @@ def get_builtin_interfaces():
         name: extract_sigs(
             {
                 "type": "vyper",
-                "code": importlib.import_module(
-                    f"vyper.builtin_interfaces.{name}",
-                ).interface_code,
+                "code": importlib.import_module(f"vyper.builtin_interfaces.{name}").interface_code,
             },
             name,
         )

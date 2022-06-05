@@ -61,10 +61,7 @@ def public_foo3():
     storage_layout_override = {
         "nonreentrant.foo": {"type": "nonreentrant lock", "slot": 8},
         "nonreentrant.bar": {"type": "nonreentrant lock", "slot": 7},
-        "foo": {
-            "type": "HashMap[address, uint256]",
-            "slot": 1,
-        },
+        "foo": {"type": "HashMap[address, uint256]", "slot": 1},
         "baz": {"type": "Bytes[65]", "slot": 2},
         "bar": {"type": "uint256", "slot": 6},
     }
@@ -103,9 +100,7 @@ def test_incomplete_overrides():
 name: public(String[64])
 symbol: public(String[32])"""
 
-    storage_layout_override = {
-        "name": {"slot": 0, "type": "String[64]"},
-    }
+    storage_layout_override = {"name": {"slot": 0, "type": "String[64]"}}
 
     with pytest.raises(
         StorageLayoutException,

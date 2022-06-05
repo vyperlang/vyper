@@ -99,7 +99,7 @@ def test_statefulness_violations(bad_code):
         """
 @external
 def foo(x: int128):
-    x = 5""",
+    x = 5"""
     ],
 )
 def test_immutability_violations(bad_code):

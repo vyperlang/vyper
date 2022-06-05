@@ -516,10 +516,7 @@ def test_memory_variable_convert(x: {i_typ}) -> {o_typ}:
 # TODO CMC 2022-04-06 I think this test is somewhat unnecessary.
 @pytest.mark.parametrize(
     "builtin_constant,out_type,out_value",
-    [
-        ("ZERO_ADDRESS", "bool", False),
-        ("msg.sender", "bool", True),
-    ],
+    [("ZERO_ADDRESS", "bool", False), ("msg.sender", "bool", True)],
 )
 def test_convert_builtin_constant(
     get_contract_with_gas_estimation, builtin_constant, out_type, out_value

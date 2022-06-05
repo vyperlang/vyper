@@ -182,9 +182,7 @@ class ContractFunction(BaseTypeDefinition):
 
     @classmethod
     def from_FunctionDef(
-        cls,
-        node: vy_ast.FunctionDef,
-        is_interface: Optional[bool] = False,
+        cls, node: vy_ast.FunctionDef, is_interface: Optional[bool] = False
     ) -> "ContractFunction":
         """
         Generate a `ContractFunction` object from a `FunctionDef` node.
@@ -242,8 +240,7 @@ class ContractFunction(BaseTypeDefinition):
                         raise StructureException("Decorator is not callable", decorator)
                     if len(decorator.args) != 1 or not isinstance(decorator.args[0], vy_ast.Str):
                         raise StructureException(
-                            "@nonreentrant name must be given as a single string literal",
-                            decorator,
+                            "@nonreentrant name must be given as a single string literal", decorator
                         )
 
                     if node.name == "__init__":
@@ -322,8 +319,7 @@ class ContractFunction(BaseTypeDefinition):
         for arg, value in zip(node.args.args, defaults):
             if arg.arg in ("gas", "value", "skip_contract_check", "default_return_value"):
                 raise ArgumentException(
-                    f"Cannot use '{arg.arg}' as a variable name in a function input",
-                    arg,
+                    f"Cannot use '{arg.arg}' as a variable name in a function input", arg
                 )
             if arg.arg in arguments:
                 raise ArgumentException(f"Function contains multiple inputs named {arg.arg}", arg)
