@@ -7,7 +7,6 @@ from vyper.exceptions import EventDeclarationException, NamespaceCollision, Stru
 from vyper.semantics.namespace import validate_identifier
 from vyper.semantics.types.bases import DataLocation
 from vyper.semantics.types.utils import (
-    generate_abi_type,
     get_type_from_abi,
     get_type_from_annotation,
 )
@@ -127,7 +126,7 @@ class Event:
             {
                 "name": self.name,
                 "inputs": [
-                    dict(**generate_abi_type(typ, name), **{"indexed": idx})
+                    dict(**typ.json_abi(name), **{"indexed": idx})
                     for (name, typ), idx in zip(self.arguments.items(), self.indexed)
                 ],
                 "anonymous": False,

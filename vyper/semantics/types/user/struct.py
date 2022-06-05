@@ -48,6 +48,14 @@ class StructDefinition(MemberTypeDefinition, ValueTypeDefinition):
     def abi_type(self) -> ABIType:
         return ABI_Tuple([t.abi_type for t in self.members.values()], is_struct=True)
 
+    def json_abi(self, name=""):
+
+        return {
+            "name": name,
+            "type": "tuple",
+            "components": [v.json_abi(k) for k, v in self.members.items()],
+        }
+
 
 class StructPrimitive:
 

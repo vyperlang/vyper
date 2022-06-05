@@ -87,9 +87,6 @@ class ABI_GIntM(ABIType):
     def selector_name(self):
         return ("" if self.signed else "u") + f"int{self.m_bits}"
 
-    def json_abi_name(self):
-        return self.selector_name()
-
     def is_complex_type(self):
         return False
 
@@ -103,9 +100,6 @@ class ABI_Address(ABI_GIntM):
     def selector_name(self):
         return "address"
 
-    def json_abi_name(self):
-        return self.selector_name()
-
 
 # bool: equivalent to uint8 restricted to the values 0 and 1.
 #  For computing the function selector, bool is used.
@@ -117,9 +111,6 @@ class ABI_Bool(ABI_GIntM):
 
     def selector_name(self):
         return "bool"
-
-    def json_abi_name(self):
-        return self.selector_name()
 
 
 # fixed<M>x<N>: signed fixed-point decimal number of M bits, 8 <= M <= 256,
@@ -147,9 +138,6 @@ class ABI_FixedMxN(ABIType):
     def selector_name(self):
         return ("" if self.signed else "u") + f"fixed{self.m_bits}x{self.n_places}"
 
-    def json_abi_name(self):
-        return self.selector_name()
-
     def is_complex_type(self):
         return False
 
@@ -171,9 +159,6 @@ class ABI_BytesM(ABIType):
     def selector_name(self):
         return f"bytes{self.m_bytes}"
 
-    def json_abi_name(self):
-        return self.selector_name()
-
     def is_complex_type(self):
         return False
 
@@ -186,9 +171,6 @@ class ABI_Function(ABI_BytesM):
 
     def selector_name(self):
         return "function"
-
-    def json_abi_name(self):
-        return self.selector_name()
 
 
 # <type>[M]: a fixed-length array of M elements, M >= 0, of the given type.
@@ -213,10 +195,10 @@ class ABI_StaticArray(ABIType):
         return self.m_elems * self.subtyp.embedded_min_dynamic_size()
 
     def selector_name(self):
-        return f"{self.subtyp.json_abi_name()}[{self.m_elems}]"
+        return f"{self.subtyp.selector_name()}[{self.m_elems}]"
 
     def json_abi_name(self):
-        return self.selector_name()
+        return f"{self.subtyp.json_abi_name()}[{self.m_elems}]"
 
     def is_complex_type(self):
         return True
