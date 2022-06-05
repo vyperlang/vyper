@@ -2161,6 +2161,7 @@ class ABIEncode(_SimpleBuiltinFunction):
 class ABIDecode(_SimpleBuiltinFunction):
     _id = "_abi_decode"
     _inputs = [("data", BytesArrayPrimitive())]
+    _kwargs = {"unwrap_tuple": KwargSettings(BoolDefinition(), True, require_literal=True)}
 
     def fetch_call_return(self, node):
         self.infer_arg_types(node)
