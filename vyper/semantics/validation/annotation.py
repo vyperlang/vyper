@@ -172,10 +172,6 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
             for kwarg in node.keywords:
                 self.visit(kwarg.value, kwarg_types[kwarg.arg])
 
-            # Annotate output type for `_abi_decode` from LHS
-            if node.func.id == "_abi_decode":
-                node._metadata["output_type"] = type_
-
     def visit_Compare(self, node, type_):
         if isinstance(node.op, (vy_ast.In, vy_ast.NotIn)):
             if isinstance(node.right, vy_ast.List):
@@ -264,6 +260,15 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
 
     def visit_Tuple(self, node, type_):
         node._metadata["type"] = type_
+
+        if type_ is not None and not isinstance(type_, BaseTypeDefinition):
+            # some tuples are straight type annotations e.g. `(String[100], uint256)`
+            # in `_abi_decode(x, (String[100], uint256))`.
+            # skip annotating them because they do not conform to
+            # the BaseTypeDefinition API (and anyways we do not need to
+            # annotate them!)
+            return
+
         for element, subtype in zip(node.elements, type_.value_type):
             self.visit(element, subtype)
 

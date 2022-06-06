@@ -45,7 +45,6 @@ from vyper.codegen.types import (
     is_base_type,
     parse_integer_typeinfo,
 )
-from vyper.codegen.types.convert import new_type_to_old_type
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
     ArgumentException,
@@ -2161,29 +2160,29 @@ class ABIEncode(_SimpleBuiltinFunction):
 
 class ABIDecode(_SimpleBuiltinFunction):
     _id = "_abi_decode"
-    _inputs = [("data", BytesArrayPrimitive())]
+    _inputs = [("data", BytesArrayPrimitive()), ("output_type", "TYPE_DEFINITION")]
     _kwargs = {"unwrap_tuple": KwargSettings(BoolDefinition(), True, require_literal=True)}
 
     def fetch_call_return(self, node):
-        self.infer_arg_types(node)
-
-        if "output_type" not in node._metadata:
-            raise StructureException("Unable to determine the return type of abi_decode", node)
-
-        output_type = node._metadata["output_type"]
-        return output_type
+        _, output_type = self.infer_arg_types(node)
+        return output_type.typedef
 
     def infer_arg_types(self, node):
-        self._validate_arg_types(node)
+        validate_call_args(node, 2, ["unwrap_tuple"])
+
         data_type = get_exact_type_from_node(node.args[0])
-        return [data_type]
+        output_typedef = TypeTypeDefinition(
+            get_type_from_annotation(node.args[1], DataLocation.MEMORY)
+        )
+
+        return [data_type, output_typedef]
 
     @validate_inputs
     def build_IR(self, expr, args, kwargs, context):
         unwrap_tuple = kwargs["unwrap_tuple"]
 
         data = args[0]
-        output_typ = new_type_to_old_type(self.fetch_call_return(expr))
+        output_typ = args[1]
         wrapped_typ = output_typ
 
         if unwrap_tuple is True:
@@ -2193,7 +2192,7 @@ class ABIDecode(_SimpleBuiltinFunction):
         abi_min_size = wrapped_typ.abi_type.min_size()
 
         # Get the size of data
-        input_max_len = self.infer_arg_types(expr)[0].length
+        input_max_len = data.typ.maxlen
 
         if not abi_min_size <= input_max_len <= abi_size_bound:
             raise StructureException(

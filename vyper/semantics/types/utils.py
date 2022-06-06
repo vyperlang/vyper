@@ -183,6 +183,13 @@ def get_type_from_annotation(
         )
         return ArrayDefinition(value_type, length, location, is_constant, is_public, is_immutable)
 
+    if isinstance(node, vy_ast.Tuple):
+        values = node.elements
+        values_def = ()
+        for v in values:
+            values_def += (get_type_from_annotation(v, DataLocation.UNSET),)
+        return TupleDefinition(values_def)
+
     try:
         return type_obj.from_annotation(node, location, is_constant, is_public, is_immutable)
     except AttributeError:
