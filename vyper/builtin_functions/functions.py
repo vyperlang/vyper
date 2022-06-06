@@ -17,6 +17,7 @@ from vyper.codegen.core import (
     IRnode,
     add_ofst,
     bytes_data_ptr,
+    calculate_type_for_external_return,
     check_external_call,
     clamp,
     clamp2,
@@ -2179,36 +2180,59 @@ class ABIDecode(_SimpleBuiltinFunction):
 
     @validate_inputs
     def build_IR(self, expr, args, kwargs, context):
-        data = args[0]
-        new_output_typ = self.fetch_call_return(expr)
-        old_output_typ = new_type_to_old_type(new_output_typ)
+        unwrap_tuple = kwargs["unwrap_tuple"]
 
-        output_type_size = new_output_typ.abi_type.size_bound()
+        data = args[0]
+        output_typ = new_type_to_old_type(self.fetch_call_return(expr))
+        wrapped_typ = output_typ
+
+        if unwrap_tuple is True:
+            wrapped_typ = calculate_type_for_external_return(output_typ)
+
+        abi_size_bound = wrapped_typ.abi_type.size_bound()
+        abi_min_size = wrapped_typ.abi_type.min_size()
 
         # Get the size of data
-        data_typ_size = self.infer_arg_types(expr)[0].length
+        input_max_len = self.infer_arg_types(expr)[0].length
 
-        if data_typ_size < output_type_size:
+        if not abi_min_size <= input_max_len <= abi_size_bound:
             raise StructureException(
                 (
                     "Mismatch between size of input and size of decoded types. "
-                    f"Expected at least {output_type_size} but input is {data_typ_size}."
+                    f"Expected input to be between {abi_min_size} and {abi_size_bound} "
+                    f"but input is {input_max_len}."
                 ),
                 expr.args[0],
             )
 
         data = ensure_in_memory(data, context)
-        data_ptr = bytes_data_ptr(data)
+        with data.cache_when_complex("to_decode") as (b1, data):
 
-        ret = IRnode.from_list(
-            data_ptr,
-            typ=old_output_typ,
-            location=data.location,
-            encoding=Encoding.ABI,
-            annotation="abi_decode builtin",
-        )
-        ret.encoding = Encoding.ABI
-        return ret
+            data_ptr = bytes_data_ptr(data)
+            data_len = get_bytearray_length(data)
+
+            # Normally, ABI-encoded data assumes the argument is a tuple
+            # (See comments for `wrap_value_for_external_return`)
+            # However, we do not want to use `wrap_value_for_external_return` technique
+            # as used in external call codegen because in order to be type-safe we
+            # would need an extra memory copy. To avoid a copy, we manually add the
+            # ABI-dynamic offset so that it is re-interpreted in-place.
+            if unwrap_tuple is True and output_typ.abi_type.is_dynamic():
+                data_ptr = add_ofst(data_ptr, 32)
+
+            ret = IRnode.from_list(
+                [
+                    "seq",
+                    clamp2(abi_min_size, data_len, abi_size_bound, signed=False),
+                    data_ptr,
+                ],
+                typ=output_typ,
+                location=data.location,
+                annotation="abi_decode_builtin",
+            )
+            ret.encoding = Encoding.ABI
+
+            return b1.resolve(ret)
 
 
 DISPATCH_TABLE = {
