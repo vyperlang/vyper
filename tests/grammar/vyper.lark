@@ -164,6 +164,7 @@ for_stmt: "for" loop_variable "in" loop_iterator ":" body
 // Expressions
 _expr: operation
      | dict
+     | abi_decode
 
 get_item: variable_access "[" _expr "]"
 get_attr: variable_access "." NAME
@@ -241,6 +242,9 @@ _IN: "in"
 
 // special rule to handle types as "arguments" (for `empty` builtin)
 empty: "empty" "(" type ")"
+
+// special rule to handle types as "arguments" (for `_abi_decode` builtin)
+abi_decode: "_abi_decode" "(" arg "," type "," kwarg ")"
 
 
 // NOTE: Must end recursive cycle like this (with `atom` calling `operation`)
