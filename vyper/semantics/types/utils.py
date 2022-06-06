@@ -1,5 +1,5 @@
 import enum
-from typing import Dict, List
+from typing import Dict, List, Tuple
 
 from vyper import ast as vy_ast
 from vyper.exceptions import (
@@ -185,7 +185,7 @@ def get_type_from_annotation(
 
     if isinstance(node, vy_ast.Tuple):
         values = node.elements
-        values_def = ()
+        values_def: Tuple[BaseTypeDefinition, ...] = ()
         for v in values:
             values_def += (get_type_from_annotation(v, DataLocation.UNSET),)
         return TupleDefinition(values_def)
