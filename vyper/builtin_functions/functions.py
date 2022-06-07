@@ -2212,28 +2212,38 @@ class ABIDecode(_SimpleBuiltinFunction):
 
             # Normally, ABI-encoded data assumes the argument is a tuple
             # (See comments for `wrap_value_for_external_return`)
-            # However, we do not want to use `wrap_value_for_external_return` technique
-            # as used in external call codegen because in order to be type-safe we
-            # would need an extra memory copy. To avoid a copy, we manually add the
-            # ABI-dynamic offset so that it is re-interpreted in-place.
+            # However, we do not want to use `wrap_value_for_external_return`
+            # technique as used in external call codegen because in order to be
+            # type-safe we would need an extra memory copy. To avoid a copy,
+            # we manually add the ABI-dynamic offset so that it is
+            # re-interpreted in-place.
             if unwrap_tuple is True and (
                 (isinstance(output_typ, TupleType) and len(output_typ.members) == 1)
                 or (not isinstance(output_typ, TupleType) and output_typ.abi_type.is_dynamic())
             ):
                 data_ptr = add_ofst(data_ptr, 32)
 
+            ret = ["seq"]
+
+            if abi_min_size == abi_size_bound:
+                ret.append(["assert", ["eq", abi_min_size, data_len]])
+            else:
+                # runtime assert: abi_min_size <= data_len <= abi_size_bound
+                len_ok = ["and"]
+                len_ok.append(["ge", abi_min_size, data_len])
+                len_ok.append(["le", data_len, abi_size_bound])
+                ret.append(["assert", len_ok])
+
+            # return pointer to the buffer
+            ret.append(data_ptr)
+
             ret = IRnode.from_list(
-                [
-                    "seq",
-                    clamp2(abi_min_size, data_len, abi_size_bound, signed=False),
-                    data_ptr,
-                ],
+                ret,
                 typ=output_typ,
                 location=data.location,
-                annotation="abi_decode_builtin",
+                encoding=Encoding.ABI,
+                annotation="abi_decode {output_type}",
             )
-            ret.encoding = Encoding.ABI
-
             return b1.resolve(ret)
 
 
