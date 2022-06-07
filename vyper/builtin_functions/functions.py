@@ -2216,7 +2216,10 @@ class ABIDecode(_SimpleBuiltinFunction):
             # as used in external call codegen because in order to be type-safe we
             # would need an extra memory copy. To avoid a copy, we manually add the
             # ABI-dynamic offset so that it is re-interpreted in-place.
-            if unwrap_tuple is True and output_typ.abi_type.is_dynamic():
+            if unwrap_tuple is True and (
+                (isinstance(output_typ, TupleType) and len(output_typ.members) == 1)
+                or (not isinstance(output_typ, TupleType) and output_typ.abi_type.is_dynamic())
+            ):
                 data_ptr = add_ofst(data_ptr, 32)
 
             ret = IRnode.from_list(
