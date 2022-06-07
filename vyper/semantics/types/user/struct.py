@@ -49,14 +49,14 @@ class StructDefinition(MemberTypeDefinition, ValueTypeDefinition):
         return ABI_Tuple([t.abi_type for t in self.members.values()])
 
     @property
-    def json_abi_type(self) -> str:
+    def json_abi_typename(self) -> str:
         return "tuple"
 
-    def json_abi(self, name=""):
+    def json_abi_type(self, name=""):
         return {
             "name": name,
             "type": "tuple",
-            "components": [v.json_abi(k) for k, v in self.members.items()],
+            "components": [v.json_abi_type(k) for k, v in self.members.items()],
         }
 
 

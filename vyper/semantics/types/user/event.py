@@ -123,7 +123,7 @@ class Event:
             {
                 "name": self.name,
                 "inputs": [
-                    dict(**typ.json_abi(name), **{"indexed": idx})
+                    dict(**typ.json_abi_type(name), **{"indexed": idx})
                     for (name, typ), idx in zip(self.arguments.items(), self.indexed)
                 ],
                 "anonymous": False,

@@ -285,19 +285,19 @@ class BaseTypeDefinition:
         return self.abi_type.selector_name()
 
     @property
-    def json_abi_type(self) -> str:
+    def json_abi_typename(self) -> str:
         """
         The JSON format of this type.
         """
         return self.abi_type.selector_name()
 
-    def json_abi(self, name: str = "") -> Dict[str, Any]:
+    def json_abi_type(self, name: str = "") -> Dict[str, Any]:
         """
         The JSON ABI output
         """
         return {
             "name": name,
-            "type": self.json_abi_type,
+            "type": self.json_abi_typename,
         }
 
     def from_annotation(self, node: vy_ast.VyperNode, *args: Any, **kwargs: Any) -> None:

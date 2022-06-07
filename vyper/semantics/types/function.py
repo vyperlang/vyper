@@ -527,15 +527,15 @@ class ContractFunction(BaseTypeDefinition):
             abi_dict["type"] = "function"
             abi_dict["name"] = self.name
 
-        abi_dict["inputs"] = [v.json_abi(k) for k, v in self.arguments.items()]
+        abi_dict["inputs"] = [v.json_abi_type(k) for k, v in self.arguments.items()]
 
         typ = self.return_type
         if typ is None:
             abi_dict["outputs"] = []
         elif isinstance(typ, TupleDefinition) and len(typ.value_type) > 1:  # type: ignore
-            abi_dict["outputs"] = [i.json_abi() for i in typ.value_type]  # type: ignore
+            abi_dict["outputs"] = [i.json_abi_type() for i in typ.value_type]  # type: ignore
         else:
-            abi_dict["outputs"] = [typ.json_abi()]
+            abi_dict["outputs"] = [typ.json_abi_type()]
 
         if self.has_default_args:
             # for functions with default args, return a dict for each possible arg count
