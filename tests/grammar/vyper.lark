@@ -244,7 +244,7 @@ _IN: "in"
 empty: "empty" "(" type ")"
 
 // special rule to handle types as "arguments" (for `_abi_decode` builtin)
-abi_decode: "_abi_decode" "(" arg "," type "," kwarg ")"
+abi_decode: "_abi_decode" "(" arg "," type ( "," kwarg )* ")"
 
 
 // NOTE: Must end recursive cycle like this (with `atom` calling `operation`)
