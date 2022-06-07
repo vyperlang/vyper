@@ -204,18 +204,6 @@ class _ExprTypeChecker:
         return [BoolDefinition()]
 
     def types_from_Call(self, node):
-        # workaround for `_abi_decode` to derive type from LHS
-        if isinstance(node.func, vy_ast.Name) and node.func.id == "_abi_decode":
-            parent_node = node.get_ancestor()
-            if isinstance(parent_node, (vy_ast.Assign, vy_ast.AnnAssign)):
-                return [parent_node._metadata["type"]]
-
-            elif isinstance(parent_node, vy_ast.Return):
-                func_node = node.get_ancestor(vy_ast.FunctionDef)
-                return [func_node._metadata["type"].return_type]
-
-            raise StructureException("Unable to determine the return type of abi_decode", node)
-
         # function calls, e.g. `foo()`
         var = self.get_exact_type_from_node(node.func, False)
         return_value = var.fetch_call_return(node)

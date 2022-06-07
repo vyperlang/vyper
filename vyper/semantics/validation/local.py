@@ -234,7 +234,6 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             )
 
         type_definition = get_type_from_annotation(node.annotation, DataLocation.MEMORY)
-        node._metadata["type"] = type_definition
         validate_expected_type(node.value, type_definition)
 
         try:
@@ -248,7 +247,6 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             raise StructureException("Right-hand side of assignment cannot be a tuple", node.value)
 
         target = get_exact_type_from_node(node.target)
-        node._metadata["type"] = target
         if isinstance(target, MappingDefinition):
             raise StructureException(
                 "Left-hand side of assignment cannot be a HashMap without a key", node
