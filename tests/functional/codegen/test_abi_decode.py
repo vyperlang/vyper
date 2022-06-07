@@ -5,6 +5,10 @@ import pytest
 from vyper.exceptions import ArgumentException, StructureException
 
 
+TEST_ADDR = b"".join(chr(i).encode("utf-8") for i in range(20))
+EXPECTED_TEST_ADDR = "0x" + TEST_ADDR.hex()
+
+
 def test_abi_decode_complex(get_contract, abi_encode):
     contract = """
 struct Animal:
@@ -21,21 +25,7 @@ struct Human:
   pet: Animal
 
 @external
-def abi_decode(x: Bytes[64]) -> (address, int128):
-    a: address = ZERO_ADDRESS
-    b: int128 = 0
-    a, b = _abi_decode(x, (address, int128))
-    return a, b
-
-@external
-def abi_decode2(x: Bytes[64]) -> (uint256, uint256):
-    a: uint256 = 0
-    b: uint256 = 0
-    a, b = _abi_decode(x, (uint256, uint256))
-    return a, b
-
-@external
-def abi_decode3(x: Bytes[160]) -> (address, int128, bool, decimal, bytes32):
+def abi_decode(x: Bytes[160]) -> (address, int128, bool, decimal, bytes32):
     a: address = ZERO_ADDRESS
     b: int128 = 0
     c: bool = False
@@ -43,13 +33,6 @@ def abi_decode3(x: Bytes[160]) -> (address, int128, bool, decimal, bytes32):
     e: bytes32 = 0x0000000000000000000000000000000000000000000000000000000000000000
     a, b, c, d, e = _abi_decode(x, (address, int128, bool, decimal, bytes32))
     return a, b, c, d, e
-
-@external
-def abi_decode4(x: Bytes[128]) -> (String[5], address):
-    a: String[5] = ""
-    b: address = ZERO_ADDRESS
-    a, b = _abi_decode(x, (String[5], address), unwrap_tuple=False)
-    return a, b
 
 @external
 def abi_decode_struct(x: Bytes[512]) -> Human:
@@ -65,50 +48,35 @@ def abi_decode_struct(x: Bytes[512]) -> Human:
             metadata: 0x0000000000000000000000000000000000000000000000000000000000000000
         })
     })
-    human = _abi_decode(x, Human, unwrap_tuple=False)
+    human = _abi_decode(x, Human)
     return human
     """
 
     c = get_contract(contract)
 
-    test_addr = b"".join(chr(i).encode("utf-8") for i in range(20))
-    expected_test_addr = "0x" + test_addr.hex()
-    encoded = abi_encode("(address,int128)", (test_addr, 123))
-
-    assert tuple(c.abi_decode(encoded)) == (expected_test_addr, 123)
-
-    arg1 = 123
-    arg2 = 456
-    assert tuple(c.abi_decode2(abi_encode("(uint256,uint256)", (arg1, arg2)))) == (123, 456)
-
     test_bytes32 = b"".join(chr(i).encode("utf-8") for i in range(32))
-    args = (test_addr, -1, True, Decimal("-123.4"), test_bytes32)
+    args = (TEST_ADDR, -1, True, Decimal("-123.4"), test_bytes32)
     encoding = "(address,int128,bool,fixed168x10,bytes32)"
     encoded = abi_encode(encoding, args)
-    assert tuple(c.abi_decode3(encoded)) == (
-        expected_test_addr,
+    assert tuple(c.abi_decode(encoded)) == (
+        EXPECTED_TEST_ADDR,
         -1,
         True,
         Decimal("-123.4"),
         test_bytes32,
     )
 
-    arg = ("vyper", test_addr)
-    encoding = "(string,address)"
-    encoded = abi_encode(encoding, arg)
-    assert tuple(c.abi_decode4(encoded)) == ("vyper", expected_test_addr)
-
     test_bytes32 = b"".join(chr(i).encode("utf-8") for i in range(32))
     human_tuple = (
         "foobar",
-        ("vyper", test_addr, 123, True, Decimal("123.4"), [123, 456, 789], test_bytes32),
+        ("vyper", TEST_ADDR, 123, True, Decimal("123.4"), [123, 456, 789], test_bytes32),
     )
     args = tuple([human_tuple[0]] + list(human_tuple[1]))
-    human_t = "(string,(string,address,int128,bool,fixed168x10,uint256[3],bytes32))"
-    human_encoded = abi_encode(human_t, human_tuple)
+    human_t = "((string,(string,address,int128,bool,fixed168x10,uint256[3],bytes32)))"
+    human_encoded = abi_encode(human_t, (human_tuple,))
     assert tuple(c.abi_decode_struct(human_encoded)) == (
         "foobar",
-        ("vyper", expected_test_addr, 123, True, Decimal("123.4"), [123, 456, 789], test_bytes32),
+        ("vyper", EXPECTED_TEST_ADDR, 123, True, Decimal("123.4"), [123, 456, 789], test_bytes32),
     )
 
 
@@ -144,6 +112,47 @@ def foo(x: Bytes[{input_len}]) -> {output_typ}:
     assert c.foo(encoded) == expected
 
 
+@pytest.mark.parametrize(
+    "arg,expected,input_len,output_typ1,output_typ2,abi_typ",
+    [
+        ((123, 456), (123, 456), 64, "uint256", "uint256", "(uint256,uint256)"),
+        ((TEST_ADDR, 123), (EXPECTED_TEST_ADDR, 123), 64, "address", "int128", "(address,int128)"),
+        (
+            ("vyper", TEST_ADDR),
+            ("vyper", EXPECTED_TEST_ADDR),
+            128,
+            "String[5]",
+            "address",
+            "(string,address)",
+        ),
+    ],
+)
+@pytest.mark.parametrize("unwrap_tuple", (True, False))
+def test_abi_decode_double(
+    get_contract,
+    abi_encode,
+    arg,
+    expected,
+    input_len,
+    output_typ1,
+    output_typ2,
+    abi_typ,
+    unwrap_tuple,
+):
+    contract = f"""
+@external
+def foo(x: Bytes[{input_len}]) -> ({output_typ1}, {output_typ2}):
+    a: {output_typ1} = empty({output_typ1})
+    b: {output_typ2} = empty({output_typ2})
+    a, b = _abi_decode(x, ({output_typ1}, {output_typ2}), unwrap_tuple={unwrap_tuple})
+    return a, b
+    """
+
+    c = get_contract(contract)
+    encoded = abi_encode(abi_typ, arg)
+    assert tuple(c.foo(encoded)) == expected
+
+
 nested_2d_array_args = [
     [[123, 456, 789], [234, 567, 891], [345, 678, 912]],
     [[], [], []],
@@ -160,18 +169,24 @@ nested_2d_array_args = [
 
 
 @pytest.mark.parametrize("args", nested_2d_array_args)
-def test_abi_decode_nested_dynarray(get_contract, abi_encode, args):
-    code = """
+@pytest.mark.parametrize("unwrap_tuple", (True, False))
+def test_abi_decode_nested_dynarray(get_contract, abi_encode, args, unwrap_tuple):
+    if unwrap_tuple is True:
+        encoded = abi_encode("(uint256[][])", (args,))
+        len = 544
+    else:
+        encoded = abi_encode("uint256[][]", args)
+        len = 512
+
+    code = f"""
 @external
-def abi_decode(x: Bytes[544]) -> DynArray[DynArray[uint256, 3], 3]:
+def abi_decode(x: Bytes[{len}]) -> DynArray[DynArray[uint256, 3], 3]:
     a: DynArray[DynArray[uint256, 3], 3] = []
-    a = _abi_decode(x, DynArray[DynArray[uint256, 3], 3], unwrap_tuple=True)
+    a = _abi_decode(x, DynArray[DynArray[uint256, 3], 3], unwrap_tuple={unwrap_tuple})
     return a
     """
 
     c = get_contract(code)
-
-    encoded = abi_encode("(uint256[][])", (args,))
     assert c.abi_decode(encoded) == args
 
 
@@ -227,18 +242,28 @@ nested_3d_array_args = [
 
 
 @pytest.mark.parametrize("args", nested_3d_array_args)
-def test_abi_decode_nested_dynarray2(get_contract, abi_encode, args):
-    code = """
+@pytest.mark.parametrize("unwrap_tuple", (True, False))
+def test_abi_decode_nested_dynarray2(get_contract, abi_encode, args, unwrap_tuple):
+    if unwrap_tuple is True:
+        encoded = abi_encode("(uint256[][][])", (args,))
+        len = 1696
+    else:
+        encoded = abi_encode("uint256[][][]", args)
+        len = 1664
+
+    code = f"""
 @external
-def abi_decode(x: Bytes[1696]) -> DynArray[DynArray[DynArray[uint256, 3], 3], 3]:
+def abi_decode(x: Bytes[{len}]) -> DynArray[DynArray[DynArray[uint256, 3], 3], 3]:
     a: DynArray[DynArray[DynArray[uint256, 3], 3], 3] = []
-    a = _abi_decode(x, DynArray[DynArray[DynArray[uint256, 3], 3], 3], unwrap_tuple=True)
+    a = _abi_decode(
+        x,
+        DynArray[DynArray[DynArray[uint256, 3], 3], 3],
+        unwrap_tuple={unwrap_tuple}
+    )
     return a
     """
 
     c = get_contract(code)
-
-    encoded = abi_encode("(uint256[][][])", (args,))
     assert c.abi_decode(encoded) == args
 
 
@@ -328,11 +353,9 @@ def abi_decode(x: Bytes[64]) -> (address, int128):
 
     c = get_contract(contract)
 
-    test_addr = b"".join(chr(i).encode("utf-8") for i in range(20))
-    expected_test_addr = "0x" + test_addr.hex()
-    encoded = abi_encode("(address,int128)", (test_addr, 123))
+    encoded = abi_encode("(address,int128)", (TEST_ADDR, 123))
 
-    assert tuple(c.abi_decode(encoded)) == (expected_test_addr, 123)
+    assert tuple(c.abi_decode(encoded)) == (EXPECTED_TEST_ADDR, 123)
 
 
 def test_abi_decode_annassign(get_contract, abi_encode):
@@ -346,6 +369,26 @@ def abi_decode(x: Bytes[32]) -> uint256:
 
     encoded = abi_encode("uint256", 123)
     assert c.abi_decode(encoded) == 123
+
+
+@pytest.mark.parametrize(
+    "input",
+    [
+        b"",  # Length of byte array is below minimum size of output type
+        b"\x01" * 96,  # Length of byte array is beyond size bound of output type
+    ],
+)
+def test_clamper(get_contract, assert_tx_failed, abi_encode, input):
+    contract = """
+@external
+def abi_decode(x: Bytes[64]) -> (uint256, uint256):
+    a: uint256 = empty(uint256)
+    b: uint256 = empty(uint256)
+    a, b = _abi_decode(x, (uint256, uint256))
+    return a, b
+    """
+    c = get_contract(contract)
+    assert_tx_failed(lambda: c.abi_decode(input))
 
 
 FAIL_LIST = [
