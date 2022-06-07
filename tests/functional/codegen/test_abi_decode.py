@@ -125,6 +125,7 @@ def foo(x: Bytes[{input_len}]) -> {output_typ}:
             "address",
             "(string,address)",
         ),
+        ((1, b"234"), (1, b"234"), 128, "uint256", "Bytes[32]", ("(uint256,bytes)")),
     ],
 )
 @pytest.mark.parametrize("unwrap_tuple", (True, False))
