@@ -2237,14 +2237,15 @@ class ABIDecode(_SimpleBuiltinFunction):
             # return pointer to the buffer
             ret.append(data_ptr)
 
-            ret = IRnode.from_list(
-                ret,
-                typ=output_typ,
-                location=data.location,
-                encoding=Encoding.ABI,
-                annotation="abi_decode {output_type}",
+            return b1.resolve(
+                IRnode.from_list(
+                    ret,
+                    typ=output_typ,
+                    location=data.location,
+                    encoding=Encoding.ABI,
+                    annotation="abi_decode {output_type}",
+                )
             )
-            return b1.resolve(ret)
 
 
 DISPATCH_TABLE = {
