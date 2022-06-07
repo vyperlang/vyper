@@ -4,7 +4,6 @@ import pytest
 
 from vyper.exceptions import ArgumentException, StructureException
 
-
 TEST_ADDR = b"".join(chr(i).encode("utf-8") for i in range(20))
 EXPECTED_TEST_ADDR = "0x" + TEST_ADDR.hex()
 
