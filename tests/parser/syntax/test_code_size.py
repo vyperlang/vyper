@@ -32,6 +32,15 @@ def foo() -> uint256:
 def foo() -> uint256:
     return self.codesize
     """,
+    """
+struct Foo:
+    t: address
+foo: Foo
+
+@external
+def bar() -> uint256:
+    return self.foo.t.codesize
+    """,
 ]
 
 

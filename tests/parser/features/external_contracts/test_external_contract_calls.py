@@ -2324,3 +2324,131 @@ def foo(_addr: address, _addr2: address) -> int128:
 
     assert c2.foo(c1.address, c1.address) == 123
     assert_tx_failed(lambda: c2.foo(c1.address, "0x1234567890123456789012345678901234567890"))
+
+
+def test_default_override(get_contract, assert_tx_failed):
+    bad_erc20_code = """
+@external
+def transfer(receiver: address, amount: uint256):
+    pass
+    """
+
+    negative_transfer_code = """
+@external
+def transfer(receiver: address, amount: uint256) -> bool:
+    return False
+    """
+
+    self_destructing_code = """
+@external
+def transfer(receiver: address, amount: uint256):
+    selfdestruct(msg.sender)
+    """
+
+    code = """
+from vyper.interfaces import ERC20
+@external
+def safeTransfer(erc20: ERC20, receiver: address, amount: uint256) -> uint256:
+    assert erc20.transfer(receiver, amount, default_return_value=True)
+    return 7
+
+@external
+def transferBorked(erc20: ERC20, receiver: address, amount: uint256):
+    assert erc20.transfer(receiver, amount)
+    """
+    bad_erc20 = get_contract(bad_erc20_code)
+    c = get_contract(code)
+
+    # demonstrate transfer failing
+    assert_tx_failed(lambda: c.transferBorked(bad_erc20.address, c.address, 0))
+    # would fail without default_return_value
+    assert c.safeTransfer(bad_erc20.address, c.address, 0) == 7
+
+    # check that `default_return_value` does not stomp valid returndata.
+    negative_contract = get_contract(negative_transfer_code)
+    assert_tx_failed(lambda: c.safeTransfer(negative_contract.address, c.address, 0))
+
+    # default_return_value should fail on EOAs (addresses with no code)
+    random_address = "0x0000000000000000000000000000000000001234"
+    assert_tx_failed(lambda: c.safeTransfer(random_address, c.address, 1))
+
+    # in this case, the extcodesize check runs after the token contract
+    # selfdestructs. however, extcodesize still returns nonzero until
+    # later (i.e., after this transaction), so we still pass
+    # the extcodesize check.
+    self_destructing_contract = get_contract(self_destructing_code)
+    assert c.safeTransfer(self_destructing_contract.address, c.address, 0) == 7
+
+
+def test_default_override2(get_contract, assert_tx_failed):
+    bad_code_1 = """
+@external
+def return_64_bytes() -> bool:
+    return True
+    """
+
+    bad_code_2 = """
+@external
+def return_64_bytes():
+    pass
+    """
+
+    code = """
+struct BoolPair:
+    x: bool
+    y: bool
+interface Foo:
+    def return_64_bytes() -> BoolPair: nonpayable
+@external
+def bar(foo: Foo):
+    t: BoolPair = foo.return_64_bytes(default_return_value=BoolPair({x: True, y:True}))
+    assert t.x and t.y
+    """
+    bad_1 = get_contract(bad_code_1)
+    bad_2 = get_contract(bad_code_2)
+    c = get_contract(code)
+
+    # fails due to returndatasize being nonzero but also lt 64
+    assert_tx_failed(lambda: c.bar(bad_1.address))
+    c.bar(bad_2.address)
+
+
+def test_contract_address_evaluation(get_contract):
+    callee_code = """
+# implements: Foo
+
+interface Counter:
+    def increment_counter(): nonpayable
+
+@external
+def foo():
+    pass
+
+@external
+def bar() -> address:
+    Counter(msg.sender).increment_counter()
+    return self
+    """
+    code = """
+# implements: Counter
+
+interface Foo:
+    def foo(): nonpayable
+    def bar() -> address: nonpayable
+
+counter: uint256
+
+@external
+def increment_counter():
+    self.counter += 1
+
+@external
+def do_stuff(f: Foo) -> uint256:
+    Foo(f.bar()).foo()
+    return self.counter
+    """
+
+    c1 = get_contract(code)
+    c2 = get_contract(callee_code)
+
+    assert c1.do_stuff(c2.address) == 1

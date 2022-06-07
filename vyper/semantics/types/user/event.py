@@ -41,6 +41,10 @@ class Event:
         self.indexed = indexed
         self.event_id = int(keccak256(self.signature.encode()).hex(), 16)
 
+    def __repr__(self):
+        arg_types = ",".join(repr(a) for a in self.arguments.values())
+        return f"event {self.name}({arg_types})"
+
     @property
     def signature(self):
         return f"{self.name}({','.join(v.canonical_abi_type for v in self.arguments.values())})"

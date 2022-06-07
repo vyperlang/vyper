@@ -10,6 +10,7 @@ module: ( DOCSTRING
         | interface_def
         | constant_def
         | variable_def
+        | enum_def
         | event_def
         | function_def
         | immutable_def
@@ -71,6 +72,12 @@ indexed_event_arg: NAME ":" "indexed" "(" type ")"
 event_body: _NEWLINE _INDENT ((variable | indexed_event_arg) _NEWLINE)+ _DEDENT
 // Events which use no args use a pass statement instead
 event_def: _EVENT_DECL NAME ":" ( event_body | _PASS )
+
+// Enums
+_ENUM_DECL: "enum"
+enum_member: NAME
+enum_body: _NEWLINE _INDENT (enum_member _NEWLINE)+ _DEDENT
+enum_def: _ENUM_DECL NAME ":" enum_body
 
 // Types
 array_def: (NAME | array_def) "[" (DEC_NUMBER | NAME) "]"

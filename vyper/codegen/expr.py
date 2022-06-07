@@ -5,6 +5,7 @@ from vyper import ast as vy_ast
 from vyper.address_space import DATA, IMMUTABLES, MEMORY, STORAGE
 from vyper.codegen import external_call, self_call
 from vyper.codegen.core import (
+    clamp,
     clamp_basetype,
     ensure_in_memory,
     get_dyn_array_count,
@@ -22,6 +23,7 @@ from vyper.codegen.types import (
     ByteArrayLike,
     ByteArrayType,
     DArrayType,
+    EnumType,
     InterfaceType,
     MappingType,
     SArrayType,
@@ -189,12 +191,12 @@ class Expr:
         self.ir_node.source_pos = getpos(self.expr)
 
     def parse_Int(self):
-        # Literal (mostly likely) becomes int256
-        if self.expr.n < 0:
-            return IRnode.from_list(self.expr.n, typ=BaseType("int256", is_literal=True))
-        # Literal is large enough (mostly likely) becomes uint256.
-        else:
-            return IRnode.from_list(self.expr.n, typ=BaseType("uint256", is_literal=True))
+        typ_ = self.expr._metadata.get("type")
+        if typ_ is None:
+            raise CompilerPanic("Type of integer literal is unknown")
+        new_typ = new_type_to_old_type(typ_)
+        new_typ.is_literal = True
+        return IRnode.from_list(self.expr.n, typ=new_typ)
 
     def parse_Decimal(self):
         val = self.expr.value * DECIMAL_DIVISOR
@@ -315,6 +317,16 @@ class Expr:
 
     # x.y or x[5]
     def parse_Attribute(self):
+        typ = self.expr._metadata.get("type")
+        if typ is not None:
+            typ = new_type_to_old_type(typ)
+        if isinstance(typ, EnumType):
+            assert typ.name == self.expr.value.id
+            # 0, 1, 2, .. 255
+            enum_id = typ.members[self.expr.attr]
+            value = 2 ** enum_id  # 0 => 0001, 1 => 0010, 2 => 0100, etc.
+            return IRnode.from_list(value, typ=typ)
+
         # x.balance: balance of address x
         if self.expr.attr == "balance":
             addr = Expr.parse_value_expr(self.expr.value, self.context)
@@ -333,7 +345,7 @@ class Expr:
             addr = Expr.parse_value_expr(self.expr.value, self.context)
             if is_base_type(addr.typ, "address"):
                 if self.expr.attr == "codesize":
-                    if self.expr.value.id == "self":
+                    if self.expr.get("value.id") == "self":
                         eval_code = ["codesize"]
                     else:
                         eval_code = ["extcodesize", addr]
@@ -588,7 +600,7 @@ class Expr:
                 divisor = "r"
             else:
                 # only apply the non-zero clamp when r is not a constant
-                divisor = ["clamp_nonzero", "r"]
+                divisor = clamp("gt", "r", 0)
 
             if ltyp in ("uint8", "uint256"):
                 arith = ["div", "l", divisor]
@@ -631,7 +643,7 @@ class Expr:
                 divisor = "r"
             else:
                 # only apply the non-zero clamp when r is not a constant
-                divisor = ["clamp_nonzero", "r"]
+                divisor = clamp("gt", "r", 0)
 
             if ltyp in ("uint8", "uint256"):
                 arith = ["mod", "l", divisor]
@@ -664,20 +676,20 @@ class Expr:
                 value = self.expr.left.value
                 upper_bound = calculate_largest_power(value, num_bits, is_signed) + 1
                 # for signed integers, this also prevents negative values
-                clamp = ["lt", right, upper_bound]
+                clamp_cond = ["lt", right, upper_bound]
                 return IRnode.from_list(
-                    ["seq", ["assert", clamp], ["exp", left, right]],
+                    ["seq", ["assert", clamp_cond], ["exp", left, right]],
                     typ=new_typ,
                 )
             elif isinstance(self.expr.right, vy_ast.Int):
                 value = self.expr.right.value
                 upper_bound = calculate_largest_base(value, num_bits, is_signed) + 1
                 if is_signed:
-                    clamp = ["and", ["slt", left, upper_bound], ["sgt", left, -upper_bound]]
+                    clamp_cond = ["and", ["slt", left, upper_bound], ["sgt", left, -upper_bound]]
                 else:
-                    clamp = ["lt", left, upper_bound]
+                    clamp_cond = ["lt", left, upper_bound]
                 return IRnode.from_list(
-                    ["seq", ["assert", clamp], ["exp", left, right]], typ=new_typ
+                    ["seq", ["assert", clamp_cond], ["exp", left, right]], typ=new_typ
                 )
             else:
                 # `a ** b` where neither `a` or `b` are known
@@ -900,7 +912,7 @@ class Expr:
             # max(val, 0 - val)
             min_int_val, _ = operand.typ._num_info.bounds
             return IRnode.from_list(
-                ["sub", 0, ["clampgt", operand, min_int_val]],
+                ["sub", 0, clamp("sgt", operand, min_int_val)],
                 typ=operand.typ,
             )
 
@@ -936,6 +948,7 @@ class Expr:
                     return arg_ir
 
         elif isinstance(self.expr.func, vy_ast.Attribute) and self.expr.func.attr == "pop":
+            # TODO consider moving this to builtins
             darray = Expr(self.expr.func.value, self.context).ir_node
             assert len(self.expr.args) == 0
             assert isinstance(darray.typ, DArrayType)
@@ -945,10 +958,12 @@ class Expr:
             )
 
         elif (
+            # TODO use expr.func.type.is_internal once
+            # type annotations are consistently available
             isinstance(self.expr.func, vy_ast.Attribute)
             and isinstance(self.expr.func.value, vy_ast.Name)
             and self.expr.func.value.id == "self"
-        ):  # noqa: E501
+        ):
             return self_call.ir_for_self_call(self.expr, self.context)
         else:
             return external_call.ir_for_external_call(self.expr, self.context)

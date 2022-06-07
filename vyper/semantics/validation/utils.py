@@ -140,7 +140,7 @@ class _ExprTypeChecker:
 
     def types_from_Attribute(self, node):
         # variable attribute, e.g. `foo.bar`
-        var = self.get_exact_type_from_node(node.value)
+        var = self.get_exact_type_from_node(node.value, only_definitions=False)
         name = node.attr
         try:
             return [var.get_member(name, node)]
