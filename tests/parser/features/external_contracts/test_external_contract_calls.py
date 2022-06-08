@@ -2411,3 +2411,44 @@ def bar(foo: Foo):
     # fails due to returndatasize being nonzero but also lt 64
     assert_tx_failed(lambda: c.bar(bad_1.address))
     c.bar(bad_2.address)
+
+
+def test_contract_address_evaluation(get_contract):
+    callee_code = """
+# implements: Foo
+
+interface Counter:
+    def increment_counter(): nonpayable
+
+@external
+def foo():
+    pass
+
+@external
+def bar() -> address:
+    Counter(msg.sender).increment_counter()
+    return self
+    """
+    code = """
+# implements: Counter
+
+interface Foo:
+    def foo(): nonpayable
+    def bar() -> address: nonpayable
+
+counter: uint256
+
+@external
+def increment_counter():
+    self.counter += 1
+
+@external
+def do_stuff(f: Foo) -> uint256:
+    Foo(f.bar()).foo()
+    return self.counter
+    """
+
+    c1 = get_contract(code)
+    c2 = get_contract(callee_code)
+
+    assert c1.do_stuff(c2.address) == 1

@@ -30,6 +30,14 @@ class KwargSettings:
         self.require_literal = require_literal
 
 
+class TypeTypeDefinition:
+    def __init__(self, typedef):
+        self.typedef = typedef
+
+    def __repr__(self):
+        return f"type({self.typedef})"
+
+
 class StringEnum(enum.Enum):
     @staticmethod
     def auto():
@@ -156,6 +164,12 @@ def get_type_from_annotation(
         Type definition object.
     """
     namespace = get_namespace()
+
+    if isinstance(node, vy_ast.Tuple):
+        values = node.elements
+        types = tuple(get_type_from_annotation(v, DataLocation.UNSET) for v in values)
+        return TupleDefinition(types)
+
     try:
         # get id of leftmost `Name` node from the annotation
         type_name = next(i.id for i in node.get_descendants(vy_ast.Name, include_self=True))

@@ -49,9 +49,6 @@ struct X:
     int128[5]: int128[7]
     """,
     """
-b: HashMap[(int128, decimal), int128]
-    """,
-    """
 @external
 @nonreentrant("B")
 @nonreentrant("C")
