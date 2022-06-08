@@ -2219,7 +2219,11 @@ class ABIDecode(_SimpleBuiltinFunction):
             # type-safe we would need an extra memory copy. To avoid a copy,
             # we manually add the ABI-dynamic offset so that it is
             # re-interpreted in-place.
-            if unwrap_tuple is True and needs_external_call_wrap(output_typ) and output_typ.abi_type.is_dynamic():
+            if (
+                unwrap_tuple is True
+                and needs_external_call_wrap(output_typ)
+                and output_typ.abi_type.is_dynamic()
+            ):
                 data_ptr = add_ofst(data_ptr, 32)
 
             ret = ["seq"]

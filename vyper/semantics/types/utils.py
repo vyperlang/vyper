@@ -1,5 +1,5 @@
 import enum
-from typing import Dict, List, Tuple
+from typing import Dict, List
 
 from vyper import ast as vy_ast
 from vyper.exceptions import (
