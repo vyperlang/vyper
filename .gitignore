@@ -47,3 +47,6 @@ vyper/version.py
 vyper/vyper_git_version.txt
 vyper/vyper_git_commithash.txt
 *.spec
+
+# mac
+.DS_Store

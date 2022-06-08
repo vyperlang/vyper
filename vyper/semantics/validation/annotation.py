@@ -119,7 +119,7 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
 
     def visit_Attribute(self, node, type_):
         base_type = get_exact_type_from_node(node.value)
-        node._metadata["type"] = base_type.get_member(node.attr, None)
+        node._metadata["type"] = base_type.get_member(node.attr, node)
         self.visit(node.value, None)
 
     def visit_BinOp(self, node, type_):

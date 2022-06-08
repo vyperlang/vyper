@@ -46,6 +46,7 @@ from vyper.codegen.types import (
     is_base_type,
     parse_integer_typeinfo,
 )
+from vyper.codegen.types.convert import new_type_to_old_type
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
     ArgumentException,
@@ -1886,6 +1887,83 @@ class Max(_MinMax):
     _opcode = "gt"
 
 
+class Uint2Str(_SimpleBuiltinFunction):
+    _id = "uint2str"
+    _inputs = [("x", UnsignedIntegerAbstractType())]  # should allow any uint?
+
+    def fetch_call_return(self, node):
+        arg_t = self.infer_arg_types(node)[0]
+        bits = arg_t._bits
+        len_needed = math.ceil(bits * math.log(2) / math.log(10))
+        return StringDefinition(len_needed)
+
+    def evaluate(self, node):
+        validate_call_args(node, 1)
+        if not isinstance(node.args[0], vy_ast.Int):
+            raise UnfoldableNode
+
+        value = str(node.args[0].value)
+        return vy_ast.Str.from_node(node, value=value)
+
+    def infer_arg_types(self, node):
+        self._validate_arg_types(node)
+        input_type = get_possible_types_from_node(node.args[0]).pop()
+        return [input_type]
+
+    @validate_inputs
+    def build_IR(self, expr, args, kwargs, context):
+        return_t = new_type_to_old_type(self.fetch_call_return(expr))
+        n_digits = return_t.maxlen
+
+        with args[0].cache_when_complex("val") as (b1, val):
+
+            buf = context.new_internal_variable(return_t)
+
+            i = IRnode.from_list(context.fresh_varname("uint2str_i"), typ="uint256")
+
+            ret = ["repeat", i, 0, n_digits + 1, n_digits + 1]
+
+            body = [
+                "seq",
+                [
+                    "if",
+                    ["eq", val, 0],
+                    # clobber val, and return it as a pointer
+                    [
+                        "seq",
+                        ["mstore", ["sub", buf + n_digits, i], i],
+                        ["set", val, ["sub", buf + n_digits, i]],
+                        "break",
+                    ],
+                    [
+                        "seq",
+                        [
+                            "mstore",
+                            ["sub", buf + n_digits, i],
+                            ["add", 48, ["mod", val, 10]],
+                        ],
+                        ["set", val, ["div", val, 10]],
+                    ],
+                ],
+            ]
+            ret.append(body)
+
+            # "0" has hex representation 0x00..0130..00
+            # if (val == 0) {
+            #   return "0"
+            # } else {
+            #   do the loop
+            # }
+            ret = [
+                "if",
+                ["eq", val, 0],
+                ["seq", ["mstore", buf + 1, 0x0130], buf],
+                ["seq", ret, val],
+            ]
+
+            return b1.resolve(IRnode.from_list(ret, location=MEMORY, typ=return_t))
+
+
 class Sqrt(_SimpleBuiltinFunction):
 
     _id = "sqrt"
@@ -2278,6 +2356,7 @@ DISPATCH_TABLE = {
     "unsafe_mul": UnsafeMul(),
     "unsafe_div": UnsafeDiv(),
     "pow_mod256": PowMod256(),
+    "uint2str": Uint2Str(),
     "sqrt": Sqrt(),
     "shift": Shift(),
     "create_forwarder_to": CreateForwarderTo(),
