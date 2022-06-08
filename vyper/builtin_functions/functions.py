@@ -17,6 +17,7 @@ from vyper.codegen.core import (
     IRnode,
     add_ofst,
     bytes_data_ptr,
+    calculate_type_for_external_return,
     check_external_call,
     clamp,
     clamp2,
@@ -27,10 +28,12 @@ from vyper.codegen.core import (
     get_bytearray_length,
     get_element_ptr,
     ir_tuple_from_args,
+    needs_external_call_wrap,
     promote_signed_int,
     unwrap_location,
 )
 from vyper.codegen.expr import Expr
+from vyper.codegen.ir_node import Encoding
 from vyper.codegen.keccak256_helper import keccak256_helper
 from vyper.codegen.types import (
     BaseType,
@@ -43,6 +46,7 @@ from vyper.codegen.types import (
     is_base_type,
     parse_integer_typeinfo,
 )
+from vyper.codegen.types.convert import new_type_to_old_type
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
     ArgumentException,
@@ -72,7 +76,7 @@ from vyper.semantics.types.abstract import (
     UnsignedIntegerAbstractType,
 )
 from vyper.semantics.types.bases import DataLocation
-from vyper.semantics.types.utils import KwargSettings, get_type_from_annotation
+from vyper.semantics.types.utils import KwargSettings, TypeTypeDefinition, get_type_from_annotation
 from vyper.semantics.types.value.address import AddressDefinition
 from vyper.semantics.types.value.array_value import (
     BytesArrayDefinition,
@@ -102,7 +106,7 @@ from vyper.utils import (
     vyper_warn,
 )
 
-from .signatures import TypeTypeDefinition, validate_inputs
+from .signatures import validate_inputs
 
 SHA256_ADDRESS = 2
 SHA256_BASE_GAS = 60
@@ -277,10 +281,7 @@ def _build_adhoc_slice_node(sub: IRnode, start: IRnode, length: IRnode, context:
             [
                 "seq",
                 # runtime bounds check
-                [
-                    "assert",
-                    ["le", ["add", start, length], ["extcodesize", "_extcode_address"]],
-                ],
+                ["assert", ["le", ["add", start, length], ["extcodesize", "_extcode_address"]]],
                 ["mstore", np, length],
                 ["extcodecopy", "_extcode_address", np + 32, start, length],
                 np,
@@ -426,8 +427,7 @@ class Slice(_SimpleBuiltinFunction):
                 # e.g. start == byte 7 -> we start copying from byte 0
                 #      start == byte 32 -> we start copying from byte 32
                 copy_src = IRnode.from_list(
-                    ["add", src_data, ["div", start, 32]],
-                    location=src.location,
+                    ["add", src_data, ["div", start, 32]], location=src.location
                 )
 
                 # e.g. start == byte 0 -> we copy to dst_data + 0
@@ -451,12 +451,7 @@ class Slice(_SimpleBuiltinFunction):
                 copy_len = length
                 copy_maxlen = buflen
 
-            do_copy = copy_bytes(
-                copy_dst,
-                copy_src,
-                copy_len,
-                copy_maxlen,
-            )
+            do_copy = copy_bytes(copy_dst, copy_src, copy_len, copy_maxlen)
 
             ret = [
                 "seq",
@@ -602,10 +597,7 @@ class Concat(_SimpleBuiltinFunction):
         ret.append(dst)
 
         return IRnode.from_list(
-            ["with", ofst, 0, ret],
-            typ=ret_typ,
-            location=MEMORY,
-            annotation="concat",
+            ["with", ofst, 0, ret], typ=ret_typ, location=MEMORY, annotation="concat"
         )
 
 
@@ -885,18 +877,14 @@ class ECMul(_SimpleBuiltinFunction):
 def _generic_element_getter(op):
     def f(index):
         return IRnode.from_list(
-            [op, ["add", "_sub", ["add", 32, ["mul", 32, index]]]],
-            typ=BaseType("int128"),
+            [op, ["add", "_sub", ["add", 32, ["mul", 32, index]]]], typ=BaseType("int128")
         )
 
     return f
 
 
 def _storage_element_getter(index):
-    return IRnode.from_list(
-        ["sload", ["add", "_sub", ["add", 1, index]]],
-        typ=BaseType("int128"),
-    )
+    return IRnode.from_list(["sload", ["add", "_sub", ["add", 1, index]]], typ=BaseType("int128"))
 
 
 class Extract32(_SimpleBuiltinFunction):
@@ -1011,10 +999,7 @@ class Extract32(_SimpleBuiltinFunction):
                 typ=ret_type,
                 annotation="extract32",
             )
-        return IRnode.from_list(
-            clamp_basetype(o),
-            typ=ret_type,
-        )
+        return IRnode.from_list(clamp_basetype(o), typ=ret_type)
 
 
 class AsWeiValue(_SimpleBuiltinFunction):
@@ -1028,16 +1013,8 @@ class AsWeiValue(_SimpleBuiltinFunction):
         ("femtoether", "kwei", "babbage"): 10 ** 3,
         ("picoether", "mwei", "lovelace"): 10 ** 6,
         ("nanoether", "gwei", "shannon"): 10 ** 9,
-        (
-            "microether",
-            "szabo",
-        ): 10
-        ** 12,
-        (
-            "milliether",
-            "finney",
-        ): 10
-        ** 15,
+        ("microether", "szabo"): 10 ** 12,
+        ("milliether", "finney"): 10 ** 15,
         ("ether",): 10 ** 18,
         ("kether", "grand"): 10 ** 21,
     }
@@ -1106,11 +1083,7 @@ class AsWeiValue(_SimpleBuiltinFunction):
         elif value.typ.typ == "int128":
             # signed types do not require bounds checks because the
             # largest possible converted value will not overflow 2**256
-            sub = [
-                "seq",
-                ["assert", ["sgt", value, -1]],
-                ["mul", value, denom_divisor],
-            ]
+            sub = ["seq", ["assert", ["sgt", value, -1]], ["mul", value, denom_divisor]]
         elif value.typ.typ == "decimal":
             sub = [
                 "seq",
@@ -1284,13 +1257,8 @@ class Send(_SimpleBuiltinFunction):
     def build_IR(self, expr, args, kwargs, context):
         to, value = args
         if context.is_constant():
-            raise StateAccessViolation(
-                f"Cannot send ether inside {context.pp_constancy()}!",
-                expr,
-            )
-        return IRnode.from_list(
-            ["assert", ["call", 0, to, value, 0, 0, 0, 0]],
-        )
+            raise StateAccessViolation(f"Cannot send ether inside {context.pp_constancy()}!", expr)
+        return IRnode.from_list(["assert", ["call", 0, to, value, 0, 0, 0, 0]])
 
 
 class SelfDestruct(_SimpleBuiltinFunction):
@@ -1304,8 +1272,7 @@ class SelfDestruct(_SimpleBuiltinFunction):
     def build_IR(self, expr, args, kwargs, context):
         if context.is_constant():
             raise StateAccessViolation(
-                f"Cannot {expr.func.id} inside {context.pp_constancy()}!",
-                expr.func,
+                f"Cannot {expr.func.id} inside {context.pp_constancy()}!", expr.func
             )
         return IRnode.from_list(["selfdestruct", args[0]])
 
@@ -1364,7 +1331,7 @@ class RawLog(_SimpleBuiltinFunction):
                     # TODO use make_setter
                     ["mstore", placeholder, unwrap_location(data)],
                     ["log" + str(topics_length), placeholder, 32] + topics,
-                ],
+                ]
             )
 
         input_buf = ensure_in_memory(data, context)
@@ -1375,7 +1342,7 @@ class RawLog(_SimpleBuiltinFunction):
                 "_sub",
                 input_buf,
                 ["log" + str(topics_length), ["add", "_sub", 32], ["mload", "_sub"], *topics],
-            ],
+            ]
         )
 
 
@@ -1700,10 +1667,7 @@ class CreateForwarderTo(_SimpleBuiltinFunction):
         should_use_create2 = "salt" in [kwarg.arg for kwarg in expr.keywords]
 
         if context.is_constant():
-            raise StateAccessViolation(
-                f"Cannot make calls from {context.pp_constancy()}",
-                expr,
-            )
+            raise StateAccessViolation(f"Cannot make calls from {context.pp_constancy()}", expr)
         placeholder = context.new_internal_variable(ByteArrayType(96))
 
         loader_evm, forwarder_pre_evm, forwarder_post_evm = get_create_forwarder_to_bytecode()
@@ -1883,6 +1847,79 @@ class Max(_MinMax):
     _opcode = "gt"
 
 
+class Uint2Str(_SimpleBuiltinFunction):
+    _id = "uint2str"
+    _inputs = [("x", UnsignedIntegerAbstractType())]  # should allow any uint?
+
+    def fetch_call_return(self, node):
+        arg_t = self.infer_arg_types(node)[0]
+        bits = arg_t._bits
+        len_needed = math.ceil(bits * math.log(2) / math.log(10))
+        return StringDefinition(len_needed)
+
+    def evaluate(self, node):
+        validate_call_args(node, 1)
+        if not isinstance(node.args[0], vy_ast.Int):
+            raise UnfoldableNode
+
+        value = str(node.args[0].value)
+        return vy_ast.Str.from_node(node, value=value)
+
+    def infer_arg_types(self, node):
+        self._validate_arg_types(node)
+        input_type = get_possible_types_from_node(node.args[0]).pop()
+        return [input_type]
+
+    @validate_inputs
+    def build_IR(self, expr, args, kwargs, context):
+        return_t = new_type_to_old_type(self.fetch_call_return(expr))
+        n_digits = return_t.maxlen
+
+        with args[0].cache_when_complex("val") as (b1, val):
+
+            buf = context.new_internal_variable(return_t)
+
+            i = IRnode.from_list(context.fresh_varname("uint2str_i"), typ="uint256")
+
+            ret = ["repeat", i, 0, n_digits + 1, n_digits + 1]
+
+            body = [
+                "seq",
+                [
+                    "if",
+                    ["eq", val, 0],
+                    # clobber val, and return it as a pointer
+                    [
+                        "seq",
+                        ["mstore", ["sub", buf + n_digits, i], i],
+                        ["set", val, ["sub", buf + n_digits, i]],
+                        "break",
+                    ],
+                    [
+                        "seq",
+                        ["mstore", ["sub", buf + n_digits, i], ["add", 48, ["mod", val, 10]]],
+                        ["set", val, ["div", val, 10]],
+                    ],
+                ],
+            ]
+            ret.append(body)
+
+            # "0" has hex representation 0x00..0130..00
+            # if (val == 0) {
+            #   return "0"
+            # } else {
+            #   do the loop
+            # }
+            ret = [
+                "if",
+                ["eq", val, 0],
+                ["seq", ["mstore", buf + 1, 0x0130], buf],
+                ["seq", ret, val],
+            ]
+
+            return b1.resolve(IRnode.from_list(ret, location=MEMORY, typ=return_t))
+
+
 class Sqrt(_SimpleBuiltinFunction):
 
     _id = "sqrt"
@@ -1933,12 +1970,7 @@ else:
             memory_allocator=context.memory_allocator,
         )
         return IRnode.from_list(
-            [
-                "seq",
-                placeholder_copy,  # load x variable
-                sqrt_ir,
-                new_ctx.vars["z"].pos,
-            ],
+            ["seq", placeholder_copy, sqrt_ir, new_ctx.vars["z"].pos],  # load x variable
             typ=BaseType("decimal"),
             location=MEMORY,
         )
@@ -2156,8 +2188,98 @@ class ABIEncode(_SimpleBuiltinFunction):
         )
 
 
+class ABIDecode(_SimpleBuiltinFunction):
+    _id = "_abi_decode"
+    _inputs = [("data", BytesArrayPrimitive()), ("output_type", "TYPE_DEFINITION")]
+    _kwargs = {"unwrap_tuple": KwargSettings(BoolDefinition(), True, require_literal=True)}
+
+    def fetch_call_return(self, node):
+        _, output_type = self.infer_arg_types(node)
+        return output_type.typedef
+
+    def infer_arg_types(self, node):
+        validate_call_args(node, 2, ["unwrap_tuple"])
+
+        data_type = get_exact_type_from_node(node.args[0])
+        output_typedef = TypeTypeDefinition(
+            get_type_from_annotation(node.args[1], DataLocation.MEMORY)
+        )
+
+        return [data_type, output_typedef]
+
+    @validate_inputs
+    def build_IR(self, expr, args, kwargs, context):
+        unwrap_tuple = kwargs["unwrap_tuple"]
+
+        data = args[0]
+        output_typ = args[1]
+        wrapped_typ = output_typ
+
+        if unwrap_tuple is True:
+            wrapped_typ = calculate_type_for_external_return(output_typ)
+
+        abi_size_bound = wrapped_typ.abi_type.size_bound()
+        abi_min_size = wrapped_typ.abi_type.min_size()
+
+        # Get the size of data
+        input_max_len = data.typ.maxlen
+
+        assert abi_min_size <= abi_size_bound, "bad abi type"
+        if input_max_len < abi_size_bound:
+            raise StructureException(
+                (
+                    "Mismatch between size of input and size of decoded types. "
+                    f"length of ABI-encoded {wrapped_typ} must be equal to or greater "
+                    f"than {abi_size_bound}"
+                ),
+                expr.args[0],
+            )
+
+        data = ensure_in_memory(data, context)
+        with data.cache_when_complex("to_decode") as (b1, data):
+
+            data_ptr = bytes_data_ptr(data)
+            data_len = get_bytearray_length(data)
+
+            # Normally, ABI-encoded data assumes the argument is a tuple
+            # (See comments for `wrap_value_for_external_return`)
+            # However, we do not want to use `wrap_value_for_external_return`
+            # technique as used in external call codegen because in order to be
+            # type-safe we would need an extra memory copy. To avoid a copy,
+            # we manually add the ABI-dynamic offset so that it is
+            # re-interpreted in-place.
+            if (
+                unwrap_tuple is True
+                and needs_external_call_wrap(output_typ)
+                and output_typ.abi_type.is_dynamic()
+            ):
+                data_ptr = add_ofst(data_ptr, 32)
+
+            ret = ["seq"]
+
+            if abi_min_size == abi_size_bound:
+                ret.append(["assert", ["eq", abi_min_size, data_len]])
+            else:
+                # runtime assert: abi_min_size <= data_len <= abi_size_bound
+                ret.append(clamp2(abi_min_size, data_len, abi_size_bound, signed=False))
+
+            # return pointer to the buffer
+            ret.append(data_ptr)
+
+            return b1.resolve(
+                IRnode.from_list(
+                    ret,
+                    typ=output_typ,
+                    location=data.location,
+                    encoding=Encoding.ABI,
+                    annotation="abi_decode {output_type}",
+                )
+            )
+
+
 DISPATCH_TABLE = {
     "_abi_encode": ABIEncode(),
+    "_abi_decode": ABIDecode(),
     "floor": Floor(),
     "ceil": Ceil(),
     "convert": Convert(),
@@ -2185,6 +2307,7 @@ DISPATCH_TABLE = {
     "unsafe_mul": UnsafeMul(),
     "unsafe_div": UnsafeDiv(),
     "pow_mod256": PowMod256(),
+    "uint2str": Uint2Str(),
     "sqrt": Sqrt(),
     "shift": Shift(),
     "create_forwarder_to": CreateForwarderTo(),

@@ -119,20 +119,11 @@ def _get_contract(w3, source_code, no_optimize, *args, **kwargs):
     value = kwargs.pop("value_in_eth", 0) * 10 ** 18  # Handle deploying with an eth value.
     c = w3.eth.contract(abi=abi, bytecode=bytecode)
     deploy_transaction = c.constructor(*args)
-    tx_info = {
-        "from": w3.eth.accounts[0],
-        "value": value,
-        "gasPrice": 0,
-    }
+    tx_info = {"from": w3.eth.accounts[0], "value": value, "gasPrice": 0}
     tx_info.update(kwargs)
     tx_hash = deploy_transaction.transact(tx_info)
     address = w3.eth.get_transaction_receipt(tx_hash)["contractAddress"]
-    return w3.eth.contract(
-        address,
-        abi=abi,
-        bytecode=bytecode,
-        ContractFactoryClass=VyperContract,
-    )
+    return w3.eth.contract(address, abi=abi, bytecode=bytecode, ContractFactoryClass=VyperContract)
 
 
 @pytest.fixture(scope="module")

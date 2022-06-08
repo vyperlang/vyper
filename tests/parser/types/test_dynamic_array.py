@@ -691,10 +691,7 @@ def test_multi4_2() -> DynArray[DynArray[DynArray[DynArray[uint256, 2], 2], 2], 
     nest3 = [[[0, 0], [0, 4]], [[0, 7], [0, 123]]]
     assert c.test_multi3_1() == nest3
     assert c.test_multi3_2() == nest3
-    nest4 = [
-        [[[1, 0], [0, 4]], [[0, 0], [0, 0]]],
-        [[[444, 0], [0, 0]], [[1, 0], [0, 222]]],
-    ]
+    nest4 = [[[[1, 0], [0, 4]], [[0, 0], [0, 0]]], [[[444, 0], [0, 0]], [[1, 0], [0, 222]]]]
     assert c.test_multi4_1() == nest4
     assert c.test_multi4_2() == nest4
 

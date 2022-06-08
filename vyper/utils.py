@@ -250,9 +250,7 @@ class SizeLimits:
 
 
 # Otherwise reserved words that are whitelisted for function declarations
-FUNCTION_WHITELIST = {
-    "send",
-}
+FUNCTION_WHITELIST = {"send"}
 
 # List of valid IR macros.
 # TODO move this somewhere else, like ir_node.py
@@ -396,6 +394,4 @@ def annotate_source_code(
     return "\n".join(cleanup_lines)
 
 
-__all__ = [
-    "cached_property",
-]
+__all__ = ["cached_property"]

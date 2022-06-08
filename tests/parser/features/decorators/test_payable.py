@@ -45,14 +45,11 @@ piggy: PiggyBank
 @external
 def foo():
     self.piggy.deposit(value=self.balance)
-    """,
+    """
     ],
 )
 def test_payable_compile_fail(source, get_contract, assert_compile_failed):
-    assert_compile_failed(
-        lambda: get_contract(source),
-        CallViolation,
-    )
+    assert_compile_failed(lambda: get_contract(source), CallViolation)
 
 
 nonpayable_code = [

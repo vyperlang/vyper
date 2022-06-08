@@ -28,9 +28,7 @@ CONSTANT_ENVIRONMENT_VARS: Dict[str, Dict[str, type]] = {
 }
 
 
-MUTABLE_ENVIRONMENT_VARS: Dict[str, type] = {
-    "self": AddressDefinition,
-}
+MUTABLE_ENVIRONMENT_VARS: Dict[str, type] = {"self": AddressDefinition}
 
 
 def get_constant_vars() -> Dict:

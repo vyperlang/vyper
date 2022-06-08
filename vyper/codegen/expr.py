@@ -51,12 +51,7 @@ from vyper.utils import (
     string_to_bytes,
 )
 
-ENVIRONMENT_VARIABLES = {
-    "block",
-    "msg",
-    "tx",
-    "chain",
-}
+ENVIRONMENT_VARIABLES = {"block", "msg", "tx", "chain"}
 
 
 class Expr:
@@ -200,11 +195,7 @@ class Expr:
                 location = DATA
 
             return IRnode.from_list(
-                ofst,
-                typ=var.typ,
-                location=location,
-                annotation=self.expr.id,
-                mutable=mutable,
+                ofst, typ=var.typ, location=location, annotation=self.expr.id, mutable=mutable
             )
 
     # x.y or x[5]
@@ -440,25 +431,13 @@ class Expr:
             ]
             loop = ["repeat", i, 0, len_, right.typ.count, loop_body]
 
-            ret.append(
-                [
-                    "seq",
-                    ["mstore", found_ptr, not_found],
-                    loop,
-                    ["mload", found_ptr],
-                ]
-            )
+            ret.append(["seq", ["mstore", found_ptr, not_found], loop, ["mload", found_ptr]])
 
             return IRnode.from_list(b1.resolve(b2.resolve(ret)), typ="bool")
 
     @staticmethod
     def _signed_to_unsigned_comparision_op(op):
-        translation_map = {
-            "sgt": "gt",
-            "sge": "ge",
-            "sle": "le",
-            "slt": "lt",
-        }
+        translation_map = {"sgt": "gt", "sge": "ge", "sle": "le", "slt": "lt"}
         if op in translation_map:
             return translation_map[op]
         else:
@@ -576,10 +555,7 @@ class Expr:
             # Clamp on minimum signed integer value as we cannot negate that
             # value (all other integer values are fine)
             min_int_val, _ = operand.typ._num_info.bounds
-            return IRnode.from_list(
-                ["sub", 0, clamp("sgt", operand, min_int_val)],
-                typ=operand.typ,
-            )
+            return IRnode.from_list(["sub", 0, clamp("sgt", operand, min_int_val)], typ=operand.typ)
 
     def _is_valid_interface_assign(self):
         if self.expr.args and len(self.expr.args) == 1:
@@ -617,10 +593,7 @@ class Expr:
             darray = Expr(self.expr.func.value, self.context).ir_node
             assert len(self.expr.args) == 0
             assert isinstance(darray.typ, DArrayType)
-            return pop_dyn_array(
-                darray,
-                return_popped_item=True,
-            )
+            return pop_dyn_array(darray, return_popped_item=True)
 
         elif (
             # TODO use expr.func.type.is_internal once
