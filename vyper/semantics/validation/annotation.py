@@ -228,6 +228,7 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
         node._metadata["type"] = type_
 
         if isinstance(type_, TypeTypeDefinition):
+            # don't recurse; can't annotate AST children of type definition
             return
 
         if isinstance(node.value, vy_ast.List):
@@ -252,6 +253,7 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
         node._metadata["type"] = type_
 
         if isinstance(type_, TypeTypeDefinition):
+            # don't recurse; can't annotate AST children of type definition
             return
 
         for element, subtype in zip(node.elements, type_.value_type):
