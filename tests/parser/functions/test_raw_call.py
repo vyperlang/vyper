@@ -261,7 +261,6 @@ def __default__():
     w3.eth.send_transaction({"to": caller.address, "data": sig})
 
 
-
 def test_static_call_fails_nonpayable(get_contract, assert_tx_failed):
 
     target_source = """
