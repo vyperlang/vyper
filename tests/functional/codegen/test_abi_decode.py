@@ -417,7 +417,7 @@ def abi_decode(x: Bytes[{len}]) -> {output_typ}:
     ([123, 456, 789], "(uint256[])", 789),
 ])
 def test_abi_decode_conditional(get_contract, abi_encode, arg, encoding, expected):
-    contract = f"""
+    contract = """
 @external
 def abi_decode(x: Bytes[160]) -> uint256:
     if len(x) == 32:
