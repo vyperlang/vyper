@@ -544,7 +544,7 @@ def ir_tuple_from_args(args):
     return IRnode.from_list(["multi"] + [x for x in args], typ=typ)
 
 
-def _needs_external_call_wrap(ir_typ):
+def needs_external_call_wrap(ir_typ):
     # for calls to ABI conforming contracts.
     # according to the ABI spec, return types are ALWAYS tuples even
     # if only one element is being returned.
@@ -565,14 +565,14 @@ def _needs_external_call_wrap(ir_typ):
 
 
 def calculate_type_for_external_return(ir_typ):
-    if _needs_external_call_wrap(ir_typ):
+    if needs_external_call_wrap(ir_typ):
         return TupleType([ir_typ])
     return ir_typ
 
 
 def wrap_value_for_external_return(ir_val):
     # used for LHS promotion
-    if _needs_external_call_wrap(ir_val.typ):
+    if needs_external_call_wrap(ir_val.typ):
         return ir_tuple_from_args([ir_val])
     else:
         return ir_val
