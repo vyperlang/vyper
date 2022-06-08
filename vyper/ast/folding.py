@@ -3,7 +3,7 @@ from typing import Union
 
 from vyper.ast import nodes as vy_ast
 from vyper.builtin_functions import DISPATCH_TABLE
-from vyper.exceptions import OverflowException, UnfoldableNode, UnknownType
+from vyper.exceptions import UnfoldableNode, UnknownType
 from vyper.semantics.types.bases import BaseTypeDefinition, DataLocation
 from vyper.semantics.types.utils import get_type_from_annotation
 from vyper.utils import SizeLimits
@@ -31,60 +31,12 @@ def fold(vyper_module: vy_ast.Module) -> None:
     vyper_module : Module
         Top-level Vyper AST node.
     """
-    replace_builtin_constants(vyper_module)
 
     changed_nodes = 1
     while changed_nodes:
         changed_nodes = 0
-        changed_nodes += replace_user_defined_constants(vyper_module)
         changed_nodes += replace_literal_ops(vyper_module)
         changed_nodes += replace_subscripts(vyper_module)
-        changed_nodes += replace_builtin_functions(vyper_module)
-
-
-def _validate_literal_ops_types(node):
-    # Performs simple typechecking to catch constants of different types
-    left, right = node.left, node.right
-
-    left_type = node.left._metadata.get("type", None)
-    right_type = node.right._metadata.get("type", None)
-    types = {left_type, right_type}
-    if None not in types and not left_type.compare_type(right_type):
-        raise UnfoldableNode(f"Cannot perform {node.op._description} between dislike types")
-
-    type_ = list(types - {None})[0] if len(types - {None}) > 0 else None
-
-    # Validate constants according to their type if defined
-    if isinstance(node, vy_ast.BinOp):
-        value = node.op._op(left.value, right.value)
-        if type_ and not SizeLimits.in_bounds(str(type_), value):
-            raise OverflowException(
-                f"Result of {node.op.description} ({value}) is outside bounds of {type_}",
-                node.op,
-            )
-
-    elif isinstance(node, vy_ast.Compare):
-        if None in types and len(types) == 2:
-            if left_type and not SizeLimits.in_bounds(str(left_type), right.value):
-                # Check right value is in bounds
-                raise OverflowException(
-                    (
-                        f"Cannot perform {node.op._description} comparison of {right.value} "
-                        f" with {left.value} (which is of type {left_type})",
-                    ),
-                    node.op,
-                )
-            elif right_type and not SizeLimits.in_bounds(str(right_type), left.value):
-                # Check left value is in bounds
-                raise OverflowException(
-                    (
-                        f"Cannot perform {node.op._description} comparison of {left.value} "
-                        f" with {right.value} (which is of type {right_type})",
-                    ),
-                    node.op,
-                )
-
-    return type_
 
 
 def replace_literal_ops(vyper_module: vy_ast.Module) -> int:
@@ -108,11 +60,6 @@ def replace_literal_ops(vyper_module: vy_ast.Module) -> int:
     for node in vyper_module.get_descendants(node_types, reverse=True):
         try:
             new_node = node.evaluate()
-            if isinstance(node, (vy_ast.BinOp, vy_ast.Compare)):
-                type_ = _validate_literal_ops_types(node)
-
-                if type_ and isinstance(node, vy_ast.BinOp):
-                    new_node._metadata["type"] = type_
 
         except UnfoldableNode:
             continue

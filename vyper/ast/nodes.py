@@ -15,7 +15,8 @@ from vyper.exceptions import (
     UnfoldableNode,
     ZeroDivisionException,
 )
-from vyper.utils import MAX_DECIMAL_PLACES, SizeLimits, annotate_source_code
+from vyper.semantics.types import AbstractNumericDefinition
+from vyper.utils import MAX_DECIMAL_PLACES, SizeLimits, annotate_source_code, int_bounds
 
 NODE_BASE_ATTRIBUTES = (
     "_children",
@@ -180,18 +181,20 @@ def _raise_syntax_exc(error_msg: str, ast_struct: dict) -> None:
 
 
 def _validate_numeric_bounds(
-    node: Union["BinOp", "UnaryOp"], value: Union[decimal.Decimal, int]
+    node: Union["BinOp", "UnaryOp"],
+    value: Union[decimal.Decimal, int],
+    typ: AbstractNumericDefinition,
 ) -> None:
     if isinstance(value, decimal.Decimal):
         # this will change if/when we add more decimal types
         lower, upper = SizeLimits.MIN_AST_DECIMAL, SizeLimits.MAX_AST_DECIMAL
     elif isinstance(value, int):
-        lower, upper = SizeLimits.MIN_INT256, SizeLimits.MAX_UINT256
+        lower, upper = int_bounds(typ._is_signed, typ._bits)
     else:
         raise CompilerPanic(f"Unexpected return type from {node._op}: {type(value)}")
     if not lower <= value <= upper:
         raise OverflowException(
-            f"Result of {node.op.description} ({value}) is outside bounds of all numeric types",
+            f"Result of {node.op.description} ({value}) is outside bounds of {typ}",
             node,
         )
 
@@ -875,7 +878,8 @@ class UnaryOp(VyperNode):
             raise UnfoldableNode("Node contains invalid field(s) for evaluation")
 
         value = self.op._op(self.operand.value)
-        _validate_numeric_bounds(self, value)
+        typ = self._metadata["type"]
+        _validate_numeric_bounds(self, value, typ)
         return type(self.operand).from_node(self, value=value)
 
 
@@ -913,8 +917,12 @@ class BinOp(VyperNode):
             raise UnfoldableNode("Node contains invalid field(s) for evaluation")
 
         value = self.op._op(left.value, right.value)
-        _validate_numeric_bounds(self, value)
-        return type(left).from_node(self, value=value)
+        typ = left._metadata["type"]
+        _validate_numeric_bounds(self, value, typ)
+
+        ret = type(left).from_node(self, value=value)
+        ret._metadata["type"] = typ
+        return ret
 
 
 class Add(VyperNode):
