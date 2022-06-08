@@ -416,9 +416,7 @@ def abi_decode(x: Bytes[{len}]) -> {output_typ}:
     "len,output_typ1,output_typ2,input",
     [
         (192, "DynArray[uint256, 3]", "uint256", b""),
-        (192, "DynArray[uint256, 3]", "int128", b"\x01" * 224),
         (128, "Bytes[5]", "address", b""),
-        (128, "Bytes[5]", "bool", b"\x01" * 160),
     ],
 )
 def test_clamper_dynamic_tuple(
