@@ -167,14 +167,13 @@ def get_type_from_annotation(
     BaseTypeDefinition
         Type definition object.
     """
+    namespace = get_namespace()
+
     if isinstance(node, vy_ast.Tuple):
         values = node.elements
-        values_def: Tuple[BaseTypeDefinition, ...] = ()
-        for v in values:
-            values_def += (get_type_from_annotation(v, DataLocation.UNSET),)
-        return TupleDefinition(values_def)
+        types = tuple(get_type_from_annotation(v, DataLocation.UNSET) for v in values)
+        return TupleDefinition(types)
 
-    namespace = get_namespace()
     try:
         # get id of leftmost `Name` node from the annotation
         type_name = next(i.id for i in node.get_descendants(vy_ast.Name, include_self=True))
