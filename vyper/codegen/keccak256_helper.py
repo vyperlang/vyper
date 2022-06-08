@@ -10,9 +10,7 @@ from vyper.utils import MemoryPositions, bytes_to_int, keccak256
 def _check_byteslike(typ, _expr):
     if not isinstance(typ, ByteArrayLike) and not is_base_type(typ, "bytes32"):
         # NOTE this may be checked at a higher level, but just be safe
-        raise CompilerPanic(
-            "keccak256 only accepts bytes-like objects",
-        )
+        raise CompilerPanic("keccak256 only accepts bytes-like objects")
 
 
 def _gas_bound(num_words):

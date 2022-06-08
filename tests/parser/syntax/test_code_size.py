@@ -9,7 +9,7 @@ fail_list = [
 def foo() -> int128:
     x: int128 = 45
     return x.codesize
-    """,
+    """
 ]
 
 

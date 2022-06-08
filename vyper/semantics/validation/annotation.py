@@ -40,12 +40,7 @@ class _AnnotationVisitorBase:
 
 class StatementAnnotationVisitor(_AnnotationVisitorBase):
 
-    ignored_types = (
-        vy_ast.Break,
-        vy_ast.Continue,
-        vy_ast.Pass,
-        vy_ast.Raise,
-    )
+    ignored_types = (vy_ast.Break, vy_ast.Continue, vy_ast.Pass, vy_ast.Raise)
 
     def __init__(self, fn_node: vy_ast.FunctionDef, namespace: dict) -> None:
         self.func = fn_node._metadata["type"]
