@@ -372,44 +372,44 @@ def abi_decode(x: Bytes[32]) -> uint256:
 
 
 @pytest.mark.parametrize(
-    "input",
+    "input_",
     [
         b"",  # Length of byte array is below minimum size of output type
         b"\x01" * 96,  # Length of byte array is beyond size bound of output type
     ],
 )
-def test_clamper(get_contract, assert_tx_failed, abi_encode, input):
+def test_clamper(get_contract, assert_tx_failed, abi_encode, input_):
     contract = """
 @external
-def abi_decode(x: Bytes[64]) -> (uint256, uint256):
+def abi_decode(x: Bytes[96]) -> (uint256, uint256):
     a: uint256 = empty(uint256)
     b: uint256 = empty(uint256)
     a, b = _abi_decode(x, (uint256, uint256))
     return a, b
     """
     c = get_contract(contract)
-    assert_tx_failed(lambda: c.abi_decode(input))
+    assert_tx_failed(lambda: c.abi_decode(input_))
 
 
 @pytest.mark.parametrize(
-    "len,output_typ,input",
+    "output_typ,input_",
     [
-        (160, "DynArray[uint256, 3]", b""),
-        (160, "DynArray[uint256, 3]", b"\x01" * 192),
-        (96, "Bytes[5]", b""),
-        (96, "Bytes[5]", b"\x01" * 128),
+        ("DynArray[uint256, 3]", b""),
+        ("DynArray[uint256, 3]", b"\x01" * 192),
+        ("Bytes[5]", b""),
+        ("Bytes[5]", b"\x01" * 192),
     ],
 )
-def test_clamper_dynamic(get_contract, assert_tx_failed, abi_encode, len, output_typ, input):
+def test_clamper_dynamic(get_contract, assert_tx_failed, abi_encode, output_typ, input_):
     contract = f"""
 @external
-def abi_decode(x: Bytes[{len}]) -> {output_typ}:
+def abi_decode(x: Bytes[192]) -> {output_typ}:
     a: {output_typ} = empty({output_typ})
     a = _abi_decode(x, {output_typ})
     return a
     """
     c = get_contract(contract)
-    assert_tx_failed(lambda: c.abi_decode(input))
+    assert_tx_failed(lambda: c.abi_decode(input_))
 
 
 @pytest.mark.parametrize(
@@ -437,25 +437,27 @@ def abi_decode(x: Bytes[160]) -> uint256:
 
 
 @pytest.mark.parametrize(
-    "len,output_typ1,output_typ2,input",
+    "output_typ1,output_typ2,input_",
     [
-        (192, "DynArray[uint256, 3]", "uint256", b""),
-        (128, "Bytes[5]", "address", b""),
+        ("DynArray[uint256, 3]", "uint256", b""),
+        ("DynArray[uint256, 3]", "uint256", b"\x01" * 128),
+        ("Bytes[5]", "address", b""),
+        ("Bytes[5]", "address", b"\x01" * 128),
     ],
 )
 def test_clamper_dynamic_tuple(
-    get_contract, assert_tx_failed, abi_encode, len, output_typ1, output_typ2, input
+    get_contract, assert_tx_failed, abi_encode, output_typ1, output_typ2, input_
 ):
     contract = f"""
 @external
-def abi_decode(x: Bytes[{len}]) -> ({output_typ1}, {output_typ2}):
+def abi_decode(x: Bytes[224]) -> ({output_typ1}, {output_typ2}):
     a: {output_typ1} = empty({output_typ1})
     b: {output_typ2} = empty({output_typ2})
     a, b = _abi_decode(x, ({output_typ1}, {output_typ2}))
     return a, b
     """
     c = get_contract(contract)
-    assert_tx_failed(lambda: c.abi_decode(input))
+    assert_tx_failed(lambda: c.abi_decode(input_))
 
 
 FAIL_LIST = [
