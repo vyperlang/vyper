@@ -814,7 +814,7 @@ Utilities
         def foo(x: Bytes[128]) -> (uint256, Bytes[32]):
             x: uint256 = empty(uint256)
             y: Bytes[32] = empty(Bytes[32])
-            x, y =  _abi_encode(x, (uint256, Bytes[32]))
+            x, y =  _abi_decode(x, (uint256, Bytes[32]))
             return x, y
 
 
