@@ -2194,11 +2194,12 @@ class ABIDecode(_SimpleBuiltinFunction):
         # Get the size of data
         input_max_len = data.typ.maxlen
 
+        assert abi_min_size <= abi_size_bound, "bad abi type"
         if not abi_min_size <= input_max_len <= abi_size_bound:
             raise StructureException(
                 (
                     "Mismatch between size of input and size of decoded types. "
-                    f"Expected input to be between {abi_min_size} and {abi_size_bound} "
+                    f"length of ABI-encoded {wrapped_typ} is between {abi_min_size} and {abi_size_bound} "
                     f"but input is {input_max_len}."
                 ),
                 expr.args[0],
