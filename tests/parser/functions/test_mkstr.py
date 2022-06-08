@@ -11,7 +11,7 @@ def test_mkstr(get_contract_with_gas_estimation, bits):
     code = f"""
 @external
 def foo(inp: uint{bits}) -> String[{n_digits}]:
-    return str(inp)
+    return uint2str(inp)
     """
 
     c = get_contract_with_gas_estimation(code)
@@ -27,7 +27,7 @@ def test_mkstr_buffer(get_contract, bits):
 some_string: String[{n_digits}]
 @internal
 def _foo(x: uint{bits}):
-    self.some_string = str(x)
+    self.some_string = uint2str(x)
 
 @external
 def foo(x: uint{bits}) -> uint256:

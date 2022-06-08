@@ -1884,8 +1884,8 @@ class Max(_MinMax):
     _opcode = "gt"
 
 
-class MkStr(_SimpleBuiltinFunction):
-    _id = "str"
+class Uint2Str(_SimpleBuiltinFunction):
+    _id = "uint2str"
     _inputs = [("x", UnsignedIntegerAbstractType())]  # should allow any uint?
 
     def fetch_call_return(self, node):
@@ -2263,7 +2263,7 @@ DISPATCH_TABLE = {
     "unsafe_mul": UnsafeMul(),
     "unsafe_div": UnsafeDiv(),
     "pow_mod256": PowMod256(),
-    "str": MkStr(),
+    "uint2str": Uint2Str(),
     "sqrt": Sqrt(),
     "shift": Shift(),
     "create_forwarder_to": CreateForwarderTo(),
