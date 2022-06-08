@@ -129,11 +129,7 @@ def get_type_from_abi(
             raise UnknownType(f"ABI contains unknown type: {type_string}") from None
         try:
             return ArrayDefinition(
-                value_type,
-                length,
-                location=location,
-                is_constant=is_constant,
-                is_public=is_public,
+                value_type, length, location=location, is_constant=is_constant, is_public=is_public
             )
         except InvalidType:
             raise UnknownType(f"ABI contains unknown type: {type_string}") from None
@@ -184,8 +180,7 @@ def get_type_from_annotation(
     except UndeclaredDefinition:
         suggestions_str = get_levenshtein_error_suggestions(type_name, namespace, 0.3)
         raise UnknownType(
-            f"No builtin or user-defined type named '{type_name}'. {suggestions_str}",
-            node,
+            f"No builtin or user-defined type named '{type_name}'. {suggestions_str}", node
         ) from None
 
     if getattr(type_obj, "_as_array", False) and isinstance(node, vy_ast.Subscript):

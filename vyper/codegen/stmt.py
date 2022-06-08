@@ -77,10 +77,7 @@ class Stmt:
 
         # If bytes[32] to bytes32 assignment rewrite sub as bytes32.
         if is_literal_bytes32_assign:
-            sub = IRnode(
-                util.bytes_to_int(self.stmt.value.s),
-                typ=BaseType("bytes32"),
-            )
+            sub = IRnode(util.bytes_to_int(self.stmt.value.s), typ=BaseType("bytes32"))
 
         variable_loc = IRnode.from_list(pos, typ=typ, location=MEMORY)
 
@@ -328,11 +325,7 @@ class Stmt:
 
         # set up the loop variable
         e = get_element_ptr(iter_list, i, array_bounds_check=False)
-        body = [
-            "seq",
-            make_setter(loop_var, e),
-            parse_body(self.stmt.body, self.context),
-        ]
+        body = ["seq", make_setter(loop_var, e), parse_body(self.stmt.body, self.context)]
 
         repeat_bound = iter_list.typ.count
         if isinstance(iter_list.typ, DArrayType):

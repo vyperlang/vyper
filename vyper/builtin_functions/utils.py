@@ -27,13 +27,7 @@ def generate_inline_function(code, variables, variables_2, memory_allocator):
         fn_node.body = []
         fn_node.args = vy_ast.arguments(defaults=[])
         fn_node._metadata["type"] = ContractFunction(
-            "sqrt_builtin",
-            {},
-            0,
-            0,
-            None,
-            FunctionVisibility.INTERNAL,
-            StateMutability.NONPAYABLE,
+            "sqrt_builtin", {}, 0, 0, None, FunctionVisibility.INTERNAL, StateMutability.NONPAYABLE
         )
         sv = FunctionNodeVisitor(ast_code, fn_node, namespace)
         for n in ast_code.body:

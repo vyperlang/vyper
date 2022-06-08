@@ -94,7 +94,7 @@ def foo(x: uint8, y: int128) -> uint256:
     return shift(x, y)
     """,
         TypeMismatch,
-    ),
+    )
 ]
 
 

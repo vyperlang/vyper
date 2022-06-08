@@ -36,11 +36,7 @@ def set_evm_verbose_logging():
 
 
 def pytest_addoption(parser):
-    parser.addoption(
-        "--no-optimize",
-        action="store_true",
-        help="disable asm and IR optimizations",
-    )
+    parser.addoption("--no-optimize", action="store_true", help="disable asm and IR optimizations")
 
 
 @pytest.fixture(scope="module")
@@ -84,10 +80,7 @@ def get_contract_from_ir(w3, no_optimize):
         tx_hash = deploy_transaction.transact()
         address = w3.eth.get_transaction_receipt(tx_hash)["contractAddress"]
         contract = w3.eth.contract(
-            address,
-            abi=abi,
-            bytecode=bytecode,
-            ContractFactoryClass=VyperContract,
+            address, abi=abi, bytecode=bytecode, ContractFactoryClass=VyperContract
         )
         return contract
 
