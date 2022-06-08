@@ -245,16 +245,15 @@ empty: "empty" "(" type ")"
 // special rule to handle types as "arguments" (for `_abi_decode` builtin)
 abi_decode: "_abi_decode" "(" arg "," type ( "," kwarg )* ")"
 
+special_builtins: empty | abi_decode
 
 // NOTE: Must end recursive cycle like this (with `atom` calling `operation`)
 ?atom: variable_access
      | literal
-     | empty
+     | special_builtins
      | tuple
      | list
      | "(" operation ")"
-     | abi_decode
-
 
 // Tokens
 // Adapted from Lark repo. https://github.com/lark-parser/lark/blob/master/examples/python3.lark
