@@ -412,6 +412,27 @@ def abi_decode(x: Bytes[{len}]) -> {output_typ}:
     assert_tx_failed(lambda: c.abi_decode(input))
 
 
+@pytest.mark.parametrize("arg,encoding,expected", [
+    (123, "(uint256)", 123),
+    ([123, 456, 789], "(uint256[])", 789),
+])
+def test_abi_decode_conditional(get_contract, abi_encode, arg, encoding, expected):
+    contract = f"""
+@external
+def abi_decode(x: Bytes[160]) -> uint256:
+    if len(x) == 32:
+        a: uint256 = _abi_decode(x, uint256)
+        return a
+    elif len(x) == 160:
+        b: DynArray[uint256, 3] = _abi_decode(x, DynArray[uint256, 3])
+        return b[2]
+    return 0
+    """
+    c = get_contract(contract)
+    encoded = abi_encode(encoding, (arg,))
+    assert c.abi_decode(encoded) == expected
+
+
 @pytest.mark.parametrize(
     "len,output_typ1,output_typ2,input",
     [
