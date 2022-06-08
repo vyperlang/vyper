@@ -1897,11 +1897,7 @@ class Uint2Str(_SimpleBuiltinFunction):
                     ],
                     [
                         "seq",
-                        [
-                            "mstore",
-                            ["sub", buf + n_digits, i],
-                            ["add", 48, ["mod", val, 10]],
-                        ],
+                        ["mstore", ["sub", buf + n_digits, i], ["add", 48, ["mod", val, 10]]],
                         ["set", val, ["div", val, 10]],
                     ],
                 ],
