@@ -64,6 +64,10 @@ def mint(_to: address, _value: uint256):
     """
 x: int128[3.5]
     """,
+    # Key of mapping must be a base type
+    """
+b: HashMap[(int128, decimal), int128]
+    """,
 ]
 
 
