@@ -15,7 +15,6 @@ from vyper.exceptions import (
     UnfoldableNode,
     ZeroDivisionException,
 )
-from vyper.semantics.types import AbstractNumericDefinition
 from vyper.utils import MAX_DECIMAL_PLACES, SizeLimits, annotate_source_code, int_bounds
 
 NODE_BASE_ATTRIBUTES = (
@@ -183,8 +182,8 @@ def _raise_syntax_exc(error_msg: str, ast_struct: dict) -> None:
 def _validate_numeric_bounds(
     node: Union["BinOp", "UnaryOp"],
     value: Union[decimal.Decimal, int],
-    typ: AbstractNumericDefinition,
 ) -> None:
+    typ = node._metadata["type"]
     if isinstance(value, decimal.Decimal):
         # this will change if/when we add more decimal types
         lower, upper = SizeLimits.MIN_AST_DECIMAL, SizeLimits.MAX_AST_DECIMAL
@@ -878,9 +877,10 @@ class UnaryOp(VyperNode):
             raise UnfoldableNode("Node contains invalid field(s) for evaluation")
 
         value = self.op._op(self.operand.value)
-        typ = self._metadata["type"]
-        _validate_numeric_bounds(self, value, typ)
-        return type(self.operand).from_node(self, value=value)
+        _validate_numeric_bounds(self, value)
+        ret = type(self.operand).from_node(self, value=value)
+        ret._metadata["type"] = self._metadata["type"]
+        return ret
 
 
 class USub(VyperNode):
@@ -917,11 +917,10 @@ class BinOp(VyperNode):
             raise UnfoldableNode("Node contains invalid field(s) for evaluation")
 
         value = self.op._op(left.value, right.value)
-        typ = left._metadata["type"]
-        _validate_numeric_bounds(self, value, typ)
+        _validate_numeric_bounds(self, value)
 
         ret = type(left).from_node(self, value=value)
-        ret._metadata["type"] = typ
+        ret._metadata["type"] = self._metadata["type"]
         return ret
 
 
