@@ -412,10 +412,13 @@ def abi_decode(x: Bytes[{len}]) -> {output_typ}:
     assert_tx_failed(lambda: c.abi_decode(input))
 
 
-@pytest.mark.parametrize("arg,encoding,expected", [
-    (123, "(uint256)", 123),
-    ([123, 456, 789], "(uint256[])", 789),
-])
+@pytest.mark.parametrize(
+    "arg,encoding,expected",
+    [
+        (123, "(uint256)", 123),
+        ([123, 456, 789], "(uint256[])", 789),
+    ],
+)
 def test_abi_decode_conditional(get_contract, abi_encode, arg, encoding, expected):
     contract = """
 @external
