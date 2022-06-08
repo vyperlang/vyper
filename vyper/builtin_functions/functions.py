@@ -2228,10 +2228,7 @@ class ABIDecode(_SimpleBuiltinFunction):
                 ret.append(["assert", ["eq", abi_min_size, data_len]])
             else:
                 # runtime assert: abi_min_size <= data_len <= abi_size_bound
-                len_ok = ["and"]
-                len_ok.append(["ge", abi_min_size, data_len])
-                len_ok.append(["le", data_len, abi_size_bound])
-                ret.append(["assert", len_ok])
+                ret.append(clamp2(abi_min_size, data_len, abi_size_bound, signed=False))
 
             # return pointer to the buffer
             ret.append(data_ptr)

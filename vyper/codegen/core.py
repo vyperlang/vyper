@@ -1001,5 +1001,5 @@ def clamp2(lo, arg, hi, signed):
     with IRnode.from_list(arg).cache_when_complex("clamp2_arg") as (b1, arg):
         GE = "sge" if signed else "ge"
         LE = "sle" if signed else "le"
-        ret = ["seq", ["assert", [GE, arg, lo]], ["assert", [LE, arg, hi]], arg]
+        ret = ["seq", ["assert", ["and", [GE, arg, lo], [LE, arg, hi]], arg]]
         return IRnode.from_list(b1.resolve(ret), typ=arg.typ)
