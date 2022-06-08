@@ -167,6 +167,13 @@ def get_type_from_annotation(
     BaseTypeDefinition
         Type definition object.
     """
+    if isinstance(node, vy_ast.Tuple):
+        values = node.elements
+        values_def: Tuple[BaseTypeDefinition, ...] = ()
+        for v in values:
+            values_def += (get_type_from_annotation(v, DataLocation.UNSET),)
+        return TupleDefinition(values_def)
+
     namespace = get_namespace()
     try:
         # get id of leftmost `Name` node from the annotation
@@ -190,13 +197,6 @@ def get_type_from_annotation(
             node.value, location, is_constant, False, is_immutable
         )
         return ArrayDefinition(value_type, length, location, is_constant, is_public, is_immutable)
-
-    if isinstance(node, vy_ast.Tuple):
-        values = node.elements
-        values_def: Tuple[BaseTypeDefinition, ...] = ()
-        for v in values:
-            values_def += (get_type_from_annotation(v, DataLocation.UNSET),)
-        return TupleDefinition(values_def)
 
     try:
         return type_obj.from_annotation(node, location, is_constant, is_public, is_immutable)
