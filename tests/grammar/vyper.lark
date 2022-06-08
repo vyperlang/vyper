@@ -164,7 +164,6 @@ for_stmt: "for" loop_variable "in" loop_iterator ":" body
 // Expressions
 _expr: operation
      | dict
-     | abi_decode
 
 get_item: variable_access "[" _expr "]"
 get_attr: variable_access "." NAME
@@ -254,6 +253,7 @@ abi_decode: "_abi_decode" "(" arg "," type ( "," kwarg )* ")"
      | tuple
      | list
      | "(" operation ")"
+     | abi_decode
 
 
 // Tokens
