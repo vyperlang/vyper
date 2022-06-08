@@ -34,7 +34,7 @@ def abi_decode(x: Bytes[160]) -> (address, int128, bool, decimal, bytes32):
     return a, b, c, d, e
 
 @external
-def abi_decode_struct(x: Bytes[512]) -> Human:
+def abi_decode_struct(x: Bytes[544]) -> Human:
     human: Human = Human({
         name: "",
         pet: Animal({
