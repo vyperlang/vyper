@@ -11,14 +11,7 @@ from vyper.semantics.types import (
     StringDefinition,
 )
 from vyper.semantics.types.bases import BaseTypeDefinition
-
-
-class TypeTypeDefinition:
-    def __init__(self, typedef):
-        self.typedef = typedef
-
-    def __repr__(self):
-        return f"type({self.typedef})"
+from vyper.semantics.types.utils import TypeTypeDefinition
 
 
 def process_arg(arg, expected_arg_type, context):

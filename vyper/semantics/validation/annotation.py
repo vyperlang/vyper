@@ -1,10 +1,10 @@
 from vyper import ast as vy_ast
 from vyper.exceptions import StructureException
 from vyper.semantics.types import ArrayDefinition
-from vyper.semantics.types.bases import BaseTypeDefinition
 from vyper.semantics.types.function import ContractFunction, MemberFunctionDefinition
 from vyper.semantics.types.user.event import Event
 from vyper.semantics.types.user.struct import StructPrimitive
+from vyper.semantics.types.utils import TypeTypeDefinition
 from vyper.semantics.validation.utils import (
     get_common_types,
     get_exact_type_from_node,
@@ -219,12 +219,7 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
             self.visit(element, type_.value_type)
 
     def visit_Name(self, node, type_):
-        if type_ is not None and not isinstance(type_, BaseTypeDefinition):
-            # some nodes are straight type annotations e.g. `String[100]` in
-            # `empty(String[100])`. (other instances are raw_call, convert and
-            # slice). skip annotating them because they do not conform to
-            # the BaseTypeDefinition API (and anyways we do not need to
-            # annotate them!)
+        if isinstance(type_, TypeTypeDefinition):
             node._metadata["type"] = type_
         else:
             node._metadata["type"] = get_exact_type_from_node(node)
@@ -232,12 +227,7 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
     def visit_Subscript(self, node, type_):
         node._metadata["type"] = type_
 
-        if type_ is not None and not isinstance(type_, BaseTypeDefinition):
-            # some nodes are straight type annotations e.g. `String[100]` in
-            # `empty(String[100])`. (other instances are raw_call, convert and
-            # slice). skip annotating them because they do not conform to
-            # the BaseTypeDefinition API (and anyways we do not need to
-            # annotate them!)
+        if isinstance(type_, TypeTypeDefinition):
             return
 
         if isinstance(node.value, vy_ast.List):
@@ -261,12 +251,7 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
     def visit_Tuple(self, node, type_):
         node._metadata["type"] = type_
 
-        if type_ is not None and not isinstance(type_, BaseTypeDefinition):
-            # some tuples are straight type annotations e.g. `(String[100], uint256)`
-            # in `_abi_decode(x, (String[100], uint256))`.
-            # skip annotating them because they do not conform to
-            # the BaseTypeDefinition API (and anyways we do not need to
-            # annotate them!)
+        if isinstance(type_, TypeTypeDefinition):
             return
 
         for element, subtype in zip(node.elements, type_.value_type):

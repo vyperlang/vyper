@@ -30,6 +30,14 @@ class KwargSettings:
         self.require_literal = require_literal
 
 
+class TypeTypeDefinition:
+    def __init__(self, typedef):
+        self.typedef = typedef
+
+    def __repr__(self):
+        return f"type({self.typedef})"
+
+
 class StringEnum(enum.Enum):
     @staticmethod
     def auto():

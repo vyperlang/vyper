@@ -28,6 +28,7 @@ from vyper.codegen.core import (
     get_bytearray_length,
     get_element_ptr,
     ir_tuple_from_args,
+    needs_external_call_wrap,
     promote_signed_int,
     unwrap_location,
 )
@@ -74,7 +75,7 @@ from vyper.semantics.types.abstract import (
     UnsignedIntegerAbstractType,
 )
 from vyper.semantics.types.bases import DataLocation
-from vyper.semantics.types.utils import KwargSettings, get_type_from_annotation
+from vyper.semantics.types.utils import KwargSettings, TypeTypeDefinition, get_type_from_annotation
 from vyper.semantics.types.value.address import AddressDefinition
 from vyper.semantics.types.value.array_value import (
     BytesArrayDefinition,
@@ -104,7 +105,7 @@ from vyper.utils import (
     vyper_warn,
 )
 
-from .signatures import TypeTypeDefinition, validate_inputs
+from .signatures import validate_inputs
 
 SHA256_ADDRESS = 2
 SHA256_BASE_GAS = 60
@@ -2199,8 +2200,8 @@ class ABIDecode(_SimpleBuiltinFunction):
             raise StructureException(
                 (
                     "Mismatch between size of input and size of decoded types. "
-                    f"length of ABI-encoded {wrapped_typ} is between {abi_min_size} and {abi_size_bound} "
-                    f"but input is {input_max_len}."
+                    f"length of ABI-encoded {wrapped_typ} is between {abi_min_size} "
+                    f"and {abi_size_bound} but input is {input_max_len}."
                 ),
                 expr.args[0],
             )
@@ -2218,10 +2219,7 @@ class ABIDecode(_SimpleBuiltinFunction):
             # type-safe we would need an extra memory copy. To avoid a copy,
             # we manually add the ABI-dynamic offset so that it is
             # re-interpreted in-place.
-            if unwrap_tuple is True and (
-                (isinstance(output_typ, TupleType) and len(output_typ.members) == 1)
-                or (not isinstance(output_typ, TupleType) and output_typ.abi_type.is_dynamic())
-            ):
+            if unwrap_tuple is True and needs_external_call_wrap(output_typ):
                 data_ptr = add_ofst(data_ptr, 32)
 
             ret = ["seq"]
