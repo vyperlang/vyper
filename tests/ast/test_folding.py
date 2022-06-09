@@ -75,11 +75,7 @@ def foo():
 
 
 @pytest.mark.parametrize(
-    "typ,expr",
-    [
-        ("uint256", "2**255 * 2"),
-        ("int256", "-2**255 * 2 - 10 + 100"),
-    ],
+    "typ,expr", [("uint256", "2**255 * 2"), ("int256", "-2**255 * 2 - 10 + 100")]
 )
 def test_replace_int_bounds_fail(get_contract, assert_compile_failed, typ, expr):
     code = f"""

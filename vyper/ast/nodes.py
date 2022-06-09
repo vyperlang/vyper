@@ -17,14 +17,7 @@ from vyper.exceptions import (
 )
 from vyper.utils import MAX_DECIMAL_PLACES, SizeLimits, annotate_source_code, int_bounds
 
-NODE_BASE_ATTRIBUTES = (
-    "_children",
-    "_depth",
-    "_parent",
-    "ast_type",
-    "node_id",
-    "_metadata",
-)
+NODE_BASE_ATTRIBUTES = ("_children", "_depth", "_parent", "ast_type", "node_id", "_metadata")
 NODE_SRC_ATTRIBUTES = (
     "col_offset",
     "end_col_offset",
@@ -164,8 +157,7 @@ def _sort_nodes(node_iterable):
         return float("inf") if key is None else key
 
     return sorted(
-        node_iterable,
-        key=lambda k: (sortkey(k.lineno), sortkey(k.col_offset), k.node_id),
+        node_iterable, key=lambda k: (sortkey(k.lineno), sortkey(k.col_offset), k.node_id)
     )
 
 
@@ -180,8 +172,7 @@ def _raise_syntax_exc(error_msg: str, ast_struct: dict) -> None:
 
 
 def _validate_numeric_bounds(
-    node: Union["BinOp", "UnaryOp"],
-    value: Union[decimal.Decimal, int],
+    node: Union["BinOp", "UnaryOp"], value: Union[decimal.Decimal, int]
 ) -> None:
     if isinstance(value, decimal.Decimal):
         # this will change if/when we add more decimal types
@@ -197,8 +188,7 @@ def _validate_numeric_bounds(
         raise CompilerPanic(f"Unexpected return type from {node._op}: {type(value)}")
     if not lower <= value <= upper:
         raise OverflowException(
-            f"Result of {node.op.description} ({value}) is outside bounds of {typ}",
-            node,
+            f"Result of {node.op.description} ({value}) is outside bounds of {typ}", node
         )
 
 
@@ -861,10 +851,7 @@ class Expr(VyperNode):
 
 
 class UnaryOp(VyperNode):
-    __slots__ = (
-        "op",
-        "operand",
-    )
+    __slots__ = ("op", "operand")
 
     def evaluate(self) -> VyperNode:
         """
@@ -910,11 +897,7 @@ class Not(VyperNode):
 
 
 class BinOp(VyperNode):
-    __slots__ = (
-        "left",
-        "op",
-        "right",
-    )
+    __slots__ = ("left", "op", "right")
 
     def evaluate(self) -> VyperNode:
         """
@@ -1044,10 +1027,7 @@ class Pow(VyperNode):
 
 
 class BoolOp(VyperNode):
-    __slots__ = (
-        "op",
-        "values",
-    )
+    __slots__ = ("op", "values")
 
     def evaluate(self) -> VyperNode:
         """
@@ -1199,10 +1179,7 @@ class keyword(VyperNode):
 
 
 class Attribute(VyperNode):
-    __slots__ = (
-        "attr",
-        "value",
-    )
+    __slots__ = ("attr", "value")
 
 
 class Subscript(VyperNode):
