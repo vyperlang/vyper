@@ -21,6 +21,7 @@ from vyper.codegen.core import (
     clamp,
     clamp2,
     clamp_basetype,
+    clamp_nonzero,
     copy_bytes,
     ensure_in_memory,
     eval_seq,
@@ -1587,7 +1588,7 @@ def _create_ir(value, buf, length, salt=None, checked=True):
     if not checked:
         return ret
 
-    return clamp("ne", ret, 0)
+    return clamp_nonzero(ret)
 
 
 # calculate the gas used by create for a given number of bytes
