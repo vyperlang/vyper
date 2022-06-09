@@ -185,6 +185,7 @@ def _validate_numeric_bounds(
 ) -> None:
     if isinstance(value, decimal.Decimal):
         # this will change if/when we add more decimal types
+        typ = node._metadata["type"]
         lower, upper = SizeLimits.MIN_AST_DECIMAL, SizeLimits.MAX_AST_DECIMAL
     elif isinstance(value, int):
         typ = node._metadata["type"]
