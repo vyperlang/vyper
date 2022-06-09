@@ -232,6 +232,35 @@ def foo(_addr: address) -> int128:
     assert caller.foo(target.address) == 42
 
 
+def test_forward_calldata(get_contract, w3, keccak):
+    target_source = """
+@external
+def foo() -> uint256:
+    return 123
+    """
+
+    caller_source = """
+target: address
+
+@external
+def set_target(target: address):
+    self.target = target
+
+@external
+def __default__():
+    assert 123 == _abi_decode(raw_call(self.target, msg.data, max_outsize=32), uint256)
+    """
+
+    target = get_contract(target_source)
+
+    caller = get_contract(caller_source)
+    caller.set_target(target.address, transact={})
+
+    # manually construct msg.data for `caller` contract
+    sig = keccak("foo()".encode()).hex()[:10]
+    w3.eth.send_transaction({"to": caller.address, "data": sig})
+
+
 def test_static_call_fails_nonpayable(get_contract, assert_tx_failed):
 
     target_source = """

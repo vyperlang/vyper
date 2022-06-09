@@ -1169,8 +1169,25 @@ class RawCall(_SimpleBuiltinFunction):
                 expr,
             )
 
-        eval_input_buf = ensure_in_memory(data, context)
-        input_buf = eval_seq(eval_input_buf)
+        if data.value == "~calldata":
+            call_ir = ["with", "mem_ofst", "msize"]
+            args_ofst = ["seq", ["calldatacopy", "mem_ofst", 0, "calldatasize"], "mem_ofst"]
+            args_len = "calldatasize"
+        else:
+            # some gymnastics to propagate constants (if eval_input_buf
+            # returns a static memory location)
+            eval_input_buf = ensure_in_memory(data, context)
+
+            input_buf = eval_seq(eval_input_buf)
+
+            if input_buf is None:
+                call_ir = ["with", "arg_buf", eval_input_buf]
+                input_buf = IRnode.from_list("arg_buf")
+            else:
+                call_ir = ["seq", eval_input_buf]
+
+            args_ofst = add_ofst(input_buf, 32)
+            args_len = ["mload", input_buf]
 
         output_node = IRnode.from_list(
             context.new_internal_variable(ByteArrayType(outsize)),
@@ -1180,16 +1197,10 @@ class RawCall(_SimpleBuiltinFunction):
 
         bool_ty = BaseType("bool")
 
-        if input_buf is None:
-            call_ir = ["with", "arg_buf", eval_input_buf]
-            input_buf = IRnode.from_list("arg_buf")
-        else:
-            call_ir = ["seq", eval_input_buf]
-
         # build IR for call or delegatecall
         common_call_args = [
-            add_ofst(input_buf, 32),
-            ["mload", input_buf],  # buf len
+            args_ofst,
+            args_len,
             # if there is no return value, the return offset can be 0
             add_ofst(output_node, 32) if outsize else 0,
             outsize,
@@ -1201,25 +1212,16 @@ class RawCall(_SimpleBuiltinFunction):
             call_op = ["staticcall", gas, to, *common_call_args]
         else:
             call_op = ["call", gas, to, value, *common_call_args]
+
         call_ir += [call_op]
 
         # build sequence IR
         if outsize:
             # return minimum of outsize and returndatasize
-            size = [
-                "with",
-                "_l",
-                outsize,
-                ["with", "_r", "returndatasize", ["if", ["gt", "_l", "_r"], "_r", "_l"]],
-            ]
+            size = ["select", ["lt", outsize, "returndatasize"], outsize, "returndatasize"]
 
             # store output size and return output location
-            store_output_size = [
-                "with",
-                "output_pos",
-                output_node,
-                ["seq", ["mstore", "output_pos", size], "output_pos"],
-            ]
+            store_output_size = ["seq", ["mstore", output_node, size], output_node]
 
             bytes_ty = ByteArrayType(outsize)
 
@@ -2272,7 +2274,7 @@ class ABIDecode(_SimpleBuiltinFunction):
                     typ=output_typ,
                     location=data.location,
                     encoding=Encoding.ABI,
-                    annotation="abi_decode {output_type}",
+                    annotation=f"abi_decode({output_typ})",
                 )
             )
 
