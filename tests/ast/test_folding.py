@@ -107,8 +107,21 @@ def foo():
 
 
 def test_replace_literal_ops():
-    test_ast = vy_ast.parse_to_ast("[not True, True and False, True or False]")
-    expected_ast = vy_ast.parse_to_ast("[False, False, True]")
+    test_code = """
+@external
+def foo():
+    a: bool[3] = [not True, True and False, True or False]
+    """
+
+    expected_code = """
+@external
+def foo():
+    a: bool[3] = [False, False, True]
+    """
+    test_ast = vy_ast.parse_to_ast(test_code)
+    validate_semantics(test_ast, None)
+    expected_ast = vy_ast.parse_to_ast(expected_code)
+    validate_semantics(test_ast, None)
 
     folding.replace_literal_ops(test_ast)
 

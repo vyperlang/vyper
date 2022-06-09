@@ -66,6 +66,24 @@ def validate_functions(vy_module: vy_ast.Module) -> None:
     err_list.raise_if_not_empty()
 
 
+def _validate_constant(node: vy_ast.VyperNode) -> None:
+    """
+    Helper function to validate if a pre-folded node is a constant.
+    """
+    if isinstance(node, vy_ast.BinOp):
+        nodes = [node.left, node.right]
+    elif isinstance(node, vy_ast.UnaryOp):
+        nodes = [node.operand]
+    else:
+        nodes = [node]
+
+    for n in nodes:
+        if isinstance(n, (vy_ast.BinOp, vy_ast.UnaryOp)):
+            _validate_constant(n)
+        elif not isinstance(n, vy_ast.Int):
+            raise InvalidType("Value must be a literal integer", n)
+
+
 def _is_terminus_node(node: vy_ast.VyperNode) -> bool:
     if getattr(node, "_is_terminus", None):
         return True
@@ -372,10 +390,15 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                         )
                 else:
                     # range(CONSTANT, CONSTANT)
-                    if not isinstance(args[1], vy_ast.Int):
-                        raise InvalidType("Value must be a literal integer", args[1])
+                    if isinstance(args[1], (vy_ast.BinOp, vy_ast.UnaryOp)):
+                        _validate_constant(args[1])
+                        args1_value = args[1].derive()
+                    else:
+                        args1_value = args[1].value
+
                     validate_expected_type(args[1], IntegerAbstractType())
-                    if args[0].value >= args[1].value:
+
+                    if args[0].value >= args1_value:
                         raise StructureException("Second value must be > first value", args[1])
 
         else:

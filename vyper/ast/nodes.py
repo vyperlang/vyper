@@ -183,12 +183,15 @@ def _validate_numeric_bounds(
     node: Union["BinOp", "UnaryOp"],
     value: Union[decimal.Decimal, int],
 ) -> None:
-    typ = node._metadata["type"]
     if isinstance(value, decimal.Decimal):
         # this will change if/when we add more decimal types
         lower, upper = SizeLimits.MIN_AST_DECIMAL, SizeLimits.MAX_AST_DECIMAL
     elif isinstance(value, int):
-        lower, upper = int_bounds(typ._is_signed, typ._bits)
+        typ = node._metadata["type"]
+        if hasattr(typ, "_is_signed") and hasattr(typ, "_bits"):
+            lower, upper = int_bounds(typ._is_signed, typ._bits)
+        else:
+            lower, upper = SizeLimits.MIN_INT256, SizeLimits.MAX_UINT256
     else:
         raise CompilerPanic(f"Unexpected return type from {node._op}: {type(value)}")
     if not lower <= value <= upper:
@@ -876,11 +879,22 @@ class UnaryOp(VyperNode):
         if isinstance(self.op, USub) and not isinstance(self.operand, (Int, Decimal)):
             raise UnfoldableNode("Node contains invalid field(s) for evaluation")
 
-        value = self.op._op(self.operand.value)
+        value = self.derive()
         _validate_numeric_bounds(self, value)
         ret = type(self.operand).from_node(self, value=value)
         ret._metadata["type"] = self._metadata["type"]
         return ret
+
+    def derive(self) -> Union[decimal.Decimal, Int]:
+        """
+        Return the raw value of the arithmetic operation.
+
+        Returns
+        -------
+        int | decimal.Decimal
+            Raw value of the result of the evaluation
+        """
+        return self.op._op(self.operand.value)
 
 
 class USub(VyperNode):
@@ -916,12 +930,30 @@ class BinOp(VyperNode):
         if not isinstance(left, (Int, Decimal)):
             raise UnfoldableNode("Node contains invalid field(s) for evaluation")
 
-        value = self.op._op(left.value, right.value)
-        _validate_numeric_bounds(self, value)
+        value = self.derive()
+
+        # Defer numeric bounds validation until all folding operations are completed
+        # E.g. `a: int256 = (2 ** 255) - 1` will be out of bounds when evaluating
+        # the expression in brackets, but within bounds when the full expression is
+        # folded.
+        parent = self.get_ancestor()
+        if not isinstance(parent, (BinOp, UnaryOp)):
+            _validate_numeric_bounds(self, value)
 
         ret = type(left).from_node(self, value=value)
         ret._metadata["type"] = self._metadata["type"]
         return ret
+
+    def derive(self) -> Union[decimal.Decimal, Int]:
+        """
+        Return the raw value of the arithmetic operation.
+
+        Returns
+        -------
+        int | decimal.Decimal
+            Raw value of the result of the evaluation
+        """
+        return self.op._op(self.left.value, self.right.value)
 
 
 class Add(VyperNode):
