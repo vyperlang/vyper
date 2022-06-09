@@ -2,7 +2,7 @@ from decimal import Decimal, getcontext
 
 import pytest
 
-from vyper.exceptions import DecimalOverrideException, TypeMismatch
+from vyper.exceptions import DecimalOverrideException, InvalidOperation
 
 
 def test_decimal_override():
@@ -175,4 +175,4 @@ def foo() -> decimal:
     return 2.2 ** 2.0
     """
 
-    assert_compile_failed(lambda: get_contract(code), TypeMismatch)
+    assert_compile_failed(lambda: get_contract(code), InvalidOperation)
