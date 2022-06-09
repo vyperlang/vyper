@@ -73,7 +73,7 @@ def _validate_constant(node: vy_ast.VyperNode) -> None:
     if isinstance(node, vy_ast.BinOp):
         nodes = [node.left, node.right]
     elif isinstance(node, vy_ast.UnaryOp):
-        nodes = [node.operand]
+        nodes = [node.operand]  # type: ignore
     else:
         nodes = [node]
 
