@@ -1654,9 +1654,9 @@ def get_create_forwarder_to_bytecode():
     )
 
 
-class CreateForwarderTo(_SimpleBuiltinFunction):
+class CreateMinimalProxyTo(_SimpleBuiltinFunction):
 
-    _id = "create_forwarder_to"
+    _id = "create_minimal_proxy_to"
     _inputs = [("target", AddressDefinition())]
     _kwargs = {
         "value": KwargSettings(Uint256Definition(), zero_value),
@@ -1713,6 +1713,16 @@ class CreateForwarderTo(_SimpleBuiltinFunction):
             add_gas_estimate=11000,
         )
 
+
+class CreateForwarderTo(CreateMinimalProxyTo):
+    _warned_flag = False
+
+    def build_IR(self, expr, args, kwargs, context):
+        if not self.__class__._warned_flag:
+            vyper_warn("`create_forwarder_to` has been renamed to `create_minimal_proxy_to`!")
+            self.__class__._warned_flag = True
+
+        super().build_IR(self, expr, args, kwargs, context)
 
 # helper function which returns the code starting from 0x0a with len `codesize`
 # note it assumes codesize <= 64kb
