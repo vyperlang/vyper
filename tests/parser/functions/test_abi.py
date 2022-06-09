@@ -53,10 +53,7 @@ def foo(y: uint256) -> Bytes[100]:
     return b"hello"
     """
 
-    out = compile_code(
-        code,
-        output_formats=["method_identifiers"],
-    )
+    out = compile_code(code, output_formats=["method_identifiers"])
 
     assert out["method_identifiers"] == {"foo(uint256)": "0x2fbebd38", "x()": "0xc55699c"}
 
