@@ -1,3 +1,5 @@
+import pytest
+
 from vyper.exceptions import OverflowException
 
 
@@ -98,14 +100,6 @@ def _num_sub(x: int256, y: int256) -> int256:
 @external
 def _num_add3(x: int256, y: int256, z: int256) -> int256:
     return x + y + z
-
-@external
-def _num_max() -> int256:
-    return  2 ** 255 -1
-
-@external
-def _num_min() -> int256:
-    return -2**255
     """
 
     c = get_contract_with_gas_estimation(num_bound_code)
@@ -120,8 +114,6 @@ def _num_min() -> int256:
     assert_tx_failed(lambda: c._num_sub(NUM_MIN, 1))
     assert_tx_failed(lambda: c._num_add(NUM_MAX - 1, 2))
     assert_tx_failed(lambda: c._num_sub(NUM_MIN + 1, 2))
-    assert c._num_max() == NUM_MAX
-    assert c._num_min() == NUM_MIN
 
     assert_tx_failed(lambda: c._num_add3(NUM_MAX, 1, -1))
     assert c._num_add3(NUM_MAX, -1, 1) == NUM_MAX
@@ -137,19 +129,13 @@ def num_sub() -> int256:
     assert_compile_failed(lambda: get_contract(code), OverflowException)
 
 
-def test_overflow_add(get_contract, assert_tx_failed):
+def test_overflow_add(get_contract, assert_compile_failed):
     code = """
 @external
 def num_add(i: int256) -> int256:
     return (2**255-1) + i
     """
-    c = get_contract(code)
-
-    assert c.num_add(0) == 2 ** 255 - 1
-    assert c.num_add(-1) == 2 ** 255 - 2
-
-    assert_tx_failed(lambda: c.num_add(1))
-    assert_tx_failed(lambda: c.num_add(2))
+    assert_compile_failed(lambda: get_contract(code), OverflowException)
 
 
 def test_overflow_add_vars(get_contract, assert_tx_failed):
@@ -208,19 +194,6 @@ def num_mul(b: int256) -> int256:
     assert_tx_failed(lambda: c.num_mul(-(2 ** 255)))
 
 
-def test_overflow_mul_right_literal(get_contract, assert_tx_failed):
-    code = """
-@external
-def num_mul(a: int256) -> int256:
-    return a * -2**255
-    """
-
-    c = get_contract(code)
-
-    assert c.num_mul(1) == -(2 ** 255)
-    assert_tx_failed(lambda: c.num_mul(-1))
-
-
 def test_literal_int_division(get_contract):
     code = """
 @external
@@ -246,19 +219,6 @@ def foo(a: int256, b: int256) -> int256:
     assert c.foo(2 ** 255 - 1, -1) == -(2 ** 255) + 1
     assert c.foo(-(2 ** 255), 1) == -(2 ** 255)
     assert_tx_failed(lambda: c.foo(-(2 ** 255), -1))
-
-
-def test_overflow_division_left_literal(get_contract, assert_tx_failed):
-    code = """
-@external
-def foo(b: int256) -> int256:
-    return -2**255 / b
-    """
-
-    c = get_contract(code)
-
-    assert c.foo(1) == -(2 ** 255)
-    assert_tx_failed(lambda: c.foo(-1))
 
 
 def test_overflow_division_right_literal(get_contract, assert_tx_failed):
@@ -314,3 +274,44 @@ def subtraction(a: int256) -> int256:
 
     assert_tx_failed(lambda: c.addition(-(2 ** 255)))
     assert_tx_failed(lambda: c.subtraction(2 ** 255 - 1))
+
+
+bad_code = [
+    (
+        """
+@external
+def foo() -> int256:
+    return 2 ** 255 - 1
+    """,
+        OverflowException,
+    ),
+    (
+        """
+@external
+def foo() -> int256:
+    return -2**255
+    """,
+        OverflowException,
+    ),
+    (
+        """
+@external
+def num_mul(a: int256) -> int256:
+    return a * -2**255
+    """,
+        OverflowException,
+    ),
+    (
+        """
+@external
+def foo(b: int256) -> int256:
+    return -2**255 / b
+    """,
+        OverflowException,
+    ),
+]
+
+
+@pytest.mark.parametrize("bad_code,expected", bad_code)
+def test_invalid_code(get_contract, assert_compile_failed, bad_code, expected):
+    assert_compile_failed(lambda: get_contract(bad_code), expected)
