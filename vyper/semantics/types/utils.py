@@ -225,7 +225,7 @@ def check_constant(node: vy_ast.VyperNode, vyper_module: vy_ast.Module = None) -
     if isinstance(node, vy_ast.Name):
         # Check for foldable environment constants
         namespace = get_namespace()
-        if node.id in namespace:
+        if node.id in namespace and namespace[node.id].is_constant is True:
             return True
     if isinstance(node, (vy_ast.BoolOp, vy_ast.BinOp, vy_ast.UnaryOp, vy_ast.Compare)):
         try:

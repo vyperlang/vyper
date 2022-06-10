@@ -6,11 +6,6 @@ from vyper.exceptions import ArgumentException
 fail_list = [
     """
 @external
-def foo():
-    x = as_wei_value(5, "vader")
-    """,
-    """
-@external
 def foo(x: int128, x: int128): pass
     """,
     """
