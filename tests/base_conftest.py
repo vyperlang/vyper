@@ -2,6 +2,7 @@ import pytest
 from eth_tester import EthereumTester, PyEVMBackend
 from eth_tester.exceptions import TransactionFailed
 from eth_utils.toolz import compose
+from hexbytes import HexBytes
 from web3 import Web3
 from web3.contract import Contract, mk_collision_prop
 from web3.providers.eth_tester import EthereumTesterProvider
@@ -138,11 +139,11 @@ def _deploy_factory_for(w3, source_code, no_optimize, **kwargs):
     LARK_GRAMMAR.parse(source_code + "\n")  # Test grammar.
     abi = out["abi"]
     bytecode = out["bytecode"]
-    bytecode_len_hex = hex(len(bytecode))[2:].rjust(4, "0")
+    bytecode_len = (len(bytecode) - 2) // 2
+    bytecode_len_hex = hex(bytecode_len)[2:].rjust(4, "0")
     # prepend a quick deploy preamble
     deploy_preamble = "61" + bytecode_len_hex + "3d81600a3d39f3"
     deploy_bytecode = "0x" + deploy_preamble + bytecode[2:]
-    print("\n", deploy_bytecode)
 
     deployer_abi = []  # just a constructor
     c = w3.eth.contract(abi=deployer_abi, bytecode=deploy_bytecode)
@@ -151,6 +152,12 @@ def _deploy_factory_for(w3, source_code, no_optimize, **kwargs):
 
     tx_hash = deploy_transaction.transact(tx_info)
     address = w3.eth.get_transaction_receipt(tx_hash)["contractAddress"]
+
+    # sanity check
+    assert w3.eth.get_code(address) == HexBytes(bytecode), (
+        w3.eth.get_code(address),
+        HexBytes(bytecode),
+    )
 
     def factory(address):
         return w3.eth.contract(

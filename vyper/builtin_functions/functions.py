@@ -1696,13 +1696,13 @@ class _CreateBase(_SimpleBuiltinFunction):
         # errmsg something like "Cannot use {self._id} in pure fn"
         context.check_is_not_constant("use {self._id}", expr)
 
-        self.value = kwargs["value"]
-        self.salt = kwargs["salt"]
+        value = kwargs["value"]
+        salt = kwargs["salt"]
         should_use_create2 = "salt" in [kwarg.arg for kwarg in expr.keywords]
         if not should_use_create2:
-            self.salt = None
+            salt = None
 
-        ir_builder = self._build_create_IR(expr, args, kwargs, context)
+        ir_builder = self._build_create_IR(expr, args, value, salt, context)
 
         add_gas_estimate = self._add_gas_estimate(args, should_use_create2)
 
@@ -1768,66 +1768,6 @@ class CreateForwarderTo(CreateMinimalProxyTo):
         super().build_IR(self, expr, args, kwargs, context)
 
 
-class CreateWithCodeOf(_CreateBase):
-
-    _id = "create_with_code_of"
-    _inputs = [("target", AddressDefinition()), ("varargs", "*")]
-
-    @staticmethod
-    # encode provided args for the initcode
-    def _encode_args(dst, ctor_args, context):
-
-        to_encode = ir_tuple_from_args(ctor_args)
-
-        # pretend we allocated enough memory for the encoder
-        # (we didn't, but we are clobbering unused memory so it's safe.)
-        pretend_bufsz = to_encode.typ.abi_type.size_bound()
-
-        # return a complex expression which writes to memory and returns
-        # the length of the encoded data
-        return abi_encode(dst, to_encode, context, bufsz=pretend_bufsz, returns_len=True)
-
-    def _add_gas_estimate(self, args, should_use_create2):
-        ctor_args = ir_tuple_from_args(args[1:])
-        # max possible size of init code
-        maxlen = EIP_170_LIMIT + ctor_args.typ.abi_type.size_bound()
-        return _create_addl_gas_estimate(maxlen, should_use_create2)
-
-    def _build_create_IR(self, expr, args, value, salt, context):
-        target = args[0]
-        ctor_args = args[1:]
-
-        with target.cache_when_complex("create_target") as (b1, target):
-            codesize = IRnode.from_list(["extcodesize", target])
-            # copy code to memory starting from msize. we are clobbering
-            # unused memory so it's safe.
-            msize = IRnode.from_list(["msize"])
-            with codesize.cache_when_complex("target_codesize") as (
-                b2,
-                codesize,
-            ), msize.cache_when_complex("mem_ofst") as (b3, mem_ofst):
-                ir = ["seq"]
-
-                # copy the target code into memory.
-                # layout starting from mem_ofst:
-                # 00...00 (22 0's) | preamble | bytecode
-                ir.append(["extcodecopy", target, mem_ofst, 0, codesize])
-
-                # theoretically, dst = "msize", but just be safe.
-                if len(ctor_args) > 0:
-                    dst = add_ofst(mem_ofst, codesize)
-                    encoded_args_len = self._encode_args(dst, ctor_args, context)
-                else:
-                    encoded_args_len = 0
-
-                length = ["add", codesize, encoded_args_len]
-
-                # TODO assert extcodesize > 0?
-                ir.append(_create_ir(mem_ofst, length, value, salt))
-
-                return b1.resolve(b2.resolve(b3.resolve(ir)))
-
-
 class CreateCopyOf(_CreateBase):
 
     _id = "create_copy_of"
@@ -1867,9 +1807,74 @@ class CreateCopyOf(_CreateBase):
                 buf_len = ["add", codesize, preamble_len]
 
                 # TODO check extcodesize > 0?
-                ir.append(_create_ir(buf, buf_len, value, salt))
+                ir.append(_create_ir(value, buf, buf_len, salt))
 
                 return b1.resolve(b2.resolve(b3.resolve(ir)))
+
+
+class CreateWithCodeOf(_CreateBase):
+
+    _id = "create_with_code_of"
+    _inputs = [("target", AddressDefinition())]
+    _has_varargs = True
+
+    def _add_gas_estimate(self, args, should_use_create2):
+        ctor_args = ir_tuple_from_args(args[1:])
+        # max possible size of init code
+        maxlen = EIP_170_LIMIT + ctor_args.typ.abi_type.size_bound()
+        return _create_addl_gas_estimate(maxlen, should_use_create2)
+
+    def _build_create_IR(self, expr, args, value, salt, context):
+        target = args[0]
+        ctor_args = args[1:]
+
+        to_encode = ir_tuple_from_args(ctor_args)
+
+        # pretend we allocated enough memory for the encoder
+        # (we didn't, but we are clobbering unused memory so it's safe.)
+        bufsz = to_encode.typ.abi_type.size_bound()
+        argbuf = IRnode.from_list(
+            context.new_internal_variable(get_type_for_exact_size(bufsz)), location=MEMORY
+        )
+
+        # return a complex expression which writes to memory and returns
+        # the length of the encoded data
+        argslen = abi_encode(argbuf, to_encode, context, bufsz=bufsz, returns_len=True)
+
+        with argslen.cache_when_complex("encoded_args_len") as (
+            b1,
+            encoded_args_len,
+        ), target.cache_when_complex("create_target") as (b2, target):
+            codesize = IRnode.from_list(["extcodesize", target])
+            # copy code to memory starting from msize. we are clobbering
+            # unused memory so it's safe.
+            msize = IRnode.from_list(["msize"], location=MEMORY)
+            with codesize.cache_when_complex("target_codesize") as (
+                b3,
+                codesize,
+            ), msize.cache_when_complex("mem_ofst") as (b4, mem_ofst):
+                ir = ["seq"]
+
+                # copy the target code into memory.
+                # layout starting from mem_ofst:
+                # 00...00 (22 0's) | preamble | bytecode
+                ir.append(["extcodecopy", target, mem_ofst, 0, codesize])
+
+                ir.append(copy_bytes(add_ofst(mem_ofst, codesize), argbuf, encoded_args_len, bufsz))
+
+                # theoretically, dst = "msize", but just be safe.
+                # if len(ctor_args) > 0:
+                #    dst = add_ofst(mem_ofst, codesize)
+                #    encoded_args_len = self._encode_args(dst, ctor_args, context)
+                # else:
+                #    encoded_args_len = 0
+
+                length = ["add", codesize, encoded_args_len]
+
+                # TODO assert extcodesize > 0?
+                ir.append(_create_ir(value, mem_ofst, length, salt))
+
+                return b1.resolve(b2.resolve(b3.resolve(b4.resolve(ir))))
 
 
 class _UnsafeMath(_SimpleBuiltinFunction):
@@ -2173,6 +2178,8 @@ class Print(_SimpleBuiltinFunction):
 
     _warned = False
 
+    # TODO refactor to use _has_varargs
+
     def fetch_call_return(self, node):
         if not self._warned:
             vyper_warn("`print` should only be used for debugging!\n" + node._annotated_source)
@@ -2217,6 +2224,8 @@ class ABIEncode(_SimpleBuiltinFunction):
     # this follows the encoding convention for functions:
     # ://docs.soliditylang.org/en/v0.8.6/abi-spec.html#function-selector-and-argument-encoding
     # if this is turned off, then bytes will be encoded as bytes.
+
+    # TODO refactor to use _varargs
 
     _kwargs = {
         "ensure_tuple": KwargSettings(BoolDefinition(), True, require_literal=True),

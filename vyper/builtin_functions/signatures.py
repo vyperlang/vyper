@@ -14,7 +14,7 @@ from vyper.semantics.types import (
 )
 from vyper.semantics.types.bases import BaseTypeDefinition
 from vyper.semantics.types.utils import KwargSettings, TypeTypeDefinition
-from vyper.semantics.validation.utils import validate_expected_type
+from vyper.semantics.validation.utils import get_exact_type_from_node, validate_expected_type
 
 
 def process_arg(arg, expected_arg_type, context):
@@ -97,7 +97,7 @@ class _SimpleBuiltinFunction:
             # note special meaning for -1 in validate_call_args API
             expect_num_args = (num_args, -1)
 
-        validate_call_args(node, (num_args, -1), getattr(self, "_kwargs", []))
+        validate_call_args(node, expect_num_args, getattr(self, "_kwargs", []))
 
         for arg, (_, expected) in zip(node.args, self._inputs):
             validate_expected_type(arg, expected)
@@ -111,7 +111,6 @@ class _SimpleBuiltinFunction:
             # call get_exact_type_from_node for its side effects -
             # ensures the type can be inferred exactly.
             get_exact_type_from_node(arg)
-
 
     def fetch_call_return(self, node):
         self._validate_arg_types(node)

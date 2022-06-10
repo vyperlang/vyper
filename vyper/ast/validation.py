@@ -7,7 +7,7 @@ from vyper.exceptions import ArgumentException, CompilerPanic, StructureExceptio
 
 
 def validate_call_args(
-    node: vy_ast.Call, arg_count: Union[int, tuple], has_varargs: bool = False, kwargs: Optional[list] = None
+    node: vy_ast.Call, arg_count: Union[int, tuple], kwargs: Optional[list] = None
 ) -> None:
     """
     Validate positional and keyword arguments of a Call node.
@@ -45,7 +45,8 @@ def validate_call_args(
             # -1 is sentinel which means we have varargs.
             # set arg_count[1] to some large number that we
             # would never see in practice
-            arg_count[1] = 2**64
+            arg_count = (arg_count[0], 2 ** 64)
+
         if arg_count[0] == arg_count[1]:
             arg_count == arg_count[0]
 

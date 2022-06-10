@@ -1,4 +1,5 @@
 import rlp
+from eth_abi import encode_single
 from hexbytes import HexBytes
 
 from vyper.utils import checksum_encode, keccak256
@@ -72,7 +73,7 @@ def test2() -> Bytes[100]:
     assert c.test2() == b"hello world!"
 
 
-def test_create_with_code_exception(w3, get_contract, assert_tx_failed):
+def test_minimal_proxy_exception(w3, get_contract, assert_tx_failed):
     code = """
 
 interface SubContract:
@@ -160,10 +161,6 @@ def test(target: address):
 @external
 def test2(target: address, salt: bytes32):
     self.created_address = create_with_code_of(target, salt=salt)
-
-@external
-def should_fail(target: address, arg: uint256):
-    self.created_address = create_with_code_of(target, arg)
     """
 
     # deploy a foo so we can compare its bytecode with factory deployed version
@@ -180,7 +177,7 @@ def should_fail(target: address, arg: uint256):
 
     test = FooContract(d.created_address())
     assert w3.eth.get_code(test.address) == expected_runtime_code
-    assert FooContract(test).foo() == 123
+    assert test.foo() == 123
 
     # now same thing but with create2
     salt = keccak(b"vyper")
@@ -188,15 +185,12 @@ def should_fail(target: address, arg: uint256):
 
     test = FooContract(d.created_address())
     assert w3.eth.get_code(test.address) == expected_runtime_code
-    assert FooContract(test).foo() == 123
+    assert test.foo() == 123
 
-    assert test.address == create2_address_of(d.address, salt, initcode)
+    assert HexBytes(test.address) == create2_address_of(d.address, salt, initcode)
 
     # can't collide addresses
     assert_tx_failed(lambda: d.test2(f.address, salt))
-
-    # Foo constructor should fail
-    assert_tx_failed(lambda: d.should_fail(f.address, 54321))
 
 
 def test_create_with_code_of_args(
@@ -226,7 +220,7 @@ def test2(target: address, arg: String[128], salt: bytes32):
     self.created_address = create_with_code_of(target, arg, salt=salt)
 
 @external
-def should_fail(target: address, arg: uint256):
+def should_fail(target: address, arg: String[129]):
     self.created_address = create_with_code_of(target, arg)
     """
     FOO = "hello!"
@@ -245,7 +239,7 @@ def should_fail(target: address, arg: uint256):
 
     test = FooContract(d.created_address())
     assert w3.eth.get_code(test.address) == expected_runtime_code
-    assert FooContract(test).foo() == FOO
+    assert test.foo() == FOO
 
     # now same thing but with create2
     salt = keccak(b"vyper")
@@ -253,9 +247,10 @@ def should_fail(target: address, arg: uint256):
 
     test = FooContract(d.created_address())
     assert w3.eth.get_code(test.address) == expected_runtime_code
-    assert FooContract(test).foo() == FOO
+    assert test.foo() == FOO
 
-    assert test.address == create2_address_of(d.address, salt, initcode)
+    encoded_foo = encode_single("(string)", (FOO,))
+    assert HexBytes(test.address) == create2_address_of(d.address, salt, initcode + encoded_foo)
 
     # can't collide addresses
     assert_tx_failed(lambda: d.test2(f.address, FOO, salt))
@@ -267,7 +262,7 @@ def should_fail(target: address, arg: uint256):
     assert FooContract(d.created_address()).foo() == BAR
 
     # Foo constructor should fail
-    assert_tx_failed(lambda: d.should_fail(f.address, 123))
+    assert_tx_failed(lambda: d.should_fail(f.address, b"\x01" * 129))
 
 
 def test_create_copy_of(get_contract, w3, keccak, create2_address_of, assert_tx_failed):
