@@ -873,7 +873,7 @@ class UnaryOp(VyperNode):
         ret._metadata["type"] = self._metadata["type"]
         return ret
 
-    def derive(self, vyper_module: Module) -> Union[decimal.Decimal, Int]:
+    def derive(self, vyper_module: Module = None) -> Union[decimal.Decimal, Int]:
         """
         Return the raw value of the arithmetic operation.
 
@@ -942,14 +942,14 @@ class BinOp(VyperNode):
         from vyper.ast.utils import get_constant_value
 
         if isinstance(self.left, (BinOp, UnaryOp)):
-            left = self.left.derive()
+            left = self.left.derive(vyper_module)
         elif isinstance(self.left, Name) and vyper_module:
             left = get_constant_value(vyper_module, self.left)
         else:
             left = self.left.value
 
         if isinstance(self.right, (BinOp, UnaryOp)):
-            right = self.right.derive()
+            right = self.right.derive(vyper_module)
         elif isinstance(self.right, Name) and vyper_module:
             right = get_constant_value(vyper_module, self.right)
         else:
