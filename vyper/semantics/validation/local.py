@@ -16,6 +16,7 @@ from vyper.exceptions import (
     StateAccessViolation,
     StructureException,
     TypeMismatch,
+    UnfoldableNode,
     VariableDeclarationException,
     VyperException,
 )
@@ -24,7 +25,7 @@ from vyper.exceptions import (
 from vyper.semantics.environment import CONSTANT_ENVIRONMENT_VARS, MUTABLE_ENVIRONMENT_VARS
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.abstract import IntegerAbstractType
-from vyper.semantics.types.bases import DataLocation
+from vyper.semantics.types.bases import BaseTypeDefinition, DataLocation
 from vyper.semantics.types.function import (
     ContractFunction,
     MemberFunctionDefinition,
@@ -184,6 +185,31 @@ def _validate_msg_data_attribute(node: vy_ast.Attribute) -> None:
                 )
 
 
+def annotate_foldable_minmax(node: vy_ast.VyperNode, expected_type: BaseTypeDefinition) -> None:
+    """
+    Helper function to annotate `Call` nodes for `min` and `max` builtin functions
+    that are foldable, and in a return statement.
+
+    The usual builtin functions class methods `infer_arg_types` and `fetch_call_return`
+    do not work here because they do not take into account the return type.
+    """
+    minmax_nodes = node.get_descendants(
+        vy_ast.Call, {"func.id": {"min", "max"}}, include_self=True, reverse=True
+    )
+    for n in minmax_nodes:
+        try:
+            node.evaluate()
+
+        except UnfoldableNode:
+            pass
+
+        type_list = get_common_types(*n.args)
+        if not any(expected_type.compare_type(i) for i in type_list):
+            raise TypeMismatch(f"Expected {expected_type}", n)
+
+        n._metadata["type"] = expected_type
+
+
 class FunctionNodeVisitor(VyperNodeVisitorBase):
 
     ignored_types = (vy_ast.Break, vy_ast.Constant, vy_ast.Pass)
@@ -328,6 +354,11 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             for given, expected in zip(values, self.func.return_type.value_type):
                 validate_expected_type(given, expected)
         else:
+            # Special branch to handle minmax builtin with literals because the
+            # usual type inference in `infer_arg_types` do not take into account
+            # the specified return type.
+            annotate_foldable_minmax(values, self.func.return_type)
+
             validate_expected_type(values, self.func.return_type)
         self.expr_visitor.visit(node.value)
 

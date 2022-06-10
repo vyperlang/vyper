@@ -1829,14 +1829,24 @@ class _MinMax(_SimpleBuiltinFunction):
             raise TypeMismatch("Cannot perform action between dislike numeric types", node)
 
         value = self._eval_fn(left, right)
-        return type(node.args[0]).from_node(node, value=value)
+        ret = type(node.args[0]).from_node(node, value=value)
+        ret._metadata["type"] = self.fetch_call_return(node)
+        return ret
 
     def fetch_call_return(self, node):
+        # `type` will be annotated if it is in a return statement
+        if "type" in node._metadata:
+            return node._metadata["type"]
+
         return_type = self.infer_arg_types(node).pop()
         return return_type
 
     def infer_arg_types(self, node):
         self._validate_arg_types(node)
+
+        # `type` will be annotated if it is in a return statement
+        if "type" in node._metadata:
+            return [node._metadata["type"]] * 2
 
         types_list = get_common_types(
             *node.args, filter_fn=lambda x: isinstance(x, NumericAbstractType)
