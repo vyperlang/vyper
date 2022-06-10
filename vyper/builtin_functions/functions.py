@@ -727,8 +727,31 @@ class Sha256(_SimpleBuiltinFunction):
 class MethodID(_SimpleBuiltinFunction):
 
     _id = "method_id"
+    _kwargs = {"output_type": KwargSettings("TYPE_DEFINITION", "bytes4")}
+
+    def derive(self, node):
+        value = abi_method_id(node.args[0].value)
+        return value
 
     def evaluate(self, node):
+        self.infer_arg_types(node)
+
+        output_typ = self.infer_kwarg_types(node)["output_type"].typedef
+        value = self.derive(node)
+
+        if isinstance(output_typ, Bytes4Definition):
+            ret = vy_ast.Hex.from_node(node, value=hex(value))
+        else:
+            ret = vy_ast.Bytes.from_node(node, value=value.to_bytes(4, "big"))
+
+        ret._metadata["type"] = output_typ
+        return ret
+
+    def fetch_call_return(self, node):
+        output_typ = self.infer_kwarg_types(node)["output_type"]
+        return output_typ.typedef
+
+    def infer_arg_types(self, node):
         validate_call_args(node, 1, ["output_type"])
 
         args = node.args
@@ -737,6 +760,10 @@ class MethodID(_SimpleBuiltinFunction):
         if " " in args[0].value:
             raise InvalidLiteral("Invalid function signature - no spaces allowed.")
 
+        input_typ = get_exact_type_from_node(node)
+        return [input_typ]
+
+    def infer_kwarg_types(self, node):
         if node.keywords:
             return_type = get_type_from_annotation(node.keywords[0].value, DataLocation.UNSET)
             if isinstance(return_type, Bytes4Definition):
@@ -749,21 +776,13 @@ class MethodID(_SimpleBuiltinFunction):
             # If `output_type` is not given, default to `Bytes[4]`
             is_bytes4 = False
 
-        value = abi_method_id(args[0].value)
-
         if is_bytes4:
-            return vy_ast.Hex.from_node(node, value=hex(value))
+            ret = Bytes4Definition()
         else:
-            return vy_ast.Bytes.from_node(node, value=value.to_bytes(4, "big"))
+            ret = BytesArrayDefinition()
+            ret.set_length(4)
 
-    def fetch_call_return(self, node):
-        raise CompilerPanic("method_id should always be folded")
-
-    def infer_arg_types(self, node):
-        raise CompilerPanic("method_id should always be folded")
-
-    def infer_kwarg_types(self, node):
-        raise CompilerPanic("method_id should always be folded")
+        return {"output_type": TypeTypeDefinition(ret)}
 
     def build_IR(self, *args, **kwargs):
         raise CompilerPanic("method_id should always be folded")
@@ -2107,6 +2126,11 @@ class ABIEncode(_SimpleBuiltinFunction):
             hexstr = method_id.value  # e.g. 0xdeadbeef
             _check(len(hexstr) // 2 - 1 <= 4)
             return int(hexstr, 16)
+
+        if isinstance(method_id, vy_ast.Call):
+            call_type = get_exact_type_from_node(method_id.func)
+            if isinstance(call_type, MethodID):
+                return call_type.derive(method_id)
 
         _check(False)
 
