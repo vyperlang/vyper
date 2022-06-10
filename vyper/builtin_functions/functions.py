@@ -1041,10 +1041,6 @@ class AsWeiValue(_SimpleBuiltinFunction):
     }
 
     def get_denomination(self, node):
-        if not isinstance(node.args[1], vy_ast.Str):
-            raise ArgumentException(
-                "Wei denomination must be given as a literal string", node.args[1]
-            )
         try:
             denom = next(v for k, v in self.wei_denoms.items() if node.args[1].value in k)
         except StopIteration:
@@ -1070,7 +1066,9 @@ class AsWeiValue(_SimpleBuiltinFunction):
         if isinstance(value, Decimal) and value >= 2 ** 127:
             raise InvalidLiteral("Value out of range for decimal", node.args[0])
 
-        return vy_ast.Int.from_node(node, value=int(value * denom))
+        ret = vy_ast.Int.from_node(node, value=int(value * denom))
+        ret._metadata["type"] = self.fetch_call_return(node)
+        return ret
 
     def fetch_call_return(self, node):
         self.infer_arg_types(node)

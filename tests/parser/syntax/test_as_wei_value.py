@@ -1,6 +1,6 @@
 import pytest
 
-from vyper.exceptions import ArgumentException, InvalidType, StructureException
+from vyper.exceptions import InvalidType, StructureException, UndeclaredDefinition
 
 fail_list = [
     (
@@ -9,7 +9,7 @@ fail_list = [
 def foo():
     x: int128 = as_wei_value(5, szabo)
     """,
-        ArgumentException,
+        UndeclaredDefinition,
     ),
     (
         """
