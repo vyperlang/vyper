@@ -118,7 +118,7 @@ Vyper has three builtins for contract creation; all three contract creation buil
     * ``value``: The wei value to send to the new contract address (Optional, default 0)
     * ``salt``: A ``bytes32`` value utilized by the deterministic ``CREATE2`` opcode (Optional, if not supplied, ``CREATE`` is used)
 
-    Returns the address of the proxied-to contract. If the create operation fails (for instance, in the case of a ``CREATE2`` collision), execution will revert.
+    Returns the address of the newly created proxy contract. If the create operation fails (for instance, in the case of a ``CREATE2`` collision), execution will revert.
 
     .. code-block:: python
 
