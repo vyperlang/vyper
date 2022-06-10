@@ -221,6 +221,11 @@ def check_constant(node: vy_ast.VyperNode) -> bool:
         args = node.args
         if len(args) == 1 and isinstance(args[0], vy_ast.Dict):
             return all(check_constant(v) for v in args[0].values)
+    if isinstance(node, vy_ast.Name):
+        # Check for foldable environment constants
+        namespace = get_namespace()
+        if node.id in namespace:
+            return True
 
     return False
 

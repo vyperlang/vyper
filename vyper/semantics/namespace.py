@@ -31,6 +31,7 @@ class Namespace(dict):
 
         self.update(get_types())
         self.update(environment.get_constant_vars())
+        self.update(environment.get_foldable_vars())
         self.update(get_builtin_functions())
 
     def __eq__(self, other):

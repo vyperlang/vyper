@@ -231,9 +231,6 @@ def generate_folded_ast(
     vy_ast.validation.validate_literal_nodes(vyper_module)
 
     vyper_module_folded = copy.deepcopy(vyper_module)
-    vy_ast.folding.replace_builtin_constants(vyper_module_folded)
-    vy_ast.folding.replace_user_defined_constants(vyper_module_folded)
-    vy_ast.folding.replace_builtin_functions(vyper_module_folded)
     validate_semantics(vyper_module_folded, interface_codes)
     vy_ast.folding.fold(vyper_module_folded)
     vy_ast.expansion.expand_annotated_ast(vyper_module_folded)
