@@ -1829,6 +1829,8 @@ class CreateWithCodeOf(_CreateBase):
         target = args[0]
         ctor_args = args[1:]
 
+        ctor_args = [ensure_in_memory(arg) for arg in ctor_args]
+
         to_encode = ir_tuple_from_args(ctor_args)
 
         # pretend we allocated enough memory for the encoder
@@ -1842,6 +1844,11 @@ class CreateWithCodeOf(_CreateBase):
         # the length of the encoded data
         argslen = abi_encode(argbuf, to_encode, context, bufsz=bufsz, returns_len=True)
 
+        # NOTE: we need to invoke the abi encoder before evaluating MSIZE,
+        # then copy the abi encoded buffer to past-the-end of the initcode
+        # (since the abi encoder could write to fresh memory).
+        # it would be good to not require the memory copy, but need
+        # to evaluate memory safety.
         with argslen.cache_when_complex("encoded_args_len") as (
             b1,
             encoded_args_len,
