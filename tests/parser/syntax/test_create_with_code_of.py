@@ -8,7 +8,11 @@ fail_list = [
     """
 @external
 def foo():
-    x: address = create_minimal_proxy_to(0x1234567890123456789012345678901234567890, value=4, value=9)
+    x: address = create_minimal_proxy_to(
+        0x1234567890123456789012345678901234567890,
+        value=4,
+        value=9
+    )
     """,
     """
 @external

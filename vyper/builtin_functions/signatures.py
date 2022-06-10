@@ -4,6 +4,7 @@ from typing import Dict
 from vyper.ast import nodes as vy_ast
 from vyper.ast.validation import validate_call_args
 from vyper.codegen.expr import Expr
+from vyper.codegen.ir_node import IRnode
 from vyper.codegen.types.convert import new_type_to_old_type
 from vyper.exceptions import CompilerPanic, TypeMismatch
 from vyper.semantics.types import (
@@ -12,7 +13,6 @@ from vyper.semantics.types import (
     DynamicArrayDefinition,
     StringDefinition,
 )
-from vyper.codegen.ir_node import IRnode
 from vyper.semantics.types.bases import BaseTypeDefinition
 from vyper.semantics.types.utils import KwargSettings, TypeTypeDefinition
 from vyper.semantics.validation.utils import get_exact_type_from_node, validate_expected_type
