@@ -233,6 +233,14 @@ def check_constant(node: vy_ast.VyperNode, vyper_module: vy_ast.Module = None) -
             return True
         except UnfoldableNode:
             return False
+    if isinstance(node, vy_ast.Call):
+        node_type = get_exact_type_from_node(node.func)
+        if hasattr(node_type, "evaluate"):
+            try:
+                node_type.evaluate(node)
+                return True
+            except UnfoldableNode:
+                return False
 
     return False
 

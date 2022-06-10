@@ -363,6 +363,8 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                     val = get_constant_value(self.vyper_module, args[0])
                 elif isinstance(args[0], vy_ast.Int):
                     val = args[0].value
+                elif isinstance(args[0], (vy_ast.BinOp, vy_ast.UnaryOp)):
+                    val = args[0].derive(self.vyper_module)
 
                 if val <= 0:
                     raise StructureException("For loop must have at least 1 iteration", args[0])
