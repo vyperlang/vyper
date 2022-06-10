@@ -186,7 +186,9 @@ class Ceil(_SimpleBuiltinFunction):
             raise UnfoldableNode
 
         value = math.ceil(node.args[0].value)
-        return vy_ast.Int.from_node(node, value=value)
+        ret = vy_ast.Int.from_node(node, value=value)
+        ret._metadata["type"] = self._return_type
+        return ret
 
     @validate_inputs
     def build_IR(self, expr, args, kwargs, context):
