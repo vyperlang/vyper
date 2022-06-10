@@ -1,5 +1,7 @@
 from decimal import Decimal
 
+import pytest
+
 from vyper.exceptions import OverflowException
 
 
@@ -136,21 +138,6 @@ def num_sub() -> int128:
     assert_compile_failed(lambda: get_contract(code), OverflowException)
 
 
-def test_overflow_add(get_contract, assert_tx_failed):
-    code = """
-@external
-def num_add(i: int128) -> int128:
-    return (2**127-1) + i
-    """
-    c = get_contract(code)
-
-    assert c.num_add(0) == 2 ** 127 - 1
-    assert c.num_add(-1) == 2 ** 127 - 2
-
-    assert_tx_failed(lambda: c.num_add(1))
-    assert_tx_failed(lambda: c.num_add(2))
-
-
 def test_overflow_add_vars(get_contract, assert_tx_failed):
     code = """
 @external
@@ -210,3 +197,28 @@ def test() -> decimal:
     """
 
     assert_compile_failed(lambda: get_contract(code))
+
+
+bad_code = [
+    (
+        """
+@external
+def num_add(i: int128) -> int128:
+    return (2**127-1) + i
+    """,
+        OverflowException,
+    ),
+    (
+        """
+@external
+def foo(i: int128) -> int128:
+    return -(2**127) + i
+    """,
+        OverflowException,
+    ),
+]
+
+
+@pytest.mark.parametrize("bad_code,expected", bad_code)
+def test_invalid_code(get_contract, assert_compile_failed, bad_code, expected):
+    assert_compile_failed(lambda: get_contract(bad_code), expected)
