@@ -170,6 +170,9 @@ Vyper has three builtins for contract creation; all three contract creation buil
             arg2: String = "some string"
             return create_with_code_of(_target, arg1, arg2)
 
+.. note::
+
+    To properly deploy a factory contract, special deploy bytecode must be used. Deploying factory contracts is generally out of scope of this article, but the following preamble, prepended to regular deploy bytecode (output of ``vyper -f bytecode``), should deploy the factory contract in an ordinary contract creation transaction: ``deploy_preamble = "61" + <bytecode len in 4 hex character> + "3d81600a3d39f3"``. To see an example of this, please see the `setup code for testing create_with_code_of <https://github.com/vyperlang/vyper/blob/master/tests/parser/functions/test_create_functions.py>`_.
 
 .. py:function:: raw_call(to: address, data: Bytes, max_outsize: int = 0, gas: uint256 = gasLeft, value: uint256 = 0, is_delegate_call: bool = False, is_static_call: bool = False, revert_on_failure: bool = True) -> Bytes[max_outsize]
 
