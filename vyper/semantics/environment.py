@@ -5,9 +5,9 @@ from vyper.semantics.types.user.struct import StructDefinition
 from vyper.semantics.types.value.address import AddressDefinition
 from vyper.semantics.types.value.array_value import BytesArrayDefinition
 from vyper.semantics.types.value.bytes_fixed import Bytes32Definition
-from vyper.semantics.types.value.numeric import DecimalDefinition
 from vyper.semantics.types.value.numeric import Int128Definition  # type: ignore
 from vyper.semantics.types.value.numeric import Uint256Definition  # type: ignore
+from vyper.semantics.types.value.numeric import DecimalDefinition
 
 FOLDABLE_ENVIRONMENT_VARS: Dict[str, type] = {
     "EMPTY_BYTES32": Bytes32Definition,
