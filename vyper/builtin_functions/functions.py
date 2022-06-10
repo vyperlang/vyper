@@ -620,7 +620,10 @@ class Keccak256(_SimpleBuiltinFunction):
             raise UnfoldableNode
 
         hash_ = f"0x{keccak256(value).hex()}"
-        return vy_ast.Hex.from_node(node, value=hash_)
+        ret = vy_ast.Hex.from_node(node, value=hash_)
+        ret._metadata["type"] = Bytes32Definition()
+        return ret
+
 
     def infer_arg_types(self, node):
         self._validate_arg_types(node)
