@@ -107,7 +107,7 @@ See the :ref:`Interfaces <interfaces>` documentation for more information.
 Structs
 =======
 
-A struct is custom defined type that allows you to group several variables together:
+A struct is a custom defined type that allows you to group several variables together:
 
 .. code-block:: python
 
