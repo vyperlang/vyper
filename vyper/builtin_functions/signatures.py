@@ -12,6 +12,7 @@ from vyper.semantics.types import (
     DynamicArrayDefinition,
     StringDefinition,
 )
+from vyper.codegen.ir_node import IRnode
 from vyper.semantics.types.bases import BaseTypeDefinition
 from vyper.semantics.types.utils import KwargSettings, TypeTypeDefinition
 from vyper.semantics.validation.utils import get_exact_type_from_node, validate_expected_type
@@ -75,8 +76,9 @@ def validate_inputs(wrapped_fn):
             if k not in kwsubs:
                 kwsubs[k] = expected_arg.default
 
-        for k in kwsubs:
-            kwsubs[k].annotation = k
+        for k, v in kwsubs.items():
+            if isinstance(v, IRnode):
+                v.annotation = k
 
         return wrapped_fn(self, node, subs, kwsubs, context)
 

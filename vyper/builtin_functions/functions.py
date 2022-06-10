@@ -1721,8 +1721,9 @@ class CreateMinimalProxyTo(_CreateBase):
     _inputs = [("target", AddressDefinition())]
 
     def _add_gas_estimate(self, args, should_use_create2):
-        loader_evm, _, _ = eip1167_bytecode()
-        return _create_addl_gas_estimate(len(loader_evm), should_use_create2)
+        a, b, c = eip1167_bytecode()
+        bytecode_len = 20 + len(b) + len(c)
+        return _create_addl_gas_estimate(bytecode_len, should_use_create2)
 
     def _build_create_IR(self, expr, args, value, salt, context):
 
@@ -1760,12 +1761,12 @@ class CreateMinimalProxyTo(_CreateBase):
 class CreateForwarderTo(CreateMinimalProxyTo):
     _warned_flag = False
 
-    def build_IR(self, expr, args, kwargs, context):
+    def build_IR(self, expr, context):
         if not self.__class__._warned_flag:
             vyper_warn("`create_forwarder_to` is a deprecated alias of `create_minimal_proxy_to`!")
             self.__class__._warned_flag = True
 
-        super().build_IR(self, expr, args, kwargs, context)
+        return super().build_IR(expr, context)
 
 
 class CreateCopyOf(_CreateBase):
