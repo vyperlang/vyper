@@ -53,6 +53,17 @@ def _find_cyclic_call(fn_names: list, self_members: dict) -> Optional[list]:
     return None
 
 
+def annotate_struct_members(node: vy_ast.Call, type_definition: StructDefinition) -> None:
+    """
+    Recursively annotate a constant struct's members.
+    """
+    for k, v in zip(node.args[0].keys, node.args[0].values):
+        member_type = type_definition.members[k.id]
+        v._metadata["type"] = member_type
+        if isinstance(member_type, StructDefinition):
+            annotate_struct_members(v, member_type)
+
+
 class ModuleNodeVisitor(VyperNodeVisitorBase):
 
     scope_name = "module"
@@ -216,8 +227,7 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
                 node.value._metadata["type"] = type_definition
                 # Annotate members for constant structs
                 if isinstance(type_definition, StructDefinition):
-                    for k, v in zip(node.value.args[0].keys, node.value.args[0].values):
-                        v._metadata["type"] = type_definition.members[k.id]
+                    annotate_struct_members(node.value, type_definition)
             except VyperException as exc:
                 raise exc.with_annotation(node) from None
             return
