@@ -915,14 +915,7 @@ class BinOp(VyperNode):
             raise UnfoldableNode("Node contains invalid field(s) for evaluation")
 
         value = self.derive()
-
-        # Defer numeric bounds validation until all folding operations are completed
-        # E.g. `a: int256 = (2 ** 255) - 1` will be out of bounds when evaluating
-        # the expression in brackets, but within bounds when the full expression is
-        # folded.
-        parent = self.get_ancestor()
-        if not isinstance(parent, (BinOp, UnaryOp)):
-            _validate_numeric_bounds(self, value)
+        _validate_numeric_bounds(self, value)
 
         ret = type(left).from_node(self, value=value)
         ret._metadata["type"] = self._metadata["type"]
