@@ -82,7 +82,7 @@ def _validate_constant(vyper_module: vy_ast.Module, node: vy_ast.VyperNode) -> N
         if isinstance(n, (vy_ast.BinOp, vy_ast.UnaryOp)):
             _validate_constant(vyper_module, n)
         elif isinstance(n, vy_ast.Name):
-            val = get_constant_value(vyper_module, n)
+            val = get_constant_value(n)
             if val is None:
                 raise InvalidType("Undefined constant", n)
         elif not isinstance(n, vy_ast.Int):
@@ -360,11 +360,11 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                     raise StateAccessViolation("Value must be a literal", node)
 
                 if isinstance(args[0], vy_ast.Name):
-                    val = get_constant_value(self.vyper_module, args[0])
+                    val = get_constant_value(args[0])
                 elif isinstance(args[0], vy_ast.Int):
                     val = args[0].value
                 elif isinstance(args[0], (vy_ast.BinOp, vy_ast.UnaryOp)):
-                    val = args[0].derive(self.vyper_module)
+                    val = args[0].derive()
 
                 if val <= 0:
                     raise StructureException("For loop must have at least 1 iteration", args[0])
@@ -397,7 +397,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                     # range(CONSTANT, CONSTANT)
                     if isinstance(args[1], (vy_ast.BinOp, vy_ast.UnaryOp)):
                         _validate_constant(self.vyper_module, args[1])
-                        args1_value = args[1].derive(self.vyper_module)
+                        args1_value = args[1].derive()
                     else:
                         args1_value = args[1].value
 

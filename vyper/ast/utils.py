@@ -63,10 +63,11 @@ def dict_to_ast(ast_struct: Union[Dict, List]) -> Union[vy_ast.VyperNode, List]:
     raise CompilerPanic(f'Unknown ast_struct provided: "{type(ast_struct)}".')
 
 
-def get_constant_value(vyper_module: vy_ast.Module, node: vy_ast.Name) -> Any:
+def get_constant_value(node: vy_ast.Name) -> Any:
     """
     Helper function to retrieve the value of a constant.
     """
+    vyper_module = node.get_ancestor(vy_ast.Module)
     for n in vyper_module.get_children(vy_ast.AnnAssign):
         if node.id == n.target.id:
             val = n.value.value

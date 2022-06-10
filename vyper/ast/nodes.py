@@ -853,14 +853,14 @@ class Expr(VyperNode):
 class UnaryOp(VyperNode):
     __slots__ = ("op", "operand")
 
-    def validate_foldable(self, vyper_module=None):
+    def validate_foldable(self):
         from vyper.ast.utils import get_constant_value
 
         op = self.operand
         if isinstance(op, (BinOp, UnaryOp)):
-            op.validate_foldable(vyper_module)
-        elif isinstance(op, Name) and vyper_module:
-            val = get_constant_value(vyper_module, op)
+            op.validate_foldable()
+        elif isinstance(op, Name):
+            val = get_constant_value(op)
             if val is None:
                 raise UnfoldableNode
         else:
@@ -886,7 +886,7 @@ class UnaryOp(VyperNode):
         ret._metadata["type"] = self._metadata["type"]
         return ret
 
-    def derive(self, vyper_module: Module = None) -> Union[decimal.Decimal, Int]:
+    def derive(self) -> Union[decimal.Decimal, Int]:
         """
         Return the raw value of the arithmetic operation.
 
@@ -898,9 +898,9 @@ class UnaryOp(VyperNode):
         from vyper.ast.utils import get_constant_value
 
         if isinstance(self.operand, (BinOp, UnaryOp)):
-            val = self.operand.derive(vyper_module)
-        elif isinstance(self.operand, Name) and vyper_module:
-            val = get_constant_value(vyper_module, self.operand)
+            val = self.operand.derive()
+        elif isinstance(self.operand, Name):
+            val = get_constant_value(self.operand)
         else:
             val = self.operand.value
 
@@ -921,21 +921,21 @@ class Not(VyperNode):
 class BinOp(VyperNode):
     __slots__ = ("left", "op", "right")
 
-    def validate_foldable(self, vyper_module=None):
+    def validate_foldable(self):
         from vyper.ast.utils import get_constant_value
 
         left, right = self.left, self.right
         if isinstance(left, (BinOp, UnaryOp)):
-            left.validate_foldable(vyper_module)
-        elif isinstance(left, Name) and vyper_module:
-            left_val = get_constant_value(vyper_module, left)
+            left.validate_foldable()
+        elif isinstance(left, Name):
+            left_val = get_constant_value(left)
             if left_val is None:
                 raise UnfoldableNode
 
         if isinstance(right, (BinOp, UnaryOp)):
-            right.validate_foldable(vyper_module)
-        elif isinstance(right, Name) and vyper_module:
-            right_val = get_constant_value(vyper_module, right)
+            right.validate_foldable()
+        elif isinstance(right, Name):
+            right_val = get_constant_value(right)
             if right_val is None:
                 raise UnfoldableNode
 
@@ -961,7 +961,7 @@ class BinOp(VyperNode):
         ret._metadata["type"] = self._metadata["type"]
         return ret
 
-    def derive(self, vyper_module: Module = None) -> Union[decimal.Decimal, Int]:
+    def derive(self) -> Union[decimal.Decimal, Int]:
         """
         Return the raw value of the arithmetic operation.
 
@@ -973,16 +973,16 @@ class BinOp(VyperNode):
         from vyper.ast.utils import get_constant_value
 
         if isinstance(self.left, (BinOp, UnaryOp)):
-            left = self.left.derive(vyper_module)
-        elif isinstance(self.left, Name) and vyper_module:
-            left = get_constant_value(vyper_module, self.left)
+            left = self.left.derive()
+        elif isinstance(self.left, Name):
+            left = get_constant_value(self.left)
         else:
             left = self.left.value
 
         if isinstance(self.right, (BinOp, UnaryOp)):
-            right = self.right.derive(vyper_module)
-        elif isinstance(self.right, Name) and vyper_module:
-            right = get_constant_value(vyper_module, self.right)
+            right = self.right.derive()
+        elif isinstance(self.right, Name):
+            right = get_constant_value(self.right)
         else:
             right = self.right.value
 

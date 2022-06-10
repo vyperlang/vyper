@@ -8,6 +8,7 @@ from vyper import ast as vy_ast
 from vyper.abi_types import ABI_Tuple
 from vyper.address_space import MEMORY, STORAGE
 from vyper.ast.signatures.function_signature import VariableRecord
+from vyper.ast.utils import get_constant_value
 from vyper.ast.validation import validate_call_args
 from vyper.builtin_functions.convert import convert
 from vyper.codegen.abi_encoder import abi_encode
@@ -1149,12 +1150,20 @@ class RawCall(_SimpleBuiltinFunction):
                 return None
             return BoolDefinition()
 
-        if not isinstance(outsize, vy_ast.Int) or outsize.value < 0:
+        if isinstance(outsize, vy_ast.Int):
+            outsize_val = outsize.value
+            if outsize_val < 0:
+                raise
+        elif isinstance(outsize, vy_ast.Name):
+            outsize_val = get_constant_value(outsize)
+            if outsize_val is None or outsize_val < 0:
+                raise
+        else:
             raise
 
-        if outsize.value:
+        if outsize_val:
             return_type = BytesArrayDefinition()
-            return_type.set_min_length(outsize.value)
+            return_type.set_min_length(outsize_val)
 
             if revert_on_failure:
                 return return_type
