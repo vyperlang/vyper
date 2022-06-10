@@ -109,7 +109,7 @@ class _SimpleBuiltinFunction:
         varargs = node.args[num_args:]
         if len(varargs) > 0:
             assert self._has_varargs  # double check validate_call_args
-        for arg in node.args[num_args:]:
+        for arg in varargs:
             # call get_exact_type_from_node for its side effects -
             # ensures the type can be inferred exactly.
             get_exact_type_from_node(arg)
