@@ -873,7 +873,7 @@ class UnaryOp(VyperNode):
         ret._metadata["type"] = self._metadata["type"]
         return ret
 
-    def derive(self) -> Union[decimal.Decimal, Int]:
+    def derive(self, vyper_module: Module) -> Union[decimal.Decimal, Int]:
         """
         Return the raw value of the arithmetic operation.
 
@@ -882,7 +882,16 @@ class UnaryOp(VyperNode):
         int | decimal.Decimal
             Raw value of the result of the evaluation
         """
-        return self.op._op(self.operand.value)
+        from vyper.ast.utils import get_constant_value
+
+        if isinstance(self.operand, (BinOp, UnaryOp)):
+            val = self.operand.derive()
+        elif isinstance(self.operand, Name) and vyper_module:
+            val = get_constant_value(vyper_module, self.operand)
+        else:
+            val = self.operand.value
+
+        return self.op._op(val)
 
 
 class USub(VyperNode):
@@ -921,7 +930,7 @@ class BinOp(VyperNode):
         ret._metadata["type"] = self._metadata["type"]
         return ret
 
-    def derive(self) -> Union[decimal.Decimal, Int]:
+    def derive(self, vyper_module: Module = None) -> Union[decimal.Decimal, Int]:
         """
         Return the raw value of the arithmetic operation.
 
@@ -930,7 +939,23 @@ class BinOp(VyperNode):
         int | decimal.Decimal
             Raw value of the result of the evaluation
         """
-        return self.op._op(self.left.value, self.right.value)
+        from vyper.ast.utils import get_constant_value
+
+        if isinstance(self.left, (BinOp, UnaryOp)):
+            left = self.left.derive()
+        elif isinstance(self.left, Name) and vyper_module:
+            left = get_constant_value(vyper_module, self.left)
+        else:
+            left = self.left.value
+
+        if isinstance(self.right, (BinOp, UnaryOp)):
+            right = self.right.derive()
+        elif isinstance(self.right, Name) and vyper_module:
+            right = get_constant_value(vyper_module, self.right)
+        else:
+            right = self.right.value
+
+        return self.op._op(left, right)
 
 
 class Add(VyperNode):

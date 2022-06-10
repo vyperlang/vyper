@@ -2,6 +2,7 @@ import copy
 from typing import Optional
 
 from vyper import ast as vy_ast
+from vyper.ast.utils import get_constant_value
 from vyper.ast.validation import validate_call_args
 from vyper.exceptions import (
     ExceptionList,
@@ -36,7 +37,7 @@ from vyper.semantics.types.indexable.sequence import (
     TupleDefinition,
 )
 from vyper.semantics.types.user.event import Event
-from vyper.semantics.types.utils import get_type_from_annotation
+from vyper.semantics.types.utils import check_constant, get_type_from_annotation
 from vyper.semantics.types.value.address import AddressDefinition
 from vyper.semantics.types.value.array_value import StringDefinition
 from vyper.semantics.types.value.boolean import BoolDefinition
@@ -66,7 +67,7 @@ def validate_functions(vy_module: vy_ast.Module) -> None:
     err_list.raise_if_not_empty()
 
 
-def _validate_constant(node: vy_ast.VyperNode) -> None:
+def _validate_constant(vyper_module: vy_ast.Module, node: vy_ast.VyperNode) -> None:
     """
     Helper function to validate if a pre-folded node is a constant.
     """
@@ -79,7 +80,11 @@ def _validate_constant(node: vy_ast.VyperNode) -> None:
 
     for n in nodes:
         if isinstance(n, (vy_ast.BinOp, vy_ast.UnaryOp)):
-            _validate_constant(n)
+            _validate_constant(vyper_module, n)
+        elif isinstance(n, vy_ast.Name):
+            val = get_constant_value(vyper_module, n)
+            if val is None:
+                raise InvalidType("Undefined constant", n)
         elif not isinstance(n, vy_ast.Int):
             raise InvalidType("Value must be a literal integer", n)
 
@@ -351,9 +356,15 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             args = node.iter.args
             if len(args) == 1:
                 # range(CONSTANT)
-                if not isinstance(args[0], vy_ast.Num):
+                if not check_constant(args[0]):
                     raise StateAccessViolation("Value must be a literal", node)
-                if args[0].value <= 0:
+
+                if isinstance(args[0], vy_ast.Name):
+                    val = get_constant_value(self.vyper_module, args[0])
+                elif isinstance(args[0], vy_ast.Int):
+                    val = args[0].value
+
+                if val <= 0:
                     raise StructureException("For loop must have at least 1 iteration", args[0])
                 validate_expected_type(args[0], IntegerAbstractType())
                 type_list = get_possible_types_from_node(args[0])
@@ -383,8 +394,8 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                 else:
                     # range(CONSTANT, CONSTANT)
                     if isinstance(args[1], (vy_ast.BinOp, vy_ast.UnaryOp)):
-                        _validate_constant(args[1])
-                        args1_value = args[1].derive()
+                        _validate_constant(self.vyper_module, args[1])
+                        args1_value = args[1].derive(self.vyper_module)
                     else:
                         args1_value = args[1].value
 

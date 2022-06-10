@@ -624,7 +624,6 @@ class Keccak256(_SimpleBuiltinFunction):
         ret._metadata["type"] = Bytes32Definition()
         return ret
 
-
     def infer_arg_types(self, node):
         self._validate_arg_types(node)
         # return a concrete type for `value`

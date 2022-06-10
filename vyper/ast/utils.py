@@ -1,5 +1,5 @@
 import ast as python_ast
-from typing import Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 from vyper.ast import nodes as vy_ast
 from vyper.ast.annotation import annotate_python_ast
@@ -61,3 +61,14 @@ def dict_to_ast(ast_struct: Union[Dict, List]) -> Union[vy_ast.VyperNode, List]:
     if isinstance(ast_struct, list):
         return [vy_ast.get_node(i) for i in ast_struct]
     raise CompilerPanic(f'Unknown ast_struct provided: "{type(ast_struct)}".')
+
+
+def get_constant_value(vyper_module: vy_ast.Module, node: vy_ast.Name) -> Any:
+    """
+    Helper function to retrieve the value of a constant.
+    """
+    for n in vyper_module.get_children(vy_ast.AnnAssign):
+        if node.id == n.target.id:
+            val = n.value.value
+            return val
+    return None
