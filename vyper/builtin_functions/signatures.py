@@ -12,6 +12,8 @@ from vyper.semantics.types import (
     BytesArrayDefinition,
     DynamicArrayDefinition,
     StringDefinition,
+    StructDefinition,
+    TupleDefinition,
 )
 from vyper.semantics.types.bases import BaseTypeDefinition
 from vyper.semantics.types.utils import KwargSettings, TypeTypeDefinition
@@ -19,19 +21,26 @@ from vyper.semantics.validation.utils import get_exact_type_from_node, validate_
 
 
 def process_arg(arg, expected_arg_type, context):
+    # If the input value is a typestring, return the equivalent codegen type for IR generation
+    if isinstance(expected_arg_type, TypeTypeDefinition):
+        return new_type_to_old_type(expected_arg_type.typedef)
+
     if isinstance(
         expected_arg_type,
-        (BytesArrayDefinition, StringDefinition, ArrayDefinition, DynamicArrayDefinition),
+        (
+            BytesArrayDefinition,
+            StringDefinition,
+            ArrayDefinition,
+            DynamicArrayDefinition,
+            StructDefinition,
+            TupleDefinition,
+        ),
     ):
         return Expr(arg, context).ir_node
 
     # TODO: Builtins should not require value expressions
     elif isinstance(expected_arg_type, BaseTypeDefinition):
         return Expr.parse_value_expr(arg, context)
-
-    # If the input value is a typestring, return the equivalent codegen type for IR generation
-    elif isinstance(expected_arg_type, TypeTypeDefinition):
-        return new_type_to_old_type(expected_arg_type.typedef)
 
     raise CompilerPanic(f"Unexpected type: {expected_arg_type}")  # pragma: notest
 
@@ -46,9 +55,9 @@ def process_kwarg(kwarg_node, kwarg_settings, expected_kwarg_type, context):
     return process_arg(kwarg_node, expected_kwarg_type, context)
 
 
-def validate_inputs(wrapped_fn):
+def process_inputs(wrapped_fn):
     """
-    Validate input arguments on builtin functions.
+    Generate IR for input arguments on builtin functions.
 
     Applied as a wrapper on the `build_IR` method of
     classes in `vyper.functions.functions`.
@@ -85,8 +94,7 @@ def validate_inputs(wrapped_fn):
     return decorator_fn
 
 
-# TODO: rename me to BuiltinFunction
-class _SimpleBuiltinFunction:
+class BuiltinFunction:
 
     _has_varargs = False
     _kwargs: Dict[str, KwargSettings] = {}
@@ -134,6 +142,26 @@ class _SimpleBuiltinFunction:
 
     def infer_kwarg_types(self, node):
         return {i.arg: self._kwargs[i.arg].typ for i in node.keywords}
+
+    # utility to grab compile-time value of kwargs with require_literal=True
+    def fetch_literal_kwargs(self, node):
+        # don't care about evaluation order since we are just grabbing literals
+        kw_nodes = {k.arg: k.value for k in node.keywords}
+
+        ret = {}
+        for k, expected_arg in self._kwargs.items():
+            if not expected_arg.require_literal:
+                continue
+
+            if k in kw_nodes:
+                if not isinstance(kw_nodes[k], vy_ast.Constant):
+                    raise TypeMismatch("Value for kwarg must be a literal", kw_nodes[k])
+                ret[k] = kw_nodes[k].value
+            else:
+                # add kwargs which were not specified in the source
+                ret[k] = expected_arg.default
+
+        return ret
 
     def __repr__(self):
         return f"(builtin) {self._id}"
