@@ -853,7 +853,7 @@ class Expr(VyperNode):
 class UnaryOp(VyperNode):
     __slots__ = ("op", "operand")
 
-    def validate_foldable(self, vyper_module) -> None:
+    def validate_foldable(self, vyper_module=None):
         from vyper.ast.utils import get_constant_value
 
         op = self.operand
@@ -1140,7 +1140,7 @@ class Compare(VyperNode):
         kwargs["right"] = kwargs.pop("comparators")[0]
         super().__init__(*args, **kwargs)
 
-    def validate_foldable(self) -> None:
+    def validate_foldable(self):
         left, right = self.left, self.right
         if not isinstance(left, Constant):
             raise UnfoldableNode("Node contains invalid field(s) for evaluation")
@@ -1172,7 +1172,7 @@ class Compare(VyperNode):
         value = self.derive()
         return NameConstant.from_node(self, value=value)
 
-    def derive(self):
+    def derive(self) -> bool:
         left, right = self.left, self.right
         if isinstance(self.op, (In, NotIn)):
             return self.op._op(left.value, [i.value for i in right.elements])

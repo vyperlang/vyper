@@ -210,7 +210,7 @@ def _check_literal(node: vy_ast.VyperNode) -> bool:
     return False
 
 
-def check_constant(node: vy_ast.VyperNode) -> bool:
+def check_constant(node: vy_ast.VyperNode, vyper_module: vy_ast.Module = None) -> bool:
     """
     Check if the given node is a literal or constant value.
     """
@@ -229,7 +229,7 @@ def check_constant(node: vy_ast.VyperNode) -> bool:
             return True
     if isinstance(node, (vy_ast.BoolOp, vy_ast.BinOp, vy_ast.UnaryOp, vy_ast.Compare)):
         try:
-            node.validate_foldable()
+            node.validate_foldable(vyper_module)
             return True
         except UnfoldableNode:
             return False
