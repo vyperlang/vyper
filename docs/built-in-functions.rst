@@ -5,8 +5,7 @@
 Built in Functions
 ##################
 
-Vyper provides a collection of built in functions available in the global namespace of all
-contracts.
+Vyper provides a collection of built in functions available in the global namespace of all contracts.
 
 Bitwise Operations
 ==================
@@ -94,25 +93,83 @@ Bitwise Operations
 Chain Interaction
 =================
 
-.. py:function:: create_forwarder_to(target: address, value: uint256 = 0[, salt: bytes32]) -> address
 
-    Deploys a small contract that duplicates the logic of the contract at ``target``, but has its own state since every call to ``target`` is made using ``DELEGATECALL`` to ``target``. To the end user, this should be indistinguishable from an independantly deployed contract with the same code as ``target``.
+Vyper has three builtins for contract creation; all three contract creation builtins rely on the code to deploy already being stored on-chain, but differ in call vs deploy overhead, and whether or not they invoke the constructor of the contract to be deployed. The following list provides a short summary of the differences between them.
 
-.. note::
+* ``create_minimal_proxy_to(target: address, ...)``
+    * Creates an immutable proxy to ``target``
+    * Expensive to call (incurs a single ``DELEGATECALL`` overhead on every invocation), cheap to create (since it only deploys ``EIP-1167`` forwarder bytecode)
+    * Does not invoke constructor
+* ``create_copy_of(target: address, ...)``
+    * Creates a byte-for-byte copy of runtime code stored at ``target``
+    * Cheapest to call (no ``DELEGATECALL`` overhead), expensive to create (200 gas per deployed byte)
+    * Does not invoke constructor
+* ``create_with_code_of(target: address, ...)``
+    * Deploys a contract using the initcode stored at ``target``
+    * Cheapest to call (no ``DELEGATECALL`` overhead), expensive to create (200 gas per deployed byte)
+    * Invokes constructor, requires a special factory contract to be deployed
 
-  It is very important that the deployed contract at ``target`` is code you know and trust, and does not implement the ``selfdestruct`` opcode as this will affect the operation of the forwarder contract.
+.. py:function:: create_minimal_proxy_to(target: address, value: uint256 = 0[, salt: bytes32]) -> address
 
-    * ``target``: Address of the contract to duplicate
+    Deploys a small, EIP1167-compliant, "minimal proxy contract" that duplicates the logic of the contract at ``target``, but has its own state since every call to ``target`` is made using ``DELEGATECALL`` to ``target``. To the end user, this should be indistinguishable from an independently deployed contract with the same code as ``target``.
+
+
+    * ``target``: Address of the contract to proxy to
     * ``value``: The wei value to send to the new contract address (Optional, default 0)
-    * ``salt``: A ``bytes32`` value utilized by the ``CREATE2`` opcode (Optional, if supplied deterministic deployment is done via ``CREATE2``)
+    * ``salt``: A ``bytes32`` value utilized by the deterministic ``CREATE2`` opcode (Optional, if not supplied, ``CREATE`` is used)
 
-    Returns the address of the duplicated contract.
+    Returns the address of the proxied-to contract. If the create operation fails (for instance, in the case of a ``CREATE2`` collision), execution will revert.
 
     .. code-block:: python
 
         @external
         def foo(_target: address) -> address:
-            return create_forwarder_to(_target)
+            return create_minimal_proxy_to(_target)
+
+.. note::
+
+  It is very important that the deployed contract at ``target`` is code you know and trust, and does not implement the ``selfdestruct`` opcode as this will affect the operation of the proxy contract.
+
+.. note::
+
+  In previous versions of vyper, this function was named ``create_forwarder_to``.
+
+
+.. py:function:: create_copy_of(target: address, value: uint256 = 0[, salt: bytes32]) -> address
+
+    Create a physical copy of the runtime code at ``target``. The code at ``target`` is byte-for-byte copied into a newly deployed contract.
+
+    * ``target``: Address of the contract to copy
+    * ``value``: The wei value to send to the new contract address (Optional, default 0)
+    * ``salt``: A ``bytes32`` value utilized by the deterministic ``CREATE2`` opcode (Optional, if not supplied, ``CREATE`` is used)
+
+    Returns the address of the copied contract. If the create operation fails (for instance, in the case of a ``CREATE2`` collision), execution will revert.
+
+    .. code-block:: python
+
+        @external
+        def foo(_target: address) -> address:
+            return create_copy_of(_target)
+
+.. py:function:: create_with_code_of(target: address, *args, value: uint256 = 0[, salt: bytes32]) -> address
+
+    Copy the code of ``target`` into memory and execute it as initcode. In other words, this operation interprets the code at ``target`` not as regular runtime code, but as a factory contract. The *args are interpreted as constructor arguments, and are ABI-encoded and included when executing the initcode.
+
+    * ``target``: Address of the contract to copy
+    * ``*args``: Constructor arguments to forward to the initcode.
+    * ``value``: The wei value to send to the new contract address (Optional, default 0)
+    * ``salt``: A ``bytes32`` value utilized by the deterministic ``CREATE2`` opcode (Optional, if not supplied, ``CREATE`` is used)
+
+    Returns the address of the created contract. If the create operation fails (for instance, in the case of a ``CREATE2`` collision), execution will revert.
+
+    .. code-block:: python
+
+        @external
+        def foo(_target: address) -> address:
+            arg1: uint256 = 18
+            arg2: String = "some string"
+            return create_with_code_of(_target, arg1, arg2)
+
 
 .. py:function:: raw_call(to: address, data: Bytes, max_outsize: int = 0, gas: uint256 = gasLeft, value: uint256 = 0, is_delegate_call: bool = False, is_static_call: bool = False, revert_on_failure: bool = True) -> Bytes[max_outsize]
 
