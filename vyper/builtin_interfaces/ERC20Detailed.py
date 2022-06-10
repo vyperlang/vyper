@@ -6,14 +6,17 @@ NOTE: interface uses `String[1]` where 1 is the lower bound of the string return
 
 interface_code = """
 @external
+@view
 def name() -> String[1]:
     pass
 
 @external
+@view
 def symbol() -> String[1]:
     pass
 
 @external
+@view
 def decimals() -> uint8:
     pass
 """
