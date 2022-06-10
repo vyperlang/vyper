@@ -2,7 +2,7 @@ from decimal import Decimal, getcontext
 
 import pytest
 
-from vyper.exceptions import DecimalOverrideException, InvalidOperation
+from vyper.exceptions import DecimalOverrideException, InvalidOperation, OverflowException
 
 
 def test_decimal_override():
@@ -168,11 +168,34 @@ def bar(num: decimal) -> decimal:
     assert c.bar(Decimal("1e37")) == Decimal("-9e37")  # Math lines up
 
 
-def test_exponents(assert_compile_failed, get_contract):
-    code = """
+bad_code = [
+    (
+        """
 @external
 def foo() -> decimal:
     return 2.2 ** 2.0
-    """
+    """,
+        InvalidOperation,
+    ),
+    (
+        """
+@external
+def foo() -> decimal:
+    return 18707220957835557353007165858768422651595.9365500928
+    """,
+        OverflowException,
+    ),
+    (
+        """
+@external
+def foo() -> decimal:
+    return -18707220957835557353007165858768422651595.9365500929
+    """,
+        OverflowException,
+    ),
+]
 
-    assert_compile_failed(lambda: get_contract(code), InvalidOperation)
+
+@pytest.mark.parametrize("bad_code,expected", bad_code)
+def test_invalid_code(get_contract, assert_compile_failed, bad_code, expected):
+    assert_compile_failed(lambda: get_contract(bad_code), expected)
