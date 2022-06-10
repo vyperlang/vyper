@@ -1599,7 +1599,7 @@ def _create_addl_gas_estimate(size, should_use_create2):
     return ret
 
 
-def _eip1167_bytecode():
+def eip1167_bytecode():
     # NOTE cyclic import?
     from vyper.ir.compile_ir import assembly_to_evm
 
@@ -1721,7 +1721,7 @@ class CreateMinimalProxyTo(_CreateBase):
     _inputs = [("target", AddressDefinition())]
 
     def _add_gas_estimate(self, args, should_use_create2):
-        loader_evm, _, _ = _eip1167_bytecode()
+        loader_evm, _, _ = eip1167_bytecode()
         return _create_addl_gas_estimate(len(loader_evm), should_use_create2)
 
     def _build_create_IR(self, expr, args, value, salt, context):
@@ -1730,7 +1730,7 @@ class CreateMinimalProxyTo(_CreateBase):
 
         buf = context.new_internal_variable(ByteArrayType(96))
 
-        loader_evm, forwarder_pre_evm, forwarder_post_evm = _eip1167_bytecode()
+        loader_evm, forwarder_pre_evm, forwarder_post_evm = eip1167_bytecode()
         # Adjust to 32-byte boundaries
         preamble_length = len(loader_evm) + len(forwarder_pre_evm)
         forwarder_preamble = bytes_to_int(
