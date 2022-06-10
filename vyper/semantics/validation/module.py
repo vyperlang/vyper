@@ -212,6 +212,7 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
             validate_expected_type(node.value, type_definition)
             try:
                 self.namespace[name] = type_definition
+                node.value._metadata["type"] = type_definition
             except VyperException as exc:
                 raise exc.with_annotation(node) from None
             return
