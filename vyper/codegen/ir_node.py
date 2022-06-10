@@ -72,8 +72,9 @@ class _WithBuilder:
         )
 
     def __enter__(self):
-        if self.inline_value:
-            # inline the value instead of the named variable
+        if self.should_inline:
+            # return the value instead of the named variable
+            # so it can be inlined
             return self, self.ir_node
         else:
             # return the named variable
@@ -85,7 +86,7 @@ class _WithBuilder:
     # MUST be called at the end of building the expression
     # in order to make sure the expression gets wrapped correctly
     def resolve(self, body):
-        if self.inline_value:
+        if self.should_inline:
             # uses of the variable have already been inlined
             return body
 

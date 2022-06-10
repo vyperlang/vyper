@@ -1829,7 +1829,7 @@ class CreateWithCodeOf(_CreateBase):
         target = args[0]
         ctor_args = args[1:]
 
-        ctor_args = [ensure_in_memory(arg) for arg in ctor_args]
+        ctor_args = [ensure_in_memory(arg, context) for arg in ctor_args]
 
         to_encode = ir_tuple_from_args(ctor_args)
 
