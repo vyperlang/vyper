@@ -554,15 +554,15 @@ def annotate_foldable_literals(node: vy_ast.VyperNode, expected_type: BaseTypeDe
     )
     for n in foldable_nodes:
         try:
-            node.validate_foldable()
+            node.validate_foldable()  # type: ignore
 
         except UnfoldableNode:
             pass
 
         if isinstance(n, (vy_ast.BinOp, vy_ast.Compare)):
-            type_list = get_common_types(n.left, n.right)
+            type_list = get_common_types(n.left, n.right)  # type: ignore
         elif isinstance(n, vy_ast.BoolOp):
-            type_list = get_common_types(n.values)
+            type_list = get_common_types(n.values)  # type: ignore
         else:
             type_list = [get_exact_type_from_node(n.operand)]
 

@@ -189,13 +189,16 @@ def _validate_msg_data_attribute(node: vy_ast.Attribute) -> None:
 def _get_for_value(node: vy_ast.VyperNode) -> int:
     if isinstance(node, (vy_ast.BinOp, vy_ast.UnaryOp)):
         _validate_constant(node)
-        val = node.derive()
+        val = node.derive()  # type: ignore
     elif isinstance(node, vy_ast.Name):
         val = get_constant_value(node)
-        if val is None:
-            raise InvalidLiteral("Element must be a literal or constant variable", node)
-    else:
+    elif isinstance(node, vy_ast.Num):
         val = node.value
+    else:
+        val = None
+
+    if val is None:
+        raise InvalidLiteral("Element must be a literal or constant variable", node)
 
     return val
 

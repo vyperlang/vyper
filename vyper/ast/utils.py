@@ -81,6 +81,6 @@ def get_constant_value(node: vy_ast.Name) -> Any:
                 val = n.value.value
                 return val
             elif isinstance(n.value, (vy_ast.BinOp, vy_ast.UnaryOp, vy_ast.BoolOp, vy_ast.Compare)):
-                return n.value.derive()
+                return n.value.derive()  # type: ignore
 
     return None
