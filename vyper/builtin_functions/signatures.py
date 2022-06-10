@@ -86,15 +86,32 @@ def validate_inputs(wrapped_fn):
 # TODO: rename me to BuiltinFunction
 class _SimpleBuiltinFunction:
 
+    _has_varargs = False
     _kwargs: Dict[str, KwargSettings] = {}
 
     def _validate_arg_types(self, node):
-        validate_call_args(node, len(self._inputs), getattr(self, "_kwargs", []))
+        num_args = len(self._inputs)  # the number of args the signature indicates
+
+        expect_num_args = num_args
+        if self._has_varargs:
+            # note special meaning for -1 in validate_call_args API
+            expect_num_args = (num_args, -1)
+
+        validate_call_args(node, (num_args, -1), getattr(self, "_kwargs", []))
 
         for arg, (_, expected) in zip(node.args, self._inputs):
             validate_expected_type(arg, expected)
 
-        return
+        # typecheck varargs. we don't have type info from the signature,
+        # so ensure that the types of the args can be inferred exactly.
+        varargs = node.args[num_args:]
+        if len(varargs) > 0:
+            assert self._has_varargs  # double check validate_call_args
+        for arg in node.args[num_args:]:
+            # call get_exact_type_from_node for its side effects -
+            # ensures the type can be inferred exactly.
+            get_exact_type_from_node(arg)
+
 
     def fetch_call_return(self, node):
         self._validate_arg_types(node)
@@ -104,10 +121,18 @@ class _SimpleBuiltinFunction:
 
     def infer_arg_types(self, node):
         self._validate_arg_types(node)
-        return [expected for (_, expected) in self._inputs]
+        ret = [expected for (_, expected) in self._inputs]
+
+        # handle varargs.
+        n_known_args = len(self._inputs)
+        varargs = node.args[n_known_args:]
+        if len(varargs) > 0:
+            assert self._has_varargs
+        ret.extend(get_exact_type_from_node(arg) for arg in varargs)
+        return ret
 
     def infer_kwarg_types(self, node):
         return {i.arg: self._kwargs[i.arg].typ for i in node.keywords}
 
     def __repr__(self):
-        return f"builtin function {self._id}"
+        return f"(builtin) {self._id}"
