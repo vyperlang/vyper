@@ -28,7 +28,7 @@ def _generate_json_abi_components(type_definition):
     if "components" in type_definition.json_abi_type():
         return type_definition.json_abi_type()["components"]
 
-    # Early termination if not a struct, static array or dynamic array
+    # Early termination if not a static array or dynamic array
     if not isinstance(type_definition, (ArrayDefinition, DynamicArrayDefinition)):
         return None
 
