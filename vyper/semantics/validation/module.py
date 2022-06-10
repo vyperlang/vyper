@@ -24,6 +24,7 @@ from vyper.semantics.types.bases import DataLocation
 from vyper.semantics.types.function import ContractFunction
 from vyper.semantics.types.user.enum import EnumPrimitive
 from vyper.semantics.types.user.event import Event
+from vyper.semantics.types.user.struct import StructDefinition
 from vyper.semantics.types.utils import check_constant, get_type_from_annotation
 from vyper.semantics.validation.base import VyperNodeVisitorBase
 from vyper.semantics.validation.levenshtein_utils import get_levenshtein_error_suggestions
@@ -213,6 +214,10 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
             try:
                 self.namespace[name] = type_definition
                 node.value._metadata["type"] = type_definition
+                # Annotate members for constant structs
+                if isinstance(type_definition, StructDefinition):
+                    for k, v in zip(node.value.args[0].keys, node.value.args[0].values):
+                        v._metadata["type"] = type_definition.members[k.id]
             except VyperException as exc:
                 raise exc.with_annotation(node) from None
             return
