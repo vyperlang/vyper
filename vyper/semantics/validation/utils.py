@@ -13,6 +13,7 @@ from vyper.exceptions import (
     StructureException,
     TypeMismatch,
     UndeclaredDefinition,
+    UnfoldableNode,
     UnknownAttribute,
     VyperException,
     ZeroDivisionException,
@@ -517,3 +518,55 @@ def validate_unique_method_ids(functions: List) -> None:
     if collision:
         collision_str = ", ".join(i.name for i in functions if collision in i.method_ids)
         raise StructureException(f"Methods have conflicting IDs: {collision_str}")
+
+
+def annotate_foldable_minmax(node: vy_ast.VyperNode, expected_type: BaseTypeDefinition) -> None:
+    """
+    Helper function to annotate `Call` nodes for `min` and `max` builtin functions
+    that are foldable, and in a return statement.
+
+    The usual builtin functions class methods `infer_arg_types` and `fetch_call_return`
+    do not work here because they do not take into account the return type.
+    """
+    minmax_nodes = node.get_descendants(
+        vy_ast.Call, {"func.id": {"min", "max"}}, include_self=True, reverse=True
+    )
+    for n in minmax_nodes:
+        try:
+            node.evaluate()
+
+        except UnfoldableNode:
+            pass
+
+        type_list = get_common_types(*n.args)
+        if not any(expected_type.compare_type(i) for i in type_list):
+            raise TypeMismatch(f"Expected {expected_type}", n)
+
+        n._metadata["type"] = expected_type
+
+
+def annotate_foldable_literals(node: vy_ast.VyperNode, expected_type: BaseTypeDefinition) -> None:
+    """
+    Helper function to annotate foldable literals defined as constants.
+    """
+    foldable_nodes = node.get_descendants(
+        (vy_ast.BinOp, vy_ast.UnaryOp, vy_ast.BoolOp, vy_ast.Compare), reverse=True
+    )
+    for n in foldable_nodes:
+        try:
+            node.validate_foldable()
+
+        except UnfoldableNode:
+            pass
+
+        if isinstance(n, (vy_ast.BinOp, vy_ast.Compare)):
+            type_list = get_common_types(n.left, n.right)
+        elif isinstance(n, vy_ast.BoolOp):
+            type_list = get_common_types(n.values)
+        else:
+            type_list = [get_exact_type_from_node(n.operand)]
+
+        if not any(expected_type.compare_type(i) for i in type_list):
+            raise TypeMismatch(f"Expected {expected_type}", n)
+
+        n._metadata["type"] = expected_type

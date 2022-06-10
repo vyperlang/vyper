@@ -68,11 +68,11 @@ def bar() -> decimal:
 
 def test_negation_int128(get_contract):
     code = """
-a: constant(int128) = -2**127
+a: constant(int128) = MIN_INT128
 
 @external
 def foo() -> int128:
-    return -2**127
+    return MIN_INT128
 
 @external
 def bar() -> int128:

@@ -16,7 +16,6 @@ from vyper.exceptions import (
     StateAccessViolation,
     StructureException,
     TypeMismatch,
-    UnfoldableNode,
     VariableDeclarationException,
     VyperException,
 )
@@ -25,7 +24,7 @@ from vyper.exceptions import (
 from vyper.semantics.environment import CONSTANT_ENVIRONMENT_VARS, MUTABLE_ENVIRONMENT_VARS
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.abstract import IntegerAbstractType
-from vyper.semantics.types.bases import BaseTypeDefinition, DataLocation
+from vyper.semantics.types.bases import DataLocation
 from vyper.semantics.types.function import (
     ContractFunction,
     MemberFunctionDefinition,
@@ -45,6 +44,7 @@ from vyper.semantics.types.value.boolean import BoolDefinition
 from vyper.semantics.validation.annotation import StatementAnnotationVisitor
 from vyper.semantics.validation.base import VyperNodeVisitorBase
 from vyper.semantics.validation.utils import (
+    annotate_foldable_minmax,
     get_common_types,
     get_exact_type_from_node,
     get_possible_types_from_node,
@@ -183,31 +183,6 @@ def _validate_msg_data_attribute(node: vy_ast.Attribute) -> None:
                 raise StructureException(
                     "slice(msg.data) must use a compile-time constant for length argument", parent
                 )
-
-
-def annotate_foldable_minmax(node: vy_ast.VyperNode, expected_type: BaseTypeDefinition) -> None:
-    """
-    Helper function to annotate `Call` nodes for `min` and `max` builtin functions
-    that are foldable, and in a return statement.
-
-    The usual builtin functions class methods `infer_arg_types` and `fetch_call_return`
-    do not work here because they do not take into account the return type.
-    """
-    minmax_nodes = node.get_descendants(
-        vy_ast.Call, {"func.id": {"min", "max"}}, include_self=True, reverse=True
-    )
-    for n in minmax_nodes:
-        try:
-            node.evaluate()
-
-        except UnfoldableNode:
-            pass
-
-        type_list = get_common_types(*n.args)
-        if not any(expected_type.compare_type(i) for i in type_list):
-            raise TypeMismatch(f"Expected {expected_type}", n)
-
-        n._metadata["type"] = expected_type
 
 
 class FunctionNodeVisitor(VyperNodeVisitorBase):
@@ -396,6 +371,8 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                     val = args[0].value
                 elif isinstance(args[0], (vy_ast.BinOp, vy_ast.UnaryOp)):
                     val = args[0].derive()
+                    if val is None:
+                        raise StateAccessViolation("Value must be a literal", node)
 
                 if val <= 0:
                     raise StructureException("For loop must have at least 1 iteration", args[0])
