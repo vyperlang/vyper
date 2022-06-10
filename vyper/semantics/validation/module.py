@@ -60,7 +60,7 @@ def annotate_struct_members(node: vy_ast.Call, type_definition: StructDefinition
     for k, v in zip(node.args[0].keys, node.args[0].values):
         member_type = type_definition.members[k.id]
         v._metadata["type"] = member_type
-        if isinstance(member_type, StructDefinition):
+        if isinstance(member_type, StructDefinition) and isinstance(v, vy_ast.Call):
             annotate_struct_members(v, member_type)
 
 
