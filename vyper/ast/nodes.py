@@ -853,7 +853,10 @@ class Expr(VyperNode):
 class UnaryOp(VyperNode):
     __slots__ = ("op", "operand")
 
-    def validate_foldable(self):
+    def validate_foldable(self) -> None:
+        """
+        Validates if the unary operation is foldable.
+        """
         from vyper.ast.utils import get_constant_value
 
         op = self.operand
@@ -921,7 +924,10 @@ class Not(VyperNode):
 class BinOp(VyperNode):
     __slots__ = ("left", "op", "right")
 
-    def validate_foldable(self):
+    def validate_foldable(self) -> None:
+        """
+        Validates if the unary operation is foldable.
+        """
         from vyper.ast.utils import get_constant_value
 
         left, right = self.left, self.right
@@ -1078,7 +1084,10 @@ class Pow(VyperNode):
 class BoolOp(VyperNode):
     __slots__ = ("op", "values")
 
-    def validate_foldable(self):
+    def validate_foldable(self) -> None:
+        """
+        Validates if the unary operation is foldable.
+        """
         if next((i for i in self.values if not isinstance(i, NameConstant)), None):
             raise UnfoldableNode("Node contains invalid field(s) for evaluation")
         values = [i.value for i in self.values]
@@ -1098,7 +1107,15 @@ class BoolOp(VyperNode):
         value = self.derive()
         return NameConstant.from_node(self, value=value)
 
-    def derive(self):
+    def derive(self) -> bool:
+        """
+        Return the raw value of the arithmetic operation.
+
+        Returns
+        -------
+        bool
+            Raw value of the result of the evaluation
+        """
         values = [i.value for i in self.values]
         value = self.op._op(values)
         return value
@@ -1140,7 +1157,10 @@ class Compare(VyperNode):
         kwargs["right"] = kwargs.pop("comparators")[0]
         super().__init__(*args, **kwargs)
 
-    def validate_foldable(self):
+    def validate_foldable(self) -> None:
+        """
+        Validates if the unary operation is foldable.
+        """
         left, right = self.left, self.right
         if not isinstance(left, Constant):
             raise UnfoldableNode("Node contains invalid field(s) for evaluation")
@@ -1173,6 +1193,14 @@ class Compare(VyperNode):
         return NameConstant.from_node(self, value=value)
 
     def derive(self) -> bool:
+        """
+        Return the raw value of the arithmetic operation.
+
+        Returns
+        -------
+        bool
+            Raw value of the result of the evaluation
+        """
         left, right = self.left, self.right
         if isinstance(self.op, (In, NotIn)):
             return self.op._op(left.value, [i.value for i in right.elements])
