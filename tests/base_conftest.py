@@ -126,6 +126,48 @@ def _get_contract(w3, source_code, no_optimize, *args, **kwargs):
     return w3.eth.contract(address, abi=abi, bytecode=bytecode, ContractFactoryClass=VyperContract)
 
 
+def _deploy_factory_for(w3, source_code, no_optimize, **kwargs):
+    out = compiler.compile_code(
+        source_code,
+        ["abi", "bytecode"],
+        interface_codes=kwargs.pop("interface_codes", None),
+        no_optimize=no_optimize,
+        evm_version=kwargs.pop("evm_version", None),
+        show_gas_estimates=True,  # Enable gas estimates for testing
+    )
+    LARK_GRAMMAR.parse(source_code + "\n")  # Test grammar.
+    abi = out["abi"]
+    bytecode = out["bytecode"]
+    bytecode_len_hex = hex(len(bytecode))[2:].rjust(4, "0")
+    # prepend a quick deploy preamble
+    deploy_preamble = "61" + bytecode_len_hex + "3d81600a3d39f3"
+    deploy_bytecode = "0x" + deploy_preamble + bytecode[2:]
+    print("\n", deploy_bytecode)
+
+    deployer_abi = []  # just a constructor
+    c = w3.eth.contract(abi=deployer_abi, bytecode=deploy_bytecode)
+    deploy_transaction = c.constructor()
+    tx_info = {"from": w3.eth.accounts[0], "value": 0, "gasPrice": 0}
+
+    tx_hash = deploy_transaction.transact(tx_info)
+    address = w3.eth.get_transaction_receipt(tx_hash)["contractAddress"]
+
+    def factory(address):
+        return w3.eth.contract(
+            address, abi=abi, bytecode=bytecode, ContractFactoryClass=VyperContract
+        )
+
+    return w3.eth.contract(address, bytecode=deploy_bytecode), factory
+
+
+@pytest.fixture(scope="module")
+def deploy_factory_for(w3, no_optimize):
+    def deploy_factory_for(source_code, *args, **kwargs):
+        return _deploy_factory_for(w3, source_code, no_optimize, *args, **kwargs)
+
+    return deploy_factory_for
+
+
 @pytest.fixture(scope="module")
 def get_contract(w3, no_optimize):
     def get_contract(source_code, *args, **kwargs):

@@ -1696,13 +1696,13 @@ class _CreateBase(_SimpleBuiltinFunction):
         # errmsg something like "Cannot use {self._id} in pure fn"
         context.check_is_not_constant("use {self._id}", expr)
 
-        value = kwargs["value"]
-        salt = kwargs["salt"]
+        self.value = kwargs["value"]
+        self.salt = kwargs["salt"]
         should_use_create2 = "salt" in [kwarg.arg for kwarg in expr.keywords]
         if not should_use_create2:
-            salt = None
+            self.salt = None
 
-        ir_builder = self._build_create_IR(expr, args, value, salt, context)
+        ir_builder = self._build_create_IR(expr, args, kwargs, context)
 
         add_gas_estimate = self._add_gas_estimate(args, should_use_create2)
 
@@ -1771,7 +1771,7 @@ class CreateForwarderTo(CreateMinimalProxyTo):
 class CreateWithCodeOf(_CreateBase):
 
     _id = "create_with_code_of"
-    _inputs = [("target", AddressDefinition())]
+    _inputs = [("target", AddressDefinition()), ("varargs", "*")]
 
     @staticmethod
     # encode provided args for the initcode
@@ -2222,11 +2222,6 @@ class ABIEncode(_SimpleBuiltinFunction):
         "ensure_tuple": KwargSettings(BoolDefinition(), True, require_literal=True),
         "method_id": KwargSettings(BytesAbstractType(), None),
     }
-
-    @staticmethod
-    # this should probably be a utility function
-    def _exactly_one(xs):
-        return len(set(xs)) == 1
 
     @staticmethod
     def _kwarg_dict(node):

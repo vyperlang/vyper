@@ -4,7 +4,7 @@ from hexbytes import HexBytes
 from vyper.utils import checksum_encode, keccak256
 
 
-# initcode used by create_forwarder_to
+# initcode used by create_minimal_proxy_to
 def eip1167_initcode(_addr):
     addr = HexBytes(_addr)
     pre = HexBytes("0x602D3D8160093D39F3363d3d373d3d3d363d73")
@@ -12,19 +12,19 @@ def eip1167_initcode(_addr):
     return HexBytes(pre + (addr + HexBytes(0) * (20 - len(addr))) + post)
 
 
-# initcode used by Create and CreateCopyOf
+# initcode used by CreateCopyOf
 def vyper_initcode(runtime_bytecode):
     bytecode_len_hex = hex(len(runtime_bytecode))[2:].rjust(4, "0")
     return HexBytes("0x61" + bytecode_len_hex + "3d81600a3d39f3") + runtime_bytecode
 
 
-def test_create_forwarder_to_create(get_contract):
+def test_create_minimal_proxy_to_create(get_contract):
     code = """
 main: address
 
 @external
 def test() -> address:
-    self.main = create_forwarder_to(self)
+    self.main = create_minimal_proxy_to(self)
     return self.main
     """
 
@@ -37,7 +37,7 @@ def test() -> address:
     assert c.test() == checksum_encode("0x" + expected_create_address.hex())
 
 
-def test_create_forwarder_to_call(get_contract, w3):
+def test_create_minimal_proxy_to_call(get_contract, w3):
     code = """
 
 interface SubContract:
@@ -50,7 +50,7 @@ other: public(address)
 
 @external
 def test() -> address:
-    self.other = create_forwarder_to(self)
+    self.other = create_minimal_proxy_to(self)
     return self.other
 
 
@@ -85,7 +85,7 @@ other: public(address)
 
 @external
 def test() -> address:
-    self.other = create_forwarder_to(self)
+    self.other = create_minimal_proxy_to(self)
     return self.other
 
 
@@ -117,13 +117,15 @@ def test2(a: uint256) -> Bytes[100]:
     assert receipt["gasUsed"] < GAS_SENT
 
 
-def test_create2_forwarder_to_create(get_contract, create2_address_of, keccak, assert_tx_failed):
+def test_create_minimal_proxy_to_create2(
+    get_contract, create2_address_of, keccak, assert_tx_failed
+):
     code = """
 main: address
 
 @external
 def test(_salt: bytes32) -> address:
-    self.main = create_forwarder_to(self, salt=_salt)
+    self.main = create_minimal_proxy_to(self, salt=_salt)
     return self.main
     """
 
@@ -139,47 +141,133 @@ def test(_salt: bytes32) -> address:
     assert_tx_failed(lambda: c.test(salt, transact={}))
 
 
-def test_create(get_contract, w3, keccak, create2_address_of, assert_tx_failed):
+def test_create_with_code_of(
+    get_contract, deploy_factory_for, w3, keccak, create2_address_of, assert_tx_failed
+):
     code = """
+@external
+def foo() -> uint256:
+    return 123
+    """
+
+    deployer_code = """
 created_address: public(address)
 
 @external
-def test(bytecode: Bytes[1024]):
-    self.created_address = create(bytecode)
+def test(target: address):
+    self.created_address = create_with_code_of(target)
 
 @external
-def test2(bytecode: Bytes[1024], salt: bytes32):
-    self.created_address = create(bytecode, salt=salt)
+def test2(target: address, salt: bytes32):
+    self.created_address = create_with_code_of(target, salt=salt)
+
+@external
+def should_fail(target: address, arg: uint256):
+    self.created_address = create_with_code_of(target, arg)
     """
 
-    c = get_contract(code)
+    # deploy a foo so we can compare its bytecode with factory deployed version
+    foo_contract = get_contract(code)
+    expected_runtime_code = w3.eth.get_code(foo_contract.address)
 
-    bytecode = w3.eth.get_code(c.address)
+    f, FooContract = deploy_factory_for(code)
 
-    c.test(bytecode, transact={})
-    test1 = c.created_address()
-    assert w3.eth.get_code(test1) == bytecode
+    d = get_contract(deployer_code)
 
-    c.test(b"\x01", transact={})
-    test1 = c.created_address()
-    assert w3.eth.get_code(test1) == b"\x01"
+    initcode = w3.eth.get_code(f.address)
 
+    d.test(f.address, transact={})
+
+    test = FooContract(d.created_address())
+    assert w3.eth.get_code(test.address) == expected_runtime_code
+    assert FooContract(test).foo() == 123
+
+    # now same thing but with create2
     salt = keccak(b"vyper")
-    c.test2(bytecode, salt, transact={})
-    test2 = c.created_address()
-    assert w3.eth.get_code(test2) == bytecode
+    d.test2(f.address, salt, transact={})
 
-    assert HexBytes(test2) == create2_address_of(c.address, salt, vyper_initcode(bytecode))
+    test = FooContract(d.created_address())
+    assert w3.eth.get_code(test.address) == expected_runtime_code
+    assert FooContract(test).foo() == 123
 
-    # can't create2 where contract already exists
-    assert_tx_failed(lambda: c.test2(bytecode, salt))
+    assert test.address == create2_address_of(d.address, salt, initcode)
 
-    # for fun, do a single byte contract
-    c.test2(b"\x01", salt, transact={})
-    test2 = c.created_address()
-    assert HexBytes(test2) == create2_address_of(c.address, salt, vyper_initcode(b"\x01"))
-    # can't create2 where contract already exists
-    assert_tx_failed(lambda: c.test2(b"\x01", salt))
+    # can't collide addresses
+    assert_tx_failed(lambda: d.test2(f.address, salt))
+
+    # Foo constructor should fail
+    assert_tx_failed(lambda: d.should_fail(f.address, 54321))
+
+
+def test_create_with_code_of_args(
+    get_contract, deploy_factory_for, w3, keccak, create2_address_of, assert_tx_failed
+):
+    code = """
+FOO: immutable(String[128])
+
+@external
+def __init__(arg: String[128]):
+    FOO = arg
+
+@external
+def foo() -> String[128]:
+    return FOO
+    """
+
+    deployer_code = """
+created_address: public(address)
+
+@external
+def test(target: address, arg: String[128]):
+    self.created_address = create_with_code_of(target, arg)
+
+@external
+def test2(target: address, arg: String[128], salt: bytes32):
+    self.created_address = create_with_code_of(target, arg, salt=salt)
+
+@external
+def should_fail(target: address, arg: uint256):
+    self.created_address = create_with_code_of(target, arg)
+    """
+    FOO = "hello!"
+
+    # deploy a foo so we can compare its bytecode with factory deployed version
+    foo_contract = get_contract(code, FOO)
+    expected_runtime_code = w3.eth.get_code(foo_contract.address)
+
+    f, FooContract = deploy_factory_for(code)
+
+    d = get_contract(deployer_code)
+
+    initcode = w3.eth.get_code(f.address)
+
+    d.test(f.address, FOO, transact={})
+
+    test = FooContract(d.created_address())
+    assert w3.eth.get_code(test.address) == expected_runtime_code
+    assert FooContract(test).foo() == FOO
+
+    # now same thing but with create2
+    salt = keccak(b"vyper")
+    d.test2(f.address, FOO, salt, transact={})
+
+    test = FooContract(d.created_address())
+    assert w3.eth.get_code(test.address) == expected_runtime_code
+    assert FooContract(test).foo() == FOO
+
+    assert test.address == create2_address_of(d.address, salt, initcode)
+
+    # can't collide addresses
+    assert_tx_failed(lambda: d.test2(f.address, FOO, salt))
+
+    # but creating a contract with different args is ok
+    BAR = "bar"
+    d.test2(f.address, BAR, salt, transact={})
+    # just for kicks
+    assert FooContract(d.created_address()).foo() == BAR
+
+    # Foo constructor should fail
+    assert_tx_failed(lambda: d.should_fail(f.address, 123))
 
 
 def test_create_copy_of(get_contract, w3, keccak, create2_address_of, assert_tx_failed):
