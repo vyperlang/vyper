@@ -318,7 +318,7 @@ def ok() -> {typ}:
 
 @external
 def should_fail() -> int256:
-    return -2**255 # OOB for all int/uint types with less than 256 bits
+    return -2**254 # OOB for all int/uint types with less than 256 bits
     """
 
     code = f"""
@@ -358,7 +358,7 @@ def test_fail3() -> int256:
         interface_codes={"BadCode": {"type": "vyper", "code": external_contract}},
     )
     assert bad_c.ok() == 1
-    assert bad_c.should_fail() == -(2 ** 255)
+    assert bad_c.should_fail() == -(2 ** 254)
 
     assert c.test_ok() == 1
     assert_tx_failed(lambda: c.test_fail())
