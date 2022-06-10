@@ -853,18 +853,21 @@ class Expr(VyperNode):
 class UnaryOp(VyperNode):
     __slots__ = ("op", "operand")
 
-    def validate_foldable(self, vyper_module):
+    def validate_foldable(self, vyper_module) -> None:
         from vyper.ast.utils import get_constant_value
 
         op = self.operand
         if isinstance(op, (BinOp, UnaryOp)):
-            return op.validate_foldable(vyper_module)
+            op.validate_foldable(vyper_module)
         elif isinstance(op, Name) and vyper_module:
-            return bool(get_constant_value(vyper_module, op))
-        elif isinstance(op, (Int, Decimal)):
-            return True
-
-        return False
+            val = get_constant_value(vyper_module, op)
+            if val is None:
+                raise UnfoldableNode
+        else:
+            if isinstance(self.op, Not) and not isinstance(self.operand, NameConstant):
+                raise UnfoldableNode("Node contains invalid field(s) for evaluation")
+            if isinstance(self.op, USub) and not isinstance(self.operand, (Int, Decimal)):
+                raise UnfoldableNode("Node contains invalid field(s) for evaluation")
 
     def evaluate(self) -> VyperNode:
         """
@@ -875,10 +878,7 @@ class UnaryOp(VyperNode):
         Int | Decimal
             Node representing the result of the evaluation.
         """
-        if isinstance(self.op, Not) and not isinstance(self.operand, NameConstant):
-            raise UnfoldableNode("Node contains invalid field(s) for evaluation")
-        if isinstance(self.op, USub) and not isinstance(self.operand, (Int, Decimal)):
-            raise UnfoldableNode("Node contains invalid field(s) for evaluation")
+        self.validate_foldable()
 
         value = self.derive()
         _validate_numeric_bounds(self, value)
@@ -926,20 +926,18 @@ class BinOp(VyperNode):
 
         left, right = self.left, self.right
         if isinstance(left, (BinOp, UnaryOp)):
-            left_val = left.validate_foldable(vyper_module)
+            left.validate_foldable(vyper_module)
         elif isinstance(left, Name) and vyper_module:
-            left_val = bool(get_constant_value(vyper_module, left))
-        elif isinstance(left, (Int, Decimal)):
-            left_val = True
+            left_val = get_constant_value(vyper_module, left)
+            if left_val is None:
+                raise UnfoldableNode
 
         if isinstance(right, (BinOp, UnaryOp)):
-            right_val = right.validate_foldable(vyper_module)
+            right.validate_foldable(vyper_module)
         elif isinstance(right, Name) and vyper_module:
-            right_val = bool(get_constant_value(vyper_module, right))
-        else:
-            right_val = True
-
-        return left_val and right_val
+            right_val = get_constant_value(vyper_module, right)
+            if right_val is None:
+                raise UnfoldableNode
 
     def evaluate(self) -> VyperNode:
         """
@@ -1142,7 +1140,7 @@ class Compare(VyperNode):
         kwargs["right"] = kwargs.pop("comparators")[0]
         super().__init__(*args, **kwargs)
 
-    def validate_foldable(self):
+    def validate_foldable(self) -> None:
         left, right = self.left, self.right
         if not isinstance(left, Constant):
             raise UnfoldableNode("Node contains invalid field(s) for evaluation")
@@ -1154,8 +1152,6 @@ class Compare(VyperNode):
                 raise UnfoldableNode("Node contains invalid field(s) for evaluation")
             if len(set([type(i) for i in right.elements])) > 1:
                 raise UnfoldableNode("List contains multiple literal types")
-            value = self.op._op(left.value, [i.value for i in right.elements])
-            return NameConstant.from_node(self, value=value)
 
         if not isinstance(left, type(right)):
             raise UnfoldableNode("Cannot compare different literal types")
@@ -1177,7 +1173,10 @@ class Compare(VyperNode):
         return NameConstant.from_node(self, value=value)
 
     def derive(self):
-        return self.op._op(self.left.value, self.right.value)
+        left, right = self.left, self.right
+        if isinstance(self.op, (In, NotIn)):
+            return self.op._op(left.value, [i.value for i in right.elements])
+        return self.op._op(left.value, right.value)
 
 
 class Eq(VyperNode):

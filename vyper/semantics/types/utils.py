@@ -7,6 +7,7 @@ from vyper.exceptions import (
     InvalidType,
     StructureException,
     UndeclaredDefinition,
+    UnfoldableNode,
     UnknownType,
     VyperInternalException,
 )
@@ -227,7 +228,11 @@ def check_constant(node: vy_ast.VyperNode) -> bool:
         if node.id in namespace:
             return True
     if isinstance(node, (vy_ast.BoolOp, vy_ast.BinOp, vy_ast.UnaryOp, vy_ast.Compare)):
-        return node.validate_foldable()
+        try:
+            node.validate_foldable()
+            return True
+        except UnfoldableNode:
+            return False
 
     return False
 

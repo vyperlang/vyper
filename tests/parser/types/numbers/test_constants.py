@@ -4,7 +4,7 @@ from decimal import Decimal
 import pytest
 
 from vyper.compiler import compile_code
-from vyper.exceptions import InvalidType, TypeMismatch
+from vyper.exceptions import TypeMismatch
 from vyper.utils import MemoryPositions
 
 
