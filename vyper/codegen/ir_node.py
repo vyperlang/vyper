@@ -50,6 +50,54 @@ class Encoding(Enum):
     # future: packed
 
 
+# this creates a magical block which maps to IR `with`
+class _WithBuilder:
+    def __init__(self, ir_node, name, should_inline=False):
+        # TODO figure out how to fix this circular import
+        from vyper.ir.optimizer import optimize
+
+        if should_inline and optimize(ir_node).is_complex_ir:
+            # this can only mean trouble
+            raise CompilerPanic("trying to inline a complex IR node")
+
+        self.ir_node = ir_node
+
+        # whether or not to inline the ir_node
+        self.should_inline = should_inline
+
+        # a named IR variable which represents the
+        # output of `ir_node`
+        self.ir_var = IRnode.from_list(
+            name, typ=ir_node.typ, location=ir_node.location, encoding=ir_node.encoding
+        )
+
+    def __enter__(self):
+        if self.inline_value:
+            # inline the value instead of the named variable
+            return self, self.ir_node
+        else:
+            # return the named variable
+            return self, self.ir_var
+
+    def __exit__(self, *args):
+        pass
+
+    # MUST be called at the end of building the expression
+    # in order to make sure the expression gets wrapped correctly
+    def resolve(self, body):
+        if self.inline_value:
+            # uses of the variable have already been inlined
+            return body
+
+        ret = ["with", self.ir_var, self.ir_node, body]
+        if isinstance(body, IRnode):
+            return IRnode.from_list(
+                ret, typ=body.typ, location=body.location, encoding=body.encoding
+            )
+        else:
+            return ret
+
+
 # Data structure for IR parse tree
 class IRnode:
     repr_show_gas = False
@@ -301,51 +349,15 @@ class IRnode:
     #   return builder.resolve(ret)
     # ```
     def cache_when_complex(self, name):
-        # this creates a magical block which maps to IR `with`
-        class _WithBuilder:
-            def __init__(self, ir_node, name):
-                # TODO figure out how to fix this circular import
-                from vyper.ir.optimizer import optimize
+        from vyper.ir.optimizer import optimize
 
-                self.ir_node = ir_node
-                # for caching purposes, see if the ir_node will be optimized
-                # because a non-literal expr could turn into a literal,
-                # (e.g. `(add 1 2)`)
-                # TODO this could really be moved into optimizer.py
-                self.should_cache = optimize(ir_node).is_complex_ir
+        # for caching purposes, see if the ir_node will be optimized
+        # because a non-literal expr could turn into a literal,
+        # (e.g. `(add 1 2)`)
+        # TODO this could really be moved into optimizer.py
+        should_inline = not optimize(self).is_complex_ir
 
-                # a named IR variable which represents the
-                # output of `ir_node`
-                self.ir_var = IRnode.from_list(
-                    name, typ=ir_node.typ, location=ir_node.location, encoding=ir_node.encoding
-                )
-
-            def __enter__(self):
-                if self.should_cache:
-                    # return the named cache
-                    return self, self.ir_var
-                else:
-                    # it's a constant (or will be optimized to one), just return that
-                    return self, self.ir_node
-
-            def __exit__(self, *args):
-                pass
-
-            # MUST be called at the end of building the expression
-            # in order to make sure the expression gets wrapped correctly
-            def resolve(self, body):
-                if self.should_cache:
-                    ret = ["with", self.ir_var, self.ir_node, body]
-                    if isinstance(body, IRnode):
-                        return IRnode.from_list(
-                            ret, typ=body.typ, location=body.location, encoding=body.encoding
-                        )
-                    else:
-                        return ret
-                else:
-                    return body
-
-        return _WithBuilder(self, name)
+        return _WithBuilder(self, name, should_inline)
 
     @cached_property
     def contains_self_call(self):
