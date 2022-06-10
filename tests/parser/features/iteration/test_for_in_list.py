@@ -5,6 +5,7 @@ import pytest
 from vyper.exceptions import (
     ArgumentException,
     ImmutableViolation,
+    InvalidLiteral,
     InvalidType,
     IteratorException,
     NamespaceCollision,
@@ -650,13 +651,16 @@ def foo():
     """,
         StateAccessViolation,
     ),
-    """
+    (
+        """
 @external
 def foo():
     a: int128 = 6
     for i in range(a,a-3):
         pass
     """,
+        InvalidLiteral,
+    ),
     # invalid argument length
     (
         """

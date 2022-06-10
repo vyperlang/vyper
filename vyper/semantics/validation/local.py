@@ -68,7 +68,7 @@ def validate_functions(vy_module: vy_ast.Module) -> None:
     err_list.raise_if_not_empty()
 
 
-def _validate_constant(vyper_module: vy_ast.Module, node: vy_ast.VyperNode) -> None:
+def _validate_constant(node: vy_ast.VyperNode) -> None:
     """
     Helper function to validate if a pre-folded node is a constant.
     """
@@ -81,9 +81,10 @@ def _validate_constant(vyper_module: vy_ast.Module, node: vy_ast.VyperNode) -> N
 
     for n in nodes:
         if isinstance(n, (vy_ast.BinOp, vy_ast.UnaryOp)):
-            _validate_constant(vyper_module, n)
+            _validate_constant(n)
         elif isinstance(n, vy_ast.Name):
-            val = get_constant_value(n)
+            namespace = get_namespace()
+            val = get_constant_value(n) or namespace[n.id]
             if val is None:
                 raise InvalidType("Undefined constant", n)
         elif not isinstance(n, vy_ast.Int):
@@ -183,6 +184,20 @@ def _validate_msg_data_attribute(node: vy_ast.Attribute) -> None:
                 raise StructureException(
                     "slice(msg.data) must use a compile-time constant for length argument", parent
                 )
+
+
+def _get_for_value(node: vy_ast.VyperNode) -> int:
+    if isinstance(node, (vy_ast.BinOp, vy_ast.UnaryOp)):
+        _validate_constant(node)
+        val = node.derive()
+    elif isinstance(node, vy_ast.Name):
+        val = get_constant_value(node)
+        if val is None:
+            raise InvalidLiteral("Element must be a literal or constant variable", node)
+    else:
+        val = node.value
+
+    return val
 
 
 class FunctionNodeVisitor(VyperNodeVisitorBase):
@@ -381,7 +396,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             else:
                 validate_expected_type(args[0], IntegerAbstractType())
                 type_list = get_common_types(*args)
-                if not isinstance(args[0], vy_ast.Constant):
+                if not isinstance(args[0], (vy_ast.Constant, vy_ast.Name)):
                     # range(x, x + CONSTANT)
                     if not isinstance(args[1], vy_ast.BinOp) or not isinstance(
                         args[1].op, vy_ast.Add
@@ -403,15 +418,12 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                         )
                 else:
                     # range(CONSTANT, CONSTANT)
-                    if isinstance(args[1], (vy_ast.BinOp, vy_ast.UnaryOp)):
-                        _validate_constant(self.vyper_module, args[1])
-                        args1_value = args[1].derive()
-                    else:
-                        args1_value = args[1].value
-
+                    args1_value = _get_for_value(args[1])
                     validate_expected_type(args[1], IntegerAbstractType())
 
-                    if args[0].value >= args1_value:
+                    args0_value = _get_for_value(args[0])
+
+                    if args0_value >= args1_value:
                         raise StructureException("Second value must be > first value", args[1])
 
         else:

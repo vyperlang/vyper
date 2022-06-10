@@ -67,6 +67,13 @@ def get_constant_value(node: vy_ast.Name) -> Any:
     """
     Helper function to retrieve the value of a constant.
     """
+    # Check for builtin environment constants
+    from vyper.ast.folding import BUILTIN_CONSTANTS
+
+    if node.id in BUILTIN_CONSTANTS:
+        return BUILTIN_CONSTANTS[node.id][1]
+
+    # Check for user-defined constants
     vyper_module = node.get_ancestor(vy_ast.Module)
     for n in vyper_module.get_children(vy_ast.AnnAssign):
         if node.id == n.target.id:
@@ -75,4 +82,5 @@ def get_constant_value(node: vy_ast.Name) -> Any:
                 return val
             elif isinstance(n.value, (vy_ast.BinOp, vy_ast.UnaryOp, vy_ast.BoolOp, vy_ast.Compare)):
                 return n.value.derive()
+
     return None
