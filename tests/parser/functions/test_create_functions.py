@@ -179,6 +179,9 @@ def test2(target: address, salt: bytes32):
     assert w3.eth.get_code(test.address) == expected_runtime_code
     assert test.foo() == 123
 
+    # extcodesize check
+    assert_tx_failed(lambda: d.test("0x" + "00" * 20))
+
     # now same thing but with create2
     salt = keccak(b"vyper")
     d.test2(f.address, salt, transact={})
@@ -241,6 +244,9 @@ def should_fail(target: address, arg: String[129]):
     assert w3.eth.get_code(test.address) == expected_runtime_code
     assert test.foo() == FOO
 
+    # extcodesize check
+    assert_tx_failed(lambda: d.test("0x" + "00" * 20, FOO))
+
     # now same thing but with create2
     salt = keccak(b"vyper")
     d.test2(f.address, FOO, salt, transact={})
@@ -297,6 +303,9 @@ def test2(target: address, salt: bytes32) -> address:
     c.test(c.address, transact={})
     test1 = c.created_address()
     assert w3.eth.get_code(test1) == bytecode
+
+    # extcodesize check
+    assert_tx_failed(lambda: c.test("0x" + "00" * 20))
 
     # test1 = c.test(b"\x01")
     # assert w3.eth.get_code(test1) == b"\x01"

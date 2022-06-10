@@ -132,6 +132,10 @@ Vyper has three builtins for contract creation; all three contract creation buil
 
 .. note::
 
+  There is no runtime check that there is code already deployed at ``target`` (since a proxy may be deployed counterfactually). Most applications may want to insert this check.
+
+.. note::
+
   In previous versions of vyper, this function was named ``create_forwarder_to``.
 
 
@@ -143,7 +147,7 @@ Vyper has three builtins for contract creation; all three contract creation buil
     * ``value``: The wei value to send to the new contract address (Optional, default 0)
     * ``salt``: A ``bytes32`` value utilized by the deterministic ``CREATE2`` opcode (Optional, if not supplied, ``CREATE`` is used)
 
-    Returns the address of the copied contract. If the create operation fails (for instance, in the case of a ``CREATE2`` collision), execution will revert.
+    Returns the address of the created contract. If the create operation fails (for instance, in the case of a ``CREATE2`` collision), execution will revert. If there is no code at ``target``, execution will revert.
 
     .. code-block:: python
 
@@ -160,7 +164,7 @@ Vyper has three builtins for contract creation; all three contract creation buil
     * ``value``: The wei value to send to the new contract address (Optional, default 0)
     * ``salt``: A ``bytes32`` value utilized by the deterministic ``CREATE2`` opcode (Optional, if not supplied, ``CREATE`` is used)
 
-    Returns the address of the created contract. If the create operation fails (for instance, in the case of a ``CREATE2`` collision), execution will revert.
+    Returns the address of the created contract. If the create operation fails (for instance, in the case of a ``CREATE2`` collision), execution will revert. If there is no code at ``target``, execution will revert.
 
     .. code-block:: python
 

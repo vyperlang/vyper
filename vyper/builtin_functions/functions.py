@@ -1794,6 +1794,9 @@ class CreateCopyOf(_CreateBase):
             ), msize.cache_when_complex("mem_ofst") as (b3, mem_ofst):
                 ir = ["seq"]
 
+                # make sure there is actually code at the target
+                ir.append(["assert", codesize])
+
                 # store the preamble at msize + 22 (zero padding)
                 preamble, preamble_len = _create_preamble(codesize)
                 assert preamble_len == self._preamble_len
@@ -1807,7 +1810,6 @@ class CreateCopyOf(_CreateBase):
                 buf = add_ofst(mem_ofst, 32 - preamble_len)
                 buf_len = ["add", codesize, preamble_len]
 
-                # TODO check extcodesize > 0?
                 ir.append(_create_ir(value, buf, buf_len, salt))
 
                 return b1.resolve(b2.resolve(b3.resolve(ir)))
@@ -1862,6 +1864,9 @@ class CreateWithCodeOf(_CreateBase):
                 codesize,
             ), msize.cache_when_complex("mem_ofst") as (b4, mem_ofst):
                 ir = ["seq"]
+
+                # make sure there is code at the target.
+                ir.append(["assert", codesize])
 
                 # copy the target code into memory.
                 # layout starting from mem_ofst:
