@@ -107,10 +107,13 @@ class BuiltinFunction:
             # note special meaning for -1 in validate_call_args API
             expect_num_args = (num_args, -1)
 
-        validate_call_args(node, expect_num_args, getattr(self, "_kwargs", []))
+        validate_call_args(node, expect_num_args, self._kwargs)
 
         for arg, (_, expected) in zip(node.args, self._inputs):
             validate_expected_type(arg, expected)
+
+        for kwarg in node.keywords:
+            validate_expected_type(kwarg.value, self._kwargs[kwarg.arg].typ)
 
         # typecheck varargs. we don't have type info from the signature,
         # so ensure that the types of the args can be inferred exactly.
