@@ -229,7 +229,7 @@ def check_constant(node: vy_ast.VyperNode, vyper_module: vy_ast.Module = None) -
             return True
     if isinstance(node, (vy_ast.BoolOp, vy_ast.BinOp, vy_ast.UnaryOp, vy_ast.Compare)):
         try:
-            node.validate_foldable()
+            node.validate_foldable()  # type: ignore
             return True
         except UnfoldableNode:
             return False
