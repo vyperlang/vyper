@@ -885,7 +885,7 @@ class UnaryOp(VyperNode):
         from vyper.ast.utils import get_constant_value
 
         if isinstance(self.operand, (BinOp, UnaryOp)):
-            val = self.operand.derive()
+            val = self.operand.derive(vyper_module)
         elif isinstance(self.operand, Name) and vyper_module:
             val = get_constant_value(vyper_module, self.operand)
         else:
