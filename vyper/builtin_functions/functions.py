@@ -1759,12 +1759,12 @@ class CreateMinimalProxyTo(_CreateBase):
 
 
 class CreateForwarderTo(CreateMinimalProxyTo):
-    _warned_flag = False
+    _warned = False
 
     def build_IR(self, expr, context):
-        if not self.__class__._warned_flag:
+        if not self._warned:
             vyper_warn("`create_forwarder_to` is a deprecated alias of `create_minimal_proxy_to`!")
-            self.__class__._warned_flag = True
+            self._warned = True
 
         return super().build_IR(expr, context)
 
