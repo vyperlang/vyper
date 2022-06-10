@@ -2,6 +2,7 @@ from typing import Optional, Tuple, Union
 
 from vyper import ast as vy_ast
 from vyper.abi_types import ABI_DynamicArray, ABI_StaticArray, ABI_Tuple, ABIType
+from vyper.ast.utils import get_constant_value
 from vyper.exceptions import ArrayIndexException, InvalidType, StructureException
 from vyper.semantics import validation
 from vyper.semantics.types.abstract import IntegerAbstractType
@@ -216,7 +217,13 @@ class DynamicArrayPrimitive(BasePrimitive):
             not isinstance(node, vy_ast.Subscript)
             or not isinstance(node.slice, vy_ast.Index)
             or not isinstance(node.slice.value, vy_ast.Tuple)
-            or not isinstance(node.slice.value.elements[1], vy_ast.Int)
+            or not (
+                isinstance(node.slice.value.elements[1], vy_ast.Int)
+                or (
+                    isinstance(node.slice.value.elements[1], vy_ast.Name)
+                    and get_constant_value(node.slice.value.elements[1]) is not None
+                )
+            )
             or len(node.slice.value.elements) != 2
         ):
             raise StructureException(
@@ -231,7 +238,11 @@ class DynamicArrayPrimitive(BasePrimitive):
         if isinstance(value_type, (BytesArrayDefinition, StringDefinition)):
             raise StructureException(f"{value_type._id} arrays are not supported", node)
 
-        max_length = node.slice.value.elements[1].value
+        if isinstance(node.slice.value.elements[1], vy_ast.Int):
+            max_length = node.slice.value.elements[1].value
+        elif isinstance(node.slice.value.elements[1], vy_ast.Name):
+            max_length = get_constant_value(node.slice.value.elements[1])
+
         return DynamicArrayDefinition(
             value_type, max_length, location, is_constant, is_public, is_immutable
         )
