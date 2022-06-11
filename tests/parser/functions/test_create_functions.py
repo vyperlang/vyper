@@ -15,8 +15,8 @@ def eip1167_initcode(_addr):
 
 # initcode used by CreateCopyOf
 def vyper_initcode(runtime_bytecode):
-    bytecode_len_hex = hex(len(runtime_bytecode))[2:].rjust(4, "0")
-    return HexBytes("0x61" + bytecode_len_hex + "3d81600a3d39f3") + runtime_bytecode
+    bytecode_len_hex = hex(len(runtime_bytecode))[2:].rjust(6, "0")
+    return HexBytes("0x62" + bytecode_len_hex + "3d81600b3d39f3") + runtime_bytecode
 
 
 def test_create_minimal_proxy_to_create(get_contract):

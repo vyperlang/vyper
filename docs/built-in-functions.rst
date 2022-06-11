@@ -158,6 +158,11 @@ Vyper has three builtins for contract creation; all three contract creation buil
         def foo(_target: address) -> address:
             return create_copy_of(_target)
 
+.. note::
+
+    The implementation of ``create_copy_of`` assumes that the code at ``target`` is smaller than 16MB. While this is much larger than the EIP-170 constraint of 24KB, it is a conservative size limit intended to future proof deployer contracts in case the EIP-170 constraint is lifted. If the code at ``target`` is larger than 16MB, the behavior of ``create_copy_of`` is undefined.
+
+
 .. py:function:: create_from_factory(target: address, *args, value: uint256 = 0[, salt: bytes32]) -> address
 
     Copy the code of ``target`` into memory and execute it as initcode. In other words, this operation interprets the code at ``target`` not as regular runtime code, but directly as initcode. The ``*args`` are interpreted as constructor arguments, and are ABI-encoded and included when executing the initcode.

@@ -1652,15 +1652,16 @@ def eip1167_bytecode():
 
 # "standard" initcode for code which can be larger than 256 bytes.
 # returns the code starting from 0x0a with len `codesize`.
-# NOTE: it assumes codesize <= 64kb
+# NOTE: it assumes codesize <= 2**24.
 def _create_preamble(codesize):
 
     from vyper.ir.compile_ir import assembly_to_evm
 
-    evm_len = 0x0A
+    evm_len = 0x0b  # 11 bytes
     asm = [
-        "PUSH2",
+        "PUSH3",
         # blank space for codesize
+        0x00,
         0x00,
         0x00,
         "RETURNDATASIZE",
@@ -1674,12 +1675,7 @@ def _create_preamble(codesize):
     evm = assembly_to_evm(asm)[0]
     assert len(evm) == evm_len, evm
 
-    # truncate codesize to bottom two bytes
-    # note: maybe safer to not truncate? very unlikely that codesize
-    # would be > 0xffff, and if it is, maybe want to fail more loudly
-    codesize = ["and", 0xFFFF, codesize]
-
-    shl_bits = (evm_len - 3) * 8  # codesize needs to go right after the PUSH2
+    shl_bits = (evm_len - 4) * 8  # codesize needs to go right after the PUSH3
     # mask codesize into the aforementioned "blank space"
     return ["or", bytes_to_int(evm), shl(shl_bits, codesize)], evm_len
 
@@ -1776,7 +1772,7 @@ class CreateCopyOf(_CreateBase):
 
     @property
     def _preamble_len(self):
-        return 10
+        return 11
 
     def _add_gas_estimate(self, args, should_use_create2):
         # max possible runtime length + preamble length
