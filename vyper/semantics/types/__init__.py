@@ -1,4 +1,5 @@
 from . import indexable, user, value
+from .abi_utils import json_abi_type
 from .abstract import SignedIntegerAbstractType, UnsignedIntegerAbstractType
 from .bases import BasePrimitive
 from .indexable.mapping import MappingDefinition

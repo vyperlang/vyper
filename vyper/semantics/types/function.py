@@ -16,6 +16,7 @@ from vyper.exceptions import (
     StructureException,
 )
 from vyper.semantics.namespace import get_namespace
+from vyper.semantics.types.abi_utils import json_abi_type
 from vyper.semantics.types.bases import BaseTypeDefinition, DataLocation, StorageSlot
 from vyper.semantics.types.indexable.sequence import TupleDefinition
 from vyper.semantics.types.utils import (
@@ -523,15 +524,15 @@ class ContractFunction(BaseTypeDefinition):
             abi_dict["type"] = "function"
             abi_dict["name"] = self.name
 
-        abi_dict["inputs"] = [v.json_abi_type(k) for k, v in self.arguments.items()]
+        abi_dict["inputs"] = [json_abi_type(v, name=k) for k, v in self.arguments.items()]
 
         typ = self.return_type
         if typ is None:
             abi_dict["outputs"] = []
         elif isinstance(typ, TupleDefinition) and len(typ.value_type) > 1:  # type: ignore
-            abi_dict["outputs"] = [i.json_abi_type() for i in typ.value_type]  # type: ignore
+            abi_dict["outputs"] = [json_abi_type(t) for t in typ.value_type]  # type: ignore
         else:
-            abi_dict["outputs"] = [typ.json_abi_type()]
+            abi_dict["outputs"] = [json_abi_type(typ)]
 
         if self.has_default_args:
             # for functions with default args, return a dict for each possible arg count

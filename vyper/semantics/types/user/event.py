@@ -5,6 +5,7 @@ from vyper import ast as vy_ast
 from vyper.ast.validation import validate_call_args
 from vyper.exceptions import EventDeclarationException, NamespaceCollision, StructureException
 from vyper.semantics.namespace import validate_identifier
+from vyper.semantics.types.abi_utils import json_abi_type
 from vyper.semantics.types.bases import DataLocation
 from vyper.semantics.types.utils import get_type_from_abi, get_type_from_annotation
 from vyper.semantics.validation.utils import validate_expected_type
@@ -123,7 +124,7 @@ class Event:
             {
                 "name": self.name,
                 "inputs": [
-                    dict(**typ.json_abi_type(name), **{"indexed": idx})
+                    dict(**json_abi_type(typ, name=name), **{"indexed": idx})
                     for (name, typ), idx in zip(self.arguments.items(), self.indexed)
                 ],
                 "anonymous": False,
