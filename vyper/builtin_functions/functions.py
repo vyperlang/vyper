@@ -1651,7 +1651,7 @@ def eip1167_bytecode():
 
 
 # "standard" initcode for code which can be larger than 256 bytes.
-# returns the code starting from 0x0a with len `codesize`.
+# returns the code starting from 0x0b with len `codesize`.
 # NOTE: it assumes codesize <= 2**24.
 def _create_preamble(codesize):
 
@@ -1659,6 +1659,7 @@ def _create_preamble(codesize):
 
     evm_len = 0x0b  # 11 bytes
     asm = [
+        # use PUSH3 to be able to deal with larger contracts
         "PUSH3",
         # blank space for codesize
         0x00,
