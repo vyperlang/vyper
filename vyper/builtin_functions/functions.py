@@ -1815,9 +1815,9 @@ class CreateCopyOf(_CreateBase):
                 return b1.resolve(b2.resolve(b3.resolve(ir)))
 
 
-class CreateWithCodeOf(_CreateBase):
+class CreateFromFactory(_CreateBase):
 
-    _id = "create_with_code_of"
+    _id = "create_from_factory"
     _inputs = [("target", AddressDefinition())]
     _has_varargs = True
 
@@ -1884,7 +1884,6 @@ class CreateWithCodeOf(_CreateBase):
 
                 length = ["add", codesize, encoded_args_len]
 
-                # TODO assert extcodesize > 0?
                 ir.append(_create_ir(value, mem_ofst, length, salt))
 
                 return b1.resolve(b2.resolve(b3.resolve(b4.resolve(ir))))
@@ -2497,7 +2496,7 @@ DISPATCH_TABLE = {
     "create_minimal_proxy_to": CreateMinimalProxyTo(),
     "create_forwarder_to": CreateForwarderTo(),
     "create_copy_of": CreateCopyOf(),
-    "create_with_code_of": CreateWithCodeOf(),
+    "create_from_factory": CreateFromFactory(),
     "min": Min(),
     "max": Max(),
     "empty": Empty(),
@@ -2513,7 +2512,7 @@ STMT_DISPATCH_TABLE = {
     "create_minimal_proxy_to": CreateMinimalProxyTo(),
     "create_forwarder_to": CreateForwarderTo(),
     "create_copy_of": CreateCopyOf(),
-    "create_with_code_of": CreateWithCodeOf(),
+    "create_from_factory": CreateFromFactory(),
 }
 
 BUILTIN_FUNCTIONS = {**STMT_DISPATCH_TABLE, **DISPATCH_TABLE}.keys()

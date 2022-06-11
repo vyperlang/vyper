@@ -142,7 +142,7 @@ def test(_salt: bytes32) -> address:
     assert_tx_failed(lambda: c.test(salt, transact={}))
 
 
-def test_create_with_code_of(
+def test_create_from_factory(
     get_contract, deploy_factory_for, w3, keccak, create2_address_of, assert_tx_failed
 ):
     code = """
@@ -156,11 +156,11 @@ created_address: public(address)
 
 @external
 def test(target: address):
-    self.created_address = create_with_code_of(target)
+    self.created_address = create_from_factory(target)
 
 @external
 def test2(target: address, salt: bytes32):
-    self.created_address = create_with_code_of(target, salt=salt)
+    self.created_address = create_from_factory(target, salt=salt)
     """
 
     # deploy a foo so we can compare its bytecode with factory deployed version
@@ -196,7 +196,8 @@ def test2(target: address, salt: bytes32):
     assert_tx_failed(lambda: d.test2(f.address, salt))
 
 
-def test_create_with_code_of_args(
+# test create_from_factory with args
+def test_create_from_factory_args(
     get_contract, deploy_factory_for, w3, keccak, create2_address_of, assert_tx_failed
 ):
     code = """
@@ -216,15 +217,15 @@ created_address: public(address)
 
 @external
 def test(target: address, arg: String[128]):
-    self.created_address = create_with_code_of(target, arg)
+    self.created_address = create_from_factory(target, arg)
 
 @external
 def test2(target: address, arg: String[128], salt: bytes32):
-    self.created_address = create_with_code_of(target, arg, salt=salt)
+    self.created_address = create_from_factory(target, arg, salt=salt)
 
 @external
 def should_fail(target: address, arg: String[129]):
-    self.created_address = create_with_code_of(target, arg)
+    self.created_address = create_from_factory(target, arg)
     """
     FOO = "hello!"
 

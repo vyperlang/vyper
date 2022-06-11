@@ -104,10 +104,10 @@ Vyper has three builtins for contract creation; all three contract creation buil
     * Creates a byte-for-byte copy of runtime code stored at ``target``
     * Cheap to call (no ``DELEGATECALL`` overhead), expensive to create (200 gas per deployed byte)
     * Does not have the ability to call a constructor
-* ``create_with_code_of(target: address, ...)``
+* ``create_from_factory(target: address, ...)``
     * Deploys a contract using the initcode stored at ``target``
     * Cheap to call (no ``DELEGATECALL`` overhead), expensive to create (200 gas per deployed byte)
-    * Invokes constructor, requires a special factory contract to be deployed
+    * Invokes constructor, requires a special "factory" contract to be deployed
 
 .. py:function:: create_minimal_proxy_to(target: address, value: uint256 = 0[, salt: bytes32]) -> address
 
@@ -155,11 +155,11 @@ Vyper has three builtins for contract creation; all three contract creation buil
         def foo(_target: address) -> address:
             return create_copy_of(_target)
 
-.. py:function:: create_with_code_of(target: address, *args, value: uint256 = 0[, salt: bytes32]) -> address
+.. py:function:: create_from_factory(target: address, *args, value: uint256 = 0[, salt: bytes32]) -> address
 
-    Copy the code of ``target`` into memory and execute it as initcode. In other words, this operation interprets the code at ``target`` not as regular runtime code, but as a factory contract. The ``*args`` are interpreted as constructor arguments, and are ABI-encoded and included when executing the initcode.
+    Copy the code of ``target`` into memory and execute it as initcode. In other words, this operation interprets the code at ``target`` not as regular runtime code, but directly as initcode. The ``*args`` are interpreted as constructor arguments, and are ABI-encoded and included when executing the initcode.
 
-    * ``target``: Address of the contract to copy
+    * ``target``: Address of the factory contract to invoke
     * ``*args``: Constructor arguments to forward to the initcode.
     * ``value``: The wei value to send to the new contract address (Optional, default 0)
     * ``salt``: A ``bytes32`` value utilized by the deterministic ``CREATE2`` opcode (Optional, if not supplied, ``CREATE`` is used)
