@@ -1143,7 +1143,6 @@ class Compare(VyperNode):
         """
         Validates if the unary operation is foldable.
         """
-        print("validte foldable")
         left, right = self.left, self.right
         if not isinstance(left, Constant):
             raise UnfoldableNode("Node contains invalid field(s) for evaluation")

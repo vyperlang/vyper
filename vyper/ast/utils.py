@@ -76,6 +76,10 @@ def get_constant_value(node: vy_ast.Name) -> Any:
     # Check for user-defined constants
     vyper_module = node.get_ancestor(vy_ast.Module)
     for n in vyper_module.get_children(vy_ast.AnnAssign):
+        # Ensure that the AnnAssign is a constant variable definition
+        if not ("type" in n._metadata and n._metadata["type"].is_constant):
+            continue
+
         if node.id == n.target.id:
             if isinstance(n.value, vy_ast.Constant):
                 val = n.value.value
