@@ -1298,11 +1298,7 @@ def bar(_bar: DynArray[Bar, 3]) -> uint256:
     """
     c = get_contract(code)
     c_input = [
-        (
-            (tuple([(123, 456, ([i, i + 1, i + 2], False))] * 3)),
-            [9, 8, 7],
-        )
-        for i in range(1, 4)
+        ((tuple([(123, 456, ([i, i + 1, i + 2], False))] * 3)), [9, 8, 7]) for i in range(1, 4)
     ]
 
     assert c.bar(c_input) == 20

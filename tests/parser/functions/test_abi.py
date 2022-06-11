@@ -117,10 +117,7 @@ def getStructList() -> {type}:
     ]
     """
 
-    out = compile_code(
-        code,
-        output_formats=["abi"],
-    )
+    out = compile_code(code, output_formats=["abi"])
 
     assert out["abi"] == [
         {
@@ -164,10 +161,7 @@ def bar(x: {type}):
     pass
     """
 
-    out = compile_code(
-        code,
-        output_formats=["abi"],
-    )
+    out = compile_code(code, output_formats=["abi"])
 
     assert out["abi"] == [
         {

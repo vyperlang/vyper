@@ -133,10 +133,7 @@ class ArrayDefinition(_SequenceDefinition):
         elif isinstance(self.value_type, (ArrayDefinition, DynamicArrayDefinition)):
             # For static and dynamic arrays, set `components` if the value type is a struct.
             # Otherwise, the `canonical_abi_type` is sufficient.
-            ret = {
-                "name": name,
-                "type": self.json_abi_typename,
-            }
+            ret = {"name": name, "type": self.json_abi_typename}
 
             struct_components = _generate_json_abi_components(self.value_type)
             if struct_components is not None:
@@ -225,10 +222,7 @@ class DynamicArrayDefinition(_SequenceDefinition, MemberTypeDefinition):
         elif isinstance(self.value_type, (ArrayDefinition, DynamicArrayDefinition)):
             # For static and dynamic arrays, set `components` if the value type is a struct.
             # Otherwise, the `canonical_abi_type` is sufficient.
-            ret = {
-                "name": name,
-                "type": self.json_abi_typename,
-            }
+            ret = {"name": name, "type": self.json_abi_typename}
 
             struct_components = _generate_json_abi_components(self.value_type)
             if struct_components is not None:
@@ -351,10 +345,7 @@ class TupleDefinition(_SequenceDefinition):
         return ABI_Tuple([t.abi_type for t in self._member_types])
 
     def json_abi_type(self, name=""):
-        return {
-            "type": "tuple",
-            "components": [i.json_abi_type() for i in self.value_type],
-        }
+        return {"type": "tuple", "components": [i.json_abi_type() for i in self.value_type]}
 
     @property
     def size_in_bytes(self):

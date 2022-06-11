@@ -292,10 +292,7 @@ class BaseTypeDefinition:
         """
         The JSON ABI output
         """
-        return {
-            "name": name,
-            "type": self.json_abi_typename,
-        }
+        return {"name": name, "type": self.json_abi_typename}
 
     def from_annotation(self, node: vy_ast.VyperNode, *args: Any, **kwargs: Any) -> None:
         # always raises, user should have used a primitive
