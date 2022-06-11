@@ -8,7 +8,7 @@ fail_list = [
 @external
 def foo():
     int128 = 5
-    """,
+    """
 ]
 
 

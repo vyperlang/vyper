@@ -262,10 +262,7 @@ def onERC721Received(
     """
     )
     tx_hash = c.safeTransferFrom(
-        someone,
-        receiver.address,
-        SOMEONE_TOKEN_IDS[0],
-        transact={"from": someone},
+        someone, receiver.address, SOMEONE_TOKEN_IDS[0], transact={"from": someone}
     )
 
     logs = get_logs(tx_hash, c, "Transfer")

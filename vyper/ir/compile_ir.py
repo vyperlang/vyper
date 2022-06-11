@@ -365,15 +365,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         )
 
         # stack: []
-        o.extend(
-            _compile_to_assembly(
-                start,
-                withargs,
-                existing_labels,
-                break_dest,
-                height,
-            )
-        )
+        o.extend(_compile_to_assembly(start, withargs, existing_labels, break_dest, height))
 
         o.extend(_compile_to_assembly(rounds, withargs, existing_labels, break_dest, height + 1))
 
@@ -413,11 +405,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         o.extend([entry_dest, "JUMPDEST"])
         o.extend(
             _compile_to_assembly(
-                body,
-                withargs,
-                existing_labels,
-                (exit_dest, continue_dest, height + 2),
-                height + 2,
+                body, withargs, existing_labels, (exit_dest, continue_dest, height + 2), height + 2
             )
         )
 
@@ -472,13 +460,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         old = withargs.get(code.args[0].value, None)
         withargs[code.args[0].value] = height
         o.extend(
-            _compile_to_assembly(
-                code.args[2],
-                withargs,
-                existing_labels,
-                break_dest,
-                height + 1,
-            )
+            _compile_to_assembly(code.args[2], withargs, existing_labels, break_dest, height + 1)
         )
         if code.args[2].valency:
             o.extend(["SWAP1", "POP"])

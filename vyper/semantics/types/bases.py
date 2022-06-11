@@ -34,10 +34,7 @@ class DataPosition:
 
 
 class CalldataOffset(DataPosition):
-    __slots__ = (
-        "dynamic_offset",
-        "static_offset",
-    )
+    __slots__ = ("dynamic_offset", "static_offset")
     _location = DataLocation.CALLDATA
 
     def __init__(self, static_offset, dynamic_offset=None):

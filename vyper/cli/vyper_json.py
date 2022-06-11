@@ -48,9 +48,7 @@ def _parse_args(argv):
         nargs="?",
     )
     parser.add_argument(
-        "--version",
-        action="version",
-        version=f"{vyper.__version__}+commit.{vyper.__commit__}",
+        "--version", action="version", version=f"{vyper.__version__}+commit.{vyper.__commit__}"
     )
     parser.add_argument(
         "-o",
@@ -113,10 +111,7 @@ def exc_handler_to_dict(file_path: Union[str, None], exception: Exception, compo
     }
     if hasattr(exception, "message"):
         err_dict.update(
-            {
-                "message": exception.message,  # type: ignore
-                "formattedMessage": str(exception),
-            }
+            {"message": exception.message, "formattedMessage": str(exception)}  # type: ignore
         )
     if file_path is not None:
         err_dict["sourceLocation"] = {"file": file_path}
@@ -128,10 +123,7 @@ def exc_handler_to_dict(file_path: Union[str, None], exception: Exception, compo
                 }
             )
 
-    output_json = {
-        "compiler": f"vyper-{vyper.__version__}",
-        "errors": [err_dict],
-    }
+    output_json = {"compiler": f"vyper-{vyper.__version__}", "errors": [err_dict]}
     return output_json
 
 
@@ -396,11 +388,7 @@ def compile_from_input_dict(
 
 
 def format_to_output_dict(compiler_data: Dict) -> Dict:
-    output_dict: Dict = {
-        "compiler": f"vyper-{vyper.__version__}",
-        "contracts": {},
-        "sources": {},
-    }
+    output_dict: Dict = {"compiler": f"vyper-{vyper.__version__}", "contracts": {}, "sources": {}}
     for id_, (path, data) in enumerate(compiler_data.items()):
 
         output_dict["sources"][path] = {"id": id_}

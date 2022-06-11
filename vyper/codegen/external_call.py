@@ -168,15 +168,7 @@ def _extcodesize_check(address):
     return ["assert", ["extcodesize", address]]
 
 
-def ir_for_external_call(call_expr, context):
-    from vyper.codegen.expr import Expr  # TODO rethink this circular import
-
-    contract_address = Expr.parse_value_expr(call_expr.func.value, context)
-    call_kwargs = _parse_kwargs(call_expr, context)
-    args_ir = [Expr(x, context).ir_node for x in call_expr.args]
-
-    assert isinstance(contract_address.typ, InterfaceType)
-
+def _external_call_helper(contract_address, args_ir, call_kwargs, call_expr, context):
     # expr.func._metadata["type"].return_type is more accurate
     # than fn_sig.return_type in the case of JSON interfaces.
     fn_type = call_expr.func._metadata["type"]
@@ -223,3 +215,17 @@ def ir_for_external_call(call_expr, context):
         ret.append(ret_unpacker)
 
     return IRnode.from_list(ret, typ=return_t, location=MEMORY)
+
+
+def ir_for_external_call(call_expr, context):
+    from vyper.codegen.expr import Expr  # TODO rethink this circular import
+
+    contract_address = Expr.parse_value_expr(call_expr.func.value, context)
+    assert isinstance(contract_address.typ, InterfaceType)
+    args_ir = [Expr(x, context).ir_node for x in call_expr.args]
+    call_kwargs = _parse_kwargs(call_expr, context)
+
+    with contract_address.cache_when_complex("external_contract") as (b1, contract_address):
+        return b1.resolve(
+            _external_call_helper(contract_address, args_ir, call_kwargs, call_expr, context)
+        )

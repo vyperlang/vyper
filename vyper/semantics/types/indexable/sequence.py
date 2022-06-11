@@ -311,12 +311,7 @@ class DynamicArrayPrimitive(BasePrimitive):
 
         max_length = node.slice.value.elements[1].value
         return DynamicArrayDefinition(
-            value_type,
-            max_length,
-            location,
-            is_constant,
-            is_public,
-            is_immutable,
+            value_type, max_length, location, is_constant, is_public, is_immutable
         )
 
 

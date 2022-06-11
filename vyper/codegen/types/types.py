@@ -138,10 +138,7 @@ def parse_integer_typeinfo(typename: str) -> IntegerTypeInfo:
     if not t:
         raise InvalidType(f"Invalid integer type {typename}")  # pragma: notest
 
-    return IntegerTypeInfo(
-        is_signed=t.group(1) != "u",
-        bits=int(t.group(2)),
-    )
+    return IntegerTypeInfo(is_signed=t.group(1) != "u", bits=int(t.group(2)))
 
 
 def is_bytes_m_type(t: "NodeType") -> bool:
@@ -407,10 +404,7 @@ def make_struct_type(name, sigs, members, custom_structs, enums):
 
     for key, value in members:
         if not isinstance(key, vy_ast.Name):
-            raise InvalidType(
-                f"Invalid member variable for struct {key.id}, expected a name.",
-                key,
-            )
+            raise InvalidType(f"Invalid member variable for struct {key.id}, expected a name.", key)
         o[key.id] = parse_type(value, sigs=sigs, custom_structs=custom_structs, enums=enums)
 
     return StructType(o, name)

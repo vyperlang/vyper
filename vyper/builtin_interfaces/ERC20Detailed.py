@@ -5,14 +5,17 @@ NOTE: interface uses `String[1]` where 1 is the lower bound of the string return
 """
 
 interface_code = """
+@view
 @external
 def name() -> String[1]:
     pass
 
+@view
 @external
 def symbol() -> String[1]:
     pass
 
+@view
 @external
 def decimals() -> uint8:
     pass
