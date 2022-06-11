@@ -42,8 +42,9 @@ class _ArrayValueDefinition(ValueTypeDefinition):
         is_constant: bool = False,
         is_public: bool = False,
         is_immutable: bool = False,
+        not_assignable: bool = False,
     ) -> None:
-        super().__init__(location, is_constant, is_public, is_immutable)
+        super().__init__(location, is_constant, is_public, is_immutable, not_assignable)
         self._length = length
         self._min_length = length
 
@@ -123,6 +124,7 @@ class _ArrayValuePrimitive(BasePrimitive):
         is_constant: bool = False,
         is_public: bool = False,
         is_immutable: bool = False,
+        not_assignable: bool = False,
     ) -> _ArrayValueDefinition:
         if not isinstance(node, vy_ast.Subscript):
             raise StructureException(
@@ -134,7 +136,7 @@ class _ArrayValuePrimitive(BasePrimitive):
             raise UnexpectedValue("Node id does not match type name")
 
         length = validation.utils.get_index_value(node.slice)  # type: ignore
-        return cls._type(length, location, is_constant, is_public, is_immutable)
+        return cls._type(length, location, is_constant, is_public, is_immutable, not_assignable)
 
     @classmethod
     def from_literal(cls, node: vy_ast.Constant) -> _ArrayValueDefinition:

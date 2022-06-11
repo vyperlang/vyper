@@ -399,7 +399,12 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             else:
                 validate_expected_type(args[0], IntegerAbstractType())
                 type_list = get_common_types(*args)
-                if not isinstance(args[0], (vy_ast.Constant, vy_ast.Name)):
+
+                args0_is_constant = False
+                if isinstance(args[0], vy_ast.Name) and self.namespace[args[0].id].is_constant:
+                    args0_is_constant = True
+
+                if not isinstance(args[0], vy_ast.Constant) and not args0_is_constant:
                     # range(x, x + CONSTANT)
                     if not isinstance(args[1], vy_ast.BinOp) or not isinstance(
                         args[1].op, vy_ast.Add
@@ -485,6 +490,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             # type check the for loop body using each possible type for iterator value
             type_ = copy.deepcopy(type_)
             type_.is_constant = True
+            type_.not_assignable = True
 
             with self.namespace.enter_scope():
                 try:

@@ -94,6 +94,7 @@ def get_type_from_abi(
     location: DataLocation = DataLocation.UNSET,
     is_constant: bool = False,
     is_public: bool = False,
+    not_assignable: bool = False,
 ) -> BaseTypeDefinition:
     """
     Return a type object from an ABI type definition.
@@ -124,13 +125,21 @@ def get_type_from_abi(
             raise UnknownType(f"ABI type has an invalid length: {type_string}") from None
         try:
             value_type = get_type_from_abi(
-                {"type": value_type_string}, location=location, is_constant=is_constant
+                {"type": value_type_string},
+                location=location,
+                is_constant=is_constant,
+                not_assignable=not_assignable,
             )
         except UnknownType:
             raise UnknownType(f"ABI contains unknown type: {type_string}") from None
         try:
             return ArrayDefinition(
-                value_type, length, location=location, is_constant=is_constant, is_public=is_public
+                value_type,
+                length,
+                location=location,
+                is_constant=is_constant,
+                is_public=is_public,
+                not_assignable=not_assignable,
             )
         except InvalidType:
             raise UnknownType(f"ABI contains unknown type: {type_string}") from None
@@ -138,7 +147,10 @@ def get_type_from_abi(
     else:
         try:
             return namespace[type_string]._type(
-                location=location, is_constant=is_constant, is_public=is_public
+                location=location,
+                is_constant=is_constant,
+                is_public=is_public,
+                not_assignable=not_assignable,
             )
         except KeyError:
             raise UnknownType(f"ABI contains unknown type: {type_string}") from None
@@ -150,6 +162,7 @@ def get_type_from_annotation(
     is_constant: bool = False,
     is_public: bool = False,
     is_immutable: bool = False,
+    not_assignable: bool = False,
 ) -> BaseTypeDefinition:
     """
     Return a type object for the given AST node.
@@ -189,12 +202,16 @@ def get_type_from_annotation(
         # if type can be an array and node is a subscript, create an `ArrayDefinition`
         length = get_index_value(node.slice)
         value_type = get_type_from_annotation(
-            node.value, location, is_constant, False, is_immutable
+            node.value, location, is_constant, False, is_immutable, not_assignable
         )
-        return ArrayDefinition(value_type, length, location, is_constant, is_public, is_immutable)
+        return ArrayDefinition(
+            value_type, length, location, is_constant, is_public, is_immutable, not_assignable
+        )
 
     try:
-        return type_obj.from_annotation(node, location, is_constant, is_public, is_immutable)
+        return type_obj.from_annotation(
+            node, location, is_constant, is_public, is_immutable, not_assignable
+        )
     except AttributeError:
         raise InvalidType(f"'{type_name}' is not a valid type", node) from None
 
@@ -273,8 +290,7 @@ def check_kwargable(node: vy_ast.VyperNode) -> bool:
                 return False
 
     value_type = get_exact_type_from_node(node)
-    # is_constant here actually means not_assignable, and is to be renamed
-    return getattr(value_type, "is_constant", False)
+    return getattr(value_type, "not_assignable", False)
 
 
 def generate_abi_type(type_definition, name=""):

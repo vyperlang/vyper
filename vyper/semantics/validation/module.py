@@ -168,7 +168,7 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
             self.namespace[interface_name].validate_implements(node)
             return
 
-        is_constant, is_public, is_immutable = False, False, False
+        is_constant, is_public, is_immutable, not_assignable = False, False, False, False
         annotation = node.annotation
         if isinstance(annotation, vy_ast.Call):
             # the annotation is a function call, e.g. `foo: constant(uint256)`
@@ -178,6 +178,7 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
                 if call_name == "constant":
                     # declaring a constant
                     is_constant = True
+                    not_assignable = True
 
                 elif call_name == "public":
                     # declaring a public variable
@@ -216,7 +217,7 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
 
         data_loc = DataLocation.CODE if is_immutable else DataLocation.STORAGE
         type_definition = get_type_from_annotation(
-            annotation, data_loc, is_constant, is_public, is_immutable
+            annotation, data_loc, is_constant, is_public, is_immutable, not_assignable
         )
         node._metadata["type"] = type_definition
 

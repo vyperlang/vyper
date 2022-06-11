@@ -22,9 +22,10 @@ class EnumDefinition(MemberTypeDefinition, ValueTypeDefinition):
         is_constant: bool = False,
         is_public: bool = False,
         is_immutable: bool = False,
+        not_assignable: bool = False,
     ) -> None:
         self._id = name
-        super().__init__(location, is_constant, is_public, is_immutable)
+        super().__init__(location, is_constant, is_public, is_immutable, not_assignable)
         for key, val in members.items():
             self.add_member(key, val)
 
@@ -128,9 +129,16 @@ class EnumPrimitive:
         is_constant: bool = False,
         is_public: bool = False,
         is_immutable: bool = False,
+        not_assignable: bool = False,
     ) -> EnumDefinition:
         if not isinstance(node, vy_ast.Name):
             raise StructureException("Invalid type", node)
         return EnumDefinition(
-            self.name, self.members, location, is_constant, is_public, is_immutable
+            self.name,
+            self.members,
+            location,
+            is_constant,
+            is_public,
+            is_immutable,
+            not_assignable,
         )

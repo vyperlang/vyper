@@ -5,7 +5,6 @@ import pytest
 from vyper.exceptions import (
     ArgumentException,
     ImmutableViolation,
-    InvalidLiteral,
     InvalidType,
     IteratorException,
     NamespaceCollision,
@@ -659,7 +658,7 @@ def foo():
     for i in range(a,a-3):
         pass
     """,
-        InvalidLiteral,
+        StructureException,
     ),
     # invalid argument length
     (

@@ -49,8 +49,8 @@ def get_constant_vars() -> Dict:
     """
     result = {}
     for name, members in CONSTANT_ENVIRONMENT_VARS.items():
-        members = {k: v(is_constant=True) for k, v in members.items()}
-        result[name] = StructDefinition(name, members, is_constant=True)
+        members = {k: v(is_constant=True, not_assignable=True) for k, v in members.items()}
+        result[name] = StructDefinition(name, members, is_constant=True, not_assignable=True)
 
     return result
 
@@ -59,7 +59,10 @@ def get_foldable_vars() -> Dict:
     """
     Get a dictionary of foldable environment variables.
     """
-    return {name: type_(is_constant=True) for name, type_ in FOLDABLE_ENVIRONMENT_VARS.items()}
+    return {
+        name: type_(is_constant=True, not_assignable=True)
+        for name, type_ in FOLDABLE_ENVIRONMENT_VARS.items()
+    }
 
 
 def get_mutable_vars() -> Dict:
@@ -67,4 +70,7 @@ def get_mutable_vars() -> Dict:
     Get a dictionary of mutable environment variables (those that are
     modified during the course of contract execution, such as `self`).
     """
-    return {name: type_(is_constant=True) for name, type_ in MUTABLE_ENVIRONMENT_VARS.items()}
+    return {
+        name: type_(is_constant=True, not_assignable=True)
+        for name, type_ in MUTABLE_ENVIRONMENT_VARS.items()
+    }

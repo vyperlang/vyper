@@ -13,11 +13,11 @@ from .numeric import Uint256Definition  # type: ignore
 class AddressDefinition(MemberTypeDefinition, ValueTypeDefinition):
     _id = "address"
     _type_members = {
-        "balance": Uint256Definition(is_constant=True),
-        "codehash": Bytes32Definition(is_constant=True),
-        "codesize": Uint256Definition(is_constant=True),
-        "is_contract": BoolDefinition(is_constant=True),
-        "code": BytesArrayDefinition(is_constant=True),
+        "balance": Uint256Definition(is_constant=True, not_assignable=True),
+        "codehash": Bytes32Definition(is_constant=True, not_assignable=True),
+        "codesize": Uint256Definition(is_constant=True, not_assignable=True),
+        "is_contract": BoolDefinition(is_constant=True, not_assignable=True),
+        "code": BytesArrayDefinition(is_constant=True, not_assignable=True),
     }
 
     @property
