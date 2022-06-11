@@ -99,14 +99,14 @@ Vyper has three builtins for contract creation; all three contract creation buil
 * ``create_minimal_proxy_to(target: address, ...)``
     * Creates an immutable proxy to ``target``
     * Expensive to call (incurs a single ``DELEGATECALL`` overhead on every invocation), cheap to create (since it only deploys ``EIP-1167`` forwarder bytecode)
-    * Does not invoke constructor
+    * Does not have the ability to call a constructor
 * ``create_copy_of(target: address, ...)``
     * Creates a byte-for-byte copy of runtime code stored at ``target``
-    * Cheapest to call (no ``DELEGATECALL`` overhead), expensive to create (200 gas per deployed byte)
-    * Does not invoke constructor
+    * Cheap to call (no ``DELEGATECALL`` overhead), expensive to create (200 gas per deployed byte)
+    * Does not have the ability to call a constructor
 * ``create_with_code_of(target: address, ...)``
     * Deploys a contract using the initcode stored at ``target``
-    * Cheapest to call (no ``DELEGATECALL`` overhead), expensive to create (200 gas per deployed byte)
+    * Cheap to call (no ``DELEGATECALL`` overhead), expensive to create (200 gas per deployed byte)
     * Invokes constructor, requires a special factory contract to be deployed
 
 .. py:function:: create_minimal_proxy_to(target: address, value: uint256 = 0[, salt: bytes32]) -> address
@@ -128,7 +128,7 @@ Vyper has three builtins for contract creation; all three contract creation buil
 
 .. note::
 
-  It is very important that the deployed contract at ``target`` is code you know and trust, and does not implement the ``selfdestruct`` opcode as this will affect the operation of the proxy contract.
+  It is very important that the deployed contract at ``target`` is code you know and trust, and does not implement the ``selfdestruct`` opcode or have upgradeable code as this will affect the operation of the proxy contract.
 
 .. note::
 
@@ -157,7 +157,7 @@ Vyper has three builtins for contract creation; all three contract creation buil
 
 .. py:function:: create_with_code_of(target: address, *args, value: uint256 = 0[, salt: bytes32]) -> address
 
-    Copy the code of ``target`` into memory and execute it as initcode. In other words, this operation interprets the code at ``target`` not as regular runtime code, but as a factory contract. The *args are interpreted as constructor arguments, and are ABI-encoded and included when executing the initcode.
+    Copy the code of ``target`` into memory and execute it as initcode. In other words, this operation interprets the code at ``target`` not as regular runtime code, but as a factory contract. The ``*args`` are interpreted as constructor arguments, and are ABI-encoded and included when executing the initcode.
 
     * ``target``: Address of the contract to copy
     * ``*args``: Constructor arguments to forward to the initcode.
