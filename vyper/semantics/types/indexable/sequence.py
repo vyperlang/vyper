@@ -80,9 +80,9 @@ class ArrayDefinition(_SequenceDefinition):
         length: int,
         location: DataLocation = DataLocation.UNSET,
         is_constant: bool = False,
-        not_assignable: bool = False,
         is_public: bool = False,
         is_immutable: bool = False,
+        not_assignable: bool = False,
     ) -> None:
         super().__init__(
             value_type,
