@@ -100,14 +100,17 @@ Vyper has three builtins for contract creation; all three contract creation buil
     * Creates an immutable proxy to ``target``
     * Expensive to call (incurs a single ``DELEGATECALL`` overhead on every invocation), cheap to create (since it only deploys ``EIP-1167`` forwarder bytecode)
     * Does not have the ability to call a constructor
+    * Does **not** check that there is code at ``target`` (allows one to deploy proxies counterfactually)
 * ``create_copy_of(target: address, ...)``
     * Creates a byte-for-byte copy of runtime code stored at ``target``
     * Cheap to call (no ``DELEGATECALL`` overhead), expensive to create (200 gas per deployed byte)
     * Does not have the ability to call a constructor
+    * Performs an ``EXTCODESIZE`` check to check there is code at ``target``
 * ``create_from_factory(target: address, ...)``
     * Deploys a contract using the initcode stored at ``target``
     * Cheap to call (no ``DELEGATECALL`` overhead), expensive to create (200 gas per deployed byte)
     * Invokes constructor, requires a special "factory" contract to be deployed
+    * Performs an ``EXTCODESIZE`` check to check there is code at ``target``
 
 .. py:function:: create_minimal_proxy_to(target: address, value: uint256 = 0[, salt: bytes32]) -> address
 
