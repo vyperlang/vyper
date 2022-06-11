@@ -134,11 +134,5 @@ class EnumPrimitive:
         if not isinstance(node, vy_ast.Name):
             raise StructureException("Invalid type", node)
         return EnumDefinition(
-            self.name,
-            self.members,
-            location,
-            is_constant,
-            is_public,
-            is_immutable,
-            not_assignable,
+            self.name, self.members, location, is_constant, is_public, is_immutable, not_assignable
         )
