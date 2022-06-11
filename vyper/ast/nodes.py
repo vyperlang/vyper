@@ -1143,6 +1143,7 @@ class Compare(VyperNode):
         """
         Validates if the unary operation is foldable.
         """
+        print("validte foldable")
         left, right = self.left, self.right
         if not isinstance(left, Constant):
             raise UnfoldableNode("Node contains invalid field(s) for evaluation")
@@ -1155,8 +1156,9 @@ class Compare(VyperNode):
             if len(set([type(i) for i in right.elements])) > 1:
                 raise UnfoldableNode("List contains multiple literal types")
 
-        if not isinstance(left, type(right)):
-            raise UnfoldableNode("Cannot compare different literal types")
+        else:
+            if not isinstance(left, type(right)):
+                raise UnfoldableNode("Cannot compare different literal types")
 
         if not isinstance(self.op, (Eq, NotEq)) and not isinstance(left, (Int, Decimal)):
             raise TypeMismatch(f"Invalid literal types for {self.op.description} comparison", self)

@@ -4,7 +4,7 @@ from hypothesis import strategies as st
 
 from vyper import ast as vy_ast
 from vyper import builtin_functions as vy_fn
-from vyper.exceptions import OverflowException
+from vyper.exceptions import InvalidType, OverflowException
 
 
 @pytest.mark.fuzzing
@@ -29,14 +29,13 @@ def foo(a: int256) -> int256:
 @pytest.mark.fuzzing
 @settings(max_examples=50, deadline=1000)
 @given(a=st.integers(min_value=2 ** 255, max_value=2 ** 256 - 1))
-def test_abs_upper_bound_folding(get_contract, a):
+def test_abs_upper_bound_folding(get_contract, assert_compile_failed, a):
     source = f"""
 @external
 def foo(a: int256) -> int256:
     return abs({a})
     """
-    with pytest.raises(OverflowException):
-        get_contract(source)
+    assert_compile_failed(lambda: get_contract(source), InvalidType)
 
 
 def test_abs_lower_bound(get_contract, assert_tx_failed):
