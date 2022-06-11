@@ -19,14 +19,14 @@ BUILTIN_CONSTANTS = {
     "EMPTY_BYTES32": (
         vy_ast.Hex,
         "0x0000000000000000000000000000000000000000000000000000000000000000",
-        Bytes32Definition(),
+        Bytes32Definition,
     ),  # NOQA: E501
-    "ZERO_ADDRESS": (vy_ast.Hex, "0x0000000000000000000000000000000000000000", AddressDefinition()),
-    "MAX_INT128": (vy_ast.Int, 2 ** 127 - 1, Int128Definition()),
-    "MIN_INT128": (vy_ast.Int, -(2 ** 127), Int128Definition()),
-    "MAX_DECIMAL": (vy_ast.Decimal, SizeLimits.MAX_AST_DECIMAL, DecimalDefinition()),
-    "MIN_DECIMAL": (vy_ast.Decimal, SizeLimits.MIN_AST_DECIMAL, DecimalDefinition()),
-    "MAX_UINT256": (vy_ast.Int, 2 ** 256 - 1, Uint256Definition()),
+    "ZERO_ADDRESS": (vy_ast.Hex, "0x0000000000000000000000000000000000000000", AddressDefinition),
+    "MAX_INT128": (vy_ast.Int, 2 ** 127 - 1, Int128Definition),
+    "MIN_INT128": (vy_ast.Int, -(2 ** 127), Int128Definition),
+    "MAX_DECIMAL": (vy_ast.Decimal, SizeLimits.MAX_AST_DECIMAL, DecimalDefinition),
+    "MIN_DECIMAL": (vy_ast.Decimal, SizeLimits.MIN_AST_DECIMAL, DecimalDefinition),
+    "MAX_UINT256": (vy_ast.Int, 2 ** 256 - 1, Uint256Definition),
 }
 
 
@@ -156,7 +156,7 @@ def replace_builtin_constants(vyper_module: vy_ast.Module) -> None:
         Top-level Vyper AST node.
     """
     for name, (node, value, type_) in BUILTIN_CONSTANTS.items():
-        replace_constant(vyper_module, name, node(value=value), True, type_=type_)  # type: ignore
+        replace_constant(vyper_module, name, node(value=value), True, type_=type_())  # type: ignore
 
 
 def replace_user_defined_constants(vyper_module: vy_ast.Module) -> int:
