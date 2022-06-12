@@ -34,7 +34,7 @@ The compiler automatically creates getter functions for all public storage varia
 For public arrays, you can only retrieve a single element via the generated getter. This mechanism exists to avoid high gas costs when returning an entire array. The getter will accept an argument to specify which element to return, for example ``data(0)``.
 
 Declaring Immutable Variables
---------------------------
+-----------------------------
 
 Variables can be marked as ``immutable`` during declaration:
 
@@ -72,6 +72,42 @@ You cannot directly declare tuple types. However, in certain cases you can use l
         # Can also skip the parenthesis
         a, b = self.foo()
 
+
+Storage Layout Overrides
+========================
+
+Storage variables are located within a smart contract at specific storage slots. The compiler allocates the first variable to be stored within `slot 0` and subsequent variables are stored in order.
+
+There are cases where it is necessary to override this pattern and to allocate storage variables in custom slots. This behaviour is often required for upgradeable contracts, to ensure that both contracts (the old contract, and the new contract) store the same variable within the same slot.
+
+This can be performed when compiling  via ``vyper`` by including the ``--storage-layout-file`` flag.
+
+For example, consider upgrading the following contract:
+
+.. code-block:: python
+
+    # old_contract.vy
+    owner: public(address)
+    balanceOf: public(HashMap[address, uint256])
+
+.. code-block:: python
+
+    # new_contract.vy
+    owner: public(address)
+    minter: public(address)
+    balanceOf: public(HashMap[address, uint256])
+
+This would cause an issue when upgrading, as the `balanceOf` mapping would be located at `slot1` in the old contract, and `slot2` in the new contract.
+
+This issue can be avoided by allocating `balanceOf` to `slot1` using the storage layout overrides. The contract can be compiled with ``vyper new_contract.vy --storage-layout-file new_contract_storage.json`` where `new_contract_storage.json` contains the following:
+
+.. code-block:: javascript
+    
+    {
+        "owner": {"type": "address", "location": "storage", "slot": 0}, 
+        "minter": {"type": "address", "location": "storage", "slot": 2}, 
+        "balanceOf": {"type": "HashMap[address, uint256]", "location": "storage", "slot": 1}
+    }
 
 Scoping Rules
 =============
