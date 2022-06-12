@@ -1819,11 +1819,12 @@ class _MinMax(_SimpleBuiltinFunction):
             raise UnfoldableNode
 
         left, right = (i.value for i in node.args)
-        if isinstance(left, Decimal) and (
-            min(left, right) < -(2 ** 127) or max(left, right) >= 2 ** 127
+        # Note: It is unnecessary to check for out-of-bound literals here because
+        # they would have been raised by validation of literal nodes.
+
+        if isinstance(left, int) and (
+            min(left, right) < 0 and max(left, right) >= SizeLimits.MAX_INT256
         ):
-            raise InvalidType("Decimal value is outside of allowable range", node)
-        if isinstance(left, int) and (min(left, right) < 0 and max(left, right) >= 2 ** 127):
             raise TypeMismatch("Cannot perform action between dislike numeric types", node)
 
         value = self._eval_fn(left, right)
