@@ -1610,7 +1610,9 @@ class Abs(_SimpleBuiltinFunction):
         if not SizeLimits.MIN_INT256 <= value <= SizeLimits.MAX_INT256:
             raise OverflowException("Absolute literal value is outside allowable range for int256")
 
-        return vy_ast.Int.from_node(node, value=value)
+        ret = vy_ast.Int.from_node(node, value=value)
+        ret._metadata["type"] = self._return_type
+        return ret
 
     def build_IR(self, expr, context):
         value = Expr.parse_value_expr(expr.args[0], context)
