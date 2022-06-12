@@ -50,7 +50,9 @@ def get_foldable_vars() -> Dict:
     # TODO Fix circular import by moving to new file (?)
     from vyper.ast.folding import BUILTIN_CONSTANTS
 
-    return {k: v[2](is_constant=True, not_assignable=True) for k, v in BUILTIN_CONSTANTS.items()}
+    return {
+        k: v["type"](is_constant=True, not_assignable=True) for k, v in BUILTIN_CONSTANTS.items()
+    }
 
 
 def get_mutable_vars() -> Dict:

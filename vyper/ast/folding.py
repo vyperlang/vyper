@@ -16,17 +16,41 @@ from vyper.semantics.types.utils import get_type_from_annotation
 from vyper.utils import SizeLimits
 
 BUILTIN_CONSTANTS = {
-    "EMPTY_BYTES32": (
-        vy_ast.Hex,
-        "0x0000000000000000000000000000000000000000000000000000000000000000",
-        Bytes32Definition,
-    ),  # NOQA: E501
-    "ZERO_ADDRESS": (vy_ast.Hex, "0x0000000000000000000000000000000000000000", AddressDefinition),
-    "MAX_INT128": (vy_ast.Int, 2 ** 127 - 1, Int128Definition),
-    "MIN_INT128": (vy_ast.Int, -(2 ** 127), Int128Definition),
-    "MAX_DECIMAL": (vy_ast.Decimal, SizeLimits.MAX_AST_DECIMAL, DecimalDefinition),
-    "MIN_DECIMAL": (vy_ast.Decimal, SizeLimits.MIN_AST_DECIMAL, DecimalDefinition),
-    "MAX_UINT256": (vy_ast.Int, 2 ** 256 - 1, Uint256Definition),
+    "EMPTY_BYTES32": {
+        "ast_node": vy_ast.Hex,
+        "value": "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "type": Bytes32Definition,
+    },  # NOQA: E501
+    "ZERO_ADDRESS": {
+        "ast_node": vy_ast.Hex,
+        "value": "0x0000000000000000000000000000000000000000",
+        "type": AddressDefinition,
+    },
+    "MAX_INT128": {
+        "ast_node": vy_ast.Int,
+        "value": 2 ** 127 - 1,
+        "type": Int128Definition,
+    },
+    "MIN_INT128": {
+        "ast_node": vy_ast.Int,
+        "value": -(2 ** 127),
+        "type": Int128Definition,
+    },
+    "MAX_DECIMAL": {
+        "ast_node": vy_ast.Decimal,
+        "value": SizeLimits.MAX_AST_DECIMAL,
+        "type": DecimalDefinition,
+    },
+    "MIN_DECIMAL": {
+        "ast_node": vy_ast.Decimal,
+        "value": SizeLimits.MIN_AST_DECIMAL,
+        "type": DecimalDefinition,
+    },
+    "MAX_UINT256": {
+        "ast_node": vy_ast.Int,
+        "value": 2 ** 256 - 1,
+        "type": Uint256Definition,
+    },
 }
 
 
@@ -155,8 +179,10 @@ def replace_builtin_constants(vyper_module: vy_ast.Module) -> None:
     vyper_module : Module
         Top-level Vyper AST node.
     """
-    for name, (node, value, type_) in BUILTIN_CONSTANTS.items():
-        replace_constant(vyper_module, name, node(value=value), True, type_=type_())  # type: ignore
+    for k, v in BUILTIN_CONSTANTS.items():
+        replace_constant(
+            vyper_module, k, v["ast_node"](value=v["value"]), True, type_=v["type"]()
+        )  # type: ignore
 
 
 def replace_user_defined_constants(vyper_module: vy_ast.Module) -> int:

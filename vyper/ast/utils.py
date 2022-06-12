@@ -71,7 +71,7 @@ def get_constant_value(node: vy_ast.Name) -> Any:
     from vyper.ast.folding import BUILTIN_CONSTANTS
 
     if node.id in BUILTIN_CONSTANTS:
-        return BUILTIN_CONSTANTS[node.id][1]
+        return BUILTIN_CONSTANTS[node.id]["value"]
 
     # Check for user-defined constants
     vyper_module = node.get_ancestor(vy_ast.Module)
