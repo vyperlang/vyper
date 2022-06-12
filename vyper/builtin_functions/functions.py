@@ -1657,7 +1657,7 @@ def _create_preamble(codesize):
 
     from vyper.ir.compile_ir import assembly_to_evm
 
-    evm_len = 0x0b  # 11 bytes
+    evm_len = 0x0B  # 11 bytes
     asm = [
         # use PUSH3 to be able to deal with larger contracts
         "PUSH3",
