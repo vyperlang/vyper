@@ -34,6 +34,9 @@ def foo() -> uint256:
 
     assert contract.foo(a, b) == new_node.value
 
+    folded_contract = get_contract(expected)
+    assert folded_contract.foo() == new_node.value
+
 
 @pytest.mark.fuzzing
 @settings(max_examples=50, deadline=1000)
@@ -59,6 +62,9 @@ def foo() -> uint256:
 
     assert contract.foo(value) == new_node.value
 
+    folded_contract = get_contract(expected)
+    assert folded_contract.foo() == new_node.value
+
 
 @pytest.mark.fuzzing
 @settings(max_examples=50, deadline=1000)
@@ -72,8 +78,17 @@ def foo(a: uint256, b: int128) -> uint256:
     """
     contract = get_contract(source)
 
-    vyper_ast = vy_ast.parse_to_ast(f"shift({value}, {steps})")
-    old_node = vyper_ast.body[0].value
+    expected = f"""
+@external
+def foo() -> uint256:
+    return shift({value}, {steps})
+    """
+    vyper_ast = vy_ast.parse_to_ast(expected)
+    validate_semantics(vyper_ast, None)
+    old_node = vyper_ast.body[0].body[0].value
     new_node = vy_fn.Shift().evaluate(old_node)
 
     assert contract.foo(value, steps) == new_node.value
+
+    folded_contract = get_contract(expected)
+    assert folded_contract.foo() == new_node.value

@@ -1448,11 +1448,10 @@ class BitwiseNot(_SimpleBuiltinFunction):
             raise UnfoldableNode
 
         value = node.args[0].value
-        if value < 0 or value >= 2 ** 256:
-            raise InvalidLiteral("Value out of range for uint256", node.args[0])
-
         value = (2 ** 256 - 1) - value
-        return vy_ast.Int.from_node(node, value=value)
+        ret = vy_ast.Int.from_node(node, value=value)
+        ret._metadata["type"] = self._return_type
+        return ret
 
     @validate_inputs
     def build_IR(self, expr, args, kwargs, context):
@@ -1470,8 +1469,6 @@ class Shift(_SimpleBuiltinFunction):
         if [i for i in node.args if not isinstance(i, vy_ast.Num)]:
             raise UnfoldableNode
         value, shift = [i.value for i in node.args]
-        if value < 0 or value >= 2 ** 256:
-            raise InvalidLiteral("Value out of range for uint256", node.args[0])
         if shift < -(2 ** 127) or shift >= 2 ** 127:
             raise InvalidLiteral("Value out of range for int128", node.args[1])
 
@@ -1479,7 +1476,9 @@ class Shift(_SimpleBuiltinFunction):
             value = value >> -shift
         else:
             value = (value << shift) % (2 ** 256)
-        return vy_ast.Int.from_node(node, value=value)
+        ret = vy_ast.Int.from_node(node, value=value)
+        ret._metadata["type"] = self._return_type
+        return ret
 
     def infer_arg_types(self, node):
         self._validate_arg_types(node)

@@ -2,7 +2,7 @@ import pytest
 
 from vyper.compiler import compile_code
 from vyper.evm.opcodes import EVM_VERSIONS
-from vyper.exceptions import InvalidType, OverflowException, TypeMismatch
+from vyper.exceptions import InvalidLiteral, InvalidType, OverflowException, TypeMismatch
 
 code = """
 @external
@@ -94,6 +94,33 @@ def foo(x: uint8, y: int128) -> uint256:
     return shift(x, y)
     """,
         TypeMismatch,
+    ),
+    (
+        """
+@external
+def foo():
+    a: uint256 = shift(
+        115792089237316195423570985008687907853269984665640564039457584007913129639936,
+        2
+    )
+    """,
+        OverflowException,
+    ),
+    (
+        """
+@external
+def foo():
+    a: uint256 = shift(-1, 2)
+    """,
+        InvalidType,
+    ),
+    (
+        """
+@external
+def foo():
+    a: uint256 = shift(1, 170141183460469231731687303715884105728)
+    """,
+        InvalidLiteral,
     ),
 ]
 
