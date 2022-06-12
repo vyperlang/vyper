@@ -734,15 +734,11 @@ class MethodID(_SimpleBuiltinFunction):
     _id = "method_id"
     _kwargs = {"output_type": KwargSettings("TYPE_DEFINITION", "bytes4")}
 
-    def derive(self, node):
-        value = abi_method_id(node.args[0].value)
-        return value
-
     def evaluate(self, node):
         self.infer_arg_types(node)
 
         output_typ = self.infer_kwarg_types(node)["output_type"].typedef
-        value = self.derive(node)
+        value = abi_method_id(node.args[0].value)
 
         if isinstance(output_typ, Bytes4Definition):
             ret = vy_ast.Hex.from_node(node, value=hex(value))
@@ -2151,7 +2147,7 @@ class ABIEncode(_SimpleBuiltinFunction):
         if isinstance(method_id, vy_ast.Call):
             call_type = get_exact_type_from_node(method_id.func)
             if isinstance(call_type, MethodID):
-                return call_type.derive(method_id)
+                return call_type.evaluate(method_id).value
 
         _check(False)
 

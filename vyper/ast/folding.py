@@ -26,16 +26,8 @@ BUILTIN_CONSTANTS = {
         "value": "0x0000000000000000000000000000000000000000",
         "type": AddressDefinition,
     },
-    "MAX_INT128": {
-        "ast_node": vy_ast.Int,
-        "value": 2 ** 127 - 1,
-        "type": Int128Definition,
-    },
-    "MIN_INT128": {
-        "ast_node": vy_ast.Int,
-        "value": -(2 ** 127),
-        "type": Int128Definition,
-    },
+    "MAX_INT128": {"ast_node": vy_ast.Int, "value": 2 ** 127 - 1, "type": Int128Definition},
+    "MIN_INT128": {"ast_node": vy_ast.Int, "value": -(2 ** 127), "type": Int128Definition},
     "MAX_DECIMAL": {
         "ast_node": vy_ast.Decimal,
         "value": SizeLimits.MAX_AST_DECIMAL,
@@ -46,11 +38,7 @@ BUILTIN_CONSTANTS = {
         "value": SizeLimits.MIN_AST_DECIMAL,
         "type": DecimalDefinition,
     },
-    "MAX_UINT256": {
-        "ast_node": vy_ast.Int,
-        "value": 2 ** 256 - 1,
-        "type": Uint256Definition,
-    },
+    "MAX_UINT256": {"ast_node": vy_ast.Int, "value": 2 ** 256 - 1, "type": Uint256Definition},
 }
 
 
