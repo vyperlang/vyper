@@ -68,29 +68,6 @@ def validate_functions(vy_module: vy_ast.Module) -> None:
     err_list.raise_if_not_empty()
 
 
-def _validate_constant(node: vy_ast.VyperNode) -> None:
-    """
-    Helper function to validate if a pre-folded node is a constant.
-    """
-    if isinstance(node, vy_ast.BinOp):
-        nodes = [node.left, node.right]
-    elif isinstance(node, vy_ast.UnaryOp):
-        nodes = [node.operand]  # type: ignore
-    else:
-        nodes = [node]
-
-    for n in nodes:
-        if isinstance(n, (vy_ast.BinOp, vy_ast.UnaryOp)):
-            _validate_constant(n)
-        elif isinstance(n, vy_ast.Name):
-            namespace = get_namespace()
-            val = get_constant_value(n) or namespace[n.id]
-            if val is None:
-                raise InvalidType("Undefined constant", n)
-        elif not isinstance(n, vy_ast.Int):
-            raise InvalidType("Value must be a literal integer", n)
-
-
 def _is_terminus_node(node: vy_ast.VyperNode) -> bool:
     if getattr(node, "_is_terminus", None):
         return True
@@ -187,15 +164,13 @@ def _validate_msg_data_attribute(node: vy_ast.Attribute) -> None:
 
 
 def _get_for_value(node: vy_ast.VyperNode) -> int:
+    val = None
     if isinstance(node, (vy_ast.BinOp, vy_ast.UnaryOp)):
-        _validate_constant(node)
         val = node.derive()  # type: ignore
     elif isinstance(node, vy_ast.Name):
         val = get_constant_value(node)
     elif isinstance(node, vy_ast.Num):
         val = node.value
-    else:
-        val = None
 
     if val is None:
         raise InvalidLiteral("Element must be a literal or constant variable", node)

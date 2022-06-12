@@ -925,19 +925,13 @@ class BinOp(VyperNode):
         from vyper.ast.utils import get_constant_value
 
         left, right = self.left, self.right
-        if isinstance(left, (BinOp, UnaryOp)):
-            left.validate_foldable()
-        elif isinstance(left, Name):
-            left_val = get_constant_value(left)
-            if left_val is None:
-                raise UnfoldableNode
-
-        if isinstance(right, (BinOp, UnaryOp)):
-            right.validate_foldable()
-        elif isinstance(right, Name):
-            right_val = get_constant_value(right)
-            if right_val is None:
-                raise UnfoldableNode
+        for n in [left, right]:
+            if isinstance(n, (BinOp, UnaryOp)):
+                n.validate_foldable()
+            elif isinstance(n, Name):
+                n_val = get_constant_value(left)
+                if n_val is None:
+                    raise UnfoldableNode
 
     def evaluate(self) -> VyperNode:
         """
@@ -1368,11 +1362,11 @@ class Continue(VyperNode):
 
 def _derive(node):
     if isinstance(node, (BinOp, UnaryOp)):
-        val = node.derive()
+        return node.derive()
     elif isinstance(node, Name):
         from vyper.ast.utils import get_constant_value
 
-        val = get_constant_value(node)
-    else:
-        val = node.value
-    return val
+        return get_constant_value(node)
+    elif isinstance(node, Constant):
+        return node.value
+    return None
