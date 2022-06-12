@@ -2,7 +2,7 @@ import pytest
 
 from vyper.compiler import compile_code
 from vyper.evm.opcodes import EVM_VERSIONS
-from vyper.exceptions import TypeMismatch
+from vyper.exceptions import InvalidType, OverflowException, TypeMismatch
 
 code = """
 @external
@@ -94,10 +94,54 @@ def foo(x: uint8, y: int128) -> uint256:
     return shift(x, y)
     """,
         TypeMismatch,
-    )
+    ),
 ]
 
 
 @pytest.mark.parametrize("bad_code,exc", fail_list)
 def test_shift_fail(get_contract_with_gas_estimation, bad_code, exc, assert_compile_failed):
     assert_compile_failed(lambda: get_contract_with_gas_estimation(bad_code), exc)
+
+
+@pytest.mark.parametrize("op", ["bitwise_and", "bitwise_or", "bitwise_xor"])
+def test_bitwise_fail(get_contract_with_gas_estimation, assert_compile_failed, op):
+    # 2 ** 256 is out of all numeric bounds
+    c1 = f"""
+@external
+def foo():
+    a: uint256 = {op}(
+        1,
+        115792089237316195423570985008687907853269984665640564039457584007913129639936
+    )
+    """
+
+    # Negative integers are not allowed
+    c2 = f"""
+@external
+def foo():
+    a: uint256 = {op}(-1, 1)
+    """
+
+    assert_compile_failed(lambda: get_contract_with_gas_estimation(c1), OverflowException)
+    assert_compile_failed(lambda: get_contract_with_gas_estimation(c2), InvalidType)
+
+
+def test_bitwise_not_fail(get_contract_with_gas_estimation, assert_compile_failed):
+    # 2 ** 256 is out of all numeric bounds
+    c1 = """
+@external
+def foo():
+    a: uint256 = bitwise_not(
+        115792089237316195423570985008687907853269984665640564039457584007913129639936
+    )
+    """
+
+    # Negative integers are not allowed
+    c2 = """
+@external
+def foo():
+    a: uint256 = bitwise_not(-1)
+    """
+
+    assert_compile_failed(lambda: get_contract_with_gas_estimation(c1), OverflowException)
+    assert_compile_failed(lambda: get_contract_with_gas_estimation(c2), InvalidType)

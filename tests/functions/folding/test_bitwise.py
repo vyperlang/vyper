@@ -4,6 +4,7 @@ from hypothesis import strategies as st
 
 from vyper import ast as vy_ast
 from vyper import builtin_functions as vy_fn
+from vyper.semantics import validate_semantics
 
 st_uint256 = st.integers(min_value=0, max_value=2 ** 256 - 1)
 
@@ -21,8 +22,14 @@ def foo(a: uint256, b: uint256) -> uint256:
     """
     contract = get_contract(source)
 
-    vyper_ast = vy_ast.parse_to_ast(f"{fn_name}({a}, {b})")
-    old_node = vyper_ast.body[0].value
+    expected = f"""
+@external
+def foo() -> uint256:
+    return {fn_name}({a}, {b})
+    """
+    vyper_ast = vy_ast.parse_to_ast(expected)
+    validate_semantics(vyper_ast, None)
+    old_node = vyper_ast.body[0].body[0].value
     new_node = vy_fn.DISPATCH_TABLE[fn_name].evaluate(old_node)
 
     assert contract.foo(a, b) == new_node.value
@@ -40,8 +47,14 @@ def foo(a: uint256) -> uint256:
     """
     contract = get_contract(source)
 
-    vyper_ast = vy_ast.parse_to_ast(f"bitwise_not({value})")
-    old_node = vyper_ast.body[0].value
+    expected = f"""
+@external
+def foo() -> uint256:
+    return bitwise_not({value})
+    """
+    vyper_ast = vy_ast.parse_to_ast(expected)
+    validate_semantics(vyper_ast, None)
+    old_node = vyper_ast.body[0].body[0].value
     new_node = vy_fn.BitwiseNot().evaluate(old_node)
 
     assert contract.foo(value) == new_node.value
