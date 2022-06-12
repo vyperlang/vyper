@@ -58,7 +58,7 @@ You cannot directly declare tuple types. However, in certain cases you can use l
 .. code-block:: python
 
     @internal
-    def foo() -> (int128: int128):
+    def foo() -> (int128, int128):
         return 2, 3
 
     @external
