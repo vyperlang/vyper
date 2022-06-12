@@ -1062,11 +1062,6 @@ class AsWeiValue(_SimpleBuiltinFunction):
         if value < 0:
             raise InvalidLiteral("Negative wei value not allowed", node.args[0])
 
-        if isinstance(value, int) and value >= 2 ** 256:
-            raise InvalidLiteral("Value out of range for uint256", node.args[0])
-        if isinstance(value, Decimal) and value >= 2 ** 127:
-            raise InvalidLiteral("Value out of range for decimal", node.args[0])
-
         ret = vy_ast.Int.from_node(node, value=int(value * denom))
         ret._metadata["type"] = self.fetch_call_return(node)
         return ret
@@ -1819,9 +1814,7 @@ class _MinMax(_SimpleBuiltinFunction):
             raise UnfoldableNode
 
         left, right = (i.value for i in node.args)
-        # Note: It is unnecessary to check for out-of-bound literals here because
-        # they would have been raised by validation of literal nodes.
-
+        
         if isinstance(left, int) and (
             min(left, right) < 0 and max(left, right) >= SizeLimits.MAX_INT256
         ):

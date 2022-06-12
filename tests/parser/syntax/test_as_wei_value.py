@@ -1,6 +1,12 @@
 import pytest
 
-from vyper.exceptions import InvalidType, StructureException, UndeclaredDefinition
+from vyper.exceptions import (
+    InvalidLiteral,
+    InvalidType,
+    OverflowException,
+    StructureException,
+    UndeclaredDefinition,
+)
 
 fail_list = [
     (
@@ -27,6 +33,32 @@ def foo():
     x: int128 = as_wei_value(0xf5, "szabo")
     """,
         InvalidType,
+    ),
+    (
+        """
+@external
+def foo():
+    x: uint256 = as_wei_value(-3, "babbage")
+    """,
+        InvalidLiteral,  # Negative value not allowed
+    ),
+    (
+        """
+@external
+def foo():
+    x: uint256 = as_wei_value(115792089237316195423570985008687907853269984665640564039457584007913129639936, "babbage")  # noqa: E501
+    """,
+        OverflowException,  #
+        # 2 ** 256 is out of bounds of uint256, caught by validation of literal nodes
+    ),
+    (
+        """
+@external
+def foo():
+    x: uint256 = as_wei_value(18707220957835557353007165858768422651595.9365500928, "babbage")
+    """,
+        OverflowException,  #
+        # Out of bounds of decimal, caught by validation of literal nodes
     ),
 ]
 
