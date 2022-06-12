@@ -37,6 +37,29 @@ The ``-p`` flag allows you to set a root path that is used when searching for in
 
     $ vyper -p yourProject yourProject/yourFileName.vy
 
+
+.. _compiler-storage-layout:
+
+Storage Layout
+~~~~~~~~~~~~~~
+
+To display the default storage layout for a contract:
+
+::
+
+    $ vyper -f layout yourFileName.vy
+
+This outputs a JSON object detailing the default storage location for all state variables as determined by the compiler.
+
+To override the default storage layout for a contract: 
+
+::
+
+    $ vyper --storage-layout-file storageLayout.json yourFileName.vy
+
+The input to the `--storage-layout-file` flag must match the format of the storage layout output from the ``vyper -f layout`` command.
+
+
 .. _vyper-json:
 
 vyper-json

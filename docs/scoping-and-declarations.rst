@@ -73,8 +73,8 @@ You cannot directly declare tuple types. However, in certain cases you can use l
         a, b = self.foo()
 
 
-Storage Layout Overrides
-========================
+Storage Layout
+==============
 
 Storage variables are located within a smart contract at specific storage slots. The compiler allocates the first variable to be stored within `slot 0` and subsequent variables are stored in order.
 
@@ -108,6 +108,8 @@ This issue can be avoided by allocating `balanceOf` to `slot1` using the storage
         "minter": {"type": "address", "location": "storage", "slot": 2}, 
         "balanceOf": {"type": "HashMap[address, uint256]", "location": "storage", "slot": 1}
     }
+
+For further information on generating the storage layout, see :ref:`Storage Layout <compiler-storage-layout>`.
 
 Scoping Rules
 =============
