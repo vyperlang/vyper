@@ -4,6 +4,7 @@ from hypothesis import strategies as st
 
 from vyper import ast as vy_ast
 from vyper import builtin_functions as vy_fn
+from vyper.semantics import validate_semantics
 
 denoms = [x for k in vy_fn.AsWeiValue.wei_denoms.keys() for x in k]
 
@@ -25,11 +26,20 @@ def foo(a: decimal) -> uint256:
     """
     contract = get_contract(source)
 
-    vyper_ast = vy_ast.parse_to_ast(f"as_wei_value({value:.10f}, '{denom}')")
-    old_node = vyper_ast.body[0].value
+    expected = f"""
+@external
+def foo() -> uint256:
+    return as_wei_value({value}, '{denom}')
+    """
+    vyper_ast = vy_ast.parse_to_ast(expected)
+    validate_semantics(vyper_ast, None)
+    old_node = vyper_ast.body[0].body[0].value
     new_node = vy_fn.AsWeiValue().evaluate(old_node)
 
     assert contract.foo(value) == new_node.value
+
+    folded_contract = get_contract(expected)
+    assert folded_contract.foo() == contract.foo(value)
 
 
 @pytest.mark.fuzzing
@@ -44,8 +54,18 @@ def foo(a: uint256) -> uint256:
     """
     contract = get_contract(source)
 
-    vyper_ast = vy_ast.parse_to_ast(f"as_wei_value({value}, '{denom}')")
-    old_node = vyper_ast.body[0].value
+    expected = f"""
+@external
+def foo() -> uint256:
+    return as_wei_value({value}, '{denom}')
+    """
+
+    vyper_ast = vy_ast.parse_to_ast(expected)
+    validate_semantics(vyper_ast, None)
+    old_node = vyper_ast.body[0].body[0].value
     new_node = vy_fn.AsWeiValue().evaluate(old_node)
 
     assert contract.foo(value) == new_node.value
+
+    folded_contract = get_contract(expected)
+    assert folded_contract.foo() == contract.foo(value)

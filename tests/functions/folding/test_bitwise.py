@@ -35,7 +35,7 @@ def foo() -> uint256:
     assert contract.foo(a, b) == new_node.value
 
     folded_contract = get_contract(expected)
-    assert folded_contract.foo() == new_node.value
+    assert folded_contract.foo() == contract.foo(a, b)
 
 
 @pytest.mark.fuzzing
@@ -63,7 +63,7 @@ def foo() -> uint256:
     assert contract.foo(value) == new_node.value
 
     folded_contract = get_contract(expected)
-    assert folded_contract.foo() == new_node.value
+    assert folded_contract.foo() == contract.foo(value)
 
 
 @pytest.mark.fuzzing
@@ -91,4 +91,4 @@ def foo() -> uint256:
     assert contract.foo(value, steps) == new_node.value
 
     folded_contract = get_contract(expected)
-    assert folded_contract.foo() == new_node.value
+    assert folded_contract.foo() == contract.foo(value, steps)

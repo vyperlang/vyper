@@ -4,6 +4,7 @@ from hypothesis import strategies as st
 
 from vyper import ast as vy_ast
 from vyper import builtin_functions as vy_fn
+from vyper.semantics import validate_semantics
 
 st_decimals = st.decimals(
     min_value=-(2 ** 32), max_value=2 ** 32, allow_nan=False, allow_infinity=False, places=10
@@ -24,11 +25,21 @@ def foo(a: decimal, b: decimal) -> decimal:
     """
     contract = get_contract(source)
 
-    vyper_ast = vy_ast.parse_to_ast(f"{fn_name}({left}, {right})")
-    old_node = vyper_ast.body[0].value
+    expected = f"""
+@external
+def foo() -> decimal:
+    return {fn_name}({left}, {right})
+    """
+
+    vyper_ast = vy_ast.parse_to_ast(expected)
+    validate_semantics(vyper_ast, None)
+    old_node = vyper_ast.body[0].body[0].value
     new_node = vy_fn.DISPATCH_TABLE[fn_name].evaluate(old_node)
 
     assert contract.foo(left, right) == new_node.value
+
+    folded_contract = get_contract(expected)
+    assert folded_contract.foo() == contract.foo(left, right)
 
 
 @pytest.mark.fuzzing
@@ -43,11 +54,21 @@ def foo(a: int128, b: int128) -> int128:
     """
     contract = get_contract(source)
 
-    vyper_ast = vy_ast.parse_to_ast(f"{fn_name}({left}, {right})")
-    old_node = vyper_ast.body[0].value
+    expected = f"""
+@external
+def foo() -> int128:
+    return {fn_name}({left}, {right})
+    """
+
+    vyper_ast = vy_ast.parse_to_ast(expected)
+    validate_semantics(vyper_ast, None)
+    old_node = vyper_ast.body[0].body[0].value
     new_node = vy_fn.DISPATCH_TABLE[fn_name].evaluate(old_node)
 
     assert contract.foo(left, right) == new_node.value
+
+    folded_contract = get_contract(expected)
+    assert folded_contract.foo() == contract.foo(left, right)
 
 
 @pytest.mark.fuzzing
@@ -62,8 +83,47 @@ def foo(a: uint256, b: uint256) -> uint256:
     """
     contract = get_contract(source)
 
-    vyper_ast = vy_ast.parse_to_ast(f"{fn_name}({left}, {right})")
-    old_node = vyper_ast.body[0].value
+    expected = f"""
+@external
+def foo() -> uint256:
+    return {fn_name}({left}, {right})
+    """
+
+    vyper_ast = vy_ast.parse_to_ast(expected)
+    validate_semantics(vyper_ast, None)
+    old_node = vyper_ast.body[0].body[0].value
     new_node = vy_fn.DISPATCH_TABLE[fn_name].evaluate(old_node)
 
     assert contract.foo(left, right) == new_node.value
+
+    folded_contract = get_contract(expected)
+    assert folded_contract.foo() == contract.foo(left, right)
+
+
+@pytest.mark.fuzzing
+@settings(max_examples=50, deadline=1000)
+@given(left=st_int128, right=st_int128)
+@pytest.mark.parametrize("fn_name", ["min", "max"])
+def test_nested_int256(get_contract, left, right, fn_name):
+    source = f"""
+@external
+def foo(a: int256, b: int256) -> int256:
+    return {fn_name}(a + a, b + b)
+    """
+    contract = get_contract(source)
+
+    expected = f"""
+@external
+def foo() -> int256:
+    return {fn_name}({left} + {left}, {right} + {right})
+    """
+
+    vyper_ast = vy_ast.parse_to_ast(expected)
+    validate_semantics(vyper_ast, None)
+    old_node = vyper_ast.body[0].body[0].value
+    new_node = vy_fn.DISPATCH_TABLE[fn_name].evaluate(old_node)
+
+    assert contract.foo(left, right) == new_node.value
+
+    folded_contract = get_contract(expected)
+    assert folded_contract.foo() == contract.foo(left, right)

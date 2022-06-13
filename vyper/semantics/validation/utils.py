@@ -533,14 +533,16 @@ def annotate_foldable_minmax(node: vy_ast.VyperNode, expected_type: BaseTypeDefi
     )
     for n in minmax_nodes:
         try:
-            node.evaluate()
-
+            call_type = get_exact_type_from_node(n.func)
+            call_type.evaluate(node)
         except UnfoldableNode:
             pass
+        except VyperException as exc:
+            raise exc.with_annotation(node) from None
 
         type_list = get_common_types(*n.args)
         if not any(expected_type.compare_type(i) for i in type_list):
-            raise TypeMismatch(f"Expected {expected_type}", n)
+            raise TypeMismatch(f"Input values cannot be cast as {expected_type}", n)
 
         n._metadata["type"] = expected_type
 
