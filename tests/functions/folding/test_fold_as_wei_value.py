@@ -69,3 +69,32 @@ def foo() -> uint256:
 
     folded_contract = get_contract(expected)
     assert folded_contract.foo() == contract.foo(value)
+
+
+@pytest.mark.fuzzing
+@settings(max_examples=10, deadline=1000)
+@given(value=st.integers(min_value=0, max_value=2 ** 128))
+@pytest.mark.parametrize("denom", denoms)
+def test_binop_integer(get_contract, value, denom):
+    source = f"""
+@external
+def foo(a: uint256) -> uint256:
+    return as_wei_value(a, '{denom}')
+    """
+    contract = get_contract(source)
+
+    expected = f"""
+@external
+def foo() -> uint256:
+    return as_wei_value({value} + 100, '{denom}')
+    """
+
+    vyper_ast = vy_ast.parse_to_ast(expected)
+    validate_semantics(vyper_ast, None)
+    old_node = vyper_ast.body[0].body[0].value
+    new_node = vy_fn.AsWeiValue().evaluate(old_node)
+
+    assert contract.foo(value + 100) == new_node.value
+
+    folded_contract = get_contract(expected)
+    assert folded_contract.foo() == contract.foo(value + 100)

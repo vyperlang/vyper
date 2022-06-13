@@ -1053,7 +1053,6 @@ class AsWeiValue(_SimpleBuiltinFunction):
     def evaluate(self, node):
         validate_call_args(node, 2)
         denom = self.get_denomination(node)
-
         value = get_folded_numeric_literal(node.args[0])
 
         if value < 0:
@@ -1070,7 +1069,8 @@ class AsWeiValue(_SimpleBuiltinFunction):
     def infer_arg_types(self, node):
         self._validate_arg_types(node)
         # return a concrete type instead of NumericAbstractType
-        value_type = get_possible_types_from_node(node.args[0]).pop()
+        value_types = get_possible_types_from_node(node.args[0])
+        value_type = value_types[0]
         return [value_type, self._inputs[1][1]]
 
     @validate_inputs
@@ -1556,10 +1556,10 @@ class PowMod256(_SimpleBuiltinFunction):
     def evaluate(self, node):
         validate_call_args(node, 2)
         left, right = (get_folded_numeric_literal(i) for i in node.args)
-        if left.value < 0 or right.value < 0:
+        if left < 0 or right < 0:
             raise UnfoldableNode
 
-        value = (left.value ** right.value) % (2 ** 256)
+        value = (left ** right) % (2 ** 256)
         ret = vy_ast.Int.from_node(node, value=value)
         ret._metadata["type"] = self._return_type
         return ret

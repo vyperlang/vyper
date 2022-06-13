@@ -101,4 +101,4 @@ def get_folded_numeric_literal(node: vy_ast.VyperNode) -> Union[int, Decimal]:
     if isinstance(node, (vy_ast.Decimal, vy_ast.Int)):
         return node.value
     elif isinstance(node, (vy_ast.BinOp, vy_ast.UnaryOp)):
-        return node.derive()
+        return node.derive()  # type: ignore
