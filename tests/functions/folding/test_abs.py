@@ -5,6 +5,7 @@ from hypothesis import strategies as st
 from vyper import ast as vy_ast
 from vyper import builtin_functions as vy_fn
 from vyper.exceptions import InvalidType, OverflowException
+from vyper.semantics import validate_semantics
 
 
 @pytest.mark.fuzzing
@@ -19,11 +20,21 @@ def foo(a: int256) -> int256:
     """
     contract = get_contract(source)
 
-    vyper_ast = vy_ast.parse_to_ast(f"abs({a})")
-    old_node = vyper_ast.body[0].value
+    expected = f"""
+@external
+def foo() -> int256:
+    return abs({a})
+    """
+
+    vyper_ast = vy_ast.parse_to_ast(expected)
+    validate_semantics(vyper_ast, None)
+    old_node = vyper_ast.body[0].body[0].value
     new_node = vy_fn.DISPATCH_TABLE["abs"].evaluate(old_node)
 
     assert contract.foo(a) == new_node.value == abs(a)
+
+    folded_contract = get_contract(expected)
+    assert folded_contract.foo() == abs(a)
 
 
 @pytest.mark.fuzzing
@@ -49,11 +60,10 @@ def foo(a: int256) -> int256:
     assert_tx_failed(lambda: contract.foo(-(2 ** 255)))
 
 
-def test_abs_lower_bound_folded(get_contract, assert_tx_failed):
+def test_abs_lower_bound_folded(get_contract, assert_compile_failed):
     source = """
 @external
 def foo() -> int256:
     return abs(-2**255)
     """
-    with pytest.raises(OverflowException):
-        get_contract(source)
+    assert_compile_failed(lambda: get_contract(source), OverflowException)

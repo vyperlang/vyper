@@ -1596,10 +1596,7 @@ class Abs(_SimpleBuiltinFunction):
         if not isinstance(node.args[0], vy_ast.Int):
             raise UnfoldableNode
 
-        value = node.args[0].value
-        if not SizeLimits.MIN_INT256 <= value <= SizeLimits.MAX_INT256:
-            raise OverflowException("Literal is outside of allowable range for int256")
-        value = abs(value)
+        value = abs(node.args[0].value)
         if not SizeLimits.MIN_INT256 <= value <= SizeLimits.MAX_INT256:
             raise OverflowException("Absolute literal value is outside allowable range for int256")
 
