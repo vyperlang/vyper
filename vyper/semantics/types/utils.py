@@ -291,21 +291,3 @@ def check_kwargable(node: vy_ast.VyperNode) -> bool:
 
     value_type = get_exact_type_from_node(node)
     return getattr(value_type, "not_assignable", False)
-
-
-def generate_abi_type(type_definition, name=""):
-    # TODO oof fixme
-    from vyper.semantics.types.user.struct import StructDefinition
-
-    if isinstance(type_definition, StructDefinition):
-        return {
-            "name": name,
-            "type": "tuple",
-            "components": [generate_abi_type(v, k) for k, v in type_definition.members.items()],
-        }
-    if isinstance(type_definition, TupleDefinition):
-        return {
-            "type": "tuple",
-            "components": [generate_abi_type(i) for i in type_definition.value_type],
-        }
-    return {"name": name, "type": type_definition.canonical_abi_type}

@@ -22,7 +22,6 @@ from vyper.semantics.types.utils import (
     KwargSettings,
     StringEnum,
     check_kwargable,
-    generate_abi_type,
     get_type_from_abi,
     get_type_from_annotation,
 )
@@ -520,7 +519,7 @@ class ContractFunction(BaseTypeDefinition):
 
         return self.return_type
 
-    def to_abi_dict(self) -> List[Dict]:
+    def to_abi_dict(self):
         abi_dict: Dict = {"stateMutability": self.mutability.value}
 
         if self.is_fallback:
@@ -533,15 +532,15 @@ class ContractFunction(BaseTypeDefinition):
             abi_dict["type"] = "function"
             abi_dict["name"] = self.name
 
-        abi_dict["inputs"] = [generate_abi_type(v, k) for k, v in self.arguments.items()]
+        abi_dict["inputs"] = [v.to_abi_dict(name=k) for k, v in self.arguments.items()]
 
         typ = self.return_type
         if typ is None:
             abi_dict["outputs"] = []
         elif isinstance(typ, TupleDefinition) and len(typ.value_type) > 1:  # type: ignore
-            abi_dict["outputs"] = [generate_abi_type(i) for i in typ.value_type]  # type: ignore
+            abi_dict["outputs"] = [t.to_abi_dict() for t in typ.value_type]  # type: ignore
         else:
-            abi_dict["outputs"] = [generate_abi_type(typ)]
+            abi_dict["outputs"] = [typ.to_abi_dict()]
 
         if self.has_default_args:
             # for functions with default args, return a dict for each possible arg count
