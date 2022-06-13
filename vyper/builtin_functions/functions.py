@@ -1537,11 +1537,11 @@ class _AddMulMod(_SimpleBuiltinFunction):
         for arg in node.args:
             if not isinstance(arg, vy_ast.Num):
                 raise UnfoldableNode
-            if arg.value < 0 or arg.value >= 2 ** 256:
-                raise InvalidLiteral("Value out of range for uint256", arg)
 
         value = self._eval_fn(node.args[0].value, node.args[1].value) % node.args[2].value
-        return vy_ast.Int.from_node(node, value=value)
+        ret = vy_ast.Int.from_node(node, value=value)
+        ret._metadata["type"] = self._return_type
+        return ret
 
     @validate_inputs
     def build_IR(self, expr, args, kwargs, context):
