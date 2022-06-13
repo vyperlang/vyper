@@ -281,6 +281,23 @@ class BaseTypeDefinition:
         """
         return self.abi_type.selector_name()
 
+    def to_abi_dict(self, name: str = "") -> Dict[str, Any]:
+        """
+        The JSON ABI description of this type. Note for complex types,
+        the implementation is overriden to be compliant with the spec:
+        https://docs.soliditylang.org/en/v0.8.14/abi-spec.html#json
+        > An object with members name, type and potentially components
+          describes a typed variable. The canonical type is determined
+          until a tuple type is reached and the string description up to
+          that point is stored in type prefix with the word tuple, i.e.
+          it will be tuple followed by a sequence of [] and [k] with
+          integers k. The components of the tuple are then stored in the
+          member components, which is of array type and has the same
+          structure as the top-level object except that indexed is not
+          allowed there.
+        """
+        return {"name": name, "type": self.canonical_abi_type}
+
     def from_annotation(self, node: vy_ast.VyperNode, *args: Any, **kwargs: Any) -> None:
         # always raises, user should have used a primitive
         raise StructureException("Value is not a type", node)
