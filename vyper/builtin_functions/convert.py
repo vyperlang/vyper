@@ -487,6 +487,7 @@ def convert(expr, context):
         # test if arg actually changed. if not, we do not need to use unwrap_location
         test_arg = IRnode.from_list(arg, typ=out_typ)
         if test_arg == ret:
+            original_arg.typ = out_typ
             return original_arg
 
         return IRnode.from_list(b.resolve(ret))

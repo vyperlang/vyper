@@ -475,7 +475,7 @@ class Expr:
 
         # Sanity check - ensure that we aren't dealing with different types
         # This should be unreachable due to the type check pass
-        assert ltyp == rtyp, "unreachable"
+        assert ltyp == rtyp, f"unreachable, {ltyp}!={rtyp}, {self.expr}"
 
         arith = None
         if isinstance(self.expr.op, (vy_ast.Add, vy_ast.Sub)):
