@@ -102,10 +102,7 @@ def set_storage_slots_with_overrides(
 
             type_.set_reentrancy_key_position(StorageSlot(reentrant_slot))
 
-            ret[variable_name] = {
-                "type": "nonreentrant lock",
-                "slot": reentrant_slot,
-            }
+            ret[variable_name] = {"type": "nonreentrant lock", "slot": reentrant_slot}
         else:
             raise StorageLayoutException(
                 f"Could not find storage_slot for {variable_name}. "
@@ -173,10 +170,7 @@ def set_storage_slots(vyper_module: vy_ast.Module) -> StorageLayout:
 
         # TODO this could have better typing but leave it untyped until
         # we nail down the format better
-        ret[variable_name] = {
-            "type": "nonreentrant lock",
-            "slot": storage_slot,
-        }
+        ret[variable_name] = {"type": "nonreentrant lock", "slot": storage_slot}
 
         # TODO use one byte - or bit - per reentrancy key
         # requires either an extra SLOAD or caching the value of the
@@ -226,11 +220,7 @@ def set_code_offsets(vyper_module: vy_ast.Module) -> Dict:
 
         # this could have better typing but leave it untyped until
         # we understand the use case better
-        ret[node.target.id] = {
-            "type": str(type_),
-            "offset": offset,
-            "length": len_,
-        }
+        ret[node.target.id] = {"type": str(type_), "offset": offset, "length": len_}
 
         offset += len_
 

@@ -19,18 +19,11 @@ def _deploy_precompiled_contract(w3: Web3):
     tx_hash = Precompiled.constructor().transact()
     tx_receipt = w3.eth.wait_for_transaction_receipt(tx_hash)
     address = tx_receipt["contractAddress"]
-    return w3.eth.contract(
-        address=address,
-        abi=PRECOMPILED_ABI,
-    )
+    return w3.eth.contract(address=address, abi=PRECOMPILED_ABI)
 
 
 @pytest.mark.parametrize(
-    ("start", "length", "expected"),
-    [
-        (0, 5, PRECOMPILED[:5]),
-        (5, 10, PRECOMPILED[5:][:10]),
-    ],
+    ("start", "length", "expected"), [(0, 5, PRECOMPILED[:5]), (5, 10, PRECOMPILED[5:][:10])]
 )
 def test_address_code_slice(start: int, length: int, expected: bytes, w3: Web3, get_contract):
     code = f"""
@@ -180,9 +173,7 @@ def code_runtime() -> Bytes[32]:
 """
     contract = get_contract(code)
     code_compiled = compiler.compile_code(
-        code,
-        output_formats=["bytecode", "bytecode_runtime"],
-        no_optimize=no_optimize,
+        code, output_formats=["bytecode", "bytecode_runtime"], no_optimize=no_optimize
     )
     assert contract.code_deployment() == bytes.fromhex(code_compiled["bytecode"][2:])[:32]
     assert contract.code_runtime() == bytes.fromhex(code_compiled["bytecode_runtime"][2:])[:32]

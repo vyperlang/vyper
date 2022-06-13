@@ -57,10 +57,7 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
     scope_name = "module"
 
     def __init__(
-        self,
-        module_node: vy_ast.Module,
-        interface_codes: InterfaceDict,
-        namespace: dict,
+        self, module_node: vy_ast.Module, interface_codes: InterfaceDict, namespace: dict
     ) -> None:
         self.ast = module_node
         self.interface_codes = interface_codes or {}
@@ -194,10 +191,7 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
                             else "Immutable definition requires an assignment in the constructor"
                         )
                         raise SyntaxException(
-                            message,
-                            node.node_source_code,
-                            node.lineno,
-                            node.col_offset,
+                            message, node.node_source_code, node.lineno, node.col_offset
                         )
 
                 # remove the outer call node, to handle cases such as `public(map(..))`
@@ -277,10 +271,7 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
 
     def visit_Import(self, node):
         if not node.alias:
-            raise StructureException(
-                "Import requires an accompanying `as` statement",
-                node,
-            )
+            raise StructureException("Import requires an accompanying `as` statement", node)
         _add_import(node, node.name, node.alias, node.alias, self.interface_codes, self.namespace)
 
     def visit_ImportFrom(self, node):

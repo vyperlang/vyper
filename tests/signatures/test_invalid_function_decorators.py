@@ -10,7 +10,7 @@ FAILING_CONTRACTS = [
 @nonreentrant('lock')
 def nonreentrant_foo() -> uint256:
     return 1
-    """,
+    """
 ]
 
 

@@ -80,27 +80,16 @@ def _parse_args(argv):
         description="Pythonic Smart Contract Language for the EVM",
         formatter_class=argparse.RawTextHelpFormatter,
     )
+    parser.add_argument("input_files", help="Vyper sourcecode to compile", nargs="+")
     parser.add_argument(
-        "input_files",
-        help="Vyper sourcecode to compile",
-        nargs="+",
-    )
-    parser.add_argument(
-        "--version",
-        action="version",
-        version=f"{vyper.__version__}+commit.{vyper.__commit__}",
+        "--version", action="version", version=f"{vyper.__version__}+commit.{vyper.__commit__}"
     )
     parser.add_argument(
         "--show-gas-estimates",
         help="Show gas estimates in abi and ir output mode.",
         action="store_true",
     )
-    parser.add_argument(
-        "-f",
-        help=format_options_help,
-        default="bytecode",
-        dest="format",
-    )
+    parser.add_argument("-f", help=format_options_help, default="bytecode", dest="format")
     parser.add_argument(
         "--storage-layout-file",
         help="Override storage slots provided by compiler",
@@ -114,11 +103,7 @@ def _parse_args(argv):
         default=DEFAULT_EVM_VERSION,
         dest="evm_version",
     )
-    parser.add_argument(
-        "--no-optimize",
-        help="Do not optimize",
-        action="store_true",
-    )
+    parser.add_argument("--no-optimize", help="Do not optimize", action="store_true")
     parser.add_argument(
         "--traceback-limit",
         help="Set the traceback limit for error messages reported by the compiler",
@@ -136,10 +121,7 @@ def _parse_args(argv):
         help="Switch to standard JSON mode. Use `--standard-json -h` for available options.",
         action="store_true",
     )
-    parser.add_argument(
-        "--hex-ir",
-        action="store_true",
-    )
+    parser.add_argument("--hex-ir", action="store_true")
     parser.add_argument(
         "-p", help="Set the root path for contract imports", default=".", dest="root_folder"
     )
@@ -248,10 +230,7 @@ def get_interface_codes(root_path: Path, contract_sources: ContractCodes) -> Dic
                     elif isinstance(contents, list) or (
                         "abi" in contents and isinstance(contents["abi"], list)
                     ):
-                        interfaces[file_path][interface_name] = {
-                            "type": "json",
-                            "code": contents,
-                        }
+                        interfaces[file_path][interface_name] = {"type": "json", "code": contents}
 
                     else:
                         raise ValueError(f"Corrupted file: '{valid_path}'")
@@ -302,12 +281,7 @@ def compile_files(
         output_formats = combined_json_outputs
         show_version = True
 
-    translate_map = {
-        "abi_python": "abi",
-        "json": "abi",
-        "ast": "ast_dict",
-        "ir_json": "ir_dict",
-    }
+    translate_map = {"abi_python": "abi", "json": "abi", "ast": "ast_dict", "ir_json": "ir_dict"}
     final_formats = [translate_map.get(i, i) for i in output_formats]
 
     compiler_data = vyper.compile_codes(

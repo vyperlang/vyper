@@ -31,9 +31,7 @@ class GlobalContext:
     @classmethod
     # TODO rename me to `from_module`
     def get_global_context(
-        cls,
-        vyper_module: "vy_ast.Module",
-        interface_codes: Optional[InterfaceImports] = None,
+        cls, vyper_module: "vy_ast.Module", interface_codes: Optional[InterfaceImports] = None
     ) -> "GlobalContext":
         # TODO is this a cyclic import?
         from vyper.ast.signatures.interface import extract_sigs, get_builtin_interfaces
@@ -168,28 +166,18 @@ class GlobalContext:
         if self.get_call_func_name(item) == "public":
             typ = self.parse_type(item.annotation.args[0])
             self._globals[item.target.id] = VariableRecord(
-                item.target.id,
-                len(self._globals),
-                typ,
-                True,
+                item.target.id, len(self._globals), typ, True
             )
         elif self.get_call_func_name(item) == "immutable":
             typ = self.parse_type(item.annotation.args[0])
             self._globals[item.target.id] = VariableRecord(
-                item.target.id,
-                len(self._globals),
-                typ,
-                False,
-                is_immutable=True,
+                item.target.id, len(self._globals), typ, False, is_immutable=True
             )
 
         elif isinstance(item.annotation, (vy_ast.Name, vy_ast.Call, vy_ast.Subscript)):
             typ = self.parse_type(item.annotation)
             self._globals[item.target.id] = VariableRecord(
-                item.target.id,
-                len(self._globals),
-                typ,
-                True,
+                item.target.id, len(self._globals), typ, True
             )
         else:
             raise InvalidType("Invalid global type specified", item)
@@ -203,10 +191,7 @@ class GlobalContext:
 
     def parse_type(self, ast_node):
         return parse_type(
-            ast_node,
-            sigs=self.interface_names,
-            custom_structs=self._structs,
-            enums=self._enums,
+            ast_node, sigs=self.interface_names, custom_structs=self._structs, enums=self._enums
         )
 
     @property
