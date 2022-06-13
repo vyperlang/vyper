@@ -534,7 +534,7 @@ def annotate_foldable_minmax(node: vy_ast.VyperNode, expected_type: BaseTypeDefi
     for n in minmax_nodes:
         try:
             call_type = get_exact_type_from_node(n.func)
-            call_type.evaluate(node)
+            call_type.evaluate(n)
         except UnfoldableNode:
             pass
         except VyperException as exc:

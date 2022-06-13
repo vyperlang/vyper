@@ -99,6 +99,11 @@ def get_folded_numeric_literal(node: vy_ast.VyperNode) -> Union[int, Decimal]:
         raise UnfoldableNode
 
     if isinstance(node, (vy_ast.Decimal, vy_ast.Int)):
-        return node.value
+        val = node.value
     elif isinstance(node, (vy_ast.BinOp, vy_ast.UnaryOp)):
-        return node.derive()  # type: ignore
+        val = node.derive()  # type: ignore
+
+    if val is None:
+        raise UnfoldableNode
+
+    return val
