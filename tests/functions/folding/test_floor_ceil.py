@@ -6,6 +6,7 @@ from hypothesis import strategies as st
 
 from vyper import ast as vy_ast
 from vyper import builtin_functions as vy_fn
+from vyper.semantics import validate_semantics
 
 st_decimals = st.decimals(
     min_value=-(2 ** 32), max_value=2 ** 32, allow_nan=False, allow_infinity=False, places=10
@@ -28,8 +29,18 @@ def foo(a: decimal) -> int256:
     """
     contract = get_contract(source)
 
-    vyper_ast = vy_ast.parse_to_ast(f"{fn_name}({value})")
-    old_node = vyper_ast.body[0].value
+    expected = f"""
+@external
+def foo() -> int256:
+    return {fn_name}({value})
+    """
+
+    vyper_ast = vy_ast.parse_to_ast(expected)
+    validate_semantics(vyper_ast, None)
+    old_node = vyper_ast.body[0].body[0].value
     new_node = vy_fn.DISPATCH_TABLE[fn_name].evaluate(old_node)
 
     assert contract.foo(value) == new_node.value
+
+    folded_contract = get_contract(expected)
+    assert folded_contract.foo() == new_node.value
