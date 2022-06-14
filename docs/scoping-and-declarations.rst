@@ -76,7 +76,7 @@ You cannot directly declare tuple types. However, in certain cases you can use l
 Storage Layout
 ==============
 
-Storage variables are located within a smart contract at specific storage slots. The compiler allocates the first variable to be stored within ``slot 0`` and subsequent variables are stored in order.
+Storage variables are located within a smart contract at specific storage slots. By default, the compiler allocates the first variable to be stored within ``slot 0``; subsequent variables are stored in order after that.
 
 There are cases where it is necessary to override this pattern and to allocate storage variables in custom slots. This behaviour is often required for upgradeable contracts, to ensure that both contracts (the old contract, and the new contract) store the same variable within the same slot.
 
@@ -99,7 +99,7 @@ For example, consider upgrading the following contract:
 
 This would cause an issue when upgrading, as the ``balanceOf`` mapping would be located at ``slot1`` in the old contract, and ``slot2`` in the new contract.
 
-This issue can be avoided by allocating ``balanceOf`` to ``slot1`` using the storage layout overrides. The contract can be compiled with ``vyper new_contract.vy --storage-layout-file new_contract_storage.json`` where `new_contract_storage.json` contains the following:
+This issue can be avoided by allocating ``balanceOf`` to ``slot1`` using the storage layout overrides. The contract can be compiled with ``vyper new_contract.vy --storage-layout-file new_contract_storage.json`` where ``new_contract_storage.json`` contains the following:
 
 .. code-block:: javascript
     

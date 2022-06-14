@@ -49,7 +49,7 @@ To display the default storage layout for a contract:
 
     $ vyper -f layout yourFileName.vy
 
-This outputs a JSON object detailing the default storage location for all state variables as determined by the compiler.
+This outputs a JSON object detailing the locations for all state variables as determined by the compiler.
 
 To override the default storage layout for a contract: 
 
@@ -57,7 +57,7 @@ To override the default storage layout for a contract:
 
     $ vyper --storage-layout-file storageLayout.json yourFileName.vy
 
-The input to the `--storage-layout-file` flag must match the format of the ``.storage_layout`` field from the ``vyper -f layout`` command.
+The input to the ``--storage-layout-file`` flag must match the format of the ``.storage_layout`` field from the ``vyper -f layout`` command.
 
 
 .. _vyper-json:
