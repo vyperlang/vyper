@@ -288,6 +288,12 @@ VALID_IR_MACROS = {
 }
 
 
+EIP_170_LIMIT = 0x6000  # 24kb
+
+SHA3_BASE = 30
+SHA3_PER_WORD = 6
+
+
 def indent(text: str, indent_chars: Union[str, List[str]] = " ", level: int = 1) -> str:
     """
     Indent lines of text in the string ``text`` using the indentation

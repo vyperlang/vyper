@@ -989,10 +989,18 @@ def promote_signed_int(x, bits):
     return IRnode.from_list(ret, annotation=f"promote int{bits}")
 
 
+# general clamp function for all ops and numbers
 def clamp(op, arg, bound):
     with IRnode.from_list(arg).cache_when_complex("clamp_arg") as (b1, arg):
         assertion = ["assert", [op, arg, bound]]
         ret = ["seq", assertion, arg]
+        return IRnode.from_list(b1.resolve(ret), typ=arg.typ)
+
+
+def clamp_nonzero(arg):
+    # TODO: use clamp("ne", arg, 0) once optimizer rules can handle it
+    with IRnode.from_list(arg).cache_when_complex("should_nonzero") as (b1, arg):
+        ret = ["seq", ["assert", arg], arg]
         return IRnode.from_list(b1.resolve(ret), typ=arg.typ)
 
 
