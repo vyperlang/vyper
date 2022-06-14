@@ -139,7 +139,7 @@ Vyper has three builtins for contract creation; all three contract creation buil
 
 .. note::
 
-  In previous versions of vyper, this function was named ``create_forwarder_to``.
+  Before version 0.3.4, this function was named ``create_forwarder_to``.
 
 
 .. py:function:: create_copy_of(target: address, value: uint256 = 0[, salt: bytes32]) -> address
@@ -160,7 +160,7 @@ Vyper has three builtins for contract creation; all three contract creation buil
 
 .. note::
 
-    The implementation of ``create_copy_of`` assumes that the code at ``target`` is smaller than 16MB. While this is much larger than the EIP-170 constraint of 24KB, it is a conservative size limit intended to future proof deployer contracts in case the EIP-170 constraint is lifted. If the code at ``target`` is larger than 16MB, the behavior of ``create_copy_of`` is undefined.
+    The implementation of ``create_copy_of`` assumes that the code at ``target`` is smaller than 16MB. While this is much larger than the EIP-170 constraint of 24KB, it is a conservative size limit intended to future-proof deployer contracts in case the EIP-170 constraint is lifted. If the code at ``target`` is larger than 16MB, the behavior of ``create_copy_of`` is undefined.
 
 
 .. py:function:: create_from_factory(target: address, *args, value: uint256 = 0[, salt: bytes32]) -> address
