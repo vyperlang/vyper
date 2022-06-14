@@ -76,7 +76,7 @@ You cannot directly declare tuple types. However, in certain cases you can use l
 Storage Layout
 ==============
 
-Storage variables are located within a smart contract at specific storage slots. By default, the compiler allocates the first variable to be stored within ``slot 0``; subsequent variables are stored in order after that.
+Storage variables are located within a smart contract at specific storage slots. By default, the compiler allocates the first variable to be stored at ``slot 0``; subsequent variables are stored in order after that.
 
 There are cases where it is necessary to override this pattern and to allocate storage variables in custom slots. This behaviour is often required for upgradeable contracts, to ensure that both contracts (the old contract, and the new contract) store the same variable within the same slot.
 
