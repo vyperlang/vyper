@@ -2246,8 +2246,9 @@ class ABIEncode(BuiltinFunction):
     def infer_kwarg_types(self, node):
         ret = {}
         for kwarg in node.keywords:
-            validate_expected_type(kwarg.value, self._kwargs["method_id"].typ)
-            ret[kwarg.arg] = get_exact_type_from_node(kwarg.value)
+            kwarg_name = kwarg.arg
+            validate_expected_type(kwarg.value, self._kwargs[kwarg_name].typ)
+            ret[kwarg_name] = get_exact_type_from_node(kwarg.value)
         return ret
 
     def fetch_call_return(self, node):

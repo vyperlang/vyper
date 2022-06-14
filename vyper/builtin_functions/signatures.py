@@ -107,9 +107,9 @@ class BuiltinFunction:
         if expected_type == "TYPE_DEFINITION":
             # try to parse the type - call get_type_from_annotation
             # for its side effects (will throw if is not a type)
-            get_type_from_annotation(kwarg.value, DataLocation.UNSET)
+            get_type_from_annotation(arg, DataLocation.UNSET)
         else:
-            validate_expected_type(kwarg.value, expected_type)
+            validate_expected_type(arg, expected_type)
 
     def _validate_arg_types(self, node):
         num_args = len(self._inputs)  # the number of args the signature indicates
@@ -157,7 +157,6 @@ class BuiltinFunction:
         return ret
 
     def infer_kwarg_types(self, node):
-        self._validate_arg_types(node)
         return {i.arg: self._kwargs[i.arg].typ for i in node.keywords}
 
     # utility to grab compile-time value of kwargs with require_literal=True
