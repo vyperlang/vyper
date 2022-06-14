@@ -17,14 +17,7 @@ from vyper.exceptions import (
 )
 from vyper.utils import MAX_DECIMAL_PLACES, SizeLimits, annotate_source_code
 
-NODE_BASE_ATTRIBUTES = (
-    "_children",
-    "_depth",
-    "_parent",
-    "ast_type",
-    "node_id",
-    "_metadata",
-)
+NODE_BASE_ATTRIBUTES = ("_children", "_depth", "_parent", "ast_type", "node_id", "_metadata")
 NODE_SRC_ATTRIBUTES = (
     "col_offset",
     "end_col_offset",
@@ -164,8 +157,7 @@ def _sort_nodes(node_iterable):
         return float("inf") if key is None else key
 
     return sorted(
-        node_iterable,
-        key=lambda k: (sortkey(k.lineno), sortkey(k.col_offset), k.node_id),
+        node_iterable, key=lambda k: (sortkey(k.lineno), sortkey(k.col_offset), k.node_id)
     )
 
 
@@ -686,6 +678,10 @@ class Log(VyperNode):
     __slots__ = ("value",)
 
 
+class EnumDef(VyperNode):
+    __slots__ = ("name", "body")
+
+
 class EventDef(VyperNode):
     __slots__ = ("name", "body")
 
@@ -851,10 +847,7 @@ class Expr(VyperNode):
 
 
 class UnaryOp(VyperNode):
-    __slots__ = (
-        "op",
-        "operand",
-    )
+    __slots__ = ("op", "operand")
 
     def evaluate(self) -> VyperNode:
         """
@@ -887,11 +880,7 @@ class Not(VyperNode):
 
 
 class BinOp(VyperNode):
-    __slots__ = (
-        "left",
-        "op",
-        "right",
-    )
+    __slots__ = ("left", "op", "right")
 
     def evaluate(self) -> VyperNode:
         """
@@ -1000,10 +989,7 @@ class Pow(VyperNode):
 
 
 class BoolOp(VyperNode):
-    __slots__ = (
-        "op",
-        "values",
-    )
+    __slots__ = ("op", "values")
 
     def evaluate(self) -> VyperNode:
         """
@@ -1155,10 +1141,7 @@ class keyword(VyperNode):
 
 
 class Attribute(VyperNode):
-    __slots__ = (
-        "attr",
-        "value",
-    )
+    __slots__ = ("attr", "value")
 
 
 class Subscript(VyperNode):

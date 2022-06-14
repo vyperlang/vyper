@@ -140,7 +140,7 @@ class _ExprTypeChecker:
 
     def types_from_Attribute(self, node):
         # variable attribute, e.g. `foo.bar`
-        var = self.get_exact_type_from_node(node.value)
+        var = self.get_exact_type_from_node(node.value, only_definitions=False)
         name = node.attr
         try:
             return [var.get_member(name, node)]
@@ -155,8 +155,7 @@ class _ExprTypeChecker:
 
             suggestions_str = get_levenshtein_error_suggestions(name, var.members, 0.4)
             raise UndeclaredDefinition(
-                f"Storage variable '{name}' has not been declared. {suggestions_str}",
-                node,
+                f"Storage variable '{name}' has not been declared. {suggestions_str}", node
             ) from None
 
     def types_from_BinOp(self, node):
@@ -186,8 +185,7 @@ class _ExprTypeChecker:
             right = self.get_possible_types_from_node(node.right)
             if any(isinstance(i, ArrayDefinition) for i in left):
                 raise InvalidOperation(
-                    "Left operand in membership comparison cannot be Array type",
-                    node.left,
+                    "Left operand in membership comparison cannot be Array type", node.left
                 )
             if any(not isinstance(i, (DynamicArrayDefinition, ArrayDefinition)) for i in right):
                 raise InvalidOperation(
@@ -225,8 +223,7 @@ class _ExprTypeChecker:
 
         if isinstance(node, vy_ast.Num):
             raise OverflowException(
-                "Numeric literal is outside of allowable range for number types",
-                node,
+                "Numeric literal is outside of allowable range for number types", node
             )
         raise InvalidLiteral(f"Could not determine type for literal value '{node.value}'", node)
 
@@ -262,8 +259,7 @@ class _ExprTypeChecker:
         name = node.id
         if name not in self.namespace and name in self.namespace["self"].members:
             raise InvalidReference(
-                f"'{name}' is a storage variable, access it as self.{name}",
-                node,
+                f"'{name}' is a storage variable, access it as self.{name}", node
             )
         try:
             return [self.namespace[node.id]]

@@ -48,6 +48,10 @@ class StructDefinition(MemberTypeDefinition, ValueTypeDefinition):
     def abi_type(self) -> ABIType:
         return ABI_Tuple([t.abi_type for t in self.members.values()])
 
+    def to_abi_dict(self, name: str = "") -> dict:
+        components = [t.to_abi_dict(name=k) for k, t in self.members.items()]
+        return {"name": name, "type": "tuple", "components": components}
+
 
 class StructPrimitive:
 
@@ -86,10 +90,7 @@ class StructPrimitive:
             raise VariableDeclarationException(
                 "Struct values must be declared via dictionary", node.args[0]
             )
-        if next(
-            (i for i in self.members.values() if isinstance(i, MappingDefinition)),
-            False,
-        ):
+        if next((i for i in self.members.values() if isinstance(i, MappingDefinition)), False):
             raise VariableDeclarationException(
                 "Struct contains a mapping and so cannot be declared as a literal", node
             )
@@ -100,8 +101,7 @@ class StructPrimitive:
             if key is None or key.get("id") not in members:
                 suggestions_str = get_levenshtein_error_suggestions(key.get("id"), members, 1.0)
                 raise UnknownAttribute(
-                    f"Unknown or duplicate struct member. {suggestions_str}",
-                    key or value,
+                    f"Unknown or duplicate struct member. {suggestions_str}", key or value
                 )
             expected_key = keys[i]
             if key.id != expected_key:
@@ -116,8 +116,7 @@ class StructPrimitive:
 
         if members:
             raise VariableDeclarationException(
-                f"Struct declaration does not define all fields: {', '.join(list(members))}",
-                node,
+                f"Struct declaration does not define all fields: {', '.join(list(members))}", node
             )
 
         return StructDefinition(self._id, self.members)

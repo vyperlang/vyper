@@ -17,6 +17,27 @@ from vyper.semantics.validation.levenshtein_utils import get_levenshtein_error_s
 from vyper.semantics.validation.utils import get_exact_type_from_node, get_index_value
 
 
+class KwargSettings:
+    # convenience class which holds metadata about how to process kwargs.
+    # contains the `default` value for the kwarg as a python value, and a
+    # flag `require_literal`, which, when True, indicates that the kwarg
+    # must be set to a compile-time constant at any call site.
+    # (note that the kwarg processing machinery will return a
+    # Python value instead of an AST or IRnode in this case).
+    def __init__(self, typ, default, require_literal=False):
+        self.typ = typ
+        self.default = default
+        self.require_literal = require_literal
+
+
+class TypeTypeDefinition:
+    def __init__(self, typedef):
+        self.typedef = typedef
+
+    def __repr__(self):
+        return f"type({self.typedef})"
+
+
 class StringEnum(enum.Enum):
     @staticmethod
     def auto():
@@ -108,11 +129,7 @@ def get_type_from_abi(
             raise UnknownType(f"ABI contains unknown type: {type_string}") from None
         try:
             return ArrayDefinition(
-                value_type,
-                length,
-                location=location,
-                is_constant=is_constant,
-                is_public=is_public,
+                value_type, length, location=location, is_constant=is_constant, is_public=is_public
             )
         except InvalidType:
             raise UnknownType(f"ABI contains unknown type: {type_string}") from None
@@ -147,6 +164,12 @@ def get_type_from_annotation(
         Type definition object.
     """
     namespace = get_namespace()
+
+    if isinstance(node, vy_ast.Tuple):
+        values = node.elements
+        types = tuple(get_type_from_annotation(v, DataLocation.UNSET) for v in values)
+        return TupleDefinition(types)
+
     try:
         # get id of leftmost `Name` node from the annotation
         type_name = next(i.id for i in node.get_descendants(vy_ast.Name, include_self=True))
@@ -157,8 +180,7 @@ def get_type_from_annotation(
     except UndeclaredDefinition:
         suggestions_str = get_levenshtein_error_suggestions(type_name, namespace, 0.3)
         raise UnknownType(
-            f"No builtin or user-defined type named '{type_name}'. {suggestions_str}",
-            node,
+            f"No builtin or user-defined type named '{type_name}'. {suggestions_str}", node
         ) from None
 
     if getattr(type_obj, "_as_array", False) and isinstance(node, vy_ast.Subscript):
@@ -219,21 +241,3 @@ def check_kwargable(node: vy_ast.VyperNode) -> bool:
     value_type = get_exact_type_from_node(node)
     # is_constant here actually means not_assignable, and is to be renamed
     return getattr(value_type, "is_constant", False)
-
-
-def generate_abi_type(type_definition, name=""):
-    # TODO oof fixme
-    from vyper.semantics.types.user.struct import StructDefinition
-
-    if isinstance(type_definition, StructDefinition):
-        return {
-            "name": name,
-            "type": "tuple",
-            "components": [generate_abi_type(v, k) for k, v in type_definition.members.items()],
-        }
-    if isinstance(type_definition, TupleDefinition):
-        return {
-            "type": "tuple",
-            "components": [generate_abi_type(i) for i in type_definition.value_type],
-        }
-    return {"name": name, "type": type_definition.canonical_abi_type}

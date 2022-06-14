@@ -9,11 +9,7 @@ denoms = [x for k in vy_fn.AsWeiValue.wei_denoms.keys() for x in k]
 
 
 st_decimals = st.decimals(
-    min_value=0,
-    max_value=2 ** 32,
-    allow_nan=False,
-    allow_infinity=False,
-    places=10,
+    min_value=0, max_value=2 ** 32, allow_nan=False, allow_infinity=False, places=10
 )
 
 

@@ -23,6 +23,7 @@ from vyper.codegen.types import (
     ByteArrayLike,
     ByteArrayType,
     DArrayType,
+    EnumType,
     InterfaceType,
     MappingType,
     SArrayType,
@@ -51,12 +52,7 @@ from vyper.utils import (
     string_to_bytes,
 )
 
-ENVIRONMENT_VARIABLES = {
-    "block",
-    "msg",
-    "tx",
-    "chain",
-}
+ENVIRONMENT_VARIABLES = {"block", "msg", "tx", "chain"}
 
 
 def calculate_largest_power(a: int, num_bits: int, is_signed: bool) -> int:
@@ -190,12 +186,12 @@ class Expr:
         self.ir_node.source_pos = getpos(self.expr)
 
     def parse_Int(self):
-        # Literal (mostly likely) becomes int256
-        if self.expr.n < 0:
-            return IRnode.from_list(self.expr.n, typ=BaseType("int256", is_literal=True))
-        # Literal is large enough (mostly likely) becomes uint256.
-        else:
-            return IRnode.from_list(self.expr.n, typ=BaseType("uint256", is_literal=True))
+        typ_ = self.expr._metadata.get("type")
+        if typ_ is None:
+            raise CompilerPanic("Type of integer literal is unknown")
+        new_typ = new_type_to_old_type(typ_)
+        new_typ.is_literal = True
+        return IRnode.from_list(self.expr.n, typ=new_typ)
 
     def parse_Decimal(self):
         val = self.expr.value * DECIMAL_DIVISOR
@@ -307,15 +303,21 @@ class Expr:
                 location = DATA
 
             return IRnode.from_list(
-                ofst,
-                typ=var.typ,
-                location=location,
-                annotation=self.expr.id,
-                mutable=mutable,
+                ofst, typ=var.typ, location=location, annotation=self.expr.id, mutable=mutable
             )
 
     # x.y or x[5]
     def parse_Attribute(self):
+        typ = self.expr._metadata.get("type")
+        if typ is not None:
+            typ = new_type_to_old_type(typ)
+        if isinstance(typ, EnumType):
+            assert typ.name == self.expr.value.id
+            # 0, 1, 2, .. 255
+            enum_id = typ.members[self.expr.attr]
+            value = 2 ** enum_id  # 0 => 0001, 1 => 0010, 2 => 0100, etc.
+            return IRnode.from_list(value, typ=typ)
+
         # x.balance: balance of address x
         if self.expr.attr == "balance":
             addr = Expr.parse_value_expr(self.expr.value, self.context)
@@ -616,11 +618,7 @@ class Expr:
                 arith = ["sdiv", "l", divisor]
 
             elif ltyp == "decimal":
-                arith = [
-                    "sdiv",
-                    ["mul", "l", DECIMAL_DIVISOR],
-                    divisor,
-                ]
+                arith = ["sdiv", ["mul", "l", DECIMAL_DIVISOR], divisor]
 
         elif isinstance(self.expr.op, vy_ast.Mod):
             if right.typ.is_literal and right.value == 0:
@@ -667,8 +665,7 @@ class Expr:
                 # for signed integers, this also prevents negative values
                 clamp_cond = ["lt", right, upper_bound]
                 return IRnode.from_list(
-                    ["seq", ["assert", clamp_cond], ["exp", left, right]],
-                    typ=new_typ,
+                    ["seq", ["assert", clamp_cond], ["exp", left, right]], typ=new_typ
                 )
             elif isinstance(self.expr.right, vy_ast.Int):
                 value = self.expr.right.value
@@ -762,25 +759,13 @@ class Expr:
             ]
             loop = ["repeat", i, 0, len_, right.typ.count, loop_body]
 
-            ret.append(
-                [
-                    "seq",
-                    ["mstore", found_ptr, not_found],
-                    loop,
-                    ["mload", found_ptr],
-                ]
-            )
+            ret.append(["seq", ["mstore", found_ptr, not_found], loop, ["mload", found_ptr]])
 
             return IRnode.from_list(b1.resolve(b2.resolve(ret)), typ="bool")
 
     @staticmethod
     def _signed_to_unsigned_comparision_op(op):
-        translation_map = {
-            "sgt": "gt",
-            "sge": "ge",
-            "sle": "le",
-            "slt": "lt",
-        }
+        translation_map = {"sgt": "gt", "sge": "ge", "sle": "le", "slt": "lt"}
         if op in translation_map:
             return translation_map[op]
         else:
@@ -900,10 +885,7 @@ class Expr:
             # CMC 2022-04-06 maybe this could be branchless with:
             # max(val, 0 - val)
             min_int_val, _ = operand.typ._num_info.bounds
-            return IRnode.from_list(
-                ["sub", 0, clamp("sgt", operand, min_int_val)],
-                typ=operand.typ,
-            )
+            return IRnode.from_list(["sub", 0, clamp("sgt", operand, min_int_val)], typ=operand.typ)
 
     def _is_valid_interface_assign(self):
         if self.expr.args and len(self.expr.args) == 1:
@@ -941,10 +923,7 @@ class Expr:
             darray = Expr(self.expr.func.value, self.context).ir_node
             assert len(self.expr.args) == 0
             assert isinstance(darray.typ, DArrayType)
-            return pop_dyn_array(
-                darray,
-                return_popped_item=True,
-            )
+            return pop_dyn_array(darray, return_popped_item=True)
 
         elif (
             # TODO use expr.func.type.is_internal once

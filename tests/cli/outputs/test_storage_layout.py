@@ -38,22 +38,13 @@ def public_foo3():
     pass
     """
 
-    out = compile_code(
-        code,
-        output_formats=["layout"],
-    )
+    out = compile_code(code, output_formats=["layout"])
 
     assert out["layout"]["storage_layout"] == {
         "nonreentrant.foo": {"type": "nonreentrant lock", "slot": 0},
         "nonreentrant.bar": {"type": "nonreentrant lock", "slot": 1},
-        "foo": {
-            "type": "HashMap[address, uint256]",
-            "slot": 2,
-        },
-        "arr": {
-            "type": "DynArray[uint256, 3]",
-            "slot": 3,
-        },
+        "foo": {"type": "HashMap[address, uint256]", "slot": 2},
+        "arr": {"type": "DynArray[uint256, 3]", "slot": 3},
         "baz": {"type": "Bytes[65]", "slot": 7},
         "bar": {"type": "uint256", "slot": 11},
     }

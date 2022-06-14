@@ -1,10 +1,10 @@
 from vyper import ast as vy_ast
 from vyper.exceptions import StructureException
 from vyper.semantics.types import ArrayDefinition
-from vyper.semantics.types.bases import BaseTypeDefinition
 from vyper.semantics.types.function import ContractFunction, MemberFunctionDefinition
 from vyper.semantics.types.user.event import Event
 from vyper.semantics.types.user.struct import StructPrimitive
+from vyper.semantics.types.utils import TypeTypeDefinition
 from vyper.semantics.validation.utils import (
     get_common_types,
     get_exact_type_from_node,
@@ -40,17 +40,16 @@ class _AnnotationVisitorBase:
 
 class StatementAnnotationVisitor(_AnnotationVisitorBase):
 
-    ignored_types = (
-        vy_ast.Break,
-        vy_ast.Continue,
-        vy_ast.Pass,
-        vy_ast.Raise,
-    )
+    ignored_types = (vy_ast.Break, vy_ast.Continue, vy_ast.Pass, vy_ast.Raise)
 
     def __init__(self, fn_node: vy_ast.FunctionDef, namespace: dict) -> None:
         self.func = fn_node._metadata["type"]
         self.namespace = namespace
         self.expr_visitor = ExpressionAnnotationVisitor(self.func)
+
+        assert len(self.func.kwarg_keys) == len(fn_node.args.defaults)
+        for kw, val in zip(self.func.kwarg_keys, fn_node.args.defaults):
+            self.expr_visitor.visit(val, self.func.arguments[kw])
 
     def visit(self, node):
         super().visit(node)
@@ -96,6 +95,11 @@ class StatementAnnotationVisitor(_AnnotationVisitorBase):
             len_ = len(node.iter.elements)
             self.expr_visitor.visit(node.iter, ArrayDefinition(value_type, len_))
 
+        if isinstance(node.iter, vy_ast.Call) and node.iter.func.id == "range":
+            iter_type = node.target._metadata["type"]
+            for a in node.iter.args:
+                self.expr_visitor.visit(a, iter_type)
+
 
 class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
 
@@ -110,7 +114,7 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
 
     def visit_Attribute(self, node, type_):
         base_type = get_exact_type_from_node(node.value)
-        node._metadata["type"] = base_type.get_member(node.attr, None)
+        node._metadata["type"] = base_type.get_member(node.attr, node)
         self.visit(node.value, None)
 
     def visit_BinOp(self, node, type_):
@@ -118,6 +122,7 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
             type_ = get_common_types(node.left, node.right)
             if len(type_) == 1:
                 type_ = type_.pop()
+        node._metadata["type"] = type_
 
         self.visit(node.left, type_)
         self.visit(node.right, type_)
@@ -125,6 +130,9 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
     def visit_BoolOp(self, node, type_):
         for value in node.values:
             self.visit(value)
+
+    def visit_Bytes(self, node, type_):
+        node._metadata["type"] = type_
 
     def visit_Call(self, node, type_):
         call_type = get_exact_type_from_node(node.func)
@@ -139,6 +147,9 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
             # events and function calls
             for arg, arg_type in zip(node.args, list(call_type.arguments.values())):
                 self.visit(arg, arg_type)
+            for kwarg in node.keywords:
+                # We should only see special kwargs
+                self.visit(kwarg.value, call_type.call_site_kwargs[kwarg.arg].typ)
         elif isinstance(call_type, StructPrimitive):
             # literal structs
             for value, arg_type in zip(node.args[0].values, list(call_type.members.values())):
@@ -147,12 +158,14 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
             assert len(node.args) == len(call_type.arg_types)
             for arg, arg_type in zip(node.args, call_type.arg_types):
                 self.visit(arg, arg_type)
-        elif node.func.id not in ("empty", "range"):
+        else:
             # builtin functions
-            for arg in node.args:
-                self.visit(arg, None)
+            arg_types = call_type.infer_arg_types(node)
+            for arg, arg_type in zip(node.args, arg_types):
+                self.visit(arg, arg_type)
+            kwarg_types = call_type.infer_kwarg_types(node)
             for kwarg in node.keywords:
-                self.visit(kwarg.value, None)
+                self.visit(kwarg.value, kwarg_types[kwarg.arg])
 
     def visit_Compare(self, node, type_):
         if isinstance(node.op, (vy_ast.In, vy_ast.NotIn)):
@@ -180,8 +193,14 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
     def visit_Dict(self, node, type_):
         node._metadata["type"] = type_
 
+    def visit_Hex(self, node, type_):
+        node._metadata["type"] = type_
+
     def visit_Index(self, node, type_):
         self.visit(node.value, type_)
+
+    def visit_Int(self, node, type_):
+        node._metadata["type"] = type_
 
     def visit_List(self, node, type_):
         if type_ is None:
@@ -195,16 +214,25 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
             self.visit(element, type_.value_type)
 
     def visit_Name(self, node, type_):
-        node._metadata["type"] = get_exact_type_from_node(node)
+        if isinstance(type_, TypeTypeDefinition):
+            node._metadata["type"] = type_
+        else:
+            node._metadata["type"] = get_exact_type_from_node(node)
 
     def visit_Subscript(self, node, type_):
+        node._metadata["type"] = type_
+
+        if isinstance(type_, TypeTypeDefinition):
+            # don't recurse; can't annotate AST children of type definition
+            return
+
         if isinstance(node.value, vy_ast.List):
             possible_base_types = get_possible_types_from_node(node.value)
 
             if len(possible_base_types) == 1:
                 base_type = possible_base_types.pop()
 
-            elif type_ and len(possible_base_types) > 1:
+            elif type_ is not None and len(possible_base_types) > 1:
                 for possible_type in possible_base_types:
                     if isinstance(possible_type.value_type, type(type_)):
                         base_type = possible_type
@@ -213,19 +241,16 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
         else:
             base_type = get_exact_type_from_node(node.value)
 
-        if not isinstance(base_type, BaseTypeDefinition):
-            # some nodes are straight type annotations e.g. `String[100]` in
-            # `empty(String[100])`. (other instances are raw_call, convert and
-            # slice). skip annotating them because they do not conform to
-            # the BaseTypeDefinition API (and anyways we do not need to
-            # annotate them!)
-            return
-
         self.visit(node.slice, base_type.get_index_type())
         self.visit(node.value, base_type)
 
     def visit_Tuple(self, node, type_):
         node._metadata["type"] = type_
+
+        if isinstance(type_, TypeTypeDefinition):
+            # don't recurse; can't annotate AST children of type definition
+            return
+
         for element, subtype in zip(node.elements, type_.value_type):
             self.visit(element, subtype)
 
@@ -234,4 +259,5 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
             type_ = get_possible_types_from_node(node.operand)
             if len(type_) == 1:
                 type_ = type_.pop()
+        node._metadata["type"] = type_
         self.visit(node.operand, type_)

@@ -22,6 +22,7 @@ from vyper.exceptions import (
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.bases import DataLocation
 from vyper.semantics.types.function import ContractFunction
+from vyper.semantics.types.user.enum import EnumPrimitive
 from vyper.semantics.types.user.event import Event
 from vyper.semantics.types.utils import check_constant, get_type_from_annotation
 from vyper.semantics.validation.base import VyperNodeVisitorBase
@@ -56,10 +57,7 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
     scope_name = "module"
 
     def __init__(
-        self,
-        module_node: vy_ast.Module,
-        interface_codes: InterfaceDict,
-        namespace: dict,
+        self, module_node: vy_ast.Module, interface_codes: InterfaceDict, namespace: dict
     ) -> None:
         self.ast = module_node
         self.interface_codes = interface_codes or {}
@@ -194,10 +192,7 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
                             else "Immutable definition requires an assignment in the constructor"
                         )
                         raise SyntaxException(
-                            message,
-                            node.node_source_code,
-                            node.lineno,
-                            node.col_offset,
+                            message, node.node_source_code, node.lineno, node.col_offset
                         )
 
                 # remove the outer call node, to handle cases such as `public(map(..))`
@@ -255,6 +250,13 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
         except VyperException as exc:
             raise exc.with_annotation(node) from None
 
+    def visit_EnumDef(self, node):
+        obj = EnumPrimitive.from_EnumDef(node)
+        try:
+            self.namespace[node.name] = obj
+        except VyperException as exc:
+            raise exc.with_annotation(node) from None
+
     def visit_EventDef(self, node):
         obj = Event.from_EventDef(node)
         try:
@@ -273,10 +275,7 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
 
     def visit_Import(self, node):
         if not node.alias:
-            raise StructureException(
-                "Import requires an accompanying `as` statement",
-                node,
-            )
+            raise StructureException("Import requires an accompanying `as` statement", node)
         _add_import(node, node.name, node.alias, node.alias, self.interface_codes, self.namespace)
 
     def visit_ImportFrom(self, node):

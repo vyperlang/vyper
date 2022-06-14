@@ -1,9 +1,8 @@
 import pytest
 from hexbytes import HexBytes
 
-from vyper import compiler
 from vyper.builtin_functions import get_create_forwarder_to_bytecode
-from vyper.exceptions import ArgumentException, StateAccessViolation
+from vyper.exceptions import ArgumentException, InvalidType, StateAccessViolation
 
 pytestmark = pytest.mark.usefixtures("memory_mocker")
 
@@ -63,7 +62,7 @@ def returnten() -> int128:
 @external
 def create_and_call_returnten(inp: address) -> int128:
     x: address = create_forwarder_to(inp)
-    o: int128 = extract32(raw_call(x, convert("\xd0\x1f\xb1\xb8", Bytes[4]), max_outsize=32, gas=50000), 0, output_type=int128)  # noqa: E501
+    o: int128 = extract32(raw_call(x, b"\\xd0\\x1f\\xb1\\xb8", max_outsize=32, gas=50000), 0, output_type=int128)  # noqa: E501
     return o
 
 @external
@@ -104,7 +103,7 @@ def returnten() -> int128:
 @external
 def create_and_call_returnten(inp: address) -> int128:
     x: address = create_forwarder_to(inp)
-    o: int128 = extract32(raw_call(x, convert("\xd0\x1f\xb1\xb8", Bytes[4]), max_outsize=32, gas=50000), 0, output_type=int128)  # noqa: E501
+    o: int128 = extract32(raw_call(x, b"\\xd0\\x1f\\xb1\\xb8", max_outsize=32, gas=50000), 0, output_type=int128)  # noqa: E501
     return o
 
 @external
@@ -233,6 +232,35 @@ def foo(_addr: address) -> int128:
     assert caller.foo(target.address) == 42
 
 
+def test_forward_calldata(get_contract, w3, keccak):
+    target_source = """
+@external
+def foo() -> uint256:
+    return 123
+    """
+
+    caller_source = """
+target: address
+
+@external
+def set_target(target: address):
+    self.target = target
+
+@external
+def __default__():
+    assert 123 == _abi_decode(raw_call(self.target, msg.data, max_outsize=32), uint256)
+    """
+
+    target = get_contract(target_source)
+
+    caller = get_contract(caller_source)
+    caller.set_target(target.address, transact={})
+
+    # manually construct msg.data for `caller` contract
+    sig = keccak("foo()".encode()).hex()[:10]
+    w3.eth.send_transaction({"to": caller.address, "data": sig})
+
+
 def test_static_call_fails_nonpayable(get_contract, assert_tx_failed):
 
     target_source = """
@@ -338,10 +366,20 @@ def foo(_addr: address):
     """,
         ArgumentException,
     ),
+    (
+        """
+@external
+@view
+def foo(_addr: address):
+    raw_call(_addr, 256)
+    """,
+        InvalidType,
+    ),
 ]
 
 
 @pytest.mark.parametrize("source_code,exc", uncompilable_code)
-def test_invalid_type_exception(source_code, exc):
-    with pytest.raises(exc):
-        compiler.compile_code(source_code)
+def test_invalid_type_exception(
+    assert_compile_failed, get_contract_with_gas_estimation, source_code, exc
+):
+    assert_compile_failed(lambda: get_contract_with_gas_estimation(source_code), exc)

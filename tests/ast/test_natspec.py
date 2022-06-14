@@ -276,9 +276,7 @@ def foo():
 
     _, devdoc = parse_natspec(code)
 
-    assert devdoc == {
-        "license": license,
-    }
+    assert devdoc == {"license": license}
 
 
 fields = ["title", "author", "license", "notice", "dev"]
@@ -396,8 +394,7 @@ def foo() -> int128:
     """
 
     with pytest.raises(
-        NatSpecSyntaxException,
-        match="Number of documented return values exceeds actual number",
+        NatSpecSyntaxException, match="Number of documented return values exceeds actual number"
     ):
         parse_natspec(code)
 
@@ -415,7 +412,6 @@ def foo() -> (int128,uint256):
     """
 
     with pytest.raises(
-        NatSpecSyntaxException,
-        match="Number of documented return values exceeds actual number",
+        NatSpecSyntaxException, match="Number of documented return values exceeds actual number"
     ):
         parse_natspec(code)

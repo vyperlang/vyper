@@ -72,10 +72,17 @@ class InterfacePrimitive:
         )
 
     def fetch_call_return(self, node: vy_ast.Call) -> InterfaceDefinition:
-        validate_call_args(node, 1)
-        validate_expected_type(node.args[0], AddressDefinition())
+        self.infer_arg_types(node)
 
         return InterfaceDefinition(self._id, self.members)
+
+    def infer_arg_types(self, node):
+        validate_call_args(node, 1)
+        validate_expected_type(node.args[0], AddressDefinition())
+        return [AddressDefinition()]
+
+    def infer_kwarg_types(self, node):
+        return {}
 
     def validate_implements(self, node: vy_ast.VariableDef) -> None:
         namespace = get_namespace()

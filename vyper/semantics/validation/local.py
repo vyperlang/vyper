@@ -141,35 +141,29 @@ def _validate_address_code_attribute(node: vy_ast.Attribute) -> None:
             if ok_func and ok_args:
                 return
         raise StructureException(
-            "(address).code is only allowed inside of a slice function with a constant length",
-            node,
+            "(address).code is only allowed inside of a slice function with a constant length", node
         )
 
 
 def _validate_msg_data_attribute(node: vy_ast.Attribute) -> None:
     if isinstance(node.value, vy_ast.Name) and node.value.id == "msg" and node.attr == "data":
         parent = node.get_ancestor()
-        if not isinstance(parent, vy_ast.Call) or parent.get("func.id") not in ("slice", "len"):
+        allowed_builtins = ("slice", "len", "raw_call")
+        if not isinstance(parent, vy_ast.Call) or parent.get("func.id") not in allowed_builtins:
             raise StructureException(
-                "msg.data is only allowed inside of the slice or len functions",
-                node,
+                "msg.data is only allowed inside of the slice or len functions", node
             )
         if parent.get("func.id") == "slice":
             ok_args = len(parent.args) == 3 and isinstance(parent.args[2], vy_ast.Int)
             if not ok_args:
                 raise StructureException(
-                    "slice(msg.data) must use a compile-time constant for length argument",
-                    parent,
+                    "slice(msg.data) must use a compile-time constant for length argument", parent
                 )
 
 
 class FunctionNodeVisitor(VyperNodeVisitorBase):
 
-    ignored_types = (
-        vy_ast.Break,
-        vy_ast.Constant,
-        vy_ast.Pass,
-    )
+    ignored_types = (vy_ast.Break, vy_ast.Constant, vy_ast.Pass)
     scope_name = "function"
 
     def __init__(
@@ -188,8 +182,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         if self.func.return_type:
             if not check_for_terminus(fn_node.body):
                 raise FunctionDeclarationException(
-                    f"Missing or unmatched return statements in function '{fn_node.name}'",
-                    fn_node,
+                    f"Missing or unmatched return statements in function '{fn_node.name}'", fn_node
                 )
 
         if self.func.mutability == StateMutability.PURE:
@@ -256,6 +249,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         target.validate_modification(node, self.func.mutability)
 
         self.expr_visitor.visit(node.value)
+        self.expr_visitor.visit(node.target)
 
     def visit_AugAssign(self, node):
         if isinstance(node.value, vy_ast.Tuple):
@@ -354,8 +348,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                         args[1].op, vy_ast.Add
                     ):
                         raise StructureException(
-                            "Second element must be the first element plus a literal value",
-                            args[0],
+                            "Second element must be the first element plus a literal value", args[0]
                         )
                     if not vy_ast.compare_nodes(args[0], args[1].left):
                         raise StructureException(
@@ -394,7 +387,14 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             if assign:
                 raise ImmutableViolation("Cannot modify array during iteration", assign)
 
-        if node.iter.get("value.id") == "self":
+        # Check if `iter` is a storage variable. get_descendants` is used to check for
+        # nested `self` (e.g. structs)
+        iter_is_storage_var = (
+            isinstance(node.iter, vy_ast.Attribute)
+            and len(node.iter.get_descendants(vy_ast.Name, {"id": "self"})) > 0
+        )
+
+        if iter_is_storage_var:
             # check if iterated value may be modified by function calls inside the loop
             iter_name = node.iter.attr
             for call_node in node.get_descendants(vy_ast.Call, {"func.value.id": "self"}):
