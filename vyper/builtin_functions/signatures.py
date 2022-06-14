@@ -154,6 +154,7 @@ class BuiltinFunction:
         return ret
 
     def infer_kwarg_types(self, node):
+        self._validate_arg_types(node)
         return {i.arg: self._kwargs[i.arg].typ for i in node.keywords}
 
     # utility to grab compile-time value of kwargs with require_literal=True

@@ -2238,8 +2238,17 @@ class ABIEncode(BuiltinFunction):
 
     _kwargs = {
         "ensure_tuple": KwargSettings(BoolDefinition(), True, require_literal=True),
-        "method_id": KwargSettings(Bytes4Definition(), None, require_literal=True),
+        "method_id": KwargSettings(
+            (Bytes4Definition(), BytesArrayDefinition(4)), None, require_literal=True
+        ),
     }
+
+    def infer_kwarg_types(self, node):
+        ret = {}
+        for kwarg in node.keywords:
+            validate_expected_type(kwarg.value, self._kwargs["method_id"].typ)
+            ret[kwarg.arg] = get_exact_type_from_node(kwarg.value)
+        return ret
 
     def fetch_call_return(self, node):
         kwargs = self.fetch_literal_kwargs(node)
@@ -2273,6 +2282,9 @@ class ABIEncode(BuiltinFunction):
     def _parse_method_id(method_id_literal):
         if method_id_literal is None:
             return None
+        if isinstance(method_id_literal, bytes):
+            assert len(method_id_literal) == 4
+            return fourbytes_to_int(method_id_literal)
         if method_id_literal.startswith("0x"):
             method_id_literal = method_id_literal[2:]
         return fourbytes_to_int(bytes.fromhex(method_id_literal))
