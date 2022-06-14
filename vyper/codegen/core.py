@@ -188,7 +188,7 @@ def copy_bytes(dst, src, length, length_bound):
         # correctness: do not clobber dst
         if length_bound == 0:
             return IRnode.from_list(["seq"], annotation=annotation)
-        # performance: if we know that length.value is 0, do not copy anything
+        # performance: if we know that length is 0, do not copy anything
         if length.value == 0:
             return IRnode.from_list(["seq"], annotation=annotation)
 
