@@ -185,8 +185,11 @@ def copy_bytes(dst, src, length, length_bound):
 
         assert isinstance(length_bound, int) and length_bound >= 0
 
-        # performance and correctness: do not clobber dst
-        if length_bound == 0 or length.value == 0:
+        # correctness: do not clobber dst
+        if length_bound == 0:
+            return IRnode.from_list(["seq"], annotation=annotation)
+        # performance: if we know that length.value is 0, do not copy anything
+        if length.value == 0:
             return IRnode.from_list(["seq"], annotation=annotation)
 
         assert src.is_pointer and dst.is_pointer
