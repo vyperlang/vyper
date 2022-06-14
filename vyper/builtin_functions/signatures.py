@@ -15,8 +15,8 @@ from vyper.semantics.types import (
     StructDefinition,
     TupleDefinition,
 )
-from vyper.semantics.types.bases import BaseTypeDefinition
-from vyper.semantics.types.utils import KwargSettings, TypeTypeDefinition
+from vyper.semantics.types.bases import BaseTypeDefinition, DataLocation
+from vyper.semantics.types.utils import KwargSettings, TypeTypeDefinition, get_type_from_annotation
 from vyper.semantics.validation.utils import get_exact_type_from_node, validate_expected_type
 
 
@@ -75,6 +75,7 @@ def process_inputs(wrapped_fn):
 
         # note: must compile in source code order, left-to-right
         expected_kwarg_types = self.infer_kwarg_types(node)
+
         for k in node.keywords:
             kwarg_settings = self._kwargs[k.arg]
             expected_kwarg_type = expected_kwarg_types[k.arg]
@@ -113,7 +114,16 @@ class BuiltinFunction:
             validate_expected_type(arg, expected)
 
         for kwarg in node.keywords:
-            validate_expected_type(kwarg.value, self._kwargs[kwarg.arg].typ)
+            expected_type = self._kwargs[kwarg.arg].typ
+
+            # TODO using "TYPE_DEFINITION" is a kludge in derived classes,
+            # refactor me.
+            if expected_type == "TYPE_DEFINITION":
+                # try to parse the type - call get_type_from_annotation
+                # for its side effects (will throw if is not a type)
+                get_type_from_annotation(kwarg.value, DataLocation.UNSET)
+            else:
+                validate_expected_type(kwarg.value, expected_type)
 
         # typecheck varargs. we don't have type info from the signature,
         # so ensure that the types of the args can be inferred exactly.
