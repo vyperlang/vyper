@@ -100,6 +100,17 @@ class BuiltinFunction:
     _has_varargs = False
     _kwargs: Dict[str, KwargSettings] = {}
 
+    # helper function to deal with TYPE_DEFINITIONs
+    def _validate_single(self, arg, expected_type):
+        # TODO using "TYPE_DEFINITION" is a kludge in derived classes,
+        # refactor me.
+        if expected_type == "TYPE_DEFINITION":
+            # try to parse the type - call get_type_from_annotation
+            # for its side effects (will throw if is not a type)
+            get_type_from_annotation(kwarg.value, DataLocation.UNSET)
+        else:
+            validate_expected_type(kwarg.value, expected_type)
+
     def _validate_arg_types(self, node):
         num_args = len(self._inputs)  # the number of args the signature indicates
 
@@ -111,19 +122,11 @@ class BuiltinFunction:
         validate_call_args(node, expect_num_args, self._kwargs)
 
         for arg, (_, expected) in zip(node.args, self._inputs):
-            validate_expected_type(arg, expected)
+            self._validate_single(arg, expected)
 
         for kwarg in node.keywords:
             expected_type = self._kwargs[kwarg.arg].typ
-
-            # TODO using "TYPE_DEFINITION" is a kludge in derived classes,
-            # refactor me.
-            if expected_type == "TYPE_DEFINITION":
-                # try to parse the type - call get_type_from_annotation
-                # for its side effects (will throw if is not a type)
-                get_type_from_annotation(kwarg.value, DataLocation.UNSET)
-            else:
-                validate_expected_type(kwarg.value, expected_type)
+            self._validate_single(kwarg.value, expected_type)
 
         # typecheck varargs. we don't have type info from the signature,
         # so ensure that the types of the args can be inferred exactly.
