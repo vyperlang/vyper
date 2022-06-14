@@ -124,8 +124,8 @@ def _dynarray_make_setter(dst, src):
         # if the data is not validated, we must loop to unpack
         should_loop |= needs_clamp(src.typ.subtype, src.encoding)
 
-        # if the subtype is dynamic, there might be a lot of
-        # unused space inside of each element. for instance
+        # performance: if the subtype is dynamic, there might be a lot
+        # of unused space inside of each element. for instance
         # DynArray[DynArray[uint256, 100], 5] where all the child
         # arrays are empty - for this case, we recursively call
         # into make_setter instead of straight bytes copy

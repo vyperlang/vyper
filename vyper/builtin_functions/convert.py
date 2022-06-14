@@ -484,7 +484,9 @@ def convert(expr, context):
         else:
             raise StructureException(f"Conversion to {out_typ} is invalid.", arg_ast)
 
-        # test if arg actually changed. if not, we do not need to use unwrap_location
+        # test if arg actually changed. if not, we do not need to use
+        # unwrap_location (this can reduce memory traffic for downstream
+        # operations which are in-place, like the returndata routine)
         test_arg = IRnode.from_list(arg, typ=out_typ)
         if test_arg == ret:
             original_arg.typ = out_typ
