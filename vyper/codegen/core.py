@@ -526,13 +526,25 @@ def LOAD(ptr: IRnode) -> IRnode:
     return IRnode.from_list([op, ptr])
 
 
+# must evaluate exactly once
+def eval_once_check(name):
+    # an IRnode which enforces uniqueness. include with a side-effecting
+    # operation to sanity check that the codegen pipeline only generates
+    # the side-effecting operation once (otherwise, IR-to-assembly will
+    # throw a duplicate label exception). there is no runtime overhead
+    # since the jumpdest gets optimized out in the final stage of assembly.
+    return IRnode.from_list(["unique_symbol", name])
+
+
 def STORE(ptr: IRnode, val: IRnode) -> IRnode:
     if ptr.location is None:
         raise CompilerPanic("cannot dereference non-pointer type")
     op = ptr.location.store_op
     if op is None:
         raise CompilerPanic(f"unreachable {ptr.location}")  # pragma: notest
-    return IRnode.from_list([op, ptr, val])
+
+    _check = _freshname(f"{op}_")
+    return IRnode.from_list(["seq", eval_once_check(_check), [op, ptr, val]])
 
 
 # Unwrap location

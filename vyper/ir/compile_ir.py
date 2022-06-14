@@ -227,7 +227,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
     if existing_labels is None:
         existing_labels = set()
     if not isinstance(existing_labels, set):
-        raise CompilerPanic(f"Incorrect type for existing_labels: {type(existing_labels)}")
+        raise CompilerPanic(f"must be set(), but got {type(existing_labels)}")
 
     # Opcodes
     if isinstance(code.value, str) and code.value.upper() in get_opcodes():
@@ -694,6 +694,18 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         pop_scoped_vars = []
 
         return ["_sym_" + label_name, "JUMPDEST"] + body_asm + pop_scoped_vars
+
+    elif code.value == "unique_symbol":
+        symbol = code.args[0].value
+        assert isinstance(symbol, str)
+
+        if symbol in existing_labels:
+            raise Exception(f"symbol {symbol} already exists!")
+        else:
+            existing_labels.add(symbol)
+
+        return []
+
 
     elif code.value == "exit_to":
         raise CodegenPanic("exit_to not implemented yet!")
