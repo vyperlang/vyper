@@ -8,6 +8,7 @@ from vyper.utils import (
     ceil32,
     evm_div,
     evm_mod,
+    int_bounds,
     int_log2,
     is_power_of_two,
     signed_to_unsigned,
@@ -104,55 +105,74 @@ def _wrap256(x, unsigned=UNSIGNED):
 
 def _comparison_helper(binop, args, prefer_strict=False):
     assert binop in COMPARISON_OPS
-    unsigned = not binop.startswith("s")
-    is_strict = binop.endswith("e")
-    is_gt = "g" in binop
 
     if _is_int(args[0]):
         binop = _flip_comparison_op(binop)
         args = [args[1], args[0]]
 
-    arg0 = args[0]
-    arg1 = args[1]
+    unsigned = not binop.startswith("s")
+    is_strict = binop.endswith("t")
+    is_gt = "g" in binop
 
     # local version of _evm_int which defaults to the current binop's signedness
     def _int(x):
         return _evm_int(x, unsigned=unsigned)
 
-    # (le x 0) seems like a linting issue actually
-    if binop in {"le"} and _int(args[1]) == 0:
-        return ("iszero", [args[0]])
+    lo, hi = int_bounds(bits=256, signed=not unsigned)
 
-    if binop == "ge" and _int(args[1]) == 0:
+    if is_gt:
+        almost_always, never = lo, hi
+    else:
+        almost_always, never = hi, lo
+
+    if is_strict and _int(args[1]) == never:
+        # e.g. gt x MAX_UINT256, slt x MIN_INT256
+        return (0, [])
+
+    if not is_strict and _int(args[1]) == almost_always:
+        # e.g. ge x MIN_UINT256, sle x MAX_INT256
         return (1, [])
 
     if binop == "lt":
-        if _int(args[1]) == 0:
-            return (0, [])
+        # special case, not covered by the others
         if _int(args[1]) == 1:
             return ("iszero", [args[0]])
-
-    # gt x 0 => x != 0
-    if binop == "gt" and _int(args[1]) == 0:
-        return ("iszero", [["iszero", args[0]]])
+    if binop == "gt":
+        # another special case
+        if _int(args[1]) == 0:
+            # improve codesize (not gas)
+            return ("iszero", [["iszero", args[0]]])
 
     if is_strict != prefer_strict and _is_int(args[1]):
         rhs = _int(args[1])
 
-        # x > 1 => x >= 2
-        # x < 1 => x <= 0
-        new_rhs = rhs + 1 if op_is_gt else rhs - 1
+        if prefer_strict > is_strict and rhs == never:
+            # e.g. ge x MAX_UINT256, sle x MIN_INT256
+            return ("eq", args)
+        if is_strict > prefer_strict and rhs == almost_always:
+            # e.g. gt x MIN_UINT256, slt x MAX_INT256
+            return ("ne", args)
 
-        if _wrap(new_rhs) != new_rhs:
-            # always false. ex. (gt x MAX_UINT256)
-            # note that the wrapped version (ge x 0) is always true.
-            new_val = 0
-            new_args = []
+        if is_gt == (is_strict > prefer_strict):
+            # x > 1 => x >= 2
+            # x < 1 => x <= 0
+            new_rhs = rhs + 1
+        else:
+            # x >= 1 => x > 0
+            # x <= 1 => x < 2
+            new_rhs = rhs - 1
 
+        # if args[1] is OOB, it should have been handled above
+        # in the always/never cases
+        assert _wrap256(new_rhs, unsigned) == new_rhs
+
+        if prefer_strict:
+            # e.g. "sge" => "sgt"
+            new_op = binop.replace("e", "t")
         else:
             # e.g. "sgt" => "sge"
-            new_val = binop.replace("t", "e")
-            new_args = [args[0], new_rhs]
+            new_op = binop.replace("t", "e")
+        return (new_op, [args[0], new_rhs])
 
 
 # def _optimize_arith(
@@ -305,10 +325,15 @@ def _optimize_binop(binop, args, ann, parent_op):
     ##
 
     if binop == "ne":
+        # trigger other optimizations
         return finalize("iszero", ["eq", *args])
 
     if binop == "eq" and _int(args[1]) == 0:
         return finalize("iszero", [args[0]])
+
+    if binop == "eq" and _int(args[1], SIGNED) == -1:
+        # equal gas, but better codesize
+        return finalize("iszero", [["not", args[0]]])
 
     # note: in places where truthy is accepted, sequences of
     # ISZERO ISZERO will be optimized out, so we try to rewrite
@@ -338,7 +363,11 @@ def _optimize_binop(binop, args, ann, parent_op):
 
     if binop in COMPARISON_OPS:
         prefer_strict = not is_truthy
-        return finalize(_comparison_helper(binop, args, prefer_strict=prefer_strict))
+        res = _comparison_helper(binop, args, prefer_strict=prefer_strict)
+        if res is None:
+            return res
+        new_op, new_args = res
+        return finalize(new_op, new_args)
 
     # no optimization happened
     return None

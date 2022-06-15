@@ -16,9 +16,9 @@ optimize_list = [
     (["seq", ["assert", ["lt", 1, 2]]], ["seq"]),
     (["seq", ["assert", ["lt", 1, 2]], 2], [2]),
     # condition rewriter
-    (["if", ["eq", "x", "y"], "pass"], ["if", ["iszero", ["sub", "x", "y"]], "pass"]),
+    (["if", ["eq", "x", "y"], "pass"], ["if", ["iszero", ["xor", "x", "y"]], "pass"]),
     (["if", "cond", 1, 0], ["if", ["iszero", "cond"], 0, 1]),
-    (["assert", ["eq", "x", "y"]], ["assert", ["iszero", ["sub", "x", "y"]]]),
+    (["assert", ["eq", "x", "y"]], ["assert", ["iszero", ["xor", "x", "y"]]]),
     # nesting
     (["mstore", 0, ["eq", 1, 2]], ["mstore", 0, 0]),
     # conditions
@@ -26,7 +26,8 @@ optimize_list = [
     (["ge", ["sload", 0], 0], None),  # no-op
     (["iszero", ["gt", "x", 2 ** 256 - 1]], [1]),  # x >= MAX_UINT256 == False
     (["iszero", ["sgt", "x", 2 ** 255 - 1]], [1]),  # signed x >= MAX_INT256 == False
-    (["iszero", ["eq", -1, "x"]], ["iszero", ["not", "x"]]),
+    (["eq", -1, "x"], ["iszero", ["not", "x"]]),
+    (["iszero", ["eq", -1, "x"]], ["iszero", ["iszero", ["not", "x"]]]),
     (["le", "x", 0], ["iszero", "x"]),
     (["le", 0, "x"], [1]),
     (["le", 0, ["sload", 0]], None),  # no-op
