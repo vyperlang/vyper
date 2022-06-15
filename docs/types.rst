@@ -343,8 +343,7 @@ The members are represented by ``uint256`` values in the form of 2\ :sup:`n` whe
 Reference Types
 ===============
 
-Reference types do not fit into 32 bytes. Because of this, copying their value is not as feasible as
-with value types. Therefore only the location, i.e. the reference, of the data is passed.
+Reference types are those whose components can be modified.
 
 .. index:: !arrays
 
