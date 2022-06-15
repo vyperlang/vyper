@@ -1,7 +1,6 @@
 import pytest
 
 from vyper import compiler
-from vyper.exceptions import TypeMismatch
 
 valid_list = [
     """
