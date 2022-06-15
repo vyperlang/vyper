@@ -7,14 +7,7 @@ from vyper.codegen.expr import Expr
 from vyper.codegen.ir_node import IRnode
 from vyper.codegen.types.convert import new_type_to_old_type
 from vyper.exceptions import CompilerPanic, TypeMismatch
-from vyper.semantics.types import (
-    ArrayDefinition,
-    BytesArrayDefinition,
-    DynamicArrayDefinition,
-    StringDefinition,
-    StructDefinition,
-    TupleDefinition,
-)
+from vyper.semantics.types import ValueTypeDefinition
 from vyper.semantics.types.bases import BaseTypeDefinition, DataLocation
 from vyper.semantics.types.utils import KwargSettings, TypeTypeDefinition, get_type_from_annotation
 from vyper.semantics.validation.utils import get_exact_type_from_node, validate_expected_type
@@ -32,7 +25,6 @@ def process_arg(arg, expected_arg_type, context):
 
     if isinstance(expected_arg_type, BaseTypeDefinition):
         return Expr(arg, context).ir_node
-
 
     raise CompilerPanic(f"Unexpected type: {expected_arg_type}")  # pragma: notest
 
@@ -150,26 +142,6 @@ class BuiltinFunction:
 
     def infer_kwarg_types(self, node):
         return {i.arg: self._kwargs[i.arg].typ for i in node.keywords}
-
-    # utility to grab compile-time value of kwargs with require_literal=True
-    def fetch_literal_kwargs(self, node):
-        # don't care about evaluation order since we are just grabbing literals
-        kw_nodes = {k.arg: k.value for k in node.keywords}
-
-        ret = {}
-        for k, expected_arg in self._kwargs.items():
-            if not expected_arg.require_literal:
-                continue
-
-            if k in kw_nodes:
-                if not isinstance(kw_nodes[k], vy_ast.Constant):
-                    raise TypeMismatch("Value for kwarg must be a literal", kw_nodes[k])
-                ret[k] = kw_nodes[k].value
-            else:
-                # add kwargs which were not specified in the source
-                ret[k] = expected_arg.default
-
-        return ret
 
     def __repr__(self):
         return f"(builtin) {self._id}"

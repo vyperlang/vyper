@@ -2252,8 +2252,11 @@ class ABIEncode(BuiltinFunction):
         return ret
 
     def fetch_call_return(self, node):
-        kwargs = self.fetch_literal_kwargs(node)
-        ensure_tuple = kwargs["ensure_tuple"]
+        self._validate_arg_types(node)
+        ensure_tuple = next(
+            (arg.value.value for arg in node.keywords if arg.arg == "ensure_tuple"), True
+        )
+        assert isinstance(ensure_tuple, bool)
         has_method_id = "method_id" in [arg.arg for arg in node.keywords]
 
         # figure out the output type by converting

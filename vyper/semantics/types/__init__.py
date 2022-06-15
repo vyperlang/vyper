@@ -1,6 +1,6 @@
 from . import indexable, user, value
 from .abstract import SignedIntegerAbstractType, UnsignedIntegerAbstractType
-from .bases import BasePrimitive
+from .bases import BasePrimitive, ValueTypeDefinition
 from .indexable.mapping import MappingDefinition
 from .indexable.sequence import (
     ArrayDefinition,
