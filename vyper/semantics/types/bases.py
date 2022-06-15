@@ -556,10 +556,10 @@ class BaseTypeDefinition:
         return True
 
 
-# TODO rename this: it's really for address/interface signature resolution
 class ValueTypeDefinition(BaseTypeDefinition):
     """
-    Base class for types representing a single value.
+    Base class for types representing a single value,
+    (which can fit in an EVM word).
 
     Class attributes
     ----------------

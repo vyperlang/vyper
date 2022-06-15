@@ -25,22 +25,14 @@ def process_arg(arg, expected_arg_type, context):
     if isinstance(expected_arg_type, TypeTypeDefinition):
         return new_type_to_old_type(expected_arg_type.typedef)
 
-    if isinstance(
-        expected_arg_type,
-        (
-            BytesArrayDefinition,
-            StringDefinition,
-            ArrayDefinition,
-            DynamicArrayDefinition,
-            StructDefinition,
-            TupleDefinition,
-        ),
-    ):
+    # if it is a word type, return a stack item.
+    # TODO: Builtins should not require value expressions
+    if isinstance(expected_arg_type, ValueTypeDefinition):
+        return Expr.parse_value_expr(arg, context)
+
+    if isinstance(expected_arg_type, BaseTypeDefinition):
         return Expr(arg, context).ir_node
 
-    # TODO: Builtins should not require value expressions
-    elif isinstance(expected_arg_type, BaseTypeDefinition):
-        return Expr.parse_value_expr(arg, context)
 
     raise CompilerPanic(f"Unexpected type: {expected_arg_type}")  # pragma: notest
 
