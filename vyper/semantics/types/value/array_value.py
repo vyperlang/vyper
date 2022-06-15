@@ -7,10 +7,10 @@ from vyper.semantics import validation
 from vyper.utils import ceil32
 
 from ..abstract import ArrayValueAbstractType, BytesAbstractType
-from ..bases import BasePrimitive, DataLocation, ValueTypeDefinition
+from ..bases import BasePrimitive, DataLocation
 
 
-class _ArrayValueDefinition(ValueTypeDefinition):
+class _ArrayValueDefinition(BaseTypeDefinition):
     """
     Private base class for single-value types which occupy multiple memory slots
     and where a maximum length must be given via a subscript (string, bytes).
