@@ -13,8 +13,12 @@ BATCH_SIZE: constant(uint256) = 128
 # callback number of bytes
 CALLBACK_NUMBYTES: constant(uint256) = 4096
 
-# URI length set to 1024. 
-MAX_URI_LENGTH: constant(uint256) = 1024        
+# URI length set to 300. 
+MAX_URI_LENGTH: constant(uint256) = 300 
+# for dynamic URI 
+MAX_DYNURI_LENGTH: constant(uint256) = 78      
+# dynamic URI status
+dynamicUri: bool
 
 # the contract owner
 # not part of the core spec but a common feature for NFT projects
@@ -25,10 +29,10 @@ owner: public(address)
 paused: public(bool)                            
 
 # the contracts URI to find the metadata
-_uri: String[MAX_URI_LENGTH]
-_contractUri: String[MAX_URI_LENGTH]
+baseuri: String[MAX_URI_LENGTH]
+contractURI: public(String[MAX_URI_LENGTH])
 
-# NFT marketplace compatibility
+# Name and symbol are not part of the ERC1155 standard. For opensea compatibility
 name: public(String[128])
 symbol: public(String[16])
 
@@ -86,12 +90,6 @@ event URI:
     value: String[MAX_URI_LENGTH]
     id: uint256
 
-event evtContractURI:
-    # This emits when the contractURI gets changed
-    value: String[MAX_URI_LENGTH]
-    id: uint256
-
-
 ############### interfaces ###############
 implements: ERC165
 
@@ -117,7 +115,7 @@ interface IERC1155MetadataURI:
 ############### functions ###############
 
 @external
-def __init__(name: String[128], symbol: String[16], uri: String[1024], contractUri: String[1024]):
+def __init__(name: String[128], symbol: String[16], uri: String[MAX_URI_LENGTH], contractUri: String[MAX_URI_LENGTH]):
     """
     @dev contract initialization on deployment
     @dev will set name and symbol, interfaces, owner and URI
@@ -129,8 +127,8 @@ def __init__(name: String[128], symbol: String[16], uri: String[1024], contractU
     self.name = name
     self.symbol = symbol
     self.owner = msg.sender
-    self._uri = uri
-    self._contractUri = contractUri
+    self.baseuri = uri
+    self.contractURI = contractUri
 
 ## contract status ##
 @external
@@ -347,41 +345,46 @@ def setURI(uri: String[MAX_URI_LENGTH]):
     @param uri the new uri for the contract
     """
     assert not self.paused, "The contract has been paused"
-    assert self._uri != uri, "new and current URI are identical"
+    assert self.baseuri != uri, "new and current URI are identical"
     assert msg.sender == self.owner, "Only the contract owner can update the URI"
-    self._uri = uri
+    self.baseuri = uri
     log URI(uri, 0)
+
+@external
+def toggleDynUri(status: bool):
+    """
+    @dev toggle dynamic URI
+    @param status true for dynamic false for static
+    """
+    assert msg.sender == self.owner
+    assert status != self.dynamicUri, "already in desired state"
+    self.dynamicUri = status
 
 @view
 @external
-def uri(id: uint256) -> String[MAX_URI_LENGTH]:
+def uri(id: uint256) -> String[MAX_URI_LENGTH+MAX_DYNURI_LENGTH]:
     """
-    @dev retrieve the uri, this function can optionally be extended to return dynamic uris. out of scope.
+    @dev retrieve the uri. Adds requested ID when dynamic URI is active
     @param id NFT ID to retrieve the uri for. 
     """
-    return self._uri
+    if self.dynamicUri:
+        return concat(self.baseuri, uint2str(id))
+    else:
+        return self.baseuri
 
 # URI #
 @external
 def setContractURI(contractUri: String[MAX_URI_LENGTH]):
     """
     @dev set the contractURI for the contract. points to collection metadata file
+    @dev This function is opensea specific and is required to properly show collection metadata and image
     @param contractUri the new urcontractUri for the contract
     """
     assert not self.paused, "The contract has been paused"
-    assert self._contractUri != contractUri, "new and current URI are identical"
+    assert self.contractURI != contractUri, "new and current URI are identical"
     assert msg.sender == self.owner, "Only the contract owner can update the URI"
-    self._contractUri = contractUri
-    log evtContractURI(contractUri, 0)
-
-
-@view
-@external
-def contractURI() -> String[MAX_URI_LENGTH]:
-    """
-    @dev retrieve the contractUri to retrieve the collection metadata
-    """
-    return self._contractUri
+    self.contractURI = contractUri
+    log URI(contractUri, 0)
 
 @pure
 @external
