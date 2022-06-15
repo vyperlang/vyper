@@ -17,6 +17,8 @@ CALLBACK_NUMBYTES: constant(uint256) = 4096
 MAX_URI_LENGTH: constant(uint256) = 300 
 # for dynamic URI 
 MAX_DYNURI_LENGTH: constant(uint256) = 78      
+# dynamic URI status
+dynamicUri: bool
 
 # the contract owner
 # not part of the core spec but a common feature for NFT projects
@@ -347,8 +349,6 @@ def setURI(uri: String[MAX_URI_LENGTH]):
     assert msg.sender == self.owner, "Only the contract owner can update the URI"
     self.baseuri = uri
     log URI(uri, 0)
-
-dynamicUri: bool
 
 @external
 def toggleDynUri(status: bool):
