@@ -149,6 +149,7 @@ def test_contractURI(erc1155, w3, assert_tx_failed):
 
     assert_tx_failed(lambda: erc1155.setContractURI(CONTRACT_METADATA_URI))
 
+
 def test_URI(erc1155, w3, assert_tx_failed):
     owner, a1, a2, a3, a4, a5 = w3.eth.accounts[0:6]
     # change contract URI and restore.
@@ -165,7 +166,7 @@ def test_URI(erc1155, w3, assert_tx_failed):
     # set contract to dynamic URI
     erc1155.toggleDynUri(True, transact={"from": owner})
     erc1155.setURI(CONTRACT_DYNURI, transact={"from": owner})
-    assert erc1155.uri(0) == CONTRACT_DYNURI + 0
+    assert erc1155.uri(0) == CONTRACT_DYNURI + str(0)
 
 
 def test_safeTransferFrom_balanceOf_single(erc1155, w3, assert_tx_failed):
