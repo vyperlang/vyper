@@ -7,8 +7,13 @@ from vyper.codegen.expr import Expr
 from vyper.codegen.ir_node import IRnode
 from vyper.codegen.types.convert import new_type_to_old_type
 from vyper.exceptions import CompilerPanic, TypeMismatch
-from vyper.semantics.types import ValueTypeDefinition
-from vyper.semantics.types.bases import BaseTypeDefinition, DataLocation
+from vyper.semantics.types import (
+    ArrayValueAbstractType,
+    BaseTypeDefinition,
+    DataLocation,
+    StructDefinition,
+    ValueTypeDefinition,
+)
 from vyper.semantics.types.utils import KwargSettings, TypeTypeDefinition, get_type_from_annotation
 from vyper.semantics.validation.utils import get_exact_type_from_node, validate_expected_type
 
@@ -20,7 +25,9 @@ def process_arg(arg, expected_arg_type, context):
 
     # if it is a word type, return a stack item.
     # TODO: Builtins should not require value expressions
-    if isinstance(expected_arg_type, ValueTypeDefinition):
+    if isinstance(expected_arg_type, ValueTypeDefinition) and not isinstance(
+        expected_arg_type, (StructDefinition, ArrayValueAbstractType)
+    ):
         return Expr.parse_value_expr(arg, context)
 
     if isinstance(expected_arg_type, BaseTypeDefinition):
@@ -31,9 +38,6 @@ def process_arg(arg, expected_arg_type, context):
 
 def process_kwarg(kwarg_node, kwarg_settings, expected_kwarg_type, context):
     if kwarg_settings.require_literal:
-        if not isinstance(kwarg_node, vy_ast.Constant):
-            raise TypeMismatch("Value for kwarg must be a literal", kwarg_node)
-
         return kwarg_node.value
 
     return process_arg(kwarg_node, expected_kwarg_type, context)
@@ -109,8 +113,10 @@ class BuiltinFunction:
             self._validate_single(arg, expected)
 
         for kwarg in node.keywords:
-            expected_type = self._kwargs[kwarg.arg].typ
-            self._validate_single(kwarg.value, expected_type)
+            kwarg_settings = self._kwargs[kwarg.arg]
+            if kwarg_settings.require_literal and not isinstance(kwarg.value, vy_ast.Constant):
+                raise TypeMismatch("Value for kwarg must be a literal", kwarg.value)
+            self._validate_single(kwarg.value, kwarg_settings.typ)
 
         # typecheck varargs. we don't have type info from the signature,
         # so ensure that the types of the args can be inferred exactly.
