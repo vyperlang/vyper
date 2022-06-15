@@ -12,6 +12,9 @@ NEW_CONTRACT_URI = "https://mynewdomain.io/NFTdata/{id}"
 CONTRACT_METADATA_URI = "https://mydomain.io/NFTdata/collectionMetaData.json"
 NEW_CONTRACT_METADATA_URI = "https://mydomain.io/NFTdata/newCollectionMetaData.json"
 
+CONTRACT_DYNURI = "https://mydomain.io/NFTdata/"
+
+
 ERC165_INTERFACE_ID = "0x01ffc9a7"
 ERC1155_INTERFACE_ID = "0xd9b67a26"
 ERC1155_INTERFACE_ID_METADATA = "0x0e89341c"
@@ -146,7 +149,6 @@ def test_contractURI(erc1155, w3, assert_tx_failed):
 
     assert_tx_failed(lambda: erc1155.setContractURI(CONTRACT_METADATA_URI))
 
-
 def test_URI(erc1155, w3, assert_tx_failed):
     owner, a1, a2, a3, a4, a5 = w3.eth.accounts[0:6]
     # change contract URI and restore.
@@ -159,6 +161,11 @@ def test_URI(erc1155, w3, assert_tx_failed):
     assert erc1155.uri(0) == CONTRACT_URI
 
     assert_tx_failed(lambda: erc1155.setURI(CONTRACT_URI))
+
+    # set contract to dynamic URI
+    erc1155.toggleDynUri(True, transact={"from": owner})
+    erc1155.setURI(CONTRACT_DYNURI, transact={"from": owner})
+    assert erc1155.uri(0) == CONTRACT_DYNURI + 0
 
 
 def test_safeTransferFrom_balanceOf_single(erc1155, w3, assert_tx_failed):
