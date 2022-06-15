@@ -26,6 +26,7 @@ optimize_list = [
     (["ge", ["sload", 0], 0], None),  # no-op
     (["iszero", ["gt", "x", 2 ** 256 - 1]], [1]),  # x >= MAX_UINT256 == False
     (["iszero", ["sgt", "x", 2 ** 255 - 1]], [1]),  # signed x >= MAX_INT256 == False
+    (["iszero", ["eq", -1, "x"]], ["iszero", ["not", "x"]]),
     (["le", "x", 0], ["iszero", "x"]),
     (["le", 0, "x"], [1]),
     (["le", 0, ["sload", 0]], None),  # no-op
@@ -60,6 +61,7 @@ optimize_list = [
     (["sub", "x", "x"], [0]),
     (["sub", ["sload", 0], ["sload", 0]], None),
     (["sub", ["callvalue"], ["callvalue"]], None),
+    (["sub", -1, ["sload", 0]], ["not", ["sload", 0]]),
     (["mul", "x", 1], ["x"]),
     (["div", "x", 1], ["x"]),
     (["sdiv", "x", 1], ["x"]),

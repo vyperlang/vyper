@@ -706,7 +706,6 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
 
         return []
 
-
     elif code.value == "exit_to":
         raise CodegenPanic("exit_to not implemented yet!")
 
