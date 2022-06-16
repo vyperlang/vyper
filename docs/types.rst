@@ -343,7 +343,11 @@ The members are represented by ``uint256`` values in the form of 2\ :sup:`n` whe
 Reference Types
 ===============
 
-Reference types are those whose components can be modified.
+Reference types are those whose components can be assigned to in-place without copying. For instance, array and struct members can be individually assigned to without overwriting the data structure.
+
+.. note::
+
+  In terms of the calling convention, reference types are passed by value, not by reference. That means that, a calling function does not need to worry about a callee modifying the data of a passed structure.
 
 .. index:: !arrays
 
