@@ -475,7 +475,7 @@ class Expr:
 
         # Sanity check - ensure that we aren't dealing with different types
         # This should be unreachable due to the type check pass
-        assert ltyp == rtyp, "unreachable"
+        assert ltyp == rtyp, f"unreachable, {ltyp}!={rtyp}, {self.expr}"
 
         arith = None
         if isinstance(self.expr.op, (vy_ast.Add, vy_ast.Sub)):
@@ -963,6 +963,8 @@ class Expr:
             sub = Expr(value, context).ir_node
             member_subs[key.id] = sub
             member_typs[key.id] = sub.typ
+
+        # TODO: get struct type from context.global_ctx.parse_type(name)
         return IRnode.from_list(
             ["multi"] + [member_subs[key] for key in member_subs.keys()],
             typ=StructType(member_typs, name, is_literal=True),
