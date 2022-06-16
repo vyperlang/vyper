@@ -1324,6 +1324,7 @@ class BitwiseAnd(_SimpleBuiltinFunction):
     _id = "bitwise_and"
     _inputs = [("x", Uint256Definition()), ("y", Uint256Definition())]
     _return_type = Uint256Definition()
+    _warned = False
 
     def evaluate(self, node):
         validate_call_args(node, 2)
@@ -1338,6 +1339,10 @@ class BitwiseAnd(_SimpleBuiltinFunction):
 
     @validate_inputs
     def build_IR(self, expr, args, kwargs, context):
+        if not self._warned:
+            vyper_warn("`bitwise_or()` is deprecated! Please use the | operator instead.")
+            self._warned = True
+
         return IRnode.from_list(["and", args[0], args[1]], typ=BaseType("uint256"))
 
 
@@ -1346,6 +1351,7 @@ class BitwiseOr(_SimpleBuiltinFunction):
     _id = "bitwise_or"
     _inputs = [("x", Uint256Definition()), ("y", Uint256Definition())]
     _return_type = Uint256Definition()
+    _warned = False
 
     def evaluate(self, node):
         validate_call_args(node, 2)
@@ -1360,6 +1366,10 @@ class BitwiseOr(_SimpleBuiltinFunction):
 
     @validate_inputs
     def build_IR(self, expr, args, kwargs, context):
+        if not self._warned:
+            vyper_warn("`bitwise_or()` is deprecated! Please use the | operator instead.")
+            self._warned = True
+
         return IRnode.from_list(["or", args[0], args[1]], typ=BaseType("uint256"))
 
 

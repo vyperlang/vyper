@@ -2,6 +2,7 @@ from vyper import ast as vy_ast
 from vyper.exceptions import StructureException
 from vyper.semantics.types import ArrayDefinition
 from vyper.semantics.types.function import ContractFunction, MemberFunctionDefinition
+from vyper.semantics.types.user.enum import EnumDefinition
 from vyper.semantics.types.user.event import Event
 from vyper.semantics.types.user.struct import StructPrimitive
 from vyper.semantics.types.utils import TypeTypeDefinition
@@ -177,7 +178,11 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
             else:
                 type_ = get_exact_type_from_node(node.right)
                 self.visit(node.right, type_)
-                self.visit(node.left, type_.value_type)
+                if isinstance(type_, EnumDefinition):
+                    self.visit(node.left, type_)
+                else:
+                    # array membership
+                    self.visit(node.left, type_.value_type)
         else:
             type_ = get_common_types(node.left, node.right).pop()
             self.visit(node.left, type_)

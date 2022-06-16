@@ -34,6 +34,18 @@ class EnumDefinition(MemberTypeDefinition, ValueTypeDefinition):
         # ABI type uint8.
         return ABI_GIntM(m_bits=256, signed=False)
 
+    def validate_numeric_op(self, node):
+        if isinstance(node.op, (vy_ast.BitOr, vy_ast.BitAnd)):
+            return
+        # fallback to parent class error message
+        super().validate_numeric_op(node)
+
+    def validate_comparator(self, node):
+        if isinstance(node.op, (vy_ast.Eq, vy_ast.NotEq, vy_ast.In, vy_ast.NotIn)):
+            return
+        # fallback to parent class error message
+        super().validate_comparator(node)
+
 
 class EnumPrimitive:
     """

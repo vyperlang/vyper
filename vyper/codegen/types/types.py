@@ -234,6 +234,9 @@ class EnumType(BaseType):
         self.name = name
         self.members = members
 
+    def __repr__(self):
+        return f"enum {self.name}"
+
     def __eq__(self, other):
         return self.name == other.name and self.members == other.members
 

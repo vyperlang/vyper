@@ -178,11 +178,20 @@ class _ExprTypeChecker:
         return [BoolDefinition()]
 
     def types_from_Compare(self, node):
-        # comparison: `x < y`
+        # comparisons, e.g. `x < y`
+
+        # TODO fixme circular import
+        from vyper.semantics.types.user.enum import EnumDefinition
+
         if isinstance(node.op, (vy_ast.In, vy_ast.NotIn)):
             # x in y
             left = self.get_possible_types_from_node(node.left)
             right = self.get_possible_types_from_node(node.right)
+            if any(isinstance(t, EnumDefinition) for t in left):
+                types_list = get_common_types(node.left, node.right)
+                _validate_op(node, types_list, "validate_comparator")
+                return [BoolDefinition()]
+
             if any(isinstance(i, ArrayDefinition) for i in left):
                 raise InvalidOperation(
                     "Left operand in membership comparison cannot be Array type", node.left

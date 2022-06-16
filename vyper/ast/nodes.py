@@ -988,6 +988,20 @@ class Pow(VyperNode):
         return int(left ** right)
 
 
+class BitAnd(VyperNode):
+    __slots__ = ()
+    _description = "bitwise and"
+    _pretty = "&"
+    _op = operator.and_
+
+
+class BitOr(VyperNode):
+    __slots__ = ()
+    _description = "bitwise or"
+    _pretty = "|"
+    op = operator.or_
+
+
 class BoolOp(VyperNode):
     __slots__ = ("op", "values")
 
@@ -1013,13 +1027,13 @@ class BoolOp(VyperNode):
 
 class And(VyperNode):
     __slots__ = ()
-    _description = "greater-or-equal"
+    _description = "logical and"
     _op = all
 
 
 class Or(VyperNode):
     __slots__ = ()
-    _description = "less-or-equal"
+    _description = "logical or"
     _op = any
 
 

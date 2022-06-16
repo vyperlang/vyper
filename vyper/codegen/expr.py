@@ -477,6 +477,13 @@ class Expr:
         # This should be unreachable due to the type check pass
         assert ltyp == rtyp, f"unreachable, {ltyp}!={rtyp}, {self.expr}"
 
+        if isinstance(self.expr.op, vy_ast.BitAnd):
+            new_typ = left.typ
+            return IRnode.from_list(["and", left, right], typ=new_typ)
+        if isinstance(self.expr.op, vy_ast.BitOr):
+            new_typ = left.typ
+            return IRnode.from_list(["or", left, right], typ=new_typ)
+
         arith = None
         if isinstance(self.expr.op, (vy_ast.Add, vy_ast.Sub)):
             new_typ = BaseType(ltyp)
@@ -781,7 +788,9 @@ class Expr:
         if isinstance(self.expr.op, (vy_ast.In, vy_ast.NotIn)):
             if isinstance(right.typ, ArrayLike):
                 return self.build_in_comparator()
-            return  # pragma: notest
+            else:
+                assert isinstance(right.typ, EnumType), right.typ
+                return IRnode.from_list(["iszero", ["iszero", ["and", left, right]]], typ="bool")
 
         if isinstance(self.expr.op, vy_ast.Gt):
             op = "sgt"
