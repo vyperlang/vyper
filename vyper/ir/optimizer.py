@@ -143,35 +143,38 @@ def _comparison_helper(binop, args, prefer_strict=False):
             # improve codesize (not gas)
             return ("iszero", [["iszero", args[0]]])
 
+    # rewrites. in positions where iszero is preferred, (gt x 5) => (ge x 6)
     if is_strict != prefer_strict and _is_int(args[1]):
         rhs = _int(args[1])
 
-        if prefer_strict > is_strict and rhs == never:
-            # e.g. ge x MAX_UINT256, sle x MIN_INT256
+        if prefer_strict and rhs == never:
+            # e.g. ge x MAX_UINT256 <0>, sle x MIN_INT256
             return ("eq", args)
-        if is_strict > prefer_strict and rhs == almost_always:
-            # e.g. gt x MIN_UINT256, slt x MAX_INT256
+        if not prefer_strict and rhs == almost_always:
+            # e.g. gt x MIN_UINT256 <0>, slt x MAX_INT256
             return ("ne", args)
 
-        if is_gt == (is_strict > prefer_strict):
+        if is_gt == is_strict:
             # x > 1 => x >= 2
-            # x < 1 => x <= 0
+            # x <= 1 => x < 2
             new_rhs = rhs + 1
         else:
             # x >= 1 => x > 0
-            # x <= 1 => x < 2
+            # x < 1 => x <= 0
             new_rhs = rhs - 1
 
         # if args[1] is OOB, it should have been handled above
         # in the always/never cases
-        assert _wrap256(new_rhs, unsigned) == new_rhs
+        assert _wrap256(new_rhs, unsigned) == new_rhs, "bad optimizer step"
 
+        # change the strictness of the op
         if prefer_strict:
             # e.g. "sge" => "sgt"
             new_op = binop.replace("e", "t")
         else:
             # e.g. "sgt" => "sge"
             new_op = binop.replace("t", "e")
+
         return (new_op, [args[0], new_rhs])
 
 

@@ -24,25 +24,49 @@ optimize_list = [
     # conditions
     (["ge", "x", 0], [1]),  # x >= 0 == True
     (["ge", ["sload", 0], 0], None),  # no-op
-    (["iszero", ["gt", "x", 2 ** 256 - 1]], [1]),  # x >= MAX_UINT256 == False
-    (["iszero", ["sgt", "x", 2 ** 255 - 1]], [1]),  # signed x >= MAX_INT256 == False
+    (["gt", "x", 2 ** 256 - 1], [0]),  # x >= MAX_UINT256 == False
+    (["sgt", "x", 2 ** 255 - 1], [0]),  # signed x > MAX_INT256 == False
+    (["sge", "x", 2 ** 255 - 1], ["eq", "x", 2 ** 255 - 1]),
     (["eq", -1, "x"], ["iszero", ["not", "x"]]),
     (["iszero", ["eq", -1, "x"]], ["iszero", ["iszero", ["not", "x"]]]),
     (["le", "x", 0], ["iszero", "x"]),
     (["le", 0, "x"], [1]),
     (["le", 0, ["sload", 0]], None),  # no-op
+    (["ge", "x", 0], [1]),
+    # boundary conditions
+    (["slt", "x", -(2 ** 255)], [0]),
+    (["sle", "x", -(2 ** 255)], ["eq", "x", -(2 ** 255)]),
+    # TODO: (iszero (slt x -2**255))
+    (["lt", "x", 2 ** 256 - 1], None),
+    (["le", "x", 2 ** 256 - 1], [1]),
+    (["gt", "x", 0], ["iszero", ["iszero", "x"]]),
     (["lt", "x", 0], [0]),
     (["lt", 0, "x"], ["iszero", ["iszero", "x"]]),
     (["gt", 5, "x"], None),
-    (["ge", 5, "x"], None),
+    # 5 > x; x < 5; x <= 4
+    (["iszero", ["gt", 5, "x"]], ["iszero", ["le", "x", 4]]),
+    (["iszero", ["ge", 5, "x"]], None),
+    # 5 >= x; x <= 5; x < 6
+    (["ge", 5, "x"], ["lt", "x", 6]),
     (["lt", 5, "x"], None),
-    (["le", 5, "x"], None),
+    # 5 < x; x > 5; x >= 6
+    (["iszero", ["lt", 5, "x"]], ["iszero", ["ge", "x", 6]]),
+    (["iszero", ["le", 5, "x"]], None),
+    # 5 <= x; x >= 5; x > 4
+    (["le", 5, "x"], ["gt", "x", 4]),
     (["sgt", 5, "x"], None),
-    (["sge", 5, "x"], None),
+    # 5 > x; x < 5; x <= 4
+    (["iszero", ["sgt", 5, "x"]], ["iszero", ["sle", "x", 4]]),
+    (["iszero", ["sge", 5, "x"]], None),
+    # 5 >= x; x <= 5; x < 6
+    (["sge", 5, "x"], ["slt", "x", 6]),
     (["slt", 5, "x"], None),
-    (["sle", 5, "x"], None),
-    (["slt", "x", -(2 ** 255)], ["slt", "x", -(2 ** 255)]),  # unimplemented
-    # tricky conditions
+    # 5 < x; x > 5; x >= 6
+    (["iszero", ["slt", 5, "x"]], ["iszero", ["sge", "x", 6]]),
+    (["iszero", ["sle", 5, "x"]], None),
+    # 5 <= x; x >= 5; x > 4
+    (["sle", 5, "x"], ["sgt", "x", 4]),
+    # tricky constant folds
     (["sgt", 2 ** 256 - 1, 0], [0]),  # -1 > 0
     (["gt", 2 ** 256 - 1, 0], [1]),  # -1 > 0
     (["gt", 2 ** 255, 0], [1]),  # 0x80 > 0
