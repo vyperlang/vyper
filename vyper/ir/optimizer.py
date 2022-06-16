@@ -122,8 +122,10 @@ def _comparison_helper(binop, args, prefer_strict=False):
 
     if is_gt:
         almost_always, never = lo, hi
+        almost_never = hi - 1
     else:
         almost_always, never = hi, lo
+        almost_never = lo + 1
 
     if is_strict and _int(args[1]) == never:
         # e.g. gt x MAX_UINT256, slt x MIN_INT256
@@ -134,13 +136,18 @@ def _comparison_helper(binop, args, prefer_strict=False):
         return (1, [])
 
     # rewrites. in positions where iszero is preferred, (gt x 5) => (ge x 6)
-    if is_strict != prefer_strict and _is_int(args[1]):
+    if (is_strict != prefer_strict and _is_int(args[1])):
         rhs = _int(args[1])
 
-        if prefer_strict and rhs == never:
+        if not is_strict and rhs == never:
             # e.g. ge x MAX_UINT256 <0>, sle x MIN_INT256
             return ("eq", args)
-        if not prefer_strict and rhs == almost_always:
+
+        if is_strict and rhs == almost_never:
+            # (lt x 1)
+            return ("ne", [args[0], never])
+
+        if is_strict and rhs == almost_always:
             # e.g. gt x MIN_UINT256 <0>, slt x MAX_INT256
             return ("ne", args)
 
@@ -167,15 +174,12 @@ def _comparison_helper(binop, args, prefer_strict=False):
 
         return (new_op, [args[0], new_rhs])
 
-    # some special cases that are not covered by others
-    if binop == "lt":
-        if _int(args[1]) == 1:
-            return ("iszero", [args[0]])
+    # special cases that are not covered by others:
 
-    if binop == "gt":
-        if _int(args[1]) == 0:
-            # improve codesize (not gas)
-            return ("iszero", [["iszero", args[0]]])
+    if binop == "gt" and _int(args[1]) == 0:
+        # improve codesize (not gas), and maybe trigger
+        # downstream optimizations
+        return ("iszero", [["iszero", args[0]]])
 
 
 # def _optimize_arith(
@@ -329,7 +333,7 @@ def _optimize_binop(binop, args, ann, parent_op):
 
     if binop == "ne":
         # trigger other optimizations
-        return finalize("iszero", ["eq", *args])
+        return finalize("iszero", ["eq", args])
 
     if binop == "eq" and _int(args[1]) == 0:
         return finalize("iszero", [args[0]])
