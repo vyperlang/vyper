@@ -2452,3 +2452,74 @@ def do_stuff(f: Foo) -> uint256:
     c2 = get_contract(callee_code)
 
     assert c1.do_stuff(c2.address) == 1
+
+
+def test_calldata_clamp(get_contract, assert_tx_failed):
+    callee_code = """
+@external
+def foo(a: address):
+    pass
+    """
+
+    code = """
+interface Foo:
+    def foo(a: address): nonpayable
+
+@external
+def do_stuff(foo_addr: address):
+    x: Bytes[36] = _abi_encode(foo_addr, method_id=method_id("foo(address)"))
+    malformed: Bytes[35] = slice(x, 0, 35)
+    res: Bytes[1024] = raw_call(
+        foo_addr,
+        malformed,
+        max_outsize=1024
+    )
+    """
+
+    c1 = get_contract(callee_code)
+    c2 = get_contract(code)
+    assert_tx_failed(lambda: c2.do_stuff(c1.address))
+
+
+def test_dynamic_calldata_clamp(get_contract, assert_tx_failed):
+    callee_code = """
+@external
+def foo(a: DynArray[uint256, 3], b: String[5]) -> uint256:
+    return 123
+    """
+
+    code = """
+interface Foo:
+    def foo(a: address): nonpayable
+
+@external
+def do_stuff(foo_addr: address):
+    a: DynArray[uint256, 3] = [1, 2, 3]
+    b: String[5] = "vyper"
+    x: Bytes[260] = _abi_encode(a, b, method_id=method_id("foo(uint256[],string)"))
+    malformed: Bytes[131] = slice(x, 0, 131)
+    res: Bytes[1024] = raw_call(
+        foo_addr,
+        malformed,
+        max_outsize=1024
+    )
+
+@external
+def do_stuff_pass(foo_addr: address) -> uint256:
+    a: DynArray[uint256, 3] = [1, 2, 3]
+    b: String[5] = "vyper"
+    x: Bytes[260] = _abi_encode(a, b, method_id=method_id("foo(uint256[],string)"))
+    malformed: Bytes[132] = slice(x, 0, 132)
+    res: Bytes[32] = raw_call(
+        foo_addr,
+        malformed,
+        max_outsize=32
+    )
+    f: uint256 = convert(res, uint256)
+    return f
+    """
+
+    c1 = get_contract(callee_code)
+    c2 = get_contract(code)
+    assert_tx_failed(lambda: c2.do_stuff(c1.address))
+    assert c2.do_stuff_pass(c1.address) == 123
