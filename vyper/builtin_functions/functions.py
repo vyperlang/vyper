@@ -2094,7 +2094,7 @@ class Uint2Str(_SimpleBuiltinFunction):
             ret = [
                 "if",
                 ["eq", val, 0],
-                ["seq", ["mstore", buf + 1, 0x0130], buf],
+                ["seq", ["mstore", buf + 1, ord("0")], ["mstore", buf, 1], buf],
                 ["seq", ret, val],
             ]
 
