@@ -2457,13 +2457,14 @@ def do_stuff(f: Foo) -> uint256:
 TEST_ADDR = b"".join(chr(i).encode("utf-8") for i in range(20)).hex()
 
 
-@pytest.mark.parametrize("typ,val",
+@pytest.mark.parametrize(
+    "typ,val",
     [
         ("address", TEST_ADDR),
         ("uint256", 2 ** 256 - 1),
         ("int128", 2 ** 127 - 1),
         ("bool", True),
-    ]
+    ],
 )
 def test_calldata_clamp(w3, get_contract, assert_tx_failed, abi_encode, keccak, typ, val):
     code = f"""
@@ -2488,13 +2489,14 @@ def foo(a: {typ}):
     w3.eth.send_transaction({"to": c1.address, "data": data})
 
 
-@pytest.mark.parametrize("typ,val",
+@pytest.mark.parametrize(
+    "typ,val",
     [
         ("address", ([TEST_ADDR] * 3, "vyper")),
         ("uint256", ([1, 2, 3], "is")),
         ("int128", ([-1, -2, -3], "the")),
         ("bool", ([True, False, True], "best")),
-    ]
+    ],
 )
 def test_dynamic_calldata_clamp(w3, get_contract, assert_tx_failed, abi_encode, keccak, typ, val):
     code = f"""
