@@ -101,6 +101,7 @@ class ContractFunction(BaseTypeDefinition):
         function_visibility: FunctionVisibility,
         state_mutability: StateMutability,
         nonreentrant: Optional[str] = None,
+        is_factory: bool = False,
     ) -> None:
         super().__init__(
             # A function definition type only exists while compiling
@@ -121,6 +122,8 @@ class ContractFunction(BaseTypeDefinition):
         self.visibility = function_visibility
         self.mutability = state_mutability
         self.nonreentrant = nonreentrant
+
+        self.is_factory = is_factory
 
         # a list of internal functions this function calls
         self.called_functions: Set["ContractFunction"] = set()
@@ -263,6 +266,11 @@ class ContractFunction(BaseTypeDefinition):
                                 f"Mutability is already set to: {kwargs['state_mutability']}", node
                             )
                         kwargs["state_mutability"] = StateMutability(decorator.id)
+                    elif decorator.id == "factory":
+                        if node.name != "__init__":
+                            msg = "Factory decorator only allowed on `__init__`"
+                            raise FunctionDeclarationException(msg, decorator)
+                        kwargs["is_factory"] = True
 
                     else:
                         if decorator.id == "constant":

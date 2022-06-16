@@ -227,4 +227,9 @@ def generate_ir_for_module(global_ctx: GlobalContext) -> Tuple[IRnode, IRnode, F
             raise CompilerPanic("unreachable")
         deploy_code.append(["deploy", 0, runtime, 0])
 
+    if init_function and init_function._metadata["type"].is_factory:
+        # inception
+        runtime = deploy_code
+        deploy_code = ["deploy", 0, deploy_code, 0]
+
     return IRnode.from_list(deploy_code), IRnode.from_list(runtime), sigs
