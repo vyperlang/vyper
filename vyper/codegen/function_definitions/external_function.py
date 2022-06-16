@@ -85,6 +85,7 @@ def _generate_kwarg_handlers(context: Context, sig: FunctionSignature) -> List[A
 
         # a sequence of statements to strictify kwargs into memory
         ret = ["seq"]
+        ret.append(["assert", ["ge", "calldatasize", calldata_args_t.abi_type.min_size() + 4]])
 
         # TODO optimize make_setter by using
         # TupleType(list(arg.typ for arg in calldata_kwargs + default_kwargs))
