@@ -2184,7 +2184,7 @@ class Empty(BuiltinFunction):
 
 class Print(BuiltinFunction):
     _id = "print"
-    _inputs = []
+    _inputs: list = []
     _has_varargs = True
 
     _warned = False
@@ -2233,7 +2233,7 @@ class ABIEncode(BuiltinFunction):
     # ://docs.soliditylang.org/en/v0.8.6/abi-spec.html#function-selector-and-argument-encoding
     # if this is turned off, then bytes will be encoded as bytes.
 
-    _inputs = []
+    _inputs: list = []
     _has_varargs = True
 
     _kwargs = {
