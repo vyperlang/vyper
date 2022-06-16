@@ -89,7 +89,7 @@ def _generate_kwarg_handlers(context: Context, sig: FunctionSignature) -> List[A
         # ensure calldata is at least of minimum length
         args_abi_t = calldata_args_t.abi_type
         calldata_min_size = args_abi_t.min_size() + 4
-        if (args_abi_t.is_dynamic()):
+        if args_abi_t.is_dynamic():
             ret.append(["assert", ["ge", "calldatasize", calldata_min_size]])
         else:
             # stricter for static data
