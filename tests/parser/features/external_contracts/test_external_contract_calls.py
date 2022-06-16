@@ -2459,12 +2459,7 @@ TEST_ADDR = b"".join(chr(i).encode("utf-8") for i in range(20)).hex()
 
 @pytest.mark.parametrize(
     "typ,val",
-    [
-        ("address", TEST_ADDR),
-        ("uint256", 2 ** 256 - 1),
-        ("int128", 2 ** 127 - 1),
-        ("bool", True),
-    ],
+    [("address", TEST_ADDR), ("uint256", 2 ** 256 - 1), ("int128", 2 ** 127 - 1), ("bool", True)],
 )
 def test_calldata_clamp(w3, get_contract, assert_tx_failed, abi_encode, keccak, typ, val):
     code = f"""
