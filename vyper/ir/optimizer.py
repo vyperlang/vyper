@@ -133,16 +133,6 @@ def _comparison_helper(binop, args, prefer_strict=False):
         # e.g. ge x MIN_UINT256, sle x MAX_INT256
         return (1, [])
 
-    if binop == "lt":
-        # special case, not covered by the others
-        if _int(args[1]) == 1:
-            return ("iszero", [args[0]])
-    if binop == "gt":
-        # another special case
-        if _int(args[1]) == 0:
-            # improve codesize (not gas)
-            return ("iszero", [["iszero", args[0]]])
-
     # rewrites. in positions where iszero is preferred, (gt x 5) => (ge x 6)
     if is_strict != prefer_strict and _is_int(args[1]):
         rhs = _int(args[1])
@@ -176,6 +166,16 @@ def _comparison_helper(binop, args, prefer_strict=False):
             new_op = binop.replace("t", "e")
 
         return (new_op, [args[0], new_rhs])
+
+    # some special cases that are not covered by others
+    if binop == "lt":
+        if _int(args[1]) == 1:
+            return ("iszero", [args[0]])
+
+    if binop == "gt":
+        if _int(args[1]) == 0:
+            # improve codesize (not gas)
+            return ("iszero", [["iszero", args[0]]])
 
 
 # def _optimize_arith(
