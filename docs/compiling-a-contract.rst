@@ -51,7 +51,7 @@ To display the default storage layout for a contract:
 
 This outputs a JSON object detailing the locations for all state variables as determined by the compiler.
 
-To override the default storage layout for a contract: 
+To override the default storage layout for a contract:
 
 ::
 
