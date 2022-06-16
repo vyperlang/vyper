@@ -2454,72 +2454,64 @@ def do_stuff(f: Foo) -> uint256:
     assert c1.do_stuff(c2.address) == 1
 
 
-def test_calldata_clamp(get_contract, assert_tx_failed):
-    callee_code = """
+TEST_ADDR = b"".join(chr(i).encode("utf-8") for i in range(20)).hex()
+
+
+@pytest.mark.parametrize("typ,val",
+    [
+        ("address", TEST_ADDR),
+        ("uint256", 2 ** 256 - 1),
+        ("int128", 2 ** 127 - 1),
+        ("bool", True),
+    ]
+)
+def test_calldata_clamp(w3, get_contract, assert_tx_failed, abi_encode, keccak, typ, val):
+    code = f"""
 @external
-def foo(a: address):
+def foo(a: {typ}):
+    pass
+    """
+    c1 = get_contract(code)
+    sig = keccak(f"foo({typ})".encode()).hex()[:10]
+    encoded = abi_encode(f"({typ})", (val,)).hex()
+    data = f"{sig}{encoded}"
+
+    # Static size is short by 1 byte
+    malformed = data[:-2]
+    assert_tx_failed(lambda: w3.eth.send_transaction({"to": c1.address, "data": malformed}))
+
+    # Static size exceeds by 1 byte
+    malformed = data + "ff"
+    assert_tx_failed(lambda: w3.eth.send_transaction({"to": c1.address, "data": malformed}))
+
+    # Static size is exact
+    w3.eth.send_transaction({"to": c1.address, "data": data})
+
+
+@pytest.mark.parametrize("typ,val",
+    [
+        ("address", ([TEST_ADDR] * 3, "vyper")),
+        ("uint256", ([1, 2, 3], "is")),
+        ("int128", ([-1, -2, -3], "the")),
+        ("bool", ([True, False, True], "best")),
+    ]
+)
+def test_dynamic_calldata_clamp(w3, get_contract, assert_tx_failed, abi_encode, keccak, typ, val):
+    code = f"""
+@external
+def foo(a: DynArray[{typ}, 3], b: String[5]):
     pass
     """
 
-    code = """
-interface Foo:
-    def foo(a: address): nonpayable
+    c1 = get_contract(code)
+    sig = keccak(f"foo({typ}[],string)".encode()).hex()[:10]
+    encoded = abi_encode(f"({typ}[],string)", val).hex()
+    data = f"{sig}{encoded}"
 
-@external
-def do_stuff(foo_addr: address):
-    x: Bytes[36] = _abi_encode(foo_addr, method_id=method_id("foo(address)"))
-    malformed: Bytes[35] = slice(x, 0, 35)
-    res: Bytes[1024] = raw_call(
-        foo_addr,
-        malformed,
-        max_outsize=1024
-    )
-    """
+    # Dynamic size is short by 1 byte
+    malformed = data[:264]
+    assert_tx_failed(lambda: w3.eth.send_transaction({"to": c1.address, "data": malformed}))
 
-    c1 = get_contract(callee_code)
-    c2 = get_contract(code)
-    assert_tx_failed(lambda: c2.do_stuff(c1.address))
-
-
-def test_dynamic_calldata_clamp(get_contract, assert_tx_failed):
-    callee_code = """
-@external
-def foo(a: DynArray[uint256, 3], b: String[5]) -> uint256:
-    return 123
-    """
-
-    code = """
-interface Foo:
-    def foo(a: address): nonpayable
-
-@external
-def do_stuff(foo_addr: address):
-    a: DynArray[uint256, 3] = [1, 2, 3]
-    b: String[5] = "vyper"
-    x: Bytes[260] = _abi_encode(a, b, method_id=method_id("foo(uint256[],string)"))
-    malformed: Bytes[131] = slice(x, 0, 131)
-    res: Bytes[1024] = raw_call(
-        foo_addr,
-        malformed,
-        max_outsize=1024
-    )
-
-@external
-def do_stuff_pass(foo_addr: address) -> uint256:
-    a: DynArray[uint256, 3] = [1, 2, 3]
-    b: String[5] = "vyper"
-    x: Bytes[260] = _abi_encode(a, b, method_id=method_id("foo(uint256[],string)"))
-    malformed: Bytes[132] = slice(x, 0, 132)
-    res: Bytes[32] = raw_call(
-        foo_addr,
-        malformed,
-        max_outsize=32
-    )
-    f: uint256 = convert(res, uint256)
-    return f
-    """
-
-    c1 = get_contract(callee_code)
-    c2 = get_contract(code)
-    assert_tx_failed(lambda: c2.do_stuff(c1.address))
-    assert c2.do_stuff_pass(c1.address) == 123
+    # Dynamic size is at least minimum (132 bytes * 2 + 2 (for 0x) = 266)
+    valid = data[:266]
+    w3.eth.send_transaction({"to": c1.address, "data": valid})
