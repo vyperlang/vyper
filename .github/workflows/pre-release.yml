@@ -1,0 +1,69 @@
+name: Build Pre-release
+
+on:
+  workflow_dispatch:
+    branches:
+      - master
+
+  push:
+    branches:
+      - master
+
+jobs:
+  prepare:
+    name: Prepare pre-release
+    runs-on: ubuntu-latest
+
+    outputs:
+      change_log: ${{ steps.build_changelog.outputs.change_log }}
+
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Create/Update pre-release tag
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const prunePrereleases = require('./.github/scripts/prune-prereleases.js')
+            await prunePrereleases({github, context})
+            const createOrUpdateTag = require('./.github/scripts/create-or-update-ref.js')
+            await createOrUpdateTag({github, context}, 'pre-release')
+
+      - name: Build changelog
+        id: build_changelog
+        uses: mikepenz/release-changelog-builder-action@v2
+        with:
+          configuration: "./.github/changelog.json"
+          toTag: pre-release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+
+  build-binaries:
+    name: Build binaries
+    needs: prepare
+    uses: ./.github/workflows/build.yml
+
+  update-pre-release:
+    name: Post process
+    needs: [prepare, build-binaries]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v3
+        with:
+          path: dist
+
+      - name: Update pre-release
+        uses: softprops/action-gh-release@v1
+        with:
+          name: 'Pre-release'
+          tag_name: 'pre-release'
+          prerelease: true
+          body: ${{ needs.prepare.steps.build_changelog.outputs.change_log }}
+          files: |
+            dist/artifact/vyper.*

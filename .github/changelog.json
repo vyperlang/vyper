@@ -1,0 +1,31 @@
+{
+  "categories": [
+    {
+      "title": "## Features",
+      "labels": ["Feature", "enhancement"]
+    },
+    {
+      "title": "## Fixes",
+      "labels": [
+        "bug - codegen",
+        "bug - documentation",
+        "bug - type 0",
+        "bug - type 1",
+        "bug - typechecker",
+        "bug - UX",
+        "bug"
+      ]
+    },
+    {
+      "title": "## Codegen",
+      "labels": ["codegen"]
+    },
+    {
+      "title": "## Tests",
+      "labels": ["Tests"]
+    }
+  ],
+  "template": "${{CHANGELOG}}\n## Other\n\n${{UNCATEGORIZED}}",
+  "pr_template": "- ${{TITLE}} (#${{NUMBER}})",
+  "empty_template": "- No changes"
+}

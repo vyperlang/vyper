@@ -10,6 +10,8 @@ on:
       - '*'
     branches:
       - master
+  workflow_call:
+    
 
 defaults:
   run:
@@ -23,7 +25,7 @@ jobs:
         os: [ubuntu-latest, macos-latest]
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
             # grab the commit passed in via `tag`, if any
             ref: ${{ github.event.inputs.tag }}
@@ -42,7 +44,7 @@ jobs:
           make freeze
 
       - name: Upload Artifact
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           path: dist/vyper.*
 
@@ -50,7 +52,7 @@ jobs:
     runs-on: windows-latest
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
             # grab the commit passed in via `tag`, if any
             ref: ${{ github.event.inputs.tag }}
@@ -69,6 +71,6 @@ jobs:
           ./make.cmd freeze
 
       - name: Upload Artifact
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           path: dist/vyper.*
