@@ -1,14 +1,19 @@
-from decimal import Decimal, getcontext
+from decimal import ROUND_DOWN, Decimal, getcontext
 
 import pytest
 
 from vyper.exceptions import DecimalOverrideException, TypeMismatch
+from vyper.utils import DECIMAL_EPSILON, SizeLimits
 
 
 def test_decimal_override():
     # consumers of vyper, even as a library, are not allowed to override Decimal precision
     with pytest.raises(DecimalOverrideException):
         getcontext().prec = 100
+
+
+def quantize(x: Decimal) -> Decimal:
+    return x.quantize(DECIMAL_EPSILON, rounding=ROUND_DOWN)
 
 
 def test_decimal_test(get_contract_with_gas_estimation):
@@ -131,10 +136,60 @@ def _num_mul(x: decimal, y: decimal) -> decimal:
 
     c = get_contract_with_gas_estimation(mul_code)
 
-    NUM_1 = Decimal("85070591730234615865843651857942052864")
-    NUM_2 = Decimal("136112946768375385385349842973")
+    x = Decimal("85070591730234615865843651857942052864")
+    y = Decimal("136112946768375385385349842973")
 
-    assert_tx_failed(lambda: c._num_mul(NUM_1, NUM_2))
+    assert_tx_failed(lambda: c._num_mul(x, y))
+
+    x = SizeLimits.MAX_AST_DECIMAL
+    y = 1 + DECIMAL_EPSILON
+
+    assert_tx_failed(lambda: c._num_mul(x, y))
+
+    assert c._num_mul(x, Decimal(1)) == x
+
+    assert c._num_mul(x, 1 - DECIMAL_EPSILON) == quantize(x * (1 - DECIMAL_EPSILON))
+
+    x = SizeLimits.MIN_AST_DECIMAL
+    assert c._num_mul(x, 1 - DECIMAL_EPSILON) == quantize(x * (1 - DECIMAL_EPSILON))
+
+
+# division failure modes(!)
+def test_div_overflow(get_contract, assert_tx_failed):
+    code = """
+@external
+def foo(x: decimal, y: decimal) -> decimal:
+    return x / y
+    """
+
+    c = get_contract(code)
+
+    x = SizeLimits.MIN_AST_DECIMAL
+    y = -DECIMAL_EPSILON
+
+    assert_tx_failed(lambda: c.foo(x, y))
+    assert_tx_failed(lambda: c.foo(x, Decimal(0)))
+    assert_tx_failed(lambda: c.foo(y, Decimal(0)))
+
+    y = Decimal(1) - DECIMAL_EPSILON  # 0.999999999
+    assert_tx_failed(lambda: c.foo(x, y))
+
+    y = Decimal(-1)
+    assert_tx_failed(lambda: c.foo(x, y))
+
+    assert c.foo(x, Decimal(1)) == x
+    assert c.foo(x, 1 + DECIMAL_EPSILON) == quantize(x / (1 + DECIMAL_EPSILON))
+
+    x = SizeLimits.MAX_AST_DECIMAL
+
+    assert_tx_failed(lambda: c.foo(x, DECIMAL_EPSILON))
+
+    y = Decimal(1) - DECIMAL_EPSILON
+    assert_tx_failed(lambda: c.foo(x, y))
+
+    assert c.foo(x, Decimal(1)) == x
+
+    assert c.foo(x, 1 + DECIMAL_EPSILON) == quantize(x / (1 + DECIMAL_EPSILON))
 
 
 def test_decimal_min_max_literals(assert_tx_failed, get_contract_with_gas_estimation):

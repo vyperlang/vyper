@@ -946,22 +946,24 @@ def clamp_basetype(ir_node):
 
     if is_integer_type(t) or is_decimal_type(t):
         if t._num_info.bits == 256:
-            return ir_node
+            ret = ir_node
         else:
-            return int_clamp(ir_node, t._num_info.bits, signed=t._num_info.is_signed)
+            ret = int_clamp(ir_node, t._num_info.bits, signed=t._num_info.is_signed)
 
-    if is_bytes_m_type(t):
+    elif is_bytes_m_type(t):
         if t._bytes_info.m == 32:
-            return ir_node  # special case, no clamp.
+            ret = ir_node  # special case, no clamp.
         else:
-            return bytes_clamp(ir_node, t._bytes_info.m)
+            ret = bytes_clamp(ir_node, t._bytes_info.m)
 
-    if t.typ in ("address",):
-        return int_clamp(ir_node, 160)
-    if t.typ in ("bool",):
-        return int_clamp(ir_node, 1)
+    elif t.typ in ("address",):
+        ret = int_clamp(ir_node, 160)
+    elif t.typ in ("bool",):
+        ret = int_clamp(ir_node, 1)
+    else:  # pragma: nocover
+        raise CompilerPanic(f"{t} passed to clamp_basetype")
 
-    raise CompilerPanic(f"{t} passed to clamp_basetype")  # pragma: notest
+    return IRnode.from_list(ret, typ=ir_node.typ)
 
 
 def int_clamp(ir_node, bits, signed=False):

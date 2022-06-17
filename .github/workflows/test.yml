@@ -131,10 +131,10 @@ jobs:
     # NOTE: if the tests get poorly distributed, run this and commit the resulting `.test_durations` file to the `vyper-test-durations` repo.
     # `TOXENV=fuzzing tox -r -- --store-durations --reruns 10 --reruns-delay 1 -r aR tests/`
     - name: Fetch test-durations
-      run: curl --location "https://raw.githubusercontent.com/vyperlang/vyper-test-durations/54ee7f6a09bd94192d01f8de5293483414295e45/test_durations" -o .test_durations
+      run: curl --location "https://raw.githubusercontent.com/vyperlang/vyper-test-durations/4d8398e581f183de986892c5a8d4ab3d05ccaab2/test_durations" -o .test_durations
 
     - name: Run Tox
-      run: TOXENV=fuzzing tox -r -- --splits 45 --group ${{ matrix.group }} --reruns 10 --reruns-delay 1 -r aR tests/
+      run: TOXENV=fuzzing tox -r -- --splits 45 --group ${{ matrix.group }} --splitting-algorithm least_duration --reruns 10 --reruns-delay 1 -r aR tests/
 
     - name: Upload Coverage
       uses: codecov/codecov-action@v1

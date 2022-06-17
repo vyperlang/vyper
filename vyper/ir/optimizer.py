@@ -53,6 +53,7 @@ arith = {
     "sdiv": (evm_div, "/", SIGNED),
     "mod": (evm_mod, "%", UNSIGNED),
     "smod": (evm_mod, "%", SIGNED),
+    "exp": (operator.pow, "**", UNSIGNED),
     "eq": (operator.eq, "==", UNSIGNED),
     "ne": (operator.ne, "!=", UNSIGNED),
     "lt": (operator.lt, "<", UNSIGNED),
@@ -154,9 +155,13 @@ def _optimize_arith(binop, args, ann, parent_op):
         new_val = args[0].value
         new_args = args[0].args
 
-    elif binop in {"sub", "xor"} and _conservative_eq(args[0], args[1]):
-        # x - x == x ^ x == 0
-        new_val = 0
+    elif binop in {"sub", "xor", "eq", "ne"} and _conservative_eq(args[0], args[1]):
+        if binop == "eq":
+            # (x == x) == 1
+            new_val = 1
+        else:
+            # x - x == x ^ x == x != x == 0
+            new_val = 0
         new_args = []
 
     # TODO associativity rules
@@ -177,6 +182,21 @@ def _optimize_arith(binop, args, ann, parent_op):
     elif binop in {"mul", "sdiv"} and _int(args[1], SIGNED) == -1:
         new_val = "sub"
         new_args = [0, args[0]]
+
+    elif binop == "exp":
+        # n ** 0 == 1 (forall n)
+        # 1 ** n == 1
+        if _int(args[1]) == 0 or _int(args[0]) == 1:
+            new_val = 1
+            new_args = []
+        # 0 ** n == (1 if n == 0 else 0)
+        if _int(args[0]) == 0:
+            new_val = "iszero"
+            new_args = [args[1]]
+        # n ** 1 == n
+        if _int(args[1]) == 1:
+            new_val = args[0].value
+            new_args = args[0].args
 
     # maybe OK:
     # elif binop == "div" and _int(args[1], UNSIGNED) == MAX_UINT256:
@@ -249,7 +269,8 @@ def _optimize_arith(binop, args, ann, parent_op):
             # x < 1 => x <= 0
             new_rhs = rhs + 1 if op_is_gt else rhs - 1
 
-            if _wrap(new_rhs) != new_rhs:
+            in_bounds = _wrap(new_rhs) == new_rhs
+            if not in_bounds:
                 # always false. ex. (gt x MAX_UINT256)
                 # note that the wrapped version (ge x 0) is always true.
                 new_val = 0
@@ -286,8 +307,8 @@ def _optimize_arith(binop, args, ann, parent_op):
             new_val = "iszero"
             new_args = [args[0]]
 
-    # gt x 0 => x != 0
-    elif binop == "gt" and _int(args[1]) == 0:
+    # gt x 0 == x != 0 == (iszero (iszero x))
+    elif binop in ("gt", "ne") and _int(args[1]) == 0:
         new_val = "iszero"
         new_args = [["iszero", args[0]]]
 

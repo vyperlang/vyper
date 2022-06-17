@@ -82,6 +82,13 @@ optimize_list = [
     (["mod", "x", 128], ["and", "x", 127]),
     (["sdiv", "x", 64], None),
     (["smod", "x", 64], None),
+    (["exp", 3, 5], [3 ** 5]),
+    (["exp", 3, 256], [(3 ** 256) % (2 ** 256)]),
+    (["exp", 2, 257], [0]),
+    (["exp", "x", 0], [1]),
+    (["exp", "x", 1], ["x"]),
+    (["exp", 1, "x"], [1]),
+    (["exp", 0, "x"], ["iszero", "x"]),
     # bitwise ops
     (["shr", 0, "x"], ["x"]),
     (["sar", 0, "x"], ["x"]),
@@ -102,6 +109,7 @@ optimize_list = [
     (["and", "x", 1], None),
     (["or", "x", 1], None),
     (["xor", 0, "x"], ["x"]),
+    (["xor", "x", "x"], [0]),
     (["iszero", ["or", "x", 1]], [0]),
     (["iszero", ["or", 2, "x"]], [0]),
     (["iszero", ["or", 1, ["sload", 0]]], None),
@@ -113,6 +121,9 @@ optimize_list = [
     (["eq", -1, ["add", 2 ** 255, 2 ** 255 - 1]], [1]),  # test compile-time wrapping
     (["eq", -1, ["add", -(2 ** 255), 2 ** 255 - 1]], [1]),  # test compile-time wrapping
     (["eq", -2, ["add", 2 ** 256 - 1, 2 ** 256 - 1]], [1]),  # test compile-time wrapping
+    (["eq", "x", "x"], [1]),
+    (["eq", "callvalue", "callvalue"], None),
+    (["ne", "x", "x"], [0]),
 ]
 
 
