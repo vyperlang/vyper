@@ -472,7 +472,7 @@ class IRnode:
     ) -> "IRnode":
         if isinstance(obj, IRnode):
             args = obj.args.copy()  # shallow copy should be ok
-            return IRnode(
+            ret = IRnode(
                 obj.value,
                 args,
                 typ=typ or obj.typ,
@@ -483,6 +483,9 @@ class IRnode:
                 add_gas_estimate=add_gas_estimate or obj.add_gas_estimate,
                 encoding=encoding or obj.encoding,
             )
+            if getattr(obj, "is_self_call", False):
+                ret.is_self_call = True
+
         elif not isinstance(obj, list):
             return cls(
                 obj,
