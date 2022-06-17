@@ -166,7 +166,7 @@ def maxMint(owner: address) -> uint256:
 def previewMint(shares: uint256) -> uint256:
     assets: uint256 = self._convertToAssets(shares)
 
-    # NOTE: Vyper does lazy eval on if, so this avoids SLOADs most of the time
+    # NOTE: Vyper does lazy eval on `and`, so this avoids SLOADs most of the time
     if assets == 0 and self.asset.balanceOf(self) == 0:
         return shares  # NOTE: Assume 1:1 price if nothing deposited yet
 
@@ -199,7 +199,7 @@ def maxWithdraw(owner: address) -> uint256:
 def previewWithdraw(assets: uint256) -> uint256:
     shares: uint256 = self._convertToShares(assets)
 
-    # NOTE: Vyper does lazy eval on if, so this avoids SLOADs most of the time
+    # NOTE: Vyper does lazy eval on and, so this avoids SLOADs most of the time
     if shares == assets and self.totalSupply == 0:
         return 0  # NOTE: Nothing to redeem
 
@@ -210,7 +210,7 @@ def previewWithdraw(assets: uint256) -> uint256:
 def withdraw(assets: uint256, receiver: address=msg.sender, owner: address=msg.sender) -> uint256:
     shares: uint256 = self._convertToShares(assets)
 
-    # NOTE: Vyper does lazy eval on if, so this avoids SLOADs most of the time
+    # NOTE: Vyper does lazy eval on `and`, so this avoids SLOADs most of the time
     if shares == assets and self.totalSupply == 0:
         raise  # Nothing to redeem
 
@@ -254,4 +254,5 @@ def redeem(shares: uint256, receiver: address=msg.sender, owner: address=msg.sen
 @external
 def DEBUG_steal_tokens(amount: uint256):
     # NOTE: This is the primary method of mocking share price changes
+    # do not put in production code!!!
     self.asset.transfer(msg.sender, amount)
