@@ -334,6 +334,16 @@ class IRnode:
             and self.value.lower() not in do_not_cache
         )
 
+    def unique_symbols(self):
+        ret = set()
+        if self.value == "unique_symbol":
+            ret.add(self.args[0].value)
+        for arg in self.args:
+            s = arg.unique_symbols()
+            assert len(ret.intersection(s)) == 0, "non-unique symbol"
+            ret |= s
+        return ret
+
     @property
     def is_literal(self):
         return isinstance(self.value, int) or self.value == "multi"

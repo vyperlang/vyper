@@ -324,8 +324,20 @@ def _optimize_arith(binop, args, ann, parent_op):
     return new_val, new_args, new_ann
 
 
-def optimize(node: IRnode, parent: Optional[IRnode] = None) -> IRnode:
-    argz = [optimize(arg, node) for arg in node.args]
+def optimize(node: IRnode) -> IRnode:
+    initial_symbols = node.unique_symbols()
+
+    ret = _optimize(node, parent=None)
+
+    if ret.unique_symbols() != initial_symbols:
+        diff = initial_symbols - ret.unique_symbols()
+        raise CompilerPanic(f"Bad optimizer pass, missing {diff}")
+
+    return ret
+
+
+def _optimize(node: IRnode, parent: Optional[IRnode]) -> IRnode:
+    argz = [_optimize(arg, node) for arg in node.args]
 
     value = node.value
     typ = node.typ
@@ -394,7 +406,7 @@ def optimize(node: IRnode, parent: Optional[IRnode] = None) -> IRnode:
             # if false
             if _evm_int(argz[0]) == 0:
                 # return the else branch (or [] if there is no else)
-                return optimize(IRnode("seq", argz[2:]), parent)
+                return _optimize(IRnode("seq", argz[2:]), parent)
             # if true
             else:
                 # return the first branch
@@ -427,7 +439,7 @@ def optimize(node: IRnode, parent: Optional[IRnode] = None) -> IRnode:
     ret = finalize([value, *argz])
 
     if optimize_more:
-        ret = optimize(ret, parent=parent)
+        ret = _optimize(ret, parent=parent)
 
     return ret
 
