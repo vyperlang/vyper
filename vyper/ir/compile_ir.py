@@ -1,5 +1,6 @@
 import copy
 import functools
+import math
 
 from vyper.codegen.ir_node import IRnode
 from vyper.evm.opcodes import get_opcodes
@@ -88,6 +89,13 @@ def _runtime_code_offsets(ctor_mem_size, runtime_codelen):
     runtime_code_start = runtime_code_end - runtime_codelen
 
     return runtime_code_start, runtime_code_end
+
+
+# Calculate the size of PUSH instruction we need to handle all
+# mem offsets in the code. For instance, if we only see mem symbols
+# up to size 256, we can use PUSH1.
+def calc_mem_ofst_size(ctor_mem_size):
+    return math.ceil(math.log(ctor_mem_size + 1, 256))
 
 
 # temporary optimization to handle stack items for return sequences
@@ -900,8 +908,29 @@ def _optimize_assembly(assembly):
     raise CompilerPanic("infinite loop detected during assembly reduction")  # pragma: notest
 
 
-# Assembles assembly into EVM
-def assembly_to_evm(assembly, start_pos=0, insert_vyper_signature=False):
+def adjust_pc_maps(pc_maps, ofst):
+    assert ofst >= 0
+
+    ret = {}
+    # source breakpoints, don't need to modify
+    ret["breakpoints"] = pc_maps["breakpoints"].copy()
+    ret["pc_breakpoints"] = {pc + ofst for pc in pc_maps["pc_breakpoints"]}
+    ret["pc_jump_map"] = {k + ofst: v for (k, v) in pc_maps["pc_jump_map"].items()}
+    ret["pc_pos_map"] = {k + ofst: v for (k, v) in pc_maps["pc_pos_map"].items()}
+
+    return ret
+
+
+def assembly_to_evm(assembly, pc_ofst=0, insert_vyper_signature=False):
+    """
+    Assembles assembly into EVM
+
+    assembly: list of asm instructions
+    pc_ofst: when constructing the source map, the amount to offset all
+             pcs by (no effect until we add deploy code source map)
+    insert_vyper_signature: whether to append vyper metadata to output
+                            (should be true for runtime code)
+    """
     line_number_map = {
         "breakpoints": set(),
         "pc_breakpoints": set(),
@@ -909,90 +938,118 @@ def assembly_to_evm(assembly, start_pos=0, insert_vyper_signature=False):
         "pc_pos_map": {},
     }
 
-    posmap = {}
+    pc = 0
+    symbol_map = {}
+
     runtime_code, runtime_code_start, runtime_code_end = None, None, None
-    pos = start_pos
 
     bytecode_suffix = b""
     if insert_vyper_signature:
         # CBOR encoded: {"vyper": [major,minor,patch]}
         bytecode_suffix += b"\xa1\x65vyper\x83" + bytes(list(version_tuple))
 
-    # go through the code, resolving symbolic locations
-    # (i.e. JUMPDEST locations) to actual code locations
+    CODE_OFST_SIZE = 2  # size of a PUSH instruction for a code symbol
+
+    # to optimize the size of deploy code - we want to use the smallest
+    # PUSH instruction possible which can support all memory symbols
+    # (and also works with linear pass symbol resolution)
+    # to do this, we first do a single pass to compile any runtime code
+    # and use that to calculate mem_ofst_size.
+    mem_ofst_size, ctor_mem_size = None, None
+    max_mem_ofst = 0
     for i, item in enumerate(assembly):
-        note_line_num(line_number_map, item, pos)
-        if item == "DEBUG":
-            continue  # skip debug
-
-        if item == "JUMP":
-            last = assembly[i - 1]
-            if is_symbol(last) and last.startswith("_sym_internal"):
-                if last.endswith("cleanup"):
-                    # exit an internal function
-                    line_number_map["pc_jump_map"][pos] = "o"
-                else:
-                    # enter an internal function
-                    line_number_map["pc_jump_map"][pos] = "i"
-            else:
-                # everything else
-                line_number_map["pc_jump_map"][pos] = "-"
-        elif item in ("JUMPI", "JUMPDEST"):
-            line_number_map["pc_jump_map"][pos] = "-"
-
-        if is_symbol(item):
-            if assembly[i + 1] == "JUMPDEST" or assembly[i + 1] == "BLANK":
-                # Don't increment position as the symbol itself doesn't go into code
-                if item in posmap:
-                    raise CompilerPanic(f"duplicate jumpdest {item}")
-
-                posmap[item] = pos - start_pos
-            else:
-                pos += 3  # PUSH2 highbits lowbits
-        elif is_mem_sym(item):
-            pos += 5  # PUSH4 item
-        elif is_ofst(item):
-            assert is_symbol(assembly[i + 1]) or is_mem_sym(assembly[i + 1])
-            assert isinstance(assembly[i + 2], int)
-            # [_OFST, _sym_foo, bar] -> PUSH2 (foo+bar)
-            # [_OFST, _mem_foo, bar] -> PUSH4 (foo+bar)
-            pos -= 1
-        elif item == "BLANK":
-            pos += 0
-        elif isinstance(item, str) and item.startswith("_DEPLOY_MEM_OFST_"):
-            # _DEPLOY_MEM_OFST is assembly magic which will
-            # get removed during final assembly-to-bytecode
-            pos += 0
-        elif isinstance(item, list):
+        if isinstance(item, list):
             assert runtime_code is None, "Multiple subcodes"
-            runtime_code, sub_map = assembly_to_evm(
-                item, start_pos=pos, insert_vyper_signature=True
-            )
+            runtime_code, runtime_map = assembly_to_evm(item, insert_vyper_signature=True)
 
             assert item[0].startswith("_DEPLOY_MEM_OFST_")
+            assert ctor_mem_size is None
             ctor_mem_size = int(item[0][len("_DEPLOY_MEM_OFST_") :])
 
             runtime_code_start, runtime_code_end = _runtime_code_offsets(
                 ctor_mem_size, len(runtime_code)
             )
             assert runtime_code_end - runtime_code_start == len(runtime_code)
-            pos += len(runtime_code)
+
+        if is_ofst(item) and is_mem_sym(assembly[i + 1]):
+            max_mem_ofst = max(assembly[i + 2], max_mem_ofst)
+
+    if runtime_code_end is not None:
+        mem_ofst_size = calc_mem_ofst_size(runtime_code_end + max_mem_ofst)
+
+    # go through the code, resolving symbolic locations
+    # (i.e. JUMPDEST locations) to actual code locations
+    for i, item in enumerate(assembly):
+        note_line_num(line_number_map, item, pc)
+        if item == "DEBUG":
+            continue  # skip debug
+
+        # update pc_jump_map
+        if item == "JUMP":
+            last = assembly[i - 1]
+            if is_symbol(last) and last.startswith("_sym_internal"):
+                if last.endswith("cleanup"):
+                    # exit an internal function
+                    line_number_map["pc_jump_map"][pc] = "o"
+                else:
+                    # enter an internal function
+                    line_number_map["pc_jump_map"][pc] = "i"
+            else:
+                # everything else
+                line_number_map["pc_jump_map"][pc] = "-"
+        elif item in ("JUMPI", "JUMPDEST"):
+            line_number_map["pc_jump_map"][pc] = "-"
+
+        # update pc
+        if is_symbol(item):
+            if assembly[i + 1] == "JUMPDEST" or assembly[i + 1] == "BLANK":
+                # Don't increment pc as the symbol itself doesn't go into code
+                if item in symbol_map:
+                    raise CompilerPanic(f"duplicate jumpdest {item}")
+
+                symbol_map[item] = pc
+            else:
+                pc += CODE_OFST_SIZE + 1  # PUSH2 highbits lowbits
+        elif is_mem_sym(item):
+            # PUSH<n> item
+            pc += mem_ofst_size + 1
+        elif is_ofst(item):
+            assert is_symbol(assembly[i + 1]) or is_mem_sym(assembly[i + 1])
+            assert isinstance(assembly[i + 2], int)
+            # [_OFST, _sym_foo, bar] -> PUSH2 (foo+bar)
+            # [_OFST, _mem_foo, bar] -> PUSHN (foo+bar)
+            pc -= 1
+        elif item == "BLANK":
+            pc += 0
+        elif isinstance(item, str) and item.startswith("_DEPLOY_MEM_OFST_"):
+            # _DEPLOY_MEM_OFST is assembly magic which will
+            # get removed during final assembly-to-bytecode
+            pc += 0
+        elif isinstance(item, list):
+            # add source map for all items in the runtime map
+            t = adjust_pc_maps(runtime_map, pc)
             for key in line_number_map:
-                line_number_map[key].update(sub_map[key])
+                line_number_map[key].update(t[key])
+            pc += len(runtime_code)
+
         else:
-            pos += 1
+            pc += 1
 
-    pos += len(bytecode_suffix)
+    pc += len(bytecode_suffix)
 
-    code_end = pos - start_pos
-    posmap["_sym_code_end"] = code_end
-    posmap["_mem_deploy_start"] = runtime_code_start
-    posmap["_mem_deploy_end"] = runtime_code_end
+    symbol_map["_sym_code_end"] = pc
+    symbol_map["_mem_deploy_start"] = runtime_code_start
+    symbol_map["_mem_deploy_end"] = runtime_code_end
     if runtime_code is not None:
-        posmap["_sym_subcode_size"] = len(runtime_code)
+        symbol_map["_sym_subcode_size"] = len(runtime_code)
 
+    # (NOTE CMC 2022-06-17 this way of generating bytecode did not
+    # seem to be a perf hotspot. if it is, may want to use bytearray()
+    # instead).
     o = b""
 
+    # now that all symbols have been resolved, generate bytecode
+    # using the symbol map
     to_skip = 0
     for i, item in enumerate(assembly):
         if to_skip > 0:
@@ -1007,17 +1064,17 @@ def assembly_to_evm(assembly, start_pos=0, insert_vyper_signature=False):
 
         elif is_symbol(item):
             if assembly[i + 1] != "JUMPDEST" and assembly[i + 1] != "BLANK":
-                bytecode, _ = assembly_to_evm(PUSH_N(posmap[item], n=2))
+                bytecode, _ = assembly_to_evm(PUSH_N(symbol_map[item], n=CODE_OFST_SIZE))
                 o += bytecode
 
         elif is_mem_sym(item):
-            bytecode, _ = assembly_to_evm(PUSH_N(posmap[item], n=4))
+            bytecode, _ = assembly_to_evm(PUSH_N(symbol_map[item], n=mem_ofst_size))
             o += bytecode
 
         elif is_ofst(item):
             # _OFST _sym_foo 32
-            ofst = posmap[assembly[i + 1]] + assembly[i + 2]
-            n = 4 if is_mem_sym(assembly[i + 1]) else 2
+            ofst = symbol_map[assembly[i + 1]] + assembly[i + 2]
+            n = mem_ofst_size if is_mem_sym(assembly[i + 1]) else CODE_OFST_SIZE
             bytecode, _ = assembly_to_evm(PUSH_N(ofst, n))
             o += bytecode
             to_skip = 2
@@ -1040,7 +1097,6 @@ def assembly_to_evm(assembly, start_pos=0, insert_vyper_signature=False):
 
     o += bytecode_suffix
 
-    assert len(o) == pos - start_pos, (len(o), pos, start_pos)
     line_number_map["breakpoints"] = list(line_number_map["breakpoints"])
     line_number_map["pc_breakpoints"] = list(line_number_map["pc_breakpoints"])
     return o, line_number_map
