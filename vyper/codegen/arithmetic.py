@@ -43,12 +43,11 @@ def calculate_largest_power(a: int, num_bits: int, is_signed: bool) -> int:
     if a in (0, 1):
         raise CompilerPanic("Exponential operation is useless!")
 
-
     # a ** x == 2**value_bits
     # x ln(a) == ln(2**value_bits)
     # x == ln(2**value_bits) / ln(a)
 
-    ln_max_val = decimal.Decimal(2**value_bits).ln()
+    ln_max_val = decimal.Decimal(2 ** value_bits).ln()
     ln_a = decimal.Decimal(a).ln()
     b = ln_max_val / ln_a
 
@@ -56,12 +55,12 @@ def calculate_largest_power(a: int, num_bits: int, is_signed: bool) -> int:
     if not a_is_negative:
         b = b.next_minus()
 
-    b = int(b)
+    ret = int(b)
 
-    if b <= 1:
+    if ret <= 1:
         return 1  # Value is assumed to be in range, therefore power of 1 is max
 
-    return b
+    return ret
 
 
 def calculate_largest_base(b: int, num_bits: int, is_signed: bool) -> int:
