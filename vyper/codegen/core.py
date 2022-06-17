@@ -45,18 +45,14 @@ def _codecopy_gas_bound(num_bytes):
 
 
 # Copy byte array word-for-word (including layout)
+# TODO make this a private function
 def make_byte_array_copier(dst, src):
     assert isinstance(src.typ, ByteArrayLike)
     assert isinstance(dst.typ, ByteArrayLike)
 
-    if src.typ.maxlen > dst.typ.maxlen:
-        raise TypeMismatch(f"Cannot cast from {src.typ} to {dst.typ}")
-    # stricter check for zeroing a byte array.
-    if src.value == "~empty" and src.typ.maxlen != dst.typ.maxlen:
-        raise TypeMismatch(
-            f"Bad type for clearing bytes: expected {dst.typ} but got {src.typ}"
-        )  # pragma: notest
+    _check_assign_bytes(dst, src)
 
+    # TODO: remove this branch, copy_bytes and get_bytearray_length should handle
     if src.value == "~empty":
         # set length word to 0.
         return STORE(dst, 0)
@@ -123,13 +119,13 @@ def _dynarray_make_setter(dst, src):
 
         # for ABI-encoded dynamic data, we must loop to unpack, since
         # the layout does not match our memory layout
-        should_loop = (
-            src.encoding in (Encoding.ABI, Encoding.JSON_ABI)
-            and src.typ.subtype.abi_type.is_dynamic()
-        )
+        should_loop = src.encoding == Encoding.ABI and src.typ.subtype.abi_type.is_dynamic()
 
-        # if the subtype is dynamic, there might be a lot of
-        # unused space inside of each element. for instance
+        # if the data is not validated, we must loop to unpack
+        should_loop |= needs_clamp(src.typ.subtype, src.encoding)
+
+        # performance: if the subtype is dynamic, there might be a lot
+        # of unused space inside of each element. for instance
         # DynArray[DynArray[uint256, 100], 5] where all the child
         # arrays are empty - for this case, we recursively call
         # into make_setter instead of straight bytes copy
@@ -137,7 +133,6 @@ def _dynarray_make_setter(dst, src):
         # loop when subtype.is_dynamic AND location == storage
         # OR array_size <= /bound where loop is cheaper than memcpy/
         should_loop |= src.typ.subtype.abi_type.is_dynamic()
-        should_loop |= needs_clamp(src.typ.subtype, src.encoding)
 
         with get_dyn_array_count(src).cache_when_complex("darray_count") as (b2, count):
             ret = ["seq"]
@@ -178,7 +173,7 @@ def _dynarray_make_setter(dst, src):
 # copy an entire (32-byte) word, depending on the copy routine chosen.
 # TODO maybe always pad to ceil32, to reduce dirty bytes bugs
 def copy_bytes(dst, src, length, length_bound):
-    annotation = f"copy_bytes from {src} to {dst}"
+    annotation = f"copy up to {length_bound} bytes from {src} to {dst}"
 
     src = IRnode.from_list(src)
     dst = IRnode.from_list(dst)
@@ -187,6 +182,17 @@ def copy_bytes(dst, src, length, length_bound):
     with src.cache_when_complex("src") as (b1, src), length.cache_when_complex(
         "copy_bytes_count"
     ) as (b2, length), dst.cache_when_complex("dst") as (b3, dst):
+
+        assert isinstance(length_bound, int) and length_bound >= 0
+
+        # correctness: do not clobber dst
+        if length_bound == 0:
+            return IRnode.from_list(["seq"], annotation=annotation)
+        # performance: if we know that length is 0, do not copy anything
+        if length.value == 0:
+            return IRnode.from_list(["seq"], annotation=annotation)
+
+        assert src.is_pointer and dst.is_pointer
 
         # fast code for common case where num bytes is small
         # TODO expand this for more cases where num words is less than ~8
@@ -223,7 +229,8 @@ def copy_bytes(dst, src, length, length_bound):
         #   sstore(_dst + i, mload(src + i * 32))
         i = IRnode.from_list(_freshname("copy_bytes_ix"), typ="uint256")
 
-        n = ["div", ["ceil32", length], 32]
+        # optimized form of (div (ceil32 len) 32)
+        n = ["div", ["add", 31, length], 32]
         n_bound = ceil32(length_bound) // 32
 
         dst_i = add_ofst(dst, _mul(i, dst.location.word_scale))
@@ -241,6 +248,9 @@ def copy_bytes(dst, src, length, length_bound):
 # get the number of bytes at runtime
 def get_bytearray_length(arg):
     typ = BaseType("uint256")
+
+    # TODO add "~empty" case to mirror get_dyn_array_count
+
     return IRnode.from_list(LOAD(arg), typ=typ)
 
 
@@ -254,7 +264,7 @@ def get_dyn_array_count(arg):
         return IRnode.from_list(len(arg.args), typ=typ)
 
     if arg.value == "~empty":
-        # empty(DynArray[])
+        # empty(DynArray[...])
         return IRnode.from_list(0, typ=typ)
 
     return IRnode.from_list(LOAD(arg), typ=typ)
@@ -269,7 +279,7 @@ def append_dyn_array(darray_node, elem_node):
     with darray_node.cache_when_complex("darray") as (b1, darray_node):
         len_ = get_dyn_array_count(darray_node)
         with len_.cache_when_complex("old_darray_len") as (b2, len_):
-            ret.append(["assert", ["le", len_, darray_node.typ.count - 1]])
+            ret.append(["assert", ["lt", len_, darray_node.typ.count]])
             ret.append(STORE(darray_node, ["add", len_, 1]))
             # NOTE: typechecks elem_node
             # NOTE skip array bounds check bc we already asserted len two lines up
@@ -281,9 +291,10 @@ def append_dyn_array(darray_node, elem_node):
 
 def pop_dyn_array(darray_node, return_popped_item):
     assert isinstance(darray_node.typ, DArrayType)
+    assert darray_node.encoding == Encoding.VYPER
     ret = ["seq"]
     with darray_node.cache_when_complex("darray") as (b1, darray_node):
-        old_len = ["clamp_nonzero", get_dyn_array_count(darray_node)]
+        old_len = clamp("gt", get_dyn_array_count(darray_node), 0)
         new_len = IRnode.from_list(["sub", old_len, 1], typ="uint256")
 
         with new_len.cache_when_complex("new_len") as (b2, new_len):
@@ -295,12 +306,9 @@ def pop_dyn_array(darray_node, return_popped_item):
                 ret.append(popped_item)
                 typ = popped_item.typ
                 location = popped_item.location
-                encoding = popped_item.encoding
             else:
-                typ, location, encoding = None, None, None
-            return IRnode.from_list(
-                b1.resolve(b2.resolve(ret)), typ=typ, location=location, encoding=encoding
-            )
+                typ, location = None, None
+            return IRnode.from_list(b1.resolve(b2.resolve(ret)), typ=typ, location=location)
 
 
 def getpos(node):
@@ -379,7 +387,7 @@ def _get_element_ptr_tuplelike(parent, key):
 
     ofst = 0  # offset from parent start
 
-    if parent.encoding in (Encoding.ABI, Encoding.JSON_ABI):
+    if parent.encoding == Encoding.ABI:
         if parent.location == STORAGE:
             raise CompilerPanic("storage variables should not be abi encoded")  # pragma: notest
 
@@ -439,17 +447,16 @@ def _get_element_ptr_array(parent, key, array_bounds_check):
     ix = unwrap_location(key)
 
     if array_bounds_check:
-        # clamplt works, even for signed ints. since two's-complement
+        is_darray = isinstance(parent.typ, DArrayType)
+        bound = get_dyn_array_count(parent) if is_darray else parent.typ.count
+        # uclamplt works, even for signed ints. since two's-complement
         # is used, if the index is negative, (unsigned) LT will interpret
         # it as a very large number, larger than any practical value for
         # an array index, and the clamp will throw an error.
-        clamp_op = "uclamplt"
-        is_darray = isinstance(parent.typ, DArrayType)
-        bound = get_dyn_array_count(parent) if is_darray else parent.typ.count
         # NOTE: there are optimization rules for this when ix or bound is literal
-        ix = IRnode.from_list([clamp_op, ix, bound], typ=ix.typ)
+        ix = clamp("lt", ix, bound)
 
-    if parent.encoding in (Encoding.ABI, Encoding.JSON_ABI):
+    if parent.encoding == Encoding.ABI:
         if parent.location == STORAGE:
             raise CompilerPanic("storage variables should not be abi encoded")  # pragma: notest
 
@@ -483,7 +490,7 @@ def _get_element_ptr_mapping(parent, key):
 
     # TODO when is key None?
     if key is None or parent.location != STORAGE:
-        raise TypeCheckFailure("bad dereference on mapping {parent}[{sub}]")
+        raise TypeCheckFailure(f"bad dereference on mapping {parent}[{key}]")
 
     return IRnode.from_list(["sha3_64", parent, key], typ=subtype, location=STORAGE)
 
@@ -535,6 +542,7 @@ def unwrap_location(orig):
     else:
         # CMC 2022-03-24 TODO refactor so this branch can be removed
         if orig.value == "~empty":
+            # must be word type
             return IRnode.from_list(0, typ=orig.typ)
         return orig
 
@@ -545,7 +553,7 @@ def ir_tuple_from_args(args):
     return IRnode.from_list(["multi"] + [x for x in args], typ=typ)
 
 
-def _needs_external_call_wrap(ir_typ):
+def needs_external_call_wrap(ir_typ):
     # for calls to ABI conforming contracts.
     # according to the ABI spec, return types are ALWAYS tuples even
     # if only one element is being returned.
@@ -566,14 +574,14 @@ def _needs_external_call_wrap(ir_typ):
 
 
 def calculate_type_for_external_return(ir_typ):
-    if _needs_external_call_wrap(ir_typ):
+    if needs_external_call_wrap(ir_typ):
         return TupleType([ir_typ])
     return ir_typ
 
 
 def wrap_value_for_external_return(ir_val):
     # used for LHS promotion
-    if _needs_external_call_wrap(ir_val.typ):
+    if needs_external_call_wrap(ir_val.typ):
         return ir_tuple_from_args([ir_val])
     else:
         return ir_val
@@ -592,11 +600,10 @@ def dummy_node_for_type(typ):
 def _check_assign_bytes(left, right):
     if right.typ.maxlen > left.typ.maxlen:
         raise TypeMismatch(f"Cannot cast from {right.typ} to {left.typ}")  # pragma: notest
+
     # stricter check for zeroing a byte array.
     if right.value == "~empty" and right.typ.maxlen != left.typ.maxlen:
-        raise TypeMismatch(
-            f"Bad type for clearing bytes: expected {left.typ} but got {right.typ}"
-        )  # pragma: notest
+        raise TypeMismatch(f"Cannot cast from empty({right.typ}) to {left.typ}")  # pragma: notest
 
 
 def _check_assign_list(left, right):
@@ -646,8 +653,7 @@ def _check_assign_tuple(left, right):
                 FAIL()  # pragma: notest
             # TODO recurse into left, right if literals?
             check_assign(
-                dummy_node_for_type(left.typ.members[k]),
-                dummy_node_for_type(right.typ.members[k]),
+                dummy_node_for_type(left.typ.members[k]), dummy_node_for_type(right.typ.members[k])
             )
 
         for k in right.typ.members:
@@ -703,20 +709,20 @@ def _freshname(name):
 # returns True if t is ABI encoded and is a type that needs any kind of
 # validation
 def needs_clamp(t, encoding):
-    if encoding not in (Encoding.ABI, Encoding.JSON_ABI):
+    if encoding == Encoding.VYPER:
         return False
+    if encoding != Encoding.ABI:
+        raise CompilerPanic("unreachable")  # pragma: notest
     if isinstance(t, (ByteArrayLike, DArrayType)):
-        if encoding == Encoding.JSON_ABI:
-            # don't have bytestring size bound from json, don't clamp
-            return False
         return True
-    if isinstance(t, BaseType) and t.typ not in ("int256", "uint256", "bytes32"):
-        return True
+    if isinstance(t, BaseType):
+        return t.typ not in ("int256", "uint256", "bytes32")
     if isinstance(t, SArrayType):
         return needs_clamp(t.subtype, encoding)
     if isinstance(t, TupleLike):
         return any(needs_clamp(m, encoding) for m in t.tuple_members())
-    return False
+
+    raise CompilerPanic("unreachable")  # pragma: notest
 
 
 # Create an x=y statement, where the types may be compound
@@ -824,12 +830,9 @@ def eval_seq(ir_node):
 def is_return_from_function(node):
     if isinstance(node, vy_ast.Expr) and node.get("value.func.id") == "selfdestruct":
         return True
-    if isinstance(node, vy_ast.Return):
+    if isinstance(node, (vy_ast.Return, vy_ast.Raise)):
         return True
-    elif isinstance(node, vy_ast.Raise):
-        return True
-    else:
-        return False
+    return False
 
 
 def check_single_exit(fn_node):
@@ -876,7 +879,8 @@ def zero_pad(bytez_placeholder):
     #   the actual value of X as a byte sequence,
     #   followed by the *minimum* number of zero-bytes
     #   such that len(enc(X)) is a multiple of 32.
-    num_zero_bytes = ["sub", ["ceil32", "len"], "len"]
+    # optimized form of ceil32(len) - len:
+    num_zero_bytes = ["mod", ["sub", 0, "len"], 32]
     return IRnode.from_list(
         ["with", "len", len_, ["with", "dst", dst, mzero("dst", num_zero_bytes)]],
         annotation="Zero pad",
@@ -931,22 +935,24 @@ def clamp_basetype(ir_node):
 
     if is_integer_type(t) or is_decimal_type(t):
         if t._num_info.bits == 256:
-            return ir_node
+            ret = ir_node
         else:
-            return int_clamp(ir_node, t._num_info.bits, signed=t._num_info.is_signed)
+            ret = int_clamp(ir_node, t._num_info.bits, signed=t._num_info.is_signed)
 
-    if is_bytes_m_type(t):
+    elif is_bytes_m_type(t):
         if t._bytes_info.m == 32:
-            return ir_node  # special case, no clamp.
+            ret = ir_node  # special case, no clamp.
         else:
-            return bytes_clamp(ir_node, t._bytes_info.m)
+            ret = bytes_clamp(ir_node, t._bytes_info.m)
 
-    if t.typ in ("address",):
-        return int_clamp(ir_node, 160)
-    if t.typ in ("bool",):
-        return int_clamp(ir_node, 1)
+    elif t.typ in ("address",):
+        ret = int_clamp(ir_node, 160)
+    elif t.typ in ("bool",):
+        ret = int_clamp(ir_node, 1)
+    else:  # pragma: nocover
+        raise CompilerPanic(f"{t} passed to clamp_basetype")
 
-    raise CompilerPanic(f"{t} passed to clamp_basetype")  # pragma: notest
+    return IRnode.from_list(ret, typ=ir_node.typ)
 
 
 def int_clamp(ir_node, bits, signed=False):
@@ -989,3 +995,26 @@ def promote_signed_int(x, bits):
     assert bits % 8 == 0
     ret = ["signextend", bits // 8 - 1, x]
     return IRnode.from_list(ret, annotation=f"promote int{bits}")
+
+
+# general clamp function for all ops and numbers
+def clamp(op, arg, bound):
+    with IRnode.from_list(arg).cache_when_complex("clamp_arg") as (b1, arg):
+        assertion = ["assert", [op, arg, bound]]
+        ret = ["seq", assertion, arg]
+        return IRnode.from_list(b1.resolve(ret), typ=arg.typ)
+
+
+def clamp_nonzero(arg):
+    # TODO: use clamp("ne", arg, 0) once optimizer rules can handle it
+    with IRnode.from_list(arg).cache_when_complex("should_nonzero") as (b1, arg):
+        ret = ["seq", ["assert", arg], arg]
+        return IRnode.from_list(b1.resolve(ret), typ=arg.typ)
+
+
+def clamp2(lo, arg, hi, signed):
+    with IRnode.from_list(arg).cache_when_complex("clamp2_arg") as (b1, arg):
+        GE = "sge" if signed else "ge"
+        LE = "sle" if signed else "le"
+        ret = ["seq", ["assert", ["and", [GE, arg, lo], [LE, arg, hi]]], arg]
+        return IRnode.from_list(b1.resolve(ret), typ=arg.typ)

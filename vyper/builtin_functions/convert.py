@@ -8,6 +8,7 @@ from vyper.codegen.core import (
     IRnode,
     bytes_clamp,
     bytes_data_ptr,
+    clamp,
     clamp_basetype,
     get_bytearray_length,
     int_clamp,
@@ -34,10 +35,12 @@ from vyper.exceptions import (
     StructureException,
     TypeMismatch,
 )
-from vyper.utils import DECIMAL_DIVISOR, SizeLimits, round_towards_zero
+from vyper.utils import DECIMAL_DIVISOR, SizeLimits, round_towards_zero, unsigned_to_signed
 
 
 def _FAIL(ityp, otyp, source_expr=None):
+    # TODO consider changing this to InvalidType to be consistent
+    # with the case when types are equal.
     raise TypeMismatch(f"Can't convert {ityp} to {otyp}", source_expr)
 
 
@@ -76,7 +79,7 @@ def _input_types(*allowed_types):
             # note allowance of [u]int256; this is due to type inference
             # on literals not quite working yet.
             if arg.typ == out_typ and not is_base_type(arg.typ, ("uint256", "int256")):
-                raise InvalidType("value and target are both {out_typ}", expr)
+                raise InvalidType(f"value and target are both {out_typ}", expr)
 
             return f(expr, arg, out_typ)
 
@@ -110,18 +113,21 @@ def _bytes_to_num(arg, out_typ, signed):
     return IRnode.from_list(ret, annotation=annotation)
 
 
-def _clamp_numeric_convert(arg, arg_bounds, out_bounds, signed):
+def _clamp_numeric_convert(arg, arg_bounds, out_bounds, arg_is_signed):
     arg_lo, arg_hi = arg_bounds
     out_lo, out_hi = out_bounds
 
-    CLAMPGE = "clampge" if signed else "uclampge"
-    CLAMPLE = "clample" if signed else "uclample"
-
     if arg_lo < out_lo:
-        arg = [CLAMPGE, arg, out_lo]
+        # if not arg_is_signed, arg_lo is 0, so this branch cannot be hit
+        assert arg_is_signed, "bad assumption in numeric convert"
+        arg = clamp("sge", arg, out_lo)
 
     if arg_hi > out_hi:
-        arg = [CLAMPLE, arg, out_hi]
+        # out_hi must be smaller than MAX_UINT256, so clample makes sense.
+        # add an assertion, just in case this assumption ever changes.
+        assert out_hi < 2 ** 256 - 1, "bad assumption in numeric convert"
+        CLAMP_OP = "sle" if arg_is_signed else "le"
+        arg = clamp(CLAMP_OP, arg, out_hi)
 
     return arg
 
@@ -131,7 +137,7 @@ def _fixed_to_int(arg, out_typ):
     arg_info = arg.typ._decimal_info
     out_info = out_typ._int_info
 
-    DIVISOR = 10 ** arg_info.decimals
+    DIVISOR = arg_info.divisor
 
     # block inputs which are out of bounds before truncation.
     # e.g., convert(255.1, uint8) should revert or fail to compile.
@@ -150,12 +156,12 @@ def _int_to_fixed(arg, out_typ):
     arg_info = arg.typ._int_info
     out_info = out_typ._decimal_info
 
-    DIVISOR = 10 ** out_info.decimals
+    DIVISOR = out_info.divisor
 
     # block inputs which are out of bounds before promotion
     out_lo, out_hi = out_info.bounds
-    out_lo = round_towards_zero(decimal.Decimal(out_lo) / DIVISOR)
-    out_hi = round_towards_zero(decimal.Decimal(out_hi) / DIVISOR)
+    out_lo = round_towards_zero(out_lo / decimal.Decimal(DIVISOR))
+    out_hi = round_towards_zero(out_hi / decimal.Decimal(DIVISOR))
 
     clamped_arg = _clamp_numeric_convert(arg, arg_info.bounds, (out_lo, out_hi), arg_info.is_signed)
 
@@ -167,10 +173,46 @@ def _int_to_int(arg, out_typ):
     arg_info = arg.typ._int_info
     out_info = out_typ._int_info
 
-    # TODO: this generates not very good code size, we can probably do better
-    clamped_arg = _clamp_numeric_convert(arg, arg_info.bounds, out_info.bounds, arg_info.is_signed)
+    # do the same thing as
+    # _clamp_numeric_convert(arg, arg_info.bounds, out_info.bounds, arg_info.is_signed)
+    # but with better code size and gas.
+    if arg_info.is_signed and not out_info.is_signed:
 
-    return IRnode.from_list(clamped_arg, typ=out_typ)
+        # e.g. (clample (clampge arg 0) (2**128 - 1))
+
+        # note that when out_info.bits == 256,
+        # (clample arg 2**256 - 1) does not make sense.
+        # see similar assertion in _clamp_numeric_convert.
+
+        if out_info.bits < arg_info.bits:
+
+            assert out_info.bits < 256, "unreachable"
+            # note: because of the usage of signed=False, and the fact
+            # that out_bits < 256 in this branch, below implies
+            # not only (clample arg 2**128 - 1) but also (clampge arg 0).
+            arg = int_clamp(arg, out_info.bits, signed=False)
+
+        else:
+            # note: this also works for out_bits == 256.
+            arg = clamp("sge", arg, 0)
+
+    elif not arg_info.is_signed and out_info.is_signed:
+        # e.g. (uclample (uclampge arg 0) (2**127 - 1))
+        # (note that (uclampge arg 0) always evaluates to true.)
+        arg = int_clamp(arg, out_info.bits - 1, signed=False)
+
+    elif out_info.bits < arg_info.bits:
+        assert out_info.bits < 256, "unreachable"
+        # narrowing conversion, signs are the same.
+        # we can just use regular int clampers.
+        arg = int_clamp(arg, out_info.bits, out_info.is_signed)
+
+    else:
+        # widening conversion, signs are the same.
+        # we do not have to do any clamps.
+        assert arg_info.is_signed == out_info.is_signed and out_info.bits >= arg_info.bits
+
+    return IRnode.from_list(arg, typ=out_typ)
 
 
 def _check_bytes(expr, arg, output_type, max_bytes_allowed):
@@ -182,7 +224,21 @@ def _check_bytes(expr, arg, output_type, max_bytes_allowed):
         assert output_type.memory_bytes_required == 32
 
 
-def _literal_int(expr, out_typ):
+# apply sign extension, if expected. note that the sign bit
+# is always taken to be the first bit of the bytestring.
+# (e.g. convert(0xff <bytes1>, int16) == -1)
+def _signextend(expr, val, arg_typ):
+    if isinstance(expr, vy_ast.Hex):
+        assert len(expr.value[2:]) // 2 == arg_typ._bytes_info.m
+        n_bits = arg_typ._bytes_info.m_bits
+    else:
+        assert len(expr.value) == arg_typ.maxlen
+        n_bits = arg_typ.maxlen * 8
+
+    return unsigned_to_signed(val, n_bits)
+
+
+def _literal_int(expr, arg_typ, out_typ):
     # TODO: possible to reuse machinery from expr.py?
     int_info = out_typ._int_info
     if isinstance(expr, vy_ast.Hex):
@@ -194,6 +250,9 @@ def _literal_int(expr, out_typ):
     else:  # pragma: nocover
         raise CompilerPanic("unreachable")
 
+    if isinstance(expr, (vy_ast.Hex, vy_ast.Bytes)) and int_info.is_signed:
+        val = _signextend(expr, val, arg_typ)
+
     (lo, hi) = int_info.bounds
     if not (lo <= val <= hi):
         raise InvalidLiteral("Number out of range", expr)
@@ -204,21 +263,27 @@ def _literal_int(expr, out_typ):
     return IRnode.from_list(val, typ=out_typ)
 
 
-def _literal_decimal(expr, out_typ):
-    # TODO: possible to reuse machinery from expr.py?
+def _literal_decimal(expr, arg_typ, out_typ):
     if isinstance(expr, vy_ast.Hex):
         val = decimal.Decimal(int(expr.value, 16))
     else:
         val = decimal.Decimal(expr.value)  # should work for Int, Decimal
         val *= DECIMAL_DIVISOR
 
-    if not SizeLimits.in_bounds("decimal", val):
-        raise InvalidLiteral("Number out of range", expr)
-
     # sanity check type checker did its job
     assert math.ceil(val) == math.floor(val)
 
-    return IRnode.from_list(int(val), typ=out_typ)
+    val = int(val)
+
+    # apply sign extension, if expected
+    out_info = out_typ._decimal_info
+    if isinstance(expr, (vy_ast.Hex, vy_ast.Bytes)) and out_info.is_signed:
+        val = _signextend(expr, val, arg_typ)
+
+    if not SizeLimits.in_bounds("decimal", val):
+        raise InvalidLiteral("Number out of range", expr)
+
+    return IRnode.from_list(val, typ=out_typ)
 
 
 # any base type or bytes/string
@@ -238,14 +303,13 @@ def to_bool(expr, arg, out_typ):
 
 @_input_types("int", "bytes_m", "decimal", "bytes", "address", "bool")
 def to_int(expr, arg, out_typ):
-
     int_info = out_typ._int_info
 
     assert int_info.bits % 8 == 0
     _check_bytes(expr, arg, out_typ, 32)
 
     if isinstance(expr, vy_ast.Constant):
-        return _literal_int(expr, out_typ)
+        return _literal_int(expr, arg.typ, out_typ)
 
     elif isinstance(arg.typ, ByteArrayType):
         arg_typ = arg.typ
@@ -269,8 +333,8 @@ def to_int(expr, arg, out_typ):
         if int_info.is_signed:
             # TODO if possible, refactor to move this validation close to the entry of the function
             _FAIL(arg.typ, out_typ, expr)
-        if int_info.bits > 160:
-            arg = int_clamp(arg, 160, signed=False)
+        if int_info.bits < 160:
+            arg = int_clamp(arg, int_info.bits, signed=False)
 
     return IRnode.from_list(arg, typ=out_typ)
 
@@ -282,15 +346,12 @@ def to_decimal(expr, arg, out_typ):
     out_info = out_typ._decimal_info
 
     if isinstance(expr, vy_ast.Constant):
-        return _literal_decimal(expr, out_typ)
+        return _literal_decimal(expr, arg.typ, out_typ)
 
     if isinstance(arg.typ, ByteArrayType):
         arg_typ = arg.typ
         arg = _bytes_to_num(arg, out_typ, signed=True)
-        # TODO revisit this condition once we have more decimal types
-        # and decimal bounds expand
-        # will be something like: if info.m_bits > 168
-        if arg_typ.maxlen * 8 > 128:
+        if arg_typ.maxlen * 8 > 168:
             arg = IRnode.from_list(arg, typ=out_typ)
             arg = clamp_basetype(arg)
 
@@ -299,10 +360,7 @@ def to_decimal(expr, arg, out_typ):
     elif is_bytes_m_type(arg.typ):
         info = arg.typ._bytes_info
         arg = _bytes_to_num(arg, out_typ, signed=True)
-        # TODO revisit this condition once we have more decimal types
-        # and decimal bounds expand
-        # will be something like: if info.m_bits > 168
-        if info.m_bits > 128:
+        if info.m_bits > 168:
             arg = IRnode.from_list(arg, typ=out_typ)
             arg = clamp_basetype(arg)
 
@@ -337,6 +395,12 @@ def to_bytes_m(expr, arg, out_typ):
             arg = shl(num_zero_bits, shr(num_zero_bits, bytes_val))
             arg = b.resolve(arg)
 
+    elif is_bytes_m_type(arg.typ):
+        arg_info = arg.typ._bytes_info
+        # clamp if it's a downcast
+        if arg_info.m > out_info.m:
+            arg = bytes_clamp(arg, out_info.m)
+
     elif is_integer_type(arg.typ) or is_base_type(arg.typ, "address"):
         int_bits = arg.typ._int_info.bits
 
@@ -345,16 +409,18 @@ def to_bytes_m(expr, arg, out_typ):
             # arg = int_clamp(m_bits, signed=int_info.signed)
             _FAIL(arg.typ, out_typ, expr)
 
+        # note: neg numbers not OOB. keep sign bit
         arg = shl(256 - out_info.m_bits, arg)
 
-    elif is_bytes_m_type(arg.typ):
-        arg_info = arg.typ._bytes_info
-        # clamp if it's a downcast
-        if arg_info.m > out_info.m:
-            arg = bytes_clamp(arg, out_info.m)
+    elif is_decimal_type(arg.typ):
+        if out_info.m_bits < arg.typ._decimal_info.bits:
+            _FAIL(arg.typ, out_typ, expr)
+
+        # note: neg numbers not OOB. keep sign bit
+        arg = shl(256 - out_info.m_bits, arg)
 
     else:
-        # bool, decimal
+        # bool
         arg = shl(256 - out_info.m_bits, arg)
 
     return IRnode.from_list(arg, typ=out_typ)
@@ -395,6 +461,7 @@ def convert(expr, context):
 
     arg_ast = expr.args[0]
     arg = Expr(arg_ast, context).ir_node
+    original_arg = arg
     out_typ = context.parse_type(expr.args[1])
 
     if isinstance(arg.typ, BaseType):
@@ -417,6 +484,12 @@ def convert(expr, context):
         else:
             raise StructureException(f"Conversion to {out_typ} is invalid.", arg_ast)
 
-        ret = b.resolve(ret)
+        # test if arg actually changed. if not, we do not need to use
+        # unwrap_location (this can reduce memory traffic for downstream
+        # operations which are in-place, like the returndata routine)
+        test_arg = IRnode.from_list(arg, typ=out_typ)
+        if test_arg == ret:
+            original_arg.typ = out_typ
+            return original_arg
 
-    return IRnode.from_list(ret)
+        return IRnode.from_list(b.resolve(ret))

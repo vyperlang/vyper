@@ -39,12 +39,59 @@ def fourbytes_to_int(inp):
     return (inp[0] << 24) + (inp[1] << 16) + (inp[2] << 8) + inp[3]
 
 
+def signed_to_unsigned(int_, bits, strict=False):
+    """
+    Reinterpret a signed integer with n bits as an unsigned integer.
+    The implementation is unforgiving in that it assumes the input is in
+    bounds for int<bits>, in order to fail more loudly (and not hide
+    errors in modular reasoning in consumers of this function).
+    """
+    if strict:
+        lo, hi = int_bounds(signed=True, bits=bits)
+        assert lo <= int_ <= hi
+    if int_ < 0:
+        return int_ + 2 ** bits
+    return int_
+
+
+def unsigned_to_signed(int_, bits, strict=False):
+    """
+    Reinterpret an unsigned integer with n bits as a signed integer.
+    The implementation is unforgiving in that it assumes the input is in
+    bounds for uint<bits>, in order to fail more loudly (and not hide
+    errors in modular reasoning in consumers of this function).
+    """
+    if strict:
+        lo, hi = int_bounds(signed=False, bits=bits)
+        assert lo <= int_ <= hi
+    if int_ > (2 ** (bits - 1)) - 1:
+        return int_ - (2 ** bits)
+    return int_
+
+
+def is_power_of_two(n: int) -> bool:
+    # busted for ints wider than 53 bits:
+    # t = math.log(n, 2)
+    # return math.ceil(t) == math.floor(t)
+    return n != 0 and ((n & (n - 1)) == 0)
+
+
+# https://stackoverflow.com/a/71122440/
+def int_log2(n: int) -> int:
+    return n.bit_length() - 1
+
+
 # utility function for debugging purposes
 def trace(n=5, out=sys.stderr):
     print("BEGIN TRACE", file=out)
     for x in list(traceback.format_stack())[-n:]:
         print(x.strip(), file=out)
     print("END TRACE", file=out)
+
+
+# print a warning
+def vyper_warn(msg, prefix="Warning: ", file_=sys.stderr):
+    print(f"{prefix}{msg}", file=file_)
 
 
 # converts a signature like Func(bool,uint256,address) to its 4 byte method ID
@@ -91,6 +138,10 @@ def bytes_to_int(bytez):
     return o
 
 
+def is_checksum_encoded(addr):
+    return addr == checksum_encode(addr)
+
+
 # Encodes an address using ethereum's checksum scheme
 def checksum_encode(addr):  # Expects an input of the form 0x<40 hex chars>
     assert addr[:2] == "0x" and len(addr) == 42, addr
@@ -123,6 +174,7 @@ GAS_CALLDATACOPY_WORD = 3
 # A decimal value can store multiples of 1/DECIMAL_DIVISOR
 MAX_DECIMAL_PLACES = 10
 DECIMAL_DIVISOR = 10 ** MAX_DECIMAL_PLACES
+DECIMAL_EPSILON = decimal.Decimal(1) / DECIMAL_DIVISOR
 
 
 def int_bounds(signed, bits):
@@ -136,12 +188,16 @@ def int_bounds(signed, bits):
     return 0, (2 ** bits) - 1
 
 
+# e.g. -1 -> -(2**256 - 1)
+def evm_twos_complement(x: int) -> int:
+    # return ((o + 2 ** 255) % 2 ** 256) - 2 ** 255
+    return ((2 ** 256 - 1) ^ x) + 1
+
+
 # EVM div semantics as a python function
 def evm_div(x, y):
     if y == 0:
         return 0
-    # doesn't actually work:
-    # return int(x / y)
     # NOTE: should be same as: round_towards_zero(Decimal(x)/Decimal(y))
     sign = -1 if (x * y) < 0 else 1
     return sign * (abs(x) // abs(y))  # adapted from py-evm
@@ -152,8 +208,6 @@ def evm_mod(x, y):
     if y == 0:
         return 0
 
-    # this doesn't actually work when num digits exceeds fp precision:
-    # return int(math.fmod(x, y))
     sign = -1 if x < 0 else 1
     return sign * (abs(x) % abs(y))  # adapted from py-evm
 
@@ -196,9 +250,7 @@ class SizeLimits:
 
 
 # Otherwise reserved words that are whitelisted for function declarations
-FUNCTION_WHITELIST = {
-    "send",
-}
+FUNCTION_WHITELIST = {"send"}
 
 # List of valid IR macros.
 # TODO move this somewhere else, like ir_node.py
@@ -210,12 +262,6 @@ VALID_IR_MACROS = {
     "dload",
     "dloadbytes",
     "ceil32",
-    "clamp",
-    "clamp_nonzero",
-    "clampge",
-    "clampgt",
-    "clample",
-    "clamplt",
     "continue",
     "debugger",
     "ge",
@@ -232,11 +278,6 @@ VALID_IR_MACROS = {
     "sha3_32",
     "sha3_64",
     "sle",
-    "uclamp",
-    "uclampge",
-    "uclampgt",
-    "uclample",
-    "uclamplt",
     "with",
     "label",
     "goto",
@@ -246,6 +287,12 @@ VALID_IR_MACROS = {
     "~empty",
     "var_list",
 }
+
+
+EIP_170_LIMIT = 0x6000  # 24kb
+
+SHA3_BASE = 30
+SHA3_PER_WORD = 6
 
 
 def indent(text: str, indent_chars: Union[str, List[str]] = " ", level: int = 1) -> str:
@@ -353,6 +400,4 @@ def annotate_source_code(
     return "\n".join(cleanup_lines)
 
 
-__all__ = [
-    "cached_property",
-]
+__all__ = ["cached_property"]

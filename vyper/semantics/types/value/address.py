@@ -1,7 +1,7 @@
 from vyper import ast as vy_ast
 from vyper.abi_types import ABI_Address, ABIType
-from vyper.exceptions import CompilerPanic, InvalidLiteral
-from vyper.utils import checksum_encode
+from vyper.exceptions import InvalidLiteral
+from vyper.utils import checksum_encode, is_checksum_encoded
 
 from ..bases import BasePrimitive, MemberTypeDefinition, ValueTypeDefinition
 from .array_value import BytesArrayDefinition
@@ -36,8 +36,14 @@ class AddressPrimitive(BasePrimitive):
         super().from_literal(node)
         addr = node.value
         if len(addr) != 42:
-            raise InvalidLiteral("Invalid literal for type 'address'", node)
-        if checksum_encode(addr) != addr:
-            # this should have been caught in `vyper.ast.nodes.Hex.validate`
-            raise CompilerPanic("Address checksum mismatch")
+            n_bytes = (len(addr) - 2) // 2
+            raise InvalidLiteral(f"Invalid address. Expected 20 bytes, got {n_bytes}.", node)
+
+        if not is_checksum_encoded(addr):
+            raise InvalidLiteral(
+                "Address checksum mismatch. If you are sure this is the right "
+                f"address, the correct checksummed form is: {checksum_encode(addr)}",
+                node,
+            )
+
         return AddressDefinition()

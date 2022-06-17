@@ -691,10 +691,7 @@ def test_multi4_2() -> DynArray[DynArray[DynArray[DynArray[uint256, 2], 2], 2], 
     nest3 = [[[0, 0], [0, 4]], [[0, 7], [0, 123]]]
     assert c.test_multi3_1() == nest3
     assert c.test_multi3_2() == nest3
-    nest4 = [
-        [[[1, 0], [0, 4]], [[0, 0], [0, 0]]],
-        [[[444, 0], [0, 0]], [[1, 0], [0, 222]]],
-    ]
+    nest4 = [[[[1, 0], [0, 4]], [[0, 0], [0, 0]]], [[[444, 0], [0, 0]], [[1, 0], [0, 222]]]]
     assert c.test_multi4_1() == nest4
     assert c.test_multi4_2() == nest4
 
@@ -755,7 +752,7 @@ def bounds_check_int128(ix: int128) -> uint256:
     assert_tx_failed(lambda: c.bounds_check_int128(-1))
 
 
-def test_list_check_heterogeneous_types(get_contract_with_gas_estimation, assert_compile_failed):
+def test_index_exception(get_contract_with_gas_estimation, assert_compile_failed):
     code = """
 @external
 def fail() -> uint256:
@@ -763,6 +760,7 @@ def fail() -> uint256:
     return xs[3]
     """
     assert_compile_failed(lambda: get_contract_with_gas_estimation(code), ArrayIndexException)
+
     code = """
 @external
 def fail() -> uint256:
@@ -888,6 +886,20 @@ my_array: DynArray[uint256, 5]
 def foo(xs: DynArray[uint256, 5]) -> DynArray[uint256, 5]:
     for x in xs:
         self.my_array.append(x)
+    return self.my_array
+    """,
+        lambda xs: xs,
+    ),
+    (
+        """
+my_array: DynArray[uint256, 5]
+some_var: uint256
+@external
+def foo(xs: DynArray[uint256, 5]) -> DynArray[uint256, 5]:
+    for x in xs:
+        self.some_var = x
+        # test that typechecker for append args works
+        self.my_array.append(self.some_var)
     return self.my_array
     """,
         lambda xs: xs,
@@ -1260,6 +1272,66 @@ def foo(x: uint8) -> uint8:
     c = get_contract(code)
     assert c.foo(17) == 98
     assert_tx_failed(lambda: c.foo(241))
+
+
+def test_list_of_nested_struct_arrays(get_contract):
+    code = """
+struct Ded:
+    a: uint256[3]
+    b: bool
+
+struct Foo:
+    c: uint256
+    d: uint256
+    e: Ded
+
+struct Bar:
+    f: DynArray[Foo, 3]
+    g: DynArray[uint256, 3]
+
+@external
+def bar(_bar: DynArray[Bar, 3]) -> uint256:
+    sum: uint256 = 0
+    for i in range(3):
+        sum += _bar[i].f[0].e.a[0] * _bar[i].f[1].e.a[1]
+    return sum
+    """
+    c = get_contract(code)
+    c_input = [
+        ((tuple([(123, 456, ([i, i + 1, i + 2], False))] * 3)), [9, 8, 7]) for i in range(1, 4)
+    ]
+
+    assert c.bar(c_input) == 20
+
+
+def test_2d_list_of_struct(get_contract):
+    code = """
+struct Bar:
+    a: uint256
+    b: uint256
+
+@external
+def foo(x: DynArray[DynArray[Bar, 2], 2]) -> uint256:
+    return x[0][0].a + x[1][1].b
+    """
+    c = get_contract(code)
+    c_input = [([i, i * 2], [i * 3, i * 4]) for i in range(1, 3)]
+    assert c.foo(c_input) == 9
+
+
+def test_3d_list_of_struct(get_contract):
+    code = """
+struct Bar:
+    a: uint256
+    b: uint256
+
+@external
+def foo(x: DynArray[DynArray[DynArray[Bar, 2], 2], 2]) -> uint256:
+    return x[0][0][0].a + x[1][1][1].b
+    """
+    c = get_contract(code)
+    c_input = [([([i, i * 2], [i * 3, i * 4]) for i in range(1, 3)])] * 2
+    assert c.foo(c_input) == 9
 
 
 def test_list_of_static_list(get_contract):

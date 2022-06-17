@@ -1,3 +1,4 @@
+import contextlib
 import re
 
 from vyper.evm.opcodes import OPCODES
@@ -7,6 +8,7 @@ from vyper.exceptions import (
     StructureException,
     UndeclaredDefinition,
 )
+from vyper.semantics.validation.levenshtein_utils import get_levenshtein_error_suggestions
 
 
 class Namespace(dict):
@@ -42,7 +44,8 @@ class Namespace(dict):
 
     def __getitem__(self, key):
         if key not in self:
-            raise UndeclaredDefinition(f"'{key}' has not been declared")
+            suggestions_str = get_levenshtein_error_suggestions(key, self, 0.2)
+            raise UndeclaredDefinition(f"'{key}' has not been declared. {suggestions_str}")
         return super().__getitem__(key)
 
     def __enter__(self):
@@ -98,6 +101,19 @@ def get_namespace():
     except NameError:
         _namespace = Namespace()
         return _namespace
+
+
+@contextlib.contextmanager
+def override_global_namespace(ns):
+    global _namespace
+    tmp = _namespace
+    try:
+        # clobber global namespace
+        _namespace = ns
+        yield
+    finally:
+        # unclobber
+        _namespace = tmp
 
 
 def validate_identifier(attr):

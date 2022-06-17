@@ -35,7 +35,7 @@ opcodes            - List of opcodes as a string
 opcodes_runtime    - List of runtime opcodes as a string
 ir                 - Intermediate representation in list format
 ir_json            - Intermediate representation in JSON format
-ir-hex             - Output IR and assembly constants in hex instead of decimal
+hex-ir             - Output IR and assembly constants in hex instead of decimal
 no-optimize        - Do not optimize (don't use this for production code)
 """
 
@@ -80,27 +80,16 @@ def _parse_args(argv):
         description="Pythonic Smart Contract Language for the EVM",
         formatter_class=argparse.RawTextHelpFormatter,
     )
+    parser.add_argument("input_files", help="Vyper sourcecode to compile", nargs="+")
     parser.add_argument(
-        "input_files",
-        help="Vyper sourcecode to compile",
-        nargs="+",
-    )
-    parser.add_argument(
-        "--version",
-        action="version",
-        version=vyper.__version__,
+        "--version", action="version", version=f"{vyper.__version__}+commit.{vyper.__commit__}"
     )
     parser.add_argument(
         "--show-gas-estimates",
         help="Show gas estimates in abi and ir output mode.",
         action="store_true",
     )
-    parser.add_argument(
-        "-f",
-        help=format_options_help,
-        default="bytecode",
-        dest="format",
-    )
+    parser.add_argument("-f", help=format_options_help, default="bytecode", dest="format")
     parser.add_argument(
         "--storage-layout-file",
         help="Override storage slots provided by compiler",
@@ -114,11 +103,7 @@ def _parse_args(argv):
         default=DEFAULT_EVM_VERSION,
         dest="evm_version",
     )
-    parser.add_argument(
-        "--no-optimize",
-        help="Do not optimize",
-        action="store_true",
-    )
+    parser.add_argument("--no-optimize", help="Do not optimize", action="store_true")
     parser.add_argument(
         "--traceback-limit",
         help="Set the traceback limit for error messages reported by the compiler",
@@ -136,10 +121,7 @@ def _parse_args(argv):
         help="Switch to standard JSON mode. Use `--standard-json -h` for available options.",
         action="store_true",
     )
-    parser.add_argument(
-        "--ir-hex",
-        action="store_true",
-    )
+    parser.add_argument("--hex-ir", action="store_true")
     parser.add_argument(
         "-p", help="Set the root path for contract imports", default=".", dest="root_folder"
     )
@@ -159,7 +141,7 @@ def _parse_args(argv):
         # an error occurred in a Vyper source file.
         sys.tracebacklimit = 0
 
-    if args.ir_hex:
+    if args.hex_ir:
         ir_node.AS_HEX_DEFAULT = True
 
     output_formats = tuple(uniq(args.format.split(",")))
@@ -248,10 +230,7 @@ def get_interface_codes(root_path: Path, contract_sources: ContractCodes) -> Dic
                     elif isinstance(contents, list) or (
                         "abi" in contents and isinstance(contents["abi"], list)
                     ):
-                        interfaces[file_path][interface_name] = {
-                            "type": "json",
-                            "code": contents,
-                        }
+                        interfaces[file_path][interface_name] = {"type": "json", "code": contents}
 
                     else:
                         raise ValueError(f"Corrupted file: '{valid_path}'")

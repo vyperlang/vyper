@@ -212,3 +212,30 @@ def get_idx_two() -> int128:
     c = get_contract(code, *values)
     assert c.get_my_list() == expected_values
     assert c.get_idx_two() == expected_values[2][2][2]
+
+
+@pytest.mark.parametrize("n", range(5))
+def test_internal_function_with_immutables(get_contract, n):
+    code = """
+@internal
+def foo() -> uint256:
+    self.counter += 1
+    return self.counter
+
+counter: uint256
+VALUE: immutable(uint256)
+
+@external
+def __init__(x: uint256):
+    self.counter = x
+    self.foo()
+    VALUE = self.foo()
+    self.foo()
+
+@external
+def get_immutable() -> uint256:
+    return VALUE
+    """
+
+    c = get_contract(code, n)
+    assert c.get_immutable() == n + 2

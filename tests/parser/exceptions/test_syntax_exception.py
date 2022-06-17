@@ -54,7 +54,7 @@ def foo():
     """
 @external
 def foo():
-    x: address = create_forwarder_to(0x123456789012345678901234567890123456789)
+    x: address = create_minimal_proxy_to(0x123456789012345678901234567890123456789)
     """,
     """
 @external

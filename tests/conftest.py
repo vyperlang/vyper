@@ -36,11 +36,7 @@ def set_evm_verbose_logging():
 
 
 def pytest_addoption(parser):
-    parser.addoption(
-        "--no-optimize",
-        action="store_true",
-        help="disable asm and IR optimizations",
-    )
+    parser.addoption("--no-optimize", action="store_true", help="disable asm and IR optimizations")
 
 
 @pytest.fixture(scope="module")
@@ -84,10 +80,7 @@ def get_contract_from_ir(w3, no_optimize):
         tx_hash = deploy_transaction.transact()
         address = w3.eth.get_transaction_receipt(tx_hash)["contractAddress"]
         contract = w3.eth.contract(
-            address,
-            abi=abi,
-            bytecode=bytecode,
-            ContractFactoryClass=VyperContract,
+            address, abi=abi, bytecode=bytecode, ContractFactoryClass=VyperContract
         )
         return contract
 
@@ -114,11 +107,11 @@ def get_contract_module(no_optimize):
 
 
 def get_compiler_gas_estimate(code, func):
-    ir_runtime = compiler.phases.CompilerData(code).ir_runtime
+    sigs = compiler.phases.CompilerData(code).function_signatures
     if func:
-        return compiler.utils.build_gas_estimates(ir_runtime)[func] + 22000
+        return compiler.utils.build_gas_estimates(sigs)[func] + 22000
     else:
-        return sum(compiler.utils.build_gas_estimates(ir_runtime).values()) + 22000
+        return sum(compiler.utils.build_gas_estimates(sigs).values()) + 22000
 
 
 def check_gas_on_chain(w3, tester, code, func=None, res=None):

@@ -18,7 +18,7 @@ from vyper.warnings import ContractSizeLimitWarning
 def build_ast_dict(compiler_data: CompilerData) -> dict:
     ast_dict = {
         "contract_name": compiler_data.contract_name,
-        "ast": ast_to_dict(compiler_data.vyper_module),
+        "ast": ast_to_dict(compiler_data.vyper_module_unfolded),
     }
     return ast_dict
 
@@ -108,7 +108,7 @@ def build_metadata_output(compiler_data: CompilerData) -> dict:
         ret = vars(sig)
         ret["return_type"] = str(ret["return_type"])
         ret["_ir_identifier"] = sig._ir_identifier
-        for attr in ("gas", "func_ast_code"):
+        for attr in ("gas_estimate", "func_ast_code"):
             del ret[attr]
         for attr in ("args", "base_args", "default_args"):
             if attr in ret:
@@ -132,7 +132,7 @@ def build_abi_output(compiler_data: CompilerData) -> list:
     abi = compiler_data.vyper_module_folded._metadata["type"].to_abi_dict()
     if compiler_data.show_gas_estimates:
         # Add gas estimates for each function to ABI
-        gas_estimates = build_gas_estimates(compiler_data.ir_runtime)
+        gas_estimates = build_gas_estimates(compiler_data.function_signatures)
         for func in abi:
             try:
                 func_signature = func["name"]
@@ -143,7 +143,6 @@ def build_abi_output(compiler_data: CompilerData) -> list:
             func_name, _, _ = func_signature.partition("(")
             # This check ensures we skip __init__ since it has no estimate
             if func_name in gas_estimates:
-                # TODO: mutation
                 func["gas"] = gas_estimates[func_name]
     return abi
 
@@ -185,17 +184,16 @@ def _build_asm(asm_list):
 
 
 def build_source_map_output(compiler_data: CompilerData) -> OrderedDict:
-    _, line_number_map = compile_ir.assembly_to_evm(compiler_data.assembly_runtime)
+    _, line_number_map = compile_ir.assembly_to_evm(
+        compiler_data.assembly_runtime, insert_vyper_signature=True
+    )
     # Sort line_number_map
     out = OrderedDict()
     for k in sorted(line_number_map.keys()):
         out[k] = line_number_map[k]
 
     out["pc_pos_map_compressed"] = _compress_source_map(
-        compiler_data.source_code,
-        out["pc_pos_map"],
-        out["pc_jump_map"],
-        compiler_data.source_id,
+        compiler_data.source_code, out["pc_pos_map"], out["pc_jump_map"], compiler_data.source_id
     )
     out["pc_pos_map"] = dict((k, v) for k, v in out["pc_pos_map"].items() if v)
     return out

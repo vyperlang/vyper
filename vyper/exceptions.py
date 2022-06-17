@@ -18,7 +18,7 @@ class ExceptionList(list):
             raise self[0]
         elif len(self) > 1:
             err_msg = ["Compilation failed with the following errors:"]
-            err_msg += [f"{type(i).__name__}: {i}" for i in self]
+            err_msg += [f"{type(i).__name__}: {i}" for i in reversed(self)]
             raise VyperException("\n\n".join(err_msg))
 
 
@@ -163,6 +163,10 @@ class FunctionDeclarationException(VyperException):
     """Invalid function declaration."""
 
 
+class EnumDeclarationException(VyperException):
+    """Invalid enum declaration."""
+
+
 class EventDeclarationException(VyperException):
     """Invalid event declaration."""
 
@@ -269,6 +273,14 @@ class ParserException(Exception):
     """Contract source cannot be parsed."""
 
 
+class UnimplementedException(VyperException):
+    """Some feature is known to be not implemented"""
+
+
+class StaticAssertionException(VyperException):
+    """An assertion is proven to fail at compile-time."""
+
+
 class VyperInternalException(Exception):
     """
     Base Vyper internal exception class.
@@ -276,8 +288,8 @@ class VyperInternalException(Exception):
     This exception is not raised directly, it is subclassed by other internal
     exceptions.
 
-    Internal exceptions are raised as a means of passing information between
-    compiler processes. They should never be exposed to the user.
+    Internal exceptions are raised as a means of telling the user that the
+    compiler has panicked, and that filing a bug report would be appropriate.
     """
 
     def __init__(self, message=""):

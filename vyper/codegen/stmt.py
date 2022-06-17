@@ -23,7 +23,7 @@ from vyper.codegen.core import (
 )
 from vyper.codegen.expr import Expr
 from vyper.codegen.return_ import make_return_stmt
-from vyper.codegen.types import BaseType, ByteArrayType, DArrayType, parse_type
+from vyper.codegen.types import BaseType, ByteArrayType, DArrayType
 from vyper.codegen.types.convert import new_type_to_old_type
 from vyper.exceptions import CompilerPanic, StructureException, TypeCheckFailure
 
@@ -46,6 +46,7 @@ class Stmt:
         self.ir_node.source_pos = getpos(self.stmt)
 
     def parse_Expr(self):
+        # TODO: follow analysis modules and dispatch down to expr.py
         return Stmt(self.stmt.value, self.context).ir_node
 
     def parse_Pass(self):
@@ -58,11 +59,7 @@ class Stmt:
             raise StructureException(f"Unsupported statement type: {type(self.stmt)}", self.stmt)
 
     def parse_AnnAssign(self):
-        typ = parse_type(
-            self.stmt.annotation,
-            sigs=self.context.sigs,
-            custom_structs=self.context.structs,
-        )
+        typ = self.context.parse_type(self.stmt.annotation)
         varname = self.stmt.target.id
         pos = self.context.new_variable(varname, typ)
         if self.stmt.value is None:
@@ -80,10 +77,7 @@ class Stmt:
 
         # If bytes[32] to bytes32 assignment rewrite sub as bytes32.
         if is_literal_bytes32_assign:
-            sub = IRnode(
-                util.bytes_to_int(self.stmt.value.s),
-                typ=BaseType("bytes32"),
-            )
+            sub = IRnode(util.bytes_to_int(self.stmt.value.s), typ=BaseType("bytes32"))
 
         variable_loc = IRnode.from_list(pos, typ=typ, location=MEMORY)
 
@@ -128,6 +122,8 @@ class Stmt:
         return events.ir_node_for_log(self.stmt, event, topic_ir, data_ir, self.context)
 
     def parse_Call(self):
+        # TODO use expr.func.type.is_internal once type annotations
+        # are consistently available.
         is_self_function = (
             (isinstance(self.stmt.func, vy_ast.Attribute))
             and isinstance(self.stmt.func.value, vy_ast.Name)
@@ -142,6 +138,7 @@ class Stmt:
             "append",
             "pop",
         ):
+            # TODO: consider moving this to builtins
             darray = Expr(self.stmt.func.value, self.context).ir_node
             args = [Expr(x, self.context).ir_node for x in self.stmt.args]
             if self.stmt.func.attr == "append":
@@ -216,13 +213,6 @@ class Stmt:
 
     def parse_Assert(self):
         test_expr = Expr.parse_value_expr(self.stmt.test, self.context)
-        if test_expr.typ.is_literal:
-            if test_expr.value == 1:
-                # skip literal assertions that always pass
-                # TODO move this to optimizer
-                return IRnode.from_list(["pass"])
-            else:
-                test_expr = test_expr.value
 
         if self.stmt.msg:
             return self._assert_reason(test_expr, self.stmt.msg)
@@ -235,25 +225,13 @@ class Stmt:
         else:
             return IRnode.from_list(["revert", 0, 0])
 
-    def _check_valid_range_constant(self, arg_ast_node, raise_exception=True):
+    def _check_valid_range_constant(self, arg_ast_node):
         with self.context.range_scope():
-            # TODO should catch if raise_exception == False?
             arg_expr = Expr.parse_value_expr(arg_ast_node, self.context)
-
-        is_integer_literal = (
-            isinstance(arg_expr.typ, BaseType)
-            and arg_expr.typ.is_literal
-            and arg_expr.typ.typ in {"uint256", "int256"}
-        )
-        if not is_integer_literal and raise_exception:
-            raise StructureException(
-                "Range only accepts literal (constant) values of type uint256 or int256",
-                arg_ast_node,
-            )
-        return is_integer_literal, arg_expr
+        return arg_expr
 
     def _get_range_const_value(self, arg_ast_node):
-        _, arg_expr = self._check_valid_range_constant(arg_ast_node)
+        arg_expr = self._check_valid_range_constant(arg_ast_node)
         return arg_expr.value
 
     def parse_For(self):
@@ -282,7 +260,7 @@ class Stmt:
             rounds = arg0_val
 
         # Type 2 for, e.g. for i in range(100, 110): ...
-        elif self._check_valid_range_constant(self.stmt.iter.args[1], raise_exception=False)[0]:
+        elif self._check_valid_range_constant(self.stmt.iter.args[1]).typ.is_literal:
             arg0_val = self._get_range_const_value(arg0)
             arg1_val = self._get_range_const_value(self.stmt.iter.args[1])
             start = IRnode.from_list(arg0_val, typ=iter_typ)
@@ -347,11 +325,7 @@ class Stmt:
 
         # set up the loop variable
         e = get_element_ptr(iter_list, i, array_bounds_check=False)
-        body = [
-            "seq",
-            make_setter(loop_var, e),
-            parse_body(self.stmt.body, self.context),
-        ]
+        body = ["seq", make_setter(loop_var, e), parse_body(self.stmt.body, self.context)]
 
         repeat_bound = iter_list.typ.count
         if isinstance(iter_list.typ, DArrayType):

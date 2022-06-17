@@ -6,11 +6,7 @@ from vyper.ast.validation import validate_call_args
 from vyper.exceptions import EventDeclarationException, NamespaceCollision, StructureException
 from vyper.semantics.namespace import validate_identifier
 from vyper.semantics.types.bases import DataLocation
-from vyper.semantics.types.utils import (
-    generate_abi_type,
-    get_type_from_abi,
-    get_type_from_annotation,
-)
+from vyper.semantics.types.utils import get_type_from_abi, get_type_from_annotation
 from vyper.semantics.validation.utils import validate_expected_type
 from vyper.utils import keccak256
 
@@ -40,6 +36,10 @@ class Event:
         self.arguments = arguments
         self.indexed = indexed
         self.event_id = int(keccak256(self.signature.encode()).hex(), 16)
+
+    def __repr__(self):
+        arg_types = ",".join(repr(a) for a in self.arguments.values())
+        return f"event {self.name}({arg_types})"
 
     @property
     def signature(self):
@@ -123,8 +123,8 @@ class Event:
             {
                 "name": self.name,
                 "inputs": [
-                    dict(**generate_abi_type(typ, name), **{"indexed": idx})
-                    for (name, typ), idx in zip(self.arguments.items(), self.indexed)
+                    dict(**typ.to_abi_dict(name=k), **{"indexed": idx})
+                    for (k, typ), idx in zip(self.arguments.items(), self.indexed)
                 ],
                 "anonymous": False,
                 "type": "event",

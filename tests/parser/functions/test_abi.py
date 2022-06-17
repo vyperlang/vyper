@@ -53,10 +53,7 @@ def foo(y: uint256) -> Bytes[100]:
     return b"hello"
     """
 
-    out = compile_code(
-        code,
-        output_formats=["method_identifiers"],
-    )
+    out = compile_code(code, output_formats=["method_identifiers"])
 
     assert out["method_identifiers"] == {"foo(uint256)": "0x2fbebd38", "x()": "0xc55699c"}
 
@@ -96,3 +93,91 @@ def foo(s: MyStruct) -> MyStruct:
     }
 
     assert func_abi["inputs"][0] == expected_input
+
+
+@pytest.mark.parametrize(
+    "type,abi_type", [("DynArray[NestedStruct, 2]", "tuple[]"), ("NestedStruct[2]", "tuple[2]")]
+)
+def test_nested_struct(type, abi_type):
+    code = f"""
+struct MyStruct:
+    a: address
+    b: bytes32
+
+struct NestedStruct:
+    t: MyStruct
+    foo: uint256
+
+@view
+@external
+def getStructList() -> {type}:
+    return [
+        NestedStruct({{t: MyStruct({{a: msg.sender, b: block.prevhash}}), foo: 1}}),
+        NestedStruct({{t: MyStruct({{a: msg.sender, b: block.prevhash}}), foo: 2}})
+    ]
+    """
+
+    out = compile_code(code, output_formats=["abi"])
+
+    assert out["abi"] == [
+        {
+            "inputs": [],
+            "name": "getStructList",
+            "outputs": [
+                {
+                    "components": [
+                        {
+                            "components": [
+                                {"name": "a", "type": "address"},
+                                {"name": "b", "type": "bytes32"},
+                            ],
+                            "name": "t",
+                            "type": "tuple",
+                        },
+                        {"name": "foo", "type": "uint256"},
+                    ],
+                    "name": "",
+                    "type": f"{abi_type}",
+                }
+            ],
+            "stateMutability": "view",
+            "type": "function",
+        }
+    ]
+
+
+@pytest.mark.parametrize(
+    "type,abi_type", [("DynArray[DynArray[Foo, 2], 2]", "tuple[][]"), ("Foo[2][2]", "tuple[2][2]")]
+)
+def test_2d_list_of_struct(type, abi_type):
+    code = f"""
+struct Foo:
+    a: uint256
+    b: uint256
+
+@view
+@external
+def bar(x: {type}):
+    pass
+    """
+
+    out = compile_code(code, output_formats=["abi"])
+
+    assert out["abi"] == [
+        {
+            "inputs": [
+                {
+                    "components": [
+                        {"name": "a", "type": "uint256"},
+                        {"name": "b", "type": "uint256"},
+                    ],
+                    "name": "x",
+                    "type": f"{abi_type}",
+                }
+            ],
+            "name": "bar",
+            "outputs": [],
+            "stateMutability": "view",
+            "type": "function",
+        }
+    ]

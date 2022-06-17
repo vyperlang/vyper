@@ -5,8 +5,7 @@
 Built in Functions
 ##################
 
-Vyper provides a collection of built in functions available in the global namespace of all
-contracts.
+Vyper provides a collection of built in functions available in the global namespace of all contracts.
 
 Bitwise Operations
 ==================
@@ -94,25 +93,98 @@ Bitwise Operations
 Chain Interaction
 =================
 
-.. py:function:: create_forwarder_to(target: address, value: uint256 = 0[, salt: bytes32]) -> address
 
-    Deploys a small contract that duplicates the logic of the contract at ``target``, but has its own state since every call to ``target`` is made using ``DELEGATECALL`` to ``target``. To the end user, this should be indistinguishable from an independantly deployed contract with the same code as ``target``.
+Vyper has three builtins for contract creation; all three contract creation builtins rely on the code to deploy already being stored on-chain, but differ in call vs deploy overhead, and whether or not they invoke the constructor of the contract to be deployed. The following list provides a short summary of the differences between them.
 
-.. note::
+* ``create_minimal_proxy_to(target: address, ...)``
+    * Creates an immutable proxy to ``target``
+    * Expensive to call (incurs a single ``DELEGATECALL`` overhead on every invocation), cheap to create (since it only deploys ``EIP-1167`` forwarder bytecode)
+    * Does not have the ability to call a constructor
+    * Does **not** check that there is code at ``target`` (allows one to deploy proxies counterfactually)
+* ``create_copy_of(target: address, ...)``
+    * Creates a byte-for-byte copy of runtime code stored at ``target``
+    * Cheap to call (no ``DELEGATECALL`` overhead), expensive to create (200 gas per deployed byte)
+    * Does not have the ability to call a constructor
+    * Performs an ``EXTCODESIZE`` check to check there is code at ``target``
+* ``create_from_factory(target: address, ...)``
+    * Deploys a contract using the initcode stored at ``target``
+    * Cheap to call (no ``DELEGATECALL`` overhead), expensive to create (200 gas per deployed byte)
+    * Invokes constructor, requires a special "factory" contract to be deployed
+    * Performs an ``EXTCODESIZE`` check to check there is code at ``target``
 
-  It is very important that the deployed contract at ``target`` is code you know and trust, and does not implement the ``selfdestruct`` opcode as this will affect the operation of the forwarder contract.
+.. py:function:: create_minimal_proxy_to(target: address, value: uint256 = 0[, salt: bytes32]) -> address
 
-    * ``target``: Address of the contract to duplicate
+    Deploys a small, EIP1167-compliant, "minimal proxy contract" that duplicates the logic of the contract at ``target``, but has its own state since every call to ``target`` is made using ``DELEGATECALL`` to ``target``. To the end user, this should be indistinguishable from an independently deployed contract with the same code as ``target``.
+
+
+    * ``target``: Address of the contract to proxy to
     * ``value``: The wei value to send to the new contract address (Optional, default 0)
-    * ``salt``: A ``bytes32`` value utilized by the ``CREATE2`` opcode (Optional, if supplied deterministic deployment is done via ``CREATE2``)
+    * ``salt``: A ``bytes32`` value utilized by the deterministic ``CREATE2`` opcode (Optional, if not supplied, ``CREATE`` is used)
 
-    Returns the address of the duplicated contract.
+    Returns the address of the newly created proxy contract. If the create operation fails (for instance, in the case of a ``CREATE2`` collision), execution will revert.
 
     .. code-block:: python
 
         @external
         def foo(_target: address) -> address:
-            return create_forwarder_to(_target)
+            return create_minimal_proxy_to(_target)
+
+.. note::
+
+  It is very important that the deployed contract at ``target`` is code you know and trust, and does not implement the ``selfdestruct`` opcode or have upgradeable code as this will affect the operation of the proxy contract.
+
+.. note::
+
+  There is no runtime check that there is code already deployed at ``target`` (since a proxy may be deployed counterfactually). Most applications may want to insert this check.
+
+.. note::
+
+  Before version 0.3.4, this function was named ``create_forwarder_to``.
+
+
+.. py:function:: create_copy_of(target: address, value: uint256 = 0[, salt: bytes32]) -> address
+
+    Create a physical copy of the runtime code at ``target``. The code at ``target`` is byte-for-byte copied into a newly deployed contract.
+
+    * ``target``: Address of the contract to copy
+    * ``value``: The wei value to send to the new contract address (Optional, default 0)
+    * ``salt``: A ``bytes32`` value utilized by the deterministic ``CREATE2`` opcode (Optional, if not supplied, ``CREATE`` is used)
+
+    Returns the address of the created contract. If the create operation fails (for instance, in the case of a ``CREATE2`` collision), execution will revert. If there is no code at ``target``, execution will revert.
+
+    .. code-block:: python
+
+        @external
+        def foo(_target: address) -> address:
+            return create_copy_of(_target)
+
+.. note::
+
+    The implementation of ``create_copy_of`` assumes that the code at ``target`` is smaller than 16MB. While this is much larger than the EIP-170 constraint of 24KB, it is a conservative size limit intended to future-proof deployer contracts in case the EIP-170 constraint is lifted. If the code at ``target`` is larger than 16MB, the behavior of ``create_copy_of`` is undefined.
+
+
+.. py:function:: create_from_factory(target: address, *args, value: uint256 = 0[, salt: bytes32]) -> address
+
+    Copy the code of ``target`` into memory and execute it as initcode. In other words, this operation interprets the code at ``target`` not as regular runtime code, but directly as initcode. The ``*args`` are interpreted as constructor arguments, and are ABI-encoded and included when executing the initcode.
+
+    * ``target``: Address of the factory contract to invoke
+    * ``*args``: Constructor arguments to forward to the initcode.
+    * ``value``: The wei value to send to the new contract address (Optional, default 0)
+    * ``salt``: A ``bytes32`` value utilized by the deterministic ``CREATE2`` opcode (Optional, if not supplied, ``CREATE`` is used)
+
+    Returns the address of the created contract. If the create operation fails (for instance, in the case of a ``CREATE2`` collision), execution will revert. If there is no code at ``target``, execution will revert.
+
+    .. code-block:: python
+
+        @external
+        def foo(_target: address) -> address:
+            arg1: uint256 = 18
+            arg2: String = "some string"
+            return create_with_code_of(_target, arg1, arg2)
+
+.. note::
+
+    To properly deploy a factory contract, special deploy bytecode must be used. Deploying factory contracts is generally out of scope of this article, but the following preamble, prepended to regular deploy bytecode (output of ``vyper -f bytecode``), should deploy the factory contract in an ordinary contract creation transaction: ``deploy_preamble = "61" + <bytecode len in 4 hex character> + "3d81600a3d39f3"``. To see an example of this, please see the `setup code for testing create_with_code_of <https://github.com/vyperlang/vyper/blob/master/tests/parser/functions/test_create_functions.py>`_.
 
 .. py:function:: raw_call(to: address, data: Bytes, max_outsize: int = 0, gas: uint256 = gasLeft, value: uint256 = 0, is_delegate_call: bool = False, is_static_call: bool = False, revert_on_failure: bool = True) -> Bytes[max_outsize]
 
@@ -334,19 +406,19 @@ Data Manipulation
     Converts a variable or literal from one type to another.
 
     * ``value``: Value to convert
-    * ``type_``: The destination type to convert to (``bool``, ``decimal``, ``int128``, ``uint256`` or ``bytes32``)
+    * ``type_``: The destination type to convert to (e.g., ``bool``, ``decimal``, ``int128``, ``uint256`` or ``bytes32``)
 
     Returns a value of the type specified by ``type_``.
 
     For more details on available type conversions, see :ref:`type_conversions`.
 
-.. py:function:: extract32(b: Bytes, start: int128, output_type=bytes32) -> Any
+.. py:function:: extract32(b: Bytes, start: uint256, output_type=bytes32) -> Any
 
     Extract a value from a ``Bytes`` list.
 
     * ``b``: ``Bytes`` list to extract from
     * ``start``: Start point to extract from
-    * ``output_type``: Type of output (``bytes32``, ``int128``, or ``address``). Defaults to ``bytes32``.
+    * ``output_type``: Type of output (``bytes32``, ``integer``, or ``address``). Defaults to ``bytes32``.
 
     Returns a value of the type specified by ``output_type``.
 
@@ -545,6 +617,136 @@ Math
         >>> ExampleContract.foo(11, 2, 5)
         2
 
+.. py:function:: unsafe_add(x: integer, y: integer) -> integer
+
+    Add ``x`` and ``y``, without checking for overflow. ``x`` and ``y`` must both be integers of the same type. If the result exceeds the bounds of the input type, it will be wrapped.
+
+    .. code-block:: python
+
+        @external
+        @view
+        def foo(x: uint8, y: uint8) -> uint8:
+            return unsafe_add(x, y)
+
+        @external
+        @view
+        def bar(x: int8, y: int8) -> int8:
+            return unsafe_add(x, y)
+
+
+    .. code-block:: python
+
+        >>> ExampleContract.foo(1, 1)
+        2
+
+        >>> ExampleContract.foo(255, 255)
+        254
+
+        >>> ExampleContract.bar(127, 127)
+        -2
+
+.. note::
+    Performance note: for the native word types of the EVM ``uint256`` and ``int256``, this will compile to a single ``ADD`` instruction, since the EVM natively wraps addition on 256-bit words.
+
+.. py:function:: unsafe_sub(x: integer, y: integer) -> integer
+
+    Subtract ``x`` and ``y``, without checking for overflow. ``x`` and ``y`` must both be integers of the same type. If the result underflows the bounds of the input type, it will be wrapped.
+
+    .. code-block:: python
+
+        @external
+        @view
+        def foo(x: uint8, y: uint8) -> uint8:
+            return unsafe_sub(x, y)
+
+        @external
+        @view
+        def bar(x: int8, y: int8) -> int8:
+            return unsafe_sub(x, y)
+
+
+    .. code-block:: python
+
+        >>> ExampleContract.foo(4, 3)
+        1
+
+        >>> ExampleContract.foo(0, 1)
+        255
+
+        >>> ExampleContract.bar(-128, 1)
+        127
+
+.. note::
+    Performance note: for the native word types of the EVM ``uint256`` and ``int256``, this will compile to a single ``SUB`` instruction, since the EVM natively wraps subtraction on 256-bit words.
+
+
+.. py:function:: unsafe_mul(x: integer, y: integer) -> integer
+
+    Multiply ``x`` and ``y``, without checking for overflow. ``x`` and ``y`` must both be integers of the same type. If the result exceeds the bounds of the input type, it will be wrapped.
+
+    .. code-block:: python
+
+        @external
+        @view
+        def foo(x: uint8, y: uint8) -> uint8:
+            return unsafe_mul(x, y)
+
+        @external
+        @view
+        def bar(x: int8, y: int8) -> int8:
+            return unsafe_mul(x, y)
+
+
+    .. code-block:: python
+
+        >>> ExampleContract.foo(1, 1)
+        1
+
+        >>> ExampleContract.foo(255, 255)
+        1
+
+        >>> ExampleContract.bar(-128, -128)
+        0
+
+        >>> ExampleContract.bar(127, -128)
+        -128
+
+.. note::
+    Performance note: for the native word types of the EVM ``uint256`` and ``int256``, this will compile to a single ``MUL`` instruction, since the EVM natively wraps multiplication on 256-bit words.
+
+
+.. py:function:: unsafe_div(x: integer, y: integer) -> integer
+
+    Divide ``x`` and ``y``, without checking for division-by-zero. ``x`` and ``y`` must both be integers of the same type. If the denominator is zero, the result will (following EVM semantics) be zero.
+
+    .. code-block:: python
+
+        @external
+        @view
+        def foo(x: uint8, y: uint8) -> uint8:
+            return unsafe_div(x, y)
+
+        @external
+        @view
+        def bar(x: int8, y: int8) -> int8:
+            return unsafe_div(x, y)
+
+
+    .. code-block:: python
+
+        >>> ExampleContract.foo(1, 1)
+        1
+
+        >>> ExampleContract.foo(1, 0)
+        0
+
+        >>> ExampleContract.bar(-128, -1)
+        -128
+
+.. note::
+    Performance note: this will compile to a single ``SDIV`` or ``DIV`` instruction, depending on if the inputs are signed or unsigned (respectively).
+
+
 Utilities
 =========
 
@@ -616,12 +818,12 @@ Utilities
         >>> ExampleContract.foo("hello")
         5
 
-.. py:function:: method_id(method, output_type: type = Bytes[4]) -> Union[bytes32, Bytes[4]]
+.. py:function:: method_id(method, output_type: type = Bytes[4]) -> Union[Bytes[4], bytes4]
 
     Takes a function declaration and returns its method_id (used in data field to call it).
 
     * ``method``: Method declaration as given as a literal string
-    * ``output_type``: The type of output (``Bytes[4]`` or ``bytes32``). Defaults to ``Bytes[4]``.
+    * ``output_type``: The type of output (``Bytes[4]`` or ``bytes4``). Defaults to ``Bytes[4]``.
 
     Returns a value of the type specified by ``output_type``.
 
@@ -636,9 +838,8 @@ Utilities
 
         >>> ExampleContract.foo()
 
-.. py:function:: _abi_encode(\*args, ensure_tuple: bool = True) -> Bytes[<depends on input>]
+.. py:function:: _abi_encode(*args, ensure_tuple: bool = True) -> Bytes[<depends on input>]
 
-    BETA, USE WITH CARE.
     Takes a variable number of args as input, and returns the ABIv2-encoded bytestring. Used for packing arguments to raw_call, EIP712 and other cases where a consistent and efficient serialization method is needed.
     Once this function has seen more use we provisionally plan to put it into the ``ethereum.abi`` namespace.
 
@@ -665,3 +866,34 @@ Utilities
         "0000000000000000000000000000000000000000000000000000000000000040"
         "0000000000000000000000000000000000000000000000000000000000000003"
         "3233340000000000000000000000000000000000000000000000000000000000"
+
+
+.. py:function:: _abi_decode(b: Bytes, output_type: type_, unwrap_tuple: bool = True) -> Any
+
+    Takes a byte array as input, and returns the decoded values according to the specified output types. Used for unpacking ABIv2-encoded values.
+    Once this function has seen more use we provisionally plan to put it into the ``ethereum.abi`` namespace.
+
+    * ``b``: A byte array of a length that is between the minimum and maximum ABIv2 size bounds of the ``output type``.
+    * ``output_type``: Name of the output type, or tuple of output types, to be decoded.
+    * ``unwrap_tuple``: If set to True, the input is decoded as a tuple even if only one output type is specified. In other words, ``_abi_decode(b, Bytes[32])`` gets decoded as ``(Bytes[32],)``. This is the convention for ABIv2-encoded values generated by Vyper and Solidity functions. Except for very specific use cases, this should be set to True. Must be a literal.
+
+    Returns the decoded value(s), with type as specified by `output_type`.
+
+    .. code-block:: python
+
+        @external
+        @view
+        def foo(x: Bytes[128]) -> (uint256, Bytes[32]):
+            x: uint256 = empty(uint256)
+            y: Bytes[32] = empty(Bytes[32])
+            x, y =  _abi_decode(x, (uint256, Bytes[32]))
+            return x, y
+
+
+.. py:function:: print(*args) -> None
+
+    "prints" the arguments by issuing a static call to the "console" address, ``0x000000000000000000636F6E736F6C652E6C6F67``. This is supported by some smart contract development frameworks.
+
+.. note::
+
+    Issuing of the static call is *NOT* mode-dependent (that is, it is not removed from production code), although the compiler will issue a warning whenever ``print`` is used.

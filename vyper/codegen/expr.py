@@ -1,11 +1,12 @@
 import decimal
 import math
 
+import vyper.codegen.arithmetic as arithmetic
 from vyper import ast as vy_ast
 from vyper.address_space import DATA, IMMUTABLES, MEMORY, STORAGE
 from vyper.codegen import external_call, self_call
 from vyper.codegen.core import (
-    clamp_basetype,
+    clamp,
     ensure_in_memory,
     get_dyn_array_count,
     get_element_ptr,
@@ -22,6 +23,7 @@ from vyper.codegen.types import (
     ByteArrayLike,
     ByteArrayType,
     DArrayType,
+    EnumType,
     InterfaceType,
     MappingType,
     SArrayType,
@@ -29,6 +31,7 @@ from vyper.codegen.types import (
     StructType,
     TupleType,
     is_base_type,
+    is_bytes_m_type,
     is_numeric_type,
 )
 from vyper.codegen.types.convert import new_type_to_old_type
@@ -40,121 +43,15 @@ from vyper.exceptions import (
     TypeCheckFailure,
     TypeMismatch,
 )
-from vyper.utils import DECIMAL_DIVISOR, SizeLimits, bytes_to_int, checksum_encode, string_to_bytes
+from vyper.utils import (
+    DECIMAL_DIVISOR,
+    SizeLimits,
+    bytes_to_int,
+    is_checksum_encoded,
+    string_to_bytes,
+)
 
-ENVIRONMENT_VARIABLES = {
-    "block",
-    "msg",
-    "tx",
-    "chain",
-}
-
-
-def calculate_largest_power(a: int, num_bits: int, is_signed: bool) -> int:
-    """
-    For a given base `a`, compute the maximum power `b` that will not
-    produce an overflow in the equation `a ** b`
-
-    Arguments
-    ---------
-    a : int
-        Base value for the equation `a ** b`
-    num_bits : int
-        The maximum number of bits that the resulting value must fit in
-    is_signed : bool
-        Is the operation being performed on signed integers?
-
-    Returns
-    -------
-    int
-        Largest possible value for `b` where the result does not overflow
-        `num_bits`
-    """
-    if num_bits % 8:
-        raise CompilerPanic("Type is not a modulo of 8")
-
-    value_bits = num_bits - (1 if is_signed else 0)
-    if a >= 2 ** value_bits:
-        raise TypeCheckFailure("Value is too large and will always throw")
-    elif a < -(2 ** value_bits):
-        raise TypeCheckFailure("Value is too small and will always throw")
-
-    a_is_negative = a < 0
-    a = abs(a)  # No longer need to know if it's signed or not
-    if a in (0, 1):
-        raise CompilerPanic("Exponential operation is useless!")
-
-    # NOTE: There is an edge case if `a` were left signed where the following
-    #       operation would not work (`ln(a)` is undefined if `a <= 0`)
-    b = int(decimal.Decimal(value_bits) / (decimal.Decimal(a).ln() / decimal.Decimal(2).ln()))
-    if b <= 1:
-        return 1  # Value is assumed to be in range, therefore power of 1 is max
-
-    # Do a bit of iteration to ensure we have the exact number
-    num_iterations = 0
-    while a ** (b + 1) < 2 ** value_bits:
-        b += 1
-        num_iterations += 1
-        assert num_iterations < 10000
-    while a ** b >= 2 ** value_bits:
-        b -= 1
-        num_iterations += 1
-        assert num_iterations < 10000
-
-    # Edge case: If a is negative and the values of a and b are such that:
-    #               (a) ** (b + 1) == -(2 ** value_bits)
-    #            we can actually squeak one more out of it because it's on the edge
-    if a_is_negative and (-a) ** (b + 1) == -(2 ** value_bits):  # NOTE: a = abs(a)
-        return b + 1
-    else:
-        return b  # Exact
-
-
-def calculate_largest_base(b: int, num_bits: int, is_signed: bool) -> int:
-    """
-    For a given power `b`, compute the maximum base `a` that will not produce an
-    overflow in the equation `a ** b`
-
-    Arguments
-    ---------
-    b : int
-        Power value for the equation `a ** b`
-    num_bits : int
-        The maximum number of bits that the resulting value must fit in
-    is_signed : bool
-        Is the operation being performed on signed integers?
-
-    Returns
-    -------
-    int
-        Largest possible value for `a` where the result does not overflow
-        `num_bits`
-    """
-    if num_bits % 8:
-        raise CompilerPanic("Type is not a modulo of 8")
-    if b < 0:
-        raise TypeCheckFailure("Cannot calculate negative exponents")
-
-    value_bits = num_bits - (1 if is_signed else 0)
-    if b > value_bits:
-        raise TypeCheckFailure("Value is too large and will always throw")
-    elif b < 2:
-        return 2 ** value_bits - 1  # Maximum value for type
-
-    # Estimate (up to ~39 digits precision required)
-    a = math.ceil(2 ** (decimal.Decimal(value_bits) / decimal.Decimal(b)))
-    # Do a bit of iteration to ensure we have the exact number
-    num_iterations = 0
-    while (a + 1) ** b < 2 ** value_bits:
-        a += 1
-        num_iterations += 1
-        assert num_iterations < 10000
-    while a ** b >= 2 ** value_bits:
-        a -= 1
-        num_iterations += 1
-        assert num_iterations < 10000
-
-    return a
+ENVIRONMENT_VARIABLES = {"block", "msg", "tx", "chain"}
 
 
 class Expr:
@@ -181,12 +78,12 @@ class Expr:
         self.ir_node.source_pos = getpos(self.expr)
 
     def parse_Int(self):
-        # Literal (mostly likely) becomes int256
-        if self.expr.n < 0:
-            return IRnode.from_list(self.expr.n, typ=BaseType("int256", is_literal=True))
-        # Literal is large enough (mostly likely) becomes uint256.
-        else:
-            return IRnode.from_list(self.expr.n, typ=BaseType("uint256", is_literal=True))
+        typ_ = self.expr._metadata.get("type")
+        if typ_ is None:
+            raise CompilerPanic("Type of integer literal is unknown")
+        new_typ = new_type_to_old_type(typ_)
+        new_typ.is_literal = True
+        return IRnode.from_list(self.expr.n, typ=new_typ)
 
     def parse_Decimal(self):
         val = self.expr.value * DECIMAL_DIVISOR
@@ -203,23 +100,32 @@ class Expr:
     def parse_Hex(self):
         hexstr = self.expr.value
 
-        if len(hexstr) == 42:
+        t = self.expr._metadata.get("type")
+
+        n_bytes = (len(hexstr) - 2) // 2  # e.g. "0x1234" is 2 bytes
+
+        if t is not None:
+            inferred_type = new_type_to_old_type(self.expr._metadata["type"])
+        # This branch is a band-aid to deal with bytes20 vs address literals
+        # TODO handle this properly in the type checker
+        elif len(hexstr) == 42:
+            inferred_type = BaseType("address", is_literal=True)
+        else:
+            inferred_type = BaseType(f"bytes{n_bytes}", is_literal=True)
+
+        if is_base_type(inferred_type, "address"):
             # sanity check typechecker did its job
-            assert checksum_encode(hexstr) == hexstr
+            assert len(hexstr) == 42 and is_checksum_encoded(hexstr)
             typ = BaseType("address")
-            # TODO allow non-checksum encoded bytes20
             return IRnode.from_list(int(self.expr.value, 16), typ=typ)
 
-        else:
-            n_bytes = (len(hexstr) - 2) // 2  # e.g. "0x1234" is 2 bytes
-            # TODO: typ = new_type_to_old_type(self.expr._metadata["type"])
-            #       assert n_bytes == typ._bytes_info.m
+        elif is_bytes_m_type(inferred_type):
+            assert n_bytes == inferred_type._bytes_info.m
 
             # bytes_m types are left padded with zeros
             val = int(hexstr, 16) << 8 * (32 - n_bytes)
 
             typ = BaseType(f"bytes{n_bytes}", is_literal=True)
-            typ.is_literal = True
             return IRnode.from_list(val, typ=typ)
 
     # String literals
@@ -289,15 +195,21 @@ class Expr:
                 location = DATA
 
             return IRnode.from_list(
-                ofst,
-                typ=var.typ,
-                location=location,
-                annotation=self.expr.id,
-                mutable=mutable,
+                ofst, typ=var.typ, location=location, annotation=self.expr.id, mutable=mutable
             )
 
     # x.y or x[5]
     def parse_Attribute(self):
+        typ = self.expr._metadata.get("type")
+        if typ is not None:
+            typ = new_type_to_old_type(typ)
+        if isinstance(typ, EnumType):
+            assert typ.name == self.expr.value.id
+            # 0, 1, 2, .. 255
+            enum_id = typ.members[self.expr.attr]
+            value = 2 ** enum_id  # 0 => 0001, 1 => 0010, 2 => 0100, etc.
+            return IRnode.from_list(value, typ=typ)
+
         # x.balance: balance of address x
         if self.expr.attr == "balance":
             addr = Expr.parse_value_expr(self.expr.value, self.context)
@@ -316,7 +228,7 @@ class Expr:
             addr = Expr.parse_value_expr(self.expr.value, self.context)
             if is_base_type(addr.typ, "address"):
                 if self.expr.attr == "codesize":
-                    if self.expr.value.id == "self":
+                    if self.expr.get("value.id") == "self":
                         eval_code = ["codesize"]
                     else:
                         eval_code = ["extcodesize", addr]
@@ -438,255 +350,31 @@ class Expr:
         if not is_numeric_type(left.typ) or not is_numeric_type(right.typ):
             return
 
-        types = {left.typ.typ, right.typ.typ}
-        literals = {left.typ.is_literal, right.typ.is_literal}
-
-        # If one value of the operation is a literal, we recast it to match the non-literal type.
-        # We know this is OK because types were already verified in the actual typechecking pass.
-        # This is a temporary solution to not break codegen while we work toward removing types
-        # altogether at this stage of complition. @iamdefinitelyahuman
-        if literals == {True, False} and len(types) > 1 and "decimal" not in types:
-            if left.typ.is_literal and SizeLimits.in_bounds(right.typ.typ, left.value):
-                left = IRnode.from_list(left.value, typ=BaseType(right.typ.typ, is_literal=True))
-            elif right.typ.is_literal and SizeLimits.in_bounds(left.typ.typ, right.value):
-                right = IRnode.from_list(right.value, typ=BaseType(left.typ.typ, is_literal=True))
-
         ltyp, rtyp = left.typ.typ, right.typ.typ
 
         # Sanity check - ensure that we aren't dealing with different types
         # This should be unreachable due to the type check pass
-        assert ltyp == rtyp, "unreachable"
+        assert ltyp == rtyp, f"unreachable, {ltyp}!={rtyp}, {self.expr}"
 
-        arith = None
-        if isinstance(self.expr.op, (vy_ast.Add, vy_ast.Sub)):
-            new_typ = BaseType(ltyp)
+        out_typ = BaseType(ltyp)
 
-            if ltyp == "uint256":
-                if isinstance(self.expr.op, vy_ast.Add):
-                    # safeadd
-                    arith = ["seq", ["assert", ["ge", ["add", "l", "r"], "l"]], ["add", "l", "r"]]
-
-                elif isinstance(self.expr.op, vy_ast.Sub):
-                    # safesub
-                    arith = ["seq", ["assert", ["ge", "l", "r"]], ["sub", "l", "r"]]
-
-            elif ltyp == "int256":
-                if isinstance(self.expr.op, vy_ast.Add):
-                    op, comp1, comp2 = "add", "sge", "slt"
-                else:
-                    op, comp1, comp2 = "sub", "sle", "sgt"
-
-                if right.typ.is_literal:
-                    if right.value >= 0:
-                        arith = ["seq", ["assert", [comp1, [op, "l", "r"], "l"]], [op, "l", "r"]]
-                    else:
-                        arith = ["seq", ["assert", [comp2, [op, "l", "r"], "l"]], [op, "l", "r"]]
-                else:
-                    arith = [
-                        "with",
-                        "ans",
-                        [op, "l", "r"],
-                        [
-                            "seq",
-                            [
-                                "assert",
-                                [
-                                    "or",
-                                    ["and", ["sge", "r", 0], [comp1, "ans", "l"]],
-                                    ["and", ["slt", "r", 0], [comp2, "ans", "l"]],
-                                ],
-                            ],
-                            "ans",
-                        ],
-                    ]
-
-            elif ltyp in ("decimal", "int128", "uint8"):
-                op = "add" if isinstance(self.expr.op, vy_ast.Add) else "sub"
-                arith = [op, "l", "r"]
-
-        elif isinstance(self.expr.op, vy_ast.Mult):
-            new_typ = BaseType(ltyp)
-            if ltyp == "uint256":
-                arith = [
-                    "with",
-                    "ans",
-                    ["mul", "l", "r"],
-                    [
-                        "seq",
-                        ["assert", ["or", ["eq", ["div", "ans", "l"], "r"], ["iszero", "l"]]],
-                        "ans",
-                    ],
-                ]
-
-            elif ltyp == "int256":
-                if version_check(begin="constantinople"):
-                    upper_bound = ["shl", 255, 1]
-                else:
-                    upper_bound = -(2 ** 255)
-                if not left.typ.is_literal and not right.typ.is_literal:
-                    bounds_check = [
-                        "assert",
-                        ["or", ["ne", "l", ["not", 0]], ["ne", "r", upper_bound]],
-                    ]
-                elif left.typ.is_literal and left.value == -1:
-                    bounds_check = ["assert", ["ne", "r", upper_bound]]
-                elif right.typ.is_literal and right.value == -(2 ** 255):
-                    bounds_check = ["assert", ["ne", "l", ["not", 0]]]
-                else:
-                    bounds_check = "pass"
-                arith = [
-                    "with",
-                    "ans",
-                    ["mul", "l", "r"],
-                    [
-                        "seq",
-                        bounds_check,
-                        ["assert", ["or", ["eq", ["sdiv", "ans", "l"], "r"], ["iszero", "l"]]],
-                        "ans",
-                    ],
-                ]
-
-            elif ltyp in ("int128", "uint8"):
-                arith = ["mul", "l", "r"]
-
-            elif ltyp == "decimal":
-                arith = [
-                    "with",
-                    "ans",
-                    ["mul", "l", "r"],
-                    [
-                        "seq",
-                        ["assert", ["or", ["eq", ["sdiv", "ans", "l"], "r"], ["iszero", "l"]]],
-                        ["sdiv", "ans", DECIMAL_DIVISOR],
-                    ],
-                ]
-
-        elif isinstance(self.expr.op, vy_ast.Div):
-            if right.typ.is_literal and right.value == 0:
-                return
-
-            new_typ = BaseType(ltyp)
-
-            if right.typ.is_literal:
-                divisor = "r"
+        with left.cache_when_complex("x") as (b1, x), right.cache_when_complex("y") as (b2, y):
+            if isinstance(self.expr.op, vy_ast.Add):
+                ret = arithmetic.safe_add(x, y)
+            elif isinstance(self.expr.op, vy_ast.Sub):
+                ret = arithmetic.safe_sub(x, y)
+            elif isinstance(self.expr.op, vy_ast.Mult):
+                ret = arithmetic.safe_mul(x, y)
+            elif isinstance(self.expr.op, vy_ast.Div):
+                ret = arithmetic.safe_div(x, y)
+            elif isinstance(self.expr.op, vy_ast.Mod):
+                ret = arithmetic.safe_mod(x, y)
+            elif isinstance(self.expr.op, vy_ast.Pow):
+                ret = arithmetic.safe_pow(x, y)
             else:
-                # only apply the non-zero clamp when r is not a constant
-                divisor = ["clamp_nonzero", "r"]
+                return  # raises
 
-            if ltyp in ("uint8", "uint256"):
-                arith = ["div", "l", divisor]
-
-            elif ltyp == "int256":
-                if version_check(begin="constantinople"):
-                    upper_bound = ["shl", 255, 1]
-                else:
-                    upper_bound = -(2 ** 255)
-                if not left.typ.is_literal and not right.typ.is_literal:
-                    bounds_check = [
-                        "assert",
-                        ["or", ["ne", "r", ["not", 0]], ["ne", "l", upper_bound]],
-                    ]
-                elif left.typ.is_literal and left.value == -(2 ** 255):
-                    bounds_check = ["assert", ["ne", "r", ["not", 0]]]
-                elif right.typ.is_literal and right.value == -1:
-                    bounds_check = ["assert", ["ne", "l", upper_bound]]
-                else:
-                    bounds_check = "pass"
-                arith = ["seq", bounds_check, ["sdiv", "l", divisor]]
-
-            elif ltyp == "int128":
-                arith = ["sdiv", "l", divisor]
-
-            elif ltyp == "decimal":
-                arith = [
-                    "sdiv",
-                    ["mul", "l", DECIMAL_DIVISOR],
-                    divisor,
-                ]
-
-        elif isinstance(self.expr.op, vy_ast.Mod):
-            if right.typ.is_literal and right.value == 0:
-                return
-
-            new_typ = BaseType(ltyp)
-
-            if right.typ.is_literal:
-                divisor = "r"
-            else:
-                # only apply the non-zero clamp when r is not a constant
-                divisor = ["clamp_nonzero", "r"]
-
-            if ltyp in ("uint8", "uint256"):
-                arith = ["mod", "l", divisor]
-            else:
-                arith = ["smod", "l", divisor]
-
-        elif isinstance(self.expr.op, vy_ast.Pow):
-            new_typ = BaseType(ltyp)
-
-            # TODO optimizer rule for special cases
-            if self.expr.left.get("value") == 1:
-                return IRnode.from_list([1], typ=new_typ)
-            if self.expr.left.get("value") == 0:
-                return IRnode.from_list(["iszero", right], typ=new_typ)
-
-            if ltyp == "int128":
-                is_signed = True
-                num_bits = 128
-            elif ltyp == "int256":
-                is_signed = True
-                num_bits = 256
-            elif ltyp == "uint8":
-                is_signed = False
-                num_bits = 8
-            else:
-                is_signed = False
-                num_bits = 256
-
-            if isinstance(self.expr.left, vy_ast.Int):
-                value = self.expr.left.value
-                upper_bound = calculate_largest_power(value, num_bits, is_signed) + 1
-                # for signed integers, this also prevents negative values
-                clamp = ["lt", right, upper_bound]
-                return IRnode.from_list(
-                    ["seq", ["assert", clamp], ["exp", left, right]],
-                    typ=new_typ,
-                )
-            elif isinstance(self.expr.right, vy_ast.Int):
-                value = self.expr.right.value
-                upper_bound = calculate_largest_base(value, num_bits, is_signed) + 1
-                if is_signed:
-                    clamp = ["and", ["slt", left, upper_bound], ["sgt", left, -upper_bound]]
-                else:
-                    clamp = ["lt", left, upper_bound]
-                return IRnode.from_list(
-                    ["seq", ["assert", clamp], ["exp", left, right]], typ=new_typ
-                )
-            else:
-                # `a ** b` where neither `a` or `b` are known
-                # TODO this is currently unreachable, once we implement a way to do it safely
-                # remove the check in `vyper/context/types/value/numeric.py`
-                return
-
-        if arith is None:
-            return
-
-        arith = IRnode.from_list(arith, typ=new_typ)
-
-        p = [
-            "with",
-            "l",
-            left,
-            [
-                "with",
-                "r",
-                right,
-                # note clamp_basetype is a noop on [u]int256
-                # note: clamp_basetype throws on unclampable input
-                clamp_basetype(arith),
-            ],
-        ]
-        return IRnode.from_list(p, typ=new_typ)
+            return IRnode.from_list(b1.resolve(b2.resolve(ret)), typ=out_typ)
 
     def build_in_comparator(self):
         left = Expr(self.expr.left, self.context).ir_node
@@ -743,25 +431,13 @@ class Expr:
             ]
             loop = ["repeat", i, 0, len_, right.typ.count, loop_body]
 
-            ret.append(
-                [
-                    "seq",
-                    ["mstore", found_ptr, not_found],
-                    loop,
-                    ["mload", found_ptr],
-                ]
-            )
+            ret.append(["seq", ["mstore", found_ptr, not_found], loop, ["mload", found_ptr]])
 
             return IRnode.from_list(b1.resolve(b2.resolve(ret)), typ="bool")
 
     @staticmethod
     def _signed_to_unsigned_comparision_op(op):
-        translation_map = {
-            "sgt": "gt",
-            "sge": "ge",
-            "sle": "le",
-            "slt": "lt",
-        }
+        translation_map = {"sgt": "gt", "sge": "ge", "sle": "le", "slt": "lt"}
         if op in translation_map:
             return translation_map[op]
         else:
@@ -876,13 +552,10 @@ class Expr:
                 return IRnode.from_list(["iszero", operand], typ="bool")
         elif isinstance(self.expr.op, vy_ast.USub) and is_numeric_type(operand.typ):
             assert operand.typ._num_info.is_signed
-            # Clamp on minimum integer value as we cannot negate that value
-            # (all other integer values are fine)
+            # Clamp on minimum signed integer value as we cannot negate that
+            # value (all other integer values are fine)
             min_int_val, _ = operand.typ._num_info.bounds
-            return IRnode.from_list(
-                ["sub", 0, ["clampgt", operand, min_int_val]],
-                typ=operand.typ,
-            )
+            return IRnode.from_list(["sub", 0, clamp("sgt", operand, min_int_val)], typ=operand.typ)
 
     def _is_valid_interface_assign(self):
         if self.expr.args and len(self.expr.args) == 1:
@@ -916,19 +589,19 @@ class Expr:
                     return arg_ir
 
         elif isinstance(self.expr.func, vy_ast.Attribute) and self.expr.func.attr == "pop":
+            # TODO consider moving this to builtins
             darray = Expr(self.expr.func.value, self.context).ir_node
             assert len(self.expr.args) == 0
             assert isinstance(darray.typ, DArrayType)
-            return pop_dyn_array(
-                darray,
-                return_popped_item=True,
-            )
+            return pop_dyn_array(darray, return_popped_item=True)
 
         elif (
+            # TODO use expr.func.type.is_internal once
+            # type annotations are consistently available
             isinstance(self.expr.func, vy_ast.Attribute)
             and isinstance(self.expr.func.value, vy_ast.Name)
             and self.expr.func.value.id == "self"
-        ):  # noqa: E501
+        ):
             return self_call.ir_for_self_call(self.expr, self.context)
         else:
             return external_call.ir_for_external_call(self.expr, self.context)
@@ -960,6 +633,8 @@ class Expr:
             sub = Expr(value, context).ir_node
             member_subs[key.id] = sub
             member_typs[key.id] = sub.typ
+
+        # TODO: get struct type from context.global_ctx.parse_type(name)
         return IRnode.from_list(
             ["multi"] + [member_subs[key] for key in member_subs.keys()],
             typ=StructType(member_typs, name, is_literal=True),

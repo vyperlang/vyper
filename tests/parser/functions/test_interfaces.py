@@ -6,7 +6,7 @@ from vyper.ast.signatures.interface import extract_sigs
 from vyper.builtin_interfaces import ERC20, ERC721
 from vyper.cli.utils import extract_file_interface_imports
 from vyper.compiler import compile_code, compile_codes
-from vyper.exceptions import InterfaceViolation, StructureException
+from vyper.exceptions import ArgumentException, InterfaceViolation, StructureException
 
 
 def test_basic_extract_interface():
@@ -306,6 +306,175 @@ def test():
 
     test_c.test(transact={})
     assert erc20.balanceOf(sender) == 1000
+
+
+# test data returned from external interface gets clamped
+@pytest.mark.parametrize("typ", ("int128", "uint8"))
+def test_external_interface_int_clampers(get_contract, assert_tx_failed, typ):
+    external_contract = f"""
+@external
+def ok() -> {typ}:
+    return 1
+
+@external
+def should_fail() -> int256:
+    return -2**255 # OOB for all int/uint types with less than 256 bits
+    """
+
+    code = f"""
+interface BadContract:
+    def ok() -> {typ}: view
+    def should_fail() -> {typ}: view
+
+foo: BadContract
+
+@external
+def __init__(addr: BadContract):
+    self.foo = addr
+
+
+@external
+def test_ok() -> {typ}:
+    return self.foo.ok()
+
+@external
+def test_fail() -> {typ}:
+    return self.foo.should_fail()
+
+@external
+def test_fail2() -> {typ}:
+    x: {typ} = self.foo.should_fail()
+    return x
+
+@external
+def test_fail3() -> int256:
+    return convert(self.foo.should_fail(), int256)
+    """
+
+    bad_c = get_contract(external_contract)
+    c = get_contract(
+        code,
+        bad_c.address,
+        interface_codes={"BadCode": {"type": "vyper", "code": external_contract}},
+    )
+    assert bad_c.ok() == 1
+    assert bad_c.should_fail() == -(2 ** 255)
+
+    assert c.test_ok() == 1
+    assert_tx_failed(lambda: c.test_fail())
+    assert_tx_failed(lambda: c.test_fail2())
+    assert_tx_failed(lambda: c.test_fail3())
+
+
+# test data returned from external interface gets clamped
+def test_external_interface_bytes_clampers(get_contract, assert_tx_failed):
+    external_contract = """
+@external
+def ok() -> Bytes[2]:
+    return b"12"
+
+@external
+def should_fail() -> Bytes[3]:
+    return b"123"
+    """
+
+    code = """
+interface BadContract:
+    def ok() -> Bytes[2]: view
+    def should_fail() -> Bytes[2]: view
+
+foo: BadContract
+
+@external
+def __init__(addr: BadContract):
+    self.foo = addr
+
+
+@external
+def test_ok() -> Bytes[2]:
+    return self.foo.ok()
+
+@external
+def test_fail1() -> Bytes[3]:
+    return self.foo.should_fail()
+
+@external
+def test_fail2() -> Bytes[3]:
+    return concat(self.foo.should_fail(), b"")
+    """
+
+    bad_c = get_contract(external_contract)
+    c = get_contract(code, bad_c.address)
+    assert bad_c.ok() == b"12"
+    assert bad_c.should_fail() == b"123"
+
+    assert c.test_ok() == b"12"
+    assert_tx_failed(lambda: c.test_fail1())
+    assert_tx_failed(lambda: c.test_fail2())
+
+
+# test data returned from external interface gets clamped
+def test_json_abi_bytes_clampers(get_contract, assert_tx_failed, assert_compile_failed):
+    external_contract = """
+@external
+def returns_Bytes3() -> Bytes[3]:
+    return b"123"
+    """
+
+    should_not_compile = """
+import BadJSONInterface as BadJSONInterface
+@external
+def foo(x: BadJSONInterface) -> Bytes[2]:
+    return slice(x.returns_Bytes3(), 0, 2)
+    """
+
+    code = """
+import BadJSONInterface as BadJSONInterface
+
+foo: BadJSONInterface
+
+@external
+def __init__(addr: BadJSONInterface):
+    self.foo = addr
+
+
+@external
+def test_fail1() -> Bytes[2]:
+    # should compile, but raise runtime exception
+    return self.foo.returns_Bytes3()
+
+@external
+def test_fail2() -> Bytes[2]:
+    # should compile, but raise runtime exception
+    x: Bytes[2] = self.foo.returns_Bytes3()
+    return x
+
+@external
+def test_fail3() -> Bytes[3]:
+    # should revert - returns_Bytes3 is inferred to have return type Bytes[2]
+    # (because test_fail3 comes after test_fail1)
+    return self.foo.returns_Bytes3()
+
+    """
+
+    bad_c = get_contract(external_contract)
+    bad_c_interface = {
+        "BadJSONInterface": {
+            "type": "json",
+            "code": compile_code(external_contract, ["abi"])["abi"],
+        }
+    }
+
+    assert_compile_failed(
+        lambda: get_contract(should_not_compile, interface_codes=bad_c_interface), ArgumentException
+    )
+
+    c = get_contract(code, bad_c.address, interface_codes=bad_c_interface)
+    assert bad_c.returns_Bytes3() == b"123"
+
+    assert_tx_failed(lambda: c.test_fail1())
+    assert_tx_failed(lambda: c.test_fail2())
+    assert_tx_failed(lambda: c.test_fail3())
 
 
 def test_units_interface(w3, get_contract):

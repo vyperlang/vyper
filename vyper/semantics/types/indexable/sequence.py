@@ -1,4 +1,4 @@
-from typing import Optional, Tuple, Union
+from typing import Any, Dict, Optional, Tuple, Union
 
 from vyper import ast as vy_ast
 from vyper.abi_types import ABI_DynamicArray, ABI_StaticArray, ABI_Tuple, ABIType
@@ -56,6 +56,19 @@ class _SequenceDefinition(IndexableTypeDefinition):
         new_args, return_type = self.value_type.get_signature()
         return (Uint256Definition(),) + new_args, return_type
 
+    def get_index_type(self) -> BaseTypeDefinition:
+        # override the default behaviour to return `Uint256Definition` for
+        # type annotation
+        return Uint256Definition()
+
+
+# override value at `k` with `val`, but inserting it before other keys
+# for formatting reasons. besides insertion order, equivalent to
+# `{k: val, **xs}`
+def _set_first_key(xs: Dict[str, Any], k: str, val: Any) -> dict:
+    xs.pop(k, None)
+    return {k: val, **xs}
+
 
 # TODO rename me to StaticArrayDefinition?
 class ArrayDefinition(_SequenceDefinition):
@@ -91,6 +104,12 @@ class ArrayDefinition(_SequenceDefinition):
     @property
     def abi_type(self) -> ABIType:
         return ABI_StaticArray(self.value_type.abi_type, self.length)
+
+    def to_abi_dict(self, name: str = "") -> Dict[str, Any]:
+        ret = self.value_type.to_abi_dict()
+        # modify the child name in place
+        ret["type"] += f"[{self.length}]"
+        return _set_first_key(ret, "name", name)
 
     @property
     def is_dynamic_size(self):
@@ -155,6 +174,12 @@ class DynamicArrayDefinition(_SequenceDefinition, MemberTypeDefinition):
     def abi_type(self) -> ABIType:
         return ABI_DynamicArray(self.value_type.abi_type, self.length)
 
+    def to_abi_dict(self, name: str = "") -> Dict[str, Any]:
+        ret = self.value_type.to_abi_dict()
+        # modify the child name in place.
+        ret["type"] += "[]"
+        return _set_first_key(ret, "name", name)
+
     @property
     def is_dynamic_size(self):
         return True
@@ -162,7 +187,8 @@ class DynamicArrayDefinition(_SequenceDefinition, MemberTypeDefinition):
     # TODO rename me to memory_bytes_required
     @property
     def size_in_bytes(self):
-        return self.value_type.size_in_bytes * self.length
+        # one length word + size of the array items
+        return 32 + self.value_type.size_in_bytes * self.length
 
     def validate_index_type(self, node):
         if isinstance(node, vy_ast.Int):
@@ -227,12 +253,7 @@ class DynamicArrayPrimitive(BasePrimitive):
 
         max_length = node.slice.value.elements[1].value
         return DynamicArrayDefinition(
-            value_type,
-            max_length,
-            location,
-            is_constant,
-            is_public,
-            is_immutable,
+            value_type, max_length, location, is_constant, is_public, is_immutable
         )
 
 
@@ -270,6 +291,10 @@ class TupleDefinition(_SequenceDefinition):
     @property
     def abi_type(self) -> ABIType:
         return ABI_Tuple([t.abi_type for t in self._member_types])
+
+    def to_abi_dict(self, name: str = "") -> dict:
+        components = [t.to_abi_dict() for t in self._member_types]
+        return {"name": name, "type": "tuple", "components": components}
 
     @property
     def size_in_bytes(self):

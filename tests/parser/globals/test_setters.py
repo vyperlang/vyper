@@ -1,3 +1,6 @@
+from vyper.exceptions import InvalidAttribute
+
+
 def test_multi_setter_test(get_contract_with_gas_estimation):
     multi_setter_test = """
 dog: int128[3]
@@ -145,7 +148,7 @@ def gop() -> int128:
     assert c.gop() == 87198763254321
 
 
-def test_struct_assignment_order(get_contract_with_gas_estimation):
+def test_struct_assignment_order(get_contract, assert_compile_failed):
     code = """
 struct Foo:
     a: uint256
@@ -153,18 +156,11 @@ struct Foo:
 
 @external
 @view
-def test1() -> uint256:
-    foo: Foo = Foo({a: 297, b: 2})
-    return foo.a
-
-@external
-@view
 def test2() -> uint256:
     foo: Foo = Foo({b: 2, a: 297})
     return foo.a
     """
-    c = get_contract_with_gas_estimation(code)
-    assert c.test1() == c.test2() == 297
+    assert_compile_failed(lambda: get_contract(code), InvalidAttribute)
 
 
 def test_type_converter_setter_test(get_contract_with_gas_estimation):

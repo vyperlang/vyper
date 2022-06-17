@@ -212,48 +212,15 @@ nested_3d_array_args = [
         [[234, 567, 891], [345, 678, 912], [123, 456, 789]],
         [[345, 678, 912], [123, 456, 789], [234, 567, 891]],
     ],
-    [
-        [[123, 789], [234], [345, 678, 912]],
-        [[234, 567], [345, 678]],
-        [[345]],
-    ],
-    [
-        [[123], [234, 567, 891]],
-        [[234]],
-    ],
-    [
-        [[], [], []],
-        [[], [], []],
-        [[], [], []],
-    ],
-    [
-        [[123, 456, 789], [234, 567, 891], [345, 678, 912]],
-        [[234, 567, 891], [345, 678, 912]],
-        [[]],
-    ],
-    [
-        [[]],
-        [[]],
-        [[234]],
-    ],
-    [
-        [[123]],
-        [[]],
-        [[]],
-    ],
-    [
-        [[]],
-        [[123]],
-        [[]],
-    ],
-    [
-        [[123, 456, 789], [234, 567]],
-        [[234]],
-        [[567], [912], [345]],
-    ],
-    [
-        [[]],
-    ],
+    [[[123, 789], [234], [345, 678, 912]], [[234, 567], [345, 678]], [[345]]],
+    [[[123], [234, 567, 891]], [[234]]],
+    [[[], [], []], [[], [], []], [[], [], []]],
+    [[[123, 456, 789], [234, 567, 891], [345, 678, 912]], [[234, 567, 891], [345, 678, 912]], [[]]],
+    [[[]], [[]], [[234]]],
+    [[[123]], [[]], [[]]],
+    [[[]], [[123]], [[]]],
+    [[[123, 456, 789], [234, 567]], [[234]], [[567], [912], [345]]],
+    [[[]]],
 ]
 
 
@@ -382,3 +349,24 @@ def foo(bs: DynArray[DynArray[DynArray[uint256, 3], 3], 3]) -> (uint256, Bytes[1
         [[19, 20, 21], [22, 23, 24], [25, 26, 27]],
     ]
     assert c.foo(bs) == [2 ** 256 - 1, abi_encode("(uint256[][][])", (bs,))]
+
+
+@pytest.mark.parametrize("empty_literal", ('b""', '""', "empty(Bytes[1])", "empty(String[1])"))
+def test_abi_encode_empty_string(get_contract, abi_encode, empty_literal):
+    code = f"""
+@external
+def foo(ensure_tuple: bool) -> Bytes[96]:
+    if ensure_tuple:
+        return _abi_encode({empty_literal}) # default ensure_tuple=True
+    else:
+        return _abi_encode({empty_literal}, ensure_tuple=False)
+    """
+
+    c = get_contract(code)
+
+    # eth-abi does not encode zero-length string correctly -
+    # see https://github.com/ethereum/eth-abi/issues/157
+    expected_output = b"\x00" * 32
+    assert c.foo(False) == expected_output
+    expected_output = b"\x00" * 31 + b"\x20" + b"\x00" * 32
+    assert c.foo(True) == expected_output

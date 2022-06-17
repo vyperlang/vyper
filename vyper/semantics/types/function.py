@@ -1,6 +1,7 @@
+import re
 import warnings
 from collections import OrderedDict
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 from vyper import ast as vy_ast
 from vyper.ast.validation import validate_call_args
@@ -18,9 +19,9 @@ from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.bases import BaseTypeDefinition, DataLocation, StorageSlot
 from vyper.semantics.types.indexable.sequence import TupleDefinition
 from vyper.semantics.types.utils import (
+    KwargSettings,
     StringEnum,
     check_kwargable,
-    generate_abi_type,
     get_type_from_abi,
     get_type_from_annotation,
 )
@@ -121,8 +122,20 @@ class ContractFunction(BaseTypeDefinition):
         self.mutability = state_mutability
         self.nonreentrant = nonreentrant
 
+        # a list of internal functions this function calls
+        self.called_functions: Set["ContractFunction"] = set()
+
+        # special kwargs that are allowed in call site
+        self.call_site_kwargs = {
+            "gas": KwargSettings(Uint256Definition(), "gas"),
+            "value": KwargSettings(Uint256Definition(), 0),
+            "skip_contract_check": KwargSettings(BoolDefinition(), False, require_literal=True),
+            "default_return_value": KwargSettings(return_type, None),
+        }
+
     def __repr__(self):
-        return f"contract function '{self.name}'"
+        arg_types = ",".join(repr(a) for a in self.arguments.values())
+        return f"contract function {self.name}({arg_types})"
 
     @classmethod
     def from_abi(cls, abi: Dict) -> "ContractFunction":
@@ -168,9 +181,7 @@ class ContractFunction(BaseTypeDefinition):
 
     @classmethod
     def from_FunctionDef(
-        cls,
-        node: vy_ast.FunctionDef,
-        is_interface: Optional[bool] = False,
+        cls, node: vy_ast.FunctionDef, is_interface: Optional[bool] = False
     ) -> "ContractFunction":
         """
         Generate a `ContractFunction` object from a `FunctionDef` node.
@@ -228,8 +239,7 @@ class ContractFunction(BaseTypeDefinition):
                         raise StructureException("Decorator is not callable", decorator)
                     if len(decorator.args) != 1 or not isinstance(decorator.args[0], vy_ast.Str):
                         raise StructureException(
-                            "@nonreentrant name must be given as a single string literal",
-                            decorator,
+                            "@nonreentrant name must be given as a single string literal", decorator
                         )
 
                     if node.name == "__init__":
@@ -306,10 +316,9 @@ class ContractFunction(BaseTypeDefinition):
 
         namespace = get_namespace()
         for arg, value in zip(node.args.args, defaults):
-            if arg.arg in ("gas", "value", "skip_contract_check"):
+            if arg.arg in ("gas", "value", "skip_contract_check", "default_return_value"):
                 raise ArgumentException(
-                    f"Cannot use '{arg.arg}' as a variable name in a function input",
-                    arg,
+                    f"Cannot use '{arg.arg}' as a variable name in a function input", arg
                 )
             if arg.arg in arguments:
                 raise ArgumentException(f"Function contains multiple inputs named {arg.arg}", arg)
@@ -328,8 +337,6 @@ class ContractFunction(BaseTypeDefinition):
                         "Value must be literal or environment variable", value
                     )
                 validate_expected_type(value, type_definition)
-                # kludge because kwargs in signatures don't get visited by the annotator
-                value._metadata["type"] = type_definition
 
             arguments[arg.arg] = type_definition
 
@@ -356,7 +363,7 @@ class ContractFunction(BaseTypeDefinition):
         if hasattr(self, "reentrancy_key_position"):
             raise CompilerPanic("Position was already assigned")
         if self.nonreentrant is None:
-            raise CompilerPanic("No reentrant key {self}")
+            raise CompilerPanic(f"No reentrant key {self}")
         # sanity check even though implied by the type
         if position._location != DataLocation.STORAGE:
             raise CompilerPanic("Non-storage reentrant key")
@@ -394,6 +401,14 @@ class ContractFunction(BaseTypeDefinition):
             function_visibility=FunctionVisibility.EXTERNAL,
             state_mutability=StateMutability.VIEW,
         )
+
+    @property
+    def is_external(self) -> bool:
+        return self.visibility == FunctionVisibility.EXTERNAL
+
+    @property
+    def is_internal(self) -> bool:
+        return self.visibility == FunctionVisibility.INTERNAL
 
     @property
     def method_ids(self) -> Dict[str, int]:
@@ -445,35 +460,57 @@ class ContractFunction(BaseTypeDefinition):
 
     def fetch_call_return(self, node: vy_ast.Call) -> Optional[BaseTypeDefinition]:
         if node.get("func.value.id") == "self" and self.visibility == FunctionVisibility.EXTERNAL:
-            raise CallViolation("Cannnot call external functions via 'self'", node)
+            raise CallViolation("Cannot call external functions via 'self'", node)
 
         # for external calls, include gas and value as optional kwargs
         kwarg_keys = self.kwarg_keys.copy()
         if node.get("func.value.id") != "self":
-            kwarg_keys += ["gas", "value", "skip_contract_check"]
+            kwarg_keys += list(self.call_site_kwargs.keys())
         validate_call_args(node, (self.min_arg_count, self.max_arg_count), kwarg_keys)
 
         if self.mutability < StateMutability.PAYABLE:
             kwarg_node = next((k for k in node.keywords if k.arg == "value"), None)
             if kwarg_node is not None:
-                raise CallViolation("Cannnot send ether to nonpayable function", kwarg_node)
+                raise CallViolation("Cannot send ether to nonpayable function", kwarg_node)
 
         for arg, expected in zip(node.args, self.arguments.values()):
             validate_expected_type(arg, expected)
 
+        # TODO this should be moved to validate_call_args
         for kwarg in node.keywords:
-            if kwarg.arg in ("gas", "value"):
-                validate_expected_type(kwarg.value, Uint256Definition())
-            elif kwarg.arg in ("skip_contract_check"):
-                validate_expected_type(kwarg.value, BoolDefinition())
-                if not isinstance(kwarg.value, vy_ast.NameConstant):
-                    raise InvalidType("skip_contract_check must be literal bool", kwarg.value)
+            if kwarg.arg in self.call_site_kwargs:
+                kwarg_settings = self.call_site_kwargs[kwarg.arg]
+                validate_expected_type(kwarg.value, kwarg_settings.typ)
+                if kwarg_settings.require_literal:
+                    if not isinstance(kwarg.value, vy_ast.Constant):
+                        raise InvalidType(
+                            f"{kwarg.arg} must be literal {kwarg_settings.typ}", kwarg.value
+                        )
             else:
-                validate_expected_type(kwarg.arg, kwarg.value)
+                # Generate the modified source code string with the kwarg removed
+                # as a suggestion to the user.
+                kwarg_pattern = rf"{kwarg.arg}\s*=\s*{re.escape(kwarg.value.node_source_code)}"
+                modified_line = re.sub(
+                    kwarg_pattern, kwarg.value.node_source_code, node.node_source_code
+                )
+                error_suggestion = (
+                    f"\n(hint: Try removing the kwarg: `{modified_line}`)"
+                    if modified_line != node.node_source_code
+                    else ""
+                )
+
+                raise ArgumentException(
+                    (
+                        "Usage of kwarg in Vyper is restricted to "
+                        + ", ".join([f"{k}=" for k in self.call_site_kwargs.keys()])
+                        + f". {error_suggestion}"
+                    ),
+                    kwarg,
+                )
 
         return self.return_type
 
-    def to_abi_dict(self) -> List[Dict]:
+    def to_abi_dict(self):
         abi_dict: Dict = {"stateMutability": self.mutability.value}
 
         if self.is_fallback:
@@ -486,15 +523,15 @@ class ContractFunction(BaseTypeDefinition):
             abi_dict["type"] = "function"
             abi_dict["name"] = self.name
 
-        abi_dict["inputs"] = [generate_abi_type(v, k) for k, v in self.arguments.items()]
+        abi_dict["inputs"] = [v.to_abi_dict(name=k) for k, v in self.arguments.items()]
 
         typ = self.return_type
         if typ is None:
             abi_dict["outputs"] = []
         elif isinstance(typ, TupleDefinition) and len(typ.value_type) > 1:  # type: ignore
-            abi_dict["outputs"] = [generate_abi_type(i) for i in typ.value_type]  # type: ignore
+            abi_dict["outputs"] = [t.to_abi_dict() for t in typ.value_type]  # type: ignore
         else:
-            abi_dict["outputs"] = [generate_abi_type(typ)]
+            abi_dict["outputs"] = [typ.to_abi_dict()]
 
         if self.has_default_args:
             # for functions with default args, return a dict for each possible arg count

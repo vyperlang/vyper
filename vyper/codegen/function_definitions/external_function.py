@@ -3,36 +3,14 @@ from typing import Any, List
 import vyper.utils as util
 from vyper.address_space import CALLDATA, DATA, MEMORY
 from vyper.ast.signatures.function_signature import FunctionSignature, VariableRecord
+from vyper.codegen.abi_encoder import abi_encoding_matches_vyper
 from vyper.codegen.context import Context
-from vyper.codegen.core import get_element_ptr, getpos, make_setter
+from vyper.codegen.core import get_element_ptr, getpos, make_setter, needs_clamp
 from vyper.codegen.expr import Expr
 from vyper.codegen.function_definitions.utils import get_nonreentrant_lock
 from vyper.codegen.ir_node import Encoding, IRnode
 from vyper.codegen.stmt import parse_body
-from vyper.codegen.types.types import (
-    BaseType,
-    ByteArrayLike,
-    DArrayType,
-    SArrayType,
-    TupleLike,
-    TupleType,
-)
-from vyper.exceptions import CompilerPanic
-
-
-def _should_decode(typ):
-    # either a basetype which needs to be clamped
-    # or a complex type which contains something that
-    # needs to be clamped.
-    if isinstance(typ, BaseType):
-        return typ.typ not in ("int256", "uint256", "bytes32")
-    if isinstance(typ, (ByteArrayLike, DArrayType)):
-        return True
-    if isinstance(typ, SArrayType):
-        return _should_decode(typ.subtype)
-    if isinstance(typ, TupleLike):
-        return any(_should_decode(t) for t in typ.tuple_members())
-    raise CompilerPanic(f"_should_decode({typ})")
+from vyper.codegen.types.types import TupleType
 
 
 # register function args with the local calling context.
@@ -53,7 +31,7 @@ def _register_function_args(context: Context, sig: FunctionSignature) -> List[IR
 
         arg_ir = get_element_ptr(base_args_ofst, i)
 
-        if _should_decode(arg.typ):
+        if needs_clamp(arg.typ, Encoding.ABI):
             # allocate a memory slot for it and copy
             p = context.new_variable(arg.name, arg.typ, is_mutable=False)
             dst = IRnode(p, typ=arg.typ, location=MEMORY)
@@ -62,6 +40,7 @@ def _register_function_args(context: Context, sig: FunctionSignature) -> List[IR
             copy_arg.source_pos = getpos(arg.ast_source)
             ret.append(copy_arg)
         else:
+            assert abi_encoding_matches_vyper(arg.typ)
             # leave it in place
             context.vars[arg.name] = VariableRecord(
                 name=arg.name,
@@ -106,6 +85,15 @@ def _generate_kwarg_handlers(context: Context, sig: FunctionSignature) -> List[A
 
         # a sequence of statements to strictify kwargs into memory
         ret = ["seq"]
+
+        # ensure calldata is at least of minimum length
+        args_abi_t = calldata_args_t.abi_type
+        calldata_min_size = args_abi_t.min_size() + 4
+        if args_abi_t.is_dynamic():
+            ret.append(["assert", ["ge", "calldatasize", calldata_min_size]])
+        else:
+            # stricter for static data
+            ret.append(["assert", ["eq", "calldatasize", calldata_min_size]])
 
         # TODO optimize make_setter by using
         # TupleType(list(arg.typ for arg in calldata_kwargs + default_kwargs))
@@ -164,7 +152,7 @@ def _generate_kwarg_handlers(context: Context, sig: FunctionSignature) -> List[A
 # TODO it would be nice if this returned a data structure which were
 # amenable to generating a jump table instead of the linear search for
 # method_id we have now.
-def generate_ir_for_external_function(code, sig, context, check_nonpayable):
+def generate_ir_for_external_function(code, sig, context, skip_nonpayable_check):
     # TODO type hints:
     # def generate_ir_for_external_function(
     #    code: vy_ast.FunctionDef, sig: FunctionSignature, context: Context, check_nonpayable: bool,
@@ -188,7 +176,7 @@ def generate_ir_for_external_function(code, sig, context, check_nonpayable):
     # generate the main body of the function
     body += handle_base_args
 
-    if check_nonpayable and sig.mutability != "payable":
+    if sig.mutability != "payable" and not skip_nonpayable_check:
         # if the contract contains payable functions, but this is not one of them
         # add an assertion that the value of the call is zero
         body += [["assert", ["iszero", "callvalue"]]]

@@ -15,16 +15,9 @@ from vyper.exceptions import (
     UnfoldableNode,
     ZeroDivisionException,
 )
-from vyper.utils import MAX_DECIMAL_PLACES, SizeLimits, annotate_source_code, checksum_encode
+from vyper.utils import MAX_DECIMAL_PLACES, SizeLimits, annotate_source_code
 
-NODE_BASE_ATTRIBUTES = (
-    "_children",
-    "_depth",
-    "_parent",
-    "ast_type",
-    "node_id",
-    "_metadata",
-)
+NODE_BASE_ATTRIBUTES = ("_children", "_depth", "_parent", "ast_type", "node_id", "_metadata")
 NODE_SRC_ATTRIBUTES = (
     "col_offset",
     "end_col_offset",
@@ -164,8 +157,7 @@ def _sort_nodes(node_iterable):
         return float("inf") if key is None else key
 
     return sorted(
-        node_iterable,
-        key=lambda k: (sortkey(k.lineno), sortkey(k.col_offset), k.node_id),
+        node_iterable, key=lambda k: (sortkey(k.lineno), sortkey(k.col_offset), k.node_id)
     )
 
 
@@ -331,16 +323,18 @@ class VyperNode:
     def __repr__(self):
         cls = type(self)
         class_repr = f"{cls.__module__}.{cls.__qualname__}"
+        return f"{class_repr}:\n{self._annotated_source}"
 
-        source_annotation = annotate_source_code(
+    @property
+    def _annotated_source(self):
+        # return source with context / line/col info
+        return annotate_source_code(
             self.full_source_code,
             self.lineno,
             self.col_offset,
             context_lines=VYPER_ERROR_CONTEXT_LINES,
             line_numbers=VYPER_ERROR_LINE_NUMBERS,
         )
-
-        return f"{class_repr}:\n{source_annotation}"
 
     @property
     def description(self):
@@ -387,6 +381,10 @@ class VyperNode:
                 ast_dict[key] = [_to_dict(i) for i in value]
             else:
                 ast_dict[key] = _to_dict(value)
+
+        if "type" in self._metadata:
+            ast_dict["type"] = str(self._metadata["type"])
+
         return ast_dict
 
     def get_ancestor(self, node_type: Union["VyperNode", tuple, None] = None) -> "VyperNode":
@@ -680,6 +678,10 @@ class Log(VyperNode):
     __slots__ = ("value",)
 
 
+class EnumDef(VyperNode):
+    __slots__ = ("name", "body")
+
+
 class EventDef(VyperNode):
     __slots__ = ("name", "body")
 
@@ -772,14 +774,10 @@ class Hex(Constant):
     _translated_fields = {"n": "value"}
 
     def validate(self):
+        if "_" in self.value:
+            raise InvalidLiteral("Underscores not allowed in hex literals", self)
         if len(self.value) % 2:
             raise InvalidLiteral("Hex notation requires an even number of digits", self)
-        if len(self.value) == 42 and checksum_encode(self.value) != self.value:
-            raise InvalidLiteral(
-                "Address checksum mismatch. If you are sure this is the right "
-                f"address, the correct checksummed form is: {checksum_encode(self.value)}",
-                self,
-            )
 
 
 class Str(Constant):
@@ -849,10 +847,7 @@ class Expr(VyperNode):
 
 
 class UnaryOp(VyperNode):
-    __slots__ = (
-        "op",
-        "operand",
-    )
+    __slots__ = ("op", "operand")
 
     def evaluate(self) -> VyperNode:
         """
@@ -885,11 +880,7 @@ class Not(VyperNode):
 
 
 class BinOp(VyperNode):
-    __slots__ = (
-        "left",
-        "op",
-        "right",
-    )
+    __slots__ = ("left", "op", "right")
 
     def evaluate(self) -> VyperNode:
         """
@@ -914,18 +905,21 @@ class BinOp(VyperNode):
 class Add(VyperNode):
     __slots__ = ()
     _description = "addition"
+    _pretty = "+"
     _op = operator.add
 
 
 class Sub(VyperNode):
     __slots__ = ()
     _description = "subtraction"
+    _pretty = "-"
     _op = operator.sub
 
 
 class Mult(VyperNode):
     __slots__ = ()
     _description = "multiplication"
+    _pretty = "*"
 
     def _op(self, left, right):
         assert type(left) is type(right)
@@ -942,6 +936,7 @@ class Mult(VyperNode):
 class Div(VyperNode):
     __slots__ = ()
     _description = "division"
+    _pretty = "/"
 
     def _op(self, left, right):
         # evaluate the operation using true division or floor division
@@ -968,6 +963,7 @@ class Div(VyperNode):
 class Mod(VyperNode):
     __slots__ = ()
     _description = "modulus"
+    _pretty = "%"
 
     def _op(self, left, right):
         if not right:
@@ -982,6 +978,7 @@ class Mod(VyperNode):
 class Pow(VyperNode):
     __slots__ = ()
     _description = "exponentiation"
+    _pretty = "**"
 
     def _op(self, left, right):
         if isinstance(left, decimal.Decimal):
@@ -992,10 +989,7 @@ class Pow(VyperNode):
 
 
 class BoolOp(VyperNode):
-    __slots__ = (
-        "op",
-        "values",
-    )
+    __slots__ = ("op", "values")
 
     def evaluate(self) -> VyperNode:
         """
@@ -1147,10 +1141,7 @@ class keyword(VyperNode):
 
 
 class Attribute(VyperNode):
-    __slots__ = (
-        "attr",
-        "value",
-    )
+    __slots__ = ("attr", "value")
 
 
 class Subscript(VyperNode):

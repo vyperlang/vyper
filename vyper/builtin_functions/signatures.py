@@ -1,94 +1,49 @@
 import functools
+from typing import Dict
 
-from vyper import ast as vy_ast
+from vyper.ast import nodes as vy_ast
+from vyper.ast.validation import validate_call_args
 from vyper.codegen.expr import Expr
-from vyper.codegen.types import INTEGER_TYPES, BaseType, ByteArrayType, StringType, is_base_type
-from vyper.exceptions import InvalidLiteral, StructureException, TypeMismatch
-from vyper.utils import SizeLimits
+from vyper.codegen.ir_node import IRnode
+from vyper.codegen.types.convert import new_type_to_old_type
+from vyper.exceptions import CompilerPanic, TypeMismatch
+from vyper.semantics.types import (
+    ArrayDefinition,
+    BytesArrayDefinition,
+    DynamicArrayDefinition,
+    StringDefinition,
+)
+from vyper.semantics.types.bases import BaseTypeDefinition
+from vyper.semantics.types.utils import KwargSettings, TypeTypeDefinition
+from vyper.semantics.validation.utils import get_exact_type_from_node, validate_expected_type
 
 
-class Optional(object):
-    def __init__(self, typ, default):
-        self.typ = typ
-        self.default = default
+def process_arg(arg, expected_arg_type, context):
+    if isinstance(
+        expected_arg_type,
+        (BytesArrayDefinition, StringDefinition, ArrayDefinition, DynamicArrayDefinition),
+    ):
+        return Expr(arg, context).ir_node
+
+    # TODO: Builtins should not require value expressions
+    elif isinstance(expected_arg_type, BaseTypeDefinition):
+        return Expr.parse_value_expr(arg, context)
+
+    # If the input value is a typestring, return the equivalent codegen type for IR generation
+    elif isinstance(expected_arg_type, TypeTypeDefinition):
+        return new_type_to_old_type(expected_arg_type.typedef)
+
+    raise CompilerPanic(f"Unexpected type: {expected_arg_type}")  # pragma: notest
 
 
-def process_arg(index, arg, expected_arg_typelist, function_name, context):
+def process_kwarg(kwarg_node, kwarg_settings, expected_kwarg_type, context):
+    if kwarg_settings.require_literal:
+        if not isinstance(kwarg_node, vy_ast.Constant):
+            raise TypeMismatch("Value for kwarg must be a literal", kwarg_node)
 
-    # temporary hack to support abstract types
-    if hasattr(expected_arg_typelist, "_id_list"):
-        expected_arg_typelist = expected_arg_typelist._id_list
+        return kwarg_node.value
 
-    if isinstance(expected_arg_typelist, Optional):
-        expected_arg_typelist = expected_arg_typelist.typ
-    if not isinstance(expected_arg_typelist, tuple):
-        expected_arg_typelist = (expected_arg_typelist,)
-
-    vsub = None
-    for expected_arg in expected_arg_typelist:
-
-        # temporary hack, once we refactor this package none of this will exist
-        if hasattr(expected_arg, "_id"):
-            expected_arg = expected_arg._id
-
-        if expected_arg == "num_literal":
-            if isinstance(arg, (vy_ast.Int, vy_ast.Decimal)):
-                return arg.n
-        elif expected_arg == "str_literal":
-            if isinstance(arg, vy_ast.Str):
-                bytez = b""
-                for c in arg.s:
-                    if ord(c) >= 256:
-                        raise InvalidLiteral(
-                            f"Cannot insert special character {c} into byte array",
-                            arg,
-                        )
-                    bytez += bytes([ord(c)])
-                return bytez
-        elif expected_arg == "bytes_literal":
-            if isinstance(arg, vy_ast.Bytes):
-                return arg.s
-        elif expected_arg == "name_literal":
-            if isinstance(arg, vy_ast.Name):
-                return arg.id
-            elif isinstance(arg, vy_ast.Subscript) and arg.value.id == "Bytes":
-                return f"Bytes[{arg.slice.value.n}]"
-        elif expected_arg == "*":
-            return arg
-        elif expected_arg == "Bytes":
-            sub = Expr(arg, context).ir_node
-            if isinstance(sub.typ, ByteArrayType):
-                return sub
-        elif expected_arg == "String":
-            sub = Expr(arg, context).ir_node
-            if isinstance(sub.typ, StringType):
-                return sub
-        else:
-            parsed_expected_type = context.parse_type(vy_ast.parse_to_ast(expected_arg)[0].value)
-            if isinstance(parsed_expected_type, BaseType):
-                vsub = vsub or Expr.parse_value_expr(arg, context)
-
-                is_valid_integer = (
-                    (expected_arg in INTEGER_TYPES and isinstance(vsub.typ, BaseType))
-                    and (vsub.typ.typ in INTEGER_TYPES and vsub.typ.is_literal)
-                    and (SizeLimits.in_bounds(expected_arg, vsub.value))
-                )
-
-                if is_base_type(vsub.typ, expected_arg):
-                    return vsub
-                elif is_valid_integer:
-                    return vsub
-            else:
-                vsub = vsub or Expr(arg, context).ir_node
-                if vsub.typ == parsed_expected_type:
-                    return Expr(arg, context).ir_node
-
-    if len(expected_arg_typelist) == 1:
-        raise TypeMismatch(f"Expecting {expected_arg} for argument {index} of {function_name}", arg)
-    else:
-        raise TypeMismatch(
-            f"Expecting one of {expected_arg_typelist} for argument {index} of {function_name}", arg
-        )
+    return process_arg(kwarg_node, expected_kwarg_type, context)
 
 
 def validate_inputs(wrapped_fn):
@@ -101,43 +56,84 @@ def validate_inputs(wrapped_fn):
 
     @functools.wraps(wrapped_fn)
     def decorator_fn(self, node, context):
-        argz = [i[1] for i in self._inputs]
-        kwargz = getattr(self, "_kwargs", {})
-        function_name = node.func.id
-        if len(node.args) > len(argz):
-            raise StructureException(
-                f"Expected {len(argz)} arguments for {function_name}, got {len(node.args)}", node
-            )
         subs = []
-        for i, expected_arg in enumerate(argz):
-            if len(node.args) > i:
-                subs.append(
-                    process_arg(
-                        i + 1,
-                        node.args[i],
-                        expected_arg,
-                        function_name,
-                        context,
-                    )
-                )
-            elif isinstance(expected_arg, Optional):
-                subs.append(expected_arg.default)
-            else:
-                raise StructureException(f"Not enough arguments for function: {node.func.id}", node)
+        for arg in node.args:
+            arg_ir = process_arg(arg, arg._metadata["type"], context)
+            # TODO annotate arg_ir with argname from self._inputs?
+            subs.append(arg_ir)
+
         kwsubs = {}
-        node_kw = {k.arg: k.value for k in node.keywords}
-        for k, expected_arg in kwargz.items():
-            if k not in node_kw:
-                if not isinstance(expected_arg, Optional):
-                    raise StructureException(
-                        f"Function {function_name} requires argument {k}", node
-                    )
+
+        # note: must compile in source code order, left-to-right
+        expected_kwarg_types = self.infer_kwarg_types(node)
+        for k in node.keywords:
+            kwarg_settings = self._kwargs[k.arg]
+            expected_kwarg_type = expected_kwarg_types[k.arg]
+            kwsubs[k.arg] = process_kwarg(k.value, kwarg_settings, expected_kwarg_type, context)
+
+        # add kwargs which were not specified in the source
+        for k, expected_arg in self._kwargs.items():
+            if k not in kwsubs:
                 kwsubs[k] = expected_arg.default
-            else:
-                kwsubs[k] = process_arg(k, node_kw[k], expected_arg, function_name, context)
-        for k, _arg in node_kw.items():
-            if k not in kwargz:
-                raise StructureException(f"Unexpected argument: {k}", node)
+
+        for k, v in kwsubs.items():
+            if isinstance(v, IRnode):
+                v.annotation = k
+
         return wrapped_fn(self, node, subs, kwsubs, context)
 
     return decorator_fn
+
+
+# TODO: rename me to BuiltinFunction
+class _SimpleBuiltinFunction:
+
+    _has_varargs = False
+    _kwargs: Dict[str, KwargSettings] = {}
+
+    def _validate_arg_types(self, node):
+        num_args = len(self._inputs)  # the number of args the signature indicates
+
+        expect_num_args = num_args
+        if self._has_varargs:
+            # note special meaning for -1 in validate_call_args API
+            expect_num_args = (num_args, -1)
+
+        validate_call_args(node, expect_num_args, getattr(self, "_kwargs", []))
+
+        for arg, (_, expected) in zip(node.args, self._inputs):
+            validate_expected_type(arg, expected)
+
+        # typecheck varargs. we don't have type info from the signature,
+        # so ensure that the types of the args can be inferred exactly.
+        varargs = node.args[num_args:]
+        if len(varargs) > 0:
+            assert self._has_varargs  # double check validate_call_args
+        for arg in varargs:
+            # call get_exact_type_from_node for its side effects -
+            # ensures the type can be inferred exactly.
+            get_exact_type_from_node(arg)
+
+    def fetch_call_return(self, node):
+        self._validate_arg_types(node)
+
+        if self._return_type:
+            return self._return_type
+
+    def infer_arg_types(self, node):
+        self._validate_arg_types(node)
+        ret = [expected for (_, expected) in self._inputs]
+
+        # handle varargs.
+        n_known_args = len(self._inputs)
+        varargs = node.args[n_known_args:]
+        if len(varargs) > 0:
+            assert self._has_varargs
+        ret.extend(get_exact_type_from_node(arg) for arg in varargs)
+        return ret
+
+    def infer_kwarg_types(self, node):
+        return {i.arg: self._kwargs[i.arg].typ for i in node.keywords}
+
+    def __repr__(self):
+        return f"(builtin) {self._id}"
