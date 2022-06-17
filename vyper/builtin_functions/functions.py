@@ -1339,9 +1339,9 @@ class BitwiseAnd(_SimpleBuiltinFunction):
 
     @validate_inputs
     def build_IR(self, expr, args, kwargs, context):
-        if not self._warned:
+        if not self.__class__._warned:
             vyper_warn("`bitwise_or()` is deprecated! Please use the | operator instead.")
-            self._warned = True
+            self.__class__._warned = True
 
         return IRnode.from_list(["and", args[0], args[1]], typ=BaseType("uint256"))
 
@@ -1366,9 +1366,9 @@ class BitwiseOr(_SimpleBuiltinFunction):
 
     @validate_inputs
     def build_IR(self, expr, args, kwargs, context):
-        if not self._warned:
+        if not self.__class__._warned:
             vyper_warn("`bitwise_or()` is deprecated! Please use the | operator instead.")
-            self._warned = True
+            self.__class__._warned = True
 
         return IRnode.from_list(["or", args[0], args[1]], typ=BaseType("uint256"))
 
