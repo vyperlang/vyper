@@ -48,6 +48,10 @@ class StructDefinition(MemberTypeDefinition, ValueTypeDefinition):
     def abi_type(self) -> ABIType:
         return ABI_Tuple([t.abi_type for t in self.members.values()])
 
+    def to_abi_dict(self, name: str = "") -> dict:
+        components = [t.to_abi_dict(name=k) for k, t in self.members.items()]
+        return {"name": name, "type": "tuple", "components": components}
+
 
 class StructPrimitive:
 

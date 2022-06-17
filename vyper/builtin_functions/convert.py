@@ -303,7 +303,6 @@ def to_bool(expr, arg, out_typ):
 
 @_input_types("int", "bytes_m", "decimal", "bytes", "address", "bool")
 def to_int(expr, arg, out_typ):
-
     int_info = out_typ._int_info
 
     assert int_info.bits % 8 == 0
@@ -462,6 +461,7 @@ def convert(expr, context):
 
     arg_ast = expr.args[0]
     arg = Expr(arg_ast, context).ir_node
+    original_arg = arg
     out_typ = context.parse_type(expr.args[1])
 
     if isinstance(arg.typ, BaseType):
@@ -484,6 +484,12 @@ def convert(expr, context):
         else:
             raise StructureException(f"Conversion to {out_typ} is invalid.", arg_ast)
 
-        ret = b.resolve(ret)
+        # test if arg actually changed. if not, we do not need to use
+        # unwrap_location (this can reduce memory traffic for downstream
+        # operations which are in-place, like the returndata routine)
+        test_arg = IRnode.from_list(arg, typ=out_typ)
+        if test_arg == ret:
+            original_arg.typ = out_typ
+            return original_arg
 
-    return IRnode.from_list(ret)
+        return IRnode.from_list(b.resolve(ret))

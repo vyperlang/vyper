@@ -4,7 +4,7 @@ from vyper.codegen.core import bytes_data_ptr, ensure_in_memory, get_bytearray_l
 from vyper.codegen.ir_node import IRnode
 from vyper.codegen.types import BaseType, ByteArrayLike, is_base_type
 from vyper.exceptions import CompilerPanic
-from vyper.utils import MemoryPositions, bytes_to_int, keccak256
+from vyper.utils import SHA3_BASE, SHA3_PER_WORD, MemoryPositions, bytes_to_int, keccak256
 
 
 def _check_byteslike(typ, _expr):
@@ -14,8 +14,6 @@ def _check_byteslike(typ, _expr):
 
 
 def _gas_bound(num_words):
-    SHA3_BASE = 30
-    SHA3_PER_WORD = 6
     return SHA3_BASE + num_words * SHA3_PER_WORD
 
 

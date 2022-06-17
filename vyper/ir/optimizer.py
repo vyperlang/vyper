@@ -87,6 +87,13 @@ def _flip_comparison_op(opname):
     raise CompilerPanic(f"bad comparison op {opname}")
 
 
+# some annotations are really long. shorten them (except maybe in "verbose" mode?)
+def _shorten_annotation(annotation):
+    if len(annotation) > 16:
+        return annotation[:16] + "..."
+    return annotation
+
+
 # def _optimize_arith(
 #    binop: str, args: IRArgs, ann: Optional[str], parent_op: Any = None
 # ) -> Tuple[IRVal, IRArgs, Optional[str]]:
@@ -106,8 +113,8 @@ def _optimize_arith(binop, args, ann, parent_op):
 
     new_ann = None
     if ann is not None:
-        l_ann = args[0].annotation or str(args[0])
-        r_ann = args[1].annotation or str(args[1])
+        l_ann = _shorten_annotation(args[0].annotation or str(args[0]))
+        r_ann = _shorten_annotation(args[1].annotation or str(args[1]))
         new_ann = l_ann + symb + r_ann
         new_ann = f"{ann} ({new_ann})"
 

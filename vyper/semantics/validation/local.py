@@ -148,7 +148,8 @@ def _validate_address_code_attribute(node: vy_ast.Attribute) -> None:
 def _validate_msg_data_attribute(node: vy_ast.Attribute) -> None:
     if isinstance(node.value, vy_ast.Name) and node.value.id == "msg" and node.attr == "data":
         parent = node.get_ancestor()
-        if not isinstance(parent, vy_ast.Call) or parent.get("func.id") not in ("slice", "len"):
+        allowed_builtins = ("slice", "len", "raw_call")
+        if not isinstance(parent, vy_ast.Call) or parent.get("func.id") not in allowed_builtins:
             raise StructureException(
                 "msg.data is only allowed inside of the slice or len functions", node
             )

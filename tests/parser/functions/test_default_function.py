@@ -126,7 +126,7 @@ def __default__():
 
     logs = get_logs(
         # call blockHashAskewLimitary
-        w3.eth.send_transaction({"to": c.address, "value": 0, "data": "0x00000000"}),
+        w3.eth.send_transaction({"to": c.address, "value": 0, "data": "0x" + "00" * 36}),
         c,
         "Sent",
     )

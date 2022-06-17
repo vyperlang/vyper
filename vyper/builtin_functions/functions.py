@@ -2,7 +2,6 @@ import hashlib
 import math
 import operator
 from decimal import Decimal
-from typing import Dict
 
 from vyper import ast as vy_ast
 from vyper.abi_types import ABI_Tuple
@@ -22,6 +21,7 @@ from vyper.codegen.core import (
     clamp,
     clamp2,
     clamp_basetype,
+    clamp_nonzero,
     copy_bytes,
     ensure_in_memory,
     eval_seq,
@@ -30,6 +30,7 @@ from vyper.codegen.core import (
     ir_tuple_from_args,
     needs_external_call_wrap,
     promote_signed_int,
+    shl,
     unwrap_location,
 )
 from vyper.codegen.expr import Expr
@@ -97,49 +98,23 @@ from vyper.semantics.validation.utils import (
 )
 from vyper.utils import (
     DECIMAL_DIVISOR,
+    EIP_170_LIMIT,
+    SHA3_PER_WORD,
     MemoryPositions,
     SizeLimits,
     abi_method_id,
     bytes_to_int,
+    ceil32,
     fourbytes_to_int,
     keccak256,
     vyper_warn,
 )
 
-from .signatures import validate_inputs
+from .signatures import _SimpleBuiltinFunction, validate_inputs
 
 SHA256_ADDRESS = 2
 SHA256_BASE_GAS = 60
 SHA256_PER_WORD_GAS = 12
-
-
-class _SimpleBuiltinFunction:
-
-    _kwargs: Dict[str, KwargSettings] = {}
-
-    def _validate_arg_types(self, node):
-        validate_call_args(node, len(self._inputs), getattr(self, "_kwargs", []))
-
-        for arg, (_, expected) in zip(node.args, self._inputs):
-            validate_expected_type(arg, expected)
-
-        return
-
-    def fetch_call_return(self, node):
-        self._validate_arg_types(node)
-
-        if self._return_type:
-            return self._return_type
-
-    def infer_arg_types(self, node):
-        self._validate_arg_types(node)
-        return [expected for (_, expected) in self._inputs]
-
-    def infer_kwarg_types(self, node):
-        return {i.arg: self._kwargs[i.arg].typ for i in node.keywords}
-
-    def __repr__(self):
-        return f"builtin function {self._id}"
 
 
 class Floor(_SimpleBuiltinFunction):
@@ -1169,8 +1144,25 @@ class RawCall(_SimpleBuiltinFunction):
                 expr,
             )
 
-        eval_input_buf = ensure_in_memory(data, context)
-        input_buf = eval_seq(eval_input_buf)
+        if data.value == "~calldata":
+            call_ir = ["with", "mem_ofst", "msize"]
+            args_ofst = ["seq", ["calldatacopy", "mem_ofst", 0, "calldatasize"], "mem_ofst"]
+            args_len = "calldatasize"
+        else:
+            # some gymnastics to propagate constants (if eval_input_buf
+            # returns a static memory location)
+            eval_input_buf = ensure_in_memory(data, context)
+
+            input_buf = eval_seq(eval_input_buf)
+
+            if input_buf is None:
+                call_ir = ["with", "arg_buf", eval_input_buf]
+                input_buf = IRnode.from_list("arg_buf")
+            else:
+                call_ir = ["seq", eval_input_buf]
+
+            args_ofst = add_ofst(input_buf, 32)
+            args_len = ["mload", input_buf]
 
         output_node = IRnode.from_list(
             context.new_internal_variable(ByteArrayType(outsize)),
@@ -1180,16 +1172,10 @@ class RawCall(_SimpleBuiltinFunction):
 
         bool_ty = BaseType("bool")
 
-        if input_buf is None:
-            call_ir = ["with", "arg_buf", eval_input_buf]
-            input_buf = IRnode.from_list("arg_buf")
-        else:
-            call_ir = ["seq", eval_input_buf]
-
         # build IR for call or delegatecall
         common_call_args = [
-            add_ofst(input_buf, 32),
-            ["mload", input_buf],  # buf len
+            args_ofst,
+            args_len,
             # if there is no return value, the return offset can be 0
             add_ofst(output_node, 32) if outsize else 0,
             outsize,
@@ -1201,25 +1187,16 @@ class RawCall(_SimpleBuiltinFunction):
             call_op = ["staticcall", gas, to, *common_call_args]
         else:
             call_op = ["call", gas, to, value, *common_call_args]
+
         call_ir += [call_op]
 
         # build sequence IR
         if outsize:
             # return minimum of outsize and returndatasize
-            size = [
-                "with",
-                "_l",
-                outsize,
-                ["with", "_r", "returndatasize", ["if", ["gt", "_l", "_r"], "_r", "_l"]],
-            ]
+            size = ["select", ["lt", outsize, "returndatasize"], outsize, "returndatasize"]
 
             # store output size and return output location
-            store_output_size = [
-                "with",
-                "output_pos",
-                output_node,
-                ["seq", ["mstore", "output_pos", size], "output_pos"],
-            ]
+            store_output_size = ["seq", ["mstore", output_node, size], output_node]
 
             bytes_ty = ByteArrayType(outsize)
 
@@ -1256,8 +1233,7 @@ class Send(_SimpleBuiltinFunction):
     @validate_inputs
     def build_IR(self, expr, args, kwargs, context):
         to, value = args
-        if context.is_constant():
-            raise StateAccessViolation(f"Cannot send ether inside {context.pp_constancy()}!", expr)
+        context.check_is_not_constant("send ether", expr)
         return IRnode.from_list(["assert", ["call", 0, to, value, 0, 0, 0, 0]])
 
 
@@ -1270,10 +1246,7 @@ class SelfDestruct(_SimpleBuiltinFunction):
 
     @validate_inputs
     def build_IR(self, expr, args, kwargs, context):
-        if context.is_constant():
-            raise StateAccessViolation(
-                f"Cannot {expr.func.id} inside {context.pp_constancy()}!", expr.func
-            )
+        context.check_is_not_constant("selfdestruct", expr)
         return IRnode.from_list(["selfdestruct", args[0]])
 
 
@@ -1599,7 +1572,34 @@ class Abs(_SimpleBuiltinFunction):
         return IRnode.from_list(sub, typ=BaseType("int256"))
 
 
-def get_create_forwarder_to_bytecode():
+# CREATE* functions
+
+# create helper functions
+# generates CREATE op sequence + zero check for result
+def _create_ir(value, buf, length, salt=None, checked=True):
+    args = [value, buf, length]
+    create_op = "create"
+    if salt is not None:
+        create_op = "create2"
+        args.append(salt)
+
+    ret = IRnode.from_list([create_op, *args])
+
+    if not checked:
+        return ret
+
+    return clamp_nonzero(ret)
+
+
+# calculate the gas used by create for a given number of bytes
+def _create_addl_gas_estimate(size, should_use_create2):
+    ret = 200 * size
+    if should_use_create2:
+        ret += SHA3_PER_WORD * ceil32(size) // 32
+    return ret
+
+
+def eip1167_bytecode():
     # NOTE cyclic import?
     from vyper.ir.compile_ir import assembly_to_evm
 
@@ -1650,10 +1650,38 @@ def get_create_forwarder_to_bytecode():
     )
 
 
-class CreateForwarderTo(_SimpleBuiltinFunction):
+# "standard" initcode for code which can be larger than 256 bytes.
+# returns the code starting from 0x0b with len `codesize`.
+# NOTE: it assumes codesize <= 2**24.
+def _create_preamble(codesize):
 
-    _id = "create_forwarder_to"
-    _inputs = [("target", AddressDefinition())]
+    from vyper.ir.compile_ir import assembly_to_evm
+
+    evm_len = 0x0B  # 11 bytes
+    asm = [
+        # use PUSH3 to be able to deal with larger contracts
+        "PUSH3",
+        # blank space for codesize
+        0x00,
+        0x00,
+        0x00,
+        "RETURNDATASIZE",
+        "DUP2",
+        "PUSH1",
+        evm_len,
+        "RETURNDATASIZE",
+        "CODECOPY",
+        "RETURN",
+    ]
+    evm = assembly_to_evm(asm)[0]
+    assert len(evm) == evm_len, evm
+
+    shl_bits = (evm_len - 4) * 8  # codesize needs to go right after the PUSH3
+    # mask codesize into the aforementioned "blank space"
+    return ["or", bytes_to_int(evm), shl(shl_bits, codesize)], evm_len
+
+
+class _CreateBase(_SimpleBuiltinFunction):
     _kwargs = {
         "value": KwargSettings(Uint256Definition(), zero_value),
         "salt": KwargSettings(Bytes32Definition(), empty_value),
@@ -1662,15 +1690,45 @@ class CreateForwarderTo(_SimpleBuiltinFunction):
 
     @validate_inputs
     def build_IR(self, expr, args, kwargs, context):
+        # errmsg something like "Cannot use {self._id} in pure fn"
+        context.check_is_not_constant("use {self._id}", expr)
+
         value = kwargs["value"]
         salt = kwargs["salt"]
         should_use_create2 = "salt" in [kwarg.arg for kwarg in expr.keywords]
+        if not should_use_create2:
+            salt = None
 
-        if context.is_constant():
-            raise StateAccessViolation(f"Cannot make calls from {context.pp_constancy()}", expr)
-        placeholder = context.new_internal_variable(ByteArrayType(96))
+        ir_builder = self._build_create_IR(expr, args, value, salt, context)
 
-        loader_evm, forwarder_pre_evm, forwarder_post_evm = get_create_forwarder_to_bytecode()
+        add_gas_estimate = self._add_gas_estimate(args, should_use_create2)
+
+        return IRnode.from_list(
+            ir_builder,
+            typ=BaseType("address"),
+            annotation=self._id,
+            add_gas_estimate=add_gas_estimate,
+        )
+
+
+class CreateMinimalProxyTo(_CreateBase):
+    # create an EIP1167 "minimal proxy" to the target contract
+
+    _id = "create_minimal_proxy_to"
+    _inputs = [("target", AddressDefinition())]
+
+    def _add_gas_estimate(self, args, should_use_create2):
+        a, b, c = eip1167_bytecode()
+        bytecode_len = 20 + len(b) + len(c)
+        return _create_addl_gas_estimate(bytecode_len, should_use_create2)
+
+    def _build_create_IR(self, expr, args, value, salt, context):
+
+        target_address = args[0]
+
+        buf = context.new_internal_variable(ByteArrayType(96))
+
+        loader_evm, forwarder_pre_evm, forwarder_post_evm = eip1167_bytecode()
         # Adjust to 32-byte boundaries
         preamble_length = len(loader_evm) + len(forwarder_pre_evm)
         forwarder_preamble = bytes_to_int(
@@ -1678,31 +1736,154 @@ class CreateForwarderTo(_SimpleBuiltinFunction):
         )
         forwarder_post = bytes_to_int(forwarder_post_evm + b"\x00" * (32 - len(forwarder_post_evm)))
 
-        if args[0].typ.is_literal:
-            target_address = args[0].value * 2 ** 96
-        elif version_check(begin="constantinople"):
-            target_address = ["shl", 96, args[0]]
+        # left-align the target
+        if target_address.typ.is_literal:
+            # note: should move to optimizer once we have
+            # codesize optimization pipeline
+            aligned_target = args[0].value << 96
         else:
-            target_address = ["mul", args[0], 2 ** 96]
+            aligned_target = shl(96, target_address)
 
-        op = "create"
-        op_args = [value, placeholder, preamble_length + 20 + len(forwarder_post_evm)]
+        buf_len = preamble_length + 20 + len(forwarder_post_evm)
 
-        if should_use_create2:
-            op = "create2"
-            op_args.append(salt)
+        return [
+            "seq",
+            ["mstore", buf, forwarder_preamble],
+            ["mstore", ["add", buf, preamble_length], aligned_target],
+            ["mstore", ["add", buf, preamble_length + 20], forwarder_post],
+            _create_ir(value, buf, buf_len, salt=salt),
+        ]
 
-        return IRnode.from_list(
-            [
-                "seq",
-                ["mstore", placeholder, forwarder_preamble],
-                ["mstore", ["add", placeholder, preamble_length], target_address],
-                ["mstore", ["add", placeholder, preamble_length + 20], forwarder_post],
-                [op, *op_args],
-            ],
-            typ=BaseType("address"),
-            add_gas_estimate=11000,
+
+class CreateForwarderTo(CreateMinimalProxyTo):
+    _warned = False
+
+    def build_IR(self, expr, context):
+        if not self._warned:
+            vyper_warn("`create_forwarder_to` is a deprecated alias of `create_minimal_proxy_to`!")
+            self._warned = True
+
+        return super().build_IR(expr, context)
+
+
+class CreateCopyOf(_CreateBase):
+
+    _id = "create_copy_of"
+    _inputs = [("target", AddressDefinition())]
+
+    @property
+    def _preamble_len(self):
+        return 11
+
+    def _add_gas_estimate(self, args, should_use_create2):
+        # max possible runtime length + preamble length
+        return _create_addl_gas_estimate(EIP_170_LIMIT + self._preamble_len, should_use_create2)
+
+    def _build_create_IR(self, expr, args, value, salt, context):
+        target = args[0]
+
+        with target.cache_when_complex("create_target") as (b1, target):
+            codesize = IRnode.from_list(["extcodesize", target])
+            msize = IRnode.from_list(["msize"])
+            with codesize.cache_when_complex("target_codesize") as (
+                b2,
+                codesize,
+            ), msize.cache_when_complex("mem_ofst") as (b3, mem_ofst):
+                ir = ["seq"]
+
+                # make sure there is actually code at the target
+                ir.append(["assert", codesize])
+
+                # store the preamble at msize + 22 (zero padding)
+                preamble, preamble_len = _create_preamble(codesize)
+                assert preamble_len == self._preamble_len
+
+                ir.append(["mstore", mem_ofst, preamble])
+
+                # copy the target code into memory. current layout:
+                # msize | 00...00 (22 0's) | preamble | bytecode
+                ir.append(["extcodecopy", target, add_ofst(mem_ofst, 32), 0, codesize])
+
+                buf = add_ofst(mem_ofst, 32 - preamble_len)
+                buf_len = ["add", codesize, preamble_len]
+
+                ir.append(_create_ir(value, buf, buf_len, salt))
+
+                return b1.resolve(b2.resolve(b3.resolve(ir)))
+
+
+class CreateFromFactory(_CreateBase):
+
+    _id = "create_from_factory"
+    _inputs = [("target", AddressDefinition())]
+    _has_varargs = True
+
+    def _add_gas_estimate(self, args, should_use_create2):
+        ctor_args = ir_tuple_from_args(args[1:])
+        # max possible size of init code
+        maxlen = EIP_170_LIMIT + ctor_args.typ.abi_type.size_bound()
+        return _create_addl_gas_estimate(maxlen, should_use_create2)
+
+    def _build_create_IR(self, expr, args, value, salt, context):
+        target = args[0]
+        ctor_args = args[1:]
+
+        ctor_args = [ensure_in_memory(arg, context) for arg in ctor_args]
+
+        to_encode = ir_tuple_from_args(ctor_args)
+
+        # pretend we allocated enough memory for the encoder
+        # (we didn't, but we are clobbering unused memory so it's safe.)
+        bufsz = to_encode.typ.abi_type.size_bound()
+        argbuf = IRnode.from_list(
+            context.new_internal_variable(get_type_for_exact_size(bufsz)), location=MEMORY
         )
+
+        # return a complex expression which writes to memory and returns
+        # the length of the encoded data
+        argslen = abi_encode(argbuf, to_encode, context, bufsz=bufsz, returns_len=True)
+
+        # NOTE: we need to invoke the abi encoder before evaluating MSIZE,
+        # then copy the abi encoded buffer to past-the-end of the initcode
+        # (since the abi encoder could write to fresh memory).
+        # it would be good to not require the memory copy, but need
+        # to evaluate memory safety.
+        with argslen.cache_when_complex("encoded_args_len") as (
+            b1,
+            encoded_args_len,
+        ), target.cache_when_complex("create_target") as (b2, target):
+            codesize = IRnode.from_list(["extcodesize", target])
+            # copy code to memory starting from msize. we are clobbering
+            # unused memory so it's safe.
+            msize = IRnode.from_list(["msize"], location=MEMORY)
+            with codesize.cache_when_complex("target_codesize") as (
+                b3,
+                codesize,
+            ), msize.cache_when_complex("mem_ofst") as (b4, mem_ofst):
+                ir = ["seq"]
+
+                # make sure there is code at the target.
+                ir.append(["assert", codesize])
+
+                # copy the target code into memory.
+                # layout starting from mem_ofst:
+                # 00...00 (22 0's) | preamble | bytecode
+                ir.append(["extcodecopy", target, mem_ofst, 0, codesize])
+
+                ir.append(copy_bytes(add_ofst(mem_ofst, codesize), argbuf, encoded_args_len, bufsz))
+
+                # theoretically, dst = "msize", but just be safe.
+                # if len(ctor_args) > 0:
+                #    dst = add_ofst(mem_ofst, codesize)
+                #    encoded_args_len = self._encode_args(dst, ctor_args, context)
+                # else:
+                #    encoded_args_len = 0
+
+                length = ["add", codesize, encoded_args_len]
+
+                ir.append(_create_ir(value, mem_ofst, length, salt))
+
+                return b1.resolve(b2.resolve(b3.resolve(b4.resolve(ir))))
 
 
 class _UnsafeMath(_SimpleBuiltinFunction):
@@ -2006,6 +2187,8 @@ class Print(_SimpleBuiltinFunction):
 
     _warned = False
 
+    # TODO refactor to use _has_varargs
+
     def fetch_call_return(self, node):
         if not self._warned:
             vyper_warn("`print` should only be used for debugging!\n" + node._annotated_source)
@@ -2051,15 +2234,12 @@ class ABIEncode(_SimpleBuiltinFunction):
     # ://docs.soliditylang.org/en/v0.8.6/abi-spec.html#function-selector-and-argument-encoding
     # if this is turned off, then bytes will be encoded as bytes.
 
+    # TODO refactor to use _varargs
+
     _kwargs = {
         "ensure_tuple": KwargSettings(BoolDefinition(), True, require_literal=True),
         "method_id": KwargSettings(BytesAbstractType(), None),
     }
-
-    @staticmethod
-    # this should probably be a utility function
-    def _exactly_one(xs):
-        return len(set(xs)) == 1
 
     @staticmethod
     def _kwarg_dict(node):
@@ -2272,7 +2452,7 @@ class ABIDecode(_SimpleBuiltinFunction):
                     typ=output_typ,
                     location=data.location,
                     encoding=Encoding.ABI,
-                    annotation="abi_decode {output_type}",
+                    annotation=f"abi_decode({output_typ})",
                 )
             )
 
@@ -2310,7 +2490,10 @@ DISPATCH_TABLE = {
     "uint2str": Uint2Str(),
     "sqrt": Sqrt(),
     "shift": Shift(),
+    "create_minimal_proxy_to": CreateMinimalProxyTo(),
     "create_forwarder_to": CreateForwarderTo(),
+    "create_copy_of": CreateCopyOf(),
+    "create_from_factory": CreateFromFactory(),
     "min": Min(),
     "max": Max(),
     "empty": Empty(),
@@ -2323,7 +2506,10 @@ STMT_DISPATCH_TABLE = {
     "selfdestruct": SelfDestruct(),
     "raw_call": RawCall(),
     "raw_log": RawLog(),
+    "create_minimal_proxy_to": CreateMinimalProxyTo(),
     "create_forwarder_to": CreateForwarderTo(),
+    "create_copy_of": CreateCopyOf(),
+    "create_from_factory": CreateFromFactory(),
 }
 
 BUILTIN_FUNCTIONS = {**STMT_DISPATCH_TABLE, **DISPATCH_TABLE}.keys()

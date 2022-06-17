@@ -5,7 +5,7 @@ from typing import Optional
 from vyper.ast import VyperNode
 from vyper.ast.signatures.function_signature import VariableRecord
 from vyper.codegen.types import NodeType
-from vyper.exceptions import CompilerPanic
+from vyper.exceptions import CompilerPanic, StateAccessViolation
 
 
 class Constancy(enum.Enum):
@@ -67,6 +67,10 @@ class Context:
 
     def is_constant(self):
         return self.constancy is Constancy.Constant or self.in_assertion or self.in_range_expr
+
+    def check_is_not_constant(self, err, expr):
+        if self.is_constant():
+            raise StateAccessViolation(f"Cannot {err} from {self.pp_constancy()}", expr)
 
     # convenience propreties
     @property

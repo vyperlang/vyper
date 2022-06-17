@@ -82,7 +82,7 @@ def test(a: int128) -> int128:
     """
 @external
 def test():
-    assert create_forwarder_to(self)
+    assert create_minimal_proxy_to(self)
     """,
 ]
 
@@ -122,7 +122,7 @@ def test():
     """
 @external
 def test():
-    assert create_forwarder_to(self) == self
+    assert create_minimal_proxy_to(self) == self
     """,
 ]
 

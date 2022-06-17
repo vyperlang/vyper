@@ -46,7 +46,7 @@ def foo() -> int128:
 @external
 @view
 def foo() -> int128:
-    x: address = create_forwarder_to(0x1234567890123456789012345678901234567890, value=9)
+    x: address = create_minimal_proxy_to(0x1234567890123456789012345678901234567890, value=9)
     return 5""",
         # test constancy in range expressions
         """
