@@ -61,11 +61,6 @@ class Expr:
         self.expr = node
         self.context = context
 
-        if isinstance(node, IRnode):
-            # TODO this seems bad
-            self.ir_node = node
-            return
-
         fn = getattr(self, f"parse_{type(node).__name__}", None)
         if fn is None:
             raise TypeCheckFailure(f"Invalid statement node: {type(node).__name__}")
@@ -350,6 +345,10 @@ class Expr:
         if not is_numeric_type(left.typ) or not is_numeric_type(right.typ):
             return
 
+        return Expr.binop(self.expr.op, left, right, self.context)
+
+    @classmethod
+    def binop(cls, op, left, right, context):
         ltyp, rtyp = left.typ.typ, right.typ.typ
 
         # Sanity check - ensure that we aren't dealing with different types
@@ -359,17 +358,17 @@ class Expr:
         out_typ = BaseType(ltyp)
 
         with left.cache_when_complex("x") as (b1, x), right.cache_when_complex("y") as (b2, y):
-            if isinstance(self.expr.op, vy_ast.Add):
+            if isinstance(op, vy_ast.Add):
                 ret = arithmetic.safe_add(x, y)
-            elif isinstance(self.expr.op, vy_ast.Sub):
+            elif isinstance(op, vy_ast.Sub):
                 ret = arithmetic.safe_sub(x, y)
-            elif isinstance(self.expr.op, vy_ast.Mult):
+            elif isinstance(op, vy_ast.Mult):
                 ret = arithmetic.safe_mul(x, y)
-            elif isinstance(self.expr.op, vy_ast.Div):
+            elif isinstance(op, vy_ast.Div):
                 ret = arithmetic.safe_div(x, y)
-            elif isinstance(self.expr.op, vy_ast.Mod):
+            elif isinstance(op, vy_ast.Mod):
                 ret = arithmetic.safe_mod(x, y)
-            elif isinstance(self.expr.op, vy_ast.Pow):
+            elif isinstance(op, vy_ast.Pow):
                 ret = arithmetic.safe_pow(x, y)
             else:
                 return  # raises

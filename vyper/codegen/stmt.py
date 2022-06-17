@@ -340,25 +340,14 @@ class Stmt:
 
     def parse_AugAssign(self):
         target = self._get_target(self.stmt.target)
-        sub = Expr.parse_value_expr(self.stmt.value, self.context)
+        value = Expr.parse_value_expr(self.stmt.value, self.context)
         if not isinstance(target.typ, BaseType):
             return
 
         with target.cache_when_complex("_loc") as (b, target):
-            rhs = Expr.parse_value_expr(
-                vy_ast.BinOp(
-                    left=IRnode.from_list(LOAD(target), typ=target.typ),
-                    right=sub,
-                    op=self.stmt.op,
-                    lineno=self.stmt.lineno,
-                    col_offset=self.stmt.col_offset,
-                    end_lineno=self.stmt.end_lineno,
-                    end_col_offset=self.stmt.end_col_offset,
-                    node_source_code=self.stmt.get("node_source_code"),
-                ),
-                self.context,
-            )
-            return b.resolve(STORE(target, rhs))
+            lhs = IRnode.from_list(LOAD(target), typ=target.typ)
+            result = Expr.binop(self.stmt.op, lhs, value, self.context)
+            return b.resolve(STORE(target, result))
 
     def parse_Continue(self):
         return IRnode.from_list("continue")
