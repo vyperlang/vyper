@@ -11,11 +11,7 @@ TOKEN_INITIAL_SUPPLY = 0
 def token(get_contract):
     with open("examples/tokens/ERC20.vy") as f:
         return get_contract(
-            f.read(),
-            TOKEN_NAME,
-            TOKEN_SYMBOL,
-            TOKEN_DECIMALS,
-            TOKEN_INITIAL_SUPPLY,
+            f.read(), TOKEN_NAME, TOKEN_SYMBOL, TOKEN_DECIMALS, TOKEN_INITIAL_SUPPLY
         )
 
 
