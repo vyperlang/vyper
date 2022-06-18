@@ -143,11 +143,11 @@ def _comparison_helper(binop, args, prefer_strict=False):
     if is_strict != prefer_strict and _is_int(args[1]):
         rhs = _int(args[1])
 
-        if not is_strict and rhs == never:
-            # e.g. ge x MAX_UINT256 <0>, sle x MIN_INT256
+        if prefer_strict and rhs == never:
+            # e.g. ge x MAX_UINT256, sle x MIN_INT256
             return ("eq", args)
 
-        if is_strict and rhs == almost_always:
+        if not prefer_strict and rhs == almost_always:
             # e.g. gt x 0, slt x MAX_INT256
             return ("ne", args)
 
