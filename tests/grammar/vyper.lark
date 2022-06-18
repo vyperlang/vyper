@@ -199,6 +199,8 @@ dict: "{" "}" | "{" (NAME ":" _expr) ("," (NAME ":" _expr))* [","] "}"
 _POW: "**"
 _SHL: "<<"
 _SHR: ">>"
+_BIT_AND: "&"
+_BIT_OR: "|"
 // Binary Operations
 // NOTE: Keep these in sync with aug_assign above
 ?bin_op: product
@@ -206,6 +208,8 @@ _SHR: ">>"
        | bin_op "-"  product -> sub
        | bin_op _SHL product -> shl
        | bin_op _SHR product -> shr
+       | bin_op _BIT_AND product -> and
+       | bin_op _BIT_OR product -> or
 ?product: power
         | product "*"   power -> mul
         | product "/"   power -> div
@@ -217,6 +221,7 @@ _AND: "and"
 _OR: "or"
 _NOT: "not"
 _XOR: "xor"
+
 // Boolean Operations
 ?bool_op: unary_op
         | bool_op _AND unary_op -> and
