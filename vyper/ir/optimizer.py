@@ -325,7 +325,9 @@ def _optimize_binop(binop, args, ann, parent_op):
         if binop == "mul" and version_check(begin="constantinople"):
             return finalize("shl", [int_log2(_int(args[1])), args[0]])
 
-        raise CompilerPanic("unreachable")  # pragma: notest
+        # reachable but only after constantinople
+        if version_check(begin="constantinople"):  # pragma: nocover
+            raise CompilerPanic("unreachable")
 
     ##
     # COMPARISONS

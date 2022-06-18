@@ -817,15 +817,16 @@ def _merge_jumpdests(assembly):
     return changed
 
 
+_RETURNS_ZERO_OR_ONE = {"LT", "GT", "SLT", "SGT", "EQ", "ISZERO", "CALL", "STATICCALL", "CALLCODE", "DELEGATECALL"}
 def _merge_iszero(assembly):
     changed = False
 
     i = 0
     # list of opcodes that return 0 or 1
-    RETURNS_ZERO_OR_ONE = {"LT", "GT", "SLT", "SGT", "EQ", "ISZERO"}
     while i < len(assembly) - 2:
-        if assembly[i] in RETURNS_ZERO_OR_ONE and assembly[i + 1 : i + 3] == ["ISZERO", "ISZERO"]:
+        if isinstance(assembly[i], str) and assembly[i] in _RETURNS_ZERO_OR_ONE and assembly[i + 1 : i + 3] == ["ISZERO", "ISZERO"]:
             changed = True
+            # drop the extra iszeros
             del assembly[i + 1 : i + 3]
         else:
             i += 1
