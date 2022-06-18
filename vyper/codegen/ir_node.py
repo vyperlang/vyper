@@ -339,8 +339,11 @@ class IRnode:
         if self.value == "unique_symbol":
             ret.add(self.args[0].value)
         for arg in self.args:
+            if arg.value == "deploy":  # symbols can be duplicated between deploy/runtime code
+                continue
             s = arg.unique_symbols()
-            assert len(ret.intersection(s)) == 0, "non-unique symbol"
+            non_uniques = ret.intersection(s)
+            assert len(non_uniques) == 0, f"non-unique symbols {non_uniques}"
             ret |= s
         return ret
 
