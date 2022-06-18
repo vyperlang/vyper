@@ -333,12 +333,12 @@ def _optimize_binop(binop, args, ann, parent_op):
     # COMPARISONS
     ##
 
-    if binop == "ne":
-        # trigger other optimizations
-        return finalize("iszero", [["eq", *args]])
-
     if binop == "eq" and _int(args[1]) == 0:
         return finalize("iszero", [args[0]])
+
+    # can't improve gas but can improve codesize
+    if binop == "ne" and _int(args[1]) == 0:
+        return finalize("iszero", [["iszero", args[0]]])
 
     if binop == "eq" and _int(args[1], SIGNED) == -1:
         # equal gas, but better codesize
@@ -358,6 +358,10 @@ def _optimize_binop(binop, args, ann, parent_op):
             # commutative.
             # note that (xor (-1) x) has its own rule
             return finalize("iszero", [["xor", args[0], args[1]]])
+
+        if binop == "ne":
+            # trigger other optimizations
+            return finalize("iszero", [["eq", *args]])
 
         # TODO can we do this?
         # if val == "div":

@@ -9,8 +9,8 @@ optimize_list = [
     (["lt", 1, 2], [1]),
     (["eq", "x", 0], ["iszero", "x"]),
     (["ne", "x", 0], ["iszero", ["iszero", "x"]]),
-    # TODO maybe this is not a good optimization:
-    (["ne", "x", 1], ["iszero", ["iszero", ["xor", "x", 1]]]),
+    (["ne", "x", 1], None),
+    (["iszero", ["ne", "x", 1], ["iszero", ["iszero", ["iszero", ["xor", "x", 1]]]]),
     (["eq", ["sload", 0], 0], ["iszero", ["sload", 0]]),
     # branch pruner
     (["if", ["eq", 1, 2], "pass"], ["seq"]),
