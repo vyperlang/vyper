@@ -28,6 +28,20 @@ optimize_list = [
     (["ge", "x", 0], [1]),  # x >= 0 == True
     (["ge", ["sload", 0], 0], None),  # no-op
     (["gt", "x", 2 ** 256 - 1], [0]),  # x >= MAX_UINT256 == False
+    # (x > 0) => x == 0
+    (["iszero", ["gt", "x", 0]], ["iszero", ["iszero", ["iszero", "x"]]]),
+    # !(x < MAX_UINT256) => x == MAX_UINT256
+    (["iszero", ["lt", "x", 2 ** 256 - 1]], ["iszero", ["iszero", ["iszero", ["not", "x"]]]]),
+    # !(x < MAX_INT256) => x == MAX_INT256
+    (
+        ["iszero", ["slt", "x", 2 ** 255 - 1]],
+        ["iszero", ["iszero", ["iszero", ["xor", "x", 2 ** 255 - 1]]]],
+    ),
+    # !(x > MIN_INT256) => x == MIN_INT256
+    (
+        ["iszero", ["sgt", "x", -(2 ** 255)]],
+        ["iszero", ["iszero", ["iszero", ["xor", "x", -(2 ** 255)]]]],
+    ),
     (["sgt", "x", 2 ** 255 - 1], [0]),  # signed x > MAX_INT256 == False
     (["sge", "x", 2 ** 255 - 1], ["eq", "x", 2 ** 255 - 1]),
     (["eq", -1, "x"], ["iszero", ["not", "x"]]),
