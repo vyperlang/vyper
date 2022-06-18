@@ -941,7 +941,7 @@ def clamp_basetype(ir_node):
         # assert x >> bits == 0 and x != 0
         # assert !(x >> bits != 0 | x == 0)
         with ir_node.cache_when_complex("e") as (b1, ir_node):
-            ok = ["iszero", ["or", ["shr", bits, ir_node], ["iszero", ir_node]]]
+            ok = ["iszero", ["or", shr(bits, ir_node), ["iszero", ir_node]]]
             return IRnode.from_list(
                 b1.resolve(["seq", ["assert", ok], ir_node]), annotation=f"clamp enum {t.name}"
             )
