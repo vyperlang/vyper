@@ -1,8 +1,9 @@
 from collections import OrderedDict
 from typing import Any, Callable, Dict, Optional, Sequence, Union
 
+import vyper.ast as vy_ast  # break an import cycle
 import vyper.codegen.core as codegen
-from vyper.compiler import output
+import vyper.compiler.output as output
 from vyper.compiler.phases import CompilerData
 from vyper.evm.opcodes import DEFAULT_EVM_VERSION, evm_wrapper
 from vyper.typing import (

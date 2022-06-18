@@ -10,7 +10,7 @@ optimize_list = [
     (["eq", "x", 0], ["iszero", "x"]),
     (["ne", "x", 0], ["iszero", ["iszero", "x"]]),
     (["ne", "x", 1], None),
-    (["iszero", ["ne", "x", 1], ["iszero", ["iszero", ["iszero", ["xor", "x", 1]]]]),
+    (["iszero", ["ne", "x", 1]], ["iszero", ["iszero", ["iszero", ["xor", "x", 1]]]]),
     (["eq", ["sload", 0], 0], ["iszero", ["sload", 0]]),
     # branch pruner
     (["if", ["eq", 1, 2], "pass"], ["seq"]),
