@@ -196,9 +196,8 @@ def foo(s: Roles) -> Roles:
     return s
     """
 
-    if evm_version not in ("byzantium", "atlantis"):
-        c = get_contract(code, evm_version=evm_version)
-        assert c.foo(value) == value
+    c = get_contract(code, evm_version=evm_version)
+    assert c.foo(value) == value
 
 
 @pytest.mark.parametrize("evm_version", list(EVM_VERSIONS))
@@ -217,9 +216,8 @@ def foo(s: Roles) -> Roles:
     return s
     """
 
-    if evm_version not in ("byzantium", "atlantis"):
-        c = get_contract(code, evm_version=evm_version)
-        assert_tx_failed(lambda: _make_tx(w3, c.address, "foo(uint256)", [value]))
+    c = get_contract(code, evm_version=evm_version)
+    assert_tx_failed(lambda: _make_tx(w3, c.address, "foo(uint256)", [value]))
 
 
 @pytest.mark.parametrize("evm_version", list(EVM_VERSIONS))
