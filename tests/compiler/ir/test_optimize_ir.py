@@ -115,6 +115,14 @@ optimize_list = [
     (["sgt", -(2 ** 255), 2 ** 255], [0]),  # 0x80 > 0x80
     (["slt", 2 ** 255, -(2 ** 255)], [0]),  # 0x80 < 0x80
     # arithmetic
+    (["ceil32", "x"], None),
+    (["ceil32", 0], [0]),
+    (["ceil32", 1], [32]),
+    (["ceil32", 32], [32]),
+    (["ceil32", 33], [64]),
+    (["ceil32", 95], [96]),
+    (["ceil32", 96], [96]),
+    (["ceil32", 97], [128]),
     (["add", "x", 0], ["x"]),
     (["add", 0, "x"], ["x"]),
     (["sub", "x", 0], ["x"]),
@@ -202,6 +210,7 @@ def test_ir_optimizer(ir):
     else:
         expected = IRnode.from_list(ir[1])
     expected.repr_show_gas = True
+    optimized.annotation = None
     assert optimized == expected
 
 
