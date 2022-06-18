@@ -31,7 +31,7 @@ jobs:
         run: rm -rf /Users/runner/hostedtoolcache/Python
 
       - name: Python
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v4
         with:
           python-version: "3.8"
 
