@@ -380,15 +380,7 @@ def _optimize_binop(binop, args, ann, parent_op):
 
 
 def optimize(node: IRnode) -> IRnode:
-    initial_symbols = node.unique_symbols()
-
-    ret = _optimize(node, parent=None)
-
-    if ret.unique_symbols() != initial_symbols:
-        diff = initial_symbols - ret.unique_symbols()
-        raise CompilerPanic(f"Bad optimizer pass, missing {diff}")
-
-    return ret
+    return _optimize(node, parent=None)
 
 
 def _optimize(node: IRnode, parent: Optional[IRnode]) -> IRnode:
@@ -426,9 +418,11 @@ def _optimize(node: IRnode, parent: Optional[IRnode]) -> IRnode:
     elif value in arith:
         parent_op = parent.value if parent is not None else None
 
+        starting_symbols = node.unique_symbols()
         res = _optimize_binop(value, argz, annotation, parent_op)
         if res is not None:
             optimize_more = True
+            assert starting_symbols == argz[0].unique_symbols() | argz[1].unique_symbols(), "bad optimizer pass"
             value, argz, annotation = res
 
     ###

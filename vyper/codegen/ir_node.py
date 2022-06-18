@@ -334,6 +334,7 @@ class IRnode:
             and self.value.lower() not in do_not_cache
         )
 
+    # unused, but might be useful for analysis at some point
     def unique_symbols(self):
         ret = set()
         if self.value == "unique_symbol":
