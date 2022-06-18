@@ -357,9 +357,6 @@ def _optimize_binop(binop, args, ann, parent_op):
             # note that (xor (-1) x) has its own rule
             return finalize("iszero", [["xor", args[0], args[1]]])
 
-        # no rule needed for "ne" as it will get compiled to
-        # `(iszero (eq x y))` anyways.
-
         # TODO can we do this?
         # if val == "div":
         #     return finalize("gt", ["iszero", args])

@@ -8,6 +8,9 @@ optimize_list = [
     (["eq", 1, 2], [0]),
     (["lt", 1, 2], [1]),
     (["eq", "x", 0], ["iszero", "x"]),
+    (["ne", "x", 0], ["iszero", ["iszero", "x"]]),
+    # TODO maybe this is not a good optimization:
+    (["ne", "x", 1], ["iszero", ["iszero", ["xor", "x", 1]]]),
     (["eq", ["sload", 0], 0], ["iszero", ["sload", 0]]),
     # branch pruner
     (["if", ["eq", 1, 2], "pass"], ["seq"]),
@@ -135,6 +138,9 @@ optimize_list = [
     (["exp", 1, "x"], [1]),
     (["exp", 0, "x"], ["iszero", "x"]),
     # bitwise ops
+    (["xor", "x", 2**256 - 1], ["not", "x"]),
+    (["and", "x", 2**256 - 1], ["x"]),
+    (["or", "x", 2**256 - 1], [2**256 - 1]),
     (["shr", 0, "x"], ["x"]),
     (["sar", 0, "x"], ["x"]),
     (["shl", 0, "x"], ["x"]),
