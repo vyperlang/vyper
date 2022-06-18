@@ -821,10 +821,12 @@ def _merge_iszero(assembly):
     changed = False
 
     i = 0
+    # list of opcodes that return 0 or 1
+    RETURNS_ZERO_OR_ONE = {"LT", "GT", "SLT", "SGT", "EQ", "ISZERO"}
     while i < len(assembly) - 2:
-        if assembly[i : i + 3] == ["ISZERO", "ISZERO", "ISZERO"]:
+        if assembly[i] in RETURNS_ZERO_OR_ONE and assembly[i + 1 : i + 3] == ["ISZERO", "ISZERO"]:
             changed = True
-            del assembly[i : i + 2]
+            del assembly[i + 1 : i + 3]
         else:
             i += 1
     i = 0
