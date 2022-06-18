@@ -199,8 +199,8 @@ dict: "{" "}" | "{" (NAME ":" _expr) ("," (NAME ":" _expr))* [","] "}"
 _POW: "**"
 _SHL: "<<"
 _SHR: ">>"
-_BIT_AND: "&"
-_BIT_OR: "|"
+_BITAND: "&"
+_BITOR: "|"
 // Binary Operations
 // NOTE: Keep these in sync with aug_assign above
 ?bin_op: product
@@ -209,8 +209,8 @@ _BIT_OR: "|"
 // TODO fix precedence to match python operator precedence
        | bin_op _SHL product -> shl
        | bin_op _SHR product -> shr
-       | bin_op _BIT_AND product -> and
-       | bin_op _BIT_OR product -> or
+       | bin_op _BITAND product -> bitand
+       | bin_op _BITOR product -> bitor
 ?product: power
         | product "*"   power -> mul
         | product "/"   power -> div
