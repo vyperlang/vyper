@@ -136,7 +136,7 @@ def _comparison_helper(binop, args, prefer_strict=False):
         return (1, [])
 
     # rewrites. in positions where iszero is preferred, (gt x 5) => (ge x 6)
-    if (is_strict != prefer_strict and _is_int(args[1])):
+    if is_strict != prefer_strict and _is_int(args[1]):
         rhs = _int(args[1])
 
         if not is_strict and rhs == never:
