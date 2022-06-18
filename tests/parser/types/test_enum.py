@@ -26,6 +26,33 @@ def cancel() -> Action:
     assert c.cancel() == 4
 
 
+def test_eq_neq(get_contract):
+    code = """
+enum Roles:
+    USER
+    STAFF
+    ADMIN
+    MANAGER
+    CEO
+
+@external
+def is_boss(a: Roles) -> bool:
+    return a == Roles.CEO
+
+@external
+def is_not_boss(a: Roles) -> bool:
+    return a != Roles.CEO
+    """
+    c = get_contract(code)
+
+    for i in range(4):
+        assert c.is_boss(2 ** i) is False
+        assert c.is_not_boss(2 ** i) is True
+
+    assert c.is_boss(2 ** 4) is True
+    assert c.is_not_boss(2 ** 4) is False
+
+
 def test_bitwise(get_contract, assert_tx_failed):
     code = """
 enum Roles:

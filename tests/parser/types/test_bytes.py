@@ -269,7 +269,7 @@ def to_little_endian_64(_value: uint256) -> Bytes[8]:
     x: uint256 = _value
     for _ in range(8):
         y = shift(y, 8)
-        y = y + bitwise_and(x, 255)
+        y = y + (x & 255)
         x = shift(x, -8)
     return slice(convert(y, bytes32), 24, 8)
 

@@ -164,6 +164,21 @@ Operator                     Description
 .. note::
     Arithmetic is currently only available for ``uint8`` and ``uint256`` types.
 
+Bitwise Operators
+^^^^^^^^^^^^^^^^^
+
+=============  ======================
+Operator       Description
+=============  ======================
+``x & y``      Bitwise and
+``x | y``      Bitwise or
+=============  ======================
+
+``x`` and ``y`` must be of the same type.
+
+.. note::
+    Bitwise operations are currently only available for ``uint256`` type.
+
 Decimals
 --------
 
@@ -337,6 +352,47 @@ The members are represented by ``uint256`` values in the form of 2\ :sup:`n` whe
 
     # Returning a member
     return Roles.ADMIN
+
+Operators
+*********
+
+Comparisons
+^^^^^^^^^^^
+
+Comparisons return a boolean value.
+
+==========  ================
+Operator    Description
+==========  ================
+``x == y``  Equals
+``x != y``  Does not equal
+==========  ================
+
+Bitwise Operators
+^^^^^^^^^^^^^^^^^
+
+=============  ======================
+Operator       Description
+=============  ======================
+``x & y``      Bitwise and
+``x | y``      Bitwise or
+=============  ======================
+
+Enum members can be combined using the above bitwise operators. While enum members have values that are power of two, enum member combinations may not.
+
+The ``in`` operator can be used in conjunction with enum member combinations to check for membership.
+
+.. code-block:: python
+
+    enum Roles:
+        MANAGER
+        ADMIN
+        USER
+
+    # Check for membership
+    @external
+    def foo(a: Roles) -> bool:
+        return a in (Roles.MANAGER | Roles.USER)
 
 .. index:: !reference
 

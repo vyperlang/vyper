@@ -26,6 +26,10 @@ Bitwise Operations
         >>> ExampleContract.foo(31337, 8008135)
         12353
 
+.. note::
+
+  This function has been deprecated from version 0.3.4 onwards. Please use the ``&`` operator instead.
+
 .. py:function:: bitwise_not(x: uint256) -> uint256
 
     Return the complement of ``x`` - the number you get by switching each 1 for a 0 and each 0 for a 1.
@@ -57,6 +61,10 @@ Bitwise Operations
 
         >>> ExampleContract.foo(31337, 8008135)
         8027119
+
+.. note::
+
+  This function has been deprecated from version 0.3.4 onwards. Please use the ``|`` operator instead.
 
 .. py:function:: bitwise_xor(x: uint256, y: uint256) -> uint256
 
