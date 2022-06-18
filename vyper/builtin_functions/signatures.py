@@ -8,47 +8,44 @@ from vyper.codegen.ir_node import IRnode
 from vyper.codegen.types.convert import new_type_to_old_type
 from vyper.exceptions import CompilerPanic, TypeMismatch
 from vyper.semantics.types import (
-    ArrayDefinition,
-    BytesArrayDefinition,
-    DynamicArrayDefinition,
-    StringDefinition,
+    ArrayValueAbstractType,
+    BaseTypeDefinition,
+    DataLocation,
+    StructDefinition,
+    ValueTypeDefinition,
 )
-from vyper.semantics.types.bases import BaseTypeDefinition
-from vyper.semantics.types.utils import KwargSettings, TypeTypeDefinition
+from vyper.semantics.types.utils import KwargSettings, TypeTypeDefinition, get_type_from_annotation
 from vyper.semantics.validation.utils import get_exact_type_from_node, validate_expected_type
 
 
 def process_arg(arg, expected_arg_type, context):
-    if isinstance(
-        expected_arg_type,
-        (BytesArrayDefinition, StringDefinition, ArrayDefinition, DynamicArrayDefinition),
-    ):
-        return Expr(arg, context).ir_node
+    # If the input value is a typestring, return the equivalent codegen type for IR generation
+    if isinstance(expected_arg_type, TypeTypeDefinition):
+        return new_type_to_old_type(expected_arg_type.typedef)
 
+    # if it is a word type, return a stack item.
     # TODO: Builtins should not require value expressions
-    elif isinstance(expected_arg_type, BaseTypeDefinition):
+    if isinstance(expected_arg_type, ValueTypeDefinition) and not isinstance(
+        expected_arg_type, (StructDefinition, ArrayValueAbstractType)
+    ):
         return Expr.parse_value_expr(arg, context)
 
-    # If the input value is a typestring, return the equivalent codegen type for IR generation
-    elif isinstance(expected_arg_type, TypeTypeDefinition):
-        return new_type_to_old_type(expected_arg_type.typedef)
+    if isinstance(expected_arg_type, BaseTypeDefinition):
+        return Expr(arg, context).ir_node
 
     raise CompilerPanic(f"Unexpected type: {expected_arg_type}")  # pragma: notest
 
 
 def process_kwarg(kwarg_node, kwarg_settings, expected_kwarg_type, context):
     if kwarg_settings.require_literal:
-        if not isinstance(kwarg_node, vy_ast.Constant):
-            raise TypeMismatch("Value for kwarg must be a literal", kwarg_node)
-
         return kwarg_node.value
 
     return process_arg(kwarg_node, expected_kwarg_type, context)
 
 
-def validate_inputs(wrapped_fn):
+def process_inputs(wrapped_fn):
     """
-    Validate input arguments on builtin functions.
+    Generate IR for input arguments on builtin functions.
 
     Applied as a wrapper on the `build_IR` method of
     classes in `vyper.functions.functions`.
@@ -66,6 +63,7 @@ def validate_inputs(wrapped_fn):
 
         # note: must compile in source code order, left-to-right
         expected_kwarg_types = self.infer_kwarg_types(node)
+
         for k in node.keywords:
             kwarg_settings = self._kwargs[k.arg]
             expected_kwarg_type = expected_kwarg_types[k.arg]
@@ -85,11 +83,21 @@ def validate_inputs(wrapped_fn):
     return decorator_fn
 
 
-# TODO: rename me to BuiltinFunction
-class _SimpleBuiltinFunction:
+class BuiltinFunction:
 
     _has_varargs = False
     _kwargs: Dict[str, KwargSettings] = {}
+
+    # helper function to deal with TYPE_DEFINITIONs
+    def _validate_single(self, arg, expected_type):
+        # TODO using "TYPE_DEFINITION" is a kludge in derived classes,
+        # refactor me.
+        if expected_type == "TYPE_DEFINITION":
+            # try to parse the type - call get_type_from_annotation
+            # for its side effects (will throw if is not a type)
+            get_type_from_annotation(arg, DataLocation.UNSET)
+        else:
+            validate_expected_type(arg, expected_type)
 
     def _validate_arg_types(self, node):
         num_args = len(self._inputs)  # the number of args the signature indicates
@@ -99,10 +107,16 @@ class _SimpleBuiltinFunction:
             # note special meaning for -1 in validate_call_args API
             expect_num_args = (num_args, -1)
 
-        validate_call_args(node, expect_num_args, getattr(self, "_kwargs", []))
+        validate_call_args(node, expect_num_args, self._kwargs)
 
         for arg, (_, expected) in zip(node.args, self._inputs):
-            validate_expected_type(arg, expected)
+            self._validate_single(arg, expected)
+
+        for kwarg in node.keywords:
+            kwarg_settings = self._kwargs[kwarg.arg]
+            if kwarg_settings.require_literal and not isinstance(kwarg.value, vy_ast.Constant):
+                raise TypeMismatch("Value for kwarg must be a literal", kwarg.value)
+            self._validate_single(kwarg.value, kwarg_settings.typ)
 
         # typecheck varargs. we don't have type info from the signature,
         # so ensure that the types of the args can be inferred exactly.
