@@ -147,7 +147,7 @@ test_a : constant(int128) = 2188824287183927522224640574525
 test_a: constant(uint256) = MAX_UINT256
     """,
     """
-TEST_C: constant(int128) = 1
+TEST_C: constant(uint256) = 1
 TEST_WEI: constant(uint256) = 1
 
 @internal

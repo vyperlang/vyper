@@ -201,36 +201,49 @@ def test_create_from_factory_args(
     get_contract, deploy_factory_for, w3, keccak, create2_address_of, assert_tx_failed
 ):
     code = """
+struct Bar:
+    x: String[32]
+
 FOO: immutable(String[128])
+BAR: immutable(Bar)
 
 @external
-def __init__(arg: String[128]):
-    FOO = arg
+def __init__(foo: String[128], bar: Bar):
+    FOO = foo
+    BAR = bar
 
 @external
 def foo() -> String[128]:
     return FOO
+
+@external
+def bar() -> Bar:
+    return BAR
     """
 
     deployer_code = """
+struct Bar:
+    x: String[32]
+
 created_address: public(address)
 
 @external
-def test(target: address, arg: String[128]):
-    self.created_address = create_from_factory(target, arg)
+def test(target: address, arg1: String[128], arg2: Bar):
+    self.created_address = create_from_factory(target, arg1, arg2)
 
 @external
-def test2(target: address, arg: String[128], salt: bytes32):
-    self.created_address = create_from_factory(target, arg, salt=salt)
+def test2(target: address, arg1: String[128], arg2: Bar, salt: bytes32):
+    self.created_address = create_from_factory(target, arg1, arg2, salt=salt)
 
 @external
-def should_fail(target: address, arg: String[129]):
-    self.created_address = create_from_factory(target, arg)
+def should_fail(target: address, arg1: String[129], arg2: Bar):
+    self.created_address = create_from_factory(target, arg1, arg2)
     """
     FOO = "hello!"
+    BAR = ("world!",)
 
     # deploy a foo so we can compare its bytecode with factory deployed version
-    foo_contract = get_contract(code, FOO)
+    foo_contract = get_contract(code, FOO, BAR)
     expected_runtime_code = w3.eth.get_code(foo_contract.address)
 
     f, FooContract = deploy_factory_for(code)
@@ -239,37 +252,42 @@ def should_fail(target: address, arg: String[129]):
 
     initcode = w3.eth.get_code(f.address)
 
-    d.test(f.address, FOO, transact={})
+    d.test(f.address, FOO, BAR, transact={})
 
     test = FooContract(d.created_address())
     assert w3.eth.get_code(test.address) == expected_runtime_code
     assert test.foo() == FOO
+    assert test.bar() == BAR
 
     # extcodesize check
-    assert_tx_failed(lambda: d.test("0x" + "00" * 20, FOO))
+    assert_tx_failed(lambda: d.test("0x" + "00" * 20, FOO, BAR))
 
     # now same thing but with create2
     salt = keccak(b"vyper")
-    d.test2(f.address, FOO, salt, transact={})
+    d.test2(f.address, FOO, BAR, salt, transact={})
 
     test = FooContract(d.created_address())
     assert w3.eth.get_code(test.address) == expected_runtime_code
     assert test.foo() == FOO
+    assert test.bar() == BAR
 
-    encoded_foo = encode_single("(string)", (FOO,))
-    assert HexBytes(test.address) == create2_address_of(d.address, salt, initcode + encoded_foo)
+    encoded_args = encode_single("(string,(string))", (FOO, BAR))
+    assert HexBytes(test.address) == create2_address_of(d.address, salt, initcode + encoded_args)
 
     # can't collide addresses
-    assert_tx_failed(lambda: d.test2(f.address, FOO, salt))
+    assert_tx_failed(lambda: d.test2(f.address, FOO, BAR, salt))
 
     # but creating a contract with different args is ok
-    BAR = "bar"
-    d.test2(f.address, BAR, salt, transact={})
+    FOO = "bar"
+    d.test2(f.address, FOO, BAR, salt, transact={})
     # just for kicks
-    assert FooContract(d.created_address()).foo() == BAR
+    assert FooContract(d.created_address()).foo() == FOO
+    assert FooContract(d.created_address()).bar() == BAR
 
     # Foo constructor should fail
-    assert_tx_failed(lambda: d.should_fail(f.address, b"\x01" * 129))
+    FOO = b"\x01" * 129
+    BAR = ("",)
+    assert_tx_failed(lambda: d.should_fail(f.address, FOO, BAR))
 
 
 def test_create_copy_of(get_contract, w3, keccak, create2_address_of, assert_tx_failed):

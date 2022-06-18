@@ -102,10 +102,10 @@ This would cause an issue when upgrading, as the ``balanceOf`` mapping would be 
 This issue can be avoided by allocating ``balanceOf`` to ``slot1`` using the storage layout overrides. The contract can be compiled with ``vyper new_contract.vy --storage-layout-file new_contract_storage.json`` where ``new_contract_storage.json`` contains the following:
 
 .. code-block:: javascript
-    
+
     {
-        "owner": {"type": "address", "slot": 0}, 
-        "minter": {"type": "address", "slot": 2}, 
+        "owner": {"type": "address", "slot": 0},
+        "minter": {"type": "address", "slot": 2},
         "balanceOf": {"type": "HashMap[address, uint256]", "slot": 1}
     }
 
