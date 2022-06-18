@@ -999,7 +999,7 @@ class BitOr(VyperNode):
     __slots__ = ()
     _description = "bitwise or"
     _pretty = "|"
-    op = operator.or_
+    _op = operator.or_
 
 
 class BoolOp(VyperNode):
