@@ -343,8 +343,11 @@ The members are represented by ``uint256`` values in the form of 2\ :sup:`n` whe
 Reference Types
 ===============
 
-Reference types do not fit into 32 bytes. Because of this, copying their value is not as feasible as
-with value types. Therefore only the location, i.e. the reference, of the data is passed.
+Reference types are those whose components can be assigned to in-place without copying. For instance, array and struct members can be individually assigned to without overwriting the data structure.
+
+.. note::
+
+  In terms of the calling convention, reference types are passed by value, not by reference. That means that, a calling function does not need to worry about a callee modifying the data of a passed structure.
 
 .. index:: !arrays
 
@@ -416,6 +419,13 @@ Dynamic arrays represent bounded arrays whose length can be modified at runtime,
 .. note::
     Attempting to access data past the runtime length of an array, ``pop()`` an empty array or ``append()`` to a full array will result in a runtime ``REVERT``. Attempting to pass an array in calldata which is larger than the array bound will result in a runtime ``REVERT``.
 
+.. note::
+    To keep code easy to reason about, modifying an array while using it as an iterator it is disallowed by the language. For instance, the following usage is not allowed:
+
+    .. code-block:: python
+
+        for item in self.my_array:
+            self.my_array[0] = item
 
 In the ABI, they are represented as ``_Type[]``. For instance, ``DynArray[int128, 3]`` gets represented as ``int128[]``, and ``DynArray[DynArray[int128, 3], 3]`` gets represented as ``int128[][]``.
 
