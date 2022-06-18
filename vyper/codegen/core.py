@@ -718,6 +718,11 @@ def _freshname(name):
     return f"{name}{_label}"
 
 
+def reset_names():
+    global _label
+    _label = 0
+
+
 # returns True if t is ABI encoded and is a type that needs any kind of
 # validation
 def needs_clamp(t, encoding):
