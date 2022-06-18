@@ -85,7 +85,7 @@ def _flip_comparison_op(opname):
         return opname.replace("g", "l")
     if "l" in opname:
         return opname.replace("l", "g")
-    raise CompilerPanic(f"bad comparison op {opname}")
+    raise CompilerPanic(f"bad comparison op {opname}")  # pragma: notest
 
 
 # some annotations are really long. shorten them (except maybe in "verbose" mode?)
@@ -135,6 +135,10 @@ def _comparison_helper(binop, args, prefer_strict=False):
         # e.g. ge x MIN_UINT256, sle x MAX_INT256
         return (1, [])
 
+    if is_strict and _int(args[1]) == almost_never:
+        # (lt x 1), (gt x (MAX_UINT256 - 1)), (slt x (MIN_INT256 + 1))
+        return ("eq", [args[0], never])
+
     # rewrites. in positions where iszero is preferred, (gt x 5) => (ge x 6)
     if is_strict != prefer_strict and _is_int(args[1]):
         rhs = _int(args[1])
@@ -143,12 +147,8 @@ def _comparison_helper(binop, args, prefer_strict=False):
             # e.g. ge x MAX_UINT256 <0>, sle x MIN_INT256
             return ("eq", args)
 
-        if is_strict and rhs == almost_never:
-            # (lt x 1)
-            return ("ne", [args[0], never])
-
         if is_strict and rhs == almost_always:
-            # e.g. gt x MIN_UINT256 <0>, slt x MAX_INT256
+            # e.g. gt x 0, slt x MAX_INT256
             return ("ne", args)
 
         if is_gt == is_strict:
@@ -333,7 +333,7 @@ def _optimize_binop(binop, args, ann, parent_op):
 
     if binop == "ne":
         # trigger other optimizations
-        return finalize("iszero", ["eq", args])
+        return finalize("iszero", [["eq", *args]])
 
     if binop == "eq" and _int(args[1]) == 0:
         return finalize("iszero", [args[0]])
