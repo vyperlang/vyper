@@ -206,6 +206,7 @@ _BIT_OR: "|"
 ?bin_op: product
        | bin_op "+"  product -> add
        | bin_op "-"  product -> sub
+// TODO fix precedence to match python operator precedence
        | bin_op _SHL product -> shl
        | bin_op _SHR product -> shr
        | bin_op _BIT_AND product -> and
