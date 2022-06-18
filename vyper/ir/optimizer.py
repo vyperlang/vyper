@@ -422,7 +422,9 @@ def _optimize(node: IRnode, parent: Optional[IRnode]) -> IRnode:
         res = _optimize_binop(value, argz, annotation, parent_op)
         if res is not None:
             optimize_more = True
-            assert starting_symbols == argz[0].unique_symbols() | argz[1].unique_symbols(), "bad optimizer pass"
+            assert (
+                starting_symbols == argz[0].unique_symbols() | argz[1].unique_symbols()
+            ), "bad optimizer pass"
             value, argz, annotation = res
 
     ###

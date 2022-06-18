@@ -342,6 +342,7 @@ class IRnode:
         for arg in self.args:
             s = arg.unique_symbols()
             non_uniques = ret.intersection(s)
+            assert len(non_uniques) == 0, f"non-unique symbols {non_uniques}"
             ret |= s
         return ret
 
