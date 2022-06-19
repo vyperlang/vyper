@@ -130,6 +130,8 @@ assign: (variable_access | multiple_assign | "(" multiple_assign ")" ) "=" _expr
              | "**" -> pow
              | "<<" -> shl
              | ">>" -> shr
+             | _BITAND -> bitand
+             | _BITOR -> bitor
              | _AND -> and
              | _OR  -> or
              | _XOR -> xor
