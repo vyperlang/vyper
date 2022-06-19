@@ -1,5 +1,5 @@
 import operator
-from typing import List, Optional, Union
+from typing import List, Optional, Tuple, Union
 
 from vyper.codegen.ir_node import IRnode
 from vyper.evm.opcodes import version_check
@@ -404,13 +404,20 @@ def _check_symbols(symbols, ir_node):
 
 
 def optimize(node: IRnode) -> IRnode:
-    return _optimize(node, parent=None)
+    _, ret = _optimize(node, parent=None)
+    return ret
 
 
-def _optimize(node: IRnode, parent: Optional[IRnode]) -> IRnode:
+def _optimize(node: IRnode, parent: Optional[IRnode]) -> Tuple[bool, IRnode]:
     starting_symbols = node.unique_symbols()
 
-    argz = [_optimize(arg, node) for arg in node.args]
+    res = [_optimize(arg, node) for arg in node.args]
+    if len(res) == 0:
+        args_changed, argz = False, []
+    else:
+        changed_flags, argz = zip(*res)
+        args_changed = any(changed_flags)
+        argz = list(argz)
 
     value = node.value
     typ = node.typ
@@ -419,15 +426,19 @@ def _optimize(node: IRnode, parent: Optional[IRnode]) -> IRnode:
     annotation = node.annotation
     add_gas_estimate = node.add_gas_estimate
 
-    optimize_more = False
+    changed = False
+
     # in general, we cannot enforce the symbols check. for instance,
     # the dead branch eliminator will almost always trip the symbols check.
     # but for certain operations, particularly binops, we want to do the check.
     should_check_symbols = False
 
-    def finalize(ir_builder):
-        # TODO only call IRnode.from_list if any optimizations
-        # were actually performed
+    def finalize(val, args):
+        if not changed and not args_changed:
+            # skip IRnode.from_list, which may be (compile-time) expensive
+            return False, node
+
+        ir_builder = [val, *args]
         ret = IRnode.from_list(
             ir_builder,
             typ=typ,
@@ -436,30 +447,34 @@ def _optimize(node: IRnode, parent: Optional[IRnode]) -> IRnode:
             annotation=annotation,
             add_gas_estimate=add_gas_estimate,
         )
+
         if should_check_symbols:
             _check_symbols(starting_symbols, ret)
-        if optimize_more:
-            ret = _optimize(ret, parent)
-        return ret
+
+        _, ret = _optimize(ret, parent)
+        return True, ret
 
     if value == "seq":
-        _merge_memzero(argz)
-        _merge_calldataload(argz)
-        optimize_more = _remove_empty_seqs(argz)
+        changed |= _merge_memzero(argz)
+        changed |= _merge_calldataload(argz)
+        changed |= _remove_empty_seqs(argz)
 
         # (seq x) => (x) for cleanliness and
         # to avoid blocking other optimizations
         if len(argz) == 1:
-            return argz[0]
+            return True, _optimize(argz[0], parent)[1]
 
-    elif value in arith:
+        return finalize(value, argz)
+
+    if value in arith:
         parent_op = parent.value if parent is not None else None
 
         res = _optimize_binop(value, argz, annotation, parent_op)
         if res is not None:
-            optimize_more = True
+            changed = True
             should_check_symbols = True
             value, argz, annotation = res
+            return finalize(value, argz)
 
     ###
     # BITWISE OPS
@@ -468,34 +483,34 @@ def _optimize(node: IRnode, parent: Optional[IRnode]) -> IRnode:
     # note, don't optimize these too much as these kinds of expressions
     # may be hand optimized for codesize. we can optimize bitwise ops
     # more, once we have a pipeline which optimizes for codesize.
-    elif value in ("shl", "shr", "sar") and argz[0].value == 0:
+    if value in ("shl", "shr", "sar") and argz[0].value == 0:
         # x >> 0 == x << 0 == x
-        optimize_more = True
-        value = argz[1].value
+        changed = True
         annotation = argz[1].annotation
-        argz = argz[1].args
+        return finalize(argz[1].value, argz[1].args)
 
-    elif node.value == "ceil32" and _is_int(argz[0]):
-        t = argz[0]
-        annotation = f"ceil32({t.value})"
-        argz = []
-        value = ceil32(t.value)
+    if node.value == "ceil32" and _is_int(argz[0]):
+        changed = True
+        annotation = f"ceil32({argz[0].value})"
+        return finalize(ceil32(argz[0].value), [])
 
-    elif value == "iszero" and _is_int(argz[0]):
-        value = int(argz[0].value == 0)  # int(bool) == 1 if bool else 0
-        argz = []
+    if value == "iszero" and _is_int(argz[0]):
+        changed = True
+        val = int(argz[0].value == 0)  # int(bool) == 1 if bool else 0
+        return finalize(val, [])
 
-    elif node.value == "if":
+    if node.value == "if":
         # optimize out the branch
         if _is_int(argz[0]):
+            changed = True
             # if false
             if _evm_int(argz[0]) == 0:
                 # return the else branch (or [] if there is no else)
-                return _optimize(IRnode("seq", argz[2:]), parent)
+                return finalize("seq", argz[2:])
             # if true
             else:
                 # return the first branch
-                return argz[1]
+                return finalize("seq", argz[1])
 
         elif len(argz) == 3 and argz[0].value != "iszero":
             # if(x) compiles to jumpi(_, iszero(x))
@@ -507,21 +522,20 @@ def _optimize(node: IRnode, parent: Optional[IRnode]) -> IRnode:
             contra_cond = IRnode.from_list(["iszero", cond])
 
             argz = [contra_cond, false_branch, true_branch]
-            # set optimize_more = True?
+            changed = True
+            return finalize("if", argz)
 
-    elif node.value in ("assert", "assert_unreachable") and _is_int(argz[0]):
+    if value in ("assert", "assert_unreachable") and _is_int(argz[0]):
         if _evm_int(argz[0]) == 0:
             raise StaticAssertionException(
                 f"assertion found to fail at compile time. (hint: did you mean `raise`?) {node}",
                 source_pos,
             )
         else:
-            value = "seq"
-            argz = []
+            changed = True
+            return finalize("seq", [])
 
-    # NOTE: this is really slow (compile-time).
-    # ideal would be to optimize the tree in-place
-    return finalize([value, *argz])
+    return finalize(value, argz)
 
 
 def _merge_memzero(argz):
@@ -530,6 +544,7 @@ def _merge_memzero(argz):
     mstore_nodes: List = []
     initial_offset = 0
     total_length = 0
+    changed = False
     for ir_node in argz:
         if (
             ir_node.value == "mstore"
@@ -563,6 +578,7 @@ def _merge_memzero(argz):
         # if we get this far, the current node is not a zero'ing operation
         # it's time to apply the optimization if possible
         if len(mstore_nodes) > 1:
+            changed = True
             new_ir = IRnode.from_list(
                 ["calldatacopy", initial_offset, "calldatasize", total_length],
                 source_pos=mstore_nodes[0].source_pos,
@@ -576,6 +592,8 @@ def _merge_memzero(argz):
         initial_offset = 0
         total_length = 0
         mstore_nodes.clear()
+
+    return changed
 
 
 # remove things like [seq, seq, seq] because they interfere with
@@ -595,6 +613,7 @@ def _remove_empty_seqs(argz):
 def _merge_calldataload(argz):
     # look for sequential operations copying from calldata to memory
     # and merge them into a single calldatacopy operation
+    changed = False
     mstore_nodes: List = []
     initial_mem_offset = 0
     initial_calldata_offset = 0
@@ -623,6 +642,7 @@ def _merge_calldataload(argz):
         # if we get this far, the current node is a different operation
         # it's time to apply the optimization if possible
         if len(mstore_nodes) > 1:
+            changed = True
             new_ir = IRnode.from_list(
                 ["calldatacopy", initial_mem_offset, initial_calldata_offset, total_length],
                 source_pos=mstore_nodes[0].source_pos,
@@ -637,3 +657,5 @@ def _merge_calldataload(argz):
         initial_calldata_offset = 0
         total_length = 0
         mstore_nodes.clear()
+
+    return changed
