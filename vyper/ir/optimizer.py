@@ -425,7 +425,6 @@ def _optimize(node: IRnode, parent: Optional[IRnode]) -> IRnode:
     # but for certain operations, particularly binops, we want to do the check.
     should_check_symbols = False
 
-
     def finalize(ir_builder):
         # TODO only call IRnode.from_list if any optimizations
         # were actually performed
@@ -442,7 +441,6 @@ def _optimize(node: IRnode, parent: Optional[IRnode]) -> IRnode:
         if optimize_more:
             ret = _optimize(ret, parent)
         return ret
-
 
     if value == "seq":
         _merge_memzero(argz)
