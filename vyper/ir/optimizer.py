@@ -203,6 +203,8 @@ def _optimize_binop(binop, args, ann, parent_op):
         new_ann = f"{ann} ({new_ann})"
 
     def finalize(new_val, new_args):
+        # if the original had side effects which might not be in the
+        # optimized output, roll back the optimization
         rollback = (args[0].is_complex_ir and not _deep_contains(new_args, args[0])) or (
             args[1].is_complex_ir and not _deep_contains(new_args, args[1])
         )
