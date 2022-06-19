@@ -12,7 +12,6 @@ from vyper.semantics.types.bases import (
     IndexableTypeDefinition,
     MemberTypeDefinition,
 )
-from vyper.semantics.types.value.array_value import BytesArrayDefinition, StringDefinition
 from vyper.semantics.types.value.numeric import Uint256Definition  # type: ignore
 
 
