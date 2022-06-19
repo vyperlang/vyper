@@ -301,6 +301,7 @@ class IRnode:
                 self._gas = sum([arg.gas for arg in self.args])
             elif self.value == "deploy":
                 self.valency = 0
+                _check(len(self.args) == 3, f"`deploy` should have three args {self}")
                 self._gas = NullAttractor()  # unknown
             # Stack variables
             else:
@@ -339,7 +340,11 @@ class IRnode:
         ret = set()
         if self.value == "unique_symbol":
             ret.add(self.args[0].value)
-        for arg in self.args:
+
+        children = self.args
+        if self.value == "deploy":
+            children = [self.args[0], self.args[2]]
+        for arg in children:
             s = arg.unique_symbols()
             non_uniques = ret.intersection(s)
             assert len(non_uniques) == 0, f"non-unique symbols {non_uniques}"
