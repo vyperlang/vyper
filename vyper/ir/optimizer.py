@@ -229,7 +229,7 @@ def _optimize_binop(binop, args, ann, parent_op):
         return x.args == y.args == [] and x.value == y.value and not x.is_complex_ir
 
     ##
-    # ARITHMETIC
+    # ARITHMETIC AND BITWISE OPS
     ##
 
     # for commutative or comparison ops, move the literal to the second
@@ -237,30 +237,29 @@ def _optimize_binop(binop, args, ann, parent_op):
     if binop in COMMUTATIVE_OPS and _is_int(args[0]):
         args = [args[1], args[0]]
 
-    ##
-    # ARITHMETIC AND BITWISE OPS
-    ##
-
     if binop in {"add", "sub", "xor", "or"} and _int(args[1]) == 0:
         # x + 0 == x - 0 == x | 0 == x ^ 0 == x
         return finalize(args[0].value, args[0].args)
 
-    if binop in {"sub", "xor", "eq", "ne"} and _conservative_eq(args[0], args[1]):
-        if binop == "eq":
-            # (x == x) == 1
-            return finalize(1, [])
-        else:
-            # x - x == x ^ x == x != x == 0
-            return finalize(0, [])
+    if binop in {"sub", "xor", "ne"} and _conservative_eq(args[0], args[1]):
+        # x - x == x ^ x == x != x == 0
+        return finalize(0, [])
+
+    if binop == "eq" and _conservative_eq(args[0], args[1]):
+        # (x == x) == 1
+        return finalize(1, [])
 
     # TODO associativity rules
 
+    # x * 0 == x / 0 == x % 0 == x & 0 == 0
     if binop in {"mul", "div", "sdiv", "mod", "smod", "and"} and _int(args[1]) == 0:
         return finalize(0, [])
 
+    # x % 1 == 0
     if binop in {"mod", "smod"} and _int(args[1]) == 1:
         return finalize(0, [])
 
+    # x * 1 == x / 1 == x
     if binop in {"mul", "div", "sdiv"} and _int(args[1]) == 1:
         return finalize(args[0].value, args[0].args)
 
@@ -314,15 +313,18 @@ def _optimize_binop(binop, args, ann, parent_op):
     if binop in {"mod", "div", "mul"} and _is_int(args[1]) and is_power_of_two(_int(args[1])):
         assert unsigned == UNSIGNED, "something's not right."
         # shave two gas off mod/div/mul for powers of two
+        # x % 2**n == x & (2**n - 1)
         if binop == "mod":
             return finalize("and", [args[0], _int(args[1]) - 1])
 
         if binop == "div" and version_check(begin="constantinople"):
+            # x / 2**n == x >> n
             # recall shr/shl have unintuitive arg order
             return finalize("shr", [int_log2(_int(args[1])), args[0]])
 
         # note: no rule for sdiv since it rounds differently from sar
         if binop == "mul" and version_check(begin="constantinople"):
+            # x * 2**n == x << n
             return finalize("shl", [int_log2(_int(args[1])), args[0]])
 
         # reachable but only after constantinople
@@ -342,6 +344,7 @@ def _optimize_binop(binop, args, ann, parent_op):
 
     if binop == "eq" and _int(args[1], SIGNED) == -1:
         # equal gas, but better codesize
+        # x == MAX_UINT256 => ~x == 0
         return finalize("iszero", [["not", args[0]]])
 
     # note: in places where truthy is accepted, sequences of
@@ -434,6 +437,7 @@ def _optimize(node: IRnode, parent: Optional[IRnode]) -> IRnode:
     ###
     # BITWISE OPS
     ###
+
     # note, don't optimize these too much as these kinds of expressions
     # may be hand optimized for codesize. we can optimize bitwise ops
     # more, once we have a pipeline which optimizes for codesize.
@@ -444,7 +448,6 @@ def _optimize(node: IRnode, parent: Optional[IRnode]) -> IRnode:
         annotation = argz[1].annotation
         argz = argz[1].args
 
-    # TODO just expand this
     elif node.value == "ceil32" and _is_int(argz[0]):
         t = argz[0]
         annotation = f"ceil32({t.value})"
