@@ -412,10 +412,11 @@ def _optimize(node: IRnode, parent: Optional[IRnode]) -> Tuple[bool, IRnode]:
     starting_symbols = node.unique_symbols()
 
     res = [_optimize(arg, node) for arg in node.args]
+    argz: list
     if len(res) == 0:
         args_changed, argz = False, []
     else:
-        changed_flags, argz = zip(*res)
+        changed_flags, argz = zip(*res)  # type: ignore
         args_changed = any(changed_flags)
         argz = list(argz)
 
@@ -473,7 +474,7 @@ def _optimize(node: IRnode, parent: Optional[IRnode]) -> Tuple[bool, IRnode]:
         if res is not None:
             changed = True
             should_check_symbols = True
-            value, argz, annotation = res
+            value, argz, annotation = res  # type: ignore
             return finalize(value, argz)
 
     ###
