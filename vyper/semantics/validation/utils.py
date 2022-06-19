@@ -25,7 +25,6 @@ from vyper.semantics.types.indexable.sequence import (
     DynamicArrayDefinition,
     TupleDefinition,
 )
-from vyper.semantics.types.value.array_value import BytesArrayDefinition, StringDefinition
 from vyper.semantics.types.value.boolean import BoolDefinition
 from vyper.semantics.validation.levenshtein_utils import get_levenshtein_error_suggestions
 

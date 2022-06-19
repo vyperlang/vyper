@@ -9,7 +9,6 @@ from vyper.exceptions import (
     InvalidType,
     OverflowException,
     StateAccessViolation,
-    StructureException,
     TypeMismatch,
 )
 
