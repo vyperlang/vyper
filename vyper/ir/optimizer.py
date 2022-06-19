@@ -120,6 +120,14 @@ def _comparison_helper(binop, args, prefer_strict=False):
 
     lo, hi = int_bounds(bits=256, signed=not unsigned)
 
+    # for comparison operators, we have three special boundary cases:
+    # almost always, never and almost never.
+    # almost_always is always true for the non-strict ("ge" and co)
+    # comparators. for strict comparators ("gt" and co), almost_always
+    # is true except for one case. never is never true for the strict
+    # comparators. never is almost always false for the non-strict
+    # comparators, except for one case. and almost_never is almost
+    # never true (except one case) for the strict comparators.
     if is_gt:
         almost_always, never = lo, hi
         almost_never = hi - 1
