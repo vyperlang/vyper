@@ -297,11 +297,8 @@ class ContractFunction(BaseTypeDefinition):
             # Assume nonpayable if not set at all (cannot accept Ether, but can modify state)
             kwargs["state_mutability"] = StateMutability.NONPAYABLE
 
-        if (
-            kwargs["state_mutability"] in (StateMutability.VIEW, StateMutability.PURE)
-            and "nonreentrant" in kwargs
-        ):
-            raise StructureException("Cannot use reentrancy guard on view or pure functions", node)
+        if kwargs["state_mutability"] == StateMutability.PURE and "nonreentrant" in kwargs:
+            raise StructureException("Cannot use reentrancy guard on pure functions", node)
 
         # call arguments
         if node.args.defaults and node.name == "__init__":
