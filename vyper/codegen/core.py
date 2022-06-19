@@ -7,6 +7,7 @@ from vyper.codegen.types import (
     BaseType,
     ByteArrayLike,
     DArrayType,
+    EnumType,
     MappingType,
     SArrayType,
     StructType,
@@ -715,6 +716,8 @@ def needs_clamp(t, encoding):
         raise CompilerPanic("unreachable")  # pragma: notest
     if isinstance(t, (ByteArrayLike, DArrayType)):
         return True
+    if isinstance(t, EnumType):
+        return len(t.members) < 256
     if isinstance(t, BaseType):
         return t.typ not in ("int256", "uint256", "bytes32")
     if isinstance(t, SArrayType):
@@ -932,6 +935,16 @@ def clamp_basetype(ir_node):
 
     # copy of the input
     ir_node = unwrap_location(ir_node)
+
+    if isinstance(t, EnumType):
+        bits = len(t.members)
+        # assert x >> bits == 0 and x != 0
+        # assert !(x >> bits != 0 | x == 0)
+        with ir_node.cache_when_complex("e") as (b1, ir_node):
+            ok = ["iszero", ["or", shr(bits, ir_node), ["iszero", ir_node]]]
+            return IRnode.from_list(
+                b1.resolve(["seq", ["assert", ok], ir_node]), annotation=f"clamp enum {t.name}"
+            )
 
     if is_integer_type(t) or is_decimal_type(t):
         if t._num_info.bits == 256:

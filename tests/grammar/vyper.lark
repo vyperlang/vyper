@@ -130,6 +130,8 @@ assign: (variable_access | multiple_assign | "(" multiple_assign ")" ) "=" _expr
              | "**" -> pow
              | "<<" -> shl
              | ">>" -> shr
+             | _BITAND -> bitand
+             | _BITOR -> bitor
              | _AND -> and
              | _OR  -> or
              | _XOR -> xor
@@ -199,13 +201,18 @@ dict: "{" "}" | "{" (NAME ":" _expr) ("," (NAME ":" _expr))* [","] "}"
 _POW: "**"
 _SHL: "<<"
 _SHR: ">>"
+_BITAND: "&"
+_BITOR: "|"
 // Binary Operations
 // NOTE: Keep these in sync with aug_assign above
 ?bin_op: product
        | bin_op "+"  product -> add
        | bin_op "-"  product -> sub
+// TODO fix precedence to match python operator precedence
        | bin_op _SHL product -> shl
        | bin_op _SHR product -> shr
+       | bin_op _BITAND product -> bitand
+       | bin_op _BITOR product -> bitor
 ?product: power
         | product "*"   power -> mul
         | product "/"   power -> div
@@ -217,6 +224,7 @@ _AND: "and"
 _OR: "or"
 _NOT: "not"
 _XOR: "xor"
+
 // Boolean Operations
 ?bool_op: unary_op
         | bool_op _AND unary_op -> and

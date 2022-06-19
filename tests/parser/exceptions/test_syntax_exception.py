@@ -35,7 +35,7 @@ def foo():
     z = x[2:4]
     """,
     """
-Transfer: event({_&rom: indexed(address)})
+Transfer: event({_rom&: indexed(address)})
     """,
     """
 @external
