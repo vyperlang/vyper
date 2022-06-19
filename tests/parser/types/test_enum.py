@@ -96,6 +96,50 @@ def band_arg(a: Roles, b: Roles) -> Roles:
     assert_tx_failed(lambda: c.band_arg(3, 32))
 
 
+def test_augassign_storage(get_contract, w3, assert_tx_failed):
+    code = """
+enum Roles:
+    ADMIN
+    MINTER
+
+roles: public(HashMap[address, Roles])
+
+@external
+def __init__():
+    self.roles[msg.sender] = Roles.ADMIN
+
+@external
+def addMinter(minter: address):
+    assert self.roles[msg.sender] in Roles.ADMIN
+    self.roles[minter] |= Roles.MINTER
+
+@external
+def checkMinter(minter: address):
+    assert Roles.MINTER in self.roles[minter]
+    """
+    c = get_contract(code)
+
+    # check admin
+    admin_address = w3.eth.accounts[0]
+    minter_address = w3.eth.accounts[1]
+
+    # add minter
+    c.addMinter(minter_address, transact={})
+    c.checkMinter(minter_address)
+
+    assert c.roles(admin_address) == 2 ** 0
+    assert c.roles(minter_address) == 2 ** 1
+
+    # admin is not a minter
+    assert_tx_failed(lambda: c.checkMinter(admin_address))
+
+    c.addMinter(admin_address, transact={})
+
+    # now, admin is a minter
+    assert c.roles(admin_address) == 2 ** 0 | 2 ** 1
+    c.checkMinter(admin_address)
+
+
 def test_for_in_enum(get_contract_with_gas_estimation):
     code = """
 enum Roles:
