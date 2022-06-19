@@ -388,11 +388,20 @@ def _optimize_binop(binop, args, ann, parent_op):
     return None
 
 
+def _check_symbols(symbols, ir_node):
+    # sanity check that no `unique_symbol`s got optimized out.
+    to_check = ir_node.unique_symbols()
+    if symbols != to_check:
+        raise CompilerPanic(f"missing symbols: {symbols - to_check}")
+
+
 def optimize(node: IRnode) -> IRnode:
     return _optimize(node, parent=None)
 
 
 def _optimize(node: IRnode, parent: Optional[IRnode]) -> IRnode:
+    starting_symbols = node.unique_symbols()
+
     argz = [_optimize(arg, node) for arg in node.args]
 
     value = node.value
@@ -402,8 +411,17 @@ def _optimize(node: IRnode, parent: Optional[IRnode]) -> IRnode:
     annotation = node.annotation
     add_gas_estimate = node.add_gas_estimate
 
+    optimize_more = False
+    # in general, we cannot enforce the symbols check. for instance,
+    # the dead branch eliminator will almost always trip the symbols check.
+    # but for certain operations, particularly binops, we want to do the check.
+    should_check_symbols = False
+
+
     def finalize(ir_builder):
-        return IRnode.from_list(
+        # TODO only call IRnode.from_list if any optimizations
+        # were actually performed
+        ret = IRnode.from_list(
             ir_builder,
             typ=typ,
             location=location,
@@ -411,8 +429,12 @@ def _optimize(node: IRnode, parent: Optional[IRnode]) -> IRnode:
             annotation=annotation,
             add_gas_estimate=add_gas_estimate,
         )
+        if should_check_symbols:
+            _check_symbols(starting_symbols, ret)
+        if optimize_more:
+            ret = _optimize(ret, parent)
+        return ret
 
-    optimize_more = False
 
     if value == "seq":
         _merge_memzero(argz)
@@ -427,13 +449,10 @@ def _optimize(node: IRnode, parent: Optional[IRnode]) -> IRnode:
     elif value in arith:
         parent_op = parent.value if parent is not None else None
 
-        starting_symbols = node.unique_symbols()
         res = _optimize_binop(value, argz, annotation, parent_op)
         if res is not None:
             optimize_more = True
-            assert (
-                starting_symbols == argz[0].unique_symbols() | argz[1].unique_symbols()
-            ), "bad optimizer pass"
+            should_check_symbols = True
             value, argz, annotation = res
 
     ###
@@ -496,12 +515,7 @@ def _optimize(node: IRnode, parent: Optional[IRnode]) -> IRnode:
 
     # NOTE: this is really slow (compile-time).
     # ideal would be to optimize the tree in-place
-    ret = finalize([value, *argz])
-
-    if optimize_more:
-        ret = _optimize(ret, parent=parent)
-
-    return ret
+    return finalize([value, *argz])
 
 
 def _merge_memzero(argz):

@@ -526,7 +526,6 @@ def LOAD(ptr: IRnode) -> IRnode:
     return IRnode.from_list([op, ptr])
 
 
-# must evaluate exactly once
 def eval_once_check(name):
     # an IRnode which enforces uniqueness. include with a side-effecting
     # operation to sanity check that the codegen pipeline only generates
