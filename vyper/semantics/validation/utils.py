@@ -25,7 +25,6 @@ from vyper.semantics.types.indexable.sequence import (
     DynamicArrayDefinition,
     TupleDefinition,
 )
-from vyper.semantics.types.value.array_value import BytesArrayDefinition, StringDefinition
 from vyper.semantics.types.value.boolean import BoolDefinition
 from vyper.semantics.validation.levenshtein_utils import get_levenshtein_error_suggestions
 
@@ -248,11 +247,6 @@ class _ExprTypeChecker:
             return ret
 
         types_list = get_common_types(*node.elements)
-
-        # Throw exception if only possible type is String or Bytes
-        if len(types_list) == 1:
-            if isinstance(types_list[0], (StringDefinition, BytesArrayDefinition)):
-                raise StructureException(f"{types_list[0]._id} arrays are not supported", node)
 
         if len(types_list) > 0:
             count = len(node.elements)
