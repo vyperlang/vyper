@@ -106,7 +106,7 @@ def binv_arg(a: Roles) -> Roles:
     # LHS: USER | ADMIN | CEO; RHS: USER | MANAGER | CEO
     assert c.band_arg(0b10101, 0b11001) == 0b10101 & 0b11001 == 0b10001
 
-    assert c.bxor_arg(0b10101, 0b11001) == 0b10101 ^ 0b11001 ==0b01100
+    assert c.bxor_arg(0b10101, 0b11001) == 0b10101 ^ 0b11001 == 0b01100
 
     assert c.binv_arg(0b01101) == ~0b01101 % 32 == 0b10010
     assert c.binv_arg(0b11111) == 0b00000
@@ -230,10 +230,9 @@ def baz(a: Roles) -> bool:
     assert c.bar(0b00001) is True  # Roles.USER should pass
     assert c.bar(0b00010) is False  # Roles.STAFF should fail
 
-    assert c.bar2(0b00001) is False # Roles.USER should fail
-    assert c.bar2(0b00010) is True # Roles.STAFF should pass
+    assert c.bar2(0b00001) is False  # Roles.USER should fail
+    assert c.bar2(0b00010) is True  # Roles.STAFF should pass
 
     assert c.baz(0b00001) is True  # Roles.USER should pass
     assert c.baz(0b00100) is True  # Roles.ADMIN should pass
     assert c.baz(0b01000) is False  # Roles.MANAGER should fail
-
