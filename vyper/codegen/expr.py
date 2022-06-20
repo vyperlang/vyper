@@ -569,8 +569,9 @@ class Expr:
                 n_members = len(operand.typ.members)
                 mask = (2 ** n_members) - 1
                 return IRnode.from_list(["xor", mask, operand], typ=operand.typ)
-            else:
-                raise UnimplementedException("~ is not supported on integer types", self.expr)
+            if is_base_type(operand.typ, "uint256"):
+                return IRnode.from_list(["not", operand], typ=operand.typ)
+            raise UnimplementedException(f"~ is not supported for {operand.typ}", self.expr)
 
         if isinstance(self.expr.op, vy_ast.USub) and is_numeric_type(operand.typ):
             assert operand.typ._num_info.is_signed

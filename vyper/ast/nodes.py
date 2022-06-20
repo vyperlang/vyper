@@ -1010,6 +1010,13 @@ class BitOr(VyperNode):
     _op = operator.or_
 
 
+class BitXor(VyperNode):
+    __slots__ = ()
+    _description = "bitwise xor"
+    _pretty = "^"
+    _op = operator.xor
+
+
 class BoolOp(VyperNode):
     __slots__ = ("op", "values")
 

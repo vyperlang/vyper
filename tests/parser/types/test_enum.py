@@ -72,28 +72,54 @@ def band() -> Roles:
     return c & Roles.USER
 
 @external
+def bxor() -> Roles:
+    c: Roles = Roles.USER | Roles.CEO
+    return c ^ Roles.USER
+
+def binv() -> Roles:
+    c: Roles = Roles.USER
+    return ~c
+
+@external
 def bor_arg(a: Roles, b: Roles) -> Roles:
     return a | b
 
 @external
 def band_arg(a: Roles, b: Roles) -> Roles:
     return a & b
+
+@external
+def bxor_arg(a: Roles, b: Roles) -> Roles:
+    return a ^ b
+
+@external
+def binv_arg(a: Roles) -> Roles:
+    return ~a
     """
     c = get_contract(code)
     assert c.bor() == 17
     assert c.band() == 1
+    assert c.bxor() == 16
 
     assert c.bor_arg(1, 4) == 5
     # LHS: USER | ADMIN | CEO; RHS: USER | MANAGER | CEO
     assert c.band_arg(21, 25) == 17
 
+    assert c.bxor_arg(21, 25) == 21 ^ 25
+
+    assert c.binv_arg(0b01101) == 0b10010
+    assert c.binv_arg(0b11111) == 0
+
     # LHS is out of bound
     assert_tx_failed(lambda: c.bor_arg(32, 3))
     assert_tx_failed(lambda: c.band_arg(32, 3))
+    assert_tx_failed(lambda: c.bxor_arg(32, 3))
+    assert_tx_failed(lambda: c.binv_arg(32))
 
     # RHS
     assert_tx_failed(lambda: c.bor_arg(3, 32))
     assert_tx_failed(lambda: c.band_arg(3, 32))
+    assert_tx_failed(lambda: c.bxor_arg(3, 32))
 
 
 def test_augassign_storage(get_contract, w3, assert_tx_failed):
@@ -112,6 +138,16 @@ def __init__():
 def addMinter(minter: address):
     assert self.roles[msg.sender] in Roles.ADMIN
     self.roles[minter] |= Roles.MINTER
+
+@external
+def revokeMinter(minter: address):
+    assert self.roles[msg.sender] in Roles.ADMIN
+    self.roles[minter] &= ~Roles.MINTER
+
+@external
+def flipMinter(minter: address):
+    assert self.roles[msg.sender] in Roles.ADMIN
+    self.roles[minter] ^= Roles.MINTER
 
 @external
 def checkMinter(minter: address):
@@ -139,6 +175,21 @@ def checkMinter(minter: address):
     assert c.roles(admin_address) == 2 ** 0 | 2 ** 1
     c.checkMinter(admin_address)
 
+    # revoke minter
+    c.revokeMinter(admin_address, transact={})
+    assert c.roles(admin_address) == 2 ** 0
+    assert_tx_failed(lambda: c.checkMinter(admin_address))
+
+    # flip minter
+    c.flipMinter(admin_address, transact={})
+    assert c.roles(admin_address) == 2 ** 0 | 2 ** 1
+    c.checkMinter(admin_address)
+
+    # flip minter
+    c.flipMinter(admin_address, transact={})
+    assert c.roles(admin_address) == 2 ** 0
+    assert_tx_failed(lambda: c.checkMinter(admin_address))
+
 
 def test_for_in_enum(get_contract_with_gas_estimation):
     code = """
@@ -160,7 +211,7 @@ def bar(a: Roles) -> bool:
 @external
 def baz(a: Roles) -> bool:
     x: Roles = Roles.USER | Roles.ADMIN | Roles.CEO
-    y: Roles = Roles.USER | Roles.ADMIN | Roles.MANAGER
+    y: Roles = x ^ (Roles.MANAGER | Roles.CEO)  # flip off CEO, flip on MANAGER
     return a in (x & y)
     """
     c = get_contract_with_gas_estimation(code)
