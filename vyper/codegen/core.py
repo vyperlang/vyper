@@ -941,7 +941,7 @@ def clamp_basetype(ir_node):
         # assert x >> bits == 0
         ret = int_clamp(ir_node, bits, signed=False)
 
-    if is_integer_type(t) or is_decimal_type(t):
+    elif is_integer_type(t) or is_decimal_type(t):
         if t._num_info.bits == 256:
             ret = ir_node
         else:
