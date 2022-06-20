@@ -581,7 +581,9 @@ class Expr:
             if is_base_type(operand.typ, "uint256"):
                 return IRnode.from_list(["not", operand], typ=operand.typ)
 
-            # maybe revisit this at a later date.
+            # block `~` for all other integer types, since reasoning
+            # about dirty bits is not entirely trivial. maybe revisit
+            # this at a later date.
             raise UnimplementedException(f"~ is not supported for {operand.typ}", self.expr)
 
         if isinstance(self.expr.op, vy_ast.USub) and is_numeric_type(operand.typ):
