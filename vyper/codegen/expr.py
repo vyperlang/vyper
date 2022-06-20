@@ -42,6 +42,7 @@ from vyper.exceptions import (
     StructureException,
     TypeCheckFailure,
     TypeMismatch,
+    UnimplementedException,
 )
 from vyper.utils import (
     DECIMAL_DIVISOR,
@@ -362,6 +363,9 @@ class Expr:
         if isinstance(self.expr.op, vy_ast.BitOr):
             new_typ = left.typ
             return IRnode.from_list(["or", left, right], typ=new_typ)
+        if isinstance(self.expr.op, vy_ast.BitXor):
+            new_typ = left.typ
+            return IRnode.from_list(["xor", left, right], typ=new_typ)
 
         out_typ = BaseType(ltyp)
 
@@ -559,7 +563,16 @@ class Expr:
         if isinstance(self.expr.op, vy_ast.Not):
             if isinstance(operand.typ, BaseType) and operand.typ.typ == "bool":
                 return IRnode.from_list(["iszero", operand], typ="bool")
-        elif isinstance(self.expr.op, vy_ast.USub) and is_numeric_type(operand.typ):
+
+        if isinstance(self.expr.op, vy_ast.Invert):
+            if isinstance(operand.typ, EnumType):
+                n_members = len(operand.typ.members)
+                mask = (2 ** n_members) - 1
+                return IRnode.from_list(["xor", mask, operand], typ=operand.typ)
+            else:
+                raise UnimplementedException("~ is not supported on integer types", self.expr)
+
+        if isinstance(self.expr.op, vy_ast.USub) and is_numeric_type(operand.typ):
             assert operand.typ._num_info.is_signed
             # Clamp on minimum signed integer value as we cannot negate that
             # value (all other integer values are fine)
