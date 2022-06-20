@@ -567,10 +567,17 @@ class Expr:
         if isinstance(self.expr.op, vy_ast.Invert):
             if isinstance(operand.typ, EnumType):
                 n_members = len(operand.typ.members)
+                # use (xor 0b11..1 operand) to flip all the bits in
+                # `operand`. `mask` could be a very large constant and
+                # hurt codesize, but most user enums will likely have few
+                # enough members that the mask will not be large.
                 mask = (2 ** n_members) - 1
                 return IRnode.from_list(["xor", mask, operand], typ=operand.typ)
+
             if is_base_type(operand.typ, "uint256"):
                 return IRnode.from_list(["not", operand], typ=operand.typ)
+
+            # maybe revisit this at a later date.
             raise UnimplementedException(f"~ is not supported for {operand.typ}", self.expr)
 
         if isinstance(self.expr.op, vy_ast.USub) and is_numeric_type(operand.typ):
