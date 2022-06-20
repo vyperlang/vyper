@@ -16,6 +16,8 @@ jobs:
 
     outputs:
       change_log: ${{ steps.build_changelog.outputs.change_log }}
+      fromTag: ${{ steps.build_changelog.outputs.fromTag }}
+      pre-release_tag: ${{ steps.latest_tag.outputs.tag_name }}
 
     steps:
       - name: Checkout sources
@@ -23,21 +25,37 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Finding the latest tag
+        id: latest_tag
+        run: |
+          current_semver=$(git tag --list | grep '^v[0-9]*\.[0-9]*\.[0-9]*$' | tail -n 1)
+          current_major=$(echo $current_semver | sed -E 's/v([0-9]*)\.([0-9]*)\.([0-9]*)/\1/g')
+          current_minor=$(echo $current_semver | sed -E 's/v([0-9]*)\.([0-9]*)\.([0-9]*)/\2/g')
+          current_patch=$(echo $current_semver | sed -E 's/v([0-9]*)\.([0-9]*)\.([0-9]*)/\3/g')
+          next_patch=$((current_patch+1))
+          next_semver="v${current_major}.${current_minor}.${next_patch}-pre-release"
+          echo "current semver: $current_semver"
+          echo "next pre-release semver: $next_semver"
+          echo "::set-output name=tag_name::${next_semver}"
+        shell: bash
+
       - name: Create/Update pre-release tag
         uses: actions/github-script@v6
+        env:
+          TAG_NAME: ${{ steps.latest_tag.outputs.tag_name }}
         with:
           script: |
             const prunePrereleases = require('./.github/scripts/prune-prereleases.js')
             await prunePrereleases({github, context})
             const createOrUpdateTag = require('./.github/scripts/create-or-update-ref.js')
-            await createOrUpdateTag({github, context}, 'pre-release')
+            await createOrUpdateTag({github, context}, process.env.TAG_NAME)
 
       - name: Build changelog
         id: build_changelog
         uses: mikepenz/release-changelog-builder-action@v2
         with:
           configuration: "./.github/changelog.json"
-          toTag: pre-release
+          toTag: ${{ steps.latest_tag.outputs.tag_name }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -62,8 +80,8 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           name: 'Pre-release'
-          tag_name: 'pre-release'
+          tag_name: ${{ needs.prepare.outputs.pre-release_tag }}
           prerelease: true
-          body: ${{ needs.prepare.steps.build_changelog.outputs.change_log }}
+          body: ${{ needs.prepare.outputs.change_log }}
           files: |
             dist/artifact/vyper.*

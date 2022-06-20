@@ -78,6 +78,7 @@ setup(
         "local_scheme": _local_version,
         "version_scheme": _global_version,
         "write_to": "vyper/version.py",
+        "tag_regex": r"^(?:[\w-]+-)?(?P<version>[vV]?\d+(?:\.\d+){0,2}[^-\+]*)(?:[-\+].*)?$"
     },
     description="Vyper: the Pythonic Programming Language for the EVM",
     long_description=long_description,
