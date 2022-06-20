@@ -1327,6 +1327,10 @@ class BitwiseAnd(BuiltinFunction):
     _warned = False
 
     def evaluate(self, node):
+        if not self.__class__._warned:
+            vyper_warn("`bitwise_and()` is deprecated! Please use the & operator instead.")
+            self.__class__._warned = True
+
         validate_call_args(node, 2)
         for arg in node.args:
             if not isinstance(arg, vy_ast.Num):
@@ -1339,10 +1343,6 @@ class BitwiseAnd(BuiltinFunction):
 
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
-        if not self.__class__._warned:
-            vyper_warn("`bitwise_or()` is deprecated! Please use the | operator instead.")
-            self.__class__._warned = True
-
         return IRnode.from_list(["and", args[0], args[1]], typ=BaseType("uint256"))
 
 
@@ -1354,6 +1354,10 @@ class BitwiseOr(BuiltinFunction):
     _warned = False
 
     def evaluate(self, node):
+        if not self.__class__._warned:
+            vyper_warn("`bitwise_or()` is deprecated! Please use the | operator instead.")
+            self.__class__._warned = True
+
         validate_call_args(node, 2)
         for arg in node.args:
             if not isinstance(arg, vy_ast.Num):
@@ -1366,10 +1370,6 @@ class BitwiseOr(BuiltinFunction):
 
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
-        if not self.__class__._warned:
-            vyper_warn("`bitwise_or()` is deprecated! Please use the | operator instead.")
-            self.__class__._warned = True
-
         return IRnode.from_list(["or", args[0], args[1]], typ=BaseType("uint256"))
 
 
@@ -1378,8 +1378,13 @@ class BitwiseXor(BuiltinFunction):
     _id = "bitwise_xor"
     _inputs = [("x", Uint256Definition()), ("y", Uint256Definition())]
     _return_type = Uint256Definition()
+    _warned = False
 
     def evaluate(self, node):
+        if not self.__class__._warned:
+            vyper_warn("`bitwise_xor()` is deprecated! Please use the ^ operator instead.")
+            self.__class__._warned = True
+
         validate_call_args(node, 2)
         for arg in node.args:
             if not isinstance(arg, vy_ast.Num):
@@ -1400,8 +1405,13 @@ class BitwiseNot(BuiltinFunction):
     _id = "bitwise_not"
     _inputs = [("x", Uint256Definition())]
     _return_type = Uint256Definition()
+    _warned = False
 
     def evaluate(self, node):
+        if not self.__class__._warned:
+            vyper_warn("`bitwise_not()` is deprecated! Please use the ^ operator instead.")
+            self.__class__._warned = True
+
         validate_call_args(node, 1)
         if not isinstance(node.args[0], vy_ast.Num):
             raise UnfoldableNode
