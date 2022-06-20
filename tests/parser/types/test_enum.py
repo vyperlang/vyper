@@ -76,6 +76,7 @@ def bxor() -> Roles:
     c: Roles = Roles.USER | Roles.CEO
     return c ^ Roles.USER
 
+@external
 def binv() -> Roles:
     c: Roles = Roles.USER
     return ~c
