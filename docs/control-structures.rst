@@ -103,7 +103,7 @@ The ``@nonreentrant(<key>)`` decorator places a lock on a function, and all func
 
 You can put the ``@nonreentrant(<key>)`` decorator on a ``__default__`` function but we recommend against it because in most circumstances it will not work in a meaningful way.
 
-Nonreentrancy keys work by setting a specially allocated storage slot to a ``<locked>`` value on function entrance, and setting it to an ``<unlocked>`` value on function exit. On function entrance, if the storage slot is detected to be the ``<locked>`` value, execution reverts.
+Nonreentrancy locks work by setting a specially allocated storage slot to a ``<locked>`` value on function entrance, and setting it to an ``<unlocked>`` value on function exit. On function entrance, if the storage slot is detected to be the ``<locked>`` value, execution reverts.
 
 You cannot put the ``@nonreentrant`` decorator on a ``pure`` function. You can put it on a ``view`` function, but it only checks that the function is not in a callback (the storage slot is not in the ``<locked>`` state), as ``view`` functions can only read the state, not change it.
 
