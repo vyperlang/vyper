@@ -466,11 +466,11 @@ class Expr:
                 return self.build_in_comparator()
             else:
                 assert isinstance(right.typ, EnumType), right.typ
-                check = ["and", left, right]
+                intersection = ["and", left, right]
                 if isinstance(self.expr.op, vy_ast.In):
-                    return IRnode.from_list(["iszero", ["iszero", check]], typ="bool")
+                    return IRnode.from_list(["iszero", ["iszero", intersection]], typ="bool")
                 elif isinstance(self.expr.op, vy_ast.NotIn):
-                    return IRnode.from_list(["iszero", check], typ="bool")
+                    return IRnode.from_list(["iszero", intersection], typ="bool")
 
         if isinstance(self.expr.op, vy_ast.Gt):
             op = "sgt"
