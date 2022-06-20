@@ -9,7 +9,10 @@ def get_nonreentrant_lock(func_type):
     nkey = func_type.reentrancy_key_position.position
 
     if version_check(begin="berlin"):
-        final_value, temp_value = 1, 2
+        # any nonzero values would work here (see pricing as of net gas
+        # metering); these values are chosen so that downgrading to the
+        # 0,1 scheme (if it is somehow necessary) is safe.
+        final_value, temp_value = 3, 2
     else:
         final_value, temp_value = 0, 1
 
