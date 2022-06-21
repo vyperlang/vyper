@@ -1878,8 +1878,8 @@ class CreateFromFactory(_CreateBase):
             ), msize.cache_when_complex("mem_ofst") as (b5, mem_ofst):
                 ir = ["seq"]
 
-                # make sure there is code at the target.
-                ir.append(["assert", codesize])
+                # make sure there is code at the target, and that code_ofst <= (extcodesize target)
+                ir.append(["assert", ["sgt", codesize, 0]])
 
                 # copy the target code into memory.
                 # layout starting from mem_ofst:
