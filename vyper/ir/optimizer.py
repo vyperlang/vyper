@@ -337,7 +337,7 @@ def _optimize_binop(binop, args, ann, parent_op):
             # x * 2**n == x << n
             return finalize("shl", [int_log2(_int(args[1])), args[0]])
 
-        # reachable but only after constantinople
+        # reachable but only before constantinople
         if version_check(begin="constantinople"):  # pragma: nocover
             raise CompilerPanic("unreachable")
 
