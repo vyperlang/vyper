@@ -1,3 +1,4 @@
+import pytest
 import rlp
 from eth_abi import encode_single
 from hexbytes import HexBytes
@@ -142,8 +143,11 @@ def test(_salt: bytes32) -> address:
     assert_tx_failed(lambda: c.test(salt, transact={}))
 
 
+# test factory with various prefixes - 0xfe would block calls to the factory
+# contract, and 0xfe65766d is an old magic from EIP154
+@pytest.mark.parametrize("factory_prefix", [b"", b"\xfe", b"\xfe\x65\x76\x6d"])
 def test_create_from_factory(
-    get_contract, deploy_factory_for, w3, keccak, create2_address_of, assert_tx_failed
+    get_contract, deploy_factory_for, w3, keccak, create2_address_of, assert_tx_failed, factory_prefix
 ):
     code = """
 @external
@@ -151,27 +155,26 @@ def foo() -> uint256:
     return 123
     """
 
-    deployer_code = """
+    prefix_len = len(factory_prefix)
+    deployer_code = f"""
 created_address: public(address)
 
 @external
 def test(target: address):
-    self.created_address = create_from_factory(target)
+    self.created_address = create_from_factory(target, code_offset={prefix_len})
 
 @external
 def test2(target: address, salt: bytes32):
-    self.created_address = create_from_factory(target, salt=salt)
+    self.created_address = create_from_factory(target, code_offset={prefix_len}, salt=salt)
     """
 
     # deploy a foo so we can compare its bytecode with factory deployed version
     foo_contract = get_contract(code)
     expected_runtime_code = w3.eth.get_code(foo_contract.address)
 
-    f, FooContract = deploy_factory_for(code)
+    f, FooContract = deploy_factory_for(code, initcode_prefix=factory_prefix)
 
     d = get_contract(deployer_code)
-
-    initcode = w3.eth.get_code(f.address)
 
     d.test(f.address, transact={})
 
@@ -180,7 +183,8 @@ def test2(target: address, salt: bytes32):
     assert test.foo() == 123
 
     # extcodesize check
-    assert_tx_failed(lambda: d.test("0x" + "00" * 20))
+    zero_address = "0x" + "00" * 20
+    assert_tx_failed(lambda: d.test(zero_address))
 
     # now same thing but with create2
     salt = keccak(b"vyper")
@@ -190,6 +194,9 @@ def test2(target: address, salt: bytes32):
     assert w3.eth.get_code(test.address) == expected_runtime_code
     assert test.foo() == 123
 
+    # check if the create2 address matches our offchain calculation
+    initcode = w3.eth.get_code(f.address)
+    initcode = initcode[len(factory_prefix):]  # strip the prefix
     assert HexBytes(test.address) == create2_address_of(d.address, salt, initcode)
 
     # can't collide addresses

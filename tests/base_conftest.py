@@ -127,7 +127,7 @@ def _get_contract(w3, source_code, no_optimize, *args, **kwargs):
     return w3.eth.contract(address, abi=abi, bytecode=bytecode, ContractFactoryClass=VyperContract)
 
 
-def _deploy_factory_for(w3, source_code, no_optimize, **kwargs):
+def _deploy_factory_for(w3, source_code, no_optimize, initcode_prefix=b"", **kwargs):
     out = compiler.compile_code(
         source_code,
         ["abi", "bytecode"],
@@ -138,12 +138,12 @@ def _deploy_factory_for(w3, source_code, no_optimize, **kwargs):
     )
     LARK_GRAMMAR.parse(source_code + "\n")  # Test grammar.
     abi = out["abi"]
-    bytecode = out["bytecode"]
-    bytecode_len = (len(bytecode) - 2) // 2
+    bytecode = HexBytes(initcode_prefix) + HexBytes(out["bytecode"])
+    bytecode_len = len(bytecode)
     bytecode_len_hex = hex(bytecode_len)[2:].rjust(4, "0")
     # prepend a quick deploy preamble
-    deploy_preamble = "61" + bytecode_len_hex + "3d81600a3d39f3"
-    deploy_bytecode = "0x" + deploy_preamble + bytecode[2:]
+    deploy_preamble = HexBytes("61" + bytecode_len_hex + "3d81600a3d39f3")
+    deploy_bytecode = HexBytes(deploy_preamble) + bytecode
 
     deployer_abi = []  # just a constructor
     c = w3.eth.contract(abi=deployer_abi, bytecode=deploy_bytecode)
@@ -154,10 +154,7 @@ def _deploy_factory_for(w3, source_code, no_optimize, **kwargs):
     address = w3.eth.get_transaction_receipt(tx_hash)["contractAddress"]
 
     # sanity check
-    assert w3.eth.get_code(address) == HexBytes(bytecode), (
-        w3.eth.get_code(address),
-        HexBytes(bytecode),
-    )
+    assert w3.eth.get_code(address) == bytecode, (w3.eth.get_code(address), bytecode)
 
     def factory(address):
         return w3.eth.contract(
