@@ -3,7 +3,7 @@ import rlp
 from eth_abi import encode_single
 from hexbytes import HexBytes
 
-from vyper.utils import checksum_encode, keccak256, EIP_170_LIMIT
+from vyper.utils import EIP_170_LIMIT, checksum_encode, keccak256
 
 
 # initcode used by create_minimal_proxy_to
@@ -147,7 +147,13 @@ def test(_salt: bytes32) -> address:
 # contract, and 0xfe65766d is an old magic from EIP154
 @pytest.mark.parametrize("factory_prefix", [b"", b"\xfe", b"\xfe\x65\x76\x6d"])
 def test_create_from_factory(
-    get_contract, deploy_factory_for, w3, keccak, create2_address_of, assert_tx_failed, factory_prefix
+    get_contract,
+    deploy_factory_for,
+    w3,
+    keccak,
+    create2_address_of,
+    assert_tx_failed,
+    factory_prefix,
 ):
     code = """
 @external
@@ -196,14 +202,16 @@ def test2(target: address, salt: bytes32):
 
     # check if the create2 address matches our offchain calculation
     initcode = w3.eth.get_code(f.address)
-    initcode = initcode[len(factory_prefix):]  # strip the prefix
+    initcode = initcode[len(factory_prefix) :]  # strip the prefix
     assert HexBytes(test.address) == create2_address_of(d.address, salt, initcode)
 
     # can't collide addresses
     assert_tx_failed(lambda: d.test2(f.address, salt))
 
 
-def test_create_from_factory_bad_code_offset(get_contract, get_contract_from_ir, deploy_factory_for, w3, assert_tx_failed):
+def test_create_from_factory_bad_code_offset(
+    get_contract, get_contract_from_ir, deploy_factory_for, w3, assert_tx_failed
+):
     deployer_code = """
 FACTORY: immutable(address)
 
@@ -220,7 +228,7 @@ def test(code_ofst: uint256) -> address:
     # (as any STOP instruction returns valid code, split up with
     # jumpdests as optimization fence)
     initcode_len = 100
-    f = get_contract_from_ir(["deploy", 0, ["seq"] + ["jumpdest", "stop"] * (initcode_len//2), 0])
+    f = get_contract_from_ir(["deploy", 0, ["seq"] + ["jumpdest", "stop"] * (initcode_len // 2), 0])
     factory_code = w3.eth.get_code(f.address)
     print(factory_code)
 

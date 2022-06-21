@@ -1867,7 +1867,9 @@ class CreateFromFactory(_CreateBase):
         # (since the abi encoder could write to fresh memory).
         # it would be good to not require the memory copy, but need
         # to evaluate memory safety.
-        with target.cache_when_complex("create_target") as (b1, target), argslen.cache_when_complex("encoded_args_len") as ( b2, encoded_args_len), code_offset.cache_when_complex("code_ofst") as (b3, codeofst):
+        with target.cache_when_complex("create_target") as (b1, target), argslen.cache_when_complex(
+            "encoded_args_len"
+        ) as (b2, encoded_args_len), code_offset.cache_when_complex("code_ofst") as (b3, codeofst):
             codesize = IRnode.from_list(["sub", ["extcodesize", target], codeofst])
             # copy code to memory starting from msize. we are clobbering
             # unused memory so it's safe.
