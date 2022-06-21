@@ -1,7 +1,9 @@
 from collections import OrderedDict
 from typing import Any, Callable, Dict, Optional, Sequence, Union
 
-from vyper.compiler import output
+import vyper.ast as vy_ast  # break an import cycle
+import vyper.codegen.core as codegen
+import vyper.compiler.output as output
 from vyper.compiler.phases import CompilerData
 from vyper.evm.opcodes import DEFAULT_EVM_VERSION, evm_wrapper
 from vyper.typing import (
@@ -112,6 +114,8 @@ def compile_codes(
         ):
             interfaces = interfaces[contract_name]
 
+        # make IR output the same between runs
+        codegen.reset_names()
         compiler_data = CompilerData(
             source_code,
             contract_name,
