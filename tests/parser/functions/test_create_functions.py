@@ -3,7 +3,7 @@ import rlp
 from eth_abi import encode_single
 from hexbytes import HexBytes
 
-from vyper.utils import checksum_encode, keccak256
+from vyper.utils import checksum_encode, keccak256, EIP_170_LIMIT
 
 
 # initcode used by create_minimal_proxy_to
@@ -201,6 +201,42 @@ def test2(target: address, salt: bytes32):
 
     # can't collide addresses
     assert_tx_failed(lambda: d.test2(f.address, salt))
+
+
+def test_create_from_factory_bad_code_offset(get_contract, get_contract_from_ir, deploy_factory_for, w3, assert_tx_failed):
+    deployer_code = """
+FACTORY: immutable(address)
+
+@external
+def __init__(factory_address: address):
+    FACTORY = factory_address
+
+@external
+def test(code_ofst: uint256) -> address:
+    return create_from_factory(FACTORY, code_offset=code_ofst)
+    """
+
+    # use a bunch of JUMPDEST + STOP instructions as factory code
+    # (as any STOP instruction returns valid code, split up with
+    # jumpdests as optimization fence)
+    initcode_len = 100
+    f = get_contract_from_ir(["deploy", 0, ["seq"] + ["jumpdest", "stop"] * (initcode_len//2), 0])
+    factory_code = w3.eth.get_code(f.address)
+    print(factory_code)
+
+    d = get_contract(deployer_code, f.address)
+
+    # deploy with code_ofst=0 fine
+    d.test(0)
+
+    # deploy with code_ofst=len(factory) - 1 fine
+    d.test(initcode_len - 1)
+
+    # code_offset=len(factory_code) NOT fine! would deploy contract with no code
+    assert_tx_failed(lambda: d.test(initcode_len))
+
+    # code_offset=EIP_170_LIMIT definitely not fine!
+    assert_tx_failed(lambda: d.test(EIP_170_LIMIT))
 
 
 # test create_from_factory with args
