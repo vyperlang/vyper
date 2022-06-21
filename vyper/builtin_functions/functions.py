@@ -14,6 +14,7 @@ from vyper.codegen.context import Context
 from vyper.codegen.core import (
     STORE,
     IRnode,
+    _freshname,
     add_ofst,
     bytes_data_ptr,
     calculate_type_for_external_return,
@@ -24,6 +25,7 @@ from vyper.codegen.core import (
     clamp_nonzero,
     copy_bytes,
     ensure_in_memory,
+    eval_once_check,
     eval_seq,
     get_bytearray_length,
     get_element_ptr,
@@ -1247,7 +1249,9 @@ class SelfDestruct(BuiltinFunction):
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
         context.check_is_not_constant("selfdestruct", expr)
-        return IRnode.from_list(["selfdestruct", args[0]])
+        return IRnode.from_list(
+            ["seq", eval_once_check(_freshname("selfdestruct")), ["selfdestruct", args[0]]]
+        )
 
 
 class BlockHash(BuiltinFunction):
@@ -1603,7 +1607,9 @@ def _create_ir(value, buf, length, salt=None, checked=True):
         create_op = "create2"
         args.append(salt)
 
-    ret = IRnode.from_list([create_op, *args])
+    ret = IRnode.from_list(
+        ["seq", eval_once_check(_freshname("create_builtin")), [create_op, *args]]
+    )
 
     if not checked:
         return ret

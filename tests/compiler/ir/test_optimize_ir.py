@@ -8,6 +8,9 @@ optimize_list = [
     (["eq", 1, 2], [0]),
     (["lt", 1, 2], [1]),
     (["eq", "x", 0], ["iszero", "x"]),
+    (["ne", "x", 0], ["iszero", ["iszero", "x"]]),
+    (["ne", "x", 1], None),
+    (["iszero", ["ne", "x", 1]], ["iszero", ["iszero", ["iszero", ["xor", "x", 1]]]]),
     (["eq", ["sload", 0], 0], ["iszero", ["sload", 0]]),
     # branch pruner
     (["if", ["eq", 1, 2], "pass"], ["seq"]),
@@ -16,31 +19,89 @@ optimize_list = [
     (["seq", ["assert", ["lt", 1, 2]]], ["seq"]),
     (["seq", ["assert", ["lt", 1, 2]], 2], [2]),
     # condition rewriter
-    (["if", ["eq", "x", "y"], "pass"], ["if", ["iszero", ["sub", "x", "y"]], "pass"]),
+    (["if", ["eq", "x", "y"], "pass"], ["if", ["iszero", ["xor", "x", "y"]], "pass"]),
     (["if", "cond", 1, 0], ["if", ["iszero", "cond"], 0, 1]),
-    (["assert", ["eq", "x", "y"]], ["assert", ["iszero", ["sub", "x", "y"]]]),
+    (["assert", ["eq", "x", "y"]], ["assert", ["iszero", ["xor", "x", "y"]]]),
     # nesting
     (["mstore", 0, ["eq", 1, 2]], ["mstore", 0, 0]),
     # conditions
     (["ge", "x", 0], [1]),  # x >= 0 == True
     (["ge", ["sload", 0], 0], None),  # no-op
-    (["iszero", ["gt", "x", 2 ** 256 - 1]], [1]),  # x >= MAX_UINT256 == False
-    (["iszero", ["sgt", "x", 2 ** 255 - 1]], [1]),  # signed x >= MAX_INT256 == False
+    (["gt", "x", 2 ** 256 - 1], [0]),  # x >= MAX_UINT256 == False
+    # (x > 0) => x == 0
+    (["iszero", ["gt", "x", 0]], ["iszero", ["iszero", ["iszero", "x"]]]),
+    # !(x < MAX_UINT256) => x == MAX_UINT256
+    (["iszero", ["lt", "x", 2 ** 256 - 1]], ["iszero", ["iszero", ["iszero", ["not", "x"]]]]),
+    # !(x < MAX_INT256) => x == MAX_INT256
+    (
+        ["iszero", ["slt", "x", 2 ** 255 - 1]],
+        ["iszero", ["iszero", ["iszero", ["xor", "x", 2 ** 255 - 1]]]],
+    ),
+    # !(x > MIN_INT256) => x == MIN_INT256
+    (
+        ["iszero", ["sgt", "x", -(2 ** 255)]],
+        ["iszero", ["iszero", ["iszero", ["xor", "x", -(2 ** 255)]]]],
+    ),
+    (["sgt", "x", 2 ** 255 - 1], [0]),  # signed x > MAX_INT256 == False
+    (["sge", "x", 2 ** 255 - 1], ["eq", "x", 2 ** 255 - 1]),
+    (["eq", -1, "x"], ["iszero", ["not", "x"]]),
+    (["iszero", ["eq", -1, "x"]], ["iszero", ["iszero", ["not", "x"]]]),
     (["le", "x", 0], ["iszero", "x"]),
     (["le", 0, "x"], [1]),
     (["le", 0, ["sload", 0]], None),  # no-op
+    (["ge", "x", 0], [1]),
+    # boundary conditions
+    (["slt", "x", -(2 ** 255)], [0]),
+    (["sle", "x", -(2 ** 255)], ["eq", "x", -(2 ** 255)]),
+    (["lt", "x", 2 ** 256 - 1], None),
+    (["le", "x", 2 ** 256 - 1], [1]),
+    (["gt", "x", 0], ["iszero", ["iszero", "x"]]),
+    # x < 0 => false
     (["lt", "x", 0], [0]),
+    # 0 < x => x != 0
     (["lt", 0, "x"], ["iszero", ["iszero", "x"]]),
     (["gt", 5, "x"], None),
-    (["ge", 5, "x"], None),
+    # x < 1 => x == 0
+    (["lt", "x", 1], ["iszero", "x"]),
+    (["slt", "x", 1], None),
+    (["gt", "x", 1], None),
+    (["sgt", "x", 1], None),
+    (["gt", "x", 2 ** 256 - 2], ["iszero", ["not", "x"]]),
+    (["lt", "x", 2 ** 256 - 2], None),
+    (["slt", "x", 2 ** 256 - 2], None),
+    (["sgt", "x", 2 ** 256 - 2], None),
+    (["slt", "x", -(2 ** 255) + 1], ["eq", "x", -(2 ** 255)]),
+    (["sgt", "x", -(2 ** 255) + 1], None),
+    (["lt", "x", -(2 ** 255) + 1], None),
+    (["gt", "x", -(2 ** 255) + 1], None),
+    (["sgt", "x", 2 ** 255 - 2], ["eq", "x", 2 ** 255 - 1]),
+    (["slt", "x", 2 ** 255 - 2], None),
+    (["gt", "x", 2 ** 255 - 2], None),
+    (["lt", "x", 2 ** 255 - 2], None),
+    # 5 > x; x < 5; x <= 4
+    (["iszero", ["gt", 5, "x"]], ["iszero", ["le", "x", 4]]),
+    (["iszero", ["ge", 5, "x"]], None),
+    # 5 >= x; x <= 5; x < 6
+    (["ge", 5, "x"], ["lt", "x", 6]),
     (["lt", 5, "x"], None),
-    (["le", 5, "x"], None),
+    # 5 < x; x > 5; x >= 6
+    (["iszero", ["lt", 5, "x"]], ["iszero", ["ge", "x", 6]]),
+    (["iszero", ["le", 5, "x"]], None),
+    # 5 <= x; x >= 5; x > 4
+    (["le", 5, "x"], ["gt", "x", 4]),
     (["sgt", 5, "x"], None),
-    (["sge", 5, "x"], None),
+    # 5 > x; x < 5; x <= 4
+    (["iszero", ["sgt", 5, "x"]], ["iszero", ["sle", "x", 4]]),
+    (["iszero", ["sge", 5, "x"]], None),
+    # 5 >= x; x <= 5; x < 6
+    (["sge", 5, "x"], ["slt", "x", 6]),
     (["slt", 5, "x"], None),
-    (["sle", 5, "x"], None),
-    (["slt", "x", -(2 ** 255)], ["slt", "x", -(2 ** 255)]),  # unimplemented
-    # tricky conditions
+    # 5 < x; x > 5; x >= 6
+    (["iszero", ["slt", 5, "x"]], ["iszero", ["sge", "x", 6]]),
+    (["iszero", ["sle", 5, "x"]], None),
+    # 5 <= x; x >= 5; x > 4
+    (["sle", 5, "x"], ["sgt", "x", 4]),
+    # tricky constant folds
     (["sgt", 2 ** 256 - 1, 0], [0]),  # -1 > 0
     (["gt", 2 ** 256 - 1, 0], [1]),  # -1 > 0
     (["gt", 2 ** 255, 0], [1]),  # 0x80 > 0
@@ -54,12 +115,21 @@ optimize_list = [
     (["sgt", -(2 ** 255), 2 ** 255], [0]),  # 0x80 > 0x80
     (["slt", 2 ** 255, -(2 ** 255)], [0]),  # 0x80 < 0x80
     # arithmetic
+    (["ceil32", "x"], None),
+    (["ceil32", 0], [0]),
+    (["ceil32", 1], [32]),
+    (["ceil32", 32], [32]),
+    (["ceil32", 33], [64]),
+    (["ceil32", 95], [96]),
+    (["ceil32", 96], [96]),
+    (["ceil32", 97], [128]),
     (["add", "x", 0], ["x"]),
     (["add", 0, "x"], ["x"]),
     (["sub", "x", 0], ["x"]),
     (["sub", "x", "x"], [0]),
     (["sub", ["sload", 0], ["sload", 0]], None),
     (["sub", ["callvalue"], ["callvalue"]], None),
+    (["sub", -1, ["sload", 0]], ["not", ["sload", 0]]),
     (["mul", "x", 1], ["x"]),
     (["div", "x", 1], ["x"]),
     (["sdiv", "x", 1], ["x"]),
@@ -90,6 +160,9 @@ optimize_list = [
     (["exp", 1, "x"], [1]),
     (["exp", 0, "x"], ["iszero", "x"]),
     # bitwise ops
+    (["xor", "x", 2 ** 256 - 1], ["not", "x"]),
+    (["and", "x", 2 ** 256 - 1], ["x"]),
+    (["or", "x", 2 ** 256 - 1], [2 ** 256 - 1]),
     (["shr", 0, "x"], ["x"]),
     (["sar", 0, "x"], ["x"]),
     (["shl", 0, "x"], ["x"]),
@@ -137,6 +210,7 @@ def test_ir_optimizer(ir):
     else:
         expected = IRnode.from_list(ir[1])
     expected.repr_show_gas = True
+    optimized.annotation = None
     assert optimized == expected
 
 
