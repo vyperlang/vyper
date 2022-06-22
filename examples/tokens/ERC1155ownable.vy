@@ -17,8 +17,11 @@ CALLBACK_NUMBYTES: constant(uint256) = 4096
 MAX_URI_LENGTH: constant(uint256) = 300 
 # for dynamic URI 
 MAX_DYNURI_LENGTH: constant(uint256) = 78      
-# dynamic URI status
+
+MAX_URL_LENGTH: constant(uint256) = MAX_URI_LENGTH+MAX_DYNURI_LENGTH # dynamic URI status
 dynamicUri: bool
+
+
 
 # the contract owner
 # not part of the core spec but a common feature for NFT projects
@@ -362,7 +365,7 @@ def toggleDynUri(status: bool):
 
 @view
 @external
-def uri(id: uint256) -> String[MAX_URI_LENGTH+MAX_DYNURI_LENGTH]:
+def uri(id: uint256) -> String[MAX_URL_LENGTH]:
     """
     @dev retrieve the uri. Adds requested ID when dynamic URI is active
     @param id NFT ID to retrieve the uri for. 
