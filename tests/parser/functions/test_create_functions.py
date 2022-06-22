@@ -240,7 +240,7 @@ def test(code_ofst: uint256) -> address:
     # deploy with code_ofst=len(factory) - 1 fine
     d.test(initcode_len - 1)
 
-    # code_offset=len(factory_code) NOT fine! would deploy contract with no code
+    # code_offset=len(factory_code) NOT fine! would EXTCODECOPY empty initcode
     assert_tx_failed(lambda: d.test(initcode_len))
 
     # code_offset=EIP_170_LIMIT definitely not fine!

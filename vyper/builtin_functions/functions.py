@@ -1881,6 +1881,9 @@ class CreateFromFactory(_CreateBase):
                 ir = ["seq"]
 
                 # make sure there is code at the target, and that code_ofst <= (extcodesize target)
+                # (note if code_ofst > (extcodesize target), would be OOG on the EXTCODECOPY)
+                # (code_ofst == (extcodesize target) would be empty initcode, which we disallow
+                # for hygiene reasons - same as `create_copy_of` on an empty target).
                 ir.append(["assert", ["sgt", codesize, 0]])
 
                 # copy the target code into memory.
