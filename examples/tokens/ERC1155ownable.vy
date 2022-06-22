@@ -15,13 +15,13 @@ CALLBACK_NUMBYTES: constant(uint256) = 4096
 
 # URI length set to 300. 
 MAX_URI_LENGTH: constant(uint256) = 300 
-# for dynamic URI 
+# for uint2str / dynamic URI
 MAX_DYNURI_LENGTH: constant(uint256) = 78      
+# for the .json extension on the URL
+MAX_EXTENSION_LENGTH: constant(uint256) = 5  
 
-MAX_URL_LENGTH: constant(uint256) = MAX_URI_LENGTH+MAX_DYNURI_LENGTH # dynamic URI status
+MAX_URL_LENGTH: constant(uint256) = MAX_URI_LENGTH+MAX_DYNURI_LENGTH+MAX_EXTENSION_LENGTH # dynamic URI status
 dynamicUri: bool
-
-
 
 # the contract owner
 # not part of the core spec but a common feature for NFT projects
@@ -371,7 +371,7 @@ def uri(id: uint256) -> String[MAX_URL_LENGTH]:
     @param id NFT ID to retrieve the uri for. 
     """
     if self.dynamicUri:
-        return concat(self.baseuri, uint2str(id))
+        return concat(self.baseuri, uint2str(id), '.json')
     else:
         return self.baseuri
 
