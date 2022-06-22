@@ -310,7 +310,7 @@ def _optimize_binop(binop, args, ann, parent_op):
             return finalize(args[0].value, args[0].args)
 
     # TODO: check me! reduce codesize for negative numbers
-    # if binop in {"add", "sub"} and _int(args[0], SIGNED) < 0:
+    # if binop in {"add", "sub"} and _int(args[1], SIGNED) < 0:
     #     flipped = "add" if binop == "sub" else "sub"
     #     return finalize(flipped, [args[0], -args[1]])
 
