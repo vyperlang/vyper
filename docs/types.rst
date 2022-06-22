@@ -428,7 +428,7 @@ The following code uses bitwise operations to add and revoke permissions from a 
 Reference Types
 ===============
 
-Reference types are those whose components can be assigned to in-place without copying. For instance, array and struct members can be individually assigned to without overwriting the data structure.
+Reference types are those whose components can be assigned to in-place without copying. For instance, array and struct members can be individually assigned to without overwriting the whole data structure.
 
 .. note::
 
