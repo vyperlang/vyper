@@ -89,8 +89,7 @@ def foo(a: uint256, b: uint256) -> uint256:
 
 
 @pytest.mark.fuzzing
-# can be slow
-@settings(max_examples=50, deadline=2000)
+@settings(max_examples=50, deadline=1000)
 @given(
     values=st.lists(st.integers(min_value=-256, max_value=256), min_size=2, max_size=10),
     ops=st.lists(st.sampled_from("+-*/%"), min_size=11, max_size=11),
