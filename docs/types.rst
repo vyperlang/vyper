@@ -161,9 +161,6 @@ Operator                     Description
 
 ``x`` and ``y`` must be of the same type.
 
-.. note::
-    Arithmetic is currently only available for ``uint8`` and ``uint256`` types.
-
 Bitwise Operators
 ^^^^^^^^^^^^^^^^^
 
@@ -172,6 +169,8 @@ Operator       Description
 =============  ======================
 ``x & y``      Bitwise and
 ``x | y``      Bitwise or
+``x ^ y``      Bitwise xor
+``~x``         Bitwise not
 =============  ======================
 
 ``x`` and ``y`` must be of the same type.
