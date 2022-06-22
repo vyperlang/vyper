@@ -86,7 +86,7 @@ jobs:
       run: pip install tox
 
     - name: Run Tox
-      run: TOXENV=py${{ matrix.python-version[1] }}-${{ matrix.flag }} tox -r -- --reruns 10 --reruns-delay 1 -r aR tests/
+      run: TOXENV=py${{ matrix.python-version[1] }}-${{ matrix.flag }} tox -r -- --reruns 10 --reruns-delay 5 -r aR tests/
 
     - name: Upload Coverage
       uses: codecov/codecov-action@v1
