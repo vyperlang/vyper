@@ -242,7 +242,7 @@ def _optimize_binop(binop, args, ann, parent_op):
     # ARITHMETIC AND BITWISE OPS
     ##
 
-    # for commutative or comparison ops, move the literal to the second
+    # for commutative ops, move the literal to the second
     # position to make the later logic cleaner
     if binop in COMMUTATIVE_OPS and _is_int(args[0]):
         args = [args[1], args[0]]
