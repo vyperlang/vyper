@@ -149,6 +149,7 @@ def test_contractURI(erc1155, w3, assert_tx_failed):
 
     assert_tx_failed(lambda: erc1155.setContractURI(CONTRACT_METADATA_URI))
 
+
 def test_URI(erc1155, w3, assert_tx_failed):
     owner, a1, a2, a3, a4, a5 = w3.eth.accounts[0:6]
     # change contract URI and restore.
