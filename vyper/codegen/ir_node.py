@@ -335,7 +335,8 @@ class IRnode:
             and self.value.lower() not in do_not_cache
         )
 
-    # unused, but might be useful for analysis at some point
+    # get the unique symbols contained in this node, which provides
+    # sanity check invariants for the optimizer.
     @cached_property
     def unique_symbols(self):
         ret = set()
