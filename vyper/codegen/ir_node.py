@@ -336,6 +336,7 @@ class IRnode:
         )
 
     # unused, but might be useful for analysis at some point
+    @cached_property
     def unique_symbols(self):
         ret = set()
         if self.value == "unique_symbol":
@@ -345,7 +346,7 @@ class IRnode:
         if self.value == "deploy":
             children = [self.args[0], self.args[2]]
         for arg in children:
-            s = arg.unique_symbols()
+            s = arg.unique_symbols
             non_uniques = ret.intersection(s)
             assert len(non_uniques) == 0, f"non-unique symbols {non_uniques}"
             ret |= s

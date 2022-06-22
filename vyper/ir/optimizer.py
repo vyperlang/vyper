@@ -398,7 +398,7 @@ def _optimize_binop(binop, args, ann, parent_op):
 
 def _check_symbols(symbols, ir_node):
     # sanity check that no `unique_symbol`s got optimized out.
-    to_check = ir_node.unique_symbols()
+    to_check = ir_node.unique_symbols
     if symbols != to_check:
         raise CompilerPanic(f"missing symbols: {symbols - to_check}")
 
@@ -409,7 +409,7 @@ def optimize(node: IRnode) -> IRnode:
 
 
 def _optimize(node: IRnode, parent: Optional[IRnode]) -> Tuple[bool, IRnode]:
-    starting_symbols = node.unique_symbols()
+    starting_symbols = node.unique_symbols
 
     res = [_optimize(arg, node) for arg in node.args]
     argz: list
