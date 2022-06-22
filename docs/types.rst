@@ -360,12 +360,14 @@ Comparisons
 
 Comparisons return a boolean value.
 
-==========  ================
-Operator    Description
-==========  ================
-``x == y``  Equals
-``x != y``  Does not equal
-==========  ================
+============== ================
+Operator       Description
+============== ================
+``x == y``     Equals
+``x != y``     Does not equal
+``x in y``     x is in y
+``x not in y`` x is not in y
+============== ================
 
 Bitwise Operators
 ^^^^^^^^^^^^^^^^^
@@ -400,7 +402,7 @@ The ``in`` and ``not in`` operators can be used in conjunction with enum member 
     def bar(a: Roles) -> bool:
         return a not in (Roles.MANAGER | Roles.USER)
 
-Note that ``in`` is not the same as strict equality (``==``). ``in`` checks that any of the flags on two enum objects match, while ``==`` checks that two enum objects are bit-for-bit equal.
+Note that ``in`` is not the same as strict equality (``==``). ``in`` checks that *any* of the flags on two enum objects match, while ``==`` checks that two enum objects are bit-for-bit equal.
 
 The following code uses bitwise operations to add and revoke permissions from a given ``Roles`` object.
 
