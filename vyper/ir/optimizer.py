@@ -242,7 +242,7 @@ def _optimize_binop(binop, args, ann, parent_op):
     # ARITHMETIC AND BITWISE OPS
     ##
 
-    # for commutative or comparison ops, move the literal to the second
+    # for commutative ops, move the literal to the second
     # position to make the later logic cleaner
     if binop in COMMUTATIVE_OPS and _is_int(args[0]):
         args = [args[1], args[0]]
@@ -310,7 +310,7 @@ def _optimize_binop(binop, args, ann, parent_op):
             return finalize(args[0].value, args[0].args)
 
     # TODO: check me! reduce codesize for negative numbers
-    # if binop in {"add", "sub"} and _int(args[0], SIGNED) < 0:
+    # if binop in {"add", "sub"} and _int(args[1], SIGNED) < 0:
     #     flipped = "add" if binop == "sub" else "sub"
     #     return finalize(flipped, [args[0], -args[1]])
 
@@ -398,7 +398,7 @@ def _optimize_binop(binop, args, ann, parent_op):
 
 def _check_symbols(symbols, ir_node):
     # sanity check that no `unique_symbol`s got optimized out.
-    to_check = ir_node.unique_symbols()
+    to_check = ir_node.unique_symbols
     if symbols != to_check:
         raise CompilerPanic(f"missing symbols: {symbols - to_check}")
 
@@ -409,7 +409,7 @@ def optimize(node: IRnode) -> IRnode:
 
 
 def _optimize(node: IRnode, parent: Optional[IRnode]) -> Tuple[bool, IRnode]:
-    starting_symbols = node.unique_symbols()
+    starting_symbols = node.unique_symbols
 
     res = [_optimize(arg, node) for arg in node.args]
     argz: list
