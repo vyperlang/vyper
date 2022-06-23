@@ -8,29 +8,30 @@ v0.3.4
 
 Date released: 2022-06-2?
 
-New features:
+Non-breaking changes and improvements:
 
-* add enum types (`#2874 <https://github.com/vyperlang/vyper/pull/2874>`_, `#2915 <https://github.com/vyperlang/vyper/pull/2915>`_, `#2925 <https://github.com/vyperlang/vyper/pull/2925>`_)
-* add ``_abi_decode`` builtin (`#2882 <https://github.com/vyperlang/vyper/pull/2882>`_)
-* add ``create_from_factory`` and ``create_copy_of`` builtins (`#2895 <https://github.com/vyperlang/vyper/pull/2895>`_)
-* add ``default_return_value`` kwarg for calls (`#2839 <https://github.com/vyperlang/vyper/pull/2839>`_)
-* add ``uint2str`` builtin (`#2879 <https://github.com/vyperlang/vyper/pull/2879>`_)
-* add vyper signature to bytecode (`#2860 <https://github.com/vyperlang/vyper/pull/2860>`_)
+* Add enum types (`#2874 <https://github.com/vyperlang/vyper/pull/2874>`_, `#2915 <https://github.com/vyperlang/vyper/pull/2915>`_, `#2925 <https://github.com/vyperlang/vyper/pull/2925>`_)
+* Add ``_abi_decode`` builtin (`#2882 <https://github.com/vyperlang/vyper/pull/2882>`_)
+* Add ``create_from_factory`` and ``create_copy_of`` builtins (`#2895 <https://github.com/vyperlang/vyper/pull/2895>`_)
+* Add ``default_return_value`` kwarg for calls (`#2839 <https://github.com/vyperlang/vyper/pull/2839>`_)
+* Add ``uint2str`` builtin (`#2879 <https://github.com/vyperlang/vyper/pull/2879>`_)
+* Add vyper signature to bytecode (`#2860 <https://github.com/vyperlang/vyper/pull/2860>`_)
 
 
 Other fixes and improvements:
 
-* fix: call internal functions from constructor (`#2496 <https://github.com/vyperlang/vyper/pull/2496>`_)
-* feat: arithmetic for new int types (`#2843 <https://github.com/vyperlang/vyper/pull/2843>`_)
-* feat: allow msg.data in raw_call without slice (`#2902 <https://github.com/vyperlang/vyper/pull/2902>`_)
-* fix: type inference and annotation of arguments for builtin functions (`#2817 <https://github.com/vyperlang/vyper/pull/2817>`_)
-* fix: allow varargs for print (`#2833 <https://github.com/vyperlang/vyper/pull/2833>`_)
-* fix: per-method calldatasize checks (`#2911 <https://github.com/vyperlang/vyper/pull/2911>`_)
-* feat: improve ast output (`#2824 <https://github.com/vyperlang/vyper/pull/2824>`_)
-* fix: allow "nonreentrant" on view functions (`#2921 <https://github.com/vyperlang/vyper/pull/2921>`_)
-* fix: enable dynarrays of strings (`#2922 <https://github.com/vyperlang/vyper/pull/2922>`_)
-* feat: optimizer improvements (`#2647 <https://github.com/vyperlang/vyper/pull/2647>`_, `#2868 <https://github.com/vyperlang/vyper/pull/2868>`_, `#2914 <https://github.com/vyperlang/vyper/pull/2914>`_, `#2843 <https://github.com/vyperlang/vyper/pull/2843>`_)
-* ux: reverse order in which exceptions are reported (`#2838 <https://github.com/vyperlang/vyper/pull/2838>`_)
+* Call internal functions from constructor (`#2496 <https://github.com/vyperlang/vyper/pull/2496>`_)
+* Arithmetic for new int types (`#2843 <https://github.com/vyperlang/vyper/pull/2843>`_)
+* Allow msg.data in raw_call without slice (`#2902 <https://github.com/vyperlang/vyper/pull/2902>`_)
+* Type inference and annotation of arguments for builtin functions (`#2817 <https://github.com/vyperlang/vyper/pull/2817>`_)
+* Allow varargs for print (`#2833 <https://github.com/vyperlang/vyper/pull/2833>`_)
+* Per-method calldatasize checks (`#2911 <https://github.com/vyperlang/vyper/pull/2911>`_)
+* Improve ast output (`#2824 <https://github.com/vyperlang/vyper/pull/2824>`_)
+* Multiple evaluation of contract address in call (`GHSA-4v9q-cgpw-cf38 <https://github.com/vyperlang/vyper/security/advisories/GHSA-4v9q-cgpw-cf38>`_)
+* Allow "nonreentrant" on view functions (`#2921 <https://github.com/vyperlang/vyper/pull/2921>`_)
+* Enable dynarrays of strings (`#2922 <https://github.com/vyperlang/vyper/pull/2922>`_)
+* Optimizer improvements (`#2647 <https://github.com/vyperlang/vyper/pull/2647>`_, `#2868 <https://github.com/vyperlang/vyper/pull/2868>`_, `#2914 <https://github.com/vyperlang/vyper/pull/2914>`_, `#2843 <https://github.com/vyperlang/vyper/pull/2843>`_)
+* Reverse order in which exceptions are reported (`#2838 <https://github.com/vyperlang/vyper/pull/2838>`_)
 
 
 Many other small bugfixes, optimizations and refactoring also made it into this release! Special thanks to @tserg and @pandadefi for contributing several important bugfixes, refactoring and features to this release!
