@@ -6,6 +6,7 @@ from vyper.codegen.types import (
     parse_decimal_info,
     parse_integer_typeinfo,
 )
+from vyper.exceptions import InvalidType, OverflowException
 from vyper.utils import int_bounds
 
 
@@ -25,6 +26,31 @@ def foo() -> {typ}:
         assert c.foo() == lo
     elif op == "max_value":
         assert c.foo() == hi
+
+
+@pytest.mark.parametrize("typ", sorted(INTEGER_TYPES))
+def test_minmax_value_int_oob(get_contract, assert_compile_failed, typ):
+    upper = f"""
+@external
+def foo():
+    a: {typ} = max_value({typ}) + 1
+    """
+
+    lower = f"""
+@external
+def foo():
+    a: {typ} = min_value({typ}) - 1
+    """
+
+    if typ == "uint256":
+        assert_compile_failed(lambda: get_contract(upper), OverflowException)
+    else:
+        assert_compile_failed(lambda: get_contract(upper), InvalidType)
+
+    if typ == "int256":
+        assert_compile_failed(lambda: get_contract(lower), OverflowException)
+    else:
+        assert_compile_failed(lambda: get_contract(lower), InvalidType)
 
 
 @pytest.mark.parametrize("typ", sorted(DECIMAL_TYPES))

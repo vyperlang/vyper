@@ -7,7 +7,12 @@ fail_list = [
 @external
 def foo():
     a: address = min_value(address)
+    """,
     """
+@external
+def foo():
+    a: address = max_value(address)
+    """,
 ]
 
 
