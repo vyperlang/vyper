@@ -32,7 +32,7 @@ Bitwise Operations
 
 .. py:function:: bitwise_not(x: uint256) -> uint256
 
-    Return the complement of ``x`` - the number you get by switching each 1 for a 0 and each 0 for a 1.
+    Return the bitwise complement of ``x`` - the number you get by switching each 1 for a 0 and each 0 for a 1.
 
     .. code-block:: python
 
@@ -45,6 +45,10 @@ Bitwise Operations
 
         >>> ExampleContract.foo(0)
         115792089237316195423570985008687907853269984665640564039457584007913129639935
+
+.. note::
+
+  This function has been deprecated from version 0.3.4 onwards. Please use the ``~`` operator instead.
 
 .. py:function:: bitwise_or(x: uint256, y: uint256) -> uint256
 
@@ -81,6 +85,10 @@ Bitwise Operations
 
         >>> ExampleContract.foo(31337, 8008135)
         8014766
+
+.. note::
+
+  This function has been deprecated from version 0.3.4 onwards. Please use the ``^`` operator instead.
 
 .. py:function:: shift(x: uint256, _shift: int128) -> uint256
 
