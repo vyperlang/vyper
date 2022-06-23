@@ -106,6 +106,7 @@ from vyper.utils import (
     bytes_to_int,
     ceil32,
     fourbytes_to_int,
+    int_bounds,
     keccak256,
     vyper_warn,
 )
@@ -2440,6 +2441,47 @@ class ABIDecode(BuiltinFunction):
             )
 
 
+class _MinMaxValue(BuiltinFunction):
+    _inputs = [("typename", "TYPE_DEFINITION")]
+
+    def evaluate(self, node):
+        validate_call_args(node, 1)
+        input_type = get_type_from_annotation(node.args[0], DataLocation.MEMORY)
+
+        if not isinstance(input_type, NumericAbstractType):
+            raise InvalidType(f"Expected numeric type but got {input_type}", node)
+
+        if isinstance(input_type, DecimalDefinition):
+            val = self._eval_fn(SizeLimits.MIN_AST_DECIMAL, SizeLimits.MAX_AST_DECIMAL)
+            return vy_ast.Decimal.from_node(node, value=val)
+        elif isinstance(input_type, IntegerAbstractType):
+            (lo, hi) = int_bounds(input_type._is_signed, input_type._bits)
+            val = self._eval_fn(lo, hi)
+            return vy_ast.Int.from_node(node, value=val)
+
+    def fetch_call_return(self, node):
+        raise CompilerPanic(f"{self._id} should always be folded")
+
+    def infer_arg_types(self, node):
+        raise CompilerPanic(f"{self._id} should always be folded")
+
+    def infer_kwarg_types(self, node):
+        raise CompilerPanic(f"{self._id} should always be folded")
+
+    def build_IR(self, *args, **kwargs):
+        raise CompilerPanic(f"{self._id} should always be folded")
+
+
+class MinValue(_MinMaxValue):
+    _id = "min_value"
+    _eval_fn = min
+
+
+class MaxValue(_MinMaxValue):
+    _id = "max_value"
+    _eval_fn = max
+
+
 DISPATCH_TABLE = {
     "_abi_encode": ABIEncode(),
     "_abi_decode": ABIDecode(),
@@ -2481,6 +2523,8 @@ DISPATCH_TABLE = {
     "max": Max(),
     "empty": Empty(),
     "abs": Abs(),
+    "min_value": MinValue(),
+    "max_value": MaxValue(),
 }
 
 STMT_DISPATCH_TABLE = {
