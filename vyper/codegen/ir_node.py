@@ -337,6 +337,11 @@ class IRnode:
 
     # get the unique symbols contained in this node, which provides
     # sanity check invariants for the optimizer.
+    # cache because it's a perf hotspot. note that this (and other cached
+    # properties!) can get borked if `self.args` are mutated in such a way
+    # which changes the child `.unique_symbols`. in the future it would
+    # be good to tighten down the hatches so it is harder to modify
+    # IRnode member variables.
     @cached_property
     def unique_symbols(self):
         ret = set()
