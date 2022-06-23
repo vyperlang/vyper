@@ -132,9 +132,9 @@ assign: (variable_access | multiple_assign | "(" multiple_assign ")" ) "=" _expr
              | ">>" -> shr
              | _BITAND -> bitand
              | _BITOR -> bitor
+             | _BITXOR -> bitxor
              | _AND -> and
              | _OR  -> or
-             | _XOR -> xor
 // NOTE: Post-process into a normal assign
 aug_assign: variable_access aug_operator "=" _expr
 
@@ -203,6 +203,7 @@ _SHL: "<<"
 _SHR: ">>"
 _BITAND: "&"
 _BITOR: "|"
+_BITXOR: "^"
 // Binary Operations
 // NOTE: Keep these in sync with aug_assign above
 ?bin_op: product
@@ -213,6 +214,7 @@ _BITOR: "|"
        | bin_op _SHR product -> shr
        | bin_op _BITAND product -> bitand
        | bin_op _BITOR product -> bitor
+       | bin_op _BITXOR product -> bitxor
 ?product: power
         | product "*"   power -> mul
         | product "/"   power -> div
@@ -223,18 +225,17 @@ _BITOR: "|"
 _AND: "and"
 _OR: "or"
 _NOT: "not"
-_XOR: "xor"
 
 // Boolean Operations
 ?bool_op: unary_op
         | bool_op _AND unary_op -> and
         | bool_op _OR  unary_op -> or
-        | bool_op _XOR unary_op -> xor
 
 // Unary Operations
 ?unary_op: comparator
          | "+"  unary_op -> uadd
          | "-"  unary_op -> usub
+         | "~"  unary_op -> invert
          | _NOT unary_op -> not
 
 // Comparisions

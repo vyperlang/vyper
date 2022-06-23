@@ -954,15 +954,10 @@ def clamp_basetype(ir_node):
 
     if isinstance(t, EnumType):
         bits = len(t.members)
-        # assert x >> bits == 0 and x != 0
-        # assert !(x >> bits != 0 | x == 0)
-        with ir_node.cache_when_complex("e") as (b1, ir_node):
-            ok = ["iszero", ["or", shr(bits, ir_node), ["iszero", ir_node]]]
-            return IRnode.from_list(
-                b1.resolve(["seq", ["assert", ok], ir_node]), annotation=f"clamp enum {t.name}"
-            )
+        # assert x >> bits == 0
+        ret = int_clamp(ir_node, bits, signed=False)
 
-    if is_integer_type(t) or is_decimal_type(t):
+    elif is_integer_type(t) or is_decimal_type(t):
         if t._num_info.bits == 256:
             ret = ir_node
         else:

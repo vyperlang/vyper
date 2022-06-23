@@ -35,7 +35,8 @@ class EnumDefinition(MemberTypeDefinition, ValueTypeDefinition):
         return ABI_GIntM(m_bits=256, signed=False)
 
     def validate_numeric_op(self, node):
-        if isinstance(node.op, (vy_ast.BitOr, vy_ast.BitAnd)):
+        allowed_ops = (vy_ast.BitOr, vy_ast.BitAnd, vy_ast.Invert, vy_ast.BitXor)
+        if isinstance(node.op, allowed_ops):
             return
         # fallback to parent class error message
         super().validate_numeric_op(node)
