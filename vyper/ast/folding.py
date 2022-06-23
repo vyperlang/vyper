@@ -7,7 +7,6 @@ from vyper.exceptions import UnfoldableNode, UnknownType
 from vyper.semantics.types.bases import BaseTypeDefinition, DataLocation
 from vyper.semantics.types.utils import get_type_from_annotation
 
-
 BUILTIN_CONSTANTS = {
     "EMPTY_BYTES32": (
         vy_ast.Hex,
