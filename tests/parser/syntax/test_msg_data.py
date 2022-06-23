@@ -65,9 +65,9 @@ def test_memory_pointer_advances_appropriately(get_contract, keccak):
     code = """
 @external
 def foo() -> (uint256, Bytes[4], uint256):
-    a: uint256 = MAX_UINT256
+    a: uint256 = max_value(uint256)
     b: Bytes[4] = slice(msg.data, 0, 4)
-    c: uint256 = MAX_UINT256
+    c: uint256 = max_value(uint256)
 
     return (a, b, c)
 """

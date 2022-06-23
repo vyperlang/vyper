@@ -37,7 +37,7 @@ def test_uint256(a: uint256) -> bool:
 
 @external
 def test_arithmetic(a: int128) -> int128:
-    return MAX_INT128 - a
+    return max_value(int128) - a
     """
 
     c = get_contract_with_gas_estimation(code)
