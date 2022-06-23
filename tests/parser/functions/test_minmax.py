@@ -239,19 +239,19 @@ def test_signed(get_contract_with_gas_estimation):
     code = """
 @external
 def foo1() -> int128:
-    return min(MIN_INT128, MAX_INT128)
+    return min(min_value(int128), max_value(int128))
 
 @external
 def foo2() -> int128:
-    return min(MAX_INT128, MIN_INT128)
+    return min(max_value(int128), min_value(int128))
 
 @external
 def foo3() -> int128:
-    return max(MIN_INT128, MAX_INT128)
+    return max(min_value(int128), max_value(int128))
 
 @external
 def foo4() -> int128:
-    return max(MAX_INT128, MIN_INT128)
+    return max(max_value(int128), min_value(int128))
     """
 
     c = get_contract_with_gas_estimation(code)

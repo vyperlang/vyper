@@ -200,12 +200,5 @@ RESERVED_KEYWORDS = {
     # sentinal constant values
     "zero_address",
     "empty_bytes32",
-    "max_int128",
-    "min_int128",
-    "max_int256",
-    "min_int256",
-    "max_decimal",
-    "min_decimal",
-    "max_uint256",
     "zero_wei",
 }

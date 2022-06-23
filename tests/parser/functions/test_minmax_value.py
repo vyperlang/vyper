@@ -6,7 +6,6 @@ from vyper.codegen.types import (
     parse_decimal_info,
     parse_integer_typeinfo,
 )
-from vyper.exceptions import InvalidType
 from vyper.utils import int_bounds
 
 
