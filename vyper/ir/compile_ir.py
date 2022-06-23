@@ -227,7 +227,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
     if existing_labels is None:
         existing_labels = set()
     if not isinstance(existing_labels, set):
-        raise CompilerPanic(f"Incorrect type for existing_labels: {type(existing_labels)}")
+        raise CompilerPanic(f"must be set(), but got {type(existing_labels)}")
 
     # Opcodes
     if isinstance(code.value, str) and code.value.upper() in get_opcodes():
@@ -695,6 +695,17 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
 
         return ["_sym_" + label_name, "JUMPDEST"] + body_asm + pop_scoped_vars
 
+    elif code.value == "unique_symbol":
+        symbol = code.args[0].value
+        assert isinstance(symbol, str)
+
+        if symbol in existing_labels:
+            raise Exception(f"symbol {symbol} already exists!")
+        else:
+            existing_labels.add(symbol)
+
+        return []
+
     elif code.value == "exit_to":
         raise CodegenPanic("exit_to not implemented yet!")
 
@@ -806,14 +817,34 @@ def _merge_jumpdests(assembly):
     return changed
 
 
+_RETURNS_ZERO_OR_ONE = {
+    "LT",
+    "GT",
+    "SLT",
+    "SGT",
+    "EQ",
+    "ISZERO",
+    "CALL",
+    "STATICCALL",
+    "CALLCODE",
+    "DELEGATECALL",
+}
+
+
 def _merge_iszero(assembly):
     changed = False
 
     i = 0
+    # list of opcodes that return 0 or 1
     while i < len(assembly) - 2:
-        if assembly[i : i + 3] == ["ISZERO", "ISZERO", "ISZERO"]:
+        if (
+            isinstance(assembly[i], str)
+            and assembly[i] in _RETURNS_ZERO_OR_ONE
+            and assembly[i + 1 : i + 3] == ["ISZERO", "ISZERO"]
+        ):
             changed = True
-            del assembly[i : i + 2]
+            # drop the extra iszeros
+            del assembly[i + 1 : i + 3]
         else:
             i += 1
     i = 0

@@ -1,5 +1,5 @@
 import operator
-from typing import List, Optional, Union
+from typing import List, Optional, Tuple, Union
 
 from vyper.codegen.ir_node import IRnode
 from vyper.evm.opcodes import version_check
@@ -8,6 +8,7 @@ from vyper.utils import (
     ceil32,
     evm_div,
     evm_mod,
+    int_bounds,
     int_log2,
     is_power_of_two,
     signed_to_unsigned,
@@ -84,7 +85,7 @@ def _flip_comparison_op(opname):
         return opname.replace("g", "l")
     if "l" in opname:
         return opname.replace("l", "g")
-    raise CompilerPanic(f"bad comparison op {opname}")
+    raise CompilerPanic(f"bad comparison op {opname}")  # pragma: notest
 
 
 # some annotations are really long. shorten them (except maybe in "verbose" mode?)
@@ -94,22 +95,113 @@ def _shorten_annotation(annotation):
     return annotation
 
 
+def _wrap256(x, unsigned=UNSIGNED):
+    x %= 2 ** 256
+    # wrap in a signed way.
+    if not unsigned:
+        x = unsigned_to_signed(x, 256, strict=True)
+    return x
+
+
+def _comparison_helper(binop, args, prefer_strict=False):
+    assert binop in COMPARISON_OPS
+
+    if _is_int(args[0]):
+        binop = _flip_comparison_op(binop)
+        args = [args[1], args[0]]
+
+    unsigned = not binop.startswith("s")
+    is_strict = binop.endswith("t")
+    is_gt = "g" in binop
+
+    # local version of _evm_int which defaults to the current binop's signedness
+    def _int(x):
+        return _evm_int(x, unsigned=unsigned)
+
+    lo, hi = int_bounds(bits=256, signed=not unsigned)
+
+    # for comparison operators, we have three special boundary cases:
+    # almost always, never and almost never.
+    # almost_always is always true for the non-strict ("ge" and co)
+    # comparators. for strict comparators ("gt" and co), almost_always
+    # is true except for one case. never is never true for the strict
+    # comparators. never is almost always false for the non-strict
+    # comparators, except for one case. and almost_never is almost
+    # never true (except one case) for the strict comparators.
+    if is_gt:
+        almost_always, never = lo, hi
+        almost_never = hi - 1
+    else:
+        almost_always, never = hi, lo
+        almost_never = lo + 1
+
+    if is_strict and _int(args[1]) == never:
+        # e.g. gt x MAX_UINT256, slt x MIN_INT256
+        return (0, [])
+
+    if not is_strict and _int(args[1]) == almost_always:
+        # e.g. ge x MIN_UINT256, sle x MAX_INT256
+        return (1, [])
+
+    if is_strict and _int(args[1]) == almost_never:
+        # (lt x 1), (gt x (MAX_UINT256 - 1)), (slt x (MIN_INT256 + 1))
+        return ("eq", [args[0], never])
+
+    # rewrites. in positions where iszero is preferred, (gt x 5) => (ge x 6)
+    if is_strict != prefer_strict and _is_int(args[1]):
+        rhs = _int(args[1])
+
+        if prefer_strict and rhs == never:
+            # e.g. ge x MAX_UINT256, sle x MIN_INT256
+            return ("eq", args)
+
+        if not prefer_strict and rhs == almost_always:
+            # e.g. gt x 0, slt x MAX_INT256
+            return ("ne", args)
+
+        if is_gt == is_strict:
+            # x > 1 => x >= 2
+            # x <= 1 => x < 2
+            new_rhs = rhs + 1
+        else:
+            # x >= 1 => x > 0
+            # x < 1 => x <= 0
+            new_rhs = rhs - 1
+
+        # if args[1] is OOB, it should have been handled above
+        # in the always/never cases
+        assert _wrap256(new_rhs, unsigned) == new_rhs, "bad optimizer step"
+
+        # change the strictness of the op
+        if prefer_strict:
+            # e.g. "sge" => "sgt"
+            new_op = binop.replace("e", "t")
+        else:
+            # e.g. "sgt" => "sge"
+            new_op = binop.replace("t", "e")
+
+        return (new_op, [args[0], new_rhs])
+
+    # special cases that are not covered by others:
+
+    if binop == "gt" and _int(args[1]) == 0:
+        # improve codesize (not gas), and maybe trigger
+        # downstream optimizations
+        return ("iszero", [["iszero", args[0]]])
+
+
 # def _optimize_arith(
 #    binop: str, args: IRArgs, ann: Optional[str], parent_op: Any = None
 # ) -> Tuple[IRVal, IRArgs, Optional[str]]:
-def _optimize_arith(binop, args, ann, parent_op):
+def _optimize_binop(binop, args, ann, parent_op):
     fn, symb, unsigned = arith[binop]
 
     # local version of _evm_int which defaults to the current binop's signedness
     def _int(x, unsigned=unsigned):
         return _evm_int(x, unsigned=unsigned)
 
-    def _wrap(x, unsigned=unsigned):
-        x %= 2 ** 256
-        # wrap in a signed way.
-        if not unsigned:
-            x = unsigned_to_signed(x, 256, strict=True)
-        return x
+    def _wrap(x):
+        return _wrap256(x, unsigned=unsigned)
 
     new_ann = None
     if ann is not None:
@@ -118,15 +210,24 @@ def _optimize_arith(binop, args, ann, parent_op):
         new_ann = l_ann + symb + r_ann
         new_ann = f"{ann} ({new_ann})"
 
+    def finalize(new_val, new_args):
+        # if the original had side effects which might not be in the
+        # optimized output, roll back the optimization
+        rollback = (args[0].is_complex_ir and not _deep_contains(new_args, args[0])) or (
+            args[1].is_complex_ir and not _deep_contains(new_args, args[1])
+        )
+
+        if rollback:
+            return None
+
+        return new_val, new_args, new_ann
+
     if _is_int(args[0]) and _is_int(args[1]):
         # compile-time arithmetic
         left, right = _int(args[0]), _int(args[1])
         new_val = fn(left, right)
         new_val = _wrap(new_val)
-        return new_val, [], new_ann
-
-    new_val = None
-    new_args = None
+        return finalize(new_val, [])
 
     # we can return truthy values instead of actual math
     is_truthy = parent_op in {"if", "assert", "iszero"}
@@ -138,194 +239,186 @@ def _optimize_arith(binop, args, ann, parent_op):
         return x.args == y.args == [] and x.value == y.value and not x.is_complex_ir
 
     ##
-    # ARITHMETIC
+    # ARITHMETIC AND BITWISE OPS
     ##
 
-    # for commutative or comparison ops, move the literal to the second
+    # for commutative ops, move the literal to the second
     # position to make the later logic cleaner
     if binop in COMMUTATIVE_OPS and _is_int(args[0]):
         args = [args[1], args[0]]
 
-    if binop in COMPARISON_OPS and _is_int(args[0]):
-        binop = _flip_comparison_op(binop)
-        args = [args[1], args[0]]
-
     if binop in {"add", "sub", "xor", "or"} and _int(args[1]) == 0:
         # x + 0 == x - 0 == x | 0 == x ^ 0 == x
-        new_val = args[0].value
-        new_args = args[0].args
+        return finalize(args[0].value, args[0].args)
 
-    elif binop in {"sub", "xor", "eq", "ne"} and _conservative_eq(args[0], args[1]):
-        if binop == "eq":
-            # (x == x) == 1
-            new_val = 1
-        else:
-            # x - x == x ^ x == x != x == 0
-            new_val = 0
-        new_args = []
+    if binop in {"sub", "xor", "ne"} and _conservative_eq(args[0], args[1]):
+        # x - x == x ^ x == x != x == 0
+        return finalize(0, [])
+
+    if binop == "eq" and _conservative_eq(args[0], args[1]):
+        # (x == x) == 1
+        return finalize(1, [])
 
     # TODO associativity rules
 
-    elif binop in {"mul", "div", "sdiv", "mod", "smod", "and"} and _int(args[1]) == 0:
-        new_val = 0
-        new_args = []
+    # x * 0 == x / 0 == x % 0 == x & 0 == 0
+    if binop in {"mul", "div", "sdiv", "mod", "smod", "and"} and _int(args[1]) == 0:
+        return finalize(0, [])
 
-    elif binop in {"mod", "smod"} and _int(args[1]) == 1:
-        new_val = 0
-        new_args = []
+    # x % 1 == 0
+    if binop in {"mod", "smod"} and _int(args[1]) == 1:
+        return finalize(0, [])
 
-    elif binop in {"mul", "div", "sdiv"} and _int(args[1]) == 1:
-        new_val = args[0].value
-        new_args = args[0].args
+    # x * 1 == x / 1 == x
+    if binop in {"mul", "div", "sdiv"} and _int(args[1]) == 1:
+        return finalize(args[0].value, args[0].args)
 
     # x * -1 == 0 - x
-    elif binop in {"mul", "sdiv"} and _int(args[1], SIGNED) == -1:
-        new_val = "sub"
-        new_args = [0, args[0]]
+    if binop in {"mul", "sdiv"} and _int(args[1], SIGNED) == -1:
+        return finalize("sub", [0, args[0]])
 
-    elif binop == "exp":
+    if binop in {"and", "or", "xor"} and _int(args[1], SIGNED) == -1:
+        assert unsigned == UNSIGNED
+        if binop == "and":
+            # -1 & x == x
+            return finalize(args[0].value, args[0].args)
+
+        if binop == "xor":
+            # -1 ^ x == ~x
+            return finalize("not", [args[0]])
+
+        if binop == "or":
+            # -1 | x == -1
+            return finalize(args[1].value, [])
+
+        raise CompilerPanic("unreachable")  # pragma: notest
+
+    # -1 - x == ~x (definition of two's complement)
+    if binop == "sub" and _int(args[0], SIGNED) == -1:
+        return finalize("not", [args[1]])
+
+    if binop == "exp":
         # n ** 0 == 1 (forall n)
         # 1 ** n == 1
         if _int(args[1]) == 0 or _int(args[0]) == 1:
-            new_val = 1
-            new_args = []
+            return finalize(1, [])
         # 0 ** n == (1 if n == 0 else 0)
         if _int(args[0]) == 0:
-            new_val = "iszero"
-            new_args = [args[1]]
+            return finalize("iszero", [args[1]])
         # n ** 1 == n
         if _int(args[1]) == 1:
-            new_val = args[0].value
-            new_args = args[0].args
+            return finalize(args[0].value, args[0].args)
 
-    # maybe OK:
+    # TODO: check me! reduce codesize for negative numbers
+    # if binop in {"add", "sub"} and _int(args[1], SIGNED) < 0:
+    #     flipped = "add" if binop == "sub" else "sub"
+    #     return finalize(flipped, [args[0], -args[1]])
+
+    # TODO maybe OK:
     # elif binop == "div" and _int(args[1], UNSIGNED) == MAX_UINT256:
     #    # (div x (2**256 - 1)) == (eq x (2**256 - 1))
     #    new_val = "eq"
     #    args = args
 
-    elif binop in {"mod", "div", "mul"} and _is_int(args[1]) and is_power_of_two(_int(args[1])):
+    if binop in {"mod", "div", "mul"} and _is_int(args[1]) and is_power_of_two(_int(args[1])):
         assert unsigned == UNSIGNED, "something's not right."
         # shave two gas off mod/div/mul for powers of two
+        # x % 2**n == x & (2**n - 1)
         if binop == "mod":
-            new_val = "and"
-            new_args = [args[0], _int(args[1]) - 1]
+            return finalize("and", [args[0], _int(args[1]) - 1])
+
         if binop == "div" and version_check(begin="constantinople"):
-            new_val = "shr"
+            # x / 2**n == x >> n
             # recall shr/shl have unintuitive arg order
-            new_args = [int_log2(_int(args[1])), args[0]]
+            return finalize("shr", [int_log2(_int(args[1])), args[0]])
+
         # note: no rule for sdiv since it rounds differently from sar
         if binop == "mul" and version_check(begin="constantinople"):
-            new_val = "shl"
-            new_args = [int_log2(_int(args[1])), args[0]]
+            # x * 2**n == x << n
+            return finalize("shl", [int_log2(_int(args[1])), args[0]])
 
-    elif binop in {"and", "or", "xor"} and _int(args[1]) == 2 ** 256 - 1:
-        if binop == "and":
-            new_val = args[0].value
-            new_args = args[0].args
-        elif binop == "xor":
-            new_val = "not"
-            new_args = [args[0]]
-        elif binop == "or":
-            new_val = args[1].value
-            new_args = []
-        else:  # pragma: nocover
+        # reachable but only after constantinople
+        if version_check(begin="constantinople"):  # pragma: nocover
             raise CompilerPanic("unreachable")
 
     ##
     # COMPARISONS
     ##
 
+    if binop == "eq" and _int(args[1]) == 0:
+        return finalize("iszero", [args[0]])
+
+    # can't improve gas but can improve codesize
+    if binop == "ne" and _int(args[1]) == 0:
+        return finalize("iszero", [["iszero", args[0]]])
+
+    if binop == "eq" and _int(args[1], SIGNED) == -1:
+        # equal gas, but better codesize
+        # x == MAX_UINT256 => ~x == 0
+        return finalize("iszero", [["not", args[0]]])
+
     # note: in places where truthy is accepted, sequences of
     # ISZERO ISZERO will be optimized out, so we try to rewrite
     # some operations to include iszero
     # (note ordering; truthy optimizations should come first
     # to avoid getting clobbered by other branches)
-    # TODO: rethink structure of is_truthy optimizations.
-    elif is_truthy:
+    if is_truthy:
         if binop == "eq":
-            # x == 0xff...ff => ~x == 0
-            if _int(args[1], UNSIGNED) == 2 ** 256 - 1:
-                new_val = "iszero"
-                new_args = [["not", args[0]]]
-            else:
-                # (eq x y) has the same truthyness as (iszero (sub x y))
-                new_val = "iszero"
-                new_args = [["sub", *args]]
-        # no rule needed for "ne" as it will get compiled to
-        # `(iszero (eq x y))` anyways.
+            assert unsigned == UNSIGNED
+            # (eq x y) has the same truthyness as (iszero (xor x y))
+            # it also has the same truthyness as (iszero (sub x y)),
+            # but xor is slightly easier to optimize because of being
+            # commutative.
+            # note that (xor (-1) x) has its own rule
+            return finalize("iszero", [["xor", args[0], args[1]]])
+
+        if binop == "ne":
+            # trigger other optimizations
+            return finalize("iszero", [["eq", *args]])
 
         # TODO can we do this?
         # if val == "div":
-        #    val = "gt"
-        #    args = ["iszero", args]
+        #     return finalize("gt", ["iszero", args])
 
-        elif binop in {"sgt", "gt", "slt", "lt"} and _is_int(args[1]):
-            assert unsigned == (not binop.startswith("s")), "signed opcodes should start with s"
-            op_is_gt = binop.endswith("gt")
-            rhs = _int(args[1])
-
-            # x > 1 => x >= 2
-            # x < 1 => x <= 0
-            new_rhs = rhs + 1 if op_is_gt else rhs - 1
-
-            in_bounds = _wrap(new_rhs) == new_rhs
-            if not in_bounds:
-                # always false. ex. (gt x MAX_UINT256)
-                # note that the wrapped version (ge x 0) is always true.
-                new_val = 0
-                new_args = []
-
-            else:
-                # e.g. "sgt" => "sge"
-                new_val = binop.replace("t", "e")
-                new_args = [args[0], new_rhs]
-
-        elif binop == "or" and _is_int(args[1]):
+        if binop == "or" and _is_int(args[1]) and _int(args[1]) != 0:
             # (x | y != 0) for any (y != 0)
-            if _int(args[1]) != 0:
-                new_val = 1
-                new_args = []
+            return finalize(1, [])
 
-    # (le x 0) seems like a linting issue actually
-    elif binop in {"eq", "le"} and _int(args[1]) == 0:
-        new_val = "iszero"
-        new_args = [args[0]]
+    if binop in COMPARISON_OPS:
+        prefer_strict = not is_truthy
+        res = _comparison_helper(binop, args, prefer_strict=prefer_strict)
+        if res is None:
+            return res
+        new_op, new_args = res
+        return finalize(new_op, new_args)
 
-    # TODO: these comparisons are incomplete, e.g. slt x MIN_INT256.
-    # figure out if we can combine with the logic in is_truthy to be
-    # more generic
-    elif binop == "ge" and _int(args[1]) == 0:
-        new_val = 1
-        new_args = []
-
-    elif binop == "lt":
-        if _int(args[1]) == 0:
-            new_val = 0
-            new_args = []
-        if _int(args[1]) == 1:
-            new_val = "iszero"
-            new_args = [args[0]]
-
-    # gt x 0 == x != 0 == (iszero (iszero x))
-    elif binop in ("gt", "ne") and _int(args[1]) == 0:
-        new_val = "iszero"
-        new_args = [["iszero", args[0]]]
-
-    rollback = (
-        new_val is None
-        or (args[0].is_complex_ir and not _deep_contains(new_args, args[0]))
-        or (args[1].is_complex_ir and not _deep_contains(new_args, args[1]))
-    )
-
-    if rollback:
-        return None
-
-    return new_val, new_args, new_ann
+    # no optimization happened
+    return None
 
 
-def optimize(node: IRnode, parent: Optional[IRnode] = None) -> IRnode:
-    argz = [optimize(arg, node) for arg in node.args]
+def _check_symbols(symbols, ir_node):
+    # sanity check that no `unique_symbol`s got optimized out.
+    to_check = ir_node.unique_symbols
+    if symbols != to_check:
+        raise CompilerPanic(f"missing symbols: {symbols - to_check}")
+
+
+def optimize(node: IRnode) -> IRnode:
+    _, ret = _optimize(node, parent=None)
+    return ret
+
+
+def _optimize(node: IRnode, parent: Optional[IRnode]) -> Tuple[bool, IRnode]:
+    starting_symbols = node.unique_symbols
+
+    res = [_optimize(arg, node) for arg in node.args]
+    argz: list
+    if len(res) == 0:
+        args_changed, argz = False, []
+    else:
+        changed_flags, argz = zip(*res)  # type: ignore
+        args_changed = any(changed_flags)
+        argz = list(argz)
 
     value = node.value
     typ = node.typ
@@ -334,8 +427,20 @@ def optimize(node: IRnode, parent: Optional[IRnode] = None) -> IRnode:
     annotation = node.annotation
     add_gas_estimate = node.add_gas_estimate
 
-    def finalize(ir_builder):
-        return IRnode.from_list(
+    changed = False
+
+    # in general, we cannot enforce the symbols check. for instance,
+    # the dead branch eliminator will almost always trip the symbols check.
+    # but for certain operations, particularly binops, we want to do the check.
+    should_check_symbols = False
+
+    def finalize(val, args):
+        if not changed and not args_changed:
+            # skip IRnode.from_list, which may be (compile-time) expensive
+            return False, node
+
+        ir_builder = [val, *args]
+        ret = IRnode.from_list(
             ir_builder,
             typ=typ,
             location=location,
@@ -344,61 +449,69 @@ def optimize(node: IRnode, parent: Optional[IRnode] = None) -> IRnode:
             add_gas_estimate=add_gas_estimate,
         )
 
-    optimize_more = False
+        if should_check_symbols:
+            _check_symbols(starting_symbols, ret)
+
+        _, ret = _optimize(ret, parent)
+        return True, ret
 
     if value == "seq":
-        _merge_memzero(argz)
-        _merge_calldataload(argz)
-        optimize_more = _remove_empty_seqs(argz)
+        changed |= _merge_memzero(argz)
+        changed |= _merge_calldataload(argz)
+        changed |= _remove_empty_seqs(argz)
 
         # (seq x) => (x) for cleanliness and
         # to avoid blocking other optimizations
         if len(argz) == 1:
-            return argz[0]
+            return True, _optimize(argz[0], parent)[1]
 
-    elif value in arith:
+        return finalize(value, argz)
+
+    if value in arith:
         parent_op = parent.value if parent is not None else None
 
-        res = _optimize_arith(value, argz, annotation, parent_op)
+        res = _optimize_binop(value, argz, annotation, parent_op)
         if res is not None:
-            optimize_more = True
-            value, argz, annotation = res
+            changed = True
+            should_check_symbols = True
+            value, argz, annotation = res  # type: ignore
+            return finalize(value, argz)
 
     ###
     # BITWISE OPS
     ###
+
     # note, don't optimize these too much as these kinds of expressions
     # may be hand optimized for codesize. we can optimize bitwise ops
     # more, once we have a pipeline which optimizes for codesize.
-    elif value in ("shl", "shr", "sar") and argz[0].value == 0:
+    if value in ("shl", "shr", "sar") and argz[0].value == 0:
         # x >> 0 == x << 0 == x
-        optimize_more = True
-        value = argz[1].value
+        changed = True
         annotation = argz[1].annotation
-        argz = argz[1].args
+        return finalize(argz[1].value, argz[1].args)
 
-    # TODO just expand this
-    elif node.value == "ceil32" and _is_int(argz[0]):
-        t = argz[0]
-        annotation = f"ceil32({t.value})"
-        argz = []
-        value = ceil32(t.value)
+    if node.value == "ceil32" and _is_int(argz[0]):
+        changed = True
+        annotation = f"ceil32({argz[0].value})"
+        return finalize(ceil32(argz[0].value), [])
 
-    elif value == "iszero" and _is_int(argz[0]):
-        value = int(argz[0].value == 0)  # int(bool) == 1 if bool else 0
-        argz = []
+    if value == "iszero" and _is_int(argz[0]):
+        changed = True
+        val = int(argz[0].value == 0)  # int(bool) == 1 if bool else 0
+        return finalize(val, [])
 
-    elif node.value == "if":
+    if node.value == "if":
         # optimize out the branch
         if _is_int(argz[0]):
+            changed = True
             # if false
             if _evm_int(argz[0]) == 0:
                 # return the else branch (or [] if there is no else)
-                return optimize(IRnode("seq", argz[2:]), parent)
+                return finalize("seq", argz[2:])
             # if true
             else:
                 # return the first branch
-                return argz[1]
+                return finalize("seq", argz[1])
 
         elif len(argz) == 3 and argz[0].value != "iszero":
             # if(x) compiles to jumpi(_, iszero(x))
@@ -410,26 +523,20 @@ def optimize(node: IRnode, parent: Optional[IRnode] = None) -> IRnode:
             contra_cond = IRnode.from_list(["iszero", cond])
 
             argz = [contra_cond, false_branch, true_branch]
-            # set optimize_more = True?
+            changed = True
+            return finalize("if", argz)
 
-    elif node.value in ("assert", "assert_unreachable") and _is_int(argz[0]):
+    if value in ("assert", "assert_unreachable") and _is_int(argz[0]):
         if _evm_int(argz[0]) == 0:
             raise StaticAssertionException(
                 f"assertion found to fail at compile time. (hint: did you mean `raise`?) {node}",
                 source_pos,
             )
         else:
-            value = "seq"
-            argz = []
+            changed = True
+            return finalize("seq", [])
 
-    # NOTE: this is really slow (compile-time).
-    # ideal would be to optimize the tree in-place
-    ret = finalize([value, *argz])
-
-    if optimize_more:
-        ret = optimize(ret, parent=parent)
-
-    return ret
+    return finalize(value, argz)
 
 
 def _merge_memzero(argz):
@@ -438,6 +545,7 @@ def _merge_memzero(argz):
     mstore_nodes: List = []
     initial_offset = 0
     total_length = 0
+    changed = False
     for ir_node in argz:
         if (
             ir_node.value == "mstore"
@@ -471,6 +579,7 @@ def _merge_memzero(argz):
         # if we get this far, the current node is not a zero'ing operation
         # it's time to apply the optimization if possible
         if len(mstore_nodes) > 1:
+            changed = True
             new_ir = IRnode.from_list(
                 ["calldatacopy", initial_offset, "calldatasize", total_length],
                 source_pos=mstore_nodes[0].source_pos,
@@ -484,6 +593,8 @@ def _merge_memzero(argz):
         initial_offset = 0
         total_length = 0
         mstore_nodes.clear()
+
+    return changed
 
 
 # remove things like [seq, seq, seq] because they interfere with
@@ -503,6 +614,7 @@ def _remove_empty_seqs(argz):
 def _merge_calldataload(argz):
     # look for sequential operations copying from calldata to memory
     # and merge them into a single calldatacopy operation
+    changed = False
     mstore_nodes: List = []
     initial_mem_offset = 0
     initial_calldata_offset = 0
@@ -531,6 +643,7 @@ def _merge_calldataload(argz):
         # if we get this far, the current node is a different operation
         # it's time to apply the optimization if possible
         if len(mstore_nodes) > 1:
+            changed = True
             new_ir = IRnode.from_list(
                 ["calldatacopy", initial_mem_offset, initial_calldata_offset, total_length],
                 source_pos=mstore_nodes[0].source_pos,
@@ -545,3 +658,5 @@ def _merge_calldataload(argz):
         initial_calldata_offset = 0
         total_length = 0
         mstore_nodes.clear()
+
+    return changed
