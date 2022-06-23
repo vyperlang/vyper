@@ -72,28 +72,56 @@ def band() -> Roles:
     return c & Roles.USER
 
 @external
+def bxor() -> Roles:
+    c: Roles = Roles.USER | Roles.CEO
+    return c ^ Roles.USER
+
+@external
+def binv() -> Roles:
+    c: Roles = Roles.USER
+    return ~c
+
+@external
 def bor_arg(a: Roles, b: Roles) -> Roles:
     return a | b
 
 @external
 def band_arg(a: Roles, b: Roles) -> Roles:
     return a & b
+
+@external
+def bxor_arg(a: Roles, b: Roles) -> Roles:
+    return a ^ b
+
+@external
+def binv_arg(a: Roles) -> Roles:
+    return ~a
     """
     c = get_contract(code)
     assert c.bor() == 17
     assert c.band() == 1
+    assert c.bxor() == 16
 
-    assert c.bor_arg(1, 4) == 5
+    assert c.bor_arg(0b00001, 0b00100) == 0b00001 | 0b00100 == 0b00101
     # LHS: USER | ADMIN | CEO; RHS: USER | MANAGER | CEO
-    assert c.band_arg(21, 25) == 17
+    assert c.band_arg(0b10101, 0b11001) == 0b10101 & 0b11001 == 0b10001
+
+    assert c.bxor_arg(0b10101, 0b11001) == 0b10101 ^ 0b11001 == 0b01100
+
+    assert c.binv_arg(0b01101) == ~0b01101 % 32 == 0b10010
+    assert c.binv_arg(0b11111) == 0b00000
+    assert c.binv_arg(0b00000) == 0b11111
 
     # LHS is out of bound
     assert_tx_failed(lambda: c.bor_arg(32, 3))
     assert_tx_failed(lambda: c.band_arg(32, 3))
+    assert_tx_failed(lambda: c.bxor_arg(32, 3))
+    assert_tx_failed(lambda: c.binv_arg(32))
 
     # RHS
     assert_tx_failed(lambda: c.bor_arg(3, 32))
     assert_tx_failed(lambda: c.band_arg(3, 32))
+    assert_tx_failed(lambda: c.bxor_arg(3, 32))
 
 
 def test_augassign_storage(get_contract, w3, assert_tx_failed):
@@ -114,6 +142,16 @@ def addMinter(minter: address):
     self.roles[minter] |= Roles.MINTER
 
 @external
+def revokeMinter(minter: address):
+    assert self.roles[msg.sender] in Roles.ADMIN
+    self.roles[minter] &= ~Roles.MINTER
+
+@external
+def flipMinter(minter: address):
+    assert self.roles[msg.sender] in Roles.ADMIN
+    self.roles[minter] ^= Roles.MINTER
+
+@external
 def checkMinter(minter: address):
     assert Roles.MINTER in self.roles[minter]
     """
@@ -127,8 +165,8 @@ def checkMinter(minter: address):
     c.addMinter(minter_address, transact={})
     c.checkMinter(minter_address)
 
-    assert c.roles(admin_address) == 2 ** 0
-    assert c.roles(minter_address) == 2 ** 1
+    assert c.roles(admin_address) == 0b01
+    assert c.roles(minter_address) == 0b10
 
     # admin is not a minter
     assert_tx_failed(lambda: c.checkMinter(admin_address))
@@ -136,11 +174,26 @@ def checkMinter(minter: address):
     c.addMinter(admin_address, transact={})
 
     # now, admin is a minter
-    assert c.roles(admin_address) == 2 ** 0 | 2 ** 1
+    assert c.roles(admin_address) == 0b11
     c.checkMinter(admin_address)
 
+    # revoke minter
+    c.revokeMinter(admin_address, transact={})
+    assert c.roles(admin_address) == 0b01
+    assert_tx_failed(lambda: c.checkMinter(admin_address))
 
-def test_for_in_enum(get_contract_with_gas_estimation):
+    # flip minter
+    c.flipMinter(admin_address, transact={})
+    assert c.roles(admin_address) == 0b11
+    c.checkMinter(admin_address)
+
+    # flip minter
+    c.flipMinter(admin_address, transact={})
+    assert c.roles(admin_address) == 0b01
+    assert_tx_failed(lambda: c.checkMinter(admin_address))
+
+
+def test_in_enum(get_contract_with_gas_estimation):
     code = """
 enum Roles:
     USER
@@ -158,17 +211,28 @@ def bar(a: Roles) -> bool:
     return a in (Roles.USER | Roles.ADMIN)
 
 @external
+def bar2(a: Roles) -> bool:
+    return a not in (Roles.USER | Roles.ADMIN)
+
+@external
 def baz(a: Roles) -> bool:
     x: Roles = Roles.USER | Roles.ADMIN | Roles.CEO
-    y: Roles = Roles.USER | Roles.ADMIN | Roles.MANAGER
+    y: Roles = x ^ (Roles.MANAGER | Roles.CEO)  # flip off CEO, flip on MANAGER
     return a in (x & y)
+
     """
     c = get_contract_with_gas_estimation(code)
     assert c.foo() is True
 
-    assert c.bar(1) is True  # Roles.USER should pass
-    assert c.bar(2) is False  # Roles.STAFF should fail
+    # CEO MANAGER ADMIN STAFF USER
+    #   1       1     1     1    1
 
-    assert c.baz(1) is True  # Roles.USER should pass
-    assert c.baz(4) is True  # Roles.ADMIN should pass
-    assert c.baz(8) is False  # Roles.MANAGER should fail
+    assert c.bar(0b00001) is True  # Roles.USER should pass
+    assert c.bar(0b00010) is False  # Roles.STAFF should fail
+
+    assert c.bar2(0b00001) is False  # Roles.USER should fail
+    assert c.bar2(0b00010) is True  # Roles.STAFF should pass
+
+    assert c.baz(0b00001) is True  # Roles.USER should pass
+    assert c.baz(0b00100) is True  # Roles.ADMIN should pass
+    assert c.baz(0b01000) is False  # Roles.MANAGER should fail

@@ -18,11 +18,6 @@ def foo():
     self.x[2:4] = 3
     """,
     """
-@external
-def foo():
-    x: address = ~self
-    """,
-    """
 x: int128[5]
 @external
 def foo():

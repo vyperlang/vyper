@@ -61,9 +61,8 @@ def get_node(
             _raise_syntax_exc("Deleting is not supported", ast_struct)
         elif ast_struct["ast_type"] in ("ExtSlice", "Slice"):
             _raise_syntax_exc("Vyper does not support slicing", ast_struct)
-        elif ast_struct["ast_type"] in ("Invert", "UAdd"):
-            op = "+" if ast_struct["ast_type"] == "UAdd" else "~"
-            _raise_syntax_exc(f"Vyper does not support {op} as a unary operator", parent)
+        elif ast_struct["ast_type"] == "UAdd":
+            _raise_syntax_exc("Vyper does not support + as a unary operator", parent)
         else:
             _raise_syntax_exc(
                 f"Invalid syntax (unsupported '{ast_struct['ast_type']}' Python AST node)",
@@ -862,6 +861,8 @@ class UnaryOp(VyperNode):
             raise UnfoldableNode("Node contains invalid field(s) for evaluation")
         if isinstance(self.op, USub) and not isinstance(self.operand, (Int, Decimal)):
             raise UnfoldableNode("Node contains invalid field(s) for evaluation")
+        if isinstance(self.op, Invert) and not isinstance(self.operand, Int):
+            raise UnfoldableNode("Node contains invalid field(s) for evaluation")
 
         value = self.op._op(self.operand.value)
         _validate_numeric_bounds(self, value)
@@ -877,6 +878,13 @@ class USub(VyperNode):
 class Not(VyperNode):
     __slots__ = ()
     _op = operator.not_
+
+
+class Invert(VyperNode):
+    __slots__ = ()
+    _description = "bitwise not"
+    _pretty = "~"
+    _op = operator.inv
 
 
 class BinOp(VyperNode):
@@ -1000,6 +1008,13 @@ class BitOr(VyperNode):
     _description = "bitwise or"
     _pretty = "|"
     _op = operator.or_
+
+
+class BitXor(VyperNode):
+    __slots__ = ()
+    _description = "bitwise xor"
+    _pretty = "^"
+    _op = operator.xor
 
 
 class BoolOp(VyperNode):

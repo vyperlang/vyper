@@ -42,6 +42,7 @@ from vyper.exceptions import (
     StructureException,
     TypeCheckFailure,
     TypeMismatch,
+    UnimplementedException,
 )
 from vyper.utils import (
     DECIMAL_DIVISOR,
@@ -362,6 +363,9 @@ class Expr:
         if isinstance(self.expr.op, vy_ast.BitOr):
             new_typ = left.typ
             return IRnode.from_list(["or", left, right], typ=new_typ)
+        if isinstance(self.expr.op, vy_ast.BitXor):
+            new_typ = left.typ
+            return IRnode.from_list(["xor", left, right], typ=new_typ)
 
         out_typ = BaseType(ltyp)
 
@@ -462,7 +466,11 @@ class Expr:
                 return self.build_in_comparator()
             else:
                 assert isinstance(right.typ, EnumType), right.typ
-                return IRnode.from_list(["iszero", ["iszero", ["and", left, right]]], typ="bool")
+                intersection = ["and", left, right]
+                if isinstance(self.expr.op, vy_ast.In):
+                    return IRnode.from_list(["iszero", ["iszero", intersection]], typ="bool")
+                elif isinstance(self.expr.op, vy_ast.NotIn):
+                    return IRnode.from_list(["iszero", intersection], typ="bool")
 
         if isinstance(self.expr.op, vy_ast.Gt):
             op = "sgt"
@@ -559,7 +567,26 @@ class Expr:
         if isinstance(self.expr.op, vy_ast.Not):
             if isinstance(operand.typ, BaseType) and operand.typ.typ == "bool":
                 return IRnode.from_list(["iszero", operand], typ="bool")
-        elif isinstance(self.expr.op, vy_ast.USub) and is_numeric_type(operand.typ):
+
+        if isinstance(self.expr.op, vy_ast.Invert):
+            if isinstance(operand.typ, EnumType):
+                n_members = len(operand.typ.members)
+                # use (xor 0b11..1 operand) to flip all the bits in
+                # `operand`. `mask` could be a very large constant and
+                # hurt codesize, but most user enums will likely have few
+                # enough members that the mask will not be large.
+                mask = (2 ** n_members) - 1
+                return IRnode.from_list(["xor", mask, operand], typ=operand.typ)
+
+            if is_base_type(operand.typ, "uint256"):
+                return IRnode.from_list(["not", operand], typ=operand.typ)
+
+            # block `~` for all other integer types, since reasoning
+            # about dirty bits is not entirely trivial. maybe revisit
+            # this at a later date.
+            raise UnimplementedException(f"~ is not supported for {operand.typ}", self.expr)
+
+        if isinstance(self.expr.op, vy_ast.USub) and is_numeric_type(operand.typ):
             assert operand.typ._num_info.is_signed
             # Clamp on minimum signed integer value as we cannot negate that
             # value (all other integer values are fine)
