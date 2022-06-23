@@ -94,25 +94,15 @@ def calculate_largest_base(b: int, num_bits: int, is_signed: bool) -> int:
     elif b < 2:
         return 2 ** value_bits - 1  # Maximum value for type
 
-    # CMC 2022-05-06 TODO we should be able to do this with algebra
-    # instead of looping):
-    # x ** b == 2**value_bits
-    # b ln(x) == ln(2**value_bits)
-    # ln(x) == ln(2**value_bits) / b
-    # x == exp( ln(2**value_bits) / b)
+    # x ** b < 2**value_bits
+    # b ln(x) < ln(2**value_bits)
+    # ln(x) < ln(2**value_bits) / b
+    # x < exp( ln(2**value_bits) / b)
+    # x < exp(value_bits * ln(2) / b)
 
-    # Estimate (up to ~39 digits precision required)
-    a = math.ceil(2 ** (decimal.Decimal(value_bits) / decimal.Decimal(b)))
-    # Do a bit of iteration to ensure we have the exact number
-    num_iterations = 0
-    while (a + 1) ** b < 2 ** value_bits:
-        a += 1
-        num_iterations += 1
-        assert num_iterations < 10000
-    while a ** b >= 2 ** value_bits:
-        a -= 1
-        num_iterations += 1
-        assert num_iterations < 10000
+    # note: decimal precision is required for this calculation
+    ln2 = decimal.Decimal(2).ln()
+    a = math.floor((decimal.Decimal(value_bits) * ln2 / decimal.Decimal(b)).exp().next_minus())
     return a
 
 
