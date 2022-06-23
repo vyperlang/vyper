@@ -2451,11 +2451,11 @@ class _MinMaxValue(BuiltinFunction):
     _inputs = [("typename", "TYPE_DEFINITION")]
 
     def evaluate(self, node):
-        validate_call_args(node, 1)
+        self._validate_arg_types(node)
         input_type = get_type_from_annotation(node.args[0], DataLocation.MEMORY)
 
         if not isinstance(input_type, NumericAbstractType):
-            raise InvalidType(f"Expected numeric type but got {input_type}", node)
+            raise InvalidType(f"Expected numeric type but got {input_type} instead", node)
 
         if isinstance(input_type, DecimalDefinition):
             val = self._eval_fn(SizeLimits.MIN_AST_DECIMAL, SizeLimits.MAX_AST_DECIMAL)
