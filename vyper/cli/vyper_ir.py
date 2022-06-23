@@ -60,5 +60,6 @@ def compile_to_ir(input_file, output_formats, show_gas_estimates=False):
 
     return compiler_data
 
+
 if __name__ == "__main__":
     _parse_cli_args()
