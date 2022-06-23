@@ -29,6 +29,7 @@ Other fixes and improvements:
 * feat: improve ast output (`#2824 <https://github.com/vyperlang/vyper/pull/2824>`_)
 * fix: allow "nonreentrant" on view functions (`#2921 <https://github.com/vyperlang/vyper/pull/2921>`_)
 * fix: enable dynarrays of strings (`#2922 <https://github.com/vyperlang/vyper/pull/2922>`_)
+* feat: optimizer improvements (`#2647 <https://github.com/vyperlang/vyper/pull/2647>`_, `#2868 <https://github.com/vyperlang/vyper/pull/2868>`_, `#2914 <https://github.com/vyperlang/vyper/pull/2914>`_, `#2843 <https://github.com/vyperlang/vyper/pull/2843>`_)
 * ux: reverse order in which exceptions are reported (`#2838 <https://github.com/vyperlang/vyper/pull/2838>`_)
 
 
