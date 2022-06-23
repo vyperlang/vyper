@@ -505,8 +505,8 @@ class Expr:
         # Compare other types.
         elif is_numeric_type(left.typ) and is_numeric_type(right.typ):
             if left.typ.typ == right.typ.typ == "uint256":
-                # this works because we only have one unsigned integer type
-                # in the future if others are added, this logic must be expanded
+                # signed comparison ops work for any integer
+                # type BESIDES uint256
                 op = self._signed_to_unsigned_comparision_op(op)
 
         elif isinstance(left.typ, BaseType) and isinstance(right.typ, BaseType):
