@@ -1719,13 +1719,11 @@ class _CreateBase(BuiltinFunction):
         # errmsg something like "Cannot use {self._id} in pure fn"
         context.check_is_not_constant("use {self._id}", expr)
 
-        value = kwargs["value"]
-        salt = kwargs["salt"]
         should_use_create2 = "salt" in [kwarg.arg for kwarg in expr.keywords]
         if not should_use_create2:
-            salt = None
+            kwargs["salt"] = None
 
-        ir_builder = self._build_create_IR(expr, args, value, salt, context)
+        ir_builder = self._build_create_IR(expr, args, context, **kwargs)
 
         add_gas_estimate = self._add_gas_estimate(args, should_use_create2)
 
@@ -1748,7 +1746,7 @@ class CreateMinimalProxyTo(_CreateBase):
         bytecode_len = 20 + len(b) + len(c)
         return _create_addl_gas_estimate(bytecode_len, should_use_create2)
 
-    def _build_create_IR(self, expr, args, value, salt, context):
+    def _build_create_IR(self, expr, args, context, value, salt):
 
         target_address = args[0]
 
@@ -1805,7 +1803,7 @@ class CreateCopyOf(_CreateBase):
         # max possible runtime length + preamble length
         return _create_addl_gas_estimate(EIP_170_LIMIT + self._preamble_len, should_use_create2)
 
-    def _build_create_IR(self, expr, args, value, salt, context):
+    def _build_create_IR(self, expr, args, context, value, salt):
         target = args[0]
 
         with target.cache_when_complex("create_target") as (b1, target):
@@ -1842,6 +1840,11 @@ class CreateFromFactory(_CreateBase):
 
     _id = "create_from_factory"
     _inputs = [("target", AddressDefinition())]
+    _kwargs = {
+        "value": KwargSettings(Uint256Definition(), zero_value),
+        "salt": KwargSettings(Bytes32Definition(), empty_value),
+        "code_offset": KwargSettings(Uint256Definition(), zero_value),
+    }
     _has_varargs = True
 
     def _add_gas_estimate(self, args, should_use_create2):
@@ -1850,7 +1853,7 @@ class CreateFromFactory(_CreateBase):
         maxlen = EIP_170_LIMIT + ctor_args.typ.abi_type.size_bound()
         return _create_addl_gas_estimate(maxlen, should_use_create2)
 
-    def _build_create_IR(self, expr, args, value, salt, context):
+    def _build_create_IR(self, expr, args, context, value, salt, code_offset):
         target = args[0]
         ctor_args = args[1:]
 
@@ -1874,27 +1877,32 @@ class CreateFromFactory(_CreateBase):
         # (since the abi encoder could write to fresh memory).
         # it would be good to not require the memory copy, but need
         # to evaluate memory safety.
-        with argslen.cache_when_complex("encoded_args_len") as (
-            b1,
-            encoded_args_len,
-        ), target.cache_when_complex("create_target") as (b2, target):
-            codesize = IRnode.from_list(["extcodesize", target])
+        with target.cache_when_complex("create_target") as (b1, target), argslen.cache_when_complex(
+            "encoded_args_len"
+        ) as (b2, encoded_args_len), code_offset.cache_when_complex("code_ofst") as (b3, codeofst):
+            codesize = IRnode.from_list(["sub", ["extcodesize", target], codeofst])
             # copy code to memory starting from msize. we are clobbering
             # unused memory so it's safe.
             msize = IRnode.from_list(["msize"], location=MEMORY)
             with codesize.cache_when_complex("target_codesize") as (
-                b3,
+                b4,
                 codesize,
-            ), msize.cache_when_complex("mem_ofst") as (b4, mem_ofst):
+            ), msize.cache_when_complex("mem_ofst") as (b5, mem_ofst):
                 ir = ["seq"]
 
-                # make sure there is code at the target.
-                ir.append(["assert", codesize])
+                # make sure there is code at the target, and that
+                # code_ofst <= (extcodesize target).
+                # (note if code_ofst > (extcodesize target), would be
+                # OOG on the EXTCODECOPY)
+                # (code_ofst == (extcodesize target) would be empty
+                # initcode, which we disallow for hygiene reasons -
+                # same as `create_copy_of` on an empty target).
+                ir.append(["assert", ["sgt", codesize, 0]])
 
                 # copy the target code into memory.
                 # layout starting from mem_ofst:
                 # 00...00 (22 0's) | preamble | bytecode
-                ir.append(["extcodecopy", target, mem_ofst, 0, codesize])
+                ir.append(["extcodecopy", target, mem_ofst, codeofst, codesize])
 
                 ir.append(copy_bytes(add_ofst(mem_ofst, codesize), argbuf, encoded_args_len, bufsz))
 
@@ -1909,7 +1917,7 @@ class CreateFromFactory(_CreateBase):
 
                 ir.append(_create_ir(value, mem_ofst, length, salt))
 
-                return b1.resolve(b2.resolve(b3.resolve(b4.resolve(ir))))
+                return b1.resolve(b2.resolve(b3.resolve(b4.resolve(b5.resolve(ir)))))
 
 
 class _UnsafeMath(BuiltinFunction):
