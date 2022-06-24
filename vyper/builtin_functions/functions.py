@@ -2452,40 +2452,41 @@ class _MinMaxValue(BuiltinFunction):
 
     def evaluate(self, node):
         self._validate_arg_types(node)
-        input_type = get_type_from_annotation(node.args[0], DataLocation.MEMORY)
+        input_type = get_type_from_annotation(node.args[0], DataLocation.UNSET)
 
         if not isinstance(input_type, NumericAbstractType):
             raise InvalidType(f"Expected numeric type but got {input_type} instead", node)
 
         if isinstance(input_type, DecimalDefinition):
-            val = self._eval_fn(SizeLimits.MIN_AST_DECIMAL, SizeLimits.MAX_AST_DECIMAL)
+            val = self._eval(SizeLimits.MIN_AST_DECIMAL, SizeLimits.MAX_AST_DECIMAL)
             return vy_ast.Decimal.from_node(node, value=val)
-        elif isinstance(input_type, IntegerAbstractType):
+
+        if isinstance(input_type, IntegerAbstractType):
             (lo, hi) = int_bounds(input_type._is_signed, input_type._bits)
-            val = self._eval_fn(lo, hi)
+            val = self._eval(lo, hi)
             return vy_ast.Int.from_node(node, value=val)
 
-    def fetch_call_return(self, node):
+    def fetch_call_return(self, node):  # pragma: no cover
         raise CompilerPanic(f"{self._id} should always be folded")
 
-    def infer_arg_types(self, node):
+    def infer_arg_types(self, node):  # pragma: no cover
         raise CompilerPanic(f"{self._id} should always be folded")
 
-    def infer_kwarg_types(self, node):
+    def infer_kwarg_types(self, node):  # pragma: no cover
         raise CompilerPanic(f"{self._id} should always be folded")
 
-    def build_IR(self, *args, **kwargs):
+    def build_IR(self, *args, **kwargs):  # pragma: no cover
         raise CompilerPanic(f"{self._id} should always be folded")
 
 
 class MinValue(_MinMaxValue):
     _id = "min_value"
-    _eval_fn = min
+    _eval = min
 
 
 class MaxValue(_MinMaxValue):
     _id = "max_value"
-    _eval_fn = max
+    _eval = max
 
 
 DISPATCH_TABLE = {
