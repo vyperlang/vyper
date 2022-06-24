@@ -12,7 +12,6 @@ from vyper.typing import ModificationOffsets
 class AnnotatingVisitor(python_ast.NodeTransformer):
     _source_code: str
     _modification_offsets: ModificationOffsets
-    _parent: python_ast.AST
 
     def __init__(
         self,
@@ -28,7 +27,6 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         self._source_code: str = source_code
         self.counter: int = 0
         self._modification_offsets = {}
-        self._parent = None
         if modification_offsets is not None:
             self._modification_offsets = modification_offsets
 
@@ -41,8 +39,6 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         node.node_id = self.counter
         node.ast_type = node.__class__.__name__
         self.counter += 1
-        node._parent = self._parent
-        self._parent = node
 
         # Decorate every node with source end offsets
         start = node.first_token.start if hasattr(node, "first_token") else (None, None)
