@@ -541,10 +541,6 @@ class _LocalExpressionVisitor(VyperNodeVisitorBase):
         _validate_msg_data_attribute(node)
         _validate_address_code_attribute(node)
 
-    def visit_Await(self, node: vy_ast.Await) -> None:
-        # never be visited directly due to special handling in visit_Expr
-        raise CompilerPanic("Unreachable")
-
     def visit_BinOp(self, node: vy_ast.BinOp) -> None:
         self.visit(node.left)
         self.visit(node.right)
