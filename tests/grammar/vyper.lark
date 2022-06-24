@@ -113,6 +113,7 @@ _stmt: ( if_stmt | for_stmt ) [COMMENT]
        | break_stmt
        | continue_stmt
        | log_stmt
+       | await_stmt
        | raise_stmt
        | assert_stmt
        | _expr ) [COMMENT] _NEWLINE
@@ -142,6 +143,7 @@ _PASS: "pass"
 _BREAK: "break"
 _CONTINUE: "continue"
 _LOG: "log"
+_AWAIT: "await"
 _RETURN: "return"
 _RAISE: "raise"
 _ASSERT: "assert"
@@ -151,6 +153,7 @@ break_stmt: _BREAK
 continue_stmt: _CONTINUE
 
 log_stmt: _LOG NAME "(" [arguments] ")"
+await_stmt: _AWAIT call
 return_stmt: _RETURN [_expr ("," _expr)*]
 _UNREACHABLE: "UNREACHABLE"
 raise_stmt: _RAISE -> raise
