@@ -126,6 +126,7 @@ assign: (variable_access | multiple_assign | "(" multiple_assign ")" ) "=" _expr
              | "-"  -> sub
              | "*"  -> mul
              | "/"  -> div
+             | "//" -> floordiv
              | "%"  -> mod
              | "**" -> pow
              | "<<" -> shl
@@ -218,6 +219,7 @@ _BITXOR: "^"
 ?product: power
         | product "*"   power -> mul
         | product "/"   power -> div
+        | product "//"  power -> floordiv
 ?power: bool_op
       | power _POW  bool_op -> pow
       | power "%"   bool_op -> mod
