@@ -673,6 +673,10 @@ class Return(VyperNode):
     _is_terminus = True
 
 
+class Await(VyperNode):
+    __slots__ = ("value",)
+
+
 class Log(VyperNode):
     __slots__ = ("value",)
 

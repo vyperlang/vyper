@@ -462,14 +462,34 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         )
 
     def visit_Expr(self, node):
-        if not isinstance(node.value, vy_ast.Call):
+        if not isinstance(node.value, (vy_ast.Call, vy_ast.Await)):
             raise StructureException("Expressions without assignment are disallowed", node)
+
+        is_await = isinstance(node.value, vy_ast.Await)
+        if is_await:
+            # traverse one level down to the Call expr
+            node = node.value
+
+        assert isinstance(node.value, vy_ast.Call), node
 
         fn_type = get_exact_type_from_node(node.value.func)
         if isinstance(fn_type, Event):
             raise StructureException("To call an event you must use the `log` statement", node)
 
         if isinstance(fn_type, ContractFunction):
+            if fn_type.is_external and not is_await:
+                raise StructureException(
+                    "Calls to external contracts must use the `await` keyword. "
+                    f"Did you mean `await {node.node_source_code}`?",
+                    node,
+                )
+            if not fn_type.is_external and is_await:
+                raise StructureException(
+                    "Calls to internal functions cannot use the `await` keyword. "
+                    f"Did you mean `{node.value.node_source_code}`?",
+                    node,
+                )
+
             if (
                 fn_type.mutability > StateMutability.VIEW
                 and self.func.mutability <= StateMutability.VIEW
@@ -520,6 +540,10 @@ class _LocalExpressionVisitor(VyperNodeVisitorBase):
         self.visit(node.value)
         _validate_msg_data_attribute(node)
         _validate_address_code_attribute(node)
+
+    def visit_Await(self, node: vy_ast.Await) -> None:
+        # never be visited directly due to special handling in visit_Expr
+        raise CompilerPanic("Unreachable")
 
     def visit_BinOp(self, node: vy_ast.BinOp) -> None:
         self.visit(node.left)

@@ -135,6 +135,9 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
     def visit_Bytes(self, node, type_):
         node._metadata["type"] = type_
 
+    def visit_Await(self, node, type_):
+        self.visit(node.value, type_)
+
     def visit_Call(self, node, type_):
         call_type = get_exact_type_from_node(node.func)
         node_type = type_ or call_type.fetch_call_return(node)
