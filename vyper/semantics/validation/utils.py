@@ -168,9 +168,13 @@ class _ExprTypeChecker:
         ):
             raise ZeroDivisionException(f"{node.op.description} by zero", node)
 
-        if isinstance(node.op, vy_ast.Div) and any((not isinstance(t, types.DecimalDefinition) for t in types_list)):
+        if isinstance(node.op, vy_ast.Div) and any(
+            (not isinstance(t, types.DecimalDefinition) for t in types_list)
+        ):
             raise TypeMismatch("Cannot use `/` on non-decimals (did you mean `//`?)", node)
-        if isinstance(node.op, vy_ast.FloorDiv) and any((not isinstance(t, IntegerAbstractType) for t in types_list)):
+        if isinstance(node.op, vy_ast.FloorDiv) and any(
+            (not isinstance(t, IntegerAbstractType) for t in types_list)
+        ):
             raise TypeMismatch("Cannot use `//` on non-integers (did you mean `/`?)", node)
 
         return _validate_op(node, types_list, "validate_numeric_op")
