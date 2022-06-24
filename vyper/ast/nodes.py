@@ -1226,6 +1226,10 @@ class Assign(VyperNode):
         super().__init__(*args, **kwargs)
 
 
+class AnnAssign(VyperNode):
+    __slots__ = ("target", "annotation", "value", "simple")
+    
+
 class VariableDef(VyperNode):
     """
     A variable declaration.

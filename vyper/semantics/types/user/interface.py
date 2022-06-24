@@ -84,7 +84,7 @@ class InterfacePrimitive:
     def infer_kwarg_types(self, node):
         return {}
 
-    def validate_implements(self, node: vy_ast.VariableDef) -> None:
+    def validate_implements(self, node: vy_ast.AnnAssign) -> None:
         namespace = get_namespace()
         # check for missing functions
         unimplemented = [

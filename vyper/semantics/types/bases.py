@@ -116,11 +116,12 @@ class BasePrimitive:
     ) -> "BaseTypeDefinition":
         """
         Generate a `BaseTypeDefinition` instance of this type from `VariableDef.annotation`
+        or `AnnAssign.annotation`
 
         Arguments
         ---------
         node : VyperNode
-            Vyper ast node from the `annotation` member of a `VariableDef` node.
+            Vyper ast node from the `annotation` member of a `VariableDef` or `AnnAssign` node.
 
         Returns
         -------
@@ -385,7 +386,7 @@ class BaseTypeDefinition:
                 f"Cannot perform {node.op.description} comparison on {self}", node
             )
 
-    def validate_implements(self, node: vy_ast.VariableDef) -> None:
+    def validate_implements(self, node: vy_ast.AnnAssign) -> None:
         """
         Validate an implements statement.
 
@@ -394,7 +395,7 @@ class BaseTypeDefinition:
 
         Arguments
         ---------
-        node : VariableDef
+        node : AnnAssign
             Vyper ast node of the implements statement being validated.
 
         Returns
