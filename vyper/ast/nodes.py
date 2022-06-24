@@ -952,20 +952,34 @@ class Div(VyperNode):
         if not right:
             raise ZeroDivisionException("Division by zero")
 
-        if isinstance(left, decimal.Decimal):
-            value = left / right
-            if value < 0:
-                # the EVM always truncates toward zero
-                value = -(-left / right)
-            # ensure that the result is truncated to MAX_DECIMAL_PLACES
-            return value.quantize(
-                decimal.Decimal(f"{1:0.{MAX_DECIMAL_PLACES}f}"), decimal.ROUND_DOWN
-            )
-        else:
-            value = left // right
-            if value < 0:
-                return -(-left // right)
-            return value
+        if not isinstance(left, decimal.Decimal):
+            raise UnfoldableNode("Cannot use `/` on non-decimals (did you mean `//`?)")
+
+        value = left / right
+        if value < 0:
+            # the EVM always truncates toward zero
+            value = -(-left / right)
+        # ensure that the result is truncated to MAX_DECIMAL_PLACES
+        return value.quantize(
+            decimal.Decimal(f"{1:0.{MAX_DECIMAL_PLACES}f}"), decimal.ROUND_DOWN
+        )
+
+
+class FloorDiv(VyperNode):
+    __slots__ = ()
+    _description = "integer division"
+    _pretty = "//"
+
+    def _op(self, left, right):
+        # evaluate the operation using true division or floor division
+        assert type(left) is type(right)
+        if not right:
+            raise ZeroDivisionException("Division by zero")
+
+        if not isinstance(left, int):
+            raise UnfoldableNode("Cannot use `//` on non-integers (did you mean `/`?)")
+
+        return evm_div(left, right)
 
 
 class Mod(VyperNode):

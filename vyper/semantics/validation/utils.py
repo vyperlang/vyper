@@ -162,11 +162,16 @@ class _ExprTypeChecker:
         types_list = get_common_types(node.left, node.right)
 
         if (
-            isinstance(node.op, (vy_ast.Div, vy_ast.Mod))
+            isinstance(node.op, (vy_ast.Div, vy_ast.FloorDiv, vy_ast.Mod))
             and isinstance(node.right, vy_ast.Num)
             and not node.right.value
         ):
             raise ZeroDivisionException(f"{node.op.description} by zero", node)
+
+        if isinstance(node.op, vy_ast.Div) and any((not isinstance(t, types.DecimalDefinition) for t in types_list)):
+            raise TypeMismatch("Cannot use `/` on non-decimals (did you mean `//`?)", node)
+        if isinstance(node.op, vy_ast.FloorDiv) and any((not isinstance(t, IntegerAbstractType) for t in types_list)):
+            raise TypeMismatch("Cannot use `//` on non-integers (did you mean `/`?)", node)
 
         return _validate_op(node, types_list, "validate_numeric_op")
 
