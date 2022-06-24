@@ -55,6 +55,15 @@ def get_node(
     if not isinstance(ast_struct, dict):
         ast_struct = ast_struct.__dict__
 
+    # Replace state and local variable declarations `AnnAssign` with `VariableDef`
+    # Parent node is required for context to determine whether replacement should happen.
+    if (
+        ast_struct["ast_type"] == "AnnAssign"
+        and not isinstance(parent, (arguments, EventDef, StructDef))
+        and not (isinstance(parent, Module) and ast_struct["target"].id in ("implements",))
+    ):
+        ast_struct["ast_type"] = "VariableDef"
+
     vy_class = getattr(sys.modules[__name__], ast_struct["ast_type"], None)
     if not vy_class:
         if ast_struct["ast_type"] == "Delete":
@@ -1228,7 +1237,7 @@ class Assign(VyperNode):
 
 class AnnAssign(VyperNode):
     __slots__ = ("target", "annotation", "value", "simple")
-    
+
 
 class VariableDef(VyperNode):
     """

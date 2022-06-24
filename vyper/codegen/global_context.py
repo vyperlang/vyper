@@ -107,7 +107,7 @@ class GlobalContext:
         members = []
 
         for item in node.body:
-            if isinstance(item, vy_ast.VariableDef):
+            if isinstance(item, vy_ast.AnnAssign):
                 member_name = item.target
                 member_type = item.annotation
                 # Check well-formedness of member names

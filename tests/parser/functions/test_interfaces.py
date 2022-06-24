@@ -347,8 +347,8 @@ def test_fail2() -> {typ}:
     return x
 
 @external
-def test_fail3() -> int256:
-    return convert(self.foo.should_fail(), int256)
+def test_fail3() -> uint256:
+    return convert(self.foo.should_fail(), uint256)
     """
 
     bad_c = get_contract(external_contract)

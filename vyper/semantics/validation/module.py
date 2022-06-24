@@ -141,9 +141,8 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
 
             self_members[fn_name].recursive_calls = function_set
 
-    def visit_VariableDef(self, node):
+    def visit_AnnAssign(self, node):
         name = node.get("target.id")
-        node.is_state_variable = True
         if name is None:
             raise VariableDeclarationException("Invalid module-level assignment", node)
 
@@ -151,6 +150,12 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
             interface_name = node.annotation.id
             self.namespace[interface_name].validate_implements(node)
             return
+
+    def visit_VariableDef(self, node):
+        name = node.get("target.id")
+        node.is_state_variable = True
+        if name is None:
+            raise VariableDeclarationException("Invalid module-level assignment", node)
 
         is_constant, is_public, is_immutable = False, False, False
         annotation = node.annotation
