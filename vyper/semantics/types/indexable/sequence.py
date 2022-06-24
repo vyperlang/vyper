@@ -12,7 +12,6 @@ from vyper.semantics.types.bases import (
     IndexableTypeDefinition,
     MemberTypeDefinition,
 )
-from vyper.semantics.types.value.array_value import BytesArrayDefinition, StringDefinition
 from vyper.semantics.types.value.numeric import Uint256Definition  # type: ignore
 
 
@@ -247,9 +246,6 @@ class DynamicArrayPrimitive(BasePrimitive):
         value_type = get_type_from_annotation(
             node.slice.value.elements[0], location, is_constant, is_public, is_immutable
         )
-
-        if isinstance(value_type, (BytesArrayDefinition, StringDefinition)):
-            raise StructureException(f"{value_type._id} arrays are not supported", node)
 
         max_length = node.slice.value.elements[1].value
         return DynamicArrayDefinition(

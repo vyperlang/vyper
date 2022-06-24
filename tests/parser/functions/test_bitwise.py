@@ -7,19 +7,19 @@ from vyper.exceptions import TypeMismatch
 code = """
 @external
 def _bitwise_and(x: uint256, y: uint256) -> uint256:
-    return bitwise_and(x, y)
+    return x & y
 
 @external
 def _bitwise_or(x: uint256, y: uint256) -> uint256:
-    return bitwise_or(x, y)
+    return x | y
 
 @external
 def _bitwise_xor(x: uint256, y: uint256) -> uint256:
-    return bitwise_xor(x, y)
+    return x ^ y
 
 @external
 def _bitwise_not(x: uint256) -> uint256:
-    return bitwise_not(x)
+    return ~x
 
 @external
 def _shift(x: uint256, y: int128) -> uint256:

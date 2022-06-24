@@ -2452,3 +2452,52 @@ def do_stuff(f: Foo) -> uint256:
     c2 = get_contract(callee_code)
 
     assert c1.do_stuff(c2.address) == 1
+
+
+TEST_ADDR = b"".join(chr(i).encode("utf-8") for i in range(20)).hex()
+
+
+@pytest.mark.parametrize("typ,val", [("address", TEST_ADDR)])
+def test_calldata_clamp(w3, get_contract, assert_tx_failed, abi_encode, keccak, typ, val):
+    code = f"""
+@external
+def foo(a: {typ}):
+    pass
+    """
+    c1 = get_contract(code)
+    sig = keccak(f"foo({typ})".encode()).hex()[:10]
+    encoded = abi_encode(f"({typ})", (val,)).hex()
+    data = f"{sig}{encoded}"
+
+    # Static size is short by 1 byte
+    malformed = data[:-2]
+    assert_tx_failed(lambda: w3.eth.send_transaction({"to": c1.address, "data": malformed}))
+
+    # Static size exceeds by 1 byte
+    malformed = data + "ff"
+    assert_tx_failed(lambda: w3.eth.send_transaction({"to": c1.address, "data": malformed}))
+
+    # Static size is exact
+    w3.eth.send_transaction({"to": c1.address, "data": data})
+
+
+@pytest.mark.parametrize("typ,val", [("address", ([TEST_ADDR] * 3, "vyper"))])
+def test_dynamic_calldata_clamp(w3, get_contract, assert_tx_failed, abi_encode, keccak, typ, val):
+    code = f"""
+@external
+def foo(a: DynArray[{typ}, 3], b: String[5]):
+    pass
+    """
+
+    c1 = get_contract(code)
+    sig = keccak(f"foo({typ}[],string)".encode()).hex()[:10]
+    encoded = abi_encode(f"({typ}[],string)", val).hex()
+    data = f"{sig}{encoded}"
+
+    # Dynamic size is short by 1 byte
+    malformed = data[:264]
+    assert_tx_failed(lambda: w3.eth.send_transaction({"to": c1.address, "data": malformed}))
+
+    # Dynamic size is at least minimum (132 bytes * 2 + 2 (for 0x) = 266)
+    valid = data[:266]
+    w3.eth.send_transaction({"to": c1.address, "data": valid})

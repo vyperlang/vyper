@@ -161,8 +161,22 @@ Operator                     Description
 
 ``x`` and ``y`` must be of the same type.
 
+Bitwise Operators
+^^^^^^^^^^^^^^^^^
+
+=============  ======================
+Operator       Description
+=============  ======================
+``x & y``      Bitwise and
+``x | y``      Bitwise or
+``x ^ y``      Bitwise xor
+``~x``         Bitwise not
+=============  ======================
+
+``x`` and ``y`` must be of the same type.
+
 .. note::
-    Arithmetic is currently only available for ``uint8`` and ``uint256`` types.
+    Bitwise operations are currently only available for ``uint256`` type.
 
 Decimals
 --------
@@ -338,13 +352,89 @@ The members are represented by ``uint256`` values in the form of 2\ :sup:`n` whe
     # Returning a member
     return Roles.ADMIN
 
+Operators
+*********
+
+Comparisons
+^^^^^^^^^^^
+
+Comparisons return a boolean value.
+
+============== ================
+Operator       Description
+============== ================
+``x == y``     Equals
+``x != y``     Does not equal
+``x in y``     x is in y
+``x not in y`` x is not in y
+============== ================
+
+Bitwise Operators
+^^^^^^^^^^^^^^^^^
+
+=============  ======================
+Operator       Description
+=============  ======================
+``x & y``      Bitwise and
+``x | y``      Bitwise or
+``x ^ y``      Bitwise xor
+``~x``         Bitwise not
+=============  ======================
+
+Enum members can be combined using the above bitwise operators. While enum members have values that are power of two, enum member combinations may not.
+
+The ``in`` and ``not in`` operators can be used in conjunction with enum member combinations to check for membership.
+
+.. code-block:: python
+
+    enum Roles:
+        MANAGER
+        ADMIN
+        USER
+
+    # Check for membership
+    @external
+    def foo(a: Roles) -> bool:
+        return a in (Roles.MANAGER | Roles.USER)
+
+    # Check not in
+    @external
+    def bar(a: Roles) -> bool:
+        return a not in (Roles.MANAGER | Roles.USER)
+
+Note that ``in`` is not the same as strict equality (``==``). ``in`` checks that *any* of the flags on two enum objects are simultaneously set, while ``==`` checks that two enum objects are bit-for-bit equal.
+
+The following code uses bitwise operations to add and revoke permissions from a given ``Roles`` object.
+
+.. code-block:: python
+    @external
+    def add_user(a: Roles) -> Roles:
+        ret: Roles = a
+        ret |= Roles.USER  # set the USER bit to 1
+        return ret
+
+    @external
+    def revoke_user(a: Roles) -> Roles:
+        ret: Roles = a
+        ret &= ~Roles.USER  # set the USER bit to 0
+        return ret
+
+    @external
+    def flip_user(a: Roles) -> Roles:
+        ret: Roles = a
+        ret ^= Roles.USER  # flip the user bit between 0 and 1
+        return ret
+
 .. index:: !reference
 
 Reference Types
 ===============
 
-Reference types do not fit into 32 bytes. Because of this, copying their value is not as feasible as
-with value types. Therefore only the location, i.e. the reference, of the data is passed.
+Reference types are those whose components can be assigned to in-place without copying. For instance, array and struct members can be individually assigned to without overwriting the whole data structure.
+
+.. note::
+
+  In terms of the calling convention, reference types are passed by value, not by reference. That means that, a calling function does not need to worry about a callee modifying the data of a passed structure.
 
 .. index:: !arrays
 
@@ -416,6 +506,13 @@ Dynamic arrays represent bounded arrays whose length can be modified at runtime,
 .. note::
     Attempting to access data past the runtime length of an array, ``pop()`` an empty array or ``append()`` to a full array will result in a runtime ``REVERT``. Attempting to pass an array in calldata which is larger than the array bound will result in a runtime ``REVERT``.
 
+.. note::
+    To keep code easy to reason about, modifying an array while using it as an iterator it is disallowed by the language. For instance, the following usage is not allowed:
+
+    .. code-block:: python
+
+        for item in self.my_array:
+            self.my_array[0] = item
 
 In the ABI, they are represented as ``_Type[]``. For instance, ``DynArray[int128, 3]`` gets represented as ``int128[]``, and ``DynArray[DynArray[int128, 3], 3]`` gets represented as ``int128[][]``.
 

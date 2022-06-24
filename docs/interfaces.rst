@@ -23,10 +23,10 @@ The defined interface can then be used to make external calls, given a contract 
 .. code-block:: python
 
     @external
-    def test(some_address: address):
-        FooBar(some_address).calculate()
+    def test(foobar: FooBar):
+        foobar.calculate()
 
-The interface name can also be used as a type annotation for storage variables. You then assign an address value to the variable to access that interface. Note that assignment of an address requires the value to be cast using the interface type e.g. ``FooBar(<address_var>)``:
+The interface name can also be used as a type annotation for storage variables. You then assign an address value to the variable to access that interface. Note that casting an address to an interface is possible, e.g. ``FooBar(<address_var>)``:
 
 .. code-block:: python
 
@@ -51,11 +51,11 @@ Specifying ``payable`` or ``nonpayable`` annotation indicates that the call made
         def pay(): payable
 
     @external
-    def test(some_address: address):
-        FooBar(some_address).calculate()  # cannot change storage
-        FooBar(some_address).query()  # cannot change storage, but reads itself
-        FooBar(some_address).update()  # storage can be altered
-        FooBar(some_address).pay(value=1)  # storage can be altered, and value can be sent
+    def test(foobar: FooBar):
+        foobar.calculate()  # cannot change storage
+        foobar.query()  # cannot change storage, but reads itself
+        foobar.update()  # storage can be altered
+        foobar.pay(value=1)  # storage can be altered, and value can be sent
 
 Importing Interfaces
 ====================

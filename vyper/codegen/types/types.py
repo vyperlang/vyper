@@ -104,18 +104,17 @@ class DecimalTypeInfo(NumericTypeInfo):
     decimals: int
 
     @property
-    def divisor(self) -> Decimal:
-        # TODO reconsider if this API should return int
-        return Decimal(10 ** self.decimals)
+    def divisor(self) -> int:
+        return 10 ** self.decimals
 
     @property
     def epsilon(self) -> Decimal:
-        return 1 / self.divisor
+        return 1 / Decimal(self.divisor)
 
     @property
     def decimal_bounds(self) -> Tuple[Decimal, Decimal]:
         lo, hi = self.bounds
-        DIVISOR = self.divisor
+        DIVISOR = Decimal(self.divisor)
         return lo / DIVISOR, hi / DIVISOR
 
 
@@ -233,6 +232,9 @@ class EnumType(BaseType):
         super().__init__("uint256")
         self.name = name
         self.members = members
+
+    def __repr__(self):
+        return f"enum {self.name}"
 
     def __eq__(self, other):
         return self.name == other.name and self.members == other.members
