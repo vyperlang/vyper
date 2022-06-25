@@ -19,6 +19,7 @@ from .value.bytes_fixed import Bytes32Definition, BytesMDefinition
 from .value.numeric import Int128Definition  # type: ignore
 from .value.numeric import Uint256Definition  # type: ignore
 from .value.numeric import AbstractNumericDefinition, DecimalDefinition
+from .value.witness import WitnessDefinition, ProofDefinition
 
 # any more?
 
@@ -33,6 +34,7 @@ def get_primitive_types():
             if getattr(v, "__package__", None) == module.__package__
         ]
         for item in submodules:
+            print(item)
             result.update(
                 (v._id, v)
                 for v in item.__dict__.values()

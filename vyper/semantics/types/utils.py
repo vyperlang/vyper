@@ -194,7 +194,8 @@ def get_type_from_annotation(
 
     try:
         return type_obj.from_annotation(node, location, is_constant, is_public, is_immutable)
-    except AttributeError:
+    except AttributeError as e:
+        print(e)
         raise InvalidType(f"'{type_name}' is not a valid type", node) from None
 
 
