@@ -115,6 +115,7 @@ class IRnode:
         location: Optional[AddrSpace] = None,
         source_pos: Optional[Tuple[int, int]] = None,
         annotation: Optional[str] = None,
+        error_msg: Optional[str] = None,
         mutable: bool = True,
         add_gas_estimate: int = 0,
         encoding: Encoding = Encoding.VYPER,
@@ -129,6 +130,7 @@ class IRnode:
         self.typ = typ
         self.location = location
         self.source_pos = source_pos
+        self.error_msg = error_msg
         self.annotation = annotation
         self.mutable = mutable
         self.add_gas_estimate = add_gas_estimate
@@ -494,6 +496,7 @@ class IRnode:
         location: Optional[AddrSpace] = None,
         source_pos: Optional[Tuple[int, int]] = None,
         annotation: Optional[str] = None,
+        error_msg: Optional[str] = None,
         mutable: bool = True,
         add_gas_estimate: int = 0,
         encoding: Encoding = Encoding.VYPER,
@@ -512,6 +515,8 @@ class IRnode:
                 obj.location = location
             if obj.encoding is None:
                 obj.encoding = encoding
+            if obj.error_msg is None:
+                obj.error_msg = error_msg
 
             return obj
         elif not isinstance(obj, list):
@@ -524,11 +529,12 @@ class IRnode:
                 mutable=mutable,
                 add_gas_estimate=add_gas_estimate,
                 encoding=encoding,
+                error_msg=error_msg,
             )
         else:
             return cls(
                 obj[0],
-                [cls.from_list(o, source_pos=source_pos) for o in obj[1:]],
+                [cls.from_list(o, source_pos=source_pos, error_msg=error_msg) for o in obj[1:]],
                 typ,
                 location=location,
                 annotation=annotation,
@@ -536,4 +542,5 @@ class IRnode:
                 source_pos=source_pos,
                 add_gas_estimate=add_gas_estimate,
                 encoding=encoding,
+                error_msg=error_msg,
             )

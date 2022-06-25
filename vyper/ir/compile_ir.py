@@ -161,8 +161,10 @@ class Instruction(str):
     def __new__(cls, sstr, *args, **kwargs):
         return super().__new__(cls, sstr)
 
-    def __init__(self, sstr, source_pos=None):
+    def __init__(self, sstr, source_pos=None, error_msg=None):
+        self.error_msg = error_msg
         self.pc_debugger = False
+
         if source_pos is not None:
             self.lineno, self.col_offset, self.end_lineno, self.end_col_offset = source_pos
         else:
@@ -174,8 +176,9 @@ def apply_line_numbers(func):
     def apply_line_no_wrapper(*args, **kwargs):
         code = args[0]
         ret = func(*args, **kwargs)
+
         new_ret = [
-            Instruction(i, code.source_pos)
+            Instruction(i, code.source_pos, code.error_msg)
             if isinstance(i, str) and not isinstance(i, Instruction)
             else i
             for i in ret
@@ -726,7 +729,12 @@ def note_line_num(line_number_map, item, pos):
             offsets = (item.lineno, item.col_offset, item.end_lineno, item.end_col_offset)
         else:
             offsets = None
+
         line_number_map["pc_pos_map"][pos] = offsets
+
+        if item.error_msg is not None:
+            line_number_map["error_map"][pos] = item.error_msg
+
     added_line_breakpoint = note_breakpoint(line_number_map, item, pos)
     return added_line_breakpoint
 
@@ -938,6 +946,7 @@ def assembly_to_evm(assembly, start_pos=0, insert_vyper_signature=False):
         "pc_breakpoints": set(),
         "pc_jump_map": {0: "-"},
         "pc_pos_map": {},
+        "error_map": {},
     }
 
     posmap = {}
