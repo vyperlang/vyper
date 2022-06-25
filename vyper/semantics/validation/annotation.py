@@ -55,11 +55,6 @@ class StatementAnnotationVisitor(_AnnotationVisitorBase):
     def visit(self, node):
         super().visit(node)
 
-    def visit_AnnAssign(self, node):
-        type_ = get_exact_type_from_node(node.target)
-        self.expr_visitor.visit(node.target, type_)
-        self.expr_visitor.visit(node.value, type_)
-
     def visit_VariableDef(self, node):
         type_ = get_exact_type_from_node(node.target)
         self.expr_visitor.visit(node.target, type_)

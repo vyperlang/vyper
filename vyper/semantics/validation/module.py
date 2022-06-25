@@ -143,9 +143,6 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
 
     def visit_AnnAssign(self, node):
         name = node.get("target.id")
-        if name is None:
-            raise VariableDeclarationException("Invalid module-level assignment", node)
-
         if name == "implements":
             interface_name = node.annotation.id
             self.namespace[interface_name].validate_implements(node)
