@@ -94,7 +94,7 @@ class WitnessDefinition(MemberTypeDefinition):
         from vyper.semantics.types.function import MemberFunctionDefinition
 
         self.add_member(
-            "validate", MemberFunctionDefinition(self, "validate", [ProofDefinition(self.value_type)], self.value_type, True)
+            "validate", MemberFunctionDefinition(self, "validate", [ProofDefinition(self.value_type)], self.value_type, False)
         )
 
     def __repr__(self):

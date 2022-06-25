@@ -14,6 +14,7 @@ from vyper.semantics.namespace import validate_identifier
 from vyper.semantics.types.bases import DataLocation, MemberTypeDefinition, ValueTypeDefinition
 from vyper.semantics.types.indexable.mapping import MappingDefinition
 from vyper.semantics.types.utils import get_type_from_annotation
+from vyper.semantics.types.value.witness import WitnessDefinition
 from vyper.semantics.validation.levenshtein_utils import get_levenshtein_error_suggestions
 from vyper.semantics.validation.utils import validate_expected_type
 

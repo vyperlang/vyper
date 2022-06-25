@@ -2254,6 +2254,247 @@ class Print(BuiltinFunction):
         return IRnode.from_list(ret, annotation="print:" + sig)
 
 
+class MakeWitness(BuiltinFunction):
+    _id = "make_witness"  # TODO prettier to rename this to abi.encode
+    # signature: *, ensure_tuple=<literal_bool> -> Bytes[<calculated len>]
+    # (check the signature manually since we have no utility methods
+    # to handle varargs.)
+    # explanation of ensure_tuple:
+    # default is to force even a single value into a tuple,
+    # e.g. _abi_encode(bytes) -> _abi_encode((bytes,))
+    #      _abi_encode((bytes,)) -> _abi_encode(((bytes,),))
+    # this follows the encoding convention for functions:
+    # ://docs.soliditylang.org/en/v0.8.6/abi-spec.html#function-selector-and-argument-encoding
+    # if this is turned off, then bytes will be encoded as bytes.
+
+    _inputs: list = []
+    _has_varargs = True
+
+    _kwargs = {
+        "ensure_tuple": KwargSettings(BoolDefinition(), True, require_literal=True),
+        "method_id": KwargSettings(
+            (Bytes4Definition(), BytesArrayDefinition(4)), None, require_literal=True
+        ),
+    }
+
+    def infer_kwarg_types(self, node):
+        ret = {}
+        for kwarg in node.keywords:
+            kwarg_name = kwarg.arg
+            validate_expected_type(kwarg.value, self._kwargs[kwarg_name].typ)
+            ret[kwarg_name] = get_exact_type_from_node(kwarg.value)
+        return ret
+
+    def fetch_call_return(self, node):
+        self._validate_arg_types(node)
+        ensure_tuple = next(
+            (arg.value.value for arg in node.keywords if arg.arg == "ensure_tuple"), True
+        )
+        assert isinstance(ensure_tuple, bool)
+        has_method_id = "method_id" in [arg.arg for arg in node.keywords]
+
+        # figure out the output type by converting
+        # the types to ABI_Types and calling size_bound API
+        arg_abi_types = []
+        arg_types = self.infer_arg_types(node)
+        for arg_t in arg_types:
+            arg_abi_types.append(arg_t.abi_type)
+
+        # special case, no tuple
+        if len(arg_abi_types) == 1 and not ensure_tuple:
+            arg_abi_t = arg_abi_types[0]
+        else:
+            arg_abi_t = ABI_Tuple(arg_abi_types)
+
+        maxlen = arg_abi_t.size_bound()
+
+        if has_method_id:
+            # the output includes 4 bytes for the method_id.
+            maxlen += 4
+
+        ret = BytesArrayDefinition()
+        ret.set_length(maxlen)
+        return ret
+
+    @staticmethod
+    def _parse_method_id(method_id_literal):
+        if method_id_literal is None:
+            return None
+        if isinstance(method_id_literal, bytes):
+            assert len(method_id_literal) == 4
+            return fourbytes_to_int(method_id_literal)
+        if method_id_literal.startswith("0x"):
+            method_id_literal = method_id_literal[2:]
+        return fourbytes_to_int(bytes.fromhex(method_id_literal))
+
+    @process_inputs
+    def build_IR(self, expr, args, kwargs, context):
+        ensure_tuple = kwargs["ensure_tuple"]
+        method_id = self._parse_method_id(kwargs["method_id"])
+
+        if len(args) < 1:
+            raise StructureException("abi_encode expects at least one argument", expr)
+
+        # figure out the required length for the output buffer
+        if len(args) == 1 and not ensure_tuple:
+            # special case, no tuple
+            encode_input = args[0]
+        else:
+            encode_input = ir_tuple_from_args(args)
+
+        input_abi_t = encode_input.typ.abi_type
+        maxlen = input_abi_t.size_bound()
+        if method_id is not None:
+            maxlen += 4
+
+        buf_t = ByteArrayType(maxlen=maxlen)
+        assert self.fetch_call_return(expr).length == maxlen
+        buf = context.new_internal_variable(buf_t)
+
+        ret = ["seq"]
+        if method_id is not None:
+            # <32 bytes length> | <4 bytes method_id> | <everything else>
+            # write the unaligned method_id first, then we will
+            # overwrite the 28 bytes of zeros with the bytestring length
+            ret += [["mstore", buf + 4, method_id]]
+            # abi encode, and grab length as stack item
+            length = abi_encode(buf + 36, encode_input, context, returns_len=True, bufsz=maxlen)
+            # write the output length to where bytestring stores its length
+            ret += [["mstore", buf, ["add", length, 4]]]
+
+        else:
+            # abi encode and grab length as stack item
+            length = abi_encode(buf + 32, encode_input, context, returns_len=True, bufsz=maxlen)
+            # write the output length to where bytestring stores its length
+            ret += [["mstore", buf, length]]
+
+        # return the buf location
+        # TODO location is statically known, optimize this out
+        ret += [buf]
+
+        return IRnode.from_list(ret, location=MEMORY, typ=buf_t)
+
+
+class ABIEncode(BuiltinFunction):
+    _id = "_abi_encode"  # TODO prettier to rename this to abi.encode
+    # signature: *, ensure_tuple=<literal_bool> -> Bytes[<calculated len>]
+    # (check the signature manually since we have no utility methods
+    # to handle varargs.)
+    # explanation of ensure_tuple:
+    # default is to force even a single value into a tuple,
+    # e.g. _abi_encode(bytes) -> _abi_encode((bytes,))
+    #      _abi_encode((bytes,)) -> _abi_encode(((bytes,),))
+    # this follows the encoding convention for functions:
+    # ://docs.soliditylang.org/en/v0.8.6/abi-spec.html#function-selector-and-argument-encoding
+    # if this is turned off, then bytes will be encoded as bytes.
+
+    _inputs: list = []
+    _has_varargs = True
+
+    _kwargs = {
+        "ensure_tuple": KwargSettings(BoolDefinition(), True, require_literal=True),
+        "method_id": KwargSettings(
+            (Bytes4Definition(), BytesArrayDefinition(4)), None, require_literal=True
+        ),
+    }
+
+    def infer_kwarg_types(self, node):
+        ret = {}
+        for kwarg in node.keywords:
+            kwarg_name = kwarg.arg
+            validate_expected_type(kwarg.value, self._kwargs[kwarg_name].typ)
+            ret[kwarg_name] = get_exact_type_from_node(kwarg.value)
+        return ret
+
+    def fetch_call_return(self, node):
+        self._validate_arg_types(node)
+        ensure_tuple = next(
+            (arg.value.value for arg in node.keywords if arg.arg == "ensure_tuple"), True
+        )
+        assert isinstance(ensure_tuple, bool)
+        has_method_id = "method_id" in [arg.arg for arg in node.keywords]
+
+        # figure out the output type by converting
+        # the types to ABI_Types and calling size_bound API
+        arg_abi_types = []
+        arg_types = self.infer_arg_types(node)
+        for arg_t in arg_types:
+            arg_abi_types.append(arg_t.abi_type)
+
+        # special case, no tuple
+        if len(arg_abi_types) == 1 and not ensure_tuple:
+            arg_abi_t = arg_abi_types[0]
+        else:
+            arg_abi_t = ABI_Tuple(arg_abi_types)
+
+        maxlen = arg_abi_t.size_bound()
+
+        if has_method_id:
+            # the output includes 4 bytes for the method_id.
+            maxlen += 4
+
+        ret = BytesArrayDefinition()
+        ret.set_length(maxlen)
+        return ret
+
+    @staticmethod
+    def _parse_method_id(method_id_literal):
+        if method_id_literal is None:
+            return None
+        if isinstance(method_id_literal, bytes):
+            assert len(method_id_literal) == 4
+            return fourbytes_to_int(method_id_literal)
+        if method_id_literal.startswith("0x"):
+            method_id_literal = method_id_literal[2:]
+        return fourbytes_to_int(bytes.fromhex(method_id_literal))
+
+    @process_inputs
+    def build_IR(self, expr, args, kwargs, context):
+        ensure_tuple = kwargs["ensure_tuple"]
+        method_id = self._parse_method_id(kwargs["method_id"])
+
+        if len(args) < 1:
+            raise StructureException("abi_encode expects at least one argument", expr)
+
+        # figure out the required length for the output buffer
+        if len(args) == 1 and not ensure_tuple:
+            # special case, no tuple
+            encode_input = args[0]
+        else:
+            encode_input = ir_tuple_from_args(args)
+
+        input_abi_t = encode_input.typ.abi_type
+        maxlen = input_abi_t.size_bound()
+        if method_id is not None:
+            maxlen += 4
+
+        buf_t = ByteArrayType(maxlen=maxlen)
+        assert self.fetch_call_return(expr).length == maxlen
+        buf = context.new_internal_variable(buf_t)
+
+        ret = ["seq"]
+        if method_id is not None:
+            # <32 bytes length> | <4 bytes method_id> | <everything else>
+            # write the unaligned method_id first, then we will
+            # overwrite the 28 bytes of zeros with the bytestring length
+            ret += [["mstore", buf + 4, method_id]]
+            # abi encode, and grab length as stack item
+            length = abi_encode(buf + 36, encode_input, context, returns_len=True, bufsz=maxlen)
+            # write the output length to where bytestring stores its length
+            ret += [["mstore", buf, ["add", length, 4]]]
+
+        else:
+            # abi encode and grab length as stack item
+            length = abi_encode(buf + 32, encode_input, context, returns_len=True, bufsz=maxlen)
+            # write the output length to where bytestring stores its length
+            ret += [["mstore", buf, length]]
+
+        # return the buf location
+        # TODO location is statically known, optimize this out
+        ret += [buf]
+
+        return IRnode.from_list(ret, location=MEMORY, typ=buf_t)
+
 class ABIEncode(BuiltinFunction):
     _id = "_abi_encode"  # TODO prettier to rename this to abi.encode
     # signature: *, ensure_tuple=<literal_bool> -> Bytes[<calculated len>]
