@@ -69,6 +69,26 @@ def test_test_bitwise(get_contract_with_gas_estimation, evm_version):
     assert c._negatedShift(x, 256) == 0
 
 
+def test_precedence(get_contract):
+    code = """
+@external
+def foo(a: uint256, b: uint256, c: uint256) -> (uint256, uint256):
+    return (a | b & c, (a | b) & c)
+
+@external
+def bar(a: uint256, b: uint256, c: uint256) -> (uint256, uint256):
+    return (a | ~b & c, (a | ~b) & c)
+
+@external
+def baz(a: uint256, b: uint256, c: uint256) -> (uint256, uint256):
+    return (a + 8 | ~b & c * 2, (a  + 8 | ~b) & c * 2)
+    """
+    c = get_contract(code)
+    assert tuple(c.foo(1, 6, 14)) == (7, 6)
+    assert tuple(c.bar(1, 6, 14)) == (9, 8)
+    assert tuple(c.baz(1, 6, 14)) == (25, 24)
+
+
 @pytest.mark.parametrize("evm_version", list(EVM_VERSIONS))
 def test_literals(get_contract, evm_version):
     code = """
