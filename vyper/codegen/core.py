@@ -976,7 +976,7 @@ def clamp_basetype(ir_node):
     else:  # pragma: nocover
         raise CompilerPanic(f"{t} passed to clamp_basetype")
 
-    return IRnode.from_list(ret, typ=ir_node.typ)
+    return IRnode.from_list(ret, typ=ir_node.typ, error_msg=f"validate {t}")
 
 
 def int_clamp(ir_node, bits, signed=False):

@@ -424,6 +424,7 @@ def _optimize(node: IRnode, parent: Optional[IRnode]) -> Tuple[bool, IRnode]:
     typ = node.typ
     location = node.location
     source_pos = node.source_pos
+    error_msg = node.error_msg
     annotation = node.annotation
     add_gas_estimate = node.add_gas_estimate
 
@@ -445,6 +446,7 @@ def _optimize(node: IRnode, parent: Optional[IRnode]) -> Tuple[bool, IRnode]:
             typ=typ,
             location=location,
             source_pos=source_pos,
+            error_msg=error_msg,
             annotation=annotation,
             add_gas_estimate=add_gas_estimate,
         )

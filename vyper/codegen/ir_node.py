@@ -528,13 +528,14 @@ class IRnode:
                 annotation=annotation,
                 mutable=mutable,
                 add_gas_estimate=add_gas_estimate,
+                source_pos=source_pos,
                 encoding=encoding,
                 error_msg=error_msg,
             )
         else:
             return cls(
                 obj[0],
-                [cls.from_list(o, source_pos=source_pos, error_msg=error_msg) for o in obj[1:]],
+                [cls.from_list(o, source_pos=source_pos) for o in obj[1:]],
                 typ,
                 location=location,
                 annotation=annotation,
