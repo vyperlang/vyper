@@ -546,7 +546,9 @@ def _merge_memzero(argz):
     initial_offset = 0
     total_length = 0
     changed = False
-    for ir_node in argz:
+    for i, ir_node in enumerate(argz):
+        is_last_iteration = i == len(argz) - 1
+
         if (
             ir_node.value == "mstore"
             and isinstance(ir_node.args[0].value, int)
@@ -559,7 +561,8 @@ def _merge_memzero(argz):
             if initial_offset + total_length == offset:
                 mstore_nodes.append(ir_node)
                 total_length += 32
-                continue
+                if not is_last_iteration:
+                    continue
 
         if (
             ir_node.value == "calldatacopy"
@@ -574,7 +577,8 @@ def _merge_memzero(argz):
             if initial_offset + total_length == offset:
                 mstore_nodes.append(ir_node)
                 total_length += length
-                continue
+                if not is_last_iteration:
+                    continue
 
         # if we get this far, the current node is not a zero'ing operation
         # it's time to apply the optimization if possible
@@ -619,7 +623,8 @@ def _merge_calldataload(argz):
     initial_mem_offset = 0
     initial_calldata_offset = 0
     total_length = 0
-    for ir_node in argz:
+    for i, ir_node in enumerate(argz):
+        is_last_iteration = i == len(argz) - 1
         if (
             ir_node.value == "mstore"
             and isinstance(ir_node.args[0].value, int)
@@ -638,7 +643,9 @@ def _merge_calldataload(argz):
             ):
                 mstore_nodes.append(ir_node)
                 total_length += 32
-                continue
+
+                if not is_last_iteration:
+                    continue
 
         # if we get this far, the current node is a different operation
         # it's time to apply the optimization if possible
