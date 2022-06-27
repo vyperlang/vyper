@@ -249,7 +249,7 @@ def _optimize_binop(binop, args, ann, parent_op):
 
     if binop in {"add", "sub", "xor", "or"} and _int(args[1]) == 0:
         # x + 0 == x - 0 == x | 0 == x ^ 0 == x
-        return finalize(args[0].value, args[0].args)
+        return finalize("seq", [args[0]])
 
     if binop in {"sub", "xor", "ne"} and _conservative_eq(args[0], args[1]):
         # x - x == x ^ x == x != x == 0
@@ -271,7 +271,7 @@ def _optimize_binop(binop, args, ann, parent_op):
 
     # x * 1 == x / 1 == x
     if binop in {"mul", "div", "sdiv"} and _int(args[1]) == 1:
-        return finalize(args[0].value, args[0].args)
+        return finalize("seq", [args[0]])
 
     # x * -1 == 0 - x
     if binop in {"mul", "sdiv"} and _int(args[1], SIGNED) == -1:
@@ -281,7 +281,7 @@ def _optimize_binop(binop, args, ann, parent_op):
         assert unsigned == UNSIGNED
         if binop == "and":
             # -1 & x == x
-            return finalize(args[0].value, args[0].args)
+            return finalize("seq", [args[0]])
 
         if binop == "xor":
             # -1 ^ x == ~x
@@ -307,7 +307,7 @@ def _optimize_binop(binop, args, ann, parent_op):
             return finalize("iszero", [args[1]])
         # n ** 1 == n
         if _int(args[1]) == 1:
-            return finalize(args[0].value, args[0].args)
+            return finalize("seq", [args[0]])
 
     # TODO: check me! reduce codesize for negative numbers
     # if binop in {"add", "sub"} and _int(args[1], SIGNED) < 0:
