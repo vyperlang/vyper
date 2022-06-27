@@ -196,6 +196,7 @@ dict: "{" "}" | "{" (NAME ":" _expr) ("," (NAME ":" _expr))* [","] "}"
 // Operators
 // NOTE: The recursive cycle here helps enforce operator precedence
 //       Precedence goes up the lower down you go
+?operation: bool_or
 
 _AND: "and"
 _OR: "or"
@@ -210,8 +211,6 @@ _NOT: "not"
 
 ?bool_not: comparator
          | _NOT comparator -> not
-
-?operation: comparator
 
 _POW: "**"
 _SHL: "<<"
