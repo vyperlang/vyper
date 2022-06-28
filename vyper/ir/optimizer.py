@@ -546,6 +546,7 @@ def _merge_memzero(argz):
     initial_offset = 0
     total_length = 0
     changed = False
+    idx = None
     for i, ir_node in enumerate(argz):
         is_last_iteration = i == len(argz) - 1
 
@@ -557,6 +558,7 @@ def _merge_memzero(argz):
             # mstore of a zero value
             offset = ir_node.args[0].value
             if not mstore_nodes:
+                idx = i
                 initial_offset = offset
             if initial_offset + total_length == offset:
                 mstore_nodes.append(ir_node)
@@ -573,6 +575,7 @@ def _merge_memzero(argz):
             # calldatacopy from the end of calldata - efficient zero'ing via `empty()`
             offset, length = ir_node.args[0].value, ir_node.args[2].value
             if not mstore_nodes:
+                idx = i
                 initial_offset = offset
             if initial_offset + total_length == offset:
                 mstore_nodes.append(ir_node)
@@ -589,10 +592,9 @@ def _merge_memzero(argz):
                 source_pos=mstore_nodes[0].source_pos,
             )
             # replace first zero'ing operation with optimized node and remove the rest
-            idx = argz.index(mstore_nodes[0])
             argz[idx] = new_ir
-            for i in mstore_nodes[1:]:
-                argz.remove(i)
+            # note: del xs[k:l] deletes l - k items
+            del argz[idx + 1 : idx + len(mstore_nodes)]
 
         initial_offset = 0
         total_length = 0
@@ -623,6 +625,7 @@ def _merge_calldataload(argz):
     initial_mem_offset = 0
     initial_calldata_offset = 0
     total_length = 0
+    idx = None
     for i, ir_node in enumerate(argz):
         is_last_iteration = i == len(argz) - 1
         if (
@@ -637,6 +640,7 @@ def _merge_calldataload(argz):
             if not mstore_nodes:
                 initial_mem_offset = mem_offset
                 initial_calldata_offset = calldata_offset
+                idx = i
             if (
                 initial_mem_offset + total_length == mem_offset
                 and initial_calldata_offset + total_length == calldata_offset
@@ -656,10 +660,9 @@ def _merge_calldataload(argz):
                 source_pos=mstore_nodes[0].source_pos,
             )
             # replace first copy operation with optimized node and remove the rest
-            idx = argz.index(mstore_nodes[0])
             argz[idx] = new_ir
-            for i in mstore_nodes[1:]:
-                argz.remove(i)
+            # note: del xs[k:l] deletes l - k items
+            del argz[idx + 1 : idx + len(mstore_nodes)]
 
         initial_mem_offset = 0
         initial_calldata_offset = 0
