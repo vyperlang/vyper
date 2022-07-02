@@ -129,20 +129,23 @@ def _rewrite_return_sequences(ir_node, label_params=None):
 
 
 def _assert_false():
+    global _revert_label
     # use a shared failure block for common case of assert(x).
     # in the future we might want to change the code
     # at _sym_revert0 to: INVALID
-    return ["_sym_revert0", "JUMPI"]
+    return [_revert_label, "JUMPI"]
 
 
 def _add_postambles(asm_ops):
     to_append = []
 
-    _revert0_string = ["_sym_revert0", "JUMPDEST", "PUSH1", 0, "DUP1", "REVERT"]
+    global _revert_label
 
-    if "_sym_revert0" in asm_ops:
+    _revert_string = [_revert_label, "JUMPDEST", "PUSH1", 0, "DUP1", "REVERT"]
+
+    if _revert_label in asm_ops:
         # shared failure block
-        to_append.extend(_revert0_string)
+        to_append.extend(_revert_string)
 
     if len(to_append) > 0:
         # for some reason there might not be a STOP at the end of asm_ops.
@@ -187,6 +190,9 @@ def apply_line_numbers(func):
 
 @apply_line_numbers
 def compile_to_assembly(code, no_optimize=False):
+    global _revert_label
+    _revert_label = mksymbol("revert")
+
     # don't overwrite ir since the original might need to be output, e.g. `-f ir,asm`
     code = copy.deepcopy(code)
     _rewrite_return_sequences(code)
@@ -384,7 +390,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
             # TODO this runtime assertion should never fail for
             # internally generated repeats.
             # maybe drop it or jump to 0xFE
-            o.extend(["DUP2", "GT", "_sym_revert0", "JUMPI"])
+            o.extend(["DUP2", "GT"] + _assert_false())
 
             # stack: i, rounds
             # if (0 == rounds) { goto end_dest; }
