@@ -160,7 +160,9 @@ class Stmt:
 
     def _assert_reason(self, test_expr, msg):
         if isinstance(msg, vy_ast.Name) and msg.id == "UNREACHABLE":
-            return IRnode.from_list(["assert_unreachable", test_expr], error_msg="assert unreachable")
+            return IRnode.from_list(
+                ["assert_unreachable", test_expr], error_msg="assert unreachable"
+            )
 
         # set constant so that revert reason str is well behaved
         try:
