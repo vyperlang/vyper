@@ -100,12 +100,12 @@ class CompilerData:
 
     @property
     def vyper_module_folded(self) -> vy_ast.Module:
-        module, _storage_layout = self._folded_module
+        module, storage_layout = self._folded_module
         return module
 
     @property
     def storage_layout(self) -> StorageLayout:
-        _module, storage_layout = self._folded_module
+        module, storage_layout = self._folded_module
         return storage_layout
 
     @property
@@ -140,11 +140,11 @@ class CompilerData:
     def assembly_runtime(self) -> list:
         return generate_assembly(self.ir_runtime, self.no_optimize)
 
-    @property
+    @cached_property
     def bytecode(self) -> bytes:
         return generate_bytecode(self.assembly, is_runtime=False)
 
-    @property
+    @cached_property
     def bytecode_runtime(self) -> bytes:
         return generate_bytecode(self.assembly_runtime, is_runtime=True)
 
