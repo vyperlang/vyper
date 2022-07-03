@@ -1,8 +1,8 @@
 import ast as python_ast
+import copy
 import decimal
 import operator
 import sys
-import copy
 from typing import Any, Optional, Union
 
 from vyper.compiler.settings import VYPER_ERROR_CONTEXT_LINES, VYPER_ERROR_LINE_NUMBERS
