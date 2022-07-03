@@ -1028,6 +1028,8 @@ def assembly_to_evm(assembly, start_pos=0, insert_vyper_signature=False):
     if runtime_code is not None:
         posmap["_sym_subcode_size"] = len(runtime_code)
 
+    # TODO refactor into two functions, create posmap and assemble
+
     o = b""
 
     to_skip = 0
