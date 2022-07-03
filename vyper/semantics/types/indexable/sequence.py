@@ -160,11 +160,22 @@ class DynamicArrayDefinition(_SequenceDefinition, MemberTypeDefinition):
         # Adding members here as otherwise MemberFunctionDefinition is not yet defined
         # if added as _type_members
         from vyper.semantics.types.function import MemberFunctionDefinition
+        from vyper.semantics.types.utils import KwargSettings
 
         self.add_member(
             "append", MemberFunctionDefinition(self, "append", [self.value_type], None, True)
         )
-        self.add_member("pop", MemberFunctionDefinition(self, "pop", [], self.value_type, True))
+        self.add_member(
+            "pop",
+            MemberFunctionDefinition(
+                self,
+                "pop",
+                [],
+                self.value_type,
+                True,
+                kwargs={"ix": KwargSettings(Uint256Definition(), -1, require_literal=True)},
+            ),
+        )
 
     def __repr__(self):
         return f"DynArray[{self.value_type}, {self.length}]"
