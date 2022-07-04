@@ -1,4 +1,5 @@
 import ast as python_ast
+import copy
 import decimal
 import operator
 import sys
@@ -54,6 +55,13 @@ def get_node(
     """
     if not isinstance(ast_struct, dict):
         ast_struct = ast_struct.__dict__
+
+        # workaround: some third party module (ex. ipython) might insert
+        # a "parent" member into the node, creating a duplicate kwarg
+        # error below when calling vy_class()
+        if "parent" in ast_struct:
+            ast_struct = copy.copy(ast_struct)
+            del ast_struct["parent"]
 
     vy_class = getattr(sys.modules[__name__], ast_struct["ast_type"], None)
     if not vy_class:
