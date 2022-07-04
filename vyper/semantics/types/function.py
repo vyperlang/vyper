@@ -581,7 +581,7 @@ class MemberFunctionDefinition(BaseTypeDefinition):
     def __repr__(self):
         return f"{self.underlying_type._id} member function '{self.name}'"
 
-    def _validate_arg_types(self, node: vy_ast.Call):
+    def _validate_arg_types(self, node: vy_ast.Call) -> None:
         num_args = len(self.arg_types)
         validate_call_args(node, num_args, list(self._kwargs))
 
