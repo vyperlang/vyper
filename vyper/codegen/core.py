@@ -301,11 +301,12 @@ def pop_dyn_array(context, darray_node, return_popped_item, pop_idx=None):
         if pop_idx is not None:
             # If pop from given index, assert that array length is greater than index
             ret.append(clamp("gt", get_dyn_array_count(darray_node), pop_idx))
+            idx = old_len
         else:
             # Else, pop from last index
-            pop_idx = new_len
+            idx = new_len
 
-        with pop_idx.cache_when_complex("idx") as (b2, pop_idx):
+        with pop_idx.cache_when_complex("pop_idx") as (b2, pop_idx):
             # TODO Update darray
             ret.append(STORE(darray_node, new_len))
 
@@ -339,7 +340,7 @@ def pop_dyn_array(context, darray_node, return_popped_item, pop_idx=None):
 
             # NOTE skip array bounds check bc we already asserted len two lines up
             if return_popped_item:
-                popped_item = get_element_ptr(darray_node, old_len, array_bounds_check=False)
+                popped_item = get_element_ptr(darray_node, idx, array_bounds_check=False)
                 ret.append(popped_item)
                 typ = popped_item.typ
                 location = popped_item.location
