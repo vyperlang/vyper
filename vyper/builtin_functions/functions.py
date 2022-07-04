@@ -2508,10 +2508,10 @@ class Pop(BuiltinFunction):
             kwarg_settings = kwargs[kwarg_name]
             expected_kwarg_type = kwarg_settings.typ
             idx = process_kwarg(kwarg_val, kwarg_settings, expected_kwarg_type, context)
-            return pop_dyn_array(darray, return_popped_item=return_popped_item, pop_idx=idx)
+            return pop_dyn_array(context, darray, return_popped_item=return_popped_item, pop_idx=idx)
 
         else:
-            return pop_dyn_array(darray, return_popped_item=return_popped_item)
+            return pop_dyn_array(context, darray, return_popped_item=return_popped_item)
 
 
 DISPATCH_TABLE = {

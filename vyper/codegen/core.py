@@ -290,7 +290,7 @@ def append_dyn_array(darray_node, elem_node):
             return IRnode.from_list(b1.resolve(b2.resolve(ret)))
 
 
-def pop_dyn_array(darray_node, return_popped_item, pop_idx=None):
+def pop_dyn_array(context, darray_node, return_popped_item, pop_idx=None):
     assert isinstance(darray_node.typ, DArrayType)
     assert darray_node.encoding == Encoding.VYPER
     ret = ["seq"]
@@ -309,9 +309,37 @@ def pop_dyn_array(darray_node, return_popped_item, pop_idx=None):
             # TODO Update darray
             ret.append(STORE(darray_node, new_len))
 
+            if pop_idx is not None:
+                # Swap index to pop with the old last index
+                dst_i = get_element_ptr(darray_node, old_len, array_bounds_check=False)
+                src_i = get_element_ptr(darray_node, pop_idx, array_bounds_check=False)
+                ret.append(make_setter(dst_i, src_i))
+
+                # Iterate from popped index to the new last index and swap
+                # Set up the loop variable
+                loop_var = IRnode.from_list(context.fresh_varname("dynarray_pop_ix"), typ="uint256")
+                next_ix = IRnode.from_list(["add", loop_var, 1], typ="uint256")
+
+                # Swap value at index loop_var with index loop_var + 1
+                loop_body = [
+                    "seq",
+                    make_setter(
+                        get_element_ptr(darray_node, loop_var, array_bounds_check=False),  # dst_i
+                        get_element_ptr(darray_node, next_ix, array_bounds_check=False)  # src_i
+                    ),
+                ]
+
+                # Set loop termination as new_index - 1
+                iter = IRnode.from_list(["sub", IRnode.from_list(["sub", new_len, pop_idx], typ="uint256"), 1], typ="uint256")
+
+                # Set dynarray length as repeat bound
+                repeat_bound = darray_node.typ.count
+
+                ret.append(["repeat", loop_var, pop_idx, iter, repeat_bound, loop_body])
+
             # NOTE skip array bounds check bc we already asserted len two lines up
             if return_popped_item:
-                popped_item = get_element_ptr(darray_node, pop_idx, array_bounds_check=False)
+                popped_item = get_element_ptr(darray_node, old_len, array_bounds_check=False)
                 ret.append(popped_item)
                 typ = popped_item.typ
                 location = popped_item.location
