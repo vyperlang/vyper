@@ -16,14 +16,17 @@ from vyper.codegen.core import (
     IRnode,
     _freshname,
     add_ofst,
+    append_dyn_array,
     bytes_data_ptr,
     calculate_type_for_external_return,
+    check_assign,
     check_external_call,
     clamp,
     clamp2,
     clamp_basetype,
     clamp_nonzero,
     copy_bytes,
+    dummy_node_for_type,
     ensure_in_memory,
     eval_once_check,
     eval_seq,
@@ -2484,13 +2487,30 @@ class ABIDecode(BuiltinFunction):
             )
 
 
+class Append(BuiltinFunction):
+    _id = "append"
+
+    def build_IR(self, expr, context):
+        darray = Expr(expr.func.value, context).ir_node
+        args = [Expr(x, context).ir_node for x in expr.args]
+
+        # sanity checks
+        assert len(args) == 1
+        arg = args[0]
+        assert isinstance(darray.typ, DArrayType)
+
+        check_assign(dummy_node_for_type(darray.typ.subtype), dummy_node_for_type(arg.typ))
+
+        return append_dyn_array(darray, arg)
+
 class Pop(BuiltinFunction):
     _id = "pop"
 
-    def build_IR(self, expr, context, darray, return_popped_item):
-        darray_ir = Expr(darray, context).ir_node
-        assert isinstance(darray_ir.typ, DArrayType)
-        return pop_dyn_array(darray_ir, return_popped_item=return_popped_item)
+    def build_IR(self, expr, context, return_popped_item):
+        darray = Expr(expr.func.value, context).ir_node
+        assert isinstance(darray.typ, DArrayType)
+        assert len(expr.args) == 0
+        return pop_dyn_array(darray, return_popped_item=return_popped_item)
 
 
 DISPATCH_TABLE = {
@@ -2548,6 +2568,7 @@ STMT_DISPATCH_TABLE = {
     "create_forwarder_to": CreateForwarderTo(),
     "create_copy_of": CreateCopyOf(),
     "create_from_factory": CreateFromFactory(),
+    "append": Append(),
     "pop": Pop(),
 }
 
