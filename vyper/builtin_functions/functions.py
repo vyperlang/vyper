@@ -31,6 +31,7 @@ from vyper.codegen.core import (
     get_element_ptr,
     ir_tuple_from_args,
     needs_external_call_wrap,
+    pop_dyn_array,
     promote_signed_int,
     shl,
     unwrap_location,
@@ -42,6 +43,7 @@ from vyper.codegen.types import (
     BaseType,
     ByteArrayLike,
     ByteArrayType,
+    DArrayType,
     SArrayType,
     StringType,
     TupleType,
@@ -2482,6 +2484,15 @@ class ABIDecode(BuiltinFunction):
             )
 
 
+class Pop(BuiltinFunction):
+    _id = "pop"
+
+    def build_IR(self, expr, context, darray, return_popped_item):
+        darray_ir = Expr(darray, context).ir_node
+        assert isinstance(darray_ir.typ, DArrayType)
+        return pop_dyn_array(darray_ir, return_popped_item=return_popped_item)
+
+
 DISPATCH_TABLE = {
     "_abi_encode": ABIEncode(),
     "_abi_decode": ABIDecode(),
@@ -2523,6 +2534,7 @@ DISPATCH_TABLE = {
     "max": Max(),
     "empty": Empty(),
     "abs": Abs(),
+    "pop": Pop(),
 }
 
 STMT_DISPATCH_TABLE = {
@@ -2536,6 +2548,7 @@ STMT_DISPATCH_TABLE = {
     "create_forwarder_to": CreateForwarderTo(),
     "create_copy_of": CreateCopyOf(),
     "create_from_factory": CreateFromFactory(),
+    "pop": Pop(),
 }
 
 BUILTIN_FUNCTIONS = {**STMT_DISPATCH_TABLE, **DISPATCH_TABLE}.keys()

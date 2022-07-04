@@ -625,11 +625,7 @@ class Expr:
                     return arg_ir
 
         elif isinstance(self.expr.func, vy_ast.Attribute) and self.expr.func.attr == "pop":
-            # TODO consider moving this to builtins
-            darray = Expr(self.expr.func.value, self.context).ir_node
-            assert len(self.expr.args) == 0
-            assert isinstance(darray.typ, DArrayType)
-            return pop_dyn_array(darray, return_popped_item=True)
+            return DISPATCH_TABLE["pop"].build_IR(self.expr, self.context, self.expr.func.value, True)
 
         elif (
             # TODO use expr.func.type.is_internal once

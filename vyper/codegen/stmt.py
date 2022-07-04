@@ -151,7 +151,9 @@ class Stmt:
                 return append_dyn_array(darray, arg)
             else:
                 assert len(args) == 0
-                return pop_dyn_array(darray, return_popped_item=False)
+                funcname = self.stmt.func.attr
+                return STMT_DISPATCH_TABLE[funcname].build_IR(self.stmt, self.context, self.stmt.func.value, False)
+                #return pop_dyn_array(darray, return_popped_item=False)
 
         elif is_self_function:
             return self_call.ir_for_self_call(self.stmt, self.context)
