@@ -598,6 +598,8 @@ class MemberFunctionDefinition(BaseTypeDefinition):
         self._validate_arg_types(node)
         return self.return_type
 
+    def infer_kwarg_types(self, node: vy_ast.Call) -> Optional[Dict[str, BaseTypeDefinition]]:
+        return {i.arg: self.kwargs[i.arg].typ for i in node.keywords}
 
 def _generate_method_id(name: str, canonical_abi_types: List[str]) -> Dict[str, int]:
     function_sig = f"{name}({','.join(canonical_abi_types)})"

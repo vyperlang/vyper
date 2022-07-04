@@ -117,7 +117,7 @@ from vyper.utils import (
     vyper_warn,
 )
 
-from .signatures import BuiltinFunction, process_inputs
+from .signatures import BuiltinFunction, process_inputs, process_kwarg
 
 SHA256_ADDRESS = 2
 SHA256_BASE_GAS = 60
@@ -2488,11 +2488,27 @@ class Append(BuiltinFunction):
 class Pop(BuiltinFunction):
     _id = "pop"
 
+    def _get_kwarg_settings(self, expr):
+        call_type = get_exact_type_from_node(expr.func)
+        expected_kwargs = call_type.kwargs
+        return expected_kwargs
+
     def build_IR(self, expr, context, return_popped_item):
         darray = Expr(expr.func.value, context).ir_node
         assert isinstance(darray.typ, DArrayType)
         assert len(expr.args) == 0
-        return pop_dyn_array(darray, return_popped_item=return_popped_item)
+
+        kwargs = self._get_kwarg_settings(expr)
+
+        if expr.keywords:
+            assert len(expr.keywords) == 1 and expr.keywords[0].arg == "ix"
+            kwarg_settings = kwargs[expr.keywords[0].arg]
+            expected_kwarg_type = kwarg_settings.typ
+            idx = process_kwarg(expr.keywords[0].value, kwarg_settings, expected_kwarg_type, context)
+            return pop_dyn_array(darray, return_popped_item=return_popped_item, pop_idx=idx)
+
+        else:
+            return pop_dyn_array(darray, return_popped_item=return_popped_item)
 
 
 DISPATCH_TABLE = {

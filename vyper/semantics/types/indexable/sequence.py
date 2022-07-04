@@ -173,7 +173,7 @@ class DynamicArrayDefinition(_SequenceDefinition, MemberTypeDefinition):
                 [],
                 self.value_type,
                 True,
-                kwargs={"ix": KwargSettings(Uint256Definition(), -1, require_literal=True)},
+                kwargs={"ix": KwargSettings(Uint256Definition(), -1)},
             ),
         )
 

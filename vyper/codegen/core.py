@@ -290,7 +290,7 @@ def append_dyn_array(darray_node, elem_node):
             return IRnode.from_list(b1.resolve(b2.resolve(ret)))
 
 
-def pop_dyn_array(darray_node, return_popped_item):
+def pop_dyn_array(darray_node, return_popped_item, pop_idx=None):
     assert isinstance(darray_node.typ, DArrayType)
     assert darray_node.encoding == Encoding.VYPER
     ret = ["seq"]
@@ -298,12 +298,19 @@ def pop_dyn_array(darray_node, return_popped_item):
         old_len = clamp("gt", get_dyn_array_count(darray_node), 0)
         new_len = IRnode.from_list(["sub", old_len, 1], typ="uint256")
 
-        with new_len.cache_when_complex("new_len") as (b2, new_len):
+        if pop_idx is not None:
+            # Pop from given index
+            idx = clamp("gt", get_dyn_array_count(darray_node), pop_idx)
+        else:
+            # Else, pop from last index
+            idx = new_len
+
+        with idx.cache_when_complex("idx") as (b2, idx):
             ret.append(STORE(darray_node, new_len))
 
             # NOTE skip array bounds check bc we already asserted len two lines up
             if return_popped_item:
-                popped_item = get_element_ptr(darray_node, new_len, array_bounds_check=False)
+                popped_item = get_element_ptr(darray_node, idx, array_bounds_check=False)
                 ret.append(popped_item)
                 typ = popped_item.typ
                 location = popped_item.location
