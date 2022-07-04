@@ -150,7 +150,9 @@ def _runtime_ir(runtime_functions, all_sigs, global_ctx):
             default_function, all_sigs, global_ctx, skip_nonpayable_check
         )
     else:
-        fallback_ir = IRnode.from_list(["revert", 0, 0], annotation="Default function")
+        fallback_ir = IRnode.from_list(
+            ["revert", 0, 0], annotation="Default function", error_msg="fallback function"
+        )
 
     # ensure the external jumptable section gets closed out
     # (for basic block hygiene and also for zksync interpreter)

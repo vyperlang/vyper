@@ -10,6 +10,7 @@ from vyper.codegen.ir_node import IRnode
 from vyper.ir import compile_ir, optimizer
 from vyper.semantics import set_data_positions, validate_semantics
 from vyper.typing import InterfaceImports, StorageLayout
+from vyper.utils import cached_property
 
 
 class CompilerData:
@@ -80,98 +81,72 @@ class CompilerData:
         self.storage_layout_override = storage_layout
         self.show_gas_estimates = show_gas_estimates
 
-    @property
+    @cached_property
     def vyper_module(self) -> vy_ast.Module:
-        if not hasattr(self, "_vyper_module"):
-            self._vyper_module = generate_ast(self.source_code, self.source_id, self.contract_name)
+        return generate_ast(self.source_code, self.source_id, self.contract_name)
 
-        return self._vyper_module
-
-    @property
+    @cached_property
     def vyper_module_unfolded(self) -> vy_ast.Module:
         # This phase is intended to generate an AST for tooling use, and is not
         # used in the compilation process.
-        if not hasattr(self, "_vyper_module_unfolded"):
-            self._vyper_module_unfolded = generate_unfolded_ast(
-                self.vyper_module, self.interface_codes
-            )
 
-        return self._vyper_module_unfolded
+        return generate_unfolded_ast(self.vyper_module, self.interface_codes)
 
-    @property
-    def vyper_module_folded(self) -> vy_ast.Module:
-        if not hasattr(self, "_vyper_module_folded"):
-            self._vyper_module_folded, self._storage_layout = generate_folded_ast(
-                self.vyper_module, self.interface_codes, self.storage_layout_override
-            )
-
-        return self._vyper_module_folded
-
-    @property
-    def storage_layout(self) -> StorageLayout:
-        if not hasattr(self, "_storage_layout"):
-            self._vyper_module_folded, self._storage_layout = generate_folded_ast(
-                self.vyper_module, self.interface_codes, self.storage_layout_override
-            )
-
-        return self._storage_layout
-
-    @property
-    def global_ctx(self) -> GlobalContext:
-        if not hasattr(self, "_global_ctx"):
-            self._global_ctx = generate_global_context(
-                self.vyper_module_folded, self.interface_codes
-            )
-
-        return self._global_ctx
-
-    def _gen_ir(self) -> None:
-        # fetch both deployment and runtime IR
-        self._ir_nodes, self._ir_runtime, self._function_signatures = generate_ir_nodes(
-            self.global_ctx, self.no_optimize
+    @cached_property
+    def _folded_module(self):
+        return generate_folded_ast(
+            self.vyper_module, self.interface_codes, self.storage_layout_override
         )
 
     @property
+    def vyper_module_folded(self) -> vy_ast.Module:
+        module, storage_layout = self._folded_module
+        return module
+
+    @property
+    def storage_layout(self) -> StorageLayout:
+        module, storage_layout = self._folded_module
+        return storage_layout
+
+    @property
+    def global_ctx(self) -> GlobalContext:
+        return generate_global_context(self.vyper_module_folded, self.interface_codes)
+
+    @cached_property
+    def _ir_output(self):
+        # fetch both deployment and runtime IR
+        return generate_ir_nodes(self.global_ctx, self.no_optimize)
+
+    @property
     def ir_nodes(self) -> IRnode:
-        if not hasattr(self, "_ir_nodes"):
-            self._gen_ir()
-        return self._ir_nodes
+        ir, ir_runtime, sigs = self._ir_output
+        return ir
 
     @property
     def ir_runtime(self) -> IRnode:
-        if not hasattr(self, "_ir_runtime"):
-            self._gen_ir()
-        return self._ir_runtime
+        ir, ir_runtime, sigs = self._ir_output
+        return ir_runtime
 
     @property
     def function_signatures(self) -> FunctionSignatures:
-        if not hasattr(self, "_function_signatures"):
-            self._gen_ir()
-        return self._function_signatures
+        ir, ir_runtime, sigs = self._ir_output
+        return sigs
 
-    @property
+    @cached_property
     def assembly(self) -> list:
-        if not hasattr(self, "_assembly"):
-            self._assembly = generate_assembly(self.ir_nodes, self.no_optimize)
-        return self._assembly
+        return generate_assembly(self.ir_nodes, self.no_optimize)
 
-    @property
+    @cached_property
     def assembly_runtime(self) -> list:
-        if not hasattr(self, "_assembly_runtime"):
-            self._assembly_runtime = generate_assembly(self.ir_runtime, self.no_optimize)
-        return self._assembly_runtime
+        return generate_assembly(self.ir_runtime, self.no_optimize)
 
-    @property
+    @cached_property
     def bytecode(self) -> bytes:
-        if not hasattr(self, "_bytecode"):
-            self._bytecode = generate_bytecode(self.assembly, is_runtime=False)
-        return self._bytecode
+        return generate_bytecode(self.assembly, is_runtime=False)
 
-    @property
+    @cached_property
     def bytecode_runtime(self) -> bytes:
-        if not hasattr(self, "_bytecode_runtime"):
-            self._bytecode_runtime = generate_bytecode(self.assembly_runtime, is_runtime=True)
-        return self._bytecode_runtime
+        return generate_bytecode(self.assembly_runtime, is_runtime=True)
 
 
 def generate_ast(source_code: str, source_id: int, contract_name: str) -> vy_ast.Module:

@@ -976,7 +976,7 @@ def clamp_basetype(ir_node):
     else:  # pragma: nocover
         raise CompilerPanic(f"{t} passed to clamp_basetype")
 
-    return IRnode.from_list(ret, typ=ir_node.typ)
+    return IRnode.from_list(ret, typ=ir_node.typ, error_msg=f"validate {t}")
 
 
 def int_clamp(ir_node, bits, signed=False):
@@ -1024,15 +1024,16 @@ def promote_signed_int(x, bits):
 # general clamp function for all ops and numbers
 def clamp(op, arg, bound):
     with IRnode.from_list(arg).cache_when_complex("clamp_arg") as (b1, arg):
-        assertion = ["assert", [op, arg, bound]]
-        ret = ["seq", assertion, arg]
+        check = IRnode.from_list(["assert", [op, arg, bound]], error_msg=f"clamp {op} {bound}")
+        ret = ["seq", check, arg]
         return IRnode.from_list(b1.resolve(ret), typ=arg.typ)
 
 
 def clamp_nonzero(arg):
     # TODO: use clamp("ne", arg, 0) once optimizer rules can handle it
     with IRnode.from_list(arg).cache_when_complex("should_nonzero") as (b1, arg):
-        ret = ["seq", ["assert", arg], arg]
+        check = IRnode.from_list(["assert", arg], error_msg="clamp_nonzero")
+        ret = ["seq", check, arg]
         return IRnode.from_list(b1.resolve(ret), typ=arg.typ)
 
 

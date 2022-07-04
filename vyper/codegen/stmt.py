@@ -138,20 +138,11 @@ class Stmt:
             "append",
             "pop",
         ):
-            # TODO: consider moving this to builtins
-            darray = Expr(self.stmt.func.value, self.context).ir_node
-            args = [Expr(x, self.context).ir_node for x in self.stmt.args]
+            funcname = self.stmt.func.attr
             if self.stmt.func.attr == "append":
-                # sanity checks
-                assert len(args) == 1
-                arg = args[0]
-                assert isinstance(darray.typ, DArrayType)
-                check_assign(dummy_node_for_type(darray.typ.subtype), dummy_node_for_type(arg.typ))
-
-                return append_dyn_array(darray, arg)
+                return STMT_DISPATCH_TABLE[funcname].build_IR(self.stmt, self.context)
             else:
-                assert len(args) == 0
-                return pop_dyn_array(darray, return_popped_item=False)
+                return STMT_DISPATCH_TABLE[funcname].build_IR(self.stmt, self.context, False)
 
         elif is_self_function:
             return self_call.ir_for_self_call(self.stmt, self.context)
@@ -160,7 +151,9 @@ class Stmt:
 
     def _assert_reason(self, test_expr, msg):
         if isinstance(msg, vy_ast.Name) and msg.id == "UNREACHABLE":
-            return IRnode.from_list(["assert_unreachable", test_expr])
+            return IRnode.from_list(
+                ["assert_unreachable", test_expr], error_msg="assert unreachable"
+            )
 
         # set constant so that revert reason str is well behaved
         try:
@@ -209,7 +202,7 @@ class Stmt:
         else:
             ir_node = revert_seq
 
-        return IRnode.from_list(ir_node)
+        return IRnode.from_list(ir_node, error_msg="user revert with reason")
 
     def parse_Assert(self):
         test_expr = Expr.parse_value_expr(self.stmt.test, self.context)
@@ -217,13 +210,13 @@ class Stmt:
         if self.stmt.msg:
             return self._assert_reason(test_expr, self.stmt.msg)
         else:
-            return IRnode.from_list(["assert", test_expr])
+            return IRnode.from_list(["assert", test_expr], error_msg="user assert")
 
     def parse_Raise(self):
         if self.stmt.exc:
             return self._assert_reason(None, self.stmt.exc)
         else:
-            return IRnode.from_list(["revert", 0, 0])
+            return IRnode.from_list(["revert", 0, 0], error_msg="user raise")
 
     def _check_valid_range_constant(self, arg_ast_node):
         with self.context.range_scope():
