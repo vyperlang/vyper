@@ -163,7 +163,7 @@ class DynamicArrayDefinition(_SequenceDefinition, MemberTypeDefinition):
         from vyper.semantics.types.utils import KwargSettings
 
         self.add_member(
-            "append", MemberFunctionDefinition(self, "append", [self.value_type], None, True)
+            "append", MemberFunctionDefinition(self, "append", [self.value_type], None, True, None)
         )
         self.add_member(
             "pop",
@@ -173,7 +173,7 @@ class DynamicArrayDefinition(_SequenceDefinition, MemberTypeDefinition):
                 [],
                 self.value_type,
                 True,
-                kwargs={"ix": KwargSettings(Uint256Definition(), -1)},
+                {"ix": KwargSettings(Uint256Definition(), -1)},
             ),
         )
 

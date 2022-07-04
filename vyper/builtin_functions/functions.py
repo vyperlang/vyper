@@ -2485,12 +2485,13 @@ class Append(BuiltinFunction):
 
         return append_dyn_array(darray, arg)
 
+
 class Pop(BuiltinFunction):
     _id = "pop"
 
     def _get_kwarg_settings(self, expr):
         call_type = get_exact_type_from_node(expr.func)
-        expected_kwargs = call_type.kwargs
+        expected_kwargs = call_type._kwargs
         return expected_kwargs
 
     def build_IR(self, expr, context, return_popped_item):
@@ -2501,10 +2502,12 @@ class Pop(BuiltinFunction):
         kwargs = self._get_kwarg_settings(expr)
 
         if expr.keywords:
-            assert len(expr.keywords) == 1 and expr.keywords[0].arg == "ix"
-            kwarg_settings = kwargs[expr.keywords[0].arg]
+            kwarg_name = expr.keywords[0].arg
+            kwarg_val = expr.keywords[0].value
+            assert len(expr.keywords) == 1 and kwarg_name == "ix"
+            kwarg_settings = kwargs[kwarg_name]
             expected_kwarg_type = kwarg_settings.typ
-            idx = process_kwarg(expr.keywords[0].value, kwarg_settings, expected_kwarg_type, context)
+            idx = process_kwarg(kwarg_val, kwarg_settings, expected_kwarg_type, context)
             return pop_dyn_array(darray, return_popped_item=return_popped_item, pop_idx=idx)
 
         else:

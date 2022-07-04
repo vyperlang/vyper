@@ -9,16 +9,12 @@ from vyper.codegen.core import (
     LOAD,
     STORE,
     IRnode,
-    append_dyn_array,
-    check_assign,
-    dummy_node_for_type,
     get_dyn_array_count,
     get_element_ptr,
     getpos,
     is_return_from_function,
     make_byte_array_copier,
     make_setter,
-    pop_dyn_array,
     zero_pad,
 )
 from vyper.codegen.expr import Expr

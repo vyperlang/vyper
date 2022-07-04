@@ -558,6 +558,7 @@ class MemberFunctionDefinition(BaseTypeDefinition):
     """
 
     _is_callable = True
+    _kwargs: Dict[str, KwargSettings] = {}
 
     def __init__(
         self,
@@ -566,7 +567,7 @@ class MemberFunctionDefinition(BaseTypeDefinition):
         arg_types: List[BaseTypeDefinition],
         return_type: Optional[BaseTypeDefinition],
         is_modifying: bool,
-        kwargs: Dict[str, KwargSettings] = {},
+        kwargs: Optional[Dict[str, KwargSettings]],
     ) -> None:
         super().__init__(DataLocation.UNSET)
         self.underlying_type = underlying_type
@@ -574,14 +575,15 @@ class MemberFunctionDefinition(BaseTypeDefinition):
         self.arg_types = arg_types
         self.return_type = return_type
         self.is_modifying = is_modifying
-        self.kwargs = kwargs
+        if kwargs is not None:
+            self._kwargs = kwargs
 
     def __repr__(self):
         return f"{self.underlying_type._id} member function '{self.name}'"
 
     def _validate_arg_types(self, node: vy_ast.Call):
         num_args = len(self.arg_types)
-        validate_call_args(node, num_args, list(self.kwargs))
+        validate_call_args(node, num_args, list(self._kwargs))
 
         assert len(node.args) == len(self.arg_types)  # validate_call_args postcondition
         for arg, expected_type in zip(node.args, self.arg_types):
@@ -589,7 +591,7 @@ class MemberFunctionDefinition(BaseTypeDefinition):
             validate_expected_type(arg, expected_type)
 
         for kwarg in node.keywords:
-            kwarg_settings = self.kwargs[kwarg.arg]
+            kwarg_settings = self._kwargs[kwarg.arg]
             if kwarg_settings.require_literal and not isinstance(kwarg.value, vy_ast.Constant):
                 raise TypeMismatch("Value for kwarg must be a literal", kwarg.value)
             validate_expected_type(kwarg.value, kwarg_settings.typ)
@@ -599,7 +601,8 @@ class MemberFunctionDefinition(BaseTypeDefinition):
         return self.return_type
 
     def infer_kwarg_types(self, node: vy_ast.Call) -> Optional[Dict[str, BaseTypeDefinition]]:
-        return {i.arg: self.kwargs[i.arg].typ for i in node.keywords}
+        return {i.arg: self._kwargs[i.arg].typ for i in node.keywords}
+
 
 def _generate_method_id(name: str, canonical_abi_types: List[str]) -> Dict[str, int]:
     function_sig = f"{name}({','.join(canonical_abi_types)})"
