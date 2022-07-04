@@ -299,13 +299,14 @@ def pop_dyn_array(darray_node, return_popped_item, pop_idx=None):
         new_len = IRnode.from_list(["sub", old_len, 1], typ="uint256")
 
         if pop_idx is not None:
-            # Pop from given index
+            # If pop from given index, assert that array length is greater than index
             ret.append(clamp("gt", get_dyn_array_count(darray_node), pop_idx))
         else:
             # Else, pop from last index
             pop_idx = new_len
 
         with pop_idx.cache_when_complex("idx") as (b2, pop_idx):
+            # TODO Update darray
             ret.append(STORE(darray_node, new_len))
 
             # NOTE skip array bounds check bc we already asserted len two lines up

@@ -1150,19 +1150,77 @@ def test_append_pop(get_contract, assert_tx_failed, code, check_result, test_dat
         assert c.foo(test_data) == expected_result
 
 
-@pytest.mark.parametrize("arr", [[1], [1, 2], [1, 2, 3, 4, 5]])
-@pytest.mark.parametrize("idx", [0, 1, 2, 3, 4, 5])
-def test_pop_index(get_contract, assert_tx_failed, arr, idx):
+@pytest.mark.parametrize("test_data", [[1, 2, 3, 4, 5][:i] for i in range(6)])
+def test_pop_index_return(get_contract, assert_tx_failed, test_data):
     code = """
 @external
 def foo(a: DynArray[uint256, 5], b: uint256) -> uint256:
     return a.pop(ix=b)
     """
     c = get_contract(code)
-    if idx >= len(arr):
-        assert_tx_failed(lambda: c.foo(arr, idx))
-    else:
-        assert c.foo(arr, idx) == arr[idx]
+    arr_length = len(test_data)
+    for idx in range(arr_length + 1):
+        if idx >= arr_length:
+            assert_tx_failed(lambda: c.foo(test_data, idx))
+        else:
+            assert c.foo(test_data, idx) == test_data[idx]
+
+
+pop_index_tests = [
+    (
+        """
+my_array: DynArray[uint256, 5]
+@external
+def foo(xs: DynArray[uint256, 5], i: uint256) -> DynArray[uint256, 5]:
+    for x in xs:
+        self.my_array.append(x)
+    for x in xs:
+        self.my_array.pop(ix=0)
+    return self.my_array
+    """,
+        lambda xs, idx: [],
+    ),
+    # check order of evaluation.
+    (
+        """
+my_array: DynArray[uint256, 5]
+@external
+def foo(xs: DynArray[uint256, 5], i: uint256) -> (DynArray[uint256, 5], uint256):
+    for x in xs:
+        self.my_array.append(x)
+    return self.my_array, self.my_array.pop(ix=i)
+    """,
+        lambda xs, idx: None if len(xs) == 0 else [xs[:idx] + xs[idx+1:], xs[idx]],
+    ),
+    # check order of evaluation.
+    (
+        """
+my_array: DynArray[uint256, 5]
+@external
+def foo(xs: DynArray[uint256, 5], i: uint256) -> (uint256, DynArray[uint256, 5]):
+    for x in xs:
+        self.my_array.append(x)
+    return self.my_array.pop(ix=i), self.my_array
+    """,
+        lambda xs, idx: None if len(xs) == 0 else [xs[idx], xs[:idx] + xs[idx+1:]],
+    ),
+]
+
+
+@pytest.mark.parametrize("code,check_result", pop_index_tests)
+# TODO change this to fuzz random data
+@pytest.mark.parametrize("test_data", [[1, 2, 3, 4, 5][:i] for i in range(6)])
+def test_pop_index(get_contract, assert_tx_failed, code, check_result, test_data):
+    c = get_contract(code)
+
+    arr_length = len(test_data)
+    for idx in range(arr_length):
+        expected_result = check_result(test_data, idx)
+        if expected_result is None:
+            # None is sentinel to indicate txn should revert
+            assert_tx_failed(lambda: c.foo(test_data, idx))
+        else:
+            assert c.foo(test_data, idx) == expected_result
 
 
 append_pop_complex_tests = [
