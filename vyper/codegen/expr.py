@@ -625,7 +625,7 @@ class Expr:
                     return arg_ir
 
         elif isinstance(self.expr.func, vy_ast.Attribute) and self.expr.func.attr == "pop":
-            return DISPATCH_TABLE["pop"].build_IR(self.expr, self.context, self.expr.func.value, True)
+            return DISPATCH_TABLE["pop"].build_IR(self.expr, self.context, True)
 
         elif (
             # TODO use expr.func.type.is_internal once
