@@ -300,17 +300,17 @@ def pop_dyn_array(darray_node, return_popped_item, pop_idx=None):
 
         if pop_idx is not None:
             # Pop from given index
-            idx = clamp("gt", get_dyn_array_count(darray_node), pop_idx)
+            ret.append(clamp("gt", get_dyn_array_count(darray_node), pop_idx))
         else:
             # Else, pop from last index
-            idx = new_len
+            pop_idx = new_len
 
-        with idx.cache_when_complex("idx") as (b2, idx):
+        with pop_idx.cache_when_complex("idx") as (b2, pop_idx):
             ret.append(STORE(darray_node, new_len))
 
             # NOTE skip array bounds check bc we already asserted len two lines up
             if return_popped_item:
-                popped_item = get_element_ptr(darray_node, idx, array_bounds_check=False)
+                popped_item = get_element_ptr(darray_node, pop_idx, array_bounds_check=False)
                 ret.append(popped_item)
                 typ = popped_item.typ
                 location = popped_item.location
