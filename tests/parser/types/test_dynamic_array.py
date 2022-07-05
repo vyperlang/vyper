@@ -1152,7 +1152,7 @@ def test_append_pop(get_contract, assert_tx_failed, code, check_result, test_dat
 
 @pytest.mark.parametrize("test_data", [[1, 2, 3, 4, 5][:i] for i in range(6)])
 @pytest.mark.parametrize("ix", [i for i in range(6)])
-def test_pop_index_return(get_contract, assert_tx_failed, test_data, ix):
+def test_pop_index_return_pass(get_contract, assert_tx_failed, test_data, ix):
     code = """
 @external
 def foo(a: DynArray[uint256, 5], b: uint256) -> uint256:
@@ -1210,7 +1210,7 @@ def foo(xs: DynArray[uint256, 5], i: uint256) -> (uint256, DynArray[uint256, 5])
 @pytest.mark.parametrize("code,check_result", pop_index_tests)
 # TODO change this to fuzz random data
 @pytest.mark.parametrize("test_data", [[1, 2, 3, 4, 5][:i] for i in range(6)])
-def test_pop_index(get_contract, assert_tx_failed, code, check_result, test_data):
+def test_pop_index_pass(get_contract, assert_tx_failed, code, check_result, test_data):
     c = get_contract(code)
 
     arr_length = len(test_data)

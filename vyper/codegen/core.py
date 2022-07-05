@@ -340,7 +340,7 @@ def pop_dyn_array(context, darray_node, return_popped_item, pop_idx=None):
                     # Enter loop only if new_len is at least 2
                     length_check = IRnode.from_list(["if", ["ge", new_len, 2], loop])
                     body.append(length_check)
-                    print("body: ", body)
+
                     # Perform the initial swap only if popped index is not the last index
                     swap_test = IRnode.from_list(["lt", pop_idx, new_len])
                     swap_check = IRnode.from_list(["if", swap_test, body])
