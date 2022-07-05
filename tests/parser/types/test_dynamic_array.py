@@ -1151,7 +1151,8 @@ def test_append_pop(get_contract, assert_tx_failed, code, check_result, test_dat
 
 
 @pytest.mark.parametrize("test_data", [[1, 2, 3, 4, 5][:i] for i in range(6)])
-def test_pop_index_return(get_contract, assert_tx_failed, test_data):
+@pytest.mark.parametrize("ix", [i for i in range(6)])
+def test_pop_index_return(get_contract, assert_tx_failed, test_data, ix):
     code = """
 @external
 def foo(a: DynArray[uint256, 5], b: uint256) -> uint256:
@@ -1159,11 +1160,10 @@ def foo(a: DynArray[uint256, 5], b: uint256) -> uint256:
     """
     c = get_contract(code)
     arr_length = len(test_data)
-    for idx in range(arr_length + 1):
-        if idx >= arr_length:
-            assert_tx_failed(lambda: c.foo(test_data, idx))
-        else:
-            assert c.foo(test_data, idx) == test_data[idx]
+    if ix >= arr_length:
+        assert_tx_failed(lambda: c.foo(test_data, ix))
+    else:
+        assert c.foo(test_data, ix) == test_data[ix]
 
 
 pop_index_tests = [
