@@ -1180,6 +1180,18 @@ def foo(xs: DynArray[uint256, 5], i: uint256) -> DynArray[uint256, 5]:
     """,
         lambda xs, idx: [],
     ),
+    (
+        """
+my_array: DynArray[uint256, 5]
+@external
+def foo(xs: DynArray[uint256, 5], i: uint256) -> DynArray[uint256, 5]:
+    for x in xs:
+        self.my_array.append(x)
+    self.my_array.pop(ix=i)
+    return self.my_array
+    """,
+        lambda xs, idx: None if len(xs) == 0 else xs[:idx] + xs[idx+1:],
+    ),
     # check order of evaluation.
     (
         """
