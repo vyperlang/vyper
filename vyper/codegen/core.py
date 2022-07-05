@@ -301,20 +301,19 @@ def pop_dyn_array(context, darray_node, return_popped_item, pop_idx=None):
         if pop_idx is not None:
             # If pop from given index, assert that array length is greater than index
             ret.append(clamp("gt", get_dyn_array_count(darray_node), pop_idx))
-            idx = old_len
-        else:
-            # Else, pop from last index
-            idx = new_len
 
         with pop_idx.cache_when_complex("pop_idx") as (b2, pop_idx):
-            # TODO Update darray
             ret.append(STORE(darray_node, new_len))
 
+            # Modify dynamic array
             if pop_idx is not None:
+                body = ["seq"]
+
                 # Swap index to pop with the old last index
-                dst_i = get_element_ptr(darray_node, old_len, array_bounds_check=False)
+                dst_i = get_element_ptr(darray_node, new_len, array_bounds_check=False)
                 src_i = get_element_ptr(darray_node, pop_idx, array_bounds_check=False)
-                ret.append(make_setter(dst_i, src_i))
+                swap = make_setter(dst_i, src_i)
+                body.append(swap)
 
                 # Iterate from popped index to the new last index and swap
                 # Set up the loop variable
@@ -322,25 +321,38 @@ def pop_dyn_array(context, darray_node, return_popped_item, pop_idx=None):
                 next_ix = IRnode.from_list(["add", loop_var, 1], typ="uint256")
 
                 # Swap value at index loop_var with index loop_var + 1
-                loop_body = [
+                loop_body = IRnode.from_list([
                     "seq",
                     make_setter(
                         get_element_ptr(darray_node, loop_var, array_bounds_check=False),  # dst_i
                         get_element_ptr(darray_node, next_ix, array_bounds_check=False)  # src_i
                     ),
-                ]
+                ])
 
-                # Set loop termination as new_index - 1
-                iter = IRnode.from_list(["sub", IRnode.from_list(["sub", new_len, pop_idx], typ="uint256"), 1], typ="uint256")
+                # Set loop termination as new_len - 2
+                iter_count = IRnode.from_list(["sub", IRnode.from_list(["sub", new_len, pop_idx], typ="uint256"), 1], typ="uint256")
 
                 # Set dynarray length as repeat bound
                 repeat_bound = darray_node.typ.count
+                loop = IRnode.from_list(["repeat", loop_var, pop_idx, iter_count, repeat_bound, loop_body])
 
-                ret.append(["repeat", loop_var, pop_idx, iter, repeat_bound, loop_body])
+                # Perform loop only if new_len is at least 2
+                length_cmp = IRnode.from_list(["ge", new_len, 2])
+                length_check = IRnode.from_list(["if", length_cmp, loop])
+                body.append(length_check)
+
+                # Perform the initial swap only if popped index is not the last index
+                swap_test = IRnode.from_list(["lt", pop_idx, new_len])
+                swap_check = IRnode.from_list(["if", swap_test, body])
+
+                ret.append(swap_check)
 
             # NOTE skip array bounds check bc we already asserted len two lines up
             if return_popped_item:
-                popped_item = get_element_ptr(darray_node, idx, array_bounds_check=False)
+                # Set index of popped element to last index of old array
+                # For pop with index, the popped element is swapped to the last index of the
+                # old array.
+                popped_item = get_element_ptr(darray_node, new_len, array_bounds_check=False)
                 ret.append(popped_item)
                 typ = popped_item.typ
                 location = popped_item.location
