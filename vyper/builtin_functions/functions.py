@@ -1,11 +1,7 @@
 import hashlib
 import math
 import operator
-<<<<<<< HEAD
-from typing import Dict
-=======
 from decimal import Decimal
->>>>>>> 573d77f7af177fb3bf2be2a14d16e3b6c477a0fc
 
 from vyper import ast as vy_ast
 from vyper.abi_types import ABI_Tuple
