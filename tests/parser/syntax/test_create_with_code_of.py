@@ -8,12 +8,16 @@ fail_list = [
     """
 @external
 def foo():
-    x: address = create_forwarder_to(0x1234567890123456789012345678901234567890, value=4, value=9)
+    x: address = create_minimal_proxy_to(
+        0x1234567890123456789012345678901234567890,
+        value=4,
+        value=9
+    )
     """,
     """
 @external
 def foo(_salt: bytes32):
-    x: address = create_forwarder_to(
+    x: address = create_minimal_proxy_to(
         0x1234567890123456789012345678901234567890, salt=keccak256(b"Vyper Rocks!"), salt=_salt
     )
     """,
@@ -30,12 +34,18 @@ valid_list = [
     """
 @external
 def foo():
+    # test that create_forwarder_to is valid syntax; the name is deprecated
     x: address = create_forwarder_to(0x1234567890123456789012345678901234567890)
     """,
     """
 @external
 def foo():
-    x: address = create_forwarder_to(
+    x: address = create_minimal_proxy_to(0x1234567890123456789012345678901234567890)
+    """,
+    """
+@external
+def foo():
+    x: address = create_minimal_proxy_to(
         0x1234567890123456789012345678901234567890,
         value=as_wei_value(9, "wei")
     )
@@ -43,12 +53,12 @@ def foo():
     """
 @external
 def foo():
-    x: address = create_forwarder_to(0x1234567890123456789012345678901234567890, value=9)
+    x: address = create_minimal_proxy_to(0x1234567890123456789012345678901234567890, value=9)
     """,
     """
 @external
 def foo():
-    x: address = create_forwarder_to(
+    x: address = create_minimal_proxy_to(
         0x1234567890123456789012345678901234567890,
         salt=keccak256(b"Vyper Rocks!")
     )
@@ -56,7 +66,7 @@ def foo():
     """
 @external
 def foo(_salt: bytes32):
-    x: address = create_forwarder_to(0x1234567890123456789012345678901234567890, salt=_salt)
+    x: address = create_minimal_proxy_to(0x1234567890123456789012345678901234567890, salt=_salt)
     """,
 ]
 

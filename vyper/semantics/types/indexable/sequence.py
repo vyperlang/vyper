@@ -13,7 +13,6 @@ from vyper.semantics.types.bases import (
     IndexableTypeDefinition,
     MemberTypeDefinition,
 )
-from vyper.semantics.types.value.array_value import BytesArrayDefinition, StringDefinition
 from vyper.semantics.types.value.numeric import Uint256Definition  # type: ignore
 
 
@@ -273,14 +272,7 @@ class DynamicArrayPrimitive(BasePrimitive):
             not_assignable,
         )
 
-        if isinstance(value_type, (BytesArrayDefinition, StringDefinition)):
-            raise StructureException(f"{value_type._id} arrays are not supported", node)
-
-        if isinstance(node.slice.value.elements[1], vy_ast.Int):
-            max_length = node.slice.value.elements[1].value
-        elif isinstance(node.slice.value.elements[1], vy_ast.Name):
-            max_length = get_constant_value(node.slice.value.elements[1])
-
+        max_length = node.slice.value.elements[1].value
         return DynamicArrayDefinition(
             value_type, max_length, location, is_constant, is_public, is_immutable, not_assignable
         )

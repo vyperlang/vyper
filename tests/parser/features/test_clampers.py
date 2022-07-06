@@ -181,6 +181,46 @@ def foo(s: bool) -> bool:
 
 
 @pytest.mark.parametrize("evm_version", list(EVM_VERSIONS))
+@pytest.mark.parametrize("value", [0] + [2 ** i for i in range(5)])
+def test_enum_clamper_passing(w3, get_contract, value, evm_version):
+    code = """
+enum Roles:
+    USER
+    STAFF
+    ADMIN
+    MANAGER
+    CEO
+
+@external
+def foo(s: Roles) -> Roles:
+    return s
+    """
+
+    c = get_contract(code, evm_version=evm_version)
+    assert c.foo(value) == value
+
+
+@pytest.mark.parametrize("evm_version", list(EVM_VERSIONS))
+@pytest.mark.parametrize("value", [2 ** i for i in range(5, 256)])
+def test_enum_clamper_failing(w3, assert_tx_failed, get_contract, value, evm_version):
+    code = """
+enum Roles:
+    USER
+    STAFF
+    ADMIN
+    MANAGER
+    CEO
+
+@external
+def foo(s: Roles) -> Roles:
+    return s
+    """
+
+    c = get_contract(code, evm_version=evm_version)
+    assert_tx_failed(lambda: _make_tx(w3, c.address, "foo(uint256)", [value]))
+
+
+@pytest.mark.parametrize("evm_version", list(EVM_VERSIONS))
 @pytest.mark.parametrize("n", list(range(32)))
 def test_uint_clamper_passing(w3, get_contract, evm_version, n):
     bits = 8 * (n + 1)

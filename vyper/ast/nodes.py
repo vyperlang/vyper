@@ -1,4 +1,5 @@
 import ast as python_ast
+import copy
 import decimal
 import operator
 import sys
@@ -55,15 +56,21 @@ def get_node(
     if not isinstance(ast_struct, dict):
         ast_struct = ast_struct.__dict__
 
+        # workaround: some third party module (ex. ipython) might insert
+        # a "parent" member into the node, creating a duplicate kwarg
+        # error below when calling vy_class()
+        if "parent" in ast_struct:
+            ast_struct = copy.copy(ast_struct)
+            del ast_struct["parent"]
+
     vy_class = getattr(sys.modules[__name__], ast_struct["ast_type"], None)
     if not vy_class:
         if ast_struct["ast_type"] == "Delete":
             _raise_syntax_exc("Deleting is not supported", ast_struct)
         elif ast_struct["ast_type"] in ("ExtSlice", "Slice"):
             _raise_syntax_exc("Vyper does not support slicing", ast_struct)
-        elif ast_struct["ast_type"] in ("Invert", "UAdd"):
-            op = "+" if ast_struct["ast_type"] == "UAdd" else "~"
-            _raise_syntax_exc(f"Vyper does not support {op} as a unary operator", parent)
+        elif ast_struct["ast_type"] == "UAdd":
+            _raise_syntax_exc("Vyper does not support + as a unary operator", parent)
         else:
             _raise_syntax_exc(
                 f"Invalid syntax (unsupported '{ast_struct['ast_type']}' Python AST node)",
@@ -871,6 +878,8 @@ class UnaryOp(VyperNode):
                 raise UnfoldableNode("Node contains invalid field(s) for evaluation")
             if isinstance(self.op, USub) and not isinstance(self.operand, (Int, Decimal)):
                 raise UnfoldableNode("Node contains invalid field(s) for evaluation")
+            if isinstance(self.op, Invert) and not isinstance(self.operand, Int):
+                raise UnfoldableNode("Node contains invalid field(s) for evaluation")
 
     def evaluate(self) -> VyperNode:
         """
@@ -913,6 +922,13 @@ class USub(VyperNode):
 class Not(VyperNode):
     __slots__ = ()
     _op = operator.not_
+
+
+class Invert(VyperNode):
+    __slots__ = ()
+    _description = "bitwise not"
+    _pretty = "~"
+    _op = operator.inv
 
 
 class BinOp(VyperNode):
@@ -1057,6 +1073,27 @@ class Pow(VyperNode):
         return int(left ** right)
 
 
+class BitAnd(VyperNode):
+    __slots__ = ()
+    _description = "bitwise and"
+    _pretty = "&"
+    _op = operator.and_
+
+
+class BitOr(VyperNode):
+    __slots__ = ()
+    _description = "bitwise or"
+    _pretty = "|"
+    _op = operator.or_
+
+
+class BitXor(VyperNode):
+    __slots__ = ()
+    _description = "bitwise xor"
+    _pretty = "^"
+    _op = operator.xor
+
+
 class BoolOp(VyperNode):
     __slots__ = ("op", "values")
 
@@ -1099,13 +1136,13 @@ class BoolOp(VyperNode):
 
 class And(VyperNode):
     __slots__ = ()
-    _description = "greater-or-equal"
+    _description = "logical and"
     _op = all
 
 
 class Or(VyperNode):
     __slots__ = ()
-    _description = "less-or-equal"
+    _description = "logical or"
     _op = any
 
 

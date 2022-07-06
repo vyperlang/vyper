@@ -16,7 +16,8 @@ def updated():
 
 @external
 def updated_protected():
-    SpecialContract(msg.sender).protected_function('surprise protected!', False)  # This should fail.  # noqa: E501
+    # This should fail.
+    SpecialContract(msg.sender).protected_function('surprise protected!', False)
     """
 
     reentrant_code = """
@@ -26,6 +27,7 @@ interface Callback:
 interface Self:
     def protected_function(val: String[100], do_callback: bool) -> uint256: nonpayable
     def protected_function2(val: String[100], do_callback: bool) -> uint256: nonpayable
+    def protected_view_fn() -> String[100]: view
 
 special_value: public(String[100])
 callback: public(Callback)
@@ -56,6 +58,22 @@ def protected_function2(val: String[100], do_callback: bool) -> uint256:
     return 2
 
 @external
+@nonreentrant('protect_special_value')
+def protected_function3(val: String[100], do_callback: bool) -> uint256:
+    self.special_value = val
+    if do_callback:
+        # call other function with same nonreentrancy key
+        assert self.special_value == Self(self).protected_view_fn()
+        return 1
+    return 2
+
+
+@external
+@nonreentrant('protect_special_value')
+def protected_view_fn() -> String[100]:
+    return self.special_value
+
+@external
 def unprotected_function(val: String[100], do_callback: bool):
     self.special_value = val
 
@@ -76,6 +94,7 @@ def unprotected_function(val: String[100], do_callback: bool):
     # Test protected function.
     reentrant_contract.protected_function("some value", False, transact={})
     assert reentrant_contract.special_value() == "some value"
+    assert reentrant_contract.protected_view_fn() == "some value"
 
     assert_tx_failed(lambda: reentrant_contract.protected_function("zzz value", True, transact={}))
 
@@ -83,6 +102,11 @@ def unprotected_function(val: String[100], do_callback: bool):
     assert reentrant_contract.special_value() == "another value"
 
     assert_tx_failed(lambda: reentrant_contract.protected_function2("zzz value", True, transact={}))
+
+    reentrant_contract.protected_function3("another value", False, transact={})
+    assert reentrant_contract.special_value() == "another value"
+
+    assert_tx_failed(lambda: reentrant_contract.protected_function3("zzz value", True, transact={}))
 
 
 def test_nonreentrant_decorator_for_default(w3, get_contract, assert_tx_failed):

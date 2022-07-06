@@ -12,16 +12,17 @@ st_uint256 = st.integers(min_value=0, max_value=2 ** 256 - 1)
 @pytest.mark.fuzzing
 @settings(max_examples=50, deadline=1000)
 @given(a=st_uint256, b=st_uint256)
-@pytest.mark.parametrize("fn_name", ["bitwise_and", "bitwise_or", "bitwise_xor"])
-def test_bitwise(get_contract, a, b, fn_name):
+@pytest.mark.parametrize("op", ["&", "|", "^"])
+def test_bitwise_and_or(get_contract, a, b, op):
 
     source = f"""
 @external
 def foo(a: uint256, b: uint256) -> uint256:
-    return {fn_name}(a, b)
+    return a {op} b
     """
     contract = get_contract(source)
 
+<<<<<<< HEAD
     expected = f"""
 @external
 def foo() -> uint256:
@@ -31,6 +32,11 @@ def foo() -> uint256:
     validate_semantics(vyper_ast, None)
     old_node = vyper_ast.body[0].body[0].value
     new_node = vy_fn.DISPATCH_TABLE[fn_name].evaluate(old_node)
+=======
+    vyper_ast = vy_ast.parse_to_ast(f"{a} {op} {b}")
+    old_node = vyper_ast.body[0].value
+    new_node = old_node.evaluate()
+>>>>>>> 573d77f7af177fb3bf2be2a14d16e3b6c477a0fc
 
     assert contract.foo(a, b) == new_node.value
 
@@ -46,7 +52,7 @@ def test_bitwise_not(get_contract, value):
     source = """
 @external
 def foo(a: uint256) -> uint256:
-    return bitwise_not(a)
+    return ~a
     """
     contract = get_contract(source)
 

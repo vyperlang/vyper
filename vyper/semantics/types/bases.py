@@ -534,6 +534,9 @@ class BaseTypeDefinition:
             self.validate_numeric_op(node)
 
     def get_signature(self) -> Tuple[Tuple, Optional["BaseTypeDefinition"]]:
+        """
+        The getter signature for this type
+        """
         raise CompilerPanic("Method must be implemented by the inherited class")
 
     def compare_signature(self, other: "BaseTypeDefinition") -> bool:
@@ -561,10 +564,10 @@ class BaseTypeDefinition:
         return True
 
 
-# TODO rename this: it's really for address/interface signature resolution
 class ValueTypeDefinition(BaseTypeDefinition):
     """
-    Base class for types representing a single value.
+    Base class for types representing a single value. The getter
+    for these types takes 0 arguments and returns the entire value.
 
     Class attributes
     ----------------
@@ -629,7 +632,7 @@ class MemberTypeDefinition(BaseTypeDefinition):
         raise UnknownAttribute(f"{self} has no member '{key}'. {suggestions_str}", node)
 
     def __repr__(self):
-        return f"{self._id}"
+        return self._id
 
 
 class IndexableTypeDefinition(BaseTypeDefinition):

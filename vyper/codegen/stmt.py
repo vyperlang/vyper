@@ -160,7 +160,9 @@ class Stmt:
 
     def _assert_reason(self, test_expr, msg):
         if isinstance(msg, vy_ast.Name) and msg.id == "UNREACHABLE":
-            return IRnode.from_list(["assert_unreachable", test_expr])
+            return IRnode.from_list(
+                ["assert_unreachable", test_expr], error_msg="assert unreachable"
+            )
 
         # set constant so that revert reason str is well behaved
         try:
@@ -209,7 +211,7 @@ class Stmt:
         else:
             ir_node = revert_seq
 
-        return IRnode.from_list(ir_node)
+        return IRnode.from_list(ir_node, error_msg="user revert with reason")
 
     def parse_Assert(self):
         test_expr = Expr.parse_value_expr(self.stmt.test, self.context)
@@ -217,13 +219,13 @@ class Stmt:
         if self.stmt.msg:
             return self._assert_reason(test_expr, self.stmt.msg)
         else:
-            return IRnode.from_list(["assert", test_expr])
+            return IRnode.from_list(["assert", test_expr], error_msg="user assert")
 
     def parse_Raise(self):
         if self.stmt.exc:
             return self._assert_reason(None, self.stmt.exc)
         else:
-            return IRnode.from_list(["revert", 0, 0])
+            return IRnode.from_list(["revert", 0, 0], error_msg="user raise")
 
     def _check_valid_range_constant(self, arg_ast_node):
         with self.context.range_scope():

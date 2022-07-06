@@ -163,7 +163,7 @@ def _build_asm(asm_list):
     for node in asm_list:
 
         if isinstance(node, list):
-            output_string += "[ " + _build_asm(node) + "] "
+            output_string += "{ " + _build_asm(node) + "} "
             continue
 
         if in_push > 0:

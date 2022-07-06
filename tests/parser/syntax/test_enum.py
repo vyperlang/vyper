@@ -1,7 +1,12 @@
 import pytest
 
 from vyper import compiler
-from vyper.exceptions import EnumDeclarationException, NamespaceCollision
+from vyper.exceptions import (
+    EnumDeclarationException,
+    InvalidOperation,
+    NamespaceCollision,
+    TypeMismatch,
+)
 
 fail_list = [
     (
@@ -31,6 +36,32 @@ enum Action:
         EnumDeclarationException,
     ),
     ("enum Foo:\n" + "\n".join([f"    member{i}" for i in range(257)]), EnumDeclarationException),
+    (
+        """
+enum Roles:
+    USER
+    STAFF
+    ADMIN
+
+@external
+def foo(x: Roles) -> bool:
+    return x in [Roles.USER, Roles.ADMIN]
+    """,
+        TypeMismatch,
+    ),
+    (
+        """
+enum Roles:
+    USER
+    STAFF
+    ADMIN
+
+@external
+def foo(x: Roles) -> bool:
+    return x >= Roles.STAFF
+    """,
+        InvalidOperation,
+    ),
 ]
 
 

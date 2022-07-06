@@ -9,7 +9,6 @@ from vyper.exceptions import (
     InvalidType,
     OverflowException,
     StateAccessViolation,
-    StructureException,
     TypeMismatch,
 )
 
@@ -59,6 +58,46 @@ def loo(x: DynArray[DynArray[int128, 2], 2]) -> int128:
     assert c.koo([3, 4, 5]) == 12
     assert c.loo([[1, 2], [3, 4]]) == 73
     print("Passed list tests")
+
+
+def test_string_list(get_contract):
+    code = """
+@external
+def foo1(x: DynArray[String[32], 2]) -> DynArray[String[32], 2]:
+    return x
+
+@external
+def foo2(x: DynArray[DynArray[String[32], 2], 2]) -> DynArray[DynArray[String[32], 2], 2]:
+    return x
+
+@external
+def foo3(x: DynArray[DynArray[String[32], 2], 2]) -> DynArray[String[32], 2]:
+    return x[0]
+
+@external
+def foo4(x: DynArray[DynArray[String[32], 2], 2]) -> String[32]:
+    return x[0][0]
+
+@external
+def foo5() -> DynArray[String[32], 2]:
+    ret: DynArray[String[32], 2] = ["hello"]
+    ret.append("world")
+    return ret
+
+@external
+def foo6() -> DynArray[DynArray[String[32], 2], 2]:
+    ret: DynArray[DynArray[String[32], 2], 2] = []
+    ret.append(["hello", "world"])
+    return ret
+    """
+
+    c = get_contract(code)
+    assert c.foo1(["hello", "world"]) == ["hello", "world"]
+    assert c.foo2([["hello", "world"]]) == [["hello", "world"]]
+    assert c.foo3([["hello", "world"]]) == ["hello", "world"]
+    assert c.foo4([["hello", "world"]]) == "hello"
+    assert c.foo5() == ["hello", "world"]
+    assert c.foo6() == [["hello", "world"]]
 
 
 def test_list_output_tester_code(get_contract_with_gas_estimation):
@@ -1601,29 +1640,3 @@ def foo(i: uint256) -> {return_type}:
     return MY_CONSTANT[i]
     """
     assert_compile_failed(lambda: get_contract(code), TypeMismatch)
-
-
-INVALID_ARRAY_VALUES = [
-    """
-a: DynArray[Bytes[5], 2]
-    """,
-    """
-a: DynArray[String[5], 2]
-    """,
-    """
-a: DynArray[DynArray[Bytes[5], 2], 2]
-    """,
-    """
-a: DynArray[DynArray[String[5], 2], 2]
-    """,
-]
-
-
-@pytest.mark.parametrize("invalid_contracts", INVALID_ARRAY_VALUES)
-def test_invalid_dyn_array_values(
-    get_contract_with_gas_estimation, assert_compile_failed, invalid_contracts
-):
-
-    assert_compile_failed(
-        lambda: get_contract_with_gas_estimation(invalid_contracts), StructureException
-    )
