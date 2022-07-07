@@ -29,13 +29,13 @@ State variables are values which are permanently stored in contract storage. The
 
 .. code-block:: python
 
-    storedData: int128
+    stored_data: int128
 
 State variables are accessed via the :ref:`self<constants-self>` object.
 
 .. code-block:: python
 
-    self.storedData = 123
+    self.stored_data = 123
 
 See the documentation on :ref:`Types<types>` or :ref:`Scoping and Declarations<scoping>` for more information.
 

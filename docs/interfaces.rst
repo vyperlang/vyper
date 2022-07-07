@@ -190,9 +190,9 @@ If you want to do an external call to another contract, Vyper provides an extern
     # External Contracts
     interface Ballot:
         def delegated(addr: address) -> bool: view
-        def directlyVoted(addr: address) -> bool: view
-        def giveRightToVote(voter: address): nonpayable
-        def forwardWeight(delegate_with_weight_to_forward: address): nonpayable
+        def directly_voted(addr: address) -> bool: view
+        def give_right_to_vote(voter: address): nonpayable
+        def forward_weight(delegate_with_weight_to_forward: address): nonpayable
         # ...
 
 The output can then easily be copy-pasted to be consumed.

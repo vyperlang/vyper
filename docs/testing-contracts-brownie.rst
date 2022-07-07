@@ -45,17 +45,17 @@ We create a test file ``tests/test_storage.py`` where we write our tests in pyte
 
     def test_initial_state(storage_contract):
         # Check if the constructor of the contract is set up properly
-        assert storage_contract.storedData() == INITIAL_VALUE
+        assert storage_contract.stored_data() == INITIAL_VALUE
 
 
     def test_set(storage_contract, accounts):
         # set the value to 10
         storage_contract.set(10, {'from': accounts[0]})
-        assert storage_contract.storedData() == 10  # Directly access storedData
+        assert storage_contract.stored_data() == 10  # Directly access stored_data
 
         # set the value to -5
         storage_contract.set(-5, {'from': accounts[0]})
-        assert storage_contract.storedData() == -5
+        assert storage_contract.stored_data() == -5
 
 
 In this example we are using two fixtures which are provided by Brownie:
@@ -140,4 +140,4 @@ Transactions that revert raise a :py:class:`VirtualMachineError <brownie.excepti
         # Reset the contract and try to change the value
         adv_storage_contract.reset({"from": accounts[1]})
         adv_storage_contract.set(10, {"from": accounts[1]})
-        assert adv_storage_contract.storedData() == 10
+        assert adv_storage_contract.stored_data() == 10

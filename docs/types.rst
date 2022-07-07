@@ -448,14 +448,14 @@ Lists can be declared with ``_name: _ValueType[_Integer]``.
 .. code-block:: python
 
     # Defining a list
-    exampleList: int128[3]
+    example_list: int128[3]
 
     # Setting values
-    exampleList = [10, 11, 12]
-    exampleList[2] = 42
+    example_list = [10, 11, 12]
+    example_list[2] = 42
 
     # Returning a value
-    return exampleList[0]
+    return example_list[0]
 
 Multidimensional lists are also possible. The notation for the declaration is reversed compared to some other languages, but the access notation is not reversed.
 
@@ -464,16 +464,16 @@ A two dimensional list can be declared with ``_name: _ValueType[inner_size][oute
 .. code-block:: python
 
     # Defining a list with 2 rows and 5 columns and set all values to 0
-    exampleList2D: int128[5][2] = empty(int128[5][2])
+    example_list_2d: int128[5][2] = empty(int128[5][2])
 
     # Setting a value for row the first row (0) and last column (4)
-    exampleList2D[0][4] = 42
+    example_list_2d[0][4] = 42
 
     # Setting values
-    exampleList2D = [[10, 11, 12, 13, 14], [16, 17, 18, 19, 20]]
+    example_list_2d = [[10, 11, 12, 13, 14], [16, 17, 18, 19, 20]]
 
     # Returning the value in row 0 column 4 (in this case 14)
-    return exampleList2D[0][4]
+    return example_list_2d[0][4]
 
 .. index:: !dynarrays
 
@@ -485,22 +485,22 @@ Dynamic arrays represent bounded arrays whose length can be modified at runtime,
 .. code-block:: python
 
     # Defining a list
-    exampleList: DynArray[int128, 3]
+    example_list: DynArray[int128, 3]
 
     # Setting values
-    exampleList = []
-    # exampleList.pop()  # would revert!
-    exampleList.append(42)  # exampleList now has length 1
-    exampleList.append(120)  # exampleList now has length 2
-    exampleList.append(356)  # exampleList now has length 3
-    # exampleList.append(1)  # would revert!
+    example_list = []
+    # example_list.pop()  # would revert!
+    example_list.append(42)  # example_list now has length 1
+    example_list.append(120)  # example_list now has length 2
+    example_list.append(356)  # example_list now has length 3
+    # example_list.append(1)  # would revert!
 
-    myValue: int128 = exampleList.pop()  # myValue == 356, exampleList now has length 2
+    my_value: int128 = example_list.pop()  # my_value == 356, example_list now has length 2
 
-    # myValue = exampleList[2]  # would revert!
+    # my_value = example_list[2]  # would revert!
 
     # Returning a value
-    return exampleList[0]
+    return example_list[0]
 
 
 .. note::
@@ -531,14 +531,14 @@ Struct members can be accessed via ``struct.argname``.
 
     # Defining a struct
     struct MyStruct:
-        value1: int128
-        value2: decimal
+        value_1: int128
+        value_2: decimal
 
     # Declaring a struct variable
-    exampleStruct: MyStruct = MyStruct({value1: 1, value2: 2.0})
+    example_struct: MyStruct = MyStruct({value_1: 1, value_2: 2.0})
 
     # Accessing a value
-    exampleStruct.value1 = 1
+    example_struct.value_1 = 1
 
 .. index:: !mapping
 
@@ -560,10 +560,10 @@ Mapping types are declared as ``HashMap[_KeyType, _ValueType]``.
 .. code-block:: python
 
    # Defining a mapping
-   exampleMapping: HashMap[int128, decimal]
+   example_mapping: HashMap[int128, decimal]
 
    # Accessing a value
-   exampleMapping[0] = 10.1
+   example_mapping[0] = 10.1
 
 .. note::
 

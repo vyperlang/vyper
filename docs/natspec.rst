@@ -31,7 +31,7 @@ Vyper supports structured documentation for contracts and external functions usi
 
     @external
     @payable
-    def doesEat(food: string[30], qty: uint256) -> bool:
+    def does_eat(food: string[30], qty: uint256) -> bool:
         """
         @notice Determine if Bugs will accept `qty` of `food` to eat
         @dev Compares the entire string and does not rely on a hash
@@ -84,7 +84,7 @@ The above documentation will produce the following user documentation JSON as ou
 
     {
       "methods": {
-        "doesEat(string,uint256)": {
+        "does_eat(string,uint256)": {
           "notice": "Determine if Bugs will accept `qty` of `food` to eat"
         }
       },
@@ -108,7 +108,7 @@ file should also be produced and should look like this:
       "license": "MIT",
       "details": "Simply chewing a carrot does not count, carrots must pass the throat to be considered eaten",
       "methods": {
-        "doesEat(string,uint256)": {
+        "does_eat(string,uint256)": {
           "details" : "Compares the entire string and does not rely on a hash",
           "params": {
             "food": "The name of a food to evaluate (in English)",
