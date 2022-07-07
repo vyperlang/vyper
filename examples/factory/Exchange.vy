@@ -10,9 +10,9 @@ factory: Factory
 
 
 @external
-def __init__(_token: ERC20, _factory: Factory):
-    self.token = _token
-    self.factory = _factory
+def __init__(token: ERC20, factory: Factory):
+    self.token = token
+    self.factory = factory
 
 
 @external
@@ -27,14 +27,14 @@ def initialize():
 
 
 @external
-def receive(_from: address, _amt: uint256):
+def receive(sender: address, amount: uint256):
     assert msg.sender == self.factory.address
-    success: bool = self.token.transferFrom(_from, self, _amt)
+    success: bool = self.token.transferFrom(sender, self, amount)
     assert success
 
 
 @external
-def transfer(_to: address, _amt: uint256):
+def transfer(receiver: address, amount: uint256):
     assert msg.sender == self.factory.address
-    success: bool = self.token.transfer(_to, _amt)
+    success: bool = self.token.transfer(receiver, amount)
     assert success

@@ -2,8 +2,8 @@ from vyper.interfaces import ERC20
 
 interface Exchange:
     def token() -> ERC20: view
-    def receive(_from: address, _amt: uint256): nonpayable
-    def transfer(_to: address, _amt: uint256): nonpayable
+    def receive(sender: address, amount: uint256): nonpayable
+    def transfer(receiver: address, amount: uint256): nonpayable
 
 
 exchange_codehash: public(bytes32)
@@ -12,9 +12,9 @@ exchanges: public(HashMap[ERC20, Exchange])
 
 
 @external
-def __init__(_exchange_codehash: bytes32):
+def __init__(exchange_codehash: bytes32):
     # Register the exchange code hash during deployment of the factory
-    self.exchange_codehash = _exchange_codehash
+    self.exchange_codehash = exchange_codehash
 
 
 # NOTE: Could implement fancier upgrade logic around self.exchange_codehash
@@ -37,8 +37,8 @@ def register():
 
 
 @external
-def trade(_token1: ERC20, _token2: ERC20, _amt: uint256):
+def trade(token1: ERC20, token2: ERC20, amount: uint256):
     # Perform a straight exchange of token1 to token 2 (1:1 price)
     # NOTE: Any practical implementation would need to solve the price oracle problem
-    self.exchanges[_token1].receive(msg.sender, _amt)
-    self.exchanges[_token2].transfer(msg.sender, _amt)
+    self.exchanges[token1].receive(msg.sender, amount)
+    self.exchanges[token2].transfer(msg.sender, amount)
