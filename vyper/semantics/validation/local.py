@@ -2,9 +2,10 @@ import copy
 from typing import Optional
 
 from vyper import ast as vy_ast
-from vyper.ast.utils import get_constant_value
+from vyper.ast.utils import get_constant_value, get_folded_numeric_literal
 from vyper.ast.validation import validate_call_args
 from vyper.exceptions import (
+    CompilerPanic,
     ExceptionList,
     FunctionDeclarationException,
     ImmutableViolation,
@@ -16,6 +17,7 @@ from vyper.exceptions import (
     StateAccessViolation,
     StructureException,
     TypeMismatch,
+    UnfoldableNode,
     VariableDeclarationException,
     VyperException,
 )
@@ -164,18 +166,13 @@ def _validate_msg_data_attribute(node: vy_ast.Attribute) -> None:
 
 
 def _get_for_value(node: vy_ast.VyperNode) -> int:
-    val = None
-    if isinstance(node, (vy_ast.BinOp, vy_ast.UnaryOp)):
-        val = node.derive()  # type: ignore
-    elif isinstance(node, vy_ast.Name):
-        val = get_constant_value(node)
-    elif isinstance(node, vy_ast.Num):
-        val = node.value
-
-    if val is None:
+    try:
+        val = get_folded_numeric_literal(node)
+        return val
+    except UnfoldableNode:
         raise InvalidLiteral("Element must be a literal or constant variable", node)
 
-    return val
+    raise CompilerPanic
 
 
 class FunctionNodeVisitor(VyperNodeVisitorBase):

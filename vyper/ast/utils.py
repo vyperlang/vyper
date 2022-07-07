@@ -71,6 +71,12 @@ def get_constant_value(node: Union[vy_ast.Call, vy_ast.Name]) -> Any:
     # Check for builtin environment constants
     from vyper.ast.folding import BUILTIN_CONSTANTS
 
+    if isinstance(node, (vy_ast.BinOp, vy_ast.UnaryOp)):
+        return node.derive()
+
+    if isinstance(node, vy_ast.Constant):
+        return node.value
+
     if isinstance(node, vy_ast.Name):
         if node.id in BUILTIN_CONSTANTS:
             return BUILTIN_CONSTANTS[node.id]["value"]
@@ -111,15 +117,7 @@ def get_folded_numeric_literal(node: vy_ast.VyperNode) -> Union[int, Decimal]:
     """
     Helper function to derive folded value of literal ops or literal
     """
-    if not isinstance(node, (vy_ast.Decimal, vy_ast.Int, vy_ast.BinOp, vy_ast.UnaryOp)):
+    val = get_constant_value(node)
+    if not isinstance(val, (int, Decimal)):
         raise UnfoldableNode
-
-    if isinstance(node, (vy_ast.Decimal, vy_ast.Int)):
-        val = node.value
-    elif isinstance(node, (vy_ast.BinOp, vy_ast.UnaryOp)):
-        val = node.derive()  # type: ignore
-
-    if val is None:
-        raise UnfoldableNode
-
     return val

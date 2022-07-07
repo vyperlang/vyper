@@ -907,7 +907,9 @@ class UnaryOp(VyperNode):
         int | decimal.Decimal
             Raw value of the result of the evaluation
         """
-        val = _derive(self.operand)
+        from vyper.ast.utils import get_constant_value
+
+        val = get_constant_value(self.operand)
         if val is None:
             return None
         return self.op._op(val)
@@ -980,8 +982,10 @@ class BinOp(VyperNode):
         int | decimal.Decimal
             Raw value of the result of the evaluation
         """
-        left = _derive(self.left)
-        right = _derive(self.right)
+        from vyper.ast.utils import get_constant_value
+
+        left = get_constant_value(self.left)
+        right = get_constant_value(self.right)
         if None in [left, right]:
             return None
         return self.op._op(left, right)
@@ -1395,15 +1399,3 @@ class Break(VyperNode):
 
 class Continue(VyperNode):
     __slots__ = ()
-
-
-def _derive(node):
-    if isinstance(node, (BinOp, UnaryOp)):
-        return node.derive()
-    elif isinstance(node, Name):
-        from vyper.ast.utils import get_constant_value
-
-        return get_constant_value(node)
-    elif isinstance(node, Constant):
-        return node.value
-    return None
