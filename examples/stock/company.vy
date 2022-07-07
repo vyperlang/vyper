@@ -20,7 +20,7 @@ event Pay:
 
 # Initiate the variables for the company and it's own shares.
 company: public(address)
-totalShares: public(uint256)
+total_shares: public(uint256)
 price: public(uint256)
 
 # Store a ledger of stockholder holdings.
@@ -28,33 +28,33 @@ holdings: HashMap[address, uint256]
 
 # Set up the company.
 @external
-def __init__(_company: address, _total_shares: uint256, initial_price: uint256):
-    assert _total_shares > 0
+def __init__(company: address, total_shares: uint256, initial_price: uint256):
+    assert total_shares > 0
     assert initial_price > 0
 
-    self.company = _company
-    self.totalShares = _total_shares
+    self.company = company
+    self.total_shares = total_shares
     self.price = initial_price
 
     # The company holds all the shares at first, but can sell them all.
-    self.holdings[self.company] = _total_shares
+    self.holdings[self.company] = total_shares
 
-# Public function to allow external access to _stockAvailable
+# Public function to allow external access to _stock_available
 @view
 @external
-def stockAvailable() -> uint256:
-    return self._stockAvailable()
+def stock_available() -> uint256:
+    return self._stock_available()
 
 # Give some value to the company and get stock in return.
 @external
 @payable
-def buyStock():
+def buy_stock():
     # Note: full amount is given to company (no fractional shares),
     #       so be sure to send exact amount to buy shares
     buy_order: uint256 = msg.value / self.price # rounds down
 
     # Check that there are enough shares to buy.
-    assert self._stockAvailable() >= buy_order
+    assert self._stock_available() >= buy_order
 
     # Take the shares off the market and give them to the stockholder.
     self.holdings[self.company] -= buy_order
@@ -63,11 +63,11 @@ def buyStock():
     # Log the buy event.
     log Buy(msg.sender, buy_order)
 
-# Public function to allow external access to _getHolding
+# Public function to allow external access to _get_holding
 @view
 @external
-def getHolding(_stockholder: address) -> uint256:
-    return self._getHolding(_stockholder)
+def get_holding(stockholder: address) -> uint256:
+    return self._get_holding(stockholder)
 
 # Return the amount the company has on hand in cash.
 @view
@@ -77,11 +77,11 @@ def cash() -> uint256:
 
 # Give stock back to the company and get money back as ETH.
 @external
-def sellStock(sell_order: uint256):
+def sell_stock(sell_order: uint256):
     assert sell_order > 0 # Otherwise, this would fail at send() below,
         # due to an OOG error (there would be zero value available for gas).
     # You can only sell as much stock as you own.
-    assert self._getHolding(msg.sender) >= sell_order
+    assert self._get_holding(msg.sender) >= sell_order
     # Check that the company can pay you.
     assert self.balance >= (sell_order * self.price)
 
@@ -97,10 +97,10 @@ def sellStock(sell_order: uint256):
 # Transfer stock from one stockholder to another. (Assume that the
 # receiver is given some compensation, but this is not enforced.)
 @external
-def transferStock(receiver: address, transfer_order: uint256):
-    assert transfer_order > 0 # This is similar to sellStock above.
+def transfer_stock(receiver: address, transfer_order: uint256):
+    assert transfer_order > 0 # This is similar to sell_stock above.
     # Similarly, you can only trade as much stock as you own.
-    assert self._getHolding(msg.sender) >= transfer_order
+    assert self._get_holding(msg.sender) >= transfer_order
 
     # Debit the sender's stock and add to the receiver's address.
     self.holdings[msg.sender] -= transfer_order
@@ -111,7 +111,7 @@ def transferStock(receiver: address, transfer_order: uint256):
 
 # Allow the company to pay someone for services rendered.
 @external
-def payBill(vendor: address, amount: uint256):
+def pay_bill(vendor: address, amount: uint256):
     # Only the company can pay people.
     assert msg.sender == self.company
     # Also, it can pay only if there's enough to pay them with.
@@ -141,16 +141,16 @@ def worth() -> uint256:
 @view
 @internal
 def _debt() -> uint256:
-    return (self.totalShares - self._stockAvailable()) * self.price
+    return (self.total_shares - self._stock_available()) * self.price
 
 # Find out how much stock the company holds
 @view
 @internal
-def _stockAvailable() -> uint256:
+def _stock_available() -> uint256:
     return self.holdings[self.company]
 
 # Find out how much stock any address (that's owned by someone) has.
 @view
 @internal
-def _getHolding(_stockholder: address) -> uint256:
-    return self.holdings[_stockholder]
+def _get_holding(stockholder: address) -> uint256:
+    return self.holdings[stockholder]
