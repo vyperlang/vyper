@@ -89,7 +89,6 @@ class CompilerData:
     def vyper_module_unfolded(self) -> vy_ast.Module:
         # This phase is intended to generate an AST for tooling use, and is not
         # used in the compilation process.
-
         return generate_unfolded_ast(self.vyper_module, self.interface_codes)
 
     @cached_property
@@ -174,9 +173,6 @@ def generate_unfolded_ast(
     vyper_module: vy_ast.Module, interface_codes: Optional[InterfaceImports]
 ) -> vy_ast.Module:
 
-    vy_ast.validation.validate_literal_nodes(vyper_module)
-    vy_ast.folding.replace_builtin_constants(vyper_module)
-    vy_ast.folding.replace_builtin_functions(vyper_module)
     # note: validate_semantics does type inference on the AST
     validate_semantics(vyper_module, interface_codes)
 
