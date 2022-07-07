@@ -242,6 +242,7 @@ def check_constant(node: vy_ast.VyperNode, vyper_module: vy_ast.Module = None) -
             return all(check_constant(v) for v in args[0].values)
 
     from vyper.ast.utils import get_constant_value
+
     val = get_constant_value(node)
     if val is not None:
         return True
@@ -265,6 +266,7 @@ def check_kwargable(node: vy_ast.VyperNode) -> bool:
             return all(check_kwargable(v) for v in args[0].values)
 
     from vyper.ast.utils import get_constant_value
+
     val = get_constant_value(node)
     if val is not None:
         return True
