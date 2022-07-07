@@ -1,30 +1,31 @@
+# @version 0.3.4
 # Open Auction
 
 # Auction params
 # Beneficiary receives money from the highest bidder
 beneficiary: public(address)
-auctionStart: public(uint256)
-auctionEnd: public(uint256)
+auction_start: public(uint256)
+auction_end: public(uint256)
 
 # Current state of auction
-highestBidder: public(address)
-highestBid: public(uint256)
+highest_bidder: public(address)
+highest_bid: public(uint256)
 
 # Set to true at the end, disallows any change
 ended: public(bool)
 
 # Keep track of refunded bids so we can follow the withdraw pattern
-pendingReturns: public(HashMap[address, uint256])
+pending_returns: public(HashMap[address, uint256])
 
-# Create a simple auction with `_auction_start` and
-# `_bidding_time` seconds bidding time on behalf of the
-# beneficiary address `_beneficiary`.
+# Create a simple auction with `auction_start` and
+# `bidding_time` seconds bidding time on behalf of the
+# beneficiary address `beneficiary`.
 @external
-def __init__(_beneficiary: address, _auction_start: uint256, _bidding_time: uint256):
-    self.beneficiary = _beneficiary
-    self.auctionStart = _auction_start  # auction start time can be in the past, present or future
-    self.auctionEnd = self.auctionStart + _bidding_time
-    assert block.timestamp < self.auctionEnd # auction end time should be in the future
+def __init__(beneficiary: address, auction_start: uint256, bidding_time: uint256):
+    self.beneficiary = beneficiary
+    self.auction_start = auction_start  # auction start time can be in the past, present or future
+    self.auction_end = self.auction_start + bidding_time
+    assert block.timestamp < self.auction_end # auction end time should be in the future
 
 # Bid on the auction with the value sent
 # together with this transaction.
@@ -34,16 +35,16 @@ def __init__(_beneficiary: address, _auction_start: uint256, _bidding_time: uint
 @payable
 def bid():
     # Check if bidding period has started.
-    assert block.timestamp >= self.auctionStart
+    assert block.timestamp >= self.auction_start
     # Check if bidding period is over.
-    assert block.timestamp < self.auctionEnd
+    assert block.timestamp < self.auction_end
     # Check if bid is high enough
-    assert msg.value > self.highestBid
+    assert msg.value > self.highest_bid
     # Track the refund for the previous high bidder
-    self.pendingReturns[self.highestBidder] += self.highestBid
+    self.pending_returns[self.highest_bidder] += self.highest_bid
     # Track new high bid
-    self.highestBidder = msg.sender
-    self.highestBid = msg.value
+    self.highest_bidder = msg.sender
+    self.highest_bid = msg.value
 
 # Withdraw a previously refunded bid. The withdraw pattern is
 # used here to avoid a security issue. If refunds were directly
@@ -51,14 +52,14 @@ def bid():
 # those refunds and thus block new higher bids from coming in.
 @external
 def withdraw():
-    pending_amount: uint256 = self.pendingReturns[msg.sender]
-    self.pendingReturns[msg.sender] = 0
+    pending_amount: uint256 = self.pending_returns[msg.sender]
+    self.pending_returns[msg.sender] = 0
     send(msg.sender, pending_amount)
 
 # End the auction and send the highest bid
 # to the beneficiary.
 @external
-def endAuction():
+def end_auction():
     # It is a good guideline to structure functions that interact
     # with other contracts (i.e. they call functions or send Ether)
     # into three phases:
@@ -74,7 +75,7 @@ def endAuction():
 
     # 1. Conditions
     # Check if auction endtime has been reached
-    assert block.timestamp >= self.auctionEnd
+    assert block.timestamp >= self.auction_end
     # Check if this function has already been called
     assert not self.ended
 
@@ -82,4 +83,4 @@ def endAuction():
     self.ended = True
 
     # 3. Interaction
-    send(self.beneficiary, self.highestBid)
+    send(self.beneficiary, self.highest_bid)
