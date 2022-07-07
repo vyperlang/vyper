@@ -355,14 +355,9 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                 if not check_constant(args[0]):
                     raise StateAccessViolation("Value must be a literal", node)
 
-                if isinstance(args[0], vy_ast.Name):
-                    val = get_constant_value(args[0])
-                elif isinstance(args[0], vy_ast.Int):
-                    val = args[0].value
-                elif isinstance(args[0], (vy_ast.BinOp, vy_ast.UnaryOp)):
-                    val = args[0].derive()
-                    if val is None:
-                        raise StateAccessViolation("Value must be a literal", node)
+                val = get_constant_value(args[0])
+                if val is None:
+                    raise StateAccessViolation("Value must be a literal", node)
 
                 if val <= 0:
                     raise StructureException("For loop must have at least 1 iteration", args[0])
