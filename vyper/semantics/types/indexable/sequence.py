@@ -244,17 +244,16 @@ class DynamicArrayPrimitive(BasePrimitive):
     ) -> DynamicArrayDefinition:
         # TODO fix circular import
         from vyper.semantics.types.utils import get_type_from_annotation
-        length_node = node.slice.value.elements[1]
 
         if (
             not isinstance(node, vy_ast.Subscript)
             or not isinstance(node.slice, vy_ast.Index)
             or not isinstance(node.slice.value, vy_ast.Tuple)
             or not (
-                isinstance(length_node, vy_ast.Int)
+                isinstance(node.slice.value.elements[1], vy_ast.Int)
                 or (
-                    isinstance(length_node, vy_ast.Name)
-                    and get_constant_value(length_node) is not None
+                    isinstance(node.slice.value.elements[1], vy_ast.Name)
+                    and get_constant_value(node.slice.value.elements[1]) is not None
                 )
             )
             or len(node.slice.value.elements) != 2
@@ -273,10 +272,10 @@ class DynamicArrayPrimitive(BasePrimitive):
             not_assignable,
         )
 
-        if isinstance(length_node, vy_ast.Int):
-            max_length = length_node.value
-        elif isinstance(length_node, vy_ast.Name):
-            max_length = get_constant_value(length_node)
+        if isinstance(node.slice.value.elements[1], vy_ast.Int):
+            max_length = node.slice.value.elements[1].value
+        elif isinstance(node.slice.value.elements[1], vy_ast.Name):
+            max_length = get_constant_value(node.slice.value.elements[1])
 
         return DynamicArrayDefinition(
             value_type, max_length, location, is_constant, is_public, is_immutable, not_assignable

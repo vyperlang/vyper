@@ -1,7 +1,6 @@
 import hashlib
 import math
 import operator
-from decimal import Decimal
 
 from vyper import ast as vy_ast
 from vyper.abi_types import ABI_Tuple

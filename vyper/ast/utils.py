@@ -86,17 +86,20 @@ def get_constant_value(node: Union[vy_ast.Call, vy_ast.Name]) -> Any:
                 if isinstance(n.value, vy_ast.Constant):
                     val = n.value.value
                     return val
-                elif isinstance(n.value, (vy_ast.BinOp, vy_ast.UnaryOp, vy_ast.BoolOp, vy_ast.Compare)):
+                elif isinstance(
+                    n.value, (vy_ast.BinOp, vy_ast.UnaryOp, vy_ast.BoolOp, vy_ast.Compare)
+                ):
                     return n.value.derive()  # type: ignore
 
     if isinstance(node, vy_ast.Call) and isinstance(node.func, vy_ast.Name):
         name = node.func.id
         from vyper.builtin_functions import DISPATCH_TABLE
+
         func = DISPATCH_TABLE.get(name)
         if func is None or not hasattr(func, "evaluate"):
             return None
         try:
-            value = func.evaluate(node).value
+            value = func.evaluate(node).value  # type: ignore
             return value
         except UnfoldableNode:
             return None
