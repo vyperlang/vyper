@@ -8,6 +8,7 @@ from vyper.exceptions import (
     StructureException,
     UndeclaredDefinition,
     UnknownType,
+    VyperException,
     VyperInternalException,
 )
 from vyper.semantics.namespace import get_namespace
@@ -183,18 +184,19 @@ def get_type_from_annotation(
             f"No builtin or user-defined type named '{type_name}'. {suggestions_str}", node
         ) from None
 
-    if (
-        getattr(type_obj, "_as_array", False)
-        and isinstance(node, vy_ast.Subscript)
-        and not isinstance(node.slice.value, vy_ast.Tuple)
-    ):
+    if (getattr(type_obj, "_as_array", False) and isinstance(node, vy_ast.Subscript)):
         # TODO: handle `is_immutable` for arrays
         # if type can be an array and node is a subscript, create an `ArrayDefinition`
-        length = get_index_value(node.slice)
-        value_type = get_type_from_annotation(
-            node.value, location, is_constant, False, is_immutable
-        )
-        return ArrayDefinition(value_type, length, location, is_constant, is_public, is_immutable)
+        try:
+            value_type = get_type_from_annotation(
+                node.value, location, is_constant, False, is_immutable
+            )
+            length = get_index_value(node.slice)
+            return ArrayDefinition(value_type, length, location, is_constant, is_public, is_immutable)
+
+        except StructureException:
+            # Plain dynamic arrays will raise a structure exception
+            pass
 
     try:
         return type_obj.from_annotation(node, location, is_constant, is_public, is_immutable)
