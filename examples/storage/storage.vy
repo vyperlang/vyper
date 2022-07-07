@@ -1,9 +1,9 @@
-storedData: public(int128)
+stored_data: public(int128)
 
 @external
-def __init__(_x: int128):
-  self.storedData = _x
+def __init__(x: int128):
+  self.stored_data = x
 
 @external
-def set(_x: int128):
-  self.storedData = _x
+def set(x: int128):
+  self.stored_data = x
