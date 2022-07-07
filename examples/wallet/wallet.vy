@@ -10,24 +10,24 @@ seq: public(int128)
 
 
 @external
-def __init__(_owners: address[5], _threshold: int128):
+def __init__(owners: address[5], threshold: int128):
     for i in range(5):
-        if _owners[i] != ZERO_ADDRESS:
-            self.owners[i] = _owners[i]
-    self.threshold = _threshold
+        if owners[i] != ZERO_ADDRESS:
+            self.owners[i] = owners[i]
+    self.threshold = threshold
 
 
 @external
-def testEcrecover(h: bytes32, v:uint256, r:uint256, s:uint256) -> address:
+def test_ecrecover(h: bytes32, v:uint256, r:uint256, s:uint256) -> address:
     return ecrecover(h, v, r, s)
 
 
 # `@payable` allows functions to receive ether
 @external
 @payable
-def approve(_seq: int128, to: address, _value: uint256, data: Bytes[4096], sigdata: uint256[3][5]) -> Bytes[4096]:
+def approve(seq: int128, to: address, amount: uint256, data: Bytes[4096], sigdata: uint256[3][5]) -> Bytes[4096]:
     # Throws if the value sent to the contract is less than the sum of the value to be sent
-    assert msg.value >= _value
+    assert msg.value >= amount
     # Every time the number of approvals starts at 0 (multiple signatures can be added through the sigdata argument)
     approvals: int128 = 0
     # Starts by combining:
@@ -36,12 +36,12 @@ def approve(_seq: int128, to: address, _value: uint256, data: Bytes[4096], sigda
     # 3) The value in wei that will be sent with this transaction.
     # 4) The data to be sent with this transaction (usually data is used to deploy contracts or to call functions on contracts, but you can put whatever you want in it).
     # Takes the keccak256 hash of the combination
-    h: bytes32 = keccak256(concat(convert(_seq, bytes32), convert(to, bytes32), convert(_value, bytes32), data))
+    h: bytes32 = keccak256(concat(convert(seq, bytes32), convert(to, bytes32), convert(amount, bytes32), data))
     # Then we combine the Ethereum Signed message with our previous hash
     # Owners will have to sign the below message
-    h2: bytes32 = keccak256(concat(b"\x19Ethereum Signed Message:\n32", h))
+    h2: bytes32 = keccak256(concat(b"\x19_ethereum Signed Message:\n32", h))
     # Verifies that the caller of approve has entered the correct transaction number
-    assert self.seq == _seq
+    assert self.seq == seq
     # # Iterates through all the owners and verifies that there signatures,
     # # given as the sigdata argument are correct
     for i in range(5):
@@ -56,7 +56,7 @@ def approve(_seq: int128, to: address, _value: uint256, data: Bytes[4096], sigda
     # Increase the number of approved transactions by 1
     self.seq += 1
     # Use raw_call to send the transaction
-    return raw_call(to, data, max_outsize=4096, gas=3000000, value=_value)
+    return raw_call(to, data, max_outsize=4096, gas=3000000, value=amount)
 
 
 @external
