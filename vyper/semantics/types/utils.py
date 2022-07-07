@@ -183,7 +183,11 @@ def get_type_from_annotation(
             f"No builtin or user-defined type named '{type_name}'. {suggestions_str}", node
         ) from None
 
-    if getattr(type_obj, "_as_array", False) and isinstance(node, vy_ast.Subscript):
+    if (
+        getattr(type_obj, "_as_array", False)
+        and isinstance(node, vy_ast.Subscript)
+        and node.value.get("id") != "DynArray"
+    ):
         # TODO: handle `is_immutable` for arrays
         # if type can be an array and node is a subscript, create an `ArrayDefinition`
         length = get_index_value(node.slice)
