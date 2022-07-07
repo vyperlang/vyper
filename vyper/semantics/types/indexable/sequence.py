@@ -244,7 +244,8 @@ class DynamicArrayPrimitive(BasePrimitive):
     ) -> DynamicArrayDefinition:
         # TODO fix circular import
         from vyper.semantics.types.utils import get_type_from_annotation
-        max_length = get_constant_value(node.slice.value.elements[1])
+
+        max_length = get_constant_value(node.slice.value.elements[1])  # type: ignore
 
         if (
             not isinstance(node, vy_ast.Subscript)
