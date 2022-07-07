@@ -2,12 +2,8 @@ from decimal import ROUND_DOWN, Decimal, getcontext
 
 import pytest
 
-<<<<<<< HEAD
 from vyper.exceptions import DecimalOverrideException, InvalidOperation, OverflowException
-=======
-from vyper.exceptions import DecimalOverrideException, TypeMismatch
 from vyper.utils import DECIMAL_EPSILON, SizeLimits
->>>>>>> 573d77f7af177fb3bf2be2a14d16e3b6c477a0fc
 
 
 def test_decimal_override():
