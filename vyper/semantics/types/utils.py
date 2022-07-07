@@ -234,8 +234,14 @@ def check_constant(node: vy_ast.VyperNode, vyper_module: vy_ast.Module = None) -
         return True
     if isinstance(node, (vy_ast.Tuple, vy_ast.List)):
         return all(check_constant(item) for item in node.elements)
-    from vyper.ast.utils import get_constant_value
 
+    if isinstance(node, vy_ast.Call):
+        # Literal structs
+        args = node.args
+        if len(args) == 1 and isinstance(args[0], vy_ast.Dict):
+            return all(check_constant(v) for v in args[0].values)
+
+    from vyper.ast.utils import get_constant_value
     val = get_constant_value(node)
     if val is not None:
         return True
@@ -253,8 +259,12 @@ def check_kwargable(node: vy_ast.VyperNode) -> bool:
     if isinstance(node, (vy_ast.Tuple, vy_ast.List)):
         return all(check_kwargable(item) for item in node.elements)
 
-    from vyper.ast.utils import get_constant_value
+    if isinstance(node, vy_ast.Call):
+        args = node.args
+        if len(args) == 1 and isinstance(args[0], vy_ast.Dict):
+            return all(check_kwargable(v) for v in args[0].values)
 
+    from vyper.ast.utils import get_constant_value
     val = get_constant_value(node)
     if val is not None:
         return True
