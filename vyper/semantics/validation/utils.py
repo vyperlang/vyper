@@ -559,7 +559,7 @@ def annotate_foldable_literals(node: vy_ast.VyperNode, expected_type: BaseTypeDe
     )
     for n in foldable_nodes:
         try:
-            node.validate_foldable()  # type: ignore
+            node.evaluate()
 
         except UnfoldableNode:
             pass
