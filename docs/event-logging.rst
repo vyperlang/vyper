@@ -42,7 +42,7 @@ Clients listening to the events can handle the events they are interested in usi
 
     token = project.Token.at("0x1234...ab67")
 
-    for log in token.Transfer.range(chain.blocks.height):
+    for log in token.Transfer.poll_logs():
         print(log.event_arguments)
 
 
@@ -85,7 +85,7 @@ The order and types of arguments given must match the order of arguments used wh
 Listening for Events
 ====================
 
-You can filter by the indexed topics to narrow down your search when listening to events.
+You can filter by the indexed topics to narrow down your search when fetching events.
 
 .. code-block:: python
 
