@@ -2,6 +2,7 @@ import functools
 from typing import Dict
 
 from vyper.ast import nodes as vy_ast
+from vyper.ast.utils import get_constant_value
 from vyper.ast.validation import validate_call_args
 from vyper.codegen.expr import Expr
 from vyper.codegen.ir_node import IRnode
@@ -114,7 +115,7 @@ class BuiltinFunction:
 
         for kwarg in node.keywords:
             kwarg_settings = self._kwargs[kwarg.arg]
-            if kwarg_settings.require_literal and not isinstance(kwarg.value, vy_ast.Constant):
+            if kwarg_settings.require_literal and (not isinstance(kwarg.value, vy_ast.Constant) and get_constant_value(kwarg.value) is None):
                 raise TypeMismatch("Value for kwarg must be a literal", kwarg.value)
             self._validate_single(kwarg.value, kwarg_settings.typ)
 

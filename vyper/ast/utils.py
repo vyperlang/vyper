@@ -64,29 +64,42 @@ def dict_to_ast(ast_struct: Union[Dict, List]) -> Union[vy_ast.VyperNode, List]:
     raise CompilerPanic(f'Unknown ast_struct provided: "{type(ast_struct)}".')
 
 
-def get_constant_value(node: vy_ast.Name) -> Any:
+def get_constant_value(node: Union[vy_ast.Call, vy_ast.Name]) -> Any:
     """
     Helper function to retrieve the value of a constant.
     """
     # Check for builtin environment constants
     from vyper.ast.folding import BUILTIN_CONSTANTS
 
-    if node.id in BUILTIN_CONSTANTS:
-        return BUILTIN_CONSTANTS[node.id]["value"]
+    if isinstance(node, vy_ast.Name):
+        if node.id in BUILTIN_CONSTANTS:
+            return BUILTIN_CONSTANTS[node.id]["value"]
 
-    # Check for user-defined constants
-    vyper_module = node.get_ancestor(vy_ast.Module)
-    for n in vyper_module.get_children(vy_ast.AnnAssign):
-        # Ensure that the AnnAssign is a constant variable definition
-        if not ("type" in n._metadata and n._metadata["type"].is_constant):
-            continue
+        # Check for user-defined constants
+        vyper_module = node.get_ancestor(vy_ast.Module)
+        for n in vyper_module.get_children(vy_ast.AnnAssign):
+            # Ensure that the AnnAssign is a constant variable definition
+            if not ("type" in n._metadata and n._metadata["type"].is_constant):
+                continue
 
-        if node.id == n.target.id:
-            if isinstance(n.value, vy_ast.Constant):
-                val = n.value.value
-                return val
-            elif isinstance(n.value, (vy_ast.BinOp, vy_ast.UnaryOp, vy_ast.BoolOp, vy_ast.Compare)):
-                return n.value.derive()  # type: ignore
+            if node.id == n.target.id:
+                if isinstance(n.value, vy_ast.Constant):
+                    val = n.value.value
+                    return val
+                elif isinstance(n.value, (vy_ast.BinOp, vy_ast.UnaryOp, vy_ast.BoolOp, vy_ast.Compare)):
+                    return n.value.derive()  # type: ignore
+
+    if isinstance(node, vy_ast.Call) and isinstance(node.func, vy_ast.Name):
+        name = node.func.id
+        from vyper.builtin_functions import DISPATCH_TABLE
+        func = DISPATCH_TABLE.get(name)
+        if func is None or not hasattr(func, "evaluate"):
+            return None
+        try:
+            value = func.evaluate(node).value
+            return value
+        except UnfoldableNode:
+            return None
 
     return None
 
