@@ -39,7 +39,7 @@ def approve(seq: int128, to: address, amount: uint256, data: Bytes[4096], sigdat
     h: bytes32 = keccak256(concat(convert(seq, bytes32), convert(to, bytes32), convert(amount, bytes32), data))
     # Then we combine the Ethereum Signed message with our previous hash
     # Owners will have to sign the below message
-    h2: bytes32 = keccak256(concat(b"\x19_ethereum Signed Message:\n32", h))
+    h2: bytes32 = keccak256(concat(b"\x19Ethereum Signed Message:\n32", h))
     # Verifies that the caller of approve has entered the correct transaction number
     assert self.seq == seq
     # # Iterates through all the owners and verifies that there signatures,
