@@ -479,19 +479,8 @@ def get_index_value(node: vy_ast.Index) -> int:
     int
         Literal integer value.
     """
-    value_node = node.get("value")
-    if isinstance(value_node, vy_ast.Int):
-        if node.value.value <= 0:
-            raise ArrayIndexException("Subscript must be greater than 0", node)
-
-        val = node.value.value
-
-    elif isinstance(value_node, vy_ast.Name):
-        val = get_constant_value(value_node)
-        if val is None:
-            raise ArrayIndexException("Subscript cannot be derived", node)
-
-    else:
+    val = get_constant_value(node.value)
+    if val is None:
         if hasattr(node, "value"):
             # even though the subscript is an invalid type, first check if it's a valid _something_
             # this gives a more accurate error in case of e.g. a typo in a constant variable name
@@ -502,6 +491,9 @@ def get_index_value(node: vy_ast.Index) -> int:
                 pass
 
         raise InvalidType("Subscript must be a literal integer", node)
+
+    if val <= 0:
+        raise ArrayIndexException("Subscript must be greater than 0", node)
 
     return val
 
