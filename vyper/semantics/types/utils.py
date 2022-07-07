@@ -186,7 +186,7 @@ def get_type_from_annotation(
     if (
         getattr(type_obj, "_as_array", False)
         and isinstance(node, vy_ast.Subscript)
-        and not isinstance(node.slice.value, vy_ast.Tuple)
+        and node.value.get("id") != "DynArray"
     ):
         # TODO: handle `is_immutable` for arrays
         # if type can be an array and node is a subscript, create an `ArrayDefinition`
