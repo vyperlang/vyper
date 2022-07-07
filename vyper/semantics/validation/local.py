@@ -2,10 +2,9 @@ import copy
 from typing import Optional
 
 from vyper import ast as vy_ast
-from vyper.ast.utils import get_constant_value, get_folded_numeric_literal
+from vyper.ast.utils import get_constant_value
 from vyper.ast.validation import validate_call_args
 from vyper.exceptions import (
-    CompilerPanic,
     ExceptionList,
     FunctionDeclarationException,
     ImmutableViolation,
@@ -17,7 +16,6 @@ from vyper.exceptions import (
     StateAccessViolation,
     StructureException,
     TypeMismatch,
-    UnfoldableNode,
     VariableDeclarationException,
     VyperException,
 )
@@ -163,18 +161,6 @@ def _validate_msg_data_attribute(node: vy_ast.Attribute) -> None:
                 raise StructureException(
                     "slice(msg.data) must use a compile-time constant for length argument", parent
                 )
-
-
-def _get_for_value(node: vy_ast.VyperNode) -> int:
-    try:
-        val = get_folded_numeric_literal(node)
-        # Sanity check
-        assert isinstance(val, int)
-        return val
-    except UnfoldableNode:
-        raise InvalidLiteral("Element must be a literal or constant variable", node)
-
-    raise CompilerPanic
 
 
 class FunctionNodeVisitor(VyperNodeVisitorBase):
@@ -354,9 +340,6 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             args = node.iter.args
             if len(args) == 1:
                 # range(CONSTANT)
-                if not check_constant(args[0]):
-                    raise StateAccessViolation("Value must be a literal", node)
-
                 val = get_constant_value(args[0])
                 if val is None:
                     raise StateAccessViolation("Value must be a literal", node)
@@ -369,11 +352,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                 validate_expected_type(args[0], IntegerAbstractType())
                 type_list = get_common_types(*args)
 
-                args0_is_constant = False
-                if isinstance(args[0], vy_ast.Name) and self.namespace[args[0].id].is_constant:
-                    args0_is_constant = True
-
-                if not isinstance(args[0], vy_ast.Constant) and not args0_is_constant:
+                if not check_constant(args[0]):
                     # range(x, x + CONSTANT)
                     if not isinstance(args[1], vy_ast.BinOp) or not isinstance(
                         args[1].op, vy_ast.Add
@@ -395,10 +374,12 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                         )
                 else:
                     # range(CONSTANT, CONSTANT)
-                    args1_value = _get_for_value(args[1])
+                    args1_value = get_constant_value(args[1])
+                    if args1_value is None:
+                        raise StateAccessViolation("Value must be a literal", node)
                     validate_expected_type(args[1], IntegerAbstractType())
 
-                    args0_value = _get_for_value(args[0])
+                    args0_value = get_constant_value(args[0])
 
                     if args0_value >= args1_value:
                         raise StructureException("Second value must be > first value", args[1])
