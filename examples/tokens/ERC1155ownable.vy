@@ -1,4 +1,3 @@
-# @version >=0.3.3
 """
 @dev Implementation of ERC-1155 non-fungible token standard ownable, with approval, OPENSEA compatible (name, symbol)
 @author Dr. Pixel (github: @Doc-Pixel)
