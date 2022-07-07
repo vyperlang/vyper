@@ -64,7 +64,7 @@ def dict_to_ast(ast_struct: Union[Dict, List]) -> Union[vy_ast.VyperNode, List]:
     raise CompilerPanic(f'Unknown ast_struct provided: "{type(ast_struct)}".')
 
 
-def get_constant_value(node: Union[vy_ast.Call, vy_ast.Name]) -> Any:
+def get_constant_value(node: vy_ast.VyperNode) -> Any:
     """
     Helper function to retrieve the value of a constant.
     """
@@ -72,7 +72,7 @@ def get_constant_value(node: Union[vy_ast.Call, vy_ast.Name]) -> Any:
     from vyper.ast.folding import BUILTIN_CONSTANTS
 
     if isinstance(node, (vy_ast.BinOp, vy_ast.UnaryOp)):
-        return node.derive()
+        return node.derive()  # type: ignore
 
     if isinstance(node, vy_ast.Constant):
         return node.value

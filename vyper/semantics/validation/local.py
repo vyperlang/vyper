@@ -168,6 +168,8 @@ def _validate_msg_data_attribute(node: vy_ast.Attribute) -> None:
 def _get_for_value(node: vy_ast.VyperNode) -> int:
     try:
         val = get_folded_numeric_literal(node)
+        # Sanity check
+        assert isinstance(val, int)
         return val
     except UnfoldableNode:
         raise InvalidLiteral("Element must be a literal or constant variable", node)

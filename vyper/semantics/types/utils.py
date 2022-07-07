@@ -7,7 +7,6 @@ from vyper.exceptions import (
     InvalidType,
     StructureException,
     UndeclaredDefinition,
-    UnfoldableNode,
     UnknownType,
     VyperInternalException,
 )
@@ -236,6 +235,7 @@ def check_constant(node: vy_ast.VyperNode, vyper_module: vy_ast.Module = None) -
     if isinstance(node, (vy_ast.Tuple, vy_ast.List)):
         return all(check_constant(item) for item in node.elements)
     from vyper.ast.utils import get_constant_value
+
     val = get_constant_value(node)
     if val is not None:
         return True
@@ -254,6 +254,7 @@ def check_kwargable(node: vy_ast.VyperNode) -> bool:
         return all(check_kwargable(item) for item in node.elements)
 
     from vyper.ast.utils import get_constant_value
+
     val = get_constant_value(node)
     if val is not None:
         return True
