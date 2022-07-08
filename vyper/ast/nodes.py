@@ -933,10 +933,6 @@ class BinOp(VyperNode):
             Node representing the result of the evaluation.
         """
         left, right = self.left, self.right
-        if type(left) is not type(right):
-            raise UnfoldableNode("Node contains invalid field(s) for evaluation")
-        if not isinstance(left, (Int, Decimal)):
-            raise UnfoldableNode("Node contains invalid field(s) for evaluation")
 
         if isinstance(self.op, (BitAnd, BitOr, BitXor)) and any(
             isinstance(i, Decimal) for i in (left, right)
@@ -1164,9 +1160,6 @@ class Compare(VyperNode):
         NameConstant
             Node representing the result of the evaluation.
         """
-        if not isinstance(self.op, (In, NotIn)) and not isinstance(self.left, type(self.right)):
-            raise UnfoldableNode("Cannot compare different literal types")
-
         from vyper.ast.utils import get_constant_value
 
         value = get_constant_value(self)
