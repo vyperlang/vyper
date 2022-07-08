@@ -1,7 +1,6 @@
 import functools
 from typing import Dict
 
-from vyper.ast import nodes as vy_ast
 from vyper.ast.utils import get_constant_value
 from vyper.ast.validation import validate_call_args
 from vyper.codegen.expr import Expr

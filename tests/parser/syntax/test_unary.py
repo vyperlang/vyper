@@ -1,5 +1,3 @@
-import pytest
-
 from vyper.exceptions import UnimplementedException
 
 
