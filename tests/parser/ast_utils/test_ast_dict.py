@@ -69,9 +69,7 @@ a: int128
             "lineno": 2,
             "node_id": 2,
             "src": "1:1:0",
-            "type": "int128",
         },
-        "type": "int128",
         "value": None,
     }
 
