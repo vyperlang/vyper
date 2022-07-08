@@ -1187,14 +1187,8 @@ class Compare(VyperNode):
         from vyper.ast.utils import get_constant_value
 
         left = get_constant_value(self.left)
-
-        if isinstance(self.op, (In, NotIn)):
-            right = get_constant_value(self.right)
-            if None in (left, right):
-                return None
-            return self.op._op(left, right)
-
         right = get_constant_value(self.right)
+
         if None in (left, right):
             return None
 
