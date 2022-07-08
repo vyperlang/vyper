@@ -874,6 +874,7 @@ class UnaryOp(VyperNode):
             raise UnimplementedException(f"{self.op._pretty} is not supported for decimal")
 
         from vyper.ast.utils import get_constant_value
+
         value = get_constant_value(self)
         if value is None:
             raise UnfoldableNode
@@ -937,7 +938,9 @@ class BinOp(VyperNode):
         if not isinstance(left, (Int, Decimal)):
             raise UnfoldableNode("Node contains invalid field(s) for evaluation")
 
-        if isinstance(self.op, (BitAnd, BitOr, BitXor)) and any(isinstance(i, Decimal) for i in (left, right)):
+        if isinstance(self.op, (BitAnd, BitOr, BitXor)) and any(
+            isinstance(i, Decimal) for i in (left, right)
+        ):
             raise UnimplementedException(f"{self.op._pretty} is not supported for decimal")
 
         from vyper.ast.utils import get_constant_value
