@@ -259,3 +259,19 @@ def foo4() -> int128:
     assert c.foo2() == -(2 ** 127)
     assert c.foo3() == 2 ** 127 - 1
     assert c.foo4() == 2 ** 127 - 1
+
+
+def test_minmax_in_constant(get_contract_with_gas_estimation):
+    code = """
+a: constant(uint256) = max(10, 20)
+b: constant(uint256) = min(10, 20)
+c: constant(uint256) = max(min(10, 20), max(30, 40))
+d: constant(uint256) = max(10, 20 + 57)
+e: constant(uint256) = min(10 - 5, 7)
+
+@external
+def foo() -> (uint256, uint256, uint256, uint256, uint256):
+    return a, b, c, d, e
+    """
+    c = get_contract_with_gas_estimation(code)
+    assert c.foo() == [20, 10, 40, 77, 5]
