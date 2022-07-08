@@ -67,17 +67,18 @@ def dict_to_ast(ast_struct: Union[Dict, List]) -> Union[vy_ast.VyperNode, List]:
 def get_constant_value(node: vy_ast.VyperNode) -> Any:
     """
     Helper function to retrieve the value of a constant.
-    """
-    # Check for builtin environment constants
-    from vyper.ast.folding import BUILTIN_CONSTANTS
 
-    if isinstance(node, (vy_ast.BinOp, vy_ast.UnaryOp)):
+    Returns None if unable to retrieve a literal value.
+    """
+    if isinstance(node, (vy_ast.BinOp, vy_ast.UnaryOp, vy_ast.BoolOp, vy_ast.Compare)):
         return node.derive()  # type: ignore
 
     if isinstance(node, vy_ast.Constant):
         return node.value
 
     if isinstance(node, vy_ast.Name):
+        # Check for builtin environment constants
+        from vyper.ast.folding import BUILTIN_CONSTANTS
         if node.id in BUILTIN_CONSTANTS:
             return BUILTIN_CONSTANTS[node.id]["value"]
 
@@ -89,13 +90,7 @@ def get_constant_value(node: vy_ast.VyperNode) -> Any:
                 continue
 
             if node.id == n.target.id:
-                if isinstance(n.value, vy_ast.Constant):
-                    val = n.value.value
-                    return val
-                elif isinstance(
-                    n.value, (vy_ast.BinOp, vy_ast.UnaryOp, vy_ast.BoolOp, vy_ast.Compare)
-                ):
-                    return n.value.derive()  # type: ignore
+                return get_constant_value(n.value)
 
     if isinstance(node, vy_ast.Call) and isinstance(node.func, vy_ast.Name):
         name = node.func.id
@@ -104,11 +99,18 @@ def get_constant_value(node: vy_ast.VyperNode) -> Any:
         func = DISPATCH_TABLE.get(name)
         if func is None or not hasattr(func, "evaluate"):
             return None
+
         try:
             value = func.evaluate(node).value  # type: ignore
             return value
         except UnfoldableNode:
             return None
+
+    if isinstance(node, vy_ast.List):
+        ret = [get_constant_value(i) for i in node.elements]
+        if None in ret:
+            return None
+        return ret
 
     return None
 

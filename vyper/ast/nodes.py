@@ -860,27 +860,6 @@ class Expr(VyperNode):
 class UnaryOp(VyperNode):
     __slots__ = ("op", "operand")
 
-    def validate_foldable(self) -> None:
-        """
-        Validates if the unary operation is foldable.
-        """
-        from vyper.ast.utils import get_constant_value
-
-        op = self.operand
-        if isinstance(op, (BinOp, UnaryOp)):
-            op.validate_foldable()
-        elif isinstance(op, Name):
-            val = get_constant_value(op)
-            if val is None:
-                raise UnfoldableNode
-        else:
-            if isinstance(self.op, Not) and not isinstance(self.operand, NameConstant):
-                raise UnfoldableNode("Node contains invalid field(s) for evaluation")
-            if isinstance(self.op, USub) and not isinstance(self.operand, (Int, Decimal)):
-                raise UnfoldableNode("Node contains invalid field(s) for evaluation")
-            if isinstance(self.op, Invert) and not isinstance(self.operand, Int):
-                raise UnfoldableNode("Node contains invalid field(s) for evaluation")
-
     def evaluate(self) -> VyperNode:
         """
         Attempt to evaluate the unary operation.
@@ -890,10 +869,13 @@ class UnaryOp(VyperNode):
         Int | Decimal
             Node representing the result of the evaluation.
         """
-        self.validate_foldable()
+        from vyper.ast.utils import get_constant_value
+        value = get_constant_value(self)
+        if value is None:
+            raise UnfoldableNode
 
-        value = self.derive()
         _validate_numeric_bounds(self, value)
+
         ret = type(self.operand).from_node(self, value=value)
         ret._metadata["type"] = self._metadata["type"]
         return ret
@@ -909,10 +891,10 @@ class UnaryOp(VyperNode):
         """
         from vyper.ast.utils import get_constant_value
 
-        val = get_constant_value(self.operand)
-        if val is None:
+        value = get_constant_value(self.operand)
+        if value is None:
             return None
-        return self.op._op(val)
+        return self.op._op(value)
 
 
 class USub(VyperNode):
@@ -936,21 +918,6 @@ class Invert(VyperNode):
 class BinOp(VyperNode):
     __slots__ = ("left", "op", "right")
 
-    def validate_foldable(self) -> None:
-        """
-        Validates if the unary operation is foldable.
-        """
-        from vyper.ast.utils import get_constant_value
-
-        left, right = self.left, self.right
-        for n in [left, right]:
-            if isinstance(n, (BinOp, UnaryOp)):
-                n.validate_foldable()
-            elif isinstance(n, Name):
-                n_val = get_constant_value(left)
-                if n_val is None:
-                    raise UnfoldableNode
-
     def evaluate(self) -> VyperNode:
         """
         Attempt to evaluate the arithmetic operation.
@@ -966,7 +933,11 @@ class BinOp(VyperNode):
         if not isinstance(left, (Int, Decimal)):
             raise UnfoldableNode("Node contains invalid field(s) for evaluation")
 
-        value = self.derive()
+        from vyper.ast.utils import get_constant_value
+        value = get_constant_value(self)
+        if value is None:
+            raise UnfoldableNode
+
         _validate_numeric_bounds(self, value)
 
         ret = type(left).from_node(self, value=value)
@@ -983,11 +954,11 @@ class BinOp(VyperNode):
             Raw value of the result of the evaluation
         """
         from vyper.ast.utils import get_constant_value
-
         left = get_constant_value(self.left)
         right = get_constant_value(self.right)
-        if None in [left, right]:
+        if None in (left, right):
             return None
+
         return self.op._op(left, right)
 
 
@@ -1101,16 +1072,6 @@ class BitXor(VyperNode):
 class BoolOp(VyperNode):
     __slots__ = ("op", "values")
 
-    def validate_foldable(self) -> None:
-        """
-        Validates if the unary operation is foldable.
-        """
-        if next((i for i in self.values if not isinstance(i, NameConstant)), None):
-            raise UnfoldableNode("Node contains invalid field(s) for evaluation")
-        values = [i.value for i in self.values]
-        if None in values:
-            raise UnfoldableNode("Node contains invalid field(s) for evaluation")
-
     def evaluate(self) -> VyperNode:
         """
         Attempt to evaluate the boolean operation.
@@ -1120,8 +1081,11 @@ class BoolOp(VyperNode):
         NameConstant
             Node representing the result of the evaluation.
         """
-        self.validate_foldable()
-        value = self.derive()
+        from vyper.ast.utils import get_constant_value
+        value = get_constant_value(self)
+        if value is None:
+            raise UnfoldableNode
+
         return NameConstant.from_node(self, value=value)
 
     def derive(self) -> bool:
@@ -1133,9 +1097,12 @@ class BoolOp(VyperNode):
         bool
             Raw value of the result of the evaluation
         """
-        values = [i.value for i in self.values]
-        value = self.op._op(values)
-        return value
+        from vyper.ast.utils import get_constant_value
+        values = [get_constant_value(i) for i in self.values]
+        if None in values:
+            return None
+
+        return self.op._op(values)
 
 
 class And(VyperNode):
@@ -1174,29 +1141,6 @@ class Compare(VyperNode):
         kwargs["right"] = kwargs.pop("comparators")[0]
         super().__init__(*args, **kwargs)
 
-    def validate_foldable(self) -> None:
-        """
-        Validates if the unary operation is foldable.
-        """
-        left, right = self.left, self.right
-        if not isinstance(left, Constant):
-            raise UnfoldableNode("Node contains invalid field(s) for evaluation")
-
-        if isinstance(self.op, (In, NotIn)):
-            if not isinstance(right, List):
-                raise UnfoldableNode("Node contains invalid field(s) for evaluation")
-            if next((i for i in right.elements if not isinstance(i, Constant)), None):
-                raise UnfoldableNode("Node contains invalid field(s) for evaluation")
-            if len(set([type(i) for i in right.elements])) > 1:
-                raise UnfoldableNode("List contains multiple literal types")
-
-        else:
-            if not isinstance(left, type(right)):
-                raise UnfoldableNode("Cannot compare different literal types")
-
-        if not isinstance(self.op, (Eq, NotEq)) and not isinstance(left, (Int, Decimal)):
-            raise TypeMismatch(f"Invalid literal types for {self.op.description} comparison", self)
-
     def evaluate(self) -> VyperNode:
         """
         Attempt to evaluate the comparison.
@@ -1206,8 +1150,14 @@ class Compare(VyperNode):
         NameConstant
             Node representing the result of the evaluation.
         """
-        self.validate_foldable()
-        value = self.derive()
+        if not isinstance(self.op, (In, NotIn)) and not isinstance(self.left, type(self.right)):
+            raise UnfoldableNode("Cannot compare different literal types")
+
+        from vyper.ast.utils import get_constant_value
+        value = get_constant_value(self)
+        if value is None:
+            raise UnfoldableNode
+
         return NameConstant.from_node(self, value=value)
 
     def derive(self) -> bool:
@@ -1219,10 +1169,20 @@ class Compare(VyperNode):
         bool
             Raw value of the result of the evaluation
         """
-        left, right = self.left, self.right
+        from vyper.ast.utils import get_constant_value
+        left = get_constant_value(self.left)
+
         if isinstance(self.op, (In, NotIn)):
-            return self.op._op(left.value, [i.value for i in right.elements])
-        return self.op._op(left.value, right.value)
+            right = get_constant_value(self.right)
+            if None in (left, right):
+                return None
+            return self.op._op(left, right)
+
+        right = get_constant_value(self.right)
+        if None in (left, right):
+            return None
+
+        return self.op._op(left, right)
 
 
 class Eq(VyperNode):
