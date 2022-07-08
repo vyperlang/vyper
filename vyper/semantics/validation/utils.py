@@ -13,7 +13,6 @@ from vyper.exceptions import (
     StructureException,
     TypeMismatch,
     UndeclaredDefinition,
-    UnfoldableNode,
     UnknownAttribute,
     VyperException,
     ZeroDivisionException,
@@ -215,7 +214,10 @@ class _ExprTypeChecker:
         # function calls, e.g. `foo()`
         var = self.get_exact_type_from_node(node.func, False)
         if hasattr(var, "get_possible_types"):
-            return var.get_possible_types(node)
+            types = var.get_possible_types(node)
+            if len(types) > 0:
+                return types
+            raise TypeMismatch(f"{var._id} called on dislike types", node)
         return_value = var.fetch_call_return(node)
         if return_value:
             return [return_value]

@@ -875,31 +875,16 @@ class UnaryOp(VyperNode):
 
         from vyper.ast.utils import get_constant_value
 
-        value = get_constant_value(self)
-        if value is None:
+        op_val = get_constant_value(self.operand)
+        if op_val is None:
             raise UnfoldableNode
+        value = self.op._op(op_val)
 
         _validate_numeric_bounds(self, value)
 
         ret = type(self.operand).from_node(self, value=value)
         ret._metadata["type"] = self._metadata["type"]
         return ret
-
-    def derive(self) -> Union[decimal.Decimal, Int]:
-        """
-        Return the raw value of the arithmetic operation.
-
-        Returns
-        -------
-        int | decimal.Decimal
-            Raw value of the result of the evaluation
-        """
-        from vyper.ast.utils import get_constant_value
-
-        value = get_constant_value(self.operand)
-        if value is None:
-            return None
-        return self.op._op(value)
 
 
 class USub(VyperNode):
@@ -934,6 +919,11 @@ class BinOp(VyperNode):
         """
         left, right = self.left, self.right
 
+        if type(left) is not type(right):
+            raise UnfoldableNode("Node contains invalid field(s) for evaluation")
+        if not isinstance(left, (Int, Decimal)):
+            raise UnfoldableNode("Node contains invalid field(s) for evaluation")
+
         if isinstance(self.op, (BitAnd, BitOr, BitXor)) and any(
             isinstance(i, Decimal) for i in (left, right)
         ):
@@ -941,33 +931,18 @@ class BinOp(VyperNode):
 
         from vyper.ast.utils import get_constant_value
 
-        value = get_constant_value(self)
-        if value is None:
+        left_val = get_constant_value(self.left)
+        right_val = get_constant_value(self.right)
+        if None in (left_val, right_val):
             raise UnfoldableNode
+
+        value = self.op._op(left_val, right_val)
 
         _validate_numeric_bounds(self, value)
 
         ret = type(left).from_node(self, value=value)
         ret._metadata["type"] = self._metadata["type"]
         return ret
-
-    def derive(self) -> Union[decimal.Decimal, Int]:
-        """
-        Return the raw value of the arithmetic operation.
-
-        Returns
-        -------
-        int | decimal.Decimal
-            Raw value of the result of the evaluation
-        """
-        from vyper.ast.utils import get_constant_value
-
-        left = get_constant_value(self.left)
-        right = get_constant_value(self.right)
-        if None in (left, right):
-            return None
-
-        return self.op._op(left, right)
 
 
 class Add(VyperNode):
@@ -1091,28 +1066,13 @@ class BoolOp(VyperNode):
         """
         from vyper.ast.utils import get_constant_value
 
-        value = get_constant_value(self)
-        if value is None:
-            raise UnfoldableNode
-
-        return NameConstant.from_node(self, value=value)
-
-    def derive(self) -> bool:
-        """
-        Return the raw value of the arithmetic operation.
-
-        Returns
-        -------
-        bool
-            Raw value of the result of the evaluation
-        """
-        from vyper.ast.utils import get_constant_value
-
         values = [get_constant_value(i) for i in self.values]
         if None in values:
-            return None
+            raise UnfoldableNode
 
-        return self.op._op(values)
+        value = self.op._op(values)
+
+        return NameConstant.from_node(self, value=value)
 
 
 class And(VyperNode):
@@ -1162,30 +1122,13 @@ class Compare(VyperNode):
         """
         from vyper.ast.utils import get_constant_value
 
-        value = get_constant_value(self)
-        if value is None:
-            raise UnfoldableNode
-
-        return NameConstant.from_node(self, value=value)
-
-    def derive(self) -> bool:
-        """
-        Return the raw value of the arithmetic operation.
-
-        Returns
-        -------
-        bool
-            Raw value of the result of the evaluation
-        """
-        from vyper.ast.utils import get_constant_value
-
         left = get_constant_value(self.left)
         right = get_constant_value(self.right)
-
         if None in (left, right):
-            return None
+            raise UnfoldableNode
 
-        return self.op._op(left, right)
+        value = self.op._op(left, right)
+        return NameConstant.from_node(self, value=value)
 
 
 class Eq(VyperNode):

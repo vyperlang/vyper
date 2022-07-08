@@ -71,7 +71,7 @@ def get_constant_value(node: vy_ast.VyperNode) -> Any:
     Returns None if unable to retrieve a literal value.
     """
     if isinstance(node, (vy_ast.BinOp, vy_ast.UnaryOp, vy_ast.BoolOp, vy_ast.Compare)):
-        return node.derive()  # type: ignore
+        return node.evaluate()  # type: ignore
 
     if isinstance(node, vy_ast.Constant):
         return node.value
