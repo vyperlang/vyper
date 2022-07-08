@@ -14,6 +14,7 @@ from vyper.exceptions import (
     SyntaxException,
     TypeMismatch,
     UnfoldableNode,
+    UnimplementedException,
     ZeroDivisionException,
 )
 from vyper.utils import MAX_DECIMAL_PLACES, SizeLimits, annotate_source_code, int_bounds
@@ -869,8 +870,10 @@ class UnaryOp(VyperNode):
         Int | Decimal
             Node representing the result of the evaluation.
         """
-        from vyper.ast.utils import get_constant_value
+        if isinstance(self.op, Invert) and isinstance(self.operand, Decimal):
+            raise UnimplementedException(f"{self.op._pretty} is not supported for decimal")
 
+        from vyper.ast.utils import get_constant_value
         value = get_constant_value(self)
         if value is None:
             raise UnfoldableNode
@@ -933,6 +936,9 @@ class BinOp(VyperNode):
             raise UnfoldableNode("Node contains invalid field(s) for evaluation")
         if not isinstance(left, (Int, Decimal)):
             raise UnfoldableNode("Node contains invalid field(s) for evaluation")
+
+        if isinstance(self.op, (BitAnd, BitOr, BitXor)) and any(isinstance(i, Decimal) for i in (left, right)):
+            raise UnimplementedException(f"{self.op._pretty} is not supported for decimal")
 
         from vyper.ast.utils import get_constant_value
 
