@@ -540,30 +540,3 @@ def annotate_foldable_minmax(node: vy_ast.VyperNode, expected_type: BaseTypeDefi
             raise TypeMismatch(f"Input values cannot be cast as {expected_type}", n)
 
         n._metadata["type"] = expected_type
-
-
-def annotate_foldable_literals(node: vy_ast.VyperNode, expected_type: BaseTypeDefinition) -> None:
-    """
-    Helper function to annotate foldable literals defined as constants.
-    """
-    foldable_nodes = node.get_descendants(
-        (vy_ast.BinOp, vy_ast.UnaryOp, vy_ast.BoolOp, vy_ast.Compare), reverse=True
-    )
-    for n in foldable_nodes:
-        try:
-            node.evaluate()
-
-        except UnfoldableNode:
-            pass
-
-        if isinstance(n, (vy_ast.BinOp, vy_ast.Compare)):
-            type_list = get_common_types(n.left, n.right)  # type: ignore
-        elif isinstance(n, vy_ast.BoolOp):
-            type_list = get_common_types(n.values)  # type: ignore
-        else:
-            type_list = [get_exact_type_from_node(n.operand)]
-
-        if not any(expected_type.compare_type(i) for i in type_list):
-            raise TypeMismatch(f"Expected {expected_type}", n)
-
-        n._metadata["type"] = expected_type
