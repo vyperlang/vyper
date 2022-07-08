@@ -29,7 +29,6 @@ from vyper.semantics.types.utils import check_constant, get_type_from_annotation
 from vyper.semantics.validation.base import VyperNodeVisitorBase
 from vyper.semantics.validation.levenshtein_utils import get_levenshtein_error_suggestions
 from vyper.semantics.validation.utils import (
-    annotate_foldable_minmax,
     validate_expected_type,
     validate_unique_method_ids,
 )
@@ -226,10 +225,6 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
             if not check_constant(node.value, self.ast):
                 raise StateAccessViolation("Value must be a literal", node.value)
 
-            # Special branch to handle minmax builtin with literals because the
-            # usual type inference in `infer_arg_types` do not take into account
-            # the specified return type.
-            #annotate_foldable_minmax(node.value, type_definition)
             validate_expected_type(node.value, type_definition)
             try:
                 self.namespace[name] = type_definition

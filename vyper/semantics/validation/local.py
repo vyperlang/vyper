@@ -44,7 +44,6 @@ from vyper.semantics.types.value.boolean import BoolDefinition
 from vyper.semantics.validation.annotation import StatementAnnotationVisitor
 from vyper.semantics.validation.base import VyperNodeVisitorBase
 from vyper.semantics.validation.utils import (
-    annotate_foldable_minmax,
     get_common_types,
     get_exact_type_from_node,
     get_possible_types_from_node,
@@ -307,11 +306,6 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             for given, expected in zip(values, self.func.return_type.value_type):
                 validate_expected_type(given, expected)
         else:
-            # Special branch to handle minmax builtin with literals because the
-            # usual type inference in `infer_arg_types` do not take into account
-            # the specified return type.
-            annotate_foldable_minmax(values, self.func.return_type)
-
             validate_expected_type(values, self.func.return_type)
         self.expr_visitor.visit(node.value)
 

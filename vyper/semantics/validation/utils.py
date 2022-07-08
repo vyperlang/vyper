@@ -214,6 +214,8 @@ class _ExprTypeChecker:
     def types_from_Call(self, node):
         # function calls, e.g. `foo()`
         var = self.get_exact_type_from_node(node.func, False)
+        if hasattr(var, "get_possible_types"):
+            return var.get_possible_types(node)
         return_value = var.fetch_call_return(node)
         if return_value:
             return [return_value]
@@ -513,30 +515,3 @@ def validate_unique_method_ids(functions: List) -> None:
     if collision:
         collision_str = ", ".join(i.name for i in functions if collision in i.method_ids)
         raise StructureException(f"Methods have conflicting IDs: {collision_str}")
-
-
-def annotate_foldable_minmax(node: vy_ast.VyperNode, expected_type: BaseTypeDefinition) -> None:
-    """
-    Helper function to annotate `Call` nodes for `min` and `max` builtin functions
-    that are foldable, and in a return statement.
-
-    The usual builtin functions class methods `infer_arg_types` and `fetch_call_return`
-    do not work here because they do not take into account the return type.
-    """
-    minmax_nodes = node.get_descendants(
-        vy_ast.Call, {"func.id": {"min", "max"}}, include_self=True, reverse=True
-    )
-    for n in minmax_nodes:
-        try:
-            call_type = get_exact_type_from_node(n.func)
-            call_type.evaluate(n)
-        except UnfoldableNode:
-            pass
-        except VyperException as exc:
-            raise exc.with_annotation(node) from None
-
-        type_list = get_common_types(*n.args)
-        if not any(expected_type.compare_type(i) for i in type_list):
-            raise TypeMismatch(f"Input values cannot be cast as {expected_type}", n)
-
-        n._metadata["type"] = expected_type
