@@ -870,6 +870,7 @@ class UnaryOp(VyperNode):
             Node representing the result of the evaluation.
         """
         from vyper.ast.utils import get_constant_value
+
         value = get_constant_value(self)
         if value is None:
             raise UnfoldableNode
@@ -934,6 +935,7 @@ class BinOp(VyperNode):
             raise UnfoldableNode("Node contains invalid field(s) for evaluation")
 
         from vyper.ast.utils import get_constant_value
+
         value = get_constant_value(self)
         if value is None:
             raise UnfoldableNode
@@ -954,6 +956,7 @@ class BinOp(VyperNode):
             Raw value of the result of the evaluation
         """
         from vyper.ast.utils import get_constant_value
+
         left = get_constant_value(self.left)
         right = get_constant_value(self.right)
         if None in (left, right):
@@ -1082,6 +1085,7 @@ class BoolOp(VyperNode):
             Node representing the result of the evaluation.
         """
         from vyper.ast.utils import get_constant_value
+
         value = get_constant_value(self)
         if value is None:
             raise UnfoldableNode
@@ -1098,6 +1102,7 @@ class BoolOp(VyperNode):
             Raw value of the result of the evaluation
         """
         from vyper.ast.utils import get_constant_value
+
         values = [get_constant_value(i) for i in self.values]
         if None in values:
             return None
@@ -1154,6 +1159,7 @@ class Compare(VyperNode):
             raise UnfoldableNode("Cannot compare different literal types")
 
         from vyper.ast.utils import get_constant_value
+
         value = get_constant_value(self)
         if value is None:
             raise UnfoldableNode
@@ -1170,6 +1176,7 @@ class Compare(VyperNode):
             Raw value of the result of the evaluation
         """
         from vyper.ast.utils import get_constant_value
+
         left = get_constant_value(self.left)
 
         if isinstance(self.op, (In, NotIn)):

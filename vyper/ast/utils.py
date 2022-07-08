@@ -79,6 +79,7 @@ def get_constant_value(node: vy_ast.VyperNode) -> Any:
     if isinstance(node, vy_ast.Name):
         # Check for builtin environment constants
         from vyper.ast.folding import BUILTIN_CONSTANTS
+
         if node.id in BUILTIN_CONSTANTS:
             return BUILTIN_CONSTANTS[node.id]["value"]
 
