@@ -949,8 +949,12 @@ class BinOp(VyperNode):
         ):
             raise UnimplementedException(f"{self.op._pretty} is not supported for decimal")
 
-        left_val = self.left.evaluate().value
         right_val = self.right.evaluate().value
+        if isinstance(self.op, (Div, Mod)) and right_val == 0:
+            raise ZeroDivisionException("Division by zero", self.right)
+
+        left_val = self.left.evaluate().value
+
 
         value = self.op._op(left_val, right_val)
 
@@ -1000,7 +1004,7 @@ class Div(VyperNode):
     def _op(self, left, right):
         # evaluate the operation using true division or floor division
         assert type(left) is type(right)
-        if not right:
+        if int(right) == 0:
             raise ZeroDivisionException("Division by zero")
 
         if isinstance(left, decimal.Decimal):
