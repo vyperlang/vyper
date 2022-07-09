@@ -230,6 +230,7 @@ class DynamicArrayPrimitive(BasePrimitive):
     _id = "DynArray"
     _type = DynamicArrayDefinition
     _valid_literal = (vy_ast.List,)
+    _as_array = True
 
     @classmethod
     def from_annotation(
