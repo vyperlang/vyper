@@ -3,7 +3,6 @@ import pytest
 from vyper import ast as vy_ast
 from vyper.ast import folding
 from vyper.exceptions import OverflowException
-from vyper.semantics import validate_expr
 
 
 def test_integration():
@@ -26,7 +25,6 @@ def test_replace_binop_simple():
 
 def test_replace_binop_nested():
     test_ast = vy_ast.parse_to_ast("((6 + (2**4)) * 4) / 2")
-    validate_expr(test_ast)
     expected_ast = vy_ast.parse_to_ast("44")
 
     folding.replace_literal_ops(test_ast)
@@ -36,14 +34,12 @@ def test_replace_binop_nested():
 
 def test_replace_binop_nested_intermediate_overflow():
     test_ast = vy_ast.parse_to_ast("2**255 * 2 / 10")
-    validate_expr(test_ast)
     with pytest.raises(OverflowException):
         folding.fold(test_ast)
 
 
 def test_replace_binop_nested_intermediate_underflow():
     test_ast = vy_ast.parse_to_ast("-2**255 * 2 - 10 + 100")
-    validate_expr(test_ast)
     with pytest.raises(OverflowException):
         folding.fold(test_ast)
 

@@ -4,7 +4,6 @@ from hypothesis import strategies as st
 
 from vyper import ast as vy_ast
 from vyper.exceptions import ZeroDivisionException
-from vyper.semantics import validate_expr
 
 st_int32 = st.integers(min_value=-(2 ** 32), max_value=2 ** 32)
 
@@ -26,7 +25,6 @@ def foo(a: int128, b: int128) -> int128:
     contract = get_contract(source)
 
     vyper_ast = vy_ast.parse_to_ast(f"{left} {op} {right}")
-    validate_expr(vyper_ast)
     old_node = vyper_ast.body[0].value
     try:
         new_node = old_node.evaluate()
@@ -56,7 +54,6 @@ def foo(a: uint256, b: uint256) -> uint256:
     contract = get_contract(source)
 
     vyper_ast = vy_ast.parse_to_ast(f"{left} {op} {right}")
-    validate_expr(vyper_ast)
     old_node = vyper_ast.body[0].value
     try:
         new_node = old_node.evaluate()
@@ -85,7 +82,6 @@ def foo(a: uint256, b: uint256) -> uint256:
     contract = get_contract(source)
 
     vyper_ast = vy_ast.parse_to_ast(f"{left} ** {right}")
-    validate_expr(vyper_ast)
     old_node = vyper_ast.body[0].value
     new_node = old_node.evaluate()
 
@@ -116,7 +112,6 @@ def foo({input_value}) -> int128:
     literal_op = literal_op.rsplit(maxsplit=1)[0]
 
     vyper_ast = vy_ast.parse_to_ast(literal_op)
-    validate_expr(vyper_ast)
 
     try:
         vy_ast.folding.replace_literal_ops(vyper_ast)

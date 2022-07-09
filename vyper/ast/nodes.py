@@ -182,12 +182,12 @@ def _raise_syntax_exc(error_msg: str, ast_struct: dict) -> None:
 def _validate_numeric_bounds(
     node: Union["BinOp", "UnaryOp"], value: Union[decimal.Decimal, int]
 ) -> None:
+    typ = node._metadata.get("type")
     if isinstance(value, decimal.Decimal):
         # this will change if/when we add more decimal types
         lower, upper = SizeLimits.MIN_AST_DECIMAL, SizeLimits.MAX_AST_DECIMAL
     elif isinstance(value, int):
-        typ = node._metadata.get("type")
-        if typ:
+        if hasattr(typ, "_is_signed") and hasattr(typ, "_bits"):
             lower, upper = int_bounds(typ._is_signed, typ._bits)
         else:
             lower, upper = SizeLimits.MIN_INT256, SizeLimits.MAX_UINT256
@@ -1006,7 +1006,7 @@ class Div(VyperNode):
     def _op(self, left, right):
         # evaluate the operation using true division or floor division
         assert type(left) is type(right)
-        if int(right) == 0:
+        if right == 0:
             raise ZeroDivisionException("Division by zero")
 
         if isinstance(left, decimal.Decimal):

@@ -6,7 +6,6 @@ from hypothesis import strategies as st
 
 from vyper import ast as vy_ast
 from vyper.exceptions import OverflowException, TypeMismatch, ZeroDivisionException
-from vyper.semantics import validate_expr
 
 st_decimals = st.decimals(
     min_value=-(2 ** 32), max_value=2 ** 32, allow_nan=False, allow_infinity=False, places=10
@@ -30,7 +29,6 @@ def foo(a: decimal, b: decimal) -> decimal:
     contract = get_contract(source)
 
     vyper_ast = vy_ast.parse_to_ast(f"{left} {op} {right}")
-    validate_expr(vyper_ast)
     old_node = vyper_ast.body[0].value
     try:
         new_node = old_node.evaluate()
@@ -74,7 +72,6 @@ def foo({input_value}) -> decimal:
     literal_op = " ".join(f"{a} {b}" for a, b in zip(values, ops))
     literal_op = literal_op.rsplit(maxsplit=1)[0]
     vyper_ast = vy_ast.parse_to_ast(literal_op)
-    validate_expr(vyper_ast)
     try:
         vy_ast.folding.replace_literal_ops(vyper_ast)
         expected = vyper_ast.body[0].value.value
