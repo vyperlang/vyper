@@ -956,7 +956,7 @@ class BinOp(VyperNode):
         if isinstance(self.op, (Div, Mod)) and right_folded.value == 0:
             raise ZeroDivisionException("Division by zero", self.right)
 
-        left_folded =  self.left.evaluate()
+        left_folded = self.left.evaluate()
 
         value = self.op._op(left_folded.value, right_folded.value)
         _validate_numeric_bounds(self, value)

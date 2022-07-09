@@ -333,6 +333,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
 
             args = node.iter.args
             from vyper.semantics import validate_expr
+
             validate_expr(args[0])
 
             if len(args) == 1:

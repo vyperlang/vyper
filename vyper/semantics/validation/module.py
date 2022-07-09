@@ -222,6 +222,7 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
 
             validate_expected_type(node.value, type_definition)
             from vyper.semantics import validate_expr
+
             validate_expr(node.value, type_definition)
 
             if not check_constant(node.value):
