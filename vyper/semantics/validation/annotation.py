@@ -189,7 +189,7 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
                     # array membership
                     self.visit(node.left, type_.value_type)
         else:
-            type_ = get_possible_types_from_node(node).pop()
+            type_ = get_common_types(node.left, node.right).pop()
             self.visit(node.left, type_)
             self.visit(node.right, type_)
 

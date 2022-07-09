@@ -836,7 +836,10 @@ class List(VyperNode):
     _translated_fields = {"elts": "elements"}
 
     def evaluate(self):
-        return [i.evaluate().value for i in self.elements]
+        for i in self.elements:
+            # Call evaluate to check if foldable
+            i.evaluate()
+        return self
 
 
 class Tuple(VyperNode):
@@ -953,9 +956,6 @@ class BinOp(VyperNode):
 
         left_val = self.left.evaluate().value
         right_val = self.right.evaluate().value
-        if None in (left_val, right_val):
-            raise UnfoldableNode
-
         value = self.op._op(left_val, right_val)
 
         _validate_numeric_bounds(self, value)
@@ -1085,11 +1085,7 @@ class BoolOp(VyperNode):
             Node representing the result of the evaluation.
         """
         values = [i.evaluate().value for i in self.values]
-        if None in values:
-            raise UnfoldableNode
-
         value = self.op._op(values)
-
         return NameConstant.from_node(self, value=value)
 
 
@@ -1139,9 +1135,13 @@ class Compare(VyperNode):
             Node representing the result of the evaluation.
         """
         left = self.left.evaluate().value
-        right = self.right.evaluate().value
-        if None in (left, right):
-            raise UnfoldableNode
+        if isinstance(self.right, List):
+            right = [i.evaluate().value for i in self.right.elements]
+        else:
+            right = self.right.evaluate().value
+
+        if not isinstance(self.op, (In, NotIn)) and not isinstance(left, type(right)):
+            raise UnfoldableNode("Cannot compare different literal types")
 
         value = self.op._op(left, right)
         return NameConstant.from_node(self, value=value)
