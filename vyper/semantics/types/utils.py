@@ -251,7 +251,7 @@ def check_constant(node: vy_ast.VyperNode, vyper_module: vy_ast.Module = None) -
             try:
                 call_type.evaluate(node)
                 return True
-            except:
+            except UnfoldableNode:
                 pass
 
     try:
@@ -283,7 +283,7 @@ def check_kwargable(node: vy_ast.VyperNode) -> bool:
             try:
                 call_type.evaluate(node)
                 return True
-            except:
+            except UnfoldableNode:
                 pass
 
     try:

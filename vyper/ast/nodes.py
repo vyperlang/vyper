@@ -863,10 +863,13 @@ class Name(VyperNode):
     __slots__ = ("id",)
 
     def evaluate(self):
-        from vyper.ast.folding import BUILTIN_CONSTANTS
+        from vyper.ast.folding import BUILTIN_CONSTANTS, _replace
 
         if self.id in BUILTIN_CONSTANTS:
-            return BUILTIN_CONSTANTS[self.id]["value"]
+            new_node = BUILTIN_CONSTANTS[self.id]["ast_node"]
+            new_node.value = BUILTIN_CONSTANTS[self.id]["value"]
+            type_ = BUILTIN_CONSTANTS[self.id]["type"]
+            return _replace(self, new_node, type_)
 
         # Check for user-defined constants
         vyper_module = self.get_ancestor(Module)
@@ -954,7 +957,6 @@ class BinOp(VyperNode):
             raise ZeroDivisionException("Division by zero", self.right)
 
         left_val = self.left.evaluate().value
-
 
         value = self.op._op(left_val, right_val)
 
