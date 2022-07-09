@@ -866,7 +866,7 @@ class Name(VyperNode):
         from vyper.ast.folding import BUILTIN_CONSTANTS, _replace
 
         if self.id in BUILTIN_CONSTANTS:
-            new_node = BUILTIN_CONSTANTS[self.id]["ast_node"]
+            new_node = BUILTIN_CONSTANTS[self.id]["ast_node"]()
             new_node.value = BUILTIN_CONSTANTS[self.id]["value"]
             type_ = BUILTIN_CONSTANTS[self.id]["type"]
             return _replace(self, new_node, type_)

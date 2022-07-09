@@ -224,7 +224,6 @@ def replace_user_defined_constants(vyper_module: vy_ast.Module) -> int:
 
 def _replace(old_node, new_node, type_=None):
     if isinstance(new_node, vy_ast.Constant):
-        print("is constant")
         new_node = new_node.from_node(old_node, value=new_node.value)
         if type_:
             new_node._metadata["type"] = type_
