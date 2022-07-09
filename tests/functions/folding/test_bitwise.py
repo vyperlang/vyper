@@ -4,7 +4,7 @@ from hypothesis import strategies as st
 
 from vyper import ast as vy_ast
 from vyper import builtin_functions as vy_fn
-from vyper.semantics import validate_semantics
+from vyper.semantics import validate_expr
 
 st_uint256 = st.integers(min_value=0, max_value=2 ** 256 - 1)
 
@@ -22,20 +22,12 @@ def foo(a: uint256, b: uint256) -> uint256:
     """
     contract = get_contract(source)
 
-    expected = f"""
-@external
-def foo() -> uint256:
-    return {a} {op} {b}
-    """
-    vyper_ast = vy_ast.parse_to_ast(expected)
-    validate_semantics(vyper_ast, None)
-    old_node = vyper_ast.body[0].body[0].value
+    vyper_ast = vy_ast.parse_to_ast(f"{a} {op} {b}")
+    validate_expr(vyper_ast)
+    old_node = vyper_ast.body[0].value
     new_node = old_node.evaluate()
 
     assert contract.foo(a, b) == new_node.value
-
-    folded_contract = get_contract(expected)
-    assert folded_contract.foo() == contract.foo(a, b)
 
 
 @pytest.mark.fuzzing
@@ -50,20 +42,11 @@ def foo(a: uint256) -> uint256:
     """
     contract = get_contract(source)
 
-    expected = f"""
-@external
-def foo() -> uint256:
-    return bitwise_not({value})
-    """
-    vyper_ast = vy_ast.parse_to_ast(expected)
-    validate_semantics(vyper_ast, None)
-    old_node = vyper_ast.body[0].body[0].value
+    vyper_ast = vy_ast.parse_to_ast(f"bitwise_not({value})")
+    old_node = vyper_ast.body[0].value
     new_node = vy_fn.BitwiseNot().evaluate(old_node)
 
     assert contract.foo(value) == new_node.value
-
-    folded_contract = get_contract(expected)
-    assert folded_contract.foo() == contract.foo(value)
 
 
 @pytest.mark.fuzzing
@@ -78,17 +61,8 @@ def foo(a: uint256, b: int128) -> uint256:
     """
     contract = get_contract(source)
 
-    expected = f"""
-@external
-def foo() -> uint256:
-    return shift({value}, {steps})
-    """
-    vyper_ast = vy_ast.parse_to_ast(expected)
-    validate_semantics(vyper_ast, None)
-    old_node = vyper_ast.body[0].body[0].value
+    vyper_ast = vy_ast.parse_to_ast(f"shift({value}, {steps})")
+    old_node = vyper_ast.body[0].value
     new_node = vy_fn.Shift().evaluate(old_node)
 
     assert contract.foo(value, steps) == new_node.value
-
-    folded_contract = get_contract(expected)
-    assert folded_contract.foo() == contract.foo(value, steps)
