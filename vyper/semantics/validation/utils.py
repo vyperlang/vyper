@@ -14,7 +14,6 @@ from vyper.exceptions import (
     UndeclaredDefinition,
     UnknownAttribute,
     VyperException,
-    ZeroDivisionException,
 )
 from vyper.semantics import types
 from vyper.semantics.namespace import get_namespace
@@ -474,7 +473,7 @@ def get_index_value(node: vy_ast.Index) -> int:
     int
         Literal integer value.
     """
-    val = node.value.evaluate().value # type: ignore
+    val = node.value.evaluate().value  # type: ignore
     if not isinstance(val, int):
         if hasattr(node, "value"):
             # even though the subscript is an invalid type, first check if it's a valid _something_

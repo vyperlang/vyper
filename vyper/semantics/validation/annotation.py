@@ -1,7 +1,12 @@
 from vyper import ast as vy_ast
 from vyper.exceptions import StructureException
 from vyper.semantics.types import ArrayDefinition
-from vyper.semantics.types.function import ContractFunction, MemberFunctionDefinition, FunctionVisibility, StateMutability
+from vyper.semantics.types.function import (
+    ContractFunction,
+    FunctionVisibility,
+    MemberFunctionDefinition,
+    StateMutability,
+)
 from vyper.semantics.types.user.enum import EnumDefinition
 from vyper.semantics.types.user.event import Event
 from vyper.semantics.types.user.struct import StructPrimitive
@@ -276,7 +281,9 @@ def validate_expr(node: vy_ast.Module):
     expr_node = node.get_children()[0].get_children()[0]
 
     # Create a dummy function to initialise ExprVisitor
-    dummy_fn = ContractFunction("validate_expr", {}, 0, 0, None, FunctionVisibility.EXTERNAL, StateMutability.NONPAYABLE)
+    dummy_fn = ContractFunction(
+        "validate_expr", {}, 0, 0, None, FunctionVisibility.EXTERNAL, StateMutability.NONPAYABLE
+    )
 
     expr_visitor = ExpressionAnnotationVisitor(dummy_fn)
     expr_visitor.visit(expr_node)
