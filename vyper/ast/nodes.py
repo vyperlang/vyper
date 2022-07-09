@@ -1204,7 +1204,7 @@ class Call(VyperNode):
     __slots__ = ("func", "args", "keywords", "keyword")
 
     def evaluate(self):
-        if self.get("func") == Name:
+        if isinstance(self.get("func"), Name):
             name = self.func.id
             from vyper.builtin_functions import DISPATCH_TABLE
 
