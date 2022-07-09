@@ -166,7 +166,7 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
                 self.visit(arg, arg_type)
         else:
             # builtin functions
-            arg_types = call_type.infer_arg_types(node, type_)
+            arg_types = call_type.infer_arg_types(node)
             for arg, arg_type in zip(node.args, arg_types):
                 self.visit(arg, arg_type)
             kwarg_types = call_type.infer_kwarg_types(node)
