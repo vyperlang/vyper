@@ -1212,7 +1212,7 @@ class Call(VyperNode):
             func = DISPATCH_TABLE.get(name)
             if func is None or not hasattr(func, "evaluate"):
                 raise UnfoldableNode
-
+            print("can evaluate call")
             return func.evaluate(self)  # type: ignore
 
         raise UnfoldableNode

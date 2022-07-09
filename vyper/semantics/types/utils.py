@@ -231,7 +231,7 @@ def _check_literal(node: vy_ast.VyperNode) -> bool:
     return False
 
 
-def check_constant(node: vy_ast.VyperNode, vyper_module: vy_ast.Module = None) -> bool:
+def check_constant(node: vy_ast.VyperNode) -> bool:
     """
     Check if the given node is a literal or constant value.
     """
@@ -246,19 +246,18 @@ def check_constant(node: vy_ast.VyperNode, vyper_module: vy_ast.Module = None) -
         if len(args) == 1 and isinstance(args[0], vy_ast.Dict):
             return all(check_constant(v) for v in args[0].values)
 
-        if hasattr(node, "func"):
-            call_type = get_exact_type_from_node(node.func)
-            try:
-                call_type.evaluate(node)
-                return True
-            except UnfoldableNode:
-                pass
+        call_type = get_exact_type_from_node(node.func)
+        from vyper.semantics.types.function import ContractFunction
 
-    try:
-        node.evaluate()
-        return True
-    except UnfoldableNode:
-        pass
+        if isinstance(call_type, ContractFunction):
+            return False
+
+    if hasattr(node, "evaluate"):
+        try:
+            node.evaluate()
+            return True
+        except UnfoldableNode:
+            pass
 
     value_type = get_exact_type_from_node(node)
     return getattr(value_type, "is_constant", False)
@@ -278,19 +277,12 @@ def check_kwargable(node: vy_ast.VyperNode) -> bool:
         if len(args) == 1 and isinstance(args[0], vy_ast.Dict):
             return all(check_kwargable(v) for v in args[0].values)
 
-        if hasattr(node, "func"):
-            call_type = get_exact_type_from_node(node.func)
-            try:
-                call_type.evaluate(node)
-                return True
-            except UnfoldableNode:
-                pass
-
-    try:
-        node.evaluate()
-        return True
-    except UnfoldableNode:
-        pass
+    if hasattr(node, "evaluate"):
+        try:
+            node.evaluate()
+            return True
+        except UnfoldableNode:
+            pass
 
     value_type = get_exact_type_from_node(node)
     if hasattr(value_type, "is_assignable"):
