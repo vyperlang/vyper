@@ -1,7 +1,7 @@
 from vyper import ast as vy_ast
 from vyper.exceptions import StructureException
 from vyper.semantics.types import ArrayDefinition
-from vyper.semantics.types.function import ContractFunction, MemberFunctionDefinition
+from vyper.semantics.types.function import ContractFunction, MemberFunctionDefinition, FunctionVisibility, StateMutability
 from vyper.semantics.types.user.enum import EnumDefinition
 from vyper.semantics.types.user.event import Event
 from vyper.semantics.types.user.struct import StructPrimitive
@@ -161,7 +161,7 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
                 self.visit(arg, arg_type)
         else:
             # builtin functions
-            arg_types = call_type.infer_arg_types(node)
+            arg_types = call_type.infer_arg_types(node, type_)
             for arg, arg_type in zip(node.args, arg_types):
                 self.visit(arg, arg_type)
             kwarg_types = call_type.infer_kwarg_types(node)
@@ -266,3 +266,17 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
                 type_ = type_.pop()
         node._metadata["type"] = type_
         self.visit(node.operand, type_)
+
+
+def validate_expr(node: vy_ast.Module):
+    """
+    Validate and annotate an expression after generating the AST with `parse_to_ast`.
+    """
+    # Get the expression node
+    expr_node = node.get_children()[0].get_children()[0]
+
+    # Create a dummy function to initialise ExprVisitor
+    dummy_fn = ContractFunction("validate_expr", {}, 0, 0, None, FunctionVisibility.EXTERNAL, StateMutability.NONPAYABLE)
+
+    expr_visitor = ExpressionAnnotationVisitor(dummy_fn)
+    expr_visitor.visit(expr_node)
