@@ -345,6 +345,8 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                 type_list = get_possible_types_from_node(args[0])
             else:
                 validate_expected_type(args[0], IntegerAbstractType())
+                from vyper.semantics import validate_expr
+                validate_expr(args[1])
                 type_list = get_common_types(*args)
 
                 if not check_constant(args[0]):

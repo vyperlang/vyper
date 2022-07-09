@@ -944,11 +944,6 @@ class BinOp(VyperNode):
         """
         left, right = self.left, self.right
 
-        if type(left) is not type(right):
-            raise UnfoldableNode("Node contains invalid field(s) for evaluation")
-        if not isinstance(left, (Int, Decimal)):
-            raise UnfoldableNode("Node contains invalid field(s) for evaluation")
-
         if isinstance(self.op, (BitAnd, BitOr, BitXor)) and any(
             isinstance(i, Decimal) for i in (left, right)
         ):
@@ -956,6 +951,7 @@ class BinOp(VyperNode):
 
         left_val = self.left.evaluate().value
         right_val = self.right.evaluate().value
+
         value = self.op._op(left_val, right_val)
 
         _validate_numeric_bounds(self, value)

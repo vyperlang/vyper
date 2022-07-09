@@ -273,12 +273,15 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
         self.visit(node.operand, type_)
 
 
-def validate_expr(node: vy_ast.Module):
+def validate_expr(node: vy_ast.VyperNode):
     """
-    Validate and annotate an expression after generating the AST with `parse_to_ast`.
+    Validate and annotate an expression.
     """
     # Get the expression node
-    expr_node = node.get_children()[0].get_children()[0]
+    if isinstance(node, vy_ast.Module):
+        expr_node = node.get_children()[0].get_children()[0]
+    else:
+        expr_node = node
 
     # Create a dummy function to initialise ExprVisitor
     dummy_fn = ContractFunction(
