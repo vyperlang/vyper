@@ -184,11 +184,10 @@ def _validate_numeric_bounds(
 ) -> None:
     if isinstance(value, decimal.Decimal):
         # this will change if/when we add more decimal types
-        typ = node._metadata["type"]
         lower, upper = SizeLimits.MIN_AST_DECIMAL, SizeLimits.MAX_AST_DECIMAL
     elif isinstance(value, int):
-        typ = node._metadata["type"]
-        if hasattr(typ, "_is_signed") and hasattr(typ, "_bits"):
+        typ = node._metadata.get("type")
+        if typ:
             lower, upper = int_bounds(typ._is_signed, typ._bits)
         else:
             lower, upper = SizeLimits.MIN_INT256, SizeLimits.MAX_UINT256
@@ -911,7 +910,8 @@ class UnaryOp(VyperNode):
         _validate_numeric_bounds(self, value)
 
         ret = type(self.operand).from_node(self, value=value)
-        ret._metadata["type"] = self._metadata["type"]
+        if self._metadata.get("type"):
+            ret._metadata["type"] = self._metadata["type"]
         return ret
 
 
@@ -962,7 +962,8 @@ class BinOp(VyperNode):
         _validate_numeric_bounds(self, value)
 
         ret = type(left_folded).from_node(self, value=value)
-        ret._metadata["type"] = self._metadata["type"]
+        if self._metadata.get("type"):
+            ret._metadata["type"] = self._metadata["type"]
         return ret
 
 
