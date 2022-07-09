@@ -710,6 +710,9 @@ class Constant(VyperNode):
     # inherited class for all simple constant node types
     __slots__ = ("value",)
 
+    def evaluate(self):
+        return self
+
 
 class Num(Constant):
     # inherited class for all numeric constant node types
@@ -867,8 +870,7 @@ class Name(VyperNode):
                 continue
 
             if self.id == n.target.id:
-                from vyper.ast.utils import get_constant_value
-                return get_constant_value(n.value)
+                return n.value.evaluate().value
 
         raise UnfoldableNode
 
@@ -892,9 +894,7 @@ class UnaryOp(VyperNode):
         if isinstance(self.op, Invert) and isinstance(self.operand, Decimal):
             raise UnimplementedException(f"{self.op._pretty} is not supported for decimal")
 
-        from vyper.ast.utils import get_constant_value
-
-        op_val = get_constant_value(self.operand)
+        op_val = self.operand.evaluate().value
         if op_val is None:
             raise UnfoldableNode
         value = self.op._op(op_val)
@@ -948,10 +948,8 @@ class BinOp(VyperNode):
         ):
             raise UnimplementedException(f"{self.op._pretty} is not supported for decimal")
 
-        from vyper.ast.utils import get_constant_value
-
-        left_val = get_constant_value(self.left)
-        right_val = get_constant_value(self.right)
+        left_val = self.left.evaluate().value
+        right_val = self.right.evaluate().value
         if None in (left_val, right_val):
             raise UnfoldableNode
 
@@ -1083,9 +1081,7 @@ class BoolOp(VyperNode):
         NameConstant
             Node representing the result of the evaluation.
         """
-        from vyper.ast.utils import get_constant_value
-
-        values = [get_constant_value(i) for i in self.values]
+        values = [i.evaluate().value for i in self.values]
         if None in values:
             raise UnfoldableNode
 
@@ -1139,10 +1135,8 @@ class Compare(VyperNode):
         NameConstant
             Node representing the result of the evaluation.
         """
-        from vyper.ast.utils import get_constant_value
-
-        left = get_constant_value(self.left)
-        right = get_constant_value(self.right)
+        left = self.left.evaluate().value
+        right = self.right.evaluate().value
         if None in (left, right):
             raise UnfoldableNode
 
@@ -1204,6 +1198,19 @@ class NotIn(VyperNode):
 
 class Call(VyperNode):
     __slots__ = ("func", "args", "keywords", "keyword")
+
+    def evaluate(self):
+        if self.get("func") == Name:
+            name = node.func.id
+            from vyper.builtin_functions import DISPATCH_TABLE
+
+            func = DISPATCH_TABLE.get(name)
+            if func is None or not hasattr(func, "evaluate"):
+                raise UnfoldableNode
+
+            return func.evaluate(node)  # type: ignore
+
+        raise UnfoldableNode
 
 
 class keyword(VyperNode):
