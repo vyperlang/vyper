@@ -879,7 +879,7 @@ class Name(VyperNode):
                 continue
 
             if self.id == n.target.id:
-                return n.value.evaluate()
+                return _replace(self, n.value, n._metadata["type"])
 
         raise UnfoldableNode
 
@@ -952,17 +952,16 @@ class BinOp(VyperNode):
         ):
             raise UnimplementedException(f"{self.op._pretty} is not supported for decimal")
 
-        right_val = self.right.evaluate().value
-        if isinstance(self.op, (Div, Mod)) and right_val == 0:
+        right_folded = self.right.evaluate()
+        if isinstance(self.op, (Div, Mod)) and right_folded.value == 0:
             raise ZeroDivisionException("Division by zero", self.right)
 
-        left_val = self.left.evaluate().value
+        left_folded =  self.left.evaluate()
 
-        value = self.op._op(left_val, right_val)
-
+        value = self.op._op(left_folded.value, right_folded.value)
         _validate_numeric_bounds(self, value)
 
-        ret = type(left).from_node(self, value=value)
+        ret = type(left_folded).from_node(self, value=value)
         ret._metadata["type"] = self._metadata["type"]
         return ret
 
@@ -1212,7 +1211,7 @@ class Call(VyperNode):
             func = DISPATCH_TABLE.get(name)
             if func is None or not hasattr(func, "evaluate"):
                 raise UnfoldableNode
-            print("can evaluate call")
+
             return func.evaluate(self)  # type: ignore
 
         raise UnfoldableNode
