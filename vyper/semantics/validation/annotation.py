@@ -210,7 +210,8 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
         self.visit(node.value, type_)
 
     def visit_Int(self, node, type_):
-        node._metadata["type"] = type_
+        if type_ is not None:
+            node._metadata["type"] = type_
 
     def visit_List(self, node, type_):
         if type_ is None:
