@@ -1,11 +1,10 @@
 import ast as python_ast
-from decimal import Decimal
 from typing import Dict, List, Optional, Union
 
 from vyper.ast import nodes as vy_ast
 from vyper.ast.annotation import annotate_python_ast
 from vyper.ast.pre_parser import pre_parse
-from vyper.exceptions import CompilerPanic, ParserException, SyntaxException, UnfoldableNode
+from vyper.exceptions import CompilerPanic, ParserException, SyntaxException
 
 
 def parse_to_ast(
@@ -62,13 +61,3 @@ def dict_to_ast(ast_struct: Union[Dict, List]) -> Union[vy_ast.VyperNode, List]:
     if isinstance(ast_struct, list):
         return [vy_ast.get_node(i) for i in ast_struct]
     raise CompilerPanic(f'Unknown ast_struct provided: "{type(ast_struct)}".')
-
-
-def get_folded_numeric_literal(node: vy_ast.VyperNode) -> Union[int, Decimal]:
-    """
-    Helper function to derive folded value of literal ops or literal
-    """
-    val = node.evaluate().value
-    if not isinstance(val, (int, Decimal)):
-        raise UnfoldableNode
-    return val

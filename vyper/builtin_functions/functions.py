@@ -6,7 +6,6 @@ from vyper import ast as vy_ast
 from vyper.abi_types import ABI_Tuple
 from vyper.address_space import MEMORY, STORAGE
 from vyper.ast.signatures.function_signature import VariableRecord
-from vyper.ast.utils import get_folded_numeric_literal
 from vyper.ast.validation import validate_call_args
 from vyper.builtin_functions.convert import convert
 from vyper.codegen.abi_encoder import abi_encode
@@ -128,7 +127,7 @@ class Floor(BuiltinFunction):
 
     def evaluate(self, node):
         validate_call_args(node, 1)
-        value = get_folded_numeric_literal(node.args[0])
+        value = node.args[0].evaluate().value
         value = math.floor(value)
         ret = vy_ast.Int.from_node(node, value=value)
         ret._metadata["type"] = self._return_type
@@ -156,7 +155,7 @@ class Ceil(BuiltinFunction):
 
     def evaluate(self, node):
         validate_call_args(node, 1)
-        value = get_folded_numeric_literal(node.args[0])
+        value = node.args[0].evaluate().value
         value = math.ceil(value)
         ret = vy_ast.Int.from_node(node, value=value)
         ret._metadata["type"] = self._return_type
@@ -1030,7 +1029,7 @@ class AsWeiValue(BuiltinFunction):
     def evaluate(self, node):
         validate_call_args(node, 2)
         denom = self.get_denomination(node)
-        value = get_folded_numeric_literal(node.args[0])
+        value = node.args[0].evaluate().value
 
         if value < 0:
             raise InvalidLiteral("Negative wei value not allowed", node.args[0])
@@ -1356,8 +1355,8 @@ class BitwiseAnd(BuiltinFunction):
             self.__class__._warned = True
 
         validate_call_args(node, 2)
-        v1 = get_folded_numeric_literal(node.args[0])
-        v2 = get_folded_numeric_literal(node.args[1])
+        v1 = node.args[0].evaluate().value
+        v2 = node.args[1].evaluate().value
         value = v1 & v2
         ret = vy_ast.Int.from_node(node, value=value)
         ret._metadata["type"] = self._return_type
@@ -1381,8 +1380,8 @@ class BitwiseOr(BuiltinFunction):
             self.__class__._warned = True
 
         validate_call_args(node, 2)
-        v1 = get_folded_numeric_literal(node.args[0])
-        v2 = get_folded_numeric_literal(node.args[1])
+        v1 = node.args[0].evaluate().value
+        v2 = node.args[1].evaluate().value
         value = v1 | v2
         ret = vy_ast.Int.from_node(node, value=value)
         ret._metadata["type"] = self._return_type
@@ -1406,8 +1405,8 @@ class BitwiseXor(BuiltinFunction):
             self.__class__._warned = True
 
         validate_call_args(node, 2)
-        v1 = get_folded_numeric_literal(node.args[0])
-        v2 = get_folded_numeric_literal(node.args[1])
+        v1 = node.args[0].evaluate().value
+        v2 = node.args[1].evaluate().value
         value = v1 ^ v2
         ret = vy_ast.Int.from_node(node, value=value)
         ret._metadata["type"] = self._return_type
@@ -1431,7 +1430,7 @@ class BitwiseNot(BuiltinFunction):
             self.__class__._warned = True
 
         validate_call_args(node, 1)
-        value = get_folded_numeric_literal(node.args[0])
+        value = node.args[0].evaluate().value
         value = (2 ** 256 - 1) - value
         ret = vy_ast.Int.from_node(node, value=value)
         ret._metadata["type"] = self._return_type
@@ -1450,7 +1449,7 @@ class Shift(BuiltinFunction):
 
     def evaluate(self, node):
         validate_call_args(node, 2)
-        value, shift = [get_folded_numeric_literal(i) for i in node.args]
+        value, shift = [i.evaluate().value for i in node.args]
         if shift < -(2 ** 127) or shift >= 2 ** 127:
             raise InvalidLiteral("Value out of range for int128", node.args[1])
 
@@ -1514,7 +1513,7 @@ class _AddMulMod(BuiltinFunction):
 
     def evaluate(self, node):
         validate_call_args(node, 3)
-        values = [get_folded_numeric_literal(i) for i in node.args]
+        values = [i.evaluate().value for i in node.args]
         if values[2] == 0:
             raise ZeroDivisionException("Modulo by 0", node.args[2])
 
@@ -1550,7 +1549,7 @@ class PowMod256(BuiltinFunction):
 
     def evaluate(self, node):
         validate_call_args(node, 2)
-        left, right = (get_folded_numeric_literal(i) for i in node.args)
+        left, right = (i.evaluate().value for i in node.args)
         if left < 0 or right < 0:
             raise UnfoldableNode
 
@@ -1572,7 +1571,7 @@ class Abs(BuiltinFunction):
 
     def evaluate(self, node):
         validate_call_args(node, 1)
-        value = get_folded_numeric_literal(node.args[0])
+        value = node.args[0].evaluate().value
         value = abs(value)
         if not SizeLimits.MIN_INT256 <= value <= SizeLimits.MAX_INT256:
             raise OverflowException("Absolute literal value is outside allowable range for int256")
@@ -1998,7 +1997,7 @@ class _MinMax(BuiltinFunction):
 
     def evaluate(self, node):
         validate_call_args(node, 2)
-        left, right = (get_folded_numeric_literal(i) for i in node.args)
+        left, right = (i.evaluate().value for i in node.args)
 
         if isinstance(left, int) and (
             min(left, right) < 0 and max(left, right) >= SizeLimits.MAX_INT256
@@ -2089,7 +2088,7 @@ class Uint2Str(BuiltinFunction):
 
     def evaluate(self, node):
         validate_call_args(node, 1)
-        value = get_folded_numeric_literal(node.args[0])
+        value = node.args[0].evaluate().value
         if type(value) != int:
             raise UnfoldableNode
 
