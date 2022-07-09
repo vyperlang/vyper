@@ -2,28 +2,13 @@ import pytest
 
 from vyper import ast as vy_ast
 from vyper.ast import folding
-from vyper.codegen.types import INTEGER_TYPES, parse_integer_typeinfo
-from vyper.exceptions import OverflowException, TypeMismatch
-from vyper.semantics import validate_semantics
-from vyper.utils import SizeLimits
+from vyper.exceptions import OverflowException
+from vyper.semantics import validate_expr
 
 
 def test_integration():
-    test_code = """
-@external
-def foo():
-    a: uint256 = [1+2, 6+7][8-8]
-    """
-
-    expected_code = """
-@external
-def foo():
-    a: uint256 = 3
-    """
-    test_ast = vy_ast.parse_to_ast(test_code)
-    validate_semantics(test_ast, None)
-    expected_ast = vy_ast.parse_to_ast(expected_code)
-    validate_semantics(expected_ast, None)
+    test_ast = vy_ast.parse_to_ast("[1+2, 6+7][8-8]")
+    expected_ast = vy_ast.parse_to_ast("3")
 
     folding.fold(test_ast)
 
@@ -31,21 +16,8 @@ def foo():
 
 
 def test_replace_binop_simple():
-    test_code = """
-@external
-def foo():
-    a: uint256 = 1 + 2
-    """
-
-    expected_code = """
-@external
-def foo():
-    a: uint256 = 3
-    """
-    test_ast = vy_ast.parse_to_ast(test_code)
-    validate_semantics(test_ast, None)
-    expected_ast = vy_ast.parse_to_ast(expected_code)
-    validate_semantics(expected_ast, None)
+    test_ast = vy_ast.parse_to_ast("1 + 2")
+    expected_ast = vy_ast.parse_to_ast("3")
 
     folding.replace_literal_ops(test_ast)
 
@@ -53,71 +25,48 @@ def foo():
 
 
 def test_replace_binop_nested():
-    test_code = """
-@external
-def foo():
-    a: uint256 = ((6 + (2**4)) * 4) / 2
-    """
-
-    expected_code = """
-@external
-def foo():
-    a: uint256 = 44
-    """
-    test_ast = vy_ast.parse_to_ast(test_code)
-    validate_semantics(test_ast, None)
-    expected_ast = vy_ast.parse_to_ast(expected_code)
-    validate_semantics(expected_ast, None)
+    test_ast = vy_ast.parse_to_ast("((6 + (2**4)) * 4) / 2")
+    validate_expr(test_ast)
+    expected_ast = vy_ast.parse_to_ast("44")
 
     folding.replace_literal_ops(test_ast)
 
     assert vy_ast.compare_nodes(test_ast, expected_ast)
 
 
-@pytest.mark.parametrize(
-    "typ,expr", [("uint256", "2**255 * 2 / 10"), ("int256", "-2**255 * 2 - 10 + 100")]
-)
-def test_replace_int_bounds_fail(get_contract, assert_compile_failed, typ, expr):
-    code = f"""
-@external
-def foo():
-    a: {typ} = {expr}
-    """
-    assert_compile_failed(lambda: get_contract(code), OverflowException)
+def test_replace_binop_nested_intermediate_overflow():
+    test_ast = vy_ast.parse_to_ast("2**255 * 2 / 10")
+    validate_expr(test_ast)
+    with pytest.raises(OverflowException):
+        folding.fold(test_ast)
 
 
-@pytest.mark.parametrize(
-    "expr",
-    [
-        "18707220957835557353007165858768422651595.9365500927 + 1e-10 - 1e-10",
-        "-18707220957835557353007165858768422651595.9365500928 - 1e-10 + 1e-10",
-    ],
-)
-def test_replace_decimal_fail(get_contract, assert_compile_failed, expr):
-    code = f"""
-@external
-def foo():
-    a: decimal = {expr}
-    """
-    assert_compile_failed(lambda: get_contract(code), OverflowException)
+def test_replace_binop_nested_intermediate_underflow():
+    test_ast = vy_ast.parse_to_ast("-2**255 * 2 - 10 + 100")
+    validate_expr(test_ast)
+    with pytest.raises(OverflowException):
+        folding.fold(test_ast)
+
+
+def test_replace_decimal_nested_intermediate_overflow():
+    test_ast = vy_ast.parse_to_ast(
+        "18707220957835557353007165858768422651595.9365500927 + 1e-10 - 1e-10"
+    )
+    with pytest.raises(OverflowException):
+        folding.fold(test_ast)
+
+
+def test_replace_decimal_nested_intermediate_underflow():
+    test_ast = vy_ast.parse_to_ast(
+        "-18707220957835557353007165858768422651595.9365500928 - 1e-10 + 1e-10"
+    )
+    with pytest.raises(OverflowException):
+        folding.fold(test_ast)
 
 
 def test_replace_literal_ops():
-    test_code = """
-@external
-def foo():
-    a: bool[3] = [not True, True and False, True or False]
-    """
-
-    expected_code = """
-@external
-def foo():
-    a: bool[3] = [False, False, True]
-    """
-    test_ast = vy_ast.parse_to_ast(test_code)
-    validate_semantics(test_ast, None)
-    expected_ast = vy_ast.parse_to_ast(expected_code)
-    validate_semantics(test_ast, None)
+    test_ast = vy_ast.parse_to_ast("[not True, True and False, True or False]")
+    expected_ast = vy_ast.parse_to_ast("[False, False, True]")
 
     folding.replace_literal_ops(test_ast)
 
@@ -368,121 +317,3 @@ def test_replace_builtins(source, original, result):
     folding.replace_builtin_functions(original_ast)
 
     assert vy_ast.compare_nodes(original_ast, target_ast)
-
-
-@pytest.mark.parametrize("op", ["+", "-", "*", "/", "%", "**"])
-@pytest.mark.parametrize("constant_type", sorted(INTEGER_TYPES))
-@pytest.mark.parametrize("return_type", sorted(INTEGER_TYPES))
-@pytest.mark.fuzzing
-def test_replace_constant_fail(
-    get_contract_with_gas_estimation, assert_compile_failed, op, constant_type, return_type
-):
-    c1 = f"""
-a: constant({constant_type}) = 2
-
-@external
-def foo() -> {return_type}:
-    return a {op} 2
-    """
-
-    c2 = f"""
-a: constant({constant_type}) = 2
-b: constant({return_type}) = 1
-
-@external
-def foo() -> {return_type}:
-    return a + b
-    """
-
-    if constant_type != return_type:
-        assert_compile_failed(lambda: get_contract_with_gas_estimation(c1), TypeMismatch)
-        assert_compile_failed(lambda: get_contract_with_gas_estimation(c2), TypeMismatch)
-
-
-@pytest.mark.parametrize(
-    "return_type,bounds", [(t, parse_integer_typeinfo(t).bounds) for t in sorted(INTEGER_TYPES)]
-)
-def test_replace_constant_overflow(
-    get_contract_with_gas_estimation, assert_compile_failed, return_type, bounds
-):
-    lo = bounds[0]
-    hi = bounds[1]
-
-    c1 = f"""
-a: constant({return_type}) = {hi}
-b: constant({return_type}) = 1
-
-@external
-def foo() -> {return_type}:
-    return b + a
-    """
-
-    c2 = f"""
-a: constant({return_type}) = {lo}
-b: constant({return_type}) = 1
-
-@external
-def foo() -> {return_type}:
-    return a - b
-    """
-
-    assert_compile_failed(lambda: get_contract_with_gas_estimation(c1), OverflowException)
-    assert_compile_failed(lambda: get_contract_with_gas_estimation(c2), OverflowException)
-
-
-@pytest.mark.parametrize("op", ["<", "<=", "==", "!=", ">", ">="])
-@pytest.mark.parametrize(
-    "constant_type,bounds", [(t, parse_integer_typeinfo(t).bounds) for t in sorted(INTEGER_TYPES)]
-)
-@pytest.mark.fuzzing
-def test_replace_compare_constant_overflow(
-    get_contract_with_gas_estimation, assert_compile_failed, op, constant_type, bounds
-):
-    lo = bounds[0]
-    hi = bounds[1]
-
-    c1 = f"""
-a: constant({constant_type}) = 2
-
-@external
-def foo() -> bool:
-    return a {op} {hi + 1}
-    """
-
-    c2 = f"""
-a: constant({constant_type}) = 2
-
-@external
-def foo() -> bool:
-    return {lo - 1} {op} a
-    """
-
-    if not hi + 1 <= SizeLimits.MAX_UINT256:
-        assert_compile_failed(lambda: get_contract_with_gas_estimation(c1), OverflowException)
-    else:
-        assert_compile_failed(lambda: get_contract_with_gas_estimation(c1), TypeMismatch)
-
-    if not lo - 1 >= SizeLimits.MIN_INT256:
-        assert_compile_failed(lambda: get_contract_with_gas_estimation(c2), OverflowException)
-    else:
-        assert_compile_failed(lambda: get_contract_with_gas_estimation(c2), TypeMismatch)
-
-
-@pytest.mark.parametrize("op", ["<", "<=", "==", "!=", ">", ">="])
-@pytest.mark.parametrize("constant_type_1", sorted(INTEGER_TYPES))
-@pytest.mark.parametrize("constant_type_2", sorted(INTEGER_TYPES))
-@pytest.mark.fuzzing
-def test_replace_compare_constant_type_mismatch(
-    get_contract_with_gas_estimation, assert_compile_failed, op, constant_type_1, constant_type_2
-):
-    c = f"""
-a: constant({constant_type_1}) = 2
-b: constant({constant_type_2}) = 1
-
-@external
-def foo() -> bool:
-    return a {op} b
-    """
-
-    if constant_type_1 != constant_type_2:
-        assert_compile_failed(lambda: get_contract_with_gas_estimation(c), TypeMismatch)
