@@ -107,7 +107,7 @@ class ContractFunction(BaseTypeDefinition):
             DataLocation.UNSET,
             # A function definition type is immutable once created
             is_constant=True,
-            not_assignable=True,
+            is_assignable=False,
             # A function definition type is public if it's visibility is public
             is_public=(function_visibility == FunctionVisibility.EXTERNAL),
         )
@@ -156,7 +156,7 @@ class ContractFunction(BaseTypeDefinition):
         arguments = OrderedDict()
         for item in abi["inputs"]:
             arguments[item["name"]] = get_type_from_abi(
-                item, location=DataLocation.CALLDATA, is_constant=False, not_assignable=True
+                item, location=DataLocation.CALLDATA, is_constant=False, is_assignable=False
             )
         return_type = None
         if len(abi["outputs"]) == 1:
@@ -164,13 +164,13 @@ class ContractFunction(BaseTypeDefinition):
                 abi["outputs"][0],
                 location=DataLocation.CALLDATA,
                 is_constant=False,
-                not_assignable=True,
+                is_assignable=False,
             )
         elif len(abi["outputs"]) > 1:
             return_type = TupleDefinition(
                 tuple(
                     get_type_from_abi(
-                        i, location=DataLocation.CALLDATA, is_constant=False, not_assignable=True
+                        i, location=DataLocation.CALLDATA, is_constant=False, is_assignable=False
                     )
                     for i in abi["outputs"]
                 )
@@ -335,7 +335,7 @@ class ContractFunction(BaseTypeDefinition):
                 arg.annotation,
                 location=DataLocation.CALLDATA,
                 is_constant=False,
-                not_assignable=True,
+                is_assignable=False,
             )
             if value is not None:
                 if not check_kwargable(value):

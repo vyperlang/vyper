@@ -113,7 +113,7 @@ class BasePrimitive:
         is_constant: bool = False,
         is_public: bool = False,
         is_immutable: bool = False,
-        not_assignable: bool = False,
+        is_assignable: bool = True,
     ) -> "BaseTypeDefinition":
         """
         Generate a `BaseTypeDefinition` instance of this type from `AnnAssign.annotation`
@@ -132,7 +132,7 @@ class BasePrimitive:
             raise StructureException("Invalid type assignment", node)
         if node.id != cls._id:
             raise UnexpectedValue("Node id does not match type name")
-        return cls._type(location, is_constant, is_public, is_immutable, not_assignable)
+        return cls._type(location, is_constant, is_public, is_immutable, is_assignable)
 
     @classmethod
     def from_literal(cls, node: vy_ast.Constant) -> "BaseTypeDefinition":
@@ -244,7 +244,7 @@ class BaseTypeDefinition:
     -----------------
     is_constant : bool, optional
         If `True`, the value of this object is a built-in or user-defined constant.
-    not_assignable : bool, optional
+    is_assignable : bool, optional
         If `True`, the value of this object cannot be modified after assignment.
     size_in_bytes: int
         The number of bytes that are required to store this type.
@@ -262,13 +262,13 @@ class BaseTypeDefinition:
         is_constant: bool = False,
         is_public: bool = False,
         is_immutable: bool = False,
-        not_assignable: bool = False,
+        is_assignable: bool = True,
     ) -> None:
         self.location = location
         self.is_constant = is_constant
         self.is_public = is_public
         self.is_immutable = is_immutable
-        self.not_assignable = not_assignable
+        self.is_assignable = is_assignable
 
         self._modification_count = 0
 
@@ -519,7 +519,7 @@ class BaseTypeDefinition:
 
         if self.location == DataLocation.CALLDATA:
             raise ImmutableViolation("Cannot write to calldata", node)
-        if self.not_assignable:
+        if not self.is_assignable:
             raise ImmutableViolation("Constant value cannot be written to", node)
         if self.is_immutable:
             if node.get_ancestor(vy_ast.FunctionDef).get("name") != "__init__":
@@ -607,9 +607,9 @@ class MemberTypeDefinition(BaseTypeDefinition):
         is_constant: bool = False,
         is_public: bool = False,
         is_immutable: bool = False,
-        not_assignable: bool = False,
+        is_assignable: bool = True,
     ) -> None:
-        super().__init__(location, is_constant, is_public, is_immutable, not_assignable)
+        super().__init__(location, is_constant, is_public, is_immutable, is_assignable)
         self.members: OrderedDict = OrderedDict()
 
     def add_member(self, name: str, type_: BaseTypeDefinition) -> None:
@@ -626,7 +626,7 @@ class MemberTypeDefinition(BaseTypeDefinition):
             type_ = copy.deepcopy(self._type_members[key])
             type_.location = self.location
             type_.is_constant = self.is_constant
-            type_.not_assignable = self.not_assignable
+            type_.is_assignable = self.is_assignable
             return type_
         suggestions_str = get_levenshtein_error_suggestions(key, self.members, 0.3)
         raise UnknownAttribute(f"{self} has no member '{key}'. {suggestions_str}", node)
@@ -658,9 +658,9 @@ class IndexableTypeDefinition(BaseTypeDefinition):
         is_constant: bool = False,
         is_public: bool = False,
         is_immutable: bool = False,
-        not_assignable: bool = False,
+        is_assignable: bool = True,
     ) -> None:
-        super().__init__(location, is_constant, is_public, is_immutable, not_assignable)
+        super().__init__(location, is_constant, is_public, is_immutable, is_assignable)
         self.value_type = value_type
         self.key_type = key_type
         self._id = _id

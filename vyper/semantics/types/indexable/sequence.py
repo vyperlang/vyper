@@ -34,7 +34,7 @@ class _SequenceDefinition(IndexableTypeDefinition):
         is_constant: bool = False,
         is_public: bool = False,
         is_immutable: bool = False,
-        not_assignable: bool = False,
+        is_assignable: bool = True,
     ) -> None:
         if not 0 < length < 2 ** 256:
             raise InvalidType("Array length is invalid")
@@ -46,7 +46,7 @@ class _SequenceDefinition(IndexableTypeDefinition):
             is_constant=is_constant,
             is_public=is_public,
             is_immutable=is_immutable,
-            not_assignable=not_assignable,
+            is_assignable=is_assignable,
         )
         self.length = length
 
@@ -88,7 +88,7 @@ class ArrayDefinition(_SequenceDefinition):
         is_constant: bool = False,
         is_public: bool = False,
         is_immutable: bool = False,
-        not_assignable: bool = False,
+        is_assignable: bool = True,
     ) -> None:
         super().__init__(
             value_type,
@@ -98,7 +98,7 @@ class ArrayDefinition(_SequenceDefinition):
             is_constant,
             is_public,
             is_immutable,
-            not_assignable,
+            is_assignable,
         )
 
     def __repr__(self):
@@ -155,7 +155,7 @@ class DynamicArrayDefinition(_SequenceDefinition, MemberTypeDefinition):
         is_constant: bool = False,
         is_public: bool = False,
         is_immutable: bool = False,
-        not_assignable: bool = False,
+        is_assignable: bool = True,
     ) -> None:
 
         super().__init__(
@@ -166,7 +166,7 @@ class DynamicArrayDefinition(_SequenceDefinition, MemberTypeDefinition):
             is_constant,
             is_public,
             is_immutable,
-            not_assignable,
+            is_assignable,
         )
 
         # Adding members here as otherwise MemberFunctionDefinition is not yet defined
@@ -239,7 +239,7 @@ class DynamicArrayPrimitive(BasePrimitive):
         is_constant: bool = False,
         is_public: bool = False,
         is_immutable: bool = False,
-        not_assignable: bool = False,
+        is_assignable: bool = True,
     ) -> DynamicArrayDefinition:
         # TODO fix circular import
         from vyper.semantics.types.utils import get_type_from_annotation
@@ -264,11 +264,11 @@ class DynamicArrayPrimitive(BasePrimitive):
             is_constant,
             is_public,
             is_immutable,
-            not_assignable,
+            is_assignable,
         )
 
         return DynamicArrayDefinition(
-            value_type, max_length, location, is_constant, is_public, is_immutable, not_assignable
+            value_type, max_length, location, is_constant, is_public, is_immutable, is_assignable
         )
 
 
@@ -283,14 +283,14 @@ class TupleDefinition(_SequenceDefinition):
     def __init__(self, value_type: Tuple[BaseTypeDefinition, ...]) -> None:
         # always use the most restrictive location re: modification
         location = sorted((i.location for i in value_type), key=lambda k: k.value)[-1]
-        not_assignable = any((getattr(i, "not_assignable", False) for i in value_type))
+        is_assignable = any((getattr(i, "is_assignable", False) for i in value_type))
         super().__init__(
             # TODO fix the typing on value_type
             value_type,  # type: ignore
             len(value_type),
             f"{value_type}",
             location,
-            not_assignable=not_assignable,
+            is_assignable=is_assignable,
         )
 
         # fixes mypy error, TODO revisit typing on value_type

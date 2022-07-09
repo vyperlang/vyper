@@ -39,7 +39,7 @@ class MappingPrimitive(BasePrimitive):
         is_constant: bool = False,
         is_public: bool = False,
         is_immutable: bool = False,
-        not_assignable: bool = False,
+        is_assignable: bool = True,
     ) -> MappingDefinition:
         if (
             not isinstance(node, vy_ast.Subscript)
@@ -67,5 +67,5 @@ class MappingPrimitive(BasePrimitive):
             is_constant,
             is_public,
             is_immutable,
-            not_assignable,
+            is_assignable,
         )

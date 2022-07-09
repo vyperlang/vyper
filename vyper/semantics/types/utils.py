@@ -94,7 +94,7 @@ def get_type_from_abi(
     location: DataLocation = DataLocation.UNSET,
     is_constant: bool = False,
     is_public: bool = False,
-    not_assignable: bool = False,
+    is_assignable: bool = True,
 ) -> BaseTypeDefinition:
     """
     Return a type object from an ABI type definition.
@@ -128,7 +128,7 @@ def get_type_from_abi(
                 {"type": value_type_string},
                 location=location,
                 is_constant=is_constant,
-                not_assignable=not_assignable,
+                is_assignable=is_assignable,
             )
         except UnknownType:
             raise UnknownType(f"ABI contains unknown type: {type_string}") from None
@@ -139,7 +139,7 @@ def get_type_from_abi(
                 location=location,
                 is_constant=is_constant,
                 is_public=is_public,
-                not_assignable=not_assignable,
+                is_assignable=is_assignable,
             )
         except InvalidType:
             raise UnknownType(f"ABI contains unknown type: {type_string}") from None
@@ -150,7 +150,7 @@ def get_type_from_abi(
                 location=location,
                 is_constant=is_constant,
                 is_public=is_public,
-                not_assignable=not_assignable,
+                is_assignable=is_assignable,
             )
         except KeyError:
             raise UnknownType(f"ABI contains unknown type: {type_string}") from None
@@ -162,7 +162,7 @@ def get_type_from_annotation(
     is_constant: bool = False,
     is_public: bool = False,
     is_immutable: bool = False,
-    not_assignable: bool = False,
+    is_assignable: bool = True,
 ) -> BaseTypeDefinition:
     """
     Return a type object for the given AST node.
@@ -202,15 +202,15 @@ def get_type_from_annotation(
         # if type can be an array and node is a subscript, create an `ArrayDefinition`
         length = get_index_value(node.slice)
         value_type = get_type_from_annotation(
-            node.value, location, is_constant, False, is_immutable, not_assignable
+            node.value, location, is_constant, False, is_immutable, is_assignable
         )
         return ArrayDefinition(
-            value_type, length, location, is_constant, is_public, is_immutable, not_assignable
+            value_type, length, location, is_constant, is_public, is_immutable, is_assignable
         )
 
     try:
         return type_obj.from_annotation(
-            node, location, is_constant, is_public, is_immutable, not_assignable
+            node, location, is_constant, is_public, is_immutable, is_assignable
         )
     except AttributeError:
         raise InvalidType(f"'{type_name}' is not a valid type", node) from None
@@ -271,4 +271,6 @@ def check_kwargable(node: vy_ast.VyperNode) -> bool:
         pass
 
     value_type = get_exact_type_from_node(node)
-    return getattr(value_type, "not_assignable", False)
+    if hasattr(value_type, "is_assignable"):
+        return not value_type.is_assignable
+    return False
