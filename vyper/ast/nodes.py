@@ -836,7 +836,7 @@ class List(VyperNode):
     _translated_fields = {"elts": "elements"}
 
     def evaluate(self):
-        return [i.evaluate().value for i in node.elements]
+        return [i.evaluate().value for i in self.elements]
 
 
 class Tuple(VyperNode):
@@ -1204,14 +1204,14 @@ class Call(VyperNode):
 
     def evaluate(self):
         if self.get("func") == Name:
-            name = node.func.id
+            name = self.func.id
             from vyper.builtin_functions import DISPATCH_TABLE
 
             func = DISPATCH_TABLE.get(name)
             if func is None or not hasattr(func, "evaluate"):
                 raise UnfoldableNode
 
-            return func.evaluate(node)  # type: ignore
+            return func.evaluate(self)  # type: ignore
 
         raise UnfoldableNode
 

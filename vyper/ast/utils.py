@@ -1,6 +1,6 @@
 import ast as python_ast
 from decimal import Decimal
-from typing import Any, Dict, List, Optional, Union
+from typing import Dict, List, Optional, Union
 
 from vyper.ast import nodes as vy_ast
 from vyper.ast.annotation import annotate_python_ast

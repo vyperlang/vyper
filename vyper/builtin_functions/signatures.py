@@ -5,7 +5,7 @@ from vyper.ast.validation import validate_call_args
 from vyper.codegen.expr import Expr
 from vyper.codegen.ir_node import IRnode
 from vyper.codegen.types.convert import new_type_to_old_type
-from vyper.exceptions import CompilerPanic, TypeMismatch
+from vyper.exceptions import CompilerPanic, TypeMismatch, UnfoldableNode
 from vyper.semantics.types import (
     ArrayValueAbstractType,
     BaseTypeDefinition,
@@ -116,7 +116,7 @@ class BuiltinFunction:
             if kwarg_settings.require_literal:
                 try:
                     kwarg.value.evaluate()
-                except:
+                except UnfoldableNode:
                     raise TypeMismatch("Value for kwarg must be a literal", kwarg.value)
             self._validate_single(kwarg.value, kwarg_settings.typ)
 

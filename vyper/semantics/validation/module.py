@@ -28,10 +28,7 @@ from vyper.semantics.types.user.struct import StructDefinition
 from vyper.semantics.types.utils import check_constant, get_type_from_annotation
 from vyper.semantics.validation.base import VyperNodeVisitorBase
 from vyper.semantics.validation.levenshtein_utils import get_levenshtein_error_suggestions
-from vyper.semantics.validation.utils import (
-    validate_expected_type,
-    validate_unique_method_ids,
-)
+from vyper.semantics.validation.utils import validate_expected_type, validate_unique_method_ids
 from vyper.typing import InterfaceDict
 
 
