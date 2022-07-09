@@ -4,6 +4,7 @@ from hypothesis import strategies as st
 
 from vyper import ast as vy_ast
 from vyper.exceptions import TypeMismatch
+from vyper.semantics import validate_expr
 
 
 # TODO expand to all signed types
@@ -85,10 +86,7 @@ def foo(a: int128, b: int128[{len(right)}]) -> bool:
 
 
 @pytest.mark.parametrize("op", ["==", "!=", "<", "<=", ">=", ">"])
-def test_compare_type_mismatch(get_contract, assert_compile_failed, op):
-    code = f"""
-@external
-def foo() -> bool:
-    return 1 {op} 1.0
-    """
-    assert_compile_failed(lambda: get_contract(code), TypeMismatch)
+def test_compare_type_mismatch(op):
+    vyper_ast = vy_ast.parse_to_ast(f"1 {op} 1.0")
+    with pytest.raises(TypeMismatch):
+        validate_expr(vyper_ast)

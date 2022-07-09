@@ -3,8 +3,8 @@ from hypothesis import example, given, settings
 from hypothesis import strategies as st
 
 from vyper import ast as vy_ast
-from vyper.exceptions import OverflowException, ZeroDivisionException
-from vyper.semantics import validate_semantics
+from vyper.exceptions import ZeroDivisionException
+from vyper.semantics import validate_expr
 
 st_int32 = st.integers(min_value=-(2 ** 32), max_value=2 ** 32)
 
@@ -25,16 +25,10 @@ def foo(a: int128, b: int128) -> int128:
     """
     contract = get_contract(source)
 
-    expected = f"""
-@external
-def foo() -> int128:
-    return {left} {op} {right}
-    """
-
+    vyper_ast = vy_ast.parse_to_ast(f"{left} {op} {right}")
+    validate_expr(vyper_ast)
+    old_node = vyper_ast.body[0].value
     try:
-        vyper_ast = vy_ast.parse_to_ast(expected)
-        validate_semantics(vyper_ast, None)
-        old_node = vyper_ast.body[0].body[0].value
         new_node = old_node.evaluate()
         is_valid = True
     except ZeroDivisionException:
@@ -61,19 +55,13 @@ def foo(a: uint256, b: uint256) -> uint256:
     """
     contract = get_contract(source)
 
-    expected = f"""
-@external
-def foo() -> uint256:
-    return {left} {op} {right}
-    """
-
+    vyper_ast = vy_ast.parse_to_ast(f"{left} {op} {right}")
+    validate_expr(vyper_ast)
+    old_node = vyper_ast.body[0].value
     try:
-        vyper_ast = vy_ast.parse_to_ast(expected)
-        validate_semantics(vyper_ast, None)
-        old_node = vyper_ast.body[0].body[0].value
         new_node = old_node.evaluate()
         is_valid = new_node.value >= 0
-    except (ZeroDivisionException, OverflowException):
+    except ZeroDivisionException:
         is_valid = False
 
     if is_valid:
@@ -96,15 +84,9 @@ def foo(a: uint256, b: uint256) -> uint256:
     """
     contract = get_contract(source)
 
-    expected = f"""
-@external
-def foo() -> uint256:
-    return {left} ** {right}
-    """
-
-    vyper_ast = vy_ast.parse_to_ast(expected)
-    validate_semantics(vyper_ast, None)
-    old_node = vyper_ast.body[0].body[0].value
+    vyper_ast = vy_ast.parse_to_ast(f"{left} ** {right}")
+    validate_expr(vyper_ast)
+    old_node = vyper_ast.body[0].value
     new_node = old_node.evaluate()
 
     assert contract.foo(left, right) == new_node.value
@@ -132,17 +114,13 @@ def foo({input_value}) -> int128:
 
     literal_op = " ".join(f"{a} {b}" for a, b in zip(values, ops))
     literal_op = literal_op.rsplit(maxsplit=1)[0]
-    expected = f"""
-@external
-def foo() -> int128:
-    return {literal_op}
-    """
+
+    vyper_ast = vy_ast.parse_to_ast(literal_op)
+    validate_expr(vyper_ast)
 
     try:
-        vyper_ast = vy_ast.parse_to_ast(expected)
-        validate_semantics(vyper_ast, None)
         vy_ast.folding.replace_literal_ops(vyper_ast)
-        expected = vyper_ast.body[0].body[0].value.value
+        expected = vyper_ast.body[0].value.value
         is_valid = True
     except ZeroDivisionException:
         is_valid = False
