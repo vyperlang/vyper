@@ -246,8 +246,17 @@ def check_constant(node: vy_ast.VyperNode, vyper_module: vy_ast.Module = None) -
         if len(args) == 1 and isinstance(args[0], vy_ast.Dict):
             return all(check_constant(v) for v in args[0].values)
 
+        if hasattr(node, "func"):
+            call_type = get_exact_type_from_node(node.func)
+            try:
+                call_type.evaluate(node)
+                return True
+            except:
+                pass
+
     try:
         node.evaluate()
+        return True
     except UnfoldableNode:
         pass
 
@@ -269,8 +278,17 @@ def check_kwargable(node: vy_ast.VyperNode) -> bool:
         if len(args) == 1 and isinstance(args[0], vy_ast.Dict):
             return all(check_kwargable(v) for v in args[0].values)
 
+        if hasattr(node, "func"):
+            call_type = get_exact_type_from_node(node.func)
+            try:
+                call_type.evaluate(node)
+                return True
+            except:
+                pass
+
     try:
         node.evaluate()
+        return True
     except UnfoldableNode:
         pass
 

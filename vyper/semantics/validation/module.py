@@ -217,12 +217,14 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
         node._metadata["type"] = type_definition
 
         if is_constant:
+            validate_expected_type(node.value, type_definition)
+            from vyper.semantics import validate_expr
+            validate_expr(node.value, type_definition)
             if not node.value:
                 raise VariableDeclarationException("Constant must be declared with a value", node)
             if not check_constant(node.value, self.ast):
                 raise StateAccessViolation("Value must be a literal", node.value)
 
-            validate_expected_type(node.value, type_definition)
             try:
                 self.namespace[name] = type_definition
                 node.value._metadata["type"] = type_definition

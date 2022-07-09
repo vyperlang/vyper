@@ -273,7 +273,7 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
         self.visit(node.operand, type_)
 
 
-def validate_expr(node: vy_ast.VyperNode):
+def validate_expr(node, type_=None):
     """
     Validate and annotate an expression.
     """
@@ -289,4 +289,4 @@ def validate_expr(node: vy_ast.VyperNode):
     )
 
     expr_visitor = ExpressionAnnotationVisitor(dummy_fn)
-    expr_visitor.visit(expr_node)
+    expr_visitor.visit(expr_node, type_)
