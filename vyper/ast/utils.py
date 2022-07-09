@@ -78,20 +78,7 @@ def get_constant_value(node: vy_ast.VyperNode) -> Any:
 
     if isinstance(node, vy_ast.Name):
         # Check for builtin environment constants
-        from vyper.ast.folding import BUILTIN_CONSTANTS
-
-        if node.id in BUILTIN_CONSTANTS:
-            return BUILTIN_CONSTANTS[node.id]["value"]
-
-        # Check for user-defined constants
-        vyper_module = node.get_ancestor(vy_ast.Module)
-        for n in vyper_module.get_children(vy_ast.AnnAssign):
-            # Ensure that the AnnAssign is a constant variable definition
-            if not ("type" in n._metadata and n._metadata["type"].is_constant):
-                continue
-
-            if node.id == n.target.id:
-                return get_constant_value(n.value)
+        return node.evaluate()
 
     if isinstance(node, vy_ast.Call) and isinstance(node.func, vy_ast.Name):
         name = node.func.id

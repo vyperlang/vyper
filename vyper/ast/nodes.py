@@ -853,6 +853,25 @@ class NameConstant(Constant):
 class Name(VyperNode):
     __slots__ = ("id",)
 
+    def evaluate(self):
+        from vyper.ast.folding import BUILTIN_CONSTANTS
+
+        if self.id in BUILTIN_CONSTANTS:
+            return BUILTIN_CONSTANTS[node.id]["value"]
+
+        # Check for user-defined constants
+        vyper_module = self.get_ancestor(Module)
+        for n in vyper_module.get_children(AnnAssign):
+            # Ensure that the AnnAssign is a constant variable definition
+            if not ("type" in n._metadata and n._metadata["type"].is_constant):
+                continue
+
+            if self.id == n.target.id:
+                from vyper.ast.utils import get_constant_value
+                return get_constant_value(n.value)
+
+        raise UnfoldableNode
+
 
 class Expr(VyperNode):
     __slots__ = ("value",)
