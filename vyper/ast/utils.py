@@ -64,50 +64,11 @@ def dict_to_ast(ast_struct: Union[Dict, List]) -> Union[vy_ast.VyperNode, List]:
     raise CompilerPanic(f'Unknown ast_struct provided: "{type(ast_struct)}".')
 
 
-def get_constant_value(node: vy_ast.VyperNode) -> Any:
-    """
-    Helper function to retrieve the value of a constant.
-
-    Returns None if unable to retrieve a literal value.
-    """
-    if isinstance(node, (vy_ast.BinOp, vy_ast.UnaryOp, vy_ast.BoolOp, vy_ast.Compare)):
-        return node.evaluate()  # type: ignore
-
-    if isinstance(node, vy_ast.Constant):
-        return node.value
-
-    if isinstance(node, vy_ast.Name):
-        # Check for builtin environment constants
-        return node.evaluate()
-
-    if isinstance(node, vy_ast.Call) and isinstance(node.func, vy_ast.Name):
-        name = node.func.id
-        from vyper.builtin_functions import DISPATCH_TABLE
-
-        func = DISPATCH_TABLE.get(name)
-        if func is None or not hasattr(func, "evaluate"):
-            return None
-
-        try:
-            value = func.evaluate(node).value  # type: ignore
-            return value
-        except UnfoldableNode:
-            return None
-
-    if isinstance(node, vy_ast.List):
-        ret = [get_constant_value(i) for i in node.elements]
-        if None in ret:
-            return None
-        return ret
-
-    return None
-
-
 def get_folded_numeric_literal(node: vy_ast.VyperNode) -> Union[int, Decimal]:
     """
     Helper function to derive folded value of literal ops or literal
     """
-    val = get_constant_value(node)
+    val = node.evaluate().value
     if not isinstance(val, (int, Decimal)):
         raise UnfoldableNode
     return val

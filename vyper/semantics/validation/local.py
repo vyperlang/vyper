@@ -2,7 +2,6 @@ import copy
 from typing import Optional
 
 from vyper import ast as vy_ast
-from vyper.ast.utils import get_constant_value
 from vyper.ast.validation import validate_call_args
 from vyper.exceptions import (
     ExceptionList,
@@ -16,6 +15,7 @@ from vyper.exceptions import (
     StateAccessViolation,
     StructureException,
     TypeMismatch,
+    UnfoldableNode,
     VariableDeclarationException,
     VyperException,
 )
@@ -334,8 +334,9 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             args = node.iter.args
             if len(args) == 1:
                 # range(CONSTANT)
-                val = get_constant_value(args[0])
-                if val is None:
+                try:
+                    val = args[0].evaluate().value
+                except UnfoldableNode:
                     raise StateAccessViolation("Value must be a literal", node)
 
                 if val <= 0:
@@ -368,12 +369,12 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                         )
                 else:
                     # range(CONSTANT, CONSTANT)
-                    args1_value = get_constant_value(args[1])
+                    args1_value = args[1].evaluate().value
                     if args1_value is None:
                         raise StateAccessViolation("Value must be a literal", node)
                     validate_expected_type(args[1], IntegerAbstractType())
 
-                    args0_value = get_constant_value(args[0])
+                    args0_value = args[0].evaluate().value
 
                     if args0_value >= args1_value:
                         raise StructureException("Second value must be > first value", args[1])

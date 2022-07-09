@@ -835,6 +835,9 @@ class List(VyperNode):
     __slots__ = ("elements",)
     _translated_fields = {"elts": "elements"}
 
+    def evaluate(self):
+        return [i.evaluate().value for i in node.elements]
+
 
 class Tuple(VyperNode):
     __slots__ = ("elements",)
@@ -860,7 +863,7 @@ class Name(VyperNode):
         from vyper.ast.folding import BUILTIN_CONSTANTS
 
         if self.id in BUILTIN_CONSTANTS:
-            return BUILTIN_CONSTANTS[node.id]["value"]
+            return BUILTIN_CONSTANTS[self.id]["value"]
 
         # Check for user-defined constants
         vyper_module = self.get_ancestor(Module)
@@ -870,7 +873,7 @@ class Name(VyperNode):
                 continue
 
             if self.id == n.target.id:
-                return n.value.evaluate().value
+                return n.value.evaluate()
 
         raise UnfoldableNode
 

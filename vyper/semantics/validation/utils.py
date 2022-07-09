@@ -2,7 +2,6 @@ import itertools
 from typing import Callable, List
 
 from vyper import ast as vy_ast
-from vyper.ast.utils import get_constant_value
 from vyper.exceptions import (
     ArrayIndexException,
     InvalidLiteral,
@@ -483,7 +482,7 @@ def get_index_value(node: vy_ast.Index) -> int:
     int
         Literal integer value.
     """
-    val = get_constant_value(node.value)
+    val = node.value.evaluate().value
     if not isinstance(val, int):
         if hasattr(node, "value"):
             # even though the subscript is an invalid type, first check if it's a valid _something_

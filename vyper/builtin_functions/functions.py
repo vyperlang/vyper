@@ -6,7 +6,7 @@ from vyper import ast as vy_ast
 from vyper.abi_types import ABI_Tuple
 from vyper.address_space import MEMORY, STORAGE
 from vyper.ast.signatures.function_signature import VariableRecord
-from vyper.ast.utils import get_constant_value, get_folded_numeric_literal
+from vyper.ast.utils import get_folded_numeric_literal
 from vyper.ast.validation import validate_call_args
 from vyper.builtin_functions.convert import convert
 from vyper.codegen.abi_encoder import abi_encode
@@ -1122,7 +1122,7 @@ class RawCall(BuiltinFunction):
             if outsize_val < 0:
                 raise
         elif isinstance(outsize, vy_ast.Name):
-            outsize_val = get_constant_value(outsize)
+            outsize_val = outsize.evaluate().value
             if outsize_val is None or outsize_val < 0:
                 raise
         else:
