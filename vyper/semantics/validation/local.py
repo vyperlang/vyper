@@ -332,10 +332,6 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             validate_call_args(node.iter, (1, 2))
 
             args = node.iter.args
-            from vyper.semantics import validate_expr
-
-            validate_expr(args[0])
-
             if len(args) == 1:
                 # range(CONSTANT)
                 try:
@@ -349,8 +345,6 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                 type_list = get_possible_types_from_node(args[0])
             else:
                 validate_expected_type(args[0], IntegerAbstractType())
-
-                validate_expr(args[1])
 
                 type_list = get_common_types(*args)
 
