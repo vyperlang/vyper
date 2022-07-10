@@ -4,7 +4,6 @@ from hypothesis import strategies as st
 
 from vyper import ast as vy_ast
 from vyper import builtin_functions as vy_fn
-from vyper.semantics import validate_expr
 
 st_uint256 = st.integers(min_value=0, max_value=2 ** 256 - 1)
 
@@ -23,7 +22,6 @@ def foo(a: uint256, b: uint256) -> uint256:
     contract = get_contract(source)
 
     vyper_ast = vy_ast.parse_to_ast(f"{a} {op} {b}")
-    validate_expr(vyper_ast)
     old_node = vyper_ast.body[0].value
     new_node = old_node.evaluate()
 
