@@ -902,10 +902,8 @@ class UnaryOp(VyperNode):
         if isinstance(self.op, Invert) and isinstance(self.operand, Decimal):
             raise UnimplementedException(f"{self.op._pretty} is not supported for decimal")
 
-        op_val = self.operand.evaluate().value
-        if op_val is None:
-            raise UnfoldableNode
-        value = self.op._op(op_val)
+        op_node = self.operand.evaluate()
+        value = self.op._op(op_node.value)
 
         _validate_numeric_bounds(self, value)
 
