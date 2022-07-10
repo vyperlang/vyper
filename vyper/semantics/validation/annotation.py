@@ -237,18 +237,6 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
             # don't recurse; can't annotate AST children of type definition
             return
 
-        if isinstance(node.value, vy_ast.List):
-            possible_base_types = get_possible_types_from_node(node.value)
-
-            if len(possible_base_types) == 1:
-                base_type = possible_base_types.pop()
-
-            elif type_ is not None and len(possible_base_types) > 1:
-                for possible_type in possible_base_types:
-                    if isinstance(possible_type.value_type, type(type_)):
-                        base_type = possible_type
-                        break
-
         else:
             base_type = get_exact_type_from_node(node.value)
 
