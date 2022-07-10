@@ -1,6 +1,5 @@
 import pytest
 
-from vyper import ast as vy_ast
 from vyper.exceptions import (
     ArrayIndexException,
     InvalidType,
