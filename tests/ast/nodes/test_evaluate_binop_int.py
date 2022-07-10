@@ -15,6 +15,7 @@ st_int32 = st.integers(min_value=-(2 ** 32), max_value=2 ** 32)
 @example(left=1, right=-1)
 @example(left=-1, right=1)
 @example(left=-1, right=-1)
+@example(left=1, right=0)
 @pytest.mark.parametrize("op", "+-*/%")
 def test_binop_int128(get_contract, assert_tx_failed, op, left, right):
     source = f"""
