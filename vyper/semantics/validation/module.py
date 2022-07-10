@@ -24,7 +24,6 @@ from vyper.semantics.types.bases import DataLocation
 from vyper.semantics.types.function import ContractFunction
 from vyper.semantics.types.user.enum import EnumPrimitive
 from vyper.semantics.types.user.event import Event
-from vyper.semantics.types.user.struct import StructDefinition
 from vyper.semantics.types.utils import check_constant, get_type_from_annotation
 from vyper.semantics.validation.base import VyperNodeVisitorBase
 from vyper.semantics.validation.levenshtein_utils import get_levenshtein_error_suggestions
