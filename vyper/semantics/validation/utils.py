@@ -12,6 +12,7 @@ from vyper.exceptions import (
     StructureException,
     TypeMismatch,
     UndeclaredDefinition,
+    UnfoldableNode,
     UnknownAttribute,
     VyperException,
 )
@@ -473,23 +474,25 @@ def get_index_value(node: vy_ast.Index) -> int:
     int
         Literal integer value.
     """
-    val = node.value.evaluate().value  # type: ignore
-    if not isinstance(val, int):
-        if hasattr(node, "value"):
-            # even though the subscript is an invalid type, first check if it's a valid _something_
-            # this gives a more accurate error in case of e.g. a typo in a constant variable name
-            try:
-                get_possible_types_from_node(node.value)
-            except StructureException:
-                # StructureException is a very broad error, better to raise InvalidType in this case
-                pass
-
+    try:
+        value_node = node.value.evaluate()
+    except UnfoldableNode:
         raise InvalidType("Subscript must be a literal integer", node)
 
-    if val <= 0:
+    if not isinstance(value_node, vy_ast.Int):
+        # even though the subscript is an invalid type, first check if it's a valid _something_
+        # this gives a more accurate error in case of e.g. a typo in a constant variable name
+        try:
+            get_possible_types_from_node(node.value)
+        except StructureException:
+            # StructureException is a very broad error, better to raise InvalidType in this case
+            pass
+        raise InvalidType("Subscript must be a literal integer", node)
+
+    if value_node.value <= 0:
         raise ArrayIndexException("Subscript must be greater than 0", node)
 
-    return val
+    return value_node.value
 
 
 def validate_unique_method_ids(functions: List) -> None:

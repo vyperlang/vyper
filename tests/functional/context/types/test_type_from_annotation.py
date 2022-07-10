@@ -7,7 +7,6 @@ from vyper.exceptions import (
     StructureException,
     UndeclaredDefinition,
 )
-from vyper.semantics import validate_expr
 from vyper.semantics.types import get_primitive_types
 from vyper.semantics.types.bases import DataLocation
 from vyper.semantics.types.indexable.mapping import MappingDefinition
@@ -75,9 +74,8 @@ def test_base_types_as_multidimensional_arrays(build_node, namespace, type_str):
 @pytest.mark.parametrize("type_str", ["int128", "String"])
 @pytest.mark.parametrize("idx", ["0", "-1", "0x00", "'1'", "foo", "[1]", "(1,)"])
 def test_invalid_index(build_node, idx, type_str):
-    node = vy_ast.parse_to_ast(f"a: {type_str}[{idx}]")
+    node = build_node(f"{type_str}[{idx}]")
     with pytest.raises((ArrayIndexException, InvalidType, UndeclaredDefinition)):
-        validate_expr(node)
         get_type_from_annotation(node, DataLocation.STORAGE)
 
 
