@@ -56,6 +56,7 @@ def fold(vyper_module: vy_ast.Module) -> None:
     changed_nodes = 1
     while changed_nodes:
         changed_nodes = 0
+        changed_nodes += replace_user_defined_constants(vyper_module)
         changed_nodes += replace_literal_ops(vyper_module)
         changed_nodes += replace_subscripts(vyper_module)
         changed_nodes += replace_builtin_functions(vyper_module)
@@ -82,6 +83,7 @@ def replace_literal_ops(vyper_module: vy_ast.Module) -> int:
     for node in vyper_module.get_descendants(node_types, reverse=True):
         try:
             new_node = node.evaluate()
+
         except UnfoldableNode:
             continue
 
@@ -138,8 +140,15 @@ def replace_builtin_functions(vyper_module: vy_ast.Module) -> int:
     changed_nodes = 0
 
     for node in vyper_module.get_descendants(vy_ast.Call, reverse=True):
+        if not isinstance(node.func, vy_ast.Name):
+            continue
+
+        name = node.func.id
+        func = DISPATCH_TABLE.get(name)
+        if func is None or not hasattr(func, "evaluate"):
+            continue
         try:
-            new_node = node.evaluate()  # type: ignore
+            new_node = func.evaluate(node)  # type: ignore
         except UnfoldableNode:
             continue
 
