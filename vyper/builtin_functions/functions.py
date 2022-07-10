@@ -1116,20 +1116,13 @@ class RawCall(BuiltinFunction):
                 return None
             return BoolDefinition()
 
-        if isinstance(outsize, vy_ast.Int):
-            outsize_val = outsize.value
-            if outsize_val < 0:
-                raise
-        elif isinstance(outsize, vy_ast.Name):
-            outsize_val = outsize.evaluate().value
-            if outsize_val is None or outsize_val < 0:
-                raise
-        else:
+        outsize = outsize.evaluate()
+        if not isinstance(outsize, vy_ast.Int) or outsize.value < 0:
             raise
 
-        if outsize_val:
+        if outsize.value:
             return_type = BytesArrayDefinition()
-            return_type.set_min_length(outsize_val)
+            return_type.set_min_length(outsize.value)
 
             if revert_on_failure:
                 return return_type
