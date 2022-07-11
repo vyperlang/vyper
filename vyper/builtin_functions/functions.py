@@ -2013,7 +2013,7 @@ class _MinMax(BuiltinFunction):
 
     def get_possible_types(self, node):
         self._validate_arg_types(node)
-        return get_common_types(*node.args)
+        return get_common_types(*node.args, filter_fn=lambda x: isinstance(x, NumericAbstractType))
 
     def infer_arg_types(self, node):
         self._validate_arg_types(node)
@@ -2022,12 +2022,7 @@ class _MinMax(BuiltinFunction):
         if "type" in node._metadata:
             return [node._metadata["type"]] * 2
 
-        types_list = get_common_types(
-            *node.args, filter_fn=lambda x: isinstance(x, NumericAbstractType)
-        )
-        if not types_list:
-            raise TypeMismatch("Cannot perform action between dislike numeric types", node)
-
+        types_list = self.get_possible_types(node)
         type_ = types_list.pop()
         return [type_, type_]
 
