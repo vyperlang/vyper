@@ -29,14 +29,22 @@ def foo(a: int256) -> int256:
 @pytest.mark.fuzzing
 @settings(max_examples=50, deadline=1000)
 @given(a=st.integers(min_value=2 ** 255, max_value=2 ** 256 - 1))
-def test_abs_upper_bound_folding(get_contract, a):
+def test_abs_upper_bound_folded_1(get_contract, assert_compile_failed, a):
     source = f"""
 @external
-def foo(a: int256) -> int256:
+def foo() -> int256:
     return abs({a})
     """
-    with pytest.raises((InvalidType, OverflowException)):
-        get_contract(source)
+    assert_compile_failed(lambda: get_contract(source), InvalidType)
+
+
+def test_abs_upper_bound_folded_2(get_contract, assert_compile_failed):
+    source = """
+@external
+def foo() -> int256:
+    return abs(2**256)
+    """
+    assert_compile_failed(lambda: get_contract(source), OverflowException)
 
 
 def test_abs_lower_bound(get_contract, assert_tx_failed):
@@ -50,11 +58,10 @@ def foo(a: int256) -> int256:
     assert_tx_failed(lambda: contract.foo(-(2 ** 255)))
 
 
-def test_abs_lower_bound_folded(get_contract, assert_tx_failed):
+def test_abs_lower_bound_folded(get_contract, assert_compile_failed):
     source = """
 @external
 def foo() -> int256:
     return abs(-2**255)
     """
-    with pytest.raises(OverflowException):
-        get_contract(source)
+    assert_compile_failed(lambda: get_contract(source), OverflowException)
