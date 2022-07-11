@@ -212,6 +212,12 @@ def evm_mod(x, y):
     return sign * (abs(x) % abs(y))  # adapted from py-evm
 
 
+# evm_pow but do not hang on "large" numbers
+def evm_pow(x, y):
+    assert x >= 0 and y >= 0
+    return pow(x, y, 2**256)
+
+
 # memory used for system purposes, not for variables
 class MemoryPositions:
     FREE_VAR_SPACE = 0
