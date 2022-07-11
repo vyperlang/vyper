@@ -1464,8 +1464,8 @@ class Shift(BuiltinFunction):
     def infer_arg_types(self, node):
         self._validate_arg_types(node)
         # return a concrete type instead of SignedIntegerAbstractType
-        arg_ty = get_possible_types_from_node(node.args[0]).pop()
-        shift_ty = get_possible_types_from_node(node.args[1]).pop()
+        arg_ty = get_possible_types_from_node(node.args[0])[0]
+        shift_ty = get_possible_types_from_node(node.args[1])[0]
         return [arg_ty, shift_ty]
 
     @process_inputs
