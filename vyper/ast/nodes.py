@@ -951,6 +951,10 @@ class BinOp(VyperNode):
             raise UnimplementedException(f"{self.op._pretty} is not supported for decimal")
 
         right_folded = self.right.evaluate()
+
+        if isinstance(self.op, (Div, Mod)) and right_folded.value == 0:
+            raise ZeroDivisionException("Division by zero")
+
         left_folded = self.left.evaluate()
 
         value = self.op._op(left_folded.value, right_folded.value)
@@ -1001,8 +1005,6 @@ class Div(VyperNode):
     def _op(self, left, right):
         # evaluate the operation using true division or floor division
         assert type(left) is type(right)
-        if right == 0:
-            raise ZeroDivisionException("Division by zero")
 
         if isinstance(left, decimal.Decimal):
             value = left / right
@@ -1026,9 +1028,6 @@ class Mod(VyperNode):
     _pretty = "%"
 
     def _op(self, left, right):
-        if right == 0:
-            raise ZeroDivisionException("Modulo by zero")
-
         value = abs(left) % abs(right)
         if left < 0:
             value = -value
