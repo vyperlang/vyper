@@ -12,7 +12,7 @@ st_int128 = st.integers(min_value=-128, max_value=127)
 @pytest.mark.fuzzing
 @settings(max_examples=100, deadline=1000)
 @given(a=st_uint256, b=st_int128)
-def test_powmod_uint256(get_contract, a, b):
+def test_shift_uint256(get_contract, a, b):
     source = """
 @external
 def foo(a: uint256, b: int128) -> uint256:
