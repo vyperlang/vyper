@@ -73,7 +73,7 @@ POST_BYZANTIUM = [k for (k, v) in EVM_VERSIONS.items() if v > 0]
 
 
 @pytest.mark.parametrize("evm_version", POST_BYZANTIUM)
-def test_test_bitwise(get_contract_with_gas_estimation, evm_version):
+def test_signed_shift(get_contract_with_gas_estimation, evm_version):
     code = """
 @external
 def _signedShift(x: int256, y: int128) -> int256:
