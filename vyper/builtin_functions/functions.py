@@ -32,7 +32,9 @@ from vyper.codegen.core import (
     ir_tuple_from_args,
     needs_external_call_wrap,
     promote_signed_int,
+    sar,
     shl,
+    shr,
     unwrap_location,
 )
 from vyper.codegen.expr import Expr
@@ -50,7 +52,6 @@ from vyper.codegen.types import (
     parse_integer_typeinfo,
 )
 from vyper.codegen.types.convert import new_type_to_old_type
-from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
     ArgumentException,
     CompilerPanic,
@@ -1435,8 +1436,10 @@ class BitwiseNot(BuiltinFunction):
 class Shift(BuiltinFunction):
 
     _id = "shift"
-    _inputs = [("x", Uint256Definition()), ("_shift", SignedIntegerAbstractType())]
-    _return_type = Uint256Definition()
+    _inputs = [
+        ("x", (Uint256Definition(), Int256Definition())),
+        ("shift_bits", SignedIntegerAbstractType()),
+    ]
 
     def evaluate(self, node):
         validate_call_args(node, 2)
@@ -1454,49 +1457,29 @@ class Shift(BuiltinFunction):
             value = (value << shift) % (2 ** 256)
         return vy_ast.Int.from_node(node, value=value)
 
+    def fetch_call_return(self, node):
+        # return type is the type of the first argument
+        return self.infer_arg_types(node)[0]
+
     def infer_arg_types(self, node):
         self._validate_arg_types(node)
         # return a concrete type instead of SignedIntegerAbstractType
-        shift_type = get_possible_types_from_node(node.args[1]).pop()
-        return [self._inputs[0][1], shift_type]
+        arg_ty = get_possible_types_from_node(node.args[0]).pop()
+        shift_ty = get_possible_types_from_node(node.args[1]).pop()
+        return [arg_ty, shift_ty]
 
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
-        if args[1].typ.is_literal:
-            shift_abs = abs(args[1].value)
-        else:
-            shift_abs = ["sub", 0, "_s"]
+        # "gshr" -- generalized right shift
+        argty = args[0].typ
+        GSHR = sar if argty._int_info.is_signed else shr
 
-        if version_check(begin="constantinople"):
-            # TODO use convenience functions shl and shr in codegen/core.py
-            if args[1].typ.is_literal:
-                # optimization when SHL/SHR instructions are available shift distance is a literal
-                value = args[1].value
-                if value >= 0:
-                    ir_node = ["shl", value, args[0]]
-                else:
-                    ir_node = ["shr", abs(value), args[0]]
-                return IRnode.from_list(ir_node, typ=BaseType("uint256"))
-            else:
-                left_shift = ["shl", "_s", args[0]]
-                right_shift = ["shr", shift_abs, args[0]]
-
-        else:
-            # If second argument is positive, left-shift so multiply by a power of two
-            # If it is negative, divide by a power of two
-            # node that if the abs of the second argument >= 256, then in the EVM
-            # 2**(second arg) = 0, and multiplying OR dividing by 0 gives 0
-            left_shift = ["mul", args[0], ["exp", 2, "_s"]]
-            right_shift = ["div", args[0], ["exp", 2, shift_abs]]
-
-        if not args[1].typ.is_literal:
-            node_list = ["if", ["slt", "_s", 0], right_shift, left_shift]
-        elif args[1].value >= 0:
-            node_list = left_shift
-        else:
-            node_list = right_shift
-
-        return IRnode.from_list(["with", "_s", args[1], node_list], typ=BaseType("uint256"))
+        with args[0].cache_when_complex("to_shift") as (b1, arg), args[1].cache_when_complex(
+            "bits"
+        ) as (b2, bits):
+            neg_bits = ["sub", 0, bits]
+            ret = ["if", ["slt", bits, 0], GSHR(neg_bits, arg), shl(bits, arg)]
+            return b1.resolve(b2.resolve(IRnode.from_list(ret, typ=argty)))
 
 
 class _AddMulMod(BuiltinFunction):
