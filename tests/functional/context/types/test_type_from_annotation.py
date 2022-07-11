@@ -1,10 +1,6 @@
 import pytest
 
-from vyper.exceptions import (
-    ArrayIndexException,
-    InvalidType,
-    StructureException,
-)
+from vyper.exceptions import ArrayIndexException, InvalidType, StructureException
 from vyper.semantics.types import get_primitive_types
 from vyper.semantics.types.bases import DataLocation
 from vyper.semantics.types.indexable.mapping import MappingDefinition
