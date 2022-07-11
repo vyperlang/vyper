@@ -215,7 +215,7 @@ def evm_mod(x, y):
 # evm_pow but do not hang on "large" numbers
 def evm_pow(x, y):
     assert x >= 0 and y >= 0
-    return pow(x, y, 2**256)
+    return pow(x, y, 2 ** 256)
 
 
 # memory used for system purposes, not for variables
