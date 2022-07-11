@@ -19,6 +19,7 @@ st_decimals = st.decimals(
 @example(left=Decimal("0.0000000001"), right=Decimal("0.9999999999"))
 @example(left=Decimal("0.9999999999"), right=Decimal("0.9999999999"))
 @example(left=Decimal("0.0000000001"), right=Decimal("0.0000000001"))
+@example(left=Decimal("0.0000000001"), right=Decimal("0.0000000000"))
 @pytest.mark.parametrize("op", "+-*/%")
 def test_binop_decimal(get_contract, assert_tx_failed, op, left, right):
     source = f"""
