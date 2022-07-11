@@ -2008,10 +2008,6 @@ class _MinMax(BuiltinFunction):
         return ret
 
     def fetch_call_return(self, node):
-        # `type` will be annotated if it is in a return statement
-        if "type" in node._metadata:
-            return node._metadata["type"]
-
         return_type = self.infer_arg_types(node).pop()
         return return_type
 
