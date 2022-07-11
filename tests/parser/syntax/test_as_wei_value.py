@@ -1,6 +1,7 @@
 import pytest
 
 from vyper.exceptions import (
+    ArgumentException,
     InvalidLiteral,
     InvalidType,
     OverflowException,
@@ -59,6 +60,14 @@ def foo():
     """,
         OverflowException,  #
         # Out of bounds of decimal, caught by validation of literal nodes
+    ),
+    (
+        """
+@external
+def foo():
+    x: uint256 = as_wei_value(5, "satoshi")
+    """,
+        ArgumentException,
     ),
 ]
 
