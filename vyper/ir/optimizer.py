@@ -513,7 +513,7 @@ def _optimize(node: IRnode, parent: Optional[IRnode]) -> Tuple[bool, IRnode]:
             # if true
             else:
                 # return the first branch
-                return finalize("seq", argz[1])
+                return finalize("seq", [argz[1]])
 
         elif len(argz) == 3 and argz[0].value != "iszero":
             # if(x) compiles to jumpi(_, iszero(x))
