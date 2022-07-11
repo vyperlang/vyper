@@ -69,6 +69,28 @@ def test_test_bitwise(get_contract_with_gas_estimation, evm_version):
     assert c._negatedShift(x, 256) == 0
 
 
+POST_BYZANTIUM = [k for (k, v) in EVM_VERSIONS.items() if v > 0]
+
+
+@pytest.mark.parametrize("evm_version", POST_BYZANTIUM)
+def test_test_bitwise(get_contract_with_gas_estimation, evm_version):
+    code = """
+@external
+def _signedShift(x: int256, y: int128) -> int256:
+    return shift(x, y)
+    """
+    c = get_contract_with_gas_estimation(code, evm_version=evm_version)
+    x = 126416208461208640982146408124
+    y = 7128468721412412459
+    cases = [x, y, -x, -y]
+
+    for t in cases:
+        assert c._signedShift(t, 0) == t >> 0
+        assert c._signedShift(t, -1) == t >> 1
+        assert c._signedShift(t, -3) == t >> 3
+        assert c._signedShift(t, -256) == t >> 256
+
+
 @pytest.mark.parametrize("evm_version", list(EVM_VERSIONS))
 def test_literals(get_contract, evm_version):
     code = """
