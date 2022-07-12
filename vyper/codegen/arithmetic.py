@@ -155,7 +155,8 @@ def safe_add(x, y):
             # TODO push down into optimizer rules.
             ok = ["ge", res, x]
 
-        ret = IRnode.from_list(["seq", ["assert", ok], res])
+        check = IRnode.from_list(["assert", ok], error_msg="safeadd")
+        ret = IRnode.from_list(["seq", check, res])
         return b1.resolve(ret)
 
 
@@ -184,7 +185,8 @@ def safe_sub(x, y):
             # TODO push down into optimizer rules.
             ok = ["le", res, x]
 
-        ret = IRnode.from_list(["seq", ["assert", ok], res])
+        check = IRnode.from_list(["assert", ok], error_msg="safesub")
+        ret = IRnode.from_list(["seq", check, res])
         return b1.resolve(ret)
 
 
@@ -250,7 +252,8 @@ def safe_mul(x, y):
         # (if bits == 256, clamp_basetype is a no-op)
         res = clamp_basetype(res)
 
-        res = IRnode.from_list(["seq", ["assert", ok], res], typ=res.typ)
+        check = IRnode.from_list(["assert", ok], error_msg="safediv")
+        res = IRnode.from_list(["seq", check, res], typ=res.typ)
 
         return b1.resolve(res)
 
@@ -308,7 +311,7 @@ def safe_div(x, y):
             # TODO maybe use safe_mul
             res = clamp_basetype(res)
 
-        check = ["assert", ok]
+        check = IRnode.from_list(["assert", ok], error_msg="safemul")
         return IRnode.from_list(b1.resolve(["seq", check, res]))
 
 

@@ -65,7 +65,7 @@ def generate_ir_for_function(
 
     frame_size = context.memory_allocator.size_of_mem - MemoryPositions.RESERVED_MEMORY
 
-    sig.set_frame_info(FrameInfo(allocate_start, frame_size))
+    sig.set_frame_info(FrameInfo(allocate_start, frame_size, context.vars))
 
     if not sig.internal:
         # adjust gas estimate to include cost of mem expansion
