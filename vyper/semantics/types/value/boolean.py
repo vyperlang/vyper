@@ -7,8 +7,11 @@ from vyper.exceptions import InvalidLiteral
 from ..bases import BasePrimitive, BaseTypeDefinition, ValueTypeDefinition
 
 
-class BoolDefinition(ValueTypeDefinition):
+class BoolT(SimpleGettableT):
     _id = "bool"
+    _as_array = True
+    _valid_literal = (vy_ast.NameConstant,)
+
 
     def validate_boolean_op(self, node: vy_ast.BoolOp) -> None:
         return
@@ -24,17 +27,7 @@ class BoolDefinition(ValueTypeDefinition):
     def abi_type(self) -> ABIType:
         return ABI_Bool()
 
-
-class BoolPrimitive(BasePrimitive):
-
-    _as_array = True
-    _id = "bool"
-    _type = BoolDefinition
-    _valid_literal = (vy_ast.NameConstant,)
-
-    @classmethod
-    def from_literal(cls, node: vy_ast.Constant) -> BaseTypeDefinition:
-        obj = super().from_literal(node)
+    def validate_literal(cls, node: vy_ast.Constant) -> None:
+        super().validate_literal(node)
         if node.value is None:
             raise InvalidLiteral("Invalid literal for type 'bool'", node)
-        return obj

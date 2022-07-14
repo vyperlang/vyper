@@ -22,8 +22,10 @@ class StructT(AttributableT, SimpleGettableT):
     _is_callable = True
     _as_array = True
 
-    def __init__(self, _id, members):
+    def __init__(self, _id, members, ast_def):
         self._id = _id
+
+        self.ast_def = ast_def
 
         for k, v in members:
             validate_identifier(k)
@@ -58,7 +60,7 @@ class StructT(AttributableT, SimpleGettableT):
             member_name = node.target.id
             members.append(member_name, type_from_annotation(node.annotation))
 
-        return cls(struct_name, members)
+        return cls(struct_name, members, ast_def=base_node)
 
     def __repr__(self):
         return f"{self._id} declaration object"

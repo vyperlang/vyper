@@ -10,8 +10,10 @@ from .bytes_fixed import Bytes32Definition
 from .numeric import Uint256Definition  # type: ignore
 
 
-class AddressDefinition(MemberTypeDefinition, ValueTypeDefinition):
+class AddressT(AttributableT, SimpleGettableT):
+    _as_array = True
     _id = "address"
+    _valid_literal = (vy_ast.Hex,)
     _type_members = {
         "balance": Uint256Definition(is_constant=True),
         "codehash": Bytes32Definition(is_constant=True),
@@ -24,16 +26,9 @@ class AddressDefinition(MemberTypeDefinition, ValueTypeDefinition):
     def abi_type(self) -> ABIType:
         return ABI_Address()
 
-
-class AddressPrimitive(BasePrimitive):
-    _as_array = True
-    _id = "address"
-    _type = AddressDefinition
-    _valid_literal = (vy_ast.Hex,)
-
     @classmethod
-    def from_literal(cls, node: vy_ast.Constant) -> AddressDefinition:
-        super().from_literal(node)
+    def validate_literal(cls, node: vy_ast.Constant):
+        super().validate_literal(node)
         addr = node.value
         if len(addr) != 42:
             n_bytes = (len(addr) - 2) // 2
@@ -45,5 +40,3 @@ class AddressPrimitive(BasePrimitive):
                 f"address, the correct checksummed form is: {checksum_encode(addr)}",
                 node,
             )
-
-        return AddressDefinition()

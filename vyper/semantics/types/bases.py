@@ -98,6 +98,12 @@ class VyperType:
     _id: str
     _valid_literal: Tuple
 
+    @property
+    def getter_signature(self):
+        return (), self
+
+
+
     # TODO dead fn
     @classmethod
     def from_annotation(
@@ -127,18 +133,9 @@ class VyperType:
             raise UnexpectedValue("Node id does not match type name")
         return cls._type(location, is_constant, is_public, is_immutable)
 
-    @classmethod
-    def from_literal(cls, node: vy_ast.Constant) -> "BaseTypeDefinition":
+    def validate_literal(self, node: vy_ast.Constant) -> None:
         """
-        Generate a `BaseTypeDefinition` instance of this type from a literal constant.
-
-        This method is called on every primitive class in order to determine
-        potential types for a `Constant` AST node.
-
-        Types that may be assigned from literals should include a `_valid_literal`
-        attribute, containing a list of AST node classes that may be valid for
-        this type. If the `_valid_literal` attribute is not included, the type
-        cannot be assigned to a literal.
+        Validate whether a given literal can be annotated with this type.
 
         Arguments
         ---------
@@ -154,8 +151,6 @@ class VyperType:
             raise UnexpectedNodeType(f"Attempted to validate a '{node.ast_type}' node.")
         if not isinstance(node, cls._valid_literal):
             raise InvalidLiteral(f"Invalid literal type for {cls.__name__}", node)
-        return cls._type()
-
     @classmethod
     def compare_type(
         cls, other: Union["BaseTypeDefinition", "BasePrimitive", AbstractDataType]
@@ -542,25 +537,13 @@ class VarInfo:
         return True
 
 
-class SimpleGettableT(VyperType):
+class ExprInfo:
     """
-    Base class for types representing a single value. The getter
-    for these types takes 0 arguments and returns the entire value.
-
-    Class attributes
-    ----------------
-    _valid_literal: VyperNode | Tuple
-        A vyper ast class or tuple of ast classes that can represent valid literals
-        for the given type. Including this attribute will allow literal values to be
-        assigned this type.
+    Class which represents the info associated with an expression
     """
-
-    def __repr__(self):
-        return self._id
-
-    @property
-    def getter_signature(self):
-        return (), self
+    def __init__(self, typ, var_info):
+        self.typ: VyperType = typ
+        self.var_info: Optional[VarInfo] = None
 
 
 class AttributableT(VyperType):

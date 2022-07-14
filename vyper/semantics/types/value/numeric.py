@@ -116,14 +116,13 @@ class _NumericPrimitive(BasePrimitive):
     _bounds: Tuple[int, int]
 
     @classmethod
-    def from_literal(cls, node: vy_ast.Constant) -> BaseTypeDefinition:
-        obj = super().from_literal(node)
+    def validate_literal(cls, node: vy_ast.Constant):
+        super().validate_literal(node)
         lower, upper = cls._bounds
         if node.value < lower:
             raise OverflowException(f"Value is below lower bound for given type ({lower})", node)
         if node.value > upper:
             raise OverflowException(f"Value exceeds upper bound for given type ({upper})", node)
-        return obj
 
 
 # definitions

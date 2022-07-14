@@ -24,8 +24,8 @@ class BytesMPrimitive(BasePrimitive):
     _valid_literal = (vy_ast.Hex,)
 
     @classmethod
-    def from_literal(cls, node: vy_ast.Constant) -> BaseTypeDefinition:
-        obj = super().from_literal(node)
+    def validate_literal(cls, node: vy_ast.Constant):
+        super().validate_literal(node)
         val = node.value
         m = cls._length
 
@@ -35,8 +35,6 @@ class BytesMPrimitive(BasePrimitive):
         nibbles = val[2:]  # strip leading 0x
         if nibbles not in (nibbles.lower(), nibbles.upper()):
             raise InvalidLiteral(f"Cannot mix uppercase and lowercase for bytes{m} literal", node)
-
-        return obj
 
 
 # including so mypy does not complain while we are generating types dynamically

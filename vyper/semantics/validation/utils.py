@@ -220,15 +220,17 @@ class _ExprTypeChecker:
     def types_from_Constant(self, node):
         # literal value (integer, string, etc)
         types_list = []
-        for primitive in types.get_primitive_types().values():
+        for t in types.get_primitive_types().values():
             try:
-                obj = primitive.from_literal(node)
-                types_list.append(obj)
+                t.validate_literal(node)
+                types_list.append(t)
             except VyperException:
                 continue
+
         if types_list:
             return types_list
 
+        # failed; prepare a good error message
         if isinstance(node, vy_ast.Num):
             raise OverflowException(
                 "Numeric literal is outside of allowable range for number types", node
@@ -382,6 +384,7 @@ def get_common_types(*nodes: vy_ast.VyperNode, filter_fn: Callable = None) -> Li
     return common_types
 
 
+# TODO push this into `ArrayT.validate_literal()`
 def _validate_literal_array(node, expected):
 
     # validate that every item within an array has the same type
