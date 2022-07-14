@@ -18,31 +18,19 @@ from vyper.semantics.validation.levenshtein_utils import get_levenshtein_error_s
 from vyper.semantics.validation.utils import validate_expected_type
 
 
-class StructDefinition(MemberTypeDefinition, ValueTypeDefinition):
     def __init__(
         self,
         _id: str,
         members: dict,
-        location: DataLocation = DataLocation.MEMORY,
-        is_constant: bool = False,
-        is_public: bool = False,
-        is_immutable: bool = False,
     ) -> None:
         self._id = _id
-        super().__init__(location, is_constant, is_public, is_immutable)
+
         for key, type_ in members.items():
             self.add_member(key, type_)
 
     @property
-    def is_dynamic_size(self):
-        return any(i for i in self.members.values() if i.is_dynamic_size)
-
-    @property
     def size_in_bytes(self):
         return sum(i.size_in_bytes for i in self.members.values())
-
-    def compare_type(self, other):
-        return super().compare_type(other) and self._id == other._id
 
     @property
     def abi_type(self) -> ABIType:
@@ -53,8 +41,7 @@ class StructDefinition(MemberTypeDefinition, ValueTypeDefinition):
         return {"name": name, "type": "tuple", "components": components}
 
 
-class StructPrimitive:
-
+class StructT(AttributableT, SimpleGettableT):
     _is_callable = True
     _as_array = True
 
@@ -67,8 +54,11 @@ class StructPrimitive:
     def __repr__(self):
         return f"{self._id} declaration object"
 
+
+    # TODO check me
     def compare_type(self, other):
-        return False
+        return super().compare_type(other) and self._id == other._id
+
 
     def from_annotation(
         self,
@@ -84,6 +74,7 @@ class StructPrimitive:
             self._id, self.members, location, is_constant, is_public, is_immutable
         )
 
+    # TODO breaking change: use kwargs instead of dict
     def fetch_call_return(self, node: vy_ast.Call) -> StructDefinition:
         validate_call_args(node, 1)
         if not isinstance(node.args[0], vy_ast.Dict):
@@ -122,21 +113,22 @@ class StructPrimitive:
         return StructDefinition(self._id, self.members)
 
 
-def build_primitive_from_node(base_node: vy_ast.EventDef) -> StructPrimitive:
+def from_ast_def(base_node: vy_ast.StructDef) -> StructT:
     """
-    Generate a `StructPrimitive` object from a Vyper ast node.
+    Generate a `StructT` object from a Vyper ast node.
 
     Arguments
     ---------
-    node : EventDef
+    node : StructDef
         Vyper ast node defining the struct
     Returns
     -------
-    StructPrimitive
-        Primitive struct type
+    StructT
+        Struct type
     """
 
-    members: OrderedDict = OrderedDict()
+    struct_name = base_node.name
+    members: Dict[str, str] = {}
     for node in base_node.body:
         if not isinstance(node, vy_ast.AnnAssign):
             raise StructureException(
@@ -151,6 +143,6 @@ def build_primitive_from_node(base_node: vy_ast.EventDef) -> StructPrimitive:
             raise NamespaceCollision(
                 f"Struct member '{member_name}' has already been declared", node.target
             )
-        members[member_name] = get_type_from_annotation(node.annotation, DataLocation.UNSET)
+        members[member_name] = type_from_annotation(node.annotation, DataLocation.UNSET)
 
-    return StructPrimitive(base_node.name, members)
+    return StructT(struct_name, members)

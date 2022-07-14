@@ -143,13 +143,7 @@ def get_type_from_abi(
             raise UnknownType(f"ABI contains unknown type: {type_string}") from None
 
 
-def var_info_from_annotation(
-    node: vy_ast.VyperNode,
-    location: DataLocation = DataLocation.UNSET,
-    is_constant: bool = False,
-    is_public: bool = False,
-    is_immutable: bool = False,
-) -> BaseTypeDefinition:
+def type_from_annotation(node: vy_ast.VyperNode) -> VyperType:
     """
     Return a type object for the given AST node.
 
@@ -167,8 +161,8 @@ def var_info_from_annotation(
 
     if isinstance(node, vy_ast.Tuple):
         values = node.elements
-        types = tuple(get_type_from_annotation(v, DataLocation.UNSET) for v in values)
-        return TupleDefinition(types)
+        types = tuple(type_from_annotation(v) for v in values)
+        return TupleT(types)
 
     try:
         # get id of leftmost `Name` node from the annotation
@@ -191,10 +185,8 @@ def var_info_from_annotation(
         # TODO: handle `is_immutable` for arrays
         # if type can be an array and node is a subscript, create an `ArrayDefinition`
         length = get_index_value(node.slice)
-        value_type = get_type_from_annotation(
-            node.value, location, is_constant, False, is_immutable
-        )
-        return ArrayDefinition(value_type, length, location, is_constant, is_public, is_immutable)
+        value_type = type_from_annotation(node.value)
+        return SArrayT(value_type)
 
     try:
         return type_obj.from_annotation(node, location, is_constant, is_public, is_immutable)
