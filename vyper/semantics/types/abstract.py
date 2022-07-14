@@ -3,6 +3,9 @@ from typing import Tuple
 from vyper.codegen.types import INTEGER_TYPES, SIGNED_INTEGER_TYPES, UNSIGNED_INTEGER_TYPES
 
 
+# TODO remove this module
+
+
 class AbstractDataType:
     """
     Base class for abstract type classes.

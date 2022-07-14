@@ -300,6 +300,7 @@ def _is_type_in_list(obj, types_list):
     return any(i.compare_type(obj) for i in types_list)
 
 
+# NOTE: dead fn
 def _filter(type_, fn_name, node):
     # filter function used when evaluating boolean ops and comparators
     try:

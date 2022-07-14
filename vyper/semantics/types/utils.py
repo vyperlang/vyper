@@ -143,9 +143,9 @@ def get_type_from_abi(
             raise UnknownType(f"ABI contains unknown type: {type_string}") from None
 
 
-def get_type_from_annotation(
+def var_info_from_annotation(
     node: vy_ast.VyperNode,
-    location: DataLocation,
+    location: DataLocation = DataLocation.UNSET,
     is_constant: bool = False,
     is_public: bool = False,
     is_immutable: bool = False,

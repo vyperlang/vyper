@@ -81,20 +81,14 @@ class CodeOffset(DataPosition):
         return f"<CodeOffset: {self.offset}>"
 
 
-class BasePrimitive:
+class VyperType:
     """
-    Base class for primitive type classes.
-
-    Primitives are objects that are invoked when applying a type to a variable.
-    They must contain a `from_annotation` (and optionally `from_literal`) method
-    that returns their equivalent `BaseTypeDefinition` object.
+    Base class for vyper types.
 
     Attributes
     ----------
     _id : str
         The name of the type.
-    _type : BaseTypeDefinition
-        The related `BaseTypeDefinition` class generated from this primitive
     _as_array: bool, optional
         If `True`, this type can be used as the base member for an array.
     _valid_literal : Tuple
@@ -102,9 +96,9 @@ class BasePrimitive:
     """
 
     _id: str
-    _type: Type["BaseTypeDefinition"]
     _valid_literal: Tuple
 
+    # TODO dead fn
     @classmethod
     def from_annotation(
         cls,
@@ -223,12 +217,10 @@ class BasePrimitive:
         raise InvalidOperation("Cannot assign to a type", node)
 
 
-class BaseTypeDefinition:
+class VarInfo:
     """
-    Base class for type definition classes.
-
-    Type definitions are objects that represent the type of a specific object
-    within a contract. They are usually derived from a `BasePrimitive` counterpart.
+    VarInfo are objects that represent the type of a variable,
+    plus associated metadata like location and constancy attributes
 
     Class Attributes
     -----------------
@@ -242,24 +234,20 @@ class BaseTypeDefinition:
     Object Attributes
     -----------------
     is_constant : bool, optional
-        If `True`, the value of this object cannot be modified after assignment.
-    size_in_bytes: int
-        The number of bytes that are required to store this type.
+        If `True`, this is a variable defined with the `constant()` modifier
     """
 
-    # TODO CMC 2022-01-08 `is_dynamic_size` probably unused
-    is_dynamic_size = False
-
-    size_in_bytes = 32
     _id: str
 
     def __init__(
         self,
+        typ: VyperType,
         location: DataLocation = DataLocation.UNSET,
         is_constant: bool = False,
         is_public: bool = False,
         is_immutable: bool = False,
     ) -> None:
+        self.typ = vyper_type
         self.location = location
         self.is_constant = is_constant
         self.is_public = is_public
@@ -267,6 +255,7 @@ class BaseTypeDefinition:
 
         self._modification_count = 0
 
+    # TODO move to VyperType
     @property
     def abi_type(self) -> ABIType:
         """
@@ -274,6 +263,7 @@ class BaseTypeDefinition:
         """
         raise CompilerPanic("Method must be implemented by the inherited class")
 
+    # TODO move to VyperType
     @property
     def canonical_abi_type(self) -> str:
         """
@@ -281,6 +271,7 @@ class BaseTypeDefinition:
         """
         return self.abi_type.selector_name()
 
+    # TODO move to VyperType
     def to_abi_dict(self, name: str = "") -> Dict[str, Any]:
         """
         The JSON ABI description of this type. Note for complex types,
@@ -298,10 +289,7 @@ class BaseTypeDefinition:
         """
         return {"name": name, "type": self.canonical_abi_type}
 
-    def from_annotation(self, node: vy_ast.VyperNode, *args: Any, **kwargs: Any) -> None:
-        # always raises, user should have used a primitive
-        raise StructureException("Value is not a type", node)
-
+    # TODO move to VarInfo
     def set_position(self, position: DataPosition) -> None:
         if hasattr(self, "position"):
             raise CompilerPanic("Position was already assigned")
@@ -528,12 +516,7 @@ class BaseTypeDefinition:
         if isinstance(node, vy_ast.AugAssign):
             self.validate_numeric_op(node)
 
-    def get_signature(self) -> Tuple[Tuple, Optional["BaseTypeDefinition"]]:
-        """
-        The getter signature for this type
-        """
-        raise CompilerPanic("Method must be implemented by the inherited class")
-
+    # TODO
     def compare_signature(self, other: "BaseTypeDefinition") -> bool:
         """
         Compare the signature of this type with another type.
@@ -545,8 +528,8 @@ class BaseTypeDefinition:
         if not self.is_public:
             return False
 
-        arguments, return_type = self.get_signature()
-        other_arguments, other_return_type = other.get_signature()
+        arguments, return_type = self.getter_signature()
+        other_arguments, other_return_type = other.getter_signature()
 
         if len(arguments) != len(other_arguments):
             return False
@@ -559,7 +542,7 @@ class BaseTypeDefinition:
         return True
 
 
-class ValueTypeDefinition(BaseTypeDefinition):
+class SimpleGettableT(VyperType):
     """
     Base class for types representing a single value. The getter
     for these types takes 0 arguments and returns the entire value.
@@ -575,13 +558,15 @@ class ValueTypeDefinition(BaseTypeDefinition):
     def __repr__(self):
         return self._id
 
-    def get_signature(self):
+    @property
+    def getter_signature(self):
         return (), self
 
 
-class MemberTypeDefinition(BaseTypeDefinition):
+class AttributableT(VyperType):
     """
-    Base class for types that have accessible members.
+    Base class for types that can be indexed into via attribute.
+    E.g. `foo.bar`
 
     Class attributes
     ----------------
@@ -594,33 +579,23 @@ class MemberTypeDefinition(BaseTypeDefinition):
         Dictionary of members for the given type.
     """
 
-    _type_members: Dict
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self.members: Dict[str, VyperType] = {}
 
-    def __init__(
-        self,
-        location: DataLocation = DataLocation.UNSET,
-        is_constant: bool = False,
-        is_public: bool = False,
-        is_immutable: bool = False,
-    ) -> None:
-        super().__init__(location, is_constant, is_public, is_immutable)
-        self.members: OrderedDict = OrderedDict()
-
-    def add_member(self, name: str, type_: BaseTypeDefinition) -> None:
+    def add_member(self, name: str, type_: VyperType) -> None:
         if name in self.members:
             raise NamespaceCollision(f"Member '{name}' already exists in {self}")
         if name in getattr(self, "_type_members", []):
             raise NamespaceCollision(f"Member '{name}' already exists in {self}")
         self.members[name] = type_
 
-    def get_member(self, key: str, node: vy_ast.VyperNode) -> BaseTypeDefinition:
+    def get_member(self, key: str, node: vy_ast.VyperNode) -> VyperType:
         if key in self.members:
             return self.members[key]
         elif key in getattr(self, "_type_members", []):
-            type_ = copy.deepcopy(self._type_members[key])
-            type_.location = self.location
-            type_.is_constant = self.is_constant
-            return type_
+            return self._cls_members[key]
+
         suggestions_str = get_levenshtein_error_suggestions(key, self.members, 0.3)
         raise UnknownAttribute(f"{self} has no member '{key}'. {suggestions_str}", node)
 
@@ -628,7 +603,7 @@ class MemberTypeDefinition(BaseTypeDefinition):
         return self._id
 
 
-class IndexableTypeDefinition(BaseTypeDefinition):
+class IndexableT(VyperType):
     """
     Base class for indexable types such as arrays and mappings.
 
@@ -644,22 +619,19 @@ class IndexableTypeDefinition(BaseTypeDefinition):
 
     def __init__(
         self,
-        value_type: BaseTypeDefinition,
-        key_type: BaseTypeDefinition,
+        value_type: VyperType,
+        key_type: VyperType,
         _id: str,
-        location: DataLocation = DataLocation.UNSET,
-        is_constant: bool = False,
-        is_public: bool = False,
-        is_immutable: bool = False,
     ) -> None:
         super().__init__(location, is_constant, is_public, is_immutable)
         self.value_type = value_type
         self.key_type = key_type
         self._id = _id
 
-    def get_signature(self) -> Tuple[Tuple, Optional[BaseTypeDefinition]]:
-        new_args, return_type = self.value_type.get_signature()
+    def getter_signature(self) -> Tuple[Tuple, Optional[VyperType]]:
+        new_args, return_type = self.value_type.getter_signature()
         return (self.key_type,) + new_args, return_type
 
+    # TODO rename me
     def get_index_type(self):
         return self.key_type
