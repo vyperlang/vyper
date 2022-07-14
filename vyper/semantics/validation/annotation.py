@@ -1,10 +1,11 @@
 from vyper import ast as vy_ast
 from vyper.exceptions import StructureException
 from vyper.semantics.types import ArrayDefinition
-from vyper.semantics.types.bases import BaseTypeDefinition
 from vyper.semantics.types.function import ContractFunction, MemberFunctionDefinition
+from vyper.semantics.types.user.enum import EnumDefinition
 from vyper.semantics.types.user.event import Event
 from vyper.semantics.types.user.struct import StructPrimitive
+from vyper.semantics.types.utils import TypeTypeDefinition
 from vyper.semantics.validation.utils import (
     get_common_types,
     get_exact_type_from_node,
@@ -40,12 +41,7 @@ class _AnnotationVisitorBase:
 
 class StatementAnnotationVisitor(_AnnotationVisitorBase):
 
-    ignored_types = (
-        vy_ast.Break,
-        vy_ast.Continue,
-        vy_ast.Pass,
-        vy_ast.Raise,
-    )
+    ignored_types = (vy_ast.Break, vy_ast.Continue, vy_ast.Pass, vy_ast.Raise)
 
     def __init__(self, fn_node: vy_ast.FunctionDef, namespace: dict) -> None:
         self.func = fn_node._metadata["type"]
@@ -182,7 +178,11 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
             else:
                 type_ = get_exact_type_from_node(node.right)
                 self.visit(node.right, type_)
-                self.visit(node.left, type_.value_type)
+                if isinstance(type_, EnumDefinition):
+                    self.visit(node.left, type_)
+                else:
+                    # array membership
+                    self.visit(node.left, type_.value_type)
         else:
             type_ = get_common_types(node.left, node.right).pop()
             self.visit(node.left, type_)
@@ -219,12 +219,7 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
             self.visit(element, type_.value_type)
 
     def visit_Name(self, node, type_):
-        if type_ is not None and not isinstance(type_, BaseTypeDefinition):
-            # some nodes are straight type annotations e.g. `String[100]` in
-            # `empty(String[100])`. (other instances are raw_call, convert and
-            # slice). skip annotating them because they do not conform to
-            # the BaseTypeDefinition API (and anyways we do not need to
-            # annotate them!)
+        if isinstance(type_, TypeTypeDefinition):
             node._metadata["type"] = type_
         else:
             node._metadata["type"] = get_exact_type_from_node(node)
@@ -232,12 +227,8 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
     def visit_Subscript(self, node, type_):
         node._metadata["type"] = type_
 
-        if type_ is not None and not isinstance(type_, BaseTypeDefinition):
-            # some nodes are straight type annotations e.g. `String[100]` in
-            # `empty(String[100])`. (other instances are raw_call, convert and
-            # slice). skip annotating them because they do not conform to
-            # the BaseTypeDefinition API (and anyways we do not need to
-            # annotate them!)
+        if isinstance(type_, TypeTypeDefinition):
+            # don't recurse; can't annotate AST children of type definition
             return
 
         if isinstance(node.value, vy_ast.List):
@@ -260,6 +251,11 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
 
     def visit_Tuple(self, node, type_):
         node._metadata["type"] = type_
+
+        if isinstance(type_, TypeTypeDefinition):
+            # don't recurse; can't annotate AST children of type definition
+            return
+
         for element, subtype in zip(node.elements, type_.value_type):
             self.visit(element, subtype)
 

@@ -115,12 +115,7 @@ def test_javascript_signatures(w3, get_contract):
     # There's no need to pass in signatures because the owners are 0 addresses
     # causing them to default to valid signatures
     x2.approve(
-        0,
-        recipient,
-        25,
-        b"",
-        sigs + [[0, 0, 0]] * 3,
-        call={"to": x2.address, "value": 10 ** 17},
+        0, recipient, 25, b"", sigs + [[0, 0, 0]] * 3, call={"to": x2.address, "value": 10 ** 17}
     )
 
     print("Javascript signature tests passed")

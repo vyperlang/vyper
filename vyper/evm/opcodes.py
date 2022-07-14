@@ -180,6 +180,7 @@ OPCODES: OpcodeMap = {
     "REVERT": (0xFD, 2, 0, 0),
     "INVALID": (0xFE, 0, 0, 0),
     "DEBUG": (0xA5, 1, 0, 0),
+    "BREAKPOINT": (0xA6, 0, 0, 0),
 }
 
 PSEUDO_OPCODES: OpcodeMap = {

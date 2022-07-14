@@ -14,14 +14,9 @@ def _parse_cli_args():
 
 def _parse_args(argv):
     parser = argparse.ArgumentParser(description="Vyper IR IR compiler")
+    parser.add_argument("input_file", help="Vyper sourcecode to compile")
     parser.add_argument(
-        "input_file",
-        help="Vyper sourcecode to compile",
-    )
-    parser.add_argument(
-        "--version",
-        action="version",
-        version=f"{vyper.__version__}+commit{vyper.__commit__}",
+        "--version", action="version", version=f"{vyper.__version__}+commit{vyper.__commit__}"
     )
     parser.add_argument(
         "-f",
@@ -30,9 +25,7 @@ def _parse_args(argv):
         dest="format",
     )
     parser.add_argument(
-        "--show-gas-estimates",
-        help="Show gas estimates in ir output mode.",
-        action="store_true",
+        "--show-gas-estimates", help="Show gas estimates in ir output mode.", action="store_true"
     )
 
     args = parser.parse_args(argv)
@@ -66,3 +59,7 @@ def compile_to_ir(input_file, output_formats, show_gas_estimates=False):
         compiler_data["bytecode"] = "0x" + bytecode.hex()
 
     return compiler_data
+
+
+if __name__ == "__main__":
+    _parse_cli_args()

@@ -514,6 +514,46 @@ def foo() -> (uint256, uint256[3], uint256[2]):
     assert c.foo() == [666, [1, 2, 3], [88, 12]]
 
 
+def test_list_of_dynarray(get_contract):
+    code = """
+@external
+def bar(x: int128) -> DynArray[int128, 2][2]:
+    a: DynArray[int128, 2][2] = [[x, x * 2], [x * 3, x * 4]]
+    return a
+
+@external
+def foo(x: int128) -> int128:
+    a: DynArray[int128, 2][2] = [[x, x * 2], [x * 3, x * 4]]
+    return a[0][0] * a[1][1]
+    """
+    c = get_contract(code)
+    assert c.bar(7) == [[7, 14], [21, 28]]
+    assert c.foo(7) == 196
+
+
+def test_list_of_nested_dynarray(get_contract):
+    code = """
+@external
+def bar(x: int128) -> DynArray[int128, 2][2][2]:
+    a: DynArray[int128, 2][2][2] = [
+        [[x, x * 2], [x * 3, x * 4]],
+        [[x * 5, x * 6], [x * 7, x * 8]],
+    ]
+    return a
+
+@external
+def foo(x: int128) -> int128:
+    a: DynArray[int128, 2][2][2] = [
+        [[x, x * 2], [x * 3, x * 4]],
+        [[x * 5, x * 6], [x * 7, x * 8]],
+    ]
+    return a[0][0][0] * a[1][1][1]
+    """
+    c = get_contract(code)
+    assert c.bar(7) == [[[7, 14], [21, 28]], [[35, 42], [49, 56]]]
+    assert c.foo(7) == 392
+
+
 def test_list_of_structs_arg(get_contract):
     code = """
 struct Foo:
@@ -545,6 +585,66 @@ def bar(_baz: Foo[3]) -> String[96]:
     c = get_contract(code)
     c_input = [[i, msg] for i, msg in enumerate(("Hello ", "world", "!!!!"))]
     assert c.bar(c_input) == "Hello world!!!!"
+
+
+def test_list_of_nested_struct_arrays(get_contract):
+    code = """
+struct Ded:
+    a: uint256[3]
+    b: bool
+
+struct Foo:
+    c: uint256
+    d: uint256
+    e: Ded
+
+struct Bar:
+    f: Foo[3]
+    g: DynArray[uint256, 3]
+
+@external
+def bar(_bar: Bar[3]) -> uint256:
+    sum: uint256 = 0
+    for i in range(3):
+        sum += _bar[i].f[0].e.a[0] * _bar[i].f[1].e.a[1]
+    return sum
+    """
+    c = get_contract(code)
+    c_input = [
+        ((tuple([(123, 456, ([i, i + 1, i + 2], False))] * 3)), [9, 8, 7]) for i in range(1, 4)
+    ]
+
+    assert c.bar(c_input) == 20
+
+
+def test_2d_list_of_struct(get_contract):
+    code = """
+struct Bar:
+    a: uint256
+    b: uint256
+
+@external
+def foo(x: Bar[2][2]) -> uint256:
+    return x[0][0].a + x[1][1].b
+    """
+    c = get_contract(code)
+    c_input = [([i, i * 2], [i * 3, i * 4]) for i in range(1, 3)]
+    assert c.foo(c_input) == 9
+
+
+def test_3d_list_of_struct(get_contract):
+    code = """
+struct Bar:
+    a: uint256
+    b: uint256
+
+@external
+def foo(x: Bar[2][2][2]) -> uint256:
+    return x[0][0][0].a + x[1][1][1].b
+    """
+    c = get_contract(code)
+    c_input = [([([i, i * 2], [i * 3, i * 4]) for i in range(1, 3)])] * 2
+    assert c.foo(c_input) == 9
 
 
 @pytest.mark.parametrize(

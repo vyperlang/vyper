@@ -25,7 +25,6 @@ from vyper.semantics.types.indexable.sequence import (
     DynamicArrayDefinition,
     TupleDefinition,
 )
-from vyper.semantics.types.value.array_value import BytesArrayDefinition, StringDefinition
 from vyper.semantics.types.value.boolean import BoolDefinition
 from vyper.semantics.validation.levenshtein_utils import get_levenshtein_error_suggestions
 
@@ -155,8 +154,7 @@ class _ExprTypeChecker:
 
             suggestions_str = get_levenshtein_error_suggestions(name, var.members, 0.4)
             raise UndeclaredDefinition(
-                f"Storage variable '{name}' has not been declared. {suggestions_str}",
-                node,
+                f"Storage variable '{name}' has not been declared. {suggestions_str}", node
             ) from None
 
     def types_from_BinOp(self, node):
@@ -179,15 +177,23 @@ class _ExprTypeChecker:
         return [BoolDefinition()]
 
     def types_from_Compare(self, node):
-        # comparison: `x < y`
+        # comparisons, e.g. `x < y`
+
+        # TODO fixme circular import
+        from vyper.semantics.types.user.enum import EnumDefinition
+
         if isinstance(node.op, (vy_ast.In, vy_ast.NotIn)):
             # x in y
             left = self.get_possible_types_from_node(node.left)
             right = self.get_possible_types_from_node(node.right)
+            if any(isinstance(t, EnumDefinition) for t in left):
+                types_list = get_common_types(node.left, node.right)
+                _validate_op(node, types_list, "validate_comparator")
+                return [BoolDefinition()]
+
             if any(isinstance(i, ArrayDefinition) for i in left):
                 raise InvalidOperation(
-                    "Left operand in membership comparison cannot be Array type",
-                    node.left,
+                    "Left operand in membership comparison cannot be Array type", node.left
                 )
             if any(not isinstance(i, (DynamicArrayDefinition, ArrayDefinition)) for i in right):
                 raise InvalidOperation(
@@ -225,8 +231,7 @@ class _ExprTypeChecker:
 
         if isinstance(node, vy_ast.Num):
             raise OverflowException(
-                "Numeric literal is outside of allowable range for number types",
-                node,
+                "Numeric literal is outside of allowable range for number types", node
             )
         raise InvalidLiteral(f"Could not determine type for literal value '{node.value}'", node)
 
@@ -243,11 +248,6 @@ class _ExprTypeChecker:
 
         types_list = get_common_types(*node.elements)
 
-        # Throw exception if only possible type is String or Bytes
-        if len(types_list) == 1:
-            if isinstance(types_list[0], (StringDefinition, BytesArrayDefinition)):
-                raise StructureException(f"{types_list[0]._id} arrays are not supported", node)
-
         if len(types_list) > 0:
             count = len(node.elements)
             ret = []
@@ -262,8 +262,7 @@ class _ExprTypeChecker:
         name = node.id
         if name not in self.namespace and name in self.namespace["self"].members:
             raise InvalidReference(
-                f"'{name}' is a storage variable, access it as self.{name}",
-                node,
+                f"'{name}' is a storage variable, access it as self.{name}", node
             )
         try:
             return [self.namespace[node.id]]

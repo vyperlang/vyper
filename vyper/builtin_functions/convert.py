@@ -142,13 +142,13 @@ def _fixed_to_int(arg, out_typ):
     # block inputs which are out of bounds before truncation.
     # e.g., convert(255.1, uint8) should revert or fail to compile.
     out_lo, out_hi = out_info.bounds
-    out_lo = int(out_lo * DIVISOR)
-    out_hi = int(out_hi * DIVISOR)
+    out_lo = out_lo * DIVISOR
+    out_hi = out_hi * DIVISOR
 
     clamped_arg = _clamp_numeric_convert(arg, arg_info.bounds, (out_lo, out_hi), arg_info.is_signed)
 
     assert arg_info.is_signed, "should use unsigned div"  # stub in case we ever add ufixed
-    return IRnode.from_list(["sdiv", clamped_arg, int(DIVISOR)], typ=out_typ)
+    return IRnode.from_list(["sdiv", clamped_arg, DIVISOR], typ=out_typ)
 
 
 # promote from int to fixed point decimal
@@ -160,12 +160,12 @@ def _int_to_fixed(arg, out_typ):
 
     # block inputs which are out of bounds before promotion
     out_lo, out_hi = out_info.bounds
-    out_lo = round_towards_zero(out_lo / DIVISOR)
-    out_hi = round_towards_zero(out_hi / DIVISOR)
+    out_lo = round_towards_zero(out_lo / decimal.Decimal(DIVISOR))
+    out_hi = round_towards_zero(out_hi / decimal.Decimal(DIVISOR))
 
     clamped_arg = _clamp_numeric_convert(arg, arg_info.bounds, (out_lo, out_hi), arg_info.is_signed)
 
-    return IRnode.from_list(["mul", clamped_arg, int(DIVISOR)], typ=out_typ)
+    return IRnode.from_list(["mul", clamped_arg, DIVISOR], typ=out_typ)
 
 
 # clamp for dealing with conversions between int types (from arg to dst)
@@ -303,7 +303,6 @@ def to_bool(expr, arg, out_typ):
 
 @_input_types("int", "bytes_m", "decimal", "bytes", "address", "bool")
 def to_int(expr, arg, out_typ):
-
     int_info = out_typ._int_info
 
     assert int_info.bits % 8 == 0
@@ -462,6 +461,7 @@ def convert(expr, context):
 
     arg_ast = expr.args[0]
     arg = Expr(arg_ast, context).ir_node
+    original_arg = arg
     out_typ = context.parse_type(expr.args[1])
 
     if isinstance(arg.typ, BaseType):
@@ -484,6 +484,12 @@ def convert(expr, context):
         else:
             raise StructureException(f"Conversion to {out_typ} is invalid.", arg_ast)
 
-        ret = b.resolve(ret)
+        # test if arg actually changed. if not, we do not need to use
+        # unwrap_location (this can reduce memory traffic for downstream
+        # operations which are in-place, like the returndata routine)
+        test_arg = IRnode.from_list(arg, typ=out_typ)
+        if test_arg == ret:
+            original_arg.typ = out_typ
+            return original_arg
 
-    return IRnode.from_list(ret)
+        return IRnode.from_list(b.resolve(ret))

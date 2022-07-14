@@ -1,7 +1,7 @@
 import pytest
 from hexbytes import HexBytes
 
-from vyper.builtin_functions import get_create_forwarder_to_bytecode
+from vyper.builtin_functions import eip1167_bytecode
 from vyper.exceptions import ArgumentException, InvalidType, StateAccessViolation
 
 pytestmark = pytest.mark.usefixtures("memory_mocker")
@@ -61,13 +61,13 @@ def returnten() -> int128:
     outer_code = """
 @external
 def create_and_call_returnten(inp: address) -> int128:
-    x: address = create_forwarder_to(inp)
+    x: address = create_minimal_proxy_to(inp)
     o: int128 = extract32(raw_call(x, b"\\xd0\\x1f\\xb1\\xb8", max_outsize=32, gas=50000), 0, output_type=int128)  # noqa: E501
     return o
 
 @external
-def create_and_return_forwarder(inp: address) -> address:
-    x: address = create_forwarder_to(inp)
+def create_and_return_proxy(inp: address) -> address:
+    x: address = create_minimal_proxy_to(inp)
     return x
     """
 
@@ -75,17 +75,17 @@ def create_and_return_forwarder(inp: address) -> address:
     assert c2.create_and_call_returnten(c.address) == 10
     c2.create_and_call_returnten(c.address, transact={})
 
-    _, preamble, callcode = get_create_forwarder_to_bytecode()
+    _, preamble, callcode = eip1167_bytecode()
 
-    c3 = c2.create_and_return_forwarder(c.address, call={})
-    c2.create_and_return_forwarder(c.address, transact={})
+    c3 = c2.create_and_return_proxy(c.address, call={})
+    c2.create_and_return_proxy(c.address, transact={})
 
     c3_contract_code = w3.toBytes(w3.eth.get_code(c3))
 
     assert c3_contract_code[:10] == HexBytes(preamble)
     assert c3_contract_code[-15:] == HexBytes(callcode)
 
-    print("Passed forwarder test")
+    print("Passed proxy test")
     # TODO: This one is special
     # print(f'Gas consumed: {(chain.head_state.receipts[-1].gas_used - chain.head_state.receipts[-2].gas_used - chain.last_tx.intrinsic_gas_used)}')  # noqa: E501
 
@@ -102,20 +102,20 @@ def returnten() -> int128:
     outer_code = """
 @external
 def create_and_call_returnten(inp: address) -> int128:
-    x: address = create_forwarder_to(inp)
+    x: address = create_minimal_proxy_to(inp)
     o: int128 = extract32(raw_call(x, b"\\xd0\\x1f\\xb1\\xb8", max_outsize=32, gas=50000), 0, output_type=int128)  # noqa: E501
     return o
 
 @external
-def create_and_return_forwarder(inp: address) -> address:
-    return create_forwarder_to(inp)
+def create_and_return_proxy(inp: address) -> address:
+    return create_minimal_proxy_to(inp)
     """
 
     c2 = get_contract_with_gas_estimation(outer_code)
 
     assert_tx_failed(lambda: c2.create_and_call_returnten(c.address))
 
-    print("Passed forwarder exception test")
+    print("Passed minimal proxy exception test")
 
 
 def test_delegate_call(w3, get_contract):
@@ -230,6 +230,35 @@ def foo(_addr: address) -> int128:
     caller = get_contract(caller_source)
 
     assert caller.foo(target.address) == 42
+
+
+def test_forward_calldata(get_contract, w3, keccak):
+    target_source = """
+@external
+def foo() -> uint256:
+    return 123
+    """
+
+    caller_source = """
+target: address
+
+@external
+def set_target(target: address):
+    self.target = target
+
+@external
+def __default__():
+    assert 123 == _abi_decode(raw_call(self.target, msg.data, max_outsize=32), uint256)
+    """
+
+    target = get_contract(target_source)
+
+    caller = get_contract(caller_source)
+    caller.set_target(target.address, transact={})
+
+    # manually construct msg.data for `caller` contract
+    sig = keccak("foo()".encode()).hex()[:10]
+    w3.eth.send_transaction({"to": caller.address, "data": sig})
 
 
 def test_static_call_fails_nonpayable(get_contract, assert_tx_failed):

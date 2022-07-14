@@ -104,18 +104,17 @@ class DecimalTypeInfo(NumericTypeInfo):
     decimals: int
 
     @property
-    def divisor(self) -> Decimal:
-        # TODO reconsider if this API should return int
-        return Decimal(10 ** self.decimals)
+    def divisor(self) -> int:
+        return 10 ** self.decimals
 
     @property
     def epsilon(self) -> Decimal:
-        return 1 / self.divisor
+        return 1 / Decimal(self.divisor)
 
     @property
     def decimal_bounds(self) -> Tuple[Decimal, Decimal]:
         lo, hi = self.bounds
-        DIVISOR = self.divisor
+        DIVISOR = Decimal(self.divisor)
         return lo / DIVISOR, hi / DIVISOR
 
 
@@ -138,10 +137,7 @@ def parse_integer_typeinfo(typename: str) -> IntegerTypeInfo:
     if not t:
         raise InvalidType(f"Invalid integer type {typename}")  # pragma: notest
 
-    return IntegerTypeInfo(
-        is_signed=t.group(1) != "u",
-        bits=int(t.group(2)),
-    )
+    return IntegerTypeInfo(is_signed=t.group(1) != "u", bits=int(t.group(2)))
 
 
 def is_bytes_m_type(t: "NodeType") -> bool:
@@ -236,6 +232,9 @@ class EnumType(BaseType):
         super().__init__("uint256")
         self.name = name
         self.members = members
+
+    def __repr__(self):
+        return f"enum {self.name}"
 
     def __eq__(self, other):
         return self.name == other.name and self.members == other.members
@@ -407,10 +406,7 @@ def make_struct_type(name, sigs, members, custom_structs, enums):
 
     for key, value in members:
         if not isinstance(key, vy_ast.Name):
-            raise InvalidType(
-                f"Invalid member variable for struct {key.id}, expected a name.",
-                key,
-            )
+            raise InvalidType(f"Invalid member variable for struct {key.id}, expected a name.", key)
         o[key.id] = parse_type(value, sigs=sigs, custom_structs=custom_structs, enums=enums)
 
     return StructType(o, name)

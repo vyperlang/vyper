@@ -9,7 +9,6 @@ from vyper.exceptions import (
     InvalidType,
     OverflowException,
     StateAccessViolation,
-    StructureException,
     TypeMismatch,
 )
 
@@ -59,6 +58,46 @@ def loo(x: DynArray[DynArray[int128, 2], 2]) -> int128:
     assert c.koo([3, 4, 5]) == 12
     assert c.loo([[1, 2], [3, 4]]) == 73
     print("Passed list tests")
+
+
+def test_string_list(get_contract):
+    code = """
+@external
+def foo1(x: DynArray[String[32], 2]) -> DynArray[String[32], 2]:
+    return x
+
+@external
+def foo2(x: DynArray[DynArray[String[32], 2], 2]) -> DynArray[DynArray[String[32], 2], 2]:
+    return x
+
+@external
+def foo3(x: DynArray[DynArray[String[32], 2], 2]) -> DynArray[String[32], 2]:
+    return x[0]
+
+@external
+def foo4(x: DynArray[DynArray[String[32], 2], 2]) -> String[32]:
+    return x[0][0]
+
+@external
+def foo5() -> DynArray[String[32], 2]:
+    ret: DynArray[String[32], 2] = ["hello"]
+    ret.append("world")
+    return ret
+
+@external
+def foo6() -> DynArray[DynArray[String[32], 2], 2]:
+    ret: DynArray[DynArray[String[32], 2], 2] = []
+    ret.append(["hello", "world"])
+    return ret
+    """
+
+    c = get_contract(code)
+    assert c.foo1(["hello", "world"]) == ["hello", "world"]
+    assert c.foo2([["hello", "world"]]) == [["hello", "world"]]
+    assert c.foo3([["hello", "world"]]) == ["hello", "world"]
+    assert c.foo4([["hello", "world"]]) == "hello"
+    assert c.foo5() == ["hello", "world"]
+    assert c.foo6() == [["hello", "world"]]
 
 
 def test_list_output_tester_code(get_contract_with_gas_estimation):
@@ -691,10 +730,7 @@ def test_multi4_2() -> DynArray[DynArray[DynArray[DynArray[uint256, 2], 2], 2], 
     nest3 = [[[0, 0], [0, 4]], [[0, 7], [0, 123]]]
     assert c.test_multi3_1() == nest3
     assert c.test_multi3_2() == nest3
-    nest4 = [
-        [[[1, 0], [0, 4]], [[0, 0], [0, 0]]],
-        [[[444, 0], [0, 0]], [[1, 0], [0, 222]]],
-    ]
+    nest4 = [[[[1, 0], [0, 4]], [[0, 0], [0, 0]]], [[[444, 0], [0, 0]], [[1, 0], [0, 222]]]]
     assert c.test_multi4_1() == nest4
     assert c.test_multi4_2() == nest4
 
@@ -1277,6 +1313,66 @@ def foo(x: uint8) -> uint8:
     assert_tx_failed(lambda: c.foo(241))
 
 
+def test_list_of_nested_struct_arrays(get_contract):
+    code = """
+struct Ded:
+    a: uint256[3]
+    b: bool
+
+struct Foo:
+    c: uint256
+    d: uint256
+    e: Ded
+
+struct Bar:
+    f: DynArray[Foo, 3]
+    g: DynArray[uint256, 3]
+
+@external
+def bar(_bar: DynArray[Bar, 3]) -> uint256:
+    sum: uint256 = 0
+    for i in range(3):
+        sum += _bar[i].f[0].e.a[0] * _bar[i].f[1].e.a[1]
+    return sum
+    """
+    c = get_contract(code)
+    c_input = [
+        ((tuple([(123, 456, ([i, i + 1, i + 2], False))] * 3)), [9, 8, 7]) for i in range(1, 4)
+    ]
+
+    assert c.bar(c_input) == 20
+
+
+def test_2d_list_of_struct(get_contract):
+    code = """
+struct Bar:
+    a: uint256
+    b: uint256
+
+@external
+def foo(x: DynArray[DynArray[Bar, 2], 2]) -> uint256:
+    return x[0][0].a + x[1][1].b
+    """
+    c = get_contract(code)
+    c_input = [([i, i * 2], [i * 3, i * 4]) for i in range(1, 3)]
+    assert c.foo(c_input) == 9
+
+
+def test_3d_list_of_struct(get_contract):
+    code = """
+struct Bar:
+    a: uint256
+    b: uint256
+
+@external
+def foo(x: DynArray[DynArray[DynArray[Bar, 2], 2], 2]) -> uint256:
+    return x[0][0][0].a + x[1][1][1].b
+    """
+    c = get_contract(code)
+    c_input = [([([i, i * 2], [i * 3, i * 4]) for i in range(1, 3)])] * 2
+    assert c.foo(c_input) == 9
+
+
 def test_list_of_static_list(get_contract):
     code = """
 @external
@@ -1544,29 +1640,3 @@ def foo(i: uint256) -> {return_type}:
     return MY_CONSTANT[i]
     """
     assert_compile_failed(lambda: get_contract(code), TypeMismatch)
-
-
-INVALID_ARRAY_VALUES = [
-    """
-a: DynArray[Bytes[5], 2]
-    """,
-    """
-a: DynArray[String[5], 2]
-    """,
-    """
-a: DynArray[DynArray[Bytes[5], 2], 2]
-    """,
-    """
-a: DynArray[DynArray[String[5], 2], 2]
-    """,
-]
-
-
-@pytest.mark.parametrize("invalid_contracts", INVALID_ARRAY_VALUES)
-def test_invalid_dyn_array_values(
-    get_contract_with_gas_estimation, assert_compile_failed, invalid_contracts
-):
-
-    assert_compile_failed(
-        lambda: get_contract_with_gas_estimation(invalid_contracts), StructureException
-    )

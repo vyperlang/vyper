@@ -80,7 +80,7 @@ enum_body: _NEWLINE _INDENT (enum_member _NEWLINE)+ _DEDENT
 enum_def: _ENUM_DECL NAME ":" enum_body
 
 // Types
-array_def: (NAME | array_def) "[" (DEC_NUMBER | NAME) "]"
+array_def: (NAME | array_def | dyn_array_def) "[" (DEC_NUMBER | NAME) "]"
 dyn_array_def: "DynArray" "[" (NAME | array_def | dyn_array_def) "," (DEC_NUMBER | NAME) "]"
 tuple_def: "(" ( NAME | array_def | dyn_array_def | tuple_def ) ( "," ( NAME | array_def | dyn_array_def | tuple_def ) )* [","] ")"
 // NOTE: Map takes a basic type and maps to another type (can be non-basic, including maps)
@@ -130,9 +130,11 @@ assign: (variable_access | multiple_assign | "(" multiple_assign ")" ) "=" _expr
              | "**" -> pow
              | "<<" -> shl
              | ">>" -> shr
+             | _BITAND -> bitand
+             | _BITOR -> bitor
+             | _BITXOR -> bitxor
              | _AND -> and
              | _OR  -> or
-             | _XOR -> xor
 // NOTE: Post-process into a normal assign
 aug_assign: variable_access aug_operator "=" _expr
 
@@ -199,13 +201,20 @@ dict: "{" "}" | "{" (NAME ":" _expr) ("," (NAME ":" _expr))* [","] "}"
 _POW: "**"
 _SHL: "<<"
 _SHR: ">>"
+_BITAND: "&"
+_BITOR: "|"
+_BITXOR: "^"
 // Binary Operations
 // NOTE: Keep these in sync with aug_assign above
 ?bin_op: product
        | bin_op "+"  product -> add
        | bin_op "-"  product -> sub
+// TODO fix precedence to match python operator precedence
        | bin_op _SHL product -> shl
        | bin_op _SHR product -> shr
+       | bin_op _BITAND product -> bitand
+       | bin_op _BITOR product -> bitor
+       | bin_op _BITXOR product -> bitxor
 ?product: power
         | product "*"   power -> mul
         | product "/"   power -> div
@@ -216,17 +225,17 @@ _SHR: ">>"
 _AND: "and"
 _OR: "or"
 _NOT: "not"
-_XOR: "xor"
+
 // Boolean Operations
 ?bool_op: unary_op
         | bool_op _AND unary_op -> and
         | bool_op _OR  unary_op -> or
-        | bool_op _XOR unary_op -> xor
 
 // Unary Operations
 ?unary_op: comparator
          | "+"  unary_op -> uadd
          | "-"  unary_op -> usub
+         | "~"  unary_op -> invert
          | _NOT unary_op -> not
 
 // Comparisions
@@ -249,15 +258,18 @@ _IN: "in"
 // special rule to handle types as "arguments" (for `empty` builtin)
 empty: "empty" "(" type ")"
 
+// special rule to handle types as "arguments" (for `_abi_decode` builtin)
+abi_decode: "_abi_decode" "(" arg "," type ( "," kwarg )* ")"
+
+special_builtins: empty | abi_decode
 
 // NOTE: Must end recursive cycle like this (with `atom` calling `operation`)
 ?atom: variable_access
      | literal
-     | empty
+     | special_builtins
      | tuple
      | list
      | "(" operation ")"
-
 
 // Tokens
 // Adapted from Lark repo. https://github.com/lark-parser/lark/blob/master/examples/python3.lark

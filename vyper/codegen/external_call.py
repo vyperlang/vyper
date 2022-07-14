@@ -4,10 +4,12 @@ import vyper.utils as util
 from vyper.address_space import MEMORY
 from vyper.codegen.abi_encoder import abi_encode
 from vyper.codegen.core import (
+    _freshname,
     calculate_type_for_external_return,
     check_assign,
     check_external_call,
     dummy_node_for_type,
+    eval_once_check,
     make_setter,
     needs_clamp,
     unwrap_location,
@@ -109,7 +111,11 @@ def _unpack_returndata(buf, fn_type, call_kwargs, contract_address, context, exp
     # revert when returndatasize is not in bounds
     # (except when return_override is provided.)
     if not call_kwargs.skip_contract_check:
-        unpacker.append(["assert", ["ge", "returndatasize", min_return_size]])
+        assertion = IRnode.from_list(
+            ["assert", ["ge", "returndatasize", min_return_size]],
+            error_msg="returndatasize too small",
+        )
+        unpacker.append(assertion)
 
     assert isinstance(wrapped_return_t, TupleType)
 
@@ -165,18 +171,10 @@ def _parse_kwargs(call_expr, context):
 
 
 def _extcodesize_check(address):
-    return ["assert", ["extcodesize", address]]
+    return IRnode.from_list(["assert", ["extcodesize", address]], error_msg="extcodesize is zero")
 
 
-def ir_for_external_call(call_expr, context):
-    from vyper.codegen.expr import Expr  # TODO rethink this circular import
-
-    contract_address = Expr.parse_value_expr(call_expr.func.value, context)
-    call_kwargs = _parse_kwargs(call_expr, context)
-    args_ir = [Expr(x, context).ir_node for x in call_expr.args]
-
-    assert isinstance(contract_address.typ, InterfaceType)
-
+def _external_call_helper(contract_address, args_ir, call_kwargs, call_expr, context):
     # expr.func._metadata["type"].return_type is more accurate
     # than fn_sig.return_type in the case of JSON interfaces.
     fn_type = call_expr.func._metadata["type"]
@@ -185,6 +183,11 @@ def ir_for_external_call(call_expr, context):
     assert fn_type.min_arg_count <= len(args_ir) <= fn_type.max_arg_count
 
     ret = ["seq"]
+
+    # this is a sanity check to prevent double evaluation of the external call
+    # in the codegen pipeline. if the external call gets doubly evaluated,
+    # a duplicate label exception will get thrown during assembly.
+    ret.append(eval_once_check(_freshname(call_expr.node_source_code)))
 
     buf, arg_packer, args_ofst, args_len = _pack_arguments(fn_type, args_ir, context)
 
@@ -223,3 +226,17 @@ def ir_for_external_call(call_expr, context):
         ret.append(ret_unpacker)
 
     return IRnode.from_list(ret, typ=return_t, location=MEMORY)
+
+
+def ir_for_external_call(call_expr, context):
+    from vyper.codegen.expr import Expr  # TODO rethink this circular import
+
+    contract_address = Expr.parse_value_expr(call_expr.func.value, context)
+    assert isinstance(contract_address.typ, InterfaceType)
+    args_ir = [Expr(x, context).ir_node for x in call_expr.args]
+    call_kwargs = _parse_kwargs(call_expr, context)
+
+    with contract_address.cache_when_complex("external_contract") as (b1, contract_address):
+        return b1.resolve(
+            _external_call_helper(contract_address, args_ir, call_kwargs, call_expr, context)
+        )

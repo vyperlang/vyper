@@ -174,6 +174,7 @@ GAS_CALLDATACOPY_WORD = 3
 # A decimal value can store multiples of 1/DECIMAL_DIVISOR
 MAX_DECIMAL_PLACES = 10
 DECIMAL_DIVISOR = 10 ** MAX_DECIMAL_PLACES
+DECIMAL_EPSILON = decimal.Decimal(1) / DECIMAL_DIVISOR
 
 
 def int_bounds(signed, bits):
@@ -249,9 +250,7 @@ class SizeLimits:
 
 
 # Otherwise reserved words that are whitelisted for function declarations
-FUNCTION_WHITELIST = {
-    "send",
-}
+FUNCTION_WHITELIST = {"send"}
 
 # List of valid IR macros.
 # TODO move this somewhere else, like ir_node.py
@@ -288,6 +287,12 @@ VALID_IR_MACROS = {
     "~empty",
     "var_list",
 }
+
+
+EIP_170_LIMIT = 0x6000  # 24kb
+
+SHA3_BASE = 30
+SHA3_PER_WORD = 6
 
 
 def indent(text: str, indent_chars: Union[str, List[str]] = " ", level: int = 1) -> str:
@@ -395,6 +400,4 @@ def annotate_source_code(
     return "\n".join(cleanup_lines)
 
 
-__all__ = [
-    "cached_property",
-]
+__all__ = ["cached_property"]
