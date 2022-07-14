@@ -68,7 +68,10 @@ def get_node(
     if (
         ast_struct["ast_type"] == "AnnAssign"
         and not isinstance(parent, (arguments, EventDef, StructDef))
-        and not (isinstance(parent, Module) and ast_struct["target"].id in ("implements",))
+        and not (
+            isinstance(parent, Module)
+            and getattr(ast_struct["target"], "id", None) in ("implements",)
+        )
     ):
         ast_struct["ast_type"] = "VariableDef"
 
