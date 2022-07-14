@@ -133,7 +133,7 @@ def _parse_args(argv):
         sys.tracebacklimit = args.traceback_limit
     elif VYPER_TRACEBACK_LIMIT is not None:
         sys.tracebacklimit = VYPER_TRACEBACK_LIMIT
-    elif args.debug:
+    elif args.verbose:
         sys.tracebacklimit = 1000
     else:
         # Python usually defaults sys.tracebacklimit to 1000.  We use a default
