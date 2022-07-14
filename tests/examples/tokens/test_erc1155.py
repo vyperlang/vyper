@@ -166,7 +166,7 @@ def test_URI(erc1155, w3, assert_tx_failed):
     # set contract to dynamic URI
     erc1155.toggleDynUri(True, transact={"from": owner})
     erc1155.setURI(CONTRACT_DYNURI, transact={"from": owner})
-    assert erc1155.uri(0) == CONTRACT_DYNURI + str(0)
+    assert erc1155.uri(0) == CONTRACT_DYNURI + str(0) +'.json'
 
 
 def test_safeTransferFrom_balanceOf_single(erc1155, w3, assert_tx_failed):
