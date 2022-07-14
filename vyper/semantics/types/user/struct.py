@@ -18,15 +18,54 @@ from vyper.semantics.validation.levenshtein_utils import get_levenshtein_error_s
 from vyper.semantics.validation.utils import validate_expected_type
 
 
-    def __init__(
-        self,
-        _id: str,
-        members: dict,
-    ) -> None:
+class StructT(AttributableT, SimpleGettableT):
+    _is_callable = True
+    _as_array = True
+
+    def __init__(self, _id, members):
         self._id = _id
 
-        for key, type_ in members.items():
-            self.add_member(key, type_)
+        for k, v in members:
+            validate_identifier(k)
+            self.add_member(k, v)
+
+    @classmethod
+    def from_ast_def(cls, base_node: vy_ast.StructDef) -> "StructT":
+        """
+        Generate a `StructT` object from a Vyper ast node.
+
+        Arguments
+        ---------
+        node : StructDef
+            Vyper ast node defining the struct
+        Returns
+        -------
+        StructT
+            Struct type
+        """
+
+        struct_name = base_node.name
+        members: List[Tuple(str, VyperType)] = {}
+        for node in base_node.body:
+            if not isinstance(node, vy_ast.AnnAssign):
+                raise StructureException(
+                    "Struct declarations can only contain variable definitions", node
+                )
+            if node.value is not None:
+                raise StructureException("Cannot assign a value during struct declaration", node)
+            if not isinstance(node.target, vy_ast.Name):
+                raise StructureException("Invalid syntax for struct member name", node.target)
+            member_name = node.target.id
+            members.append(member_name, type_from_annotation(node.annotation))
+
+        return cls(struct_name, members)
+
+    def __repr__(self):
+        return f"{self._id} declaration object"
+
+    # TODO check me
+    def compare_type(self, other):
+        return super().compare_type(other) and self._id == other._id
 
     @property
     def size_in_bytes(self):
@@ -40,42 +79,8 @@ from vyper.semantics.validation.utils import validate_expected_type
         components = [t.to_abi_dict(name=k) for k, t in self.members.items()]
         return {"name": name, "type": "tuple", "components": components}
 
-
-class StructT(AttributableT, SimpleGettableT):
-    _is_callable = True
-    _as_array = True
-
-    def __init__(self, _id, members):
-        for key in members:
-            validate_identifier(key)
-        self._id = _id
-        self.members = members
-
-    def __repr__(self):
-        return f"{self._id} declaration object"
-
-
-    # TODO check me
-    def compare_type(self, other):
-        return super().compare_type(other) and self._id == other._id
-
-
-    def from_annotation(
-        self,
-        node: vy_ast.VyperNode,
-        location: DataLocation = DataLocation.UNSET,
-        is_constant: bool = False,
-        is_public: bool = False,
-        is_immutable: bool = False,
-    ) -> StructDefinition:
-        if not isinstance(node, vy_ast.Name):
-            raise StructureException("Invalid type assignment", node)
-        return StructDefinition(
-            self._id, self.members, location, is_constant, is_public, is_immutable
-        )
-
     # TODO breaking change: use kwargs instead of dict
-    def fetch_call_return(self, node: vy_ast.Call) -> StructDefinition:
+    def fetch_call_return(self, node: vy_ast.Call) -> StructT:
         validate_call_args(node, 1)
         if not isinstance(node.args[0], vy_ast.Dict):
             raise VariableDeclarationException(
@@ -110,39 +115,4 @@ class StructT(AttributableT, SimpleGettableT):
                 f"Struct declaration does not define all fields: {', '.join(list(members))}", node
             )
 
-        return StructDefinition(self._id, self.members)
-
-
-def from_ast_def(base_node: vy_ast.StructDef) -> StructT:
-    """
-    Generate a `StructT` object from a Vyper ast node.
-
-    Arguments
-    ---------
-    node : StructDef
-        Vyper ast node defining the struct
-    Returns
-    -------
-    StructT
-        Struct type
-    """
-
-    struct_name = base_node.name
-    members: Dict[str, str] = {}
-    for node in base_node.body:
-        if not isinstance(node, vy_ast.AnnAssign):
-            raise StructureException(
-                "Struct declarations can only contain variable definitions", node
-            )
-        if node.value is not None:
-            raise StructureException("Cannot assign a value during struct declaration", node)
-        if not isinstance(node.target, vy_ast.Name):
-            raise StructureException("Invalid syntax for struct member name", node.target)
-        member_name = node.target.id
-        if member_name in members:
-            raise NamespaceCollision(
-                f"Struct member '{member_name}' has already been declared", node.target
-            )
-        members[member_name] = type_from_annotation(node.annotation, DataLocation.UNSET)
-
-    return StructT(struct_name, members)
+        return StructT(self._id, self.members)
