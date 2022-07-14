@@ -110,8 +110,8 @@ def _parse_args(argv):
         type=int,
     )
     parser.add_argument(
-        "--debug",
-        help="Turn on compiler debug information. "
+        "--verbose",
+        help="Turn on compiler verbose output. "
         "Currently an alias for --traceback-limit but "
         "may add more information in the future",
         action="store_true",
