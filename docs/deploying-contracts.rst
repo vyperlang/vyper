@@ -11,14 +11,14 @@ Once you are ready to deploy your contract to a public test net or the main net,
 
 .. code-block:: bash
 
-  vyper your_file_name.vy
+  vyper YourContract.vy
   # returns bytecode
 
 * Take the byte code and ABI and deploy it with your current browser on `myetherwallet's <https://www.myetherwallet.com/>`_ contract menu:
 
 .. code-block:: bash
 
-  vyper -f abi your_file_name.vy
+  vyper -f abi YourContract.vy
   # returns ABI
 
 * Use the remote compiler provided by the `Remix IDE <https://remix.ethereum.org>`_ to compile and deploy your contract on your net of choice. Remix also provides a JavaScript VM to test deploy your contract.

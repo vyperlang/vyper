@@ -22,20 +22,20 @@ To compile a contract:
 
 ::
 
-    $ vyper your_file_name.vy
+    $ vyper YourContract.vy
 
 
 Include the ``-f`` flag to specify which output formats to return. Use ``vyper --help`` for a full list of output options.
 
 ::
 
-    $ vyper -f abi,bytecode,bytecode_runtime,ir,asm,source_map,method_identifiers your_file_name.vy
+    $ vyper -f abi,bytecode,bytecode_runtime,ir,asm,source_map,method_identifiers YourContract.vy
 
 The ``-p`` flag allows you to set a root path that is used when searching for interface files to import.  If none is given, it will default to the current working directory. See :ref:`searching_for_imports` for more information.
 
 ::
 
-    $ vyper -p your_project your_project/your_file_name.vy
+    $ vyper -p your_project your_project/YourContract.vy
 
 
 .. _compiler-storage-layout:
@@ -47,7 +47,7 @@ To display the default storage layout for a contract:
 
 ::
 
-    $ vyper -f layout your_file_name.vy
+    $ vyper -f layout YourContract.vy
 
 This outputs a JSON object detailing the locations for all state variables as determined by the compiler.
 
@@ -55,7 +55,7 @@ To override the default storage layout for a contract:
 
 ::
 
-    $ vyper --storage-layout-file storage_layout.json your_file_name.vy
+    $ vyper --storage-layout-file storage_layout.json YourContract.vy
 
 The input to the ``--storage-layout-file`` flag must match the format of the ``.storage_layout`` field from the ``vyper -f layout`` command.
 
