@@ -63,6 +63,15 @@ def get_node(
             ast_struct = copy.copy(ast_struct)
             del ast_struct["parent"]
 
+    # Replace state and local variable declarations `AnnAssign` with `VariableDef`
+    # Parent node is required for context to determine whether replacement should happen.
+    if (
+        ast_struct["ast_type"] == "AnnAssign"
+        and not isinstance(parent, (arguments, EventDef, StructDef))
+        and not (isinstance(parent, Module) and ast_struct["target"].id in ("implements",))
+    ):
+        ast_struct["ast_type"] = "VariableDef"
+
     vy_class = getattr(sys.modules[__name__], ast_struct["ast_type"], None)
     if not vy_class:
         if ast_struct["ast_type"] == "Delete":
