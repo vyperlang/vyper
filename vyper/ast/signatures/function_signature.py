@@ -1,6 +1,6 @@
 import math
 from dataclasses import dataclass
-from typing import Dict, Optional
+from typing import Dict, Optional, Tuple
 
 from vyper import ast as vy_ast
 from vyper.address_space import MEMORY
@@ -26,7 +26,7 @@ class VariableRecord:
         encoding=Encoding.VYPER,
         location=MEMORY,
         blockscopes=None,
-        defined_at=None,
+        defined_at=None,  # note: dead variable
         is_internal=False,
         is_immutable=False,
         data_offset: Optional[int] = None,
@@ -70,6 +70,7 @@ class FunctionArg:
 class FrameInfo:
     frame_start: int
     frame_size: int
+    frame_vars: Dict[str, Tuple[int, NodeType]]
 
     @property
     def mem_used(self):

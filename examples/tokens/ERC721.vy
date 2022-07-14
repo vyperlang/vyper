@@ -364,5 +364,5 @@ def burn(_tokenId: uint256):
 
 @view
 @external
-def tokenURL(tokenId: uint256) -> String[132]:
+def tokenURI(tokenId: uint256) -> String[132]:
     return concat(self.baseURL, uint2str(tokenId))

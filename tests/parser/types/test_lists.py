@@ -514,6 +514,46 @@ def foo() -> (uint256, uint256[3], uint256[2]):
     assert c.foo() == [666, [1, 2, 3], [88, 12]]
 
 
+def test_list_of_dynarray(get_contract):
+    code = """
+@external
+def bar(x: int128) -> DynArray[int128, 2][2]:
+    a: DynArray[int128, 2][2] = [[x, x * 2], [x * 3, x * 4]]
+    return a
+
+@external
+def foo(x: int128) -> int128:
+    a: DynArray[int128, 2][2] = [[x, x * 2], [x * 3, x * 4]]
+    return a[0][0] * a[1][1]
+    """
+    c = get_contract(code)
+    assert c.bar(7) == [[7, 14], [21, 28]]
+    assert c.foo(7) == 196
+
+
+def test_list_of_nested_dynarray(get_contract):
+    code = """
+@external
+def bar(x: int128) -> DynArray[int128, 2][2][2]:
+    a: DynArray[int128, 2][2][2] = [
+        [[x, x * 2], [x * 3, x * 4]],
+        [[x * 5, x * 6], [x * 7, x * 8]],
+    ]
+    return a
+
+@external
+def foo(x: int128) -> int128:
+    a: DynArray[int128, 2][2][2] = [
+        [[x, x * 2], [x * 3, x * 4]],
+        [[x * 5, x * 6], [x * 7, x * 8]],
+    ]
+    return a[0][0][0] * a[1][1][1]
+    """
+    c = get_contract(code)
+    assert c.bar(7) == [[[7, 14], [21, 28]], [[35, 42], [49, 56]]]
+    assert c.foo(7) == 392
+
+
 def test_list_of_structs_arg(get_contract):
     code = """
 struct Foo:

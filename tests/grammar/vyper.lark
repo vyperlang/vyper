@@ -80,7 +80,7 @@ enum_body: _NEWLINE _INDENT (enum_member _NEWLINE)+ _DEDENT
 enum_def: _ENUM_DECL NAME ":" enum_body
 
 // Types
-array_def: (NAME | array_def) "[" (DEC_NUMBER | NAME) "]"
+array_def: (NAME | array_def | dyn_array_def) "[" (DEC_NUMBER | NAME) "]"
 dyn_array_def: "DynArray" "[" (NAME | array_def | dyn_array_def) "," (DEC_NUMBER | NAME) "]"
 tuple_def: "(" ( NAME | array_def | dyn_array_def | tuple_def ) ( "," ( NAME | array_def | dyn_array_def | tuple_def ) )* [","] ")"
 // NOTE: Map takes a basic type and maps to another type (can be non-basic, including maps)
