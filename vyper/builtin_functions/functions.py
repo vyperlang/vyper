@@ -2238,6 +2238,7 @@ class Print(BuiltinFunction):
     _id = "print"
     _inputs: list = []
     _has_varargs = True
+    _kwargs = {"hardhat_compat": KwargSettings(BoolDefinition(), False, require_literal=True)}
 
     _warned = False
 
@@ -2252,22 +2253,61 @@ class Print(BuiltinFunction):
     def build_IR(self, expr, args, kwargs, context):
         args_as_tuple = ir_tuple_from_args(args)
         args_abi_t = args_as_tuple.typ.abi_type
+
         # create a signature like "log(uint256)"
         sig = "log" + "(" + ",".join([arg.typ.abi_type.selector_name() for arg in args]) + ")"
-        method_id = abi_method_id(sig)
 
-        buflen = 32 + args_abi_t.size_bound()
+        if kwargs["hardhat_compat"] is True:
+            method_id = abi_method_id(sig)
+            buflen = 32 + args_abi_t.size_bound()
 
-        # 32 bytes extra space for the method id
-        buf = context.new_internal_variable(get_type_for_exact_size(buflen))
+            # 32 bytes extra space for the method id
+            buf = context.new_internal_variable(get_type_for_exact_size(buflen))
 
-        ret = ["seq"]
-        ret.append(["mstore", buf, method_id])
-        encode = abi_encode(buf + 32, args_as_tuple, context, buflen, returns_len=True)
+            ret = ["seq"]
+            ret.append(["mstore", buf, method_id])
+            encode = abi_encode(buf + 32, args_as_tuple, context, buflen, returns_len=True)
+
+        else:
+            method_id = abi_method_id("log(string,bytes)")
+            schema = args_abi_t.selector_name().encode("utf-8")
+            if len(schema) > 32:
+                raise CompilerPanic("print signature too long: {schema}")
+
+            schema_t = StringType(len(schema))
+            schema_buf = context.new_internal_variable(schema_t)
+            ret = ["seq"]
+            ret.append(["mstore", schema_buf, len(schema)])
+
+            # TODO use Expr.make_bytelike, or better have a `bytestring` IRnode type
+            ret.append(["mstore", schema_buf + 32, bytes_to_int(schema.ljust(32, b"\x00"))])
+
+            payload_buflen = args_abi_t.size_bound()
+            payload_t = ByteArrayType(payload_buflen)
+
+            # 32 bytes extra space for the method id
+            payload_buf = context.new_internal_variable(payload_t)
+            encode_payload = abi_encode(
+                payload_buf + 32, args_as_tuple, context, payload_buflen, returns_len=True
+            )
+
+            ret.append(["mstore", payload_buf, encode_payload])
+            args_as_tuple = ir_tuple_from_args(
+                [
+                    IRnode.from_list(schema_buf, typ=schema_t, location=MEMORY),
+                    IRnode.from_list(payload_buf, typ=payload_t, location=MEMORY),
+                ]
+            )
+
+            # add 32 for method id padding
+            buflen = 32 + args_as_tuple.typ.abi_type.size_bound()
+            buf = context.new_internal_variable(get_type_for_exact_size(buflen))
+            ret.append(["mstore", buf, method_id])
+            encode = abi_encode(buf + 32, args_as_tuple, context, buflen, returns_len=True)
 
         # debug address that tooling uses
         CONSOLE_ADDRESS = 0x000000000000000000636F6E736F6C652E6C6F67
-        ret.append(["staticcall", "gas", CONSOLE_ADDRESS, buf + 28, encode, 0, 0])
+        ret.append(["staticcall", "gas", CONSOLE_ADDRESS, buf + 28, ["add", 4, encode], 0, 0])
 
         return IRnode.from_list(ret, annotation="print:" + sig)
 
