@@ -207,7 +207,7 @@ def _get_module_definitions(base_node: vy_ast.Module) -> Tuple[OrderedDict, Dict
             raise NamespaceCollision(
                 f"Interface contains multiple functions named '{name}'", base_node
             )
-        functions[name] = ContractFunction.from_VariableDef(node)
+        functions[name] = ContractFunction.getter_from_VariableDef(node)
     for node in base_node.get_children(vy_ast.EventDef):
         name = node.name
         if name in functions or name in events:

@@ -367,7 +367,7 @@ class ContractFunction(BaseTypeDefinition):
         self.reentrancy_key_position = position
 
     @classmethod
-    def from_VariableDef(cls, node: vy_ast.VariableDef) -> "ContractFunction":
+    def getter_from_VariableDef(cls, node: vy_ast.VariableDef) -> "ContractFunction":
         """
         Generate a `ContractFunction` object from an `VariableDef` node.
 
