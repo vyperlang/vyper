@@ -962,6 +962,7 @@ def adjust_pc_maps(pc_maps, ofst):
     ret["pc_breakpoints"] = {pc + ofst for pc in pc_maps["pc_breakpoints"]}
     ret["pc_jump_map"] = {k + ofst: v for (k, v) in pc_maps["pc_jump_map"].items()}
     ret["pc_pos_map"] = {k + ofst: v for (k, v) in pc_maps["pc_pos_map"].items()}
+    ret["error_map"] = {k + ofst: v for (k, v) in pc_maps["error_map"].items()}
 
     return ret
 
