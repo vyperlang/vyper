@@ -553,7 +553,6 @@ class VyperNode:
         return obj
 
 
-
 class TopLevel(VyperNode):
     """
     Inherited class for Module and FunctionDef nodes.
