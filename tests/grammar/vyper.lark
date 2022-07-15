@@ -194,6 +194,8 @@ dict: "{" "}" | "{" (NAME ":" _expr) ("," (NAME ":" _expr))* [","] "}"
 
 
 // Operators
+// This section needs to match Python's operator precedence:
+// See https://docs.python.org/3/reference/expressions.html#operator-precedence
 // NOTE: The recursive cycle here helps enforce operator precedence
 //       Precedence goes up the lower down you go
 ?operation: bool_or
