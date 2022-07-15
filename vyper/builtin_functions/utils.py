@@ -1,4 +1,3 @@
-from vyper import ast as vy_ast
 from vyper.ast import parse_to_ast
 from vyper.codegen.context import Context
 from vyper.codegen.global_context import GlobalContext
