@@ -67,11 +67,8 @@ def get_node(
     # Parent node is required for context to determine whether replacement should happen.
     if (
         ast_struct["ast_type"] == "AnnAssign"
-        and not isinstance(parent, (arguments, EventDef, StructDef))
-        and not (
-            isinstance(parent, Module)
-            and getattr(ast_struct["target"], "id", None) in ("implements",)
-        )
+        and isinstance(parent, Module)
+        and not getattr(ast_struct["target"], "id", None) in ("implements",)
     ):
         ast_struct["ast_type"] = "VariableDef"
 
@@ -536,6 +533,7 @@ class VyperNode:
 
     def get(self, field_str: str) -> Any:
         """
+
         Recursive getter function for node attributes.
 
         Parameters
@@ -553,6 +551,7 @@ class VyperNode:
         for key in field_str.split("."):
             obj = getattr(obj, key, None)
         return obj
+
 
 
 class TopLevel(VyperNode):
