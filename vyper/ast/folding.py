@@ -278,7 +278,9 @@ def replace_constant(
 
         if not node.get_ancestor(vy_ast.Index):
             # do not replace left-hand side of assignments
-            assign = node.get_ancestor((vy_ast.Assign, vy_ast.AnnAssign, vy_ast.AugAssign, vy_ast.VariableDef))
+            assign = node.get_ancestor(
+                (vy_ast.Assign, vy_ast.AnnAssign, vy_ast.AugAssign, vy_ast.VariableDef)
+            )
 
             if assign and node in assign.target.get_descendants(include_self=True):
                 continue
