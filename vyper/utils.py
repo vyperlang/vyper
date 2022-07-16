@@ -2,6 +2,7 @@ import binascii
 import decimal
 import sys
 import traceback
+import warnings
 from typing import List, Union
 
 from vyper.exceptions import DecimalOverrideException, InvalidLiteral
@@ -15,7 +16,7 @@ class DecimalContextOverride(decimal.Context):
                 raise DecimalOverrideException("Overriding decimal precision disabled")
             elif value > 78:
                 # not sure it's incorrect, might not be end of the world
-                warnings.warn(f"Changing decimals precision could have unintended side effects!")
+                warnings.warn("Changing decimals precision could have unintended side effects!")
             # else: no-op, is ok
 
         super().__setattr__(name, value)
