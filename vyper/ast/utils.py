@@ -8,7 +8,10 @@ from vyper.exceptions import CompilerPanic, ParserException, SyntaxException
 
 
 def parse_to_ast(
-    source_code: str, source_id: int = 0, contract_name: Optional[str] = None, add_fn_node: Optional[bool]=False
+    source_code: str,
+    source_id: int = 0,
+    contract_name: Optional[str] = None,
+    add_fn_node: Optional[bool] = False,
 ) -> vy_ast.Module:
     """
     Parses a Vyper source string and generates basic Vyper AST nodes.
