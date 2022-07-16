@@ -10,8 +10,14 @@ from vyper.exceptions import DecimalOverrideException, InvalidLiteral
 class DecimalContextOverride(decimal.Context):
     def __setattr__(self, name, value):
         if name == "prec":
-            # CMC 2022-03-27: should we raise a warning instead of an exception?
-            raise DecimalOverrideException("Overriding decimal precision disabled")
+            if value < 78:
+                # definitely don't want this to happen
+                raise DecimalOverrideException("Overriding decimal precision disabled")
+            elif value > 78:
+                # not sure it's incorrect, might not be end of the world
+                warnings.warn(f"Changing decimals precision could have unintended side effects!")
+            # else: no-op, is ok
+
         super().__setattr__(name, value)
 
 
