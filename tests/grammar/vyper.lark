@@ -252,15 +252,14 @@ _IN: "in"
 ?summation: product
           | summation "+"  product -> add
           | summation "-"  product -> sub
-?product: signed
-        | product "*"   signed -> mul
-        | product "/"   signed -> div
-        | product "%"   signed -> mod
-?signed: bitwise_not
-       | "+"  bitwise_not -> uadd
-       | "-"  bitwise_not -> usub
-?bitwise_not: power
-            | "~"  power -> invert
+?product: unary
+        | product "*"  unary -> mul
+        | product "/"  unary -> div
+        | product "%"  unary -> mod
+?unary: power
+       | "+"  power -> uadd
+       | "-"  power -> usub
+       | "~"  power -> invert
 ?power: atom
       | power _POW  atom -> pow
 
