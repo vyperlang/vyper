@@ -150,7 +150,6 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
 
     def visit_VariableDef(self, node):
         name = node.get("target.id")
-        node.is_state_variable = True
         if name is None:
             raise VariableDeclarationException("Invalid module-level assignment", node)
 

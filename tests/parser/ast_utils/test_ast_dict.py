@@ -73,8 +73,6 @@ a: int128
         "is_constant": False,
         "is_immutable": False,
         "is_public": False,
-        # TODO: should be True once semantics validation is performed before AST output
-        "is_state_variable": False,
     }
 
 

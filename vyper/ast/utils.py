@@ -11,7 +11,7 @@ def parse_to_ast(
     source_code: str,
     source_id: int = 0,
     contract_name: Optional[str] = None,
-    add_fn_node: Optional[bool] = False,
+    add_fn_node: Optional[str] = None,
 ) -> vy_ast.Module:
     """
     Parses a Vyper source string and generates basic Vyper AST nodes.
@@ -44,7 +44,7 @@ def parse_to_ast(
     # Add dummy function node to ensure local variables are treated as `AnnAssign`
     # instead of state variables (`VariableDef`)
     if add_fn_node:
-        fn_node = python_ast.FunctionDef("dummy_fn", py_ast.body, [], [])
+        fn_node = python_ast.FunctionDef(add_fn_node, py_ast.body, [], [])
         fn_node.body = py_ast.body
         fn_node.args = python_ast.arguments(defaults=[])
         py_ast.body = [fn_node]

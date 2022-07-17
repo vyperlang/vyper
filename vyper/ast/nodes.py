@@ -1250,7 +1250,7 @@ class AnnAssign(VyperNode):
 
 class VariableDef(VyperNode):
     """
-    A variable declaration.
+    A contract variable declaration.
 
     Excludes `simple` attribute from Python `AnnAssign` node.
 
@@ -1262,8 +1262,6 @@ class VariableDef(VyperNode):
         Right-hand side of the assignment.
     annotation : VyperNode
         Type of variable.
-    is_state_variable : bool, optional
-        If true, indicates that the variable is a state variable.
     is_constant : bool, optional
         If true, indicates that the variable is a constant variable.
     is_public : bool, optional
@@ -1276,14 +1274,12 @@ class VariableDef(VyperNode):
         "target",
         "annotation",
         "value",
-        "is_state_variable",
         "is_constant",
         "is_public",
         "is_immutable",
     )
 
     def __init__(self, *args, **kwargs):
-        self.is_state_variable = False
         self.is_constant = False
         self.is_public = False
         self.is_immutable = False

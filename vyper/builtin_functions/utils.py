@@ -14,7 +14,7 @@ def _strip_source_pos(ir_node):
 
 
 def generate_inline_function(code, variables, variables_2, memory_allocator):
-    ast_code = parse_to_ast(code, add_fn_node=True)
+    ast_code = parse_to_ast(code, add_fn_node="dummy_fn")
     # Annotate the AST with a temporary old (i.e. typecheck) namespace
     namespace = Namespace()
     namespace.update(variables_2)
