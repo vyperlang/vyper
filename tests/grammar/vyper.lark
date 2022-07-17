@@ -213,7 +213,6 @@ _NOT: "not"
 
 ?bool_not: comparator
          | _NOT bool_not -> not
-         | _NOT bool_not -> not
 
 _POW: "**"
 _SHL: "<<"
