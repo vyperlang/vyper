@@ -1280,10 +1280,26 @@ class VariableDef(VyperNode):
     )
 
     def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
         self.is_constant = False
         self.is_public = False
         self.is_immutable = False
-        super().__init__(*args, **kwargs)
+
+        if isinstance(self.annotation, Call):
+            # the annotation is a function call, e.g. `foo: constant(uint256)`
+            call_name = self.annotation.get("func.id")
+            if call_name == "constant":
+                # declaring a constant
+                self.is_constant = True
+
+            elif call_name == "public":
+                # declaring a public variable
+                self.is_public = True
+
+            elif call_name == "immutable":
+                # declaring an immutable variable
+                self.is_immutable = True
 
 
 class AugAssign(VyperNode):
