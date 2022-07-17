@@ -1270,14 +1270,7 @@ class VariableDef(VyperNode):
         If true, indicates that the variable is an immutable variable.
     """
 
-    __slots__ = (
-        "target",
-        "annotation",
-        "value",
-        "is_constant",
-        "is_public",
-        "is_immutable",
-    )
+    __slots__ = ("target", "annotation", "value", "is_constant", "is_public", "is_immutable")
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
