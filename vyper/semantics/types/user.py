@@ -9,7 +9,8 @@ from vyper.exceptions import (
     UnknownAttribute,
 )
 from vyper.semantics.namespace import validate_identifier
-from vyper.semantics.types.bases import DataLocation, MemberTypeDefinition, ValueTypeDefinition
+from vyper.semantics.types.base import DataLocation, AttributableT
+from vyper.semantics.types.value_types import AddressT
 from vyper.semantics.validation.levenshtein_utils import get_levenshtein_error_suggestions
 
 
@@ -87,7 +88,7 @@ class EnumT(AttributableT):
         # TODO
         return []
 
-    def get_member(self, key: str, node: vy_ast.Attribute) -> EnumDefinition:
+    def get_member(self, key: str, node: vy_ast.Attribute) -> "EnumT":
         if key in self.members:
             return self.from_annotation(node.value)
         suggestions_str = get_levenshtein_error_suggestions(key, self.members, 0.3)
@@ -111,7 +112,7 @@ class EventT:
         Name of the event.
     """
 
-    def __init__(self, name: str, arguments: OrderedDict, indexed: List) -> None:
+    def __init__(self, name: str, arguments: dict, indexed: list) -> None:
         for key in arguments:
             validate_identifier(key)
         self.name = name

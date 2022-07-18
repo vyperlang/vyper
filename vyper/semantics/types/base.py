@@ -17,7 +17,6 @@ from vyper.exceptions import (
     UnexpectedValue,
     UnknownAttribute,
 )
-from vyper.semantics.types.abstract import AbstractDataType
 from vyper.semantics.validation.levenshtein_utils import get_levenshtein_error_suggestions
 
 
@@ -135,36 +134,6 @@ class VyperType:
         return {"name": name, "type": self.canonical_abi_type}
 
 
-    # TODO dead fn
-    @classmethod
-    def from_annotation(
-        cls,
-        node: Union[vy_ast.Name, vy_ast.Call],
-        location: DataLocation = DataLocation.UNSET,
-        is_constant: bool = False,
-        is_public: bool = False,
-        is_immutable: bool = False,
-    ) -> "BaseTypeDefinition":
-        """
-        Generate a `BaseTypeDefinition` instance of this type from `VariableDef.annotation`
-        or `AnnAssign.annotation`
-
-        Arguments
-        ---------
-        node : VyperNode
-            Vyper ast node from the `annotation` member of a `VariableDef` or `AnnAssign` node.
-
-        Returns
-        -------
-        BaseTypeDefinition
-            BaseTypeDefinition related to the primitive that the method was called on.
-        """
-        if not isinstance(node, vy_ast.Name):
-            raise StructureException("Invalid type assignment", node)
-        if node.id != cls._id:
-            raise UnexpectedValue("Node id does not match type name")
-        return cls._type(location, is_constant, is_public, is_immutable)
-
     def validate_literal(self, node: vy_ast.Constant) -> None:
         """
         Validate whether a given literal can be annotated with this type.
@@ -180,7 +149,7 @@ class VyperType:
             raise InvalidLiteral(f"Invalid literal type for {cls.__name__}", node)
 
     @classmethod
-    def compare_type(cls, other: VyperType) -> bool:
+    def compare_type(cls, other: "VyperType") -> bool:
         """
         Compare this type object against another type object.
 
@@ -274,6 +243,7 @@ class VarInfo:
     def __init__(
         self,
         typ: VyperType,
+        decl_node: vy_ast.VyperNode,
         location: DataLocation = DataLocation.UNSET,
         is_constant: bool = False,
         is_public: bool = False,
@@ -284,9 +254,10 @@ class VarInfo:
         self.is_constant = is_constant
         self.is_public = is_public
         self.is_immutable = is_immutable
+        self.is_local_var = is_local_var
 
-        # TODO: probably want to keep around the AST node where this was declared
-        self.defn_node = pass
+        # TODO maybe we don't actually need this
+        self.decl_node = decl_node
 
         self._modification_count = 0
 
@@ -473,6 +444,36 @@ class ExprAnalysis:
 
         if var_info is not None and var_info.typ != self.typ:
             raise CompilerPanic("Bad analysis: non-matching types {var_info.typ} / {self.typ}")
+
+
+    @classmethod
+    def from_annotation(
+        cls,
+        node: vy_ast.VyperNode,
+        location: DataLocation = DataLocation.UNSET,
+        is_constant: bool = False,
+        is_public: bool = False,
+        is_immutable: bool = False,
+    ) -> "BaseTypeDefinition":
+        """
+        Generate a `BaseTypeDefinition` instance of this type from `VariableDef.annotation`
+        or `AnnAssign.annotation`
+
+        Arguments
+        ---------
+        node : VyperNode
+            Vyper ast node from the `annotation` member of a `VariableDef` or `AnnAssign` node.
+
+        Returns
+        -------
+        BaseTypeDefinition
+            BaseTypeDefinition related to the primitive that the method was called on.
+        """
+        if not isinstance(node, vy_ast.Name):
+            raise StructureException("Invalid type assignment", node)
+        if node.id != cls._id:
+            raise UnexpectedValue("Node id does not match type name")
+        return cls.from_annotation(node)
 
     def validate_modification(
         self,

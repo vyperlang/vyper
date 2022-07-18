@@ -428,7 +428,7 @@ def validate_expected_type(node, expected_type):
     if isinstance(node, (vy_ast.List, vy_ast.Tuple)):
         # special case - for literal arrays or tuples we individually validate each item
         for expected in expected_type:
-            if not isinstance(expected, (DynamicArrayDefinition, ArrayDefinition)):
+            if not isinstance(expected, (DArrayT, SArrayT)):
                 continue
             if _validate_literal_array(node, expected):
                 return

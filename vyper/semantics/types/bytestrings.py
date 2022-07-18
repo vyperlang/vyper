@@ -6,8 +6,7 @@ from vyper.exceptions import CompilerPanic, StructureException, UnexpectedValue
 from vyper.semantics import validation
 from vyper.utils import ceil32
 
-from ..abstract import ArrayValueAbstractType, BytesAbstractType
-from ..bases import BasePrimitive, DataLocation, ValueTypeDefinition
+from .base import VyperType, DataLocation
 
 
 class _BytestringT(VyperType):
@@ -106,7 +105,7 @@ class _BytestringT(VyperType):
 
 
     @classmethod
-    def from_annotation( cls, node: vy_ast.VyperNode) -> _BytestringT:
+    def from_annotation( cls, node: vy_ast.VyperNode) -> "_BytestringT":
         if not isinstance(node, vy_ast.Subscript):
             raise StructureException(
                 f"Cannot declare {cls._id} type without a maximum length", node
@@ -121,7 +120,7 @@ class _BytestringT(VyperType):
         return cls._type(length, location, is_constant, is_public, is_immutable)
 
     @classmethod
-    def from_literal(cls, node: vy_ast.Constant) -> _BytestringT:
+    def from_literal(cls, node: vy_ast.Constant) -> "_BytestringT":
         super().from_literal(node)
         length = len(node.value)
 

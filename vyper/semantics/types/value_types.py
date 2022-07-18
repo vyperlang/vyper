@@ -3,11 +3,8 @@ from vyper.abi_types import ABI_Address, ABIType
 from vyper.exceptions import InvalidLiteral
 from vyper.utils import checksum_encode, is_checksum_encoded
 
-from ..bases import BasePrimitive, MemberTypeDefinition, ValueTypeDefinition
-from .array_value import BytesArrayDefinition
-from .boolean import BoolDefinition
-from .bytes_fixed import Bytes32Definition
-from .numeric import Uint256Definition  # type: ignore
+from .base import AttributableT, VyperType
+from .bytestrings import BytesT
 
 
 class AddressT(AttributableT):
@@ -15,11 +12,11 @@ class AddressT(AttributableT):
     _id = "address"
     _valid_literal = (vy_ast.Hex,)
     _type_members = {
-        "balance": Uint256Definition(is_constant=True),
-        "codehash": Bytes32Definition(is_constant=True),
-        "codesize": Uint256Definition(is_constant=True),
-        "is_contract": BoolDefinition(is_constant=True),
-        "code": BytesArrayDefinition(is_constant=True),
+        "balance": IntegerT(),
+        "codehash": Bytes32Definition(),
+        "codesize": Uint256Definition(),
+        "is_contract": BoolDefinition(),
+        "code": BytesArrayDefinition(),
     }
 
     @property
@@ -94,15 +91,6 @@ class BytesM_T(VyperType):
         nibbles = val[2:]  # strip leading 0x
         if nibbles not in (nibbles.lower(), nibbles.upper()):
             raise InvalidLiteral(f"Cannot mix uppercase and lowercase for bytes{m} literal", node)
-
-
-# including so mypy does not complain while we are generating types dynamically
-class Bytes32Definition(BytesMDefinition):
-
-    # included for compatibility with bytes array methods
-    length = 32
-    _length = 32
-    _min_length = 32
 
 
 class AbstractNumericDefinition(ValueTypeDefinition):
