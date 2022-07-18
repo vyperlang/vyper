@@ -1,3 +1,146 @@
+from vyper import ast as vy_ast
+from vyper.abi_types import ABI_Address, ABIType
+from vyper.exceptions import InvalidLiteral
+from vyper.utils import checksum_encode, is_checksum_encoded
+
+from ..bases import BasePrimitive, MemberTypeDefinition, ValueTypeDefinition
+from .array_value import BytesArrayDefinition
+from .boolean import BoolDefinition
+from .bytes_fixed import Bytes32Definition
+from .numeric import Uint256Definition  # type: ignore
+
+
+class AddressT(AttributableT, SimpleGettableT):
+    _as_array = True
+    _id = "address"
+    _valid_literal = (vy_ast.Hex,)
+    _type_members = {
+        "balance": Uint256Definition(is_constant=True),
+        "codehash": Bytes32Definition(is_constant=True),
+        "codesize": Uint256Definition(is_constant=True),
+        "is_contract": BoolDefinition(is_constant=True),
+        "code": BytesArrayDefinition(is_constant=True),
+    }
+
+    @property
+    def abi_type(self) -> ABIType:
+        return ABI_Address()
+
+    @classmethod
+    def validate_literal(cls, node: vy_ast.Constant):
+        super().validate_literal(node)
+        addr = node.value
+        if len(addr) != 42:
+            n_bytes = (len(addr) - 2) // 2
+            raise InvalidLiteral(f"Invalid address. Expected 20 bytes, got {n_bytes}.", node)
+
+        if not is_checksum_encoded(addr):
+            raise InvalidLiteral(
+                "Address checksum mismatch. If you are sure this is the right "
+                f"address, the correct checksummed form is: {checksum_encode(addr)}",
+                node,
+            )
+from typing import Union
+
+from vyper import ast as vy_ast
+from vyper.abi_types import ABI_Bool, ABIType
+from vyper.exceptions import InvalidLiteral
+
+from ..bases import BasePrimitive, BaseTypeDefinition, ValueTypeDefinition
+
+
+class BoolT(SimpleGettableT):
+    _id = "bool"
+    _as_array = True
+    _valid_literal = (vy_ast.NameConstant,)
+
+
+    def validate_boolean_op(self, node: vy_ast.BoolOp) -> None:
+        return
+
+    def validate_numeric_op(
+        self, node: Union[vy_ast.UnaryOp, vy_ast.BinOp, vy_ast.AugAssign]
+    ) -> None:
+        if isinstance(node.op, vy_ast.Not):
+            return
+        super().validate_numeric_op(node)
+
+    @property
+    def abi_type(self) -> ABIType:
+        return ABI_Bool()
+
+    def validate_literal(cls, node: vy_ast.Constant) -> None:
+        super().validate_literal(node)
+        if node.value is None:
+            raise InvalidLiteral("Invalid literal for type 'bool'", node)
+from vyper import ast as vy_ast
+from vyper.abi_types import ABI_BytesM, ABIType
+from vyper.exceptions import InvalidLiteral
+from vyper.semantics.types.abstract import BytesMAbstractType
+from vyper.semantics.types.bases import BasePrimitive, BaseTypeDefinition, ValueTypeDefinition
+
+
+class BytesMDefinition(BytesMAbstractType, ValueTypeDefinition):
+    length: int
+
+    @property
+    def _id(self):
+        return f"bytes{self.length}"
+
+    @property
+    def abi_type(self) -> ABIType:
+        return ABI_BytesM(self.length)
+
+
+class BytesMPrimitive(BasePrimitive):
+    _length: int
+
+    _as_array = True
+    _valid_literal = (vy_ast.Hex,)
+
+    @classmethod
+    def validate_literal(cls, node: vy_ast.Constant):
+        super().validate_literal(node)
+        val = node.value
+        m = cls._length
+
+        if len(val) != 2 + 2 * m:
+            raise InvalidLiteral("Invalid literal for type bytes32", node)
+
+        nibbles = val[2:]  # strip leading 0x
+        if nibbles not in (nibbles.lower(), nibbles.upper()):
+            raise InvalidLiteral(f"Cannot mix uppercase and lowercase for bytes{m} literal", node)
+
+
+# including so mypy does not complain while we are generating types dynamically
+class Bytes32Definition(BytesMDefinition):
+
+    # included for compatibility with bytes array methods
+    length = 32
+    _length = 32
+    _min_length = 32
+
+
+class Bytes32Primitive(BytesMPrimitive):
+    _type = Bytes32Definition
+    _length = 32
+    _id = "bytes32"
+
+
+for i in range(31):
+    m = i + 1
+    definition = type(
+        f"Bytes{m}Definition", (BytesMDefinition,), {"length": m, "_length": m, "_min_length": m}
+    )
+    prim = type(
+        f"Bytes{m}Primitive",
+        (BytesMPrimitive,),
+        {"_length": m, "_type": definition, "_id": f"bytes{m}"},
+    )
+
+    globals()[f"Bytes{m}Definition"] = definition
+    globals()[f"Bytes{m}Primitive"] = prim
+from . import address, array_value, boolean, bytes_fixed, numeric
 from typing import Optional, Tuple, Type, Union
 
 from vyper import ast as vy_ast
