@@ -127,7 +127,7 @@ def _get_contract(w3, source_code, no_optimize, *args, **kwargs):
     return w3.eth.contract(address, abi=abi, bytecode=bytecode, ContractFactoryClass=VyperContract)
 
 
-def _deploy_factory_for(w3, source_code, no_optimize, initcode_prefix=b"", **kwargs):
+def _deploy_blueprint_for(w3, source_code, no_optimize, initcode_prefix=b"", **kwargs):
     out = compiler.compile_code(
         source_code,
         ["abi", "bytecode"],
@@ -165,11 +165,11 @@ def _deploy_factory_for(w3, source_code, no_optimize, initcode_prefix=b"", **kwa
 
 
 @pytest.fixture(scope="module")
-def deploy_factory_for(w3, no_optimize):
-    def deploy_factory_for(source_code, *args, **kwargs):
-        return _deploy_factory_for(w3, source_code, no_optimize, *args, **kwargs)
+def deploy_blueprint_for(w3, no_optimize):
+    def deploy_blueprint_for(source_code, *args, **kwargs):
+        return _deploy_blueprint_for(w3, source_code, no_optimize, *args, **kwargs)
 
-    return deploy_factory_for
+    return deploy_blueprint_for
 
 
 @pytest.fixture(scope="module")
