@@ -3,14 +3,14 @@ from typing import Union
 
 from vyper import ast as vy_ast
 from vyper.exceptions import StructureException
-from vyper.semantics.types.bases import VyperType, DataLocation, IndexableTypeDefinition
+from vyper.semantics.types.bases import VyperType, DataLocation
 from vyper.semantics.types.utils import get_type_from_annotation
 from vyper.semantics.validation.utils import validate_expected_type
 
 
-class _IndexableT(VyperType):
+class _SubscriptableT(VyperType):
     """
-    Base class for indexable types such as arrays and mappings.
+    Base class for subscriptable types such as arrays and mappings.
 
     Attributes
     ----------
@@ -39,7 +39,7 @@ class _IndexableT(VyperType):
         return self.key_type
 
 
-class HashMapT(IndexableT):
+class HashMapT(SubscriptableT):
     _id = "HashMap"
 
     def __repr__(self):
@@ -84,7 +84,7 @@ class HashMapT(IndexableT):
         value_type = get_type_from_annotation(node.slice.value.elements[1], DataLocation.STORAGE)
 
 
-class _SequenceT(_IndexableT):
+class _SequenceT(_SubscriptableT):
     """
     Private base class for sequence types (i.e., index is an int)
 
