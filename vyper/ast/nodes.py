@@ -1294,6 +1294,9 @@ class VariableDef(VyperNode):
                 # declaring an immutable variable
                 self.is_immutable = True
 
+            else:
+                _raise_syntax_exc("Invalid scope for variable declaration", self.annotation)
+
 
 class AugAssign(VyperNode):
     __slots__ = ("op", "target", "value")
