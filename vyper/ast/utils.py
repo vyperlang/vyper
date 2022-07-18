@@ -24,8 +24,8 @@ def parse_to_ast(
         Source id to use in the `src` member of each node.
     contract_name: str, optional
         Name of contract.
-    add_fn_node: bool, optional
-        Adds a dummy Python AST FunctionDef node.
+    add_fn_node: str, optional
+        If not None, adds a dummy Python AST FunctionDef wrapper node.
 
     Returns
     -------
