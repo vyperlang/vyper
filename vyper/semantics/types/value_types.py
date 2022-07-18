@@ -10,7 +10,7 @@ from .bytes_fixed import Bytes32Definition
 from .numeric import Uint256Definition  # type: ignore
 
 
-class AddressT(AttributableT, SimpleGettableT):
+class AddressT(AttributableT):
     _as_array = True
     _id = "address"
     _valid_literal = (vy_ast.Hex,)
@@ -40,20 +40,12 @@ class AddressT(AttributableT, SimpleGettableT):
                 f"address, the correct checksummed form is: {checksum_encode(addr)}",
                 node,
             )
-from typing import Union
-
-from vyper import ast as vy_ast
-from vyper.abi_types import ABI_Bool, ABIType
-from vyper.exceptions import InvalidLiteral
-
-from ..bases import BasePrimitive, BaseTypeDefinition, ValueTypeDefinition
 
 
-class BoolT(SimpleGettableT):
+class BoolT(VyperType):
     _id = "bool"
     _as_array = True
     _valid_literal = (vy_ast.NameConstant,)
-
 
     def validate_boolean_op(self, node: vy_ast.BoolOp) -> None:
         return
@@ -73,14 +65,9 @@ class BoolT(SimpleGettableT):
         super().validate_literal(node)
         if node.value is None:
             raise InvalidLiteral("Invalid literal for type 'bool'", node)
-from vyper import ast as vy_ast
-from vyper.abi_types import ABI_BytesM, ABIType
-from vyper.exceptions import InvalidLiteral
-from vyper.semantics.types.abstract import BytesMAbstractType
-from vyper.semantics.types.bases import BasePrimitive, BaseTypeDefinition, ValueTypeDefinition
 
 
-class BytesMDefinition(BytesMAbstractType, ValueTypeDefinition):
+class BytesM_T(VyperType):
     length: int
 
     @property
@@ -91,9 +78,6 @@ class BytesMDefinition(BytesMAbstractType, ValueTypeDefinition):
     def abi_type(self) -> ABIType:
         return ABI_BytesM(self.length)
 
-
-class BytesMPrimitive(BasePrimitive):
-    _length: int
 
     _as_array = True
     _valid_literal = (vy_ast.Hex,)
@@ -119,40 +103,6 @@ class Bytes32Definition(BytesMDefinition):
     length = 32
     _length = 32
     _min_length = 32
-
-
-class Bytes32Primitive(BytesMPrimitive):
-    _type = Bytes32Definition
-    _length = 32
-    _id = "bytes32"
-
-
-for i in range(31):
-    m = i + 1
-    definition = type(
-        f"Bytes{m}Definition", (BytesMDefinition,), {"length": m, "_length": m, "_min_length": m}
-    )
-    prim = type(
-        f"Bytes{m}Primitive",
-        (BytesMPrimitive,),
-        {"_length": m, "_type": definition, "_id": f"bytes{m}"},
-    )
-
-    globals()[f"Bytes{m}Definition"] = definition
-    globals()[f"Bytes{m}Primitive"] = prim
-from . import address, array_value, boolean, bytes_fixed, numeric
-from typing import Optional, Tuple, Type, Union
-
-from vyper import ast as vy_ast
-from vyper.abi_types import ABI_FixedMxN, ABI_GIntM, ABIType
-from vyper.exceptions import CompilerPanic, InvalidOperation, OverflowException
-from vyper.semantics.types.abstract import (
-    FixedAbstractType,
-    SignedIntegerAbstractType,
-    UnsignedIntegerAbstractType,
-)
-from vyper.semantics.types.bases import BasePrimitive, BaseTypeDefinition, ValueTypeDefinition
-from vyper.utils import SizeLimits, int_bounds
 
 
 class AbstractNumericDefinition(ValueTypeDefinition):
@@ -309,23 +259,15 @@ for i in range(32):
     )
 
 
-class DecimalDefinition(FixedAbstractType, AbstractNumericDefinition):
+class DecimalT(_NumericT):
+    _bounds = (SizeLimits.MIN_AST_DECIMAL, SizeLimits.MAX_AST_DECIMAL)
     _bits = 168  # TODO generalize
     _decimal_places = 10  # TODO generalize
     _id = "decimal"
     _is_signed = True
     _invalid_op = vy_ast.Pow
+    _valid_literal = (vy_ast.Decimal,)
 
     @property
     def abi_type(self) -> ABIType:
         return ABI_FixedMxN(self._bits, self._decimal_places, self._is_signed)
-
-
-# primitives
-
-
-class DecimalPrimitive(_NumericPrimitive):
-    _bounds = (SizeLimits.MIN_AST_DECIMAL, SizeLimits.MAX_AST_DECIMAL)
-    _id = "decimal"
-    _type = DecimalDefinition
-    _valid_literal = (vy_ast.Decimal,)
