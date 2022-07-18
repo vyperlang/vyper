@@ -146,12 +146,13 @@ class VyperType:
         is_immutable: bool = False,
     ) -> "BaseTypeDefinition":
         """
-        Generate a `BaseTypeDefinition` instance of this type from `AnnAssign.annotation`
+        Generate a `BaseTypeDefinition` instance of this type from `VariableDef.annotation`
+        or `AnnAssign.annotation`
 
         Arguments
         ---------
         node : VyperNode
-            Vyper ast node from the `annotation` member of an `AnnAssign` node.
+            Vyper ast node from the `annotation` member of a `VariableDef` or `AnnAssign` node.
 
         Returns
         -------
