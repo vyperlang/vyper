@@ -103,6 +103,37 @@ class VyperType:
         return (), self
 
 
+    @property
+    def abi_type(self) -> ABIType:
+        """
+        The ABI type corresponding to this type
+        """
+        raise CompilerPanic("Method must be implemented by the inherited class")
+
+    @property
+    def canonical_abi_type(self) -> str:
+        """
+        The canonical name of this type. Used for ABI types and generating function signatures.
+        """
+        return self.abi_type.selector_name()
+
+    def to_abi_dict(self, name: str = "") -> Dict[str, Any]:
+        """
+        The JSON ABI description of this type. Note for complex types,
+        the implementation is overriden to be compliant with the spec:
+        https://docs.soliditylang.org/en/v0.8.14/abi-spec.html#json
+        > An object with members name, type and potentially components
+          describes a typed variable. The canonical type is determined
+          until a tuple type is reached and the string description up to
+          that point is stored in type prefix with the word tuple, i.e.
+          it will be tuple followed by a sequence of [] and [k] with
+          integers k. The components of the tuple are then stored in the
+          member components, which is of array type and has the same
+          structure as the top-level object except that indexed is not
+          allowed there.
+        """
+        return {"name": name, "type": self.canonical_abi_type}
+
 
     # TODO dead fn
     @classmethod
@@ -141,20 +172,14 @@ class VyperType:
         ---------
         node : VyperNode
             `Constant` Vyper ast node, or a list or tuple of constants.
-
-        Returns
-        -------
-        BaseTypeDefinition
-            BaseTypeDefinition related to the primitive that the method was called on.
         """
         if not isinstance(node, vy_ast.Constant):
-            raise UnexpectedNodeType(f"Attempted to validate a '{node.ast_type}' node.")
-        if not isinstance(node, cls._valid_literal):
+            raise UnexpectedNodeType(f"Not a literal.", node)
+        if not isinstance(node, self._valid_literal):
             raise InvalidLiteral(f"Invalid literal type for {cls.__name__}", node)
+
     @classmethod
-    def compare_type(
-        cls, other: Union["BaseTypeDefinition", "BasePrimitive", AbstractDataType]
-    ) -> bool:
+    def compare_type(cls, other: VyperType) -> bool:
         """
         Compare this type object against another type object.
 
@@ -205,9 +230,7 @@ class VyperType:
         raise StructureException(f"{cls} does not have members", node)
 
     @classmethod
-    def validate_modification(
-        cls, node: Union[vy_ast.Assign, vy_ast.AugAssign], mutability: Any
-    ) -> None:
+    def validate_modification( cls, mutability: Any, node: vy_ast.VyperNode) -> None:
         # always raises - do not implement in inherited classes
         raise InvalidOperation("Cannot assign to a type", node)
 
@@ -248,41 +271,10 @@ class VarInfo:
         self.is_public = is_public
         self.is_immutable = is_immutable
 
+        # TODO: probably want to keep around the AST node where this was declared
+        self.defn_node = pass
+
         self._modification_count = 0
-
-    # TODO move to VyperType
-    @property
-    def abi_type(self) -> ABIType:
-        """
-        The ABI type corresponding to this type
-        """
-        raise CompilerPanic("Method must be implemented by the inherited class")
-
-    # TODO move to VyperType
-    @property
-    def canonical_abi_type(self) -> str:
-        """
-        The canonical name of this type. Used for ABI types and generating function signatures.
-        """
-        return self.abi_type.selector_name()
-
-    # TODO move to VyperType
-    def to_abi_dict(self, name: str = "") -> Dict[str, Any]:
-        """
-        The JSON ABI description of this type. Note for complex types,
-        the implementation is overriden to be compliant with the spec:
-        https://docs.soliditylang.org/en/v0.8.14/abi-spec.html#json
-        > An object with members name, type and potentially components
-          describes a typed variable. The canonical type is determined
-          until a tuple type is reached and the string description up to
-          that point is stored in type prefix with the word tuple, i.e.
-          it will be tuple followed by a sequence of [] and [k] with
-          integers k. The components of the tuple are then stored in the
-          member components, which is of array type and has the same
-          structure as the top-level object except that indexed is not
-          allowed there.
-        """
-        return {"name": name, "type": self.canonical_abi_type}
 
     # TODO move to VarInfo
     def set_position(self, position: DataPosition) -> None:
@@ -295,9 +287,7 @@ class VarInfo:
                 raise CompilerPanic("Incompatible locations")
         self.position = position
 
-    def compare_type(
-        self, other: Union["BaseTypeDefinition", BasePrimitive, AbstractDataType]
-    ) -> bool:
+    def compare_type(self, other: VyperType) -> bool:
         """
         Compare this type object against another type object.
 
@@ -470,10 +460,44 @@ class VarInfo:
         """
         raise StructureException(f"Type '{self}' does not support members", node)
 
+    # TODO
+    def compare_signature(self, other: "BaseTypeDefinition") -> bool:
+        """
+        Compare the signature of this type with another type.
+
+        Used when determining if an interface has been implemented. This method
+        should not be directly implemented by any inherited classes.
+        """
+
+        if not self.is_public:
+            return False
+
+        arguments, return_type = self.getter_signature()
+        other_arguments, other_return_type = other.getter_signature()
+
+        if len(arguments) != len(other_arguments):
+            return False
+        for a, b in zip(arguments, other_arguments):
+            if not a.compare_type(b):
+                return False
+        if return_type and not return_type.compare_type(other_return_type):  # type: ignore
+            return False
+
+        return True
+
+
+class ExprInfo:
+    """
+    Class which represents the info associated with an expression
+    """
+    def __init__(self, typ, var_info):
+        self.typ: VyperType = typ
+        self.var_info: Optional[VarInfo] = None
+
     def validate_modification(
         self,
-        node: Union[vy_ast.Assign, vy_ast.AugAssign, vy_ast.Call],
-        mutability: Any,  # should be StateMutability, import cycle
+        mutability: Any, # should be StateMutability, import cycle
+        node: vy_ast.VyperNode,
     ) -> None:
         """
         Validate an attempt to modify this value.
@@ -509,41 +533,7 @@ class VarInfo:
             self._modification_count += 1
 
         if isinstance(node, vy_ast.AugAssign):
-            self.validate_numeric_op(node)
-
-    # TODO
-    def compare_signature(self, other: "BaseTypeDefinition") -> bool:
-        """
-        Compare the signature of this type with another type.
-
-        Used when determining if an interface has been implemented. This method
-        should not be directly implemented by any inherited classes.
-        """
-
-        if not self.is_public:
-            return False
-
-        arguments, return_type = self.getter_signature()
-        other_arguments, other_return_type = other.getter_signature()
-
-        if len(arguments) != len(other_arguments):
-            return False
-        for a, b in zip(arguments, other_arguments):
-            if not a.compare_type(b):
-                return False
-        if return_type and not return_type.compare_type(other_return_type):  # type: ignore
-            return False
-
-        return True
-
-
-class ExprInfo:
-    """
-    Class which represents the info associated with an expression
-    """
-    def __init__(self, typ, var_info):
-        self.typ: VyperType = typ
-        self.var_info: Optional[VarInfo] = None
+            self.var_info.typ.validate_numeric_op(node)
 
 
 class AttributableT(VyperType):
