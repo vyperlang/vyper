@@ -2,7 +2,7 @@ import pytest
 from pytest import raises
 
 from vyper import compiler
-from vyper.exceptions import NamespaceCollision, StructureException, UnknownType
+from vyper.exceptions import NamespaceCollision, StructureException, SyntaxException, UnknownType
 
 fail_list = [  # noqa: E122
     (
@@ -74,7 +74,7 @@ def foo(i: int128) -> int128:
         """
 Transfer: eve.t({_from: indexed(address)})
     """,
-        UnknownType,
+        SyntaxException,
     ),
     (
         """
