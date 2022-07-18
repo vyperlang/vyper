@@ -10,7 +10,7 @@ from ..abstract import ArrayValueAbstractType, BytesAbstractType
 from ..bases import BasePrimitive, DataLocation, ValueTypeDefinition
 
 
-class _ArrayValueDefinition(ValueTypeDefinition):
+class _BytestringT(VyperType):
     """
     Private base class for single-value types which occupy multiple memory slots
     and where a maximum length must be given via a subscript (string, bytes).
@@ -30,20 +30,13 @@ class _ArrayValueDefinition(ValueTypeDefinition):
         is applied to a literal definition.
     """
 
-    is_dynamic_size = True
-
     def __repr__(self):
         return f"{self._id}[{self.length}]"
 
     def __init__(
         self,
         length: int = 0,
-        location: DataLocation = DataLocation.MEMORY,
-        is_constant: bool = False,
-        is_public: bool = False,
-        is_immutable: bool = False,
     ) -> None:
-        super().__init__(location, is_constant, is_public, is_immutable)
         self._length = length
         self._min_length = length
 
@@ -112,22 +105,13 @@ class _ArrayValueDefinition(ValueTypeDefinition):
         return other.compare_type(self)
 
 
-class _ArrayValuePrimitive(BasePrimitive):
-    _type: Type[_ArrayValueDefinition]  # type: ignore
-
     @classmethod
-    def from_annotation(
-        cls,
-        node: vy_ast.VyperNode,
-        location: DataLocation = DataLocation.MEMORY,
-        is_constant: bool = False,
-        is_public: bool = False,
-        is_immutable: bool = False,
-    ) -> _ArrayValueDefinition:
+    def from_annotation( cls, node: vy_ast.VyperNode) -> _BytestringT:
         if not isinstance(node, vy_ast.Subscript):
             raise StructureException(
                 f"Cannot declare {cls._id} type without a maximum length", node
             )
+
         if len(node.get_descendants(vy_ast.Subscript, include_self=True)) > 1:
             raise StructureException(f"Multidimensional {cls._id} arrays are not supported", node)
         if node.get("value.id") != cls._id:
@@ -137,38 +121,27 @@ class _ArrayValuePrimitive(BasePrimitive):
         return cls._type(length, location, is_constant, is_public, is_immutable)
 
     @classmethod
-    def from_literal(cls, node: vy_ast.Constant) -> _ArrayValueDefinition:
+    def from_literal(cls, node: vy_ast.Constant) -> _BytestringT:
         super().from_literal(node)
         length = len(node.value)
 
-        obj = cls._type()
-        obj.set_min_length(length)
+        obj = cls(length)
         return obj
 
 
-class BytesArrayDefinition(BytesAbstractType, ArrayValueAbstractType, _ArrayValueDefinition):
+class BytesT(_BytestringT):
     _id = "Bytes"
+    _valid_literal = (vy_ast.Bytes,)
 
     @property
     def abi_type(self) -> ABIType:
         return ABI_Bytes(self.length)
 
 
-class StringDefinition(ArrayValueAbstractType, _ArrayValueDefinition):
+class StringT(_BytestringT):
     _id = "String"
+    _valid_literal = (vy_ast.Str,)
 
     @property
     def abi_type(self) -> ABIType:
         return ABI_String(self.length)
-
-
-class BytesArrayPrimitive(_ArrayValuePrimitive):
-    _id = "Bytes"
-    _type = BytesArrayDefinition
-    _valid_literal = (vy_ast.Bytes,)
-
-
-class StringPrimitive(_ArrayValuePrimitive):
-    _id = "String"
-    _type = StringDefinition
-    _valid_literal = (vy_ast.Str,)
