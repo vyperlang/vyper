@@ -13,20 +13,18 @@ from vyper.semantics.types.bases import DataLocation, MemberTypeDefinition, Valu
 from vyper.semantics.validation.levenshtein_utils import get_levenshtein_error_suggestions
 
 
-class EnumDefinition(MemberTypeDefinition, ValueTypeDefinition):
-    def __init__(
-        self,
-        name: str,
-        members: dict,
-        location: DataLocation = DataLocation.MEMORY,
-        is_constant: bool = False,
-        is_public: bool = False,
-        is_immutable: bool = False,
-    ) -> None:
+class EnumT(AttributableT):
+    def __init__( self, name: str, members: dict) -> None:
+        if len(members.keys()) > 256:
+            raise EnumDeclarationException("Enums are limited to 256 members!")
+
+        super().__init__(members)
         self._id = name
-        super().__init__(location, is_constant, is_public, is_immutable)
-        for key, val in members.items():
-            self.add_member(key, val)
+
+    def __repr__(self):
+        arg_types = ",".join(repr(a) for a in self.members)
+        return f"enum {self.name}({arg_types})"
+
 
     @property
     def abi_type(self):
@@ -48,51 +46,12 @@ class EnumDefinition(MemberTypeDefinition, ValueTypeDefinition):
         super().validate_comparator(node)
 
 
-class EnumPrimitive:
-    """
-    Enum type.
-
-    Attributes
-    ----------
-    arguments : list of strings
-    name : str
-        Name of the element.
-    """
-
-    def __init__(self, name: str, members: dict) -> None:
-        for key in members.keys():
-            validate_identifier(key)
-        self.name = name
-        if len(members.keys()) > 256:
-            raise EnumDeclarationException("Enums are limited to 256 members!")
-        self.members = members
-
-    def __repr__(self):
-        arg_types = ",".join(repr(a) for a in self.members)
-        return f"enum {self.name}({arg_types})"
-
-    @property
-    def signature(self):
-        return f"{self.name}({','.join(v.canonical_abi_type for v in self.arguments)})"
+    #@property
+    #def signature(self):
+    #    return f"{self.name}({','.join(v.canonical_abi_type for v in self.arguments)})"
 
     @classmethod
-    def from_abi(cls, abi: Dict) -> "EnumPrimitive":
-        """
-        Generate an `Enum` object from an ABI interface.
-
-        Arguments
-        ---------
-        abi : dict
-            An object from a JSON ABI interface, representing an enum.
-
-        Returns
-        -------
-        Enum object.
-        """
-        raise UnimplementedException("enum from ABI")
-
-    @classmethod
-    def from_EnumDef(cls, base_node: vy_ast.EnumDef) -> "EnumPrimitive":
+    def from_EnumDef(cls, base_node: vy_ast.EnumDef) -> "EnumType":
         """
         Generate an `Enum` object from a Vyper ast node.
 
@@ -134,33 +93,7 @@ class EnumPrimitive:
         suggestions_str = get_levenshtein_error_suggestions(key, self.members, 0.3)
         raise UnknownAttribute(f"{self} has no member '{key}'. {suggestions_str}", node)
 
-    def from_annotation(
-        self,
-        node: vy_ast.VyperNode,
-        location: DataLocation = DataLocation.UNSET,
-        is_constant: bool = False,
-        is_public: bool = False,
-        is_immutable: bool = False,
-    ) -> EnumDefinition:
-        if not isinstance(node, vy_ast.Name):
-            raise StructureException("Invalid type", node)
-        return EnumDefinition(
-            self.name, self.members, location, is_constant, is_public, is_immutable
-        )
-from collections import OrderedDict
-from typing import Dict, List
-
-from vyper import ast as vy_ast
-from vyper.ast.validation import validate_call_args
-from vyper.exceptions import EventDeclarationException, NamespaceCollision, StructureException
-from vyper.semantics.namespace import validate_identifier
-from vyper.semantics.types.bases import DataLocation
-from vyper.semantics.types.utils import get_type_from_abi, get_type_from_annotation
-from vyper.semantics.validation.utils import validate_expected_type
-from vyper.utils import keccak256
-
-
-class Event:
+class EventT:
     """
     Event type.
 
@@ -190,12 +123,13 @@ class Event:
         arg_types = ",".join(repr(a) for a in self.arguments.values())
         return f"event {self.name}({arg_types})"
 
+    # TODO rename to abi_signature?
     @property
     def signature(self):
         return f"{self.name}({','.join(v.canonical_abi_type for v in self.arguments.values())})"
 
     @classmethod
-    def from_abi(cls, abi: Dict) -> "Event":
+    def from_abi(cls, abi: Dict) -> "EventType":
         """
         Generate an `Event` object from an ABI interface.
 
@@ -279,43 +213,21 @@ class Event:
                 "type": "event",
             }
         ]
-from . import enum, event, interface, struct
 
-USER_TYPES = {"event": event, "interface": interface, "struct": struct, "enum": enum}
-from collections import OrderedDict
-from typing import Dict, List, Tuple, Union
+class InterfaceT(AttributableT):
 
-from vyper import ast as vy_ast
-from vyper.abi_types import ABI_Address, ABIType
-from vyper.ast.validation import validate_call_args
-from vyper.exceptions import InterfaceViolation, NamespaceCollision, StructureException
-from vyper.semantics.namespace import get_namespace, validate_identifier
-from vyper.semantics.types.bases import DataLocation, MemberTypeDefinition, ValueTypeDefinition
-from vyper.semantics.types.function import ContractFunction
-from vyper.semantics.types.user.event import Event
-from vyper.semantics.types.value.address import AddressDefinition
-from vyper.semantics.validation.utils import validate_expected_type, validate_unique_method_ids
+    _type_members = {"address": AddressT()}
+    _is_callable = True
+    _as_array = True
 
+    def __init__( self, _id: str, members: dict,) -> None:
+        validate_unique_method_ids(members.values())
+        super().__init__(members)
 
-class InterfaceDefinition(MemberTypeDefinition, ValueTypeDefinition):
-
-    _type_members = {"address": AddressDefinition()}
-
-    def __init__(
-        self,
-        _id: str,
-        members: OrderedDict,
-        location: DataLocation = DataLocation.MEMORY,
-        is_constant: bool = False,
-        is_public: bool = False,
-        is_immutable: bool = False,
-    ) -> None:
         self._id = _id
-        super().__init__(location, is_constant, is_public, is_immutable)
-        for key, type_ in members.items():
-            self.add_member(key, type_)
+        self.events = events
 
-    def get_signature(self):
+    def getter_signature(self):
         return (), AddressDefinition()
 
     @property
@@ -323,37 +235,8 @@ class InterfaceDefinition(MemberTypeDefinition, ValueTypeDefinition):
         return ABI_Address()
 
 
-class InterfacePrimitive:
-
-    _is_callable = True
-    _as_array = True
-
-    def __init__(self, _id, members, events):
-        validate_unique_method_ids(members.values())
-        for key in members:
-            validate_identifier(key)
-        self._id = _id
-        self.members = members
-        self.events = events
-
     def __repr__(self):
-        return f"{self._id} declaration object"
-
-    def from_annotation(
-        self,
-        node: vy_ast.VyperNode,
-        location: DataLocation = DataLocation.MEMORY,
-        is_constant: bool = False,
-        is_public: bool = False,
-        is_immutable: bool = False,
-    ) -> InterfaceDefinition:
-
-        if not isinstance(node, vy_ast.Name):
-            raise StructureException("Invalid type assignment", node)
-
-        return InterfaceDefinition(
-            self._id, self.members, location, is_constant, is_public, is_immutable
-        )
+        return f"{self._id} declaration"
 
     def fetch_call_return(self, node: vy_ast.Call) -> InterfaceDefinition:
         self.infer_arg_types(node)
@@ -368,6 +251,7 @@ class InterfacePrimitive:
     def infer_kwarg_types(self, node):
         return {}
 
+    # TODO change to ImplementsDecl
     def validate_implements(self, node: vy_ast.AnnAssign) -> None:
         namespace = get_namespace()
         # check for missing functions
@@ -402,65 +286,65 @@ class InterfacePrimitive:
         return abi
 
 
-def build_primitive_from_abi(name: str, abi: dict) -> InterfacePrimitive:
-    """
-    Generate an `InterfacePrimitive` object from an ABI.
+    @classmethod
+    def from_json_abi(name: str, abi: dict) -> InterfaceType:
+        """
+        Generate an `InterfacePrimitive` object from an ABI.
 
-    Arguments
-    ---------
-    name : str
-        The name of the interface
-    abi : dict
-        Contract ABI
+        Arguments
+        ---------
+        name : str
+            The name of the interface
+        abi : dict
+            Contract ABI
 
-    Returns
-    -------
-    InterfacePrimitive
-        primitive interface type
-    """
-    members: OrderedDict = OrderedDict()
-    events: Dict = {}
+        Returns
+        -------
+        InterfacePrimitive
+            primitive interface type
+        """
+        members: OrderedDict = OrderedDict()
+        events: Dict = {}
 
-    names = [i["name"] for i in abi if i.get("type") in ("event", "function")]
-    collisions = set(i for i in names if names.count(i) > 1)
-    if collisions:
-        collision_list = ", ".join(sorted(collisions))
-        raise NamespaceCollision(
-            f"ABI '{name}' has multiple functions or events with the same name: {collision_list}"
-        )
+        names = [i["name"] for i in abi if i.get("type") in ("event", "function")]
+        collisions = set(i for i in names if names.count(i) > 1)
+        if collisions:
+            collision_list = ", ".join(sorted(collisions))
+            raise NamespaceCollision(
+                f"ABI '{name}' has multiple functions or events with the same name: {collision_list}"
+            )
 
-    for item in [i for i in abi if i.get("type") == "function"]:
-        members[item["name"]] = ContractFunction.from_abi(item)
-    for item in [i for i in abi if i.get("type") == "event"]:
-        events[item["name"]] = Event.from_abi(item)
+        for item in [i for i in abi if i.get("type") == "function"]:
+            members[item["name"]] = ContractFunction.from_abi(item)
+        for item in [i for i in abi if i.get("type") == "event"]:
+            events[item["name"]] = Event.from_abi(item)
 
-    return InterfacePrimitive(name, members, events)
+        return cls(name, members, events)
 
 
-def build_primitive_from_node(
-    node: Union[vy_ast.InterfaceDef, vy_ast.Module]
-) -> InterfacePrimitive:
-    """
-    Generate an `InterfacePrimitive` object from a Vyper ast node.
+    @classmethod
+    def from_ast( cls, node: Union[vy_ast.InterfaceDef, vy_ast.Module]) -> "InterfaceType":
+        """
+        Generate an `InterfacePrimitive` object from a Vyper ast node.
 
-    Arguments
-    ---------
-    node : InterfaceDef | Module
-        Vyper ast node defining the interface
-    Returns
-    -------
-    InterfacePrimitive
-        primitive interface type
-    """
-    if isinstance(node, vy_ast.Module):
-        members, events = _get_module_definitions(node)
-    elif isinstance(node, vy_ast.InterfaceDef):
-        members = _get_class_functions(node)
-        events = {}
-    else:
-        raise StructureException("Invalid syntax for interface definition", node)
+        Arguments
+        ---------
+        node : InterfaceDef | Module
+            Vyper ast node defining the interface
+        Returns
+        -------
+        InterfacePrimitive
+            primitive interface type
+        """
+        if isinstance(node, vy_ast.Module):
+            members, events = _get_module_definitions(node)
+        elif isinstance(node, vy_ast.InterfaceDef):
+            members = _get_class_functions(node)
+            events = {}
+        else:
+            raise StructureException("Invalid syntax for interface definition", node)
 
-    return InterfacePrimitive(node.name, members, events)
+        return cls(node.name, members, events)
 
 
 def _get_module_definitions(base_node: vy_ast.Module) -> Tuple[OrderedDict, Dict]:
@@ -515,24 +399,6 @@ def _get_class_functions(base_node: vy_ast.InterfaceDef) -> OrderedDict:
         functions[node.name] = ContractFunction.from_FunctionDef(node, is_interface=True)
 
     return functions
-from collections import OrderedDict
-
-from vyper import ast as vy_ast
-from vyper.abi_types import ABI_Tuple, ABIType
-from vyper.ast.validation import validate_call_args
-from vyper.exceptions import (
-    InvalidAttribute,
-    NamespaceCollision,
-    StructureException,
-    UnknownAttribute,
-    VariableDeclarationException,
-)
-from vyper.semantics.namespace import validate_identifier
-from vyper.semantics.types.bases import DataLocation, MemberTypeDefinition, ValueTypeDefinition
-from vyper.semantics.types.indexable.mapping import MappingDefinition
-from vyper.semantics.types.utils import get_type_from_annotation
-from vyper.semantics.validation.levenshtein_utils import get_levenshtein_error_suggestions
-from vyper.semantics.validation.utils import validate_expected_type
 
 
 class StructT(AttributableT, SimpleGettableT):
@@ -540,13 +406,12 @@ class StructT(AttributableT, SimpleGettableT):
     _as_array = True
 
     def __init__(self, _id, members, ast_def):
+        super().__init__(members)
+
         self._id = _id
 
         self.ast_def = ast_def
 
-        for k, v in members:
-            validate_identifier(k)
-            self.add_member(k, v)
 
     @classmethod
     def from_ast_def(cls, base_node: vy_ast.StructDef) -> "StructT":

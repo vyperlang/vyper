@@ -552,9 +552,12 @@ class AttributableT(VyperType):
         Dictionary of members for the given type.
     """
 
-    def __init__(self, *args, **kwargs) -> None:
+    def __init__(self, members, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self.members: Dict[str, VyperType] = {}
+        for k, v in members.items():
+            validate_identifier(k)
+            self.add_member(k, v)
 
     def add_member(self, name: str, type_: VyperType) -> None:
         if name in self.members:
