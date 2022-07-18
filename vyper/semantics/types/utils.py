@@ -30,7 +30,7 @@ class KwargSettings:
         self.require_literal = require_literal
 
 
-class TypeTypeDefinition:
+class TypeType:
     def __init__(self, typedef):
         self.typedef = typedef
 

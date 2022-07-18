@@ -3,17 +3,49 @@ from typing import Union
 
 from vyper import ast as vy_ast
 from vyper.exceptions import StructureException
-from vyper.semantics.types.bases import BasePrimitive, DataLocation, IndexableTypeDefinition
+from vyper.semantics.types.bases import VyperType, DataLocation, IndexableTypeDefinition
 from vyper.semantics.types.utils import get_type_from_annotation
 from vyper.semantics.validation.utils import validate_expected_type
 
 
-class MappingDefinition(IndexableTypeDefinition):
+class _IndexableT(VyperType):
+    """
+    Base class for indexable types such as arrays and mappings.
+
+    Attributes
+    ----------
+    key_type: VyperType
+        Type representing the index for this object.
+    value_type : VyperType
+        Type representing the value(s) contained in this object.
+    _id : str
+        Name of the type.
+    """
+
+    def __init__(
+        self,
+        key_type: VyperType,
+        value_type: VyperType,
+    ) -> None:
+        self.key_type = key_type
+        self.value_type = value_type
+
+    def getter_signature(self) -> Tuple[Tuple, Optional[VyperType]]:
+        child_keys, return_type = self.value_type.getter_signature()
+        return (self.key_type,) + child_keys, return_type
+
+    # TODO rename me
+    def get_index_type(self):
+        return self.key_type
+
+
+class HashMapT(IndexableT):
     _id = "HashMap"
 
     def __repr__(self):
         return f"HashMap[{self.key_type}, {self.value_type}]"
 
+    # TODO not sure this is used?
     def compare_type(self, other):
         return (
             super().compare_type(other)
@@ -27,20 +59,11 @@ class MappingDefinition(IndexableTypeDefinition):
     def get_subscripted_type(self, node):
         return self.value_type
 
-
-class MappingPrimitive(BasePrimitive):
-    _id = "HashMap"
-    _valid_literal = ()
-
     @classmethod
     def from_annotation(
         cls,
         node: Union[vy_ast.Name, vy_ast.Call, vy_ast.Subscript],
-        location: DataLocation = DataLocation.UNSET,
-        is_constant: bool = False,
-        is_public: bool = False,
-        is_immutable: bool = False,
-    ) -> MappingDefinition:
+    ) -> HashMapT:
         if (
             not isinstance(node, vy_ast.Subscript)
             or not isinstance(node.slice, vy_ast.Index)
@@ -59,34 +82,11 @@ class MappingPrimitive(BasePrimitive):
 
         key_type = get_type_from_annotation(node.slice.value.elements[0], DataLocation.UNSET)
         value_type = get_type_from_annotation(node.slice.value.elements[1], DataLocation.STORAGE)
-        return MappingDefinition(
-            value_type,
-            key_type,
-            f"HashMap[{key_type}, {value_type}]",
-            location,
-            is_constant,
-            is_public,
-        )
-from typing import Any, Dict, Optional, Tuple, Union
-
-from vyper import ast as vy_ast
-from vyper.abi_types import ABI_DynamicArray, ABI_StaticArray, ABI_Tuple, ABIType
-from vyper.exceptions import ArrayIndexException, InvalidType, StructureException
-from vyper.semantics import validation
-from vyper.semantics.types.abstract import IntegerAbstractType
-from vyper.semantics.types.bases import (
-    BasePrimitive,
-    BaseTypeDefinition,
-    DataLocation,
-    IndexableTypeDefinition,
-    MemberTypeDefinition,
-)
-from vyper.semantics.types.value.numeric import Uint256Definition  # type: ignore
 
 
-class _SequenceDefinition(IndexableTypeDefinition):
+class _SequenceT(_IndexableT):
     """
-    Private base class for sequence types.
+    Private base class for sequence types (i.e., index is an int)
 
     Arguments
     ---------
@@ -94,40 +94,27 @@ class _SequenceDefinition(IndexableTypeDefinition):
         Number of items in the type.
     """
 
-    def __init__(
-        self,
-        value_type: BaseTypeDefinition,
-        length: int,
-        _id: str,
-        location: DataLocation = DataLocation.UNSET,
-        is_constant: bool = False,
-        is_public: bool = False,
-        is_immutable: bool = False,
-    ) -> None:
+    def __init__( self, value_type: VyperType, length: int):
+
         if not 0 < length < 2 ** 256:
             raise InvalidType("Array length is invalid")
         super().__init__(
+            IntegerT(),
             value_type,
-            IntegerAbstractType(),  # type: ignore
-            _id,
-            location=location,
-            is_constant=is_constant,
-            is_public=is_public,
-            is_immutable=is_immutable,
         )
         self.length = length
 
-    def get_signature(self) -> Tuple[Tuple, Optional[BaseTypeDefinition]]:
+    def getter_signature(self) -> Tuple[Tuple, Optional[VyperType]]:
         # override the default behavior to return `Uint256Definition`
         # an external interface cannot use `IntegerAbstractType` because
         # abstract types have no canonical type
-        new_args, return_type = self.value_type.get_signature()
-        return (Uint256Definition(),) + new_args, return_type
+        child_keys, return_type = self.value_type.get_signature()
+        return (self.get_index_type(),) + child_keys, return_type
 
     def get_index_type(self) -> BaseTypeDefinition:
         # override the default behaviour to return `Uint256Definition` for
         # type annotation
-        return Uint256Definition()
+        return IntegerT(256, False)
 
 
 # override value at `k` with `val`, but inserting it before other keys
@@ -138,8 +125,7 @@ def _set_first_key(xs: Dict[str, Any], k: str, val: Any) -> dict:
     return {k: val, **xs}
 
 
-# TODO rename me to StaticArrayDefinition?
-class ArrayDefinition(_SequenceDefinition):
+class SArrayT(_SequenceT):
     """
     Array type definition.
 
@@ -149,21 +135,13 @@ class ArrayDefinition(_SequenceDefinition):
 
     def __init__(
         self,
-        value_type: BaseTypeDefinition,
+        value_type: VyperType,
         length: int,
-        location: DataLocation = DataLocation.UNSET,
-        is_constant: bool = False,
-        is_public: bool = False,
-        is_immutable: bool = False,
     ) -> None:
         super().__init__(
             value_type,
             length,
             f"{value_type}[{length}]",
-            location,
-            is_constant,
-            is_public,
-            is_immutable,
         )
 
     def __repr__(self):
@@ -179,10 +157,7 @@ class ArrayDefinition(_SequenceDefinition):
         ret["type"] += f"[{self.length}]"
         return _set_first_key(ret, "name", name)
 
-    @property
-    def is_dynamic_size(self):
-        return self.value_type.is_dynamic_size
-
+    # TODO rename to `memory_bytes_required`
     @property
     def size_in_bytes(self):
         return self.value_type.size_in_bytes * self.length
@@ -207,19 +182,19 @@ class ArrayDefinition(_SequenceDefinition):
         return self.value_type.compare_type(other.value_type)
 
 
-class DynamicArrayDefinition(_SequenceDefinition, MemberTypeDefinition):
+class DArrayT(_SequenceT, AttributableT):
     """
     Dynamic array type definition.
     """
+    _type = DynamicArrayDefinition
+    _valid_literal = (vy_ast.List,)
+    _as_array = True
+    _id = "DynArray"
 
     def __init__(
         self,
         value_type: BaseTypeDefinition,
         length: int,
-        location: DataLocation = DataLocation.UNSET,
-        is_constant: bool = False,
-        is_public: bool = False,
-        is_immutable: bool = False,
     ) -> None:
 
         super().__init__(
@@ -283,12 +258,6 @@ class DynamicArrayDefinition(_SequenceDefinition, MemberTypeDefinition):
         pass
 
 
-class DynamicArrayPrimitive(BasePrimitive):
-    _id = "DynArray"
-    _type = DynamicArrayDefinition
-    _valid_literal = (vy_ast.List,)
-    _as_array = True
-
     @classmethod
     def from_annotation(
         cls,
@@ -323,7 +292,7 @@ class DynamicArrayPrimitive(BasePrimitive):
         )
 
 
-class TupleDefinition(_SequenceDefinition):
+class TupleT(_SequenceT):
     """
     Tuple type definition.
 

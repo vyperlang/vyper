@@ -223,13 +223,26 @@ class VyperType:
 
     @classmethod
     def get_subscripted_type(self, node: vy_ast.Index) -> None:
-        # always raises - do not implement in inherited classes
-        raise StructureException("Types cannot be indexed", node)
+        """
+        Return the type of a subscript expression, e.g. x[1]
+
+        Arguments
+        ---------
+        node: Index
+            Vyper ast node from the `slice` member of a Subscript node
+
+        Returns
+        -------
+        BaseTypeDefinition
+            Type object for value at the given index.
+        """
+        raise StructureException(f"'{self}' cannot be indexed into", node)
 
     @classmethod
     def get_member(cls, key: str, node: vy_ast.Attribute) -> None:
         raise StructureException(f"{cls} does not have members", node)
 
+    # TODO probably dead code
     @classmethod
     def validate_modification( cls, mutability: Any, node: vy_ast.VyperNode) -> None:
         # always raises - do not implement in inherited classes
@@ -287,27 +300,6 @@ class VarInfo:
             else:
                 raise CompilerPanic("Incompatible locations")
         self.position = position
-
-    def compare_type(self, other: VyperType) -> bool:
-        """
-        Compare this type object against another type object.
-
-        Failed comparisons must return `False`, not raise an exception.
-
-        This method is not intended to be called directly. Type comparisons
-        are handled by methods in `vyper.context.validation.utils`
-
-        Arguments
-        ---------
-        other : BaseTypeDefinition
-            Another type object to be compared against this one.
-
-        Returns
-        -------
-        bool
-            Indicates if the types are equivalent.
-        """
-        return isinstance(other, type(self))
 
     def validate_numeric_op(
         self, node: Union[vy_ast.UnaryOp, vy_ast.BinOp, vy_ast.AugAssign]
@@ -396,7 +388,7 @@ class VarInfo:
         """
         raise StructureException("Value is not callable", node)
 
-    def infer_arg_types(self, node: vy_ast.Call) -> List[Union["BaseTypeDefinition", None]]:
+    def infer_arg_types(self, node: vy_ast.Call) -> List[Optional["VyperType"]]:
         """
         Performs the necessary type inference and returns the call's arguments' types.
 
@@ -410,7 +402,7 @@ class VarInfo:
 
         Returns
         -------
-        BaseTypeDefinition, optional
+        VyperType, optional
             List of types for the call's arguments.
         """
         raise StructureException("Value is not callable", node)
@@ -423,22 +415,6 @@ class VarInfo:
         ---------
         node : Index
             Vyper ast node from the `slice` member of a Subscript node.
-        """
-        raise StructureException(f"Type '{self}' does not support indexing", node)
-
-    def get_subscripted_type(self, node: vy_ast.Index) -> "BaseTypeDefinition":
-        """
-        Return the type of a subscript expression, e.g. x[1]
-
-        Arguments
-        ---------
-        node: Index
-            Vyper ast node from the `slice` member of a Subscript node
-
-        Returns
-        -------
-        BaseTypeDefinition
-            Type object for value at the given index.
         """
         raise StructureException(f"Type '{self}' does not support indexing", node)
 
@@ -487,13 +463,16 @@ class VarInfo:
         return True
 
 
-class ExprInfo:
+class ExprAnalysis:
     """
-    Class which represents the info associated with an expression
+    Class which represents the analysis associated with an expression
     """
     def __init__(self, typ, var_info):
         self.typ: VyperType = typ
-        self.var_info: Optional[VarInfo] = None
+        self.var_info: Optional[VarInfo] = var_info
+
+        if var_info is not None and var_info.typ != self.typ:
+            raise CompilerPanic("Bad analysis: non-matching types {var_info.typ} / {self.typ}")
 
     def validate_modification(
         self,
