@@ -63,14 +63,14 @@ def get_node(
             ast_struct = copy.copy(ast_struct)
             del ast_struct["parent"]
 
-    # Replace state and local variable declarations `AnnAssign` with `VariableDef`
+    # Replace state and local variable declarations `AnnAssign` with `VariableDecl`
     # Parent node is required for context to determine whether replacement should happen.
     if (
         ast_struct["ast_type"] == "AnnAssign"
         and isinstance(parent, Module)
         and not getattr(ast_struct["target"], "id", None) in ("implements",)
     ):
-        ast_struct["ast_type"] = "VariableDef"
+        ast_struct["ast_type"] = "VariableDecl"
 
     vy_class = getattr(sys.modules[__name__], ast_struct["ast_type"], None)
     if not vy_class:
@@ -1248,7 +1248,7 @@ class AnnAssign(VyperNode):
     __slots__ = ("target", "annotation", "value", "simple")
 
 
-class VariableDef(VyperNode):
+class VariableDecl(VyperNode):
     """
     A contract variable declaration.
 
