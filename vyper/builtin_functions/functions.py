@@ -30,6 +30,7 @@ from vyper.codegen.core import (
     ensure_in_memory,
     eval_once_check,
     eval_seq,
+    extend_dyn_array,
     get_bytearray_length,
     get_element_ptr,
     ir_tuple_from_args,
@@ -2503,6 +2504,18 @@ class Append(BuiltinFunction):
 
         return append_dyn_array(darray, arg)
 
+
+class Extend(BuiltinFunction):
+    _id = "extend"
+
+    def build_IR(self, expr, context):
+        dst_darray = Expr(expr.func.value, context).ir_node
+        # sanity checks
+        assert len(expr.args) == 1
+        src_darray = Expr(expr.args[0], context).ir_node
+        return extend_dyn_array(context, dst_darray, src_darray)
+
+
 class Pop(BuiltinFunction):
     _id = "pop"
 
@@ -2570,6 +2583,7 @@ STMT_DISPATCH_TABLE = {
     "create_from_factory": CreateFromFactory(),
     "append": Append(),
     "pop": Pop(),
+    "extend": Extend(),
 }
 
 BUILTIN_FUNCTIONS = {**STMT_DISPATCH_TABLE, **DISPATCH_TABLE}.keys()

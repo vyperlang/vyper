@@ -12,7 +12,6 @@ from vyper.codegen.core import (
     get_element_ptr,
     getpos,
     make_setter,
-    pop_dyn_array,
     unwrap_location,
 )
 from vyper.codegen.ir_node import IRnode
@@ -22,7 +21,6 @@ from vyper.codegen.types import (
     BaseType,
     ByteArrayLike,
     ByteArrayType,
-    DArrayType,
     EnumType,
     InterfaceType,
     MappingType,

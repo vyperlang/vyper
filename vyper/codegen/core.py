@@ -290,6 +290,61 @@ def append_dyn_array(darray_node, elem_node):
             return IRnode.from_list(b1.resolve(b2.resolve(ret)))
 
 
+def extend_dyn_array(context, dst_darray_node, src_darray_node):
+    assert isinstance(dst_darray_node.typ, DArrayType)
+    assert isinstance(src_darray_node.typ, DArrayType)
+
+    ret = ["seq"]
+    with dst_darray_node.cache_when_complex("dst_darray") as (
+        b1,
+        dst_darray_node,
+    ), src_darray_node.cache_when_complex("src_darray") as (b2, src_darray_node):
+        dst_len = get_dyn_array_count(dst_darray_node)
+        src_len = get_dyn_array_count(src_darray_node)
+
+        with dst_len.cache_when_complex("dst_darray_len") as (
+            b3,
+            dst_len,
+        ), src_len.cache_when_complex("src_darray_len") as (b4, src_len):
+            loop_body = ["seq"]
+
+            # Loop over source darray until it runs out
+            loop_var = IRnode.from_list(context.fresh_varname("dynarray_extend_ix"), typ="uint256")
+            iter_count = IRnode.from_list(["sub", dst_darray_node.typ.count, dst_len])
+
+            # Copy element from src darray to dst darray and increment length
+            # Index of src darray to copy is `current iteration - original length of dst darray`
+            src_idx = IRnode.from_list(["sub", loop_var, dst_len], typ="uint256")
+
+            # Break if current index of src darray is beyond its max size
+            src_len_test = IRnode.from_list(["ge", src_idx, src_len])
+            src_len_check = IRnode.from_list(["if", src_len_test, "break"])
+            loop_body.append(src_len_check)
+
+            # Copy element at index `src_idx` of src darray to `loop_var` index of dst darray
+            src_to_dst = make_setter(
+                get_element_ptr(dst_darray_node, loop_var, array_bounds_check=False),
+                get_element_ptr(src_darray_node, src_idx, array_bounds_check=False),
+            )
+            loop_body.append(src_to_dst)
+
+            # Increment length of dst darray
+            new_dst_len = IRnode.from_list(["add", loop_var, 1])
+            loop_body.append(STORE(dst_darray_node, new_dst_len))
+
+            # Construct loop node
+            loop = IRnode.from_list(
+                ["repeat", loop_var, dst_len, iter_count, dst_darray_node.typ.count, loop_body]
+            )
+
+            # Enter loop only of current length of destination darray is less than its max size
+            dst_len_test = IRnode.from_list(["lt", dst_len, dst_darray_node.typ.count])
+            dst_len_check = IRnode.from_list(["if", dst_len_test, loop])
+
+            ret.append(dst_len_check)
+            return IRnode.from_list(b1.resolve(b2.resolve(b3.resolve(b4.resolve(ret)))))
+
+
 def pop_dyn_array(darray_node, return_popped_item):
     assert isinstance(darray_node.typ, DArrayType)
     assert darray_node.encoding == Encoding.VYPER

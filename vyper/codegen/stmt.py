@@ -9,16 +9,12 @@ from vyper.codegen.core import (
     LOAD,
     STORE,
     IRnode,
-    append_dyn_array,
-    check_assign,
-    dummy_node_for_type,
     get_dyn_array_count,
     get_element_ptr,
     getpos,
     is_return_from_function,
     make_byte_array_copier,
     make_setter,
-    pop_dyn_array,
     zero_pad,
 )
 from vyper.codegen.expr import Expr
@@ -137,9 +133,10 @@ class Stmt:
         elif isinstance(self.stmt.func, vy_ast.Attribute) and self.stmt.func.attr in (
             "append",
             "pop",
+            "extend",
         ):
             funcname = self.stmt.func.attr
-            if self.stmt.func.attr == "append":
+            if self.stmt.func.attr in ("append", "extend"):
                 return STMT_DISPATCH_TABLE[funcname].build_IR(self.stmt, self.context)
             else:
                 return STMT_DISPATCH_TABLE[funcname].build_IR(self.stmt, self.context, False)
