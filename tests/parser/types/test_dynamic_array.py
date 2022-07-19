@@ -1306,7 +1306,7 @@ def foo(xs: DynArray[uint256, 5]) -> DynArray[uint256, 5]:
     ys.extend(xs)
     return ys
     """,
-        lambda xs: xs[:-1],
+        lambda xs: xs,
     ),
     # pop to 0 elems
     (
