@@ -1361,7 +1361,7 @@ def foo(xs: DynArray[uint256, 6]) -> DynArray[uint256, 5]:
     return self.my_array
     """,
         TypeMismatch,  # Size of src darray is greater than dst darray
-    ),
+    )
 ]
 
 
