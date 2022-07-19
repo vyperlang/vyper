@@ -16,14 +16,17 @@ from vyper.codegen.core import (
     IRnode,
     _freshname,
     add_ofst,
+    append_dyn_array,
     bytes_data_ptr,
     calculate_type_for_external_return,
+    check_assign,
     check_external_call,
     clamp,
     clamp2,
     clamp_basetype,
     clamp_nonzero,
     copy_bytes,
+    dummy_node_for_type,
     ensure_in_memory,
     eval_once_check,
     eval_seq,
@@ -31,6 +34,7 @@ from vyper.codegen.core import (
     get_element_ptr,
     ir_tuple_from_args,
     needs_external_call_wrap,
+    pop_dyn_array,
     promote_signed_int,
     shl,
     unwrap_location,
@@ -42,6 +46,7 @@ from vyper.codegen.types import (
     BaseType,
     ByteArrayLike,
     ByteArrayType,
+    DArrayType,
     SArrayType,
     StringType,
     TupleType,
@@ -112,7 +117,7 @@ from vyper.utils import (
     vyper_warn,
 )
 
-from .signatures import BuiltinFunction, process_inputs
+from .signatures import BuiltinFunction, process_inputs, process_kwarg
 
 SHA256_ADDRESS = 2
 SHA256_BASE_GAS = 60
@@ -2482,6 +2487,51 @@ class ABIDecode(BuiltinFunction):
             )
 
 
+class Append(BuiltinFunction):
+    _id = "append"
+
+    def build_IR(self, expr, context):
+        darray = Expr(expr.func.value, context).ir_node
+        args = [Expr(x, context).ir_node for x in expr.args]
+
+        # sanity checks
+        assert len(args) == 1
+        arg = args[0]
+        assert isinstance(darray.typ, DArrayType)
+
+        check_assign(dummy_node_for_type(darray.typ.subtype), dummy_node_for_type(arg.typ))
+
+        return append_dyn_array(darray, arg)
+
+
+class Pop(BuiltinFunction):
+    _id = "pop"
+
+    def _get_kwarg_settings(self, expr):
+        call_type = get_exact_type_from_node(expr.func)
+        expected_kwargs = call_type._kwargs
+        return expected_kwargs
+
+    def build_IR(self, expr, context, return_popped_item):
+        darray = Expr(expr.func.value, context).ir_node
+        assert isinstance(darray.typ, DArrayType)
+        assert len(expr.args) == 0
+
+        kwargs = self._get_kwarg_settings(expr)
+
+        if expr.keywords:
+            kwarg_name = expr.keywords[0].arg
+            kwarg_val = expr.keywords[0].value
+            assert len(expr.keywords) == 1 and kwarg_name == "ix"
+            kwarg_settings = kwargs[kwarg_name]
+            expected_kwarg_type = kwarg_settings.typ
+            idx = process_kwarg(kwarg_val, kwarg_settings, expected_kwarg_type, context)
+            return pop_dyn_array(context, darray, return_popped_item=return_popped_item, pop_idx=idx)
+
+        else:
+            return pop_dyn_array(context, darray, return_popped_item=return_popped_item)
+
+
 DISPATCH_TABLE = {
     "_abi_encode": ABIEncode(),
     "_abi_decode": ABIDecode(),
@@ -2523,6 +2573,7 @@ DISPATCH_TABLE = {
     "max": Max(),
     "empty": Empty(),
     "abs": Abs(),
+    "pop": Pop(),
 }
 
 STMT_DISPATCH_TABLE = {
@@ -2536,6 +2587,8 @@ STMT_DISPATCH_TABLE = {
     "create_forwarder_to": CreateForwarderTo(),
     "create_copy_of": CreateCopyOf(),
     "create_from_factory": CreateFromFactory(),
+    "append": Append(),
+    "pop": Pop(),
 }
 
 BUILTIN_FUNCTIONS = {**STMT_DISPATCH_TABLE, **DISPATCH_TABLE}.keys()

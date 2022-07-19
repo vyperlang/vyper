@@ -14,6 +14,7 @@ from vyper.exceptions import (
     NamespaceCollision,
     StateAccessViolation,
     StructureException,
+    TypeMismatch,
 )
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.bases import BaseTypeDefinition, DataLocation, StorageSlot
@@ -557,6 +558,7 @@ class MemberFunctionDefinition(BaseTypeDefinition):
     """
 
     _is_callable = True
+    _kwargs: Dict[str, KwargSettings] = {}
 
     def __init__(
         self,
@@ -565,6 +567,7 @@ class MemberFunctionDefinition(BaseTypeDefinition):
         arg_types: List[BaseTypeDefinition],
         return_type: Optional[BaseTypeDefinition],
         is_modifying: bool,
+        kwargs: Optional[Dict[str, KwargSettings]],
     ) -> None:
         super().__init__(DataLocation.UNSET)
         self.underlying_type = underlying_type
@@ -572,19 +575,33 @@ class MemberFunctionDefinition(BaseTypeDefinition):
         self.arg_types = arg_types
         self.return_type = return_type
         self.is_modifying = is_modifying
+        if kwargs is not None:
+            self._kwargs = kwargs
 
     def __repr__(self):
         return f"{self.underlying_type._id} member function '{self.name}'"
 
-    def fetch_call_return(self, node: vy_ast.Call) -> Optional[BaseTypeDefinition]:
-        validate_call_args(node, len(self.arg_types))
+    def _validate_arg_types(self, node: vy_ast.Call) -> None:
+        num_args = len(self.arg_types)
+        validate_call_args(node, num_args, list(self._kwargs))
 
         assert len(node.args) == len(self.arg_types)  # validate_call_args postcondition
         for arg, expected_type in zip(node.args, self.arg_types):
             # CMC 2022-04-01 this should probably be in the validation module
             validate_expected_type(arg, expected_type)
 
+        for kwarg in node.keywords:
+            kwarg_settings = self._kwargs[kwarg.arg]
+            if kwarg_settings.require_literal and not isinstance(kwarg.value, vy_ast.Constant):
+                raise TypeMismatch("Value for kwarg must be a literal", kwarg.value)
+            validate_expected_type(kwarg.value, kwarg_settings.typ)
+
+    def fetch_call_return(self, node: vy_ast.Call) -> Optional[BaseTypeDefinition]:
+        self._validate_arg_types(node)
         return self.return_type
+
+    def infer_kwarg_types(self, node: vy_ast.Call) -> Optional[Dict[str, BaseTypeDefinition]]:
+        return {i.arg: self._kwargs[i.arg].typ for i in node.keywords}
 
 
 def _generate_method_id(name: str, canonical_abi_types: List[str]) -> Dict[str, int]:

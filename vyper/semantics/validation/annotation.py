@@ -159,6 +159,9 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
             assert len(node.args) == len(call_type.arg_types)
             for arg, arg_type in zip(node.args, call_type.arg_types):
                 self.visit(arg, arg_type)
+            kwarg_types = call_type.infer_kwarg_types(node)
+            for kwarg in node.keywords:
+                self.visit(kwarg.value, kwarg_types[kwarg.arg])
         else:
             # builtin functions
             arg_types = call_type.infer_arg_types(node)
