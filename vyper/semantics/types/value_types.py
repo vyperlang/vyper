@@ -1,7 +1,9 @@
 from vyper import ast as vy_ast
 from vyper.abi_types import ABI_Address, ABIType
 from vyper.exceptions import InvalidLiteral
-from vyper.utils import checksum_encode, is_checksum_encoded
+from vyper.utils import checksum_encode, is_checksum_encoded, SizeLimits
+
+from typing import Union, Tuple
 
 from .base import AttributableT, VyperType
 from .bytestrings import BytesT
@@ -32,20 +34,21 @@ class BoolT(VyperType):
             raise InvalidLiteral("Invalid literal for type 'bool'", node)
 
 
+# one-word bytesM with m possible bytes set, e.g. bytes1..bytes32
 class BytesM_T(VyperType):
-    length: int
+    _as_array = True
+    _valid_literal = (vy_ast.Hex,)
+
+    def __init__(self, m):
+        self.m: int = m
 
     @property
     def _id(self):
-        return f"bytes{self.length}"
+        return f"bytes{self.m}"
 
     @property
     def abi_type(self) -> ABIType:
         return ABI_BytesM(self.length)
-
-
-    _as_array = True
-    _valid_literal = (vy_ast.Hex,)
 
     @classmethod
     def validate_literal(cls, node: vy_ast.Constant):
@@ -63,6 +66,7 @@ class BytesM_T(VyperType):
 
 class IntegerT(VyperType):
     """
+    General integer type. All signed and unsigned ints from uint8 thru int256
     Attributes
     ----------
     bits : int
@@ -70,10 +74,13 @@ class IntegerT(VyperType):
     is_signed : bool
         Is the value signed?
     """
-
     def __init__(self, is_signed, bits):
         self.is_signed: bool = is_signed
         self.bits: int = bits
+
+    @property
+    def bounds(self):
+        return int_bounds(self.is_signed, self.bits)
 
     @property
     def invalid_ops(self):
@@ -142,15 +149,16 @@ T_UINT8 = IntegerT(False, 8)
 T_INT256 = IntegerT(False, 256)
 T_INT128 = IntegerT(False, 128)
 
+T_BYTES32 = BytesM_T(32)
 
-class _NumericT(BasePrimitive):
+
+class _NumericT(VyperType):
     _as_array = True
-    _bounds: Tuple[int, int]
+    bounds: Tuple[int, int]
 
-    @classmethod
-    def validate_literal(cls, node: vy_ast.Constant):
+    def validate_literal(self, node: vy_ast.Constant):
         super().validate_literal(node)
-        lower, upper = cls._bounds
+        lower, upper = self.bounds
         if node.value < lower:
             raise OverflowException(f"Value is below lower bound for given type ({lower})", node)
         if node.value > upper:
@@ -158,7 +166,8 @@ class _NumericT(BasePrimitive):
 
 
 class DecimalT(_NumericT):
-    _bounds = (SizeLimits.MIN_AST_DECIMAL, SizeLimits.MAX_AST_DECIMAL)
+    bounds = (SizeLimits.MIN_AST_DECIMAL, SizeLimits.MAX_AST_DECIMAL)
+
     _bits = 168  # TODO generalize
     _decimal_places = 10  # TODO generalize
     _id = "decimal"

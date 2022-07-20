@@ -187,8 +187,8 @@ DECIMAL_EPSILON = decimal.Decimal(1) / DECIMAL_DIVISOR
 def int_bounds(signed, bits):
     """
     calculate the bounds on an integer type
-    ex. int_bounds(8, True) -> (-128, 127)
-        int_bounds(8, False) -> (0, 255)
+    ex. int_bounds(True, 8) -> (-128, 127)
+        int_bounds(False, 8) -> (0, 255)
     """
     if signed:
         return -(2 ** (bits - 1)), (2 ** (bits - 1)) - 1
