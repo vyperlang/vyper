@@ -389,25 +389,6 @@ class VarInfo:
         """
         raise StructureException(f"Type '{self}' does not support indexing", node)
 
-    def get_member(self, key: str, node: vy_ast.Attribute) -> "BaseTypeDefinition":
-        """
-        Validate an attribute reference and return the given type for the member.
-
-        Arguments
-        ---------
-        key : str
-            Name of the member being accessed.
-        node: Attribute
-            Vyper ast Attribute node representing the member being accessed.
-
-        Returns
-        -------
-        BaseTypeDefinition
-            A type object for the value of the given member. Raises if the member
-            does not exist for the given type.
-        """
-        raise StructureException(f"Type '{self}' does not support members", node)
-
     # TODO
     def compare_signature(self, other: "BaseTypeDefinition") -> bool:
         """
@@ -559,36 +540,3 @@ class AttributableT(VyperType):
     def __repr__(self):
         return self._id
 
-
-class IndexableT(VyperType):
-    """
-    Base class for indexable types such as arrays and mappings.
-
-    Attributes
-    ----------
-    key_type: BaseType
-        Type representing the index value for this object.
-    value_type : BaseType
-        Type representing the value(s) contained in this object.
-    _id : str
-        Name of the type.
-    """
-
-    def __init__(
-        self,
-        value_type: VyperType,
-        key_type: VyperType,
-        _id: str,
-    ) -> None:
-        super().__init__(location, is_constant, is_public, is_immutable)
-        self.value_type = value_type
-        self.key_type = key_type
-        self._id = _id
-
-    def getter_signature(self) -> Tuple[Tuple, Optional[VyperType]]:
-        new_args, return_type = self.value_type.getter_signature()
-        return (self.key_type,) + new_args, return_type
-
-    # TODO rename me
-    def get_index_type(self):
-        return self.key_type

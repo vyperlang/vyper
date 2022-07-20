@@ -7,38 +7,6 @@ from .base import AttributableT, VyperType
 from .bytestrings import BytesT
 
 
-class AddressT(AttributableT):
-    _as_array = True
-    _id = "address"
-    _valid_literal = (vy_ast.Hex,)
-    _type_members = {
-        "balance": IntegerT(),
-        "codehash": Bytes32Definition(),
-        "codesize": Uint256Definition(),
-        "is_contract": BoolDefinition(),
-        "code": BytesArrayDefinition(),
-    }
-
-    @property
-    def abi_type(self) -> ABIType:
-        return ABI_Address()
-
-    @classmethod
-    def validate_literal(cls, node: vy_ast.Constant):
-        super().validate_literal(node)
-        addr = node.value
-        if len(addr) != 42:
-            n_bytes = (len(addr) - 2) // 2
-            raise InvalidLiteral(f"Invalid address. Expected 20 bytes, got {n_bytes}.", node)
-
-        if not is_checksum_encoded(addr):
-            raise InvalidLiteral(
-                "Address checksum mismatch. If you are sure this is the right "
-                f"address, the correct checksummed form is: {checksum_encode(addr)}",
-                node,
-            )
-
-
 class BoolT(VyperType):
     _id = "bool"
     _as_array = True
@@ -93,29 +61,30 @@ class BytesM_T(VyperType):
             raise InvalidLiteral(f"Cannot mix uppercase and lowercase for bytes{m} literal", node)
 
 
-class AbstractNumericDefinition(ValueTypeDefinition):
+class IntegerT(VyperType):
     """
-    Private base class for numeric definitions.
-
     Attributes
     ----------
-    _bits : int
+    bits : int
         Number of bits the value occupies in memory
-    _is_signed : bool
+    is_signed : bool
         Is the value signed?
-    _invalid_op : VyperNode, optional
-        Vyper ast node, or list of nodes, that is not a valid operator for binary
-        operations on this type.
     """
 
-    _invalid_op: Optional[Type[vy_ast.VyperNode]] = None
-    _bits: int
-    _is_signed: bool
+    def __init__(self, is_signed, bits):
+        self.is_signed: bool = is_signed
+        self.bits: int = bits
+
+    @property
+    def invalid_ops(self):
+        if not self.is_signed:
+            return (vy_ast.USub,)
+        return ()
 
     def validate_numeric_op(
         self, node: Union[vy_ast.UnaryOp, vy_ast.BinOp, vy_ast.AugAssign]
     ) -> None:
-        if self._invalid_op and isinstance(node.op, self._invalid_op):
+        if isinstance(node.op, self.invalid_ops):
             raise InvalidOperation(f"Cannot perform {node.op.description} on {self}", node)
 
         if isinstance(node.op, vy_ast.Pow):
@@ -128,6 +97,7 @@ class AbstractNumericDefinition(ValueTypeDefinition):
 
             value_bits = self._bits - (1 if self._is_signed else 0)
 
+            # TODO double check: this code seems duplicated with constant eval
             # constant folding ensures one of `(left, right)` is never a literal
             if isinstance(left, vy_ast.Int):
                 if left.value >= 2 ** value_bits:
@@ -166,33 +136,14 @@ class AbstractNumericDefinition(ValueTypeDefinition):
         return ABI_GIntM(self._bits, self._is_signed)
 
 
-class _SignedIntegerDefinition(AbstractNumericDefinition):
-    """
-    Private base class for signed integer definitions.
-    """
-
-    _is_signed = True
-
-    @property
-    def _id(self):
-        return f"int{self._bits}"
+# shortcuts
+T_UINT256 = IntegerT(False, 256)
+T_UINT8 = IntegerT(False, 8)
+T_INT256 = IntegerT(False, 256)
+T_INT128 = IntegerT(False, 128)
 
 
-class _UnsignedIntegerDefinition(AbstractNumericDefinition):
-    """
-    Private base class for unsigned integer definitions.
-    """
-
-    _is_signed = False
-    _invalid_op = vy_ast.USub
-
-    @property
-    def _id(self):
-        return f"uint{self._bits}"
-
-
-class _NumericPrimitive(BasePrimitive):
-
+class _NumericT(BasePrimitive):
     _as_array = True
     _bounds: Tuple[int, int]
 
@@ -204,47 +155,6 @@ class _NumericPrimitive(BasePrimitive):
             raise OverflowException(f"Value is below lower bound for given type ({lower})", node)
         if node.value > upper:
             raise OverflowException(f"Value exceeds upper bound for given type ({upper})", node)
-
-
-# definitions
-
-for i in range(32):
-    bits = 8 * (i + 1)
-    sint = f"Int{bits}Definition"
-    uint = f"Uint{bits}Definition"
-    # class Int128Definition(SignedIntegerAbstractType, _SignedIntegerDefinition):
-    #    _bits = 128
-    sint_def = type(sint, (SignedIntegerAbstractType, _SignedIntegerDefinition), {"_bits": bits})
-    # class Uint256Definition(UnsignedIntegerAbstractType, _UnsignedIntegerDefinition):
-    #    _bits = 256
-    uint_def = type(
-        uint, (UnsignedIntegerAbstractType, _UnsignedIntegerDefinition), {"_bits": bits}
-    )
-
-    globals()[sint] = sint_def
-    globals()[uint] = uint_def
-
-    globals()[f"Int{bits}Primitive"] = type(
-        f"Int{bits}Primitive",
-        (_NumericPrimitive,),
-        {
-            "_bounds": int_bounds(signed=True, bits=bits),
-            "_id": f"int{bits}",
-            "_type": sint_def,
-            "_valid_literal": (vy_ast.Int,),
-        },
-    )
-
-    globals()[f"Uint{bits}Primitive"] = type(
-        f"Uint{bits}Primitive",
-        (_NumericPrimitive,),
-        {
-            "_bounds": int_bounds(signed=False, bits=bits),
-            "_id": f"uint{bits}",
-            "_type": uint_def,
-            "_valid_literal": (vy_ast.Int,),
-        },
-    )
 
 
 class DecimalT(_NumericT):
@@ -259,3 +169,36 @@ class DecimalT(_NumericT):
     @property
     def abi_type(self) -> ABIType:
         return ABI_FixedMxN(self._bits, self._decimal_places, self._is_signed)
+
+
+# maybe this even deserves its own module, address.py
+class AddressT(AttributableT):
+    _as_array = True
+    _id = "address"
+    _valid_literal = (vy_ast.Hex,)
+    _type_members = {
+        "balance": T_UINT256,
+        "codehash": T_BYTES32,
+        "codesize": T_UINT256,
+        "is_contract": BoolT(),
+        "code": BytesT(),
+    }
+
+    @property
+    def abi_type(self) -> ABIType:
+        return ABI_Address()
+
+    @classmethod
+    def validate_literal(cls, node: vy_ast.Constant):
+        super().validate_literal(node)
+        addr = node.value
+        if len(addr) != 42:
+            n_bytes = (len(addr) - 2) // 2
+            raise InvalidLiteral(f"Invalid address. Expected 20 bytes, got {n_bytes}.", node)
+
+        if not is_checksum_encoded(addr):
+            raise InvalidLiteral(
+                "Address checksum mismatch. If you are sure this is the right "
+                f"address, the correct checksummed form is: {checksum_encode(addr)}",
+                node,
+            )
