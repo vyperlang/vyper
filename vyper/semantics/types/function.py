@@ -16,8 +16,8 @@ from vyper.exceptions import (
     StructureException,
 )
 from vyper.semantics.namespace import get_namespace
-from vyper.semantics.types.bases import BaseTypeDefinition, DataLocation, StorageSlot
-from vyper.semantics.types.indexable.sequence import TupleDefinition
+from vyper.semantics.types.base import VyperType, DataLocation, StorageSlot
+from vyper.semantics.types.subscriptable import TupleT
 from vyper.semantics.types.utils import (
     KwargSettings,
     StringEnum,

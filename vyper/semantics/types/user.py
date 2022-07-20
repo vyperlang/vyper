@@ -1,7 +1,7 @@
-from typing import Dict, List
+from typing import Dict, List, Union, Tuple
 
 from vyper import ast as vy_ast
-from vyper.abi_types import ABI_GIntM
+from vyper.abi_types import ABI_GIntM, ABIType
 from vyper.exceptions import (
     EnumDeclarationException,
     StructureException,
@@ -10,6 +10,7 @@ from vyper.exceptions import (
 )
 from vyper.semantics.namespace import validate_identifier
 from vyper.semantics.types.base import DataLocation, AttributableT
+from vyper.semantics.types.function import ContractFunction
 from vyper.semantics.types.value_types import AddressT
 from vyper.semantics.validation.levenshtein_utils import get_levenshtein_error_suggestions
 
@@ -100,7 +101,7 @@ class EventT:
 
     Attributes
     ----------
-    arguments : OrderedDict
+    arguments : dict
         Event arguments.
     event_id : int
         Keccak of the event signature, converted to an integer. Used as the
@@ -143,7 +144,7 @@ class EventT:
         -------
         Event object.
         """
-        members: OrderedDict = OrderedDict()
+        members: dict = {}
         indexed: List = [i["indexed"] for i in abi["inputs"]]
         for item in abi["inputs"]:
             members[item["name"]] = get_type_from_abi(item)
@@ -162,7 +163,7 @@ class EventT:
         -------
         Event
         """
-        members: OrderedDict = OrderedDict()
+        members: Dict = {}
         indexed: List = []
 
         if len(base_node.body) == 1 and isinstance(base_node.body[0], vy_ast.Pass):
@@ -221,7 +222,7 @@ class InterfaceT(AttributableT):
     _is_callable = True
     _as_array = True
 
-    def __init__( self, _id: str, members: dict,) -> None:
+    def __init__( self, _id: str, members: dict) -> None:
         validate_unique_method_ids(members.values())
         super().__init__(members)
 
@@ -239,10 +240,10 @@ class InterfaceT(AttributableT):
     def __repr__(self):
         return f"{self._id} declaration"
 
-    def fetch_call_return(self, node: vy_ast.Call) -> InterfaceDefinition:
+    def fetch_call_return(self, node: vy_ast.Call) -> "InterfaceT":
         self.infer_arg_types(node)
 
-        return InterfaceDefinition(self._id, self.members)
+        return self
 
     def infer_arg_types(self, node):
         validate_call_args(node, 1)
@@ -288,9 +289,9 @@ class InterfaceT(AttributableT):
 
 
     @classmethod
-    def from_json_abi(name: str, abi: dict) -> InterfaceType:
+    def from_json_abi(name: str, abi: dict) -> "InterfaceT":
         """
-        Generate an `InterfacePrimitive` object from an ABI.
+        Generate an `InterfaceT` object from an ABI.
 
         Arguments
         ---------
@@ -301,10 +302,10 @@ class InterfaceT(AttributableT):
 
         Returns
         -------
-        InterfacePrimitive
+        InterfaceT
             primitive interface type
         """
-        members: OrderedDict = OrderedDict()
+        members: Dict = {}
         events: Dict = {}
 
         names = [i["name"] for i in abi if i.get("type") in ("event", "function")]
@@ -348,8 +349,8 @@ class InterfaceT(AttributableT):
         return cls(node.name, members, events)
 
 
-def _get_module_definitions(base_node: vy_ast.Module) -> Tuple[OrderedDict, Dict]:
-    functions: OrderedDict = OrderedDict()
+def _get_module_definitions(base_node: vy_ast.Module) -> Tuple[Dict, Dict]:
+    functions: Dict = {}
     events: Dict = {}
     for node in base_node.get_children(vy_ast.FunctionDef):
         if "external" in [i.id for i in node.decorator_list if isinstance(i, vy_ast.Name)]:
@@ -388,8 +389,8 @@ def _get_module_definitions(base_node: vy_ast.Module) -> Tuple[OrderedDict, Dict
     return functions, events
 
 
-def _get_class_functions(base_node: vy_ast.InterfaceDef) -> OrderedDict:
-    functions = OrderedDict()
+def _get_class_functions(base_node: vy_ast.InterfaceDef) -> Dict[str, ContractFunction]:
+    functions = {}
     for node in base_node.body:
         if not isinstance(node, vy_ast.FunctionDef):
             raise StructureException("Interfaces can only contain function definitions", node)

@@ -11,12 +11,13 @@ from vyper.exceptions import (
     VyperInternalException,
 )
 from vyper.semantics.namespace import get_namespace
-from vyper.semantics.types.bases import BaseTypeDefinition, DataLocation
-from vyper.semantics.types.indexable.sequence import ArrayDefinition, TupleDefinition
+from vyper.semantics.types.base import VyperType, DataLocation
+from vyper.semantics.types.subscriptable import SArrayT, TupleT
 from vyper.semantics.validation.levenshtein_utils import get_levenshtein_error_suggestions
 from vyper.semantics.validation.utils import get_exact_type_from_node, get_index_value
 
 
+# TODO move to vyper.semantics.types.base
 class KwargSettings:
     # convenience class which holds metadata about how to process kwargs.
     # contains the `default` value for the kwarg as a python value, and a
@@ -30,7 +31,9 @@ class KwargSettings:
         self.require_literal = require_literal
 
 
-class TypeType:
+# TODO move to vyper.semantics.types.base
+# A type type.
+class TypeT:
     def __init__(self, typedef):
         self.typedef = typedef
 

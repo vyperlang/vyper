@@ -97,6 +97,16 @@ class VyperType:
     _id: str
     _valid_literal: Tuple
 
+    def __init__(self, members=None, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        if hasattr(self, "_type_members"):
+            for k, v in self._type_members.items():
+                self.add_member(k, v)
+
+        members = members or {}
+        for k, v in members.items():
+            self.add_member(k, v)
+
     @property
     def getter_signature(self):
         return (), self
@@ -206,6 +216,27 @@ class VyperType:
             Type object for value at the given index.
         """
         raise StructureException(f"'{self}' cannot be indexed into", node)
+
+    def add_member(self, name: str, type_: VyperType) -> None:
+        validate_identifier(name)
+        if name in self.members:
+            raise NamespaceCollision(f"Member '{name}' already exists in {self}")
+        self.members[name] = type_
+
+    def get_member(self, key: str, node: vy_ast.VyperNode) -> VyperType:
+        if key in self.members:
+            return self.members[key]
+
+        # special error message for types with no members
+        if not self.members:
+            raise StructureException(f"{self} does not have members", node)
+
+        suggestions_str = get_levenshtein_error_suggestions(key, self.members, 0.3)
+        raise UnknownAttribute(f"{self} has no member '{key}'. {suggestions_str}", node)
+
+    def __repr__(self):
+        return self._id
+
 
     @classmethod
     def get_member(cls, key: str, node: vy_ast.Attribute) -> None:
@@ -497,46 +528,4 @@ class ExprAnalysis:
         if isinstance(node, vy_ast.AugAssign):
             self.var_info.typ.validate_numeric_op(node)
 
-
-class AttributableT(VyperType):
-    """
-    Base class for types that can be indexed into via attribute.
-    E.g. `foo.bar`
-
-    Class attributes
-    ----------------
-    _type_members : Dict[str, BaseType]
-        Dictionary of members common to all values of this type.
-
-    Object attributes
-    -----------------
-    members : OrderedDict[str, BaseType]
-        Dictionary of members for the given type.
-    """
-
-    def __init__(self, members, *args, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
-        self.members: Dict[str, VyperType] = {}
-        for k, v in members.items():
-            validate_identifier(k)
-            self.add_member(k, v)
-
-    def add_member(self, name: str, type_: VyperType) -> None:
-        if name in self.members:
-            raise NamespaceCollision(f"Member '{name}' already exists in {self}")
-        if name in getattr(self, "_type_members", []):
-            raise NamespaceCollision(f"Member '{name}' already exists in {self}")
-        self.members[name] = type_
-
-    def get_member(self, key: str, node: vy_ast.VyperNode) -> VyperType:
-        if key in self.members:
-            return self.members[key]
-        elif key in getattr(self, "_type_members", []):
-            return self._cls_members[key]
-
-        suggestions_str = get_levenshtein_error_suggestions(key, self.members, 0.3)
-        raise UnknownAttribute(f"{self} has no member '{key}'. {suggestions_str}", node)
-
-    def __repr__(self):
-        return self._id
 

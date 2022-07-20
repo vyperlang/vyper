@@ -1,10 +1,8 @@
-from . import mapping, sequence
 from typing import Union
 
 from vyper import ast as vy_ast
 from vyper.exceptions import StructureException
-from vyper.semantics.types.bases import VyperType, DataLocation
-from vyper.semantics.types.utils import get_type_from_annotation
+from vyper.semantics.types.base import VyperType, DataLocation
 from vyper.semantics.validation.utils import validate_expected_type
 
 
