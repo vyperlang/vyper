@@ -42,7 +42,7 @@ def parse_to_ast(
         raise SyntaxException(str(e), source_code, e.lineno, e.offset) from e
 
     # Add dummy function node to ensure local variables are treated as `AnnAssign`
-    # instead of state variables (`VariableDef`)
+    # instead of state variables (`VariableDecl`)
     if add_fn_node:
         fn_node = python_ast.FunctionDef(add_fn_node, py_ast.body, [], [])
         fn_node.body = py_ast.body

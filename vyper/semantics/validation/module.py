@@ -148,7 +148,7 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
             self.namespace[interface_name].validate_implements(node)
             return
 
-    def visit_VariableDef(self, node):
+    def visit_VariableDecl(self, node):
         name = node.get("target.id")
         if name is None:
             raise VariableDeclarationException("Invalid module-level assignment", node)
@@ -162,7 +162,7 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
         if node.is_public:
             # generate function type and add to metadata
             # we need this when builing the public getter
-            node._metadata["func_type"] = ContractFunction.getter_from_VariableDef(node)
+            node._metadata["func_type"] = ContractFunction.getter_from_VariableDecl(node)
 
         elif node.is_immutable:
             # mutability is checked automatically preventing assignment
