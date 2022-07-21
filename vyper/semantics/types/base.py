@@ -99,10 +99,13 @@ class VyperType:
     _valid_literal: Tuple
 
     def __init__(self, members=None, *args, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
+        self.members = {}
+
         if hasattr(self, "_type_members"):
             for k, v in self._type_members.items():
-                self.add_member(k, v)
+                # for builtin members like `contract.address` -- skip namespace
+                # validation
+                self.add_member(k, v, skip_namespace_validation=True)
 
         members = members or {}
         for k, v in members.items():
@@ -218,8 +221,9 @@ class VyperType:
         """
         raise StructureException(f"'{self}' cannot be indexed into", node)
 
-    def add_member(self, name: str, type_: "VyperType") -> None:
-        validate_identifier(name)
+    def add_member(self, name: str, type_: "VyperType", skip_namespace_validation: bool = False) -> None:
+        if not skip_namespace_validation:
+            validate_identifier(name)
         if name in self.members:
             raise NamespaceCollision(f"Member '{name}' already exists in {self}")
         self.members[name] = type_

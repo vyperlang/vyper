@@ -466,7 +466,7 @@ class StructT(VyperType):
         return {"name": name, "type": "tuple", "components": components}
 
     # TODO breaking change: use kwargs instead of dict
-    def fetch_call_return(self, node: vy_ast.Call) -> StructT:
+    def fetch_call_return(self, node: vy_ast.Call) -> "StructT":
         validate_call_args(node, 1)
         if not isinstance(node.args[0], vy_ast.Dict):
             raise VariableDeclarationException(

@@ -36,6 +36,9 @@ class BoolT(VyperType):
             raise InvalidLiteral("Invalid literal for type 'bool'", node)
 
 
+RANGE_1_32 = list(range(1, 33))
+
+
 # one-word bytesM with m possible bytes set, e.g. bytes1..bytes32
 class BytesM_T(VyperType):
     _as_array = True
@@ -53,20 +56,19 @@ class BytesM_T(VyperType):
         return ABI_BytesM(self.length)
 
     @classmethod
-    def validate_literal(cls, node: vy_ast.Constant):
+    def all(cls):
+        return [cls(m) for m in RANGE_1_32]
+
+    def validate_literal(self, node: vy_ast.Constant):
         super().validate_literal(node)
         val = node.value
-        m = cls._length
 
-        if len(val) != 2 + 2 * m:
+        if len(val) != 2 + 2 * self.m:
             raise InvalidLiteral("Invalid literal for type bytes32", node)
 
         nibbles = val[2:]  # strip leading 0x
         if nibbles not in (nibbles.lower(), nibbles.upper()):
             raise InvalidLiteral(f"Cannot mix uppercase and lowercase for bytes{m} literal", node)
-
-
-RANGE_1_32 = list(range(1, 33))
 
 
 class IntegerT(VyperType):
