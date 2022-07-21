@@ -1,34 +1,30 @@
 from typing import Dict
 
-# TODO consolidate some of these imports
-from vyper.semantics.types.user.struct import StructDefinition
-from vyper.semantics.types.value.address import AddressDefinition
-from vyper.semantics.types.value.array_value import BytesArrayDefinition
-from vyper.semantics.types.value.bytes_fixed import Bytes32Definition
-from vyper.semantics.types.value.numeric import Uint256Definition  # type: ignore
+from vyper.semantics.types import StructT, AddressT, BytesM_T, BytesT, IntegerT 
+from vyper.semantics.types.primitives import T_UINT256, T_BYTES32
 
 CONSTANT_ENVIRONMENT_VARS: Dict[str, Dict[str, type]] = {
     "block": {
-        "coinbase": AddressDefinition,
-        "difficulty": Uint256Definition,
-        "number": Uint256Definition,
-        "gaslimit": Uint256Definition,
-        "basefee": Uint256Definition,
-        "prevhash": Bytes32Definition,
-        "timestamp": Uint256Definition,
+        "coinbase": AddressT,
+        "difficulty": T_UINT256,
+        "number": T_UINT256,
+        "gaslimit": T_UINT256,
+        "basefee": T_UINT256,
+        "prevhash": T_BYTES32,
+        "timestamp": T_UINT256,
     },
-    "chain": {"id": Uint256Definition},
+    "chain": {"id": T_UINT256},
     "msg": {
-        "data": BytesArrayDefinition,
-        "gas": Uint256Definition,
-        "sender": AddressDefinition,
-        "value": Uint256Definition,
+        "data": BytesT,
+        "gas": T_UINT256,
+        "sender": AddressT,
+        "value": T_UINT256,
     },
-    "tx": {"origin": AddressDefinition, "gasprice": Uint256Definition},
+    "tx": {"origin": AddressT, "gasprice": T_UINT256},
 }
 
 
-MUTABLE_ENVIRONMENT_VARS: Dict[str, type] = {"self": AddressDefinition}
+MUTABLE_ENVIRONMENT_VARS: Dict[str, type] = {"self": AddressT}
 
 
 def get_constant_vars() -> Dict:

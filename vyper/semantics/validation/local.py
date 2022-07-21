@@ -22,24 +22,14 @@ from vyper.exceptions import (
 # TODO consolidate some of these imports
 from vyper.semantics.environment import CONSTANT_ENVIRONMENT_VARS, MUTABLE_ENVIRONMENT_VARS
 from vyper.semantics.namespace import get_namespace
-from vyper.semantics.types.abstract import IntegerAbstractType
+from vyper.semantics.types import IntegerT, DataLocation, HashMapT, SArrayT, DArrayT, TupleT, EventT, AddressT, StringT, BoolT
 from vyper.semantics.types.bases import DataLocation
 from vyper.semantics.types.function import (
     ContractFunction,
-    MemberFunctionDefinition,
+    MemberFunctionT,
     StateMutability,
 )
-from vyper.semantics.types.indexable.mapping import MappingDefinition
-from vyper.semantics.types.indexable.sequence import (
-    ArrayDefinition,
-    DynamicArrayDefinition,
-    TupleDefinition,
-)
-from vyper.semantics.types.user.event import Event
-from vyper.semantics.types.utils import get_type_from_annotation
-from vyper.semantics.types.value.address import AddressDefinition
-from vyper.semantics.types.value.array_value import StringDefinition
-from vyper.semantics.types.value.boolean import BoolDefinition
+from vyper.semantics.types.utils import type_from_annotation
 from vyper.semantics.validation.annotation import StatementAnnotationVisitor
 from vyper.semantics.validation.base import VyperNodeVisitorBase
 from vyper.semantics.validation.utils import (
