@@ -1836,9 +1836,9 @@ class CreateCopyOf(_CreateBase):
                 return b1.resolve(b2.resolve(b3.resolve(ir)))
 
 
-class CreateFromFactory(_CreateBase):
+class CreateFromBlueprint(_CreateBase):
 
-    _id = "create_from_factory"
+    _id = "create_from_blueprint"
     _inputs = [("target", AddressDefinition())]
     _kwargs = {
         "value": KwargSettings(Uint256Definition(), zero_value),
@@ -2518,7 +2518,7 @@ DISPATCH_TABLE = {
     "create_minimal_proxy_to": CreateMinimalProxyTo(),
     "create_forwarder_to": CreateForwarderTo(),
     "create_copy_of": CreateCopyOf(),
-    "create_from_factory": CreateFromFactory(),
+    "create_from_blueprint": CreateFromBlueprint(),
     "min": Min(),
     "max": Max(),
     "empty": Empty(),
@@ -2535,7 +2535,7 @@ STMT_DISPATCH_TABLE = {
     "create_minimal_proxy_to": CreateMinimalProxyTo(),
     "create_forwarder_to": CreateForwarderTo(),
     "create_copy_of": CreateCopyOf(),
-    "create_from_factory": CreateFromFactory(),
+    "create_from_blueprint": CreateFromBlueprint(),
 }
 
 BUILTIN_FUNCTIONS = {**STMT_DISPATCH_TABLE, **DISPATCH_TABLE}.keys()
