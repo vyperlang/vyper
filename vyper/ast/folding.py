@@ -167,7 +167,7 @@ def replace_user_defined_constants(vyper_module: vy_ast.Module) -> int:
     """
     changed_nodes = 0
 
-    for node in vyper_module.get_children(vy_ast.AnnAssign):
+    for node in vyper_module.get_children(vy_ast.VariableDecl):
         if not isinstance(node.target, vy_ast.Name):
             # left-hand-side of assignment is not a variable
             continue
@@ -278,7 +278,9 @@ def replace_constant(
 
         if not node.get_ancestor(vy_ast.Index):
             # do not replace left-hand side of assignments
-            assign = node.get_ancestor((vy_ast.Assign, vy_ast.AnnAssign, vy_ast.AugAssign))
+            assign = node.get_ancestor(
+                (vy_ast.Assign, vy_ast.AnnAssign, vy_ast.AugAssign, vy_ast.VariableDecl)
+            )
 
             if assign and node in assign.target.get_descendants(include_self=True):
                 continue

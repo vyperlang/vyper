@@ -143,67 +143,53 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
 
     def visit_AnnAssign(self, node):
         name = node.get("target.id")
-        if name is None:
-            raise VariableDeclarationException("Invalid module-level assignment", node)
-
         if name == "implements":
             interface_name = node.annotation.id
             self.namespace[interface_name].validate_implements(node)
             return
 
-        is_constant, is_public, is_immutable = False, False, False
+    def visit_VariableDecl(self, node):
+        name = node.get("target.id")
+        if name is None:
+            raise VariableDeclarationException("Invalid module-level assignment", node)
+
         annotation = node.annotation
-        if isinstance(annotation, vy_ast.Call):
-            # the annotation is a function call, e.g. `foo: constant(uint256)`
-            call_name = annotation.get("func.id")
-            if call_name in ("constant", "public", "immutable"):
-                validate_call_args(annotation, 1)
-                if call_name == "constant":
-                    # declaring a constant
-                    is_constant = True
+        # remove the outer call node, to handle cases such as `public(map(..))`
+        if node.is_public or node.is_immutable or node.is_constant:
+            validate_call_args(annotation, 1)
+            annotation = annotation.args[0]
 
-                elif call_name == "public":
-                    # declaring a public variable
-                    is_public = True
+        if node.is_public:
+            # generate function type and add to metadata
+            # we need this when builing the public getter
+            node._metadata["func_type"] = ContractFunction.getter_from_VariableDecl(node)
 
-                    # generate function type and add to metadata
-                    # we need this when builing the public getter
-                    node._metadata["func_type"] = ContractFunction.from_AnnAssign(node)
+        elif node.is_immutable:
+            # mutability is checked automatically preventing assignment
+            # outside of the constructor, here we just check a value is assigned,
+            # not necessarily where
+            assignments = self.ast.get_descendants(
+                vy_ast.Assign, filters={"target.id": node.target.id}
+            )
+            if not assignments:
+                # Special error message for common wrong usages via `self.<immutable name>`
+                wrong_self_attribute = self.ast.get_descendants(
+                    vy_ast.Attribute, {"value.id": "self", "attr": node.target.id}
+                )
+                message = (
+                    "Immutable variables must be accessed without 'self'"
+                    if len(wrong_self_attribute) > 0
+                    else "Immutable definition requires an assignment in the constructor"
+                )
+                raise SyntaxException(message, node.node_source_code, node.lineno, node.col_offset)
 
-                elif call_name == "immutable":
-                    # declaring an immutable variable
-                    is_immutable = True
-
-                    # mutability is checked automatically preventing assignment
-                    # outside of the constructor, here we just check a value is assigned,
-                    # not necessarily where
-                    assignments = self.ast.get_descendants(
-                        vy_ast.Assign, filters={"target.id": node.target.id}
-                    )
-                    if not assignments:
-                        # Special error message for common wrong usages via `self.<immutable name>`
-                        wrong_self_attribute = self.ast.get_descendants(
-                            vy_ast.Attribute, {"value.id": "self", "attr": node.target.id}
-                        )
-                        message = (
-                            "Immutable variables must be accessed without 'self'"
-                            if len(wrong_self_attribute) > 0
-                            else "Immutable definition requires an assignment in the constructor"
-                        )
-                        raise SyntaxException(
-                            message, node.node_source_code, node.lineno, node.col_offset
-                        )
-
-                # remove the outer call node, to handle cases such as `public(map(..))`
-                annotation = annotation.args[0]
-
-        data_loc = DataLocation.CODE if is_immutable else DataLocation.STORAGE
+        data_loc = DataLocation.CODE if node.is_immutable else DataLocation.STORAGE
         type_definition = get_type_from_annotation(
-            annotation, data_loc, is_constant, is_public, is_immutable
+            annotation, data_loc, node.is_constant, node.is_public, node.is_immutable
         )
         node._metadata["type"] = type_definition
 
-        if is_constant:
+        if node.is_constant:
             if not node.value:
                 raise VariableDeclarationException("Constant must be declared with a value", node)
             if not check_constant(node.value):
@@ -217,12 +203,12 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
             return
 
         if node.value:
-            var_type = "Immutable" if is_immutable else "Storage"
+            var_type = "Immutable" if node.is_immutable else "Storage"
             raise VariableDeclarationException(
                 f"{var_type} variables cannot have an initial value", node.value
             )
 
-        if is_immutable:
+        if node.is_immutable:
             try:
                 # block immutable if storage variable already exists
                 if name in self.namespace["self"].members:

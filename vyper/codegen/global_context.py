@@ -54,7 +54,7 @@ class GlobalContext:
 
             # Statements of the form:
             # variable_name: type
-            elif isinstance(item, vy_ast.AnnAssign):
+            elif isinstance(item, vy_ast.VariableDecl):
                 global_ctx.add_globals_and_events(item)
             # Function definitions
             elif isinstance(item, vy_ast.FunctionDef):

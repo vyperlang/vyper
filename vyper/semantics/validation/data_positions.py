@@ -111,7 +111,7 @@ def set_storage_slots_with_overrides(
             )
 
     # Iterate through variables
-    for node in vyper_module.get_children(vy_ast.AnnAssign):
+    for node in vyper_module.get_children(vy_ast.VariableDecl):
 
         # Ignore immutable parameters
         if node.get("annotation.func.id") == "immutable":
@@ -177,7 +177,7 @@ def set_storage_slots(vyper_module: vy_ast.Module) -> StorageLayout:
         # location in memory at entrance
         storage_slot += 1
 
-    for node in vyper_module.get_children(vy_ast.AnnAssign):
+    for node in vyper_module.get_children(vy_ast.VariableDecl):
 
         if node.get("annotation.func.id") == "immutable":
             continue
@@ -211,7 +211,7 @@ def set_code_offsets(vyper_module: vy_ast.Module) -> Dict:
     ret = {}
     offset = 0
     for node in vyper_module.get_children(
-        vy_ast.AnnAssign, filters={"annotation.func.id": "immutable"}
+        vy_ast.VariableDecl, filters={"annotation.func.id": "immutable"}
     ):
         type_ = node._metadata["type"]
         type_.set_position(CodeOffset(offset))

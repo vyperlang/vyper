@@ -1,4 +1,4 @@
-from vyper.exceptions import StructureException, UnknownType
+from vyper.exceptions import StructureException, SyntaxException, UnknownType
 
 
 def test_external_contract_call_declaration_expr(get_contract, assert_tx_failed):
@@ -234,7 +234,7 @@ interface Bar:
 
 modifiable_bar_contract: trusted(Bar)
     """
-    assert_compile_failed(lambda: get_contract(code), UnknownType)
+    assert_compile_failed(lambda: get_contract(code), SyntaxException)
 
 
 def test_invalid_if_have_modifiability_not_declared(
