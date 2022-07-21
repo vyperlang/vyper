@@ -301,16 +301,21 @@ def extend_dyn_array(context, dst_darray_node, src_darray_node):
     ), src_darray_node.cache_when_complex("src_darray") as (b2, src_darray_node):
         dst_len = get_dyn_array_count(dst_darray_node)
         src_len = get_dyn_array_count(src_darray_node)
+        max_dst_len = dst_darray_node.typ.count
 
         with dst_len.cache_when_complex("dst_darray_len") as (
             b3,
             dst_len,
         ), src_len.cache_when_complex("src_darray_len") as (b4, src_len):
+            # Assert that dst darray is not at maximum length
+            dst_bounds_assertion = ["assert", ["lt", dst_len, max_dst_len]]
+            ret.append(dst_bounds_assertion)
+
             loop_body = ["seq"]
 
             # Loop over source darray until it runs out
             loop_var = IRnode.from_list(context.fresh_varname("dynarray_extend_ix"), typ="uint256")
-            iter_count = IRnode.from_list(["sub", dst_darray_node.typ.count, dst_len])
+            iter_count = IRnode.from_list(["sub", max_dst_len, dst_len])
 
             # Copy element from src darray to dst darray and increment length
             # Index of src darray to copy is `current iteration - original length of dst darray`
@@ -334,11 +339,11 @@ def extend_dyn_array(context, dst_darray_node, src_darray_node):
 
             # Construct loop node
             loop = IRnode.from_list(
-                ["repeat", loop_var, dst_len, iter_count, dst_darray_node.typ.count, loop_body]
+                ["repeat", loop_var, dst_len, iter_count, max_dst_len, loop_body]
             )
 
             # Enter loop only of current length of destination darray is less than its max size
-            dst_len_test = IRnode.from_list(["lt", dst_len, dst_darray_node.typ.count])
+            dst_len_test = IRnode.from_list(["lt", dst_len, max_dst_len])
             dst_len_check = IRnode.from_list(["if", dst_len_test, loop])
 
             ret.append(dst_len_check)

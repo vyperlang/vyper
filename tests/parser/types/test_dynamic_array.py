@@ -1370,6 +1370,82 @@ def test_invalid_extend_pop(get_contract, assert_compile_failed, code, exception
     assert_compile_failed(lambda: get_contract(code), exception_type)
 
 
+extend_pop_complex_tests = [
+    (
+        """
+@external
+def foo(x: {typ}) -> DynArray[{typ}, 2]:
+    ys: DynArray[{typ}, 1] = []
+    temp: DynArray[{typ}, 1] = [x]
+    ys.extend(temp)
+    return ys
+    """,
+        lambda x: [x],
+    ),
+    (
+        """
+my_array: DynArray[{typ}, 1]
+@external
+def foo(x: {typ}) -> DynArray[{typ}, 2]:
+    temp: DynArray[{typ}, 1] = [x]
+    self.my_array.extend(temp)
+    self.my_array.extend(temp)  # fail
+    return self.my_array
+    """,
+        lambda x: None,
+    ),
+    (
+        """
+my_array: DynArray[{typ}, 5]
+@external
+def foo(x: {typ}) -> (DynArray[{typ}, 5], {typ}):
+    temp: DynArray[{typ}, 1] = [x]
+    self.my_array.extend(temp)
+    return self.my_array, self.my_array.pop()
+    """,
+        lambda x: [[x], x],
+    ),
+    (
+        """
+my_array: DynArray[{typ}, 5]
+@external
+def foo(x: {typ}) -> ({typ}, DynArray[{typ}, 5]):
+    temp: DynArray[{typ}, 1] = [x]
+    self.my_array.extend(temp)
+    return self.my_array.pop(), self.my_array
+    """,
+        lambda x: [x, []],
+    ),
+]
+
+
+@pytest.mark.parametrize("code_template,check_result", extend_pop_complex_tests)
+@pytest.mark.parametrize(
+    "subtype", ["uint256[3]", "DynArray[uint256,3]", "DynArray[uint8, 4]", "Foo"]
+)
+# TODO change this to fuzz random data
+def test_extend_pop_complex(get_contract, assert_tx_failed, code_template, check_result, subtype):
+    code = code_template.format(typ=subtype)
+    test_data = [1, 2, 3]
+    if subtype == "Foo":
+        test_data = tuple(test_data)
+        struct_def = """
+struct Foo:
+    x: uint256
+    y: uint256
+    z: uint256
+        """
+        code = struct_def + "\n" + code
+
+    c = get_contract(code)
+    expected_result = check_result(test_data)
+    if expected_result is None:
+        # None is sentinel to indicatecool, I'd txn should revert
+        assert_tx_failed(lambda: c.foo(test_data))
+    else:
+        assert c.foo(test_data) == expected_result
+
+
 def test_so_many_things_you_should_never_do(get_contract):
     code = """
 @internal
