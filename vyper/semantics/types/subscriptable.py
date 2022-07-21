@@ -182,7 +182,7 @@ class DArrayT(_SequenceT):
 
     def __init__( self, value_type: VyperType, length: int,) -> None:
 
-        super().__init__( value_type, length, "DynArray", )
+        super().__init__( value_type, length)
 
         # Adding members here as otherwise MemberFunctionDefinition is not yet defined
         # if added as _type_members

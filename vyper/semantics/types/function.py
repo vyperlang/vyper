@@ -564,7 +564,6 @@ class MemberFunctionT(VyperType):
         return_type: Optional[VyperType],
         is_modifying: bool,
     ) -> None:
-        super().__init__(DataLocation.UNSET)
         self.underlying_type = underlying_type
         self.name = name
         self.arg_types = arg_types

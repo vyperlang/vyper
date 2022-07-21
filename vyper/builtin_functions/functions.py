@@ -254,6 +254,7 @@ def _build_adhoc_slice_node(sub: IRnode, start: IRnode, length: IRnode, context:
     return IRnode.from_list(node, typ=ByteArrayType(length.value), location=MEMORY)
 
 
+# note: this and a lot of other builtins could be refactored to accept any uint type
 class Slice(BuiltinFunction):
 
     _id = "slice"
@@ -270,7 +271,7 @@ class Slice(BuiltinFunction):
         if isinstance(arg_type, StringT):
             return_type = StringT()
         else:
-            return_type = BytesArrayDefinition()
+            return_type = BytesT()
 
         # validate start and length are in bounds
 
@@ -465,10 +466,10 @@ class Concat(BuiltinFunction):
         for arg_t in arg_types:
             length += arg_t.length
 
-        if isinstance(arg_types[0], BytesAbstractType):
-            return_type = BytesArrayDefinition()
+        if isinstance(arg_types[0], BytesT):
+            return_type = BytesT()
         else:
-            return_type = StringDefinition()
+            return_type = StringT()
         return_type.set_length(length)
         return return_type
 
@@ -482,7 +483,7 @@ class Concat(BuiltinFunction):
         ret = []
         prev_typeclass = None
         for arg in node.args:
-            validate_expected_type(arg, (BytesAbstractType(), StringDefinition()))
+            validate_expected_type(arg, (BytesT(), StringT()))
             arg_t = get_possible_types_from_node(arg).pop()
             current_typeclass = "Bytes" if isinstance(arg_t, BytesAbstractType) else "String"
             if prev_typeclass and current_typeclass != prev_typeclass:
@@ -700,9 +701,9 @@ class MethodID(BuiltinFunction):
 
         if node.keywords:
             return_type = get_type_from_annotation(node.keywords[0].value, DataLocation.UNSET)
-            if isinstance(return_type, Bytes4Definition):
+            if return_type.compare_type(BYTES4_T):
                 is_bytes4 = True
-            elif isinstance(return_type, BytesArrayDefinition) and return_type.length == 4:
+            elif isinstance(return_type, BytesT) and return_type.length == 4:
                 is_bytes4 = False
             else:
                 raise ArgumentException("output_type must be Bytes[4] or bytes4", node.keywords[0])
@@ -855,7 +856,7 @@ class Extract32(BuiltinFunction):
     _id = "extract32"
     _inputs = [("b", BytesT()), ("start", IntegerT.signeds())]
     # "TYPE_DEFINITION" is a placeholder value for a type definition string, and
-    # will be replaced by a `TypeTypeDefinition` object in `infer_kwarg_types`
+    # will be replaced by a `TypeT` object in `infer_kwarg_types`
     # (note that it is ignored in validate_args)
     _kwargs = {"output_type": KwargSettings("TYPE_DEFINITION", "bytes32")}
     _return_type = None
@@ -868,21 +869,21 @@ class Extract32(BuiltinFunction):
     def infer_arg_types(self, node):
         self._validate_arg_types(node)
         input_type = get_possible_types_from_node(node.args[0]).pop()
-        return [input_type, Uint256Definition()]
+        return [input_type, UINT256_T]
 
     def infer_kwarg_types(self, node):
         if node.keywords:
             output_type = get_type_from_annotation(node.keywords[0].value, DataLocation.MEMORY)
             if not isinstance(
-                output_type, (AddressDefinition, Bytes32Definition, IntegerAbstractType)
+                output_type, (AddressT, BytesM_T, IntegerT)
             ):
                 raise InvalidType(
                     "Output type must be one of integer, bytes32 or address", node.keywords[0].value
                 )
-            output_typedef = TypeTypeDefinition(output_type)
+            output_typedef = TypeT(output_type)
             node.keywords[0].value._metadata["type"] = output_typedef
         else:
-            output_typedef = TypeTypeDefinition(Bytes32Definition())
+            output_typedef = TypeT(BYTES32_T)
 
         return {"output_type": output_typedef}
 
@@ -968,8 +969,8 @@ class Extract32(BuiltinFunction):
 class AsWeiValue(BuiltinFunction):
 
     _id = "as_wei_value"
-    _inputs = [("value", NumericAbstractType()), ("unit", StringDefinition())]
-    _return_type = Uint256Definition()
+    _inputs = [("value", (IntegerT.any(), DecimalT())), ("unit", StringT())]
+    _return_type = UINT256_T
 
     wei_denoms = {
         ("wei",): 1,
@@ -1066,14 +1067,14 @@ empty_value = IRnode.from_list(0, typ=BaseType("bytes32"))
 class RawCall(BuiltinFunction):
 
     _id = "raw_call"
-    _inputs = [("to", AddressDefinition()), ("data", BytesAbstractType())]
+    _inputs = [("to", AddressT()), ("data", BytesT())]
     _kwargs = {
-        "max_outsize": KwargSettings(Uint256Definition(), 0, require_literal=True),
-        "gas": KwargSettings(Uint256Definition(), "gas"),
-        "value": KwargSettings(Uint256Definition(), zero_value),
-        "is_delegate_call": KwargSettings(BoolDefinition(), False, require_literal=True),
-        "is_static_call": KwargSettings(BoolDefinition(), False, require_literal=True),
-        "revert_on_failure": KwargSettings(BoolDefinition(), True, require_literal=True),
+        "max_outsize": KwargSettings(UINT256_T, 0, require_literal=True),
+        "gas": KwargSettings(UINT256_T, "gas"),
+        "value": KwargSettings(UINT256_T, zero_value),
+        "is_delegate_call": KwargSettings(BoolT(), False, require_literal=True),
+        "is_static_call": KwargSettings(BoolT(), False, require_literal=True),
+        "revert_on_failure": KwargSettings(BoolT(), True, require_literal=True),
     }
     _return_type = None
 
@@ -1089,18 +1090,18 @@ class RawCall(BuiltinFunction):
         if outsize is None:
             if revert_on_failure:
                 return None
-            return BoolDefinition()
+            return BoolT()
 
         if not isinstance(outsize, vy_ast.Int) or outsize.value < 0:
             raise
 
         if outsize.value:
-            return_type = BytesArrayDefinition()
+            return_type = BytesT()
             return_type.set_min_length(outsize.value)
 
             if revert_on_failure:
                 return return_type
-            return TupleDefinition([BoolDefinition(), return_type])
+            return TupleT([BoolT(), return_type])
 
     def infer_arg_types(self, node):
         self._validate_arg_types(node)
@@ -1215,7 +1216,7 @@ class RawCall(BuiltinFunction):
 class Send(BuiltinFunction):
 
     _id = "send"
-    _inputs = [("to", AddressDefinition()), ("value", Uint256Definition())]
+    _inputs = [("to", AddressT()), ("value", UINT256_T)]
     _return_type = None
 
     @process_inputs
@@ -1228,7 +1229,7 @@ class Send(BuiltinFunction):
 class SelfDestruct(BuiltinFunction):
 
     _id = "selfdestruct"
-    _inputs = [("to", AddressDefinition())]
+    _inputs = [("to", AddressT())]
     _return_type = None
     _is_terminus = True
 
@@ -1243,8 +1244,8 @@ class SelfDestruct(BuiltinFunction):
 class BlockHash(BuiltinFunction):
 
     _id = "blockhash"
-    _inputs = [("block_num", Uint256Definition())]
-    _return_type = Bytes32Definition()
+    _inputs = [("block_num", UINT256_T)]
+    _return_type = BYTES32_T
 
     @process_inputs
     def build_IR(self, expr, args, kwargs, contact):
@@ -1258,8 +1259,8 @@ class RawLog(BuiltinFunction):
 
     _id = "raw_log"
     _inputs = [
-        ("topics", DynamicArrayDefinition(Bytes32Definition(), 4)),
-        ("data", (Bytes32Definition(), BytesArrayPrimitive())),
+        ("topics", DArrayT(BYTES32_T, 4)),
+        ("data", (BYTES32_T, BytesT())),
     ]
 
     def fetch_call_return(self, node):
@@ -1312,8 +1313,8 @@ class RawLog(BuiltinFunction):
 class BitwiseAnd(BuiltinFunction):
 
     _id = "bitwise_and"
-    _inputs = [("x", Uint256Definition()), ("y", Uint256Definition())]
-    _return_type = Uint256Definition()
+    _inputs = [("x", UINT256_T), ("y", UINT256_T)]
+    _return_type = UINT256_T
     _warned = False
 
     def evaluate(self, node):
@@ -1339,8 +1340,8 @@ class BitwiseAnd(BuiltinFunction):
 class BitwiseOr(BuiltinFunction):
 
     _id = "bitwise_or"
-    _inputs = [("x", Uint256Definition()), ("y", Uint256Definition())]
-    _return_type = Uint256Definition()
+    _inputs = [("x", UINT256_T), ("y", UINT256_T)]
+    _return_type = UINT256_T
     _warned = False
 
     def evaluate(self, node):
@@ -1366,8 +1367,8 @@ class BitwiseOr(BuiltinFunction):
 class BitwiseXor(BuiltinFunction):
 
     _id = "bitwise_xor"
-    _inputs = [("x", Uint256Definition()), ("y", Uint256Definition())]
-    _return_type = Uint256Definition()
+    _inputs = [("x", UINT256_T), ("y", UINT256_T)]
+    _return_type = UINT256_T
     _warned = False
 
     def evaluate(self, node):
@@ -1393,8 +1394,8 @@ class BitwiseXor(BuiltinFunction):
 class BitwiseNot(BuiltinFunction):
 
     _id = "bitwise_not"
-    _inputs = [("x", Uint256Definition())]
-    _return_type = Uint256Definition()
+    _inputs = [("x", UINT256_T)]
+    _return_type = UINT256_T
     _warned = False
 
     def evaluate(self, node):
@@ -1421,8 +1422,8 @@ class BitwiseNot(BuiltinFunction):
 class Shift(BuiltinFunction):
 
     _id = "shift"
-    _inputs = [("x", Uint256Definition()), ("_shift", SignedIntegerAbstractType())]
-    _return_type = Uint256Definition()
+    _inputs = [("x", UINT256_T), ("_shift", IntegerT.any())]
+    _return_type = UINT256_T
 
     def evaluate(self, node):
         validate_call_args(node, 2)
@@ -1487,8 +1488,8 @@ class Shift(BuiltinFunction):
 
 class _AddMulMod(BuiltinFunction):
 
-    _inputs = [("a", Uint256Definition()), ("b", Uint256Definition()), ("c", Uint256Definition())]
-    _return_type = Uint256Definition()
+    _inputs = [("a", UINT256_T), ("b", UINT256_T), ("c", UINT256_T)]
+    _return_type = UINT256_T
 
     def evaluate(self, node):
         validate_call_args(node, 3)
@@ -1525,8 +1526,8 @@ class MulMod(_AddMulMod):
 
 class PowMod256(BuiltinFunction):
     _id = "pow_mod256"
-    _inputs = [("a", Uint256Definition()), ("b", Uint256Definition())]
-    _return_type = Uint256Definition()
+    _inputs = [("a", UINT256_T), ("b", UINT256_T)]
+    _return_type = UINT256_T
 
     def evaluate(self, node):
         validate_call_args(node, 2)
@@ -1548,8 +1549,8 @@ class PowMod256(BuiltinFunction):
 
 class Abs(BuiltinFunction):
     _id = "abs"
-    _inputs = [("value", Int256Definition())]
-    _return_type = Int256Definition()
+    _inputs = [("value", INT256_T)]
+    _return_type = INT256_T
 
     def evaluate(self, node):
         validate_call_args(node, 1)
@@ -1695,10 +1696,10 @@ def _create_preamble(codesize):
 
 class _CreateBase(BuiltinFunction):
     _kwargs = {
-        "value": KwargSettings(Uint256Definition(), zero_value),
-        "salt": KwargSettings(Bytes32Definition(), empty_value),
+        "value": KwargSettings(UINT256_T, zero_value),
+        "salt": KwargSettings(BYTES32_T, empty_value),
     }
-    _return_type = AddressDefinition()
+    _return_type = AddressT()
 
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
@@ -1725,7 +1726,7 @@ class CreateMinimalProxyTo(_CreateBase):
     # create an EIP1167 "minimal proxy" to the target contract
 
     _id = "create_minimal_proxy_to"
-    _inputs = [("target", AddressDefinition())]
+    _inputs = [("target", AddressT())]
 
     def _add_gas_estimate(self, args, should_use_create2):
         a, b, c = eip1167_bytecode()
@@ -1779,7 +1780,7 @@ class CreateForwarderTo(CreateMinimalProxyTo):
 class CreateCopyOf(_CreateBase):
 
     _id = "create_copy_of"
-    _inputs = [("target", AddressDefinition())]
+    _inputs = [("target", AddressT())]
 
     @property
     def _preamble_len(self):
@@ -1825,11 +1826,11 @@ class CreateCopyOf(_CreateBase):
 class CreateFromFactory(_CreateBase):
 
     _id = "create_from_factory"
-    _inputs = [("target", AddressDefinition())]
+    _inputs = [("target", AddressT())]
     _kwargs = {
-        "value": KwargSettings(Uint256Definition(), zero_value),
-        "salt": KwargSettings(Bytes32Definition(), empty_value),
-        "code_offset": KwargSettings(Uint256Definition(), zero_value),
+        "value": KwargSettings(UINT256_T, zero_value),
+        "salt": KwargSettings(BYTES32_T, empty_value),
+        "code_offset": KwargSettings(UINT256_T, zero_value),
     }
     _has_varargs = True
 
@@ -2056,7 +2057,7 @@ class Uint2Str(BuiltinFunction):
         arg_t = self.infer_arg_types(node)[0]
         bits = arg_t._bits
         len_needed = math.ceil(bits * math.log(2) / math.log(10))
-        return StringDefinition(len_needed)
+        return StringT(len_needed)
 
     def evaluate(self, node):
         validate_call_args(node, 1)
@@ -2124,8 +2125,8 @@ class Uint2Str(BuiltinFunction):
 class Sqrt(BuiltinFunction):
 
     _id = "sqrt"
-    _inputs = [("d", DecimalDefinition())]
-    _return_type = DecimalDefinition()
+    _inputs = [("d", DecimalT())]
+    _return_type = DecimalT()
 
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
@@ -2162,7 +2163,7 @@ else:
         # Create input variables.
         variables = {"x": VariableRecord(name="x", pos=new_var_pos, typ=x_type, mutable=False)}
         # Dictionary to update new (i.e. typecheck) namespace
-        variables_2 = {"x": DecimalDefinition()}
+        variables_2 = {"x": DecimalT()}
         # Generate inline IR.
         new_ctx, sqrt_ir = generate_inline_function(
             code=sqrt_code,
@@ -2181,7 +2182,7 @@ class Empty(BuiltinFunction):
 
     _id = "empty"
     # "TYPE_DEFINITION" is a placeholder value for a type definition string, and
-    # will be replaced by a `TypeTypeDefinition` object in `infer_arg_types`
+    # will be replaced by a `TypeT` object in `infer_arg_types`
     # (note that it is ignored in `validate_args`)
     _inputs = [("typename", "TYPE_DEFINITION")]
 
@@ -2191,9 +2192,7 @@ class Empty(BuiltinFunction):
 
     def infer_arg_types(self, node):
         validate_call_args(node, 1)
-        input_typedef = TypeTypeDefinition(
-            get_type_from_annotation(node.args[0], DataLocation.MEMORY)
-        )
+        input_typedef = TypeT( get_type_from_annotation(node.args[0], DataLocation.MEMORY))
         return [input_typedef]
 
     @process_inputs
@@ -2275,9 +2274,9 @@ class ABIEncode(BuiltinFunction):
     _has_varargs = True
 
     _kwargs = {
-        "ensure_tuple": KwargSettings(BoolDefinition(), True, require_literal=True),
+        "ensure_tuple": KwargSettings(BoolT(), True, require_literal=True),
         "method_id": KwargSettings(
-            (Bytes4Definition(), BytesArrayDefinition(4)), None, require_literal=True
+            (BYTES4_T, BytesT(4)), None, require_literal=True
         ),
     }
 
@@ -2316,7 +2315,7 @@ class ABIEncode(BuiltinFunction):
             # the output includes 4 bytes for the method_id.
             maxlen += 4
 
-        ret = BytesArrayDefinition()
+        ret = BytesT()
         ret.set_length(maxlen)
         return ret
 
@@ -2382,7 +2381,7 @@ class ABIEncode(BuiltinFunction):
 class ABIDecode(BuiltinFunction):
     _id = "_abi_decode"
     _inputs = [("data", BytesArrayPrimitive()), ("output_type", "TYPE_DEFINITION")]
-    _kwargs = {"unwrap_tuple": KwargSettings(BoolDefinition(), True, require_literal=True)}
+    _kwargs = {"unwrap_tuple": KwargSettings(BoolT(), True, require_literal=True)}
 
     def fetch_call_return(self, node):
         _, output_type = self.infer_arg_types(node)
@@ -2392,9 +2391,7 @@ class ABIDecode(BuiltinFunction):
         validate_call_args(node, 2, ["unwrap_tuple"])
 
         data_type = get_exact_type_from_node(node.args[0])
-        output_typedef = TypeTypeDefinition(
-            get_type_from_annotation(node.args[1], DataLocation.MEMORY)
-        )
+        output_typedef = TypeT( get_type_from_annotation(node.args[1], DataLocation.MEMORY))
 
         return [data_type, output_typedef]
 

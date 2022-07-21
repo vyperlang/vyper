@@ -127,7 +127,7 @@ class VyperType:
         return (), self
 
 
-    # TODO not sure if this is a great idea
+    # TODO not sure if this is a great idea.
     @classmethod
     def any(cls):
         return _GenericTypeAcceptor(cls)
@@ -199,7 +199,7 @@ class VyperType:
         bool
             Indicates if the types are equivalent.
         """
-        return isinstance(other, cls._type)
+        return isinstance(other, cls)
 
     @classmethod
     def fetch_call_return(self, node: vy_ast.Call) -> "BaseTypeDefinition":

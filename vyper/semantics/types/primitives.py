@@ -103,11 +103,11 @@ class IntegerT(VyperType):
 
     @classmethod
     def signeds(cls) -> List["IntegerT"]:
-        return [cls(signed=True, bits=i * 8) for i in RANGE_1_32]
+        return [cls(is_signed=True, bits=i * 8) for i in RANGE_1_32]
 
     @classmethod
     def unsigneds(cls) -> List["IntegerT"]:
-        return [cls(signed=False, bits=i * 8) for i in RANGE_1_32]
+        return [cls(is_signed=False, bits=i * 8) for i in RANGE_1_32]
 
     @classmethod
     def all(cls) -> List["IntegerT"]:
