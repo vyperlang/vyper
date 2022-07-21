@@ -9,13 +9,13 @@ from vyper.exceptions import (
     UnknownAttribute,
 )
 from vyper.semantics.namespace import validate_identifier
-from vyper.semantics.types.base import DataLocation, AttributableT
+from vyper.semantics.types.base import DataLocation
 from vyper.semantics.types.function import ContractFunction
 from vyper.semantics.types.value_types import AddressT
 from vyper.semantics.validation.levenshtein_utils import get_levenshtein_error_suggestions
 
 
-class EnumT(AttributableT):
+class EnumT(VyperType):
     def __init__( self, name: str, members: dict) -> None:
         if len(members.keys()) > 256:
             raise EnumDeclarationException("Enums are limited to 256 members!")
@@ -216,7 +216,7 @@ class EventT:
             }
         ]
 
-class InterfaceT(AttributableT):
+class InterfaceT(VyperType):
 
     _type_members = {"address": AddressT()}
     _is_callable = True
@@ -403,7 +403,7 @@ def _get_class_functions(base_node: vy_ast.InterfaceDef) -> Dict[str, ContractFu
     return functions
 
 
-class StructT(AttributableT, SimpleGettableT):
+class StructT(VyperType):
     _is_callable = True
     _as_array = True
 

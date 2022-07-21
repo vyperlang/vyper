@@ -5,7 +5,7 @@ from vyper.utils import checksum_encode, is_checksum_encoded, SizeLimits
 
 from typing import Union, Tuple
 
-from .base import AttributableT, VyperType
+from .base import VyperType
 from .bytestrings import BytesT
 
 
@@ -67,6 +67,7 @@ class BytesM_T(VyperType):
 class IntegerT(VyperType):
     """
     General integer type. All signed and unsigned ints from uint8 thru int256
+
     Attributes
     ----------
     bits : int
@@ -181,7 +182,7 @@ class DecimalT(_NumericT):
 
 
 # maybe this even deserves its own module, address.py
-class AddressT(AttributableT):
+class AddressT(VyperType):
     _as_array = True
     _id = "address"
     _valid_literal = (vy_ast.Hex,)

@@ -37,7 +37,7 @@ class _SubscriptableT(VyperType):
         return self.key_type
 
 
-class HashMapT(SubscriptableT):
+class HashMapT(_SubscriptableT):
     _id = "HashMap"
 
     def __repr__(self):

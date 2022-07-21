@@ -18,12 +18,12 @@ from vyper.exceptions import (
 )
 from vyper.semantics import types
 from vyper.semantics.namespace import get_namespace
-from vyper.semantics.types.abstract import IntegerAbstractType
-from vyper.semantics.types.bases import BaseTypeDefinition
-from vyper.semantics.types.indexable.sequence import (
-    ArrayDefinition,
-    DynamicArrayDefinition,
-    TupleDefinition,
+from vyper.semantics.types.base import VyperType
+from vyper.semantics.types.value_types import IntegerT
+from vyper.semantics.types.subscriptable import (
+    SArrayT,
+    DArrayT,
+    TupleT,
 )
 from vyper.semantics.types.value.boolean import BoolDefinition
 from vyper.semantics.validation.levenshtein_utils import get_levenshtein_error_suggestions
@@ -120,7 +120,7 @@ class _ExprTypeChecker:
                 else:
                     raise InvalidReference("Expected a literal or variable", node)
 
-        if all(isinstance(i, IntegerAbstractType) for i in types_list):
+        if all(isinstance(i, IntegerT) for i in types_list):
             # for numeric types, sort according by number of bits descending
             # we do this to ensure literals are cast with the largest possible type
             return sorted(types_list, key=lambda k: (k._bits, not k._is_signed), reverse=True)
