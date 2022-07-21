@@ -1264,6 +1264,18 @@ def foo() -> DynArray[uint256, 3]:
     assert_compile_failed(lambda: get_contract(code), TypeMismatch)
 
 
+def test_extend_valid_length(get_contract):
+    code = """
+@external
+def foo(y: DynArray[uint256, 3]) -> DynArray[uint256, 5]:
+    x: DynArray[uint256, 5] = [1, 2]
+    x.extend(y)
+    return x
+    """
+    c = get_contract(code)
+    assert c.foo([3, 4]) == [1, 2, 3, 4]
+
+
 def test_extend_length_clamp(get_contract, assert_tx_failed):
     code = """
 @external
