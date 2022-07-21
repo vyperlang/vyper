@@ -259,7 +259,7 @@ class _ExprTypeChecker:
                 f"'{name}' is a storage variable, access it as self.{name}", node
             )
         try:
-            return [self.namespace[node.id]]
+            return [self.namespace[node.id].type_]
         except VyperException as exc:
             raise exc.with_annotation(node) from None
 

@@ -182,10 +182,9 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
                 raise SyntaxException(message, node.node_source_code, node.lineno, node.col_offset)
 
         data_loc = DataLocation.CODE if node.is_immutable else DataLocation.STORAGE
-        type_definition = get_type_from_annotation(
-            annotation, data_loc, node.is_constant, node.is_public, node.is_immutable
-        )
-        node._metadata["type"] = type_definition
+        type_ = type_from_annotation(annotation)
+        var_info = VarInfo(type_, data_loc, node.is_constant, node.is_public, node.is_immutable
+        node._metadata["type"] = type_
 
         if node.is_constant:
             if not node.value:
@@ -193,9 +192,9 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
             if not check_constant(node.value):
                 raise StateAccessViolation("Value must be a literal", node.value)
 
-            validate_expected_type(node.value, type_definition)
+            validate_expected_type(node.value, type_)
             try:
-                self.namespace[name] = type_definition
+                self.namespace[name] = var_info
             except VyperException as exc:
                 raise exc.with_annotation(node) from None
             return
@@ -213,7 +212,7 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
                     raise NamespaceCollision(
                         f"Value '{name}' has already been declared", node
                     ) from None
-                self.namespace[name] = type_definition
+                self.namespace[name] = var_info
             except VyperException as exc:
                 raise exc.with_annotation(node) from None
             return
@@ -223,15 +222,15 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
         except NamespaceCollision as exc:
             raise exc.with_annotation(node) from None
         try:
-            self.namespace["self"].add_member(name, type_definition)
-            node.target._metadata["type"] = type_definition
+            self.namespace["self"].add_member(name, type_)
+            node.target._metadata["type"] = type_
         except NamespaceCollision:
             raise NamespaceCollision(f"Value '{name}' has already been declared", node) from None
         except VyperException as exc:
             raise exc.with_annotation(node) from None
 
     def visit_EnumDef(self, node):
-        obj = EnumPrimitive.from_EnumDef(node)
+        obj = EnumT.from_EnumDef(node)
         try:
             self.namespace[node.name] = obj
         except VyperException as exc:

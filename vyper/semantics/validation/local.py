@@ -215,11 +215,11 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                 "Memory variables must be declared with an initial value", node
             )
 
-        type_definition = get_type_from_annotation(node.annotation, DataLocation.MEMORY)
+        type_ = type_from_annotation(node.annotation)
         validate_expected_type(node.value, type_definition)
 
         try:
-            self.namespace[name] = type_definition
+            self.namespace[name] = VarInfo(type_, DataLocation.MEMORY)
         except VyperException as exc:
             raise exc.with_annotation(node) from None
         self.expr_visitor.visit(node.value)
@@ -413,12 +413,11 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         iter_name = node.target.id
         for type_ in type_list:
             # type check the for loop body using each possible type for iterator value
-            type_ = copy.deepcopy(type_)
-            type_.is_constant = True
+            var_info = VarInfo(type_, is_constant=True)
 
             with self.namespace.enter_scope():
                 try:
-                    self.namespace[iter_name] = type_
+                    self.namespace[iter_name] = var_info
                 except VyperException as exc:
                     raise exc.with_annotation(node) from None
 
@@ -427,7 +426,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                         self.visit(n)
                     # type information is applied directly because the scope is
                     # closed prior to the call to `StatementAnnotationVisitor`
-                    node.target._metadata["type"] = type_
+                    node.target._metadata["type"] = VarInfo(type_)
                     return
                 except (TypeMismatch, InvalidOperation) as exc:
                     for_loop_exceptions.append(exc)

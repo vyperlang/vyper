@@ -16,7 +16,7 @@ def get_primitive_types():
 
 def get_types():
     result = {}
-    result.update(user.USER_TYPES)
+    #result.update(user.USER_TYPES)
     result.update(get_primitive_types())
 
     return result

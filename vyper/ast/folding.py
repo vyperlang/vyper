@@ -1,11 +1,11 @@
 import copy
-from typing import Union
+from typing import Union, Optional
 
 from vyper.ast import nodes as vy_ast
 from vyper.builtin_functions import DISPATCH_TABLE
 from vyper.exceptions import UnfoldableNode, UnknownType
 from vyper.semantics.types.base import VyperType, DataLocation
-from vyper.semantics.types.utils import get_type_from_annotation
+from vyper.semantics.types.utils import type_from_annotation
 from vyper.utils import SizeLimits
 
 BUILTIN_CONSTANTS = {
@@ -232,7 +232,7 @@ def replace_constant(
     id_: str,
     replacement_node: Union[vy_ast.Constant, vy_ast.List, vy_ast.Call],
     raise_on_error: bool,
-    type_: BaseTypeDefinition = None,
+    type_: Optional[VyperType] = None,
 ) -> int:
     """
     Replace references to a variable name with a literal value.
@@ -248,7 +248,7 @@ def replace_constant(
         `Call` nodes are for struct constants.
     raise_on_error: bool
         Boolean indicating if `UnfoldableNode` exception should be raised or ignored.
-    type_ : BaseTypeDefinition, optional
+    type_ : VyperType, optional
         Type definition to be propagated to type checker.
 
     Returns

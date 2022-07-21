@@ -4,7 +4,7 @@ from vyper import ast as vy_ast
 from vyper.ast.signatures.function_signature import VariableRecord
 from vyper.codegen.types import parse_type
 from vyper.exceptions import CompilerPanic, InvalidType, StructureException
-from vyper.semantics.types.user.enum import EnumPrimitive
+from vyper.semantics.types import EnumT
 from vyper.typing import InterfaceImports
 from vyper.utils import cached_property
 
