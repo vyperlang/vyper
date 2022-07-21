@@ -311,6 +311,10 @@ def extend_dyn_array(context, dst_darray_node, src_darray_node):
             dst_bounds_assertion = ["assert", ["lt", dst_len, max_dst_len]]
             ret.append(dst_bounds_assertion)
 
+            # Assert len(src_darray) + len(dst_darray) < maxlen(dst_darray)
+            within_maxlen_assertion = ["assert", ["le", ["add", dst_len, src_len], max_dst_len]]
+            ret.append(within_maxlen_assertion)
+
             loop_body = ["seq"]
 
             # Loop over source darray until it runs out
@@ -342,7 +346,7 @@ def extend_dyn_array(context, dst_darray_node, src_darray_node):
                 ["repeat", loop_var, dst_len, iter_count, max_dst_len, loop_body]
             )
 
-            # Enter loop only of current length of destination darray is less than its max size
+            # Enter loop only if current length of destination darray is less than its max size
             dst_len_test = IRnode.from_list(["lt", dst_len, max_dst_len])
             dst_len_check = IRnode.from_list(["if", dst_len_test, loop])
 
