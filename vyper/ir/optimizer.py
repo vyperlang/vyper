@@ -227,6 +227,9 @@ def _optimize_binop(binop, args, ann, parent_op):
         # compile-time arithmetic
         left, right = _int(args[0]), _int(args[1])
         new_val = fn(left, right)
+        # wrap the result, since `fn` generally does not wrap.
+        # (note: don't rely on wrapping or non-wrapping behavior for `fn`.
+        # some ops, like evm_pow, ALWAYS wrap).
         new_val = _wrap(new_val)
         return finalize(new_val, [])
 
