@@ -49,6 +49,7 @@ from vyper.codegen.types import (
     is_base_type,
     parse_integer_typeinfo,
 )
+from vyper.semantics.types.primitives import UINT256_T, INT256_T, BYTES32_T, BYTES4_T
 from vyper.codegen.types.convert import new_type_to_old_type
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
@@ -75,8 +76,8 @@ from vyper.semantics.types import (
     BytesM_T,
     DecimalT,
 )
-from vyper.semantics.types.bases import DataLocation, VyperType
-from vyper.semantics.types.utils import KwargSettings, TypeT, type_from_annotation
+from vyper.semantics.types.base import DataLocation, VyperType, KwargSettings, TYPE_T
+from vyper.semantics.types.utils import type_from_annotation
 from vyper.semantics.validation.utils import (
     get_common_types,
     get_exact_type_from_node,
@@ -107,9 +108,9 @@ SHA256_PER_WORD_GAS = 12
 class Floor(BuiltinFunction):
 
     _id = "floor"
-    _inputs = [("value", DecimalDefinition())]
+    _inputs = [("value", DecimalT())]
     # TODO: maybe use int136?
-    _return_type = Int256Definition()
+    _return_type = INT256_T
 
     def evaluate(self, node):
         validate_call_args(node, 1)
@@ -135,9 +136,9 @@ class Floor(BuiltinFunction):
 class Ceil(BuiltinFunction):
 
     _id = "ceil"
-    _inputs = [("value", DecimalDefinition())]
+    _inputs = [("value", DecimalT())]
     # TODO: maybe use int136?
-    _return_type = Int256Definition()
+    _return_type = INT256_T
 
     def evaluate(self, node):
         validate_call_args(node, 1)
@@ -197,7 +198,7 @@ class Convert(BuiltinFunction):
         if target_type.compare_type(value_type):
             raise InvalidType(f"Value and target type are both '{target_type}'", node)
 
-        return [value_type, TypeTypeDefinition(target_type)]
+        return [value_type, TYPE_T(target_type)]
 
     def build_IR(self, expr, context):
         return convert(expr, context)
@@ -257,9 +258,9 @@ class Slice(BuiltinFunction):
 
     _id = "slice"
     _inputs = [
-        ("b", (Bytes32Definition(), BytesArrayPrimitive(), StringPrimitive())),
-        ("start", Uint256Definition()),
-        ("length", Uint256Definition()),
+        ("b", (BYTES32_T, BytesT(), StringT())),
+        ("start", UINT256_T),
+        ("length", UINT256_T),
     ]
     _return_type = None
 

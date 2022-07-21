@@ -1,5 +1,5 @@
 from . import subscriptable, user, primitives
-from .base import VyperType, DataLocation
+from .base import VyperType, DataLocation, TYPE_T
 from .subscriptable import ( HashMapT , SArrayT, TupleT, DArrayT,)
 from .user import EnumT, InterfaceT, EventT, StructT
 from .primitives import AddressT, BoolT, BytesM_T, IntegerT, DecimalT

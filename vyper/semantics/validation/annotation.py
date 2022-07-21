@@ -1,11 +1,7 @@
 from vyper import ast as vy_ast
 from vyper.exceptions import StructureException
-from vyper.semantics.types import ArrayDefinition
-from vyper.semantics.types.function import ContractFunction, MemberFunctionDefinition
-from vyper.semantics.types.user.enum import EnumDefinition
-from vyper.semantics.types.user.event import Event
-from vyper.semantics.types.user.struct import StructPrimitive
-from vyper.semantics.types.utils import TypeTypeDefinition
+from vyper.semantics.types import SArrayT, EnumT, EventT, StructT, TYPE_T
+from vyper.semantics.types.function import ContractFunction, MemberFunctionT
 from vyper.semantics.validation.utils import (
     get_common_types,
     get_exact_type_from_node,
@@ -219,7 +215,7 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
             self.visit(element, type_.value_type)
 
     def visit_Name(self, node, type_):
-        if isinstance(type_, TypeTypeDefinition):
+        if isinstance(type_, TypeT):
             node._metadata["type"] = type_
         else:
             node._metadata["type"] = get_exact_type_from_node(node)
@@ -227,7 +223,7 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
     def visit_Subscript(self, node, type_):
         node._metadata["type"] = type_
 
-        if isinstance(type_, TypeTypeDefinition):
+        if isinstance(type_, TypeT):
             # don't recurse; can't annotate AST children of type definition
             return
 
@@ -252,7 +248,7 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
     def visit_Tuple(self, node, type_):
         node._metadata["type"] = type_
 
-        if isinstance(type_, TypeTypeDefinition):
+        if isinstance(type_, TypeT):
             # don't recurse; can't annotate AST children of type definition
             return
 

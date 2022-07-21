@@ -23,7 +23,6 @@ from vyper.exceptions import (
 from vyper.semantics.environment import CONSTANT_ENVIRONMENT_VARS, MUTABLE_ENVIRONMENT_VARS
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types import IntegerT, DataLocation, HashMapT, SArrayT, DArrayT, TupleT, EventT, AddressT, StringT, BoolT
-from vyper.semantics.types.bases import DataLocation
 from vyper.semantics.types.function import (
     ContractFunction,
     MemberFunctionT,

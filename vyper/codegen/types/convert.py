@@ -5,7 +5,7 @@ import vyper.semantics.types as new
 from vyper.exceptions import InvalidType
 
 
-def new_type_to_old_type(typ: new.BasePrimitive) -> old.NodeType:
+def new_type_to_old_type(typ: new.VyperType) -> old.NodeType:
     if isinstance(typ, new.BoolDefinition):
         return old.BaseType("bool")
     if isinstance(typ, new.AddressDefinition):

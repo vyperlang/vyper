@@ -20,11 +20,9 @@ from vyper.exceptions import (
     VyperException,
 )
 from vyper.semantics.namespace import get_namespace
-from vyper.semantics.types.bases import DataLocation
+from vyper.semantics.types import DataLocation, EnumT, EventT
 from vyper.semantics.types.function import ContractFunction
-from vyper.semantics.types.user.enum import EnumPrimitive
-from vyper.semantics.types.user.event import Event
-from vyper.semantics.types.utils import check_constant, get_type_from_annotation
+from vyper.semantics.types.utils import check_constant, type_from_annotation
 from vyper.semantics.validation.base import VyperNodeVisitorBase
 from vyper.semantics.validation.levenshtein_utils import get_levenshtein_error_suggestions
 from vyper.semantics.validation.utils import validate_expected_type, validate_unique_method_ids

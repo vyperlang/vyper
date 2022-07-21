@@ -17,30 +17,6 @@ from vyper.semantics.validation.levenshtein_utils import get_levenshtein_error_s
 from vyper.semantics.validation.utils import get_exact_type_from_node, get_index_value
 
 
-# TODO move to vyper.semantics.types.base
-class KwargSettings:
-    # convenience class which holds metadata about how to process kwargs.
-    # contains the `default` value for the kwarg as a python value, and a
-    # flag `require_literal`, which, when True, indicates that the kwarg
-    # must be set to a compile-time constant at any call site.
-    # (note that the kwarg processing machinery will return a
-    # Python value instead of an AST or IRnode in this case).
-    def __init__(self, typ, default, require_literal=False):
-        self.typ = typ
-        self.default = default
-        self.require_literal = require_literal
-
-
-# TODO move to vyper.semantics.types.base
-# A type type.
-class TypeT:
-    def __init__(self, typedef):
-        self.typedef = typedef
-
-    def __repr__(self):
-        return f"type({self.typedef})"
-
-
 class StringEnum(enum.Enum):
     @staticmethod
     def auto():

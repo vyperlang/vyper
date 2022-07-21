@@ -16,16 +16,15 @@ from vyper.exceptions import (
     StructureException,
 )
 from vyper.semantics.namespace import get_namespace
-from vyper.semantics.types.base import VyperType, DataLocation, StorageSlot
+from vyper.semantics.types.base import VyperType, DataLocation, StorageSlot, KwargSettings
 from vyper.semantics.types.subscriptable import TupleT
 from vyper.semantics.types.utils import (
-    KwargSettings,
     StringEnum,
     check_kwargable,
     type_from_abi,
     type_from_annotation,
 )
-from vyper.semantics.types.primitives import BoolT, T_UINT256
+from vyper.semantics.types.primitives import BoolT, UINT256_T
 from vyper.semantics.validation.utils import validate_expected_type
 from vyper.utils import keccak256
 

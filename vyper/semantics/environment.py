@@ -1,30 +1,30 @@
 from typing import Dict
 
 from vyper.semantics.types import StructT, AddressT, BytesM_T, BytesT, IntegerT 
-from vyper.semantics.types.primitives import T_UINT256, T_BYTES32
+from vyper.semantics.types.primitives import UINT256_T, BYTES32_T
 
 CONSTANT_ENVIRONMENT_VARS: Dict[str, Dict[str, type]] = {
     "block": {
         "coinbase": AddressT,
-        "difficulty": T_UINT256,
-        "number": T_UINT256,
-        "gaslimit": T_UINT256,
-        "basefee": T_UINT256,
-        "prevhash": T_BYTES32,
-        "timestamp": T_UINT256,
+        "difficulty": UINT256_T,
+        "number": UINT256_T,
+        "gaslimit": UINT256_T,
+        "basefee": UINT256_T,
+        "prevhash": BYTES32_T,
+        "timestamp": UINT256_T,
     },
-    "chain": {"id": T_UINT256},
+    "chain": {"id": UINT256_T},
     "msg": {
         "data": BytesT,
-        "gas": T_UINT256,
+        "gas": UINT256_T,
         "sender": AddressT,
-        "value": T_UINT256,
+        "value": UINT256_T,
     },
-    "tx": {"origin": AddressT, "gasprice": T_UINT256},
+    "tx": {"origin": AddressT, "gasprice": UINT256_T},
 }
 
 
-MUTABLE_ENVIRONMENT_VARS: Dict[str, type] = {"self": AddressT}
+MUTABLE_ENVIRONMENT_VARS: Dict[str, type] = {"self": AddressT()}
 
 
 def get_constant_vars() -> Dict:

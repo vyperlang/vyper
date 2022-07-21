@@ -164,12 +164,13 @@ class IntegerT(VyperType):
 
 
 # shortcuts
-T_UINT256 = IntegerT(False, 256)
-T_UINT8 = IntegerT(False, 8)
-T_INT256 = IntegerT(False, 256)
-T_INT128 = IntegerT(False, 128)
+UINT256_T = IntegerT(False, 256)
+UINT8_T = IntegerT(False, 8)
+INT256_T = IntegerT(False, 256)
+INT128_T = IntegerT(False, 128)
 
-T_BYTES32 = BytesM_T(32)
+BYTES32_T = BytesM_T(32)
+BYTES4_T = BytesM_T(4)
 
 
 class _NumericT(VyperType):
@@ -206,9 +207,9 @@ class AddressT(VyperType):
     _id = "address"
     _valid_literal = (vy_ast.Hex,)
     _type_members = {
-        "balance": T_UINT256,
-        "codehash": T_BYTES32,
-        "codesize": T_UINT256,
+        "balance": UINT256_T,
+        "codehash": BYTES32_T,
+        "codesize": UINT256_T,
         "is_contract": BoolT(),
         "code": BytesT(),
     }
