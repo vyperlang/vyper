@@ -52,13 +52,12 @@ a: int128
             "node_id": 4,
             "src": "4:6:0",
         },
-        "ast_type": "AnnAssign",
+        "ast_type": "VariableDecl",
         "col_offset": 0,
         "end_col_offset": 9,
         "end_lineno": 2,
         "lineno": 2,
         "node_id": 1,
-        "simple": 1,
         "src": "1:9:0",
         "target": {
             "ast_type": "Name",
@@ -69,10 +68,11 @@ a: int128
             "lineno": 2,
             "node_id": 2,
             "src": "1:1:0",
-            "type": "int128",
         },
-        "type": "int128",
         "value": None,
+        "is_constant": False,
+        "is_immutable": False,
+        "is_public": False,
     }
 
 

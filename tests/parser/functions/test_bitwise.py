@@ -91,6 +91,26 @@ def _signedShift(x: int256, y: int128) -> int256:
         assert c._signedShift(t, -256) == t >> 256
 
 
+def test_precedence(get_contract):
+    code = """
+@external
+def foo(a: uint256, b: uint256, c: uint256) -> (uint256, uint256):
+    return (a | b & c, (a | b) & c)
+
+@external
+def bar(a: uint256, b: uint256, c: uint256) -> (uint256, uint256):
+    return (a | ~b & c, (a | ~b) & c)
+
+@external
+def baz(a: uint256, b: uint256, c: uint256) -> (uint256, uint256):
+    return (a + 8 | ~b & c * 2, (a  + 8 | ~b) & c * 2)
+    """
+    c = get_contract(code)
+    assert tuple(c.foo(1, 6, 14)) == (1 | 6 & 14, (1 | 6) & 14) == (7, 6)
+    assert tuple(c.bar(1, 6, 14)) == (1 | ~6 & 14, (1 | ~6) & 14) == (9, 8)
+    assert tuple(c.baz(1, 6, 14)) == (1 + 8 | ~6 & 14 * 2, (1 + 8 | ~6) & 14 * 2) == (25, 24)
+
+
 @pytest.mark.parametrize("evm_version", list(EVM_VERSIONS))
 def test_literals(get_contract, evm_version):
     code = """

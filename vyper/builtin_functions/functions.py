@@ -2199,6 +2199,24 @@ class Empty(BuiltinFunction):
         return IRnode("~empty", typ=output_type)
 
 
+class Breakpoint(BuiltinFunction):
+    _id = "breakpoint"
+    _inputs: list = []
+
+    _warned = False
+
+    def fetch_call_return(self, node):
+        if not self._warned:
+            vyper_warn("`breakpoint` should only be used for debugging!\n" + node._annotated_source)
+            self._warned = True
+
+        return None
+
+    @process_inputs
+    def build_IR(self, expr, args, kwargs, context):
+        return IRnode.from_list("breakpoint", annotation="breakpoint()")
+
+
 class Print(BuiltinFunction):
     _id = "print"
     _inputs: list = []
@@ -2493,6 +2511,7 @@ DISPATCH_TABLE = {
 STMT_DISPATCH_TABLE = {
     "send": Send(),
     "print": Print(),
+    "breakpoint": Breakpoint(),
     "selfdestruct": SelfDestruct(),
     "raw_call": RawCall(),
     "raw_log": RawLog(),

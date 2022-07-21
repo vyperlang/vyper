@@ -26,7 +26,7 @@ class VariableRecord:
         encoding=Encoding.VYPER,
         location=MEMORY,
         blockscopes=None,
-        defined_at=None,
+        defined_at=None,  # note: dead variable
         is_internal=False,
         is_immutable=False,
         data_offset: Optional[int] = None,

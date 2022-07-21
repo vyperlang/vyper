@@ -17,6 +17,7 @@ See [Tools and Resources](https://github.com/vyperlang/vyper/wiki/Vyper-tools-an
 See [Documentation](http://vyper.readthedocs.io/en/latest/index.html) for the documentation and overall design goals of the Vyper language.
 
 See [Learn.Vyperlang.org](https://learn.vyperlang.org/) for **learning Vyper by building a Pokémon game**. 
+See [try.vyperlang.org](https://try.vyperlang.org/) to use Vyper in a hosted jupyter environment!
 
 **Note: Vyper is beta software, use with care**
 
