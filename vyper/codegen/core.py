@@ -338,14 +338,10 @@ def extend_dyn_array(context, dst_darray_node, src_darray_node):
             )
             loop_body.append(src_to_dst)
 
-            # Increment length of dst darray
-            new_dst_len = IRnode.from_list(["add", loop_var, 1])
-
             # Construct loop node
             loop = IRnode.from_list(
                 ["repeat", loop_var, dst_len, iter_count, max_dst_len, loop_body]
             )
-
             ret.append(loop)
 
             # Update new length
