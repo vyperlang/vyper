@@ -4,7 +4,7 @@ from typing import Union
 from vyper.ast import nodes as vy_ast
 from vyper.builtin_functions import DISPATCH_TABLE
 from vyper.exceptions import UnfoldableNode, UnknownType
-from vyper.semantics.types.bases import BaseTypeDefinition, DataLocation
+from vyper.semantics.types.base import VyperType, DataLocation
 from vyper.semantics.types.utils import get_type_from_annotation
 from vyper.utils import SizeLimits
 

@@ -27,6 +27,7 @@ class _SubscriptableT(VyperType):
         key_type: VyperType,
         value_type: VyperType,
     ) -> None:
+        super().__init__()
         self.key_type = key_type
         self.value_type = value_type
 
@@ -180,18 +181,14 @@ class DArrayT(_SequenceT):
     _as_array = True
     _id = "DynArray"
 
+
     def __init__( self, value_type: VyperType, length: int,) -> None:
+        super().__init__(value_type, length)
 
-        super().__init__( value_type, length)
-
-        # Adding members here as otherwise MemberFunctionDefinition is not yet defined
-        # if added as _type_members
         from vyper.semantics.types.function import MemberFunctionT
+        self.add_member("append", MemberFunctionT(self, "append", [self.value_type], None, True), skip_namespace_validation=True)
+        self.add_member("pop", MemberFunctionT(self, "pop", [], self.value_type, True), skip_namespace_validation=True)
 
-        self.add_member(
-            "append", MemberFunctionT(self, "append", [self.value_type], None, True)
-        )
-        self.add_member("pop", MemberFunctionT(self, "pop", [], self.value_type, True))
 
     def __repr__(self):
         return f"DynArray[{self.value_type}, {self.length}]"

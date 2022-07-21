@@ -485,7 +485,7 @@ class Concat(BuiltinFunction):
         for arg in node.args:
             validate_expected_type(arg, (BytesT(), StringT()))
             arg_t = get_possible_types_from_node(arg).pop()
-            current_typeclass = "Bytes" if isinstance(arg_t, BytesAbstractType) else "String"
+            current_typeclass = "Bytes" if isinstance(arg_t, BytesT) else "String"
             if prev_typeclass and current_typeclass != prev_typeclass:
                 raise TypeMismatch(
                     (
@@ -1021,7 +1021,7 @@ class AsWeiValue(BuiltinFunction):
 
     def infer_arg_types(self, node):
         self._validate_arg_types(node)
-        # return a concrete type instead of NumericAbstractType
+        # return a concrete type instead of abstract type
         value_type = get_possible_types_from_node(node.args[0]).pop()
         return [value_type, self._inputs[1][1]]
 
@@ -1443,7 +1443,7 @@ class Shift(BuiltinFunction):
 
     def infer_arg_types(self, node):
         self._validate_arg_types(node)
-        # return a concrete type instead of SignedIntegerAbstractType
+        # return a concrete type instead of abstract type
         shift_type = get_possible_types_from_node(node.args[1]).pop()
         return [self._inputs[0][1], shift_type]
 
@@ -1910,7 +1910,7 @@ class CreateFromFactory(_CreateBase):
 class _UnsafeMath(BuiltinFunction):
 
     # TODO add unsafe math for `decimal`s
-    _inputs = [("a", IntegerAbstractType()), ("b", IntegerAbstractType())]
+    _inputs = [("a", IntegerT.any()), ("b", IntegerT.any())]
 
     def __repr__(self):
         return f"builtin function unsafe_{self.op}"
@@ -1923,7 +1923,7 @@ class _UnsafeMath(BuiltinFunction):
         self._validate_arg_types(node)
 
         types_list = get_common_types(
-            *node.args, filter_fn=lambda x: isinstance(x, IntegerAbstractType)
+            *node.args, filter_fn=lambda x: isinstance(x, IntegerT)
         )
         if not types_list:
             raise TypeMismatch(f"unsafe_{self.op} called on dislike types", node)
@@ -1979,7 +1979,7 @@ class UnsafeDiv(_UnsafeMath):
 
 class _MinMax(BuiltinFunction):
 
-    _inputs = [("a", NumericAbstractType()), ("b", NumericAbstractType())]
+    _inputs = [("a", (DecimalT(), IntegerT.any())), ("b", (DecimalT(), IntegerT.any()))]
 
     def evaluate(self, node):
         validate_call_args(node, 2)
@@ -2007,7 +2007,7 @@ class _MinMax(BuiltinFunction):
         self._validate_arg_types(node)
 
         types_list = get_common_types(
-            *node.args, filter_fn=lambda x: isinstance(x, NumericAbstractType)
+            *node.args, filter_fn=lambda x: isinstance(x, (IntegerT, DecimalT))
         )
         if not types_list:
             raise TypeMismatch("Cannot perform action between dislike numeric types", node)
@@ -2051,7 +2051,7 @@ class Max(_MinMax):
 
 class Uint2Str(BuiltinFunction):
     _id = "uint2str"
-    _inputs = [("x", UnsignedIntegerAbstractType())]  # should allow any uint?
+    _inputs = [("x", IntegerT.unsigneds())]
 
     def fetch_call_return(self, node):
         arg_t = self.infer_arg_types(node)[0]
@@ -2380,7 +2380,7 @@ class ABIEncode(BuiltinFunction):
 
 class ABIDecode(BuiltinFunction):
     _id = "_abi_decode"
-    _inputs = [("data", BytesArrayPrimitive()), ("output_type", "TYPE_DEFINITION")]
+    _inputs = [("data", BytesT()), ("output_type", "TYPE_DEFINITION")]
     _kwargs = {"unwrap_tuple": KwargSettings(BoolT(), True, require_literal=True)}
 
     def fetch_call_return(self, node):
