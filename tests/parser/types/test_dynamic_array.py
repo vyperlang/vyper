@@ -1252,6 +1252,18 @@ def foo() -> DynArray[{subtyp}, 3]:
     assert c.foo() == data
 
 
+def test_extend_invalid_length(get_contract, assert_compile_failed):
+    code = """
+@external
+def foo() -> DynArray[uint256, 3]:
+    x: DynArray[uint256, 3] = []
+    y: DynArray[uint256, 4] = []
+    x.extend(y)
+    return x
+    """
+    assert_compile_failed(lambda: get_contract(code), TypeMismatch)
+
+
 extend_pop_tests = [
     (
         """
