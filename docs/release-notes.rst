@@ -6,13 +6,13 @@ Release Notes
 v0.3.4
 ******
 
-Date released: 2022-06-2?
+Date released: 2022-07-2?
 
 Non-breaking changes and improvements:
 
 * Add enum types (`#2874 <https://github.com/vyperlang/vyper/pull/2874>`_, `#2915 <https://github.com/vyperlang/vyper/pull/2915>`_, `#2925 <https://github.com/vyperlang/vyper/pull/2925>`_)
 * Add ``_abi_decode`` builtin (`#2882 <https://github.com/vyperlang/vyper/pull/2882>`_)
-* Add ``create_from_factory`` and ``create_copy_of`` builtins (`#2895 <https://github.com/vyperlang/vyper/pull/2895>`_)
+* Add ``create_from_blueprint`` and ``create_copy_of`` builtins (`#2895 <https://github.com/vyperlang/vyper/pull/2895>`_)
 * Add ``default_return_value`` kwarg for calls (`#2839 <https://github.com/vyperlang/vyper/pull/2839>`_)
 * Add ``uint2str`` builtin (`#2879 <https://github.com/vyperlang/vyper/pull/2879>`_)
 * Add vyper signature to bytecode (`#2860 <https://github.com/vyperlang/vyper/pull/2860>`_)
