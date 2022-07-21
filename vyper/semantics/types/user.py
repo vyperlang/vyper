@@ -9,7 +9,7 @@ from vyper.exceptions import (
     UnknownAttribute,
 )
 from vyper.semantics.namespace import validate_identifier
-from vyper.semantics.types.base import DataLocation, VyperType
+from vyper.semantics.types.base import DataLocation, VyperType, VarInfo
 from vyper.semantics.types.function import ContractFunction
 from vyper.semantics.types.primitives import AddressT
 from vyper.semantics.validation.levenshtein_utils import get_levenshtein_error_suggestions
@@ -407,7 +407,7 @@ class StructT(VyperType):
     _is_callable = True
     _as_array = True
 
-    def __init__(self, _id, members, ast_def):
+    def __init__(self, _id, members, ast_def = None):
         super().__init__(members)
 
         self._id = _id

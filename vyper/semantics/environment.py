@@ -1,5 +1,6 @@
 from typing import Dict
 
+from vyper.semantics.types.base import VarInfo
 from vyper.semantics.types import StructT, AddressT, BytesM_T, BytesT, IntegerT 
 from vyper.semantics.types.primitives import UINT256_T, BYTES32_T
 
@@ -33,7 +34,7 @@ def get_constant_vars() -> Dict:
     """
     result = {}
     for name, members in CONSTANT_ENVIRONMENT_VARS.items():
-        result[name] = StructT(name, members)
+        result[name] = VarInfo(StructT(name, members), is_constant=True)
 
     return result
 
@@ -43,4 +44,4 @@ def get_mutable_vars() -> Dict:
     Get a dictionary of mutable environment variables (those that are
     modified during the course of contract execution, such as `self`).
     """
-    return {name: type_(is_constant=True) for name, type_ in MUTABLE_ENVIRONMENT_VARS.items()}
+    return {name: VarInfo(type_) for name, type_ in MUTABLE_ENVIRONMENT_VARS.items()}
