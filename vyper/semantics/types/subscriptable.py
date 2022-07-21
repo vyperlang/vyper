@@ -5,6 +5,7 @@ from vyper.abi_types import ABIType
 from vyper.exceptions import StructureException
 from vyper.semantics.types.base import VyperType, DataLocation
 from vyper.utils import cached_property
+from vyper.semantics.types.primitives import UINT256_T
 
 
 class _SubscriptableT(VyperType):
@@ -96,12 +97,12 @@ class _SequenceT(_SubscriptableT):
         if not 0 < length < 2 ** 256:
             raise InvalidType("Array length is invalid")
 
-        super().__init__(T_UINT256, value_type)
+        super().__init__(UINT256_T, value_type)
         self.length = length
 
     @cached_property
     def possible_index_types(self) -> Tuple[VyperType]:
-        return IntegerT.all()
+        return IntegerT.any()
 
     def validate_index_type(self, node):
         # TODO break this cycle
@@ -113,7 +114,7 @@ class _SequenceT(_SubscriptableT):
             if node.value >= self.length:
                 raise ArrayIndexException("Index out of range", node)
 
-        validate_expected_type(node, IntegerT.all())
+        validate_expected_type(node, IntegerT.any())
 
     def get_subscripted_type(self, node):
         return self.value_type
@@ -135,19 +136,15 @@ class SArrayT(_SequenceT):
     during `context.types.utils.get_type_from_annotation`
     """
 
-    def __init__(
-        self,
-        value_type: VyperType,
-        length: int,
-    ) -> None:
-        super().__init__(
-            value_type,
-            length,
-            f"{value_type}[{length}]",
-        )
+    def __init__( self, value_type: VyperType, length: int) -> None:
+        super().__init__( value_type, length)
 
     def __repr__(self):
         return f"{self.value_type}[{self.length}]"
+
+    @property
+    def _id(self):
+        return repr(self)
 
     @property
     def abi_type(self) -> ABIType:

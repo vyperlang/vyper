@@ -82,6 +82,16 @@ class CodeOffset(DataPosition):
         return f"<CodeOffset: {self.offset}>"
 
 
+# Some fake type with an overridden `compare_type` which accepts any RHS
+# type of type `type_`
+class _GenericTypeAcceptor:
+    def __init__(self, type_):
+        self.type_ = type_
+
+    def compare_type(self, other):
+        return isinstance(other, self.type_)
+
+
 class VyperType:
     """
     Base class for vyper types.
@@ -115,6 +125,12 @@ class VyperType:
     @property
     def getter_signature(self):
         return (), self
+
+
+    # TODO not sure if this is a great idea
+    @classmethod
+    def any(cls):
+        return _GenericTypeAcceptor(cls)
 
 
     @property

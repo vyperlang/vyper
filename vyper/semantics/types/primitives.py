@@ -87,6 +87,11 @@ class IntegerT(VyperType):
         self.bits: int = bits
 
     @property
+    def _id(self):
+        u = "u" if not self.is_signed else ""
+        return f"{u}int{self.bits}"
+
+    @property
     def bounds(self):
         return int_bounds(self.is_signed, self.bits)
 

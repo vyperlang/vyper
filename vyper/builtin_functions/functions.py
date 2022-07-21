@@ -181,10 +181,10 @@ class Convert(BuiltinFunction):
         # For `convert` of integer literals, we need to match type inference rules in
         # convert.py codegen routines.
         # TODO: This can probably be removed once constant folding for `convert` is implemented
-        if len(value_types) > 1 and all(isinstance(v, IntegerAbstractType) for v in value_types):
+        if len(value_types) > 1 and all(isinstance(v, IntegerT) for v in value_types):
             # Get the smallest (and unsigned if available) type for non-integer target types
             # (note this is different from the ordering returned by `get_possible_types_from_node`)
-            if not isinstance(target_type, IntegerAbstractType):
+            if not isinstance(target_type, IntegerT):
                 value_types = sorted(
                     value_types, key=lambda v: (v._is_signed, v._bits), reverse=True
                 )
@@ -267,8 +267,8 @@ class Slice(BuiltinFunction):
     def fetch_call_return(self, node):
         arg_type, _, _ = self.infer_arg_types(node)
 
-        if isinstance(arg_type, StringDefinition):
-            return_type = StringDefinition()
+        if isinstance(arg_type, StringT):
+            return_type = StringT()
         else:
             return_type = BytesArrayDefinition()
 
@@ -431,8 +431,8 @@ class Slice(BuiltinFunction):
 class Len(BuiltinFunction):
 
     _id = "len"
-    _inputs = [("b", (ArrayValueAbstractType(), DynamicArrayPrimitive()))]
-    _return_type = Uint256Definition()
+    _inputs = [("b", (BytesT(), DArrayT.any()))]
+    _return_type = UINT256_T
 
     def evaluate(self, node):
         validate_call_args(node, 1)
@@ -567,8 +567,8 @@ class Concat(BuiltinFunction):
 class Keccak256(BuiltinFunction):
 
     _id = "keccak256"
-    _inputs = [("value", (BytesAbstractType(), StringDefinition()))]
-    _return_type = Bytes32Definition()
+    _inputs = [("value", (BytesT(), StringT()))]
+    _return_type = BYTES32_T
 
     def evaluate(self, node):
         validate_call_args(node, 1)
@@ -615,8 +615,8 @@ def _make_sha256_call(inp_start, inp_len, out_start, out_len):
 class Sha256(BuiltinFunction):
 
     _id = "sha256"
-    _inputs = [("value", (Bytes32Definition(), BytesArrayPrimitive(), StringPrimitive()))]
-    _return_type = Bytes32Definition()
+    _inputs = [("value", (BYTES32_T, BytesT(), StringT()))]
+    _return_type = BYTES32_T
 
     def evaluate(self, node):
         validate_call_args(node, 1)
@@ -734,12 +734,12 @@ class ECRecover(BuiltinFunction):
 
     _id = "ecrecover"
     _inputs = [
-        ("hash", Bytes32Definition()),
-        ("v", Uint256Definition()),
-        ("r", Uint256Definition()),
-        ("s", Uint256Definition()),
+        ("hash", BYTES32_T),
+        ("v", UINT256_T),
+        ("r", UINT256_T),
+        ("s", UINT256_T),
     ]
-    _return_type = AddressDefinition()
+    _return_type = AddressT()
 
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
@@ -781,10 +781,10 @@ class ECAdd(BuiltinFunction):
 
     _id = "ecadd"
     _inputs = [
-        ("a", ArrayDefinition(Uint256Definition(), 2)),
-        ("b", ArrayDefinition(Uint256Definition(), 2)),
+        ("a", SArrayT(UINT256_T, 2)),
+        ("b", SArrayT(UINT256_T, 2)),
     ]
-    _return_type = ArrayDefinition(Uint256Definition(), 2)
+    _return_type = SArrayT(UINT256_T, 2)
 
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
@@ -812,8 +812,8 @@ class ECAdd(BuiltinFunction):
 class ECMul(BuiltinFunction):
 
     _id = "ecmul"
-    _inputs = [("point", ArrayDefinition(Uint256Definition(), 2)), ("scalar", Uint256Definition())]
-    _return_type = ArrayDefinition(Uint256Definition(), 2)
+    _inputs = [("point", SArrayT(UINT256_T, 2)), ("scalar", UINT256_T)]
+    _return_type = SArrayT(UINT256_T, 2)
 
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
@@ -853,7 +853,7 @@ def _storage_element_getter(index):
 class Extract32(BuiltinFunction):
 
     _id = "extract32"
-    _inputs = [("b", BytesArrayPrimitive()), ("start", UnsignedIntegerAbstractType())]
+    _inputs = [("b", BytesT()), ("start", IntegerT.signeds())]
     # "TYPE_DEFINITION" is a placeholder value for a type definition string, and
     # will be replaced by a `TypeTypeDefinition` object in `infer_kwarg_types`
     # (note that it is ignored in validate_args)
