@@ -18,6 +18,7 @@ from vyper.exceptions import (
     UnknownAttribute,
 )
 from vyper.semantics.validation.levenshtein_utils import get_levenshtein_error_suggestions
+from vyper.semantics.namespace import validate_identifier
 
 
 class DataLocation(Enum):
@@ -170,7 +171,7 @@ class VyperType:
 
         Arguments
         ---------
-        other : BaseTypeDefinition
+        other: VyperType
             Another type object to be compared against this one.
 
         Returns

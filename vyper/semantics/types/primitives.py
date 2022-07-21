@@ -1,9 +1,11 @@
+# primitive types which occupy one word, like ints and addresses
+
 from vyper import ast as vy_ast
 from vyper.abi_types import ABI_Address, ABIType
 from vyper.exceptions import InvalidLiteral
 from vyper.utils import checksum_encode, is_checksum_encoded, SizeLimits
 
-from typing import Union, Tuple
+from typing import Union, Tuple, List
 
 from .base import VyperType
 from .bytestrings import BytesT
@@ -64,6 +66,9 @@ class BytesM_T(VyperType):
             raise InvalidLiteral(f"Cannot mix uppercase and lowercase for bytes{m} literal", node)
 
 
+RANGE_1_32 = list(range(1, 33))
+
+
 class IntegerT(VyperType):
     """
     General integer type. All signed and unsigned ints from uint8 thru int256
@@ -88,6 +93,18 @@ class IntegerT(VyperType):
         if not self.is_signed:
             return (vy_ast.USub,)
         return ()
+
+    @classmethod
+    def signeds(cls) -> List["IntegerT"]:
+        return [cls(signed=True, bits=i * 8) for i in RANGE_1_32]
+
+    @classmethod
+    def unsigneds(cls) -> List["IntegerT"]:
+        return [cls(signed=False, bits=i * 8) for i in RANGE_1_32]
+
+    @classmethod
+    def all(cls) -> List["IntegerT"]:
+        return cls.signeds() + cls.unsigneds()
 
     def validate_numeric_op(
         self, node: Union[vy_ast.UnaryOp, vy_ast.BinOp, vy_ast.AugAssign]

@@ -19,13 +19,11 @@ from vyper.exceptions import (
 from vyper.semantics import types
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.base import VyperType
-from vyper.semantics.types.value_types import IntegerT
+from vyper.semantics.types.primitives import IntegerT, BoolT
 from vyper.semantics.types.subscriptable import (
     SArrayT,
     DArrayT,
-    TupleT,
 )
-from vyper.semantics.types.value.boolean import BoolDefinition
 from vyper.semantics.validation.levenshtein_utils import get_levenshtein_error_suggestions
 
 
@@ -109,22 +107,14 @@ class _ExprTypeChecker:
             return [node._metadata["type"]]
 
         fn = self._find_fn(node)
-        types_list = fn(node)
-        if only_definitions:
-            invalid = next((i for i in types_list if not isinstance(i, BaseTypeDefinition)), None)
-            if invalid:
-                if isinstance(invalid, type) and types.BasePrimitive in invalid.mro():
-                    raise InvalidReference(
-                        f"'{invalid._id}' is a type - expected a literal or variable", node
-                    )
-                else:
-                    raise InvalidReference("Expected a literal or variable", node)
+        ret = fn(node)
 
         if all(isinstance(i, IntegerT) for i in types_list):
             # for numeric types, sort according by number of bits descending
-            # we do this to ensure literals are cast with the largest possible type
-            return sorted(types_list, key=lambda k: (k._bits, not k._is_signed), reverse=True)
-        return types_list
+            # this ensures literals are cast with the largest possible type
+            ret.sort(key=lambda k: (k._bits, not k._is_signed), reverse=True)
+
+        return ret
 
     def _find_fn(self, node):
         # look for a type-check method for each class in the given class mro
@@ -176,28 +166,28 @@ class _ExprTypeChecker:
         # boolean operation: `x and y`
         types_list = get_common_types(*node.values)
         _validate_op(node, types_list, "validate_boolean_op")
-        return [BoolDefinition()]
+        return [BoolT()]
 
     def types_from_Compare(self, node):
         # comparisons, e.g. `x < y`
 
         # TODO fixme circular import
-        from vyper.semantics.types.user.enum import EnumDefinition
+        from vyper.semantics.types.user.enum import EnumT
 
         if isinstance(node.op, (vy_ast.In, vy_ast.NotIn)):
             # x in y
             left = self.get_possible_types_from_node(node.left)
             right = self.get_possible_types_from_node(node.right)
-            if any(isinstance(t, EnumDefinition) for t in left):
+            if any(isinstance(t, EnumT) for t in left):
                 types_list = get_common_types(node.left, node.right)
                 _validate_op(node, types_list, "validate_comparator")
-                return [BoolDefinition()]
+                return [BoolT()]
 
-            if any(isinstance(i, ArrayDefinition) for i in left):
+            if any(isinstance(i, SArrayT) for i in left):
                 raise InvalidOperation(
                     "Left operand in membership comparison cannot be Array type", node.left
                 )
-            if any(not isinstance(i, (DynamicArrayDefinition, ArrayDefinition)) for i in right):
+            if any(not isinstance(i, (DArrayT, SArrayT)) for i in right):
                 raise InvalidOperation(
                     "Right operand must be Array for membership comparison", node.right
                 )
@@ -209,7 +199,7 @@ class _ExprTypeChecker:
         else:
             types_list = get_common_types(node.left, node.right)
             _validate_op(node, types_list, "validate_comparator")
-        return [BoolDefinition()]
+        return [BoolT()]
 
     def types_from_Call(self, node):
         # function calls, e.g. `foo()`
@@ -247,7 +237,7 @@ class _ExprTypeChecker:
             # subtype can be anything
             types_list = types.get_types()
             # 1 is minimum possible length for dynarray, assignable to anything
-            ret = [DynamicArrayDefinition(t, 1) for t in types_list]
+            ret = [DArrayT(t, 1) for t in types_list]
             return ret
 
         types_list = get_common_types(*node.elements)
@@ -255,8 +245,8 @@ class _ExprTypeChecker:
         if len(types_list) > 0:
             count = len(node.elements)
             ret = []
-            ret.extend([ArrayDefinition(t, count) for t in types_list])
-            ret.extend([DynamicArrayDefinition(t, count) for t in types_list])
+            ret.extend([SArrayT(t, count) for t in types_list])
+            ret.extend([DArrayT(t, count) for t in types_list])
             return ret
 
         raise InvalidLiteral("Array contains multiple, incompatible types", node)
@@ -290,8 +280,8 @@ class _ExprTypeChecker:
     def types_from_Tuple(self, node):
         types_list = [self.get_exact_type_from_node(i) for i in node.elements]
         # for item, type_ in zip(node.elements, types_list):
-        #     if not isinstnace(BaseTypeDefinition
-        return [TupleDefinition(types_list)]
+        #     if not isinstnace(VyperType...
+        return [TupleT(types_list)]
 
     def types_from_UnaryOp(self, node):
         # unary operation: `-foo`
@@ -390,10 +380,10 @@ def get_common_types(*nodes: vy_ast.VyperNode, filter_fn: Callable = None) -> Li
 def _validate_literal_array(node, expected):
 
     # validate that every item within an array has the same type
-    if isinstance(expected, ArrayDefinition):
+    if isinstance(expected, SArrayT):
         if len(node.elements) != expected.length:
             return False
-    if isinstance(expected, DynamicArrayDefinition):
+    if isinstance(expected, DArrayT):
         if len(node.elements) > expected.length:
             return False
 
@@ -424,6 +414,7 @@ def validate_expected_type(node, expected_type):
     None
     """
     given_types = _ExprTypeChecker().get_possible_types_from_node(node)
+
     if not isinstance(expected_type, tuple):
         expected_type = (expected_type,)
 

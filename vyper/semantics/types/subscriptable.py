@@ -1,9 +1,10 @@
-from typing import Union
+from typing import Union, Tuple, Optional, Dict, Any
 
 from vyper import ast as vy_ast
+from vyper.abi_types import ABIType
 from vyper.exceptions import StructureException
 from vyper.semantics.types.base import VyperType, DataLocation
-from vyper.semantics.validation.utils import validate_expected_type
+from vyper.utils import cached_property
 
 
 class _SubscriptableT(VyperType):
@@ -32,9 +33,10 @@ class _SubscriptableT(VyperType):
         child_keys, return_type = self.value_type.getter_signature()
         return (self.key_type,) + child_keys, return_type
 
-    # TODO rename me
-    def get_index_type(self):
-        return self.key_type
+    # TODO maybe remove this
+    @cached_property
+    def possible_index_types(self):
+        return (self.key_type,)
 
 
 class HashMapT(_SubscriptableT):
@@ -51,9 +53,6 @@ class HashMapT(_SubscriptableT):
             and self.value_type == other.value_type
         )
 
-    def validate_index_type(self, node):
-        validate_expected_type(node, self.key_type)
-
     def get_subscripted_type(self, node):
         return self.value_type
 
@@ -61,7 +60,7 @@ class HashMapT(_SubscriptableT):
     def from_annotation(
         cls,
         node: Union[vy_ast.Name, vy_ast.Call, vy_ast.Subscript],
-    ) -> HashMapT:
+    ) -> "HashMapT":
         if (
             not isinstance(node, vy_ast.Subscript)
             or not isinstance(node.slice, vy_ast.Index)
@@ -96,23 +95,28 @@ class _SequenceT(_SubscriptableT):
 
         if not 0 < length < 2 ** 256:
             raise InvalidType("Array length is invalid")
-        super().__init__(
-            IntegerT(),
-            value_type,
-        )
+
+        super().__init__(T_UINT256, value_type)
         self.length = length
 
-    def getter_signature(self) -> Tuple[Tuple, Optional[VyperType]]:
-        # override the default behavior to return `Uint256Definition`
-        # an external interface cannot use `IntegerAbstractType` because
-        # abstract types have no canonical type
-        child_keys, return_type = self.value_type.get_signature()
-        return (self.get_index_type(),) + child_keys, return_type
+    @cached_property
+    def possible_index_types(self) -> Tuple[VyperType]:
+        return IntegerT.all()
 
-    def get_index_type(self) -> BaseTypeDefinition:
-        # override the default behaviour to return `Uint256Definition` for
-        # type annotation
-        return IntegerT(256, False)
+    def validate_index_type(self, node):
+        # TODO break this cycle
+        from vyper.semantics.validation.utils import validate_expected_type
+
+        if isinstance(node, vy_ast.Int):
+            if node.value < 0:
+                raise ArrayIndexException("Vyper does not support negative indexing", node)
+            if node.value >= self.length:
+                raise ArrayIndexException("Index out of range", node)
+
+        validate_expected_type(node, IntegerT.all())
+
+    def get_subscripted_type(self, node):
+        return self.value_type
 
 
 # override value at `k` with `val`, but inserting it before other keys
@@ -160,15 +164,6 @@ class SArrayT(_SequenceT):
     def size_in_bytes(self):
         return self.value_type.size_in_bytes * self.length
 
-    def validate_index_type(self, node):
-        if isinstance(node, vy_ast.Int):
-            if node.value < 0:
-                raise ArrayIndexException("Vyper does not support negative indexing", node)
-            if node.value >= self.length:
-                raise ArrayIndexException("Index out of range", node)
-
-        validation.utils.validate_expected_type(node, IntegerAbstractType())
-
     def get_subscripted_type(self, node):
         return self.value_type
 
@@ -180,33 +175,26 @@ class SArrayT(_SequenceT):
         return self.value_type.compare_type(other.value_type)
 
 
-class DArrayT(_SequenceT, AttributableT):
+class DArrayT(_SequenceT):
     """
-    Dynamic array type definition.
+    Dynamic array type
     """
-    _type = DynamicArrayDefinition
     _valid_literal = (vy_ast.List,)
     _as_array = True
     _id = "DynArray"
 
-    def __init__(
-        self,
-        value_type: BaseTypeDefinition,
-        length: int,
-    ) -> None:
+    def __init__( self, value_type: VyperType, length: int,) -> None:
 
-        super().__init__(
-            value_type, length, "DynArray", location, is_constant, is_public, is_immutable
-        )
+        super().__init__( value_type, length, "DynArray", )
 
         # Adding members here as otherwise MemberFunctionDefinition is not yet defined
         # if added as _type_members
-        from vyper.semantics.types.function import MemberFunctionDefinition
+        from vyper.semantics.types.function import MemberFunctionT
 
         self.add_member(
-            "append", MemberFunctionDefinition(self, "append", [self.value_type], None, True)
+            "append", MemberFunctionT(self, "append", [self.value_type], None, True)
         )
-        self.add_member("pop", MemberFunctionDefinition(self, "pop", [], self.value_type, True))
+        self.add_member("pop", MemberFunctionT(self, "pop", [], self.value_type, True))
 
     def __repr__(self):
         return f"DynArray[{self.value_type}, {self.length}]"
@@ -231,21 +219,9 @@ class DArrayT(_SequenceT, AttributableT):
         # one length word + size of the array items
         return 32 + self.value_type.size_in_bytes * self.length
 
-    def validate_index_type(self, node):
-        if isinstance(node, vy_ast.Int):
-            if node.value < 0:
-                raise ArrayIndexException("Vyper does not support negative indexing", node)
-            if node.value >= self.length:
-                raise ArrayIndexException("Index out of range", node)
-        else:
-            validation.utils.validate_expected_type(node, IntegerAbstractType())
-
-    def get_subscripted_type(self, node):
-        return self.value_type
-
     def compare_type(self, other):
         # TODO allow static array to be assigned to dyn array?
-        # if not isinstance(other, (DynamicArrayDefinition, ArrayDefinition)):
+        # if not isinstance(other, (DArrayT, SArrayT)):
         if not isinstance(self, type(other)):
             return False
         if self.length < other.length:
@@ -264,7 +240,7 @@ class DArrayT(_SequenceT, AttributableT):
         is_constant: bool = False,
         is_public: bool = False,
         is_immutable: bool = False,
-    ) -> DynamicArrayDefinition:
+    ) -> "DArrayT":
         # TODO fix circular import
         from vyper.semantics.types.utils import get_type_from_annotation
 
@@ -285,9 +261,7 @@ class DArrayT(_SequenceT, AttributableT):
         )
 
         max_length = node.slice.value.elements[1].value
-        return DynamicArrayDefinition(
-            value_type, max_length, location, is_constant, is_public, is_immutable
-        )
+        return DArrayT(value_type, max_length)
 
 
 class TupleT(_SequenceT):
@@ -298,7 +272,7 @@ class TupleT(_SequenceT):
     multiple return values from `types.function.ContractFunction`.
     """
 
-    def __init__(self, value_type: Tuple[BaseTypeDefinition, ...]) -> None:
+    def __init__(self, value_type: Tuple[VyperType, ...]) -> None:
         # always use the most restrictive location re: modification
         location = sorted((i.location for i in value_type), key=lambda k: k.value)[-1]
         is_constant = any((getattr(i, "is_constant", False) for i in value_type))
@@ -306,9 +280,6 @@ class TupleT(_SequenceT):
             # TODO fix the typing on value_type
             value_type,  # type: ignore
             len(value_type),
-            f"{value_type}",
-            location,
-            is_constant,
         )
 
         # fixes mypy error, TODO revisit typing on value_type

@@ -22,11 +22,10 @@ from vyper.semantics.types.utils import (
     KwargSettings,
     StringEnum,
     check_kwargable,
-    get_type_from_abi,
-    get_type_from_annotation,
+    type_from_abi,
+    type_from_annotation,
 )
-from vyper.semantics.types.value.boolean import BoolDefinition
-from vyper.semantics.types.value.numeric import Uint256Definition  # type: ignore
+from vyper.semantics.types.primitives import BoolT, T_UINT256
 from vyper.semantics.validation.utils import validate_expected_type
 from vyper.utils import keccak256
 
@@ -59,7 +58,7 @@ class StateMutability(StringEnum):
         #       specifying a state mutability modifier at all. Do the same here.
 
 
-class ContractFunction(BaseTypeDefinition):
+class ContractFunction(VyperType):
     """
     Contract function type.
 
@@ -72,7 +71,7 @@ class ContractFunction(BaseTypeDefinition):
     name : str
         The name of the function.
     arguments : OrderedDict
-        Function input arguments as {'name': BaseType}
+        Function input arguments as {'name': VyperType}
     min_arg_count : int
         The minimum number of required input arguments.
     max_arg_count : int
@@ -97,7 +96,7 @@ class ContractFunction(BaseTypeDefinition):
         # TODO rename to something like positional_args, keyword_args
         min_arg_count: int,
         max_arg_count: int,
-        return_type: Optional[BaseTypeDefinition],
+        return_type: Optional[VyperType],
         function_visibility: FunctionVisibility,
         state_mutability: StateMutability,
         nonreentrant: Optional[str] = None,
@@ -127,9 +126,9 @@ class ContractFunction(BaseTypeDefinition):
 
         # special kwargs that are allowed in call site
         self.call_site_kwargs = {
-            "gas": KwargSettings(Uint256Definition(), "gas"),
-            "value": KwargSettings(Uint256Definition(), 0),
-            "skip_contract_check": KwargSettings(BoolDefinition(), False, require_literal=True),
+            "gas": KwargSettings(T_UINT256, "gas"),
+            "value": KwargSettings(T_UINT256, 0),
+            "skip_contract_check": KwargSettings(BoolT(), False, require_literal=True),
             "default_return_value": KwargSettings(return_type, None),
         }
 
@@ -452,10 +451,10 @@ class ContractFunction(BaseTypeDefinition):
     def has_default_args(self) -> bool:
         return self.min_arg_count < self.max_arg_count
 
-    def get_signature(self) -> Tuple[Tuple, Optional[BaseTypeDefinition]]:
+    def get_signature(self) -> Tuple[Tuple, Optional[VyperType]]:
         return tuple(self.arguments.values()), self.return_type
 
-    def fetch_call_return(self, node: vy_ast.Call) -> Optional[BaseTypeDefinition]:
+    def fetch_call_return(self, node: vy_ast.Call) -> Optional[VyperType]:
         if node.get("func.value.id") == "self" and self.visibility == FunctionVisibility.EXTERNAL:
             raise CallViolation("Cannot call external functions via 'self'", node)
 
@@ -541,7 +540,7 @@ class ContractFunction(BaseTypeDefinition):
             return [abi_dict]
 
 
-class MemberFunctionDefinition(BaseTypeDefinition):
+class MemberFunctionT(VyperType):
     """
     Member function type definition.
 
@@ -560,10 +559,10 @@ class MemberFunctionDefinition(BaseTypeDefinition):
 
     def __init__(
         self,
-        underlying_type: BaseTypeDefinition,
+        underlying_type: VyperType,
         name: str,
-        arg_types: List[BaseTypeDefinition],
-        return_type: Optional[BaseTypeDefinition],
+        arg_types: List[VyperType],
+        return_type: Optional[VyperType],
         is_modifying: bool,
     ) -> None:
         super().__init__(DataLocation.UNSET)
@@ -576,7 +575,7 @@ class MemberFunctionDefinition(BaseTypeDefinition):
     def __repr__(self):
         return f"{self.underlying_type._id} member function '{self.name}'"
 
-    def fetch_call_return(self, node: vy_ast.Call) -> Optional[BaseTypeDefinition]:
+    def fetch_call_return(self, node: vy_ast.Call) -> Optional[VyperType]:
         validate_call_args(node, len(self.arg_types))
 
         assert len(node.args) == len(self.arg_types)  # validate_call_args postcondition

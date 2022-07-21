@@ -91,12 +91,7 @@ class StringEnum(enum.Enum):
         return self.__eq__(other) or self.__gt__(other)
 
 
-def get_type_from_abi(
-    abi_type: Dict,
-    location: DataLocation = DataLocation.UNSET,
-    is_constant: bool = False,
-    is_public: bool = False,
-) -> BaseTypeDefinition:
+def type_from_abi( abi_type: Dict) -> VyperType:
     """
     Return a type object from an ABI type definition.
 
@@ -139,9 +134,7 @@ def get_type_from_abi(
 
     else:
         try:
-            return namespace[type_string]._type(
-                location=location, is_constant=is_constant, is_public=is_public
-            )
+            return namespace[type_string]
         except KeyError:
             raise UnknownType(f"ABI contains unknown type: {type_string}") from None
 
@@ -157,7 +150,7 @@ def type_from_annotation(node: vy_ast.VyperNode) -> VyperType:
 
     Returns
     -------
-    BaseTypeDefinition
+    VyperType
         Type definition object.
     """
     namespace = get_namespace()

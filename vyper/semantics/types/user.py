@@ -9,9 +9,9 @@ from vyper.exceptions import (
     UnknownAttribute,
 )
 from vyper.semantics.namespace import validate_identifier
-from vyper.semantics.types.base import DataLocation
+from vyper.semantics.types.base import DataLocation, VyperType
 from vyper.semantics.types.function import ContractFunction
-from vyper.semantics.types.value_types import AddressT
+from vyper.semantics.types.primitives import AddressT
 from vyper.semantics.validation.levenshtein_utils import get_levenshtein_error_suggestions
 
 

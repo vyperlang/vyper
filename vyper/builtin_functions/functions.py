@@ -64,34 +64,19 @@ from vyper.exceptions import (
     ZeroDivisionException,
 )
 from vyper.semantics.types import (
-    ArrayDefinition,
-    BoolDefinition,
-    DynamicArrayDefinition,
-    DynamicArrayPrimitive,
-    TupleDefinition,
+    SArrayT,
+    BoolT,
+    DArrayT,
+    TupleT,
+    IntegerT,
+    BytesT,
+    AddressT,
+    StringT,
+    BytesM_T,
+    DecimalT,
 )
-from vyper.semantics.types.abstract import (
-    ArrayValueAbstractType,
-    BytesAbstractType,
-    IntegerAbstractType,
-    NumericAbstractType,
-    SignedIntegerAbstractType,
-    UnsignedIntegerAbstractType,
-)
-from vyper.semantics.types.bases import DataLocation
-from vyper.semantics.types.utils import KwargSettings, TypeTypeDefinition, get_type_from_annotation
-from vyper.semantics.types.value.address import AddressDefinition
-from vyper.semantics.types.value.array_value import (
-    BytesArrayDefinition,
-    BytesArrayPrimitive,
-    StringDefinition,
-    StringPrimitive,
-)
-from vyper.semantics.types.value.bytes_fixed import Bytes4Definition  # type: ignore
-from vyper.semantics.types.value.bytes_fixed import Bytes32Definition
-from vyper.semantics.types.value.numeric import Int256Definition  # type: ignore
-from vyper.semantics.types.value.numeric import Uint256Definition  # type: ignore
-from vyper.semantics.types.value.numeric import DecimalDefinition
+from vyper.semantics.types.bases import DataLocation, VyperType
+from vyper.semantics.types.utils import KwargSettings, TypeT, type_from_annotation
 from vyper.semantics.validation.utils import (
     get_common_types,
     get_exact_type_from_node,
