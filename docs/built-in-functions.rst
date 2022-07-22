@@ -227,17 +227,13 @@ Vyper has three builtins for contract creation; all three contract creation buil
     * ``is_static_call``: If ``True``, the call will be sent as ``STATICCALL`` (Optional, default ``False``)
     * ``revert_on_failure``: If ``True``, the call will revert on a failure, otherwise ``success`` will be returned (Optional, default ``True``)
 
-    Returns the data returned by the call as a ``Bytes`` list, with ``max_outsize`` as the max length.
-
-    Returns ``None`` if ``max_outsize`` is omitted or set to ``0``.
-
-    Returns ``success`` in a tuple if ``revert_on_failure`` is set to ``False``.
-
     .. note::
+        
+        Returns the data returned by the call as a ``Bytes`` list, with ``max_outsize`` as the max length. The actual size of the returned data may be less than ``max_outsize``. You can use ``len`` to obtain the actual size.
 
-        The actual size of the returned data may be less than ``max_outsize``. You can use ``len`` to obtain the actual size.
+        Returns nothing if ``max_outsize`` is omitted or set to ``0``.
 
-        Returns the address of the duplicated contract.
+        Returns ``success`` in a tuple with return value if ``revert_on_failure`` is set to ``False``.
 
     .. code-block:: python
 
