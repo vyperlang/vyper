@@ -1,31 +1,41 @@
 from typing import Dict
 
-from vyper.semantics.types.base import VarInfo
+from vyper.semantics.types.base import VarInfo, VyperType
 from vyper.semantics.types import StructT, AddressT, BytesM_T, BytesT, IntegerT 
 from vyper.semantics.types.primitives import UINT256_T, BYTES32_T
 
-CONSTANT_ENVIRONMENT_VARS: Dict[str, Dict[str, type]] = {
-    "block": {
-        "coinbase": AddressT,
+class _Block(VyperType):
+    _id = "block"
+    _type_members = {
+        "coinbase": AddressT(),
         "difficulty": UINT256_T,
         "number": UINT256_T,
         "gaslimit": UINT256_T,
         "basefee": UINT256_T,
         "prevhash": BYTES32_T,
         "timestamp": UINT256_T,
-    },
-    "chain": {"id": UINT256_T},
-    "msg": {
+    }
+
+class _Chain(VyperType):
+    _id = "chain"
+    _type_members = {"id": UINT256_T}
+
+class _Msg(VyperType):
+    _id = "msg"
+    _type_members = {
         "data": BytesT,
         "gas": UINT256_T,
-        "sender": AddressT,
+        "sender": AddressT(),
         "value": UINT256_T,
-    },
-    "tx": {"origin": AddressT, "gasprice": UINT256_T},
-}
+    }
 
 
-MUTABLE_ENVIRONMENT_VARS: Dict[str, type] = {"self": AddressT()}
+class _Tx(VyperType):
+    _id = "tx"
+    _type_members = {"origin": AddressT, "gasprice": UINT256_T}
+
+
+CONSTANT_ENVIRONMENT_VARS = {t._id: t for t in (_Block, _Chain, _Tx, _Msg)}
 
 
 def get_constant_vars() -> Dict:
@@ -33,10 +43,13 @@ def get_constant_vars() -> Dict:
     Get a dictionary of constant environment variables.
     """
     result = {}
-    for name, members in CONSTANT_ENVIRONMENT_VARS.items():
-        result[name] = VarInfo(StructT(name, members), is_constant=True)
+    for k, v in CONSTANT_ENVIRONMENT_VARS.items():
+        result[k] = VarInfo(v, is_constant=True)
 
     return result
+
+
+MUTABLE_ENVIRONMENT_VARS: Dict[str, type] = {"self": AddressT()}
 
 
 def get_mutable_vars() -> Dict:

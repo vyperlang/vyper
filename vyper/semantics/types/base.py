@@ -303,8 +303,9 @@ class VarInfo:
         is_constant: bool = False,
         is_public: bool = False,
         is_immutable: bool = False,
+        is_local_var: bool = False,
     ) -> None:
-        self.typ = vyper_type
+        self.typ = typ
         self.location = location
         self.is_constant = is_constant
         self.is_public = is_public
