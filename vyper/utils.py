@@ -219,6 +219,13 @@ def evm_mod(x, y):
     return sign * (abs(x) % abs(y))  # adapted from py-evm
 
 
+# EVM pow which wraps instead of hanging on "large" numbers
+# (which can generated, for ex. in the unevaluated branch of the Shift builtin)
+def evm_pow(x, y):
+    assert x >= 0 and y >= 0
+    return pow(x, y, 2 ** 256)
+
+
 # memory used for system purposes, not for variables
 class MemoryPositions:
     FREE_VAR_SPACE = 0
