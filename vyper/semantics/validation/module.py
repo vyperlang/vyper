@@ -20,7 +20,7 @@ from vyper.exceptions import (
     VyperException,
 )
 from vyper.semantics.namespace import get_namespace
-from vyper.semantics.types import DataLocation, EnumT, EventT, InterfaceT
+from vyper.semantics.types import DataLocation, EnumT, EventT, InterfaceT, VarInfo
 from vyper.semantics.types.function import ContractFunction
 from vyper.semantics.types.utils import check_constant, type_from_annotation
 from vyper.semantics.validation.base import VyperNodeVisitorBase
@@ -222,7 +222,7 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
         except NamespaceCollision as exc:
             raise exc.with_annotation(node) from None
         try:
-            self.namespace["self"].add_member(name, type_)
+            self.namespace["self"].typ.add_member(name, type_)
             node.target._metadata["type"] = type_
         except NamespaceCollision:
             raise NamespaceCollision(f"Value '{name}' has already been declared", node) from None

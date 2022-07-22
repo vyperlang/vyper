@@ -266,13 +266,6 @@ class VyperType:
         return self._id
 
 
-    # TODO probably dead code
-    @classmethod
-    def validate_modification( cls, mutability: Any, node: vy_ast.VyperNode) -> None:
-        # always raises - do not implement in inherited classes
-        raise InvalidOperation("Cannot assign to a type", node)
-
-
 class VarInfo:
     """
     VarInfo are objects that represent the type of a variable,

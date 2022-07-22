@@ -473,7 +473,7 @@ class ContractFunction(VyperType):
                 raise CallViolation("Cannot send ether to nonpayable function", kwarg_node)
 
         for arg, expected in zip(node.args, self.arguments.values()):
-            validate_expected_type(arg, expected)
+            validate_expected_type(arg, expected.typ)
 
         # TODO this should be moved to validate_call_args
         for kwarg in node.keywords:
