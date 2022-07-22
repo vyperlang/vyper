@@ -513,6 +513,25 @@ def test_memory_variable_convert(x: {i_typ}) -> {o_typ}:
     assert c4.test_memory_variable_convert(val) == expected_val
 
 
+@pytest.mark.parametrize("typ", ["uint8", "int128", "int256", "uint256"])
+@pytest.mark.parametrize("val", [1, 2, 2 ** 128, 2 ** 256 - 1, 2 ** 256 - 2])
+def test_enum_conversion(get_contract_with_gas_estimation, assert_compile_failed, val, typ):
+    roles = "\n    ".join([f"ROLE_{i}" for i in range(256)])
+    contract = f"""
+enum Roles:
+    {roles}
+
+@external
+def foo(a: Roles) -> {typ}:
+    return convert(a, {typ})
+    """
+    if typ == "uint256":
+        c = get_contract_with_gas_estimation(contract)
+        assert c.foo(val) == val
+    else:
+        assert_compile_failed(lambda: get_contract_with_gas_estimation(contract), TypeMismatch)
+
+
 # TODO CMC 2022-04-06 I think this test is somewhat unnecessary.
 @pytest.mark.parametrize(
     "builtin_constant,out_type,out_value",
