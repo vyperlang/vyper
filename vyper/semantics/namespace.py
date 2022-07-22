@@ -27,11 +27,11 @@ class Namespace(dict):
         # NOTE cyclic imports!
         from vyper.builtin_functions.functions import get_builtin_functions
         from vyper.semantics import environment
-        from vyper.semantics.types import get_types
+        from vyper.semantics.types import get_types, VarInfo
 
         self.update(get_types())
         self.update(environment.get_constant_vars())
-        self.update(get_builtin_functions())
+        self.update({k: VarInfo(b) for (k, b) in get_builtin_functions().items()})
 
     def __eq__(self, other):
         return self is other

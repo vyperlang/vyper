@@ -1,7 +1,7 @@
 # primitive types which occupy one word, like ints and addresses
 
 from vyper import ast as vy_ast
-from vyper.abi_types import ABI_Address, ABIType
+from vyper.abi_types import ABI_Address, ABIType, ABI_Address, ABI_GIntM, ABI_Bool, ABI_BytesM, ABI_FixedMxN
 from vyper.exceptions import InvalidLiteral
 from vyper.utils import checksum_encode, is_checksum_encoded, SizeLimits
 
@@ -10,8 +10,10 @@ from typing import Union, Tuple, List
 from .base import VyperType
 from .bytestrings import BytesT
 
+class _PrimT(VyperType):
+    _is_prim_word = True
 
-class BoolT(VyperType):
+class BoolT(_PrimT):
     _id = "bool"
     _as_array = True
     _valid_literal = (vy_ast.NameConstant,)
@@ -40,7 +42,7 @@ RANGE_1_32 = list(range(1, 33))
 
 
 # one-word bytesM with m possible bytes set, e.g. bytes1..bytes32
-class BytesM_T(VyperType):
+class BytesM_T(_PrimT):
     _as_array = True
     _valid_literal = (vy_ast.Hex,)
 
@@ -71,7 +73,7 @@ class BytesM_T(VyperType):
             raise InvalidLiteral(f"Cannot mix uppercase and lowercase for bytes{m} literal", node)
 
 
-class IntegerT(VyperType):
+class IntegerT(_PrimT):
     """
     General integer type. All signed and unsigned ints from uint8 thru int256
 
@@ -82,6 +84,8 @@ class IntegerT(VyperType):
     is_signed : bool
         Is the value signed?
     """
+    _valid_literal = (vy_ast.Int,)
+
     def __init__(self, is_signed, bits):
         self.is_signed: bool = is_signed
         self.bits: int = bits
@@ -165,7 +169,7 @@ class IntegerT(VyperType):
 
     @property
     def abi_type(self) -> ABIType:
-        return ABI_GIntM(self._bits, self._is_signed)
+        return ABI_GIntM(self.bits, self.is_signed)
 
 
 # shortcuts
@@ -178,7 +182,7 @@ BYTES32_T = BytesM_T(32)
 BYTES4_T = BytesM_T(4)
 
 
-class _NumericT(VyperType):
+class _NumericT(_PrimT):
     _as_array = True
     bounds: Tuple[int, int]
 
@@ -207,7 +211,7 @@ class DecimalT(_NumericT):
 
 
 # maybe this even deserves its own module, address.py
-class AddressT(VyperType):
+class AddressT(_PrimT):
     _as_array = True
     _id = "address"
     _valid_literal = (vy_ast.Hex,)
@@ -223,8 +227,7 @@ class AddressT(VyperType):
     def abi_type(self) -> ABIType:
         return ABI_Address()
 
-    @classmethod
-    def validate_literal(cls, node: vy_ast.Constant):
+    def validate_literal(self, node: vy_ast.Constant):
         super().validate_literal(node)
         addr = node.value
         if len(addr) != 42:

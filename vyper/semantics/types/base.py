@@ -104,10 +104,14 @@ class VyperType:
         If `True`, this type can be used as the base member for an array.
     _valid_literal : Tuple
         A tuple of Vyper ast classes that may be assigned this type.
+    _is_prim_word: bool, optional
+        This is a word type like uint256, int8, bytesM or address
     """
 
     _id: str
-    _valid_literal: Tuple
+    _valid_literal: Tuple = ()
+    _as_array: bool = False
+    _is_prim_word: bool = False
 
     def __init__(self, members=None, *args, **kwargs) -> None:
         self.members = {}
@@ -177,7 +181,7 @@ class VyperType:
         if not isinstance(node, vy_ast.Constant):
             raise UnexpectedNodeType(f"Not a literal.", node)
         if not isinstance(node, self._valid_literal):
-            raise InvalidLiteral(f"Invalid literal type for {cls.__name__}", node)
+            raise InvalidLiteral(f"Invalid literal for {self}", node)
 
     @classmethod
     def compare_type(cls, other: "VyperType") -> bool:

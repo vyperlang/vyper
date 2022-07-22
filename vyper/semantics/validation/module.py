@@ -20,7 +20,7 @@ from vyper.exceptions import (
     VyperException,
 )
 from vyper.semantics.namespace import get_namespace
-from vyper.semantics.types import DataLocation, EnumT, EventT
+from vyper.semantics.types import DataLocation, EnumT, EventT, InterfaceT
 from vyper.semantics.types.function import ContractFunction
 from vyper.semantics.types.utils import check_constant, type_from_annotation
 from vyper.semantics.validation.base import VyperNodeVisitorBase
@@ -84,12 +84,12 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
         # check for collisions between 4byte function selectors
         # internal functions are intentionally included in this check, to prevent breaking
         # changes in in case of a future change to their calling convention
-        self_members = namespace["self"].members
+        self_members = namespace["self"].typ.members
         functions = [i for i in self_members.values() if isinstance(i, ContractFunction)]
         validate_unique_method_ids(functions)
 
         # generate an `InterfacePrimitive` from the top-level node - used for building the ABI
-        interface = namespace["interface"].build_primitive_from_node(module_node)
+        interface = InterfaceT.from_ast(module_node)
         module_node._metadata["type"] = interface
 
         # get list of internal function calls made by each function
@@ -247,7 +247,7 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
         func = ContractFunction.from_FunctionDef(node)
 
         try:
-            self.namespace["self"].add_member(func.name, func)
+            self.namespace["self"].typ.add_member(func.name, func)
             node._metadata["type"] = func
         except VyperException as exc:
             raise exc.with_annotation(node) from None

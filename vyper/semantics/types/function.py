@@ -16,7 +16,7 @@ from vyper.exceptions import (
     StructureException,
 )
 from vyper.semantics.namespace import get_namespace
-from vyper.semantics.types.base import VyperType, DataLocation, StorageSlot, KwargSettings
+from vyper.semantics.types.base import VyperType, DataLocation, StorageSlot, KwargSettings, VarInfo
 from vyper.semantics.types.subscriptable import TupleT
 from vyper.semantics.types.utils import (
     StringEnum,
@@ -100,14 +100,6 @@ class ContractFunction(VyperType):
         state_mutability: StateMutability,
         nonreentrant: Optional[str] = None,
     ) -> None:
-        super().__init__(
-            # A function definition type only exists while compiling
-            DataLocation.UNSET,
-            # A function definition type is immutable once created
-            is_constant=True,
-            # A function definition type is public if it's visibility is public
-            is_public=(function_visibility == FunctionVisibility.EXTERNAL),
-        )
         self.name = name
         self.arguments = arguments
         self.min_arg_count = min_arg_count
@@ -125,8 +117,8 @@ class ContractFunction(VyperType):
 
         # special kwargs that are allowed in call site
         self.call_site_kwargs = {
-            "gas": KwargSettings(T_UINT256, "gas"),
-            "value": KwargSettings(T_UINT256, 0),
+            "gas": KwargSettings(UINT256_T, "gas"),
+            "value": KwargSettings(UINT256_T, 0),
             "skip_contract_check": KwargSettings(BoolT(), False, require_literal=True),
             "default_return_value": KwargSettings(return_type, None),
         }
@@ -134,6 +126,17 @@ class ContractFunction(VyperType):
     def __repr__(self):
         arg_types = ",".join(repr(a) for a in self.arguments.values())
         return f"contract function {self.name}({arg_types})"
+
+    # this might be dead code
+    def var_info(self):
+        return VarInfo(
+            # A function definition type only exists while compiling
+            DataLocation.UNSET,
+            # A function definition type is immutable once created
+            is_constant=True,
+            # A function definition type is public if it's visibility is public
+            is_public=(function_visibility == FunctionVisibility.EXTERNAL),
+        )
 
     @classmethod
     def from_abi(cls, abi: Dict) -> "ContractFunction":
@@ -323,17 +326,18 @@ class ContractFunction(VyperType):
             if arg.annotation is None:
                 raise ArgumentException(f"Function argument '{arg.arg}' is missing a type", arg)
 
-            type_definition = get_type_from_annotation(
-                arg.annotation, location=DataLocation.CALLDATA, is_constant=True
-            )
+            type_ = type_from_annotation( arg.annotation)
+
             if value is not None:
                 if not check_kwargable(value):
                     raise StateAccessViolation(
                         "Value must be literal or environment variable", value
                     )
-                validate_expected_type(value, type_definition)
+                validate_expected_type(value, type_)
 
-            arguments[arg.arg] = type_definition
+            var_info = VarInfo(type_, location=DataLocation.CALLDATA, is_constant=True)
+
+            arguments[arg.arg] = var_info
 
         # return types
         if node.returns is None:
@@ -343,11 +347,11 @@ class ContractFunction(VyperType):
                 "Constructor may not have a return type", node.returns
             )
         elif isinstance(node.returns, (vy_ast.Name, vy_ast.Call, vy_ast.Subscript)):
-            return_type = get_type_from_annotation(node.returns, location=DataLocation.MEMORY)
+            return_type = type_from_annotation(node.returns)
         elif isinstance(node.returns, vy_ast.Tuple):
             tuple_types: Tuple = ()
             for n in node.returns.elements:
-                tuple_types += (get_type_from_annotation(n, location=DataLocation.MEMORY),)
+                tuple_types += (type_from_annotation(n),)
             return_type = TupleDefinition(tuple_types)
         else:
             raise InvalidType("Function return value must be a type name or tuple", node.returns)
@@ -414,7 +418,7 @@ class ContractFunction(VyperType):
         * For functions with default arguments, there is one key for each
           function signature.
         """
-        arg_types = [i.canonical_abi_type for i in self.arguments.values()]
+        arg_types = [i.typ.canonical_abi_type for i in self.arguments.values()]
 
         if not self.has_default_args:
             return _generate_method_id(self.name, arg_types)

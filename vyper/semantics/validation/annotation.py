@@ -140,18 +140,18 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
         if isinstance(call_type, ContractFunction) and call_type.is_internal:
             self.func.called_functions.add(call_type)
 
-        if isinstance(call_type, (Event, ContractFunction)):
+        if isinstance(call_type, (EventT, ContractFunction)):
             # events and function calls
             for arg, arg_type in zip(node.args, list(call_type.arguments.values())):
                 self.visit(arg, arg_type)
             for kwarg in node.keywords:
                 # We should only see special kwargs
                 self.visit(kwarg.value, call_type.call_site_kwargs[kwarg.arg].typ)
-        elif isinstance(call_type, StructPrimitive):
+        elif isinstance(call_type, StructT):
             # literal structs
             for value, arg_type in zip(node.args[0].values, list(call_type.members.values())):
                 self.visit(value, arg_type)
-        elif isinstance(call_type, MemberFunctionDefinition):
+        elif isinstance(call_type, MemberFunctionT):
             assert len(node.args) == len(call_type.arg_types)
             for arg, arg_type in zip(node.args, call_type.arg_types):
                 self.visit(arg, arg_type)
@@ -215,7 +215,7 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
             self.visit(element, type_.value_type)
 
     def visit_Name(self, node, type_):
-        if isinstance(type_, TypeT):
+        if isinstance(type_, TYPE_T):
             node._metadata["type"] = type_
         else:
             node._metadata["type"] = get_exact_type_from_node(node)
@@ -223,7 +223,7 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
     def visit_Subscript(self, node, type_):
         node._metadata["type"] = type_
 
-        if isinstance(type_, TypeT):
+        if isinstance(type_, TYPE_T):
             # don't recurse; can't annotate AST children of type definition
             return
 
@@ -248,7 +248,7 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
     def visit_Tuple(self, node, type_):
         node._metadata["type"] = type_
 
-        if isinstance(type_, TypeT):
+        if isinstance(type_, TYPE_T):
             # don't recurse; can't annotate AST children of type definition
             return
 

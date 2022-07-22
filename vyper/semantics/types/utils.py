@@ -160,10 +160,7 @@ def type_from_annotation(node: vy_ast.VyperNode) -> VyperType:
         value_type = type_from_annotation(node.value)
         return SArrayT(value_type)
 
-    try:
-        return type_obj.from_annotation(node, location, is_constant, is_public, is_immutable)
-    except AttributeError:
-        raise InvalidType(f"'{type_name}' is not a valid type", node) from None
+    return type_obj
 
 
 def _check_literal(node: vy_ast.VyperNode) -> bool:

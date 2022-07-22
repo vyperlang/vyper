@@ -175,7 +175,7 @@ class Convert(BuiltinFunction):
     def infer_arg_types(self, node):
         validate_call_args(node, 2)
 
-        target_type = get_type_from_annotation(node.args[1], DataLocation.UNSET)
+        target_type = type_from_annotation(node.args[1])
         value_types = get_possible_types_from_node(node.args[0])
 
         # For `convert` of integer literals, we need to match type inference rules in
@@ -700,7 +700,7 @@ class MethodID(BuiltinFunction):
             raise InvalidLiteral("Invalid function signature - no spaces allowed.")
 
         if node.keywords:
-            return_type = get_type_from_annotation(node.keywords[0].value, DataLocation.UNSET)
+            return_type = type_from_annotation(node.keywords[0].value)
             if return_type.compare_type(BYTES4_T):
                 is_bytes4 = True
             elif isinstance(return_type, BytesT) and return_type.length == 4:
@@ -873,7 +873,7 @@ class Extract32(BuiltinFunction):
 
     def infer_kwarg_types(self, node):
         if node.keywords:
-            output_type = get_type_from_annotation(node.keywords[0].value, DataLocation.MEMORY)
+            output_type = type_from_annotation(node.keywords[0].value)
             if not isinstance(
                 output_type, (AddressT, BytesM_T, IntegerT)
             ):
@@ -2192,7 +2192,7 @@ class Empty(BuiltinFunction):
 
     def infer_arg_types(self, node):
         validate_call_args(node, 1)
-        input_typedef = TypeT( get_type_from_annotation(node.args[0], DataLocation.MEMORY))
+        input_typedef = TypeT( type_from_annotation(node.args[0]))
         return [input_typedef]
 
     @process_inputs
@@ -2391,7 +2391,7 @@ class ABIDecode(BuiltinFunction):
         validate_call_args(node, 2, ["unwrap_tuple"])
 
         data_type = get_exact_type_from_node(node.args[0])
-        output_typedef = TypeT( get_type_from_annotation(node.args[1], DataLocation.MEMORY))
+        output_typedef = TypeT( type_from_annotation(node.args[1]))
 
         return [data_type, output_typedef]
 

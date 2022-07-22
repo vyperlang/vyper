@@ -20,17 +20,15 @@ from vyper.semantics.validation.utils import get_exact_type_from_node, validate_
 
 def process_arg(arg, expected_arg_type, context):
     # If the input value is a typestring, return the equivalent codegen type for IR generation
-    if isinstance(expected_arg_type, TypeTypeDefinition):
+    if isinstance(expected_arg_type, TYPE_T):
         return new_type_to_old_type(expected_arg_type.typedef)
 
     # if it is a word type, return a stack item.
-    # TODO: Builtins should not require value expressions
-    if isinstance(expected_arg_type, ValueTypeDefinition) and not isinstance(
-        expected_arg_type, (StructDefinition, ArrayValueAbstractType)
-    ):
+    # TODO: remove this case, builtins should not require value expressions
+    if expected_arg_type._is_prim_word:
         return Expr.parse_value_expr(arg, context)
 
-    if isinstance(expected_arg_type, BaseTypeDefinition):
+    if isinstance(expected_arg_type, VyperType):
         return Expr(arg, context).ir_node
 
     raise CompilerPanic(f"Unexpected type: {expected_arg_type}")  # pragma: notest

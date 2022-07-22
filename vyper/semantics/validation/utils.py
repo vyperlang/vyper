@@ -109,10 +109,10 @@ class _ExprTypeChecker:
         fn = self._find_fn(node)
         ret = fn(node)
 
-        if all(isinstance(i, IntegerT) for i in types_list):
+        if all(isinstance(i, IntegerT) for i in ret):
             # for numeric types, sort according by number of bits descending
             # this ensures literals are cast with the largest possible type
-            ret.sort(key=lambda k: (k._bits, not k._is_signed), reverse=True)
+            ret.sort(key=lambda k: (k.bits, not k.is_signed), reverse=True)
 
         return ret
 
@@ -259,7 +259,7 @@ class _ExprTypeChecker:
                 f"'{name}' is a storage variable, access it as self.{name}", node
             )
         try:
-            return [self.namespace[node.id].type_]
+            return [self.namespace[node.id].typ]
         except VyperException as exc:
             raise exc.with_annotation(node) from None
 

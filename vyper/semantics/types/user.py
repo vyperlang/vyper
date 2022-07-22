@@ -13,6 +13,7 @@ from vyper.semantics.types.base import DataLocation, VyperType, VarInfo
 from vyper.semantics.types.function import ContractFunction
 from vyper.semantics.types.primitives import AddressT
 from vyper.semantics.validation.levenshtein_utils import get_levenshtein_error_suggestions
+from vyper.semantics.validation.utils import validate_unique_method_ids
 
 
 class EnumT(VyperType):
@@ -222,7 +223,7 @@ class InterfaceT(VyperType):
     _is_callable = True
     _as_array = True
 
-    def __init__( self, _id: str, members: dict) -> None:
+    def __init__( self, _id: str, members: dict, events: dict) -> None:
         validate_unique_method_ids(members.values())
         super().__init__(members)
 
@@ -324,6 +325,7 @@ class InterfaceT(VyperType):
         return cls(name, members, events)
 
 
+    # TODO: split me into from_InterfaceDef and from_Module
     @classmethod
     def from_ast( cls, node: Union[vy_ast.InterfaceDef, vy_ast.Module]) -> "InterfaceType":
         """
