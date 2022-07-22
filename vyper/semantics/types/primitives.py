@@ -1,19 +1,11 @@
 # primitive types which occupy one word, like ints and addresses
 
-from vyper import ast as vy_ast
-from vyper.abi_types import (
-    ABI_Address,
-    ABIType,
-    ABI_Address,
-    ABI_GIntM,
-    ABI_Bool,
-    ABI_BytesM,
-    ABI_FixedMxN,
-)
-from vyper.exceptions import InvalidLiteral
-from vyper.utils import checksum_encode, is_checksum_encoded, SizeLimits
+from typing import List, Tuple, Union
 
-from typing import Union, Tuple, List
+from vyper import ast as vy_ast
+from vyper.abi_types import ABI_Address, ABI_Bool, ABI_BytesM, ABI_FixedMxN, ABI_GIntM, ABIType
+from vyper.exceptions import CompilerPanic, InvalidLiteral, InvalidOperation, OverflowException
+from vyper.utils import SizeLimits, checksum_encode, int_bounds, is_checksum_encoded
 
 from .base import VyperType
 from .bytestrings import BytesT
@@ -80,7 +72,7 @@ class BytesM_T(_PrimT):
 
         nibbles = val[2:]  # strip leading 0x
         if nibbles not in (nibbles.lower(), nibbles.upper()):
-            raise InvalidLiteral(f"Cannot mix uppercase and lowercase for bytes{m} literal", node)
+            raise InvalidLiteral(f"Cannot mix uppercase and lowercase for {self} literal", node)
 
 
 class IntegerT(_PrimT):

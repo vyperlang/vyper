@@ -1,9 +1,9 @@
-from . import subscriptable, user, primitives
-from .base import VyperType, DataLocation, TYPE_T, VarInfo
-from .subscriptable import HashMapT, SArrayT, TupleT, DArrayT
-from .user import EnumT, InterfaceT, EventT, StructT
-from .primitives import AddressT, BoolT, BytesM_T, IntegerT, DecimalT
+from . import primitives, subscriptable, user
+from .base import TYPE_T, DataLocation, VarInfo, VyperType
 from .bytestrings import BytesT, StringT
+from .primitives import AddressT, BoolT, BytesM_T, DecimalT, IntegerT
+from .subscriptable import DArrayT, HashMapT, SArrayT, TupleT
+from .user import EnumT, EventT, InterfaceT, StructT
 
 
 def get_primitive_types():

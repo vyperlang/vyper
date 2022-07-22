@@ -11,7 +11,7 @@ from vyper.exceptions import (
     VyperInternalException,
 )
 from vyper.semantics.namespace import get_namespace
-from vyper.semantics.types.base import VyperType, DataLocation
+from vyper.semantics.types.base import VyperType
 from vyper.semantics.types.subscriptable import SArrayT, TupleT
 from vyper.semantics.validation.levenshtein_utils import get_levenshtein_error_suggestions
 from vyper.semantics.validation.utils import get_exact_type_from_node, get_index_value
@@ -96,11 +96,11 @@ def type_from_abi(abi_type: Dict) -> VyperType:
         except ValueError:
             raise UnknownType(f"ABI type has an invalid length: {type_string}") from None
         try:
-            value_type = get_type_from_abi({"type": value_type_string})
+            value_type = type_from_abi({"type": value_type_string})
         except UnknownType:
             raise UnknownType(f"ABI contains unknown type: {type_string}") from None
         try:
-            return SArrayT(value_type)
+            return SArrayT(value_type, length)
         except InvalidType:
             raise UnknownType(f"ABI contains unknown type: {type_string}") from None
 
@@ -154,7 +154,7 @@ def type_from_annotation(node: vy_ast.VyperNode) -> VyperType:
         # if type can be an array and node is a subscript, create an `ArrayDefinition`
         length = get_index_value(node.slice)
         value_type = type_from_annotation(node.value)
-        return SArrayT(value_type)
+        return SArrayT(value_type, length)
 
     return type_obj
 

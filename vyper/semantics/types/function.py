@@ -16,7 +16,8 @@ from vyper.exceptions import (
     StructureException,
 )
 from vyper.semantics.namespace import get_namespace
-from vyper.semantics.types.base import VyperType, DataLocation, StorageSlot, KwargSettings, VarInfo
+from vyper.semantics.types.base import DataLocation, KwargSettings, StorageSlot, VarInfo, VyperType
+from vyper.semantics.types.primitives import UINT256_T, BoolT
 from vyper.semantics.types.subscriptable import TupleT
 from vyper.semantics.types.utils import (
     StringEnum,
@@ -24,7 +25,6 @@ from vyper.semantics.types.utils import (
     type_from_abi,
     type_from_annotation,
 )
-from vyper.semantics.types.primitives import BoolT, UINT256_T
 from vyper.semantics.validation.utils import validate_expected_type
 from vyper.utils import keccak256
 
@@ -128,15 +128,15 @@ class ContractFunction(VyperType):
         return f"contract function {self.name}({arg_types})"
 
     # this might be dead code
-    def var_info(self):
-        return VarInfo(
-            # A function definition type only exists while compiling
-            DataLocation.UNSET,
-            # A function definition type is immutable once created
-            is_constant=True,
-            # A function definition type is public if it's visibility is public
-            is_public=(function_visibility == FunctionVisibility.EXTERNAL),
-        )
+    # def var_info(self):
+    # return VarInfo(
+    # A function definition type only exists while compiling
+    #    DataLocation.UNSET,
+    # A function definition type is immutable once created
+    #    is_constant=True,
+    # A function definition type is public if it's visibility is public
+    #    is_public=(function_visibility == FunctionVisibility.EXTERNAL),
+    # )
 
     @classmethod
     def from_abi(cls, abi: Dict) -> "ContractFunction":
@@ -155,21 +155,12 @@ class ContractFunction(VyperType):
 
         arguments = OrderedDict()
         for item in abi["inputs"]:
-            arguments[item["name"]] = get_type_from_abi(
-                item, location=DataLocation.CALLDATA, is_constant=True
-            )
+            arguments[item["name"]] = type_from_abi(item)
         return_type = None
         if len(abi["outputs"]) == 1:
-            return_type = get_type_from_abi(
-                abi["outputs"][0], location=DataLocation.CALLDATA, is_constant=True
-            )
+            return_type = type_from_abi(abi["outputs"][0])
         elif len(abi["outputs"]) > 1:
-            return_type = TupleDefinition(
-                tuple(
-                    get_type_from_abi(i, location=DataLocation.CALLDATA, is_constant=True)
-                    for i in abi["outputs"]
-                )
-            )
+            return_type = TupleT(tuple(type_from_abi(i) for i in abi["outputs"]))
         return cls(
             abi["name"],
             arguments,
@@ -352,7 +343,7 @@ class ContractFunction(VyperType):
             tuple_types: Tuple = ()
             for n in node.returns.elements:
                 tuple_types += (type_from_annotation(n),)
-            return_type = TupleDefinition(tuple_types)
+            return_type = TupleT(tuple_types)
         else:
             raise InvalidType("Function return value must be a type name or tuple", node.returns)
 
@@ -386,7 +377,7 @@ class ContractFunction(VyperType):
         """
         if not isinstance(node.annotation, vy_ast.Call):
             raise CompilerPanic("Annotation must be a call to public()")
-        type_ = get_type_from_annotation(node.annotation.args[0], location=DataLocation.STORAGE)
+        type_ = type_from_annotation(node.annotation.args[0])
         arguments, return_type = type_.get_signature()
         args_dict: OrderedDict = OrderedDict()
         for item in arguments:
@@ -527,7 +518,7 @@ class ContractFunction(VyperType):
         typ = self.return_type
         if typ is None:
             abi_dict["outputs"] = []
-        elif isinstance(typ, TupleDefinition) and len(typ.value_type) > 1:  # type: ignore
+        elif isinstance(typ, TupleT) and len(typ.value_type) > 1:  # type: ignore
             abi_dict["outputs"] = [t.to_abi_dict() for t in typ.value_type]  # type: ignore
         else:
             abi_dict["outputs"] = [typ.to_abi_dict()]

@@ -1,8 +1,8 @@
 from typing import Dict
 
+from vyper.semantics.types import AddressT, BytesT
 from vyper.semantics.types.base import VarInfo, VyperType
-from vyper.semantics.types import StructT, AddressT, BytesM_T, BytesT, IntegerT
-from vyper.semantics.types.primitives import UINT256_T, BYTES32_T
+from vyper.semantics.types.primitives import BYTES32_T, UINT256_T
 
 
 class _Block(VyperType):

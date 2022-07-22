@@ -1,19 +1,31 @@
-from typing import Dict, List, Union, Tuple
+from typing import Dict, List, Tuple, Union
 
 from vyper import ast as vy_ast
-from vyper.abi_types import ABI_GIntM, ABIType
+from vyper.abi_types import ABI_Address, ABI_GIntM, ABI_Tuple, ABIType
 from vyper.exceptions import (
     EnumDeclarationException,
+    EventDeclarationException,
+    InterfaceViolation,
+    InvalidAttribute,
+    NamespaceCollision,
     StructureException,
-    UnimplementedException,
     UnknownAttribute,
+    VariableDeclarationException,
 )
-from vyper.semantics.namespace import validate_identifier
-from vyper.semantics.types.base import DataLocation, VyperType, VarInfo
+from vyper.semantics.namespace import get_namespace, validate_identifier
+from vyper.semantics.types.base import DataLocation, VyperType
 from vyper.semantics.types.function import ContractFunction
 from vyper.semantics.types.primitives import AddressT
+from vyper.semantics.types.subscriptable import HashMapT
 from vyper.semantics.validation.levenshtein_utils import get_levenshtein_error_suggestions
-from vyper.semantics.validation.utils import validate_unique_method_ids
+from vyper.semantics.validation.utils import (
+    type_from_abi,
+    type_from_annotation,
+    validate_call_args,
+    validate_expected_type,
+    validate_unique_method_ids,
+)
+from vyper.utils import keccak256
 
 
 class EnumT(VyperType):
@@ -52,7 +64,7 @@ class EnumT(VyperType):
     #    return f"{self.name}({','.join(v.canonical_abi_type for v in self.arguments)})"
 
     @classmethod
-    def from_EnumDef(cls, base_node: vy_ast.EnumDef) -> "EnumType":
+    def from_EnumDef(cls, base_node: vy_ast.EnumDef) -> "EnumT":
         """
         Generate an `Enum` object from a Vyper ast node.
 
@@ -131,7 +143,7 @@ class EventT:
         return f"{self.name}({','.join(v.canonical_abi_type for v in self.arguments.values())})"
 
     @classmethod
-    def from_abi(cls, abi: Dict) -> "EventType":
+    def from_abi(cls, abi: Dict) -> "EventT":
         """
         Generate an `Event` object from an ABI interface.
 
@@ -147,11 +159,11 @@ class EventT:
         members: dict = {}
         indexed: List = [i["indexed"] for i in abi["inputs"]]
         for item in abi["inputs"]:
-            members[item["name"]] = get_type_from_abi(item)
-        return Event(abi["name"], members, indexed)
+            members[item["name"]] = type_from_abi(item)
+        return cls(abi["name"], members, indexed)
 
     @classmethod
-    def from_EventDef(cls, base_node: vy_ast.EventDef) -> "Event":
+    def from_EventDef(cls, base_node: vy_ast.EventDef) -> "EventT":
         """
         Generate an `Event` object from a Vyper ast node.
 
@@ -167,7 +179,7 @@ class EventT:
         indexed: List = []
 
         if len(base_node.body) == 1 and isinstance(base_node.body[0], vy_ast.Pass):
-            return Event(base_node.name, members, indexed)
+            return EventT(base_node.name, members, indexed)
 
         for node in base_node.body:
             if not isinstance(node, vy_ast.AnnAssign):
@@ -194,9 +206,9 @@ class EventT:
             else:
                 indexed.append(False)
 
-            members[member_name] = get_type_from_annotation(annotation, DataLocation.UNSET)
+            members[member_name] = type_from_annotation(annotation, DataLocation.UNSET)
 
-        return Event(base_node.name, members, indexed)
+        return cls(base_node.name, members, indexed)
 
     def fetch_call_return(self, node: vy_ast.Call) -> None:
         validate_call_args(node, len(self.arguments))
@@ -231,7 +243,7 @@ class InterfaceT(VyperType):
         self.events = events
 
     def getter_signature(self):
-        return (), AddressDefinition()
+        return (), AddressT()
 
     @property
     def abi_type(self) -> ABIType:
@@ -247,8 +259,8 @@ class InterfaceT(VyperType):
 
     def infer_arg_types(self, node):
         validate_call_args(node, 1)
-        validate_expected_type(node.args[0], AddressDefinition())
-        return [AddressDefinition()]
+        validate_expected_type(node.args[0], AddressT())
+        return [AddressT()]
 
     def infer_kwarg_types(self, node):
         return {}
@@ -269,7 +281,7 @@ class InterfaceT(VyperType):
             name
             for name, event in self.events.items()
             if name not in namespace
-            or not isinstance(namespace[name], Event)
+            or not isinstance(namespace[name], EventT)
             or namespace[name].event_id != event.event_id
         ]
         if unimplemented:
@@ -288,7 +300,7 @@ class InterfaceT(VyperType):
         return abi
 
     @classmethod
-    def from_json_abi(name: str, abi: dict) -> "InterfaceT":
+    def from_json_abi(cls, name: str, abi: dict) -> "InterfaceT":
         """
         Generate an `InterfaceT` object from an ABI.
 
@@ -312,19 +324,20 @@ class InterfaceT(VyperType):
         if collisions:
             collision_list = ", ".join(sorted(collisions))
             raise NamespaceCollision(
-                f"ABI '{name}' has multiple functions or events with the same name: {collision_list}"
+                f"ABI '{name}' has multiple functions or events "
+                f"with the same name: {collision_list}"
             )
 
         for item in [i for i in abi if i.get("type") == "function"]:
             members[item["name"]] = ContractFunction.from_abi(item)
         for item in [i for i in abi if i.get("type") == "event"]:
-            events[item["name"]] = Event.from_abi(item)
+            events[item["name"]] = EventT.from_abi(item)
 
         return cls(name, members, events)
 
     # TODO: split me into from_InterfaceDef and from_Module
     @classmethod
-    def from_ast(cls, node: Union[vy_ast.InterfaceDef, vy_ast.Module]) -> "InterfaceType":
+    def from_ast(cls, node: Union[vy_ast.InterfaceDef, vy_ast.Module]) -> "InterfaceT":
         """
         Generate an `InterfacePrimitive` object from a Vyper ast node.
 
@@ -383,7 +396,7 @@ def _get_module_definitions(base_node: vy_ast.Module) -> Tuple[Dict, Dict]:
             raise NamespaceCollision(
                 f"Interface contains multiple objects named '{name}'", base_node
             )
-        events[name] = Event.from_EventDef(node)
+        events[name] = EventT.from_EventDef(node)
 
     return functions, events
 
@@ -470,7 +483,7 @@ class StructT(VyperType):
             raise VariableDeclarationException(
                 "Struct values must be declared via dictionary", node.args[0]
             )
-        if next((i for i in self.members.values() if isinstance(i, MappingDefinition)), False):
+        if next((i for i in self.members.values() if isinstance(i, HashMapT)), False):
             raise VariableDeclarationException(
                 "Struct contains a mapping and so cannot be declared as a literal", node
             )

@@ -49,7 +49,6 @@ from vyper.codegen.types import (
     is_base_type,
     parse_integer_typeinfo,
 )
-from vyper.semantics.types.primitives import UINT256_T, INT256_T, BYTES32_T, BYTES4_T
 from vyper.codegen.types.convert import new_type_to_old_type
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
@@ -65,18 +64,19 @@ from vyper.exceptions import (
     ZeroDivisionException,
 )
 from vyper.semantics.types import (
-    SArrayT,
-    BoolT,
-    DArrayT,
-    TupleT,
-    IntegerT,
-    BytesT,
     AddressT,
-    StringT,
+    BoolT,
     BytesM_T,
+    BytesT,
+    DArrayT,
     DecimalT,
+    IntegerT,
+    SArrayT,
+    StringT,
+    TupleT,
 )
-from vyper.semantics.types.base import KwargSettings, TYPE_T
+from vyper.semantics.types.base import TYPE_T, KwargSettings
+from vyper.semantics.types.primitives import BYTES4_T, BYTES32_T, INT256_T, UINT256_T
 from vyper.semantics.types.utils import type_from_annotation
 from vyper.semantics.validation.utils import (
     get_common_types,

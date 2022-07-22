@@ -18,9 +18,8 @@ from vyper.exceptions import (
 )
 from vyper.semantics import types
 from vyper.semantics.namespace import get_namespace
-from vyper.semantics.types.base import VyperType
-from vyper.semantics.types.primitives import IntegerT, BoolT
-from vyper.semantics.types.subscriptable import SArrayT, DArrayT, TupleT
+from vyper.semantics.types.primitives import BoolT, IntegerT
+from vyper.semantics.types.subscriptable import DArrayT, SArrayT, TupleT
 from vyper.semantics.validation.levenshtein_utils import get_levenshtein_error_suggestions
 
 
@@ -133,7 +132,7 @@ class _ExprTypeChecker:
                     node,
                 ) from None
 
-            suggestions_str = get_levenshtein_error_suggestions(name, var.members, 0.4)
+            suggestions_str = get_levenshtein_error_suggestions(name, t.members, 0.4)
             raise UndeclaredDefinition(
                 f"Storage variable '{name}' has not been declared. {suggestions_str}", node
             ) from None

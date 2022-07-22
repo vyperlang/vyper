@@ -1,6 +1,6 @@
 from vyper import ast as vy_ast
 from vyper.exceptions import StructureException
-from vyper.semantics.types import SArrayT, EnumT, EventT, StructT, TYPE_T
+from vyper.semantics.types import TYPE_T, EnumT, EventT, SArrayT, StructT
 from vyper.semantics.types.function import ContractFunction, MemberFunctionT
 from vyper.semantics.validation.utils import (
     get_common_types,

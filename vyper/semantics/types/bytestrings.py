@@ -1,12 +1,9 @@
-from typing import Type
-
 from vyper import ast as vy_ast
 from vyper.abi_types import ABI_Bytes, ABI_String, ABIType
 from vyper.exceptions import CompilerPanic, StructureException, UnexpectedValue
 from vyper.semantics import validation
+from vyper.semantics.types.base import VyperType
 from vyper.utils import ceil32
-
-from .base import VyperType, DataLocation
 
 
 class _BytestringT(VyperType):
@@ -113,7 +110,8 @@ class _BytestringT(VyperType):
             raise UnexpectedValue("Node id does not match type name")
 
         length = validation.utils.get_index_value(node.slice)  # type: ignore
-        return cls._type(length, location, is_constant, is_public, is_immutable)
+        # return cls._type(length, location, is_constant, is_public, is_immutable)
+        return cls(length)
 
     @classmethod
     def from_literal(cls, node: vy_ast.Constant) -> "_BytestringT":

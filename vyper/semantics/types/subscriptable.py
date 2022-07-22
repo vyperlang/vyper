@@ -1,11 +1,12 @@
-from typing import Union, Tuple, Optional, Dict, Any
+from typing import Any, Dict, Optional, Tuple, Union
 
 from vyper import ast as vy_ast
-from vyper.abi_types import ABIType
-from vyper.exceptions import StructureException
-from vyper.semantics.types.base import VyperType, DataLocation
+from vyper.abi_types import ABI_DynamicArray, ABI_StaticArray, ABI_Tuple, ABIType
+from vyper.exceptions import ArrayIndexException, InvalidType, StructureException
+from vyper.semantics.types.base import DataLocation, VyperType
+from vyper.semantics.types.primitives import UINT256_T, IntegerT
+from vyper.semantics.types.utils import type_from_annotation
 from vyper.utils import cached_property
-from vyper.semantics.types.primitives import UINT256_T
 
 
 class _SubscriptableT(VyperType):
@@ -69,11 +70,13 @@ class HashMapT(_SubscriptableT):
                 ),
                 node,
             )
-        if location != DataLocation.STORAGE or is_immutable:
-            raise StructureException("HashMap can only be declared as a storage variable", node)
+        # if location != DataLocation.STORAGE or is_immutable:
+        #    raise StructureException("HashMap can only be declared as a storage variable", node)
 
-        key_type = get_type_from_annotation(node.slice.value.elements[0], DataLocation.UNSET)
-        value_type = get_type_from_annotation(node.slice.value.elements[1], DataLocation.STORAGE)
+        key_type = type_from_annotation(node.slice.value.elements[0])
+        value_type = type_from_annotation(node.slice.value.elements[1])
+
+        return cls(key_type, value_type)
 
 
 class _SequenceT(_SubscriptableT):
@@ -268,8 +271,9 @@ class TupleT(_SequenceT):
 
     def __init__(self, value_type: Tuple[VyperType, ...]) -> None:
         # always use the most restrictive location re: modification
-        location = sorted((i.location for i in value_type), key=lambda k: k.value)[-1]
-        is_constant = any((getattr(i, "is_constant", False) for i in value_type))
+        # location = sorted((i.location for i in value_type), key=lambda k: k.value)[-1]
+        # is_constant = any((getattr(i, "is_constant", False) for i in value_type))
+
         super().__init__(
             # TODO fix the typing on value_type
             value_type,  # type: ignore

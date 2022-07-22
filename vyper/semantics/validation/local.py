@@ -22,16 +22,16 @@ from vyper.exceptions import (
 from vyper.semantics.environment import CONSTANT_ENVIRONMENT_VARS, MUTABLE_ENVIRONMENT_VARS
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types import (
-    IntegerT,
-    DataLocation,
-    HashMapT,
-    SArrayT,
-    DArrayT,
-    TupleT,
-    EventT,
     AddressT,
-    StringT,
     BoolT,
+    DArrayT,
+    DataLocation,
+    EventT,
+    HashMapT,
+    IntegerT,
+    SArrayT,
+    StringT,
+    TupleT,
     VarInfo,
 )
 from vyper.semantics.types.function import ContractFunction, MemberFunctionT, StateMutability
@@ -223,7 +223,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             )
 
         type_ = type_from_annotation(node.annotation)
-        validate_expected_type(node.value, type_definition)
+        validate_expected_type(node.value, type_)
 
         try:
             self.namespace[name] = VarInfo(type_, DataLocation.MEMORY)

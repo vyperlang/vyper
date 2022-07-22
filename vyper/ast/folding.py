@@ -1,5 +1,5 @@
 import copy
-from typing import Union, Optional
+from typing import Optional, Union
 
 from vyper.ast import nodes as vy_ast
 from vyper.builtin_functions import DISPATCH_TABLE

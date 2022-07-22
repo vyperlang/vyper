@@ -27,7 +27,7 @@ class Namespace(dict):
         # NOTE cyclic imports!
         from vyper.builtin_functions.functions import get_builtin_functions
         from vyper.semantics import environment
-        from vyper.semantics.types import get_types, VarInfo
+        from vyper.semantics.types import VarInfo, get_types
 
         self.update(get_types())
         self.update(environment.get_constant_vars())

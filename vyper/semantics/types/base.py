@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple, Type, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from vyper import ast as vy_ast
 from vyper.abi_types import ABIType
@@ -15,8 +15,8 @@ from vyper.exceptions import (
     UnexpectedValue,
     UnknownAttribute,
 )
-from vyper.semantics.validation.levenshtein_utils import get_levenshtein_error_suggestions
 from vyper.semantics.namespace import validate_identifier
+from vyper.semantics.validation.levenshtein_utils import get_levenshtein_error_suggestions
 
 
 # TODO: move me to locations.py
@@ -174,7 +174,7 @@ class VyperType:
             `Constant` Vyper ast node, or a list or tuple of constants.
         """
         if not isinstance(node, vy_ast.Constant):
-            raise UnexpectedNodeType(f"Not a literal.", node)
+            raise UnexpectedNodeType("Not a literal.", node)
         if not isinstance(node, self._valid_literal):
             raise InvalidLiteral(f"Invalid literal for {self}", node)
 
