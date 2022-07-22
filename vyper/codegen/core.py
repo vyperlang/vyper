@@ -321,11 +321,6 @@ def extend_dyn_array(context, dst_darray_node, src_darray_node):
             # Index of src darray to copy is `current iteration - original length of dst darray`
             src_idx = IRnode.from_list(["sub", loop_var, dst_len], typ="uint256")
 
-            # Break if current index of src darray is beyond its max size
-            src_len_test = IRnode.from_list(["ge", src_idx, src_len])
-            src_len_check = IRnode.from_list(["if", src_len_test, "break"])
-            loop_body.append(src_len_check)
-
             # Copy element at index `src_idx` of src darray to `loop_var` index of dst darray
             src_to_dst = make_setter(
                 get_element_ptr(dst_darray_node, loop_var, array_bounds_check=False),
