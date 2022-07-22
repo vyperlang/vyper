@@ -231,7 +231,7 @@ Vyper has three builtins for contract creation; all three contract creation buil
         
         Returns the data returned by the call as a ``Bytes`` list, with ``max_outsize`` as the max length. The actual size of the returned data may be less than ``max_outsize``. You can use ``len`` to obtain the actual size.
 
-        Returns ``None`` if ``max_outsize`` is omitted or set to ``0``.
+        Returns nothing if ``max_outsize`` is omitted or set to ``0``.
 
         Returns ``success`` in a tuple if ``revert_on_failure`` is set to ``False``.
 
