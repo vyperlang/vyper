@@ -4,6 +4,7 @@ from vyper.semantics.types.base import VarInfo, VyperType
 from vyper.semantics.types import StructT, AddressT, BytesM_T, BytesT, IntegerT 
 from vyper.semantics.types.primitives import UINT256_T, BYTES32_T
 
+
 class _Block(VyperType):
     _id = "block"
     _type_members = {
@@ -35,7 +36,7 @@ class _Tx(VyperType):
     _type_members = {"origin": AddressT, "gasprice": UINT256_T}
 
 
-CONSTANT_ENVIRONMENT_VARS = {t._id: t for t in (_Block, _Chain, _Tx, _Msg)}
+CONSTANT_ENVIRONMENT_VARS = {t._id: t for t in (_Block(), _Chain(), _Tx(), _Msg())}
 
 
 def get_constant_vars() -> Dict:
@@ -49,7 +50,12 @@ def get_constant_vars() -> Dict:
     return result
 
 
-MUTABLE_ENVIRONMENT_VARS: Dict[str, type] = {"self": AddressT()}
+# Not sure this is necessary, but add an ad-hoc type for `self` for clarity
+class _SelfT(AddressT):
+    pass
+
+
+MUTABLE_ENVIRONMENT_VARS: Dict[str, type] = {"self": _SelfT()}
 
 
 def get_mutable_vars() -> Dict:

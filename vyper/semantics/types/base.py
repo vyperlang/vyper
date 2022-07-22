@@ -266,10 +266,6 @@ class VyperType:
         return self._id
 
 
-    @classmethod
-    def get_member(cls, key: str, node: vy_ast.Attribute) -> None:
-        raise StructureException(f"{cls} does not have members", node)
-
     # TODO probably dead code
     @classmethod
     def validate_modification( cls, mutability: Any, node: vy_ast.VyperNode) -> None:

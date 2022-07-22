@@ -114,14 +114,14 @@ def _validate_revert_reason(msg_node: vy_ast.VyperNode) -> None:
                 raise StructureException("Reason string cannot be empty", msg_node)
         elif not (isinstance(msg_node, vy_ast.Name) and msg_node.id == "UNREACHABLE"):
             try:
-                validate_expected_type(msg_node, StringDefinition(1024))
+                validate_expected_type(msg_node, StringT(1024))
             except TypeMismatch as e:
                 raise InvalidType("revert reason must fit within String[1024]") from e
 
 
 def _validate_address_code_attribute(node: vy_ast.Attribute) -> None:
     value_type = get_exact_type_from_node(node.value)
-    if isinstance(value_type, AddressDefinition) and node.attr == "code":
+    if isinstance(value_type, AddressT) and node.attr == "code":
         # Validate `slice(<address>.code, start, length)` where `length` is constant
         parent = node.get_ancestor()
         if isinstance(parent, vy_ast.Call):
@@ -229,7 +229,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             raise StructureException("Right-hand side of assignment cannot be a tuple", node.value)
 
         target = get_exact_type_from_node(node.target)
-        if isinstance(target, MappingDefinition):
+        if isinstance(target, HashMapT):
             raise StructureException(
                 "Left-hand side of assignment cannot be a HashMap without a key", node
             )
@@ -262,7 +262,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             self.expr_visitor.visit(node.msg)
 
         try:
-            validate_expected_type(node.test, BoolDefinition())
+            validate_expected_type(node.test, BoolT())
         except InvalidType:
             raise InvalidType("Assertion test value must be a boolean", node.test)
         self.expr_visitor.visit(node.test)
@@ -283,7 +283,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
 
         if isinstance(values, vy_ast.Tuple):
             values = values.elements
-            if not isinstance(self.func.return_type, TupleDefinition):
+            if not isinstance(self.func.return_type, TupleT):
                 raise FunctionDeclarationException("Function only returns a single value", node)
             if self.func.return_type.length != len(values):
                 raise FunctionDeclarationException(
@@ -298,7 +298,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         self.expr_visitor.visit(node.value)
 
     def visit_If(self, node):
-        validate_expected_type(node.test, BoolDefinition())
+        validate_expected_type(node.test, BoolT())
         self.expr_visitor.visit(node.test)
         with self.namespace.enter_scope():
             for n in node.body:
@@ -364,7 +364,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             type_list = [
                 i.value_type
                 for i in get_possible_types_from_node(node.iter)
-                if isinstance(i, (DynamicArrayDefinition, ArrayDefinition))
+                if isinstance(i, (DArrayT, SArrayT))
             ]
 
         if not type_list:
@@ -475,14 +475,14 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                     "Cannot call non-pure function from a pure function", node
                 )
 
-        if isinstance(fn_type, MemberFunctionDefinition) and fn_type.is_modifying:
+        if isinstance(fn_type, MemberFunctionT) and fn_type.is_modifying:
             fn_type.underlying_type.validate_modification(node, self.func.mutability)
 
         # NOTE: fetch_call_return validates call args.
         return_value = fn_type.fetch_call_return(node.value)
         if (
             return_value
-            and not isinstance(fn_type, MemberFunctionDefinition)
+            and not isinstance(fn_type, MemberFunctionT)
             and not isinstance(fn_type, ContractFunction)
         ):
             raise StructureException(

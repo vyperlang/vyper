@@ -59,7 +59,7 @@ class _ExprTypeChecker:
     def __init__(self):
         self.namespace = get_namespace()
 
-    def get_exact_type_from_node(self, node, only_definitions=True):
+    def get_exact_type_from_node(self, node):
         """
         Find exactly one type for a given node.
 
@@ -69,21 +69,18 @@ class _ExprTypeChecker:
         ---------
         node : VyperNode
             The vyper AST node to find a type for.
-        only_definitions: bool, optional
-            If True, raises when the return value is not a type definition
-            e.g a primitive, meta type, or function call
 
         Returns
         -------
         Type object
         """
-        types_list = self.get_possible_types_from_node(node, only_definitions)
+        types_list = self.get_possible_types_from_node(node)
 
         if len(types_list) > 1:
             raise StructureException("Ambiguous type", node)
         return types_list[0]
 
-    def get_possible_types_from_node(self, node, only_definitions=True):
+    def get_possible_types_from_node(self, node):
         """
         Find all possible types for a given node.
         If the node's metadata contains type information propagated from constant folding,
@@ -93,9 +90,6 @@ class _ExprTypeChecker:
         ---------
         node : VyperNode
             The vyper AST node to find a type for.
-        only_definitions: bool, optional
-            If True, raises when the return value is not a type definition
-            e.g a primitive, meta type, or function call
 
         Returns
         -------
@@ -129,10 +123,10 @@ class _ExprTypeChecker:
 
     def types_from_Attribute(self, node):
         # variable attribute, e.g. `foo.bar`
-        var = self.get_exact_type_from_node(node.value, only_definitions=False)
+        t = self.get_exact_type_from_node(node.value)
         name = node.attr
         try:
-            return [var.get_member(name, node)]
+            return [t.get_member(name, node)]
         except UnknownAttribute:
             if node.get("value.id") != "self":
                 raise
@@ -203,7 +197,7 @@ class _ExprTypeChecker:
 
     def types_from_Call(self, node):
         # function calls, e.g. `foo()`
-        var = self.get_exact_type_from_node(node.func, False)
+        var = self.get_exact_type_from_node(node.func)
         return_value = var.fetch_call_return(node)
         if return_value:
             return [return_value]
@@ -340,7 +334,7 @@ def get_exact_type_from_node(node):
         Type object.
     """
 
-    return _ExprTypeChecker().get_exact_type_from_node(node, False)
+    return _ExprTypeChecker().get_exact_type_from_node(node)
 
 
 def get_common_types(*nodes: vy_ast.VyperNode, filter_fn: Callable = None) -> List:
