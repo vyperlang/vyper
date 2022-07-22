@@ -5,7 +5,6 @@ from vyper.abi_types import ABI_DynamicArray, ABI_StaticArray, ABI_Tuple, ABITyp
 from vyper.exceptions import ArrayIndexException, InvalidType, StructureException
 from vyper.semantics.types.base import DataLocation, VyperType
 from vyper.semantics.types.primitives import UINT256_T, IntegerT
-from vyper.semantics.types.utils import type_from_annotation
 from vyper.utils import cached_property
 
 
@@ -57,6 +56,9 @@ class HashMapT(_SubscriptableT):
 
     @classmethod
     def from_annotation(cls, node: Union[vy_ast.Name, vy_ast.Call, vy_ast.Subscript]) -> "HashMapT":
+        # TODO revisit circular import
+        from vyper.semantics.types.utils import type_from_annotation
+
         if (
             not isinstance(node, vy_ast.Subscript)
             or not isinstance(node.slice, vy_ast.Index)
@@ -127,10 +129,7 @@ def _set_first_key(xs: Dict[str, Any], k: str, val: Any) -> dict:
 
 class SArrayT(_SequenceT):
     """
-    Array type definition.
-
-    This class has no corresponding primitive. It is initialized
-    during `context.types.utils.get_type_from_annotation`
+    Static array type
     """
 
     def __init__(self, value_type: VyperType, length: int) -> None:
@@ -239,7 +238,7 @@ class DArrayT(_SequenceT):
         is_immutable: bool = False,
     ) -> "DArrayT":
         # TODO fix circular import
-        from vyper.semantics.types.utils import get_type_from_annotation
+        from vyper.semantics.types.utils import type_from_annotation
 
         if (
             not isinstance(node, vy_ast.Subscript)
@@ -253,7 +252,7 @@ class DArrayT(_SequenceT):
                 node,
             )
 
-        value_type = get_type_from_annotation(
+        value_type = type_from_annotation(
             node.slice.value.elements[0], location, is_constant, is_public, is_immutable
         )
 
