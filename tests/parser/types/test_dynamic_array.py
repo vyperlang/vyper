@@ -1276,6 +1276,18 @@ def foo(y: DynArray[uint256, 3]) -> DynArray[uint256, 5]:
     assert c.foo([3, 4]) == [1, 2, 3, 4]
 
 
+def test_extend_empty(get_contract):
+    code = """
+@external
+def foo(y: DynArray[uint256, 3]) -> DynArray[uint256, 3]:
+    x: DynArray[uint256, 3] = [1, 2, 3]
+    x.extend(y)
+    return x
+    """
+    c = get_contract(code)
+    assert c.foo([]) == [1, 2, 3]
+
+
 def test_extend_length_clamp(get_contract, assert_tx_failed):
     code = """
 @external
