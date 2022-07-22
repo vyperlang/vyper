@@ -318,18 +318,17 @@ def extend_dyn_array(context, dst_darray_node, src_darray_node):
             loop_var = IRnode.from_list(context.fresh_varname("dynarray_extend_ix"), typ="uint256")
 
             # Copy element from src darray to dst darray and increment length
-            # Index of src darray to copy is `current iteration - original length of dst darray`
-            src_idx = IRnode.from_list(["sub", loop_var, dst_len], typ="uint256")
+            dst_idx = IRnode.from_list(["add", loop_var, dst_len], typ="uint256")
 
-            # Copy element at index `src_idx` of src darray to `loop_var` index of dst darray
+            # Copy element at index `loop_var` of src darray to `loop_var + dst_len` index of dst darray
             src_to_dst = make_setter(
-                get_element_ptr(dst_darray_node, loop_var, array_bounds_check=False),
-                get_element_ptr(src_darray_node, src_idx, array_bounds_check=False),
+                get_element_ptr(dst_darray_node, dst_idx, array_bounds_check=False),
+                get_element_ptr(src_darray_node, loop_var, array_bounds_check=False),
             )
             loop_body.append(src_to_dst)
 
             # Construct loop node
-            loop = IRnode.from_list(["repeat", loop_var, dst_len, src_len, max_dst_len, loop_body])
+            loop = IRnode.from_list(["repeat", loop_var, 0, src_len, max_dst_len, loop_body])
             ret.append(loop)
 
             # Update new length
