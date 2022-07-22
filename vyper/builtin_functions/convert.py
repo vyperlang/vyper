@@ -26,6 +26,7 @@ from vyper.codegen.types import (
     is_base_type,
     is_bytes_m_type,
     is_decimal_type,
+    is_enum_type,
     is_integer_type,
 )
 from vyper.exceptions import (
@@ -325,6 +326,11 @@ def to_int(expr, arg, out_typ):
 
     elif is_decimal_type(arg.typ):
         arg = _fixed_to_int(arg, out_typ)
+
+    elif is_enum_type(arg.typ):
+        if out_typ.typ != "uint256":
+            _FAIL(arg.typ, out_typ, expr)
+        arg = _int_to_int(arg, out_typ)
 
     elif is_integer_type(arg.typ):
         arg = _int_to_int(arg, out_typ)
