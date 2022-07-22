@@ -67,7 +67,7 @@ class StringEnum(enum.Enum):
         return self.__eq__(other) or self.__gt__(other)
 
 
-def type_from_abi( abi_type: Dict) -> VyperType:
+def type_from_abi(abi_type: Dict) -> VyperType:
     """
     Return a type object from an ABI type definition.
 
@@ -96,15 +96,11 @@ def type_from_abi( abi_type: Dict) -> VyperType:
         except ValueError:
             raise UnknownType(f"ABI type has an invalid length: {type_string}") from None
         try:
-            value_type = get_type_from_abi(
-                {"type": value_type_string}, location=location, is_constant=is_constant
-            )
+            value_type = get_type_from_abi({"type": value_type_string})
         except UnknownType:
             raise UnknownType(f"ABI contains unknown type: {type_string}") from None
         try:
-            return ArrayDefinition(
-                value_type, length, location=location, is_constant=is_constant, is_public=is_public
-            )
+            return SArrayT(value_type)
         except InvalidType:
             raise UnknownType(f"ABI contains unknown type: {type_string}") from None
 

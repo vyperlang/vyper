@@ -326,7 +326,7 @@ class ContractFunction(VyperType):
             if arg.annotation is None:
                 raise ArgumentException(f"Function argument '{arg.arg}' is missing a type", arg)
 
-            type_ = type_from_annotation( arg.annotation)
+            type_ = type_from_annotation(arg.annotation)
 
             if value is not None:
                 if not check_kwargable(value):

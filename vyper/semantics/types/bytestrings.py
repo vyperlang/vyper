@@ -32,10 +32,7 @@ class _BytestringT(VyperType):
     def __repr__(self):
         return f"{self._id}[{self.length}]"
 
-    def __init__(
-        self,
-        length: int = 0,
-    ) -> None:
+    def __init__(self, length: int = 0) -> None:
         self._length = length
         self._min_length = length
 
@@ -103,9 +100,8 @@ class _BytestringT(VyperType):
 
         return other.compare_type(self)
 
-
     @classmethod
-    def from_annotation( cls, node: vy_ast.VyperNode) -> "_BytestringT":
+    def from_annotation(cls, node: vy_ast.VyperNode) -> "_BytestringT":
         if not isinstance(node, vy_ast.Subscript):
             raise StructureException(
                 f"Cannot declare {cls._id} type without a maximum length", node

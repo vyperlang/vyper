@@ -22,11 +22,7 @@ class _SubscriptableT(VyperType):
         Name of the type.
     """
 
-    def __init__(
-        self,
-        key_type: VyperType,
-        value_type: VyperType,
-    ) -> None:
+    def __init__(self, key_type: VyperType, value_type: VyperType) -> None:
         super().__init__()
         self.key_type = key_type
         self.value_type = value_type
@@ -59,10 +55,7 @@ class HashMapT(_SubscriptableT):
         return self.value_type
 
     @classmethod
-    def from_annotation(
-        cls,
-        node: Union[vy_ast.Name, vy_ast.Call, vy_ast.Subscript],
-    ) -> "HashMapT":
+    def from_annotation(cls, node: Union[vy_ast.Name, vy_ast.Call, vy_ast.Subscript]) -> "HashMapT":
         if (
             not isinstance(node, vy_ast.Subscript)
             or not isinstance(node.slice, vy_ast.Index)
@@ -93,7 +86,7 @@ class _SequenceT(_SubscriptableT):
         Number of items in the type.
     """
 
-    def __init__( self, value_type: VyperType, length: int):
+    def __init__(self, value_type: VyperType, length: int):
 
         if not 0 < length < 2 ** 256:
             raise InvalidType("Array length is invalid")
@@ -137,8 +130,8 @@ class SArrayT(_SequenceT):
     during `context.types.utils.get_type_from_annotation`
     """
 
-    def __init__( self, value_type: VyperType, length: int) -> None:
-        super().__init__( value_type, length)
+    def __init__(self, value_type: VyperType, length: int) -> None:
+        super().__init__(value_type, length)
 
     def __repr__(self):
         return f"{self.value_type}[{self.length}]"
@@ -177,18 +170,26 @@ class DArrayT(_SequenceT):
     """
     Dynamic array type
     """
+
     _valid_literal = (vy_ast.List,)
     _as_array = True
     _id = "DynArray"
 
-
-    def __init__( self, value_type: VyperType, length: int,) -> None:
+    def __init__(self, value_type: VyperType, length: int) -> None:
         super().__init__(value_type, length)
 
         from vyper.semantics.types.function import MemberFunctionT
-        self.add_member("append", MemberFunctionT(self, "append", [self.value_type], None, True), skip_namespace_validation=True)
-        self.add_member("pop", MemberFunctionT(self, "pop", [], self.value_type, True), skip_namespace_validation=True)
 
+        self.add_member(
+            "append",
+            MemberFunctionT(self, "append", [self.value_type], None, True),
+            skip_namespace_validation=True,
+        )
+        self.add_member(
+            "pop",
+            MemberFunctionT(self, "pop", [], self.value_type, True),
+            skip_namespace_validation=True,
+        )
 
     def __repr__(self):
         return f"DynArray[{self.value_type}, {self.length}]"
@@ -224,7 +225,6 @@ class DArrayT(_SequenceT):
 
     def fetch_call_return(self, node: vy_ast.Call) -> None:
         pass
-
 
     @classmethod
     def from_annotation(

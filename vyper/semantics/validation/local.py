@@ -1,4 +1,3 @@
-import copy
 from typing import Optional
 
 from vyper import ast as vy_ast
@@ -22,12 +21,20 @@ from vyper.exceptions import (
 # TODO consolidate some of these imports
 from vyper.semantics.environment import CONSTANT_ENVIRONMENT_VARS, MUTABLE_ENVIRONMENT_VARS
 from vyper.semantics.namespace import get_namespace
-from vyper.semantics.types import IntegerT, DataLocation, HashMapT, SArrayT, DArrayT, TupleT, EventT, AddressT, StringT, BoolT
-from vyper.semantics.types.function import (
-    ContractFunction,
-    MemberFunctionT,
-    StateMutability,
+from vyper.semantics.types import (
+    IntegerT,
+    DataLocation,
+    HashMapT,
+    SArrayT,
+    DArrayT,
+    TupleT,
+    EventT,
+    AddressT,
+    StringT,
+    BoolT,
+    VarInfo,
 )
+from vyper.semantics.types.function import ContractFunction, MemberFunctionT, StateMutability
 from vyper.semantics.types.utils import type_from_annotation
 from vyper.semantics.validation.annotation import StatementAnnotationVisitor
 from vyper.semantics.validation.base import VyperNodeVisitorBase
@@ -326,10 +333,10 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                     raise StateAccessViolation("Value must be a literal", node)
                 if args[0].value <= 0:
                     raise StructureException("For loop must have at least 1 iteration", args[0])
-                validate_expected_type(args[0], IntegerAbstractType())
+                validate_expected_type(args[0], IntegerT.any())
                 type_list = get_possible_types_from_node(args[0])
             else:
-                validate_expected_type(args[0], IntegerAbstractType())
+                validate_expected_type(args[0], IntegerT.any())
                 type_list = get_common_types(*args)
                 if not isinstance(args[0], vy_ast.Constant):
                     # range(x, x + CONSTANT)
@@ -355,7 +362,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                     # range(CONSTANT, CONSTANT)
                     if not isinstance(args[1], vy_ast.Int):
                         raise InvalidType("Value must be a literal integer", args[1])
-                    validate_expected_type(args[1], IntegerAbstractType())
+                    validate_expected_type(args[1], IntegerT.any())
                     if args[0].value >= args[1].value:
                         raise StructureException("Second value must be > first value", args[1])
 
@@ -454,7 +461,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             raise StructureException("Expressions without assignment are disallowed", node)
 
         fn_type = get_exact_type_from_node(node.value.func)
-        if isinstance(fn_type, Event):
+        if isinstance(fn_type, EventT):
             raise StructureException("To call an event you must use the `log` statement", node)
 
         if isinstance(fn_type, ContractFunction):
@@ -494,7 +501,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         if not isinstance(node.value, vy_ast.Call):
             raise StructureException("Log must call an event", node)
         event = get_exact_type_from_node(node.value.func)
-        if not isinstance(event, Event):
+        if not isinstance(event, EventT):
             raise StructureException("Value is not an event", node.value)
         event.fetch_call_return(node.value)
         self.expr_visitor.visit(node.value)

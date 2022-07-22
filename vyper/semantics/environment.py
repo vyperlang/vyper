@@ -1,7 +1,7 @@
 from typing import Dict
 
 from vyper.semantics.types.base import VarInfo, VyperType
-from vyper.semantics.types import StructT, AddressT, BytesM_T, BytesT, IntegerT 
+from vyper.semantics.types import StructT, AddressT, BytesM_T, BytesT, IntegerT
 from vyper.semantics.types.primitives import UINT256_T, BYTES32_T
 
 
@@ -17,18 +17,15 @@ class _Block(VyperType):
         "timestamp": UINT256_T,
     }
 
+
 class _Chain(VyperType):
     _id = "chain"
     _type_members = {"id": UINT256_T}
 
+
 class _Msg(VyperType):
     _id = "msg"
-    _type_members = {
-        "data": BytesT,
-        "gas": UINT256_T,
-        "sender": AddressT(),
-        "value": UINT256_T,
-    }
+    _type_members = {"data": BytesT, "gas": UINT256_T, "sender": AddressT(), "value": UINT256_T}
 
 
 class _Tx(VyperType):

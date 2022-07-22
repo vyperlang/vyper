@@ -10,9 +10,6 @@ def new_type_to_old_type(typ: new.VyperType) -> old.NodeType:
         return old.BaseType(typ._id)
     if isinstance(typ, new.InterfaceT):
         return old.InterfaceType(typ._id)
-    if isinstance(typ, new.BytesM_T):
-        m = typ._length  # type: ignore
-        return old.ByteArrayType(typ.length)
     if isinstance(typ, new.StringT):
         return old.StringType(typ.length)
     if isinstance(typ, new.SArrayT):

@@ -7,12 +7,7 @@ from vyper.codegen.expr import Expr
 from vyper.codegen.ir_node import IRnode
 from vyper.codegen.types.convert import new_type_to_old_type
 from vyper.exceptions import CompilerPanic, TypeMismatch
-from vyper.semantics.types import (
-    BytesT, StringT,
-    VyperType,
-    DataLocation,
-    StructT,
-)
+from vyper.semantics.types import VyperType
 from vyper.semantics.types.base import KwargSettings, TYPE_T
 from vyper.semantics.types.utils import type_from_annotation
 from vyper.semantics.validation.utils import get_exact_type_from_node, validate_expected_type
@@ -91,9 +86,9 @@ class BuiltinFunction:
         # TODO using "TYPE_DEFINITION" is a kludge in derived classes,
         # refactor me.
         if expected_type == "TYPE_DEFINITION":
-            # try to parse the type - call get_type_from_annotation
+            # try to parse the type - call type_from_annotation
             # for its side effects (will throw if is not a type)
-            get_type_from_annotation(arg, DataLocation.UNSET)
+            type_from_annotation(arg)
         else:
             validate_expected_type(arg, expected_type)
 

@@ -76,7 +76,7 @@ from vyper.semantics.types import (
     BytesM_T,
     DecimalT,
 )
-from vyper.semantics.types.base import DataLocation, VyperType, KwargSettings, TYPE_T
+from vyper.semantics.types.base import KwargSettings, TYPE_T
 from vyper.semantics.types.utils import type_from_annotation
 from vyper.semantics.validation.utils import (
     get_common_types,
@@ -258,11 +258,7 @@ def _build_adhoc_slice_node(sub: IRnode, start: IRnode, length: IRnode, context:
 class Slice(BuiltinFunction):
 
     _id = "slice"
-    _inputs = [
-        ("b", (BYTES32_T, BytesT(), StringT())),
-        ("start", UINT256_T),
-        ("length", UINT256_T),
-    ]
+    _inputs = [("b", (BYTES32_T, BytesT(), StringT())), ("start", UINT256_T), ("length", UINT256_T)]
     _return_type = None
 
     def fetch_call_return(self, node):
@@ -734,12 +730,7 @@ class MethodID(BuiltinFunction):
 class ECRecover(BuiltinFunction):
 
     _id = "ecrecover"
-    _inputs = [
-        ("hash", BYTES32_T),
-        ("v", UINT256_T),
-        ("r", UINT256_T),
-        ("s", UINT256_T),
-    ]
+    _inputs = [("hash", BYTES32_T), ("v", UINT256_T), ("r", UINT256_T), ("s", UINT256_T)]
     _return_type = AddressT()
 
     @process_inputs
@@ -781,10 +772,7 @@ def _getelem(arg, ind):
 class ECAdd(BuiltinFunction):
 
     _id = "ecadd"
-    _inputs = [
-        ("a", SArrayT(UINT256_T, 2)),
-        ("b", SArrayT(UINT256_T, 2)),
-    ]
+    _inputs = [("a", SArrayT(UINT256_T, 2)), ("b", SArrayT(UINT256_T, 2))]
     _return_type = SArrayT(UINT256_T, 2)
 
     @process_inputs
@@ -856,7 +844,7 @@ class Extract32(BuiltinFunction):
     _id = "extract32"
     _inputs = [("b", BytesT()), ("start", IntegerT.signeds())]
     # "TYPE_DEFINITION" is a placeholder value for a type definition string, and
-    # will be replaced by a `TypeT` object in `infer_kwarg_types`
+    # will be replaced by a `TYPE_T` object in `infer_kwarg_types`
     # (note that it is ignored in validate_args)
     _kwargs = {"output_type": KwargSettings("TYPE_DEFINITION", "bytes32")}
     _return_type = None
@@ -874,16 +862,14 @@ class Extract32(BuiltinFunction):
     def infer_kwarg_types(self, node):
         if node.keywords:
             output_type = type_from_annotation(node.keywords[0].value)
-            if not isinstance(
-                output_type, (AddressT, BytesM_T, IntegerT)
-            ):
+            if not isinstance(output_type, (AddressT, BytesM_T, IntegerT)):
                 raise InvalidType(
                     "Output type must be one of integer, bytes32 or address", node.keywords[0].value
                 )
-            output_typedef = TypeT(output_type)
+            output_typedef = TYPE_T(output_type)
             node.keywords[0].value._metadata["type"] = output_typedef
         else:
-            output_typedef = TypeT(BYTES32_T)
+            output_typedef = TYPE_T(BYTES32_T)
 
         return {"output_type": output_typedef}
 
@@ -1258,10 +1244,7 @@ class BlockHash(BuiltinFunction):
 class RawLog(BuiltinFunction):
 
     _id = "raw_log"
-    _inputs = [
-        ("topics", DArrayT(BYTES32_T, 4)),
-        ("data", (BYTES32_T, BytesT())),
-    ]
+    _inputs = [("topics", DArrayT(BYTES32_T, 4)), ("data", (BYTES32_T, BytesT()))]
 
     def fetch_call_return(self, node):
         self.infer_arg_types(node)
@@ -1922,9 +1905,7 @@ class _UnsafeMath(BuiltinFunction):
     def infer_arg_types(self, node):
         self._validate_arg_types(node)
 
-        types_list = get_common_types(
-            *node.args, filter_fn=lambda x: isinstance(x, IntegerT)
-        )
+        types_list = get_common_types(*node.args, filter_fn=lambda x: isinstance(x, IntegerT))
         if not types_list:
             raise TypeMismatch(f"unsafe_{self.op} called on dislike types", node)
 
@@ -2182,7 +2163,7 @@ class Empty(BuiltinFunction):
 
     _id = "empty"
     # "TYPE_DEFINITION" is a placeholder value for a type definition string, and
-    # will be replaced by a `TypeT` object in `infer_arg_types`
+    # will be replaced by a `TYPE_T` object in `infer_arg_types`
     # (note that it is ignored in `validate_args`)
     _inputs = [("typename", "TYPE_DEFINITION")]
 
@@ -2192,7 +2173,7 @@ class Empty(BuiltinFunction):
 
     def infer_arg_types(self, node):
         validate_call_args(node, 1)
-        input_typedef = TypeT( type_from_annotation(node.args[0]))
+        input_typedef = TYPE_T(type_from_annotation(node.args[0]))
         return [input_typedef]
 
     @process_inputs
@@ -2275,9 +2256,7 @@ class ABIEncode(BuiltinFunction):
 
     _kwargs = {
         "ensure_tuple": KwargSettings(BoolT(), True, require_literal=True),
-        "method_id": KwargSettings(
-            (BYTES4_T, BytesT(4)), None, require_literal=True
-        ),
+        "method_id": KwargSettings((BYTES4_T, BytesT(4)), None, require_literal=True),
     }
 
     def infer_kwarg_types(self, node):
@@ -2391,7 +2370,7 @@ class ABIDecode(BuiltinFunction):
         validate_call_args(node, 2, ["unwrap_tuple"])
 
         data_type = get_exact_type_from_node(node.args[0])
-        output_typedef = TypeT( type_from_annotation(node.args[1]))
+        output_typedef = TYPE_T(type_from_annotation(node.args[1]))
 
         return [data_type, output_typedef]
 

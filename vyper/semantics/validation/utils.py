@@ -20,10 +20,7 @@ from vyper.semantics import types
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.base import VyperType
 from vyper.semantics.types.primitives import IntegerT, BoolT
-from vyper.semantics.types.subscriptable import (
-    SArrayT,
-    DArrayT,
-)
+from vyper.semantics.types.subscriptable import SArrayT, DArrayT, TupleT
 from vyper.semantics.validation.levenshtein_utils import get_levenshtein_error_suggestions
 
 

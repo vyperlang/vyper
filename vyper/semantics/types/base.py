@@ -1,5 +1,3 @@
-import copy
-from collections import OrderedDict
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple, Type, Union
 
@@ -130,12 +128,10 @@ class VyperType:
     def getter_signature(self):
         return (), self
 
-
     # TODO not sure if this is a great idea.
     @classmethod
     def any(cls):
         return _GenericTypeAcceptor(cls)
-
 
     @property
     def abi_type(self) -> ABIType:
@@ -167,7 +163,6 @@ class VyperType:
           allowed there.
         """
         return {"name": name, "type": self.canonical_abi_type}
-
 
     def validate_literal(self, node: vy_ast.Constant) -> None:
         """
@@ -206,7 +201,7 @@ class VyperType:
         return isinstance(other, cls)
 
     @classmethod
-    def fetch_call_return(self, node: vy_ast.Call) -> "BaseTypeDefinition":
+    def fetch_call_return(self, node: vy_ast.Call) -> "VyperType":
         """
         Validate a call to this type and return the result.
 
@@ -220,7 +215,7 @@ class VyperType:
 
         Returns
         -------
-        BaseTypeDefinition, optional
+        VyperType, optional
             Type generated as a result of the call.
         """
         raise StructureException("Type is not callable", node)
@@ -237,12 +232,14 @@ class VyperType:
 
         Returns
         -------
-        BaseTypeDefinition
+        VyperType
             Type object for value at the given index.
         """
         raise StructureException(f"'{self}' cannot be indexed into", node)
 
-    def add_member(self, name: str, type_: "VyperType", skip_namespace_validation: bool = False) -> None:
+    def add_member(
+        self, name: str, type_: "VyperType", skip_namespace_validation: bool = False
+    ) -> None:
         # skip_namespace_validation provides a way of bypassing validate_identifier, which
         # introduces a dependency cycle with the builtin_functions module
         if not skip_namespace_validation:
@@ -389,25 +386,6 @@ class VarInfo:
         """
         raise StructureException("Value is not an interface", node)
 
-    def fetch_call_return(self, node: vy_ast.Call) -> Union["BaseTypeDefinition", None]:
-        """
-        Validate a call to this value and return the result.
-
-        This method must raise if the value is not callable, or the call arguments
-        are not valid.
-
-        Arguments
-        ---------
-        node : Call
-            Vyper ast node of call action to validate.
-
-        Returns
-        -------
-        BaseTypeDefinition, optional
-            Type generated as a result of the call.
-        """
-        raise StructureException("Value is not callable", node)
-
     def infer_arg_types(self, node: vy_ast.Call) -> List[Optional["VyperType"]]:
         """
         Performs the necessary type inference and returns the call's arguments' types.
@@ -438,8 +416,7 @@ class VarInfo:
         """
         raise StructureException(f"Type '{self}' does not support indexing", node)
 
-    # TODO
-    def compare_signature(self, other: "BaseTypeDefinition") -> bool:
+    def compare_signature(self, other: "VyperType") -> bool:
         """
         Compare the signature of this type with another type.
 
@@ -468,13 +445,13 @@ class ExprAnalysis:
     """
     Class which represents the analysis associated with an expression
     """
+
     def __init__(self, typ, var_info):
         self.typ: VyperType = typ
         self.var_info: Optional[VarInfo] = var_info
 
         if var_info is not None and var_info.typ != self.typ:
             raise CompilerPanic("Bad analysis: non-matching types {var_info.typ} / {self.typ}")
-
 
     @classmethod
     def from_annotation(
@@ -484,9 +461,9 @@ class ExprAnalysis:
         is_constant: bool = False,
         is_public: bool = False,
         is_immutable: bool = False,
-    ) -> "BaseTypeDefinition":
+    ) -> "VarInfo":
         """
-        Generate a `BaseTypeDefinition` instance of this type from `VariableDef.annotation`
+        Generate a `VarInfo` instance of this type from `VariableDef.annotation`
         or `AnnAssign.annotation`
 
         Arguments
@@ -506,9 +483,7 @@ class ExprAnalysis:
         return cls.from_annotation(node)
 
     def validate_modification(
-        self,
-        mutability: Any, # should be StateMutability, import cycle
-        node: vy_ast.VyperNode,
+        self, mutability: Any, node: vy_ast.VyperNode  # should be StateMutability, import cycle
     ) -> None:
         """
         Validate an attempt to modify this value.
@@ -545,6 +520,7 @@ class ExprAnalysis:
 
         if isinstance(node, vy_ast.AugAssign):
             self.var_info.typ.validate_numeric_op(node)
+
 
 class KwargSettings:
     # convenience class which holds metadata about how to process kwargs.

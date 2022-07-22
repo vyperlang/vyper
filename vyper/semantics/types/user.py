@@ -17,7 +17,7 @@ from vyper.semantics.validation.utils import validate_unique_method_ids
 
 
 class EnumT(VyperType):
-    def __init__( self, name: str, members: dict) -> None:
+    def __init__(self, name: str, members: dict) -> None:
         if len(members.keys()) > 256:
             raise EnumDeclarationException("Enums are limited to 256 members!")
 
@@ -27,7 +27,6 @@ class EnumT(VyperType):
     def __repr__(self):
         arg_types = ",".join(repr(a) for a in self.members)
         return f"enum {self.name}({arg_types})"
-
 
     @property
     def abi_type(self):
@@ -48,9 +47,8 @@ class EnumT(VyperType):
         # fallback to parent class error message
         super().validate_comparator(node)
 
-
-    #@property
-    #def signature(self):
+    # @property
+    # def signature(self):
     #    return f"{self.name}({','.join(v.canonical_abi_type for v in self.arguments)})"
 
     @classmethod
@@ -95,6 +93,7 @@ class EnumT(VyperType):
             return self.from_annotation(node.value)
         suggestions_str = get_levenshtein_error_suggestions(key, self.members, 0.3)
         raise UnknownAttribute(f"{self} has no member '{key}'. {suggestions_str}", node)
+
 
 class EventT:
     """
@@ -217,13 +216,14 @@ class EventT:
             }
         ]
 
+
 class InterfaceT(VyperType):
 
     _type_members = {"address": AddressT()}
     _is_callable = True
     _as_array = True
 
-    def __init__( self, _id: str, members: dict, events: dict) -> None:
+    def __init__(self, _id: str, members: dict, events: dict) -> None:
         validate_unique_method_ids(members.values())
         super().__init__(members)
 
@@ -236,7 +236,6 @@ class InterfaceT(VyperType):
     @property
     def abi_type(self) -> ABIType:
         return ABI_Address()
-
 
     def __repr__(self):
         return f"{self._id} declaration"
@@ -288,7 +287,6 @@ class InterfaceT(VyperType):
             abi += func.to_abi_dict()
         return abi
 
-
     @classmethod
     def from_json_abi(name: str, abi: dict) -> "InterfaceT":
         """
@@ -324,10 +322,9 @@ class InterfaceT(VyperType):
 
         return cls(name, members, events)
 
-
     # TODO: split me into from_InterfaceDef and from_Module
     @classmethod
-    def from_ast( cls, node: Union[vy_ast.InterfaceDef, vy_ast.Module]) -> "InterfaceType":
+    def from_ast(cls, node: Union[vy_ast.InterfaceDef, vy_ast.Module]) -> "InterfaceType":
         """
         Generate an `InterfacePrimitive` object from a Vyper ast node.
 
@@ -409,13 +406,12 @@ class StructT(VyperType):
     _is_callable = True
     _as_array = True
 
-    def __init__(self, _id, members, ast_def = None):
+    def __init__(self, _id, members, ast_def=None):
         super().__init__(members)
 
         self._id = _id
 
         self.ast_def = ast_def
-
 
     @classmethod
     def from_ast_def(cls, base_node: vy_ast.StructDef) -> "StructT":

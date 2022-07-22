@@ -237,7 +237,7 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
             raise exc.with_annotation(node) from None
 
     def visit_EventDef(self, node):
-        obj = Event.from_EventDef(node)
+        obj = EventT.from_EventDef(node)
         try:
             self.namespace[node.name] = obj
         except VyperException as exc:

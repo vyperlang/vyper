@@ -1,7 +1,15 @@
 # primitive types which occupy one word, like ints and addresses
 
 from vyper import ast as vy_ast
-from vyper.abi_types import ABI_Address, ABIType, ABI_Address, ABI_GIntM, ABI_Bool, ABI_BytesM, ABI_FixedMxN
+from vyper.abi_types import (
+    ABI_Address,
+    ABIType,
+    ABI_Address,
+    ABI_GIntM,
+    ABI_Bool,
+    ABI_BytesM,
+    ABI_FixedMxN,
+)
 from vyper.exceptions import InvalidLiteral
 from vyper.utils import checksum_encode, is_checksum_encoded, SizeLimits
 
@@ -10,8 +18,10 @@ from typing import Union, Tuple, List
 from .base import VyperType
 from .bytestrings import BytesT
 
+
 class _PrimT(VyperType):
     _is_prim_word = True
+
 
 class BoolT(_PrimT):
     _id = "bool"
@@ -84,6 +94,7 @@ class IntegerT(_PrimT):
     is_signed : bool
         Is the value signed?
     """
+
     _valid_literal = (vy_ast.Int,)
 
     def __init__(self, is_signed, bits):

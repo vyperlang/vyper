@@ -50,7 +50,7 @@ class GlobalContext:
                 continue
 
             elif isinstance(item, vy_ast.EnumDef):
-                global_ctx._enums[item.name] = EnumPrimitive.from_EnumDef(item)
+                global_ctx._enums[item.name] = EnumT.from_EnumDef(item)
 
             # Statements of the form:
             # variable_name: type

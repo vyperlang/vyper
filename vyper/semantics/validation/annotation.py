@@ -90,7 +90,7 @@ class StatementAnnotationVisitor(_AnnotationVisitorBase):
         if isinstance(node.iter, vy_ast.List):
             value_type = get_common_types(*node.iter.elements).pop()
             len_ = len(node.iter.elements)
-            self.expr_visitor.visit(node.iter, ArrayDefinition(value_type, len_))
+            self.expr_visitor.visit(node.iter, SArrayT(value_type, len_))
 
         if isinstance(node.iter, vy_ast.Call) and node.iter.func.id == "range":
             iter_type = node.target._metadata["type"]
@@ -170,11 +170,11 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
                 type_ = get_common_types(node.left, *node.right.elements).pop()
                 self.visit(node.left, type_)
                 rlen = len(node.right.elements)
-                self.visit(node.right, ArrayDefinition(type_, rlen))
+                self.visit(node.right, SArrayT(type_, rlen))
             else:
                 type_ = get_exact_type_from_node(node.right)
                 self.visit(node.right, type_)
-                if isinstance(type_, EnumDefinition):
+                if isinstance(type_, EnumT):
                     self.visit(node.left, type_)
                 else:
                     # array membership
