@@ -284,7 +284,7 @@ This is an M-byte-wide byte array that is otherwise similar to dynamically sized
     # Assignment
     self.hash = _hash
 
-    some_method_id: bytes4 = 0x01abcdefab
+    some_method_id: bytes4 = 0x01abcdef
 
 Operators
 *********
