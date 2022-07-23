@@ -88,67 +88,39 @@ def dynarray_data_ptr(ptr):
     return add_ofst(ptr, ptr.location.word_scale)
 
 
-def _dynarray_make_setter(dst, src, extend_dst=False):
+def _dynarray_make_setter(dst, src, store_length=True):
     assert isinstance(src.typ, DArrayType)
     assert isinstance(dst.typ, DArrayType)
 
-    with dst.cache_when_complex("darray_dst") as (b1, dst), src.cache_when_complex(
-        "darray_src"
-    ) as (b2, src):
+    if src.value == "~empty":
+        if store_length is True:
+            return IRnode.from_list(STORE(dst, 0))
+        return
 
-        dst_len = get_dyn_array_count(dst)
-        src_len = get_dyn_array_count(src)
-        max_dst_len = dst.typ.count
+    if src.value == "multi":
+        ret = ["seq"]
+        # handle literals
 
-        if extend_dst is True:
-            combined_len = IRnode.from_list(["add", dst_len, src_len], typ="uint256")
+        # write the length word
+        if store_length is True:
+            new_len = len(src.args)
+            store_length = STORE(dst, new_len)
+            ann = None
+            if src.annotation is not None:
+                ann = f"len({src.annotation})"
+            store_length = IRnode.from_list(store_length, annotation=ann)
+            ret.append(store_length)
 
-            # Store updated length
-            store_length = IRnode.from_list(STORE(dst, combined_len))
+        n_items = len(src.args)
+        for i in range(n_items):
+            k = IRnode.from_list(i, typ="uint256")
+            dst_i = get_element_ptr(dst, k, array_bounds_check=False)
+            src_i = get_element_ptr(src, k, array_bounds_check=False)
+            ret.append(make_setter(dst_i, src_i))
 
-            # Assert that `src_len + dst_len` <= maxlen(dst)`
-            within_maxlen_assertion = IRnode.from_list(
-                ["assert", ["le", combined_len, max_dst_len]]
-            )
+        return ret
 
-        if src.value == "~empty":
-            if extend_dst is True:
-                ret = IRnode.from_list(["seq", within_maxlen_assertion, store_length])
-            else:
-                ret = IRnode.from_list(STORE(dst, 0))
-
-            return b1.resolve(ret)
-
-        if src.value == "multi":
-            ret = ["seq"]
-            # handle literals
-
-            # write the length word
-            if extend_dst is True:
-                ret.append(within_maxlen_assertion)
-                ret.append(store_length)
-            else:
-                new_len = len(src.args)
-                store_length = STORE(dst, new_len)
-                ann = None
-                if src.annotation is not None:
-                    ann = f"len({src.annotation})"
-                store_length = IRnode.from_list(store_length, annotation=ann)
-                ret.append(store_length)
-
-            n_items = len(src.args)
-            for i in range(n_items):
-                k = IRnode.from_list(i, typ="uint256")
-                if extend_dst is True:
-                    dst_idx = IRnode.from_list(["add", k, dst_len], typ="uint256")
-                    dst_i = get_element_ptr(dst, dst_idx, array_bounds_check=False)
-                else:
-                    dst_i = get_element_ptr(dst, k, array_bounds_check=False)
-
-                src_i = get_element_ptr(src, k, array_bounds_check=False)
-                ret.append(make_setter(dst_i, src_i))
-
-            return b1.resolve(b2.resolve(ret))
+    with src.cache_when_complex("darray_src") as (b1, src):
 
         # for ABI-encoded dynamic data, we must loop to unpack, since
         # the layout does not match our memory layout
@@ -167,49 +139,34 @@ def _dynarray_make_setter(dst, src, extend_dst=False):
         # OR array_size <= /bound where loop is cheaper than memcpy/
         should_loop |= src.typ.subtype.abi_type.is_dynamic()
 
-        with dst_len.cache_when_complex("dst_darray_len") as (
-            b3,
-            dst_len,
-        ), src_len.cache_when_complex("src_darray_len") as (b4, src_len):
+        with get_dyn_array_count(src).cache_when_complex("darray_count") as (b2, count):
             ret = ["seq"]
 
-            if extend_dst is True:
-                ret.append(within_maxlen_assertion)
-                ret.append(store_length)
-            else:
-                ret.append(STORE(dst, src_len))
+            if store_length is True:
+                ret.append(STORE(dst, count))
 
             if should_loop:
                 i = IRnode.from_list(_freshname("copy_darray_ix"), typ="uint256")
 
-                if extend_dst is True:
-                    dst_idx = IRnode.from_list(["add", i, dst_len], typ="uint256")
-                    dst_ = get_element_ptr(dst, dst_idx, array_bounds_check=False)
-                else:
-                    dst_ = get_element_ptr(dst, i, array_bounds_check=False)
+                loop_body = make_setter(
+                    get_element_ptr(dst, i, array_bounds_check=False),
+                    get_element_ptr(src, i, array_bounds_check=False),
+                )
+                loop_body.annotation = f"{dst}[i] = {src}[i]"
 
-                loop_body = make_setter(dst_, get_element_ptr(src, i, array_bounds_check=False))
-
-                if extend_dst is False:
-                    loop_body.annotation = f"{dst}[i] = {src}[i]"
-
-                ret.append(["repeat", i, 0, src_len, src.typ.count, loop_body])
+                ret.append(["repeat", i, 0, count, src.typ.count, loop_body])
 
             else:
                 element_size = src.typ.subtype.memory_bytes_required
                 # number of elements * size of element in bytes
-                n_bytes = _mul(src_len, element_size)
+                n_bytes = _mul(count, element_size)
                 max_bytes = src.typ.count * element_size
 
                 src_ = dynarray_data_ptr(src)
-                if extend_dst is True:
-                    dst_ = get_element_ptr(dst, dst_len, array_bounds_check=False)
-                else:
-                    dst_ = dynarray_data_ptr(dst)
-
+                dst_ = dynarray_data_ptr(dst)
                 ret.append(copy_bytes(dst_, src_, n_bytes, max_bytes))
 
-            return b1.resolve(b2.resolve(b3.resolve(b4.resolve((ret)))))
+            return b1.resolve(b2.resolve(ret))
 
 
 # Copy bytes
@@ -338,13 +295,49 @@ def append_dyn_array(darray_node, elem_node):
             return IRnode.from_list(b1.resolve(b2.resolve(ret)))
 
 
-def extend_dyn_array(context, dst_darray_node, src_darray_node):
-    assert isinstance(dst_darray_node.typ, DArrayType)
-    assert isinstance(src_darray_node.typ, DArrayType)
+def extend_dyn_array(context, dst, src):
+    assert isinstance(dst.typ, DArrayType)
+    assert isinstance(src.typ, DArrayType)
 
-    return IRnode.from_list(
-        _dynarray_make_setter(dst_darray_node, src_darray_node, extend_dst=True)
-    )
+    ret = ["seq"]
+
+    with dst.cache_when_complex("darray_dst") as (b1, dst), src.cache_when_complex(
+        "darray_src"
+    ) as (b2, src):
+
+        dst_len = get_dyn_array_count(dst)
+        src_len = get_dyn_array_count(src)
+        max_dst_len = dst.typ.count
+
+        with dst_len.cache_when_complex("dst_darray_len") as (
+            b3,
+            dst_len,
+        ), src_len.cache_when_complex("src_darray_len") as (b4, src_len):
+
+            combined_len = IRnode.from_list(["add", dst_len, src_len], typ="uint256")
+
+            # Assert that `src_len + dst_len` <= maxlen(dst)`
+            within_maxlen_assertion = IRnode.from_list(
+                ["assert", ["le", combined_len, max_dst_len]]
+            )
+            ret.append(within_maxlen_assertion)
+
+            # Store updated length
+            store_length = IRnode.from_list(STORE(dst, combined_len))
+            ret.append(store_length)
+
+            # Get start pointer of dst_darray
+            dst_start_idx = get_element_ptr(dst, dst_len, array_bounds_check=False)
+
+            # Cast the pointer as darray by subtracting offset of 32
+            dst_i = IRnode.from_list(["sub", dst_start_idx, dst.location.word_scale])
+            dst_i.typ = dst.typ
+            dst_i.location = dst.location
+
+            body = IRnode.from_list(_dynarray_make_setter(dst_i, src, store_length=False))
+            ret.append(body)
+
+        return IRnode.from_list(b1.resolve(b2.resolve(b3.resolve(b4.resolve(ret)))))
 
 
 def pop_dyn_array(darray_node, return_popped_item):
