@@ -598,8 +598,6 @@ class Module(TopLevel):
         None
         """
         parent = old_node._parent
-        if old_node not in self.get_descendants(type(old_node)):
-            raise CompilerPanic("Node to be replaced does not exist within the tree")
 
         if old_node not in parent._children:
             raise CompilerPanic("Node to be replaced does not exist within parent children")
