@@ -301,19 +301,12 @@ def extend_dyn_array(context, dst, src):
 
     ret = ["seq"]
 
-    with dst.cache_when_complex("darray_dst") as (b1, dst), src.cache_when_complex(
-        "darray_src"
-    ) as (b2, src):
-
+    with dst.cache_when_complex("darray_dst") as (b1, dst):
         dst_len = get_dyn_array_count(dst)
-        src_len = get_dyn_array_count(src)
-        max_dst_len = dst.typ.count
 
-        with dst_len.cache_when_complex("dst_darray_len") as (
-            b3,
-            dst_len,
-        ), src_len.cache_when_complex("src_darray_len") as (b4, src_len):
-
+        with dst_len.cache_when_complex("dst_darray_len") as (b2, dst_len):
+            src_len = get_dyn_array_count(src)
+            max_dst_len = dst.typ.count
             combined_len = IRnode.from_list(["add", dst_len, src_len], typ="uint256")
 
             # Assert that `src_len + dst_len` <= maxlen(dst)`
@@ -326,10 +319,10 @@ def extend_dyn_array(context, dst, src):
             store_length = IRnode.from_list(STORE(dst, combined_len))
             ret.append(store_length)
 
-            # Get start pointer of dst_darray
+            # Get start pointer of dst
             dst_start_idx = get_element_ptr(dst, dst_len, array_bounds_check=False)
 
-            # Cast the pointer as darray by subtracting offset of 32
+            # Cast dst start pointer as darray for `_dynarray_make_setter` by subtracting offset
             dst_i = IRnode.from_list(["sub", dst_start_idx, dst.location.word_scale])
             dst_i.typ = dst.typ
             dst_i.location = dst.location
@@ -337,7 +330,7 @@ def extend_dyn_array(context, dst, src):
             body = IRnode.from_list(_dynarray_make_setter(dst_i, src, store_length=False))
             ret.append(body)
 
-        return IRnode.from_list(b1.resolve(b2.resolve(b3.resolve(b4.resolve(ret)))))
+            return IRnode.from_list(b1.resolve(b2.resolve(ret)))
 
 
 def pop_dyn_array(darray_node, return_popped_item):
