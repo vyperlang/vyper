@@ -1,12 +1,12 @@
 import binascii
+import contextlib
 import decimal
+import functools
 import sys
+import time
 import traceback
 import warnings
 from typing import List, Union
-import functools
-import time
-import contextlib
 
 from vyper.exceptions import DecimalOverrideException, InvalidLiteral
 
@@ -347,8 +347,9 @@ def timeit(func):
         result = func(*args, **kwargs)
         end_time = time.perf_counter()
         total_time = end_time - start_time
-        print(f'Function {func.__name__} Took {total_time:.4f} seconds')
+        print(f"Function {func.__name__} Took {total_time:.4f} seconds")
         return result
+
     return timeit_wrapper
 
 
