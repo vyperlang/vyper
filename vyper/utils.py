@@ -4,6 +4,9 @@ import sys
 import traceback
 import warnings
 from typing import List, Union
+import functools
+import time
+import contextlib
 
 from vyper.exceptions import DecimalOverrideException, InvalidLiteral
 
@@ -335,6 +338,26 @@ def indent(text: str, indent_chars: Union[str, List[str]] = " ", level: int = 1)
         raise ValueError("Unrecognized indentation characters value")
 
     return "".join(indented_lines)
+
+
+def timeit(func):
+    @functools.wraps(func)
+    def timeit_wrapper(*args, **kwargs):
+        start_time = time.perf_counter()
+        result = func(*args, **kwargs)
+        end_time = time.perf_counter()
+        total_time = end_time - start_time
+        print(f'Function {func.__name__} Took {total_time:.4f} seconds')
+        return result
+    return timeit_wrapper
+
+
+@contextlib.contextmanager
+def timer(msg):
+    t0 = time.time()
+    yield
+    t1 = time.time()
+    print(f"{msg} took {t1 - t0}s")
 
 
 def annotate_source_code(
