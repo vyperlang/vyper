@@ -188,10 +188,7 @@ def _dynarray_make_setter(dst, src, extend_dst=False):
                 else:
                     dst_ = get_element_ptr(dst, i, array_bounds_check=False)
 
-                loop_body = make_setter(
-                    dst_,
-                    get_element_ptr(src, i, array_bounds_check=False),
-                )
+                loop_body = make_setter(dst_, get_element_ptr(src, i, array_bounds_check=False))
 
                 if extend_dst is False:
                     loop_body.annotation = f"{dst}[i] = {src}[i]"
