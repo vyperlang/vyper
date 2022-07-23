@@ -494,6 +494,14 @@ Dynamic arrays represent bounded arrays whose length can be modified at runtime,
     exampleList.append(120)  # exampleList now has length 2
     exampleList.append(356)  # exampleList now has length 3
     # exampleList.append(1)  # would revert!
+    anotherList: DynArray[int128, 3] = []
+    anotherList.extend(exampleList)  # anotherList now has length 3
+    longerList: DynArray[int128, 5] = [1]
+    longerList.extend(exampleList)  # longerList now has length 4
+    failList: DynArray[int128, 3] = [1]
+    failList.extend(exampleList)  # would revert because max length of failList is exceeded!
+    shortList: DynArray[int128, 2] = []
+    shortList.extend(exampleList)  # will not compile!
 
     myValue: int128 = exampleList.pop()  # myValue == 356, exampleList now has length 2
 
