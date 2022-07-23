@@ -588,8 +588,7 @@ class Module(TopLevel):
         Parameters
         ----------
         old_node : VyperNode
-            Node object to be replaced. If the node does not currently exist
-            within the AST, a `CompilerPanic` is raised.
+            Node object to be replaced.
         new_node : VyperNode
             Node object to replace new_node.
 
