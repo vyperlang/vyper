@@ -18,8 +18,6 @@ class _SubscriptableT(VyperType):
         Type representing the index for this object.
     value_type : VyperType
         Type representing the value(s) contained in this object.
-    _id : str
-        Name of the type.
     """
 
     def __init__(self, key_type: VyperType, value_type: VyperType) -> None:

@@ -2,6 +2,7 @@ from typing import Dict, List, Tuple, Union
 
 from vyper import ast as vy_ast
 from vyper.abi_types import ABI_Address, ABI_GIntM, ABI_Tuple, ABIType
+from vyper.ast.validation import validate_call_args
 from vyper.exceptions import (
     EnumDeclarationException,
     EventDeclarationException,
@@ -13,22 +14,13 @@ from vyper.exceptions import (
     VariableDeclarationException,
 )
 from vyper.semantics.namespace import get_namespace, validate_identifier
-from vyper.semantics.types.base import DataLocation, VyperType
+from vyper.semantics.types.base import VyperType
 from vyper.semantics.types.function import ContractFunction
 from vyper.semantics.types.primitives import AddressT
 from vyper.semantics.types.subscriptable import HashMapT
+from vyper.semantics.types.utils import type_from_abi, type_from_annotation
 from vyper.semantics.validation.levenshtein_utils import get_levenshtein_error_suggestions
-from vyper.semantics.types.utils import (
-    type_from_abi,
-    type_from_annotation,
-)
-from vyper.ast.validation import (
-    validate_call_args,
-)
-from vyper.semantics.validation.utils import (
-    validate_expected_type,
-    validate_unique_method_ids,
-)
+from vyper.semantics.validation.utils import validate_expected_type, validate_unique_method_ids
 from vyper.utils import keccak256
 
 

@@ -499,6 +499,7 @@ def validate_unique_method_ids(functions: List) -> None:
         collision_str = ", ".join(i.name for i in functions if collision in i.method_ids)
         raise StructureException(f"Methods have conflicting IDs: {collision_str}")
 
+
 def check_kwargable(node: vy_ast.VyperNode) -> bool:
     """
     Check if the given node can be used as a default arg
@@ -511,10 +512,11 @@ def check_kwargable(node: vy_ast.VyperNode) -> bool:
         args = node.args
         if len(args) == 1 and isinstance(args[0], vy_ast.Dict):
             return all(check_kwargable(v) for v in args[0].values)
- 
+
     value_type = get_exact_type_from_node(node)
     # is_constant here actually means not_assignable, and is to be renamed
-    return getattr(value_type, "is_constant", False) 
+    return getattr(value_type, "is_constant", False)
+
 
 def _check_literal(node: vy_ast.VyperNode) -> bool:
     """

@@ -14,7 +14,7 @@ from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.base import VyperType
 from vyper.semantics.types.subscriptable import SArrayT, TupleT
 from vyper.semantics.validation.levenshtein_utils import get_levenshtein_error_suggestions
-from vyper.semantics.validation.utils import get_exact_type_from_node, get_index_value
+from vyper.semantics.validation.utils import get_index_value
 
 
 class StringEnum(enum.Enum):

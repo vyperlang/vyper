@@ -83,6 +83,9 @@ class CodeOffset(DataPosition):
 # Some fake type with an overridden `compare_type` which accepts any RHS
 # type of type `type_`
 class _GenericTypeAcceptor:
+    def __repr__(self):
+        return repr(self.type_)
+
     def __init__(self, type_):
         self.type_ = type_
 

@@ -428,7 +428,7 @@ class Slice(BuiltinFunction):
 class Len(BuiltinFunction):
 
     _id = "len"
-    _inputs = [("b", (BytesT(), DArrayT.any()))]
+    _inputs = [("b", (BytesT.any(), DArrayT.any()))]
     _return_type = UINT256_T
 
     def evaluate(self, node):
