@@ -21,11 +21,10 @@ from vyper.semantics.types.primitives import UINT256_T, BoolT
 from vyper.semantics.types.subscriptable import TupleT
 from vyper.semantics.types.utils import (
     StringEnum,
-    check_kwargable,
     type_from_abi,
     type_from_annotation,
 )
-from vyper.semantics.validation.utils import validate_expected_type
+from vyper.semantics.validation.utils import validate_expected_type, check_kwargable
 from vyper.utils import keccak256
 
 

@@ -18,10 +18,14 @@ from vyper.semantics.types.function import ContractFunction
 from vyper.semantics.types.primitives import AddressT
 from vyper.semantics.types.subscriptable import HashMapT
 from vyper.semantics.validation.levenshtein_utils import get_levenshtein_error_suggestions
-from vyper.semantics.validation.utils import (
+from vyper.semantics.types.utils import (
     type_from_abi,
     type_from_annotation,
+)
+from vyper.ast.validation import (
     validate_call_args,
+)
+from vyper.semantics.validation.utils import (
     validate_expected_type,
     validate_unique_method_ids,
 )
@@ -206,7 +210,7 @@ class EventT:
             else:
                 indexed.append(False)
 
-            members[member_name] = type_from_annotation(annotation, DataLocation.UNSET)
+            members[member_name] = type_from_annotation(annotation)
 
         return cls(base_node.name, members, indexed)
 

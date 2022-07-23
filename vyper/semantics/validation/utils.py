@@ -310,7 +310,7 @@ def get_possible_types_from_node(node):
     List
         List of one or more BaseType objects.
     """
-    return _ExprTypeChecker().get_possible_types_from_node(node, False)
+    return _ExprTypeChecker().get_possible_types_from_node(node)
 
 
 def get_exact_type_from_node(node):
@@ -498,3 +498,46 @@ def validate_unique_method_ids(functions: List) -> None:
     if collision:
         collision_str = ", ".join(i.name for i in functions if collision in i.method_ids)
         raise StructureException(f"Methods have conflicting IDs: {collision_str}")
+
+def check_kwargable(node: vy_ast.VyperNode) -> bool:
+    """
+    Check if the given node can be used as a default arg
+    """
+    if _check_literal(node):
+        return True
+    if isinstance(node, (vy_ast.Tuple, vy_ast.List)):
+        return all(check_kwargable(item) for item in node.elements)
+    if isinstance(node, vy_ast.Call):
+        args = node.args
+        if len(args) == 1 and isinstance(args[0], vy_ast.Dict):
+            return all(check_kwargable(v) for v in args[0].values)
+ 
+    value_type = get_exact_type_from_node(node)
+    # is_constant here actually means not_assignable, and is to be renamed
+    return getattr(value_type, "is_constant", False) 
+
+def _check_literal(node: vy_ast.VyperNode) -> bool:
+    """
+    Check if the given node is a literal value.
+    """
+    if isinstance(node, vy_ast.Constant):
+        return True
+    elif isinstance(node, (vy_ast.Tuple, vy_ast.List)):
+        return all(_check_literal(item) for item in node.elements)
+    return False
+
+
+def check_constant(node: vy_ast.VyperNode) -> bool:
+    """
+    Check if the given node is a literal or constant value.
+    """
+    if _check_literal(node):
+        return True
+    if isinstance(node, (vy_ast.Tuple, vy_ast.List)):
+        return all(check_constant(item) for item in node.elements)
+    if isinstance(node, vy_ast.Call):
+        args = node.args
+        if len(args) == 1 and isinstance(args[0], vy_ast.Dict):
+            return all(check_constant(v) for v in args[0].values)
+
+    return False
