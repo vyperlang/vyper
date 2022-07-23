@@ -92,7 +92,9 @@ def _dynarray_make_setter(dst, src, extend_dst=False):
     assert isinstance(src.typ, DArrayType)
     assert isinstance(dst.typ, DArrayType)
 
-    with dst.cache_when_complex("darray_dst") as (b1, dst), src.cache_when_complex("darray_src") as (b2, src):
+    with dst.cache_when_complex("darray_dst") as (b1, dst), src.cache_when_complex(
+        "darray_src"
+    ) as (b2, src):
 
         dst_len = get_dyn_array_count(dst)
         src_len = get_dyn_array_count(src)
@@ -105,7 +107,9 @@ def _dynarray_make_setter(dst, src, extend_dst=False):
             store_length = IRnode.from_list(STORE(dst, combined_len))
 
             # Assert that `src_len + dst_len` <= maxlen(dst)`
-            within_maxlen_assertion = IRnode.from_list(["assert", ["le", combined_len, max_dst_len]])
+            within_maxlen_assertion = IRnode.from_list(
+                ["assert", ["le", combined_len, max_dst_len]]
+            )
 
         if src.value == "~empty":
             if extend_dst is True:
@@ -341,7 +345,9 @@ def extend_dyn_array(context, dst_darray_node, src_darray_node):
     assert isinstance(dst_darray_node.typ, DArrayType)
     assert isinstance(src_darray_node.typ, DArrayType)
 
-    return IRnode.from_list(_dynarray_make_setter(dst_darray_node, src_darray_node, extend_dst=True))
+    return IRnode.from_list(
+        _dynarray_make_setter(dst_darray_node, src_darray_node, extend_dst=True)
+    )
 
 
 def pop_dyn_array(darray_node, return_popped_item):
