@@ -1,4 +1,3 @@
-import copy
 from typing import Union
 
 from vyper.ast import nodes as vy_ast
@@ -286,7 +285,7 @@ def replace_constant(
                 continue
 
         try:
-            replacement_node = copy.copy(replacement_node)
+            replacement_node = replacement_node
             new_node = _replace(node, replacement_node, type_=type_)
         except UnfoldableNode:
             if raise_on_error:
