@@ -80,6 +80,7 @@ def generate_public_variable_getters(vyper_module: vy_ast.Module) -> None:
             returns=return_node,
         )
         expanded._metadata["type"] = func_type
+        return_node.set_parent(expanded)
         vyper_module.add_to_body(expanded)
 
 

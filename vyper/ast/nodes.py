@@ -248,8 +248,7 @@ class VyperNode:
         **kwargs : dict
             Dictionary of fields to be included within the node.
         """
-        self._parent = parent
-        self._depth = getattr(parent, "_depth", -1) + 1
+        self.set_parent(parent)
         self._children: set = set()
         self._metadata: dict = {}
 
@@ -285,6 +284,11 @@ class VyperNode:
         if parent is not None:
             parent._children.add(self)
 
+    # set parent, can be useful when inserting copied nodes into the AST
+    def set_parent(self, parent: "VyperNode"):
+        self._parent = parent
+        self._depth = getattr(parent, "_depth", -1) + 1
+ 
     @classmethod
     def from_node(cls, node: "VyperNode", **kwargs) -> "VyperNode":
         """
