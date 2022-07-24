@@ -67,10 +67,6 @@ def generate_public_variable_getters(vyper_module: vy_ast.Module) -> None:
 
         # after iterating the input types, the remaining annotation node is our return type
         return_node = annotation
-        if isinstance(return_node, vy_ast.Name) and return_node.id != return_type._id:
-            # special case when the return type is an interface
-            # TODO allow interfaces as return types and remove this
-            return_node.id = return_type._id
 
         # join everything together as a new `FunctionDef` node, annotate it
         # with the type, and append it to the existing `Module` node
