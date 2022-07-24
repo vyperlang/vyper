@@ -907,10 +907,10 @@ Utilities
 
         @external
         @view
-        def foo(x: Bytes[128]) -> (uint256, Bytes[32]):
+        def foo(someInput: Bytes[128]) -> (uint256, Bytes[32]):
             x: uint256 = empty(uint256)
             y: Bytes[32] = empty(Bytes[32])
-            x, y =  _abi_decode(x, (uint256, Bytes[32]))
+            x, y =  _abi_decode(someInput, (uint256, Bytes[32]))
             return x, y
 
 
