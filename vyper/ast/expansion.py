@@ -37,7 +37,6 @@ def generate_public_variable_getters(vyper_module: vy_ast.Module) -> None:
 
         # use the annotation node as a base to build the input args and return type
         # starting with `args[0]` to remove the surrounding `public()` call`
-        # probably don't need to copy but just be a bit defensive
         annotation = copy.copy(node.annotation.args[0])
 
         # the base return statement is an `Attribute` node, e.g. `self.<var_name>`
