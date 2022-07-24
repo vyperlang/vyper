@@ -288,7 +288,7 @@ class VyperNode:
     def set_parent(self, parent: "VyperNode"):
         self._parent = parent
         self._depth = getattr(parent, "_depth", -1) + 1
- 
+
     @classmethod
     def from_node(cls, node: "VyperNode", **kwargs) -> "VyperNode":
         """
