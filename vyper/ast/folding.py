@@ -1,3 +1,4 @@
+import warnings
 from typing import Union
 
 from vyper.ast import nodes as vy_ast
