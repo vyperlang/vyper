@@ -553,9 +553,9 @@ Math
         >>> ExampleContract.foo(23, 42)
         42
 
-.. py:function:: max_value(type_) -> integer
+.. py:function:: max_value(type_) -> numeric
 
-    Returns the maximum value of the integer type specified by ``type_`` (e.g., ``int128``, ``uint256``).
+    Returns the maximum value of the numeric type specified by ``type_`` (e.g., ``int128``, ``uint256``, ``decimal``).
 
     .. code-block:: python
 
@@ -585,9 +585,9 @@ Math
         >>> ExampleContract.foo(23, 42)
         23
 
-.. py:function:: min_value(type_) -> integer
+.. py:function:: min_value(type_) -> numeric
 
-    Returns the minimum value of the integer type specified by ``type_`` (e.g., ``int128``, ``uint256``).
+    Returns the minimum value of the numeric type specified by ``type_`` (e.g., ``int128``, ``uint256``, ``decimal``).
 
     .. code-block:: python
 
