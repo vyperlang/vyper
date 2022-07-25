@@ -21,8 +21,8 @@ from vyper.codegen.expr import Expr
 from vyper.codegen.types import (
     BaseType,
     ByteArrayLike,
-    EnumType,
     ByteArrayType,
+    EnumType,
     StringType,
     is_base_type,
     is_bytes_m_type,
