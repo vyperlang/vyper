@@ -46,6 +46,60 @@ def foo(x: {typ}) -> {typ}:
     assert c.foo(hi) == 1
 
 
+def test_exponent_base_minus_one(get_contract):
+    # #2986
+    code = f"""
+@external
+def foo() -> int256:
+    x: int256 = 4
+    y: int256 = -1 ** x
+    return y
+    """
+    c = get_contract(code)
+    assert c.foo() == -1
+
+
+# TODO: make this test pass
+@pytest.mark.parametrize("base", (0, 1))
+def test_exponent_negative_power(get_contract, assert_tx_failed, base):
+    # #2985
+    code = f"""
+@external
+def bar() -> int16:
+    x: int16 = -2
+    return {base} ** x
+    """
+    c = get_contract(code)
+    # known bug: 2985
+    #assert_tx_failed(lambda: c.bar())
+
+
+def test_exponent_min_int16(get_contract):
+    # #2987
+    code = f"""
+@external
+def foo() -> int16:
+    x: int16 = -8
+    y: int16 = x ** 5
+    return y
+    """
+    c = get_contract(code)
+    assert c.foo() == -2**15
+
+
+@pytest.mark.parametrize("power", [0, 1])
+def test_exponent_power_zero_one(get_contract, power):
+    # #2989
+    code = f"""
+@external
+def foo() -> int256:
+    x: int256 = 2
+    return x ** {power}
+    """
+    c = get_contract(code)
+    assert c.foo() == 2 ** power
+
+
 @pytest.mark.parametrize("typ,lo,hi,bits", PARAMS)
 def test_exponent(get_contract, assert_tx_failed, typ, lo, hi, bits):
     code = f"""
