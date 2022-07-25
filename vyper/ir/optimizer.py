@@ -569,6 +569,8 @@ def _merge_memzero(argz):
             if initial_offset + total_length == offset:
                 mstore_nodes.append(ir_node)
                 total_length += 32
+                # do not block the optimization if it continues thru
+                # the end of the (seq) block
                 if not is_last_iteration:
                     continue
 
@@ -586,6 +588,8 @@ def _merge_memzero(argz):
             if initial_offset + total_length == offset:
                 mstore_nodes.append(ir_node)
                 total_length += length
+                # do not block the optimization if it continues thru
+                # the end of the (seq) block
                 if not is_last_iteration:
                     continue
 
@@ -654,6 +658,8 @@ def _merge_calldataload(argz):
                 mstore_nodes.append(ir_node)
                 total_length += 32
 
+                # do not block the optimization if it continues thru
+                # the end of the (seq) block
                 if not is_last_iteration:
                     continue
 
