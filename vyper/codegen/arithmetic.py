@@ -127,7 +127,16 @@ def calculate_largest_base(b: int, num_bits: int, is_signed: bool) -> int:
         a -= 1
         num_iterations += 1
         assert num_iterations < 10000
-    return a
+
+
+    if not is_signed:
+        return 0, a
+
+    if (a + 1) ** b == (2 ** value_bits):
+        # edge case: lower bound is slightly wider than upper bound
+        return -(a + 1), a
+    else:
+        return -a, a
 
 
 # def safe_add(x: IRnode, y: IRnode) -> IRnode:
@@ -348,9 +357,9 @@ def safe_pow(x, y):
         if y.value == 0:
             return IRnode.from_list([1])
 
-        upper_bound = calculate_largest_base(y.value, num_info.bits, num_info.is_signed)
+        lower_bound, upper_bound = calculate_largest_base(y.value, num_info.bits, num_info.is_signed)
         if num_info.is_signed:
-            ok = ["and", ["sle", x, upper_bound], ["sge", x, -upper_bound]]
+            ok = ["and", ["sle", x, upper_bound], ["sge", x, lower_bound]]
         else:
             ok = ["le", x, upper_bound]
     else:
