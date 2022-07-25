@@ -1,5 +1,6 @@
 import decimal
 import math
+from typing import Tuple
 
 from vyper.codegen.core import clamp, clamp_basetype
 from vyper.codegen.ir_node import IRnode
@@ -77,7 +78,7 @@ def calculate_largest_power(a: int, num_bits: int, is_signed: bool) -> int:
         return b  # Exact
 
 
-def calculate_largest_base(b: int, num_bits: int, is_signed: bool) -> int:
+def calculate_largest_base(b: int, num_bits: int, is_signed: bool) -> Tuple[int, int]:
     """
     For a given power `b`, compute the maximum base `a` that will not produce an
     overflow in the equation `a ** b`
@@ -93,9 +94,13 @@ def calculate_largest_base(b: int, num_bits: int, is_signed: bool) -> int:
 
     Returns
     -------
-    int
-        Largest possible value for `a` where the result does not overflow
-        `num_bits`
+    Tuple[int, int]
+        Smallest and largest possible values for `a` where the result
+        does not overflow `num_bits`.
+
+        Note that the lower and upper bounds are not always negatives of
+        each other, due to lower/upper bounds for int_<value_bits> being
+        slightly asymmetric.
     """
     if num_bits % 8:
         raise CompilerPanic("Type is not a modulo of 8")
@@ -127,7 +132,6 @@ def calculate_largest_base(b: int, num_bits: int, is_signed: bool) -> int:
         a -= 1
         num_iterations += 1
         assert num_iterations < 10000
-
 
     if not is_signed:
         return 0, a
@@ -357,7 +361,9 @@ def safe_pow(x, y):
         if y.value == 0:
             return IRnode.from_list([1])
 
-        lower_bound, upper_bound = calculate_largest_base(y.value, num_info.bits, num_info.is_signed)
+        lower_bound, upper_bound = calculate_largest_base(
+            y.value, num_info.bits, num_info.is_signed
+        )
         if num_info.is_signed:
             ok = ["and", ["sle", x, upper_bound], ["sge", x, lower_bound]]
         else:

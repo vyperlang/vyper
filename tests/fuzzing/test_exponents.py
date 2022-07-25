@@ -73,7 +73,6 @@ def foo(a: int16) -> int16:
     assert_tx_failed(lambda: c.foo(min_base - 1))
 
 
-
 @pytest.mark.fuzzing
 @given(a=st.integers(min_value=2, max_value=2 ** 256 - 1))
 # 8 bits

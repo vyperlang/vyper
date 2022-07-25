@@ -48,7 +48,7 @@ def foo(x: {typ}) -> {typ}:
 
 def test_exponent_base_minus_one(get_contract):
     # #2986
-    code = f"""
+    code = """
 @external
 def foo() -> int256:
     x: int256 = 4
@@ -69,14 +69,14 @@ def bar() -> int16:
     x: int16 = -2
     return {base} ** x
     """
-    c = get_contract(code)
+    get_contract(code)
     # known bug: 2985
-    #assert_tx_failed(lambda: c.bar())
+    # assert_tx_failed(lambda: c.bar())
 
 
 def test_exponent_min_int16(get_contract):
     # #2987
-    code = f"""
+    code = """
 @external
 def foo() -> int16:
     x: int16 = -8
@@ -84,7 +84,7 @@ def foo() -> int16:
     return y
     """
     c = get_contract(code)
-    assert c.foo() == -2**15
+    assert c.foo() == -(2 ** 15)
 
 
 @pytest.mark.parametrize("power", [0, 1])
