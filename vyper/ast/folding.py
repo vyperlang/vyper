@@ -1,4 +1,3 @@
-import copy
 from typing import Union
 
 from vyper.ast import nodes as vy_ast
@@ -286,8 +285,7 @@ def replace_constant(
                 continue
 
         try:
-            # Codegen may mutate AST (particularly structs).
-            replacement_node = copy.deepcopy(replacement_node)
+            # note: _replace creates a copy of the replacement_node
             new_node = _replace(node, replacement_node, type_=type_)
         except UnfoldableNode:
             if raise_on_error:
