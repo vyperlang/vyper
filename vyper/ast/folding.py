@@ -285,7 +285,7 @@ def replace_constant(
                 continue
 
         try:
-            replacement_node = replacement_node
+            # note: _replace creates a copy of the replacement_node
             new_node = _replace(node, replacement_node, type_=type_)
         except UnfoldableNode:
             if raise_on_error:
