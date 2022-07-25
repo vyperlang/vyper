@@ -38,10 +38,11 @@ def calculate_largest_power(a: int, num_bits: int, is_signed: bool) -> int:
         raise TypeCheckFailure("Value is too small and will always throw")
 
     a_is_negative = a < 0
-    a = abs(a)  # No longer need to know if it's signed or not
 
     if a in (0, 1):
         raise CompilerPanic("Exponential operation is useless!")
+
+    a = abs(a)  # No longer need to know if it's signed or not
 
     # NOTE: There is an edge case if `a` were left signed where the following
     #       operation would not work (`ln(a)` is undefined if `a <= 0`)
@@ -104,8 +105,8 @@ def calculate_largest_base(b: int, num_bits: int, is_signed: bool) -> int:
     value_bits = num_bits - (1 if is_signed else 0)
     if b > value_bits:
         raise TypeCheckFailure("Value is too large and will always throw")
-    elif b < 2:
-        return 2 ** value_bits - 1  # Maximum value for type
+    if b < 2:
+        raise CompilerPanic("Exponential operation is useless!")
 
     # CMC 2022-05-06 TODO we should be able to do this with algebra
     # instead of looping):
@@ -336,16 +337,22 @@ def safe_pow(x, y):
         if x.value == 0:
             return IRnode.from_list(["iszero", y])
 
-        upper_bound = calculate_largest_power(x.value, num_info.bits, num_info.is_signed) + 1
+        upper_bound = calculate_largest_power(x.value, num_info.bits, num_info.is_signed)
         # for signed integers, this also prevents negative values
-        ok = ["lt", y, upper_bound]
+        ok = ["le", y, upper_bound]
 
     elif y.is_literal:
-        upper_bound = calculate_largest_base(y.value, num_info.bits, num_info.is_signed) + 1
+        # cannot pass 1 or 0 to `calculate_largest_base`
+        if y.value == 1:
+            return x
+        if y.value == 0:
+            return IRnode.from_list([1])
+
+        upper_bound = calculate_largest_base(y.value, num_info.bits, num_info.is_signed)
         if num_info.is_signed:
-            ok = ["and", ["slt", x, upper_bound], ["sgt", x, -upper_bound]]
+            ok = ["and", ["sle", x, upper_bound], ["sge", x, -upper_bound]]
         else:
-            ok = ["lt", x, upper_bound]
+            ok = ["le", x, upper_bound]
     else:
         # `a ** b` where neither `a` or `b` are known
         # TODO this is currently unreachable, once we implement a way to do it safely
