@@ -253,7 +253,7 @@ def _optimize_binop(binop, args, ann, parent_op):
 
     if binop in {"add", "sub", "xor", "or"} and _int(args[1]) == 0:
         # x + 0 == x - 0 == x | 0 == x ^ 0 == x
-        return finalize(args[0].value, args[0].args)
+        return finalize("seq", [args[0]])
 
     if binop in {"sub", "xor", "ne"} and _conservative_eq(args[0], args[1]):
         # x - x == x ^ x == x != x == 0
@@ -275,7 +275,7 @@ def _optimize_binop(binop, args, ann, parent_op):
 
     # x * 1 == x / 1 == x
     if binop in {"mul", "div", "sdiv"} and _int(args[1]) == 1:
-        return finalize(args[0].value, args[0].args)
+        return finalize("seq", [args[0]])
 
     # x * -1 == 0 - x
     if binop in {"mul", "sdiv"} and _int(args[1], SIGNED) == -1:
@@ -285,7 +285,7 @@ def _optimize_binop(binop, args, ann, parent_op):
         assert unsigned == UNSIGNED
         if binop == "and":
             # -1 & x == x
-            return finalize(args[0].value, args[0].args)
+            return finalize("seq", [args[0]])
 
         if binop == "xor":
             # -1 ^ x == ~x
@@ -311,7 +311,7 @@ def _optimize_binop(binop, args, ann, parent_op):
             return finalize("iszero", [args[1]])
         # n ** 1 == n
         if _int(args[1]) == 1:
-            return finalize(args[0].value, args[0].args)
+            return finalize("seq", [args[0]])
 
     # TODO: check me! reduce codesize for negative numbers
     # if binop in {"add", "sub"} and _int(args[1], SIGNED) < 0:
@@ -552,7 +552,10 @@ def _merge_memzero(argz):
     initial_offset = 0
     total_length = 0
     changed = False
-    for ir_node in argz:
+    idx = None
+    for i, ir_node in enumerate(argz):
+        is_last_iteration = i == len(argz) - 1
+
         if (
             ir_node.value == "mstore"
             and isinstance(ir_node.args[0].value, int)
@@ -561,11 +564,15 @@ def _merge_memzero(argz):
             # mstore of a zero value
             offset = ir_node.args[0].value
             if not mstore_nodes:
+                idx = i
                 initial_offset = offset
             if initial_offset + total_length == offset:
                 mstore_nodes.append(ir_node)
                 total_length += 32
-                continue
+                # do not block the optimization if it continues thru
+                # the end of the (seq) block
+                if not is_last_iteration:
+                    continue
 
         if (
             ir_node.value == "calldatacopy"
@@ -576,11 +583,15 @@ def _merge_memzero(argz):
             # calldatacopy from the end of calldata - efficient zero'ing via `empty()`
             offset, length = ir_node.args[0].value, ir_node.args[2].value
             if not mstore_nodes:
+                idx = i
                 initial_offset = offset
             if initial_offset + total_length == offset:
                 mstore_nodes.append(ir_node)
                 total_length += length
-                continue
+                # do not block the optimization if it continues thru
+                # the end of the (seq) block
+                if not is_last_iteration:
+                    continue
 
         # if we get this far, the current node is not a zero'ing operation
         # it's time to apply the optimization if possible
@@ -591,10 +602,9 @@ def _merge_memzero(argz):
                 source_pos=mstore_nodes[0].source_pos,
             )
             # replace first zero'ing operation with optimized node and remove the rest
-            idx = argz.index(mstore_nodes[0])
             argz[idx] = new_ir
-            for i in mstore_nodes[1:]:
-                argz.remove(i)
+            # note: del xs[k:l] deletes l - k items
+            del argz[idx + 1 : idx + len(mstore_nodes)]
 
         initial_offset = 0
         total_length = 0
@@ -625,7 +635,9 @@ def _merge_calldataload(argz):
     initial_mem_offset = 0
     initial_calldata_offset = 0
     total_length = 0
-    for ir_node in argz:
+    idx = None
+    for i, ir_node in enumerate(argz):
+        is_last_iteration = i == len(argz) - 1
         if (
             ir_node.value == "mstore"
             and isinstance(ir_node.args[0].value, int)
@@ -638,13 +650,18 @@ def _merge_calldataload(argz):
             if not mstore_nodes:
                 initial_mem_offset = mem_offset
                 initial_calldata_offset = calldata_offset
+                idx = i
             if (
                 initial_mem_offset + total_length == mem_offset
                 and initial_calldata_offset + total_length == calldata_offset
             ):
                 mstore_nodes.append(ir_node)
                 total_length += 32
-                continue
+
+                # do not block the optimization if it continues thru
+                # the end of the (seq) block
+                if not is_last_iteration:
+                    continue
 
         # if we get this far, the current node is a different operation
         # it's time to apply the optimization if possible
@@ -655,10 +672,9 @@ def _merge_calldataload(argz):
                 source_pos=mstore_nodes[0].source_pos,
             )
             # replace first copy operation with optimized node and remove the rest
-            idx = argz.index(mstore_nodes[0])
             argz[idx] = new_ir
-            for i in mstore_nodes[1:]:
-                argz.remove(i)
+            # note: del xs[k:l] deletes l - k items
+            del argz[idx + 1 : idx + len(mstore_nodes)]
 
         initial_mem_offset = 0
         initial_calldata_offset = 0
