@@ -1,3 +1,4 @@
+import warnings
 from decimal import ROUND_DOWN, Decimal, getcontext
 
 import pytest
@@ -7,9 +8,19 @@ from vyper.utils import DECIMAL_EPSILON, SizeLimits
 
 
 def test_decimal_override():
-    # consumers of vyper, even as a library, are not allowed to override Decimal precision
+    getcontext().prec = 78  # setting prec to 78 is ok
+
+    # consumers of vyper, even as a library, are not allowed to reduce Decimal precision
     with pytest.raises(DecimalOverrideException):
-        getcontext().prec = 100
+        getcontext().prec = 77
+
+    with warnings.catch_warnings(record=True) as w:
+        getcontext().prec = 79
+        # check warnings were issued
+        assert len(w) == 1
+        assert (
+            str(w[-1].message) == "Changing decimals precision could have unintended side effects!"
+        )
 
 
 def quantize(x: Decimal) -> Decimal:

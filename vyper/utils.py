@@ -1,7 +1,11 @@
 import binascii
+import contextlib
 import decimal
+import functools
 import sys
+import time
 import traceback
+import warnings
 from typing import List, Union
 
 from vyper.exceptions import DecimalOverrideException, InvalidLiteral
@@ -10,8 +14,14 @@ from vyper.exceptions import DecimalOverrideException, InvalidLiteral
 class DecimalContextOverride(decimal.Context):
     def __setattr__(self, name, value):
         if name == "prec":
-            # CMC 2022-03-27: should we raise a warning instead of an exception?
-            raise DecimalOverrideException("Overriding decimal precision disabled")
+            if value < 78:
+                # definitely don't want this to happen
+                raise DecimalOverrideException("Overriding decimal precision disabled")
+            elif value > 78:
+                # not sure it's incorrect, might not be end of the world
+                warnings.warn("Changing decimals precision could have unintended side effects!")
+            # else: no-op, is ok
+
         super().__setattr__(name, value)
 
 
@@ -212,6 +222,13 @@ def evm_mod(x, y):
     return sign * (abs(x) % abs(y))  # adapted from py-evm
 
 
+# EVM pow which wraps instead of hanging on "large" numbers
+# (which can generated, for ex. in the unevaluated branch of the Shift builtin)
+def evm_pow(x, y):
+    assert x >= 0 and y >= 0
+    return pow(x, y, 2 ** 256)
+
+
 # memory used for system purposes, not for variables
 class MemoryPositions:
     FREE_VAR_SPACE = 0
@@ -321,6 +338,27 @@ def indent(text: str, indent_chars: Union[str, List[str]] = " ", level: int = 1)
         raise ValueError("Unrecognized indentation characters value")
 
     return "".join(indented_lines)
+
+
+def timeit(func):
+    @functools.wraps(func)
+    def timeit_wrapper(*args, **kwargs):
+        start_time = time.perf_counter()
+        result = func(*args, **kwargs)
+        end_time = time.perf_counter()
+        total_time = end_time - start_time
+        print(f"Function {func.__name__} Took {total_time:.4f} seconds")
+        return result
+
+    return timeit_wrapper
+
+
+@contextlib.contextmanager
+def timer(msg):
+    t0 = time.time()
+    yield
+    t1 = time.time()
+    print(f"{msg} took {t1 - t0}s")
 
 
 def annotate_source_code(

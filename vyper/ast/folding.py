@@ -1,5 +1,3 @@
-import copy
-import warnings
 from typing import Union
 
 from vyper.ast import nodes as vy_ast
@@ -171,7 +169,7 @@ def replace_user_defined_constants(vyper_module: vy_ast.Module) -> int:
     """
     changed_nodes = 0
 
-    for node in vyper_module.get_children(vy_ast.AnnAssign):
+    for node in vyper_module.get_children(vy_ast.VariableDecl):
         if not isinstance(node.target, vy_ast.Name):
             # left-hand-side of assignment is not a variable
             continue
@@ -282,14 +280,15 @@ def replace_constant(
 
         if not node.get_ancestor(vy_ast.Index):
             # do not replace left-hand side of assignments
-            assign = node.get_ancestor((vy_ast.Assign, vy_ast.AnnAssign, vy_ast.AugAssign))
+            assign = node.get_ancestor(
+                (vy_ast.Assign, vy_ast.AnnAssign, vy_ast.AugAssign, vy_ast.VariableDecl)
+            )
 
             if assign and node in assign.target.get_descendants(include_self=True):
                 continue
 
         try:
-            # Codegen may mutate AST (particularly structs).
-            replacement_node = copy.deepcopy(replacement_node)
+            # note: _replace creates a copy of the replacement_node
             new_node = _replace(node, replacement_node, type_=type_)
         except UnfoldableNode:
             if raise_on_error:

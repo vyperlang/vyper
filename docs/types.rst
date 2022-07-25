@@ -161,9 +161,6 @@ Operator                     Description
 
 ``x`` and ``y`` must be of the same type.
 
-.. note::
-    Arithmetic is currently only available for ``uint8`` and ``uint256`` types.
-
 Bitwise Operators
 ^^^^^^^^^^^^^^^^^
 
@@ -172,6 +169,8 @@ Operator       Description
 =============  ======================
 ``x & y``      Bitwise and
 ``x | y``      Bitwise or
+``x ^ y``      Bitwise xor
+``~x``         Bitwise not
 =============  ======================
 
 ``x`` and ``y`` must be of the same type.
@@ -285,7 +284,7 @@ This is an M-byte-wide byte array that is otherwise similar to dynamically sized
     # Assignment
     self.hash = _hash
 
-    some_method_id: bytes4 = 0x01abcdefab
+    some_method_id: bytes4 = 0x01abcdef
 
 Operators
 *********
@@ -361,12 +360,14 @@ Comparisons
 
 Comparisons return a boolean value.
 
-==========  ================
-Operator    Description
-==========  ================
-``x == y``  Equals
-``x != y``  Does not equal
-==========  ================
+============== ================
+Operator       Description
+============== ================
+``x == y``     Equals
+``x != y``     Does not equal
+``x in y``     x is in y
+``x not in y`` x is not in y
+============== ================
 
 Bitwise Operators
 ^^^^^^^^^^^^^^^^^
@@ -376,11 +377,13 @@ Operator       Description
 =============  ======================
 ``x & y``      Bitwise and
 ``x | y``      Bitwise or
+``x ^ y``      Bitwise xor
+``~x``         Bitwise not
 =============  ======================
 
 Enum members can be combined using the above bitwise operators. While enum members have values that are power of two, enum member combinations may not.
 
-The ``in`` operator can be used in conjunction with enum member combinations to check for membership.
+The ``in`` and ``not in`` operators can be used in conjunction with enum member combinations to check for membership.
 
 .. code-block:: python
 
@@ -394,12 +397,40 @@ The ``in`` operator can be used in conjunction with enum member combinations to 
     def foo(a: Roles) -> bool:
         return a in (Roles.MANAGER | Roles.USER)
 
+    # Check not in
+    @external
+    def bar(a: Roles) -> bool:
+        return a not in (Roles.MANAGER | Roles.USER)
+
+Note that ``in`` is not the same as strict equality (``==``). ``in`` checks that *any* of the flags on two enum objects are simultaneously set, while ``==`` checks that two enum objects are bit-for-bit equal.
+
+The following code uses bitwise operations to add and revoke permissions from a given ``Roles`` object.
+
+.. code-block:: python
+    @external
+    def add_user(a: Roles) -> Roles:
+        ret: Roles = a
+        ret |= Roles.USER  # set the USER bit to 1
+        return ret
+
+    @external
+    def revoke_user(a: Roles) -> Roles:
+        ret: Roles = a
+        ret &= ~Roles.USER  # set the USER bit to 0
+        return ret
+
+    @external
+    def flip_user(a: Roles) -> Roles:
+        ret: Roles = a
+        ret ^= Roles.USER  # flip the user bit between 0 and 1
+        return ret
+
 .. index:: !reference
 
 Reference Types
 ===============
 
-Reference types are those whose components can be assigned to in-place without copying. For instance, array and struct members can be individually assigned to without overwriting the data structure.
+Reference types are those whose components can be assigned to in-place without copying. For instance, array and struct members can be individually assigned to without overwriting the whole data structure.
 
 .. note::
 

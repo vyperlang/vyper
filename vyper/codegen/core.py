@@ -26,7 +26,7 @@ from vyper.utils import GAS_CALLDATACOPY_WORD, GAS_CODECOPY_WORD, GAS_IDENTITY, 
 # propagate revert message when calls to external contracts fail
 def check_external_call(call_ir):
     copy_revertdata = ["returndatacopy", 0, 0, "returndatasize"]
-    revert = ["revert", 0, "returndatasize"]
+    revert = IRnode.from_list(["revert", 0, "returndatasize"], error_msg="external call failed")
 
     propagate_revert_ir = ["seq", copy_revertdata, revert]
     return ["if", ["iszero", call_ir], propagate_revert_ir]
@@ -544,7 +544,14 @@ def STORE(ptr: IRnode, val: IRnode) -> IRnode:
         raise CompilerPanic(f"unreachable {ptr.location}")  # pragma: notest
 
     _check = _freshname(f"{op}_")
-    return IRnode.from_list(["seq", eval_once_check(_check), [op, ptr, val]])
+
+    store = [op, ptr, val]
+    # don't use eval_once_check for memory, immutables because it interferes
+    # with optimizer
+    if ptr.location in (MEMORY, IMMUTABLES):
+        return IRnode.from_list(store)
+
+    return IRnode.from_list(["seq", eval_once_check(_check), store])
 
 
 # Unwrap location
@@ -924,10 +931,7 @@ def sar(bits, x):
     if version_check(begin="constantinople"):
         return ["sar", bits, x]
 
-    # emulate for older arches. keep in mind note from EIP 145:
-    # "This is not equivalent to PUSH1 2 EXP SDIV, since it rounds
-    # differently. See SDIV(-1, 2) == 0, while SAR(-1, 1) == -1."
-    return ["sdiv", ["add", ["slt", x, 0], x], ["exp", 2, bits]]
+    raise NotImplementedError("no SAR emulation for pre-constantinople EVM")
 
 
 def clamp_bytestring(ir_node):
@@ -954,15 +958,10 @@ def clamp_basetype(ir_node):
 
     if isinstance(t, EnumType):
         bits = len(t.members)
-        # assert x >> bits == 0 and x != 0
-        # assert !(x >> bits != 0 | x == 0)
-        with ir_node.cache_when_complex("e") as (b1, ir_node):
-            ok = ["iszero", ["or", shr(bits, ir_node), ["iszero", ir_node]]]
-            return IRnode.from_list(
-                b1.resolve(["seq", ["assert", ok], ir_node]), annotation=f"clamp enum {t.name}"
-            )
+        # assert x >> bits == 0
+        ret = int_clamp(ir_node, bits, signed=False)
 
-    if is_integer_type(t) or is_decimal_type(t):
+    elif is_integer_type(t) or is_decimal_type(t):
         if t._num_info.bits == 256:
             ret = ir_node
         else:
@@ -981,7 +980,7 @@ def clamp_basetype(ir_node):
     else:  # pragma: nocover
         raise CompilerPanic(f"{t} passed to clamp_basetype")
 
-    return IRnode.from_list(ret, typ=ir_node.typ)
+    return IRnode.from_list(ret, typ=ir_node.typ, error_msg=f"validate {t}")
 
 
 def int_clamp(ir_node, bits, signed=False):
@@ -1029,15 +1028,16 @@ def promote_signed_int(x, bits):
 # general clamp function for all ops and numbers
 def clamp(op, arg, bound):
     with IRnode.from_list(arg).cache_when_complex("clamp_arg") as (b1, arg):
-        assertion = ["assert", [op, arg, bound]]
-        ret = ["seq", assertion, arg]
+        check = IRnode.from_list(["assert", [op, arg, bound]], error_msg=f"clamp {op} {bound}")
+        ret = ["seq", check, arg]
         return IRnode.from_list(b1.resolve(ret), typ=arg.typ)
 
 
 def clamp_nonzero(arg):
     # TODO: use clamp("ne", arg, 0) once optimizer rules can handle it
     with IRnode.from_list(arg).cache_when_complex("should_nonzero") as (b1, arg):
-        ret = ["seq", ["assert", arg], arg]
+        check = IRnode.from_list(["assert", arg], error_msg="clamp_nonzero")
+        ret = ["seq", check, arg]
         return IRnode.from_list(b1.resolve(ret), typ=arg.typ)
 
 

@@ -32,7 +32,7 @@ Bitwise Operations
 
 .. py:function:: bitwise_not(x: uint256) -> uint256
 
-    Return the complement of ``x`` - the number you get by switching each 1 for a 0 and each 0 for a 1.
+    Return the bitwise complement of ``x`` - the number you get by switching each 1 for a 0 and each 0 for a 1.
 
     .. code-block:: python
 
@@ -45,6 +45,10 @@ Bitwise Operations
 
         >>> ExampleContract.foo(0)
         115792089237316195423570985008687907853269984665640564039457584007913129639935
+
+.. note::
+
+  This function has been deprecated from version 0.3.4 onwards. Please use the ``~`` operator instead.
 
 .. py:function:: bitwise_or(x: uint256, y: uint256) -> uint256
 
@@ -82,6 +86,10 @@ Bitwise Operations
         >>> ExampleContract.foo(31337, 8008135)
         8014766
 
+.. note::
+
+  This function has been deprecated from version 0.3.4 onwards. Please use the ``^`` operator instead.
+
 .. py:function:: shift(x: uint256, _shift: int128) -> uint256
 
     Return ``x`` with the bits shifted ``_shift`` places. A positive ``_shift`` value equals a left shift, a negative value is a right shift.
@@ -114,10 +122,10 @@ Vyper has three builtins for contract creation; all three contract creation buil
     * Cheap to call (no ``DELEGATECALL`` overhead), expensive to create (200 gas per deployed byte)
     * Does not have the ability to call a constructor
     * Performs an ``EXTCODESIZE`` check to check there is code at ``target``
-* ``create_from_factory(target: address, ...)``
+* ``create_from_blueprint(target: address, ...)``
     * Deploys a contract using the initcode stored at ``target``
     * Cheap to call (no ``DELEGATECALL`` overhead), expensive to create (200 gas per deployed byte)
-    * Invokes constructor, requires a special "factory" contract to be deployed
+    * Invokes constructor, requires a special "blueprint" contract to be deployed
     * Performs an ``EXTCODESIZE`` check to check there is code at ``target``
 
 .. py:function:: create_minimal_proxy_to(target: address, value: uint256 = 0[, salt: bytes32]) -> address
@@ -134,8 +142,8 @@ Vyper has three builtins for contract creation; all three contract creation buil
     .. code-block:: python
 
         @external
-        def foo(_target: address) -> address:
-            return create_minimal_proxy_to(_target)
+        def foo(target: address) -> address:
+            return create_minimal_proxy_to(target)
 
 .. note::
 
@@ -163,36 +171,48 @@ Vyper has three builtins for contract creation; all three contract creation buil
     .. code-block:: python
 
         @external
-        def foo(_target: address) -> address:
-            return create_copy_of(_target)
+        def foo(target: address) -> address:
+            return create_copy_of(target)
 
 .. note::
 
     The implementation of ``create_copy_of`` assumes that the code at ``target`` is smaller than 16MB. While this is much larger than the EIP-170 constraint of 24KB, it is a conservative size limit intended to future-proof deployer contracts in case the EIP-170 constraint is lifted. If the code at ``target`` is larger than 16MB, the behavior of ``create_copy_of`` is undefined.
 
 
-.. py:function:: create_from_factory(target: address, *args, value: uint256 = 0[, salt: bytes32]) -> address
+.. py:function:: create_from_blueprint(target: address, *args, value: uint256 = 0, code_offset=0, [, salt: bytes32]) -> address
 
     Copy the code of ``target`` into memory and execute it as initcode. In other words, this operation interprets the code at ``target`` not as regular runtime code, but directly as initcode. The ``*args`` are interpreted as constructor arguments, and are ABI-encoded and included when executing the initcode.
 
-    * ``target``: Address of the factory contract to invoke
+    * ``target``: Address of the blueprint to invoke
     * ``*args``: Constructor arguments to forward to the initcode.
     * ``value``: The wei value to send to the new contract address (Optional, default 0)
+    * ``code_offset``: The offset to start the ``EXTCODECOPY`` from (Optional, default 0)
     * ``salt``: A ``bytes32`` value utilized by the deterministic ``CREATE2`` opcode (Optional, if not supplied, ``CREATE`` is used)
 
-    Returns the address of the created contract. If the create operation fails (for instance, in the case of a ``CREATE2`` collision), execution will revert. If there is no code at ``target``, execution will revert.
+    Returns the address of the created contract. If the create operation fails (for instance, in the case of a ``CREATE2`` collision), execution will revert. If ``code_offset >= target.codesize`` (ex. if there is no code at ``target``), execution will revert.
 
     .. code-block:: python
 
         @external
-        def foo(_target: address) -> address:
+        def foo(blueprint: address) -> address:
             arg1: uint256 = 18
             arg2: String = "some string"
-            return create_from_factory(_target, arg1, arg2)
+            return create_from_blueprint(blueprint, arg1, arg2, code_offset=1)
 
 .. note::
 
-    To properly deploy a factory contract, special deploy bytecode must be used. Deploying factory contracts is generally out of scope of this article, but the following preamble, prepended to regular deploy bytecode (output of ``vyper -f bytecode``), should deploy the factory contract in an ordinary contract creation transaction: ``deploy_preamble = "61" + <bytecode len in 4 hex characters> + "3d81600a3d39f3"``. To see an example of this, please see `the setup code for testing create_from_factory <https://github.com/vyperlang/vyper/blob/2adc34ffd3bee8b6dee90f552bbd9bb844509e19/tests/base_conftest.py#L130-L160>`_.
+    To properly deploy a blueprint contract, special deploy bytecode must be used. Deploying blueprint contracts is generally out of scope of this article, but the following preamble, prepended to regular deploy bytecode (output of ``vyper -f bytecode``), should deploy the blueprint in an ordinary contract creation transaction: ``deploy_preamble = "61" + <bytecode len in 4 hex characters> + "3d81600a3d39f3"``. To see an example of this, please see `the setup code for testing create_from_blueprint<https://github.com/vyperlang/vyper/blob/2adc34ffd3bee8b6dee90f552bbd9bb844509e19/tests/base_conftest.py#L130-L160>`_.
+
+.. warning::
+
+    It is recommended to deploy blueprints with the ERC5202 preamble ``0xfe7100`` to guard them from being called as regular contracts. This is particularly important for factories where the constructor has side effects (including ``SELFDESTRUCT``!), as those could get executed by *anybody* calling the blueprint contract directly. The ``code_offset=`` kwarg is provided to enable this pattern:
+
+    .. code-block:: python
+
+        @external
+        def foo(blueprint: address) -> address:
+            # `blueprint` is a blueprint contract with some known preamble b"abcd..."
+            return create_from_blueprint(blueprint, code_offset=<preamble length>)
 
 .. py:function:: raw_call(to: address, data: Bytes, max_outsize: int = 0, gas: uint256 = gasLeft, value: uint256 = 0, is_delegate_call: bool = False, is_static_call: bool = False, revert_on_failure: bool = True) -> Bytes[max_outsize]
 
@@ -207,17 +227,13 @@ Vyper has three builtins for contract creation; all three contract creation buil
     * ``is_static_call``: If ``True``, the call will be sent as ``STATICCALL`` (Optional, default ``False``)
     * ``revert_on_failure``: If ``True``, the call will revert on a failure, otherwise ``success`` will be returned (Optional, default ``True``)
 
-    Returns the data returned by the call as a ``Bytes`` list, with ``max_outsize`` as the max length.
-
-    Returns ``None`` if ``max_outsize`` is omitted or set to ``0``.
-
-    Returns ``success`` in a tuple if ``revert_on_failure`` is set to ``False``.
-
     .. note::
+        
+        Returns the data returned by the call as a ``Bytes`` list, with ``max_outsize`` as the max length. The actual size of the returned data may be less than ``max_outsize``. You can use ``len`` to obtain the actual size.
 
-        The actual size of the returned data may be less than ``max_outsize``. You can use ``len`` to obtain the actual size.
+        Returns nothing if ``max_outsize`` is omitted or set to ``0``.
 
-        Returns the address of the duplicated contract.
+        Returns ``success`` in a tuple with return value if ``revert_on_failure`` is set to ``False``.
 
     .. code-block:: python
 
@@ -891,10 +907,10 @@ Utilities
 
         @external
         @view
-        def foo(x: Bytes[128]) -> (uint256, Bytes[32]):
+        def foo(someInput: Bytes[128]) -> (uint256, Bytes[32]):
             x: uint256 = empty(uint256)
             y: Bytes[32] = empty(Bytes[32])
-            x, y =  _abi_decode(x, (uint256, Bytes[32]))
+            x, y =  _abi_decode(someInput, (uint256, Bytes[32]))
             return x, y
 
 

@@ -115,6 +115,7 @@ class IRnode:
         location: Optional[AddrSpace] = None,
         source_pos: Optional[Tuple[int, int]] = None,
         annotation: Optional[str] = None,
+        error_msg: Optional[str] = None,
         mutable: bool = True,
         add_gas_estimate: int = 0,
         encoding: Encoding = Encoding.VYPER,
@@ -129,6 +130,7 @@ class IRnode:
         self.typ = typ
         self.location = location
         self.source_pos = source_pos
+        self.error_msg = error_msg
         self.annotation = annotation
         self.mutable = mutable
         self.add_gas_estimate = add_gas_estimate
@@ -335,7 +337,14 @@ class IRnode:
             and self.value.lower() not in do_not_cache
         )
 
-    # unused, but might be useful for analysis at some point
+    # get the unique symbols contained in this node, which provides
+    # sanity check invariants for the optimizer.
+    # cache because it's a perf hotspot. note that this (and other cached
+    # properties!) can get borked if `self.args` are mutated in such a way
+    # which changes the child `.unique_symbols`. in the future it would
+    # be good to tighten down the hatches so it is harder to modify
+    # IRnode member variables.
+    @cached_property
     def unique_symbols(self):
         ret = set()
         if self.value == "unique_symbol":
@@ -345,7 +354,7 @@ class IRnode:
         if self.value == "deploy":
             children = [self.args[0], self.args[2]]
         for arg in children:
-            s = arg.unique_symbols()
+            s = arg.unique_symbols
             non_uniques = ret.intersection(s)
             assert len(non_uniques) == 0, f"non-unique symbols {non_uniques}"
             ret |= s
@@ -487,6 +496,7 @@ class IRnode:
         location: Optional[AddrSpace] = None,
         source_pos: Optional[Tuple[int, int]] = None,
         annotation: Optional[str] = None,
+        error_msg: Optional[str] = None,
         mutable: bool = True,
         add_gas_estimate: int = 0,
         encoding: Encoding = Encoding.VYPER,
@@ -505,6 +515,8 @@ class IRnode:
                 obj.location = location
             if obj.encoding is None:
                 obj.encoding = encoding
+            if obj.error_msg is None:
+                obj.error_msg = error_msg
 
             return obj
         elif not isinstance(obj, list):
@@ -516,7 +528,9 @@ class IRnode:
                 annotation=annotation,
                 mutable=mutable,
                 add_gas_estimate=add_gas_estimate,
+                source_pos=source_pos,
                 encoding=encoding,
+                error_msg=error_msg,
             )
         else:
             return cls(
@@ -529,4 +543,5 @@ class IRnode:
                 source_pos=source_pos,
                 add_gas_estimate=add_gas_estimate,
                 encoding=encoding,
+                error_msg=error_msg,
             )

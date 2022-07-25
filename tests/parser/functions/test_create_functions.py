@@ -1,8 +1,9 @@
+import pytest
 import rlp
 from eth_abi import encode_single
 from hexbytes import HexBytes
 
-from vyper.utils import checksum_encode, keccak256
+from vyper.utils import EIP_170_LIMIT, checksum_encode, keccak256
 
 
 # initcode used by create_minimal_proxy_to
@@ -142,8 +143,17 @@ def test(_salt: bytes32) -> address:
     assert_tx_failed(lambda: c.test(salt, transact={}))
 
 
-def test_create_from_factory(
-    get_contract, deploy_factory_for, w3, keccak, create2_address_of, assert_tx_failed
+# test blueprints with various prefixes - 0xfe would block calls to the blueprint
+# contract, and 0xfe7100 is ERC5202 magic
+@pytest.mark.parametrize("blueprint_prefix", [b"", b"\xfe", b"\xfe\71\x00"])
+def test_create_from_blueprint(
+    get_contract,
+    deploy_blueprint_for,
+    w3,
+    keccak,
+    create2_address_of,
+    assert_tx_failed,
+    blueprint_prefix,
 ):
     code = """
 @external
@@ -151,27 +161,26 @@ def foo() -> uint256:
     return 123
     """
 
-    deployer_code = """
+    prefix_len = len(blueprint_prefix)
+    deployer_code = f"""
 created_address: public(address)
 
 @external
 def test(target: address):
-    self.created_address = create_from_factory(target)
+    self.created_address = create_from_blueprint(target, code_offset={prefix_len})
 
 @external
 def test2(target: address, salt: bytes32):
-    self.created_address = create_from_factory(target, salt=salt)
+    self.created_address = create_from_blueprint(target, code_offset={prefix_len}, salt=salt)
     """
 
     # deploy a foo so we can compare its bytecode with factory deployed version
     foo_contract = get_contract(code)
     expected_runtime_code = w3.eth.get_code(foo_contract.address)
 
-    f, FooContract = deploy_factory_for(code)
+    f, FooContract = deploy_blueprint_for(code, initcode_prefix=blueprint_prefix)
 
     d = get_contract(deployer_code)
-
-    initcode = w3.eth.get_code(f.address)
 
     d.test(f.address, transact={})
 
@@ -180,7 +189,8 @@ def test2(target: address, salt: bytes32):
     assert test.foo() == 123
 
     # extcodesize check
-    assert_tx_failed(lambda: d.test("0x" + "00" * 20))
+    zero_address = "0x" + "00" * 20
+    assert_tx_failed(lambda: d.test(zero_address))
 
     # now same thing but with create2
     salt = keccak(b"vyper")
@@ -190,15 +200,56 @@ def test2(target: address, salt: bytes32):
     assert w3.eth.get_code(test.address) == expected_runtime_code
     assert test.foo() == 123
 
+    # check if the create2 address matches our offchain calculation
+    initcode = w3.eth.get_code(f.address)
+    initcode = initcode[len(blueprint_prefix) :]  # strip the prefix
     assert HexBytes(test.address) == create2_address_of(d.address, salt, initcode)
 
     # can't collide addresses
     assert_tx_failed(lambda: d.test2(f.address, salt))
 
 
-# test create_from_factory with args
-def test_create_from_factory_args(
-    get_contract, deploy_factory_for, w3, keccak, create2_address_of, assert_tx_failed
+def test_create_from_blueprint_bad_code_offset(
+    get_contract, get_contract_from_ir, deploy_blueprint_for, w3, assert_tx_failed
+):
+    deployer_code = """
+BLUEPRINT: immutable(address)
+
+@external
+def __init__(blueprint_address: address):
+    BLUEPRINT = blueprint_address
+
+@external
+def test(code_ofst: uint256) -> address:
+    return create_from_blueprint(BLUEPRINT, code_offset=code_ofst)
+    """
+
+    # use a bunch of JUMPDEST + STOP instructions as blueprint code
+    # (as any STOP instruction returns valid code, split up with
+    # jumpdests as optimization fence)
+    initcode_len = 100
+    f = get_contract_from_ir(["deploy", 0, ["seq"] + ["jumpdest", "stop"] * (initcode_len // 2), 0])
+    blueprint_code = w3.eth.get_code(f.address)
+    print(blueprint_code)
+
+    d = get_contract(deployer_code, f.address)
+
+    # deploy with code_ofst=0 fine
+    d.test(0)
+
+    # deploy with code_ofst=len(blueprint) - 1 fine
+    d.test(initcode_len - 1)
+
+    # code_offset=len(blueprint) NOT fine! would EXTCODECOPY empty initcode
+    assert_tx_failed(lambda: d.test(initcode_len))
+
+    # code_offset=EIP_170_LIMIT definitely not fine!
+    assert_tx_failed(lambda: d.test(EIP_170_LIMIT))
+
+
+# test create_from_blueprint with args
+def test_create_from_blueprint_args(
+    get_contract, deploy_blueprint_for, w3, keccak, create2_address_of, assert_tx_failed
 ):
     code = """
 struct Bar:
@@ -229,15 +280,15 @@ created_address: public(address)
 
 @external
 def test(target: address, arg1: String[128], arg2: Bar):
-    self.created_address = create_from_factory(target, arg1, arg2)
+    self.created_address = create_from_blueprint(target, arg1, arg2)
 
 @external
 def test2(target: address, arg1: String[128], arg2: Bar, salt: bytes32):
-    self.created_address = create_from_factory(target, arg1, arg2, salt=salt)
+    self.created_address = create_from_blueprint(target, arg1, arg2, salt=salt)
 
 @external
 def should_fail(target: address, arg1: String[129], arg2: Bar):
-    self.created_address = create_from_factory(target, arg1, arg2)
+    self.created_address = create_from_blueprint(target, arg1, arg2)
     """
     FOO = "hello!"
     BAR = ("world!",)
@@ -246,7 +297,7 @@ def should_fail(target: address, arg1: String[129], arg2: Bar):
     foo_contract = get_contract(code, FOO, BAR)
     expected_runtime_code = w3.eth.get_code(foo_contract.address)
 
-    f, FooContract = deploy_factory_for(code)
+    f, FooContract = deploy_blueprint_for(code)
 
     d = get_contract(deployer_code)
 

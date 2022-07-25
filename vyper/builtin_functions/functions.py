@@ -32,7 +32,9 @@ from vyper.codegen.core import (
     ir_tuple_from_args,
     needs_external_call_wrap,
     promote_signed_int,
+    sar,
     shl,
+    shr,
     unwrap_location,
 )
 from vyper.codegen.expr import Expr
@@ -50,7 +52,6 @@ from vyper.codegen.types import (
     parse_integer_typeinfo,
 )
 from vyper.codegen.types.convert import new_type_to_old_type
-from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
     ArgumentException,
     CompilerPanic,
@@ -1332,6 +1333,10 @@ class BitwiseAnd(BuiltinFunction):
     _warned = False
 
     def evaluate(self, node):
+        if not self.__class__._warned:
+            vyper_warn("`bitwise_and()` is deprecated! Please use the & operator instead.")
+            self.__class__._warned = True
+
         validate_call_args(node, 2)
         for arg in node.args:
             if not isinstance(arg, vy_ast.Num):
@@ -1344,10 +1349,6 @@ class BitwiseAnd(BuiltinFunction):
 
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
-        if not self.__class__._warned:
-            vyper_warn("`bitwise_or()` is deprecated! Please use the | operator instead.")
-            self.__class__._warned = True
-
         return IRnode.from_list(["and", args[0], args[1]], typ=BaseType("uint256"))
 
 
@@ -1359,6 +1360,10 @@ class BitwiseOr(BuiltinFunction):
     _warned = False
 
     def evaluate(self, node):
+        if not self.__class__._warned:
+            vyper_warn("`bitwise_or()` is deprecated! Please use the | operator instead.")
+            self.__class__._warned = True
+
         validate_call_args(node, 2)
         for arg in node.args:
             if not isinstance(arg, vy_ast.Num):
@@ -1371,10 +1376,6 @@ class BitwiseOr(BuiltinFunction):
 
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
-        if not self.__class__._warned:
-            vyper_warn("`bitwise_or()` is deprecated! Please use the | operator instead.")
-            self.__class__._warned = True
-
         return IRnode.from_list(["or", args[0], args[1]], typ=BaseType("uint256"))
 
 
@@ -1383,8 +1384,13 @@ class BitwiseXor(BuiltinFunction):
     _id = "bitwise_xor"
     _inputs = [("x", Uint256Definition()), ("y", Uint256Definition())]
     _return_type = Uint256Definition()
+    _warned = False
 
     def evaluate(self, node):
+        if not self.__class__._warned:
+            vyper_warn("`bitwise_xor()` is deprecated! Please use the ^ operator instead.")
+            self.__class__._warned = True
+
         validate_call_args(node, 2)
         for arg in node.args:
             if not isinstance(arg, vy_ast.Num):
@@ -1405,8 +1411,13 @@ class BitwiseNot(BuiltinFunction):
     _id = "bitwise_not"
     _inputs = [("x", Uint256Definition())]
     _return_type = Uint256Definition()
+    _warned = False
 
     def evaluate(self, node):
+        if not self.__class__._warned:
+            vyper_warn("`bitwise_not()` is deprecated! Please use the ^ operator instead.")
+            self.__class__._warned = True
+
         validate_call_args(node, 1)
         if not isinstance(node.args[0], vy_ast.Num):
             raise UnfoldableNode
@@ -1426,8 +1437,10 @@ class BitwiseNot(BuiltinFunction):
 class Shift(BuiltinFunction):
 
     _id = "shift"
-    _inputs = [("x", Uint256Definition()), ("_shift", SignedIntegerAbstractType())]
-    _return_type = Uint256Definition()
+    _inputs = [
+        ("x", (Uint256Definition(), Int256Definition())),
+        ("shift_bits", SignedIntegerAbstractType()),
+    ]
 
     def evaluate(self, node):
         validate_call_args(node, 2)
@@ -1445,49 +1458,29 @@ class Shift(BuiltinFunction):
             value = (value << shift) % (2 ** 256)
         return vy_ast.Int.from_node(node, value=value)
 
+    def fetch_call_return(self, node):
+        # return type is the type of the first argument
+        return self.infer_arg_types(node)[0]
+
     def infer_arg_types(self, node):
         self._validate_arg_types(node)
         # return a concrete type instead of SignedIntegerAbstractType
-        shift_type = get_possible_types_from_node(node.args[1]).pop()
-        return [self._inputs[0][1], shift_type]
+        arg_ty = get_possible_types_from_node(node.args[0])[0]
+        shift_ty = get_possible_types_from_node(node.args[1])[0]
+        return [arg_ty, shift_ty]
 
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
-        if args[1].typ.is_literal:
-            shift_abs = abs(args[1].value)
-        else:
-            shift_abs = ["sub", 0, "_s"]
+        # "gshr" -- generalized right shift
+        argty = args[0].typ
+        GSHR = sar if argty._int_info.is_signed else shr
 
-        if version_check(begin="constantinople"):
-            # TODO use convenience functions shl and shr in codegen/core.py
-            if args[1].typ.is_literal:
-                # optimization when SHL/SHR instructions are available shift distance is a literal
-                value = args[1].value
-                if value >= 0:
-                    ir_node = ["shl", value, args[0]]
-                else:
-                    ir_node = ["shr", abs(value), args[0]]
-                return IRnode.from_list(ir_node, typ=BaseType("uint256"))
-            else:
-                left_shift = ["shl", "_s", args[0]]
-                right_shift = ["shr", shift_abs, args[0]]
-
-        else:
-            # If second argument is positive, left-shift so multiply by a power of two
-            # If it is negative, divide by a power of two
-            # node that if the abs of the second argument >= 256, then in the EVM
-            # 2**(second arg) = 0, and multiplying OR dividing by 0 gives 0
-            left_shift = ["mul", args[0], ["exp", 2, "_s"]]
-            right_shift = ["div", args[0], ["exp", 2, shift_abs]]
-
-        if not args[1].typ.is_literal:
-            node_list = ["if", ["slt", "_s", 0], right_shift, left_shift]
-        elif args[1].value >= 0:
-            node_list = left_shift
-        else:
-            node_list = right_shift
-
-        return IRnode.from_list(["with", "_s", args[1], node_list], typ=BaseType("uint256"))
+        with args[0].cache_when_complex("to_shift") as (b1, arg), args[1].cache_when_complex(
+            "bits"
+        ) as (b2, bits):
+            neg_bits = ["sub", 0, bits]
+            ret = ["if", ["slt", bits, 0], GSHR(neg_bits, arg), shl(bits, arg)]
+            return b1.resolve(b2.resolve(IRnode.from_list(ret, typ=argty)))
 
 
 class _AddMulMod(BuiltinFunction):
@@ -1710,13 +1703,11 @@ class _CreateBase(BuiltinFunction):
         # errmsg something like "Cannot use {self._id} in pure fn"
         context.check_is_not_constant("use {self._id}", expr)
 
-        value = kwargs["value"]
-        salt = kwargs["salt"]
         should_use_create2 = "salt" in [kwarg.arg for kwarg in expr.keywords]
         if not should_use_create2:
-            salt = None
+            kwargs["salt"] = None
 
-        ir_builder = self._build_create_IR(expr, args, value, salt, context)
+        ir_builder = self._build_create_IR(expr, args, context, **kwargs)
 
         add_gas_estimate = self._add_gas_estimate(args, should_use_create2)
 
@@ -1739,7 +1730,7 @@ class CreateMinimalProxyTo(_CreateBase):
         bytecode_len = 20 + len(b) + len(c)
         return _create_addl_gas_estimate(bytecode_len, should_use_create2)
 
-    def _build_create_IR(self, expr, args, value, salt, context):
+    def _build_create_IR(self, expr, args, context, value, salt):
 
         target_address = args[0]
 
@@ -1796,7 +1787,7 @@ class CreateCopyOf(_CreateBase):
         # max possible runtime length + preamble length
         return _create_addl_gas_estimate(EIP_170_LIMIT + self._preamble_len, should_use_create2)
 
-    def _build_create_IR(self, expr, args, value, salt, context):
+    def _build_create_IR(self, expr, args, context, value, salt):
         target = args[0]
 
         with target.cache_when_complex("create_target") as (b1, target):
@@ -1829,10 +1820,15 @@ class CreateCopyOf(_CreateBase):
                 return b1.resolve(b2.resolve(b3.resolve(ir)))
 
 
-class CreateFromFactory(_CreateBase):
+class CreateFromBlueprint(_CreateBase):
 
-    _id = "create_from_factory"
+    _id = "create_from_blueprint"
     _inputs = [("target", AddressDefinition())]
+    _kwargs = {
+        "value": KwargSettings(Uint256Definition(), zero_value),
+        "salt": KwargSettings(Bytes32Definition(), empty_value),
+        "code_offset": KwargSettings(Uint256Definition(), zero_value),
+    }
     _has_varargs = True
 
     def _add_gas_estimate(self, args, should_use_create2):
@@ -1841,7 +1837,7 @@ class CreateFromFactory(_CreateBase):
         maxlen = EIP_170_LIMIT + ctor_args.typ.abi_type.size_bound()
         return _create_addl_gas_estimate(maxlen, should_use_create2)
 
-    def _build_create_IR(self, expr, args, value, salt, context):
+    def _build_create_IR(self, expr, args, context, value, salt, code_offset):
         target = args[0]
         ctor_args = args[1:]
 
@@ -1865,27 +1861,32 @@ class CreateFromFactory(_CreateBase):
         # (since the abi encoder could write to fresh memory).
         # it would be good to not require the memory copy, but need
         # to evaluate memory safety.
-        with argslen.cache_when_complex("encoded_args_len") as (
-            b1,
-            encoded_args_len,
-        ), target.cache_when_complex("create_target") as (b2, target):
-            codesize = IRnode.from_list(["extcodesize", target])
+        with target.cache_when_complex("create_target") as (b1, target), argslen.cache_when_complex(
+            "encoded_args_len"
+        ) as (b2, encoded_args_len), code_offset.cache_when_complex("code_ofst") as (b3, codeofst):
+            codesize = IRnode.from_list(["sub", ["extcodesize", target], codeofst])
             # copy code to memory starting from msize. we are clobbering
             # unused memory so it's safe.
             msize = IRnode.from_list(["msize"], location=MEMORY)
             with codesize.cache_when_complex("target_codesize") as (
-                b3,
+                b4,
                 codesize,
-            ), msize.cache_when_complex("mem_ofst") as (b4, mem_ofst):
+            ), msize.cache_when_complex("mem_ofst") as (b5, mem_ofst):
                 ir = ["seq"]
 
-                # make sure there is code at the target.
-                ir.append(["assert", codesize])
+                # make sure there is code at the target, and that
+                # code_ofst <= (extcodesize target).
+                # (note if code_ofst > (extcodesize target), would be
+                # OOG on the EXTCODECOPY)
+                # (code_ofst == (extcodesize target) would be empty
+                # initcode, which we disallow for hygiene reasons -
+                # same as `create_copy_of` on an empty target).
+                ir.append(["assert", ["sgt", codesize, 0]])
 
                 # copy the target code into memory.
                 # layout starting from mem_ofst:
                 # 00...00 (22 0's) | preamble | bytecode
-                ir.append(["extcodecopy", target, mem_ofst, 0, codesize])
+                ir.append(["extcodecopy", target, mem_ofst, codeofst, codesize])
 
                 ir.append(copy_bytes(add_ofst(mem_ofst, codesize), argbuf, encoded_args_len, bufsz))
 
@@ -1900,7 +1901,7 @@ class CreateFromFactory(_CreateBase):
 
                 ir.append(_create_ir(value, mem_ofst, length, salt))
 
-                return b1.resolve(b2.resolve(b3.resolve(b4.resolve(ir))))
+                return b1.resolve(b2.resolve(b3.resolve(b4.resolve(b5.resolve(ir)))))
 
 
 class _UnsafeMath(BuiltinFunction):
@@ -2199,10 +2200,29 @@ class Empty(BuiltinFunction):
         return IRnode("~empty", typ=output_type)
 
 
+class Breakpoint(BuiltinFunction):
+    _id = "breakpoint"
+    _inputs: list = []
+
+    _warned = False
+
+    def fetch_call_return(self, node):
+        if not self._warned:
+            vyper_warn("`breakpoint` should only be used for debugging!\n" + node._annotated_source)
+            self._warned = True
+
+        return None
+
+    @process_inputs
+    def build_IR(self, expr, args, kwargs, context):
+        return IRnode.from_list("breakpoint", annotation="breakpoint()")
+
+
 class Print(BuiltinFunction):
     _id = "print"
     _inputs: list = []
     _has_varargs = True
+    _kwargs = {"hardhat_compat": KwargSettings(BoolDefinition(), False, require_literal=True)}
 
     _warned = False
 
@@ -2217,22 +2237,61 @@ class Print(BuiltinFunction):
     def build_IR(self, expr, args, kwargs, context):
         args_as_tuple = ir_tuple_from_args(args)
         args_abi_t = args_as_tuple.typ.abi_type
+
         # create a signature like "log(uint256)"
         sig = "log" + "(" + ",".join([arg.typ.abi_type.selector_name() for arg in args]) + ")"
-        method_id = abi_method_id(sig)
 
-        buflen = 32 + args_abi_t.size_bound()
+        if kwargs["hardhat_compat"] is True:
+            method_id = abi_method_id(sig)
+            buflen = 32 + args_abi_t.size_bound()
 
-        # 32 bytes extra space for the method id
-        buf = context.new_internal_variable(get_type_for_exact_size(buflen))
+            # 32 bytes extra space for the method id
+            buf = context.new_internal_variable(get_type_for_exact_size(buflen))
 
-        ret = ["seq"]
-        ret.append(["mstore", buf, method_id])
-        encode = abi_encode(buf + 32, args_as_tuple, context, buflen, returns_len=True)
+            ret = ["seq"]
+            ret.append(["mstore", buf, method_id])
+            encode = abi_encode(buf + 32, args_as_tuple, context, buflen, returns_len=True)
+
+        else:
+            method_id = abi_method_id("log(string,bytes)")
+            schema = args_abi_t.selector_name().encode("utf-8")
+            if len(schema) > 32:
+                raise CompilerPanic("print signature too long: {schema}")
+
+            schema_t = StringType(len(schema))
+            schema_buf = context.new_internal_variable(schema_t)
+            ret = ["seq"]
+            ret.append(["mstore", schema_buf, len(schema)])
+
+            # TODO use Expr.make_bytelike, or better have a `bytestring` IRnode type
+            ret.append(["mstore", schema_buf + 32, bytes_to_int(schema.ljust(32, b"\x00"))])
+
+            payload_buflen = args_abi_t.size_bound()
+            payload_t = ByteArrayType(payload_buflen)
+
+            # 32 bytes extra space for the method id
+            payload_buf = context.new_internal_variable(payload_t)
+            encode_payload = abi_encode(
+                payload_buf + 32, args_as_tuple, context, payload_buflen, returns_len=True
+            )
+
+            ret.append(["mstore", payload_buf, encode_payload])
+            args_as_tuple = ir_tuple_from_args(
+                [
+                    IRnode.from_list(schema_buf, typ=schema_t, location=MEMORY),
+                    IRnode.from_list(payload_buf, typ=payload_t, location=MEMORY),
+                ]
+            )
+
+            # add 32 for method id padding
+            buflen = 32 + args_as_tuple.typ.abi_type.size_bound()
+            buf = context.new_internal_variable(get_type_for_exact_size(buflen))
+            ret.append(["mstore", buf, method_id])
+            encode = abi_encode(buf + 32, args_as_tuple, context, buflen, returns_len=True)
 
         # debug address that tooling uses
         CONSOLE_ADDRESS = 0x000000000000000000636F6E736F6C652E6C6F67
-        ret.append(["staticcall", "gas", CONSOLE_ADDRESS, buf + 28, encode, 0, 0])
+        ret.append(["staticcall", "gas", CONSOLE_ADDRESS, buf + 28, ["add", 4, encode], 0, 0])
 
         return IRnode.from_list(ret, annotation="print:" + sig)
 
@@ -2525,7 +2584,7 @@ DISPATCH_TABLE = {
     "create_minimal_proxy_to": CreateMinimalProxyTo(),
     "create_forwarder_to": CreateForwarderTo(),
     "create_copy_of": CreateCopyOf(),
-    "create_from_factory": CreateFromFactory(),
+    "create_from_blueprint": CreateFromBlueprint(),
     "min": Min(),
     "max": Max(),
     "empty": Empty(),
@@ -2537,13 +2596,14 @@ DISPATCH_TABLE = {
 STMT_DISPATCH_TABLE = {
     "send": Send(),
     "print": Print(),
+    "breakpoint": Breakpoint(),
     "selfdestruct": SelfDestruct(),
     "raw_call": RawCall(),
     "raw_log": RawLog(),
     "create_minimal_proxy_to": CreateMinimalProxyTo(),
     "create_forwarder_to": CreateForwarderTo(),
     "create_copy_of": CreateCopyOf(),
-    "create_from_factory": CreateFromFactory(),
+    "create_from_blueprint": CreateFromBlueprint(),
 }
 
 BUILTIN_FUNCTIONS = {**STMT_DISPATCH_TABLE, **DISPATCH_TABLE}.keys()
