@@ -30,7 +30,7 @@ def generate_public_variable_getters(vyper_module: vy_ast.Module) -> None:
         Top-level Vyper AST node.
     """
 
-    for node in vyper_module.get_children(vy_ast.AnnAssign, {"annotation.func.id": "public"}):
+    for node in vyper_module.get_children(vy_ast.VariableDecl, {"annotation.func.id": "public"}):
         func_type = node._metadata["func_type"]
         input_types, return_type = func_type.get_signature()
         input_nodes = []
@@ -100,7 +100,7 @@ def remove_unused_statements(vyper_module: vy_ast.Module) -> None:
     """
 
     # constant declarations - values were substituted within the AST during folding
-    for node in vyper_module.get_children(vy_ast.AnnAssign, {"annotation.func.id": "constant"}):
+    for node in vyper_module.get_children(vy_ast.VariableDecl, {"annotation.func.id": "constant"}):
         vyper_module.remove_from_body(node)
 
     # `implements: interface` statements - validated during type checking

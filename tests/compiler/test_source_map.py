@@ -68,6 +68,19 @@ def test_pos_map_offsets():
             )
 
 
+def test_error_map():
+    code = """
+foo: uint256
+
+@external
+def update_foo():
+    self.foo += 1
+    """
+    error_map = compile_code(code, ["source_map"])["source_map"]["error_map"]
+    assert "safeadd" in list(error_map.values())
+    assert "fallback function" in list(error_map.values())
+
+
 def test_compress_source_map():
     code = """
 @external

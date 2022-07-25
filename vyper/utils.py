@@ -2,6 +2,7 @@ import binascii
 import decimal
 import sys
 import traceback
+import warnings
 from typing import List, Union
 
 from vyper.exceptions import DecimalOverrideException, InvalidLiteral
@@ -10,8 +11,14 @@ from vyper.exceptions import DecimalOverrideException, InvalidLiteral
 class DecimalContextOverride(decimal.Context):
     def __setattr__(self, name, value):
         if name == "prec":
-            # CMC 2022-03-27: should we raise a warning instead of an exception?
-            raise DecimalOverrideException("Overriding decimal precision disabled")
+            if value < 78:
+                # definitely don't want this to happen
+                raise DecimalOverrideException("Overriding decimal precision disabled")
+            elif value > 78:
+                # not sure it's incorrect, might not be end of the world
+                warnings.warn("Changing decimals precision could have unintended side effects!")
+            # else: no-op, is ok
+
         super().__setattr__(name, value)
 
 
@@ -210,6 +217,13 @@ def evm_mod(x, y):
 
     sign = -1 if x < 0 else 1
     return sign * (abs(x) % abs(y))  # adapted from py-evm
+
+
+# EVM pow which wraps instead of hanging on "large" numbers
+# (which can generated, for ex. in the unevaluated branch of the Shift builtin)
+def evm_pow(x, y):
+    assert x >= 0 and y >= 0
+    return pow(x, y, 2 ** 256)
 
 
 # memory used for system purposes, not for variables

@@ -8,6 +8,7 @@ from vyper.utils import (
     ceil32,
     evm_div,
     evm_mod,
+    evm_pow,
     int_bounds,
     int_log2,
     is_power_of_two,
@@ -54,7 +55,7 @@ arith = {
     "sdiv": (evm_div, "/", SIGNED),
     "mod": (evm_mod, "%", UNSIGNED),
     "smod": (evm_mod, "%", SIGNED),
-    "exp": (operator.pow, "**", UNSIGNED),
+    "exp": (evm_pow, "**", UNSIGNED),
     "eq": (operator.eq, "==", UNSIGNED),
     "ne": (operator.ne, "!=", UNSIGNED),
     "lt": (operator.lt, "<", UNSIGNED),
@@ -226,6 +227,9 @@ def _optimize_binop(binop, args, ann, parent_op):
         # compile-time arithmetic
         left, right = _int(args[0]), _int(args[1])
         new_val = fn(left, right)
+        # wrap the result, since `fn` generally does not wrap.
+        # (note: do not rely on wrapping/non-wrapping behavior for `fn`!
+        # some ops, like evm_pow, ALWAYS wrap).
         new_val = _wrap(new_val)
         return finalize(new_val, [])
 
@@ -424,6 +428,7 @@ def _optimize(node: IRnode, parent: Optional[IRnode]) -> Tuple[bool, IRnode]:
     typ = node.typ
     location = node.location
     source_pos = node.source_pos
+    error_msg = node.error_msg
     annotation = node.annotation
     add_gas_estimate = node.add_gas_estimate
 
@@ -445,6 +450,7 @@ def _optimize(node: IRnode, parent: Optional[IRnode]) -> Tuple[bool, IRnode]:
             typ=typ,
             location=location,
             source_pos=source_pos,
+            error_msg=error_msg,
             annotation=annotation,
             add_gas_estimate=add_gas_estimate,
         )
@@ -511,7 +517,7 @@ def _optimize(node: IRnode, parent: Optional[IRnode]) -> Tuple[bool, IRnode]:
             # if true
             else:
                 # return the first branch
-                return finalize("seq", argz[1])
+                return finalize("seq", [argz[1]])
 
         elif len(argz) == 3 and argz[0].value != "iszero":
             # if(x) compiles to jumpi(_, iszero(x))

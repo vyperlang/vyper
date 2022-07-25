@@ -115,12 +115,13 @@ class BasePrimitive:
         is_immutable: bool = False,
     ) -> "BaseTypeDefinition":
         """
-        Generate a `BaseTypeDefinition` instance of this type from `AnnAssign.annotation`
+        Generate a `BaseTypeDefinition` instance of this type from `VariableDecl.annotation`
+        or `AnnAssign.annotation`
 
         Arguments
         ---------
         node : VyperNode
-            Vyper ast node from the `annotation` member of an `AnnAssign` node.
+            Vyper ast node from the `annotation` member of a `VariableDecl` or `AnnAssign` node.
 
         Returns
         -------

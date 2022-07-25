@@ -1,4 +1,5 @@
 import ast as python_ast
+import copy
 import decimal
 import operator
 import sys
@@ -54,6 +55,22 @@ def get_node(
     """
     if not isinstance(ast_struct, dict):
         ast_struct = ast_struct.__dict__
+
+        # workaround: some third party module (ex. ipython) might insert
+        # a "parent" member into the node, creating a duplicate kwarg
+        # error below when calling vy_class()
+        if "parent" in ast_struct:
+            ast_struct = copy.copy(ast_struct)
+            del ast_struct["parent"]
+
+    # Replace state and local variable declarations `AnnAssign` with `VariableDecl`
+    # Parent node is required for context to determine whether replacement should happen.
+    if (
+        ast_struct["ast_type"] == "AnnAssign"
+        and isinstance(parent, Module)
+        and not getattr(ast_struct["target"], "id", None) in ("implements",)
+    ):
+        ast_struct["ast_type"] = "VariableDecl"
 
     vy_class = getattr(sys.modules[__name__], ast_struct["ast_type"], None)
     if not vy_class:
@@ -516,6 +533,7 @@ class VyperNode:
 
     def get(self, field_str: str) -> Any:
         """
+
         Recursive getter function for node attributes.
 
         Parameters
@@ -1228,6 +1246,56 @@ class Assign(VyperNode):
 
 class AnnAssign(VyperNode):
     __slots__ = ("target", "annotation", "value", "simple")
+
+
+class VariableDecl(VyperNode):
+    """
+    A contract variable declaration.
+
+    Excludes `simple` attribute from Python `AnnAssign` node.
+
+    Attributes
+    ----------
+    target : VyperNode
+        Left-hand side of the assignment.
+    value : VyperNode
+        Right-hand side of the assignment.
+    annotation : VyperNode
+        Type of variable.
+    is_constant : bool, optional
+        If true, indicates that the variable is a constant variable.
+    is_public : bool, optional
+        If true, indicates that the variable is a public state variable.
+    is_immutable : bool, optional
+        If true, indicates that the variable is an immutable variable.
+    """
+
+    __slots__ = ("target", "annotation", "value", "is_constant", "is_public", "is_immutable")
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        self.is_constant = False
+        self.is_public = False
+        self.is_immutable = False
+
+        if isinstance(self.annotation, Call):
+            # the annotation is a function call, e.g. `foo: constant(uint256)`
+            call_name = self.annotation.get("func.id")
+            if call_name == "constant":
+                # declaring a constant
+                self.is_constant = True
+
+            elif call_name == "public":
+                # declaring a public variable
+                self.is_public = True
+
+            elif call_name == "immutable":
+                # declaring an immutable variable
+                self.is_immutable = True
+
+            else:
+                _raise_syntax_exc("Invalid scope for variable declaration", self.annotation)
 
 
 class AugAssign(VyperNode):

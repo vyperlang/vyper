@@ -1,4 +1,4 @@
-# @version >=0.3.3
+# @version >=0.3.4
 """
 @dev Implementation of ERC-1155 non-fungible token standard ownable, with approval, OPENSEA compatible (name, symbol)
 @author Dr. Pixel (github: @Doc-Pixel)
@@ -13,8 +13,15 @@ BATCH_SIZE: constant(uint256) = 128
 # callback number of bytes
 CALLBACK_NUMBYTES: constant(uint256) = 4096
 
-# URI length set to 1024. 
-MAX_URI_LENGTH: constant(uint256) = 1024        
+# URI length set to 300. 
+MAX_URI_LENGTH: constant(uint256) = 300 
+# for uint2str / dynamic URI
+MAX_DYNURI_LENGTH: constant(uint256) = 78      
+# for the .json extension on the URL
+MAX_EXTENSION_LENGTH: constant(uint256) = 5  
+
+MAX_URL_LENGTH: constant(uint256) = MAX_URI_LENGTH+MAX_DYNURI_LENGTH+MAX_EXTENSION_LENGTH # dynamic URI status
+dynamicUri: bool
 
 # the contract owner
 # not part of the core spec but a common feature for NFT projects
@@ -25,9 +32,10 @@ owner: public(address)
 paused: public(bool)                            
 
 # the contracts URI to find the metadata
-_uri: String[MAX_URI_LENGTH]
+baseuri: String[MAX_URI_LENGTH]
+contractURI: public(String[MAX_URI_LENGTH])
 
-# NFT marketplace compatibility
+# Name and symbol are not part of the ERC1155 standard. For opensea compatibility
 name: public(String[128])
 symbol: public(String[16])
 
@@ -85,7 +93,6 @@ event URI:
     value: String[MAX_URI_LENGTH]
     id: uint256
 
-
 ############### interfaces ###############
 implements: ERC165
 
@@ -111,7 +118,7 @@ interface IERC1155MetadataURI:
 ############### functions ###############
 
 @external
-def __init__(name: String[128], symbol: String[16], uri: String[1024]):
+def __init__(name: String[128], symbol: String[16], uri: String[MAX_URI_LENGTH], contractUri: String[MAX_URI_LENGTH]):
     """
     @dev contract initialization on deployment
     @dev will set name and symbol, interfaces, owner and URI
@@ -123,7 +130,8 @@ def __init__(name: String[128], symbol: String[16], uri: String[1024]):
     self.name = name
     self.symbol = symbol
     self.owner = msg.sender
-    self._uri = uri
+    self.baseuri = uri
+    self.contractURI = contractUri
 
 ## contract status ##
 @external
@@ -245,7 +253,6 @@ def burn(id: uint256, amount: uint256):
     """
     @dev burn one or more token with a certain ID
     @dev the amount of tokens will be deducted from the holder's balance
-    @param receiver the account that will receive the minted token
     @param id the ID of the token to burn
     @param amount of tokens to burnfor this ID
     """
@@ -279,8 +286,9 @@ def burnBatch(ids: DynArray[uint256, BATCH_SIZE], amounts: DynArray[uint256, BAT
 def setApprovalForAll(owner: address, operator: address, approved: bool):
     """
     @dev set an operator for a certain NFT owner address
-    @param account the NFT owner address
+    @param owner the NFT owner address
     @param operator the operator address
+    @param approved approve or disapprove
     """
     assert owner == msg.sender, "You can only set operators for your own account"
     assert not self.paused, "The contract has been paused"
@@ -340,28 +348,57 @@ def setURI(uri: String[MAX_URI_LENGTH]):
     @param uri the new uri for the contract
     """
     assert not self.paused, "The contract has been paused"
-    assert self._uri != uri, "new and current URI are identical"
+    assert self.baseuri != uri, "new and current URI are identical"
     assert msg.sender == self.owner, "Only the contract owner can update the URI"
-    self._uri = uri
+    self.baseuri = uri
     log URI(uri, 0)
 
 @external
-def uri(id: uint256) -> String[MAX_URI_LENGTH]:
+def toggleDynUri(status: bool):
     """
-    @dev retrieve the uri, this function can optionally be extended to return dynamic uris. out of scope.
+    @dev toggle dynamic URI
+    @param status true for dynamic false for static
+    """
+    assert msg.sender == self.owner
+    assert status != self.dynamicUri, "already in desired state"
+    self.dynamicUri = status
+
+@view
+@external
+def uri(id: uint256) -> String[MAX_URL_LENGTH]:
+    """
+    @dev retrieve the uri. Adds requested ID when dynamic URI is active
     @param id NFT ID to retrieve the uri for. 
     """
-    return self._uri
+    if self.dynamicUri:
+        return concat(self.baseuri, uint2str(id), '.json')
+    else:
+        return self.baseuri
+
+# URI #
+@external
+def setContractURI(contractUri: String[MAX_URI_LENGTH]):
+    """
+    @dev set the contractURI for the contract. points to collection metadata file
+    @dev This function is opensea specific and is required to properly show collection metadata and image
+    @param contractUri the new urcontractUri for the contract
+    """
+    assert not self.paused, "The contract has been paused"
+    assert self.contractURI != contractUri, "new and current URI are identical"
+    assert msg.sender == self.owner, "Only the contract owner can update the URI"
+    self.contractURI = contractUri
+    log URI(contractUri, 0)
 
 @pure
 @external
 def supportsInterface(interfaceId: bytes4) -> bool:
     """
     @dev Returns True if the interface is supported
-    @param interfaceID bytes4 interface identifier
+    @param interfaceId bytes4 interface identifier
     """
     return interfaceId in [
         ERC165_INTERFACE_ID,
         ERC1155_INTERFACE_ID,
         ERC1155_INTERFACE_ID_METADATA, 
     ] 
+
