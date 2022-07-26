@@ -43,6 +43,36 @@ def foo(x: {typ}) -> {typ}:
     assert c.foo(hi) == 1
 
 
+@pytest.mark.parametrize("typ,lo,hi,bits", PARAMS)
+def test_exponent_power_zero(get_contract, typ, lo, hi, bits):
+    # #2984
+    code = f"""
+@external
+def foo(x: {typ}) -> {typ}:
+    return x ** 0
+    """
+    c = get_contract(code)
+    assert c.foo(0) == 1
+    assert c.foo(1) == 1
+    assert c.foo(42) == 1
+    assert c.foo(hi) == 1
+
+
+@pytest.mark.parametrize("typ,lo,hi,bits", PARAMS)
+def test_exponent_power_one(get_contract, typ, lo, hi, bits):
+    # #2984
+    code = f"""
+@external
+def foo(x: {typ}) -> {typ}:
+    return x ** 1
+    """
+    c = get_contract(code)
+    assert c.foo(0) == 0
+    assert c.foo(1) == 1
+    assert c.foo(42) == 42
+    assert c.foo(hi) == hi
+
+
 ARITHMETIC_OPS = {
     "+": operator.add,
     "-": operator.sub,
