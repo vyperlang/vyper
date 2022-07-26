@@ -251,10 +251,7 @@ Vyper has three builtins for contract creation; all three contract creation buil
             x: uint256 = 123
             success, response = raw_call(
                 _target, 
-                concat(
-                    method_id("someMethodName(uint256)"), 
-                    convert(x, bytes32)
-                    ), 
+                _abi_encode(x, method_id=method_id("someMethodName(uint256)")), 
                 max_outsize=32,
                 value=msg.value, 
                 revert_on_failure=False
