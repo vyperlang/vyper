@@ -365,7 +365,7 @@ def safe_pow(x, y):
             y.value, num_info.bits, num_info.is_signed
         )
         if num_info.is_signed:
-            ok = ["and", ["sle", x, upper_bound], ["sge", x, lower_bound]]
+            ok = ["and", ["sge", x, lower_bound], ["sle", x, upper_bound]]
         else:
             ok = ["le", x, upper_bound]
     else:
