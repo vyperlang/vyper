@@ -76,13 +76,13 @@ def test_minmax_value_decimal_oob(get_contract, assert_compile_failed, typ):
     upper = f"""
 @external
 def foo():
-    a: {typ} = max_value({typ}) + 0.0000000001
+    a: {typ} = max_value({typ}) + 1e-10
     """
 
     lower = f"""
 @external
 def foo():
-    a: {typ} = min_value({typ}) - 0.0000000001
+    a: {typ} = min_value({typ}) - 1e-10
     """
 
     assert_compile_failed(lambda: get_contract(upper), OverflowException)
