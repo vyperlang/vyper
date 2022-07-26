@@ -14,6 +14,7 @@ Non-breaking changes and improvements:
 * Add ``_abi_decode`` builtin (`#2882 <https://github.com/vyperlang/vyper/pull/2882>`_)
 * Add ``create_from_blueprint`` and ``create_copy_of`` builtins (`#2895 <https://github.com/vyperlang/vyper/pull/2895>`_)
 * Add ``default_return_value`` kwarg for calls (`#2839 <https://github.com/vyperlang/vyper/pull/2839>`_)
+* Add ``min_value`` and ``max_value`` builtins for numeric types (`#2935 <https://github.com/vyperlang/vyper/pull/2935>`_)
 * Add ``uint2str`` builtin (`#2879 <https://github.com/vyperlang/vyper/pull/2879>`_)
 * Add vyper signature to bytecode (`#2860 <https://github.com/vyperlang/vyper/pull/2860>`_)
 
@@ -34,6 +35,7 @@ Other fixes and improvements:
 * Fix off-by-one bounds check in certain safepow cases (`#2983 <https://github.com/vyperlang/vyper/pull/2983>`_)
 * Optimizer improvements (`#2647 <https://github.com/vyperlang/vyper/pull/2647>`_, `#2868 <https://github.com/vyperlang/vyper/pull/2868>`_, `#2914 <https://github.com/vyperlang/vyper/pull/2914>`_, `#2843 <https://github.com/vyperlang/vyper/pull/2843>`_, `#2944 <https://github.com/vyperlang/vyper/pull/2944>`_)
 * Reverse order in which exceptions are reported (`#2838 <https://github.com/vyperlang/vyper/pull/2838>`_)
+* Fix compile-time blowup for large contracts (`#2981 <https://github.com/vyperlang/vyper/pull/2981>`_)
 
 
 Many other small bugfixes, optimizations and refactoring also made it into this release! Special thanks to @tserg and @pandadefi for contributing several important bugfixes, refactoring and features to this release!
