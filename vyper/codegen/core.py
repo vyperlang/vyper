@@ -88,83 +88,72 @@ def dynarray_data_ptr(ptr):
     return add_ofst(ptr, ptr.location.word_scale)
 
 
-def _dynarray_make_setter(dst, src, store_length=True, dst_len=None):
+def _dynarray_make_setter(dst, src):
     assert isinstance(src.typ, DArrayType)
     assert isinstance(dst.typ, DArrayType)
 
-    if store_length is False:
-        # Get start pointer of dst
-        dst_start_idx = get_element_ptr(dst, dst_len, array_bounds_check=False)
-
-        # Cast dst start pointer as darray for `_dynarray_make_setter` by subtracting offset
-        dst_ = IRnode.from_list(["sub", dst_start_idx, dst.location.word_scale])
-        dst_.typ = dst.typ
-        dst_.location = dst.location
-    else:
-        dst_ = dst
-
     if src.value == "~empty":
-        if store_length is True:
-            return IRnode.from_list(STORE(dst, 0))
-        return
+        return IRnode.from_list(STORE(dst, 0))
 
     if src.value == "multi":
         ret = ["seq"]
         # handle literals
 
         # write the length word
-        if store_length is True:
-            new_len = len(src.args)
-            store_length = STORE(dst, new_len)
-            ann = None
-            if src.annotation is not None:
-                ann = f"len({src.annotation})"
-            store_length = IRnode.from_list(store_length, annotation=ann)
-            ret.append(store_length)
+        new_len = len(src.args)
+        store_length = STORE(dst, new_len)
+        ann = None
+        if src.annotation is not None:
+            ann = f"len({src.annotation})"
+        store_length = IRnode.from_list(store_length, annotation=ann)
+        ret.append(store_length)
 
-        ret.extend(_copy_dynarray_body(dst_, src, literals_length=len(src.args)))
+        ret.extend(_copy_dynarray_body(dst, src))
         return ret
 
     with src.cache_when_complex("darray_src") as (b1, src):
 
-        # for ABI-encoded dynamic data, we must loop to unpack, since
-        # the layout does not match our memory layout
-        should_loop = src.encoding == Encoding.ABI and src.typ.subtype.abi_type.is_dynamic()
-
-        # if the data is not validated, we must loop to unpack
-        should_loop |= needs_clamp(src.typ.subtype, src.encoding)
-
-        # performance: if the subtype is dynamic, there might be a lot
-        # of unused space inside of each element. for instance
-        # DynArray[DynArray[uint256, 100], 5] where all the child
-        # arrays are empty - for this case, we recursively call
-        # into make_setter instead of straight bytes copy
-        # TODO we can make this heuristic more precise, e.g.
-        # loop when subtype.is_dynamic AND location == storage
-        # OR array_size <= /bound where loop is cheaper than memcpy/
-        should_loop |= src.typ.subtype.abi_type.is_dynamic()
+        should_loop = _should_loop(src)
 
         with get_dyn_array_count(src).cache_when_complex("darray_count") as (b2, count):
             ret = ["seq"]
 
-            if store_length is True:
-                ret.append(STORE(dst, count))
+            ret.append(STORE(dst, count))
 
-            if should_loop is True:
-                ret.extend(_copy_dynarray_body(dst_, src, should_loop=True, loop_count=count))
-            else:
-                ret.extend(_copy_dynarray_body(dst_, src, should_loop=False, loop_count=count))
+            ret.extend(_copy_dynarray_body(dst, src, should_loop=should_loop, loop_count=count))
 
             return b1.resolve(b2.resolve(ret))
 
 
-def _copy_dynarray_body(dst, src, literals_length=None, should_loop=True, loop_count=None):
-    ret = []
+def _should_loop(src):
+    # for ABI-encoded dynamic data, we must loop to unpack, since
+    # the layout does not match our memory layout
+    should_loop = src.encoding == Encoding.ABI and src.typ.subtype.abi_type.is_dynamic()
 
-    if literals_length is not None:
-        assert isinstance(literals_length, int)
+    # if the data is not validated, we must loop to unpack
+    should_loop |= needs_clamp(src.typ.subtype, src.encoding)
 
-        for i in range(literals_length):
+    # performance: if the subtype is dynamic, there might be a lot
+    # of unused space inside of each element. for instance
+    # DynArray[DynArray[uint256, 100], 5] where all the child
+    # arrays are empty - for this case, we recursively call
+    # into make_setter instead of straight bytes copy
+    # TODO we can make this heuristic more precise, e.g.
+    # loop when subtype.is_dynamic AND location == storage
+    # OR array_size <= /bound where loop is cheaper than memcpy/
+    should_loop |= src.typ.subtype.abi_type.is_dynamic()
+    return should_loop
+
+
+def _copy_dynarray_body(dst, src, should_loop=True, loop_count=None):
+    ret = ["seq"]
+
+    if src.value == "~empty":
+        return
+
+    if src.value == "multi":
+        n_items = len(src.args)
+        for i in range(n_items):
             k = IRnode.from_list(i, typ="uint256")
             dst_i = get_element_ptr(dst, k, array_bounds_check=False)
             src_i = get_element_ptr(src, k, array_bounds_check=False)
@@ -328,9 +317,12 @@ def extend_dyn_array(context, dst, src):
 
     with dst.cache_when_complex("darray_dst") as (b1, dst):
         dst_len = get_dyn_array_count(dst)
+        src_len = get_dyn_array_count(src)
 
-        with dst_len.cache_when_complex("dst_darray_len") as (b2, dst_len):
-            src_len = get_dyn_array_count(src)
+        with dst_len.cache_when_complex("dst_darray_len") as (b2, dst_len), src_len.cache_when_complex(
+            "src_darray_len"
+        ) as (b3, src_len):
+
             max_dst_len = dst.typ.count
             combined_len = IRnode.from_list(["add", dst_len, src_len], typ="uint256")
 
@@ -344,12 +336,22 @@ def extend_dyn_array(context, dst, src):
             store_length = IRnode.from_list(STORE(dst, combined_len))
             ret.append(store_length)
 
+            # Get start pointer of dst
+            dst_start_idx = get_element_ptr(dst, dst_len, array_bounds_check=False)
+
+            # Cast dst start pointer as darray for `_dynarray_make_setter` by subtracting offset
+            dst_i = IRnode.from_list(["sub", dst_start_idx, dst.location.word_scale])
+            dst_i.typ = dst.typ
+            dst_i.location = dst.location
+
+            should_loop = _should_loop(src)
+
             body = IRnode.from_list(
-                _dynarray_make_setter(dst, src, store_length=False, dst_len=dst_len)
+                _copy_dynarray_body(dst_i, src, should_loop=should_loop, loop_count=src_len)
             )
             ret.append(body)
 
-            return IRnode.from_list(b1.resolve(b2.resolve(ret)))
+            return IRnode.from_list(b1.resolve(b2.resolve(b3.resolve(ret))))
 
 
 def pop_dyn_array(darray_node, return_popped_item):
