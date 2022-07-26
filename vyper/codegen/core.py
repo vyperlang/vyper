@@ -95,10 +95,10 @@ def _dynarray_make_setter(dst, src):
     if src.value == "~empty":
         return IRnode.from_list(STORE(dst, 0))
 
-    if src.value == "multi":
-        ret = ["seq"]
-        # handle literals
+    ret = ["seq"]
 
+    if src.value == "multi":
+        # handle literals
         # write the length word
         new_len = len(src.args)
         store_length = STORE(dst, new_len)
@@ -111,21 +111,29 @@ def _dynarray_make_setter(dst, src):
         ret.extend(_copy_dynarray_body(dst, src))
         return ret
 
-    with src.cache_when_complex("darray_src") as (b1, src):
+    with src.cache_when_complex("darray_src") as (b1, src), get_dyn_array_count(src).cache_when_complex("darray_count") as (b2, count):
+        ret.append(STORE(dst, count))
 
-        should_loop = _should_loop(src)
+        ret.extend(_copy_dynarray_body(dst, src, loop_count=count))
 
-        with get_dyn_array_count(src).cache_when_complex("darray_count") as (b2, count):
-            ret = ["seq"]
-
-            ret.append(STORE(dst, count))
-
-            ret.extend(_copy_dynarray_body(dst, src, should_loop=should_loop, loop_count=count))
-
-            return b1.resolve(b2.resolve(ret))
+        return b1.resolve(b2.resolve(ret))
 
 
-def _should_loop(src):
+def _copy_dynarray_body(dst, src, loop_count=None):
+    ret = ["seq"]
+
+    if src.value == "~empty":
+        return
+
+    if src.value == "multi":
+        n_items = len(src.args)
+        for i in range(n_items):
+            k = IRnode.from_list(i, typ="uint256")
+            dst_i = get_element_ptr(dst, k, array_bounds_check=False)
+            src_i = get_element_ptr(src, k, array_bounds_check=False)
+            ret.append(make_setter(dst_i, src_i))
+        return ret
+
     # for ABI-encoded dynamic data, we must loop to unpack, since
     # the layout does not match our memory layout
     should_loop = src.encoding == Encoding.ABI and src.typ.subtype.abi_type.is_dynamic()
@@ -142,23 +150,6 @@ def _should_loop(src):
     # loop when subtype.is_dynamic AND location == storage
     # OR array_size <= /bound where loop is cheaper than memcpy/
     should_loop |= src.typ.subtype.abi_type.is_dynamic()
-    return should_loop
-
-
-def _copy_dynarray_body(dst, src, should_loop=True, loop_count=None):
-    ret = ["seq"]
-
-    if src.value == "~empty":
-        return
-
-    if src.value == "multi":
-        n_items = len(src.args)
-        for i in range(n_items):
-            k = IRnode.from_list(i, typ="uint256")
-            dst_i = get_element_ptr(dst, k, array_bounds_check=False)
-            src_i = get_element_ptr(src, k, array_bounds_check=False)
-            ret.append(make_setter(dst_i, src_i))
-        return ret
 
     if should_loop is True:
         i = IRnode.from_list(_freshname("copy_darray_ix"), typ="uint256")
@@ -344,10 +335,8 @@ def extend_dyn_array(context, dst, src):
             dst_i.typ = dst.typ
             dst_i.location = dst.location
 
-            should_loop = _should_loop(src)
-
             body = IRnode.from_list(
-                _copy_dynarray_body(dst_i, src, should_loop=should_loop, loop_count=src_len)
+                _copy_dynarray_body(dst_i, src, loop_count=src_len)
             )
             ret.append(body)
 
