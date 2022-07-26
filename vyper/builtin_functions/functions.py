@@ -2509,14 +2509,6 @@ class ABIDecode(BuiltinFunction):
 class _MinMaxValue(BuiltinFunction):
     _inputs = [("typename", "TYPE_DEFINITION")]
 
-    def _eval_int(self, type_):
-        info = parse_integer_typeinfo(str(type_))
-        return info.bounds
-
-    def _eval_decimal(self, type_):
-        info = parse_decimal_info(str(type_))
-        return info.decimal_bounds
-
     def evaluate(self, node):
         self._validate_arg_types(node)
         input_type = get_type_from_annotation(node.args[0], DataLocation.UNSET)
@@ -2525,13 +2517,11 @@ class _MinMaxValue(BuiltinFunction):
             raise InvalidType(f"Expected numeric type but got {input_type} instead", node)
 
         if isinstance(input_type, DecimalDefinition):
-            bounds = self._eval_decimal(input_type)
-            val = self._eval(bounds)
+            val = self._eval_decimal(input_type)
             return vy_ast.Decimal.from_node(node, value=val)
 
         if isinstance(input_type, IntegerAbstractType):
-            bounds = self._eval_int(input_type)
-            val = self._eval(bounds)
+            val = self._eval_int(input_type)
             return vy_ast.Int.from_node(node, value=val)
 
     def fetch_call_return(self, node):  # pragma: no cover
@@ -2543,18 +2533,33 @@ class _MinMaxValue(BuiltinFunction):
     def infer_kwarg_types(self, node):  # pragma: no cover
         raise CompilerPanic(f"{self._id} should always be folded")
 
+    # TODO we may want to provide this as the default impl on the base class
     def build_IR(self, *args, **kwargs):  # pragma: no cover
         raise CompilerPanic(f"{self._id} should always be folded")
 
 
 class MinValue(_MinMaxValue):
     _id = "min_value"
-    _eval = min
+
+    def _eval_int(self, type_):
+        typinfo = parse_integer_typeinfo(str(type_))
+        return typinfo.bounds[0]
+
+    def _eval_decimal(self, type_):
+        typinfo = parse_decimal_info(str(type_))
+        return typinfo.decimal_bounds[0]
 
 
 class MaxValue(_MinMaxValue):
     _id = "max_value"
-    _eval = max
+
+    def _eval_int(self, type_):
+        typinfo = parse_integer_typeinfo(str(type_))
+        return typinfo.bounds[1]
+
+    def _eval_decimal(self, type_):
+        typinfo = parse_decimal_info(str(type_))
+        return typinfo.decimal_bounds[1]
 
 
 DISPATCH_TABLE = {
