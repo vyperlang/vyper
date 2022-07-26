@@ -329,7 +329,7 @@ def to_int(expr, arg, out_typ):
         arg = _fixed_to_int(arg, out_typ)
 
     elif is_enum_type(arg.typ):
-        if out_typ.typ != "uint256":
+        if not is_base_type(out_typ, "uint256"):
             _FAIL(arg.typ, out_typ, expr)
         arg = _int_to_int(arg, out_typ)
 
