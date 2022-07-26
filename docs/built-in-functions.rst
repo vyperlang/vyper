@@ -228,7 +228,7 @@ Vyper has three built-ins for contract creation; all three contract creation bui
     * ``revert_on_failure``: If ``True``, the call will revert on a failure, otherwise ``success`` will be returned (Optional, default ``True``)
 
     .. note::
-        
+
         Returns the data returned by the call as a ``Bytes`` list, with ``max_outsize`` as the max length. The actual size of the returned data may be less than ``max_outsize``. You can use ``len`` to obtain the actual size.
 
         Returns nothing if ``max_outsize`` is omitted or set to ``0``.
@@ -553,6 +553,22 @@ Math
         >>> ExampleContract.foo(23, 42)
         42
 
+.. py:function:: max_value(type_) -> numeric
+
+    Returns the maximum value of the numeric type specified by ``type_`` (e.g., ``int128``, ``uint256``, ``decimal``).
+
+    .. code-block:: python
+
+        @external
+        @view
+        def foo() -> int256:
+            return max_value(int256)
+
+    .. code-block:: python
+
+        >>> ExampleContract.foo()
+        57896044618658097711785492504343953926634992332820282019728792003956564819967
+
 .. py:function:: min(a: numeric, b: numeric) -> numeric
 
     Returns the lesser value of ``a`` and ``b``. The input values may be any numeric type as long as they are both of the same type.  The output value is of the same type as the input values.
@@ -568,6 +584,22 @@ Math
 
         >>> ExampleContract.foo(23, 42)
         23
+
+.. py:function:: min_value(type_) -> numeric
+
+    Returns the minimum value of the numeric type specified by ``type_`` (e.g., ``int128``, ``uint256``, ``decimal``).
+
+    .. code-block:: python
+
+        @external
+        @view
+        def foo() -> int256:
+            return min_value(int256)
+
+    .. code-block:: python
+
+        >>> ExampleContract.foo()
+        -57896044618658097711785492504343953926634992332820282019728792003956564819968
 
 .. py:function:: pow_mod256(a: uint256, b: uint256) -> uint256
 

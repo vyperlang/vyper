@@ -22,22 +22,22 @@ def test_empty_bytes32(a: bytes32) -> bool:
 
 @external
 def test_int128(a: int128) -> (bool, bool):
-    return a == MAX_INT128, a == MIN_INT128
+    return a == max_value(int128), a == min_value(int128)
 
 
 @external
 def test_decimal(a: decimal) -> (bool, bool):
-    return a == MAX_DECIMAL, a == MIN_DECIMAL
+    return a == max_value(decimal), a == min_value(decimal)
 
 
 @external
 def test_uint256(a: uint256) -> bool:
-    return a == MAX_UINT256
+    return a == max_value(uint256)
 
 
 @external
 def test_arithmetic(a: int128) -> int128:
-    return MAX_INT128 - a
+    return max_value(int128) - a
     """
 
     c = get_contract_with_gas_estimation(code)
@@ -71,12 +71,12 @@ def test_builtin_constants_assignment(get_contract_with_gas_estimation):
     code = """
 @external
 def foo() -> int128:
-    bar: int128 = MAX_INT128
+    bar: int128 = max_value(int128)
     return bar
 
 @external
 def goo() -> int128:
-    bar: int128 = MIN_INT128
+    bar: int128 = min_value(int128)
     return bar
 
 @external
@@ -91,17 +91,17 @@ def joo() -> address:
 
 @external
 def koo() -> decimal:
-    bar: decimal = MAX_DECIMAL
+    bar: decimal = max_value(decimal)
     return bar
 
 @external
 def loo() -> decimal:
-    bar: decimal = MIN_DECIMAL
+    bar: decimal = min_value(decimal)
     return bar
 
 @external
 def zoo() -> uint256:
-    bar: uint256 = MAX_UINT256
+    bar: uint256 = max_value(uint256)
     return bar
     """
 

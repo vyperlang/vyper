@@ -158,7 +158,7 @@ def _slice(start: uint256, length: uint256):
 @external
 def foo(x: uint256, y: uint256) -> (uint256, String[12]):
     self.bytez = "hello, world"
-    dont_clobber_me: uint256 = MAX_UINT256
+    dont_clobber_me: uint256 = max_value(uint256)
     self._slice(x, y)
     return dont_clobber_me, self.bytez
     """

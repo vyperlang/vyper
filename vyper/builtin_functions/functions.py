@@ -49,6 +49,7 @@ from vyper.codegen.types import (
     TupleType,
     get_type_for_exact_size,
     is_base_type,
+    parse_decimal_info,
     parse_integer_typeinfo,
 )
 from vyper.codegen.types.convert import new_type_to_old_type
@@ -2505,6 +2506,62 @@ class ABIDecode(BuiltinFunction):
             )
 
 
+class _MinMaxValue(BuiltinFunction):
+    _inputs = [("typename", "TYPE_DEFINITION")]
+
+    def evaluate(self, node):
+        self._validate_arg_types(node)
+        input_type = get_type_from_annotation(node.args[0], DataLocation.UNSET)
+
+        if not isinstance(input_type, NumericAbstractType):
+            raise InvalidType(f"Expected numeric type but got {input_type} instead", node)
+
+        if isinstance(input_type, DecimalDefinition):
+            val = self._eval_decimal(input_type)
+            return vy_ast.Decimal.from_node(node, value=val)
+
+        if isinstance(input_type, IntegerAbstractType):
+            val = self._eval_int(input_type)
+            return vy_ast.Int.from_node(node, value=val)
+
+    def fetch_call_return(self, node):  # pragma: no cover
+        raise CompilerPanic(f"{self._id} should always be folded")
+
+    def infer_arg_types(self, node):  # pragma: no cover
+        raise CompilerPanic(f"{self._id} should always be folded")
+
+    def infer_kwarg_types(self, node):  # pragma: no cover
+        raise CompilerPanic(f"{self._id} should always be folded")
+
+    # TODO we may want to provide this as the default impl on the base class
+    def build_IR(self, *args, **kwargs):  # pragma: no cover
+        raise CompilerPanic(f"{self._id} should always be folded")
+
+
+class MinValue(_MinMaxValue):
+    _id = "min_value"
+
+    def _eval_int(self, type_):
+        typinfo = parse_integer_typeinfo(str(type_))
+        return typinfo.bounds[0]
+
+    def _eval_decimal(self, type_):
+        typinfo = parse_decimal_info(str(type_))
+        return typinfo.decimal_bounds[0]
+
+
+class MaxValue(_MinMaxValue):
+    _id = "max_value"
+
+    def _eval_int(self, type_):
+        typinfo = parse_integer_typeinfo(str(type_))
+        return typinfo.bounds[1]
+
+    def _eval_decimal(self, type_):
+        typinfo = parse_decimal_info(str(type_))
+        return typinfo.decimal_bounds[1]
+
+
 DISPATCH_TABLE = {
     "_abi_encode": ABIEncode(),
     "_abi_decode": ABIDecode(),
@@ -2546,6 +2603,8 @@ DISPATCH_TABLE = {
     "max": Max(),
     "empty": Empty(),
     "abs": Abs(),
+    "min_value": MinValue(),
+    "max_value": MaxValue(),
 }
 
 STMT_DISPATCH_TABLE = {
