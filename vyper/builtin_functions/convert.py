@@ -22,10 +22,12 @@ from vyper.codegen.types import (
     BaseType,
     ByteArrayLike,
     ByteArrayType,
+    EnumType,
     StringType,
     is_base_type,
     is_bytes_m_type,
     is_decimal_type,
+    is_enum_type,
     is_integer_type,
 )
 from vyper.exceptions import (
@@ -326,6 +328,11 @@ def to_int(expr, arg, out_typ):
     elif is_decimal_type(arg.typ):
         arg = _fixed_to_int(arg, out_typ)
 
+    elif is_enum_type(arg.typ):
+        if not is_base_type(out_typ, "uint256"):
+            _FAIL(arg.typ, out_typ, expr)
+        arg = _int_to_int(arg, out_typ)
+
     elif is_integer_type(arg.typ):
         arg = _int_to_int(arg, out_typ)
 
@@ -455,6 +462,17 @@ def to_bytes(expr, arg, out_typ):
     return IRnode.from_list(arg, typ=out_typ)
 
 
+@_input_types("int")
+def to_enum(expr, arg, out_typ):
+    if not is_base_type(arg.typ, "uint256"):
+        _FAIL(arg.typ, out_typ, expr)
+
+    if len(out_typ.members) < 256:
+        arg = int_clamp(arg, bits=len(out_typ.members), signed=False)
+
+    return IRnode.from_list(arg, typ=out_typ)
+
+
 def convert(expr, context):
     if len(expr.args) != 2:
         raise StructureException("The convert function expects two parameters.", expr)
@@ -471,6 +489,8 @@ def convert(expr, context):
             ret = to_bool(arg_ast, arg, out_typ)
         elif is_base_type(out_typ, "address"):
             ret = to_address(arg_ast, arg, out_typ)
+        elif isinstance(out_typ, EnumType):
+            ret = to_enum(arg_ast, arg, out_typ)
         elif is_integer_type(out_typ):
             ret = to_int(arg_ast, arg, out_typ)
         elif is_bytes_m_type(out_typ):
