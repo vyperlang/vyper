@@ -467,11 +467,10 @@ def to_enum(expr, arg, out_typ):
     if not is_base_type(arg.typ, "uint256"):
         _FAIL(arg.typ, out_typ, expr)
 
-    _check_bytes(expr, arg, out_typ, 32)
-    arg = _int_to_int(arg, out_typ)
+    if len(out_typ.members) < 256:
+        arg = int_clamp(arg, bits=len(out_typ.members), signed=False)
 
-    clamped_arg = int_clamp(arg, len(out_typ.members), False)
-    return IRnode.from_list(clamped_arg, typ=out_typ)
+    return IRnode.from_list(arg, typ=out_typ)
 
 
 def convert(expr, context):

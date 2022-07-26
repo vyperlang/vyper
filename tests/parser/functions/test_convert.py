@@ -539,7 +539,7 @@ def bar(a: uint256) -> Roles:
 
 
 @pytest.mark.parametrize("typ", ["uint8", "int128", "int256", "uint256"])
-@pytest.mark.parametrize("val", [1, 2, 2 ** 128, 2 ** 256 - 1, 2 ** 256 - 2])
+@pytest.mark.parametrize("val", [1, 2, 3, 4, 2 ** 128, 2 ** 256 - 1, 2 ** 256 - 2])
 def test_enum_conversion_2(
     get_contract_with_gas_estimation, assert_compile_failed, assert_tx_failed, val, typ
 ):
