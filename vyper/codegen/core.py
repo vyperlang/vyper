@@ -88,9 +88,20 @@ def dynarray_data_ptr(ptr):
     return add_ofst(ptr, ptr.location.word_scale)
 
 
-def _dynarray_make_setter(dst, src, store_length=True):
+def _dynarray_make_setter(dst, src, store_length=True, dst_len=None):
     assert isinstance(src.typ, DArrayType)
     assert isinstance(dst.typ, DArrayType)
+
+    if store_length is False:
+        # Get start pointer of dst
+        dst_start_idx = get_element_ptr(dst, dst_len, array_bounds_check=False)
+
+        # Cast dst start pointer as darray for `_dynarray_make_setter` by subtracting offset
+        dst_ = IRnode.from_list(["sub", dst_start_idx, dst.location.word_scale])
+        dst_.typ = dst.typ
+        dst_.location = dst.location
+    else:
+        dst_ = dst
 
     if src.value == "~empty":
         if store_length is True:
@@ -111,13 +122,7 @@ def _dynarray_make_setter(dst, src, store_length=True):
             store_length = IRnode.from_list(store_length, annotation=ann)
             ret.append(store_length)
 
-        n_items = len(src.args)
-        for i in range(n_items):
-            k = IRnode.from_list(i, typ="uint256")
-            dst_i = get_element_ptr(dst, k, array_bounds_check=False)
-            src_i = get_element_ptr(src, k, array_bounds_check=False)
-            ret.append(make_setter(dst_i, src_i))
-
+        ret.extend(_copy_dynarray_body(dst_, src, literals_length=len(src.args)))
         return ret
 
     with src.cache_when_complex("darray_src") as (b1, src):
@@ -145,28 +150,48 @@ def _dynarray_make_setter(dst, src, store_length=True):
             if store_length is True:
                 ret.append(STORE(dst, count))
 
-            if should_loop:
-                i = IRnode.from_list(_freshname("copy_darray_ix"), typ="uint256")
-
-                loop_body = make_setter(
-                    get_element_ptr(dst, i, array_bounds_check=False),
-                    get_element_ptr(src, i, array_bounds_check=False),
-                )
-                loop_body.annotation = f"{dst}[i] = {src}[i]"
-
-                ret.append(["repeat", i, 0, count, src.typ.count, loop_body])
-
+            if should_loop is True:
+                ret.extend(_copy_dynarray_body(dst_, src, should_loop=True, loop_count=count))
             else:
-                element_size = src.typ.subtype.memory_bytes_required
-                # number of elements * size of element in bytes
-                n_bytes = _mul(count, element_size)
-                max_bytes = src.typ.count * element_size
-
-                src_ = dynarray_data_ptr(src)
-                dst_ = dynarray_data_ptr(dst)
-                ret.append(copy_bytes(dst_, src_, n_bytes, max_bytes))
+                ret.extend(_copy_dynarray_body(dst_, src, should_loop=False, loop_count=count))
 
             return b1.resolve(b2.resolve(ret))
+
+
+def _copy_dynarray_body(dst, src, literals_length=None, should_loop=True, loop_count=None):
+    ret = []
+
+    if literals_length is not None:
+        assert isinstance(literals_length, int)
+
+        for i in range(literals_length):
+            k = IRnode.from_list(i, typ="uint256")
+            dst_i = get_element_ptr(dst, k, array_bounds_check=False)
+            src_i = get_element_ptr(src, k, array_bounds_check=False)
+            ret.append(make_setter(dst_i, src_i))
+        return ret
+
+    if should_loop is True:
+        i = IRnode.from_list(_freshname("copy_darray_ix"), typ="uint256")
+
+        loop_body = make_setter(
+            get_element_ptr(dst, i, array_bounds_check=False),
+            get_element_ptr(src, i, array_bounds_check=False),
+        )
+        loop_body.annotation = f"{dst}[i] = {src}[i]"
+        ret.append(["repeat", i, 0, loop_count, src.typ.count, loop_body])
+
+    else:
+        element_size = src.typ.subtype.memory_bytes_required
+        # number of elements * size of element in bytes
+        n_bytes = _mul(loop_count, element_size)
+        max_bytes = src.typ.count * element_size
+
+        src_ = dynarray_data_ptr(src)
+        dst_ = dynarray_data_ptr(dst)
+        ret.append(copy_bytes(dst_, src_, n_bytes, max_bytes))
+
+    return ret
 
 
 # Copy bytes
@@ -319,15 +344,9 @@ def extend_dyn_array(context, dst, src):
             store_length = IRnode.from_list(STORE(dst, combined_len))
             ret.append(store_length)
 
-            # Get start pointer of dst
-            dst_start_idx = get_element_ptr(dst, dst_len, array_bounds_check=False)
-
-            # Cast dst start pointer as darray for `_dynarray_make_setter` by subtracting offset
-            dst_i = IRnode.from_list(["sub", dst_start_idx, dst.location.word_scale])
-            dst_i.typ = dst.typ
-            dst_i.location = dst.location
-
-            body = IRnode.from_list(_dynarray_make_setter(dst_i, src, store_length=False))
+            body = IRnode.from_list(
+                _dynarray_make_setter(dst, src, store_length=False, dst_len=dst_len)
+            )
             ret.append(body)
 
             return IRnode.from_list(b1.resolve(b2.resolve(ret)))
