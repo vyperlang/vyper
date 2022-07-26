@@ -49,8 +49,8 @@ from vyper.codegen.types import (
     TupleType,
     get_type_for_exact_size,
     is_base_type,
-    parse_integer_typeinfo,
     parse_decimal_info,
+    parse_integer_typeinfo,
 )
 from vyper.codegen.types.convert import new_type_to_old_type
 from vyper.exceptions import (

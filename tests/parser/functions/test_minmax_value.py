@@ -86,3 +86,4 @@ def foo():
     """
 
     assert_compile_failed(lambda: get_contract(upper), OverflowException)
+    assert_compile_failed(lambda: get_contract(lower), OverflowException)
