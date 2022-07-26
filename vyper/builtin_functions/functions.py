@@ -110,7 +110,6 @@ from vyper.utils import (
     bytes_to_int,
     ceil32,
     fourbytes_to_int,
-    int_bounds,
     keccak256,
     vyper_warn,
 )
