@@ -111,11 +111,11 @@ def _dynarray_make_setter(dst, src):
         ret.extend(_copy_dynarray_body(dst, src))
         return ret
 
-    with src.cache_when_complex("darray_src") as (b1, src), get_dyn_array_count(src).cache_when_complex("darray_count") as (b2, count):
+    with src.cache_when_complex("darray_src") as (b1, src), get_dyn_array_count(
+        src
+    ).cache_when_complex("darray_count") as (b2, count):
         ret.append(STORE(dst, count))
-
         ret.extend(_copy_dynarray_body(dst, src, loop_count=count))
-
         return b1.resolve(b2.resolve(ret))
 
 
@@ -133,6 +133,8 @@ def _copy_dynarray_body(dst, src, loop_count=None):
             src_i = get_element_ptr(src, k, array_bounds_check=False)
             ret.append(make_setter(dst_i, src_i))
         return ret
+
+    assert loop_count is not None
 
     # for ABI-encoded dynamic data, we must loop to unpack, since
     # the layout does not match our memory layout
@@ -310,9 +312,10 @@ def extend_dyn_array(context, dst, src):
         dst_len = get_dyn_array_count(dst)
         src_len = get_dyn_array_count(src)
 
-        with dst_len.cache_when_complex("dst_darray_len") as (b2, dst_len), src_len.cache_when_complex(
-            "src_darray_len"
-        ) as (b3, src_len):
+        with dst_len.cache_when_complex("dst_darray_len") as (
+            b2,
+            dst_len,
+        ), src_len.cache_when_complex("src_darray_len") as (b3, src_len):
 
             max_dst_len = dst.typ.count
             combined_len = IRnode.from_list(["add", dst_len, src_len], typ="uint256")
@@ -335,9 +338,7 @@ def extend_dyn_array(context, dst, src):
             dst_i.typ = dst.typ
             dst_i.location = dst.location
 
-            body = IRnode.from_list(
-                _copy_dynarray_body(dst_i, src, loop_count=src_len)
-            )
+            body = IRnode.from_list(_copy_dynarray_body(dst_i, src, loop_count=src_len))
             ret.append(body)
 
             return IRnode.from_list(b1.resolve(b2.resolve(b3.resolve(ret))))
