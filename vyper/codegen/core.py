@@ -100,8 +100,7 @@ def _dynarray_make_setter(dst, src):
     if src.value == "multi":
         # handle literals
         # write the length word
-        new_len = len(src.args)
-        store_length = STORE(dst, new_len)
+        store_length = STORE(dst, len(src.args))
         ann = None
         if src.annotation is not None:
             ann = f"len({src.annotation})"
@@ -123,7 +122,7 @@ def _copy_dynarray_body(dst, src, loop_count=None):
     ret = ["seq"]
 
     if src.value == "~empty":
-        return
+        return ret
 
     if src.value == "multi":
         n_items = len(src.args)
