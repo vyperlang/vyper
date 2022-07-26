@@ -2,17 +2,17 @@
 
 .. _built_in_functions:
 
-Built in Functions
+Built-in Functions
 ##################
 
-Vyper provides a collection of built in functions available in the global namespace of all contracts.
+Vyper provides a collection of built-in functions available in the global namespace of all contracts.
 
 Bitwise Operations
 ==================
 
 .. py:function:: bitwise_and(x: uint256, y: uint256) -> uint256
 
-    Perform a "bitwise and" operation. Each bit of the output is 1 if the corresponding bit of ``x`` AND of ``y`` is 1, otherwise it's 0.
+    Perform a "bitwise and" operation. Each bit of the output is 1 if the corresponding bit of ``x`` AND of ``y`` is 1, otherwise it is 0.
 
     .. code-block:: python
 
@@ -52,7 +52,7 @@ Bitwise Operations
 
 .. py:function:: bitwise_or(x: uint256, y: uint256) -> uint256
 
-    Perform a "bitwise or" operation. Each bit of the output is 0 if the corresponding bit of ``x`` AND of ``y`` is 0, otherwise it's 1.
+    Perform a "bitwise or" operation. Each bit of the output is 0 if the corresponding bit of ``x`` AND of ``y`` is 0, otherwise it is 1.
 
     .. code-block:: python
 
@@ -72,7 +72,7 @@ Bitwise Operations
 
 .. py:function:: bitwise_xor(x: uint256, y: uint256) -> uint256
 
-    Perform a "bitwise exclusive or" operation. Each bit of the output is the same as the corresponding bit in ``x`` if that bit in ``y`` is 0, and it's the complement of the bit in ``x`` if that bit in ``y`` is 1.
+    Perform a "bitwise exclusive or" operation. Each bit of the output is the same as the corresponding bit in ``x`` if that bit in ``y`` is 0, and it is the complement of the bit in ``x`` if that bit in ``y`` is 1.
 
     .. code-block:: python
 
@@ -110,7 +110,7 @@ Chain Interaction
 =================
 
 
-Vyper has three builtins for contract creation; all three contract creation builtins rely on the code to deploy already being stored on-chain, but differ in call vs deploy overhead, and whether or not they invoke the constructor of the contract to be deployed. The following list provides a short summary of the differences between them.
+Vyper has three built-ins for contract creation; all three contract creation built-ins rely on the code to deploy already being stored on-chain, but differ in call vs deploy overhead, and whether or not they invoke the constructor of the contract to be deployed. The following list provides a short summary of the differences between them.
 
 * ``create_minimal_proxy_to(target: address, ...)``
     * Creates an immutable proxy to ``target``
@@ -130,7 +130,7 @@ Vyper has three builtins for contract creation; all three contract creation buil
 
 .. py:function:: create_minimal_proxy_to(target: address, value: uint256 = 0[, salt: bytes32]) -> address
 
-    Deploys a small, EIP1167-compliant, "minimal proxy contract" that duplicates the logic of the contract at ``target``, but has its own state since every call to ``target`` is made using ``DELEGATECALL`` to ``target``. To the end user, this should be indistinguishable from an independently deployed contract with the same code as ``target``.
+    Deploys a small, EIP1167-compliant "minimal proxy contract" that duplicates the logic of the contract at ``target``, but has its own state since every call to ``target`` is made using ``DELEGATECALL`` to ``target``. To the end user, this should be indistinguishable from an independently deployed contract with the same code as ``target``.
 
 
     * ``target``: Address of the contract to proxy to
@@ -388,7 +388,7 @@ Cryptography
 
 .. py:function:: sha256(_value) -> bytes32
 
-    Return a ``sha256`` (SHA2 256bit output) hash of the given value.
+    Return a ``sha256`` (SHA2 256-bit output) hash of the given value.
 
     * ``_value``: Value to hash. Can be a literal string, ``Bytes``, or ``bytes32``.
 
@@ -815,7 +815,7 @@ Utilities
 
 .. py:function:: empty(typename) -> Any
 
-    Return a value which is the default (zeroed) value of its type. Useful for initializing new memory variables.
+    Return a value which is the default (zero-ed) value of its type. Useful for initializing new memory variables.
 
     * ``typename``: Name of the type
 
