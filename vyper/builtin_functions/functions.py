@@ -50,6 +50,7 @@ from vyper.codegen.types import (
     get_type_for_exact_size,
     is_base_type,
     parse_integer_typeinfo,
+    parse_decimal_info,
 )
 from vyper.codegen.types.convert import new_type_to_old_type
 from vyper.exceptions import (
@@ -2509,6 +2510,14 @@ class ABIDecode(BuiltinFunction):
 class _MinMaxValue(BuiltinFunction):
     _inputs = [("typename", "TYPE_DEFINITION")]
 
+    def _eval_int(self, type_):
+        info = parse_integer_typeinfo(str(type_))
+        return info.bounds
+
+    def _eval_decimal(self, type_):
+        info = parse_decimal_info(str(type_))
+        return info.decimal_bounds
+
     def evaluate(self, node):
         self._validate_arg_types(node)
         input_type = get_type_from_annotation(node.args[0], DataLocation.UNSET)
@@ -2517,12 +2526,13 @@ class _MinMaxValue(BuiltinFunction):
             raise InvalidType(f"Expected numeric type but got {input_type} instead", node)
 
         if isinstance(input_type, DecimalDefinition):
-            val = self._eval(SizeLimits.MIN_AST_DECIMAL, SizeLimits.MAX_AST_DECIMAL)
+            bounds = self._eval_decimal(input_type)
+            val = self._eval(bounds)
             return vy_ast.Decimal.from_node(node, value=val)
 
         if isinstance(input_type, IntegerAbstractType):
-            (lo, hi) = int_bounds(input_type._is_signed, input_type._bits)
-            val = self._eval(lo, hi)
+            bounds = self._eval_int(input_type)
+            val = self._eval(bounds)
             return vy_ast.Int.from_node(node, value=val)
 
     def fetch_call_return(self, node):  # pragma: no cover
