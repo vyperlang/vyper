@@ -27,6 +27,7 @@ Other fixes and improvements:
 * Per-method calldatasize checks (`#2911 <https://github.com/vyperlang/vyper/pull/2911>`_)
 * Type inference and annotation of arguments for builtin functions (`#2817 <https://github.com/vyperlang/vyper/pull/2817>`_)
 * Allow varargs for print (`#2833 <https://github.com/vyperlang/vyper/pull/2833>`_)
+* Add ``error_map`` output format for tooling consumption (`#2939 <https://github.com/vyperlang/vyper/pull/2939>`_)
 * Multiple evaluation of contract address in call (`GHSA-4v9q-cgpw-cf38 <https://github.com/vyperlang/vyper/security/advisories/GHSA-4v9q-cgpw-cf38>`_)
 * Improve ast output (`#2824 <https://github.com/vyperlang/vyper/pull/2824>`_)
 * Allow "nonreentrant" on view functions (`#2921 <https://github.com/vyperlang/vyper/pull/2921>`_)
