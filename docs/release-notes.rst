@@ -10,7 +10,7 @@ Date released: 2022-07-2?
 
 Non-breaking changes and improvements:
 
-* Add enum types (`#2874 <https://github.com/vyperlang/vyper/pull/2874>`_, `#2915 <https://github.com/vyperlang/vyper/pull/2915>`_, `#2925 <https://github.com/vyperlang/vyper/pull/2925>`_)
+* Add enum types (`#2874 <https://github.com/vyperlang/vyper/pull/2874>`_, `#2915 <https://github.com/vyperlang/vyper/pull/2915>`_, `#2925 <https://github.com/vyperlang/vyper/pull/2925>`_, `#2977 <https://github.com/vyperlang/vyper/pull/2977>`_)
 * Add ``_abi_decode`` builtin (`#2882 <https://github.com/vyperlang/vyper/pull/2882>`_)
 * Add ``create_from_blueprint`` and ``create_copy_of`` builtins (`#2895 <https://github.com/vyperlang/vyper/pull/2895>`_)
 * Add ``default_return_value`` kwarg for calls (`#2839 <https://github.com/vyperlang/vyper/pull/2839>`_)
@@ -29,8 +29,10 @@ Other fixes and improvements:
 * Multiple evaluation of contract address in call (`GHSA-4v9q-cgpw-cf38 <https://github.com/vyperlang/vyper/security/advisories/GHSA-4v9q-cgpw-cf38>`_)
 * Improve ast output (`#2824 <https://github.com/vyperlang/vyper/pull/2824>`_)
 * Allow "nonreentrant" on view functions (`#2921 <https://github.com/vyperlang/vyper/pull/2921>`_)
+* Add ``shift()`` support for signed integers (`#2964 <https://github.com/vyperlang/vyper/pull/2964>`_)
 * Enable dynarrays of strings (`#2922 <https://github.com/vyperlang/vyper/pull/2922>`_)
-* Optimizer improvements (`#2647 <https://github.com/vyperlang/vyper/pull/2647>`_, `#2868 <https://github.com/vyperlang/vyper/pull/2868>`_, `#2914 <https://github.com/vyperlang/vyper/pull/2914>`_, `#2843 <https://github.com/vyperlang/vyper/pull/2843>`_)
+* Fix off-by-one bounds check in certain safepow cases (`#2983 <https://github.com/vyperlang/vyper/pull/2983>`_)
+* Optimizer improvements (`#2647 <https://github.com/vyperlang/vyper/pull/2647>`_, `#2868 <https://github.com/vyperlang/vyper/pull/2868>`_, `#2914 <https://github.com/vyperlang/vyper/pull/2914>`_, `#2843 <https://github.com/vyperlang/vyper/pull/2843>`_, `#2944 <https://github.com/vyperlang/vyper/pull/2944>`_)
 * Reverse order in which exceptions are reported (`#2838 <https://github.com/vyperlang/vyper/pull/2838>`_)
 
 
