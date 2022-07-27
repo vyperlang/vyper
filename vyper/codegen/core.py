@@ -626,7 +626,7 @@ def _check_assign_bytes(left, right):
 
 
 def _check_assign_list(left, right):
-    def FAIL():  # pragma: nocover
+    def FAIL():  # pragma: no cover
         raise TypeCheckFailure(f"assigning {right.typ} to {left.typ}")
 
     if left.value == "multi":
@@ -660,7 +660,7 @@ def _check_assign_list(left, right):
 
 
 def _check_assign_tuple(left, right):
-    def FAIL():  # pragma: nocover
+    def FAIL():  # pragma: no cover
         raise TypeCheckFailure(f"assigning {right.typ} to {left.typ}")
 
     if not isinstance(right.typ, left.typ.__class__):
@@ -695,7 +695,7 @@ def _check_assign_tuple(left, right):
 # this function is more of a sanity check for typechecking internally
 # generated assignments
 def check_assign(left, right):
-    def FAIL():  # pragma: nocover
+    def FAIL():  # pragma: no cover
         raise TypeCheckFailure(f"assigning {right.typ} to {left.typ} {left} {right}")
 
     if isinstance(left.typ, ByteArrayLike):
@@ -711,7 +711,7 @@ def check_assign(left, right):
         #    FAIL()  # pragma: notest
         pass
 
-    else:  # pragma: nocover
+    else:  # pragma: no cover
         FAIL()
 
 
@@ -977,7 +977,7 @@ def clamp_basetype(ir_node):
         ret = int_clamp(ir_node, 160)
     elif t.typ in ("bool",):
         ret = int_clamp(ir_node, 1)
-    else:  # pragma: nocover
+    else:  # pragma: no cover
         raise CompilerPanic(f"{t} passed to clamp_basetype")
 
     return IRnode.from_list(ret, typ=ir_node.typ, error_msg=f"validate {t}")

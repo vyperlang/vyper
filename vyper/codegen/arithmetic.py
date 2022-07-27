@@ -29,19 +29,19 @@ def calculate_largest_power(a: int, num_bits: int, is_signed: bool) -> int:
         Largest possible value for `b` where the result does not overflow
         `num_bits`
     """
-    if num_bits % 8:
+    if num_bits % 8:  # pragma: no cover
         raise CompilerPanic("Type is not a modulo of 8")
 
+    if a in (0, 1):  # pragma: no cover
+        raise CompilerPanic("Exponential operation is useless!")
+
     value_bits = num_bits - (1 if is_signed else 0)
-    if a >= 2 ** value_bits:
+    if a >= 2 ** value_bits:  # pragma: no cover
         raise TypeCheckFailure("Value is too large and will always throw")
-    elif a < -(2 ** value_bits):
+    if a < -(2 ** value_bits):  # pragma: no cover
         raise TypeCheckFailure("Value is too small and will always throw")
 
     a_is_negative = a < 0
-
-    if a in (0, 1):
-        raise CompilerPanic("Exponential operation is useless!")
 
     a = abs(a)  # No longer need to know if it's signed or not
 
@@ -102,16 +102,16 @@ def calculate_largest_base(b: int, num_bits: int, is_signed: bool) -> Tuple[int,
         each other, due to lower/upper bounds for int_<value_bits> being
         slightly asymmetric.
     """
-    if num_bits % 8:
+    if num_bits % 8:  # pragma: no cover
         raise CompilerPanic("Type is not a modulo of 8")
-    if b < 0:
+    if b < 0:  # pragma: no cover
         raise TypeCheckFailure("Cannot calculate negative exponents")
+    if b < 2:  # pragma: no cover
+        raise CompilerPanic("Exponential operation is useless!")
 
     value_bits = num_bits - (1 if is_signed else 0)
-    if b > value_bits:
+    if b > value_bits:  # pragma: no cover
         raise TypeCheckFailure("Value is too large and will always throw")
-    if b < 2:
-        raise CompilerPanic("Exponential operation is useless!")
 
     # CMC 2022-05-06 TODO we should be able to do this with algebra
     # instead of looping):

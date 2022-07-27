@@ -342,7 +342,7 @@ def _optimize_binop(binop, args, ann, parent_op):
             return finalize("shl", [int_log2(_int(args[1])), args[0]])
 
         # reachable but only before constantinople
-        if version_check(begin="constantinople"):  # pragma: nocover
+        if version_check(begin="constantinople"):  # pragma: no cover
             raise CompilerPanic("unreachable")
 
     ##
