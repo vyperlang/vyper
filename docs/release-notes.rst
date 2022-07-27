@@ -37,6 +37,7 @@ Other fixes and improvements:
 * Optimizer improvements (`#2647 <https://github.com/vyperlang/vyper/pull/2647>`_, `#2868 <https://github.com/vyperlang/vyper/pull/2868>`_, `#2914 <https://github.com/vyperlang/vyper/pull/2914>`_, `#2843 <https://github.com/vyperlang/vyper/pull/2843>`_, `#2944 <https://github.com/vyperlang/vyper/pull/2944>`_)
 * Reverse order in which exceptions are reported (`#2838 <https://github.com/vyperlang/vyper/pull/2838>`_)
 * Fix compile-time blowup for large contracts (`#2981 <https://github.com/vyperlang/vyper/pull/2981>`_)
+* Rename ``vyper-ir`` binary to ``fang`` (`#2936 <https://github.com/vyperlang/vyper/pull/2936>`_)
 
 
 Many other small bugfixes, optimizations and refactoring also made it into this release! Special thanks to @tserg and @pandadefi for contributing several important bugfixes, refactoring and features to this release!
