@@ -3,6 +3,46 @@
 Release Notes
 #############
 
+v0.3.4
+******
+
+Date released: 2022-07-27
+
+Non-breaking changes and improvements:
+
+* Add enum types (`#2874 <https://github.com/vyperlang/vyper/pull/2874>`_, `#2915 <https://github.com/vyperlang/vyper/pull/2915>`_, `#2925 <https://github.com/vyperlang/vyper/pull/2925>`_, `#2977 <https://github.com/vyperlang/vyper/pull/2977>`_)
+* Add ``_abi_decode`` builtin (`#2882 <https://github.com/vyperlang/vyper/pull/2882>`_)
+* Add ``create_from_blueprint`` and ``create_copy_of`` builtins (`#2895 <https://github.com/vyperlang/vyper/pull/2895>`_)
+* Add ``default_return_value`` kwarg for calls (`#2839 <https://github.com/vyperlang/vyper/pull/2839>`_)
+* Add ``min_value`` and ``max_value`` builtins for numeric types (`#2935 <https://github.com/vyperlang/vyper/pull/2935>`_)
+* Add ``uint2str`` builtin (`#2879 <https://github.com/vyperlang/vyper/pull/2879>`_)
+* Add vyper signature to bytecode (`#2860 <https://github.com/vyperlang/vyper/pull/2860>`_)
+
+
+Other fixes and improvements:
+
+* Call internal functions from constructor (`#2496 <https://github.com/vyperlang/vyper/pull/2496>`_)
+* Arithmetic for new int types (`#2843 <https://github.com/vyperlang/vyper/pull/2843>`_)
+* Allow ``msg.data`` in ``raw_call`` without ``slice`` (`#2902 <https://github.com/vyperlang/vyper/pull/2902>`_)
+* Per-method calldatasize checks (`#2911 <https://github.com/vyperlang/vyper/pull/2911>`_)
+* Type inference and annotation of arguments for builtin functions (`#2817 <https://github.com/vyperlang/vyper/pull/2817>`_)
+* Allow varargs for ``print`` (`#2833 <https://github.com/vyperlang/vyper/pull/2833>`_)
+* Add ``error_map`` output format for tooling consumption (`#2939 <https://github.com/vyperlang/vyper/pull/2939>`_)
+* Multiple evaluation of contract address in call (`GHSA-4v9q-cgpw-cf38 <https://github.com/vyperlang/vyper/security/advisories/GHSA-4v9q-cgpw-cf38>`_)
+* Improve ast output (`#2824 <https://github.com/vyperlang/vyper/pull/2824>`_)
+* Allow ``@nonreentrant`` on view functions (`#2921 <https://github.com/vyperlang/vyper/pull/2921>`_)
+* Add ``shift()`` support for signed integers (`#2964 <https://github.com/vyperlang/vyper/pull/2964>`_)
+* Enable dynarrays of strings (`#2922 <https://github.com/vyperlang/vyper/pull/2922>`_)
+* Fix off-by-one bounds check in certain safepow cases (`#2983 <https://github.com/vyperlang/vyper/pull/2983>`_)
+* Optimizer improvements (`#2647 <https://github.com/vyperlang/vyper/pull/2647>`_, `#2868 <https://github.com/vyperlang/vyper/pull/2868>`_, `#2914 <https://github.com/vyperlang/vyper/pull/2914>`_, `#2843 <https://github.com/vyperlang/vyper/pull/2843>`_, `#2944 <https://github.com/vyperlang/vyper/pull/2944>`_)
+* Reverse order in which exceptions are reported (`#2838 <https://github.com/vyperlang/vyper/pull/2838>`_)
+* Fix compile-time blowup for large contracts (`#2981 <https://github.com/vyperlang/vyper/pull/2981>`_)
+* Rename ``vyper-ir`` binary to ``fang`` (`#2936 <https://github.com/vyperlang/vyper/pull/2936>`_)
+
+
+Many other small bugfixes, optimizations and refactoring also made it into this release! Special thanks to @tserg and @pandadefi for contributing several important bugfixes, refactoring and features to this release!
+
+
 v0.3.3
 ******
 
