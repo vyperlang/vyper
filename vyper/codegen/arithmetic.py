@@ -104,10 +104,12 @@ def calculate_largest_base(b: int, num_bits: int, is_signed: bool) -> Tuple[int,
     """
     if num_bits % 8:  # pragma: no cover
         raise CompilerPanic("Type is not a modulo of 8")
+
+    if b in (0, 1):  # pragma: no cover
+        raise CompilerPanic("Exponential operation is useless!")
+
     if b < 0:  # pragma: no cover
         raise TypeCheckFailure("Cannot calculate negative exponents")
-    if b < 2:  # pragma: no cover
-        raise CompilerPanic("Exponential operation is useless!")
 
     value_bits = num_bits - (1 if is_signed else 0)
     if b > value_bits:  # pragma: no cover
