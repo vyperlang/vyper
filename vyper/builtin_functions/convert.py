@@ -249,7 +249,7 @@ def _literal_int(expr, arg_typ, out_typ):
         val = int.from_bytes(expr.value, "big")
     elif isinstance(expr, (vy_ast.Int, vy_ast.Decimal, vy_ast.NameConstant)):
         val = expr.value
-    else:  # pragma: nocover
+    else:  # pragma: no cover
         raise CompilerPanic("unreachable")
 
     if isinstance(expr, (vy_ast.Hex, vy_ast.Bytes)) and int_info.is_signed:
