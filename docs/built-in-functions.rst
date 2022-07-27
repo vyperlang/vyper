@@ -240,7 +240,7 @@ Vyper has three built-ins for contract creation; all three contract creation bui
         @external
         @payable
         def foo(_target: address) -> Bytes[32]:
-            response: Bytes[32] = raw_call(_target, 0xa9059cbb, max_outsize=32, value=msg.value)
+            response: Bytes[32] = raw_call(_target, method_id("someMethodName()"), max_outsize=32, value=msg.value)
             return response
 
         @external
@@ -248,7 +248,14 @@ Vyper has three built-ins for contract creation; all three contract creation bui
         def bar(_target: address) -> Bytes[32]:
             success: bool = False
             response: Bytes[32] = b""
-            success, response = raw_call(_target, 0xa9059cbb, max_outsize=32, value=msg.value, revert_on_failure=False)
+            x: uint256 = 123
+            success, response = raw_call(
+                _target, 
+                _abi_encode(x, method_id=method_id("someMethodName(uint256)")), 
+                max_outsize=32,
+                value=msg.value, 
+                revert_on_failure=False
+                )
             assert success
             return response
 
