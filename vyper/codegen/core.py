@@ -114,11 +114,11 @@ def _dynarray_make_setter(dst, src):
         src
     ).cache_when_complex("darray_count") as (b2, count):
         ret.append(STORE(dst, count))
-        ret.extend(_copy_dynarray_body(dst, src, loop_count=count))
+        ret.extend(_copy_dynarray_body(dst, src))
         return b1.resolve(b2.resolve(ret))
 
 
-def _copy_dynarray_body(dst, src, loop_count=None):
+def _copy_dynarray_body(dst, src):
     ret = ["seq"]
 
     if src.value == "~empty":
@@ -132,8 +132,6 @@ def _copy_dynarray_body(dst, src, loop_count=None):
             src_i = get_element_ptr(src, k, array_bounds_check=False)
             ret.append(make_setter(dst_i, src_i))
         return ret
-
-    assert loop_count is not None
 
     # for ABI-encoded dynamic data, we must loop to unpack, since
     # the layout does not match our memory layout
@@ -152,6 +150,8 @@ def _copy_dynarray_body(dst, src, loop_count=None):
     # OR array_size <= /bound where loop is cheaper than memcpy/
     should_loop |= src.typ.subtype.abi_type.is_dynamic()
 
+    src_len = get_dyn_array_count(src)
+
     if should_loop is True:
         i = IRnode.from_list(_freshname("copy_darray_ix"), typ="uint256")
 
@@ -160,12 +160,12 @@ def _copy_dynarray_body(dst, src, loop_count=None):
             get_element_ptr(src, i, array_bounds_check=False),
         )
         loop_body.annotation = f"{dst}[i] = {src}[i]"
-        ret.append(["repeat", i, 0, loop_count, src.typ.count, loop_body])
+        ret.append(["repeat", i, 0, src_len, src.typ.count, loop_body])
 
     else:
         element_size = src.typ.subtype.memory_bytes_required
         # number of elements * size of element in bytes
-        n_bytes = _mul(loop_count, element_size)
+        n_bytes = _mul(src_len, element_size)
         max_bytes = src.typ.count * element_size
 
         src_ = dynarray_data_ptr(src)
@@ -316,17 +316,15 @@ def extend_dyn_array(context, dst, src):
             dst_len,
         ), src_len.cache_when_complex("src_darray_len") as (b3, src_len):
 
-            max_dst_len = dst.typ.count
-            combined_len = IRnode.from_list(["add", dst_len, src_len], typ="uint256")
+            dst_bound = dst.typ.count
+            new_len = IRnode.from_list(["add", dst_len, src_len], typ="uint256")
 
             # Assert that `src_len + dst_len` <= maxlen(dst)`
-            within_maxlen_assertion = IRnode.from_list(
-                ["assert", ["le", combined_len, max_dst_len]]
-            )
-            ret.append(within_maxlen_assertion)
+            check = IRnode.from_list(["assert", ["le", new_len, dst_bound]])
+            ret.append(check)
 
             # Store updated length
-            store_length = IRnode.from_list(STORE(dst, combined_len))
+            store_length = IRnode.from_list(STORE(dst, new_len))
             ret.append(store_length)
 
             # Get start pointer of dst
@@ -337,7 +335,7 @@ def extend_dyn_array(context, dst, src):
             dst_i.typ = dst.typ
             dst_i.location = dst.location
 
-            body = IRnode.from_list(_copy_dynarray_body(dst_i, src, loop_count=src_len))
+            body = IRnode.from_list(_copy_dynarray_body(dst_i, src))
             ret.append(body)
 
             return IRnode.from_list(b1.resolve(b2.resolve(b3.resolve(ret))))
