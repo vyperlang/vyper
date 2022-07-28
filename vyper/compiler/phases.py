@@ -150,7 +150,7 @@ class CompilerData:
 
     @cached_property
     def blueprint_bytecode(self) -> bytes:
-        blueprint_preamble=b"\xFE\x71\x00"  # ERC5202 preamble
+        blueprint_preamble = b"\xFE\x71\x00"  # ERC5202 preamble
         blueprint_bytecode = blueprint_preamble + self.bytecode
 
         # the length of the deployed code in bytes
