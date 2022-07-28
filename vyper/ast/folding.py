@@ -28,8 +28,18 @@ BUILTIN_CONSTANTS = {
         "type": AddressDefinition,
         "replacement": "empty(address)",
     },
-    "MAX_INT128": {"ast_node": vy_ast.Int, "value": 2 ** 127 - 1, "type": Int128Definition, "replacement": "max_value(int128)"},
-    "MIN_INT128": {"ast_node": vy_ast.Int, "value": -(2 ** 127), "type": Int128Definition, "replacement": "min_value(int128)"},
+    "MAX_INT128": {
+        "ast_node": vy_ast.Int,
+        "value": 2 ** 127 - 1,
+        "type": Int128Definition,
+        "replacement": "max_value(int128)",
+    },
+    "MIN_INT128": {
+        "ast_node": vy_ast.Int,
+        "value": -(2 ** 127),
+        "type": Int128Definition,
+        "replacement": "min_value(int128)",
+    },
     "MAX_DECIMAL": {
         "ast_node": vy_ast.Decimal,
         "value": SizeLimits.MAX_AST_DECIMAL,
@@ -42,7 +52,12 @@ BUILTIN_CONSTANTS = {
         "type": DecimalDefinition,
         "replacement": "min_value(decimal)",
     },
-    "MAX_UINT256": {"ast_node": vy_ast.Int, "value": 2 ** 256 - 1, "type": Uint256Definition, "replacement": "max_value(uint256)"},
+    "MAX_UINT256": {
+        "ast_node": vy_ast.Int,
+        "value": 2 ** 256 - 1,
+        "type": Uint256Definition,
+        "replacement": "max_value(uint256)",
+    },
 }
 
 
@@ -172,7 +187,9 @@ def replace_builtin_constants(vyper_module: vy_ast.Module) -> None:
         Top-level Vyper AST node.
     """
     for k, v in BUILTIN_CONSTANTS.items():
-        found = replace_constant(vyper_module, k, v["ast_node"](value=v["value"]), True, type_=v["type"]())
+        found = replace_constant(
+            vyper_module, k, v["ast_node"](value=v["value"]), True, type_=v["type"]()
+        )
         if found > 0:
             warnings.warn(f"{k} is deprecated. Please use `{v['replacement']}` instead.")
 
