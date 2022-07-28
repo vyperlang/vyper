@@ -133,15 +133,15 @@ def test_replace_constant_no(source):
 
 
 builtins_modified = [
-    "MAX_INT128",
-    "foo = MAX_INT128",
-    "foo: int128[MAX_INT128] = 42",
-    "foo = [MAX_INT128]",
-    "def foo(bar: int128 = MAX_INT128): pass",
-    "def foo(): bar = MAX_INT128",
-    "def foo(): return MAX_INT128",
-    "log foo(MAX_INT128)",
-    "log foo(42, MAX_INT128)",
+    "ZERO_ADDRESS",
+    "foo = ZERO_ADDRESS",
+    "foo: int128[ZERO_ADDRESS] = 42",
+    "foo = [ZERO_ADDRESS]",
+    "def foo(bar: address = ZERO_ADDRESS): pass",
+    "def foo(): bar = ZERO_ADDRESS",
+    "def foo(): return ZERO_ADDRESS",
+    "log foo(ZERO_ADDRESS)",
+    "log foo(42, ZERO_ADDRESS)",
 ]
 
 
@@ -156,12 +156,12 @@ def test_replace_builtin_constant(source):
 
 
 builtins_unmodified = [
-    "MAX_INT128 = 2",
-    "MAX_INT128()",
-    "def foo(MAX_INT128: int128 = 42): pass",
-    "def foo(): MAX_INT128 = 42",
-    "def MAX_INT128(): pass",
-    "log MAX_INT128(42)",
+    "ZERO_ADDRESS = 2",
+    "ZERO_ADDRESS()",
+    "def foo(ZERO_ADDRESS: int128 = 42): pass",
+    "def foo(): ZERO_ADDRESS = 42",
+    "def ZERO_ADDRESS(): pass",
+    "log ZERO_ADDRESS(42)",
 ]
 
 

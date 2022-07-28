@@ -37,7 +37,9 @@ from vyper.codegen.core import (
     needs_external_call_wrap,
     pop_dyn_array,
     promote_signed_int,
+    sar,
     shl,
+    shr,
     unwrap_location,
 )
 from vyper.codegen.expr import Expr
@@ -53,10 +55,10 @@ from vyper.codegen.types import (
     TupleType,
     get_type_for_exact_size,
     is_base_type,
+    parse_decimal_info,
     parse_integer_typeinfo,
 )
 from vyper.codegen.types.convert import new_type_to_old_type
-from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
     ArgumentException,
     CompilerPanic,
@@ -1441,8 +1443,10 @@ class BitwiseNot(BuiltinFunction):
 class Shift(BuiltinFunction):
 
     _id = "shift"
-    _inputs = [("x", Uint256Definition()), ("_shift", SignedIntegerAbstractType())]
-    _return_type = Uint256Definition()
+    _inputs = [
+        ("x", (Uint256Definition(), Int256Definition())),
+        ("shift_bits", SignedIntegerAbstractType()),
+    ]
 
     def evaluate(self, node):
         validate_call_args(node, 2)
@@ -1460,49 +1464,29 @@ class Shift(BuiltinFunction):
             value = (value << shift) % (2 ** 256)
         return vy_ast.Int.from_node(node, value=value)
 
+    def fetch_call_return(self, node):
+        # return type is the type of the first argument
+        return self.infer_arg_types(node)[0]
+
     def infer_arg_types(self, node):
         self._validate_arg_types(node)
         # return a concrete type instead of SignedIntegerAbstractType
-        shift_type = get_possible_types_from_node(node.args[1]).pop()
-        return [self._inputs[0][1], shift_type]
+        arg_ty = get_possible_types_from_node(node.args[0])[0]
+        shift_ty = get_possible_types_from_node(node.args[1])[0]
+        return [arg_ty, shift_ty]
 
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
-        if args[1].typ.is_literal:
-            shift_abs = abs(args[1].value)
-        else:
-            shift_abs = ["sub", 0, "_s"]
+        # "gshr" -- generalized right shift
+        argty = args[0].typ
+        GSHR = sar if argty._int_info.is_signed else shr
 
-        if version_check(begin="constantinople"):
-            # TODO use convenience functions shl and shr in codegen/core.py
-            if args[1].typ.is_literal:
-                # optimization when SHL/SHR instructions are available shift distance is a literal
-                value = args[1].value
-                if value >= 0:
-                    ir_node = ["shl", value, args[0]]
-                else:
-                    ir_node = ["shr", abs(value), args[0]]
-                return IRnode.from_list(ir_node, typ=BaseType("uint256"))
-            else:
-                left_shift = ["shl", "_s", args[0]]
-                right_shift = ["shr", shift_abs, args[0]]
-
-        else:
-            # If second argument is positive, left-shift so multiply by a power of two
-            # If it is negative, divide by a power of two
-            # node that if the abs of the second argument >= 256, then in the EVM
-            # 2**(second arg) = 0, and multiplying OR dividing by 0 gives 0
-            left_shift = ["mul", args[0], ["exp", 2, "_s"]]
-            right_shift = ["div", args[0], ["exp", 2, shift_abs]]
-
-        if not args[1].typ.is_literal:
-            node_list = ["if", ["slt", "_s", 0], right_shift, left_shift]
-        elif args[1].value >= 0:
-            node_list = left_shift
-        else:
-            node_list = right_shift
-
-        return IRnode.from_list(["with", "_s", args[1], node_list], typ=BaseType("uint256"))
+        with args[0].cache_when_complex("to_shift") as (b1, arg), args[1].cache_when_complex(
+            "bits"
+        ) as (b2, bits):
+            neg_bits = ["sub", 0, bits]
+            ret = ["if", ["slt", bits, 0], GSHR(neg_bits, arg), shl(bits, arg)]
+            return b1.resolve(b2.resolve(IRnode.from_list(ret, typ=argty)))
 
 
 class _AddMulMod(BuiltinFunction):
@@ -2244,6 +2228,7 @@ class Print(BuiltinFunction):
     _id = "print"
     _inputs: list = []
     _has_varargs = True
+    _kwargs = {"hardhat_compat": KwargSettings(BoolDefinition(), False, require_literal=True)}
 
     _warned = False
 
@@ -2258,22 +2243,61 @@ class Print(BuiltinFunction):
     def build_IR(self, expr, args, kwargs, context):
         args_as_tuple = ir_tuple_from_args(args)
         args_abi_t = args_as_tuple.typ.abi_type
+
         # create a signature like "log(uint256)"
         sig = "log" + "(" + ",".join([arg.typ.abi_type.selector_name() for arg in args]) + ")"
-        method_id = abi_method_id(sig)
 
-        buflen = 32 + args_abi_t.size_bound()
+        if kwargs["hardhat_compat"] is True:
+            method_id = abi_method_id(sig)
+            buflen = 32 + args_abi_t.size_bound()
 
-        # 32 bytes extra space for the method id
-        buf = context.new_internal_variable(get_type_for_exact_size(buflen))
+            # 32 bytes extra space for the method id
+            buf = context.new_internal_variable(get_type_for_exact_size(buflen))
 
-        ret = ["seq"]
-        ret.append(["mstore", buf, method_id])
-        encode = abi_encode(buf + 32, args_as_tuple, context, buflen, returns_len=True)
+            ret = ["seq"]
+            ret.append(["mstore", buf, method_id])
+            encode = abi_encode(buf + 32, args_as_tuple, context, buflen, returns_len=True)
+
+        else:
+            method_id = abi_method_id("log(string,bytes)")
+            schema = args_abi_t.selector_name().encode("utf-8")
+            if len(schema) > 32:
+                raise CompilerPanic("print signature too long: {schema}")
+
+            schema_t = StringType(len(schema))
+            schema_buf = context.new_internal_variable(schema_t)
+            ret = ["seq"]
+            ret.append(["mstore", schema_buf, len(schema)])
+
+            # TODO use Expr.make_bytelike, or better have a `bytestring` IRnode type
+            ret.append(["mstore", schema_buf + 32, bytes_to_int(schema.ljust(32, b"\x00"))])
+
+            payload_buflen = args_abi_t.size_bound()
+            payload_t = ByteArrayType(payload_buflen)
+
+            # 32 bytes extra space for the method id
+            payload_buf = context.new_internal_variable(payload_t)
+            encode_payload = abi_encode(
+                payload_buf + 32, args_as_tuple, context, payload_buflen, returns_len=True
+            )
+
+            ret.append(["mstore", payload_buf, encode_payload])
+            args_as_tuple = ir_tuple_from_args(
+                [
+                    IRnode.from_list(schema_buf, typ=schema_t, location=MEMORY),
+                    IRnode.from_list(payload_buf, typ=payload_t, location=MEMORY),
+                ]
+            )
+
+            # add 32 for method id padding
+            buflen = 32 + args_as_tuple.typ.abi_type.size_bound()
+            buf = context.new_internal_variable(get_type_for_exact_size(buflen))
+            ret.append(["mstore", buf, method_id])
+            encode = abi_encode(buf + 32, args_as_tuple, context, buflen, returns_len=True)
 
         # debug address that tooling uses
         CONSOLE_ADDRESS = 0x000000000000000000636F6E736F6C652E6C6F67
-        ret.append(["staticcall", "gas", CONSOLE_ADDRESS, buf + 28, encode, 0, 0])
+        ret.append(["staticcall", "gas", CONSOLE_ADDRESS, buf + 28, ["add", 4, encode], 0, 0])
 
         return IRnode.from_list(ret, annotation="print:" + sig)
 
@@ -2526,6 +2550,62 @@ class Pop(BuiltinFunction):
         return pop_dyn_array(darray, return_popped_item=return_popped_item)
 
 
+class _MinMaxValue(BuiltinFunction):
+    _inputs = [("typename", "TYPE_DEFINITION")]
+
+    def evaluate(self, node):
+        self._validate_arg_types(node)
+        input_type = get_type_from_annotation(node.args[0], DataLocation.UNSET)
+
+        if not isinstance(input_type, NumericAbstractType):
+            raise InvalidType(f"Expected numeric type but got {input_type} instead", node)
+
+        if isinstance(input_type, DecimalDefinition):
+            val = self._eval_decimal(input_type)
+            return vy_ast.Decimal.from_node(node, value=val)
+
+        if isinstance(input_type, IntegerAbstractType):
+            val = self._eval_int(input_type)
+            return vy_ast.Int.from_node(node, value=val)
+
+    def fetch_call_return(self, node):  # pragma: no cover
+        raise CompilerPanic(f"{self._id} should always be folded")
+
+    def infer_arg_types(self, node):  # pragma: no cover
+        raise CompilerPanic(f"{self._id} should always be folded")
+
+    def infer_kwarg_types(self, node):  # pragma: no cover
+        raise CompilerPanic(f"{self._id} should always be folded")
+
+    # TODO we may want to provide this as the default impl on the base class
+    def build_IR(self, *args, **kwargs):  # pragma: no cover
+        raise CompilerPanic(f"{self._id} should always be folded")
+
+
+class MinValue(_MinMaxValue):
+    _id = "min_value"
+
+    def _eval_int(self, type_):
+        typinfo = parse_integer_typeinfo(str(type_))
+        return typinfo.bounds[0]
+
+    def _eval_decimal(self, type_):
+        typinfo = parse_decimal_info(str(type_))
+        return typinfo.decimal_bounds[0]
+
+
+class MaxValue(_MinMaxValue):
+    _id = "max_value"
+
+    def _eval_int(self, type_):
+        typinfo = parse_integer_typeinfo(str(type_))
+        return typinfo.bounds[1]
+
+    def _eval_decimal(self, type_):
+        typinfo = parse_decimal_info(str(type_))
+        return typinfo.decimal_bounds[1]
+
+
 DISPATCH_TABLE = {
     "_abi_encode": ABIEncode(),
     "_abi_decode": ABIDecode(),
@@ -2568,6 +2648,8 @@ DISPATCH_TABLE = {
     "empty": Empty(),
     "abs": Abs(),
     "pop": Pop(),
+    "min_value": MinValue(),
+    "max_value": MaxValue(),
 }
 
 STMT_DISPATCH_TABLE = {

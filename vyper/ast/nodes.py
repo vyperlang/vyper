@@ -248,8 +248,7 @@ class VyperNode:
         **kwargs : dict
             Dictionary of fields to be included within the node.
         """
-        self._parent = parent
-        self._depth = getattr(parent, "_depth", -1) + 1
+        self.set_parent(parent)
         self._children: set = set()
         self._metadata: dict = {}
 
@@ -284,6 +283,11 @@ class VyperNode:
         # add to children of parent last to ensure an accurate hash is generated
         if parent is not None:
             parent._children.add(self)
+
+    # set parent, can be useful when inserting copied nodes into the AST
+    def set_parent(self, parent: "VyperNode"):
+        self._parent = parent
+        self._depth = getattr(parent, "_depth", -1) + 1
 
     @classmethod
     def from_node(cls, node: "VyperNode", **kwargs) -> "VyperNode":
@@ -588,8 +592,7 @@ class Module(TopLevel):
         Parameters
         ----------
         old_node : VyperNode
-            Node object to be replaced. If the node does not currently exist
-            within the AST, a `CompilerPanic` is raised.
+            Node object to be replaced.
         new_node : VyperNode
             Node object to replace new_node.
 
@@ -598,8 +601,6 @@ class Module(TopLevel):
         None
         """
         parent = old_node._parent
-        if old_node not in self.get_descendants(type(old_node)):
-            raise CompilerPanic("Node to be replaced does not exist within the tree")
 
         if old_node not in parent._children:
             raise CompilerPanic("Node to be replaced does not exist within parent children")

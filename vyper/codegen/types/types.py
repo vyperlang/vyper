@@ -159,6 +159,10 @@ def parse_decimal_info(typename: str) -> DecimalTypeInfo:
     return DecimalTypeInfo(bits=168, decimals=10, is_signed=True)
 
 
+def is_enum_type(t: "NodeType") -> bool:
+    return isinstance(t, EnumType)
+
+
 def _basetype_to_abi_type(t: "BaseType") -> ABIType:
     if is_integer_type(t):
         info = t._int_info
@@ -237,6 +241,8 @@ class EnumType(BaseType):
         return f"enum {self.name}"
 
     def __eq__(self, other):
+        if type(self) is not type(other):
+            return False
         return self.name == other.name and self.members == other.members
 
     @property

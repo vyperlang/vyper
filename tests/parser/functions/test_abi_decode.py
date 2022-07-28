@@ -277,7 +277,7 @@ def _foo(bs: Bytes[160]):
 
 @external
 def foo(bs: Bytes[160]) -> (uint256, DynArray[uint256, 3]):
-    dont_clobber_me: uint256 = MAX_UINT256
+    dont_clobber_me: uint256 = max_value(uint256)
     self._foo(bs)
     return dont_clobber_me, self.bytez
     """
@@ -297,7 +297,7 @@ def _foo(bs: Bytes[1696]):
 
 @external
 def foo(bs: Bytes[1696]) -> (uint256, DynArray[DynArray[DynArray[uint256, 3], 3], 3]):
-    dont_clobber_me: uint256 = MAX_UINT256
+    dont_clobber_me: uint256 = max_value(uint256)
     self._foo(bs)
     return dont_clobber_me, self.bytez
     """
