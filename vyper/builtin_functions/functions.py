@@ -1455,7 +1455,7 @@ class Shift(BuiltinFunction):
         else:
             value = (value << shift) % (2 ** 256)
         ret = vy_ast.Int.from_node(node, value=value)
-        ret._metadata["type"] = self._return_type
+        ret._metadata["type"] = self.fetch_call_return(node)
         return ret
 
     def fetch_call_return(self, node):
