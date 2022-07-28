@@ -345,10 +345,13 @@ def safe_pow(x, y):
         # type checker should have caught this
         raise TypeCheckFailure("non-integer pow")
 
+    GE = "sge" if num_info.is_signed else "ge"
+    LE = "sle" if num_info.is_signed else "le"
+
     if x.is_literal:
         # cannot pass -1, 0 or 1 to `calculate_largest_power`
         if x.value in (-1, 0, 1):
-            ok = [1]
+            ok = [GE, y, 0]
         else:
             upper_bound = calculate_largest_power(x.value, num_info.bits, num_info.is_signed)
             # for signed integers, this also prevents negative values
@@ -357,7 +360,7 @@ def safe_pow(x, y):
     elif y.is_literal:
         # cannot pass 0 or 1 to `calculate_largest_base`
         if y.value in (0, 1):
-            ok = [1]
+            ok = [GE, x, 0]
         else:
             lower_bound, upper_bound = calculate_largest_base(
                 y.value, num_info.bits, num_info.is_signed

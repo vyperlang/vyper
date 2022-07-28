@@ -48,6 +48,7 @@ def foo(x: {typ}) -> {typ}:
 
 def test_exponent_base_minus_one(get_contract):
     # #2986
+    # NOTE: python order of precedence means -1 ** x != (-1) ** x
     code = """
 @external
 def foo(x: int256) -> int256:
