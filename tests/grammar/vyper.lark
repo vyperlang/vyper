@@ -194,9 +194,25 @@ dict: "{" "}" | "{" (NAME ":" _expr) ("," (NAME ":" _expr))* [","] "}"
 
 
 // Operators
+// This section needs to match Python's operator precedence:
+// See https://docs.python.org/3/reference/expressions.html#operator-precedence
 // NOTE: The recursive cycle here helps enforce operator precedence
 //       Precedence goes up the lower down you go
-?operation: bin_op
+?operation: bool_or
+
+_AND: "and"
+_OR: "or"
+_NOT: "not"
+
+// Boolean Operations
+?bool_or: bool_and
+        | bool_or _OR  bool_and -> or
+
+?bool_and: bool_not
+         | bool_and _AND bool_not -> and
+
+?bool_not: comparator
+         | _NOT bool_not -> not
 
 _POW: "**"
 _SHL: "<<"
@@ -204,39 +220,6 @@ _SHR: ">>"
 _BITAND: "&"
 _BITOR: "|"
 _BITXOR: "^"
-// Binary Operations
-// NOTE: Keep these in sync with aug_assign above
-?bin_op: product
-       | bin_op "+"  product -> add
-       | bin_op "-"  product -> sub
-// TODO fix precedence to match python operator precedence
-       | bin_op _SHL product -> shl
-       | bin_op _SHR product -> shr
-       | bin_op _BITAND product -> bitand
-       | bin_op _BITOR product -> bitor
-       | bin_op _BITXOR product -> bitxor
-?product: power
-        | product "*"   power -> mul
-        | product "/"   power -> div
-?power: bool_op
-      | power _POW  bool_op -> pow
-      | power "%"   bool_op -> mod
-
-_AND: "and"
-_OR: "or"
-_NOT: "not"
-
-// Boolean Operations
-?bool_op: unary_op
-        | bool_op _AND unary_op -> and
-        | bool_op _OR  unary_op -> or
-
-// Unary Operations
-?unary_op: comparator
-         | "+"  unary_op -> uadd
-         | "-"  unary_op -> usub
-         | "~"  unary_op -> invert
-         | _NOT unary_op -> not
 
 // Comparisions
 _EQ: "=="
@@ -244,16 +227,40 @@ _NE: "!="
 _LE: "<="
 _GE: ">="
 _IN: "in"
-?comparator: atom
-           | comparator "<" atom ->  lt
-           | comparator ">" atom ->  gt
-           | comparator _EQ atom ->  eq
-           | comparator _NE atom ->  ne
-           | comparator _LE atom ->  le
-           | comparator _GE atom ->  ge
-           | comparator _IN atom ->  in
-           | comparator _NOT _IN atom ->  in
+?comparator: bitwise_or
+           | comparator "<" bitwise_or ->  lt
+           | comparator ">" bitwise_or ->  gt
+           | comparator _EQ bitwise_or ->  eq
+           | comparator _NE bitwise_or ->  ne
+           | comparator _LE bitwise_or ->  le
+           | comparator _GE bitwise_or ->  ge
+           | comparator _IN bitwise_or ->  in
+           | comparator _NOT _IN bitwise_or ->  in
 
+// Binary Operations
+// NOTE: Keep these in sync with aug_assign above
+?bitwise_or : bitwise_xor
+            | bitwise_or _BITOR  bitwise_xor -> bitor
+?bitwise_xor: bitwise_and
+            | bitwise_xor _BITXOR  bitwise_and -> bitxor
+?bitwise_and: shift
+            | bitwise_and _BITAND  shift -> bitand
+?shift: summation
+      | shift _SHL  summation -> shl
+      | shift _SHR  summation -> shr
+?summation: product
+          | summation "+"  product -> add
+          | summation "-"  product -> sub
+?product: unary
+        | product "*"  unary -> mul
+        | product "/"  unary -> div
+        | product "%"  unary -> mod
+?unary: power
+       | "+"  power -> uadd
+       | "-"  power -> usub
+       | "~"  power -> invert
+?power: atom
+      | power _POW  atom -> pow
 
 // special rule to handle types as "arguments" (for `empty` builtin)
 empty: "empty" "(" type ")"

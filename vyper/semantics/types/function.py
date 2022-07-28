@@ -376,15 +376,15 @@ class ContractFunction(BaseTypeDefinition):
         self.reentrancy_key_position = position
 
     @classmethod
-    def from_AnnAssign(cls, node: vy_ast.AnnAssign) -> "ContractFunction":
+    def getter_from_VariableDecl(cls, node: vy_ast.VariableDecl) -> "ContractFunction":
         """
-        Generate a `ContractFunction` object from an `AnnAssign` node.
+        Generate a `ContractFunction` object from an `VariableDecl` node.
 
         Used to create getter functions for public variables.
 
         Arguments
         ---------
-        node : AnnAssign
+        node : VariableDecl
             Vyper ast node to generate the function definition from.
 
         Returns

@@ -64,6 +64,15 @@ def get_node(
             ast_struct = copy.copy(ast_struct)
             del ast_struct["parent"]
 
+    # Replace state and local variable declarations `AnnAssign` with `VariableDecl`
+    # Parent node is required for context to determine whether replacement should happen.
+    if (
+        ast_struct["ast_type"] == "AnnAssign"
+        and isinstance(parent, Module)
+        and not getattr(ast_struct["target"], "id", None) in ("implements",)
+    ):
+        ast_struct["ast_type"] = "VariableDecl"
+
     vy_class = getattr(sys.modules[__name__], ast_struct["ast_type"], None)
     if not vy_class:
         if ast_struct["ast_type"] == "Delete":
@@ -243,8 +252,7 @@ class VyperNode:
         **kwargs : dict
             Dictionary of fields to be included within the node.
         """
-        self._parent = parent
-        self._depth = getattr(parent, "_depth", -1) + 1
+        self.set_parent(parent)
         self._children: set = set()
         self._metadata: dict = {}
 
@@ -279,6 +287,11 @@ class VyperNode:
         # add to children of parent last to ensure an accurate hash is generated
         if parent is not None:
             parent._children.add(self)
+
+    # set parent, can be useful when inserting copied nodes into the AST
+    def set_parent(self, parent: "VyperNode"):
+        self._parent = parent
+        self._depth = getattr(parent, "_depth", -1) + 1
 
     @classmethod
     def from_node(cls, node: "VyperNode", **kwargs) -> "VyperNode":
@@ -528,6 +541,7 @@ class VyperNode:
 
     def get(self, field_str: str) -> Any:
         """
+
         Recursive getter function for node attributes.
 
         Parameters
@@ -582,8 +596,7 @@ class Module(TopLevel):
         Parameters
         ----------
         old_node : VyperNode
-            Node object to be replaced. If the node does not currently exist
-            within the AST, a `CompilerPanic` is raised.
+            Node object to be replaced.
         new_node : VyperNode
             Node object to replace new_node.
 
@@ -592,8 +605,6 @@ class Module(TopLevel):
         None
         """
         parent = old_node._parent
-        if old_node not in self.get_descendants(type(old_node)):
-            raise CompilerPanic("Node to be replaced does not exist within the tree")
 
         if old_node not in parent._children:
             raise CompilerPanic("Node to be replaced does not exist within parent children")
@@ -1275,6 +1286,56 @@ class Assign(VyperNode):
 
 class AnnAssign(VyperNode):
     __slots__ = ("target", "annotation", "value", "simple")
+
+
+class VariableDecl(VyperNode):
+    """
+    A contract variable declaration.
+
+    Excludes `simple` attribute from Python `AnnAssign` node.
+
+    Attributes
+    ----------
+    target : VyperNode
+        Left-hand side of the assignment.
+    value : VyperNode
+        Right-hand side of the assignment.
+    annotation : VyperNode
+        Type of variable.
+    is_constant : bool, optional
+        If true, indicates that the variable is a constant variable.
+    is_public : bool, optional
+        If true, indicates that the variable is a public state variable.
+    is_immutable : bool, optional
+        If true, indicates that the variable is an immutable variable.
+    """
+
+    __slots__ = ("target", "annotation", "value", "is_constant", "is_public", "is_immutable")
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        self.is_constant = False
+        self.is_public = False
+        self.is_immutable = False
+
+        if isinstance(self.annotation, Call):
+            # the annotation is a function call, e.g. `foo: constant(uint256)`
+            call_name = self.annotation.get("func.id")
+            if call_name == "constant":
+                # declaring a constant
+                self.is_constant = True
+
+            elif call_name == "public":
+                # declaring a public variable
+                self.is_public = True
+
+            elif call_name == "immutable":
+                # declaring an immutable variable
+                self.is_immutable = True
+
+            else:
+                _raise_syntax_exc("Invalid scope for variable declaration", self.annotation)
 
 
 class AugAssign(VyperNode):

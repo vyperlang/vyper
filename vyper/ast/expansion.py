@@ -30,14 +30,14 @@ def generate_public_variable_getters(vyper_module: vy_ast.Module) -> None:
         Top-level Vyper AST node.
     """
 
-    for node in vyper_module.get_children(vy_ast.AnnAssign, {"annotation.func.id": "public"}):
+    for node in vyper_module.get_children(vy_ast.VariableDecl, {"annotation.func.id": "public"}):
         func_type = node._metadata["func_type"]
         input_types, return_type = func_type.get_signature()
         input_nodes = []
 
         # use the annotation node as a base to build the input args and return type
         # starting with `args[0]` to remove the surrounding `public()` call`
-        annotation = copy.deepcopy(node.annotation.args[0])
+        annotation = copy.copy(node.annotation.args[0])
 
         # the base return statement is an `Attribute` node, e.g. `self.<var_name>`
         # for each input type we wrap it in a `Subscript` to access a specific member
@@ -67,10 +67,6 @@ def generate_public_variable_getters(vyper_module: vy_ast.Module) -> None:
 
         # after iterating the input types, the remaining annotation node is our return type
         return_node = annotation
-        if isinstance(return_node, vy_ast.Name) and return_node.id != return_type._id:
-            # special case when the return type is an interface
-            # TODO allow interfaces as return types and remove this
-            return_node.id = return_type._id
 
         # join everything together as a new `FunctionDef` node, annotate it
         # with the type, and append it to the existing `Module` node
@@ -83,6 +79,7 @@ def generate_public_variable_getters(vyper_module: vy_ast.Module) -> None:
             returns=return_node,
         )
         expanded._metadata["type"] = func_type
+        return_node.set_parent(expanded)
         vyper_module.add_to_body(expanded)
 
 
@@ -100,7 +97,7 @@ def remove_unused_statements(vyper_module: vy_ast.Module) -> None:
     """
 
     # constant declarations - values were substituted within the AST during folding
-    for node in vyper_module.get_children(vy_ast.AnnAssign, {"annotation.func.id": "constant"}):
+    for node in vyper_module.get_children(vy_ast.VariableDecl, {"annotation.func.id": "constant"}):
         vyper_module.remove_from_body(node)
 
     # `implements: interface` statements - validated during type checking

@@ -303,7 +303,7 @@ def _foo(bs: Bytes[32]):
 
 @external
 def foo(bs: Bytes[32]) -> (uint256, Bytes[96]):
-    dont_clobber_me: uint256 = MAX_UINT256
+    dont_clobber_me: uint256 = max_value(uint256)
     self._foo(bs)
     return dont_clobber_me, self.bytez
     """
@@ -320,7 +320,7 @@ def _foo(bs: DynArray[uint256, 3]):
     self.bytez = _abi_encode(bs)
 @external
 def foo(bs: DynArray[uint256, 3]) -> (uint256, Bytes[160]):
-    dont_clobber_me: uint256 = MAX_UINT256
+    dont_clobber_me: uint256 = max_value(uint256)
     self._foo(bs)
     return dont_clobber_me, self.bytez
     """
@@ -338,7 +338,7 @@ def _foo(bs: DynArray[DynArray[DynArray[uint256, 3], 3], 3]):
 
 @external
 def foo(bs: DynArray[DynArray[DynArray[uint256, 3], 3], 3]) -> (uint256, Bytes[1696]):
-    dont_clobber_me: uint256 = MAX_UINT256
+    dont_clobber_me: uint256 = max_value(uint256)
     self._foo(bs)
     return dont_clobber_me, self.bytez
     """

@@ -1,4 +1,4 @@
-import copy
+import warnings
 from typing import Union
 
 from vyper.ast import nodes as vy_ast
@@ -20,25 +20,29 @@ BUILTIN_CONSTANTS = {
         "ast_node": vy_ast.Hex,
         "value": "0x0000000000000000000000000000000000000000000000000000000000000000",
         "type": Bytes32Definition,
+        "replacement": "empty(bytes32)",
     },  # NOQA: E501
     "ZERO_ADDRESS": {
         "ast_node": vy_ast.Hex,
         "value": "0x0000000000000000000000000000000000000000",
         "type": AddressDefinition,
+        "replacement": "empty(address)",
     },
-    "MAX_INT128": {"ast_node": vy_ast.Int, "value": 2 ** 127 - 1, "type": Int128Definition},
-    "MIN_INT128": {"ast_node": vy_ast.Int, "value": -(2 ** 127), "type": Int128Definition},
+    "MAX_INT128": {"ast_node": vy_ast.Int, "value": 2 ** 127 - 1, "type": Int128Definition, "replacement": "max_value(int128)"},
+    "MIN_INT128": {"ast_node": vy_ast.Int, "value": -(2 ** 127), "type": Int128Definition, "replacement": "min_value(int128)"},
     "MAX_DECIMAL": {
         "ast_node": vy_ast.Decimal,
         "value": SizeLimits.MAX_AST_DECIMAL,
         "type": DecimalDefinition,
+        "replacement": "max_value(decimal)",
     },
     "MIN_DECIMAL": {
         "ast_node": vy_ast.Decimal,
         "value": SizeLimits.MIN_AST_DECIMAL,
         "type": DecimalDefinition,
+        "replacement": "min_value(decimal)",
     },
-    "MAX_UINT256": {"ast_node": vy_ast.Int, "value": 2 ** 256 - 1, "type": Uint256Definition},
+    "MAX_UINT256": {"ast_node": vy_ast.Int, "value": 2 ** 256 - 1, "type": Uint256Definition, "replacement": "max_value(uint256)"},
 }
 
 
@@ -168,9 +172,9 @@ def replace_builtin_constants(vyper_module: vy_ast.Module) -> None:
         Top-level Vyper AST node.
     """
     for k, v in BUILTIN_CONSTANTS.items():
-        replace_constant(
-            vyper_module, k, v["ast_node"](value=v["value"]), True, type_=v["type"]()
-        )  # type: ignore
+        found = replace_constant(vyper_module, k, v["ast_node"](value=v["value"]), True, type_=v["type"]())
+        if found > 0:
+            warnings.warn(f"{k} is deprecated. Please use `{v['replacement']}` instead.")
 
 
 def replace_user_defined_constants(vyper_module: vy_ast.Module) -> int:
@@ -190,7 +194,7 @@ def replace_user_defined_constants(vyper_module: vy_ast.Module) -> int:
     """
     changed_nodes = 0
 
-    for node in vyper_module.get_children(vy_ast.AnnAssign):
+    for node in vyper_module.get_children(vy_ast.VariableDecl):
         if not isinstance(node.target, vy_ast.Name):
             # left-hand-side of assignment is not a variable
             continue
@@ -301,14 +305,15 @@ def replace_constant(
 
         if not node.get_ancestor(vy_ast.Index):
             # do not replace left-hand side of assignments
-            assign = node.get_ancestor((vy_ast.Assign, vy_ast.AnnAssign, vy_ast.AugAssign))
+            assign = node.get_ancestor(
+                (vy_ast.Assign, vy_ast.AnnAssign, vy_ast.AugAssign, vy_ast.VariableDecl)
+            )
 
             if assign and node in assign.target.get_descendants(include_self=True):
                 continue
 
         try:
-            # Codegen may mutate AST (particularly structs).
-            replacement_node = copy.deepcopy(replacement_node)
+            # note: _replace creates a copy of the replacement_node
             new_node = _replace(node, replacement_node, type_=type_)
         except UnfoldableNode:
             if raise_on_error:
