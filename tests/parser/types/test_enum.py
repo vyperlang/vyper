@@ -33,16 +33,18 @@ enum Actions:
     SELL
     CANCEL
 
-action: Actions
+action: public(Actions)
 
 @external
-def get_and_set(a: Actions) -> Actions:
+def set_and_get(a: Actions) -> Actions:
     self.action = a
     return self.action
     """
     c = get_contract(code)
     for i in range(5):
-        assert c.get_and_set(i) == i
+        assert c.set_and_get(i) == i
+        c.set_and_get(i, transact={})
+        assert c.action == i
 
 
 def test_eq_neq(get_contract):
