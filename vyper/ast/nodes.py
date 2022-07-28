@@ -883,13 +883,14 @@ class Name(VyperNode):
 
         # Check for user-defined constants
         vyper_module = self.get_ancestor(Module)
-        for n in vyper_module.get_children(AnnAssign):
-            # Ensure that the AnnAssign is a constant variable definition
-            if not ("type" in n._metadata and n._metadata["type"].is_constant):
+        for n in vyper_module.get_children(VariableDecl):
+            # Ensure that the contract variable declaration is a constant
+            if n.is_constant is False:
                 continue
 
             if self.id == n.target.id:
-                return _replace(self, n.value, n._metadata["type"])
+                new_node = n.value.evaluate()
+                return _replace(self, new_node, n._metadata["type"])
 
         raise UnfoldableNode
 
