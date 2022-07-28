@@ -154,7 +154,7 @@ def foo():
 def foo():
     a: uint256 = shift(-1, 2)
     """,
-        InvalidType,
+        TypeMismatch,
     ),
     (
         """
