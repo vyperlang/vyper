@@ -101,18 +101,18 @@ The ``@nonreentrant(<key>)`` decorator places a lock on a function, and all func
         # this function is protected from re-entrancy
         ...
 
-You can put the ``@nonreentrant(<key>)`` decorator on a ``__default__`` function but we recommend against it because in most circumstances it will not work in a meaningful way.
+You can put the ``@nonreentrant(<key>)`` decorator on a ``__default__`` function, but we recommend against it because in most circumstances it will not work as intended.
 
-Nonreentrancy locks work by setting a specially allocated storage slot to a ``<locked>`` value on function entrance, and setting it to an ``<unlocked>`` value on function exit. On function entrance, if the storage slot is detected to be the ``<locked>`` value, execution reverts.
+Non-reentrancy locks work by setting a specially allocated storage slot to a ``<locked>`` value on function entrance, and setting it to an ``<unlocked>`` value on function exit. On function entrance, if the storage slot is detected to be the ``<locked>`` value, execution reverts.
 
-You cannot put the ``@nonreentrant`` decorator on a ``pure`` function. You can put it on a ``view`` function, but it only checks that the function is not in a callback (the storage slot is not in the ``<locked>`` state), as ``view`` functions can only read the state, not change it.
-
-.. note::
-    A mutable function can protect a ``view`` function from being called back into (which is useful for instance, if a ``view`` function would return inconsistent state during a mutable function), but a ``view`` function cannot protect itself from being called back into. Note that mutable functions can never be called from a ``view`` function because all external calls out from a ``view`` function are protected by the use of the ``STATICCALL`` opcode.
+You cannot put the ``@nonreentrant`` decorator on a ``pure`` function. You can put it on a ``view`` function, but it only checks that the function is not in a callback (the storage slot is not in the ``<locked>`` state), as ``view`` functions can only read the state and cannot change it.
 
 .. note::
+    A mutable function can protect a ``view`` function from being called back into (which is useful for instance, if a ``view`` function would return inconsistent state during a mutable function), but a ``view`` function cannot protect itself from being called back into. Note that mutable functions can never be called from a ``view`` function because all external calls out from a ``view`` function are protected, via the use of the ``STATICCALL`` opcode.
 
-    A nonreentrant lock has an ``<unlocked>`` value of 3, and a ``<locked>`` value of 2. Nonzero values are used to take advantage of net gas metering - as of the Berlin hard fork, the net cost for utilizing a nonreentrant lock is 2300 gas. Prior to v0.3.4, the ``<unlocked>`` and ``<locked>`` values were 0 and 1, respectively.
+.. note::
+
+    A nonreentrant lock has an ``<unlocked>`` value of 3, and a ``<locked>`` value of 2. Non-zero values are used to take advantage of net gas metering — as of the Berlin hard fork, the net cost for utilizing a nonreentrant lock is 2300 gas. Prior to v0.3.4, the ``<unlocked>`` and ``<locked>`` values were 0 and 1, respectively.
 
 
 The ``__default__`` Function
@@ -122,7 +122,7 @@ A contract can also have a default function, which is executed on a call to the 
 
 This function is always named ``__default__``. It must be annotated with ``@external``. It cannot expect any input arguments.
 
-If the function is annotated as ``@payable``, this function is executed whenever the contract is sent Ether (without data). This is why the default function cannot accept arguments - it is a design decision of Ethereum to make no differentiation between sending ether to a contract or a user address.
+If the function is annotated as ``@payable``, this function is executed whenever the contract is sent Ether (without data). This is why the default function cannot accept arguments — it is a design decision of Ethereum to make no differentiation between sending Ether to a contract or a user address.
 
 .. code-block:: python
 
@@ -138,9 +138,9 @@ If the function is annotated as ``@payable``, this function is executed whenever
 Considerations
 **************
 
-Just as in Solidity, Vyper generates a default function if one isn't found, in the form of a ``REVERT`` call. Note that this still `generates an exception <https://github.com/ethereum/wiki/wiki/Subtleties>`_ and thus will not succeed in receiving funds.
+Just as in Solidity, Vyper generates a default function if one isn't found, in the form of a ``REVERT`` call. Note that this still `generates an exception <https://github.com/ethereum/wiki/wiki/Subtleties>`_ and thus, will not succeed in receiving funds.
 
-Ethereum specifies that the operations will be rolled back if the contract runs out of gas in execution. ``send`` calls to the contract come with a free stipend of 2300 gas, which does not leave much room to perform other operations except basic logging. **However**, if the sender includes a higher gas amount through a ``call`` instead of ``send``, then more complex functionality can be run.
+Ethereum specifies that the operations will be rolled back if the contract runs out of gas in execution. ``send`` calls to the contract come with a free stipend of 2300 gas, which does not leave much room to perform other operations except basic logging. **However**, if the sender includes a higher gas amount through a ``call`` instead of ``send``, then a more complex functionality can be run.
 
 It is considered a best practice to ensure your payable default function is compatible with this stipend. The following operations will consume more than 2300 gas:
 
@@ -158,7 +158,7 @@ Lastly, although the default function receives no arguments, it can still access
 The ``__init__`` Function
 -----------------------
 
-``__init__`` is a special initialization function that may only be called at the time of deploying a contract. It can be used to set initial values for storage variables. A common use case is to set an ``owner`` variable with the creator the contract:
+``__init__`` is a special initialization function that may only be called at the time of deploying a contract. It can be used to set initial values for storage variables. A common use-case is to set an ``owner`` variable with the creator of the contract:
 
 .. code-block:: python
 
@@ -190,7 +190,7 @@ Decorator                       Description
 ``if`` statements
 =================
 
-The ``if`` statement is a control flow construct used for conditional execution:
+The ``if`` statement is a control-flow construct used for conditional execution:
 
 .. code-block:: python
 
@@ -201,7 +201,7 @@ The ``if`` statement is a control flow construct used for conditional execution:
 
 Note that unlike Python, Vyper does not allow implicit conversion from non-boolean types within the condition of an ``if`` statement. ``if 1: pass`` will fail to compile with a type mismatch.
 
-You can also include ``elif`` and ``else`` statements, to add more conditional statements and a body that executes when the conditionals are false:
+You can also include ``elif`` and ``else`` statements to add more conditional statements, and a body that executes when the conditionals are false:
 
 .. code-block:: python
 
@@ -215,7 +215,7 @@ You can also include ``elif`` and ``else`` statements, to add more conditional s
 ``for`` loops
 =============
 
-The ``for`` statement is a control flow construct used to iterate over a value:
+The ``for`` statement is a control-flow construct used to iterate over a value:
 
 .. code-block:: python
 
@@ -235,7 +235,7 @@ You can use ``for`` to iterate through the values of any array variable:
     for i in foo:
         ...
 
-In the above, example, the loop executes three times with ``i`` assigned the values of ``4``, ``23``, and then ``42``.
+In the above example, the loop executes three times with ``i`` assigned the values of ``4``, ``23``, and then ``42``.
 
 You can also iterate over a literal array, as long as a common type can be determined for each item in the array:
 
