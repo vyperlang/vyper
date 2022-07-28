@@ -243,6 +243,10 @@ def build_bytecode_output(compiler_data: CompilerData) -> str:
     return f"0x{compiler_data.bytecode.hex()}"
 
 
+def build_blueprint_bytecode_output(compiler_data: CompilerData) -> str:
+    return f"0x{compiler_data.blueprint_bytecode.hex()}"
+
+
 # EIP-170. Ref: https://eips.ethereum.org/EIPS/eip-170
 EIP170_CONTRACT_SIZE_LIMIT: int = 2 ** 14 + 2 ** 13
 

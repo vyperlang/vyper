@@ -148,6 +148,17 @@ class CompilerData:
     def bytecode_runtime(self) -> bytes:
         return generate_bytecode(self.assembly_runtime, is_runtime=True)
 
+    @cached_property
+    def blueprint_bytecode(self) -> bytes:
+        blueprint_preamble=b"\xFE\x71\x00"  # ERC5202 preamble
+        blueprint_bytecode = blueprint_preamble + self.bytecode
+
+        # the length of the deployed code in bytes
+        len_bytes = len(blueprint_bytecode).to_bytes(2, "big")
+        deploy_bytecode = b"\x61" + len_bytes + b"\x3d\x81\x60\x0a\x3d\x39\xf3"
+
+        return deploy_bytecode + blueprint_bytecode
+
 
 def generate_ast(source_code: str, source_id: int, contract_name: str) -> vy_ast.Module:
     """
