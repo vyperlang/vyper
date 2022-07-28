@@ -26,6 +26,25 @@ def cancel() -> Action:
     assert c.cancel() == 4
 
 
+def test_enum_storage(get_contract):
+    code = """
+enum Actions:
+    BUY
+    SELL
+    CANCEL
+
+action: Actions
+
+@external
+def get_and_set(a: Actions) -> Actions:
+    self.action = a
+    return self.action
+    """
+    c = get_contract(code)
+    for i in range(5):
+        assert c.get_and_set(i) == i
+
+
 def test_eq_neq(get_contract):
     code = """
 enum Roles:
