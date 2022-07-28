@@ -1215,11 +1215,15 @@ class Call(VyperNode):
             name = self.func.id
             from vyper.builtin_functions import DISPATCH_TABLE
 
+            # Check for builtin functions
             func = DISPATCH_TABLE.get(name)
-            if func is None or not hasattr(func, "evaluate"):
-                raise UnfoldableNode
+            if hasattr(func, "evaluate"):
+                return func.evaluate(self)  # type: ignore
 
-            return func.evaluate(self)  # type: ignore
+            # Check for constant structs
+            args = self.get("args")
+            if args and isinstance(args[0], Dict):
+                return self
 
         raise UnfoldableNode
 
