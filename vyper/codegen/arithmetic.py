@@ -346,7 +346,6 @@ def safe_pow(x, y):
         raise TypeCheckFailure("non-integer pow")
 
     GE = "sge" if num_info.is_signed else "ge"
-    LE = "sle" if num_info.is_signed else "le"
 
     if x.is_literal:
         # cannot pass -1, 0 or 1 to `calculate_largest_power`
