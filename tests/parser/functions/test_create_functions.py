@@ -287,6 +287,14 @@ def test2(target: address, arg1: String[128], arg2: Bar, salt: bytes32):
     self.created_address = create_from_blueprint(target, arg1, arg2, salt=salt)
 
 @external
+def test3(target: address, argdata: Bytes[1024]):
+    self.created_address = create_from_blueprint(target, argdata, raw_args=True)
+
+@external
+def test4(target: address, argdata: Bytes[1024], salt: bytes32):
+    self.created_address = create_from_blueprint(target, argdata, salt=salt, raw_args=True)
+
+@external
 def should_fail(target: address, arg1: String[129], arg2: Bar):
     self.created_address = create_from_blueprint(target, arg1, arg2)
     """
@@ -325,8 +333,23 @@ def should_fail(target: address, arg1: String[129], arg2: Bar):
     encoded_args = encode_single("(string,(string))", (FOO, BAR))
     assert HexBytes(test.address) == create2_address_of(d.address, salt, initcode + encoded_args)
 
+    d.test3(f.address, encoded_args, transact={})
+    test = FooContract(d.created_address())
+    assert w3.eth.get_code(test.address) == expected_runtime_code
+    assert test.foo() == FOO
+    assert test.bar() == BAR
+
+
+    d.test4(f.address, encoded_args, keccak(b"test4"), transact={})
+    test = FooContract(d.created_address())
+    assert w3.eth.get_code(test.address) == expected_runtime_code
+    assert test.foo() == FOO
+    assert test.bar() == BAR
+
     # can't collide addresses
     assert_tx_failed(lambda: d.test2(f.address, FOO, BAR, salt))
+    # ditto - with raw_args
+    assert_tx_failed(lambda: d.test4(f.address, encoded_args, salt))
 
     # but creating a contract with different args is ok
     FOO = "bar"
