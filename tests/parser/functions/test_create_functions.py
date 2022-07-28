@@ -339,7 +339,6 @@ def should_fail(target: address, arg1: String[129], arg2: Bar):
     assert test.foo() == FOO
     assert test.bar() == BAR
 
-
     d.test4(f.address, encoded_args, keccak(b"test4"), transact={})
     test = FooContract(d.created_address())
     assert w3.eth.get_code(test.address) == expected_runtime_code
