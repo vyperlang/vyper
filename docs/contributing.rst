@@ -24,7 +24,7 @@ In particular, we need help in the following areas:
 How to Suggest Improvements
 ===========================
 
-To suggest an improvement, please create a Vyper Improvement Proposal (VIP for short)
+To suggest an improvement, please create a Vyper Improvement Proposal (VIP)
 using the `VIP Template <https://github.com/vyperlang/vyper/blob/master/.github/ISSUE_TEMPLATE/vip.md>`_.
 
 How to Report Issues
@@ -42,8 +42,8 @@ reporting issues, please mention the following details:
 * What was the result of the issue
 * What the expected behaviour is
 
-Reducing the source code that caused the issue to a bare minimum is always
-very helpful and sometimes even clarifies a misunderstanding.
+Reducing the source code that caused the issue to a bare-minimum is always
+very helpful, and sometimes even clarifies a misunderstanding.
 
 Fix Bugs
 ========
@@ -69,9 +69,9 @@ and instead, ``git rebase`` your branch.
 Implementing New Features
 -------------------------
 
-If you are writing a new feature, please ensure you write appropriate Pytest test cases and place them under ``tests/``.
+If you are writing a new feature, please ensure you write appropriate Pytest test-cases and place them under ``tests/``.
 
-If you are making a larger change, please consult first with the `Ethereum Python Dev Discord <https://discord.gg/abJEARdx3Q>`_ ``#vyper`` channel.
+If you are making a larger change, please consult first with the `Ethereum Python Dev Discord <https://discord.gg/abJEARdx3Q>`_ via ``#vyper`` channel.
 
 Although we do CI testing, please make sure that the tests pass for supported Python version and ensure that it builds locally before submitting a pull request.
 
