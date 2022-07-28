@@ -330,8 +330,8 @@ def replace_constant(
 
         try:
             # note: _replace creates a copy of the replacement_node
-            replacement_node = replacement_node.evaluate()
-            new_node = _replace(node, replacement_node, type_=type_)
+            folded_replacement_node = replacement_node.evaluate()
+            new_node = _replace(node, folded_replacement_node, type_=type_)
         except UnfoldableNode:
             if raise_on_error:
                 raise
