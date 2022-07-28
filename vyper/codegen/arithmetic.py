@@ -346,30 +346,26 @@ def safe_pow(x, y):
         raise TypeCheckFailure("non-integer pow")
 
     if x.is_literal:
-        # cannot pass 1 or 0 to `calculate_largest_power`
-        if x.value == 1:
-            return IRnode.from_list([1])
-        if x.value == 0:
-            return IRnode.from_list(["iszero", y])
-
-        upper_bound = calculate_largest_power(x.value, num_info.bits, num_info.is_signed)
-        # for signed integers, this also prevents negative values
-        ok = ["le", y, upper_bound]
+        # cannot pass -1, 0 or 1 to `calculate_largest_power`
+        if x.value in (-1, 0, 1):
+            ok = [1]
+        else:
+            upper_bound = calculate_largest_power(x.value, num_info.bits, num_info.is_signed)
+            # for signed integers, this also prevents negative values
+            ok = ["le", y, upper_bound]
 
     elif y.is_literal:
-        # cannot pass 1 or 0 to `calculate_largest_base`
-        if y.value == 1:
-            return x
-        if y.value == 0:
-            return IRnode.from_list([1])
-
-        lower_bound, upper_bound = calculate_largest_base(
-            y.value, num_info.bits, num_info.is_signed
-        )
-        if num_info.is_signed:
-            ok = ["and", ["sge", x, lower_bound], ["sle", x, upper_bound]]
+        # cannot pass 0 or 1 to `calculate_largest_base`
+        if y.value in (0, 1):
+            ok = [1]
         else:
-            ok = ["le", x, upper_bound]
+            lower_bound, upper_bound = calculate_largest_base(
+                y.value, num_info.bits, num_info.is_signed
+            )
+            if num_info.is_signed:
+                ok = ["and", ["sge", x, lower_bound], ["sle", x, upper_bound]]
+            else:
+                ok = ["le", x, upper_bound]
     else:
         # `a ** b` where neither `a` or `b` are known
         # TODO this is currently unreachable, once we implement a way to do it safely

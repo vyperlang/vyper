@@ -50,13 +50,13 @@ def test_exponent_base_minus_one(get_contract):
     # #2986
     code = """
 @external
-def foo() -> int256:
-    x: int256 = 4
-    y: int256 = -1 ** x
+def foo(x: int256) -> int256:
+    y: int256 = (-1) ** x
     return y
     """
     c = get_contract(code)
-    assert c.foo() == -1
+    for x in range(5):
+        assert c.foo(x) == (-1) ** x
 
 
 # TODO: make this test pass
