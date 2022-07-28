@@ -6,7 +6,7 @@ from vyper.codegen.types import (
     parse_decimal_info,
     parse_integer_typeinfo,
 )
-from vyper.exceptions import InvalidType, OverflowException
+from vyper.exceptions import OverflowException
 from vyper.utils import int_bounds
 
 
@@ -42,15 +42,8 @@ def foo():
     a: {typ} = min_value({typ}) - 1
     """
 
-    if typ == "uint256":
-        assert_compile_failed(lambda: get_contract(upper), OverflowException)
-    else:
-        assert_compile_failed(lambda: get_contract(upper), InvalidType)
-
-    if typ == "int256":
-        assert_compile_failed(lambda: get_contract(lower), OverflowException)
-    else:
-        assert_compile_failed(lambda: get_contract(lower), InvalidType)
+    assert_compile_failed(lambda: get_contract(upper), OverflowException)
+    assert_compile_failed(lambda: get_contract(lower), OverflowException)
 
 
 @pytest.mark.parametrize("typ", sorted(DECIMAL_TYPES))
