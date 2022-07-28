@@ -2517,24 +2517,25 @@ class _MinMaxValue(BuiltinFunction):
 
         if isinstance(input_type, DecimalDefinition):
             val = self._eval_decimal(input_type)
-            return vy_ast.Decimal.from_node(node, value=val)
+            ret = vy_ast.Decimal.from_node(node, value=val)
 
         if isinstance(input_type, IntegerAbstractType):
             val = self._eval_int(input_type)
-            return vy_ast.Int.from_node(node, value=val)
+            ret = vy_ast.Int.from_node(node, value=val)
 
-    def fetch_call_return(self, node):  # pragma: no cover
-        raise CompilerPanic(f"{self._id} should always be folded")
+        ret._metadata["type"] = input_type
+        return ret
 
-    def infer_arg_types(self, node):  # pragma: no cover
-        raise CompilerPanic(f"{self._id} should always be folded")
+    def fetch_call_return(self, node):
+        type_ = self.infer_arg_types(node)[0].typedef
+        return type_
 
-    def infer_kwarg_types(self, node):  # pragma: no cover
-        raise CompilerPanic(f"{self._id} should always be folded")
-
-    # TODO we may want to provide this as the default impl on the base class
-    def build_IR(self, *args, **kwargs):  # pragma: no cover
-        raise CompilerPanic(f"{self._id} should always be folded")
+    def infer_arg_types(self, node):
+        validate_call_args(node, 1)
+        input_typedef = TypeTypeDefinition(
+            get_type_from_annotation(node.args[0], DataLocation.MEMORY)
+        )
+        return [input_typedef]
 
 
 class MinValue(_MinMaxValue):
