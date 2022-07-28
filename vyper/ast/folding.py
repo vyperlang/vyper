@@ -102,7 +102,6 @@ def replace_literal_ops(vyper_module: vy_ast.Module) -> int:
     for node in vyper_module.get_descendants(node_types, reverse=True):
         try:
             new_node = node.evaluate()
-
         except UnfoldableNode:
             continue
 
@@ -331,6 +330,7 @@ def replace_constant(
 
         try:
             # note: _replace creates a copy of the replacement_node
+            replacement_node = replacement_node.evaluate()
             new_node = _replace(node, replacement_node, type_=type_)
         except UnfoldableNode:
             if raise_on_error:
