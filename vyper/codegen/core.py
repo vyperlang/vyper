@@ -110,12 +110,11 @@ def _dynarray_make_setter(dst, src):
         ret.extend(_copy_dynarray_body(dst, src))
         return ret
 
-    with src.cache_when_complex("darray_src") as (b1, src), get_dyn_array_count(
-        src
-    ).cache_when_complex("darray_count") as (b2, count):
+    with src.cache_when_complex("darray_src") as (b1, src):
+        count = get_dyn_array_count(src)
         ret.append(STORE(dst, count))
         ret.extend(_copy_dynarray_body(dst, src))
-        return b1.resolve(b2.resolve(ret))
+        return b1.resolve(ret)
 
 
 def _copy_dynarray_body(dst, src):
@@ -309,14 +308,11 @@ def extend_dyn_array(context, dst, src):
 
     with dst.cache_when_complex("darray_dst") as (b1, dst):
         dst_len = get_dyn_array_count(dst)
-        src_len = get_dyn_array_count(src)
 
-        with dst_len.cache_when_complex("dst_darray_len") as (
-            b2,
-            dst_len,
-        ), src_len.cache_when_complex("src_darray_len") as (b3, src_len):
+        with dst_len.cache_when_complex("dst_darray_len") as (b2, dst_len):
 
             dst_bound = dst.typ.count
+            src_len = get_dyn_array_count(src)
             new_len = IRnode.from_list(["add", dst_len, src_len], typ="uint256")
 
             # Assert that `src_len + dst_len` <= maxlen(dst)`
@@ -338,7 +334,7 @@ def extend_dyn_array(context, dst, src):
             body = IRnode.from_list(_copy_dynarray_body(dst_i, src))
             ret.append(body)
 
-            return IRnode.from_list(b1.resolve(b2.resolve(b3.resolve(ret))))
+            return IRnode.from_list(b1.resolve(b2.resolve(ret)))
 
 
 def pop_dyn_array(darray_node, return_popped_item):
