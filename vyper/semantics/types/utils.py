@@ -7,7 +7,6 @@ from vyper.exceptions import (
     InvalidType,
     StructureException,
     UndeclaredDefinition,
-    UnfoldableNode,
     UnknownType,
     VyperInternalException,
 )
