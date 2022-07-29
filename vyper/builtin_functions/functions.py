@@ -1827,6 +1827,7 @@ class CreateFromBlueprint(_CreateBase):
     _kwargs = {
         "value": KwargSettings(Uint256Definition(), zero_value),
         "salt": KwargSettings(Bytes32Definition(), empty_value),
+        "raw_args": KwargSettings(BoolDefinition(), False, require_literal=True),
         "code_offset": KwargSettings(Uint256Definition(), zero_value),
     }
     _has_varargs = True
@@ -1837,24 +1838,33 @@ class CreateFromBlueprint(_CreateBase):
         maxlen = EIP_170_LIMIT + ctor_args.typ.abi_type.size_bound()
         return _create_addl_gas_estimate(maxlen, should_use_create2)
 
-    def _build_create_IR(self, expr, args, context, value, salt, code_offset):
+    def _build_create_IR(self, expr, args, context, value, salt, code_offset, raw_args):
         target = args[0]
         ctor_args = args[1:]
 
         ctor_args = [ensure_in_memory(arg, context) for arg in ctor_args]
 
-        to_encode = ir_tuple_from_args(ctor_args)
+        if raw_args:
+            if len(ctor_args) != 1 or not isinstance(ctor_args[0].typ, ByteArrayType):
+                raise StructureException("raw_args must be used with exactly 1 bytes argument")
 
-        # pretend we allocated enough memory for the encoder
-        # (we didn't, but we are clobbering unused memory so it's safe.)
-        bufsz = to_encode.typ.abi_type.size_bound()
-        argbuf = IRnode.from_list(
-            context.new_internal_variable(get_type_for_exact_size(bufsz)), location=MEMORY
-        )
+            argbuf = bytes_data_ptr(ctor_args[0])
+            argslen = get_bytearray_length(ctor_args[0])
+            bufsz = ctor_args[0].typ.maxlen
+        else:
+            # encode the varargs
+            to_encode = ir_tuple_from_args(ctor_args)
 
-        # return a complex expression which writes to memory and returns
-        # the length of the encoded data
-        argslen = abi_encode(argbuf, to_encode, context, bufsz=bufsz, returns_len=True)
+            # pretend we allocated enough memory for the encoder
+            # (we didn't, but we are clobbering unused memory so it's safe.)
+            bufsz = to_encode.typ.abi_type.size_bound()
+            argbuf = IRnode.from_list(
+                context.new_internal_variable(get_type_for_exact_size(bufsz)), location=MEMORY
+            )
+
+            # return a complex expression which writes to memory and returns
+            # the length of the encoded data
+            argslen = abi_encode(argbuf, to_encode, context, bufsz=bufsz, returns_len=True)
 
         # NOTE: we need to invoke the abi encoder before evaluating MSIZE,
         # then copy the abi encoded buffer to past-the-end of the initcode
