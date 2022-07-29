@@ -16,7 +16,7 @@ for t in sorted(SIGNED_INTEGER_TYPES):
 
 
 @pytest.mark.parametrize("typ,lo,hi,bits", PARAMS)
-def test_exponent_base_zero(get_contract, typ, lo, hi, bits):
+def test_exponent_base_zero(get_contract, assert_tx_failed, typ, lo, hi, bits):
     code = f"""
 @external
 def foo(x: {typ}) -> {typ}:
@@ -25,14 +25,14 @@ def foo(x: {typ}) -> {typ}:
     c = get_contract(code)
     assert c.foo(0) == 1
     assert c.foo(1) == 0
-    assert c.foo(-1) == 0
-
-    assert c.foo(lo) == 0
     assert c.foo(hi) == 0
+
+    assert_tx_failed(lambda: c.foo(-1))
+    assert_tx_failed(lambda: c.foo(lo))  # note: lo < 0
 
 
 @pytest.mark.parametrize("typ,lo,hi,bits", PARAMS)
-def test_exponent_base_one(get_contract, typ, lo, hi, bits):
+def test_exponent_base_one(get_contract, assert_tx_failed, typ, lo, hi, bits):
     code = f"""
 @external
 def foo(x: {typ}) -> {typ}:
@@ -41,14 +41,15 @@ def foo(x: {typ}) -> {typ}:
     c = get_contract(code)
     assert c.foo(0) == 1
     assert c.foo(1) == 1
-    assert c.foo(-1) == 1
-    assert c.foo(lo) == 1
     assert c.foo(hi) == 1
+
+    assert_tx_failed(lambda: c.foo(-1))
+    assert_tx_failed(lambda: c.foo(lo))
 
 
 def test_exponent_base_minus_one(get_contract):
     # #2986
-    # NOTE: python order of precedence means -1 ** x != (-1) ** x
+    # NOTE!!! python order of precedence means -1 ** x != (-1) ** x
     code = """
 @external
 def foo(x: int256) -> int256:
@@ -70,9 +71,9 @@ def bar() -> int16:
     x: int16 = -2
     return {base} ** x
     """
-    get_contract(code)
+    c = get_contract(code)
     # known bug: 2985
-    # assert_tx_failed(lambda: c.bar())
+    assert_tx_failed(lambda: c.bar())
 
 
 def test_exponent_min_int16(get_contract):
