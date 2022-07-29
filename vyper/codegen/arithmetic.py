@@ -32,7 +32,7 @@ def calculate_largest_power(a: int, num_bits: int, is_signed: bool) -> int:
     if num_bits % 8:  # pragma: no cover
         raise CompilerPanic("Type is not a modulo of 8")
 
-    if a in (0, 1):  # pragma: no cover
+    if a in (-1, 0, 1):  # pragma: no cover
         raise CompilerPanic("Exponential operation is useless!")
 
     value_bits = num_bits - (1 if is_signed else 0)
@@ -70,8 +70,9 @@ def calculate_largest_power(a: int, num_bits: int, is_signed: bool) -> int:
         assert num_iterations < 10000
 
     # Edge case: If a is negative and the values of a and b are such that:
-    #               (a) ** (b + 1) == -(2 ** value_bits)
-    #            we can actually squeak one more out of it because it's on the edge
+    #   (-a) ** (b + 1) == -(2 ** value_bits)
+    # we can squeak one more out of it because lower bound of signed ints
+    # is slightly wider than upper bound
     if a_is_negative and (-a) ** (b + 1) == -(2 ** value_bits):  # NOTE: a = abs(a)
         return b + 1
     else:
