@@ -44,7 +44,7 @@ def set_and_get(a: Actions) -> Actions:
     for i in range(5):
         assert c.set_and_get(i) == i
         c.set_and_get(i, transact={})
-        assert c.action == i
+        assert c.action() == i
 
 
 def test_eq_neq(get_contract):
