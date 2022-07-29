@@ -2193,6 +2193,10 @@ class Empty(BuiltinFunction):
     # (note that it is ignored in `validate_args`)
     _inputs = [("typename", "TYPE_DEFINITION")]
 
+    # Since `empty` is not folded before semantics validation, this flag is used
+    # for `check_kwargable` in semantics validation.
+    _kwargable = True
+
     def fetch_call_return(self, node):
         type_ = self.infer_arg_types(node)[0].typedef
         return type_
