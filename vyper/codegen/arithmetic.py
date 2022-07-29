@@ -351,6 +351,7 @@ def safe_pow(x, y):
     if x.is_literal:
         # cannot pass -1, 0 or 1 to `calculate_largest_power`
         if x.value in (-1, 0, 1):
+            # not strictly needed, but consistent with other bases
             ok = [GE, y, 0]
         else:
             upper_bound = calculate_largest_power(x.value, num_info.bits, num_info.is_signed)
@@ -360,6 +361,7 @@ def safe_pow(x, y):
     elif y.is_literal:
         # cannot pass 0 or 1 to `calculate_largest_base`
         if y.value in (0, 1):
+            # not strictly needed, but consistent with other powers
             ok = [GE, x, 0]
         else:
             lower_bound, upper_bound = calculate_largest_base(
