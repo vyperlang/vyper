@@ -39,6 +39,7 @@ OUTPUT_FORMATS = {
     # requires bytecode
     "bytecode": output.build_bytecode_output,
     "bytecode_runtime": output.build_bytecode_runtime_output,
+    "blueprint_bytecode": output.build_blueprint_bytecode_output,
     "opcodes": output.build_opcodes_output,
     "opcodes_runtime": output.build_opcodes_runtime_output,
 }

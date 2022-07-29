@@ -42,6 +42,7 @@ no-optimize        - Do not optimize (don't use this for production code)
 combined_json_outputs = [
     "bytecode",
     "bytecode_runtime",
+    "blueprint_bytecode",
     "abi",
     "layout",
     "source_map",
