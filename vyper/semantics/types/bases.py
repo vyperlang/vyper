@@ -285,7 +285,7 @@ class BaseTypeDefinition:
     def to_abi_dict(self, name: str = "") -> Dict[str, Any]:
         """
         The JSON ABI description of this type. Note for complex types,
-        the implementation is overriden to be compliant with the spec:
+        the implementation is overridden to be compliant with the spec:
         https://docs.soliditylang.org/en/v0.8.14/abi-spec.html#json
         > An object with members name, type and potentially components
           describes a typed variable. The canonical type is determined
