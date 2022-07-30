@@ -991,6 +991,8 @@ def int_clamp(ir_node, bits, signed=False):
     """
     if bits >= 256:
         raise CompilerPanic(f"invalid clamp: {bits}>=256 ({ir_node})")  # pragma: notest
+
+    msg = f"{ir_node.typ} bounds check"
     with ir_node.cache_when_complex("val") as (b, val):
         if signed:
             # example for bits==128:
@@ -1003,19 +1005,23 @@ def int_clamp(ir_node, bits, signed=False):
         else:
             assertion = ["assert", ["iszero", shr(bits, val)]]
 
+        assertion = IRnode.from_list(assertion, error_msg=msg)
+
         ret = b.resolve(["seq", assertion, val])
 
-    # TODO fix this annotation
-    return IRnode.from_list(ret, annotation=f"int_clamp {ir_node.typ}")
+    return IRnode.from_list(ret, annotation=msg)
 
 
 def bytes_clamp(ir_node: IRnode, n_bytes: int) -> IRnode:
     if not (0 < n_bytes <= 32):
         raise CompilerPanic(f"bad type: bytes{n_bytes}")
+    msg = f"{ir_node.typ} bounds check"
     with ir_node.cache_when_complex("val") as (b, val):
         assertion = ["assert", ["iszero", shl(n_bytes * 8, val)]]
+        assertion = IRnode.from_list(assertion, error_msg=msg)
         ret = b.resolve(["seq", assertion, val])
-    return IRnode.from_list(ret, annotation=f"bytes{n_bytes}_clamp")
+
+    return IRnode.from_list(ret, annotation=msg)
 
 
 # e.g. for int8, promote 255 to -1
