@@ -442,6 +442,26 @@ Data Manipulation
     Returns a value of the type specified by ``type_``.
 
     For more details on available type conversions, see :ref:`type_conversions`.
+    
+.. py:function:: uint2str(value: uint256) -> String
+
+    Returns an unsigned integer's string representation.
+
+    * ``value``: Unsigned integer to convert.
+
+    Returns the string representation of ``value``.
+
+    .. code-block:: python
+
+        @external
+        @view
+        def foo(b: uint256) -> String[78]:
+            return uint2str(b)
+
+    .. code-block:: python
+
+        >>> ExampleContract.foo(420)
+        "420"
 
 .. py:function:: extract32(b: Bytes, start: uint256, output_type=bytes32) -> Any
 
