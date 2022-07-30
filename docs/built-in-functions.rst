@@ -443,7 +443,7 @@ Data Manipulation
 
     For more details on available type conversions, see :ref:`type_conversions`.
     
-.. py:function:: uint2str(value: uint256) -> String
+.. py:function:: uint2str(value: unsigned integer) -> String
 
     Returns an unsigned integer's string representation.
 
