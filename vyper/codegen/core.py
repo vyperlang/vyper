@@ -280,7 +280,8 @@ def append_dyn_array(darray_node, elem_node):
     with darray_node.cache_when_complex("darray") as (b1, darray_node):
         len_ = get_dyn_array_count(darray_node)
         with len_.cache_when_complex("old_darray_len") as (b2, len_):
-            ret.append(["assert", ["lt", len_, darray_node.typ.count]])
+            assertion = ["assert", ["lt", len_, darray_node.typ.count]]
+            ret.append(assertion, error_msg=f"{darray_node.typ} bounds check")
             ret.append(STORE(darray_node, ["add", len_, 1]))
             # NOTE: typechecks elem_node
             # NOTE skip array bounds check bc we already asserted len two lines up
@@ -938,13 +939,15 @@ def clamp_bytestring(ir_node):
     t = ir_node.typ
     if not isinstance(t, ByteArrayLike):
         raise CompilerPanic(f"{t} passed to clamp_bytestring")  # pragma: notest
-    return ["assert", ["le", get_bytearray_length(ir_node), t.maxlen]]
+    ret = ["assert", ["le", get_bytearray_length(ir_node), t.maxlen]]
+    return IRnode.from_list(ret, error_msg=f"{ir_node.typ} bounds check")
 
 
 def clamp_dyn_array(ir_node):
     t = ir_node.typ
     assert isinstance(t, DArrayType)
-    return ["assert", ["le", get_dyn_array_count(ir_node), t.count]]
+    ret = ["assert", ["le", get_dyn_array_count(ir_node), t.count]]
+    return IRnode.from_list(ret, error_msg=f"{ir_node.typ} bounds check")
 
 
 # clampers for basetype
@@ -1042,7 +1045,7 @@ def clamp(op, arg, bound):
 def clamp_nonzero(arg):
     # TODO: use clamp("ne", arg, 0) once optimizer rules can handle it
     with IRnode.from_list(arg).cache_when_complex("should_nonzero") as (b1, arg):
-        check = IRnode.from_list(["assert", arg], error_msg="clamp_nonzero")
+        check = IRnode.from_list(["assert", arg], error_msg="check nonzero")
         ret = ["seq", check, arg]
         return IRnode.from_list(b1.resolve(ret), typ=arg.typ)
 
