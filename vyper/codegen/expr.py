@@ -399,8 +399,10 @@ class Expr:
                 "`in` not allowed for arrays of non-base types, tracked in issue #2637", self.expr
             )
 
+        left = unwrap_location(left)
+
         # unroll the loop for compile-time list literals
-        if right.is_literal:
+        if right.value == "multi":
             if isinstance(self.expr.op, vy_ast.In):
                 checks = [["eq", left, val] for val in right.args]
                 return Expr._logical_or(checks)
@@ -421,7 +423,6 @@ class Expr:
 
         ret = ["seq"]
 
-        left = unwrap_location(left)
         with left.cache_when_complex("needle") as (b1, left), right.cache_when_complex(
             "haystack"
         ) as (b2, right):
@@ -530,6 +531,8 @@ class Expr:
             assert is_base_type(ir_val.typ, "bool")
             values.append(ir_val)
 
+        assert len(values) >= 2, "bad BoolOp"
+
         if isinstance(self.expr.op, vy_ast.And):
             return Expr._logical_and(values)
 
@@ -540,19 +543,25 @@ class Expr:
 
     @staticmethod
     def _logical_and(values):
+        if len(values) == 1:
+            return values[0]
+
         # create a nested if statement starting from the
         # innermost nesting
         ir_node = ["if", values[-2], values[-1], 0]
 
         # iterate backward through the remaining values
         for val in values[-3::-1]:
-            ir_node = ["if", val, self.context), ir_node, 0]
+            ir_node = ["if", val, ir_node, 0]
 
         return IRnode.from_list(ir_node, typ="bool")
 
 
     @staticmethod
     def _logical_or(values):
+        if len(values) == 1:
+            return values[0]
+
         # create a nested if statement starting from the
         # innermost nesting
         ir_node = ["if", values[-2], 1, values[-1]]
