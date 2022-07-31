@@ -399,6 +399,15 @@ class Expr:
                 "`in` not allowed for arrays of non-base types, tracked in issue #2637", self.expr
             )
 
+        # unroll the loop for compile-time list literals
+        if right.is_literal:
+            if isinstance(self.expr.op, vy_ast.In):
+                checks = [["eq", left, val] for val in right.args]
+                return Expr._logical_or(checks)
+            if isinstance(self.expr.op, vy_ast.NotIn):
+                checks = [["ne", left, val] for val in right.args]
+                return Expr._logical_and(checks)
+
         if isinstance(self.expr.op, vy_ast.In):
             found, not_found = 1, 0
         elif isinstance(self.expr.op, vy_ast.NotIn):
@@ -416,15 +425,6 @@ class Expr:
         with left.cache_when_complex("needle") as (b1, left), right.cache_when_complex(
             "haystack"
         ) as (b2, right):
-            if right.value == "multi":
-                # Copy literal to memory to be compared.
-                tmp_list = IRnode.from_list(
-                    self.context.new_internal_variable(right.typ), typ=right.typ, location=MEMORY
-                )
-                ret.append(make_setter(tmp_list, right))
-
-                right = tmp_list
-
             # location of i'th item from list
             ith_element_ptr = get_element_ptr(right, i, array_bounds_check=False)
             ith_element = unwrap_location(ith_element_ptr)
@@ -526,41 +526,43 @@ class Expr:
     def parse_BoolOp(self):
         for value in self.expr.values:
             # Check for boolean operations with non-boolean inputs
-            _expr = Expr.parse_value_expr(value, self.context)
-            if not is_base_type(_expr.typ, "bool"):
-                return
-
-        def _build_if_ir(condition, true, false):
-            # generate a basic if statement in IR
-            o = ["if", condition, true, false]
-            return o
+            ir_val = Expr.parse_value_expr(value, self.context)
+            assert is_base_type(ir_val.typ, "bool")
+            values.append(ir_val)
 
         if isinstance(self.expr.op, vy_ast.And):
-            # create the initial `x and y` from the final two values
-            ir_node = _build_if_ir(
-                Expr.parse_value_expr(self.expr.values[-2], self.context),
-                Expr.parse_value_expr(self.expr.values[-1], self.context),
-                [0],
-            )
-            # iterate backward through the remaining values
-            for node in self.expr.values[-3::-1]:
-                ir_node = _build_if_ir(Expr.parse_value_expr(node, self.context), ir_node, [0])
+            return Expr._logical_and(values)
 
-        elif isinstance(self.expr.op, vy_ast.Or):
-            # create the initial `x or y` from the final two values
-            ir_node = _build_if_ir(
-                Expr.parse_value_expr(self.expr.values[-2], self.context),
-                [1],
-                Expr.parse_value_expr(self.expr.values[-1], self.context),
-            )
+        if isinstance(self.expr.op, vy_ast.Or):
+            return Expr._logical_or(values)
 
-            # iterate backward through the remaining values
-            for node in self.expr.values[-3::-1]:
-                ir_node = _build_if_ir(Expr.parse_value_expr(node, self.context), 1, ir_node)
-        else:
-            raise TypeCheckFailure(f"Unexpected boolean operator: {type(self.expr.op).__name__}")
+        raise TypeCheckFailure(f"Unexpected boolean operator: {type(self.expr.op).__name__}")  # pragma: notest
+
+    @staticmethod
+    def _logical_and(values):
+        # create a nested if statement starting from the
+        # innermost nesting
+        ir_node = ["if", values[-2], values[-1], 0]
+
+        # iterate backward through the remaining values
+        for val in values[-3::-1]:
+            ir_node = ["if", val, self.context), ir_node, 0]
 
         return IRnode.from_list(ir_node, typ="bool")
+
+
+    @staticmethod
+    def _logical_or(values):
+        # create a nested if statement starting from the
+        # innermost nesting
+        ir_node = ["if", values[-2], 1, values[-1]]
+
+        # iterate backward through the remaining values
+        for val in values[-3::-1]:
+            ir_node = ["if", val, 1, ir_node]
+
+        return IRnode.from_list(ir_node, typ="bool")
+
 
     # Unary operations (only "not" supported)
     def parse_UnaryOp(self):
