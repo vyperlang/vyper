@@ -281,7 +281,7 @@ def append_dyn_array(darray_node, elem_node):
         len_ = get_dyn_array_count(darray_node)
         with len_.cache_when_complex("old_darray_len") as (b2, len_):
             assertion = ["assert", ["lt", len_, darray_node.typ.count]]
-            ret.append(assertion, error_msg=f"{darray_node.typ} bounds check")
+            ret.append(IRnode.from_list(assertion, error_msg=f"{darray_node.typ} bounds check"))
             ret.append(STORE(darray_node, ["add", len_, 1]))
             # NOTE: typechecks elem_node
             # NOTE skip array bounds check bc we already asserted len two lines up
