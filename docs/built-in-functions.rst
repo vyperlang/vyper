@@ -201,7 +201,7 @@ Vyper has three built-ins for contract creation; all three contract creation bui
 
 .. note::
 
-    To properly deploy a blueprint contract, special deploy bytecode must be used. Deploying blueprint contracts is generally out of scope of this article, but the following preamble, prepended to regular deploy bytecode (output of ``vyper -f bytecode``), should deploy the blueprint in an ordinary contract creation transaction: ``deploy_preamble = "61" + <bytecode len in 4 hex characters> + "3d81600a3d39f3"``. To see an example of this, please see `the setup code for testing create_from_blueprint<https://github.com/vyperlang/vyper/blob/2adc34ffd3bee8b6dee90f552bbd9bb844509e19/tests/base_conftest.py#L130-L160>`_.
+    To properly deploy a blueprint contract, special deploy bytecode must be used. Deploying blueprint contracts is generally out of scope of this article, but the following preamble, prepended to regular deploy bytecode (output of ``vyper -f bytecode``), should deploy the blueprint in an ordinary contract creation transaction: ``deploy_preamble = "61" + <bytecode len in 4 hex characters> + "3d81600a3d39f3"``. To see an example of this, please see `the setup code for testing create_from_blueprint <https://github.com/vyperlang/vyper/blob/2adc34ffd3bee8b6dee90f552bbd9bb844509e19/tests/base_conftest.py#L130-L160>`_.
 
 .. warning::
 
