@@ -1021,8 +1021,7 @@ def bytes_clamp(ir_node: IRnode, n_bytes: int) -> IRnode:
         raise CompilerPanic(f"bad type: bytes{n_bytes}")
     msg = f"bytes{n_bytes} bounds check"
     with ir_node.cache_when_complex("val") as (b, val):
-        assertion = ["assert", ["iszero", shl(n_bytes * 8, val)]]
-        assertion = IRnode.from_list(assertion, error_msg=msg)
+        assertion = IRnode.from_list(["assert", ["iszero", shl(n_bytes * 8, val)]], error_msg=msg)
         ret = b.resolve(["seq", assertion, val])
 
     return IRnode.from_list(ret, annotation=msg)
