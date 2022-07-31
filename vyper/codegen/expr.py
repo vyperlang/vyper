@@ -11,7 +11,6 @@ from vyper.codegen.core import (
     get_dyn_array_count,
     get_element_ptr,
     getpos,
-    make_setter,
     pop_dyn_array,
     unwrap_location,
 )
@@ -525,6 +524,7 @@ class Expr:
         return IRnode.from_list([op, left, right], typ="bool")
 
     def parse_BoolOp(self):
+        values = []
         for value in self.expr.values:
             # Check for boolean operations with non-boolean inputs
             ir_val = Expr.parse_value_expr(value, self.context)
@@ -539,7 +539,7 @@ class Expr:
         if isinstance(self.expr.op, vy_ast.Or):
             return Expr._logical_or(values)
 
-        raise TypeCheckFailure(f"Unexpected boolean operator: {type(self.expr.op).__name__}")  # pragma: notest
+        raise TypeCheckFailure(f"Unexpected boolop: {self.expr.op}")  # pragma: notest
 
     @staticmethod
     def _logical_and(values):
@@ -556,7 +556,6 @@ class Expr:
 
         return IRnode.from_list(ir_node, typ="bool")
 
-
     @staticmethod
     def _logical_or(values):
         if len(values) == 1:
@@ -571,7 +570,6 @@ class Expr:
             ir_node = ["if", val, 1, ir_node]
 
         return IRnode.from_list(ir_node, typ="bool")
-
 
     # Unary operations (only "not" supported)
     def parse_UnaryOp(self):
