@@ -519,7 +519,7 @@ def _optimize(node: IRnode, parent: Optional[IRnode]) -> Tuple[bool, IRnode]:
                 # return the first branch
                 return finalize("seq", [argz[1]])
 
-        elif len(argz) == 3 and argz[0].value != "iszero":
+        elif len(argz) == 3 and argz[0].value not in ("iszero", "ne"):
             # if(x) compiles to jumpi(_, iszero(x))
             # there is an asm optimization for the sequence ISZERO ISZERO..JUMPI
             # so we swap the branches here to activate that optimization.
