@@ -1036,6 +1036,20 @@ class BitXor(VyperNode):
     _op = operator.xor
 
 
+class LShift(VyperNode):
+    __slots__ = ()
+    _description = "bitwise left shift"
+    _pretty = "<<"
+    _op = operator.lshift
+
+
+class RShift(VyperNode):
+    __slots__ = ()
+    _description = "bitwise right shift"
+    _pretty = ">>"
+    _op = operator.rshift
+
+
 class BoolOp(VyperNode):
     __slots__ = ("op", "values")
 

@@ -10,6 +10,7 @@ from vyper.codegen.core import (
     ensure_in_memory,
     get_dyn_array_count,
     get_element_ptr,
+    shr,shl,sar,
     getpos,
     make_setter,
     pop_dyn_array,
@@ -367,6 +368,15 @@ class Expr:
         if isinstance(self.expr.op, vy_ast.BitXor):
             new_typ = left.typ
             return IRnode.from_list(["xor", left, right], typ=new_typ)
+
+        if isinstance(self.expr.op, vy_ast.LShift):
+            new_typ = left.typ
+            return IRnode.from_list(shl(right, left), typ=new_typ)
+        if isinstance(self.expr.op, vy_ast.RShift):
+            new_typ = left.typ
+            op = shr if not left.typ._int_info.is_signed else sar
+            # note: sar NotImplementedError for pre-constantinople
+            return IRnode.from_list(op(right, left), typ=new_typ)
 
         out_typ = BaseType(ltyp)
 

@@ -2,7 +2,7 @@ from typing import Optional, Tuple, Type, Union
 
 from vyper import ast as vy_ast
 from vyper.abi_types import ABI_FixedMxN, ABI_GIntM, ABIType
-from vyper.exceptions import CompilerPanic, InvalidOperation, OverflowException
+from vyper.exceptions import CompilerPanic, InvalidOperation, OverflowException, UnimplementedException
 from vyper.semantics.types.abstract import (
     FixedAbstractType,
     SignedIntegerAbstractType,
@@ -36,6 +36,9 @@ class AbstractNumericDefinition(ValueTypeDefinition):
     ) -> None:
         if self._invalid_op and isinstance(node.op, self._invalid_op):
             raise InvalidOperation(f"Cannot perform {node.op.description} on {self}", node)
+
+        if isinstance(node.op, (vy_ast.LShift, vy_ast.RShift)) and self._bits != 256:
+            raise UnimplementedException(f"Cannot perform {node.op.description} on non-int256/uint256 type!", node)
 
         if isinstance(node.op, vy_ast.Pow):
             if isinstance(node, vy_ast.BinOp):
