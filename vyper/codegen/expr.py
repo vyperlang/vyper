@@ -10,10 +10,12 @@ from vyper.codegen.core import (
     ensure_in_memory,
     get_dyn_array_count,
     get_element_ptr,
-    shr,shl,sar,
     getpos,
     make_setter,
     pop_dyn_array,
+    sar,
+    shl,
+    shr,
     unwrap_location,
 )
 from vyper.codegen.ir_node import IRnode
