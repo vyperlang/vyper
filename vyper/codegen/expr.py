@@ -373,9 +373,15 @@ class Expr:
 
         if isinstance(self.expr.op, vy_ast.LShift):
             new_typ = left.typ
+            if new_typ._int_info.bits != 256:
+                # TODO implement me. ["and", 2**bits - 1, shl(right, left)]
+                return
             return IRnode.from_list(shl(right, left), typ=new_typ)
         if isinstance(self.expr.op, vy_ast.RShift):
             new_typ = left.typ
+            if new_typ._int_info.bits != 256:
+                # TODO implement me. promote_signed_int(op(right, left), bits)
+                return
             op = shr if not left.typ._int_info.is_signed else sar
             # note: sar NotImplementedError for pre-constantinople
             return IRnode.from_list(op(right, left), typ=new_typ)
