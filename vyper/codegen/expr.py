@@ -409,6 +409,8 @@ class Expr:
                 checks = [["ne", left, val] for val in right.args]
                 return Expr._logical_and(checks)
 
+        # general case: loop over the list and check each element
+        # for equality
         if isinstance(self.expr.op, vy_ast.In):
             found, not_found = 1, 0
         elif isinstance(self.expr.op, vy_ast.NotIn):
@@ -543,30 +545,30 @@ class Expr:
 
     @staticmethod
     def _logical_and(values):
-        if len(values) == 1:
-            return IRnode.from_list(values[0], typ="bool")
+        # return the logical and of a list of IRnodes
 
         # create a nested if statement starting from the
-        # innermost nesting
-        ir_node = ["if", values[-2], values[-1], 0]
+        # innermost node
+        ir_node = values[-1]
 
-        # iterate backward through the remaining values
-        for val in values[-3::-1]:
+        # iterate backward through the remaining values,
+        # nesting further at each step
+        for val in values[-2::-1]:
             ir_node = ["if", val, ir_node, 0]
 
         return IRnode.from_list(ir_node, typ="bool")
 
     @staticmethod
     def _logical_or(values):
-        if len(values) == 1:
-            return IRnode.from_list(values[0], typ="bool")
+        # return the logical or of a list of IRnodes
 
         # create a nested if statement starting from the
-        # innermost nesting
-        ir_node = ["if", values[-2], 1, values[-1]]
+        # innermost node
+        ir_node = values[-1]
 
-        # iterate backward through the remaining values
-        for val in values[-3::-1]:
+        # iterate backward through the remaining values,
+        # nesting further at each step
+        for val in values[-2::-1]:
             ir_node = ["if", val, 1, ir_node]
 
         return IRnode.from_list(ir_node, typ="bool")
