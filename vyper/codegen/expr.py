@@ -400,15 +400,6 @@ class Expr:
 
         left = unwrap_location(left)
 
-        # unroll the loop for compile-time list literals
-        if right.value == "multi":
-            if isinstance(self.expr.op, vy_ast.In):
-                checks = [["eq", left, val] for val in right.args]
-                return Expr._logical_or(checks)
-            if isinstance(self.expr.op, vy_ast.NotIn):
-                checks = [["ne", left, val] for val in right.args]
-                return Expr._logical_and(checks)
-
         # general case: loop over the list and check each element
         # for equality
         if isinstance(self.expr.op, vy_ast.In):
@@ -427,6 +418,16 @@ class Expr:
         with left.cache_when_complex("needle") as (b1, left), right.cache_when_complex(
             "haystack"
         ) as (b2, right):
+            # unroll the loop for compile-time list literals
+            if right.value == "multi":
+                if isinstance(self.expr.op, vy_ast.In):
+                    checks = [["eq", left, val] for val in right.args]
+                    return b1.resolve(b2.resolve(Expr._logical_or(checks)))
+                if isinstance(self.expr.op, vy_ast.NotIn):
+                    checks = [["ne", left, val] for val in right.args]
+                    return b1.resolve(b2.resolve(Expr._logical_and(checks)))
+
+
             # location of i'th item from list
             ith_element_ptr = get_element_ptr(right, i, array_bounds_check=False)
             ith_element = unwrap_location(ith_element_ptr)

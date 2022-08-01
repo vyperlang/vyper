@@ -376,7 +376,7 @@ def _optimize_binop(binop, args, ann, parent_op):
             # note that (xor (-1) x) has its own rule
             return finalize("iszero", [["xor", args[0], args[1]]])
 
-        if binop == "ne":
+        if binop == "ne" and parent_op == "iszero":
             # trigger other optimizations
             return finalize("iszero", [["eq", *args]])
 

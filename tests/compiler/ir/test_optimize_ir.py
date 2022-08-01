@@ -21,6 +21,7 @@ optimize_list = [
     # condition rewriter
     (["if", ["eq", "x", "y"], "pass"], ["if", ["iszero", ["xor", "x", "y"]], "pass"]),
     (["if", "cond", 1, 0], ["if", ["iszero", "cond"], 0, 1]),
+    (["if", ["ne", "x", 1], [1]], None),
     (["assert", ["eq", "x", "y"]], ["assert", ["iszero", ["xor", "x", "y"]]]),
     # nesting
     (["mstore", 0, ["eq", 1, 2]], ["mstore", 0, 0]),
