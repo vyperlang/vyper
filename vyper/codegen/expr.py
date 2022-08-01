@@ -548,12 +548,14 @@ class Expr:
         # return the logical and of a list of IRnodes
 
         # create a nested if statement starting from the
-        # innermost node
+        # innermost node. note this also serves as the base case
+        # (`_logical_and([x]) == x`)
         ir_node = values[-1]
 
         # iterate backward through the remaining values,
         # nesting further at each step
         for val in values[-2::-1]:
+            # `x and y` => `if x { then y } { else 0 }`
             ir_node = ["if", val, ir_node, 0]
 
         return IRnode.from_list(ir_node, typ="bool")
@@ -563,12 +565,14 @@ class Expr:
         # return the logical or of a list of IRnodes
 
         # create a nested if statement starting from the
-        # innermost node
+        # innermost node. note this also serves as the base case
+        # (`_logical_or([x]) == x`)
         ir_node = values[-1]
 
         # iterate backward through the remaining values,
         # nesting further at each step
         for val in values[-2::-1]:
+            # `x or y` => `if x { then 1 } { else y }`
             ir_node = ["if", val, 1, ir_node]
 
         return IRnode.from_list(ir_node, typ="bool")
