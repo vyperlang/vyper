@@ -79,7 +79,7 @@ def _shl(x: int256, y: int256) -> int256:
     cases = [x, y, -x, -y]
 
     for t in cases:
-        for s in (0, 1, 3, 256):
+        for s in (0, 1, 3, 255, 256):
             assert c._sar(t, s) == t >> s
             assert c._shl(t, s) == unsigned_to_signed((t << s) % (2 ** 256), 256)
 
