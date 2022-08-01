@@ -58,7 +58,7 @@ def foo(a: int128, b: int128[{len(right)}]) -> bool:
 
 @external
 def bar(a: int128) -> bool:
-    # note: codegen unrolls to a == right[0] or a == right[1] ...
+    # note: codegen unrolls to `a == right[0] or a == right[1] ...`
     return a in {right}
     """
     contract = get_contract(source)
@@ -87,7 +87,7 @@ def foo(a: int128, b: int128[{len(right)}]) -> bool:
 
 @external
 def bar(a: int128) -> bool:
-    # note: codegen unrolls to a != right[0] and a != right[1] ...
+    # note: codegen unrolls to `a != right[0] and a != right[1] ...`
     return a not in {right}
     """
     contract = get_contract(source)
