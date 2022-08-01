@@ -920,6 +920,7 @@ Utilities
     .. code-block:: python
 
         >>> ExampleContract.foo()
+	 0xa9059cbb
 
 .. py:function:: _abi_encode(*args, ensure_tuple: bool = True) -> Bytes[<depends on input>]
 
