@@ -108,17 +108,17 @@ def baz(a: uint256, b: uint256, c: uint256) -> (uint256, uint256):
 def test_literals(get_contract, evm_version):
     code = """
 @external
-def left(x: uint256) -> uint256:
-    return shift(x, -3)
+def _shr(x: uint256) -> uint256:
+    return x >> 3
 
 @external
-def right(x: uint256) -> uint256:
-    return shift(x, 3)
+def _shl(x: uint256) -> uint256:
+    return x << 3
     """
 
     c = get_contract(code, evm_version=evm_version)
-    assert c.left(80) == 10
-    assert c.right(80) == 640
+    assert c._shr(80) == 10
+    assert c._shl(80) == 640
 
 
 fail_list = [
@@ -126,7 +126,7 @@ fail_list = [
         """
 @external
 def foo(x: uint8, y: int128) -> uint256:
-    return shift(x, y)
+    return x << y
     """,
         TypeMismatch,
     )
