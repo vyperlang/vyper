@@ -1441,8 +1441,13 @@ class Shift(BuiltinFunction):
         ("x", (Uint256Definition(), Int256Definition())),
         ("shift_bits", SignedIntegerAbstractType()),
     ]
+    _warned = False
 
     def evaluate(self, node):
+        if not self.__class__._warned:
+            vyper_warn("`shift()` is deprecated! Please use the << or >> operator instead.")
+            self.__class__._warned = True
+
         validate_call_args(node, 2)
         if [i for i in node.args if not isinstance(i, vy_ast.Num)]:
             raise UnfoldableNode
