@@ -544,7 +544,7 @@ class Expr:
     @staticmethod
     def _logical_and(values):
         if len(values) == 1:
-            return values[0]
+            return IRnode.from_list(values[0], typ="bool")
 
         # create a nested if statement starting from the
         # innermost nesting
@@ -559,7 +559,7 @@ class Expr:
     @staticmethod
     def _logical_or(values):
         if len(values) == 1:
-            return values[0]
+            return IRnode.from_list(values[0], typ="bool")
 
         # create a nested if statement starting from the
         # innermost nesting

@@ -55,6 +55,11 @@ def test_compare_in(left, right, get_contract):
 def foo(a: int128, b: int128[{len(right)}]) -> bool:
     c: int128[{len(right)}] = b
     return a in c
+
+@external
+def bar(a: int128) -> bool:
+    # note: codegen unrolls to a == right[0] or a == right[1] ...
+    return a in {right}
     """
     contract = get_contract(source)
 
@@ -62,7 +67,12 @@ def foo(a: int128, b: int128[{len(right)}]) -> bool:
     old_node = vyper_ast.body[0].value
     new_node = old_node.evaluate()
 
+    # check runtime == fully folded
     assert contract.foo(left, right) == new_node.value
+    # check unrolled runtime == fully folded
+    assert contract.bar(left) == new_node.value
+    # check folding matches python semantics
+    assert (left in right) == new_node.value
 
 
 @pytest.mark.fuzzing
@@ -74,6 +84,11 @@ def test_compare_not_in(left, right, get_contract):
 def foo(a: int128, b: int128[{len(right)}]) -> bool:
     c: int128[{len(right)}] = b
     return a not in c
+
+@external
+def bar(a: int128) -> bool:
+    # note: codegen unrolls to a != right[0] and a != right[1] ...
+    return a not in {right}
     """
     contract = get_contract(source)
 
@@ -81,7 +96,12 @@ def foo(a: int128, b: int128[{len(right)}]) -> bool:
     old_node = vyper_ast.body[0].value
     new_node = old_node.evaluate()
 
+    # check runtime == fully folded
     assert contract.foo(left, right) == new_node.value
+    # check unrolled runtime == fully folded
+    assert contract.bar(left) == new_node.value
+    # check folding matches python semantics
+    assert (left not in right) == new_node.value
 
 
 @pytest.mark.parametrize("op", ["==", "!=", "<", "<=", ">=", ">"])
