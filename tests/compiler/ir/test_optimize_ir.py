@@ -22,6 +22,8 @@ optimize_list = [
     (["if", ["eq", "x", "y"], "pass"], ["if", ["iszero", ["xor", "x", "y"]], "pass"]),
     (["if", "cond", 1, 0], ["if", ["iszero", "cond"], 0, 1]),
     (["if", ["ne", "x", 1], [1]], None),
+    # TODO: fix this perf regression
+    (["if", ["iszero", ["eq", "x", "y"]], [1]], ["if", ["iszero", ["iszero", ["xor", "x", "y"]]], 1]),
     (["assert", ["eq", "x", "y"]], ["assert", ["iszero", ["xor", "x", "y"]]]),
     # nesting
     (["mstore", 0, ["eq", 1, 2]], ["mstore", 0, 0]),
