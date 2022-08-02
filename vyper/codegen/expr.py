@@ -427,7 +427,6 @@ class Expr:
                     checks = [["ne", left, val] for val in right.args]
                     return b1.resolve(b2.resolve(Expr._logical_and(checks)))
 
-
             # location of i'th item from list
             ith_element_ptr = get_element_ptr(right, i, array_bounds_check=False)
             ith_element = unwrap_location(ith_element_ptr)
