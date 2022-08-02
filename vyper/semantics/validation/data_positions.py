@@ -179,7 +179,11 @@ def set_storage_slots(vyper_module: vy_ast.Module) -> StorageLayout:
 
     for node in vyper_module.get_children(vy_ast.VariableDecl):
 
-        if node.get("annotation.func.id") == "immutable":
+        # handle the case where immutable variable has been declared public
+        if node.is_public and (node.is_constant or node.is_immutable):
+            annotation = annotation.args[0]
+
+        if annotation.get("func.id") == "immutable":
             continue
 
         type_ = node.target._metadata["type"]
@@ -211,7 +215,7 @@ def set_code_offsets(vyper_module: vy_ast.Module) -> Dict:
     ret = {}
     offset = 0
     for node in vyper_module.get_children(
-        vy_ast.VariableDecl, filters={"annotation.func.id": "immutable"}
+        vy_ast.VariableDecl, filters={"is_immutable": True}
     ):
         type_ = node._metadata["type"]
         type_.set_position(CodeOffset(offset))

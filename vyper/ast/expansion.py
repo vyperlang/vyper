@@ -38,6 +38,9 @@ def generate_public_variable_getters(vyper_module: vy_ast.Module) -> None:
         # use the annotation node as a base to build the input args and return type
         # starting with `args[0]` to remove the surrounding `public()` call`
         annotation = copy.copy(node.annotation.args[0])
+        # if we have a mutability declaration after a visibility one, skip over
+        if node.is_public and (node.is_constant or node.is_immutable):
+            annotation = annotation.args[0]
 
         # the base return statement is an `Attribute` node, e.g. `self.<var_name>`
         # for each input type we wrap it in a `Subscript` to access a specific member

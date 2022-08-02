@@ -256,6 +256,28 @@ class Expr:
                 if addr.value == "address":  # for `self.code`
                     return IRnode.from_list(["~selfcode"], typ=ByteArrayType(0))
                 return IRnode.from_list(["~extcode", addr], typ=ByteArrayType(0))
+        # public(constant(x)) or public(immutable(x))
+        elif (
+            isinstance(self.expr.value, vy_ast.Name)
+            and self.expr.value.id == "self"
+            and (
+                self.expr._metadata["type"].is_constant or self.expr._metadata["type"].is_immutable
+            )
+        ):
+            # TODO: use parse_Name or place cond statement below
+            var = self.context.globals[self.expr.attr]
+            ofst = self.expr._metadata["type"].position.offset
+
+            if self.context.sig.is_init_func:
+                mutable = True
+                location = IMMUTABLES
+            else:
+                mutable = False
+                location = DATA
+
+            return IRnode.from_list(
+                ofst, typ=var.typ, location=location, annotation=self.expr.attr, mutable=mutable
+            )
         # self.x: global attribute
         elif isinstance(self.expr.value, vy_ast.Name) and self.expr.value.id == "self":
             type_ = self.expr._metadata["type"]
