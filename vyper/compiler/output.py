@@ -214,7 +214,7 @@ def build_source_map_output(compiler_data: CompilerData) -> OrderedDict:
 
 def _compress_source_map(code, pos_map, jump_map, source_id):
     linenos = asttokens.LineNumbers(code)
-    compressed_map = f"-1:-1:{source_id}:-;"
+    ret = [f"-1:-1:{source_id}:-"]
     last_pos = [-1, -1, source_id]
 
     for pc in sorted(pos_map)[1:]:
@@ -234,9 +234,9 @@ def _compress_source_map(code, pos_map, jump_map, source_id):
             else:
                 current_pos[i] = ""
 
-        compressed_map += ":".join(str(i) for i in current_pos) + ";"
+        ret.append(":".join(str(i) for i in current_pos))
 
-    return compressed_map
+    return ";".join(ret)
 
 
 def build_bytecode_output(compiler_data: CompilerData) -> str:
