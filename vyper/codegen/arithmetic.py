@@ -362,9 +362,7 @@ def safe_pow(x, y):
     elif y.is_literal:
         # cannot pass 0 or 1 to `calculate_largest_base`
         if y.value in (0, 1):
-            # not strictly needed, but consistent with other powers
-            # (note: unsigned (ge x 0) will get optimized out)
-            ok = [GE, x, 0]
+            ok = [1]
         else:
             lower_bound, upper_bound = calculate_largest_base(
                 y.value, num_info.bits, num_info.is_signed
