@@ -978,7 +978,7 @@ Utilities
 
     "prints" the arguments by issuing a static call to the "console" address, ``0x000000000000000000636F6E736F6C652E6C6F67``. This is supported by some smart contract development frameworks.
 
-    The default mode works with titanoboa. For hardhat-style frameworks, use ``hardhat_compat=True)``.
+    The default mode works natively with titanoboa. For hardhat-style frameworks, use ``hardhat_compat=True)``.
 
 .. note::
 
