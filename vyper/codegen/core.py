@@ -107,17 +107,17 @@ def _dynarray_make_setter(dst, src):
         store_length = IRnode.from_list(store_length, annotation=ann)
         ret.append(store_length)
 
-        ret.extend(_copy_dynarray_body(dst, src))
+        ret.extend(copy_dynarray_body(dst, src))
         return ret
 
     with src.cache_when_complex("darray_src") as (b1, src):
         count = get_dyn_array_count(src)
         ret.append(STORE(dst, count))
-        ret.extend(_copy_dynarray_body(dst, src))
+        ret.extend(copy_dynarray_body(dst, src))
         return b1.resolve(ret)
 
 
-def _copy_dynarray_body(dst, src):
+def copy_dynarray_body(dst, src):
     ret = ["seq"]
 
     if src.value == "~empty":
@@ -279,84 +279,6 @@ def get_dyn_array_count(arg):
         return IRnode.from_list(0, typ=typ)
 
     return IRnode.from_list(LOAD(arg), typ=typ)
-
-
-def append_dyn_array(darray_node, elem_node):
-    assert isinstance(darray_node.typ, DArrayType)
-
-    assert darray_node.typ.count > 0, "jerk boy u r out"
-
-    ret = ["seq"]
-    with darray_node.cache_when_complex("darray") as (b1, darray_node):
-        len_ = get_dyn_array_count(darray_node)
-        with len_.cache_when_complex("old_darray_len") as (b2, len_):
-            ret.append(["assert", ["lt", len_, darray_node.typ.count]])
-            ret.append(STORE(darray_node, ["add", len_, 1]))
-            # NOTE: typechecks elem_node
-            # NOTE skip array bounds check bc we already asserted len two lines up
-            ret.append(
-                make_setter(get_element_ptr(darray_node, len_, array_bounds_check=False), elem_node)
-            )
-            return IRnode.from_list(b1.resolve(b2.resolve(ret)))
-
-
-def extend_dyn_array(context, dst, src):
-    assert isinstance(dst.typ, DArrayType)
-    assert isinstance(src.typ, DArrayType)
-
-    ret = ["seq"]
-
-    with dst.cache_when_complex("darray_dst") as (b1, dst):
-        dst_len = get_dyn_array_count(dst)
-
-        with dst_len.cache_when_complex("dst_darray_len") as (b2, dst_len):
-
-            dst_bound = dst.typ.count
-            src_len = get_dyn_array_count(src)
-            new_len = IRnode.from_list(["add", dst_len, src_len], typ="uint256")
-
-            # Assert that `src_len + dst_len` <= maxlen(dst)`
-            check = IRnode.from_list(["assert", ["le", new_len, dst_bound]])
-            ret.append(check)
-
-            # Store updated length
-            store_length = IRnode.from_list(STORE(dst, new_len))
-            ret.append(store_length)
-
-            # Get start pointer of dst
-            dst_start_idx = get_element_ptr(dst, dst_len, array_bounds_check=False)
-
-            # Cast dst start pointer as darray for `_dynarray_make_setter` by subtracting offset
-            dst_i = IRnode.from_list(["sub", dst_start_idx, dst.location.word_scale])
-            dst_i.typ = dst.typ
-            dst_i.location = dst.location
-
-            body = IRnode.from_list(_copy_dynarray_body(dst_i, src))
-            ret.append(body)
-
-            return IRnode.from_list(b1.resolve(b2.resolve(ret)))
-
-
-def pop_dyn_array(darray_node, return_popped_item):
-    assert isinstance(darray_node.typ, DArrayType)
-    assert darray_node.encoding == Encoding.VYPER
-    ret = ["seq"]
-    with darray_node.cache_when_complex("darray") as (b1, darray_node):
-        old_len = clamp("gt", get_dyn_array_count(darray_node), 0)
-        new_len = IRnode.from_list(["sub", old_len, 1], typ="uint256")
-
-        with new_len.cache_when_complex("new_len") as (b2, new_len):
-            ret.append(STORE(darray_node, new_len))
-
-            # NOTE skip array bounds check bc we already asserted len two lines up
-            if return_popped_item:
-                popped_item = get_element_ptr(darray_node, new_len, array_bounds_check=False)
-                ret.append(popped_item)
-                typ = popped_item.typ
-                location = popped_item.location
-            else:
-                typ, location = None, None
-            return IRnode.from_list(b1.resolve(b2.resolve(ret)), typ=typ, location=location)
 
 
 def getpos(node):
