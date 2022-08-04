@@ -89,17 +89,17 @@ def foo() -> int16:
     assert c.foo() == -(2 ** 15)
 
 
-@pytest.mark.parametrize("power", [0, 1])
-def test_exponent_power_zero_one(get_contract, power):
+@pytest.mark.parametrize("base,power", itertools.product((-2,-1,0,1,2), (0, 1)))
+def test_exponent_power_zero_one(get_contract, base, power):
     # #2989
     code = f"""
 @external
 def foo() -> int256:
-    x: int256 = 2
+    x: int256 = {base}
     return x ** {power}
     """
     c = get_contract(code)
-    assert c.foo() == 2 ** power
+    assert c.foo() == base ** power
 
 
 @pytest.mark.parametrize("typ,lo,hi,bits", PARAMS)
