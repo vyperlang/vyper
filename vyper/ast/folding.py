@@ -174,7 +174,7 @@ def replace_user_defined_constants(vyper_module: vy_ast.Module) -> int:
         if not isinstance(node.target, vy_ast.Name):
             # left-hand-side of assignment is not a variable
             continue
-        if node.get("annotation.func.id") != "constant":
+        if not node.is_constant:
             # annotation is not wrapped in `constant(...)`
             continue
 

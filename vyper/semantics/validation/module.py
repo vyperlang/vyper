@@ -158,20 +158,9 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
         if node.is_public or node.is_immutable or node.is_constant:
             validate_call_args(annotation, 1)
             annotation = annotation.args[0]
-            # check if we have another mutability declaration
-            mutability = next(
-                (
-                    i.id
-                    for i in annotation.get_children(
-                        vy_ast.Name, filters={"id": {"immutable", "constant"}}
-                    )
-                ),
-                None,
-            )
-            # if so update node & annotation
-            if mutability:
+            # if the node is both public and immutable or constant, remove another call node
+            if node.is_public and (node.is_immutable or node.is_constant):
                 annotation = annotation.args[0]
-                setattr(node, f"is_{mutability}", True)
 
         if node.is_public:
             # generate function type and add to metadata

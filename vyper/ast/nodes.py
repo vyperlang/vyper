@@ -1290,6 +1290,18 @@ class VariableDecl(VyperNode):
             elif call_name == "public":
                 # declaring a public variable
                 self.is_public = True
+                # handle the cases where a constant or immutable variable is public:
+                mutability = next(
+                    (
+                        i.func.id
+                        for i in self.annotation.get_children(
+                        Call, filters={"func.id": {"immutable", "constant"}}
+                    )
+                    ),
+                    None,
+                )
+                if mutability:
+                    setattr(self, f"is_{mutability}", True)
 
             elif call_name == "immutable":
                 # declaring an immutable variable

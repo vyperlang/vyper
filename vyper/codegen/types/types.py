@@ -459,7 +459,7 @@ def parse_type(item, sigs, custom_structs, enums):
         elif item.func.id in custom_structs:
             return make_struct_type(item.id, sigs, custom_structs[item.id], custom_structs, enums)
 
-        elif item.func.id == "immutable":
+        elif item.func.id in ["immutable", "constant"]:
             if len(item.args) != 1:
                 # is checked earlier but just for sanity, verify
                 # immutable call is given only one argument

@@ -180,10 +180,7 @@ def set_storage_slots(vyper_module: vy_ast.Module) -> StorageLayout:
     for node in vyper_module.get_children(vy_ast.VariableDecl):
 
         # handle the case where immutable variable has been declared public
-        if node.is_public and (node.is_constant or node.is_immutable):
-            annotation = annotation.args[0]
-
-        if annotation.get("func.id") == "immutable":
+        if node.is_constant or node.is_immutable:
             continue
 
         type_ = node.target._metadata["type"]
