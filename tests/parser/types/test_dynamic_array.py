@@ -434,7 +434,7 @@ def check_not_in(s: uint128) -> bool:
     return a not in x
     """
     c = get_contract_with_gas_estimation(code)
-    for s in (0,1,2,3):
+    for s in (0, 1, 2, 3):
         assert c.check_in(s) is False
         assert c.check_not_in(s) is True
 
