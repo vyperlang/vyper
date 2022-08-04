@@ -376,8 +376,10 @@ def _optimize_binop(binop, args, ann, parent_op):
             # note that (xor (-1) x) has its own rule
             return finalize("iszero", [["xor", args[0], args[1]]])
 
-        if binop == "ne" and parent_op != "if":
-            # trigger other optimizations
+        if binop == "ne" and parent_op == "iszero":
+            # for iszero, trigger other optimizations
+            # (for `if` and `assert`, `ne` will generate two ISZEROs
+            # which will get optimized out during assembly)
             return finalize("iszero", [["eq", *args]])
 
         # TODO can we do this?
