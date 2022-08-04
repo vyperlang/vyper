@@ -147,6 +147,9 @@ test_a : constant(int128) = 2188824287183927522224640574525
 test_a: constant(uint256) = max_value(uint256)
     """,
     """
+test_a: constant(address) = empty(address)
+    """,
+    """
 TEST_C: constant(uint256) = 1
 TEST_WEI: constant(uint256) = 1
 
