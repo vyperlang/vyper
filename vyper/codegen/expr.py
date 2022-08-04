@@ -420,6 +420,8 @@ class Expr:
         ) as (b2, right):
             # unroll the loop for compile-time list literals
             if right.value == "multi":
+                # empty list literals should be rejected at typechecking time
+                assert len(right.args) > 0
                 if isinstance(self.expr.op, vy_ast.In):
                     checks = [["eq", left, val] for val in right.args]
                     return b1.resolve(b2.resolve(Expr._logical_or(checks)))
