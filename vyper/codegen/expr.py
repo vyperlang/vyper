@@ -400,14 +400,12 @@ class Expr:
 
         left = unwrap_location(left)
 
-        # general case: loop over the list and check each element
-        # for equality
         if isinstance(self.expr.op, vy_ast.In):
             found, not_found = 1, 0
         elif isinstance(self.expr.op, vy_ast.NotIn):
             found, not_found = 0, 1
-        else:
-            return  # pragma: notest
+        else:  # pragma: no cover
+            return
 
         i = IRnode.from_list(self.context.fresh_varname("in_ix"), typ="uint256")
 
@@ -428,6 +426,9 @@ class Expr:
                 if isinstance(self.expr.op, vy_ast.NotIn):
                     checks = [["ne", left, val] for val in right.args]
                     return b1.resolve(b2.resolve(Expr._logical_and(checks)))
+
+            # general case: loop over the list and check each element
+            # for equality
 
             # location of i'th item from list
             ith_element_ptr = get_element_ptr(right, i, array_bounds_check=False)

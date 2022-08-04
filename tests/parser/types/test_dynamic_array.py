@@ -1621,6 +1621,11 @@ def ix(i: uint256) -> decimal:
     assert_tx_failed(lambda: c.ix(len(some_good_primes) + 1))
 
 
+# CMC 2022-08-04 these are blocked due to typechecker bug; leaving as
+# negative tests so we know if/when the typechecker is fixed.
+# (don't consider it a high priority to fix since membership in
+# in empty list literal seems like something we should plausibly
+# reject at compile-time anyway)
 def test_empty_list_membership_fail(get_contract, assert_compile_failed):
     code = """
 @external
