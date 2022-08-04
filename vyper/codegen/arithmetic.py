@@ -377,4 +377,5 @@ def safe_pow(x, y):
         # remove the check in `vyper/context/types/value/numeric.py`
         return
 
-    return IRnode.from_list(["seq", ["assert", ok], ["exp", x, y]])
+    assertion = IRnode.from_list(["assert", ok], error_msg="safepow")
+    return IRnode.from_list(["seq", assertion, ["exp", x, y]])
