@@ -1621,6 +1621,21 @@ def ix(i: uint256) -> decimal:
     assert_tx_failed(lambda: c.ix(len(some_good_primes) + 1))
 
 
+def test_empty_list_membership_fail(get_contract, assert_compile_failed):
+    code = """
+@external
+def foo(x: uint256) -> bool:
+    return x in []
+    """
+    assert_compile_failed(lambda: get_contract(code))
+    code = """
+@external
+def foo(x: uint256) -> bool:
+    return x not in []
+    """
+    assert_compile_failed(lambda: get_contract(code))
+
+
 # TODO test loops
 
 # Would be nice to put this somewhere accessible, like in vyper.types or something
