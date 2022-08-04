@@ -89,7 +89,7 @@ def foo() -> int16:
     assert c.foo() == -(2 ** 15)
 
 
-@pytest.mark.parametrize("base,power", itertools.product((-2,-1,0,1,2), (0, 1)))
+@pytest.mark.parametrize("base,power", itertools.product((-2, -1, 0, 1, 2), (0, 1)))
 def test_exponent_power_zero_one(get_contract, base, power):
     # #2989
     code = f"""
