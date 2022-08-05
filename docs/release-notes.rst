@@ -14,6 +14,7 @@ Non-breaking changes and improvements:
 * Add CBOR length to bytecode for decoders (`#3010 <https://github.com/vyperlang/vyper/pull/3010>`_)
 * Fix compiler panic when accessing enum storage vars via ``self`` (`#2998 <https://github.com/vyperlang/vyper/pull/2998>`_)
 * Fix: allow ``empty()`` in constant definitions and in default argument position (`#3008 <https://github.com/vyperlang/vyper/pull/3008>`_)
+* Fix: disallow ``self`` address passed to pure functions (`#3027 <https://github.com/vyperlang/vyper/pull/3027>`_)
 
 v0.3.4
 ******
