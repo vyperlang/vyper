@@ -1225,7 +1225,7 @@ struct Foo:
     c = get_contract(code)
     expected_result = check_result(test_data)
     if expected_result is None:
-        # None is sentinel to indicatecool, I'd txn should revert
+        # None is sentinel to indicate txn should revert
         assert_tx_failed(lambda: c.foo(test_data))
     else:
         assert c.foo(test_data) == expected_result
