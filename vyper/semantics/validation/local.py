@@ -200,7 +200,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             standalone_self = [
                 n for n in self_references if not isinstance(n.get_ancestor(), vy_ast.Attribute)
             ]
-            node_list.extend(standalone_self)
+            node_list.extend(standalone_self)  # type: ignore
 
             for node in node_list:
                 t = node._metadata.get("type")
