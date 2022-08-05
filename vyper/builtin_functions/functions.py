@@ -2587,7 +2587,14 @@ class Extend(BuiltinFunction):
                 store_length = IRnode.from_list(STORE(dst, new_len))
                 ret.append(store_length)
 
-                body = IRnode.from_list(copy_dynarray_body(dst, src, dst_ofst=dst_len))
+                # Get start pointer of dst
+                dst_start_idx = get_element_ptr(dst, dst_len, array_bounds_check=False)
+
+                # Cast dst start pointer as a static array for `copy_dynarray_body`
+                dst_start_idx.typ = SArrayType(dst.typ.subtype, dst_bound)
+                dst_start_idx.location = dst.location
+
+                body = IRnode.from_list(copy_dynarray_body(dst_start_idx, src, dst_static_cast=True))
                 ret.append(body)
 
                 return IRnode.from_list(b1.resolve(b2.resolve(ret)))

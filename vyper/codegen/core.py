@@ -115,7 +115,7 @@ def _dynarray_make_setter(dst, src):
         return b1.resolve(ret)
 
 
-def copy_dynarray_body(dst, src, dst_ofst=None):
+def copy_dynarray_body(dst, src, dst_static_cast=False):
     ret = ["seq"]
 
     if src.value == "~empty":
@@ -152,12 +152,8 @@ def copy_dynarray_body(dst, src, dst_ofst=None):
     if should_loop is True:
         i = IRnode.from_list(_freshname("copy_darray_ix"), typ="uint256")
 
-        dst_idx = i
-        if dst_ofst:
-            dst_idx = IRnode.from_list(["add", dst_ofst, i], typ="uint256")
-
         loop_body = make_setter(
-            get_element_ptr(dst, dst_idx, array_bounds_check=False),
+            get_element_ptr(dst, i, array_bounds_check=False),
             get_element_ptr(src, i, array_bounds_check=False),
         )
         loop_body.annotation = f"{dst}[i] = {src}[i]"
@@ -170,13 +166,10 @@ def copy_dynarray_body(dst, src, dst_ofst=None):
         max_bytes = src.typ.count * element_size
 
         src_ = dynarray_data_ptr(src)
-        dst_ = dynarray_data_ptr(dst)
-        if dst_ofst:
-            dst_ = IRnode.from_list(
-                ["add", dst_, ["mul", dst_ofst, dst.location.word_scale]],
-                location=dst.location,
-                encoding=dst.encoding,
-            )
+        if dst_static_cast is False:
+            dst_ = dynarray_data_ptr(dst)
+        else:
+            dst_ = dst
         ret.append(copy_bytes(dst_, src_, n_bytes, max_bytes))
 
     return ret
