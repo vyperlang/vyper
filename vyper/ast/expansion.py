@@ -55,7 +55,7 @@ def generate_public_variable_getters(vyper_module: vy_ast.Module) -> None:
                 arg, annotation = annotation.slice.value.elements  # type: ignore
             elif annotation.value.get("id") == "DynArray":
                 arg = vy_ast.Name(id=type_._id)
-                annotation = annotation.slice.value.elements[0]
+                annotation = annotation.slice.value.elements[0]  # type: ignore
             else:
                 # for other types, build an input arg node from the expected type
                 # and remove the outer `Subscript` from the annotation
