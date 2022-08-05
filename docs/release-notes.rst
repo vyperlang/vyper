@@ -6,7 +6,7 @@ Release Notes
 v0.3.5
 ******
 
-Date released: 2022-08-02(?)
+Date released: 2022-08-05
 
 Non-breaking changes and improvements:
 * Add blueprint deployer output format (`#3001 <https://github.com/vyperlang/vyper/pull/3001>`_)
