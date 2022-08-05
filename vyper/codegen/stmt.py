@@ -93,6 +93,33 @@ class Stmt:
         ir_node = make_setter(target, sub)
         return ir_node
 
+    def parse_While(self):
+        # with self.context.block_scope()
+        iter_typ = "uint256"
+        start = IRnode.from_list(0, typ=iter_typ)
+        rounds = 100000
+        varname = self.context.fresh_varname()
+        i = IRnode.from_list(self.context.fresh_varname("range_ix"), typ="uint256")
+        iptr = self.context.new_variable(varname, BaseType(iter_typ))
+
+        self.context.forvars[varname] = True
+
+        loop_body = ["seq"]
+        # store the current value of i so it is accessible to userland
+        loop_body.append(["mstore", iptr, i])
+        with self.context.block_scope():
+            test_expr = Expr.parse_value_expr(self.stmt.test, self.context)
+            body = ["if", ["iszero", test_expr], ["seq", "break", "pass"]]
+            ir_node = IRnode.from_list(body)
+        loop_body.append(ir_node)
+        loop_body.append(parse_body(self.stmt.body, self.context))
+
+        ir_node = IRnode.from_list(["repeat", i, start, rounds, rounds, loop_body])
+        del self.context.forvars[varname]
+
+        return ir_node
+
+
     def parse_If(self):
         if self.stmt.orelse:
             with self.context.block_scope():

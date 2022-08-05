@@ -1345,6 +1345,9 @@ class For(VyperNode):
     __slots__ = ("iter", "target", "body")
     _only_empty_fields = ("orelse",)
 
+class While(VyperNode):
+    __slots__ = ("test", "body")
+    _only_empty_fields = ("orelse",)
 
 class Break(VyperNode):
     __slots__ = ()

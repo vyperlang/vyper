@@ -101,6 +101,9 @@ class StatementAnnotationVisitor(_AnnotationVisitorBase):
             for a in node.iter.args:
                 self.expr_visitor.visit(a, iter_type)
 
+    def visit_While(self, node):
+        self.expr_visitor.visit(node.test)
+
 
 class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
 

@@ -65,8 +65,6 @@ def validate_functions(vy_module: vy_ast.Module) -> None:
 
     err_list.raise_if_not_empty()
 
-
-def _is_terminus_node(node: vy_ast.VyperNode) -> bool:
     if getattr(node, "_is_terminus", None):
         return True
     if isinstance(node, vy_ast.Expr) and isinstance(node.value, vy_ast.Call):
@@ -77,7 +75,7 @@ def _is_terminus_node(node: vy_ast.VyperNode) -> bool:
 
 
 def check_for_terminus(node_list: list) -> bool:
-    if next((i for i in node_list if _is_terminus_node(i)), None):
+    if next((i for i in node_list if getattr(i, "_is_terminus", None))):
         return True
     for node in [i for i in node_list if isinstance(i, vy_ast.If)][::-1]:
         if not node.orelse or not check_for_terminus(node.orelse):
@@ -307,6 +305,13 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         else:
             validate_expected_type(values, self.func.return_type)
         self.expr_visitor.visit(node.value)
+
+    def visit_While(self, node):
+        validate_expected_type(node.test, BoolDefinition())
+        self.expr_visitor.visit(node.test)
+        with self.namespace.enter_scope():
+            for n in node.body:
+                self.visit(n)
 
     def visit_If(self, node):
         validate_expected_type(node.test, BoolDefinition())
