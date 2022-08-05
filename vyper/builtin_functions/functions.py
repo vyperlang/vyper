@@ -2590,7 +2590,7 @@ class Extend(BuiltinFunction):
                 # Get start pointer of dst
                 dst_start_idx = get_element_ptr(dst, dst_len, array_bounds_check=False)
 
-                # Cast dst start pointer as darray for `_dynarray_make_setter` by subtracting offset
+                # Cast dst start pointer as darray for `copy_dynarray_body` by subtracting offset
                 dst_i = IRnode.from_list(["sub", dst_start_idx, dst.location.word_scale])
                 dst_i.typ = dst.typ
                 dst_i.location = dst.location
