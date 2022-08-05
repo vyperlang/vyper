@@ -97,22 +97,20 @@ def _dynarray_make_setter(dst, src):
 
     ret = ["seq"]
 
-    if src.value == "multi":
-        # handle literals
-        # write the length word
-        store_length = STORE(dst, len(src.args))
-        ann = None
-        if src.annotation is not None:
-            ann = f"len({src.annotation})"
-        store_length = IRnode.from_list(store_length, annotation=ann)
-        ret.append(store_length)
-
-        ret.extend(copy_dynarray_body(dst, src))
-        return ret
-
     with src.cache_when_complex("darray_src") as (b1, src):
-        count = get_dyn_array_count(src)
-        ret.append(STORE(dst, count))
+        if src.value == "multi":
+            # handle literals
+            # write the length word
+            store_length = STORE(dst, len(src.args))
+            ann = None
+            if src.annotation is not None:
+                ann = f"len({src.annotation})"
+            store_length = IRnode.from_list(store_length, annotation=ann)
+        else:
+            count = get_dyn_array_count(src)
+            store_length = STORE(dst, count)
+
+        ret.append(store_length)
         ret.extend(copy_dynarray_body(dst, src))
         return b1.resolve(ret)
 
