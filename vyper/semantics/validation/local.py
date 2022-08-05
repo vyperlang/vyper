@@ -197,8 +197,10 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
 
             # Add references to `self` as standalone address
             self_references = fn_node.get_descendants(vy_ast.Name, {"id": "self"})
-            standalone_self = [n for n in self_references if not isinstance(n.get_ancestor(), vy_ast.Attribute)]
-            node_list.extend(standalone_self)
+            standalone_self = [
+                n for n in self_references if n.get_ancestor(vy_ast.Attribute) is None
+            ]
+            node_list.extend(standalone_self)  # type: ignore
 
             for node in node_list:
                 t = node._metadata.get("type")
