@@ -1621,6 +1621,35 @@ def ix(i: uint256) -> decimal:
     assert_tx_failed(lambda: c.ix(len(some_good_primes) + 1))
 
 
+def test_public_dynarray(get_contract):
+    code = """
+my_list: public(DynArray[uint256, 5])
+@external
+def __init__():
+    self.my_list = [1,2,3]
+    """
+    c = get_contract(code)
+
+    for i, t in enumerate([1, 2, 3]):
+        assert c.my_list(i) == t
+
+
+def test_nested_public_dynarray(get_contract):
+    code = """
+my_list: public(DynArray[DynArray[uint256, 5], 5])
+@external
+def __init__():
+    self.my_list = [[1,2,3]]
+    """
+    c = get_contract(code)
+
+    for i, l in enumerate([[1, 2, 3]]):
+        for j, t in enumerate(l):
+            assert c.my_list(i, j) == t
+
+
+# TODO test negative public(DynArray) cases?
+
 # CMC 2022-08-04 these are blocked due to typechecker bug; leaving as
 # negative tests so we know if/when the typechecker is fixed.
 # (don't consider it a high priority to fix since membership in
@@ -1640,8 +1669,6 @@ def foo(x: uint256) -> bool:
     """
     assert_compile_failed(lambda: get_contract(code))
 
-
-# TODO test loops
 
 # Would be nice to put this somewhere accessible, like in vyper.types or something
 integer_types = ["uint8", "int128", "int256", "uint256"]
