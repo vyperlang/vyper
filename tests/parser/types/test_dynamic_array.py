@@ -1643,8 +1643,9 @@ def __init__():
     """
     c = get_contract(code)
 
-    for i, t in enumerate([1, 2, 3]):
-        assert c.my_list(0, i) == t
+    for i, l in enumerate([[1, 2, 3]]):
+        for j, t in enumerate(l):
+            assert c.my_list(i, j) == t
 
 
 # TODO test negative public(DynArray) cases?
