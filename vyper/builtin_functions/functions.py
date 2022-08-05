@@ -2594,7 +2594,9 @@ class Extend(BuiltinFunction):
                 dst_start_idx.typ = SArrayType(dst.typ.subtype, dst_bound)
                 dst_start_idx.location = dst.location
 
-                body = IRnode.from_list(copy_dynarray_body(dst_start_idx, src, dst_static_cast=True))
+                body = IRnode.from_list(
+                    copy_dynarray_body(dst_start_idx, src, dst_static_cast=True)
+                )
                 ret.append(body)
 
                 return IRnode.from_list(b1.resolve(b2.resolve(ret)))
