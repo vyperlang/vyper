@@ -418,6 +418,27 @@ def check(a: {type}) -> bool:
     assert c.check(false_value) is False
 
 
+@pytest.mark.parametrize("type_", ("uint256", "bytes32", "address"))
+def test_member_in_empty_list(get_contract_with_gas_estimation, type_):
+    code = f"""
+@external
+def check_in(s: uint128) -> bool:
+    a: {type_} = convert(s, {type_})
+    x: DynArray[{type_}, 2] = []
+    return a in x
+
+@external
+def check_not_in(s: uint128) -> bool:
+    a: {type_} = convert(s, {type_})
+    x: DynArray[{type_}, 2] = []
+    return a not in x
+    """
+    c = get_contract_with_gas_estimation(code)
+    for s in (0, 1, 2, 3):
+        assert c.check_in(s) is False
+        assert c.check_not_in(s) is True
+
+
 @pytest.mark.parametrize(
     "type,values,false_values",
     [
@@ -1627,6 +1648,26 @@ def __init__():
 
 
 # TODO test negative public(DynArray) cases?
+
+# CMC 2022-08-04 these are blocked due to typechecker bug; leaving as
+# negative tests so we know if/when the typechecker is fixed.
+# (don't consider it a high priority to fix since membership in
+# in empty list literal seems like something we should plausibly
+# reject at compile-time anyway)
+def test_empty_list_membership_fail(get_contract, assert_compile_failed):
+    code = """
+@external
+def foo(x: uint256) -> bool:
+    return x in []
+    """
+    assert_compile_failed(lambda: get_contract(code))
+    code = """
+@external
+def foo(x: uint256) -> bool:
+    return x not in []
+    """
+    assert_compile_failed(lambda: get_contract(code))
+
 
 # Would be nice to put this somewhere accessible, like in vyper.types or something
 integer_types = ["uint8", "int128", "int256", "uint256"]
