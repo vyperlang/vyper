@@ -53,6 +53,9 @@ def generate_public_variable_getters(vyper_module: vy_ast.Module) -> None:
             if annotation.value.get("id") == "HashMap":  # type: ignore
                 # for a HashMap, split the key/value types and use the key type as the next arg
                 arg, annotation = annotation.slice.value.elements  # type: ignore
+            elif annotation.value.get("id") == "DynArray":
+                arg = vy_ast.Name(id=type_._id)
+                annotation = annotation.slice.value.elements[0]
             else:
                 # for other types, build an input arg node from the expected type
                 # and remove the outer `Subscript` from the annotation
@@ -66,7 +69,7 @@ def generate_public_variable_getters(vyper_module: vy_ast.Module) -> None:
             )
 
         # after iterating the input types, the remaining annotation node is our return type
-        return_node = annotation
+        return_node = copy.copy(annotation)
 
         # join everything together as a new `FunctionDef` node, annotate it
         # with the type, and append it to the existing `Module` node
