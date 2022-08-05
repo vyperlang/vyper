@@ -1600,7 +1600,33 @@ def ix(i: uint256) -> decimal:
     assert_tx_failed(lambda: c.ix(len(some_good_primes) + 1))
 
 
-# TODO test loops
+def test_public_dynarray(get_contract):
+    code = f"""
+my_list: public(DynArray[uint256, 5])
+@external
+def __init__():
+    self.my_list = [1,2,3]
+    """
+    c = get_contract(code)
+
+    for i, t in enumerate([1,2,3]):
+        assert c.my_list(i) == t
+
+
+def test_nested_public_dynarray(get_contract):
+    code = """
+my_list: public(DynArray[DynArray[uint256, 5], 5])
+@external
+def __init__():
+    self.my_list = [[1,2,3]]
+    """
+    c = get_contract(code)
+
+    for i, t in enumerate([1,2,3]):
+        assert c.my_list(0, i) == t
+
+
+# TODO test negative public(DynArray) cases?
 
 # Would be nice to put this somewhere accessible, like in vyper.types or something
 integer_types = ["uint8", "int128", "int256", "uint256"]
