@@ -136,10 +136,7 @@ class Stmt:
             "extend",
         ):
             funcname = self.stmt.func.attr
-            if self.stmt.func.attr in ("append", "extend"):
-                return STMT_DISPATCH_TABLE[funcname].build_IR(self.stmt, self.context)
-            else:
-                return STMT_DISPATCH_TABLE[funcname].build_IR(self.stmt, self.context, False)
+            return STMT_DISPATCH_TABLE[funcname].build_IR(self.stmt, self.context)
 
         elif is_self_function:
             return self_call.ir_for_self_call(self.stmt, self.context)

@@ -2603,7 +2603,7 @@ class Extend(BuiltinFunction):
 class Pop(BuiltinFunction):
     _id = "pop"
 
-    def build_IR(self, expr, context, return_popped_item):
+    def build_IR(self, expr, context, return_popped_item=False):
         darray = Expr(expr.func.value, context).ir_node
         assert isinstance(darray.typ, DArrayType)
         assert len(expr.args) == 0
@@ -2618,7 +2618,7 @@ class Pop(BuiltinFunction):
                 ret.append(STORE(darray, new_len))
 
                 # NOTE skip array bounds check bc we already asserted len two lines up
-                if return_popped_item:
+                if return_popped_item is True:
                     popped_item = get_element_ptr(darray, new_len, array_bounds_check=False)
                     ret.append(popped_item)
                     typ = popped_item.typ
