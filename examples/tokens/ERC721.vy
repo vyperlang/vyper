@@ -107,7 +107,7 @@ def balanceOf(_owner: address) -> uint256:
          Throws if `_owner` is the zero address. NFTs assigned to the zero address are considered invalid.
     @param _owner Address for whom to query the balance.
     """
-    assert _owner != ZERO_ADDRESS
+    assert _owner != empty(address)
     return self.ownerToNFTokenCount[_owner]
 
 
@@ -121,7 +121,7 @@ def ownerOf(_tokenId: uint256) -> address:
     """
     owner: address = self.idToOwner[_tokenId]
     # Throws if `_tokenId` is not a valid NFT
-    assert owner != ZERO_ADDRESS
+    assert owner != empty(address)
     return owner
 
 
@@ -134,7 +134,7 @@ def getApproved(_tokenId: uint256) -> address:
     @param _tokenId ID of the NFT to query the approval of.
     """
     # Throws if `_tokenId` is not a valid NFT
-    assert self.idToOwner[_tokenId] != ZERO_ADDRESS
+    assert self.idToOwner[_tokenId] != empty(address)
     return self.idToApprovals[_tokenId]
 
 
@@ -175,7 +175,7 @@ def _addTokenTo(_to: address, _tokenId: uint256):
          Throws if `_tokenId` is owned by someone.
     """
     # Throws if `_tokenId` is owned by someone
-    assert self.idToOwner[_tokenId] == ZERO_ADDRESS
+    assert self.idToOwner[_tokenId] == empty(address)
     # Change the owner
     self.idToOwner[_tokenId] = _to
     # Change count tracking
@@ -191,7 +191,7 @@ def _removeTokenFrom(_from: address, _tokenId: uint256):
     # Throws if `_from` is not the current owner
     assert self.idToOwner[_tokenId] == _from
     # Change the owner
-    self.idToOwner[_tokenId] = ZERO_ADDRESS
+    self.idToOwner[_tokenId] = empty(address)
     # Change count tracking
     self.ownerToNFTokenCount[_from] -= 1
 
@@ -204,9 +204,9 @@ def _clearApproval(_owner: address, _tokenId: uint256):
     """
     # Throws if `_owner` is not the current owner
     assert self.idToOwner[_tokenId] == _owner
-    if self.idToApprovals[_tokenId] != ZERO_ADDRESS:
+    if self.idToApprovals[_tokenId] != empty(address):
         # Reset approvals
-        self.idToApprovals[_tokenId] = ZERO_ADDRESS
+        self.idToApprovals[_tokenId] = empty(address)
 
 
 @internal
@@ -222,7 +222,7 @@ def _transferFrom(_from: address, _to: address, _tokenId: uint256, _sender: addr
     # Check requirements
     assert self._isApprovedOrOwner(_sender, _tokenId)
     # Throws if `_to` is the zero address
-    assert _to != ZERO_ADDRESS
+    assert _to != empty(address)
     # Clear approval. Throws if `_from` is not the current owner
     self._clearApproval(_from, _tokenId)
     # Remove NFT. Throws if `_tokenId` is not a valid NFT
@@ -292,7 +292,7 @@ def approve(_approved: address, _tokenId: uint256):
     """
     owner: address = self.idToOwner[_tokenId]
     # Throws if `_tokenId` is not a valid NFT
-    assert owner != ZERO_ADDRESS
+    assert owner != empty(address)
     # Throws if `_approved` is the current owner
     assert _approved != owner
     # Check requirements
@@ -336,10 +336,10 @@ def mint(_to: address, _tokenId: uint256) -> bool:
     # Throws if `msg.sender` is not the minter
     assert msg.sender == self.minter
     # Throws if `_to` is zero address
-    assert _to != ZERO_ADDRESS
+    assert _to != empty(address)
     # Add NFT. Throws if `_tokenId` is owned by someone
     self._addTokenTo(_to, _tokenId)
-    log Transfer(ZERO_ADDRESS, _to, _tokenId)
+    log Transfer(empty(address), _to, _tokenId)
     return True
 
 
@@ -356,10 +356,10 @@ def burn(_tokenId: uint256):
     assert self._isApprovedOrOwner(msg.sender, _tokenId)
     owner: address = self.idToOwner[_tokenId]
     # Throws if `_tokenId` is not a valid NFT
-    assert owner != ZERO_ADDRESS
+    assert owner != empty(address)
     self._clearApproval(owner, _tokenId)
     self._removeTokenFrom(owner, _tokenId)
-    log Transfer(owner, ZERO_ADDRESS, _tokenId)
+    log Transfer(owner, empty(address), _tokenId)
 
 
 @view

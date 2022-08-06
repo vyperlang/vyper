@@ -12,7 +12,7 @@ seq: public(int128)
 @external
 def __init__(_owners: address[5], _threshold: int128):
     for i in range(5):
-        if _owners[i] != ZERO_ADDRESS:
+        if _owners[i] != empty(address):
             self.owners[i] = _owners[i]
     self.threshold = _threshold
 
