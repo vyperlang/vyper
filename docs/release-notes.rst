@@ -3,6 +3,16 @@
 Release Notes
 #############
 
+v0.3.6
+******
+
+Date released: 2022-08-07
+
+Bugfixes:
+
+* Fix ``in`` expressions when list members are variables (`#3035 <https://github.com/vyperlang/vyper/pull/3035>`_)
+
+
 v0.3.5
 ******
 
