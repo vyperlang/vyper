@@ -3,9 +3,24 @@
 import pytest
 
 
+def test_3034_verbatim(get_contract):
+    # test issue #3034 exactly
+    code = """
+@view
+@external
+def showError():
+    adr1: address = 0xFbEEa1C75E4c4465CB2FCCc9c6d6afe984558E20
+    adr2: address = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2
+    adr3: address = 0xFbEEa1C75E4c4465CB2FCCc9c6d6afe984558E20
+    assert adr1 in [adr2,adr3], "error in comparison with in statement!"
+    """
+    c = get_contract(code)
+    c.showError()
+
+
 @pytest.mark.parametrize("invert", (True, False))
 def test_in_list(get_contract, invert):
-    # test #3034
+    # test slightly more complicated variations of #3034
     INVERT = "not" if invert else ""
     code = f"""
 SOME_ADDRESS: constant(address) = 0x22cb70ba2EC32347D9e32740fc14b2f3d038Ce8E
