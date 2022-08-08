@@ -79,6 +79,7 @@ from vyper.semantics.types.abstract import (
     NumericAbstractType,
     SignedIntegerAbstractType,
     UnsignedIntegerAbstractType,
+    FixedAbstractType,
 )
 from vyper.semantics.types.bases import DataLocation
 from vyper.semantics.types.utils import KwargSettings, TypeTypeDefinition, get_type_from_annotation
@@ -119,6 +120,22 @@ from .signatures import BuiltinFunction, process_inputs
 SHA256_ADDRESS = 2
 SHA256_BASE_GAS = 60
 SHA256_PER_WORD_GAS = 12
+
+class FoldedFunction(BuiltinFunction):
+    # Base class for nodes which should always be folded
+    _id = ""
+
+    def fetch_call_return(self, node):  # pragma: no cover
+        raise CompilerPanic(f"{self._id} should always be folded")
+
+    def infer_arg_types(self, node):  # pragma: no cover
+        raise CompilerPanic(f"{self._id} should always be folded")
+
+    def infer_kwarg_types(self, node):  # pragma: no cover
+        raise CompilerPanic(f"{self._id} should always be folded")
+
+    def build_IR(self, *args, **kwargs):  # pragma: no cover
+        raise CompilerPanic(f"{self._id} should always be folded")
 
 
 class Floor(BuiltinFunction):
@@ -701,7 +718,7 @@ class Sha256(BuiltinFunction):
         )
 
 
-class MethodID(BuiltinFunction):
+class MethodID(FoldedFunction):
 
     _id = "method_id"
 
@@ -732,18 +749,6 @@ class MethodID(BuiltinFunction):
             return vy_ast.Hex.from_node(node, value=hex(value))
         else:
             return vy_ast.Bytes.from_node(node, value=value.to_bytes(4, "big"))
-
-    def fetch_call_return(self, node):
-        raise CompilerPanic("method_id should always be folded")
-
-    def infer_arg_types(self, node):
-        raise CompilerPanic("method_id should always be folded")
-
-    def infer_kwarg_types(self, node):
-        raise CompilerPanic("method_id should always be folded")
-
-    def build_IR(self, *args, **kwargs):
-        raise CompilerPanic("method_id should always be folded")
 
 
 class ECRecover(BuiltinFunction):
@@ -2520,7 +2525,7 @@ class ABIDecode(BuiltinFunction):
             )
 
 
-class _MinMaxValue(BuiltinFunction):
+class _MinMaxValue(FoldedFunction):
     _inputs = [("typename", "TYPE_DEFINITION")]
 
     def evaluate(self, node):
@@ -2537,19 +2542,6 @@ class _MinMaxValue(BuiltinFunction):
         if isinstance(input_type, IntegerAbstractType):
             val = self._eval_int(input_type)
             return vy_ast.Int.from_node(node, value=val)
-
-    def fetch_call_return(self, node):  # pragma: no cover
-        raise CompilerPanic(f"{self._id} should always be folded")
-
-    def infer_arg_types(self, node):  # pragma: no cover
-        raise CompilerPanic(f"{self._id} should always be folded")
-
-    def infer_kwarg_types(self, node):  # pragma: no cover
-        raise CompilerPanic(f"{self._id} should always be folded")
-
-    # TODO we may want to provide this as the default impl on the base class
-    def build_IR(self, *args, **kwargs):  # pragma: no cover
-        raise CompilerPanic(f"{self._id} should always be folded")
 
 
 class MinValue(_MinMaxValue):
@@ -2574,6 +2566,29 @@ class MaxValue(_MinMaxValue):
     def _eval_decimal(self, type_):
         typinfo = parse_decimal_info(str(type_))
         return typinfo.decimal_bounds[1]
+
+
+class Epsilon(FoldedFunction):
+
+    _inputs = [("typename", "TYPE_DEFINITION")]
+    _id = "epsilon"
+
+    def evaluate(self, node):
+        self._validate_arg_types(node)
+        input_type = get_type_from_annotation(node.args[0], DataLocation.UNSET)
+
+        if not isinstance(input_type, FixedAbstractType):
+            raise InvalidType(f"Expected decimal type but got {input_type} instead", node)
+
+        # this check seems redundant, but sets a pattern to be followed
+        # when new decimal types are created
+        if isinstance(input_type, DecimalDefinition):
+            val = self._eval_decimal(input_type)
+            return vy_ast.Decimal.from_node(node, value=val)
+
+    def _eval_decimal(self, type_):
+        typinfo = parse_decimal_info(str(type_))
+        return typinfo.epsilon
 
 
 DISPATCH_TABLE = {
@@ -2619,6 +2634,7 @@ DISPATCH_TABLE = {
     "abs": Abs(),
     "min_value": MinValue(),
     "max_value": MaxValue(),
+    "epsilon": Epsilon(),
 }
 
 STMT_DISPATCH_TABLE = {
