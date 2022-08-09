@@ -1108,6 +1108,8 @@ class Compare(VyperNode):
         if not isinstance(left, Constant):
             raise UnfoldableNode("Node contains invalid field(s) for evaluation")
 
+        # CMC 2022-08-04 we could probably remove these evaluation rules as they
+        # are taken care of in the IR optimizer now.
         if isinstance(self.op, (In, NotIn)):
             if not isinstance(right, List):
                 raise UnfoldableNode("Node contains invalid field(s) for evaluation")

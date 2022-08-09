@@ -376,8 +376,10 @@ def _optimize_binop(binop, args, ann, parent_op):
             # note that (xor (-1) x) has its own rule
             return finalize("iszero", [["xor", args[0], args[1]]])
 
-        if binop == "ne":
-            # trigger other optimizations
+        if binop == "ne" and parent_op == "iszero":
+            # for iszero, trigger other optimizations
+            # (for `if` and `assert`, `ne` will generate two ISZEROs
+            # which will get optimized out during assembly)
             return finalize("iszero", [["eq", *args]])
 
         # TODO can we do this?
@@ -519,7 +521,7 @@ def _optimize(node: IRnode, parent: Optional[IRnode]) -> Tuple[bool, IRnode]:
                 # return the first branch
                 return finalize("seq", [argz[1]])
 
-        elif len(argz) == 3 and argz[0].value != "iszero":
+        elif len(argz) == 3 and argz[0].value not in ("iszero", "ne"):
             # if(x) compiles to jumpi(_, iszero(x))
             # there is an asm optimization for the sequence ISZERO ISZERO..JUMPI
             # so we swap the branches here to activate that optimization.

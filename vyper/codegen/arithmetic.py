@@ -32,7 +32,7 @@ def calculate_largest_power(a: int, num_bits: int, is_signed: bool) -> int:
     if num_bits % 8:  # pragma: no cover
         raise CompilerPanic("Type is not a modulo of 8")
 
-    if a in (0, 1):  # pragma: no cover
+    if a in (-1, 0, 1):  # pragma: no cover
         raise CompilerPanic("Exponential operation is useless!")
 
     value_bits = num_bits - (1 if is_signed else 0)
@@ -70,8 +70,9 @@ def calculate_largest_power(a: int, num_bits: int, is_signed: bool) -> int:
         assert num_iterations < 10000
 
     # Edge case: If a is negative and the values of a and b are such that:
-    #               (a) ** (b + 1) == -(2 ** value_bits)
-    #            we can actually squeak one more out of it because it's on the edge
+    #   (-a) ** (b + 1) == -(2 ** value_bits)
+    # we can squeak one more out of it because lower bound of signed ints
+    # is slightly wider than upper bound
     if a_is_negative and (-a) ** (b + 1) == -(2 ** value_bits):  # NOTE: a = abs(a)
         return b + 1
     else:
@@ -345,35 +346,36 @@ def safe_pow(x, y):
         # type checker should have caught this
         raise TypeCheckFailure("non-integer pow")
 
-    if x.is_literal:
-        # cannot pass 1 or 0 to `calculate_largest_power`
-        if x.value == 1:
-            return IRnode.from_list([1])
-        if x.value == 0:
-            return IRnode.from_list(["iszero", y])
+    GE = "sge" if num_info.is_signed else "ge"
 
-        upper_bound = calculate_largest_power(x.value, num_info.bits, num_info.is_signed)
-        # for signed integers, this also prevents negative values
-        ok = ["le", y, upper_bound]
+    if x.is_literal:
+        # cannot pass -1, 0 or 1 to `calculate_largest_power`
+        if x.value in (-1, 0, 1):
+            # not strictly needed, but consistent with other bases
+            # (note: unsigned (ge y 0) will get optimized out)
+            ok = [GE, y, 0]
+        else:
+            upper_bound = calculate_largest_power(x.value, num_info.bits, num_info.is_signed)
+            # for signed integers, this also prevents negative values
+            ok = ["le", y, upper_bound]
 
     elif y.is_literal:
-        # cannot pass 1 or 0 to `calculate_largest_base`
-        if y.value == 1:
-            return x
-        if y.value == 0:
-            return IRnode.from_list([1])
-
-        lower_bound, upper_bound = calculate_largest_base(
-            y.value, num_info.bits, num_info.is_signed
-        )
-        if num_info.is_signed:
-            ok = ["and", ["sge", x, lower_bound], ["sle", x, upper_bound]]
+        # cannot pass 0 or 1 to `calculate_largest_base`
+        if y.value in (0, 1):
+            ok = [1]
         else:
-            ok = ["le", x, upper_bound]
+            lower_bound, upper_bound = calculate_largest_base(
+                y.value, num_info.bits, num_info.is_signed
+            )
+            if num_info.is_signed:
+                ok = ["and", ["sge", x, lower_bound], ["sle", x, upper_bound]]
+            else:
+                ok = ["le", x, upper_bound]
     else:
         # `a ** b` where neither `a` or `b` are known
         # TODO this is currently unreachable, once we implement a way to do it safely
         # remove the check in `vyper/context/types/value/numeric.py`
         return
 
-    return IRnode.from_list(["seq", ["assert", ok], ["exp", x, y]])
+    assertion = IRnode.from_list(["assert", ok], error_msg="safepow")
+    return IRnode.from_list(["seq", assertion, ["exp", x, y]])
