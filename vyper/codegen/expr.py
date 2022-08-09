@@ -11,7 +11,6 @@ from vyper.codegen.core import (
     get_dyn_array_count,
     get_element_ptr,
     getpos,
-    make_setter,
     unwrap_location,
 )
 from vyper.codegen.ir_node import IRnode
