@@ -26,7 +26,7 @@ def participate():
 @external
 def finalize():
     assert block.timestamp >= self.deadline, "deadline has passed"
-    assert self.balance >= self.goal, "the goal has been reached"
+    assert self.balance >= self.goal, "the goal has not been reached"
 
     selfdestruct(self.beneficiary)
 
