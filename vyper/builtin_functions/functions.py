@@ -124,7 +124,6 @@ SHA256_PER_WORD_GAS = 12
 
 class FoldedFunction(BuiltinFunction):
     # Base class for nodes which should always be folded
-    _id = ""
 
     def fetch_call_return(self, node):  # pragma: no cover
         raise CompilerPanic(f"{self._id} should always be folded")
@@ -2584,12 +2583,8 @@ class Epsilon(FoldedFunction):
         # this check seems redundant, but sets a pattern to be followed
         # when new decimal types are created
         if isinstance(input_type, DecimalDefinition):
-            val = self._eval_decimal(input_type)
-            return vy_ast.Decimal.from_node(node, value=val)
-
-    def _eval_decimal(self, type_):
-        typinfo = parse_decimal_info(str(type_))
-        return typinfo.epsilon
+            typinfo = parse_decimal_info(str(input_type))
+            return vy_ast.Decimal.from_node(node, value=typinfo.epsilon)
 
 
 DISPATCH_TABLE = {
