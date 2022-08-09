@@ -2586,7 +2586,7 @@ class Epsilon(FoldedFunction):
             typinfo = parse_decimal_info(str(input_type))
             return vy_ast.Decimal.from_node(node, value=typinfo.epsilon)
 
-        raise CompilerPanic("unreachable")
+        raise CompilerPanic("unreachable")  # pragma: notest
 
 
 DISPATCH_TABLE = {
