@@ -75,11 +75,11 @@ from vyper.semantics.types import (
 from vyper.semantics.types.abstract import (
     ArrayValueAbstractType,
     BytesAbstractType,
+    FixedAbstractType,
     IntegerAbstractType,
     NumericAbstractType,
     SignedIntegerAbstractType,
     UnsignedIntegerAbstractType,
-    FixedAbstractType,
 )
 from vyper.semantics.types.bases import DataLocation
 from vyper.semantics.types.utils import KwargSettings, TypeTypeDefinition, get_type_from_annotation
@@ -120,6 +120,7 @@ from .signatures import BuiltinFunction, process_inputs
 SHA256_ADDRESS = 2
 SHA256_BASE_GAS = 60
 SHA256_PER_WORD_GAS = 12
+
 
 class FoldedFunction(BuiltinFunction):
     # Base class for nodes which should always be folded
