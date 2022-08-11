@@ -295,7 +295,7 @@ class _ExprTypeChecker:
 
 def _is_empty_list(node):
     """
-    Check if a list is completely empty, including nested lists which are completely empty.
+    Checks if a node is a `List` node with an empty list for `elements`, including any nested `List` nodes.
 
     Arguments
     ---------
@@ -305,7 +305,7 @@ def _is_empty_list(node):
     Returns
     -------
     bool
-        Boolean value indicating if the `List` node is empty.
+        Boolean value indicating if the node is an empty `List` node.
     """
     if not isinstance(node, vy_ast.List):
         return False
