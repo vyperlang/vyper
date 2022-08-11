@@ -295,7 +295,8 @@ class _ExprTypeChecker:
 
 def _is_empty_list(node):
     """
-    Checks if a node is a `List` node with an empty list for `elements`, including any nested `List` nodes.
+    Checks if a node is a `List` node with an empty list for `elements`,
+    including any nested `List` nodes.
 
     Arguments
     ---------
