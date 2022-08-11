@@ -1648,6 +1648,21 @@ def __init__():
             assert c.my_list(i, j) == t
 
 
+@pytest.mark.parametrize("typ,val", [
+    ("DynArray[DynArray[uint256, 5], 5]", [[], []]),
+    ("DynArray[DynArray[DynArray[uint256, 5], 5], 5]", [[[], []], []]),
+])
+def test_empty_nested_dynarray(get_contract, typ, val):
+    code = f"""
+@external
+def foo() -> {typ}:
+    a: {typ} = {val}
+    return a
+    """
+    c = get_contract(code)
+    assert c.foo() == val
+
+
 # TODO test negative public(DynArray) cases?
 
 # CMC 2022-08-04 these are blocked due to typechecker bug; leaving as
