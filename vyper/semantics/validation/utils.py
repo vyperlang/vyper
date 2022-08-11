@@ -237,13 +237,12 @@ class _ExprTypeChecker:
 
     def types_from_List(self, node):
         # literal array
-
-        if not node.elements:
+        if _is_empty_list(node):
             # empty list literal `[]`
             # subtype can be anything
             types_list = types.get_types()
             # 1 is minimum possible length for dynarray, assignable to anything
-            ret = [DynamicArrayDefinition(t, 1) for t in types_list]
+            ret = [DynamicArrayDefinition(v, 1) for v in types_list.values()]
             return ret
 
         types_list = get_common_types(*node.elements)
@@ -254,7 +253,6 @@ class _ExprTypeChecker:
             ret.extend([ArrayDefinition(t, count) for t in types_list])
             ret.extend([DynamicArrayDefinition(t, count) for t in types_list])
             return ret
-
         raise InvalidLiteral("Array contains multiple, incompatible types", node)
 
     def types_from_Name(self, node):
@@ -293,6 +291,25 @@ class _ExprTypeChecker:
         # unary operation: `-foo`
         types_list = self.get_possible_types_from_node(node.operand)
         return _validate_op(node, types_list, "validate_numeric_op")
+
+
+def _is_empty_list(node):
+    """
+    Check if a list is completely empty, including nested lists which are completely empty.
+
+    Arguments
+    ---------
+    node: vy_ast.List
+        A `List` node
+
+    Returns
+    -------
+    bool
+        Boolean value indicating if the `List` node is empty.
+    """
+    if any(isinstance(i, vy_ast.List) for i in node.elements):
+        return any(_is_empty_list(i) for i in node.elements)
+    return all(isinstance(i, vy_ast.List) and not i.elements for i in node.elements)
 
 
 def _is_type_in_list(obj, types_list):
