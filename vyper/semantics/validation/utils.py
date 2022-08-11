@@ -236,6 +236,7 @@ class _ExprTypeChecker:
         raise InvalidLiteral(f"Could not determine type for literal value '{node.value}'", node)
 
     def types_from_List(self, node):
+
         # literal array
         if _is_empty_list(node):
             # empty list literal `[]`
@@ -244,7 +245,6 @@ class _ExprTypeChecker:
             # 1 is minimum possible length for dynarray, assignable to anything
             ret = [DynamicArrayDefinition(v, 1) for v in types_list.values()]
             return ret
-
         types_list = get_common_types(*node.elements)
 
         if len(types_list) > 0:
