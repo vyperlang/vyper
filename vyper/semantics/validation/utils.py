@@ -299,14 +299,17 @@ def _is_empty_list(node):
 
     Arguments
     ---------
-    node: vy_ast.List
-        A `List` node
+    node: vy_ast.VyperNode
+        A Vyper node
 
     Returns
     -------
     bool
         Boolean value indicating if the `List` node is empty.
     """
+    if not isinstance(node, vy_ast.List):
+        return False
+        
     if any(isinstance(i, vy_ast.List) for i in node.elements):
         return any(_is_empty_list(i) for i in node.elements)
     return all(isinstance(i, vy_ast.List) and not i.elements for i in node.elements)
