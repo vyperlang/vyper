@@ -27,7 +27,7 @@ from vyper.semantics.types.indexable.sequence import (
 )
 from vyper.semantics.types.value.address import AddressDefinition
 from vyper.semantics.types.value.boolean import BoolDefinition
-from vyper.semantics.types.value.bytes_fixed import Bytes20Definition
+from vyper.semantics.types.value.bytes_fixed import Bytes20Definition  # type: ignore
 from vyper.semantics.validation.levenshtein_utils import get_levenshtein_error_suggestions
 from vyper.utils import checksum_encode
 
