@@ -472,7 +472,7 @@ def validate_expected_type(node, expected_type):
         raise InvalidType(
             (
                 f"Expected {expected_str} but literal can only be cast as {given_str}. "
-                f"{suggestions_str}",
+                f"{suggestions_str}"
             ),
             node,
         )
