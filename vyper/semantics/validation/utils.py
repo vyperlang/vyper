@@ -460,8 +460,8 @@ def validate_expected_type(node, expected_type):
             given_str = f"{', '.join(types_str[:1])} or {types_str[-1]}"
 
         suggestions_str = ""
-        if (isinstance(expected_type[0], AddressDefinition)
-            and isinstance(given_types[0], Bytes20Definition)
+        if isinstance(expected_type[0], AddressDefinition) and isinstance(
+            given_types[0], Bytes20Definition
         ):
             suggestions_str = f"Did you mean {checksum_encode(node.value)}?"
 
