@@ -463,12 +463,12 @@ def validate_expected_type(node, expected_type):
         if isinstance(expected_type[0], AddressDefinition) and isinstance(
             given_types[0], Bytes20Definition
         ):
-            suggestions_str = f"Did you mean {checksum_encode(node.value)}?"
+            suggestions_str = f" Did you mean {checksum_encode(node.value)}?"
 
         # CMC 2022-02-14 maybe TypeMismatch would make more sense here
         raise InvalidType(
             (
-                f"Expected {expected_str} but literal can only be cast as {given_str}. "
+                f"Expected {expected_str} but literal can only be cast as {given_str}."
                 f"{suggestions_str}"
             ),
             node,
