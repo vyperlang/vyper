@@ -420,12 +420,14 @@ class Expr:
             if right.value == "multi":
                 # empty list literals should be rejected at typechecking time
                 assert len(right.args) > 0
+                args = [unwrap_location(val) for val in right.args]
                 if isinstance(self.expr.op, vy_ast.In):
-                    checks = [["eq", left, val] for val in right.args]
+                    checks = [["eq", left, val] for val in args]
                     return b1.resolve(b2.resolve(Expr._logical_or(checks)))
                 if isinstance(self.expr.op, vy_ast.NotIn):
-                    checks = [["ne", left, val] for val in right.args]
+                    checks = [["ne", left, val] for val in args]
                     return b1.resolve(b2.resolve(Expr._logical_and(checks)))
+                return  # fail
 
             # general case: loop over the list and check each element
             # for equality
