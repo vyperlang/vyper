@@ -201,7 +201,7 @@ Vyper has three built-ins for contract creation; all three contract creation bui
 
 .. note::
 
-    To properly deploy a blueprint contract, special deploy bytecode must be used. Deploying blueprint contracts is generally out of scope of this article, but the following preamble, prepended to regular deploy bytecode (output of ``vyper -f bytecode``), should deploy the blueprint in an ordinary contract creation transaction: ``deploy_preamble = "61" + <bytecode len in 4 hex characters> + "3d81600a3d39f3"``. To see an example of this, please see `the setup code for testing create_from_blueprint<https://github.com/vyperlang/vyper/blob/2adc34ffd3bee8b6dee90f552bbd9bb844509e19/tests/base_conftest.py#L130-L160>`_.
+    To properly deploy a blueprint contract, special deploy bytecode must be used. Deploying blueprint contracts is generally out of scope of this article, but the following preamble, prepended to regular deploy bytecode (output of ``vyper -f bytecode``), should deploy the blueprint in an ordinary contract creation transaction: ``deploy_preamble = "61" + <bytecode len in 4 hex characters> + "3d81600a3d39f3"``. To see an example of this, please see `the setup code for testing create_from_blueprint <https://github.com/vyperlang/vyper/blob/2adc34ffd3bee8b6dee90f552bbd9bb844509e19/tests/base_conftest.py#L130-L160>`_.
 
 .. warning::
 
@@ -442,6 +442,26 @@ Data Manipulation
     Returns a value of the type specified by ``type_``.
 
     For more details on available type conversions, see :ref:`type_conversions`.
+    
+.. py:function:: uint2str(value: unsigned integer) -> String
+
+    Returns an unsigned integer's string representation.
+
+    * ``value``: Unsigned integer to convert.
+
+    Returns the string representation of ``value``.
+
+    .. code-block:: python
+
+        @external
+        @view
+        def foo(b: uint256) -> String[78]:
+            return uint2str(b)
+
+    .. code-block:: python
+
+        >>> ExampleContract.foo(420)
+        "420"
 
 .. py:function:: extract32(b: Bytes, start: uint256, output_type=bytes32) -> Any
 
@@ -900,6 +920,7 @@ Utilities
     .. code-block:: python
 
         >>> ExampleContract.foo()
+	0xa9059cbb
 
 .. py:function:: _abi_encode(*args, ensure_tuple: bool = True) -> Bytes[<depends on input>]
 
@@ -953,9 +974,11 @@ Utilities
             return x, y
 
 
-.. py:function:: print(*args) -> None
+.. py:function:: print(*args, hardhat_compat=False) -> None
 
     "prints" the arguments by issuing a static call to the "console" address, ``0x000000000000000000636F6E736F6C652E6C6F67``. This is supported by some smart contract development frameworks.
+
+    The default mode works natively with titanoboa. For hardhat-style frameworks, use ``hardhat_compat=True)``.
 
 .. note::
 

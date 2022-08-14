@@ -290,6 +290,20 @@ struct Bar:
 @external
 def foo(bar: Bar = Bar({a: msg.sender, b: Baz({c: block.coinbase, d: -10})})): pass
     """,
+    """
+A: public(address)
+
+@external
+def foo(a: address = empty(address)):
+    self.A = a
+    """,
+    """
+A: public(int112)
+
+@external
+def foo(a: int112 = min_value(int112)):
+    self.A = a
+    """,
 ]
 
 

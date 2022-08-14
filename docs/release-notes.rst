@@ -3,6 +3,20 @@
 Release Notes
 #############
 
+v0.3.5
+******
+
+Date released: 2022-08-05
+
+Non-breaking changes and improvements:
+
+* Add blueprint deployer output format (`#3001 <https://github.com/vyperlang/vyper/pull/3001>`_)
+* Allow arbitrary data to be passed to ``create_from_blueprint`` (`#2996 <https://github.com/vyperlang/vyper/pull/2996>`_)
+* Add CBOR length to bytecode for decoders (`#3010 <https://github.com/vyperlang/vyper/pull/3010>`_)
+* Fix compiler panic when accessing enum storage vars via ``self`` (`#2998 <https://github.com/vyperlang/vyper/pull/2998>`_)
+* Fix: allow ``empty()`` in constant definitions and in default argument position (`#3008 <https://github.com/vyperlang/vyper/pull/3008>`_)
+* Fix: disallow ``self`` address in pure functions (`#3027 <https://github.com/vyperlang/vyper/pull/3027>`_)
+
 v0.3.4
 ******
 

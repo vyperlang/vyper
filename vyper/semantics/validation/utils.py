@@ -513,6 +513,10 @@ def check_kwargable(node: vy_ast.VyperNode) -> bool:
         if len(args) == 1 and isinstance(args[0], vy_ast.Dict):
             return all(check_kwargable(v) for v in args[0].values)
 
+        call_type = get_exact_type_from_node(node.func)
+        if getattr(call_type, "_kwargable", False):
+            return True
+
     value_type = get_exact_type_from_node(node)
     # is_constant here actually means not_assignable, and is to be renamed
     return getattr(value_type, "is_constant", False)
@@ -541,5 +545,9 @@ def check_constant(node: vy_ast.VyperNode) -> bool:
         args = node.args
         if len(args) == 1 and isinstance(args[0], vy_ast.Dict):
             return all(check_constant(v) for v in args[0].values)
+
+        call_type = get_exact_type_from_node(node.func)
+        if getattr(call_type, "_kwargable", False):
+            return True
 
     return False

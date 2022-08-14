@@ -11,7 +11,6 @@ from vyper.codegen.core import (
     get_dyn_array_count,
     get_element_ptr,
     getpos,
-    make_setter,
     pop_dyn_array,
     unwrap_location,
 )
@@ -204,8 +203,9 @@ class Expr:
         typ = self.expr._metadata.get("type")
         if typ is not None:
             typ = new_type_to_old_type(typ)
-        if isinstance(typ, EnumType):
-            assert typ.name == self.expr.value.id
+
+        # MyEnum.foo
+        if isinstance(typ, EnumType) and typ.name == self.expr.value.id:
             # 0, 1, 2, .. 255
             enum_id = typ.members[self.expr.attr]
             value = 2 ** enum_id  # 0 => 0001, 1 => 0010, 2 => 0100, etc.
@@ -398,12 +398,14 @@ class Expr:
                 "`in` not allowed for arrays of non-base types, tracked in issue #2637", self.expr
             )
 
+        left = unwrap_location(left)
+
         if isinstance(self.expr.op, vy_ast.In):
             found, not_found = 1, 0
         elif isinstance(self.expr.op, vy_ast.NotIn):
             found, not_found = 0, 1
-        else:
-            return  # pragma: notest
+        else:  # pragma: no cover
+            return
 
         i = IRnode.from_list(self.context.fresh_varname("in_ix"), typ="uint256")
 
@@ -411,18 +413,22 @@ class Expr:
 
         ret = ["seq"]
 
-        left = unwrap_location(left)
         with left.cache_when_complex("needle") as (b1, left), right.cache_when_complex(
             "haystack"
         ) as (b2, right):
+            # unroll the loop for compile-time list literals
             if right.value == "multi":
-                # Copy literal to memory to be compared.
-                tmp_list = IRnode.from_list(
-                    self.context.new_internal_variable(right.typ), typ=right.typ, location=MEMORY
-                )
-                ret.append(make_setter(tmp_list, right))
+                # empty list literals should be rejected at typechecking time
+                assert len(right.args) > 0
+                if isinstance(self.expr.op, vy_ast.In):
+                    checks = [["eq", left, val] for val in right.args]
+                    return b1.resolve(b2.resolve(Expr._logical_or(checks)))
+                if isinstance(self.expr.op, vy_ast.NotIn):
+                    checks = [["ne", left, val] for val in right.args]
+                    return b1.resolve(b2.resolve(Expr._logical_and(checks)))
 
-                right = tmp_list
+            # general case: loop over the list and check each element
+            # for equality
 
             # location of i'th item from list
             ith_element_ptr = get_element_ptr(right, i, array_bounds_check=False)
@@ -523,41 +529,54 @@ class Expr:
         return IRnode.from_list([op, left, right], typ="bool")
 
     def parse_BoolOp(self):
+        values = []
         for value in self.expr.values:
             # Check for boolean operations with non-boolean inputs
-            _expr = Expr.parse_value_expr(value, self.context)
-            if not is_base_type(_expr.typ, "bool"):
-                return
+            ir_val = Expr.parse_value_expr(value, self.context)
+            assert is_base_type(ir_val.typ, "bool")
+            values.append(ir_val)
 
-        def _build_if_ir(condition, true, false):
-            # generate a basic if statement in IR
-            o = ["if", condition, true, false]
-            return o
+        assert len(values) >= 2, "bad BoolOp"
 
         if isinstance(self.expr.op, vy_ast.And):
-            # create the initial `x and y` from the final two values
-            ir_node = _build_if_ir(
-                Expr.parse_value_expr(self.expr.values[-2], self.context),
-                Expr.parse_value_expr(self.expr.values[-1], self.context),
-                [0],
-            )
-            # iterate backward through the remaining values
-            for node in self.expr.values[-3::-1]:
-                ir_node = _build_if_ir(Expr.parse_value_expr(node, self.context), ir_node, [0])
+            return Expr._logical_and(values)
 
-        elif isinstance(self.expr.op, vy_ast.Or):
-            # create the initial `x or y` from the final two values
-            ir_node = _build_if_ir(
-                Expr.parse_value_expr(self.expr.values[-2], self.context),
-                [1],
-                Expr.parse_value_expr(self.expr.values[-1], self.context),
-            )
+        if isinstance(self.expr.op, vy_ast.Or):
+            return Expr._logical_or(values)
 
-            # iterate backward through the remaining values
-            for node in self.expr.values[-3::-1]:
-                ir_node = _build_if_ir(Expr.parse_value_expr(node, self.context), 1, ir_node)
-        else:
-            raise TypeCheckFailure(f"Unexpected boolean operator: {type(self.expr.op).__name__}")
+        raise TypeCheckFailure(f"Unexpected boolop: {self.expr.op}")  # pragma: notest
+
+    @staticmethod
+    def _logical_and(values):
+        # return the logical and of a list of IRnodes
+
+        # create a nested if statement starting from the
+        # innermost node. note this also serves as the base case
+        # (`_logical_and([x]) == x`)
+        ir_node = values[-1]
+
+        # iterate backward through the remaining values,
+        # nesting further at each step
+        for val in values[-2::-1]:
+            # `x and y` => `if x { then y } { else 0 }`
+            ir_node = ["if", val, ir_node, 0]
+
+        return IRnode.from_list(ir_node, typ="bool")
+
+    @staticmethod
+    def _logical_or(values):
+        # return the logical or of a list of IRnodes
+
+        # create a nested if statement starting from the
+        # innermost node. note this also serves as the base case
+        # (`_logical_or([x]) == x`)
+        ir_node = values[-1]
+
+        # iterate backward through the remaining values,
+        # nesting further at each step
+        for val in values[-2::-1]:
+            # `x or y` => `if x { then 1 } { else y }`
+            ir_node = ["if", val, 1, ir_node]
 
         return IRnode.from_list(ir_node, typ="bool")
 

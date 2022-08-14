@@ -994,6 +994,7 @@ def assembly_to_evm(assembly, pc_ofst=0, insert_vyper_signature=False):
     if insert_vyper_signature:
         # CBOR encoded: {"vyper": [major,minor,patch]}
         bytecode_suffix += b"\xa1\x65vyper\x83" + bytes(list(version_tuple))
+        bytecode_suffix += len(bytecode_suffix).to_bytes(2, "big")
 
     CODE_OFST_SIZE = 2  # size of a PUSH instruction for a code symbol
 
