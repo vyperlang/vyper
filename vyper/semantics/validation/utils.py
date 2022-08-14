@@ -163,7 +163,7 @@ class _ExprTypeChecker:
         # comparisons, e.g. `x < y`
 
         # TODO fixme circular import
-        from vyper.semantics.types.user.enum import EnumT
+        from vyper.semantics.types.user import EnumT
 
         if isinstance(node.op, (vy_ast.In, vy_ast.NotIn)):
             # x in y
