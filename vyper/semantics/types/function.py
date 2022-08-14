@@ -355,15 +355,15 @@ class ContractFunction(VyperType):
         self.reentrancy_key_position = position
 
     @classmethod
-    def getter_from_VariableDef(cls, node: vy_ast.VariableDef) -> "ContractFunction":
+    def getter_from_VariableDecl(cls, node: vy_ast.VariableDecl) -> "ContractFunction":
         """
-        Generate a `ContractFunction` object from an `VariableDef` node.
+        Generate a `ContractFunction` object from an `VariableDecl` node.
 
         Used to create getter functions for public variables.
 
         Arguments
         ---------
-        node : VariableDef
+        node : VariableDecl
             Vyper ast node to generate the function definition from.
 
         Returns

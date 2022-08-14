@@ -52,7 +52,7 @@ a: int128
             "node_id": 4,
             "src": "4:6:0",
         },
-        "ast_type": "VariableDef",
+        "ast_type": "VariableDecl",
         "col_offset": 0,
         "end_col_offset": 9,
         "end_lineno": 2,
