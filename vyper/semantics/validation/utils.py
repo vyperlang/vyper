@@ -21,6 +21,7 @@ from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.primitives import BoolT, IntegerT
 from vyper.semantics.types.subscriptable import DArrayT, SArrayT, TupleT
 from vyper.semantics.validation.levenshtein_utils import get_levenshtein_error_suggestions
+from vyper.utils import checksum_encode
 
 
 def _validate_op(node, types_list, validation_fn_name):
@@ -443,9 +444,16 @@ def validate_expected_type(node, expected_type):
             types_str = sorted(str(i) for i in given_types)
             given_str = f"{', '.join(types_str[:1])} or {types_str[-1]}"
 
+        suggestion_str = ""
+        if isinstance(expected_type[0], AddressDefinition) and isinstance(
+            given_types[0], Bytes20Definition
+        ):
+            suggestion_str = f" Did you mean {checksum_encode(node.value)}?"
+
         # CMC 2022-02-14 maybe TypeMismatch would make more sense here
         raise InvalidType(
-            f"Expected {expected_str} but literal can only be cast as {given_str}", node
+            f"Expected {expected_str} but literal can only be cast as {given_str}.{suggestion_str}",
+            node,
         )
 
 
