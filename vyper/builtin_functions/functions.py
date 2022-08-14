@@ -2204,7 +2204,7 @@ class Print(BuiltinFunction):
     _id = "print"
     _inputs: list = []
     _has_varargs = True
-    _kwargs = {"hardhat_compat": KwargSettings(BoolDefinition(), False, require_literal=True)}
+    _kwargs = {"hardhat_compat": KwargSettings(BoolT(), False, require_literal=True)}
 
     _warned = False
 

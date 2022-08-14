@@ -18,7 +18,7 @@ from vyper.exceptions import (
 )
 from vyper.semantics import types
 from vyper.semantics.namespace import get_namespace
-from vyper.semantics.types.primitives import BoolT, IntegerT
+from vyper.semantics.types.primitives import BoolT, IntegerT, AddressT, BytesM_T
 from vyper.semantics.types.subscriptable import DArrayT, SArrayT, TupleT
 from vyper.semantics.validation.levenshtein_utils import get_levenshtein_error_suggestions
 from vyper.utils import checksum_encode
@@ -445,9 +445,7 @@ def validate_expected_type(node, expected_type):
             given_str = f"{', '.join(types_str[:1])} or {types_str[-1]}"
 
         suggestion_str = ""
-        if isinstance(expected_type[0], AddressDefinition) and isinstance(
-            given_types[0], Bytes20Definition
-        ):
+        if expected_type[0] == AddressT() and given_types[0] == BytesM_T(20):
             suggestion_str = f" Did you mean {checksum_encode(node.value)}?"
 
         # CMC 2022-02-14 maybe TypeMismatch would make more sense here
