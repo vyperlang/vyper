@@ -754,7 +754,7 @@ def foo():
 @external
 def test_for() -> int128:
     a: int128 = 0
-    for i in range(MAX_INT128, MAX_INT128+2):
+    for i in range(max_value(int128), max_value(int128)+2):
         a = i
     return a
     """,
