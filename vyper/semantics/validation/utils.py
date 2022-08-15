@@ -294,20 +294,9 @@ class _ExprTypeChecker:
 
 
 def _is_empty_list(node):
-    """
-    Checks if a node is a `List` node with an empty list for `elements`,
-    including any nested `List` nodes.
-
-    Arguments
-    ---------
-    node: vy_ast.VyperNode
-        A Vyper node
-
-    Returns
-    -------
-    bool
-        Boolean value indicating if the node is an empty `List` node.
-    """
+    # Checks if a node is a `List` node with an empty list for `elements`,
+    # including any nested `List` nodes. ex. `[]` or `[[]]` will return True,
+    # [1] will return False.
     if not isinstance(node, vy_ast.List):
         return False
 
