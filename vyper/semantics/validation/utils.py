@@ -57,14 +57,18 @@ class _ExprAnalyser:
         self.namespace = get_namespace()
 
     def get_expr_info(self, node: vy_ast.Expr) -> ExprInfo:
-        assert isinstance(node, vy_ast.Expr)
-
         t = self.get_exact_type_from_node(node)
 
         # if it's a Name, we have varinfo for it
         if isinstance(node, vy_ast.Name):
             varinfo = self.namespace[node.id]
-            return ExprInfo(t, varinfo)
+            return ExprInfo.from_varinfo(varinfo)
+
+        if isinstance(node, vy_ast.Attr):
+            name = node.attr
+            # variable attribute, e.g. `foo.bar`
+            varinfo = t.get_member(name, node)
+            return ExprInfo.from_varinfo(varinfo)
 
         return ExprInfo(t)
 
@@ -135,7 +139,7 @@ class _ExprAnalyser:
         t = self.get_exact_type_from_node(node.value)
         name = node.attr
         try:
-            return [t.get_member(name, node)]
+            return [t.get_member(name, node).typ]
         except UnknownAttribute:
             if node.get("value.id") != "self":
                 raise

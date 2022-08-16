@@ -455,6 +455,10 @@ class ExprInfo:
         if var_info is not None and var_info.typ != self.typ:
             raise CompilerPanic("Bad analysis: non-matching types {var_info.typ} / {self.typ}")
 
+    @classmethod
+    def from_varinfo(cls, var_info: VarInfo):
+        return cls(var_info.typ, var_info)
+
     def validate_modification(
         self, mutability: Any, node: vy_ast.VyperNode  # should be StateMutability, import cycle
     ) -> None:
