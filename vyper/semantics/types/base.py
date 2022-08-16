@@ -310,7 +310,6 @@ class VarInfo:
 
         self._modification_count = 0
 
-    # TODO move to VarInfo
     def set_position(self, position: DataPosition) -> None:
         if hasattr(self, "position"):
             raise CompilerPanic("Position was already assigned")
@@ -444,46 +443,17 @@ class VarInfo:
         return True
 
 
-class ExprAnalysis:
+class ExprInfo:
     """
     Class which represents the analysis associated with an expression
     """
 
-    def __init__(self, typ, var_info):
+    def __init__(self, typ, var_info = None):
         self.typ: VyperType = typ
         self.var_info: Optional[VarInfo] = var_info
 
         if var_info is not None and var_info.typ != self.typ:
             raise CompilerPanic("Bad analysis: non-matching types {var_info.typ} / {self.typ}")
-
-    @classmethod
-    def from_annotation(
-        cls,
-        node: vy_ast.VyperNode,
-        location: DataLocation = DataLocation.UNSET,
-        is_constant: bool = False,
-        is_public: bool = False,
-        is_immutable: bool = False,
-    ) -> "VarInfo":
-        """
-        Generate a `VarInfo` instance of this type from `VariableDef.annotation`
-        or `AnnAssign.annotation`
-
-        Arguments
-        ---------
-        node : VyperNode
-            Vyper ast node from the `annotation` member of a `VariableDef` or `AnnAssign` node.
-
-        Returns
-        -------
-        BaseTypeDefinition
-            BaseTypeDefinition related to the primitive that the method was called on.
-        """
-        if not isinstance(node, vy_ast.Name):
-            raise StructureException("Invalid type assignment", node)
-        if node.id != cls._id:
-            raise UnexpectedValue("Node id does not match type name")
-        return cls.from_annotation(node)
 
     def validate_modification(
         self, mutability: Any, node: vy_ast.VyperNode  # should be StateMutability, import cycle

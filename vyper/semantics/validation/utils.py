@@ -43,7 +43,7 @@ def _validate_op(node, types_list, validation_fn_name):
     raise InvalidOperation(f"Cannot perform {node.op.description} on value", node)
 
 
-class _ExprTypeChecker:
+class _ExprAnalyser:
     """
     Node type-checker class.
 
@@ -55,6 +55,18 @@ class _ExprTypeChecker:
 
     def __init__(self):
         self.namespace = get_namespace()
+
+    def get_expr_info(self, node: vy_ast.Expr) -> ExprInfo:
+        assert isinstance(node, vy_ast.Expr)
+
+        t = self.get_exact_type_from_node(node)
+
+        # if it's a Name, we have varinfo for it
+        if isinstance(node, vy_ast.Name):
+            varinfo = self.namespace[node.id]
+            return ExprInfo(t, varinfo)
+
+        return ExprInfo(t)
 
     def get_exact_type_from_node(self, node):
         """
@@ -250,7 +262,8 @@ class _ExprTypeChecker:
                 f"'{name}' is a storage variable, access it as self.{name}", node
             )
         try:
-            return [self.namespace[node.id].typ]
+            varinfo = self.namespace[node.id]
+            return [varinfo.typ]
         except VyperException as exc:
             raise exc.with_annotation(node) from None
 
@@ -311,7 +324,7 @@ def get_possible_types_from_node(node):
     List
         List of one or more BaseType objects.
     """
-    return _ExprTypeChecker().get_possible_types_from_node(node)
+    return _ExprAnalyser().get_possible_types_from_node(node)
 
 
 def get_exact_type_from_node(node):
@@ -331,7 +344,7 @@ def get_exact_type_from_node(node):
         Type object.
     """
 
-    return _ExprTypeChecker().get_exact_type_from_node(node)
+    return _ExprAnalyser().get_exact_type_from_node(node)
 
 
 def get_common_types(*nodes: vy_ast.VyperNode, filter_fn: Callable = None) -> List:
@@ -350,10 +363,10 @@ def get_common_types(*nodes: vy_ast.VyperNode, filter_fn: Callable = None) -> Li
     list
         List of zero or more `BaseType` objects.
     """
-    common_types = _ExprTypeChecker().get_possible_types_from_node(nodes[0])
+    common_types = _ExprAnalyser().get_possible_types_from_node(nodes[0])
 
     for item in nodes[1:]:
-        new_types = _ExprTypeChecker().get_possible_types_from_node(item)
+        new_types = _ExprAnalyser().get_possible_types_from_node(item)
 
         common = [i for i in common_types if _is_type_in_list(i, new_types)]
         rejected = [i for i in common_types if i not in common]
@@ -404,7 +417,7 @@ def validate_expected_type(node, expected_type):
     -------
     None
     """
-    given_types = _ExprTypeChecker().get_possible_types_from_node(node)
+    given_types = _ExprAnalyser().get_possible_types_from_node(node)
 
     if not isinstance(expected_type, tuple):
         expected_type = (expected_type,)

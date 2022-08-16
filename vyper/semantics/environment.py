@@ -30,7 +30,7 @@ class _Msg(VyperType):
 
 class _Tx(VyperType):
     _id = "tx"
-    _type_members = {"origin": AddressT, "gasprice": UINT256_T}
+    _type_members = {"origin": AddressT(), "gasprice": UINT256_T}
 
 
 CONSTANT_ENVIRONMENT_VARS = {t._id: t for t in (_Block(), _Chain(), _Tx(), _Msg())}
