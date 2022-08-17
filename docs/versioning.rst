@@ -14,7 +14,7 @@ Vyper has different groups that are considered "users":
 
 Each set of users must understand which changes to the compiler may require their
 attention, and how these changes may impact their use of the compiler.
-This guide defines what scope each compiler change may have, and its potential impact based
+This guide defines what scope each compiler change may have and its potential impact based
 on the type of user, so that users can stay informed about the progress of Vyper.
 
 +-------------+----------------------------------------------+
