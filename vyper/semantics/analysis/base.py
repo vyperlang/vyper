@@ -168,8 +168,6 @@ class VarInfo:
 
     Class Attributes
     -----------------
-    _id : str
-        The name of the type.
     _is_callable : bool, optional
         If `True`, attempts to assign this value without calling it will raise
         a more expressive error message recommending that the user performs a
@@ -343,20 +341,31 @@ class ExprInfo:
     Class which represents the analysis associated with an expression
     """
 
-    def __init__(self, typ, var_info = None):
+    def __init__(self,
+        typ: VyperType,
+        var_info: Optional[VarInfo] = None,
+        location: DataLocation = DataLocation.UNSET,
+        is_constant: bool = False,
+        is_immutable: bool = False,
+    ):
         self.typ: VyperType = typ
         self.var_info: Optional[VarInfo] = var_info
+        self.location = location
+        self.is_constant = is_constant
+        self.is_immutable = is_immutable
 
-        if var_info is not None and var_info.typ != self.typ:
-            raise CompilerPanic("Bad analysis: non-matching types {var_info.typ} / {self.typ}")
+        should_match = ("typ", "location", "is_constant", "is_immutable")
+        if var_info is not None:
+            for attr in should_match:
+                if getattr(var_info, attr) != getattr(self, attr):
+                    raise CompilerPanic("Bad analysis: non-matching {attr}: {self}")
+
 
     @classmethod
     def from_varinfo(cls, var_info: VarInfo):
-        return cls(var_info.typ, var_info)
+        return cls(var_info.typ, var_info = var_info, location = var_info.location, is_constant = var_info.is_constant, is_immutable = var_info.is_immutable)
 
-    def validate_modification(
-        self, mutability: Any, node: vy_ast.VyperNode  # should be StateMutability, import cycle
-    ) -> None:
+    def validate_modification( self, mutability: StateMutability, node: vy_ast.VyperNode) -> None:
         """
         Validate an attempt to modify this value.
 
@@ -369,9 +378,6 @@ class ExprInfo:
         mutability: StateMutability
             The mutability of the context (e.g., pure function) we are currently in
         """
-        # TODO: break this cycle, probably by moving this to validation module
-        from vyper.semantics.types.function import StateMutability
-
         if mutability <= StateMutability.VIEW and self.location == DataLocation.STORAGE:
             raise StateAccessViolation(
                 f"Cannot modify storage in a {mutability.value} function", node
@@ -384,11 +390,11 @@ class ExprInfo:
         if self.is_immutable:
             if node.get_ancestor(vy_ast.FunctionDef).get("name") != "__init__":
                 raise ImmutableViolation("Immutable value cannot be written to", node)
-            if self._modification_count:
+            if self.var_info._modification_count:
                 raise ImmutableViolation(
                     "Immutable value cannot be modified after assignment", node
                 )
-            self._modification_count += 1
+            self.var_info._modification_count += 1
 
         if isinstance(node, vy_ast.AugAssign):
             self.var_info.typ.validate_numeric_op(node)

@@ -66,10 +66,20 @@ class _ExprAnalyser:
             return ExprInfo.from_varinfo(varinfo)
 
         if isinstance(node, vy_ast.Attr):
+            # if it's an Attr, we check the parent exprinfo and
+            # propagate the parent exprinfo members down into the new expr
+            # note: Attribute(expr value, identifier attr)
+
             name = node.attr
-            # variable attribute, e.g. `foo.bar`
-            varinfo = t.get_member(name, node)
-            return ExprInfo.from_varinfo(varinfo)
+            info = self.get_expr_info(node.value)
+
+            # sanity check
+            assert t == info.typ.get_member(name, node)
+            return ExprInfo(t,
+                location=info.location,
+                is_constant=info.is_constant,
+                is_immutable=info.is_immutable,
+            )
 
         return ExprInfo(t)
 
@@ -140,7 +150,7 @@ class _ExprAnalyser:
         t = self.get_exact_type_from_node(node.value)
         name = node.attr
         try:
-            return [t.get_member(name, node).typ]
+            return [t.get_member(name, node)]
         except UnknownAttribute:
             if node.get("value.id") != "self":
                 raise
