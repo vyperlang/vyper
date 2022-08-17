@@ -65,7 +65,7 @@ class _ExprAnalyser:
             varinfo = self.namespace[node.id]
             return ExprInfo.from_varinfo(varinfo)
 
-        if isinstance(node, vy_ast.Attr):
+        if isinstance(node, vy_ast.Attribute):
             # if it's an Attr, we check the parent exprinfo and
             # propagate the parent exprinfo members down into the new expr
             # note: Attribute(expr value, identifier attr)
@@ -360,6 +360,10 @@ def get_exact_type_from_node(node):
     """
 
     return _ExprAnalyser().get_exact_type_from_node(node)
+
+
+def get_expr_info(node: vy_ast.VyperNode) -> ExprInfo:
+    return _ExprAnalyser().get_expr_info(node)
 
 
 def get_common_types(*nodes: vy_ast.VyperNode, filter_fn: Callable = None) -> List:

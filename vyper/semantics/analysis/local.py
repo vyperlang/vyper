@@ -39,6 +39,7 @@ from vyper.semantics.analysis.annotation import StatementAnnotationVisitor
 from vyper.semantics.analysis.common import VyperNodeVisitorBase
 from vyper.semantics.analysis.utils import (
     get_common_types,
+    get_expr_info,
     get_exact_type_from_node,
     get_possible_types_from_node,
     validate_expected_type,
@@ -258,10 +259,10 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         if isinstance(node.value, vy_ast.Tuple):
             raise StructureException("Right-hand side of assignment cannot be a tuple", node.value)
 
-        target = get_exact_type_from_node(node.target)
+        lhs_info = get_expr_info(node.target)
 
-        validate_expected_type(node.value, target)
-        target.validate_modification(node, self.func.mutability)
+        validate_expected_type(node.value, lhs_info.typ)
+        lhs_info.validate_modification(node, self.func.mutability)
 
         self.expr_visitor.visit(node.value)
 

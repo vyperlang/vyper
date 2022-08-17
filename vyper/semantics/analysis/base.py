@@ -365,7 +365,7 @@ class ExprInfo:
     def from_varinfo(cls, var_info: VarInfo):
         return cls(var_info.typ, var_info = var_info, location = var_info.location, is_constant = var_info.is_constant, is_immutable = var_info.is_immutable)
 
-    def validate_modification( self, mutability: StateMutability, node: vy_ast.VyperNode) -> None:
+    def validate_modification(self, node: vy_ast.VyperNode, mutability: StateMutability) -> None:
         """
         Validate an attempt to modify this value.
 
@@ -397,7 +397,7 @@ class ExprInfo:
             self.var_info._modification_count += 1
 
         if isinstance(node, vy_ast.AugAssign):
-            self.var_info.typ.validate_numeric_op(node)
+            self.typ.validate_numeric_op(node)
 
 
 class KwargSettings:
