@@ -16,7 +16,7 @@ from vyper.exceptions import (
     UnknownAttribute,
 )
 from vyper.semantics.namespace import validate_identifier
-from vyper.semantics.validation.levenshtein_utils import get_levenshtein_error_suggestions
+from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
 
 
 # TODO: move me to locations.py

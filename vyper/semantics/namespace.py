@@ -8,7 +8,7 @@ from vyper.exceptions import (
     StructureException,
     UndeclaredDefinition,
 )
-from vyper.semantics.validation.levenshtein_utils import get_levenshtein_error_suggestions
+from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
 
 
 class Namespace(dict):

@@ -103,7 +103,7 @@ class _SequenceT(_SubscriptableT):
 
     def validate_index_type(self, node):
         # TODO break this cycle
-        from vyper.semantics.validation.utils import validate_expected_type
+        from vyper.semantics.analysis.utils import validate_expected_type
 
         if isinstance(node, vy_ast.Int):
             if node.value < 0:

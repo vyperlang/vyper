@@ -8,7 +8,7 @@ from vyper.exceptions import (
     TypeMismatch,
     UndeclaredDefinition,
 )
-from vyper.semantics.validation import validate_semantics
+from vyper.semantics.analysis import validate_semantics
 
 
 @pytest.mark.parametrize("value", ["address", "Bytes[10]", "decimal", "bool"])

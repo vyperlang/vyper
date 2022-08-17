@@ -13,8 +13,8 @@ from vyper.exceptions import (
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.base import VyperType
 from vyper.semantics.types.subscriptable import SArrayT, TupleT
-from vyper.semantics.validation.levenshtein_utils import get_levenshtein_error_suggestions
-from vyper.semantics.validation.utils import get_index_value
+from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
+from vyper.semantics.analysis.utils import get_index_value
 
 
 class StringEnum(enum.Enum):

@@ -2,8 +2,8 @@ import pytest
 
 from vyper.ast import parse_to_ast
 from vyper.exceptions import CallViolation, StructureException
-from vyper.semantics.validation import validate_semantics
-from vyper.semantics.validation.module import ModuleNodeVisitor
+from vyper.semantics.analysis import validate_semantics
+from vyper.semantics.analysis.module import ModuleNodeVisitor
 
 
 def test_cyclic_function_call(namespace):

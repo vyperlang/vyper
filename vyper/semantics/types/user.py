@@ -19,8 +19,8 @@ from vyper.semantics.types.function import ContractFunction
 from vyper.semantics.types.primitives import AddressT
 from vyper.semantics.types.subscriptable import HashMapT
 from vyper.semantics.types.utils import type_from_abi, type_from_annotation
-from vyper.semantics.validation.levenshtein_utils import get_levenshtein_error_suggestions
-from vyper.semantics.validation.utils import validate_expected_type, validate_unique_method_ids
+from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
+from vyper.semantics.analysis.utils import validate_expected_type, validate_unique_method_ids
 from vyper.utils import keccak256
 
 

@@ -20,7 +20,7 @@ from vyper.semantics import types
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.primitives import BoolT, IntegerT, AddressT, BytesM_T
 from vyper.semantics.types.subscriptable import DArrayT, SArrayT, TupleT
-from vyper.semantics.validation.levenshtein_utils import get_levenshtein_error_suggestions
+from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
 from vyper.utils import checksum_encode
 
 

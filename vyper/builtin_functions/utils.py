@@ -4,7 +4,7 @@ from vyper.codegen.global_context import GlobalContext
 from vyper.codegen.stmt import parse_body
 from vyper.semantics.namespace import Namespace, override_global_namespace
 from vyper.semantics.types.function import ContractFunction, FunctionVisibility, StateMutability
-from vyper.semantics.validation.local import FunctionNodeVisitor
+from vyper.semantics.analysis.local import FunctionNodeVisitor
 
 
 def _strip_source_pos(ir_node):

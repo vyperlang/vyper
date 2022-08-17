@@ -36,9 +36,9 @@ from vyper.semantics.types import (
 )
 from vyper.semantics.types.function import ContractFunction, MemberFunctionT, StateMutability
 from vyper.semantics.types.utils import type_from_annotation
-from vyper.semantics.validation.annotation import StatementAnnotationVisitor
-from vyper.semantics.validation.base import VyperNodeVisitorBase
-from vyper.semantics.validation.utils import (
+from vyper.semantics.analysis.annotation import StatementAnnotationVisitor
+from vyper.semantics.analysis.base import VyperNodeVisitorBase
+from vyper.semantics.analysis.utils import (
     get_common_types,
     get_exact_type_from_node,
     get_possible_types_from_node,

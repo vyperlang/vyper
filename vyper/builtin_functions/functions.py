@@ -80,7 +80,7 @@ from vyper.semantics.types import (
 from vyper.semantics.types.base import TYPE_T, KwargSettings
 from vyper.semantics.types.primitives import BYTES4_T, BYTES32_T, INT256_T, UINT256_T
 from vyper.semantics.types.utils import type_from_annotation
-from vyper.semantics.validation.utils import (
+from vyper.semantics.analysis.utils import (
     get_common_types,
     get_exact_type_from_node,
     get_possible_types_from_node,
@@ -293,7 +293,7 @@ class Slice(BuiltinFunction):
         start_expr = node.args[1]
         length_expr = node.args[2]
 
-        # CMC 2022-03-22 NOTE slight code duplication with semantics/validation/local
+        # CMC 2022-03-22 NOTE slight code duplication with semantics/analysis/local
         is_adhoc_slice = arg.get("attr") == "code" or (
             arg.get("value.id") == "msg" and arg.get("attr") == "data"
         )
