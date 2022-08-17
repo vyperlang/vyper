@@ -16,40 +16,14 @@ from vyper.exceptions import (
     StructureException,
 )
 from vyper.semantics.namespace import get_namespace
-from vyper.semantics.types.base import DataLocation, KwargSettings, StorageSlot, VarInfo, VyperType
+from vyper.semantics.analysis.base import DataLocation, StorageSlot, VarInfo
+from vyper.semantics.types.base import VyperType, KwargSettings
 from vyper.semantics.types.primitives import UINT256_T, BoolT
 from vyper.semantics.types.subscriptable import TupleT
 from vyper.semantics.types.utils import StringEnum, type_from_abi, type_from_annotation
 from vyper.semantics.analysis.utils import check_kwargable, validate_expected_type
+from vyper.semantics.analysis.base import StateMutability, FunctionVisibility
 from vyper.utils import keccak256
-
-
-class FunctionVisibility(StringEnum):
-    EXTERNAL = StringEnum.auto()
-    INTERNAL = StringEnum.auto()
-
-
-class StateMutability(StringEnum):
-    PURE = StringEnum.auto()
-    VIEW = StringEnum.auto()
-    NONPAYABLE = StringEnum.auto()
-    PAYABLE = StringEnum.auto()
-
-    @classmethod
-    def from_abi(cls, abi_dict: Dict) -> "StateMutability":
-        """
-        Extract stateMutability from an entry in a contract's ABI
-        """
-        if "stateMutability" in abi_dict:
-            return cls(abi_dict["stateMutability"])
-        elif abi_dict.get("payable"):
-            return StateMutability.PAYABLE
-        elif "constant" in abi_dict and abi_dict["constant"]:
-            return StateMutability.VIEW
-        else:  # Assume nonpayable if neither field is there, or constant/payable not set
-            return StateMutability.NONPAYABLE
-        # NOTE: The state mutability nonpayable is reflected in Solidity by not
-        #       specifying a state mutability modifier at all. Do the same here.
 
 
 class ContractFunction(VyperType):

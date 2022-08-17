@@ -17,6 +17,7 @@ from vyper.exceptions import (
     ZeroDivisionException,
 )
 from vyper.semantics import types
+from vyper.semantics.analysis.base import ExprInfo
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.primitives import BoolT, IntegerT, AddressT, BytesM_T
 from vyper.semantics.types.subscriptable import DArrayT, SArrayT, TupleT

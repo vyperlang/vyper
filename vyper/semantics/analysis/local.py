@@ -25,19 +25,18 @@ from vyper.semantics.types import (
     AddressT,
     BoolT,
     DArrayT,
-    DataLocation,
     EventT,
     HashMapT,
     IntegerT,
     SArrayT,
     StringT,
     TupleT,
-    VarInfo,
 )
 from vyper.semantics.types.function import ContractFunction, MemberFunctionT, StateMutability
 from vyper.semantics.types.utils import type_from_annotation
+from vyper.semantics.analysis.base import ( VarInfo, DataLocation)
 from vyper.semantics.analysis.annotation import StatementAnnotationVisitor
-from vyper.semantics.analysis.base import VyperNodeVisitorBase
+from vyper.semantics.analysis.common import VyperNodeVisitorBase
 from vyper.semantics.analysis.utils import (
     get_common_types,
     get_exact_type_from_node,

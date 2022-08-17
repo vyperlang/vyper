@@ -4,7 +4,7 @@ from typing import Dict, List
 
 from vyper import ast as vy_ast
 from vyper.exceptions import StorageLayoutException
-from vyper.semantics.types.base import CodeOffset, StorageSlot
+from vyper.semantics.analysis.base import CodeOffset, StorageSlot
 from vyper.typing import StorageLayout
 
 

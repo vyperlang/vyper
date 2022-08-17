@@ -3,7 +3,7 @@ from typing import Any, Dict, Optional, Tuple, Union
 from vyper import ast as vy_ast
 from vyper.abi_types import ABI_DynamicArray, ABI_StaticArray, ABI_Tuple, ABIType
 from vyper.exceptions import ArrayIndexException, InvalidType, StructureException
-from vyper.semantics.types.base import DataLocation, VyperType
+from vyper.semantics.types.base import VyperType
 from vyper.semantics.types.primitives import UINT256_T, IntegerT
 from vyper.utils import cached_property
 
@@ -227,14 +227,7 @@ class DArrayT(_SequenceT):
         pass
 
     @classmethod
-    def from_annotation(
-        cls,
-        node: Union[vy_ast.Name, vy_ast.Call, vy_ast.Subscript],
-        location: DataLocation = DataLocation.UNSET,
-        is_constant: bool = False,
-        is_public: bool = False,
-        is_immutable: bool = False,
-    ) -> "DArrayT":
+    def from_annotation(cls, node: vy_ast.Subscript) -> "DArrayT":
         # TODO fix circular import
         from vyper.semantics.types.utils import type_from_annotation
 
@@ -250,9 +243,7 @@ class DArrayT(_SequenceT):
                 node,
             )
 
-        value_type = type_from_annotation(
-            node.slice.value.elements[0], location, is_constant, is_public, is_immutable
-        )
+        value_type = type_from_annotation( node.slice.value.elements[0])
 
         max_length = node.slice.value.elements[1].value
         return DArrayT(value_type, max_length)

@@ -4,6 +4,7 @@ from .module import add_module_namespace
 
 
 def validate_semantics(vyper_ast, interface_codes):
+    # validate semantics and annotate AST with type/semantics information
     namespace = get_namespace()
 
     with namespace.enter_scope():
