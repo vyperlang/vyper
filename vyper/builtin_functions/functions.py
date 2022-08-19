@@ -994,13 +994,13 @@ class AsWeiValue(BuiltinFunction):
 
     wei_denoms = {
         ("wei",): 1,
-        ("femtoether", "kwei", "babbage"): 10 ** 3,
-        ("picoether", "mwei", "lovelace"): 10 ** 6,
-        ("nanoether", "gwei", "shannon"): 10 ** 9,
-        ("microether", "szabo"): 10 ** 12,
-        ("milliether", "finney"): 10 ** 15,
-        ("ether",): 10 ** 18,
-        ("kether", "grand"): 10 ** 21,
+        ("femtoether", "kwei", "babbage"): 10**3,
+        ("picoether", "mwei", "lovelace"): 10**6,
+        ("nanoether", "gwei", "shannon"): 10**9,
+        ("microether", "szabo"): 10**12,
+        ("milliether", "finney"): 10**15,
+        ("ether",): 10**18,
+        ("kether", "grand"): 10**21,
     }
 
     def get_denomination(self, node):
@@ -1028,9 +1028,9 @@ class AsWeiValue(BuiltinFunction):
         if value < 0:
             raise InvalidLiteral("Negative wei value not allowed", node.args[0])
 
-        if isinstance(value, int) and value >= 2 ** 256:
+        if isinstance(value, int) and value >= 2**256:
             raise InvalidLiteral("Value out of range for uint256", node.args[0])
-        if isinstance(value, Decimal) and value >= 2 ** 127:
+        if isinstance(value, Decimal) and value >= 2**127:
             raise InvalidLiteral("Value out of range for decimal", node.args[0])
 
         return vy_ast.Int.from_node(node, value=int(value * denom))
@@ -1346,7 +1346,7 @@ class BitwiseAnd(BuiltinFunction):
         for arg in node.args:
             if not isinstance(arg, vy_ast.Num):
                 raise UnfoldableNode
-            if arg.value < 0 or arg.value >= 2 ** 256:
+            if arg.value < 0 or arg.value >= 2**256:
                 raise InvalidLiteral("Value out of range for uint256", arg)
 
         value = node.args[0].value & node.args[1].value
@@ -1373,7 +1373,7 @@ class BitwiseOr(BuiltinFunction):
         for arg in node.args:
             if not isinstance(arg, vy_ast.Num):
                 raise UnfoldableNode
-            if arg.value < 0 or arg.value >= 2 ** 256:
+            if arg.value < 0 or arg.value >= 2**256:
                 raise InvalidLiteral("Value out of range for uint256", arg)
 
         value = node.args[0].value | node.args[1].value
@@ -1400,7 +1400,7 @@ class BitwiseXor(BuiltinFunction):
         for arg in node.args:
             if not isinstance(arg, vy_ast.Num):
                 raise UnfoldableNode
-            if arg.value < 0 or arg.value >= 2 ** 256:
+            if arg.value < 0 or arg.value >= 2**256:
                 raise InvalidLiteral("Value out of range for uint256", arg)
 
         value = node.args[0].value ^ node.args[1].value
@@ -1428,10 +1428,10 @@ class BitwiseNot(BuiltinFunction):
             raise UnfoldableNode
 
         value = node.args[0].value
-        if value < 0 or value >= 2 ** 256:
+        if value < 0 or value >= 2**256:
             raise InvalidLiteral("Value out of range for uint256", node.args[0])
 
-        value = (2 ** 256 - 1) - value
+        value = (2**256 - 1) - value
         return vy_ast.Int.from_node(node, value=value)
 
     @process_inputs
@@ -1452,15 +1452,15 @@ class Shift(BuiltinFunction):
         if [i for i in node.args if not isinstance(i, vy_ast.Num)]:
             raise UnfoldableNode
         value, shift = [i.value for i in node.args]
-        if value < 0 or value >= 2 ** 256:
+        if value < 0 or value >= 2**256:
             raise InvalidLiteral("Value out of range for uint256", node.args[0])
-        if shift < -(2 ** 127) or shift >= 2 ** 127:
+        if shift < -(2**127) or shift >= 2**127:
             raise InvalidLiteral("Value out of range for int128", node.args[1])
 
         if shift < 0:
             value = value >> -shift
         else:
-            value = (value << shift) % (2 ** 256)
+            value = (value << shift) % (2**256)
         return vy_ast.Int.from_node(node, value=value)
 
     def fetch_call_return(self, node):
@@ -1500,7 +1500,7 @@ class _AddMulMod(BuiltinFunction):
         for arg in node.args:
             if not isinstance(arg, vy_ast.Num):
                 raise UnfoldableNode
-            if arg.value < 0 or arg.value >= 2 ** 256:
+            if arg.value < 0 or arg.value >= 2**256:
                 raise InvalidLiteral("Value out of range for uint256", arg)
 
         value = self._eval_fn(node.args[0].value, node.args[1].value) % node.args[2].value
@@ -1540,7 +1540,7 @@ class PowMod256(BuiltinFunction):
         if left.value < 0 or right.value < 0:
             raise UnfoldableNode
 
-        value = (left.value ** right.value) % (2 ** 256)
+        value = (left.value**right.value) % (2**256)
         return vy_ast.Int.from_node(node, value=value)
 
     def build_IR(self, expr, context):
@@ -1966,7 +1966,7 @@ class _UnsafeMath(BuiltinFunction):
             else:
                 # e.g. uint8 -> (mod (add x y) 256)
                 # TODO mod_bound could be a really large literal
-                ret = ["mod", ret, 2 ** int_info.bits]
+                ret = ["mod", ret, 2**int_info.bits]
 
         return IRnode.from_list(ret, typ=otyp)
 
@@ -2002,10 +2002,10 @@ class _MinMax(BuiltinFunction):
 
         left, right = (i.value for i in node.args)
         if isinstance(left, Decimal) and (
-            min(left, right) < -(2 ** 127) or max(left, right) >= 2 ** 127
+            min(left, right) < -(2**127) or max(left, right) >= 2**127
         ):
             raise InvalidType("Decimal value is outside of allowable range", node)
-        if isinstance(left, int) and (min(left, right) < 0 and max(left, right) >= 2 ** 127):
+        if isinstance(left, int) and (min(left, right) < 0 and max(left, right) >= 2**127):
             raise TypeMismatch("Cannot perform action between dislike numeric types", node)
 
         value = self._eval_fn(left, right)
@@ -2186,6 +2186,72 @@ else:
         return IRnode.from_list(
             ["seq", placeholder_copy, sqrt_ir, new_ctx.vars["z"].pos],  # load x variable
             typ=BaseType("decimal"),
+            location=MEMORY,
+        )
+
+
+class SqrtSolmate(BuiltinFunction):
+
+    _id = "sqrt_solmate"
+    _inputs = [("d", Uint256Definition())]
+    _return_type = Uint256Definition()
+
+    @process_inputs
+    def build_IR(self, expr, args, kwargs, context):
+        # TODO check out this import
+        from vyper.builtin_functions.utils import generate_inline_function
+
+        arg = args[0]
+        sqrt_code = """
+y: uint256 = x
+z: uint256 = 181
+if y >= 2**(128 + 8):
+    y = unsafe_div(y, 2**128)
+    z = unsafe_mul(z, 2**64)
+if y >= 2**(64 + 8):
+    y = unsafe_div(y, 2**64)
+    z = unsafe_mul(z, 2**32)
+if y >= 2**(32 + 8):
+    y = unsafe_div(y, 2**32)
+    z = unsafe_mul(z, 2**16)
+if y >= 2**(16 + 8):
+    y = unsafe_div(y, 2**16)
+    z = unsafe_mul(z, 2**8)
+
+z = unsafe_div(unsafe_mul(z, unsafe_add(y, 65536)), 2**18)
+
+z = unsafe_div(unsafe_add(unsafe_div(x, z), z), 2)
+z = unsafe_div(unsafe_add(unsafe_div(x, z), z), 2)
+z = unsafe_div(unsafe_add(unsafe_div(x, z), z), 2)
+z = unsafe_div(unsafe_add(unsafe_div(x, z), z), 2)
+z = unsafe_div(unsafe_add(unsafe_div(x, z), z), 2)
+z = unsafe_div(unsafe_add(unsafe_div(x, z), z), 2)
+z = unsafe_div(unsafe_add(unsafe_div(x, z), z), 2)
+        """
+
+        x_type = BaseType("uint256")
+        placeholder_copy = ["pass"]
+        # Steal current position if variable is already allocated.
+        if arg.value == "mload":
+            new_var_pos = arg.args[0]
+        # Other locations need to be copied.
+        else:
+            new_var_pos = context.new_internal_variable(x_type)
+            placeholder_copy = ["mstore", new_var_pos, arg]
+        # Create input variables.
+        variables = {"x": VariableRecord(name="x", pos=new_var_pos, typ=x_type, mutable=False)}
+        # Dictionary to update new (i.e. typecheck) namespace
+        variables_2 = {"x": Uint256Definition()}
+        # Generate inline IR.
+        new_ctx, sqrt_ir = generate_inline_function(
+            code=sqrt_code,
+            variables=variables,
+            variables_2=variables_2,
+            memory_allocator=context.memory_allocator,
+        )
+        return IRnode.from_list(
+            ["seq", placeholder_copy, sqrt_ir, new_ctx.vars["z"].pos],  # load x variable
+            typ=BaseType("uint256"),
             location=MEMORY,
         )
 
