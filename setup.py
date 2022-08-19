@@ -20,6 +20,7 @@ extras_require = {
         "tox>=3.15,<4.0",
         "lark-parser==0.10.0",
         "hypothesis[lark]>=5.37.1,<6.0",
+        "gmpy2==2.12.2",
     ],
     "lint": [
         "black==21.9b0",

@@ -1,8 +1,9 @@
-from math import sqrt
+from gmpy2 import isqrt
+from math import isqrt as math_isqrt
 
 import hypothesis
 import pytest
-from eth_tester.exceptions import TransactionFailed
+from web3.exceptions import ValidationError
 
 from vyper.utils import SizeLimits
 
@@ -26,7 +27,7 @@ def test() -> uint256:
     return sqrt_solmate({val})
     """
     c = get_contract_with_gas_estimation(code)
-    assert c.test() == sqrt(val)
+    assert c.test() == isqrt(val)
 
 
 def test_sqrt_solmate_variable(get_contract_with_gas_estimation):
@@ -39,10 +40,10 @@ def test(a: uint256) -> uint256:
     c = get_contract_with_gas_estimation(code)
 
     val = 3333
-    assert c.test(val) == sqrt(val)
+    assert c.test(val) == isqrt(val)
 
-    val = 1e17
-    assert c.test(val) == sqrt(val)
+    val = 10 ** 17
+    assert c.test(val) == isqrt(val)
     assert c.test(0) == 0
 
 
@@ -55,7 +56,7 @@ def test2() -> uint256:
     return sqrt_solmate(a)
     """
     c = get_contract_with_gas_estimation(code)
-    assert c.test2() == sqrt(val)
+    assert c.test2() == isqrt(val)
 
 
 def test_sqrt_solmate_storage(get_contract_with_gas_estimation):
@@ -63,16 +64,16 @@ def test_sqrt_solmate_storage(get_contract_with_gas_estimation):
 s_var: uint256
 
 @external
-def test(a: uint256) -> decimal:
-    self.s_var = a + 1.0
+def test(a: uint256) -> uint256:
+    self.s_var = a + 1
     return sqrt_solmate(self.s_var)
     """
 
     c = get_contract_with_gas_estimation(code)
     val = 1221
-    assert c.test(val) == sqrt(val + 1)
+    assert c.test(val) == isqrt(val + 1)
     val = 10001
-    assert c.test(val) == sqrt(val + 1)
+    assert c.test(val) == isqrt(val + 1)
 
 
 def test_sqrt_solmate_storage_internal_variable(get_contract_with_gas_estimation):
@@ -82,12 +83,12 @@ def test_sqrt_solmate_storage_internal_variable(get_contract_with_gas_estimation
 s_var: uint256
 
 @external
-def test2() -> decimal:
+def test2() -> uint256:
     self.s_var = {val}
     return sqrt_solmate(self.s_var)
     """
     c = get_contract_with_gas_estimation(code)
-    assert c.test2() == sqrt(val)
+    assert c.test2() == isqrt(val)
 
 
 def test_sqrt_solmate_inline_memory_correct(get_contract_with_gas_estimation):
@@ -110,16 +111,9 @@ def test(a: uint256) -> (uint256, uint256, uint256, uint256, uint256, String[100
         1,
         2,
         3,
-        sqrt(val),
+        isqrt(val),
         "hello world",
     ]
-
-
-@pytest.mark.parametrize("value", [0, SizeLimits.MAX_UINT256])
-def test_sqrt_solmate_bounds(sqrt_solmate_contract, value):
-    vyper_sqrt = sqrt_solmate_contract.test(value)
-    actual_sqrt = sqrt(value)
-    assert vyper_sqrt == actual_sqrt
 
 
 @pytest.mark.fuzzing
@@ -131,11 +125,5 @@ def test_sqrt_solmate_bounds(sqrt_solmate_contract, value):
 @hypothesis.settings(deadline=1000)
 def test_sqrt_valid_range(sqrt_solmate_contract, value):
     vyper_sqrt = sqrt_solmate_contract.test(value)
-    actual_sqrt = sqrt(value)
-    assert vyper_sqrt == actual_sqrt
-
-
-def test_sqrt_invalid_range(sqrt_solmate_contract):
-    val = -1
-    with pytest.raises(TransactionFailed):
-        sqrt_solmate_contract.test(val)
+    actual_sqrt = isqrt(value)
+    assert vyper_sqrt == pytest.approx(actual_sqrt)
