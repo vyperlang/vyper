@@ -125,7 +125,4 @@ def test(a: uint256) -> (uint256, uint256, uint256, uint256, uint256, String[100
 def test_sqrt_valid_range(sqrt_solmate_contract, value):
     vyper_sqrt = sqrt_solmate_contract.test(value)
     actual_sqrt = isqrt(value)
-    try:
-        assert vyper_sqrt == actual_sqrt
-    except AssertionError:  # warning: this needs to be handled better
-        assert vyper_sqrt - actual_sqrt == 1
+    assert vyper_sqrt == actual_sqrt

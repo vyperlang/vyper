@@ -2227,6 +2227,8 @@ z = unsafe_div(unsafe_add(unsafe_div(x, z), z), 2)
 z = unsafe_div(unsafe_add(unsafe_div(x, z), z), 2)
 z = unsafe_div(unsafe_add(unsafe_div(x, z), z), 2)
 z = unsafe_div(unsafe_add(unsafe_div(x, z), z), 2)
+
+z = min(z, unsafe_div(x, z))
         """
 
         x_type = BaseType("uint256")
