@@ -188,7 +188,8 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
 
         data_loc = DataLocation.CODE if node.is_immutable else DataLocation.STORAGE
         type_ = type_from_annotation(annotation)
-        var_info = VarInfo(type_, data_loc, node.is_constant, node.is_public, node.is_immutable)
+        var_info = VarInfo(type_, decl_node = node, location = data_loc, is_constant = node.is_constant, is_public = node.is_public, is_immutable = node.is_immutable)
+        node.target._metadata["varinfo"] = var_info  # TODO maybe put this in the global namespace
         node._metadata["type"] = type_
 
         if node.is_constant:

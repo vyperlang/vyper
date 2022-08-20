@@ -182,8 +182,10 @@ def set_storage_slots(vyper_module: vy_ast.Module) -> StorageLayout:
         if node.get("annotation.func.id") == "immutable":
             continue
 
-        type_ = node.target._metadata["type"]
-        type_.set_position(StorageSlot(storage_slot))
+        varinfo = node.target._metadata["varinfo"]
+        varinfo.set_position(StorageSlot(storage_slot))
+
+        type_ = varinfo.typ
 
         # this could have better typing but leave it untyped until
         # we understand the use case better

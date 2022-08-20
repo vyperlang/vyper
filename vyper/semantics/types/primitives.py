@@ -14,6 +14,8 @@ from .bytestrings import BytesT
 class _PrimT(VyperType):
     _is_prim_word = True
 
+    size_in_bytes = 32
+
 
 class BoolT(_PrimT):
     _id = "bool"

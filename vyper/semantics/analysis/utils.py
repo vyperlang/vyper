@@ -73,9 +73,18 @@ class _ExprAnalyser:
             name = node.attr
             info = self.get_expr_info(node.value)
 
+            if node.get("value.id") == "self" and name in self.namespace:
+
+            #if isinstance(t, InterfaceT):
+            #    # once we have modules: t.namespace[name]
+                var_info = self.namespace[name]
+                return ExprInfo.from_varinfo(varinfo)
+
             # sanity check
             assert t == info.typ.get_member(name, node)
-            return ExprInfo(t,
+            return info.copy_with_type(t)
+
+        ExprInfo(t,
                 location=info.location,
                 is_constant=info.is_constant,
                 is_immutable=info.is_immutable,

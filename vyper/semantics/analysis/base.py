@@ -365,6 +365,14 @@ class ExprInfo:
     def from_varinfo(cls, var_info: VarInfo):
         return cls(var_info.typ, var_info = var_info, location = var_info.location, is_constant = var_info.is_constant, is_immutable = var_info.is_immutable)
 
+    def copy_with_type(self, typ: VyperType):
+        """
+        Return a copy of the ExprInfo but with the type set to something else
+        """
+        to_copy = ("location", "is_constant", "is_immutable")
+        fields = {k: getattr(self, k) for k in to_copy}
+        return self.__class__(typ=typ, **fields)
+
     def validate_modification(self, node: vy_ast.VyperNode, mutability: StateMutability) -> None:
         """
         Validate an attempt to modify this value.
