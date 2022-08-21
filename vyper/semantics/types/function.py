@@ -20,7 +20,7 @@ from vyper.semantics.analysis.base import DataLocation, StorageSlot, VarInfo
 from vyper.semantics.types.base import VyperType, KwargSettings
 from vyper.semantics.types.primitives import UINT256_T, BoolT
 from vyper.semantics.types.subscriptable import TupleT
-from vyper.semantics.types.utils import StringEnum, type_from_abi, type_from_annotation
+from vyper.semantics.types.utils import type_from_abi, type_from_annotation
 from vyper.semantics.analysis.utils import check_kwargable, validate_expected_type
 from vyper.semantics.analysis.base import StateMutability, FunctionVisibility
 from vyper.utils import keccak256

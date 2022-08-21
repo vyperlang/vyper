@@ -182,6 +182,9 @@ class GlobalContext:
         else:
             raise InvalidType("Invalid global type specified", item)
 
+        # hack. fix me
+        self._globals[item.target.id]._varinfo = item.target._metadata["varinfo"]
+
     @property
     def interface_names(self):
         """

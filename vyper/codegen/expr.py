@@ -259,8 +259,9 @@ class Expr:
         elif isinstance(self.expr.value, vy_ast.Name) and self.expr.value.id == "self":
             type_ = self.expr._metadata["type"]
             var = self.context.globals[self.expr.attr]
+            varinfo = var._varinfo
             return IRnode.from_list(
-                type_.position.position,
+                varinfo.position.position,
                 typ=var.typ,
                 location=STORAGE,
                 annotation="self." + self.expr.attr,
