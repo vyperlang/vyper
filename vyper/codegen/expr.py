@@ -183,9 +183,13 @@ class Expr:
                 mutable=var.mutable,
             )
 
-        elif self.expr._metadata["type"].is_immutable:
+        elif self.expr.id in self.context.globals:
             var = self.context.globals[self.expr.id]
-            ofst = self.expr._metadata["type"].position.offset
+            varinfo = var._varinfo
+            if not varinfo.is_immutable:
+                return  # fail
+
+            ofst = varinfo.position.offset
 
             if self.context.sig.is_init_func:
                 mutable = True

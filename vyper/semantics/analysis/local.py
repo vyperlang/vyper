@@ -243,13 +243,13 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         if isinstance(node.value, vy_ast.Tuple):
             raise StructureException("Right-hand side of assignment cannot be a tuple", node.value)
 
-        target = get_exact_type_from_node(node.target)
+        target = get_expr_info(node.target)
         if isinstance(target, HashMapT):
             raise StructureException(
                 "Left-hand side of assignment cannot be a HashMap without a key", node
             )
 
-        validate_expected_type(node.value, target)
+        validate_expected_type(node.value, target.typ)
         target.validate_modification(node, self.func.mutability)
 
         self.expr_visitor.visit(node.value)

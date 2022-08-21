@@ -215,8 +215,9 @@ def set_code_offsets(vyper_module: vy_ast.Module) -> Dict:
     for node in vyper_module.get_children(
         vy_ast.VariableDecl, filters={"annotation.func.id": "immutable"}
     ):
-        type_ = node._metadata["type"]
-        type_.set_position(CodeOffset(offset))
+        varinfo = node.target._metadata["varinfo"]
+        type_ = varinfo.typ
+        varinfo.set_position(CodeOffset(offset))
 
         len_ = math.ceil(type_.size_in_bytes / 32) * 32
 

@@ -214,7 +214,7 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
         if node.is_immutable:
             try:
                 # block immutable if storage variable already exists
-                if name in self.namespace["self"].members:
+                if name in self.namespace["self"].typ.members:
                     raise NamespaceCollision(
                         f"Value '{name}' has already been declared", node
                     ) from None
