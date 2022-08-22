@@ -123,15 +123,7 @@ def test_sqrt_valid_range(sqrt_solmate_contract, value):
     actual_sqrt = isqrt(value)
     assert vyper_sqrt == actual_sqrt
 
-
-@pytest.mark.fuzzing
-@hypothesis.given(
-    value=hypothesis.strategies.integers(min_value=0, max_value=SizeLimits.MAX_UINT256)
-)
-def test_sqrt_rounding(sqrt_solmate_contract, value):
-
-    root = sqrt_solmate_contract.test(value)
-    next = root + 1
-
-    assert root * root <= value
+    # check if sqrt limits are correct
+    next = vyper_sqrt + 1
+    assert vyper_sqrt * vyper_sqrt <= value
     assert next * next > value
