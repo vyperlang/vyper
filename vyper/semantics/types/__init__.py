@@ -18,7 +18,17 @@ def get_primitive_types():
 def _get_sequence_types():
     res = [HashMapT, DArrayT, SArrayT, BytesT, StringT]
 
-    return {t._id: t for t in res}
+    ret = {t._id: t for t in res}
+
+    # (static) arrays and tuples are special types which don't show up
+    # in the type annotation itself.
+    # since we don't have special handling of annotations in the parser,
+    # break a dependency cycle by injecting these into the namespace with
+    # mangled names (that no user can create).
+    ret["$ArrayT"] = SArrayT
+    ret["$TupleT"] = TupleT
+
+    return ret
 
 
 def get_types():

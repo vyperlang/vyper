@@ -12,7 +12,6 @@ from vyper.exceptions import (
 )
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.base import VyperType
-from vyper.semantics.types.subscriptable import SArrayT, TupleT
 from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
 from vyper.semantics.analysis.utils import get_index_value
 
@@ -50,7 +49,8 @@ def type_from_abi(abi_type: Dict) -> VyperType:
         except UnknownType:
             raise UnknownType(f"ABI contains unknown type: {type_string}") from None
         try:
-            return SArrayT(value_type, length)
+            sarray_t = namespace["$Array"]
+            return sarray_t(value_type, length)
         except InvalidType:
             raise UnknownType(f"ABI contains unknown type: {type_string}") from None
 
@@ -78,9 +78,9 @@ def type_from_annotation(node: vy_ast.VyperNode) -> VyperType:
     namespace = get_namespace()
 
     if isinstance(node, vy_ast.Tuple):
-        values = node.elements
-        types = tuple(type_from_annotation(v) for v in values)
-        return TupleT(types)
+        tuple_t = namespace["$Tuple"]
+
+        return tuple_t.from_annotation(node)
 
     try:
         # get id of leftmost `Name` node from the annotation
@@ -100,11 +100,12 @@ def type_from_annotation(node: vy_ast.VyperNode) -> VyperType:
         and isinstance(node, vy_ast.Subscript)
         and node.value.get("id") != "DynArray"
     ):
-        # TODO: handle `is_immutable` for arrays
         # if type can be an array and node is a subscript, create an `SArrayT`
+        # TODO handle PEP484 style Subscript types more elegantly
+        sarray_t = namespace["$Array"]
         length = get_index_value(node.slice)
         value_type = type_from_annotation(node.value)
-        return SArrayT(value_type, length)
+        return sarray_t(value_type, length)
 
     if not isinstance(typeclass, type):
         return typeclass

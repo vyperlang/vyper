@@ -275,6 +275,12 @@ class TupleT(_SequenceT):
     def __repr__(self):
         return self._id
 
+    @classmethod
+    def from_annotation(cls, node: vy_ast.Tuple):
+        values = node.elements
+        types = tuple(type_from_annotation(v) for v in values)
+        return cls(types)
+
     @property
     def is_dynamic_size(self):
         return any(t.is_dynamic_size for t in self.value_type)

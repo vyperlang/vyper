@@ -271,7 +271,7 @@ class InterfaceT(VyperType):
             for name, type_ in self.members.items()
             if name not in namespace["self"].typ.members
             or not hasattr(namespace["self"].typ.members[name], "compare_signature")
-            or not namespace["self"].members[name].compare_signature(type_)
+            or not namespace["self"].typ.members[name].compare_signature(type_)
         ]
         # check for missing events
         unimplemented += [
