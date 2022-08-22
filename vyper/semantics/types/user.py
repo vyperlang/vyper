@@ -238,6 +238,7 @@ class InterfaceT(VyperType):
         self._id = _id
         self.events = events
 
+    @property
     def getter_signature(self):
         return (), AddressT()
 
@@ -268,8 +269,8 @@ class InterfaceT(VyperType):
         unimplemented = [
             name
             for name, type_ in self.members.items()
-            if name not in namespace["self"].members
-            or not hasattr(namespace["self"].members[name], "compare_signature")
+            if name not in namespace["self"].typ.members
+            or not hasattr(namespace["self"].typ.members[name], "compare_signature")
             or not namespace["self"].members[name].compare_signature(type_)
         ]
         # check for missing events

@@ -274,14 +274,14 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
         )
 
     def visit_InterfaceDef(self, node):
-        obj = self.namespace["interface"].build_primitive_from_node(node)
+        obj = InterfaceT.from_ast(node)
         try:
             self.namespace[node.name] = obj
         except VyperException as exc:
             raise exc.with_annotation(node) from None
 
     def visit_StructDef(self, node):
-        obj = self.namespace["struct"].build_primitive_from_node(node)
+        obj = StructT.from_ast_def(node)
         try:
             self.namespace[node.name] = obj
         except VyperException as exc:
@@ -304,9 +304,9 @@ def _add_import(
 
     if interface_codes[name]["type"] == "vyper":
         interface_ast = vy_ast.parse_to_ast(interface_codes[name]["code"], contract_name=name)
-        type_ = namespace["interface"].build_primitive_from_node(interface_ast)
+        type_ = InterfaceT.from_ast(interface_ast)
     elif interface_codes[name]["type"] == "json":
-        type_ = namespace["interface"].build_primitive_from_abi(name, interface_codes[name]["code"])
+        type_ = InterfaceT.from_json_abi(name, interface_codes[name]["code"])
     else:
         raise CompilerPanic(f"Unknown interface format: {interface_codes[name]['type']}")
 

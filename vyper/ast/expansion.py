@@ -32,7 +32,7 @@ def generate_public_variable_getters(vyper_module: vy_ast.Module) -> None:
 
     for node in vyper_module.get_children(vy_ast.VariableDecl, {"annotation.func.id": "public"}):
         func_type = node._metadata["func_type"]
-        input_types, return_type = func_type.get_signature()
+        input_types, return_type = func_type.getter_signature
         input_nodes = []
 
         # use the annotation node as a base to build the input args and return type

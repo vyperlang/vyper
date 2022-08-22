@@ -25,8 +25,9 @@ class _SubscriptableT(VyperType):
         self.key_type = key_type
         self.value_type = value_type
 
+    @property
     def getter_signature(self) -> Tuple[Tuple, Optional[VyperType]]:
-        child_keys, return_type = self.value_type.getter_signature()
+        child_keys, return_type = self.value_type.getter_signature
         return (self.key_type,) + child_keys, return_type
 
     # TODO maybe remove this

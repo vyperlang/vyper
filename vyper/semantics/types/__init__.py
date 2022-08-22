@@ -15,9 +15,15 @@ def get_primitive_types():
     return {t._id: t for t in res}
 
 
+def _get_sequence_types():
+    res = [HashMapT, DArrayT, SArrayT, BytesT, StringT]
+
+    return {t._id: t for t in res}
+
+
 def get_types():
     result = {}
-    # result.update(user.USER_TYPES)
     result.update(get_primitive_types())
+    result.update(_get_sequence_types())
 
     return result

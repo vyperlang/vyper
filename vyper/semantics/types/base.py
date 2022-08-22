@@ -28,6 +28,10 @@ class _GenericTypeAcceptor:
     def __init__(self, type_):
         self.type_ = type_
 
+    @property
+    def _id(self):
+        return self.type_._id
+
     def compare_type(self, other):
         return isinstance(other, self.type_)
 

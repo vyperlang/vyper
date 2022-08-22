@@ -88,7 +88,7 @@ def type_from_annotation(node: vy_ast.VyperNode) -> VyperType:
     except StopIteration:
         raise StructureException("Invalid syntax for type declaration", node)
     try:
-        type_obj = namespace[type_name]
+        typeclass = namespace[type_name]
     except UndeclaredDefinition:
         suggestions_str = get_levenshtein_error_suggestions(type_name, namespace, 0.3)
         raise UnknownType(
@@ -96,7 +96,7 @@ def type_from_annotation(node: vy_ast.VyperNode) -> VyperType:
         ) from None
 
     if (
-        getattr(type_obj, "_as_array", False)
+        getattr(typeclass, "_as_array", False)
         and isinstance(node, vy_ast.Subscript)
         and node.value.get("id") != "DynArray"
     ):
@@ -106,4 +106,10 @@ def type_from_annotation(node: vy_ast.VyperNode) -> VyperType:
         value_type = type_from_annotation(node.value)
         return SArrayT(value_type, length)
 
-    return type_obj
+    if not isinstance(typeclass, type):
+        return typeclass
+
+    try:
+        return typeclass.from_annotation(node)
+    except AttributeError:
+        raise InvalidType(f"'{type_name}' is not a valid type", node) from None
