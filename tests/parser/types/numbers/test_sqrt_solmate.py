@@ -1,5 +1,4 @@
-from gmpy2 import isqrt
-from math import isqrt as math_isqrt
+from math import isqrt
 
 import hypothesis
 import pytest
@@ -105,14 +104,7 @@ def test(a: uint256) -> (uint256, uint256, uint256, uint256, uint256, String[100
     c = get_contract_with_gas_estimation(code)
 
     val = 21
-    assert c.test(val) == [
-        val,
-        1,
-        2,
-        3,
-        isqrt(val),
-        "hello world",
-    ]
+    assert c.test(val) == [val, 1, 2, 3, isqrt(val), "hello world"]
 
 
 @pytest.mark.fuzzing
@@ -121,8 +113,25 @@ def test(a: uint256) -> (uint256, uint256, uint256, uint256, uint256, String[100
 )
 @hypothesis.example(SizeLimits.MAX_UINT256)
 @hypothesis.example(0)
+@hypothesis.example(1)
+@hypothesis.example(2704)
+@hypothesis.example(110889)
+@hypothesis.example(32239684)
 @hypothesis.settings(deadline=1000)
 def test_sqrt_valid_range(sqrt_solmate_contract, value):
     vyper_sqrt = sqrt_solmate_contract.test(value)
     actual_sqrt = isqrt(value)
     assert vyper_sqrt == actual_sqrt
+
+
+@pytest.mark.fuzzing
+@hypothesis.given(
+    value=hypothesis.strategies.integers(min_value=0, max_value=SizeLimits.MAX_UINT256)
+)
+def test_sqrt_rounding(sqrt_solmate_contract, value):
+
+    root = sqrt_solmate_contract.test(value)
+    next = root + 1
+
+    assert root * root <= value
+    assert next * next > value
