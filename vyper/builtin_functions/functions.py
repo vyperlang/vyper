@@ -2146,6 +2146,7 @@ class Sqrt(BuiltinFunction):
         from vyper.builtin_functions.utils import generate_inline_function
 
         arg = args[0]
+        # TODO: reify decimal and integer sqrt paths (see isqrt)
         sqrt_code = """
 assert x >= 0.0
 z: decimal = 0.0
@@ -2190,9 +2191,9 @@ else:
         )
 
 
-class SqrtSolmate(BuiltinFunction):
+class IntegerSqrt(BuiltinFunction):
 
-    _id = "sqrt_solmate"
+    _id = "isqrt"
     _inputs = [("d", Uint256Definition())]
     _return_type = Uint256Definition()
 
@@ -2688,8 +2689,8 @@ DISPATCH_TABLE = {
     "unsafe_div": UnsafeDiv(),
     "pow_mod256": PowMod256(),
     "uint2str": Uint2Str(),
+    "isqrt": IntegerSqrt(),
     "sqrt": Sqrt(),
-    "sqrt_solmate": SqrtSolmate(),
     "shift": Shift(),
     "create_minimal_proxy_to": CreateMinimalProxyTo(),
     "create_forwarder_to": CreateForwarderTo(),
