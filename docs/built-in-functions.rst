@@ -664,6 +664,22 @@ Math
         >>> ExampleContract.foo(9.0)
         3.0
 
+.. py:function:: isqrt(a: uint256) -> uint256
+
+    Return the square root of the provided decimal number, using `Solmate's square root algorithm <https://github.com/transmissions11/solmate/blob/9cf1428245074e39090dceacb0c28b1f684f584c/src/utils/FixedPointMathLib.sol#L166>`_.
+
+    .. code-block:: python
+
+        @external
+        @view
+        def foo(a: uint256) -> uint256:
+            return isqrt(a)
+
+    .. code-block:: python
+
+        >>> ExampleContract.foo(9)
+        3
+
 .. py:function:: uint256_addmod(a: uint256, b: uint256, c: uint256) -> uint256
 
     Return the modulo of ``(a + b) % c``. Reverts if ``c == 0``.
