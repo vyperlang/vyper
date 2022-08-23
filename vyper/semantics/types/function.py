@@ -440,6 +440,8 @@ class ContractFunction(VyperType):
     def has_default_args(self) -> bool:
         return self.min_arg_count < self.max_arg_count
 
+    # note: old code, only used for compare_signature (which is possibly wrong)
+    # consider removing
     def get_signature(self) -> Tuple[Tuple, Optional[VyperType]]:
         return tuple(self.arguments.values()), self.return_type
 
