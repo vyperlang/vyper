@@ -76,6 +76,12 @@ class BytesM_T(_PrimT):
         if nibbles not in (nibbles.lower(), nibbles.upper()):
             raise InvalidLiteral(f"Cannot mix uppercase and lowercase for {self} literal", node)
 
+    def compare_type(self, other: VyperType):
+        if not super().compare_type(other):
+            return False
+
+        return self.m == other.m
+
 
 class IntegerT(_PrimT):
     """
@@ -121,6 +127,16 @@ class IntegerT(_PrimT):
     @classmethod
     def all(cls) -> List["IntegerT"]:
         return cls.signeds() + cls.unsigneds()
+
+    # backwards compatible api, TODO: remove me
+    @property
+    def _bits(self):
+        return self.bits
+
+    # backwards compatible api, TODO: remove me
+    @property
+    def _is_signed(self):
+        return self.is_signed
 
     def validate_numeric_op(
         self, node: Union[vy_ast.UnaryOp, vy_ast.BinOp, vy_ast.AugAssign]
@@ -175,6 +191,12 @@ class IntegerT(_PrimT):
     @property
     def abi_type(self) -> ABIType:
         return ABI_GIntM(self.bits, self.is_signed)
+
+    def compare_type(self, other: VyperType):
+        if not super().compare_type(other):
+            return False
+
+        return self.is_signed == other.is_signed and self.bits == other.bits
 
 
 # shortcuts
