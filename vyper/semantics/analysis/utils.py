@@ -19,6 +19,7 @@ from vyper.exceptions import (
 from vyper.semantics import types
 from vyper.semantics.analysis.base import ExprInfo
 from vyper.semantics.namespace import get_namespace
+from vyper.semantics.types.base import VyperType
 from vyper.semantics.types.primitives import BoolT, IntegerT, AddressT, BytesM_T
 from vyper.semantics.types.subscriptable import DArrayT, SArrayT, TupleT
 from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
@@ -84,11 +85,11 @@ class _ExprAnalyser:
             assert t == info.typ.get_member(name, node)
             return info.copy_with_type(t)
 
-        ExprInfo(t,
-                location=info.location,
-                is_constant=info.is_constant,
-                is_immutable=info.is_immutable,
-            )
+        return ExprInfo(t)
+        #        location=info.location,
+        #        is_constant=info.is_constant,
+        #        is_immutable=info.is_immutable,
+        #    )
 
         return ExprInfo(t)
 
@@ -287,6 +288,8 @@ class _ExprAnalyser:
             )
         try:
             varinfo = self.namespace[node.id]
+            if isinstance(varinfo, VyperType):
+                return [varinfo]
             return [varinfo.typ]
         except VyperException as exc:
             raise exc.with_annotation(node) from None

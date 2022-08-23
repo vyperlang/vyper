@@ -103,7 +103,7 @@ class EnumT(VyperType):
         raise UnknownAttribute(f"{self} has no member '{key}'. {suggestions_str}", node)
 
 
-class EventT:
+class EventT(VyperType):
     """
     Event type.
 
@@ -262,26 +262,25 @@ class InterfaceT(VyperType):
     def infer_kwarg_types(self, node):
         return {}
 
-    # TODO change to ImplementsDecl
-    def validate_implements(self, node: vy_ast.AnnAssign) -> None:
+    def validate_implements(self, should_implement: "InterfaceT", node: vy_ast.AnnAssign) -> None:
         namespace = get_namespace()
+        unimplemented = []
+
         # check for missing functions
-        unimplemented = [
-            name
-            for name, type_ in self.members.items()
-            if name not in namespace["self"].typ.members
-            or not hasattr(namespace["self"].typ.members[name], "compare_signature")
-            or not namespace["self"].typ.members[name].compare_signature(type_)
-        ]
+        for name, type_ in should_implement.members.items():
+            if not isinstance(type_, ContractFunction):
+                # ex. address
+                continue
+
+            if name not in self.members or not isinstance(self.members[name], ContractFunction) or not self.members[name].compare_signature(type_):
+                unimplemented.append(name)
+
         # check for missing events
-        unimplemented += [
-            name
-            for name, event in self.events.items()
-            if name not in namespace
-            or not isinstance(namespace[name], EventT)
-            or namespace[name].event_id != event.event_id
-        ]
-        if unimplemented:
+        for name, event in should_implement.events.items():
+            if name not in namespace or not isinstance(namespace[name], EventT) or namespace[name].event_id != event.event_id:
+                unimplemented.append(name)
+
+        if len(unimplemented) > 0:
             missing_str = ", ".join(sorted(unimplemented))
             raise InterfaceViolation(
                 f"Contract does not implement all interface functions or events: {missing_str}",
@@ -380,13 +379,13 @@ def _get_module_definitions(base_node: vy_ast.Module) -> Tuple[Dict, Dict]:
                     # only keep the `ContractFunction` with the longest set of input args
                     continue
             functions[node.name] = func
-    for node in base_node.get_children(vy_ast.AnnAssign, {"annotation.func.id": "public"}):
+    for node in base_node.get_children(vy_ast.VariableDecl, {"annotation.func.id": "public"}):
         name = node.target.id
         if name in functions:
             raise NamespaceCollision(
                 f"Interface contains multiple functions named '{name}'", base_node
             )
-        functions[name] = ContractFunction.from_AnnAssign(node)
+        functions[name] = ContractFunction.getter_from_VariableDecl(node)
     for node in base_node.get_children(vy_ast.EventDef):
         name = node.name
         if name in functions or name in events:

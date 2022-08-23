@@ -35,6 +35,11 @@ class _SubscriptableT(VyperType):
     def possible_index_types(self):
         return (self.key_type,)
 
+    def validate_index_type(self, node):
+        # TODO: break this cycle
+        from vyper.semantics.analysis.utils import validate_expected_type
+        validate_expected_type(node, self.key_type)
+
 
 class HashMapT(_SubscriptableT):
     _id = "HashMap"

@@ -350,7 +350,9 @@ class ContractFunction(VyperType):
         arguments, return_type = type_.getter_signature
         args_dict: OrderedDict = OrderedDict()
         for item in arguments:
-            args_dict[f"arg{len(args_dict)}"] = item
+            var_info = VarInfo(item, location=DataLocation.CALLDATA, is_constant=True)
+            args_dict[f"arg{len(args_dict)}"] = var_info
+
         return cls(
             node.target.id,
             args_dict,
@@ -360,6 +362,30 @@ class ContractFunction(VyperType):
             function_visibility=FunctionVisibility.EXTERNAL,
             state_mutability=StateMutability.VIEW,
         )
+
+    def compare_signature(self, other: "ContractFunction") -> bool:
+        """
+        Compare the signature of this function with another function.
+         
+        Used when determining if an interface has been implemented. This method
+        should not be directly implemented by any inherited classes.
+        """
+         
+        if not self.is_external:
+            return False
+         
+        arguments, return_type = self.get_signature()
+        other_arguments, other_return_type = other.get_signature()
+         
+        if len(arguments) != len(other_arguments):
+            return False
+        for a, b in zip(arguments, other_arguments):
+            if not a.typ.compare_type(b.typ):
+                return False
+        if return_type and not return_type.compare_type(other_return_type):  # type: ignore
+            return False
+         
+        return True
 
     @property
     def is_external(self) -> bool:

@@ -245,24 +245,7 @@ class VarInfo:
         """
         raise InvalidOperation(f"Invalid type for operand: {self}", node)
 
-    def validate_comparator(self, node: vy_ast.Compare) -> None:
-        """
-        Validate a comparator for this type.
-
-        Arguments
-        ---------
-        node : Compare
-            Vyper ast node of the comparator to be validated.
-
-        Returns
-        -------
-        None. A failed validation must raise an exception.
-        """
-        if not isinstance(node.op, (vy_ast.Eq, vy_ast.NotEq)):
-            raise InvalidOperation(
-                f"Cannot perform {node.op.description} comparison on {self}", node
-            )
-
+    # TODO: probably dead code (only lives on ContractFunction)
     def validate_implements(self, node: vy_ast.AnnAssign) -> None:
         """
         Validate an implements statement.
@@ -300,6 +283,7 @@ class VarInfo:
         """
         raise StructureException("Value is not callable", node)
 
+    # TODO: probably dead code
     def validate_index_type(self, node: vy_ast.Index) -> None:
         """
         Validate an index reference, e.g. x[1]. Raises if the index is invalid.
@@ -310,30 +294,6 @@ class VarInfo:
             Vyper ast node from the `slice` member of a Subscript node.
         """
         raise StructureException(f"Type '{self}' does not support indexing", node)
-
-    def compare_signature(self, other: "VyperType") -> bool:
-        """
-        Compare the signature of this type with another type.
-
-        Used when determining if an interface has been implemented. This method
-        should not be directly implemented by any inherited classes.
-        """
-
-        if not self.is_public:
-            return False
-
-        arguments, return_type = self.getter_signature()
-        other_arguments, other_return_type = other.getter_signature()
-
-        if len(arguments) != len(other_arguments):
-            return False
-        for a, b in zip(arguments, other_arguments):
-            if not a.compare_type(b):
-                return False
-        if return_type and not return_type.compare_type(other_return_type):  # type: ignore
-            return False
-
-        return True
 
 
 class ExprInfo:

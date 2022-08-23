@@ -66,6 +66,11 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
         self.interface_codes = interface_codes or {}
         self.namespace = namespace
 
+        # generate an `InterfacePrimitive` from the top-level node - used for building the ABI
+        interface = InterfaceT.from_ast(module_node)
+        module_node._metadata["type"] = interface
+        self.interface = interface  # this is useful downstream
+
         module_nodes = module_node.body.copy()
         while module_nodes:
             count = len(module_nodes)
@@ -92,10 +97,6 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
         self_members = namespace["self"].typ.members
         functions = [i for i in self_members.values() if isinstance(i, ContractFunction)]
         validate_unique_method_ids(functions)
-
-        # generate an `InterfacePrimitive` from the top-level node - used for building the ABI
-        interface = InterfaceT.from_ast(module_node)
-        module_node._metadata["type"] = interface
 
         # get list of internal function calls made by each function
         function_defs = self.ast.get_children(vy_ast.FunctionDef)
@@ -146,10 +147,14 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
 
     def visit_AnnAssign(self, node):
         name = node.get("target.id")
+        # TODO rename the node class to ImplementsDecl
         if name == "implements":
             interface_name = node.annotation.id
-            self.namespace[interface_name].validate_implements(node)
-            return
+            self_iface = self.interface
+            other_iface = self.namespace[interface_name]  #TODO should be VarInfo not VyperType
+            self_iface.validate_implements(other_iface, node)
+        else:
+            raise UnexpectedNodeType("AnnAssign not allowed at module level", node)
 
     def visit_VariableDecl(self, node):
         name = node.get("target.id")
