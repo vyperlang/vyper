@@ -57,6 +57,8 @@ class VyperType:
     _as_array: bool = False
     _is_prim_word: bool = False
 
+    size_in_bytes = 32  # default; override for larger types
+
     def __init__(self, members=None, *args, **kwargs) -> None:
         self.members = {}
 
