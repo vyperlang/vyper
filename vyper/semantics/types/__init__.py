@@ -12,11 +12,14 @@ def get_primitive_types():
     res.extend(IntegerT.all())
     res.extend(BytesM_T.all())
 
-    return {t._id: t for t in res}
+    ret = {t._id: t for t in res}
+    ret.update(_get_sequence_types())
+
+    return ret
 
 
 def _get_sequence_types():
-    res = [HashMapT, DArrayT, SArrayT, BytesT, StringT]
+    res = [HashMapT, DArrayT, BytesT, StringT]
 
     ret = {t._id: t for t in res}
 
@@ -25,7 +28,7 @@ def _get_sequence_types():
     # since we don't have special handling of annotations in the parser,
     # break a dependency cycle by injecting these into the namespace with
     # mangled names (that no user can create).
-    ret["$ArrayT"] = SArrayT
+    ret["$SArrayT"] = SArrayT
     ret["$TupleT"] = TupleT
 
     return ret
@@ -34,6 +37,5 @@ def _get_sequence_types():
 def get_types():
     result = {}
     result.update(get_primitive_types())
-    result.update(_get_sequence_types())
 
     return result

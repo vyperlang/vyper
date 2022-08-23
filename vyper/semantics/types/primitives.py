@@ -34,7 +34,7 @@ class BoolT(_PrimT):
     def abi_type(self) -> ABIType:
         return ABI_Bool()
 
-    def validate_literal(cls, node: vy_ast.Constant) -> None:
+    def validate_literal(self, node: vy_ast.Constant) -> None:
         super().validate_literal(node)
         if node.value is None:
             raise InvalidLiteral("Invalid literal for type 'bool'", node)

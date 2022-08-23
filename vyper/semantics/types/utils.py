@@ -49,7 +49,7 @@ def type_from_abi(abi_type: Dict) -> VyperType:
         except UnknownType:
             raise UnknownType(f"ABI contains unknown type: {type_string}") from None
         try:
-            sarray_t = namespace["$Array"]
+            sarray_t = namespace["$SArrayT"]
             return sarray_t(value_type, length)
         except InvalidType:
             raise UnknownType(f"ABI contains unknown type: {type_string}") from None
@@ -102,7 +102,7 @@ def type_from_annotation(node: vy_ast.VyperNode) -> VyperType:
     ):
         # if type can be an array and node is a subscript, create an `SArrayT`
         # TODO handle PEP484 style Subscript types more elegantly
-        sarray_t = namespace["$Array"]
+        sarray_t = namespace["$SArrayT"]
         length = get_index_value(node.slice)
         value_type = type_from_annotation(node.value)
         return sarray_t(value_type, length)

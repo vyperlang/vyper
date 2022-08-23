@@ -25,6 +25,7 @@ class Namespace(dict):
         super().__init__()
         self._scopes = []
         # NOTE cyclic imports!
+        # TODO: break this cycle by providing an `init_vyper_namespace` in 3rd module
         from vyper.builtin_functions.functions import get_builtin_functions
         from vyper.semantics import environment
         from vyper.semantics.types import get_types
@@ -41,6 +42,7 @@ class Namespace(dict):
         if self._scopes:
             self.validate_assignment(attr)
             self._scopes[-1].add(attr)
+        assert isinstance(attr, str), f"not a string: {attr}"
         super().__setitem__(attr, obj)
 
     def __getitem__(self, key):

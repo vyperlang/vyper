@@ -143,10 +143,6 @@ class SArrayT(_SequenceT):
         return f"{self.value_type}[{self.length}]"
 
     @property
-    def _id(self):
-        return repr(self)
-
-    @property
     def abi_type(self) -> ABIType:
         return ABI_StaticArray(self.value_type.abi_type, self.length)
 
