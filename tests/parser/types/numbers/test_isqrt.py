@@ -114,6 +114,9 @@ def test(a: uint256) -> (uint256, uint256, uint256, uint256, uint256, String[100
 @hypothesis.example(SizeLimits.MAX_UINT256)
 @hypothesis.example(0)
 @hypothesis.example(1)
+# the following examples demonstrate correct rounding mode
+# for an edge case in the babylonian method - the operand is
+# a perfect square - 1
 @hypothesis.example(2704)
 @hypothesis.example(110889)
 @hypothesis.example(32239684)
