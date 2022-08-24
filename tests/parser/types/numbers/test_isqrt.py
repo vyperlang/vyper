@@ -1,4 +1,4 @@
-from math import isqrt
+import math
 
 import hypothesis
 import pytest
@@ -25,7 +25,7 @@ def test() -> uint256:
     return isqrt({val})
     """
     c = get_contract_with_gas_estimation(code)
-    assert c.test() == isqrt(val)
+    assert c.test() == math.isqrt(val)
 
 
 def test_isqrt_variable(get_contract_with_gas_estimation):
@@ -38,10 +38,10 @@ def test(a: uint256) -> uint256:
     c = get_contract_with_gas_estimation(code)
 
     val = 3333
-    assert c.test(val) == isqrt(val)
+    assert c.test(val) == math.isqrt(val)
 
     val = 10 ** 17
-    assert c.test(val) == isqrt(val)
+    assert c.test(val) == math.isqrt(val)
     assert c.test(0) == 0
 
 
@@ -54,7 +54,7 @@ def test2() -> uint256:
     return isqrt(a)
     """
     c = get_contract_with_gas_estimation(code)
-    assert c.test2() == isqrt(val)
+    assert c.test2() == math.isqrt(val)
 
 
 def test_isqrt_storage(get_contract_with_gas_estimation):
@@ -69,9 +69,9 @@ def test(a: uint256) -> uint256:
 
     c = get_contract_with_gas_estimation(code)
     val = 1221
-    assert c.test(val) == isqrt(val + 1)
+    assert c.test(val) == math.isqrt(val + 1)
     val = 10001
-    assert c.test(val) == isqrt(val + 1)
+    assert c.test(val) == math.isqrt(val + 1)
 
 
 def test_isqrt_storage_internal_variable(get_contract_with_gas_estimation):
@@ -86,7 +86,7 @@ def test2() -> uint256:
     return isqrt(self.s_var)
     """
     c = get_contract_with_gas_estimation(code)
-    assert c.test2() == isqrt(val)
+    assert c.test2() == math.isqrt(val)
 
 
 def test_isqrt_inline_memory_correct(get_contract_with_gas_estimation):
@@ -104,7 +104,7 @@ def test(a: uint256) -> (uint256, uint256, uint256, uint256, uint256, String[100
     c = get_contract_with_gas_estimation(code)
 
     val = 21
-    assert c.test(val) == [val, 1, 2, 3, isqrt(val), "hello world"]
+    assert c.test(val) == [val, 1, 2, 3, math.isqrt(val), "hello world"]
 
 
 @pytest.mark.fuzzing
@@ -120,7 +120,7 @@ def test(a: uint256) -> (uint256, uint256, uint256, uint256, uint256, String[100
 @hypothesis.settings(deadline=1000)
 def test_isqrt_valid_range(isqrt_contract, value):
     vyper_isqrt = isqrt_contract.test(value)
-    actual_isqrt = isqrt(value)
+    actual_isqrt = math.isqrt(value)
     assert vyper_isqrt == actual_isqrt
 
     # check if sqrt limits are correct

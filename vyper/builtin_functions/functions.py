@@ -2191,7 +2191,7 @@ else:
         )
 
 
-class IntegerSqrt(BuiltinFunction):
+class ISqrt(BuiltinFunction):
 
     _id = "isqrt"
     _inputs = [("d", Uint256Definition())]
@@ -2689,7 +2689,7 @@ DISPATCH_TABLE = {
     "unsafe_div": UnsafeDiv(),
     "pow_mod256": PowMod256(),
     "uint2str": Uint2Str(),
-    "isqrt": IntegerSqrt(),
+    "isqrt": ISqrt(),
     "sqrt": Sqrt(),
     "shift": Shift(),
     "create_minimal_proxy_to": CreateMinimalProxyTo(),

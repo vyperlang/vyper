@@ -664,21 +664,24 @@ Math
         >>> ExampleContract.foo(9.0)
         3.0
 
-.. py:function:: isqrt(a: uint256) -> uint256
+.. py:function:: isqrt(x: uint256) -> uint256
 
-    Return the square root of the provided decimal number, using `Solmate's square root algorithm <https://github.com/transmissions11/solmate/blob/9cf1428245074e39090dceacb0c28b1f684f584c/src/utils/FixedPointMathLib.sol#L166>`_.
+    Return the square root of the provided integer number, using Babylonian square root algorithm.
+
+    .. note::
+        Performance note: If ``x+1`` is a perfect square, then the Babylonian algorithm oscillates between floor(sqrt(x)) and ceil(sqrt(x)) in consecutive iterations. ``isqrt`` has a final check that returns the floor value always, but this increases costs by approximately 10%.
 
     .. code-block:: python
 
         @external
         @view
-        def foo(a: uint256) -> uint256:
-            return isqrt(a)
+        def foo(x: uint256) -> uint256:
+            return isqrt(x)
 
     .. code-block:: python
 
-        >>> ExampleContract.foo(9)
-        3
+        >>> ExampleContract.foo(101)
+        10
 
 .. py:function:: uint256_addmod(a: uint256, b: uint256, c: uint256) -> uint256
 
