@@ -666,10 +666,7 @@ Math
 
 .. py:function:: isqrt(x: uint256) -> uint256
 
-    Return the square root of the provided integer number, using Babylonian square root algorithm.
-
-    .. note::
-        Performance note: If ``x+1`` is a perfect square, then the Babylonian algorithm oscillates between floor(sqrt(x)) and ceil(sqrt(x)) in consecutive iterations. ``isqrt`` has a final check that returns the floor value always, but this increases costs by approximately 10%.
+    Return the (integer) square root of the provided integer number, using the Babylonian square root algorithm. The rounding mode is to round down to the nearest integer. For instance, ``isqrt(101) == 10``.    
 
     .. code-block:: python
 

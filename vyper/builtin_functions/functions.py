@@ -2229,6 +2229,11 @@ z = unsafe_div(unsafe_add(unsafe_div(x, z), z), 2)
 z = unsafe_div(unsafe_add(unsafe_div(x, z), z), 2)
 z = unsafe_div(unsafe_add(unsafe_div(x, z), z), 2)
 
+# Performance note: If ``x+1`` is a perfect square, then the Babylonian
+# algorithm oscillates between floor(sqrt(x)) and ceil(sqrt(x)) in
+# consecutive iterations. ``isqrt`` has a final check that returns
+# the floor value always, but this increases costs by approximately 10% :
+
 z = min(z, unsafe_div(x, z))
         """
 
