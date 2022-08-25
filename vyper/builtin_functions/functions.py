@@ -2146,6 +2146,7 @@ class Sqrt(BuiltinFunction):
         from vyper.builtin_functions.utils import generate_inline_function
 
         arg = args[0]
+        # TODO: reify decimal and integer sqrt paths (see isqrt)
         sqrt_code = """
 assert x >= 0.0
 z: decimal = 0.0
@@ -2186,6 +2187,79 @@ else:
         return IRnode.from_list(
             ["seq", placeholder_copy, sqrt_ir, new_ctx.vars["z"].pos],  # load x variable
             typ=BaseType("decimal"),
+            location=MEMORY,
+        )
+
+
+class ISqrt(BuiltinFunction):
+
+    _id = "isqrt"
+    _inputs = [("d", Uint256Definition())]
+    _return_type = Uint256Definition()
+
+    @process_inputs
+    def build_IR(self, expr, args, kwargs, context):
+        # TODO check out this import
+        from vyper.builtin_functions.utils import generate_inline_function
+
+        arg = args[0]
+        sqrt_code = """
+y: uint256 = x
+z: uint256 = 181
+if y >= 2**(128 + 8):
+    y = unsafe_div(y, 2**128)
+    z = unsafe_mul(z, 2**64)
+if y >= 2**(64 + 8):
+    y = unsafe_div(y, 2**64)
+    z = unsafe_mul(z, 2**32)
+if y >= 2**(32 + 8):
+    y = unsafe_div(y, 2**32)
+    z = unsafe_mul(z, 2**16)
+if y >= 2**(16 + 8):
+    y = unsafe_div(y, 2**16)
+    z = unsafe_mul(z, 2**8)
+
+z = unsafe_div(unsafe_mul(z, unsafe_add(y, 65536)), 2**18)
+
+z = unsafe_div(unsafe_add(unsafe_div(x, z), z), 2)
+z = unsafe_div(unsafe_add(unsafe_div(x, z), z), 2)
+z = unsafe_div(unsafe_add(unsafe_div(x, z), z), 2)
+z = unsafe_div(unsafe_add(unsafe_div(x, z), z), 2)
+z = unsafe_div(unsafe_add(unsafe_div(x, z), z), 2)
+z = unsafe_div(unsafe_add(unsafe_div(x, z), z), 2)
+z = unsafe_div(unsafe_add(unsafe_div(x, z), z), 2)
+
+# Performance note: If ``x+1`` is a perfect square, then the Babylonian
+# algorithm oscillates between floor(sqrt(x)) and ceil(sqrt(x)) in
+# consecutive iterations. ``isqrt`` has a final check that returns
+# the floor value always, but this increases costs by approximately 10% :
+
+z = min(z, unsafe_div(x, z))
+        """
+
+        x_type = BaseType("uint256")
+        placeholder_copy = ["pass"]
+        # Steal current position if variable is already allocated.
+        if arg.value == "mload":
+            new_var_pos = arg.args[0]
+        # Other locations need to be copied.
+        else:
+            new_var_pos = context.new_internal_variable(x_type)
+            placeholder_copy = ["mstore", new_var_pos, arg]
+        # Create input variables.
+        variables = {"x": VariableRecord(name="x", pos=new_var_pos, typ=x_type, mutable=False)}
+        # Dictionary to update new (i.e. typecheck) namespace
+        variables_2 = {"x": Uint256Definition()}
+        # Generate inline IR.
+        new_ctx, sqrt_ir = generate_inline_function(
+            code=sqrt_code,
+            variables=variables,
+            variables_2=variables_2,
+            memory_allocator=context.memory_allocator,
+        )
+        return IRnode.from_list(
+            ["seq", placeholder_copy, sqrt_ir, new_ctx.vars["z"].pos],  # load x variable
+            typ=BaseType("uint256"),
             location=MEMORY,
         )
 
@@ -2620,6 +2694,7 @@ DISPATCH_TABLE = {
     "unsafe_div": UnsafeDiv(),
     "pow_mod256": PowMod256(),
     "uint2str": Uint2Str(),
+    "isqrt": ISqrt(),
     "sqrt": Sqrt(),
     "shift": Shift(),
     "create_minimal_proxy_to": CreateMinimalProxyTo(),
