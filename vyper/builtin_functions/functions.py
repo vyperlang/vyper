@@ -18,18 +18,23 @@ from vyper.codegen.core import (
     add_ofst,
     bytes_data_ptr,
     calculate_type_for_external_return,
+    check_assign,
     check_external_call,
     clamp,
     clamp2,
     clamp_basetype,
     clamp_nonzero,
     copy_bytes,
+    copy_dynarray_body,
+    dummy_node_for_type,
     ensure_in_memory,
     eval_once_check,
     eval_seq,
     get_bytearray_length,
+    get_dyn_array_count,
     get_element_ptr,
     ir_tuple_from_args,
+    make_setter,
     needs_external_call_wrap,
     promote_signed_int,
     sar,
@@ -44,6 +49,7 @@ from vyper.codegen.types import (
     BaseType,
     ByteArrayLike,
     ByteArrayType,
+    DArrayType,
     SArrayType,
     StringType,
     TupleType,
@@ -2599,6 +2605,110 @@ class ABIDecode(BuiltinFunction):
             )
 
 
+class Append(BuiltinFunction):
+    _id = "append"
+
+    def build_IR(self, expr, context):
+        darray = Expr(expr.func.value, context).ir_node
+        args = [Expr(x, context).ir_node for x in expr.args]
+
+        # sanity checks
+        assert len(args) == 1
+        arg = args[0]
+        assert isinstance(darray.typ, DArrayType)
+
+        check_assign(dummy_node_for_type(darray.typ.subtype), dummy_node_for_type(arg.typ))
+
+        assert darray.typ.count > 0, "jerk boy u r out"
+
+        ret = ["seq"]
+        with darray.cache_when_complex("darray") as (b1, darray):
+            len_ = get_dyn_array_count(darray)
+            with len_.cache_when_complex("old_darray_len") as (b2, len_):
+                ret.append(["assert", ["lt", len_, darray.typ.count]])
+                ret.append(STORE(darray, ["add", len_, 1]))
+                # NOTE: typechecks elem_node
+                # NOTE skip array bounds check bc we already asserted len two lines up
+                ret.append(
+                    make_setter(get_element_ptr(darray, len_, array_bounds_check=False), arg)
+                )
+                return IRnode.from_list(b1.resolve(b2.resolve(ret)))
+
+
+class Extend(BuiltinFunction):
+    _id = "extend"
+
+    def build_IR(self, expr, context):
+        dst = Expr(expr.func.value, context).ir_node
+        # sanity checks
+        assert len(expr.args) == 1
+        src = Expr(expr.args[0], context).ir_node
+
+        assert isinstance(dst.typ, DArrayType)
+        assert isinstance(src.typ, DArrayType)
+
+        ret = ["seq"]
+
+        with dst.cache_when_complex("darray_dst") as (b1, dst):
+            dst_len = get_dyn_array_count(dst)
+
+            with dst_len.cache_when_complex("dst_darray_len") as (b2, dst_len):
+
+                dst_bound = dst.typ.count
+                src_len = get_dyn_array_count(src)
+                new_len = IRnode.from_list(["add", dst_len, src_len], typ="uint256")
+
+                # Assert that `src_len + dst_len` <= maxlen(dst)`
+                check = IRnode.from_list(["assert", ["le", new_len, dst_bound]])
+                ret.append(check)
+
+                # Store updated length
+                store_length = IRnode.from_list(STORE(dst, new_len))
+                ret.append(store_length)
+
+                # Get start pointer of dst
+                dst_start_idx = get_element_ptr(dst, dst_len, array_bounds_check=False)
+
+                # Cast dst start pointer as a static array for `copy_dynarray_body`
+                dst_start_idx.typ = SArrayType(dst.typ.subtype, dst_bound)
+                dst_start_idx.location = dst.location
+
+                body = IRnode.from_list(
+                    copy_dynarray_body(dst_start_idx, src, dst_static_cast=True)
+                )
+                ret.append(body)
+
+                return IRnode.from_list(b1.resolve(b2.resolve(ret)))
+
+
+class Pop(BuiltinFunction):
+    _id = "pop"
+
+    def build_IR(self, expr, context, return_popped_item=False):
+        darray = Expr(expr.func.value, context).ir_node
+        assert isinstance(darray.typ, DArrayType)
+        assert len(expr.args) == 0
+        assert isinstance(darray.typ, DArrayType)
+        assert darray.encoding == Encoding.VYPER
+        ret = ["seq"]
+        with darray.cache_when_complex("darray") as (b1, darray):
+            old_len = clamp("gt", get_dyn_array_count(darray), 0)
+            new_len = IRnode.from_list(["sub", old_len, 1], typ="uint256")
+
+            with new_len.cache_when_complex("new_len") as (b2, new_len):
+                ret.append(STORE(darray, new_len))
+
+                # NOTE skip array bounds check bc we already asserted len two lines up
+                if return_popped_item is True:
+                    popped_item = get_element_ptr(darray, new_len, array_bounds_check=False)
+                    ret.append(popped_item)
+                    typ = popped_item.typ
+                    location = popped_item.location
+                else:
+                    typ, location = None, None
+                return IRnode.from_list(b1.resolve(b2.resolve(ret)), typ=typ, location=location)
+
+
 class _MinMaxValue(FoldedFunction):
     _inputs = [("typename", "TYPE_DEFINITION")]
 
@@ -2705,6 +2815,7 @@ DISPATCH_TABLE = {
     "max": Max(),
     "empty": Empty(),
     "abs": Abs(),
+    "pop": Pop(),
     "min_value": MinValue(),
     "max_value": MaxValue(),
     "epsilon": Epsilon(),
@@ -2721,6 +2832,9 @@ STMT_DISPATCH_TABLE = {
     "create_forwarder_to": CreateForwarderTo(),
     "create_copy_of": CreateCopyOf(),
     "create_from_blueprint": CreateFromBlueprint(),
+    "append": Append(),
+    "pop": Pop(),
+    "extend": Extend(),
 }
 
 BUILTIN_FUNCTIONS = {**STMT_DISPATCH_TABLE, **DISPATCH_TABLE}.keys()

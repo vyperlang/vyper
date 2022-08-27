@@ -11,7 +11,6 @@ from vyper.codegen.core import (
     get_dyn_array_count,
     get_element_ptr,
     getpos,
-    pop_dyn_array,
     unwrap_location,
 )
 from vyper.codegen.ir_node import IRnode
@@ -21,7 +20,6 @@ from vyper.codegen.types import (
     BaseType,
     ByteArrayLike,
     ByteArrayType,
-    DArrayType,
     EnumType,
     InterfaceType,
     MappingType,
@@ -646,11 +644,7 @@ class Expr:
                     return arg_ir
 
         elif isinstance(self.expr.func, vy_ast.Attribute) and self.expr.func.attr == "pop":
-            # TODO consider moving this to builtins
-            darray = Expr(self.expr.func.value, self.context).ir_node
-            assert len(self.expr.args) == 0
-            assert isinstance(darray.typ, DArrayType)
-            return pop_dyn_array(darray, return_popped_item=True)
+            return DISPATCH_TABLE["pop"].build_IR(self.expr, self.context, True)
 
         elif (
             # TODO use expr.func.type.is_internal once

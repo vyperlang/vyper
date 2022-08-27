@@ -1252,6 +1252,269 @@ struct Foo:
         assert c.foo(test_data) == expected_result
 
 
+@pytest.mark.parametrize("subtyp", ["uint8", "int128", "uint256"])
+def test_extend_literal(get_contract, subtyp):
+    data = [1, 2, 3]
+    if subtyp == "int128":
+        data = [-1, 2, 3]
+    code = f"""
+@external
+def foo() -> DynArray[{subtyp}, 3]:
+    x: DynArray[{subtyp}, 3] = []
+    a: DynArray[{subtyp}, 3] = [{data[0]}]
+    x.extend(a)
+    b: DynArray[{subtyp}, 3] = [{data[1]}]
+    x.extend(b)
+    c: DynArray[{subtyp}, 3] = [{data[2]}]
+    x.extend(c)
+    return x
+    """
+    c = get_contract(code)
+    assert c.foo() == data
+
+
+def test_extend_invalid_length(get_contract, assert_compile_failed):
+    code = """
+@external
+def foo() -> DynArray[uint256, 3]:
+    x: DynArray[uint256, 3] = []
+    y: DynArray[uint256, 4] = []
+    x.extend(y)
+    return x
+    """
+    assert_compile_failed(lambda: get_contract(code), TypeMismatch)
+
+
+def test_extend_valid_length(get_contract):
+    code = """
+@external
+def foo(y: DynArray[uint256, 3]) -> DynArray[uint256, 5]:
+    x: DynArray[uint256, 5] = [1, 2]
+    x.extend(y)
+    return x
+    """
+    c = get_contract(code)
+    assert c.foo([3, 4]) == [1, 2, 3, 4]
+
+
+def test_extend_empty(get_contract):
+    code = """
+@external
+def foo(y: DynArray[uint256, 3]) -> DynArray[uint256, 3]:
+    x: DynArray[uint256, 3] = [1, 2, 3]
+    x.extend(y)
+    return x
+    """
+    c = get_contract(code)
+    assert c.foo([]) == [1, 2, 3]
+
+
+def test_extend_length_clamp(get_contract, assert_tx_failed):
+    code = """
+@external
+def foo(y: DynArray[uint256, 2]) -> DynArray[uint256, 3]:
+    x: DynArray[uint256, 3] = [1, 2]
+    x.extend(y)
+    return x
+    """
+    c = get_contract(code)
+    assert_tx_failed(lambda: c.foo([3, 4]))
+
+
+extend_pop_tests = [
+    (
+        """
+my_array: DynArray[uint256, 5]
+@external
+def foo(xs: DynArray[uint256, 5]) -> DynArray[uint256, 5]:
+    self.my_array.extend(xs)
+    return self.my_array
+    """,
+        lambda xs: xs,
+    ),
+    (
+        """
+my_array: DynArray[uint256, 5]
+@external
+def foo(xs: DynArray[uint256, 5]) -> DynArray[uint256, 5]:
+    self.my_array.extend(xs)
+    for x in xs:
+        self.my_array.pop()
+    return self.my_array
+    """,
+        lambda xs: [],
+    ),
+    # check order of evaluation.
+    (
+        """
+my_array: DynArray[uint256, 5]
+@external
+def foo(xs: DynArray[uint256, 5]) -> (DynArray[uint256, 5], uint256):
+    self.my_array.extend(xs)
+    return self.my_array, self.my_array.pop()
+    """,
+        lambda xs: None if len(xs) == 0 else [xs, xs[-1]],
+    ),
+    # check order of evaluation.
+    (
+        """
+my_array: DynArray[uint256, 5]
+@external
+def foo(xs: DynArray[uint256, 5]) -> (uint256, DynArray[uint256, 5]):
+    self.my_array.extend(xs)
+    return self.my_array.pop(), self.my_array
+    """,
+        lambda xs: None if len(xs) == 0 else [xs[-1], xs[:-1]],
+    ),
+    # test memory arrays
+    (
+        """
+@external
+def foo(xs: DynArray[uint256, 5]) -> DynArray[uint256, 5]:
+    ys: DynArray[uint256, 5] = []
+    ys.extend(xs)
+    return ys
+    """,
+        lambda xs: xs,
+    ),
+    # pop to 0 elems
+    (
+        """
+@external
+def foo(xs: DynArray[uint256, 5]) -> DynArray[uint256, 5]:
+    ys: DynArray[uint256, 5] = []
+    ys.extend(xs)
+    for x in xs:
+        ys.pop()
+    return ys
+    """,
+        lambda xs: [],
+    ),
+    # check underflow
+    (
+        """
+@external
+def foo(xs: DynArray[uint256, 5]) -> DynArray[uint256, 5]:
+    ys: DynArray[uint256, 5] = []
+    ys.extend(xs)
+    for x in xs:
+        ys.pop()
+    ys.pop()  # fail
+    return ys
+    """,
+        lambda xs: None,
+    ),
+]
+
+
+@pytest.mark.parametrize("code,check_result", extend_pop_tests)
+# TODO change this to fuzz random data
+@pytest.mark.parametrize("test_data", [[1, 2, 3, 4, 5][:i] for i in range(6)])
+def test_extend_pop(get_contract, assert_tx_failed, code, check_result, test_data):
+    c = get_contract(code)
+    expected_result = check_result(test_data)
+    if expected_result is None:
+        # None is sentinel to indicate txn should revert
+        assert_tx_failed(lambda: c.foo(test_data))
+    else:
+        assert c.foo(test_data) == expected_result
+
+
+invalid_extend_pop = [
+    (
+        """
+my_array: DynArray[uint256, 5]
+@external
+def foo(xs: DynArray[uint256, 6]) -> DynArray[uint256, 5]:
+    self.my_array.extend(xs)
+    return self.my_array
+    """,
+        TypeMismatch,  # Size of src darray is greater than dst darray
+    )
+]
+
+
+@pytest.mark.parametrize("code,exception_type", invalid_extend_pop)
+def test_invalid_extend_pop(get_contract, assert_compile_failed, code, exception_type):
+    assert_compile_failed(lambda: get_contract(code), exception_type)
+
+
+extend_pop_complex_tests = [
+    (
+        """
+@external
+def foo(x: {typ}) -> DynArray[{typ}, 2]:
+    ys: DynArray[{typ}, 1] = []
+    temp: DynArray[{typ}, 1] = [x]
+    ys.extend(temp)
+    return ys
+    """,
+        lambda x: [x],
+    ),
+    (
+        """
+my_array: DynArray[{typ}, 1]
+@external
+def foo(x: {typ}) -> DynArray[{typ}, 2]:
+    temp: DynArray[{typ}, 1] = [x]
+    self.my_array.extend(temp)
+    self.my_array.extend(temp)  # fail
+    return self.my_array
+    """,
+        lambda x: None,
+    ),
+    (
+        """
+my_array: DynArray[{typ}, 5]
+@external
+def foo(x: {typ}) -> (DynArray[{typ}, 5], {typ}):
+    temp: DynArray[{typ}, 1] = [x]
+    self.my_array.extend(temp)
+    return self.my_array, self.my_array.pop()
+    """,
+        lambda x: [[x], x],
+    ),
+    (
+        """
+my_array: DynArray[{typ}, 5]
+@external
+def foo(x: {typ}) -> ({typ}, DynArray[{typ}, 5]):
+    temp: DynArray[{typ}, 1] = [x]
+    self.my_array.extend(temp)
+    return self.my_array.pop(), self.my_array
+    """,
+        lambda x: [x, []],
+    ),
+]
+
+
+@pytest.mark.parametrize("code_template,check_result", extend_pop_complex_tests)
+@pytest.mark.parametrize(
+    "subtype", ["uint256[3]", "DynArray[uint256,3]", "DynArray[uint8, 4]", "Foo"]
+)
+# TODO change this to fuzz random data
+def test_extend_pop_complex(get_contract, assert_tx_failed, code_template, check_result, subtype):
+    code = code_template.format(typ=subtype)
+    test_data = [1, 2, 3]
+    if subtype == "Foo":
+        test_data = tuple(test_data)
+        struct_def = """
+struct Foo:
+    x: uint256
+    y: uint256
+    z: uint256
+        """
+        code = struct_def + "\n" + code
+
+    c = get_contract(code)
+    expected_result = check_result(test_data)
+    if expected_result is None:
+        # None is sentinel to indicatecool, I'd txn should revert
+        assert_tx_failed(lambda: c.foo(test_data))
+    else:
+        assert c.foo(test_data) == expected_result
+
+
 def test_so_many_things_you_should_never_do(get_contract):
     code = """
 @internal
@@ -1523,7 +1786,7 @@ def bar(x: int128) -> DynArray[int128, 3]:
     assert c.bar(7) == [7, 14]
 
 
-def test_nested_struct_of_lists(get_contract, assert_compile_failed, no_optimize):
+def test_nested_struct_of_lists(get_contract, assert_compile_failed):
     code = """
 struct nestedFoo:
     a1: DynArray[DynArray[DynArray[uint256, 2], 2], 2]
@@ -1563,14 +1826,9 @@ def bar2() -> uint256:
         newFoo.b1[1][0][0].a1[0][1][1] + \\
         newFoo.b1[0][1][0].a1[0][0][0]
     """
-
-    if no_optimize:
-        # fails at assembly stage with too many stack variables
-        assert_compile_failed(lambda: get_contract(code), Exception)
-    else:
-        c = get_contract(code)
-        assert c.bar() == [[[3, 7], [7, 3]], [[7, 3], [0, 0]]]
-        assert c.bar2() == 0
+    c = get_contract(code)
+    assert c.bar() == [[[3, 7], [7, 3]], [[7, 3], [0, 0]]]
+    assert c.bar2() == 0
 
 
 def test_tuple_of_lists(get_contract):
