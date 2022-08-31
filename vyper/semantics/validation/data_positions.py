@@ -211,9 +211,7 @@ def set_code_offsets(vyper_module: vy_ast.Module) -> Dict:
 
     ret = {}
     offset = 0
-    for node in vyper_module.get_children(
-        vy_ast.VariableDecl, filters={"is_immutable": True}
-    ):
+    for node in vyper_module.get_children(vy_ast.VariableDecl, filters={"is_immutable": True}):
         type_ = node._metadata["type"]
         type_.set_position(CodeOffset(offset))
 

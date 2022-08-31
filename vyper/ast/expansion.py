@@ -42,15 +42,16 @@ def generate_public_variable_getters(vyper_module: vy_ast.Module) -> None:
         if node.is_constant or node.is_immutable:
             annotation = annotation.args[0]
 
+        return_stmt: vy_ast.VyperNode
         # constants just return a value
         if node.is_constant:
-            return_stmt: vy_ast.VyperNode = node.value
+            return_stmt = node.value
+        elif node.is_immutable:
+            return_stmt = vy_ast.Name(id=func_type.name)
         else:
             # the base return statement is an `Attribute` node, e.g. `self.<var_name>`
             # for each input type we wrap it in a `Subscript` to access a specific member
-            return_stmt: vy_ast.VyperNode = vy_ast.Attribute(
-                value=vy_ast.Name(id="self"), attr=func_type.name
-            )
+            return_stmt = vy_ast.Attribute(value=vy_ast.Name(id="self"), attr=func_type.name)
         return_stmt._metadata["type"] = node._metadata["type"]
 
         for i, type_ in enumerate(input_types):
