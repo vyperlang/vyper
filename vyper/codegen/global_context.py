@@ -166,11 +166,7 @@ class GlobalContext:
         if self.get_call_func_name(item) == "public":
             typ = self.parse_type(item.annotation.args[0])
             self._globals[item.target.id] = VariableRecord(
-                item.target.id,
-                len(self._globals),
-                typ,
-                not item.is_immutable,
-                is_immutable=item.is_immutable,
+                item.target.id, len(self._globals), typ, True
             )
         elif self.get_call_func_name(item) == "immutable":
             typ = self.parse_type(item.annotation.args[0])

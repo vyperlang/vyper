@@ -260,12 +260,6 @@ class Expr:
         elif isinstance(self.expr.value, vy_ast.Name) and self.expr.value.id == "self":
             type_ = self.expr._metadata["type"]
             var = self.context.globals[self.expr.attr]
-            # handle public(immutable) variables
-            if type_.is_immutable:
-                ofst = self.expr._metadata["type"].position.offset
-                return IRnode.from_list(
-                    ofst, typ=var.typ, location=DATA, annotation=self.expr.attr, mutable=False
-                )
             return IRnode.from_list(
                 type_.position.position,
                 typ=var.typ,
