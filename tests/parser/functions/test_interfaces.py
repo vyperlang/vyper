@@ -276,6 +276,7 @@ def test():
         ("min_value(int128)", "int128", -(2 ** 127)),
         ("empty(uint8[2])", "uint8[2]", [0, 0]),
         ('method_id("vyper()", output_type=bytes4)', "bytes4", b"\x82\xcbE\xfb"),
+        ("epsilon(decimal)", "decimal", Decimal("1E-10")),
     ],
 )
 def test_external_call_to_interface_kwarg(get_contract, kwarg, typ, expected):
