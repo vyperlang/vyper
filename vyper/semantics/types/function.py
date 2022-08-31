@@ -385,9 +385,6 @@ class ContractFunction(BaseTypeDefinition):
         if not isinstance(node.annotation, vy_ast.Call):
             raise CompilerPanic("Annotation must be a call to public()")
         annotation = node.annotation.args[0]
-        # if we have a mutability declaration after a visibility one, skip over
-        if node.is_public and (node.is_constant or node.is_immutable):
-            annotation = annotation.args[0]
         location = DataLocation.CODE if node.is_immutable else DataLocation.STORAGE
         type_ = get_type_from_annotation(annotation, location=location)
         arguments, return_type = type_.get_signature()

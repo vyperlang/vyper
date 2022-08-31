@@ -158,9 +158,6 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
         if node.is_public or node.is_immutable or node.is_constant:
             validate_call_args(annotation, 1)
             annotation = annotation.args[0]
-            # if the node is both public and immutable or constant, remove another call node
-            if node.is_public and (node.is_immutable or node.is_constant):
-                annotation = annotation.args[0]
 
         if node.is_public:
             # generate function type and add to metadata

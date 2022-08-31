@@ -30,7 +30,7 @@ def generate_public_variable_getters(vyper_module: vy_ast.Module) -> None:
         Top-level Vyper AST node.
     """
 
-    for node in vyper_module.get_children(vy_ast.VariableDecl, {"annotation.func.id": "public"}):
+    for node in vyper_module.get_children(vy_ast.VariableDecl, {"is_public": True}):
         func_type = node._metadata["func_type"]
         input_types, return_type = func_type.get_signature()
         input_nodes = []
@@ -38,9 +38,6 @@ def generate_public_variable_getters(vyper_module: vy_ast.Module) -> None:
         # use the annotation node as a base to build the input args and return type
         # starting with `args[0]` to remove the surrounding `public()` call`
         annotation = copy.copy(node.annotation.args[0])
-        # if we have a mutability declaration after a visibility one, skip over
-        if node.is_constant or node.is_immutable:
-            annotation = annotation.args[0]
 
         return_stmt: vy_ast.VyperNode
         # constants just return a value
