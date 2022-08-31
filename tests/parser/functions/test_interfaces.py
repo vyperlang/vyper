@@ -269,12 +269,15 @@ def test():
     assert erc20.balanceOf(sender) == 1000
 
 
-@pytest.mark.parametrize("kwarg,typ,expected", [
-    ("max_value(uint256)", "uint256", 2 ** 256 - 1),
-    ("min_value(int128)", "int128", - (2 ** 127)),
-    ("empty(uint8[2])", "uint8[2]", [0, 0]),
-    ("method_id(\"vyper()\", output_type=bytes4)", "bytes4", b'\x82\xcbE\xfb'),
-])
+@pytest.mark.parametrize(
+    "kwarg,typ,expected",
+    [
+        ("max_value(uint256)", "uint256", 2 ** 256 - 1),
+        ("min_value(int128)", "int128", -(2 ** 127)),
+        ("empty(uint8[2])", "uint8[2]", [0, 0]),
+        ('method_id("vyper()", output_type=bytes4)', "bytes4", b"\x82\xcbE\xfb"),
+    ],
+)
 def test_external_call_to_interface_kwarg(get_contract, kwarg, typ, expected):
     code_a = f"""
 @external
@@ -294,7 +297,9 @@ def bar(a_address: address) -> {typ}:
 
     contract_a = get_contract(code_a)
     contract_b = get_contract(
-        code_b, *[contract_a.address], interface_codes={"ContractA": {"type": "vyper", "code": code_a}}
+        code_b,
+        *[contract_a.address],
+        interface_codes={"ContractA": {"type": "vyper", "code": code_a}},
     )
 
     assert contract_b.bar(contract_a.address) == expected
