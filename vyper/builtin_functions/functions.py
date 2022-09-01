@@ -136,8 +136,7 @@ class TypenameFoldedFunction(FoldedFunction):
     # (2) should always be folded.
 
     # "TYPE_DEFINITION" is a placeholder value for a type definition string, and
-    # will be replaced by a `TypeTypeDefinition` object in `infer_arg_types`
-    # (note that it is ignored in `validate_args`)
+    # will be replaced by a `TypeTypeDefinition` object in `infer_arg_types`.
     _inputs = [("typename", "TYPE_DEFINITION")]
 
     def fetch_call_return(self, node):
@@ -899,7 +898,7 @@ class Extract32(BuiltinFunction):
     _inputs = [("b", BytesArrayPrimitive()), ("start", UnsignedIntegerAbstractType())]
     # "TYPE_DEFINITION" is a placeholder value for a type definition string, and
     # will be replaced by a `TypeTypeDefinition` object in `infer_kwarg_types`
-    # (note that it is ignored in validate_args)
+    # (note that it is ignored in `_validate_arg_types`)
     _kwargs = {"output_type": KwargSettings("TYPE_DEFINITION", "bytes32")}
     _return_type = None
 
