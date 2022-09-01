@@ -2199,6 +2199,8 @@ class ISqrt(BuiltinFunction):
 
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
+        # calculate isqrt using the babylonian method
+
         y, z = "y", "z"
         arg = args[0]
         with arg.cache_when_complex("x") as (b1, x):
@@ -2230,7 +2232,7 @@ class ISqrt(BuiltinFunction):
             for _ in range(7):
                 ret.append(["set", z, ["div", ["add", ["div", x, z], z], 2]])
 
-            # Performance note: If ``x+1`` is a perfect square, then the Babylonian
+            # note: If ``x+1`` is a perfect square, then the Babylonian
             # algorithm oscillates between floor(sqrt(x)) and ceil(sqrt(x)) in
             # consecutive iterations. return the floor value always.
 
