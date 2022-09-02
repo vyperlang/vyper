@@ -767,9 +767,9 @@ class MethodID(FoldedFunction):
                 return BytesArrayDefinition(4)
             else:
                 raise ArgumentException("output_type must be Bytes[4] or bytes4", node.keywords[0])
-        else:
-            # If `output_type` is not given, default to `Bytes[4]`
-            return BytesArrayDefinition(4)
+
+        # If `output_type` is not given, default to `Bytes[4]`
+        return BytesArrayDefinition(4)
 
 
 class ECRecover(BuiltinFunction):
