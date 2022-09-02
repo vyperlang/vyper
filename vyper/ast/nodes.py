@@ -7,6 +7,7 @@ from typing import Any, Optional, Union
 
 from vyper.compiler.settings import VYPER_ERROR_CONTEXT_LINES, VYPER_ERROR_LINE_NUMBERS
 from vyper.exceptions import (
+    ArgumentException,
     CompilerPanic,
     InvalidLiteral,
     InvalidOperation,
@@ -15,7 +16,6 @@ from vyper.exceptions import (
     TypeMismatch,
     UnfoldableNode,
     ZeroDivisionException,
-    ArgumentException,
 )
 from vyper.utils import MAX_DECIMAL_PLACES, SizeLimits, annotate_source_code
 
@@ -1291,9 +1291,11 @@ class VariableDecl(VyperNode):
             elif call_name == "public":
                 # declaring a public variable
                 self.is_public = True
+                # do the same thing as `validate_call_args`
+                # (can't be imported due to cyclic dependency)
+                if len(self.annotation.args) != 1:
+                    raise ArgumentException("Invalid number of arguments to `public`:", self)
                 # handle the cases where a constant or immutable variable is public
-                if not len(self.annotation.args):
-                    raise ArgumentException(f"Invalid number of arguments to `public`:", self)
                 annotation = self.annotation.args[0]
                 wrapped_call_name = annotation.get("func.id")
                 if wrapped_call_name in ["constant", "immutable"]:

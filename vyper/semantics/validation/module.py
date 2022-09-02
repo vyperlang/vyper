@@ -154,9 +154,12 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
             raise VariableDeclarationException("Invalid module-level assignment", node)
 
         annotation = node.annotation
+
         # remove the outer call node, to handle cases such as `public(map(..))`
         if node.is_public or node.is_immutable or node.is_constant:
-            validate_call_args(annotation, 1)
+            # validation already performed on variable declaration for `public`
+            if not node.is_public:
+                validate_call_args(annotation, 1)
             annotation = annotation.args[0]
 
         if node.is_public:
