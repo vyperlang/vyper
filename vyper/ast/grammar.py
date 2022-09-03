@@ -21,13 +21,13 @@ def vyper_grammar():
     global _lark_grammar
     if _lark_grammar is None:
         _lark_grammar = Lark.open_from_package(
-        "vyper",
-        "grammar.lark",
-        ("ast/",),
-        parser="lalr",
-        start="module",
-        postlex=PythonIndenter(),
-    )
+            "vyper",
+            "grammar.lark",
+            ("ast/",),
+            parser="lalr",
+            start="module",
+            postlex=PythonIndenter(),
+        )
     return _lark_grammar
 
 
