@@ -84,6 +84,7 @@ OPCODES: OpcodeMap = {
     "TIMESTAMP": (0x42, 0, 1, 2),
     "NUMBER": (0x43, 0, 1, 2),
     "DIFFICULTY": (0x44, 0, 1, 2),
+    "PREVRANDAO": (0x44, 0, 1, 2),
     "GASLIMIT": (0x45, 0, 1, 2),
     "CHAINID": (0x46, 0, 1, (None, None, 2)),
     "SELFBALANCE": (0x47, 0, 1, (None, None, 5)),
