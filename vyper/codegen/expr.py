@@ -279,6 +279,8 @@ class Expr:
                 return IRnode.from_list(["callvalue"], typ=BaseType("uint256"))
             elif key == "msg.gas":
                 return IRnode.from_list(["gas"], typ="uint256")
+            elif key == "block.prevrandao":
+                return IRnode.from_list(["difficulty"], typ="uint256")
             elif key == "block.difficulty":
                 return IRnode.from_list(["difficulty"], typ="uint256")
             elif key == "block.timestamp":
