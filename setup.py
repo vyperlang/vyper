@@ -18,7 +18,7 @@ extras_require = {
         "py-evm>=0.5.0a3,<0.6",
         "web3==5.27.0",
         "tox>=3.15,<4.0",
-        "lark-parser==0.12.0",
+        "lark==1.1.2",
         "hypothesis[lark]>=5.37.1,<6.0",
     ],
     "lint": [
