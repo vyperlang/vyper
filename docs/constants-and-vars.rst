@@ -11,11 +11,12 @@ Environment variables always exist in the namespace and are primarily used to pr
 Block and Transaction Properties
 --------------------------------
 
-==================== ================ =============================================
+==================== ================ =========================================================
 Name                 Type             Value
-==================== ================ =============================================
+==================== ================ =========================================================
 ``block.coinbase``   ``address``      Current block miner’s address
 ``block.difficulty`` ``uint256``      Current block difficulty
+``block.prevrandao`` ``uint256``      Current block difficulty (alias for ``block.difficulty``)
 ``block.number``     ``uint256``      Current block number
 ``block.prevhash``   ``bytes32``      Equivalent to ``blockhash(block.number - 1)``
 ``block.timestamp``  ``uint256``      Current block epoch timestamp
@@ -26,7 +27,7 @@ Name                 Type             Value
 ``msg.value``        ``uint256``      Number of wei sent with the message
 ``tx.origin``        ``address``      Sender of the transaction (full call chain)
 ``tx.gasprice``      ``uint256``      Gas price of current transaction in wei
-==================== ================ =============================================
+==================== ================ =========================================================
 
 .. note::
 
