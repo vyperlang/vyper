@@ -31,7 +31,7 @@ Name                 Type             Value
 
 .. note::
 
-    ``block.prevrandao`` is an alias for ``block.difficulty``. Since ``block.difficulty`` is considered deprecated according to `EIP-4399 <https://eips.ethereum.org/EIPS/eip-4399>`_ after "The Merge", it will be removed in a future version.
+    ``block.prevrandao`` is an alias for ``block.difficulty``. Since ``block.difficulty`` is considered deprecated according to `EIP-4399 <https://eips.ethereum.org/EIPS/eip-4399>`_ after "The Merge" (Paris hard fork), we recommend using ``block.prevrandao``.
 
 .. note::
 
