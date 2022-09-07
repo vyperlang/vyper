@@ -93,6 +93,7 @@ from vyper.semantics.types.value.array_value import (
 from vyper.semantics.types.value.bytes_fixed import Bytes4Definition  # type: ignore
 from vyper.semantics.types.value.bytes_fixed import Bytes32Definition
 from vyper.semantics.types.value.numeric import Int256Definition  # type: ignore
+from vyper.semantics.types.value.numeric import Uint8Definition  # type: ignore
 from vyper.semantics.types.value.numeric import Uint256Definition  # type: ignore
 from vyper.semantics.types.value.numeric import DecimalDefinition
 from vyper.semantics.validation.utils import (
@@ -777,9 +778,9 @@ class ECRecover(BuiltinFunction):
     _id = "ecrecover"
     _inputs = [
         ("hash", Bytes32Definition()),
-        ("v", Uint256Definition()),
-        ("r", Uint256Definition()),
-        ("s", Uint256Definition()),
+        ("v", Uint8Definition()),
+        ("r", Bytes32Definition()),
+        ("s", Bytes32Definition()),
     ]
     _return_type = AddressDefinition()
 
