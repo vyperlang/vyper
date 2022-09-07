@@ -31,6 +31,10 @@ Name                 Type             Value
 
 .. note::
 
+    ``block.prevrandao`` is an alias for ``block.difficulty``, and will be removed in a future version.
+
+.. note::
+
     ``msg.data`` requires the usage of :func:`slice <slice>` to explicitly extract a section of calldata. If the extracted section exceeds the bounds of calldata, this will throw. You can check the size of ``msg.data`` using :func:`len <len>`.
 
 .. _constants-self:
