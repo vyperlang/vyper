@@ -280,8 +280,7 @@ class Expr:
             elif key == "msg.gas":
                 return IRnode.from_list(["gas"], typ="uint256")
             elif key == "block.prevrandao":
-                # TODO: Change this post-merge to `from_list(["prevrandao"]`
-                return IRnode.from_list(["difficulty"], typ="uint256")
+                return IRnode.from_list(["prevrandao"], typ="uint256")
             elif key == "block.difficulty":
                 return IRnode.from_list(["difficulty"], typ="uint256")
             elif key == "block.timestamp":
