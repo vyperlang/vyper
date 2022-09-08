@@ -4,7 +4,6 @@ from typing import Optional, Union
 
 import vyper.builtin_interfaces
 from vyper import ast as vy_ast
-from vyper.ast.validation import validate_call_args
 from vyper.exceptions import (
     CallViolation,
     CompilerPanic,
