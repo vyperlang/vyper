@@ -42,6 +42,7 @@ from vyper.exceptions import (
     TypeCheckFailure,
     TypeMismatch,
     UnimplementedException,
+    VyperException,
 )
 from vyper.utils import (
     DECIMAL_DIVISOR,
@@ -49,6 +50,7 @@ from vyper.utils import (
     bytes_to_int,
     is_checksum_encoded,
     string_to_bytes,
+    vyper_warn,
 )
 
 ENVIRONMENT_VARIABLES = {"block", "msg", "tx", "chain"}
@@ -280,8 +282,22 @@ class Expr:
             elif key == "msg.gas":
                 return IRnode.from_list(["gas"], typ="uint256")
             elif key == "block.prevrandao":
+                if not version_check(begin="paris"):
+                    warning = VyperException(
+                        "tried to use block.prevrandao in pre-Paris "
+                        "environment! Suggest using block.difficulty instead.",
+                        self.expr,
+                    )
+                    vyper_warn(str(warning))
                 return IRnode.from_list(["prevrandao"], typ="uint256")
             elif key == "block.difficulty":
+                if version_check(begin="paris"):
+                    warning = VyperException(
+                        "tried to use block.difficulty in post-Paris "
+                        "environment! Suggest using block.prevrandao instead.",
+                        self.expr,
+                    )
+                    vyper_warn(str(warning))
                 return IRnode.from_list(["difficulty"], typ="uint256")
             elif key == "block.timestamp":
                 return IRnode.from_list(["timestamp"], typ=BaseType("uint256"))
