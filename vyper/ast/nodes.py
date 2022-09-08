@@ -1281,8 +1281,6 @@ class VariableDecl(VyperNode):
         self.is_public = False
         self.is_immutable = False
 
-        self._calls = []
-
         def _check_args(annotation, call_name):
             # do the same thing as `validate_call_args`
             # (can't be imported due to cyclic dependency)
