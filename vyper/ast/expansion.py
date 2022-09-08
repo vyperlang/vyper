@@ -35,9 +35,8 @@ def generate_public_variable_getters(vyper_module: vy_ast.Module) -> None:
         input_types, return_type = func_type.get_signature()
         input_nodes = []
 
-        # use the annotation node as a base to build the input args and return type
-        # starting with `args[0]` to remove the surrounding `public()` call`
-        annotation = copy.copy(node.annotation.args[0])
+        # use the annotation node to build the input args and return type
+        annotation = copy.copy(node.annotation)
 
         return_stmt: vy_ast.VyperNode
         # constants just return a value

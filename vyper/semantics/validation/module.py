@@ -153,21 +153,12 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
         if name is None:
             raise VariableDeclarationException("Invalid module-level assignment", node)
 
-        annotation = node.annotation
-
-        # remove the outer call node, to handle cases such as `public(map(..))`
-        if node.is_public or node.is_immutable or node.is_constant:
-            # validation already performed on variable declaration for `public`
-            if not node.is_public:
-                validate_call_args(annotation, 1)
-            annotation = annotation.args[0]
-
         if node.is_public:
             # generate function type and add to metadata
-            # we need this when builing the public getter
+            # we need this when building the public getter
             node._metadata["func_type"] = ContractFunction.getter_from_VariableDecl(node)
 
-        elif node.is_immutable:
+        if node.is_immutable:
             # mutability is checked automatically preventing assignment
             # outside of the constructor, here we just check a value is assigned,
             # not necessarily where
@@ -188,7 +179,7 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
 
         data_loc = DataLocation.CODE if node.is_immutable else DataLocation.STORAGE
         type_definition = get_type_from_annotation(
-            annotation, data_loc, node.is_constant, node.is_public, node.is_immutable
+            node.annotation, data_loc, node.is_constant, node.is_public, node.is_immutable
         )
         node._metadata["type"] = type_definition
 

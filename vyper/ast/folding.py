@@ -179,7 +179,7 @@ def replace_user_defined_constants(vyper_module: vy_ast.Module) -> int:
             continue
 
         # Extract type definition from propagated annotation
-        constant_annotation = node.get("annotation.args")[0]
+        constant_annotation = node.get("annotation")
         try:
             type_ = (
                 get_type_from_annotation(constant_annotation, DataLocation.UNSET)

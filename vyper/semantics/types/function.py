@@ -382,11 +382,10 @@ class ContractFunction(BaseTypeDefinition):
         -------
         ContractFunction
         """
-        if not isinstance(node.annotation, vy_ast.Call):
-            raise CompilerPanic("Annotation must be a call to public()")
-        annotation = node.annotation.args[0]
+        if not node.is_public:
+            raise CompilerPanic("getter generated for non-public function")
         location = DataLocation.CODE if node.is_immutable else DataLocation.STORAGE
-        type_ = get_type_from_annotation(annotation, location=location)
+        type_ = get_type_from_annotation(node.annotation, location=location)
         arguments, return_type = type_.get_signature()
         args_dict: OrderedDict = OrderedDict()
         for item in arguments:

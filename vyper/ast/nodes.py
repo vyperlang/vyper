@@ -1272,7 +1272,7 @@ class VariableDecl(VyperNode):
         If true, indicates that the variable is an immutable variable.
     """
 
-    __slots__ = ("target", "annotation", "value", "is_constant", "is_public", "is_immutable")
+    __slots__ = ("target", "annotation", "value", "is_constant", "is_public", "is_immutable", "_calls")
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -1281,34 +1281,38 @@ class VariableDecl(VyperNode):
         self.is_public = False
         self.is_immutable = False
 
-        if isinstance(self.annotation, Call):
-            # the annotation is a function call, e.g. `foo: constant(uint256)`
+        self._calls = []
+
+        original_annotation = self.annotation
+
+        # the annotation is a "function" call, e.g. `foo: public(constant(uint256))`
+        # recursively unwrap the layers until we just have a type.
+        while isinstance(self.annotation, Call):
             call_name = self.annotation.get("func.id")
-            if call_name == "constant":
-                # declaring a constant
-                self.is_constant = True
 
-            elif call_name == "public":
-                # declaring a public variable
-                self.is_public = True
-                # do the same thing as `validate_call_args`
-                # (can't be imported due to cyclic dependency)
-                if len(self.annotation.args) != 1:
-                    raise ArgumentException("Invalid number of arguments to `public`:", self)
-                # handle the cases where a constant or immutable variable is public
-                annotation = self.annotation.args[0]
-                wrapped_call_name = annotation.get("func.id")
-                if wrapped_call_name in ["constant", "immutable"]:
-                    setattr(self, f"is_{wrapped_call_name}", True)
-                    self.annotation = annotation
+            # do the same thing as `validate_call_args`
+            # (can't be imported due to cyclic dependency)
+            if len(self.annotation.args) != 1:
+                raise ArgumentException("Invalid number of arguments to `{call_name}`:", self)
 
-            elif call_name == "immutable":
-                # declaring an immutable variable
-                self.is_immutable = True
-
+            self._calls.append(self.annotation)
+            if call_name in ("constant", "public", "immutable"):
+                # ex. self.is_constant = True
+                setattr(self, f"is_{call_name}", True)
+                self.annotation = self.annotation.args[0]
             else:
                 _raise_syntax_exc("Invalid scope for variable declaration", self.annotation)
 
+        if "public" in self._calls and self._calls[0] != "public":
+            _raise_syntax_exc("public() must be the outermost declaration", self.annotation)
+        if self.is_immutable and self.is_constant:
+            _raise_syntax_exc("immutable and constant cannot be used simultaneously", self.annotation)
+        if len(set(self._calls)) != len(self._calls):
+            seen = set()
+            for c in self._calls:
+                if c in seen:
+                    _raise_syntax_exc("duplicated annotation", self.annotation)
+                seen.add(c)
 
 class AugAssign(VyperNode):
     __slots__ = ("op", "target", "value")
