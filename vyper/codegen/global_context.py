@@ -140,13 +140,6 @@ class GlobalContext:
                 raise StructureException("Invalid contract reference", item)
         return _defs
 
-    @staticmethod
-    def get_call_func_name(item):
-        if isinstance(item.annotation, vy_ast.Call) and isinstance(
-            item.annotation.func, vy_ast.Name
-        ):
-            return item.annotation.func.id
-
     def add_globals_and_events(self, item):
 
         if self._nonrentrant_counter:
@@ -157,25 +150,23 @@ class GlobalContext:
             raise StructureException("Invalid global variable name", item.target)
 
         # Handle constants.
-        if self.get_call_func_name(item) == "constant":
+        if item.is_constant:
             return
 
         # references to `len(self._globals)` are remnants of deprecated code, retained
         # to preserve existing interfaces while we complete a larger refactor. location
         # and size of storage vars is handled in `vyper.context.validation.data_positions`
-        if self.get_call_func_name(item) == "public":
-            typ = self.parse_type(item.annotation.args[0])
+        typ = self.parse_type(item.annotation)
+        if item.is_public:
             self._globals[item.target.id] = VariableRecord(
                 item.target.id, len(self._globals), typ, True
             )
-        elif self.get_call_func_name(item) == "immutable":
-            typ = self.parse_type(item.annotation.args[0])
+        elif item.is_immutable:
             self._globals[item.target.id] = VariableRecord(
                 item.target.id, len(self._globals), typ, False, is_immutable=True
             )
 
-        elif isinstance(item.annotation, (vy_ast.Name, vy_ast.Call, vy_ast.Subscript)):
-            typ = self.parse_type(item.annotation)
+        elif isinstance(item.annotation, (vy_ast.Name, vy_ast.Subscript)):
             self._globals[item.target.id] = VariableRecord(
                 item.target.id, len(self._globals), typ, True
             )
