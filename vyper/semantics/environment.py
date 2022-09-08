@@ -11,6 +11,7 @@ CONSTANT_ENVIRONMENT_VARS: Dict[str, Dict[str, type]] = {
     "block": {
         "coinbase": AddressDefinition,
         "difficulty": Uint256Definition,
+        "prevrandao": Uint256Definition,
         "number": Uint256Definition,
         "gaslimit": Uint256Definition,
         "basefee": Uint256Definition,
