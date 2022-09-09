@@ -14,7 +14,6 @@ from .bytestrings import BytesT
 class _PrimT(VyperType):
     _is_prim_word = True
 
-
 class BoolT(_PrimT):
     _id = "bool"
     _as_array = True
@@ -34,7 +33,7 @@ class BoolT(_PrimT):
     def abi_type(self) -> ABIType:
         return ABI_Bool()
 
-    def validate_literal(self, node: vy_ast.Constant) -> None:
+    def validate_literal(self, node: vy_ast.Constant) -> VyperType:
         super().validate_literal(node)
         if node.value is None:
             raise InvalidLiteral("Invalid literal for type 'bool'", node)
@@ -65,14 +64,16 @@ class BytesM_T(_PrimT):
 
     def validate_literal(self, node: vy_ast.Constant):
         super().validate_literal(node)
+
         val = node.value
 
-        if len(val) != 2 + 2 * self.m:
-            raise InvalidLiteral("Invalid literal for type bytes32", node)
+        if node.n_bytes != self.m:
+            raise InvalidLiteral("Invalid literal for type {self}", node)
 
         nibbles = val[2:]  # strip leading 0x
         if nibbles not in (nibbles.lower(), nibbles.upper()):
             raise InvalidLiteral(f"Cannot mix uppercase and lowercase for {self} literal", node)
+
 
     def compare_type(self, other: VyperType):
         if not super().compare_type(other):
@@ -80,8 +81,21 @@ class BytesM_T(_PrimT):
 
         return self.m == other.m
 
+class _NumericT(_PrimT):
+    _as_array = True
+    bounds: Tuple[int, int]
 
-class IntegerT(_PrimT):
+    def validate_literal(self, node: vy_ast.Constant):
+        super().validate_literal(node)
+        lower, upper = self.bounds
+        if node.value < lower:
+            raise OverflowException(f"Value is below lower bound for given type ({lower})", node)
+        if node.value > upper:
+            raise OverflowException(f"Value exceeds upper bound for given type ({upper})", node)
+
+
+
+class IntegerT(_NumericT):
     """
     General integer type. All signed and unsigned ints from uint8 thru int256
 
@@ -125,6 +139,7 @@ class IntegerT(_PrimT):
     @classmethod
     def all(cls) -> List["IntegerT"]:
         return cls.signeds() + cls.unsigneds()
+
 
     # backwards compatible api, TODO: remove me
     @property
@@ -207,19 +222,6 @@ BYTES32_T = BytesM_T(32)
 BYTES4_T = BytesM_T(4)
 
 
-class _NumericT(_PrimT):
-    _as_array = True
-    bounds: Tuple[int, int]
-
-    def validate_literal(self, node: vy_ast.Constant):
-        super().validate_literal(node)
-        lower, upper = self.bounds
-        if node.value < lower:
-            raise OverflowException(f"Value is below lower bound for given type ({lower})", node)
-        if node.value > upper:
-            raise OverflowException(f"Value exceeds upper bound for given type ({upper})", node)
-
-
 class DecimalT(_NumericT):
     bounds = (SizeLimits.MIN_AST_DECIMAL, SizeLimits.MAX_AST_DECIMAL)
 
@@ -252,13 +254,12 @@ class AddressT(_PrimT):
     def abi_type(self) -> ABIType:
         return ABI_Address()
 
-    def validate_literal(self, node: vy_ast.Constant):
+    def validate_literal(self, node: vy_ast.Constant) -> VyperType:
         super().validate_literal(node)
-        addr = node.value
-        if len(addr) != 42:
-            n_bytes = (len(addr) - 2) // 2
-            raise InvalidLiteral(f"Invalid address. Expected 20 bytes, got {n_bytes}.", node)
+        if node.n_bytes != 20:
+            raise InvalidLiteral(f"Invalid address. Expected 20 bytes, got {node.n_bytes}.", node)
 
+        addr = node.value
         if not is_checksum_encoded(addr):
             raise InvalidLiteral(
                 "Address checksum mismatch. If you are sure this is the right "

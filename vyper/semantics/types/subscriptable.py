@@ -225,9 +225,6 @@ class DArrayT(_SequenceT):
             return False
         return self.value_type.compare_type(other.value_type)
 
-    def fetch_call_return(self, node: vy_ast.Call) -> None:
-        pass
-
     @classmethod
     def from_annotation(cls, node: vy_ast.Subscript) -> "DArrayT":
         # TODO fix circular import

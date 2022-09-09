@@ -28,10 +28,6 @@ class _GenericTypeAcceptor:
     def __init__(self, type_):
         self.type_ = type_
 
-    @property
-    def _id(self):
-        return self.type_._id
-
     def compare_type(self, other):
         return isinstance(other, self.type_)
 
@@ -130,19 +126,19 @@ class VyperType:
                 f"Cannot perform {node.op.description} comparison on {self}", node
             )              
 
-    def validate_literal(self, node: vy_ast.Constant) -> None:
+    @classmethod
+    def validate_literal(cls, node: vy_ast.Constant):
         """
-        Validate whether a given literal can be annotated with this type.
+        Validate that a literal node can be annotated with this type
 
         Arguments
         ---------
         node : VyperNode
             `Constant` Vyper ast node, or a list or tuple of constants.
         """
-        if not isinstance(node, vy_ast.Constant):
-            raise UnexpectedNodeType("Not a literal.", node)
-        if not isinstance(node, self._valid_literal):
-            raise InvalidLiteral(f"Invalid literal for {self}", node)
+        if not isinstance(node, cls._valid_literal) or not isinstance(node, vy_ast.Constant):
+            # should not reach here, by paths into validate_literal.
+            raise CompilerPanic("unreachable")
 
     @classmethod
     def compare_type(cls, other: "VyperType") -> bool:

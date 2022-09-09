@@ -798,6 +798,21 @@ class Hex(Constant):
         if len(self.value) % 2:
             raise InvalidLiteral("Hex notation requires an even number of digits", self)
 
+    # unused so far, but maybe it will come in handy
+    @property
+    def n_nibbles(self):
+        """
+        The number of nibbles this hex value represents
+        """
+        return len(self.value) - 2
+
+    @property
+    def n_bytes(self):
+        """
+        The number of bytes this hex value represents
+        """
+        return (len(self.value) - 2) // 2
+
 
 class Str(Constant):
     __slots__ = ()

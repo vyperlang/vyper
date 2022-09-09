@@ -22,6 +22,7 @@ from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.base import VyperType
 from vyper.semantics.types.primitives import BoolT, IntegerT, AddressT, BytesM_T
 from vyper.semantics.types.subscriptable import DArrayT, SArrayT, TupleT
+from vyper.semantics.types.bytestrings import BytesT, StringT
 from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
 from vyper.utils import checksum_encode
 
@@ -242,6 +243,16 @@ class _ExprAnalyser:
         types_list = []
         for t in types.get_primitive_types().values():
             try:
+                if not isinstance(node, t._valid_literal):
+                    continue
+
+                # special handling for bytestrings since their
+                # class objects are in the type map, not the type itself
+                # (worth rethinking this design at some point.)
+                if t in (BytesT, StringT):
+                    t = t.from_literal(node)
+
+                # any more validation which needs to occur
                 t.validate_literal(node)
                 types_list.append(t)
             except VyperException:

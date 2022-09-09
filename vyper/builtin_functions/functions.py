@@ -2180,8 +2180,8 @@ else:
 class ISqrt(BuiltinFunction):
 
     _id = "isqrt"
-    _inputs = [("d", Uint256Definition())]
-    _return_type = Uint256Definition()
+    _inputs = [("d", UINT256_T)]
+    _return_type = UINT256_T
 
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):

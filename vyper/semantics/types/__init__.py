@@ -12,6 +12,10 @@ def get_primitive_types():
     res.extend(IntegerT.all())
     res.extend(BytesM_T.all())
 
+    # note: since bytestrings are parametrizable, the *class* objects
+    # are in the namespace instead of concrete type objects.
+    res.extend([BytesT, StringT])
+
     ret = {t._id: t for t in res}
     ret.update(_get_sequence_types())
 
@@ -19,7 +23,10 @@ def get_primitive_types():
 
 
 def _get_sequence_types():
-    res = [HashMapT, DArrayT, BytesT, StringT]
+    # since these guys are parametrizable, the *class* objects
+    # are in the namespace instead of concrete type objects.
+
+    res = [HashMapT, DArrayT]
 
     ret = {t._id: t for t in res}
 

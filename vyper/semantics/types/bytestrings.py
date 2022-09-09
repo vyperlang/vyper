@@ -42,6 +42,14 @@ class _BytestringT(VyperType):
             return self._length
         return self._min_length
 
+    def validate_literal(self, node: vy_ast.Constant):
+        super().validate_literal(node)
+
+        if len(node.value) != self.length:
+            # should always be constructed with correct length
+            # at the point that validate_literal is calle.d
+            raise CompilerPanic("unreachable")
+
     @property
     def size_in_bytes(self):
         # the first slot (32 bytes) stores the actual length, and then we reserve
@@ -115,11 +123,9 @@ class _BytestringT(VyperType):
 
     @classmethod
     def from_literal(cls, node: vy_ast.Constant) -> "_BytestringT":
-        super().from_literal(node)
-        length = len(node.value)
-
-        obj = cls(length)
-        return obj
+        t = cls()
+        t.set_min_length(len(node.value))
+        return t
 
 
 class BytesT(_BytestringT):
