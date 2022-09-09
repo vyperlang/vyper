@@ -19,7 +19,7 @@ from vyper.exceptions import (
     VyperException,
 )
 from vyper.semantics.namespace import get_namespace
-from vyper.semantics.types import EnumT, EventT, InterfaceT
+from vyper.semantics.types import EnumT, EventT, InterfaceT, StructT
 from vyper.semantics.analysis.base import DataLocation, VarInfo
 from vyper.semantics.types.function import ContractFunction
 from vyper.semantics.types.utils import type_from_annotation
@@ -65,10 +65,6 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
         self.interface_codes = interface_codes or {}
         self.namespace = namespace
 
-        # generate an `InterfacePrimitive` from the top-level node - used for building the ABI
-        interface = InterfaceT.from_ast(module_node)
-        module_node._metadata["type"] = interface
-        self.interface = interface  # this is useful downstream
 
         module_nodes = module_node.body.copy()
         while module_nodes:
@@ -89,6 +85,11 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
             # level logic to parse regardless of the ordering of code elements.
             if count == len(module_nodes):
                 err_list.raise_if_not_empty()
+
+        # generate an `InterfacePrimitive` from the top-level node - used for building the ABI
+        interface = InterfaceT.from_ast(module_node)
+        module_node._metadata["type"] = interface
+        self.interface = interface  # this is useful downstream
 
         # check for collisions between 4byte function selectors
         # internal functions are intentionally included in this check, to prevent breaking
@@ -280,9 +281,9 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
             raise exc.with_annotation(node) from None
 
     def visit_StructDef(self, node):
-        obj = StructT.from_ast_def(node)
+        struct_t = StructT.from_ast_def(node)
         try:
-            self.namespace[node.name] = obj
+            self.namespace[node.name] = struct_t
         except VyperException as exc:
             raise exc.with_annotation(node) from None
 

@@ -438,7 +438,7 @@ class StructT(VyperType):
         """
 
         struct_name = base_node.name
-        members: List[Tuple(str, VyperType)] = {}
+        members: Dict[Tuple(str, VyperType)] = {}
         for node in base_node.body:
             if not isinstance(node, vy_ast.AnnAssign):
                 raise StructureException(
@@ -449,7 +449,14 @@ class StructT(VyperType):
             if not isinstance(node.target, vy_ast.Name):
                 raise StructureException("Invalid syntax for struct member name", node.target)
             member_name = node.target.id
-            members.append(member_name, type_from_annotation(node.annotation))
+
+            if member_name in members:
+                raise NamespaceCollision(
+                    f"struct member '{member_name}' has already been declared", node.value
+                )
+
+
+            members[member_name] = type_from_annotation(node.annotation)
 
         return cls(struct_name, members, ast_def=base_node)
 
