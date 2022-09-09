@@ -1289,26 +1289,17 @@ class VariableDecl(VyperNode):
 
         # the annotation is a "function" call, e.g.
         # `foo: public(constant(uint256))`
-        # unwrap the layers until we just have a type.
+        # pretend we are parsing. annotation should be
+        # TYPE | PUBLIC "(" TYPE | ((IMMUTABLE | CONSTANT) "(" TYPE ")") ")"
         if self.annotation.get("func.id") == "public":
             _check_args(self.annotation, "public")
             self.is_public = True
             # unwrap one layer
             self.annotation = self.annotation.args[0]
 
-        if self.annotation.get("func.id") == "immutable":
-            _check_args(self.annotation, "immutable")
-            self.is_immutable = True
-            # unwrap one layer
-            self.annotation = self.annotation.args[0]
-
-        if self.annotation.get("func.id") == "constant":
-            _check_args(self.annotation, "constnat")
-            if self.is_immutable:
-                _raise_syntax_exc(
-                    "immutable and constant cannot be used simultaneously", self.annotation
-                )
-            self.is_constant = True
+        if self.annotation.get("func.id") in ("immutable", "constant"):
+            _check_args(self.annotation, self.annotation.func.id)
+            setattr(self, f"is_{self.annotation.func.id}", True)
             # unwrap one layer
             self.annotation = self.annotation.args[0]
 

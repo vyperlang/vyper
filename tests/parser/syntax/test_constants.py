@@ -110,7 +110,7 @@ c1: constant(uint256) = self.foo()
         StateAccessViolation,
     ),
     (
-    # constant(public()) banned
+        # constant(public()) banned
         """
 S: constant(public(uint256)) = 3
     """,
