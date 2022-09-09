@@ -15,7 +15,7 @@ interface ERC721Receiver:
             _from: address,
             _tokenId: uint256,
             _data: Bytes[1024]
-        ) -> bytes4: view
+        ) -> bytes4: nonpayable
 
 
 # @dev Emits when ownership of any NFT changes by any mechanism. This event emits when NFTs are

@@ -2111,6 +2111,7 @@ class Sqrt(BuiltinFunction):
         from vyper.builtin_functions.utils import generate_inline_function
 
         arg = args[0]
+        # TODO: reify decimal and integer sqrt paths (see isqrt)
         sqrt_code = """
 assert x >= 0.0
 z: decimal = 0.0
@@ -2153,6 +2154,57 @@ else:
             typ=BaseType("decimal"),
             location=MEMORY,
         )
+
+
+class ISqrt(BuiltinFunction):
+
+    _id = "isqrt"
+    _inputs = [("d", Uint256Definition())]
+    _return_type = Uint256Definition()
+
+    @process_inputs
+    def build_IR(self, expr, args, kwargs, context):
+        # calculate isqrt using the babylonian method
+
+        y, z = "y", "z"
+        arg = args[0]
+        with arg.cache_when_complex("x") as (b1, x):
+            ret = [
+                "seq",
+                [
+                    "if",
+                    ["ge", y, 2 ** (128 + 8)],
+                    ["seq", ["set", y, shr(128, y)], ["set", z, shl(64, z)]],
+                ],
+                [
+                    "if",
+                    ["ge", y, 2 ** (64 + 8)],
+                    ["seq", ["set", y, shr(64, y)], ["set", z, shl(32, z)]],
+                ],
+                [
+                    "if",
+                    ["ge", y, 2 ** (32 + 8)],
+                    ["seq", ["set", y, shr(32, y)], ["set", z, shl(16, z)]],
+                ],
+                [
+                    "if",
+                    ["ge", y, 2 ** (16 + 8)],
+                    ["seq", ["set", y, shr(16, y)], ["set", z, shl(8, z)]],
+                ],
+            ]
+            ret.append(["set", z, ["div", ["mul", z, ["add", y, 2 ** 16]], 2 ** 18]])
+
+            for _ in range(7):
+                ret.append(["set", z, ["div", ["add", ["div", x, z], z], 2]])
+
+            # note: If ``x+1`` is a perfect square, then the Babylonian
+            # algorithm oscillates between floor(sqrt(x)) and ceil(sqrt(x)) in
+            # consecutive iterations. return the floor value always.
+
+            ret.append(["with", "t", ["div", x, z], ["select", ["lt", z, "t"], z, "t"]])
+
+            ret = ["with", y, x, ["with", z, 181, ret]]
+            return b1.resolve(IRnode.from_list(ret, typ=BaseType("uint256")))
 
 
 class Empty(BuiltinFunction):
@@ -2579,6 +2631,7 @@ DISPATCH_TABLE = {
     "unsafe_div": UnsafeDiv(),
     "pow_mod256": PowMod256(),
     "uint2str": Uint2Str(),
+    "isqrt": ISqrt(),
     "sqrt": Sqrt(),
     "shift": Shift(),
     "create_minimal_proxy_to": CreateMinimalProxyTo(),

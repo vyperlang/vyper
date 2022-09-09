@@ -68,7 +68,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: [["3.7", "37"], ["3.8", "38"], ["3.9", "39"], ["3.10", "310"]]
+        python-version: [["3.8", "38"], ["3.9", "39"], ["3.10", "310"]]
         # run in default (optimized) and --no-optimize mode
         flag: ["core", "no-opt"]
 

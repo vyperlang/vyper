@@ -664,6 +664,22 @@ Math
         >>> ExampleContract.foo(9.0)
         3.0
 
+.. py:function:: isqrt(x: uint256) -> uint256
+
+    Return the (integer) square root of the provided integer number, using the Babylonian square root algorithm. The rounding mode is to round down to the nearest integer. For instance, ``isqrt(101) == 10``.    
+
+    .. code-block:: python
+
+        @external
+        @view
+        def foo(x: uint256) -> uint256:
+            return isqrt(x)
+
+    .. code-block:: python
+
+        >>> ExampleContract.foo(101)
+        10
+
 .. py:function:: uint256_addmod(a: uint256, b: uint256, c: uint256) -> uint256
 
     Return the modulo of ``(a + b) % c``. Reverts if ``c == 0``.
