@@ -4,7 +4,6 @@ from typing import Optional, Union
 
 import vyper.builtin_interfaces
 from vyper import ast as vy_ast
-from vyper.ast.validation import validate_call_args
 from vyper.exceptions import (
     CallViolation,
     CompilerPanic,
@@ -161,18 +160,12 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
         if name is None:
             raise VariableDeclarationException("Invalid module-level assignment", node)
 
-        annotation = node.annotation
-        # remove the outer call node, to handle cases such as `public(map(..))`
-        if node.is_public or node.is_immutable or node.is_constant:
-            validate_call_args(annotation, 1)
-            annotation = annotation.args[0]
-
         if node.is_public:
             # generate function type and add to metadata
-            # we need this when builing the public getter
+            # we need this when building the public getter
             node._metadata["func_type"] = ContractFunction.getter_from_VariableDecl(node)
 
-        elif node.is_immutable:
+        if node.is_immutable:
             # mutability is checked automatically preventing assignment
             # outside of the constructor, here we just check a value is assigned,
             # not necessarily where
@@ -192,7 +185,8 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
                 raise SyntaxException(message, node.node_source_code, node.lineno, node.col_offset)
 
         data_loc = DataLocation.CODE if node.is_immutable else DataLocation.STORAGE
-        type_ = type_from_annotation(annotation)
+
+        type_ = type_from_annotation(node.annotation)
         var_info = VarInfo(type_, decl_node = node, location = data_loc, is_constant = node.is_constant, is_public = node.is_public, is_immutable = node.is_immutable)
         node.target._metadata["varinfo"] = var_info  # TODO maybe put this in the global namespace
         node._metadata["type"] = type_

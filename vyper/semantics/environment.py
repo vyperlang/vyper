@@ -5,12 +5,12 @@ from vyper.semantics.types.base import VyperType
 from vyper.semantics.analysis.base import VarInfo
 from vyper.semantics.types.primitives import BYTES32_T, UINT256_T
 
-
 class _Block(VyperType):
     _id = "block"
     _type_members = {
         "coinbase": AddressT(),
         "difficulty": UINT256_T,
+        "prevrandao": UINT256_T,
         "number": UINT256_T,
         "gaslimit": UINT256_T,
         "basefee": UINT256_T,

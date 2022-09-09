@@ -68,7 +68,7 @@ def type_from_annotation(node: vy_ast.VyperNode) -> VyperType:
     Arguments
     ---------
     node : VyperNode
-        Vyper ast node from the `annotation` member of a `VariableDef` or `AnnAssign` node.
+        Vyper ast node from the `annotation` member of a `VariableDecl` or `AnnAssign` node.
 
     Returns
     -------

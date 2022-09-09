@@ -344,9 +344,9 @@ class ContractFunction(VyperType):
         -------
         ContractFunction
         """
-        if not isinstance(node.annotation, vy_ast.Call):
-            raise CompilerPanic("Annotation must be a call to public()")
-        type_ = type_from_annotation(node.annotation.args[0])
+        if not node.is_public:
+            raise CompilerPanic("getter generated for non-public function")
+        type_ = type_from_annotation(node.annotation)
         arguments, return_type = type_.getter_signature
         args_dict: OrderedDict = OrderedDict()
         for item in arguments:

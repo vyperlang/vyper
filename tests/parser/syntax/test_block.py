@@ -138,6 +138,13 @@ def foo():
     """,
     """
 @external
+def foo():
+    x: uint256 = block.prevrandao + 185
+    if tx.origin == self:
+        y: Bytes[35] = concat(block.prevhash, b"dog")
+    """,
+    """
+@external
 def foo() -> uint256:
     return tx.gasprice
     """,

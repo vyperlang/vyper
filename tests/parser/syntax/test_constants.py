@@ -8,6 +8,7 @@ from vyper.exceptions import (
     NamespaceCollision,
     StateAccessViolation,
     StructureException,
+    SyntaxException,
     VariableDeclarationException,
 )
 
@@ -107,6 +108,13 @@ def foo() -> uint256:
 c1: constant(uint256) = self.foo()
      """,
         StateAccessViolation,
+    ),
+    (
+        # constant(public()) banned
+        """
+S: constant(public(uint256)) = 3
+    """,
+        SyntaxException,
     ),
 ]
 

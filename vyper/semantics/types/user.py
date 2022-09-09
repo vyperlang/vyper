@@ -379,7 +379,7 @@ def _get_module_definitions(base_node: vy_ast.Module) -> Tuple[Dict, Dict]:
                     # only keep the `ContractFunction` with the longest set of input args
                     continue
             functions[node.name] = func
-    for node in base_node.get_children(vy_ast.VariableDecl, {"annotation.func.id": "public"}):
+    for node in base_node.get_children(vy_ast.VariableDecl, {"is_public": True}):
         name = node.target.id
         if name in functions:
             raise NamespaceCollision(
