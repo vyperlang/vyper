@@ -7,6 +7,7 @@ from typing import Any, Optional, Union
 
 from vyper.compiler.settings import VYPER_ERROR_CONTEXT_LINES, VYPER_ERROR_LINE_NUMBERS
 from vyper.exceptions import (
+    ArgumentException,
     CompilerPanic,
     InvalidLiteral,
     InvalidOperation,
@@ -1282,23 +1283,30 @@ class VariableDecl(VyperNode):
         self.is_public = False
         self.is_immutable = False
 
+        def _check_args(annotation, call_name):
+            # do the same thing as `validate_call_args`
+            # (can't be imported due to cyclic dependency)
+            if len(annotation.args) != 1:
+                raise ArgumentException("Invalid number of arguments to `{call_name}`:", self)
+
+        # the annotation is a "function" call, e.g.
+        # `foo: public(constant(uint256))`
+        # pretend we were parsing actual Vyper AST. annotation would be
+        # TYPE | PUBLIC "(" TYPE | ((IMMUTABLE | CONSTANT) "(" TYPE ")") ")"
+        if self.annotation.get("func.id") == "public":
+            _check_args(self.annotation, "public")
+            self.is_public = True
+            # unwrap one layer
+            self.annotation = self.annotation.args[0]
+
+        if self.annotation.get("func.id") in ("immutable", "constant"):
+            _check_args(self.annotation, self.annotation.func.id)
+            setattr(self, f"is_{self.annotation.func.id}", True)
+            # unwrap one layer
+            self.annotation = self.annotation.args[0]
+
         if isinstance(self.annotation, Call):
-            # the annotation is a function call, e.g. `foo: constant(uint256)`
-            call_name = self.annotation.get("func.id")
-            if call_name == "constant":
-                # declaring a constant
-                self.is_constant = True
-
-            elif call_name == "public":
-                # declaring a public variable
-                self.is_public = True
-
-            elif call_name == "immutable":
-                # declaring an immutable variable
-                self.is_immutable = True
-
-            else:
-                _raise_syntax_exc("Invalid scope for variable declaration", self.annotation)
+            _raise_syntax_exc("Invalid scope for variable declaration", self.annotation)
 
 
 class AugAssign(VyperNode):
