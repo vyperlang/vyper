@@ -692,9 +692,11 @@ class arg(VyperNode):
 class Stmt(VyperNode):
     pass
 
+
 class Return(Stmt):
     __slots__ = ("value",)
     _is_terminus = True
+
 
 class Expr(Stmt):
     __slots__ = ("value",)
@@ -719,11 +721,13 @@ class InterfaceDef(TopLevel):
 class StructDef(TopLevel):
     __slots__ = ("name", "body")
 
+
 # base class for expression nodes
 # note that it is named ExprNode to avoid a conflict with
 # the Expr type (which is a type of statement node, see python AST docs).
 class ExprNode(VyperNode):
     __slots__ = ("_expr_info",)
+
 
 class Constant(ExprNode):
     # inherited class for all simple constant node types
@@ -888,7 +892,6 @@ class Name(ExprNode):
     __slots__ = ("id",)
 
 
-
 class UnaryOp(ExprNode):
     __slots__ = ("op", "operand")
 
@@ -912,8 +915,10 @@ class UnaryOp(ExprNode):
         _validate_numeric_bounds(self, value)
         return type(self.operand).from_node(self, value=value)
 
+
 class Operator(VyperNode):
     pass
+
 
 class USub(Operator):
     __slots__ = ()

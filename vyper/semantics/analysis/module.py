@@ -65,7 +65,6 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
         self.interface_codes = interface_codes or {}
         self.namespace = namespace
 
-
         module_nodes = module_node.body.copy()
         while module_nodes:
             count = len(module_nodes)
@@ -151,7 +150,7 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
         if name == "implements":
             interface_name = node.annotation.id
             self_iface = self.interface
-            other_iface = self.namespace[interface_name]  #TODO should be VarInfo not VyperType
+            other_iface = self.namespace[interface_name]  # TODO should be VarInfo not VyperType
             self_iface.validate_implements(other_iface, node)
         else:
             raise UnexpectedNodeType("AnnAssign not allowed at module level", node)
@@ -188,7 +187,14 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
         data_loc = DataLocation.CODE if node.is_immutable else DataLocation.STORAGE
 
         type_ = type_from_annotation(node.annotation)
-        var_info = VarInfo(type_, decl_node = node, location = data_loc, is_constant = node.is_constant, is_public = node.is_public, is_immutable = node.is_immutable)
+        var_info = VarInfo(
+            type_,
+            decl_node=node,
+            location=data_loc,
+            is_constant=node.is_constant,
+            is_public=node.is_public,
+            is_immutable=node.is_immutable,
+        )
         node.target._metadata["varinfo"] = var_info  # TODO maybe put this in the global namespace
         node._metadata["type"] = type_
 

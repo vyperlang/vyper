@@ -74,15 +74,15 @@ class FunctionVisibility(_StringEnum):
     # TODO: these can just be enum.auto() right?
     EXTERNAL = _StringEnum.auto()
     INTERNAL = _StringEnum.auto()
- 
- 
+
+
 class StateMutability(_StringEnum):
     # TODO: these can just be enum.auto() right?
     PURE = _StringEnum.auto()
     VIEW = _StringEnum.auto()
     NONPAYABLE = _StringEnum.auto()
     PAYABLE = _StringEnum.auto()
- 
+
     @classmethod
     def from_abi(cls, abi_dict: Dict) -> "StateMutability":
         """
@@ -99,7 +99,7 @@ class StateMutability(_StringEnum):
         # NOTE: The state mutability nonpayable is reflected in Solidity by not
         #       specifying a state mutability modifier at all. Do the same here.
 
-                                    
+
 # TODO: move me to locations.py?
 class DataLocation(enum.Enum):
     UNSET = 0
@@ -301,7 +301,8 @@ class ExprInfo:
     Class which represents the analysis associated with an expression
     """
 
-    def __init__(self,
+    def __init__(
+        self,
         typ: VyperType,
         var_info: Optional[VarInfo] = None,
         location: DataLocation = DataLocation.UNSET,
@@ -320,10 +321,15 @@ class ExprInfo:
                 if getattr(var_info, attr) != getattr(self, attr):
                     raise CompilerPanic("Bad analysis: non-matching {attr}: {self}")
 
-
     @classmethod
     def from_varinfo(cls, var_info: VarInfo):
-        return cls(var_info.typ, var_info = var_info, location = var_info.location, is_constant = var_info.is_constant, is_immutable = var_info.is_immutable)
+        return cls(
+            var_info.typ,
+            var_info=var_info,
+            location=var_info.location,
+            is_constant=var_info.is_constant,
+            is_immutable=var_info.is_immutable,
+        )
 
     def copy_with_type(self, typ: VyperType):
         """

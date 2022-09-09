@@ -38,6 +38,7 @@ class _SubscriptableT(VyperType):
     def validate_index_type(self, node):
         # TODO: break this cycle
         from vyper.semantics.analysis.utils import validate_expected_type
+
         validate_expected_type(node, self.key_type)
 
 
@@ -242,7 +243,7 @@ class DArrayT(_SequenceT):
                 node,
             )
 
-        value_type = type_from_annotation( node.slice.value.elements[0])
+        value_type = type_from_annotation(node.slice.value.elements[0])
 
         max_length = node.slice.value.elements[1].value
         return DArrayT(value_type, max_length)

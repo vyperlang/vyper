@@ -366,17 +366,17 @@ class ContractFunction(VyperType):
     def compare_signature(self, other: "ContractFunction") -> bool:
         """
         Compare the signature of this function with another function.
-         
+
         Used when determining if an interface has been implemented. This method
         should not be directly implemented by any inherited classes.
         """
-         
+
         if not self.is_external:
             return False
-         
+
         arguments, return_type = self.get_signature()
         other_arguments, other_return_type = other.get_signature()
-         
+
         if len(arguments) != len(other_arguments):
             return False
         for a, b in zip(arguments, other_arguments):
@@ -384,7 +384,7 @@ class ContractFunction(VyperType):
                 return False
         if return_type and not return_type.compare_type(other_return_type):  # type: ignore
             return False
-         
+
         return True
 
     @property

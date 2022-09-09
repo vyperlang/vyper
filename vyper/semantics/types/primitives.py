@@ -14,6 +14,7 @@ from .bytestrings import BytesT
 class _PrimT(VyperType):
     _is_prim_word = True
 
+
 class BoolT(_PrimT):
     _id = "bool"
     _as_array = True
@@ -74,12 +75,12 @@ class BytesM_T(_PrimT):
         if nibbles not in (nibbles.lower(), nibbles.upper()):
             raise InvalidLiteral(f"Cannot mix uppercase and lowercase for {self} literal", node)
 
-
     def compare_type(self, other: VyperType):
         if not super().compare_type(other):
             return False
 
         return self.m == other.m
+
 
 class _NumericT(_PrimT):
     _as_array = True
@@ -92,7 +93,6 @@ class _NumericT(_PrimT):
             raise OverflowException(f"Value is below lower bound for given type ({lower})", node)
         if node.value > upper:
             raise OverflowException(f"Value exceeds upper bound for given type ({upper})", node)
-
 
 
 class IntegerT(_NumericT):
@@ -139,7 +139,6 @@ class IntegerT(_NumericT):
     @classmethod
     def all(cls) -> List["IntegerT"]:
         return cls.signeds() + cls.unsigneds()
-
 
     # backwards compatible api, TODO: remove me
     @property

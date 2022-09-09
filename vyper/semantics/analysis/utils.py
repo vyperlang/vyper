@@ -77,8 +77,8 @@ class _ExprAnalyser:
 
             if node.get("value.id") == "self" and name in self.namespace:
 
-            #if isinstance(t, InterfaceT):
-            #    # once we have modules: t.namespace[name]
+                # if isinstance(t, InterfaceT):
+                #    # once we have modules: t.namespace[name]
                 var_info = self.namespace[name]
                 return ExprInfo.from_varinfo(varinfo)
 

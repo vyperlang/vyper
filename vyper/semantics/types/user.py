@@ -272,12 +272,20 @@ class InterfaceT(VyperType):
                 # ex. address
                 continue
 
-            if name not in self.members or not isinstance(self.members[name], ContractFunction) or not self.members[name].compare_signature(type_):
+            if (
+                name not in self.members
+                or not isinstance(self.members[name], ContractFunction)
+                or not self.members[name].compare_signature(type_)
+            ):
                 unimplemented.append(name)
 
         # check for missing events
         for name, event in should_implement.events.items():
-            if name not in namespace or not isinstance(namespace[name], EventT) or namespace[name].event_id != event.event_id:
+            if (
+                name not in namespace
+                or not isinstance(namespace[name], EventT)
+                or namespace[name].event_id != event.event_id
+            ):
                 unimplemented.append(name)
 
         if len(unimplemented) > 0:
@@ -454,7 +462,6 @@ class StructT(VyperType):
                 raise NamespaceCollision(
                     f"struct member '{member_name}' has already been declared", node.value
                 )
-
 
             members[member_name] = type_from_annotation(node.annotation)
 

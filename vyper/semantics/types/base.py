@@ -109,22 +109,22 @@ class VyperType:
         return {"name": name, "type": self.canonical_abi_type}
 
     def validate_comparator(self, node: vy_ast.Compare) -> None:
-        """                                                   
-        Validate a comparator for this type.                  
- 
-        Arguments                                             
-        ---------                                             
-        node : Compare                                        
-            Vyper ast node of the comparator to be validated. 
- 
-        Returns                                               
-        -------                                               
-        None. A failed validation must raise an exception.    
-        """                                                   
+        """
+        Validate a comparator for this type.
+
+        Arguments
+        ---------
+        node : Compare
+            Vyper ast node of the comparator to be validated.
+
+        Returns
+        -------
+        None. A failed validation must raise an exception.
+        """
         if not isinstance(node.op, (vy_ast.Eq, vy_ast.NotEq)):
-            raise InvalidOperation(                           
+            raise InvalidOperation(
                 f"Cannot perform {node.op.description} comparison on {self}", node
-            )              
+            )
 
     @classmethod
     def validate_literal(cls, node: vy_ast.Constant):

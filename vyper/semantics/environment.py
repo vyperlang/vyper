@@ -5,6 +5,7 @@ from vyper.semantics.types.base import VyperType
 from vyper.semantics.analysis.base import VarInfo
 from vyper.semantics.types.primitives import BYTES32_T, UINT256_T
 
+
 class _Block(VyperType):
     _id = "block"
     _type_members = {
