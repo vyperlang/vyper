@@ -258,16 +258,15 @@ class _ExprAnalyser:
         raise InvalidLiteral(f"Could not determine type for literal value '{node.value}'", node)
 
     def types_from_List(self, node):
-        # literal array
 
-        if not node.elements:
+        # literal array
+        if _is_empty_list(node):
             # empty list literal `[]`
             # subtype can be anything
             types_list = types.get_types()
             # 1 is minimum possible length for dynarray, assignable to anything
-            ret = [DArrayT(t, 1) for t in types_list]
+            ret = [DArrayT(t, 1) for t in types_list.values()]
             return ret
-
         types_list = get_common_types(*node.elements)
 
         if len(types_list) > 0:
@@ -276,7 +275,6 @@ class _ExprAnalyser:
             ret.extend([SArrayT(t, count) for t in types_list])
             ret.extend([DArrayT(t, count) for t in types_list])
             return ret
-
         raise InvalidLiteral("Array contains multiple, incompatible types", node)
 
     def types_from_Name(self, node):
@@ -318,6 +316,18 @@ class _ExprAnalyser:
         # unary operation: `-foo`
         types_list = self.get_possible_types_from_node(node.operand)
         return _validate_op(node, types_list, "validate_numeric_op")
+
+
+def _is_empty_list(node):
+    # Checks if a node is a `List` node with an empty list for `elements`,
+    # including any nested `List` nodes. ex. `[]` or `[[]]` will return True,
+    # [1] will return False.
+    if not isinstance(node, vy_ast.List):
+        return False
+
+    if not node.elements:
+        return True
+    return all(_is_empty_list(t) for t in node.elements)
 
 
 def _is_type_in_list(obj, types_list):
