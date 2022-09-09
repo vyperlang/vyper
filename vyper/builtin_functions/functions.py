@@ -110,17 +110,30 @@ SHA256_PER_WORD_GAS = 12
 class FoldedFunction(BuiltinFunction):
     # Base class for nodes which should always be folded
 
-    def fetch_call_return(self, node):  # pragma: no cover
-        raise CompilerPanic(f"{self._id} should always be folded")
+    # Since foldable builtin functions are not folded before semantics validation,
+    # this flag is used for `check_kwargable` in semantics validation.
+    _kwargable = True
 
-    def infer_arg_types(self, node):  # pragma: no cover
-        raise CompilerPanic(f"{self._id} should always be folded")
 
-    def infer_kwarg_types(self, node):  # pragma: no cover
-        raise CompilerPanic(f"{self._id} should always be folded")
+class TypenameFoldedFunction(FoldedFunction):
+    # Base class for builtin functions that:
+    # (1) take a typename as the only argument; and
+    # (2) should always be folded.
 
-    def build_IR(self, *args, **kwargs):  # pragma: no cover
-        raise CompilerPanic(f"{self._id} should always be folded")
+    # "TYPE_DEFINITION" is a placeholder value for a type definition string, and
+    # will be replaced by a `TypeTypeDefinition` object in `infer_arg_types`.
+    _inputs = [("typename", "TYPE_DEFINITION")]
+
+    def fetch_call_return(self, node):
+        type_ = self.infer_arg_types(node)[0].typedef
+        return type_
+
+    def infer_arg_types(self, node):
+        validate_call_args(node, 1)
+        input_typedef = TypeTypeDefinition(
+            get_type_from_annotation(node.args[0], DataLocation.MEMORY)
+        )
+        return [input_typedef]
 
 
 class Floor(BuiltinFunction):
@@ -713,24 +726,32 @@ class MethodID(FoldedFunction):
         if " " in args[0].value:
             raise InvalidLiteral("Invalid function signature - no spaces allowed.")
 
-        if node.keywords:
-            return_type = type_from_annotation(node.keywords[0].value)
-            if return_type.compare_type(BYTES4_T):
-                is_bytes4 = True
-            elif isinstance(return_type, BytesT) and return_type.length == 4:
-                is_bytes4 = False
-            else:
-                raise ArgumentException("output_type must be Bytes[4] or bytes4", node.keywords[0])
-        else:
-            # If `output_type` is not given, default to `Bytes[4]`
-            is_bytes4 = False
-
+        return_type = self.infer_kwarg_types(node)
         value = abi_method_id(args[0].value)
 
-        if is_bytes4:
+        if isinstance(return_type, Bytes4Definition):
             return vy_ast.Hex.from_node(node, value=hex(value))
         else:
             return vy_ast.Bytes.from_node(node, value=value.to_bytes(4, "big"))
+
+    def fetch_call_return(self, node):
+        validate_call_args(node, 1, ["output_type"])
+
+        type_ = self.infer_kwarg_types(node)
+        return type_
+
+    def infer_kwarg_types(self, node):
+        if node.keywords:
+            return_type = get_type_from_annotation(node.keywords[0].value, DataLocation.UNSET)
+            if return_type.compare_type(BYTES4_T):
+                return BYTES4_T
+            elif isinstance(return_type, BytesT) and return_type.length == 4:
+                return BytesT(4)
+            else:
+                raise ArgumentException("output_type must be Bytes[4] or bytes4", node.keywords[0])
+
+        # If `output_type` is not given, default to `Bytes[4]`
+        return BytesT(4)
 
 
 class ECRecover(BuiltinFunction):
@@ -851,7 +872,7 @@ class Extract32(BuiltinFunction):
     _inputs = [("b", BytesT()), ("start", IntegerT.signeds())]
     # "TYPE_DEFINITION" is a placeholder value for a type definition string, and
     # will be replaced by a `TYPE_T` object in `infer_kwarg_types`
-    # (note that it is ignored in validate_args)
+    # (note that it is ignored in _validate_arg_types)
     _kwargs = {"output_type": KwargSettings("TYPE_DEFINITION", "bytes32")}
     _return_type = None
 
@@ -2207,26 +2228,9 @@ class ISqrt(BuiltinFunction):
             return b1.resolve(IRnode.from_list(ret, typ=BaseType("uint256")))
 
 
-class Empty(BuiltinFunction):
+class Empty(TypenameFoldedFunction):
 
     _id = "empty"
-    # "TYPE_DEFINITION" is a placeholder value for a type definition string, and
-    # will be replaced by a `TYPE_T` object in `infer_arg_types`
-    # (note that it is ignored in `validate_args`)
-    _inputs = [("typename", "TYPE_DEFINITION")]
-
-    # Since `empty` is not folded before semantics validation, this flag is used
-    # for `check_kwargable` in semantics validation.
-    _kwargable = True
-
-    def fetch_call_return(self, node):
-        type_ = self.infer_arg_types(node)[0].typedef
-        return type_
-
-    def infer_arg_types(self, node):
-        validate_call_args(node, 1)
-        input_typedef = TYPE_T(type_from_annotation(node.args[0]))
-        return [input_typedef]
 
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
@@ -2536,9 +2540,7 @@ class ABIDecode(BuiltinFunction):
             )
 
 
-class _MinMaxValue(FoldedFunction):
-    _inputs = [("typename", "TYPE_DEFINITION")]
-
+class _MinMaxValue(TypenameFoldedFunction):
     def evaluate(self, node):
         self._validate_arg_types(node)
         input_type = get_type_from_annotation(node.args[0], DataLocation.UNSET)
@@ -2579,9 +2581,7 @@ class MaxValue(_MinMaxValue):
         return typinfo.decimal_bounds[1]
 
 
-class Epsilon(FoldedFunction):
-
-    _inputs = [("typename", "TYPE_DEFINITION")]
+class Epsilon(TypenameFoldedFunction):
     _id = "epsilon"
 
     def evaluate(self, node):
