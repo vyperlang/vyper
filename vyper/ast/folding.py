@@ -1,5 +1,5 @@
 import warnings
-from typing import Optional, Union
+from typing import Union
 
 from vyper.ast import nodes as vy_ast
 from vyper.builtin_functions import DISPATCH_TABLE
@@ -179,15 +179,14 @@ def replace_user_defined_constants(vyper_module: vy_ast.Module) -> int:
             continue
 
         # Extract type definition from propagated annotation
+        type_ = None
         try:
-            type_: Optional[BaseTypeDefinition] = get_type_from_annotation(
-                node.annotation, DataLocation.UNSET
-            )
+            type_ = get_type_from_annotation(node.annotation, DataLocation.UNSET)
         except UnknownType:
             # handle user-defined types e.g. structs - it's OK to not
             # propagate the type annotation here because user-defined
             # types can be unambiguously inferred at typechecking time
-            type_ = None
+            pass
 
         changed_nodes += replace_constant(
             vyper_module, node.target.id, node.value, False, type_=type_
