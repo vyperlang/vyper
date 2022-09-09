@@ -142,8 +142,8 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
 
         if isinstance(call_type, (EventT, ContractFunction)):
             # events and function calls
-            for arg, arg_type in zip(node.args, list(call_type.arguments.values())):
-                self.visit(arg, arg_type)
+            for arg, arg_info in zip(node.args, list(call_type.arguments.values())):
+                self.visit(arg, arg_info.typ)
             for kwarg in node.keywords:
                 # We should only see special kwargs
                 self.visit(kwarg.value, call_type.call_site_kwargs[kwarg.arg].typ)
