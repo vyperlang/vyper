@@ -157,21 +157,14 @@ class GlobalContext:
         # to preserve existing interfaces while we complete a larger refactor. location
         # and size of storage vars is handled in `vyper.context.validation.data_positions`
         typ = self.parse_type(item.annotation)
-        if item.is_public:
-            self._globals[item.target.id] = VariableRecord(
-                item.target.id, len(self._globals), typ, True
-            )
-        elif item.is_immutable:
-            self._globals[item.target.id] = VariableRecord(
-                item.target.id, len(self._globals), typ, False, is_immutable=True
-            )
-
-        elif isinstance(item.annotation, (vy_ast.Name, vy_ast.Subscript)):
-            self._globals[item.target.id] = VariableRecord(
-                item.target.id, len(self._globals), typ, True
-            )
-        else:
-            raise InvalidType("Invalid global type specified", item)
+        is_immutable = item.is_immutable
+        self._globals[item.target.id] = VariableRecord(
+            item.target.id,
+            len(self._globals),
+            typ,
+            mutable=not is_immutable,
+            is_immutable=is_immutable,
+        )
 
     @property
     def interface_names(self):

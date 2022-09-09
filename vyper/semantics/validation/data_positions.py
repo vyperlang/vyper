@@ -179,7 +179,7 @@ def set_storage_slots(vyper_module: vy_ast.Module) -> StorageLayout:
 
     for node in vyper_module.get_children(vy_ast.VariableDecl):
 
-        # handle the case where immutable variable has been declared public
+        # skip non-storage variables
         if node.is_constant or node.is_immutable:
             continue
 

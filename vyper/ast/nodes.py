@@ -1289,7 +1289,7 @@ class VariableDecl(VyperNode):
 
         # the annotation is a "function" call, e.g.
         # `foo: public(constant(uint256))`
-        # pretend we are parsing. annotation should be
+        # pretend we were parsing actual Vyper AST. annotation would be
         # TYPE | PUBLIC "(" TYPE | ((IMMUTABLE | CONSTANT) "(" TYPE ")") ")"
         if self.annotation.get("func.id") == "public":
             _check_args(self.annotation, "public")
