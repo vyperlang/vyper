@@ -559,10 +559,12 @@ def validate_unique_method_ids(functions: List) -> None:
         A list of ContractFunction objects.
     """
     method_ids = [x for i in functions for x in i.method_ids.values()]
-    collision = next((i for i in method_ids if method_ids.count(i) > 1), None)
-    if collision:
-        collision_str = ", ".join(i.name for i in functions if collision in i.method_ids)
-        raise StructureException(f"Methods have conflicting IDs: {collision_str}")
+    seen = set()
+    for method_id in method_ids:
+        if method_id in seen:
+            collision_str = ", ".join(i.name for i in functions if method_id in i.method_ids)
+            raise StructureException(f"Methods have conflicting IDs: {collision_str}")
+        seen.add(method_id)
 
 
 def check_kwargable(node: vy_ast.VyperNode) -> bool:
