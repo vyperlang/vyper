@@ -29,21 +29,23 @@ from vyper.utils import checksum_encode
 
 def _validate_op(node, types_list, validation_fn_name):
     if not types_list:
+        # TODO raise a better error here: say which types.
         raise TypeMismatch(f"Cannot perform {node.op.description} between dislike types", node)
 
-    if len(types_list) == 1:
-        getattr(types_list[0], validation_fn_name)(node)
-        return types_list
-
-    for type_ in types_list.copy():
+    ret = []
+    err_list = []
+    for type_ in types_list:
+        _validate_fn = getattr(type_, validation_fn_name)
         try:
-            getattr(type_, validation_fn_name)(node)
-        except InvalidOperation:
-            types_list.remove(type_)
+            _validate_fn(node)
+            ret.append(type_)
+        except InvalidOperation as e:
+            err_list.append(e)
 
-    if types_list:
-        return types_list
-    raise InvalidOperation(f"Cannot perform {node.op.description} on value", node)
+    if ret:
+        return ret
+
+    raise err_list[0]
 
 
 class _ExprAnalyser:

@@ -27,9 +27,8 @@ class BoolT(_PrimT):
     def validate_numeric_op(
         self, node: Union[vy_ast.UnaryOp, vy_ast.BinOp, vy_ast.AugAssign]
     ) -> None:
-        if isinstance(node.op, vy_ast.Not):
-            return
-        super().validate_numeric_op(node)
+        if not isinstance(node.op, vy_ast.Not):
+            self._raise_invalid_op(node)
 
     @property
     def abi_type(self) -> ABIType:
@@ -98,69 +97,11 @@ class NumericT(_PrimT):
         if node.value > upper:
             raise OverflowException(f"Value exceeds upper bound for given type ({upper})", node)
 
-
-class IntegerT(NumericT):
-    """
-    General integer type. All signed and unsigned ints from uint8 thru int256
-
-    Attributes
-    ----------
-    bits : int
-        Number of bits the value occupies in memory
-    is_signed : bool
-        Is the value signed?
-    """
-
-    _valid_literal = (vy_ast.Int,)
-    _equality_attrs = ("is_signed", "bits")
-
-    def __init__(self, is_signed, bits):
-        super().__init__()
-        self.is_signed: bool = is_signed
-        self.bits: int = bits
-
-    @property
-    def _id(self):
-        u = "u" if not self.is_signed else ""
-        return f"{u}int{self.bits}"
-
-    @property
-    def bounds(self):
-        return int_bounds(self.is_signed, self.bits)
-
-    @property
-    def invalid_ops(self):
-        if not self.is_signed:
-            return (vy_ast.USub,)
-        return ()
-
-    @classmethod
-    def signeds(cls) -> List["IntegerT"]:
-        return [cls(is_signed=True, bits=i * 8) for i in RANGE_1_32]
-
-    @classmethod
-    def unsigneds(cls) -> List["IntegerT"]:
-        return [cls(is_signed=False, bits=i * 8) for i in RANGE_1_32]
-
-    @classmethod
-    def all(cls) -> List["IntegerT"]:
-        return cls.signeds() + cls.unsigneds()
-
-    # backwards compatible api, TODO: remove me
-    @property
-    def _bits(self):
-        return self.bits
-
-    # backwards compatible api, TODO: remove me
-    @property
-    def _is_signed(self):
-        return self.is_signed
-
     def validate_numeric_op(
         self, node: Union[vy_ast.UnaryOp, vy_ast.BinOp, vy_ast.AugAssign]
     ) -> None:
-        if isinstance(node.op, self.invalid_ops):
-            raise InvalidOperation(f"Cannot perform {node.op.description} on {self}", node)
+        if isinstance(node.op, self._invalid_ops):
+            self._raise_invalid_op(node)
 
         if isinstance(node.op, vy_ast.Pow):
             if isinstance(node, vy_ast.BinOp):
@@ -206,6 +147,64 @@ class IntegerT(NumericT):
         # all comparators are valid on numeric types
         return
 
+
+class IntegerT(NumericT):
+    """
+    General integer type. All signed and unsigned ints from uint8 thru int256
+
+    Attributes
+    ----------
+    bits : int
+        Number of bits the value occupies in memory
+    is_signed : bool
+        Is the value signed?
+    """
+
+    _valid_literal = (vy_ast.Int,)
+    _equality_attrs = ("is_signed", "bits")
+
+    def __init__(self, is_signed, bits):
+        super().__init__()
+        self.is_signed: bool = is_signed
+        self.bits: int = bits
+
+    @property
+    def _id(self):
+        u = "u" if not self.is_signed else ""
+        return f"{u}int{self.bits}"
+
+    @property
+    def bounds(self):
+        return int_bounds(self.is_signed, self.bits)
+
+    @property
+    def _invalid_ops(self):
+        if not self.is_signed:
+            return (vy_ast.USub,)
+        return ()
+
+    @classmethod
+    def signeds(cls) -> List["IntegerT"]:
+        return [cls(is_signed=True, bits=i * 8) for i in RANGE_1_32]
+
+    @classmethod
+    def unsigneds(cls) -> List["IntegerT"]:
+        return [cls(is_signed=False, bits=i * 8) for i in RANGE_1_32]
+
+    @classmethod
+    def all(cls) -> List["IntegerT"]:
+        return cls.signeds() + cls.unsigneds()
+
+    # backwards compatible api, TODO: remove me
+    @property
+    def _bits(self):
+        return self.bits
+
+    # backwards compatible api, TODO: remove me
+    @property
+    def _is_signed(self):
+        return self.is_signed
+
     @property
     def abi_type(self) -> ABIType:
         return ABI_GIntM(self.bits, self.is_signed)
@@ -234,7 +233,7 @@ class DecimalT(NumericT):
     _decimal_places = 10  # TODO generalize
     _id = "decimal"
     _is_signed = True
-    _invalid_op = vy_ast.Pow
+    _invalid_ops = (vy_ast.Pow,)
     _valid_literal = (vy_ast.Decimal,)
 
     _equality_attrs = ("_bits", "_decimal_places")

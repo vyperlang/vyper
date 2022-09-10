@@ -1,4 +1,4 @@
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, Tuple, Union
 
 from vyper import ast as vy_ast
 from vyper.abi_types import ABIType
@@ -119,6 +119,10 @@ class VyperType:
         """
         return {"name": name, "type": self.canonical_abi_type}
 
+    # convenience method for erroring out of invalid ast ops
+    def _raise_invalid_op(self, node: vy_ast.ExprNode) -> None:
+        raise InvalidOperation(f"Cannot perform {node.op.description} on {self}", node)
+
     def validate_comparator(self, node: vy_ast.Compare) -> None:
         """
         Validate a comparator for this type.
@@ -133,9 +137,39 @@ class VyperType:
         None. A failed validation must raise an exception.
         """
         if not isinstance(node.op, (vy_ast.Eq, vy_ast.NotEq)):
-            raise InvalidOperation(
-                f"Cannot perform {node.op.description} comparison on {self}", node
-            )
+            self._raise_invalid_op(node)
+
+    def validate_numeric_op(
+        self, node: Union[vy_ast.UnaryOp, vy_ast.BinOp, vy_ast.AugAssign]
+    ) -> None:
+        """
+        Validate a numeric operation for this type.
+
+        Arguments
+        ---------
+        node : UnaryOp | BinOp | AugAssign
+            Vyper ast node of the numeric operation to be validated.
+
+        Returns
+        -------
+        None. A failed validation must raise an exception.
+        """
+        self._raise_invalid_op(node)
+
+    def validate_boolean_op(self, node: vy_ast.BoolOp) -> None:
+        """
+        Validate a boolean operation for this type.
+
+        Arguments
+        ---------
+        node : BoolOp
+            Vyper ast node of the boolean operation to be validated.
+
+        Returns
+        -------
+        None. A failed validation must raise an exception.
+        """
+        self._raise_invalid_op(node)
 
     @classmethod
     def validate_literal(cls, node: vy_ast.Constant):

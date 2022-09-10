@@ -98,8 +98,7 @@ def test_boolop(build_node, namespace, op, left, right):
     with namespace.enter_scope():
         types_list = get_possible_types_from_node(node)
 
-    assert len(types_list) == 1
-    assert isinstance(types_list[0], BoolT())
+    assert types_list == [BoolT()]
 
 
 @pytest.mark.parametrize("left, right", INTEGER_LITERALS + DECIMAL_LITERALS + STRING_LITERALS)
@@ -118,8 +117,7 @@ def test_compare_lt_gt(build_node, namespace, op, left, right):
     with namespace.enter_scope():
         types_list = get_possible_types_from_node(node)
 
-    assert len(types_list) == 1
-    assert isinstance(types_list[0], BoolT())
+    assert types_list == [BoolT()]
 
 
 @pytest.mark.parametrize(
@@ -131,8 +129,7 @@ def test_compare_eq_ne(build_node, namespace, op, left, right):
     with namespace.enter_scope():
         types_list = get_possible_types_from_node(node)
 
-    assert len(types_list) == 1
-    assert isinstance(types_list[0], BoolT())
+    assert types_list == [BoolT()]
 
 
 @pytest.mark.parametrize("left, right", BOOL_LITERALS + STRING_LITERALS)
@@ -172,10 +169,10 @@ def test_list(build_node, namespace, left, right):
 
 def test_subscript(build_node, namespace):
     node = build_node("foo[1]")
-    type_def = INT128_T()
+    type_ = INT128_T
 
-    namespace["foo"] = SArrayT(type_def, 3)
-    assert get_possible_types_from_node(node) == [type_def]
+    namespace["foo"] = SArrayT(type_, 3)
+    assert get_possible_types_from_node(node) == [type_]
 
 
 def test_subscript_out_of_bounds(build_node, namespace):

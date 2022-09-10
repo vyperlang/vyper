@@ -206,6 +206,7 @@ class VarInfo:
                 raise CompilerPanic("Incompatible locations")
         self.position = position
 
+
 class ExprInfo:
     """
     Class which represents the analysis associated with an expression
