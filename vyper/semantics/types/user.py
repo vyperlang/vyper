@@ -96,6 +96,7 @@ class EnumT(VyperType):
         # TODO
         return []
 
+    # TODO seems like dead code
     def get_member(self, key: str, node: vy_ast.Attribute) -> "EnumT":
         if key in self.members:
             return self.from_annotation(node.value)
