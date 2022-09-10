@@ -49,6 +49,7 @@ class BytesM_T(_PrimT):
     _valid_literal = (vy_ast.Hex,)
 
     def __init__(self, m):
+        super().__init__()
         self.m: int = m
 
     @property
@@ -110,6 +111,7 @@ class IntegerT(NumericT):
     _valid_literal = (vy_ast.Int,)
 
     def __init__(self, is_signed, bits):
+        super().__init__()
         self.is_signed: bool = is_signed
         self.bits: int = bits
 

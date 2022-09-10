@@ -122,18 +122,21 @@ class EventT(VyperType):
     """
 
     def __init__(self, name: str, arguments: dict, indexed: list) -> None:
-        for key in arguments:
-            validate_identifier(key)
+        super().__init__(members=arguments)
         self.name = name
-        self.arguments = arguments
         self.indexed = indexed
         self.event_id = int(keccak256(self.signature.encode()).hex(), 16)
+
+    # backward compatible
+    @property
+    def arguments(self):
+        return self.members
 
     def __repr__(self):
         arg_types = ",".join(repr(a) for a in self.arguments.values())
         return f"event {self.name}({arg_types})"
 
-    # TODO rename to abi_signature?
+    # TODO rename to abi_signature
     @property
     def signature(self):
         return f"{self.name}({','.join(v.canonical_abi_type for v in self.arguments.values())})"

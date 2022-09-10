@@ -30,6 +30,8 @@ class _BytestringT(VyperType):
         return f"{self._id}[{self.length}]"
 
     def __init__(self, length: int = 0) -> None:
+        super().__init__()
+
         self._length = length
         self._min_length = length
 

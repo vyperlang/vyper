@@ -74,6 +74,8 @@ class ContractFunction(VyperType):
         state_mutability: StateMutability,
         nonreentrant: Optional[str] = None,
     ) -> None:
+        super().__init__()
+
         self.name = name
         self.arguments = arguments
         self.min_arg_count = min_arg_count
@@ -561,6 +563,8 @@ class MemberFunctionT(VyperType):
         return_type: Optional[VyperType],
         is_modifying: bool,
     ) -> None:
+        super().__init__()
+
         self.underlying_type = underlying_type
         self.name = name
         self.arg_types = arg_types

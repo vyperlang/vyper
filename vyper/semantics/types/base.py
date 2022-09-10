@@ -49,9 +49,10 @@ class VyperType:
 
     size_in_bytes = 32  # default; override for larger types
 
-    def __init__(self, members=None, *args, **kwargs) -> None:
+    def __init__(self, members=None) -> None:
         self.members = {}
 
+        # add members that are on the class instance.
         if hasattr(self, "_type_members"):
             for k, v in self._type_members.items():
                 # for builtin members like `contract.address` -- skip namespace
