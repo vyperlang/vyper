@@ -6,7 +6,7 @@ from vyper.exceptions import (
     StructureException,
     UndeclaredDefinition,
 )
-from vyper.semantics.types import get_primitive_types, HashMapT, SArrayT
+from vyper.semantics.types import HashMapT, SArrayT, get_primitive_types
 from vyper.semantics.types.utils import type_from_annotation
 
 BASE_TYPES = ["int128", "uint256", "bool", "address", "bytes32"]

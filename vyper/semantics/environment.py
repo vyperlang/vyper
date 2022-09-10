@@ -54,7 +54,7 @@ class _SelfT(AddressT):
     pass
 
 
-MUTABLE_ENVIRONMENT_VARS: Dict[str, type] = {"self": _SelfT()}
+MUTABLE_ENVIRONMENT_VARS: Dict[str, type] = {"self": _SelfT}
 
 
 def get_mutable_vars() -> Dict:
@@ -62,4 +62,4 @@ def get_mutable_vars() -> Dict:
     Get a dictionary of mutable environment variables (those that are
     modified during the course of contract execution, such as `self`).
     """
-    return {name: VarInfo(type_) for name, type_ in MUTABLE_ENVIRONMENT_VARS.items()}
+    return {name: VarInfo(type_()) for name, type_ in MUTABLE_ENVIRONMENT_VARS.items()}

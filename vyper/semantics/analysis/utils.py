@@ -285,7 +285,7 @@ class _ExprAnalyser:
     def types_from_Name(self, node):
         # variable name, e.g. `foo`
         name = node.id
-        if name not in self.namespace and name in self.namespace["self"].members:
+        if name not in self.namespace and name in self.namespace["self"].typ.members:
             raise InvalidReference(
                 f"'{name}' is a storage variable, access it as self.{name}", node
             )

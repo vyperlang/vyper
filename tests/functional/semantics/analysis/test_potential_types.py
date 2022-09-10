@@ -10,10 +10,8 @@ from vyper.exceptions import (
     UnknownAttribute,
 )
 from vyper.semantics.analysis.utils import get_possible_types_from_node
-from vyper.semantics.types.indexable.sequence import ArrayDefinition, DynamicArrayDefinition
-from vyper.semantics.types.value.address import AddressDefinition
-from vyper.semantics.types.value.boolean import BoolDefinition
-from vyper.semantics.types.value.numeric import Int128Definition
+from vyper.semantics.types import AddressT, BoolT, SArrayT, DArrayT
+from vyper.semantics.types.shortcuts import INT128_T
 
 INTEGER_LITERALS = [(42, 31337), (-1, 1), (69, 2 ** 128)]
 DECIMAL_LITERALS = [("4.2", "-1.337")]
@@ -23,16 +21,15 @@ STRING_LITERALS = [("'hi'", "'there'"), ("'foo'", "'bar'"), ("'longer'", "'short
 
 def test_attribute(build_node, namespace):
     node = build_node("self.foo")
-    type_def = Int128Definition()
     with namespace.enter_scope():
-        namespace["self"].add_member("foo", type_def)
-        assert get_possible_types_from_node(node) == [type_def]
+        namespace["self"].typ.add_member("foo", INT128_T)
+        assert get_possible_types_from_node(node) == [INT128_T]
 
 
 def test_attribute_missing_self(build_node, namespace):
     node = build_node("foo")
     with namespace.enter_scope():
-        namespace["self"].add_member("foo", Int128Definition())
+        namespace["self"].typ.add_member("foo", INT128_T)
         with pytest.raises(InvalidReference):
             get_possible_types_from_node(node)
 
@@ -40,7 +37,7 @@ def test_attribute_missing_self(build_node, namespace):
 def test_attribute_not_in_self(build_node, namespace):
     node = build_node("self.foo")
     with namespace.enter_scope():
-        namespace["foo"] = Int128Definition()
+        namespace["foo"] = INT128_T
         with pytest.raises(InvalidReference):
             get_possible_types_from_node(node)
 
@@ -48,7 +45,7 @@ def test_attribute_not_in_self(build_node, namespace):
 def test_attribute_unknown(build_node, namespace):
     node = build_node("foo.bar")
     with namespace.enter_scope():
-        namespace["foo"] = AddressDefinition()
+        namespace["foo"] = AddressT()
         with pytest.raises(UnknownAttribute):
             get_possible_types_from_node(node)
 
@@ -56,7 +53,7 @@ def test_attribute_unknown(build_node, namespace):
 def test_attribute_not_member_type(build_node, namespace):
     node = build_node("foo.bar")
     with namespace.enter_scope():
-        namespace["foo"] = Int128Definition()
+        namespace["foo"] = INT128_T
         with pytest.raises(StructureException):
             get_possible_types_from_node(node)
 
@@ -102,7 +99,7 @@ def test_boolop(build_node, namespace, op, left, right):
         types_list = get_possible_types_from_node(node)
 
     assert len(types_list) == 1
-    assert isinstance(types_list[0], BoolDefinition)
+    assert isinstance(types_list[0], BoolT())
 
 
 @pytest.mark.parametrize("left, right", INTEGER_LITERALS + DECIMAL_LITERALS + STRING_LITERALS)
@@ -122,7 +119,7 @@ def test_compare_lt_gt(build_node, namespace, op, left, right):
         types_list = get_possible_types_from_node(node)
 
     assert len(types_list) == 1
-    assert isinstance(types_list[0], BoolDefinition)
+    assert isinstance(types_list[0], BoolT())
 
 
 @pytest.mark.parametrize(
@@ -135,7 +132,7 @@ def test_compare_eq_ne(build_node, namespace, op, left, right):
         types_list = get_possible_types_from_node(node)
 
     assert len(types_list) == 1
-    assert isinstance(types_list[0], BoolDefinition)
+    assert isinstance(types_list[0], BoolT())
 
 
 @pytest.mark.parametrize("left, right", BOOL_LITERALS + STRING_LITERALS)
@@ -149,7 +146,7 @@ def test_compare_invalid_op(build_node, namespace, op, left, right):
 
 def test_name(build_node, namespace):
     node = build_node("foo")
-    type_def = Int128Definition()
+    type_def = INT128_T
     namespace["foo"] = type_def
 
     assert get_possible_types_from_node(node) == [type_def]
@@ -170,31 +167,31 @@ def test_list(build_node, namespace, left, right):
 
     assert types_list
     for item in types_list:
-        assert isinstance(item, (DynamicArrayDefinition, ArrayDefinition))
+        assert isinstance(item, (DArrayT, SArrayT))
 
 
 def test_subscript(build_node, namespace):
     node = build_node("foo[1]")
-    type_def = Int128Definition()
+    type_def = INT128_T()
 
-    namespace["foo"] = ArrayDefinition(type_def, 3)
+    namespace["foo"] = SArrayT(type_def, 3)
     assert get_possible_types_from_node(node) == [type_def]
 
 
 def test_subscript_out_of_bounds(build_node, namespace):
     node = build_node("foo[5]")
-    type_def = Int128Definition()
+    type_def = INT128_T
 
-    namespace["foo"] = ArrayDefinition(type_def, 3)
+    namespace["foo"] = SArrayT(type_def, 3)
     with pytest.raises(ArrayIndexException):
         get_possible_types_from_node(node)
 
 
 def test_subscript_negative(build_node, namespace):
     node = build_node("foo[-1]")
-    type_def = Int128Definition()
+    type_def = INT128_T
 
-    namespace["foo"] = ArrayDefinition(type_def, 3)
+    namespace["foo"] = SArrayT(type_def, 3)
     with pytest.raises(ArrayIndexException):
         get_possible_types_from_node(node)
 
@@ -202,8 +199,8 @@ def test_subscript_negative(build_node, namespace):
 def test_tuple(build_node, namespace):
     node = build_node("(foo, bar)")
 
-    namespace["foo"] = Int128Definition()
-    namespace["bar"] = AddressDefinition()
+    namespace["foo"] = INT128_T
+    namespace["bar"] = AddressT()
     types_list = get_possible_types_from_node(node)
 
     assert types_list[0].value_type == [namespace["foo"], namespace["bar"]]
@@ -212,8 +209,8 @@ def test_tuple(build_node, namespace):
 def test_tuple_subscript(build_node, namespace):
     node = build_node("(foo, bar)[1]")
 
-    namespace["foo"] = Int128Definition()
-    namespace["bar"] = AddressDefinition()
+    namespace["foo"] = INT128_T
+    namespace["bar"] = AddressT()
     types_list = get_possible_types_from_node(node)
 
     assert types_list == [namespace["bar"]]
