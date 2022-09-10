@@ -179,8 +179,7 @@ class SArrayT(_SequenceT):
             or not isinstance(node.slice.value, vy_ast.Int)
         ):
             raise StructureException(
-                "Arrays must be defined with base type and length, e.g. bool[5]",
-                node,
+                "Arrays must be defined with base type and length, e.g. bool[5]", node
             )
 
         value_type = type_from_annotation(node.slice.value)
@@ -190,7 +189,6 @@ class SArrayT(_SequenceT):
 
         length = node.slice.value
         return cls(value_type, length)
-
 
 
 class DArrayT(_SequenceT):
@@ -296,7 +294,7 @@ class TupleT(_SequenceT):
         self._member_types = value_type
 
     def __repr__(self):
-        return self._id
+        return "(" + ",".join(repr(t) for t in self.value_type) + ")"
 
     @classmethod
     def from_annotation(cls, node: vy_ast.Tuple):

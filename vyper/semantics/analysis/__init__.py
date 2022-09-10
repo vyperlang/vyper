@@ -1,5 +1,4 @@
 from .. import types  # break a dependency cycle.
-
 from ..namespace import get_namespace
 from .local import validate_functions
 from .module import add_module_namespace

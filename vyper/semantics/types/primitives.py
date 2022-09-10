@@ -13,6 +13,7 @@ from .bytestrings import BytesT
 
 class _PrimT(VyperType):
     _is_prim_word = True
+    _equality_attrs = ()
 
 
 class BoolT(_PrimT):
@@ -47,6 +48,8 @@ RANGE_1_32 = list(range(1, 33))
 class BytesM_T(_PrimT):
     _as_array = True
     _valid_literal = (vy_ast.Hex,)
+
+    _equality_attrs = ("m",)
 
     def __init__(self, m):
         super().__init__()
@@ -109,6 +112,7 @@ class IntegerT(NumericT):
     """
 
     _valid_literal = (vy_ast.Int,)
+    _equality_attrs = ("is_signed", "bits")
 
     def __init__(self, is_signed, bits):
         super().__init__()
@@ -232,6 +236,8 @@ class DecimalT(NumericT):
     _is_signed = True
     _invalid_op = vy_ast.Pow
     _valid_literal = (vy_ast.Decimal,)
+
+    _equality_attrs = ("_bits", "_decimal_places")
 
     @property
     def abi_type(self) -> ABIType:

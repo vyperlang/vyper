@@ -1,9 +1,8 @@
 from typing import Dict
 
 from vyper import ast as vy_ast
-from vyper.exceptions import InvalidType, StructureException, UndeclaredDefinition, UnknownType
+from vyper.exceptions import InvalidType, UnknownType
 from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
-from vyper.semantics.analysis.utils import get_index_value
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.base import VyperType
 
@@ -75,9 +74,8 @@ def type_from_annotation(node: vy_ast.VyperNode) -> VyperType:
             f"No builtin or user-defined type named '{type_name}'. {suggestions_str}", node
         ) from None
 
-
     if isinstance(node, vy_ast.Tuple):
-        tuple_t = namespace["$Tuple"]
+        tuple_t = namespace["$TupleT"]
 
         return tuple_t.from_annotation(node)
 

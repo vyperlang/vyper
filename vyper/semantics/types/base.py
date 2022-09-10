@@ -4,6 +4,7 @@ from vyper import ast as vy_ast
 from vyper.abi_types import ABIType
 from vyper.exceptions import (
     CompilerPanic,
+    InvalidLiteral,
     InvalidOperation,
     NamespaceCollision,
     StructureException,
@@ -46,6 +47,7 @@ class VyperType:
     _valid_literal: Tuple = ()
     _as_array: bool = False
     _is_prim_word: bool = False
+    _equality_attrs = None
 
     size_in_bytes = 32  # default; override for larger types
 
@@ -62,6 +64,20 @@ class VyperType:
         members = members or {}
         for k, v in members.items():
             self.add_member(k, v)
+
+    def _get_equality_attrs(self):
+        return tuple(getattr(self, attr) for attr in self._equality_attrs)
+
+    def __hash__(self):
+        return hash(self._get_equality_attrs())
+
+    def __eq__(self, other):
+        return type(self) == type(other) and self._eq(other)
+
+    # for subclasses to override. customizable, return true if the
+    # properties on self and other are considered equal.
+    def _eq(self, other):
+        return self._get_equality_attrs() == other._get_equality_attrs()
 
     @property
     def getter_signature(self):
@@ -133,7 +149,7 @@ class VyperType:
         """
         if not isinstance(node, cls._valid_literal) or not isinstance(node, vy_ast.Constant):
             # should not reach here, by paths into validate_literal.
-            raise CompilerPanic("unreachable")
+            raise InvalidLiteral(f"Invalid literal for {cls._id}", node)
 
     @classmethod
     def compare_type(cls, other: "VyperType") -> bool:

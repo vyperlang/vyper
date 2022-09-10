@@ -1,6 +1,6 @@
 from vyper import ast as vy_ast
 from vyper.abi_types import ABI_Bytes, ABI_String, ABIType
-from vyper.exceptions import CompilerPanic, StructureException, UnexpectedValue
+from vyper.exceptions import CompilerPanic, StructureException, UnexpectedNodeType, UnexpectedValue
 from vyper.semantics import analysis
 from vyper.semantics.types.base import VyperType
 from vyper.utils import ceil32
@@ -26,14 +26,16 @@ class _BytestringT(VyperType):
         is applied to a literal definition.
     """
 
-    def __repr__(self):
-        return f"{self._id}[{self.length}]"
+    _equality_attrs = ("_length", "_min_length")
 
     def __init__(self, length: int = 0) -> None:
         super().__init__()
 
         self._length = length
         self._min_length = length
+
+    def __repr__(self):
+        return f"{self._id}[{self.length}]"
 
     @property
     def length(self):
@@ -125,6 +127,8 @@ class _BytestringT(VyperType):
 
     @classmethod
     def from_literal(cls, node: vy_ast.Constant) -> "_BytestringT":
+        if not isinstance(node, cls._valid_literal):
+            raise UnexpectedNodeType(f"Not a {cls._id}: {node}")
         t = cls()
         t.set_min_length(len(node.value))
         return t

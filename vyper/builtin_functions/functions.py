@@ -72,6 +72,7 @@ from vyper.semantics.analysis.utils import (
     validate_expected_type,
 )
 from vyper.semantics.types import (
+    TYPE_T,
     AddressT,
     BoolT,
     BytesM_T,
@@ -79,12 +80,12 @@ from vyper.semantics.types import (
     DArrayT,
     DecimalT,
     IntegerT,
+    KwargSettings,
     SArrayT,
     StringT,
     TupleT,
 )
-from vyper.semantics.types.base import TYPE_T, KwargSettings
-from vyper.semantics.types.primitives import BYTES4_T, BYTES32_T, INT256_T, UINT256_T
+from vyper.semantics.types.shortcuts import BYTES4_T, BYTES32_T, INT256_T, UINT256_T
 from vyper.semantics.types.utils import type_from_annotation
 from vyper.utils import (
     DECIMAL_DIVISOR,
