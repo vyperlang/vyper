@@ -82,7 +82,7 @@ class BytesM_T(_PrimT):
         return self.m == other.m
 
 
-class _NumericT(_PrimT):
+class NumericT(_PrimT):
     _as_array = True
     bounds: Tuple[int, int]
 
@@ -95,7 +95,7 @@ class _NumericT(_PrimT):
             raise OverflowException(f"Value exceeds upper bound for given type ({upper})", node)
 
 
-class IntegerT(_NumericT):
+class IntegerT(NumericT):
     """
     General integer type. All signed and unsigned ints from uint8 thru int256
 
@@ -221,7 +221,7 @@ BYTES32_T = BytesM_T(32)
 BYTES4_T = BytesM_T(4)
 
 
-class DecimalT(_NumericT):
+class DecimalT(NumericT):
     bounds = (SizeLimits.MIN_AST_DECIMAL, SizeLimits.MAX_AST_DECIMAL)
 
     _bits = 168  # TODO generalize

@@ -17,6 +17,16 @@ from vyper.exceptions import (
     VariableDeclarationException,
     VyperException,
 )
+from vyper.semantics.analysis.annotation import StatementAnnotationVisitor
+from vyper.semantics.analysis.base import DataLocation, VarInfo
+from vyper.semantics.analysis.common import VyperNodeVisitorBase
+from vyper.semantics.analysis.utils import (
+    get_common_types,
+    get_exact_type_from_node,
+    get_expr_info,
+    get_possible_types_from_node,
+    validate_expected_type,
+)
 
 # TODO consolidate some of these imports
 from vyper.semantics.environment import CONSTANT_ENVIRONMENT_VARS, MUTABLE_ENVIRONMENT_VARS
@@ -34,16 +44,6 @@ from vyper.semantics.types import (
 )
 from vyper.semantics.types.function import ContractFunction, MemberFunctionT, StateMutability
 from vyper.semantics.types.utils import type_from_annotation
-from vyper.semantics.analysis.base import VarInfo, DataLocation
-from vyper.semantics.analysis.annotation import StatementAnnotationVisitor
-from vyper.semantics.analysis.common import VyperNodeVisitorBase
-from vyper.semantics.analysis.utils import (
-    get_common_types,
-    get_expr_info,
-    get_exact_type_from_node,
-    get_possible_types_from_node,
-    validate_expected_type,
-)
 
 
 def validate_functions(vy_module: vy_ast.Module) -> None:

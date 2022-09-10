@@ -9,11 +9,11 @@ from vyper.exceptions import (
     UndeclaredDefinition,
     UnknownAttribute,
 )
+from vyper.semantics.analysis.utils import get_possible_types_from_node
 from vyper.semantics.types.indexable.sequence import ArrayDefinition, DynamicArrayDefinition
 from vyper.semantics.types.value.address import AddressDefinition
 from vyper.semantics.types.value.boolean import BoolDefinition
 from vyper.semantics.types.value.numeric import Int128Definition
-from vyper.semantics.analysis.utils import get_possible_types_from_node
 
 INTEGER_LITERALS = [(42, 31337), (-1, 1), (69, 2 ** 128)]
 DECIMAL_LITERALS = [("4.2", "-1.337")]

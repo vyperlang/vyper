@@ -1,22 +1,16 @@
-from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, Tuple
 
 from vyper import ast as vy_ast
 from vyper.abi_types import ABIType
 from vyper.exceptions import (
     CompilerPanic,
-    ImmutableViolation,
-    InvalidLiteral,
     InvalidOperation,
     NamespaceCollision,
-    StateAccessViolation,
     StructureException,
-    UnexpectedNodeType,
-    UnexpectedValue,
     UnknownAttribute,
 )
-from vyper.semantics.namespace import validate_identifier
 from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
+from vyper.semantics.namespace import validate_identifier
 
 
 # Some fake type with an overridden `compare_type` which accepts any RHS

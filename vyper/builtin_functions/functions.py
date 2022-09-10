@@ -65,6 +65,12 @@ from vyper.exceptions import (
     UnfoldableNode,
     ZeroDivisionException,
 )
+from vyper.semantics.analysis.utils import (
+    get_common_types,
+    get_exact_type_from_node,
+    get_possible_types_from_node,
+    validate_expected_type,
+)
 from vyper.semantics.types import (
     AddressT,
     BoolT,
@@ -80,12 +86,6 @@ from vyper.semantics.types import (
 from vyper.semantics.types.base import TYPE_T, KwargSettings
 from vyper.semantics.types.primitives import BYTES4_T, BYTES32_T, INT256_T, UINT256_T
 from vyper.semantics.types.utils import type_from_annotation
-from vyper.semantics.analysis.utils import (
-    get_common_types,
-    get_exact_type_from_node,
-    get_possible_types_from_node,
-    validate_expected_type,
-)
 from vyper.utils import (
     DECIMAL_DIVISOR,
     EIP_170_LIMIT,
@@ -130,9 +130,7 @@ class TypenameFoldedFunction(FoldedFunction):
 
     def infer_arg_types(self, node):
         validate_call_args(node, 1)
-        input_typedef = TypeTypeDefinition(
-            get_type_from_annotation(node.args[0], DataLocation.MEMORY)
-        )
+        input_typedef = TYPE_T(type_from_annotation(node.args[0]))
         return [input_typedef]
 
 
@@ -729,7 +727,7 @@ class MethodID(FoldedFunction):
         return_type = self.infer_kwarg_types(node)
         value = abi_method_id(args[0].value)
 
-        if isinstance(return_type, Bytes4Definition):
+        if return_type.compare_type(BYTES4_T):
             return vy_ast.Hex.from_node(node, value=hex(value))
         else:
             return vy_ast.Bytes.from_node(node, value=value.to_bytes(4, "big"))
@@ -742,7 +740,7 @@ class MethodID(FoldedFunction):
 
     def infer_kwarg_types(self, node):
         if node.keywords:
-            return_type = get_type_from_annotation(node.keywords[0].value, DataLocation.UNSET)
+            return_type = type_from_annotation(node.keywords[0].value)
             if return_type.compare_type(BYTES4_T):
                 return BYTES4_T
             elif isinstance(return_type, BytesT) and return_type.length == 4:
@@ -2543,18 +2541,17 @@ class ABIDecode(BuiltinFunction):
 class _MinMaxValue(TypenameFoldedFunction):
     def evaluate(self, node):
         self._validate_arg_types(node)
-        input_type = get_type_from_annotation(node.args[0], DataLocation.UNSET)
+        input_type = type_from_annotation(node.args[0])
 
-        if not isinstance(input_type, NumericAbstractType):
-            raise InvalidType(f"Expected numeric type but got {input_type} instead", node)
-
-        if isinstance(input_type, DecimalDefinition):
+        if input_type.compare_type(DecimalT()):
             val = self._eval_decimal(input_type)
             return vy_ast.Decimal.from_node(node, value=val)
 
-        if isinstance(input_type, IntegerAbstractType):
+        if input_type.compare_type(IntegerT.any()):
             val = self._eval_int(input_type)
             return vy_ast.Int.from_node(node, value=val)
+
+        raise InvalidType(f"Expected numeric type but got {input_type} instead", node)
 
 
 class MinValue(_MinMaxValue):
@@ -2586,14 +2583,14 @@ class Epsilon(TypenameFoldedFunction):
 
     def evaluate(self, node):
         self._validate_arg_types(node)
-        input_type = get_type_from_annotation(node.args[0], DataLocation.UNSET)
+        input_type = type_from_annotation(node.args[0])
 
-        if not isinstance(input_type, FixedAbstractType):
+        if not input_type.compare_type(DecimalT()):
             raise InvalidType(f"Expected decimal type but got {input_type} instead", node)
 
         # this check seems redundant, but sets a pattern to be followed
         # when new decimal types are created
-        if isinstance(input_type, DecimalDefinition):
+        if input_type.compare_type(DecimalT()):
             typinfo = parse_decimal_info(str(input_type))
             return vy_ast.Decimal.from_node(node, value=typinfo.epsilon)
 

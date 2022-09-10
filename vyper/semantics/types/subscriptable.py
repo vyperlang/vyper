@@ -276,6 +276,9 @@ class TupleT(_SequenceT):
 
     @classmethod
     def from_annotation(cls, node: vy_ast.Tuple):
+        # TODO circular import
+        from vyper.semantics.types.utils import type_from_annotation
+
         values = node.elements
         types = tuple(type_from_annotation(v) for v in values)
         return cls(types)

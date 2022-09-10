@@ -1,19 +1,11 @@
-import enum
-from typing import Dict, List
+from typing import Dict
 
 from vyper import ast as vy_ast
-from vyper.exceptions import (
-    CompilerPanic,
-    InvalidType,
-    StructureException,
-    UndeclaredDefinition,
-    UnknownType,
-    VyperInternalException,
-)
-from vyper.semantics.namespace import get_namespace
-from vyper.semantics.types.base import VyperType
+from vyper.exceptions import InvalidType, StructureException, UndeclaredDefinition, UnknownType
 from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
 from vyper.semantics.analysis.utils import get_index_value
+from vyper.semantics.namespace import get_namespace
+from vyper.semantics.types.base import VyperType
 
 
 def type_from_abi(abi_type: Dict) -> VyperType:

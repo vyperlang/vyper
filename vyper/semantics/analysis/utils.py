@@ -18,12 +18,12 @@ from vyper.exceptions import (
 )
 from vyper.semantics import types
 from vyper.semantics.analysis.base import ExprInfo
+from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.base import VyperType
-from vyper.semantics.types.primitives import BoolT, IntegerT, AddressT, BytesM_T
-from vyper.semantics.types.subscriptable import DArrayT, SArrayT, TupleT
 from vyper.semantics.types.bytestrings import BytesT, StringT
-from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
+from vyper.semantics.types.primitives import AddressT, BoolT, BytesM_T, IntegerT
+from vyper.semantics.types.subscriptable import DArrayT, SArrayT, TupleT
 from vyper.utils import checksum_encode
 
 
@@ -79,7 +79,7 @@ class _ExprAnalyser:
 
                 # if isinstance(t, InterfaceT):
                 #    # once we have modules: t.namespace[name]
-                var_info = self.namespace[name]
+                varinfo = self.namespace[name]
                 return ExprInfo.from_varinfo(varinfo)
 
             # sanity check

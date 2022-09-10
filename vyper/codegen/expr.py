@@ -263,7 +263,6 @@ class Expr:
                 return IRnode.from_list(["~extcode", addr], typ=ByteArrayType(0))
         # self.x: global attribute
         elif isinstance(self.expr.value, vy_ast.Name) and self.expr.value.id == "self":
-            type_ = self.expr._metadata["type"]
             var = self.context.globals[self.expr.attr]
             varinfo = var._varinfo
             return IRnode.from_list(

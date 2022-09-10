@@ -1,22 +1,15 @@
 import enum
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Union
 
 from vyper import ast as vy_ast
-from vyper.abi_types import ABIType
 from vyper.exceptions import (
     CompilerPanic,
     ImmutableViolation,
-    InvalidLiteral,
     InvalidOperation,
-    NamespaceCollision,
     StateAccessViolation,
     StructureException,
-    UnexpectedNodeType,
-    UnexpectedValue,
-    UnknownAttribute,
+    VyperInternalException,
 )
-from vyper.semantics.namespace import validate_identifier
-from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
 from vyper.semantics.types.base import VyperType
 
 
@@ -39,7 +32,7 @@ class _StringEnum(enum.Enum):
         return value in set(o.value for o in cls)
 
     @classmethod
-    def options(cls) -> List["StringEnum"]:
+    def options(cls) -> List["_StringEnum"]:
         return list(cls)
 
     @classmethod
