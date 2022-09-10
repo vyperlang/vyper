@@ -1,6 +1,6 @@
 import pytest
 
-from vyper.semantics.types.user.event import Event
+from vyper.semantics.types.user import EventT
 
 EVENT_ID_TESTS = [
     (
@@ -90,6 +90,6 @@ EVENT_ID_TESTS = [
 @pytest.mark.parametrize("source,signature_hash", EVENT_ID_TESTS)
 def test_event_id(build_node, source, signature_hash):
     node = build_node(source)
-    event = Event.from_EventDef(node)
+    event = EventT.from_EventDef(node)
 
     assert event.event_id == signature_hash
