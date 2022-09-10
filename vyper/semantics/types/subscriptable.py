@@ -168,6 +168,30 @@ class SArrayT(_SequenceT):
             return False
         return self.value_type.compare_type(other.value_type)
 
+    @classmethod
+    def from_annotation(cls, node: vy_ast.Subscript) -> "SArrayT":
+        # TODO fix circular import
+        from vyper.semantics.types.utils import type_from_annotation
+
+        if (
+            not isinstance(node, vy_ast.Subscript)
+            or not isinstance(node.slice, vy_ast.Index)
+            or not isinstance(node.slice.value, vy_ast.Int)
+        ):
+            raise StructureException(
+                "Arrays must be defined with base type and length, e.g. bool[5]",
+                node,
+            )
+
+        value_type = type_from_annotation(node.slice.value)
+
+        if not value_type._as_array:
+            raise StructureException(f"arrays of {value_type} are not allowed!")
+
+        length = node.slice.value
+        return cls(value_type, length)
+
+
 
 class DArrayT(_SequenceT):
     """
@@ -246,7 +270,7 @@ class DArrayT(_SequenceT):
         value_type = type_from_annotation(node.slice.value.elements[0])
 
         max_length = node.slice.value.elements[1].value
-        return DArrayT(value_type, max_length)
+        return cls(value_type, max_length)
 
 
 class TupleT(_SequenceT):

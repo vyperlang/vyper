@@ -69,40 +69,32 @@ def type_from_annotation(node: vy_ast.VyperNode) -> VyperType:
     """
     namespace = get_namespace()
 
-    if isinstance(node, vy_ast.Tuple):
-        tuple_t = namespace["$Tuple"]
-
-        return tuple_t.from_annotation(node)
-
-    try:
-        # get id of leftmost `Name` node from the annotation
-        type_name = next(i.id for i in node.get_descendants(vy_ast.Name, include_self=True))
-    except StopIteration:
-        raise StructureException("Invalid syntax for type declaration", node)
-    try:
-        typeclass = namespace[type_name]
-    except UndeclaredDefinition:
+    def _failwith(type_name):
         suggestions_str = get_levenshtein_error_suggestions(type_name, namespace, 0.3)
         raise UnknownType(
             f"No builtin or user-defined type named '{type_name}'. {suggestions_str}", node
         ) from None
 
-    if (
-        getattr(typeclass, "_as_array", False)
-        and isinstance(node, vy_ast.Subscript)
-        and node.value.get("id") != "DynArray"
-    ):
-        # if type can be an array and node is a subscript, create an `SArrayT`
-        # TODO handle PEP484 style Subscript types more elegantly
-        sarray_t = namespace["$SArrayT"]
-        length = get_index_value(node.slice)
-        value_type = type_from_annotation(node.value)
-        return sarray_t(value_type, length)
 
-    if not isinstance(typeclass, type):
-        return typeclass
+    if isinstance(node, vy_ast.Tuple):
+        tuple_t = namespace["$Tuple"]
 
-    try:
-        return typeclass.from_annotation(node)
-    except AttributeError:
-        raise InvalidType(f"'{type_name}' is not a valid type", node) from None
+        return tuple_t.from_annotation(node)
+
+    if isinstance(node, vy_ast.Subscript):
+        # ex. Bytes, HashMap, DynArray, static arrays
+        if not isinstance(node.value, vy_ast.Name) or node.value.id not in namespace:
+            _failwith(node.value.node_source_code)
+
+        type_ctor = namespace[node.value.id]
+
+        # we have a static array like address[5].
+        if not hasattr(type_ctor, "from_annotation"):
+            type_ctor = namespace["$SArrayT"]
+
+        return type_ctor.from_annotation(node)
+
+    if not isinstance(node, vy_ast.Name) or node.id not in namespace:
+        _failwith(node.node_source_code)
+
+    return namespace[node.id]
