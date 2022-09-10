@@ -80,14 +80,11 @@ def type_from_annotation(node: vy_ast.VyperNode) -> VyperType:
         return tuple_t.from_annotation(node)
 
     if isinstance(node, vy_ast.Subscript):
-        # ex. Bytes, HashMap, DynArray, static arrays
-        if not isinstance(node.value, vy_ast.Name) or node.value.id not in namespace:
-            _failwith(node.value.node_source_code)
-
-        type_ctor = namespace[node.value.id]
-
-        # we have a static array like address[5].
-        if not hasattr(type_ctor, "from_annotation"):
+        # ex. HashMap, DynArray, Bytes, static arrays
+        if node.value.get("id") in ("HashMap", "Bytes", "String", "DynArray"):
+            type_ctor = namespace[node.value.id]
+        else:
+            # like, address[5] or int256[5][5]
             type_ctor = namespace["$SArrayT"]
 
         return type_ctor.from_annotation(node)

@@ -144,6 +144,11 @@ class SArrayT(_SequenceT):
         return f"{self.value_type}[{self.length}]"
 
     @property
+    def _as_array(self):
+        # a static array is arrayable if its value_type is arrayble.
+        return self.value_type._as_array
+
+    @property
     def abi_type(self) -> ABIType:
         return ABI_StaticArray(self.value_type.abi_type, self.length)
 
@@ -182,12 +187,12 @@ class SArrayT(_SequenceT):
                 "Arrays must be defined with base type and length, e.g. bool[5]", node
             )
 
-        value_type = type_from_annotation(node.slice.value)
+        value_type = type_from_annotation(node.value)
 
         if not value_type._as_array:
             raise StructureException(f"arrays of {value_type} are not allowed!")
 
-        length = node.slice.value
+        length = node.slice.value.value
         return cls(value_type, length)
 
 
