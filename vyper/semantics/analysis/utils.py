@@ -87,12 +87,6 @@ class _ExprAnalyser:
             return info.copy_with_type(t)
 
         return ExprInfo(t)
-        #        location=info.location,
-        #        is_constant=info.is_constant,
-        #        is_immutable=info.is_immutable,
-        #    )
-
-        return ExprInfo(t)
 
     def get_exact_type_from_node(self, node):
         """
