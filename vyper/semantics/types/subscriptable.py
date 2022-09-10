@@ -45,6 +45,8 @@ class _SubscriptableT(VyperType):
 class HashMapT(_SubscriptableT):
     _id = "HashMap"
 
+    _equality_attrs = ("key_type", "value_type")
+
     def __repr__(self):
         return f"HashMap[{self.key_type}, {self.value_type}]"
 
@@ -95,6 +97,8 @@ class _SequenceT(_SubscriptableT):
     length : int
         Number of items in the type.
     """
+
+    _equality_attrs = ("value_type", "length")
 
     def __init__(self, value_type: VyperType, length: int):
 
@@ -284,11 +288,9 @@ class TupleT(_SequenceT):
     multiple return values from `types.function.ContractFunction`.
     """
 
-    def __init__(self, value_type: Tuple[VyperType, ...]) -> None:
-        # always use the most restrictive location re: modification
-        # location = sorted((i.location for i in value_type), key=lambda k: k.value)[-1]
-        # is_constant = any((getattr(i, "is_constant", False) for i in value_type))
+    _equality_attrs = ("value_type",)
 
+    def __init__(self, value_type: Tuple[VyperType, ...]) -> None:
         super().__init__(
             # TODO fix the typing on value_type
             value_type,  # type: ignore
