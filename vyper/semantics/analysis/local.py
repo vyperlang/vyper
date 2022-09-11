@@ -171,7 +171,8 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         self.func = fn_node._metadata["type"]
         self.annotation_visitor = StatementAnnotationVisitor(fn_node, namespace)
         self.expr_visitor = _LocalExpressionVisitor()
-        namespace.update(self.func.arguments)
+        for argname, argtype in self.func.arguments.items():
+            namespace[argname] = VarInfo(argtype, location=DataLocation.CALLDATA, is_immutable=True)
 
         for node in fn_node.body:
             self.visit(node)

@@ -20,7 +20,6 @@ from vyper.semantics.analysis.base import (
     FunctionVisibility,
     StateMutability,
     StorageSlot,
-    VarInfo,
 )
 from vyper.semantics.analysis.utils import check_kwargable, validate_expected_type
 from vyper.semantics.namespace import get_namespace
@@ -302,9 +301,7 @@ class ContractFunction(VyperType):
                     )
                 validate_expected_type(value, type_)
 
-            var_info = VarInfo(type_, location=DataLocation.CALLDATA, is_constant=True)
-
-            arguments[arg.arg] = var_info
+            arguments[arg.arg] = type_
 
         # return types
         if node.returns is None:
@@ -357,8 +354,7 @@ class ContractFunction(VyperType):
         arguments, return_type = type_.getter_signature
         args_dict: OrderedDict = OrderedDict()
         for item in arguments:
-            var_info = VarInfo(item, location=DataLocation.CALLDATA, is_constant=True)
-            args_dict[f"arg{len(args_dict)}"] = var_info
+            args_dict[f"arg{len(args_dict)}"] = item
 
         return cls(
             node.target.id,
@@ -411,7 +407,7 @@ class ContractFunction(VyperType):
         * For functions with default arguments, there is one key for each
           function signature.
         """
-        arg_types = [i.typ.canonical_abi_type for i in self.arguments.values()]
+        arg_types = [i.canonical_abi_type for i in self.arguments.values()]
 
         if not self.has_default_args:
             return _generate_method_id(self.name, arg_types)
@@ -468,7 +464,7 @@ class ContractFunction(VyperType):
                 raise CallViolation("Cannot send ether to nonpayable function", kwarg_node)
 
         for arg, expected in zip(node.args, self.arguments.values()):
-            validate_expected_type(arg, expected.typ)
+            validate_expected_type(arg, expected)
 
         # TODO this should be moved to validate_call_args
         for kwarg in node.keywords:

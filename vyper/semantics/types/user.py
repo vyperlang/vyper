@@ -303,11 +303,13 @@ class InterfaceT(VyperType):
         abi = []
         for event in self.events.values():
             abi += event.to_abi_dict()
-        for m in self.members.values():
-            if not isinstance(m, ContractFunction):
-                continue
+        for m in self.functions.values():
             abi += m.to_abi_dict()
         return abi
+
+    @property
+    def functions(self):
+        return {k: v for (k, v) in self.members.items() if isinstance(v, ContractFunction)}
 
     @classmethod
     def from_json_abi(cls, name: str, abi: dict) -> "InterfaceT":

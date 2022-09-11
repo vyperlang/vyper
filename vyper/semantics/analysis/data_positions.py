@@ -117,19 +117,19 @@ def set_storage_slots_with_overrides(
         if node.get("annotation.func.id") == "immutable":
             continue
 
-        type_ = node.target._metadata["type"]
+        varinfo = node.target._metadata["varinfo"]
 
         # Expect to find this variable within the storage layout overrides
         if node.target.id in storage_layout_overrides:
             var_slot = storage_layout_overrides[node.target.id]["slot"]
             # Calculate how many storage slots are required
-            storage_length = math.ceil(type_.size_in_bytes / 32)
+            storage_length = math.ceil(varinfo.typ.size_in_bytes / 32)
             # Ensure that all required storage slots are reserved, and prevents other variables
             # from using these slots
             reserved_slots.reserve_slot_range(var_slot, storage_length, node.target.id)
-            type_.set_position(StorageSlot(var_slot))
+            varinfo.set_position(StorageSlot(var_slot))
 
-            ret[node.target.id] = {"type": str(type_), "slot": var_slot}
+            ret[node.target.id] = {"type": str(varinfo.typ), "slot": var_slot}
         else:
             raise StorageLayoutException(
                 f"Could not find storage_slot for {node.target.id}. "
