@@ -429,11 +429,10 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         iter_name = node.target.id
         for type_ in type_list:
             # type check the for loop body using each possible type for iterator value
-            var_info = VarInfo(type_, is_constant=True)
 
             with self.namespace.enter_scope():
                 try:
-                    self.namespace[iter_name] = var_info
+                    self.namespace[iter_name] = VarInfo(type_, is_constant=True)
                 except VyperException as exc:
                     raise exc.with_annotation(node) from None
 
@@ -442,7 +441,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                         self.visit(n)
                     # type information is applied directly because the scope is
                     # closed prior to the call to `StatementAnnotationVisitor`
-                    node.target._metadata["type"] = VarInfo(type_)
+                    node.target._metadata["type"] = type_
                     return
                 except (TypeMismatch, InvalidOperation) as exc:
                     for_loop_exceptions.append(exc)

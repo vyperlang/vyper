@@ -102,6 +102,14 @@ class ContractFunction(VyperType):
         arg_types = ",".join(repr(a) for a in self.arguments.values())
         return f"contract function {self.name}({arg_types})"
 
+    # override parent implementation. function type equality does not
+    # make too much sense.
+    def __eq__(self, other):
+        return self is other
+
+    def __hash__(self):
+        return hash(id(self))
+
     # this might be dead code
     # def var_info(self):
     # return VarInfo(

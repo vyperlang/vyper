@@ -85,7 +85,7 @@ class _ExprAnalyser:
                 return ExprInfo.from_varinfo(varinfo)
 
             # sanity check
-            assert t == info.typ.get_member(name, node)
+            assert t is info.typ.get_member(name, node)
             return info.copy_with_type(t)
 
         return ExprInfo(t)
