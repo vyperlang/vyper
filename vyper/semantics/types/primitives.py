@@ -60,7 +60,7 @@ class BytesM_T(_PrimT):
 
     @property
     def abi_type(self) -> ABIType:
-        return ABI_BytesM(self.length)
+        return ABI_BytesM(self.m)
 
     @classmethod
     def all(cls):
