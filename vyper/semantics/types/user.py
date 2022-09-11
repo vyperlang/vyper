@@ -303,8 +303,10 @@ class InterfaceT(VyperType):
         abi = []
         for event in self.events.values():
             abi += event.to_abi_dict()
-        for func in self.members.values():
-            abi += func.to_abi_dict()
+        for m in self.members.values():
+            if not isinstance(m, ContractFunction):
+                continue
+            abi += m.to_abi_dict()
         return abi
 
     @classmethod
