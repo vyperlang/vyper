@@ -483,11 +483,8 @@ class Len(BuiltinFunction):
     def evaluate(self, node):
         validate_call_args(node, 1)
         arg = node.args[0]
-        if isinstance(arg, (vy_ast.Str, vy_ast.Bytes)):
+        if isinstance(arg, vy_ast.Bytes):
             length = len(arg.value)
-        elif isinstance(arg, vy_ast.Hex):
-            # 2 characters represent 1 byte and we subtract 1 to ignore the leading `0x`
-            length = len(arg.value) // 2 - 1
         else:
             raise UnfoldableNode
 
