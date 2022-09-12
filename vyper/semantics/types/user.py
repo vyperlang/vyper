@@ -92,7 +92,7 @@ class EnumT(VyperType):
         # TODO
         return None
 
-    def to_abi_dict(self) -> List[Dict]:
+    def to_toplevel_abi_dict(self) -> List[Dict]:
         # TODO
         return []
 
@@ -215,12 +215,12 @@ class EventT(VyperType):
         for arg, expected in zip(node.args, self.arguments.values()):
             validate_expected_type(arg, expected)
 
-    def to_abi_dict(self) -> List[Dict]:
+    def to_toplevel_abi_dict(self) -> List[Dict]:
         return [
             {
                 "name": self.name,
                 "inputs": [
-                    dict(**typ.to_abi_dict(name=k), **{"indexed": idx})
+                    dict(**typ.to_abi_arg(name=k), **{"indexed": idx})
                     for (k, typ), idx in zip(self.arguments.items(), self.indexed)
                 ],
                 "anonymous": False,
@@ -299,12 +299,12 @@ class InterfaceT(VyperType):
                 node,
             )
 
-    def to_abi_dict(self) -> List[Dict]:
+    def to_toplevel_abi_dict(self) -> List[Dict]:
         abi = []
         for event in self.events.values():
-            abi += event.to_abi_dict()
-        for m in self.functions.values():
-            abi += m.to_abi_dict()
+            abi += event.to_toplevel_abi_dict()
+        for func in self.functions.values():
+            abi += func.to_toplevel_abi_dict()
         return abi
 
     @property
@@ -490,8 +490,8 @@ class StructT(VyperType):
     def abi_type(self) -> ABIType:
         return ABI_Tuple([t.abi_type for t in self.members.values()])
 
-    def to_abi_dict(self, name: str = "") -> dict:
-        components = [t.to_abi_dict(name=k) for k, t in self.members.items()]
+    def to_abi_arg(self, name: str = "") -> dict:
+        components = [t.to_abi_arg(name=k) for k, t in self.members.items()]
         return {"name": name, "type": "tuple", "components": components}
 
     # TODO breaking change: use kwargs instead of dict

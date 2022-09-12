@@ -156,8 +156,8 @@ class SArrayT(_SequenceT):
     def abi_type(self) -> ABIType:
         return ABI_StaticArray(self.value_type.abi_type, self.length)
 
-    def to_abi_dict(self, name: str = "") -> Dict[str, Any]:
-        ret = self.value_type.to_abi_dict()
+    def to_abi_arg(self, name: str = "") -> Dict[str, Any]:
+        ret = self.value_type.to_abi_arg()
         # modify the child name in place
         ret["type"] += f"[{self.length}]"
         return _set_first_key(ret, "name", name)
@@ -232,8 +232,8 @@ class DArrayT(_SequenceT):
     def abi_type(self) -> ABIType:
         return ABI_DynamicArray(self.value_type.abi_type, self.length)
 
-    def to_abi_dict(self, name: str = "") -> Dict[str, Any]:
-        ret = self.value_type.to_abi_dict()
+    def to_abi_arg(self, name: str = "") -> Dict[str, Any]:
+        ret = self.value_type.to_abi_arg()
         # modify the child name in place.
         ret["type"] += "[]"
         return _set_first_key(ret, "name", name)
@@ -320,8 +320,8 @@ class TupleT(_SequenceT):
     def abi_type(self) -> ABIType:
         return ABI_Tuple([t.abi_type for t in self._member_types])
 
-    def to_abi_dict(self, name: str = "") -> dict:
-        components = [t.to_abi_dict() for t in self._member_types]
+    def to_abi_arg(self, name: str = "") -> dict:
+        components = [t.to_abi_arg() for t in self._member_types]
         return {"name": name, "type": "tuple", "components": components}
 
     @property
