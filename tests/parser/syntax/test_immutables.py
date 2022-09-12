@@ -50,6 +50,14 @@ def __init__(_value: uint256):
     VALUE = _value * 3
     VALUE = VALUE + 1
     """,
+    # immutable(public()) banned
+    """
+VALUE: immutable(public(uint256))
+
+@external
+def __init__(_value: uint256):
+    VALUE = _value * 3
+    """,
 ]
 
 

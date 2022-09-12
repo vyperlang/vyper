@@ -125,17 +125,30 @@ SHA256_PER_WORD_GAS = 12
 class FoldedFunction(BuiltinFunction):
     # Base class for nodes which should always be folded
 
-    def fetch_call_return(self, node):  # pragma: no cover
-        raise CompilerPanic(f"{self._id} should always be folded")
+    # Since foldable builtin functions are not folded before semantics validation,
+    # this flag is used for `check_kwargable` in semantics validation.
+    _kwargable = True
 
-    def infer_arg_types(self, node):  # pragma: no cover
-        raise CompilerPanic(f"{self._id} should always be folded")
 
-    def infer_kwarg_types(self, node):  # pragma: no cover
-        raise CompilerPanic(f"{self._id} should always be folded")
+class TypenameFoldedFunction(FoldedFunction):
+    # Base class for builtin functions that:
+    # (1) take a typename as the only argument; and
+    # (2) should always be folded.
 
-    def build_IR(self, *args, **kwargs):  # pragma: no cover
-        raise CompilerPanic(f"{self._id} should always be folded")
+    # "TYPE_DEFINITION" is a placeholder value for a type definition string, and
+    # will be replaced by a `TypeTypeDefinition` object in `infer_arg_types`.
+    _inputs = [("typename", "TYPE_DEFINITION")]
+
+    def fetch_call_return(self, node):
+        type_ = self.infer_arg_types(node)[0].typedef
+        return type_
+
+    def infer_arg_types(self, node):
+        validate_call_args(node, 1)
+        input_typedef = TypeTypeDefinition(
+            get_type_from_annotation(node.args[0], DataLocation.MEMORY)
+        )
+        return [input_typedef]
 
 
 class Floor(BuiltinFunction):
@@ -731,24 +744,32 @@ class MethodID(FoldedFunction):
         if " " in args[0].value:
             raise InvalidLiteral("Invalid function signature - no spaces allowed.")
 
-        if node.keywords:
-            return_type = get_type_from_annotation(node.keywords[0].value, DataLocation.UNSET)
-            if isinstance(return_type, Bytes4Definition):
-                is_bytes4 = True
-            elif isinstance(return_type, BytesArrayDefinition) and return_type.length == 4:
-                is_bytes4 = False
-            else:
-                raise ArgumentException("output_type must be Bytes[4] or bytes4", node.keywords[0])
-        else:
-            # If `output_type` is not given, default to `Bytes[4]`
-            is_bytes4 = False
-
+        return_type = self.infer_kwarg_types(node)
         value = abi_method_id(args[0].value)
 
-        if is_bytes4:
+        if isinstance(return_type, Bytes4Definition):
             return vy_ast.Hex.from_node(node, value=hex(value))
         else:
             return vy_ast.Bytes.from_node(node, value=value.to_bytes(4, "big"))
+
+    def fetch_call_return(self, node):
+        validate_call_args(node, 1, ["output_type"])
+
+        type_ = self.infer_kwarg_types(node)
+        return type_
+
+    def infer_kwarg_types(self, node):
+        if node.keywords:
+            return_type = get_type_from_annotation(node.keywords[0].value, DataLocation.UNSET)
+            if isinstance(return_type, Bytes4Definition):
+                return Bytes4Definition()
+            elif isinstance(return_type, BytesArrayDefinition) and return_type.length == 4:
+                return BytesArrayDefinition(4)
+            else:
+                raise ArgumentException("output_type must be Bytes[4] or bytes4", node.keywords[0])
+
+        # If `output_type` is not given, default to `Bytes[4]`
+        return BytesArrayDefinition(4)
 
 
 class ECRecover(BuiltinFunction):
@@ -877,7 +898,7 @@ class Extract32(BuiltinFunction):
     _inputs = [("b", BytesArrayPrimitive()), ("start", UnsignedIntegerAbstractType())]
     # "TYPE_DEFINITION" is a placeholder value for a type definition string, and
     # will be replaced by a `TypeTypeDefinition` object in `infer_kwarg_types`
-    # (note that it is ignored in validate_args)
+    # (note that it is ignored in `_validate_arg_types`)
     _kwargs = {"output_type": KwargSettings("TYPE_DEFINITION", "bytes32")}
     _return_type = None
 
@@ -2199,93 +2220,52 @@ class ISqrt(BuiltinFunction):
 
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
-        # TODO check out this import
-        from vyper.builtin_functions.utils import generate_inline_function
+        # calculate isqrt using the babylonian method
 
+        y, z = "y", "z"
         arg = args[0]
-        sqrt_code = """
-y: uint256 = x
-z: uint256 = 181
-if y >= 2**(128 + 8):
-    y = unsafe_div(y, 2**128)
-    z = unsafe_mul(z, 2**64)
-if y >= 2**(64 + 8):
-    y = unsafe_div(y, 2**64)
-    z = unsafe_mul(z, 2**32)
-if y >= 2**(32 + 8):
-    y = unsafe_div(y, 2**32)
-    z = unsafe_mul(z, 2**16)
-if y >= 2**(16 + 8):
-    y = unsafe_div(y, 2**16)
-    z = unsafe_mul(z, 2**8)
+        with arg.cache_when_complex("x") as (b1, x):
+            ret = [
+                "seq",
+                [
+                    "if",
+                    ["ge", y, 2 ** (128 + 8)],
+                    ["seq", ["set", y, shr(128, y)], ["set", z, shl(64, z)]],
+                ],
+                [
+                    "if",
+                    ["ge", y, 2 ** (64 + 8)],
+                    ["seq", ["set", y, shr(64, y)], ["set", z, shl(32, z)]],
+                ],
+                [
+                    "if",
+                    ["ge", y, 2 ** (32 + 8)],
+                    ["seq", ["set", y, shr(32, y)], ["set", z, shl(16, z)]],
+                ],
+                [
+                    "if",
+                    ["ge", y, 2 ** (16 + 8)],
+                    ["seq", ["set", y, shr(16, y)], ["set", z, shl(8, z)]],
+                ],
+            ]
+            ret.append(["set", z, ["div", ["mul", z, ["add", y, 2 ** 16]], 2 ** 18]])
 
-z = unsafe_div(unsafe_mul(z, unsafe_add(y, 65536)), 2**18)
+            for _ in range(7):
+                ret.append(["set", z, ["div", ["add", ["div", x, z], z], 2]])
 
-z = unsafe_div(unsafe_add(unsafe_div(x, z), z), 2)
-z = unsafe_div(unsafe_add(unsafe_div(x, z), z), 2)
-z = unsafe_div(unsafe_add(unsafe_div(x, z), z), 2)
-z = unsafe_div(unsafe_add(unsafe_div(x, z), z), 2)
-z = unsafe_div(unsafe_add(unsafe_div(x, z), z), 2)
-z = unsafe_div(unsafe_add(unsafe_div(x, z), z), 2)
-z = unsafe_div(unsafe_add(unsafe_div(x, z), z), 2)
+            # note: If ``x+1`` is a perfect square, then the Babylonian
+            # algorithm oscillates between floor(sqrt(x)) and ceil(sqrt(x)) in
+            # consecutive iterations. return the floor value always.
 
-# Performance note: If ``x+1`` is a perfect square, then the Babylonian
-# algorithm oscillates between floor(sqrt(x)) and ceil(sqrt(x)) in
-# consecutive iterations. ``isqrt`` has a final check that returns
-# the floor value always, but this increases costs by approximately 10% :
+            ret.append(["with", "t", ["div", x, z], ["select", ["lt", z, "t"], z, "t"]])
 
-z = min(z, unsafe_div(x, z))
-        """
-
-        x_type = BaseType("uint256")
-        placeholder_copy = ["pass"]
-        # Steal current position if variable is already allocated.
-        if arg.value == "mload":
-            new_var_pos = arg.args[0]
-        # Other locations need to be copied.
-        else:
-            new_var_pos = context.new_internal_variable(x_type)
-            placeholder_copy = ["mstore", new_var_pos, arg]
-        # Create input variables.
-        variables = {"x": VariableRecord(name="x", pos=new_var_pos, typ=x_type, mutable=False)}
-        # Dictionary to update new (i.e. typecheck) namespace
-        variables_2 = {"x": Uint256Definition()}
-        # Generate inline IR.
-        new_ctx, sqrt_ir = generate_inline_function(
-            code=sqrt_code,
-            variables=variables,
-            variables_2=variables_2,
-            memory_allocator=context.memory_allocator,
-        )
-        return IRnode.from_list(
-            ["seq", placeholder_copy, sqrt_ir, new_ctx.vars["z"].pos],  # load x variable
-            typ=BaseType("uint256"),
-            location=MEMORY,
-        )
+            ret = ["with", y, x, ["with", z, 181, ret]]
+            return b1.resolve(IRnode.from_list(ret, typ=BaseType("uint256")))
 
 
-class Empty(BuiltinFunction):
+class Empty(TypenameFoldedFunction):
 
     _id = "empty"
-    # "TYPE_DEFINITION" is a placeholder value for a type definition string, and
-    # will be replaced by a `TypeTypeDefinition` object in `infer_arg_types`
-    # (note that it is ignored in `validate_args`)
-    _inputs = [("typename", "TYPE_DEFINITION")]
-
-    # Since `empty` is not folded before semantics validation, this flag is used
-    # for `check_kwargable` in semantics validation.
-    _kwargable = True
-
-    def fetch_call_return(self, node):
-        type_ = self.infer_arg_types(node)[0].typedef
-        return type_
-
-    def infer_arg_types(self, node):
-        validate_call_args(node, 1)
-        input_typedef = TypeTypeDefinition(
-            get_type_from_annotation(node.args[0], DataLocation.MEMORY)
-        )
-        return [input_typedef]
 
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
@@ -2599,9 +2579,7 @@ class ABIDecode(BuiltinFunction):
             )
 
 
-class _MinMaxValue(FoldedFunction):
-    _inputs = [("typename", "TYPE_DEFINITION")]
-
+class _MinMaxValue(TypenameFoldedFunction):
     def evaluate(self, node):
         self._validate_arg_types(node)
         input_type = get_type_from_annotation(node.args[0], DataLocation.UNSET)
@@ -2642,9 +2620,7 @@ class MaxValue(_MinMaxValue):
         return typinfo.decimal_bounds[1]
 
 
-class Epsilon(FoldedFunction):
-
-    _inputs = [("typename", "TYPE_DEFINITION")]
+class Epsilon(TypenameFoldedFunction):
     _id = "epsilon"
 
     def evaluate(self, node):
