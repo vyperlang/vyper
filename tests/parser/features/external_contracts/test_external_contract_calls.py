@@ -2473,12 +2473,11 @@ def foo(a: {typ}):
     malformed = data[:-2]
     assert_tx_failed(lambda: w3.eth.send_transaction({"to": c1.address, "data": malformed}))
 
-    # Static size exceeds by 1 byte
-    malformed = data + "ff"
-    assert_tx_failed(lambda: w3.eth.send_transaction({"to": c1.address, "data": malformed}))
-
     # Static size is exact
     w3.eth.send_transaction({"to": c1.address, "data": data})
+
+    # Static size exceeds by 1 byte, ok
+    w3.eth.send_transaction({"to": c1.address, "data": data + "ff"})
 
 
 @pytest.mark.parametrize("typ,val", [("address", ([TEST_ADDR] * 3, "vyper"))])
