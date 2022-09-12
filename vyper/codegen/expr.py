@@ -49,7 +49,6 @@ from vyper.utils import (
     SizeLimits,
     bytes_to_int,
     is_checksum_encoded,
-    string_to_bytes,
     vyper_warn,
 )
 
@@ -132,16 +131,17 @@ class Expr:
 
     # String literals
     def parse_Str(self):
-        bytez, bytez_length = string_to_bytes(self.expr.value)
-        typ = StringType(bytez_length, is_literal=True)
-        return self._make_bytelike(typ, bytez, bytez_length)
+        bytez = self.expr.value.encode("utf-8")
+        length = len(bytez)
+        typ = StringType(length, is_literal=True)
+        return self._make_bytelike(typ, bytez, length)
 
     # Byte literals
     def parse_Bytes(self):
         bytez = self.expr.s
-        bytez_length = len(self.expr.s)
-        typ = ByteArrayType(bytez_length, is_literal=True)
-        return self._make_bytelike(typ, bytez, bytez_length)
+        length = len(self.expr.s)
+        typ = ByteArrayType(length, is_literal=True)
+        return self._make_bytelike(typ, bytez, length)
 
     def _make_bytelike(self, btype, bytez, bytez_length):
         placeholder = self.context.new_internal_variable(btype)
