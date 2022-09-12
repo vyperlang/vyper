@@ -58,6 +58,11 @@ class BytesM_T(_PrimT):
     def _id(self):
         return f"bytes{self.m}"
 
+    # convenience for backwards API compat
+    @property
+    def length(self):
+        return self.m
+
     @property
     def abi_type(self) -> ABIType:
         return ABI_BytesM(self.m)

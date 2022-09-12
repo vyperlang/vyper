@@ -509,7 +509,7 @@ class Concat(BuiltinFunction):
         ret = []
         prev_typeclass = None
         for arg in node.args:
-            validate_expected_type(arg, (BytesT(), StringT()))
+            validate_expected_type(arg, (BytesT(), StringT(), BytesM_T.any()))
             arg_t = get_possible_types_from_node(arg).pop()
             current_typeclass = "Bytes" if isinstance(arg_t, BytesT) else "String"
             if prev_typeclass and current_typeclass != prev_typeclass:
