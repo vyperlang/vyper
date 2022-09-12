@@ -805,7 +805,7 @@ class Str(Constant):
 
     def validate(self):
         for c in self.value:
-            if ord(c) >= 256:
+            if ord(c) >= 128:
                 raise InvalidLiteral(f"'{c}' is not an allowed string literal character", self)
 
     @property
