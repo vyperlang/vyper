@@ -2544,11 +2544,11 @@ class _MinMaxValue(TypenameFoldedFunction):
         self._validate_arg_types(node)
         input_type = type_from_annotation(node.args[0])
 
-        if input_type.compare_type(DecimalT()):
+        if isinstance(input_type, DecimalT):
             val = self._eval_decimal(input_type)
             return vy_ast.Decimal.from_node(node, value=val)
 
-        if input_type.compare_type(IntegerT.any()):
+        if isinstance(input_type, IntegerT):
             val = self._eval_int(input_type)
             return vy_ast.Int.from_node(node, value=val)
 
