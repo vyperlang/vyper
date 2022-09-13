@@ -39,18 +39,22 @@ def isApprovedForAll(_owner: address, _operator: address) -> bool:
     pass
 
 @external
+@payable
 def transferFrom(_from: address, _to: address, _tokenId: uint256):
     pass
 
 @external
+@payable
 def safeTransferFrom(_from: address, _to: address, _tokenId: uint256):
     pass
 
 @external
+@payable
 def safeTransferFrom(_from: address, _to: address, _tokenId: uint256, _data: Bytes[1024]):
     pass
 
 @external
+@payable
 def approve(_approved: address, _tokenId: uint256):
     pass
 
