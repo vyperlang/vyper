@@ -1,7 +1,7 @@
 from typing import Dict
 
 from vyper import ast as vy_ast
-from vyper.exceptions import InvalidType, UnknownType
+from vyper.exceptions import InvalidType, UnknownType, StructureException
 from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.base import VyperType
@@ -89,7 +89,10 @@ def type_from_annotation(node: vy_ast.VyperNode) -> VyperType:
 
         return type_ctor.from_annotation(node)
 
-    if not isinstance(node, vy_ast.Name) or node.id not in namespace:
+    if not isinstance(node, vy_ast.Name):
+        # maybe handle this somewhere upstream in ast validation
+        raise StructureException("Not a type!", node)
+    if node.id not in namespace:
         _failwith(node.node_source_code)
 
     return namespace[node.id]

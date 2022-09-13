@@ -82,7 +82,7 @@ n: HashMap[uint256, bool][3]
     """,
     """
 a: constant(uint256) = 3
-n: public(HashMap[uint256, Y][a])
+n: public(HashMap[uint256, uint256][a])
     """,
     """
 a: immutable(uint256)
