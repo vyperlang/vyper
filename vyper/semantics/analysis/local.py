@@ -235,7 +235,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         validate_expected_type(node.value, type_)
 
         try:
-            self.namespace[name] = VarInfo(type_, DataLocation.MEMORY)
+            self.namespace[name] = VarInfo(type_, location=DataLocation.MEMORY)
         except VyperException as exc:
             raise exc.with_annotation(node) from None
         self.expr_visitor.visit(node.value)
@@ -491,7 +491,9 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                 )
 
         if isinstance(fn_type, MemberFunctionT) and fn_type.is_modifying:
-            fn_type.underlying_type.validate_modification(node, self.func.mutability)
+            # it's a dotted function call like dynarray.pop()
+            expr_info = get_expr_info(node.value.func.value)
+            expr_info.validate_modification(node, self.func.mutability)
 
         # NOTE: fetch_call_return validates call args.
         return_value = fn_type.fetch_call_return(node.value)

@@ -1,5 +1,6 @@
 import enum
 from typing import Dict, List, Optional, Union
+from dataclasses import dataclass, field
 
 from vyper import ast as vy_ast
 from vyper.exceptions import (
@@ -154,6 +155,7 @@ class CodeOffset(DataPosition):
         return f"<CodeOffset: {self.offset}>"
 
 
+@dataclass
 class VarInfo:
     """
     VarInfo are objects that represent the type of a variable,
@@ -172,28 +174,15 @@ class VarInfo:
         If `True`, this is a variable defined with the `constant()` modifier
     """
 
-    _id: str
+    typ: VyperType
+    location: DataLocation = DataLocation.UNSET
+    is_constant: bool = False
+    is_public: bool = False
+    is_immutable: bool = False
+    is_local_var: bool = False
+    decl_node: Optional[vy_ast.VyperNode] = None
 
-    def __init__(
-        self,
-        typ: VyperType,
-        decl_node: Optional[vy_ast.VyperNode] = None,
-        location: DataLocation = DataLocation.UNSET,
-        is_constant: bool = False,
-        is_public: bool = False,
-        is_immutable: bool = False,
-        is_local_var: bool = False,
-    ) -> None:
-        self.typ = typ
-        self.location = location
-        self.is_constant = is_constant
-        self.is_public = is_public
-        self.is_immutable = is_immutable
-        self.is_local_var = is_local_var
-
-        # TODO maybe we don't actually need this
-        self.decl_node = decl_node
-
+    def __post_init__(self):
         self._modification_count = 0
 
     def set_position(self, position: DataPosition) -> None:
@@ -207,29 +196,23 @@ class VarInfo:
         self.position = position
 
 
+@dataclass
 class ExprInfo:
     """
     Class which represents the analysis associated with an expression
     """
 
-    def __init__(
-        self,
-        typ: VyperType,
-        var_info: Optional[VarInfo] = None,
-        location: DataLocation = DataLocation.UNSET,
-        is_constant: bool = False,
-        is_immutable: bool = False,
-    ):
-        self.typ: VyperType = typ
-        self.var_info: Optional[VarInfo] = var_info
-        self.location = location
-        self.is_constant = is_constant
-        self.is_immutable = is_immutable
+    typ: VyperType
+    var_info: Optional[VarInfo] = None
+    location: DataLocation = DataLocation.UNSET
+    is_constant: bool = False
+    is_immutable: bool = False
 
+    def __post_init__(self):
         should_match = ("typ", "location", "is_constant", "is_immutable")
-        if var_info is not None:
+        if self.var_info is not None:
             for attr in should_match:
-                if getattr(var_info, attr) != getattr(self, attr):
+                if getattr(self.var_info, attr) != getattr(self, attr):
                     raise CompilerPanic("Bad analysis: non-matching {attr}: {self}")
 
     @classmethod

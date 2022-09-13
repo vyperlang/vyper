@@ -110,17 +110,6 @@ class ContractFunction(VyperType):
     def __hash__(self):
         return hash(id(self))
 
-    # this might be dead code
-    # def var_info(self):
-    # return VarInfo(
-    # A function definition type only exists while compiling
-    #    DataLocation.UNSET,
-    # A function definition type is immutable once created
-    #    is_constant=True,
-    # A function definition type is public if it's visibility is public
-    #    is_public=(function_visibility == FunctionVisibility.EXTERNAL),
-    # )
-
     @classmethod
     def from_abi(cls, abi: Dict) -> "ContractFunction":
         """
