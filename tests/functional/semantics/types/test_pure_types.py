@@ -105,7 +105,7 @@ def test_invalid_node(build_node, type_, type_str, source):
 def test_from_annotation_literal(build_node, type_, source):
     node = build_node(source)
 
-    with pytest.raises(UnknownType):
+    with pytest.raises((StructureException, UnknownType)):
         type_from_annotation(node)
 
 

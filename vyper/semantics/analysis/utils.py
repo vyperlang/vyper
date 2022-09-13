@@ -3,7 +3,6 @@ from typing import Callable, List
 
 from vyper import ast as vy_ast
 from vyper.exceptions import (
-    ArrayIndexException,
     InvalidLiteral,
     InvalidOperation,
     InvalidReference,
@@ -297,7 +296,10 @@ class _ExprAnalyser:
         try:
             varinfo = self.namespace[node.id]
             if isinstance(varinfo, VyperType):
-                return [varinfo]
+                raise InvalidReference(
+                    f"'{varinfo}' is a type - expected a literal or variable", node
+                )
+
             return [varinfo.typ]
         except VyperException as exc:
             raise exc.with_annotation(node) from None
@@ -517,40 +519,6 @@ def validate_expected_type(node, expected_type):
             f"Expected {expected_str} but literal can only be cast as {given_str}.{suggestion_str}",
             node,
         )
-
-
-def get_index_value(node: vy_ast.Index) -> int:
-    """
-    Return the literal value for a `Subscript` index.
-
-    Arguments
-    ---------
-    node : vy_ast.Index
-        Vyper ast node from the `slice` member of a Subscript node. Must be an
-        `Index` object (Vyper does not support `Slice` or `ExtSlice`).
-
-    Returns
-    -------
-    int
-        Literal integer value.
-    """
-
-    if not isinstance(node.get("value"), vy_ast.Int):
-        if hasattr(node, "value"):
-            # even though the subscript is an invalid type, first check if it's a valid _something_
-            # this gives a more accurate error in case of e.g. a typo in a constant variable name
-            try:
-                get_possible_types_from_node(node.value)
-            except StructureException:
-                # StructureException is a very broad error, better to raise InvalidType in this case
-                pass
-
-        raise InvalidType("Subscript must be a literal integer", node)
-
-    if node.value.value <= 0:
-        raise ArrayIndexException("Subscript must be greater than 0", node)
-
-    return node.value.value
 
 
 def validate_unique_method_ids(functions: List) -> None:

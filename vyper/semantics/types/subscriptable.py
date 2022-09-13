@@ -5,7 +5,7 @@ from vyper.abi_types import ABI_DynamicArray, ABI_StaticArray, ABI_Tuple, ABITyp
 from vyper.exceptions import ArrayIndexException, InvalidType, StructureException
 from vyper.semantics.types.base import VyperType
 from vyper.semantics.types.primitives import UINT256_T, IntegerT
-from vyper.utils import cached_property
+from vyper.semantics.types.utils import get_index_value, type_from_annotation
 
 
 class _SubscriptableT(VyperType):
@@ -58,9 +58,6 @@ class HashMapT(_SubscriptableT):
 
     @classmethod
     def from_annotation(cls, node: Union[vy_ast.Name, vy_ast.Call, vy_ast.Subscript]) -> "HashMapT":
-        # TODO revisit circular import
-        from vyper.semantics.types.utils import type_from_annotation
-
         if (
             not isinstance(node, vy_ast.Subscript)
             or not isinstance(node.slice, vy_ast.Index)
@@ -170,14 +167,7 @@ class SArrayT(_SequenceT):
 
     @classmethod
     def from_annotation(cls, node: vy_ast.Subscript) -> "SArrayT":
-        # TODO fix circular import
-        from vyper.semantics.types.utils import type_from_annotation
-
-        if (
-            not isinstance(node, vy_ast.Subscript)
-            or not isinstance(node.slice, vy_ast.Index)
-            or not isinstance(node.slice.value, vy_ast.Int)
-        ):
+        if not isinstance(node, vy_ast.Subscript) or not isinstance(node.slice, vy_ast.Index):
             raise StructureException(
                 "Arrays must be defined with base type and length, e.g. bool[5]", node
             )
@@ -187,7 +177,8 @@ class SArrayT(_SequenceT):
         if not value_type._as_array:
             raise StructureException(f"arrays of {value_type} are not allowed!")
 
-        length = node.slice.value.value
+        # note: validates index is a vy_ast.Int.
+        length = get_index_value(node.slice)
         return cls(value_type, length)
 
 
@@ -250,9 +241,6 @@ class DArrayT(_SequenceT):
 
     @classmethod
     def from_annotation(cls, node: vy_ast.Subscript) -> "DArrayT":
-        # TODO fix circular import
-        from vyper.semantics.types.utils import type_from_annotation
-
         if (
             not isinstance(node, vy_ast.Subscript)
             or not isinstance(node.slice, vy_ast.Index)
@@ -296,9 +284,6 @@ class TupleT(_SequenceT):
 
     @classmethod
     def from_annotation(cls, node: vy_ast.Tuple):
-        # TODO circular import
-        from vyper.semantics.types.utils import type_from_annotation
-
         values = node.elements
         types = tuple(type_from_annotation(v) for v in values)
         return cls(types)

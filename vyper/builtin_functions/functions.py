@@ -492,10 +492,10 @@ class Concat(BuiltinFunction):
         for arg_t in arg_types:
             length += arg_t.length
 
-        if isinstance(arg_types[0], BytesT):
-            return_type = BytesT()
-        else:
+        if isinstance(arg_types[0], (StringT)):
             return_type = StringT()
+        else:
+            return_type = BytesT()
         return_type.set_length(length)
         return return_type
 
@@ -511,7 +511,7 @@ class Concat(BuiltinFunction):
         for arg in node.args:
             validate_expected_type(arg, (BytesT(), StringT(), BytesM_T.any()))
             arg_t = get_possible_types_from_node(arg).pop()
-            current_typeclass = "Bytes" if isinstance(arg_t, BytesT) else "String"
+            current_typeclass = "String" if isinstance(arg_t, StringT) else "Bytes"
             if prev_typeclass and current_typeclass != prev_typeclass:
                 raise TypeMismatch(
                     (

@@ -1,7 +1,7 @@
 from typing import Dict
 
 from vyper import ast as vy_ast
-from vyper.exceptions import InvalidType, UnknownType, StructureException
+from vyper.exceptions import ArrayIndexException, InvalidType, StructureException, UnknownType
 from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.base import VyperType
@@ -96,3 +96,40 @@ def type_from_annotation(node: vy_ast.VyperNode) -> VyperType:
         _failwith(node.node_source_code)
 
     return namespace[node.id]
+
+
+def get_index_value(node: vy_ast.Index) -> int:
+    """
+    Return the literal value for a `Subscript` index.
+
+    Arguments
+    ---------
+    node : vy_ast.Index
+        Vyper ast node from the `slice` member of a Subscript node. Must be an
+        `Index` object (Vyper does not support `Slice` or `ExtSlice`).
+
+    Returns
+    -------
+    int
+        Literal integer value.
+    """
+    # this is imported to improve error messages
+    # TODO: revisit this!
+    from vyper.semantics.analysis.utils import get_possible_types_from_node
+
+    if not isinstance(node.get("value"), vy_ast.Int):
+        if hasattr(node, "value"):
+            # even though the subscript is an invalid type, first check if it's a valid _something_
+            # this gives a more accurate error in case of e.g. a typo in a constant variable name
+            try:
+                get_possible_types_from_node(node.value)
+            except StructureException:
+                # StructureException is a very broad error, better to raise InvalidType in this case
+                pass
+
+        raise InvalidType("Subscript must be a literal integer", node)
+
+    if node.value.value <= 0:
+        raise ArrayIndexException("Subscript must be greater than 0", node)
+
+    return node.value.value

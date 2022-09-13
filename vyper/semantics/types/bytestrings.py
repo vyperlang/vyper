@@ -1,8 +1,8 @@
 from vyper import ast as vy_ast
 from vyper.abi_types import ABI_Bytes, ABI_String, ABIType
 from vyper.exceptions import CompilerPanic, StructureException, UnexpectedNodeType, UnexpectedValue
-from vyper.semantics import analysis
 from vyper.semantics.types.base import VyperType
+from vyper.semantics.types.utils import get_index_value
 from vyper.utils import ceil32
 
 
@@ -121,7 +121,7 @@ class _BytestringT(VyperType):
         if node.get("value.id") != cls._id:
             raise UnexpectedValue("Node id does not match type name")
 
-        length = analysis.utils.get_index_value(node.slice)  # type: ignore
+        length = get_index_value(node.slice)  # type: ignore
         # return cls._type(length, location, is_constant, is_public, is_immutable)
         return cls(length)
 

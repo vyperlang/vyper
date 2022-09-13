@@ -10,12 +10,6 @@ x: bat
 x: HashMap[int, int128]
     """,
     """
-x: [bar, baz]
-    """,
-    """
-x: [bar(int128), baz(baffle)]
-    """,
-    """
 struct A:
     b: B
     """,
