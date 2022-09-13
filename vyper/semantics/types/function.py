@@ -390,8 +390,8 @@ class ContractFunction(VyperType):
 
         if len(arguments) != len(other_arguments):
             return False
-        for a, b in zip(arguments, other_arguments):
-            if not a.typ.compare_type(b.typ):
+        for atyp, btyp in zip(arguments, other_arguments):
+            if not atyp.compare_type(btyp):
                 return False
         if return_type and not return_type.compare_type(other_return_type):  # type: ignore
             return False
