@@ -35,8 +35,10 @@ from vyper.typing import InterfaceDict
 
 
 def add_module_namespace(vy_module: vy_ast.Module, interface_codes: InterfaceDict) -> None:
-
-    """Analyzes a Vyper ast and adds all module-level objects to the namespace."""
+    """
+    Analyze a Vyper module AST node, add all module-level objects to the
+    namespace and validate top-level correctness
+    """
 
     namespace = get_namespace()
     ModuleNodeVisitor(vy_module, interface_codes, namespace)
@@ -156,9 +158,7 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
 
         interface_name = node.annotation.id
 
-        # TODO should be VarInfo not VyperType
         other_iface = self.namespace[interface_name]
-
         other_iface.validate_implements(node)
 
     def visit_VariableDecl(self, node):
@@ -240,7 +240,7 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
         except NamespaceCollision as exc:
             raise exc.with_annotation(node) from None
         try:
-            self.namespace["self"].typ.add_member(name, type_)
+            self.namespace["self"].typ.add_member(name, var_info)
             node.target._metadata["type"] = type_
         except NamespaceCollision:
             raise NamespaceCollision(f"Value '{name}' has already been declared", node) from None

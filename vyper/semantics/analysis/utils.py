@@ -17,7 +17,7 @@ from vyper.exceptions import (
     ZeroDivisionException,
 )
 from vyper.semantics import types
-from vyper.semantics.analysis.base import ExprInfo
+from vyper.semantics.analysis.base import ExprInfo, VarInfo
 from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.base import VyperType
@@ -77,13 +77,13 @@ class _ExprAnalyser:
             name = node.attr
             info = self.get_expr_info(node.value)
 
-            if node.get("value.id") == "self" and name in self.namespace:
+            t = info.typ.get_member(name, node)
 
-                # if isinstance(t, InterfaceT):
-                #    # once we have modules: t.namespace[name]
-                varinfo = self.namespace[name]
-                return ExprInfo.from_varinfo(varinfo)
+            # it's a top-level variable
+            if isinstance(t, VarInfo):
+                return ExprInfo.from_varinfo(t)
 
+            # it's something else, like my_struct.foo
             # sanity check
             assert t is info.typ.get_member(name, node)
             return info.copy_with_type(t)
@@ -157,7 +157,10 @@ class _ExprAnalyser:
         t = self.get_exact_type_from_node(node.value)
         name = node.attr
         try:
-            return [t.get_member(name, node)]
+            s = t.get_member(name, node)
+            if isinstance(s, VyperType):
+                return [s]
+            return [s.typ]
         except UnknownAttribute:
             if node.get("value.id") != "self":
                 raise

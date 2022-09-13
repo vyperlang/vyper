@@ -110,8 +110,8 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
         super().visit(node, type_)
 
     def visit_Attribute(self, node, type_):
-        base_type = get_exact_type_from_node(node.value)
-        node._metadata["type"] = base_type.get_member(node.attr, node)
+        type_ = get_exact_type_from_node(node)
+        node._metadata["type"] = type_
         self.visit(node.value, None)
 
     def visit_BinOp(self, node, type_):

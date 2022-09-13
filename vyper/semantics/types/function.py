@@ -374,6 +374,12 @@ class ContractFunction(VyperType):
             state_mutability=StateMutability.VIEW,
         )
 
+    @property
+    # convenience property for compare_signature, as it would
+    # appear in a public interface
+    def _iface_sig(self) -> Tuple[Tuple, Optional[VyperType]]:
+        return tuple(self.arguments.values()), self.return_type
+
     def compare_signature(self, other: "ContractFunction") -> bool:
         """
         Compare the signature of this function with another function.
@@ -385,8 +391,8 @@ class ContractFunction(VyperType):
         if not self.is_external:
             return False
 
-        arguments, return_type = self.get_signature()
-        other_arguments, other_return_type = other.get_signature()
+        arguments, return_type = self._iface_sig
+        other_arguments, other_return_type = other._iface_sig
 
         if len(arguments) != len(other_arguments):
             return False
@@ -450,11 +456,6 @@ class ContractFunction(VyperType):
     @property
     def has_default_args(self) -> bool:
         return self.min_arg_count < self.max_arg_count
-
-    # note: old code, only used for compare_signature (which is possibly wrong)
-    # consider removing
-    def get_signature(self) -> Tuple[Tuple, Optional[VyperType]]:
-        return tuple(self.arguments.values()), self.return_type
 
     def fetch_call_return(self, node: vy_ast.Call) -> Optional[VyperType]:
         if node.get("func.value.id") == "self" and self.visibility == FunctionVisibility.EXTERNAL:

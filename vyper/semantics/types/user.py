@@ -13,6 +13,7 @@ from vyper.exceptions import (
     UnknownAttribute,
     VariableDeclarationException,
 )
+from vyper.semantics.analysis.base import VarInfo
 from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
 from vyper.semantics.analysis.utils import validate_expected_type, validate_unique_method_ids
 from vyper.semantics.namespace import get_namespace
@@ -280,18 +281,29 @@ class InterfaceT(_UserType):
         namespace = get_namespace()
         unimplemented = []
 
+        def _is_function_implemented(fn_name, fn_type):
+            vyper_self = namespace["self"].typ
+            if name not in vyper_self.members:
+                return False
+            s = vyper_self.members[name]
+            if isinstance(s, ContractFunction):
+                to_compare = vyper_self.members[name]
+            # this is kludgy, rework order of passes in ModuleNodeVisitor
+            elif isinstance(s, VarInfo) and s.is_public:
+                to_compare = s.decl_node._metadata["func_type"]
+            else:
+                return False
+
+            return to_compare.compare_signature(fn_type)
+
+
         # check for missing functions
         for name, type_ in self.members.items():
             if not isinstance(type_, ContractFunction):
                 # ex. address
                 continue
 
-            vyper_self = namespace["self"].typ
-            if (
-                name not in vyper_self.members
-                or not isinstance(vyper_self.members[name], ContractFunction)
-                or not vyper_self.members[name].compare_signature(type_)
-            ):
+            if not _is_function_implemented(name, type_):
                 unimplemented.append(name)
 
         # check for missing events
