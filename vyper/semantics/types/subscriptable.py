@@ -30,11 +30,6 @@ class _SubscriptableT(VyperType):
         child_keys, return_type = self.value_type.getter_signature
         return (self.key_type,) + child_keys, return_type
 
-    # TODO maybe remove this
-    @cached_property
-    def possible_index_types(self):
-        return (self.key_type,)
-
     def validate_index_type(self, node):
         # TODO: break this cycle
         from vyper.semantics.analysis.utils import validate_expected_type
@@ -107,10 +102,6 @@ class _SequenceT(_SubscriptableT):
 
         super().__init__(UINT256_T, value_type)
         self.length = length
-
-    @cached_property
-    def possible_index_types(self) -> Tuple[VyperType]:
-        return IntegerT.any()
 
     def validate_index_type(self, node):
         # TODO break this cycle

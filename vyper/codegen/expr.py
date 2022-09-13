@@ -80,10 +80,8 @@ class Expr:
         self.ir_node.source_pos = getpos(self.expr)
 
     def parse_Int(self):
-        typ_ = self.expr._metadata.get("type")
-        if typ_ is None:
-            raise CompilerPanic("Type of integer literal is unknown")
-        new_typ = new_type_to_old_type(typ_)
+        typ = self.expr._metadata["type"]
+        new_typ = new_type_to_old_type(typ)
         new_typ.is_literal = True
         return IRnode.from_list(self.expr.n, typ=new_typ)
 
