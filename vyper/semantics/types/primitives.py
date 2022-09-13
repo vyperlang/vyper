@@ -189,12 +189,12 @@ class IntegerT(NumericT):
         return ()
 
     @classmethod
-    def signeds(cls) -> List["IntegerT"]:
-        return [cls(is_signed=True, bits=i * 8) for i in RANGE_1_32]
+    def signeds(cls) -> Tuple["IntegerT", ...]:
+        return tuple(cls(is_signed=True, bits=i * 8) for i in RANGE_1_32)
 
     @classmethod
-    def unsigneds(cls) -> List["IntegerT"]:
-        return [cls(is_signed=False, bits=i * 8) for i in RANGE_1_32]
+    def unsigneds(cls) -> Tuple["IntegerT", ...]:
+        return tuple(cls(is_signed=False, bits=i * 8) for i in RANGE_1_32)
 
     @classmethod
     def all(cls) -> List["IntegerT"]:
