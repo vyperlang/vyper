@@ -146,15 +146,20 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
             self_members[fn_name].recursive_calls = function_set
 
     def visit_AnnAssign(self, node):
-        name = node.get("target.id")
         # TODO rename the node class to ImplementsDecl
-        if name == "implements":
-            interface_name = node.annotation.id
-            self_iface = self.interface
-            other_iface = self.namespace[interface_name]  # TODO should be VarInfo not VyperType
-            self_iface.validate_implements(other_iface, node)
-        else:
+        name = node.get("target.id")
+        # TODO move these checks to AST validation
+        if name != "implements":
             raise UnexpectedNodeType("AnnAssign not allowed at module level", node)
+        if not isinstance(node.annotation, vy_ast.Name):
+            raise UnexpectedNodeType("not an identifier", node.annotation)
+
+        interface_name = node.annotation.id
+
+        # TODO should be VarInfo not VyperType
+        other_iface = self.namespace[interface_name]
+
+        other_iface.validate_implements(node)
 
     def visit_VariableDecl(self, node):
         name = node.get("target.id")

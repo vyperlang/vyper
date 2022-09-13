@@ -275,25 +275,27 @@ class InterfaceT(_UserType):
     def infer_kwarg_types(self, node):
         return {}
 
-    def validate_implements(self, should_implement: "InterfaceT", node: vy_ast.AnnAssign) -> None:
+    # TODO x.validate_implements(other)
+    def validate_implements(self, node: vy_ast.AnnAssign) -> None:
         namespace = get_namespace()
         unimplemented = []
 
         # check for missing functions
-        for name, type_ in should_implement.members.items():
+        for name, type_ in self.members.items():
             if not isinstance(type_, ContractFunction):
                 # ex. address
                 continue
 
+            vyper_self = namespace["self"].typ
             if (
-                name not in self.members
-                or not isinstance(self.members[name], ContractFunction)
-                or not self.members[name].compare_signature(type_)
+                name not in vyper_self.members
+                or not isinstance(vyper_self.members[name], ContractFunction)
+                or not vyper_self.members[name].compare_signature(type_)
             ):
                 unimplemented.append(name)
 
         # check for missing events
-        for name, event in should_implement.events.items():
+        for name, event in self.events.items():
             if (
                 name not in namespace
                 or not isinstance(namespace[name], EventT)
