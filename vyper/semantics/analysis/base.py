@@ -1,14 +1,12 @@
 import enum
-from typing import Dict, List, Optional, Union
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+from typing import Dict, List, Optional
 
 from vyper import ast as vy_ast
 from vyper.exceptions import (
     CompilerPanic,
     ImmutableViolation,
-    InvalidOperation,
     StateAccessViolation,
-    StructureException,
     VyperInternalException,
 )
 from vyper.semantics.types.base import VyperType

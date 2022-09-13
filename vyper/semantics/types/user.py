@@ -296,7 +296,6 @@ class InterfaceT(_UserType):
 
             return to_compare.compare_signature(fn_type)
 
-
         # check for missing functions
         for name, type_ in self.members.items():
             if not isinstance(type_, ContractFunction):

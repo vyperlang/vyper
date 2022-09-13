@@ -10,7 +10,7 @@ from vyper.exceptions import (
     UnknownAttribute,
 )
 from vyper.semantics.analysis.utils import get_possible_types_from_node
-from vyper.semantics.types import AddressT, BoolT, SArrayT, DArrayT
+from vyper.semantics.types import AddressT, BoolT, DArrayT, SArrayT
 from vyper.semantics.types.shortcuts import INT128_T
 
 INTEGER_LITERALS = [(42, 31337), (-1, 1), (69, 2 ** 128)]
