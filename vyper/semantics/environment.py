@@ -6,7 +6,16 @@ from vyper.semantics.types.base import VyperType
 from vyper.semantics.types.primitives import BYTES32_T, UINT256_T
 
 
-class _Block(VyperType):
+# common properties for environment variables
+class _EnvType(VyperType):
+    def __eq__(self, other):
+        return self is other
+
+    def __hash__(self):
+        return hash(id(self))
+
+
+class _Block(_EnvType):
     _id = "block"
     _type_members = {
         "coinbase": AddressT(),
@@ -20,17 +29,17 @@ class _Block(VyperType):
     }
 
 
-class _Chain(VyperType):
+class _Chain(_EnvType):
     _id = "chain"
     _type_members = {"id": UINT256_T}
 
 
-class _Msg(VyperType):
+class _Msg(_EnvType):
     _id = "msg"
     _type_members = {"data": BytesT(), "gas": UINT256_T, "sender": AddressT(), "value": UINT256_T}
 
 
-class _Tx(VyperType):
+class _Tx(_EnvType):
     _id = "tx"
     _type_members = {"origin": AddressT(), "gasprice": UINT256_T}
 

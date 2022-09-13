@@ -589,9 +589,9 @@ def check_kwargable(node: vy_ast.VyperNode) -> bool:
         if getattr(call_type, "_kwargable", False):
             return True
 
-    value_type = get_exact_type_from_node(node)
+    value_type = get_expr_info(node)
     # is_constant here actually means not_assignable, and is to be renamed
-    return getattr(value_type, "is_constant", False)
+    return value_type.is_constant
 
 
 def _check_literal(node: vy_ast.VyperNode) -> bool:
