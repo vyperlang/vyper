@@ -192,6 +192,7 @@ def replace_user_defined_constants(vyper_module: vy_ast.Module) -> int:
             # types can be unambiguously inferred at typechecking time
             type_ = None
 
+
         changed_nodes += replace_constant(
             vyper_module, node.target.id, node.value, False, type_=type_
         )
@@ -215,8 +216,8 @@ def _replace(old_node, new_node, type_=None):
         if type_:
             new_node._metadata["type"] = type_
         return new_node
-    elif isinstance(new_node, vy_ast.Call):
-        # Replace `Name` node with `Call` node
+    elif isinstance(new_node, vy_ast.Call) and len(new_node.args) == 1 and isinstance(new_node.args[0], vy_ast.Dict):
+        # Replace `Name` node with `Call` node in case of a struct
         keyword = keywords = None
         if hasattr(new_node, "keyword"):
             keyword = new_node.keyword
@@ -266,6 +267,9 @@ def replace_constant(
             is_struct = True
 
     changed_nodes = 0
+
+    if isinstance(replacement_node, vy_ast.Call) and not is_struct:
+        return changed_nodes #Don't replace unfolded calls
 
     for node in vyper_module.get_descendants(vy_ast.Name, {"id": id_}, reverse=True):
         parent = node.get_ancestor()
