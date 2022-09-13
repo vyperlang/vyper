@@ -24,7 +24,16 @@ from vyper.semantics.types.utils import type_from_abi, type_from_annotation
 from vyper.utils import keccak256
 
 
-class EnumT(VyperType):
+# user defined type
+class _UserType(VyperType):
+    def __eq__(self, other):
+        return self is other
+
+    def __hash__(self):
+        return hash(id(self))
+
+
+class EnumT(_UserType):
     def __init__(self, name: str, members: dict) -> None:
         if len(members.keys()) > 256:
             raise EnumDeclarationException("Enums are limited to 256 members!")
@@ -104,7 +113,7 @@ class EnumT(VyperType):
         raise UnknownAttribute(f"{self} has no member '{key}'. {suggestions_str}", node)
 
 
-class EventT(VyperType):
+class EventT(_UserType):
     """
     Event type.
 
@@ -229,7 +238,7 @@ class EventT(VyperType):
         ]
 
 
-class InterfaceT(VyperType):
+class InterfaceT(_UserType):
 
     _type_members = {"address": AddressT()}
     _is_callable = True
@@ -427,7 +436,7 @@ def _get_class_functions(base_node: vy_ast.InterfaceDef) -> Dict[str, ContractFu
     return functions
 
 
-class StructT(VyperType):
+class StructT(_UserType):
     _is_callable = True
     _as_array = True
 
