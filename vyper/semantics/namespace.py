@@ -140,6 +140,11 @@ RESERVED_KEYWORDS = {
     "internal",
     "payable",
     "nonreentrant",
+    # "class" keywords
+    "interface",
+    "struct",
+    "event",
+    "enum",
     # control flow
     "if",
     "for",
