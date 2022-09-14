@@ -349,7 +349,7 @@ Cryptography
             19321533766552368860946552437480515441416830039777911637913418824951667761761,
         ]
 
-.. py:function:: ecrecover(hash: bytes32, v: uint8, r: bytes32, s: bytes32) -> address
+.. py:function:: ecrecover(hash: bytes32, v: uint256 | uint8, r: uint256 | bytes32, s: uint256 | bytes32) -> address
 
     Recover the address associated with the public key from the given elliptic curve signature.
 
@@ -366,6 +366,11 @@ Cryptography
         def foo(hash: bytes32, v: uint8, r:bytes32, s:bytes32) -> address:
             return ecrecover(hash, v, r, s)
 
+
+        @external
+        @view
+        def foo(hash: bytes32, v: uint256, r:uint256, s:uint256) -> address:
+            return ecrecover(hash, v, r, s)
     .. code-block:: python
 
         >>> ExampleContract.foo('0x6c9c5e133b8aafb2ea74f524a5263495e7ae5701c7248805f7b511d973dc7055',

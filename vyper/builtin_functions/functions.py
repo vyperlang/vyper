@@ -778,9 +778,9 @@ class ECRecover(BuiltinFunction):
     _id = "ecrecover"
     _inputs = [
         ("hash", Bytes32Definition()),
-        ("v", Uint8Definition()),
-        ("r", Bytes32Definition()),
-        ("s", Bytes32Definition()),
+        ("v", [Uint256Definition(), Uint8Definition()]),
+        ("r", [Uint256Definition(), Bytes32Definition()]),
+        ("s", [Uint256Definition(), Bytes32Definition()]),
     ]
     _return_type = AddressDefinition()
 
