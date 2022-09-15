@@ -161,15 +161,11 @@ class _ExprAnalyser:
 
     def types_from_Attribute(self, node):
         # variable attribute, e.g. `foo.bar`
-        t = self.get_exact_type_from_node(node.value, include_type_exprs=True)
+        t = self.get_exact_type_from_node(node.value, include_type_exprs=self._include_type_exprs)
         name = node.attr
         try:
             s = t.get_member(name, node)
             if isinstance(s, VyperType):
-                if not self._include_type_exprs:
-                    raise InvalidReference(
-                        f"'{s}' is a type - expected a literal or variable", node
-                    )
                 return [s]
             return [s.typ]
         except UnknownAttribute:
