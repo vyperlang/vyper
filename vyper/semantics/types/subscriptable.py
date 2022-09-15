@@ -280,7 +280,7 @@ class TupleT(_SequenceT):
         self._member_types = value_type
 
     def __repr__(self):
-        return "(" + ",".join(repr(t) for t in self.value_type) + ")"
+        return "(" + ", ".join(repr(t) for t in self.value_type) + ")"
 
     @classmethod
     def from_annotation(cls, node: vy_ast.Tuple):
