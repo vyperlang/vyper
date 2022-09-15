@@ -513,7 +513,7 @@ class Concat(BuiltinFunction):
         ret = []
         prev_typeclass = None
         for arg in node.args:
-            validate_expected_type(arg, (BytesT(), StringT(), BytesM_T.any()))
+            validate_expected_type(arg, (BytesT.any(), StringT.any(), BytesM_T.any()))
             arg_t = get_possible_types_from_node(arg).pop()
             current_typeclass = "String" if isinstance(arg_t, StringT) else "Bytes"
             if prev_typeclass and current_typeclass != prev_typeclass:
@@ -599,7 +599,7 @@ class Keccak256(BuiltinFunction):
 
     _id = "keccak256"
     # TODO allow any BytesM_T
-    _inputs = [("value", (BytesT(), BYTES32_T, StringT()))]
+    _inputs = [("value", (BytesT.any(), BYTES32_T, StringT.any()))]
     _return_type = BYTES32_T
 
     def evaluate(self, node):
@@ -647,7 +647,7 @@ def _make_sha256_call(inp_start, inp_len, out_start, out_len):
 class Sha256(BuiltinFunction):
 
     _id = "sha256"
-    _inputs = [("value", (BYTES32_T, BytesT(), StringT()))]
+    _inputs = [("value", (BYTES32_T, BytesT.any(), StringT.any()))]
     _return_type = BYTES32_T
 
     def evaluate(self, node):
@@ -873,7 +873,7 @@ def _storage_element_getter(index):
 class Extract32(BuiltinFunction):
 
     _id = "extract32"
-    _inputs = [("b", BytesT()), ("start", IntegerT.unsigneds())]
+    _inputs = [("b", BytesT.any()), ("start", IntegerT.unsigneds())]
     # "TYPE_DEFINITION" is a placeholder value for a type definition string, and
     # will be replaced by a `TYPE_T` object in `infer_kwarg_types`
     # (note that it is ignored in _validate_arg_types)
@@ -986,7 +986,7 @@ class Extract32(BuiltinFunction):
 class AsWeiValue(BuiltinFunction):
 
     _id = "as_wei_value"
-    _inputs = [("value", (IntegerT.any(), DecimalT())), ("unit", StringT())]
+    _inputs = [("value", (IntegerT.any(), DecimalT())), ("unit", StringT.any())]
     _return_type = UINT256_T
 
     wei_denoms = {
@@ -1084,7 +1084,7 @@ empty_value = IRnode.from_list(0, typ=BaseType("bytes32"))
 class RawCall(BuiltinFunction):
 
     _id = "raw_call"
-    _inputs = [("to", AddressT()), ("data", BytesT())]
+    _inputs = [("to", AddressT()), ("data", BytesT.any())]
     _kwargs = {
         "max_outsize": KwargSettings(UINT256_T, 0, require_literal=True),
         "gas": KwargSettings(UINT256_T, "gas"),
@@ -1275,7 +1275,7 @@ class BlockHash(BuiltinFunction):
 class RawLog(BuiltinFunction):
 
     _id = "raw_log"
-    _inputs = [("topics", DArrayT(BYTES32_T, 4)), ("data", (BYTES32_T, BytesT()))]
+    _inputs = [("topics", DArrayT(BYTES32_T, 4)), ("data", (BYTES32_T, BytesT.any()))]
 
     def fetch_call_return(self, node):
         self.infer_arg_types(node)
@@ -2459,7 +2459,7 @@ class ABIEncode(BuiltinFunction):
 
 class ABIDecode(BuiltinFunction):
     _id = "_abi_decode"
-    _inputs = [("data", BytesT()), ("output_type", "TYPE_DEFINITION")]
+    _inputs = [("data", BytesT.any()), ("output_type", "TYPE_DEFINITION")]
     _kwargs = {"unwrap_tuple": KwargSettings(BoolT(), True, require_literal=True)}
 
     def fetch_call_return(self, node):

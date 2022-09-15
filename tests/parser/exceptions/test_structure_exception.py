@@ -1,7 +1,7 @@
 import pytest
 
 from vyper import compiler
-from vyper.exceptions import StructureException
+from vyper.exceptions import StructureException, InvalidType
 
 fail_list = [
     """
@@ -112,7 +112,7 @@ def __init__():
 
 @pytest.mark.parametrize("bad_code", fail_list)
 def test_invalid_type_exception(bad_code):
-    with pytest.raises(StructureException):
+    with pytest.raises((StructureException, InvalidType)):
         compiler.compile_code(bad_code)
 
 
