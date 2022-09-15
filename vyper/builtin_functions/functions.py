@@ -873,7 +873,7 @@ def _storage_element_getter(index):
 class Extract32(BuiltinFunction):
 
     _id = "extract32"
-    _inputs = [("b", BytesT()), ("start", IntegerT.signeds())]
+    _inputs = [("b", BytesT()), ("start", IntegerT.unsigneds())]
     # "TYPE_DEFINITION" is a placeholder value for a type definition string, and
     # will be replaced by a `TYPE_T` object in `infer_kwarg_types`
     # (note that it is ignored in _validate_arg_types)
