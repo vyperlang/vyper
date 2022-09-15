@@ -784,6 +784,12 @@ class ECRecover(BuiltinFunction):
     ]
     _return_type = AddressDefinition()
 
+    def infer_arg_types(self, node):
+        self._validate_arg_types(node)
+        input_type_2 = get_possible_types_from_node(node.args[2]).pop()
+        input_type_3 = get_possible_types_from_node(node.args[3]).pop()
+        return [Bytes32Definition(), Uint8Definition(), input_type_2, input_type_3]
+
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
         placeholder_node = IRnode.from_list(
