@@ -33,6 +33,7 @@ def foo():
     x = 5
     """,
     """
+@external
 def foo():
     int128 = 5
     """,
