@@ -1,7 +1,7 @@
 import pytest
 
 from vyper import compiler
-from vyper.exceptions import StructureException, InvalidType
+from vyper.exceptions import InvalidType, StructureException
 
 fail_list = [
     """
