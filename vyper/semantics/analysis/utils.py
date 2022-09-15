@@ -130,6 +130,7 @@ class _ExprAnalyser:
         if "type" in node._metadata:
             return [node._metadata["type"]]
 
+        # use a state variable instead of threading with kwargs
         tmp = getattr(self, "_include_type_exprs", include_type_exprs)
         # this is a kludge to separate type and constructor namespaces.
         # in the future separate them for real
