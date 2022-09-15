@@ -62,9 +62,6 @@ def double_nonreentrant():
     pass
     """,
     """
-x: 5
-    """,
-    """
 CALLDATACOPY: int128
     """,
     """
