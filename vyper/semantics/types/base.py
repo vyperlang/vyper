@@ -225,7 +225,7 @@ class VyperType:
         VyperType, optional
             Type generated as a result of the call.
         """
-        raise StructureException("Type is not callable", node)
+        raise StructureException("Value is not callable", node)
 
     @classmethod
     def get_subscripted_type(self, node: vy_ast.Index) -> None:

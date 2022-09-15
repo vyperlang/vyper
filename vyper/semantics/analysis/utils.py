@@ -89,7 +89,7 @@ class _ExprAnalyser:
 
         return ExprInfo(t)
 
-    def get_exact_type_from_node(self, node, allow_ctors=True):
+    def get_exact_type_from_node(self, node, include_type_exprs=False):
         """
         Find exactly one type for a given node.
 
@@ -104,13 +104,13 @@ class _ExprAnalyser:
         -------
         Type object
         """
-        types_list = self.get_possible_types_from_node(node, allow_ctors=allow_ctors)
+        types_list = self.get_possible_types_from_node(node, include_type_exprs=include_type_exprs)
 
         if len(types_list) > 1:
             raise StructureException("Ambiguous type", node)
         return types_list[0]
 
-    def get_possible_types_from_node(self, node, allow_ctors=True):
+    def get_possible_types_from_node(self, node, include_type_exprs=False):
         """
         Find all possible types for a given node.
         If the node's metadata contains type information propagated from constant folding,
@@ -132,7 +132,7 @@ class _ExprAnalyser:
 
         # this is a kludge to separate type and constructor namespaces.
         # in the future separate them for real
-        self._allow_ctors = allow_ctors
+        self._include_type_exprs = include_type_exprs
 
         fn = self._find_fn(node)
         ret = fn(node)
@@ -157,12 +157,12 @@ class _ExprAnalyser:
 
     def types_from_Attribute(self, node):
         # variable attribute, e.g. `foo.bar`
-        t = self.get_exact_type_from_node(node.value)
+        t = self.get_exact_type_from_node(node.value, include_type_exprs=True)
         name = node.attr
         try:
             s = t.get_member(name, node)
             if isinstance(s, VyperType):
-                if not self._allow_ctors:
+                if not self._include_type_exprs:
                     raise InvalidReference(
                         f"'{s._id}' is a type - expected a literal or variable", node
                     )
@@ -237,8 +237,8 @@ class _ExprAnalyser:
         return [BoolT()]
 
     def types_from_Call(self, node):
-        # function calls, e.g. `foo()`
-        var = self.get_exact_type_from_node(node.func)
+        # function calls, e.g. `foo()` or `MyStruct()`
+        var = self.get_exact_type_from_node(node.func, include_type_exprs=True)
         return_value = var.fetch_call_return(node)
         if return_value:
             return [return_value]
@@ -306,7 +306,7 @@ class _ExprAnalyser:
         try:
             varinfo = self.namespace[node.id]
             if isinstance(varinfo, VyperType):
-                if not self._allow_ctors:
+                if not self._include_type_exprs:
                     raise InvalidReference(
                         f"'{varinfo._id}' is a type - expected a literal or variable", node
                     )
@@ -385,7 +385,7 @@ def get_possible_types_from_node(node):
     List
         List of one or more BaseType objects.
     """
-    return _ExprAnalyser().get_possible_types_from_node(node, allow_ctors=False)
+    return _ExprAnalyser().get_possible_types_from_node(node, include_type_exprs=True)
 
 
 def get_exact_type_from_node(node):
@@ -405,7 +405,7 @@ def get_exact_type_from_node(node):
         Type object.
     """
 
-    return _ExprAnalyser().get_exact_type_from_node(node, allow_ctors=False)
+    return _ExprAnalyser().get_exact_type_from_node(node, include_type_exprs=True)
 
 
 def get_expr_info(node: vy_ast.VyperNode) -> ExprInfo:
