@@ -9,6 +9,7 @@ from vyper.exceptions import (
     UndeclaredDefinition,
     UnknownAttribute,
 )
+from vyper.semantics.analysis.base import VarInfo
 from vyper.semantics.analysis.utils import get_possible_types_from_node
 from vyper.semantics.types import AddressT, BoolT, DArrayT, SArrayT
 from vyper.semantics.types.shortcuts import INT128_T
@@ -144,7 +145,7 @@ def test_compare_invalid_op(build_node, namespace, op, left, right):
 def test_name(build_node, namespace):
     node = build_node("foo")
     type_def = INT128_T
-    namespace["foo"] = type_def
+    namespace["foo"] = VarInfo(type_def)
 
     assert get_possible_types_from_node(node) == [type_def]
 
@@ -171,7 +172,7 @@ def test_subscript(build_node, namespace):
     node = build_node("foo[1]")
     type_ = INT128_T
 
-    namespace["foo"] = SArrayT(type_, 3)
+    namespace["foo"] = VarInfo(SArrayT(type_, 3))
     assert get_possible_types_from_node(node) == [type_]
 
 
@@ -179,7 +180,7 @@ def test_subscript_out_of_bounds(build_node, namespace):
     node = build_node("foo[5]")
     type_def = INT128_T
 
-    namespace["foo"] = SArrayT(type_def, 3)
+    namespace["foo"] = VarInfo(SArrayT(type_def, 3))
     with pytest.raises(ArrayIndexException):
         get_possible_types_from_node(node)
 
@@ -188,7 +189,7 @@ def test_subscript_negative(build_node, namespace):
     node = build_node("foo[-1]")
     type_def = INT128_T
 
-    namespace["foo"] = SArrayT(type_def, 3)
+    namespace["foo"] = VarInfo(SArrayT(type_def, 3))
     with pytest.raises(ArrayIndexException):
         get_possible_types_from_node(node)
 
@@ -196,18 +197,18 @@ def test_subscript_negative(build_node, namespace):
 def test_tuple(build_node, namespace):
     node = build_node("(foo, bar)")
 
-    namespace["foo"] = INT128_T
-    namespace["bar"] = AddressT()
+    namespace["foo"] = VarInfo(INT128_T)
+    namespace["bar"] = VarInfo(AddressT())
     types_list = get_possible_types_from_node(node)
 
-    assert types_list[0].value_type == [namespace["foo"], namespace["bar"]]
+    assert types_list[0].value_type == [namespace["foo"].typ, namespace["bar"].typ]
 
 
 def test_tuple_subscript(build_node, namespace):
     node = build_node("(foo, bar)[1]")
 
-    namespace["foo"] = INT128_T
-    namespace["bar"] = AddressT()
+    namespace["foo"] = VarInfo(INT128_T)
+    namespace["bar"] = VarInfo(AddressT())
     types_list = get_possible_types_from_node(node)
 
-    assert types_list == [namespace["bar"]]
+    assert types_list == [namespace["bar"].typ]

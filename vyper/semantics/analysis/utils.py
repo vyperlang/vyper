@@ -130,12 +130,15 @@ class _ExprAnalyser:
         if "type" in node._metadata:
             return [node._metadata["type"]]
 
+        tmp = getattr(self, "_include_type_exprs", include_type_exprs)
         # this is a kludge to separate type and constructor namespaces.
         # in the future separate them for real
         self._include_type_exprs = include_type_exprs
 
         fn = self._find_fn(node)
         ret = fn(node)
+
+        self._include_type_exprs = tmp
 
         if all(isinstance(i, IntegerT) for i in ret):
             # for numeric types, sort according by number of bits descending
@@ -164,7 +167,7 @@ class _ExprAnalyser:
             if isinstance(s, VyperType):
                 if not self._include_type_exprs:
                     raise InvalidReference(
-                        f"'{s._id}' is a type - expected a literal or variable", node
+                        f"'{s}' is a type - expected a literal or variable", node
                     )
                 return [s]
             return [s.typ]
@@ -308,7 +311,7 @@ class _ExprAnalyser:
             if isinstance(varinfo, VyperType):
                 if not self._include_type_exprs:
                     raise InvalidReference(
-                        f"'{varinfo._id}' is a type - expected a literal or variable", node
+                        f"'{varinfo}' is a type - expected a literal or variable", node
                     )
                 return [varinfo]
 
@@ -332,8 +335,6 @@ class _ExprAnalyser:
 
     def types_from_Tuple(self, node):
         types_list = [self.get_exact_type_from_node(i) for i in node.elements]
-        # for item, type_ in zip(node.elements, types_list):
-        #     if not isinstnace(VyperType...
         return [TupleT(types_list)]
 
     def types_from_UnaryOp(self, node):
