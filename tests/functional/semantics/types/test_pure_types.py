@@ -2,11 +2,10 @@ import pytest
 
 from vyper.exceptions import (
     InvalidLiteral,
+    InvalidType,
     OverflowException,
     StructureException,
     UnexpectedNodeType,
-    UnexpectedValue,
-    UnknownType,
 )
 from vyper.semantics.types import AddressT, BoolT, BytesT, DecimalT, StringT
 from vyper.semantics.types.shortcuts import BYTES32_T, INT128_T, UINT256_T
@@ -105,7 +104,7 @@ def test_invalid_node(build_node, type_, type_str, source):
 def test_from_annotation_literal(build_node, type_, source):
     node = build_node(source)
 
-    with pytest.raises((StructureException, UnknownType)):
+    with pytest.raises(InvalidType):
         type_from_annotation(node)
 
 
@@ -113,7 +112,7 @@ def _check_type_equals(type_, t):
     if type_ in (BytesT, StringT):
         type_ = type_()
     if not type_.compare_type(t):
-        raise StructureException()
+        raise InvalidType(f"{type_} != {t}")
 
 
 @pytest.mark.parametrize("type_,type_str", TYPES.items())
@@ -122,7 +121,7 @@ def test_invalid_annotations(build_node, type_, type_str, source):
     source = source.format(type_str)
     node = build_node(source)
 
-    with pytest.raises((UnexpectedValue, StructureException, UnknownType)):
+    with pytest.raises((StructureException, InvalidType)):
         t = type_from_annotation(node)
         _check_type_equals(type_, t)
 
@@ -136,6 +135,6 @@ def test_from_annotation(build_node, type_, type_str):
         t = type_from_annotation(node)
         _check_type_equals(type_, t)
     else:
-        with pytest.raises((UnexpectedValue, StructureException)):
+        with pytest.raises(InvalidType):
             t = type_from_annotation(node)
             _check_type_equals(type_, t)

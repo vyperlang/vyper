@@ -1300,7 +1300,7 @@ def foo(contract_address: contract(Boo)) -> int128:
     return self.bar_contract.bar()
     """
 
-    assert_compile_failed(lambda: get_contract(contract_1), UnknownType)
+    assert_compile_failed(lambda: get_contract(contract_1), InvalidType)
 
 
 def test_invalid_external_contract_call_declaration_2(assert_compile_failed, get_contract):

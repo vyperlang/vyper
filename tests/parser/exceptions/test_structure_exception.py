@@ -65,12 +65,6 @@ def double_nonreentrant():
 x: 5
     """,
     """
-x: Bytes <= wei
-    """,
-    """
-x: String <= 33
-    """,
-    """
 CALLDATACOPY: int128
     """,
     """

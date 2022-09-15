@@ -63,6 +63,12 @@ b: HashMap[(int128, decimal), int128]
     """
 a: constant(address) = 0x3cd751e6b0078be393132286c442345e5dc49699
     """,
+    """
+x: String <= 33
+    """,
+    """
+x: Bytes <= wei
+    """,
 ]
 
 
