@@ -30,6 +30,7 @@ def type_from_abi(abi_type: Dict) -> VyperType:
     namespace = get_namespace()
 
     if "[" in type_string:
+        # handle dynarrays, static arrays
         value_type_string, length_str = type_string.rsplit("[", maxsplit=1)
         try:
             length = int(length_str.rstrip("]"))
@@ -47,7 +48,12 @@ def type_from_abi(abi_type: Dict) -> VyperType:
 
     else:
         try:
-            return namespace[type_string]
+            t = namespace[type_string]
+            if type_string in ("Bytes", "String"):
+                # special handling for bytes, string, since
+                # the type ctor is in the namespace instead of a concrete type.
+                return t()
+            return t
         except KeyError:
             raise UnknownType(f"ABI contains unknown type: {type_string}") from None
 
