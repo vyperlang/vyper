@@ -288,7 +288,11 @@ def _build_adhoc_slice_node(sub: IRnode, start: IRnode, length: IRnode, context:
 class Slice(BuiltinFunction):
 
     _id = "slice"
-    _inputs = [("b", (BYTES32_T, BytesT(), StringT())), ("start", UINT256_T), ("length", UINT256_T)]
+    _inputs = [
+        ("b", (BYTES32_T, BytesT.any(), StringT.any())),
+        ("start", UINT256_T),
+        ("length", UINT256_T),
+    ]
     _return_type = None
 
     def fetch_call_return(self, node):
