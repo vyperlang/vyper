@@ -43,13 +43,11 @@ constant_def: (constant_private | constant_with_getter) "=" _expr
 // immutable definitions
 // NOTE: Temporary until decorators used
 immutable: "immutable" "(" type ")"
-immutable_private: NAME ":" immutable
-immutable_with_getter: NAME ":" "public" "(" immutable ")"
-immutable_def: immutable_private | immutable_with_getter
+immutable_def: NAME ":" immutable
 
 variable: NAME ":" type
 // NOTE: Temporary until decorators used
-variable_with_getter: NAME ":" "public" "(" type ")"
+variable_with_getter: NAME ":" "public" "(" (type | immutable) ")"
 variable_def: variable | variable_with_getter
 
 // A decorator "wraps" a method, modifying it's context.
