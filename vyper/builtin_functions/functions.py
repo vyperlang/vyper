@@ -786,9 +786,8 @@ class ECRecover(BuiltinFunction):
 
     def infer_arg_types(self, node):
         self._validate_arg_types(node)
-        input_type_2 = get_possible_types_from_node(node.args[2]).pop()
-        input_type_3 = get_possible_types_from_node(node.args[3]).pop()
-        return [Bytes32Definition(), Uint8Definition(), input_type_2, input_type_3]
+        v_t, r_t, s_t = [get_possible_types_from_node(arg).pop() for arg in node.args[1:]]
+        return [Bytes32Definition(), v_t, r_t, s_t]
 
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
