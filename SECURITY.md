@@ -21,7 +21,7 @@ Here are the audits we have undergone in the past:
 
 | Audit Type | Audit Date | Auditor | Version | Report Link |
 | ---------- | ---------- | ------- | ------- | ----------- |
-| Preliminary Review | October 28, 2019 | [ConsenSys Diligence](https://diligence.consensys.net) | 0.1.0b13 | https://diligence.consensys.net/audits/2019/10/vyper/ |
+| Preliminary Review | October 28, 2019 | [ConsenSys Diligence](https://consensys.net/diligence/) | 0.1.0b13 | https://consensys.net/diligence/audits/2019/10/vyper/ |
 
 ### Major Project Audits
 
@@ -32,7 +32,7 @@ Please read prior audit reports for projects that use Vyper here:
 | Project | Version | Report Link |
 | ------- | ------- | ----------- |
 | [Uniswap](https://uniswap.io) | 35038d2 | https://medium.com/consensys-diligence/uniswap-audit-b90335ac007 |
-| [Computable](https://www.computable.io/) | 0.1.0b10 | https://github.com/trailofbits/publications/raw/master/reviews/computable.pdf |
+| [Computable](https://github.com/computablelabs/computable) | 0.1.0b10 | https://github.com/trailofbits/publications/raw/master/reviews/computable.pdf |
 
 ## Known Vyper Vulnerabilities and Exposures (VVEs)
 
