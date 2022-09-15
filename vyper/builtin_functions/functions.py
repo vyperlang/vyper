@@ -594,7 +594,8 @@ class Concat(BuiltinFunction):
 class Keccak256(BuiltinFunction):
 
     _id = "keccak256"
-    _inputs = [("value", (BytesT(), StringT()))]
+    # TODO allow any BytesM_T
+    _inputs = [("value", (BytesT(), BYTES32_T, StringT()))]
     _return_type = BYTES32_T
 
     def evaluate(self, node):
