@@ -8,7 +8,7 @@ from typing import Any
 
 import eth_abi.exceptions
 import pytest
-from eth_abi import decode_single, encode_single
+from eth_abi import decode, encode
 
 from vyper.codegen.types import (
     BASE_TYPES,
@@ -277,7 +277,7 @@ def _from_bits(val_bits, o_typ):
     # o_typ: the type to convert to
     detail = _parse_type(o_typ)
     try:
-        return decode_single(detail.abi_type, val_bits)
+        return decode(detail.abi_type, val_bits)
     except eth_abi.exceptions.NonEmptyPaddingBytes:
         raise _OutOfBounds() from None
 
@@ -285,7 +285,7 @@ def _from_bits(val_bits, o_typ):
 def _to_bits(val, i_typ):
     # i_typ: the type to convert from
     detail = _parse_type(i_typ)
-    return encode_single(detail.abi_type, val)
+    return encode(detail.abi_type, val)
 
 
 def _signextend(val_bytes, bits):
