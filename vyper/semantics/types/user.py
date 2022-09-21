@@ -106,13 +106,6 @@ class EnumT(_UserType):
         # TODO
         return []
 
-    # TODO seems like dead code
-    def get_member(self, key: str, node: vy_ast.Attribute) -> "EnumT":
-        if key in self.members:
-            return self.from_annotation(node.value)
-        suggestions_str = get_levenshtein_error_suggestions(key, self.members, 0.3)
-        raise UnknownAttribute(f"{self} has no member '{key}'. {suggestions_str}", node)
-
 
 class EventT(_UserType):
     """
