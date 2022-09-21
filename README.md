@@ -42,6 +42,7 @@ be a bit behind the latest version found in the master branch of this repository
 (Complete [installation steps](https://vyper.readthedocs.io/en/latest/installing-vyper.html) first.)
 
 ```bash
+make dev-init
 python setup.py test
 ```
 

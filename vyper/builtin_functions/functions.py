@@ -93,6 +93,7 @@ from vyper.semantics.types.value.array_value import (
 from vyper.semantics.types.value.bytes_fixed import Bytes4Definition  # type: ignore
 from vyper.semantics.types.value.bytes_fixed import Bytes32Definition
 from vyper.semantics.types.value.numeric import Int256Definition  # type: ignore
+from vyper.semantics.types.value.numeric import Uint8Definition  # type: ignore
 from vyper.semantics.types.value.numeric import Uint256Definition  # type: ignore
 from vyper.semantics.types.value.numeric import DecimalDefinition
 from vyper.semantics.validation.utils import (
@@ -777,11 +778,16 @@ class ECRecover(BuiltinFunction):
     _id = "ecrecover"
     _inputs = [
         ("hash", Bytes32Definition()),
-        ("v", Uint256Definition()),
-        ("r", Uint256Definition()),
-        ("s", Uint256Definition()),
+        ("v", (Uint256Definition(), Uint8Definition())),
+        ("r", (Uint256Definition(), Bytes32Definition())),
+        ("s", (Uint256Definition(), Bytes32Definition())),
     ]
     _return_type = AddressDefinition()
+
+    def infer_arg_types(self, node):
+        self._validate_arg_types(node)
+        v_t, r_t, s_t = [get_possible_types_from_node(arg).pop() for arg in node.args[1:]]
+        return [Bytes32Definition(), v_t, r_t, s_t]
 
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
