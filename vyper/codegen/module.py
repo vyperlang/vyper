@@ -2,7 +2,7 @@
 
 from typing import Any, Dict, List, Optional, Tuple
 
-from vyper import ast as vy_ast
+from vyper import ast as vy_ast, utils
 from vyper.ast.signatures.function_signature import FunctionSignature, FunctionSignatures
 from vyper.codegen.core import shr
 from vyper.codegen.function_definitions import generate_ir_for_function
@@ -91,6 +91,10 @@ def _is_internal(func_ast):
 def _is_payable(func_ast):
     return func_ast._metadata["type"].mutability == StateMutability.PAYABLE
 
+def _is_zero_selector_func(f):
+    selector = utils.abi_method_id(str(f._metadata["signature"])) #type(selector): int
+    if '0' in str(selector): #wip: this catches any selector with 0, not just trailing 0s
+        return True
 
 # codegen for all runtime functions + callvalue/calldata checks + method selector routines
 def _runtime_ir(runtime_functions, all_sigs, global_ctx):
@@ -106,6 +110,9 @@ def _runtime_ir(runtime_functions, all_sigs, global_ctx):
     regular_functions = [f for f in external_functions if not _is_default_func(f)]
     payables = [f for f in regular_functions if _is_payable(f)]
     nonpayables = [f for f in regular_functions if not _is_payable(f)]
+
+    # all functions with a zero selector, e.g. 0x00000000
+    zero_selector_functions = [f for f in regular_functions if _is_zero_selector_func(f)]
 
     # create a map of the IR functions since they might live in both
     # runtime and deploy code (if init function calls them)
@@ -160,15 +167,24 @@ def _runtime_ir(runtime_functions, all_sigs, global_ctx):
     # fallback label is the immediate next instruction,
     close_selector_section = ["goto", "fallback"]
 
-    runtime = [
-        "seq",
-        # check that calldatasize is at least 4, otherwise
-        # calldataload will load zeros (cf. yellow paper).
-        ["if", ["lt", "calldatasize", 4], ["goto", "fallback"]],
-        ["with", "_calldata_method_id", shr(224, ["calldataload", 0]), selector_section],
-        close_selector_section,
-        ["label", "fallback", ["var_list"], fallback_ir],
-    ]
+    if len(zero_selector_functions) == 0:
+        runtime = [
+            "seq",
+            ["with", "_calldata_method_id", shr(224, ["calldataload", 0]), selector_section],
+            close_selector_section,
+            ["label", "fallback", ["var_list"], fallback_ir],
+        ]
+    else:
+        runtime = [
+            "seq",
+            # if there is a function with a zero selector:
+            # check that calldatasize is at least 4, otherwise
+            # calldataload will load zeros (cf. yellow paper).
+            ["if", ["lt", "calldatasize", 4], ["goto", "fallback"]],
+            ["with", "_calldata_method_id", shr(224, ["calldataload", 0]), selector_section],
+            close_selector_section,
+            ["label", "fallback", ["var_list"], fallback_ir],
+        ]
 
     # TODO: prune unreachable functions?
     runtime.extend(internal_functions_map.values())
