@@ -967,7 +967,9 @@ def adjust_pc_maps(pc_maps, ofst):
     return ret
 
 
-def assembly_to_evm(assembly, pc_ofst=0, insert_vyper_signature=False, disable_bytecode_metadata=False):
+def assembly_to_evm(
+    assembly, pc_ofst=0, insert_vyper_signature=False, disable_bytecode_metadata=False
+):
     """
     Assembles assembly into EVM
 
@@ -1008,7 +1010,11 @@ def assembly_to_evm(assembly, pc_ofst=0, insert_vyper_signature=False, disable_b
     for i, item in enumerate(assembly):
         if isinstance(item, list):
             assert runtime_code is None, "Multiple subcodes"
-            runtime_code, runtime_map = assembly_to_evm(item, insert_vyper_signature=True, disable_bytecode_metadata=disable_bytecode_metadata)
+            runtime_code, runtime_map = assembly_to_evm(
+                item,
+                insert_vyper_signature=True,
+                disable_bytecode_metadata=disable_bytecode_metadata,
+            )
 
             assert item[0].startswith("_DEPLOY_MEM_OFST_")
             assert ctor_mem_size is None

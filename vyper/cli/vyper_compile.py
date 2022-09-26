@@ -106,7 +106,9 @@ def _parse_args(argv):
         dest="evm_version",
     )
     parser.add_argument("--no-optimize", help="Do not optimize", action="store_true")
-    parser.add_argument("--no-bytecode-metadata", help="Do not add metadata to bytecode", action="store_true")
+    parser.add_argument(
+        "--no-bytecode-metadata", help="Do not add metadata to bytecode", action="store_true"
+    )
     parser.add_argument(
         "--traceback-limit",
         help="Set the traceback limit for error messages reported by the compiler",
@@ -157,7 +159,7 @@ def _parse_args(argv):
         args.evm_version,
         args.no_optimize,
         args.storage_layout,
-        args.no_bytecode_metadata
+        args.no_bytecode_metadata,
     )
 
     if args.output_path:

@@ -146,11 +146,15 @@ class CompilerData:
 
     @cached_property
     def bytecode(self) -> bytes:
-        return generate_bytecode(self.assembly, is_runtime=False, no_bytecode_metadata=self.no_bytecode_metadata)
+        return generate_bytecode(
+            self.assembly, is_runtime=False, no_bytecode_metadata=self.no_bytecode_metadata
+        )
 
     @cached_property
     def bytecode_runtime(self) -> bytes:
-        return generate_bytecode(self.assembly_runtime, is_runtime=True, no_bytecode_metadata=self.no_bytecode_metadata)
+        return generate_bytecode(
+            self.assembly_runtime, is_runtime=True, no_bytecode_metadata=self.no_bytecode_metadata
+        )
 
     @cached_property
     def blueprint_bytecode(self) -> bytes:
@@ -311,7 +315,9 @@ def _find_nested_opcode(assembly, key):
         return any(_find_nested_opcode(x, key) for x in sublists)
 
 
-def generate_bytecode(assembly: list, is_runtime: bool = False, no_bytecode_metadata: bool = False) -> bytes:
+def generate_bytecode(
+    assembly: list, is_runtime: bool = False, no_bytecode_metadata: bool = False
+) -> bytes:
     """
     Generate bytecode from assembly instructions.
 
@@ -325,4 +331,6 @@ def generate_bytecode(assembly: list, is_runtime: bool = False, no_bytecode_meta
     bytes
         Final compiled bytecode.
     """
-    return compile_ir.assembly_to_evm(assembly, insert_vyper_signature=is_runtime, disable_bytecode_metadata=no_bytecode_metadata)[0]
+    return compile_ir.assembly_to_evm(
+        assembly, insert_vyper_signature=is_runtime, disable_bytecode_metadata=no_bytecode_metadata
+    )[0]
