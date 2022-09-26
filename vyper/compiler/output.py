@@ -198,7 +198,7 @@ def _build_asm(asm_list):
 
 def build_source_map_output(compiler_data: CompilerData) -> OrderedDict:
     _, line_number_map = compile_ir.assembly_to_evm(
-        compiler_data.assembly_runtime, insert_vyper_signature=True
+        compiler_data.assembly_runtime, insert_vyper_signature=True, disable_vyper_signature=compiler_data.no_vyper_signature
     )
     # Sort line_number_map
     out = OrderedDict()
