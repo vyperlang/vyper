@@ -55,6 +55,7 @@ def compile_codes(
     no_optimize: bool = False,
     storage_layouts: Dict[ContractPath, StorageLayout] = None,
     show_gas_estimates: bool = False,
+    no_bytecode_metadata: bool = False,
 ) -> OrderedDict:
     """
     Generate compiler output(s) from one or more contract source codes.
@@ -88,6 +89,8 @@ def compile_codes(
 
         * Interface definitions are formatted as: `{'type': "json/vyper", 'code': "interface code"}`
         * JSON interfaces are given as lists, vyper interfaces as strings
+    no_bytecode_metadata: bool, optional
+        Do not add metadata to bytecode. Defaults to False
 
     Returns
     -------
@@ -125,6 +128,7 @@ def compile_codes(
             no_optimize,
             storage_layout_override,
             show_gas_estimates,
+            no_bytecode_metadata,
         )
         for output_format in output_formats[contract_name]:
             if output_format not in OUTPUT_FORMATS:
