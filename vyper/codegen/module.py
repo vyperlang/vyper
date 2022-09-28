@@ -2,7 +2,8 @@
 
 from typing import Any, Dict, List, Optional, Tuple
 
-from vyper import ast as vy_ast, utils
+from vyper import ast as vy_ast
+from vyper.utils import abi_method_id
 from vyper.ast.signatures.function_signature import FunctionSignature, FunctionSignatures
 from vyper.codegen.core import shr
 from vyper.codegen.function_definitions import generate_ir_for_function
@@ -93,7 +94,7 @@ def _is_payable(func_ast):
 
 def _is_zero_selector_func(f):
     abi_sig = f._metadata["signature"].abi_signature_for_kwargs([])
-    selector = utils.abi_method_id(abi_sig)
+    selector = abi_method_id(abi_sig)
     if str(selector)[0] == '0':
         return True
 
@@ -106,8 +107,8 @@ def _runtime_ir(runtime_functions, all_sigs, global_ctx):
 
     external_functions = [f for f in runtime_functions if not _is_internal(f)]
 
-    # all functions with a zero selector, e.g. 0x00000000: changed location and functions referenced
-    zero_selector_functions = [f for f in external_functions if _is_zero_selector_func(f)]
+    # returns True if any function's selector has trailing 0s
+    has_zero_selector_functions = any(_is_zero_selector_func(f) for f in external_functions)
 
     default_function = next((f for f in external_functions if _is_default_func(f)), None)
 
@@ -169,10 +170,9 @@ def _runtime_ir(runtime_functions, all_sigs, global_ctx):
     # fallback label is the immediate next instruction,
     close_selector_section = ["goto", "fallback"]
 
-    if len(zero_selector_functions) != 0:
+    if has_zero_selector_functions:
         runtime = [
             "seq",
-            # if there is a function with a zero selector:
             # check that calldatasize is at least 4, otherwise
             # calldataload will load zeros (cf. yellow paper).
             ["if", ["lt", "calldatasize", 4], ["goto", "fallback"]],
