@@ -20,6 +20,7 @@ extras_require = {
         "tox>=3.15,<4.0",
         "lark==1.1.2",
         "hypothesis[lark]>=5.37.1,<6.0",
+        "titanoboa==0.1.6",
     ],
     "lint": [
         "black==21.9b0",
