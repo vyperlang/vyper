@@ -8,17 +8,17 @@ TOKEN_INITIAL_SUPPLY = 0
 
 
 @pytest.fixture
-def token(get_contract):
+def token(w3_get_contract):
     with open("examples/tokens/ERC20.vy") as f:
-        return get_contract(
+        return w3_get_contract(
             f.read(), TOKEN_NAME, TOKEN_SYMBOL, TOKEN_DECIMALS, TOKEN_INITIAL_SUPPLY
         )
 
 
 @pytest.fixture
-def vault(get_contract, token):
+def vault(w3_get_contract, token):
     with open("examples/tokens/ERC4626.vy") as f:
-        return get_contract(f.read(), token.address)
+        return w3_get_contract(f.read(), token.address)
 
 
 def test_asset(vault, token):

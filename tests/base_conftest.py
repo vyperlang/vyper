@@ -162,6 +162,36 @@ def get_contract(no_optimize):
     return get_contract
 
 
+def _w3_get_contract(w3, source_code, no_optimize, *args, **kwargs):
+    out = compiler.compile_code(
+        source_code,
+        ["abi", "bytecode"],
+        interface_codes=kwargs.pop("interface_codes", None),
+        no_optimize=no_optimize,
+        evm_version=kwargs.pop("evm_version", None),
+        show_gas_estimates=True,  # Enable gas estimates for testing
+    )
+    parse_vyper_source(source_code)  # Test grammar.
+    abi = out["abi"]
+    bytecode = out["bytecode"]
+    value = kwargs.pop("value_in_eth", 0) * 10 ** 18  # Handle deploying with an eth value.
+    c = w3.eth.contract(abi=abi, bytecode=bytecode)
+    deploy_transaction = c.constructor(*args)
+    tx_info = {"from": w3.eth.accounts[0], "value": value, "gasPrice": 0}
+    tx_info.update(kwargs)
+    tx_hash = deploy_transaction.transact(tx_info)
+    address = w3.eth.get_transaction_receipt(tx_hash)["contractAddress"]
+    return w3.eth.contract(address, abi=abi, bytecode=bytecode, ContractFactoryClass=VyperContract)
+
+
+@pytest.fixture(scope="module")
+def w3_get_contract(w3, no_optimize):
+    def w3_get_contract(source_code, *args, **kwargs):
+        return _w3_get_contract(w3, source_code, no_optimize, *args, **kwargs)
+
+    return w3_get_contract
+
+
 @pytest.fixture
 def get_logs(w3):
     def get_logs(tx_hash, c, event_name):
@@ -172,8 +202,8 @@ def get_logs(w3):
 
 
 @pytest.fixture(scope="module")
-def assert_tx_failed(tester):
-    def assert_tx_failed(function_to_test, exception=TransactionFailed, exc_text=None):
+def assert_w3_tx_failed(tester):
+    def assert_w3_tx_failed(function_to_test, exception=TransactionFailed, exc_text=None):
         snapshot_id = tester.take_snapshot()
         with pytest.raises(exception) as excinfo:
             function_to_test()
@@ -182,4 +212,4 @@ def assert_tx_failed(tester):
             # TODO test equality
             assert exc_text in str(excinfo.value), (exc_text, excinfo.value)
 
-    return assert_tx_failed
+    return assert_w3_tx_failed

@@ -5,23 +5,23 @@ import vyper
 
 
 @pytest.fixture
-def create_token(get_contract):
+def create_token(w3_get_contract):
     with open("examples/tokens/ERC20.vy") as f:
         code = f.read()
 
     def create_token():
-        return get_contract(code, *["VyperCoin", "FANG", 0, 0])
+        return w3_get_contract(code, *["VyperCoin", "FANG", 0, 0])
 
     return create_token
 
 
 @pytest.fixture
-def create_exchange(w3, get_contract):
+def create_exchange(w3, w3_get_contract):
     with open("examples/factory/Exchange.vy") as f:
         code = f.read()
 
     def create_exchange(token, factory):
-        exchange = get_contract(code, *[token.address, factory.address])
+        exchange = w3_get_contract(code, *[token.address, factory.address])
         # NOTE: Must initialize exchange to register it with factory
         exchange.initialize(transact={"from": w3.eth.accounts[0]})
         return exchange
@@ -30,7 +30,7 @@ def create_exchange(w3, get_contract):
 
 
 @pytest.fixture
-def factory(get_contract, no_optimize):
+def factory(w3_get_contract, no_optimize):
     with open("examples/factory/Exchange.vy") as f:
         code = f.read()
 
@@ -43,7 +43,7 @@ def factory(get_contract, no_optimize):
         code = f.read()
 
     # NOTE: We deploy the factory with the hash of the exchange's expected deployment bytecode
-    return get_contract(code, keccak(hexstr=exchange_deployed_bytecode))
+    return w3_get_contract(code, keccak(hexstr=exchange_deployed_bytecode))
 
 
 def test_exchange(w3, factory, create_token, create_exchange):

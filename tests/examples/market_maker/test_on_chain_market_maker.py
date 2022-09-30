@@ -2,10 +2,10 @@ import pytest
 
 
 @pytest.fixture
-def market_maker(get_contract):
+def market_maker(w3_get_contract):
     with open("examples/market_maker/on_chain_market_maker.vy") as f:
         contract_code = f.read()
-    return get_contract(contract_code)
+    return w3_get_contract(contract_code)
 
 
 TOKEN_NAME = "Vypercoin"
@@ -16,10 +16,10 @@ TOKEN_TOTAL_SUPPLY = TOKEN_INITIAL_SUPPLY * (10 ** TOKEN_DECIMALS)
 
 
 @pytest.fixture
-def erc20(get_contract):
+def erc20(w3_get_contract):
     with open("examples/tokens/ERC20.vy") as f:
         contract_code = f.read()
-    return get_contract(
+    return w3_get_contract(
         contract_code, *[TOKEN_NAME, TOKEN_SYMBOL, TOKEN_DECIMALS, TOKEN_INITIAL_SUPPLY]
     )
 
@@ -31,7 +31,7 @@ def test_initial_state(market_maker):
     assert market_maker.owner() is None
 
 
-def test_initiate(w3, market_maker, erc20, assert_tx_failed):
+def test_initiate(w3, market_maker, erc20, assert_w3_tx_failed):
     a0 = w3.eth.accounts[0]
     erc20.approve(market_maker.address, w3.toWei(2, "ether"), transact={})
     market_maker.initiate(
@@ -45,7 +45,7 @@ def test_initiate(w3, market_maker, erc20, assert_tx_failed):
     assert erc20.decimals() == TOKEN_DECIMALS
 
     # Initiate cannot be called twice
-    assert_tx_failed(
+    assert_w3_tx_failed(
         lambda: market_maker.initiate(
             erc20.address, w3.toWei(1, "ether"), transact={"value": w3.toWei(2, "ether")}
         )
@@ -95,7 +95,7 @@ def test_tokens_to_eth(w3, market_maker, erc20):
     assert market_maker.totalEthQty() == w3.toWei(1, "ether")
 
 
-def test_owner_withdraw(w3, market_maker, erc20, assert_tx_failed):
+def test_owner_withdraw(w3, market_maker, erc20, assert_w3_tx_failed):
     a0, a1 = w3.eth.accounts[:2]
     a0_balance_before = w3.eth.get_balance(a0)
     # Approve 2 eth transfers.
@@ -110,7 +110,7 @@ def test_owner_withdraw(w3, market_maker, erc20, assert_tx_failed):
     assert erc20.balanceOf(a0) == TOKEN_TOTAL_SUPPLY - w3.toWei(1, "ether")
 
     # Only owner can call ownerWithdraw
-    assert_tx_failed(lambda: market_maker.ownerWithdraw(transact={"from": a1}))
+    assert_w3_tx_failed(lambda: market_maker.ownerWithdraw(transact={"from": a1}))
     market_maker.ownerWithdraw(transact={})
     assert w3.eth.get_balance(a0) == a0_balance_before  # Eth balance restored.
     assert erc20.balanceOf(a0) == TOKEN_TOTAL_SUPPLY  # Tokens returned to a0.

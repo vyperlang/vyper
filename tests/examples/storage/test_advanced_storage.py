@@ -5,11 +5,11 @@ INITIAL_VALUE = 4
 
 
 @pytest.fixture
-def adv_storage_contract(w3, get_contract):
+def adv_storage_contract(w3, w3_get_contract):
     with open("examples/storage/advanced_storage.vy") as f:
         contract_code = f.read()
         # Pass constructor variables directly to the contract
-        contract = get_contract(contract_code, INITIAL_VALUE)
+        contract = w3_get_contract(contract_code, INITIAL_VALUE)
     return contract
 
 
@@ -18,15 +18,15 @@ def test_initial_state(adv_storage_contract):
     assert adv_storage_contract.storedData() == INITIAL_VALUE
 
 
-def test_failed_transactions(w3, adv_storage_contract, assert_tx_failed):
+def test_failed_transactions(w3, adv_storage_contract, assert_w3_tx_failed):
     k1 = w3.eth.accounts[1]
 
     # Try to set the storage to a negative amount
-    assert_tx_failed(lambda: adv_storage_contract.set(-10, transact={"from": k1}))
+    assert_w3_tx_failed(lambda: adv_storage_contract.set(-10, transact={"from": k1}))
 
     # Lock the contract by storing more than 100. Then try to change the value
     adv_storage_contract.set(150, transact={"from": k1})
-    assert_tx_failed(lambda: adv_storage_contract.set(10, transact={"from": k1}))
+    assert_w3_tx_failed(lambda: adv_storage_contract.set(10, transact={"from": k1}))
 
     # Reset the contract and try to change the value
     adv_storage_contract.reset(transact={"from": k1})
@@ -34,12 +34,12 @@ def test_failed_transactions(w3, adv_storage_contract, assert_tx_failed):
     assert adv_storage_contract.storedData() == 10
 
     # Assert a different exception (ValidationError for non matching argument type)
-    assert_tx_failed(
+    assert_w3_tx_failed(
         lambda: adv_storage_contract.set("foo", transact={"from": k1}), ValidationError
     )
 
     # Assert a different exception that contains specific text
-    assert_tx_failed(
+    assert_w3_tx_failed(
         lambda: adv_storage_contract.set(1, 2, transact={"from": k1}),
         ValidationError,
         "invocation failed due to improper number of arguments",

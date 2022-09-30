@@ -5,12 +5,12 @@ from eth_utils import is_same_address
 
 
 @pytest.fixture
-def c(w3, get_contract):
+def c(w3, w3_get_contract):
     a0, a1, a2, a3, a4, a5, a6 = w3.eth.accounts[:7]
     with open("examples/wallet/wallet.vy") as f:
         code = f.read()
     # Sends wei to the contract for future transactions gas costs
-    c = get_contract(code, *[[a1, a2, a3, a4, a5], 3])
+    c = w3_get_contract(code, *[[a1, a2, a3, a4, a5], 3])
     w3.eth.send_transaction({"to": c.address, "value": 10 ** 17})
     return c
 
@@ -28,7 +28,7 @@ def sign(keccak):
     return _sign
 
 
-def test_approve(w3, c, tester, assert_tx_failed, sign):
+def test_approve(w3, c, tester, assert_w3_tx_failed, sign):
     a0, a1, a2, a3, a4, a5, a6 = w3.eth.accounts[:7]
     k0, k1, k2, k3, k4, k5, k6, k7 = tester.backend.account_keys[:8]
 
@@ -44,22 +44,22 @@ def test_approve(w3, c, tester, assert_tx_failed, sign):
     c.approve(0, "0x" + to.hex(), value, data, sigs, transact={"value": value, "from": a1})
     # Approve fails if only 2 signatures are given
     sigs = pack_and_sign(1, k1, 0, k3, 0, 0)
-    assert_tx_failed(
+    assert_w3_tx_failed(
         lambda: c.approve(1, to_address, value, data, sigs, transact={"value": value, "from": a1})
     )  # noqa: E501
     # Approve fails if an invalid signature is given
     sigs = pack_and_sign(1, k1, 0, k7, 0, k5)
-    assert_tx_failed(
+    assert_w3_tx_failed(
         lambda: c.approve(1, to_address, value, data, sigs, transact={"value": value, "from": a1})
     )  # noqa: E501
     # Approve fails if transaction number is incorrect (the first argument should be 1)
     sigs = pack_and_sign(0, k1, 0, k3, 0, k5)
-    assert_tx_failed(
+    assert_w3_tx_failed(
         lambda: c.approve(0, to_address, value, data, sigs, transact={"value": value, "from": a1})
     )  # noqa: E501
     # Approve fails if not enough value is sent
     sigs = pack_and_sign(1, k1, 0, k3, 0, k5)
-    assert_tx_failed(
+    assert_w3_tx_failed(
         lambda: c.approve(1, to_address, value, data, sigs, transact={"value": 0, "from": a1})
     )  # noqa: E501
     sigs = pack_and_sign(1, k1, 0, k3, 0, k5)
@@ -70,7 +70,7 @@ def test_approve(w3, c, tester, assert_tx_failed, sign):
     print("Basic tests passed")
 
 
-def test_javascript_signatures(w3, get_contract):
+def test_javascript_signatures(w3, w3_get_contract):
     a3 = w3.eth.accounts[2]
     # The zero address will cause `approve` to default to valid signatures
     zero_address = "0x0000000000000000000000000000000000000000"
@@ -108,7 +108,7 @@ def test_javascript_signatures(w3, get_contract):
     # Set the owners to zero addresses
     with open("examples/wallet/wallet.vy") as f:
         owners = [w3.toChecksumAddress(x) for x in accounts + [a3, zero_address, zero_address]]
-        x2 = get_contract(f.read(), *[owners, 2])
+        x2 = w3_get_contract(f.read(), *[owners, 2])
 
     w3.eth.send_transaction({"to": x2.address, "value": 10 ** 17})
 
