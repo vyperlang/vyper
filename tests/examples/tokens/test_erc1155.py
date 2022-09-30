@@ -32,7 +32,9 @@ def erc1155(w3_get_contract, w3, assert_w3_tx_failed):
     owner, a1, a2, a3, a4, a5 = w3.eth.accounts[0:6]
     with open("examples/tokens/ERC1155ownable.vy") as f:
         code = f.read()
-    c = w3_get_contract(code, *[CONTRACT_NAME, CONTRACT_SYMBOL, CONTRACT_URI, CONTRACT_METADATA_URI])
+    c = w3_get_contract(
+        code, *[CONTRACT_NAME, CONTRACT_SYMBOL, CONTRACT_URI, CONTRACT_METADATA_URI]
+    )
     assert c.owner() == owner
     c.mintBatch(a1, mintBatch, minBatchSetOf10, "", transact={"from": owner})
     c.mintBatch(a3, mintBatch2, minBatchSetOf10, "", transact={"from": owner})
@@ -184,7 +186,9 @@ def test_safeTransferFrom_balanceOf_single(erc1155, w3, assert_w3_tx_failed):
     assert_w3_tx_failed(lambda: erc1155.safeTransferFrom(a1, a1, 24, 1, "", transact={"from": a1}))
 
     # transfer more than owned
-    assert_w3_tx_failed(lambda: erc1155.safeTransferFrom(a1, a2, 24, 500, "", transact={"from": a1}))
+    assert_w3_tx_failed(
+        lambda: erc1155.safeTransferFrom(a1, a2, 24, 500, "", transact={"from": a1})
+    )
 
     # transfer item not owned / not existing
     assert_w3_tx_failed(lambda: erc1155.safeTransferFrom(a1, a2, 500, 1, "", transact={"from": a1}))

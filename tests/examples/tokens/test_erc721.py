@@ -281,7 +281,9 @@ def test_approve(c, w3, assert_w3_tx_failed, get_logs):
     someone, operator = w3.eth.accounts[1:3]
 
     # approve myself
-    assert_w3_tx_failed(lambda: c.approve(someone, SOMEONE_TOKEN_IDS[0], transact={"from": someone}))
+    assert_w3_tx_failed(
+        lambda: c.approve(someone, SOMEONE_TOKEN_IDS[0], transact={"from": someone})
+    )
 
     # approve token without ownership
     assert_w3_tx_failed(lambda: c.approve(operator, OPERATOR_TOKEN_ID, transact={"from": someone}))
@@ -323,7 +325,9 @@ def test_mint(c, w3, assert_w3_tx_failed, get_logs):
     assert_w3_tx_failed(lambda: c.mint(someone, SOMEONE_TOKEN_IDS[0], transact={"from": someone}))
 
     # mint to zero address
-    assert_w3_tx_failed(lambda: c.mint(ZERO_ADDRESS, SOMEONE_TOKEN_IDS[0], transact={"from": minter}))
+    assert_w3_tx_failed(
+        lambda: c.mint(ZERO_ADDRESS, SOMEONE_TOKEN_IDS[0], transact={"from": minter})
+    )
 
     # mint by minter
     tx_hash = c.mint(someone, NEW_TOKEN_ID, transact={"from": minter})

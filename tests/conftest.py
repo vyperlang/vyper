@@ -2,11 +2,11 @@ import logging
 from functools import wraps
 
 import pytest
+from boa.contract import VyperFunction
 from eth_utils import setup_DEBUG2_logging
 from hexbytes import HexBytes
 from web3 import Web3
 
-from boa.contract import VyperFunction
 from vyper import compiler
 from vyper.codegen.ir_node import IRnode
 from vyper.ir import compile_ir, optimizer
@@ -92,6 +92,7 @@ def get_contract_module(no_optimize):
     This fixture is used for Hypothesis tests to ensure that
     the same contract is called over multiple runs of the test.
     """
+
     def get_contract_module(source_code, *args, **kwargs):
         return _get_contract(source_code, no_optimize, *args, **kwargs)
 
