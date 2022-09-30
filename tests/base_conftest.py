@@ -1,4 +1,6 @@
+import boa
 import pytest
+from boa.contract import BoaError
 from eth_tester import EthereumTester, PyEVMBackend
 from eth_tester.exceptions import TransactionFailed
 from eth_utils.toolz import compose
@@ -7,7 +9,6 @@ from web3 import Web3
 from web3.contract import Contract, mk_collision_prop
 from web3.providers.eth_tester import EthereumTesterProvider
 
-import boa
 from vyper import compiler
 from vyper.ast.grammar import parse_vyper_source
 
@@ -160,6 +161,18 @@ def get_contract(no_optimize):
         return _get_contract(source_code, no_optimize, *args, **kwargs)
 
     return get_contract
+
+
+@pytest.fixture(scope="module")
+def assert_tx_failed():
+    def assert_tx_failed(function_to_test, exception=BoaError, exc_text=None):
+        with pytest.raises(exception) as excinfo:
+            function_to_test()
+        if exc_text:
+            # TODO test equality
+            assert exc_text in str(excinfo.value), (exc_text, excinfo.value)
+
+    return assert_tx_failed
 
 
 def _w3_get_contract(w3, source_code, no_optimize, *args, **kwargs):
