@@ -7,6 +7,7 @@ from web3 import Web3
 from web3.contract import Contract, mk_collision_prop
 from web3.providers.eth_tester import EthereumTesterProvider
 
+import boa
 from vyper import compiler
 from vyper.ast.grammar import parse_vyper_source
 
@@ -102,26 +103,10 @@ def w3(tester):
     return w3
 
 
-def _get_contract(w3, source_code, no_optimize, *args, **kwargs):
-    out = compiler.compile_code(
-        source_code,
-        ["abi", "bytecode"],
-        interface_codes=kwargs.pop("interface_codes", None),
-        no_optimize=no_optimize,
-        evm_version=kwargs.pop("evm_version", None),
-        show_gas_estimates=True,  # Enable gas estimates for testing
-    )
+def _get_contract(source_code, no_optimize, *args, **kwargs):
     parse_vyper_source(source_code)  # Test grammar.
-    abi = out["abi"]
-    bytecode = out["bytecode"]
-    value = kwargs.pop("value_in_eth", 0) * 10 ** 18  # Handle deploying with an eth value.
-    c = w3.eth.contract(abi=abi, bytecode=bytecode)
-    deploy_transaction = c.constructor(*args)
-    tx_info = {"from": w3.eth.accounts[0], "value": value, "gasPrice": 0}
-    tx_info.update(kwargs)
-    tx_hash = deploy_transaction.transact(tx_info)
-    address = w3.eth.get_transaction_receipt(tx_hash)["contractAddress"]
-    return w3.eth.contract(address, abi=abi, bytecode=bytecode, ContractFactoryClass=VyperContract)
+    c = boa.loads(source_code, *args, **kwargs)
+    return c
 
 
 def _deploy_blueprint_for(w3, source_code, no_optimize, initcode_prefix=b"", **kwargs):
@@ -170,9 +155,9 @@ def deploy_blueprint_for(w3, no_optimize):
 
 
 @pytest.fixture(scope="module")
-def get_contract(w3, no_optimize):
+def get_contract(no_optimize):
     def get_contract(source_code, *args, **kwargs):
-        return _get_contract(w3, source_code, no_optimize, *args, **kwargs)
+        return _get_contract(source_code, no_optimize, *args, **kwargs)
 
     return get_contract
 
