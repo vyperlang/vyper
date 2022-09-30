@@ -104,7 +104,7 @@ def test(a: uint256) -> (uint256, uint256, uint256, uint256, uint256, String[100
     c = get_contract_with_gas_estimation(code)
 
     val = 21
-    assert c.test(val) == [val, 1, 2, 3, math.isqrt(val), "hello world"]
+    assert list(c.test(val)) == [val, 1, 2, 3, math.isqrt(val), "hello world"]
 
 
 @pytest.mark.fuzzing
