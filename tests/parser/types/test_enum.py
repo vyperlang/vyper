@@ -1,3 +1,6 @@
+import boa
+
+
 def test_values_should_be_increasing_ints(get_contract):
     code = """
 enum Action:
@@ -176,14 +179,14 @@ def flipMinter(minter: address):
 def checkMinter(minter: address):
     assert Roles.MINTER in self.roles[minter]
     """
+    admin_address = boa.env.generate_address("admin")
+    minter_address = boa.env.generate_address("minter")
+    boa.env.eoa = admin_address
+
     c = get_contract(code)
 
-    # check admin
-    admin_address = w3.eth.accounts[0]
-    minter_address = w3.eth.accounts[1]
-
     # add minter
-    c.addMinter(minter_address, transact={})
+    c.addMinter(minter_address)
     c.checkMinter(minter_address)
 
     assert c.roles(admin_address) == 0b01
@@ -192,24 +195,24 @@ def checkMinter(minter: address):
     # admin is not a minter
     assert_tx_failed(lambda: c.checkMinter(admin_address))
 
-    c.addMinter(admin_address, transact={})
+    c.addMinter(admin_address)
 
     # now, admin is a minter
     assert c.roles(admin_address) == 0b11
     c.checkMinter(admin_address)
 
     # revoke minter
-    c.revokeMinter(admin_address, transact={})
+    c.revokeMinter(admin_address)
     assert c.roles(admin_address) == 0b01
     assert_tx_failed(lambda: c.checkMinter(admin_address))
 
     # flip minter
-    c.flipMinter(admin_address, transact={})
+    c.flipMinter(admin_address)
     assert c.roles(admin_address) == 0b11
     c.checkMinter(admin_address)
 
     # flip minter
-    c.flipMinter(admin_address, transact={})
+    c.flipMinter(admin_address)
     assert c.roles(admin_address) == 0b01
     assert_tx_failed(lambda: c.checkMinter(admin_address))
 
