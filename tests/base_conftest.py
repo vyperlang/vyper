@@ -215,8 +215,8 @@ def get_logs(w3):
 
 
 @pytest.fixture(scope="module")
-def assert_w3_tx_failed(tester):
-    def assert_w3_tx_failed(function_to_test, exception=TransactionFailed, exc_text=None):
+def w3_assert_tx_failed(tester):
+    def w3_assert_tx_failed(function_to_test, exception=TransactionFailed, exc_text=None):
         snapshot_id = tester.take_snapshot()
         with pytest.raises(exception) as excinfo:
             function_to_test()
@@ -225,4 +225,4 @@ def assert_w3_tx_failed(tester):
             # TODO test equality
             assert exc_text in str(excinfo.value), (exc_text, excinfo.value)
 
-    return assert_w3_tx_failed
+    return w3_assert_tx_failed

@@ -27,7 +27,7 @@ def test_crowdfund_example(c, w3):
     assert post_bal - pre_bal == 54
 
 
-def test_crowdfund_example2(c, w3, assert_w3_tx_failed):
+def test_crowdfund_example2(c, w3, w3_assert_tx_failed):
     a0, a1, a2, a3, a4, a5, a6 = w3.eth.accounts[:7]
     c.participate(transact={"value": 1, "from": a3})
     c.participate(transact={"value": 2, "from": a4})
@@ -39,9 +39,9 @@ def test_crowdfund_example2(c, w3, assert_w3_tx_failed):
     # assert c.expired()
     # assert not c.reached()
     pre_bals = [w3.eth.get_balance(x) for x in [a3, a4, a5, a6]]
-    assert_w3_tx_failed(lambda: c.refund(transact={"from": a0}))
+    w3_assert_tx_failed(lambda: c.refund(transact={"from": a0}))
     c.refund(transact={"from": a3})
-    assert_w3_tx_failed(lambda: c.refund(transact={"from": a3}))
+    w3_assert_tx_failed(lambda: c.refund(transact={"from": a3}))
     c.refund(transact={"from": a4})
     c.refund(transact={"from": a5})
     c.refund(transact={"from": a6})

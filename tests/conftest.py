@@ -171,13 +171,13 @@ def set_decorator_to_contract_function(contract, source_code, fn, fn_name):
 def w3_get_contract_with_gas_estimation(tester, w3, no_optimize):
     def w3_get_contract_with_gas_estimation(source_code, *args, **kwargs):
 
-        contract = _get_contract(w3, source_code, no_optimize, *args, **kwargs)
+        contract = _w3_get_contract(w3, source_code, no_optimize, *args, **kwargs)
         for abi in contract._classic_contract.functions.abi:
             if abi["type"] == "function":
                 w3_set_decorator_to_contract_function(w3, tester, contract, source_code, abi["name"])
         return contract
 
-    return get_contract_with_gas_estimation
+    return w3_get_contract_with_gas_estimation
 
 
 

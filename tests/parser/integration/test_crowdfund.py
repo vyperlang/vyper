@@ -1,4 +1,4 @@
-def test_crowdfund(w3, tester, get_contract_with_gas_estimation_for_constants):
+def test_crowdfund(w3, tester, w3_get_contract_with_gas_estimation_for_constants):
     crowdfund = """
 
 struct Funder:
@@ -62,7 +62,7 @@ def refund():
 
     """
     a0, a1, a2, a3, a4, a5, a6 = w3.eth.accounts[:7]
-    c = get_contract_with_gas_estimation_for_constants(crowdfund, *[a1, 50, 60])
+    c = w3_get_contract_with_gas_estimation_for_constants(crowdfund, *[a1, 50, 60])
     c.participate(transact={"value": 5})
     assert c.timelimit() == 60
     assert c.deadline() - c.block_timestamp() == 59
@@ -77,7 +77,7 @@ def refund():
     post_bal = w3.eth.get_balance(a1)
     assert post_bal - pre_bal == 54
 
-    c = get_contract_with_gas_estimation_for_constants(crowdfund, *[a1, 50, 60])
+    c = w3_get_contract_with_gas_estimation_for_constants(crowdfund, *[a1, 50, 60])
     c.participate(transact={"value": 1, "from": a3})
     c.participate(transact={"value": 2, "from": a4})
     c.participate(transact={"value": 3, "from": a5})
@@ -91,7 +91,7 @@ def refund():
     assert [y - x for x, y in zip(pre_bals, post_bals)] == [1, 2, 3, 4]
 
 
-def test_crowdfund2(w3, tester, get_contract_with_gas_estimation_for_constants):
+def test_crowdfund2(w3, tester, w3_get_contract_with_gas_estimation_for_constants):
     crowdfund2 = """
 struct Funder:
     sender: address
@@ -153,7 +153,7 @@ def refund():
 
     """
     a0, a1, a2, a3, a4, a5, a6 = w3.eth.accounts[:7]
-    c = get_contract_with_gas_estimation_for_constants(crowdfund2, *[a1, 50, 60])
+    c = w3_get_contract_with_gas_estimation_for_constants(crowdfund2, *[a1, 50, 60])
 
     c.participate(transact={"value": 5})
     assert c.timelimit() == 60
@@ -169,7 +169,7 @@ def refund():
     post_bal = w3.eth.get_balance(a1)
     assert post_bal - pre_bal == 54
 
-    c = get_contract_with_gas_estimation_for_constants(crowdfund2, *[a1, 50, 60])
+    c = w3_get_contract_with_gas_estimation_for_constants(crowdfund2, *[a1, 50, 60])
     c.participate(transact={"value": 1, "from": a3})
     c.participate(transact={"value": 2, "from": a4})
     c.participate(transact={"value": 3, "from": a5})
