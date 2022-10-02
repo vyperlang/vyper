@@ -158,7 +158,9 @@ def gas_estimation_decorator(contract, source_code, fn, fn_name):
 
 def w3_set_decorator_to_contract_function(w3, tester, contract, source_code, func):
     func_definition = getattr(contract, func)
-    func_with_decorator = w3_gas_estimation_decorator(w3, tester, func_definition, source_code, func)
+    func_with_decorator = w3_gas_estimation_decorator(
+        w3, tester, func_definition, source_code, func
+    )
     setattr(contract, func, func_with_decorator)
 
 
@@ -174,11 +176,12 @@ def w3_get_contract_with_gas_estimation(tester, w3, no_optimize):
         contract = _w3_get_contract(w3, source_code, no_optimize, *args, **kwargs)
         for abi in contract._classic_contract.functions.abi:
             if abi["type"] == "function":
-                w3_set_decorator_to_contract_function(w3, tester, contract, source_code, abi["name"])
+                w3_set_decorator_to_contract_function(
+                    w3, tester, contract, source_code, abi["name"]
+                )
         return contract
 
     return w3_get_contract_with_gas_estimation
-
 
 
 @pytest.fixture
