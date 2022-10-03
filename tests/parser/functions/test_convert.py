@@ -454,9 +454,6 @@ def test_convert_passing(
 ):
 
     expected_val = _py_convert(val, i_typ, o_typ)
-    if o_typ == "address" and expected_val == "0x" + "00" * 20:
-        # web3 has special formatter for zero address
-        expected_val = None
 
     contract_1 = f"""
 @external
