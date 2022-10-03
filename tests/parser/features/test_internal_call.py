@@ -66,7 +66,7 @@ def foo() -> (uint256, uint256):
     return x, self.counter
     """
     c = get_contract(code)
-    assert c.foo() == [0, 1]
+    assert c.foo() == (0, 1)
 
 
 def test_selfcall_code_3(get_contract_with_gas_estimation, keccak):
@@ -348,7 +348,7 @@ def bar() -> (int128, decimal):
     return self._fooz(x, y, z, a), self._fooa(x, y, z, a)
     """
     c = get_contract_with_gas_estimation(code)
-    assert c.bar() == [66, Decimal("66.77")]
+    assert c.bar() == (66, Decimal("66.77"))
 
 
 def test_internal_function_multiple_lists_as_args(get_contract_with_gas_estimation):
@@ -400,7 +400,7 @@ def bar() -> (Bytes[11], decimal, int128):
     return self._fooz(x, y, z, a), self._fooa(x, y, z, a), self._foox(x, y, z, a)
     """
     c = get_contract_with_gas_estimation(code)
-    assert c.bar() == [b"hello world", Decimal("66.77"), 44]
+    assert c.bar() == (b"hello world", Decimal("66.77"), 44)
 
 
 FAILING_CONTRACTS_CALL_VIOLATION = [
@@ -557,7 +557,7 @@ def test() -> (int128, String[{ln}], Bytes[{ln}]):
 
     c = get_contract_with_gas_estimation(contract)
 
-    assert c.test() == [i, s, bytes(s, "utf-8")]
+    assert c.test() == (i, s, bytes(s, "utf-8"))
 
 
 def test_dynamically_sized_struct_as_arg(get_contract_with_gas_estimation):

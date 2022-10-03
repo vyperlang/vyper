@@ -5,6 +5,9 @@ from vyper.exceptions import TypeMismatch
 pytestmark = pytest.mark.usefixtures("memory_mocker")
 
 
+ZERO_ADDRESS = "0x0000000000000000000000000000000000000000"
+
+
 def test_return_type(get_contract_with_gas_estimation):
     long_string = 35 * "test"
 
@@ -56,29 +59,29 @@ def out_very_long_bytes() -> (int128, Bytes[1024], int128, address):
 
     c = get_contract_with_gas_estimation(code)
 
-    assert c.out() == [3333, "0x0000000000000000000000000000000000000001"]
-    assert c.out_literals() == [1, None, b"random"]
-    assert c.out_bytes_first() == [b"test", 1234]
-    assert c.out_bytes_a(5555555, b"test") == [5555555, b"test"]
-    assert c.out_bytes_b(5555555, b"test") == [b"test", 5555555, b"test"]
-    assert c.four() == [1234, b"bytes", b"test", 4321]
-    assert c.out_chunk() == [b"hello", 5678, b"world"]
-    assert c.out_very_long_bytes() == [
+    assert c.out() == (3333, "0x0000000000000000000000000000000000000001")
+    assert c.out_literals() == (1, ZERO_ADDRESS, b"random")
+    assert c.out_bytes_first() == (b"test", 1234)
+    assert c.out_bytes_a(5555555, b"test") == (5555555, b"test")
+    assert c.out_bytes_b(5555555, b"test") == (b"test", 5555555, b"test")
+    assert c.four() == (1234, b"bytes", b"test", 4321)
+    assert c.out_chunk() == (b"hello", 5678, b"world")
+    assert c.out_very_long_bytes() == (
         5555,
         long_string.encode(),
         6666,
         "0x0000000000000000000000000000000000001234",
-    ]
+    )
 
 
-def test_return_type_signatures(get_contract_with_gas_estimation):
+def test_return_type_signatures(w3_get_contract_with_gas_estimation):
     code = """
 @external
 def out_literals() -> (int128, address, Bytes[6]):
     return 1, 0x0000000000000000000000000000000000000000, b"random"
     """
 
-    c = get_contract_with_gas_estimation(code)
+    c = w3_get_contract_with_gas_estimation(code)
     assert c._classic_contract.abi[0]["outputs"] == [
         {"type": "int128", "name": ""},
         {"type": "address", "name": ""},
@@ -107,7 +110,7 @@ def test() -> (int128, address, Bytes[10]):
 
     c = get_contract_with_gas_estimation(code)
 
-    assert c.out_literals() == c.test() == [1, None, b"random"]
+    assert c.out_literals() == c.test() == (1, ZERO_ADDRESS, b"random")
 
 
 def test_return_tuple_assign_storage(get_contract_with_gas_estimation):
@@ -146,10 +149,10 @@ def test3() -> (address, int128):
     c = get_contract_with_gas_estimation(code)
 
     addr = "0x" + "00" * 19 + "23"
-    assert c.out_literals() == [1, b"testtesttest", addr, b"random"]
+    assert c.out_literals() == (1, b"testtesttest", addr, b"random")
     assert c.out_literals() == c.test1()
-    assert c.test2() == [1, c.out_literals()[2]]
-    assert c.test3() == [c.out_literals()[2], 1]
+    assert c.test2() == (1, c.out_literals()[2])
+    assert c.test3() == (c.out_literals()[2], 1)
 
 
 def test_tuple_return_typecheck(assert_tx_failed, get_contract_with_gas_estimation):

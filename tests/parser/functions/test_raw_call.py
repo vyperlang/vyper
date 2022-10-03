@@ -49,14 +49,14 @@ def foo() -> Bytes[5]:
     assert c.foo() == b"moose"
 
 
-def test_multiple_levels(w3, get_contract_with_gas_estimation):
+def test_multiple_levels(w3, w3_get_contract_with_gas_estimation):
     inner_code = """
 @external
 def returnten() -> int128:
     return 10
     """
 
-    c = get_contract_with_gas_estimation(inner_code)
+    c = w3_get_contract_with_gas_estimation(inner_code)
 
     outer_code = """
 @external
@@ -71,7 +71,7 @@ def create_and_return_proxy(inp: address) -> address:
     return x
     """
 
-    c2 = get_contract_with_gas_estimation(outer_code)
+    c2 = w3_get_contract_with_gas_estimation(outer_code)
     assert c2.create_and_call_returnten(c.address) == 10
     c2.create_and_call_returnten(c.address, transact={})
 
@@ -90,14 +90,14 @@ def create_and_return_proxy(inp: address) -> address:
     # print(f'Gas consumed: {(chain.head_state.receipts[-1].gas_used - chain.head_state.receipts[-2].gas_used - chain.last_tx.intrinsic_gas_used)}')  # noqa: E501
 
 
-def test_multiple_levels2(assert_tx_failed, get_contract_with_gas_estimation):
+def test_multiple_levels2(w3_assert_tx_failed, w3_get_contract_with_gas_estimation):
     inner_code = """
 @external
 def returnten() -> int128:
     raise
     """
 
-    c = get_contract_with_gas_estimation(inner_code)
+    c = w3_get_contract_with_gas_estimation(inner_code)
 
     outer_code = """
 @external
@@ -111,14 +111,14 @@ def create_and_return_proxy(inp: address) -> address:
     return create_minimal_proxy_to(inp)
     """
 
-    c2 = get_contract_with_gas_estimation(outer_code)
+    c2 = w3_get_contract_with_gas_estimation(outer_code)
 
-    assert_tx_failed(lambda: c2.create_and_call_returnten(c.address))
+    w3_assert_tx_failed(lambda: c2.create_and_call_returnten(c.address))
 
     print("Passed minimal proxy exception test")
 
 
-def test_delegate_call(w3, get_contract):
+def test_delegate_call(w3, w3_get_contract):
     inner_code = """
 a: address  # this is required for storage alignment...
 owners: public(address[5])
@@ -128,7 +128,7 @@ def set_owner(i: int128, o: address):
     self.owners[i] = o
     """
 
-    inner_contract = get_contract(inner_code)
+    inner_contract = w3_get_contract(inner_code)
 
     outer_code = """
 owner_setter_contract: public(address)
@@ -154,7 +154,7 @@ def set(i: int128, owner: address):
     """
 
     a0, a1, a2 = w3.eth.accounts[:3]
-    outer_contract = get_contract(outer_code, *[inner_contract.address])
+    outer_contract = w3_get_contract(outer_code, *[inner_contract.address])
 
     # Test setting on inners contract's state setting works.
     inner_contract.set_owner(1, a2, transact={})
@@ -170,7 +170,7 @@ def set(i: int128, owner: address):
     assert outer_contract.owners(1) == a1
 
 
-def test_gas(get_contract, assert_tx_failed):
+def test_gas(w3_get_contract, w3_assert_tx_failed):
     inner_code = """
 bar: bytes32
 
@@ -179,7 +179,7 @@ def foo(_bar: bytes32):
     self.bar = _bar
     """
 
-    inner_contract = get_contract(inner_code)
+    inner_contract = w3_get_contract(inner_code)
 
     outer_code = """
 @external
@@ -192,16 +192,16 @@ def foo_call(_addr: address):
     """
 
     # with no gas value given, enough will be forwarded to complete the call
-    outer_contract = get_contract(outer_code.format(""))
+    outer_contract = w3_get_contract(outer_code.format(""))
     outer_contract.foo_call(inner_contract.address)
 
     # manually specifying a sufficient amount should succeed
-    outer_contract = get_contract(outer_code.format(", gas=50000"))
+    outer_contract = w3_get_contract(outer_code.format(", gas=50000"))
     outer_contract.foo_call(inner_contract.address)
 
     # manually specifying an insufficient amount should fail
-    outer_contract = get_contract(outer_code.format(", gas=15000"))
-    assert_tx_failed(lambda: outer_contract.foo_call(inner_contract.address))
+    outer_contract = w3_get_contract(outer_code.format(", gas=15000"))
+    w3_assert_tx_failed(lambda: outer_contract.foo_call(inner_contract.address))
 
 
 def test_static_call(get_contract):
@@ -261,7 +261,7 @@ def __default__():
     w3.eth.send_transaction({"to": caller.address, "data": sig})
 
 
-def test_static_call_fails_nonpayable(get_contract, assert_tx_failed):
+def test_static_call_fails_nonpayable(w3_get_contract, w3_assert_tx_failed):
 
     target_source = """
 baz: int128
@@ -285,10 +285,10 @@ def foo(_addr: address) -> int128:
     return convert(_response, int128)
     """
 
-    target = get_contract(target_source)
-    caller = get_contract(caller_source)
+    target = w3_get_contract(target_source)
+    caller = w3_get_contract(caller_source)
 
-    assert_tx_failed(lambda: caller.foo(target.address))
+    w3_assert_tx_failed(lambda: caller.foo(target.address))
 
 
 def test_checkable_raw_call(get_contract, assert_tx_failed):
