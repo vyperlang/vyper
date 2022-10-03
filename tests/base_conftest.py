@@ -1,6 +1,7 @@
 import boa
 import pytest
 from boa.contract import BoaError
+from eth.exceptions import Revert
 from eth_tester import EthereumTester, PyEVMBackend
 from eth_tester.exceptions import TransactionFailed
 from eth_utils.toolz import compose
@@ -165,7 +166,7 @@ def get_contract(no_optimize):
 
 @pytest.fixture(scope="module")
 def assert_tx_failed():
-    def assert_tx_failed(function_to_test, exception=BoaError, exc_text=None):
+    def assert_tx_failed(function_to_test, exception=(BoaError, Revert), exc_text=None):
         with pytest.raises(exception) as excinfo:
             function_to_test()
         if exc_text:
