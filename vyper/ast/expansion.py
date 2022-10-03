@@ -42,6 +42,11 @@ def generate_public_variable_getters(vyper_module: vy_ast.Module) -> None:
         # constants just return a value
         if node.is_constant:
             return_stmt = node.value
+            # if the constant is a List we'll need type metadata on
+            # the elements for the codegen
+            if isinstance(return_stmt, vy_ast.List):
+                for element in return_stmt.elements:
+                    element._metadata["type"] = return_type
         elif node.is_immutable:
             return_stmt = vy_ast.Name(id=func_type.name)
         else:
