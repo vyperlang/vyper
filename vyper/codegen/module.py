@@ -95,7 +95,7 @@ def _is_payable(func_ast):
 def _is_zero_selector_func(f):
     abi_sig = f._metadata["signature"].abi_signature_for_kwargs([])
     selector = abi_method_id(abi_sig)
-    if str(selector)[0] == '0':
+    if selector.to_bytes(4, 'big') == b"\x00"*4:
         return True
 
 # codegen for all runtime functions + callvalue/calldata checks + method selector routines
@@ -170,24 +170,17 @@ def _runtime_ir(runtime_functions, all_sigs, global_ctx):
     # fallback label is the immediate next instruction,
     close_selector_section = ["goto", "fallback"]
 
-    if has_zero_selector_functions:
-        runtime = [
-            "seq",
-            # check that calldatasize is at least 4, otherwise
-            # calldataload will load zeros (cf. yellow paper).
-            ["if", ["lt", "calldatasize", 4], ["goto", "fallback"]],
-            ["with", "_calldata_method_id", shr(224, ["calldataload", 0]), selector_section],
-            close_selector_section,
-            ["label", "fallback", ["var_list"], fallback_ir],
-        ]
+    runtime = [
+        "seq",
+        ["with", "_calldata_method_id", shr(224, ["calldataload", 0]), selector_section],
+        close_selector_section,
+        ["label", "fallback", ["var_list"], fallback_ir],
+    ]
 
-    else:
-        runtime = [
-            "seq",
-            ["with", "_calldata_method_id", shr(224, ["calldataload", 0]), selector_section],
-            close_selector_section,
-            ["label", "fallback", ["var_list"], fallback_ir],
-        ]
+    if has_zero_selector_functions:
+        # check that calldatasize is at least 4, otherwise
+        # calldataload will load zeros (cf. yellow paper).
+        runtime.insert(1, ["if", ["lt", "calldatasize", 4], ["goto", "fallback"]])
 
     # TODO: prune unreachable functions?
     runtime.extend(internal_functions_map.values())

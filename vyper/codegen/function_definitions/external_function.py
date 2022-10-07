@@ -86,8 +86,8 @@ def _generate_kwarg_handlers(context: Context, sig: FunctionSignature) -> List[A
         # a sequence of statements to strictify kwargs into memory
         ret = ["seq"]
 
-        #wip: decide whether to check method_id as int, hex, or bytecode
-        if str(util.abi_method_id(abi_sig))[0] == '0': #str(int)[0]
+        # run check if 0 selector; otherwise selector table checks equality
+        if util.abi_method_id(abi_sig).to_bytes(4, 'big') == b"\x00"*4:
             # ensure calldata is at least of minimum length
             args_abi_t = calldata_args_t.abi_type
             calldata_min_size = args_abi_t.min_size() + 4
