@@ -69,6 +69,8 @@ def _parse_args(argv):
         action="store_true",
     )
 
+    parser.add_argument("--no-bytecode-metadata", help="Do not add metadata to bytecode.", action="store_true")
+
     args = parser.parse_args(argv)
     if args.input_file:
         with Path(args.input_file).open() as fh:
@@ -80,7 +82,7 @@ def _parse_args(argv):
 
     exc_handler = exc_handler_raises if args.traceback else exc_handler_to_dict
     output_json = json.dumps(
-        compile_json(input_json, exc_handler, args.root_folder, json_path),
+        compile_json(input_json, exc_handler, args.root_folder, json_path, args.no_bytecode_metadata),
         indent=2 if args.pretty_json else None,
         sort_keys=True,
         default=str,
@@ -342,6 +344,7 @@ def compile_from_input_dict(
     input_dict: Dict,
     exc_handler: Callable = exc_handler_raises,
     root_folder: Union[str, None] = None,
+    no_bytecode_metadata: bool = False,
 ) -> Tuple[Dict, Dict]:
     root_path = None
     if root_folder is not None:
@@ -377,6 +380,7 @@ def compile_from_input_dict(
                     initial_id=id_,
                     no_optimize=no_optimize,
                     evm_version=evm_version,
+                    no_bytecode_metadata=no_bytecode_metadata,
                 )
             except Exception as exc:
                 return exc_handler(contract_path, exc, "compiler"), {}
@@ -449,6 +453,7 @@ def compile_json(
     exc_handler: Callable = exc_handler_raises,
     root_path: Union[str, None] = None,
     json_path: Union[str, None] = None,
+    no_bytecode_metadata: bool = False,
 ) -> Dict:
     try:
         if isinstance(input_json, str):
@@ -463,7 +468,7 @@ def compile_json(
             input_dict = input_json
 
         try:
-            compiler_data, warn_data = compile_from_input_dict(input_dict, exc_handler, root_path)
+            compiler_data, warn_data = compile_from_input_dict(input_dict, exc_handler, root_path, no_bytecode_metadata)
             if "errors" in compiler_data:
                 return compiler_data
         except KeyError as exc:
