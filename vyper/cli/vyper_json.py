@@ -69,10 +69,6 @@ def _parse_args(argv):
         action="store_true",
     )
 
-    parser.add_argument(
-        "--no-bytecode-metadata", help="Do not add metadata to bytecode.", action="store_true"
-    )
-
     args = parser.parse_args(argv)
     if args.input_file:
         with Path(args.input_file).open() as fh:
@@ -84,9 +80,7 @@ def _parse_args(argv):
 
     exc_handler = exc_handler_raises if args.traceback else exc_handler_to_dict
     output_json = json.dumps(
-        compile_json(
-            input_json, exc_handler, args.root_folder, json_path, args.no_bytecode_metadata
-        ),
+        compile_json(input_json, exc_handler, args.root_folder, json_path),
         indent=2 if args.pretty_json else None,
         sort_keys=True,
         default=str,
@@ -472,9 +466,7 @@ def compile_json(
             input_dict = input_json
 
         try:
-            compiler_data, warn_data = compile_from_input_dict(
-                input_dict, exc_handler, root_path, no_bytecode_metadata
-            )
+            compiler_data, warn_data = compile_from_input_dict(input_dict, exc_handler, root_path)
             if "errors" in compiler_data:
                 return compiler_data
         except KeyError as exc:
