@@ -94,7 +94,7 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
         module_node._metadata["type"] = interface
 
         # get list of internal function calls made by each function
-        function_defs = self.ast.get_children(vy_ast.FunctionDef)
+        function_defs = self.ast.get_children(vy_ast.FunctionDef, {'is_immutable': False})
         function_names = set(node.name for node in function_defs)
         for node in function_defs:
             calls_to_self = set(
@@ -241,7 +241,6 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
 
     def visit_FunctionDef(self, node):
         func = ContractFunction.from_FunctionDef(node)
-
         try:
             self.namespace["self"].add_member(func.name, func)
             node._metadata["type"] = func
