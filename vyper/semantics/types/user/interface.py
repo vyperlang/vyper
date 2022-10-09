@@ -201,13 +201,6 @@ def _get_module_definitions(base_node: vy_ast.Module) -> Tuple[OrderedDict, Dict
                     # only keep the `ContractFunction` with the longest set of input args
                     continue
             functions[node.name] = func
-    for node in base_node.get_children(vy_ast.VariableDecl, {"is_public": True}):
-        name = node.target.id
-        if name in functions:
-            raise NamespaceCollision(
-                f"Interface contains multiple functions named '{name}'", base_node
-            )
-        functions[name] = ContractFunction.getter_from_VariableDecl(node)
     for node in base_node.get_children(vy_ast.EventDef):
         name = node.name
         if name in functions or name in events:
