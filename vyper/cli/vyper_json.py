@@ -342,7 +342,6 @@ def compile_from_input_dict(
     input_dict: Dict,
     exc_handler: Callable = exc_handler_raises,
     root_folder: Union[str, None] = None,
-    no_bytecode_metadata: bool = False,
 ) -> Tuple[Dict, Dict]:
     root_path = None
     if root_folder is not None:
@@ -378,7 +377,6 @@ def compile_from_input_dict(
                     initial_id=id_,
                     no_optimize=no_optimize,
                     evm_version=evm_version,
-                    no_bytecode_metadata=no_bytecode_metadata,
                 )
             except Exception as exc:
                 return exc_handler(contract_path, exc, "compiler"), {}
@@ -451,7 +449,6 @@ def compile_json(
     exc_handler: Callable = exc_handler_raises,
     root_path: Union[str, None] = None,
     json_path: Union[str, None] = None,
-    no_bytecode_metadata: bool = False,
 ) -> Dict:
     try:
         if isinstance(input_json, str):
