@@ -1,5 +1,7 @@
 import copy
 
+from vyper.semantics.types.function import ContractFunction
+
 from vyper import ast as vy_ast
 from vyper.exceptions import CompilerPanic
 
@@ -31,7 +33,7 @@ def generate_public_variable_getters(vyper_module: vy_ast.Module) -> None:
     """
 
     for node in vyper_module.get_children(vy_ast.VariableDecl, {"is_public": True}):
-        func_type = node._metadata["func_type"]
+        func_type = ContractFunction.getter_from_VariableDecl(node)
         input_types, return_type = func_type.get_signature()
         input_nodes = []
 
@@ -42,18 +44,12 @@ def generate_public_variable_getters(vyper_module: vy_ast.Module) -> None:
         # constants just return a value
         if node.is_constant:
             return_stmt = node.value
-            # if the constant is a List we'll need type metadata on
-            # the elements for the codegen
-            if isinstance(return_stmt, vy_ast.List):
-                for element in return_stmt.elements:
-                    element._metadata["type"] = return_type
         elif node.is_immutable:
             return_stmt = vy_ast.Name(id=func_type.name)
         else:
             # the base return statement is an `Attribute` node, e.g. `self.<var_name>`
             # for each input type we wrap it in a `Subscript` to access a specific member
             return_stmt = vy_ast.Attribute(value=vy_ast.Name(id="self"), attr=func_type.name)
-        return_stmt._metadata["type"] = node._metadata["type"]
 
         for i, type_ in enumerate(input_types):
             if not isinstance(annotation, vy_ast.Subscript):
@@ -63,12 +59,12 @@ def generate_public_variable_getters(vyper_module: vy_ast.Module) -> None:
                 # for a HashMap, split the key/value types and use the key type as the next arg
                 arg, annotation = annotation.slice.value.elements  # type: ignore
             elif annotation.value.get("id") == "DynArray":
-                arg = vy_ast.Name(id=type_._id)
+                arg = vy_ast.Name(id=type_._id, node_id=None)
                 annotation = annotation.slice.value.elements[0]  # type: ignore
             else:
                 # for other types, build an input arg node from the expected type
                 # and remove the outer `Subscript` from the annotation
-                arg = vy_ast.Name(id=type_._id)
+                arg = vy_ast.Name(id=type_._id, node_id=None)
                 annotation = annotation.value
             input_nodes.append(vy_ast.arg(arg=f"arg{i}", annotation=arg))
 
@@ -90,7 +86,6 @@ def generate_public_variable_getters(vyper_module: vy_ast.Module) -> None:
             decorator_list=[vy_ast.Name(id="external"), vy_ast.Name(id="view")],
             returns=return_node,
         )
-        expanded._metadata["type"] = func_type
         return_node.set_parent(expanded)
         vyper_module.add_to_body(expanded)
 
