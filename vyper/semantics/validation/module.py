@@ -242,8 +242,10 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
     def visit_FunctionDef(self, node):
         func = ContractFunction.from_FunctionDef(node)
         try:
-            self.namespace["self"].add_member(func.name, func)
             node._metadata["type"] = func
+            # skip public getters
+            if not func.is_public:
+                self.namespace["self"].add_member(func.name, func)
         except VyperException as exc:
             raise exc.with_annotation(node) from None
 
