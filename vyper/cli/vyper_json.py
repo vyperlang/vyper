@@ -354,6 +354,7 @@ def compile_from_input_dict(
 
     evm_version = get_evm_version(input_dict)
     no_optimize = not input_dict["settings"].get("optimize", True)
+    no_bytecode_metadata = not input_dict["settings"].get("bytecodeMetadata", True)
 
     contract_sources: ContractCodes = get_input_dict_contracts(input_dict)
     interface_sources = get_input_dict_interfaces(input_dict)
@@ -377,6 +378,7 @@ def compile_from_input_dict(
                     initial_id=id_,
                     no_optimize=no_optimize,
                     evm_version=evm_version,
+                    no_bytecode_metadata=no_bytecode_metadata,
                 )
             except Exception as exc:
                 return exc_handler(contract_path, exc, "compiler"), {}
