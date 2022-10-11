@@ -1,0 +1,59 @@
+# -*- mode: gitignore; -*-
+.git/
+.github/
+docs/
+examples/
+logos/
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# egg-related
+vyper.egg-info/
+build/
+dist/
+.eggs/
+
+.pytest_cache/
+
+# pyenv
+.python-version
+
+# dotenv
+.env
+
+# virtualenv
+.venv/
+venv/
+ENV/
+
+# Coverage tests
+.coverage*
+.cache/
+htmlcov/
+coverage.xml
+
+# sphinx
+docs/_build/
+docs/modules.rst
+docs/vyper.rst
+docs/vyper.*.rst
+
+# IDEs
+.idea/
+.vscode/
+
+.tox/
+.mypy_cache/
+.hypothesis/
+
+# vyper
+vyper/version.py
+vyper/vyper_git_version.txt
+vyper/vyper_git_commithash.txt
+*.spec
+
+# mac
+.DS_Store
