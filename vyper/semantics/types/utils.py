@@ -22,15 +22,12 @@ class KwargSettings:
     # contains the `default` value for the kwarg as a python value, and a
     # flag `require_literal`, which, when True, indicates that the kwarg
     # must be set to a compile-time constant at any call site.
-    # The `require_return` flag indicates that the call needs to return
-    # a value
     # (note that the kwarg processing machinery will return a
     # Python value instead of an AST or IRnode in this case).
-    def __init__(self, typ, default, require_literal=False, require_return=False):
+    def __init__(self, typ, default, require_literal=False):
         self.typ = typ
         self.default = default
         self.require_literal = require_literal
-        self.require_return = require_return
 
 
 class TypeTypeDefinition:

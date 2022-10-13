@@ -130,7 +130,7 @@ class ContractFunction(BaseTypeDefinition):
             "gas": KwargSettings(Uint256Definition(), "gas"),
             "value": KwargSettings(Uint256Definition(), 0),
             "skip_contract_check": KwargSettings(BoolDefinition(), False, require_literal=True),
-            "default_return_value": KwargSettings(return_type, None, require_return=True),
+            "default_return_value": KwargSettings(return_type, None),
         }
 
     def __repr__(self):
@@ -478,7 +478,7 @@ class ContractFunction(BaseTypeDefinition):
         for kwarg in node.keywords:
             if kwarg.arg in self.call_site_kwargs:
                 kwarg_settings = self.call_site_kwargs[kwarg.arg]
-                if kwarg_settings.require_return and self.return_type is None:
+                if kwarg.arg == "default_return_value" and self.return_type is None:
                     raise ArgumentException(
                         f"{kwarg.arg} specified but {self.name} is void", kwarg.value
                     )
