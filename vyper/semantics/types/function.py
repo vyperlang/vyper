@@ -300,6 +300,12 @@ class ContractFunction(BaseTypeDefinition):
         if kwargs["state_mutability"] == StateMutability.PURE and "nonreentrant" in kwargs:
             raise StructureException("Cannot use reentrancy guard on pure functions", node)
 
+        if (
+            kwargs["state_mutability"] == StateMutability.PAYABLE
+            and kwargs["function_visibility"] == FunctionVisibility.INTERNAL
+        ):
+            raise FunctionDeclarationException("Internal functions can't be payable", node)
+
         # call arguments
         if node.args.defaults and node.name == "__init__":
             raise FunctionDeclarationException(
