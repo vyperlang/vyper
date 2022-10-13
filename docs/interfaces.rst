@@ -57,6 +57,24 @@ Specifying ``payable`` or ``nonpayable`` annotation indicates that the call made
         foobar.update()  # storage can be altered
         foobar.pay(value=1)  # storage can be altered, and value can be sent
 
+Vyper offers the option to set the following additional keyword arguments when making external calls:
+
+=============================== ===========================================================
+Keyword                         Description
+=============================== ===========================================================
+``gas``                         Specify gas value for the call
+``value``                       Specify amount of ether sent with the call
+``skip_contract_check``         Drop ``EXTCODESIZE`` and ``RETURNDATASIZE`` checks
+``default_return_value``        Specify a default return value if no value is returned
+=============================== ===========================================================
+
+The ``default_return_value`` parameter can be used to handle ERC20 tokens affected by the missing return value bug in a way similar to OpenZeppelin's ``safeTransfer`` for Solidity:
+
+.. code-block:: python
+
+    ERC20(USDT).transfer(msg.sender, 1, default_return_value=True) # returns True
+    ERC20(USDT).transfer(msg.sender, 1) # reverts
+
 Importing Interfaces
 ====================
 
