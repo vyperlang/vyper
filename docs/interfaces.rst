@@ -73,7 +73,7 @@ The ``default_return_value`` parameter can be used to handle ERC20 tokens affect
 .. code-block:: python
 
     ERC20(USDT).transfer(msg.sender, 1, default_return_value=True) # returns True
-    ERC20(USDT).transfer(msg.sender, 1) # reverts
+    ERC20(USDT).transfer(msg.sender, 1) # reverts because nothing returned
 
 Importing Interfaces
 ====================
