@@ -80,6 +80,14 @@ class StructPrimitive:
     ) -> StructDefinition:
         if not isinstance(node, vy_ast.Name):
             raise StructureException("Invalid type assignment", node)
+
+        for _, member_type in self.members.items():
+            # Propagate `is_constant` and `is_immutable` to struct members
+            # `is_public` can be skipped because public getter does not need to be
+            # generated for struct member
+            member_type.is_constant = is_constant
+            member_type.is_immutable = is_immutable
+
         return StructDefinition(
             self._id, self.members, location, is_constant, is_public, is_immutable
         )
