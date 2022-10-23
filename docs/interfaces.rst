@@ -145,7 +145,7 @@ Searching For Interface Files
 
 When looking for a file to import, Vyper will first search relative to the same folder as the contract being compiled. For absolute imports, it also searches relative to the root path for the project. Vyper checks for the file name with a ``.vy`` suffix first, then ``.json``.
 
-When using the command line compiler, the root path defaults to to the current working directory. You can change it with the ``-p`` flag:
+When using the command line compiler, the root path defaults to the current working directory. You can change it with the ``-p`` flag:
 
 ::
 
