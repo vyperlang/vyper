@@ -89,7 +89,7 @@ setup(
     keywords="ethereum evm smart contract language",
     include_package_data=True,
     packages=find_packages(exclude=("tests", "docs")),
-    python_requires=">=3.7,<3.11",
+    python_requires=">=3.7,<3.12",
     py_modules=["vyper"],
     install_requires=[
         "asttokens==2.0.5",
@@ -116,6 +116,7 @@ setup(
         "Programming Language :: Python :: 3.8",
         "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",
+        "Programming Language :: Python :: 3.11",
     ],
     package_data={"vyper.ast": ["grammar.lark"]},
     data_files=[("", [hash_file_rel_path])],
