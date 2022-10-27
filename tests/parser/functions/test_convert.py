@@ -6,9 +6,9 @@ from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any
 
+import eth_abi as abi_utils
 import eth_abi.exceptions
 import pytest
-import eth_abi as abi_utils
 
 from vyper.codegen.types import (
     BASE_TYPES,

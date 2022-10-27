@@ -1,6 +1,6 @@
+import eth_abi as abi_utils
 import pytest
 import rlp
-import eth_abi as abi_utils
 from hexbytes import HexBytes
 
 from vyper.utils import EIP_170_LIMIT, checksum_encode, keccak256

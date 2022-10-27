@@ -1,7 +1,7 @@
 from decimal import Decimal
 
-import pytest
 import eth_abi as abi_utils
+import pytest
 
 from vyper.exceptions import (
     ArgumentException,
