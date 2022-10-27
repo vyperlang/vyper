@@ -1087,7 +1087,7 @@ def foo(a: Bytes[36], b: int128, c: String[7]):
     topic1 = f"0x{keccak256(b'bar').hex()}"
     assert receipt["logs"][0]["topics"][1] == topic1
 
-    topic2 = f"0x{encode('int128', 1).hex()}"
+    topic2 = f"0x{encode(['int128'], [1]).hex()}"
     assert receipt["logs"][0]["topics"][2] == topic2
 
     topic3 = f"0x{keccak256(b'weird').hex()}"
@@ -1132,7 +1132,7 @@ def foo():
     topic1 = f"0x{keccak256(b'potato').hex()}"
     assert receipt["logs"][0]["topics"][1] == topic1
 
-    topic2 = f"0x{encode('int128', -777).hex()}"
+    topic2 = f"0x{encode(['int128'], [-777]).hex()}"
     assert receipt["logs"][0]["topics"][2] == topic2
 
     topic3 = f"0x{keccak256(b'why hello, neighbor! how are you today?').hex()}"
@@ -1186,7 +1186,7 @@ def foo():
     topic1 = f"0x{keccak256(b'zonk').hex()}"
     assert receipt["logs"][0]["topics"][1] == topic1
 
-    topic2 = f"0x{encode('int128', -2109).hex()}"
+    topic2 = f"0x{encode(['int128'], [-2109]).hex()}"
     assert receipt["logs"][0]["topics"][2] == topic2
 
     topic3 = f"0x{keccak256(b'yessir').hex()}"
@@ -1228,7 +1228,7 @@ def foo():
     topic1 = f"0x{keccak256(b'wow').hex()}"
     assert receipt["logs"][0]["topics"][1] == topic1
 
-    topic2 = f"0x{encode('int128', 666).hex()}"
+    topic2 = f"0x{encode(['int128'], [666]).hex()}"
     assert receipt["logs"][0]["topics"][2] == topic2
 
     topic3 = f"0x{keccak256(b'madness!').hex()}"

@@ -34,7 +34,7 @@ def test() -> address:
 
     address_bits = int(c.address, 16)
     nonce = 1
-    rlp_encoded = rlp.encode([address_bits, nonce])
+    rlp_encoded = rlp.encode([address_bits], [nonce])
     expected_create_address = keccak256(rlp_encoded)[12:].rjust(20, b"\x00")
     assert c.test() == checksum_encode("0x" + expected_create_address.hex())
 
@@ -330,7 +330,7 @@ def should_fail(target: address, arg1: String[129], arg2: Bar):
     assert test.foo() == FOO
     assert test.bar() == BAR
 
-    encoded_args = encode("(string,(string))", (FOO, BAR))
+    encoded_args = encode(["(string,(string))"], [(FOO, BAR)])
     assert HexBytes(test.address) == create2_address_of(d.address, salt, initcode + encoded_args)
 
     d.test3(f.address, encoded_args, transact={})
