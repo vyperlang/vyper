@@ -1315,9 +1315,7 @@ class RawRevert(BuiltinFunction):
         error_data_buf = ensure_in_memory(args[0], context)
         data = bytes_data_ptr(error_data_buf)
         len_ = get_bytearray_length(error_data_buf)
-        return IRnode.from_list(
-           ["revert", data, len_]
-        )
+        return IRnode.from_list(["revert", data, len_])
 
 
 class RawLog(BuiltinFunction):
