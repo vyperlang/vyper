@@ -1312,7 +1312,12 @@ class RawRevert(BuiltinFunction):
 
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
-        pass
+        input_buf = ensure_in_memory(args[0], context)
+        return IRnode.from_list(
+            ["with", "_sub", input_buf
+             ["revert", ["add", "_sub", 32], ["mload", "_sub"]]]
+        )
+
 
 class RawLog(BuiltinFunction):
 
@@ -2711,6 +2716,7 @@ STMT_DISPATCH_TABLE = {
     "selfdestruct": SelfDestruct(),
     "raw_call": RawCall(),
     "raw_log": RawLog(),
+    "raw_revert": RawRevert(),
     "create_minimal_proxy_to": CreateMinimalProxyTo(),
     "create_forwarder_to": CreateForwarderTo(),
     "create_copy_of": CreateCopyOf(),
