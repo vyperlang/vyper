@@ -259,7 +259,7 @@ Vyper has three built-ins for contract creation; all three contract creation bui
             assert success
             return response
 
-.. py:function:: raw_log(topics: bytes32[4], data: Union[Bytes, bytes32]) -> None
+.. py:function:: raw_log(data: Union[Bytes, bytes32]) -> None
 
     Provides low level access to the ``LOG`` opcodes, emitting a log without having to specify an ABI type.
 
@@ -271,6 +271,18 @@ Vyper has three built-ins for contract creation; all three contract creation bui
         @external
         def foo(_topic: bytes32, _data: Bytes[100]):
             raw_log([_topic], _data)
+
+.. py:function:: raw_revert(topics: bytes32[4], data: Bytes) -> None
+
+    Provides low level access to the ``REVERT`` opcode, reverting execution with the specified data returned.
+
+    * ``data``: Data representing the error message causing the revert.
+
+    .. code-block:: python
+
+        @external
+        def foo(_data: Bytes[100]):
+            raw_revert(_data)
 
 .. py:function:: selfdestruct(to: address) -> None
 
