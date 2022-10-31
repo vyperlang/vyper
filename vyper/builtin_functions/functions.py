@@ -1302,6 +1302,18 @@ class BlockHash(BuiltinFunction):
         )
 
 
+class RawRevert(BuiltinFunction):
+
+    _id = "raw_revert"
+    _inputs = [("data", BytesAbstractType())]
+
+    def fetch_call_return(self, node):
+        return None
+
+    @process_inputs
+    def build_IR(self, expr, args, kwargs, context):
+        pass
+
 class RawLog(BuiltinFunction):
 
     _id = "raw_log"
