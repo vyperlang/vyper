@@ -1,5 +1,4 @@
 import pytest
-
 from eth_tester.exceptions import TransactionFailed
 
 pytestmark = pytest.mark.usefixtures("memory_mocker")
