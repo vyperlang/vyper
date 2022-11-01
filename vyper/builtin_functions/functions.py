@@ -1305,17 +1305,17 @@ class BlockHash(BuiltinFunction):
 class RawRevert(BuiltinFunction):
 
     _id = "raw_revert"
-    _inputs = [("data", BytesAbstractType())]
+    _inputs = [("data", ArrayValueAbstractType())]
 
     def fetch_call_return(self, node):
         return None
 
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
-        error_data_buf = ensure_in_memory(args[0], context)
-        data = bytes_data_ptr(error_data_buf)
-        len_ = get_bytearray_length(error_data_buf)
-        return IRnode.from_list(["revert", data, len_])
+        with ensure_in_memory(args[0], context).cache_when_complex("err_buf") as error_data_buf:
+            data = bytes_data_ptr(error_data_buf[1])
+            len_ = get_bytearray_length(error_data_buf[1])
+            return IRnode.from_list(["revert", data, len_])
 
 
 class RawLog(BuiltinFunction):
