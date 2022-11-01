@@ -529,5 +529,9 @@ def validate_unique_method_ids(functions: List) -> None:
     method_ids = [x for i in functions for x in i.method_ids.values()]
     collision = next((i for i in method_ids if method_ids.count(i) > 1), None)
     if collision:
-        collision_str = ", ".join(x for i in functions for x in i.method_ids.keys() if i.method_ids[x] == collision)
-        raise StructureException(f"Methods produce colliding method ID `{hex(collision)}`: {collision_str}")
+        collision_str = ", ".join(
+            x for i in functions for x in i.method_ids.keys() if i.method_ids[x] == collision
+        )
+        raise StructureException(
+            f"Methods produce colliding method ID `{hex(collision)}`: {collision_str}"
+        )
