@@ -1,7 +1,4 @@
-import re
-
 import pytest
-from eth_abi import encode
 from eth_tester.exceptions import TransactionFailed
 
 from vyper.utils import keccak256
@@ -9,20 +6,11 @@ from vyper.utils import keccak256
 pytestmark = pytest.mark.usefixtures("memory_mocker")
 
 
-def build_revert_bytestring(errorDecl, *data):
-    # revert bytes should be 4-byte selector (from keccak of error definition)
-    # followed by abi-encoded data
-    error_selector = keccak256(bytes(errorDecl, "utf-8"))[:4]
-    match = re.search(r"\((.*?)\)", errorDecl)  # .group(1)
-    if match and match.group(1) != "":
-        arg_types = match.group(1)
-        encoded_data = encode(arg_types.split(","), data)
-        return b"".join([error_selector, encoded_data])
-    else:
-        return error_selector
+def method_id(method_str: str) -> bytes:
+    return keccak256(bytes(method_str, "utf-8"))[:4]
 
 
-def test_revert_reason(w3, assert_tx_failed, tester, keccak, get_contract_with_gas_estimation):
+def test_revert_reason(w3, assert_tx_failed, get_contract_with_gas_estimation):
     reverty_code = """
 @external
 def foo():
@@ -30,7 +18,7 @@ def foo():
     raw_revert(data)
     """
 
-    revert_bytes = build_revert_bytestring("NoFives()")
+    revert_bytes = method_id("NoFives()")
 
     assert_tx_failed(
         lambda: get_contract_with_gas_estimation(reverty_code).foo(transact={}),
@@ -39,9 +27,7 @@ def foo():
     )
 
 
-def test_revert_reason_typed(
-    w3, assert_tx_failed, tester, keccak, get_contract_with_gas_estimation
-):
+def test_revert_reason_typed(w3, assert_tx_failed, get_contract_with_gas_estimation):
     reverty_code = """
 @external
 def foo():
@@ -50,7 +36,7 @@ def foo():
     raw_revert(data)
     """
 
-    revert_bytes = build_revert_bytestring("NoFives(uint256)", 5)
+    revert_bytes = method_id("NoFives(uint256)") + (5).to_bytes(32, "big")
 
     assert_tx_failed(
         lambda: get_contract_with_gas_estimation(reverty_code).foo(transact={}),
