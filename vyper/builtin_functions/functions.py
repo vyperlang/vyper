@@ -1312,10 +1312,10 @@ class RawRevert(BuiltinFunction):
 
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
-        with ensure_in_memory(args[0], context).cache_when_complex("err_buf") as error_data_buf:
-            data = bytes_data_ptr(error_data_buf[1])
-            len_ = get_bytearray_length(error_data_buf[1])
-            return IRnode.from_list(["revert", data, len_])
+        with ensure_in_memory(args[0], context).cache_when_complex("err_buf") as (b, error_data_buf):
+            data = bytes_data_ptr(error_data_buf)
+            len_ = get_bytearray_length(error_data_buf)
+            return b.resolve(IRnode.from_list(["revert", data, len_]))
 
 
 class RawLog(BuiltinFunction):
