@@ -105,7 +105,8 @@ interface_def: _INTERFACE_DECL NAME ":" _NEWLINE _INDENT ( interface_function _N
 // Conversely, the rest of the statements require a newline to be considered complete
 // (as they do not create a new block)
 _stmt: ( if_stmt | for_stmt ) [COMMENT]
-     | (declaration
+     | _simple_stmt
+_simple_stmt: (declaration
        | assign
        | aug_assign
        | return_stmt
@@ -160,7 +161,7 @@ assert_stmt: _ASSERT _expr -> assert
            | _ASSERT _expr "," _expr -> assert_with_reason
            | _ASSERT _expr "," _UNREACHABLE -> assert_unreachable
 
-body: _NEWLINE _INDENT ([COMMENT] _NEWLINE | _stmt)+ _DEDENT
+body: _simple_stmt | _NEWLINE _INDENT ([COMMENT] _NEWLINE | _stmt)+ _DEDENT
 cond_exec: _expr ":" body
 default_exec: body
 if_stmt: "if" cond_exec ("elif" cond_exec)* ["else" ":" default_exec]
