@@ -3,7 +3,6 @@
 from typing import Any, Dict, List, Optional, Tuple
 
 from vyper import ast as vy_ast
-from vyper.utils import abi_method_id
 from vyper.ast.signatures.function_signature import FunctionSignature, FunctionSignatures
 from vyper.codegen.core import shr
 from vyper.codegen.function_definitions import generate_ir_for_function
@@ -100,7 +99,7 @@ def _runtime_ir(runtime_functions, all_sigs, global_ctx):
 
     external_functions = [f for f in runtime_functions if not _is_internal(f)]
 
-    # returns True if any function's selector has trailing 0s
+    # check if any selector is 0
     has_zero_selector_functions = any([0 in ContractFunction.from_FunctionDef(f).method_ids.values() for f in external_functions])
 
     default_function = next((f for f in external_functions if _is_default_func(f)), None)
@@ -174,7 +173,7 @@ def _runtime_ir(runtime_functions, all_sigs, global_ctx):
             [["with", "_calldata_method_id", shr(224, ["calldataload", 0]), selector_section],
             close_selector_section,
             ["label", "fallback", ["var_list"], fallback_ir],
-            ] #question about placement of this end list; what to do with trailing comma above? extend kind of cuts that off?
+            ]
     )
 
     # TODO: prune unreachable functions?
