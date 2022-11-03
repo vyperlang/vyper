@@ -179,7 +179,7 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
 
         Python uses `Num` to represent floats and integers. Integers may also
         be given in binary, octal, decimal, or hexadecimal format. This method
-        modifies `ast_type` to seperate `Num` into more granular Vyper node
+        modifies `ast_type` to separate `Num` into more granular Vyper node
         classes.
         """
         # modify vyper AST type according to the format of the literal value
