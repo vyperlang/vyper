@@ -43,3 +43,20 @@ def foo():
         TransactionFailed,
         exc_text=f"execution reverted: {revert_bytes}",
     )
+
+
+def test_revert_reason_typed_no_variable(w3, assert_tx_failed, get_contract_with_gas_estimation):
+    reverty_code = """
+@external
+def foo():
+    val: uint256 = 5
+    raw_revert(_abi_encode(val, method_id=method_id("NoFives(uint256)")))
+    """
+
+    revert_bytes = method_id("NoFives(uint256)") + (5).to_bytes(32, "big")
+
+    assert_tx_failed(
+        lambda: get_contract_with_gas_estimation(reverty_code).foo(transact={}),
+        TransactionFailed,
+        exc_text=f"execution reverted: {revert_bytes}",
+    )

@@ -1310,6 +1310,11 @@ class RawRevert(BuiltinFunction):
     def fetch_call_return(self, node):
         return None
 
+    def infer_arg_types(self, node):
+        self._validate_arg_types(node)
+        data_type = get_possible_types_from_node(node.args[0]).pop()
+        return [data_type]
+
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
         with ensure_in_memory(args[0], context).cache_when_complex("err_buf") as (
