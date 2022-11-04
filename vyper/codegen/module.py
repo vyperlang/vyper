@@ -9,7 +9,8 @@ from vyper.codegen.function_definitions import generate_ir_for_function
 from vyper.codegen.global_context import GlobalContext
 from vyper.codegen.ir_node import IRnode
 from vyper.exceptions import CompilerPanic, FunctionDeclarationException, StructureException
-from vyper.semantics.types.function import StateMutability, ContractFunction
+from vyper.semantics.types.function import ContractFunction, StateMutability
+
 
 def _topsort_helper(functions, lookup):
     #  single pass to get a global topological sort of functions (so that each
@@ -90,6 +91,7 @@ def _is_internal(func_ast):
 def _is_payable(func_ast):
     return func_ast._metadata["type"].mutability == StateMutability.PAYABLE
 
+
 # codegen for all runtime functions + callvalue/calldata checks + method selector routines
 def _runtime_ir(runtime_functions, all_sigs, global_ctx):
     # categorize the runtime functions because we will organize the runtime
@@ -100,7 +102,9 @@ def _runtime_ir(runtime_functions, all_sigs, global_ctx):
     external_functions = [f for f in runtime_functions if not _is_internal(f)]
 
     # check if any selector is 0
-    has_zero_selector_functions = any([0 in ContractFunction.from_FunctionDef(f).method_ids.values() for f in external_functions])
+    has_zero_selector_functions = any(
+        [0 in ContractFunction.from_FunctionDef(f).method_ids.values() for f in external_functions]
+    )
 
     default_function = next((f for f in external_functions if _is_default_func(f)), None)
 
@@ -170,10 +174,11 @@ def _runtime_ir(runtime_functions, all_sigs, global_ctx):
         runtime.append(["if", ["lt", "calldatasize", 4], ["goto", "fallback"]])
 
     runtime.extend(
-            [["with", "_calldata_method_id", shr(224, ["calldataload", 0]), selector_section],
+        [
+            ["with", "_calldata_method_id", shr(224, ["calldataload", 0]), selector_section],
             close_selector_section,
             ["label", "fallback", ["var_list"], fallback_ir],
-            ]
+        ]
     )
 
     # TODO: prune unreachable functions?
