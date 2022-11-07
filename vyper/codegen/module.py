@@ -9,7 +9,7 @@ from vyper.codegen.function_definitions import generate_ir_for_function
 from vyper.codegen.global_context import GlobalContext
 from vyper.codegen.ir_node import IRnode
 from vyper.exceptions import CompilerPanic, FunctionDeclarationException, StructureException
-from vyper.semantics.types.function import ContractFunction, StateMutability
+from vyper.semantics.types.function import StateMutability
 
 
 def _topsort_helper(functions, lookup):
@@ -103,7 +103,7 @@ def _runtime_ir(runtime_functions, all_sigs, global_ctx):
 
     # check if any selector is 0
     has_zero_selector_functions = any(
-        [0 in ContractFunction.from_FunctionDef(f).method_ids.values() for f in external_functions]
+        [0 in f._metadata["type"].method_ids.values() for f in external_functions]
     )
 
     default_function = next((f for f in external_functions if _is_default_func(f)), None)
