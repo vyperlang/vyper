@@ -687,7 +687,7 @@ Math
 
 .. py:function:: uint256_addmod(a: uint256, b: uint256, c: uint256) -> uint256
 
-    Return the modulo of ``(a + b) % c``. Reverts if ``c == 0``. The intermediate result of the addition can exceed the bounds of the ``uint256`` type. In such case, it will not be wrapped.
+    Return the modulo of ``(a + b) % c``. Reverts if ``c == 0``. The result of the addition can exceed the bounds of the ``uint256`` type. In such case, it will not be wrapped.
 
     .. code-block:: python
 
@@ -705,7 +705,7 @@ Math
 
 .. py:function:: uint256_mulmod(a: uint256, b: uint256, c: uint256) -> uint256
 
-    Return the modulo from ``(a * b) % c``. Reverts if ``c == 0``. The intermediate result of the multiplication can exceed the bounds of the ``uint256`` type. In such case, it will not be wrapped.
+    Return the modulo from ``(a * b) % c``. Reverts if ``c == 0``. The result of the multiplication can exceed the bounds of the ``uint256`` type. In such case, it will not be wrapped.
 
     .. code-block:: python
 
