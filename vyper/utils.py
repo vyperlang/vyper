@@ -49,6 +49,12 @@ def fourbytes_to_int(inp):
     return (inp[0] << 24) + (inp[1] << 16) + (inp[2] << 8) + inp[3]
 
 
+# Converts an integer to four bytes
+def int_to_fourbytes(n: int):
+    assert n < 2 ** 32
+    return n.to_bytes(4, byteorder="big")
+
+
 def signed_to_unsigned(int_, bits, strict=False):
     """
     Reinterpret a signed integer with n bits as an unsigned integer.
