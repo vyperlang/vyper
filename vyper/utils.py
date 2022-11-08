@@ -50,7 +50,7 @@ def fourbytes_to_int(inp):
 
 
 # Converts an integer to four bytes
-def int_to_fourbytes(n: int):
+def int_to_fourbytes(n: int) -> bytes:
     assert n < 2 ** 32
     return n.to_bytes(4, byteorder="big")
 
