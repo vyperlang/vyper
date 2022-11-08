@@ -1,13 +1,10 @@
 import pytest
+from eth_abi import encode_single
 from eth_tester.exceptions import TransactionFailed
 
-from vyper.utils import keccak256
+from vyper.utils import method_id
 
 pytestmark = pytest.mark.usefixtures("memory_mocker")
-
-
-def method_id(method_str: str) -> bytes:
-    return keccak256(bytes(method_str, "utf-8"))[:4]
 
 
 def test_revert_reason(w3, assert_tx_failed, get_contract_with_gas_estimation):
@@ -53,7 +50,7 @@ def foo():
     raw_revert(_abi_encode(val, method_id=method_id("NoFives(uint256)")))
     """
 
-    revert_bytes = method_id("NoFives(uint256)") + (5).to_bytes(32, "big")
+    revert_bytes = method_id("NoFives(uint256)") + encode_single("(uint256)", [5])
 
     assert_tx_failed(
         lambda: get_contract_with_gas_estimation(reverty_code).foo(transact={}),

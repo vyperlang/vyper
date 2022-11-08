@@ -110,6 +110,10 @@ def abi_method_id(method_sig):
     return fourbytes_to_int(keccak256(bytes(method_sig, "utf-8"))[:4])
 
 
+def method_id(method_str: str) -> bytes:
+    return keccak256(bytes(method_str, "utf-8"))[:4]
+
+
 # map a string to only-alphanumeric chars
 def mkalphanum(s):
     return "".join([c if c.isalnum() else "_" for c in s])
