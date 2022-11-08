@@ -480,7 +480,8 @@ class ContractFunction(BaseTypeDefinition):
                 kwarg_settings = self.call_site_kwargs[kwarg.arg]
                 if kwarg.arg == "default_return_value" and self.return_type is None:
                     raise ArgumentException(
-                        f"`{kwarg.arg}=` specified but {self.name}() does not return anything", kwarg.value
+                        f"`{kwarg.arg}=` specified but {self.name}() does not return anything",
+                        kwarg.value,
                     )
                 validate_expected_type(kwarg.value, kwarg_settings.typ)
                 if kwarg_settings.require_literal:
