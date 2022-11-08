@@ -108,11 +108,11 @@ from vyper.utils import (
     SHA3_PER_WORD,
     MemoryPositions,
     SizeLimits,
-    abi_method_id,
     bytes_to_int,
     ceil32,
     fourbytes_to_int,
     keccak256,
+    method_id_int,
     vyper_warn,
 )
 
@@ -746,7 +746,7 @@ class MethodID(FoldedFunction):
             raise InvalidLiteral("Invalid function signature - no spaces allowed.")
 
         return_type = self.infer_kwarg_types(node)
-        value = abi_method_id(args[0].value)
+        value = method_id_int(args[0].value)
 
         if isinstance(return_type, Bytes4Definition):
             return vy_ast.Hex.from_node(node, value=hex(value))
@@ -2345,7 +2345,7 @@ class Print(BuiltinFunction):
         sig = "log" + "(" + ",".join([arg.typ.abi_type.selector_name() for arg in args]) + ")"
 
         if kwargs["hardhat_compat"] is True:
-            method_id = abi_method_id(sig)
+            method_id = method_id_int(sig)
             buflen = 32 + args_abi_t.size_bound()
 
             # 32 bytes extra space for the method id
@@ -2356,7 +2356,7 @@ class Print(BuiltinFunction):
             encode = abi_encode(buf + 32, args_as_tuple, context, buflen, returns_len=True)
 
         else:
-            method_id = abi_method_id("log(string,bytes)")
+            method_id = method_id_int("log(string,bytes)")
             schema = args_abi_t.selector_name().encode("utf-8")
             if len(schema) > 32:
                 raise CompilerPanic("print signature too long: {schema}")
