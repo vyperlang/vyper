@@ -33,7 +33,7 @@ def foo():
     raw_revert(data)
     """
 
-    revert_bytes = method_id("NoFives(uint256)") + (5).to_bytes(32, "big")
+    revert_bytes = method_id("NoFives(uint256)") + encode_single("(uint256)", [5])
 
     assert_tx_failed(
         lambda: get_contract_with_gas_estimation(reverty_code).foo(transact={}),
