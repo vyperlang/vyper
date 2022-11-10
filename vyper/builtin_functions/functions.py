@@ -1317,12 +1317,9 @@ class RawRevert(BuiltinFunction):
 
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
-        with ensure_in_memory(args[0], context).cache_when_complex("err_buf") as (
-            b,
-            error_data_buf,
-        ):
-            data = bytes_data_ptr(error_data_buf)
-            len_ = get_bytearray_length(error_data_buf)
+        with ensure_in_memory(args[0], context).cache_when_complex("err_buf") as (b, buf):
+            data = bytes_data_ptr(buf)
+            len_ = get_bytearray_length(buf)
             return b.resolve(IRnode.from_list(["revert", data, len_]))
 
 
