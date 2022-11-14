@@ -292,7 +292,7 @@ Vyper has three built-ins for contract creation; all three contract creation bui
 
     .. warning::
 
-        This method delete the contract from the blockchain. All non-ether assets associated with this contract are "burned" and the contract is no longer accessible.
+        This method deletes the contract from the blockchain. All non-ether assets associated with this contract are "burned" and the contract is no longer accessible.
 
     .. code-block:: python
 
