@@ -66,20 +66,16 @@ from vyper.exceptions import (
     ZeroDivisionException,
 )
 from vyper.semantics.types import (
-    ArrayDefinition,
-    BoolDefinition,
-    DynamicArrayDefinition,
-    DynamicArrayPrimitive,
-    TupleDefinition,
-)
-from vyper.semantics.types.abstract import (
-    ArrayValueAbstractType,
-    BytesAbstractType,
-    FixedAbstractType,
-    IntegerAbstractType,
-    NumericAbstractType,
-    SignedIntegerAbstractType,
-    UnsignedIntegerAbstractType,
+    AddressT,
+    BoolT,
+    BytesM_T,
+    BytesT,
+    DArrayT,
+    DecimalT,
+    IntegerT,
+    SArrayT,
+    StringT,
+    TupleT,
 )
 from vyper.semantics.types.bases import DataLocation
 from vyper.semantics.types.utils import KwargSettings, TypeTypeDefinition, get_type_from_annotation
@@ -1316,7 +1312,7 @@ class BlockHash(BuiltinFunction):
 class RawRevert(BuiltinFunction):
 
     _id = "raw_revert"
-    _inputs = [("data", ArrayValueAbstractType())]
+    _inputs = [("data", BytesT.any())]
 
     def fetch_call_return(self, node):
         return None
