@@ -967,7 +967,9 @@ def adjust_pc_maps(pc_maps, ofst):
     return ret
 
 
-def assembly_to_evm(assembly, pc_ofst=0, insert_vyper_signature=False):
+def assembly_to_evm(
+    assembly, pc_ofst=0, insert_vyper_signature=False, disable_bytecode_metadata=False
+):
     """
     Assembles assembly into EVM
 
@@ -991,7 +993,7 @@ def assembly_to_evm(assembly, pc_ofst=0, insert_vyper_signature=False):
     runtime_code, runtime_code_start, runtime_code_end = None, None, None
 
     bytecode_suffix = b""
-    if insert_vyper_signature:
+    if (not disable_bytecode_metadata) and insert_vyper_signature:
         # CBOR encoded: {"vyper": [major,minor,patch]}
         bytecode_suffix += b"\xa1\x65vyper\x83" + bytes(list(version_tuple))
         bytecode_suffix += len(bytecode_suffix).to_bytes(2, "big")
@@ -1008,7 +1010,11 @@ def assembly_to_evm(assembly, pc_ofst=0, insert_vyper_signature=False):
     for i, item in enumerate(assembly):
         if isinstance(item, list):
             assert runtime_code is None, "Multiple subcodes"
-            runtime_code, runtime_map = assembly_to_evm(item, insert_vyper_signature=True)
+            runtime_code, runtime_map = assembly_to_evm(
+                item,
+                insert_vyper_signature=True,
+                disable_bytecode_metadata=disable_bytecode_metadata,
+            )
 
             assert item[0].startswith("_DEPLOY_MEM_OFST_")
             assert ctor_mem_size is None

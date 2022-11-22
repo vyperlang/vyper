@@ -272,6 +272,18 @@ Vyper has three built-ins for contract creation; all three contract creation bui
         def foo(_topic: bytes32, _data: Bytes[100]):
             raw_log([_topic], _data)
 
+.. py:function:: raw_revert(data: Bytes) -> None
+
+    Provides low level access to the ``REVERT`` opcode, reverting execution with the specified data returned.
+
+    * ``data``: Data representing the error message causing the revert.
+
+    .. code-block:: python
+
+        @external
+        def foo(_data: Bytes[100]):
+            raw_revert(_data)
+
 .. py:function:: selfdestruct(to: address) -> None
 
     Trigger the ``SELFDESTRUCT`` opcode (``0xFF``), causing the contract to be destroyed.
@@ -280,7 +292,7 @@ Vyper has three built-ins for contract creation; all three contract creation bui
 
     .. warning::
 
-        This method delete the contract from the blockchain. All non-ether assets associated with this contract are "burned" and the contract is no longer accessible.
+        This method deletes the contract from the blockchain. All non-ether assets associated with this contract are "burned" and the contract is no longer accessible.
 
     .. code-block:: python
 
@@ -349,7 +361,7 @@ Cryptography
             19321533766552368860946552437480515441416830039777911637913418824951667761761,
         ]
 
-.. py:function:: ecrecover(hash: bytes32, v: uint256, r: uint256, s: uint256) -> address
+.. py:function:: ecrecover(hash: bytes32, v: uint256 | uint8, r: uint256 | bytes32, s: uint256 | bytes32) -> address
 
     Recover the address associated with the public key from the given elliptic curve signature.
 
@@ -363,9 +375,14 @@ Cryptography
 
         @external
         @view
-        def foo(hash: bytes32, v: uint256, r:uint256, s:uint256) -> address:
+        def foo(hash: bytes32, v: uint8, r:bytes32, s:bytes32) -> address:
             return ecrecover(hash, v, r, s)
 
+
+        @external
+        @view
+        def foo(hash: bytes32, v: uint256, r:uint256, s:uint256) -> address:
+            return ecrecover(hash, v, r, s)
     .. code-block:: python
 
         >>> ExampleContract.foo('0x6c9c5e133b8aafb2ea74f524a5263495e7ae5701c7248805f7b511d973dc7055',
@@ -491,7 +508,7 @@ Data Manipulation
 
     * ``b``: value being sliced
     * ``start``: start position of the slice
-    * ``length``: length of the slice, must be constant. Immutables and variables are not supported.
+    * ``length``: length of the slice
 
     If the value being sliced is a ``Bytes`` or ``bytes32``, the return type is ``Bytes``.  If it is a ``String``, the return type is ``String``.
 

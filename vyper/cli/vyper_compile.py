@@ -37,6 +37,7 @@ ir                 - Intermediate representation in list format
 ir_json            - Intermediate representation in JSON format
 hex-ir             - Output IR and assembly constants in hex instead of decimal
 no-optimize        - Do not optimize (don't use this for production code)
+no-bytecode-metadata - Do not add metadata to bytecode
 """
 
 combined_json_outputs = [
@@ -106,6 +107,9 @@ def _parse_args(argv):
     )
     parser.add_argument("--no-optimize", help="Do not optimize", action="store_true")
     parser.add_argument(
+        "--no-bytecode-metadata", help="Do not add metadata to bytecode", action="store_true"
+    )
+    parser.add_argument(
         "--traceback-limit",
         help="Set the traceback limit for error messages reported by the compiler",
         type=int,
@@ -155,6 +159,7 @@ def _parse_args(argv):
         args.evm_version,
         args.no_optimize,
         args.storage_layout,
+        args.no_bytecode_metadata,
     )
 
     if args.output_path:
@@ -250,6 +255,7 @@ def compile_files(
     evm_version: str = DEFAULT_EVM_VERSION,
     no_optimize: bool = False,
     storage_layout: Iterable[str] = None,
+    no_bytecode_metadata: bool = False,
 ) -> OrderedDict:
 
     root_path = Path(root_folder).resolve()
@@ -294,6 +300,7 @@ def compile_files(
         no_optimize=no_optimize,
         storage_layouts=storage_layouts,
         show_gas_estimates=show_gas_estimates,
+        no_bytecode_metadata=no_bytecode_metadata,
     )
     if show_version:
         compiler_data["version"] = vyper.__version__

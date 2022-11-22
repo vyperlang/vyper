@@ -35,7 +35,10 @@ def build_userdoc(compiler_data: CompilerData) -> dict:
 
 def build_external_interface_output(compiler_data: CompilerData) -> str:
     interface = compiler_data.vyper_module_folded._metadata["type"]
-    name = Path(compiler_data.contract_name).stem.capitalize()
+    stem = Path(compiler_data.contract_name).stem
+    # capitalize words separated by '_'
+    # ex: test_interface.vy -> TestInterface
+    name = "".join([x.capitalize() for x in stem.split("_")])
     out = f"\n# External Interfaces\ninterface {name}:\n"
 
     for func in interface.functions.values():
@@ -198,7 +201,9 @@ def _build_asm(asm_list):
 
 def build_source_map_output(compiler_data: CompilerData) -> OrderedDict:
     _, line_number_map = compile_ir.assembly_to_evm(
-        compiler_data.assembly_runtime, insert_vyper_signature=True
+        compiler_data.assembly_runtime,
+        insert_vyper_signature=True,
+        disable_bytecode_metadata=compiler_data.no_bytecode_metadata,
     )
     # Sort line_number_map
     out = OrderedDict()

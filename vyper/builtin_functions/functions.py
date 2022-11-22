@@ -65,6 +65,33 @@ from vyper.exceptions import (
     UnfoldableNode,
     ZeroDivisionException,
 )
+from vyper.semantics.types import (
+    AddressT,
+    BoolT,
+    BytesM_T,
+    BytesT,
+    DArrayT,
+    DecimalT,
+    IntegerT,
+    SArrayT,
+    StringT,
+    TupleT,
+)
+from vyper.semantics.types.bases import DataLocation
+from vyper.semantics.types.utils import KwargSettings, TypeTypeDefinition, get_type_from_annotation
+from vyper.semantics.types.value.address import AddressDefinition
+from vyper.semantics.types.value.array_value import (
+    BytesArrayDefinition,
+    BytesArrayPrimitive,
+    StringDefinition,
+    StringPrimitive,
+)
+from vyper.semantics.types.value.bytes_fixed import Bytes4Definition  # type: ignore
+from vyper.semantics.types.value.bytes_fixed import Bytes32Definition
+from vyper.semantics.types.value.numeric import Int256Definition  # type: ignore
+from vyper.semantics.types.value.numeric import Uint8Definition  # type: ignore
+from vyper.semantics.types.value.numeric import Uint256Definition  # type: ignore
+from vyper.semantics.types.value.numeric import DecimalDefinition
 from vyper.semantics.analysis.utils import (
     get_common_types,
     get_exact_type_from_node,
@@ -93,11 +120,11 @@ from vyper.utils import (
     SHA3_PER_WORD,
     MemoryPositions,
     SizeLimits,
-    abi_method_id,
     bytes_to_int,
     ceil32,
     fourbytes_to_int,
     keccak256,
+    method_id_int,
     vyper_warn,
 )
 
@@ -731,7 +758,7 @@ class MethodID(FoldedFunction):
             raise InvalidLiteral("Invalid function signature - no spaces allowed.")
 
         return_type = self.infer_kwarg_types(node)
-        value = abi_method_id(args[0].value)
+        value = method_id_int(args[0].value)
 
         if return_type.compare_type(BYTES4_T):
             return vy_ast.Hex.from_node(node, value=hex(value))
@@ -761,8 +788,18 @@ class MethodID(FoldedFunction):
 class ECRecover(BuiltinFunction):
 
     _id = "ecrecover"
-    _inputs = [("hash", BYTES32_T), ("v", UINT256_T), ("r", UINT256_T), ("s", UINT256_T)]
+    _inputs = [
+        ("hash", BYTES32_T),
+        ("v", (UINT256_T, UINT256_T)),
+        ("r", (UINT256_T, BYTES32_T)),
+        ("s", (UINT256_T, BYTES32_T)),
+    ]
     _return_type = AddressT()
+
+    def infer_arg_types(self, node):
+        self._validate_arg_types(node)
+        v_t, r_t, s_t = [get_possible_types_from_node(arg).pop() for arg in node.args[1:]]
+        return [Bytes32Definition(), v_t, r_t, s_t]
 
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
@@ -1270,6 +1307,27 @@ class BlockHash(BuiltinFunction):
             ["blockhash", clamp("lt", clamp("sge", args[0], ["sub", ["number"], 256]), "number")],
             typ=BaseType("bytes32"),
         )
+
+
+class RawRevert(BuiltinFunction):
+
+    _id = "raw_revert"
+    _inputs = [("data", BytesT.any())]
+
+    def fetch_call_return(self, node):
+        return None
+
+    def infer_arg_types(self, node):
+        self._validate_arg_types(node)
+        data_type = get_possible_types_from_node(node.args[0]).pop()
+        return [data_type]
+
+    @process_inputs
+    def build_IR(self, expr, args, kwargs, context):
+        with ensure_in_memory(args[0], context).cache_when_complex("err_buf") as (b, buf):
+            data = bytes_data_ptr(buf)
+            len_ = get_bytearray_length(buf)
+            return b.resolve(IRnode.from_list(["revert", data, len_]))
 
 
 class RawLog(BuiltinFunction):
@@ -2284,7 +2342,7 @@ class Print(BuiltinFunction):
         sig = "log" + "(" + ",".join([arg.typ.abi_type.selector_name() for arg in args]) + ")"
 
         if kwargs["hardhat_compat"] is True:
-            method_id = abi_method_id(sig)
+            method_id = method_id_int(sig)
             buflen = 32 + args_abi_t.size_bound()
 
             # 32 bytes extra space for the method id
@@ -2295,7 +2353,7 @@ class Print(BuiltinFunction):
             encode = abi_encode(buf + 32, args_as_tuple, context, buflen, returns_len=True)
 
         else:
-            method_id = abi_method_id("log(string,bytes)")
+            method_id = method_id_int("log(string,bytes)")
             schema = args_abi_t.selector_name().encode("utf-8")
             if len(schema) > 32:
                 raise CompilerPanic("print signature too long: {schema}")
@@ -2657,6 +2715,7 @@ STMT_DISPATCH_TABLE = {
     "selfdestruct": SelfDestruct(),
     "raw_call": RawCall(),
     "raw_log": RawLog(),
+    "raw_revert": RawRevert(),
     "create_minimal_proxy_to": CreateMinimalProxyTo(),
     "create_forwarder_to": CreateForwarderTo(),
     "create_copy_of": CreateCopyOf(),
