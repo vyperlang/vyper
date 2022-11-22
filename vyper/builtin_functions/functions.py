@@ -98,7 +98,7 @@ from vyper.semantics.types import (
     StringT,
     TupleT,
 )
-from vyper.semantics.types.shortcuts import BYTES4_T, BYTES32_T, INT256_T, UINT256_T
+from vyper.semantics.types.shortcuts import BYTES4_T, BYTES32_T, INT256_T, UINT256_T, UINT8_T
 from vyper.semantics.types.utils import type_from_annotation
 from vyper.utils import (
     DECIMAL_DIVISOR,
@@ -776,7 +776,7 @@ class ECRecover(BuiltinFunction):
     _id = "ecrecover"
     _inputs = [
         ("hash", BYTES32_T),
-        ("v", (UINT256_T, UINT256_T)),
+        ("v", (UINT256_T, UINT8_T)),
         ("r", (UINT256_T, BYTES32_T)),
         ("s", (UINT256_T, BYTES32_T)),
     ]
@@ -785,7 +785,7 @@ class ECRecover(BuiltinFunction):
     def infer_arg_types(self, node):
         self._validate_arg_types(node)
         v_t, r_t, s_t = [get_possible_types_from_node(arg).pop() for arg in node.args[1:]]
-        return [Bytes32Definition(), v_t, r_t, s_t]
+        return [BYTES32_T, v_t, r_t, s_t]
 
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
