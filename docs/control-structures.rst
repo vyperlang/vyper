@@ -222,7 +222,7 @@ The ``for`` statement is a control flow construct used to iterate over a value:
     for i in <ITERABLE>:
         ...
 
-The iterated value can be a static array, or generated from the builtin ``range`` function.
+The iterated value can be a static array, or generated from the built-in ``range`` function.
 
 Array Iteration
 ---------------

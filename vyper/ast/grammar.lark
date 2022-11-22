@@ -69,7 +69,7 @@ function_def: [decorators] function_sig ":" body
 _EVENT_DECL: "event"
 event_member: NAME ":" type
 indexed_event_arg: NAME ":" "indexed" "(" type ")"
-event_body: _NEWLINE _INDENT ((variable | indexed_event_arg) _NEWLINE)+ _DEDENT
+event_body: _NEWLINE _INDENT ((event_member | indexed_event_arg) _NEWLINE)+ _DEDENT
 // Events which use no args use a pass statement instead
 event_def: _EVENT_DECL NAME ":" ( event_body | _PASS )
 
@@ -80,8 +80,8 @@ enum_body: _NEWLINE _INDENT (enum_member _NEWLINE)+ _DEDENT
 enum_def: _ENUM_DECL NAME ":" enum_body
 
 // Types
-array_def: (NAME | array_def | dyn_array_def) "[" (DEC_NUMBER | NAME) "]"
-dyn_array_def: "DynArray" "[" (NAME | array_def | dyn_array_def) "," (DEC_NUMBER | NAME) "]"
+array_def: (NAME | array_def | dyn_array_def) "[" _expr "]"
+dyn_array_def: "DynArray" "[" (NAME | array_def | dyn_array_def) "," _expr "]"
 tuple_def: "(" ( NAME | array_def | dyn_array_def | tuple_def ) ( "," ( NAME | array_def | dyn_array_def | tuple_def ) )* [","] ")"
 // NOTE: Map takes a basic type and maps to another type (can be non-basic, including maps)
 _MAP: "HashMap"

@@ -69,7 +69,7 @@ def _pack_arguments(fn_type, args, context):
     # to buf (and also keep code size small) by using
     # (mstore buf (shl signature.method_id 224))
     pack_args = ["seq"]
-    pack_args.append(["mstore", buf, util.abi_method_id(abi_signature)])
+    pack_args.append(["mstore", buf, util.method_id_int(abi_signature)])
 
     if len(args) != 0:
         pack_args.append(abi_encode(buf + 32, args_as_tuple, context, bufsz=buflen))

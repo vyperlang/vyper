@@ -52,6 +52,7 @@ class CompilerData:
         no_optimize: bool = False,
         storage_layout: StorageLayout = None,
         show_gas_estimates: bool = False,
+        no_bytecode_metadata: bool = False,
     ) -> None:
         """
         Initialization method.
@@ -72,6 +73,8 @@ class CompilerData:
             Turn off optimizations. Defaults to False
         show_gas_estimates: bool, optional
             Show gas estimates for abi and ir output modes
+        no_bytecode_metadata: bool, optional
+            Do not add metadata to bytecode. Defaults to False
         """
         self.contract_name = contract_name
         self.source_code = source_code
@@ -80,6 +83,7 @@ class CompilerData:
         self.no_optimize = no_optimize
         self.storage_layout_override = storage_layout
         self.show_gas_estimates = show_gas_estimates
+        self.no_bytecode_metadata = no_bytecode_metadata
 
     @cached_property
     def vyper_module(self) -> vy_ast.Module:
@@ -142,11 +146,15 @@ class CompilerData:
 
     @cached_property
     def bytecode(self) -> bytes:
-        return generate_bytecode(self.assembly, is_runtime=False)
+        return generate_bytecode(
+            self.assembly, is_runtime=False, no_bytecode_metadata=self.no_bytecode_metadata
+        )
 
     @cached_property
     def bytecode_runtime(self) -> bytes:
-        return generate_bytecode(self.assembly_runtime, is_runtime=True)
+        return generate_bytecode(
+            self.assembly_runtime, is_runtime=True, no_bytecode_metadata=self.no_bytecode_metadata
+        )
 
     @cached_property
     def blueprint_bytecode(self) -> bytes:
@@ -307,7 +315,9 @@ def _find_nested_opcode(assembly, key):
         return any(_find_nested_opcode(x, key) for x in sublists)
 
 
-def generate_bytecode(assembly: list, is_runtime: bool = False) -> bytes:
+def generate_bytecode(
+    assembly: list, is_runtime: bool = False, no_bytecode_metadata: bool = False
+) -> bytes:
     """
     Generate bytecode from assembly instructions.
 
@@ -321,4 +331,6 @@ def generate_bytecode(assembly: list, is_runtime: bool = False) -> bytes:
     bytes
         Final compiled bytecode.
     """
-    return compile_ir.assembly_to_evm(assembly, insert_vyper_signature=is_runtime)[0]
+    return compile_ir.assembly_to_evm(
+        assembly, insert_vyper_signature=is_runtime, disable_bytecode_metadata=no_bytecode_metadata
+    )[0]

@@ -55,7 +55,7 @@ def _register_function_args(context: Context, sig: FunctionSignature) -> List[IR
 
 
 def _annotated_method_id(abi_sig):
-    method_id = util.abi_method_id(abi_sig)
+    method_id = util.method_id_int(abi_sig)
     annotation = f"{hex(method_id)}: {abi_sig}"
     return IRnode(method_id, annotation=annotation)
 
@@ -89,11 +89,7 @@ def _generate_kwarg_handlers(context: Context, sig: FunctionSignature) -> List[A
         # ensure calldata is at least of minimum length
         args_abi_t = calldata_args_t.abi_type
         calldata_min_size = args_abi_t.min_size() + 4
-        if args_abi_t.is_dynamic():
-            ret.append(["assert", ["ge", "calldatasize", calldata_min_size]])
-        else:
-            # stricter for static data
-            ret.append(["assert", ["eq", "calldatasize", calldata_min_size]])
+        ret.append(["assert", ["ge", "calldatasize", calldata_min_size]])
 
         # TODO optimize make_setter by using
         # TupleType(list(arg.typ for arg in calldata_kwargs + default_kwargs))

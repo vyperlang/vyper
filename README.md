@@ -30,6 +30,13 @@ To compile a contract, use:
 ```bash
 vyper your_file_name.vy
 ```
+***generate bytecode***
+
+    vyper -f bytecode file-name.vy > file-name.bin
+
+***generate abi***
+
+    vyper -f abi file-name.vy > file-name.abi
 
 There is also an [online compiler](https://vyper.online/) available you can use to experiment with
 the language and compile to ``bytecode`` and/or ``IR``.
@@ -42,6 +49,7 @@ be a bit behind the latest version found in the master branch of this repository
 (Complete [installation steps](https://vyper.readthedocs.io/en/latest/installing-vyper.html) first.)
 
 ```bash
+make dev-init
 python setup.py test
 ```
 

@@ -190,7 +190,7 @@ class Stmt:
             instantiate_msg = msg_ir
 
         # offset of bytes in (bytes,)
-        method_id = util.abi_method_id("Error(string)")
+        method_id = util.method_id_int("Error(string)")
 
         # abi encode method_id + bytestring
         assert buf >= 36, "invalid buffer"
