@@ -16,7 +16,7 @@ from vyper.exceptions import (
     ZeroDivisionException,
 )
 from vyper.semantics import types
-from vyper.semantics.analysis.base import ExprInfo, VarInfo
+from vyper.semantics.analysis.base import TYPE_T, ExprInfo, VarInfo
 from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.base import VyperType
@@ -304,15 +304,14 @@ class _ExprAnalyser:
                 f"'{name}' is a storage variable, access it as self.{name}", node
             )
         try:
-            varinfo = self.namespace[node.id]
-            if isinstance(varinfo, VyperType):
-                if not self._include_type_exprs:
-                    raise InvalidReference(
-                        f"'{varinfo}' is a type - expected a literal or variable", node
-                    )
-                return [varinfo]
+            t = self.namespace[node.id]
+            # when this is a type, we want to lower it
+            if isinstance(t, VyperType):
+                # TYPE_T is used to handle cases where a type can occur in call or
+                # attribute conditions, like Enum.foo or MyStruct({...})
+                return [TYPE_T(t)]
 
-            return [varinfo.typ]
+            return [t.typ]
         except VyperException as exc:
             raise exc.with_annotation(node) from None
 
