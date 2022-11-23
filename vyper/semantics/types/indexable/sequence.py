@@ -37,6 +37,11 @@ class _SequenceDefinition(IndexableTypeDefinition):
     ) -> None:
         if not 0 < length < 2 ** 256:
             raise InvalidType("Array length is invalid")
+
+        from vyper.semantics.types.indexable.mapping import MappingDefinition
+        if isinstance(value_type, MappingDefinition):
+            raise InvalidType("Arrays of maps are not supported")
+
         super().__init__(
             value_type,
             IntegerAbstractType(),  # type: ignore
