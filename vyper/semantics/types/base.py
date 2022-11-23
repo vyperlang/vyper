@@ -304,4 +304,4 @@ class TYPE_T:
     def get_member(self, key, node):
         if hasattr(self.typedef, "get_type_member"):
             return self.typedef.get_type_member(key, node)
-        raise StructureException("Value is not callable", node)
+        raise StructureException("Value is not attributable", node)
