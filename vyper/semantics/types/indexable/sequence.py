@@ -37,11 +37,6 @@ class _SequenceDefinition(IndexableTypeDefinition):
     ) -> None:
         if not 0 < length < 2 ** 256:
             raise InvalidType("Array length is invalid")
-
-        from vyper.semantics.types.indexable.mapping import MappingDefinition
-        if isinstance(value_type, MappingDefinition):
-            raise InvalidType("Arrays of maps are not supported")
-
         super().__init__(
             value_type,
             IntegerAbstractType(),  # type: ignore
@@ -157,6 +152,10 @@ class DynamicArrayDefinition(_SequenceDefinition, MemberTypeDefinition):
         is_public: bool = False,
         is_immutable: bool = False,
     ) -> None:
+
+        from vyper.semantics.types.indexable.mapping import MappingDefinition
+        if isinstance(value_type, MappingDefinition):
+            raise InvalidType("Arrays of maps are not supported")
 
         super().__init__(
             value_type, length, "DynArray", location, is_constant, is_public, is_immutable
