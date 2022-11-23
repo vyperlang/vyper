@@ -301,6 +301,11 @@ class TYPE_T:
             return self.typedef._ctor_arg_types(node)
         raise StructureException("Value is not callable", node)
 
+    def infer_kwarg_types(self, node):
+        if hasattr(self.typedef, "_ctor_kwarg_types"):
+            return self.typedef._ctor_kwarg_types(node)
+        raise StructureException("Value is not callable", node)
+
     def get_member(self, key, node):
         if hasattr(self.typedef, "get_type_member"):
             return self.typedef.get_type_member(key, node)

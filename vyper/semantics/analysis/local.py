@@ -42,7 +42,7 @@ from vyper.semantics.types import (
     StringT,
     TupleT,
 )
-from vyper.semantics.types.base import TYPE_T, typeof_is
+from vyper.semantics.types.base import TYPE_T, is_typet
 from vyper.semantics.types.function import ContractFunction, MemberFunctionT, StateMutability
 from vyper.semantics.types.utils import type_from_annotation
 
@@ -470,7 +470,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             raise StructureException("Expressions without assignment are disallowed", node)
 
         fn_type = get_exact_type_from_node(node.value.func)
-        if isinstance(fn_type, EventT):
+        if is_typet(fn_type, EventT):
             raise StructureException("To call an event you must use the `log` statement", node)
 
         if isinstance(fn_type, ContractFunction):
@@ -511,8 +511,8 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
     def visit_Log(self, node):
         if not isinstance(node.value, vy_ast.Call):
             raise StructureException("Log must call an event", node)
-        f = get_exact_type_from_node(node.value)
-        if not typeof_is(f, EventT):
+        f = get_exact_type_from_node(node.value.func)
+        if not is_typet(f, EventT):
             raise StructureException("Value is not an event", node.value)
         f.fetch_call_return(node.value)
         self.expr_visitor.visit(node.value)

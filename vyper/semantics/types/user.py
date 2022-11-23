@@ -222,11 +222,10 @@ class EventT(_UserType):
 
         return cls(base_node.name, members, indexed)
 
-    def _ctor_call_return(self, node: vy_ast.Call) -> "EventT":
+    def _ctor_call_return(self, node: vy_ast.Call) -> None:
         validate_call_args(node, len(self.arguments))
         for arg, expected in zip(node.args, self.arguments.values()):
             validate_expected_type(arg, expected)
-        return EventT()
 
     def to_toplevel_abi_dict(self) -> List[Dict]:
         return [
@@ -278,7 +277,7 @@ class InterfaceT(_UserType):
         validate_expected_type(node.args[0], AddressT())
         return [AddressT()]
 
-    def infer_kwarg_types(self, node):
+    def _ctor_kwarg_types(self, node):
         return {}
 
     # TODO x.validate_implements(other)
