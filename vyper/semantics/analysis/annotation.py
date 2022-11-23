@@ -6,6 +6,7 @@ from vyper.semantics.analysis.utils import (
     get_possible_types_from_node,
 )
 from vyper.semantics.types import TYPE_T, EnumT, EventT, SArrayT, StructT
+from vyper.semantics.types.base import is_typet
 from vyper.semantics.types.function import ContractFunction, MemberFunctionT
 
 
@@ -147,7 +148,7 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
             for kwarg in node.keywords:
                 # We should only see special kwargs
                 self.visit(kwarg.value, call_type.call_site_kwargs[kwarg.arg].typ)
-        elif isinstance(call_type, TYPE_T) and isinstance(call_type.typedef, StructT):
+        elif is_typet(call_type, StructT):
             # struct ctors
             for value, arg_type in zip(node.args[0].values, list(call_type.typedef.members.values())):
                 self.visit(value, arg_type)

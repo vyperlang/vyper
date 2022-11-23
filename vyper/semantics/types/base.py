@@ -305,3 +305,7 @@ class TYPE_T:
         if hasattr(self.typedef, "get_type_member"):
             return self.typedef.get_type_member(key, node)
         raise StructureException("Value is not attributable", node)
+
+
+def is_typet(x, t) -> bool:
+    return isinstance(x, TYPE_T) and isinstance(x.typedef, t)
