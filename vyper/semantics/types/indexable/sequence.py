@@ -152,8 +152,9 @@ class DynamicArrayDefinition(_SequenceDefinition, MemberTypeDefinition):
         is_public: bool = False,
         is_immutable: bool = False,
     ) -> None:
-
+        # TODO fix circular import
         from vyper.semantics.types.indexable.mapping import MappingDefinition
+
         if isinstance(value_type, MappingDefinition):
             raise InvalidType("Arrays of maps are not supported")
 
