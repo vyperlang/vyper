@@ -226,6 +226,12 @@ def foo(x: int128[2][2]):
     """,
         TypeMismatch,
     ),
+    (
+        """
+foo: DynArray[HashMap[uint8,uint8], 2]
+    """,
+        InvalidType,
+    ),
 ]
 
 
