@@ -290,3 +290,15 @@ class TYPE_T:
 
     def __repr__(self):
         return f"type({self.typedef})"
+
+    def fetch_call_return(self, node):
+        if hasattr(self.typedef, "_ctor_call_return"):
+            return self.typedef._ctor_call_return(node)
+        else:
+            raise StructureException("Value is not callable", node)
+
+    def infer_arg_types(self, node):
+        if hasattr(self.typedef, "_ctor_arg_types"):
+            return self.typedef._ctor_arg_types(node)
+        else:
+            raise StructureException("Value is not callable", node)

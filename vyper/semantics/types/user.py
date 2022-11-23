@@ -52,6 +52,10 @@ class EnumT(_UserType):
         # ABI type uint8.
         return ABI_GIntM(m_bits=256, signed=False)
 
+    @property
+    def name(self):
+        return f"{self._id}"
+
     def validate_numeric_op(self, node):
         allowed_ops = (vy_ast.BitOr, vy_ast.BitAnd, vy_ast.Invert, vy_ast.BitXor)
         if isinstance(node.op, allowed_ops):
@@ -256,12 +260,14 @@ class InterfaceT(_UserType):
     def __repr__(self):
         return f"{self._id} declaration"
 
-    def fetch_call_return(self, node: vy_ast.Call) -> "InterfaceT":
-        self.infer_arg_types(node)
+    # when using the type itself (not an instance) in the call position
+    # maybe rename to _ctor_call_return
+    def _ctor_call_return(self, node: vy_ast.Call) -> "InterfaceT":
+        self._ctor_arg_types(node)
 
         return self
 
-    def infer_arg_types(self, node):
+    def _ctor_arg_types(self, node):
         validate_call_args(node, 1)
         validate_expected_type(node.args[0], AddressT())
         return [AddressT()]
@@ -510,7 +516,9 @@ class StructT(_UserType):
         return {"name": name, "type": "tuple", "components": components}
 
     # TODO breaking change: use kwargs instead of dict
-    def fetch_call_return(self, node: vy_ast.Call) -> "StructT":
+    # when using the type itself (not an instance) in the call position
+    # maybe rename to _ctor_call_return
+    def _ctor_call_return(self, node: vy_ast.Call) -> "StructT":
         validate_call_args(node, 1)
         if not isinstance(node.args[0], vy_ast.Dict):
             raise VariableDeclarationException(

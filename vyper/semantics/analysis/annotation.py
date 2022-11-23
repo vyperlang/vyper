@@ -147,9 +147,9 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
             for kwarg in node.keywords:
                 # We should only see special kwargs
                 self.visit(kwarg.value, call_type.call_site_kwargs[kwarg.arg].typ)
-        elif isinstance(call_type, StructT):
-            # literal structs
-            for value, arg_type in zip(node.args[0].values, list(call_type.members.values())):
+        elif isinstance(call_type, TYPE_T) and isinstance(call_type.typedef, StructT):
+            # struct ctors
+            for value, arg_type in zip(node.args[0].values, list(call_type.typedef.members.values())):
                 self.visit(value, arg_type)
         elif isinstance(call_type, MemberFunctionT):
             assert len(node.args) == len(call_type.arg_types)
