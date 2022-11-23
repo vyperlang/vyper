@@ -55,7 +55,7 @@ def test_attribute_not_member_type(build_node, namespace):
     node = build_node("foo.bar")
     with namespace.enter_scope():
         namespace["foo"] = INT128_T
-        with pytest.raises(StructureException):
+        with pytest.raises(UnknownAttribute):
             get_possible_types_from_node(node)
 
 
