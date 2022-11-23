@@ -1,6 +1,6 @@
 import pytest
 
-from vyper.exceptions import CallViolation
+from vyper.exceptions import CallViolation, FunctionDeclarationException
 
 
 @pytest.mark.parametrize(
@@ -368,4 +368,18 @@ def __default__():
     w3.eth.send_transaction({"to": c.address, "value": 0, "data": "0x12345678"})
     assert_tx_failed(
         lambda: w3.eth.send_transaction({"to": c.address, "value": 100, "data": "0x12345678"})
+    )
+
+
+def test_invalid_conflicting_decorators(get_contract, assert_compile_failed):
+    assert_compile_failed(
+        lambda: get_contract(
+            """
+@internal
+@payable
+def foo():
+    pass
+    """
+        ),
+        FunctionDeclarationException,
     )
