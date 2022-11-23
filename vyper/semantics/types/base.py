@@ -312,5 +312,5 @@ class TYPE_T:
         raise StructureException("Value is not attributable", node)
 
 
-def is_typet(x, t) -> bool:
+def is_type_t(x, t) -> bool:
     return isinstance(x, TYPE_T) and isinstance(x.typedef, t)
