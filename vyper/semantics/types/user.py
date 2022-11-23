@@ -41,6 +41,11 @@ class EnumT(_UserType):
 
         super().__init__(members)
         self._id = name
+        self._enum_members = VyperType(members)
+
+    def get_type_member(self, key: str, node: vy_ast.VyperNode) -> "VyperType":
+        self._enum_members.get_member(key, node)
+        return self
 
     def __repr__(self):
         arg_types = ",".join(repr(a) for a in self.members)

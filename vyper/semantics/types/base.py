@@ -302,3 +302,9 @@ class TYPE_T:
             return self.typedef._ctor_arg_types(node)
         else:
             raise StructureException("Value is not callable", node)
+
+    def get_member(self, key, node):
+        if hasattr(self.typedef, "get_type_member"):
+            return self.typedef.get_type_member(key, node)
+        else:
+            raise StructureException("Value is not callable", node)
