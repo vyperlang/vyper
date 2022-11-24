@@ -129,3 +129,17 @@ def foo() -> uint256:
         ),
         FunctionDeclarationException,
     )
+
+
+def test_invalid_builtin(get_contract, assert_compile_failed):
+    assert_compile_failed(
+        lambda: get_contract(
+            """
+@external
+@pure
+def foo(x: uint256)-> bytes32:
+    return blockhash(x)
+    """
+        ),
+        StateAccessViolation,
+    )
