@@ -202,6 +202,10 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             ]
             node_list.extend(standalone_self)  # type: ignore
 
+            # Add references to builtin functions reading from the chain's state
+            builtin_fns = fn_node.get_descendants(vy_ast.Name, {"id": "blockhash"})
+            node_list.extend(builtin_fns)
+
             for node in node_list:
                 t = node._metadata.get("type")
                 if isinstance(t, ContractFunction) and t.mutability == StateMutability.PURE:
