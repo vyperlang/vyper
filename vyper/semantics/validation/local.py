@@ -204,7 +204,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
 
             # Add references to builtin functions reading from the chain's state
             builtin_fns = fn_node.get_descendants(vy_ast.Name, {"id": "blockhash"})
-            node_list.extend(builtin_fns)
+            node_list.extend(builtin_fns)  # type: ignore
 
             for node in node_list:
                 t = node._metadata.get("type")
