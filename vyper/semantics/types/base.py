@@ -185,6 +185,9 @@ class VyperType:
             # should not reach here, by paths into validate_literal.
             raise InvalidLiteral(f"Invalid literal for {cls._id}", node)
 
+    def validate_index_type(self, node: vy_ast.Subscript):
+        raise StructureException(f"Not an indexable type: '{self}'", node)
+
     @classmethod
     def compare_type(cls, other: "VyperType") -> bool:
         """
