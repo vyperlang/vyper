@@ -1063,7 +1063,8 @@ class AsWeiValue(BuiltinFunction):
         self._validate_arg_types(node)
         # return a concrete type instead of abstract type
         value_type = get_possible_types_from_node(node.args[0]).pop()
-        return [value_type, self._inputs[1][1]]
+        unit_type = get_possible_types_from_node(node.args[1]).pop()
+        return [value_type, unit_type]
 
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
