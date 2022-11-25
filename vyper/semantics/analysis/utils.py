@@ -87,6 +87,14 @@ class _ExprAnalyser:
             assert t is info.typ.get_member(name, node)
             return info.copy_with_type(t)
 
+        if isinstance(node, vy_ast.Tuple):
+            # always use the most restrictive location re: modification
+            types = [self.get_expr_info(n) for n in node.elements]
+            location = sorted((i.location for i in types), key=lambda k: k.value)[-1]
+            is_constant = any((getattr(i, "is_constant", False) for i in types))
+
+            return ExprInfo(t, location=location, is_constant=is_constant)
+
         return ExprInfo(t)
 
     def get_exact_type_from_node(self, node, include_type_exprs=False):
