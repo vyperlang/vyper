@@ -49,6 +49,12 @@ def fourbytes_to_int(inp):
     return (inp[0] << 24) + (inp[1] << 16) + (inp[2] << 8) + inp[3]
 
 
+# Converts an integer to four bytes
+def int_to_fourbytes(n: int) -> bytes:
+    assert n < 2 ** 32
+    return n.to_bytes(4, byteorder="big")
+
+
 def signed_to_unsigned(int_, bits, strict=False):
     """
     Reinterpret a signed integer with n bits as an unsigned integer.
@@ -106,8 +112,13 @@ def vyper_warn(msg, prefix="Warning: ", file_=sys.stderr):
 
 # converts a signature like Func(bool,uint256,address) to its 4 byte method ID
 # TODO replace manual calculations in codebase with this
-def abi_method_id(method_sig):
-    return fourbytes_to_int(keccak256(bytes(method_sig, "utf-8"))[:4])
+def method_id_int(method_sig: str) -> int:
+    method_id_bytes = method_id(method_sig)
+    return fourbytes_to_int(method_id_bytes)
+
+
+def method_id(method_str: str) -> bytes:
+    return keccak256(bytes(method_str, "utf-8"))[:4]
 
 
 # map a string to only-alphanumeric chars

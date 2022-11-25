@@ -478,6 +478,11 @@ class ContractFunction(BaseTypeDefinition):
         for kwarg in node.keywords:
             if kwarg.arg in self.call_site_kwargs:
                 kwarg_settings = self.call_site_kwargs[kwarg.arg]
+                if kwarg.arg == "default_return_value" and self.return_type is None:
+                    raise ArgumentException(
+                        f"`{kwarg.arg}=` specified but {self.name}() does not return anything",
+                        kwarg.value,
+                    )
                 validate_expected_type(kwarg.value, kwarg_settings.typ)
                 if kwarg_settings.require_literal:
                     if not isinstance(kwarg.value, vy_ast.Constant):

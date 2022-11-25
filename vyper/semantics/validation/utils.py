@@ -29,7 +29,7 @@ from vyper.semantics.types.value.address import AddressDefinition
 from vyper.semantics.types.value.boolean import BoolDefinition
 from vyper.semantics.types.value.bytes_fixed import Bytes20Definition  # type: ignore
 from vyper.semantics.validation.levenshtein_utils import get_levenshtein_error_suggestions
-from vyper.utils import checksum_encode
+from vyper.utils import checksum_encode, int_to_fourbytes
 
 
 def _validate_op(node, types_list, validation_fn_name):
@@ -529,5 +529,10 @@ def validate_unique_method_ids(functions: List) -> None:
     method_ids = [x for i in functions for x in i.method_ids.values()]
     collision = next((i for i in method_ids if method_ids.count(i) > 1), None)
     if collision:
-        collision_str = ", ".join(i.name for i in functions if collision in i.method_ids)
-        raise StructureException(f"Methods have conflicting IDs: {collision_str}")
+        collision_str = ", ".join(
+            x for i in functions for x in i.method_ids.keys() if i.method_ids[x] == collision
+        )
+        collision_hex = int_to_fourbytes(collision).hex()
+        raise StructureException(
+            f"Methods produce colliding method ID `0x{collision_hex}`: {collision_str}"
+        )
