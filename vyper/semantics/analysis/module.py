@@ -265,7 +265,8 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
         func = ContractFunction.from_FunctionDef(node)
 
         try:
-            self.namespace["self"].typ.add_member(func.name, func)
+            # TODO sketchy elision of namespace validation
+            self.namespace["self"].typ.add_member(func.name, func, skip_namespace_validation=True)
             node._metadata["type"] = func
         except VyperException as exc:
             raise exc.with_annotation(node) from None
