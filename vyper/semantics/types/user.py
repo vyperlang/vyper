@@ -453,7 +453,6 @@ def _get_class_functions(base_node: vy_ast.InterfaceDef) -> Dict[str, ContractFu
 
 
 class StructT(_UserType):
-    _is_callable = True
     _as_array = True
 
     def __init__(self, _id, members, ast_def=None):
@@ -462,6 +461,10 @@ class StructT(_UserType):
         self._id = _id
 
         self.ast_def = ast_def
+
+        for n, t in self.members.items():
+            if isinstance(t, HashMapT):
+                raise StructureException(f"Struct contains a mapping '{n}'", ast_def)
 
     @classmethod
     def from_ast_def(cls, base_node: vy_ast.StructDef) -> "StructT":
