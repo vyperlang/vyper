@@ -244,7 +244,6 @@ class EventT(_UserType):
 class InterfaceT(_UserType):
 
     _type_members = {"address": AddressT()}
-    _is_callable = True
     _as_array = True
 
     def __init__(self, _id: str, members: dict, events: dict) -> None:
@@ -263,7 +262,7 @@ class InterfaceT(_UserType):
         return ABI_Address()
 
     def __repr__(self):
-        return f"{self._id} declaration"
+        return f"{self._id}"
 
     # when using the type itself (not an instance) in the call position
     # maybe rename to _ctor_call_return
