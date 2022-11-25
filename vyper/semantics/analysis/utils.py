@@ -66,8 +66,6 @@ class _ExprAnalyser:
         # if it's a Name, we have varinfo for it
         if isinstance(node, vy_ast.Name):
             varinfo = self.namespace[node.id]
-            if not isinstance(varinfo, VarInfo):
-                raise InvalidReference(f"not a variable: {varinfo}", node)
             return ExprInfo.from_varinfo(varinfo)
 
         if isinstance(node, vy_ast.Attribute):
@@ -132,16 +130,14 @@ class _ExprAnalyser:
         if "type" in node._metadata:
             return [node._metadata["type"]]
 
-        # use a state variable instead of threading with kwargs
-        tmp = getattr(self, "_include_type_exprs", include_type_exprs)
-        # this is a kludge to separate type and constructor namespaces.
-        # in the future separate them for real
-        self._include_type_exprs = include_type_exprs
-
         fn = self._find_fn(node)
         ret = fn(node)
 
-        self._include_type_exprs = tmp
+        if not include_type_exprs:
+            invalid = next((i for i in ret if isinstance(i, TYPE_T)), None)
+            if invalid is not None:
+                raise InvalidReference(
+                    f"not a variable or literal: '{invalid.typedef}'", node)
 
         if all(isinstance(i, IntegerT) for i in ret):
             # for numeric types, sort according by number of bits descending
@@ -163,7 +159,7 @@ class _ExprAnalyser:
 
     def types_from_Attribute(self, node):
         # variable attribute, e.g. `foo.bar`
-        t = self.get_exact_type_from_node(node.value, include_type_exprs=self._include_type_exprs)
+        t = self.get_exact_type_from_node(node.value, include_type_exprs=True)
         name = node.attr
         try:
             s = t.get_member(name, node)
