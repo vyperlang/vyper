@@ -66,6 +66,8 @@ class _ExprAnalyser:
         # if it's a Name, we have varinfo for it
         if isinstance(node, vy_ast.Name):
             varinfo = self.namespace[node.id]
+            if not isinstance(varinfo, VarInfo):
+                raise InvalidReference(f"not a variable: {varinfo}", node)
             return ExprInfo.from_varinfo(varinfo)
 
         if isinstance(node, vy_ast.Attribute):
