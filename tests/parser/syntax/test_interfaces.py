@@ -47,7 +47,7 @@ from vyper.interfaces import ERC20
 def test():
     a: address(ERC20) = ZERO_ADDRESS
     """,
-        (StructureException, SyntaxException),
+        InvalidType,
     ),
     (
         """
