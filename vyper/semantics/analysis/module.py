@@ -319,7 +319,7 @@ def _add_import(
         interface_ast = vy_ast.parse_to_ast(interface_codes[name]["code"], contract_name=name)
         type_ = InterfaceT.from_ast(interface_ast)
     elif interface_codes[name]["type"] == "json":
-        type_ = InterfaceT.from_json_abi(name, interface_codes[name]["code"])
+        type_ = InterfaceT.from_json_abi(name, interface_codes[name]["code"])  # type: ignore
     else:
         raise CompilerPanic(f"Unknown interface format: {interface_codes[name]['type']}")
 

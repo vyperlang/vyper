@@ -214,7 +214,7 @@ class ExprInfo:
                     raise CompilerPanic("Bad analysis: non-matching {attr}: {self}")
 
     @classmethod
-    def from_varinfo(cls, var_info: VarInfo):
+    def from_varinfo(cls, var_info: VarInfo) -> "ExprInfo":
         return cls(
             var_info.typ,
             var_info=var_info,
@@ -223,7 +223,7 @@ class ExprInfo:
             is_immutable=var_info.is_immutable,
         )
 
-    def copy_with_type(self, typ: VyperType):
+    def copy_with_type(self, typ: VyperType) -> "ExprInfo":
         """
         Return a copy of the ExprInfo but with the type set to something else
         """
@@ -256,11 +256,12 @@ class ExprInfo:
         if self.is_immutable:
             if node.get_ancestor(vy_ast.FunctionDef).get("name") != "__init__":
                 raise ImmutableViolation("Immutable value cannot be written to", node)
-            if self.var_info._modification_count:
+            # TODO: we probably want to remove this restriction.
+            if self.var_info._modification_count:  # type: ignore
                 raise ImmutableViolation(
                     "Immutable value cannot be modified after assignment", node
                 )
-            self.var_info._modification_count += 1
+            self.var_info._modification_count += 1  # type: ignore
 
         if isinstance(node, vy_ast.AugAssign):
             self.typ.validate_numeric_op(node)

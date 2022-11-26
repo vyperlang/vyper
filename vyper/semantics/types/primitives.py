@@ -1,6 +1,6 @@
 # primitive types which occupy one word, like ints and addresses
 
-from typing import List, Tuple, Union
+from typing import Tuple, Union
 
 from vyper import ast as vy_ast
 from vyper.abi_types import ABI_Address, ABI_Bool, ABI_BytesM, ABI_FixedMxN, ABI_GIntM, ABIType
@@ -13,7 +13,7 @@ from .bytestrings import BytesT
 
 class _PrimT(VyperType):
     _is_prim_word = True
-    _equality_attrs = ()
+    _equality_attrs: tuple = ()
 
 
 class BoolT(_PrimT):
@@ -34,7 +34,7 @@ class BoolT(_PrimT):
     def abi_type(self) -> ABIType:
         return ABI_Bool()
 
-    def validate_literal(self, node: vy_ast.Constant) -> VyperType:
+    def validate_literal(self, node: vy_ast.Constant) -> None:
         super().validate_literal(node)
         if node.value is None:
             raise InvalidLiteral("Invalid literal for type 'bool'", node)
@@ -71,8 +71,10 @@ class BytesM_T(_PrimT):
     def all(cls):
         return [cls(m) for m in RANGE_1_32]
 
-    def validate_literal(self, node: vy_ast.Constant):
+    def validate_literal(self, node: vy_ast.Constant) -> None:
         super().validate_literal(node)
+
+        assert isinstance(node, vy_ast.Hex)  # keep mypy happy
 
         val = node.value
 
@@ -83,18 +85,22 @@ class BytesM_T(_PrimT):
         if nibbles not in (nibbles.lower(), nibbles.upper()):
             raise InvalidLiteral(f"Cannot mix uppercase and lowercase for {self} literal", node)
 
-    def compare_type(self, other: VyperType):
+    def compare_type(self, other: VyperType) -> bool:
         if not super().compare_type(other):
             return False
+        assert isinstance(other, BytesM_T)
 
         return self.m == other.m
 
 
 class NumericT(_PrimT):
     _as_array = True
+    _is_signed: bool
+    _bits: int
+    _invalid_ops: tuple
     bounds: Tuple[int, int]
 
-    def validate_literal(self, node: vy_ast.Constant):
+    def validate_literal(self, node: vy_ast.Constant) -> None:
         super().validate_literal(node)
         lower, upper = self.bounds
         if node.value < lower:
@@ -189,6 +195,7 @@ class IntegerT(NumericT):
         return ()
 
     @classmethod
+    # TODO maybe cache these three classmethods
     def signeds(cls) -> Tuple["IntegerT", ...]:
         return tuple(cls(is_signed=True, bits=i * 8) for i in RANGE_1_32)
 
@@ -197,7 +204,7 @@ class IntegerT(NumericT):
         return tuple(cls(is_signed=False, bits=i * 8) for i in RANGE_1_32)
 
     @classmethod
-    def all(cls) -> List["IntegerT"]:
+    def all(cls) -> Tuple["IntegerT", ...]:
         return cls.signeds() + cls.unsigneds()
 
     # backwards compatible api, TODO: remove me
@@ -214,9 +221,10 @@ class IntegerT(NumericT):
     def abi_type(self) -> ABIType:
         return ABI_GIntM(self.bits, self.is_signed)
 
-    def compare_type(self, other: VyperType):
+    def compare_type(self, other: VyperType) -> bool:
         if not super().compare_type(other):
             return False
+        assert isinstance(other, IntegerT)  # mypy
 
         return self.is_signed == other.is_signed and self.bits == other.bits
 
@@ -265,8 +273,9 @@ class AddressT(_PrimT):
     def abi_type(self) -> ABIType:
         return ABI_Address()
 
-    def validate_literal(self, node: vy_ast.Constant) -> VyperType:
+    def validate_literal(self, node: vy_ast.Constant) -> None:
         super().validate_literal(node)
+        assert isinstance(node, vy_ast.Hex)  # keep mypy happy
         if node.n_bytes != 20:
             raise InvalidLiteral(f"Invalid address. Expected 20 bytes, got {node.n_bytes}.", node)
 

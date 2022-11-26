@@ -19,6 +19,7 @@ def new_type_to_old_type(typ: new.VyperType) -> old.NodeType:
     if isinstance(typ, new.DArrayT):
         return old.DArrayType(new_type_to_old_type(typ.value_type), typ.length)
     if isinstance(typ, new.TupleT):
+        assert isinstance(typ.value_type, tuple)  # mypy hint
         return old.TupleType([new_type_to_old_type(t) for t in typ.value_type])
     if isinstance(typ, new.StructT):
         return old.StructType(

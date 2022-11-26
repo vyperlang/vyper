@@ -90,7 +90,7 @@ class _SequenceT(_SubscriptableT):
         Number of items in the type.
     """
 
-    _equality_attrs = ("value_type", "length")
+    _equality_attrs: tuple = ("value_type", "length")
 
     def __init__(self, value_type: VyperType, length: int):
 
@@ -270,11 +270,8 @@ class TupleT(_SequenceT):
     _equality_attrs = ("value_type",)
 
     def __init__(self, value_type: Tuple[VyperType, ...]) -> None:
-        super().__init__(
-            # TODO fix the typing on value_type
-            value_type,  # type: ignore
-            len(value_type),
-        )
+        # TODO: fix the typing here.
+        super().__init__(value_type, len(value_type))  # type: ignore
 
         # fixes mypy error, TODO revisit typing on value_type
         self._member_types = value_type
@@ -283,7 +280,7 @@ class TupleT(_SequenceT):
         return "(" + ", ".join(repr(t) for t in self.value_type) + ")"
 
     @classmethod
-    def from_annotation(cls, node: vy_ast.Tuple):
+    def from_annotation(cls, node: vy_ast.Tuple) -> VyperType:
         values = node.elements
         types = tuple(type_from_annotation(v) for v in values)
         return cls(types)

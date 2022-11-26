@@ -1,4 +1,4 @@
-from typing import Dict, List, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 from vyper import ast as vy_ast
 from vyper.abi_types import ABI_Address, ABI_GIntM, ABI_Tuple, ABIType
@@ -107,7 +107,7 @@ class EnumT(_UserType):
 
         return cls(base_node.name, members)
 
-    def fetch_call_return(self, node: vy_ast.Call) -> None:
+    def fetch_call_return(self, node: vy_ast.Call) -> Optional[VyperType]:
         # TODO
         return None
 
@@ -247,7 +247,7 @@ class InterfaceT(_UserType):
     _as_array = True
 
     def __init__(self, _id: str, members: dict, events: dict) -> None:
-        validate_unique_method_ids(members.values())
+        validate_unique_method_ids(list(members.values()))  # explicit list cast for mypy
         super().__init__(members)
 
         self._id = _id
@@ -482,7 +482,7 @@ class StructT(_UserType):
         """
 
         struct_name = base_node.name
-        members: Dict[Tuple(str, VyperType)] = {}
+        members: Dict[str, VyperType] = {}
         for node in base_node.body:
             if not isinstance(node, vy_ast.AnnAssign):
                 raise StructureException(

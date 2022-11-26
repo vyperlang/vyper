@@ -1,4 +1,4 @@
-from typing import Any, Dict, Tuple, Union
+from typing import Any, Dict, Optional, Tuple, Union
 
 from vyper import ast as vy_ast
 from vyper.abi_types import ABIType
@@ -44,18 +44,19 @@ class VyperType:
     """
 
     _id: str
+    _type_members: Optional[Dict]
     _valid_literal: Tuple = ()
     _as_array: bool = False
     _is_prim_word: bool = False
-    _equality_attrs = None
+    _equality_attrs: Optional[Tuple] = None
 
     size_in_bytes = 32  # default; override for larger types
 
-    def __init__(self, members=None) -> None:
-        self.members = {}
+    def __init__(self, members: Optional[Dict] = None) -> None:
+        self.members: Dict = {}
 
         # add members that are on the class instance.
-        if hasattr(self, "_type_members"):
+        if self._type_members is not None:
             for k, v in self._type_members.items():
                 # for builtin members like `contract.address` -- skip namespace
                 # validation, as it introduces a dependency cycle
@@ -120,7 +121,10 @@ class VyperType:
         return {"name": name, "type": self.canonical_abi_type}
 
     # convenience method for erroring out of invalid ast ops
-    def _raise_invalid_op(self, node: vy_ast.ExprNode) -> None:
+    def _raise_invalid_op(
+        self,
+        node: Union[vy_ast.UnaryOp, vy_ast.BinOp, vy_ast.AugAssign, vy_ast.Compare, vy_ast.BoolOp],
+    ) -> None:
         raise InvalidOperation(f"Cannot perform {node.op.description} on {self}", node)
 
     def validate_comparator(self, node: vy_ast.Compare) -> None:
@@ -171,8 +175,7 @@ class VyperType:
         """
         self._raise_invalid_op(node)
 
-    @classmethod
-    def validate_literal(cls, node: vy_ast.Constant):
+    def validate_literal(self, node: vy_ast.Constant) -> None:
         """
         Validate that a literal node can be annotated with this type
 
@@ -181,15 +184,14 @@ class VyperType:
         node : VyperNode
             `Constant` Vyper ast node, or a list or tuple of constants.
         """
-        if not isinstance(node, cls._valid_literal) or not isinstance(node, vy_ast.Constant):
+        if not isinstance(node, self._valid_literal) or not isinstance(node, vy_ast.Constant):
             # should not reach here, by paths into validate_literal.
-            raise InvalidLiteral(f"Invalid literal for {cls._id}", node)
+            raise InvalidLiteral(f"Invalid literal for {self._id}", node)
 
-    def validate_index_type(self, node: vy_ast.Subscript):
+    def validate_index_type(self, node: vy_ast.Subscript) -> None:
         raise StructureException(f"Not an indexable type: '{self}'", node)
 
-    @classmethod
-    def compare_type(cls, other: "VyperType") -> bool:
+    def compare_type(self, other: "VyperType") -> bool:
         """
         Compare this type object against another type object.
 
@@ -208,10 +210,9 @@ class VyperType:
         bool
             Indicates if the types are equivalent.
         """
-        return isinstance(other, cls)
+        return isinstance(other, type(self))
 
-    @classmethod
-    def fetch_call_return(self, node: vy_ast.Call) -> "VyperType":
+    def fetch_call_return(self, node: vy_ast.Call) -> Optional["VyperType"]:
         """
         Validate a call to this type and return the result.
 
@@ -315,5 +316,5 @@ class TYPE_T:
         raise UnknownAttribute("Value is not attributable", node)
 
 
-def is_type_t(x, t) -> bool:
+def is_type_t(x: VyperType, t: type) -> bool:
     return isinstance(x, TYPE_T) and isinstance(x.typedef, t)
