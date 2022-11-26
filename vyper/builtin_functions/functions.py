@@ -1264,7 +1264,7 @@ class Send(BuiltinFunction):
 
     _id = "send"
     _inputs = [("to", AddressDefinition()), ("value", Uint256Definition())]
-    _kwargs = {"gas": KwargSettings(Uint256Definition(), "gas")}
+    _kwargs = {"gas": KwargSettings(Uint256Definition(), 0)}
     _return_type = None
 
     @process_inputs
@@ -1272,10 +1272,7 @@ class Send(BuiltinFunction):
         to, value = args
         gas = kwargs["gas"]
         context.check_is_not_constant("send ether", expr)
-        if isinstance(gas, str):
-            return IRnode.from_list(["assert", ["call", 0, to, value, 0, 0, 0, 0]])
-        else:
-            return IRnode.from_list(["assert", ["call", gas, to, value, 0, 0, 0, 0]])
+        return IRnode.from_list(["assert", ["call", gas, to, value, 0, 0, 0, 0]])
 
 class SelfDestruct(BuiltinFunction):
 
