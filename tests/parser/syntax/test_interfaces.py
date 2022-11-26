@@ -5,7 +5,6 @@ from vyper.exceptions import (
     ArgumentException,
     InvalidReference,
     InvalidType,
-    StructureException,
     SyntaxException,
     TypeMismatch,
     UnknownAttribute,

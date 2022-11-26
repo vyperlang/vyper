@@ -42,7 +42,7 @@ from vyper.semantics.types import (
     StringT,
     TupleT,
 )
-from vyper.semantics.types.base import TYPE_T, is_type_t
+from vyper.semantics.types.base import is_type_t
 from vyper.semantics.types.function import ContractFunction, MemberFunctionT, StateMutability
 from vyper.semantics.types.utils import type_from_annotation
 

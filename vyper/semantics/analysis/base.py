@@ -7,7 +7,6 @@ from vyper.exceptions import (
     CompilerPanic,
     ImmutableViolation,
     StateAccessViolation,
-    StructureException,
     VyperInternalException,
 )
 from vyper.semantics.types.base import VyperType

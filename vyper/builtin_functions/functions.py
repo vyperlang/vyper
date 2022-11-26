@@ -65,26 +65,13 @@ from vyper.exceptions import (
     UnfoldableNode,
     ZeroDivisionException,
 )
-from vyper.semantics.types import (
-    AddressT,
-    BoolT,
-    BytesM_T,
-    BytesT,
-    DArrayT,
-    DecimalT,
-    IntegerT,
-    SArrayT,
-    StringT,
-    TupleT,
-)
-from vyper.semantics.types.utils import type_from_annotation
+from vyper.semantics.analysis.base import VarInfo
 from vyper.semantics.analysis.utils import (
     get_common_types,
     get_exact_type_from_node,
     get_possible_types_from_node,
     validate_expected_type,
 )
-from vyper.semantics.analysis.base import VarInfo
 from vyper.semantics.types import (
     TYPE_T,
     AddressT,
@@ -99,7 +86,7 @@ from vyper.semantics.types import (
     StringT,
     TupleT,
 )
-from vyper.semantics.types.shortcuts import BYTES4_T, BYTES32_T, INT256_T, UINT256_T, UINT8_T
+from vyper.semantics.types.shortcuts import BYTES4_T, BYTES32_T, INT256_T, UINT8_T, UINT256_T
 from vyper.semantics.types.utils import type_from_annotation
 from vyper.utils import (
     DECIMAL_DIVISOR,

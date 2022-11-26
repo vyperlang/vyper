@@ -4,7 +4,6 @@ from vyper.exceptions import (
     ArrayIndexException,
     InvalidOperation,
     InvalidReference,
-    StructureException,
     TypeMismatch,
     UndeclaredDefinition,
     UnknownAttribute,
