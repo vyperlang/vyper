@@ -44,7 +44,7 @@ class VyperType:
     """
 
     _id: str
-    _type_members: Optional[Dict]
+    _type_members: Optional[Dict] = None
     _valid_literal: Tuple = ()
     _as_array: bool = False
     _is_prim_word: bool = False
