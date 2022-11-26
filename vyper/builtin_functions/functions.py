@@ -84,6 +84,7 @@ from vyper.semantics.analysis.utils import (
     get_possible_types_from_node,
     validate_expected_type,
 )
+from vyper.semantics.analysis.base import VarInfo
 from vyper.semantics.types import (
     TYPE_T,
     AddressT,
@@ -2211,7 +2212,7 @@ else:
         # Create input variables.
         variables = {"x": VariableRecord(name="x", pos=new_var_pos, typ=x_type, mutable=False)}
         # Dictionary to update new (i.e. typecheck) namespace
-        variables_2 = {"x": DecimalT()}
+        variables_2 = {"x": VarInfo(DecimalT())}
         # Generate inline IR.
         new_ctx, sqrt_ir = generate_inline_function(
             code=sqrt_code,
