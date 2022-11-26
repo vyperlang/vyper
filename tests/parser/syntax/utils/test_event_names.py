@@ -2,7 +2,13 @@ import pytest
 from pytest import raises
 
 from vyper import compiler
-from vyper.exceptions import NamespaceCollision, StructureException, SyntaxException, UnknownType, InvalidType
+from vyper.exceptions import (
+    NamespaceCollision,
+    StructureException,
+    SyntaxException,
+    UnknownType,
+    InvalidType,
+)
 
 fail_list = [  # noqa: E122
     (

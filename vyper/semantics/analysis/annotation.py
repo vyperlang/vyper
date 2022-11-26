@@ -152,7 +152,9 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
                 self.visit(arg, typ)
         elif is_type_t(call_type, StructT):
             # struct ctors
-            for value, arg_type in zip(node.args[0].values, list(call_type.typedef.members.values())):
+            for value, arg_type in zip(
+                node.args[0].values, list(call_type.typedef.members.values())
+            ):
                 self.visit(value, arg_type)
         elif isinstance(call_type, MemberFunctionT):
             assert len(node.args) == len(call_type.arg_types)

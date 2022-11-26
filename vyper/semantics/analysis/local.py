@@ -517,6 +517,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         f.fetch_call_return(node.value)
         self.expr_visitor.visit(node.value)
 
+
 class _LocalExpressionVisitor(VyperNodeVisitorBase):
     ignored_types = (vy_ast.Constant, vy_ast.Name)
     scope_name = "function"
