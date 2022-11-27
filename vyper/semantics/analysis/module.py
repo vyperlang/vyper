@@ -2,7 +2,7 @@ import importlib
 import pkgutil
 from typing import Optional, Union
 
-import vyper.builtin_interfaces
+import vyper.builtins.interfaces
 from vyper import ast as vy_ast
 from vyper.exceptions import (
     CallViolation,
@@ -330,11 +330,11 @@ def _add_import(
 
 
 def _get_builtin_interfaces():
-    interface_names = [i.name for i in pkgutil.iter_modules(vyper.builtin_interfaces.__path__)]
+    interface_names = [i.name for i in pkgutil.iter_modules(vyper.builtins.interfaces.__path__)]
     return {
         name: {
             "type": "vyper",
-            "code": importlib.import_module(f"vyper.builtin_interfaces.{name}").interface_code,
+            "code": importlib.import_module(f"vyper.builtins.interfaces.{name}").interface_code,
         }
         for name in interface_names
     }

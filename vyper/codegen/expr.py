@@ -642,8 +642,8 @@ class Expr:
 
     # Function calls
     def parse_Call(self):
-        # TODO check out this inline import
-        from vyper.builtin_functions import DISPATCH_TABLE
+        # TODO fix cyclic import
+        from vyper.builtins.functions import DISPATCH_TABLE
 
         if isinstance(self.expr.func, vy_ast.Name):
             function_name = self.expr.func.id

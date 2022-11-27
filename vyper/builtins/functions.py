@@ -8,7 +8,6 @@ from vyper.abi_types import ABI_Tuple
 from vyper.address_space import MEMORY, STORAGE
 from vyper.ast.signatures.function_signature import VariableRecord
 from vyper.ast.validation import validate_call_args
-from vyper.builtin_functions.convert import convert
 from vyper.codegen.abi_encoder import abi_encode
 from vyper.codegen.context import Context
 from vyper.codegen.core import (
@@ -102,7 +101,8 @@ from vyper.utils import (
     vyper_warn,
 )
 
-from .signatures import BuiltinFunction, process_inputs
+from ._convert import convert
+from ._signatures import BuiltinFunction, process_inputs
 
 SHA256_ADDRESS = 2
 SHA256_BASE_GAS = 60
@@ -2165,8 +2165,8 @@ class Sqrt(BuiltinFunction):
 
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
-        # TODO check out this import
-        from vyper.builtin_functions.utils import generate_inline_function
+        # TODO fix cyclic dependency with codegen/stmt.py
+        from ._utils import generate_inline_function
 
         arg = args[0]
         # TODO: reify decimal and integer sqrt paths (see isqrt)

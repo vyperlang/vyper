@@ -26,7 +26,7 @@ class Namespace(dict):
         self._scopes = []
         # NOTE cyclic imports!
         # TODO: break this cycle by providing an `init_vyper_namespace` in 3rd module
-        from vyper.builtin_functions.functions import get_builtin_functions
+        from vyper.builtins.functions import get_builtin_functions
         from vyper.semantics import environment
         from vyper.semantics.analysis.base import VarInfo
         from vyper.semantics.types import get_types
