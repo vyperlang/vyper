@@ -195,8 +195,9 @@ class VyperType:
 
         Failed comparisons must return `False`, not raise an exception.
 
-        This method is not intended to be called directly. Type comparisons
-        are handled by methods in `vyper.context.validation.utils`
+        This method does *not* test for type equality, it is a type
+        checker function, it should have the meaning: "an expr of type
+        <other> can be assigned to an expr of type <self>."
 
         Arguments
         ---------
