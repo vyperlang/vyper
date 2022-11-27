@@ -73,12 +73,9 @@ class VyperType:
         return hash(self._get_equality_attrs())
 
     def __eq__(self, other):
-        return type(self) == type(other) and self._eq(other)
-
-    # for subclasses to override. customizable, return true if the
-    # properties on self and other are considered equal.
-    def _eq(self, other):
-        return self._get_equality_attrs() == other._get_equality_attrs()
+        return (
+            type(self) == type(other) and self._get_equality_attrs() == other._get_equality_attrs()
+        )
 
     @property
     def getter_signature(self):
