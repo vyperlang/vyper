@@ -137,20 +137,23 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
         node._metadata["type"] = node_type
         self.visit(node.func)
 
-        if isinstance(call_type, ContractFunction) and call_type.is_internal:
-            self.func.called_functions.add(call_type)
         if isinstance(call_type, ContractFunction):
-            # events and function calls
+            # function calls
+            if call_type.is_internal:
+                self.func.called_functions.add(call_type)
             for arg, typ in zip(node.args, list(call_type.arguments.values())):
                 self.visit(arg, typ)
             for kwarg in node.keywords:
                 # We should only see special kwargs
                 self.visit(kwarg.value, call_type.call_site_kwargs[kwarg.arg].typ)
+
         elif is_type_t(call_type, EventT):
+            # events have no kwargs
             for arg, typ in zip(node.args, list(call_type.typedef.arguments.values())):
                 self.visit(arg, typ)
         elif is_type_t(call_type, StructT):
             # struct ctors
+            # ctors have no kwargs
             for value, arg_type in zip(
                 node.args[0].values, list(call_type.typedef.members.values())
             ):

@@ -159,13 +159,6 @@ class VarInfo:
     VarInfo are objects that represent the type of a variable,
     plus associated metadata like location and constancy attributes
 
-    Class Attributes
-    -----------------
-    _is_callable : bool, optional
-        If `True`, attempts to assign this value without calling it will raise
-        a more expressive error message recommending that the user performs a
-        function call.
-
     Object Attributes
     -----------------
     is_constant : bool, optional
