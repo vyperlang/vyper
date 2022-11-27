@@ -96,6 +96,10 @@ class _SequenceT(_SubscriptableT):
 
     _equality_attrs: tuple = ("value_type", "length")
 
+    # keep LGTM linter happy
+    def __eq__(self, other):
+        return super().__eq__(other)
+
     def __init__(self, value_type: VyperType, length: int):
 
         if not 0 < length < 2 ** 256:
