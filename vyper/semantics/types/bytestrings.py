@@ -28,6 +28,10 @@ class _BytestringT(VyperType):
 
     _equality_attrs = ("_length", "_min_length")
 
+    # keep linter happy:
+    def __eq__(self, other):
+        return super().__eq__(self, other)
+
     def __init__(self, length: int = 0) -> None:
         super().__init__()
 

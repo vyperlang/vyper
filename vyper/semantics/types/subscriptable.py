@@ -20,6 +20,10 @@ class _SubscriptableT(VyperType):
         Type representing the value(s) contained in this object.
     """
 
+    # keep linter happy
+    def __eq__(self, other):
+        return super().__eq__(self, other)
+
     def __init__(self, key_type: VyperType, value_type: VyperType) -> None:
         super().__init__()
         self.key_type = key_type
@@ -259,12 +263,13 @@ class DArrayT(_SequenceT):
         return cls(value_type, max_length)
 
 
+# maybe this shouldn't inherit from SequenceT. it is more like a struct.
 class TupleT(_SequenceT):
     """
     Tuple type definition.
 
-    This class has no corresponding primitive. It is used to represent
-    multiple return values from `types.function.ContractFunction`.
+    This class is used to represent multiple return values from
+    functions.
     """
 
     _equality_attrs = ("value_type",)
