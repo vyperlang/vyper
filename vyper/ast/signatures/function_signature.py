@@ -78,6 +78,7 @@ class FrameInfo:
 
 
 # Function signature object
+# TODO: merge with ContractFunction type
 class FunctionSignature:
     def __init__(
         self,
