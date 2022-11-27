@@ -89,6 +89,7 @@ class _ExprAnalyser:
 
         if isinstance(node, vy_ast.Tuple):
             # always use the most restrictive location re: modification
+            # kludge! for validate_modification in local analysis of Assign
             types = [self.get_expr_info(n) for n in node.elements]
             location = sorted((i.location for i in types), key=lambda k: k.value)[-1]
             is_constant = any((getattr(i, "is_constant", False) for i in types))
