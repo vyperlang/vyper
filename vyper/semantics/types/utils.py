@@ -6,6 +6,8 @@ from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_sug
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.base import VyperType
 
+# TODO maybe this should be merged with .types/base.py
+
 
 def type_from_abi(abi_type: Dict) -> VyperType:
     """

@@ -123,6 +123,7 @@ class VyperType:
     # convenience method for erroring out of invalid ast ops
     def _raise_invalid_op(
         self,
+        # TODO maybe make these AST classes inherit from "HasOperator"
         node: Union[vy_ast.UnaryOp, vy_ast.BinOp, vy_ast.AugAssign, vy_ast.Compare, vy_ast.BoolOp],
     ) -> None:
         raise InvalidOperation(f"Cannot perform {node.op.description} on {self}", node)
