@@ -296,6 +296,7 @@ class TYPE_T:
     def __repr__(self):
         return f"type({self.typedef})"
 
+    # dispatch into ctor if it's called
     def fetch_call_return(self, node):
         if hasattr(self.typedef, "_ctor_call_return"):
             return self.typedef._ctor_call_return(node)
@@ -311,6 +312,8 @@ class TYPE_T:
             return self.typedef._ctor_kwarg_types(node)
         raise StructureException("Value is not callable", node)
 
+    # dispatch into get_type_member if it's dereferenced, ex.
+    # MyEnum.FOO
     def get_member(self, key, node):
         if hasattr(self.typedef, "get_type_member"):
             return self.typedef.get_type_member(key, node)
