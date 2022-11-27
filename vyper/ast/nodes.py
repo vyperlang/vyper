@@ -814,7 +814,6 @@ class Hex(Constant):
         if len(self.value) % 2:
             raise InvalidLiteral("Hex notation requires an even number of digits", self)
 
-    # unused so far, but maybe it will come in handy
     @property
     def n_nibbles(self):
         """
@@ -827,7 +826,7 @@ class Hex(Constant):
         """
         The number of bytes this hex value represents
         """
-        return (len(self.value) - 2) // 2
+        return self.n_nibbles // 2
 
 
 class Str(Constant):
