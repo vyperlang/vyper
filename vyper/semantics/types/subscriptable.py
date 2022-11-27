@@ -278,6 +278,10 @@ class TupleT(_SequenceT):
 
     _equality_attrs = ("value_type",)
 
+    # keep LGTM linter happy
+    def __eq__(self, other):
+        return super().__eq__(other)
+
     def __init__(self, value_type: Tuple[VyperType, ...]) -> None:
         # TODO: fix the typing here.
         super().__init__(value_type, len(value_type))  # type: ignore
