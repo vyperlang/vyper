@@ -1,5 +1,5 @@
 from . import primitives, subscriptable, user
-from .base import TYPE_T, KwargSettings, VyperType
+from .base import TYPE_T, KwargSettings, VyperType, is_type_t
 from .bytestrings import BytesT, StringT
 from .primitives import AddressT, BoolT, BytesM_T, DecimalT, IntegerT
 from .subscriptable import DArrayT, HashMapT, SArrayT, TupleT
