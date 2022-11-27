@@ -7,10 +7,14 @@ from .user import EnumT, EventT, InterfaceT, StructT
 
 
 def get_primitive_types():
-    res = [AddressT(), BoolT(), DecimalT()]
+    res = [BoolT(), DecimalT()]
 
     res.extend(IntegerT.all())
     res.extend(BytesM_T.all())
+
+    # order of the types matters!
+    # parsing of literal hex: prefer address over bytes20
+    res.append(AddressT())
 
     # note: since bytestrings are parametrizable, the *class* objects
     # are in the namespace instead of concrete type objects.
