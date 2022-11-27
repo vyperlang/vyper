@@ -166,7 +166,7 @@ class GlobalContext:
             is_immutable=is_immutable,
         )
 
-        # hack. fix me
+        # hack. fix me -- merge GlobalContext with semantics pass ModuleInfo
         self._globals[item.target.id]._varinfo = item.target._metadata["varinfo"]
 
     @property

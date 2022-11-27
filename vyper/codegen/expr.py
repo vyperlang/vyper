@@ -182,6 +182,7 @@ class Expr:
                 mutable=var.mutable,
             )
 
+        # TODO: use self.expr._expr_info
         elif self.expr.id in self.context.globals:
             var = self.context.globals[self.expr.id]
             varinfo = var._varinfo
