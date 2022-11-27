@@ -1,9 +1,8 @@
 from typing import Dict
 
 from vyper.semantics.analysis.base import VarInfo
-from vyper.semantics.types import AddressT, BytesT
-from vyper.semantics.types.base import VyperType
-from vyper.semantics.types.primitives import BYTES32_T, UINT256_T
+from vyper.semantics.types import AddressT, BytesT, VyperType
+from vyper.semantics.types.shortcuts import BYTES32_T, UINT256_T
 
 
 # common properties for environment variables
