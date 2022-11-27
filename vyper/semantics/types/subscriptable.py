@@ -20,9 +20,9 @@ class _SubscriptableT(VyperType):
         Type representing the value(s) contained in this object.
     """
 
-    # keep linter happy
+    # keep LGTM linter happy
     def __eq__(self, other):
-        return super().__eq__(self, other)
+        return super().__eq__(other)
 
     def __init__(self, key_type: VyperType, value_type: VyperType) -> None:
         super().__init__()

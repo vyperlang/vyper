@@ -554,9 +554,9 @@ class MemberFunctionT(VyperType):
 
     _is_callable = True
 
-    # keep linter happy
+    # keep LGTM linter happy
     def __eq__(self, other):
-        return super().__eq__(self, other)
+        return super().__eq__(other)
 
     def __init__(
         self,
