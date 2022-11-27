@@ -172,7 +172,9 @@ class _ExprAnalyser:
         try:
             s = t.get_member(name, node)
             if isinstance(s, VyperType):
+                # ex. foo.bar(). bar() is a ContractFunction
                 return [s]
+            # general case. s is a VarInfo, e.g. self.foo
             return [s.typ]
         except UnknownAttribute:
             if node.get("value.id") != "self":
