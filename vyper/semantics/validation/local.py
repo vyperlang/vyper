@@ -203,14 +203,20 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             node_list.extend(standalone_self)  # type: ignore
 
             # Add references to builtin functions reading from the chain's state
-            builtin_fns = fn_node.get_descendants(vy_ast.Name, {"id": "blockhash"})
+            # TODO Fix circular import
+            from vyper.builtin_functions.functions import BUILTIN_FUNCTIONS
+            builtin_fns = fn_node.get_descendants(vy_ast.Name, {"id": set(BUILTIN_FUNCTIONS)})
+
             node_list.extend(builtin_fns)  # type: ignore
 
             for node in node_list:
                 t = node._metadata.get("type")
-                if isinstance(t, ContractFunction) and t.mutability == StateMutability.PURE:
+                # TODO Fix circular import
+                from vyper.builtin_functions.signatures import BuiltinFunction
+                if isinstance(t, (BuiltinFunction, ContractFunction)) and t.mutability == StateMutability.PURE:
                     # allowed
                     continue
+
                 raise StateAccessViolation(
                     "not allowed to query contract or environment variables in pure functions",
                     node_list[0],

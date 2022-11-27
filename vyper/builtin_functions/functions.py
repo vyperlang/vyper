@@ -82,6 +82,7 @@ from vyper.semantics.types.abstract import (
     UnsignedIntegerAbstractType,
 )
 from vyper.semantics.types.bases import DataLocation
+from vyper.semantics.types.function import StateMutability
 from vyper.semantics.types.utils import KwargSettings, TypeTypeDefinition, get_type_from_annotation
 from vyper.semantics.types.value.address import AddressDefinition
 from vyper.semantics.types.value.array_value import (
@@ -1293,6 +1294,7 @@ class BlockHash(BuiltinFunction):
     _id = "blockhash"
     _inputs = [("block_num", Uint256Definition())]
     _return_type = Bytes32Definition()
+    mutability = StateMutability.VIEW
 
     @process_inputs
     def build_IR(self, expr, args, kwargs, contact):

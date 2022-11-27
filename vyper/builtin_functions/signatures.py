@@ -14,6 +14,7 @@ from vyper.semantics.types import (
     StructDefinition,
     ValueTypeDefinition,
 )
+from vyper.semantics.types.function import StateMutability
 from vyper.semantics.types.utils import KwargSettings, TypeTypeDefinition, get_type_from_annotation
 from vyper.semantics.validation.utils import get_exact_type_from_node, validate_expected_type
 
@@ -87,6 +88,7 @@ class BuiltinFunction:
 
     _has_varargs = False
     _kwargs: Dict[str, KwargSettings] = {}
+    mutability = StateMutability.PURE
 
     # helper function to deal with TYPE_DEFINITIONs
     def _validate_single(self, arg, expected_type):
