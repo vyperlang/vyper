@@ -263,6 +263,9 @@ class DArrayT(_SequenceT):
 
         value_type = type_from_annotation(node.slice.value.elements[0])
 
+        if not value_type._as_array:
+            raise StructureException(f"arrays of {value_type} are not allowed!")
+
         max_length = node.slice.value.elements[1].value
         return cls(value_type, max_length)
 
