@@ -2,7 +2,7 @@ import vyper.codegen.events as events
 import vyper.utils as util
 from vyper import ast as vy_ast
 from vyper.address_space import MEMORY, STORAGE
-from vyper.builtin_functions import STMT_DISPATCH_TABLE
+from vyper.builtins.functions import STMT_DISPATCH_TABLE
 from vyper.codegen import external_call, self_call
 from vyper.codegen.context import Constancy, Context
 from vyper.codegen.core import (
