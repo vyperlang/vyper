@@ -64,7 +64,7 @@ from vyper.exceptions import (
     UnfoldableNode,
     ZeroDivisionException,
 )
-from vyper.semantics.analysis.base import VarInfo
+from vyper.semantics.analysis.base import StateMutability, VarInfo
 from vyper.semantics.analysis.utils import (
     get_common_types,
     get_exact_type_from_node,
@@ -1275,6 +1275,7 @@ class BlockHash(BuiltinFunction):
     _id = "blockhash"
     _inputs = [("block_num", UINT256_T)]
     _return_type = BYTES32_T
+    mutability = StateMutability.VIEW
 
     @process_inputs
     def build_IR(self, expr, args, kwargs, contact):
@@ -1479,8 +1480,8 @@ class Shift(BuiltinFunction):
         value, shift = [i.value for i in node.args]
         if value < 0 or value >= 2 ** 256:
             raise InvalidLiteral("Value out of range for uint256", node.args[0])
-        if shift < -(2 ** 127) or shift >= 2 ** 127:
-            raise InvalidLiteral("Value out of range for int128", node.args[1])
+        if shift < -255 or shift > 255:
+            raise InvalidLiteral(f"Shift must be between -255 and 255", node.args[1])
 
         if shift < 0:
             value = value >> -shift
