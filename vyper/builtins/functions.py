@@ -64,7 +64,7 @@ from vyper.exceptions import (
     UnfoldableNode,
     ZeroDivisionException,
 )
-from vyper.semantics.analysis.base import VarInfo
+from vyper.semantics.analysis.base import StateMutability, VarInfo
 from vyper.semantics.analysis.utils import (
     get_common_types,
     get_exact_type_from_node,

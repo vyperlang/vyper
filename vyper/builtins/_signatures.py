@@ -7,6 +7,7 @@ from vyper.codegen.expr import Expr
 from vyper.codegen.ir_node import IRnode
 from vyper.codegen.types.convert import new_type_to_old_type
 from vyper.exceptions import CompilerPanic, TypeMismatch
+from vyper.semantics.analysis.base import StateMutability
 from vyper.semantics.analysis.utils import get_exact_type_from_node, validate_expected_type
 from vyper.semantics.types import TYPE_T, KwargSettings, VyperType
 from vyper.semantics.types.utils import type_from_annotation

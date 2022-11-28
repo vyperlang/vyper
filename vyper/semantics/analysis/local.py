@@ -202,7 +202,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
 
             # Add references to builtin functions reading from the chain's state
             # TODO Fix circular import
-            from vyper.builtin_functions.functions import BUILTIN_FUNCTIONS
+            from vyper.builtins.functions import BUILTIN_FUNCTIONS
 
             builtin_fns = fn_node.get_descendants(vy_ast.Name, {"id": set(BUILTIN_FUNCTIONS)})
 
@@ -211,7 +211,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             for node in node_list:
                 t = node._metadata.get("type")
                 # TODO Fix circular import
-                from vyper.builtin_functions.signatures import BuiltinFunction
+                from vyper.builtins.signatures import BuiltinFunction
 
                 if (
                     isinstance(t, (BuiltinFunction, ContractFunction))
