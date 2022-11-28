@@ -1481,7 +1481,7 @@ class Shift(BuiltinFunction):
         if value < 0 or value >= 2 ** 256:
             raise InvalidLiteral("Value out of range for uint256", node.args[0])
         if shift < -255 or shift > 255:
-            raise InvalidLiteral(f"Shift must be between -255 and 255", node.args[1])
+            raise InvalidLiteral("Shift must be between -255 and 255", node.args[1])
 
         if shift < 0:
             value = value >> -shift
