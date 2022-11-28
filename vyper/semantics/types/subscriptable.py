@@ -264,7 +264,7 @@ class DArrayT(_SequenceT):
         value_type = type_from_annotation(node.slice.value.elements[0])
 
         if isinstance(value_type, HashMapT):
-            raise StructureException(f"arrays of maps are not allowed!")
+            raise StructureException("Arrays of maps are not allowed!")
 
         max_length = node.slice.value.elements[1].value
         return cls(value_type, max_length)
