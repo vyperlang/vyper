@@ -211,7 +211,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             for node in node_list:
                 t = node._metadata.get("type")
                 # TODO Fix circular import
-                from vyper.builtins.signatures import BuiltinFunction
+                from vyper.builtins._signatures import BuiltinFunction
 
                 if (
                     isinstance(t, (BuiltinFunction, ContractFunction))
