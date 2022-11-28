@@ -1,7 +1,7 @@
 import pytest
 
 from vyper.ast.folding import BUILTIN_CONSTANTS
-from vyper.builtin_functions import BUILTIN_FUNCTIONS
+from vyper.builtins.functions import BUILTIN_FUNCTIONS
 from vyper.codegen.expr import ENVIRONMENT_VARIABLES
 from vyper.exceptions import NamespaceCollision, StructureException, SyntaxException
 from vyper.semantics.namespace import RESERVED_KEYWORDS

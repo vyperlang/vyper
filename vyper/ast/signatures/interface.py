@@ -3,21 +3,23 @@
 import importlib
 import pkgutil
 
-import vyper.builtin_interfaces
+import vyper.builtins.interfaces
 from vyper import ast as vy_ast
 from vyper.ast.signatures.function_signature import FunctionSignature
 from vyper.codegen.global_context import GlobalContext
+from vyper.codegen.types import BYTES_M_TYPES, INTEGER_TYPES
 from vyper.exceptions import StructureException
 
 
 # Populate built-in interfaces.
+# NOTE: code duplication with vyper/semantics/analysis/module.py
 def get_builtin_interfaces():
-    interface_names = [x.name for x in pkgutil.iter_modules(vyper.builtin_interfaces.__path__)]
+    interface_names = [x.name for x in pkgutil.iter_modules(vyper.builtins.interfaces.__path__)]
     return {
         name: extract_sigs(
             {
                 "type": "vyper",
-                "code": importlib.import_module(f"vyper.builtin_interfaces.{name}").interface_code,
+                "code": importlib.import_module(f"vyper.builtins.interfaces.{name}").interface_code,
             },
             name,
         )
@@ -26,7 +28,7 @@ def get_builtin_interfaces():
 
 
 def abi_type_to_ast(atype, expected_size):
-    if atype in ("int128", "uint256", "bool", "address", "bytes32"):
+    if atype in {"address", "bool"} | BYTES_M_TYPES | INTEGER_TYPES:
         return vy_ast.Name(id=atype)
     elif atype == "fixed168x10":
         return vy_ast.Name(id="decimal")

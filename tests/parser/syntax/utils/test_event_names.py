@@ -2,7 +2,7 @@ import pytest
 from pytest import raises
 
 from vyper import compiler
-from vyper.exceptions import NamespaceCollision, StructureException, SyntaxException, UnknownType
+from vyper.exceptions import InvalidType, NamespaceCollision, StructureException, SyntaxException
 
 fail_list = [  # noqa: E122
     (
@@ -83,7 +83,7 @@ event Transfer:
     _to: indexed(address)
     lue: uint256
     """,
-        UnknownType,
+        InvalidType,
     ),
 ]
 

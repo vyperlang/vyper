@@ -2,7 +2,7 @@ import vyper.codegen.events as events
 import vyper.utils as util
 from vyper import ast as vy_ast
 from vyper.address_space import MEMORY, STORAGE
-from vyper.builtin_functions import STMT_DISPATCH_TABLE
+from vyper.builtins.functions import STMT_DISPATCH_TABLE
 from vyper.codegen import external_call, self_call
 from vyper.codegen.context import Constancy, Context
 from vyper.codegen.core import (
@@ -190,7 +190,7 @@ class Stmt:
             instantiate_msg = msg_ir
 
         # offset of bytes in (bytes,)
-        method_id = util.abi_method_id("Error(string)")
+        method_id = util.method_id_int("Error(string)")
 
         # abi encode method_id + bytestring
         assert buf >= 36, "invalid buffer"

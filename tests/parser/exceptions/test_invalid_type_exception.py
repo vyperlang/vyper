@@ -10,12 +10,6 @@ x: bat
 x: HashMap[int, int128]
     """,
     """
-x: [bar, baz]
-    """,
-    """
-x: [bar(int128), baz(baffle)]
-    """,
-    """
 struct A:
     b: B
     """,
@@ -68,6 +62,15 @@ b: HashMap[(int128, decimal), int128]
     # Address literal must be checksummed
     """
 a: constant(address) = 0x3cd751e6b0078be393132286c442345e5dc49699
+    """,
+    """
+x: String <= 33
+    """,
+    """
+x: Bytes <= wei
+    """,
+    """
+x: 5
     """,
 ]
 

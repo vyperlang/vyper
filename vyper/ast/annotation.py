@@ -1,7 +1,7 @@
 import ast as python_ast
 import tokenize
 from decimal import Decimal
-from typing import Optional
+from typing import Optional, cast
 
 import asttokens
 
@@ -274,7 +274,7 @@ def annotate_python_ast(
         The annotated and optimized AST.
     """
 
-    tokens = asttokens.ASTTokens(source_code, tree=parsed_ast)
+    tokens = asttokens.ASTTokens(source_code, tree=cast(Optional[python_ast.Module], parsed_ast))
     visitor = AnnotatingVisitor(source_code, modification_offsets, tokens, source_id, contract_name)
     visitor.visit(parsed_ast)
 
