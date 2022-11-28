@@ -1,19 +1,19 @@
 import pytest
 
-from vyper.exceptions import InvalidType
+from vyper.exceptions import StructureException
 
 fail_list = [
     (
         """
 foo: DynArray[HashMap[uint8, uint8], 2]
     """,
-        InvalidType,
+        StructureException,
     ),
     (
         """
 foo: public(DynArray[HashMap[uint8, uint8], 2])
     """,
-        InvalidType,
+        StructureException,
     ),
 ]
 
