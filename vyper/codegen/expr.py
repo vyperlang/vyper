@@ -36,7 +36,6 @@ from vyper.codegen.types import (
 from vyper.codegen.types.convert import new_type_to_old_type
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
-    CompilerPanic,
     EvmVersionException,
     StructureException,
     TypeCheckFailure,
@@ -80,10 +79,8 @@ class Expr:
         self.ir_node.source_pos = getpos(self.expr)
 
     def parse_Int(self):
-        typ_ = self.expr._metadata.get("type")
-        if typ_ is None:
-            raise CompilerPanic("Type of integer literal is unknown")
-        new_typ = new_type_to_old_type(typ_)
+        typ = self.expr._metadata["type"]
+        new_typ = new_type_to_old_type(typ)
         new_typ.is_literal = True
         return IRnode.from_list(self.expr.n, typ=new_typ)
 
@@ -185,9 +182,14 @@ class Expr:
                 mutable=var.mutable,
             )
 
-        elif self.expr._metadata["type"].is_immutable:
+        # TODO: use self.expr._expr_info
+        elif self.expr.id in self.context.globals:
             var = self.context.globals[self.expr.id]
-            ofst = self.expr._metadata["type"].position.offset
+            varinfo = var._varinfo
+            if not varinfo.is_immutable:
+                return  # fail
+
+            ofst = varinfo.position.offset
 
             if self.context.sig.is_init_func:
                 mutable = True
@@ -259,10 +261,10 @@ class Expr:
                 return IRnode.from_list(["~extcode", addr], typ=ByteArrayType(0))
         # self.x: global attribute
         elif isinstance(self.expr.value, vy_ast.Name) and self.expr.value.id == "self":
-            type_ = self.expr._metadata["type"]
             var = self.context.globals[self.expr.attr]
+            varinfo = var._varinfo
             return IRnode.from_list(
-                type_.position.position,
+                varinfo.position.position,
                 typ=var.typ,
                 location=STORAGE,
                 annotation="self." + self.expr.attr,
@@ -641,8 +643,8 @@ class Expr:
 
     # Function calls
     def parse_Call(self):
-        # TODO check out this inline import
-        from vyper.builtin_functions import DISPATCH_TABLE
+        # TODO fix cyclic import
+        from vyper.builtins.functions import DISPATCH_TABLE
 
         if isinstance(self.expr.func, vy_ast.Name):
             function_name = self.expr.func.id

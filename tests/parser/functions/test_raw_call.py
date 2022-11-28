@@ -1,7 +1,7 @@
 import pytest
 from hexbytes import HexBytes
 
-from vyper.builtin_functions import eip1167_bytecode
+from vyper.builtins.functions import eip1167_bytecode
 from vyper.exceptions import ArgumentException, InvalidType, StateAccessViolation
 
 pytestmark = pytest.mark.usefixtures("memory_mocker")
