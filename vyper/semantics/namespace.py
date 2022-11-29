@@ -8,7 +8,7 @@ from vyper.exceptions import (
     StructureException,
     UndeclaredDefinition,
 )
-from vyper.semantics.validation.levenshtein_utils import get_levenshtein_error_suggestions
+from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
 
 
 class Namespace(dict):
@@ -25,13 +25,15 @@ class Namespace(dict):
         super().__init__()
         self._scopes = []
         # NOTE cyclic imports!
-        from vyper.builtin_functions.functions import get_builtin_functions
+        # TODO: break this cycle by providing an `init_vyper_namespace` in 3rd module
+        from vyper.builtins.functions import get_builtin_functions
         from vyper.semantics import environment
+        from vyper.semantics.analysis.base import VarInfo
         from vyper.semantics.types import get_types
 
         self.update(get_types())
         self.update(environment.get_constant_vars())
-        self.update(get_builtin_functions())
+        self.update({k: VarInfo(b) for (k, b) in get_builtin_functions().items()})
 
     def __eq__(self, other):
         return self is other
@@ -40,6 +42,7 @@ class Namespace(dict):
         if self._scopes:
             self.validate_assignment(attr)
             self._scopes[-1].add(attr)
+        assert isinstance(attr, str), f"not a string: {attr}"
         super().__setitem__(attr, obj)
 
     def __getitem__(self, key):
@@ -137,6 +140,11 @@ RESERVED_KEYWORDS = {
     "internal",
     "payable",
     "nonreentrant",
+    # "class" keywords
+    "interface",
+    "struct",
+    "event",
+    "enum",
     # control flow
     "if",
     "for",

@@ -1,7 +1,7 @@
 import pytest
 
 from vyper import compiler
-from vyper.exceptions import StructureException
+from vyper.exceptions import InvalidType, StructureException
 
 fail_list = [
     """
@@ -12,6 +12,12 @@ send(0x1234567890123456789012345678901234567890, 5)
     """,
     """
 send(0x1234567890123456789012345678901234567890, 5)
+    """,
+    """
+x: [bar, baz]
+    """,
+    """
+x: [bar(int128), baz(baffle)]
     """,
     """
 x: int128
@@ -56,15 +62,6 @@ def double_nonreentrant():
     pass
     """,
     """
-x: 5
-    """,
-    """
-x: Bytes <= wei
-    """,
-    """
-x: String <= 33
-    """,
-    """
 CALLDATACOPY: int128
     """,
     """
@@ -82,7 +79,7 @@ n: HashMap[uint256, bool][3]
     """,
     """
 a: constant(uint256) = 3
-n: public(HashMap[uint256, Y][a])
+n: public(HashMap[uint256, uint256][a])
     """,
     """
 a: immutable(uint256)
@@ -115,7 +112,7 @@ def __init__():
 
 @pytest.mark.parametrize("bad_code", fail_list)
 def test_invalid_type_exception(bad_code):
-    with pytest.raises(StructureException):
+    with pytest.raises((StructureException, InvalidType)):
         compiler.compile_code(bad_code)
 
 
