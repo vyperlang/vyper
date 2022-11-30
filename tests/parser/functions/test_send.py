@@ -57,6 +57,7 @@ def __default__():
     assert w3.eth.get_balance(sender.address) == 0
     assert w3.eth.get_balance(receiver.address) == 1
 
+
 def test_gas_kwarg(get_contract, w3):
     """
     Tests to verify that send to default function will send limited gas (2300),
