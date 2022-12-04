@@ -104,3 +104,43 @@ def ceil_param(p: decimal) -> int256:
     assert c.fou() == -3
     assert c.ceil_param(Decimal("-0.5")) == 0
     assert c.ceil_param(Decimal("-7777777.7777777")) == -7777777
+
+
+def test_ceil_ext_call(get_contract_with_gas_estimation):
+    code1 = """
+@external
+def bar() -> decimal:
+    return 2.5
+    """
+
+    code2 = """
+@external
+def foo(addr: address) -> int256:
+    a: Foo = Foo(addr)
+
+    return ceil(a.bar())
+
+interface Foo:
+    def bar() -> decimal: nonpayable
+    """
+
+    c1 = get_contract_with_gas_estimation(code1)
+    c2 = get_contract_with_gas_estimation(code2)
+
+    assert c2.foo(c1.address) == 3
+
+
+def test_ceil_internal_call(get_contract_with_gas_estimation):
+    code = """
+@external
+def foo() -> int256:
+    return ceil(self.bar())
+
+@internal
+def bar() -> decimal:
+    return 2.5
+    """
+
+    c = get_contract_with_gas_estimation(code)
+
+    assert c.foo() == 3
