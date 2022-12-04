@@ -1065,34 +1065,36 @@ class AsWeiValue(BuiltinFunction):
         value = args[0]
 
         denom_divisor = self.get_denomination(expr)
-        if value.typ.typ == "uint256" or value.typ.typ == "uint8":
-            sub = [
-                "with",
-                "ans",
-                ["mul", value, denom_divisor],
-                [
-                    "seq",
-                    [
-                        "assert",
-                        ["or", ["eq", ["div", "ans", value], denom_divisor], ["iszero", value]],
-                    ],
-                    "ans",
-                ],
-            ]
-        elif value.typ.typ == "int128":
-            # signed types do not require bounds checks because the
-            # largest possible converted value will not overflow 2**256
-            sub = ["seq", ["assert", ["sgt", value, -1]], ["mul", value, denom_divisor]]
-        elif value.typ.typ == "decimal":
-            sub = [
-                "seq",
-                ["assert", ["sgt", value, -1]],
-                ["div", ["mul", value, denom_divisor], DECIMAL_DIVISOR],
-            ]
-        else:
-            raise CompilerPanic(f"Unexpected type: {value.typ.typ}")
 
-        return IRnode.from_list(sub, typ=BaseType("uint256"))
+        with value.cache_when_complex("value") as (b1, value):
+            if value.typ.typ == "uint256" or value.typ.typ == "uint8":
+                sub = [
+                    "with",
+                    "ans",
+                    ["mul", value, denom_divisor],
+                    [
+                        "seq",
+                        [
+                            "assert",
+                            ["or", ["eq", ["div", "ans", value], denom_divisor], ["iszero", value]],
+                        ],
+                        "ans",
+                    ],
+                ]
+            elif value.typ.typ == "int128":
+                # signed types do not require bounds checks because the
+                # largest possible converted value will not overflow 2**256
+                sub = ["seq", ["assert", ["sgt", value, -1]], ["mul", value, denom_divisor]]
+            elif value.typ.typ == "decimal":
+                sub = [
+                    "seq",
+                    ["assert", ["sgt", value, -1]],
+                    ["div", ["mul", value, denom_divisor], DECIMAL_DIVISOR],
+                ]
+            else:
+                raise CompilerPanic(f"Unexpected type: {value.typ.typ}")
+
+            return IRnode.from_list(b1.resolve(sub), typ=BaseType("uint256"))
 
 
 zero_value = IRnode.from_list(0, typ=BaseType("uint256"))
