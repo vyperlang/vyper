@@ -153,15 +153,18 @@ class Floor(BuiltinFunction):
 
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
-        return IRnode.from_list(
-            [
-                "if",
-                ["slt", args[0], 0],
-                ["sdiv", ["sub", args[0], DECIMAL_DIVISOR - 1], DECIMAL_DIVISOR],
-                ["sdiv", args[0], DECIMAL_DIVISOR],
-            ],
-            typ=BaseType("int256"),
-        )
+        arg = args[0]
+        with arg.cache_when_complex("arg") as (b1, arg):
+            ret = IRnode.from_list(
+                [
+                    "if",
+                    ["slt", arg, 0],
+                    ["sdiv", ["sub", arg, DECIMAL_DIVISOR - 1], DECIMAL_DIVISOR],
+                    ["sdiv", arg, DECIMAL_DIVISOR],
+                ],
+                typ=BaseType("int256"),
+            )
+            return b1.resolve(ret)
 
 
 class Ceil(BuiltinFunction):

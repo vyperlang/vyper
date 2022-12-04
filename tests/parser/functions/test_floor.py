@@ -108,3 +108,43 @@ def floor_param(p: decimal) -> int256:
     assert c.fou() == -4
     assert c.floor_param(Decimal("-5.6")) == -6
     assert c.floor_param(Decimal("-0.0000000001")) == -1
+
+
+def test_floor_ext_call(get_contract_with_gas_estimation):
+    code1 = """
+@external
+def bar() -> decimal:
+    return 2.5
+    """
+
+    code2 = """
+@external
+def foo(addr: address) -> int256:
+    a: Foo = Foo(addr)
+
+    return floor(a.bar())
+
+interface Foo:
+    def bar() -> decimal: nonpayable
+    """
+
+    c1 = get_contract_with_gas_estimation(code1)
+    c2 = get_contract_with_gas_estimation(code2)
+
+    assert c2.foo(c1.address) == 2
+
+
+def test_floor_internal_call(get_contract_with_gas_estimation):
+    code = """
+@external
+def foo() -> int256:
+    return floor(self.bar())
+
+@internal
+def bar() -> decimal:
+    return 2.5
+    """
+
+    c = get_contract_with_gas_estimation(code)
+
+    assert c.foo() == 2
