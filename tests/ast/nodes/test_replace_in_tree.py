@@ -58,16 +58,6 @@ def test_parents_children():
     assert new_node in test_tree.get_descendants()
 
 
-def test_node_does_not_exist():
-    test_tree = vy_ast.parse_to_ast("foo = 42")
-    old_node = test_tree.body[0].target
-
-    new_node = vy_ast.parse_to_ast("42").body[0].value
-
-    with pytest.raises(CompilerPanic):
-        test_tree.replace_in_tree(new_node, old_node)
-
-
 def test_cannot_replace_twice():
     test_tree = vy_ast.parse_to_ast("foo = 42")
     old_node = test_tree.body[0].target

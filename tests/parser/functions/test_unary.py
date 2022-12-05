@@ -49,8 +49,8 @@ def negate(a: decimal) -> decimal:
 
 def test_negation_decimal(get_contract):
     code = """
-a: constant(decimal) = 170141183460469231731687303715884105726.9999999999
-b: constant(decimal) = -170141183460469231731687303715884105726.9999999999
+a: constant(decimal) = 18707220957835557353007165858768422651595.9365500927
+b: constant(decimal) = -18707220957835557353007165858768422651595.9365500927
 
 @external
 def foo() -> decimal:
@@ -62,8 +62,8 @@ def bar() -> decimal:
     """
 
     c = get_contract(code)
-    assert c.foo() == Decimal("-170141183460469231731687303715884105726.9999999999")
-    assert c.bar() == Decimal("170141183460469231731687303715884105726.9999999999")
+    assert c.foo() == Decimal("-18707220957835557353007165858768422651595.9365500927")
+    assert c.bar() == Decimal("18707220957835557353007165858768422651595.9365500927")
 
 
 def test_negation_int128(get_contract):

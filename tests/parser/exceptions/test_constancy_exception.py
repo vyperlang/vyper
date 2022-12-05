@@ -46,7 +46,7 @@ def foo() -> int128:
 @external
 @view
 def foo() -> int128:
-    x: address = create_forwarder_to(0x1234567890123456789012345678901234567890, value=9)
+    x: address = create_minimal_proxy_to(0x1234567890123456789012345678901234567890, value=9)
     return 5""",
         # test constancy in range expressions
         """
@@ -99,7 +99,7 @@ def test_statefulness_violations(bad_code):
         """
 @external
 def foo(x: int128):
-    x = 5""",
+    x = 5"""
     ],
 )
 def test_immutability_violations(bad_code):

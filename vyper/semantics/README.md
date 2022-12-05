@@ -24,7 +24,7 @@ Vyper abstract syntax tree (AST).
     * [`numeric.py`](types/value/numeric.py): Integer and decimal types
   * [`abstract.py`](types/abstract.py): Abstract data type classes
   * [`bases.py`](types/bases.py): Common base classes for all type objects
-  * [`event.py`](types/event.py): `Event` type class
+  * [`event.py`](types/user/event.py): `Event` type class
   * [`function.py`](types/function.py): `ContractFunction` type class
   * [`utils.py`](types/utils.py): Functions for generating and fetching type objects
 * [`validation/`](validation): Subpackage for type checking and syntax verification logic
@@ -34,7 +34,6 @@ Vyper abstract syntax tree (AST).
   * [`utils.py`](validation/utils.py): Functions for comparing and validating types
 * [`environment.py`](environment.py): Environment variables and builtin constants
 * [`namespace.py`](namespace.py): `Namespace` object, a `dict` subclass representing the namespace of a contract
-* [`utils.py`](utils.py): Misc. functionality related to validation and comparison
 
 ## Control Flow
 
@@ -53,7 +52,7 @@ Builtins are added upon initialization of the object. This includes:
 
 * Adding primitive type classes from the [`types/`](types) subpackage
 * Adding environment variables and builtin constants from [`environment.py`](environment.py)
-* Adding builtin functions from the [`functions`](../functions/functions.py) package
+* Adding builtin functions from the [`functions`](../builtins/functions.py) package
 * Adding / resetting `self` and `log`
 
 ### 2. Validating the Module Scope

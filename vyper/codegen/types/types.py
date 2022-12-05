@@ -3,7 +3,8 @@ import copy
 import re
 from collections import OrderedDict
 from dataclasses import dataclass
-from typing import Any
+from decimal import Decimal
+from typing import Any, Tuple
 
 from vyper import ast as vy_ast
 from vyper.abi_types import (
@@ -20,7 +21,18 @@ from vyper.abi_types import (
     ABIType,
 )
 from vyper.exceptions import ArgumentException, CompilerPanic, InvalidType
-from vyper.utils import BASE_TYPES, ceil32
+from vyper.utils import ceil32, int_bounds
+
+# Available base types
+UNSIGNED_INTEGER_TYPES = {f"uint{8*(i+1)}" for i in range(32)}
+SIGNED_INTEGER_TYPES = {f"int{8*(i+1)}" for i in range(32)}
+INTEGER_TYPES = UNSIGNED_INTEGER_TYPES | SIGNED_INTEGER_TYPES
+
+BYTES_M_TYPES = {f"bytes{i+1}" for i in range(32)}
+DECIMAL_TYPES = {"decimal"}
+
+
+BASE_TYPES = INTEGER_TYPES | BYTES_M_TYPES | DECIMAL_TYPES | {"bool", "address"}
 
 
 # Data structure for a type
@@ -54,6 +66,8 @@ class NodeType(abc.ABC):
 
     @property
     def storage_size_in_words(self) -> int:
+        # consider renaming if other word-addressable address spaces are
+        # added to EVM or exist in other arches
         """
         Returns the number of words required to allocate in storage for this type
         """
@@ -63,10 +77,51 @@ class NodeType(abc.ABC):
         return r // 32
 
 
+# helper functions for handling old base types which are just strings
+# in the future these can be reified with new type system
+
+
 @dataclass
-class IntegerTypeInfo:
-    is_signed: bool
+class NumericTypeInfo:
     bits: int
+    is_signed: bool
+
+    @property
+    def bounds(self) -> Tuple[int, int]:
+        # The bounds of this type
+        # (note behavior for decimal: int value in IR land,
+        # rather than Decimal value in Python land)
+        return int_bounds(signed=self.is_signed, bits=self.bits)
+
+
+@dataclass
+class IntegerTypeInfo(NumericTypeInfo):
+    pass
+
+
+@dataclass
+class DecimalTypeInfo(NumericTypeInfo):
+    decimals: int
+
+    @property
+    def divisor(self) -> int:
+        return 10 ** self.decimals
+
+    @property
+    def epsilon(self) -> Decimal:
+        return 1 / Decimal(self.divisor)
+
+    @property
+    def decimal_bounds(self) -> Tuple[Decimal, Decimal]:
+        lo, hi = self.bounds
+        DIVISOR = Decimal(self.divisor)
+        return lo / DIVISOR, hi / DIVISOR
+
+
+@dataclass
+class BytesMTypeInfo:
+    m: int
+    m_bits: int  # m_bits == m * 8, just convenient to have
 
 
 _int_parser = re.compile("^(u?)int([0-9]+)$")
@@ -76,30 +131,51 @@ def is_integer_type(t: "NodeType") -> bool:
     return isinstance(t, BaseType) and _int_parser.fullmatch(t.typ) is not None
 
 
+# TODO maybe move this to vyper.utils
 def parse_integer_typeinfo(typename: str) -> IntegerTypeInfo:
     t = _int_parser.fullmatch(typename)
     if not t:
         raise InvalidType(f"Invalid integer type {typename}")  # pragma: notest
 
-    return IntegerTypeInfo(
-        is_signed=t.group(1) != "u",
-        bits=int(t.group(2)),
-    )
+    return IntegerTypeInfo(is_signed=t.group(1) != "u", bits=int(t.group(2)))
+
+
+def is_bytes_m_type(t: "NodeType") -> bool:
+    return isinstance(t, BaseType) and t.typ.startswith("bytes")
+
+
+def parse_bytes_m_info(typename: str) -> BytesMTypeInfo:
+    m = int(typename[len("bytes") :])
+    return BytesMTypeInfo(m=m, m_bits=m * 8)
+
+
+def is_decimal_type(t: "NodeType") -> bool:
+    return isinstance(t, BaseType) and t.typ == "decimal"
+
+
+def parse_decimal_info(typename: str) -> DecimalTypeInfo:
+    # in the future, this will actually do parsing
+    assert typename == "decimal"
+    return DecimalTypeInfo(bits=168, decimals=10, is_signed=True)
+
+
+def is_enum_type(t: "NodeType") -> bool:
+    return isinstance(t, EnumType)
 
 
 def _basetype_to_abi_type(t: "BaseType") -> ABIType:
     if is_integer_type(t):
-        typinfo = parse_integer_typeinfo(t.typ)
-        return ABI_GIntM(typinfo.bits, typinfo.is_signed)
+        info = t._int_info
+        return ABI_GIntM(info.bits, info.is_signed)
+    if is_decimal_type(t):
+        info = t._decimal_info
+        return ABI_FixedMxN(info.bits, info.decimals, signed=True)
+    if is_bytes_m_type(t):
+        return ABI_BytesM(t._bytes_info.m)
     if t.typ == "address":
         return ABI_Address()
-    if t.typ == "bytes32":
-        # TODO must generalize to more bytes types
-        return ABI_BytesM(32)
     if t.typ == "bool":
         return ABI_Bool()
-    if t.typ == "decimal":
-        return ABI_FixedMxN(168, 10, True)
 
     raise InvalidType(f"Unrecognized type {t}")  # pragma: notest
 
@@ -109,8 +185,23 @@ class BaseType(NodeType):
     def __init__(self, typename, is_literal=False):
         self.typ = typename  # e.g. "uint256"
         # TODO remove is_literal,
-        # change to property on LLLnode: `isinstance(self.value, int)`
+        # change to property on IRnode: `isinstance(self.value, int)`
         self.is_literal = is_literal
+
+        if is_integer_type(self):
+            self._int_info = parse_integer_typeinfo(typename)
+            self._num_info = self._int_info
+        if is_base_type(self, "address"):
+            self._int_info = IntegerTypeInfo(bits=160, is_signed=False)
+            self._num_info = self._int_info
+        # don't generate _int_info for bool,
+        # it doesn't really behave like an int in conversions
+        # and should have special handling in the codebase
+        if is_bytes_m_type(self):
+            self._bytes_info = parse_bytes_m_info(typename)
+        if is_decimal_type(self):
+            self._decimal_info = parse_decimal_info(typename)
+            self._num_info = self._decimal_info
 
     def eq(self, other):
         return self.typ == other.typ
@@ -134,6 +225,25 @@ class InterfaceType(BaseType):
 
     def __eq__(self, other: Any) -> bool:
         return isinstance(other, BaseType) and other.typ == "address"
+
+    @property
+    def memory_bytes_required(self):
+        return 32
+
+
+class EnumType(BaseType):
+    def __init__(self, name, members):
+        super().__init__("uint256")
+        self.name = name
+        self.members = members
+
+    def __repr__(self):
+        return f"enum {self.name}"
+
+    def __eq__(self, other):
+        if type(self) is not type(other):
+            return False
+        return self.name == other.name and self.members == other.members
 
     @property
     def memory_bytes_required(self):
@@ -297,25 +407,27 @@ class TupleType(TupleLike):
         return list(enumerate(self.members))
 
 
-def make_struct_type(name, sigs, members, custom_structs):
+def make_struct_type(name, sigs, members, custom_structs, enums):
     o = OrderedDict()
 
     for key, value in members:
         if not isinstance(key, vy_ast.Name):
-            raise InvalidType(
-                f"Invalid member variable for struct {key.id}, expected a name.",
-                key,
-            )
-        o[key.id] = parse_type(value, sigs=sigs, custom_structs=custom_structs)
+            raise InvalidType(f"Invalid member variable for struct {key.id}, expected a name.", key)
+        o[key.id] = parse_type(value, sigs=sigs, custom_structs=custom_structs, enums=enums)
 
     return StructType(o, name)
 
 
 # Parses an expression representing a type.
-# TODO: rename me to "lll_type_from_annotation"
-def parse_type(item, sigs, custom_structs):
+# TODO: rename me to "ir_type_from_annotation"
+def parse_type(item, sigs, custom_structs, enums):
+    # sigs: set of interface or contract names in scope
+    # custom_structs: struct definitions in scope
     def _sanity_check(x):
         assert x, "typechecker missed this"
+
+    def _parse_type(item):
+        return parse_type(item, sigs, custom_structs, enums)
 
     def FAIL():
         raise InvalidType(f"{item.id}", item)
@@ -325,16 +437,14 @@ def parse_type(item, sigs, custom_structs):
         if item.id in BASE_TYPES:
             return BaseType(item.id)
 
-        elif (sigs is not None) and item.id in sigs:
+        elif item.id in sigs:
             return InterfaceType(item.id)
 
-        elif (custom_structs is not None) and (item.id in custom_structs):
-            return make_struct_type(
-                item.id,
-                sigs,
-                custom_structs[item.id],
-                custom_structs,
-            )
+        elif item.id in enums:
+            return EnumType(item.id, enums[item.id].members.copy())
+
+        elif item.id in custom_structs:
+            return make_struct_type(item.id, sigs, custom_structs[item.id], custom_structs, enums)
 
         else:
             FAIL()  # pragma: notest
@@ -346,13 +456,9 @@ def parse_type(item, sigs, custom_structs):
             if sigs and item.args[0].id in sigs:
                 return InterfaceType(item.args[0].id)
         # Struct types
-        elif (custom_structs is not None) and (item.func.id in custom_structs):
-            return make_struct_type(
-                item.id,
-                sigs,
-                custom_structs[item.id],
-                custom_structs,
-            )
+        elif item.func.id in custom_structs:
+            return make_struct_type(item.id, sigs, custom_structs[item.id], custom_structs, enums)
+
         elif item.func.id == "immutable":
             if len(item.args) != 1:
                 # is checked earlier but just for sanity, verify
@@ -377,11 +483,7 @@ def parse_type(item, sigs, custom_structs):
                 return StringType(length)
             # List
             else:
-                value_type = parse_type(
-                    item.value,
-                    sigs,
-                    custom_structs=custom_structs,
-                )
+                value_type = _parse_type(item.value)
                 return SArrayType(value_type, length)
 
         elif item.value.id == "DynArray":
@@ -391,32 +493,22 @@ def parse_type(item, sigs, custom_structs):
             _sanity_check(isinstance(length, int) and length > 0)
 
             value_type_annotation = item.slice.value.elements[0]
-            value_type = parse_type(value_type_annotation, sigs, custom_structs=custom_structs)
+            value_type = _parse_type(value_type_annotation)
 
             return DArrayType(value_type, length)
 
         elif item.value.id in ("HashMap",) and isinstance(item.slice.value, vy_ast.Tuple):
             # Mappings, e.g. HashMap[address, uint256]
-            keytype = parse_type(
-                item.slice.value.elements[0],
-                sigs=sigs,
-                custom_structs=custom_structs,
-            )
-            return MappingType(
-                keytype,
-                parse_type(
-                    item.slice.value.elements[1],
-                    sigs,
-                    custom_structs=custom_structs,
-                ),
-            )
+            key_type = _parse_type(item.slice.value.elements[0])
+            value_type = _parse_type(item.slice.value.elements[1])
+            return MappingType(key_type, value_type)
 
         else:
             FAIL()
 
     elif isinstance(item, vy_ast.Tuple):
-        members = [parse_type(x, sigs=sigs, custom_structs=custom_structs) for x in item.elements]
-        return TupleType(members)
+        member_types = [_parse_type(t) for t in item.elements]
+        return TupleType(member_types)
 
     else:
         FAIL()
@@ -437,31 +529,10 @@ def get_type_for_exact_size(n_bytes):
     return ByteArrayType(n_bytes - 32 * DYNAMIC_ARRAY_OVERHEAD)
 
 
-def get_type(input):
-    if not hasattr(input, "typ"):
-        typ, len = "num_literal", 32
-    elif hasattr(input.typ, "maxlen"):
-        typ, len = "Bytes", input.typ.maxlen
-    else:
-        typ, len = input.typ.typ, 32
-    return typ, len
-
-
 # Is a type representing a number?
 def is_numeric_type(typ):
-    return isinstance(typ, BaseType) and typ.typ in (
-        "int128",
-        "int256",
-        "uint8",
-        "uint256",
-        "decimal",
-    )
-
-
-def is_signed_num(typ):
-    if not is_numeric_type(typ):
-        return None
-    return typ.typ.startswith("u")
+    # NOTE: not quite the same as hasattr(typ, "_num_info") (address has _num_info)
+    return is_integer_type(typ) or is_decimal_type(typ)
 
 
 # Is a type representing some particular base type?

@@ -45,13 +45,17 @@ def test_replace_binop_nested_intermediate_underflow():
 
 
 def test_replace_decimal_nested_intermediate_overflow():
-    test_ast = vy_ast.parse_to_ast("170141183460469231731687303715884105726.0 + 1.1 - 10.0")
+    test_ast = vy_ast.parse_to_ast(
+        "18707220957835557353007165858768422651595.9365500927 + 1e-10 - 1e-10"
+    )
     with pytest.raises(OverflowException):
         folding.fold(test_ast)
 
 
 def test_replace_decimal_nested_intermediate_underflow():
-    test_ast = vy_ast.parse_to_ast("-170141183460469231731687303715884105726.0 - 2.1 + 10.0")
+    test_ast = vy_ast.parse_to_ast(
+        "-18707220957835557353007165858768422651595.9365500928 - 1e-10 + 1e-10"
+    )
     with pytest.raises(OverflowException):
         folding.fold(test_ast)
 
@@ -129,15 +133,15 @@ def test_replace_constant_no(source):
 
 
 builtins_modified = [
-    "MAX_INT128",
-    "foo = MAX_INT128",
-    "foo: int128[MAX_INT128] = 42",
-    "foo = [MAX_INT128]",
-    "def foo(bar: int128 = MAX_INT128): pass",
-    "def foo(): bar = MAX_INT128",
-    "def foo(): return MAX_INT128",
-    "log foo(MAX_INT128)",
-    "log foo(42, MAX_INT128)",
+    "ZERO_ADDRESS",
+    "foo = ZERO_ADDRESS",
+    "foo: int128[ZERO_ADDRESS] = 42",
+    "foo = [ZERO_ADDRESS]",
+    "def foo(bar: address = ZERO_ADDRESS): pass",
+    "def foo(): bar = ZERO_ADDRESS",
+    "def foo(): return ZERO_ADDRESS",
+    "log foo(ZERO_ADDRESS)",
+    "log foo(42, ZERO_ADDRESS)",
 ]
 
 
@@ -152,12 +156,12 @@ def test_replace_builtin_constant(source):
 
 
 builtins_unmodified = [
-    "MAX_INT128 = 2",
-    "MAX_INT128()",
-    "def foo(MAX_INT128: int128 = 42): pass",
-    "def foo(): MAX_INT128 = 42",
-    "def MAX_INT128(): pass",
-    "log MAX_INT128(42)",
+    "ZERO_ADDRESS = 2",
+    "ZERO_ADDRESS()",
+    "def foo(ZERO_ADDRESS: int128 = 42): pass",
+    "def foo(): ZERO_ADDRESS = 42",
+    "def ZERO_ADDRESS(): pass",
+    "log ZERO_ADDRESS(42)",
 ]
 
 
@@ -225,6 +229,58 @@ userdefined_attributes = [("b: uint256 = ADDR.balance", f"b: uint256 = {dummy_ad
 @pytest.mark.parametrize("source", userdefined_attributes)
 def test_replace_userdefined_attribute(source):
     preamble = f"ADDR: constant(address) = {dummy_address}"
+    l_source = f"{preamble}\n{source[0]}"
+    r_source = f"{preamble}\n{source[1]}"
+
+    l_ast = vy_ast.parse_to_ast(l_source)
+    folding.replace_user_defined_constants(l_ast)
+
+    r_ast = vy_ast.parse_to_ast(r_source)
+
+    assert vy_ast.compare_nodes(l_ast, r_ast)
+
+
+userdefined_struct = [("b: Foo = FOO", "b: Foo = Foo({a: 123, b: 456})")]
+
+
+@pytest.mark.parametrize("source", userdefined_struct)
+def test_replace_userdefined_struct(source):
+    preamble = """
+struct Foo:
+    a: uint256
+    b: uint256
+
+FOO: constant(Foo) = Foo({a: 123, b: 456})
+    """
+    l_source = f"{preamble}\n{source[0]}"
+    r_source = f"{preamble}\n{source[1]}"
+
+    l_ast = vy_ast.parse_to_ast(l_source)
+    folding.replace_user_defined_constants(l_ast)
+
+    r_ast = vy_ast.parse_to_ast(r_source)
+
+    assert vy_ast.compare_nodes(l_ast, r_ast)
+
+
+userdefined_nested_struct = [
+    ("b: Foo = FOO", "b: Foo = Foo({f1: Bar({b1: 123, b2: 456}), f2: 789})")
+]
+
+
+@pytest.mark.parametrize("source", userdefined_nested_struct)
+def test_replace_userdefined_nested_struct(source):
+    preamble = """
+struct Bar:
+    b1: uint256
+    b2: uint256
+
+struct Foo:
+    f1: Bar
+    f2: uint256
+
+FOO: constant(Foo) = Foo({f1: Bar({b1: 123, b2: 456}), f2: 789})
+    """
     l_source = f"{preamble}\n{source[0]}"
     r_source = f"{preamble}\n{source[1]}"
 

@@ -4,7 +4,8 @@ from vyper import compiler
 from vyper.exceptions import (
     ArgumentException,
     InvalidReference,
-    StructureException,
+    InvalidType,
+    SyntaxException,
     TypeMismatch,
     UnknownAttribute,
 )
@@ -36,7 +37,7 @@ from vyper.interfaces import ERC20
 
 a: address(ERC20) # invalid syntax now.
     """,
-        StructureException,
+        SyntaxException,
     ),
     (
         """
@@ -46,7 +47,7 @@ from vyper.interfaces import ERC20
 def test():
     a: address(ERC20) = ZERO_ADDRESS
     """,
-        StructureException,
+        InvalidType,
     ),
     (
         """
@@ -153,6 +154,23 @@ a: public(ERC20)
 @external
 def test():
     b: address = self.a.address
+    """,
+    """
+interface MyInterface:
+    def some_func(): nonpayable
+
+my_interface: MyInterface[3]
+idx: uint256
+
+@external
+def __init__():
+    self.my_interface[self.idx] = MyInterface(ZERO_ADDRESS)
+    """,
+    """
+interface MyInterface:
+    def kick(): payable
+
+kickers: HashMap[address, MyInterface]
     """,
 ]
 

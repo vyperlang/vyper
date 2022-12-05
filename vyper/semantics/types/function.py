@@ -1,6 +1,7 @@
+import re
 import warnings
 from collections import OrderedDict
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 from vyper import ast as vy_ast
 from vyper.ast.validation import validate_call_args
@@ -14,51 +15,22 @@ from vyper.exceptions import (
     StateAccessViolation,
     StructureException,
 )
-from vyper.semantics.namespace import get_namespace
-from vyper.semantics.types.bases import BaseTypeDefinition, DataLocation, StorageSlot
-from vyper.semantics.types.indexable.sequence import DynamicArrayDefinition, TupleDefinition
-from vyper.semantics.types.utils import (
-    StringEnum,
-    check_constant,
-    generate_abi_type,
-    get_type_from_abi,
-    get_type_from_annotation,
+from vyper.semantics.analysis.base import (
+    DataLocation,
+    FunctionVisibility,
+    StateMutability,
+    StorageSlot,
 )
-from vyper.semantics.types.value.boolean import BoolDefinition
-from vyper.semantics.types.value.numeric import Uint256Definition
-from vyper.semantics.validation.utils import validate_expected_type
+from vyper.semantics.analysis.utils import check_kwargable, validate_expected_type
+from vyper.semantics.namespace import get_namespace
+from vyper.semantics.types.base import KwargSettings, VyperType
+from vyper.semantics.types.primitives import UINT256_T, BoolT
+from vyper.semantics.types.subscriptable import TupleT
+from vyper.semantics.types.utils import type_from_abi, type_from_annotation
 from vyper.utils import keccak256
 
 
-class FunctionVisibility(StringEnum):
-    EXTERNAL = StringEnum.auto()
-    INTERNAL = StringEnum.auto()
-
-
-class StateMutability(StringEnum):
-    PURE = StringEnum.auto()
-    VIEW = StringEnum.auto()
-    NONPAYABLE = StringEnum.auto()
-    PAYABLE = StringEnum.auto()
-
-    @classmethod
-    def from_abi(cls, abi_dict: Dict) -> "StateMutability":
-        """
-        Extract stateMutability from an entry in a contract's ABI
-        """
-        if "stateMutability" in abi_dict:
-            return cls(abi_dict["stateMutability"])
-        elif abi_dict.get("payable"):
-            return StateMutability.PAYABLE
-        elif "constant" in abi_dict and abi_dict["constant"]:
-            return StateMutability.VIEW
-        else:  # Assume nonpayable if neither field is there, or constant/payable not set
-            return StateMutability.NONPAYABLE
-        # NOTE: The state mutability nonpayable is reflected in Solidity by not
-        #       specifying a state mutability modifier at all. Do the same here.
-
-
-class ContractFunction(BaseTypeDefinition):
+class ContractFunction(VyperType):
     """
     Contract function type.
 
@@ -71,7 +43,7 @@ class ContractFunction(BaseTypeDefinition):
     name : str
         The name of the function.
     arguments : OrderedDict
-        Function input arguments as {'name': BaseType}
+        Function input arguments as {'name': VyperType}
     min_arg_count : int
         The minimum number of required input arguments.
     max_arg_count : int
@@ -96,19 +68,13 @@ class ContractFunction(BaseTypeDefinition):
         # TODO rename to something like positional_args, keyword_args
         min_arg_count: int,
         max_arg_count: int,
-        return_type: Optional[BaseTypeDefinition],
+        return_type: Optional[VyperType],
         function_visibility: FunctionVisibility,
         state_mutability: StateMutability,
         nonreentrant: Optional[str] = None,
     ) -> None:
-        super().__init__(
-            # A function definition type only exists while compiling
-            DataLocation.UNSET,
-            # A function definition type is immutable once created
-            is_constant=True,
-            # A function definition type is public if it's visibility is public
-            is_public=(function_visibility == FunctionVisibility.EXTERNAL),
-        )
+        super().__init__()
+
         self.name = name
         self.arguments = arguments
         self.min_arg_count = min_arg_count
@@ -121,8 +87,28 @@ class ContractFunction(BaseTypeDefinition):
         self.mutability = state_mutability
         self.nonreentrant = nonreentrant
 
+        # a list of internal functions this function calls
+        self.called_functions: Set["ContractFunction"] = set()
+
+        # special kwargs that are allowed in call site
+        self.call_site_kwargs = {
+            "gas": KwargSettings(UINT256_T, "gas"),
+            "value": KwargSettings(UINT256_T, 0),
+            "skip_contract_check": KwargSettings(BoolT(), False, require_literal=True),
+            "default_return_value": KwargSettings(return_type, None),
+        }
+
     def __repr__(self):
-        return f"contract function '{self.name}'"
+        arg_types = ",".join(repr(a) for a in self.arguments.values())
+        return f"contract function {self.name}({arg_types})"
+
+    # override parent implementation. function type equality does not
+    # make too much sense.
+    def __eq__(self, other):
+        return self is other
+
+    def __hash__(self):
+        return hash(id(self))
 
     @classmethod
     def from_abi(cls, abi: Dict) -> "ContractFunction":
@@ -141,21 +127,12 @@ class ContractFunction(BaseTypeDefinition):
 
         arguments = OrderedDict()
         for item in abi["inputs"]:
-            arguments[item["name"]] = get_type_from_abi(
-                item, location=DataLocation.CALLDATA, is_constant=True
-            )
+            arguments[item["name"]] = type_from_abi(item)
         return_type = None
         if len(abi["outputs"]) == 1:
-            return_type = get_type_from_abi(
-                abi["outputs"][0], location=DataLocation.CALLDATA, is_constant=True
-            )
+            return_type = type_from_abi(abi["outputs"][0])
         elif len(abi["outputs"]) > 1:
-            return_type = TupleDefinition(
-                tuple(
-                    get_type_from_abi(i, location=DataLocation.CALLDATA, is_constant=True)
-                    for i in abi["outputs"]
-                )
-            )
+            return_type = TupleT(tuple(type_from_abi(i) for i in abi["outputs"]))
         return cls(
             abi["name"],
             arguments,
@@ -168,9 +145,7 @@ class ContractFunction(BaseTypeDefinition):
 
     @classmethod
     def from_FunctionDef(
-        cls,
-        node: vy_ast.FunctionDef,
-        is_interface: Optional[bool] = False,
+        cls, node: vy_ast.FunctionDef, is_interface: Optional[bool] = False
     ) -> "ContractFunction":
         """
         Generate a `ContractFunction` object from a `FunctionDef` node.
@@ -228,8 +203,7 @@ class ContractFunction(BaseTypeDefinition):
                         raise StructureException("Decorator is not callable", decorator)
                     if len(decorator.args) != 1 or not isinstance(decorator.args[0], vy_ast.Str):
                         raise StructureException(
-                            "@nonreentrant name must be given as a single string literal",
-                            decorator,
+                            "@nonreentrant name must be given as a single string literal", decorator
                         )
 
                     if node.name == "__init__":
@@ -287,11 +261,8 @@ class ContractFunction(BaseTypeDefinition):
             # Assume nonpayable if not set at all (cannot accept Ether, but can modify state)
             kwargs["state_mutability"] = StateMutability.NONPAYABLE
 
-        if (
-            kwargs["state_mutability"] in (StateMutability.VIEW, StateMutability.PURE)
-            and "nonreentrant" in kwargs
-        ):
-            raise StructureException("Cannot use reentrancy guard on view or pure functions", node)
+        if kwargs["state_mutability"] == StateMutability.PURE and "nonreentrant" in kwargs:
+            raise StructureException("Cannot use reentrancy guard on pure functions", node)
 
         # call arguments
         if node.args.defaults and node.name == "__init__":
@@ -306,10 +277,9 @@ class ContractFunction(BaseTypeDefinition):
 
         namespace = get_namespace()
         for arg, value in zip(node.args.args, defaults):
-            if arg.arg in ("gas", "value", "skip_contract_check"):
+            if arg.arg in ("gas", "value", "skip_contract_check", "default_return_value"):
                 raise ArgumentException(
-                    f"Cannot use '{arg.arg}' as a variable name in a function input",
-                    arg,
+                    f"Cannot use '{arg.arg}' as a variable name in a function input", arg
                 )
             if arg.arg in arguments:
                 raise ArgumentException(f"Function contains multiple inputs named {arg.arg}", arg)
@@ -319,30 +289,31 @@ class ContractFunction(BaseTypeDefinition):
             if arg.annotation is None:
                 raise ArgumentException(f"Function argument '{arg.arg}' is missing a type", arg)
 
-            type_definition = get_type_from_annotation(
-                arg.annotation, location=DataLocation.CALLDATA, is_constant=True
-            )
+            type_ = type_from_annotation(arg.annotation)
+
             if value is not None:
-                if not check_constant(value):
+                if not check_kwargable(value):
                     raise StateAccessViolation(
                         "Value must be literal or environment variable", value
                     )
-                validate_expected_type(value, type_definition)
-                # kludge because kwargs in signatures don't get visited by the annotator
-                value._metadata["type"] = type_definition
+                validate_expected_type(value, type_)
 
-            arguments[arg.arg] = type_definition
+            arguments[arg.arg] = type_
 
         # return types
         if node.returns is None:
             return_type = None
+        elif node.name == "__init__":
+            raise FunctionDeclarationException(
+                "Constructor may not have a return type", node.returns
+            )
         elif isinstance(node.returns, (vy_ast.Name, vy_ast.Call, vy_ast.Subscript)):
-            return_type = get_type_from_annotation(node.returns, location=DataLocation.MEMORY)
+            return_type = type_from_annotation(node.returns)
         elif isinstance(node.returns, vy_ast.Tuple):
             tuple_types: Tuple = ()
             for n in node.returns.elements:
-                tuple_types += (get_type_from_annotation(n, location=DataLocation.MEMORY),)
-            return_type = TupleDefinition(tuple_types)
+                tuple_types += (type_from_annotation(n),)
+            return_type = TupleT(tuple_types)
         else:
             raise InvalidType("Function return value must be a type name or tuple", node.returns)
 
@@ -352,35 +323,36 @@ class ContractFunction(BaseTypeDefinition):
         if hasattr(self, "reentrancy_key_position"):
             raise CompilerPanic("Position was already assigned")
         if self.nonreentrant is None:
-            raise CompilerPanic("No reentrant key {self}")
+            raise CompilerPanic(f"No reentrant key {self}")
         # sanity check even though implied by the type
         if position._location != DataLocation.STORAGE:
             raise CompilerPanic("Non-storage reentrant key")
         self.reentrancy_key_position = position
 
     @classmethod
-    def from_AnnAssign(cls, node: vy_ast.AnnAssign) -> "ContractFunction":
+    def getter_from_VariableDecl(cls, node: vy_ast.VariableDecl) -> "ContractFunction":
         """
-        Generate a `ContractFunction` object from an `AnnAssign` node.
+        Generate a `ContractFunction` object from an `VariableDecl` node.
 
         Used to create getter functions for public variables.
 
         Arguments
         ---------
-        node : AnnAssign
+        node : VariableDecl
             Vyper ast node to generate the function definition from.
 
         Returns
         -------
         ContractFunction
         """
-        if not isinstance(node.annotation, vy_ast.Call):
-            raise CompilerPanic("Annotation must be a call to public()")
-        type_ = get_type_from_annotation(node.annotation.args[0], location=DataLocation.STORAGE)
-        arguments, return_type = type_.get_signature()
+        if not node.is_public:
+            raise CompilerPanic("getter generated for non-public function")
+        type_ = type_from_annotation(node.annotation)
+        arguments, return_type = type_.getter_signature
         args_dict: OrderedDict = OrderedDict()
         for item in arguments:
             args_dict[f"arg{len(args_dict)}"] = item
+
         return cls(
             node.target.id,
             args_dict,
@@ -390,6 +362,44 @@ class ContractFunction(BaseTypeDefinition):
             function_visibility=FunctionVisibility.EXTERNAL,
             state_mutability=StateMutability.VIEW,
         )
+
+    @property
+    # convenience property for compare_signature, as it would
+    # appear in a public interface
+    def _iface_sig(self) -> Tuple[Tuple, Optional[VyperType]]:
+        return tuple(self.arguments.values()), self.return_type
+
+    def compare_signature(self, other: "ContractFunction") -> bool:
+        """
+        Compare the signature of this function with another function.
+
+        Used when determining if an interface has been implemented. This method
+        should not be directly implemented by any inherited classes.
+        """
+
+        if not self.is_external:
+            return False
+
+        arguments, return_type = self._iface_sig
+        other_arguments, other_return_type = other._iface_sig
+
+        if len(arguments) != len(other_arguments):
+            return False
+        for atyp, btyp in zip(arguments, other_arguments):
+            if not atyp.compare_type(btyp):
+                return False
+        if return_type and not return_type.compare_type(other_return_type):  # type: ignore
+            return False
+
+        return True
+
+    @property
+    def is_external(self) -> bool:
+        return self.visibility == FunctionVisibility.EXTERNAL
+
+    @property
+    def is_internal(self) -> bool:
+        return self.visibility == FunctionVisibility.INTERNAL
 
     @property
     def method_ids(self) -> Dict[str, int]:
@@ -436,40 +446,64 @@ class ContractFunction(BaseTypeDefinition):
     def has_default_args(self) -> bool:
         return self.min_arg_count < self.max_arg_count
 
-    def get_signature(self) -> Tuple[Tuple, Optional[BaseTypeDefinition]]:
-        return tuple(self.arguments.values()), self.return_type
-
-    def fetch_call_return(self, node: vy_ast.Call) -> Optional[BaseTypeDefinition]:
+    def fetch_call_return(self, node: vy_ast.Call) -> Optional[VyperType]:
         if node.get("func.value.id") == "self" and self.visibility == FunctionVisibility.EXTERNAL:
-            raise CallViolation("Cannnot call external functions via 'self'", node)
+            raise CallViolation("Cannot call external functions via 'self'", node)
 
         # for external calls, include gas and value as optional kwargs
         kwarg_keys = self.kwarg_keys.copy()
         if node.get("func.value.id") != "self":
-            kwarg_keys += ["gas", "value", "skip_contract_check"]
+            kwarg_keys += list(self.call_site_kwargs.keys())
         validate_call_args(node, (self.min_arg_count, self.max_arg_count), kwarg_keys)
 
         if self.mutability < StateMutability.PAYABLE:
             kwarg_node = next((k for k in node.keywords if k.arg == "value"), None)
             if kwarg_node is not None:
-                raise CallViolation("Cannnot send ether to nonpayable function", kwarg_node)
+                raise CallViolation("Cannot send ether to nonpayable function", kwarg_node)
 
         for arg, expected in zip(node.args, self.arguments.values()):
             validate_expected_type(arg, expected)
 
+        # TODO this should be moved to validate_call_args
         for kwarg in node.keywords:
-            if kwarg.arg in ("gas", "value"):
-                validate_expected_type(kwarg.value, Uint256Definition())
-            elif kwarg.arg in ("skip_contract_check"):
-                validate_expected_type(kwarg.value, BoolDefinition())
-                if not isinstance(kwarg.value, vy_ast.NameConstant):
-                    raise InvalidType("skip_contract_check must be literal bool", kwarg.value)
+            if kwarg.arg in self.call_site_kwargs:
+                kwarg_settings = self.call_site_kwargs[kwarg.arg]
+                if kwarg.arg == "default_return_value" and self.return_type is None:
+                    raise ArgumentException(
+                        f"`{kwarg.arg}=` specified but {self.name}() does not return anything",
+                        kwarg.value,
+                    )
+                validate_expected_type(kwarg.value, kwarg_settings.typ)
+                if kwarg_settings.require_literal:
+                    if not isinstance(kwarg.value, vy_ast.Constant):
+                        raise InvalidType(
+                            f"{kwarg.arg} must be literal {kwarg_settings.typ}", kwarg.value
+                        )
             else:
-                validate_expected_type(kwarg.arg, kwarg.value)
+                # Generate the modified source code string with the kwarg removed
+                # as a suggestion to the user.
+                kwarg_pattern = rf"{kwarg.arg}\s*=\s*{re.escape(kwarg.value.node_source_code)}"
+                modified_line = re.sub(
+                    kwarg_pattern, kwarg.value.node_source_code, node.node_source_code
+                )
+                error_suggestion = (
+                    f"\n(hint: Try removing the kwarg: `{modified_line}`)"
+                    if modified_line != node.node_source_code
+                    else ""
+                )
+
+                raise ArgumentException(
+                    (
+                        "Usage of kwarg in Vyper is restricted to "
+                        + ", ".join([f"{k}=" for k in self.call_site_kwargs.keys()])
+                        + f". {error_suggestion}"
+                    ),
+                    kwarg,
+                )
 
         return self.return_type
 
-    def to_abi_dict(self) -> List[Dict]:
+    def to_toplevel_abi_dict(self):
         abi_dict: Dict = {"stateMutability": self.mutability.value}
 
         if self.is_fallback:
@@ -482,15 +516,15 @@ class ContractFunction(BaseTypeDefinition):
             abi_dict["type"] = "function"
             abi_dict["name"] = self.name
 
-        abi_dict["inputs"] = [generate_abi_type(v, k) for k, v in self.arguments.items()]
+        abi_dict["inputs"] = [v.to_abi_arg(name=k) for k, v in self.arguments.items()]
 
         typ = self.return_type
         if typ is None:
             abi_dict["outputs"] = []
-        elif isinstance(typ, TupleDefinition) and len(typ.value_type) > 1:  # type: ignore
-            abi_dict["outputs"] = [generate_abi_type(i) for i in typ.value_type]  # type: ignore
+        elif isinstance(typ, TupleT) and len(typ.value_type) > 1:  # type: ignore
+            abi_dict["outputs"] = [t.to_abi_arg() for t in typ.value_type]  # type: ignore
         else:
-            abi_dict["outputs"] = [generate_abi_type(typ)]
+            abi_dict["outputs"] = [typ.to_abi_arg()]
 
         if self.has_default_args:
             # for functions with default args, return a dict for each possible arg count
@@ -503,39 +537,55 @@ class ContractFunction(BaseTypeDefinition):
             return [abi_dict]
 
 
-class MemberFunctionDefinition(BaseTypeDefinition):
+class MemberFunctionT(VyperType):
     """
     Member function type definition.
 
     This class has no corresponding primitive.
+
+    (examples for (x <DynArray[int128, 3]>).append(1))
+
+    Arguments:
+        underlying_type: the type this method is attached to. ex. DynArray[int128, 3]
+        name: the name of this method. ex. "append"
+        arg_types: the argument types this method accepts. ex. [int128]
+        return_type: the return type of this method. ex. None
     """
 
     _is_callable = True
 
+    # keep LGTM linter happy
+    def __eq__(self, other):
+        return super().__eq__(other)
+
     def __init__(
-        self, underlying_type: BaseTypeDefinition, name: str, min_arg_count: int, max_arg_count: int
+        self,
+        underlying_type: VyperType,
+        name: str,
+        arg_types: List[VyperType],
+        return_type: Optional[VyperType],
+        is_modifying: bool,
     ) -> None:
-        super().__init__(DataLocation.UNSET)
+        super().__init__()
+
         self.underlying_type = underlying_type
         self.name = name
-        self.min_arg_count = min_arg_count
-        self.max_arg_count = max_arg_count
+        self.arg_types = arg_types
+        self.return_type = return_type
+        self.is_modifying = is_modifying
 
     def __repr__(self):
         return f"{self.underlying_type._id} member function '{self.name}'"
 
-    def fetch_call_return(self, node: vy_ast.Call) -> Optional[BaseTypeDefinition]:
-        validate_call_args(node, (self.min_arg_count, self.max_arg_count))
+    def fetch_call_return(self, node: vy_ast.Call) -> Optional[VyperType]:
+        validate_call_args(node, len(self.arg_types))
 
-        if isinstance(self.underlying_type, DynamicArrayDefinition):
-            if self.name == "append":
-                return None
+        assert len(node.args) == len(self.arg_types)  # validate_call_args postcondition
+        for arg, expected_type in zip(node.args, self.arg_types):
+            # CMC 2022-04-01 this should probably be in the validation module
+            validate_expected_type(arg, expected_type)
 
-            elif self.name == "pop":
-                value_type = self.underlying_type.value_type
-                return value_type
-
-        raise CallViolation("Function does not exist on given type", node)
+        return self.return_type
 
 
 def _generate_method_id(name: str, canonical_abi_types: List[str]) -> Dict[str, int]:

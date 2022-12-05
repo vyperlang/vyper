@@ -3,23 +3,23 @@
 import importlib
 import pkgutil
 
-import vyper.builtin_interfaces
+import vyper.builtins.interfaces
 from vyper import ast as vy_ast
 from vyper.ast.signatures.function_signature import FunctionSignature
 from vyper.codegen.global_context import GlobalContext
+from vyper.codegen.types import BYTES_M_TYPES, INTEGER_TYPES
 from vyper.exceptions import StructureException
 
 
 # Populate built-in interfaces.
+# NOTE: code duplication with vyper/semantics/analysis/module.py
 def get_builtin_interfaces():
-    interface_names = [x.name for x in pkgutil.iter_modules(vyper.builtin_interfaces.__path__)]
+    interface_names = [x.name for x in pkgutil.iter_modules(vyper.builtins.interfaces.__path__)]
     return {
         name: extract_sigs(
             {
                 "type": "vyper",
-                "code": importlib.import_module(
-                    f"vyper.builtin_interfaces.{name}",
-                ).interface_code,
+                "code": importlib.import_module(f"vyper.builtins.interfaces.{name}").interface_code,
             },
             name,
         )
@@ -28,7 +28,7 @@ def get_builtin_interfaces():
 
 
 def abi_type_to_ast(atype, expected_size):
-    if atype in ("int128", "uint256", "bool", "address", "bytes32"):
+    if atype in {"address", "bool"} | BYTES_M_TYPES | INTEGER_TYPES:
         return vy_ast.Name(id=atype)
     elif atype == "fixed168x10":
         return vy_ast.Name(id="decimal")
@@ -82,13 +82,13 @@ def mk_full_signature_from_json(abi):
             decorator_list.append(vy_ast.Name(id="payable"))
 
         sig = FunctionSignature.from_definition(
-            func_ast=vy_ast.FunctionDef(
+            vy_ast.FunctionDef(
                 name=func["name"],
                 args=vy_ast.arguments(args=args),
                 decorator_list=decorator_list,
                 returns=returns,
             ),
-            custom_structs=dict(),
+            GlobalContext(),  # dummy
             is_from_json=True,
         )
         sigs.append(sig)
@@ -98,12 +98,8 @@ def mk_full_signature_from_json(abi):
 def _get_external_signatures(global_ctx, sig_formatter=lambda x: x):
     ret = []
 
-    for code in global_ctx._defs:
-        sig = FunctionSignature.from_definition(
-            code,
-            sigs=global_ctx._contracts,
-            custom_structs=global_ctx._structs,
-        )
+    for func_ast in global_ctx._function_defs:
+        sig = FunctionSignature.from_definition(func_ast, global_ctx)
         if not sig.internal:
             ret.append(sig_formatter(sig))
     return ret
@@ -119,6 +115,7 @@ def extract_sigs(sig_code, interface_name=None):
                 i,
                 (
                     vy_ast.FunctionDef,
+                    vy_ast.EnumDef,
                     vy_ast.EventDef,
                     vy_ast.StructDef,
                     vy_ast.InterfaceDef,

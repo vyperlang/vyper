@@ -2,15 +2,13 @@ import pytest
 from eth_tester import EthereumTester, PyEVMBackend
 from eth_tester.exceptions import TransactionFailed
 from eth_utils.toolz import compose
+from hexbytes import HexBytes
 from web3 import Web3
 from web3.contract import Contract, mk_collision_prop
 from web3.providers.eth_tester import EthereumTesterProvider
 
 from vyper import compiler
-
-from .grammar.conftest import get_lark_grammar
-
-LARK_GRAMMAR = get_lark_grammar()
+from vyper.ast.grammar import parse_vyper_source
 
 
 class VyperMethod:
@@ -85,7 +83,9 @@ CONCISE_NORMALIZERS = (_none_addr,)
 
 @pytest.fixture(scope="module")
 def tester():
-    custom_genesis = PyEVMBackend._generate_genesis_params(overrides={"gas_limit": 4500000})
+    # set absurdly high gas limit so that london basefee never adjusts
+    # (note: 2**63 - 1 is max that evm allows)
+    custom_genesis = PyEVMBackend._generate_genesis_params(overrides={"gas_limit": 10 ** 10})
     custom_genesis["base_fee_per_gas"] = 0
     backend = PyEVMBackend(genesis_parameters=custom_genesis)
     return EthereumTester(backend=backend)
@@ -111,26 +111,62 @@ def _get_contract(w3, source_code, no_optimize, *args, **kwargs):
         evm_version=kwargs.pop("evm_version", None),
         show_gas_estimates=True,  # Enable gas estimates for testing
     )
-    LARK_GRAMMAR.parse(source_code + "\n")  # Test grammar.
+    parse_vyper_source(source_code)  # Test grammar.
     abi = out["abi"]
     bytecode = out["bytecode"]
     value = kwargs.pop("value_in_eth", 0) * 10 ** 18  # Handle deploying with an eth value.
     c = w3.eth.contract(abi=abi, bytecode=bytecode)
     deploy_transaction = c.constructor(*args)
-    tx_info = {
-        "from": w3.eth.accounts[0],
-        "value": value,
-        "gasPrice": 0,
-    }
+    tx_info = {"from": w3.eth.accounts[0], "value": value, "gasPrice": 0}
     tx_info.update(kwargs)
     tx_hash = deploy_transaction.transact(tx_info)
     address = w3.eth.get_transaction_receipt(tx_hash)["contractAddress"]
-    return w3.eth.contract(
-        address,
-        abi=abi,
-        bytecode=bytecode,
-        ContractFactoryClass=VyperContract,
+    return w3.eth.contract(address, abi=abi, bytecode=bytecode, ContractFactoryClass=VyperContract)
+
+
+def _deploy_blueprint_for(w3, source_code, no_optimize, initcode_prefix=b"", **kwargs):
+    out = compiler.compile_code(
+        source_code,
+        ["abi", "bytecode"],
+        interface_codes=kwargs.pop("interface_codes", None),
+        no_optimize=no_optimize,
+        evm_version=kwargs.pop("evm_version", None),
+        show_gas_estimates=True,  # Enable gas estimates for testing
     )
+    parse_vyper_source(source_code)  # Test grammar.
+    abi = out["abi"]
+    bytecode = HexBytes(initcode_prefix) + HexBytes(out["bytecode"])
+    bytecode_len = len(bytecode)
+    bytecode_len_hex = hex(bytecode_len)[2:].rjust(4, "0")
+    # prepend a quick deploy preamble
+    deploy_preamble = HexBytes("61" + bytecode_len_hex + "3d81600a3d39f3")
+    deploy_bytecode = HexBytes(deploy_preamble) + bytecode
+
+    deployer_abi = []  # just a constructor
+    c = w3.eth.contract(abi=deployer_abi, bytecode=deploy_bytecode)
+    deploy_transaction = c.constructor()
+    tx_info = {"from": w3.eth.accounts[0], "value": 0, "gasPrice": 0}
+
+    tx_hash = deploy_transaction.transact(tx_info)
+    address = w3.eth.get_transaction_receipt(tx_hash)["contractAddress"]
+
+    # sanity check
+    assert w3.eth.get_code(address) == bytecode, (w3.eth.get_code(address), bytecode)
+
+    def factory(address):
+        return w3.eth.contract(
+            address, abi=abi, bytecode=bytecode, ContractFactoryClass=VyperContract
+        )
+
+    return w3.eth.contract(address, bytecode=deploy_bytecode), factory
+
+
+@pytest.fixture(scope="module")
+def deploy_blueprint_for(w3, no_optimize):
+    def deploy_blueprint_for(source_code, *args, **kwargs):
+        return _deploy_blueprint_for(w3, source_code, no_optimize, *args, **kwargs)
+
+    return deploy_blueprint_for
 
 
 @pytest.fixture(scope="module")

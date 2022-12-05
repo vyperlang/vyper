@@ -157,6 +157,150 @@ def test_array(x: int128, y: int128, z: int128, w: int128) -> int128:
     print("Passed complex array accessor test")
 
 
+def test_three_d_array_accessor(get_contract_with_gas_estimation):
+    three_d_array_accessor = """
+@external
+def test_array(x: int128, y: int128, z: int128, w: int128) -> int128:
+    a: int128[2][2][2] = [[[0, 0], [0, 0]], [[0, 0], [0, 0]]]
+    a[0][0][0] = x
+    a[0][0][1] = y
+    a[0][1][0] = z
+    a[0][1][1] = w
+    a[1][0][0] = -x
+    a[1][0][1] = -y
+    a[1][1][0] = -z
+    a[1][1][1] = -w
+    return a[0][0][0] * 1000 + a[0][0][1] * 100 + a[0][1][0] * 10 + a[0][1][1] + \\
+        a[1][1][1] * 1000 + a[1][1][0] * 100 + a[1][0][1] * 10 + a[1][0][0]
+    """
+
+    c = get_contract_with_gas_estimation(three_d_array_accessor)
+    assert c.test_array(2, 7, 1, 8) == -5454
+
+
+def test_four_d_array_accessor(get_contract_with_gas_estimation):
+    four_d_array_accessor = """
+@external
+def test_array(x: int128, y: int128, z: int128, w: int128) -> int128:
+    a: int128[2][2][2][2] = \\
+        [[[[0, 0], [0, 0]], [[0, 0], [0, 0]]], [[[0, 0], [0, 0]], [[0, 0], [0, 0]]]]
+    a[0][0][0][0] = x
+    a[0][0][0][1] = y
+    a[0][0][1][0] = z
+    a[0][0][1][1] = w
+    a[0][1][0][0] = -x
+    a[0][1][0][1] = -y
+    a[0][1][1][0] = -z
+    a[0][1][1][1] = -w
+
+    a[1][0][0][0] = x + 1
+    a[1][0][0][1] = y + 1
+    a[1][0][1][0] = z + 1
+    a[1][0][1][1] = w + 1
+    a[1][1][0][0] = - (x + 1)
+    a[1][1][0][1] = - (y + 1)
+    a[1][1][1][0] = - (z + 1)
+    a[1][1][1][1] = - (w + 1)
+    return a[0][0][0][0] * 1000 + a[0][0][0][1] * 100 + a[0][0][1][0] * 10 + a[0][0][1][1] + \\
+        a[0][1][1][1] * 1000 + a[0][1][1][0] * 100 + a[0][1][0][1] * 10 + a[0][1][0][0] + \\
+        a[1][0][0][0] * 1000 + a[1][0][0][1] * 100 + a[1][0][1][0] * 10 + a[1][0][1][1] + \\
+        a[1][1][1][1] * 1000 + a[1][1][1][0] * 100 + a[1][1][0][1] * 10 + a[1][1][0][0]
+    """
+
+    c = get_contract_with_gas_estimation(four_d_array_accessor)
+    assert c.test_array(2, 7, 1, 8) == -10908
+
+
+def test_array_negative_accessor(get_contract_with_gas_estimation, assert_compile_failed):
+    array_negative_accessor = """
+@external
+def test_array(x: int128, y: int128, z: int128, w: int128) -> int128:
+    a: int128[4] = [0, 0, 0, 0]
+    a[0] = x
+    a[1] = y
+    a[2] = z
+    a[3] = w
+    return a[-4] * 1000 + a[-3] * 100 + a[-2] * 10 + a[-1]
+    """
+
+    assert_compile_failed(
+        lambda: get_contract_with_gas_estimation(array_negative_accessor), ArrayIndexException
+    )
+
+    two_d_array_negative_accessor = """
+@external
+def test_array(x: int128, y: int128, z: int128, w: int128) -> int128:
+    a: int128[2][2] = [[0, 0], [0, 0]]
+    a[0][0] = x
+    a[0][1] = y
+    a[1][0] = z
+    a[1][1] = w
+    return a[-2][-2] * 1000 + a[-2][-1] * 100 + a[-1][-2] * 10 + a[-1][-1]
+    """
+
+    assert_compile_failed(
+        lambda: get_contract_with_gas_estimation(two_d_array_negative_accessor), ArrayIndexException
+    )
+
+    three_d_array_negative_accessor = """
+@external
+def test_array(x: int128, y: int128, z: int128, w: int128) -> int128:
+    a: int128[2][2][2] = [[[0, 0], [0, 0]], [[0, 0], [0, 0]]]
+    a[0][0][0] = x
+    a[0][0][1] = y
+    a[0][1][0] = z
+    a[0][1][1] = w
+    a[1][0][0] = -x
+    a[1][0][1] = -y
+    a[1][1][0] = -z
+    a[1][1][1] = -w
+    return a[-2][-2][-2] * 1000 + a[-2][-2][-1] * 100 + a[-2][-1][-2] * 10 + a[-2][-1][-1] + \\
+        a[-1][-1][-1] * 1000 + a[-1][-1][-2] * 100 + a[-1][-2][-1] * 10 + a[-1][-2][-2]
+    """
+
+    assert_compile_failed(
+        lambda: get_contract_with_gas_estimation(three_d_array_negative_accessor),
+        ArrayIndexException,
+    )
+
+    four_d_array_negative_accessor = """
+@external
+def test_array(x: int128, y: int128, z: int128, w: int128) -> int128:
+    a: int128[2][2][2][2] = \\
+        [[[[0, 0], [0, 0]], [[0, 0], [0, 0]]], [[[0, 0], [0, 0]], [[0, 0], [0, 0]]]]
+    a[0][0][0][0] = x
+    a[0][0][0][1] = y
+    a[0][0][1][0] = z
+    a[0][0][1][1] = w
+    a[0][1][0][0] = -x
+    a[0][1][0][1] = -y
+    a[0][1][1][0] = -z
+    a[0][1][1][1] = -w
+
+    a[1][0][0][0] = x + 1
+    a[1][0][0][1] = y + 1
+    a[1][0][1][0] = z + 1
+    a[1][0][1][1] = w + 1
+    a[1][1][0][0] = - (x + 1)
+    a[1][1][0][1] = - (y + 1)
+    a[1][1][1][0] = - (z + 1)
+    a[1][1][1][1] = - (w + 1)
+    return a[-2][-2][-2][-2] * 1000 + a[-2][-2][-2][-1] * 100 + \\
+        a[-2][-2][-1][-2] * 10 + a[-2][-2][-1][-1] + \\
+        a[-2][-1][-1][-1] * 1000 + a[-2][-1][-1][-2] * 100 + \\
+        a[-2][-1][-2][-1] * 10 + a[-2][-1][-2][-2] + \\
+        a[-1][-2][-2][-2] * 1000 + a[-1][-2][-2][-1] * 100 + \\
+        a[-1][-2][-1][-2] * 10 + a[-1][-2][-1][-1] + \\
+        a[-1][-1][-1][-1] * 1000 + a[-1][-1][-1][-2] * 100 + \\
+        a[-1][-1][-2][-1] * 10 + a[-1][-1][-2][-2]
+    """
+
+    assert_compile_failed(
+        lambda: get_contract_with_gas_estimation(four_d_array_negative_accessor),
+        ArrayIndexException,
+    )
+
+
 def test_returns_lists(get_contract_with_gas_estimation):
     code = """
 @external
@@ -370,6 +514,46 @@ def foo() -> (uint256, uint256[3], uint256[2]):
     assert c.foo() == [666, [1, 2, 3], [88, 12]]
 
 
+def test_list_of_dynarray(get_contract):
+    code = """
+@external
+def bar(x: int128) -> DynArray[int128, 2][2]:
+    a: DynArray[int128, 2][2] = [[x, x * 2], [x * 3, x * 4]]
+    return a
+
+@external
+def foo(x: int128) -> int128:
+    a: DynArray[int128, 2][2] = [[x, x * 2], [x * 3, x * 4]]
+    return a[0][0] * a[1][1]
+    """
+    c = get_contract(code)
+    assert c.bar(7) == [[7, 14], [21, 28]]
+    assert c.foo(7) == 196
+
+
+def test_list_of_nested_dynarray(get_contract):
+    code = """
+@external
+def bar(x: int128) -> DynArray[int128, 2][2][2]:
+    a: DynArray[int128, 2][2][2] = [
+        [[x, x * 2], [x * 3, x * 4]],
+        [[x * 5, x * 6], [x * 7, x * 8]],
+    ]
+    return a
+
+@external
+def foo(x: int128) -> int128:
+    a: DynArray[int128, 2][2][2] = [
+        [[x, x * 2], [x * 3, x * 4]],
+        [[x * 5, x * 6], [x * 7, x * 8]],
+    ]
+    return a[0][0][0] * a[1][1][1]
+    """
+    c = get_contract(code)
+    assert c.bar(7) == [[[7, 14], [21, 28]], [[35, 42], [49, 56]]]
+    assert c.foo(7) == 392
+
+
 def test_list_of_structs_arg(get_contract):
     code = """
 struct Foo:
@@ -401,6 +585,66 @@ def bar(_baz: Foo[3]) -> String[96]:
     c = get_contract(code)
     c_input = [[i, msg] for i, msg in enumerate(("Hello ", "world", "!!!!"))]
     assert c.bar(c_input) == "Hello world!!!!"
+
+
+def test_list_of_nested_struct_arrays(get_contract):
+    code = """
+struct Ded:
+    a: uint256[3]
+    b: bool
+
+struct Foo:
+    c: uint256
+    d: uint256
+    e: Ded
+
+struct Bar:
+    f: Foo[3]
+    g: DynArray[uint256, 3]
+
+@external
+def bar(_bar: Bar[3]) -> uint256:
+    sum: uint256 = 0
+    for i in range(3):
+        sum += _bar[i].f[0].e.a[0] * _bar[i].f[1].e.a[1]
+    return sum
+    """
+    c = get_contract(code)
+    c_input = [
+        ((tuple([(123, 456, ([i, i + 1, i + 2], False))] * 3)), [9, 8, 7]) for i in range(1, 4)
+    ]
+
+    assert c.bar(c_input) == 20
+
+
+def test_2d_list_of_struct(get_contract):
+    code = """
+struct Bar:
+    a: uint256
+    b: uint256
+
+@external
+def foo(x: Bar[2][2]) -> uint256:
+    return x[0][0].a + x[1][1].b
+    """
+    c = get_contract(code)
+    c_input = [([i, i * 2], [i * 3, i * 4]) for i in range(1, 3)]
+    assert c.foo(c_input) == 9
+
+
+def test_3d_list_of_struct(get_contract):
+    code = """
+struct Bar:
+    a: uint256
+    b: uint256
+
+@external
+def foo(x: Bar[2][2][2]) -> uint256:
+    return x[0][0][0].a + x[1][1][1].b
+    """
+    c = get_contract(code)
+    c_input = [([([i, i * 2], [i * 3, i * 4]) for i in range(1, 3)])] * 2
+    assert c.foo(c_input) == 9
 
 
 @pytest.mark.parametrize(

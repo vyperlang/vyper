@@ -1,12 +1,13 @@
 import math
 from dataclasses import dataclass
-from typing import Dict, Optional
+from typing import Dict, Optional, Tuple
 
 from vyper import ast as vy_ast
-from vyper.codegen.lll_node import Encoding
-from vyper.codegen.types import NodeType, parse_type
+from vyper.address_space import MEMORY
+from vyper.codegen.ir_node import Encoding
+from vyper.codegen.types import NodeType
 from vyper.exceptions import StructureException
-from vyper.utils import cached_property, mkalphanum
+from vyper.utils import MemoryPositions, cached_property, mkalphanum
 
 # dict from function names to signatures
 FunctionSignatures = Dict[str, "FunctionSignature"]
@@ -23,9 +24,9 @@ class VariableRecord:
         typ,
         mutable,
         encoding=Encoding.VYPER,
-        location="memory",
+        location=MEMORY,
         blockscopes=None,
-        defined_at=None,
+        defined_at=None,  # note: dead variable
         is_internal=False,
         is_immutable=False,
         data_offset: Optional[int] = None,
@@ -58,11 +59,6 @@ class VariableRecord:
         return math.ceil(self.typ.memory_bytes_required / 32)
 
 
-class ContractRecord(VariableRecord):
-    def __init__(self, *args):
-        super(ContractRecord, self).__init__(*args)
-
-
 @dataclass
 class FunctionArg:
     name: str
@@ -70,7 +66,19 @@ class FunctionArg:
     ast_source: vy_ast.VyperNode
 
 
+@dataclass
+class FrameInfo:
+    frame_start: int
+    frame_size: int
+    frame_vars: Dict[str, Tuple[int, NodeType]]
+
+    @property
+    def mem_used(self):
+        return self.frame_size + MemoryPositions.RESERVED_MEMORY
+
+
 # Function signature object
+# TODO: merge with ContractFunction type
 class FunctionSignature:
     def __init__(
         self,
@@ -88,12 +96,15 @@ class FunctionSignature:
         self.return_type = return_type
         self.mutability = mutability
         self.internal = internal
-        self.gas = None
+        self.gas_estimate = None
         self.nonreentrant_key = nonreentrant_key
         self.func_ast_code = func_ast_code
         self.is_from_json = is_from_json
 
         self.set_default_args()
+
+        # frame info is metadata that will be generated during codegen.
+        self.frame_info: Optional[FrameInfo] = None
 
     def __str__(self):
         input_name = "def " + self.name + "(" + ",".join([str(arg.typ) for arg in self.args]) + ")"
@@ -101,8 +112,11 @@ class FunctionSignature:
             return input_name + " -> " + str(self.return_type) + ":"
         return input_name + ":"
 
+    def set_frame_info(self, frame_info):
+        self.frame_info = frame_info
+
     @cached_property
-    def _lll_identifier(self) -> str:
+    def _ir_identifier(self) -> str:
         # we could do a bit better than this but it just needs to be unique
         visibility = "internal" if self.internal else "external"
         argz = ",".join([str(arg.typ) for arg in self.args])
@@ -123,17 +137,17 @@ class FunctionSignature:
     def external_function_base_entry_label(self):
         assert not self.internal
 
-        return self._lll_identifier + "_common"
+        return self._ir_identifier + "_common"
 
     @property
     def internal_function_label(self):
         assert self.internal, "why are you doing this"
 
-        return self._lll_identifier
+        return self._ir_identifier
 
     @property
     def exit_sequence_label(self):
-        return self._lll_identifier + "_cleanup"
+        return self._ir_identifier + "_cleanup"
 
     def set_default_args(self):
         """Split base from kwargs and set member data structures"""
@@ -154,25 +168,17 @@ class FunctionSignature:
     def from_definition(
         cls,
         func_ast,  # vy_ast.FunctionDef
-        sigs=None,  # TODO replace sigs and custom_structs with GlobalContext?
-        custom_structs=None,
+        global_ctx,
         interface_def=False,
         constant_override=False,  # CMC 20210907 what does this do?
         is_from_json=False,
     ):
-        if custom_structs is None:
-            custom_structs = {}
-
         name = func_ast.name
 
         args = []
         for arg in func_ast.args.args:
             argname = arg.arg
-            argtyp = parse_type(
-                arg.annotation,
-                sigs,
-                custom_structs=custom_structs,
-            )
+            argtyp = global_ctx.parse_type(arg.annotation)
 
             args.append(FunctionArg(argname, argtyp, arg))
 
@@ -206,11 +212,7 @@ class FunctionSignature:
         # and NOT def foo() -> type: ..., then it's null
         return_type = None
         if func_ast.returns:
-            return_type = parse_type(
-                func_ast.returns,
-                sigs,
-                custom_structs=custom_structs,
-            )
+            return_type = global_ctx.parse_type(func_ast.returns)
             # sanity check: Output type must be canonicalizable
             assert return_type.abi_type.selector_name()
 
@@ -232,3 +234,7 @@ class FunctionSignature:
     @property
     def is_init_func(self):
         return self.name == "__init__"
+
+    @property
+    def is_regular_function(self):
+        return not self.is_default_func and not self.is_init_func

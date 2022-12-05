@@ -40,10 +40,7 @@ def validate_version_pragma(version_str: str, start: ParserPosition) -> None:
     strict_compiler_version = Version(_convert_version_str(installed_version))
 
     if len(strict_file_version) == 0:
-        raise VersionException(
-            "Version specification cannot be empty",
-            start,
-        )
+        raise VersionException("Version specification cannot be empty", start)
 
     try:
         npm_spec = NpmSpec(strict_file_version)
@@ -63,16 +60,10 @@ def validate_version_pragma(version_str: str, start: ParserPosition) -> None:
 
 
 # compound statements that are replaced with `class`
-VYPER_CLASS_TYPES = {
-    "event",
-    "interface",
-    "struct",
-}
+VYPER_CLASS_TYPES = {"enum", "event", "interface", "struct"}
 
 # simple statements or expressions that are replaced with `yield`
-VYPER_EXPRESSION_TYPES = {
-    "log",
-}
+VYPER_EXPRESSION_TYPES = {"log"}
 
 
 def pre_parse(code: str) -> Tuple[ModificationOffsets, str]:
@@ -122,25 +113,7 @@ def pre_parse(code: str) -> Tuple[ModificationOffsets, str]:
 
             if typ == NAME and string in ("class", "yield"):
                 raise SyntaxException(
-                    f"The `{string}` keyword is not allowed. ",
-                    code,
-                    start[0],
-                    start[1],
-                )
-
-            if typ == NAME and string == "contract" and start[1] == 0:
-                raise SyntaxException(
-                    "The `contract` keyword has been deprecated. Please use `interface`",
-                    code,
-                    start[0],
-                    start[1],
-                )
-            if typ == NAME and string == "log" and token_list[i + 1].string == ".":
-                raise SyntaxException(
-                    "`log` is no longer an object, please use it as a statement instead",
-                    code,
-                    start[0],
-                    start[1],
+                    f"The `{string}` keyword is not allowed. ", code, start[0], start[1]
                 )
 
             if typ == NAME:

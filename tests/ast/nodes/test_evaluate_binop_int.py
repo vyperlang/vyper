@@ -70,10 +70,7 @@ def foo(a: uint256, b: uint256) -> uint256:
 @pytest.mark.xfail(reason="need to implement safe exponentiation logic")
 @pytest.mark.fuzzing
 @settings(max_examples=50, deadline=1000)
-@given(
-    left=st.integers(min_value=2, max_value=245),
-    right=st.integers(min_value=0, max_value=16),
-)
+@given(left=st.integers(min_value=2, max_value=245), right=st.integers(min_value=0, max_value=16))
 @example(left=0, right=0)
 @example(left=0, right=1)
 def test_binop_int_pow(get_contract, left, right):

@@ -41,7 +41,7 @@ def test_no_interfaces():
 
 
 def test_interface_collision():
-    input_json = {"interfaces": {"/bar.json": {"abi": BAR_ABI}, "bar.vy": {"content": BAR_CODE}}}
+    input_json = {"interfaces": {"bar.json": {"abi": BAR_ABI}, "bar.vy": {"content": BAR_CODE}}}
     with pytest.raises(JSONError):
         get_input_dict_interfaces(input_json)
 
@@ -71,8 +71,8 @@ def test_vy_no_content():
 def test_interfaces_output():
     input_json = {
         "interfaces": {
-            "/bar.json": {"abi": BAR_ABI},
-            "/interface.folder/bar2.vy": {"content": BAR_CODE},
+            "bar.json": {"abi": BAR_ABI},
+            "interface.folder/bar2.vy": {"content": BAR_CODE},
         }
     }
     result = get_input_dict_interfaces(input_json)
@@ -84,11 +84,7 @@ def test_interfaces_output():
 
 
 def test_manifest_output():
-    input_json = {
-        "interfaces": {
-            "/bar.json": {"contractTypes": {"Bar": {"abi": BAR_ABI}}},
-        }
-    }
+    input_json = {"interfaces": {"bar.json": {"contractTypes": {"Bar": {"abi": BAR_ABI}}}}}
     result = get_input_dict_interfaces(input_json)
     assert isinstance(result, dict)
     assert result == {"Bar": {"type": "json", "code": BAR_ABI}}

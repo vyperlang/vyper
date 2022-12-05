@@ -23,10 +23,10 @@ The defined interface can then be used to make external calls, given a contract 
 .. code-block:: python
 
     @external
-    def test(some_address: address):
-        FooBar(some_address).calculate()
+    def test(foobar: FooBar):
+        foobar.calculate()
 
-The interface name can also be used as a type annotation for storage variables. You then assign an address value to the variable to access that interface. Note that assignment of an address requires the value to be cast using the interface type e.g. ``FooBar(<address_var>)``:
+The interface name can also be used as a type annotation for storage variables. You then assign an address value to the variable to access that interface. Note that casting an address to an interface is possible, e.g. ``FooBar(<address_var>)``:
 
 .. code-block:: python
 
@@ -51,11 +51,29 @@ Specifying ``payable`` or ``nonpayable`` annotation indicates that the call made
         def pay(): payable
 
     @external
-    def test(some_address: address):
-        FooBar(some_address).calculate()  # cannot change storage
-        FooBar(some_address).query()  # cannot change storage, but reads itself
-        FooBar(some_address).update()  # storage can be altered
-        FooBar(some_address).pay(value=1)  # storage can be altered, and value can be sent
+    def test(foobar: FooBar):
+        foobar.calculate()  # cannot change storage
+        foobar.query()  # cannot change storage, but reads itself
+        foobar.update()  # storage can be altered
+        foobar.pay(value=1)  # storage can be altered, and value can be sent
+
+Vyper offers the option to set the following additional keyword arguments when making external calls:
+
+=============================== ===========================================================
+Keyword                         Description
+=============================== ===========================================================
+``gas``                         Specify gas value for the call
+``value``                       Specify amount of ether sent with the call
+``skip_contract_check``         Drop ``EXTCODESIZE`` and ``RETURNDATASIZE`` checks
+``default_return_value``        Specify a default return value if no value is returned
+=============================== ===========================================================
+
+The ``default_return_value`` parameter can be used to handle ERC20 tokens affected by the missing return value bug in a way similar to OpenZeppelin's ``safeTransfer`` for Solidity:
+
+.. code-block:: python
+
+    ERC20(USDT).transfer(msg.sender, 1, default_return_value=True) # returns True
+    ERC20(USDT).transfer(msg.sender, 1) # reverts because nothing returned
 
 Importing Interfaces
 ====================
@@ -127,7 +145,7 @@ Searching For Interface Files
 
 When looking for a file to import, Vyper will first search relative to the same folder as the contract being compiled. For absolute imports, it also searches relative to the root path for the project. Vyper checks for the file name with a ``.vy`` suffix first, then ``.json``.
 
-When using the command line compiler, the root path defaults to to the current working directory. You can change it with the ``-p`` flag:
+When using the command line compiler, the root path defaults to the current working directory. You can change it with the ``-p`` flag:
 
 ::
 
@@ -146,7 +164,7 @@ Vyper includes common built-in interfaces such as `ERC20 <https://eips.ethereum.
 
     implements: ERC20
 
-You can see all the available built-in interfaces in the `Vyper GitHub <https://github.com/vyperlang/vyper/tree/master/vyper/builtin_interfaces>`_ repo.
+You can see all the available built-in interfaces in the `Vyper GitHub <https://github.com/vyperlang/vyper/tree/master/vyper/builtins/interfaces>`_ repo.
 
 
 Implementing an Interface

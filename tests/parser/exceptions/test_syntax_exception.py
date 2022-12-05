@@ -18,11 +18,6 @@ def foo():
     self.x[2:4] = 3
     """,
     """
-@external
-def foo():
-    x: address = ~self
-    """,
-    """
 x: int128[5]
 @external
 def foo():
@@ -35,7 +30,7 @@ def foo():
     z = x[2:4]
     """,
     """
-Transfer: event({_&rom: indexed(address)})
+Transfer: event({_rom&: indexed(address)})
     """,
     """
 @external
@@ -54,7 +49,7 @@ def foo():
     """
 @external
 def foo():
-    x: address = create_forwarder_to(0x123456789012345678901234567890123456789)
+    x: address = create_minimal_proxy_to(0x123456789012345678901234567890123456789)
     """,
     """
 @external
@@ -75,6 +70,9 @@ def foo():
 @external
 def foo():
     x: address = 0x123456789012345678901234567890123456789
+    """,
+    """
+a: internal(uint256)
     """,
 ]
 

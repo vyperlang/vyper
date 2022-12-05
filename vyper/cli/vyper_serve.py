@@ -7,7 +7,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from socketserver import ThreadingMixIn
 
 import vyper
-from vyper.codegen import lll_node
+from vyper.codegen import ir_node
 from vyper.evm.opcodes import DEFAULT_EVM_VERSION
 from vyper.exceptions import VyperException
 
@@ -18,7 +18,9 @@ def _parse_cli_args():
 
 def _parse_args(argv):
     parser = argparse.ArgumentParser(description="Serve Vyper compiler as an HTTP Service")
-    parser.add_argument("--version", action="version", version=f"{vyper.__version__}")
+    parser.add_argument(
+        "--version", action="version", version=f"{vyper.__version__}+commit{vyper.__commit__}"
+    )
     parser.add_argument(
         "-b",
         help="Address to bind JSON server on, default: localhost:8000",
@@ -29,7 +31,7 @@ def _parse_args(argv):
     args = parser.parse_args(argv)
 
     if ":" in args.bind_address:
-        lll_node.VYPER_COLOR_OUTPUT = False
+        ir_node.VYPER_COLOR_OUTPUT = False
         runserver(*args.bind_address.split(":"))
     else:
         print('Provide bind address in "{address}:{port}" format')

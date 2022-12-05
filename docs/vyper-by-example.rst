@@ -296,23 +296,17 @@ way are, by default, private.
   ``private()`` function. Variables simply default to private if initiated
   without the ``public()`` function.
 
-The ``funders`` variable is initiated as a mapping where the key is a number,
-and the value is a struct representing the contribution of each participant.
-This struct contains each participant's public address and their respective
-value contributed to the fund. The key corresponding to each struct in the
-mapping will be represented by the variable ``nextFunderIndex`` which is
-incremented with each additional contributing participant. Variables initialized
-with the ``int128`` type without an explicit value, such as ``nextFunderIndex``,
-defaults to ``0``. The ``beneficiary`` will be the final receiver of the funds
+The ``funders`` variable is initiated as a mapping where the key is an address,
+and the value is a number representing the contribution of each participant.
+The ``beneficiary`` will be the final receiver of the funds
 once the crowdfunding period is over—as determined by the ``deadline`` and
 ``timelimit`` variables. The ``goal`` variable is the target total contribution
-of all participants. ``refundIndex`` is a variable for bookkeeping purposes in
-order to avoid gas limit issues in the scenario of a refund.
+of all participants.
 
 .. literalinclude:: ../examples/crowdfund.vy
   :language: python
-  :lineno-start: 17
-  :lines: 17-22
+  :lineno-start: 9
+  :lines: 9-15
 
 Our constructor function takes 3 arguments: the beneficiary's address, the goal
 in wei value, and the difference in time from start to finish of the
@@ -324,8 +318,8 @@ Now lets take a look at how a person can participate in the crowdfund.
 
 .. literalinclude:: ../examples/crowdfund.vy
   :language: python
-  :lineno-start: 26
-  :lines: 26-34
+  :lineno-start: 17
+  :lines: 17-23
 
 Once again, we see the ``@payable`` decorator on a method, which allows a
 person to send some ether along with a call to the method. In this case,
@@ -338,8 +332,8 @@ each participant.
 
 .. literalinclude:: ../examples/crowdfund.vy
   :language: python
-  :lineno-start: 38
-  :lines: 38-43
+  :lineno-start: 25
+  :lines: 25-31
 
 The ``finalize()`` method is used to complete the crowdfunding process. However,
 to complete the crowdfunding, the method first checks to see if the crowdfunding
@@ -359,17 +353,13 @@ all the participants.
 
 .. literalinclude:: ../examples/crowdfund.vy
   :language: python
-  :lineno-start: 47
-  :lines: 47-61
+  :lineno-start: 33
+  :lines: 33-42
 
 In the ``refund()`` method, we first check that the crowdfunding period is
 indeed over and that the total collected balance is less than the ``goal`` with
-the  ``assert`` statement . If those two conditions pass, we then loop through
-every participant and call ``send()`` to send each participant their respective
-contribution. For the sake of gas limits, we group the number of contributors
-in batches of 30 and refund them one at a time. Unfortunately, if there's a
-large number of participants, multiple calls to ``refund()`` may be
-necessary.
+the  ``assert`` statement . If those two conditions pass, we let users get their
+funds back using the withdraw pattern.
 
 .. index:: voting, ballot
 
@@ -541,15 +531,15 @@ function definitions.
   :lines: 3-27
 
 We initiate the ``company`` variable to be of type ``address`` that's public.
-The ``totalShares`` variable is of type ``currency_value``, which in this case
+The ``totalShares`` variable is of type ``uint256``, which in this case
 represents the total available shares of the company. The ``price`` variable
 represents the wei value of a share and ``holdings`` is a mapping that maps an
 address to the number of shares the address owns.
 
 .. literalinclude:: ../examples/stock/company.vy
   :language: python
-  :lineno-start: 30
-  :lines: 30-40
+  :lineno-start: 29
+  :lines: 29-40
 
 In the constructor, we set up the contract to check for valid inputs during
 the initialization of the contract via the two ``assert`` statements. If the
@@ -560,7 +550,7 @@ company's address is initialized to hold all shares of the company in the
 .. literalinclude:: ../examples/stock/company.vy
   :language: python
   :lineno-start: 42
-  :lines: 42-52
+  :lines: 42-46
 
 We will be seeing a few ``@view`` decorators in this contract—which is
 used to decorate methods that simply read the contract state or return a simple
@@ -578,8 +568,8 @@ company's holding.
 
 .. literalinclude:: ../examples/stock/company.vy
   :language: python
-  :lineno-start: 55
-  :lines: 55-70
+  :lineno-start: 51
+  :lines: 51-64
 
 The ``buyStock()`` method is a ``@payable`` method which takes an amount of
 ether sent and calculates the ``buyOrder`` (the stock value equivalence at
@@ -590,8 +580,8 @@ Now that people can buy shares, how do we check someone's holdings?
 
 .. literalinclude:: ../examples/stock/company.vy
   :language: python
-  :lineno-start: 73
-  :lines: 73-82
+  :lineno-start: 66
+  :lines: 66-71
 
 The ``_getHolding()`` is another ``@view`` method that takes an ``address``
 and returns its corresponding stock holdings by keying into ``self.holdings``.
@@ -599,16 +589,16 @@ Again, an external function ``getHolding()`` is included to allow access.
 
 .. literalinclude:: ../examples/stock/company.vy
   :language: python
-  :lineno-start: 85
-  :lines: 85-88
+  :lineno-start: 72
+  :lines: 72-76
 
 To check the ether balance of the company, we can simply call the getter method
 ``cash()``.
 
 .. literalinclude:: ../examples/stock/company.vy
   :language: python
-  :lineno-start: 91
-  :lines: 91-107
+  :lineno-start: 78
+  :lines: 78-95
 
 To sell a stock, we have the ``sellStock()`` method which takes a number of
 stocks a person wishes to sell, and sends the equivalent value in ether to the
@@ -620,8 +610,8 @@ from the seller and given to the company. The ethers are then sent to the seller
 
 .. literalinclude:: ../examples/stock/company.vy
   :language: python
-  :lineno-start: 111
-  :lines: 111-122
+  :lineno-start: 97
+  :lines: 97-110
 
 A stockholder can also transfer their stock to another stockholder with the
 ``transferStock()`` method. The method takes a receiver address and the number
@@ -631,8 +621,8 @@ both conditions are satisfied, the transfer is made.
 
 .. literalinclude:: ../examples/stock/company.vy
   :language: python
-  :lineno-start: 125
-  :lines: 125-136
+  :lineno-start: 112
+  :lines: 112-124
 
 The company is also allowed to pay out an amount in ether to an address by
 calling the ``payBill()`` method. This method should only be callable by the
@@ -643,8 +633,8 @@ sends its ether to an address.
 
 .. literalinclude:: ../examples/stock/company.vy
   :language: python
-  :lineno-start: 139
-  :lines: 139-148
+  :lineno-start: 126
+  :lines: 126-130
 
 We can also check how much the company has raised by multiplying the number of
 shares the company has sold and the price of each share. Internally, we get
@@ -652,8 +642,8 @@ this value by calling the ``_debt()`` method. Externally it is accessed via ``de
 
 .. literalinclude:: ../examples/stock/company.vy
   :language: python
-  :lineno-start: 153
-  :lines: 153-156
+  :lineno-start: 132
+  :lines: 132-138
 
 Finally, in this ``worth()`` method, we can check the worth of a company by
 subtracting its debt from its ether balance.

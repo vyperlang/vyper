@@ -2,7 +2,7 @@ import pytest
 from hypothesis import example, given, settings
 from hypothesis import strategies as st
 
-from vyper.codegen.expr import calculate_largest_base, calculate_largest_power
+from vyper.codegen.arithmetic import calculate_largest_base, calculate_largest_power
 
 
 @pytest.mark.fuzzing
@@ -13,7 +13,7 @@ def test_exp_uint256(get_contract, assert_tx_failed, power):
 def foo(a: uint256) -> uint256:
     return a ** {power}
     """
-    max_base = calculate_largest_base(power, 256, False)
+    _min_base, max_base = calculate_largest_base(power, 256, False)
     assert max_base ** power < 2 ** 256
     assert (max_base + 1) ** power >= 2 ** 256
 
@@ -31,21 +31,46 @@ def test_exp_int128(get_contract, assert_tx_failed, power):
 def foo(a: int128) -> int128:
     return a ** {power}
     """
-    max_base = calculate_largest_base(power, 128, True)
+    min_base, max_base = calculate_largest_base(power, 128, True)
 
     assert -(2 ** 127) <= max_base ** power < 2 ** 127
-    assert -(2 ** 127) <= (-max_base) ** power < 2 ** 127
+    assert -(2 ** 127) <= min_base ** power < 2 ** 127
 
     assert not -(2 ** 127) <= (max_base + 1) ** power < 2 ** 127
-    assert not -(2 ** 127) <= (-(max_base + 1)) ** power < 2 ** 127
+    assert not -(2 ** 127) <= (min_base - 1) ** power < 2 ** 127
 
     c = get_contract(code)
 
     c.foo(max_base)
-    c.foo(-max_base)
+    c.foo(min_base)
 
     assert_tx_failed(lambda: c.foo(max_base + 1))
-    assert_tx_failed(lambda: c.foo(-max_base - 1))
+    assert_tx_failed(lambda: c.foo(min_base - 1))
+
+
+@pytest.mark.fuzzing
+@pytest.mark.parametrize("power", range(2, 15))
+def test_exp_int16(get_contract, assert_tx_failed, power):
+    code = f"""
+@external
+def foo(a: int16) -> int16:
+    return a ** {power}
+    """
+    min_base, max_base = calculate_largest_base(power, 16, True)
+
+    assert -(2 ** 15) <= max_base ** power < 2 ** 15
+    assert -(2 ** 15) <= min_base ** power < 2 ** 15
+
+    assert not -(2 ** 15) <= (max_base + 1) ** power < 2 ** 15
+    assert not -(2 ** 15) <= (min_base - 1) ** power < 2 ** 15
+
+    c = get_contract(code)
+
+    c.foo(max_base)
+    c.foo(min_base)
+
+    assert_tx_failed(lambda: c.foo(max_base + 1))
+    assert_tx_failed(lambda: c.foo(min_base - 1))
 
 
 @pytest.mark.fuzzing

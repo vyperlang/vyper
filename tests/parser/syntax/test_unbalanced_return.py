@@ -30,7 +30,7 @@ def test() -> int128:
         if True:
             return 0
     else:
-        assert False
+        assert msg.sender != msg.sender
     """,
         FunctionDeclarationException,
     ),
@@ -108,7 +108,7 @@ def test() -> int128:
     if 1 == 1 :
         return 1
     else:
-        assert False
+        assert msg.sender != msg.sender
         return 0
     """,
     """

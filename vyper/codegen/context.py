@@ -5,7 +5,7 @@ from typing import Optional
 from vyper.ast import VyperNode
 from vyper.ast.signatures.function_signature import VariableRecord
 from vyper.codegen.types import NodeType
-from vyper.exceptions import CompilerPanic, FunctionDeclarationException
+from vyper.exceptions import CompilerPanic, StateAccessViolation
 
 
 class Constancy(enum.Enum):
@@ -22,11 +22,7 @@ class Context:
         vars_=None,
         sigs=None,
         forvars=None,
-        return_type=None,
         constancy=Constancy.Mutable,
-        is_internal=False,
-        is_payable=False,
-        # method_id="",
         sig=None,
     ):
         # In-memory variables, in the form (name, memory location, type)
@@ -41,9 +37,6 @@ class Context:
         # Variables defined in for loops, e.g. for i in range(6): ...
         self.forvars = forvars or {}
 
-        # Return type of the function
-        self.return_type = return_type
-
         # Is the function constant?
         self.constancy = constancy
 
@@ -53,13 +46,8 @@ class Context:
         # Whether we are currently parsing a range expression
         self.in_range_expr = False
 
-        # Is the function payable?
-        self.is_payable = is_payable
-
         # List of custom structs that have been defined.
         self.structs = global_ctx._structs
-
-        self.is_internal = is_internal
 
         # store global context
         self.global_ctx = global_ctx
@@ -73,23 +61,29 @@ class Context:
         # Not intended to be accessed directly
         self.memory_allocator = memory_allocator
 
-        self._callee_frame_sizes = []
-
-        # Intermented values, used for internal IDs
+        # Incremented values, used for internal IDs
         self._internal_var_iter = 0
         self._scope_id_iter = 0
 
     def is_constant(self):
         return self.constancy is Constancy.Constant or self.in_assertion or self.in_range_expr
 
-    def register_callee(self, frame_size):
-        self._callee_frame_sizes.append(frame_size)
+    def check_is_not_constant(self, err, expr):
+        if self.is_constant():
+            raise StateAccessViolation(f"Cannot {err} from {self.pp_constancy()}", expr)
+
+    # convenience propreties
+    @property
+    def is_payable(self):
+        return self.sig.mutability == "payable"
 
     @property
-    def max_callee_frame_size(self):
-        if len(self._callee_frame_sizes) == 0:
-            return 0
-        return max(self._callee_frame_sizes)
+    def is_internal(self):
+        return self.sig.internal
+
+    @property
+    def return_type(self):
+        return self.sig.return_type
 
     #
     # Context Managers
@@ -173,6 +167,7 @@ class Context:
     def new_variable(
         self, name: str, typ: NodeType, pos: VyperNode = None, is_mutable: bool = True
     ) -> int:
+        # TODO remove dead arg: pos
         """
         Allocate memory for a user-defined variable.
 
@@ -240,33 +235,27 @@ class Context:
     def lookup_var(self, varname):
         return self.vars[varname]
 
-    def lookup_internal_function(self, method_name, args_lll):
+    def lookup_internal_function(self, method_name, args_ir, ast_source):
         # TODO is this the right module for me?
         """
         Using a list of args, find the internal method to use, and
         the kwargs which need to be filled in by the compiler
         """
 
+        sig = self.sigs["self"].get(method_name, None)
+
         def _check(cond, s="Unreachable"):
             if not cond:
                 raise CompilerPanic(s)
 
-        sig = self.sigs["self"].get(method_name, None)
-        if sig is None:
-            raise FunctionDeclarationException(
-                "Function does not exist or has not been declared yet "
-                "(reminder: functions cannot call functions later in code "
-                f"than themselves): {method_name}"
-            )
-
-        _check(sig.internal)  # sanity check
-        # should have been caught during type checking, sanity check anyway
-        _check(len(sig.base_args) <= len(args_lll) <= len(sig.args))
-
+        # these should have been caught during type checking; sanity check
+        _check(sig is not None)
+        _check(sig.internal)
+        _check(len(sig.base_args) <= len(args_ir) <= len(sig.args))
         # more sanity check, that the types match
-        # _check(all(l.typ == r.typ for (l, r) in zip(args_lll, sig.args))
+        # _check(all(l.typ == r.typ for (l, r) in zip(args_ir, sig.args))
 
-        num_provided_kwargs = len(args_lll) - len(sig.base_args)
+        num_provided_kwargs = len(args_ir) - len(sig.base_args)
         num_kwargs = len(sig.default_args)
         kwargs_needed = num_kwargs - num_provided_kwargs
 
