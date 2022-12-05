@@ -19,6 +19,8 @@ def decimal_truncate(val, decimal_places=DECIMAL_PLACES, rounding=ROUND_FLOOR):
 
 
 CONVERT_LOG10_2 = Decimal(2).log10()
+
+
 def decimal_log2(val):
     # Decimal only has log10; convert to log2.
     ret = val.log10() / CONVERT_LOG10_2
@@ -148,9 +150,7 @@ def test_log2_bounds(log2_contract, value):
 )
 @hypothesis.example(Decimal(SizeLimits.MAX_INT128))
 @hypothesis.example(Decimal(0))
-@hypothesis.settings(
-    deadline=1000,
-)
+@hypothesis.settings(deadline=1000)
 def test_log2_valid_range(log2_contract, value):
     vyper_log2 = log2_contract.test(value)
     actual_log2 = decimal_log2(value)
@@ -160,12 +160,12 @@ def test_log2_valid_range(log2_contract, value):
 @pytest.mark.fuzzing
 @hypothesis.given(
     value=hypothesis.strategies.decimals(
-        min_value=Decimal(SizeLimits.MIN_INT128), max_value=Decimal(1) - Decimal("1E-10"), places=DECIMAL_PLACES
+        min_value=Decimal(SizeLimits.MIN_INT128),
+        max_value=Decimal(1) - Decimal("1E-10"),
+        places=DECIMAL_PLACES,
     )
 )
-@hypothesis.settings(
-    deadline=400,
-)
+@hypothesis.settings(deadline=400)
 @hypothesis.example(Decimal(SizeLimits.MIN_INT128))
 @hypothesis.example(Decimal(1) - Decimal("1E-10"))
 def test_log2_invalid_range(log2_contract, value):
