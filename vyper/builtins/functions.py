@@ -1541,13 +1541,14 @@ class _AddMulMod(BuiltinFunction):
 
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
-        a, b, c = args
+        c = args[2]
 
-        with c.cache_when_complex("c") as (b3, c):
+        with c.cache_when_complex("c") as (b1, c):
             ret = IRnode.from_list(
-                ["seq", ["assert", c], [self._opcode, a, b, c]], typ=BaseType("uint256")
+                ["seq", ["assert", c], [self._opcode, args[0], args[1], c]],
+                typ=BaseType("uint256"),
             )
-            return b3.resolve(ret)
+            return b1.resolve(ret)
 
 
 class AddMod(_AddMulMod):
