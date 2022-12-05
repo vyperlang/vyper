@@ -123,7 +123,7 @@ interface Foo:
     assert c2.foo(c1.address) == 3
 
     a0 = w3.eth.accounts[0]
-    assert_side_effect_invoked_once(lambda: c2.foo(c1.address, transact={"from": a0}), lambda: c1.bar_counter())
+    assert_side_effect_invoked_once(lambda: c2.foo(c1.address, transact={"from": a0}), c1, ["bar"])
 
 
 def test_ceil_internal_call(get_contract_with_gas_estimation):

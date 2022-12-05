@@ -239,9 +239,17 @@ def {fn_name}() -> {ret_type}:
 
 @pytest.fixture
 def assert_side_effect_invoked_once():
-    def assert_side_effect_invoked_once(side_effect_trigger, side_effect_getter, side_effect_counter=0):
-        assert side_effect_getter() == side_effect_counter
+    def assert_side_effect_invoked_once(
+        side_effect_trigger, side_effect_contract, side_effect_fn_names
+    ):
+        side_effect_getters = [
+            getattr(side_effect_contract, f"{n}_counter") for n in side_effect_fn_names
+        ]
+        start_values = [g() for g in side_effect_getters]
+
         side_effect_trigger()
-        assert side_effect_getter() == side_effect_counter + 1
+
+        end_values = [g() for g in side_effect_getters]
+        assert end_values == [v + 1 for v in start_values]
 
     return assert_side_effect_invoked_once
