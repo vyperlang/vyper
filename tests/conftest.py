@@ -201,3 +201,47 @@ def create2_address_of(keccak):
         return keccak(prefix + addr + salt + keccak(initcode))[12:]
 
     return _f
+
+
+@pytest.fixture
+def side_effects_contract(get_contract):
+    def generate(inputs):
+        """
+        Takes in a list of tuple of (
+            function_name,
+            return_type,
+            return_value,
+            contract_variable_name
+        ) and generates a Vyper contract for testing side effects.
+        """
+        code = ""
+
+        for i in inputs:
+            assert len(i) == 3
+            fn_name, ret_type, ret_value = i
+
+            snippet = f"""
+{fn_name}_counter: public(uint256)
+
+@external
+def {fn_name}() -> {ret_type}:
+    self.{fn_name}_counter += 1
+    return {ret_value}
+    """
+
+            code += snippet
+
+        contract = get_contract(code)
+        return contract
+
+    return generate
+
+
+@pytest.fixture
+def assert_side_effect_invoked_once():
+    def assert_side_effect_invoked_once(side_effect_trigger, side_effect_getter, side_effect_counter=0):
+        assert side_effect_getter() == side_effect_counter
+        side_effect_trigger()
+        assert side_effect_getter() == side_effect_counter + 1
+
+    return assert_side_effect_invoked_once

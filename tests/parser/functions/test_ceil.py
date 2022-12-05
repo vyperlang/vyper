@@ -106,28 +106,24 @@ def ceil_param(p: decimal) -> int256:
     assert c.ceil_param(Decimal("-7777777.7777777")) == -7777777
 
 
-def test_ceil_ext_call(get_contract_with_gas_estimation):
-    code1 = """
-@external
-def bar() -> decimal:
-    return 2.5
-    """
-
-    code2 = """
+def test_ceil_ext_call(w3, side_effects_contract, assert_side_effect_invoked_once, get_contract):
+    code = """
 @external
 def foo(addr: address) -> int256:
     a: Foo = Foo(addr)
-
     return ceil(a.bar())
 
 interface Foo:
-    def bar() -> decimal: nonpayable
+    def bar() -> decimal: payable
     """
 
-    c1 = get_contract_with_gas_estimation(code1)
-    c2 = get_contract_with_gas_estimation(code2)
+    c1 = side_effects_contract([("bar", "decimal", "2.5")])
+    c2 = get_contract(code)
 
     assert c2.foo(c1.address) == 3
+
+    a0 = w3.eth.accounts[0]
+    assert_side_effect_invoked_once(lambda: c2.foo(c1.address, transact={"from": a0}), lambda: c1.bar_counter())
 
 
 def test_ceil_internal_call(get_contract_with_gas_estimation):
