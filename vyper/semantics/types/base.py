@@ -46,14 +46,16 @@ class VyperType:
     _id: str
     _type_members: Optional[Dict] = None
     _valid_literal: Tuple = ()
-    _as_array: bool = False
+    _as_array: bool = False # rename to something like can_be_array_member
     _is_prim_word: bool = False
     _equality_attrs: Optional[Tuple] = None
+    _is_array_type: bool = False
+    _is_bytestring: bool = False # is it a bytes or a string?
 
     size_in_bytes = 32  # default; override for larger types
 
     def __init__(self, members: Optional[Dict] = None) -> None:
-        self.members: Dict = {}
+        self.member_types: Dict = {}
 
         # add members that are on the class instance.
         if self._type_members is not None:
@@ -254,19 +256,19 @@ class VyperType:
         # introduces a dependency cycle with the builtin_functions module
         if not skip_namespace_validation:
             validate_identifier(name)
-        if name in self.members:
+        if name in self.member_types:
             raise NamespaceCollision(f"Member '{name}' already exists in {self}")
-        self.members[name] = type_
+        self.member_types[name] = type_
 
     def get_member(self, key: str, node: vy_ast.VyperNode) -> "VyperType":
-        if key in self.members:
-            return self.members[key]
+        if key in self.member_types:
+            return self.member_types[key]
 
         # special error message for types with no members
-        if not self.members:
+        if not self.member_types:
             raise StructureException(f"{self} does not have members", node)
 
-        suggestions_str = get_levenshtein_error_suggestions(key, self.members, 0.3)
+        suggestions_str = get_levenshtein_error_suggestions(key, self.member_types, 0.3)
         raise UnknownAttribute(f"{self} has no member '{key}'. {suggestions_str}", node)
 
     def __repr__(self):

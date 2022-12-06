@@ -27,6 +27,7 @@ class _BytestringT(VyperType):
     """
 
     _equality_attrs = ("_length", "_min_length")
+    _is_bytestring: bool = True
 
     # keep LGTM linter happy:
     def __eq__(self, other):
@@ -49,6 +50,13 @@ class _BytestringT(VyperType):
         if self._length:
             return self._length
         return self._min_length
+
+    @property
+    def maxlen(self):
+        """
+        Alias for backwards compatibility.
+        """
+        return self.length
 
     def validate_literal(self, node: vy_ast.Constant) -> None:
         super().validate_literal(node)

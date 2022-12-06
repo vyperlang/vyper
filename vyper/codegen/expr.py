@@ -329,7 +329,7 @@ class Expr:
             # contract type
             if isinstance(sub.typ, InterfaceType):
                 return sub
-            if isinstance(sub.typ, StructType) and self.expr.attr in sub.typ.members:
+            if isinstance(sub.typ, StructType) and self.expr.attr in sub.typ.member_types:
                 return get_element_ptr(sub, self.expr.attr)
 
     def parse_Subscript(self):
@@ -355,7 +355,7 @@ class Expr:
         elif isinstance(sub.typ, TupleType):
             index = self.expr.slice.value.n
             # note: this check should also happen in get_element_ptr
-            if not 0 <= index < len(sub.typ.members):
+            if not 0 <= index < len(sub.typ.member_types):
                 return
         else:
             return
@@ -611,7 +611,7 @@ class Expr:
 
         if isinstance(self.expr.op, vy_ast.Invert):
             if isinstance(operand.typ, EnumType):
-                n_members = len(operand.typ.members)
+                n_members = len(operand.typ.member_types)
                 # use (xor 0b11..1 operand) to flip all the bits in
                 # `operand`. `mask` could be a very large constant and
                 # hurt codesize, but most user enums will likely have few

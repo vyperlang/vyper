@@ -7,8 +7,8 @@ from vyper.address_space import MEMORY, AddrSpace
 
 from vyper.ast import VyperNode
 from vyper.codegen.ir_node import Encoding
-from vyper.codegen.types import NodeType
 from vyper.exceptions import CompilerPanic, StateAccessViolation
+from vyper.semantics.types import VyperType
 
 
 class Constancy(enum.Enum):
@@ -22,7 +22,7 @@ class Constancy(enum.Enum):
 class VariableRecord:
     name: str
     pos: int
-    typ: NodeType
+    typ: VyperType
     mutable: bool
     encoding: Encoding = Encoding.VYPER
     location: AddrSpace = MEMORY
@@ -182,7 +182,7 @@ class Context:
         self._scopes.remove(scope_id)
 
     def _new_variable(
-        self, name: str, typ: NodeType, var_size: int, is_internal: bool, is_mutable: bool = True
+        self, name: str, typ: VyperType, var_size: int, is_internal: bool, is_mutable: bool = True
     ) -> int:
         if is_internal:
             # TODO CMC 2022-03-02 change this to `.allocate_memory()`
@@ -204,7 +204,7 @@ class Context:
         return var_pos
 
     def new_variable(
-        self, name: str, typ: NodeType, pos: VyperNode = None, is_mutable: bool = True
+        self, name: str, typ: VyperType, pos: VyperNode = None, is_mutable: bool = True
     ) -> int:
         # TODO remove dead arg: pos
         """
@@ -214,7 +214,7 @@ class Context:
         ---------
         name : str
             Name of the variable
-        typ : NodeType
+        typ : VyperType
             Variable type, used to determine the size of memory allocation
         pos : VyperNode
             AST node corresponding to the location where the variable was created,
@@ -244,13 +244,13 @@ class Context:
         return f"{name}{t}"
 
     # do we ever allocate immutable internal variables?
-    def new_internal_variable(self, typ: NodeType) -> int:
+    def new_internal_variable(self, typ: VyperType) -> int:
         """
         Allocate memory for an internal variable.
 
         Arguments
         ---------
-        typ : NodeType
+        typ : VyperType
             Variable type, used to determine the size of memory allocation
 
         Returns

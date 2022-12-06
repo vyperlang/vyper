@@ -1,3 +1,4 @@
+from functools import cached_property
 from typing import Dict, List, Optional, Tuple, Union
 
 from vyper import ast as vy_ast
@@ -48,7 +49,7 @@ class EnumT(_UserType):
         return self
 
     def __repr__(self):
-        arg_types = ",".join(repr(a) for a in self.members)
+        arg_types = ",".join(repr(a) for a in self.member_types)
         return f"enum {self.name}({arg_types})"
 
     @property
@@ -143,7 +144,7 @@ class EventT(_UserType):
     # backward compatible
     @property
     def arguments(self):
-        return self.members
+        return self.member_types
 
     def __repr__(self):
         arg_types = ",".join(repr(a) for a in self.arguments.values())
@@ -300,7 +301,7 @@ class InterfaceT(_UserType):
             return to_compare.compare_signature(fn_type)
 
         # check for missing functions
-        for name, type_ in self.members.items():
+        for name, type_ in self.member_types.items():
             if not isinstance(type_, ContractFunction):
                 # ex. address
                 continue
@@ -334,7 +335,7 @@ class InterfaceT(_UserType):
 
     @property
     def functions(self):
-        return {k: v for (k, v) in self.members.items() if isinstance(v, ContractFunction)}
+        return {k: v for (k, v) in self.member_types.items() if isinstance(v, ContractFunction)}
 
     @classmethod
     def from_json_abi(cls, name: str, abi: dict) -> "InterfaceT":
@@ -462,9 +463,27 @@ class StructT(_UserType):
 
         self.ast_def = ast_def
 
-        for n, t in self.members.items():
+        for n, t in self.member_types.items():
             if isinstance(t, HashMapT):
                 raise StructureException(f"Struct contains a mapping '{n}'", ast_def)
+
+    # duplicated code in TupleT
+    def tuple_members(self):
+        return [v for (_k, v) in self.tuple_items()]
+
+    # duplicated code in TupleT
+    def tuple_keys(self):
+        return [k for (k, _v) in self.tuple_items()]
+
+    def tuple_items(self):
+        return list(self.members.items())
+
+    @cached_property
+    def member_types(self):
+        """
+        Alias to match TupleT API without shadowing `members` on TupleT
+        """
+        return self.members
 
     @classmethod
     def from_ast_def(cls, base_node: vy_ast.StructDef) -> "StructT":
@@ -512,14 +531,14 @@ class StructT(_UserType):
 
     @property
     def size_in_bytes(self):
-        return sum(i.size_in_bytes for i in self.members.values())
+        return sum(i.size_in_bytes for i in self.member_types.values())
 
     @property
     def abi_type(self) -> ABIType:
-        return ABI_Tuple([t.abi_type for t in self.members.values()])
+        return ABI_Tuple([t.abi_type for t in self.member_types.values()])
 
     def to_abi_arg(self, name: str = "") -> dict:
-        components = [t.to_abi_arg(name=k) for k, t in self.members.items()]
+        components = [t.to_abi_arg(name=k) for k, t in self.member_types.items()]
         return {"name": name, "type": "tuple", "components": components}
 
     # TODO breaking change: use kwargs instead of dict
@@ -531,13 +550,13 @@ class StructT(_UserType):
             raise VariableDeclarationException(
                 "Struct values must be declared via dictionary", node.args[0]
             )
-        if next((i for i in self.members.values() if isinstance(i, HashMapT)), False):
+        if next((i for i in self.member_types.values() if isinstance(i, HashMapT)), False):
             raise VariableDeclarationException(
                 "Struct contains a mapping and so cannot be declared as a literal", node
             )
 
-        members = self.members.copy()
-        keys = list(self.members.keys())
+        members = self.member_types.copy()
+        keys = list(self.member_types.keys())
         for i, (key, value) in enumerate(zip(node.args[0].keys, node.args[0].values)):
             if key is None or key.get("id") not in members:
                 suggestions_str = get_levenshtein_error_suggestions(key.get("id"), members, 1.0)
@@ -549,7 +568,7 @@ class StructT(_UserType):
                 raise InvalidAttribute(
                     "Struct keys are required to be in order, but got "
                     f"`{key.id}` instead of `{expected_key}`. (Reminder: the "
-                    f"keys in this struct are {list(self.members.items())})",
+                    f"keys in this struct are {list(self.member_types.items())})",
                     key,
                 )
 
@@ -560,4 +579,4 @@ class StructT(_UserType):
                 f"Struct declaration does not define all fields: {', '.join(list(members))}", node
             )
 
-        return StructT(self._id, self.members)
+        return StructT(self._id, self.member_types)

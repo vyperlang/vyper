@@ -23,10 +23,10 @@ def new_type_to_old_type(typ: new.VyperType) -> old.NodeType:
         return old.TupleType([new_type_to_old_type(t) for t in typ.member_types])
     if isinstance(typ, new.StructT):
         return old.StructType(
-            {n: new_type_to_old_type(t) for (n, t) in typ.members.items()}, typ._id
+            {n: new_type_to_old_type(t) for (n, t) in typ.member_types.items()}, typ._id
         )
     if isinstance(typ, new.EnumT):
-        return old.EnumType(typ._id, typ.members.copy())
+        return old.EnumType(typ._id, typ.member_types.copy())
     if isinstance(typ, new.HashMapT):
         return old.MappingType(
             new_type_to_old_type(typ.key_type), new_type_to_old_type(typ.value_type)

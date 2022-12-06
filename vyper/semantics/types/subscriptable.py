@@ -96,6 +96,8 @@ class _SequenceT(_SubscriptableT):
 
     _equality_attrs: tuple = ("value_type", "length")
 
+    _is_array_type: bool = True
+
     # keep LGTM linter happy
     def __eq__(self, other):
         return super().__eq__(other)
@@ -107,6 +109,13 @@ class _SequenceT(_SubscriptableT):
 
         super().__init__(UINT256_T, value_type)
         self.length = length
+
+    @property
+    def count(self):
+        """
+        Alias for API compatibility
+        """
+        return self.length
 
     def validate_index_type(self, node):
         # TODO break this cycle
@@ -162,6 +171,13 @@ class SArrayT(_SequenceT):
     @property
     def size_in_bytes(self):
         return self.value_type.size_in_bytes * self.length
+
+    @property
+    def subtype(self):
+        """
+        Alias for API compatibility with codegen
+        """
+        return self.value_type
 
     def get_subscripted_type(self, node):
         return self.value_type
@@ -219,6 +235,20 @@ class DArrayT(_SequenceT):
         return f"DynArray[{self.value_type}, {self.length}]"
 
     @property
+    def subtype(self):
+        """
+        Alias for backwards compatibility.
+        """
+        return self.value_type
+
+    @property
+    def count(self):
+        """
+        Alias for backwards compatibility.
+        """
+        return self.length
+
+    @property
     def abi_type(self) -> ABIType:
         return ABI_DynamicArray(self.value_type.abi_type, self.length)
 
@@ -227,10 +257,6 @@ class DArrayT(_SequenceT):
         # modify the child name in place.
         ret["type"] += "[]"
         return _set_first_key(ret, "name", name)
-
-    @property
-    def is_dynamic_size(self):
-        return True
 
     # TODO rename me to memory_bytes_required
     @property
@@ -275,7 +301,7 @@ class TupleT(VyperType):
     functions.
     """
 
-    _equality_attrs = ("member_types",)
+    _equality_attrs = ("members",)
 
     # keep LGTM linter happy
     def __eq__(self, other):
@@ -283,7 +309,7 @@ class TupleT(VyperType):
 
     def __init__(self, member_types: Tuple[VyperType, ...]) -> None:
         self.member_types = member_types
-        self.key_type = UINT256_T
+        self.key_type = UINT256_T # API Compatibility
 
     def __repr__(self):
         return "(" + ", ".join(repr(t) for t in self.member_types) + ")"
@@ -292,15 +318,20 @@ class TupleT(VyperType):
     def length(self):
         return len(self.member_types)
 
+    def tuple_members(self):
+        return [v for (_k, v) in self.tuple_items()]
+
+    def tuple_keys(self):
+        return [k for (k, _v) in self.tuple_items()]
+
+    def tuple_items(self):
+        return list(enumerate(self.member_types))
+
     @classmethod
     def from_annotation(cls, node: vy_ast.Tuple) -> VyperType:
         values = node.elements
         types = tuple(type_from_annotation(v) for v in values)
         return cls(types)
-
-    @property
-    def is_dynamic_size(self):
-        return any(t.is_dynamic_size for t in self.member_types)
 
     @property
     def abi_type(self) -> ABIType:
