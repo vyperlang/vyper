@@ -41,7 +41,7 @@ def add_module_namespace(vy_module: vy_ast.Module, interface_codes: InterfaceDic
     """
 
     namespace = get_namespace()
-    ModuleNodeVisitor(vy_module, interface_codes, namespace)
+    ModuleAnalyzer(vy_module, interface_codes, namespace)
 
 
 def _find_cyclic_call(fn_names: list, self_members: dict) -> Optional[list]:
@@ -57,7 +57,7 @@ def _find_cyclic_call(fn_names: list, self_members: dict) -> Optional[list]:
     return None
 
 
-class ModuleNodeVisitor(VyperNodeVisitorBase):
+class ModuleAnalyzer(VyperNodeVisitorBase):
 
     scope_name = "module"
 
@@ -67,6 +67,8 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
         self.ast = module_node
         self.interface_codes = interface_codes or {}
         self.namespace = namespace
+
+        # TODO: Move computation out of constructor
 
         module_nodes = module_node.body.copy()
         while module_nodes:
