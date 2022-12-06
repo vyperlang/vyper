@@ -15,13 +15,13 @@ def __init__(a: uint256):
     assert c.val() == 123
 
     # Make sure the init code does not access calldata
-    assembly= vyper.compile_code(code, ["asm"])["asm"].split(" ")
+    assembly = vyper.compile_code(code, ["asm"])["asm"].split(" ")
     ir_return_idx_start = assembly.index("{")
     ir_return_idx_end = assembly.index("}")
 
     assert "CALLDATALOAD" in assembly
-    assert "CALLDATACOPY" not in assembly[:ir_return_idx_start]+assembly[ir_return_idx_end:]
-    assert "CALLDATALOAD" not in assembly[:ir_return_idx_start]+assembly[ir_return_idx_end:]
+    assert "CALLDATACOPY" not in assembly[:ir_return_idx_start] + assembly[ir_return_idx_end:]
+    assert "CALLDATALOAD" not in assembly[:ir_return_idx_start] + assembly[ir_return_idx_end:]
 
 
 def test_init_calls_internal(get_contract, assert_compile_failed, assert_tx_failed):
