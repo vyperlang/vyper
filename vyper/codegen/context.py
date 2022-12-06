@@ -15,6 +15,7 @@ class Constancy(enum.Enum):
     Mutable = 0
     Constant = 1
 
+
 # Function variable
 # TODO move to context.py
 @dataclass

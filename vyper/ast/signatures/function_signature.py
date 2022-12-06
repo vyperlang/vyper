@@ -13,7 +13,6 @@ from vyper.utils import MemoryPositions, cached_property, mkalphanum
 FunctionSignatures = Dict[str, "FunctionSignature"]
 
 
-
 @dataclass
 class FunctionArg:
     name: str

@@ -267,8 +267,7 @@ class DArrayT(_SequenceT):
         return cls(value_type, max_length)
 
 
-# maybe this shouldn't inherit from SequenceT. it is more like a struct.
-class TupleT(_SequenceT):
+class TupleT(VyperType):
     """
     Tuple type definition.
 
@@ -276,21 +275,22 @@ class TupleT(_SequenceT):
     functions.
     """
 
-    _equality_attrs = ("value_type",)
+    _equality_attrs = ("member_types",)
 
     # keep LGTM linter happy
     def __eq__(self, other):
         return super().__eq__(other)
 
-    def __init__(self, value_type: Tuple[VyperType, ...]) -> None:
-        # TODO: fix the typing here.
-        super().__init__(value_type, len(value_type))  # type: ignore
-
-        # fixes mypy error, TODO revisit typing on value_type
-        self._member_types = value_type
+    def __init__(self, member_types: Tuple[VyperType, ...]) -> None:
+        self.member_types = member_types
+        self.key_type = UINT256_T
 
     def __repr__(self):
-        return "(" + ", ".join(repr(t) for t in self.value_type) + ")"
+        return "(" + ", ".join(repr(t) for t in self.member_types) + ")"
+
+    @property
+    def length(self):
+        return len(self.member_types)
 
     @classmethod
     def from_annotation(cls, node: vy_ast.Tuple) -> VyperType:
@@ -300,19 +300,19 @@ class TupleT(_SequenceT):
 
     @property
     def is_dynamic_size(self):
-        return any(t.is_dynamic_size for t in self.value_type)
+        return any(t.is_dynamic_size for t in self.member_types)
 
     @property
     def abi_type(self) -> ABIType:
-        return ABI_Tuple([t.abi_type for t in self._member_types])
+        return ABI_Tuple([t.abi_type for t in self.member_types])
 
     def to_abi_arg(self, name: str = "") -> dict:
-        components = [t.to_abi_arg() for t in self._member_types]
+        components = [t.to_abi_arg() for t in self.member_types]
         return {"name": name, "type": "tuple", "components": components}
 
     @property
     def size_in_bytes(self):
-        return sum(i.size_in_bytes for i in self.value_type)
+        return sum(i.size_in_bytes for i in self.member_types)
 
     def validate_index_type(self, node):
         if not isinstance(node, vy_ast.Int):
@@ -323,11 +323,11 @@ class TupleT(_SequenceT):
             raise ArrayIndexException("Index out of range", node)
 
     def get_subscripted_type(self, node):
-        return self.value_type[node.value]
+        return self.member_types[node.value]
 
     def compare_type(self, other):
         if not isinstance(self, type(other)):
             return False
         if self.length != other.length:
             return False
-        return all(self.value_type[i].compare_type(other.value_type[i]) for i in range(self.length))
+        return all(a.compare_type(b) for (a, b) in zip(self.member_types, other.member_types))
