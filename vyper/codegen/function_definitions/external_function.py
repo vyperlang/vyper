@@ -2,7 +2,8 @@ from typing import Any, List
 
 import vyper.utils as util
 from vyper.address_space import CALLDATA, DATA, MEMORY
-from vyper.ast.signatures.function_signature import FunctionSignature, VariableRecord
+from vyper.ast.signatures.function_signature import FunctionSignature
+from vyper.codegen.context import VariableRecord
 from vyper.codegen.abi_encoder import abi_encoding_matches_vyper
 from vyper.codegen.context import Context
 from vyper.codegen.core import get_element_ptr, getpos, make_setter, needs_clamp

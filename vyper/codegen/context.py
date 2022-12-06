@@ -1,9 +1,12 @@
 import contextlib
+from dataclasses import dataclass
 import enum
-from typing import Optional
+import math
+from typing import Any, Optional
+from vyper.address_space import MEMORY, AddrSpace
 
 from vyper.ast import VyperNode
-from vyper.ast.signatures.function_signature import VariableRecord
+from vyper.codegen.ir_node import Encoding
 from vyper.codegen.types import NodeType
 from vyper.exceptions import CompilerPanic, StateAccessViolation
 
@@ -11,6 +14,41 @@ from vyper.exceptions import CompilerPanic, StateAccessViolation
 class Constancy(enum.Enum):
     Mutable = 0
     Constant = 1
+
+# Function variable
+# TODO move to context.py
+@dataclass
+class VariableRecord:
+    name: str
+    pos: int
+    typ: NodeType
+    mutable: bool
+    encoding: Encoding = Encoding.VYPER
+    location: AddrSpace = MEMORY
+    blockscopes: Optional[list] = None
+    defined_at: Any = None
+    is_internal: bool = False
+    is_immutable: bool = False
+    data_offset: Optional[int] = None
+
+    def __post_init__(self):
+        if self.blockscopes is None:
+            self.blockscopes = []
+
+    def __repr__(self):
+        ret = vars(self)
+        ret["allocated"] = self.size * 32
+        return f"VariableRecord(f{ret})"
+
+    @property
+    def size(self):
+        if hasattr(self.typ, "size_in_bytes"):
+            # temporary requirement to support both new and old type objects
+            # we divide by 32 here because the returned value is denominated
+            # in "slots" of 32 bytes each
+            # CMC 20211023 revisit this divide-by-32.
+            return math.ceil(self.typ.size_in_bytes / 32)
+        return math.ceil(self.typ.memory_bytes_required / 32)
 
 
 # Contains arguments, variables, etc

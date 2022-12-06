@@ -1,7 +1,7 @@
 from typing import Optional
 
 from vyper import ast as vy_ast
-from vyper.ast.signatures.function_signature import VariableRecord
+from vyper.codegen.context import VariableRecord
 from vyper.codegen.types import parse_type
 from vyper.exceptions import CompilerPanic, InvalidType, StructureException
 from vyper.semantics.types import EnumT

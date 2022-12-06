@@ -13,51 +13,6 @@ from vyper.utils import MemoryPositions, cached_property, mkalphanum
 FunctionSignatures = Dict[str, "FunctionSignature"]
 
 
-# Function variable
-# TODO move to context.py
-# TODO use dataclass
-class VariableRecord:
-    def __init__(  # type: ignore
-        self,
-        name,
-        pos,
-        typ,
-        mutable,
-        encoding=Encoding.VYPER,
-        location=MEMORY,
-        blockscopes=None,
-        defined_at=None,  # note: dead variable
-        is_internal=False,
-        is_immutable=False,
-        data_offset: Optional[int] = None,
-    ):
-        self.name = name
-        self.pos = pos
-        self.typ = typ
-        self.mutable = mutable
-        self.location = location
-        self.encoding = encoding
-        self.blockscopes = [] if blockscopes is None else blockscopes
-        self.defined_at = defined_at  # source code location variable record was defined.
-        self.is_internal = is_internal
-        self.is_immutable = is_immutable
-        self.data_offset = data_offset  # location in data section
-
-    def __repr__(self):
-        ret = vars(self)
-        ret["allocated"] = self.size * 32
-        return f"VariableRecord(f{ret})"
-
-    @property
-    def size(self):
-        if hasattr(self.typ, "size_in_bytes"):
-            # temporary requirement to support both new and old type objects
-            # we divide by 32 here because the returned value is denominated
-            # in "slots" of 32 bytes each
-            # CMC 20211023 revisit this divide-by-32.
-            return math.ceil(self.typ.size_in_bytes / 32)
-        return math.ceil(self.typ.memory_bytes_required / 32)
-
 
 @dataclass
 class FunctionArg:

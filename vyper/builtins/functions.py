@@ -6,7 +6,7 @@ from decimal import Decimal
 from vyper import ast as vy_ast
 from vyper.abi_types import ABI_Tuple
 from vyper.address_space import MEMORY, STORAGE
-from vyper.ast.signatures.function_signature import VariableRecord
+from vyper.codegen.context import VariableRecord
 from vyper.ast.validation import validate_call_args
 from vyper.codegen.abi_encoder import abi_encode
 from vyper.codegen.context import Context
