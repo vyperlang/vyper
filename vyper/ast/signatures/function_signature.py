@@ -113,6 +113,8 @@ class FunctionSignature:
         return input_name + ":"
 
     def set_frame_info(self, frame_info):
+        if self.frame_info is not None:
+            raise CompilerPanic("sig.frame_info already set!")
         self.frame_info = frame_info
 
     @cached_property
