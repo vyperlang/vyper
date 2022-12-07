@@ -87,16 +87,6 @@ def foo():
     ),
     (
         """
-x: uint256
-
-@external
-def foo():
-    send(0x1234567890123456789012345678901234567890, 5, gas=self.x + 1.5)
-    """,
-        TypeMismatch,
-    ),
-    (
-        """
 x: decimal
 
 @external
