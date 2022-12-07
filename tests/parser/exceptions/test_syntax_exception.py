@@ -74,6 +74,11 @@ def foo():
     """
 a: internal(uint256)
     """,
+    """
+@external
+def foo():
+    x: uint256 = +1  # test UAdd ast blocked
+    """,
 ]
 
 
