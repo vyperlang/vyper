@@ -168,6 +168,9 @@ def _runtime_ir(runtime_functions, all_sigs, global_ctx):
 
     runtime = ["seq"]
 
+    # function with 0 selector may get treated as the fallback fn without
+    # this check for calldatasize < 4. For all other fns this check is redundant
+    # because a similar check for calldatasize is done in the selector table.
     if has_zero_selector_functions:
         # check that calldatasize is at least 4, otherwise
         # calldataload will load zeros (cf. yellow paper).
