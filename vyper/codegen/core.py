@@ -13,6 +13,41 @@ from vyper.utils import GAS_CALLDATACOPY_WORD, GAS_CODECOPY_WORD, GAS_IDENTITY, 
 
 DYNAMIC_ARRAY_OVERHEAD = 1
 
+def is_bytes_m_type(typ):
+    return isinstance(typ, BytesM_T)
+
+def is_numeric_type(typ):
+    return isinstance(typ, (IntegerT, DecimalT))
+
+def is_integer_type(typ):
+    return isinstance(typ, IntegerT)
+
+def is_decimal_type(typ):
+    return isinstance(typ, DecimalT)
+
+def is_tuple_like(typ):
+    # A lot of code paths treat tuples and structs similarly
+    # so we have a convenience function to detect it
+    return hasattr(typ, "tuple_items")
+
+def is_array_like(typ):
+    # For convenience static and dynamic arrays share some code paths
+    return typ._is_array_type
+
+# def is_base_type(typ, btypes):
+#     pass
+
+def get_type_for_exact_size(n_bytes):
+    """Create a type which will take up exactly n_bytes. Used for allocating internal buffers.
+
+    Parameters:
+      n_bytes: the number of bytes to allocate
+    Returns:
+      type: A type which can be passed to context.new_variable
+    """
+    return BytesT(n_bytes - 32 * DYNAMIC_ARRAY_OVERHEAD)
+
+
 # propagate revert message when calls to external contracts fail
 def check_external_call(call_ir):
     copy_revertdata = ["returndatacopy", 0, 0, "returndatasize"]
@@ -355,7 +390,7 @@ def _getelemptr_abi_helper(parent, member_t, ofst, clamp=True):
 def _get_element_ptr_tuplelike(parent, key):
     typ = parent.typ
     # assert isinstance(typ, TupleLike)
-    assert hasattr(typ, "tuple_items")
+    assert is_tuple_like(typ)
 
     if isinstance(typ, StructT):
         assert isinstance(key, str)
@@ -419,7 +454,7 @@ def has_length_word(typ):
 # TODO simplify this code, especially the ABI decoding
 def _get_element_ptr_array(parent, key, array_bounds_check):
 
-    assert parent.typ._is_array_type
+    assert is_array_like(parent)
 
     if not is_integer_type(key.typ):
         raise TypeCheckFailure(f"{key.typ} used as array index")
@@ -497,13 +532,13 @@ def get_element_ptr(parent, key, array_bounds_check=True):
     with parent.cache_when_complex("val") as (b, parent):
         typ = parent.typ
 
-        if hasattr(typ, "tuple_items"):
+        if is_tuple_like(typ):
             ret = _get_element_ptr_tuplelike(parent, key)
 
         elif isinstance(typ, HashMapT):
             ret = _get_element_ptr_mapping(parent, key)
 
-        elif typ._is_array_type:
+        elif is_array_like(typ):
             ret = _get_element_ptr_array(parent, key, array_bounds_check)
 
         else:
@@ -695,9 +730,9 @@ def check_assign(left, right):
 
     if isinstance(left.typ, _BytestringT):
         _check_assign_bytes(left, right)
-    elif left.typ._is_array_type:
+    elif is_array_like(left.typ):
         _check_assign_list(left, right)
-    elif hasattr(left.typ, "tuple_items"):
+    elif is_tuple_like(left.typ):
         _check_assign_tuple(left, right)
 
     elif left.typ._is_prim_word:
@@ -738,7 +773,7 @@ def needs_clamp(t, encoding):
         return len(t.members) < 256
     if isinstance(t, SArrayT):
         return needs_clamp(t.subtype, encoding)
-    if hasattr(t, "tuple_items"):
+    if is_tuple_like(t):
         return any(needs_clamp(m, encoding) for m in t.tuple_members())
     if t._is_prim_word:
         return t.typ not in (INT256_T, UINT256_T, BYTES32_T)

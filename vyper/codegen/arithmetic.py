@@ -2,9 +2,8 @@ import decimal
 import math
 from typing import Tuple
 
-from vyper.codegen.core import clamp, clamp_basetype
+from vyper.codegen.core import clamp, clamp_basetype, is_decimal_type, is_integer_type, is_numeric_type
 from vyper.codegen.ir_node import IRnode
-from vyper.codegen.types import BaseType, is_decimal_type, is_integer_type
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import CompilerPanic, TypeCheckFailure, UnimplementedException
 
@@ -148,7 +147,7 @@ def calculate_largest_base(b: int, num_bits: int, is_signed: bool) -> Tuple[int,
 
 # def safe_add(x: IRnode, y: IRnode) -> IRnode:
 def safe_add(x, y):
-    assert x.typ is not None and x.typ == y.typ and isinstance(x.typ, BaseType)
+    assert x.typ is not None and x.typ == y.typ and is_numeric_type(x.typ)
     num_info = x.typ._num_info
 
     res = IRnode.from_list(["add", x, y], typ=x.typ.typ)
