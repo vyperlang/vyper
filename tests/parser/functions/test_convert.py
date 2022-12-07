@@ -247,7 +247,7 @@ def _padding_direction(typ):
     return _PadDirection.Left
 
 
-# TODO this could be a function in vyper.builtin_functions.convert
+# TODO this could be a function in vyper.builtins._convert
 # which implements literal folding and also serves as a reference/spec
 def _padconvert(val_bits, direction, n, padding_byte=None):
     """

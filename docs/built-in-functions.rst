@@ -272,6 +272,18 @@ Vyper has three built-ins for contract creation; all three contract creation bui
         def foo(_topic: bytes32, _data: Bytes[100]):
             raw_log([_topic], _data)
 
+.. py:function:: raw_revert(data: Bytes) -> None
+
+    Provides low level access to the ``REVERT`` opcode, reverting execution with the specified data returned.
+
+    * ``data``: Data representing the error message causing the revert.
+
+    .. code-block:: python
+
+        @external
+        def foo(_data: Bytes[100]):
+            raw_revert(_data)
+
 .. py:function:: selfdestruct(to: address) -> None
 
     Trigger the ``SELFDESTRUCT`` opcode (``0xFF``), causing the contract to be destroyed.
@@ -280,7 +292,7 @@ Vyper has three built-ins for contract creation; all three contract creation bui
 
     .. warning::
 
-        This method delete the contract from the blockchain. All non-ether assets associated with this contract are "burned" and the contract is no longer accessible.
+        This method deletes the contract from the blockchain. All non-ether assets associated with this contract are "burned" and the contract is no longer accessible.
 
     .. code-block:: python
 
@@ -496,7 +508,7 @@ Data Manipulation
 
     * ``b``: value being sliced
     * ``start``: start position of the slice
-    * ``length``: length of the slice, must be constant. Immutables and variables are not supported.
+    * ``length``: length of the slice
 
     If the value being sliced is a ``Bytes`` or ``bytes32``, the return type is ``Bytes``.  If it is a ``String``, the return type is ``String``.
 

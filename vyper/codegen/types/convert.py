@@ -5,41 +5,29 @@ import vyper.semantics.types as new
 from vyper.exceptions import InvalidType
 
 
-def new_type_to_old_type(typ: new.BasePrimitive) -> old.NodeType:
-    if isinstance(typ, new.BoolDefinition):
-        return old.BaseType("bool")
-    if isinstance(typ, new.AddressDefinition):
-        return old.BaseType("address")
-    if isinstance(typ, new.InterfaceDefinition):
+def new_type_to_old_type(typ: new.VyperType) -> old.NodeType:
+    if typ._is_prim_word:
+        return old.BaseType(typ._id)
+    if isinstance(typ, new.InterfaceT):
         return old.InterfaceType(typ._id)
-    if isinstance(typ, new.BytesMDefinition):
-        m = typ._length  # type: ignore
-        return old.BaseType(f"bytes{m}")
-    if isinstance(typ, new.BytesArrayDefinition):
+    if isinstance(typ, new.BytesT):
         return old.ByteArrayType(typ.length)
-    if isinstance(typ, new.StringDefinition):
+    if isinstance(typ, new.StringT):
         return old.StringType(typ.length)
-    if isinstance(typ, new.DecimalDefinition):
-        return old.BaseType("decimal")
-    if isinstance(typ, new.SignedIntegerAbstractType):
-        bits = typ._bits  # type: ignore
-        return old.BaseType("int" + str(bits))
-    if isinstance(typ, new.UnsignedIntegerAbstractType):
-        bits = typ._bits  # type: ignore
-        return old.BaseType("uint" + str(bits))
-    if isinstance(typ, new.ArrayDefinition):
+    if isinstance(typ, new.SArrayT):
         return old.SArrayType(new_type_to_old_type(typ.value_type), typ.length)
-    if isinstance(typ, new.DynamicArrayDefinition):
+    if isinstance(typ, new.DArrayT):
         return old.DArrayType(new_type_to_old_type(typ.value_type), typ.length)
-    if isinstance(typ, new.TupleDefinition):
+    if isinstance(typ, new.TupleT):
+        assert isinstance(typ.value_type, tuple)  # mypy hint
         return old.TupleType([new_type_to_old_type(t) for t in typ.value_type])
-    if isinstance(typ, new.StructDefinition):
+    if isinstance(typ, new.StructT):
         return old.StructType(
             {n: new_type_to_old_type(t) for (n, t) in typ.members.items()}, typ._id
         )
-    if isinstance(typ, new.EnumDefinition):
+    if isinstance(typ, new.EnumT):
         return old.EnumType(typ._id, typ.members.copy())
-    if isinstance(typ, new.MappingDefinition):
+    if isinstance(typ, new.HashMapT):
         return old.MappingType(
             new_type_to_old_type(typ.key_type), new_type_to_old_type(typ.value_type)
         )

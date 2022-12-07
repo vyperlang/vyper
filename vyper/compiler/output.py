@@ -41,7 +41,7 @@ def build_external_interface_output(compiler_data: CompilerData) -> str:
     name = "".join([x.capitalize() for x in stem.split("_")])
     out = f"\n# External Interfaces\ninterface {name}:\n"
 
-    for func in interface.members.values():
+    for func in interface.functions.values():
         if func.visibility == FunctionVisibility.INTERNAL or func.name == "__init__":
             continue
         args = ", ".join([f"{name}: {typ}" for name, typ in func.arguments.items()])
@@ -62,9 +62,9 @@ def build_interface_output(compiler_data: CompilerData) -> str:
             encoded_args = "\n    ".join(f"{name}: {typ}" for name, typ in event.arguments.items())
             out = f"{out}event {event.name}:\n    {encoded_args if event.arguments else 'pass'}\n"
 
-    if interface.members:
+    if interface.functions:
         out = f"{out}\n# Functions\n\n"
-        for func in interface.members.values():
+        for func in interface.functions.values():
             if func.visibility == FunctionVisibility.INTERNAL or func.name == "__init__":
                 continue
             if func.mutability != StateMutability.NONPAYABLE:
@@ -139,13 +139,13 @@ def build_metadata_output(compiler_data: CompilerData) -> dict:
 
 def build_method_identifiers_output(compiler_data: CompilerData) -> dict:
     interface = compiler_data.vyper_module_folded._metadata["type"]
-    functions = interface.members.values()
+    functions = interface.functions.values()
 
     return {k: hex(v) for func in functions for k, v in func.method_ids.items()}
 
 
 def build_abi_output(compiler_data: CompilerData) -> list:
-    abi = compiler_data.vyper_module_folded._metadata["type"].to_abi_dict()
+    abi = compiler_data.vyper_module_folded._metadata["type"].to_toplevel_abi_dict()
     if compiler_data.show_gas_estimates:
         # Add gas estimates for each function to ABI
         gas_estimates = build_gas_estimates(compiler_data.function_signatures)

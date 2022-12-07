@@ -55,7 +55,7 @@ def _register_function_args(context: Context, sig: FunctionSignature) -> List[IR
 
 
 def _annotated_method_id(abi_sig):
-    method_id = util.abi_method_id(abi_sig)
+    method_id = util.method_id_int(abi_sig)
     annotation = f"{hex(method_id)}: {abi_sig}"
     return IRnode(method_id, annotation=annotation)
 
