@@ -4,7 +4,9 @@ on: [push, pull_request]
 
 concurrency:
   # cancel older, in-progress jobs from the same PR, same workflow.
-  group: ${{ github.workflow }}-${{ github.head_ref }}
+  # use run_id if the job is triggered by a push to ensure
+  # push-triggered jobs to not get canceled.
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
 
 jobs:
