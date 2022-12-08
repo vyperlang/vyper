@@ -609,12 +609,6 @@ class Expr:
             min_int_val, _ = operand.typ._num_info.bounds
             return IRnode.from_list(["sub", 0, clamp("sgt", operand, min_int_val)], typ=operand.typ)
 
-    def _is_valid_interface_assign(self):
-        if self.expr.args and len(self.expr.args) == 1:
-            if arg_ir.typ == AddressT():
-                return True, arg_ir
-        return False, None
-
     # Function calls
     def parse_Call(self):
         # TODO fix cyclic import
