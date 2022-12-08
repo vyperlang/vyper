@@ -37,7 +37,7 @@ class VyperType:
     _id : str
         The name of the type.
     _as_array: bool, optional
-        If `True`, this type can be used as the base member for a static array.
+        If `True`, this type can be used as the base member for an array.
     _valid_literal : Tuple
         A tuple of Vyper ast classes that may be assigned this type.
     _is_prim_word: bool, optional
