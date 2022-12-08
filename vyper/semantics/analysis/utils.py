@@ -136,8 +136,8 @@ class _ExprAnalyser:
             A list of type objects
         """
         # Early termination if typedef is propagated in metadata
-        if "type" in node._metadata:
-            return [node._metadata["type"]]
+        if "known_type" in node._metadata:
+            return [node._metadata["known_type"]]
 
         fn = self._find_fn(node)
         ret = fn(node)
