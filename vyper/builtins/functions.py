@@ -1545,8 +1545,7 @@ class _AddMulMod(BuiltinFunction):
 
         with c.cache_when_complex("c") as (b1, c):
             ret = IRnode.from_list(
-                ["seq", ["assert", c], [self._opcode, args[0], args[1], c]],
-                typ=BaseType("uint256"),
+                ["seq", ["assert", c], [self._opcode, args[0], args[1], c]], typ=BaseType("uint256")
             )
             return b1.resolve(ret)
 

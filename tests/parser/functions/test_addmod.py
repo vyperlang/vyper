@@ -33,9 +33,7 @@ interface Foo:
     assert c2.foo(c1.address) == 2
 
     a0 = w3.eth.accounts[0]
-    assert_side_effect_invoked_once(
-        lambda: c2.foo(c1.address, transact={"from": a0}), c1, ["a"]
-    )
+    assert_side_effect_invoked_once(lambda: c2.foo(c1.address, transact={"from": a0}), c1, ["a"])
 
 
 def test_uint256_addmod_internal_call(get_contract_with_gas_estimation):
