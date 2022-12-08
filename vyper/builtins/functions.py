@@ -39,17 +39,8 @@ from vyper.codegen.core import (
 from vyper.codegen.expr import Expr
 from vyper.codegen.ir_node import Encoding
 from vyper.codegen.keccak256_helper import keccak256_helper
-from vyper.semantics.types import (
-    VyperType,
-    _BytestringT,
-    BytesT,
-    SArrayT,
-    StringT,
-    TupleT,
-)
-from vyper.codegen.core import (
-    get_type_for_exact_size,
-)
+from vyper.semantics.types import VyperType, _BytestringT, BytesT, SArrayT, StringT, TupleT
+from vyper.codegen.core import get_type_for_exact_size
 from vyper.exceptions import (
     ArgumentException,
     CompilerPanic,
@@ -536,10 +527,7 @@ class Concat(BuiltinFunction):
 
         # Maximum length of the output
         dst_maxlen = sum(
-            [
-                arg.typ.maxlen if isinstance(arg.typ, _BytestringT) else arg.typ.m
-                for arg in args
-            ]
+            [arg.typ.maxlen if isinstance(arg.typ, _BytestringT) else arg.typ.m for arg in args]
         )
 
         # TODO: try to grab these from semantic analysis
@@ -778,9 +766,7 @@ class ECRecover(BuiltinFunction):
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
         placeholder_node = IRnode.from_list(
-            context.new_internal_variable(BytesT(128)),
-            typ=BytesT(128),
-            location=MEMORY,
+            context.new_internal_variable(BytesT(128)), typ=BytesT(128), location=MEMORY
         )
         return IRnode.from_list(
             [
@@ -820,9 +806,7 @@ class ECAdd(BuiltinFunction):
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
         placeholder_node = IRnode.from_list(
-            context.new_internal_variable(BytesT(128)),
-            typ=BytesT(128),
-            location=MEMORY,
+            context.new_internal_variable(BytesT(128)), typ=BytesT(128), location=MEMORY
         )
         o = IRnode.from_list(
             [
@@ -849,9 +833,7 @@ class ECMul(BuiltinFunction):
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
         placeholder_node = IRnode.from_list(
-            context.new_internal_variable(BytesT(128)),
-            typ=BytesT(128),
-            location=MEMORY,
+            context.new_internal_variable(BytesT(128)), typ=BytesT(128), location=MEMORY
         )
         o = IRnode.from_list(
             [
@@ -1183,9 +1165,7 @@ class RawCall(BuiltinFunction):
             args_len = ["mload", input_buf]
 
         output_node = IRnode.from_list(
-            context.new_internal_variable(BytesT(outsize)),
-            typ=BytesT(outsize),
-            location=MEMORY,
+            context.new_internal_variable(BytesT(outsize)), typ=BytesT(outsize), location=MEMORY
         )
 
         bool_ty = BaseType("bool")

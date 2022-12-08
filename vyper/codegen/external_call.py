@@ -17,11 +17,12 @@ from vyper.codegen.core import (
     needs_clamp,
     unwrap_location,
     wrap_value_for_external_return,
-    get_type_for_exact_size
+    get_type_for_exact_size,
 )
 from vyper.codegen.ir_node import Encoding, IRnode
 from vyper.exceptions import TypeCheckFailure
 from vyper.semantics.types.function import StateMutability
+
 
 @dataclass
 class _CallKwargs:

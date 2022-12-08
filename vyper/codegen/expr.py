@@ -16,7 +16,7 @@ from vyper.codegen.core import (
     pop_dyn_array,
     unwrap_location,
     is_bytes_m_type,
-    is_numeric_type
+    is_numeric_type,
 )
 from vyper.codegen.ir_node import IRnode
 from vyper.codegen.keccak256_helper import keccak256_helper
@@ -634,7 +634,7 @@ class Expr:
 
             # Interface assignment. Bar(<address>).
             elif function_name in self.context.sigs:
-                arg0, = self.expr.args
+                (arg0,) = self.expr.args
                 arg_ir = Expr(arg0, self.context).ir_node
 
                 arg_ir.typ = self.expr._metadata["type"]

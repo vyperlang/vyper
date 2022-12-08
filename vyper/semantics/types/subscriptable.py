@@ -310,7 +310,7 @@ class TupleT(VyperType):
     def __init__(self, member_types: Tuple[VyperType, ...]) -> None:
         super().__init__()
         self.member_types = member_types
-        self.key_type = UINT256_T # API Compatibility
+        self.key_type = UINT256_T  # API Compatibility
 
     def __repr__(self):
         return "(" + ", ".join(repr(t) for t in self.member_types) + ")"

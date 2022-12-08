@@ -46,11 +46,11 @@ class VyperType:
     _id: str
     _type_members: Optional[Dict] = None
     _valid_literal: Tuple = ()
-    _as_array: bool = False # rename to something like can_be_array_member
+    _as_array: bool = False  # rename to something like can_be_array_member
     _is_prim_word: bool = False
     _equality_attrs: Optional[Tuple] = None
     _is_array_type: bool = False
-    _is_bytestring: bool = False # is it a bytes or a string?
+    _is_bytestring: bool = False  # is it a bytes or a string?
 
     size_in_bytes = 32  # default; override for larger types
 

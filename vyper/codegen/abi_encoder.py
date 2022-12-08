@@ -6,9 +6,10 @@ from vyper.codegen.core import (
     get_element_ptr,
     make_setter,
     zero_pad,
-    is_tuple_like
+    is_tuple_like,
 )
 from vyper.codegen.ir_node import IRnode
+
 # from vyper.codegen.types import BaseType, ByteArrayLike, DArrayType, SArrayType, TupleLike
 from vyper.exceptions import CompilerPanic
 from vyper.semantics.types import SArrayT
@@ -20,6 +21,7 @@ from vyper.semantics.types.subscriptable import DArrayT
 def _is_complex_type(typ):
     # Tuples, Structs, and SArrays follow the same code path
     return is_tuple_like(typ) or isinstance(typ, (SArrayT))
+
 
 # turn an ir node into a list, based on its type.
 def _deconstruct_complex_type(ir_node):

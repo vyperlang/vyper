@@ -278,6 +278,7 @@ class DecimalT(NumericT):
         DIVISOR = Decimal(self.divisor)
         return lo / DIVISOR, hi / DIVISOR
 
+
 # maybe this even deserves its own module, address.py
 class AddressT(_PrimT):
     _as_array = True

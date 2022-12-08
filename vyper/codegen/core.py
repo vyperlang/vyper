@@ -4,41 +4,64 @@ from vyper.codegen.ir_node import Encoding, IRnode
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import CompilerPanic, StructureException, TypeCheckFailure, TypeMismatch
 from vyper.semantics.types import _BytestringT
-from vyper.semantics.types.primitives import BYTES32_T, INT256_T, AddressT, BoolT, BytesM_T, DecimalT, IntegerT
+from vyper.semantics.types.primitives import (
+    BYTES32_T,
+    INT256_T,
+    AddressT,
+    BoolT,
+    BytesM_T,
+    DecimalT,
+    IntegerT,
+)
 from vyper.semantics.types.shortcuts import UINT256_T
 from vyper.semantics.types import DArrayT, StructT, HashMapT, TupleT, BytesT
 from vyper.semantics.types.subscriptable import SArrayT
 from vyper.semantics.types.user import EnumT
-from vyper.utils import GAS_CALLDATACOPY_WORD, GAS_CODECOPY_WORD, GAS_IDENTITY, GAS_IDENTITYWORD, ceil32
+from vyper.utils import (
+    GAS_CALLDATACOPY_WORD,
+    GAS_CODECOPY_WORD,
+    GAS_IDENTITY,
+    GAS_IDENTITYWORD,
+    ceil32,
+)
 
 DYNAMIC_ARRAY_OVERHEAD = 1
+
 
 def is_bytes_m_type(typ):
     return isinstance(typ, BytesM_T)
 
+
 def is_numeric_type(typ):
     return isinstance(typ, (IntegerT, DecimalT))
+
 
 def is_integer_type(typ):
     return isinstance(typ, IntegerT)
 
+
 def is_decimal_type(typ):
     return isinstance(typ, DecimalT)
 
+
 def is_enum_type(typ):
     return isinstance(typ, EnumT)
+
 
 def is_tuple_like(typ):
     # A lot of code paths treat tuples and structs similarly
     # so we have a convenience function to detect it
     return hasattr(typ, "tuple_items")
 
+
 def is_array_like(typ):
     # For convenience static and dynamic arrays share some code paths
     return typ._is_array_type
 
+
 # def is_base_type(typ, btypes):
 #     pass
+
 
 def get_type_for_exact_size(n_bytes):
     """Create a type which will take up exactly n_bytes. Used for allocating internal buffers.
@@ -704,7 +727,8 @@ def _check_assign_tuple(left, right):
                 FAIL()  # pragma: notest
             # TODO recurse into left, right if literals?
             check_assign(
-                dummy_node_for_type(left.typ.member_types[k]), dummy_node_for_type(right.typ.member_types[k])
+                dummy_node_for_type(left.typ.member_types[k]),
+                dummy_node_for_type(right.typ.member_types[k]),
             )
 
         for k in right.typ.member_types:

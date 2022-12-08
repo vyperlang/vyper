@@ -2,7 +2,13 @@ import decimal
 import math
 from typing import Tuple
 
-from vyper.codegen.core import clamp, clamp_basetype, is_decimal_type, is_integer_type, is_numeric_type
+from vyper.codegen.core import (
+    clamp,
+    clamp_basetype,
+    is_decimal_type,
+    is_integer_type,
+    is_numeric_type,
+)
 from vyper.codegen.ir_node import IRnode
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import CompilerPanic, TypeCheckFailure, UnimplementedException
@@ -363,9 +369,7 @@ def safe_pow(x, y):
         if y.value in (0, 1):
             ok = [1]
         else:
-            lower_bound, upper_bound = calculate_largest_base(
-                y.value, typ.bits, typ.is_signed
-            )
+            lower_bound, upper_bound = calculate_largest_base(y.value, typ.bits, typ.is_signed)
             if typ.is_signed:
                 ok = ["and", ["sge", x, lower_bound], ["sle", x, upper_bound]]
             else:

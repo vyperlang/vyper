@@ -9,7 +9,6 @@ from vyper.typing import InterfaceImports
 from vyper.utils import cached_property
 
 
-
 # Datatype to store all global context information.
 # TODO: rename me to ModuleInfo
 class GlobalContext:
