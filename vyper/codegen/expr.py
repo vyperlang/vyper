@@ -631,7 +631,9 @@ class Expr:
                 (arg0,) = self.expr.args
                 arg_ir = Expr(arg0, self.context).ir_node
 
+                assert arg_ir.typ == AddressT()
                 arg_ir.typ = self.expr._metadata["type"]
+
                 return arg_ir
 
         elif isinstance(self.expr.func, vy_ast.Attribute) and self.expr.func.attr == "pop":
