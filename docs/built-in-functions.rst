@@ -891,7 +891,7 @@ Utilities
 
     .. note::
 
-        The EVM only provides access to the most recent 256 blocks. This function returns ``EMPTY_BYTES32`` if the block number is greater than or equal to the current block number or more than 256 blocks behind the current block.
+        The EVM only provides access to the most recent 256 blocks. This function reverts if the block number is greater than or equal to the current block number or more than 256 blocks behind the current block.
 
     .. code-block:: python
 
