@@ -388,7 +388,7 @@ def to_bytes_m(expr, arg, out_typ):
 
         if out_typ.m_bits < int_bits:
             # question: allow with runtime clamp?
-            # arg = int_clamp(m_bits, signed=out_typ.signed)
+            # arg = int_clamp(m_bits, signed=arg.typ.signed)
             _FAIL(arg.typ, out_typ, expr)
 
         # note: neg numbers not OOB. keep sign bit
