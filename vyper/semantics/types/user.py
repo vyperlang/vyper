@@ -245,6 +245,7 @@ class EventT(_UserType):
 class InterfaceT(_UserType):
 
     _type_members = {"address": AddressT()}
+    _is_prim_word = True
     _as_array = True
 
     def __init__(self, _id: str, members: dict, events: dict) -> None:

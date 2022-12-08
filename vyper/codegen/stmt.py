@@ -62,7 +62,7 @@ class Stmt:
         rtyp = self.stmt.value._metadata["type"]
         assert ltyp.compare_type(rtyp)
         varname = self.stmt.target.id
-        alloced = self.context.new_variable(varname, typ)
+        alloced = self.context.new_variable(varname, ltyp)
 
         assert self.stmt.value is not None
         rhs = Expr(self.stmt.value, self.context).ir_node

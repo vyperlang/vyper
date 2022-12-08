@@ -4,14 +4,17 @@ from vyper.codegen.ir_node import Encoding, IRnode
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import CompilerPanic, StructureException, TypeCheckFailure, TypeMismatch
 from vyper.semantics.types import _BytestringT
-from vyper.semantics.types.primitives import (
+from vyper.semantics.types.shortcuts import (
     BYTES32_T,
     INT256_T,
+    )
+from vyper.semantics.types import (
     AddressT,
     BoolT,
     BytesM_T,
     DecimalT,
     IntegerT,
+    InterfaceT,
 )
 from vyper.semantics.types.shortcuts import UINT256_T
 from vyper.semantics.types import DArrayT, StructT, HashMapT, TupleT, BytesT
@@ -812,7 +815,7 @@ def needs_clamp(t, encoding):
 def make_setter(left, right):
     check_assign(left, right)
 
-    # For types to occupy just one word we can use single load/store
+    # For types which occupy just one word we can use single load/store
     if left.typ._is_prim_word:
         enc = right.encoding  # unwrap_location butchers encoding
         right = unwrap_location(right)
@@ -1033,7 +1036,7 @@ def clamp_basetype(ir_node):
         else:
             ret = bytes_clamp(ir_node, t.m)
 
-    elif t in (AddressT(),):
+    elif isinstance(t, (AddressT, InterfaceT)):
         ret = int_clamp(ir_node, 160)
     elif t in (BoolT(),):
         ret = int_clamp(ir_node, 1)
