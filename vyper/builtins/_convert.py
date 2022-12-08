@@ -18,7 +18,8 @@ from vyper.codegen.core import (
     unwrap_location,
 )
 from vyper.codegen.expr import Expr
-from vyper.semantics.types import VyperType, _BytestringT, BytesT, BoolT, AddressT, EnumT, StringT
+from vyper.semantics.types.bytestrings import _BytestringT
+from vyper.semantics.types import VyperType, BytesT, BoolT, AddressT, EnumT, StringT, TYPE_T
 from vyper.codegen.core import is_bytes_m_type, is_decimal_type, is_enum_type, is_integer_type
 from vyper.exceptions import (
     CompilerPanic,
@@ -455,7 +456,9 @@ def convert(expr, context):
     arg_ast = expr.args[0]
     arg = Expr(arg_ast, context).ir_node
     original_arg = arg
-    out_typ = context.parse_type(expr.args[1])
+
+    assert isinstance(expr.args[1]._metadata["type"], TYPE_T)
+    out_typ = expr.args[1]._metadata["type"].typedef
 
     if arg.typ._is_prim_word:
         arg = unwrap_location(arg)

@@ -58,7 +58,9 @@ class Stmt:
             raise StructureException(f"Unsupported statement type: {type(self.stmt)}", self.stmt)
 
     def parse_AnnAssign(self):
-        ltyp = self.context.parse_type(self.stmt.annotation)
+        ltyp = self.stmt.target._metadata["type"]
+        rtyp = self.stmt.value._metadata["type"]
+        assert ltyp.compare_type(rtyp)
         varname = self.stmt.target.id
         alloced = self.context.new_variable(varname, typ)
 

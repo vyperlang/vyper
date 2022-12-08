@@ -290,10 +290,20 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
     def visit_InterfaceDef(self, node):
         obj = InterfaceT.from_ast(node)
+
         try:
             self.namespace[node.name] = obj
         except VyperException as exc:
             raise exc.with_annotation(node) from None
+
+        # annotate all the functions in the body so that
+        # FunctionSignature.from_definition will succeed.
+        # this is an intermediate step required for refactoring
+        # and can probably removed once FunctionSignature and
+        # ContractFunction are merged.
+        if isinstance(node, vy_ast.InterfaceDef):
+            for f in node.body:
+                f._metadata["type"] = obj.members[f.name]
 
     def visit_StructDef(self, node):
         struct_t = StructT.from_ast_def(node)

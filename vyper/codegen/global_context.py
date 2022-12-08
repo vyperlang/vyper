@@ -103,6 +103,7 @@ class GlobalContext:
         return global_ctx
 
     # A struct is a list of members
+    # TODO: this is duplicated code with front-end
     def make_struct(self, node: "vy_ast.StructDef") -> list:
         members = []
 
@@ -110,19 +111,7 @@ class GlobalContext:
             if isinstance(item, vy_ast.AnnAssign):
                 member_name = item.target
                 member_type = item.annotation
-                # Check well-formedness of member names
-                if not isinstance(member_name, vy_ast.Name):
-                    raise InvalidType(
-                        f"Invalid member name for struct {node.name}, needs to be a valid name. ",
-                        item,
-                    )
-                # Check well-formedness of member types
-                # Note this kicks out mutually recursive structs,
-                # raising an exception instead of stackoverflow.
-                # A struct must be defined before it is referenced.
-                # This feels like a semantic step and maybe should be pushed
-                # to a later compilation stage.
-                self.parse_type(member_type)
+                assert isinstance(member_name, vy_ast.Name)
                 members.append((member_name, member_type))
             else:
                 raise StructureException("Structs can only contain variables", item)
@@ -155,8 +144,8 @@ class GlobalContext:
 
         # references to `len(self._globals)` are remnants of deprecated code, retained
         # to preserve existing interfaces while we complete a larger refactor. location
-        # and size of storage vars is handled in `vyper.context.validation.data_positions`
-        typ = self.parse_type(item.annotation)
+        # and size of storage vars is handled in `vyper.semantics.analysis.data_positions`
+        typ = item._metadata["type"]
         is_immutable = item.is_immutable
         self._globals[item.target.id] = VariableRecord(
             item.target.id,
@@ -175,9 +164,6 @@ class GlobalContext:
         The set of names which are known to possibly be InterfaceType
         """
         return set(self._contracts.keys()) | set(self._interfaces.keys())
-
-    def parse_type(self, ast_node):
-        return type_from_annotation(ast_node)
 
     @property
     def immutables(self):
