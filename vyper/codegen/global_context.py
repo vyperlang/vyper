@@ -2,11 +2,12 @@ from typing import Optional
 
 from vyper import ast as vy_ast
 from vyper.codegen.context import VariableRecord
-from vyper.codegen.types import parse_type
 from vyper.exceptions import CompilerPanic, InvalidType, StructureException
 from vyper.semantics.types import EnumT
+from vyper.semantics.types.utils import type_from_annotation
 from vyper.typing import InterfaceImports
 from vyper.utils import cached_property
+
 
 
 # Datatype to store all global context information.
@@ -177,9 +178,7 @@ class GlobalContext:
         return set(self._contracts.keys()) | set(self._interfaces.keys())
 
     def parse_type(self, ast_node):
-        return parse_type(
-            ast_node, sigs=self.interface_names, custom_structs=self._structs, enums=self._enums
-        )
+        return type_from_annotation(ast_node)
 
     @property
     def immutables(self):

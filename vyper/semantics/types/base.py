@@ -55,7 +55,7 @@ class VyperType:
     size_in_bytes = 32  # default; override for larger types
 
     def __init__(self, members: Optional[Dict] = None) -> None:
-        self.member_types: Dict = {}
+        self.members: Dict = {}
 
         # add members that are on the class instance.
         if self._type_members is not None:
@@ -94,6 +94,24 @@ class VyperType:
         The ABI type corresponding to this type
         """
         raise CompilerPanic("Method must be implemented by the inherited class")
+
+    @property
+    def memory_bytes_required(self) -> int:
+        # alias for API compatibility with codegen
+        return self.size_in_bytes
+
+    @property
+    def storage_size_in_words(self) -> int:
+        # consider renaming if other word-addressable address spaces are
+        # added to EVM or exist in other arches
+        """
+        Returns the number of words required to allocate in storage for
+        this type
+        """
+        r = self.memory_bytes_required
+        if r % 32 != 0:
+            raise CompilerPanic("Memory bytes must be multiple of 32")
+        return r // 32
 
     @property
     def canonical_abi_type(self) -> str:
@@ -256,19 +274,19 @@ class VyperType:
         # introduces a dependency cycle with the builtin_functions module
         if not skip_namespace_validation:
             validate_identifier(name)
-        if name in self.member_types:
+        if name in self.members:
             raise NamespaceCollision(f"Member '{name}' already exists in {self}")
-        self.member_types[name] = type_
+        self.members[name] = type_
 
     def get_member(self, key: str, node: vy_ast.VyperNode) -> "VyperType":
-        if key in self.member_types:
-            return self.member_types[key]
+        if key in self.members:
+            return self.members[key]
 
         # special error message for types with no members
-        if not self.member_types:
+        if not self.members:
             raise StructureException(f"{self} does not have members", node)
 
-        suggestions_str = get_levenshtein_error_suggestions(key, self.member_types, 0.3)
+        suggestions_str = get_levenshtein_error_suggestions(key, self.members, 0.3)
         raise UnknownAttribute(f"{self} has no member '{key}'. {suggestions_str}", node)
 
     def __repr__(self):

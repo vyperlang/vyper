@@ -39,19 +39,17 @@ from vyper.codegen.core import (
 from vyper.codegen.expr import Expr
 from vyper.codegen.ir_node import Encoding
 from vyper.codegen.keccak256_helper import keccak256_helper
-from vyper.codegen.types import (
-    BaseType,
-    ByteArrayLike,
-    ByteArrayType,
-    SArrayType,
-    StringType,
-    TupleType,
-    get_type_for_exact_size,
-    is_base_type,
-    parse_decimal_info,
-    parse_integer_typeinfo,
+from vyper.semantics.types import (
+    VyperType,
+    _BytestringT,
+    BytesT,
+    SArrayT,
+    StringT,
+    TupleT,
 )
-from vyper.codegen.types.convert import new_type_to_old_type
+from vyper.codegen.core import (
+    get_type_for_exact_size,
+)
 from vyper.exceptions import (
     ArgumentException,
     CompilerPanic,
@@ -241,7 +239,7 @@ ADHOC_SLICE_NODE_MACROS = ["~calldata", "~selfcode", "~extcode"]
 def _build_adhoc_slice_node(sub: IRnode, start: IRnode, length: IRnode, context: Context) -> IRnode:
     assert length.is_literal, "typechecker failed"
 
-    dst_typ = ByteArrayType(maxlen=length.value)
+    dst_typ = BytesT(length.value)
     # allocate a buffer for the return value
     np = context.new_internal_variable(dst_typ)
 
@@ -282,7 +280,7 @@ def _build_adhoc_slice_node(sub: IRnode, start: IRnode, length: IRnode, context:
             ],
         ]
 
-    return IRnode.from_list(node, typ=ByteArrayType(length.value), location=MEMORY)
+    return IRnode.from_list(node, typ=BytesT(length.value), location=MEMORY)
 
 
 # note: this and a lot of other builtins could be refactored to accept any uint type
@@ -382,14 +380,15 @@ class Slice(BuiltinFunction):
                 buflen += 32
 
             # Get returntype string or bytes
-            assert isinstance(src.typ, ByteArrayLike) or is_bytes32
-            if isinstance(src.typ, StringType):
-                dst_typ = StringType(maxlen=dst_maxlen)
+            assert isinstance(src.typ, _BytestringT) or is_bytes32
+            # TODO: try to get dst_typ from semantic analysis
+            if isinstance(src.typ, StringT):
+                dst_typ = StringT(dst_maxlen)
             else:
-                dst_typ = ByteArrayType(maxlen=dst_maxlen)
+                dst_typ = BytesT(dst_maxlen)
 
             # allocate a buffer for the return value
-            buf = context.new_internal_variable(ByteArrayType(buflen))
+            buf = context.new_internal_variable(BytesT(buflen))
             # assign it the correct return type.
             # (note mismatch between dst_maxlen and buflen)
             dst = IRnode.from_list(buf, typ=dst_typ, location=MEMORY)
@@ -538,15 +537,16 @@ class Concat(BuiltinFunction):
         # Maximum length of the output
         dst_maxlen = sum(
             [
-                arg.typ.maxlen if isinstance(arg.typ, ByteArrayLike) else arg.typ._bytes_info.m
+                arg.typ.maxlen if isinstance(arg.typ, _BytestringT) else arg.typ.m
                 for arg in args
             ]
         )
 
-        if isinstance(args[0].typ, StringType):
-            ret_typ = StringType(maxlen=dst_maxlen)
+        # TODO: try to grab these from semantic analysis
+        if isinstance(args[0].typ, StringT):
+            ret_typ = StringT(dst_maxlen)
         else:
-            ret_typ = ByteArrayType(maxlen=dst_maxlen)
+            ret_typ = BytesT(dst_maxlen)
 
         # Node representing the position of the output in memory
         dst = IRnode.from_list(
@@ -565,7 +565,7 @@ class Concat(BuiltinFunction):
 
             dst_data = add_ofst(bytes_data_ptr(dst), ofst)
 
-            if isinstance(arg.typ, ByteArrayLike):
+            if isinstance(arg.typ, _BytestringT):
                 # Ignore empty strings
                 if arg.typ.maxlen == 0:
                     continue
@@ -778,8 +778,8 @@ class ECRecover(BuiltinFunction):
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
         placeholder_node = IRnode.from_list(
-            context.new_internal_variable(ByteArrayType(128)),
-            typ=ByteArrayType(128),
+            context.new_internal_variable(BytesT(128)),
+            typ=BytesT(128),
             location=MEMORY,
         )
         return IRnode.from_list(
@@ -820,8 +820,8 @@ class ECAdd(BuiltinFunction):
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
         placeholder_node = IRnode.from_list(
-            context.new_internal_variable(ByteArrayType(128)),
-            typ=ByteArrayType(128),
+            context.new_internal_variable(BytesT(128)),
+            typ=BytesT(128),
             location=MEMORY,
         )
         o = IRnode.from_list(
@@ -849,8 +849,8 @@ class ECMul(BuiltinFunction):
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
         placeholder_node = IRnode.from_list(
-            context.new_internal_variable(ByteArrayType(128)),
-            typ=ByteArrayType(128),
+            context.new_internal_variable(BytesT(128)),
+            typ=BytesT(128),
             location=MEMORY,
         )
         o = IRnode.from_list(
@@ -1089,8 +1089,8 @@ class AsWeiValue(BuiltinFunction):
         return IRnode.from_list(sub, typ=BaseType("uint256"))
 
 
-zero_value = IRnode.from_list(0, typ=BaseType("uint256"))
-empty_value = IRnode.from_list(0, typ=BaseType("bytes32"))
+zero_value = IRnode.from_list(0, typ=UINT256_T)
+empty_value = IRnode.from_list(0, typ=BYTES32_T)
 
 
 class RawCall(BuiltinFunction):
@@ -1183,8 +1183,8 @@ class RawCall(BuiltinFunction):
             args_len = ["mload", input_buf]
 
         output_node = IRnode.from_list(
-            context.new_internal_variable(ByteArrayType(outsize)),
-            typ=ByteArrayType(outsize),
+            context.new_internal_variable(BytesT(outsize)),
+            typ=BytesT(outsize),
             location=MEMORY,
         )
 
@@ -1216,7 +1216,7 @@ class RawCall(BuiltinFunction):
             # store output size and return output location
             store_output_size = ["seq", ["mstore", output_node, size], output_node]
 
-            bytes_ty = ByteArrayType(outsize)
+            bytes_ty = BytesT(outsize)
 
             if revert_on_failure:
                 typ = bytes_ty
@@ -1764,7 +1764,7 @@ class CreateMinimalProxyTo(_CreateBase):
 
         target_address = args[0]
 
-        buf = context.new_internal_variable(ByteArrayType(96))
+        buf = context.new_internal_variable(BytesT(96))
 
         loader_evm, forwarder_pre_evm, forwarder_post_evm = eip1167_bytecode()
         # Adjust to 32-byte boundaries
@@ -1875,7 +1875,7 @@ class CreateFromBlueprint(_CreateBase):
         ctor_args = [ensure_in_memory(arg, context) for arg in ctor_args]
 
         if raw_args:
-            if len(ctor_args) != 1 or not isinstance(ctor_args[0].typ, ByteArrayType):
+            if len(ctor_args) != 1 or not isinstance(ctor_args[0].typ, BytesT):
                 raise StructureException("raw_args must be used with exactly 1 bytes argument")
 
             argbuf = bytes_data_ptr(ctor_args[0])
@@ -1975,15 +1975,14 @@ class _UnsafeMath(BuiltinFunction):
 
         otyp = a.typ
 
-        int_info = parse_integer_typeinfo(a.typ.typ)
-        if op == "div" and int_info.is_signed:
+        if op == "div" and a.typ.is_signed:
             op = "sdiv"
 
         ret = [op, a, b]
 
-        if int_info.bits < 256:
+        if a.typ.bits < 256:
             # wrap for ops which could under/overflow
-            if int_info.is_signed:
+            if a.typ.is_signed:
                 # e.g. int128 -> (signextend 15 (add x y))
                 ret = promote_signed_int(ret, int_info.bits)
             else:
@@ -2109,14 +2108,14 @@ class Uint2Str(BuiltinFunction):
 
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
-        return_t = new_type_to_old_type(self.fetch_call_return(expr))
+        return_t = self.fetch_call_return(expr)
         n_digits = return_t.maxlen
 
         with args[0].cache_when_complex("val") as (b1, val):
 
             buf = context.new_internal_variable(return_t)
 
-            i = IRnode.from_list(context.fresh_varname("uint2str_i"), typ="uint256")
+            i = IRnode.from_list(context.fresh_varname("uint2str_i"), typ=UINT256_T)
 
             ret = ["repeat", i, 0, n_digits + 1, n_digits + 1]
 
@@ -2333,7 +2332,7 @@ class Print(BuiltinFunction):
             if len(schema) > 32:
                 raise CompilerPanic("print signature too long: {schema}")
 
-            schema_t = StringType(len(schema))
+            schema_t = StringT(len(schema))
             schema_buf = context.new_internal_variable(schema_t)
             ret = ["seq"]
             ret.append(["mstore", schema_buf, len(schema)])
@@ -2342,7 +2341,7 @@ class Print(BuiltinFunction):
             ret.append(["mstore", schema_buf + 32, bytes_to_int(schema.ljust(32, b"\x00"))])
 
             payload_buflen = args_abi_t.size_bound()
-            payload_t = ByteArrayType(payload_buflen)
+            payload_t = BytesT(payload_buflen)
 
             # 32 bytes extra space for the method id
             payload_buf = context.new_internal_variable(payload_t)
@@ -2462,7 +2461,7 @@ class ABIEncode(BuiltinFunction):
         if method_id is not None:
             maxlen += 4
 
-        buf_t = ByteArrayType(maxlen=maxlen)
+        buf_t = BytesT(maxlen)
         assert self.fetch_call_return(expr).length == maxlen
         buf = context.new_internal_variable(buf_t)
 
@@ -2597,24 +2596,20 @@ class MinValue(_MinMaxValue):
     _id = "min_value"
 
     def _eval_int(self, type_):
-        typinfo = parse_integer_typeinfo(str(type_))
-        return typinfo.bounds[0]
+        return type_.bounds[0]
 
     def _eval_decimal(self, type_):
-        typinfo = parse_decimal_info(str(type_))
-        return typinfo.decimal_bounds[0]
+        return type_.decimal_bounds[0]
 
 
 class MaxValue(_MinMaxValue):
     _id = "max_value"
 
     def _eval_int(self, type_):
-        typinfo = parse_integer_typeinfo(str(type_))
-        return typinfo.bounds[1]
+        return type_.bounds[1]
 
     def _eval_decimal(self, type_):
-        typinfo = parse_decimal_info(str(type_))
-        return typinfo.decimal_bounds[1]
+        return type_.decimal_bounds[1]
 
 
 class Epsilon(TypenameFoldedFunction):
@@ -2627,13 +2622,7 @@ class Epsilon(TypenameFoldedFunction):
         if not input_type.compare_type(DecimalT()):
             raise InvalidType(f"Expected decimal type but got {input_type} instead", node)
 
-        # this check seems redundant, but sets a pattern to be followed
-        # when new decimal types are created
-        if input_type.compare_type(DecimalT()):
-            typinfo = parse_decimal_info(str(input_type))
-            return vy_ast.Decimal.from_node(node, value=typinfo.epsilon)
-
-        raise CompilerPanic("unreachable")  # pragma: notest
+        return vy_ast.Decimal.from_node(node, value=input_type.epsilon)
 
 
 DISPATCH_TABLE = {

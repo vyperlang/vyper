@@ -6,7 +6,7 @@ from vyper.exceptions import CompilerPanic, StructureException, TypeCheckFailure
 from vyper.semantics.types import _BytestringT
 from vyper.semantics.types.primitives import BYTES32_T, INT256_T, AddressT, BoolT, BytesM_T, DecimalT, IntegerT
 from vyper.semantics.types.shortcuts import UINT256_T
-from vyper.semantics.types import DArrayT, StructT, HashMapT, TupleT
+from vyper.semantics.types import DArrayT, StructT, HashMapT, TupleT, BytesT
 from vyper.semantics.types.subscriptable import SArrayT
 from vyper.semantics.types.user import EnumT
 from vyper.utils import GAS_CALLDATACOPY_WORD, GAS_CODECOPY_WORD, GAS_IDENTITY, GAS_IDENTITYWORD, ceil32
@@ -24,6 +24,9 @@ def is_integer_type(typ):
 
 def is_decimal_type(typ):
     return isinstance(typ, DecimalT)
+
+def is_enum_type(typ):
+    return isinstance(typ, EnumT)
 
 def is_tuple_like(typ):
     # A lot of code paths treat tuples and structs similarly
@@ -776,7 +779,7 @@ def needs_clamp(t, encoding):
     if is_tuple_like(t):
         return any(needs_clamp(m, encoding) for m in t.tuple_members())
     if t._is_prim_word:
-        return t.typ not in (INT256_T, UINT256_T, BYTES32_T)
+        return t not in (INT256_T, UINT256_T, BYTES32_T)
 
     raise CompilerPanic("unreachable")  # pragma: notest
 
@@ -995,20 +998,20 @@ def clamp_basetype(ir_node):
         ret = int_clamp(ir_node, bits, signed=False)
 
     elif isinstance(t, (IntegerT, DecimalT)):
-        if t._num_info.bits == 256:
+        if t.bits == 256:
             ret = ir_node
         else:
-            ret = int_clamp(ir_node, t._num_info.bits, signed=t._num_info.is_signed)
+            ret = int_clamp(ir_node, t.bits, signed=t.is_signed)
 
     elif isinstance(t, BytesM_T):
-        if t._bytes_info.m == 32:
+        if t.m == 32:
             ret = ir_node  # special case, no clamp.
         else:
-            ret = bytes_clamp(ir_node, t._bytes_info.m)
+            ret = bytes_clamp(ir_node, t.m)
 
-    elif t.typ in (AddressT(),):
+    elif t in (AddressT(),):
         ret = int_clamp(ir_node, 160)
-    elif t.typ in (BoolT(),):
+    elif t in (BoolT(),):
         ret = int_clamp(ir_node, 1)
     else:  # pragma: no cover
         raise CompilerPanic(f"{t} passed to clamp_basetype")

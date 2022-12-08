@@ -346,7 +346,7 @@ class Expr:
         if not is_numeric_type(left.typ) or not is_numeric_type(right.typ):
             return
 
-        ltyp, rtyp = left.typ.typ, right.typ.typ
+        ltyp, rtyp = left.typ, right.typ
 
         # Sanity check - ensure that we aren't dealing with different types
         # This should be unreachable due to the type check pass
@@ -362,7 +362,7 @@ class Expr:
             new_typ = left.typ
             return IRnode.from_list(["xor", left, right], typ=new_typ)
 
-        out_typ = BaseType(ltyp)
+        out_typ = ltyp
 
         with left.cache_when_complex("x") as (b1, x), right.cache_when_complex("y") as (b2, y):
             if isinstance(self.expr.op, vy_ast.Add):
@@ -388,7 +388,7 @@ class Expr:
 
         # temporary kludge to block #2637 bug
         # TODO actually fix the bug
-        if left.typ._is_prim_word:
+        if not left.typ._is_prim_word:
             raise TypeMismatch(
                 "`in` not allowed for arrays of non-base types, tracked in issue #2637", self.expr
             )
@@ -507,7 +507,7 @@ class Expr:
 
         # Compare other types.
         elif is_numeric_type(left.typ) and is_numeric_type(right.typ):
-            if left.typ.typ == right.typ.typ == UINT256_T:
+            if left.typ == right.typ == UINT256_T:
                 # signed comparison ops work for any integer
                 # type BESIDES uint256
                 op = self._signed_to_unsigned_comparision_op(op)
@@ -575,13 +575,13 @@ class Expr:
             # `x or y` => `if x { then 1 } { else y }`
             ir_node = ["if", val, 1, ir_node]
 
-        return IRnode.from_list(ir_node, typ="bool")
+        return IRnode.from_list(ir_node, typ=BoolT())
 
     # Unary operations (only "not" supported)
     def parse_UnaryOp(self):
         operand = Expr.parse_value_expr(self.expr.operand, self.context)
         if isinstance(self.expr.op, vy_ast.Not):
-            if operand.typ._is_prim_word and operand.typ.typ == BoolT():
+            if operand.typ._is_prim_word and operand.typ == BoolT():
                 return IRnode.from_list(["iszero", operand], typ=BoolT())
 
         if isinstance(self.expr.op, vy_ast.Invert):
@@ -611,7 +611,6 @@ class Expr:
 
     def _is_valid_interface_assign(self):
         if self.expr.args and len(self.expr.args) == 1:
-            arg_ir = Expr(self.expr.args[0], self.context).ir_node
             if arg_ir.typ == AddressT():
                 return True, arg_ir
         return False, None
@@ -635,10 +634,11 @@ class Expr:
 
             # Interface assignment. Bar(<address>).
             elif function_name in self.context.sigs:
-                ret, arg_ir = self._is_valid_interface_assign()
-                if ret is True:
-                    arg_ir.typ = InterfaceT(function_name)  # Cast to Correct interface type.
-                    return arg_ir
+                arg0, = self.expr.args
+                arg_ir = Expr(arg0, self.context).ir_node
+
+                arg_ir.typ = self.expr._metadata["type"]
+                return arg_ir
 
         elif isinstance(self.expr.func, vy_ast.Attribute) and self.expr.func.attr == "pop":
             # TODO consider moving this to builtins
@@ -659,7 +659,7 @@ class Expr:
             return external_call.ir_for_external_call(self.expr, self.context)
 
     def parse_List(self):
-        typ = new_type_to_old_type(self.expr._metadata["type"])
+        typ = self.expr._metadata["type"]
         if len(self.expr.elements) == 0:
             return IRnode.from_list("~empty", typ=typ)
 

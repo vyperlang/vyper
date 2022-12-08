@@ -23,8 +23,7 @@ from vyper.codegen.core import (
 )
 from vyper.codegen.expr import Expr
 from vyper.codegen.return_ import make_return_stmt
-from vyper.codegen.types import BaseType, ByteArrayType, DArrayType
-from vyper.codegen.types.convert import new_type_to_old_type
+from vyper.semantics.types import BytesT, DArrayT
 from vyper.exceptions import CompilerPanic, StructureException, TypeCheckFailure
 
 
@@ -67,17 +66,22 @@ class Stmt:
 
         sub = Expr(self.stmt.value, self.context).ir_node
 
+        # CMC 2022-12-07 i don't think this can happen anymore
+        # because of type checker rules, in any case the optimization
+        # is dead because make_setter is smart enough to handle single
+        # word copies optimally. in other words, we can probably remove
+        # this.
         is_literal_bytes32_assign = (
-            isinstance(sub.typ, ByteArrayType)
+            isinstance(sub.typ, BytesT)
             and sub.typ.maxlen == 32
             and isinstance(typ, BaseType)
-            and typ.typ == "bytes32"
-            and sub.typ.is_literal
+            and typ == BYTES32_T
+            and sub.is_literal
         )
 
         # If bytes[32] to bytes32 assignment rewrite sub as bytes32.
         if is_literal_bytes32_assign:
-            sub = IRnode(util.bytes_to_int(self.stmt.value.s), typ=BaseType("bytes32"))
+            sub = IRnode(util.bytes_to_int(self.stmt.value.s), typ=BYTES32_T)
 
         variable_loc = IRnode.from_list(pos, typ=typ, location=MEMORY)
 
@@ -145,7 +149,7 @@ class Stmt:
                 # sanity checks
                 assert len(args) == 1
                 arg = args[0]
-                assert isinstance(darray.typ, DArrayType)
+                assert isinstance(darray.typ, DArrayT)
                 check_assign(dummy_node_for_type(darray.typ.subtype), dummy_node_for_type(arg.typ))
 
                 return append_dyn_array(darray, arg)
@@ -244,12 +248,11 @@ class Stmt:
                 return self._parse_For_list()
 
     def _parse_For_range(self):
-        # attempt to use the type specified by type checking, fall back to `int256`
-        # this is a stopgap solution to allow uint256 - it will be properly solved
-        # once we refactor type system
-        iter_typ = "int256"
+        # TODO make sure type always gets annotated
         if "type" in self.stmt.target._metadata:
-            iter_typ = self.stmt.target._metadata["type"]._id
+            iter_typ = self.stmt.target._metadata["type"]
+        else:
+            iter_typ = INT256_T
 
         # Get arg0
         arg0 = self.stmt.iter.args[0]
@@ -280,7 +283,7 @@ class Stmt:
 
         varname = self.stmt.target.id
         i = IRnode.from_list(self.context.fresh_varname("range_ix"), typ="uint256")
-        iptr = self.context.new_variable(varname, BaseType(iter_typ))
+        iptr = self.context.new_variable(varname, iter_typ)
 
         self.context.forvars[varname] = True
 
@@ -330,7 +333,7 @@ class Stmt:
         body = ["seq", make_setter(loop_var, e), parse_body(self.stmt.body, self.context)]
 
         repeat_bound = iter_list.typ.count
-        if isinstance(iter_list.typ, DArrayType):
+        if isinstance(iter_list.typ, DArrayT):
             array_len = get_dyn_array_count(iter_list)
         else:
             array_len = repeat_bound
@@ -343,7 +346,7 @@ class Stmt:
     def parse_AugAssign(self):
         target = self._get_target(self.stmt.target)
         sub = Expr.parse_value_expr(self.stmt.value, self.context)
-        if not isinstance(target.typ, BaseType):
+        if not target.typ._is_prim_word:
             return
 
         with target.cache_when_complex("_loc") as (b, target):

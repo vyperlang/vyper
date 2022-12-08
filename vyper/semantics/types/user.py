@@ -49,7 +49,7 @@ class EnumT(_UserType):
         return self
 
     def __repr__(self):
-        arg_types = ",".join(repr(a) for a in self.member_types)
+        arg_types = ",".join(repr(a) for a in self._enum_members)
         return f"enum {self.name}({arg_types})"
 
     @property
@@ -144,7 +144,7 @@ class EventT(_UserType):
     # backward compatible
     @property
     def arguments(self):
-        return self.member_types
+        return self.members
 
     def __repr__(self):
         arg_types = ",".join(repr(a) for a in self.arguments.values())
@@ -301,7 +301,7 @@ class InterfaceT(_UserType):
             return to_compare.compare_signature(fn_type)
 
         # check for missing functions
-        for name, type_ in self.member_types.items():
+        for name, type_ in self.members.items():
             if not isinstance(type_, ContractFunction):
                 # ex. address
                 continue
@@ -335,7 +335,7 @@ class InterfaceT(_UserType):
 
     @property
     def functions(self):
-        return {k: v for (k, v) in self.member_types.items() if isinstance(v, ContractFunction)}
+        return {k: v for (k, v) in self.members.items() if isinstance(v, ContractFunction)}
 
     @classmethod
     def from_json_abi(cls, name: str, abi: dict) -> "InterfaceT":
@@ -463,7 +463,7 @@ class StructT(_UserType):
 
         self.ast_def = ast_def
 
-        for n, t in self.member_types.items():
+        for n, t in self.members.items():
             if isinstance(t, HashMapT):
                 raise StructureException(f"Struct contains a mapping '{n}'", ast_def)
 

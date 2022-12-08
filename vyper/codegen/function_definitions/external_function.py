@@ -11,7 +11,8 @@ from vyper.codegen.expr import Expr
 from vyper.codegen.function_definitions.utils import get_nonreentrant_lock
 from vyper.codegen.ir_node import Encoding, IRnode
 from vyper.codegen.stmt import parse_body
-from vyper.codegen.types.types import TupleType
+
+from vyper.semantics.types import TupleT
 
 
 # register function args with the local calling context.
@@ -20,7 +21,7 @@ def _register_function_args(context: Context, sig: FunctionSignature) -> List[IR
     ret = []
 
     # the type of the calldata
-    base_args_t = TupleType([arg.typ for arg in sig.base_args])
+    base_args_t = TupleT([arg.typ for arg in sig.base_args])
 
     # tuple with the abi_encoded args
     if sig.is_init_func:
@@ -75,7 +76,7 @@ def _generate_kwarg_handlers(context: Context, sig: FunctionSignature) -> List[A
     def handler_for(calldata_kwargs, default_kwargs):
         calldata_args = sig.base_args + calldata_kwargs
         # create a fake type so that get_element_ptr works
-        calldata_args_t = TupleType(list(arg.typ for arg in calldata_args))
+        calldata_args_t = TupleT(list(arg.typ for arg in calldata_args))
 
         abi_sig = sig.abi_signature_for_kwargs(calldata_kwargs)
         method_id = _annotated_method_id(abi_sig)
@@ -93,7 +94,7 @@ def _generate_kwarg_handlers(context: Context, sig: FunctionSignature) -> List[A
         ret.append(["assert", ["ge", "calldatasize", calldata_min_size]])
 
         # TODO optimize make_setter by using
-        # TupleType(list(arg.typ for arg in calldata_kwargs + default_kwargs))
+        # TupleT(list(arg.typ for arg in calldata_kwargs + default_kwargs))
         # (must ensure memory area is contiguous)
 
         n_base_args = len(sig.base_args)

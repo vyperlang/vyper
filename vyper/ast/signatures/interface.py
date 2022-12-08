@@ -7,7 +7,7 @@ import vyper.builtins.interfaces
 from vyper import ast as vy_ast
 from vyper.ast.signatures.function_signature import FunctionSignature
 from vyper.codegen.global_context import GlobalContext
-from vyper.codegen.types import BYTES_M_TYPES, INTEGER_TYPES
+from vyper.semantics.types import AddressT, BoolT, BytesM_T, IntegerT
 from vyper.exceptions import StructureException
 
 
@@ -28,7 +28,7 @@ def get_builtin_interfaces():
 
 
 def abi_type_to_ast(atype, expected_size):
-    if atype in {"address", "bool"} | BYTES_M_TYPES | INTEGER_TYPES:
+    if isinstance(atype, (AddressT, BoolT, BytesM_T, IntegerT)):
         return vy_ast.Name(id=atype)
     elif atype == "fixed168x10":
         return vy_ast.Name(id="decimal")

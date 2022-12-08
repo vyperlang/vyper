@@ -2,6 +2,8 @@
 
 from typing import Tuple, Union
 
+from decimal import Decimal
+
 from vyper import ast as vy_ast
 from vyper.abi_types import ABI_Address, ABI_Bool, ABI_BytesM, ABI_FixedMxN, ABI_GIntM, ABIType
 from vyper.exceptions import CompilerPanic, InvalidLiteral, InvalidOperation, OverflowException
@@ -58,6 +60,10 @@ class BytesM_T(_PrimT):
     def _id(self):
         return f"bytes{self.m}"
 
+    @property
+    def m_bits(self):
+        return self.m * 8
+
     # convenience for backwards API compat
     @property
     def length(self):
@@ -99,6 +105,14 @@ class NumericT(_PrimT):
     _bits: int
     _invalid_ops: tuple
     bounds: Tuple[int, int]
+
+    @property
+    def bits(self) -> int:
+        return self._bits
+
+    @property
+    def is_signed(self) -> bool:
+        return self._is_signed
 
     def validate_literal(self, node: vy_ast.Constant) -> None:
         super().validate_literal(node)
@@ -176,8 +190,8 @@ class IntegerT(NumericT):
 
     def __init__(self, is_signed, bits):
         super().__init__()
-        self.is_signed: bool = is_signed
-        self.bits: int = bits
+        self._is_signed = is_signed
+        self._bits = bits
 
     @property
     def _id(self):
@@ -206,16 +220,6 @@ class IntegerT(NumericT):
     @classmethod
     def all(cls) -> Tuple["IntegerT", ...]:
         return cls.signeds() + cls.unsigneds()
-
-    # backwards compatible api, TODO: remove me
-    @property
-    def _bits(self):
-        return self.bits
-
-    # backwards compatible api, TODO: remove me
-    @property
-    def _is_signed(self):
-        return self.is_signed
 
     @property
     def abi_type(self) -> ABIType:
@@ -255,6 +259,24 @@ class DecimalT(NumericT):
     def abi_type(self) -> ABIType:
         return ABI_FixedMxN(self._bits, self._decimal_places, self._is_signed)
 
+    @property
+    def decimals(self) -> int:
+        # Alias for API compatibility with codegen
+        return self._decimal_places
+
+    @property
+    def divisor(self) -> int:
+        return 10 ** self.decimals
+
+    @property
+    def epsilon(self) -> Decimal:
+        return 1 / Decimal(self.divisor)
+
+    @property
+    def decimal_bounds(self) -> Tuple[Decimal, Decimal]:
+        lo, hi = self.bounds
+        DIVISOR = Decimal(self.divisor)
+        return lo / DIVISOR, hi / DIVISOR
 
 # maybe this even deserves its own module, address.py
 class AddressT(_PrimT):

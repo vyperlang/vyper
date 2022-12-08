@@ -12,7 +12,7 @@ from vyper.codegen.core import (
     wrap_value_for_external_return,
 )
 from vyper.codegen.ir_node import IRnode
-from vyper.codegen.types import get_type_for_exact_size
+from vyper.codegen.core import get_type_for_exact_size
 
 Stmt = Any  # mypy kludge
 

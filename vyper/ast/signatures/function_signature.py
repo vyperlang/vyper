@@ -5,7 +5,7 @@ from typing import Dict, Optional, Tuple
 from vyper import ast as vy_ast
 from vyper.address_space import MEMORY
 from vyper.codegen.ir_node import Encoding
-from vyper.codegen.types import NodeType
+from vyper.semantics.types import VyperType
 from vyper.exceptions import StructureException
 from vyper.utils import MemoryPositions, cached_property, mkalphanum
 
@@ -16,7 +16,7 @@ FunctionSignatures = Dict[str, "FunctionSignature"]
 @dataclass
 class FunctionArg:
     name: str
-    typ: NodeType
+    typ: VyperType
     ast_source: vy_ast.VyperNode
 
 
@@ -24,7 +24,7 @@ class FunctionArg:
 class FrameInfo:
     frame_start: int
     frame_size: int
-    frame_vars: Dict[str, Tuple[int, NodeType]]
+    frame_vars: Dict[str, Tuple[int, VyperType]]
 
     @property
     def mem_used(self):

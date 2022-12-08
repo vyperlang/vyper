@@ -308,6 +308,7 @@ class TupleT(VyperType):
         return super().__eq__(other)
 
     def __init__(self, member_types: Tuple[VyperType, ...]) -> None:
+        super().__init__()
         self.member_types = member_types
         self.key_type = UINT256_T # API Compatibility
 
