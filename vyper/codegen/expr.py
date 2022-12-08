@@ -507,7 +507,7 @@ class Expr:
 
         # Compare other types.
         elif is_numeric_type(left.typ) and is_numeric_type(right.typ):
-            if left.typ == right.typ == UINT256_T:
+            if left.typ == right.typ and right.typ == UINT256_T:
                 # signed comparison ops work for any integer
                 # type BESIDES uint256
                 op = self._signed_to_unsigned_comparision_op(op)
