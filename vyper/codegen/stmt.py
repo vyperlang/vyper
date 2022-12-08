@@ -58,36 +58,16 @@ class Stmt:
             raise StructureException(f"Unsupported statement type: {type(self.stmt)}", self.stmt)
 
     def parse_AnnAssign(self):
-        typ = self.context.parse_type(self.stmt.annotation)
+        ltyp = self.context.parse_type(self.stmt.annotation)
         varname = self.stmt.target.id
-        pos = self.context.new_variable(varname, typ)
-        if self.stmt.value is None:
-            return
+        alloced = self.context.new_variable(varname, typ)
 
-        sub = Expr(self.stmt.value, self.context).ir_node
+        assert self.stmt.value is not None
+        rhs = Expr(self.stmt.value, self.context).ir_node
 
-        # CMC 2022-12-07 i don't think this can happen anymore
-        # because of type checker rules, in any case the optimization
-        # is dead because make_setter is smart enough to handle single
-        # word copies optimally. in other words, we can probably remove
-        # this.
-        is_literal_bytes32_assign = (
-            isinstance(sub.typ, BytesT)
-            and sub.typ.maxlen == 32
-            and isinstance(typ, BaseType)
-            and typ == BYTES32_T
-            and sub.is_literal
-        )
+        lhs = IRnode.from_list(alloced, typ=ltyp, location=MEMORY)
 
-        # If bytes[32] to bytes32 assignment rewrite sub as bytes32.
-        if is_literal_bytes32_assign:
-            sub = IRnode(util.bytes_to_int(self.stmt.value.s), typ=BYTES32_T)
-
-        variable_loc = IRnode.from_list(pos, typ=typ, location=MEMORY)
-
-        ir_node = make_setter(variable_loc, sub)
-
-        return ir_node
+        return make_setter(lhs, rhs)
 
     def parse_Assign(self):
         # Assignment (e.g. x[4] = y)
