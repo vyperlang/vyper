@@ -26,6 +26,10 @@ class _BytestringT(VyperType):
         is applied to a literal definition.
     """
 
+    # this is a carveout because the current syntax allows dynamic arrays of
+    # bytestrings, but not static arrays of bytestrings, and can be removed once
+    # the syntax for static arrays is changed from `int128[5]` to `Array[int128, 5]`
+    _as_darray = True
     _equality_attrs = ("_length", "_min_length")
 
     # keep LGTM linter happy:
