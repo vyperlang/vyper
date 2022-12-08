@@ -168,12 +168,24 @@ def _runtime_ir(runtime_functions, all_sigs, global_ctx):
 
     runtime = ["seq"]
 
-    # function with 0 selector may get treated as the fallback fn without
-    # this check for calldatasize < 4. For all other fns this check is redundant
-    # because a similar check for calldatasize is done in the selector table.
+    # if there is a function whose selector is 0, this gets triggered
+    # instead of the fallback fn when 0 calldataload is supplied,
+    # b/c calldataload loads 0s past the end of physical calldata (cf. yellow paper),
+    # causing the 0 selector fn to be treated as the fallback fn.
+    # since supplying 0 calldata is expected to trigger the fallback fn,
+    # we check that calldatasize >= 4, which distinguishes the 0 selector
+    # from the fallback function "selector"
+    # (equiv. to "all selectors not in the selector table").
+    # for all other fns, calldatasize is already validated at entry
+    # to the fn to be at least >= 4, so we can elide the check.
+
+    # note: this check is also present for fns with a 0 selector,
+    # but the check is an assertion, rather than jumping to fallback
+    # if the assertion fails.
+    # note: fns with trailing 0s in the selector are not checked here
+    # b/c not providing the trailing 0s in calldata is considered bad practice,
+    # and the contract should revert.
     if has_zero_selector_functions:
-        # check that calldatasize is at least 4, otherwise
-        # calldataload will load zeros (cf. yellow paper).
         runtime.append(["if", ["lt", "calldatasize", 4], ["goto", "fallback"]])
 
     runtime.extend(
