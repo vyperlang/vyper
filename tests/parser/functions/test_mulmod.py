@@ -31,38 +31,27 @@ def exponential(base: uint256, exponent: uint256, modulus: uint256) -> uint256:
     assert c.exponential(2, 997, 997) == 2
 
 
-def test_uint256_mulmod_ext_call(get_contract_with_gas_estimation):
-    code1 = """
-@external
-def a() -> uint256:
-    return 200
-
-@external
-def b() -> uint256:
-    return 3
-
-@external
-def c() -> uint256:
-    return 601
-    """
-
-    code2 = """
+def test_uint256_mulmod_ext_call(w3, side_effects_contract, assert_side_effect_invoked_once, get_contract):
+    code = """
 @external
 def foo(addr: address) -> uint256:
     f: Foo = Foo(addr)
 
-    return uint256_mulmod(f.a(), f.b(), f.c())
+    return uint256_mulmod(200, 3, f.a())
 
 interface Foo:
     def a() -> uint256: nonpayable
-    def b() -> uint256: nonpayable
-    def c() -> uint256: nonpayable
     """
 
-    c1 = get_contract_with_gas_estimation(code1)
-    c2 = get_contract_with_gas_estimation(code2)
+    c1 = side_effects_contract([("a", "uint256", 601)])
+    c2 = get_contract(code)
 
     assert c2.foo(c1.address) == 600
+
+    a0 = w3.eth.accounts[0]
+    assert_side_effect_invoked_once(
+        lambda: c2.foo(c1.address, transact={"from": a0}), c1, ["a"]
+    )
 
 
 def test_uint256_mulmod_internal_call(get_contract_with_gas_estimation):

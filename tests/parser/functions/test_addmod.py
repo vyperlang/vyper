@@ -34,7 +34,7 @@ interface Foo:
 
     a0 = w3.eth.accounts[0]
     assert_side_effect_invoked_once(
-        lambda: c2.foo(c1.address, transact={"from": a0, "gas": 10 ** 7}), c1, ["a"]
+        lambda: c2.foo(c1.address, transact={"from": a0}), c1, ["a"]
     )
 
 

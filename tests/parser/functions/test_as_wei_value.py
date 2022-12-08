@@ -1,11 +1,5 @@
-def test_ext_call(w3, get_contract_with_gas_estimation):
-    code1 = """
-@external
-def bar() -> uint8:
-    return 7
-    """
-
-    code2 = """
+def test_ext_call(w3, side_effects_contract, assert_side_effect_invoked_once, get_contract):
+    code = """
 @external
 def foo(addr: address) -> uint256:
     a: Foo = Foo(addr)
@@ -16,10 +10,13 @@ interface Foo:
     def bar() -> uint8: nonpayable
     """
 
-    c1 = get_contract_with_gas_estimation(code1)
-    c2 = get_contract_with_gas_estimation(code2)
+    c1 = side_effects_contract([("bar", "uint8", 7)])
+    c2 = get_contract(code)
 
     assert c2.foo(c1.address) == w3.toWei(7, "ether")
+
+    a0 = w3.eth.accounts[0]
+    assert_side_effect_invoked_once(lambda: c2.foo(c1.address, transact={"from": a0}), c1, ["bar"])
 
 
 def test_internal_call(w3, get_contract_with_gas_estimation):
