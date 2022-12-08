@@ -21,22 +21,20 @@ def test_uint256_addmod_ext_call(
 @external
 def foo(addr: address) -> uint256:
     f: Foo = Foo(addr)
-    return uint256_addmod(f.a(), f.b(), f.c())
+    return uint256_addmod(32, 2, f.a())
 
 interface Foo:
     def a() -> uint256: payable
-    def b() -> uint256: payable
-    def c() -> uint256: payable
     """
 
-    c1 = side_effects_contract([("a", "uint256", 32), ("b", "uint256", 2), ("c", "uint256", 32)])
+    c1 = side_effects_contract([("a", "uint256", 32)])
     c2 = get_contract(code)
 
     assert c2.foo(c1.address) == 2
 
     a0 = w3.eth.accounts[0]
     assert_side_effect_invoked_once(
-        lambda: c2.foo(c1.address, transact={"from": a0}), c1, ["a", "b", "c"]
+        lambda: c2.foo(c1.address, transact={"from": a0, "gas": 10 ** 7}), c1, ["a"]
     )
 
 
