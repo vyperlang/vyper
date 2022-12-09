@@ -208,10 +208,9 @@ def side_effects_contract(get_contract):
     def generate(inputs):
         """
         Takes in a list of tuple of (
-            function_name,
-            return_type,
-            return_value,
-            contract_variable_name
+            function_name: Function to be called by the test contract
+            return_type: Return type of the function
+            return_value: Return value of the function
         ) and generates a Vyper contract for testing side effects.
         """
         code = ""
