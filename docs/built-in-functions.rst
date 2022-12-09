@@ -300,12 +300,13 @@ Vyper has three built-ins for contract creation; all three contract creation bui
         def do_the_needful():
             selfdestruct(msg.sender)
 
-.. py:function:: send(to: address, value: uint256) -> None
+.. py:function:: send(to: address, value: uint256, gas: uint256 = 0) -> None
 
     Send ether from the contract to the specified Ethereum address.
 
     * ``to``: The destination address to send ether to
     * ``value``: The wei value to send to the address
+    * ``gas``: The amount of gas (the "stipend") to attach to the call. If not set, the stipend defaults to 0.
 
     .. note::
 
@@ -314,8 +315,8 @@ Vyper has three built-ins for contract creation; all three contract creation bui
     .. code-block:: python
 
         @external
-        def foo(_receiver: address, _amount: uint256):
-            send(_receiver, _amount)
+        def foo(_receiver: address, _amount: uint256, gas: uint256):
+            send(_receiver, _amount, gas=gas)
 
 Cryptography
 ============
