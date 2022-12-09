@@ -90,7 +90,7 @@ Bitwise Operations
 
   This function has been deprecated from version 0.3.4 onwards. Please use the ``^`` operator instead.
 
-.. py:function:: shift(x: Union[int256, uint256], _shift: integer) -> uint256
+.. py:function:: shift(x: int256 | uint256, _shift: integer) -> uint256
 
     Return ``x`` with the bits shifted ``_shift`` places. A positive ``_shift`` value equals a left shift, a negative value is a right shift.
 
