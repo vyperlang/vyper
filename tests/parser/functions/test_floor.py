@@ -110,25 +110,25 @@ def floor_param(p: decimal) -> int256:
     assert c.floor_param(Decimal("-0.0000000001")) == -1
 
 
-def test_floor_ext_call(w3, side_effects_contract, assert_side_effect_invoked_once, get_contract):
+def test_floor_ext_call(w3, side_effects_contract, assert_side_effects_invoked, get_contract):
     code = """
 @external
 def foo(addr: address) -> int256:
     a: Foo = Foo(addr)
 
-    return floor(a.bar())
+    return floor(a.foo())
 
 interface Foo:
-    def bar() -> decimal: nonpayable
+    def foo() -> decimal: nonpayable
     """
 
-    c1 = side_effects_contract([("bar", "decimal", "2.5")])
+    c1 = side_effects_contract("decimal", "2.5")
     c2 = get_contract(code)
 
     assert c2.foo(c1.address) == 2
 
     a0 = w3.eth.accounts[0]
-    assert_side_effect_invoked_once(lambda: c2.foo(c1.address, transact={"from": a0}), c1, ["bar"])
+    assert_side_effects_invoked(lambda: c2.foo(c1.address, transact={"from": a0}), c1)
 
 
 def test_floor_internal_call(get_contract_with_gas_estimation):

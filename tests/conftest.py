@@ -205,31 +205,20 @@ def create2_address_of(keccak):
 
 @pytest.fixture
 def side_effects_contract(get_contract):
-    def generate(inputs):
+    def generate(ret_type, ret_value):
         """
-        Takes in a list of tuple of (
-            function_name: Function to be called by the test contract
-            return_type: Return type of the function
-            return_value: Return value of the function
-        ) and generates a Vyper contract for testing side effects.
+        Generates a Vyper contract with an external `foo()` function, which
+        returns the specified return value of the specified return type, for
+        testing side effects using the `assert_side_effects_invoked` fixture.
         """
-        code = ""
-
-        for i in inputs:
-            assert len(i) == 3
-            fn_name, ret_type, ret_value = i
-
-            snippet = f"""
-{fn_name}_counter: public(uint256)
+        code = f"""
+counter: public(uint256)
 
 @external
-def {fn_name}() -> {ret_type}:
-    self.{fn_name}_counter += 1
+def foo() -> {ret_type}:
+    self.counter += 1
     return {ret_value}
     """
-
-            code += snippet
-
         contract = get_contract(code)
         return contract
 
@@ -237,18 +226,15 @@ def {fn_name}() -> {ret_type}:
 
 
 @pytest.fixture
-def assert_side_effect_invoked_once():
-    def assert_side_effect_invoked_once(
-        side_effect_trigger, side_effect_contract, side_effect_fn_names
+def assert_side_effects_invoked():
+    def assert_side_effects_invoked(
+        side_effects_trigger, side_effects_contract, n=1
     ):
-        side_effect_getters = [
-            getattr(side_effect_contract, f"{n}_counter") for n in side_effect_fn_names
-        ]
-        start_values = [g() for g in side_effect_getters]
+        start_value = side_effects_contract.counter()
 
-        side_effect_trigger()
+        side_effects_trigger()
 
-        end_values = [g() for g in side_effect_getters]
-        assert end_values == [v + 1 for v in start_values]
+        end_value = side_effects_contract.counter()
+        assert end_value == start_value + n
 
-    return assert_side_effect_invoked_once
+    return assert_side_effects_invoked

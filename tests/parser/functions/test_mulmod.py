@@ -32,26 +32,26 @@ def exponential(base: uint256, exponent: uint256, modulus: uint256) -> uint256:
 
 
 def test_uint256_mulmod_ext_call(
-    w3, side_effects_contract, assert_side_effect_invoked_once, get_contract
+    w3, side_effects_contract, assert_side_effects_invoked, get_contract
 ):
     code = """
 @external
 def foo(addr: address) -> uint256:
     f: Foo = Foo(addr)
 
-    return uint256_mulmod(200, 3, f.a())
+    return uint256_mulmod(200, 3, f.foo())
 
 interface Foo:
-    def a() -> uint256: nonpayable
+    def foo() -> uint256: nonpayable
     """
 
-    c1 = side_effects_contract([("a", "uint256", 601)])
+    c1 = side_effects_contract("uint256", 601)
     c2 = get_contract(code)
 
     assert c2.foo(c1.address) == 600
 
     a0 = w3.eth.accounts[0]
-    assert_side_effect_invoked_once(lambda: c2.foo(c1.address, transact={"from": a0}), c1, ["a"])
+    assert_side_effects_invoked(lambda: c2.foo(c1.address, transact={"from": a0}), c1)
 
 
 def test_uint256_mulmod_internal_call(get_contract_with_gas_estimation):
