@@ -90,7 +90,7 @@ Bitwise Operations
 
   This function has been deprecated from version 0.3.4 onwards. Please use the ``^`` operator instead.
 
-.. py:function:: shift(x: uint256, _shift: int128) -> uint256
+.. py:function:: shift(x: Union[int256, uint256], _shift: integer) -> uint256
 
     Return ``x`` with the bits shifted ``_shift`` places. A positive ``_shift`` value equals a left shift, a negative value is a right shift.
 
@@ -250,10 +250,10 @@ Vyper has three built-ins for contract creation; all three contract creation bui
             response: Bytes[32] = b""
             x: uint256 = 123
             success, response = raw_call(
-                _target, 
-                _abi_encode(x, method_id=method_id("someMethodName(uint256)")), 
+                _target,
+                _abi_encode(x, method_id=method_id("someMethodName(uint256)")),
                 max_outsize=32,
-                value=msg.value, 
+                value=msg.value,
                 revert_on_failure=False
                 )
             assert success
@@ -459,7 +459,7 @@ Data Manipulation
     Returns a value of the type specified by ``type_``.
 
     For more details on available type conversions, see :ref:`type_conversions`.
-    
+
 .. py:function:: uint2str(value: unsigned integer) -> String
 
     Returns an unsigned integer's string representation.
@@ -683,7 +683,7 @@ Math
 
 .. py:function:: isqrt(x: uint256) -> uint256
 
-    Return the (integer) square root of the provided integer number, using the Babylonian square root algorithm. The rounding mode is to round down to the nearest integer. For instance, ``isqrt(101) == 10``.    
+    Return the (integer) square root of the provided integer number, using the Babylonian square root algorithm. The rounding mode is to round down to the nearest integer. For instance, ``isqrt(101) == 10``.
 
     .. code-block:: python
 
