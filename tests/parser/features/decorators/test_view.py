@@ -28,18 +28,3 @@ def foo() -> num:
     assert_compile_failed(
         lambda: get_contract_with_gas_estimation_for_constants(code), FunctionDeclarationException
     )
-
-
-def test_invalid_constructor(get_contract_with_gas_estimation, assert_compile_failed):
-    code = """
-a: immutable(uint256)
-
-@external
-@view
-def __init__():
-    a = 1
-    """
-
-    assert_compile_failed(
-        lambda: get_contract_with_gas_estimation(code), FunctionDeclarationException
-    )

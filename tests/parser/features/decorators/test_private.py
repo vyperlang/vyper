@@ -687,17 +687,3 @@ def test_tuple_return_types(get_contract, source_code, args, expected):
     c = get_contract(source_code)
 
     assert c.foo(*args) == expected
-
-
-def test_invalid_constructor(get_contract_with_gas_estimation, assert_compile_failed):
-    code = """
-a: immutable(uint256)
-
-@internal
-def __init__():
-    a = 1
-    """
-
-    assert_compile_failed(
-        lambda: get_contract_with_gas_estimation(code), FunctionDeclarationException
-    )
