@@ -141,7 +141,7 @@ def foo(x: uint8, y: int128) -> uint256:
         """
 @external
 def foo() -> uint256:
-    return shift(2, 2560012123124)
+    return shift(2, 257)
     """,
         InvalidLiteral,
     ),
@@ -149,7 +149,7 @@ def foo() -> uint256:
         """
 @external
 def foo() -> uint256:
-    return shift(2, -2560012123124)
+    return shift(2, -257)
     """,
         InvalidLiteral,
     ),
