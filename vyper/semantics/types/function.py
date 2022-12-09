@@ -264,11 +264,20 @@ class ContractFunction(VyperType):
         if kwargs["state_mutability"] == StateMutability.PURE and "nonreentrant" in kwargs:
             raise StructureException("Cannot use reentrancy guard on pure functions", node)
 
-        # call arguments
-        if node.args.defaults and node.name == "__init__":
-            raise FunctionDeclarationException(
-                "Constructor may not use default arguments", node.args.defaults[0]
-            )
+
+        if node.name == "__init__":
+            if kwargs["function_visibility"] == FunctionVisibility.INTERNAL:
+                raise FunctionDeclarationException("Constructor cannot be marked as `@internal`", node)
+            if kwargs["state_mutability"] == StateMutability.PURE:
+                raise FunctionDeclarationException("Constructor cannot be marked as `@pure`", node)
+            if kwargs["state_mutability"] == StateMutability.VIEW:
+                raise FunctionDeclarationException("Constructor cannot be marked as `@view`", node)
+
+            # call arguments
+            if node.args.defaults:
+                raise FunctionDeclarationException(
+                    "Constructor may not use default arguments", node.args.defaults[0]
+                )
 
         arguments = OrderedDict()
         max_arg_count = len(node.args.args)
