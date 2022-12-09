@@ -12,6 +12,7 @@ from vyper.exceptions import (
 )
 from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
 from vyper.semantics.namespace import validate_identifier
+from vyper.utils import cached_property
 
 
 # Some fake type with an overridden `compare_type` which accepts any RHS
@@ -76,6 +77,10 @@ class VyperType:
         return (
             type(self) == type(other) and self._get_equality_attrs() == other._get_equality_attrs()
         )
+
+    @cached_property
+    def _as_darray(self):
+        return self._as_array
 
     @property
     def getter_signature(self):
