@@ -1,7 +1,5 @@
 import pytest
 
-from vyper.exceptions import FunctionDeclarationException
-
 
 def test_private_test(get_contract_with_gas_estimation):
     private_test_code = """
