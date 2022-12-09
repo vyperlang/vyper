@@ -227,9 +227,7 @@ def foo() -> {ret_type}:
 
 @pytest.fixture
 def assert_side_effects_invoked():
-    def assert_side_effects_invoked(
-        side_effects_trigger, side_effects_contract, n=1
-    ):
+    def assert_side_effects_invoked(side_effects_trigger, side_effects_contract, n=1):
         start_value = side_effects_contract.counter()
 
         side_effects_trigger()
