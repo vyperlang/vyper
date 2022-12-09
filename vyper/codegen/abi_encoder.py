@@ -4,18 +4,14 @@ from vyper.codegen.core import (
     add_ofst,
     get_dyn_array_count,
     get_element_ptr,
+    is_tuple_like,
     make_setter,
     zero_pad,
-    is_tuple_like,
 )
 from vyper.codegen.ir_node import IRnode
-
-# from vyper.codegen.types import BaseType, ByteArrayLike, DArrayType, SArrayType, TupleLike
 from vyper.exceptions import CompilerPanic
-from vyper.semantics.types import SArrayT
-from vyper.semantics.types import _BytestringT
+from vyper.semantics.types import DArrayT, SArrayT, _BytestringT
 from vyper.semantics.types.shortcuts import UINT256_T
-from vyper.semantics.types.subscriptable import DArrayT
 
 
 def _is_complex_type(typ):
@@ -96,7 +92,7 @@ def _encode_dyn_array_helper(dst, ir_node, context):
         ret.append(STORE(dst, len_))
 
         # prepare the loop
-        t = BaseType("uint256")
+        t = UINT256_T
         i = IRnode.from_list(context.fresh_varname("ix"), typ=t)
 
         # offset of the i'th element in ir_node

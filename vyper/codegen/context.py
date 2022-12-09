@@ -1,10 +1,10 @@
 import contextlib
-from dataclasses import dataclass
 import enum
 import math
+from dataclasses import dataclass
 from typing import Any, Optional
-from vyper.address_space import MEMORY, AddrSpace
 
+from vyper.address_space import MEMORY, AddrSpace
 from vyper.ast import VyperNode
 from vyper.codegen.ir_node import Encoding
 from vyper.exceptions import CompilerPanic, StateAccessViolation

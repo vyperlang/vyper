@@ -6,10 +6,9 @@ from decimal import Decimal
 from vyper import ast as vy_ast
 from vyper.abi_types import ABI_Tuple
 from vyper.address_space import MEMORY, STORAGE
-from vyper.codegen.context import VariableRecord
 from vyper.ast.validation import validate_call_args
 from vyper.codegen.abi_encoder import abi_encode
-from vyper.codegen.context import Context
+from vyper.codegen.context import Context, VariableRecord
 from vyper.codegen.core import (
     STORE,
     IRnode,
@@ -28,6 +27,7 @@ from vyper.codegen.core import (
     eval_seq,
     get_bytearray_length,
     get_element_ptr,
+    get_type_for_exact_size,
     ir_tuple_from_args,
     needs_external_call_wrap,
     promote_signed_int,
@@ -39,8 +39,6 @@ from vyper.codegen.core import (
 from vyper.codegen.expr import Expr
 from vyper.codegen.ir_node import Encoding
 from vyper.codegen.keccak256_helper import keccak256_helper
-from vyper.semantics.types import VyperType, _BytestringT, BytesT, SArrayT, StringT, TupleT
-from vyper.codegen.core import get_type_for_exact_size
 from vyper.exceptions import (
     ArgumentException,
     CompilerPanic,
@@ -74,7 +72,15 @@ from vyper.semantics.types import (
     StringT,
     TupleT,
 )
-from vyper.semantics.types.shortcuts import BYTES4_T, BYTES32_T, INT256_T, UINT8_T, UINT256_T
+from vyper.semantics.types.bytestrings import _BytestringT
+from vyper.semantics.types.shortcuts import (
+    BYTES4_T,
+    BYTES32_T,
+    INT128_T,
+    INT256_T,
+    UINT8_T,
+    UINT256_T,
+)
 from vyper.semantics.types.utils import type_from_annotation
 from vyper.utils import (
     DECIMAL_DIVISOR,
@@ -149,7 +155,7 @@ class Floor(BuiltinFunction):
                 ["sdiv", ["sub", args[0], DECIMAL_DIVISOR - 1], DECIMAL_DIVISOR],
                 ["sdiv", args[0], DECIMAL_DIVISOR],
             ],
-            typ=BaseType("int256"),
+            typ=INT256_T,
         )
 
 
@@ -177,7 +183,7 @@ class Ceil(BuiltinFunction):
                 ["sdiv", args[0], DECIMAL_DIVISOR],
                 ["sdiv", ["add", args[0], DECIMAL_DIVISOR - 1], DECIMAL_DIVISOR],
             ],
-            typ=BaseType("int256"),
+            typ=INT256_T,
         )
 
 
@@ -344,7 +350,7 @@ class Slice(BuiltinFunction):
         if src.value in ADHOC_SLICE_NODE_MACROS:
             return _build_adhoc_slice_node(src, start, length, context)
 
-        is_bytes32 = is_base_type(src.typ, "bytes32")
+        is_bytes32 = src.typ == BYTES32_T
         if src.location is None:
             # it's not a pointer; force it to be one since
             # copy_bytes works on pointers.
@@ -664,7 +670,7 @@ class Sha256(BuiltinFunction):
     def build_IR(self, expr, args, kwargs, context):
         sub = args[0]
         # bytes32 input
-        if is_base_type(sub.typ, "bytes32"):
+        if sub.typ == BYTES32_T:
             return IRnode.from_list(
                 [
                     "seq",
@@ -677,7 +683,7 @@ class Sha256(BuiltinFunction):
                     ),
                     ["mload", MemoryPositions.FREE_VAR_SPACE],  # push value onto stack
                 ],
-                typ=BaseType("bytes32"),
+                typ=BYTES32_T,
                 add_gas_estimate=SHA256_BASE_GAS + 1 * SHA256_PER_WORD_GAS,
             )
         # bytearay-like input
@@ -701,7 +707,7 @@ class Sha256(BuiltinFunction):
                     ["mload", MemoryPositions.FREE_VAR_SPACE],
                 ],
             ],
-            typ=BaseType("bytes32"),
+            typ=BYTES32_T,
             add_gas_estimate=SHA256_BASE_GAS + sub.typ.maxlen * SHA256_PER_WORD_GAS,
         )
 
@@ -789,7 +795,7 @@ class ECRecover(BuiltinFunction):
                 ],
                 ["mload", MemoryPositions.FREE_VAR_SPACE],
             ],
-            typ=BaseType("address"),
+            typ=AddressT(),
         )
 
 
@@ -818,7 +824,7 @@ class ECAdd(BuiltinFunction):
                 ["assert", ["staticcall", ["gas"], 6, placeholder_node, 128, placeholder_node, 64]],
                 placeholder_node,
             ],
-            typ=SArrayType(BaseType("uint256"), 2),
+            typ=SArrayT(UINT256_T, 2),
             location=MEMORY,
         )
         return o
@@ -844,7 +850,7 @@ class ECMul(BuiltinFunction):
                 ["assert", ["staticcall", ["gas"], 7, placeholder_node, 96, placeholder_node, 64]],
                 placeholder_node,
             ],
-            typ=SArrayType(BaseType("uint256"), 2),
+            typ=SArrayT(UINT256_T, 2),
             location=MEMORY,
         )
         return o
@@ -853,14 +859,14 @@ class ECMul(BuiltinFunction):
 def _generic_element_getter(op):
     def f(index):
         return IRnode.from_list(
-            [op, ["add", "_sub", ["add", 32, ["mul", 32, index]]]], typ=BaseType("int128")
+            [op, ["add", "_sub", ["add", 32, ["mul", 32, index]]]], typ=INT128_T
         )
 
     return f
 
 
 def _storage_element_getter(index):
-    return IRnode.from_list(["sload", ["add", "_sub", ["add", 1, index]]], typ=BaseType("int128"))
+    return IRnode.from_list(["sload", ["add", "_sub", ["add", 1, index]]], typ=INT128_T)
 
 
 class Extract32(BuiltinFunction):
@@ -904,12 +910,12 @@ class Extract32(BuiltinFunction):
 
         # Get length and specific element
         if sub.location == STORAGE:
-            lengetter = IRnode.from_list(["sload", "_sub"], typ=BaseType("int128"))
+            lengetter = IRnode.from_list(["sload", "_sub"], typ=INT128_T)
             elementgetter = _storage_element_getter
 
         else:
             op = sub.location.load_op
-            lengetter = IRnode.from_list([op, "_sub"], typ=BaseType("int128"))
+            lengetter = IRnode.from_list([op, "_sub"], typ=INT128_T)
             elementgetter = _generic_element_getter(op)
 
         # TODO rewrite all this with cache_when_complex and bitshifts
@@ -1068,7 +1074,7 @@ class AsWeiValue(BuiltinFunction):
         else:
             raise CompilerPanic(f"Unexpected type: {value.typ.typ}")
 
-        return IRnode.from_list(sub, typ=BaseType("uint256"))
+        return IRnode.from_list(sub, typ=UINT256_T)
 
 
 zero_value = IRnode.from_list(0, typ=UINT256_T)
@@ -1168,7 +1174,7 @@ class RawCall(BuiltinFunction):
             context.new_internal_variable(BytesT(outsize)), typ=BytesT(outsize), location=MEMORY
         )
 
-        bool_ty = BaseType("bool")
+        bool_ty = BoolT()
 
         # build IR for call or delegatecall
         common_call_args = [
@@ -1202,7 +1208,7 @@ class RawCall(BuiltinFunction):
                 typ = bytes_ty
                 ret_ir = ["seq", check_external_call(call_ir), store_output_size]
             else:
-                typ = TupleType([bool_ty, bytes_ty])
+                typ = TupleT([bool_ty, bytes_ty])
                 ret_ir = [
                     "multi",
                     # use IRnode.from_list to make sure the types are
@@ -1260,7 +1266,7 @@ class BlockHash(BuiltinFunction):
     def build_IR(self, expr, args, kwargs, contact):
         return IRnode.from_list(
             ["blockhash", clamp("lt", clamp("sge", args[0], ["sub", ["number"], 256]), "number")],
-            typ=BaseType("bytes32"),
+            typ=BYTES32_T,
         )
 
 
@@ -1314,8 +1320,8 @@ class RawLog(BuiltinFunction):
 
         data = args[1]
 
-        if data.typ == BaseType("bytes32"):
-            placeholder = context.new_internal_variable(BaseType("bytes32"))
+        if data.typ == BYTES32_T:
+            placeholder = context.new_internal_variable(BYTES32_T)
             return IRnode.from_list(
                 [
                     "seq",
@@ -1361,7 +1367,7 @@ class BitwiseAnd(BuiltinFunction):
 
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
-        return IRnode.from_list(["and", args[0], args[1]], typ=BaseType("uint256"))
+        return IRnode.from_list(["and", args[0], args[1]], typ=UINT256_T)
 
 
 class BitwiseOr(BuiltinFunction):
@@ -1388,7 +1394,7 @@ class BitwiseOr(BuiltinFunction):
 
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
-        return IRnode.from_list(["or", args[0], args[1]], typ=BaseType("uint256"))
+        return IRnode.from_list(["or", args[0], args[1]], typ=UINT256_T)
 
 
 class BitwiseXor(BuiltinFunction):
@@ -1415,7 +1421,7 @@ class BitwiseXor(BuiltinFunction):
 
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
-        return IRnode.from_list(["xor", args[0], args[1]], typ=BaseType("uint256"))
+        return IRnode.from_list(["xor", args[0], args[1]], typ=UINT256_T)
 
 
 class BitwiseNot(BuiltinFunction):
@@ -1443,7 +1449,7 @@ class BitwiseNot(BuiltinFunction):
 
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
-        return IRnode.from_list(["not", args[0]], typ=BaseType("uint256"))
+        return IRnode.from_list(["not", args[0]], typ=UINT256_T)
 
 
 class Shift(BuiltinFunction):
@@ -1483,7 +1489,7 @@ class Shift(BuiltinFunction):
     def build_IR(self, expr, args, kwargs, context):
         # "gshr" -- generalized right shift
         argty = args[0].typ
-        GSHR = sar if argty._int_info.is_signed else shr
+        GSHR = sar if argty.is_signed else shr
 
         with args[0].cache_when_complex("to_shift") as (b1, arg), args[1].cache_when_complex(
             "bits"
@@ -1514,8 +1520,7 @@ class _AddMulMod(BuiltinFunction):
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
         return IRnode.from_list(
-            ["seq", ["assert", args[2]], [self._opcode, args[0], args[1], args[2]]],
-            typ=BaseType("uint256"),
+            ["seq", ["assert", args[2]], [self._opcode, args[0], args[1], args[2]]], typ=UINT256_T
         )
 
 
@@ -1587,7 +1592,7 @@ class Abs(BuiltinFunction):
                 "orig",
             ],
         ]
-        return IRnode.from_list(sub, typ=BaseType("int256"))
+        return IRnode.from_list(sub, typ=INT256_T)
 
 
 # CREATE* functions
@@ -1722,10 +1727,7 @@ class _CreateBase(BuiltinFunction):
         add_gas_estimate = self._add_gas_estimate(args, should_use_create2)
 
         return IRnode.from_list(
-            ir_builder,
-            typ=BaseType("address"),
-            annotation=self._id,
-            add_gas_estimate=add_gas_estimate,
+            ir_builder, typ=AddressT(), annotation=self._id, add_gas_estimate=add_gas_estimate
         )
 
 
@@ -1964,11 +1966,11 @@ class _UnsafeMath(BuiltinFunction):
             # wrap for ops which could under/overflow
             if a.typ.is_signed:
                 # e.g. int128 -> (signextend 15 (add x y))
-                ret = promote_signed_int(ret, int_info.bits)
+                ret = promote_signed_int(ret, a.typ.bits)
             else:
                 # e.g. uint8 -> (mod (add x y) 256)
                 # TODO mod_bound could be a really large literal
-                ret = ["mod", ret, 2 ** int_info.bits]
+                ret = ["mod", ret, 2 ** a.typ.bits]
 
         return IRnode.from_list(ret, typ=otyp)
 
@@ -2166,7 +2168,7 @@ else:
         z = (x / z + z) / 2.0
         """
 
-        x_type = BaseType("decimal")
+        x_type = DecimalT()
         placeholder_copy = ["pass"]
         # Steal current position if variable is already allocated.
         if arg.value == "mload":
@@ -2188,7 +2190,7 @@ else:
         )
         return IRnode.from_list(
             ["seq", placeholder_copy, sqrt_ir, new_ctx.vars["z"].pos],  # load x variable
-            typ=BaseType("decimal"),
+            typ=DecimalT(),
             location=MEMORY,
         )
 
@@ -2241,7 +2243,7 @@ class ISqrt(BuiltinFunction):
             ret.append(["with", "t", ["div", x, z], ["select", ["lt", z, "t"], z, "t"]])
 
             ret = ["with", y, x, ["with", z, 181, ret]]
-            return b1.resolve(IRnode.from_list(ret, typ=BaseType("uint256")))
+            return b1.resolve(IRnode.from_list(ret, typ=UINT256_T))
 
 
 class Empty(TypenameFoldedFunction):

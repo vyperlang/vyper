@@ -23,8 +23,9 @@ from vyper.codegen.core import (
 )
 from vyper.codegen.expr import Expr
 from vyper.codegen.return_ import make_return_stmt
-from vyper.semantics.types import BytesT, DArrayT
 from vyper.exceptions import CompilerPanic, StructureException, TypeCheckFailure
+from vyper.semantics.types import DArrayT
+from vyper.semantics.types.shortcuts import INT256_T
 
 
 class Stmt:
@@ -285,7 +286,7 @@ class Stmt:
 
         # override with type inferred at typechecking time
         # TODO investigate why stmt.target.type != stmt.iter.type.subtype
-        target_type = new_type_to_old_type(self.stmt.target._metadata["type"])
+        target_type = self.stmt.target._metadata["type"]
         iter_list.typ.subtype = target_type
 
         # user-supplied name for loop variable

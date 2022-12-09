@@ -12,11 +12,11 @@ from vyper.codegen.core import (
     get_element_ptr,
     getpos,
     is_array_like,
+    is_bytes_m_type,
+    is_numeric_type,
     is_tuple_like,
     pop_dyn_array,
     unwrap_location,
-    is_bytes_m_type,
-    is_numeric_type,
 )
 from vyper.codegen.ir_node import IRnode
 from vyper.codegen.keccak256_helper import keccak256_helper
@@ -29,10 +29,23 @@ from vyper.exceptions import (
     UnimplementedException,
     VyperException,
 )
-from vyper.semantics.types.bytestrings import _BytestringT, BytesT, StringT
-from vyper.semantics.types.primitives import BYTES32_T, UINT256_T, AddressT, BoolT
-from vyper.semantics.types.subscriptable import DArrayT, HashMapT, SArrayT, TupleT
-from vyper.semantics.types.user import EnumT, InterfaceT, StructT
+from vyper.semantics.types import (
+    BYTES32_T,
+    UINT256_T,
+    AddressT,
+    BoolT,
+    BytesT,
+    DArrayT,
+    DecimalT,
+    EnumT,
+    HashMapT,
+    InterfaceT,
+    SArrayT,
+    StringT,
+    StructT,
+    TupleT,
+    _BytestringT,
+)
 from vyper.utils import (
     DECIMAL_DIVISOR,
     SizeLimits,
@@ -70,7 +83,6 @@ class Expr:
 
     def parse_Int(self):
         typ = self.expr._metadata["type"]
-        typ.is_literal = True
         return IRnode.from_list(self.expr.n, typ=typ)
 
     def parse_Decimal(self):
@@ -83,7 +95,7 @@ class Expr:
 
         val = int(val)
 
-        return IRnode.from_list(val, typ=BaseType("decimal", is_literal=True))
+        return IRnode.from_list(val, typ=DecimalT())
 
     def parse_Hex(self):
         hexstr = self.expr.value
@@ -202,7 +214,7 @@ class Expr:
                     seq = ["selfbalance"]
                 else:
                     seq = ["balance", addr]
-                return IRnode.from_list(seq, typ=BaseType("uint256"))
+                return IRnode.from_list(seq, typ=UINT256_T)
         # x.codesize: codesize of address x
         elif self.expr.attr == "codesize" or self.expr.attr == "is_contract":
             addr = Expr.parse_value_expr(self.expr.value, self.context)
@@ -585,8 +597,8 @@ class Expr:
                 return IRnode.from_list(["iszero", operand], typ=BoolT())
 
         if isinstance(self.expr.op, vy_ast.Invert):
-            if isinstance(operand.typ, EnumType):
-                n_members = len(operand.typ.member_types)
+            if isinstance(operand.typ, EnumT):
+                n_members = len(operand.typ._enum_members)
                 # use (xor 0b11..1 operand) to flip all the bits in
                 # `operand`. `mask` could be a very large constant and
                 # hurt codesize, but most user enums will likely have few

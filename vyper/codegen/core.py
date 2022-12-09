@@ -3,21 +3,21 @@ from vyper.address_space import CALLDATA, DATA, IMMUTABLES, MEMORY, STORAGE
 from vyper.codegen.ir_node import Encoding, IRnode
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import CompilerPanic, StructureException, TypeCheckFailure, TypeMismatch
-from vyper.semantics.types import _BytestringT
-from vyper.semantics.types.shortcuts import (
-    BYTES32_T,
-    INT256_T,
-    )
 from vyper.semantics.types import (
     AddressT,
     BoolT,
     BytesM_T,
+    BytesT,
+    DArrayT,
     DecimalT,
+    HashMapT,
     IntegerT,
     InterfaceT,
+    StructT,
+    TupleT,
+    _BytestringT,
 )
-from vyper.semantics.types.shortcuts import UINT256_T
-from vyper.semantics.types import DArrayT, StructT, HashMapT, TupleT, BytesT
+from vyper.semantics.types.shortcuts import BYTES32_T, INT256_T, UINT256_T
 from vyper.semantics.types.subscriptable import SArrayT
 from vyper.semantics.types.user import EnumT
 from vyper.utils import (

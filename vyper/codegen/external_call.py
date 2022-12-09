@@ -1,7 +1,4 @@
 from dataclasses import dataclass
-from vyper.semantics.types.bytestrings import BytesT
-from vyper.semantics.types.subscriptable import TupleT
-from vyper.semantics.types.user import InterfaceT
 
 import vyper.utils as util
 from vyper.address_space import MEMORY
@@ -13,14 +10,15 @@ from vyper.codegen.core import (
     check_external_call,
     dummy_node_for_type,
     eval_once_check,
+    get_type_for_exact_size,
     make_setter,
     needs_clamp,
     unwrap_location,
     wrap_value_for_external_return,
-    get_type_for_exact_size,
 )
 from vyper.codegen.ir_node import Encoding, IRnode
 from vyper.exceptions import TypeCheckFailure
+from vyper.semantics.types import InterfaceT, TupleT
 from vyper.semantics.types.function import StateMutability
 
 

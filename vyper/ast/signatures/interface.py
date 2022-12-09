@@ -7,8 +7,8 @@ import vyper.builtins.interfaces
 from vyper import ast as vy_ast
 from vyper.ast.signatures.function_signature import FunctionSignature
 from vyper.codegen.global_context import GlobalContext
-from vyper.semantics.types import AddressT, BoolT, BytesM_T, IntegerT
 from vyper.exceptions import StructureException
+from vyper.semantics.types import AddressT, BoolT, BytesM_T, IntegerT
 
 
 # Populate built-in interfaces.

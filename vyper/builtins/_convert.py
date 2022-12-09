@@ -12,15 +12,16 @@ from vyper.codegen.core import (
     clamp_basetype,
     get_bytearray_length,
     int_clamp,
+    is_bytes_m_type,
+    is_decimal_type,
+    is_enum_type,
+    is_integer_type,
     sar,
     shl,
     shr,
     unwrap_location,
 )
 from vyper.codegen.expr import Expr
-from vyper.semantics.types.bytestrings import _BytestringT
-from vyper.semantics.types import VyperType, BytesT, BoolT, AddressT, EnumT, StringT, TYPE_T
-from vyper.codegen.core import is_bytes_m_type, is_decimal_type, is_enum_type, is_integer_type
 from vyper.exceptions import (
     CompilerPanic,
     InvalidLiteral,
@@ -28,6 +29,9 @@ from vyper.exceptions import (
     StructureException,
     TypeMismatch,
 )
+from vyper.semantics.types import TYPE_T, AddressT, BoolT, BytesT, StringT
+from vyper.semantics.types.bytestrings import _BytestringT
+from vyper.semantics.types.shortcuts import INT256_T, UINT256_T
 from vyper.utils import DECIMAL_DIVISOR, SizeLimits, round_towards_zero, unsigned_to_signed
 
 
@@ -53,9 +57,9 @@ def _type_class_of(typ):
         return "address"
     if typ == BoolT():
         return "bool"
-    if isinstance(typ, ByteArrayType):
+    if isinstance(typ, BytesT):
         return "bytes"
-    if isinstance(typ, StringType):
+    if isinstance(typ, StringT):
         return "string"
 
 
@@ -73,7 +77,7 @@ def _input_types(*allowed_types):
             # user safety: disallow convert from type to itself
             # note allowance of [u]int256; this is due to type inference
             # on literals not quite working yet.
-            if arg.typ == out_typ and not is_base_type(arg.typ, ("uint256", "int256")):
+            if arg.typ == out_typ and arg.typ not in (UINT256_T, INT256_T):
                 raise InvalidType(f"value and target are both {out_typ}", expr)
 
             return f(expr, arg, out_typ)
@@ -137,9 +141,9 @@ def _fixed_to_int(arg, out_typ):
     out_lo = out_lo * DIVISOR
     out_hi = out_hi * DIVISOR
 
-    clamped_arg = _clamp_numeric_convert(arg, arg_info.bounds, (out_lo, out_hi), arg_info.is_signed)
+    clamped_arg = _clamp_numeric_convert(arg, arg.typ.bounds, (out_lo, out_hi), arg.typ.is_signed)
 
-    assert arg_info.is_signed, "should use unsigned div"  # stub in case we ever add ufixed
+    assert arg.typ.is_signed, "should use unsigned div"  # stub in case we ever add ufixed
     return IRnode.from_list(["sdiv", clamped_arg, DIVISOR], typ=out_typ)
 
 
@@ -301,9 +305,8 @@ def to_int(expr, arg, out_typ):
             arg = int_clamp(arg, out_typ.bits, signed=out_typ.is_signed)
 
     elif is_bytes_m_type(arg.typ):
-        arg_info = arg.typ._bytes_info
         arg = _bytes_to_num(arg, out_typ, signed=out_typ.is_signed)
-        if arg_info.m_bits > out_typ.bits:
+        if arg.typ.m_bits > out_typ.bits:
             arg = int_clamp(arg, out_typ.bits, signed=out_typ.is_signed)
 
     elif is_decimal_type(arg.typ):
@@ -334,7 +337,7 @@ def to_decimal(expr, arg, out_typ):
     if isinstance(expr, vy_ast.Constant):
         return _literal_decimal(expr, arg.typ, out_typ)
 
-    if isinstance(arg.typ, ByteArrayType):
+    if isinstance(arg.typ, BytesT):
         arg_typ = arg.typ
         arg = _bytes_to_num(arg, out_typ, signed=True)
         if arg_typ.maxlen * 8 > 168:
@@ -356,7 +359,7 @@ def to_decimal(expr, arg, out_typ):
         arg = _int_to_fixed(arg, out_typ)
         return IRnode.from_list(arg, typ=out_typ)
 
-    elif is_base_type(arg.typ, "bool"):
+    elif arg.typ == BoolT():
         # TODO: consider adding _int_info to bool so we can use _int_to_fixed
         arg = ["mul", arg, 10 ** out_typ.decimals]
         return IRnode.from_list(arg, typ=out_typ)
@@ -368,7 +371,7 @@ def to_decimal(expr, arg, out_typ):
 def to_bytes_m(expr, arg, out_typ):
     _check_bytes(expr, arg, out_typ, max_bytes_allowed=out_typ.m)
 
-    if isinstance(arg.typ, ByteArrayType):
+    if isinstance(arg.typ, BytesT):
         bytes_val = LOAD(bytes_data_ptr(arg))
 
         # zero out any dirty bytes (which can happen in the last

@@ -9,7 +9,6 @@ from vyper.exceptions import CodegenPanic, CompilerPanic
 from vyper.semantics.types import VyperType
 from vyper.utils import VALID_IR_MACROS, cached_property, ceil32
 
-
 # Set default string representation for ints in IR output.
 AS_HEX_DEFAULT = False
 
