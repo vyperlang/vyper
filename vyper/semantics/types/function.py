@@ -264,10 +264,11 @@ class ContractFunction(VyperType):
         if kwargs["state_mutability"] == StateMutability.PURE and "nonreentrant" in kwargs:
             raise StructureException("Cannot use reentrancy guard on pure functions", node)
 
-
         if node.name == "__init__":
             if kwargs["function_visibility"] == FunctionVisibility.INTERNAL:
-                raise FunctionDeclarationException("Constructor cannot be marked as `@internal`", node)
+                raise FunctionDeclarationException(
+                    "Constructor cannot be marked as `@internal`", node
+                )
             if kwargs["state_mutability"] == StateMutability.PURE:
                 raise FunctionDeclarationException("Constructor cannot be marked as `@pure`", node)
             if kwargs["state_mutability"] == StateMutability.VIEW:

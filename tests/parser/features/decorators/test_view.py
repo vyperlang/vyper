@@ -40,4 +40,6 @@ def __init__():
     a = 1
     """
 
-    assert_compile_failed(lambda: get_contract_with_gas_estimation(code), FunctionDeclarationException)
+    assert_compile_failed(
+        lambda: get_contract_with_gas_estimation(code), FunctionDeclarationException
+    )
