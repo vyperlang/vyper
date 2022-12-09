@@ -129,3 +129,18 @@ def foo() -> uint256:
         ),
         FunctionDeclarationException,
     )
+
+
+def test_invalid_constructor(get_contract_with_gas_estimation, assert_compile_failed):
+    code = """
+a: immutable(uint256)
+
+@external
+@pure
+def __init__():
+    a = 1
+    """
+
+    assert_compile_failed(
+        lambda: get_contract_with_gas_estimation(code), FunctionDeclarationException
+    )
