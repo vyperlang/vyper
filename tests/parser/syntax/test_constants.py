@@ -131,6 +131,26 @@ def hello() :
     """,
         ImmutableViolation,
     ),
+    (
+        """
+a: constant(DynArray[uint128, 2]) = [0]
+
+@external
+def foo():
+    a.pop()
+    """,
+        ImmutableViolation,
+    ),
+    (
+        """
+a: constant(DynArray[uint128, 2]) = [0]
+
+@external
+def foo():
+    a.append(1)
+    """,
+        ImmutableViolation,
+    ),
 ]
 
 
