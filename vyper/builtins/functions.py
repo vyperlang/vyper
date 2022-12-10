@@ -1232,13 +1232,16 @@ class Send(BuiltinFunction):
 
     _id = "send"
     _inputs = [("to", AddressT()), ("value", UINT256_T)]
+    # default gas stipend is 0
+    _kwargs = {"gas": KwargSettings(UINT256_T, 0)}
     _return_type = None
 
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
         to, value = args
+        gas = kwargs["gas"]
         context.check_is_not_constant("send ether", expr)
-        return IRnode.from_list(["assert", ["call", 0, to, value, 0, 0, 0, 0]])
+        return IRnode.from_list(["assert", ["call", gas, to, value, 0, 0, 0, 0]])
 
 
 class SelfDestruct(BuiltinFunction):
@@ -1465,8 +1468,11 @@ class Shift(BuiltinFunction):
         value, shift = [i.value for i in node.args]
         if value < 0 or value >= 2 ** 256:
             raise InvalidLiteral("Value out of range for uint256", node.args[0])
-        if shift < -(2 ** 127) or shift >= 2 ** 127:
-            raise InvalidLiteral("Value out of range for int128", node.args[1])
+        if shift < -256 or shift > 256:
+            # this validation is performed to prevent the compiler from hanging
+            # rather than for correctness because the post-folded constant would
+            # have been validated anyway
+            raise InvalidLiteral("Shift must be between -256 and 256", node.args[1])
 
         if shift < 0:
             value = value >> -shift
