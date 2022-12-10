@@ -142,6 +142,8 @@ class _ExprAnalyser:
         # Early termination if typedef is propagated in metadata
         if "type" in node._metadata:
             return [node._metadata["type"]]
+        if "varinfo" in node._metadata:
+            return [node._metadata["varinfo"].typ]
 
         fn = self._find_fn(node)
         ret = fn(node)

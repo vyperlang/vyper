@@ -200,7 +200,7 @@ def replace_user_defined_constants(vyper_module: vy_ast.Module) -> int:
             pass
 
         changed_nodes += replace_constant(
-            vyper_module, node.target.id, node.value, False, type_=type_, var_info=var_info
+            vyper_module, node.target.id, node.value, False, var_info=var_info
         )
 
     return changed_nodes
@@ -218,7 +218,7 @@ def _replace(old_node, new_node, type_=None, var_info=None):
             new_node._metadata["varinfo"] = var_info
         return new_node
     elif isinstance(new_node, vy_ast.List):
-        base_type = type_.value_type if type_ else None
+        base_type = var_info.typ.value_type if var_info else None
         list_values = [_replace(old_node, i, type_=base_type) for i in new_node.elements]
         new_node = new_node.from_node(old_node, elements=list_values)
         if type_:
@@ -246,7 +246,6 @@ def replace_constant(
     id_: str,
     replacement_node: Union[vy_ast.Constant, vy_ast.List, vy_ast.Call],
     raise_on_error: bool,
-    type_: Optional[VyperType] = None,
     var_info: Optional[VarInfo] = None,
 ) -> int:
     """
@@ -263,8 +262,9 @@ def replace_constant(
         `Call` nodes are for struct constants.
     raise_on_error: bool
         Boolean indicating if `UnfoldableNode` exception should be raised or ignored.
-    type_ : VyperType, optional
-        Type definition to be propagated to type checker.
+    var_info : VarInfo, optional
+        Type definition plus associated metadata like constancy attributes to be
+        propagated to type checker.
 
     Returns
     -------
@@ -302,7 +302,7 @@ def replace_constant(
 
         try:
             # note: _replace creates a copy of the replacement_node
-            new_node = _replace(node, replacement_node, type_=type_, var_info=var_info)
+            new_node = _replace(node, replacement_node, var_info=var_info)
         except UnfoldableNode:
             if raise_on_error:
                 raise
