@@ -1568,7 +1568,7 @@ class PowMod256(BuiltinFunction):
         if left.value < 0 or right.value < 0:
             raise UnfoldableNode
 
-        value = (left.value ** right.value) % (2 ** 256)
+        value = pow(left.value, right.value, 2 ** 256)
         return vy_ast.Int.from_node(node, value=value)
 
     def build_IR(self, expr, context):
