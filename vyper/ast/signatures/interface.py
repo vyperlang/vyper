@@ -95,40 +95,10 @@ def mk_full_signature_from_json(abi):
     return sigs
 
 
-def _get_external_signatures(global_ctx, sig_formatter=lambda x: x):
-    ret = []
-
-    for func_ast in global_ctx._function_defs:
-        sig = FunctionSignature.from_definition(func_ast, global_ctx)
-        if not sig.internal:
-            ret.append(sig_formatter(sig))
-    return ret
-
-
 def extract_sigs(sig_code, interface_name=None):
     if sig_code["type"] == "vyper":
-        interface_ast = [
-            i
-            for i in vy_ast.parse_to_ast(sig_code["code"], contract_name=interface_name)
-            # all the nodes visited by ModuleNodeVisitor.
-            if isinstance(
-                i,
-                (
-                    vy_ast.FunctionDef,
-                    vy_ast.EnumDef,
-                    vy_ast.EventDef,
-                    vy_ast.StructDef,
-                    vy_ast.InterfaceDef,
-                    # parsing import statements at this stage
-                    # causes issues with recursive imports
-                    # vy_ast.Import,
-                    # vy_ast.ImportFrom,
-                ),
-            )
-            or (isinstance(i, vy_ast.AnnAssign) and i.target.id != "implements")
-        ]
-        global_ctx = GlobalContext.get_global_context(interface_ast)
-        return _get_external_signatures(global_ctx)
+        ast = vy_ast.parse_to_ast(sig_code["code"], contract_name=interface_name)
+        return [s for s in ast if isinstance(s, vy_ast.FunctionDef)]
     elif sig_code["type"] == "json":
         return mk_full_signature_from_json(sig_code["code"])
     else:
