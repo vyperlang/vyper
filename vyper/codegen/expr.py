@@ -617,7 +617,7 @@ class Expr:
             assert operand.typ._num_info.is_signed
             # Clamp on minimum signed integer value as we cannot negate that
             # value (all other integer values are fine)
-            min_int_val, _ = operand.typ._num_info.bounds
+            min_int_val, _ = int_bounds_for_type(operand.typ)
             return IRnode.from_list(["sub", 0, clamp("sgt", operand, min_int_val)], typ=operand.typ)
 
     # Function calls

@@ -288,7 +288,7 @@ def safe_div(x, y):
     ok = [1]  # true
 
     if is_decimal_type(x.typ):
-        lo, hi = typ.bounds
+        lo, hi = int_bounds_for_type(typ)
         if max(abs(lo), abs(hi)) * typ.divisor > 2 ** 256 - 1:
             # stub to prevent us from adding fixed point numbers we don't know
             # how to deal with
@@ -318,7 +318,7 @@ def safe_div(x, y):
                 pass
 
         elif typ.is_signed and is_integer_type(typ):
-            lo, hi = typ.bounds
+            lo, hi = int_bounds_for_type(typ)
             # we need to throw on min_value(typ) / -1,
             # but we can skip if one of the operands is a literal and not
             # the evil value

@@ -212,7 +212,7 @@ class Convert(BuiltinFunction):
             # (note this is different from the ordering returned by `get_possible_types_from_node`)
             if not isinstance(target_type, IntegerT):
                 value_types = sorted(
-                    value_types, key=lambda v: (v._is_signed, v._bits), reverse=True
+                    value_types, key=lambda v: (v.is_signed, v.bits), reverse=True
                 )
             else:
                 # filter out the target type from list of possible types
@@ -2077,7 +2077,7 @@ class Uint2Str(BuiltinFunction):
 
     def fetch_call_return(self, node):
         arg_t = self.infer_arg_types(node)[0]
-        bits = arg_t._bits
+        bits = arg_t.bits
         len_needed = math.ceil(bits * math.log(2) / math.log(10))
         return StringT(len_needed)
 
@@ -2569,12 +2569,12 @@ class _MinMaxValue(TypenameFoldedFunction):
         self._validate_arg_types(node)
         input_type = type_from_annotation(node.args[0])
 
+        val = self._eval(input_type)
+
         if isinstance(input_type, DecimalT):
-            val = self._eval_decimal(input_type)
             return vy_ast.Decimal.from_node(node, value=val)
 
         if isinstance(input_type, IntegerT):
-            val = self._eval_int(input_type)
             return vy_ast.Int.from_node(node, value=val)
 
         raise InvalidType(f"Expected numeric type but got {input_type} instead", node)
@@ -2583,21 +2583,15 @@ class _MinMaxValue(TypenameFoldedFunction):
 class MinValue(_MinMaxValue):
     _id = "min_value"
 
-    def _eval_int(self, type_):
-        return type_.bounds[0]
-
-    def _eval_decimal(self, type_):
-        return type_.decimal_bounds[0]
+    def _eval(self, type_):
+        return type_.ast_bounds[0]
 
 
 class MaxValue(_MinMaxValue):
     _id = "max_value"
 
-    def _eval_int(self, type_):
-        return type_.bounds[1]
-
-    def _eval_decimal(self, type_):
-        return type_.decimal_bounds[1]
+    def _eval(self, type_):
+        return type_.ast_bounds[1]
 
 
 class Epsilon(TypenameFoldedFunction):

@@ -103,19 +103,23 @@ class NumericT(_PrimT):
     _is_signed: bool
     _bits: int
     _invalid_ops: tuple
-    bounds: Tuple[int, int]
 
-    @property
+    # the bounds of the value this type can assume in the AST
+    ast_bounds: Tuple[Any, Any]
+    # the type this can assume in the AST
+    ast_type: type
+
+    @cached_property
     def bits(self) -> int:
         return self._bits
 
-    @property
+    @cached_property
     def is_signed(self) -> bool:
         return self._is_signed
 
     def validate_literal(self, node: vy_ast.Constant) -> None:
         super().validate_literal(node)
-        lower, upper = self.bounds
+        lower, upper = self.ast_bounds
         if node.value < lower:
             raise OverflowException(f"Value is below lower bound for given type ({lower})", node)
         if node.value > upper:
@@ -187,21 +191,23 @@ class IntegerT(NumericT):
     _valid_literal = (vy_ast.Int,)
     _equality_attrs = ("is_signed", "bits")
 
+    ast_type = int
+
     def __init__(self, is_signed, bits):
         super().__init__()
         self._is_signed = is_signed
         self._bits = bits
 
-    @property
+    @cached_property
     def _id(self):
         u = "u" if not self.is_signed else ""
         return f"{u}int{self.bits}"
 
-    @property
-    def bounds(self):
+    @cached_property
+    def ast_bounds(self) -> Tuple[int, int]:
         return int_bounds(self.is_signed, self.bits)
 
-    @property
+    @cached_property
     def _invalid_ops(self):
         if not self.is_signed:
             return (vy_ast.USub,)
@@ -220,7 +226,7 @@ class IntegerT(NumericT):
     def all(cls) -> Tuple["IntegerT", ...]:
         return cls.signeds() + cls.unsigneds()
 
-    @property
+    @cached_property
     def abi_type(self) -> ABIType:
         return ABI_GIntM(self.bits, self.is_signed)
 
@@ -243,8 +249,6 @@ BYTES4_T = BytesM_T(4)
 
 
 class DecimalT(NumericT):
-    bounds = (SizeLimits.MIN_AST_DECIMAL, SizeLimits.MAX_AST_DECIMAL)
-
     _bits = 168  # TODO generalize
     _decimal_places = 10  # TODO generalize
     _id = "decimal"
@@ -254,26 +258,32 @@ class DecimalT(NumericT):
 
     _equality_attrs = ("_bits", "_decimal_places")
 
-    @property
+    ast_type = Decimal
+
+    @cached_property
     def abi_type(self) -> ABIType:
         return ABI_FixedMxN(self._bits, self._decimal_places, self._is_signed)
 
-    @property
+    @cached_property
     def decimals(self) -> int:
         # Alias for API compatibility with codegen
         return self._decimal_places
 
-    @property
+    @cached_property
     def divisor(self) -> int:
         return 10 ** self.decimals
 
-    @property
+    @cached_property
     def epsilon(self) -> Decimal:
         return 1 / Decimal(self.divisor)
 
-    @property
+    @cached_property
+    def ast_bounds(self) -> Tuple[Decimal, Decimal]:
+        return self.decimal_bounds
+
+    @cached_property
     def decimal_bounds(self) -> Tuple[Decimal, Decimal]:
-        lo, hi = self.bounds
+        lo, hi = int_bounds(signed=self.is_signed, bits=self.bits)
         DIVISOR = Decimal(self.divisor)
         return lo / DIVISOR, hi / DIVISOR
 
@@ -291,7 +301,7 @@ class AddressT(_PrimT):
         "code": BytesT(),
     }
 
-    @property
+    @cached_property
     def abi_type(self) -> ABIType:
         return ABI_Address()
 

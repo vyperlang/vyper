@@ -137,13 +137,15 @@ def _fixed_to_int(arg, out_typ):
 
     # block inputs which are out of bounds before truncation.
     # e.g., convert(255.1, uint8) should revert or fail to compile.
-    out_lo, out_hi = out_typ.bounds
-    out_lo = out_lo * DIVISOR
-    out_hi = out_hi * DIVISOR
+    out_lo, out_hi = int_bounds_for_type(out_typ)
+    out_lo *= DIVISOR
+    out_hi *= DIVISOR
 
-    clamped_arg = _clamp_numeric_convert(arg, arg.typ.bounds, (out_lo, out_hi), arg.typ.is_signed)
+    arg_bounds = int_bounds_for_type(arg.typ)
 
-    assert arg.typ.is_signed, "should use unsigned div"  # stub in case we ever add ufixed
+    clamped_arg = _clamp_numeric_convert(arg, arg_bounds, (out_lo, out_hi), arg.typ.is_signed)
+
+    assert arg.typ.is_signed, "should use unsigned div"  # stub for when we ufixed
     return IRnode.from_list(["sdiv", clamped_arg, DIVISOR], typ=out_typ)
 
 
@@ -152,11 +154,13 @@ def _int_to_fixed(arg, out_typ):
     DIVISOR = out_typ.divisor
 
     # block inputs which are out of bounds before promotion
-    out_lo, out_hi = out_typ.bounds
+    out_lo, out_hi = int_bounds_for_type(out_typ)
     out_lo = round_towards_zero(out_lo / decimal.Decimal(DIVISOR))
     out_hi = round_towards_zero(out_hi / decimal.Decimal(DIVISOR))
 
-    clamped_arg = _clamp_numeric_convert(arg, arg.typ.bounds, (out_lo, out_hi), arg.typ.is_signed)
+    arg_bounds = int_bounds_for_type(arg.typ)
+
+    clamped_arg = _clamp_numeric_convert(arg, arg_bounds, (out_lo, out_hi), arg.typ.is_signed)
 
     return IRnode.from_list(["mul", clamped_arg, DIVISOR], typ=out_typ)
 
@@ -164,7 +168,7 @@ def _int_to_fixed(arg, out_typ):
 # clamp for dealing with conversions between int types (from arg to dst)
 def _int_to_int(arg, out_typ):
     # do the same thing as
-    # _clamp_numeric_convert(arg, arg.typ.bounds, out_typ.bounds, arg.typ.is_signed)
+    # _clamp_numeric_convert(arg, arg.typ.ast_bounds, out_typ.ast_bounds, arg.typ.is_signed)
     # but with better code size and gas.
     if arg.typ.is_signed and not out_typ.is_signed:
 
@@ -230,7 +234,6 @@ def _signextend(expr, val, arg_typ):
 
 def _literal_int(expr, arg_typ, out_typ):
     # TODO: possible to reuse machinery from expr.py?
-    int_info = out_typ._int_info
     if isinstance(expr, vy_ast.Hex):
         val = int(expr.value, 16)
     elif isinstance(expr, vy_ast.Bytes):
@@ -240,10 +243,10 @@ def _literal_int(expr, arg_typ, out_typ):
     else:  # pragma: no cover
         raise CompilerPanic("unreachable")
 
-    if isinstance(expr, (vy_ast.Hex, vy_ast.Bytes)) and int_info.is_signed:
+    if isinstance(expr, (vy_ast.Hex, vy_ast.Bytes)) and out_typ.is_signed:
         val = _signextend(expr, val, arg_typ)
 
-    (lo, hi) = int_info.bounds
+    (lo, hi) = int_bounds_for_type(out_typ)
     if not (lo <= val <= hi):
         raise InvalidLiteral("Number out of range", expr)
 

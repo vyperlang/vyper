@@ -66,6 +66,13 @@ def is_array_like(typ):
 #     pass
 
 
+# get the bounds on IR values of this type.
+# note the distinction for decimals: ast_bounds will return a Decimal,
+# int_bounds_for_type will return the fully expanded int range.
+def int_bounds_for_type(typ) -> Tuple[int, int]:
+    return int_bounds(signed=typ.is_signed, bits=typ.bits)
+
+
 def get_type_for_exact_size(n_bytes):
     """Create a type which will take up exactly n_bytes. Used for allocating internal buffers.
 
