@@ -30,8 +30,6 @@ from vyper.exceptions import (
     VyperException,
 )
 from vyper.semantics.types import (
-    BYTES32_T,
-    UINT256_T,
     AddressT,
     BoolT,
     BytesT,
@@ -44,8 +42,9 @@ from vyper.semantics.types import (
     StringT,
     StructT,
     TupleT,
-    _BytestringT,
 )
+from vyper.semantics.types.bytestrings import _BytestringT
+from vyper.semantics.types.shortcuts import BYTES32_T, UINT256_T
 from vyper.utils import (
     DECIMAL_DIVISOR,
     SizeLimits,
