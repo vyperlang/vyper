@@ -1,6 +1,7 @@
 import pytest
 
 from vyper import compiler
+from vyper.exceptions import StateAccessViolation
 
 valid_list = [
     """
@@ -37,3 +38,30 @@ def kick_foos():
 @pytest.mark.parametrize("good_code", valid_list)
 def test_range_success(good_code):
     assert compiler.compile_code(good_code) is not None
+
+
+fail_list = [
+    # Cannot call `pop()` in for range because it modifies state
+    (
+        """
+arr: DynArray[uint256, 10]
+
+@external
+def test()-> (DynArray[uint256, 6], DynArray[uint256, 10]):
+    b: DynArray[uint256, 6] = []
+
+    self.arr = [1,0]
+
+    for i in range(self.arr.pop(), self.arr.pop() + 2):
+        b.append(i)
+
+    return b, self.arr
+    """,
+        StateAccessViolation,
+    ),
+]
+
+
+@pytest.mark.parametrize("bad_code,exc", fail_list)
+def test_range_fail(assert_compile_failed, get_contract_with_gas_estimation, bad_code, exc):
+    assert_compile_failed(lambda: get_contract_with_gas_estimation(bad_code), exc)
