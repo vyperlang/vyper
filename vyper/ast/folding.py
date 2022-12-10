@@ -181,6 +181,7 @@ def replace_user_defined_constants(vyper_module: vy_ast.Module) -> int:
 
         # Extract type definition from propagated annotation
         type_ = None
+        var_info = None
         try:
             type_ = type_from_annotation(node.annotation)
             var_info = VarInfo(
