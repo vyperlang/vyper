@@ -1480,6 +1480,9 @@ class Shift(BuiltinFunction):
         if value < 0 or value >= 2 ** 256:
             raise InvalidLiteral("Value out of range for uint256", node.args[0])
         if shift < -256 or shift > 256:
+            # this validation is performed to prevent the compiler from hanging
+            # rather than for correctness because the post-folded constant would
+            # have been validated anyway
             raise InvalidLiteral("Shift must be between -256 and 256", node.args[1])
 
         if shift < 0:
