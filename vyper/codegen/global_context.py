@@ -3,6 +3,7 @@ from typing import Optional
 from vyper import ast as vy_ast
 from vyper.codegen.context import VariableRecord
 from vyper.exceptions import CompilerPanic, InvalidType, StructureException
+from vyper.semantics.namespace import override_global_namespace
 from vyper.semantics.types import EnumT
 from vyper.semantics.types.utils import type_from_annotation
 from vyper.typing import InterfaceImports
@@ -38,6 +39,8 @@ class GlobalContext:
 
         interface_codes = {} if interface_codes is None else interface_codes
         global_ctx = cls()
+
+        global_ctx._module = vyper_module
 
         for item in vyper_module:
             if isinstance(item, vy_ast.StructDef):
@@ -177,7 +180,8 @@ class GlobalContext:
         return set(self._contracts.keys()) | set(self._interfaces.keys())
 
     def parse_type(self, ast_node):
-        return type_from_annotation(ast_node)
+        with override_global_namespace(self._module._metadata["namespace"]):
+            return type_from_annotation(ast_node)
 
     @property
     def immutables(self):
