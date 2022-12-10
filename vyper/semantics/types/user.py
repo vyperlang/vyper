@@ -468,6 +468,11 @@ class StructT(_UserType):
             if isinstance(t, HashMapT):
                 raise StructureException(f"Struct contains a mapping '{n}'", ast_def)
 
+    @cached_property
+    def name(self) -> str:
+        # Alias for API compatibility with codegen
+        return self._id
+
     # duplicated code in TupleT
     def tuple_members(self):
         return [v for (_k, v) in self.tuple_items()]

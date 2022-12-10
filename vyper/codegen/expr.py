@@ -685,10 +685,9 @@ class Expr:
         member_subs = {}
         member_typs = {}
         for key, value in zip(expr.keys, expr.values):
-            if not isinstance(key, vy_ast.Name):
-                return
-            if key.id in member_subs:
-                return
+            assert isinstance(key, vy_ast.Name)
+            assert key.id not in member_subs
+
             sub = Expr(value, context).ir_node
             member_subs[key.id] = sub
             member_typs[key.id] = sub.typ
@@ -696,7 +695,7 @@ class Expr:
         # TODO: get struct type from context.global_ctx.parse_type(name)
         return IRnode.from_list(
             ["multi"] + [member_subs[key] for key in member_subs.keys()],
-            typ=StructT(member_typs, name),
+            typ=StructT(name, member_typs),
         )
 
     # Parse an expression that results in a value
