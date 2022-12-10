@@ -62,8 +62,8 @@ class _ExprAnalyser:
 
     def get_expr_info(self, node: vy_ast.VyperNode) -> ExprInfo:
         # Early termination if variable info is propagated in metadata
-        if "varinfo" in node._metadata:
-            varinfo = node._metadata.get("varinfo")
+        varinfo = node._metadata.get("varinfo")
+        if varinfo is not None:
             return ExprInfo.from_varinfo(varinfo)
 
         t = self.get_exact_type_from_node(node)
