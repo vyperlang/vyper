@@ -213,7 +213,6 @@ def _replace(old_node, new_node, var_info=None):
         new_node = new_node.from_node(old_node, value=new_node.value)
         if var_info is not None:
             new_node._metadata["varinfo"] = var_info
-            new_node._metadata["type"] = var_info.typ
         return new_node
     elif isinstance(new_node, vy_ast.List):
         base_type_varinfo = None
@@ -230,7 +229,6 @@ def _replace(old_node, new_node, var_info=None):
         new_node = new_node.from_node(old_node, elements=list_values)
         if var_info is not None:
             new_node._metadata["varinfo"] = var_info
-            new_node._metadata["type"] = var_info.typ
         return new_node
     elif isinstance(new_node, vy_ast.Call):
         # Replace `Name` node with `Call` node
