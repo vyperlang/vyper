@@ -670,7 +670,7 @@ class Expr:
             darray = Expr(self.expr.func.value, self.context).ir_node
             assert len(self.expr.args) == 0
             assert isinstance(darray.typ, DArrayType)
-            return pop_dyn_array(darray, return_popped_item=True)
+            return pop_dyn_array(self.expr, self.context, darray, return_popped_item=True)
 
         elif (
             # TODO use expr.func.type.is_internal once

@@ -19,7 +19,7 @@ from vyper.codegen.types import (
     is_integer_type,
 )
 from vyper.evm.opcodes import version_check
-from vyper.exceptions import CompilerPanic, StructureException, TypeCheckFailure, TypeMismatch
+from vyper.exceptions import CompilerPanic, StructureException, StateAccessViolation, TypeCheckFailure, TypeMismatch
 from vyper.utils import GAS_CALLDATACOPY_WORD, GAS_CODECOPY_WORD, GAS_IDENTITY, GAS_IDENTITYWORD
 
 
@@ -291,9 +291,13 @@ def append_dyn_array(darray_node, elem_node):
             return IRnode.from_list(b1.resolve(b2.resolve(ret)))
 
 
-def pop_dyn_array(darray_node, return_popped_item):
+def pop_dyn_array(stmt_node, context, darray_node, return_popped_item):
     assert isinstance(darray_node.typ, DArrayType)
     assert darray_node.encoding == Encoding.VYPER
+
+    if context.is_constant():
+        raise StateAccessViolation(f"May not call `pop()` within {context.pp_constancy()}", stmt_node)
+
     ret = ["seq"]
     with darray_node.cache_when_complex("darray") as (b1, darray_node):
         old_len = clamp("gt", get_dyn_array_count(darray_node), 0)
