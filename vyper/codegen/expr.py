@@ -673,7 +673,9 @@ class Expr:
             assert isinstance(darray.typ, DArrayType)
 
             if self.context.is_constant():
-                raise StateAccessViolation(f"May not call `pop()` within {self.context.pp_constancy()}", self.expr)
+                raise StateAccessViolation(
+                    f"May not call `pop()` within {self.context.pp_constancy()}", self.expr
+                )
 
             return pop_dyn_array(darray, return_popped_item=True)
 
