@@ -37,6 +37,7 @@ from vyper.codegen.types.convert import new_type_to_old_type
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
     EvmVersionException,
+    StateAccessViolation,
     StructureException,
     TypeCheckFailure,
     TypeMismatch,
@@ -670,7 +671,11 @@ class Expr:
             darray = Expr(self.expr.func.value, self.context).ir_node
             assert len(self.expr.args) == 0
             assert isinstance(darray.typ, DArrayType)
-            return pop_dyn_array(self.expr, self.context, darray, return_popped_item=True)
+
+            if self.context.is_constant():
+                raise StateAccessViolation(f"May not call `pop()` within {self.context.pp_constancy()}", self.expr)
+
+            return pop_dyn_array(darray, return_popped_item=True)
 
         elif (
             # TODO use expr.func.type.is_internal once
