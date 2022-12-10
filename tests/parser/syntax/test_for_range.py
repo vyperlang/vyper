@@ -1,7 +1,7 @@
 import pytest
 
 from vyper import compiler
-from vyper.exceptions import StateAccessViolation
+from vyper.exceptions import ImmutableViolation
 
 valid_list = [
     """
@@ -57,7 +57,7 @@ def test()-> (DynArray[uint256, 6], DynArray[uint256, 10]):
 
     return b, self.arr
     """,
-        StateAccessViolation,
+        ImmutableViolation,
     )
 ]
 

@@ -341,6 +341,15 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                 )
             validate_call_args(node.iter, (1, 2))
 
+            # Check if pop` operation is used in `range`
+            darray_pop_nodes = node.iter.get_descendants(vy_ast.Attribute, {"attr": "pop"})
+            if len(darray_pop_nodes) > 0:
+                pop_node = darray_pop_nodes.pop()
+                raise ImmutableViolation(
+                    "Cannot call `pop` inside for loop because it modifies the dynamic array",
+                    pop_node,
+                )
+
             args = node.iter.args
             if len(args) == 1:
                 # range(CONSTANT)
