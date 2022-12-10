@@ -1,7 +1,8 @@
 # primitive types which occupy one word, like ints and addresses
 
 from decimal import Decimal
-from typing import Tuple, Union
+from typing import Tuple, Union, Any
+from functools import cached_property
 
 from vyper import ast as vy_ast
 from vyper.abi_types import ABI_Address, ABI_Bool, ABI_BytesM, ABI_FixedMxN, ABI_GIntM, ABIType

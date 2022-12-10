@@ -569,7 +569,7 @@ class Expr:
             # `x and y` => `if x { then y } { else 0 }`
             ir_node = ["if", val, ir_node, 0]
 
-        return IRnode.from_list(ir_node, typ="bool")
+        return IRnode.from_list(ir_node, typ=BoolT())
 
     @staticmethod
     def _logical_or(values):

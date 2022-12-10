@@ -263,7 +263,7 @@ class Stmt:
             return
 
         varname = self.stmt.target.id
-        i = IRnode.from_list(self.context.fresh_varname("range_ix"), typ="uint256")
+        i = IRnode.from_list(self.context.fresh_varname("range_ix"), typ=UINT256_T)
         iptr = self.context.new_variable(varname, iter_typ)
 
         self.context.forvars[varname] = True
@@ -293,7 +293,7 @@ class Stmt:
             self.context.new_variable(varname, target_type), typ=target_type, location=MEMORY
         )
 
-        i = IRnode.from_list(self.context.fresh_varname("for_list_ix"), typ="uint256")
+        i = IRnode.from_list(self.context.fresh_varname("for_list_ix"), typ=UINT256_T)
 
         self.context.forvars[varname] = True
 

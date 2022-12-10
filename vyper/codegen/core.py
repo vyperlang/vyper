@@ -1,3 +1,5 @@
+from typing import Tuple
+
 from vyper import ast as vy_ast
 from vyper.address_space import CALLDATA, DATA, IMMUTABLES, MEMORY, STORAGE
 from vyper.codegen.ir_node import Encoding, IRnode
@@ -195,7 +197,7 @@ def _dynarray_make_setter(dst, src):
             ret.append(STORE(dst, count))
 
             if should_loop:
-                i = IRnode.from_list(_freshname("copy_darray_ix"), typ="uint256")
+                i = IRnode.from_list(_freshname("copy_darray_ix"), typ=UINT256_T)
 
                 loop_body = make_setter(
                     get_element_ptr(dst, i, array_bounds_check=False),

@@ -478,7 +478,7 @@ class Len(BuiltinFunction):
     def build_IR(self, node, context):
         arg = Expr(node.args[0], context).ir_node
         if arg.value == "~calldata":
-            return IRnode.from_list(["calldatasize"], typ="uint256")
+            return IRnode.from_list(["calldatasize"], typ=UINT256_T)
         return get_bytearray_length(arg)
 
 
