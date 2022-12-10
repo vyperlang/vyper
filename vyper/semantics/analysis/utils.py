@@ -61,6 +61,10 @@ class _ExprAnalyser:
         self.namespace = get_namespace()
 
     def get_expr_info(self, node: vy_ast.VyperNode) -> ExprInfo:
+        info = node._metadata.get("varinfo")
+        if info:
+            return ExprInfo.from_varinfo(info)
+
         t = self.get_exact_type_from_node(node)
 
         # if it's a Name, we have varinfo for it

@@ -138,7 +138,6 @@ class Stmt:
             "append",
             "pop",
         ):
-            # TODO: consider moving this to builtins
             darray = Expr(self.stmt.func.value, self.context).ir_node
             args = [Expr(x, self.context).ir_node for x in self.stmt.args]
             if self.stmt.func.attr == "append":
