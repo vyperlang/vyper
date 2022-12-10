@@ -212,19 +212,19 @@ def replace_user_defined_constants(vyper_module: vy_ast.Module) -> int:
 def _replace(old_node, new_node, type_=None, var_info=None):
     if isinstance(new_node, vy_ast.Constant):
         new_node = new_node.from_node(old_node, value=new_node.value)
-        if type_:
-            new_node._metadata["type"] = type_
         if var_info:
             new_node._metadata["varinfo"] = var_info
+        elif type_:
+            new_node._metadata["type"] = type_
         return new_node
     elif isinstance(new_node, vy_ast.List):
         base_type = var_info.typ.value_type if var_info else None
         list_values = [_replace(old_node, i, type_=base_type) for i in new_node.elements]
         new_node = new_node.from_node(old_node, elements=list_values)
-        if type_:
-            new_node._metadata["type"] = type_
         if var_info:
             new_node._metadata["varinfo"] = var_info
+        elif type_:
+            new_node._metadata["type"] = type_
         return new_node
     elif isinstance(new_node, vy_ast.Call):
         # Replace `Name` node with `Call` node
