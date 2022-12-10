@@ -128,12 +128,10 @@ class FunctionSignature:
     ):
         name = func_ast.name
 
-        # kludge until FunctionSignature is merged with ContractFunction
-        func_type = func_ast._metadata["type"]
         args = []
         for arg in func_ast.args.args:
             argname = arg.arg
-            argtyp = func_type.arguments[argname]
+            argtyp = global_ctx.parse_type(arg.annotation)
 
             args.append(FunctionArg(argname, argtyp, arg))
 
@@ -167,7 +165,7 @@ class FunctionSignature:
         # and NOT def foo() -> type: ..., then it's null
         return_type = None
         if func_ast.returns:
-            return_type = func_type.return_type
+            return_type = global_ctx.parse_type(func_ast.returns)
             # sanity check: Output type must be canonicalizable
             assert return_type.abi_type.selector_name()
 

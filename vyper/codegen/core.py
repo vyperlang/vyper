@@ -808,7 +808,7 @@ def needs_clamp(t, encoding):
     if t._is_prim_word:
         return t not in (INT256_T, UINT256_T, BYTES32_T)
 
-    raise CompilerPanic(f"unreachable: {t}")  # pragma: notest
+    raise CompilerPanic("unreachable")  # pragma: notest
 
 
 # Create an x=y statement, where the types may be compound
