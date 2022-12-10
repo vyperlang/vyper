@@ -1,5 +1,6 @@
 import math
 from dataclasses import dataclass
+from functools import cached_property
 from typing import Dict, Optional, Tuple
 
 from vyper import ast as vy_ast
@@ -7,7 +8,7 @@ from vyper.address_space import MEMORY
 from vyper.codegen.ir_node import Encoding
 from vyper.codegen.types import NodeType
 from vyper.exceptions import StructureException
-from vyper.utils import MemoryPositions, cached_property, mkalphanum
+from vyper.utils import MemoryPositions, mkalphanum
 
 # dict from function names to signatures
 FunctionSignatures = Dict[str, "FunctionSignature"]
