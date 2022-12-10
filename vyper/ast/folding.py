@@ -4,6 +4,7 @@ from typing import Optional, Union
 from vyper.ast import nodes as vy_ast
 from vyper.builtins.functions import DISPATCH_TABLE
 from vyper.exceptions import UnfoldableNode, UnknownType
+from vyper.semantics.analysis.base import DataLocation, VarInfo
 from vyper.semantics.types.base import VyperType
 from vyper.semantics.types.utils import type_from_annotation
 from vyper.utils import SizeLimits
@@ -182,6 +183,15 @@ def replace_user_defined_constants(vyper_module: vy_ast.Module) -> int:
         type_ = None
         try:
             type_ = type_from_annotation(node.annotation)
+            var_info = VarInfo(
+                type_,
+                decl_node=node,
+                location=DataLocation.CODE,
+                is_constant=node.is_constant,
+                is_public=node.is_public,
+                is_immutable=node.is_immutable,
+            )
+
         except UnknownType:
             # handle user-defined types e.g. structs - it's OK to not
             # propagate the type annotation here because user-defined
@@ -189,7 +199,7 @@ def replace_user_defined_constants(vyper_module: vy_ast.Module) -> int:
             pass
 
         changed_nodes += replace_constant(
-            vyper_module, node.target.id, node.value, False, type_=type_
+            vyper_module, node.target.id, node.value, False, type_=type_, var_info=var_info
         )
 
     return changed_nodes
@@ -198,11 +208,13 @@ def replace_user_defined_constants(vyper_module: vy_ast.Module) -> int:
 # TODO constant folding on log events
 
 
-def _replace(old_node, new_node, type_=None):
+def _replace(old_node, new_node, type_=None, var_info=None):
     if isinstance(new_node, vy_ast.Constant):
         new_node = new_node.from_node(old_node, value=new_node.value)
         if type_:
             new_node._metadata["type"] = type_
+        if var_info:
+            new_node._metadata["varinfo"] = var_info
         return new_node
     elif isinstance(new_node, vy_ast.List):
         base_type = type_.value_type if type_ else None
@@ -210,6 +222,8 @@ def _replace(old_node, new_node, type_=None):
         new_node = new_node.from_node(old_node, elements=list_values)
         if type_:
             new_node._metadata["type"] = type_
+        if var_info:
+            new_node._metadata["varinfo"] = var_info
         return new_node
     elif isinstance(new_node, vy_ast.Call):
         # Replace `Name` node with `Call` node
@@ -232,6 +246,7 @@ def replace_constant(
     replacement_node: Union[vy_ast.Constant, vy_ast.List, vy_ast.Call],
     raise_on_error: bool,
     type_: Optional[VyperType] = None,
+    var_info: Optional[VarInfo] = None,
 ) -> int:
     """
     Replace references to a variable name with a literal value.
@@ -286,7 +301,7 @@ def replace_constant(
 
         try:
             # note: _replace creates a copy of the replacement_node
-            new_node = _replace(node, replacement_node, type_=type_)
+            new_node = _replace(node, replacement_node, type_=type_, var_info=var_info)
         except UnfoldableNode:
             if raise_on_error:
                 raise
