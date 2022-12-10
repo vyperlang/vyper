@@ -2,8 +2,9 @@ from typing import Optional
 
 from vyper import ast as vy_ast
 from vyper.codegen.context import VariableRecord
-from vyper.exceptions import CompilerPanic, StructureException
+from vyper.exceptions import CompilerPanic, InvalidType, StructureException
 from vyper.semantics.types import EnumT
+from vyper.semantics.types.utils import type_from_annotation
 from vyper.typing import InterfaceImports
 from vyper.utils import cached_property
 

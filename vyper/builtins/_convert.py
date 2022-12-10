@@ -22,8 +22,6 @@ from vyper.codegen.core import (
     unwrap_location,
 )
 from vyper.codegen.expr import Expr
-from vyper.semantics.types import VyperType, _BytestringT, BytesT, BoolT, AddressT, EnumT, StringT
-from vyper.codegen.core import is_bytes_m_type, is_decimal_type, is_enum_type, is_integer_type
 from vyper.exceptions import (
     CompilerPanic,
     InvalidLiteral,
@@ -31,7 +29,7 @@ from vyper.exceptions import (
     StructureException,
     TypeMismatch,
 )
-from vyper.semantics.types import TYPE_T, AddressT, BoolT, BytesT, StringT
+from vyper.semantics.types import AddressT, BoolT, BytesT, StringT
 from vyper.semantics.types.bytestrings import _BytestringT
 from vyper.semantics.types.shortcuts import INT256_T, UINT256_T
 from vyper.utils import DECIMAL_DIVISOR, SizeLimits, round_towards_zero, unsigned_to_signed
