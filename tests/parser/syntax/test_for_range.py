@@ -58,7 +58,7 @@ def test()-> (DynArray[uint256, 6], DynArray[uint256, 10]):
     return b, self.arr
     """,
         StateAccessViolation,
-    ),
+    )
 ]
 
 
