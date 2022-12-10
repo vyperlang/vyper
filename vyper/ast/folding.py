@@ -208,22 +208,29 @@ def replace_user_defined_constants(vyper_module: vy_ast.Module) -> int:
 # TODO constant folding on log events
 
 
-def _replace(old_node, new_node, type_=None, var_info=None):
+def _replace(old_node, new_node, var_info=None):
     if isinstance(new_node, vy_ast.Constant):
         new_node = new_node.from_node(old_node, value=new_node.value)
-        if var_info:
+        if var_info is not None:
             new_node._metadata["varinfo"] = var_info
-        elif type_:
-            new_node._metadata["type"] = type_
+            new_node._metadata["type"] = var_info.typ
         return new_node
     elif isinstance(new_node, vy_ast.List):
-        base_type = var_info.typ.value_type if var_info else None
-        list_values = [_replace(old_node, i, type_=base_type) for i in new_node.elements]
+        base_type_varinfo = None
+        if var_info is not None:
+            base_type_varinfo = VarInfo(
+                typ=var_info.typ.value_type,
+                location=DataLocation.CODE,
+                is_constant=var_info.is_constant,
+                is_public=var_info.is_public,
+                is_immutable=var_info.is_immutable,
+                decl_node=var_info.decl_node,
+            )
+        list_values = [_replace(old_node, i, var_info=base_type_varinfo) for i in new_node.elements]
         new_node = new_node.from_node(old_node, elements=list_values)
-        if var_info:
+        if var_info is not None:
             new_node._metadata["varinfo"] = var_info
-        elif type_:
-            new_node._metadata["type"] = type_
+            new_node._metadata["type"] = var_info.typ
         return new_node
     elif isinstance(new_node, vy_ast.Call):
         # Replace `Name` node with `Call` node
