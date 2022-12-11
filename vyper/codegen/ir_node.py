@@ -1,5 +1,6 @@
 import re
 from enum import Enum, auto
+from functools import cached_property
 from typing import Any, List, Optional, Tuple, Union
 
 from vyper.address_space import AddrSpace
@@ -7,7 +8,7 @@ from vyper.codegen.types import BaseType, NodeType, ceil32
 from vyper.compiler.settings import VYPER_COLOR_OUTPUT
 from vyper.evm.opcodes import get_ir_opcodes
 from vyper.exceptions import CodegenPanic, CompilerPanic
-from vyper.utils import VALID_IR_MACROS, cached_property
+from vyper.utils import VALID_IR_MACROS
 
 # Set default string representation for ints in IR output.
 AS_HEX_DEFAULT = False

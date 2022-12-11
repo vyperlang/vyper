@@ -1,3 +1,4 @@
+from functools import cached_property
 from typing import Any, Dict, Optional, Tuple, Union
 
 from vyper import ast as vy_ast
@@ -12,7 +13,6 @@ from vyper.exceptions import (
 )
 from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
 from vyper.semantics.namespace import validate_identifier
-from vyper.utils import cached_property
 
 
 # Some fake type with an overridden `compare_type` which accepts any RHS
