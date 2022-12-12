@@ -99,7 +99,7 @@ def foo() -> uint256:
             "ast_type": "Name",
             "end_lineno": 5,
             "lineno": 5,
-            "id": "Foo"
+            "id": "Foo",
         },
         "end_col_offset": 15,
         "node_id": 9,
@@ -114,10 +114,10 @@ def foo() -> uint256:
             "ast_type": "Name",
             "end_lineno": 5,
             "lineno": 5,
-            "id": "implements"
+            "id": "implements",
         },
         "end_lineno": 5,
-        "lineno": 5
+        "lineno": 5,
     }
 
 
