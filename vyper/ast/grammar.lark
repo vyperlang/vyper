@@ -26,7 +26,8 @@ WILDCARD: "*"
 _import_name: NAME
 // NOTE: Don't use DOT here, just a separator
 _import_path: (_import_name ".")* _import_name
-import_alias: _AS NAME
+_import_alias_name: NAME
+import_alias: _AS _import_alias_name
 ?import_list: _import_name [import_alias] ("," _import_name [import_alias] )* [","]
 _import_from: _FROM (DOT* _import_path | DOT+)
 import: _IMPORT DOT* _import_path [import_alias]
@@ -101,6 +102,8 @@ _INTERFACE_DECL: "interface"
 mutability: NAME
 interface_function: function_sig ":" mutability
 interface_def: _INTERFACE_DECL NAME ":" _NEWLINE _INDENT ( interface_function _NEWLINE)+ _DEDENT
+_IMPLEMENTS_DECL: "implements"
+implements_def: _IMPLEMENTS_DECL ":" ( _import_name | _import_alias_name )
 
 
 // Statements

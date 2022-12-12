@@ -15,7 +15,6 @@ from vyper.exceptions import (
     StructureException,
     SyntaxException,
     UndeclaredDefinition,
-    UnexpectedNodeType,
     VariableDeclarationException,
     VyperException,
 )
@@ -147,15 +146,7 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
 
             self_members[fn_name].recursive_calls = function_set
 
-    def visit_AnnAssign(self, node):
-        # TODO rename the node class to ImplementsDecl
-        name = node.get("target.id")
-        # TODO move these checks to AST validation
-        if name != "implements":
-            raise UnexpectedNodeType("AnnAssign not allowed at module level", node)
-        if not isinstance(node.annotation, vy_ast.Name):
-            raise UnexpectedNodeType("not an identifier", node.annotation)
-
+    def visit_ImplementsDecl(self, node):
         interface_name = node.annotation.id
 
         other_iface = self.namespace[interface_name]
