@@ -302,7 +302,7 @@ VALID_IR_MACROS = {
     "sle",
     "with",
     "label",
-    "goto",
+    "goto",  # compiles to CALLF or JUMPF
     "~extcode",
     "~selfcode",
     "~calldata",
