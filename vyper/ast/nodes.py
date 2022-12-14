@@ -1381,7 +1381,19 @@ class ImportFrom(_Import):
 
 
 class ImplementsDecl(Stmt):
-    __slots__ = ("target", "annotation", "simple")
+    """
+    An `implements` declaration.
+
+    Excludes `simple` and `value` attributes from Python `AnnAssign` node.
+
+    Attributes
+    ----------
+    target : Name
+        Name node for the `implements` keyword
+    annotation : Name
+        Name node for the interface to be implemented
+    """
+    __slots__ = ("target", "annotation")
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
