@@ -185,6 +185,23 @@ def dice() -> Bytes[1]:
     assert c.dice() == b"A"
 
 
+def test_slice_immutable_length_arg(get_contract_with_gas_estimation):
+    code = """
+LENGTH: immutable(uint256)
+
+@external
+def __init__():
+    LENGTH = 5
+
+@external
+def do_slice(inp: Bytes[50]) -> Bytes[50]:
+    return slice(inp, 0, LENGTH)
+    """
+    c = get_contract_with_gas_estimation(code)
+    x = c.do_slice(b"abcdefghijklmnopqrstuvwxyz1234")
+    assert x == b"abcde", x
+
+
 def test_slice_at_end(get_contract):
     code = """
 @external
