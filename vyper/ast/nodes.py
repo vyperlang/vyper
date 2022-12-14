@@ -1393,6 +1393,7 @@ class ImplementsDecl(Stmt):
     annotation : Name
         Name node for the interface to be implemented
     """
+
     __slots__ = ("target", "annotation")
 
     def __init__(self, *args, **kwargs):
