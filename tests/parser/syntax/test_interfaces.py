@@ -68,6 +68,14 @@ def test(a: address):
     """,
         ArgumentException,
     ),
+    (
+        """
+from vyper.interfaces import ERC20
+
+implements: ERC20 = 1
+    """,
+        SyntaxException,
+    ),
 ]
 
 
