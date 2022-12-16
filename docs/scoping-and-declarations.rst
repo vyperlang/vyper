@@ -146,7 +146,7 @@ Values that are declared in the module scope of a contract, such as storage vari
 Name Shadowing
 **************
 
-It is not permitted for a memory or calldata variable to shadow the name of an immutable or constant variable. The following examples will not compile:
+It is not permitted for a memory or calldata variable to shadow the name of an immutable or constant value. The following examples will not compile:
 
 .. code-block:: python
 
