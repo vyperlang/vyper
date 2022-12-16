@@ -35,6 +35,10 @@ class _UserType(VyperType):
 
 
 class EnumT(_UserType):
+    # this is a carveout because currently we allow dynamic arrays of
+    # enums, but not static arrays of enums 
+    _as_darray = True
+
     def __init__(self, name: str, members: dict) -> None:
         if len(members.keys()) > 256:
             raise EnumDeclarationException("Enums are limited to 256 members!")
