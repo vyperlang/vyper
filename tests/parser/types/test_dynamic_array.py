@@ -517,6 +517,31 @@ def check2(a: {type}) -> bool:
     assert c.check2(false_values[1]) is False
 
 
+def test_enum_member_in_nested_list(get_contract_with_gas_estimation):
+    code = """
+enum Foobar:
+    FOO
+    BAR
+
+@external
+def check1(a: Foobar) -> bool:
+    x: DynArray[DynArray[Foobar, 2], 2] = [[Foobar.FOO, Foobar.FOO], [Foobar.BAR, Foobar.BAR]]
+    return a in x[0]
+
+@external
+def check2(a: Foobar) -> bool:
+    x: DynArray[DynArray[Foobar, 2], 2] = [[Foobar.FOO, Foobar.FOO], [Foobar.BAR, Foobar.BAR]]
+    return a in x[1]
+    """
+    c = get_contract_with_gas_estimation(code)
+
+    assert c.check1(1) is True
+    assert c.check1(2) is False
+
+    assert c.check2(1) is False
+    assert c.check2(2) is True
+
+
 def test_member_in_nested_address_list(get_contract_with_gas_estimation):
     code = """
 @external
@@ -1257,7 +1282,8 @@ def foo(x: {typ}) -> {typ}:
 
 @pytest.mark.parametrize("code_template,check_result", append_pop_complex_tests)
 @pytest.mark.parametrize(
-    "subtype", ["uint256[3]", "DynArray[uint256,3]", "DynArray[uint8, 4]", "Foo"]
+    "subtype",
+    ["uint256[3]", "DynArray[uint256,3]", "DynArray[uint8, 4]", "Foo", "DynArray[Foobar, 3]"],
 )
 # TODO change this to fuzz random data
 def test_append_pop_complex(get_contract, assert_tx_failed, code_template, check_result, subtype):
@@ -1272,6 +1298,15 @@ struct Foo:
     z: uint256
         """
         code = struct_def + "\n" + code
+    elif subtype == "DynArray[Foobar, 3]":
+        enum_def = """
+enum Foobar:
+    FOO
+    BAR
+    BAZ
+        """
+        code = enum_def + "\n" + code
+        test_data = [2 ** (i - 1) for i in test_data]
 
     c = get_contract(code)
     expected_result = check_result(test_data)
