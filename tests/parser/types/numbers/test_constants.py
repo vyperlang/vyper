@@ -4,7 +4,7 @@ from decimal import Decimal
 import pytest
 
 from vyper.compiler import compile_code
-from vyper.exceptions import InvalidType
+from vyper.exceptions import InvalidType, TypeMismatch
 from vyper.utils import MemoryPositions
 
 
@@ -240,3 +240,56 @@ def contains(a: int128) -> bool:
     assert c.contains(44) is True
     assert c.contains(33) is True
     assert c.contains(3) is False
+
+
+fail_list = [
+    (
+        """
+a: constant(uint16) = 200
+
+@external
+def foo() -> int16:
+    return a - 201
+    """,
+        InvalidType,
+    ),
+    (
+        """
+a: constant(uint16) = 200
+b: constant(int248) = 100
+
+@external
+def foo() -> int16:
+    return a - b
+    """,
+        TypeMismatch,
+    ),
+    (
+        """
+a: constant(int8) = 25
+b: constant(uint8) = 38
+
+@external
+def foo() -> bool:
+    return a < b
+    """,
+        TypeMismatch,
+    ),
+    (
+        """
+a: constant(uint256) = 16
+
+@external
+def foo() -> int8:
+    return -a
+    """,
+        InvalidType,
+    ),
+]
+
+
+@pytest.mark.parametrize("bad_code,exc", fail_list)
+def test_invalid_constant_folds(
+    assert_compile_failed, get_contract_with_gas_estimation, bad_code, exc
+):
+    assert_compile_failed(lambda: get_contract_with_gas_estimation(bad_code), exc)
