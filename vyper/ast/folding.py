@@ -3,7 +3,7 @@ from typing import Optional, Union
 
 from vyper.ast import nodes as vy_ast
 from vyper.builtins.functions import DISPATCH_TABLE
-from vyper.exceptions import UnfoldableNode, UnknownType
+from vyper.exceptions import TypeMismatch, UnfoldableNode, UnknownType
 from vyper.semantics.types.base import VyperType
 from vyper.semantics.types.utils import type_from_annotation
 from vyper.utils import SizeLimits
@@ -63,7 +63,29 @@ def replace_literal_ops(vyper_module: vy_ast.Module) -> int:
     node_types = (vy_ast.BoolOp, vy_ast.BinOp, vy_ast.UnaryOp, vy_ast.Compare)
     for node in vyper_module.get_descendants(node_types, reverse=True):
         try:
+            typ = None
+            if isinstance(node, (vy_ast.BinOp, vy_ast.Compare)):
+                propagated_types = [
+                    n._metadata["type"]
+                    for n in (node.left, node.right)
+                    if n._metadata.get("type") is not None
+                ]
+                # if there is only one propagated type, set folded node to that type
+                # if there are two propagated types, check for type mismatch
+                if len(propagated_types) == 1:
+                    typ = propagated_types.pop()
+                elif len(propagated_types) == 2 and propagated_types[0] != propagated_types[1]:
+                    raise TypeMismatch(
+                        f"Unable to perform {node.op._description} on "
+                        f"{propagated_types[0]} and {propagated_types[1]}",
+                        node,
+                    )
+            elif isinstance(node, vy_ast.UnaryOp):
+                typ = node.operand._metadata.get("type")
+
             new_node = node.evaluate()
+            if typ is not None:
+                new_node._metadata["type"] = typ
         except UnfoldableNode:
             continue
 
