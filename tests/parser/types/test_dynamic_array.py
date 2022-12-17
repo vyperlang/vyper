@@ -440,33 +440,6 @@ def check(a: {type}) -> bool:
     assert c.check(false_value) is False
 
 
-def test_enum_member_in_list(get_contract_with_gas_estimation):
-    code = """
-enum Foobar:
-    FOO
-    BAR
-    BAZ
-
-@external
-def check_in(a: Foobar) -> bool:
-    x: DynArray[Foobar, 2] = [Foobar.FOO, Foobar.BAR]
-    return a in x
-
-@external
-def check_not_in(a: Foobar) -> bool:
-    x: DynArray[Foobar, 2] = [Foobar.FOO, Foobar.BAR]
-    return a not in x
-    """
-    c = get_contract_with_gas_estimation(code)
-    assert c.check_in(1) is True
-    assert c.check_in(2) is True
-    assert c.check_in(3) is False
-
-    assert c.check_not_in(1) is False
-    assert c.check_not_in(2) is False
-    assert c.check_not_in(3) is True
-
-
 @pytest.mark.parametrize("type_", ("uint256", "bytes32", "address"))
 def test_member_in_empty_list(get_contract_with_gas_estimation, type_):
     code = f"""
@@ -515,31 +488,6 @@ def check2(a: {type}) -> bool:
     assert c.check2(values[1][0]) is True
     assert c.check2(values[1][1]) is True
     assert c.check2(false_values[1]) is False
-
-
-def test_enum_member_in_nested_list(get_contract_with_gas_estimation):
-    code = """
-enum Foobar:
-    FOO
-    BAR
-
-@external
-def check1(a: Foobar) -> bool:
-    x: DynArray[DynArray[Foobar, 2], 2] = [[Foobar.FOO, Foobar.FOO], [Foobar.BAR, Foobar.BAR]]
-    return a in x[0]
-
-@external
-def check2(a: Foobar) -> bool:
-    x: DynArray[DynArray[Foobar, 2], 2] = [[Foobar.FOO, Foobar.FOO], [Foobar.BAR, Foobar.BAR]]
-    return a in x[1]
-    """
-    c = get_contract_with_gas_estimation(code)
-
-    assert c.check1(1) is True
-    assert c.check1(2) is False
-
-    assert c.check2(1) is False
-    assert c.check2(2) is True
 
 
 def test_member_in_nested_address_list(get_contract_with_gas_estimation):

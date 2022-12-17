@@ -221,8 +221,7 @@ class _ExprAnalyser:
             # x in y
             left = self.get_possible_types_from_node(node.left)
             right = self.get_possible_types_from_node(node.right)
-            right_is_not_array = any(not isinstance(i, (DArrayT, SArrayT)) for i in right)
-            if any(isinstance(t, EnumT) for t in left) and right_is_not_array:
+            if any(isinstance(t, EnumT) for t in left):
                 types_list = get_common_types(node.left, node.right)
                 _validate_op(node, types_list, "validate_comparator")
                 return [BoolT()]
@@ -231,7 +230,7 @@ class _ExprAnalyser:
                 raise InvalidOperation(
                     "Left operand in membership comparison cannot be Array type", node.left
                 )
-            if right_is_not_array:
+            if any(not isinstance(i, (DArrayT, SArrayT)) for i in right):
                 raise InvalidOperation(
                     "Right operand must be Array for membership comparison", node.right
                 )
