@@ -102,6 +102,11 @@ def foo6() -> DynArray[DynArray[String[32], 2], 2]:
 
 def test_list_output_tester_code(get_contract_with_gas_estimation):
     list_output_tester_code = """
+enum Foobar:
+    FOO
+    BAR
+
+y: DynArray[Foobar, 2]
 z: DynArray[int128, 2]
 
 @external
@@ -180,6 +185,20 @@ def qoo(inp: DynArray[int128, 2]) -> DynArray[DynArray[int128, 2], 2]:
 @external
 def roo(inp: DynArray[decimal, 2]) -> DynArray[DynArray[decimal, 2], 2]:
     return [inp, [3.0, 4.0]]
+
+@external
+def soo() -> DynArray[Foobar, 2]:
+    x: DynArray[Foobar, 2] = [Foobar.FOO, Foobar.BAR]
+    return x
+
+@external
+def too() -> DynArray[Foobar, 2]:
+    self.y = [Foobar.BAR, Foobar.FOO]
+    return self.y
+
+@external
+def uoo(inp: DynArray[Foobar, 2]) -> DynArray[DynArray[Foobar, 2], 2]:
+    return [inp, [Foobar.BAR, Foobar.FOO]]
     """
 
     c = get_contract_with_gas_estimation(list_output_tester_code)
@@ -200,6 +219,9 @@ def roo(inp: DynArray[decimal, 2]) -> DynArray[DynArray[decimal, 2], 2]:
     assert c.poo([[1, 2], [3, 4]]) == [[1, 2], [3, 4]]
     assert c.qoo([1, 2]) == [[1, 2], [3, 4]]
     assert c.roo([1, 2]) == [[1.0, 2.0], [3.0, 4.0]]
+    assert c.soo() == [1, 2]
+    assert c.too() == [2, 1]
+    assert c.uoo([1, 2]) == [[1, 2], [2, 1]]
 
     print("Passed list output tests")
 
@@ -416,6 +438,33 @@ def check(a: {type}) -> bool:
     assert c.check(values[0]) is True
     assert c.check(values[1]) is True
     assert c.check(false_value) is False
+
+
+def test_enum_member_in_list(get_contract_with_gas_estimation):
+    code = """
+enum Foobar:
+    FOO
+    BAR
+    BAZ
+
+@external
+def check_in(a: Foobar) -> bool:
+    x: DynArray[Foobar, 2] = [Foobar.FOO, Foobar.BAR]
+    return a in x
+
+@external
+def check_not_in(a: Foobar) -> bool:
+    x: DynArray[Foobar, 2] = [Foobar.FOO, Foobar.BAR]
+    return a not in x
+    """
+    c = get_contract_with_gas_estimation(code)
+    assert c.check_in(1) is True
+    assert c.check_in(2) is True
+    assert c.check_in(3) is False
+
+    assert c.check_not_in(1) is False
+    assert c.check_not_in(2) is False
+    assert c.check_not_in(3) is True
 
 
 @pytest.mark.parametrize("type_", ("uint256", "bytes32", "address"))
@@ -1279,15 +1328,22 @@ def foo() -> (uint256, DynArray[uint256, 3], DynArray[uint256, 2]):
 
 def test_list_of_structs_arg(get_contract):
     code = """
+enum Foobar:
+    FOO
+    BAR
+
 struct Foo:
     x: uint256
     y: uint256
+    z: Foobar
 
 @external
 def bar(_baz: DynArray[Foo, 3]) -> uint256:
     sum: uint256 = 0
     for i in range(3):
-        sum += _baz[i].x * _baz[i].y
+        e: Foobar = _baz[i].z
+        f: uint256 = convert(e, uint256)
+        sum += _baz[i].x * _baz[i].y + f
     return sum
     """
     c = get_contract(code)
