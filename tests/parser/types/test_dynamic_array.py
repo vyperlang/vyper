@@ -1347,8 +1347,8 @@ def bar(_baz: DynArray[Foo, 3]) -> uint256:
     return sum
     """
     c = get_contract(code)
-    c_input = [[x, y] for x, y in zip(range(3), range(3))]
-    assert c.bar(c_input) == 5  # 0 * 0 + 1 * 1 + 2 * 2
+    c_input = [[x, y, 1] for x, y in zip(range(3), range(3))]
+    assert c.bar(c_input) == 8  # (0 * 0 + 1) + (1 * 1 + 1) + (2 * 2 + 1)
 
 
 def test_list_of_structs_arg_with_dynamic_type(get_contract):

@@ -209,7 +209,7 @@ class Expr:
             typ = new_type_to_old_type(typ)
 
         # MyEnum.foo
-        if isinstance(typ, EnumType) and typ.name == self.expr.value.id:
+        if isinstance(typ, EnumType) and isinstance(self.expr.value, vy_ast.Name) and typ.name == self.expr.value.id:
             # 0, 1, 2, .. 255
             enum_id = typ.members[self.expr.attr]
             value = 2 ** enum_id  # 0 => 0001, 1 => 0010, 2 => 0100, etc.
