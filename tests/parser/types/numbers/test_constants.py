@@ -123,6 +123,8 @@ def zoo() -> uint256:
 def test_custom_constants(get_contract):
     code = """
 X_VALUE: constant(uint256) = 33
+Y_VALUE: constant(uint256) = 34
+Z_VALUE: constant(int256) = 35
 
 @external
 def test() -> uint256:
@@ -131,11 +133,26 @@ def test() -> uint256:
 @external
 def test_add(a: uint256) -> uint256:
     return X_VALUE + a
+
+@external
+def test_add_constants() -> uint256:
+    return X_VALUE + Y_VALUE
+
+@external
+def test_compare_constants() -> bool:
+    return X_VALUE > Y_VALUE
+
+@external
+def test_unary_constant() -> int256:
+    return -Z_VALUE
     """
     c = get_contract(code)
 
     assert c.test() == 33
     assert c.test_add(7) == 40
+    assert c.test_add_constants() == 67
+    assert c.test_compare_constants() == False
+    assert c.test_unary_constant() == -35
 
 
 # Would be nice to put this somewhere accessible, like in vyper.types or something
