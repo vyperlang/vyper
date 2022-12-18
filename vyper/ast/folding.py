@@ -70,8 +70,9 @@ def replace_literal_ops(vyper_module: vy_ast.Module) -> int:
                     for n in (node.left, node.right)  # type: ignore
                     if n._metadata.get("type") is not None
                 ]
-                # if there is only one propagated type, set folded node to that type
-                # if there are two propagated types, check for type mismatch
+                # if there is only one propagated type, set folded node to that
+                # type for typechecking downstream; if there are two
+                # propagated types, check for type mismatch
                 if len(propagated_types) == 1:
                     typ = propagated_types.pop()
                 elif len(propagated_types) == 2 and propagated_types[0] != propagated_types[1]:
