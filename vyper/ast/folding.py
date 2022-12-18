@@ -67,7 +67,7 @@ def replace_literal_ops(vyper_module: vy_ast.Module) -> int:
             if isinstance(node, (vy_ast.BinOp, vy_ast.Compare)):
                 propagated_types = [
                     n._metadata["type"]
-                    for n in (node.left, node.right)
+                    for n in (node.left, node.right)  # type: ignore
                     if n._metadata.get("type") is not None
                 ]
                 # if there is only one propagated type, set folded node to that type
@@ -76,12 +76,12 @@ def replace_literal_ops(vyper_module: vy_ast.Module) -> int:
                     typ = propagated_types.pop()
                 elif len(propagated_types) == 2 and propagated_types[0] != propagated_types[1]:
                     raise TypeMismatch(
-                        f"Unable to perform {node.op._description} on "
+                        f"Unable to perform {node.op.description} on "
                         f"{propagated_types[0]} and {propagated_types[1]}",
                         node,
                     )
             elif isinstance(node, vy_ast.UnaryOp):
-                typ = node.operand._metadata.get("type")
+                typ = node.operand._metadata.get("type")  # type: ignore
 
             new_node = node.evaluate()
             if typ is not None:
