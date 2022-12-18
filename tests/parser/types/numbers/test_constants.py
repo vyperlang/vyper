@@ -285,6 +285,17 @@ def foo() -> int8:
     """,
         InvalidType,
     ),
+    (
+        """
+a: constant(uint256) = 3
+b: constant(uint256) = 4
+
+@external
+def foo() -> int8:
+    return a + b
+    """,
+        InvalidType,
+    ),
 ]
 
 
