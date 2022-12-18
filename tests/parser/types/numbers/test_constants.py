@@ -151,7 +151,7 @@ def test_unary_constant() -> int256:
     assert c.test() == 33
     assert c.test_add(7) == 40
     assert c.test_add_constants() == 67
-    assert c.test_compare_constants() == False
+    assert c.test_compare_constants() is False
     assert c.test_unary_constant() == -35
 
 
