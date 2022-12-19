@@ -210,12 +210,10 @@ class Stmt:
             ir_node = ["if", ["iszero", test_expr], revert_seq]
         else:
             ir_node = revert_seq
-
         return IRnode.from_list(ir_node, error_msg="user revert with reason")
 
     def parse_Assert(self):
         test_expr = Expr.parse_value_expr(self.stmt.test, self.context)
-
         if self.stmt.msg:
             return self._assert_reason(test_expr, self.stmt.msg)
         else:
@@ -223,10 +221,7 @@ class Stmt:
 
     def parse_Raise(self):
         if self.stmt.exc:
-            if isinstance(self.stmt.exc, vy_ast.Str):
-                return self._assert_reason(None, self.stmt.exc)
-            elif isinstance(self.stmt.exc, vy_ast.Name) and self.stmt.exc.id == "UNREACHABLE":
-                return self._assert_reason(0, self.stmt.exc)
+            return self._assert_reason(0, self.stmt.exc) #cond = 0 = False
         else:
             return IRnode.from_list(["revert", 0, 0], error_msg="user raise")
 

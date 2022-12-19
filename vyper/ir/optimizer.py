@@ -534,12 +534,12 @@ def _optimize(node: IRnode, parent: Optional[IRnode]) -> Tuple[bool, IRnode]:
             changed = True
             return finalize("if", argz)
 
-    if value in ("assert", "assert_unreachable") and _is_int(argz[0]):
-        if _evm_int(argz[0]) == 0:
-            raise StaticAssertionException(
-                f"assertion found to fail at compile time. (hint: did you mean `raise`?) {node}",
-                source_pos,
-            )
+#    if value in ("assert", "assert_unreachable") and _is_int(argz[0]):
+#        if _evm_int(argz[0]) == 0:
+#            raise StaticAssertionException(
+#                f"assertion found to fail at compile time. (hint: did you mean `raise`?) {node}",
+#                source_pos,
+#            )
         else:
             changed = True
             return finalize("seq", [])
