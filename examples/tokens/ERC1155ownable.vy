@@ -91,7 +91,7 @@ event ApprovalForAll:
 event URI:
     # This emits when the URI gets changed
     value: String[MAX_URI_LENGTH]
-    id: uint256
+    id: indexed(uint256)
 
 ############### interfaces ###############
 implements: ERC165
