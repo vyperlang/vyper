@@ -18,6 +18,9 @@ EOF_ENABLED = True
 def JUMPI() -> str:
     return "RJUMPI" if EOF_ENABLED else "JUMPI"
 
+def JUMP() -> str:
+    return "RJUMP" if EOF_ENABLED else "JUMP"
+
 def num_to_bytearray(x):
     o = []
     while x > 0:
@@ -356,7 +359,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         end_symbol = mksymbol("join")
         o.extend(["ISZERO", mid_symbol, JUMPI()])
         o.extend(_compile_to_assembly(code.args[1], withargs, existing_labels, break_dest, height))
-        o.extend([end_symbol, "JUMP", mid_symbol, "JUMPDEST"])
+        o.extend([end_symbol, JUMP(), mid_symbol, "JUMPDEST"])
         o.extend(_compile_to_assembly(code.args[2], withargs, existing_labels, break_dest, height))
         o.extend([end_symbol, "JUMPDEST"])
         return o
@@ -453,7 +456,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         if not break_dest:
             raise CompilerPanic("Invalid break")
         dest, continue_dest, break_height = break_dest
-        return [continue_dest, "JUMP"]
+        return [continue_dest, JUMP()]
     # Break from inside a for loop
     elif code.value == "break":
         if not break_dest:
@@ -463,7 +466,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         n_local_vars = height - break_height
         # clean up any stack items declared in the loop body
         cleanup_local_vars = ["POP"] * n_local_vars
-        return cleanup_local_vars + [dest, "JUMP"]
+        return cleanup_local_vars + [dest, JUMP()]
     # Break from inside one or more for loops prior to a return statement inside the loop
     elif code.value == "cleanup_repeat":
         if not break_dest:
@@ -1136,7 +1139,6 @@ def assembly_to_evm(
                 assert is_symbol(sym), "Internal compiler error: RJUMP not preceded by symbol"
                 pc_post_instruction = instr_offsets[i] + 3
                 offset = symbol_map[sym] - pc_post_instruction
-                print("\n", symbol_map[sym], pc_post_instruction, offset)
                 o += bytes([get_opcode(assembly[i + 1])])
                 o += bytes(offset.to_bytes(2, 'big', signed=True))
                 to_skip = 1
