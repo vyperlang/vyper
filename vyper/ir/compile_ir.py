@@ -15,6 +15,9 @@ SWAP_OFFSET = 0x8F
 ## TODO: replace with actual version handling
 EOF_ENABLED = True
 
+def JUMPI() -> str:
+    return "RJUMPI" if EOF_ENABLED else "JUMPI"
+
 def num_to_bytearray(x):
     o = []
     while x > 0:
@@ -144,7 +147,7 @@ def _assert_false():
     # use a shared failure block for common case of assert(x).
     # in the future we might want to change the code
     # at _sym_revert0 to: INVALID
-    return [_revert_label, "JUMPI"]
+    return [_revert_label, JUMPI()]
 
 
 def _add_postambles(asm_ops):
@@ -341,7 +344,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         o = []
         o.extend(_compile_to_assembly(code.args[0], withargs, existing_labels, break_dest, height))
         end_symbol = mksymbol("join")
-        o.extend(["ISZERO", end_symbol, "JUMPI"])
+        o.extend(["ISZERO", end_symbol, JUMPI()])
         o.extend(_compile_to_assembly(code.args[1], withargs, existing_labels, break_dest, height))
         o.extend([end_symbol, "JUMPDEST"])
         return o
@@ -351,7 +354,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         o.extend(_compile_to_assembly(code.args[0], withargs, existing_labels, break_dest, height))
         mid_symbol = mksymbol("else")
         end_symbol = mksymbol("join")
-        o.extend(["ISZERO", mid_symbol, "JUMPI"])
+        o.extend(["ISZERO", mid_symbol, JUMPI()])
         o.extend(_compile_to_assembly(code.args[1], withargs, existing_labels, break_dest, height))
         o.extend([end_symbol, "JUMP", mid_symbol, "JUMPDEST"])
         o.extend(_compile_to_assembly(code.args[2], withargs, existing_labels, break_dest, height))
@@ -408,7 +411,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
 
             # stack: i, rounds
             # if (0 == rounds) { goto end_dest; }
-            o.extend(["DUP1", "ISZERO", exit_dest, "JUMPI"])
+            o.extend(["DUP1", "ISZERO", exit_dest, JUMPI()])
 
         # stack: start, rounds
         if start.value != 0:
@@ -440,7 +443,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
 
         # stack: exit_i, i+1 (new_i)
         # if (exit_i != new_i) { goto entry_dest }
-        o.extend(["DUP2", "DUP2", "XOR", entry_dest, "JUMPI"])
+        o.extend(["DUP2", "DUP2", "XOR", entry_dest, JUMPI()])
         o.extend([exit_dest, "JUMPDEST", "POP", "POP"])
 
         return o
@@ -544,7 +547,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
     elif code.value == "assert_unreachable":
         o = _compile_to_assembly(code.args[0], withargs, existing_labels, break_dest, height)
         end_symbol = mksymbol("reachable")
-        o.extend([end_symbol, "JUMPI", "INVALID", end_symbol, "JUMPDEST"])
+        o.extend([end_symbol, JUMPI(), "INVALID", end_symbol, "JUMPDEST"])
         return o
     # Assert (if false, exit)
     elif code.value == "assert":
@@ -879,7 +882,7 @@ def _merge_iszero(assembly):
         if (
             assembly[i : i + 2] == ["ISZERO", "ISZERO"]
             and is_symbol(assembly[i + 2])
-            and assembly[i + 3] == "JUMPI"
+            and assembly[i + 3] == JUMPI()
         ):
             changed = True
             del assembly[i : i + 2]
@@ -1045,7 +1048,7 @@ def assembly_to_evm(
             continue  # skip debug
 
         # update pc_jump_map
-        if item == "JUMP":
+        if item in ("RJUMP", "JUMP"):
             last = assembly[i - 1]
             if is_symbol(last) and last.startswith("_sym_internal"):
                 if last.endswith("cleanup"):
@@ -1057,7 +1060,7 @@ def assembly_to_evm(
             else:
                 # everything else
                 line_number_map["pc_jump_map"][pc] = "-"
-        elif item in ("JUMPI", "JUMPDEST"):
+        elif item in ("RJUMPI", "JUMPI", "JUMPDEST"):
             line_number_map["pc_jump_map"][pc] = "-"
 
         # update pc
@@ -1132,7 +1135,7 @@ def assembly_to_evm(
                 pc_post_instruction = instr_offsets[i] + 3
                 offset = symbol_map[sym] - pc_post_instruction
                 print("\n", symbol_map[sym], pc_post_instruction, offset)
-                o += bytes([get_opcode("RJUMP")])
+                o += bytes([get_opcode(assembly[i + 1])])
                 o += bytes(offset.to_bytes(2, 'big', signed=True))
                 to_skip = 1
             elif assembly[i + 1] != "JUMPDEST" and assembly[i + 1] != "BLANK":
