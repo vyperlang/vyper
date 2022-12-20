@@ -3,7 +3,7 @@ import functools
 import math
 
 from vyper.codegen.ir_node import IRnode
-from vyper.evm.opcodes import get_opcodes, version_check
+from vyper.evm.opcodes import get_opcodes, version_check, get_opcode
 from vyper.exceptions import CodegenPanic, CompilerPanic
 from vyper.utils import MemoryPositions
 from vyper.version import version_tuple
@@ -12,6 +12,8 @@ PUSH_OFFSET = 0x5F
 DUP_OFFSET = 0x7F
 SWAP_OFFSET = 0x8F
 
+## TODO: replace with actual version handling
+EOF_ENABLED = True
 
 def num_to_bytearray(x):
     o = []
@@ -664,7 +666,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         o = []
         for i, c in enumerate(reversed(code.args[1:])):
             o.extend(_compile_to_assembly(c, withargs, existing_labels, break_dest, height + i))
-        o.extend(["_sym_" + str(code.args[0]), "JUMP"])
+        o.extend(["RJUMP", "_sym_" + str(code.args[0])])
         return o
     # push a literal symbol
     elif isinstance(code.value, str) and is_symbol(code.value):
@@ -1032,9 +1034,12 @@ def assembly_to_evm(
     if runtime_code_end is not None:
         mem_ofst_size = calc_mem_ofst_size(runtime_code_end + max_mem_ofst)
 
+    instr_offsets = []
+
     # go through the code, resolving symbolic locations
     # (i.e. JUMPDEST locations) to actual code locations
     for i, item in enumerate(assembly):
+        instr_offsets.append(pc)
         note_line_num(line_number_map, item, pc)
         if item == "DEBUG":
             continue  # skip debug
@@ -1136,6 +1141,15 @@ def assembly_to_evm(
             bytecode, _ = assembly_to_evm(PUSH_N(ofst, n))
             o += bytecode
             to_skip = 2
+
+        elif EOF_ENABLED and item in ["RJUMP", "RJUMPI"]:
+            sym = assembly[i + 1]
+            assert is_symbol(sym), "Internal compiler error: RJUMP not followed by symbol"
+            offset = symbol_map[sym] - instr_offsets[i]
+            print("\n", symbol_map[sym], instr_offsets[i], offset)
+            o += bytes([get_opcode("RJUMP")])
+            o += bytes(offset.to_bytes(2, 'big', signed=True))
+            to_skip = 1
 
         elif isinstance(item, int):
             o += bytes([item])
