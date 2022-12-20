@@ -1071,6 +1071,8 @@ def assembly_to_evm(
                     raise CompilerPanic(f"duplicate jumpdest {item}")
 
                 symbol_map[item] = pc
+            elif assembly[i + 1] in ("RJUMP", "RJUMPI"):
+                pc += CODE_OFST_SIZE # highbyte lowbyte only
             else:
                 pc += CODE_OFST_SIZE + 1  # PUSH2 highbits lowbits
         elif is_mem_sym(item):
