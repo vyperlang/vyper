@@ -266,6 +266,8 @@ _ir_opcodes: Dict[int, OpcodeRulesetMap] = {
 def get_opcodes() -> OpcodeRulesetMap:
     return _evm_opcodes[active_evm_version]
 
+def get_opcode(mnemonic: str) -> int:
+    return get_opcodes()[mnemonic.upper()][0]
 
 def get_ir_opcodes() -> OpcodeRulesetMap:
     return _ir_opcodes[active_evm_version]
