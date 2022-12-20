@@ -12,7 +12,7 @@ PUSH_OFFSET = 0x5F
 DUP_OFFSET = 0x7F
 SWAP_OFFSET = 0x8F
 
-EOF_ENABLED = version_check("eof")
+EOF_ENABLED = version_check("shanghai")
 
 def JUMPI() -> str:
     return "RJUMPI" if EOF_ENABLED else "JUMPI"
