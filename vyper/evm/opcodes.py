@@ -110,6 +110,7 @@ OPCODES: OpcodeMap = {
     "PUSH0": (0x5F, 0, 1, 2),
     "RJUMP": (0x5C, 0, 0, (None, None, None, None, 2)),
     "RJUMPI": (0x5D, 1, 0, (None, None, None, None, 4)),
+    "RJUMPV": (0x5E, 1, 0, (None, None, None, None, 4)),
     "PUSH1": (0x60, 0, 1, 3),
     "PUSH2": (0x61, 0, 1, 3),
     "PUSH3": (0x62, 0, 1, 3),
