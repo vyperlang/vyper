@@ -671,7 +671,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         o = []
         for i, c in enumerate(reversed(code.args[1:])):
             o.extend(_compile_to_assembly(c, withargs, existing_labels, break_dest, height + i))
-        o.extend(["_sym_" + str(code.args[0]), "RJUMP"])
+        o.extend(["_sym_" + str(code.args[0]), JUMP()])
         return o
     # push a literal symbol
     elif isinstance(code.value, str) and is_symbol(code.value):
