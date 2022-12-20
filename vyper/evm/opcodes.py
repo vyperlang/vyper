@@ -25,13 +25,15 @@ EVM_VERSIONS: dict[str, int] = {
     "paris": 4,
     "shanghai": 5,
     "cancun": 6,
+    "eof": 7,
+
     # ETC Forks
     "atlantis": 0,
     "agharta": 1,
 }
-DEFAULT_EVM_VERSION: str = "shanghai"
-active_evm_version: int = EVM_VERSIONS[DEFAULT_EVM_VERSION]
 
+DEFAULT_EVM_VERSION: str = "eof"
+active_evm_version: int = EVM_VERSIONS[DEFAULT_EVM_VERSION]
 
 # opcode as hex value
 # number of values removed from stack
@@ -104,6 +106,8 @@ OPCODES: OpcodeMap = {
     "GAS": (0x5A, 0, 1, 2),
     "JUMPDEST": (0x5B, 0, 0, 1),
     "PUSH0": (0x5F, 0, 1, 2),
+    "RJUMP": (0x5C, 0, 0, (None, None, None, None, 2)),
+    "RJUMPI": (0x5D, 1, 0, (None, None, None, None, 4)),
     "PUSH1": (0x60, 0, 1, 3),
     "PUSH2": (0x61, 0, 1, 3),
     "PUSH3": (0x62, 0, 1, 3),
