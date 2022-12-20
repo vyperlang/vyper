@@ -1139,6 +1139,8 @@ def assembly_to_evm(
                 assert is_symbol(sym), "Internal compiler error: RJUMP not preceded by symbol"
                 pc_post_instruction = instr_offsets[i] + 3
                 offset = symbol_map[sym] - pc_post_instruction
+                # TODO: fallback to dynamic jumps?
+                assert offset > -32767 and offset <= 32767, "Offset too big for relative jump"
                 o += bytes([get_opcode(assembly[i + 1])])
                 o += bytes(offset.to_bytes(2, 'big', signed=True))
                 to_skip = 1
