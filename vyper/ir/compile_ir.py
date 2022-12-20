@@ -666,7 +666,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         o = []
         for i, c in enumerate(reversed(code.args[1:])):
             o.extend(_compile_to_assembly(c, withargs, existing_labels, break_dest, height + i))
-        o.extend(["RJUMP", "_sym_" + str(code.args[0])])
+        o.extend(["_sym_" + str(code.args[0]), "RJUMP"])
         return o
     # push a literal symbol
     elif isinstance(code.value, str) and is_symbol(code.value):
@@ -1126,7 +1126,16 @@ def assembly_to_evm(
             continue
 
         elif is_symbol(item):
-            if assembly[i + 1] != "JUMPDEST" and assembly[i + 1] != "BLANK":
+            if EOF_ENABLED and assembly[i + 1] in ["RJUMP", "RJUMPI"]:
+                sym = item
+                assert is_symbol(sym), "Internal compiler error: RJUMP not preceded by symbol"
+                pc_post_instruction = instr_offsets[i] + 3
+                offset = symbol_map[sym] - pc_post_instruction
+                print("\n", symbol_map[sym], pc_post_instruction, offset)
+                o += bytes([get_opcode("RJUMP")])
+                o += bytes(offset.to_bytes(2, 'big', signed=True))
+                to_skip = 1
+            elif assembly[i + 1] != "JUMPDEST" and assembly[i + 1] != "BLANK":
                 bytecode, _ = assembly_to_evm(PUSH_N(symbol_map[item], n=CODE_OFST_SIZE))
                 o += bytecode
 
@@ -1141,15 +1150,6 @@ def assembly_to_evm(
             bytecode, _ = assembly_to_evm(PUSH_N(ofst, n))
             o += bytecode
             to_skip = 2
-
-        elif EOF_ENABLED and item in ["RJUMP", "RJUMPI"]:
-            sym = assembly[i + 1]
-            assert is_symbol(sym), "Internal compiler error: RJUMP not followed by symbol"
-            offset = symbol_map[sym] - instr_offsets[i]
-            print("\n", symbol_map[sym], instr_offsets[i], offset)
-            o += bytes([get_opcode("RJUMP")])
-            o += bytes(offset.to_bytes(2, 'big', signed=True))
-            to_skip = 1
 
         elif isinstance(item, int):
             o += bytes([item])
