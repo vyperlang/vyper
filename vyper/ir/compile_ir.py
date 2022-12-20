@@ -766,7 +766,7 @@ def note_breakpoint(line_number_map, item, pos):
             line_number_map["breakpoints"].add(item.lineno + 1)
 
 
-_TERMINAL_OPS = ("JUMP", "RETURN", "REVERT", "STOP", "INVALID")
+_TERMINAL_OPS = ("JUMP", "RJUMP", "RETURN", "REVERT", "STOP", "INVALID")
 
 
 def _prune_unreachable_code(assembly):
@@ -800,7 +800,7 @@ def _prune_inefficient_jumps(assembly):
     while i < len(assembly) - 4:
         if (
             is_symbol(assembly[i])
-            and assembly[i + 1] == "JUMP"
+            and assembly[i + 1] in ("JUMP", "RJUMP")
             and assembly[i] == assembly[i + 2]
             and assembly[i + 3] == "JUMPDEST"
         ):
@@ -811,7 +811,6 @@ def _prune_inefficient_jumps(assembly):
             i += 1
 
     return changed
-
 
 def _merge_jumpdests(assembly):
     # When we have multiple JUMPDESTs in a row, or when a JUMPDEST
@@ -833,7 +832,7 @@ def _merge_jumpdests(assembly):
                     if assembly[j] == current_symbol and i != j:
                         assembly[j] = new_symbol
                         changed = True
-            elif is_symbol(assembly[i + 2]) and assembly[i + 3] == "JUMP":
+            elif is_symbol(assembly[i + 2]) and assembly[i + 3] in ("JUMP", "RJUMP"):
                 # _sym_x JUMPDEST _sym_y JUMP
                 # replace all instances of _sym_x with _sym_y
                 # (except for _sym_x JUMPDEST - don't want duplicate labels)
