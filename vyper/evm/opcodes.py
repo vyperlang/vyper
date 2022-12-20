@@ -3,6 +3,8 @@ from typing import Dict, Optional
 from vyper.exceptions import CompilerPanic
 from vyper.typing import OpcodeGasCost, OpcodeMap, OpcodeRulesetMap, OpcodeRulesetValue, OpcodeValue
 
+active_evm_version: int = 7
+
 # EVM version rules work as follows:
 # 1. Fork rules go from oldest (lowest value) to newest (highest value).
 # 2. Fork versions aren't actually tied to anything. They are not a part of our

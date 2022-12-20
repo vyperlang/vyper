@@ -12,8 +12,7 @@ PUSH_OFFSET = 0x5F
 DUP_OFFSET = 0x7F
 SWAP_OFFSET = 0x8F
 
-## TODO: replace with actual version handling
-EOF_ENABLED = True
+EOF_ENABLED = version_check("eof")
 
 def JUMPI() -> str:
     return "RJUMPI" if EOF_ENABLED else "JUMPI"
