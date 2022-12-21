@@ -671,7 +671,10 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         o = []
         for i, c in enumerate(reversed(code.args[1:])):
             o.extend(_compile_to_assembly(c, withargs, existing_labels, break_dest, height + i))
-        o.extend(["_sym_" + str(code.args[0]), JUMP()])
+        if EOF_ENABLED:
+            o.extend(["_sym_" + str(code.args[0]), "CALLF"])
+        else:
+            o.extend(["_sym_" + str(code.args[0]), JUMP()])
         return o
     # push a literal symbol
     elif isinstance(code.value, str) and is_symbol(code.value):
@@ -1049,7 +1052,7 @@ def assembly_to_evm(
             continue  # skip debug
 
         # update pc_jump_map
-        if item in ("RJUMP", "JUMP"):
+        if item in ("RJUMP", "JUMP", "JUMPF", "CALLF"):
             last = assembly[i - 1]
             if is_symbol(last) and last.startswith("_sym_internal"):
                 if last.endswith("cleanup"):
@@ -1072,7 +1075,7 @@ def assembly_to_evm(
                     raise CompilerPanic(f"duplicate jumpdest {item}")
 
                 symbol_map[item] = pc
-            elif assembly[i + 1] in ("RJUMP", "RJUMPI"):
+            elif assembly[i + 1] in ("RJUMP", "RJUMPI", "JUMPF", "CALLF"):
                 pc += CODE_OFST_SIZE # highbyte lowbyte only
             else:
                 pc += CODE_OFST_SIZE + 1  # PUSH2 highbits lowbits
@@ -1132,9 +1135,9 @@ def assembly_to_evm(
             continue
 
         elif is_symbol(item):
-            if EOF_ENABLED and assembly[i + 1] in ["RJUMP", "RJUMPI"]:
+            if EOF_ENABLED and assembly[i + 1] in ["RJUMP", "RJUMPI", "JUMPF", "CALLF"]:
                 sym = item
-                assert is_symbol(sym), "Internal compiler error: RJUMP not preceded by symbol"
+                assert is_symbol(sym), f"Internal compiler error: {assembly[i + 1]} not preceded by symbol"
                 pc_post_instruction = instr_offsets[i] + 3
                 offset = symbol_map[sym] - pc_post_instruction
                 # TODO: fallback to dynamic jumps?
