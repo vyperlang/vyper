@@ -19,7 +19,7 @@ from vyper.codegen.types import (
 )
 from vyper.exceptions import InvalidLiteral, InvalidType, TypeMismatch
 from vyper.semantics.types.bytestrings import BytesT, StringT
-from vyper.semantics.types.primitives import UINT256_T, AddressT, BoolT, BytesM_T, DecimalT, IntegerT
+from vyper.semantics.types.primitives import BYTES32_T, UINT256_T, AddressT, BoolT, BytesM_T, DecimalT, IntegerT
 from vyper.utils import (
     DECIMAL_DIVISOR,
     SizeLimits,
@@ -30,9 +30,15 @@ from vyper.utils import (
     unsigned_to_signed,
 )
 
-TEST_TYPES = IntegerT.all() | BytesM_T.all() | {DecimalT(), AddressT(), BoolT(), BytesT(32)}
+BASE_TYPES = set(IntegerT.all()) | set(BytesM_T.all()) | {DecimalT(), AddressT(), BoolT()}
+
+TEST_TYPES = BASE_TYPES | {BytesT(32)}
 
 ZERO_ADDRESS = "0x0000000000000000000000000000000000000000"
+
+UINT160_T = IntegerT(False, 160)
+
+BYTES20_T = BytesM_T(20)
 
 # decimal increment, aka smallest decimal > 0
 DECIMAL_EPSILON = Decimal(1) / DECIMAL_DIVISOR
@@ -172,8 +178,6 @@ def _cases_for_decimal(typ):
 
     return ret
 
-UINT160_T = IntegerT(False, 160)
-
 def _cases_for_address(_typ):
     cases = _filter_cases(_cases_for_int(UINT160_T), UINT160_T)
     return [_py_convert(c, UINT160_T, AddressT) for c in cases]
@@ -266,14 +270,14 @@ def _padconvert(val_bits, direction, n, padding_byte=None):
 def _from_bits(val_bits, o_typ):
     # o_typ: the type to convert to
     try:
-        return decode_single(o_typ.abi_type, val_bits)
+        return decode_single(o_typ.abi_type.selector_name(), val_bits)
     except eth_abi.exceptions.NonEmptyPaddingBytes:
         raise _OutOfBounds() from None
 
 
 def _to_bits(val, i_typ):
     # i_typ: the type to convert from
-    return encode_single(i_typ.abi_type, val)
+    return encode_single(i_typ.abi_type.selector_name(), val)
 
 
 def _signextend(val_bytes, bits):
@@ -332,22 +336,22 @@ def _py_convert(val, i_typ, o_typ):
             padding_byte = None
         else:
             # output type is bytes
-            n = o_detail.type_bytes
+            n = bytes_of_type(o_typ)
             padding_byte = b"\x00"
 
         val_bits = _padconvert(val_bits, _padding_direction(o_typ), n, padding_byte)
 
-    if getattr(o_detail.info, "is_signed", False) and i_detail.type_class == "bytes":
-        n_bits = i_detail.type_bytes * 8
+    if getattr(o_typ, "is_signed", False) and isinstance(i_typ, BytesM_T):
+        n_bits = _bits_of_type(i_typ)
         val_bits = _signextend(val_bits, n_bits)
 
     try:
-        if o_typ == "bool":
-            return _from_bits(val_bits, "uint256") != 0
+        if isinstance(o_typ, BoolT):
+            return _from_bits(val_bits, UINT256_T) != 0
 
         ret = _from_bits(val_bits, o_typ)
 
-        if o_typ == "address":
+        if isinstance(o_typ, AddressT):
             return checksum_encode(ret)
         return ret
 
@@ -438,7 +442,7 @@ def test_convert_passing(
 ):
 
     expected_val = _py_convert(val, i_typ, o_typ)
-    if o_typ == "address" and expected_val == "0x" + "00" * 20:
+    if isinstance(o_typ, AddressT) and expected_val == "0x" + "00" * 20:
         # web3 has special formatter for zero address
         expected_val = None
 
@@ -453,11 +457,11 @@ def test_convert() -> {o_typ}:
 
     # Skip bytes20 literals when there is ambiguity with `address` since address takes precedence.
     # generally happens when there are only digits in the literal.
-    if i_typ == "bytes20" and is_checksum_encoded(_vyper_literal(val, "bytes20")):
+    if i_typ == BYTES20_T and is_checksum_encoded(_vyper_literal(val, BYTES20_T)):
         skip_c1 = True
 
     # typechecker inference borked, ambiguity with bytes20
-    if i_typ == "address" and o_typ == "bytes20" and val == val.lower():
+    if isinstance(i_typ, AddressT) and o_typ == BYTES20_T and val == val.lower():
         skip_c1 = True
 
     if c1_exception is not None:
@@ -567,9 +571,12 @@ def convert_builtin_constant() -> {out_type}:
     assert c.convert_builtin_constant() == out_value
 
 
+def sort_types(types):
+    return sorted(types, key=lambda x: x.abi_type.selector_name)
+
 # uint256 conversion is currently valid due to type inference on literals
 # not quite working yet
-same_type_conversion_blocked = sorted(TEST_TYPES - {"uint256"})
+same_type_conversion_blocked = sort_types(TEST_TYPES - {UINT256_T})
 
 
 @pytest.mark.parametrize("typ", same_type_conversion_blocked)
@@ -592,7 +599,7 @@ def foo(x: {i_typ}) -> {o_typ}:
     assert_compile_failed(lambda: get_contract(code), TypeMismatch)
 
 
-@pytest.mark.parametrize("typ", sorted(TEST_TYPES))
+@pytest.mark.parametrize("typ", sort_types(TEST_TYPES))
 def test_bytes_too_large_cases(get_contract, assert_compile_failed, typ):
     code_1 = f"""
 @external
@@ -655,21 +662,21 @@ def foo() -> {o_typ}:
 
     c1_exception = InvalidLiteral
 
-    if i_typ.startswith(("int", "uint")) and o_typ.startswith("bytes"):
+    if isinstance(i_typ, IntegerT) and isinstance(o_typ, BytesM_T):
         # integer literals get upcasted to uint256 / int256 types, so the convert
         # will not compile unless it is bytes32
-        if o_typ != "bytes32":
+        if o_typ != BYTES32_T:
             c1_exception = TypeMismatch
 
     # compile-time folding not implemented for these:
     skip_c1 = False
-    # if o_typ.startswith("int") and i_typ == "address":
+    # if isinstance(o_typ, IntegerT.signeds()) and isinstance(i_typ, Address()):
     #    skip_c1 = True
 
-    if o_typ.startswith("bytes"):
+    if isinstance(o_typ, BytesM_T):
         skip_c1 = True
 
-    # if o_typ in ("address", "bytes20"):
+    # if o_typ in (AddressT(), BYTES20_T):
     #    skip_c1 = True
 
     if not skip_c1:
