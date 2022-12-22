@@ -27,6 +27,7 @@ from vyper.utils import (
     GAS_IDENTITY,
     GAS_IDENTITYWORD,
     ceil32,
+    int_bounds
 )
 
 DYNAMIC_ARRAY_OVERHEAD = 1
