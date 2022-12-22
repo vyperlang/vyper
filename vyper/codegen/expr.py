@@ -11,6 +11,7 @@ from vyper.codegen.core import (
     get_dyn_array_count,
     get_element_ptr,
     getpos,
+    int_bounds_for_type,
     is_array_like,
     is_bytes_m_type,
     is_numeric_type,
@@ -89,10 +90,12 @@ class Expr:
 
         # sanity check that type checker did its job
         assert isinstance(val, decimal.Decimal)
-        assert SizeLimits.in_bounds("decimal", val)
         assert math.ceil(val) == math.floor(val)
 
         val = int(val)
+        (lo, hi) = int_bounds_for_type(DecimalT())
+        # sanity check
+        assert lo <= val <= hi
 
         return IRnode.from_list(val, typ=DecimalT())
 

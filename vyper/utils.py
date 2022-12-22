@@ -263,18 +263,13 @@ class SizeLimits:
     MAX_UINT256 = 2 ** 256 - 1
 
     @classmethod
-    def in_bounds(cls, type_str, value):
-        # TODO: fix this circular import
-        from vyper.codegen.types import parse_decimal_info, parse_integer_typeinfo
+    def in_bounds(cls, typ, val):
+        assert isinstance(val, typ.ast_type)
 
-        assert isinstance(type_str, str)
-        if type_str == "decimal":
-            info = parse_decimal_info(type_str)
-        else:
-            info = parse_integer_typeinfo(type_str)
+        assert typ.ast_bounds is not None
+        (lo, hi) = typ.ast_bounds
 
-        (lo, hi) = int_bounds(info.is_signed, info.bits)
-        return lo <= value <= hi
+        return lo <= val <= hi
 
 
 # Otherwise reserved words that are whitelisted for function declarations

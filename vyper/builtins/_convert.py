@@ -11,6 +11,7 @@ from vyper.codegen.core import (
     clamp,
     clamp_basetype,
     get_bytearray_length,
+    int_bounds_for_type,
     int_clamp,
     is_bytes_m_type,
     is_decimal_type,
@@ -272,7 +273,8 @@ def _literal_decimal(expr, arg_typ, out_typ):
     if isinstance(expr, (vy_ast.Hex, vy_ast.Bytes)) and out_typ.is_signed:
         val = _signextend(expr, val, arg_typ)
 
-    if not SizeLimits.in_bounds("decimal", val):
+    (lo, hi) = int_bounds_for_type(out_typ)
+    if not lo <= val <= hi:
         raise InvalidLiteral("Number out of range", expr)
 
     return IRnode.from_list(val, typ=out_typ)

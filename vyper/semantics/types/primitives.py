@@ -1,7 +1,8 @@
 # primitive types which occupy one word, like ints and addresses
 
 from decimal import Decimal
-from typing import Tuple, Union
+from functools import cached_property
+from typing import Tuple, Union, Any
 
 from vyper import ast as vy_ast
 from vyper.abi_types import ABI_Address, ABI_Bool, ABI_BytesM, ABI_FixedMxN, ABI_GIntM, ABIType
@@ -10,7 +11,6 @@ from vyper.utils import SizeLimits, checksum_encode, int_bounds, is_checksum_enc
 
 from .base import VyperType
 from .bytestrings import BytesT
-
 
 class _PrimT(VyperType):
     _is_prim_word = True
