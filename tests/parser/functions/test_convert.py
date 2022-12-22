@@ -28,7 +28,7 @@ from vyper.utils import (
     unsigned_to_signed,
 )
 
-TEST_TYPES = BASE_TYPES | {"Bytes[32]"}
+TEST_TYPES = IntegerT.all() | BytesM_T.all() | {DecimalT(), AddressT(), BoolT(), BytesT(32)}
 
 ZERO_ADDRESS = "0x0000000000000000000000000000000000000000"
 
@@ -36,24 +36,45 @@ ZERO_ADDRESS = "0x0000000000000000000000000000000000000000"
 DECIMAL_EPSILON = Decimal(1) / DECIMAL_DIVISOR
 
 
-@dataclass
-class TestType:
-    """
-    Simple class to model Vyper types.
-    """
+def _bits_of_type(typ):
+    if isinstance(typ, (IntegerT, DecimalT)):
+        return typ.bits
+    if isinstance(typ, BoolT):
+        return 8
+    if isinstance(typ, AddressT):
+        return 160
+    if isinstance(typ, BytesM_T):
+        return typ.m
+    if isinstance(typ, BytesT):
+        return typ.length
 
-    type_name: str
-    type_bytes: int  # number of nonzero bytes this type can take
-    type_class: str  # e.g. int, bytes, String, decimal
-    info: Any  # e.g. DecimalInfo
+    raise Exception(f"Unknown type {typ}")
 
-    @property
-    def abi_type(self):
-        if self.type_name == "decimal":
-            return "fixed168x10"
-        if self.type_class in ("Bytes", "String"):
-            return self.type_class.lower()
-        return self.type_name
+
+def bytes_of_type(typ):
+    ret = _bits_of_type(typ)
+    assert ret % 8 == 0
+    return ret // 8
+
+
+#@dataclass
+#class TestType:
+#    """
+#    Simple class to model Vyper types.
+#    """
+#
+#    type_name: str
+#    type_bytes: int  # number of nonzero bytes this type can take
+#    type_class: str  # e.g. int, bytes, String, decimal
+#    info: Any  # e.g. DecimalInfo
+#
+#    @property
+#    def abi_type(self):
+#        if self.type_name == "decimal":
+#            return "fixed168x10"
+#        if self.type_class in ("Bytes", "String"):
+#            return self.type_class.lower()
+#        return self.type_name
 
 
 class _OutOfBounds(Exception):
@@ -437,10 +458,9 @@ def generate_reverting_cases():
 
 
 def _vyper_literal(val, typ):
-    detail = _parse_type(typ)
-    if detail.type_class == "bytes":
+    if isinstance(typ, BytesM_T):
         return "0x" + val.hex()
-    if detail.type_class == "decimal":
+    if isinstance(typ, DecimalT):
         tmp = val
         val = val.quantize(DECIMAL_EPSILON)
         assert tmp == val
