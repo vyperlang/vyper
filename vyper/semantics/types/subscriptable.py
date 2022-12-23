@@ -20,10 +20,6 @@ class _SubscriptableT(VyperType):
         Type representing the value(s) contained in this object.
     """
 
-    # keep LGTM linter happy
-    def __eq__(self, other):
-        return super().__eq__(other)
-
     def __init__(self, key_type: VyperType, value_type: VyperType) -> None:
         super().__init__()
         self.key_type = key_type
@@ -97,10 +93,6 @@ class _SequenceT(_SubscriptableT):
     _equality_attrs: tuple = ("value_type", "length")
 
     _is_array_type: bool = True
-
-    # keep LGTM linter happy
-    def __eq__(self, other):
-        return super().__eq__(other)
 
     def __init__(self, value_type: VyperType, length: int):
 
@@ -304,10 +296,6 @@ class TupleT(VyperType):
     """
 
     _equality_attrs = ("members",)
-
-    # keep LGTM linter happy
-    def __eq__(self, other):
-        return super().__eq__(other)
 
     def __init__(self, member_types: Tuple[VyperType, ...]) -> None:
         super().__init__()
