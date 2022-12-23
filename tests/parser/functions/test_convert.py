@@ -9,6 +9,7 @@ from typing import Any
 import eth_abi.exceptions
 import pytest
 from eth_abi import decode_single, encode_single
+from vyper.codegen.core import int_bounds_for_type
 
 from vyper.exceptions import InvalidLiteral, InvalidType, TypeMismatch
 from vyper.semantics.types.bytestrings import BytesT, StringT
@@ -45,9 +46,9 @@ def _bits_of_type(typ):
     if isinstance(typ, AddressT):
         return 160
     if isinstance(typ, BytesM_T):
-        return typ.m
+        return typ.m_bits
     if isinstance(typ, BytesT):
-        return typ.length
+        return typ.length * 8
 
     raise Exception(f"Unknown type {typ}")
 
@@ -173,7 +174,7 @@ def _cases_for_decimal(typ):
 
 def _cases_for_address(_typ):
     cases = _filter_cases(_cases_for_int(UINT160_T), UINT160_T)
-    return [_py_convert(c, UINT160_T, AddressT) for c in cases]
+    return [_py_convert(c, UINT160_T, AddressT()) for c in cases]
 
 
 def _cases_for_bool(_typ):
@@ -283,7 +284,8 @@ def _signextend(val_bytes, bits):
 
 def _convert_decimal_to_int(val, o_typ):
     # note special behavior for decimal: catch OOB before truncation.
-    if not SizeLimits.in_bounds(o_typ, val):
+    (lo, hi) = int_bounds_for_type(o_typ)
+    if not lo <= val <= hi:
         return None
 
     return round_towards_zero(val)
@@ -297,6 +299,8 @@ def _convert_int_to_decimal(val, o_typ):
 
     return ret
 
+def sort_types(types):
+    return sorted(types, key=lambda x: x.abi_type.selector_name)
 
 def _py_convert(val, i_typ, o_typ):
     """
@@ -309,7 +313,7 @@ def _py_convert(val, i_typ, o_typ):
             return None
         return val
 
-    if isinstance(i_typ, DecimalT) and o_typ in INTEGER_TYPES:
+    if isinstance(i_typ, DecimalT) and isinstance(o_typ, IntegerT):
         return _convert_decimal_to_int(val, o_typ)
 
     if isinstance(i_typ, (BoolT, IntegerT)) and isinstance(o_typ, DecimalT):
@@ -564,12 +568,9 @@ def convert_builtin_constant() -> {out_type}:
     assert c.convert_builtin_constant() == out_value
 
 
-def sort_types(types):
-    return sorted(types, key=lambda x: x.abi_type.selector_name)
-
 # uint256 conversion is currently valid due to type inference on literals
 # not quite working yet
-same_type_conversion_blocked = sort_types(TEST_TYPES - {UINT256_T})
+same_type_conversion_blocked = sorted(TEST_TYPES - {UINT256_T})
 
 
 @pytest.mark.parametrize("typ", same_type_conversion_blocked)
@@ -592,7 +593,7 @@ def foo(x: {i_typ}) -> {o_typ}:
     assert_compile_failed(lambda: get_contract(code), TypeMismatch)
 
 
-@pytest.mark.parametrize("typ", sort_types(TEST_TYPES))
+@pytest.mark.parametrize("typ", sorted(TEST_TYPES))
 def test_bytes_too_large_cases(get_contract, assert_compile_failed, typ):
     code_1 = f"""
 @external

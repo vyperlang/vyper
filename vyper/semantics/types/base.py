@@ -80,6 +80,9 @@ class VyperType:
             type(self) == type(other) and self._get_equality_attrs() == other._get_equality_attrs()
         )
 
+    def __lt__(self, other):
+        return self.abi_type.selector_name() < other.abi_type.selector_name()
+
     @cached_property
     def _as_darray(self):
         return self._as_array

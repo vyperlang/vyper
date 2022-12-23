@@ -99,8 +99,7 @@ def _bytes_to_num(arg, out_typ, signed):
         arg = LOAD(bytes_data_ptr(arg))
         num_zero_bits = ["mul", 8, ["sub", 32, _len]]
     elif is_bytes_m_type(arg.typ):
-        info = arg.typ._bytes_info
-        num_zero_bits = 8 * (32 - info.m)
+        num_zero_bits = 8 * (32 - arg.typ.m)
     else:
         raise CompilerPanic("unreachable")  # pragma: notest
 
@@ -224,8 +223,8 @@ def _check_bytes(expr, arg, output_type, max_bytes_allowed):
 # (e.g. convert(0xff <bytes1>, int16) == -1)
 def _signextend(expr, val, arg_typ):
     if isinstance(expr, vy_ast.Hex):
-        assert len(expr.value[2:]) // 2 == arg_typ._bytes_info.m
-        n_bits = arg_typ._bytes_info.m_bits
+        assert len(expr.value[2:]) // 2 == arg_typ.m
+        n_bits = arg_typ.m_bits
     else:
         assert len(expr.value) == arg_typ.maxlen
         n_bits = arg_typ.maxlen * 8
@@ -352,9 +351,8 @@ def to_decimal(expr, arg, out_typ):
         return IRnode.from_list(arg, typ=out_typ)
 
     elif is_bytes_m_type(arg.typ):
-        info = arg.typ._bytes_info
         arg = _bytes_to_num(arg, out_typ, signed=True)
-        if info.m_bits > 168:
+        if arg.typ.m_bits > 168:
             arg = IRnode.from_list(arg, typ=out_typ)
             arg = clamp_basetype(arg)
 
@@ -365,7 +363,7 @@ def to_decimal(expr, arg, out_typ):
         return IRnode.from_list(arg, typ=out_typ)
 
     elif arg.typ == BoolT():
-        # TODO: consider adding _int_info to bool so we can use _int_to_fixed
+        # TODO: consider adding is_signed and bits to bool so we can use _int_to_fixed
         arg = ["mul", arg, 10 ** out_typ.decimals]
         return IRnode.from_list(arg, typ=out_typ)
     else:
@@ -393,7 +391,10 @@ def to_bytes_m(expr, arg, out_typ):
             arg = bytes_clamp(arg, out_typ.m)
 
     elif is_integer_type(arg.typ) or arg.typ == AddressT():
-        int_bits = arg.typ.bits
+        if arg.typ == AddressT():
+            int_bits = 160
+        else:
+            int_bits = arg.typ.bits
 
         if out_typ.m_bits < int_bits:
             # question: allow with runtime clamp?
@@ -404,7 +405,7 @@ def to_bytes_m(expr, arg, out_typ):
         arg = shl(256 - out_typ.m_bits, arg)
 
     elif is_decimal_type(arg.typ):
-        if out_typ.m_bits < arg.typ._decimal_info.bits:
+        if out_typ.m_bits < arg.typ.bits:
             _FAIL(arg.typ, out_typ, expr)
 
         # note: neg numbers not OOB. keep sign bit
