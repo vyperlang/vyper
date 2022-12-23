@@ -10,13 +10,6 @@ import eth_abi.exceptions
 import pytest
 from eth_abi import decode_single, encode_single
 
-from vyper.codegen.types import (
-    BASE_TYPES,
-    INTEGER_TYPES,
-    parse_bytes_m_info,
-    parse_decimal_info,
-    parse_integer_typeinfo,
-)
 from vyper.exceptions import InvalidLiteral, InvalidType, TypeMismatch
 from vyper.semantics.types.bytestrings import BytesT, StringT
 from vyper.semantics.types.primitives import BYTES32_T, UINT256_T, AddressT, BoolT, BytesM_T, DecimalT, IntegerT
@@ -112,7 +105,7 @@ def can_convert(i_typ, o_typ):
         if isinstance(o_typ, BytesM_T):
             return bytes_of_type(i_typ) <= bytes_of_type(o_typ)
 
-        ret = isinstance(o_typ, (IntegerT, DecimalT, BytesM_T, BytesT)):
+        ret = isinstance(o_typ, (IntegerT, DecimalT, BytesM_T, BytesT))
         if not i_typ.is_signed:
             ret |= isinstance(o_typ, AddressT)
         return ret

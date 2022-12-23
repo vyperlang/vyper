@@ -73,8 +73,8 @@ class BytesM_T(_PrimT):
         return ABI_BytesM(self.m)
 
     @classmethod
-    def all(cls):
-        return [cls(m) for m in RANGE_1_32]
+    def all(cls) -> Tuple["BytesM_T", ...]:
+        return tuple(cls(m) for m in RANGE_1_32)
 
     def validate_literal(self, node: vy_ast.Constant) -> None:
         super().validate_literal(node)
