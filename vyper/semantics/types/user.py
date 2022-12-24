@@ -35,6 +35,7 @@ class _UserType(VyperType):
         return hash(id(self))
 
 
+# note: enum behaves a lot like uint256, or uints in general.
 class EnumT(_UserType):
     _is_prim_word = True
 

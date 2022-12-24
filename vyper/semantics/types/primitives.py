@@ -18,6 +18,7 @@ class _PrimT(VyperType):
     _equality_attrs: tuple = ()
 
 
+# should inherit from uint8?
 class BoolT(_PrimT):
     _id = "bool"
     _as_array = True
@@ -292,6 +293,7 @@ class DecimalT(NumericT):
 
 
 # maybe this even deserves its own module, address.py
+# should inherit from uint160?
 class AddressT(_PrimT):
     _as_array = True
     _id = "address"

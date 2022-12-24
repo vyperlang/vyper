@@ -30,7 +30,16 @@ from vyper.exceptions import (
     StructureException,
     TypeMismatch,
 )
-from vyper.semantics.types import AddressT, BoolT, BytesT, StringT
+from vyper.semantics.types import (
+    AddressT,
+    BoolT,
+    BytesM_T,
+    BytesT,
+    DecimalT,
+    EnumT,
+    IntegerT,
+    StringT,
+)
 from vyper.semantics.types.bytestrings import _BytestringT
 from vyper.semantics.types.shortcuts import INT256_T, UINT256_T
 from vyper.utils import DECIMAL_DIVISOR, round_towards_zero, unsigned_to_signed
@@ -42,36 +51,13 @@ def _FAIL(ityp, otyp, source_expr=None):
     raise TypeMismatch(f"Can't convert {ityp} to {otyp}", source_expr)
 
 
-# helper function for `_input_types`
-# generates a string representation of a type
-# (makes up for lack of proper hierarchy in IR type system)
-# (ideally would use type generated during annotation, but
-# not available for builtins)
-def _type_class_of(typ):
-    if is_integer_type(typ):
-        return "int"
-    if is_bytes_m_type(typ):
-        return "bytes_m"
-    if is_decimal_type(typ):
-        return "decimal"
-    if typ == AddressT():
-        return "address"
-    if typ == BoolT():
-        return "bool"
-    if isinstance(typ, BytesT):
-        return "bytes"
-    if isinstance(typ, StringT):
-        return "string"
-
-
 def _input_types(*allowed_types):
     def decorator(f):
         @functools.wraps(f)
         def check_input_type(expr, arg, out_typ):
             # convert arg to out_typ.
             # (expr is the AST corresponding to `arg`)
-            ityp = _type_class_of(arg.typ)
-            ok = ityp in allowed_types
+            ok = isinstance(arg.typ, allowed_types)
             if not ok:
                 _FAIL(arg.typ, out_typ, expr)
 
@@ -280,7 +266,7 @@ def _literal_decimal(expr, arg_typ, out_typ):
 
 
 # any base type or bytes/string
-@_input_types("int", "decimal", "bytes_m", "address", "bool", "bytes", "string")
+@_input_types(IntegerT, DecimalT, BytesM_T, AddressT, BoolT, BytesT, StringT)
 def to_bool(expr, arg, out_typ):
     _check_bytes(expr, arg, out_typ, 32)  # should we restrict to Bytes[1]?
 
@@ -294,7 +280,7 @@ def to_bool(expr, arg, out_typ):
     return IRnode.from_list(["iszero", ["iszero", arg]], typ=out_typ)
 
 
-@_input_types("int", "bytes_m", "decimal", "bytes", "address", "bool")
+@_input_types(IntegerT, DecimalT, BytesM_T, AddressT, BoolT, EnumT)
 def to_int(expr, arg, out_typ):
     assert out_typ.bits % 8 == 0
     _check_bytes(expr, arg, out_typ, 32)
@@ -319,6 +305,9 @@ def to_int(expr, arg, out_typ):
     elif is_enum_type(arg.typ):
         if out_typ != UINT256_T:
             _FAIL(arg.typ, out_typ, expr)
+        # pretend enum is uint256
+        arg = IRnode.from_list(arg, typ=UINT256_T)
+        # use int_to_int rules
         arg = _int_to_int(arg, out_typ)
 
     elif is_integer_type(arg.typ):
@@ -334,7 +323,7 @@ def to_int(expr, arg, out_typ):
     return IRnode.from_list(arg, typ=out_typ)
 
 
-@_input_types("int", "bool", "bytes_m", "bytes")
+@_input_types(IntegerT, BoolT, BytesM_T, BytesT)
 def to_decimal(expr, arg, out_typ):
     _check_bytes(expr, arg, out_typ, 32)
 
@@ -370,7 +359,7 @@ def to_decimal(expr, arg, out_typ):
         raise CompilerPanic("unreachable")  # pragma: notest
 
 
-@_input_types("int", "decimal", "bytes_m", "address", "bytes", "bool")
+@_input_types(IntegerT, DecimalT, BytesM_T, AddressT, BytesT, BoolT)
 def to_bytes_m(expr, arg, out_typ):
     _check_bytes(expr, arg, out_typ, max_bytes_allowed=out_typ.m)
 
@@ -418,7 +407,7 @@ def to_bytes_m(expr, arg, out_typ):
     return IRnode.from_list(arg, typ=out_typ)
 
 
-@_input_types("bytes_m", "int", "bytes")
+@_input_types(BytesM_T, IntegerT, BytesT)
 def to_address(expr, arg, out_typ):
     # question: should this be allowed?
     if is_integer_type(arg.typ):
@@ -429,7 +418,7 @@ def to_address(expr, arg, out_typ):
 
 
 # question: should we allow bytesM -> String?
-@_input_types("bytes")
+@_input_types(BytesT)
 def to_string(expr, arg, out_typ):
     _check_bytes(expr, arg, out_typ, out_typ.maxlen)
 
@@ -437,7 +426,7 @@ def to_string(expr, arg, out_typ):
     return IRnode.from_list(arg, typ=out_typ)
 
 
-@_input_types("string")
+@_input_types(StringT)
 def to_bytes(expr, arg, out_typ):
     _check_bytes(expr, arg, out_typ, out_typ.maxlen)
 
@@ -447,7 +436,7 @@ def to_bytes(expr, arg, out_typ):
     return IRnode.from_list(arg, typ=out_typ)
 
 
-@_input_types("int")
+@_input_types(IntegerT)
 def to_enum(expr, arg, out_typ):
     if arg.typ != UINT256_T:
         _FAIL(arg.typ, out_typ, expr)
