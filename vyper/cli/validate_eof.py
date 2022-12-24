@@ -56,6 +56,9 @@ def validate_eof(code: bytes):
 
     # Process section headers
     section_sizes = {S_TYPE: [], S_CODE: [], S_DATA: []}
+    code_section_ios = []
+    code_sections = []
+    data_sections = []
     pos = 3
     while True:
         # Terminator not found
@@ -92,12 +95,14 @@ def validate_eof(code: bytes):
         section_count = (code[pos] << 8) | code[pos + 1]
         pos += 2
         if section_id == S_TYPE:
-          section_sizes[S_TYPE].append(section_count)
+            section_sizes[S_TYPE].append(section_count)
         elif section_id == S_CODE:
-          section_sizes[S_CODE] = [0] * section_count
-          pos += section_count * 2
+            for i in range(section_count):
+                code_size = (code[pos] << 8) | code[pos + 1]
+                pos += 2
+                section_sizes[S_CODE].append(code_size)
         elif section_id == S_DATA:
-          section_sizes[S_DATA].append(section_count)
+            section_sizes[S_DATA].append(section_count)
 
     # Code section cannot be absent
     if len(section_sizes[S_CODE]) == 0:
@@ -120,9 +125,27 @@ def validate_eof(code: bytes):
     # if len(code) != (pos + sum(section_sizes[S_TYPE]) + sum(section_sizes[S_CODE]) + sum(section_sizes[S_DATA])):
     #     raise ValidationException("container size not equal to sum of section sizes")
 
-    # First type section, if present, has 0 inputs and 0 outputs
-    if len(section_sizes[S_TYPE]) > 0 and (code[pos] != 0 or code[pos + 1] != 0):
-        raise ValidationException("invalid type of section 0")
+    # Read TYPE section
+    for i in range(len(section_sizes[S_CODE])):
+        input_count = code[pos]
+        output_count = code[pos + 1]
+        max_stack_height = (code[pos + 2] << 8) | code[pos + 3]
+        code_section_ios.append((input_count, output_count, max_stack_height))
+        pos += 4
+
+    # Read CODE sections
+    for section_size in section_sizes[S_CODE]:
+        code_sections.append(code[pos:pos + section_size])
+        pos += section_size
+
+    # Read DATA sections
+    for section_size in section_sizes[S_DATA]:
+        data_sections.append(code[pos:pos + section_size])
+        pos += section_size
+
+    # First code section should have zero inputs and outputs
+    if code_section_ios[0][0] != 0 or code_section_ios[0][1] != 0:
+        raise ValidationException("invalid input/output count for code section 0")
 
 # Raises ValidationException on invalid code
 def validate_code_section(func_id: int, code: bytes, types: list[FunctionType] = [FunctionType(0, 0)]):
