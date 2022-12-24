@@ -578,7 +578,7 @@ class Concat(BuiltinFunction):
 
             else:
                 ret.append(STORE(dst_data, unwrap_location(arg)))
-                ret.append(["set", ofst, ["add", ofst, arg.typ._bytes_info.m]])
+                ret.append(["set", ofst, ["add", ofst, arg.typ.m]])
 
         ret.append(STORE(dst, ofst))
 
@@ -800,7 +800,7 @@ class ECRecover(BuiltinFunction):
 
 
 def _getelem(arg, ind):
-    return unwrap_location(get_element_ptr(arg, IRnode.from_list(ind, "int128")))
+    return unwrap_location(get_element_ptr(arg, IRnode.from_list(ind, typ=INT128_T)))
 
 
 class ECAdd(BuiltinFunction):
@@ -1763,7 +1763,7 @@ class CreateMinimalProxyTo(_CreateBase):
         forwarder_post = bytes_to_int(forwarder_post_evm + b"\x00" * (32 - len(forwarder_post_evm)))
 
         # left-align the target
-        if target_address.typ.is_literal:
+        if target_address.is_literal:
             # note: should move to optimizer once we have
             # codesize optimization pipeline
             aligned_target = args[0].value << 96
@@ -2052,7 +2052,6 @@ class _MinMax(BuiltinFunction):
                     op = f"s{op}"
                 o = ["select", [op, left, right], left, right]
                 otyp = left.typ
-                otyp.is_literal = False
 
             else:
                 raise TypeMismatch(f"Minmax types incompatible: {left.typ.typ} {right.typ.typ}")
