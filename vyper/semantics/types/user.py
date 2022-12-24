@@ -36,6 +36,8 @@ class _UserType(VyperType):
 
 
 class EnumT(_UserType):
+    _is_prim_word = True
+
     def __init__(self, name: str, members: dict) -> None:
         if len(members.keys()) > 256:
             raise EnumDeclarationException("Enums are limited to 256 members!")
@@ -43,16 +45,18 @@ class EnumT(_UserType):
         super().__init__(members)
         self._id = name
 
-        # members of the enum. use a VyperType for convenient access
-        # to the `get_member` function.
-        self._enum_members = VyperType(members)
+        self._enum_members = members
+
+        # use a VyperType for convenient access to the `get_member` function
+        # also conveniently checks well-formedness of the members namespace
+        self._helper = VyperType(members)
 
     def get_type_member(self, key: str, node: vy_ast.VyperNode) -> "VyperType":
-        self._enum_members.get_member(key, node)
+        self._helper.get_member(key, node)
         return self
 
     def __repr__(self):
-        arg_types = ",".join(repr(a) for a in self._enum_members.members)
+        arg_types = ",".join(repr(a) for a in self._enum_members)
         return f"enum {self.name}({arg_types})"
 
     @property
