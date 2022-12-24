@@ -8,8 +8,7 @@ from vyper import ast as vy_ast
 from vyper.ast.signatures.function_signature import FunctionSignature
 from vyper.codegen.global_context import GlobalContext
 from vyper.exceptions import StructureException
-from vyper.semantics.namespace import get_namespace
-from vyper.semantics.types import AddressT, BoolT, BytesM_T, IntegerT
+from vyper.semantics.types import AddressT, BoolT, BytesM_T, DecimalT, IntegerT
 
 
 # Populate built-in interfaces.
@@ -28,25 +27,25 @@ def get_builtin_interfaces():
     }
 
 
+_abi_type_map = {
+    t.abi_type.selector_name(): t
+    for t in (AddressT(), BoolT(), DecimalT()) + IntegerT.all() + BytesM_T.all()
+}
+
+
 # TODO: overlapping functionality with `type_from_abi`
 def abi_type_to_ast(atype, expected_size):
-    try:
-        t = get_namespace()[atype]
-        if isinstance(t, (AddressT, BoolT, BytesM_T, IntegerT)):
-            return vy_ast.Name(id=atype)
-    except KeyError:
-        pass
+    if atype in _abi_type_map:
+        return vy_ast.Name(id=str(_abi_type_map[atype]))
 
-    if atype == "fixed168x10":
-        return vy_ast.Name(id="decimal")
-    elif atype in ("bytes", "string"):
+    if atype in ("bytes", "string"):
         # expected_size is the maximum length for inputs, minimum length for outputs
         return vy_ast.Subscript(
             value=vy_ast.Name(id=atype.capitalize()),
             slice=vy_ast.Index(value=vy_ast.Int(value=expected_size)),
         )
-    else:
-        raise StructureException(f"Type {atype} not supported by vyper.")
+
+    raise StructureException(f"Type {atype} not supported by vyper.")
 
 
 # TODO: overlapping functionality with ContractFunction.from_abi

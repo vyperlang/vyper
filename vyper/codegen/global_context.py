@@ -4,7 +4,7 @@ from typing import Optional
 from vyper import ast as vy_ast
 from vyper.codegen.context import VariableRecord
 from vyper.exceptions import CompilerPanic, InvalidType, StructureException
-from vyper.semantics.namespace import override_global_namespace, get_namespace
+from vyper.semantics.namespace import get_namespace, override_global_namespace
 from vyper.semantics.types import EnumT
 from vyper.semantics.types.utils import type_from_annotation
 from vyper.typing import InterfaceImports
