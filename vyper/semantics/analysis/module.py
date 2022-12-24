@@ -62,7 +62,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
     scope_name = "module"
 
     def __init__(
-        self, module_node: vy_ast.Module, interface_codes: InterfaceDict, namespace: dict
+        self, module_node: vy_ast.Module, interface_codes: InterfaceDict, namespace: Namespace
     ) -> None:
         self.ast = module_node
         self.interface_codes = interface_codes or {}

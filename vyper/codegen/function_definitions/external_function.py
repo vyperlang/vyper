@@ -19,7 +19,7 @@ def _register_function_args(context: Context, sig: FunctionSignature) -> List[IR
     ret = []
 
     # the type of the calldata
-    base_args_t = TupleT([arg.typ for arg in sig.base_args])
+    base_args_t = TupleT(tuple(arg.typ for arg in sig.base_args))
 
     # tuple with the abi_encoded args
     if sig.is_init_func:

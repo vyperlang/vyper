@@ -1,5 +1,3 @@
-from typing import Tuple
-
 from vyper import ast as vy_ast
 from vyper.address_space import CALLDATA, DATA, IMMUTABLES, MEMORY, STORAGE
 from vyper.codegen.ir_node import Encoding, IRnode
@@ -72,7 +70,8 @@ def is_array_like(typ):
 # get the bounds on IR values of this type.
 # note the distinction for decimals: ast_bounds will return a Decimal,
 # int_bounds_for_type will return the fully expanded int range.
-def int_bounds_for_type(typ) -> Tuple[int, int]:
+# int_bounds_for_type(typ: _NumericT) -> Tuple[int, int]
+def int_bounds_for_type(typ):
     return int_bounds(signed=typ.is_signed, bits=typ.bits)
 
 

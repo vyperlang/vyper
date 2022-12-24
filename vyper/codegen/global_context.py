@@ -28,6 +28,8 @@ class GlobalContext:
         self._nonrentrant_counter = 0
         self._nonrentrant_keys = dict()
 
+        self._module = None  # mypy hint
+
     # Parse top-level functions and variables
     @classmethod
     # TODO rename me to `from_module`

@@ -2,7 +2,7 @@
 
 from decimal import Decimal
 from functools import cached_property
-from typing import Any, Tuple, Union
+from typing import Tuple, Union
 
 from vyper import ast as vy_ast
 from vyper.abi_types import ABI_Address, ABI_Bool, ABI_BytesM, ABI_FixedMxN, ABI_GIntM, ABIType
@@ -105,10 +105,12 @@ class NumericT(_PrimT):
     _bits: int
     _invalid_ops: tuple
 
-    # the bounds of the value this type can assume in the AST
-    ast_bounds: Tuple[Any, Any]
     # the type this can assume in the AST
     ast_type: type
+
+    @property
+    def ast_bounds(self):
+        raise NotImplementedError("should be overridden!")
 
     @cached_property
     def bits(self) -> int:

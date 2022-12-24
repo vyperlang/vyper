@@ -233,6 +233,7 @@ ADHOC_SLICE_NODE_MACROS = ["~calldata", "~selfcode", "~extcode"]
 
 def _build_adhoc_slice_node(sub: IRnode, start: IRnode, length: IRnode, context: Context) -> IRnode:
     assert length.is_literal, "typechecker failed"
+    assert isinstance(length.value, int)  # mypy hint
 
     dst_typ = BytesT(length.value)
     # allocate a buffer for the return value
@@ -275,6 +276,7 @@ def _build_adhoc_slice_node(sub: IRnode, start: IRnode, length: IRnode, context:
             ],
         ]
 
+    assert isinstance(length.value, int)  # mypy hint
     return IRnode.from_list(node, typ=BytesT(length.value), location=MEMORY)
 
 
