@@ -10,16 +10,8 @@ from eth_abi import decode_single, encode_single
 
 from vyper.codegen.core import int_bounds_for_type
 from vyper.exceptions import InvalidLiteral, InvalidType, TypeMismatch
-from vyper.semantics.types.bytestrings import BytesT, StringT
-from vyper.semantics.types.primitives import (
-    BYTES32_T,
-    UINT256_T,
-    AddressT,
-    BoolT,
-    BytesM_T,
-    DecimalT,
-    IntegerT,
-)
+from vyper.semantics.types import AddressT, BoolT, BytesM_T, BytesT, DecimalT, IntegerT, StringT
+from vyper.semantics.types.shortcuts import BYTES20_T, BYTES32_T, UINT160_T, UINT256_T
 from vyper.utils import (
     DECIMAL_DIVISOR,
     SizeLimits,
@@ -35,10 +27,6 @@ BASE_TYPES = set(IntegerT.all()) | set(BytesM_T.all()) | {DecimalT(), AddressT()
 TEST_TYPES = BASE_TYPES | {BytesT(32)}
 
 ZERO_ADDRESS = "0x0000000000000000000000000000000000000000"
-
-UINT160_T = IntegerT(False, 160)
-
-BYTES20_T = BytesM_T(20)
 
 # decimal increment, aka smallest decimal > 0
 DECIMAL_EPSILON = Decimal(1) / DECIMAL_DIVISOR

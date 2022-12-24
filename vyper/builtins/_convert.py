@@ -41,7 +41,7 @@ from vyper.semantics.types import (
     StringT,
 )
 from vyper.semantics.types.bytestrings import _BytestringT
-from vyper.semantics.types.shortcuts import INT256_T, UINT256_T
+from vyper.semantics.types.shortcuts import INT256_T, UINT160_T, UINT256_T
 from vyper.utils import DECIMAL_DIVISOR, round_towards_zero, unsigned_to_signed
 
 
@@ -416,7 +416,8 @@ def to_address(expr, arg, out_typ):
         if arg.typ.is_signed:
             _FAIL(arg.typ, out_typ, expr)
 
-    return to_int(expr, arg, out_typ)
+    ret = to_int(expr, arg, UINT160_T)
+    return IRnode.from_list(ret, out_typ)
 
 
 # question: should we allow bytesM -> String?
