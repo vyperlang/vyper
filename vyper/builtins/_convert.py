@@ -280,7 +280,7 @@ def to_bool(expr, arg, out_typ):
     return IRnode.from_list(["iszero", ["iszero", arg]], typ=out_typ)
 
 
-@_input_types(IntegerT, DecimalT, BytesM_T, AddressT, BoolT, EnumT)
+@_input_types(IntegerT, DecimalT, BytesM_T, AddressT, BoolT, EnumT, BytesT)
 def to_int(expr, arg, out_typ):
     assert out_typ.bits % 8 == 0
     _check_bytes(expr, arg, out_typ, 32)
