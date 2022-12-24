@@ -27,10 +27,16 @@ def get_builtin_interfaces():
     }
 
 
+# TODO: overlapping functionality with `type_from_abi`
 def abi_type_to_ast(atype, expected_size):
-    if isinstance(atype, (AddressT, BoolT, BytesM_T, IntegerT)):
-        return vy_ast.Name(id=atype)
-    elif atype == "fixed168x10":
+    try:
+        t = get_namespace()[atype]
+        if isinstance(t, (AddressT, BoolT, BytesM_T, IntegerT)):
+            return vy_ast.Name(id=atype)
+    except KeyError:
+        pass
+
+    if atype == "fixed168x10":
         return vy_ast.Name(id="decimal")
     elif atype in ("bytes", "string"):
         # expected_size is the maximum length for inputs, minimum length for outputs
