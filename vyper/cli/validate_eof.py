@@ -13,9 +13,10 @@ class ValidationException(Exception):
     """Validation exception."""
 
 class FunctionType:
-  def __init__(self, inputs, outputs) -> None:
+  def __init__(self, inputs, outputs, max_stack_height) -> None:
       self.inputs = inputs
       self.outputs = outputs
+      self.max_stack_height = max_stack_height
 
 # The ranges below are as specified in the Yellow Paper.
 # Note: range(s, e) excludes e, hence the +1
@@ -134,16 +135,18 @@ def validate_eof(code: bytes):
         input_count = code[pos]
         output_count = code[pos + 1]
         max_stack_height = (code[pos + 2] << 8) | code[pos + 3]
-        code_section_ios.append((input_count, output_count, max_stack_height))
+        code_section_ios.append(FunctionType(input_count, output_count, max_stack_height))
         pos += 4
 
     # Read CODE sections
-    for section_size in section_sizes[S_CODE]:
+    for i, section_size in enumerate(section_sizes[S_CODE]):
         # Truncated section size
         if (pos + section_size) > len(code):
             raise ValidationException("truncated CODE section size")
         code_sections.append(code[pos:pos + section_size])
         pos += section_size
+
+        validate_code_section(i, code_sections[-1], code_section_ios)
 
     # Read DATA sections
     for section_size in section_sizes[S_DATA]:
@@ -157,11 +160,11 @@ def validate_eof(code: bytes):
         raise ValidationException("Bad file size")
 
     # First code section should have zero inputs and outputs
-    if code_section_ios[0][0] != 0 or code_section_ios[0][1] != 0:
+    if code_section_ios[0].inputs != 0 or code_section_ios[0].outputs != 0:
         raise ValidationException("invalid input/output count for code section 0")
 
 # Raises ValidationException on invalid code
-def validate_code_section(func_id: int, code: bytes, types: list[FunctionType] = [FunctionType(0, 0)]):
+def validate_code_section(func_id: int, code: bytes, types: list[FunctionType] = [FunctionType(0, 0, 0)]):
     # Note that EOF1 already asserts this with the code section requirements
     assert len(code) > 0
 
