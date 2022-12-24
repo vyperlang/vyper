@@ -701,7 +701,7 @@ def _check_assign_list(left, right):
         FAIL()  # pragma: notest
 
     if isinstance(left.typ, SArrayT):
-        if not isinstance(right.typ, SArrayT):
+        if not is_array_like(right.typ):
             FAIL()  # pragma: notest
         if left.typ.count != right.typ.count:
             FAIL()  # pragma: notest
