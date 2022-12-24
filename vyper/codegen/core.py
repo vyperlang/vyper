@@ -183,10 +183,10 @@ def _dynarray_make_setter(dst, src):
 
         # for ABI-encoded dynamic data, we must loop to unpack, since
         # the layout does not match our memory layout
-        should_loop = src.encoding == Encoding.ABI and src.typ.subtype.abi_type.is_dynamic()
+        should_loop = src.encoding == Encoding.ABI and src.typ.value_type.abi_type.is_dynamic()
 
         # if the data is not validated, we must loop to unpack
-        should_loop |= needs_clamp(src.typ.subtype, src.encoding)
+        should_loop |= needs_clamp(src.typ.value_type, src.encoding)
 
         # performance: if the subtype is dynamic, there might be a lot
         # of unused space inside of each element. for instance
@@ -196,7 +196,7 @@ def _dynarray_make_setter(dst, src):
         # TODO we can make this heuristic more precise, e.g.
         # loop when subtype.is_dynamic AND location == storage
         # OR array_size <= /bound where loop is cheaper than memcpy/
-        should_loop |= src.typ.subtype.abi_type.is_dynamic()
+        should_loop |= src.typ.value_type.abi_type.is_dynamic()
 
         with get_dyn_array_count(src).cache_when_complex("darray_count") as (b2, count):
             ret = ["seq"]
@@ -215,7 +215,7 @@ def _dynarray_make_setter(dst, src):
                 ret.append(["repeat", i, 0, count, src.typ.count, loop_body])
 
             else:
-                element_size = src.typ.subtype.memory_bytes_required
+                element_size = src.typ.value_type.memory_bytes_required
                 # number of elements * size of element in bytes
                 n_bytes = _mul(count, element_size)
                 max_bytes = src.typ.count * element_size
@@ -492,12 +492,12 @@ def has_length_word(typ):
 # TODO simplify this code, especially the ABI decoding
 def _get_element_ptr_array(parent, key, array_bounds_check):
 
-    assert is_array_like(parent)
+    assert is_array_like(parent.typ)
 
     if not is_integer_type(key.typ):
         raise TypeCheckFailure(f"{key.typ} used as array index")
 
-    subtype = parent.typ.subtype
+    subtype = parent.typ.value_type
 
     if parent.value == "~empty":
         if array_bounds_check:
@@ -707,7 +707,9 @@ def _check_assign_list(left, right):
             FAIL()  # pragma: notest
 
         # TODO recurse into left, right if literals?
-        check_assign(dummy_node_for_type(left.typ.subtyp), dummy_node_for_type(right.typ.subtyp))
+        check_assign(
+            dummy_node_for_type(left.typ.value_type), dummy_node_for_type(right.typ.value_type)
+        )
 
     if isinstance(left.typ, DArrayT):
         if not isinstance(right.typ, DArrayT):
@@ -723,7 +725,9 @@ def _check_assign_list(left, right):
             )  # pragma: notest
 
         # TODO recurse into left, right if literals?
-        check_assign(dummy_node_for_type(left.typ.subtyp), dummy_node_for_type(right.typ.subtyp))
+        check_assign(
+            dummy_node_for_type(left.typ.value_type), dummy_node_for_type(right.typ.value_type)
+        )
 
 
 def _check_assign_tuple(left, right):
@@ -811,7 +815,7 @@ def needs_clamp(t, encoding):
     if isinstance(t, EnumT):
         return len(t.members) < 256
     if isinstance(t, SArrayT):
-        return needs_clamp(t.subtype, encoding)
+        return needs_clamp(t.value_type, encoding)
     if is_tuple_like(t):
         return any(needs_clamp(m, encoding) for m in t.tuple_members())
     if t._is_prim_word:

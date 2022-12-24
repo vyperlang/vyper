@@ -616,7 +616,7 @@ class Expr:
             raise UnimplementedException(f"~ is not supported for {operand.typ}", self.expr)
 
         if isinstance(self.expr.op, vy_ast.USub) and is_numeric_type(operand.typ):
-            assert operand.typ._num_info.is_signed
+            assert operand.typ.is_signed
             # Clamp on minimum signed integer value as we cannot negate that
             # value (all other integer values are fine)
             min_int_val, _ = int_bounds_for_type(operand.typ)
