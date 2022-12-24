@@ -2,7 +2,7 @@ from decimal import Decimal
 
 import pytest
 
-from vyper.codegen.types import INTEGER_TYPES, parse_integer_typeinfo
+from vyper.semantics.types import IntegerT
 
 
 def test_minmax(get_contract_with_gas_estimation):
@@ -23,13 +23,13 @@ def goo() -> uint256:
     print("Passed min/max test")
 
 
-@pytest.mark.parametrize("return_type", sorted(INTEGER_TYPES))
+@pytest.mark.parametrize("return_type", sorted(IntegerT.all()))
 def test_minmax_var_and_literal(get_contract_with_gas_estimation, return_type):
     """
     Tests to verify that min and max work as expected when a variable/literal
     and a literal are passed for all integer types.
     """
-    lo, hi = parse_integer_typeinfo(return_type).bounds
+    lo, hi = return_type.ast_bounds
 
     code = f"""
 @external

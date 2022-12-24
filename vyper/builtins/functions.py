@@ -2046,8 +2046,8 @@ class _MinMax(BuiltinFunction):
             right,
         ):
 
-            if left.typ.typ == right.typ.typ:
-                if left.typ.typ != "uint256":
+            if left.typ == right.typ:
+                if left.typ != UINT256_T:
                     # if comparing like types that are not uint256, use SLT or SGT
                     op = f"s{op}"
                 o = ["select", [op, left, right], left, right]
