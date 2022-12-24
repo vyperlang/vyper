@@ -14,6 +14,7 @@ from vyper.codegen.core import (
     int_bounds_for_type,
     is_array_like,
     is_bytes_m_type,
+    is_enum_type,
     is_numeric_type,
     is_tuple_like,
     pop_dyn_array,
@@ -356,8 +357,8 @@ class Expr:
         left = Expr.parse_value_expr(self.expr.left, self.context)
         right = Expr.parse_value_expr(self.expr.right, self.context)
 
-        if not is_numeric_type(left.typ) or not is_numeric_type(right.typ):
-            return
+        assert left.typ == right.typ
+        assert is_numeric_type(left.typ) or is_enum_type(left.typ)
 
         ltyp, rtyp = left.typ, right.typ
 
@@ -374,6 +375,9 @@ class Expr:
         if isinstance(self.expr.op, vy_ast.BitXor):
             new_typ = left.typ
             return IRnode.from_list(["xor", left, right], typ=new_typ)
+
+        # enums can only do bit ops, not arithmetic.
+        assert is_numeric_type(left.typ)
 
         out_typ = ltyp
 
