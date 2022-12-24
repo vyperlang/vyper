@@ -2,18 +2,24 @@ import enum
 import itertools
 
 # import random
-from dataclasses import dataclass
 from decimal import Decimal
-from typing import Any
 
 import eth_abi.exceptions
 import pytest
 from eth_abi import decode_single, encode_single
-from vyper.codegen.core import int_bounds_for_type
 
+from vyper.codegen.core import int_bounds_for_type
 from vyper.exceptions import InvalidLiteral, InvalidType, TypeMismatch
 from vyper.semantics.types.bytestrings import BytesT, StringT
-from vyper.semantics.types.primitives import BYTES32_T, UINT256_T, AddressT, BoolT, BytesM_T, DecimalT, IntegerT
+from vyper.semantics.types.primitives import (
+    BYTES32_T,
+    UINT256_T,
+    AddressT,
+    BoolT,
+    BytesM_T,
+    DecimalT,
+    IntegerT,
+)
 from vyper.utils import (
     DECIMAL_DIVISOR,
     SizeLimits,
@@ -57,26 +63,6 @@ def bytes_of_type(typ):
     ret = _bits_of_type(typ)
     assert ret % 8 == 0
     return ret // 8
-
-
-#@dataclass
-#class TestType:
-#    """
-#    Simple class to model Vyper types.
-#    """
-#
-#    type_name: str
-#    type_bytes: int  # number of nonzero bytes this type can take
-#    type_class: str  # e.g. int, bytes, String, decimal
-#    info: Any  # e.g. DecimalInfo
-#
-#    @property
-#    def abi_type(self):
-#        if self.type_name == "decimal":
-#            return "fixed168x10"
-#        if self.type_class in ("Bytes", "String"):
-#            return self.type_class.lower()
-#        return self.type_name
 
 
 class _OutOfBounds(Exception):
@@ -171,6 +157,7 @@ def _cases_for_decimal(typ):
     # ret.extend(random.randrange(int_lo, int_hi) / DIVISOR for _ in range(NUM_RANDOM_CASES))
 
     return ret
+
 
 def _cases_for_address(_typ):
     cases = _filter_cases(_cases_for_int(UINT160_T), UINT160_T)
@@ -299,8 +286,10 @@ def _convert_int_to_decimal(val, o_typ):
 
     return ret
 
+
 def sort_types(types):
     return sorted(types, key=lambda x: x.abi_type.selector_name)
+
 
 def _py_convert(val, i_typ, o_typ):
     """

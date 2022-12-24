@@ -48,7 +48,6 @@ from vyper.semantics.types.bytestrings import _BytestringT
 from vyper.semantics.types.shortcuts import BYTES32_T, UINT256_T
 from vyper.utils import (
     DECIMAL_DIVISOR,
-    SizeLimits,
     bytes_to_int,
     is_checksum_encoded,
     string_to_bytes,

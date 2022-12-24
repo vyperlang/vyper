@@ -5,6 +5,7 @@ from typing import Tuple
 from vyper.codegen.core import (
     clamp,
     clamp_basetype,
+    int_bounds_for_type,
     is_decimal_type,
     is_integer_type,
     is_numeric_type,

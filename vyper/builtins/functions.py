@@ -211,9 +211,7 @@ class Convert(BuiltinFunction):
             # Get the smallest (and unsigned if available) type for non-integer target types
             # (note this is different from the ordering returned by `get_possible_types_from_node`)
             if not isinstance(target_type, IntegerT):
-                value_types = sorted(
-                    value_types, key=lambda v: (v.is_signed, v.bits), reverse=True
-                )
+                value_types = sorted(value_types, key=lambda v: (v.is_signed, v.bits), reverse=True)
             else:
                 # filter out the target type from list of possible types
                 value_types = [i for i in value_types if not target_type.compare_type(i)]

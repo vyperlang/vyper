@@ -33,7 +33,7 @@ from vyper.exceptions import (
 from vyper.semantics.types import AddressT, BoolT, BytesT, StringT
 from vyper.semantics.types.bytestrings import _BytestringT
 from vyper.semantics.types.shortcuts import INT256_T, UINT256_T
-from vyper.utils import DECIMAL_DIVISOR, SizeLimits, round_towards_zero, unsigned_to_signed
+from vyper.utils import DECIMAL_DIVISOR, round_towards_zero, unsigned_to_signed
 
 
 def _FAIL(ityp, otyp, source_expr=None):

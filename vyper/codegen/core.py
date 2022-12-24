@@ -1,4 +1,5 @@
 from typing import Tuple
+
 from vyper import ast as vy_ast
 from vyper.address_space import CALLDATA, DATA, IMMUTABLES, MEMORY, STORAGE
 from vyper.codegen.ir_node import Encoding, IRnode
@@ -27,7 +28,7 @@ from vyper.utils import (
     GAS_IDENTITY,
     GAS_IDENTITYWORD,
     ceil32,
-    int_bounds
+    int_bounds,
 )
 
 DYNAMIC_ARRAY_OVERHEAD = 1

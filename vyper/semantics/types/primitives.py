@@ -2,15 +2,16 @@
 
 from decimal import Decimal
 from functools import cached_property
-from typing import Tuple, Union, Any
+from typing import Any, Tuple, Union
 
 from vyper import ast as vy_ast
 from vyper.abi_types import ABI_Address, ABI_Bool, ABI_BytesM, ABI_FixedMxN, ABI_GIntM, ABIType
 from vyper.exceptions import CompilerPanic, InvalidLiteral, InvalidOperation, OverflowException
-from vyper.utils import SizeLimits, checksum_encode, int_bounds, is_checksum_encoded
+from vyper.utils import checksum_encode, int_bounds, is_checksum_encoded
 
 from .base import VyperType
 from .bytestrings import BytesT
+
 
 class _PrimT(VyperType):
     _is_prim_word = True
