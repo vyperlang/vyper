@@ -307,7 +307,7 @@ def safe_div(x, y):
             else:
                 upper_bound = -(2 ** 255)
 
-            if not x.is_literal and not y.typ.is_literal:
+            if not x.is_literal and not y.is_literal:
                 ok = ["or", ["ne", y, ["not", 0]], ["ne", x, upper_bound]]
             # TODO push these rules into the optimizer
             elif x.is_literal and x.value == -(2 ** 255):

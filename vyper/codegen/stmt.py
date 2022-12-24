@@ -248,7 +248,7 @@ class Stmt:
             rounds = arg0_val
 
         # Type 2 for, e.g. for i in range(100, 110): ...
-        elif self._check_valid_range_constant(self.stmt.iter.args[1]).typ.is_literal:
+        elif self._check_valid_range_constant(self.stmt.iter.args[1]).is_literal:
             arg0_val = self._get_range_const_value(arg0)
             arg1_val = self._get_range_const_value(self.stmt.iter.args[1])
             start = IRnode.from_list(arg0_val, typ=iter_typ)
