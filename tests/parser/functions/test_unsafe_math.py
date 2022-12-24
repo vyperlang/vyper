@@ -4,11 +4,11 @@ import random
 
 import pytest
 
-from vyper.codegen.types.types import INTEGER_TYPES, parse_integer_typeinfo
+from vyper.semantics.types import IntegerT
 from vyper.utils import evm_div, int_bounds, unsigned_to_signed
 
 # TODO something less janky
-integer_types = sorted(list(INTEGER_TYPES))
+integer_types = sorted(list(IntegerT.all()))
 
 
 @pytest.mark.parametrize("typ", integer_types)
