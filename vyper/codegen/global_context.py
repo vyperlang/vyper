@@ -4,7 +4,7 @@ from typing import Optional
 from vyper import ast as vy_ast
 from vyper.codegen.context import VariableRecord
 from vyper.exceptions import CompilerPanic, InvalidType, StructureException
-from vyper.semantics.namespace import override_global_namespace
+from vyper.semantics.namespace import override_global_namespace, get_namespace
 from vyper.semantics.types import EnumT
 from vyper.semantics.types.utils import type_from_annotation
 from vyper.typing import InterfaceImports
@@ -182,7 +182,13 @@ class GlobalContext:
         return set(self._contracts.keys()) | set(self._interfaces.keys())
 
     def parse_type(self, ast_node):
-        with override_global_namespace(self._module._metadata["namespace"]):
+        # kludge implementation for backwards compatibility.
+        # TODO: replace with type_from_ast
+        try:
+            ns = self._module._metadata["namespace"]
+        except AttributeError:
+            ns = get_namespace()
+        with override_global_namespace(ns):
             return type_from_annotation(ast_node)
 
     @property

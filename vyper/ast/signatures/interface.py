@@ -49,6 +49,7 @@ def abi_type_to_ast(atype, expected_size):
         raise StructureException(f"Type {atype} not supported by vyper.")
 
 
+# TODO: overlapping functionality with ContractFunction.from_abi
 # Vyper defines a maximum length for bytes and string types, but Solidity does not.
 # To maximize interoperability, we internally considers these types to have a
 # a length of 1Mb (1024 * 1024 * 1 byte) for inputs, and 1 for outputs.
