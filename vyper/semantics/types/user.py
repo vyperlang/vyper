@@ -255,6 +255,7 @@ class InterfaceT(_UserType):
     _type_members = {"address": AddressT()}
     _is_prim_word = True
     _as_array = True
+    _as_hashmap_key = True
 
     def __init__(self, _id: str, members: dict, events: dict) -> None:
         validate_unique_method_ids(list(members.values()))  # explicit list cast for mypy
