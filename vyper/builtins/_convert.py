@@ -295,8 +295,9 @@ def to_int(expr, arg, out_typ):
             arg = int_clamp(arg, out_typ.bits, signed=out_typ.is_signed)
 
     elif is_bytes_m_type(arg.typ):
+        arg_typ = arg.typ
         arg = _bytes_to_num(arg, out_typ, signed=out_typ.is_signed)
-        if arg.typ.m_bits > out_typ.bits:
+        if arg_typ.m_bits > out_typ.bits:
             arg = int_clamp(arg, out_typ.bits, signed=out_typ.is_signed)
 
     elif is_decimal_type(arg.typ):
@@ -340,8 +341,9 @@ def to_decimal(expr, arg, out_typ):
         return IRnode.from_list(arg, typ=out_typ)
 
     elif is_bytes_m_type(arg.typ):
+        arg_typ = arg.typ
         arg = _bytes_to_num(arg, out_typ, signed=True)
-        if arg.typ.m_bits > 168:
+        if arg_typ.m_bits > 168:
             arg = IRnode.from_list(arg, typ=out_typ)
             arg = clamp_basetype(arg)
 
