@@ -2568,6 +2568,9 @@ class _MinMaxValue(TypenameFoldedFunction):
         self._validate_arg_types(node)
         input_type = type_from_annotation(node.args[0])
 
+        if not isinstance(input_type, (IntegerT, DecimalT)):
+            raise InvalidType(f"Expected numeric type but got {input_type} instead", node)
+
         val = self._eval(input_type)
 
         if isinstance(input_type, DecimalT):
@@ -2575,8 +2578,6 @@ class _MinMaxValue(TypenameFoldedFunction):
 
         if isinstance(input_type, IntegerT):
             return vy_ast.Int.from_node(node, value=val)
-
-        raise InvalidType(f"Expected numeric type but got {input_type} instead", node)
 
 
 class MinValue(_MinMaxValue):
