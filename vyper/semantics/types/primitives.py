@@ -16,12 +16,13 @@ from .bytestrings import BytesT
 class _PrimT(VyperType):
     _is_prim_word = True
     _equality_attrs: tuple = ()
+    _as_hashmap_key = True
+    _as_array = True
 
 
 # should inherit from uint8?
 class BoolT(_PrimT):
     _id = "bool"
-    _as_array = True
     _valid_literal = (vy_ast.NameConstant,)
 
     def validate_boolean_op(self, node: vy_ast.BoolOp) -> None:
@@ -48,7 +49,6 @@ RANGE_1_32 = list(range(1, 33))
 
 # one-word bytesM with m possible bytes set, e.g. bytes1..bytes32
 class BytesM_T(_PrimT):
-    _as_array = True
     _valid_literal = (vy_ast.Hex,)
 
     _equality_attrs = ("m",)
@@ -101,7 +101,6 @@ class BytesM_T(_PrimT):
 
 
 class NumericT(_PrimT):
-    _as_array = True
     _is_signed: bool
     _bits: int
     _invalid_ops: tuple
@@ -295,7 +294,6 @@ class DecimalT(NumericT):
 # maybe this even deserves its own module, address.py
 # should inherit from uint160?
 class AddressT(_PrimT):
-    _as_array = True
     _id = "address"
     _valid_literal = (vy_ast.Hex,)
     _type_members = {

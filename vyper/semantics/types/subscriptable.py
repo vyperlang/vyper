@@ -74,8 +74,12 @@ class HashMapT(_SubscriptableT):
         # if location != DataLocation.STORAGE or is_immutable:
         #    raise StructureException("HashMap can only be declared as a storage variable", node)
 
-        key_type = type_from_annotation(node.slice.value.elements[0])
-        value_type = type_from_annotation(node.slice.value.elements[1])
+        k_ast, v_ast = node.slice.value.elements
+        key_type = type_from_annotation(k_ast)
+        if not key_type._as_hashmap_key:
+            raise InvalidType("can only use primitive types as HashMap key!", k_ast)
+
+        value_type = type_from_annotation(v_ast)
 
         return cls(key_type, value_type)
 
