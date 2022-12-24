@@ -1047,7 +1047,7 @@ class AsWeiValue(BuiltinFunction):
         value = args[0]
 
         denom_divisor = self.get_denomination(expr)
-        if value.typ.typ == "uint256" or value.typ.typ == "uint8":
+        if value.typ in (UINT256_T, UINT8_T):
             sub = [
                 "with",
                 "ans",
@@ -1061,18 +1061,18 @@ class AsWeiValue(BuiltinFunction):
                     "ans",
                 ],
             ]
-        elif value.typ.typ == "int128":
+        elif value.typ == INT128_T:
             # signed types do not require bounds checks because the
             # largest possible converted value will not overflow 2**256
             sub = ["seq", ["assert", ["sgt", value, -1]], ["mul", value, denom_divisor]]
-        elif value.typ.typ == "decimal":
+        elif value.typ == DecimalT():
             sub = [
                 "seq",
                 ["assert", ["sgt", value, -1]],
                 ["div", ["mul", value, denom_divisor], DECIMAL_DIVISOR],
             ]
         else:
-            raise CompilerPanic(f"Unexpected type: {value.typ.typ}")
+            raise CompilerPanic(f"Unexpected type: {value.typ}")
 
         return IRnode.from_list(sub, typ=UINT256_T)
 
