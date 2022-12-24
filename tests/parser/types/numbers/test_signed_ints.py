@@ -4,24 +4,23 @@ import random
 
 import pytest
 
-from vyper.codegen.types.types import SIGNED_INTEGER_TYPES, parse_integer_typeinfo
+from vyper.codegen.core import int_bounds_for_type
 from vyper.exceptions import InvalidType, OverflowException, ZeroDivisionException
-from vyper.utils import SizeLimits, evm_div, evm_mod, int_bounds
+from vyper.semantics.types import IntegerT
+from vyper.utils import SizeLimits, evm_div, evm_mod
 
-PARAMS = []
-for t in sorted(SIGNED_INTEGER_TYPES):
-    info = parse_integer_typeinfo(t)
-    lo, hi = int_bounds(bits=info.bits, signed=info.is_signed)
-    PARAMS.append((t, lo, hi, info.bits))
+types = sorted(IntegerT.signeds())
 
 
-@pytest.mark.parametrize("typ,lo,hi,bits", PARAMS)
-def test_exponent_base_zero(get_contract, assert_tx_failed, typ, lo, hi, bits):
+@pytest.mark.parametrize("typ", types)
+def test_exponent_base_zero(get_contract, assert_tx_failed, typ):
     code = f"""
 @external
 def foo(x: {typ}) -> {typ}:
     return 0 ** x
     """
+    lo, hi = int_bounds_for_type(typ)
+
     c = get_contract(code)
     assert c.foo(0) == 1
     assert c.foo(1) == 0
@@ -31,13 +30,15 @@ def foo(x: {typ}) -> {typ}:
     assert_tx_failed(lambda: c.foo(lo))  # note: lo < 0
 
 
-@pytest.mark.parametrize("typ,lo,hi,bits", PARAMS)
-def test_exponent_base_one(get_contract, assert_tx_failed, typ, lo, hi, bits):
+@pytest.mark.parametrize("typ", types)
+def test_exponent_base_one(get_contract, assert_tx_failed, typ):
     code = f"""
 @external
 def foo(x: {typ}) -> {typ}:
     return 1 ** x
     """
+    lo, hi = int_bounds_for_type(typ)
+
     c = get_contract(code)
     assert c.foo(0) == 1
     assert c.foo(1) == 1
@@ -102,25 +103,27 @@ def foo() -> int256:
     assert c.foo() == base ** power
 
 
-@pytest.mark.parametrize("typ,lo,hi,bits", PARAMS)
-def test_exponent(get_contract, assert_tx_failed, typ, lo, hi, bits):
+@pytest.mark.parametrize("typ", types)
+def test_exponent(get_contract, assert_tx_failed, typ):
     code = f"""
 @external
 def foo(x: {typ}) -> {typ}:
     return 4 ** x
     """
+    lo, hi = int_bounds_for_type(typ)
+
     c = get_contract(code)
 
     test_cases = [0, 1, 3, 4, 126, 127, -1, lo, hi]
     for x in test_cases:
-        if x * 2 >= bits or x < 0:  # out of bounds
+        if x * 2 >= typ.bits or x < 0:  # out of bounds
             assert_tx_failed(lambda: c.foo(x))
         else:
             assert c.foo(x) == 4 ** x
 
 
-@pytest.mark.parametrize("typ,lo,hi,bits", PARAMS)
-def test_negative_nums(get_contract_with_gas_estimation, typ, lo, hi, bits):
+@pytest.mark.parametrize("typ", types)
+def test_negative_nums(get_contract_with_gas_estimation, typ):
     negative_nums_code = f"""
 @external
 def negative_one() -> {typ}:
@@ -142,8 +145,10 @@ def negative_four() -> {typ}:
     assert c.negative_four() == -4
 
 
-@pytest.mark.parametrize("typ,lo,hi,bits", PARAMS)
-def test_num_bound(assert_tx_failed, get_contract_with_gas_estimation, typ, lo, hi, bits):
+@pytest.mark.parametrize("typ", types)
+def test_num_bound(assert_tx_failed, get_contract_with_gas_estimation, typ):
+    lo, hi = int_bounds_for_type(typ)
+
     num_bound_code = f"""
 @external
 def _num(x: {typ}) -> {typ}:
@@ -189,15 +194,15 @@ def _num_min() -> {typ}:
     assert c._num_add3(lo, 1, -1) == lo + 1 - 1
 
 
-@pytest.mark.parametrize("typ,lo,hi,bits", PARAMS)
-def test_overflow_out_of_range(get_contract, assert_compile_failed, typ, lo, hi, bits):
+@pytest.mark.parametrize("typ", types)
+def test_overflow_out_of_range(get_contract, assert_compile_failed, typ):
     code = f"""
 @external
 def num_sub() -> {typ}:
-    return 1-2**{bits}
+    return 1-2**{typ.bits}
     """
 
-    if bits == 256:
+    if typ.bits == 256:
         assert_compile_failed(lambda: get_contract(code), OverflowException)
     else:
         assert_compile_failed(lambda: get_contract(code), InvalidType)
@@ -213,11 +218,9 @@ ARITHMETIC_OPS = {
 
 
 @pytest.mark.parametrize("op", sorted(ARITHMETIC_OPS.keys()))
-@pytest.mark.parametrize("typ,lo,hi,bits", PARAMS)
+@pytest.mark.parametrize("typ", types)
 @pytest.mark.fuzzing
-def test_arithmetic_thorough(
-    get_contract, assert_tx_failed, assert_compile_failed, op, typ, lo, hi, bits
-):
+def test_arithmetic_thorough(get_contract, assert_tx_failed, assert_compile_failed, op, typ):
     # both variables
     code_1 = f"""
 @external
@@ -242,6 +245,7 @@ def foo(y: {typ}) -> {typ}:
 def foo() -> {typ}:
     return {x} {op} {y}
     """
+    lo, hi = int_bounds_for_type(typ)
 
     fns = {"+": operator.add, "-": operator.sub, "*": operator.mul, "/": evm_div, "%": evm_mod}
     fn = fns[op]
@@ -323,17 +327,18 @@ COMPARISON_OPS = {
 
 
 @pytest.mark.parametrize("op", sorted(COMPARISON_OPS.keys()))
-@pytest.mark.parametrize("typ,lo,hi,bits", PARAMS)
+@pytest.mark.parametrize("typ", types)
 @pytest.mark.fuzzing
-def test_comparators(get_contract, op, typ, lo, hi, bits):
+def test_comparators(get_contract, op, typ):
     code_1 = f"""
 @external
 def foo(x: {typ}, y: {typ}) -> bool:
     return x {op} y
     """
 
-    fn = COMPARISON_OPS[op]
+    lo, hi = int_bounds_for_type(typ)
 
+    fn = COMPARISON_OPS[op]
     c = get_contract(code_1)
 
     # note: constant folding is tested in tests/ast/folding
@@ -365,13 +370,15 @@ def foo(x: {typ}, y: {typ}) -> bool:
         assert c.foo(x, y) is expected
 
 
-@pytest.mark.parametrize("typ,lo,hi,bits", PARAMS)
-def test_negation(get_contract, assert_tx_failed, typ, lo, hi, bits):
+@pytest.mark.parametrize("typ", types)
+def test_negation(get_contract, assert_tx_failed, typ):
     code = f"""
 @external
 def foo(a: {typ}) -> {typ}:
     return -a
     """
+
+    lo, hi = int_bounds_for_type(typ)
 
     c = get_contract(code)
 

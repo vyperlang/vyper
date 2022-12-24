@@ -275,10 +275,6 @@ def _convert_int_to_decimal(val, o_typ):
     return ret
 
 
-def sort_types(types):
-    return sorted(types, key=lambda x: x.abi_type.selector_name)
-
-
 def _py_convert(val, i_typ, o_typ):
     """
     Perform conversion on the Python representation of a Vyper value.
