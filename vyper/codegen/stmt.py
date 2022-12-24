@@ -131,7 +131,9 @@ class Stmt:
                 assert len(args) == 1
                 arg = args[0]
                 assert isinstance(darray.typ, DArrayT)
-                check_assign(dummy_node_for_type(darray.typ.subtype), dummy_node_for_type(arg.typ))
+                check_assign(
+                    dummy_node_for_type(darray.typ.value_type), dummy_node_for_type(arg.typ)
+                )
 
                 return append_dyn_array(darray, arg)
             else:
@@ -283,9 +285,9 @@ class Stmt:
             iter_list = Expr(self.stmt.iter, self.context).ir_node
 
         # override with type inferred at typechecking time
-        # TODO investigate why stmt.target.type != stmt.iter.type.subtype
+        # TODO investigate why stmt.target.type != stmt.iter.type.value_type
         target_type = self.stmt.target._metadata["type"]
-        iter_list.typ.subtype = target_type
+        iter_list.typ.value_type = target_type
 
         # user-supplied name for loop variable
         varname = self.stmt.target.id

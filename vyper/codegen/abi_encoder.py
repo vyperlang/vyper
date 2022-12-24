@@ -81,7 +81,7 @@ def _encode_dyn_array_helper(dst, ir_node, context):
             ["set", "dyn_ofst", abi_encode(dst, buf, context, _bufsz, returns_len=True)],
         ]
 
-    subtyp = ir_node.typ.subtype
+    subtyp = ir_node.typ.value_type
     child_abi_t = subtyp.abi_type
 
     ret = ["seq"]
