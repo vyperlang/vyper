@@ -876,7 +876,7 @@ class Extract32(BuiltinFunction):
     # "TYPE_DEFINITION" is a placeholder value for a type definition string, and
     # will be replaced by a `TYPE_T` object in `infer_kwarg_types`
     # (note that it is ignored in _validate_arg_types)
-    _kwargs = {"output_type": KwargSettings("TYPE_DEFINITION", "bytes32")}
+    _kwargs = {"output_type": KwargSettings("TYPE_DEFINITION", BYTES32_T)}
     _return_type = None
 
     def fetch_call_return(self, node):
