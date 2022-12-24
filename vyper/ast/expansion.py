@@ -108,5 +108,5 @@ def remove_unused_statements(vyper_module: vy_ast.Module) -> None:
         vyper_module.remove_from_body(node)
 
     # `implements: interface` statements - validated during type checking
-    for node in vyper_module.get_children(vy_ast.AnnAssign, {"target.id": "implements"}):
+    for node in vyper_module.get_children(vy_ast.ImplementsDecl):
         vyper_module.remove_from_body(node)

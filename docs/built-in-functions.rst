@@ -699,8 +699,7 @@ Math
         10
 
 .. py:function:: uint256_addmod(a: uint256, b: uint256, c: uint256) -> uint256
-
-    Return the modulo of ``(a + b) % c``. Reverts if ``c == 0``.
+    Return the modulo of ``(a + b) % c``. Reverts if ``c == 0``. As this built-in function is intended to provides access to the underlying ``ADDMOD`` opcode, all intermediate calculations of this operation are not subject to the ``2 ** 256`` modulo according to the EVM specifications.
 
     .. code-block:: python
 
@@ -718,7 +717,7 @@ Math
 
 .. py:function:: uint256_mulmod(a: uint256, b: uint256, c: uint256) -> uint256
 
-    Return the modulo from ``(a * b) % c``. Reverts if ``c == 0``.
+    Return the modulo from ``(a * b) % c``. Reverts if ``c == 0``. As this built-in function is intended to provides access to the underlying ``MULMOD`` opcode, all intermediate calculations of this operation are not subject to the ``2 ** 256`` modulo according to the EVM specifications.
 
     .. code-block:: python
 

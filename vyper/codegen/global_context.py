@@ -1,3 +1,4 @@
+from functools import cached_property
 from typing import Optional
 
 from vyper import ast as vy_ast
@@ -7,7 +8,6 @@ from vyper.semantics.namespace import override_global_namespace
 from vyper.semantics.types import EnumT
 from vyper.semantics.types.utils import type_from_annotation
 from vyper.typing import InterfaceImports
-from vyper.utils import cached_property
 
 
 # Datatype to store all global context information.

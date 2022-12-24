@@ -290,7 +290,7 @@ class InterfaceT(_UserType):
         return {}
 
     # TODO x.validate_implements(other)
-    def validate_implements(self, node: vy_ast.AnnAssign) -> None:
+    def validate_implements(self, node: vy_ast.ImplementsDecl) -> None:
         namespace = get_namespace()
         unimplemented = []
 

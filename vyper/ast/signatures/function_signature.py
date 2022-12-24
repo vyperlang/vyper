@@ -1,10 +1,11 @@
 from dataclasses import dataclass
+from functools import cached_property
 from typing import Dict, Optional, Tuple
 
 from vyper import ast as vy_ast
 from vyper.exceptions import CompilerPanic, StructureException
 from vyper.semantics.types import VyperType
-from vyper.utils import MemoryPositions, cached_property, mkalphanum
+from vyper.utils import MemoryPositions, mkalphanum
 
 # dict from function names to signatures
 FunctionSignatures = Dict[str, "FunctionSignature"]

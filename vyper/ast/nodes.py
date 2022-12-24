@@ -14,6 +14,7 @@ from vyper.exceptions import (
     OverflowException,
     SyntaxException,
     TypeMismatch,
+    UnexpectedNodeType,
     UnfoldableNode,
     ZeroDivisionException,
 )
@@ -64,14 +65,16 @@ def get_node(
             ast_struct = copy.copy(ast_struct)
             del ast_struct["parent"]
 
-    # Replace state and local variable declarations `AnnAssign` with `VariableDecl`
-    # Parent node is required for context to determine whether replacement should happen.
-    if (
-        ast_struct["ast_type"] == "AnnAssign"
-        and isinstance(parent, Module)
-        and not getattr(ast_struct["target"], "id", None) in ("implements",)
-    ):
-        ast_struct["ast_type"] = "VariableDecl"
+    if ast_struct["ast_type"] == "AnnAssign" and isinstance(parent, Module):
+        # Replace `implements` interface declarations `AnnAssign` with `ImplementsDecl`
+        if getattr(ast_struct["target"], "id", None) == "implements":
+            if ast_struct["value"] is not None:
+                _raise_syntax_exc("`implements` cannot have a value assigned", ast_struct)
+            ast_struct["ast_type"] = "ImplementsDecl"
+        # Replace state and local variable declarations `AnnAssign` with `VariableDecl`
+        # Parent node is required for context to determine whether replacement should happen.
+        else:
+            ast_struct["ast_type"] = "VariableDecl"
 
     vy_class = getattr(sys.modules[__name__], ast_struct["ast_type"], None)
     if not vy_class:
@@ -1375,6 +1378,29 @@ class Import(_Import):
 
 class ImportFrom(_Import):
     __slots__ = ("level", "module")
+
+
+class ImplementsDecl(Stmt):
+    """
+    An `implements` declaration.
+
+    Excludes `simple` and `value` attributes from Python `AnnAssign` node.
+
+    Attributes
+    ----------
+    target : Name
+        Name node for the `implements` keyword
+    annotation : Name
+        Name node for the interface to be implemented
+    """
+
+    __slots__ = ("target", "annotation")
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        if not isinstance(self.annotation, Name):
+            raise UnexpectedNodeType("not an identifier", self.annotation)
 
 
 class If(Stmt):
