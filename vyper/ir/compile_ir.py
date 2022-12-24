@@ -544,11 +544,6 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         end_symbol = mksymbol("reachable")
         o.extend([end_symbol, "JUMPI", "INVALID", end_symbol, "JUMPDEST"])
         return o
-    elif code.value == "raise_unreachable":
-        o = _compile_to_assembly(code.args[0], withargs, existing_labels, break_dest, height)
-        end_symbol = mksymbol("reachable")
-        o.extend([end_symbol, "JUMPI", "INVALID", end_symbol, "JUMPDEST"])
-        return o
     # Assert (if false, exit)
     elif code.value == "assert":
         o = _compile_to_assembly(code.args[0], withargs, existing_labels, break_dest, height)

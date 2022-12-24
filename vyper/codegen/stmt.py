@@ -220,17 +220,10 @@ class Stmt:
 
     def parse_Raise(self):
         if self.stmt.exc:
-            if isinstance(self.stmt.exc, vy_ast.Str):
+            if isinstance(self.stmt.exc, vy_ast.Name) and self.stmt.exc.id == "UNREACHABLE":
+                return IRnode.from_list(["invalid"], error_msg="raise unreachable")
+            else:
                 return self._assert_reason(None, self.stmt.exc)
-            elif isinstance(self.stmt.exc, vy_ast.Name) and self.stmt.exc.id == "UNREACHABLE":
-                # EMC 12.23.22 added this raise_unreachable node.
-                # It returns near identical ASM as the previous implementation,
-                # (which is also the og impl, and the impl of assert False, UNREACHABLE)
-                # which calls IRnode.from_list(["assert_unreachable", 0])
-                # But adds a POP after the opcode after INVALID,
-                # i.e. INVALID  _sym_reachable5 JUMPDEST POP
-                # Needs investigation as to why
-                return IRnode.from_list(["raise_unreachable", 0], error_msg="raise unreachable")
         else:
             return IRnode.from_list(["revert", 0, 0], error_msg="user raise")
 

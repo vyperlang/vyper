@@ -283,12 +283,6 @@ Equivalent to `(if (iszero (condition)) (revert 0 0))`.
 
 Equivalent to `(if (iszero (condition)) (invalid))`
 
-### RAISE\_UNREACHABLE
-
-`(raise_unreachable)`
-
-Equivalent to `((invalid))` ##EMC 12.23.2022: I wrote this but I don't think it's correct
-
 ### GE/LE/SGE/SLE
 
 Compare or equal
