@@ -125,6 +125,10 @@ def validate_eof(code: bytes):
     # if len(code) != (pos + sum(section_sizes[S_TYPE]) + sum(section_sizes[S_CODE]) + sum(section_sizes[S_DATA])):
     #     raise ValidationException("container size not equal to sum of section sizes")
 
+    # Truncated section size
+    if (pos + len(section_sizes[S_CODE]) * 4) > len(code):
+        raise ValidationException("truncated TYPE section size")
+
     # Read TYPE section
     for i in range(len(section_sizes[S_CODE])):
         input_count = code[pos]
@@ -135,13 +139,22 @@ def validate_eof(code: bytes):
 
     # Read CODE sections
     for section_size in section_sizes[S_CODE]:
+        # Truncated section size
+        if (pos + section_size) > len(code):
+            raise ValidationException("truncated CODE section size")
         code_sections.append(code[pos:pos + section_size])
         pos += section_size
 
     # Read DATA sections
     for section_size in section_sizes[S_DATA]:
+        # Truncated section size
+        if (pos + section_size) > len(code):
+            raise ValidationException("truncated DATA section size")
         data_sections.append(code[pos:pos + section_size])
         pos += section_size
+
+    if (pos) != len(code):
+        raise ValidationException("Bad file size")
 
     # First code section should have zero inputs and outputs
     if code_section_ios[0][0] != 0 or code_section_ios[0][1] != 0:
