@@ -1,4 +1,4 @@
-def test_assure_refund(w3, get_contract):
+def test_unreachable_refund(w3, get_contract):
     code = """
 @external
 def foo():
