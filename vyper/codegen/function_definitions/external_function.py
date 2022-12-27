@@ -123,7 +123,26 @@ def _generate_kwarg_handlers(context: Context, sig: FunctionSignature) -> List[A
 
         ret.append(["goto", sig.external_function_base_entry_label])
 
-        ret = ["if", ["eq", "_calldata_method_id", method_id], ret]
+        # if there is a function whose selector is 0, it won't be distinguished
+        # from the case where nil calldata is supplied, b/c calldataload loads
+        # 0s past the end of physical calldata (cf. yellow paper).
+        # since supplying 0 calldata is expected to trigger the fallback fn,
+        # we check that calldatasize > 0, which distinguishes the 0 selector
+        # from the fallback function "selector"
+        # (equiv. to "all selectors not in the selector table").
+
+        # note: fns with trailing 0s in the selector are not checked here
+        # b/c not providing the trailing 0s in calldata is considered invalid
+        # for specifying the method id, and the contract should revert
+
+        if method_id.value == 0:
+            ret = [
+                "if",
+                ["and", ["eq", "_calldata_method_id", method_id], ["gt", "calldatasize", 0]],
+                ret,
+            ]
+        else:
+            ret = ["if", ["eq", "_calldata_method_id", method_id], ret]
         return ret
 
     ret = ["seq"]
