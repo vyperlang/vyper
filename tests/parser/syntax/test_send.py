@@ -58,6 +58,44 @@ def foo():
     """,
         TypeMismatch,
     ),
+    # Tests for sending gas stipend
+    (
+        """
+@external
+def foo():
+    send(0x1234567890123456789012345678901234567890, 5, gas=1.5)
+    """,
+        InvalidType,
+    ),
+    (
+        """
+@external
+def foo():
+    send(0x1234567890123456789012345678901234567890, 5, gas=-2)
+    """,
+        InvalidType,
+    ),
+    (
+        """
+x: int128
+
+@external
+def foo():
+    send(0x1234567890123456789012345678901234567890, 5, gas=self.x)
+    """,
+        TypeMismatch,
+    ),
+    (
+        """
+x: decimal
+
+@external
+def foo():
+    send(0x1234567890123456789012345678901234567890, 5, gas=self.x)
+    """,
+        TypeMismatch,
+    ),
+    # End tests for sending gas stipend
 ]
 
 
@@ -108,6 +146,20 @@ def send(a: address, w: uint256):
 @payable
 def foo():
     self.send(msg.sender, msg.value)
+    """,
+    """
+#Test send gas stipend
+@external
+def foo():
+    send(0xde0B295669a9FD93d5F28D9Ec85E40f4cb697BAe, 5, gas=5000)
+    """,
+    """
+x: uint256
+
+#Test send gas stipend
+@external
+def foo():
+    send(0xde0B295669a9FD93d5F28D9Ec85E40f4cb697BAe, 5, gas=self.x)
     """,
 ]
 

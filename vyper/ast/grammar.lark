@@ -101,6 +101,8 @@ _INTERFACE_DECL: "interface"
 mutability: NAME
 interface_function: function_sig ":" mutability
 interface_def: _INTERFACE_DECL NAME ":" _NEWLINE _INDENT ( interface_function _NEWLINE)+ _DEDENT
+_IMPLEMENTS_DECL: "implements"
+implements_def: _IMPLEMENTS_DECL ":" NAME
 
 
 // Statements

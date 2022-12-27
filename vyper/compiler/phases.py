@@ -1,5 +1,6 @@
 import copy
 import warnings
+from functools import cached_property
 from typing import Optional, Tuple
 
 from vyper import ast as vy_ast
@@ -10,7 +11,6 @@ from vyper.codegen.ir_node import IRnode
 from vyper.ir import compile_ir, optimizer
 from vyper.semantics import set_data_positions, validate_semantics
 from vyper.typing import InterfaceImports, StorageLayout
-from vyper.utils import cached_property
 
 
 class CompilerData:

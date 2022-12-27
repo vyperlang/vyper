@@ -1,3 +1,4 @@
+from functools import cached_property
 from typing import Any, Dict, Optional, Tuple, Union
 
 from vyper import ast as vy_ast
@@ -76,6 +77,10 @@ class VyperType:
         return (
             type(self) == type(other) and self._get_equality_attrs() == other._get_equality_attrs()
         )
+
+    @cached_property
+    def _as_darray(self):
+        return self._as_array
 
     @property
     def getter_signature(self):

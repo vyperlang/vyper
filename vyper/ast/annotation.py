@@ -230,11 +230,6 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         """
         self.generic_visit(node)
 
-        # TODO once grammar is updated, remove this
-        # UAdd has no effect on the value of it's operand, so it is discarded
-        if isinstance(node.op, python_ast.UAdd):
-            return node.operand
-
         is_sub = isinstance(node.op, python_ast.USub)
         is_num = (
             hasattr(node.operand, "n")
