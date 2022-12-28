@@ -6,7 +6,7 @@ import pytest
 
 from vyper.exceptions import InvalidType, OverflowException, ZeroDivisionException
 from vyper.semantics.types import IntegerT
-from vyper.utils import SizeLimits, evm_div, evm_mod
+from vyper.utils import evm_div, evm_mod
 
 types = sorted(IntegerT.signeds())
 
@@ -287,7 +287,7 @@ def foo() -> {typ}:
 
     for (x, y) in itertools.product(xs, ys):
         expected = fn(x, y)
-        in_bounds = SizeLimits.in_bounds(typ, expected)
+        in_bounds = lo <= expected <= hi
 
         # safediv and safemod disallow divisor == 0
         div_by_zero = y == 0 and op in ("/", "%")

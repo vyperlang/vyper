@@ -22,7 +22,6 @@ from vyper.semantics.types import (
 from vyper.semantics.types.shortcuts import BYTES20_T, BYTES32_T, UINT160_T, UINT256_T
 from vyper.utils import (
     DECIMAL_DIVISOR,
-    SizeLimits,
     checksum_encode,
     int_bounds,
     is_checksum_encoded,
@@ -262,9 +261,16 @@ def _signextend(val_bytes, bits):
     return (as_sint % 2 ** 256).to_bytes(32, byteorder="big")
 
 
+def _convert_int_to_int(val, o_typ):
+    lo, hi = o_typ.int_bounds
+    if not lo <= val <= hi:
+        return None
+    return val
+
+
 def _convert_decimal_to_int(val, o_typ):
     # note special behavior for decimal: catch OOB before truncation.
-    (lo, hi) = o_typ.int_bounds
+    lo, hi = o_typ.int_bounds
     if not lo <= val <= hi:
         return None
 
@@ -274,6 +280,7 @@ def _convert_decimal_to_int(val, o_typ):
 def _convert_int_to_decimal(val, o_typ):
     ret = Decimal(val)
     lo, hi = o_typ.ast_bounds
+
     if not lo <= ret <= hi:
         return None
 
@@ -287,9 +294,7 @@ def _py_convert(val, i_typ, o_typ):
     """
 
     if isinstance(i_typ, IntegerT) and isinstance(o_typ, IntegerT):
-        if not SizeLimits.in_bounds(o_typ, val):
-            return None
-        return val
+        return _convert_int_to_int(val, o_typ)
 
     if isinstance(i_typ, DecimalT) and isinstance(o_typ, IntegerT):
         return _convert_decimal_to_int(val, o_typ)

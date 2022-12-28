@@ -256,15 +256,6 @@ class SizeLimits:
     MAX_UINT8 = 2 ** 8 - 1
     MAX_UINT256 = 2 ** 256 - 1
 
-    @classmethod
-    def in_bounds(cls, typ, val):
-        assert isinstance(val, typ.ast_type)
-
-        assert typ.ast_bounds is not None
-        (lo, hi) = typ.ast_bounds
-
-        return lo <= val <= hi
-
 
 # Otherwise reserved words that are whitelisted for function declarations
 FUNCTION_WHITELIST = {"send"}
