@@ -153,7 +153,7 @@ def _int_to_fixed(arg, out_typ):
 # clamp for dealing with conversions between int types (from arg to dst)
 def _int_to_int(arg, out_typ):
     # do the same thing as
-    # _clamp_numeric_convert(arg, arg.typ.ast_bounds, out_typ.ast_bounds, arg.typ.is_signed)
+    # _clamp_numeric_convert(arg, arg.typ.int_bounds, out_typ.int_bounds, arg.typ.is_signed)
     # but with better code size and gas.
     if arg.typ.is_signed and not out_typ.is_signed:
 
