@@ -112,6 +112,9 @@ def calc_mem_ofst_size(ctor_mem_size):
 # by better liveness analysis.
 # NOTE: modifies input in-place
 def _rewrite_return_sequences(ir_node, label_params=None):
+    if EOFv1_ENABLED:
+        return
+
     args = ir_node.args
 
     if ir_node.value == "return":
@@ -669,7 +672,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
     # jump to a symbol, and push variable # of arguments onto stack
     elif code.value == "goto":
         o = []
-        args = code.args[2:] if EOFv1_ENABLED and is_symbol(code.args[1].value) else code.args[1:]
+        args = code.args[2:] if EOFv1_ENABLED and len(code.args) >= 2 and is_symbol(code.args[1].value) else code.args[1:]
 
         for i, c in enumerate(reversed(args)):
             o.extend(_compile_to_assembly(c, withargs, existing_labels, break_dest, height + i))
@@ -737,7 +740,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         if code.args[0].value == "return_pc":
             return ["RETF"]
         else:
-            return [str(code.args[0]), "JUMPF"] # Jump to cleanup function
+            return [str(code.args[0]), JUMP()] # Jump to cleanup function
 
     # inject debug opcode.
     elif code.value == "debugger":
