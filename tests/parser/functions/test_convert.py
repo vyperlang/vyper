@@ -68,9 +68,6 @@ def can_convert(i_typ, o_typ):
     if i_typ == o_typ:
         return False
 
-    # i_detail = _parse_type(i_typ)
-    # o_detail = _parse_type(o_typ)
-
     if isinstance(o_typ, BoolT):
         return True
     if isinstance(i_typ, BoolT):
@@ -85,26 +82,26 @@ def can_convert(i_typ, o_typ):
             ret |= isinstance(o_typ, AddressT)
         return ret
 
-    elif isinstance(i_typ, BytesM_T):
+    if isinstance(i_typ, BytesM_T):
         if isinstance(o_typ, BytesT):
             # bytesN must be of equal or smaller size to the input
             return bytes_of_type(i_typ) <= bytes_of_type(o_typ)
 
         return isinstance(o_typ, (DecimalT, BytesM_T, IntegerT, AddressT))
 
-    elif isinstance(i_typ, BytesT):
+    if isinstance(i_typ, BytesT):
         return isinstance(o_typ, (IntegerT, DecimalT, AddressT))
 
-    elif isinstance(i_typ, DecimalT):
+    if isinstance(i_typ, DecimalT):
         if isinstance(o_typ, BytesM_T):
             return bytes_of_type(i_typ) <= bytes_of_type(o_typ)
 
         return isinstance(o_typ, (IntegerT, BoolT))
 
-    elif isinstance(i_typ, AddressT):
+    if isinstance(i_typ, AddressT):
         if isinstance(o_typ, BytesM_T):
             return bytes_of_type(i_typ) <= bytes_of_type(o_typ)
-        elif isinstance(o_typ, IntegerT):
+        if isinstance(o_typ, IntegerT):
             return not o_typ.is_signed
         return False
 
