@@ -669,8 +669,11 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
     # jump to a symbol, and push variable # of arguments onto stack
     elif code.value == "goto":
         o = []
-        for i, c in enumerate(reversed(code.args[1:])):
+        args = code.args[2:] if EOFv1_ENABLED and is_symbol(code.args[1].value) else code.args[1:]
+
+        for i, c in enumerate(reversed(args)):
             o.extend(_compile_to_assembly(c, withargs, existing_labels, break_dest, height + i))
+
         if EOFv1_ENABLED:
             o.extend(["_sym_" + str(code.args[0]), "CALLF"])
         else:
