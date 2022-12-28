@@ -160,11 +160,12 @@ class Stmt:
 
     def _assert_reason(self, test_expr, msg):
         if isinstance(msg, vy_ast.Name) and msg.id == "UNREACHABLE":
-            return IRnode.from_list(
-                ["assert_unreachable", test_expr], error_msg="assert unreachable"
-            )
-        elif isinstance(msg, vy_ast.Name) and msg.id == "raise UNREACHABLE":
-            return IRnode.from_list(["invalid"], error_msg="raise unreachable")
+            if test_expr is not None:
+                return IRnode.from_list(
+                    ["assert_unreachable", test_expr], error_msg="assert unreachable"
+                )
+            else:
+                return IRnode.from_list(["invalid"], error_msg="raise unreachable")
 
         # set constant so that revert reason str is well behaved
         try:
@@ -222,8 +223,6 @@ class Stmt:
 
     def parse_Raise(self):
         if self.stmt.exc:
-            if isinstance(self.stmt.exc, vy_ast.Name) and self.stmt.exc.id == "UNREACHABLE":
-                self.stmt.exc.id = "raise UNREACHABLE"
             return self._assert_reason(None, self.stmt.exc)
         else:
             return IRnode.from_list(["revert", 0, 0], error_msg="user raise")
