@@ -5,7 +5,7 @@ import random
 import pytest
 
 from vyper.semantics.types import IntegerT
-from vyper.utils import evm_div, int_bounds, unsigned_to_signed
+from vyper.utils import evm_div, unsigned_to_signed
 
 # TODO something less janky
 integer_types = sorted(list(IntegerT.all()))
@@ -32,7 +32,7 @@ def foo(x: {typ}) -> {typ}:
 
     c1 = get_contract(contract_1)
 
-    lo, hi = int_bounds(typ.is_signed, typ.bits)
+    lo, hi = typ.ast_bounds
     # (roughly 8k cases total generated)
     # TODO refactor to use fixtures
     NUM_CASES = 15
