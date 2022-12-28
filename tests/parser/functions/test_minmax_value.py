@@ -3,7 +3,6 @@ import pytest
 from vyper.exceptions import InvalidType, OverflowException
 from vyper.semantics.types import DecimalT, IntegerT
 from vyper.semantics.types.shortcuts import INT256_T, UINT256_T
-from vyper.utils import int_bounds
 
 
 @pytest.mark.parametrize("typ", sorted(IntegerT.all()))
@@ -16,7 +15,7 @@ def foo() -> {typ}:
     """
     c = get_contract(code)
 
-    (lo, hi) = int_bounds(typ.is_signed, typ.bits)
+    lo, hi = typ.int_bounds
     if op == "min_value":
         assert c.foo() == lo
     elif op == "max_value":
