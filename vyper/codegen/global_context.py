@@ -197,4 +197,4 @@ class GlobalContext:
 
     @cached_property
     def immutable_section_bytes(self):
-        return sum([imm.size * 32 for imm in self.immutables])
+        return sum([imm.typ.memory_bytes_required for imm in self.immutables])

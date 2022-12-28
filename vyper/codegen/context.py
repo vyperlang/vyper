@@ -1,6 +1,5 @@
 import contextlib
 import enum
-import math
 from dataclasses import dataclass
 from typing import Any, Optional
 
@@ -38,18 +37,8 @@ class VariableRecord:
 
     def __repr__(self):
         ret = vars(self)
-        ret["allocated"] = self.size * 32
-        return f"VariableRecord(f{ret})"
-
-    @property
-    def size(self):
-        if hasattr(self.typ, "size_in_bytes"):
-            # temporary requirement to support both new and old type objects
-            # we divide by 32 here because the returned value is denominated
-            # in "slots" of 32 bytes each
-            # CMC 20211023 revisit this divide-by-32.
-            return math.ceil(self.typ.size_in_bytes / 32)
-        return math.ceil(self.typ.memory_bytes_required / 32)
+        ret["allocated"] = self.typ.memory_bytes_required
+        return f"VariableRecord({ret})"
 
 
 # Contains arguments, variables, etc
