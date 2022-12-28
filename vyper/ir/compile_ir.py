@@ -12,13 +12,13 @@ PUSH_OFFSET = 0x5F
 DUP_OFFSET = 0x7F
 SWAP_OFFSET = 0x8F
 
-EOF_ENABLED = version_check("shanghai")
+EOFv1_ENABLED = version_check("shanghai")
 
 def JUMPI() -> str:
-    return "RJUMPI" if EOF_ENABLED else "JUMPI"
+    return "RJUMPI" if EOFv1_ENABLED else "JUMPI"
 
 def JUMP() -> str:
-    return "RJUMP" if EOF_ENABLED else "JUMP"
+    return "RJUMP" if EOFv1_ENABLED else "JUMP"
 
 def num_to_bytearray(x):
     o = []
@@ -671,7 +671,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         o = []
         for i, c in enumerate(reversed(code.args[1:])):
             o.extend(_compile_to_assembly(c, withargs, existing_labels, break_dest, height + i))
-        if EOF_ENABLED:
+        if EOFv1_ENABLED:
             o.extend(["_sym_" + str(code.args[0]), "CALLF"])
         else:
             o.extend(["_sym_" + str(code.args[0]), JUMP()])
@@ -728,7 +728,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         return []
 
     elif code.value == "exit_to":
-        if not EOF_ENABLED:
+        if not EOFv1_ENABLED:
             raise CodegenPanic("exit_to not implemented yet!")
 
         if code.args[0].value == "return_pc":
@@ -1141,7 +1141,7 @@ def assembly_to_evm(
             continue
 
         elif is_symbol(item):
-            if EOF_ENABLED and assembly[i + 1] in ["RJUMP", "RJUMPI", "JUMPF", "CALLF"]:
+            if EOFv1_ENABLED and assembly[i + 1] in ["RJUMP", "RJUMPI", "JUMPF", "CALLF"]:
                 sym = item
                 assert is_symbol(sym), f"Internal compiler error: {assembly[i + 1]} not preceded by symbol"
                 pc_post_instruction = instr_offsets[i] + 3
