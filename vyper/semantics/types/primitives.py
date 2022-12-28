@@ -248,14 +248,16 @@ class IntegerT(NumericT):
         return self.is_signed == other.is_signed and self.bits == other.bits
 
 
-# shortcuts
-UINT256_T = IntegerT(False, 256)
-UINT8_T = IntegerT(False, 8)
-INT256_T = IntegerT(False, 256)
-INT128_T = IntegerT(False, 128)
+# helper function for readability.
+# returns a uint<N> type.
+def UINT(bits):
+    return IntegerT(False, bits)
 
-BYTES32_T = BytesM_T(32)
-BYTES4_T = BytesM_T(4)
+
+# helper function for readability.
+# returns an int<N> type.
+def SINT(bits):
+    return IntegerT(True, bits)
 
 
 class DecimalT(NumericT):
@@ -304,9 +306,9 @@ class AddressT(_PrimT):
     _id = "address"
     _valid_literal = (vy_ast.Hex,)
     _type_members = {
-        "balance": UINT256_T,
-        "codehash": BYTES32_T,
-        "codesize": UINT256_T,
+        "balance": UINT(256),
+        "codehash": BytesM_T(32),
+        "codesize": UINT(256),
         "is_contract": BoolT(),
         "code": BytesT(),
     }

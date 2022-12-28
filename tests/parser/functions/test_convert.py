@@ -9,7 +9,16 @@ import pytest
 from eth_abi import decode_single, encode_single
 
 from vyper.exceptions import InvalidLiteral, InvalidType, TypeMismatch
-from vyper.semantics.types import AddressT, BoolT, BytesM_T, BytesT, DecimalT, IntegerT, StringT
+from vyper.semantics.types import (
+    UINT,
+    AddressT,
+    BoolT,
+    BytesM_T,
+    BytesT,
+    DecimalT,
+    IntegerT,
+    StringT,
+)
 from vyper.semantics.types.shortcuts import BYTES20_T, BYTES32_T, UINT160_T, UINT256_T
 from vyper.utils import (
     DECIMAL_DIVISOR,
@@ -154,7 +163,7 @@ def _cases_for_bool(_typ):
 
 def _cases_for_bytes(typ):
     # reuse the cases for the equivalent int type
-    equiv_int_type = IntegerT(False, typ.m_bits)
+    equiv_int_type = UINT(typ.m_bits)
     cases = _filter_cases(_cases_for_int(equiv_int_type), equiv_int_type)
     return [_py_convert(c, equiv_int_type, typ) for c in cases]
 
