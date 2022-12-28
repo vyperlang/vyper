@@ -172,7 +172,7 @@ def _cases_for_Bytes(typ):
     ret = []
     # would not need this if we tested all Bytes[1]...Bytes[32] types.
     for i in range(32):
-        ret.extend(_cases_for_bytes(BytesM_T(i)))
+        ret.extend(_cases_for_bytes(BytesM_T(i + 1)))
     return uniq(ret)
 
 
