@@ -677,23 +677,27 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         for i, c in enumerate(reversed(args)):
             o.extend(_compile_to_assembly(c, withargs, existing_labels, break_dest, height + i))
 
-        if EOFv1_ENABLED:
-            o.extend(["_sym_" + str(code.args[0]), "CALLF"])
+        symbol = str(code.args[0])
+        if symbol.startswith("internal"):
+            o.extend(["_sym_" + symbol, "CALLF"])
         else:
-            o.extend(["_sym_" + str(code.args[0]), JUMP()])
+            o.extend(["_sym_" + symbol, JUMP()])
         return o
     elif code.value == "exit_to":
+        if not EOFv1_ENABLED:
+            raise CodegenPanic("exit_to not implemented on non EOFv1")
+
         o = []
         args = code.args[1:] # if EOFv1_ENABLED and len(code.args) >= 2 and is_symbol(code.args[1].value) else code.args[1:]
 
         for i, c in enumerate(reversed(args)):
             o.extend(_compile_to_assembly(c, withargs, existing_labels, break_dest, height + i))
 
-        if EOFv1_ENABLED:
+        
             if str(code.args[0]) == "return_pc":
                 o.extend(["RETF"])
             else:
-                o.extend([str(code.args[0]), "CALLF"])
+                o.extend([str(code.args[0]), "RJUMP"])
 
         return o
     # push a literal symbol
