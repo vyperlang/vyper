@@ -4,7 +4,6 @@ import random
 
 import pytest
 
-from vyper.codegen.core import int_bounds_for_type
 from vyper.exceptions import InvalidType, OverflowException, ZeroDivisionException
 from vyper.semantics.types import IntegerT
 from vyper.utils import SizeLimits, evm_div, evm_mod
@@ -19,7 +18,7 @@ def test_exponent_base_zero(get_contract, assert_tx_failed, typ):
 def foo(x: {typ}) -> {typ}:
     return 0 ** x
     """
-    lo, hi = int_bounds_for_type(typ)
+    lo, hi = typ.int_bounds
 
     c = get_contract(code)
     assert c.foo(0) == 1
@@ -37,7 +36,7 @@ def test_exponent_base_one(get_contract, assert_tx_failed, typ):
 def foo(x: {typ}) -> {typ}:
     return 1 ** x
     """
-    lo, hi = int_bounds_for_type(typ)
+    lo, hi = typ.int_bounds
 
     c = get_contract(code)
     assert c.foo(0) == 1
@@ -110,7 +109,7 @@ def test_exponent(get_contract, assert_tx_failed, typ):
 def foo(x: {typ}) -> {typ}:
     return 4 ** x
     """
-    lo, hi = int_bounds_for_type(typ)
+    lo, hi = typ.int_bounds
 
     c = get_contract(code)
 
@@ -147,7 +146,7 @@ def negative_four() -> {typ}:
 
 @pytest.mark.parametrize("typ", types)
 def test_num_bound(assert_tx_failed, get_contract_with_gas_estimation, typ):
-    lo, hi = int_bounds_for_type(typ)
+    lo, hi = typ.int_bounds
 
     num_bound_code = f"""
 @external
@@ -245,7 +244,7 @@ def foo(y: {typ}) -> {typ}:
 def foo() -> {typ}:
     return {x} {op} {y}
     """
-    lo, hi = int_bounds_for_type(typ)
+    lo, hi = typ.int_bounds
 
     fns = {"+": operator.add, "-": operator.sub, "*": operator.mul, "/": evm_div, "%": evm_mod}
     fn = fns[op]
@@ -336,7 +335,7 @@ def foo(x: {typ}, y: {typ}) -> bool:
     return x {op} y
     """
 
-    lo, hi = int_bounds_for_type(typ)
+    lo, hi = typ.int_bounds
 
     fn = COMPARISON_OPS[op]
     c = get_contract(code_1)
@@ -378,7 +377,7 @@ def foo(a: {typ}) -> {typ}:
     return -a
     """
 
-    lo, hi = int_bounds_for_type(typ)
+    lo, hi = typ.int_bounds
 
     c = get_contract(code)
 

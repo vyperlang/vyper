@@ -11,7 +11,6 @@ from vyper.codegen.core import (
     clamp,
     clamp_basetype,
     get_bytearray_length,
-    int_bounds_for_type,
     int_clamp,
     is_bytes_m_type,
     is_decimal_type,
@@ -123,11 +122,11 @@ def _fixed_to_int(arg, out_typ):
 
     # block inputs which are out of bounds before truncation.
     # e.g., convert(255.1, uint8) should revert or fail to compile.
-    out_lo, out_hi = int_bounds_for_type(out_typ)
+    out_lo, out_hi = out_typ.int_bounds
     out_lo *= DIVISOR
     out_hi *= DIVISOR
 
-    arg_bounds = int_bounds_for_type(arg.typ)
+    arg_bounds = arg.typ.int_bounds
 
     clamped_arg = _clamp_numeric_convert(arg, arg_bounds, (out_lo, out_hi), arg.typ.is_signed)
 
@@ -140,11 +139,11 @@ def _int_to_fixed(arg, out_typ):
     DIVISOR = out_typ.divisor
 
     # block inputs which are out of bounds before promotion
-    out_lo, out_hi = int_bounds_for_type(out_typ)
+    out_lo, out_hi = out_typ.int_bounds
     out_lo = round_towards_zero(out_lo / decimal.Decimal(DIVISOR))
     out_hi = round_towards_zero(out_hi / decimal.Decimal(DIVISOR))
 
-    arg_bounds = int_bounds_for_type(arg.typ)
+    arg_bounds = arg.typ.int_bounds
 
     clamped_arg = _clamp_numeric_convert(arg, arg_bounds, (out_lo, out_hi), arg.typ.is_signed)
 
@@ -232,7 +231,7 @@ def _literal_int(expr, arg_typ, out_typ):
     if isinstance(expr, (vy_ast.Hex, vy_ast.Bytes)) and out_typ.is_signed:
         val = _signextend(expr, val, arg_typ)
 
-    (lo, hi) = int_bounds_for_type(out_typ)
+    lo, hi = out_typ.int_bounds
     if not (lo <= val <= hi):
         raise InvalidLiteral("Number out of range", expr)
 
@@ -258,7 +257,7 @@ def _literal_decimal(expr, arg_typ, out_typ):
     if isinstance(expr, (vy_ast.Hex, vy_ast.Bytes)) and out_typ.is_signed:
         val = _signextend(expr, val, arg_typ)
 
-    (lo, hi) = int_bounds_for_type(out_typ)
+    lo, hi = out_typ.int_bounds
     if not lo <= val <= hi:
         raise InvalidLiteral("Number out of range", expr)
 

@@ -11,7 +11,6 @@ from vyper.codegen.core import (
     get_dyn_array_count,
     get_element_ptr,
     getpos,
-    int_bounds_for_type,
     is_array_like,
     is_bytes_m_type,
     is_enum_type,
@@ -93,7 +92,7 @@ class Expr:
         assert math.ceil(val) == math.floor(val)
 
         val = int(val)
-        (lo, hi) = int_bounds_for_type(DecimalT())
+        lo, hi = DecimalT().int_bounds
         # sanity check
         assert lo <= val <= hi
 
@@ -623,7 +622,7 @@ class Expr:
             assert operand.typ.is_signed
             # Clamp on minimum signed integer value as we cannot negate that
             # value (all other integer values are fine)
-            min_int_val, _ = int_bounds_for_type(operand.typ)
+            min_int_val, _ = operand.typ.int_bounds
             return IRnode.from_list(["sub", 0, clamp("sgt", operand, min_int_val)], typ=operand.typ)
 
     # Function calls

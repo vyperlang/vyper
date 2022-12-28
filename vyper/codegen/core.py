@@ -26,7 +26,6 @@ from vyper.utils import (
     GAS_IDENTITY,
     GAS_IDENTITYWORD,
     ceil32,
-    int_bounds,
 )
 
 DYNAMIC_ARRAY_OVERHEAD = 1
@@ -65,14 +64,6 @@ def is_array_like(typ):
 
 # def is_base_type(typ, btypes):
 #     pass
-
-
-# get the bounds on IR values of this type.
-# note the distinction for decimals: ast_bounds will return a Decimal,
-# int_bounds_for_type will return the fully expanded int range.
-# int_bounds_for_type(typ: _NumericT) -> Tuple[int, int]
-def int_bounds_for_type(typ):
-    return int_bounds(signed=typ.is_signed, bits=typ.bits)
 
 
 def get_type_for_exact_size(n_bytes):

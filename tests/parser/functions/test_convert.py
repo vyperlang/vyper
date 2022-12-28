@@ -8,7 +8,6 @@ import eth_abi.exceptions
 import pytest
 from eth_abi import decode_single, encode_single
 
-from vyper.codegen.core import int_bounds_for_type
 from vyper.exceptions import InvalidLiteral, InvalidType, TypeMismatch
 from vyper.semantics.types import AddressT, BoolT, BytesM_T, BytesT, DecimalT, IntegerT, StringT
 from vyper.semantics.types.shortcuts import BYTES20_T, BYTES32_T, UINT160_T, UINT256_T
@@ -256,7 +255,7 @@ def _signextend(val_bytes, bits):
 
 def _convert_decimal_to_int(val, o_typ):
     # note special behavior for decimal: catch OOB before truncation.
-    (lo, hi) = int_bounds_for_type(o_typ)
+    (lo, hi) = o_typ.int_bounds
     if not lo <= val <= hi:
         return None
 

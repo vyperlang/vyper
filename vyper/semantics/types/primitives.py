@@ -112,6 +112,13 @@ class NumericT(_PrimT):
     def ast_bounds(self):
         raise NotImplementedError("should be overridden!")
 
+    # get the integer bounds on IR values of this type.
+    # note the distinction for decimals: ast_bounds will return a Decimal,
+    # int_bounds will return the fully expanded int range.
+    @cached_property
+    def int_bounds(self) -> Tuple[int, int]:
+        return int_bounds(signed=self.is_signed, bits=self.bits)
+
     @cached_property
     def bits(self) -> int:
         return self._bits

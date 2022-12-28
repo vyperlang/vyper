@@ -4,7 +4,6 @@ import random
 
 import pytest
 
-from vyper.codegen.core import int_bounds_for_type
 from vyper.exceptions import InvalidType, OverflowException, ZeroDivisionException
 from vyper.semantics.types import IntegerT
 from vyper.utils import SizeLimits, evm_div, evm_mod
@@ -19,7 +18,7 @@ def test_exponent_base_zero(get_contract, typ):
 def foo(x: {typ}) -> {typ}:
     return 0 ** x
     """
-    lo, hi = int_bounds_for_type(typ)
+    lo, hi = typ.int_bounds
     c = get_contract(code)
     assert c.foo(0) == 1
     assert c.foo(1) == 0
@@ -34,7 +33,7 @@ def test_exponent_base_one(get_contract, typ):
 def foo(x: {typ}) -> {typ}:
     return 1 ** x
     """
-    lo, hi = int_bounds_for_type(typ)
+    lo, hi = typ.int_bounds
     c = get_contract(code)
     assert c.foo(0) == 1
     assert c.foo(1) == 1
@@ -50,7 +49,7 @@ def test_exponent_power_zero(get_contract, typ):
 def foo(x: {typ}) -> {typ}:
     return x ** 0
     """
-    lo, hi = int_bounds_for_type(typ)
+    lo, hi = typ.int_bounds
     c = get_contract(code)
     assert c.foo(0) == 1
     assert c.foo(1) == 1
@@ -66,7 +65,7 @@ def test_exponent_power_one(get_contract, typ):
 def foo(x: {typ}) -> {typ}:
     return x ** 1
     """
-    lo, hi = int_bounds_for_type(typ)
+    lo, hi = typ.int_bounds
     c = get_contract(code)
     assert c.foo(0) == 0
     assert c.foo(1) == 1
@@ -115,7 +114,7 @@ def foo() -> {typ}:
     fn = ARITHMETIC_OPS[op]
     c = get_contract(code_1)
 
-    lo, hi = int_bounds_for_type(typ)
+    lo, hi = typ.int_bounds
     bits = typ.bits
 
     special_cases = [0, 1, 2, 3, hi // 2 - 1, hi // 2, hi // 2 + 1, hi - 2, hi - 1, hi]
@@ -182,7 +181,7 @@ def foo(x: {typ}, y: {typ}) -> bool:
     fn = COMPARISON_OPS[op]
     c = get_contract(code_1)
 
-    lo, hi = int_bounds_for_type(typ)
+    lo, hi = typ.int_bounds
 
     # note: constant folding is tested in tests/ast/folding
 
@@ -240,7 +239,7 @@ def exponential(base: uint256, exponent: uint256, modulus: uint256) -> uint256:
 
 @pytest.mark.parametrize("typ", types)
 def test_uint_literal(get_contract, assert_compile_failed, typ):
-    lo, hi = int_bounds_for_type(typ)
+    lo, hi = typ.int_bounds
 
     good_cases = [0, 1, 2, 3, hi // 2 - 1, hi // 2, hi // 2 + 1, hi - 1, hi]
     bad_cases = [-1, -2, -3, -hi // 2, -hi + 1, -hi]
