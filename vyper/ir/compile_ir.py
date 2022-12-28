@@ -728,7 +728,13 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         return []
 
     elif code.value == "exit_to":
-        raise CodegenPanic("exit_to not implemented yet!")
+        if not EOF_ENABLED:
+            raise CodegenPanic("exit_to not implemented yet!")
+
+        if code.args[0].value == "return_pc":
+            return ["RETF"]
+        else:
+            return [str(code.args[0]), "JUMPF"] # Jump to cleanup function
 
     # inject debug opcode.
     elif code.value == "debugger":
