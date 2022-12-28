@@ -100,7 +100,6 @@ def _runtime_ir(runtime_functions, all_sigs, global_ctx):
     internal_functions = [f for f in runtime_functions if _is_internal(f)]
 
     external_functions = [f for f in runtime_functions if not _is_internal(f)]
-
     default_function = next((f for f in external_functions if _is_default_func(f)), None)
 
     # functions that need to go exposed in the selector section
