@@ -311,7 +311,6 @@ def _py_convert(val, i_typ, o_typ):
     if _padding_direction(i_typ) != _padding_direction(o_typ):
         # subtle! the padding conversion follows the bytes argument
         if isinstance(i_typ, (BytesM_T, BytesT)):
-            # n = i_typ.type_bytes
             n = bytes_of_type(i_typ)
             padding_byte = None
         else:
