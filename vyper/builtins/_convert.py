@@ -281,6 +281,11 @@ def to_bool(expr, arg, out_typ):
 
 @_input_types(IntegerT, DecimalT, BytesM_T, AddressT, BoolT, EnumT, BytesT)
 def to_int(expr, arg, out_typ):
+    return _to_int(expr, arg, out_typ)
+
+
+# an internal version of to_int without input validation
+def _to_int(expr, arg, out_typ):
     assert out_typ.bits % 8 == 0
     _check_bytes(expr, arg, out_typ, 32)
 
@@ -415,7 +420,7 @@ def to_address(expr, arg, out_typ):
         if arg.typ.is_signed:
             _FAIL(arg.typ, out_typ, expr)
 
-    ret = to_int(expr, arg, UINT160_T)
+    ret = _to_int(expr, arg, UINT160_T)
     return IRnode.from_list(ret, out_typ)
 
 
