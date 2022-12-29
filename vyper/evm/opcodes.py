@@ -230,6 +230,16 @@ PSEUDO_OPCODES: OpcodeMap = {
 
 IR_OPCODES: OpcodeMap = {**OPCODES, **PSEUDO_OPCODES}
 
+# Terminating opcodes for EOFv1 support
+TERMINATING_OPCODES = ["STOP", "RETF", "JUMPF", "RETURN", "REVERT", "INVALID"]
+
+def immediate_size(op):
+    if op in ["RJUMP", "RJUMPI", "CALLF"]:
+        return 2
+    elif op[:4] == "PUSH":
+        return int(op[4:])
+    else:
+        return 0
 
 def evm_wrapper(fn, *args, **kwargs):
     def _wrapper(*args, **kwargs):
