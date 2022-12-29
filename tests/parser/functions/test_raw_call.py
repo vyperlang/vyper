@@ -45,9 +45,15 @@ def test_returndatasize_reverts_on_excess(get_contract, assert_tx_failed):
 def foo() -> Bytes[3]:
     return raw_call(0x0000000000000000000000000000000000000004,
     b"moose", max_outsize=3, revert_on_excess=True)
+
+@external
+def bar() -> Bytes[3]:
+    return raw_call(0x0000000000000000000000000000000000000004,
+    b"mo", max_outsize=3, revert_on_excess=True)
     """
     c = get_contract(source_code)
     assert_tx_failed(lambda: c.foo())
+    assert c.bar() == b"mo"
 
 
 def test_returndatasize_matches_max_outsize(get_contract):
