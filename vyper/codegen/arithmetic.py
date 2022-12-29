@@ -184,6 +184,7 @@ def safe_add(x, y):
 
 # def safe_sub(x: IRnode, y: IRnode) -> IRnode:
 def safe_sub(x, y):
+    assert x.typ == y.typ
     typ = x.typ
 
     res = IRnode.from_list(["sub", x, y], typ=typ)
