@@ -52,5 +52,16 @@ def foo(val: int128) -> int128:
     assert c.foo(33) == -123
 
     assert_tx_failed(lambda: c.foo(1), exc_text="Invalid opcode 0xfe")
-    assert_tx_failed(lambda: c.foo(1), exc_text="Invalid opcode 0xfe")
     assert_tx_failed(lambda: c.foo(-1), exc_text="Invalid opcode 0xfe")
+
+
+def test_raise_unreachable(w3, get_contract, assert_tx_failed):
+    code = """
+@external
+def foo():
+    raise UNREACHABLE
+    """
+
+    c = get_contract(code)
+
+    assert_tx_failed(lambda: c.foo(), exc_text="Invalid opcode 0xfe")

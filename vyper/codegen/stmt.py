@@ -219,6 +219,9 @@ class Stmt:
 
     def parse_Assert(self):
         test_expr = Expr.parse_value_expr(self.stmt.test, self.context)
+        # sanity check
+        assert test_expr is not None
+
         if self.stmt.msg:
             return self._assert_reason(test_expr, self.stmt.msg)
         else:
