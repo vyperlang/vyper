@@ -284,6 +284,7 @@ def safe_mul(x, y):
 
 # def safe_div(x: IRnode, y: IRnode) -> IRnode:
 def safe_div(x, y):
+    assert x.typ == y.typ
     typ = x.typ
 
     ok = [1]  # true
