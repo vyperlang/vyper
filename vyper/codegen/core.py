@@ -54,7 +54,9 @@ def is_enum_type(typ):
 def is_tuple_like(typ):
     # A lot of code paths treat tuples and structs similarly
     # so we have a convenience function to detect it
-    return hasattr(typ, "tuple_items")
+    ret = isinstance(typ, (TupleT, StructT))
+    assert ret == hasattr(typ, "tuple_items")
+    return ret
 
 
 def is_array_like(typ):
