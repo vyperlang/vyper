@@ -329,4 +329,5 @@ def generate_EOFv1(assembly: list, is_runtime: bool = False, no_bytecode_metadat
     bytecode = compile_ir.assembly_to_evm(
         assembly, insert_vyper_signature=is_runtime, disable_bytecode_metadata=no_bytecode_metadata
     )[0]
-    return bytecode
+    
+    return compile_ir.decorateWithEOFHeader(bytecode)

@@ -991,6 +991,32 @@ def _optimize_assembly(assembly):
 
     raise CompilerPanic("infinite loop detected during assembly reduction")  # pragma: notest
 
+def decorateWithEOFHeader(bytecode: bytes) -> bytes:
+    code_sections_len = 1 # temporary, will calculate eventually
+    header = b""
+    header += bytes([0xef, 0x00])    # EOFv1 signature
+    header += bytes([0x01])          # version 1
+
+    header += bytes([0x01])          # kind=type
+    header += (code_sections_len * 4).to_bytes(2, "big")
+
+    header += bytes([0x02])          # kind=code
+    header += code_sections_len.to_bytes(2, "big")
+
+    header += bytes([0x01])          # single code section
+    header += len(bytecode).to_bytes(2, "big")
+
+    header += bytes([0x02])         # kind=data
+    header += bytes([0x0, 0x0])
+
+    header += bytes([0x0])          # Terminator
+
+    # Type section
+    header += bytes([0x0])     # inputs
+    header += bytes([0x0])     # outputs
+    header += (1024).to_bytes(2, "big")    # max stack
+
+    return header + bytecode
 
 def adjust_pc_maps(pc_maps, ofst):
     assert ofst >= 0
@@ -1211,33 +1237,7 @@ def assembly_to_evm(
             # Should never reach because, assembly is create in _compile_to_assembly.
             raise Exception("Weird symbol in assembly: " + str(item))  # pragma: no cover
 
-    if EOFv1_ENABLED:
-        code_sections_len = 1 # temporary, will calculate eventually
-        header = b""
-        header += bytes([0xef, 0x00])    # EOFv1 signature
-        header += bytes([0x01])          # version 1
-
-        header += bytes([0x01])          # kind=type
-        header += (code_sections_len * 4).to_bytes(2, "big")
-
-        header += bytes([0x02])          # kind=code
-        header += code_sections_len.to_bytes(2, "big")
-
-        header += bytes([0x01])          # single code section
-        header += len(o).to_bytes(2, "big")
-
-        header += bytes([0x02])         # kind=data
-        header += bytes([0x0, 0x0])
-
-        header += bytes([0x0])          # Terminator
-
-        # Type section
-        header += bytes([0x0])     # inputs
-        header += bytes([0x0])     # outputs
-        header += (1024).to_bytes(2, "big")    # max stack
-
-        o = header + o
-    else:
+    if not EOFv1_ENABLED:
         o += bytecode_suffix
 
     line_number_map["breakpoints"] = list(line_number_map["breakpoints"])
