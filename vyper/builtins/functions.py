@@ -1226,6 +1226,7 @@ class RawCall(BuiltinFunction):
                         error_msg="returndatasize larger than receiving variable",
                     )
                 )
+                size = "returndatasize"
             store_output_size.append(["mstore", output_node, size])
             store_output_size.append(output_node)
 
