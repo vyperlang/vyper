@@ -226,10 +226,11 @@ Vyper has three built-ins for contract creation; all three contract creation bui
     * ``is_delegate_call``: If ``True``, the call will be sent as ``DELEGATECALL`` (Optional, default ``False``)
     * ``is_static_call``: If ``True``, the call will be sent as ``STATICCALL`` (Optional, default ``False``)
     * ``revert_on_failure``: If ``True``, the call will revert on a failure, otherwise ``success`` will be returned (Optional, default ``True``)
+    * ``revert_on_excess``: If ``True``, the call will revert when the size of the return data exceeds that of the receiving variable, otherwise the return value will be returned (Optional, default ``False``)
 
     .. note::
 
-        Returns the data returned by the call as a ``Bytes`` list, with ``max_outsize`` as the max length. The actual size of the returned data may be less than ``max_outsize``. You can use ``len`` to obtain the actual size.
+        Returns the data returned by the call as a ``Bytes`` list, with ``max_outsize`` as the max length. The actual size of the returned data may be less than ``max_outsize``. You can use ``len`` to obtain the actual size. You can use ``revert_on_excess`` to force the call to fail if the return data exceeds ``max_outsize``.
 
         Returns nothing if ``max_outsize`` is omitted or set to ``0``.
 
