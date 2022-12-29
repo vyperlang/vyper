@@ -9,17 +9,8 @@ import pytest
 from eth_abi import decode_single, encode_single
 
 from vyper.exceptions import InvalidLiteral, InvalidType, TypeMismatch
-from vyper.semantics.types import (
-    UINT,
-    AddressT,
-    BoolT,
-    BytesM_T,
-    BytesT,
-    DecimalT,
-    IntegerT,
-    StringT,
-)
-from vyper.semantics.types.shortcuts import BYTES20_T, BYTES32_T, UINT160_T, UINT256_T
+from vyper.semantics.types import AddressT, BoolT, BytesM_T, BytesT, DecimalT, IntegerT, StringT
+from vyper.semantics.types.shortcuts import BYTES20_T, BYTES32_T, UINT, UINT160_T, UINT256_T
 from vyper.utils import (
     DECIMAL_DIVISOR,
     checksum_encode,

@@ -142,7 +142,8 @@ class Context:
             (k, v) for k, v in self.vars.items() if v.is_internal and scope_id in v.blockscopes
         ]
         for name, var in released:
-            self.memory_allocator.deallocate_memory(var.pos, var.size * 32)
+            n = var.typ.memory_bytes_required
+            self.memory_allocator.deallocate_memory(var.pos, n)
             del self.vars[name]
 
         # Remove block scopes
@@ -164,7 +165,8 @@ class Context:
         # Remove all variables that have specific scope_id attached
         released = [(k, v) for k, v in self.vars.items() if scope_id in v.blockscopes]
         for name, var in released:
-            self.memory_allocator.deallocate_memory(var.pos, var.size * 32)
+            n = var.typ.memory_bytes_required
+            self.memory_allocator.deallocate_memory(var.pos, n)
             del self.vars[name]
 
         # Remove block scopes

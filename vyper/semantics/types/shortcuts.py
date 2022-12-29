@@ -1,4 +1,4 @@
-from vyper.semantics.types.primitives import BytesM_T, IntegerT
+from vyper.semantics.types.primitives import SINT, UINT, BytesM_T, IntegerT
 
 # shortcut type names
 UINT256_T = IntegerT(False, 256)
@@ -10,3 +10,5 @@ UINT160_T = IntegerT(False, 160)
 BYTES32_T = BytesM_T(32)
 BYTES20_T = BytesM_T(20)
 BYTES4_T = BytesM_T(4)
+
+_ = UINT, SINT  # explicitly use: linter F401
