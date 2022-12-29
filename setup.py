@@ -16,7 +16,7 @@ extras_require = {
         "pytest-rerunfailures>=10.2,<11",
         "eth-tester[py-evm]>=0.6.0b6,<0.7",
         "py-evm>=0.5.0a3,<0.6",
-        "web3==5.27.0",
+        "web3==5.31.3",
         "tox>=3.15,<4.0",
         "lark==1.1.2",
         "hypothesis[lark]>=5.37.1,<6.0",
