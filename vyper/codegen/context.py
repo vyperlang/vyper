@@ -144,6 +144,7 @@ class Context:
         ]
         for name, var in released:
             n = var.typ.memory_bytes_required
+            assert n == var.size
             self.memory_allocator.deallocate_memory(var.pos, n)
             del self.vars[name]
 
