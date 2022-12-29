@@ -625,7 +625,7 @@ def unwrap_location(orig):
 
 # utility function, constructs an IR tuple out of a list of IR nodes
 def ir_tuple_from_args(args):
-    typ = TupleT(tuple(x.typ for x in args))
+    typ = TupleT([x.typ for x in args])
     return IRnode.from_list(["multi"] + [x for x in args], typ=typ)
 
 
