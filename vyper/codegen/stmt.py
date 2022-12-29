@@ -159,7 +159,7 @@ class Stmt:
             return external_call.ir_for_external_call(self.stmt, self.context)
 
     def _assert_reason(self, test_expr, msg):
-        #from parse_Raise: None passed as the assert condition
+        # from parse_Raise: None passed as the assert condition
         is_raise = test_expr is None
 
         if isinstance(msg, vy_ast.Name) and msg.id == "UNREACHABLE":
