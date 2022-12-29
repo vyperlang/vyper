@@ -64,10 +64,6 @@ def is_array_like(typ):
     return typ._is_array_type
 
 
-# def is_base_type(typ, btypes):
-#     pass
-
-
 def get_type_for_exact_size(n_bytes):
     """Create a type which will take up exactly n_bytes. Used for allocating internal buffers.
 
