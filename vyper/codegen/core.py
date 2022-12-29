@@ -61,7 +61,9 @@ def is_tuple_like(typ):
 
 def is_array_like(typ):
     # For convenience static and dynamic arrays share some code paths
-    return typ._is_array_type
+    ret = isinstance(typ, (DArrayT, SArrayT))
+    assert ret == typ._is_array_type
+    return ret
 
 
 def get_type_for_exact_size(n_bytes):
