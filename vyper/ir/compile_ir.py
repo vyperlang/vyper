@@ -692,12 +692,11 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
 
         for i, c in enumerate(reversed(args)):
             o.extend(_compile_to_assembly(c, withargs, existing_labels, break_dest, height + i))
-
         
-            if str(code.args[0]) == "return_pc":
-                o.extend(["RETF"])
-            else:
-                o.extend([str(code.args[0]), "RJUMP"])
+        if str(code.args[0]) == "return_pc":
+            o.extend(["RETF"])
+        else:
+            o.extend([str(code.args[0]), "RJUMP"])
 
         return o
     # push a literal symbol
