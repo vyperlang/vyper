@@ -9,6 +9,8 @@ from vyper.codegen.ir_node import IRnode
 from vyper.compiler.phases import CompilerData
 from vyper.compiler.utils import build_gas_estimates
 from vyper.evm import opcodes
+from vyper.evm.opcodes import version_check
+from vyper.evm import eof
 from vyper.ir import compile_ir
 from vyper.semantics.types.function import FunctionVisibility, StateMutability
 from vyper.typing import StorageLayout
@@ -294,8 +296,7 @@ def build_opcodes_output(compiler_data: CompilerData) -> str:
 def build_opcodes_runtime_output(compiler_data: CompilerData) -> str:
     return _build_opcodes(compiler_data.bytecode_runtime)
 
-
-def _build_opcodes(bytecode: bytes) -> str:
+def _build_legacy_opcodes(bytecode: bytes) -> str:
     bytecode_sequence = deque(bytecode)
 
     opcode_map = dict((v[0], k) for k, v in opcodes.get_opcodes().items())
@@ -318,3 +319,14 @@ def _build_opcodes(bytecode: bytes) -> str:
             opcode_output.append(hex(offset))
 
     return " ".join(opcode_output)
+
+def _build_eof_opcodes(bytecode: bytes) -> str:
+    if not eof.verifyHeader(bytecode):
+        raise CompilerPanic("bytecode not in EOF format")
+    return ""
+
+def _build_opcodes(bytecode: bytes) -> str:
+    if version_check("shanghai"):
+        _build_eof_opcodes(bytecode)
+    else:
+        _build_legacy_opcodes(bytecode)
