@@ -418,7 +418,6 @@ def _getelemptr_abi_helper(parent, member_t, ofst, clamp=True):
 # TODO simplify this code, especially the ABI decoding
 def _get_element_ptr_tuplelike(parent, key):
     typ = parent.typ
-    # assert isinstance(typ, TupleLike)
     assert is_tuple_like(typ)
 
     if isinstance(typ, StructT):
