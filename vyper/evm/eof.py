@@ -15,8 +15,11 @@ class EOFReader:
 
     def __init__(self, bytecode: bytes):
         self.bytecode = bytecode
-        self._verifyHeader()
+        self._verify_header()
 
-    def _verifyHeader(self) -> bool:
+    def get_code_segments(self):
+        pass
+
+    def _verify_header(self) -> bool:
         if self.bytecode[:2] != MAGIC or self.bytecode[2] != VERSION:
             raise ValidationException(f"not an EOFv{VERSION} bytecode")
