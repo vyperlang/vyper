@@ -321,8 +321,7 @@ def _build_legacy_opcodes(bytecode: bytes) -> str:
     return " ".join(opcode_output)
 
 def _build_eof_opcodes(bytecode: bytes) -> str:
-    if not eof.verifyHeader(bytecode):
-        raise CompilerPanic("bytecode not in EOF format")
+    eofReader = eof.EOFReader(bytecode)
     return ""
 
 def _build_opcodes(bytecode: bytes) -> str:
