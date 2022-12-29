@@ -422,7 +422,7 @@ def _get_element_ptr_tuplelike(parent, key):
 
     if isinstance(typ, StructT):
         assert isinstance(key, str)
-        subtype = typ.members[key]
+        subtype = typ.member_types[key]
         attrs = list(typ.tuple_keys())
         index = attrs.index(key)
         annotation = key
