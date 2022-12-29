@@ -1002,13 +1002,13 @@ class AsWeiValue(BuiltinFunction):
 
     wei_denoms = {
         ("wei",): 1,
-        ("femtoether", "kwei", "babbage"): 10 ** 3,
-        ("picoether", "mwei", "lovelace"): 10 ** 6,
-        ("nanoether", "gwei", "shannon"): 10 ** 9,
-        ("microether", "szabo"): 10 ** 12,
-        ("milliether", "finney"): 10 ** 15,
-        ("ether",): 10 ** 18,
-        ("kether", "grand"): 10 ** 21,
+        ("femtoether", "kwei", "babbage"): 10**3,
+        ("picoether", "mwei", "lovelace"): 10**6,
+        ("nanoether", "gwei", "shannon"): 10**9,
+        ("microether", "szabo"): 10**12,
+        ("milliether", "finney"): 10**15,
+        ("ether",): 10**18,
+        ("kether", "grand"): 10**21,
     }
 
     def get_denomination(self, node):
@@ -1036,9 +1036,9 @@ class AsWeiValue(BuiltinFunction):
         if value < 0:
             raise InvalidLiteral("Negative wei value not allowed", node.args[0])
 
-        if isinstance(value, int) and value >= 2 ** 256:
+        if isinstance(value, int) and value >= 2**256:
             raise InvalidLiteral("Value out of range for uint256", node.args[0])
-        if isinstance(value, Decimal) and value >= 2 ** 127:
+        if isinstance(value, Decimal) and value >= 2**127:
             raise InvalidLiteral("Value out of range for decimal", node.args[0])
 
         return vy_ast.Int.from_node(node, value=int(value * denom))
@@ -1104,6 +1104,7 @@ class RawCall(BuiltinFunction):
         "is_delegate_call": KwargSettings(BoolT(), False, require_literal=True),
         "is_static_call": KwargSettings(BoolT(), False, require_literal=True),
         "revert_on_failure": KwargSettings(BoolT(), True, require_literal=True),
+        "revert_on_excess": KwargSettings(BoolT(), False, require_literal=True),
     }
     _return_type = None
 
@@ -1142,13 +1143,14 @@ class RawCall(BuiltinFunction):
     def build_IR(self, expr, args, kwargs, context):
         to, data = args
         # TODO: must compile in source code order, left-to-right
-        gas, value, outsize, delegate_call, static_call, revert_on_failure = (
+        gas, value, outsize, delegate_call, static_call, revert_on_failure, revert_on_excess = (
             kwargs["gas"],
             kwargs["value"],
             kwargs["max_outsize"],
             kwargs["is_delegate_call"],
             kwargs["is_static_call"],
             kwargs["revert_on_failure"],
+            kwargs["revert_on_excess"],
         )
 
         if delegate_call and static_call:
@@ -1210,11 +1212,22 @@ class RawCall(BuiltinFunction):
 
         # build sequence IR
         if outsize:
+
             # return minimum of outsize and returndatasize
             size = ["select", ["lt", outsize, "returndatasize"], outsize, "returndatasize"]
 
             # store output size and return output location
-            store_output_size = ["seq", ["mstore", output_node, size], output_node]
+            store_output_size = ["seq"]
+            # assert that returndatasize doesn't exceed allocated space in receiving var
+            if revert_on_excess:
+                store_output_size.append(
+                    IRnode.from_list(
+                        ["assert", ["le", "returndatasize", outsize]],
+                        error_msg="returndatasize larger than receiving variable",
+                    )
+                )
+            store_output_size.append(["mstore", output_node, size])
+            store_output_size.append(output_node)
 
             bytes_ty = ByteArrayType(outsize)
 
@@ -1376,7 +1389,7 @@ class BitwiseAnd(BuiltinFunction):
         for arg in node.args:
             if not isinstance(arg, vy_ast.Num):
                 raise UnfoldableNode
-            if arg.value < 0 or arg.value >= 2 ** 256:
+            if arg.value < 0 or arg.value >= 2**256:
                 raise InvalidLiteral("Value out of range for uint256", arg)
 
         value = node.args[0].value & node.args[1].value
@@ -1403,7 +1416,7 @@ class BitwiseOr(BuiltinFunction):
         for arg in node.args:
             if not isinstance(arg, vy_ast.Num):
                 raise UnfoldableNode
-            if arg.value < 0 or arg.value >= 2 ** 256:
+            if arg.value < 0 or arg.value >= 2**256:
                 raise InvalidLiteral("Value out of range for uint256", arg)
 
         value = node.args[0].value | node.args[1].value
@@ -1430,7 +1443,7 @@ class BitwiseXor(BuiltinFunction):
         for arg in node.args:
             if not isinstance(arg, vy_ast.Num):
                 raise UnfoldableNode
-            if arg.value < 0 or arg.value >= 2 ** 256:
+            if arg.value < 0 or arg.value >= 2**256:
                 raise InvalidLiteral("Value out of range for uint256", arg)
 
         value = node.args[0].value ^ node.args[1].value
@@ -1458,10 +1471,10 @@ class BitwiseNot(BuiltinFunction):
             raise UnfoldableNode
 
         value = node.args[0].value
-        if value < 0 or value >= 2 ** 256:
+        if value < 0 or value >= 2**256:
             raise InvalidLiteral("Value out of range for uint256", node.args[0])
 
-        value = (2 ** 256 - 1) - value
+        value = (2**256 - 1) - value
         return vy_ast.Int.from_node(node, value=value)
 
     @process_inputs
@@ -1480,7 +1493,7 @@ class Shift(BuiltinFunction):
         if [i for i in node.args if not isinstance(i, vy_ast.Num)]:
             raise UnfoldableNode
         value, shift = [i.value for i in node.args]
-        if value < 0 or value >= 2 ** 256:
+        if value < 0 or value >= 2**256:
             raise InvalidLiteral("Value out of range for uint256", node.args[0])
         if shift < -256 or shift > 256:
             # this validation is performed to prevent the compiler from hanging
@@ -1491,7 +1504,7 @@ class Shift(BuiltinFunction):
         if shift < 0:
             value = value >> -shift
         else:
-            value = (value << shift) % (2 ** 256)
+            value = (value << shift) % (2**256)
         return vy_ast.Int.from_node(node, value=value)
 
     def fetch_call_return(self, node):
@@ -1531,7 +1544,7 @@ class _AddMulMod(BuiltinFunction):
         for arg in node.args:
             if not isinstance(arg, vy_ast.Num):
                 raise UnfoldableNode
-            if arg.value < 0 or arg.value >= 2 ** 256:
+            if arg.value < 0 or arg.value >= 2**256:
                 raise InvalidLiteral("Value out of range for uint256", arg)
 
         value = self._eval_fn(node.args[0].value, node.args[1].value) % node.args[2].value
@@ -1571,7 +1584,7 @@ class PowMod256(BuiltinFunction):
         if left.value < 0 or right.value < 0:
             raise UnfoldableNode
 
-        value = pow(left.value, right.value, 2 ** 256)
+        value = pow(left.value, right.value, 2**256)
         return vy_ast.Int.from_node(node, value=value)
 
     def build_IR(self, expr, context):
@@ -1995,7 +2008,7 @@ class _UnsafeMath(BuiltinFunction):
             else:
                 # e.g. uint8 -> (mod (add x y) 256)
                 # TODO mod_bound could be a really large literal
-                ret = ["mod", ret, 2 ** int_info.bits]
+                ret = ["mod", ret, 2**int_info.bits]
 
         return IRnode.from_list(ret, typ=otyp)
 
@@ -2031,10 +2044,10 @@ class _MinMax(BuiltinFunction):
 
         left, right = (i.value for i in node.args)
         if isinstance(left, Decimal) and (
-            min(left, right) < -(2 ** 127) or max(left, right) >= 2 ** 127
+            min(left, right) < -(2**127) or max(left, right) >= 2**127
         ):
             raise InvalidType("Decimal value is outside of allowable range", node)
-        if isinstance(left, int) and (min(left, right) < 0 and max(left, right) >= 2 ** 127):
+        if isinstance(left, int) and (min(left, right) < 0 and max(left, right) >= 2**127):
             raise TypeMismatch("Cannot perform action between dislike numeric types", node)
 
         value = self._eval_fn(left, right)
@@ -2256,7 +2269,7 @@ class ISqrt(BuiltinFunction):
                     ["seq", ["set", y, shr(16, y)], ["set", z, shl(8, z)]],
                 ],
             ]
-            ret.append(["set", z, ["div", ["mul", z, ["add", y, 2 ** 16]], 2 ** 18]])
+            ret.append(["set", z, ["div", ["mul", z, ["add", y, 2**16]], 2**18]])
 
             for _ in range(7):
                 ret.append(["set", z, ["div", ["add", ["div", x, z], z], 2]])
