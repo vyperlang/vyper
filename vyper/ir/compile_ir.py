@@ -688,7 +688,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
             raise CodegenPanic("exit_to not implemented on non EOFv1")
 
         o = []
-        args = code.args[1:] # if EOFv1_ENABLED and len(code.args) >= 2 and is_symbol(code.args[1].value) else code.args[1:]
+        args = code.args[1:] 
 
         for i, c in enumerate(reversed(args)):
             o.extend(_compile_to_assembly(c, withargs, existing_labels, break_dest, height + i))
@@ -1149,7 +1149,7 @@ def assembly_to_evm(
 
     # TODO refactor into two functions, create posmap and assemble
 
-    o = b""
+    o = b""    
 
     # now that all symbols have been resolved, generate bytecode
     # using the symbol map
@@ -1211,7 +1211,34 @@ def assembly_to_evm(
             # Should never reach because, assembly is create in _compile_to_assembly.
             raise Exception("Weird symbol in assembly: " + str(item))  # pragma: no cover
 
-    o += bytecode_suffix
+    if EOFv1_ENABLED:
+        code_sections_len = 1 # temporary, will calculate eventually
+        header = b""
+        header += bytes([0xef, 0x00])    # EOFv1 signature
+        header += bytes([0x01])          # version 1
+
+        header += bytes([0x01])          # kind=type
+        header += (code_sections_len * 4).to_bytes(2, "big")
+
+        header += bytes([0x02])          # kind=code
+        header += code_sections_len.to_bytes(2, "big")
+
+        header += bytes([0x01])          # single code section
+        header += len(o).to_bytes(2, "big")
+
+        header += bytes([0x02])         # kind=data
+        header += bytes([0x0, 0x0])
+
+        header += bytes([0x0])          # Terminator
+
+        # Type section
+        header += bytes([0x0])     # inputs
+        header += bytes([0x0])     # outputs
+        header += (1024).to_bytes(2, "big")    # max stack
+
+        o = header + o
+    else:
+        o += bytecode_suffix
 
     line_number_map["breakpoints"] = list(line_number_map["breakpoints"])
     line_number_map["pc_breakpoints"] = list(line_number_map["pc_breakpoints"])

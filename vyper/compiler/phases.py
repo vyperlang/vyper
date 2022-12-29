@@ -11,7 +11,7 @@ from vyper.ir import compile_ir, optimizer
 from vyper.semantics import set_data_positions, validate_semantics
 from vyper.semantics.types.function import ContractFunctionT
 from vyper.typing import InterfaceImports, StorageLayout
-
+from vyper.evm.opcodes import version_check
 
 class CompilerData:
     """
@@ -150,15 +150,25 @@ class CompilerData:
 
     @cached_property
     def bytecode(self) -> bytes:
-        return generate_bytecode(
-            self.assembly, is_runtime=False, no_bytecode_metadata=self.no_bytecode_metadata
-        )
+        if version_check("shanghai"):
+            return generate_EOFv1(
+                self.assembly, is_runtime=False, no_bytecode_metadata=self.no_bytecode_metadata
+            )
+        else:
+            return generate_bytecode(
+                self.assembly, is_runtime=False, no_bytecode_metadata=self.no_bytecode_metadata
+            )
 
     @cached_property
     def bytecode_runtime(self) -> bytes:
-        return generate_bytecode(
-            self.assembly_runtime, is_runtime=True, no_bytecode_metadata=self.no_bytecode_metadata
-        )
+        if version_check("shanghai"):
+            return generate_EOFv1(
+                self.assembly, is_runtime=True, no_bytecode_metadata=self.no_bytecode_metadata
+            )
+        else:
+            return generate_bytecode(
+                self.assembly_runtime, is_runtime=True, no_bytecode_metadata=self.no_bytecode_metadata
+            )
 
     @cached_property
     def blueprint_bytecode(self) -> bytes:
@@ -314,3 +324,9 @@ def generate_bytecode(
     return compile_ir.assembly_to_evm(
         assembly, insert_vyper_signature=is_runtime, disable_bytecode_metadata=no_bytecode_metadata
     )[0]
+
+def generate_EOFv1(assembly: list, is_runtime: bool = False, no_bytecode_metadata: bool = False) -> bytes:
+    bytecode = compile_ir.assembly_to_evm(
+        assembly, insert_vyper_signature=is_runtime, disable_bytecode_metadata=no_bytecode_metadata
+    )[0]
+    return bytecode
