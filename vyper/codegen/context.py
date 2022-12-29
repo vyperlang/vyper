@@ -25,6 +25,7 @@ class VariableRecord:
     mutable: bool
     encoding: Encoding = Encoding.VYPER
     location: AddrSpace = MEMORY
+    size: Optional[int] = None  # allocated size
     blockscopes: Optional[list] = None
     defined_at: Any = None
     is_internal: bool = False
@@ -166,6 +167,8 @@ class Context:
         released = [(k, v) for k, v in self.vars.items() if scope_id in v.blockscopes]
         for name, var in released:
             n = var.typ.memory_bytes_required
+            # sanity check the type's size hasn't changed since allocation.
+            assert n == var.size
             self.memory_allocator.deallocate_memory(var.pos, n)
             del self.vars[name]
 
@@ -188,6 +191,7 @@ class Context:
             name=name,
             pos=var_pos,
             typ=typ,
+            size=var_size,
             mutable=is_mutable,
             blockscopes=self._scopes.copy(),
             is_internal=is_internal,
