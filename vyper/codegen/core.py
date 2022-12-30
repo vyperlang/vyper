@@ -873,7 +873,8 @@ def _complex_make_setter(left, right):
         n_items = right.typ.count
         keys = [IRnode.from_list(i, typ=UINT256_T) for i in range(n_items)]
 
-    if hasattr(left.typ, "tuple_items"):
+    else:
+        assert is_tuple_like(left.typ)
         keys = left.typ.tuple_keys()
 
     # if len(keyz) == 0:
