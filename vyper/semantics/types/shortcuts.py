@@ -11,4 +11,4 @@ BYTES32_T = BytesM_T(32)
 BYTES20_T = BytesM_T(20)
 BYTES4_T = BytesM_T(4)
 
-_ = UINT, SINT  # explicitly use: linter F401
+_ = UINT, SINT  # explicitly use: addresses linter F401
