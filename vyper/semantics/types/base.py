@@ -294,7 +294,7 @@ class VyperType:
 
         # special error message for types with no members
         if not self.members:
-            raise StructureException(f"{self} does not have members", node)
+            raise StructureException(f"{self} instance does not have members", node)
 
         suggestions_str = get_levenshtein_error_suggestions(key, self.members, 0.3)
         raise UnknownAttribute(f"{self} has no member '{key}'. {suggestions_str}", node)

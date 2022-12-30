@@ -199,7 +199,7 @@ class Expr:
         # MyEnum.foo
         if isinstance(typ, EnumT) and typ.name == self.expr.value.id:
             # 0, 1, 2, .. 255
-            enum_id = typ.members[self.expr.attr]
+            enum_id = typ._enum_members[self.expr.attr]
             value = 2 ** enum_id  # 0 => 0001, 1 => 0010, 2 => 0100, etc.
             return IRnode.from_list(value, typ=typ)
 

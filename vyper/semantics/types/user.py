@@ -43,7 +43,7 @@ class EnumT(_UserType):
         if len(members.keys()) > 256:
             raise EnumDeclarationException("Enums are limited to 256 members!")
 
-        super().__init__(members)
+        super().__init__()
         self._id = name
 
         self._enum_members = members
