@@ -4,7 +4,6 @@ from dataclasses import dataclass
 from typing import Any, Optional
 
 from vyper.address_space import MEMORY, AddrSpace
-from vyper.ast import VyperNode
 from vyper.codegen.ir_node import Encoding
 from vyper.exceptions import CompilerPanic, StateAccessViolation
 from vyper.semantics.types import VyperType
@@ -199,10 +198,7 @@ class Context:
         )
         return var_pos
 
-    def new_variable(
-        self, name: str, typ: VyperType, pos: VyperNode = None, is_mutable: bool = True
-    ) -> int:
-        # TODO remove dead arg: pos
+    def new_variable(self, name: str, typ: VyperType, is_mutable: bool = True) -> int:
         """
         Allocate memory for a user-defined variable.
 
@@ -212,9 +208,6 @@ class Context:
             Name of the variable
         typ : VyperType
             Variable type, used to determine the size of memory allocation
-        pos : VyperNode
-            AST node corresponding to the location where the variable was created,
-            used for annotating exceptions
 
         Returns
         -------
@@ -222,11 +215,7 @@ class Context:
             Memory offset for the variable
         """
 
-        if hasattr(typ, "size_in_bytes"):
-            # temporary requirement to support both new and old type objects
-            var_size = typ.size_in_bytes  # type: ignore
-        else:
-            var_size = typ.memory_bytes_required
+        var_size = typ.memory_bytes_required
         return self._new_variable(name, typ, var_size, False, is_mutable=is_mutable)
 
     def fresh_varname(self, name: Optional[str] = None) -> str:
@@ -257,11 +246,7 @@ class Context:
         # internal variable names begin with a number sign so there is no chance for collision
         name = self.fresh_varname("#internal")
 
-        if hasattr(typ, "size_in_bytes"):
-            # temporary requirement to support both new and old type objects
-            var_size = typ.size_in_bytes  # type: ignore
-        else:
-            var_size = typ.memory_bytes_required
+        var_size = typ.memory_bytes_required
         return self._new_variable(name, typ, var_size, True)
 
     def parse_type(self, ast_node):
