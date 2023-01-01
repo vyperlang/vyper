@@ -24,8 +24,6 @@ class GlobalContext:
         self._enums = dict()
         self._globals = dict()
         self._function_defs = list()
-        self._nonrentrant_counter = 0
-        self._nonrentrant_keys = dict()
 
         self._module = None  # mypy hint
 
@@ -114,9 +112,6 @@ class GlobalContext:
         return _defs
 
     def add_globals_and_events(self, item):
-
-        if self._nonrentrant_counter:
-            raise CompilerPanic("Re-entrancy lock was set before all storage slots were defined")
 
         # Make sure we have a valid variable name.
         if not isinstance(item.target, vy_ast.Name):
