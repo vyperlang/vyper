@@ -172,7 +172,7 @@ class _ExprAnalyser:
         try:
             s = t.get_member(name, node)
             if isinstance(s, VyperType):
-                # ex. foo.bar(). bar() is a ContractFunction
+                # ex. foo.bar(). bar() is a ContractFunctionT
                 return [s]
             # general case. s is a VarInfo, e.g. self.foo
             return [s.typ]
@@ -545,8 +545,8 @@ def validate_unique_method_ids(functions: List) -> None:
 
     Arguments
     ---------
-    functions : List[ContractFunction]
-        A list of ContractFunction objects.
+    functions : List[ContractFunctionT]
+        A list of ContractFunctionT objects.
     """
     method_ids = [x for i in functions for x in i.method_ids.values()]
     seen = set()

@@ -43,7 +43,7 @@ from vyper.semantics.types import (
     TupleT,
     is_type_t,
 )
-from vyper.semantics.types.function import ContractFunction, MemberFunctionT, StateMutability
+from vyper.semantics.types.function import ContractFunctionT, MemberFunctionT, StateMutability
 from vyper.semantics.types.utils import type_from_annotation
 
 
@@ -202,7 +202,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
 
             for node in node_list:
                 t = node._metadata.get("type")
-                if isinstance(t, ContractFunction) and t.mutability == StateMutability.PURE:
+                if isinstance(t, ContractFunctionT) and t.mutability == StateMutability.PURE:
                     # allowed
                     continue
                 raise StateAccessViolation(
@@ -478,7 +478,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         if is_type_t(fn_type, EventT):
             raise StructureException("To call an event you must use the `log` statement", node)
 
-        if isinstance(fn_type, ContractFunction):
+        if isinstance(fn_type, ContractFunctionT):
             if (
                 fn_type.mutability > StateMutability.VIEW
                 and self.func.mutability <= StateMutability.VIEW
@@ -506,7 +506,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         if (
             return_value
             and not isinstance(fn_type, MemberFunctionT)
-            and not isinstance(fn_type, ContractFunction)
+            and not isinstance(fn_type, ContractFunctionT)
         ):
             raise StructureException(
                 f"Function '{fn_type._id}' cannot be called without assigning the result", node

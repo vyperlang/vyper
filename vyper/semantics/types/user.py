@@ -19,7 +19,7 @@ from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_sug
 from vyper.semantics.analysis.utils import validate_expected_type, validate_unique_method_ids
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.base import VyperType
-from vyper.semantics.types.function import ContractFunction
+from vyper.semantics.types.function import ContractFunctionT
 from vyper.semantics.types.primitives import AddressT
 from vyper.semantics.types.subscriptable import HashMapT
 from vyper.semantics.types.utils import type_from_abi, type_from_annotation
@@ -300,7 +300,7 @@ class InterfaceT(_UserType):
             if name not in vyper_self.members:
                 return False
             s = vyper_self.members[name]
-            if isinstance(s, ContractFunction):
+            if isinstance(s, ContractFunctionT):
                 to_compare = vyper_self.members[name]
             # this is kludgy, rework order of passes in ModuleNodeVisitor
             elif isinstance(s, VarInfo) and s.is_public:
@@ -312,7 +312,7 @@ class InterfaceT(_UserType):
 
         # check for missing functions
         for name, type_ in self.members.items():
-            if not isinstance(type_, ContractFunction):
+            if not isinstance(type_, ContractFunctionT):
                 # ex. address
                 continue
 
@@ -345,7 +345,7 @@ class InterfaceT(_UserType):
 
     @property
     def functions(self):
-        return {k: v for (k, v) in self.members.items() if isinstance(v, ContractFunction)}
+        return {k: v for (k, v) in self.members.items() if isinstance(v, ContractFunctionT)}
 
     @classmethod
     def from_json_abi(cls, name: str, abi: dict) -> "InterfaceT":
@@ -377,7 +377,7 @@ class InterfaceT(_UserType):
             )
 
         for item in [i for i in abi if i.get("type") == "function"]:
-            members[item["name"]] = ContractFunction.from_abi(item)
+            members[item["name"]] = ContractFunctionT.from_abi(item)
         for item in [i for i in abi if i.get("type") == "event"]:
             events[item["name"]] = EventT.from_abi(item)
 
@@ -414,7 +414,7 @@ def _get_module_definitions(base_node: vy_ast.Module) -> Tuple[Dict, Dict]:
     events: Dict = {}
     for node in base_node.get_children(vy_ast.FunctionDef):
         if "external" in [i.id for i in node.decorator_list if isinstance(i, vy_ast.Name)]:
-            func = ContractFunction.from_FunctionDef(node)
+            func = ContractFunctionT.from_FunctionDef(node)
             if node.name in functions:
                 # compare the input arguments of the new function and the previous one
                 # if one function extends the inputs, this is a valid function name overload
@@ -428,7 +428,7 @@ def _get_module_definitions(base_node: vy_ast.Module) -> Tuple[Dict, Dict]:
                             base_node,
                         )
                 if len(new_args) <= len(existing_args):
-                    # only keep the `ContractFunction` with the longest set of input args
+                    # only keep the `ContractFunctionT` with the longest set of input args
                     continue
             functions[node.name] = func
     for node in base_node.get_children(vy_ast.VariableDecl, {"is_public": True}):
@@ -437,7 +437,7 @@ def _get_module_definitions(base_node: vy_ast.Module) -> Tuple[Dict, Dict]:
             raise NamespaceCollision(
                 f"Interface contains multiple functions named '{name}'", base_node
             )
-        functions[name] = ContractFunction.getter_from_VariableDecl(node)
+        functions[name] = ContractFunctionT.getter_from_VariableDecl(node)
     for node in base_node.get_children(vy_ast.EventDef):
         name = node.name
         if name in functions or name in events:
@@ -449,7 +449,7 @@ def _get_module_definitions(base_node: vy_ast.Module) -> Tuple[Dict, Dict]:
     return functions, events
 
 
-def _get_class_functions(base_node: vy_ast.InterfaceDef) -> Dict[str, ContractFunction]:
+def _get_class_functions(base_node: vy_ast.InterfaceDef) -> Dict[str, ContractFunctionT]:
     functions = {}
     for node in base_node.body:
         if not isinstance(node, vy_ast.FunctionDef):
@@ -458,7 +458,7 @@ def _get_class_functions(base_node: vy_ast.InterfaceDef) -> Dict[str, ContractFu
             raise NamespaceCollision(
                 f"Interface contains multiple functions named '{node.name}'", node
             )
-        functions[node.name] = ContractFunction.from_FunctionDef(node, is_interface=True)
+        functions[node.name] = ContractFunctionT.from_FunctionDef(node, is_interface=True)
 
     return functions
 
