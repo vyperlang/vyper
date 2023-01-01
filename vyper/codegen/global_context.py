@@ -16,7 +16,6 @@ class GlobalContext:
     def __init__(self):
         self._contracts = dict()
         self._interfaces = dict()
-        self._interface = dict()
 
         self._function_defs = list()
 
