@@ -18,7 +18,6 @@ class GlobalContext:
         self._interfaces = dict()
         self._interface = dict()
 
-        self._enums = dict()
         self._globals = dict()
         self._function_defs = list()
 
@@ -48,9 +47,6 @@ class GlobalContext:
         for item in vyper_module:
             if isinstance(item, vy_ast.InterfaceDef):
                 global_ctx._contracts[item.name] = GlobalContext.make_contract(item)
-
-            elif isinstance(item, vy_ast.EnumDef):
-                global_ctx._enums[item.name] = EnumT.from_EnumDef(item)
 
             # Function definitions
             elif isinstance(item, vy_ast.FunctionDef):
