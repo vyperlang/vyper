@@ -180,7 +180,7 @@ def _runtime_ir(runtime_functions, all_sigs, global_ctx):
 # and generate the runtime and deploy IR, also return the dict of all signatures
 def generate_ir_for_module(global_ctx: GlobalContext) -> Tuple[IRnode, IRnode, FunctionSignatures]:
     # order functions so that each function comes after all of its callees
-    function_defs = _topsort(global_ctx._function_defs)
+    function_defs = _topsort(global_ctx.functions)
 
     # FunctionSignatures for all interfaces defined in this module
     all_sigs: Dict[str, FunctionSignatures] = {}

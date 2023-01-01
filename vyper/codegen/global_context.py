@@ -93,13 +93,6 @@ class GlobalContext:
                 raise StructureException("Invalid contract reference", item)
         return _defs
 
-    @property
-    def interface_names(self):
-        """
-        The set of names which are known to possibly be InterfaceType
-        """
-        return set(self._contracts.keys()) | set(self._interfaces.keys())
-
     def parse_type(self, ast_node):
         # kludge implementation for backwards compatibility.
         # TODO: replace with type_from_ast
