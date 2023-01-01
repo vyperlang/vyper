@@ -11,10 +11,9 @@ from vyper.typing import InterfaceImports
 
 
 # Datatype to store all global context information.
-# TODO: rename me to ModuleInfo
+# TODO: rename me to ModuleT
 class GlobalContext:
     def __init__(self):
-        # Oh jesus, just leave this. So confusing!
         self._contracts = dict()
         self._interfaces = dict()
         self._interface = dict()
@@ -26,6 +25,13 @@ class GlobalContext:
         self._function_defs = list()
 
         self._module = None  # mypy hint
+
+    @cached_property
+    def variables(self):
+        # variables that this module defines, ex.
+        # `x: uint256` is a private storage variable named x
+        variable_decls = self._module.get_children(vy_ast.VariableDecl)
+        return {s.target.id: s.target._metadata["varinfo"] for s in variable_decls}
 
     # Parse top-level functions and variables
     @classmethod
@@ -45,16 +51,9 @@ class GlobalContext:
             if isinstance(item, vy_ast.InterfaceDef):
                 global_ctx._contracts[item.name] = GlobalContext.make_contract(item)
 
-            elif isinstance(item, vy_ast.EventDef):
-                continue
-
             elif isinstance(item, vy_ast.EnumDef):
                 global_ctx._enums[item.name] = EnumT.from_EnumDef(item)
 
-            # Statements of the form:
-            # variable_name: type
-            elif isinstance(item, vy_ast.VariableDecl):
-                global_ctx.add_globals_and_events(item)
             # Function definitions
             elif isinstance(item, vy_ast.FunctionDef):
                 global_ctx._function_defs.append(item)
@@ -111,32 +110,6 @@ class GlobalContext:
                 raise StructureException("Invalid contract reference", item)
         return _defs
 
-    def add_globals_and_events(self, item):
-
-        # Make sure we have a valid variable name.
-        if not isinstance(item.target, vy_ast.Name):
-            raise StructureException("Invalid global variable name", item.target)
-
-        # Handle constants.
-        if item.is_constant:
-            return
-
-        # references to `len(self._globals)` are remnants of deprecated code, retained
-        # to preserve existing interfaces while we complete a larger refactor. location
-        # and size of storage vars is handled in `vyper.context.validation.data_positions`
-        typ = self.parse_type(item.annotation)
-        is_immutable = item.is_immutable
-        self._globals[item.target.id] = VariableRecord(
-            item.target.id,
-            len(self._globals),
-            typ,
-            mutable=not is_immutable,
-            is_immutable=is_immutable,
-        )
-
-        # hack. fix me -- merge GlobalContext with semantics pass ModuleInfo
-        self._globals[item.target.id]._varinfo = item.target._metadata["varinfo"]
-
     @property
     def interface_names(self):
         """
@@ -156,7 +129,7 @@ class GlobalContext:
 
     @property
     def immutables(self):
-        return [t for t in self._globals.values() if t.is_immutable]
+        return [t for t in self.variables.values() if t.is_immutable]
 
     @cached_property
     def immutable_section_bytes(self):

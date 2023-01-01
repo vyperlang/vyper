@@ -56,7 +56,7 @@ class Context:
         self.vars = vars_ or {}
 
         # Global variables, in the form (name, storage location, type)
-        self.globals = global_ctx._globals
+        self.globals = global_ctx.variables
 
         # ABI objects, in the form {classname: ABI JSON}
         self.sigs = sigs or {"self": {}}
