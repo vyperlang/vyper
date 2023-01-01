@@ -18,7 +18,6 @@ class GlobalContext:
         self._interfaces = dict()
         self._interface = dict()
 
-        self._globals = dict()
         self._function_defs = list()
 
         self._module = None  # mypy hint
