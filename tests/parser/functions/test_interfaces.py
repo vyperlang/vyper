@@ -2,7 +2,6 @@ from decimal import Decimal
 
 import pytest
 
-from vyper.builtins.interfaces import ERC20, ERC721
 from vyper.cli.utils import extract_file_interface_imports
 from vyper.compiler import compile_code, compile_codes
 from vyper.exceptions import ArgumentException, InterfaceViolation, StructureException
