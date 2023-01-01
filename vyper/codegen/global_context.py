@@ -17,9 +17,11 @@ class GlobalContext:
         self._contracts = dict()
         self._interfaces = dict()
 
-        self._function_defs = list()
-
         self._module = None  # mypy hint
+
+    @cached_property
+    def functions(self):
+        return self._module.get_children(vy_ast.FunctionDef)
 
     @cached_property
     def variables(self):
@@ -46,9 +48,6 @@ class GlobalContext:
             if isinstance(item, vy_ast.InterfaceDef):
                 global_ctx._contracts[item.name] = GlobalContext.make_contract(item)
 
-            # Function definitions
-            elif isinstance(item, vy_ast.FunctionDef):
-                global_ctx._function_defs.append(item)
             elif isinstance(item, vy_ast.ImportFrom):
                 interface_name = item.name
                 assigned_name = item.alias or item.name
