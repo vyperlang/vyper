@@ -2,7 +2,6 @@ from decimal import Decimal
 
 import pytest
 
-from vyper.ast.signatures.interface import extract_sigs
 from vyper.builtins.interfaces import ERC20, ERC721
 from vyper.cli.utils import extract_file_interface_imports
 from vyper.compiler import compile_code, compile_codes
@@ -76,27 +75,6 @@ def test() -> bool:
     """
 
     assert_compile_failed(lambda: compile_code(code), InterfaceViolation)
-
-
-def test_builtin_interfaces_parse():
-    assert len(extract_sigs({"type": "vyper", "code": ERC20.interface_code})) == 6
-    assert len(extract_sigs({"type": "vyper", "code": ERC721.interface_code})) == 9
-
-
-def test_extract_sigs_ignores_imports():
-    interface_code = """
-{}
-
-@external
-def foo() -> uint256:
-    pass
-    """
-
-    base = extract_sigs({"type": "vyper", "code": interface_code.format("")})
-
-    for stmt in ("import x as x", "from x import y"):
-        sigs = extract_sigs({"type": "vyper", "code": interface_code.format(stmt)})
-        assert [type(i) for i in base] == [type(i) for i in sigs]
 
 
 def test_external_interface_parsing(assert_compile_failed):
