@@ -18,7 +18,6 @@ class GlobalContext:
         self._interfaces = dict()
         self._interface = dict()
 
-        self._events = list()
         self._enums = dict()
         self._globals = dict()
         self._function_defs = list()
