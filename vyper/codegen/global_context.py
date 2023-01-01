@@ -20,6 +20,8 @@ class GlobalContext:
     def variables(self):
         # variables that this module defines, ex.
         # `x: uint256` is a private storage variable named x
+        if self._module is None:  # TODO: make self._module never be None
+            return None
         variable_decls = self._module.get_children(vy_ast.VariableDecl)
         return {s.target.id: s.target._metadata["varinfo"] for s in variable_decls}
 
