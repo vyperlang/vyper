@@ -634,7 +634,7 @@ class Expr:
                     return Expr.struct_literals(args[0], function_name, self.context)
 
             # Interface assignment. Bar(<address>).
-            elif function_name in self.context.sigs:
+            elif isinstance(self.expr._metadata["type"], InterfaceT):
                 (arg0,) = self.expr.args
                 arg_ir = Expr(arg0, self.context).ir_node
 
