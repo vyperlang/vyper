@@ -8,7 +8,7 @@ from vyper.codegen.core import shr
 from vyper.codegen.function_definitions import generate_ir_for_function
 from vyper.codegen.global_context import GlobalContext
 from vyper.codegen.ir_node import IRnode
-from vyper.exceptions import CompilerPanic, FunctionDeclarationException, StructureException
+from vyper.exceptions import CompilerPanic
 from vyper.semantics.types.function import StateMutability
 
 
@@ -32,48 +32,6 @@ def _topsort(functions):
     lookup = {f.name: f for f in functions}
     # strip duplicates
     return list(dict.fromkeys(_topsort_helper(functions, lookup)))
-
-
-# TODO this should really live in GlobalContext
-def parse_external_interfaces(external_interfaces, global_ctx):
-    for _interfacename in global_ctx._contracts:
-        _interface_defs = global_ctx._contracts[_interfacename]
-        _defnames = [_def.name for _def in _interface_defs]
-        interface = {}
-        # CMC 2022-05-06: TODO this seems like dead code
-        if len(set(_defnames)) < len(_interface_defs):
-            raise FunctionDeclarationException(
-                "Duplicate function name: "
-                f"{[name for name in _defnames if _defnames.count(name) > 1][0]}"
-            )
-
-        for _def in _interface_defs:
-            constant = False
-            # test for valid call type keyword.
-            if (
-                len(_def.body) == 1
-                and isinstance(_def.body[0], vy_ast.Expr)
-                and isinstance(_def.body[0].value, vy_ast.Name)
-                # NOTE: Can't import enums here because of circular import
-                and _def.body[0].value.id in ("pure", "view", "nonpayable", "payable")
-            ):
-                constant = True if _def.body[0].value.id in ("view", "pure") else False
-            else:
-                raise StructureException("state mutability of call type must be specified", _def)
-
-            # Recognizes already-defined structs
-            sig = FunctionSignature.from_definition(
-                _def, global_ctx, interface_def=True, constant_override=constant
-            )
-            interface[sig.name] = sig
-        external_interfaces[_interfacename] = interface
-
-    for interface_name, interface in global_ctx._interfaces.items():
-        external_interfaces[interface_name] = {
-            sig.name: sig for sig in interface if isinstance(sig, FunctionSignature)
-        }
-
-    return external_interfaces
 
 
 def _is_init_func(func_ast):
@@ -184,24 +142,22 @@ def generate_ir_for_module(global_ctx: GlobalContext) -> Tuple[IRnode, IRnode, F
 
     # FunctionSignatures for all interfaces defined in this module
     all_sigs: Dict[str, FunctionSignatures] = {}
-    if global_ctx._contracts or global_ctx._interfaces:
-        all_sigs = parse_external_interfaces(all_sigs, global_ctx)
 
     init_function: Optional[vy_ast.FunctionDef] = None
-    sigs: FunctionSignatures = {}
+    local_sigs: FunctionSignatures = {}  # internal/local functions
 
     # generate all signatures
     # TODO really this should live in GlobalContext
     for f in function_defs:
         sig = FunctionSignature.from_definition(f, global_ctx)
         # add it to the global namespace.
-        sigs[sig.name] = sig
+        local_sigs[sig.name] = sig
         # a little hacky, eventually FunctionSignature should be
         # merged with ContractFunction and we can remove this.
         f._metadata["signature"] = sig
 
     assert "self" not in all_sigs
-    all_sigs["self"] = sigs
+    all_sigs["self"] = local_sigs
 
     runtime_functions = [f for f in function_defs if not _is_init_func(f)]
     init_function = next((f for f in function_defs if _is_init_func(f)), None)
@@ -229,4 +185,4 @@ def generate_ir_for_module(global_ctx: GlobalContext) -> Tuple[IRnode, IRnode, F
             raise CompilerPanic("unreachable")
         deploy_code.append(["deploy", 0, runtime, 0])
 
-    return IRnode.from_list(deploy_code), IRnode.from_list(runtime), sigs
+    return IRnode.from_list(deploy_code), IRnode.from_list(runtime), local_sigs
