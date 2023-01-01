@@ -631,7 +631,7 @@ class Expr:
                 return DISPATCH_TABLE[function_name].build_IR(self.expr, self.context)
 
             # Struct constructors do not need `self` prefix.
-            elif function_name in self.context.structs:
+            elif isinstance(self.expr._metadata["type"], StructT):
                 args = self.expr.args
                 if len(args) == 1 and isinstance(args[0], vy_ast.Dict):
                     return Expr.struct_literals(args[0], function_name, self.context)

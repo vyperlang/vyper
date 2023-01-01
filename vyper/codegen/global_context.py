@@ -20,7 +20,6 @@ class GlobalContext:
         self._interface = dict()
         self._implemented_interfaces = set()
 
-        self._structs = dict()
         self._events = list()
         self._enums = dict()
         self._globals = dict()
@@ -45,10 +44,7 @@ class GlobalContext:
         global_ctx._module = vyper_module
 
         for item in vyper_module:
-            if isinstance(item, vy_ast.StructDef):
-                global_ctx._structs[item.name] = global_ctx.make_struct(item)
-
-            elif isinstance(item, vy_ast.InterfaceDef):
+            if isinstance(item, vy_ast.InterfaceDef):
                 global_ctx._contracts[item.name] = GlobalContext.make_contract(item)
 
             elif isinstance(item, vy_ast.EventDef):
@@ -94,8 +90,6 @@ class GlobalContext:
                 global_ctx._interfaces[interface_name] = extract_sigs(
                     interface_codes[interface_name], interface_name
                 )
-            else:
-                raise StructureException("Invalid top-level statement", item)
 
         # Merge intefaces.
         if global_ctx._interfaces:
@@ -106,32 +100,6 @@ class GlobalContext:
                         global_ctx._interface[func_sig.sig] = func_sig
 
         return global_ctx
-
-    # A struct is a list of members
-    def make_struct(self, node: "vy_ast.StructDef") -> list:
-        members = []
-
-        for item in node.body:
-            if isinstance(item, vy_ast.AnnAssign):
-                member_name = item.target
-                member_type = item.annotation
-                # Check well-formedness of member names
-                if not isinstance(member_name, vy_ast.Name):
-                    raise InvalidType(
-                        f"Invalid member name for struct {node.name}, needs to be a valid name. ",
-                        item,
-                    )
-                # Check well-formedness of member types
-                # Note this kicks out mutually recursive structs,
-                # raising an exception instead of stackoverflow.
-                # A struct must be defined before it is referenced.
-                # This feels like a semantic step and maybe should be pushed
-                # to a later compilation stage.
-                self.parse_type(member_type)
-                members.append((member_name, member_type))
-            else:
-                raise StructureException("Structs can only contain variables", item)
-        return members
 
     # A contract is a list of functions.
     @staticmethod
