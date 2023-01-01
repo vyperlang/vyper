@@ -17,7 +17,6 @@ class GlobalContext:
         self._contracts = dict()
         self._interfaces = dict()
         self._interface = dict()
-        self._implemented_interfaces = set()
 
         self._events = list()
         self._enums = dict()
@@ -87,14 +86,6 @@ class GlobalContext:
                 global_ctx._interfaces[interface_name] = extract_sigs(
                     interface_codes[interface_name], interface_name
                 )
-
-        # Merge intefaces.
-        if global_ctx._interfaces:
-            for interface_name, sigs in global_ctx._interfaces.items():
-                if interface_name in global_ctx._implemented_interfaces:
-                    for func_sig in sigs:
-                        func_sig.defined_in_interface = interface_name
-                        global_ctx._interface[func_sig.sig] = func_sig
 
         return global_ctx
 
