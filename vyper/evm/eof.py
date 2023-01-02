@@ -14,7 +14,6 @@ class ValidationException(VyperInternalException):
 class FunctionType:
     def __init__(self, inputs, outputs, max_stack_height) -> None:
         self.offset = 0
-        self.size = 0
         self.code = bytes()
         self.inputs = inputs
         self.outputs = outputs
@@ -122,6 +121,7 @@ class EOFReader:
             if (pos + section_size) > len(code):
                 raise ValidationException("truncated CODE section size")
             self.code_sections[i].code = code[pos:pos + section_size]
+            self.code_sections[i].offset = pos
             pos += section_size
 
             self.validate_code_section(i)
