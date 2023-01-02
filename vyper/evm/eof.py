@@ -177,16 +177,6 @@ class EOFReader:
 
                 if section_id >= len(self.code_sections):
                     raise ValidationException("invalid section id")
-            elif opcode == 0xb2:
-                if pos + 2 > len(code):
-                    raise ValidationException("truncated JUMPF immediate")
-                section_id = int.from_bytes(code[pos:pos+2], byteorder = "big", signed = False)
-
-                if section_id >= len(self.code_sections):
-                    raise ValidationException("invalid section id")
-
-                if self.code_sections[section_id].outputs != self.code_sections[func_id].outputs:
-                    raise ValidationException("incompatible function type for JUMPF")
 
             # Save immediate value positions
             immediates.update(range(pos, pos + immediate_size(opcode)))

@@ -1107,7 +1107,7 @@ def assembly_to_evm(
             continue  # skip debug
 
         # update pc_jump_map
-        if item in ("RJUMP", "JUMP", "JUMPF", "CALLF"):
+        if item in ("RJUMP", "JUMP", "CALLF"):
             last = assembly[i - 1]
             if is_symbol(last) and last.startswith("_sym_internal"):
                 if last.endswith("cleanup"):
@@ -1130,7 +1130,7 @@ def assembly_to_evm(
                     raise CompilerPanic(f"duplicate jumpdest {item}")
 
                 symbol_map[item] = pc
-            elif assembly[i + 1] in ("RJUMP", "RJUMPI", "JUMPF", "CALLF"):
+            elif assembly[i + 1] in ("RJUMP", "RJUMPI", "CALLF"):
                 pc += CODE_OFST_SIZE # highbyte lowbyte only
             else:
                 pc += CODE_OFST_SIZE + 1  # PUSH2 highbits lowbits
@@ -1195,7 +1195,7 @@ def assembly_to_evm(
             continue
 
         elif is_symbol(item):
-            if EOFv1_ENABLED and assembly[i + 1] in ["RJUMP", "RJUMPI", "JUMPF", "CALLF"]:
+            if EOFv1_ENABLED and assembly[i + 1] in ["RJUMP", "RJUMPI", "CALLF"]:
                 sym = item
                 assert is_symbol(sym), f"Internal compiler error: {assembly[i + 1]} not preceded by symbol"
                 pc_post_instruction = instr_offsets[i] + 3

@@ -314,7 +314,7 @@ def _build_legacy_opcodes(bytecode: bytes) -> str:
             push_len = int(mnemonic[4:])
             push_values = [hex(bytecode_sequence.popleft())[2:] for i in range(push_len)]
             opcode_output.append(f"0x{''.join(push_values).upper()}")
-        elif mnemonic in ['RJUMP', 'RJUMPI', 'JUMPF', 'CALLF']:
+        elif mnemonic in ['RJUMP', 'RJUMPI', 'CALLF']:
             offset = int.from_bytes([bytecode_sequence.popleft() for _i in range(2)], 'big', signed=True)
             opcode_output.append(hex(offset))
 
