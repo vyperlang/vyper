@@ -23,6 +23,7 @@ from vyper.codegen.ir_node import IRnode
 from vyper.codegen.keccak256_helper import keccak256_helper
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
+    CompilerPanic,
     EvmVersionException,
     StructureException,
     TypeCheckFailure,
