@@ -15,7 +15,6 @@ class Constancy(enum.Enum):
 
 
 # Function variable
-# TODO move to context.py
 @dataclass
 class VariableRecord:
     name: str
