@@ -233,14 +233,6 @@ IR_OPCODES: OpcodeMap = {**OPCODES, **PSEUDO_OPCODES}
 # Terminating opcodes for EOFv1 support
 TERMINATING_OPCODES = ["STOP", "RETF", "JUMPF", "RETURN", "REVERT", "INVALID"]
 
-def immediate_size(op):
-    if op in ["RJUMP", "RJUMPI", "CALLF"]:
-        return 2
-    elif op[:4] == "PUSH":
-        return int(op[4:])
-    else:
-        return 0
-
 def evm_wrapper(fn, *args, **kwargs):
     def _wrapper(*args, **kwargs):
         global active_evm_version
@@ -288,6 +280,22 @@ def get_opcode(mnemonic: str) -> int:
 def get_ir_opcodes() -> OpcodeRulesetMap:
     return _ir_opcodes[active_evm_version]
 
+OPCODE_TO_MNEMONIC_MAP = {ruleset[0]: mnemonic for mnemonic, ruleset in get_opcodes().items()}
+def get_mnemonic(opcode: int) -> str:
+    return OPCODE_TO_MNEMONIC_MAP[opcode]
+
+VALID_OPCODES = OPCODE_TO_MNEMONIC_MAP.keys()
+
+def immediate_size(op):
+    if isinstance(op, int):
+        op = get_mnemonic(op)
+
+    if op in ["RJUMP", "RJUMPI", "CALLF"]:
+        return 2
+    elif op[:4] == "PUSH":
+        return int(op[4:])
+    else:
+        return 0
 
 def version_check(begin: Optional[str] = None, end: Optional[str] = None) -> bool:
     if begin is None and end is None:
