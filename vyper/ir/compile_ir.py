@@ -4,6 +4,7 @@ import math
 
 from vyper.codegen.ir_node import IRnode
 from vyper.evm.opcodes import get_opcodes, version_check, get_opcode
+from vyper.evm import eof
 from vyper.exceptions import CodegenPanic, CompilerPanic
 from vyper.utils import MemoryPositions
 from vyper.version import version_tuple
@@ -994,19 +995,19 @@ def _optimize_assembly(assembly):
 def decorateWithEOFHeader(bytecode: bytes) -> bytes:
     code_sections_len = 1 # temporary, will calculate eventually
     header = b""
-    header += bytes([0xef, 0x00])    # EOFv1 signature
-    header += bytes([0x01])          # version 1
+    header += eof.MAGIC              # EOFv1 signature
+    header += bytes([eof.VERSION])
 
-    header += bytes([0x01])          # kind=type
+    header += bytes([eof.S_TYPE])
     header += (code_sections_len * 4).to_bytes(2, "big")
 
-    header += bytes([0x02])          # kind=code
+    header += bytes([eof.S_CODE])
     header += code_sections_len.to_bytes(2, "big")
 
     header += bytes([0x01])          # single code section
     header += len(bytecode).to_bytes(2, "big")
 
-    header += bytes([0x02])         # kind=data
+    header += bytes([eof.S_DATA])
     header += bytes([0x0, 0x0])
 
     header += bytes([0x0])          # Terminator
