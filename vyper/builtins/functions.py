@@ -1161,12 +1161,10 @@ class RawCall(BuiltinFunction):
                 " use `is_static_call=True` to perform this action",
                 expr,
             )
-        print(f'this is context: {context.sig.mutability}')
         if static_call and context.sig.mutability != "view":
-            print("you reached the right place")
             raise StateAccessViolation(
-                    f"Functions that use STATICCALL must be declared as view"
-                    )
+                "Functions that use STATICCALL must be declared as view", expr
+            )  # to include expr or not?
 
         if data.value == "~calldata":
             call_ir = ["with", "mem_ofst", "msize"]

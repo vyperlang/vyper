@@ -210,7 +210,7 @@ def _external_call_helper(contract_address, args_ir, call_kwargs, call_expr, con
     value = call_kwargs.value
 
     use_staticcall = fn_type.mutability in (StateMutability.VIEW)
-    #, StateMutability.PURE): this should be removed, right?
+    # , StateMutability.PURE): this should be removed, right?
     if context.is_constant():
         assert use_staticcall, "typechecker missed this"
 
