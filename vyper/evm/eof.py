@@ -15,6 +15,7 @@ class FunctionType:
     def __init__(self, inputs, outputs, max_stack_height) -> None:
         self.offset = 0
         self.size = 0
+        self.code = bytes()
         self.inputs = inputs
         self.outputs = outputs
         self.max_stack_height = max_stack_height
@@ -25,6 +26,7 @@ class EOFReader:
     def __init__(self, bytecode: bytes):
         self.bytecode = bytecode
         self.code_sections = []
+        self.data_sections = []
         self._verify_header()
 
     def get_code_segments(self):
@@ -38,9 +40,8 @@ class EOFReader:
 
         # Process section headers
         section_sizes = {S_TYPE: [], S_CODE: [], S_DATA: []}
-        code_section_ios = []
-        code_sections = []
-        data_sections = []
+        self.code_sections = []
+        self.data_sections = []
         pos = 3
         while True:
             # Terminator not found
@@ -120,29 +121,31 @@ class EOFReader:
             # Truncated section size
             if (pos + section_size) > len(code):
                 raise ValidationException("truncated CODE section size")
-            code_sections.append(code[pos:pos + section_size])
+            self.code_sections[i].code = code[pos:pos + section_size]
             pos += section_size
 
-            self.validate_code_section(i, code_sections[-1], code_section_ios)
+            self.validate_code_section(i)
 
         # Read DATA sections
         for section_size in section_sizes[S_DATA]:
             # Truncated section size
             if (pos + section_size) > len(code):
                 raise ValidationException("truncated DATA section size")
-            data_sections.append(code[pos:pos + section_size])
+            self.data_sections.append(code[pos:pos + section_size])
             pos += section_size
 
         if (pos) != len(code):
             raise ValidationException("Bad file size")
 
         # First code section should have zero inputs and outputs
-        if code_section_ios[0].inputs != 0 or code_section_ios[0].outputs != 0:
+        if self.code_sections[0].inputs != 0 or self.code_sections[0].outputs != 0:
             raise ValidationException("invalid input/output count for code section 0")
 
 
     # Raises ValidationException on invalid code
-    def validate_code_section(self, func_id: int, code: bytes, types: list[FunctionType] = [FunctionType(0, 0, 0)]):
+    def validate_code_section(self, func_id: int):
+        code = self.code_sections[func_id].code
+
         # Note that EOF1 already asserts this with the code section requirements
         assert len(code) > 0
 
@@ -172,17 +175,17 @@ class EOFReader:
                     raise ValidationException("truncated CALLF immediate")
                 section_id = int.from_bytes(code[pos:pos+2], byteorder = "big", signed = False)
 
-                if section_id >= len(types):
+                if section_id >= len(self.code_sections):
                     raise ValidationException("invalid section id")
             elif opcode == 0xb2:
                 if pos + 2 > len(code):
                     raise ValidationException("truncated JUMPF immediate")
                 section_id = int.from_bytes(code[pos:pos+2], byteorder = "big", signed = False)
 
-                if section_id >= len(types):
+                if section_id >= len(self.code_sections):
                     raise ValidationException("invalid section id")
 
-                if types[section_id].outputs != types[func_id].outputs:
+                if self.code_sections[section_id].outputs != self.code_sections[func_id].outputs:
                     raise ValidationException("incompatible function type for JUMPF")
 
             # Save immediate value positions
