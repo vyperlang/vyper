@@ -1,4 +1,5 @@
 from vyper.exceptions import VyperInternalException
+from vyper.evm.opcodes import TERMINATING_OPCODES, VALID_OPCODES, immediate_size, get_mnemonic
 
 MAGIC = b'\xEF\x00'
 VERSION = 0x01
@@ -10,11 +11,20 @@ S_DATA = 0x03
 class ValidationException(VyperInternalException):
     """Validation exception."""
 
+class FunctionType:
+    def __init__(self, inputs, outputs, max_stack_height) -> None:
+        self.offset = 0
+        self.size = 0
+        self.inputs = inputs
+        self.outputs = outputs
+        self.max_stack_height = max_stack_height
+
 class EOFReader:
     bytecode: bytes
 
     def __init__(self, bytecode: bytes):
         self.bytecode = bytecode
+        self.code_sections = []
         self._verify_header()
 
     def get_code_segments(self):
@@ -75,3 +85,119 @@ class EOFReader:
                     section_sizes[S_CODE].append(code_size)
             elif section_id == S_DATA:
                 section_sizes[S_DATA].append(section_count)
+
+        # Code section cannot be absent
+        if len(section_sizes[S_CODE]) == 0:
+            raise ValidationException("no code section")
+
+        # Not more than 1024 code sections
+        if len(section_sizes[S_CODE]) > 1024:
+            raise ValidationException("more than 1024 code sections")
+
+        # Type section can be absent only if single code section is present
+        if len(section_sizes[S_TYPE]) == 0 and len(section_sizes[S_CODE]) != 1:
+            raise ValidationException("no obligatory type section")
+
+        # Type section, if present, has size corresponding to number of code sections
+        if section_sizes[S_TYPE][0] != 0 and section_sizes[S_TYPE][0] != len(section_sizes[S_CODE]) * 4:
+            raise ValidationException("invalid type section size")
+
+        # Truncated section size
+        if (pos + len(section_sizes[S_CODE]) * 4) > len(code):
+            raise ValidationException("truncated TYPE section size")
+
+        # Read TYPE section
+        for i in range(len(section_sizes[S_CODE])):
+            input_count = code[pos]
+            output_count = code[pos + 1]
+            max_stack_height = (code[pos + 2] << 8) | code[pos + 3]
+            type = FunctionType(input_count, output_count, max_stack_height)
+            self.code_sections.append(type)
+            pos += 4
+
+        # Read CODE sections
+        for i, section_size in enumerate(section_sizes[S_CODE]):
+            # Truncated section size
+            if (pos + section_size) > len(code):
+                raise ValidationException("truncated CODE section size")
+            code_sections.append(code[pos:pos + section_size])
+            pos += section_size
+
+            self.validate_code_section(i, code_sections[-1], code_section_ios)
+
+        # Read DATA sections
+        for section_size in section_sizes[S_DATA]:
+            # Truncated section size
+            if (pos + section_size) > len(code):
+                raise ValidationException("truncated DATA section size")
+            data_sections.append(code[pos:pos + section_size])
+            pos += section_size
+
+        if (pos) != len(code):
+            raise ValidationException("Bad file size")
+
+        # First code section should have zero inputs and outputs
+        if code_section_ios[0].inputs != 0 or code_section_ios[0].outputs != 0:
+            raise ValidationException("invalid input/output count for code section 0")
+
+
+    # Raises ValidationException on invalid code
+    def validate_code_section(self, func_id: int, code: bytes, types: list[FunctionType] = [FunctionType(0, 0, 0)]):
+        # Note that EOF1 already asserts this with the code section requirements
+        assert len(code) > 0
+
+        opcode = 0
+        pos = 0
+        rjumpdests = set()
+        immediates = set()
+        while pos < len(code):
+            # Ensure the opcode is valid
+            opcode = code[pos]
+            pos += 1
+            if not opcode in VALID_OPCODES:
+                raise ValidationException("undefined instruction")
+
+            if opcode == 0x5c or opcode == 0x5d:
+                if pos + 2 > len(code):
+                    raise ValidationException("truncated relative jump offset")
+                offset = int.from_bytes(code[pos:pos+2], byteorder = "big", signed = True)
+
+                rjumpdest = pos + 2 + offset
+                if rjumpdest < 0 or rjumpdest >= len(code):
+                    raise ValidationException("relative jump destination out of bounds")
+
+                rjumpdests.add(rjumpdest)
+            elif opcode == 0xb0:
+                if pos + 2 > len(code):
+                    raise ValidationException("truncated CALLF immediate")
+                section_id = int.from_bytes(code[pos:pos+2], byteorder = "big", signed = False)
+
+                if section_id >= len(types):
+                    raise ValidationException("invalid section id")
+            elif opcode == 0xb2:
+                if pos + 2 > len(code):
+                    raise ValidationException("truncated JUMPF immediate")
+                section_id = int.from_bytes(code[pos:pos+2], byteorder = "big", signed = False)
+
+                if section_id >= len(types):
+                    raise ValidationException("invalid section id")
+
+                if types[section_id].outputs != types[func_id].outputs:
+                    raise ValidationException("incompatible function type for JUMPF")
+
+            # Save immediate value positions
+            immediates.update(range(pos, pos + immediate_size(opcode)))
+            # Skip immediates
+            pos += immediate_size(opcode)
+
+        # Ensure last opcode's immediate doesn't go over code end
+        if pos != len(code):
+            raise ValidationException("truncated immediate")
+
+        # opcode is the *last opcode*
+        if not get_mnemonic(opcode) in TERMINATING_OPCODES:
+            raise ValidationException("no terminating instruction")
+
+        # Ensure relative jump destinations don't target immediates
+        if not rjumpdests.isdisjoint(immediates):
+            raise ValidationException("relative jump destination targets immediate")
