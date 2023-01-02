@@ -356,29 +356,22 @@ class Expr:
         left = Expr.parse_value_expr(self.expr.left, self.context)
         right = Expr.parse_value_expr(self.expr.right, self.context)
 
-        assert left.typ == right.typ
-        assert is_numeric_type(left.typ) or is_enum_type(left.typ)
-
-        ltyp, rtyp = left.typ, right.typ
-
         # Sanity check - ensure that we aren't dealing with different types
         # This should be unreachable due to the type check pass
-        assert ltyp == rtyp, f"unreachable, {ltyp}!={rtyp}, {self.expr}"
+        assert left.typ == right.typ, f"unreachable, {left.typ}!={right.typ}"
+        assert is_numeric_type(left.typ) or is_enum_type(left.typ)
+
+        out_typ = left.typ
 
         if isinstance(self.expr.op, vy_ast.BitAnd):
-            new_typ = left.typ
-            return IRnode.from_list(["and", left, right], typ=new_typ)
+            return IRnode.from_list(["and", left, right], typ=out_typ)
         if isinstance(self.expr.op, vy_ast.BitOr):
-            new_typ = left.typ
-            return IRnode.from_list(["or", left, right], typ=new_typ)
+            return IRnode.from_list(["or", left, right], typ=out_typ)
         if isinstance(self.expr.op, vy_ast.BitXor):
-            new_typ = left.typ
-            return IRnode.from_list(["xor", left, right], typ=new_typ)
+            return IRnode.from_list(["xor", left, right], typ=out_typ)
 
         # enums can only do bit ops, not arithmetic.
         assert is_numeric_type(left.typ)
-
-        out_typ = ltyp
 
         with left.cache_when_complex("x") as (b1, x), right.cache_when_complex("y") as (b2, y):
             if isinstance(self.expr.op, vy_ast.Add):
@@ -394,7 +387,7 @@ class Expr:
             elif isinstance(self.expr.op, vy_ast.Pow):
                 ret = arithmetic.safe_pow(x, y)
             else:
-                return  # raises
+                raise CompilerPanic("Unreachable")
 
             return IRnode.from_list(b1.resolve(b2.resolve(ret)), typ=out_typ)
 
