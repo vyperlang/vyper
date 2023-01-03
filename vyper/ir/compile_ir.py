@@ -992,8 +992,8 @@ def _optimize_assembly(assembly):
 
     raise CompilerPanic("infinite loop detected during assembly reduction")  # pragma: notest
 
-def decorateWithEOFHeader(bytecode: bytes) -> bytes:
-    code_sections_len = 1 # temporary, will calculate eventually
+def decorateWithEOFHeader(bytecode: bytes, function_sizes) -> bytes:
+    code_sections_len = len(function_sizes)
     header = b""
     header += eof.MAGIC              # EOFv1 signature
     header += bytes([eof.VERSION])
@@ -1004,7 +1004,8 @@ def decorateWithEOFHeader(bytecode: bytes) -> bytes:
     header += bytes([eof.S_CODE])
     header += code_sections_len.to_bytes(2, "big")
 
-    header += len(bytecode).to_bytes(2, "big")
+    for size in function_sizes:
+        header += size.to_bytes(2, "big")
 
     header += bytes([eof.S_DATA])
     header += bytes([0x0, 0x0])
@@ -1052,6 +1053,9 @@ def assembly_to_evm(
         "error_map": {},
     }
 
+    function_breaks = {}
+    function_sizes = []
+
     pc = 0
     symbol_map = {}
     call_offsets = {}
@@ -1076,7 +1080,7 @@ def assembly_to_evm(
     for i, item in enumerate(assembly):
         if isinstance(item, list):
             assert runtime_code is None, "Multiple subcodes"
-            runtime_code, runtime_map = assembly_to_evm(
+            runtime_code, runtime_map, runtime_function_sizes = assembly_to_evm(
                 item,
                 insert_vyper_signature=True,
                 disable_bytecode_metadata=disable_bytecode_metadata,
@@ -1091,6 +1095,7 @@ def assembly_to_evm(
             )
             assert runtime_code_end - runtime_code_start == len(runtime_code)
 
+            function_sizes = runtime_function_sizes
         if is_ofst(item) and is_mem_sym(assembly[i + 1]):
             max_mem_ofst = max(assembly[i + 2], max_mem_ofst)
 
@@ -1222,18 +1227,18 @@ def assembly_to_evm(
                     o += bytes(offset.to_bytes(2, 'big', signed=True))
                 to_skip = 1                
             elif assembly[i + 1] != "JUMPDEST" and assembly[i + 1] != "BLANK":
-                bytecode, _ = assembly_to_evm(PUSH_N(symbol_map[item], n=CODE_OFST_SIZE))
+                bytecode, _, _ = assembly_to_evm(PUSH_N(symbol_map[item], n=CODE_OFST_SIZE))
                 o += bytecode
 
         elif is_mem_sym(item):
-            bytecode, _ = assembly_to_evm(PUSH_N(symbol_map[item], n=mem_ofst_size))
+            bytecode, _, _ = assembly_to_evm(PUSH_N(symbol_map[item], n=mem_ofst_size))
             o += bytecode
 
         elif is_ofst(item):
             # _OFST _sym_foo 32
             ofst = symbol_map[assembly[i + 1]] + assembly[i + 2]
             n = mem_ofst_size if is_mem_sym(assembly[i + 1]) else CODE_OFST_SIZE
-            bytecode, _ = assembly_to_evm(PUSH_N(ofst, n))
+            bytecode, _, _ = assembly_to_evm(PUSH_N(ofst, n))
             o += bytecode
             to_skip = 2
 
@@ -1253,10 +1258,16 @@ def assembly_to_evm(
             # Should never reach because, assembly is create in _compile_to_assembly.
             raise Exception("Weird symbol in assembly: " + str(item))  # pragma: no cover
 
-    if not EOFv1_ENABLED:
+    if EOFv1_ENABLED:
+        last_offset = 0
+        if len(function_breaks) > 0: # hack: distinguises runtime from deploy
+            for _, offset in enumerate(function_breaks):
+                function_sizes.append(offset - last_offset)
+                last_offset = offset
+            function_sizes.append(pc - last_offset)
+    else:
         o += bytecode_suffix
 
-    line_number_map["function_breaks"] = function_breaks
     line_number_map["breakpoints"] = list(line_number_map["breakpoints"])
     line_number_map["pc_breakpoints"] = list(line_number_map["pc_breakpoints"])
-    return o, line_number_map
+    return o, line_number_map, function_sizes
