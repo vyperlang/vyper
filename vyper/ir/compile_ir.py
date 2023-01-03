@@ -1054,6 +1054,7 @@ def assembly_to_evm(
 
     pc = 0
     symbol_map = {}
+    call_offsets = {}
 
     runtime_code, runtime_code_start, runtime_code_end = None, None, None
 
@@ -1119,6 +1120,9 @@ def assembly_to_evm(
             else:
                 # everything else
                 line_number_map["pc_jump_map"][pc] = "-"
+
+            if item == "CALLF":
+                call_offsets[last] = True
         elif item in ("RJUMPI", "JUMPI", "JUMPDEST"):
             line_number_map["pc_jump_map"][pc] = "-"
 
@@ -1169,6 +1173,8 @@ def assembly_to_evm(
     if runtime_code is not None:
         symbol_map["_sym_subcode_size"] = len(runtime_code)
 
+    function_breaks = {symbol_map[offset_symbol]:i+1 for i,offset_symbol in enumerate(call_offsets.keys())}
+    
     # (NOTE CMC 2022-06-17 this way of generating bytecode did not
     # seem to be a perf hotspot. if it is, may want to use bytearray()
     # instead).
@@ -1180,10 +1186,16 @@ def assembly_to_evm(
     # now that all symbols have been resolved, generate bytecode
     # using the symbol map
     to_skip = 0
+    # current_function = 0
+    # current_function_offset = 0
     for i, item in enumerate(assembly):
         if to_skip > 0:
             to_skip -= 1
             continue
+
+        # if len(function_breaks) > current_function and instr_offsets[i] > function_breaks[current_function]:
+        #     current_function_offset = function_breaks[current_function]
+        #     current_function += 1
 
         if item in ("DEBUG", "BLANK"):
             continue  # skippable opcodes
@@ -1198,13 +1210,17 @@ def assembly_to_evm(
             if EOFv1_ENABLED and assembly[i + 1] in ["RJUMP", "RJUMPI", "CALLF"]:
                 sym = item
                 assert is_symbol(sym), f"Internal compiler error: {assembly[i + 1]} not preceded by symbol"
-                pc_post_instruction = instr_offsets[i] + 3
-                offset = symbol_map[sym] - pc_post_instruction
-                # TODO: fallback to dynamic jumps?
-                assert offset > -32767 and offset <= 32767, "Offset too big for relative jump"
                 o += bytes([get_opcode(assembly[i + 1])])
-                o += bytes(offset.to_bytes(2, 'big', signed=True))
-                to_skip = 1
+
+                if  assembly[i + 1] == "CALLF":
+                    function_id = function_breaks[symbol_map[sym]]
+                    o += bytes(function_id.to_bytes(2, 'big', signed=True))
+                else:
+                    pc_post_instruction = instr_offsets[i] + 3
+                    offset = symbol_map[sym] - pc_post_instruction
+                    assert offset > -32767 and offset <= 32767, "Offset too big for relative jump"    
+                    o += bytes(offset.to_bytes(2, 'big', signed=True))
+                to_skip = 1                
             elif assembly[i + 1] != "JUMPDEST" and assembly[i + 1] != "BLANK":
                 bytecode, _ = assembly_to_evm(PUSH_N(symbol_map[item], n=CODE_OFST_SIZE))
                 o += bytecode
@@ -1240,6 +1256,7 @@ def assembly_to_evm(
     if not EOFv1_ENABLED:
         o += bytecode_suffix
 
+    line_number_map["function_breaks"] = function_breaks
     line_number_map["breakpoints"] = list(line_number_map["breakpoints"])
     line_number_map["pc_breakpoints"] = list(line_number_map["pc_breakpoints"])
     return o, line_number_map
