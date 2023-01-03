@@ -999,7 +999,11 @@ def decorateWithEOFHeader(bytecode: bytes, function_sizes) -> bytes:
     header += bytes([eof.VERSION])
 
     header += bytes([eof.S_TYPE])
-    header += (code_sections_len * 4).to_bytes(2, "big")
+    # Type section
+    for _ in range(code_sections_len):
+        header += bytes([0x0])     # inputs
+        header += bytes([0x0])     # outputs
+        header += (1024).to_bytes(2, "big")    # max stack
 
     header += bytes([eof.S_CODE])
     header += code_sections_len.to_bytes(2, "big")
@@ -1011,11 +1015,6 @@ def decorateWithEOFHeader(bytecode: bytes, function_sizes) -> bytes:
     header += bytes([0x0, 0x0])
 
     header += bytes([0x0])          # Terminator
-
-    # Type section
-    header += bytes([0x0])     # inputs
-    header += bytes([0x0])     # outputs
-    header += (1024).to_bytes(2, "big")    # max stack
 
     return header + bytecode
 
