@@ -1,3 +1,4 @@
+from collections import deque
 from vyper.exceptions import VyperInternalException
 from vyper.evm.opcodes import TERMINATING_OPCODES, VALID_OPCODES, immediate_size, get_mnemonic
 
@@ -18,6 +19,22 @@ class FunctionType:
         self.inputs = inputs
         self.outputs = outputs
         self.max_stack_height = max_stack_height
+
+    def disassemble(self):
+        output = f"Code segment offset: {self.offset} inputs: {self.inputs} outputs: {self.outputs} max stack height: {self.max_stack_height}\n"
+        code = deque(self.code)
+        while code:
+            pc = len(self.code) - len(code)
+            op = code.popleft()
+            mnemonic = get_mnemonic(op)
+            immediates_len = immediate_size(mnemonic)
+            immediates = "0x" + "".join([f"{code.popleft():02x}" for _ in range(immediates_len)])
+            output += f"{pc:04x}: {mnemonic}"
+            if immediates_len > 0:
+                output += f" {immediates}"
+            output += "\n"
+            
+        return output + "\n"
 
 class EOFReader:
     bytecode: bytes
@@ -197,3 +214,10 @@ class EOFReader:
         # Ensure relative jump destinations don't target immediates
         if not rjumpdests.isdisjoint(immediates):
             raise ValidationException("relative jump destination targets immediate")
+
+    def disassemble(self):
+        output = ""
+        for code in self.code_sections:
+            output += code.disassemble()
+
+        return output
