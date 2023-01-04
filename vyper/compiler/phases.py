@@ -322,12 +322,12 @@ def generate_bytecode(
         Final compiled bytecode.
     """
     return compile_ir.assembly_to_evm(
-        assembly, insert_vyper_signature=is_runtime, disable_bytecode_metadata=no_bytecode_metadata
+        assembly, emit_headers=is_runtime, disable_bytecode_metadata=no_bytecode_metadata
     )[0]
 
 def generate_EOFv1(assembly: list, is_runtime: bool = False, no_bytecode_metadata: bool = False) -> bytes:
     bytecode, _, function_breaks = compile_ir.assembly_to_evm(
-        assembly, insert_vyper_signature=is_runtime, disable_bytecode_metadata=no_bytecode_metadata
+        assembly, emit_headers=is_runtime, disable_bytecode_metadata=no_bytecode_metadata
     )
 
     return bytecode # compile_ir.decorateWithEOFHeader(bytecode, function_breaks)

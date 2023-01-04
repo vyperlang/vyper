@@ -1035,7 +1035,7 @@ def adjust_pc_maps(pc_maps, ofst):
 
 
 def assembly_to_evm(
-    assembly, pc_ofst=0, insert_vyper_signature=False, disable_bytecode_metadata=False
+    assembly, pc_ofst=0, emit_headers=False, disable_bytecode_metadata=False
 ):
     """
     Assembles assembly into EVM
@@ -1043,8 +1043,7 @@ def assembly_to_evm(
     assembly: list of asm instructions
     pc_ofst: when constructing the source map, the amount to offset all
              pcs by (no effect until we add deploy code source map)
-    insert_vyper_signature: whether to append vyper metadata to output
-                            (should be true for runtime code)
+    emit_headers: whether to generate EOFv1 headers. In legacy mode it will generate vyper version suffix
     """
     line_number_map = {
         "breakpoints": set(),
@@ -1064,7 +1063,7 @@ def assembly_to_evm(
     runtime_code, runtime_code_start, runtime_code_end = None, None, None
 
     bytecode_suffix = b""
-    if (not disable_bytecode_metadata) and insert_vyper_signature:
+    if (not disable_bytecode_metadata) and emit_headers and (not EOFv1_ENABLED):
         # CBOR encoded: {"vyper": [major,minor,patch]}
         bytecode_suffix += b"\xa1\x65vyper\x83" + bytes(list(version_tuple))
         bytecode_suffix += len(bytecode_suffix).to_bytes(2, "big")
@@ -1083,7 +1082,7 @@ def assembly_to_evm(
             assert runtime_code is None, "Multiple subcodes"
             runtime_code, runtime_map, runtime_function_sizes = assembly_to_evm(
                 item,
-                insert_vyper_signature=True,
+                emit_headers=True,
                 disable_bytecode_metadata=disable_bytecode_metadata,
             )
 
@@ -1096,7 +1095,7 @@ def assembly_to_evm(
             )
             assert runtime_code_end - runtime_code_start == len(runtime_code)
 
-            function_sizes = runtime_function_sizes
+            # function_sizes = runtime_function_sizes
         if is_ofst(item) and is_mem_sym(assembly[i + 1]):
             max_mem_ofst = max(assembly[i + 2], max_mem_ofst)
 
@@ -1188,7 +1187,12 @@ def assembly_to_evm(
 
     # TODO refactor into two functions, create posmap and assemble
 
-    o = b""    
+    o = b""
+
+    if EOFv1_ENABLED and emit_headers:
+        # generate header with placeholder function sizes
+        header = generateEOFHeader([0] * (len(function_breaks) + 1))
+        o += header
 
     # now that all symbols have been resolved, generate bytecode
     # using the symbol map
@@ -1260,15 +1264,18 @@ def assembly_to_evm(
             # Should never reach because, assembly is create in _compile_to_assembly.
             raise Exception("Weird symbol in assembly: " + str(item))  # pragma: no cover
 
-    if EOFv1_ENABLED:
+    if EOFv1_ENABLED and emit_headers:
         last_offset = 0
-        if len(function_breaks) > 0: # hack: distinguises runtime from deploy
-            for _, offset in enumerate(function_breaks):
-                function_sizes.append(offset - last_offset)
-                last_offset = offset
-            function_sizes.append(pc - last_offset)
-    else:
-        o += bytecode_suffix
+        for _, offset in enumerate(function_breaks):
+            function_sizes.append(offset - last_offset)
+            last_offset = offset
+        function_sizes.append(pc - last_offset)
+        
+        # Generate the final header and replace the placeholder
+        header  = generateEOFHeader(function_sizes)
+        o = header + o[len(header):]
+    
+    o += bytecode_suffix
 
     line_number_map["breakpoints"] = list(line_number_map["breakpoints"])
     line_number_map["pc_breakpoints"] = list(line_number_map["pc_breakpoints"])
