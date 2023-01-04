@@ -1,16 +1,43 @@
 import contextlib
 import enum
-from typing import Optional
+from dataclasses import dataclass
+from typing import Any, Optional
 
-from vyper.ast import VyperNode
-from vyper.ast.signatures.function_signature import VariableRecord
-from vyper.codegen.types import NodeType
+from vyper.address_space import MEMORY, AddrSpace
+from vyper.codegen.ir_node import Encoding
 from vyper.exceptions import CompilerPanic, StateAccessViolation
+from vyper.semantics.types import VyperType
 
 
 class Constancy(enum.Enum):
     Mutable = 0
     Constant = 1
+
+
+# Function variable
+@dataclass
+class VariableRecord:
+    name: str
+    pos: int
+    typ: VyperType
+    mutable: bool
+    encoding: Encoding = Encoding.VYPER
+    location: AddrSpace = MEMORY
+    size: Optional[int] = None  # allocated size
+    blockscopes: Optional[list] = None
+    defined_at: Any = None
+    is_internal: bool = False
+    is_immutable: bool = False
+    data_offset: Optional[int] = None
+
+    def __post_init__(self):
+        if self.blockscopes is None:
+            self.blockscopes = []
+
+    def __repr__(self):
+        ret = vars(self)
+        ret["allocated"] = self.typ.memory_bytes_required
+        return f"VariableRecord({ret})"
 
 
 # Contains arguments, variables, etc
@@ -114,7 +141,9 @@ class Context:
             (k, v) for k, v in self.vars.items() if v.is_internal and scope_id in v.blockscopes
         ]
         for name, var in released:
-            self.memory_allocator.deallocate_memory(var.pos, var.size * 32)
+            n = var.typ.memory_bytes_required
+            assert n == var.size
+            self.memory_allocator.deallocate_memory(var.pos, n)
             del self.vars[name]
 
         # Remove block scopes
@@ -136,21 +165,19 @@ class Context:
         # Remove all variables that have specific scope_id attached
         released = [(k, v) for k, v in self.vars.items() if scope_id in v.blockscopes]
         for name, var in released:
-            self.memory_allocator.deallocate_memory(var.pos, var.size * 32)
+            n = var.typ.memory_bytes_required
+            # sanity check the type's size hasn't changed since allocation.
+            assert n == var.size
+            self.memory_allocator.deallocate_memory(var.pos, n)
             del self.vars[name]
 
         # Remove block scopes
         self._scopes.remove(scope_id)
 
     def _new_variable(
-        self, name: str, typ: NodeType, var_size: int, is_internal: bool, is_mutable: bool = True
+        self, name: str, typ: VyperType, var_size: int, is_internal: bool, is_mutable: bool = True
     ) -> int:
-        if is_internal:
-            # TODO CMC 2022-03-02 change this to `.allocate_memory()`
-            # and make `expand_memory()` private.
-            var_pos = self.memory_allocator.expand_memory(var_size)
-        else:
-            var_pos = self.memory_allocator.allocate_memory(var_size)
+        var_pos = self.memory_allocator.allocate_memory(var_size)
 
         assert var_pos + var_size <= self.memory_allocator.size_of_mem, "function frame overrun"
 
@@ -158,16 +185,14 @@ class Context:
             name=name,
             pos=var_pos,
             typ=typ,
+            size=var_size,
             mutable=is_mutable,
             blockscopes=self._scopes.copy(),
             is_internal=is_internal,
         )
         return var_pos
 
-    def new_variable(
-        self, name: str, typ: NodeType, pos: VyperNode = None, is_mutable: bool = True
-    ) -> int:
-        # TODO remove dead arg: pos
+    def new_variable(self, name: str, typ: VyperType, is_mutable: bool = True) -> int:
         """
         Allocate memory for a user-defined variable.
 
@@ -175,11 +200,8 @@ class Context:
         ---------
         name : str
             Name of the variable
-        typ : NodeType
+        typ : VyperType
             Variable type, used to determine the size of memory allocation
-        pos : VyperNode
-            AST node corresponding to the location where the variable was created,
-            used for annotating exceptions
 
         Returns
         -------
@@ -187,11 +209,7 @@ class Context:
             Memory offset for the variable
         """
 
-        if hasattr(typ, "size_in_bytes"):
-            # temporary requirement to support both new and old type objects
-            var_size = typ.size_in_bytes  # type: ignore
-        else:
-            var_size = typ.memory_bytes_required
+        var_size = typ.memory_bytes_required
         return self._new_variable(name, typ, var_size, False, is_mutable=is_mutable)
 
     def fresh_varname(self, name: Optional[str] = None) -> str:
@@ -205,13 +223,13 @@ class Context:
         return f"{name}{t}"
 
     # do we ever allocate immutable internal variables?
-    def new_internal_variable(self, typ: NodeType) -> int:
+    def new_internal_variable(self, typ: VyperType) -> int:
         """
         Allocate memory for an internal variable.
 
         Arguments
         ---------
-        typ : NodeType
+        typ : VyperType
             Variable type, used to determine the size of memory allocation
 
         Returns
@@ -222,11 +240,7 @@ class Context:
         # internal variable names begin with a number sign so there is no chance for collision
         name = self.fresh_varname("#internal")
 
-        if hasattr(typ, "size_in_bytes"):
-            # temporary requirement to support both new and old type objects
-            var_size = typ.size_in_bytes  # type: ignore
-        else:
-            var_size = typ.memory_bytes_required
+        var_size = typ.memory_bytes_required
         return self._new_variable(name, typ, var_size, True)
 
     def parse_type(self, ast_node):

@@ -259,7 +259,7 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
             # don't recurse; can't annotate AST children of type definition
             return
 
-        for element, subtype in zip(node.elements, type_.value_type):
+        for element, subtype in zip(node.elements, type_.member_types):
             self.visit(element, subtype)
 
     def visit_UnaryOp(self, node, type_):

@@ -3,7 +3,7 @@ import pytest
 from vyper.ast import parse_to_ast
 from vyper.exceptions import CallViolation, StructureException
 from vyper.semantics.analysis import validate_semantics
-from vyper.semantics.analysis.module import ModuleNodeVisitor
+from vyper.semantics.analysis.module import ModuleAnalyzer
 
 
 def test_cyclic_function_call(namespace):
@@ -19,7 +19,7 @@ def bar():
     vyper_module = parse_to_ast(code)
     with namespace.enter_scope():
         with pytest.raises(CallViolation):
-            ModuleNodeVisitor(vyper_module, {}, namespace)
+            ModuleAnalyzer(vyper_module, {}, namespace)
 
 
 def test_multi_cyclic_function_call(namespace):
@@ -43,7 +43,7 @@ def potato():
     vyper_module = parse_to_ast(code)
     with namespace.enter_scope():
         with pytest.raises(CallViolation):
-            ModuleNodeVisitor(vyper_module, {}, namespace)
+            ModuleAnalyzer(vyper_module, {}, namespace)
 
 
 def test_global_ann_assign_callable_no_crash():

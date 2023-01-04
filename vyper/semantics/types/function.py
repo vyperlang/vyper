@@ -24,7 +24,8 @@ from vyper.semantics.analysis.base import (
 from vyper.semantics.analysis.utils import check_kwargable, validate_expected_type
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.base import KwargSettings, VyperType
-from vyper.semantics.types.primitives import UINT256_T, BoolT
+from vyper.semantics.types.primitives import BoolT
+from vyper.semantics.types.shortcuts import UINT256_T
 from vyper.semantics.types.subscriptable import TupleT
 from vyper.semantics.types.utils import type_from_abi, type_from_annotation
 from vyper.utils import keccak256
@@ -530,8 +531,8 @@ class ContractFunction(VyperType):
         typ = self.return_type
         if typ is None:
             abi_dict["outputs"] = []
-        elif isinstance(typ, TupleT) and len(typ.value_type) > 1:  # type: ignore
-            abi_dict["outputs"] = [t.to_abi_arg() for t in typ.value_type]  # type: ignore
+        elif isinstance(typ, TupleT) and len(typ.member_types) > 1:
+            abi_dict["outputs"] = [t.to_abi_arg() for t in typ.member_types]
         else:
             abi_dict["outputs"] = [typ.to_abi_arg()]
 

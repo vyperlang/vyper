@@ -7,8 +7,8 @@ import vyper.builtins.interfaces
 from vyper import ast as vy_ast
 from vyper.ast.signatures.function_signature import FunctionSignature
 from vyper.codegen.global_context import GlobalContext
-from vyper.codegen.types import BYTES_M_TYPES, INTEGER_TYPES
 from vyper.exceptions import StructureException
+from vyper.semantics.types import AddressT, BoolT, BytesM_T, DecimalT, IntegerT
 
 
 # Populate built-in interfaces.
@@ -27,21 +27,28 @@ def get_builtin_interfaces():
     }
 
 
+_abi_type_map = {
+    t.abi_type.selector_name(): t
+    for t in (AddressT(), BoolT(), DecimalT()) + IntegerT.all() + BytesM_T.all()
+}
+
+
+# TODO: overlapping functionality with `type_from_abi`
 def abi_type_to_ast(atype, expected_size):
-    if atype in {"address", "bool"} | BYTES_M_TYPES | INTEGER_TYPES:
-        return vy_ast.Name(id=atype)
-    elif atype == "fixed168x10":
-        return vy_ast.Name(id="decimal")
-    elif atype in ("bytes", "string"):
+    if atype in _abi_type_map:
+        return vy_ast.Name(id=str(_abi_type_map[atype]))
+
+    if atype in ("bytes", "string"):
         # expected_size is the maximum length for inputs, minimum length for outputs
         return vy_ast.Subscript(
             value=vy_ast.Name(id=atype.capitalize()),
             slice=vy_ast.Index(value=vy_ast.Int(value=expected_size)),
         )
-    else:
-        raise StructureException(f"Type {atype} not supported by vyper.")
+
+    raise StructureException(f"Type {atype} not supported by vyper.")
 
 
+# TODO: overlapping functionality with ContractFunction.from_abi
 # Vyper defines a maximum length for bytes and string types, but Solidity does not.
 # To maximize interoperability, we internally considers these types to have a
 # a length of 1Mb (1024 * 1024 * 1 byte) for inputs, and 1 for outputs.
@@ -95,40 +102,10 @@ def mk_full_signature_from_json(abi):
     return sigs
 
 
-def _get_external_signatures(global_ctx, sig_formatter=lambda x: x):
-    ret = []
-
-    for func_ast in global_ctx._function_defs:
-        sig = FunctionSignature.from_definition(func_ast, global_ctx)
-        if not sig.internal:
-            ret.append(sig_formatter(sig))
-    return ret
-
-
 def extract_sigs(sig_code, interface_name=None):
     if sig_code["type"] == "vyper":
-        interface_ast = [
-            i
-            for i in vy_ast.parse_to_ast(sig_code["code"], contract_name=interface_name)
-            # all the nodes visited by ModuleNodeVisitor.
-            if isinstance(
-                i,
-                (
-                    vy_ast.FunctionDef,
-                    vy_ast.EnumDef,
-                    vy_ast.EventDef,
-                    vy_ast.StructDef,
-                    vy_ast.InterfaceDef,
-                    # parsing import statements at this stage
-                    # causes issues with recursive imports
-                    # vy_ast.Import,
-                    # vy_ast.ImportFrom,
-                ),
-            )
-            or (isinstance(i, vy_ast.AnnAssign) and i.target.id != "implements")
-        ]
-        global_ctx = GlobalContext.get_global_context(interface_ast)
-        return _get_external_signatures(global_ctx)
+        ast = vy_ast.parse_to_ast(sig_code["code"], contract_name=interface_name)
+        return [s for s in ast if isinstance(s, vy_ast.FunctionDef)]
     elif sig_code["type"] == "json":
         return mk_full_signature_from_json(sig_code["code"])
     else:
