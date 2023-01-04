@@ -1269,7 +1269,7 @@ def assembly_to_evm(
         for _, offset in enumerate(function_breaks):
             function_sizes.append(offset - last_offset)
             last_offset = offset
-        function_sizes.append(pc - last_offset)
+        function_sizes.append(symbol_map.get("_sym_runtime_begin2", pc) - last_offset)
         
         # Generate the final header and replace the placeholder
         header  = generateEOFHeader(function_sizes)
