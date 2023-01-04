@@ -330,4 +330,4 @@ def generate_EOFv1(assembly: list, is_runtime: bool = False, no_bytecode_metadat
         assembly, insert_vyper_signature=is_runtime, disable_bytecode_metadata=no_bytecode_metadata
     )
 
-    return compile_ir.decorateWithEOFHeader(bytecode, function_breaks)
+    return bytecode # compile_ir.decorateWithEOFHeader(bytecode, function_breaks)

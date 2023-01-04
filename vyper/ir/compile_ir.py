@@ -992,7 +992,7 @@ def _optimize_assembly(assembly):
 
     raise CompilerPanic("infinite loop detected during assembly reduction")  # pragma: notest
 
-def decorateWithEOFHeader(bytecode: bytes, function_sizes) -> bytes:
+def generateEOFHeader(function_sizes) -> bytes:
     code_sections_len = len(function_sizes)
     header = b""
     header += eof.MAGIC              # EOFv1 signature
@@ -1018,7 +1018,7 @@ def decorateWithEOFHeader(bytecode: bytes, function_sizes) -> bytes:
         header += bytes([0x0])     # outputs
         header += (1024).to_bytes(2, "big")    # max stack
 
-    return header + bytecode
+    return header
 
 def adjust_pc_maps(pc_maps, ofst):
     assert ofst >= 0
