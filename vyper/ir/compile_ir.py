@@ -1080,7 +1080,7 @@ def assembly_to_evm(
     for i, item in enumerate(assembly):
         if isinstance(item, list):
             assert runtime_code is None, "Multiple subcodes"
-            runtime_code, runtime_map, _ = assembly_to_evm(
+            runtime_code, runtime_map = assembly_to_evm(
                 item,
                 emit_headers=True,
                 disable_bytecode_metadata=disable_bytecode_metadata,
@@ -1227,18 +1227,18 @@ def assembly_to_evm(
                     o += bytes(offset.to_bytes(2, 'big', signed=True))
                 to_skip = 1                
             elif assembly[i + 1] != "JUMPDEST" and assembly[i + 1] != "BLANK":
-                bytecode, _, _ = assembly_to_evm(PUSH_N(symbol_map[item], n=CODE_OFST_SIZE))
+                bytecode, _ = assembly_to_evm(PUSH_N(symbol_map[item], n=CODE_OFST_SIZE))
                 o += bytecode
 
         elif is_mem_sym(item):
-            bytecode, _, _ = assembly_to_evm(PUSH_N(symbol_map[item], n=mem_ofst_size))
+            bytecode, _ = assembly_to_evm(PUSH_N(symbol_map[item], n=mem_ofst_size))
             o += bytecode
 
         elif is_ofst(item):
             # _OFST _sym_foo 32
             ofst = symbol_map[assembly[i + 1]] + assembly[i + 2]
             n = mem_ofst_size if is_mem_sym(assembly[i + 1]) else CODE_OFST_SIZE
-            bytecode, _, _ = assembly_to_evm(PUSH_N(ofst, n))
+            bytecode, _ = assembly_to_evm(PUSH_N(ofst, n))
             o += bytecode
             to_skip = 2
 
@@ -1273,4 +1273,4 @@ def assembly_to_evm(
 
     line_number_map["breakpoints"] = list(line_number_map["breakpoints"])
     line_number_map["pc_breakpoints"] = list(line_number_map["pc_breakpoints"])
-    return o, line_number_map, function_sizes
+    return o, line_number_map

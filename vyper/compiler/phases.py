@@ -152,7 +152,7 @@ class CompilerData:
     def bytecode(self) -> bytes:
         if version_check("shanghai"):
             return generate_EOFv1(
-                self.assembly, is_runtime=True, no_bytecode_metadata=self.no_bytecode_metadata
+                self.assembly, no_bytecode_metadata=self.no_bytecode_metadata
             )
         else:
             return generate_bytecode(
@@ -163,7 +163,7 @@ class CompilerData:
     def bytecode_runtime(self) -> bytes:
         if version_check("shanghai"):
             return generate_EOFv1(
-                self.assembly, is_runtime=True, no_bytecode_metadata=self.no_bytecode_metadata
+                self.assembly_runtime, no_bytecode_metadata=self.no_bytecode_metadata
             )
         else:
             return generate_bytecode(
@@ -325,9 +325,9 @@ def generate_bytecode(
         assembly, emit_headers=is_runtime, disable_bytecode_metadata=no_bytecode_metadata
     )[0]
 
-def generate_EOFv1(assembly: list, is_runtime: bool = False, no_bytecode_metadata: bool = False) -> bytes:
-    bytecode, _, function_breaks = compile_ir.assembly_to_evm(
-        assembly, emit_headers=is_runtime, disable_bytecode_metadata=no_bytecode_metadata
+def generate_EOFv1(assembly: list, no_bytecode_metadata: bool = False) -> bytes:
+    bytecode, _ = compile_ir.assembly_to_evm(
+        assembly, emit_headers=True, disable_bytecode_metadata=no_bytecode_metadata
     )
 
     return bytecode
