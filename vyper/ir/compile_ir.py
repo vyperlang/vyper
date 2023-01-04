@@ -3,7 +3,7 @@ import functools
 import math
 
 from vyper.codegen.ir_node import IRnode
-from vyper.evm.opcodes import get_opcodes, version_check, get_opcode
+from vyper.evm.opcodes import get_opcodes, version_check, get_opcode, immediate_size
 from vyper.evm import eof
 from vyper.exceptions import CodegenPanic, CompilerPanic
 from vyper.utils import MemoryPositions
@@ -1171,7 +1171,8 @@ def assembly_to_evm(
         else:
             pc += 1
 
-    pc += len(bytecode_suffix)
+    if not EOFv1_ENABLED:
+        pc += len(bytecode_suffix)
 
     symbol_map["_sym_code_end"] = pc
     symbol_map["_mem_deploy_start"] = runtime_code_start
