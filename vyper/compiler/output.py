@@ -332,6 +332,6 @@ def _build_eof_opcodes(bytecode: bytes) -> str:
 
 def _build_opcodes(bytecode: bytes) -> str:
     if version_check("shanghai"):
-        _build_eof_opcodes(bytecode)
+        return _build_eof_opcodes(bytecode)
     else:
-        _build_legacy_opcodes(bytecode)
+        return _build_legacy_opcodes(bytecode)
