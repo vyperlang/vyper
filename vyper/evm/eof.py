@@ -13,7 +13,8 @@ class ValidationException(VyperInternalException):
     """Validation exception."""
 
 class FunctionType:
-    def __init__(self, inputs, outputs, max_stack_height) -> None:
+    def __init__(self, function_id, inputs, outputs, max_stack_height) -> None:
+        self.function_id = function_id
         self.offset = 0
         self.code = bytes()
         self.inputs = inputs
@@ -21,7 +22,7 @@ class FunctionType:
         self.max_stack_height = max_stack_height
 
     def disassemble(self):
-        output = f"Code segment offset: {self.offset} inputs: {self.inputs} outputs: {self.outputs} max stack height: {self.max_stack_height}\n"
+        output = f"Func {self.function_id}:\nCode segment offset:{self.offset} inputs:{self.inputs} outputs:{self.outputs} max stack height:{self.max_stack_height}\n"
         code = deque(self.code)
         while code:
             pc = len(self.code) - len(code)
@@ -129,7 +130,7 @@ class EOFReader:
             input_count = code[pos]
             output_count = code[pos + 1]
             max_stack_height = (code[pos + 2] << 8) | code[pos + 3]
-            type = FunctionType(input_count, output_count, max_stack_height)
+            type = FunctionType(i, input_count, output_count, max_stack_height)
             self.code_sections.append(type)
             pos += 4
 
