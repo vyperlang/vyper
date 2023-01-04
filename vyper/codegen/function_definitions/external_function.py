@@ -214,4 +214,4 @@ def generate_ir_for_external_function(code, sig, context, skip_nonpayable_check)
         # TODO rethink this / make it clearer
         ret[-1][-1].append(func_common_ir)
 
-    return IRnode.from_list(ret)
+    return IRnode.from_list(ret, source_pos=getpos(sig.func_ast_code))

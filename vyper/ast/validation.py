@@ -54,6 +54,8 @@ def validate_call_args(
         msg = f" for call to '{node.func.attr}'"
     elif isinstance(node.func, vy_ast.Name):
         msg = f" for call to '{node.func.id}'"
+    else:
+        raise CompilerPanic("Unreachable")
 
     if isinstance(arg_count, int) and len(node.args) != arg_count:
         if not node.args:
