@@ -152,7 +152,7 @@ class CompilerData:
     def bytecode(self) -> bytes:
         if version_check("shanghai"):
             return generate_EOFv1(
-                self.assembly, is_runtime=False, no_bytecode_metadata=self.no_bytecode_metadata
+                self.assembly, is_runtime=True, no_bytecode_metadata=self.no_bytecode_metadata
             )
         else:
             return generate_bytecode(
@@ -330,4 +330,4 @@ def generate_EOFv1(assembly: list, is_runtime: bool = False, no_bytecode_metadat
         assembly, emit_headers=is_runtime, disable_bytecode_metadata=no_bytecode_metadata
     )
 
-    return bytecode # compile_ir.decorateWithEOFHeader(bytecode, function_breaks)
+    return bytecode
