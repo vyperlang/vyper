@@ -158,7 +158,7 @@ To ensure that only one copy of `Namespace` exists throughout the package, you
 should access it using the `get_namespace` method:
 
 ```python
-from brownie.context.namespace import get_namespace
+from vyper.semantics.namespace import get_namespace
 
 namespace = get_namespace()
 ```
