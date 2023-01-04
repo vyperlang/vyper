@@ -322,6 +322,8 @@ def _build_legacy_opcodes(bytecode: bytes) -> str:
 
 def _build_eof_opcodes(bytecode: bytes) -> str:
     eofReader = eof.EOFReader(bytecode)
+    if (eofReader.bytecode_size != len(bytecode)):
+        runtimeEofReader = eof.EOFReader(bytecode[eofReader.bytecode_size:])
     return ""
 
 def _build_opcodes(bytecode: bytes) -> str:

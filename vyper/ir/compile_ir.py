@@ -1080,7 +1080,7 @@ def assembly_to_evm(
     for i, item in enumerate(assembly):
         if isinstance(item, list):
             assert runtime_code is None, "Multiple subcodes"
-            runtime_code, runtime_map, runtime_function_sizes = assembly_to_evm(
+            runtime_code, runtime_map, _ = assembly_to_evm(
                 item,
                 emit_headers=True,
                 disable_bytecode_metadata=disable_bytecode_metadata,
@@ -1094,8 +1094,6 @@ def assembly_to_evm(
                 ctor_mem_size, len(runtime_code)
             )
             assert runtime_code_end - runtime_code_start == len(runtime_code)
-
-            # function_sizes = runtime_function_sizes
         if is_ofst(item) and is_mem_sym(assembly[i + 1]):
             max_mem_ofst = max(assembly[i + 2], max_mem_ofst)
 
@@ -1203,10 +1201,6 @@ def assembly_to_evm(
         if to_skip > 0:
             to_skip -= 1
             continue
-
-        # if len(function_breaks) > current_function and instr_offsets[i] > function_breaks[current_function]:
-        #     current_function_offset = function_breaks[current_function]
-        #     current_function += 1
 
         if item in ("DEBUG", "BLANK"):
             continue  # skippable opcodes

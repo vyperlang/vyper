@@ -24,6 +24,7 @@ class EOFReader:
 
     def __init__(self, bytecode: bytes):
         self.bytecode = bytecode
+        self.bytecode_size = 0
         self.code_sections = []
         self.data_sections = []
         self._verify_header()
@@ -134,13 +135,15 @@ class EOFReader:
             self.data_sections.append(code[pos:pos + section_size])
             pos += section_size
 
-        if (pos) != len(code):
+        # Check if we have a second EOF header attached (the runtime container)
+        if (pos) != len(code) and (self.bytecode[pos:pos+2] != MAGIC or self.bytecode[pos+2] != VERSION):
             raise ValidationException("Bad file size")
 
         # First code section should have zero inputs and outputs
         if self.code_sections[0].inputs != 0 or self.code_sections[0].outputs != 0:
             raise ValidationException("invalid input/output count for code section 0")
 
+        self.bytecode_size = pos
 
     # Raises ValidationException on invalid code
     def validate_code_section(self, func_id: int):
