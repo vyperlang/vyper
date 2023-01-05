@@ -153,7 +153,10 @@ def _assert_false():
     # use a shared failure block for common case of assert(x).
     # in the future we might want to change the code
     # at _sym_revert0 to: INVALID
-    return [_revert_label, JUMPI()]
+    if EOFv1_ENABLED:
+        return [_revert_label, "CALLF"]
+    else:
+        return [_revert_label, JUMPI()]
 
 
 def _add_postambles(asm_ops):
@@ -1260,7 +1263,7 @@ def assembly_to_evm(
 
     if EOFv1_ENABLED and emit_headers:
         last_offset = 0
-        for _, offset in enumerate(function_breaks):
+        for offset in sorted(function_breaks.keys()):
             function_sizes.append(offset - last_offset)
             last_offset = offset
         function_sizes.append(symbol_map.get("_sym_runtime_begin2", pc) - last_offset)
