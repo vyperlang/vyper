@@ -90,7 +90,7 @@ Bitwise Operations
 
   This function has been deprecated from version 0.3.4 onwards. Please use the ``^`` operator instead.
 
-.. py:function:: shift(x: uint256, _shift: int128) -> uint256
+.. py:function:: shift(x: int256 | uint256, _shift: integer) -> uint256
 
     Return ``x`` with the bits shifted ``_shift`` places. A positive ``_shift`` value equals a left shift, a negative value is a right shift.
 
@@ -250,10 +250,10 @@ Vyper has three built-ins for contract creation; all three contract creation bui
             response: Bytes[32] = b""
             x: uint256 = 123
             success, response = raw_call(
-                _target, 
-                _abi_encode(x, method_id=method_id("someMethodName(uint256)")), 
+                _target,
+                _abi_encode(x, method_id=method_id("someMethodName(uint256)")),
                 max_outsize=32,
-                value=msg.value, 
+                value=msg.value,
                 revert_on_failure=False
                 )
             assert success
@@ -300,12 +300,13 @@ Vyper has three built-ins for contract creation; all three contract creation bui
         def do_the_needful():
             selfdestruct(msg.sender)
 
-.. py:function:: send(to: address, value: uint256) -> None
+.. py:function:: send(to: address, value: uint256, gas: uint256 = 0) -> None
 
     Send ether from the contract to the specified Ethereum address.
 
     * ``to``: The destination address to send ether to
     * ``value``: The wei value to send to the address
+    * ``gas``: The amount of gas (the "stipend") to attach to the call. If not set, the stipend defaults to 0.
 
     .. note::
 
@@ -314,8 +315,8 @@ Vyper has three built-ins for contract creation; all three contract creation bui
     .. code-block:: python
 
         @external
-        def foo(_receiver: address, _amount: uint256):
-            send(_receiver, _amount)
+        def foo(_receiver: address, _amount: uint256, gas: uint256):
+            send(_receiver, _amount, gas=gas)
 
 Cryptography
 ============
@@ -459,7 +460,7 @@ Data Manipulation
     Returns a value of the type specified by ``type_``.
 
     For more details on available type conversions, see :ref:`type_conversions`.
-    
+
 .. py:function:: uint2str(value: unsigned integer) -> String
 
     Returns an unsigned integer's string representation.
@@ -683,7 +684,7 @@ Math
 
 .. py:function:: isqrt(x: uint256) -> uint256
 
-    Return the (integer) square root of the provided integer number, using the Babylonian square root algorithm. The rounding mode is to round down to the nearest integer. For instance, ``isqrt(101) == 10``.    
+    Return the (integer) square root of the provided integer number, using the Babylonian square root algorithm. The rounding mode is to round down to the nearest integer. For instance, ``isqrt(101) == 10``.
 
     .. code-block:: python
 
@@ -698,8 +699,7 @@ Math
         10
 
 .. py:function:: uint256_addmod(a: uint256, b: uint256, c: uint256) -> uint256
-
-    Return the modulo of ``(a + b) % c``. Reverts if ``c == 0``.
+    Return the modulo of ``(a + b) % c``. Reverts if ``c == 0``. As this built-in function is intended to provides access to the underlying ``ADDMOD`` opcode, all intermediate calculations of this operation are not subject to the ``2 ** 256`` modulo according to the EVM specifications.
 
     .. code-block:: python
 
@@ -717,7 +717,7 @@ Math
 
 .. py:function:: uint256_mulmod(a: uint256, b: uint256, c: uint256) -> uint256
 
-    Return the modulo from ``(a * b) % c``. Reverts if ``c == 0``.
+    Return the modulo from ``(a * b) % c``. Reverts if ``c == 0``. As this built-in function is intended to provides access to the underlying ``MULMOD`` opcode, all intermediate calculations of this operation are not subject to the ``2 ** 256`` modulo according to the EVM specifications.
 
     .. code-block:: python
 
@@ -891,7 +891,7 @@ Utilities
 
     .. note::
 
-        The EVM only provides access to the most recent 256 blocks. This function returns ``EMPTY_BYTES32`` if the block number is greater than or equal to the current block number or more than 256 blocks behind the current block.
+        The EVM only provides access to the most recent 256 blocks. This function reverts if the block number is greater than or equal to the current block number or more than 256 blocks behind the current block.
 
     .. code-block:: python
 

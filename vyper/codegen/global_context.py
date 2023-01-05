@@ -1,12 +1,13 @@
+from functools import cached_property
 from typing import Optional
 
 from vyper import ast as vy_ast
-from vyper.ast.signatures.function_signature import VariableRecord
-from vyper.codegen.types import parse_type
+from vyper.codegen.context import VariableRecord
 from vyper.exceptions import CompilerPanic, InvalidType, StructureException
+from vyper.semantics.namespace import get_namespace, override_global_namespace
 from vyper.semantics.types import EnumT
+from vyper.semantics.types.utils import type_from_annotation
 from vyper.typing import InterfaceImports
-from vyper.utils import cached_property
 
 
 # Datatype to store all global context information.
@@ -27,6 +28,8 @@ class GlobalContext:
         self._nonrentrant_counter = 0
         self._nonrentrant_keys = dict()
 
+        self._module = None  # mypy hint
+
     # Parse top-level functions and variables
     @classmethod
     # TODO rename me to `from_module`
@@ -38,6 +41,8 @@ class GlobalContext:
 
         interface_codes = {} if interface_codes is None else interface_codes
         global_ctx = cls()
+
+        global_ctx._module = vyper_module
 
         for item in vyper_module:
             if isinstance(item, vy_ast.StructDef):
@@ -177,9 +182,14 @@ class GlobalContext:
         return set(self._contracts.keys()) | set(self._interfaces.keys())
 
     def parse_type(self, ast_node):
-        return parse_type(
-            ast_node, sigs=self.interface_names, custom_structs=self._structs, enums=self._enums
-        )
+        # kludge implementation for backwards compatibility.
+        # TODO: replace with type_from_ast
+        try:
+            ns = self._module._metadata["namespace"]
+        except AttributeError:
+            ns = get_namespace()
+        with override_global_namespace(ns):
+            return type_from_annotation(ast_node)
 
     @property
     def immutables(self):
@@ -187,4 +197,4 @@ class GlobalContext:
 
     @cached_property
     def immutable_section_bytes(self):
-        return sum([imm.size * 32 for imm in self.immutables])
+        return sum([imm.typ.memory_bytes_required for imm in self.immutables])

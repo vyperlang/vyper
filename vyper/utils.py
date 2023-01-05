@@ -37,12 +37,6 @@ except ImportError:
 
     keccak256 = lambda x: _sha3.sha3_256(x).digest()  # noqa: E731
 
-try:
-    # available py3.8+
-    from functools import cached_property
-except ImportError:
-    from cached_property import cached_property  # type: ignore
-
 
 # Converts four bytes to an integer
 def fourbytes_to_int(inp):
@@ -262,20 +256,6 @@ class SizeLimits:
     MAX_UINT8 = 2 ** 8 - 1
     MAX_UINT256 = 2 ** 256 - 1
 
-    @classmethod
-    def in_bounds(cls, type_str, value):
-        # TODO: fix this circular import
-        from vyper.codegen.types import parse_decimal_info, parse_integer_typeinfo
-
-        assert isinstance(type_str, str)
-        if type_str == "decimal":
-            info = parse_decimal_info(type_str)
-        else:
-            info = parse_integer_typeinfo(type_str)
-
-        (lo, hi) = int_bounds(info.is_signed, info.bits)
-        return lo <= value <= hi
-
 
 # Otherwise reserved words that are whitelisted for function declarations
 FUNCTION_WHITELIST = {"send"}
@@ -447,6 +427,3 @@ def annotate_source_code(
     cleanup_lines += [""] * (num_lines - len(cleanup_lines))
 
     return "\n".join(cleanup_lines)
-
-
-__all__ = ["cached_property"]

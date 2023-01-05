@@ -1,3 +1,4 @@
+from functools import cached_property
 from typing import Dict, List, Optional, Tuple, Union
 
 from vyper import ast as vy_ast
@@ -34,21 +35,29 @@ class _UserType(VyperType):
         return hash(id(self))
 
 
+# note: enum behaves a lot like uint256, or uints in general.
 class EnumT(_UserType):
+    _is_prim_word = True
+
     def __init__(self, name: str, members: dict) -> None:
         if len(members.keys()) > 256:
             raise EnumDeclarationException("Enums are limited to 256 members!")
 
-        super().__init__(members)
+        super().__init__()
         self._id = name
-        self._enum_members = VyperType(members)
+
+        self._enum_members = members
+
+        # use a VyperType for convenient access to the `get_member` function
+        # also conveniently checks well-formedness of the members namespace
+        self._helper = VyperType(members)
 
     def get_type_member(self, key: str, node: vy_ast.VyperNode) -> "VyperType":
-        self._enum_members.get_member(key, node)
+        self._helper.get_member(key, node)
         return self
 
     def __repr__(self):
-        arg_types = ",".join(repr(a) for a in self.members)
+        arg_types = ",".join(repr(a) for a in self._enum_members)
         return f"enum {self.name}({arg_types})"
 
     @property
@@ -244,7 +253,9 @@ class EventT(_UserType):
 class InterfaceT(_UserType):
 
     _type_members = {"address": AddressT()}
+    _is_prim_word = True
     _as_array = True
+    _as_hashmap_key = True
 
     def __init__(self, _id: str, members: dict, events: dict) -> None:
         validate_unique_method_ids(list(members.values()))  # explicit list cast for mypy
@@ -280,7 +291,7 @@ class InterfaceT(_UserType):
         return {}
 
     # TODO x.validate_implements(other)
-    def validate_implements(self, node: vy_ast.AnnAssign) -> None:
+    def validate_implements(self, node: vy_ast.ImplementsDecl) -> None:
         namespace = get_namespace()
         unimplemented = []
 
@@ -466,6 +477,29 @@ class StructT(_UserType):
             if isinstance(t, HashMapT):
                 raise StructureException(f"Struct contains a mapping '{n}'", ast_def)
 
+    @cached_property
+    def name(self) -> str:
+        # Alias for API compatibility with codegen
+        return self._id
+
+    # duplicated code in TupleT
+    def tuple_members(self):
+        return [v for (_k, v) in self.tuple_items()]
+
+    # duplicated code in TupleT
+    def tuple_keys(self):
+        return [k for (k, _v) in self.tuple_items()]
+
+    def tuple_items(self):
+        return list(self.members.items())
+
+    @cached_property
+    def member_types(self):
+        """
+        Alias to match TupleT API without shadowing `members` on TupleT
+        """
+        return self.members
+
     @classmethod
     def from_ast_def(cls, base_node: vy_ast.StructDef) -> "StructT":
         """
@@ -512,14 +546,14 @@ class StructT(_UserType):
 
     @property
     def size_in_bytes(self):
-        return sum(i.size_in_bytes for i in self.members.values())
+        return sum(i.size_in_bytes for i in self.member_types.values())
 
     @property
     def abi_type(self) -> ABIType:
-        return ABI_Tuple([t.abi_type for t in self.members.values()])
+        return ABI_Tuple([t.abi_type for t in self.member_types.values()])
 
     def to_abi_arg(self, name: str = "") -> dict:
-        components = [t.to_abi_arg(name=k) for k, t in self.members.items()]
+        components = [t.to_abi_arg(name=k) for k, t in self.member_types.items()]
         return {"name": name, "type": "tuple", "components": components}
 
     # TODO breaking change: use kwargs instead of dict
@@ -531,13 +565,13 @@ class StructT(_UserType):
             raise VariableDeclarationException(
                 "Struct values must be declared via dictionary", node.args[0]
             )
-        if next((i for i in self.members.values() if isinstance(i, HashMapT)), False):
+        if next((i for i in self.member_types.values() if isinstance(i, HashMapT)), False):
             raise VariableDeclarationException(
                 "Struct contains a mapping and so cannot be declared as a literal", node
             )
 
-        members = self.members.copy()
-        keys = list(self.members.keys())
+        members = self.member_types.copy()
+        keys = list(self.member_types.keys())
         for i, (key, value) in enumerate(zip(node.args[0].keys, node.args[0].values)):
             if key is None or key.get("id") not in members:
                 suggestions_str = get_levenshtein_error_suggestions(key.get("id"), members, 1.0)
@@ -549,7 +583,7 @@ class StructT(_UserType):
                 raise InvalidAttribute(
                     "Struct keys are required to be in order, but got "
                     f"`{key.id}` instead of `{expected_key}`. (Reminder: the "
-                    f"keys in this struct are {list(self.members.items())})",
+                    f"keys in this struct are {list(self.member_types.items())})",
                     key,
                 )
 
@@ -560,4 +594,4 @@ class StructT(_UserType):
                 f"Struct declaration does not define all fields: {', '.join(list(members))}", node
             )
 
-        return StructT(self._id, self.members)
+        return StructT(self._id, self.member_types)

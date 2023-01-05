@@ -160,7 +160,7 @@ def _validate_msg_data_attribute(node: vy_ast.Attribute) -> None:
 
 class FunctionNodeVisitor(VyperNodeVisitorBase):
 
-    ignored_types = (vy_ast.Break, vy_ast.Constant, vy_ast.Pass)
+    ignored_types = (vy_ast.Constant, vy_ast.Pass)
     scope_name = "function"
 
     def __init__(
@@ -289,6 +289,11 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         if for_node is None:
             raise StructureException("`continue` must be enclosed in a `for` loop", node)
 
+    def visit_Break(self, node):
+        for_node = node.get_ancestor(vy_ast.For)
+        if for_node is None:
+            raise StructureException("`break` must be enclosed in a `for` loop", node)
+
     def visit_Return(self, node):
         values = node.value
         if values is None:
@@ -308,7 +313,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                     f"expected {self.func.return_type.length}, got {len(values)}",
                     node,
                 )
-            for given, expected in zip(values, self.func.return_type.value_type):
+            for given, expected in zip(values, self.func.return_type.member_types):
                 validate_expected_type(given, expected)
         else:
             validate_expected_type(values, self.func.return_type)

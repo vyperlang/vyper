@@ -113,6 +113,8 @@ def test_slice_bytes(
     elif location == "calldata":
         spliced_code = ""
         foo = "inp"
+    else:
+        raise Exception("unreachable")
 
     _start = start if literal_start else "start"
     _length = length if literal_length else "length"

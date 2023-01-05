@@ -1,3 +1,4 @@
+from functools import cached_property
 from typing import Any, Dict, Optional, Tuple, Union
 
 from vyper import ast as vy_ast
@@ -46,9 +47,13 @@ class VyperType:
     _id: str
     _type_members: Optional[Dict] = None
     _valid_literal: Tuple = ()
-    _as_array: bool = False
     _is_prim_word: bool = False
     _equality_attrs: Optional[Tuple] = None
+    _is_array_type: bool = False
+    _is_bytestring: bool = False  # is it a bytes or a string?
+
+    _as_array: bool = False  # rename to something like can_be_array_member
+    _as_hashmap_key: bool = False
 
     size_in_bytes = 32  # default; override for larger types
 
@@ -77,6 +82,13 @@ class VyperType:
             type(self) == type(other) and self._get_equality_attrs() == other._get_equality_attrs()
         )
 
+    def __lt__(self, other):
+        return self.abi_type.selector_name() < other.abi_type.selector_name()
+
+    @cached_property
+    def _as_darray(self):
+        return self._as_array
+
     @property
     def getter_signature(self):
         return (), self
@@ -92,6 +104,24 @@ class VyperType:
         The ABI type corresponding to this type
         """
         raise CompilerPanic("Method must be implemented by the inherited class")
+
+    @property
+    def memory_bytes_required(self) -> int:
+        # alias for API compatibility with codegen
+        return self.size_in_bytes
+
+    @property
+    def storage_size_in_words(self) -> int:
+        # consider renaming if other word-addressable address spaces are
+        # added to EVM or exist in other arches
+        """
+        Returns the number of words required to allocate in storage for
+        this type
+        """
+        r = self.memory_bytes_required
+        if r % 32 != 0:
+            raise CompilerPanic("Memory bytes must be multiple of 32")
+        return r // 32
 
     @property
     def canonical_abi_type(self) -> str:
@@ -264,7 +294,7 @@ class VyperType:
 
         # special error message for types with no members
         if not self.members:
-            raise StructureException(f"{self} does not have members", node)
+            raise StructureException(f"{self} instance does not have members", node)
 
         suggestions_str = get_levenshtein_error_suggestions(key, self.members, 0.3)
         raise UnknownAttribute(f"{self} has no member '{key}'. {suggestions_str}", node)

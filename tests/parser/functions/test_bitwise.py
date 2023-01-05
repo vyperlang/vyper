@@ -2,7 +2,7 @@ import pytest
 
 from vyper.compiler import compile_code
 from vyper.evm.opcodes import EVM_VERSIONS
-from vyper.exceptions import TypeMismatch
+from vyper.exceptions import InvalidLiteral, TypeMismatch
 
 code = """
 @external
@@ -136,7 +136,23 @@ def foo(x: uint8, y: int128) -> uint256:
     return shift(x, y)
     """,
         TypeMismatch,
-    )
+    ),
+    (
+        """
+@external
+def foo() -> uint256:
+    return shift(2, 257)
+    """,
+        InvalidLiteral,
+    ),
+    (
+        """
+@external
+def foo() -> uint256:
+    return shift(2, -257)
+    """,
+        InvalidLiteral,
+    ),
 ]
 
 

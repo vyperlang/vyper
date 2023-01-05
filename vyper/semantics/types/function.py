@@ -24,7 +24,8 @@ from vyper.semantics.analysis.base import (
 from vyper.semantics.analysis.utils import check_kwargable, validate_expected_type
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.base import KwargSettings, VyperType
-from vyper.semantics.types.primitives import UINT256_T, BoolT
+from vyper.semantics.types.primitives import BoolT
+from vyper.semantics.types.shortcuts import UINT256_T
 from vyper.semantics.types.subscriptable import TupleT
 from vyper.semantics.types.utils import type_from_abi, type_from_annotation
 from vyper.utils import keccak256
@@ -264,11 +265,20 @@ class ContractFunction(VyperType):
         if kwargs["state_mutability"] == StateMutability.PURE and "nonreentrant" in kwargs:
             raise StructureException("Cannot use reentrancy guard on pure functions", node)
 
-        # call arguments
-        if node.args.defaults and node.name == "__init__":
-            raise FunctionDeclarationException(
-                "Constructor may not use default arguments", node.args.defaults[0]
-            )
+        if node.name == "__init__":
+            if (
+                kwargs["state_mutability"] in (StateMutability.PURE, StateMutability.VIEW)
+                or kwargs["function_visibility"] == FunctionVisibility.INTERNAL
+            ):
+                raise FunctionDeclarationException(
+                    "Constructor cannot be marked as `@pure`, `@view` or `@internal`", node
+                )
+
+            # call arguments
+            if node.args.defaults:
+                raise FunctionDeclarationException(
+                    "Constructor may not use default arguments", node.args.defaults[0]
+                )
 
         arguments = OrderedDict()
         max_arg_count = len(node.args.args)
@@ -521,8 +531,8 @@ class ContractFunction(VyperType):
         typ = self.return_type
         if typ is None:
             abi_dict["outputs"] = []
-        elif isinstance(typ, TupleT) and len(typ.value_type) > 1:  # type: ignore
-            abi_dict["outputs"] = [t.to_abi_arg() for t in typ.value_type]  # type: ignore
+        elif isinstance(typ, TupleT) and len(typ.member_types) > 1:
+            abi_dict["outputs"] = [t.to_abi_arg() for t in typ.member_types]
         else:
             abi_dict["outputs"] = [typ.to_abi_arg()]
 

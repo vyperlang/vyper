@@ -15,7 +15,6 @@ from vyper.exceptions import (
     StructureException,
     SyntaxException,
     UndeclaredDefinition,
-    UnexpectedNodeType,
     VariableDeclarationException,
     VyperException,
 )
@@ -27,7 +26,7 @@ from vyper.semantics.analysis.utils import (
     validate_expected_type,
     validate_unique_method_ids,
 )
-from vyper.semantics.namespace import get_namespace
+from vyper.semantics.namespace import Namespace, get_namespace
 from vyper.semantics.types import EnumT, EventT, InterfaceT, StructT
 from vyper.semantics.types.function import ContractFunction
 from vyper.semantics.types.utils import type_from_annotation
@@ -41,7 +40,7 @@ def add_module_namespace(vy_module: vy_ast.Module, interface_codes: InterfaceDic
     """
 
     namespace = get_namespace()
-    ModuleNodeVisitor(vy_module, interface_codes, namespace)
+    ModuleAnalyzer(vy_module, interface_codes, namespace)
 
 
 def _find_cyclic_call(fn_names: list, self_members: dict) -> Optional[list]:
@@ -57,17 +56,18 @@ def _find_cyclic_call(fn_names: list, self_members: dict) -> Optional[list]:
     return None
 
 
-class ModuleNodeVisitor(VyperNodeVisitorBase):
+class ModuleAnalyzer(VyperNodeVisitorBase):
 
     scope_name = "module"
 
     def __init__(
-        self, module_node: vy_ast.Module, interface_codes: InterfaceDict, namespace: dict
+        self, module_node: vy_ast.Module, interface_codes: InterfaceDict, namespace: Namespace
     ) -> None:
         self.ast = module_node
         self.interface_codes = interface_codes or {}
         self.namespace = namespace
 
+        # TODO: Move computation out of constructor
         module_nodes = module_node.body.copy()
         while module_nodes:
             count = len(module_nodes)
@@ -92,6 +92,13 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
         interface = InterfaceT.from_ast(module_node)
         module_node._metadata["type"] = interface
         self.interface = interface  # this is useful downstream
+
+        # attach namespace to the module for downstream use.
+        _ns = Namespace()
+        # note that we don't just copy the namespace because
+        # there are constructor issues.
+        _ns.update({k: namespace[k] for k in namespace._scopes[-1]})
+        module_node._metadata["namespace"] = _ns
 
         # check for collisions between 4byte function selectors
         # internal functions are intentionally included in this check, to prevent breaking
@@ -147,15 +154,7 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
 
             self_members[fn_name].recursive_calls = function_set
 
-    def visit_AnnAssign(self, node):
-        # TODO rename the node class to ImplementsDecl
-        name = node.get("target.id")
-        # TODO move these checks to AST validation
-        if name != "implements":
-            raise UnexpectedNodeType("AnnAssign not allowed at module level", node)
-        if not isinstance(node.annotation, vy_ast.Name):
-            raise UnexpectedNodeType("not an identifier", node.annotation)
-
+    def visit_ImplementsDecl(self, node):
         interface_name = node.annotation.id
 
         other_iface = self.namespace[interface_name]
