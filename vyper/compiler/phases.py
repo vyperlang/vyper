@@ -114,7 +114,7 @@ class CompilerData:
 
     @property
     def global_ctx(self) -> GlobalContext:
-        return generate_global_context(self.vyper_module_folded, self.interface_codes)
+        return GlobalContext(self.vyper_module_folded)
 
     @cached_property
     def _ir_output(self):
@@ -231,27 +231,6 @@ def generate_folded_ast(
     symbol_tables = set_data_positions(vyper_module_folded, storage_layout_overrides)
 
     return vyper_module_folded, symbol_tables
-
-
-def generate_global_context(
-    vyper_module: vy_ast.Module, interface_codes: Optional[InterfaceImports]
-) -> GlobalContext:
-    """
-    Generate a contextualized AST from the Vyper AST.
-
-    Arguments
-    ---------
-    vyper_module : vy_ast.Module
-        Top-level Vyper AST node
-    interface_codes: Dict, optional
-        Interfaces that may be imported by the contracts.
-
-    Returns
-    -------
-    GlobalContext
-        Sorted, contextualized representation of the Vyper AST
-    """
-    return GlobalContext.get_global_context(vyper_module, interface_codes=interface_codes)
 
 
 def generate_ir_nodes(

@@ -28,7 +28,7 @@ from vyper.semantics.analysis.utils import (
 )
 from vyper.semantics.namespace import Namespace, get_namespace
 from vyper.semantics.types import EnumT, EventT, InterfaceT, StructT
-from vyper.semantics.types.function import ContractFunction
+from vyper.semantics.types.function import ContractFunctionT
 from vyper.semantics.types.utils import type_from_annotation
 from vyper.typing import InterfaceDict
 
@@ -104,7 +104,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         # internal functions are intentionally included in this check, to prevent breaking
         # changes in in case of a future change to their calling convention
         self_members = namespace["self"].typ.members
-        functions = [i for i in self_members.values() if isinstance(i, ContractFunction)]
+        functions = [i for i in self_members.values() if isinstance(i, ContractFunctionT)]
         validate_unique_method_ids(functions)
 
         # get list of internal function calls made by each function
@@ -168,7 +168,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         if node.is_public:
             # generate function type and add to metadata
             # we need this when building the public getter
-            node._metadata["func_type"] = ContractFunction.getter_from_VariableDecl(node)
+            node._metadata["func_type"] = ContractFunctionT.getter_from_VariableDecl(node)
 
         if node.is_immutable:
             # mutability is checked automatically preventing assignment
@@ -261,7 +261,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             raise exc.with_annotation(node) from None
 
     def visit_FunctionDef(self, node):
-        func = ContractFunction.from_FunctionDef(node)
+        func = ContractFunctionT.from_FunctionDef(node)
 
         try:
             # TODO sketchy elision of namespace validation

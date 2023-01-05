@@ -6,7 +6,7 @@ from vyper.semantics.analysis.utils import (
     get_possible_types_from_node,
 )
 from vyper.semantics.types import TYPE_T, EnumT, EventT, SArrayT, StructT, is_type_t
-from vyper.semantics.types.function import ContractFunction, MemberFunctionT
+from vyper.semantics.types.function import ContractFunctionT, MemberFunctionT
 
 
 class _AnnotationVisitorBase:
@@ -102,7 +102,7 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
 
     ignored_types = ()
 
-    def __init__(self, fn_node: ContractFunction):
+    def __init__(self, fn_node: ContractFunctionT):
         self.func = fn_node
 
     def visit(self, node, type_=None):
@@ -137,7 +137,7 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
         node._metadata["type"] = node_type
         self.visit(node.func)
 
-        if isinstance(call_type, ContractFunction):
+        if isinstance(call_type, ContractFunctionT):
             # function calls
             if call_type.is_internal:
                 self.func.called_functions.add(call_type)
