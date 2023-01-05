@@ -143,7 +143,7 @@ class EOFReader:
             self.code_sections[i].offset = pos
             pos += section_size
 
-            # self.validate_code_section(i)
+            self.validate_code_section(i)
 
         # Read DATA sections
         for section_size in section_sizes[S_DATA]:
