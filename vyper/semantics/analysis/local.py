@@ -313,7 +313,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                     f"expected {self.func.return_type.length}, got {len(values)}",
                     node,
                 )
-            for given, expected in zip(values, self.func.return_type.value_type):
+            for given, expected in zip(values, self.func.return_type.member_types):
                 validate_expected_type(given, expected)
         else:
             validate_expected_type(values, self.func.return_type)
