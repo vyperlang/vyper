@@ -153,9 +153,9 @@ class Floor(BuiltinFunction):
             ret = IRnode.from_list(
                 [
                     "if",
-                    ["slt", args[0], 0],
-                    ["sdiv", ["sub", args[0], DECIMAL_DIVISOR - 1], DECIMAL_DIVISOR],
-                    ["sdiv", args[0], DECIMAL_DIVISOR],
+                    ["slt", arg, 0],
+                    ["sdiv", ["sub", arg, DECIMAL_DIVISOR - 1], DECIMAL_DIVISOR],
+                    ["sdiv", arg, DECIMAL_DIVISOR],
                 ],
                 typ=INT256_T,
             )
@@ -184,9 +184,9 @@ class Ceil(BuiltinFunction):
             ret = IRnode.from_list(
                 [
                     "if",
-                    ["slt", args[0], 0],
-                    ["sdiv", args[0], DECIMAL_DIVISOR],
-                    ["sdiv", ["add", args[0], DECIMAL_DIVISOR - 1], DECIMAL_DIVISOR],
+                    ["slt", arg, 0],
+                    ["sdiv", arg, DECIMAL_DIVISOR],
+                    ["sdiv", ["add", arg, DECIMAL_DIVISOR - 1], DECIMAL_DIVISOR],
                 ],
                 typ=INT256_T,
             )
