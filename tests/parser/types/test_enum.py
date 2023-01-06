@@ -257,3 +257,22 @@ def baz(a: Roles) -> bool:
     assert c.baz(0b00001) is True  # Roles.USER should pass
     assert c.baz(0b00100) is True  # Roles.ADMIN should pass
     assert c.baz(0b01000) is False  # Roles.MANAGER should fail
+
+
+def test_struct_with_enum(get_contract_with_gas_estimation):
+    code = """
+enum Foobar:
+    FOO
+    BAR
+
+struct Foo:
+    a: uint256
+    b: Foobar
+
+@external
+def get_enum_from_struct() -> Foobar:
+    f: Foo = Foo({a: 1, b: Foobar.BAR})
+    return f.b
+    """
+    c = get_contract_with_gas_estimation(code)
+    assert c.get_enum_from_struct() == 2

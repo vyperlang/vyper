@@ -37,6 +37,9 @@ class _UserType(VyperType):
 
 # note: enum behaves a lot like uint256, or uints in general.
 class EnumT(_UserType):
+    # this is a carveout because currently we allow dynamic arrays of
+    # enums, but not static arrays of enums
+    _as_darray = True
     _is_prim_word = True
 
     def __init__(self, name: str, members: dict) -> None:
