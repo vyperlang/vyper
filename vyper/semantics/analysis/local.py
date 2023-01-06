@@ -383,6 +383,9 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
 
         else:
             # iteration over a variable or literal list
+            if isinstance(node.iter, vy_ast.List) and len(node.iter.elements) == 0:
+                raise StructureException("For loop must have at least 1 iteration", node.iter)
+
             type_list = [
                 i.value_type
                 for i in get_possible_types_from_node(node.iter)
