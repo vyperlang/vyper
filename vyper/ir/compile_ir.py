@@ -154,7 +154,8 @@ def _assert_false():
     # in the future we might want to change the code
     # at _sym_revert0 to: INVALID
     if EOFv1_ENABLED:
-        return [_revert_label, "CALLF"]
+        _no_revert_symbol = mksymbol("no_revert")
+        return ["ISZERO", _no_revert_symbol, "RJUMPI", _revert_label, "CALLF", _no_revert_symbol, "JUMPDEST"]
     else:
         return [_revert_label, JUMPI()]
 
