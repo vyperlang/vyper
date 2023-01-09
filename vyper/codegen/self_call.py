@@ -1,8 +1,12 @@
 from vyper.codegen.core import _freshname, eval_once_check, make_setter
 from vyper.codegen.ir_node import IRnode, push_label_to_stack
 from vyper.evm.address_space import MEMORY
+from vyper.codegen.types import TupleType
 from vyper.exceptions import StateAccessViolation
 from vyper.semantics.types.subscriptable import TupleT
+from vyper.evm.opcodes import version_check
+
+EOFv1_ENABLED = version_check("eof")
 
 _label_counter = 0
 
@@ -104,11 +108,15 @@ def ir_for_self_call(stmt_expr, context):
     if return_buffer is not None:
         goto_op += [return_buffer]
     # pass return label to subroutine
-    goto_op += [push_label_to_stack(return_label)]
+    if not EOFv1_ENABLED:
+        goto_op += [push_label_to_stack(return_label)]
 
     call_sequence = ["seq"]
     call_sequence.append(eval_once_check(_freshname(stmt_expr.node_source_code)))
-    call_sequence.extend([copy_args, goto_op, ["label", return_label, ["var_list"], "pass"]])
+    if EOFv1_ENABLED:
+        call_sequence.extend([copy_args, goto_op])
+    else:
+        call_sequence.extend([copy_args, goto_op, ["label", return_label, ["var_list"], "pass"]])
     if return_buffer is not None:
         # push return buffer location to stack
         call_sequence += [return_buffer]
