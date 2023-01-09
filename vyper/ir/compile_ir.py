@@ -1019,7 +1019,7 @@ def generateEOFHeader(function_sizes) -> bytes:
     for _ in range(code_sections_len):
         header += bytes([0x0])     # inputs
         header += bytes([0x0])     # outputs
-        header += (1024).to_bytes(2, "big")    # max stack
+        header += (64).to_bytes(2, "big")    # max stack
 
     return header
 
