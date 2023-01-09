@@ -1180,7 +1180,8 @@ def assembly_to_evm(
     if runtime_code is not None:
         symbol_map["_sym_subcode_size"] = len(runtime_code)
 
-    function_breaks = {symbol_map[offset_symbol]:i+1 for i,offset_symbol in enumerate(call_offsets.keys())}
+    breaks = sorted([symbol_map[offset_symbol] for offset_symbol in call_offsets.keys()])
+    function_breaks = {br:i+1 for i,br in enumerate(breaks)}
     
     # (NOTE CMC 2022-06-17 this way of generating bytecode did not
     # seem to be a perf hotspot. if it is, may want to use bytearray()
