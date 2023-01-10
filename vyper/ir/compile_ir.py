@@ -1019,8 +1019,11 @@ def generateEOFHeader(function_sizes) -> bytes:
     header += bytes([0x0])          # Terminator
 
     # Type section
-    for _ in range(code_sections_len):
-        header += bytes([0x0])     # inputs
+    for i in range(code_sections_len):
+        if i == 0:
+            header += bytes([0x0])     # inputs
+        else:
+            header += bytes([0x1])     # inputs
         header += bytes([0x0])     # outputs
         header += (64).to_bytes(2, "big")    # max stack
 
