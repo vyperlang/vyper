@@ -701,7 +701,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
             o.extend(_compile_to_assembly(c, withargs, existing_labels, break_dest, height + i))
         
         if str(code.args[0]) == "return_pc":
-            o.extend(["RETF"])
+            o.extend(["POP", "RETF"])
         else:
             o.extend([str(code.args[0]), "RJUMP"])
 
