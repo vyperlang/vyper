@@ -5,7 +5,7 @@ import vyper.ast as vy_ast  # break an import cycle
 import vyper.codegen.core as codegen
 import vyper.compiler.output as output
 from vyper.compiler.phases import CompilerData
-from vyper.evm.opcodes import DEFAULT_EVM_VERSION, evm_wrapper
+from vyper.evm.opcodes import DEFAULT_EVM_VERSION, evm_wrapper, version_check, set_eof_enabled
 from vyper.typing import (
     ContractCodes,
     ContractPath,
@@ -57,6 +57,7 @@ def compile_codes(
     storage_layouts: Dict[ContractPath, StorageLayout] = None,
     show_gas_estimates: bool = False,
     no_bytecode_metadata: bool = False,
+    experimental_eof: bool = False,
 ) -> OrderedDict:
     """
     Generate compiler output(s) from one or more contract source codes.
@@ -92,12 +93,19 @@ def compile_codes(
         * JSON interfaces are given as lists, vyper interfaces as strings
     no_bytecode_metadata: bool, optional
         Do not add metadata to bytecode. Defaults to False
+    experimental_eof: bool, optional
+        Enables the experimental support for EOFv1. Defaults to False
 
     Returns
     -------
     Dict
         Compiler output as `{'contract name': {'output key': "output data"}}`
     """
+
+    if experimental_eof and not version_check('shanghai'):
+        raise ValueError(f"Enabling EOFv1 requires evm version of shanghai or greater")
+
+    set_eof_enabled(experimental_eof)
 
     if output_formats is None:
         output_formats = ("bytecode",)
@@ -130,6 +138,7 @@ def compile_codes(
             storage_layout_override,
             show_gas_estimates,
             no_bytecode_metadata,
+            experimental_eof,
         )
         for output_format in output_formats[contract_name]:
             if output_format not in OUTPUT_FORMATS:
@@ -157,6 +166,7 @@ def compile_code(
     no_optimize: bool = False,
     storage_layout_override: StorageLayout = None,
     show_gas_estimates: bool = False,
+    experimental_eof: bool = False,
 ) -> dict:
     """
     Generate compiler output(s) from a single contract source code.
@@ -198,4 +208,5 @@ def compile_code(
         no_optimize=no_optimize,
         storage_layouts=storage_layouts,
         show_gas_estimates=show_gas_estimates,
+        experimental_eof=experimental_eof,
     )[UNKNOWN_CONTRACT_NAME]

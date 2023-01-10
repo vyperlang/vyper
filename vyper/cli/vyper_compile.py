@@ -133,6 +133,7 @@ def _parse_args(argv):
         "-p", help="Set the root path for contract imports", default=".", dest="root_folder"
     )
     parser.add_argument("-o", help="Set the output path", dest="output_path")
+    parser.add_argument("--experimental-eof", help="The compiler will emit EOFv1 formated bytecode", action="store_true")
 
     args = parser.parse_args(argv)
 
@@ -162,6 +163,7 @@ def _parse_args(argv):
         args.no_optimize,
         args.storage_layout,
         args.no_bytecode_metadata,
+        args.experimental_eof,
     )
 
     if args.output_path:
@@ -257,6 +259,7 @@ def compile_files(
     no_optimize: bool = False,
     storage_layout: Iterable[str] = None,
     no_bytecode_metadata: bool = False,
+    experimental_eof: bool = False,
 ) -> OrderedDict:
     root_path = Path(root_folder).resolve()
     if not root_path.exists():
@@ -301,6 +304,7 @@ def compile_files(
         storage_layouts=storage_layouts,
         show_gas_estimates=show_gas_estimates,
         no_bytecode_metadata=no_bytecode_metadata,
+        experimental_eof=experimental_eof,
     )
     if show_version:
         compiler_data["version"] = vyper.__version__

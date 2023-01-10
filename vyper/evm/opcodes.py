@@ -36,6 +36,7 @@ EVM_VERSIONS: dict[str, int] = {
 
 DEFAULT_EVM_VERSION: str = "eof"
 active_evm_version: int = EVM_VERSIONS[DEFAULT_EVM_VERSION]
+_eof_enabled = False
 
 # opcode as hex value
 # number of values removed from stack
@@ -306,3 +307,10 @@ def version_check(begin: Optional[str] = None, end: Optional[str] = None) -> boo
         begin_idx = EVM_VERSIONS[begin]
     end_idx = max(EVM_VERSIONS.values()) if end is None else EVM_VERSIONS[end]
     return begin_idx <= active_evm_version <= end_idx
+
+def set_eof_enabled(e: bool):
+    global _eof_enabled
+    _eof_enabled = e
+
+def is_eof_enabled() -> bool:
+    return _eof_enabled

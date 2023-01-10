@@ -3,7 +3,7 @@ import functools
 import math
 
 from vyper.codegen.ir_node import IRnode
-from vyper.evm.opcodes import get_opcodes, version_check, get_opcode
+from vyper.evm.opcodes import get_opcodes, version_check, get_opcode, is_eof_enabled
 from vyper.evm import eof
 from vyper.exceptions import CodegenPanic, CompilerPanic
 from vyper.utils import MemoryPositions
@@ -13,13 +13,11 @@ PUSH_OFFSET = 0x5F
 DUP_OFFSET = 0x7F
 SWAP_OFFSET = 0x8F
 
-EOFv1_ENABLED = version_check("shanghai")
-
 def JUMPI() -> str:
-    return "RJUMPI" if EOFv1_ENABLED else "JUMPI"
+    return "RJUMPI" if is_eof_enabled() else "JUMPI"
 
 def JUMP() -> str:
-    return "RJUMP" if EOFv1_ENABLED else "JUMP"
+    return "RJUMP" if is_eof_enabled() else "JUMP"
 
 def num_to_bytearray(x):
     o = []
@@ -113,7 +111,7 @@ def calc_mem_ofst_size(ctor_mem_size):
 # by better liveness analysis.
 # NOTE: modifies input in-place
 def _rewrite_return_sequences(ir_node, label_params=None):
-    if EOFv1_ENABLED:
+    if is_eof_enabled():
         return
 
     args = ir_node.args
@@ -153,7 +151,7 @@ def _assert_false():
     # use a shared failure block for common case of assert(x).
     # in the future we might want to change the code
     # at _sym_revert0 to: INVALID
-    if EOFv1_ENABLED:
+    if is_eof_enabled():
         _no_revert_symbol = mksymbol("no_revert")
         return ["ISZERO", _no_revert_symbol, "RJUMPI", _revert_label, "CALLF", _no_revert_symbol, "JUMPDEST"]
     else:
@@ -677,7 +675,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
     # jump to a symbol, and push variable # of arguments onto stack
     elif code.value == "goto":
         o = []
-        args = code.args[1:] # if EOFv1_ENABLED and len(code.args) >= 2 and is_symbol(code.args[1].value) else code.args[1:]
+        args = code.args[1:] # if is_eof_enabled() and len(code.args) >= 2 and is_symbol(code.args[1].value) else code.args[1:]
 
         for i, c in enumerate(reversed(args)):
             o.extend(_compile_to_assembly(c, withargs, existing_labels, break_dest, height + i))
@@ -689,7 +687,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
             o.extend(["_sym_" + symbol, JUMP()])
         return o
     elif code.value == "exit_to":
-        if not EOFv1_ENABLED:
+        if not is_eof_enabled():
             raise CodegenPanic("exit_to not implemented on non EOFv1")
 
         o = []
@@ -758,7 +756,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         return []
 
     elif code.value == "exit_to":
-        if not EOFv1_ENABLED:
+        if not is_eof_enabled():
             raise CodegenPanic("exit_to not implemented yet!")
 
         if code.args[0].value == "return_pc":
@@ -1044,7 +1042,7 @@ def adjust_pc_maps(pc_maps, ofst):
 
 
 def assembly_to_evm(
-    assembly, pc_ofst=0, emit_headers=False, disable_bytecode_metadata=False
+    assembly, pc_ofst=0, emit_headers=False, disable_bytecode_metadata=False, eof_enabled=False
 ):
     """
     Assembles assembly into EVM
@@ -1072,7 +1070,7 @@ def assembly_to_evm(
     runtime_code, runtime_code_start, runtime_code_end = None, None, None
 
     bytecode_suffix = b""
-    if (not disable_bytecode_metadata) and emit_headers and (not EOFv1_ENABLED):
+    if (not disable_bytecode_metadata) and emit_headers and (not is_eof_enabled()):
         # CBOR encoded: {"vyper": [major,minor,patch]}
         bytecode_suffix += b"\xa1\x65vyper\x83" + bytes(list(version_tuple))
         bytecode_suffix += len(bytecode_suffix).to_bytes(2, "big")
@@ -1161,7 +1159,7 @@ def assembly_to_evm(
             pc -= 1
         elif item == "BLANK":
             pc += 0
-        elif item == "JUMPDEST" and EOFv1_ENABLED:
+        elif item == "JUMPDEST" and is_eof_enabled():
             pc += 0
         elif isinstance(item, str) and item.startswith("_DEPLOY_MEM_OFST_"):
             # _DEPLOY_MEM_OFST is assembly magic which will
@@ -1177,7 +1175,7 @@ def assembly_to_evm(
         else:
             pc += 1
 
-    if not EOFv1_ENABLED:
+    if not is_eof_enabled():
         pc += len(bytecode_suffix)
 
     symbol_map["_sym_code_end"] = pc
@@ -1197,7 +1195,7 @@ def assembly_to_evm(
 
     o = b""
 
-    if EOFv1_ENABLED and emit_headers:
+    if is_eof_enabled() and emit_headers:
         # generate header with placeholder function sizes
         header = generateEOFHeader([0] * (len(function_breaks) + 1))
         o += header
@@ -1215,14 +1213,14 @@ def assembly_to_evm(
         if item in ("DEBUG", "BLANK"):
             continue  # skippable opcodes
         # When EOFv1 enabled skip emiting JUMPDESTs
-        elif item == "JUMPDEST" and EOFv1_ENABLED:
+        elif item == "JUMPDEST" and is_eof_enabled():
             continue  
 
         elif isinstance(item, str) and item.startswith("_DEPLOY_MEM_OFST_"):
             continue
 
         elif is_symbol(item):
-            if EOFv1_ENABLED and assembly[i + 1] in ["RJUMP", "RJUMPI", "CALLF"]:
+            if is_eof_enabled() and assembly[i + 1] in ["RJUMP", "RJUMPI", "CALLF"]:
                 sym = item
                 assert is_symbol(sym), f"Internal compiler error: {assembly[i + 1]} not preceded by symbol"
                 o += bytes([get_opcode(assembly[i + 1])])
@@ -1268,7 +1266,7 @@ def assembly_to_evm(
             # Should never reach because, assembly is create in _compile_to_assembly.
             raise Exception("Weird symbol in assembly: " + str(item))  # pragma: no cover
 
-    if EOFv1_ENABLED and emit_headers:
+    if is_eof_enabled() and emit_headers:
         last_offset = 0
         for offset in sorted(function_breaks.keys()):
             function_sizes.append(offset - last_offset)

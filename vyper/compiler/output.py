@@ -9,7 +9,7 @@ from vyper.codegen.ir_node import IRnode
 from vyper.compiler.phases import CompilerData
 from vyper.compiler.utils import build_gas_estimates
 from vyper.evm import opcodes
-from vyper.evm.opcodes import version_check
+from vyper.evm.opcodes import is_eof_enabled
 from vyper.evm import eof
 from vyper.ir import compile_ir
 from vyper.semantics.types.function import FunctionVisibility, StateMutability
@@ -322,16 +322,15 @@ def _build_legacy_opcodes(bytecode: bytes) -> str:
 
 def _build_eof_opcodes(bytecode: bytes) -> str:
     eofReader = eof.EOFReader(bytecode)
-    print("----DEPLOY----")
-    print(eofReader.disassemble())
+    output = eofReader.disassemble()
     if (eofReader.bytecode_size != len(bytecode)):
         runtimeEofReader = eof.EOFReader(bytecode[eofReader.bytecode_size:])
-        print("----RUNTIME----")
-        print(runtimeEofReader.disassemble())
-    return ""
+        output =  "--- DEPLOY CODE ---\n" + output 
+        output += "--- RUNTIME CODE ---\n" + runtimeEofReader.disassemble()
+    return output
 
 def _build_opcodes(bytecode: bytes) -> str:
-    if version_check("shanghai"):
+    if is_eof_enabled():
         return _build_eof_opcodes(bytecode)
     else:
         return _build_legacy_opcodes(bytecode)
