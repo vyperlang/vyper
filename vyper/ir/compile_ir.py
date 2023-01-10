@@ -681,7 +681,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
             o.extend(_compile_to_assembly(c, withargs, existing_labels, break_dest, height + i))
 
         symbol = str(code.args[0])
-        if symbol.startswith("internal"):
+        if symbol.startswith("internal") and is_eof_enabled():
             o.extend(["_sym_" + symbol, "CALLF"])
         else:
             o.extend(["_sym_" + symbol, JUMP()])
