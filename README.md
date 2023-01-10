@@ -53,6 +53,19 @@ make dev-init
 python setup.py test
 ```
 
+## Experimental EOFv1 support
+
+This version of the Vyper compiler supports the upcoming EOFv1 bytecode format. This is currently under
+development and in alpha state. To enable the experimental EOFv1 support you use the 
+``--experimental-eof`` command line option. Additionally a greater than ``paris`` evm version should
+be used. 
+
+Usage example:
+```bash
+vyper --experimental-eof --evm-version=shanghai -f opcodes_runtime contract.vy
+```
+
+
 # Contributing
 * See Issues tab, and feel free to submit your own issues
 * Add PRs if you discover a solution to an existing issue
