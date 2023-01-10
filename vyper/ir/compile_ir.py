@@ -1042,7 +1042,7 @@ def adjust_pc_maps(pc_maps, ofst):
 
 
 def assembly_to_evm(
-    assembly, pc_ofst=0, emit_headers=False, disable_bytecode_metadata=False, eof_enabled=False
+    assembly, pc_ofst=0, insert_vyper_signature=False, emit_headers=False, disable_bytecode_metadata=False, eof_enabled=False
 ):
     """
     Assembles assembly into EVM
@@ -1070,7 +1070,7 @@ def assembly_to_evm(
     runtime_code, runtime_code_start, runtime_code_end = None, None, None
 
     bytecode_suffix = b""
-    if (not disable_bytecode_metadata) and emit_headers and (not is_eof_enabled()):
+    if (not disable_bytecode_metadata) and insert_vyper_signature and (not is_eof_enabled()):
         # CBOR encoded: {"vyper": [major,minor,patch]}
         bytecode_suffix += b"\xa1\x65vyper\x83" + bytes(list(version_tuple))
         bytecode_suffix += len(bytecode_suffix).to_bytes(2, "big")
@@ -1175,7 +1175,7 @@ def assembly_to_evm(
         else:
             pc += 1
 
-    if not is_eof_enabled():
+    if not is_eof_enabled() and insert_vyper_signature:
         pc += len(bytecode_suffix)
 
     symbol_map["_sym_code_end"] = pc
