@@ -939,7 +939,7 @@ class Invert(Operator):
     _pretty = "~"
 
     def _op(self, value):
-        return value ^ (2 ** 256 - 1)
+        return (2 ** 256 - 1) - value
 
 
 class BinOp(ExprNode):
