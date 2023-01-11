@@ -102,7 +102,7 @@ def _runtime_code_offsets(ctor_mem_size, runtime_codelen):
 # mem offsets in the code. For instance, if we only see mem symbols
 # up to size 256, we can use PUSH1.
 def calc_mem_ofst_size(ctor_mem_size):
-    return math.ceil(math.log(ctor_mem_size + 1, 256))
+    return max(math.ceil(math.log(ctor_mem_size + 1, 256)), 1)
 
 
 # temporary optimization to handle stack items for return sequences
@@ -1255,7 +1255,9 @@ def assembly_to_evm(
         elif isinstance(item, str) and item.upper() in get_opcodes():
             o += bytes([get_opcodes()[item.upper()][0]])
         elif item[:4] == "PUSH":
-            o += bytes([PUSH_OFFSET + int(item[4:])])
+            push_size = int(item[4:])
+            assert push_size > 0, f"Bad PUSH size for {item}"
+            o += bytes([PUSH_OFFSET + push_size])
         elif item[:3] == "DUP":
             o += bytes([DUP_OFFSET + int(item[3:])])
         elif item[:4] == "SWAP":
