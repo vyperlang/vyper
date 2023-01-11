@@ -937,7 +937,9 @@ class Invert(Operator):
     __slots__ = ()
     _description = "bitwise not"
     _pretty = "~"
-    _op = operator.inv
+
+    def _op(self, value):
+        return value ^ (2 ** 256 - 1)
 
 
 class BinOp(ExprNode):
