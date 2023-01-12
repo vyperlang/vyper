@@ -101,6 +101,10 @@ class _SequenceT(_SubscriptableT):
 
     def __init__(self, value_type: VyperType, length: int):
 
+        # this check added to the existing child classes DArrayT and SArrayT,
+        # in order to show the user source code for debugging.
+        # if you've hit this it is unexpected behavior and likely
+        # a new child class has been created which needs a similar check
         if not 0 < length < 2 ** 256:
             raise InvalidType("Array length is invalid")
 
@@ -192,6 +196,8 @@ class SArrayT(_SequenceT):
             raise StructureException(
                 "Arrays must be defined with base type and length, e.g. bool[5]", node
             )
+        if not 0 < node.slice.value.value < 2 ** 256:
+            raise InvalidType("Array length is invalid", node)
 
         value_type = type_from_annotation(node.value)
 
@@ -283,6 +289,9 @@ class DArrayT(_SequenceT):
                 "DynArray must be defined with base type and max length, e.g. DynArray[bool, 5]",
                 node,
             )
+
+        if not 0 < node.slice.value.elements[1].value < 2 ** 256:
+            raise InvalidType("Array length is invalid", node)
 
         value_type = type_from_annotation(node.slice.value.elements[0])
         if not value_type._as_darray:
