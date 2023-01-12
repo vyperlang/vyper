@@ -62,7 +62,7 @@ be used.
 
 Usage example:
 ```bash
-vyper --experimental-eof --evm-version=shanghai -f opcodes_runtime contract.vy
+vyper --experimental-eof --evm-version=cancun -f opcodes_runtime contract.vy
 ```
 
 

@@ -102,8 +102,8 @@ def compile_codes(
         Compiler output as `{'contract name': {'output key': "output data"}}`
     """
 
-    if experimental_eof and not version_check('shanghai'):
-        raise ValueError(f"Enabling EOFv1 requires evm version of shanghai or greater")
+    if experimental_eof and not version_check('cancun'):
+        raise ValueError(f"Enabling EOFv1 requires evm version of cancun or greater")
 
     set_eof_enabled(experimental_eof)
 
