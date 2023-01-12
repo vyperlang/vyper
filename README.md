@@ -57,7 +57,7 @@ python setup.py test
 
 This version of the Vyper compiler supports the upcoming EOFv1 bytecode format. This is currently under
 development and in alpha state. To enable the experimental EOFv1 support you use the 
-``--experimental-eof`` command line option. Additionally a greater than ``paris`` evm version should
+``--experimental-eof`` command line option. Additionally a greater or equal to ``cancun`` evm version should
 be used. 
 
 Usage example:
