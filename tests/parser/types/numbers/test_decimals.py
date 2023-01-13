@@ -33,6 +33,16 @@ def foo(x: decimal, y: decimal) -> decimal:
     assert_compile_failed(lambda: get_contract(code), InvalidOperation)
 
 
+@pytest.mark.parametrize("op", ["not"])
+def test_invalid_unary_ops(get_contract, assert_compile_failed, op):
+    code = f"""
+@external
+def foo(x: decimal) -> decimal:
+    return {op} x
+    """
+    assert_compile_failed(lambda: get_contract(code), InvalidOperation)
+
+
 def quantize(x: Decimal) -> Decimal:
     return x.quantize(DECIMAL_EPSILON, rounding=ROUND_DOWN)
 
