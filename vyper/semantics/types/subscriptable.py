@@ -2,7 +2,7 @@ from typing import Any, Dict, Optional, Tuple, Union
 
 from vyper import ast as vy_ast
 from vyper.abi_types import ABI_DynamicArray, ABI_StaticArray, ABI_Tuple, ABIType
-from vyper.exceptions import ArrayIndexException, InvalidType, StructureException
+from vyper.exceptions import ArrayIndexException, CompilerPanic, InvalidType, StructureException
 from vyper.semantics.types.base import VyperType
 from vyper.semantics.types.primitives import IntegerT
 from vyper.semantics.types.shortcuts import UINT256_T
