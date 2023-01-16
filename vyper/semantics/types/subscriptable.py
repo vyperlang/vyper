@@ -2,7 +2,12 @@ from typing import Any, Dict, Optional, Tuple, Union
 
 from vyper import ast as vy_ast
 from vyper.abi_types import ABI_DynamicArray, ABI_StaticArray, ABI_Tuple, ABIType
-from vyper.exceptions import ArrayIndexException, CompilerPanic, InvalidType, StructureException
+from vyper.exceptions import (
+    ArrayIndexException,
+    InvalidType,
+    StructureException,
+    VariableDeclarationException,
+)
 from vyper.semantics.types.base import VyperType
 from vyper.semantics.types.primitives import IntegerT
 from vyper.semantics.types.shortcuts import UINT256_T
@@ -101,12 +106,9 @@ class _SequenceT(_SubscriptableT):
 
     def __init__(self, value_type: VyperType, length: int):
 
-        # length check added to existing child classes DArrayT and SArrayT
-        # in order to show the user source code for debugging.
-        # if you've hit this it is unexpected behavior and likely
-        # a new child class has been created which needs a similar check
+        # sanity check (length should be checked before this base constructor)
         if not 0 < length < 2 ** 256:
-            raise CompilerPanic("Array length should not be 0 or > 2**256")
+            raise InvalidType("Array length must not be 0 or > 2**256")
 
         super().__init__(UINT256_T, value_type)
         self.length = length
@@ -205,7 +207,7 @@ class SArrayT(_SequenceT):
         # note: validates index is a vy_ast.Int.
         length = get_index_value(node.slice)
         if not 0 < length < 2 ** 256:
-            raise InvalidType("Array length is invalid", node)
+            raise VariableDeclarationException("Array length is invalid", node)
         return cls(value_type, length)
 
 
@@ -296,7 +298,7 @@ class DArrayT(_SequenceT):
 
         max_length = node.slice.value.elements[1].value
         if not 0 < max_length < 2 ** 256:
-            raise InvalidType("Array length is invalid", node)
+            raise VariableDeclarationException("Array length is invalid", node)
         return cls(value_type, max_length)
 
 

@@ -38,6 +38,8 @@ def type_from_abi(abi_type: Dict) -> VyperType:
             length = int(length_str.rstrip("]"))
         except ValueError:
             raise UnknownType(f"ABI type has an invalid length: {type_string}") from None
+        if not 0 < length < 2 ** 256:
+            raise UnknownType(f"ABI contains an invalid array length: {length}") from None
         try:
             value_type = type_from_abi({"type": value_type_string})
         except UnknownType:
