@@ -219,9 +219,10 @@ class IntegerT(NumericT):
 
     @cached_property
     def _invalid_ops(self):
+        invalid_ops = (vy_ast.Not,)
         if not self.is_signed:
-            return (vy_ast.USub,)
-        return ()
+            return invalid_ops + (vy_ast.USub,)
+        return invalid_ops
 
     @classmethod
     # TODO maybe cache these three classmethods
@@ -265,7 +266,7 @@ class DecimalT(NumericT):
     _decimal_places = 10  # TODO generalize
     _id = "decimal"
     _is_signed = True
-    _invalid_ops = (vy_ast.Pow, vy_ast.BitAnd, vy_ast.BitOr, vy_ast.BitXor)
+    _invalid_ops = (vy_ast.Pow, vy_ast.BitAnd, vy_ast.BitOr, vy_ast.BitXor, vy_ast.Not)
     _valid_literal = (vy_ast.Decimal,)
 
     _equality_attrs = ("_bits", "_decimal_places")

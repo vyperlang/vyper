@@ -4,7 +4,7 @@ import random
 
 import pytest
 
-from vyper.exceptions import InvalidType, OverflowException, ZeroDivisionException
+from vyper.exceptions import InvalidOperation, InvalidType, OverflowException, ZeroDivisionException
 from vyper.semantics.types import IntegerT
 from vyper.utils import evm_div, evm_mod
 
@@ -257,3 +257,14 @@ def test() -> {typ}:
 
     for val in bad_cases:
         assert_compile_failed(lambda: get_contract(code_template.format(typ=typ, val=val)))
+
+
+@pytest.mark.parametrize("typ", types)
+@pytest.mark.parametrize("op", ["not", "-"])
+def test_invalid_unary_ops(get_contract, assert_compile_failed, typ, op):
+    code = f"""
+@external
+def foo(a: {typ}) -> {typ}:
+    return {op} a
+    """
+    assert_compile_failed(lambda: get_contract(code), InvalidOperation)
