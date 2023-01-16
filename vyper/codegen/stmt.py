@@ -146,10 +146,16 @@ class Stmt:
             return external_call.ir_for_external_call(self.stmt, self.context)
 
     def _assert_reason(self, test_expr, msg):
+        # from parse_Raise: None passed as the assert condition
+        is_raise = test_expr is None
+
         if isinstance(msg, vy_ast.Name) and msg.id == "UNREACHABLE":
-            return IRnode.from_list(
-                ["assert_unreachable", test_expr], error_msg="assert unreachable"
-            )
+            if is_raise:
+                return IRnode.from_list(["invalid"], error_msg="raise unreachable")
+            else:
+                return IRnode.from_list(
+                    ["assert_unreachable", test_expr], error_msg="assert unreachable"
+                )
 
         # set constant so that revert reason str is well behaved
         try:
@@ -192,12 +198,10 @@ class Stmt:
             ["mstore", buf - 32, 0x20],
             ["revert", buf - 36, ["add", 4 + 32 + 32, ["ceil32", _runtime_length]]],
         ]
-
-        if test_expr is not None:
-            ir_node = ["if", ["iszero", test_expr], revert_seq]
-        else:
+        if is_raise:
             ir_node = revert_seq
-
+        else:
+            ir_node = ["if", ["iszero", test_expr], revert_seq]
         return IRnode.from_list(ir_node, error_msg="user revert with reason")
 
     def parse_Assert(self):
