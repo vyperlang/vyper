@@ -13,11 +13,14 @@ PUSH_OFFSET = 0x5F
 DUP_OFFSET = 0x7F
 SWAP_OFFSET = 0x8F
 
+
 def JUMPI() -> str:
     return "RJUMPI" if is_eof_enabled() else "JUMPI"
 
+
 def JUMP() -> str:
     return "RJUMP" if is_eof_enabled() else "JUMP"
+
 
 def num_to_bytearray(x):
     o = []
@@ -996,10 +999,11 @@ def _optimize_assembly(assembly):
 
     raise CompilerPanic("infinite loop detected during assembly reduction")  # pragma: notest
 
-def generateEOFHeader(function_sizes) -> bytes:
+
+def generateEOFHeader(function_sizes, max_stack_heights) -> bytes:
     code_sections_len = len(function_sizes)
     header = b""
-    header += eof.MAGIC              # EOFv1 signature
+    header += eof.MAGIC  # EOFv1 signature
     header += bytes([eof.VERSION])
 
     header += bytes([eof.S_TYPE])
@@ -1014,18 +1018,19 @@ def generateEOFHeader(function_sizes) -> bytes:
     header += bytes([eof.S_DATA])
     header += bytes([0x0, 0x0])
 
-    header += bytes([0x0])          # Terminator
+    header += bytes([0x0])  # Terminator
 
     # Type section
     for i in range(code_sections_len):
         if i == 0:
-            header += bytes([0x0])     # inputs
+            header += bytes([0x0])  # inputs
         else:
-            header += bytes([0x1])     # inputs
-        header += bytes([0x0])     # outputs
-        header += (64).to_bytes(2, "big")    # max stack
+            header += bytes([0x1])  # inputs
+        header += bytes([0x0])  # outputs
+        header += (max_stack_heights[i]).to_bytes(2, "big")  # max stack
 
     return header
+
 
 def adjust_pc_maps(pc_maps, ofst):
     assert ofst >= 0
@@ -1042,7 +1047,12 @@ def adjust_pc_maps(pc_maps, ofst):
 
 
 def assembly_to_evm(
-    assembly, pc_ofst=0, insert_vyper_signature=False, emit_headers=False, disable_bytecode_metadata=False, eof_enabled=False
+    assembly,
+    pc_ofst=0,
+    insert_vyper_signature=False,
+    emit_headers=False,
+    disable_bytecode_metadata=False,
+    eof_enabled=False,
 ):
     """
     Assembles assembly into EVM
@@ -1197,7 +1207,8 @@ def assembly_to_evm(
 
     if is_eof_enabled() and emit_headers:
         # generate header with placeholder function sizes
-        header = generateEOFHeader([0] * (len(function_breaks) + 1))
+        dummy_placeholder_data = [0] * (len(function_breaks) + 1)
+        header = generateEOFHeader(dummy_placeholder_data, dummy_placeholder_data)
         o += header
 
     # now that all symbols have been resolved, generate bytecode
@@ -1214,7 +1225,7 @@ def assembly_to_evm(
             continue  # skippable opcodes
         # When EOFv1 enabled skip emiting JUMPDESTs
         elif item == "JUMPDEST" and is_eof_enabled():
-            continue  
+            continue
 
         elif isinstance(item, str) and item.startswith("_DEPLOY_MEM_OFST_"):
             continue
@@ -1225,7 +1236,7 @@ def assembly_to_evm(
                 assert is_symbol(sym), f"Internal compiler error: {assembly[i + 1]} not preceded by symbol"
                 o += bytes([get_opcode(assembly[i + 1])])
 
-                if  assembly[i + 1] == "CALLF":
+                if assembly[i + 1] == "CALLF":
                     function_id = function_breaks[symbol_map[sym]]
                     o += bytes(function_id.to_bytes(2, 'big', signed=True))
                 else:
@@ -1270,13 +1281,23 @@ def assembly_to_evm(
 
     if is_eof_enabled() and emit_headers:
         last_offset = 0
+        function_offsets = []
         for offset in sorted(function_breaks.keys()):
+            function_offsets.append(offset)
             function_sizes.append(offset - last_offset)
             last_offset = offset
         function_sizes.append(symbol_map.get("_sym_runtime_begin2", pc) - last_offset)
+
+        max_stack_heights = []
+        offset = len(header)
+        for i, size in enumerate(function_sizes):
+            max_stack_heights.append(
+                eof.calculate_max_stack_height(o[offset : offset + size], stack_height=0 if i == 0 else 1)
+            )
+            offset += size
         
         # Generate the final header and replace the placeholder
-        header  = generateEOFHeader(function_sizes)
+        header = generateEOFHeader(function_sizes, max_stack_heights)
         o = header + o[len(header):]
     
     o += bytecode_suffix
