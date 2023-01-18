@@ -1,6 +1,6 @@
 from collections import deque
 from vyper.exceptions import VyperInternalException
-from vyper.evm.opcodes import TERMINATING_OPCODES, VALID_OPCODES, immediate_size, get_mnemonic
+from vyper.evm.opcodes import TERMINATING_OPCODES, VALID_OPCODES, immediate_size, get_mnemonic, get_opcode_metadata
 
 MAGIC = b"\xEF\x00"
 VERSION = 0x01
