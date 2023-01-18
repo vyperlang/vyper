@@ -298,6 +298,12 @@ def immediate_size(op):
     else:
         return 0
 
+def get_opcode_metadata(mnem_or_op):
+    if isinstance(mnem_or_op, int):
+        mnem_or_op = get_mnemonic(mnem_or_op)
+    
+    return get_opcodes()[mnem_or_op]
+
 def version_check(begin: Optional[str] = None, end: Optional[str] = None) -> bool:
     if begin is None and end is None:
         raise CompilerPanic("Either beginning or end fork ruleset must be set.")
