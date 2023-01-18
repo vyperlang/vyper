@@ -2,15 +2,17 @@ from collections import deque
 from vyper.exceptions import VyperInternalException
 from vyper.evm.opcodes import TERMINATING_OPCODES, VALID_OPCODES, immediate_size, get_mnemonic
 
-MAGIC = b'\xEF\x00'
+MAGIC = b"\xEF\x00"
 VERSION = 0x01
 S_TERMINATOR = 0x00
 S_TYPE = 0x01
 S_CODE = 0x02
 S_DATA = 0x03
 
+
 class ValidationException(VyperInternalException):
     """Validation exception."""
+
 
 class FunctionType:
     def __init__(self, function_id, inputs, outputs, max_stack_height) -> None:
@@ -34,8 +36,9 @@ class FunctionType:
             if immediates_len > 0:
                 output += f" {immediates}"
             output += "\n"
-            
+
         return output + "\n"
+
 
 class EOFReader:
     bytecode: bytes
@@ -222,3 +225,54 @@ class EOFReader:
             output += code.disassemble()
 
         return output
+
+# Calculates the max stack height for the given code block. Meanwhile calculates the stack height at every instruction
+# to be later used to validate jump destination stack validity. Currently disabled.
+def calculate_max_stack_height(bytecode: bytes, start_pc: int = 0, stack_height: int = 0, stack_heights = []) -> int:
+    max_stack_height = 0
+
+    if len(stack_heights) == 0:
+        stack_heights = [-1] * len(bytecode)
+
+    pc = start_pc
+    while pc < len(bytecode):
+        op = bytecode[pc]
+        meta = get_opcode_metadata(op)
+        mnemonic = get_mnemonic(meta[0])
+        pop_size = meta[1]
+        push_size = meta[2]
+
+        if mnemonic == "CALLF":
+            pop_size = 0
+            push_size = 1  
+
+        stack_height -= pop_size
+        if stack_height < 0:
+            raise ValidationException("Stack underflow")
+        stack_height += push_size
+        max_stack_height = max(max_stack_height, stack_height)
+
+        # fill the stack height buffer
+        stack_heights[pc:pc+immediate_size(op)+1] = [stack_height] * (immediate_size(op) + 1)
+        #print(pc, mnemonic, stack_heights, max_stack_height)
+
+        if mnemonic == "RJUMP":
+            jump_offset = int.from_bytes(bytecode[pc + 1 : pc + 3], byteorder="big", signed=True)
+            # if stack_heights[pc+jump_offset] != -1 and stack_heights[pc+jump_offset] != stack_height:
+            #     raise ValidationException("Stack height missmatch at jump target")
+            if stack_heights[pc+jump_offset] != -1:
+                return max_stack_height
+            pc += jump_offset
+        elif mnemonic == "RJUMPI":
+            jump_offset = int.from_bytes(bytecode[pc + 1 : pc + 3], byteorder="big", signed=True)
+            return max(
+                max_stack_height, 
+                calculate_max_stack_height(bytecode, pc + 3, stack_height, stack_heights),
+                calculate_max_stack_height(bytecode, pc + 3 + jump_offset, stack_height, stack_heights),
+            )
+        elif mnemonic in TERMINATING_OPCODES:
+            return max_stack_height
+        
+        pc += 1 + immediate_size(op)
+
+    return max_stack_height
