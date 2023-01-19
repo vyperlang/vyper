@@ -76,6 +76,27 @@ def foo(x: Roles) -> bool:
     """,
         InvalidOperation,
     ),
+    (
+        """
+enum Functions:
+    def foo():nonpayable
+    """,
+        EnumDeclarationException,
+    ),
+    (
+        """
+enum Numbers:
+    a:constant(uint256) = a
+    """,
+        EnumDeclarationException,
+    ),
+    (
+        """
+enum Numbers:
+    12
+    """,
+        EnumDeclarationException,
+    ),
 ]
 
 
