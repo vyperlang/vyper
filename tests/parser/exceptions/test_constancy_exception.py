@@ -99,7 +99,8 @@ def test_statefulness_violations(bad_code):
         """
 @external
 def foo(x: int128):
-    x = 5""",
+    x = 5
+        """,
         """
 @external
 def test(a: uint256[4]):
