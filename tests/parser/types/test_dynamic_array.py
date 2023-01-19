@@ -1565,10 +1565,11 @@ def _foo2() -> Foo:
 
 @internal
 def _foo3(f: Foo) -> Foo:
-    f.b1[0][1][0].a1[0][0] = [0, 0]
-    f.b1[1][0][0].a1[0][1] = [0, 0]
-    f.b1[1][1][0].a1[1][1] = [0, 0]
-    return f
+    new_f: Foo = f
+    new_f.b1[0][1][0].a1[0][0] = [0, 0]
+    new_f.b1[1][0][0].a1[0][1] = [0, 0]
+    new_f.b1[1][1][0].a1[1][1] = [0, 0]
+    return new_f
 
 @external
 def bar() -> DynArray[DynArray[DynArray[uint256, 2], 2], 2]:
