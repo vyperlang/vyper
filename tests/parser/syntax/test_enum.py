@@ -121,7 +121,7 @@ a: constant(uint256) = 1
 
 enum A:
     a
-    """
+    """,
 ]
 
 
