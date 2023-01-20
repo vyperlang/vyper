@@ -120,9 +120,6 @@ def _runtime_ir(runtime_functions, all_sigs, global_ctx):
 
     runtime = [
         "seq",
-        # check that calldatasize is at least 4, otherwise
-        # calldataload will load zeros (cf. yellow paper).
-        ["if", ["lt", "calldatasize", 4], ["goto", "fallback"]],
         ["with", "_calldata_method_id", shr(224, ["calldataload", 0]), selector_section],
         close_selector_section,
         ["label", "fallback", ["var_list"], fallback_ir],
