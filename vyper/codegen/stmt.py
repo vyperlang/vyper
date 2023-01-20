@@ -124,7 +124,7 @@ class Stmt:
             "pop",
         ):
             parent = Expr(self.stmt.func.value, self.context).ir_node
-            
+
             if isinstance(parent.typ, DArrayT):
                 darray = parent
                 args = [Expr(x, self.context).ir_node for x in self.stmt.args]
