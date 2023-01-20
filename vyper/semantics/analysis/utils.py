@@ -98,13 +98,8 @@ class _ExprAnalyser:
 
         # If it's a Subscript, propagate the subscriptable varinfo
         if isinstance(node, vy_ast.Subscript):
-            varinfo = self.get_expr_info(node.value)
-            return ExprInfo(
-                t,
-                location=varinfo.location,
-                is_constant=varinfo.is_constant,
-                is_immutable=varinfo.is_immutable,
-            )
+            info = self.get_expr_info(node.value)
+            return info.copy_with_type(t)
 
         return ExprInfo(t)
 
