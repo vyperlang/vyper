@@ -66,6 +66,16 @@ def setup(token_addr: address):
     self.token = ERC20(token_addr)
     assert self.factory.getExchange(self.token.address) == self
     """,
+    """
+@internal
+def append():
+    pass
+
+@external
+def foo():
+    self.append()
+
+    """,
 ]
 
 
