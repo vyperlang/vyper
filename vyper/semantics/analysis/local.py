@@ -434,6 +434,9 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                         )
         self.expr_visitor.visit(node.iter)
 
+        if not isinstance(node.target, vy_ast.Name):
+            raise StructureException("Invalid syntax for loop iterator", node.target)
+
         for_loop_exceptions = []
         iter_name = node.target.id
         for type_ in type_list:
