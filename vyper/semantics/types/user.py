@@ -106,9 +106,12 @@ class EnumT(_UserType):
         members: Dict = {}
 
         if len(base_node.body) == 1 and isinstance(base_node.body[0], vy_ast.Pass):
-            raise EnumDeclarationException("Enum must have members")
+            raise EnumDeclarationException("Enum must have members", base_node)
 
         for i, node in enumerate(base_node.body):
+            if not isinstance(node, vy_ast.Expr) or not isinstance(node.value, vy_ast.Name):
+                raise EnumDeclarationException("Invalid syntax for enum member", node)
+
             member_name = node.value.id
             if member_name in members:
                 raise EnumDeclarationException(
