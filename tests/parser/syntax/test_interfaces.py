@@ -183,17 +183,11 @@ kickers: HashMap[address, MyInterface]
     """
 interface Foo:
     def append(a: uint256): payable
-    def pop(): payable
 
 @external
 def bar(x: address):
     a: Foo = Foo(x)
     a.append(1)
-
-@external
-def foo(x: address):
-    a: Foo = Foo(x)
-    a.pop()
     """,
 ]
 
