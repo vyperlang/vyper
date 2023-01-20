@@ -25,6 +25,7 @@ from vyper.codegen.expr import Expr
 from vyper.codegen.return_ import make_return_stmt
 from vyper.exceptions import CompilerPanic, StructureException, TypeCheckFailure
 from vyper.semantics.types import DArrayT
+from vyper.semantics.types.function import MemberFunctionT
 from vyper.semantics.types.shortcuts import INT256_T, UINT256_T
 
 
@@ -123,15 +124,15 @@ class Stmt:
             "append",
             "pop",
         ):
-            parent = Expr(self.stmt.func.value, self.context).ir_node
-
-            if isinstance(parent.typ, DArrayT):
-                darray = parent
+            func_type = self.stmt.func._metadata["type"]
+            if isinstance(func_type, MemberFunctionT):
+                darray = Expr(self.stmt.func.value, self.context).ir_node
                 args = [Expr(x, self.context).ir_node for x in self.stmt.args]
                 if self.stmt.func.attr == "append":
                     # sanity checks
                     assert len(args) == 1
                     arg = args[0]
+                    assert isinstance(darray.typ, DArrayT)
                     check_assign(
                         dummy_node_for_type(darray.typ.value_type), dummy_node_for_type(arg.typ)
                     )
