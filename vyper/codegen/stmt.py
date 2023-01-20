@@ -123,24 +123,25 @@ class Stmt:
             "append",
             "pop",
         ):
-            # TODO: consider moving this to builtins
-            darray = Expr(self.stmt.func.value, self.context).ir_node
-            args = [Expr(x, self.context).ir_node for x in self.stmt.args]
-            if self.stmt.func.attr == "append":
-                # sanity checks
-                assert len(args) == 1
-                arg = args[0]
-                assert isinstance(darray.typ, DArrayT)
-                check_assign(
-                    dummy_node_for_type(darray.typ.value_type), dummy_node_for_type(arg.typ)
-                )
+            parent = Expr(self.stmt.func.value, self.context).ir_node
+            
+            if isinstance(parent.typ, DArrayT):
+                darray = parent
+                args = [Expr(x, self.context).ir_node for x in self.stmt.args]
+                if self.stmt.func.attr == "append":
+                    # sanity checks
+                    assert len(args) == 1
+                    arg = args[0]
+                    check_assign(
+                        dummy_node_for_type(darray.typ.value_type), dummy_node_for_type(arg.typ)
+                    )
 
-                return append_dyn_array(darray, arg)
-            else:
-                assert len(args) == 0
-                return pop_dyn_array(darray, return_popped_item=False)
+                    return append_dyn_array(darray, arg)
+                else:
+                    assert len(args) == 0
+                    return pop_dyn_array(darray, return_popped_item=False)
 
-        elif is_self_function:
+        if is_self_function:
             return self_call.ir_for_self_call(self.stmt, self.context)
         else:
             return external_call.ir_for_external_call(self.stmt, self.context)

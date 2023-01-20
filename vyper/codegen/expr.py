@@ -648,13 +648,14 @@ class Expr:
                 return arg_ir
 
         elif isinstance(self.expr.func, vy_ast.Attribute) and self.expr.func.attr == "pop":
-            # TODO consider moving this to builtins
-            darray = Expr(self.expr.func.value, self.context).ir_node
-            assert len(self.expr.args) == 0
-            assert isinstance(darray.typ, DArrayT)
-            return pop_dyn_array(darray, return_popped_item=True)
+            parent = Expr(self.expr.func.value, self.context).ir_node
 
-        elif (
+            if isinstance(parent.typ, DArrayT):
+                darray = parent
+                assert len(self.expr.args) == 0
+                return pop_dyn_array(darray, return_popped_item=True)
+
+        if (
             # TODO use expr.func.type.is_internal once
             # type annotations are consistently available
             isinstance(self.expr.func, vy_ast.Attribute)
