@@ -107,6 +107,15 @@ m1: HashMap[uint8, uint8]
 def __init__():
     self.m1 = 234
     """,
+    """
+interface Foo:
+    def pop(): payable
+
+@external
+def foo(x: address):
+    a: Foo = Foo(x)
+    a.pop()
+    """,
 ]
 
 
