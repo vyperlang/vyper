@@ -137,6 +137,12 @@ def run() -> Order:
         })
     """,
     "enum Foo:\n" + "\n".join([f"    member{i}" for i in range(256)]),
+    """
+a: constant(uint256) = 1
+
+enum A:
+    a
+    """,
 ]
 
 
