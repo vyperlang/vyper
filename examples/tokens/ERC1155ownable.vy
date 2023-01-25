@@ -207,7 +207,7 @@ def balanceOfBatch(accounts: DynArray[address, BATCH_SIZE], ids: DynArray[uint25
 
 ## mint ##
 @external
-def mint(receiver: address, id: uint256, amount:uint256, data:bytes32):
+def mint(receiver: address, id: uint256, amount:uint256):
     """
     @dev mint one new token with a certain ID
     @dev this can be a new token or "topping up" the balance of a non-fungible token ID
@@ -225,7 +225,7 @@ def mint(receiver: address, id: uint256, amount:uint256, data:bytes32):
 
 
 @external
-def mintBatch(receiver: address, ids: DynArray[uint256, BATCH_SIZE], amounts: DynArray[uint256, BATCH_SIZE], data: bytes32):
+def mintBatch(receiver: address, ids: DynArray[uint256, BATCH_SIZE], amounts: DynArray[uint256, BATCH_SIZE]):
     """
     @dev mint a batch of new tokens with the passed IDs
     @dev this can be new tokens or "topping up" the balance of existing non-fungible token IDs in the contract
