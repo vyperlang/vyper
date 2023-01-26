@@ -24,8 +24,7 @@ from vyper.codegen.core import (
 from vyper.codegen.expr import Expr
 from vyper.codegen.return_ import make_return_stmt
 from vyper.exceptions import CompilerPanic, StructureException, TypeCheckFailure
-from vyper.semantics.types import DArrayT
-from vyper.semantics.types.function import MemberFunctionT
+from vyper.semantics.types import DArrayT, MemberFunctionT
 from vyper.semantics.types.shortcuts import INT256_T, UINT256_T
 
 
