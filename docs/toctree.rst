@@ -42,6 +42,7 @@ Vyper
     :caption: Additional Resources
     :maxdepth: 2
 
+    resources
     release-notes.rst
     contributing.rst
     style-guide.rst

@@ -1,0 +1,35 @@
+.. _resources:
+
+Other resources and learning material
+#####################################
+
+Vyper has an active community. You can find third party tutorials,
+examples, courses and other learning material.
+
+General
+-------
+
+-  `More Vyper by Example <https://vyper-by-example.org/> by Smart Contract Engineer`__
+-  `Vyper cheat Sheet <https://reference.auditless.com/cheatsheet>`__
+-  `Vyper Hub for development <https://github.com/zcor/vyper-dev>`__
+-  `Vyper greatest hits smart contract examples <https://github.com/pynchmeister/vyper-greatest-hits/tree/main/contracts>`__
+-  `Awesome Vyper curated resources <https://github.com/spadebuilders/awesome-vyper>`__
+
+Frameworks
+----------
+
+-  `Smart contract development frameworks and tools for Vyper <https://ethereum.org/en/developers/docs/programming-languages/python/>`__
+
+Security
+--------
+
+-  `VyperPunk - learn to secure and hack Vyper smart contracts <https://github.com/SupremacyTeam/VyperPunk>`__
+-  `VyperExamples - Vyper vulnerability examples <https://www.vyperexamples.com/reentrancy>`__
+
+Conference presentations
+------------------------
+
+- `Vyper Smart Contract Programming Language by Patrick Collins (2022, 30 mins) <https://www.youtube.com/watch?v=b-sOMNF9quo&t=1444s>`__
+- `Python and DeFi by Curve Finance (2022, 15 mins) <https://www.youtube.com/watch?v=4HOU3z0LoDg>`__
+- `My experience with Vyper over the years by Benjamin Scherrey (2022, 15 mins) <https://www.youtube.com/watch?v=_j7qF_GlyWE>`__
+- `Short introduction to Vyper by Edison Que (3 mins) <https://www.youtube.com/watch?v=dXqln-keyHw&t=4s>`__
