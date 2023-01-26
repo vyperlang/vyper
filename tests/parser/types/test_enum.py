@@ -276,3 +276,20 @@ def get_enum_from_struct() -> Foobar:
     """
     c = get_contract_with_gas_estimation(code)
     assert c.get_enum_from_struct() == 2
+
+
+def test_mapping_with_enum(get_contract_with_gas_estimation):
+    code = """
+enum Foobar:
+    FOO
+    BAR
+
+fb: HashMap[Foobar, uint256]
+
+@external
+def get_key(f: Foobar, i: uint256) -> uint256:
+    self.fb[f] = i
+    return self.fb[f]
+    """
+    c = get_contract_with_gas_estimation(code)
+    assert c.get_key(1, 777) == 777
