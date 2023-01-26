@@ -41,6 +41,7 @@ class EnumT(_UserType):
     # enums, but not static arrays of enums
     _as_darray = True
     _is_prim_word = True
+    _as_hashmap_key = True
 
     def __init__(self, name: str, members: dict) -> None:
         if len(members.keys()) > 256:
