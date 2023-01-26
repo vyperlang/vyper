@@ -15,10 +15,13 @@ General
 -  `Vyper greatest hits smart contract examples <https://github.com/pynchmeister/vyper-greatest-hits/tree/main/contracts>`__
 -  `Awesome Vyper curated resources <https://github.com/spadebuilders/awesome-vyper>`__
 
-Frameworks
-----------
+Frameworks and tooling
+----------------------
 
--  `Smart contract development frameworks and tools for Vyper <https://ethereum.org/en/developers/docs/programming-languages/python/>`__
+- `ApeWorX - The Ethereum development framework for Python Developers, Data Scientists, and Security Professionals <https://www.apeworx.io/>`__
+- `Smart contract development frameworks and tools for Vyper on Ethreum.org <https://ethereum.org/en/developers/docs/programming-languages/python/>`__
+- `Snekmate - Vyper smart contract building blocks <https://github.com/pcaversaccio/snekmate>__`
+- `Serpentor - A set of smart contracts tools for governance <https://github.com/yearn/serpentor>__`
 
 Security
 --------
