@@ -3,14 +3,14 @@ import pytest
 
 def test_constant_address_balance(w3, get_contract_with_gas_estimation):
     code = """
-a: constant(address) = 0x0000000000000000000000000000000000000123
+a: constant(address) = 0x776Ba14735FF84789320718cf0aa43e91F7A8Ce1
 
 @external
 def foo() -> uint256:
     x: uint256 = a.balance
     return x
     """
-    address = "0x0000000000000000000000000000000000000123"
+    address = "0x776Ba14735FF84789320718cf0aa43e91F7A8Ce1"
 
     c = get_contract_with_gas_estimation(code)
 
