@@ -1,6 +1,3 @@
-import pytest
-
-
 def test_constant_address_balance(w3, get_contract_with_gas_estimation):
     code = """
 a: constant(address) = 0x776Ba14735FF84789320718cf0aa43e91F7A8Ce1
