@@ -297,7 +297,7 @@ def setApprovalForAll(owner: address, operator: address, approved: bool):
     log ApprovalForAll(owner, operator, approved)
 
 @external
-def safeTransferFrom(sender: address, receiver: address, id: uint256, amount: uint256, bytes: bytes32):
+def safeTransferFrom(sender: address, receiver: address, id: uint256, amount: uint256):
     """
     @dev transfer token from one address to another.
     @param sender the sending account (current owner)
@@ -316,7 +316,7 @@ def safeTransferFrom(sender: address, receiver: address, id: uint256, amount: ui
     log TransferSingle(operator, sender, receiver, id, amount)
 
 @external
-def safeBatchTransferFrom(sender: address, receiver: address, ids: DynArray[uint256, BATCH_SIZE], amounts: DynArray[uint256, BATCH_SIZE], _bytes: bytes32):
+def safeBatchTransferFrom(sender: address, receiver: address, ids: DynArray[uint256, BATCH_SIZE], amounts: DynArray[uint256, BATCH_SIZE]):
     """
     @dev transfer tokens from one address to another.
     @param sender the sending account

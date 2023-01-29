@@ -45,10 +45,10 @@ def erc1155(get_contract, w3, assert_tx_failed):
     )
     assert_tx_failed(lambda: c.mintBatch(a1, [1, 2, 3], [1, 1], transact={"from": owner}))
 
-    c.mint(a1, 21, 1, "", transact={"from": owner})
-    c.mint(a1, 22, 1, "", transact={"from": owner})
-    c.mint(a1, 23, 1, "", transact={"from": owner})
-    c.mint(a1, 24, 1, "", transact={"from": owner})
+    c.mint(a1, 21, 1, transact={"from": owner})
+    c.mint(a1, 22, 1, transact={"from": owner})
+    c.mint(a1, 23, 1, transact={"from": owner})
+    c.mint(a1, 24, 1, transact={"from": owner})
 
     assert_tx_failed(lambda: c.mint(a1, 24, 1, transact={"from": a3}))
     assert_tx_failed(lambda: c.mint(ZERO_ADDRESS, 24, 1, transact={"from": owner}))
@@ -109,10 +109,10 @@ def test_pause(erc1155, w3, assert_tx_failed):
     )
 
     # check safetransferfrom and safebatchtransferfrom
-    assert_tx_failed(lambda: erc1155.safeTransferFrom(a1, a2, 21, 1, "", transact={"from": a1}))
+    assert_tx_failed(lambda: erc1155.safeTransferFrom(a1, a2, 21, 1, transact={"from": a1}))
     assert_tx_failed(
         lambda: erc1155.safeBatchTransferFrom(
-            a1, a2, [21, 22, 23], [1, 1, 1], "", transact={"from": a1}
+            a1, a2, [21, 22, 23], [1, 1, 1], transact={"from": a1}
         )
     )
 
@@ -173,28 +173,28 @@ def test_safeTransferFrom_balanceOf_single(erc1155, w3, assert_tx_failed):
     owner, a1, a2, a3, a4, a5 = w3.eth.accounts[0:6]
     assert erc1155.balanceOf(a1, 24) == 1
     # transfer by non-owner
-    assert_tx_failed(lambda: erc1155.safeTransferFrom(a1, a2, 24, 1, "", transact={"from": a2}))
+    assert_tx_failed(lambda: erc1155.safeTransferFrom(a1, a2, 24, 1, transact={"from": a2}))
 
     # transfer to zero address
     assert_tx_failed(
-        lambda: erc1155.safeTransferFrom(a1, ZERO_ADDRESS, 24, 1, "", transact={"from": a1})
+        lambda: erc1155.safeTransferFrom(a1, ZERO_ADDRESS, 24, 1, transact={"from": a1})
     )
 
     # transfer to self
-    assert_tx_failed(lambda: erc1155.safeTransferFrom(a1, a1, 24, 1, "", transact={"from": a1}))
+    assert_tx_failed(lambda: erc1155.safeTransferFrom(a1, a1, 24, 1, transact={"from": a1}))
 
     # transfer more than owned
-    assert_tx_failed(lambda: erc1155.safeTransferFrom(a1, a2, 24, 500, "", transact={"from": a1}))
+    assert_tx_failed(lambda: erc1155.safeTransferFrom(a1, a2, 24, 500, transact={"from": a1}))
 
     # transfer item not owned / not existing
-    assert_tx_failed(lambda: erc1155.safeTransferFrom(a1, a2, 500, 1, "", transact={"from": a1}))
+    assert_tx_failed(lambda: erc1155.safeTransferFrom(a1, a2, 500, 1, transact={"from": a1}))
 
-    erc1155.safeTransferFrom(a1, a2, 21, 1, "", transact={"from": a1})
+    erc1155.safeTransferFrom(a1, a2, 21, 1, transact={"from": a1})
 
     assert erc1155.balanceOf(a2, 21) == 1
 
     # try to transfer item again
-    assert_tx_failed(lambda: erc1155.safeTransferFrom(a1, a2, 21, 1, "", transact={"from": a1}))
+    assert_tx_failed(lambda: erc1155.safeTransferFrom(a1, a2, 21, 1, transact={"from": a1}))
     assert erc1155.balanceOf(a1, 21) == 0
 
 
@@ -219,50 +219,50 @@ def test_safeBatchTransferFrom_balanceOf_batch(erc1155, w3, assert_tx_failed):  
     # try to transfer item from non item owner account
     assert_tx_failed(
         lambda: erc1155.safeBatchTransferFrom(
-            a1, a2, [21, 22, 23], [1, 1, 1], "", transact={"from": a2}
+            a1, a2, [21, 22, 23], [1, 1, 1], transact={"from": a2}
         )
     )
 
     # try to transfer item to zero address
     assert_tx_failed(
         lambda: erc1155.safeBatchTransferFrom(
-            a1, ZERO_ADDRESS, [21, 22, 23], [1, 1, 1], "", transact={"from": a1}
+            a1, ZERO_ADDRESS, [21, 22, 23], [1, 1, 1], transact={"from": a1}
         )
     )
 
     # try to transfer item to self
     assert_tx_failed(
         lambda: erc1155.safeBatchTransferFrom(
-            a1, a1, [21, 22, 23], [1, 1, 1], "", transact={"from": a1}
+            a1, a1, [21, 22, 23], [1, 1, 1], transact={"from": a1}
         )
     )
 
     # try to transfer more items than we own
     assert_tx_failed(
         lambda: erc1155.safeBatchTransferFrom(
-            a1, a2, [21, 22, 23], [1, 125, 1], "", transact={"from": a1}
+            a1, a2, [21, 22, 23], [1, 125, 1], transact={"from": a1}
         )
     )
 
     # mismatched item and amounts
     assert_tx_failed(
         lambda: erc1155.safeBatchTransferFrom(
-            a1, a2, [21, 22, 23], [1, 1], "", transact={"from": a1}
+            a1, a2, [21, 22, 23], [1, 1], transact={"from": a1}
         )
     )
 
     # try to transfer nonexisting item
     assert_tx_failed(
         lambda: erc1155.safeBatchTransferFrom(
-            a1, a2, [21, 22, 500], [1, 1, 1], "", transact={"from": a1}
+            a1, a2, [21, 22, 500], [1, 1, 1], transact={"from": a1}
         )
     )
-    assert erc1155.safeBatchTransferFrom(a1, a2, [21, 22, 23], [1, 1, 1], "", transact={"from": a1})
+    assert erc1155.safeBatchTransferFrom(a1, a2, [21, 22, 23], [1, 1, 1], transact={"from": a1})
 
     # try to transfer again, our balances are zero now, should fail
     assert_tx_failed(
         lambda: erc1155.safeBatchTransferFrom(
-            a1, a2, [21, 22, 23], [1, 1, 1], "", transact={"from": a1}
+            a1, a2, [21, 22, 23], [1, 1, 1], transact={"from": a1}
         )
     )
     assert_tx_failed(
@@ -278,7 +278,7 @@ def test_mint_one_burn_one(erc1155, w3, assert_tx_failed):
     owner, a1, a2, a3, a4, a5 = w3.eth.accounts[0:6]
 
     # check the balance from an owner and non-owner account
-    erc1155.mint(owner, 25, 1, "", transact={"from": owner})
+    erc1155.mint(owner, 25, 1, transact={"from": owner})
 
     assert erc1155.balanceOf(owner, 25) == 1
     assert erc1155.balanceOf(owner, 25) == 1
