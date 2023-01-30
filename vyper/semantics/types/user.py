@@ -55,6 +55,9 @@ class EnumT(_UserType):
         # also conveniently checks well-formedness of the members namespace
         self._helper = VyperType(members)
 
+        # set the name for exception handling in `get_member`
+        self._helper._id = name
+
     def get_type_member(self, key: str, node: vy_ast.VyperNode) -> "VyperType":
         self._helper.get_member(key, node)
         return self
