@@ -109,7 +109,7 @@ def foo() -> Roles:
     return Roles.GUEST
     """,
         UnknownAttribute,
-    )
+    ),
 ]
 
 
