@@ -7,6 +7,7 @@ from vyper.exceptions import (
     NamespaceCollision,
     StructureException,
     TypeMismatch,
+    UnknownAttribute,
 )
 
 fail_list = [
@@ -97,6 +98,18 @@ enum Numbers:
     """,
         EnumDeclarationException,
     ),
+    (
+        """
+enum Roles:
+    ADMIN
+    USER
+
+@external
+def foo() -> Roles:
+    return Roles.GUEST
+    """,
+        UnknownAttribute,
+    )
 ]
 
 
