@@ -128,9 +128,6 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
         for value in node.values:
             self.visit(value)
 
-    def visit_Bytes(self, node, type_):
-        node._metadata["type"] = type_
-
     def visit_Call(self, node, type_):
         call_type = get_exact_type_from_node(node.func)
         node_type = type_ or call_type.fetch_call_return(node)
@@ -201,14 +198,8 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
     def visit_Dict(self, node, type_):
         node._metadata["type"] = type_
 
-    def visit_Hex(self, node, type_):
-        node._metadata["type"] = type_
-
     def visit_Index(self, node, type_):
         self.visit(node.value, type_)
-
-    def visit_Int(self, node, type_):
-        node._metadata["type"] = type_
 
     def visit_List(self, node, type_):
         if type_ is None:
