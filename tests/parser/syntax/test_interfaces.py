@@ -84,7 +84,7 @@ interface A:
     def foo(): nonpayable
     """,
         StructureException,
-    )
+    ),
 ]
 
 
