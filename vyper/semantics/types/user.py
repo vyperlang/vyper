@@ -468,6 +468,8 @@ def _get_class_functions(base_node: vy_ast.InterfaceDef) -> Dict[str, ContractFu
             raise NamespaceCollision(
                 f"Interface contains multiple functions named '{node.name}'", node
             )
+        if len(node.decorator_list) > 0:
+            raise StructureException("Function definition in interface cannot be decorated", node.decorator_list[0])
         functions[node.name] = ContractFunctionT.from_FunctionDef(node, is_interface=True)
 
     return functions
