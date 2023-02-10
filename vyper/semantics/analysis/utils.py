@@ -96,6 +96,11 @@ class _ExprAnalyser:
 
             return ExprInfo(t, location=location, is_constant=is_constant)
 
+        # If it's a Subscript, propagate the subscriptable varinfo
+        if isinstance(node, vy_ast.Subscript):
+            info = self.get_expr_info(node.value)
+            return info.copy_with_type(t)
+
         return ExprInfo(t)
 
     def get_exact_type_from_node(self, node, include_type_exprs=False):
