@@ -109,7 +109,17 @@ def test_replace_constant(source):
     assert not vy_ast.compare_nodes(unmodified_ast, folded_ast)
 
 
-constants_unmodified = ["FOO = 42", "self.FOO = 42", "bar = self.FOO", "FOO[42] = 2"]
+constants_unmodified = [
+    "FOO = 42",
+    "self.FOO = 42",
+    "bar = FOO()",
+    "FOO()",
+    "bar = FOO()",
+    "bar = self.FOO",
+    "log FOO(bar)",
+    "[1, 2, FOO()]",
+    "FOO[42] = 2",
+]
 
 
 @pytest.mark.parametrize("source", constants_unmodified)
@@ -147,9 +157,11 @@ def test_replace_builtin_constant(source):
 
 builtins_unmodified = [
     "ZERO_ADDRESS = 2",
+    "ZERO_ADDRESS()",
     "def foo(ZERO_ADDRESS: int128 = 42): pass",
     "def foo(): ZERO_ADDRESS = 42",
     "def ZERO_ADDRESS(): pass",
+    "log ZERO_ADDRESS(42)",
 ]
 
 
@@ -191,6 +203,7 @@ userdefined_unmodified = [
     "FOO: constant(int128) = 42",
     "FOO = 42",
     "FOO += 42",
+    "FOO()",
     "def foo(FOO: int128 = 42): pass",
     "def foo(): FOO = 42",
     "def FOO(): pass",

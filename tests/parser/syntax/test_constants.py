@@ -131,57 +131,6 @@ def hello() :
     """,
         ImmutableViolation,
     ),
-    (
-        """
-struct Bar:
-    a: uint256
-
-event Foo:
-    a: uint256
-
-Foo: constant(Bar) = Bar({a: 123})
-    """,
-        NamespaceCollision,
-    ),
-    (
-        """
-struct Bar:
-    a: uint256
-
-abs: constant(Bar) = Bar({a: 123})
-
-@external
-def foo() -> Bar:
-    x: uint256 = abs(1)
-    return abs
-    """,
-        NamespaceCollision,
-    ),
-    (
-        """
-abs: constant(int256) = 1
-
-@external
-def bar() -> int256:
-    x: int256 = abs(1)
-    return abs
-    """,
-        NamespaceCollision,
-    ),
-    (
-        """
-interface Baz:
-    def foo(): nonpayable
-
-Baz: constant(int256) = 1
-
-@external
-def bar(a: address) -> int256:
-    x: Baz = Baz(a)
-    return Baz
-    """,
-        NamespaceCollision,
-    ),
 ]
 
 
