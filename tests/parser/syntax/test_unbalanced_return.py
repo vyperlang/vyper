@@ -64,6 +64,18 @@ def valid_address(sender: address) -> bool:
     """,
         StructureException,
     ),
+    (
+        """
+@internal
+def valid_address(sender: address) -> bool:
+    if sender == ZERO_ADDRESS:
+        return True
+    else:
+        return False
+    return True
+    """,
+        StructureException,
+    ),
 ]
 
 
