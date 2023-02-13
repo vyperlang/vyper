@@ -925,7 +925,10 @@ def is_return_from_function(node):
         return True
     if isinstance(node, vy_ast.If):
         return_if_body = is_return_from_function(node.body[0])
-        return_else_body = node.orelse and is_return_from_function(node.orelse[0])
+        if node.orelse and is_return_from_function(node.orelse[0]):
+            return_else_body = True
+        else:
+            return_else_body = False
         if return_if_body and return_else_body:
             return True
     return False
