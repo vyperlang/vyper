@@ -17,29 +17,14 @@ def foo(inp: Bytes[10]) -> uint256:
     print("Passed length test")
 
 
-zero_length_cases = [
-    """
+@pytest.mark.parametrize("typ", ["DynArray[uint256, 50]", "Bytes[50]", "String[50]"])
+def test_zero_length(get_contract_with_gas_estimation, typ):
+    code = f"""
 @external
 def boo() -> uint256:
-    e: uint256 = len(empty(DynArray[uint256, 50]))
+    e: uint256 = len(empty({typ}))
     return e
-    """,
     """
-@external
-def boo() -> uint256:
-    e: uint256 = len(empty(Bytes[50]))
-    return e
-    """,
-    """
-@external
-def boo() -> uint256:
-    e: uint256 = len(empty(String[50]))
-    return e
-    """,
-]
 
-
-@pytest.mark.parametrize("code", zero_length_cases)
-def test_zero_length(get_contract_with_gas_estimation, code):
     c = get_contract_with_gas_estimation(code)
     assert c.boo() == 0
