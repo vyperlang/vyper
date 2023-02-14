@@ -304,7 +304,8 @@ def copy_bytes(dst, src, length, length_bound):
 def get_bytearray_length(arg):
     typ = UINT256_T
 
-    # TODO add "~empty" case to mirror get_dyn_array_count
+    if arg.value == "~empty":
+        return IRnode.from_list(0, typ=typ)
 
     return IRnode.from_list(LOAD(arg), typ=typ)
 
