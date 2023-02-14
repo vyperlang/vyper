@@ -1,4 +1,4 @@
-import pytest 
+import pytest
 
 
 def test_test_length(get_contract_with_gas_estimation):
