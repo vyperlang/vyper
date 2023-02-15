@@ -69,6 +69,7 @@ def valid_address(sender: address) -> bool:
 @internal
 def valid_address(sender: address) -> bool:
     if sender == ZERO_ADDRESS:
+        pass
         return True
     else:
         return False
@@ -122,21 +123,6 @@ def test() -> int128:
     else:
         assert msg.sender != msg.sender
         return 0
-    """,
-    """
-@external
-def test() -> int128:
-    x: bytes32 = EMPTY_BYTES32
-    if False:
-        if False:
-            return 0
-        else:
-            x = keccak256(x)
-            return 1
-    else:
-        x = keccak256(x)
-        return 1
-    return 1
     """,
 ]
 
