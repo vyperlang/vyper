@@ -9,7 +9,7 @@ examples, courses and other learning material.
 General
 -------
 
-- `ApeWorX - The Ethereum development framework for Python Developers, Data Scientists, and Security Professionals <https://www.apeworx.io/>`__
+-  `Ape Academy - Learn how to build vyper projects <https://academy.apeworx.io/> by ApeWorX`__
 - `More Vyper by Example <https://vyper-by-example.org/> by Smart Contract Engineer`__
 - `Vyper cheat Sheet <https://reference.auditless.com/cheatsheet>`__
 - `Vyper Hub for development <https://github.com/zcor/vyper-dev>`__
