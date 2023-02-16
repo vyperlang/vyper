@@ -313,6 +313,20 @@ def foo() -> int8:
     """,
         InvalidType,
     ),
+    (
+        """
+a: constant(uint256) = 1
+b: constant(uint16) = a + 0
+    """,
+        InvalidType,
+    ),
+    (
+        """
+a: constant(uint256) = 1
+b: constant(uint16) = a
+    """,
+        InvalidType,
+    ),
 ]
 
 
