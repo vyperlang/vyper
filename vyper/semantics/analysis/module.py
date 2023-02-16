@@ -26,9 +26,9 @@ from vyper.semantics.analysis.utils import (
     validate_expected_type,
     validate_unique_method_ids,
 )
-from vyper.semantics.namespace import get_namespace
+from vyper.semantics.namespace import Namespace, get_namespace
 from vyper.semantics.types import EnumT, EventT, InterfaceT, StructT
-from vyper.semantics.types.function import ContractFunction
+from vyper.semantics.types.function import ContractFunctionT
 from vyper.semantics.types.utils import type_from_annotation
 from vyper.typing import InterfaceDict
 
@@ -40,7 +40,7 @@ def add_module_namespace(vy_module: vy_ast.Module, interface_codes: InterfaceDic
     """
 
     namespace = get_namespace()
-    ModuleNodeVisitor(vy_module, interface_codes, namespace)
+    ModuleAnalyzer(vy_module, interface_codes, namespace)
 
 
 def _find_cyclic_call(fn_names: list, self_members: dict) -> Optional[list]:
@@ -56,17 +56,18 @@ def _find_cyclic_call(fn_names: list, self_members: dict) -> Optional[list]:
     return None
 
 
-class ModuleNodeVisitor(VyperNodeVisitorBase):
+class ModuleAnalyzer(VyperNodeVisitorBase):
 
     scope_name = "module"
 
     def __init__(
-        self, module_node: vy_ast.Module, interface_codes: InterfaceDict, namespace: dict
+        self, module_node: vy_ast.Module, interface_codes: InterfaceDict, namespace: Namespace
     ) -> None:
         self.ast = module_node
         self.interface_codes = interface_codes or {}
         self.namespace = namespace
 
+        # TODO: Move computation out of constructor
         module_nodes = module_node.body.copy()
         while module_nodes:
             count = len(module_nodes)
@@ -92,11 +93,18 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
         module_node._metadata["type"] = interface
         self.interface = interface  # this is useful downstream
 
+        # attach namespace to the module for downstream use.
+        _ns = Namespace()
+        # note that we don't just copy the namespace because
+        # there are constructor issues.
+        _ns.update({k: namespace[k] for k in namespace._scopes[-1]})
+        module_node._metadata["namespace"] = _ns
+
         # check for collisions between 4byte function selectors
         # internal functions are intentionally included in this check, to prevent breaking
         # changes in in case of a future change to their calling convention
         self_members = namespace["self"].typ.members
-        functions = [i for i in self_members.values() if isinstance(i, ContractFunction)]
+        functions = [i for i in self_members.values() if isinstance(i, ContractFunctionT)]
         validate_unique_method_ids(functions)
 
         # get list of internal function calls made by each function
@@ -160,7 +168,7 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
         if node.is_public:
             # generate function type and add to metadata
             # we need this when building the public getter
-            node._metadata["func_type"] = ContractFunction.getter_from_VariableDecl(node)
+            node._metadata["func_type"] = ContractFunctionT.getter_from_VariableDecl(node)
 
         if node.is_immutable:
             # mutability is checked automatically preventing assignment
@@ -253,7 +261,7 @@ class ModuleNodeVisitor(VyperNodeVisitorBase):
             raise exc.with_annotation(node) from None
 
     def visit_FunctionDef(self, node):
-        func = ContractFunction.from_FunctionDef(node)
+        func = ContractFunctionT.from_FunctionDef(node)
 
         try:
             # TODO sketchy elision of namespace validation

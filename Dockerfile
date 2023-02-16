@@ -32,7 +32,7 @@ WORKDIR /code
 RUN git reset --hard
 
 # Using "test" optional to include test dependencies in built docker-image
-RUN pip install .[test] && \
+RUN pip install --no-cache-dir .[test] && \
     apt-get purge -y --auto-remove apt-utils gcc libc6-dev libc-dev libssl-dev
 
 ENTRYPOINT ["/usr/local/bin/vyper"]

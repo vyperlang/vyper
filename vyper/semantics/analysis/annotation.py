@@ -6,7 +6,7 @@ from vyper.semantics.analysis.utils import (
     get_possible_types_from_node,
 )
 from vyper.semantics.types import TYPE_T, EnumT, EventT, SArrayT, StructT, is_type_t
-from vyper.semantics.types.function import ContractFunction, MemberFunctionT
+from vyper.semantics.types.function import ContractFunctionT, MemberFunctionT
 
 
 class _AnnotationVisitorBase:
@@ -102,7 +102,7 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
 
     ignored_types = ()
 
-    def __init__(self, fn_node: ContractFunction):
+    def __init__(self, fn_node: ContractFunctionT):
         self.func = fn_node
 
     def visit(self, node, type_=None):
@@ -128,16 +128,13 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
         for value in node.values:
             self.visit(value)
 
-    def visit_Bytes(self, node, type_):
-        node._metadata["type"] = type_
-
     def visit_Call(self, node, type_):
         call_type = get_exact_type_from_node(node.func)
         node_type = type_ or call_type.fetch_call_return(node)
         node._metadata["type"] = node_type
         self.visit(node.func)
 
-        if isinstance(call_type, ContractFunction):
+        if isinstance(call_type, ContractFunctionT):
             # function calls
             if call_type.is_internal:
                 self.func.called_functions.add(call_type)
@@ -201,14 +198,8 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
     def visit_Dict(self, node, type_):
         node._metadata["type"] = type_
 
-    def visit_Hex(self, node, type_):
-        node._metadata["type"] = type_
-
     def visit_Index(self, node, type_):
         self.visit(node.value, type_)
-
-    def visit_Int(self, node, type_):
-        node._metadata["type"] = type_
 
     def visit_List(self, node, type_):
         if type_ is None:
@@ -259,7 +250,7 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
             # don't recurse; can't annotate AST children of type definition
             return
 
-        for element, subtype in zip(node.elements, type_.value_type):
+        for element, subtype in zip(node.elements, type_.member_types):
             self.visit(element, subtype)
 
     def visit_UnaryOp(self, node, type_):

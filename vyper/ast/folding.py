@@ -309,6 +309,10 @@ def replace_constant(
             if assign and node in assign.target.get_descendants(include_self=True):
                 continue
 
+        # do not replace enum members
+        if node.get_ancestor(vy_ast.EnumDef):
+            continue
+
         try:
             # note: _replace creates a copy of the replacement_node
             new_node = _replace(node, replacement_node, type_=type_)

@@ -200,7 +200,7 @@ def test_tuple(build_node, namespace):
     namespace["bar"] = VarInfo(AddressT())
     types_list = get_possible_types_from_node(node)
 
-    assert types_list[0].value_type == [namespace["foo"].typ, namespace["bar"].typ]
+    assert types_list[0].member_types == [namespace["foo"].typ, namespace["bar"].typ]
 
 
 def test_tuple_subscript(build_node, namespace):
