@@ -1026,7 +1026,7 @@ class AsWeiValue(BuiltinFunction):
 
         if isinstance(value, int) and value >= 2 ** 256:
             raise InvalidLiteral("Value out of range for uint256", node.args[0])
-        if isinstance(value, Decimal) and value >= 2 ** 127:
+        if isinstance(value, Decimal) and value > SizeLimits.MAX_AST_DECIMAL:
             raise InvalidLiteral("Value out of range for decimal", node.args[0])
 
         return vy_ast.Int.from_node(node, value=int(value * denom))
@@ -2012,7 +2012,8 @@ class _MinMax(BuiltinFunction):
 
         left, right = (i.value for i in node.args)
         if isinstance(left, Decimal) and (
-            min(left, right) < -(2 ** 127) or max(left, right) >= 2 ** 127
+            min(left, right) < SizeLimits.MIN_AST_DECIMAL
+            or max(left, right) > SizeLimits.MAX_AST_DECIMAL
         ):
             raise InvalidType("Decimal value is outside of allowable range", node)
         if isinstance(left, int) and (min(left, right) < 0 and max(left, right) >= 2 ** 127):
