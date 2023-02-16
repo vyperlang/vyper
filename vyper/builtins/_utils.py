@@ -25,9 +25,7 @@ def generate_inline_function(code, variables, variables_2, memory_allocator):
         ast_code.body[0]._metadata["type"] = ContractFunctionT(
             "sqrt_builtin", {}, 0, 0, None, FunctionVisibility.INTERNAL, StateMutability.NONPAYABLE
         )
-        sv = FunctionNodeVisitor(ast_code, ast_code.body[0], namespace)
-        for n in ast_code.body[0].body:
-            sv.visit(n)
+        FunctionNodeVisitor(ast_code, ast_code.body[0], namespace)
 
     new_context = Context(
         vars_=variables, global_ctx=GlobalContext(), memory_allocator=memory_allocator
