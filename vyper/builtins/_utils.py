@@ -25,6 +25,8 @@ def generate_inline_function(code, variables, variables_2, memory_allocator):
         ast_code.body[0]._metadata["type"] = ContractFunctionT(
             "sqrt_builtin", {}, 0, 0, None, FunctionVisibility.INTERNAL, StateMutability.NONPAYABLE
         )
+        # The FunctionNodeVisitor's constructor performs semantic checks
+        # annotate the AST as side effects.
         FunctionNodeVisitor(ast_code, ast_code.body[0], namespace)
 
     new_context = Context(
