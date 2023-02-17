@@ -2016,7 +2016,7 @@ class _MinMax(BuiltinFunction):
             or max(left, right) > SizeLimits.MAX_AST_DECIMAL
         ):
             raise InvalidType("Decimal value is outside of allowable range", node)
-        if isinstance(left, int) and (min(left, right) < 0 and max(left, right) >= 2 ** 127):
+        if isinstance(left, int) and (min(left, right) < 0 and max(left, right) >= 2 ** 255):
             raise TypeMismatch("Cannot perform action between dislike numeric types", node)
 
         value = self._eval_fn(left, right)
