@@ -255,21 +255,15 @@ def replace_constant(
     int
         Number of nodes that were replaced.
     """
-    is_struct = False
-
-    if isinstance(replacement_node, vy_ast.Call) and len(replacement_node.args) == 1:
-        if isinstance(replacement_node.args[0], vy_ast.Dict):
-            is_struct = True
-
     changed_nodes = 0
 
     for node in vyper_module.get_descendants(vy_ast.Name, {"id": id_}, reverse=True):
         parent = node.get_ancestor()
 
         if isinstance(parent, vy_ast.Call) and node == parent.func:
-            # do not replace calls that are not structs
-            if not is_struct:
-                continue
+            # do not replace calls because splicing a constant into a callable site is
+            # never valid and it worsens the error message
+            continue
 
         # do not replace dictionary keys
         if isinstance(parent, vy_ast.Dict) and node in parent.keys:
