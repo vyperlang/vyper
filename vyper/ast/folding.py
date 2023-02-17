@@ -261,7 +261,8 @@ def replace_constant(
         parent = node.get_ancestor()
 
         if isinstance(parent, vy_ast.Call) and node == parent.func:
-            # do not replace calls
+            # do not replace calls because splicing a constant into a callable site is 
+            # never valid and it worsens the error message
             continue
 
         # do not replace dictionary keys
