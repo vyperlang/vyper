@@ -304,7 +304,7 @@ def copy_bytes(dst, src, length, length_bound):
 def get_bytearray_length(arg):
     typ = UINT256_T
 
-    # TODO: it would be nice to merge the implementations of get_bytearray_length and 
+    # TODO: it would be nice to merge the implementations of get_bytearray_length and
     # get_dynarray_count
     if arg.value == "~empty":
         return IRnode.from_list(0, typ=typ)
