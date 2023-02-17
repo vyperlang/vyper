@@ -51,12 +51,22 @@ def both_literals_max() -> {return_type}:
 @external
 def both_literals_min() -> {return_type}:
     return min({lo}, 2)
+
+@external
+def both_builtins_max() -> {return_type}:
+    return max(min_value({return_type}), max_value({return_type}))
+
+@external
+def both_builtins_min() -> {return_type}:
+    return min(min_value({return_type}), max_value({return_type}))
 """
     c = get_contract_with_gas_estimation(code)
     assert c.foo() == hi
     assert c.bar() == lo
     assert c.both_literals_max() == hi
     assert c.both_literals_min() == lo
+    assert c.both_builtins_max() == hi
+    assert c.both_builtins_min() == lo
 
 
 def test_max_var_uint256_literal_int128(get_contract_with_gas_estimation):
