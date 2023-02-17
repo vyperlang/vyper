@@ -918,9 +918,9 @@ Utilities
         def foo():
             x: uint256[2][5] = empty(uint256[2][5])
 
-.. py:function:: len(b: Union[Bytes, String]) -> uint256
+.. py:function:: len(b: Union[Bytes, String, DynArray[_Type, _Integer]]) -> uint256
 
-    Return the length of a given ``Bytes`` or ``String``.
+    Return the length of a given ``Bytes``, ``String`` or ``DynArray[_Type, _Integer]``.
 
     .. code-block:: python
 
