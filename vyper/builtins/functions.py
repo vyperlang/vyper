@@ -2016,8 +2016,6 @@ class _MinMax(BuiltinFunction):
             or max(left, right) > SizeLimits.MAX_AST_DECIMAL
         ):
             raise InvalidType("Decimal value is outside of allowable range", node)
-        if isinstance(left, int) and (min(left, right) < 0 and max(left, right) >= 2 ** 255):
-            raise TypeMismatch("Cannot perform action between dislike numeric types", node)
 
         types_list = get_common_types(
             *node.args, filter_fn=lambda x: isinstance(x, (IntegerT, DecimalT))
