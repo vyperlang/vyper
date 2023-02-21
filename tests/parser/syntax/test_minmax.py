@@ -15,15 +15,7 @@ def foo():
         """
 @external
 def foo():
-    y: int256 = min(-1, max_value(int256) + 1)
-    """,
-        TypeMismatch,
-    ),
-    (
-        """
-@external
-def foo():
-    y: int256 = min(-1, 57896044618658097711785492504343953926634992332820282019728792003956564819968)
+    a: int16 = min(min_value(int16), max_value(int8))
     """,
         TypeMismatch,
     ),
