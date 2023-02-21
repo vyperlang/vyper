@@ -2019,7 +2019,9 @@ class _MinMax(BuiltinFunction):
         if isinstance(left, int) and (min(left, right) < 0 and max(left, right) >= 2 ** 255):
             raise TypeMismatch("Cannot perform action between dislike numeric types", node)
 
-        types_list = get_common_types(*node.args, filter_fn=lambda x: isinstance(x, (IntegerT, DecimalT)))
+        types_list = get_common_types(
+            *node.args, filter_fn=lambda x: isinstance(x, (IntegerT, DecimalT))
+        )
         if not types_list:
             raise TypeMismatch("Cannot perform action between dislike numeric types", node)
 
