@@ -2019,6 +2019,10 @@ class _MinMax(BuiltinFunction):
         if isinstance(left, int) and (min(left, right) < 0 and max(left, right) >= 2 ** 255):
             raise TypeMismatch("Cannot perform action between dislike numeric types", node)
 
+        types_list = get_common_types(*node.args, filter_fn=lambda x: isinstance(x, (IntegerT, DecimalT)))
+        if not types_list:
+            raise TypeMismatch("Cannot perform action between dislike numeric types", node)
+
         value = self._eval_fn(left, right)
         return type(node.args[0]).from_node(node, value=value)
 
@@ -2575,10 +2579,13 @@ class _MinMaxValue(TypenameFoldedFunction):
         val = self._eval(input_type)
 
         if isinstance(input_type, DecimalT):
-            return vy_ast.Decimal.from_node(node, value=val)
+            ret = vy_ast.Decimal.from_node(node, value=val)
 
         if isinstance(input_type, IntegerT):
-            return vy_ast.Int.from_node(node, value=val)
+            ret = vy_ast.Int.from_node(node, value=val)
+
+        ret._metadata["type"] = input_type
+        return ret
 
 
 class MinValue(_MinMaxValue):
