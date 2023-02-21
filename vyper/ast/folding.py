@@ -70,11 +70,7 @@ def replace_literal_ops(vyper_module: vy_ast.Module) -> int:
                     for n in (node.left, node.right)  # type: ignore
                     if n._metadata.get("type") is not None
                 ]
-                # if there are two propagated types, check for type mismatch;
-                # otherwise, if there is one or more propagated types, set
-                # folded node to that type for typechecking downstream if the node
-                # is vy_ast.BinOp - there is no need to propagate if the node is
-                # vy_ast.Compare because it is of boolean type
+                # if there are two propagated types, check for type mismatch
                 if len(propagated_types) == 2 and propagated_types[0] != propagated_types[1]:
                     raise TypeMismatch(
                         f"Unable to perform {node.op.description} on "
@@ -82,11 +78,15 @@ def replace_literal_ops(vyper_module: vy_ast.Module) -> int:
                         node,
                     )
                 elif isinstance(node, vy_ast.BinOp) and len(propagated_types) >= 1:
+                    # if there is one propagated type for vy_ast.BinOp, set
+                    # folded node to that type for typechecking downstream 
+                    # this is not needed for vy_ast.Compare because it must be of BoolT
                     typ = propagated_types.pop()
             elif isinstance(node, vy_ast.UnaryOp):
                 typ = node.operand._metadata.get("type")  # type: ignore
 
-            # Propagate the type to the node to check bounds in validate_numeric_bounds
+            # Propagate the type to the to-be-folded node to check bounds 
+            # in validate_numeric_bounds
             if typ is not None:
                 node._metadata["type"] = typ
 
