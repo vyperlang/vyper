@@ -381,6 +381,9 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                     if args[0].value >= args[1].value:
                         raise StructureException("Second value must be > first value", args[1])
 
+                if not type_list:
+                    raise TypeMismatch("Iterator values are of different types", node.iter)
+
         else:
             # iteration over a variable or literal list
             if isinstance(node.iter, vy_ast.List) and len(node.iter.elements) == 0:
