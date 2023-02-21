@@ -86,6 +86,10 @@ def replace_literal_ops(vyper_module: vy_ast.Module) -> int:
             elif isinstance(node, vy_ast.UnaryOp):
                 typ = node.operand._metadata.get("type")  # type: ignore
 
+            # Propagate the type to the node to check bounds in validate_numeric_bounds
+            if typ is not None:
+                node._metadata["type"] = typ
+
             new_node = node.evaluate()
             if typ is not None:
                 new_node._metadata["type"] = typ

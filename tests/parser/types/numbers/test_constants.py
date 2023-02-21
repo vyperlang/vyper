@@ -4,7 +4,7 @@ from decimal import Decimal
 import pytest
 
 from vyper.compiler import compile_code
-from vyper.exceptions import InvalidType, TypeMismatch
+from vyper.exceptions import InvalidType, OverflowException, TypeMismatch
 from vyper.utils import MemoryPositions
 
 
@@ -268,7 +268,7 @@ a: constant(uint16) = 200
 def foo() -> int16:
     return a - 201
     """,
-        InvalidType,
+        OverflowException,
     ),
     (
         """
@@ -300,7 +300,7 @@ a: constant(uint256) = 16
 def foo() -> int8:
     return -a
     """,
-        InvalidType,
+        OverflowException,
     ),
     (
         """
