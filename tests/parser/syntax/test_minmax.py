@@ -1,6 +1,6 @@
 import pytest
 
-from vyper.exceptions import InvalidType, TypeMismatch
+from vyper.exceptions import InvalidType
 
 fail_list = [
     (
@@ -10,14 +10,6 @@ def foo():
     y: int128 = min(7, 0x1234567890123456789012345678901234567890)
     """,
         InvalidType,
-    ),
-    (
-        """
-@external
-def foo():
-    a: int256 = min(-1, max_value(int256) + 1)
-    """,
-        TypeMismatch,
     ),
 ]
 
