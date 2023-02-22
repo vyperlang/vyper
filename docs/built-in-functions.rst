@@ -397,7 +397,7 @@ Cryptography
 
     Return a ``keccak256`` hash of the given value.
 
-    * ``_value``: Value to hash. Can be a literal string, ``Bytes``, or ``bytes32``.
+    * ``_value``: Value to hash. Can be a ``String``, ``Bytes``, or ``bytes32``.
 
     .. code-block:: python
 
@@ -415,7 +415,7 @@ Cryptography
 
     Return a ``sha256`` (SHA2 256-bit output) hash of the given value.
 
-    * ``_value``: Value to hash. Can be a literal string, ``Bytes``, or ``bytes32``.
+    * ``_value``: Value to hash. Can be a ``String``, ``Bytes``, or ``bytes32``.
 
     .. code-block:: python
 
@@ -434,7 +434,7 @@ Data Manipulation
 
 .. py:function:: concat(a, b, *args) -> Union[Bytes, String]
 
-    Take 2 or more bytes arrays of type ``bytes32``, ``Bytes`` or ``String`` and combine them into a single value.
+    Take 2 or more bytes arrays of type ``bytesM``, ``Bytes`` or ``String`` and combine them into a single value.
 
     If the input arguments are ``String`` the return type is ``String``.  Otherwise the return type is ``Bytes``.
 
