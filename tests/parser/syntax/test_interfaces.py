@@ -85,6 +85,12 @@ interface A:
     """,
         StructureException,
     ),
+    (
+        """
+implements: self.x
+    """,
+        StructureException,
+    ),
 ]
 
 
