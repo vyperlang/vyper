@@ -691,3 +691,17 @@ def foo():
     assert log.args.arg3 == 314159
     assert log.args.arg4 == b"help" * 11
     assert log.args.arg5 == [0, 0, 0]
+
+
+@pytest.mark.parametrize(
+    "contract",
+    [
+        """
+@external
+def test():
+    a: uint256 = empty(HashMap[uint256, uint256])[0]
+    """
+    ],
+)
+def test_invalid_types(contract, get_contract, assert_compile_failed):
+    assert_compile_failed(lambda: get_contract(contract), TypeMismatch)
