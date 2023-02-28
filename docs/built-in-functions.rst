@@ -910,7 +910,7 @@ Utilities
 
     Return a value which is the default (zero-ed) value of its type. Useful for initializing new memory variables.
 
-    * ``typename``: Name of the type
+    * ``typename``: Name of the type, except ``HashMap[_KeyType, _ValueType]``
 
     .. code-block:: python
 

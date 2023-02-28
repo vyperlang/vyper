@@ -66,6 +66,7 @@ from vyper.semantics.types import (
     BytesT,
     DArrayT,
     DecimalT,
+    HashMapT,
     IntegerT,
     KwargSettings,
     SArrayT,
@@ -2255,6 +2256,12 @@ class ISqrt(BuiltinFunction):
 class Empty(TypenameFoldedFunction):
 
     _id = "empty"
+
+    def fetch_call_return(self, node):
+        type_ = self.infer_arg_types(node)[0].typedef
+        if isinstance(type_, HashMapT):
+            raise TypeMismatch("Cannot use empty on HashMap", node)
+        return type_
 
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
