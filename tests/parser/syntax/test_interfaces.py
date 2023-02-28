@@ -85,6 +85,27 @@ interface A:
     """,
         StructureException,
     ),
+    (
+        """
+implements: self.x
+    """,
+        StructureException,
+    ),
+    (
+        """
+implements: 123
+    """,
+        StructureException,
+    ),
+    (
+        """
+struct Foo:
+    a: uint256
+
+implements: Foo
+    """,
+        StructureException,
+    ),
 ]
 
 

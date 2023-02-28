@@ -12,9 +12,9 @@ from vyper.exceptions import (
     InvalidLiteral,
     InvalidOperation,
     OverflowException,
+    StructureException,
     SyntaxException,
     TypeMismatch,
-    UnexpectedNodeType,
     UnfoldableNode,
     ZeroDivisionException,
 )
@@ -1402,7 +1402,7 @@ class ImplementsDecl(Stmt):
         super().__init__(*args, **kwargs)
 
         if not isinstance(self.annotation, Name):
-            raise UnexpectedNodeType("not an identifier", self.annotation)
+            raise StructureException("not an identifier", self.annotation)
 
 
 class If(Stmt):
