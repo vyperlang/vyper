@@ -155,10 +155,11 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             self_members[fn_name].recursive_calls = function_set
 
     def visit_ImplementsDecl(self, node):
-        interface_name = node.annotation.id
+        type_ = type_from_annotation(node.annotation)
+        if not isinstance(type_, InterfaceT):
+            raise StructureException("Invalid interface name", node.annotation)
 
-        other_iface = self.namespace[interface_name]
-        other_iface.validate_implements(node)
+        type_.validate_implements(node)
 
     def visit_VariableDecl(self, node):
         name = node.get("target.id")
