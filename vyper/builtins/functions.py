@@ -2097,7 +2097,7 @@ class Uint2Str(BuiltinFunction):
 
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
-        return_t = self.fetch_call_return(expr)
+        return_t = expr._metadata["type"]
         n_digits = return_t.maxlen
 
         with args[0].cache_when_complex("val") as (b1, val):
