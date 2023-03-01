@@ -34,24 +34,24 @@ def erc1155(get_contract, w3, assert_tx_failed):
         code = f.read()
     c = get_contract(code, *[CONTRACT_NAME, CONTRACT_SYMBOL, CONTRACT_URI, CONTRACT_METADATA_URI])
     assert c.owner() == owner
-    c.mintBatch(a1, mintBatch, minBatchSetOf10, "", transact={"from": owner})
-    c.mintBatch(a3, mintBatch2, minBatchSetOf10, "", transact={"from": owner})
+    c.mintBatch(a1, mintBatch, minBatchSetOf10, transact={"from": owner})
+    c.mintBatch(a3, mintBatch2, minBatchSetOf10, transact={"from": owner})
 
     assert c.balanceOf(a1, 1) == 1
     assert c.balanceOf(a1, 2) == 1
     assert c.balanceOf(a1, 3) == 1
     assert_tx_failed(
-        lambda: c.mintBatch(ZERO_ADDRESS, mintBatch, minBatchSetOf10, "", transact={"from": owner})
+        lambda: c.mintBatch(ZERO_ADDRESS, mintBatch, minBatchSetOf10, transact={"from": owner})
     )
-    assert_tx_failed(lambda: c.mintBatch(a1, [1, 2, 3], [1, 1], "", transact={"from": owner}))
+    assert_tx_failed(lambda: c.mintBatch(a1, [1, 2, 3], [1, 1], transact={"from": owner}))
 
-    c.mint(a1, 21, 1, "", transact={"from": owner})
-    c.mint(a1, 22, 1, "", transact={"from": owner})
-    c.mint(a1, 23, 1, "", transact={"from": owner})
-    c.mint(a1, 24, 1, "", transact={"from": owner})
+    c.mint(a1, 21, 1, transact={"from": owner})
+    c.mint(a1, 22, 1, transact={"from": owner})
+    c.mint(a1, 23, 1, transact={"from": owner})
+    c.mint(a1, 24, 1, transact={"from": owner})
 
-    assert_tx_failed(lambda: c.mint(a1, 24, 1, "", transact={"from": a3}))
-    assert_tx_failed(lambda: c.mint(ZERO_ADDRESS, 24, 1, "", transact={"from": owner}))
+    assert_tx_failed(lambda: c.mint(a1, 24, 1, transact={"from": a3}))
+    assert_tx_failed(lambda: c.mint(ZERO_ADDRESS, 24, 1, transact={"from": owner}))
 
     assert c.balanceOf(a1, 21) == 1
     assert c.balanceOf(a1, 22) == 1
@@ -103,9 +103,9 @@ def test_pause(erc1155, w3, assert_tx_failed):
     assert_tx_failed(lambda: erc1155.burnBatch([21, 22], [1, 1]))
 
     # check mint and mintbatch
-    assert_tx_failed(lambda: erc1155.mint(a1, 21, 1, "", transact={"from": owner}))
+    assert_tx_failed(lambda: erc1155.mint(a1, 21, 1, transact={"from": owner}))
     assert_tx_failed(
-        lambda: erc1155.mintBatch(a1, mintBatch, minBatchSetOf10, "", transact={"from": owner})
+        lambda: erc1155.mintBatch(a1, mintBatch, minBatchSetOf10, transact={"from": owner})
     )
 
     # check safetransferfrom and safebatchtransferfrom
@@ -278,7 +278,7 @@ def test_mint_one_burn_one(erc1155, w3, assert_tx_failed):
     owner, a1, a2, a3, a4, a5 = w3.eth.accounts[0:6]
 
     # check the balance from an owner and non-owner account
-    erc1155.mint(owner, 25, 1, "", transact={"from": owner})
+    erc1155.mint(owner, 25, 1, transact={"from": owner})
 
     assert erc1155.balanceOf(owner, 25) == 1
     assert erc1155.balanceOf(owner, 25) == 1
@@ -354,7 +354,7 @@ def test_max_batch_size_violation(erc1155, w3, assert_tx_failed):
         ids.append(i)
         amounts.append(1)
 
-    assert_tx_failed(lambda: erc1155.mintBatch(a1, ids, amounts, "", transact={"from": owner}))
+    assert_tx_failed(lambda: erc1155.mintBatch(a1, ids, amounts, transact={"from": owner}))
 
 
 # Transferring back and forth

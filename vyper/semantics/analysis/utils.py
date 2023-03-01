@@ -96,6 +96,11 @@ class _ExprAnalyser:
 
             return ExprInfo(t, location=location, is_constant=is_constant)
 
+        # If it's a Subscript, propagate the subscriptable varinfo
+        if isinstance(node, vy_ast.Subscript):
+            info = self.get_expr_info(node.value)
+            return info.copy_with_type(t)
+
         return ExprInfo(t)
 
     def get_exact_type_from_node(self, node, include_type_exprs=False):
@@ -172,7 +177,7 @@ class _ExprAnalyser:
         try:
             s = t.get_member(name, node)
             if isinstance(s, VyperType):
-                # ex. foo.bar(). bar() is a ContractFunction
+                # ex. foo.bar(). bar() is a ContractFunctionT
                 return [s]
             # general case. s is a VarInfo, e.g. self.foo
             return [s.typ]
@@ -545,8 +550,8 @@ def validate_unique_method_ids(functions: List) -> None:
 
     Arguments
     ---------
-    functions : List[ContractFunction]
-        A list of ContractFunction objects.
+    functions : List[ContractFunctionT]
+        A list of ContractFunctionT objects.
     """
     method_ids = [x for i in functions for x in i.method_ids.values()]
     seen = set()

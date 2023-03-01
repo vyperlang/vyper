@@ -658,6 +658,20 @@ def foo():
     for i in range(0):
         pass
     """,
+    """
+@external
+def foo():
+    for i in []:
+        pass
+    """,
+    """
+FOO: constant(DynArray[uint256, 3]) = []
+
+@external
+def foo():
+    for i in FOO:
+        pass
+    """,
     (
         """
 @external
