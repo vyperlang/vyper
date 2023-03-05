@@ -40,9 +40,9 @@ def foo(a: uint256) -> uint256:
     """
     contract = get_contract(source)
 
-    vyper_ast = vy_ast.parse_to_ast(f"bitwise_not({value})")
+    vyper_ast = vy_ast.parse_to_ast(f"~{value}")
     old_node = vyper_ast.body[0].value
-    new_node = vy_fn.BitwiseNot().evaluate(old_node)
+    new_node = old_node.evaluate()
 
     assert contract.foo(value) == new_node.value
 

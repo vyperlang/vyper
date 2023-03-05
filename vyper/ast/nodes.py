@@ -12,9 +12,9 @@ from vyper.exceptions import (
     InvalidLiteral,
     InvalidOperation,
     OverflowException,
+    StructureException,
     SyntaxException,
     TypeMismatch,
-    UnexpectedNodeType,
     UnfoldableNode,
     ZeroDivisionException,
 )
@@ -937,7 +937,9 @@ class Invert(Operator):
     __slots__ = ()
     _description = "bitwise not"
     _pretty = "~"
-    _op = operator.inv
+
+    def _op(self, value):
+        return (2 ** 256 - 1) ^ value
 
 
 class BinOp(ExprNode):
@@ -1400,7 +1402,7 @@ class ImplementsDecl(Stmt):
         super().__init__(*args, **kwargs)
 
         if not isinstance(self.annotation, Name):
-            raise UnexpectedNodeType("not an identifier", self.annotation)
+            raise StructureException("not an identifier", self.annotation)
 
 
 class If(Stmt):

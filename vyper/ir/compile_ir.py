@@ -537,7 +537,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
                 o.append("POP")
         return o
     # Seq without popping.
-    # Assure (if false, invalid opcode)
+    # unreachable keyword produces INVALID opcode
     elif code.value == "assert_unreachable":
         o = _compile_to_assembly(code.args[0], withargs, existing_labels, break_dest, height)
         end_symbol = mksymbol("reachable")

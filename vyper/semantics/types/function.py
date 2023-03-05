@@ -31,7 +31,7 @@ from vyper.semantics.types.utils import type_from_abi, type_from_annotation
 from vyper.utils import keccak256
 
 
-class ContractFunction(VyperType):
+class ContractFunctionT(VyperType):
     """
     Contract function type.
 
@@ -89,7 +89,7 @@ class ContractFunction(VyperType):
         self.nonreentrant = nonreentrant
 
         # a list of internal functions this function calls
-        self.called_functions: Set["ContractFunction"] = set()
+        self.called_functions: Set["ContractFunctionT"] = set()
 
         # special kwargs that are allowed in call site
         self.call_site_kwargs = {
@@ -112,9 +112,9 @@ class ContractFunction(VyperType):
         return hash(id(self))
 
     @classmethod
-    def from_abi(cls, abi: Dict) -> "ContractFunction":
+    def from_abi(cls, abi: Dict) -> "ContractFunctionT":
         """
-        Generate a `ContractFunction` object from an ABI interface.
+        Generate a `ContractFunctionT` object from an ABI interface.
 
         Arguments
         ---------
@@ -123,7 +123,7 @@ class ContractFunction(VyperType):
 
         Returns
         -------
-        ContractFunction object.
+        ContractFunctionT object.
         """
 
         arguments = OrderedDict()
@@ -147,9 +147,9 @@ class ContractFunction(VyperType):
     @classmethod
     def from_FunctionDef(
         cls, node: vy_ast.FunctionDef, is_interface: Optional[bool] = False
-    ) -> "ContractFunction":
+    ) -> "ContractFunctionT":
         """
-        Generate a `ContractFunction` object from a `FunctionDef` node.
+        Generate a `ContractFunctionT` object from a `FunctionDef` node.
 
         Arguments
         ---------
@@ -160,7 +160,7 @@ class ContractFunction(VyperType):
 
         Returns
         -------
-        ContractFunction
+        ContractFunctionT
         """
         kwargs: Dict[str, Any] = {}
         if is_interface:
@@ -340,9 +340,9 @@ class ContractFunction(VyperType):
         self.reentrancy_key_position = position
 
     @classmethod
-    def getter_from_VariableDecl(cls, node: vy_ast.VariableDecl) -> "ContractFunction":
+    def getter_from_VariableDecl(cls, node: vy_ast.VariableDecl) -> "ContractFunctionT":
         """
-        Generate a `ContractFunction` object from an `VariableDecl` node.
+        Generate a `ContractFunctionT` object from an `VariableDecl` node.
 
         Used to create getter functions for public variables.
 
@@ -353,7 +353,7 @@ class ContractFunction(VyperType):
 
         Returns
         -------
-        ContractFunction
+        ContractFunctionT
         """
         if not node.is_public:
             raise CompilerPanic("getter generated for non-public function")
@@ -379,7 +379,7 @@ class ContractFunction(VyperType):
     def _iface_sig(self) -> Tuple[Tuple, Optional[VyperType]]:
         return tuple(self.arguments.values()), self.return_type
 
-    def compare_signature(self, other: "ContractFunction") -> bool:
+    def compare_signature(self, other: "ContractFunctionT") -> bool:
         """
         Compare the signature of this function with another function.
 

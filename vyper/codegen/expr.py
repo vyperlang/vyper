@@ -175,10 +175,8 @@ class Expr:
 
         # TODO: use self.expr._expr_info
         elif self.expr.id in self.context.globals:
-            var = self.context.globals[self.expr.id]
-            varinfo = var._varinfo
-            if not varinfo.is_immutable:
-                return  # fail
+            varinfo = self.context.globals[self.expr.id]
+            assert varinfo.is_immutable, "not an immutable!"
 
             ofst = varinfo.position.offset
 
@@ -190,7 +188,7 @@ class Expr:
                 location = DATA
 
             return IRnode.from_list(
-                ofst, typ=var.typ, location=location, annotation=self.expr.id, mutable=mutable
+                ofst, typ=varinfo.typ, location=location, annotation=self.expr.id, mutable=mutable
             )
 
     # x.y or x[5]
@@ -198,7 +196,11 @@ class Expr:
         typ = self.expr._metadata["type"]
 
         # MyEnum.foo
-        if isinstance(typ, EnumT) and typ.name == self.expr.value.id:
+        if (
+            isinstance(typ, EnumT)
+            and isinstance(self.expr.value, vy_ast.Name)
+            and typ.name == self.expr.value.id
+        ):
             # 0, 1, 2, .. 255
             enum_id = typ._enum_members[self.expr.attr]
             value = 2 ** enum_id  # 0 => 0001, 1 => 0010, 2 => 0100, etc.
@@ -250,11 +252,10 @@ class Expr:
                 return IRnode.from_list(["~extcode", addr], typ=BytesT(0))
         # self.x: global attribute
         elif isinstance(self.expr.value, vy_ast.Name) and self.expr.value.id == "self":
-            var = self.context.globals[self.expr.attr]
-            varinfo = var._varinfo
+            varinfo = self.context.globals[self.expr.attr]
             return IRnode.from_list(
                 varinfo.position.position,
-                typ=var.typ,
+                typ=varinfo.typ,
                 location=STORAGE,
                 annotation="self." + self.expr.attr,
             )
@@ -631,13 +632,13 @@ class Expr:
                 return DISPATCH_TABLE[function_name].build_IR(self.expr, self.context)
 
             # Struct constructors do not need `self` prefix.
-            elif function_name in self.context.structs:
+            elif isinstance(self.expr._metadata["type"], StructT):
                 args = self.expr.args
                 if len(args) == 1 and isinstance(args[0], vy_ast.Dict):
                     return Expr.struct_literals(args[0], function_name, self.context)
 
             # Interface assignment. Bar(<address>).
-            elif function_name in self.context.sigs:
+            elif isinstance(self.expr._metadata["type"], InterfaceT):
                 (arg0,) = self.expr.args
                 arg_ir = Expr(arg0, self.context).ir_node
 

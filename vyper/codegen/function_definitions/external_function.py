@@ -123,7 +123,24 @@ def _generate_kwarg_handlers(context: Context, sig: FunctionSignature) -> List[A
 
         ret.append(["goto", sig.external_function_base_entry_label])
 
-        ret = ["if", ["eq", "_calldata_method_id", method_id], ret]
+        method_id_check = ["eq", "_calldata_method_id", method_id]
+
+        # if there is a function whose selector is 0, it won't be distinguished
+        # from the case where nil calldata is supplied, b/c calldataload loads
+        # 0s past the end of physical calldata (cf. yellow paper).
+        # since supplying 0 calldata is expected to trigger the fallback fn,
+        # we check that calldatasize > 0, which distinguishes the 0 selector
+        # from the fallback function "selector"
+        # (equiv. to "all selectors not in the selector table").
+
+        # note: cases where not enough calldata is supplied (besides
+        # calldatasize==0) are not addressed here b/c a calldatasize
+        # well-formedness check is already present in the function body
+        # as part of abi validation
+        if method_id.value == 0:
+            method_id_check = ["and", ["gt", "calldatasize", 0], method_id_check]
+
+        ret = ["if", method_id_check, ret]
         return ret
 
     ret = ["seq"]

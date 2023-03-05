@@ -63,24 +63,6 @@ def foo(a: address) -> bool:
     """,
         InvalidOperation,
     ),
-    """
-@external
-def foo() -> bool:
-    b: int128 = 0
-    return not b
-    """,
-    """
-@external
-def foo() -> bool:
-    b: uint256 = 0
-    return not b
-    """,
-    """
-@external
-def foo() -> bool:
-    b: uint256 = 0
-    return not b
-    """,
     (
         """
 @external

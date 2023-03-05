@@ -7,6 +7,7 @@ from vyper.exceptions import (
     NamespaceCollision,
     StructureException,
     TypeMismatch,
+    UnknownAttribute,
 )
 
 fail_list = [
@@ -76,6 +77,39 @@ def foo(x: Roles) -> bool:
     """,
         InvalidOperation,
     ),
+    (
+        """
+enum Functions:
+    def foo():nonpayable
+    """,
+        EnumDeclarationException,
+    ),
+    (
+        """
+enum Numbers:
+    a:constant(uint256) = a
+    """,
+        EnumDeclarationException,
+    ),
+    (
+        """
+enum Numbers:
+    12
+    """,
+        EnumDeclarationException,
+    ),
+    (
+        """
+enum Roles:
+    ADMIN
+    USER
+
+@external
+def foo() -> Roles:
+    return Roles.GUEST
+    """,
+        UnknownAttribute,
+    ),
 ]
 
 
@@ -116,6 +150,12 @@ def run() -> Order:
         })
     """,
     "enum Foo:\n" + "\n".join([f"    member{i}" for i in range(256)]),
+    """
+a: constant(uint256) = 1
+
+enum A:
+    a
+    """,
 ]
 
 
