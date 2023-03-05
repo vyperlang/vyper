@@ -821,20 +821,25 @@ class ECAdd(BuiltinFunction):
         placeholder_node = IRnode.from_list(
             context.new_internal_variable(BytesT(128)), typ=BytesT(128), location=MEMORY
         )
-        o = IRnode.from_list(
-            [
-                "seq",
-                ["mstore", placeholder_node, _getelem(args[0], 0)],
-                ["mstore", ["add", placeholder_node, 32], _getelem(args[0], 1)],
-                ["mstore", ["add", placeholder_node, 64], _getelem(args[1], 0)],
-                ["mstore", ["add", placeholder_node, 96], _getelem(args[1], 1)],
-                ["assert", ["staticcall", ["gas"], 6, placeholder_node, 128, placeholder_node, 64]],
-                placeholder_node,
-            ],
-            typ=SArrayT(UINT256_T, 2),
-            location=MEMORY,
-        )
-        return o
+
+        with args[0].cache_when_complex("a") as (b1, a), args[1].cache_when_complex("b") as (b2, b):
+            o = IRnode.from_list(
+                [
+                    "seq",
+                    ["mstore", placeholder_node, _getelem(a, 0)],
+                    ["mstore", ["add", placeholder_node, 32], _getelem(a, 1)],
+                    ["mstore", ["add", placeholder_node, 64], _getelem(b, 0)],
+                    ["mstore", ["add", placeholder_node, 96], _getelem(b, 1)],
+                    [
+                        "assert",
+                        ["staticcall", ["gas"], 6, placeholder_node, 128, placeholder_node, 64],
+                    ],
+                    placeholder_node,
+                ],
+                typ=SArrayT(UINT256_T, 2),
+                location=MEMORY,
+            )
+            return b2.resolve(b1.resolve(o))
 
 
 class ECMul(BuiltinFunction):
@@ -848,19 +853,24 @@ class ECMul(BuiltinFunction):
         placeholder_node = IRnode.from_list(
             context.new_internal_variable(BytesT(128)), typ=BytesT(128), location=MEMORY
         )
-        o = IRnode.from_list(
-            [
-                "seq",
-                ["mstore", placeholder_node, _getelem(args[0], 0)],
-                ["mstore", ["add", placeholder_node, 32], _getelem(args[0], 1)],
-                ["mstore", ["add", placeholder_node, 64], args[1]],
-                ["assert", ["staticcall", ["gas"], 7, placeholder_node, 96, placeholder_node, 64]],
-                placeholder_node,
-            ],
-            typ=SArrayT(UINT256_T, 2),
-            location=MEMORY,
-        )
-        return o
+
+        with args[0].cache_when_complex("a") as (b1, a), args[1].cache_when_complex("b") as (b2, b):
+            o = IRnode.from_list(
+                [
+                    "seq",
+                    ["mstore", placeholder_node, _getelem(a, 0)],
+                    ["mstore", ["add", placeholder_node, 32], _getelem(a, 1)],
+                    ["mstore", ["add", placeholder_node, 64], b],
+                    [
+                        "assert",
+                        ["staticcall", ["gas"], 7, placeholder_node, 96, placeholder_node, 64],
+                    ],
+                    placeholder_node,
+                ],
+                typ=SArrayT(UINT256_T, 2),
+                location=MEMORY,
+            )
+            return b2.resolve(b1.resolve(o))
 
 
 def _generic_element_getter(op):
