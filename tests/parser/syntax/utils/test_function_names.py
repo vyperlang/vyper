@@ -35,6 +35,11 @@ def false(i: int128) -> int128:
     temp_var : int128 = i
     return temp_var
     """,
+    """
+@external
+def floor():
+    pass
+    """
 ]
 
 
