@@ -83,8 +83,6 @@ class _ExprAnalyser:
                 return ExprInfo.from_varinfo(t)
 
             # it's something else, like my_struct.foo
-            # sanity check
-            assert t is info.typ.get_member(name, node)
             return info.copy_with_type(t)
 
         if isinstance(node, vy_ast.Tuple):
