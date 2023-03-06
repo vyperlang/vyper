@@ -2017,7 +2017,11 @@ class _MinMax(BuiltinFunction):
             or max(left, right) > SizeLimits.MAX_AST_DECIMAL
         ):
             raise InvalidType("Decimal value is outside of allowable range", node)
-        if isinstance(left, int) and (min(left, right) < 0 and max(left, right) >= 2 ** 127):
+
+        types_list = get_common_types(
+            *node.args, filter_fn=lambda x: isinstance(x, (IntegerT, DecimalT))
+        )
+        if not types_list:
             raise TypeMismatch("Cannot perform action between dislike numeric types", node)
 
         value = self._eval_fn(left, right)
@@ -2582,10 +2586,14 @@ class _MinMaxValue(TypenameFoldedFunction):
         val = self._eval(input_type)
 
         if isinstance(input_type, DecimalT):
-            return vy_ast.Decimal.from_node(node, value=val)
+            ret = vy_ast.Decimal.from_node(node, value=val)
 
         if isinstance(input_type, IntegerT):
-            return vy_ast.Int.from_node(node, value=val)
+            ret = vy_ast.Int.from_node(node, value=val)
+
+        # TODO: to change to known_type once #3213 is merged
+        ret._metadata["type"] = input_type
+        return ret
 
 
 class MinValue(_MinMaxValue):
