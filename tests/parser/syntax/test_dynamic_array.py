@@ -16,6 +16,14 @@ foo: public(DynArray[HashMap[uint8, uint8], 2])
     """,
         StructureException,
     ),
+    (
+        """
+@external
+def foo():
+    a: DynArray = [1, 2, 3]
+    """,
+        StructureException,
+    ),
 ]
 
 

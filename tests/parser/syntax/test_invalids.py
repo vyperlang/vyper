@@ -363,6 +363,13 @@ def a():
     UnknownAttribute,
 )
 
+must_fail(
+    """
+a: HashMap
+""",
+    StructureException,
+)
+
 
 @pytest.mark.parametrize("bad_code,exception_type", fail_list)
 def test_compilation_fails_with_exception(bad_code, exception_type):
