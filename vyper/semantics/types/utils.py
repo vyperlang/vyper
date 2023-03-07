@@ -104,7 +104,12 @@ def type_from_annotation(node: vy_ast.VyperNode) -> VyperType:
     if node.id not in namespace:
         _failwith(node.node_source_code)
 
-    return namespace[node.id]
+    typ_ = namespace[node.id]
+    if hasattr(typ_, "from_annotation"):
+        # for its side effects (will throw if there is a structure exception)
+        typ_.from_annotation(node)
+
+    return typ_
 
 
 def get_index_value(node: vy_ast.Index) -> int:
