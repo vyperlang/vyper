@@ -1,7 +1,13 @@
 import pytest
 
 from vyper import compiler
-from vyper.exceptions import InvalidOperation, InvalidType, SyntaxException, TypeMismatch
+from vyper.exceptions import (
+    InvalidOperation,
+    InvalidType,
+    StructureException,
+    SyntaxException,
+    TypeMismatch,
+)
 
 fail_list = [
     (
@@ -76,6 +82,14 @@ def test() -> Bytes[1]:
     return a
     """,
         SyntaxException,
+    ),
+    (
+        """
+@external
+def foo():
+    a: Bytes = b"abc"
+    """,
+        StructureException,
     ),
 ]
 
